@@ -51,9 +51,10 @@ export class FilesQuickAccessProvider extends PickerQuickAccessProvider {
       return [];
     }
 
-    const candidateFileIds = getCandidateFileIds(paneInput);
+    const files = getQuickAccessFiles(paneInput);
+    const candidateFileIds = getCandidateFileIds(files);
     const normalizedFilter = filter.trim().toLowerCase();
-    return paneInput.files
+    return files
       .map(file => {
         const fileId = normalizeFileId(file.fileId);
         if (!fileId) {
@@ -69,7 +70,7 @@ export class FilesQuickAccessProvider extends PickerQuickAccessProvider {
               kind: selectionKind,
             }, "force");
           },
-          description: file.relativePath ?? file.sourcePath ?? undefined,
+          description: getFileDescription(file),
           id: fileId,
           label,
         };
@@ -80,8 +81,15 @@ export class FilesQuickAccessProvider extends PickerQuickAccessProvider {
   }
 }
 
-const getCandidateFileIds = (paneInput: ExplorerPaneInput): readonly string[] =>
-  paneInput.files
+const getQuickAccessFiles = (
+  paneInput: ExplorerPaneInput,
+): ExplorerPaneInput["files"] =>
+  paneInput.quickAccessFiles?.length ? paneInput.quickAccessFiles : paneInput.files;
+
+const getCandidateFileIds = (
+  files: ExplorerPaneInput["files"],
+): readonly string[] =>
+  files
     .map(file => normalizeFileId(file.fileId))
     .filter((fileId): fileId is string => Boolean(fileId));
 
@@ -89,3 +97,59 @@ const normalizeFileId = (fileId: unknown): string | null => {
   const normalized = String(fileId ?? "").trim();
   return normalized || null;
 };
+
+const getFileDescription = (
+  file: ExplorerPaneInput["files"][number],
+): string | undefined => {
+  const path = getFirstNonEmptyText(
+    file.relativePath,
+    file.sourcePath,
+    file.normalizedCsvPath,
+  );
+  const directoryPath = getDirectoryPath(path, String(file.fileName ?? file.fileId ?? ""));
+  return directoryPath || undefined;
+};
+
+const getDirectoryPath = (
+  path: string,
+  fileName: string,
+): string => {
+  const normalizedPath = normalizePathText(path);
+  if (!normalizedPath) {
+    return "";
+  }
+
+  const normalizedFileName = normalizePathText(fileName);
+  if (
+    normalizedFileName &&
+    normalizedPath.toLowerCase().endsWith(`/${normalizedFileName.toLowerCase()}`)
+  ) {
+    return normalizedPath.slice(0, -normalizedFileName.length - 1);
+  }
+
+  if (normalizedPath === normalizedFileName) {
+    return "";
+  }
+
+  return normalizedPath;
+};
+
+const getFirstNonEmptyText = (
+  ...values: readonly unknown[]
+): string => {
+  for (const value of values) {
+    const text = normalizePathText(value);
+    if (text) {
+      return text;
+    }
+  }
+
+  return "";
+};
+
+const normalizePathText = (
+  value: unknown,
+): string =>
+  String(value ?? "")
+    .trim()
+    .replace(/\\/g, "/");

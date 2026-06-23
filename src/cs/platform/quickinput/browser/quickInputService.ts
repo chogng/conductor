@@ -163,7 +163,7 @@ export class BrowserQuickInputService extends Disposable implements IQuickInputS
   ): void {
     const visibleItems = preserveVisibleItems
       ? activeQuickPick.visibleItems
-      : getVisibleItems(activeQuickPick.items, filter).slice(0, 30);
+      : getVisibleItems(activeQuickPick.items, filter);
     activeQuickPick.visibleItems = visibleItems;
     activeQuickPick.activeIndex = clampActiveIndex(activeQuickPick.activeIndex, visibleItems.length);
     activeQuickPick.list.replaceChildren();

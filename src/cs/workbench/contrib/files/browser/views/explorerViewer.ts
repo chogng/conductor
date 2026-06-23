@@ -195,6 +195,12 @@ type FileFastAssessment = {
   readonly type: string;
 };
 
+type FileHoverContext = {
+  readonly fileName: string;
+  readonly path: string;
+  readonly typeLabel: string;
+};
+
 type FileItemTemplate = {
   readonly actions: HTMLDivElement;
   readonly assessment: ExplorerBadgeNode;
@@ -232,11 +238,16 @@ type TreeModelCache = {
 type HoverContent =
   | {
     readonly kind: "assessment";
+    readonly fileContext: FileHoverContext | null;
     readonly isWarning: boolean;
     readonly type: string;
     readonly confidence: string;
     readonly reasons: readonly string[];
     readonly template: string;
+  }
+  | {
+    readonly kind: "file";
+    readonly fileContext: FileHoverContext;
   }
   | {
     readonly kind: "thumbnail";
@@ -513,6 +524,106 @@ const getFileRenderKey = (
       "",
   );
 
+const createFileHoverContext = (
+  fileEntry: ExplorerFileEntry,
+): FileHoverContext | null => {
+  const fileName = normalizeFileHoverText(getFileName(fileEntry));
+  const path = getFileHoverPath(fileEntry);
+  const typeLabel = getFileHoverTypeLabel(fileEntry);
+  if (!fileName && !path && !typeLabel) {
+    return null;
+  }
+
+  return {
+    fileName,
+    path,
+    typeLabel,
+  };
+};
+
+const createFileHoverContextSignature = (
+  fileEntry: ExplorerFileEntry,
+): string => {
+  const context = createFileHoverContext(fileEntry);
+  if (!context) {
+    return "";
+  }
+
+  return [
+    context.fileName,
+    context.path,
+    context.typeLabel,
+  ].join("\u001d");
+};
+
+const getFileHoverPath = (
+  fileEntry: ExplorerFileEntry,
+): string => {
+  const path = getFirstFileHoverText(
+    fileEntry.relativePath,
+    fileEntry.sourcePath,
+    fileEntry.normalizedCsvPath,
+  );
+  return getFileHoverDirectoryPath(path, getFileName(fileEntry));
+};
+
+const getFileHoverDirectoryPath = (
+  path: string,
+  fileName: string,
+): string => {
+  const normalizedPath = normalizeFileHoverText(path);
+  if (!normalizedPath) {
+    return "";
+  }
+
+  const normalizedFileName = normalizeFileHoverText(fileName);
+  if (
+    normalizedFileName &&
+    normalizedPath.toLowerCase().endsWith(`/${normalizedFileName.toLowerCase()}`)
+  ) {
+    return normalizedPath.slice(0, -normalizedFileName.length - 1);
+  }
+
+  if (normalizedPath === normalizedFileName) {
+    return "";
+  }
+
+  return normalizedPath;
+};
+
+const getFileHoverTypeLabel = (
+  fileEntry: ExplorerFileEntry,
+): string => {
+  if (fileEntry.badgeState?.kind === "ready") {
+    return normalizeFileHoverText(fileEntry.badgeState.label);
+  }
+
+  return getFirstFileHoverText(
+    fileEntry.curveTypeBadgeLabel,
+    fileEntry.curveType,
+  );
+};
+
+const getFirstFileHoverText = (
+  ...values: readonly unknown[]
+): string => {
+  for (const value of values) {
+    const text = normalizeFileHoverText(value);
+    if (text) {
+      return text;
+    }
+  }
+
+  return "";
+};
+
+const normalizeFileHoverText = (
+  value: unknown,
+): string =>
+  String(value ?? "")
+    .trim()
+    .replace(/\\/g, "/");
+
 const createBadgePresentation = (
   fileKey: string,
   badge: FileItemAssessment | FileSourceStatusBadge | FileFastAssessment | FilePendingAssessment | null,
@@ -657,6 +768,39 @@ const createAssessmentRow = (
 
   row.append(term, description);
   return row;
+};
+
+const appendFileHoverContextRows = (
+  container: HTMLElement,
+  context: FileHoverContext | null,
+  options: {
+    readonly includeType: boolean;
+  } = { includeType: false },
+): void => {
+  if (!context) {
+    return;
+  }
+
+  if (context.fileName) {
+    container.appendChild(createAssessmentRow(
+      localize("files.hoverFileLabel", "File:"),
+      context.fileName,
+    ));
+  }
+
+  if (context.path && context.path !== context.fileName) {
+    container.appendChild(createAssessmentRow(
+      localize("files.hoverPathLabel", "Path:"),
+      context.path,
+    ));
+  }
+
+  if (options.includeType && context.typeLabel) {
+    container.appendChild(createAssessmentRow(
+      localize("files.hoverTypeLabel", "Type:"),
+      context.typeLabel,
+    ));
+  }
 };
 
 const appendIcon = (
@@ -1078,15 +1222,19 @@ export class ExplorerViewer implements IDisposable {
     entry: ExplorerFileEntry,
     props: ExplorerViewerProps,
   ): string {
-    return createExplorerFilePresentationSignature(entry, {
-      badgeColorSignature: this.getBadgeColorSignature(props.explorerAppearance?.badgeColors),
-      isEditing: props.editable?.isEditing === true &&
-        props.editable.resource.fileId === entry.fileId,
-      templateLabel: this.resolveFileTemplateLabel(entry, props),
-      templateSelectionId: getTemplateSelectionId(
-        this.resolveFileTemplateSelection(entry.fileId, props),
-      ),
-    });
+    return [
+      createExplorerFilePresentationSignature(entry, {
+        badgeColorSignature: this.getBadgeColorSignature(props.explorerAppearance?.badgeColors),
+        isEditing: props.editable?.isEditing === true &&
+          props.editable.resource.fileId === entry.fileId,
+        templateLabel: this.resolveFileTemplateLabel(entry, props),
+        templateSelectionId: getTemplateSelectionId(
+          this.resolveFileTemplateSelection(entry.fileId, props),
+        ),
+      }),
+      createFileHoverContextSignature(entry),
+      props.mode ?? "",
+    ].join("\u001f");
   }
 
   private getBadgeColorSignature(
@@ -2293,13 +2441,20 @@ export class ExplorerViewer implements IDisposable {
   }
 
   private resolveAssessmentHoverContent(item: HTMLElement): HoverContent | null {
+    const fileContext = this.resolveFileHoverContext(item);
     const type = item.dataset.autoType ?? "";
     if (!type) {
-      return null;
+      return fileContext
+        ? {
+            kind: "file",
+            fileContext,
+          }
+        : null;
     }
 
     return {
       kind: "assessment",
+      fileContext,
       isWarning: item.dataset.autoWarning === "true",
       type,
       confidence: item.dataset.autoConfidence ?? "",
@@ -2309,6 +2464,16 @@ export class ExplorerViewer implements IDisposable {
         .filter(Boolean),
       template: item.dataset.autoTemplate ?? "",
     };
+  }
+
+  private resolveFileHoverContext(item: HTMLElement): FileHoverContext | null {
+    const fileId = String(item.dataset.fileId ?? "").trim();
+    if (!fileId) {
+      return null;
+    }
+
+    const fileEntry = this.getExplorerFileEntryByFileId(fileId);
+    return fileEntry ? createFileHoverContext(fileEntry) : null;
   }
 
   private renderHoverContent(container: HTMLElement): void {
@@ -2347,11 +2512,19 @@ export class ExplorerViewer implements IDisposable {
     }
 
     delete container.dataset.hoverFileId;
-    container.dataset.hoverKind = "assessment";
+    container.dataset.hoverKind = content.kind;
     container.replaceChildren();
     const details = document.createElement("dl");
     details.className = "file-list-hover-assessment";
-    details.dataset.warning = content.isWarning ? "true" : "false";
+    details.dataset.warning = content.kind === "assessment" && content.isWarning ? "true" : "false";
+    appendFileHoverContextRows(details, content.fileContext, {
+      includeType: content.kind === "file",
+    });
+    if (content.kind === "file") {
+      container.appendChild(details);
+      return;
+    }
+
     details.append(
       createAssessmentRow(localize("files.autoTypeLabel", "Type:"), content.type),
       createAssessmentRow(localize("files.autoConfidenceLabel", "Confidence:"), content.confidence),
@@ -3063,6 +3236,10 @@ function isSameHoverContent(
     );
   }
 
+  if (left.kind === "file" && right.kind === "file") {
+    return areFileHoverContextsEqual(left.fileContext, right.fileContext);
+  }
+
   if (left.kind !== "assessment" || right.kind !== "assessment") {
     return false;
   }
@@ -3072,8 +3249,22 @@ function isSameHoverContent(
     left.confidence === right.confidence &&
     left.template === right.template &&
     left.isWarning === right.isWarning &&
+    areFileHoverContextsEqual(left.fileContext, right.fileContext) &&
     areStringArraysEqual(left.reasons, right.reasons)
   );
+}
+
+function areFileHoverContextsEqual(
+  first: FileHoverContext | null,
+  second: FileHoverContext | null,
+): boolean {
+  if (!first || !second) {
+    return first === second;
+  }
+
+  return first.fileName === second.fileName &&
+    first.path === second.path &&
+    first.typeLabel === second.typeLabel;
 }
 
 function getRevealInOSLabel(): string {

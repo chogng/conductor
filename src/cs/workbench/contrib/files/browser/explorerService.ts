@@ -384,6 +384,7 @@ const isSameExplorerPaneInput = (
     next.fileTemplateSelectionsByFileId ?? {},
   ) &&
   areExplorerFilesEqual(current.files, next.files) &&
+  areExplorerFilesEqual(current.quickAccessFiles ?? [], next.quickAccessFiles ?? []) &&
   areOriginPlotOptionsEqual(current.originOpenPlotOptions, next.originOpenPlotOptions) &&
   areShallowRecordsEqual(current.plotAxisSettings, next.plotAxisSettings) &&
   areProcessedEntriesEqual(current.thumbnailFiles, next.thumbnailFiles) &&

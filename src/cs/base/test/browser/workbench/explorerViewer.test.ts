@@ -70,6 +70,70 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     }
   });
 
+  test("shows table mode file context in the existing file item hover", () => {
+    const host = document.createElement("div");
+    const hoverHost = document.createElement("div");
+    const labels = new ResourceLabels();
+    const contextViewService = new TestContextViewService();
+    document.body.append(hoverHost);
+    hoverHost.append(host);
+
+    const props: ExplorerViewerProps = {
+      ...createViewerProps(),
+      contextViewService,
+      expandedFolderKeys: ["folder:293K", "folder:293K/output"],
+      files: [{
+        badgeState: {
+          confidence: "confirmed",
+          kind: "ready",
+          label: "output",
+          source: "assessment",
+        },
+        fileId: "file-a",
+        fileName: "Output_.csv",
+        itemKey: "file-a",
+        relativePath: "293K/output/Output_.csv",
+      }],
+      mode: "table",
+    };
+    const viewer = new ExplorerViewer(host, hoverHost, props, labels);
+
+    try {
+      const content = host.querySelector<HTMLElement>(".file-list-item-content");
+      assert.ok(content);
+      assert.equal(content.hasAttribute("title"), false);
+
+      const item = host.querySelector<HTMLElement>(".file-list-item");
+      assert.ok(item);
+      item.dispatchEvent(new MouseEvent("mouseover", {
+        bubbles: true,
+        relatedTarget: null,
+      }));
+
+      const rows = [...(contextViewService.renderedElement?.querySelectorAll<HTMLElement>(".file-list-hover-assessment-row") ?? [])]
+        .map(row => [
+          row.querySelector(".file-list-hover-assessment-label")?.textContent ?? "",
+          row.querySelector(".file-list-hover-assessment-value")?.textContent ?? "",
+        ]);
+      assert.deepEqual(rows, [
+        ["File:", "Output_.csv"],
+        ["Path:", "293K/output"],
+        ["Type:", "output"],
+      ]);
+
+      viewer.setProps({
+        ...props,
+        mode: "chart",
+      });
+
+      assert.equal(content.hasAttribute("title"), false);
+    } finally {
+      viewer.dispose();
+      labels.dispose();
+      hoverHost.remove();
+    }
+  });
+
   test("hides file item hover after leaving the row for the hover layer", async () => {
     const host = document.createElement("div");
     const hoverHost = document.createElement("div");

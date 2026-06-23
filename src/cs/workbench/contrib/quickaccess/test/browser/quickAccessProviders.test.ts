@@ -60,6 +60,49 @@ suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
       activePlotType: "iv",
       files: [
         { fileId: "file-a", fileName: "Alpha.csv" },
+      ],
+      quickAccessFiles: [
+        { fileId: "file-a", fileName: "Alpha.csv", relativePath: "293K/input/Alpha.csv" },
+        { fileId: "file-b", fileName: "Beta.csv", relativePath: "293K/output/Beta.csv" },
+      ],
+      mode: "chart",
+      selectedFileId: "file-a",
+      selectionKind: "chart",
+      thumbnailFiles: [],
+    };
+    const provider = new FilesQuickAccessProvider(
+      createExplorerService(paneInput, selections),
+      { activeWorkbenchMainPart: "chart" } as unknown as IWorkbenchLayoutService,
+    );
+    const picks = await provider.provide("beta");
+
+    assert.deepEqual(picks.map(pick => ({
+      description: pick.description,
+      label: pick.label,
+    })), [{
+      description: "293K/output",
+      label: "Beta.csv",
+    }]);
+    picks[0]?.accept?.();
+    assert.deepEqual(selections, [{
+      reveal: "force",
+      target: {
+        candidateFileIds: ["file-a", "file-b"],
+        fileId: "file-b",
+        kind: "chart",
+      },
+    }]);
+  });
+
+  test("files provider falls back to rendered Explorer files", async () => {
+    const selections: Array<{
+      readonly reveal: ExplorerRevealMode | undefined;
+      readonly target: ExplorerSelectionTarget;
+    }> = [];
+    const paneInput: ExplorerPaneInput = {
+      activePlotType: "iv",
+      files: [
+        { fileId: "file-a", fileName: "Alpha.csv" },
         { fileId: "file-b", fileName: "Beta.csv" },
       ],
       mode: "chart",

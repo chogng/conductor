@@ -666,20 +666,21 @@ export const createExplorerPaneInput = ({
   const isChartMode = mode === "chart";
   const isThumbnailLayout = isChartMode && explorerService.viewLayout === "thumbnail";
   const selectionKind: ExplorerSelectionKind = isChartMode ? "chart" : "table";
+  const rawExplorerFiles = applyFastExplorerBadges(
+    applyAssessmentQueueExplorerBadges(
+      createRawExplorerFiles(rawFiles),
+      snapshot,
+      assessmentQueueSnapshot,
+    ),
+    snapshot,
+  );
   const files = applyChartExplorerStates(isThumbnailLayout
     ? createChartExplorerFilesFromRecords(
       snapshot.filesById,
       snapshot.fileOrder,
       rawFiles,
     )
-    : applyFastExplorerBadges(
-      applyAssessmentQueueExplorerBadges(
-        createRawExplorerFiles(rawFiles),
-        snapshot,
-        assessmentQueueSnapshot,
-      ),
-      snapshot,
-    ), {
+    : rawExplorerFiles, {
       applyStatesByFileId,
       isChartMode,
       snapshot,
@@ -703,6 +704,7 @@ export const createExplorerPaneInput = ({
     mode,
     originOpenPlotOptions,
     plotAxisSettings,
+    quickAccessFiles: rawExplorerFiles,
     selectedFileId,
     selectionKind,
     thumbnailFiles: readModel.processedFiles,

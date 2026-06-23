@@ -60,6 +60,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.equal(input.selectionKind, "table");
     assert.equal(input.selectedFileId, null);
     assert.deepEqual(input.files, []);
+    assert.deepEqual(input.quickAccessFiles, []);
     assert.deepEqual(input.thumbnailFiles, []);
     assert.equal(input.currentTemplateLabel, "Template A");
     assert.deepEqual(input.currentTemplateSelection, {
@@ -432,6 +433,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.equal(input.selectionKind, "chart");
     assert.equal(input.selectedFileId, "file-a");
     assert.deepEqual(input.files.map(file => file.fileId), ["file-a"]);
+    assert.deepEqual(input.quickAccessFiles?.map(file => file.fileId), ["file-a", "raw-only"]);
     assert.deepEqual(input.thumbnailFiles.map(file => file.fileId), ["file-a"]);
     assert.equal(input.thumbnailPlotModelsByFileId, undefined);
     assert.equal(input.originOpenPlotOptions, DEFAULT_ORIGIN_PLOT_OPTIONS);

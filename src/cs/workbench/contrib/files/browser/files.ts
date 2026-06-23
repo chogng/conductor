@@ -41,6 +41,7 @@ export type ExplorerPaneInput = {
   readonly mode: WorkbenchMainPart;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
+  readonly quickAccessFiles?: ExplorerFileEntry[];
   readonly selectedFileId: string | null;
   readonly selectionKind: ExplorerSelectionKind;
   readonly thumbnailFiles: ProcessedEntry[];

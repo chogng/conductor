@@ -5,52 +5,61 @@
 //#region imports
 
 import {
+  runWhenWindowIdle,
+  scheduleAtNextAnimationFrame,
+} from "src/cs/base/browser/dom";
+import { Lazy } from "src/cs/base/common/lazy";
+import {
   DisposableStore,
   type IDisposable,
 } from "src/cs/base/common/lifecycle";
-import type { LanguagePreference } from "src/cs/base/common/platform";
+import {
+  isLanguagePreference,
+  type LanguagePreference,
+} from "src/cs/base/common/platform";
 import type { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import type { IFileService } from "src/cs/platform/files/common/files";
 import type { INativeHostService } from "src/cs/platform/native/common/native";
-import type { ICommandService } from "src/cs/platform/commands/common/commands";
-import type { IMenuService } from "src/cs/platform/actions/common/actions";
-import type { IStorageService } from "src/cs/platform/storage/common/storage";
-import type {
-  IContextKey,
+import { ICommandService } from "src/cs/platform/commands/common/commands";
+import { IMenuService } from "src/cs/platform/actions/common/actions";
+import { IStorageService } from "src/cs/platform/storage/common/storage";
+import {
   IContextKeyService,
+  type IContextKey,
 } from "src/cs/platform/contextkey/common/contextkey";
+import type {
+  IInstantiationService,
+  ServicesAccessor,
+} from "src/cs/platform/instantiation/common/instantiation";
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
 import {
   ChartViewId,
-  type IChartService,
+  IChartService,
 } from "src/cs/workbench/services/chart/common/chart";
-import type { ICalculationService } from "src/cs/workbench/services/calculation/common/calculation";
-import type {
+import { ICalculationService } from "src/cs/workbench/services/calculation/common/calculation";
+import {
   IAssessmentQueueService,
 } from "src/cs/workbench/services/assessment/common/assessment";
 import {
   ExplorerViewId,
-  type IExplorerService,
+  IExplorerService,
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
-  type IParametersService,
+  IParametersService,
 } from "src/cs/workbench/services/parameters/common/parameters";
-import type { IPlotService } from "src/cs/workbench/services/plot/common/plot";
-import type { IThumbnailPreviewService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
+import { IPlotService } from "src/cs/workbench/services/plot/common/plot";
+import { IThumbnailPreviewService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import {
+  ISettingsService,
   SettingsViewId,
-  type ISettingsService,
   type SettingsServiceOptions,
 } from "src/cs/workbench/services/settings/common/settings";
 import {
+  IWorkbenchLayoutService,
   Parts,
-  type IWorkbenchLayoutService,
   type WorkbenchMainPart,
 } from "src/cs/workbench/services/layout/browser/layoutService";
-import type { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
-import {
-  isLanguagePreference,
-} from "src/cs/base/common/platform";
+import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import { localize } from "src/cs/nls";
 import { isThemeMode } from "src/cs/workbench/common/theme";
 import { startPerf } from "src/cs/workbench/common/perf";
@@ -59,10 +68,11 @@ import {
   ActiveAuxiliaryBarViewContext,
   ActiveWorkbenchMainPartContext,
   ActiveWorkbenchViewContext,
+  WorkbenchContextKeysHandler,
 } from "src/cs/workbench/browser/contextkeys";
 import { Layout } from "src/cs/workbench/browser/layout";
 import {
-  type ITitleService,
+  ITitleService,
   type WorkbenchTitlebarState,
 } from "src/cs/workbench/services/title/browser/titleService";
 import { getWorkbenchWindowState } from "src/cs/workbench/browser/parts/titlebar/windowTitle";
@@ -78,11 +88,12 @@ import {
   WorkbenchDomainBridge,
   resolveExplorerSessionSelection,
 } from "src/cs/workbench/browser/workbenchDomainBridge";
-import type { ITableService } from "src/cs/workbench/services/table/common/table";
+import { ITableService } from "src/cs/workbench/services/table/common/table";
 import { TableViewId } from "src/cs/workbench/contrib/table/common/table";
-import type {
-  ISessionService as ISessionServiceType,
-  SessionSnapshot,
+import {
+  ISessionService,
+  type ISessionService as ISessionServiceType,
+  type SessionSnapshot,
 } from "src/cs/workbench/services/session/common/session";
 import type {
   SessionChangeEvent,
@@ -95,18 +106,23 @@ import {
   createSessionReadModel,
   type SessionReadModel,
 } from "src/cs/workbench/services/session/common/sessionReadModel";
-import type {
+import {
   ITemplateApplyWorkflowService,
   ITemplateService,
+  type ITemplateApplyWorkflowService as ITemplateApplyWorkflowServiceType,
+  type ITemplateService as ITemplateServiceType,
 } from "src/cs/workbench/services/template/common/template";
-import type {
-  ExportState,
+import {
   IExportService,
+  type ExportState,
 } from "src/cs/workbench/services/export/common/export";
 import type {
   ProcessedEntry,
 } from "src/cs/workbench/services/session/common/sessionTypes";
-import { NotificationService } from "src/cs/workbench/services/notification/common/notificationService";
+import {
+  INotificationService,
+  NotificationService,
+} from "src/cs/workbench/services/notification/common/notificationService";
 import { NotificationToasts } from "src/cs/workbench/browser/parts/notifications/notificationsToasts";
 import { registerNotificationCommands } from "src/cs/workbench/browser/parts/notifications/notificationsCommands";
 
@@ -156,6 +172,7 @@ export type WorkbenchOptions = {
   readonly settingsService?: ISettingsService;
   readonly viewsService?: IViewsService;
   readonly id?: string;
+  readonly instantiationService?: IInstantiationService;
   readonly showDesktopCommandBar?: boolean;
   readonly showSkeleton?: boolean;
   readonly style?: WorkbenchStyle;
@@ -166,6 +183,153 @@ export type WorkbenchOptions = {
   readonly titleService?: ITitleService;
   readonly titlebarState?: WorkbenchTitlebarState;
 };
+
+type WorkbenchShellServices = {
+  readonly layoutService?: IWorkbenchLayoutService;
+  readonly storageService?: IStorageService;
+  readonly titleService?: ITitleService;
+};
+
+type WorkbenchServices = {
+  readonly assessmentQueueService: IAssessmentQueueService;
+  readonly calculationService: ICalculationService;
+  readonly chartService: IChartService;
+  readonly commandService: ICommandService;
+  readonly contextKeyService: IContextKeyService;
+  readonly explorerService: IExplorerService;
+  readonly exportService: IExportService;
+  readonly layoutService: IWorkbenchLayoutService;
+  readonly menuService: IMenuService;
+  readonly notificationService: NotificationService;
+  readonly parametersService: IParametersService;
+  readonly plotService: IPlotService;
+  readonly sessionService: ISessionServiceType;
+  readonly settingsService: ISettingsService;
+  readonly tableService: ITableService;
+  readonly templateApplyWorkflowService: ITemplateApplyWorkflowServiceType;
+  readonly templateService: ITemplateServiceType;
+  readonly thumbnailPreviewService: IThumbnailPreviewService;
+  readonly titleService: ITitleService;
+  readonly viewsService: IViewsService;
+};
+
+const hasExplicitWorkbenchServices = (options: WorkbenchOptions): boolean =>
+  Boolean(
+    options.assessmentQueueService &&
+    options.calculationService &&
+    options.chartService &&
+    options.commandService &&
+    options.contextKeyService &&
+    options.explorerService &&
+    options.exportService &&
+    options.layoutService &&
+    options.menuService &&
+    options.notificationService &&
+    options.parametersService &&
+    options.plotService &&
+    options.sessionService &&
+    options.settingsService &&
+    options.tableService &&
+    options.templateApplyWorkflowService &&
+    options.templateService &&
+    options.thumbnailPreviewService &&
+    options.titleService &&
+    options.viewsService,
+  );
+
+const shouldDeferWorkbenchServices = (options: WorkbenchOptions): boolean =>
+  Boolean(options.instantiationService && !hasExplicitWorkbenchServices(options));
+
+const requireWorkbenchService = <T>(serviceName: string, service: T | undefined): T => {
+  if (!service) {
+    throw new Error(`Workbench requires ${serviceName}.`);
+  }
+
+  return service;
+};
+
+const resolveWorkbenchShellServices = (options: WorkbenchOptions): WorkbenchShellServices => {
+  if (
+    !options.instantiationService ||
+    (options.layoutService && options.storageService && options.titleService)
+  ) {
+    return {
+      layoutService: options.layoutService,
+      storageService: options.storageService,
+      titleService: options.titleService,
+    };
+  }
+
+  return options.instantiationService.invokeFunction(accessor => ({
+    layoutService: options.layoutService ?? accessor.get(IWorkbenchLayoutService),
+    storageService: options.storageService ?? accessor.get(IStorageService),
+    titleService: options.titleService ?? accessor.get(ITitleService),
+  }));
+};
+
+const resolveWorkbenchServices = (
+  options: WorkbenchOptions,
+  shellServices: WorkbenchShellServices,
+): WorkbenchServices => {
+  if (options.instantiationService) {
+    return options.instantiationService.invokeFunction(accessor =>
+      createWorkbenchServicesFromAccessor(options, shellServices, accessor),
+    );
+  }
+
+  return {
+    assessmentQueueService: requireWorkbenchService("IAssessmentQueueService", options.assessmentQueueService),
+    calculationService: requireWorkbenchService("ICalculationService", options.calculationService),
+    chartService: requireWorkbenchService("IChartService", options.chartService),
+    commandService: requireWorkbenchService("ICommandService", options.commandService),
+    contextKeyService: requireWorkbenchService("IContextKeyService", options.contextKeyService),
+    explorerService: requireWorkbenchService("IExplorerService", options.explorerService),
+    exportService: requireWorkbenchService("IExportService", options.exportService),
+    layoutService: requireWorkbenchService("IWorkbenchLayoutService", options.layoutService ?? shellServices.layoutService),
+    menuService: requireWorkbenchService("IMenuService", options.menuService),
+    notificationService: requireWorkbenchService("INotificationService", options.notificationService),
+    parametersService: requireWorkbenchService("IParametersService", options.parametersService),
+    plotService: requireWorkbenchService("IPlotService", options.plotService),
+    sessionService: requireWorkbenchService("ISessionService", options.sessionService),
+    settingsService: requireWorkbenchService("ISettingsService", options.settingsService),
+    tableService: requireWorkbenchService("ITableService", options.tableService),
+    templateApplyWorkflowService: requireWorkbenchService(
+      "ITemplateApplyWorkflowService",
+      options.templateApplyWorkflowService,
+    ),
+    templateService: requireWorkbenchService("ITemplateService", options.templateService),
+    thumbnailPreviewService: requireWorkbenchService("IThumbnailPreviewService", options.thumbnailPreviewService),
+    titleService: requireWorkbenchService("ITitleService", options.titleService ?? shellServices.titleService),
+    viewsService: requireWorkbenchService("IViewsService", options.viewsService),
+  };
+};
+
+const createWorkbenchServicesFromAccessor = (
+  options: WorkbenchOptions,
+  shellServices: WorkbenchShellServices,
+  accessor: ServicesAccessor,
+): WorkbenchServices => ({
+  assessmentQueueService: options.assessmentQueueService ?? accessor.get(IAssessmentQueueService),
+  calculationService: options.calculationService ?? accessor.get(ICalculationService),
+  chartService: options.chartService ?? accessor.get(IChartService),
+  commandService: options.commandService ?? accessor.get(ICommandService),
+  contextKeyService: options.contextKeyService ?? accessor.get(IContextKeyService),
+  explorerService: options.explorerService ?? accessor.get(IExplorerService),
+  exportService: options.exportService ?? accessor.get(IExportService),
+  layoutService: options.layoutService ?? shellServices.layoutService ?? accessor.get(IWorkbenchLayoutService),
+  menuService: options.menuService ?? accessor.get(IMenuService),
+  notificationService: options.notificationService ?? accessor.get(INotificationService) as NotificationService,
+  parametersService: options.parametersService ?? accessor.get(IParametersService),
+  plotService: options.plotService ?? accessor.get(IPlotService),
+  sessionService: options.sessionService ?? accessor.get(ISessionService),
+  settingsService: options.settingsService ?? accessor.get(ISettingsService),
+  tableService: options.tableService ?? accessor.get(ITableService),
+  templateApplyWorkflowService: options.templateApplyWorkflowService ?? accessor.get(ITemplateApplyWorkflowService),
+  templateService: options.templateService ?? accessor.get(ITemplateService),
+  thumbnailPreviewService: options.thumbnailPreviewService ?? accessor.get(IThumbnailPreviewService),
+  titleService: options.titleService ?? shellServices.titleService ?? accessor.get(ITitleService),
+  viewsService: options.viewsService ?? accessor.get(IViewsService),
+});
 
 const getInitialLanguagePreference = (): LanguagePreference => {
   const settings = window.__CONDUCTOR_INITIAL_SETTINGS__;
@@ -187,39 +351,41 @@ export class Workbench extends Layout {
 
   private readonly window: WorkbenchWindow;
   private readonly notifications: NotificationToasts;
+  private readonly services: Lazy<WorkbenchServices>;
+  private readonly shellServices: WorkbenchShellServices;
   private languagePreference: LanguagePreference = getInitialLanguagePreference();
-  private readonly session: ISessionServiceType;
-  private readonly commandService: ICommandService;
-  private readonly contextKeyService: IContextKeyService;
-  private readonly activeWorkbenchViewContext: IContextKey<string> | null = null;
-  private readonly activeWorkbenchMainPartContext: IContextKey<WorkbenchMainPart | ""> | null = null;
-  private readonly activeAuxiliaryBarViewContext: IContextKey<string> | null = null;
-  private readonly templateApplyWorkflowService: ITemplateApplyWorkflowService;
-  private readonly dialogsService: IFileDialogService;
-  private readonly assessmentQueueService: IAssessmentQueueService;
-  private readonly calculationService: ICalculationService;
-  private readonly chartService: IChartService;
-  private readonly explorerService: IExplorerService;
-  private readonly filesService: IFileService;
-  private readonly layoutService: IWorkbenchLayoutService;
-  private readonly menuService: IMenuService;
-  private readonly notificationService: NotificationService;
-  private readonly parametersService: IParametersService;
-  private readonly plotService: IPlotService;
-  private readonly settingsService: ISettingsService;
-  private readonly pathService: IPathService;
-  private readonly viewsService: IViewsService;
-  private readonly tableService: ITableService;
-  private readonly templateService: ITemplateService;
-  private readonly thumbnailPreviewService: IThumbnailPreviewService;
-  private readonly titleService: ITitleService;
-  private readonly exportService: IExportService;
-  private readonly domainBridge: WorkbenchDomainBridge;
+  private serviceStartupState: "pending" | "starting" | "started" | "failed" = "pending";
+  private disposed = false;
+  private session!: ISessionServiceType;
+  private commandService!: ICommandService;
+  private contextKeyService!: IContextKeyService;
+  private activeWorkbenchViewContext: IContextKey<string> | null = null;
+  private activeWorkbenchMainPartContext: IContextKey<WorkbenchMainPart | ""> | null = null;
+  private activeAuxiliaryBarViewContext: IContextKey<string> | null = null;
+  private templateApplyWorkflowService!: ITemplateApplyWorkflowServiceType;
+  private assessmentQueueService!: IAssessmentQueueService;
+  private calculationService!: ICalculationService;
+  private chartService!: IChartService;
+  private explorerService!: IExplorerService;
+  private layoutService!: IWorkbenchLayoutService;
+  private menuService!: IMenuService;
+  private notificationService!: NotificationService;
+  private parametersService!: IParametersService;
+  private plotService!: IPlotService;
+  private settingsService!: ISettingsService;
+  private viewsService!: IViewsService;
+  private tableService!: ITableService;
+  private templateService!: ITemplateServiceType;
+  private thumbnailPreviewService!: IThumbnailPreviewService;
+  private titleService!: ITitleService;
+  private exportService!: IExportService;
+  private domainBridge: WorkbenchDomainBridge | null = null;
   private readonly auxiliaryBarModel = new AuxiliaryBarModel();
   private cancelScheduledAuxiliarySurfacesRefresh: (() => void) | null = null;
   private readonly scheduledAuxiliarySurfacesRefreshReasons = new Set<WorkbenchAuxiliaryRefreshReason>();
   private scheduledAuxiliarySurfacesRefreshNeedsChrome = false;
   private lastObservedExportState: ExportState | null = null;
+  private titlebarState: WorkbenchTitlebarState | undefined;
   //#endregion
 
   //#region lifecycle and rendering
@@ -229,119 +395,94 @@ export class Workbench extends Layout {
   }
 
   constructor(parent: HTMLElement, options: WorkbenchOptions = {}) {
-    super(undefined, options.layoutService, options.storageService);
+    const shellServices = resolveWorkbenchShellServices(options);
+    super(undefined, shellServices.layoutService, shellServices.storageService);
 
+    const deferServiceStartup = shouldDeferWorkbenchServices(options);
+    this.shellServices = shellServices;
+    this.services = new Lazy(() => resolveWorkbenchServices(options, shellServices));
+    this.titlebarState = options.titlebarState;
     this.window = this._register(new WorkbenchWindow(parent, {
       ...options,
-      showSkeleton: false,
-      titleService: options.titleService,
+      showSkeleton: deferServiceStartup || options.showSkeleton === true,
+      titleService: shellServices.titleService ?? options.titleService,
     }));
     this.notifications = this._register(new NotificationToasts());
     this.mount(this.window.contentElement);
-    if (!options.sessionService) {
-      throw new Error("Workbench requires ISessionService.");
+    if ("titlebarState" in options) {
+      shellServices.titleService?.updateTitlebarState(options.titlebarState);
     }
-    if (!options.tableService) {
-      throw new Error("Workbench requires ITableService.");
+
+    if (deferServiceStartup) {
+      this.scheduleServiceLayerStartup();
+    } else {
+      this.startServiceLayer();
     }
-    if (!options.filesService) {
-      throw new Error("Workbench requires IFileService.");
+  }
+
+  private scheduleServiceLayerStartup(): void {
+    this._register(scheduleAtNextAnimationFrame(window, () => {
+      if (this.disposed) {
+        return;
+      }
+
+      this._register(runWhenWindowIdle(window, () => {
+        this.startServiceLayer();
+      }, 500));
+    }));
+  }
+
+  private startServiceLayer(): void {
+    if (
+      this.disposed ||
+      this.serviceStartupState === "starting" ||
+      this.serviceStartupState === "started"
+    ) {
+      return;
     }
-    if (!options.chartService) {
-      throw new Error("Workbench requires IChartService.");
+
+    this.serviceStartupState = "starting";
+    try {
+      this.installServiceLayer(this.services.value);
+      this.serviceStartupState = "started";
+    } catch (error) {
+      this.serviceStartupState = "failed";
+      throw error;
     }
-    if (!options.assessmentQueueService) {
-      throw new Error("Workbench requires IAssessmentQueueService.");
-    }
-    if (!options.calculationService) {
-      throw new Error("Workbench requires ICalculationService.");
-    }
-    if (!options.dialogsService) {
-      throw new Error("Workbench requires IFileDialogService.");
-    }
-    if (!options.explorerService) {
-      throw new Error("Workbench requires IExplorerService.");
-    }
-    if (!options.exportService) {
-      throw new Error("Workbench requires IExportService.");
-    }
-    if (!options.commandService) {
-      throw new Error("Workbench requires ICommandService.");
-    }
-    if (!options.contextKeyService) {
-      throw new Error("Workbench requires IContextKeyService.");
-    }
-    if (!options.pathService) {
-      throw new Error("Workbench requires IPathService.");
-    }
-    if (!options.storageService) {
-      throw new Error("Workbench requires IStorageService.");
-    }
-    if (!options.layoutService) {
-      throw new Error("Workbench requires IWorkbenchLayoutService.");
-    }
-    if (!options.menuService) {
-      throw new Error("Workbench requires IMenuService.");
-    }
-    if (!options.notificationService) {
-      throw new Error("Workbench requires INotificationService.");
-    }
-    if (!options.parametersService) {
-      throw new Error("Workbench requires IParametersService.");
-    }
-    if (!options.plotService) {
-      throw new Error("Workbench requires IPlotService.");
-    }
-    if (!options.settingsService) {
-      throw new Error("Workbench requires ISettingsService.");
-    }
-    if (!options.viewsService) {
-      throw new Error("Workbench requires IViewsService.");
-    }
-    if (!options.templateApplyWorkflowService) {
-      throw new Error("Workbench requires ITemplateApplyWorkflowService.");
-    }
-    if (!options.templateService) {
-      throw new Error("Workbench requires ITemplateService.");
-    }
-    if (!options.thumbnailPreviewService) {
-      throw new Error("Workbench requires IThumbnailPreviewService.");
-    }
-    if (!options.titleService) {
-      throw new Error("Workbench requires ITitleService.");
-    }
-    this.filesService = options.filesService;
-    this.assessmentQueueService = options.assessmentQueueService;
-    this.calculationService = options.calculationService;
-    this.chartService = options.chartService;
-    this.dialogsService = options.dialogsService;
-    this.explorerService = options.explorerService;
-    this.exportService = options.exportService;
-    this.commandService = options.commandService;
-    this.contextKeyService = options.contextKeyService;
-    this.layoutService = options.layoutService;
-    this.menuService = options.menuService;
-    this.notificationService = options.notificationService;
-    this.parametersService = options.parametersService;
-    this.plotService = options.plotService;
-    this.settingsService = options.settingsService;
-    this.activeWorkbenchViewContext = ActiveWorkbenchViewContext.bindTo(options.contextKeyService);
-    this.activeWorkbenchMainPartContext = ActiveWorkbenchMainPartContext.bindTo(options.contextKeyService);
-    this.activeAuxiliaryBarViewContext = ActiveAuxiliaryBarViewContext.bindTo(options.contextKeyService);
-    this.pathService = options.pathService;
-    this.session = options.sessionService;
-    this.viewsService = options.viewsService;
-    this.tableService = options.tableService;
-    this.templateApplyWorkflowService = options.templateApplyWorkflowService;
-    this.templateService = options.templateService;
-    this.thumbnailPreviewService = options.thumbnailPreviewService;
-    this.titleService = options.titleService;
+  }
+
+  private installServiceLayer(services: WorkbenchServices): void {
+    this.assessmentQueueService = services.assessmentQueueService;
+    this.calculationService = services.calculationService;
+    this.chartService = services.chartService;
+    this.commandService = services.commandService;
+    this.contextKeyService = services.contextKeyService;
+    this.explorerService = services.explorerService;
+    this.exportService = services.exportService;
+    this.layoutService = services.layoutService;
+    this.menuService = services.menuService;
+    this.notificationService = services.notificationService;
+    this.parametersService = services.parametersService;
+    this.plotService = services.plotService;
+    this.settingsService = services.settingsService;
+    this.session = services.sessionService;
+    this.viewsService = services.viewsService;
+    this.tableService = services.tableService;
+    this.templateApplyWorkflowService = services.templateApplyWorkflowService;
+    this.templateService = services.templateService;
+    this.thumbnailPreviewService = services.thumbnailPreviewService;
+    this.titleService = services.titleService;
+
+    this._register(new WorkbenchContextKeysHandler(this.contextKeyService));
+    this.activeWorkbenchViewContext = ActiveWorkbenchViewContext.bindTo(this.contextKeyService);
+    this.activeWorkbenchMainPartContext = ActiveWorkbenchMainPartContext.bindTo(this.contextKeyService);
+    this.activeAuxiliaryBarViewContext = ActiveAuxiliaryBarViewContext.bindTo(this.contextKeyService);
     this.lastObservedExportState = this.exportService.getState();
-    this.titleService.updateTitlebarState(options.titlebarState);
+    this.titleService.updateTitlebarState(this.titlebarState);
     const initialViewMode = resolveInitialWorkbenchViewMode(this.session.getSnapshot());
     this._register(this.createNotificationsHandlers());
     this.settingsService.update(this.getSettingsServiceOptions());
-    this.domainBridge = this._register(new WorkbenchDomainBridge({
+    const domainBridge = this._register(new WorkbenchDomainBridge({
       assessmentQueueService: this.assessmentQueueService,
       calculationService: this.calculationService,
       chartService: this.chartService,
@@ -355,6 +496,7 @@ export class Workbench extends Layout {
       templateService: this.templateService,
       thumbnailPreviewService: this.thumbnailPreviewService,
     }));
+    this.domainBridge = domainBridge;
     this._register(this.settingsService.onDidChangeConductorSettings(() => {
       this.scheduleWorkbenchAuxiliarySurfacesRefresh("settings", true);
     }));
@@ -398,22 +540,34 @@ export class Workbench extends Layout {
       }
     }));
     this.resetToView(initialViewMode);
-    this.domainBridge.sync();
+    domainBridge.sync();
     this.refreshWorkbench("initial");
+  }
+
+  private getActiveTitleService(): ITitleService | undefined {
+    return this.serviceStartupState === "started"
+      ? this.titleService
+      : this.shellServices.titleService;
   }
 
   update(options: WorkbenchOptions = {}): void {
     if ("titlebarState" in options) {
-      this.titleService.updateTitlebarState(options.titlebarState);
+      this.titlebarState = options.titlebarState;
+      this.getActiveTitleService()?.updateTitlebarState(options.titlebarState);
     }
     this.window.update({
       ...options,
-      titleService: options.titleService ?? this.titleService,
+      showSkeleton: options.showSkeleton ?? this.serviceStartupState !== "started",
+      titleService: options.titleService ?? this.getActiveTitleService(),
     });
   }
 
   public override resetLayoutState(): void {
     super.resetLayoutState();
+    if (this.serviceStartupState !== "started") {
+      return;
+    }
+
     this.refreshWorkbench("resetLayout");
   }
 
@@ -573,6 +727,10 @@ export class Workbench extends Layout {
   }
 
   protected override onDidRenderLayout(): void {
+    if (this.serviceStartupState !== "started") {
+      return;
+    }
+
     this.layoutVisibleViewContainers();
     this.window.update({
       id: "workbench-page",
@@ -581,6 +739,11 @@ export class Workbench extends Layout {
       showSkeleton: false,
       titleService: this.titleService,
     });
+  }
+
+  public override dispose(): void {
+    this.disposed = true;
+    super.dispose();
   }
 
   private createNotificationsHandlers(): IDisposable {
