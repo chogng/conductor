@@ -134,7 +134,6 @@ type WorkbenchSessionSnapshot = SessionSnapshot;
 
 type WorkbenchFullRefreshReason =
   | "deferredAuxiliaryBarViewContainer"
-  | "deferredSidebarViewContainer"
   | "initial"
   | "resetLayout"
   | "sameViewMode"
@@ -544,6 +543,7 @@ export class Workbench extends Layout {
   private titlebarState: WorkbenchTitlebarState | undefined;
   private deferAuxiliaryBarViewContainer = false;
   private deferSidebarViewContainer = false;
+  private suppressNavigationRefresh = false;
   //#endregion
 
   //#region lifecycle and rendering
@@ -722,7 +722,9 @@ export class Workbench extends Layout {
           this.scheduleWorkbenchAuxiliarySurfacesRefresh("templateState", true);
         }));
         this._register(this.layoutService.onDidChangeWorkbenchNavigation(() => {
-          this.refreshWorkbench("navigation");
+          if (!this.suppressNavigationRefresh) {
+            this.refreshWorkbench("navigation");
+          }
         }));
         this._register(this.layoutService.onDidChangeActiveAuxiliaryBarView(() => {
           this.refreshWorkbench("activeAuxiliaryBarView");
@@ -737,7 +739,12 @@ export class Workbench extends Layout {
       this.deferAuxiliaryBarViewContainer = true;
       this.deferSidebarViewContainer = true;
       measureWorkbenchBoot("workbench:service-layer:install:reset-view", () => {
-        this.resetToView(initialViewMode);
+        this.suppressNavigationRefresh = true;
+        try {
+          this.resetToView(initialViewMode);
+        } finally {
+          this.suppressNavigationRefresh = false;
+        }
       });
       measureWorkbenchBoot("workbench:service-layer:install:domain-sync", () => {
         domainBridge.sync();
@@ -772,12 +779,35 @@ export class Workbench extends Layout {
 
   private flushDeferredSidebarViewContainer(): void {
     if (this.deferSidebarViewContainer) {
-      measureWorkbenchBoot("workbench:service-layer:deferred-sidebar", () => {
+      measureWorkbenchBoot("workbench:service-layer:deferred-sidebar-open", () => {
         this.deferSidebarViewContainer = false;
-        this.refreshWorkbench("deferredSidebarViewContainer");
+        this.updateViewContainers();
+        this.updateContextKeys();
       });
+      this.scheduleDeferredSidebarViewContainerRender();
+      return;
     }
     this.scheduleDeferredAuxiliaryBarViewContainer();
+  }
+
+  private scheduleDeferredSidebarViewContainerRender(): void {
+    logWorkbenchBoot("workbench:service-layer:deferred-sidebar-render:scheduled");
+    this._register(scheduleAtNextAnimationFrame(window, () => {
+      if (this.disposed) {
+        return;
+      }
+
+      this._register(runWhenWindowIdle(window, () => {
+        if (this.disposed) {
+          return;
+        }
+
+        measureWorkbenchBoot("workbench:service-layer:deferred-sidebar-render", () => {
+          this.renderWorkbench();
+        });
+        this.scheduleDeferredAuxiliaryBarViewContainer();
+      }, 500));
+    }));
   }
 
   private scheduleDeferredAuxiliaryBarViewContainer(): void {

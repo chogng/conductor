@@ -5,11 +5,54 @@ import net from "node:net";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 
+const readPositiveIntegerArg = (name, fallback) => {
+  const inline = process.argv.find(arg => arg.startsWith(`${name}=`));
+  let raw;
+  if (inline) {
+    raw = inline.slice(name.length + 1);
+  } else {
+    const index = process.argv.indexOf(name);
+    if (index === -1) {
+      return fallback;
+    }
+    raw = process.argv[index + 1];
+    if (!raw || raw.startsWith("--")) {
+      throw new Error(`${name} must be a positive integer.`);
+    }
+  }
+  if (raw === undefined) {
+    return fallback;
+  }
+
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error(`${name} must be a positive integer.`);
+  }
+  return value;
+};
+
+const stripRunsArg = (args) => {
+  const stripped = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--runs") {
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--runs=")) {
+      continue;
+    }
+    stripped.push(arg);
+  }
+  return stripped;
+};
+
 const workspace = process.cwd();
 const host = process.env.DEV_HOST || "127.0.0.1";
 const port = Number(process.env.DEV_PORT || 5194);
 const timeoutMs = Number(process.env.CONDUCTOR_DESKTOP_STARTUP_TRACE_TIMEOUT_MS || 30_000);
 const skipBuild = process.argv.includes("--skip-build");
+const traceRunCount = readPositiveIntegerArg("--runs", 1);
 const isWin = process.platform === "win32";
 const traceStartMs = Date.now();
 const outputRoot = path.join(workspace, ".build", "bench", "desktop-startup");
@@ -356,7 +399,7 @@ process.once("SIGTERM", () => {
   void cleanup().then(() => process.exit(143));
 });
 
-try {
+const runSingleTrace = async () => {
   fs.mkdirSync(outputRoot, { recursive: true });
   fs.rmSync(userDataDir, { recursive: true, force: true });
   fs.rmSync(codeCacheDir, { recursive: true, force: true });
@@ -430,6 +473,131 @@ try {
   log(`viewContainerBreakdown=${JSON.stringify(summary.viewContainerBreakdown)}`);
   log(`layoutBreakdown=${JSON.stringify(summary.layoutBreakdown)}`);
   await cleanup();
+};
+
+const getBreakdownDuration = (summary, collectionName, stage) =>
+  summary[collectionName]?.find(event => event.stage === stage)?.durationMs ?? null;
+
+const sumBreakdownDuration = (summary, collectionName) =>
+  summary[collectionName]
+    ?.map(event => event.durationMs)
+    .filter(value => typeof value === "number")
+    .reduce((sum, value) => sum + value, 0) ?? 0;
+
+const createStats = (values) => {
+  const sorted = values
+    .filter(value => typeof value === "number" && Number.isFinite(value))
+    .sort((a, b) => a - b);
+  if (!sorted.length) {
+    return {
+      count: 0,
+      max: null,
+      min: null,
+      p50: null,
+      p95: null,
+      values: [],
+    };
+  }
+
+  const percentile = (fraction) =>
+    sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * fraction) - 1))];
+
+  return {
+    count: sorted.length,
+    max: sorted[sorted.length - 1],
+    min: sorted[0],
+    p50: percentile(0.5),
+    p95: percentile(0.95),
+    values: sorted,
+  };
+};
+
+const createRunSummary = (summary, run) => ({
+  run,
+  generatedAt: summary.generatedAt,
+  rendererServiceLayerDurationMs: summary.milestones.rendererServiceLayerDurationMs,
+  rendererUiReadyToServiceLayerReadyMs: summary.milestones.rendererUiReadyToServiceLayerReadyMs,
+  serviceResolutionTotalMs: sumBreakdownDuration(summary, "serviceResolutionBreakdown"),
+  openMainMs: getBreakdownDuration(
+    summary,
+    "viewContainerBreakdown",
+    "workbench:view-containers:open:main:done",
+  ),
+  deferredSidebarOpenMs: getBreakdownDuration(
+    summary,
+    "serviceLayerBreakdown",
+    "workbench:service-layer:deferred-sidebar-open:done",
+  ),
+  deferredSidebarRenderMs: getBreakdownDuration(
+    summary,
+    "serviceLayerBreakdown",
+    "workbench:service-layer:deferred-sidebar-render:done",
+  ),
+  deferredAuxiliaryMs: getBreakdownDuration(
+    summary,
+    "serviceLayerBreakdown",
+    "workbench:service-layer:deferred-auxiliarybar:done",
+  ),
+});
+
+const createAggregateSummary = (runs) => ({
+  generatedAt: new Date().toISOString(),
+  runCount: runs.length,
+  runs,
+  metrics: {
+    rendererServiceLayerDurationMs: createStats(runs.map(run => run.rendererServiceLayerDurationMs)),
+    rendererUiReadyToServiceLayerReadyMs: createStats(runs.map(run => run.rendererUiReadyToServiceLayerReadyMs)),
+    serviceResolutionTotalMs: createStats(runs.map(run => run.serviceResolutionTotalMs)),
+    openMainMs: createStats(runs.map(run => run.openMainMs)),
+    deferredSidebarOpenMs: createStats(runs.map(run => run.deferredSidebarOpenMs)),
+    deferredSidebarRenderMs: createStats(runs.map(run => run.deferredSidebarRenderMs)),
+    deferredAuxiliaryMs: createStats(runs.map(run => run.deferredAuxiliaryMs)),
+  },
+});
+
+const runRepeatedTraces = async () => {
+  fs.mkdirSync(outputRoot, { recursive: true });
+
+  if (!skipBuild) {
+    await runCommand("build:desktop:core", npmCommand(), npmArgs("run", "build:desktop:core"));
+  }
+
+  const childArgs = stripRunsArg(process.argv.slice(2));
+  if (!childArgs.includes("--skip-build")) {
+    childArgs.push("--skip-build");
+  }
+
+  const runs = [];
+  for (let run = 1; run <= traceRunCount; run += 1) {
+    await runCommand(
+      `trace:${run}`,
+      process.execPath,
+      [process.argv[1], ...childArgs],
+      { env: process.env },
+    );
+    const latestPath = path.join(outputRoot, "latest.json");
+    const summary = JSON.parse(fs.readFileSync(latestPath, "utf8"));
+    runs.push(createRunSummary(summary, run));
+  }
+
+  const aggregate = createAggregateSummary(runs);
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const reportPath = path.join(outputRoot, `startup-trace-runs-${timestamp}.json`);
+  const latestRunsPath = path.join(outputRoot, "latest-runs.json");
+  fs.writeFileSync(reportPath, `${JSON.stringify(aggregate, null, 2)}\n`, "utf8");
+  fs.writeFileSync(latestRunsPath, `${JSON.stringify(aggregate, null, 2)}\n`, "utf8");
+
+  log(`aggregate=${reportPath}`);
+  log(`aggregateMetrics=${JSON.stringify(aggregate.metrics)}`);
+  await cleanup();
+};
+
+try {
+  if (traceRunCount > 1) {
+    await runRepeatedTraces();
+  } else {
+    await runSingleTrace();
+  }
 } catch (error) {
   console.error(`[desktop-startup-trace] failed: ${getErrorMessage(error)}`);
   await cleanup();

@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
+import { addDisposableListener, EventType, scheduleAtNextAnimationFrame } from "src/cs/base/browser/dom";
 import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
 import type { IActionViewItem } from "src/cs/base/browser/ui/actionbar/actionViewItem";
 import {
@@ -11,7 +11,7 @@ import {
   type IAction,
   type IActionRunner,
 } from "src/cs/base/common/actions";
-import { Disposable, DisposableStore } from "src/cs/base/common/lifecycle";
+import { Disposable, DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import {
   ICommandService,
@@ -78,7 +78,9 @@ export class TableViewPane extends ViewPane {
   });
   private readonly zoomControl: TableStepper;
   private controller: TableController | null = null;
+  private pendingControllerRender: IDisposable | null = null;
   private props: TableViewPaneProps | null = null;
+  private disposed = false;
   private headerMode: HeaderMode | null = null;
 
   constructor(
@@ -142,40 +144,73 @@ export class TableViewPane extends ViewPane {
 
   public update(props: TableViewPaneProps): void {
     this.props = props;
-    if (!this.controller) {
-      this.controller = new TableController(toControllerProps(
-        props,
-        this.tableService,
-        this.commandService,
-        this.hoverService,
-        this.templateService.getState().mode,
-      ));
-      this.store.add(this.tableWidgetService.registerController(this.controller));
-      this.store.add(this.controller.onDidChangeSize(() => this.updateDimensions()));
-      this.store.add(this.controller.onDidChangeZoom(() => this.updateZoomControl()));
-      this.content.append(this.controller.element);
+    this.updateHeader(props);
+    if (this.controller) {
+      this.updateController(props);
     } else {
-      this.controller.update(toControllerProps(
-        props,
-        this.tableService,
-        this.commandService,
-        this.hoverService,
-        this.templateService.getState().mode,
-      ));
+      this.scheduleControllerRender();
     }
-    const { fileName, mode } = getHeaderState(props);
-    this.updateHeaderMode(mode);
-    this.updateHeaderCenter(fileName, mode === "file");
-    this.updateHeaderRight();
   }
 
   public dispose(): void {
+    this.disposed = true;
+    this.pendingControllerRender?.dispose();
+    this.pendingControllerRender = null;
     this.controller?.dispose();
     this.controller = null;
     this.store.dispose();
     this.content.replaceChildren();
     this.previewPart.remove();
     super.dispose();
+  }
+
+  private scheduleControllerRender(): void {
+    if (this.pendingControllerRender) {
+      return;
+    }
+
+    this.pendingControllerRender = this.store.add(scheduleAtNextAnimationFrame(window, () => {
+      this.pendingControllerRender = null;
+      this.renderController();
+    }));
+  }
+
+  private renderController(): void {
+    if (this.disposed || !this.props) {
+      return;
+    }
+
+    this.controller = new TableController(toControllerProps(
+      this.props,
+      this.tableService,
+      this.commandService,
+      this.hoverService,
+      this.templateService.getState().mode,
+    ));
+    this.store.add(this.tableWidgetService.registerController(this.controller));
+    this.store.add(this.controller.onDidChangeSize(() => this.updateDimensions()));
+    this.store.add(this.controller.onDidChangeZoom(() => this.updateZoomControl()));
+    this.content.append(this.controller.element);
+    this.controller.layout();
+    this.updateHeaderRight();
+  }
+
+  private updateController(props: TableViewPaneProps): void {
+    this.controller?.update(toControllerProps(
+      props,
+      this.tableService,
+      this.commandService,
+      this.hoverService,
+      this.templateService.getState().mode,
+    ));
+    this.updateHeaderRight();
+  }
+
+  private updateHeader(props: TableViewPaneProps): void {
+    const { fileName, mode } = getHeaderState(props);
+    this.updateHeaderMode(mode);
+    this.updateHeaderCenter(fileName, mode === "file");
+    this.updateHeaderRight();
   }
 
   private createZoomControl(): TableStepper {
