@@ -34,7 +34,7 @@ at the type name.
 | `RawTableRecord` | `ISessionService` | `fileConverter.ts` | Physical rows/source/health/template eligibility. Use `rawTableId`; keep failed rows unavailable. |
 | `RawTableSourceRecord` | converter/session | CSV, Excel sheet, clipboard, manual, unknown | Source provenance only, not measurement semantics. |
 | `RawTableRowsRecord` | converter/session | inline, normalized CSV, unavailable | Large rows should use artifact/path references. |
-| `RawTableAssessmentRecord` | Assessment + Session | `IAssessmentService` | Tied to raw table version and assessment rule version; stores groups, blocks, diagnostics. |
+| `RawTableAssessmentRecord` | Assessment + Session | `IAssessmentService` | Tied to raw table version, assessment rule version, and schema profile version; stores structure, column profiles, semantic candidates, groups, blocks, decision, diagnostics. |
 | `MeasurementGroupRecord` | Assessment + Session | assessment | Group/device labels and ordered block ids. |
 | `MeasurementBlockRecord` | Assessment + Session | assessment | Measurement family/mode/source ranges/column roles. |
 | `SeriesRecord` | Template/calculation + Session | template or curve commit | Series metadata and raw/block provenance. |
@@ -91,6 +91,7 @@ series, template decisions, or assessment confidence.
 | `SearchQuery` / `SearchResult` | `ISearchService` | service state/model | query/options/session/plot index |
 | `ExportState` / `ExportPlan` | `IExportService` | service state/derived plan | export options/session/plot changes |
 | `ParametersState` / `ParameterRowModel` | `IParametersService` | service state/model | metrics, manual inputs, selected file/plot context |
+| `SchemaProfile` | schema profile source / Assessment consumer | service-local or external profile evidence, not Session canonical | exact schema fingerprint, confirmed count, conflict count |
 
 Service-local view input events should not carry the full snapshot as the data
 path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
@@ -111,8 +112,45 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
 - `MeasurementBlockRecord.family` stores measurement family (`iv`, `cv`, `cf`,
   `pv`, `it`, `unknown`), not plot transfer/output labels.
 - `ivMode` is valid only for IV blocks; `itMode` is valid only for IT blocks.
+- Raw table structure keeps physical header row, unit row, data region, block
+  region, and schema fingerprint evidence without measurement-family semantics.
+- `BlockRegion.kind` distinguishes a single table region from conservative
+  repeated-header regions with the same exact schema fingerprint.
+- Column profiles keep neutral column kind and numeric-stat evidence.
+- Layout candidates keep shape-only binding drafts such as simple XY,
+  shared-X multi-Y, pairwise XY, grouped sweep, wide matrix, time series,
+  repeated block, and metadata preamble layouts. They are suitable for UI
+  prefill and review, not for automatic calculation by themselves.
+- Semantic candidates keep role/unit candidates, confidence, evidence sources,
+  confirmation state, and display-scale suggestions.
 - Column refs keep raw column, header text, role, unit, source range, confidence.
+- Assessment decisions keep ready/inferred/review/unknown/failed state,
+  automatic-apply allowance, confidence, and gating reasons.
+- `RawTableAssessmentRecord.schemaProfileVersion` records the profile snapshot
+  used for semantic evidence; profile changes make older assessments stale.
+- Session raw-file read entries may project assessment schema fingerprints,
+  column profiles, semantic candidates, blocks, layout candidates, and
+  decisions for template planning or UI review; they remain derived read
+  models, not duplicate owners.
 - Diagnostics keep severity, code, message, source range, and related group/block ids.
+
+### Schema profiles
+
+- `SchemaProfile` stores user-confirmed bindings for one exact raw-table schema
+  fingerprint; it is evidence consumed by Assessment, not assessment output.
+- `SchemaProfileService` owns profile-scope storage and versioned snapshots;
+  Session does not store profile records.
+- User confirmation of role/unit bindings enters through
+  `SchemaProfileService.confirmProfile(...)`; callers provide confirmed columns
+  and Assessment-owned column profiles, and the schema profile owner persists a
+  service-local exact-fingerprint profile snapshot.
+- `SchemaProfileBinding.selector` may use column index, normalized header, or
+  both. When both are present, both must match the profiled column.
+- Only confirmed, conflict-free, exact fingerprint matches may produce
+  `schemaProfile` semantic candidate evidence. Such profiles may unlock
+  automatic calculation only when their confirmed x/y role-unit bindings
+  unambiguously identify a supported measurement family. No fuzzy profile match
+  may unlock automatic calculation.
 
 ### Template
 

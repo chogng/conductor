@@ -62,9 +62,11 @@ import type {
 import type {
   RawTableAssessmentRecord,
 } from "src/cs/workbench/services/assessment/common/assessment";
+import { createUnknownAssessmentDecision } from "src/cs/workbench/services/assessment/common/assessmentDecision";
 import type {
   MeasurementBlockRecord,
 } from "src/cs/workbench/services/assessment/common/measurement";
+import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 
 export class SessionService extends Disposable implements ISessionServiceType {
   public declare readonly _serviceBrand: undefined;
@@ -756,13 +758,19 @@ const createImportRawTableAssessmentRecords = (
 
     records.push({
       assessmentRuleVersion: normalizeAssessmentRuleVersion(assessment.assessmentRuleVersion) ?? 0,
+      schemaProfileVersion: normalizeSchemaProfileVersion(assessment.schemaProfileVersion),
       blocks: assessment.blocks,
+      columnProfiles: assessment.columnProfiles ?? [],
       createdAt: assessment.createdAt,
+      decision: assessment.decision ?? createUnknownAssessmentDecision(),
       diagnostics: assessment.diagnostics,
       fileId,
       groups: assessment.groups,
+      layoutCandidates: assessment.layoutCandidates ?? [],
       rawTableId,
+      semanticCandidates: assessment.semanticCandidates ?? [],
       sourceRawTableVersion,
+      structure: assessment.structure ?? createEmptyRawTableStructure(),
     });
   }
 
@@ -812,9 +820,15 @@ const commitRawTableAssessmentsToFiles = (
     const committedAssessment: RawTableAssessmentRecord = {
       ...assessment,
       assessmentRuleVersion: normalizeAssessmentRuleVersion(assessment.assessmentRuleVersion) ?? 0,
+      schemaProfileVersion: normalizeSchemaProfileVersion(assessment.schemaProfileVersion),
       fileId,
       rawTableId,
       blocks: committedBlocks,
+      columnProfiles: assessment.columnProfiles ?? [],
+      decision: assessment.decision ?? createUnknownAssessmentDecision(),
+      layoutCandidates: assessment.layoutCandidates ?? [],
+      semanticCandidates: assessment.semanticCandidates ?? [],
+      structure: assessment.structure ?? createEmptyRawTableStructure(),
     };
     nextFilesById = {
       ...nextFilesById,
@@ -1485,6 +1499,11 @@ const normalizeId = (value: unknown): string => String(value ?? "").trim();
 const normalizeAssessmentRuleVersion = (value: unknown): number | undefined => {
   const version = Math.floor(Number(value));
   return Number.isFinite(version) && version > 0 ? version : undefined;
+};
+
+const normalizeSchemaProfileVersion = (value: unknown): number => {
+  const version = Math.floor(Number(value));
+  return Number.isFinite(version) && version >= 0 ? version : 0;
 };
 
 const normalizeOptionalText = (value: unknown): string | undefined => {

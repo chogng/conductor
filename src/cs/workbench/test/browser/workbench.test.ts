@@ -13,6 +13,7 @@ import {
 } from "src/cs/workbench/browser/workbenchDomainBridge";
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
 import { ASSESSMENT_RULE_VERSION } from "src/cs/workbench/services/assessment/common/assessment";
+import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
 import type {
   FileImportResult,
@@ -544,12 +545,22 @@ suite("workbench/browser/workbench Explorer pane input", () => {
           },
         },
       }],
+      columnProfiles: [],
       createdAt: 1,
+      decision: {
+        autoApplyAllowed: true,
+        confidence: 0.9,
+        reasons: [],
+        state: "ready",
+      },
       diagnostics: [],
       fileId: "ready-file",
       groups: [],
       rawTableId: "ready-file",
+      layoutCandidates: [],
+      semanticCandidates: [],
       sourceRawTableVersion: 1,
+      structure: createEmptyRawTableStructure(),
     });
 
     const snapshot = session.getSnapshot();

@@ -1,0 +1,27 @@
+{
+  "decision": "reviewRequired",
+  "autoApplyAllowed": false,
+  "layoutKind": "timeSeries",
+  "blocks": 1,
+  "blockFamily": "unknown",
+  "minDataRegions": 1,
+  "minNumericColumns": 3,
+  "layoutBindings": [
+    {
+      "xCol": 0,
+      "yCols": [1, 2]
+    }
+  ],
+  "columns": {
+    "Time": {
+      "role": "time",
+      "unit": "s",
+      "unitConfirmed": true
+    },
+    "Current": {
+      "role": "current",
+      "unit": "A",
+      "unitConfirmed": true
+    }
+  }
+}

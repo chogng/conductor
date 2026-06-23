@@ -14,6 +14,7 @@ export type TemplateProcessingSkipReason =
 	| "missingAssessment"
 	| "missingTemplate"
 	| "needsTemplate"
+	| "reviewRequired"
 	| "lowConfidence"
 	| "unknownCurveType"
 	| "noMatchingRule";
@@ -211,6 +212,21 @@ const getTemplateProcessingSkipReason = (
 	if (!assessment) {
 		return "missingAssessment";
 	}
+	if (assessment.assessmentAutoApplyAllowed !== true) {
+		if (assessment.assessmentDecisionState === "unknown") {
+			return "unknownCurveType";
+		}
+		if (assessment.assessmentDecisionState === "failed") {
+			return "invalidSource";
+		}
+		if (assessment.assessmentAutoApplyAllowed === undefined) {
+			return "missingAssessment";
+		}
+		return "reviewRequired";
+	}
+	if (!hasRequiredAssessmentBlockBindings(assessment)) {
+		return "reviewRequired";
+	}
 	if (assessment.curveTypeNeedsTemplate === true) {
 		return "needsTemplate";
 	}
@@ -228,6 +244,67 @@ const getTemplateProcessingSkipReason = (
 
 	return null;
 };
+
+const hasRequiredAssessmentBlockBindings = (
+	assessment: TemplateProcessingAssessment,
+): boolean =>
+	(assessment.assessmentBlocks ?? []).some(block => {
+		if (!block || block.family === "unknown") {
+			return false;
+		}
+		if (hasConflictDiagnostics(block.diagnosticCodes)) {
+			return false;
+		}
+
+		switch (block.family) {
+			case "iv":
+				if (block.ivMode === "transfer") {
+					return hasRoleWithUnit(block.columns.columns, ["vg"]) &&
+						hasRoleWithUnit(block.columns.columns, ["id", "current"]);
+				}
+				if (block.ivMode === "output") {
+					return hasRoleWithUnit(block.columns.columns, ["vd"]) &&
+						hasRoleWithUnit(block.columns.columns, ["id", "current"]);
+				}
+				return false;
+			case "cv":
+				return hasRoleWithUnit(block.columns.columns, ["voltage", "vg", "vd"]) &&
+					hasRoleWithUnit(block.columns.columns, ["capacitance"]);
+			case "cf":
+				return block.columns.columns.some(column => normalizeUnit(column.unit) === "hz") &&
+					hasRoleWithUnit(block.columns.columns, ["capacitance"]);
+			case "pv":
+				return hasRoleWithUnit(block.columns.columns, ["voltage", "vg", "vd"]) &&
+					hasRoleWithUnit(block.columns.columns, ["current", "id"]);
+			case "it":
+			case "unknown":
+				return false;
+		}
+	});
+
+const hasRoleWithUnit = (
+	columns: NonNullable<TemplateProcessingAssessment["assessmentBlocks"]>[number]["columns"]["columns"],
+	roles: readonly NonNullable<TemplateProcessingAssessment["assessmentBlocks"]>[number]["columns"]["columns"][number]["role"][],
+): boolean =>
+	columns.some(column =>
+		roles.includes(column.role) &&
+		Boolean(normalizeUnit(column.unit))
+	);
+
+const normalizeUnit = (
+	value: unknown,
+): string | null => {
+	const unit = String(value ?? "").trim().toLowerCase();
+	return unit || null;
+};
+
+const hasConflictDiagnostics = (
+	diagnosticCodes: readonly string[] | undefined,
+): boolean =>
+	(diagnosticCodes ?? []).some(code => {
+		const normalized = String(code ?? "").toLowerCase();
+		return normalized.includes("conflict") || normalized.includes("error");
+	});
 
 const isInvalidSourceHealth = (
 	health: SessionFile["assessmentHealth"],

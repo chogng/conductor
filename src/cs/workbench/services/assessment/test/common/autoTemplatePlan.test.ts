@@ -14,6 +14,284 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 
 suite("workbench/services/assessment/common/autoTemplatePlan", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
+
+  test("builds an auto extraction plan from assessment block bindings", () => {
+    const result = inferAutoExtraction({
+      assessment: {
+        assessmentAutoApplyAllowed: true,
+        assessmentBlocks: [{
+          id: "raw-a:block:0",
+          fileId: "file-a",
+          rawTableId: "raw-a",
+          label: "transfer",
+          family: "iv",
+          ivMode: "transfer",
+          source: {
+            fullRange: {
+              startRow: 0,
+              endRow: 2,
+              startCol: 0,
+              endCol: 2,
+            },
+            dataRange: {
+              startRow: 1,
+              endRow: 2,
+              startCol: 0,
+              endCol: 2,
+            },
+          },
+          columns: {
+            columns: [{
+              rawCol: 1,
+              headerText: "Gate Bias",
+              role: "vg",
+              unit: "V",
+              confidence: 0.9,
+            }, {
+              rawCol: 2,
+              headerText: "Drain Current",
+              role: "id",
+              unit: "A",
+              confidence: 0.88,
+            }],
+          },
+          confidence: 0.9,
+          rowCount: 3,
+          columnCount: 3,
+          diagnosticCodes: [],
+        }],
+        assessmentDecisionReasons: ["Assessment block bindings are ready."],
+      },
+      fileName: "assessment-block.csv",
+      rows: [
+        ["not-x", "not-y", "also-not-y"],
+        ["sample", "-1", "1e-12"],
+        ["sample", "0", "1e-9"],
+      ],
+      totalRowCount: 3,
+    });
+
+    assert.ok(result.ok);
+    assert.equal(result.plan.curveType, "transfer");
+    assert.equal(result.plan.curveTypeLabel, "transfer (vg)");
+    assert.equal(result.plan.dataStartRowIndex, 1);
+    assert.equal(result.plan.xCol, 1);
+    assert.deepEqual(result.plan.yCols, [2]);
+    assert.equal(result.plan.xAxisRole, "vg");
+    assert.equal(result.plan.xUnit, "V");
+    assert.equal(result.plan.yUnit, "A");
+    assert.deepEqual(result.plan.blocks?.map(block => ({
+      startCol: block.startCol,
+      endCol: block.endCol,
+      xCol: block.xCol,
+      yCols: block.yCols,
+    })), [{
+      startCol: 1,
+      endCol: 2,
+      xCol: 1,
+      yCols: [2],
+    }]);
+
+    const workerConfig = buildAutoWorkerConfig(result.plan);
+    assert.equal(workerConfig.startRow, 1);
+    assert.deepEqual(workerConfig.seriesBindings, [{ xCol: 1, yCol: 2 }]);
+    assert.deepEqual(workerConfig.blocks, [{
+      bottomTitle: "Vg",
+      endCol: 2,
+      legendStartCell: null,
+      legendStep: null,
+      legendTarget: "auto",
+      startCol: 1,
+      xAxisRole: "vg",
+      xCol: 1,
+      yCols: [2],
+    }]);
+  });
+
+  test("builds an auto extraction plan from raw assessment record blocks", () => {
+    const result = inferAutoExtraction({
+      assessment: {
+        decision: {
+          autoApplyAllowed: true,
+          confidence: 0.9,
+          reasons: ["Assessment record bindings are ready."],
+          state: "ready",
+        },
+        blocks: [{
+          id: "raw-a:block:0",
+          fileId: "file-a",
+          rawTableId: "raw-a",
+          label: "output",
+          family: "iv",
+          ivMode: "output",
+          source: {
+            fullRange: {
+              startRow: 0,
+              endRow: 2,
+              startCol: 0,
+              endCol: 1,
+            },
+            dataRange: {
+              startRow: 1,
+              endRow: 2,
+              startCol: 0,
+              endCol: 1,
+            },
+          },
+          columns: {
+            columns: [{
+              rawCol: 0,
+              headerText: "Vd",
+              role: "vd",
+              unit: "V",
+              confidence: 0.9,
+            }, {
+              rawCol: 1,
+              headerText: "Id",
+              role: "id",
+              unit: "A",
+              confidence: 0.88,
+            }],
+          },
+          confidence: 0.9,
+          rowCount: 3,
+          columnCount: 2,
+          diagnosticCodes: [],
+        }],
+      },
+      fileName: "assessment-record.csv",
+      rows: [
+        ["Vd", "Id"],
+        ["0", "1e-9"],
+        ["1", "1e-6"],
+      ],
+      totalRowCount: 3,
+    });
+
+    assert.ok(result.ok);
+    assert.equal(result.plan.curveType, "output");
+    assert.equal(result.plan.xAxisRole, "vd");
+    assert.equal(result.plan.xCol, 0);
+    assert.deepEqual(result.plan.yCols, [1]);
+    assert.match(result.plan.reasons.join(" "), /Assessment record bindings are ready/);
+  });
+
+  test("does not fall back to raw-header inference for Assessment V2 payloads without block bindings", () => {
+    const result = inferAutoExtraction({
+      assessment: {
+        assessmentAutoApplyAllowed: true,
+        assessmentDecisionReasons: ["Assessment gate is explicit, but block bindings are absent."],
+        assessmentDecisionState: "ready",
+        curveType: "transfer",
+        curveTypeConfidence: "high",
+        xAxisRole: "vg",
+      },
+      fileName: "missing-blocks.csv",
+      rows: [
+        ["Vg", "Id"],
+        ["-1", "1e-12"],
+        ["0", "1e-9"],
+      ],
+      totalRowCount: 3,
+    });
+
+    assert.ok(!result.ok);
+    assert.match(result.message, /assessment.*block bindings/i);
+    assert.deepEqual(result.reasons, [
+      "Assessment gate is explicit, but block bindings are absent.",
+    ]);
+  });
+
+  test("keeps repeated assessment blocks in auto extraction plans", () => {
+    const result = inferAutoExtraction({
+      assessment: {
+        assessmentAutoApplyAllowed: true,
+        assessmentBlocks: [0, 1].map(index => ({
+          id: `raw-a:block:${index}`,
+          fileId: "file-a",
+          rawTableId: "raw-a",
+          label: "transfer",
+          family: "iv",
+          ivMode: "transfer",
+          source: {
+            fullRange: {
+              startRow: index === 0 ? 2 : 5,
+              endRow: index === 0 ? 4 : 7,
+              startCol: 0,
+              endCol: 2,
+            },
+            dataRange: {
+              startRow: index === 0 ? 3 : 6,
+              endRow: index === 0 ? 4 : 7,
+              startCol: 0,
+              endCol: 2,
+            },
+          },
+          columns: {
+            columns: [{
+              rawCol: 1,
+              headerText: "Vg",
+              role: "vg",
+              unit: "V",
+              confidence: 0.9,
+            }, {
+              rawCol: 2,
+              headerText: "Id",
+              role: "id",
+              unit: "A",
+              confidence: 0.88,
+            }],
+          },
+          confidence: 0.9,
+          rowCount: 2,
+          columnCount: 3,
+          diagnosticCodes: [],
+        })),
+      },
+      fileName: "repeated-blocks.csv",
+      rows: [
+        ["SetupTitle", "Transfer_DB"],
+        ["TestParameter", "Output.Graph.XAxis.Data", "Vg"],
+        ["DataName", "Vg", "Id"],
+        ["DataValue", "-1", "1e-12"],
+        ["DataValue", "0", "1e-9"],
+        ["DataName", "Vg", "Id"],
+        ["DataValue", "-1", "2e-12"],
+        ["DataValue", "0", "2e-9"],
+      ],
+      totalRowCount: 8,
+    });
+
+    assert.ok(result.ok);
+    assert.equal(result.plan.dataStartRowIndex, 3);
+    assert.equal(result.plan.xCol, 1);
+    assert.deepEqual(result.plan.yCols, [2]);
+    assert.deepEqual(result.plan.blocks?.map(block => ({
+      startCol: block.startCol,
+      endCol: block.endCol,
+      xCol: block.xCol,
+      yCols: block.yCols,
+    })), [
+      {
+        startCol: 1,
+        endCol: 2,
+        xCol: 1,
+        yCols: [2],
+      },
+      {
+        startCol: 1,
+        endCol: 2,
+        xCol: 1,
+        yCols: [2],
+      },
+    ]);
+
+    const workerConfig = buildAutoWorkerConfig(result.plan);
+    assert.equal(workerConfig.startRow, 3);
+    assert.deepEqual(workerConfig.seriesBindings, [{ xCol: 1, yCol: 2 }]);
+    assert.equal(workerConfig.blocks?.length, 2);
+  });
+
   test("infers stripped CH1/CH2 output files into executable auto extraction plans", () => {
     const rows = [
       [
@@ -487,4 +765,3 @@ suite("workbench/services/assessment/common/autoTemplatePlan", () => {
     assert.equal(result.plan.yUnit, "A");
   });
 });
-

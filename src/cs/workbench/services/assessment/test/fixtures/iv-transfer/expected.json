@@ -1,0 +1,22 @@
+{
+  "decision": "ready",
+  "autoApplyAllowed": true,
+  "layoutKind": "metadataPreamble",
+  "blocks": 1,
+  "blockFamily": "iv",
+  "ivMode": "transfer",
+  "minDataRegions": 1,
+  "minNumericColumns": 2,
+  "columns": {
+    "Vg": {
+      "role": "vg",
+      "unit": "V",
+      "unitConfirmed": false
+    },
+    "Id": {
+      "role": "id",
+      "unit": "A",
+      "unitConfirmed": false
+    }
+  }
+}

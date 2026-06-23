@@ -8,15 +8,52 @@ import {
 	type ImportFileAssessment,
 	type RawTableAssessmentRecord,
 } from "src/cs/workbench/services/assessment/common/assessment";
-import type { AssessmentDiagnostic } from "src/cs/workbench/services/assessment/common/diagnostics";
+import {
+	createUnknownAssessmentDecision,
+	type AssessmentDecision,
+} from "src/cs/workbench/services/assessment/common/assessmentDecision";
+import {
+	createMeasurementBlockId,
+	detectMeasurementBlocks,
+} from "src/cs/workbench/services/assessment/common/blockDetector";
+import {
+	detectLayoutCandidates,
+	type LayoutCandidate,
+} from "src/cs/workbench/services/assessment/common/layoutCandidate";
+import {
+	createAssessmentReasonDiagnosticCodes,
+	createAssessmentReasonDiagnostics,
+} from "src/cs/workbench/services/assessment/common/diagnostics";
 import type {
-	IvSweepMode,
-	MeasurementFamily,
+	MeasurementBlockRecord,
 } from "src/cs/workbench/services/assessment/common/measurement";
+import {
+	createColumnProfiles,
+	createMeasurementColumnProfile,
+	type ColumnProfile,
+	type MeasurementColumnProfile,
+} from "src/cs/workbench/services/assessment/common/columnProfile";
+import {
+	detectRawTableStructure,
+	type RawTableStructure,
+} from "src/cs/workbench/services/assessment/common/rawTableStructure";
+import type { ColumnSemanticCandidate } from "src/cs/workbench/services/assessment/common/semanticCandidate";
+import { createColumnSemanticCandidates } from "src/cs/workbench/services/assessment/common/semanticCandidate";
+import type { SchemaProfile } from "src/cs/workbench/services/schemaProfile/common/schemaProfile";
+import { findExactSchemaProfileMatch } from "src/cs/workbench/services/schemaProfile/common/schemaProfileMatcher";
 
 export type CreateRawTableAssessmentRecordInput =
 	Omit<AssessRawTableInput, "rows"> & {
 		readonly assessment: ImportFileAssessment;
+		readonly blocks?: readonly MeasurementBlockRecord[];
+		readonly columnProfile?: MeasurementColumnProfile;
+		readonly columnProfiles?: readonly ColumnProfile[];
+		readonly decision?: AssessmentDecision;
+		readonly layoutCandidates?: readonly LayoutCandidate[];
+		readonly rows?: AssessRawTableInput["rows"];
+		readonly schemaProfile?: SchemaProfile | null;
+		readonly semanticCandidates?: readonly ColumnSemanticCandidate[];
+		readonly structure?: RawTableStructure;
 	};
 
 export const createRawTableAssessmentRecordFromImportAssessment = (
@@ -25,48 +62,72 @@ export const createRawTableAssessmentRecordFromImportAssessment = (
 	const assessment = input.assessment;
 	const columnCount = normalizePositiveCount(input.columnCount) ?? 0;
 	const rowCount = normalizePositiveCount(input.rowCount) ?? 0;
-	const fullRange = {
-		startRow: 0,
-		endRow: Math.max(0, rowCount - 1),
-		startCol: 0,
-		endCol: Math.max(0, columnCount - 1),
-	};
-	const blockId = `${input.rawTableId}:block:0`;
-	const diagnosticCodes = assessment.curveTypeReasons.map((_, index) =>
-		`assessment.reason.${index + 1}`
-	);
-	const diagnostics: AssessmentDiagnostic[] = assessment.curveTypeReasons.map((reason, index) => ({
-		severity: "info",
-		code: diagnosticCodes[index],
-		message: reason,
-		relatedBlockId: blockId,
-	}));
+	const schemaProfileVersion = normalizeSchemaProfileVersion(input.schemaProfileVersion);
+	const diagnosticCodes = createAssessmentReasonDiagnosticCodes(assessment.curveTypeReasons);
+	const structure = input.structure ?? detectRawTableStructure(input.rows ?? []);
+	const schemaProfile = input.schemaProfile ??
+		findExactSchemaProfileMatch({
+			fingerprint: structure.fingerprint,
+			profiles: input.schemaProfiles ?? [],
+		})?.profile ??
+		null;
+	const columnProfiles = input.columnProfiles ??
+		createColumnProfiles({
+			rows: input.rows ?? [],
+			structure,
+		});
+	const layoutCandidates = input.layoutCandidates ??
+		detectLayoutCandidates({
+			columnProfiles,
+			structure,
+		});
+	const semanticCandidates = input.semanticCandidates ??
+		createColumnSemanticCandidates({
+			assessment,
+			columnProfiles,
+			schemaProfile,
+		});
+	const columnProfile = input.columnProfile ??
+		createMeasurementColumnProfile({
+			assessment,
+			columnProfiles,
+			rows: input.rows ?? [],
+			semanticCandidates,
+			structure,
+		});
+	const decision = input.decision ??
+		createUnknownAssessmentDecision(assessment.curveTypeReasons);
+	const assessmentConfidence = getAssessmentConfidenceScore(assessment);
+	const blocks = input.blocks ?? detectMeasurementBlocks({
+		assessment,
+		assessmentConfidence,
+		columnCount,
+		columnProfile,
+		diagnosticCodes,
+		fileId: input.fileId,
+		fileName: input.fileName,
+		rawTableId: input.rawTableId,
+		rowCount,
+		structure,
+	});
+	const diagnostics = createAssessmentReasonDiagnostics({
+		reasons: assessment.curveTypeReasons,
+		relatedBlockId: blocks[0]?.id ?? createMeasurementBlockId(input.rawTableId, 0),
+	});
 
 	return {
 		assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
+		schemaProfileVersion,
 		fileId: input.fileId,
 		rawTableId: input.rawTableId,
 		sourceRawTableVersion: input.sourceRawTableVersion,
+		structure,
+		columnProfiles,
+		layoutCandidates,
+		semanticCandidates,
 		groups: [],
-		blocks: [{
-			id: blockId,
-			fileId: input.fileId,
-			rawTableId: input.rawTableId,
-			label: assessment.curveType ?? input.fileName ?? input.rawTableId,
-			family: getMeasurementFamily(assessment),
-			ivMode: getIvMode(assessment),
-			source: {
-				fullRange,
-				dataRange: fullRange,
-			},
-			columns: {
-				columns: [],
-			},
-			confidence: getAssessmentConfidenceScore(assessment),
-			rowCount,
-			columnCount,
-			diagnosticCodes,
-		}],
+		blocks,
+		decision,
 		diagnostics,
 		createdAt: Date.now(),
 	};
@@ -102,62 +163,7 @@ export const normalizePositiveCount = (value: unknown): number | undefined => {
 	return Number.isFinite(count) && count > 0 ? count : undefined;
 };
 
-const getMeasurementFamily = (
-	assessment: ImportFileAssessment,
-): MeasurementFamily => {
-	if (
-		assessment.curveFamily === "iv" ||
-		assessment.curveFamily === "cv" ||
-		assessment.curveFamily === "cf" ||
-		assessment.curveFamily === "pv" ||
-		assessment.curveFamily === "it"
-	) {
-		return assessment.curveFamily;
-	}
-	if (
-		assessment.xAxisRole === "vg" ||
-		assessment.xAxisRole === "vd" ||
-		isIvCurveTypeText(assessment.curveType)
-	) {
-		return "iv";
-	}
-	return "unknown";
-};
-
-const getIvMode = (
-	assessment: ImportFileAssessment,
-): IvSweepMode | undefined => {
-	if (
-		assessment.curveFamily === "iv" ||
-		assessment.xAxisRole === "vg" ||
-		assessment.xAxisRole === "vd" ||
-		isIvCurveTypeText(assessment.curveType)
-	) {
-		if (assessment.ivMode === "transfer" || assessment.ivMode === "output") {
-			return assessment.ivMode;
-		}
-		if (assessment.xAxisRole === "vg") {
-			return "transfer";
-		}
-		if (assessment.xAxisRole === "vd") {
-			return "output";
-		}
-		const curveType = String(assessment.curveType ?? "").toLowerCase();
-		if (curveType.includes("transfer")) {
-			return "transfer";
-		}
-		if (curveType.includes("output")) {
-			return "output";
-		}
-		return "unknown";
-	}
-	return undefined;
-};
-
-const isIvCurveTypeText = (value: unknown): boolean => {
-	const curveType = String(value ?? "").toLowerCase();
-	return curveType.includes("transfer") ||
-		curveType.includes("output") ||
-		curveType.includes("id-v") ||
-		curveType === "iv";
+export const normalizeSchemaProfileVersion = (value: unknown): number => {
+	const version = Math.floor(Number(value));
+	return Number.isFinite(version) && version >= 0 ? version : 0;
 };

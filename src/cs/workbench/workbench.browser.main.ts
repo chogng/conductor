@@ -36,6 +36,8 @@ import "src/cs/workbench/services/parameters/browser/parametersService";
 import "src/cs/workbench/services/plot/browser/plotService";
 import "src/cs/workbench/services/search/browser/searchService";
 import "src/cs/workbench/services/session/browser/sessionService";
+import "src/cs/workbench/services/schemaProfile/browser/schemaProfileStoreService";
+import "src/cs/workbench/services/schemaProfile/browser/schemaProfileService";
 import "src/cs/workbench/services/template/browser/templateApplyController";
 import "src/cs/workbench/services/template/browser/templateApplyService";
 import "src/cs/workbench/services/template/browser/templateService";
@@ -98,5 +100,6 @@ import "src/cs/workbench/contrib/themes/browser/themes.contribution";
 import "src/cs/workbench/contrib/export/browser/export.contribution";
 import "src/cs/workbench/contrib/parameters/browser/parameters.contribution";
 import "src/cs/workbench/contrib/origin/browser/origin.contribution";
+import "src/cs/workbench/contrib/assessment/browser/assessment.contribution";
 
 //#endregion

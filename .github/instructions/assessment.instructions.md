@@ -27,12 +27,29 @@ rendering, table UI selection, or search indexing beyond diagnostics metadata.
 | File | Responsibility |
 | --- | --- |
 | `common/assessment.ts` | service contract, inputs/results. |
+| `common/assessmentDecision.ts` | assessment decision state and automatic-apply gate records. |
 | `common/measurement.ts` | blocks, groups, column maps, sweep/mode/family types. |
 | `common/diagnostics.ts` | diagnostic severity, codes, messages, source ranges. |
+| `common/rawTableStructure.ts` | header row, unit row, data region, block region, and schema fingerprint detection. |
+| `common/columnProfile.ts` | neutral raw-table column kind and numeric-stat profiling. |
+| `common/layoutCandidate.ts` | shape-only layout candidates and X/Y binding drafts for UI prefill; no measurement semantics. |
+| `common/builtinLexicon.json` | maintained semantic vocabulary for header-token role evidence; not user-generated rules. |
+| `common/semanticCandidate.ts` | role, unit, confidence, evidence, and display-scale candidates. |
+| `common/blockDetector.ts` | measurement block construction from structure ranges, column maps, and family evidence. |
+| `common/autoTemplateAssessmentBlocks.ts` | compatibility planner that maps assessment blocks into auto extraction plans. |
+| `common/legacy/legacyAutoTemplate*.ts` | compatibility-only raw-header auto-template fallback; do not add new primary layout/semantic rules here. |
+| `../schemaProfile/common/schemaProfile.ts` | user-confirmed schema profile evidence records. |
+| `../schemaProfile/common/schemaProfileConfirmation.ts` | pure builder for user-confirmed role/unit mappings into exact-fingerprint schema profiles. |
+| `../schemaProfile/common/schemaProfileMatcher.ts` | exact schema fingerprint matching and column binding lookup. |
+| `../schemaProfile/browser/schemaProfileStoreService.ts` | profile-scope persistence and versioned schema profile snapshots. |
+| `../schemaProfile/browser/schemaProfileService.ts` | schema profile owner API consumed by Assessment. |
 | `browser/assessmentService.ts` | browser orchestration and branch selection. |
+| `browser/rawTableAssessmentEngine.ts` | raw table assessment workflow that composes legacy classification with V2 structure evidence. |
+| `browser/assessmentDecisionPolicy.ts` | decision gate from assessment evidence to ready/inferred/review/unknown states. |
+| `browser/legacyAssessmentAdapter.ts` | migration bridge for legacy file-level assessment classification. |
 | `browser/fileAssessment.ts` | browser adapter from import previews to shared rules. |
-| `browser/assessmentRules.ts` | TypeScript fallback heuristics. |
 | `browser/assessment.contribution.ts` | session subscriber that schedules/commits assessments. |
+| `test/fixtures/**` | fixture corpus for Assessment V2 invariants: structure, layout, column semantics, profile exact-match safety, and auto-apply gates. |
 
 ## Flow
 
@@ -42,6 +59,13 @@ workbench restored / current session audit
 rawTablesChanged
   -> SessionSnapshot / RawTableRecord
   -> IAssessmentService.assessRawTable
+  -> SchemaProfileService.getSnapshot
+  -> RawTableAssessmentEngine.assess
+  -> detectRawTableStructure / createColumnProfiles
+  -> detectLayoutCandidates
+  -> optional exact SchemaProfile fingerprint match
+  -> createColumnSemanticCandidates
+  -> detectMeasurementBlocks
   -> RawTableAssessmentRecord
   -> ISessionService.commitRawTableAssessment
 ```
@@ -52,19 +76,65 @@ rawTablesChanged
 - A raw table may contain multiple measurement blocks.
 - Blocks and diagnostics point back to source cells through `RawTableRangeRef`.
 - Assessment output includes `sourceRawTableVersion`; stale results must be ignored.
+- Assessment output includes `schemaProfileVersion`; profile changes invalidate
+  stored assessments and the assessment queue must reassess matching raw tables.
 - Queue entries capture raw table source version and drop results if the version changes before commit.
 - Raw tables with decode/parse/unsupported health are not assessable.
 - Keep measurement family and mode separate: `iv` is a family; `transfer` and `output` are IV modes.
 - `curveTypeLabel` / UI `curveType` strings are display projections only.
+- `RawTableStructure` is physical table evidence only. It must not infer measurement family or template behavior.
+- Repeated header sections with an exact matching schema fingerprint may become
+  multiple `repeatedHeader` block regions; keep this conservative and do not use
+  fuzzy header similarity to split auto-applied blocks.
+- `ColumnProfile` is neutral numeric/text evidence. Semantic role and unit evidence belongs in `ColumnSemanticCandidate`.
+- Built-in semantic vocabulary belongs in `builtinLexicon.json`. Keep it narrow,
+  maintained, and evidence-oriented; do not generate per-file rule JSON from
+  imported data.
+- `LayoutCandidate` is neutral table-shape evidence. It may identify simple XY,
+  shared-X multi-Y, pairwise XY, grouped sweep, wide matrix, time series,
+  repeated-block, or metadata preamble bindings for UI prefill, but it must not
+  infer measurement family, role, unit, or unlock automatic calculation.
+- Schema profile evidence is optional and may influence semantic candidates only
+  after an exact `RawTableStructure.fingerprint` match; do not use fuzzy schema
+  matching to auto-calculate.
+- Schema profile bindings may confirm role/unit candidates. Exact, conflict-free
+  profile matches may also unlock a measurement family only when confirmed
+  `axis: x` / `axis: y` bindings form an unambiguous supported family such as
+  `vg`/`id` IV transfer, `vd`/`id` IV output, CV, CF, or IT; generic
+  `voltage`/`current` mappings still require review.
+- Schema profile persistence belongs to `SchemaProfileService` /
+  `SchemaProfileStoreService`; do not store profiles in Session or template
+  records.
+- User-confirmed role/unit mappings should be written through
+  `SchemaProfileService.confirmProfile(...)`, which builds exact-fingerprint
+  schema profile bindings from Assessment column profiles and persists them
+  through the schema profile owner.
+- Block detection groups assessed source ranges and column maps into
+  `MeasurementBlockRecord`; repeated block regions must produce separate blocks
+  with per-block source ranges. Template code must consume those blocks instead
+  of re-detecting them.
+- Legacy `autoTemplate` raw-header inference may remain as a fallback for old
+  preview paths, but new layout, semantic, and automatic-calculation behavior
+  must be expressed through Assessment V2 records and block bindings.
+- `AssessmentDecision.autoApplyAllowed` is the automatic-calculation gate. Keep it false when required bindings or units are missing.
+- A confident layout with weak or unknown semantics should use
+  `reviewRequired`, not `ready`; layout ready is not calculation ready.
 - TypeScript rules are semantic baseline. When changing mirrored assessment or auto-template rules, update Rust mirrors under `cli/src/assessment.rs` / `cli/src/detect.rs`.
 - Mirrored rule changes require `npm run verify:rust-auto-extraction` plus targeted tests and compatibility fixtures when classification/confidence/plan shape changes.
+- Add or update fixture corpus cases when changing structure, layout, semantic,
+  profile matching, block construction, or decision-gate behavior. Fixture
+  expectations should cover data regions, numeric columns, block count/family,
+  column roles/units, and `autoApplyAllowed`, not only display curve type.
 
 ## Commands
 
 Assessment normally runs from session events. Direct commands are only for
 explicit reassessment or developer tools and must delegate to
 `IAssessmentService` then Session commit. Commands must not detect blocks
-themselves.
+themselves. Commands that record user-confirmed column roles or units must read
+the current `RawTableAssessmentRecord` fingerprint/column profiles and persist
+through `SchemaProfileService.confirmProfile(...)`; the profile-change event
+owns reassessment.
 
 ## Field Catalog
 

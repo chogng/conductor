@@ -163,16 +163,22 @@ const createPreparedImportAssessmentInputs = (
       fileName: importedFile.importRecord.name,
       rawTableId,
       rowCount: table.rowCount,
+      rows: table.rows.kind === "inline" ? table.rows.values : undefined,
       sourceRawTableVersion: 0,
     });
     assessments.push({
       assessmentRuleVersion: assessment.assessmentRuleVersion,
       blocks: assessment.blocks,
+      columnProfiles: assessment.columnProfiles,
       createdAt: assessment.createdAt,
+      decision: assessment.decision,
       diagnostics: assessment.diagnostics,
       fileId: assessment.fileId,
       groups: assessment.groups,
+      layoutCandidates: assessment.layoutCandidates,
       rawTableId: assessment.rawTableId,
+      semanticCandidates: assessment.semanticCandidates,
+      structure: assessment.structure,
     });
   }
 

@@ -8,6 +8,7 @@ import { Emitter } from "src/cs/base/common/event";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { AssessmentContribution } from "src/cs/workbench/services/assessment/browser/assessment.contribution";
 import { AssessmentQueueService } from "src/cs/workbench/services/assessment/browser/assessmentQueueService";
+import { AssessmentService } from "src/cs/workbench/services/assessment/browser/assessmentService";
 import { ASSESSMENT_RULE_VERSION } from "src/cs/workbench/services/assessment/common/assessment";
 import type {
 	AssessRawTableInput,
@@ -15,12 +16,22 @@ import type {
 	ImportFileAssessment,
 	RawTableAssessmentRecord,
 } from "src/cs/workbench/services/assessment/common/assessment";
+import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 import type { FileImportResult } from "src/cs/workbench/services/files/common/files";
 import type {
 	IRawTableRowsReaderService,
 	RawTableRows,
 	RawTableRowsReadInput,
 } from "src/cs/workbench/services/files/common/rawTableRowsReader";
+import type {
+	ISchemaProfileService,
+	SchemaProfile,
+	SchemaProfileSnapshot,
+} from "src/cs/workbench/services/schemaProfile/common/schemaProfile";
+import {
+	createSchemaProfileFromConfirmation,
+	type ConfirmSchemaProfileInput,
+} from "src/cs/workbench/services/schemaProfile/common/schemaProfileConfirmation";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 
@@ -143,6 +154,119 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 			assessmentService.inputs.map(input => input.sourceRawTableVersion),
 			[1],
 		);
+
+		contribution.dispose();
+		assessmentQueueService.dispose();
+	});
+
+	test("reassesses raw tables when schema profile version changes", async () => {
+		const sessionService = store.add(new SessionService());
+		const assessmentService = new TestAssessmentService();
+		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
+		const schemaProfileService = new TestSchemaProfileService();
+		const assessmentQueueService = store.add(new AssessmentQueueService(
+			sessionService,
+			assessmentService,
+			rawTableRowsReaderService,
+			schemaProfileService,
+		));
+		const contribution = store.add(new AssessmentContribution(
+			sessionService,
+			assessmentQueueService,
+		));
+
+		sessionService.commitFileImport(createInlineImportResult());
+		await waitUntil(() => assessmentService.inputs.length === 1);
+		assert.equal(sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.schemaProfileVersion, 0);
+
+		schemaProfileService.setVersion(1);
+		await waitUntil(() => assessmentService.inputs.length === 2);
+
+		assert.deepEqual(
+			assessmentService.inputs.map(input => input.schemaProfileVersion),
+			[0, 1],
+		);
+		assert.equal(sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.schemaProfileVersion, 1);
+
+		contribution.dispose();
+		assessmentQueueService.dispose();
+	});
+
+	test("reassesses with confirmed schema profile evidence after profile changes", async () => {
+		const sessionService = store.add(new SessionService());
+		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
+		const schemaProfileService = new TestSchemaProfileService();
+		const assessmentService = store.add(new AssessmentService(schemaProfileService));
+		const assessmentQueueService = store.add(new AssessmentQueueService(
+			sessionService,
+			assessmentService,
+			rawTableRowsReaderService,
+			schemaProfileService,
+		));
+		const contribution = store.add(new AssessmentContribution(
+			sessionService,
+			assessmentQueueService,
+		));
+
+		sessionService.commitFileImport(createProfileConfirmationImportResult());
+		await waitUntil(() => Boolean(
+			sessionService.getSnapshot().filesById["file-profile"]?.assessmentsByRawTableId["table-profile"],
+		));
+
+		const initial = sessionService.getSnapshot()
+			.filesById["file-profile"]
+			.assessmentsByRawTableId["table-profile"];
+		assert.ok(initial);
+		assert.equal(initial.schemaProfileVersion, 0);
+		assert.equal(initial.blocks[0]?.family, "unknown");
+		assert.equal(initial.decision.state, "reviewRequired");
+		assert.equal(initial.decision.autoApplyAllowed, false);
+
+		const profile = schemaProfileService.confirmProfile({
+			schemaFingerprint: initial.structure.fingerprint,
+			columnProfiles: initial.columnProfiles,
+			bindings: [{
+				rawCol: 1,
+				role: "vg",
+				axis: "x",
+				canonicalUnit: "V",
+			}, {
+				rawCol: 2,
+				role: "id",
+				axis: "y",
+				canonicalUnit: "A",
+			}],
+		});
+		assert.ok(profile);
+
+		await waitUntil(() =>
+			sessionService.getSnapshot()
+				.filesById["file-profile"]
+				.assessmentsByRawTableId["table-profile"]
+				?.schemaProfileVersion === 1
+		);
+
+		const reassessed = sessionService.getSnapshot()
+			.filesById["file-profile"]
+			.assessmentsByRawTableId["table-profile"];
+		assert.ok(reassessed);
+		assert.equal(reassessed.blocks[0]?.family, "iv");
+		assert.equal(reassessed.blocks[0]?.ivMode, "transfer");
+		assert.equal(reassessed.decision.state, "ready");
+		assert.equal(reassessed.decision.autoApplyAllowed, true);
+		assert.deepEqual(
+			reassessed.blocks[0]?.columns.columns.map(({ rawCol, role, unit, confidence }) => ({
+				rawCol,
+				role,
+				unit,
+				confidence,
+			})),
+			[
+				{ rawCol: 1, role: "vg", unit: "V", confidence: 0.96 },
+				{ rawCol: 2, role: "id", unit: "A", confidence: 0.96 },
+			],
+		);
+		assert.equal(rawTableRowsReaderService.inputs.length, 2);
 
 		contribution.dispose();
 		assessmentQueueService.dispose();
@@ -327,6 +451,7 @@ class TestAssessmentService implements IAssessmentService {
 			fileId: input.fileId,
 			rawTableId: input.rawTableId,
 			blockId,
+			schemaProfileVersion: input.schemaProfileVersion ?? 0,
 			sourceRawTableVersion: input.sourceRawTableVersion,
 		}));
 	}
@@ -337,15 +462,18 @@ const createRawTableAssessmentRecord = ({
 	blockId = "block-a",
 	fileId,
 	rawTableId,
+	schemaProfileVersion = 0,
 	sourceRawTableVersion,
 }: {
 	readonly assessmentRuleVersion?: number;
 	readonly blockId?: string;
 	readonly fileId: string;
 	readonly rawTableId: string;
+	readonly schemaProfileVersion?: number;
 	readonly sourceRawTableVersion: number;
 }): RawTableAssessmentRecord => ({
 	assessmentRuleVersion,
+	schemaProfileVersion,
 	blocks: [{
 		columnCount: 2,
 		columns: {
@@ -367,13 +495,93 @@ const createRawTableAssessmentRecord = ({
 			},
 		},
 	}],
+	columnProfiles: [],
 	createdAt: 123,
+	decision: {
+		autoApplyAllowed: false,
+		confidence: 0.3,
+		reasons: [],
+		state: "reviewRequired",
+	},
 	diagnostics: [],
 	fileId,
 	groups: [],
+	layoutCandidates: [],
 	rawTableId,
+	semanticCandidates: [],
 	sourceRawTableVersion,
+	structure: createEmptyRawTableStructure(),
 });
+
+class TestSchemaProfileService implements ISchemaProfileService {
+	public declare readonly _serviceBrand: undefined;
+
+	private readonly onDidChangeSchemaProfilesEmitter = new Emitter<SchemaProfileSnapshot>();
+	public readonly onDidChangeSchemaProfiles = this.onDidChangeSchemaProfilesEmitter.event;
+	private profiles: readonly SchemaProfile[] = [];
+	private version = 0;
+
+	public setVersion(version: number): void {
+		this.version = version;
+		this.onDidChangeSchemaProfilesEmitter.fire(this.getSnapshot());
+	}
+
+	public getSnapshot(): SchemaProfileSnapshot {
+		return {
+			version: this.version,
+			profiles: this.profiles,
+		};
+	}
+
+	public getProfiles(): readonly SchemaProfile[] {
+		return this.profiles;
+	}
+
+	public getVersion(): number {
+		return this.version;
+	}
+
+	public upsertProfile(profile: SchemaProfile): SchemaProfile {
+		const profileId = String(profile.id ?? "").trim();
+		const fingerprint = String(profile.schemaFingerprint ?? "").trim();
+		this.profiles = [
+			...this.profiles.filter(existing =>
+				String(existing.id ?? "").trim() !== profileId &&
+				String(existing.schemaFingerprint ?? "").trim() !== fingerprint
+			),
+			profile,
+		];
+		this.version += 1;
+		this.onDidChangeSchemaProfilesEmitter.fire(this.getSnapshot());
+		return profile;
+	}
+
+	public confirmProfile(input: ConfirmSchemaProfileInput): SchemaProfile | null {
+		const profile = createSchemaProfileFromConfirmation(input);
+		return profile ? this.upsertProfile(profile) : null;
+	}
+
+	public removeProfile(profileId: string): void {
+		const nextProfiles = this.profiles.filter(profile =>
+			String(profile.id ?? "").trim() !== String(profileId ?? "").trim()
+		);
+		if (nextProfiles.length === this.profiles.length) {
+			return;
+		}
+		this.profiles = nextProfiles;
+		this.version += 1;
+		this.onDidChangeSchemaProfilesEmitter.fire(this.getSnapshot());
+	}
+
+	public clearProfiles(): void {
+		if (!this.profiles.length) {
+			return;
+		}
+		this.profiles = [];
+		this.version += 1;
+		this.onDidChangeSchemaProfilesEmitter.fire(this.getSnapshot());
+	}
+}
 
 const createInlineImportResult = (): FileImportResult => ({
 	createdAt: 123,
@@ -403,6 +611,43 @@ const createInlineImportResult = (): FileImportResult => ({
 				},
 			},
 			rawTableOrder: ["table-a"],
+		},
+	}],
+});
+
+const createProfileConfirmationImportResult = (): FileImportResult => ({
+	createdAt: 123,
+	diagnostics: [],
+	files: [{
+		id: "file-profile",
+		kind: "csv",
+		name: "custom.csv",
+		raw: {
+			fileId: "file-profile",
+			fileName: "custom.csv",
+			relativePath: "custom.csv",
+			rawTablesById: {
+				"table-profile": {
+					columnCount: 3,
+					fileId: "file-profile",
+					maxCellLengths: [9, 7, 8],
+					rawTableId: "table-profile",
+					rowCount: 4,
+					rows: {
+						kind: "inline",
+						values: [
+							["DataName", "Input A", "Output B"],
+							["DataValue", "-1", "1e-12"],
+							["DataValue", "0", "1e-9"],
+							["DataValue", "1", "2e-7"],
+						],
+					},
+					source: {
+						kind: "csv",
+					},
+				},
+			},
+			rawTableOrder: ["table-profile"],
 		},
 	}],
 });

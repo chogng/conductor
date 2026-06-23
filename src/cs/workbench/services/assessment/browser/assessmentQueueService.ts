@@ -20,6 +20,10 @@ import {
   IRawTableRowsReaderService,
   type IRawTableRowsReaderService as IRawTableRowsReaderServiceType,
 } from "src/cs/workbench/services/files/common/rawTableRowsReader";
+import {
+  ISchemaProfileService,
+  type ISchemaProfileService as ISchemaProfileServiceType,
+} from "src/cs/workbench/services/schemaProfile/common/schemaProfile";
 import type {
   FileRecord,
   RawTableRef,
@@ -60,6 +64,7 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
     @ISessionService private readonly sessionService: ISessionServiceType,
     @IAssessmentService private readonly assessmentService: IAssessmentServiceType,
     @IRawTableRowsReaderService private readonly rawTableRowsReaderService: IRawTableRowsReaderServiceType,
+    @ISchemaProfileService private readonly schemaProfileService?: ISchemaProfileServiceType,
   ) {
     super();
     this._register(this.sessionService.onDidChangeSession(event => {
@@ -72,6 +77,11 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
         this.deleteQueuedRawTableRefsForFiles(event.fileIds);
       }
     }));
+    if (this.schemaProfileService) {
+      this._register(this.schemaProfileService.onDidChangeSchemaProfiles(() => {
+        this.enqueueRawTables(getRawTableRefsForAssessmentSnapshot(this.sessionService.getSnapshot()));
+      }));
+    }
   }
 
   public override dispose(): void {
@@ -213,7 +223,11 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
 
     const rawTableId = targetRef.rawTableId;
     const table = file.raw.tablesById[rawTableId];
-    if (!table || !isAssessableTable(table) || hasCurrentAssessment(file, rawTableId)) {
+    if (!table || !isAssessableTable(table) || hasCurrentAssessment(
+      file,
+      rawTableId,
+      this.getSchemaProfileVersion(),
+    )) {
       return null;
     }
 
@@ -241,6 +255,7 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
       rawTableId,
       rowCount: table.rowCount,
       rows,
+      schemaProfileVersion: this.getSchemaProfileVersion(),
       sourceRawTableVersion,
     });
   }
@@ -314,7 +329,11 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
       !file ||
       !isAssessableTable(file.raw.tablesById[ref.rawTableId]) ||
       typeof sourceRawTableVersion !== "number" ||
-      hasCurrentAssessment(file, ref.rawTableId)
+      hasCurrentAssessment(
+        file,
+        ref.rawTableId,
+        this.getSchemaProfileVersion(),
+      )
     ) {
       return null;
     }
@@ -360,6 +379,10 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
       file?.raw.tablesById[ref.rawTableId] &&
         (file.rawTableVersionsById[ref.rawTableId] ?? 0) === sourceRawTableVersion,
     );
+  }
+
+  private getSchemaProfileVersion(): number {
+    return this.schemaProfileService?.getVersion() ?? 0;
   }
 
   private reorderQueueForPriority(priority: AssessmentQueuePriority): void {
@@ -471,15 +494,22 @@ export const getRawTableRefsForAssessmentEvent = (
   return uniqueRawTableRefs(result);
 };
 
+const getRawTableRefsForAssessmentSnapshot = (
+  snapshot: SessionSnapshot,
+): RawTableRef[] =>
+  getRawTableRefsForAssessmentEvent(undefined, undefined, undefined, snapshot);
+
 const hasCurrentAssessment = (
   file: FileRecord,
   rawTableId: string,
+  schemaProfileVersion: number,
 ): boolean => {
   const assessment = file.assessmentsByRawTableId[rawTableId];
   return Boolean(
     assessment &&
       assessment.sourceRawTableVersion === (file.rawTableVersionsById[rawTableId] ?? 0) &&
-      assessment.assessmentRuleVersion === ASSESSMENT_RULE_VERSION,
+      assessment.assessmentRuleVersion === ASSESSMENT_RULE_VERSION &&
+      assessment.schemaProfileVersion === schemaProfileVersion,
   );
 };
 

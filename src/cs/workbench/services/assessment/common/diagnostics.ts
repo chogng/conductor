@@ -19,3 +19,24 @@ export type AssessmentDiagnostic = {
   readonly relatedBlockId?: string;
   readonly relatedGroupId?: string;
 };
+
+export const createAssessmentReasonDiagnosticCodes = (
+  reasons: readonly string[],
+): readonly string[] =>
+  reasons.map((_, index) => `assessment.reason.${index + 1}`);
+
+export const createAssessmentReasonDiagnostics = ({
+  reasons,
+  relatedBlockId,
+}: {
+  readonly reasons: readonly string[];
+  readonly relatedBlockId?: string;
+}): readonly AssessmentDiagnostic[] => {
+  const diagnosticCodes = createAssessmentReasonDiagnosticCodes(reasons);
+  return reasons.map((reason, index) => ({
+    severity: "info",
+    code: diagnosticCodes[index] ?? `assessment.reason.${index + 1}`,
+    message: reason,
+    relatedBlockId,
+  }));
+};

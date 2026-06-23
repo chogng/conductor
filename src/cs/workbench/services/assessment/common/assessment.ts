@@ -4,6 +4,8 @@
 
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { Event } from "src/cs/base/common/event";
+import type { AssessmentDecision } from "src/cs/workbench/services/assessment/common/assessmentDecision";
+import type { ColumnProfile } from "src/cs/workbench/services/assessment/common/columnProfile";
 import type { AssessmentDiagnostic } from "src/cs/workbench/services/assessment/common/diagnostics";
 import type {
   IvSweepMode,
@@ -11,6 +13,10 @@ import type {
   MeasurementFamily,
   MeasurementGroupRecord,
 } from "src/cs/workbench/services/assessment/common/measurement";
+import type { LayoutCandidate } from "src/cs/workbench/services/assessment/common/layoutCandidate";
+import type { RawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
+import type { ColumnSemanticCandidate } from "src/cs/workbench/services/assessment/common/semanticCandidate";
+import type { SchemaProfile } from "src/cs/workbench/services/schemaProfile/common/schemaProfile";
 import type {
   RawTableRef,
 } from "src/cs/workbench/services/session/common/sessionModel";
@@ -21,7 +27,7 @@ export const AssessmentContributionId = "workbench.services.assessment.lifecycle
 
 // Bump this when assessment heuristics change in a way that should invalidate
 // stored raw table assessment records.
-export const ASSESSMENT_RULE_VERSION = 1;
+export const ASSESSMENT_RULE_VERSION = 2;
 
 export type AssessmentRows = readonly (readonly string[])[];
 
@@ -32,6 +38,7 @@ export type ImportFileAxisRoleSource =
   | "title"
   | "label"
   | "metadata"
+  | "schemaProfile"
   | "shape"
   | null;
 
@@ -61,15 +68,23 @@ export type AssessRawTableInput = {
   readonly sourceRawTableVersion: number;
   readonly rows: AssessmentRows;
   readonly fileName?: string | null;
+  readonly schemaProfiles?: readonly SchemaProfile[];
+  readonly schemaProfileVersion?: number;
 };
 
 export type RawTableAssessmentRecord = {
   readonly assessmentRuleVersion: number;
+  readonly schemaProfileVersion: number;
   readonly fileId: string;
   readonly rawTableId: string;
   readonly sourceRawTableVersion: number;
+  readonly structure: RawTableStructure;
+  readonly columnProfiles: readonly ColumnProfile[];
+  readonly layoutCandidates: readonly LayoutCandidate[];
+  readonly semanticCandidates: readonly ColumnSemanticCandidate[];
   readonly groups: readonly MeasurementGroupRecord[];
   readonly blocks: readonly MeasurementBlockRecord[];
+  readonly decision: AssessmentDecision;
   readonly diagnostics: readonly AssessmentDiagnostic[];
   readonly createdAt: number;
 };

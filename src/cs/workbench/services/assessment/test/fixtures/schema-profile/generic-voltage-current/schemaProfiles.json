@@ -1,0 +1,29 @@
+[
+  {
+    "id": "fixture-profile-generic-voltage-current",
+    "scope": "workspace",
+    "schemaFingerprint": "dataname|inputa|outputb",
+    "confirmedCount": 2,
+    "conflictCount": 0,
+    "bindings": [
+      {
+        "selector": {
+          "columnIndex": 1,
+          "normalizedHeader": "input a"
+        },
+        "role": "voltage",
+        "axis": "x",
+        "canonicalUnit": "V"
+      },
+      {
+        "selector": {
+          "columnIndex": 2,
+          "normalizedHeader": "output b"
+        },
+        "role": "current",
+        "axis": "y",
+        "canonicalUnit": "A"
+      }
+    ]
+  }
+]

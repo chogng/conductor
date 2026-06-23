@@ -2,33 +2,37 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+// TODO(conductor-architecture): Migration bridge.
+// These builders are compatibility fallback behind autoTemplatePlan. New
+// automatic extraction should consume Assessment blocks and decisions.
+
 import {
   detectAxisRole,
   extractFileMetadata,
   type AxisRole,
   type FileAssessment,
-} from "./fileAssessment.ts";
-import { normalizeCellText } from "../../../common/cellText.ts";
-import { resolveAutoGroupShape } from "./autoTemplateGrouping.ts";
+} from "../fileAssessment.ts";
+import { normalizeCellText } from "../../../../common/cellText.ts";
+import { resolveAutoGroupShape } from "../autoTemplateGrouping.ts";
 import {
   parseSecondarySweepFromRows,
   parseVarSweepFromNotes,
-} from "./autoTemplateMetadata.ts";
+} from "../autoTemplateMetadata.ts";
 import {
   columnHasNumericRows,
   findGenericNumericColumns,
-} from "./autoTemplateRows.ts";
+} from "../autoTemplateRows.ts";
 import {
   currentHeaderLooksLikeDrainCurrent,
   currentHeaderLooksLikeGateCurrent,
   inferSpecializedGenericLayout,
   inferStructuredSeriesLayout,
-} from "./autoTemplateStructuredLayout.ts";
+} from "./legacyAutoTemplateStructuredLayout.ts";
 import {
   formatCompactNumber,
   type AutoExtractionResult,
   type TemplateRows,
-} from "./autoTemplateTypes.ts";
+} from "../autoTemplateTypes.ts";
 
 const findFirstMatchingColumn = ({
   dataStartRowIndex,
@@ -479,4 +483,3 @@ export const inferGenericPlan = ({
     },
   };
 };
-

@@ -26,6 +26,12 @@ import {
   AUTO_TEMPLATE_ID,
   isAutoTemplateConfig,
 } from "src/cs/workbench/services/template/common/autoTemplate";
+import {
+  inferAutoExtractionFromAssessmentBlocks,
+} from "src/cs/workbench/services/assessment/common/autoTemplateAssessmentBlocks";
+import {
+  buildAutoWorkerConfig,
+} from "src/cs/workbench/services/template/common/autoTemplateConfig";
 import { normalizeExtractionErrorDetails } from "src/cs/workbench/services/template/common/extractionErrors";
 import { stableStringify } from "src/cs/workbench/services/template/common/templateStableKey";
 import {
@@ -385,6 +391,12 @@ const getSkippedFileState = (
         state: "skipped",
         code: skippedFile.reason,
         message: localize("template.apply.skippedNeedsTemplate", "{fileName} needs template review.", { fileName }),
+      };
+    case "reviewRequired":
+      return {
+        state: "skipped",
+        code: skippedFile.reason,
+        message: localize("template.apply.skippedReviewRequired", "{fileName} needs assessment review before automatic template apply.", { fileName }),
       };
     case "lowConfidence":
       return {
@@ -1555,9 +1567,16 @@ export class TemplateApplyController {
         if (!entry.assessment) {
           return null;
         }
+        const autoExtraction = inferAutoExtractionFromAssessmentBlocks({
+          assessment: entry.assessment,
+          fileName: entry.fileName,
+        });
+        if (!autoExtraction?.ok) {
+          return null;
+        }
         const response = await this.options.templateProcessingBackendService.processFile({
           assessment: entry.assessment ?? null,
-          auto: true,
+          config: buildAutoWorkerConfig(autoExtraction.plan),
           curveFilterField: entry.curveFilterField ?? null,
           curveFilterKey: entry.curveFilterKey ?? null,
           fileId: entry.fileId,

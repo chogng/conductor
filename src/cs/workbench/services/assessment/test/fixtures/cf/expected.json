@@ -1,0 +1,27 @@
+{
+  "decision": "inferred",
+  "autoApplyAllowed": false,
+  "layoutKind": "simpleXY",
+  "blocks": 1,
+  "blockFamily": "cf",
+  "minDataRegions": 1,
+  "minNumericColumns": 2,
+  "layoutBindings": [
+    {
+      "xCol": 0,
+      "yCols": [1]
+    }
+  ],
+  "columns": {
+    "freq": {
+      "role": "unknown",
+      "unit": "Hz",
+      "unitConfirmed": true
+    },
+    "Cp(vp=0.00000)": {
+      "role": "capacitance",
+      "unit": "F",
+      "unitConfirmed": false
+    }
+  }
+}

@@ -1531,6 +1531,12 @@ const buildBlockProcessConfig = (
         bottomTitle: block?.bottomTitle ?? config?.bottomTitle,
         xCol: block?.xCol,
         yCols: Array.isArray(block?.yCols) ? block.yCols : [],
+        seriesBindings: Array.isArray(block?.yCols)
+            ? block.yCols.map(yCol => ({
+                  xCol: block?.xCol,
+                  yCol,
+              }))
+            : [],
         yLegendStartCell: block?.legendStartCell ?? null,
         yLegendCount:
             block?.legendTarget === "yColumn" && Array.isArray(block?.yCols)

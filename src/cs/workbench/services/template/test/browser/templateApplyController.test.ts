@@ -210,6 +210,81 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     controller.dispose();
   });
 
+  test("auto backend processing uses assessment block config instead of native header inference", async () => {
+    const queuedFileIds: string[][] = [];
+    const startedJobs: ProcessingJobOptions[] = [];
+    const backendPayloads: unknown[] = [];
+    const controller = createController({
+      sessionService: createSessionService(),
+      tableService: createTableService(),
+      templateProcessingBackendService: createTemplateProcessingBackend({
+        canProcessFile: () => true,
+        processFile: async payload => {
+          backendPayloads.push(payload);
+          return {
+            ok: true,
+            result: {
+              curveType: "transfer",
+              fileId: "file-path",
+              fileName: "file-path.csv",
+              series: [],
+              xGroups: [],
+            },
+          };
+        },
+      }),
+      showResults: () => undefined,
+      templateApplyService: createTemplateApplyService(queuedFileIds, startedJobs),
+    });
+
+    controller.update({
+      processedFileIds: [],
+      rawFiles: [
+        createSessionFile("file-path", {
+          file: undefined,
+          normalizedCsvPath: "/tmp/file-path.csv",
+        }),
+      ],
+    });
+
+    const result = controller.handleTemplateApplied({
+      autoExtractionMode: true,
+      stopOnError: false,
+    }) as { ok: boolean };
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(queuedFileIds, [["file-path"]]);
+
+    const job = startedJobs[0];
+    assert.ok(job);
+    const processed = await job.tryProcessFileWithBackend({
+      entry: job.queue[0],
+      extractionConfig: { autoExtractionMode: true },
+      messageType: "processFileAuto",
+    });
+
+    assert.equal(processed?.fileId, "file-path");
+    assert.equal(backendPayloads.length, 1);
+    const payload = backendPayloads[0] as Record<string, unknown>;
+    assert.equal(payload.auto, undefined);
+    const config = payload.config as Record<string, unknown>;
+    assert.equal(config.autoDetectCurveType, true);
+    assert.deepEqual(config.yCols, [1]);
+    assert.deepEqual(config.seriesBindings, [{ xCol: 0, yCol: 1 }]);
+    assert.deepEqual(config.blocks, [{
+      bottomTitle: "Vg",
+      endCol: 1,
+      legendStartCell: null,
+      legendStep: null,
+      legendTarget: "auto",
+      startCol: 0,
+      xAxisRole: "vg",
+      xCol: 0,
+      yCols: [1],
+    }]);
+    controller.dispose();
+  });
+
   test("browser full apply skips converted csv sources when no readable File is retained", () => {
     const queuedFileIds: string[][] = [];
     const startedJobs: ProcessingJobOptions[] = [];
@@ -427,6 +502,10 @@ suite("workbench/services/template/browser/templateApplyController", () => {
         createSessionFile("file-low-confidence", {
           curveTypeConfidence: "low",
         }),
+        createSessionFile("file-review-required", {
+          assessmentAutoApplyAllowed: false,
+          assessmentDecisionState: "reviewRequired",
+        }),
         createSessionFile("file-unknown", {
           curveType: "unknown",
           curveTypeConfidence: "medium",
@@ -459,6 +538,11 @@ suite("workbench/services/template/browser/templateApplyController", () => {
         {
           code: "lowConfidence",
           fileId: "file-low-confidence",
+          state: "skipped",
+        },
+        {
+          code: "reviewRequired",
+          fileId: "file-review-required",
           state: "skipped",
         },
         {
@@ -980,6 +1064,9 @@ const createSessionFile = (
 });
 
 const createSessionFileBase = (fileId: string) => ({
+  assessmentAutoApplyAllowed: true,
+  assessmentBlocks: [createAssessmentBlock(`${fileId}:block:0`, fileId)],
+  assessmentDecisionState: "ready" as const,
   curveType: "transfer",
   curveTypeConfidence: "high" as const,
   curveTypeNeedsTemplate: false,
@@ -988,6 +1075,43 @@ const createSessionFileBase = (fileId: string) => ({
   fileName: `${fileId}.csv`,
   xAxisRole: "vg" as const,
   xAxisRoleSource: "metadata" as const,
+});
+
+const createAssessmentBlock = (
+  id: string,
+  fileId: string,
+): NonNullable<SessionFile["assessmentBlocks"]>[number] => ({
+  id,
+  fileId,
+  rawTableId: fileId,
+  label: "transfer",
+  family: "iv",
+  ivMode: "transfer",
+  source: {
+    fullRange: {
+      startRow: 0,
+      endRow: 2,
+      startCol: 0,
+      endCol: 1,
+    },
+  },
+  columns: {
+    columns: [{
+      rawCol: 0,
+      headerText: "Vg",
+      role: "vg",
+      unit: "V",
+    }, {
+      rawCol: 1,
+      headerText: "Id",
+      role: "id",
+      unit: "A",
+    }],
+  },
+  confidence: 0.9,
+  rowCount: 3,
+  columnCount: 2,
+  diagnosticCodes: [],
 });
 
 const createManualTemplateConfig = (): Record<string, unknown> => ({

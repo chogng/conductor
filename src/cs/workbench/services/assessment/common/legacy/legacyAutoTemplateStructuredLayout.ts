@@ -2,25 +2,29 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+// TODO(conductor-architecture): Migration bridge.
+// Raw-header auto-template layout inference is retained for compatibility.
+// New structure/layout behavior belongs in Assessment V2 records instead.
+
 import {
   detectAxisRole,
   type AxisRole,
   type FileAssessment,
   type CurveKind,
-} from "./fileAssessment.ts";
+} from "../fileAssessment.ts";
 import {
   approxEqual,
   computeSpan,
   normalizeCellText,
   parseFiniteNumber,
-} from "../../../common/cellText.ts";
-import { columnHasNumericRows } from "./autoTemplateRows.ts";
+} from "../../../../common/cellText.ts";
+import { columnHasNumericRows } from "../autoTemplateRows.ts";
 import {
   AUTO_SEGMENTATION_MIN_GROUP_SIZE,
   type AutoExtractionBlock,
   type StructuredSeriesLayout,
   type TemplateRows,
-} from "./autoTemplateTypes.ts";
+} from "../autoTemplateTypes.ts";
 
 const normalizeHeaderCompact = (value: unknown): string =>
   normalizeCellText(value)
@@ -778,4 +782,3 @@ export const inferStructuredSeriesLayout = ({
     xAxisRole,
   });
 };
-

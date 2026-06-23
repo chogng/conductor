@@ -1,0 +1,15 @@
+[
+  ["SetupTitle", "Output"],
+  ["TestParameter", "Channel.VName", "Vg", "Vd", "Vs"],
+  ["TestParameter", "Channel.Func", "VAR2", "VAR1", "CONST"],
+  ["TestParameter", "Output.Graph.XAxis.Data", "Vd"],
+  [
+    "AnalysisSetup",
+    "Analysis.Setup.Vector.Graph.Notes",
+    "[VAR1] Unit=SMU2:MP, Name=Vd, Start=0 V\t[VAR2] Unit=SMU3:MP, Name=Vg, Start=0 V"
+  ],
+  ["DataName", "Vd", "Ig", "Id"],
+  ["DataValue", "0", "1e-12", "1e-10"],
+  ["DataValue", "0.5", "2e-12", "5e-8"],
+  ["DataValue", "1", "3e-12", "1e-6"]
+]

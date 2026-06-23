@@ -1,0 +1,27 @@
+[
+  {
+    "id": "fixture-profile-input-output",
+    "scope": "workspace",
+    "schemaFingerprint": "dataname|inputa|outputb",
+    "confirmedCount": 3,
+    "conflictCount": 0,
+    "bindings": [
+      {
+        "selector": {
+          "columnIndex": 1,
+          "normalizedHeader": "input a"
+        },
+        "role": "vg",
+        "canonicalUnit": "V"
+      },
+      {
+        "selector": {
+          "columnIndex": 2,
+          "normalizedHeader": "output b"
+        },
+        "role": "id",
+        "canonicalUnit": "A"
+      }
+    ]
+  }
+]

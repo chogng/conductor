@@ -16,7 +16,10 @@ import type {
 import {
   inferGenericPlan,
   inferStrippedChannelPlan,
-} from "./autoTemplatePlanBuilders.ts";
+} from "./legacy/legacyAutoTemplatePlanBuilders.ts";
+import {
+  inferAutoExtractionFromAssessmentBlocks,
+} from "./autoTemplateAssessmentBlocks.ts";
 import {
   findHeaderRowIndex,
   getNormalizedRow,
@@ -33,8 +36,8 @@ export type {
 } from "./autoTemplateTypes.ts";
 export { inferMetadataGroupShapeFromRows } from "./autoTemplateMetadata.ts";
 
-// Public entry point for preview-time auto inference. Keep this thin so future
-// layout rules can stay inside the dedicated helpers above.
+// Public entry point for preview-time auto inference. Assessment block bindings
+// are the primary path; legacy raw-header inference is compatibility fallback.
 export const inferAutoExtraction = ({
   assessment: assessmentInput,
   fileName,
@@ -52,6 +55,21 @@ export const inferAutoExtraction = ({
       message: `${String(fileName ?? "file")}: no rows available for auto extraction.`,
       ok: false,
       reasons: [],
+    };
+  }
+
+  const assessmentBlockResult = inferAutoExtractionFromAssessmentBlocks({
+    assessment: assessmentInput,
+    fileName,
+  });
+  if (assessmentBlockResult) {
+    return assessmentBlockResult;
+  }
+  if (hasAssessmentV2AutoExtractionGate(assessmentInput)) {
+    return {
+      message: `${String(fileName ?? "file")}: assessment did not provide automatic extraction block bindings.`,
+      ok: false,
+      reasons: readAssessmentV2Reasons(assessmentInput),
     };
   }
 
@@ -181,6 +199,52 @@ const readStringArray = (value: unknown): string[] => {
     .filter(Boolean);
 };
 
+const hasAssessmentV2AutoExtractionGate = (value: unknown): boolean => {
+  if (!isObjectRecord(value)) {
+    return false;
+  }
+  if (
+    typeof value.assessmentAutoApplyAllowed === "boolean" ||
+    typeof value.autoApplyAllowed === "boolean" ||
+    Array.isArray(value.assessmentBlocks) ||
+    Array.isArray(value.blocks) ||
+    typeof value.assessmentDecisionState === "string"
+  ) {
+    return true;
+  }
+
+  const decision = isObjectRecord(value.decision) ? value.decision : null;
+  return Boolean(
+    decision &&
+    (typeof decision.autoApplyAllowed === "boolean" ||
+      typeof decision.state === "string")
+  );
+};
+
+const readAssessmentV2Reasons = (value: unknown): string[] => {
+  if (!isObjectRecord(value)) {
+    return [];
+  }
+  const decision = isObjectRecord(value.decision) ? value.decision : null;
+  return uniqueStrings([
+    ...readStringArray(value.assessmentDecisionReasons),
+    ...readStringArray(decision?.reasons),
+    ...readStringArray(value.curveTypeReasons),
+  ]);
+};
+
+const uniqueStrings = (values: readonly string[]): string[] => {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const value of values) {
+    if (!value || seen.has(value)) {
+      continue;
+    }
+    seen.add(value);
+    result.push(value);
+  }
+  return result;
+};
+
 const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
-

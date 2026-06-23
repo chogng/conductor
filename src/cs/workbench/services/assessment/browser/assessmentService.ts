@@ -14,17 +14,24 @@ import {
   type RawTableAssessmentRecord,
 } from "src/cs/workbench/services/assessment/common/assessment";
 import {
-  createRawTableAssessmentRecordFromImportAssessment,
-  getColumnCount,
-  normalizePositiveCount,
-} from "src/cs/workbench/services/assessment/common/assessmentRecord";
-import {
   assessImportFile,
   assessImportRows,
 } from "src/cs/workbench/services/assessment/browser/fileAssessment";
+import { RawTableAssessmentEngine } from "src/cs/workbench/services/assessment/browser/rawTableAssessmentEngine";
+import {
+  ISchemaProfileService,
+  type ISchemaProfileService as ISchemaProfileServiceType,
+} from "src/cs/workbench/services/schemaProfile/common/schemaProfile";
 
 export class AssessmentService extends Disposable implements IAssessmentServiceType {
   public declare readonly _serviceBrand: undefined;
+  private readonly rawTableAssessmentEngine = new RawTableAssessmentEngine();
+
+  public constructor(
+    @ISchemaProfileService private readonly schemaProfileService?: ISchemaProfileServiceType,
+  ) {
+    super();
+  }
 
   public assessImportFile(file: AssessmentFileInput): Promise<ImportFileAssessment> {
     return assessImportFile(file);
@@ -40,15 +47,14 @@ export class AssessmentService extends Disposable implements IAssessmentServiceT
   public async assessRawTable(
     input: AssessRawTableInput,
   ): Promise<RawTableAssessmentRecord> {
-    const assessment = await this.assessImportRows(input.fileName ?? input.rawTableId, input.rows);
-    const columnCount = normalizePositiveCount(input.columnCount) ?? getColumnCount(input.rows);
-    const rowCount = normalizePositiveCount(input.rowCount) ?? input.rows.length;
-
-    return createRawTableAssessmentRecordFromImportAssessment({
+    const schemaProfileSnapshot = this.schemaProfileService?.getSnapshot();
+    return this.rawTableAssessmentEngine.assess({
       ...input,
-      assessment,
-      columnCount,
-      rowCount,
+      schemaProfiles: [
+        ...(schemaProfileSnapshot?.profiles ?? []),
+        ...(input.schemaProfiles ?? []),
+      ],
+      schemaProfileVersion: input.schemaProfileVersion ?? schemaProfileSnapshot?.version ?? 0,
     });
   }
 }

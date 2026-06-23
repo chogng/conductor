@@ -1,0 +1,23 @@
+{
+  "decision": "reviewRequired",
+  "autoApplyAllowed": false,
+  "layoutKind": "pairwiseXY",
+  "blocks": 1,
+  "blockFamily": "unknown",
+  "minDataRegions": 1,
+  "minNumericColumns": 6,
+  "layoutBindings": [
+    {
+      "xCol": 0,
+      "yCols": [1]
+    },
+    {
+      "xCol": 2,
+      "yCols": [3]
+    },
+    {
+      "xCol": 4,
+      "yCols": [5]
+    }
+  ]
+}

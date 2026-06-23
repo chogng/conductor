@@ -16,6 +16,7 @@ import {
 } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 import { ASSESSMENT_RULE_VERSION } from "src/cs/workbench/services/assessment/common/assessment";
 import type { RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
+import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 import type { CalculatedPlotsByKey } from "src/cs/workbench/services/calculation/common/calculationReadModel";
 import type {
   FileImportResult,
@@ -808,12 +809,18 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     const result = session.commitFileImport(createSingleRawTableImportResult(), {
       rawTableAssessments: [{
         assessmentRuleVersion: assessment.assessmentRuleVersion,
+        schemaProfileVersion: assessment.schemaProfileVersion,
         blocks: assessment.blocks,
+        columnProfiles: assessment.columnProfiles,
         createdAt: assessment.createdAt,
+        decision: assessment.decision,
         diagnostics: assessment.diagnostics,
         fileId: assessment.fileId,
         groups: assessment.groups,
+        layoutCandidates: assessment.layoutCandidates,
         rawTableId: assessment.rawTableId,
+        semanticCandidates: assessment.semanticCandidates,
+        structure: assessment.structure,
       }],
     });
 
@@ -1480,6 +1487,7 @@ const createRawTableAssessment = (
   blockId = "block-a",
 ): RawTableAssessmentRecord => ({
   assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
+  schemaProfileVersion: 0,
   blocks: [{
     columnCount: 2,
     columns: {
@@ -1501,12 +1509,22 @@ const createRawTableAssessment = (
       },
     },
   }],
+  columnProfiles: [],
   createdAt: 456,
+  decision: {
+    autoApplyAllowed: false,
+    confidence: 0.3,
+    reasons: [],
+    state: "reviewRequired",
+  },
   diagnostics: [],
   fileId: "file-a",
   groups: [],
+  layoutCandidates: [],
   rawTableId,
+  semanticCandidates: [],
   sourceRawTableVersion,
+  structure: createEmptyRawTableStructure(),
 });
 
 const readRecordNumber = (

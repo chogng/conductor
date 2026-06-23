@@ -404,6 +404,15 @@ export const createRawFilesFromRecords = (
 
 type RawFileAssessmentSummary = Pick<
   SessionFile,
+  | "assessmentAutoApplyAllowed"
+  | "assessmentBlocks"
+  | "assessmentColumnProfiles"
+  | "assessmentDecisionConfidence"
+  | "assessmentDecisionReasons"
+  | "assessmentDecisionState"
+  | "assessmentLayoutCandidates"
+  | "assessmentSchemaFingerprint"
+  | "assessmentSemanticCandidates"
   | "curveType"
   | "curveTypeConfidence"
   | "curveTypeNeedsTemplate"
@@ -434,6 +443,25 @@ const createRawFileAssessmentSummary = (
     .filter((message): message is string => Boolean(message));
 
   return {
+    assessmentAutoApplyAllowed: rawAssessment?.decision.autoApplyAllowed,
+    assessmentBlocks: rawAssessment?.blocks.length
+      ? [...rawAssessment.blocks]
+      : undefined,
+    assessmentColumnProfiles: rawAssessment?.columnProfiles.length
+      ? [...rawAssessment.columnProfiles]
+      : undefined,
+    assessmentDecisionConfidence: rawAssessment?.decision.confidence,
+    assessmentDecisionReasons: rawAssessment?.decision.reasons.length
+      ? [...rawAssessment.decision.reasons]
+      : undefined,
+    assessmentDecisionState: rawAssessment?.decision.state,
+    assessmentLayoutCandidates: rawAssessment?.layoutCandidates.length
+      ? [...rawAssessment.layoutCandidates]
+      : undefined,
+    assessmentSchemaFingerprint: rawAssessment?.structure.fingerprint || undefined,
+    assessmentSemanticCandidates: rawAssessment?.semanticCandidates.length
+      ? [...rawAssessment.semanticCandidates]
+      : undefined,
     curveType: curveType ?? null,
     curveTypeConfidence: normalizeBlockConfidence(block?.confidence),
     curveTypeNeedsTemplate: block ? block.family === "unknown" : undefined,

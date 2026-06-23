@@ -9,6 +9,11 @@ import type {
 
 export type TemplateProcessingAssessment = Pick<
   SessionFile,
+  | "assessmentAutoApplyAllowed"
+  | "assessmentBlocks"
+  | "assessmentDecisionConfidence"
+  | "assessmentDecisionReasons"
+  | "assessmentDecisionState"
   | "curveType"
   | "curveTypeConfidence"
   | "curveTypeNeedsTemplate"
@@ -19,6 +24,7 @@ export type TemplateProcessingAssessment = Pick<
 
 const confidenceValues = new Set(["high", "medium", "low"]);
 const axisRoleSourceValues = new Set(["filename", "title", "label", "metadata", "shape"]);
+const assessmentDecisionStateValues = new Set(["ready", "inferred", "reviewRequired", "unknown", "failed"]);
 
 export const createTemplateProcessingAssessment = (
   file: SessionFile,
@@ -39,6 +45,17 @@ export const normalizeTemplateProcessingAssessment = (
   const curveTypeNeedsTemplate = typeof value.curveTypeNeedsTemplate === "boolean"
     ? value.curveTypeNeedsTemplate
     : undefined;
+  const assessmentAutoApplyAllowed = typeof value.assessmentAutoApplyAllowed === "boolean"
+    ? value.assessmentAutoApplyAllowed
+    : undefined;
+  const assessmentBlocks = Array.isArray(value.assessmentBlocks)
+    ? value.assessmentBlocks
+    : undefined;
+  const assessmentDecisionConfidence = readFiniteNumber(value.assessmentDecisionConfidence);
+  const assessmentDecisionReasons = readStringArray(value.assessmentDecisionReasons);
+  const assessmentDecisionState = assessmentDecisionStateValues.has(String(value.assessmentDecisionState))
+    ? value.assessmentDecisionState as TemplateProcessingAssessment["assessmentDecisionState"]
+    : undefined;
   const xAxisRole = value.xAxisRole === "vg" || value.xAxisRole === "vd"
     ? value.xAxisRole
     : null;
@@ -51,6 +68,11 @@ export const normalizeTemplateProcessingAssessment = (
     !curveTypeConfidence &&
     !curveTypeReasons.length &&
     curveTypeNeedsTemplate === undefined &&
+    assessmentAutoApplyAllowed === undefined &&
+    assessmentBlocks === undefined &&
+    assessmentDecisionConfidence === undefined &&
+    !assessmentDecisionReasons.length &&
+    assessmentDecisionState === undefined &&
     xAxisRole === null &&
     xAxisRoleSource === null
   ) {
@@ -58,6 +80,11 @@ export const normalizeTemplateProcessingAssessment = (
   }
 
   return {
+    assessmentAutoApplyAllowed,
+    assessmentBlocks,
+    assessmentDecisionConfidence,
+    assessmentDecisionReasons,
+    assessmentDecisionState,
     curveType: curveType ?? null,
     curveTypeConfidence,
     curveTypeNeedsTemplate,
@@ -101,6 +128,11 @@ const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
 const readText = (value: unknown): string | undefined => {
   const text = String(value ?? "").trim();
   return text || undefined;
+};
+
+const readFiniteNumber = (value: unknown): number | undefined => {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : undefined;
 };
 
 const readStringArray = (value: unknown): string[] => {

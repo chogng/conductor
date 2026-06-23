@@ -48,6 +48,7 @@ rendering, or chart state.
 SessionSnapshot + Template state + Explorer/chart active file
   -> TemplateApplyWorkflowInput
   -> TemplateApplyPlanner / per-file template selection routing
+  -> assessment block bindings / auto extraction plan
   -> ITemplateApplyService worker/backend
   -> TemplateRunRecord + series + base curves + diagnostics
   -> ISessionService.commitTemplateOutputs(...)
@@ -57,6 +58,8 @@ SessionSnapshot + Template state + Explorer/chart active file
 ## Rules
 
 - Template reads block source ranges and column maps from Assessment.
+- Legacy raw-header auto-template inference is compatibility-only and lives
+  outside Template; do not add new detection rules to Template apply workflow.
 - Template may read current table selection through injected `ITableService` public APIs only as explicit user input.
 - Do not pass `ITableService`, table row readers, or table model methods through Template view/workflow input.
 - Template apply is an owner API on `ITemplateApplyWorkflowService`; UI invokes apply methods instead of receiving Workbench callbacks.
@@ -73,7 +76,10 @@ SessionSnapshot + Template state + Explorer/chart active file
 - Mark files `processing` when a single-file task starts, then `ready`, `failed`, or remove through the same owner state.
 - Result records include config fingerprint and source block ids.
 - Coalesce completed file outputs through `commitTemplateOutputs(...)` when possible.
-- Skip missing, unknown, low-confidence, or review-required assessments by default; keep those files visible through Explorer badges.
+- Skip missing, legacy curve-only, unknown, low-confidence, review-required, or
+  `AssessmentDecision.autoApplyAllowed !== true` assessments by default. Auto
+  and rule apply must also require Assessment blocks with usable X/Y bindings
+  and canonical units; keep skipped files visible through Explorer badges.
 - Full/incremental apply must not start while another extraction job is running or while Explorer has pending/preparing sources.
 - Session cleanup: `filesRemoved` removes affected queued files; `sessionCleared` terminates and resets active processing.
 
