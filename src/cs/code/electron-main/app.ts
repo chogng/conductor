@@ -2242,18 +2242,22 @@ function createMainWindow() {
     "load-file",
     "(prod: out/renderer/src/cs/code/electron-browser/workbench/workbench.html)",
   );
+  const workbenchFilePath = path.join(
+    getAppRootPath(),
+    "out",
+    "renderer",
+    "src",
+    "cs",
+    "code",
+    "electron-browser",
+    "workbench",
+    "workbench.html",
+  );
   void win.loadFile(
-    path.join(
-      getAppRootPath(),
-      "out",
-      "renderer",
-      "src",
-      "cs",
-      "code",
-      "electron-browser",
-      "workbench",
-      "workbench.html",
-    ),
+    workbenchFilePath,
+    isDesktopBootProfileEnabled()
+      ? { query: { bootProfile: "1" } }
+      : undefined,
   );
   return win;
 }

@@ -4,6 +4,7 @@ import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
+import { pathToFileURL } from "node:url";
 
 const readPositiveIntegerArg = (name, fallback) => {
   const inline = process.argv.find(arg => arg.startsWith(`${name}=`));
@@ -31,6 +32,24 @@ const readPositiveIntegerArg = (name, fallback) => {
   return value;
 };
 
+const readStringArg = (name, fallback = "") => {
+  const inline = process.argv.find(arg => arg.startsWith(`${name}=`));
+  if (inline) {
+    return inline.slice(name.length + 1);
+  }
+
+  const index = process.argv.indexOf(name);
+  if (index === -1) {
+    return fallback;
+  }
+
+  const raw = process.argv[index + 1];
+  if (!raw || raw.startsWith("--")) {
+    throw new Error(`${name} must have a value.`);
+  }
+  return raw;
+};
+
 const stripRunsArg = (args) => {
   const stripped = [];
   for (let index = 0; index < args.length; index += 1) {
@@ -47,22 +66,55 @@ const stripRunsArg = (args) => {
   return stripped;
 };
 
+const createBootProfileFileUrl = (filePath) => {
+  const url = pathToFileURL(filePath);
+  url.searchParams.set("bootProfile", "1");
+  return url.href;
+};
+
 const workspace = process.cwd();
 const host = process.env.DEV_HOST || "127.0.0.1";
 const port = Number(process.env.DEV_PORT || 5194);
 const timeoutMs = Number(process.env.CONDUCTOR_DESKTOP_STARTUP_TRACE_TIMEOUT_MS || 30_000);
 const skipBuild = process.argv.includes("--skip-build");
 const traceRunCount = readPositiveIntegerArg("--runs", 1);
+const traceMode = readStringArg("--mode", "dev");
+const validTraceModes = new Set(["dev", "prod-renderer", "packaged"]);
+if (!validTraceModes.has(traceMode)) {
+  throw new Error(`--mode must be one of: ${[...validTraceModes].join(", ")}.`);
+}
 const isWin = process.platform === "win32";
 const traceStartMs = Date.now();
-const outputRoot = path.join(workspace, ".build", "bench", "desktop-startup");
+const outputRootName = traceMode === "dev" ? "desktop-startup" : `desktop-startup-${traceMode}`;
+const outputRoot = path.join(workspace, ".build", "bench", outputRootName);
 const userDataDir = path.join(outputRoot, "user-data");
 const codeCacheDir = path.join(outputRoot, "code-cache");
 const devWorkbenchPath = "/src/cs/code/electron-browser/workbench/workbench-dev.html";
 const devUrl = `http://${host}:${port}${devWorkbenchPath}?bootProfile=1`;
+const prodRendererWorkbenchPath = path.join(
+  workspace,
+  "out",
+  "renderer",
+  "src",
+  "cs",
+  "code",
+  "electron-browser",
+  "workbench",
+  "workbench.html",
+);
+const prodRendererUrl = createBootProfileFileUrl(prodRendererWorkbenchPath);
 const electronBin = isWin
   ? path.join(workspace, "node_modules", "electron", "dist", "electron.exe")
   : path.join(workspace, "node_modules", ".bin", "electron");
+const defaultPackagedAppPath = isWin
+  ? path.join(workspace, "release", "win-unpacked", "Conductor Studio.exe")
+  : process.platform === "darwin"
+    ? path.join(workspace, "release", "mac", "Conductor Studio.app", "Contents", "MacOS", "Conductor Studio")
+    : path.join(workspace, "release", "linux-unpacked", "conductor");
+const packagedAppPath = path.resolve(readStringArg(
+  "--app-path",
+  process.env.CONDUCTOR_PACKAGED_APP_PATH || defaultPackagedAppPath,
+));
 const warmupPaths = [
   devWorkbenchPath,
   "/@vite/client",
@@ -161,6 +213,45 @@ const runCommand = (name, command, args, options = {}) =>
     });
   });
 
+const prepareTraceBuild = async () => {
+  if (skipBuild) {
+    return;
+  }
+
+  if (traceMode === "dev") {
+    await runCommand("build:desktop:core", npmCommand(), npmArgs("run", "build:desktop:core"));
+    return;
+  }
+
+  if (traceMode === "prod-renderer") {
+    await runCommand("build:desktop:core", npmCommand(), npmArgs("run", "build:desktop:core"));
+    await runCommand("build:web:desktop", npmCommand(), npmArgs("run", "build:web:desktop"));
+    return;
+  }
+
+  await runCommand("pack:desktop", npmCommand(), npmArgs("run", "pack:desktop"));
+};
+
+const ensureProdRendererOutput = () => {
+  if (fs.existsSync(prodRendererWorkbenchPath)) {
+    return;
+  }
+
+  throw new Error(
+    `Production renderer output is missing: ${prodRendererWorkbenchPath}. Run without --skip-build or run npm run build:web:desktop first.`,
+  );
+};
+
+const resolvePackagedAppPath = () => {
+  if (fs.existsSync(packagedAppPath)) {
+    return packagedAppPath;
+  }
+
+  throw new Error(
+    `Packaged app is missing: ${packagedAppPath}. Run without --skip-build to package it, or pass --app-path <path>.`,
+  );
+};
+
 const checkPortAvailable = (targetHost, targetPort) =>
   new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -234,12 +325,11 @@ const durationFromExtra = (extra) => {
 };
 
 const handleElectronLine = (line, isError = false) => {
-  if (line.trim()) {
-    (isError ? console.error : console.log)(line);
-  }
-
   const event = parseBootLine(line);
   if (!event) {
+    if (line.trim()) {
+      (isError ? console.error : console.log)(line);
+    }
     return;
   }
 
@@ -248,6 +338,10 @@ const handleElectronLine = (line, isError = false) => {
     return;
   }
   eventKeys.add(eventKey);
+
+  if (line.trim()) {
+    (isError ? console.error : console.log)(line);
+  }
 
   events.push(event);
   if (event.stage === "workbench:service-layer:ready") {
@@ -353,7 +447,15 @@ const createSummary = () => {
   const mainWindowShown = findEvent("main", "main-window:show:done");
   return {
     generatedAt: new Date().toISOString(),
+    mode: traceMode,
     devUrl,
+    startUrl: traceMode === "dev"
+      ? devUrl
+      : traceMode === "prod-renderer"
+        ? prodRendererUrl
+        : null,
+    prodRendererWorkbenchPath: traceMode === "prod-renderer" ? prodRendererWorkbenchPath : null,
+    packagedAppPath: traceMode === "packaged" ? packagedAppPath : null,
     milestones: {
       rendererBootUiReadyMs: rendererUiReady?.elapsedMs ?? null,
       rendererServiceLayerScheduledMs: serviceScheduled?.elapsedMs ?? null,
@@ -377,37 +479,74 @@ const createSummary = () => {
   };
 };
 
-const createElectronEnv = () => {
+const createElectronEnv = ({ startUrl = null } = {}) => {
   const env = {
     ...process.env,
     CONDUCTOR_BOOT_PROFILE: "1",
     CONDUCTOR_CODE_CACHE_PATH: codeCacheDir,
-    ELECTRON_START_URL: devUrl,
     ELECTRON_NO_ATTACH_CONSOLE: "1",
     ELECTRON_ENABLE_LOGGING: "1",
     ELECTRON_ENABLE_STACK_DUMPING: "1",
     ELECTRON_DISABLE_SECURITY_WARNINGS: "1",
   };
+  if (startUrl) {
+    env.ELECTRON_START_URL = startUrl;
+  } else {
+    delete env.ELECTRON_START_URL;
+  }
   delete env.ELECTRON_RUN_AS_NODE;
   return env;
 };
 
-process.once("SIGINT", () => {
-  void cleanup().then(() => process.exit(130));
-});
-process.once("SIGTERM", () => {
-  void cleanup().then(() => process.exit(143));
-});
+const resetTraceState = () => {
+  events.length = 0;
+  eventKeys.clear();
+  targetReached = false;
+  targetFailure = null;
+};
 
-const runSingleTrace = async () => {
-  fs.mkdirSync(outputRoot, { recursive: true });
-  fs.rmSync(userDataDir, { recursive: true, force: true });
-  fs.rmSync(codeCacheDir, { recursive: true, force: true });
-  fs.mkdirSync(userDataDir, { recursive: true });
-  fs.mkdirSync(codeCacheDir, { recursive: true });
+const attachElectronOutput = (electronProc) => {
+  attachLines(electronProc.stdout, line => handleElectronLine(line, false));
+  attachLines(electronProc.stderr, line => handleElectronLine(line, true));
+};
 
-  if (!skipBuild) {
-    await runCommand("build:desktop:core", npmCommand(), npmArgs("run", "build:desktop:core"));
+const launchLocalElectron = (startUrl) => {
+  log(`electron:start mode=${traceMode} startUrl=${startUrl}`);
+  const electronProc = spawnChild(
+    "electron",
+    electronBin,
+    [`--user-data-dir=${userDataDir}`, "."],
+    {
+      env: createElectronEnv({ startUrl }),
+    },
+  );
+  attachElectronOutput(electronProc);
+  return electronProc;
+};
+
+const launchPackagedApp = () => {
+  const appPath = resolvePackagedAppPath();
+  log(`packaged-app:start path=${appPath}`);
+  const electronProc = spawnChild(
+    "packaged-app",
+    appPath,
+    [`--user-data-dir=${userDataDir}`],
+    {
+      env: createElectronEnv(),
+    },
+  );
+  attachElectronOutput(electronProc);
+  return electronProc;
+};
+
+const launchTraceTarget = async () => {
+  if (traceMode === "prod-renderer") {
+    ensureProdRendererOutput();
+    return launchLocalElectron(prodRendererUrl);
+  }
+
+  if (traceMode === "packaged") {
+    return launchPackagedApp();
   }
 
   const portAvailable = await checkPortAvailable(host, port);
@@ -442,18 +581,26 @@ const runSingleTrace = async () => {
   log("dev-server:ready");
   await warmupServer(`http://${host}:${port}`);
 
-  log("electron:start");
-  const electronProc = spawnChild(
-    "electron",
-    electronBin,
-    [`--user-data-dir=${userDataDir}`, "."],
-    {
-      env: createElectronEnv(),
-    },
-  );
-  attachLines(electronProc.stdout, line => handleElectronLine(line, false));
-  attachLines(electronProc.stderr, line => handleElectronLine(line, true));
+  return launchLocalElectron(devUrl);
+};
 
+process.once("SIGINT", () => {
+  void cleanup().then(() => process.exit(130));
+});
+process.once("SIGTERM", () => {
+  void cleanup().then(() => process.exit(143));
+});
+
+const runSingleTrace = async () => {
+  resetTraceState();
+  fs.mkdirSync(outputRoot, { recursive: true });
+  fs.rmSync(userDataDir, { recursive: true, force: true });
+  fs.rmSync(codeCacheDir, { recursive: true, force: true });
+  fs.mkdirSync(userDataDir, { recursive: true });
+  fs.mkdirSync(codeCacheDir, { recursive: true });
+
+  await prepareTraceBuild();
+  const electronProc = await launchTraceTarget();
   await waitForTraceTarget(electronProc);
   await sleep(900);
 
@@ -514,10 +661,28 @@ const createStats = (values) => {
 
 const createRunSummary = (summary, run) => ({
   run,
+  mode: summary.mode ?? "dev",
   generatedAt: summary.generatedAt,
+  rendererBootUiReadyMs: summary.milestones.rendererBootUiReadyMs,
+  rendererServiceLayerReadyMs: summary.milestones.rendererServiceLayerReadyMs,
   rendererServiceLayerDurationMs: summary.milestones.rendererServiceLayerDurationMs,
   rendererUiReadyToServiceLayerReadyMs: summary.milestones.rendererUiReadyToServiceLayerReadyMs,
   serviceResolutionTotalMs: sumBreakdownDuration(summary, "serviceResolutionBreakdown"),
+  domainSyncMs: getBreakdownDuration(
+    summary,
+    "serviceLayerBreakdown",
+    "workbench:service-layer:install:domain-sync:done",
+  ),
+  refreshInitialMs: getBreakdownDuration(
+    summary,
+    "serviceLayerBreakdown",
+    "workbench:service-layer:install:refresh-initial:done",
+  ),
+  installMs: getBreakdownDuration(
+    summary,
+    "serviceLayerBreakdown",
+    "workbench:service-layer:install:done",
+  ),
   openMainMs: getBreakdownDuration(
     summary,
     "viewContainerBreakdown",
@@ -542,12 +707,18 @@ const createRunSummary = (summary, run) => ({
 
 const createAggregateSummary = (runs) => ({
   generatedAt: new Date().toISOString(),
+  mode: traceMode,
   runCount: runs.length,
   runs,
   metrics: {
+    rendererBootUiReadyMs: createStats(runs.map(run => run.rendererBootUiReadyMs)),
+    rendererServiceLayerReadyMs: createStats(runs.map(run => run.rendererServiceLayerReadyMs)),
     rendererServiceLayerDurationMs: createStats(runs.map(run => run.rendererServiceLayerDurationMs)),
     rendererUiReadyToServiceLayerReadyMs: createStats(runs.map(run => run.rendererUiReadyToServiceLayerReadyMs)),
     serviceResolutionTotalMs: createStats(runs.map(run => run.serviceResolutionTotalMs)),
+    domainSyncMs: createStats(runs.map(run => run.domainSyncMs)),
+    refreshInitialMs: createStats(runs.map(run => run.refreshInitialMs)),
+    installMs: createStats(runs.map(run => run.installMs)),
     openMainMs: createStats(runs.map(run => run.openMainMs)),
     deferredSidebarOpenMs: createStats(runs.map(run => run.deferredSidebarOpenMs)),
     deferredSidebarRenderMs: createStats(runs.map(run => run.deferredSidebarRenderMs)),
@@ -558,9 +729,7 @@ const createAggregateSummary = (runs) => ({
 const runRepeatedTraces = async () => {
   fs.mkdirSync(outputRoot, { recursive: true });
 
-  if (!skipBuild) {
-    await runCommand("build:desktop:core", npmCommand(), npmArgs("run", "build:desktop:core"));
-  }
+  await prepareTraceBuild();
 
   const childArgs = stripRunsArg(process.argv.slice(2));
   if (!childArgs.includes("--skip-build")) {
