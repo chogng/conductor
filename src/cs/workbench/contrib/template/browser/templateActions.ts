@@ -12,8 +12,10 @@ import {
   INotificationService,
   Severity,
 } from "src/cs/workbench/services/notification/common/notificationService";
-import { TemplateImportController } from "src/cs/workbench/services/template/browser/templateImportController";
-import { downloadTemplateBundle } from "src/cs/workbench/services/template/browser/templateFileTransfer";
+import {
+  downloadTemplateBundle,
+  TemplateImportController,
+} from "src/cs/workbench/contrib/template/browser/templateFileTransfer";
 import {
   isAutoTemplateId,
 } from "src/cs/workbench/services/template/common/autoTemplate";

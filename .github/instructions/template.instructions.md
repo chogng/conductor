@@ -55,6 +55,7 @@ table selection state, plot rendering, or chart state.
 | `common/templateSelection.ts` | selection records/helpers. |
 | `browser/templateService.ts` | CRUD, cached preset list, catalog snapshot/version read APIs. |
 | `browser/templateStoreService.ts` / `electron-browser/templateStoreService.ts` | browser fallback and desktop persistence. |
+| `contrib/template/browser/templateFileTransfer.ts` | Template UI JSON import/export workflow helper; parses/serializes bundles and delegates persistence to `ITemplateService`. |
 | `contrib/template/browser/templateViewStateService.ts` | Template UI selected-template/form editor state. |
 | `contrib/template/browser/templateAuxiliaryBarViewPane.ts` / `views/templateView.ts` | UI shell; renders template catalog + view state and sends commands. |
 

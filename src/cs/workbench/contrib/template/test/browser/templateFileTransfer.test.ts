@@ -4,14 +4,15 @@
 
 import assert from "assert";
 
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
   formatTemplateExportFileName,
   importTemplateFile,
-} from "src/cs/workbench/services/template/browser/templateFileTransfer";
-import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+} from "src/cs/workbench/contrib/template/browser/templateFileTransfer";
 
-suite("workbench/services/template/browser/templateFileTransfer", () => {
+suite("workbench/contrib/template/browser/templateFileTransfer", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
+
   test("formatTemplateExportFileName creates a safe json filename", () => {
     assert.equal(formatTemplateExportFileName("  Transfer: A/B?  "), "Transfer- A-B-.json");
     assert.equal(formatTemplateExportFileName(""), "analysis-template.json");
