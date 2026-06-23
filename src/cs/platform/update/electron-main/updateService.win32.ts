@@ -7,6 +7,7 @@ import fs from "node:fs";
 import http, { type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { App, BrowserWindow, Dialog, MessageBoxOptions } from "electron";
 import { createRequire } from "node:module";
+import os from "node:os";
 import path from "node:path";
 import { Transform } from "node:stream";
 
@@ -41,6 +42,7 @@ export interface Win32UpdateServiceOptions {
   readonly app: App;
   readonly appDisplayName: string;
   readonly dialog: Dialog;
+  readonly getUpdateTempDir?: () => string;
   readonly isWindowsStorePackage: boolean;
   readonly packageJsonPath: string;
   readonly getDialogWindow: () => BrowserWindow | null;
@@ -56,6 +58,7 @@ const AUTO_UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000;
 const AUTO_UPDATE_SUPPORTED_PLATFORMS = new Set(["win32"]);
 const LOCAL_PACKAGE_FEED_DEFAULT_THROTTLE_KBPS = 4096;
 const LOCAL_PACKAGE_FEED_THROTTLE_ENV = "CONDUCTOR_UPDATE_DEBUG_THROTTLE_KBPS";
+const UPDATE_CACHE_TARGET = "desktop";
 const PACKAGED_AUTO_UPDATE_CONFIG = {
   provider: "github",
   owner: "chogng",
@@ -84,6 +87,22 @@ const normalizeAutoUpdateUrl = (value: unknown) => {
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error || "");
+
+const isNotFoundError = (error: unknown): boolean =>
+  !!error &&
+  typeof error === "object" &&
+  "code" in error &&
+  (error as { readonly code?: unknown }).code === "ENOENT";
+
+const sanitizeCacheNameSegment = (value: string): string => {
+  const segment = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return segment || "conductor";
+};
 
 const normalizeProgressPercent = (value: unknown): number | null => {
   if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -140,6 +159,11 @@ const readJsonFile = (filePath: string) => {
     return null;
   }
 };
+
+interface YamlModule {
+  readonly dump: (value: unknown) => string;
+  readonly load: (value: string) => unknown;
+}
 
 export class Win32UpdateService {
   private autoUpdater: any = null;
@@ -203,6 +227,7 @@ export class Win32UpdateService {
       this.options.warn("[update] electron-updater dependency is missing.");
       return;
     }
+    await this.configureAutoUpdaterCache();
 
     const feedUrl = resolveAutoUpdateFeedUrl();
     this.isAutoUpdateConfigured = true;
@@ -399,6 +424,7 @@ export class Win32UpdateService {
       this.options.warn("[update] electron-updater dependency is missing.");
       return false;
     }
+    await this.configureAutoUpdaterCache();
 
     const localPackageMessage = this.options.localize("update.localPackageFeedMessage", { path: resolvedPackagePath });
     this.setStatus("checking", null, "generic", localPackageMessage);
@@ -460,6 +486,113 @@ export class Win32UpdateService {
       }
     } catch (error) {
       this.options.warn("[update] Failed to clear local update package cache.", error);
+    }
+  }
+
+  private async configureAutoUpdaterCache(): Promise<void> {
+    if (!this.autoUpdater) return;
+
+    const cacheRoot = this.getUpdateTempDir();
+    const cacheDirName = this.getUpdateCacheDirName();
+    const cachePath = path.join(cacheRoot, cacheDirName);
+    await fs.promises.mkdir(cachePath, { recursive: true });
+    this.configureElectronAppUpdatePath(cachePath);
+    this.configureAutoUpdaterBaseCachePath(cacheRoot);
+    await this.writeRuntimeUpdateConfig(cachePath, cacheDirName);
+    this.autoUpdater.downloadedUpdateHelper = null;
+    this.options.log(`[update] Using update cache: ${cachePath}`);
+  }
+
+  private getUpdateTempDir(): string {
+    const dir = this.options.getUpdateTempDir?.();
+    return typeof dir === "string" && dir.trim() ? path.resolve(dir) : os.tmpdir();
+  }
+
+  private getUpdateCacheDirName(): string {
+    const packageJson = readJsonFile(this.options.packageJsonPath);
+    const packageName =
+      typeof packageJson?.name === "string" && packageJson.name.trim()
+        ? packageJson.name
+        : "conductor";
+
+    return `${sanitizeCacheNameSegment(packageName)}-${UPDATE_CACHE_TARGET}-${process.arch}`;
+  }
+
+  private configureElectronAppUpdatePath(cachePath: string): void {
+    const app = this.options.app as App & {
+      readonly setPath?: (name: string, path: string) => void;
+    };
+
+    if (typeof app.setPath !== "function") return;
+
+    try {
+      app.setPath("appUpdate", cachePath);
+    } catch (error) {
+      this.options.warn("[update] Failed to configure Electron appUpdate cache path.", error);
+    }
+  }
+
+  private configureAutoUpdaterBaseCachePath(cacheRoot: string): void {
+    const updaterApp = this.autoUpdater?.app;
+    if (!updaterApp || typeof updaterApp !== "object") return;
+
+    try {
+      Object.defineProperty(updaterApp, "baseCachePath", {
+        configurable: true,
+        get: () => cacheRoot,
+      });
+    } catch (error) {
+      this.options.warn("[update] Failed to configure updater base cache path.", error);
+    }
+  }
+
+  private async writeRuntimeUpdateConfig(cachePath: string, cacheDirName: string): Promise<void> {
+    const config = this.readPackagedUpdateConfig();
+    config.updaterCacheDirName = cacheDirName;
+
+    const updateConfigPath = path.join(cachePath, "app-update.yml");
+    await fs.promises.writeFile(updateConfigPath, this.serializeUpdateConfig(config), "utf8");
+    this.autoUpdater.updateConfigPath = updateConfigPath;
+  }
+
+  private readPackagedUpdateConfig(): Record<string, unknown> {
+    const configPath = this.getPackagedUpdateConfigPath();
+    if (!configPath) return {};
+
+    try {
+      const raw = fs.readFileSync(configPath, "utf8");
+      const yaml = this.loadYamlModule();
+      const parsed = yaml?.load(raw);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? { ...(parsed as Record<string, unknown>) }
+        : {};
+    } catch (error) {
+      if (!isNotFoundError(error)) {
+        this.options.warn("[update] Failed to read packaged update config.", error);
+      }
+      return {};
+    }
+  }
+
+  private getPackagedUpdateConfigPath(): string | null {
+    const updaterApp = this.autoUpdater?.app as
+      | { readonly appUpdateConfigPath?: unknown }
+      | undefined;
+    return typeof updaterApp?.appUpdateConfigPath === "string"
+      ? updaterApp.appUpdateConfigPath
+      : null;
+  }
+
+  private serializeUpdateConfig(config: Record<string, unknown>): string {
+    const yaml = this.loadYamlModule();
+    return yaml ? yaml.dump(config) : `${JSON.stringify(config, null, 2)}\n`;
+  }
+
+  private loadYamlModule(): YamlModule | null {
+    try {
+      return require("js-yaml") as YamlModule;
+    } catch {
+      return null;
     }
   }
 

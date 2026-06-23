@@ -70,11 +70,13 @@ suite("platform/update/test/electron-main/updateService.win32", () => {
     }
 
     const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "conductor-update-test-"));
+    const updateTempDir = path.join(tempDir, "update-temp");
     const userDataDir = path.join(tempDir, "user-data");
     const packagePath = path.join(tempDir, "Conductor-Studio-1.5.19-windows-x64-setup.exe");
     await fs.promises.writeFile(packagePath, "test setup package", "utf8");
 
     const statuses: DesktopUpdateStatus[] = [];
+    const setPathCalls: Array<{ readonly name: string; readonly path: string }> = [];
     const updater = new TestAutoUpdater();
     const service = new Win32UpdateService({
       app: {
@@ -84,12 +86,16 @@ suite("platform/update/test/electron-main/updateService.win32", () => {
         },
         getVersion: () => "1.5.19",
         isPackaged: true,
+        setPath: (name: string, value: string) => {
+          setPathCalls.push({ name, path: value });
+        },
       } as never,
       appDisplayName: "Conductor Studio",
       dialog: {
         showMessageBox: async () => ({ response: 0 }),
       } as never,
       getDialogWindow: () => null,
+      getUpdateTempDir: () => updateTempDir,
       isWindowsStorePackage: false,
       localize: (key, vars) => vars ? `${key}:${JSON.stringify(vars)}` : key,
       log: () => undefined,
@@ -106,12 +112,17 @@ suite("platform/update/test/electron-main/updateService.win32", () => {
     try {
       const result = await service.applySpecificUpdate(packagePath);
       const feedDir = path.join(userDataDir, "update-debug-feed");
+      const updateCacheDirName = `conductor-desktop-${process.arch}`;
+      const updateCachePath = path.join(updateTempDir, updateCacheDirName);
+      const runtimeUpdateConfig = await fs.promises.readFile(path.join(updateCachePath, "app-update.yml"), "utf8");
       const latestYml = await fs.promises.readFile(path.join(feedDir, "latest.yml"), "utf8");
       const copiedPackagePath = path.join(feedDir, path.basename(packagePath));
 
       assert.deepStrictEqual({
         autoDownload: updater.autoDownload,
         autoInstallOnAppQuit: updater.autoInstallOnAppQuit,
+        appUpdatePath: setPathCalls,
+        autoUpdaterBaseCachePath: updater.app.baseCachePath,
         checkCalls: updater.checkCalls,
         copiedPackageExists: fs.existsSync(copiedPackagePath),
         disableDifferentialDownload: updater.disableDifferentialDownload,
@@ -119,6 +130,8 @@ suite("platform/update/test/electron-main/updateService.win32", () => {
         latestYmlHasPackage: latestYml.includes(`url: ${JSON.stringify(path.basename(packagePath))}`),
         latestYmlHasVersion: latestYml.includes("version: 1.5.20"),
         result,
+        runtimeUpdateConfigHasCacheName: runtimeUpdateConfig.includes(`updaterCacheDirName: ${updateCacheDirName}`),
+        runtimeUpdateConfigPath: updater.updateConfigPath,
         statusSummary: statuses.map(status => ({
           status: status.status,
           version: status.version,
@@ -129,6 +142,13 @@ suite("platform/update/test/electron-main/updateService.win32", () => {
       }, {
         autoDownload: true,
         autoInstallOnAppQuit: true,
+        appUpdatePath: [
+          {
+            name: "appUpdate",
+            path: updateCachePath,
+          },
+        ],
+        autoUpdaterBaseCachePath: updateTempDir,
         checkCalls: 1,
         copiedPackageExists: true,
         disableDifferentialDownload: true,
@@ -136,6 +156,8 @@ suite("platform/update/test/electron-main/updateService.win32", () => {
         latestYmlHasPackage: true,
         latestYmlHasVersion: true,
         result: true,
+        runtimeUpdateConfigHasCacheName: true,
+        runtimeUpdateConfigPath: path.join(updateCachePath, "app-update.yml"),
         statusSummary: [
           {
             status: "checking",
@@ -175,6 +197,10 @@ suite("platform/update/test/electron-main/updateService.win32", () => {
 });
 
 class TestAutoUpdater extends EventEmitter {
+  public readonly app = {
+    appUpdateConfigPath: path.join("missing", "app-update.yml"),
+    baseCachePath: "default-cache",
+  };
   public autoDownload = false;
   public autoInstallOnAppQuit = false;
   public checkCalls = 0;
@@ -182,6 +208,7 @@ class TestAutoUpdater extends EventEmitter {
   public downloadPromise: Promise<void> | null = Promise.resolve();
   public checkForUpdatesPromise: Promise<void> | null = Promise.resolve();
   public feedUrl: string | null = null;
+  public updateConfigPath: string | null = null;
   public updateInfoAndProvider: object | null = {};
 
   public setFeedURL(options: { readonly url: string }): void {
