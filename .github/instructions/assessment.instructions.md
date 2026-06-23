@@ -27,10 +27,12 @@ rendering, table UI selection, or search indexing beyond diagnostics metadata.
 | File | Responsibility |
 | --- | --- |
 | `common/assessment.ts` | service contract, inputs/results. |
+| `common/assessmentRecord.ts` | raw table assessment record factory and normalization helpers. |
 | `common/assessmentDecision.ts` | assessment decision state and automatic-apply gate records. |
 | `common/measurement.ts` | blocks, groups, column maps, sweep/mode/family types. |
 | `common/diagnostics.ts` | diagnostic severity, codes, messages, source ranges. |
 | `common/rawTableStructure.ts` | header row, unit row, data region, block region, and schema fingerprint detection. |
+| `common/fileAssessment.ts` | legacy file-level import/preview classifier and metadata extractor used as seed evidence; do not add new block-aware rules here. |
 | `common/columnProfile.ts` | neutral raw-table column kind and numeric-stat profiling. |
 | `common/layoutCandidate.ts` | shape-only layout candidates and X/Y binding drafts for UI prefill; no measurement semantics. |
 | `common/builtinLexicon.json` | maintained semantic vocabulary for header-token role evidence; not user-generated rules. |
@@ -43,8 +45,6 @@ rendering, table UI selection, or search indexing beyond diagnostics metadata.
 | `common/templateResolver.ts` | Assessment-internal resolver that interprets `Recipe` snapshots and saved-template exact matches into ordered `TemplateCandidate` records. |
 | `common/templateCandidate.ts` | template candidate source, summary, and selected-template records. |
 | `common/savedTemplateEvaluator.ts` | exact-applicability saved-template candidate evaluator. |
-| `common/autoTemplateAssessmentBlocks.ts` | compatibility planner that maps assessment blocks into auto extraction plans. |
-| `common/legacy/legacyAutoTemplate*.ts` | compatibility-only raw-header auto-template fallback; do not add new primary layout/semantic rules here. |
 | `../schemaProfile/common/schemaProfile.ts` | user-confirmed schema profile evidence records. |
 | `../schemaProfile/common/schemaProfileConfirmation.ts` | pure builder for user-confirmed role/unit mappings into exact-fingerprint schema profiles. |
 | `../schemaProfile/common/schemaProfileMatcher.ts` | exact schema fingerprint matching and column binding lookup. |
@@ -133,16 +133,16 @@ rawTablesChanged
   `MeasurementBlockRecord`; repeated block regions must produce separate blocks
   with per-block source ranges. Template code must consume those blocks instead
   of re-detecting them.
-- Legacy `autoTemplate` raw-header inference may remain as a fallback for old
-  preview paths, but new layout, semantic, and automatic-calculation behavior
-  must be expressed through Assessment V2 records and block bindings.
 - `AssessmentDecision.autoApplyAllowed` is the automatic-calculation gate. Keep it false when required bindings or units are missing.
 - `RawTableAssessmentRecord.selectedTemplate` is a snapshot chosen by
   Assessment. Slice must execute that snapshot, not reinterpret recipes later.
 - A confident layout with weak or unknown semantics should use
   `reviewRequired`, not `ready`; layout ready is not calculation ready.
-- TypeScript rules are semantic baseline. When changing mirrored assessment or auto-template rules, update Rust mirrors under `cli/src/assessment.rs` / `cli/src/detect.rs`.
-- Mirrored rule changes require `npm run verify:rust-auto-extraction` plus targeted tests and compatibility fixtures when classification/confidence/plan shape changes.
+- TypeScript assessment rules are semantic baseline. When changing mirrored
+  assessment rules, update Rust mirrors under `cli/src/assessment.rs` /
+  `cli/src/detect.rs`.
+- Mirrored assessment rule changes require targeted tests and compatibility
+  fixtures when classification/confidence/record shape changes.
 - Add or update fixture corpus cases when changing structure, layout, semantic,
   profile matching, block construction, or decision-gate behavior. Fixture
   expectations should cover data regions, numeric columns, block count/family,
