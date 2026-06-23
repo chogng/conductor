@@ -62,15 +62,9 @@ export class ViewsService extends Disposable implements IViewsServiceType {
     super();
     this.focusedViewContextKey = FocusedViewContext.bindTo(this.contextKeyService);
 
-    for (const viewContainer of this.viewDescriptorService.viewContainers) {
-      this.registerViewContainerModel(viewContainer);
-    }
-    this._register(this.viewDescriptorService.onDidChangeViewContainers(({ added, removed }) => {
+    this._register(this.viewDescriptorService.onDidChangeViewContainers(({ removed }) => {
       for (const { container } of removed) {
         this.deregisterViewContainer(container.id);
-      }
-      for (const { container } of added) {
-        this.registerViewContainerModel(container);
       }
     }));
     this._register(this.layoutService.onDidChangePartVisibility(({ partId, visible }) => {
@@ -127,9 +121,10 @@ export class ViewsService extends Disposable implements IViewsServiceType {
       this.onDidChangeViewContainerVisibilityEmitter.fire({ id: previousId, visible: false, location });
     }
 
+    const viewPaneContainer = this.getOrCreateViewPaneContainer(viewContainer);
     this.visibleViewContainers.set(location, id);
     this.lastActiveViewContainers.set(location, id);
-    this.viewPaneContainers.get(id)?.setVisible(true);
+    viewPaneContainer.setVisible(true);
     this.applyAddedViewVisibility(id);
     if (previousId !== id) {
       this.onDidChangeViewContainerVisibilityEmitter.fire({ id, visible: true, location });
@@ -190,10 +185,12 @@ export class ViewsService extends Disposable implements IViewsServiceType {
   }
 
   public addViewToContainer(containerId: string, view: IView): IView | null {
-    const viewPaneContainer = this.viewPaneContainers.get(containerId);
-    if (!viewPaneContainer) {
+    const viewContainer = this.viewDescriptorService.getViewContainerById(containerId);
+    if (!viewContainer) {
       return null;
     }
+
+    const viewPaneContainer = this.getOrCreateViewPaneContainer(viewContainer);
     const currentContainerId = this.viewContainerIdsByViewId.get(view.id);
     if (currentContainerId && currentContainerId !== containerId) {
       return null;
@@ -339,9 +336,10 @@ export class ViewsService extends Disposable implements IViewsServiceType {
     return undefined;
   }
 
-  private registerViewContainerModel(viewContainer: ViewContainer): void {
-    if (this.containerDisposables.has(viewContainer.id)) {
-      return;
+  private getOrCreateViewPaneContainer(viewContainer: ViewContainer): IViewPaneContainer {
+    const existing = this.viewPaneContainers.get(viewContainer.id);
+    if (existing) {
+      return existing;
     }
 
     const disposables = this._register(new DisposableStore());
@@ -350,6 +348,7 @@ export class ViewsService extends Disposable implements IViewsServiceType {
       this.instantiationService.createInstance(viewContainer.ctorDescriptor),
     );
     this.viewPaneContainers.set(viewContainer.id, viewPaneContainer);
+    viewPaneContainer.setVisible(this.isViewContainerVisible(viewContainer.id));
     disposables.add(toDisposable(() => {
       this.viewPaneContainers.delete(viewContainer.id);
       this.containerDisposables.delete(viewContainer.id);
@@ -381,6 +380,7 @@ export class ViewsService extends Disposable implements IViewsServiceType {
         this.removeView(viewPaneContainer, viewDescriptor.id);
       }
     }));
+    return viewPaneContainer;
   }
 
   private deregisterViewContainer(viewContainerId: string): void {

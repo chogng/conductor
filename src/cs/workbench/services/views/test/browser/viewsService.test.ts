@@ -52,10 +52,17 @@ class TestStorageService extends AbstractStorageService {
   }
 }
 
+let testViewInstanceCount = 0;
+let testViewPaneContainerInstanceCount = 0;
+
 class TestView implements IView {
   public readonly id = "test.view";
   public readonly element = fakeElement();
   private visible = false;
+
+  public constructor() {
+    testViewInstanceCount++;
+  }
 
   public focus(): void {}
 
@@ -96,6 +103,10 @@ class TestViewPaneContainer implements IViewPaneContainer {
   public readonly onDidChangeViewVisibility = this.onDidChangeViewVisibilityEmitter.event;
   private readonly panes = new Map<string, IView>();
   private visible = true;
+
+  public constructor() {
+    testViewPaneContainerInstanceCount++;
+  }
 
   public get views(): readonly IView[] {
     return Array.from(this.panes.values());
@@ -285,7 +296,12 @@ class TestViewDescriptorService implements IViewDescriptorService {
 suite("workbench/services/views/browser/ViewsService", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-  test("exposes descriptor-created views before visibility events fire", () => {
+  setup(() => {
+    testViewInstanceCount = 0;
+    testViewPaneContainerInstanceCount = 0;
+  });
+
+  test("exposes lazily-created descriptor views before visibility events fire", async () => {
     const viewDescriptor: IViewDescriptor = {
       ctorDescriptor: new SyncDescriptor(TestView),
       id: "test.view",
@@ -315,16 +331,26 @@ suite("workbench/services/views/browser/ViewsService", () => {
       instantiationService,
       layoutService,
     ));
-    let viewIdDuringVisibilityEvent: string | null = null;
+    const viewIdsDuringVisibilityEvents: string[] = [];
     const listener = store.add(viewsService.onDidChangeViewVisibility(({ id }) => {
       if (id === viewDescriptor.id) {
-        viewIdDuringVisibilityEvent = viewsService.getViewWithId(id)?.id ?? null;
+        viewIdsDuringVisibilityEvents.push(viewsService.getViewWithId(id)?.id ?? "");
       }
     }));
 
     descriptorService.model.addVisibleViewDescriptor(viewDescriptor);
 
-    assert.equal(viewIdDuringVisibilityEvent, viewDescriptor.id);
+    assert.equal(viewsService.getViewWithId(viewDescriptor.id), null);
+    assert.equal(testViewPaneContainerInstanceCount, 0);
+    assert.equal(testViewInstanceCount, 0);
+
+    await viewsService.openViewContainer(container.id);
+
+    assert.ok(viewIdsDuringVisibilityEvents.length > 0);
+    assert.ok(viewIdsDuringVisibilityEvents.every(id => id === viewDescriptor.id));
+    assert.equal(viewsService.getViewWithId(viewDescriptor.id)?.id, viewDescriptor.id);
+    assert.equal(testViewPaneContainerInstanceCount, 1);
+    assert.equal(testViewInstanceCount, 1);
 
     listener.dispose();
     viewsService.dispose();
@@ -334,7 +360,7 @@ suite("workbench/services/views/browser/ViewsService", () => {
     storageService.dispose();
   });
 
-  test("setViewVisible materializes descriptor views that start hidden", () => {
+  test("setViewVisible updates hidden descriptors without materializing views", async () => {
     const viewDescriptor: IViewDescriptor = {
       ctorDescriptor: new SyncDescriptor(TestView),
       hideByDefault: true,
@@ -367,11 +393,21 @@ suite("workbench/services/views/browser/ViewsService", () => {
     ));
 
     assert.equal(viewsService.getViewWithId(viewDescriptor.id), null);
+    assert.equal(testViewPaneContainerInstanceCount, 0);
+    assert.equal(testViewInstanceCount, 0);
 
     assert.equal(viewsService.setViewVisible(viewDescriptor.id, true), true);
 
-    assert.equal(viewsService.getViewWithId(viewDescriptor.id)?.id, viewDescriptor.id);
+    assert.equal(viewsService.getViewWithId(viewDescriptor.id), null);
     assert.equal(viewsService.isViewVisible(viewDescriptor.id), true);
+    assert.equal(testViewPaneContainerInstanceCount, 0);
+    assert.equal(testViewInstanceCount, 0);
+
+    await viewsService.openViewContainer(container.id);
+
+    assert.equal(viewsService.getViewWithId(viewDescriptor.id)?.id, viewDescriptor.id);
+    assert.equal(testViewPaneContainerInstanceCount, 1);
+    assert.equal(testViewInstanceCount, 1);
 
     viewsService.dispose();
     instantiationService.dispose();
