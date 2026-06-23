@@ -7,9 +7,11 @@ import {
 	type AssessRawTableInput,
 	type ImportFileAssessment,
 	type RawTableAssessmentRecord,
-	type SelectedTemplateCandidate,
-	type TemplateCandidateSummary,
 } from "src/cs/workbench/services/assessment/common/assessment";
+import type {
+	SelectedTemplateCandidate,
+	TemplateCandidateSummary,
+} from "src/cs/workbench/services/assessment/common/templateCandidate";
 import {
 	createUnknownAssessmentDecision,
 	type AssessmentDecision,
@@ -121,7 +123,7 @@ export const createRawTableAssessmentRecordFromImportAssessment = (
 
 	return {
 		assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
-		ruleSetFingerprint: normalizeRuleSetFingerprint(input.ruleSnapshot?.fingerprint),
+		recipeFingerprint: normalizeRecipeFingerprint(input.recipeSnapshot?.fingerprint),
 		templateCatalogVersion: normalizeTemplateCatalogVersion(input.templateSnapshot?.version),
 		schemaProfileVersion,
 		fileId: input.fileId,
@@ -176,9 +178,9 @@ export const normalizeSchemaProfileVersion = (value: unknown): number => {
 	return Number.isFinite(version) && version >= 0 ? version : 0;
 };
 
-export const normalizeRuleSetFingerprint = (value: unknown): string => {
+export const normalizeRecipeFingerprint = (value: unknown): string => {
 	const fingerprint = String(value ?? "").trim();
-	return fingerprint || "rule:legacy";
+	return fingerprint || "recipe:legacy";
 };
 
 export const normalizeTemplateCatalogVersion = (value: unknown): number => {

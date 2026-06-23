@@ -513,7 +513,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     ]);
     session.commitRawTableAssessment({
       assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
-      ruleSetFingerprint: "rule:test",
+      recipeFingerprint: "recipe:test",
       templateCatalogVersion: 0,
       schemaProfileVersion: 0,
       templateCandidates: [],

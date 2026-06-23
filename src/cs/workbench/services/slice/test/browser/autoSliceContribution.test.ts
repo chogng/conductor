@@ -5,7 +5,6 @@
 import assert from "assert";
 
 import { Event } from "src/cs/base/common/event";
-import { Emitter } from "src/cs/base/common/event";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { AssessmentContribution } from "src/cs/workbench/services/assessment/browser/assessment.contribution";
 import { AssessmentQueueService } from "src/cs/workbench/services/assessment/browser/assessmentQueueService";
@@ -31,11 +30,10 @@ import { createSliceAssessmentSignature } from "src/cs/workbench/services/slice/
 import type { Template } from "src/cs/workbench/services/template/common/template";
 import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
 import type {
-	ITemplateRuleService,
-	TemplateRuleChangeEvent,
-	TemplateRuleSnapshot,
-} from "src/cs/workbench/services/templateRule/common/templateRule";
-import { builtinTemplateRules } from "src/cs/workbench/services/templateRule/common/builtinTemplateRules.generated";
+	IRecipeService,
+	RecipeSnapshot,
+} from "src/cs/workbench/services/recipe/common/recipe";
+import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
 
 suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -98,14 +96,14 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 	test("runs raw import through assessment selected template into slice curves", async () => {
 		const sessionService = store.add(new SessionService());
 		const rowsReaderService = new TestRawTableRowsReaderService();
-		const templateRuleService = new TestTemplateRuleService();
+		const recipeService = new TestRecipeService();
 		const assessmentService = store.add(new AssessmentService());
 		const assessmentQueueService = store.add(new AssessmentQueueService(
 			sessionService,
 			assessmentService,
 			rowsReaderService,
 			undefined,
-			templateRuleService,
+			recipeService,
 		));
 		const sliceService = store.add(new SliceService(sessionService, undefined, rowsReaderService));
 		store.add(new AssessmentContribution(sessionService, assessmentQueueService));
@@ -120,7 +118,7 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 		const run = file.sliceRunsById?.[file.latestSliceRunId!];
 		assert.equal(run?.mode, "auto");
 		assert.equal(run?.errors.length, 0);
-		assert.equal(file.assessmentsByRawTableId["table-a"]?.selectedTemplate?.source.kind, "rule");
+		assert.equal(file.assessmentsByRawTableId["table-a"]?.selectedTemplate?.source.kind, "recipe");
 		assert.deepEqual(file.curvesByKey["base:iv:transfer:series-b0-y2"]?.points, [
 			{ x: 0, y: 1 },
 			{ x: 1, y: 2 },
@@ -167,29 +165,28 @@ class TestRawTableRowsReaderService implements IRawTableRowsReaderService {
 	}
 }
 
-class TestTemplateRuleService implements ITemplateRuleService {
+class TestRecipeService implements IRecipeService {
 	public declare readonly _serviceBrand: undefined;
 
-	private readonly onDidChangeRulesEmitter = new Emitter<TemplateRuleChangeEvent>();
-	public readonly onDidChangeRules = this.onDidChangeRulesEmitter.event;
+	public readonly onDidChangeRecipes = Event.None as Event<void>;
 
-	public getSnapshot(): TemplateRuleSnapshot {
+	public getSnapshot(): RecipeSnapshot {
 		return {
 			version: 1,
-			fingerprint: "rule:test",
-			rules: builtinTemplateRules,
+			fingerprint: "recipe:test",
+			recipes: builtinRecipes,
 			diagnostics: [],
 		};
 	}
 
-	public reload(): Promise<TemplateRuleSnapshot> {
-		return Promise.resolve(this.getSnapshot());
+	public reload(): Promise<void> {
+		return Promise.resolve();
 	}
 }
 
 const createAssessment = (): RawTableAssessmentRecord => ({
 	assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
-	ruleSetFingerprint: "rule:test",
+	recipeFingerprint: "recipe:test",
 	templateCatalogVersion: 0,
 	schemaProfileVersion: 0,
 	fileId: "file-a",
@@ -205,9 +202,9 @@ const createAssessment = (): RawTableAssessmentRecord => ({
 	selectedTemplate: {
 		candidateId: "candidate-a",
 		source: {
-			kind: "rule",
-			ruleId: "rule-a",
-			ruleVersion: 1,
+			kind: "recipe",
+			recipeId: "recipe-a",
+			recipeVersion: 1,
 		},
 		template: createTemplate(),
 		templateFingerprint: "template:test",

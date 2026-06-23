@@ -5,7 +5,8 @@ applyTo: 'src/cs/workbench/services/slice/**,src/cs/workbench/contrib/slice/**'
 # Slice
 
 Slice is the execution owner for concrete, already-selected `Template`
-snapshots. It does not classify raw data and does not reinterpret rules.
+snapshots. It does not classify raw data and does not reinterpret template
+recipes.
 
 ## Ownership
 
@@ -123,7 +124,7 @@ SliceState.fileStates
 
 ## Do Not
 
-- Do not make Rule JSON executable here.
+- Do not make Recipe JSON executable here.
 - Do not re-run Assessment logic in Slice.
 - Do not store Slice queue/progress in Session.
 - Do not call or reintroduce a Template-owned apply workflow from Slice.

@@ -12,7 +12,7 @@
     "verify:icons": "node --experimental-strip-types build/win32/verify-icons.ts",
     "verify:legacy-user-storage": "node scripts/verify-legacy-user-storage.mjs",
     "verify:nls": "node --experimental-strip-types build/lib/nls.ts",
-    "build:template-rules": "node scripts/buildTemplateRuleBundle.mjs",
+    "build:recipes": "node scripts/buildRecipeBundle.mjs",
     "generate:icons": "node scripts/run-powershell.mjs scripts/generate-icons.ps1",
     "verify:conductor-rs-artifacts": "node scripts/verify-conductor-rs-artifacts.mjs",
     "verify:conductor-rs-smoke": "node scripts/verify-conductor-rs-smoke.mjs",

@@ -36,9 +36,11 @@ rendering, table UI selection, or search indexing beyond diagnostics metadata.
 | `common/builtinLexicon.json` | maintained semantic vocabulary for header-token role evidence; not user-generated rules. |
 | `common/semanticCandidate.ts` | role, unit, confidence, evidence, and display-scale candidates. |
 | `common/blockDetector.ts` | measurement block construction from structure ranges, column maps, and family evidence. |
-| `common/assessmentEvidence.ts` | standard evidence snapshot consumed by rule/template candidate evaluation. |
-| `common/templateRuleEvaluator.ts` | pure finite-DSL evaluator for `TemplateDerivationRule` against Assessment evidence. |
-| `common/templateMaterializer.ts` | pure projection from matched rule captures into canonical block-aware `TemplateCandidate`. |
+| `common/assessmentEvidence.ts` | standard evidence snapshot consumed by recipe candidate evaluation. |
+| `common/recipeSelectorEvaluator.ts` | pure finite-DSL evaluator for `RecipeSelector` against Assessment evidence. |
+| `common/recipeProjectionMaterializer.ts` | pure projection from matched selector captures into canonical block-aware `TemplateCandidate`. |
+| `common/templateResolver.ts` | Assessment-internal resolver that interprets `Recipe` snapshots and saved-template exact matches into ordered `TemplateCandidate` records. |
+| `common/templateCandidate.ts` | template candidate source, summary, and selected-template records. |
 | `common/savedTemplateEvaluator.ts` | exact-applicability saved-template candidate evaluator. |
 | `common/autoTemplateAssessmentBlocks.ts` | compatibility planner that maps assessment blocks into auto extraction plans. |
 | `common/legacy/legacyAutoTemplate*.ts` | compatibility-only raw-header auto-template fallback; do not add new primary layout/semantic rules here. |
@@ -62,7 +64,7 @@ workbench restored / current session audit
   -> AssessmentQueueService.enqueueRawTables
 rawTablesChanged
   -> SessionSnapshot / RawTableRecord
-  -> AssessmentQueueService captures raw table version, rule fingerprint,
+  -> AssessmentQueueService captures raw table version, recipe fingerprint,
      template catalog version, and schema profile snapshot/version
   -> AssessmentQueueService drops queued/running work when any captured input
      changes before or after row reads
@@ -74,8 +76,8 @@ rawTablesChanged
   -> optional exact SchemaProfile fingerprint match
   -> createColumnSemanticCandidates
   -> detectMeasurementBlocks
-  -> evaluate TemplateDerivationRule snapshot
-  -> materialize rule-backed TemplateCandidate records
+  -> resolve Recipe snapshot
+  -> materialize recipe-backed TemplateCandidate records
   -> evaluate exact saved-template candidates
   -> select selectedTemplate when AssessmentDecision.autoApplyAllowed
   -> RawTableAssessmentRecord
@@ -90,8 +92,8 @@ rawTablesChanged
 - Assessment output includes `sourceRawTableVersion`; stale results must be ignored.
 - Assessment output includes `schemaProfileVersion`; profile changes invalidate
   stored assessments and the assessment queue must reassess matching raw tables.
-- Assessment output includes `ruleSetFingerprint`; rule catalog changes
-  invalidate stored assessments and queue entries.
+- Assessment output includes `recipeFingerprint`; recipe catalog
+  changes invalidate stored assessments and queue entries.
 - Assessment output includes `templateCatalogVersion`; saved-template catalog
   changes invalidate only the assessments that allow saved templates to
   participate in automatic candidate selection.
@@ -135,7 +137,7 @@ rawTablesChanged
   must be expressed through Assessment V2 records and block bindings.
 - `AssessmentDecision.autoApplyAllowed` is the automatic-calculation gate. Keep it false when required bindings or units are missing.
 - `RawTableAssessmentRecord.selectedTemplate` is a snapshot chosen by
-  Assessment. Slice must execute that snapshot, not reinterpret rules later.
+  Assessment. Slice must execute that snapshot, not reinterpret recipes later.
 - A confident layout with weak or unknown semantics should use
   `reviewRequired`, not `ready`; layout ready is not calculation ready.
 - TypeScript rules are semantic baseline. When changing mirrored assessment or auto-template rules, update Rust mirrors under `cli/src/assessment.rs` / `cli/src/detect.rs`.

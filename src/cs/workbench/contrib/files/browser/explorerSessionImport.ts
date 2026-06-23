@@ -168,7 +168,7 @@ const createPreparedImportAssessmentInputs = (
     });
     assessments.push({
       assessmentRuleVersion: assessment.assessmentRuleVersion,
-      ruleSetFingerprint: assessment.ruleSetFingerprint,
+      recipeFingerprint: assessment.recipeFingerprint,
       blocks: assessment.blocks,
       columnProfiles: assessment.columnProfiles,
       createdAt: assessment.createdAt,

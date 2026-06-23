@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { AssessmentEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
-import type { TemplateCandidate } from "src/cs/workbench/services/assessment/common/assessment";
+import type { TemplateCandidate } from "src/cs/workbench/services/assessment/common/templateCandidate";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import type {
 	Template,

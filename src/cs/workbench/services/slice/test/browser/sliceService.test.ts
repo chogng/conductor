@@ -127,7 +127,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		const sliceService = store.add(new SliceService(sessionService, undefined, rowsReaderService));
 		sessionService.commitFileImport(createImportResult());
 		sessionService.commitRawTableAssessment(createAssessment({
-			ruleSetFingerprint: "rule:first",
+			recipeFingerprint: "recipe:first",
 			templateFingerprint: "template:first",
 		}));
 
@@ -138,7 +138,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		await waitUntil(() => rowsReaderService.inputs.length === 1);
 
 		const latestAssessment = createAssessment({
-			ruleSetFingerprint: "rule:second",
+			recipeFingerprint: "recipe:second",
 			templateFingerprint: "template:second",
 		});
 		sessionService.commitRawTableAssessment(latestAssessment);
@@ -297,14 +297,14 @@ const createTemplateServiceForTest = (template: Template | (() => Template)): IT
 };
 
 const createAssessment = ({
-	ruleSetFingerprint = "rule:test",
+	recipeFingerprint = "recipe:test",
 	templateFingerprint = "template:test",
 }: {
-	readonly ruleSetFingerprint?: string;
+	readonly recipeFingerprint?: string;
 	readonly templateFingerprint?: string;
 } = {}): RawTableAssessmentRecord => ({
 	assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
-	ruleSetFingerprint,
+	recipeFingerprint,
 	templateCatalogVersion: 0,
 	schemaProfileVersion: 0,
 	fileId: "file-a",
@@ -348,9 +348,9 @@ const createAssessment = ({
 	selectedTemplate: {
 		candidateId: "candidate-a",
 		source: {
-			kind: "rule",
-			ruleId: "rule-a",
-			ruleVersion: 1,
+			kind: "recipe",
+			recipeId: "recipe-a",
+			recipeVersion: 1,
 		},
 		template: createTemplate(),
 		templateFingerprint,

@@ -6,8 +6,6 @@ import type {
 	AssessRawTableInput,
 	ImportFileAssessment,
 	RawTableAssessmentRecord,
-	SelectedTemplateCandidate,
-	TemplateCandidate,
 } from "src/cs/workbench/services/assessment/common/assessment";
 import {
 	createColumnProfiles,
@@ -40,12 +38,13 @@ import {
 } from "src/cs/workbench/services/assessment/common/assessmentRecord";
 import { createAssessmentDecision } from "src/cs/workbench/services/assessment/browser/assessmentDecisionPolicy";
 import type { AssessmentEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
-import { evaluateSavedTemplateCandidates } from "src/cs/workbench/services/assessment/common/savedTemplateEvaluator";
 import {
-	materializeTemplateRuleCandidate,
 	toTemplateCandidateSummary,
-} from "src/cs/workbench/services/assessment/common/templateMaterializer";
-import { evaluateTemplateRule } from "src/cs/workbench/services/assessment/common/templateRuleEvaluator";
+} from "src/cs/workbench/services/assessment/common/templateCandidate";
+import {
+	resolveTemplateCandidates,
+	selectTemplateCandidate,
+} from "src/cs/workbench/services/assessment/common/templateResolver";
 import { LegacyAssessmentAdapter } from "src/cs/workbench/services/assessment/browser/legacyAssessmentAdapter";
 
 export class RawTableAssessmentEngine {
@@ -130,9 +129,10 @@ export class RawTableAssessmentEngine {
 				sourceRawTableVersion: input.sourceRawTableVersion,
 			},
 		};
-		const templateCandidates = materializeRuleTemplateCandidates({
+		const templateCandidates = resolveTemplateCandidates({
+			recipeSnapshot: input.recipeSnapshot,
 			evidence,
-			input,
+			templateSnapshot: input.templateSnapshot,
 		});
 		const selectedTemplate = selectTemplateCandidate(templateCandidates, decision.autoApplyAllowed);
 
@@ -156,61 +156,6 @@ export class RawTableAssessmentEngine {
 		});
 	}
 }
-
-const materializeRuleTemplateCandidates = ({
-	evidence,
-	input,
-}: {
-	readonly evidence: AssessmentEvidence;
-	readonly input: AssessRawTableInput;
-}): readonly TemplateCandidate[] => {
-	const rules = input.ruleSnapshot?.rules ?? [];
-	const candidates: TemplateCandidate[] = [];
-	candidates.push(...evaluateSavedTemplateCandidates({
-		evidence,
-		templateSnapshot: input.templateSnapshot,
-	}));
-	for (const rule of rules) {
-		const evaluation = evaluateTemplateRule(rule, evidence);
-		const candidate = materializeTemplateRuleCandidate({
-			evidence,
-			evaluation,
-			rule,
-		});
-		if (candidate) {
-			candidates.push(candidate);
-		}
-	}
-
-	return candidates.sort((left, right) =>
-		right.confidence - left.confidence ||
-		getTemplateCandidateSourceRank(left) - getTemplateCandidateSourceRank(right) ||
-		left.id.localeCompare(right.id)
-	);
-};
-
-const getTemplateCandidateSourceRank = (
-	candidate: TemplateCandidate,
-): number => candidate.source.kind === "savedTemplate" ? 0 : 1;
-
-const selectTemplateCandidate = (
-	candidates: readonly TemplateCandidate[],
-	autoApplyAllowed: boolean,
-): SelectedTemplateCandidate | undefined => {
-	if (!autoApplyAllowed) {
-		return undefined;
-	}
-
-	const candidate = candidates.find(entry => entry.state === "ready");
-	return candidate
-		? {
-			candidateId: candidate.id,
-			source: candidate.source,
-			template: candidate.template,
-			templateFingerprint: candidate.templateFingerprint,
-		}
-		: undefined;
-};
 
 type ProfileBackedAssessmentInput = {
 	readonly assessment: ImportFileAssessment;

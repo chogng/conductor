@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
-import { stableStringify } from "src/cs/workbench/services/templateRule/common/templateRuleFingerprint";
+import { stableStringify } from "src/cs/workbench/services/template/common/templateStableKey";
 
 export const createTemplateFingerprint = (template: Template): string =>
   `template:${hashString(stableStringify(template))}`;

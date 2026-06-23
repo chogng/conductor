@@ -28,10 +28,10 @@ import {
   type ISchemaProfileService as ISchemaProfileServiceType,
 } from "src/cs/workbench/services/schemaProfile/common/schemaProfile";
 import {
-  ITemplateRuleService,
-  type ITemplateRuleService as ITemplateRuleServiceType,
-  type TemplateRuleSnapshot,
-} from "src/cs/workbench/services/templateRule/common/templateRule";
+  IRecipeService,
+  type IRecipeService as IRecipeServiceType,
+  type RecipeSnapshot,
+} from "src/cs/workbench/services/recipe/common/recipe";
 import {
   ITemplateService,
   type ITemplateService as ITemplateServiceType,
@@ -54,11 +54,11 @@ const RAW_TABLE_ASSESSMENT_BACKGROUND_COMMIT_BATCH_SIZE = 16;
 type QueuedRawTableAssessment = {
   readonly priority: AssessmentQueuePriority;
   readonly ref: RawTableRef;
-  readonly ruleSetFingerprint: string;
   readonly schemaProfileVersion: number;
   readonly schemaProfiles: readonly SchemaProfile[];
   readonly sourceRawTableVersion: number;
   readonly templateCatalogVersion: number;
+  readonly recipeFingerprint: string;
 };
 
 export class AssessmentQueueService extends Disposable implements IAssessmentQueueServiceType {
@@ -82,7 +82,7 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
     @IAssessmentService private readonly assessmentService: IAssessmentServiceType,
     @IRawTableRowsReaderService private readonly rawTableRowsReaderService: IRawTableRowsReaderServiceType,
     @ISchemaProfileService private readonly schemaProfileService?: ISchemaProfileServiceType,
-    @ITemplateRuleService private readonly templateRuleService?: ITemplateRuleServiceType,
+    @IRecipeService private readonly recipeService?: IRecipeServiceType,
     @ITemplateService private readonly templateService?: ITemplateServiceType,
   ) {
     super();
@@ -101,8 +101,8 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
         this.enqueueRawTables(getRawTableRefsForAssessmentSnapshot(this.sessionService.getSnapshot()));
       }));
     }
-    if (this.templateRuleService) {
-      this._register(this.templateRuleService.onDidChangeRules(() => {
+    if (this.recipeService) {
+      this._register(this.recipeService.onDidChangeRecipes(() => {
         this.enqueueRawTables(getRawTableRefsForAssessmentSnapshot(this.sessionService.getSnapshot()));
       }));
     }
@@ -132,9 +132,9 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
       const pending = this.getPendingRawTableRef(key);
       if (
         pending?.sourceRawTableVersion === entry.sourceRawTableVersion &&
-        pending.ruleSetFingerprint === entry.ruleSetFingerprint &&
         pending.schemaProfileVersion === entry.schemaProfileVersion &&
-        pending.templateCatalogVersion === entry.templateCatalogVersion
+        pending.templateCatalogVersion === entry.templateCatalogVersion &&
+        pending.recipeFingerprint === entry.recipeFingerprint
       ) {
         continue;
       }
@@ -249,10 +249,10 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
   ): Promise<RawTableAssessmentRecord | null> {
     const targetRef = entry.ref;
     const queuedSourceRawTableVersion = entry.sourceRawTableVersion;
-    const queuedRuleSetFingerprint = entry.ruleSetFingerprint;
+    const queuedRecipeFingerprint = entry.recipeFingerprint;
     const queuedSchemaProfileVersion = entry.schemaProfileVersion;
     const queuedTemplateCatalogVersion = entry.templateCatalogVersion;
-    const ruleSnapshot = this.getTemplateRuleSnapshot();
+    const recipeSnapshot = this.getRecipeSnapshot();
     const templateSnapshot = this.getTemplateSnapshot();
     const schemaProfileSnapshot = this.getSchemaProfileSnapshot();
     const snapshot = this.sessionService.getSnapshot();
@@ -267,7 +267,7 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
       file,
       rawTableId,
       queuedSchemaProfileVersion,
-      ruleSnapshot.fingerprint,
+      recipeSnapshot.fingerprint,
       templateSnapshot.version,
     )) {
       return null;
@@ -280,7 +280,7 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
     ) {
       return null;
     }
-    if (queuedRuleSetFingerprint !== ruleSnapshot.fingerprint) {
+    if (queuedRecipeFingerprint !== recipeSnapshot.fingerprint) {
       return null;
     }
     if (queuedSchemaProfileVersion !== schemaProfileSnapshot.version) {
@@ -297,7 +297,7 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
 
     if (
       !this.isCurrentRawTableVersion(targetRef, sourceRawTableVersion) ||
-      this.getTemplateRuleSnapshot().fingerprint !== queuedRuleSetFingerprint ||
+      this.getRecipeSnapshot().fingerprint !== queuedRecipeFingerprint ||
       this.getSchemaProfileVersion() !== queuedSchemaProfileVersion ||
       this.getTemplateCatalogVersion() !== queuedTemplateCatalogVersion
     ) {
@@ -309,12 +309,12 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
       fileId: file.id,
       fileName: getAssessmentSourceName(file),
       rawTableId,
-      ruleSnapshot,
       rowCount: table.rowCount,
       rows,
       schemaProfiles: entry.schemaProfiles,
       schemaProfileVersion: queuedSchemaProfileVersion,
       sourceRawTableVersion,
+      recipeSnapshot,
       templateSnapshot,
     });
   }
@@ -393,7 +393,7 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
         file,
         ref.rawTableId,
         schemaProfileSnapshot.version,
-        this.getTemplateRuleSnapshot().fingerprint,
+        this.getRecipeSnapshot().fingerprint,
         this.getTemplateCatalogVersion(),
       )
     ) {
@@ -403,11 +403,11 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
     return {
       priority,
       ref,
-      ruleSetFingerprint: this.getTemplateRuleSnapshot().fingerprint,
       schemaProfileVersion: schemaProfileSnapshot.version,
       schemaProfiles: schemaProfileSnapshot.profiles,
       sourceRawTableVersion,
       templateCatalogVersion: this.getTemplateCatalogVersion(),
+      recipeFingerprint: this.getRecipeSnapshot().fingerprint,
     };
   }
 
@@ -455,8 +455,8 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
     return this.schemaProfileService?.getSnapshot() ?? EMPTY_SCHEMA_PROFILE_SNAPSHOT;
   }
 
-  private getTemplateRuleSnapshot(): TemplateRuleSnapshot {
-    return this.templateRuleService?.getSnapshot() ?? EMPTY_TEMPLATE_RULE_SNAPSHOT;
+  private getRecipeSnapshot(): RecipeSnapshot {
+    return this.recipeService?.getSnapshot() ?? EMPTY_RECIPE_SNAPSHOT;
   }
 
   private getTemplateSnapshot(): TemplateSnapshot {
@@ -585,7 +585,7 @@ const hasCurrentAssessment = (
   file: FileRecord,
   rawTableId: string,
   schemaProfileVersion: number,
-  ruleSetFingerprint: string,
+  recipeFingerprint: string,
   templateCatalogVersion: number,
 ): boolean => {
   const assessment = file.assessmentsByRawTableId[rawTableId];
@@ -593,16 +593,16 @@ const hasCurrentAssessment = (
     assessment &&
       assessment.sourceRawTableVersion === (file.rawTableVersionsById[rawTableId] ?? 0) &&
       assessment.assessmentRuleVersion === ASSESSMENT_RULE_VERSION &&
-      assessment.ruleSetFingerprint === ruleSetFingerprint &&
+      assessment.recipeFingerprint === recipeFingerprint &&
       assessment.templateCatalogVersion === templateCatalogVersion &&
       assessment.schemaProfileVersion === schemaProfileVersion,
   );
 };
 
-const EMPTY_TEMPLATE_RULE_SNAPSHOT: TemplateRuleSnapshot = {
+const EMPTY_RECIPE_SNAPSHOT: RecipeSnapshot = {
   version: 0,
-  fingerprint: "rule:legacy",
-  rules: [],
+  fingerprint: "recipe:legacy",
+  recipes: [],
   diagnostics: [],
 };
 

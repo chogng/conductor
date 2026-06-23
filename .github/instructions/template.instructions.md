@@ -101,7 +101,7 @@ into canonical `Template` snapshots before Slice runs.
 - Template list consumers must read `ITemplateService.getTemplateList()` and
   subscribe to `onDidChangeTemplates`; they must not maintain a second
   template list cache in Explorer or Template UI.
-- `activeFileId` should move the current chart/Explorer target to the front of full, incremental, and rule queues.
+- `activeFileId` should move the current chart/Explorer target to the front of full and incremental slice queues.
 - Explorer hover/selection priority for slicing belongs to
   `SlicePriorityContribution` -> `ISliceService.prioritize(...)`; do not route
   it through WorkbenchDomainBridge or Template code.
@@ -114,9 +114,10 @@ into canonical `Template` snapshots before Slice runs.
 - Execution commits through `commitSliceRuns(...)`; do not add Template-owned
   run/output commit or cleanup APIs.
 - Skip missing, legacy curve-only, unknown, low-confidence, review-required, or
-  `AssessmentDecision.autoApplyAllowed !== true` assessments by default. Auto
-  and rule apply must also require Assessment blocks with usable X/Y bindings
-  and canonical units; keep skipped files visible through Explorer badges.
+  `AssessmentDecision.autoApplyAllowed !== true` assessments by default.
+  Automatic slicing must also require Assessment blocks with usable X/Y
+  bindings and canonical units; keep skipped files visible through Explorer
+  badges.
 - Full/incremental apply must not start while another extraction job is running or while Explorer has pending/preparing sources.
 - Session cleanup: `filesRemoved` removes affected queued files; `sessionCleared` terminates and resets active processing.
 

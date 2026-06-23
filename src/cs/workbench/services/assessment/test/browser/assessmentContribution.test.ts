@@ -29,10 +29,9 @@ import type {
 	SchemaProfileSnapshot,
 } from "src/cs/workbench/services/schemaProfile/common/schemaProfile";
 import type {
-	ITemplateRuleService,
-	TemplateRuleChangeEvent,
-	TemplateRuleSnapshot,
-} from "src/cs/workbench/services/templateRule/common/templateRule";
+	IRecipeService,
+	RecipeSnapshot,
+} from "src/cs/workbench/services/recipe/common/recipe";
 import type {
 	ITemplateService,
 	TemplateApplyPresetRecord,
@@ -204,17 +203,17 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 		assessmentQueueService.dispose();
 	});
 
-	test("reassesses raw tables when template rule fingerprint changes", async () => {
+	test("reassesses raw tables when recipe fingerprint changes", async () => {
 		const sessionService = store.add(new SessionService());
 		const assessmentService = new TestAssessmentService();
 		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
-		const templateRuleService = new TestTemplateRuleService("rule:first");
+		const recipeService = new TestRecipeService("recipe:first");
 		const assessmentQueueService = store.add(new AssessmentQueueService(
 			sessionService,
 			assessmentService,
 			rawTableRowsReaderService,
 			undefined,
-			templateRuleService,
+			recipeService,
 		));
 		const contribution = store.add(new AssessmentContribution(
 			sessionService,
@@ -224,20 +223,20 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 		sessionService.commitFileImport(createInlineImportResult());
 		await waitUntil(() => assessmentService.inputs.length === 1);
 		assert.equal(
-			sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.ruleSetFingerprint,
-			"rule:first",
+			sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.recipeFingerprint,
+			"recipe:first",
 		);
 
-		templateRuleService.setFingerprint("rule:second");
+		recipeService.setFingerprint("recipe:second");
 		await waitUntil(() => assessmentService.inputs.length === 2);
 
 		assert.deepEqual(
-			assessmentService.inputs.map(input => input.ruleSnapshot?.fingerprint),
-			["rule:first", "rule:second"],
+			assessmentService.inputs.map(input => input.recipeSnapshot?.fingerprint),
+			["recipe:first", "recipe:second"],
 		);
 		assert.equal(
-			sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.ruleSetFingerprint,
-			"rule:second",
+			sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.recipeFingerprint,
+			"recipe:second",
 		);
 
 		contribution.dispose();
@@ -468,17 +467,17 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 		assessmentQueueService.dispose();
 	});
 
-	test("discards stale queued assessment when template rule fingerprint changes while rows are loading", async () => {
+	test("discards stale queued assessment when recipe fingerprint changes while rows are loading", async () => {
 		const sessionService = store.add(new SessionService());
 		const assessmentService = new TestAssessmentService();
 		const rawTableRowsReaderService = new BlockingRawTableRowsReaderService();
-		const templateRuleService = new TestTemplateRuleService("rule:first");
+		const recipeService = new TestRecipeService("recipe:first");
 		const assessmentQueueService = store.add(new AssessmentQueueService(
 			sessionService,
 			assessmentService,
 			rawTableRowsReaderService,
 			undefined,
-			templateRuleService,
+			recipeService,
 		));
 		const contribution = store.add(new AssessmentContribution(
 			sessionService,
@@ -487,17 +486,17 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 
 		sessionService.commitFileImport(createInlineImportResult());
 		await waitUntil(() => rawTableRowsReaderService.inputs.length === 1);
-		templateRuleService.setFingerprint("rule:second");
+		recipeService.setFingerprint("recipe:second");
 		rawTableRowsReaderService.resolveFirstRead();
 		await waitUntil(() => assessmentService.inputs.length === 1);
 
 		assert.deepEqual(
-			assessmentService.inputs.map(input => input.ruleSnapshot?.fingerprint),
-			["rule:second"],
+			assessmentService.inputs.map(input => input.recipeSnapshot?.fingerprint),
+			["recipe:second"],
 		);
 		assert.equal(
-			sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.ruleSetFingerprint,
-			"rule:second",
+			sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.recipeFingerprint,
+			"recipe:second",
 		);
 
 		contribution.dispose();
@@ -666,7 +665,7 @@ class TestAssessmentService implements IAssessmentService {
 			fileId: input.fileId,
 			rawTableId: input.rawTableId,
 			blockId,
-			ruleSetFingerprint: input.ruleSnapshot?.fingerprint ?? "rule:legacy",
+			recipeFingerprint: input.recipeSnapshot?.fingerprint ?? "recipe:legacy",
 			schemaProfileVersion: input.schemaProfileVersion ?? 0,
 			sourceRawTableVersion: input.sourceRawTableVersion,
 			templateCatalogVersion: input.templateSnapshot?.version ?? 0,
@@ -679,23 +678,23 @@ const createRawTableAssessmentRecord = ({
 	blockId = "block-a",
 	fileId,
 	rawTableId,
-	ruleSetFingerprint = "rule:legacy",
 	schemaProfileVersion = 0,
 	sourceRawTableVersion,
 	templateCatalogVersion = 0,
+	recipeFingerprint = "recipe:legacy",
 }: {
 	readonly assessmentRuleVersion?: number;
 	readonly blockId?: string;
 	readonly fileId: string;
 	readonly rawTableId: string;
-	readonly ruleSetFingerprint?: string;
 	readonly schemaProfileVersion?: number;
 	readonly sourceRawTableVersion: number;
 	readonly templateCatalogVersion?: number;
+	readonly recipeFingerprint?: string;
 }): RawTableAssessmentRecord => ({
 	assessmentRuleVersion,
-	ruleSetFingerprint,
 	templateCatalogVersion,
+	recipeFingerprint,
 	schemaProfileVersion,
 	templateCandidates: [],
 	blocks: [{
@@ -807,32 +806,27 @@ class TestSchemaProfileService implements ISchemaProfileService {
 	}
 }
 
-class TestTemplateRuleService implements ITemplateRuleService {
+class TestRecipeService implements IRecipeService {
 	public declare readonly _serviceBrand: undefined;
 
-	private readonly onDidChangeRulesEmitter = new Emitter<TemplateRuleChangeEvent>();
-	public readonly onDidChangeRules = this.onDidChangeRulesEmitter.event;
-	private snapshot: TemplateRuleSnapshot;
+	private readonly onDidChangeRecipesEmitter = new Emitter<void>();
+	public readonly onDidChangeRecipes = this.onDidChangeRecipesEmitter.event;
+	private snapshot: RecipeSnapshot;
 
 	public constructor(fingerprint: string) {
-		this.snapshot = createTemplateRuleSnapshotForTest(fingerprint);
+		this.snapshot = createRecipeSnapshotForTest(fingerprint);
 	}
 
 	public setFingerprint(fingerprint: string): void {
-		this.snapshot = createTemplateRuleSnapshotForTest(fingerprint);
-		this.onDidChangeRulesEmitter.fire({
-			version: this.snapshot.version,
-			fingerprint: this.snapshot.fingerprint,
-			changedRuleIds: [],
-		});
+		this.snapshot = createRecipeSnapshotForTest(fingerprint);
+		this.onDidChangeRecipesEmitter.fire(undefined);
 	}
 
-	public getSnapshot(): TemplateRuleSnapshot {
+	public getSnapshot(): RecipeSnapshot {
 		return this.snapshot;
 	}
 
-	public async reload(): Promise<TemplateRuleSnapshot> {
-		return this.snapshot;
+	public async reload(): Promise<void> {
 	}
 }
 
@@ -868,12 +862,12 @@ class TestTemplateService implements ITemplateService {
 	public saveTemplate(template: TemplateApplyPresetSaveInput): Promise<TemplateApplyPresetRecord> { return Promise.resolve(template); }
 }
 
-const createTemplateRuleSnapshotForTest = (
+const createRecipeSnapshotForTest = (
 	fingerprint: string,
-): TemplateRuleSnapshot => ({
+): RecipeSnapshot => ({
 	version: 1,
 	fingerprint,
-	rules: [],
+	recipes: [],
 	diagnostics: [],
 });
 

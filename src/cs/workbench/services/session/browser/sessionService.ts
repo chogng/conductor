@@ -66,7 +66,7 @@ import type {
 } from "src/cs/workbench/services/assessment/common/assessment";
 import { createUnknownAssessmentDecision } from "src/cs/workbench/services/assessment/common/assessmentDecision";
 import {
-  normalizeRuleSetFingerprint,
+  normalizeRecipeFingerprint,
   normalizeTemplateCatalogVersion,
 } from "src/cs/workbench/services/assessment/common/assessmentRecord";
 import type {
@@ -610,7 +610,7 @@ const createImportRawTableAssessmentRecords = (
 
     records.push({
       assessmentRuleVersion: normalizeAssessmentRuleVersion(assessment.assessmentRuleVersion) ?? 0,
-      ruleSetFingerprint: normalizeRuleSetFingerprint(assessment.ruleSetFingerprint),
+      recipeFingerprint: getRecipeFingerprint(assessment),
       templateCatalogVersion: normalizeTemplateCatalogVersion(assessment.templateCatalogVersion),
       schemaProfileVersion: normalizeSchemaProfileVersion(assessment.schemaProfileVersion),
       blocks: assessment.blocks,
@@ -676,7 +676,7 @@ const commitRawTableAssessmentsToFiles = (
     const committedAssessment: RawTableAssessmentRecord = {
       ...assessment,
       assessmentRuleVersion: normalizeAssessmentRuleVersion(assessment.assessmentRuleVersion) ?? 0,
-      ruleSetFingerprint: normalizeRuleSetFingerprint(assessment.ruleSetFingerprint),
+      recipeFingerprint: getRecipeFingerprint(assessment),
       templateCatalogVersion: normalizeTemplateCatalogVersion(assessment.templateCatalogVersion),
       schemaProfileVersion: normalizeSchemaProfileVersion(assessment.schemaProfileVersion),
       fileId,
@@ -1448,6 +1448,15 @@ const normalizeId = (value: unknown): string => String(value ?? "").trim();
 const normalizeAssessmentRuleVersion = (value: unknown): number | undefined => {
   const version = Math.floor(Number(value));
   return Number.isFinite(version) && version > 0 ? version : undefined;
+};
+
+const getRecipeFingerprint = (
+  assessment: { readonly recipeFingerprint?: unknown },
+): string => {
+  const legacy = assessment as { readonly ruleSetFingerprint?: unknown };
+  return normalizeRecipeFingerprint(
+    assessment.recipeFingerprint ?? legacy.ruleSetFingerprint,
+  );
 };
 
 const normalizeSchemaProfileVersion = (value: unknown): number => {

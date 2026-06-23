@@ -127,6 +127,7 @@ Runtime folders:
 | `fileConverter.ts` / files service helpers | CSV/XLS/XLSX/clipboard/manual conversion into raw table records |
 | `ISessionService` | canonical session ledger and change events |
 | `IAssessmentService` | raw table interpretation: groups, blocks, roles, diagnostics |
+| `IRecipeService` | passive built-in recipes used by Assessment to derive template candidates |
 | `ITableService` | table source, rows, selection snapshot, reveal/highlight |
 | `ITemplateService` | saved template catalog, legacy preset CRUD, and canonical `Template` reads |
 | `ITemplateViewStateService` | Template UI selected-template/form editor state |

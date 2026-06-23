@@ -122,20 +122,20 @@ const isColumnInBounds = (
 
 export const createSliceAssessmentSignature = ({
 	assessmentRuleVersion,
-	ruleSetFingerprint,
 	schemaProfileVersion,
 	sourceRawTableVersion,
 	templateCatalogVersion,
+	recipeFingerprint,
 }: {
 	readonly assessmentRuleVersion: number;
-	readonly ruleSetFingerprint: string;
 	readonly schemaProfileVersion: number;
 	readonly sourceRawTableVersion: number;
 	readonly templateCatalogVersion: number;
+	readonly recipeFingerprint: string;
 }): string => JSON.stringify({
 	assessmentRuleVersion,
-	ruleSetFingerprint,
 	schemaProfileVersion,
 	sourceRawTableVersion,
 	templateCatalogVersion,
+	recipeFingerprint,
 });

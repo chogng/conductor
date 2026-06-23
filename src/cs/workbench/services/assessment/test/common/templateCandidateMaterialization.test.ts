@@ -7,34 +7,34 @@ import assert from "assert";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { AssessmentEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
 import { evaluateSavedTemplateCandidates } from "src/cs/workbench/services/assessment/common/savedTemplateEvaluator";
-import { materializeTemplateRuleCandidate } from "src/cs/workbench/services/assessment/common/templateMaterializer";
-import { evaluateTemplateRule } from "src/cs/workbench/services/assessment/common/templateRuleEvaluator";
+import { materializeRecipeCandidate } from "src/cs/workbench/services/assessment/common/recipeProjectionMaterializer";
+import { evaluateRecipeSelector } from "src/cs/workbench/services/assessment/common/recipeSelectorEvaluator";
 import type {
 	MeasurementBlockRecord,
 	MeasurementColumnRef,
 } from "src/cs/workbench/services/assessment/common/measurement";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 import type { Template } from "src/cs/workbench/services/template/common/template";
-import { builtinTemplateRules } from "src/cs/workbench/services/templateRule/common/builtinTemplateRules.generated";
+import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
 
 suite("workbench/services/assessment/test/common/templateCandidateMaterialization", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test("materializes builtin IV transfer rule into a block-aware template", () => {
-		const rule = builtinTemplateRules.find(candidate => candidate.id === "builtin.iv.transfer");
-		assert.ok(rule);
+	test("materializes builtin IV transfer recipe into a block-aware template", () => {
+		const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
+		assert.ok(recipe);
 
 		const evidence = createEvidence();
-		const evaluation = evaluateTemplateRule(rule, evidence);
-		const candidate = materializeTemplateRuleCandidate({
+		const evaluation = evaluateRecipeSelector(recipe, evidence);
+		const candidate = materializeRecipeCandidate({
+			recipe,
 			evidence,
 			evaluation,
-			rule,
 		});
 
 		assert.ok(candidate);
 		assert.equal(candidate.state, "ready");
-		assert.equal(candidate.source.kind, "rule");
+		assert.equal(candidate.source.kind, "recipe");
 		assert.equal(candidate.template.schemaVersion, 1);
 		assert.equal(candidate.template.blocks.length, 1);
 		assert.deepEqual(candidate.template.blocks[0]?.rowRange, {
