@@ -5,6 +5,7 @@
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
+import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
 import {
   ASSESSMENT_RULE_VERSION,
   IAssessmentQueueService,
@@ -601,4 +602,8 @@ const normalizeSourceName = (
   return normalized || null;
 };
 
-registerSingleton(IAssessmentQueueService, AssessmentQueueService, InstantiationType.Delayed);
+registerSingleton(
+  IAssessmentQueueService,
+  AssessmentQueueService as unknown as new (...services: BrandedService[]) => IAssessmentQueueServiceType,
+  InstantiationType.Delayed,
+);

@@ -13,7 +13,7 @@ function log(message: string): void {
   console.log(`[postinstall] ${message}`);
 }
 
-if (!process.env.CONDUCTOR_FORCE_POSTINSTALL && isUpToDate()) {
+if (!process.env.CONDUCTOR_FORCE_INSTALL && !process.env.CONDUCTOR_FORCE_POSTINSTALL && isUpToDate()) {
   log("Dependencies are up to date; skipping postinstall bookkeeping.");
   process.exit(0);
 }

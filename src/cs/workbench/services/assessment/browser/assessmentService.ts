@@ -4,6 +4,7 @@
 
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
+import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
 import {
   IAssessmentService,
   type AssessmentFileInput,
@@ -59,4 +60,8 @@ export class AssessmentService extends Disposable implements IAssessmentServiceT
   }
 }
 
-registerSingleton(IAssessmentService, AssessmentService, InstantiationType.Delayed);
+registerSingleton(
+  IAssessmentService,
+  AssessmentService as unknown as new (...services: BrandedService[]) => IAssessmentServiceType,
+  InstantiationType.Delayed,
+);
