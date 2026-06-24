@@ -31,7 +31,7 @@ import {
 } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
 import {
 	isAutoTemplateId,
-} from "src/cs/workbench/services/template/common/autoTemplate";
+} from "src/cs/workbench/services/slice/common/templateSelection";
 import { createTemplateFromEditorRecord } from "src/cs/workbench/services/template/common/templateEditorAdapter";
 import {
 	createInlineTemplateSelection,

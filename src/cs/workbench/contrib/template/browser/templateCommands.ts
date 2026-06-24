@@ -19,7 +19,7 @@ import {
 } from "src/cs/workbench/contrib/template/browser/templateImportExport";
 import {
   isAutoTemplateId,
-} from "src/cs/workbench/services/template/common/autoTemplate";
+} from "src/cs/workbench/services/slice/common/templateSelection";
 import {
   cloneTemplateEditorConfig,
   normalizeTemplateEditorConfigRecord,

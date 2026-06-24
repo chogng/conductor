@@ -100,7 +100,7 @@ import {
   type TemplateSelectionsByFileId,
 } from "src/cs/workbench/services/slice/common/templateSelection";
 import type { TemplateEditorRecord } from "src/cs/workbench/services/template/common/template";
-import { isAutoTemplateId } from "src/cs/workbench/services/template/common/autoTemplate";
+import { isAutoTemplateId } from "src/cs/workbench/services/slice/common/templateSelection";
 
 export type ExplorerViewerProps = {
   readonly selectedFileId?: string | null;

@@ -6,7 +6,7 @@ import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import { isAutoTemplateId } from "src/cs/workbench/services/template/common/autoTemplate";
+import { isAutoTemplateId } from "src/cs/workbench/services/slice/common/templateSelection";
 import type {
   TemplateEditorRecord,
 } from "src/cs/workbench/services/template/common/template";

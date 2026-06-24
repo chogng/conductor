@@ -62,6 +62,8 @@ plot rendering, or chart state.
 | `common/template.ts` | `TemplateEditorRecord` and re-exported template spec types. |
 | `common/templateEditorAdapter.ts` | adapter between Template editor records and canonical block-aware `Template`. |
 | `common/templateEditorConfig.ts` | Template editor config normalization and cloning. |
+| `common/templateValidation.ts` / `common/templateXYBinding.ts` | Template editor/save validation and pure XY column-count checks. |
+| `common/templateCellRef.ts` / `common/templateXRange.ts` | A1-style cell and X range helpers used by Template editor records and validation. |
 | `contrib/template/common/template.ts` | Template workbench view id and command ids shared by contribution, commands, and view code. |
 | `contrib/template/browser/templateCommands.ts` | Template command registration and handlers; delegates library management to `IUserTemplateService` and execution wrappers to Slice. |
 | `contrib/template/browser/templateImportExport.ts` | Template UI JSON import/export file-transfer helper; dialog, file read, and download plumbing only. Payload semantics stay with Template commands and `IUserTemplateService`. |
@@ -114,8 +116,8 @@ into canonical `Template` snapshots before Slice runs.
 - Raw-header auto-template inference is retired from product execution.
   New `TableFacts + Recipe/UserTemplate -> Template` derivation belongs in
   Template materialization helpers, not Template execution.
-- Do not export or share a special Auto Template ID as domain API. UI-only
-  values stay local to their view.
+- Automatic template selection ids belong to Slice `templateSelection`, not
+  Template common. Template common must not own selection sentinels.
 - Template may read current table selection through injected `ITableService` public APIs only as explicit user input.
 - Do not pass `ITableService`, table row readers, or table model methods through Template view/workflow input.
 - Template execution is an owner API on `ISliceService`; UI must not invoke
@@ -184,3 +186,5 @@ Use `records.instructions.md` for `TemplateEditorRecord`,
 - Do not let worker payload format leak into Session records.
 - Do not let TemplateView mutate Session directly.
 - Do not route processing cleanup through Explorer submit events or Workbench-only callbacks.
+- Do not park Settings filename matching helpers or preview-only auto-segmentation
+  probes under `services/template/common`.

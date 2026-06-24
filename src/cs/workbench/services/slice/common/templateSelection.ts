@@ -2,9 +2,6 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-	isAutoTemplateId,
-} from "src/cs/workbench/services/template/common/autoTemplate";
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
 
 const AUTO_TEMPLATE_SELECTION_ID = "auto";
@@ -28,6 +25,11 @@ export const createTemplateSelection = (
 		kind: "saved",
 		templateId: normalizedTemplateId,
 	};
+};
+
+export const isAutoTemplateId = (templateId: unknown): boolean => {
+	const normalizedTemplateId = String(templateId ?? "").trim();
+	return normalizedTemplateId === AUTO_TEMPLATE_SELECTION_ID;
 };
 
 export const createInlineTemplateSelection = (template: Template): TemplateSelection => ({

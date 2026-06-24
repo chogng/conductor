@@ -25,7 +25,7 @@ import {
 import { validateTemplateForSave } from "src/cs/workbench/services/template/common/templateValidation";
 import {
   isAutoTemplateId,
-} from "src/cs/workbench/services/template/common/autoTemplate";
+} from "src/cs/workbench/services/slice/common/templateSelection";
 import { TemplateCommandId } from "src/cs/workbench/contrib/template/common/template";
 import type {
   TemplateEditorRecord,

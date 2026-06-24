@@ -8,10 +8,10 @@ import {
   matchFileNameAgainstPhrase,
   matchFileNameAgainstPatternTokens,
   normalizeFileNameFieldSeparators,
-} from "src/cs/workbench/services/template/common/fileNameMatching";
+} from "src/cs/workbench/services/settings/common/fileNameMatching";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
-suite("workbench/services/template/common/fileNameMatching", () => {
+suite("workbench/services/settings/common/fileNameMatching", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
   test("normalizeFileNameFieldSeparators falls back to defaults", () => {
     assert.equal(

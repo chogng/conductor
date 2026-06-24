@@ -9,6 +9,7 @@ import {
 	createTemplateSelection,
 	getTemplateSelectionId,
 	getTemplateSelectionTemplateId,
+	isAutoTemplateId,
 	removeTemplateSelectionsForFiles,
 	removeTemplateSelectionsForTemplate,
 	resolveTemplateSelectionForFile,
@@ -28,6 +29,12 @@ suite("workbench/services/slice/test/common/templateSelection", () => {
 
 	test("uses a non-persisted auto selection id for UI comparisons", () => {
 		assert.equal(getTemplateSelectionId({ kind: "auto" }), "auto");
+	});
+
+	test("auto template id only accepts the current recommended-template option", () => {
+		assert.equal(isAutoTemplateId("auto"), true);
+		assert.equal(isAutoTemplateId("user-template"), false);
+		assert.equal(isAutoTemplateId(null), false);
 	});
 
 	test("resolves file selection before current selection", () => {

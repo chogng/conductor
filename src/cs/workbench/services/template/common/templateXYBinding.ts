@@ -2,41 +2,18 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { RawTableRangeRef } from "src/cs/workbench/services/files/common/rawTable";
-
 export type ColumnSelection = {
   readonly columns: readonly number[];
 };
 
-export type GroupSpec = {
-  readonly key?: string;
-};
-
-export type LegendSpec = {
-  readonly labels?: readonly string[];
-};
-
 export type TemplateXYBinding = {
-  readonly rowRange?: RawTableRangeRef;
   readonly x: ColumnSelection;
   readonly y: ColumnSelection;
-  readonly group?: GroupSpec;
-  readonly legend?: LegendSpec;
-};
-
-export type ResolvedSeriesBinding = {
-  readonly xCol: number;
-  readonly yCol: number;
-  readonly xRange?: RawTableRangeRef;
-  readonly yRange?: RawTableRangeRef;
-  readonly legend?: string;
-  readonly groupKey?: string;
 };
 
 export type ResolveTemplateXYBindingResult =
   | {
       readonly ok: true;
-      readonly seriesBindings: readonly ResolvedSeriesBinding[];
     }
   | {
       readonly ok: false;
@@ -84,12 +61,8 @@ export function resolveTemplateXYBinding(
   }
 
   if (xColumns.length === 1) {
-    const xCol = xColumns[0] ?? 0;
     return {
       ok: true,
-      seriesBindings: yColumns.map(yCol =>
-        createResolvedSeriesBinding(binding, xCol, yCol),
-      ),
     };
   }
 
@@ -104,40 +77,5 @@ export function resolveTemplateXYBinding(
 
   return {
     ok: true,
-    seriesBindings: xColumns.map((xCol, index) =>
-      createResolvedSeriesBinding(binding, xCol, yColumns[index] ?? yColumns[0] ?? xCol),
-    ),
-  };
-}
-
-function createResolvedSeriesBinding(
-  binding: TemplateXYBinding,
-  xCol: number,
-  yCol: number,
-): ResolvedSeriesBinding {
-  return {
-    xCol,
-    yCol,
-    xRange: createColumnRange(binding.rowRange, xCol),
-    yRange: createColumnRange(binding.rowRange, yCol),
-    groupKey: binding.group?.key,
-  };
-}
-
-function createColumnRange(
-  rowRange: RawTableRangeRef | undefined,
-  column: number,
-): RawTableRangeRef | undefined {
-  if (!rowRange) {
-    return undefined;
-  }
-
-  return {
-    ...rowRange,
-    range: {
-      ...rowRange.range,
-      startCol: column,
-      endCol: column,
-    },
   };
 }

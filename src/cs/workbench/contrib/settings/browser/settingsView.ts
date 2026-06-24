@@ -19,7 +19,7 @@ import { SwitchWidget } from "src/cs/base/browser/ui/switch/switchWidget";
 import { Action, type IAction } from "src/cs/base/common/actions";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
-import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/services/template/common/fileNameMatching";
+import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/services/settings/common/fileNameMatching";
 import {
   createSettingsNavGroups,
   getSettingsSectionIcon,

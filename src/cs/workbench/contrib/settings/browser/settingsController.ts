@@ -7,7 +7,7 @@ import {
   type OriginPlotOptions,
 } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import { normalizePlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
-import { normalizeFileNameFieldSeparators } from "src/cs/workbench/services/template/common/fileNameMatching";
+import { normalizeFileNameFieldSeparators } from "src/cs/workbench/services/settings/common/fileNameMatching";
 import {
   IDLE_FEEDBACK,
   type Feedback,

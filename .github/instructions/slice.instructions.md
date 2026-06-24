@@ -29,7 +29,7 @@ returns a `SliceCommit`. It must not call services or reread Session.
 | File | Responsibility |
 | --- | --- |
 | `common/slice.ts` | service contract, `SliceRequest`, `SliceRun`, `SlicePlan`, commit/state/input types. |
-| `common/templateSelection.ts` | per-file `TemplateSelection` records and normalization helpers owned by Slice state. |
+| `common/templateSelection.ts` | per-file `TemplateSelection` records, the automatic-selection sentinel, and normalization helpers owned by Slice state. |
 | `common/slicePlanner.ts` | pure plan/range generation and migration source/table-fact signature helpers. |
 | `common/sliceExecutor.ts` | pure row execution into `SliceCommit`. |
 | `browser/sliceService.ts` | injectable owner for queue, selection, progress state, row reading, and Session commit. |
