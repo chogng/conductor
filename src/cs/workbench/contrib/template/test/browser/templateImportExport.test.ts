@@ -8,9 +8,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 import {
   formatTemplateExportFileName,
   importTemplateFile,
-} from "src/cs/workbench/contrib/template/browser/templateFileTransfer";
+} from "src/cs/workbench/contrib/template/browser/templateImportExport";
 
-suite("workbench/contrib/template/browser/templateFileTransfer", () => {
+suite("workbench/contrib/template/browser/templateImportExport", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
 
   test("formatTemplateExportFileName creates a safe json filename", () => {

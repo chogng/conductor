@@ -15,7 +15,7 @@ import {
 import {
   downloadTemplateBundle,
   TemplateImportController,
-} from "src/cs/workbench/contrib/template/browser/templateFileTransfer";
+} from "src/cs/workbench/contrib/template/browser/templateImportExport";
 import {
   isAutoTemplateId,
 } from "src/cs/workbench/services/template/common/autoTemplate";

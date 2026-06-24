@@ -63,7 +63,7 @@ plot rendering, or chart state.
 | `common/templateApplyPresetAdapter.ts` | adapter between manual apply-preset view models and canonical block-aware `Template`. |
 | `common/templateApplyConfigUtils.ts` | manual apply config normalization and cloning. |
 | `contrib/template/browser/templateIds.ts` | Template UI view id and command ids. |
-| `contrib/template/browser/templateFileTransfer.ts` | Template UI JSON import/export workflow helper; parses/serializes apply-preset bundles. |
+| `contrib/template/browser/templateImportExport.ts` | Template UI JSON import/export file-transfer helper; dialog, file read, and download plumbing only. Payload semantics stay with Template actions and `IUserTemplateService`. |
 | `contrib/template/browser/templateUserTemplateAdapter.ts` | View-model adapter from UserTemplate snapshots into editable apply records. |
 | `contrib/template/browser/templateViewStateService.ts` | Template UI selected-template/form editor state. |
 | `contrib/template/browser/templateAuxiliaryBarViewPane.ts` / `views/templateView.ts` | UI shell; renders UserTemplate catalog + view state and sends commands. |

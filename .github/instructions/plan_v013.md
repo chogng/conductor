@@ -1471,7 +1471,6 @@ src/cs/workbench/services/userTemplate/
   browser/
     userTemplateService.ts
     userTemplateStoreService.ts
-    userTemplateImportExportService.ts
     userTemplate.contribution.ts
 ```
 
