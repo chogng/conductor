@@ -4,21 +4,21 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import Papa from "papaparse";
 import {
-  assessFile,
-  extractFileMetadata,
-} from "../src/cs/workbench/services/assessment/common/fileAssessment.ts";
+  createImportTableFactsSeedHeuristic,
+  extractImportTableFactsSeedMetadata,
+} from "../src/cs/workbench/services/tableFacts/common/importTableFactsSeedHeuristics.ts";
 
 const ROOT = process.cwd();
 const WORKER_FILE_NAME = process.platform === "win32" ? "conductor-rs.exe" : "conductor-rs";
-const OUTPUT_DIR = path.join(ROOT, ".build", "verify", "rust-assessment-parity");
+const OUTPUT_DIR = path.join(ROOT, ".build", "verify", "rust-table-facts-parity");
 const FIXTURE_DIR = path.join(OUTPUT_DIR, "fixtures");
 const REPORT_PATH = path.join(OUTPUT_DIR, "report.json");
 
-const STRICT_ASSESSMENT_FIELDS = [
+const STRICT_TABLE_FACTS_FIELDS = [
   "curveFamily",
   "curveType",
   "curveTypeConfidence",
-  "curveTypeNeedsTemplate",
+  "curveTypeNeedsReview",
   "ivMode",
   "xAxisRole",
   "xAxisRoleSource",
@@ -92,20 +92,20 @@ const parseCsvRows = (csvText) => {
     : [];
 };
 
-const assessTypeScriptRows = (fileName, rows) => {
-  const assessment = assessFile({
+const buildTypeScriptTableFactsSeed = (fileName, rows) => {
+  const tableFactsSeed = createImportTableFactsSeedHeuristic({
     fileName,
-    metadata: extractFileMetadata(rows.map(row => [...row])),
+    metadata: extractImportTableFactsSeedMetadata(rows.map(row => [...row])),
   });
   return {
-    curveFamily: getMeasurementFamily(assessment.curveType),
-    curveType: assessment.curveTypeLabel,
-    curveTypeConfidence: assessment.confidence,
-    curveTypeNeedsTemplate: assessment.needsTemplate,
-    curveTypeReasons: assessment.reasons,
-    ivMode: getIvMode(assessment.curveType),
-    xAxisRole: assessment.xAxisRole,
-    xAxisRoleSource: assessment.xAxisRoleSource,
+    curveFamily: getMeasurementFamily(tableFactsSeed.curveType),
+    curveType: tableFactsSeed.curveTypeLabel,
+    curveTypeConfidence: tableFactsSeed.confidence,
+    curveTypeNeedsReview: tableFactsSeed.needsReview,
+    curveTypeReasons: tableFactsSeed.reasons,
+    ivMode: getIvMode(tableFactsSeed.curveType),
+    xAxisRole: tableFactsSeed.xAxisRole,
+    xAxisRoleSource: tableFactsSeed.xAxisRoleSource,
   };
 };
 
@@ -139,11 +139,11 @@ const computeTableMetadata = (rows) => {
   };
 };
 
-const normalizeRustAssessment = (value) => ({
+const normalizeRustTableFacts = (value) => ({
   curveFamily: normalizeNullable(value?.curveFamily),
-  curveType: normalizeNullable(value?.curveTypeLabel),
+  curveType: normalizeNullable(value?.curveType),
   curveTypeConfidence: normalizeNullable(value?.curveTypeConfidence),
-  curveTypeNeedsTemplate: Boolean(value?.curveTypeNeedsTemplate),
+  curveTypeNeedsReview: Boolean(value?.curveTypeNeedsReview),
   curveTypeReasons: Array.isArray(value?.curveTypeReasons)
     ? value.curveTypeReasons.map(item => String(item))
     : [],
@@ -213,7 +213,7 @@ const createWorker = ({ command, args, label }) => {
       try {
         message = JSON.parse(text);
       } catch (error) {
-        console.warn(`[rust-assessment-parity] invalid worker JSON: ${error.message}`);
+        console.warn(`[rust-table-facts-parity] invalid worker JSON: ${error.message}`);
         continue;
       }
 
@@ -305,13 +305,13 @@ const main = async () => {
       await fs.writeFile(filePath, csvText, "utf8");
 
       const tsRows = parseCsvRows(csvText);
-      const tsAssessment = assessTypeScriptRows(fixture.name, tsRows);
+      const tsTableFacts = buildTypeScriptTableFactsSeed(fixture.name, tsRows);
       const tsMetadata = computeTableMetadata(fixture.rows);
-      const rustResult = await worker.send("assessImport", {
+      const rustResult = await worker.send("prepareImport", {
         fileName: fixture.name,
         path: filePath,
       });
-      const rustAssessment = normalizeRustAssessment(rustResult.assessment);
+      const rustTableFacts = normalizeRustTableFacts(rustResult.tableFactsSeed);
       const rustMetadata = {
         columnCount: Number(rustResult.columnCount) || 0,
         maxCellLengths: Array.isArray(rustResult.maxCellLengths)
@@ -319,10 +319,10 @@ const main = async () => {
           : [],
         rowCount: Number(rustResult.rowCount) || 0,
       };
-      const assessmentMismatches = compareRecords(
-        tsAssessment,
-        rustAssessment,
-        STRICT_ASSESSMENT_FIELDS,
+      const tableFactsMismatches = compareRecords(
+        tsTableFacts,
+        rustTableFacts,
+        STRICT_TABLE_FACTS_FIELDS,
       );
       const metadataMismatches = compareRecords(
         tsMetadata,
@@ -330,13 +330,13 @@ const main = async () => {
         STRICT_METADATA_FIELDS,
       );
       const summary = {
-        assessmentMismatches,
+        tableFactsMismatches,
         file: fixture.name,
         metadataMismatches,
-        passed: assessmentMismatches.length === 0 && metadataMismatches.length === 0,
-        rustAssessment,
+        passed: tableFactsMismatches.length === 0 && metadataMismatches.length === 0,
+        rustTableFacts,
         rustMetadata,
-        tsAssessment,
+        tsTableFacts,
         tsMetadata,
       };
       summaries.push(summary);
@@ -359,20 +359,20 @@ const main = async () => {
 
   if (failures.length > 0) {
     for (const failure of failures) {
-      console.error(`[rust-assessment-parity] FAIL ${failure.file}`);
-      for (const mismatch of [...failure.assessmentMismatches, ...failure.metadataMismatches]) {
+      console.error(`[rust-table-facts-parity] FAIL ${failure.file}`);
+      for (const mismatch of [...failure.tableFactsMismatches, ...failure.metadataMismatches]) {
         console.error(`  ${mismatch.field}: expected=${JSON.stringify(mismatch.expected)} actual=${JSON.stringify(mismatch.actual)}`);
       }
     }
-    console.error(`[rust-assessment-parity] report=${REPORT_PATH}`);
+    console.error(`[rust-table-facts-parity] report=${REPORT_PATH}`);
     process.exit(1);
   }
 
-  console.log(`[rust-assessment-parity] all ${summaries.length} fixtures matched`);
-  console.log(`[rust-assessment-parity] report=${REPORT_PATH}`);
+  console.log(`[rust-table-facts-parity] all ${summaries.length} fixtures matched`);
+  console.log(`[rust-table-facts-parity] report=${REPORT_PATH}`);
 };
 
 main().catch((error) => {
-  console.error(`[rust-assessment-parity] ${error?.message || error}`);
+  console.error(`[rust-table-facts-parity] ${error?.message || error}`);
   process.exit(1);
 });

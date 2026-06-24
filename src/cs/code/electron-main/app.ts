@@ -1495,7 +1495,7 @@ function createPreparedCsvImportResult({
 
   return {
     ok: true,
-    assessment: result?.assessment,
+    tableFactsSeed: result?.tableFactsSeed,
     ...(batchCommandSize !== undefined ? { batchCommandSize } : {}),
     ...(batchDurationMs !== undefined ? { batchDurationMs } : {}),
     ...(batchParallelism !== undefined ? { batchParallelism } : {}),
@@ -1570,7 +1570,7 @@ async function prepareFileConversionFromMetadata(metadata) {
     }
 
     const result = await rustPriorityGate.runBackground(() =>
-      rustWorkerHost.sendProcessingCommand("assessImport", {
+      rustWorkerHost.sendProcessingCommand("prepareImport", {
         fileName,
         path: inputPath,
       })
@@ -1638,7 +1638,7 @@ async function prepareCsvFileConversionBatchChunk(entries, setResult, scheduler)
   let response;
   try {
     response = await rustPriorityGate.runBackground(() =>
-      rustWorkerHost.sendProcessingCommand("assessImportBatch", {
+      rustWorkerHost.sendProcessingCommand("prepareImportBatch", {
         entries: entries.map(entry => ({
           fileName: entry.fileName,
           path: entry.inputPath,

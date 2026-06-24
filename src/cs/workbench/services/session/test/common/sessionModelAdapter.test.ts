@@ -290,8 +290,8 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
     const file = records.filesById["file-a"];
     assert.ok(file);
 
-    const assessment: RawTableFactsRecord = {
-      assessmentRuleVersion: TABLE_FACTS_RULE_VERSION,
+    const tableFacts: RawTableFactsRecord = {
+      tableFactsRuleVersion: TABLE_FACTS_RULE_VERSION,
       schemaProfileVersion: 0,
       blocks: [{
         id: "file-a:block:0",
@@ -380,10 +380,10 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
       "file-a": {
         ...file,
         tableFactsByRawTableId: {
-          "file-a": assessment,
+          "file-a": tableFacts,
         },
         measurementBlocksById: {
-          "file-a:block:0": assessment.blocks[0],
+          "file-a:block:0": tableFacts.blocks[0],
         },
         measurementBlockOrder: ["file-a:block:0"],
       },

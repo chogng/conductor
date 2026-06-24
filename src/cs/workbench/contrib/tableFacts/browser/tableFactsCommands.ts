@@ -25,8 +25,6 @@ import {
 
 export const CONFIRM_TABLE_FACTS_SCHEMA_PROFILE_COMMAND_ID =
 	"tableFacts.confirmSchemaProfile";
-export const CONFIRM_ASSESSMENT_SCHEMA_PROFILE_COMMAND_ID =
-	"assessment.confirmSchemaProfile";
 
 export type ConfirmTableFactsSchemaProfileCommandBinding = {
 	readonly rawCol?: unknown;
@@ -200,10 +198,5 @@ const normalizeText = (
 
 CommandsRegistry.registerCommand({
 	id: CONFIRM_TABLE_FACTS_SCHEMA_PROFILE_COMMAND_ID,
-	handler: confirmTableFactsSchemaProfileHandler,
-});
-
-CommandsRegistry.registerCommand({
-	id: CONFIRM_ASSESSMENT_SCHEMA_PROFILE_COMMAND_ID,
 	handler: confirmTableFactsSchemaProfileHandler,
 });

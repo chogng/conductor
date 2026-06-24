@@ -167,7 +167,7 @@ const createPreparedImportTableFactInputs = (
       tableFactsSeed: importedFile.preparedTableFactsSeed,
     });
     tableFactsRecords.push({
-      assessmentRuleVersion: tableFacts.assessmentRuleVersion,
+      tableFactsRuleVersion: tableFacts.tableFactsRuleVersion,
       blocks: tableFacts.blocks,
       columnProfiles: tableFacts.columnProfiles,
       createdAt: tableFacts.createdAt,

@@ -129,7 +129,7 @@ RawTableReviewRecord + SliceState.fileStates + latest SliceRun
 
 - Do not interpret raw rows/header semantics here; Recipe projection and
   Template materialization happen before Review/Slice.
-- Do not re-run Assessment logic in Slice.
+- Do not re-run table-fact production or Template materialization in Slice.
 - Do not import RecipeService, recipe selector evaluators, or recipe Template
   materializers into Slice.
 - Do not inspect Review confidence, candidate margin, or diagnostics to decide

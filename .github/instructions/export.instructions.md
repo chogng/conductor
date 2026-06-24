@@ -17,8 +17,8 @@ Export builds export plans and payloads. It is not Chart and not Plot.
 
 It consumes Session snapshots, Plot display models, Settings export options,
 Parameters output when selected, and platform file/dialog services. It does not
-own chart rendering, plot domain calculation, assessment, template execution,
-or canonical Session mutation.
+own chart rendering, plot domain calculation, table-fact production, template
+execution, or canonical Session mutation.
 
 ## Core Files
 

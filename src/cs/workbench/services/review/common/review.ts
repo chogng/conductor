@@ -208,7 +208,7 @@ export interface IReviewService {
 }
 
 export const createReviewEvidenceSignature = ({
-  assessmentRuleVersion,
+  tableFactsRuleVersion,
   blocks,
   columnProfiles,
   diagnostics,
@@ -220,7 +220,7 @@ export const createReviewEvidenceSignature = ({
   structure,
 }: Pick<
   RawTableFactsRecord,
-  | "assessmentRuleVersion"
+  | "tableFactsRuleVersion"
   | "blocks"
   | "columnProfiles"
   | "diagnostics"
@@ -231,7 +231,7 @@ export const createReviewEvidenceSignature = ({
   | "sourceRawTableVersion"
   | "structure"
 >, context: ReviewEvidenceSignatureContext = {}): string => JSON.stringify({
-  assessmentRuleVersion,
+  tableFactsRuleVersion,
   schemaProfileVersion,
   sourceMetadata: {
     columnCount: normalizeSignatureInteger(context.columnCount),

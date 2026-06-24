@@ -404,10 +404,10 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       selectedRelativePath: null,
     });
 
-    const assessment = firstImport.result?.prepared.fileInfo.preparedTableFactsSeed;
-    assert.ok(assessment);
-    assert.equal(assessment.curveFamily, "iv");
-    assert.equal(assessment.ivMode, "transfer");
+    const tableFacts = firstImport.result?.prepared.fileInfo.preparedTableFactsSeed;
+    assert.ok(tableFacts);
+    assert.equal(tableFacts.curveFamily, "iv");
+    assert.equal(tableFacts.ivMode, "transfer");
     assert.equal(failedFiles.length, 0);
   });
 

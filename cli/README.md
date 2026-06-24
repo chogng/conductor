@@ -38,7 +38,7 @@ workbench service / Explorer workflow
   -> conductor-rs --stdio-worker
   -> Electron main normalizes result
   -> service converts to domain records
-  -> Session / Explorer / Table / Assessment consume normal state
+  -> Session / Explorer / Table / TableFacts / Review / Slice consume normal state
 ```
 
 Rust CLI 不直接接触 Electron API、SessionModel、Explorer state、DOM、
@@ -82,20 +82,21 @@ fixture 现在用于压测格式混合和错误路径，不代表已经支持多
 - UTF-8 失败时用 GB18030 兜底。
 - 二进制、乱码、空文件会进入 health/failure 路径，不应污染正常 rows。
 
-### 导入评估和 badge prepare
+### TableFacts import prepare 和 badge prepare
 
 入口：
 
-- stdio commands：`assessImport`、`assessImportBatch`
+- stdio commands：table-fact import prepare single/batch
 - Electron main：file conversion prepare / stream prepare
 
 职责：
 
 - 为 CSV 直接读取 summary：`rowCount`、`columnCount`、`maxCellLengths`、
   bounded preview rows 和 health。
-- 用 summary 构建 import assessment，不为 badge prepare 构建完整
+- 用 summary 构建 import table-fact seed，不为 badge prepare 构建完整
   `EngineDataset.rows`。
-- 为 batch prepare 返回每个文件独立的 ok/failure、duration、health 和 assessment。
+- 为 batch prepare 返回每个文件独立的 ok/failure、duration、health 和
+  table-fact seed。
 - 对空文件、乱码、二进制伪装 CSV 返回 health，不让坏文件阻塞整批。
 
 桌面优化机制：
@@ -107,7 +108,7 @@ fixture 现在用于压测格式混合和错误路径，不代表已经支持多
   回流。当前默认大批量 CSV prepare 是 `2 files / Rust command`，Rust batch
   内部并行度为 `1`，这个配置优先 badge latency，而不是单次 batch 吞吐。
 - renderer/main IPC 可以 stream per-file result；Explorer 在文件准备完成后
-  尽快投影 assessment badge。
+  尽快投影 table-fact badge。
 
 ### 自动提取、处理和分析
 
@@ -153,10 +154,9 @@ fixture 现在用于压测格式混合和错误路径，不代表已经支持多
   Excel one-shot、处理/导出主入口。
 - `cli/src/dataset.rs`：CSV decode、health、summary parser、`EngineDataset`、
   preview/cell reads、数值缓存。
-- `cli/src/assessment.rs` / `cli/src/detect.rs`：导入评估、curve type、metadata、
-  表头和形态识别。
+- `cli/src/detect.rs`：table-fact import prepare、curve type、metadata、表头和形态识别。
 - `cli/src/converter.rs`：Excel 读取和 normalized CSV 写出。
-- `cli/src/import.rs`：import assessment adapter。
+- `cli/src/import.rs`：import table-fact adapter。
 - `cli/src/infer.rs`：metadata 分组和 X 值重复形态推断。
 - `cli/src/analysis.rs`：gm、SS、SS fit、基础电流指标。
 - `cli/src/rc.rs`：Rc/TLM 分析。
@@ -172,7 +172,6 @@ fixture 现在用于压测格式混合和错误路径，不代表已经支持多
 ```sh
 npm run build:conductor-rs
 npm run build:desktop:core
-npm run verify:rust-assessment-parity
 npm run verify:rust-auto-extraction
 npm run verify:rust-ss-auto
 npm run verify:rust-origin-export
@@ -204,7 +203,7 @@ npm run test:template-apply-performance-trace -- --runtime=browser --auto-browse
 
 报告里重点看：
 
-- first / half / all assessment badge；
+- first / half / all table-fact badge；
 - first / half / all prepare complete；
 - backend invoke wall time；
 - Rust per-file p50 / p95；

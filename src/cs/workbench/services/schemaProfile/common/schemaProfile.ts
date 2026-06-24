@@ -33,7 +33,7 @@ export type SchemaProfileBinding = {
 
 // User-confirmed evidence for an exact raw-table schema fingerprint.
 // TableFacts may consume matching bindings as semantic evidence, but the
-// assessment record remains the canonical owner of resulting blocks/candidates.
+// table-facts record remains the canonical owner of resulting blocks/candidates.
 export type SchemaProfile = {
 	readonly id?: string;
 	readonly scope: SchemaProfileScope;

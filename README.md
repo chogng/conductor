@@ -172,7 +172,7 @@ directly through Mocha; Node's strip-types mode does not support the project's
 full TypeScript syntax.
 
 ```bash
-npm run test:unit:target -- src/cs/workbench/services/assessment/test/browser/importFileAssessment.test.ts
+npm run test:unit:target -- src/cs/workbench/services/tableFacts/test/browser/importTableFactsSeed.test.ts
 npm run test:unit:target -- src/cs/workbench/services/table/test/browser
 ```
 

@@ -191,11 +191,11 @@ suite("workbench/contrib/files/test/browser/explorerSessionImport", () => {
     });
 
     const file = session.getSnapshot().filesById["file-a"];
-    const assessment = file.tableFactsByRawTableId["file-a"];
-    assert.equal(assessment.sourceRawTableVersion, file.rawTableVersionsById["file-a"]);
-    assert.equal(assessment.blocks[0].label, "Transfer");
-    assert.equal(assessment.blocks[0].family, "iv");
-    assert.equal(assessment.blocks[0].ivMode, "transfer");
+    const tableFacts = file.tableFactsByRawTableId["file-a"];
+    assert.equal(tableFacts.sourceRawTableVersion, file.rawTableVersionsById["file-a"]);
+    assert.equal(tableFacts.blocks[0].label, "Transfer");
+    assert.equal(tableFacts.blocks[0].family, "iv");
+    assert.equal(tableFacts.blocks[0].ivMode, "transfer");
     assert.deepEqual(events.map(event => event.reason), ["rawTablesChanged"]);
     disposable.dispose();
   });

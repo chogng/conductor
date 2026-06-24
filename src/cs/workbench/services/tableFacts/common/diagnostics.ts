@@ -23,7 +23,7 @@ export type TableFactsDiagnostic = {
 export const createTableFactsReasonDiagnosticCodes = (
   reasons: readonly string[],
 ): readonly string[] =>
-  reasons.map((_, index) => `assessment.reason.${index + 1}`);
+  reasons.map((_, index) => `tableFacts.reason.${index + 1}`);
 
 export const createTableFactsReasonDiagnostics = ({
   reasons,
@@ -35,7 +35,7 @@ export const createTableFactsReasonDiagnostics = ({
   const diagnosticCodes = createTableFactsReasonDiagnosticCodes(reasons);
   return reasons.map((reason, index) => ({
     severity: "info",
-    code: diagnosticCodes[index] ?? `assessment.reason.${index + 1}`,
+    code: diagnosticCodes[index] ?? `tableFacts.reason.${index + 1}`,
     message: reason,
     relatedBlockId,
   }));

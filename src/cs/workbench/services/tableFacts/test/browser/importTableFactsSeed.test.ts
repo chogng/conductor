@@ -8,11 +8,11 @@ import {
   isSupportedImportFileName,
 } from "src/cs/workbench/services/files/common/files";
 import {
-  createImportAssessmentSeedFromFile,
-} from "src/cs/workbench/services/assessment/browser/importAssessmentSeed";
+  createImportTableFactsSeedFromFile,
+} from "src/cs/workbench/services/tableFacts/browser/importTableFactsSeed";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
-suite("workbench/services/assessment/test/browser/importAssessmentSeed", () => {
+suite("workbench/services/tableFacts/test/browser/importTableFactsSeed", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
   test("isSupportedImportFileName accepts csv/xls/xlsx with case-insensitive suffixes", () => {
     assert.equal(isSupportedImportFileName("sample.csv"), true);
@@ -46,7 +46,7 @@ suite("workbench/services/assessment/test/browser/importAssessmentSeed", () => {
       { type: "text/csv" },
     );
 
-    const result = await createImportAssessmentSeedFromFile(file);
+    const result = await createImportTableFactsSeedFromFile(file);
 
     assert.equal(result.curveFamily, "iv");
     assert.equal(result.curveType, "transfer (vg)");
@@ -71,7 +71,7 @@ suite("workbench/services/assessment/test/browser/importAssessmentSeed", () => {
       { type: "text/csv" },
     );
 
-    const result = await createImportAssessmentSeedFromFile(file);
+    const result = await createImportTableFactsSeedFromFile(file);
 
     assert.equal(result.curveFamily, "iv");
     assert.equal(result.curveType, "output (vd)");
@@ -93,7 +93,7 @@ suite("workbench/services/assessment/test/browser/importAssessmentSeed", () => {
       type: "text/csv;charset=utf-8",
     });
 
-    const result = await createImportAssessmentSeedFromFile(file);
+    const result = await createImportTableFactsSeedFromFile(file);
 
     assert.equal(result.curveFamily, "iv");
     assert.equal(result.curveType, "transfer (vg)");

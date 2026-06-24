@@ -79,14 +79,14 @@ Resolution has retired and must not be reintroduced as a Review prerequisite or
 candidate-summary bridge.
 User-template candidates must come through `IUserTemplateService` and
 `UserTemplateSnapshot`. New decision logic belongs in Review; new provider and
-materialization logic belongs in Template, not Assessment, Explorer, or Slice.
+materialization logic belongs in Template, not TableFacts, Explorer, or Slice.
 
 ## Rules
 
 - `ReviewDecision` is the only source for template usability and system
   application recommendations.
 - System recommendation policy is Review-owned: it uses `TemplateReview`
-  confidence and Review diagnostics/policy, not legacy assessment apply fields.
+  confidence and Review diagnostics/policy, not legacy apply fields.
 - `TemplateDraft` is Template materialization pipeline data consumed by Review.
   It may carry derivation confidence,
   derivation reasons, diagnostics, and optional captures, but it must not carry
@@ -112,6 +112,5 @@ materialization logic belongs in Template, not Assessment, Explorer, or Slice.
   user-command controller.
 - Do not read raw rows, rerun table-fact detection, or materialize Recipes.
 - Do not store user template catalog data in Review records.
-- Do not let Template materializers, Assessment migration helpers, Slice, or
-  Explorer decide
+- Do not let Template materializers, TableFacts producers, Slice, or Explorer decide
   `systemRecommended`.

@@ -65,14 +65,14 @@ const runWorkerJson = (payload) => {
   }
 };
 
-const verifyAssessImportBatch = () => {
+const verifyTableFactsImportBatch = () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-rs-smoke-"));
   const csvPath = path.join(tempDir, "batch.csv");
   try {
     fs.writeFileSync(csvPath, "x,y\n1,2\n", "utf8");
     const response = runWorkerJson({
       id: 1,
-      command: "assessImportBatch",
+      command: "prepareImportBatch",
       entries: [{
         fileName: "batch.csv",
         path: csvPath,
@@ -80,7 +80,7 @@ const verifyAssessImportBatch = () => {
       threads: 1,
     });
     if (response?.ok !== true || response?.result?.results?.[0]?.ok !== true) {
-      throw new Error(`Unexpected assessImportBatch response: ${JSON.stringify(response)}`);
+      throw new Error(`Unexpected prepareImportBatch response: ${JSON.stringify(response)}`);
     }
   } finally {
     fs.rmSync(tempDir, { force: true, recursive: true });
@@ -104,7 +104,7 @@ try {
     throw new Error(`Unexpected doctor payload: ${JSON.stringify(doctor)}`);
   }
 
-  verifyAssessImportBatch();
+  verifyTableFactsImportBatch();
 
   console.log(
     `[verify-conductor-rs-smoke] OK: ${helperPath} version=${version.version} platform=${version.platform}/${version.arch}`,

@@ -17,9 +17,7 @@ import type { ColumnSemanticCandidate } from "src/cs/workbench/services/tableFac
 export const TABLE_FACTS_RULE_VERSION = 2;
 
 export type RawTableFactsRecord = {
-  // TODO(conductor-architecture): Persisted compatibility field.
-  // Rename to tableFactsRuleVersion when the Session record key migration lands.
-  readonly assessmentRuleVersion: number;
+  readonly tableFactsRuleVersion: number;
   readonly schemaProfileVersion: number;
   readonly fileId: string;
   readonly rawTableId: string;
@@ -33,6 +31,13 @@ export type RawTableFactsRecord = {
   readonly diagnostics: readonly TableFactsDiagnostic[];
   readonly createdAt: number;
 };
+
+export const getRawTableFactsRuleVersion = (
+  record: {
+    readonly tableFactsRuleVersion?: number;
+  },
+): number =>
+  normalizeRuleVersion(record.tableFactsRuleVersion) ?? 0;
 
 export type RawTableFacts = {
   readonly structure: RawTableStructure;
@@ -69,5 +74,9 @@ export const createRawTableFactsFromRecord = (
   },
 });
 
-export const createRawTableFactsFromAssessmentRecord =
-  createRawTableFactsFromRecord;
+const normalizeRuleVersion = (
+  value: unknown,
+): number | undefined => {
+  const version = Math.floor(Number(value));
+  return Number.isFinite(version) && version >= 0 ? version : undefined;
+};

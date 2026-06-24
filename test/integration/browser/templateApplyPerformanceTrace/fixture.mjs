@@ -38,7 +38,7 @@ export const createUniqueImportFixture = async ({ fileCount, profile, rowCount, 
       runId,
     });
     files.push({
-      expectedAssessmentBadge: fixtureType === "healthyCsv" || fixtureType === "schemaVariantCsv",
+      expectedTableFactsBadge: fixtureType === "healthyCsv" || fixtureType === "schemaVariantCsv",
       expectedPrepareFailure: fixtureType === "corruptXlsx",
       fileIndex: index,
       fileName,
@@ -53,7 +53,7 @@ export const createUniqueImportFixture = async ({ fileCount, profile, rowCount, 
   }, {});
   return {
     composition,
-    expectedAssessmentBadgeCount: files.filter(file => file.expectedAssessmentBadge).length,
+    expectedTableFactsBadgeCount: files.filter(file => file.expectedTableFactsBadge).length,
     expectedPrepareCompletionCount: files.length,
     expectedPrepareFailureCount: files.filter(file => file.expectedPrepareFailure).length,
     files,

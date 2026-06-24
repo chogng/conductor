@@ -43,10 +43,10 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 		const sliceService = new TestSliceService();
 		store.add(new AutoSliceContribution(sessionService, sliceService));
 		sessionService.commitFileImport(createImportResult());
-		const assessment = createAssessment();
+		const tableFacts = createTableFacts();
 
-		sessionService.commitRawTableFacts(assessment);
-		sessionService.commitRawTableReviews([createReview(assessment)]);
+		sessionService.commitRawTableFacts(tableFacts);
+		sessionService.commitRawTableReviews([createReview(tableFacts)]);
 
 		assert.deepEqual(sliceService.enqueuedRefs, [[{
 			fileId: "file-a",
@@ -57,9 +57,9 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 	test("does not enqueue automatic slices after latest manual slice run", () => {
 		const sessionService = store.add(new SessionService());
 		sessionService.commitFileImport(createImportResult());
-		const assessment = createAssessment();
-		sessionService.commitRawTableFacts(assessment);
-		sessionService.commitRawTableReviews([createReview(assessment)]);
+		const tableFacts = createTableFacts();
+		sessionService.commitRawTableFacts(tableFacts);
+		sessionService.commitRawTableReviews([createReview(tableFacts)]);
 		const template = createTemplate();
 		sessionService.commitSliceRuns([{
 			run: {
@@ -71,7 +71,7 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 					kind: "inline",
 					template,
 				},
-				sourceRawTableVersion: assessment.sourceRawTableVersion,
+				sourceRawTableVersion: tableFacts.sourceRawTableVersion,
 				template,
 				templateFingerprint: "template:manual",
 				inputRanges: [{
@@ -102,10 +102,10 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 	test("runs raw import through reviewed automatic template into slice curves", async () => {
 		const sessionService = store.add(new SessionService());
 		const rowsReaderService = new TestRawTableRowsReaderService();
-		const assessmentService = store.add(new RawTableFactsService());
-		const assessmentQueueService = store.add(new RawTableFactsQueueService(
+		const tableFactsService = store.add(new RawTableFactsService());
+		const tableFactsQueueService = store.add(new RawTableFactsQueueService(
 			sessionService,
-			assessmentService,
+			tableFactsService,
 			rowsReaderService,
 		));
 		const sliceService = store.add(new SliceService(
@@ -113,7 +113,7 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 			undefined,
 			rowsReaderService,
 		));
-		store.add(new RawTableFactsContribution(sessionService, assessmentQueueService));
+		store.add(new RawTableFactsContribution(sessionService, tableFactsQueueService));
 		store.add(new TestReviewContribution(sessionService));
 		store.add(new AutoSliceContribution(sessionService, sliceService));
 
@@ -192,21 +192,21 @@ class TestReviewContribution extends Disposable {
 			const snapshot = this.sessionService.getSnapshot();
 			this.sessionService.commitRawTableReviews((event.rawTableRefs ?? [])
 				.map(ref => snapshot.filesById[ref.fileId]?.tableFactsByRawTableId[ref.rawTableId])
-				.filter((assessment): assessment is RawTableFactsRecord => Boolean(assessment))
-				.map(assessment => createReview(assessment, createAutoTemplate())));
+				.filter((tableFacts): tableFacts is RawTableFactsRecord => Boolean(tableFacts))
+				.map(tableFacts => createReview(tableFacts, createAutoTemplate())));
 		}));
 	}
 }
 
 const createReview = (
-	assessment: RawTableFactsRecord,
+	tableFacts: RawTableFactsRecord,
 	template = createTemplate(),
 ): RawTableReviewRecord => {
 	return {
-		fileId: assessment.fileId,
-		rawTableId: assessment.rawTableId,
-		sourceRawTableVersion: assessment.sourceRawTableVersion,
-		evidenceSignature: createReviewEvidenceSignature(assessment, {
+		fileId: tableFacts.fileId,
+		rawTableId: tableFacts.rawTableId,
+		sourceRawTableVersion: tableFacts.sourceRawTableVersion,
+		evidenceSignature: createReviewEvidenceSignature(tableFacts, {
 			columnCount: 3,
 			fileName: "Raw.csv",
 			rowCount: 3,
@@ -267,8 +267,8 @@ const createReview = (
 	};
 };
 
-const createAssessment = (): RawTableFactsRecord => ({
-	assessmentRuleVersion: TABLE_FACTS_RULE_VERSION,
+const createTableFacts = (): RawTableFactsRecord => ({
+	tableFactsRuleVersion: TABLE_FACTS_RULE_VERSION,
 	schemaProfileVersion: 0,
 	fileId: "file-a",
 	rawTableId: "table-a",

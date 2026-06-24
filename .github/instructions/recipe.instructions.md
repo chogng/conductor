@@ -31,10 +31,8 @@ Template materializers own recipe interpretation:
   snapshots;
 - materialized-template ordering before Review.
 
-Current TableFacts production may still be implemented under the Assessment
-compatibility shell, but Recipe consumes only table facts through Template
-materializers. Recipe must not infer measurement family, roles, units, or table
-structure from raw rows.
+Recipe consumes only table facts through Template materializers. Recipe must
+not infer measurement family, roles, units, or table structure from raw rows.
 
 ## Core Files
 

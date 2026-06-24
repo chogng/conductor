@@ -519,7 +519,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       },
     ]);
     session.commitRawTableFacts({
-      assessmentRuleVersion: TABLE_FACTS_RULE_VERSION,
+      tableFactsRuleVersion: TABLE_FACTS_RULE_VERSION,
       schemaProfileVersion: 0,
       blocks: [{
 	        columnCount: 2,
@@ -1103,8 +1103,8 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       rowCount: 2,
       rows: [],
     }]);
-    const assessment = createRawTableAssessmentForTest();
-    session.commitRawTableFacts(assessment);
+    const tableFacts = createRawTableFactsForTest();
+    session.commitRawTableFacts(tableFacts);
     const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
     const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
     globalThis.requestAnimationFrame = ((callback: FrameRequestCallback): number => {
@@ -1126,7 +1126,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
 
       assert.equal(explorerService.getPaneInput()?.files[0]?.rawTableStatus?.kind, "reviewPending");
 
-      session.commitRawTableReviews([createReviewRecordForTest(assessment)]);
+      session.commitRawTableReviews([createReviewRecordForTest(tableFacts)]);
       await new Promise(resolve => globalThis.setTimeout(resolve, 0));
 
       const status = explorerService.getPaneInput()?.files[0]?.rawTableStatus;
@@ -1450,8 +1450,8 @@ const commitRawFilesForTest = (
   session.commitFileImport(createFileImportResultForTest(files));
 };
 
-const createRawTableAssessmentForTest = (): RawTableFactsRecord => ({
-  assessmentRuleVersion: TABLE_FACTS_RULE_VERSION,
+const createRawTableFactsForTest = (): RawTableFactsRecord => ({
+  tableFactsRuleVersion: TABLE_FACTS_RULE_VERSION,
   schemaProfileVersion: 0,
   blocks: [{
     columnCount: 2,
@@ -1486,12 +1486,12 @@ const createRawTableAssessmentForTest = (): RawTableFactsRecord => ({
 });
 
 const createReviewRecordForTest = (
-  assessment: RawTableFactsRecord,
+  tableFacts: RawTableFactsRecord,
 ): RawTableReviewRecord => ({
-  fileId: assessment.fileId,
-  rawTableId: assessment.rawTableId,
-  sourceRawTableVersion: assessment.sourceRawTableVersion,
-  evidenceSignature: createReviewEvidenceSignature(assessment, {
+  fileId: tableFacts.fileId,
+  rawTableId: tableFacts.rawTableId,
+  sourceRawTableVersion: tableFacts.sourceRawTableVersion,
+  evidenceSignature: createReviewEvidenceSignature(tableFacts, {
     columnCount: 2,
     fileName: "A.csv",
     rowCount: 2,

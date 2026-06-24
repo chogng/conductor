@@ -11,7 +11,7 @@ import {
 } from "src/cs/workbench/services/tableFacts/common/layoutCandidate";
 import { detectRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
 
-suite("workbench/services/assessment/common/layoutCandidate", () => {
+suite("workbench/services/tableFacts/common/layoutCandidate", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test("detects adjacent pairwise X/Y columns without semantic roles", () => {

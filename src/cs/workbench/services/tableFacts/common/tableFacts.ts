@@ -12,11 +12,19 @@ import type { SchemaProfile } from "src/cs/workbench/services/schemaProfile/comm
 import type {
 	RawTableRef,
 } from "src/cs/workbench/services/session/common/sessionModel";
-import type {
-	RawTableFactsRecord,
+import {
+	TABLE_FACTS_RULE_VERSION,
+	getRawTableFactsRuleVersion,
+	type RawTableFactsRecord,
 } from "src/cs/workbench/services/template/common/tableFacts";
 
-export type { RawTableFactsRecord };
+export {
+	TABLE_FACTS_RULE_VERSION,
+	getRawTableFactsRuleVersion,
+};
+export type {
+	RawTableFactsRecord,
+} from "src/cs/workbench/services/template/common/tableFacts";
 
 export const IRawTableFactsService = createDecorator<IRawTableFactsService>("rawTableFactsService");
 export const IRawTableFactsQueueService = createDecorator<IRawTableFactsQueueService>("rawTableFactsQueueService");

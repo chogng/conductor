@@ -57,7 +57,7 @@ has produced the domain result.
 | Workflow | Preferred producer | Session method |
 | --- | --- | --- |
 | import | Explorer source workflow after conversion | `commitFileImport` |
-| table facts | table-fact producer; legacy assessment implementation while migrating | `commitRawTableFacts` |
+| table facts | table-fact producer | `commitRawTableFacts` |
 | review | review contribution/command after candidate review | `commitRawTableReviews` |
 | slice | slice service after planning/execution | `commitSliceRuns` |
 | calculated curves/metrics | calculation service | `commitCalculatedRecordsBatch` |

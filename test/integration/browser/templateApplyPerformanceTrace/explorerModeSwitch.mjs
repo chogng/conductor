@@ -56,7 +56,7 @@ const startExplorerModeSwitchDomProbe = async (page) => page.evaluate(() => {
   ];
   const rowSelector = ".ui-list__row";
   const fileItemSelector = ".file-list-item";
-  const badgeSelector = ".file-list-item-assessment";
+  const badgeSelector = ".file-list-item-table-facts";
   const trackedSelector = [
     ...rootSelectors.map(([, selector]) => selector),
     rowSelector,

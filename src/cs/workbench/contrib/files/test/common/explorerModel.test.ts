@@ -436,7 +436,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     const files = createChartExplorerFilesFromRecords(
       {
         "raw-1": createFileRecord("raw-1", {
-          hasAssessmentBlock: true,
+          hasTableFactsBlock: true,
           hasChartData: false,
         }),
       },
@@ -632,12 +632,12 @@ suite("workbench/contrib/files/common/explorerModel", () => {
 const createFileRecord = (
   fileId: string,
   options: {
-    readonly hasAssessmentBlock?: boolean;
+    readonly hasTableFactsBlock?: boolean;
     readonly hasChartData?: boolean;
   } = {},
 ): FileRecord => {
   const hasChartData = options.hasChartData ?? true;
-  const hasAssessmentBlock = options.hasAssessmentBlock ?? false;
+  const hasTableFactsBlock = options.hasTableFactsBlock ?? false;
   return {
     tableFactsByRawTableId: {},
     curvesByKey: hasChartData
@@ -661,8 +661,8 @@ const createFileRecord = (
       : {},
     id: fileId,
     kind: "csv",
-    measurementBlockOrder: hasAssessmentBlock ? ["block-1"] : [],
-    measurementBlocksById: hasAssessmentBlock
+    measurementBlockOrder: hasTableFactsBlock ? ["block-1"] : [],
+    measurementBlocksById: hasTableFactsBlock
       ? {
         "block-1": {
           columnCount: 2,

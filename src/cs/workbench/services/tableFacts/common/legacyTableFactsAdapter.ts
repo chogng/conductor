@@ -4,16 +4,13 @@
 
 import type { RawTableFactsRecord } from "src/cs/workbench/services/template/common/tableFacts";
 import {
-  createRawTableFactsFromAssessmentRecord,
+  createRawTableFactsFromRecord,
   type RawTableFacts,
   type RawTableFactsSourceMetadata,
 } from "src/cs/workbench/services/template/common/tableFacts";
 
-export const createRawTableFactsFromLegacyAssessment = (
+export const createRawTableFactsFromLegacyTableFacts = (
   record: RawTableFactsRecord,
   sourceMetadata?: Partial<RawTableFactsSourceMetadata>,
 ): RawTableFacts =>
-  createRawTableFactsFromAssessmentRecord(record, sourceMetadata);
-
-export const createRawTableEvidenceFromLegacyAssessment =
-  createRawTableFactsFromLegacyAssessment;
+  createRawTableFactsFromRecord(record, sourceMetadata);

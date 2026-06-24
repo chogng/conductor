@@ -111,7 +111,7 @@ export const createRawTableFactsRecordFromImportSeed = (
 	});
 
 	return {
-		assessmentRuleVersion: TABLE_FACTS_RULE_VERSION,
+		tableFactsRuleVersion: TABLE_FACTS_RULE_VERSION,
 		schemaProfileVersion,
 		fileId: input.fileId,
 		rawTableId: input.rawTableId,

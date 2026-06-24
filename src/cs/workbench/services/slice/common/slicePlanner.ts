@@ -121,11 +121,11 @@ const isColumnInBounds = (
 	column < columnCount;
 
 export const createSliceTableFactsSignature = ({
-	assessmentRuleVersion,
+	tableFactsRuleVersion,
 	schemaProfileVersion,
 	sourceRawTableVersion,
 }: {
-	readonly assessmentRuleVersion: number;
+	readonly tableFactsRuleVersion: number;
 	readonly schemaProfileVersion: number;
 	readonly sourceRawTableVersion: number;
 }, resolution?: {
@@ -133,7 +133,7 @@ export const createSliceTableFactsSignature = ({
 	readonly reviewSignature?: string;
 	readonly templateCatalogVersion?: number;
 }): string => JSON.stringify({
-	assessmentRuleVersion,
+	tableFactsRuleVersion,
 	schemaProfileVersion,
 	sourceRawTableVersion,
 	recipeFingerprint: normalizeSignatureText(resolution?.recipeFingerprint),

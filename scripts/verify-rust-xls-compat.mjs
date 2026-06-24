@@ -3,7 +3,10 @@ import fs from "node:fs";
 import path from "node:path";
 import Papa from "papaparse";
 import * as xlsx from "xlsx";
-import { assessImportedFile } from "../src/cs/workbench/contrib/import/common/importFileUtils.ts";
+import {
+  createImportTableFactsSeedHeuristic,
+  extractImportTableFactsSeedMetadata,
+} from "../src/cs/workbench/services/tableFacts/common/importTableFactsSeedHeuristics.ts";
 
 const ROOT = process.cwd();
 const WORKER_FILE_NAME = process.platform === "win32" ? "conductor-rs.exe" : "conductor-rs";
@@ -149,11 +152,20 @@ const compareRows = (jsRows, rustRows) => {
   };
 };
 
-const assessCsvText = async (csvText, fileName) => {
-  const file = new File([csvText], fileName, {
-    type: "text/csv;charset=utf-8",
+const buildTableFactsSeedFromCsvText = (csvText, fileName) => {
+  const rows = parseCsvRows(csvText).map(row =>
+    Array.isArray(row) ? row.map(value => String(value ?? "")) : []
+  );
+  const seed = createImportTableFactsSeedHeuristic({
+    fileName,
+    metadata: extractImportTableFactsSeedMetadata(rows),
   });
-  return await assessImportedFile(file);
+  return {
+    curveType: seed.curveTypeLabel,
+    curveTypeConfidence: seed.confidence,
+    xAxisRole: seed.xAxisRole,
+    xAxisRoleSource: seed.xAxisRoleSource,
+  };
 };
 
 const main = async () => {
@@ -213,13 +225,13 @@ const main = async () => {
     const jsRows = parseCsvRows(jsCsv);
     const rustRows = parseCsvRows(rustCsv);
     const comparison = compareRows(jsRows, rustRows);
-    const jsAssessment = await assessCsvText(jsCsv, path.basename(entry.sourcePath));
-    const rustAssessment = await assessCsvText(rustCsv, path.basename(entry.sourcePath));
+    const jsTableFactsSeed = buildTableFactsSeedFromCsvText(jsCsv, path.basename(entry.sourcePath));
+    const rustTableFactsSeed = buildTableFactsSeedFromCsvText(rustCsv, path.basename(entry.sourcePath));
     const classificationMatches =
-      jsAssessment.curveType === rustAssessment.curveType &&
-      jsAssessment.curveTypeConfidence === rustAssessment.curveTypeConfidence &&
-      jsAssessment.xAxisRole === rustAssessment.xAxisRole &&
-      jsAssessment.xAxisRoleSource === rustAssessment.xAxisRoleSource;
+      jsTableFactsSeed.curveType === rustTableFactsSeed.curveType &&
+      jsTableFactsSeed.curveTypeConfidence === rustTableFactsSeed.curveTypeConfidence &&
+      jsTableFactsSeed.xAxisRole === rustTableFactsSeed.xAxisRole &&
+      jsTableFactsSeed.xAxisRoleSource === rustTableFactsSeed.xAxisRoleSource;
     const passed =
       comparison.rowCountMatches &&
       comparison.jsCells === comparison.rustCells &&
@@ -230,10 +242,10 @@ const main = async () => {
       classificationMatches,
       comparison,
       file: entry.sourcePath,
-      jsAssessment,
+      jsTableFactsSeed,
       jsBytes: Buffer.byteLength(jsCsv),
       passed,
-      rustAssessment,
+      rustTableFactsSeed,
       rustBytes: Buffer.byteLength(rustCsv),
     };
     summaries.push(summary);
@@ -298,8 +310,8 @@ const main = async () => {
       console.log(`\n[compat failure] ${failure.file}`);
       console.log(JSON.stringify({
         comparison: failure.comparison,
-        jsAssessment: failure.jsAssessment,
-        rustAssessment: failure.rustAssessment,
+        jsTableFactsSeed: failure.jsTableFactsSeed,
+        rustTableFactsSeed: failure.rustTableFactsSeed,
       }, null, 2));
     }
     process.exitCode = 1;

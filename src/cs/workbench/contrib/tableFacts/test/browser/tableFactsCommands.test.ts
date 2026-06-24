@@ -11,13 +11,13 @@ import {
 } from "src/cs/platform/commands/common/commands";
 import type { ServicesAccessor, ServiceIdentifier } from "src/cs/platform/instantiation/common/instantiation";
 import {
-	CONFIRM_ASSESSMENT_SCHEMA_PROFILE_COMMAND_ID,
-	confirmAssessmentSchemaProfileFromSession,
-} from "src/cs/workbench/contrib/assessment/browser/assessmentCommands";
+	CONFIRM_TABLE_FACTS_SCHEMA_PROFILE_COMMAND_ID,
+	confirmTableFactsSchemaProfileFromSession,
+} from "src/cs/workbench/contrib/tableFacts/browser/tableFactsCommands";
 import {
-	ASSESSMENT_RULE_VERSION,
-	type RawTableAssessmentRecord,
-} from "src/cs/workbench/services/assessment/common/assessment";
+	TABLE_FACTS_RULE_VERSION,
+	type RawTableFactsRecord,
+} from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
 import {
 	ISchemaProfileService,
@@ -33,19 +33,19 @@ import {
 	type SessionSnapshot,
 } from "src/cs/workbench/services/session/common/session";
 
-suite("workbench/contrib/assessment/test/browser/assessmentCommands", () => {
+suite("workbench/contrib/tableFacts/test/browser/tableFactsCommands", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test("confirm schema profile command is registered", () => {
-		assert.ok(CommandsRegistry.getCommand(CONFIRM_ASSESSMENT_SCHEMA_PROFILE_COMMAND_ID));
+		assert.ok(CommandsRegistry.getCommand(CONFIRM_TABLE_FACTS_SCHEMA_PROFILE_COMMAND_ID));
 	});
 
-	test("confirms role and unit bindings from the stored raw table assessment", () => {
-		const assessment = createRawTableAssessment();
-		const sessionService = createSessionService(createSnapshot(assessment));
+	test("confirms role and unit bindings from the stored raw table tableFacts", () => {
+		const tableFacts = createRawTableFacts();
+		const sessionService = createSessionService(createSnapshot(tableFacts));
 		const schemaProfileService = createSchemaProfileService();
 
-		const profile = confirmAssessmentSchemaProfileFromSession({
+		const profile = confirmTableFactsSchemaProfileFromSession({
 			fileId: " file-a ",
 			rawTableId: " table-a ",
 			id: " profile-a ",
@@ -69,7 +69,7 @@ suite("workbench/contrib/assessment/test/browser/assessmentCommands", () => {
 			id: "profile-a",
 			scope: "workspace",
 			schemaFingerprint: "dataname|gate|drain",
-			columnProfiles: assessment.columnProfiles,
+			columnProfiles: tableFacts.columnProfiles,
 			bindings: [{
 				rawCol: 0,
 				role: "vg",
@@ -84,16 +84,16 @@ suite("workbench/contrib/assessment/test/browser/assessmentCommands", () => {
 		});
 	});
 
-	test("ignores missing assessments and unsupported bindings", () => {
-		const sessionService = createSessionService(createSnapshot(createRawTableAssessment()));
+	test("ignores missing table facts and unsupported bindings", () => {
+		const sessionService = createSessionService(createSnapshot(createRawTableFacts()));
 		const schemaProfileService = createSchemaProfileService();
 
-		assert.equal(confirmAssessmentSchemaProfileFromSession({
+		assert.equal(confirmTableFactsSchemaProfileFromSession({
 			fileId: "file-a",
 			rawTableId: "missing",
 			bindings: [{ rawCol: 0, role: "vg" }],
 		}, sessionService, schemaProfileService), null);
-		assert.equal(confirmAssessmentSchemaProfileFromSession({
+		assert.equal(confirmTableFactsSchemaProfileFromSession({
 			fileId: "file-a",
 			rawTableId: "table-a",
 			bindings: [{ rawCol: 0, role: "unknown" }],
@@ -102,15 +102,15 @@ suite("workbench/contrib/assessment/test/browser/assessmentCommands", () => {
 	});
 
 	test("command handler resolves session and schema profile services", () => {
-		const assessment = createRawTableAssessment();
-		const sessionService = createSessionService(createSnapshot(assessment));
+		const tableFacts = createRawTableFacts();
+		const sessionService = createSessionService(createSnapshot(tableFacts));
 		const schemaProfileService = createSchemaProfileService();
 		const accessor = createAccessor([
 			[ISessionService, sessionService],
 			[ISchemaProfileService, schemaProfileService],
 		]);
 
-		const command = CommandsRegistry.getCommand(CONFIRM_ASSESSMENT_SCHEMA_PROFILE_COMMAND_ID) as
+		const command = CommandsRegistry.getCommand(CONFIRM_TABLE_FACTS_SCHEMA_PROFILE_COMMAND_ID) as
 			| ICommand<[unknown], SchemaProfile | null>
 			| undefined;
 		const profile = command?.handler(accessor, {
@@ -124,8 +124,8 @@ suite("workbench/contrib/assessment/test/browser/assessmentCommands", () => {
 	});
 });
 
-const createRawTableAssessment = (): RawTableAssessmentRecord => ({
-	assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
+const createRawTableFacts = (): RawTableFactsRecord => ({
+	tableFactsRuleVersion: TABLE_FACTS_RULE_VERSION,
 	schemaProfileVersion: 0,
 	blocks: [],
 	columnProfiles: [{
@@ -154,7 +154,7 @@ const createRawTableAssessment = (): RawTableAssessmentRecord => ({
 });
 
 const createSnapshot = (
-	assessment: RawTableAssessmentRecord,
+	tableFacts: RawTableFactsRecord,
 ): SessionSnapshot => ({
 	schemaVersion: 1,
 	sessionVersion: 1,
@@ -162,7 +162,7 @@ const createSnapshot = (
 	filesById: {
 		"file-a": {
 			tableFactsByRawTableId: {
-				[assessment.rawTableId]: assessment,
+				[tableFacts.rawTableId]: tableFacts,
 			},
 		},
 	},

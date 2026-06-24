@@ -5,12 +5,12 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 #[derive(Clone)]
-struct AssessmentDataset {
+struct TableFactsDataset {
     rows: Vec<Vec<String>>,
     numeric_column_cache: RefCell<HashMap<usize, Vec<Option<f64>>>>,
 }
 
-impl AssessmentDataset {
+impl TableFactsDataset {
     fn from_rows(rows: Vec<Vec<String>>) -> Self {
         Self {
             rows,
@@ -95,12 +95,12 @@ struct StrippedSweepMetadata {
     sweep_voltage_span: Option<f64>,
 }
 
-pub fn assess_import_rows(file_name: &str, rows: Vec<Vec<String>>) -> Value {
-    let dataset = AssessmentDataset::from_rows(rows);
+pub fn build_import_table_facts_seed(file_name: &str, rows: Vec<Vec<String>>) -> Value {
+    let dataset = TableFactsDataset::from_rows(rows);
     let header_row_index = find_header_row_index(&dataset);
     let headers = row_trimmed(&dataset, header_row_index);
     let metadata = extract_auto_metadata(&dataset);
-    let (curve_type, x_axis_role, source, confidence, needs_template) =
+    let (curve_type, x_axis_role, source, confidence, needs_review) =
         classify_auto_curve(file_name, &metadata, &headers);
     let curve_type_label = match (curve_type.as_str(), x_axis_role) {
         ("transfer", Some("vg")) => Value::String("transfer (vg)".to_string()),
@@ -123,9 +123,9 @@ pub fn assess_import_rows(file_name: &str, rows: Vec<Vec<String>>) -> Value {
 
     json!({
         "curveFamily": curve_family(&curve_type),
-        "curveTypeLabel": curve_type_label,
+        "curveType": curve_type_label,
         "curveTypeConfidence": confidence,
-        "curveTypeNeedsTemplate": needs_template,
+        "curveTypeNeedsReview": needs_review,
         "curveTypeReasons": curve_type_reasons,
         "ivMode": iv_mode(&curve_type),
         "xAxisRole": x_axis_role,
@@ -181,7 +181,7 @@ pub fn detect_axis_role_text(value: &str) -> Option<&'static str> {
     }
 }
 
-fn row_trimmed(dataset: &AssessmentDataset, row_index: usize) -> Vec<String> {
+fn row_trimmed(dataset: &TableFactsDataset, row_index: usize) -> Vec<String> {
     dataset
         .rows
         .get(row_index)
@@ -189,7 +189,7 @@ fn row_trimmed(dataset: &AssessmentDataset, row_index: usize) -> Vec<String> {
         .unwrap_or_default()
 }
 
-fn find_header_row_index(dataset: &AssessmentDataset) -> usize {
+fn find_header_row_index(dataset: &TableFactsDataset) -> usize {
     for row_index in 0..dataset.rows.len() {
         let row = row_trimmed(dataset, row_index);
         if row.iter().any(|entry| entry == "CH1 Voltage")
@@ -341,7 +341,7 @@ fn compute_robust_log_span(values: &[f64]) -> Option<f64> {
 }
 
 fn collect_column_numbers(
-    dataset: &AssessmentDataset,
+    dataset: &TableFactsDataset,
     data_start_row_index: usize,
     col_index: usize,
     limit: usize,
@@ -361,7 +361,7 @@ fn collect_column_numbers(
 }
 
 fn detect_first_group_length(
-    dataset: &AssessmentDataset,
+    dataset: &TableFactsDataset,
     data_start_row_index: usize,
     point_col_index: Option<usize>,
     var2_col_index: Option<usize>,
@@ -408,7 +408,7 @@ fn detect_first_group_length(
 }
 
 fn collect_stripped_sweep_metadata(
-    dataset: &AssessmentDataset,
+    dataset: &TableFactsDataset,
     header_row_index: usize,
 ) -> StrippedSweepMetadata {
     let headers = row_trimmed(dataset, header_row_index);
@@ -478,7 +478,7 @@ fn collect_stripped_sweep_metadata(
     }
 }
 
-fn extract_auto_metadata(dataset: &AssessmentDataset) -> AutoMetadata {
+fn extract_auto_metadata(dataset: &TableFactsDataset) -> AutoMetadata {
     let mut metadata = AutoMetadata::default();
     let mut channel_funcs = Vec::<String>::new();
     let mut channel_vnames = Vec::<String>::new();
@@ -1064,7 +1064,7 @@ mod tests {
 
     #[test]
     fn strong_metadata_conflict_wins_over_pulse_filename_hint() {
-        let assessment = assess_import_rows(
+        let table_facts = build_import_table_facts_seed(
             "sample-pv.csv",
             table(&[
                 &["TestParameter", "Output.Graph.XAxis.Data", "Vg"],
@@ -1074,69 +1074,69 @@ mod tests {
         );
 
         assert_eq!(
-            assessment.get("curveFamily").and_then(Value::as_str),
+            table_facts.get("curveFamily").and_then(Value::as_str),
             Some("unknown")
         );
         assert_eq!(
-            assessment
+            table_facts
                 .get("curveTypeConfidence")
                 .and_then(Value::as_str),
             Some("low")
         );
         assert_eq!(
-            assessment
-                .get("curveTypeNeedsTemplate")
+            table_facts
+                .get("curveTypeNeedsReview")
                 .and_then(Value::as_bool),
             Some(true)
         );
-        assert!(assessment.get("xAxisRole").is_some_and(Value::is_null));
+        assert!(table_facts.get("xAxisRole").is_some_and(Value::is_null));
     }
 
     #[test]
     fn hz_capacitance_headers_classify_as_cf_from_label() {
-        let assessment = assess_import_rows(
+        let table_facts = build_import_table_facts_seed(
             "sample.csv",
             table(&[&["metadata"], &["Hz", "Cp"], &["1000", "1e-12"]]),
         );
 
         assert_eq!(
-            assessment.get("curveFamily").and_then(Value::as_str),
+            table_facts.get("curveFamily").and_then(Value::as_str),
             Some("cf")
         );
         assert_eq!(
-            assessment.get("curveTypeLabel").and_then(Value::as_str),
+            table_facts.get("curveType").and_then(Value::as_str),
             Some("cf")
         );
         assert_eq!(
-            assessment.get("xAxisRoleSource").and_then(Value::as_str),
+            table_facts.get("xAxisRoleSource").and_then(Value::as_str),
             Some("label")
         );
     }
 
     #[test]
     fn capacitance_metadata_reports_metadata_source() {
-        let assessment = assess_import_rows(
+        let table_facts = build_import_table_facts_seed(
             "sample.csv",
             table(&[&["{c_v_ext}"], &["vp", "Cp"], &["0", "1"]]),
         );
 
         assert_eq!(
-            assessment.get("curveFamily").and_then(Value::as_str),
+            table_facts.get("curveFamily").and_then(Value::as_str),
             Some("cv")
         );
         assert_eq!(
-            assessment.get("curveTypeLabel").and_then(Value::as_str),
+            table_facts.get("curveType").and_then(Value::as_str),
             Some("cv")
         );
         assert_eq!(
-            assessment.get("xAxisRoleSource").and_then(Value::as_str),
+            table_facts.get("xAxisRoleSource").and_then(Value::as_str),
             Some("metadata")
         );
     }
 
     #[test]
     fn csv_suffix_is_not_capacitance_evidence_for_current_table() {
-        let assessment = assess_import_rows(
+        let table_facts = build_import_table_facts_seed(
             "3_1.csv",
             table(&[
                 &["CH1 Voltage", "CH1 Current", "CH1 Resistance"],
@@ -1145,16 +1145,16 @@ mod tests {
         );
 
         assert_eq!(
-            assessment.get("curveFamily").and_then(Value::as_str),
+            table_facts.get("curveFamily").and_then(Value::as_str),
             Some("unknown")
         );
         assert_eq!(
-            assessment.get("curveTypeLabel").and_then(Value::as_str),
+            table_facts.get("curveType").and_then(Value::as_str),
             Some("unknown")
         );
         assert_eq!(
-            assessment
-                .get("curveTypeNeedsTemplate")
+            table_facts
+                .get("curveTypeNeedsReview")
                 .and_then(Value::as_bool),
             Some(true)
         );
@@ -1162,26 +1162,26 @@ mod tests {
 
     #[test]
     fn cs_voltage_headers_classify_as_cv() {
-        let assessment =
-            assess_import_rows("sample.csv", table(&[&["Voltage", "Cs"], &["0", "1e-12"]]));
+        let table_facts =
+            build_import_table_facts_seed("sample.csv", table(&[&["Voltage", "Cs"], &["0", "1e-12"]]));
 
         assert_eq!(
-            assessment.get("curveFamily").and_then(Value::as_str),
+            table_facts.get("curveFamily").and_then(Value::as_str),
             Some("cv")
         );
         assert_eq!(
-            assessment.get("curveTypeLabel").and_then(Value::as_str),
+            table_facts.get("curveType").and_then(Value::as_str),
             Some("cv")
         );
         assert_eq!(
-            assessment.get("xAxisRoleSource").and_then(Value::as_str),
+            table_facts.get("xAxisRoleSource").and_then(Value::as_str),
             Some("metadata")
         );
     }
 
     #[test]
     fn strong_iv_metadata_wins_over_cv_filename_hint() {
-        let assessment = assess_import_rows(
+        let table_facts = build_import_table_facts_seed(
             "sample-cv.csv",
             table(&[
                 &["TestParameter", "Output.Graph.XAxis.Data", "Vg"],
@@ -1191,15 +1191,15 @@ mod tests {
         );
 
         assert_eq!(
-            assessment.get("curveFamily").and_then(Value::as_str),
+            table_facts.get("curveFamily").and_then(Value::as_str),
             Some("iv")
         );
         assert_eq!(
-            assessment.get("ivMode").and_then(Value::as_str),
+            table_facts.get("ivMode").and_then(Value::as_str),
             Some("transfer")
         );
         assert_eq!(
-            assessment.get("xAxisRole").and_then(Value::as_str),
+            table_facts.get("xAxisRole").and_then(Value::as_str),
             Some("vg")
         );
     }

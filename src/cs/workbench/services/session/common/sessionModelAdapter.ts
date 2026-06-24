@@ -143,10 +143,8 @@ const mergeSourceFileRecord = (
     columnCount: readInteger(sourceFile, "columnCount") ?? 0,
     maxCellLengths: readNumberArray(sourceFile.maxCellLengths),
     health: normalizeRawTableHealth(
-      sourceFile.rawTableHealth ??
-        (sourceFile as { readonly assessmentHealth?: SessionFile["rawTableHealth"] }).assessmentHealth,
-      sourceFile.rawTableHealthMessage ??
-        (sourceFile as { readonly assessmentHealthMessage?: string | null }).assessmentHealthMessage,
+      sourceFile.rawTableHealth,
+      sourceFile.rawTableHealthMessage,
     ),
     templateEligibility: normalizeTemplateEligibility(sourceFile.templateEligibility),
   };
@@ -294,12 +292,7 @@ const getTableFactsByRawTableId = (
     return record.tableFactsByRawTableId;
   }
 
-  // TODO(conductor-architecture): Legacy persisted Session compatibility.
-  // Older records used `assessmentsByRawTableId`; normalize it into the
-  // Template-owned table-facts field at the adapter boundary only.
-  return (record as unknown as {
-    readonly assessmentsByRawTableId?: FileRecord["tableFactsByRawTableId"];
-  }).assessmentsByRawTableId ?? {};
+  return {};
 };
 
 const areNumberArraysEqual = (

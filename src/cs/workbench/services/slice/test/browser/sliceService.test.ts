@@ -87,9 +87,9 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		const sessionService = store.add(new SessionService());
 		const sliceService = store.add(new SliceService(sessionService));
 		sessionService.commitFileImport(createImportResult());
-		const assessment = createAssessment();
-		sessionService.commitRawTableFacts(assessment);
-		sessionService.commitRawTableReviews([createReview(assessment)]);
+		const tableFacts = createTableFacts();
+		sessionService.commitRawTableFacts(tableFacts);
+		sessionService.commitRawTableReviews([createReview(tableFacts)]);
 
 		sliceService.enqueueAuto([{
 			fileId: "file-a",
@@ -105,9 +105,9 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		const sessionService = store.add(new SessionService());
 		const sliceService = store.add(new SliceService(sessionService));
 		sessionService.commitFileImport(createImportResult());
-		const assessment = createAssessment();
-		sessionService.commitRawTableFacts(assessment);
-		sessionService.commitRawTableReviews([createReview(assessment, {
+		const tableFacts = createTableFacts();
+		sessionService.commitRawTableFacts(tableFacts);
+		sessionService.commitRawTableReviews([createReview(tableFacts, {
 			recipeFingerprint: "recipe:first",
 		})]);
 
@@ -115,7 +115,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 			fileId: "file-a",
 			rawTableId: "table-a",
 		}]);
-		sessionService.commitRawTableReviews([createReview(assessment, {
+		sessionService.commitRawTableReviews([createReview(tableFacts, {
 			recipeFingerprint: "recipe:second",
 		})]);
 		sliceService.enqueueAuto([{
@@ -141,9 +141,9 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 			rowsReaderService,
 		));
 		sessionService.commitFileImport(createImportResult());
-		const assessment = createAssessment();
-		sessionService.commitRawTableFacts(assessment);
-		sessionService.commitRawTableReviews([createReview(assessment)]);
+		const tableFacts = createTableFacts();
+		sessionService.commitRawTableFacts(tableFacts);
+		sessionService.commitRawTableReviews([createReview(tableFacts)]);
 
 		sliceService.enqueueAuto([{
 			fileId: "file-a",
@@ -175,9 +175,9 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 			rowsReaderService,
 		));
 		sessionService.commitFileImport(createImportResult());
-		const latestAssessment = createAssessment();
-		sessionService.commitRawTableFacts(latestAssessment);
-		sessionService.commitRawTableReviews([createReview(latestAssessment, {
+		const latestTableFacts = createTableFacts();
+		sessionService.commitRawTableFacts(latestTableFacts);
+		sessionService.commitRawTableReviews([createReview(latestTableFacts, {
 			recipeFingerprint: "recipe:first",
 		})]);
 
@@ -187,7 +187,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		}]);
 		await waitUntil(() => rowsReaderService.inputs.length === 1);
 
-		const latestReview = createReview(latestAssessment, {
+		const latestReview = createReview(latestTableFacts, {
 			recipeFingerprint: "recipe:second",
 		});
 		sessionService.commitRawTableReviews([latestReview]);
@@ -204,7 +204,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		assert.equal(Object.keys(record.sliceRunsById ?? {}).length, 1);
 		assert.equal(
 			record.sliceRunsById?.[record.latestSliceRunId!]?.sourceTableFactsSignature,
-			createSliceTableFactsSignature(latestAssessment, {
+			createSliceTableFactsSignature(latestTableFacts, {
 				reviewSignature: createReviewRecordSignature(latestReview),
 			}),
 		);
@@ -323,7 +323,7 @@ const createTemplate = (): Template => ({
 });
 
 const createReview = (
-	assessment: RawTableFactsRecord,
+	tableFacts: RawTableFactsRecord,
 	options: {
 		readonly recipeFingerprint?: string;
 		readonly template?: Template;
@@ -334,10 +334,10 @@ const createReview = (
 	const template = options.template ?? createTemplate();
 	const templateFingerprint = options.templateFingerprint ?? "template:auto";
 	return {
-		fileId: assessment.fileId,
-		rawTableId: assessment.rawTableId,
-		sourceRawTableVersion: assessment.sourceRawTableVersion,
-		evidenceSignature: createReviewEvidenceSignature(assessment, {
+		fileId: tableFacts.fileId,
+		rawTableId: tableFacts.rawTableId,
+		sourceRawTableVersion: tableFacts.sourceRawTableVersion,
+		evidenceSignature: createReviewEvidenceSignature(tableFacts, {
 			columnCount: 2,
 			fileName: "Raw.csv",
 			rowCount: 3,
@@ -456,8 +456,8 @@ const createUserTemplateForTest = (template: Template): UserTemplate => {
 	};
 };
 
-const createAssessment = (): RawTableFactsRecord => ({
-	assessmentRuleVersion: TABLE_FACTS_RULE_VERSION,
+const createTableFacts = (): RawTableFactsRecord => ({
+	tableFactsRuleVersion: TABLE_FACTS_RULE_VERSION,
 	schemaProfileVersion: 0,
 	fileId: "file-a",
 	rawTableId: "table-a",

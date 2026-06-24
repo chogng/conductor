@@ -34,10 +34,10 @@ at the type name.
 | `RawTableRecord` | `ISessionService` | `fileConverter.ts` | Physical rows/source/health/template eligibility. Use `rawTableId`; keep failed rows unavailable. |
 | `RawTableSourceRecord` | converter/session | CSV, Excel sheet, clipboard, manual, unknown | Source provenance only, not measurement semantics. |
 | `RawTableRowsRecord` | converter/session | inline, normalized CSV, unavailable | Large rows should use artifact/path references. |
-| `RawTableFactsRecord` | Template table facts + Session | table-fact producer (`IRawTableFactsService`) | Tied to raw table version, table-fact rule version, and schema profile version; stores structure, column profiles, semantic candidates, groups, blocks, and diagnostics. Legacy `RawTableAssessmentRecord` is a compatibility name only. |
+| `RawTableFactsRecord` | Template table facts + Session | table-fact producer (`IRawTableFactsService`) | Tied to raw table version, table-fact rule version, and schema profile version; stores structure, column profiles, semantic candidates, groups, blocks, and diagnostics. |
 | `RawTableReviewRecord` | Review + Session | `IReviewService` | Tied to template candidate signature, Recipe fingerprint, UserTemplate/saved-template fingerprint, review engine version, and review policy version; stores candidates, reviews, and `ReviewDecision`. |
-| `MeasurementGroupRecord` | Template table facts + Session | table-fact producer / TableFacts helpers; legacy Assessment path may re-export during migration | Group/device labels and ordered block ids. |
-| `MeasurementBlockRecord` | Template table facts + Session | table-fact producer / TableFacts helpers; legacy Assessment path may re-export during migration | Measurement family/mode/source ranges/column roles. |
+| `MeasurementGroupRecord` | Template table facts + Session | table-fact producer / TableFacts helpers | Group/device labels and ordered block ids. |
+| `MeasurementBlockRecord` | Template table facts + Session | table-fact producer / TableFacts helpers | Measurement family/mode/source ranges/column roles. |
 | `SliceRun` | Slice + Session | slice execution | Executed template snapshot, source table-fact signature, input ranges, output series ids, output curve keys, warnings, and errors. |
 | `SeriesRecord` | Slice/calculation + Session | slice or curve commit | Series metadata and raw/block provenance. |
 | `CurveRecord` | Slice/calculation + Session | slice/calculation commit | Base/derived curve points, lineage, domain, signature. |
@@ -107,17 +107,14 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
 - Decode/parse failures stay as health/unavailable row records; they do not
   become normal rows.
 
-### Table Facts / Assessment Compatibility
+### Table Facts
 
 - `RawTableFactsRecord` is the target storage shape for table facts. It contains
   structure, column profiles, layout candidates, semantic candidates, blocks,
   diagnostics, and source metadata only.
-- `RawTableAssessmentRecord` may remain only as a legacy compatibility name or
-  adapter input. New ownership docs, APIs, and fields should use
-  `RawTableFactsRecord` / TableFacts wording.
-- Target ownership is Template materialization: `TableFacts +
-  Recipe/UserTemplate -> Template`. Do not promote Assessment into a permanent
-  domain or standalone evidence service.
+- Target ownership is Template materialization:
+  `Recipe/UserTemplate + TableFacts -> Template`. Do not introduce a separate
+  evidence service for this path.
 - Do not call table facts `RecipeEvidence`. Recipe is fixed rules; Template
   combines rules with table facts.
 - `MeasurementBlockRecord.family` stores measurement family (`iv`, `cv`, `cf`,

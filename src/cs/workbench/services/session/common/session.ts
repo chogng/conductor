@@ -65,10 +65,10 @@ export type CommitFileImportResult = {
 };
 
 export type CommitFileImportRawTableFactsInput =
-  Omit<RawTableFactsRecord, "assessmentRuleVersion" | "fileId" | "rawTableId" | "schemaProfileVersion" | "sourceRawTableVersion"> & {
+  Omit<RawTableFactsRecord, "tableFactsRuleVersion" | "fileId" | "rawTableId" | "schemaProfileVersion" | "sourceRawTableVersion"> & {
     readonly fileId: FileId;
     readonly rawTableId?: string | null;
-    readonly assessmentRuleVersion?: number;
+    readonly tableFactsRuleVersion?: number;
     readonly schemaProfileVersion?: number;
   };
 

@@ -175,7 +175,7 @@ export const createPerformanceMetricRow = ({
     fileSwitchLiveUniqueDispatchCount: readNumber(analysis.fileSwitchLive?.uniqueDispatchedFileCount),
     fileSwitchStableTargetCount: readNumber(analysis.fileSwitch?.targetCount),
     fileSwitchStableTraceApiTargetCount: readNumber(analysis.fileSwitch?.targetSourceCounts?.["trace-api"]) ?? 0,
-    importAllBadgeMs: readNumber(milestones.allAssessmentBadgeMs),
+    importAllBadgeMs: readNumber(milestones.allTableFactsBadgeMs),
     importAllPrepareMs: readNumber(milestones.allPrepareCompleteMs),
     importDispatchMaxCpuPercent: readNumber(importDispatch?.resources?.maxCpuPercent),
     importSessionCommitMs: readNumber(milestones.sessionCommitMs),

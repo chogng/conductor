@@ -68,7 +68,7 @@ const formatCompactNumber = (value: number | null | undefined): string => {
 
 // TODO(conductor-architecture): Migration bridge.
 // Serializes legacy auto-extraction plans into editable apply presets. New
-// automatic execution should consume Assessment-selected Templates through Slice.
+// automatic execution should consume Review-selected Templates through Slice.
 export const buildAutoTemplateApplyConfig = (
   plan: AutoTemplateApplyPlan,
 ): Record<string, unknown> => {

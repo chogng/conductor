@@ -18,8 +18,8 @@ Calculation owns:
 - `ICalculationService` queue/lifecycle for reruns, interactive priority hints, worker execution, and Session commits of calculated records.
 
 Calculation does not own plot display state, chart panes, parameter panel UI,
-Session internals, assessment, template extraction, raw parsing, or table
-preview state.
+Session internals, table-fact production, template extraction, raw parsing, or
+table preview state.
 
 ## Core Files
 
@@ -55,7 +55,7 @@ SessionChangeEvent / SessionSnapshot
 - Rerun on `sliceRunChanged`, `filesRemoved`, `sessionCleared`, and
   `metricInputsChanged`.
 - Rerun on `curvesChanged` only when base curves changed.
-- Do not rerun on derived/second-derived curve commits, calculated record commits, metric commits, raw table changes, or assessment changes unless they become calculation inputs.
+- Do not rerun on derived/second-derived curve commits, calculated record commits, metric commits, raw table changes, or table-fact changes unless they become calculation inputs.
 - When `fileIds` are available, recompute only those files.
 - `filesRemoved` and `sessionCleared` prune per-file signatures instead of recommitting unrelated files.
 
@@ -67,7 +67,7 @@ SessionChangeEvent / SessionSnapshot
 - Worker payloads include only what is required: base curves, matching series,
   metric inputs, latest `SliceRun` template metadata, and minimal raw file
   identity.
-- Do not send raw table rows, assessment state, or full snapshots to the worker.
+- Do not send raw table rows, table-fact state, or full snapshots to the worker.
 - Worker results must be checked against per-file input signatures; session version alone is not enough.
 - Interactive foreground and background work share one calculation worker slot to bound CPU pressure.
 - `prioritizeCalculationFile(s)` is a priority hint only: reorder pending work and optionally process a tiny current-file chunk. Do not enqueue unchanged or unrelated files.

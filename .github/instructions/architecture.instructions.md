@@ -194,10 +194,10 @@ Raw table facts
 Specific flow owners:
 
 - Import/source collection: Explorer/files workflow coordinates; converter returns results; Session commits.
-- Table facts / Template materialization: Template is the target owner for
-  `TableFacts + Recipe/UserTemplate -> Template`. Legacy assessment names are
-  compatibility storage/import shapes for table facts, not the target domain
-  name.
+- Table facts / Template materialization: TableFacts is the raw-table fact
+  input, and Template is the target owner for
+  `Recipe/UserTemplate + TableFacts -> Template`. Do not keep retired legacy
+  service, record, or command names in new docs or APIs.
 - Review: consumes materialized Template candidates, reviews them, and commits
   `RawTableReviewRecord` decisions.
 - ReviewApply: consumes `ReviewDecision.ready.application.systemRecommended`, applies idempotency guards, and submits Slice requests.

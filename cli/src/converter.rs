@@ -8,7 +8,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use crate::import::IMPORT_ASSESSMENT_PREVIEW_ROWS;
+use crate::import::IMPORT_TABLE_FACTS_PREVIEW_ROWS;
 
 #[derive(Default, Clone)]
 pub struct ConvertStats {
@@ -23,7 +23,7 @@ pub struct ConvertStats {
 }
 
 pub struct ConvertResult {
-    pub assessment_rows: Vec<Vec<String>>,
+    pub table_facts_rows: Vec<Vec<String>>,
     pub index: usize,
     pub output_path: Option<PathBuf>,
     pub path: PathBuf,
@@ -131,21 +131,21 @@ pub fn convert_one(
     } else {
         Box::new(io::sink())
     };
-    let mut assessment_rows = Vec::<Vec<String>>::new();
+    let mut table_facts_rows = Vec::<Vec<String>>::new();
     let mut stats = ConvertStats {
         size_bytes,
         ..ConvertStats::default()
     };
 
-    // Retain only a prefix for import assessment while streaming the full sheet to
+    // Retain only a prefix for import table facts while streaming the full sheet to
     // CSV, keeping benchmark conversions bounded in memory.
     for row in range.rows() {
         let values: Vec<String> = row.iter().map(|cell| cell.to_string()).collect();
         if values.iter().all(|value| value.trim().is_empty()) {
             continue;
         }
-        if assessment_rows.len() < IMPORT_ASSESSMENT_PREVIEW_ROWS {
-            assessment_rows.push(values.clone());
+        if table_facts_rows.len() < IMPORT_TABLE_FACTS_PREVIEW_ROWS {
+            table_facts_rows.push(values.clone());
         }
         if values.len() > stats.column_count {
             stats.column_count = values.len();
@@ -199,7 +199,7 @@ pub fn convert_one(
     stats.convert_ms = start.elapsed().as_secs_f64() * 1000.0;
 
     Ok(ConvertResult {
-        assessment_rows,
+        table_facts_rows,
         index,
         output_path: output_path.map(|csv_path| csv_path.to_path_buf()),
         path: path.to_path_buf(),

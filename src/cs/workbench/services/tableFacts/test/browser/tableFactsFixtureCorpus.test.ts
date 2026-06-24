@@ -5,10 +5,10 @@
 import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import { AssessmentService } from "src/cs/workbench/services/assessment/browser/assessmentService";
+import { RawTableFactsService } from "src/cs/workbench/services/tableFacts/browser/rawTableFactsService";
 import type {
-	RawTableAssessmentRecord,
-} from "src/cs/workbench/services/assessment/common/assessment";
+	RawTableFactsRecord,
+} from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import type {
 	LayoutBindingDraft,
 	LayoutKind,
@@ -82,7 +82,7 @@ type FixtureExpected = {
 	readonly columns?: Readonly<Record<string, FixtureColumnExpectation>>;
 };
 
-type AssessmentFixture = {
+type TableFactsFixture = {
 	readonly id: string;
 	readonly fileName: string;
 	readonly rows: readonly (readonly string[])[];
@@ -90,9 +90,9 @@ type AssessmentFixture = {
 	readonly schemaProfiles?: readonly SchemaProfile[];
 };
 
-suite("workbench/services/assessment/test/browser/assessmentFixtureCorpus", () => {
+suite("workbench/services/tableFacts/test/browser/tableFactsFixtureCorpus", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const fixtures: readonly AssessmentFixture[] = [
+	const fixtures: readonly TableFactsFixture[] = [
 		{
 			id: "iv-transfer",
 			fileName: "transfer.csv",
@@ -197,8 +197,8 @@ suite("workbench/services/assessment/test/browser/assessmentFixtureCorpus", () =
 
 	for (const fixture of fixtures) {
 		test(`assesses fixture ${fixture.id}`, async () => {
-			const service = store.add(new AssessmentService());
-			const result = await service.assessRawTable({
+			const service = store.add(new RawTableFactsService());
+			const result = await service.createRawTableFacts({
 				fileId: `fixture:${fixture.id}`,
 				rawTableId: "raw",
 				sourceRawTableVersion: 1,
@@ -213,7 +213,7 @@ suite("workbench/services/assessment/test/browser/assessmentFixtureCorpus", () =
 });
 
 const assertFixtureResult = (
-	result: RawTableAssessmentRecord,
+	result: RawTableFactsRecord,
 	expected: FixtureExpected,
 ): void => {
 	assert.equal(result.layoutCandidates[0]?.layoutKind, expected.layoutKind);
@@ -246,7 +246,7 @@ const assertFixtureResult = (
 };
 
 const assertLayoutBindings = (
-	result: RawTableAssessmentRecord,
+	result: RawTableFactsRecord,
 	expectedBindings: readonly Partial<LayoutBindingDraft>[],
 ): void => {
 	const actualBindings = result.layoutCandidates[0]?.bindings ?? [];
@@ -267,7 +267,7 @@ const assertLayoutBindings = (
 };
 
 const assertColumnExpectations = (
-	result: RawTableAssessmentRecord,
+	result: RawTableFactsRecord,
 	expectedColumns: Readonly<Record<string, FixtureColumnExpectation>>,
 ): void => {
 	for (const [headerText, expected] of Object.entries(expectedColumns)) {

@@ -6,16 +6,16 @@ import assert from "assert";
 
 import { Emitter } from "src/cs/base/common/event";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import { AssessmentContribution } from "src/cs/workbench/services/assessment/browser/assessment.contribution";
-import { AssessmentQueueService } from "src/cs/workbench/services/assessment/browser/assessmentQueueService";
-import { AssessmentService } from "src/cs/workbench/services/assessment/browser/assessmentService";
-import { ASSESSMENT_RULE_VERSION } from "src/cs/workbench/services/assessment/common/assessment";
+import { RawTableFactsContribution } from "src/cs/workbench/services/tableFacts/browser/rawTableFacts.contribution";
+import { RawTableFactsQueueService } from "src/cs/workbench/services/tableFacts/browser/rawTableFactsQueueService";
+import { RawTableFactsService } from "src/cs/workbench/services/tableFacts/browser/rawTableFactsService";
+import { TABLE_FACTS_RULE_VERSION } from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import type {
-	AssessRawTableInput,
-	IAssessmentService,
-	ImportAssessmentSeed,
-	RawTableAssessmentRecord,
-} from "src/cs/workbench/services/assessment/common/assessment";
+	CreateRawTableFactsInput,
+	IRawTableFactsService,
+	ImportTableFactsSeed,
+	RawTableFactsRecord,
+} from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
 import type { FileImportResult } from "src/cs/workbench/services/files/common/files";
 import type {
@@ -35,21 +35,21 @@ import {
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 
-suite("workbench/services/assessment/test/browser/assessmentContribution", () => {
+suite("workbench/services/tableFacts/test/browser/tableFactsContribution", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test("assesses inline raw tables after session import commits", async () => {
 		const sessionService = store.add(new SessionService());
-		const assessmentService = new TestAssessmentService();
+		const tableFactsService = new TestRawTableFactsService();
 		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
-		const assessmentQueueService = store.add(new AssessmentQueueService(
+		const tableFactsQueueService = store.add(new RawTableFactsQueueService(
 			sessionService,
-			assessmentService,
+			tableFactsService,
 			rawTableRowsReaderService,
 		));
-		const contribution = store.add(new AssessmentContribution(
+		const contribution = store.add(new RawTableFactsContribution(
 			sessionService,
-			assessmentQueueService,
+			tableFactsQueueService,
 		));
 
 		sessionService.commitFileImport(createInlineImportResult());
@@ -58,8 +58,8 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 		const file = sessionService.getSnapshot().filesById["file-a"];
 		assert.deepEqual(
 			{
-				assessmentVersion: file.tableFactsByRawTableId["table-a"]?.sourceRawTableVersion,
-				assessedInputs: assessmentService.inputs.map(input => ({
+				tableFactsVersion: file.tableFactsByRawTableId["table-a"]?.sourceRawTableVersion,
+				tableFactsInputs: tableFactsService.inputs.map(input => ({
 					columnCount: input.columnCount,
 					fileId: input.fileId,
 					fileName: input.fileName,
@@ -72,8 +72,8 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 				measurementBlockOrder: file.measurementBlockOrder,
 			},
 			{
-				assessmentVersion: 1,
-				assessedInputs: [{
+				tableFactsVersion: 1,
+				tableFactsInputs: [{
 					columnCount: 2,
 					fileId: "file-a",
 					fileName: "293K/OUTPUT/2.csv",
@@ -88,124 +88,124 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 		);
 
 		contribution.dispose();
-		assessmentQueueService.dispose();
+		tableFactsQueueService.dispose();
 	});
 
-	test("commits the first assessment then batches background results", async () => {
+	test("commits the first tableFacts then batches background results", async () => {
 		const sessionService = store.add(new SessionService());
-		const assessmentService = new TestAssessmentService();
+		const tableFactsService = new TestRawTableFactsService();
 		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
-		const assessmentQueueService = store.add(new AssessmentQueueService(
+		const tableFactsQueueService = store.add(new RawTableFactsQueueService(
 			sessionService,
-			assessmentService,
+			tableFactsService,
 			rawTableRowsReaderService,
 		));
-		const assessmentEventSizes: number[] = [];
+		const tableFactsEventSizes: number[] = [];
 		const disposable = store.add(sessionService.onDidChangeSession(event => {
 			if (event.reason === "tableFactsChanged") {
-				assessmentEventSizes.push(event.rawTableRefs?.length ?? 0);
+				tableFactsEventSizes.push(event.rawTableRefs?.length ?? 0);
 			}
 		}));
-		const contribution = store.add(new AssessmentContribution(
+		const contribution = store.add(new RawTableFactsContribution(
 			sessionService,
-			assessmentQueueService,
+			tableFactsQueueService,
 		));
 
 		sessionService.commitFileImport(createMultiInlineImportResult(18));
-		await waitUntil(() => assessmentEventSizes.length === 3);
+		await waitUntil(() => tableFactsEventSizes.length === 3);
 
-		assert.deepEqual(assessmentEventSizes, [1, 16, 1]);
-		assert.equal(assessmentService.inputs.length, 18);
+		assert.deepEqual(tableFactsEventSizes, [1, 16, 1]);
+		assert.equal(tableFactsService.inputs.length, 18);
 
 		disposable.dispose();
 		contribution.dispose();
-		assessmentQueueService.dispose();
+		tableFactsQueueService.dispose();
 	});
 
-	test("reassesses restored raw tables when the assessment rule version is stale", async () => {
+	test("reassesses restored raw tables when the tableFacts rule version is stale", async () => {
 		const sessionService = store.add(new SessionService());
 		sessionService.commitFileImport(createInlineImportResult());
-		sessionService.commitRawTableFacts(createRawTableAssessmentRecord({
-			assessmentRuleVersion: ASSESSMENT_RULE_VERSION - 1,
+		sessionService.commitRawTableFacts(createRawTableFactsRecord({
+			tableFactsRuleVersion: TABLE_FACTS_RULE_VERSION - 1,
 			fileId: "file-a",
 			rawTableId: "table-a",
 			sourceRawTableVersion: 1,
 		}));
-		const assessmentService = new TestAssessmentService();
+		const tableFactsService = new TestRawTableFactsService();
 		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
-		const assessmentQueueService = store.add(new AssessmentQueueService(
+		const tableFactsQueueService = store.add(new RawTableFactsQueueService(
 			sessionService,
-			assessmentService,
+			tableFactsService,
 			rawTableRowsReaderService,
 		));
-		const contribution = store.add(new AssessmentContribution(
+		const contribution = store.add(new RawTableFactsContribution(
 			sessionService,
-			assessmentQueueService,
+			tableFactsQueueService,
 		));
 
-		await waitUntil(() => assessmentService.inputs.length === 1);
+		await waitUntil(() => tableFactsService.inputs.length === 1);
 
 		const file = sessionService.getSnapshot().filesById["file-a"];
 		assert.equal(
-			file.tableFactsByRawTableId["table-a"]?.assessmentRuleVersion,
-			ASSESSMENT_RULE_VERSION,
+			file.tableFactsByRawTableId["table-a"]?.tableFactsRuleVersion,
+			TABLE_FACTS_RULE_VERSION,
 		);
 		assert.deepEqual(
-			assessmentService.inputs.map(input => input.sourceRawTableVersion),
+			tableFactsService.inputs.map(input => input.sourceRawTableVersion),
 			[1],
 		);
 
 		contribution.dispose();
-		assessmentQueueService.dispose();
+		tableFactsQueueService.dispose();
 	});
 
 	test("reassesses raw tables when schema profile version changes", async () => {
 		const sessionService = store.add(new SessionService());
-		const assessmentService = new TestAssessmentService();
+		const tableFactsService = new TestRawTableFactsService();
 		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
 		const schemaProfileService = new TestSchemaProfileService();
-		const assessmentQueueService = store.add(new AssessmentQueueService(
+		const tableFactsQueueService = store.add(new RawTableFactsQueueService(
 			sessionService,
-			assessmentService,
+			tableFactsService,
 			rawTableRowsReaderService,
 			schemaProfileService,
 		));
-		const contribution = store.add(new AssessmentContribution(
+		const contribution = store.add(new RawTableFactsContribution(
 			sessionService,
-			assessmentQueueService,
+			tableFactsQueueService,
 		));
 
 		sessionService.commitFileImport(createInlineImportResult());
-		await waitUntil(() => assessmentService.inputs.length === 1);
+		await waitUntil(() => tableFactsService.inputs.length === 1);
 		assert.equal(sessionService.getSnapshot().filesById["file-a"].tableFactsByRawTableId["table-a"]?.schemaProfileVersion, 0);
 
 		schemaProfileService.setVersion(1);
-		await waitUntil(() => assessmentService.inputs.length === 2);
+		await waitUntil(() => tableFactsService.inputs.length === 2);
 
 		assert.deepEqual(
-			assessmentService.inputs.map(input => input.schemaProfileVersion),
+			tableFactsService.inputs.map(input => input.schemaProfileVersion),
 			[0, 1],
 		);
 		assert.equal(sessionService.getSnapshot().filesById["file-a"].tableFactsByRawTableId["table-a"]?.schemaProfileVersion, 1);
 
 		contribution.dispose();
-		assessmentQueueService.dispose();
+		tableFactsQueueService.dispose();
 	});
 
 	test("reassesses with confirmed schema profile evidence after profile changes", async () => {
 		const sessionService = store.add(new SessionService());
 		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
 		const schemaProfileService = new TestSchemaProfileService();
-		const assessmentService = store.add(new AssessmentService(schemaProfileService));
-		const assessmentQueueService = store.add(new AssessmentQueueService(
+		const tableFactsService = store.add(new RawTableFactsService(schemaProfileService));
+		const tableFactsQueueService = store.add(new RawTableFactsQueueService(
 			sessionService,
-			assessmentService,
+			tableFactsService,
 			rawTableRowsReaderService,
 			schemaProfileService,
 		));
-		const contribution = store.add(new AssessmentContribution(
+		const contribution = store.add(new RawTableFactsContribution(
 			sessionService,
-			assessmentQueueService,
+			tableFactsQueueService,
 		));
 
 		sessionService.commitFileImport(createProfileConfirmationImportResult());
@@ -265,92 +265,92 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 		assert.equal(rawTableRowsReaderService.inputs.length, 2);
 
 		contribution.dispose();
-		assessmentQueueService.dispose();
+		tableFactsQueueService.dispose();
 	});
 
-	test("prioritizes visible raw tables before background assessment", async () => {
+	test("prioritizes visible raw tables before background tableFacts", async () => {
 		const sessionService = store.add(new SessionService());
-		const assessmentService = new TestAssessmentService();
+		const tableFactsService = new TestRawTableFactsService();
 		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
-		const assessmentQueueService = store.add(new AssessmentQueueService(
+		const tableFactsQueueService = store.add(new RawTableFactsQueueService(
 			sessionService,
-			assessmentService,
+			tableFactsService,
 			rawTableRowsReaderService,
 		));
-		const contribution = store.add(new AssessmentContribution(
+		const contribution = store.add(new RawTableFactsContribution(
 			sessionService,
-			assessmentQueueService,
+			tableFactsQueueService,
 		));
 
-		assessmentQueueService.prioritizeRawTables([
+		tableFactsQueueService.prioritizeRawTables([
 			{ fileId: "file-5", rawTableId: "table-5" },
 			{ fileId: "file-4", rawTableId: "table-4" },
 		], "visible");
 		sessionService.commitFileImport(createMultiInlineImportResult(6));
-		await waitUntil(() => assessmentService.inputs.length >= 3);
+		await waitUntil(() => tableFactsService.inputs.length >= 3);
 
 		assert.deepEqual(
-			assessmentService.inputs.slice(0, 3).map(input => input.rawTableId),
+			tableFactsService.inputs.slice(0, 3).map(input => input.rawTableId),
 			["table-5", "table-4", "table-0"],
 		);
 
 		contribution.dispose();
-		assessmentQueueService.dispose();
+		tableFactsQueueService.dispose();
 	});
 
-	test("discards stale queued assessment when raw table version changes while rows are loading", async () => {
+	test("discards stale queued tableFacts when raw table version changes while rows are loading", async () => {
 		const sessionService = store.add(new SessionService());
-		const assessmentService = new TestAssessmentService();
+		const tableFactsService = new TestRawTableFactsService();
 		const rawTableRowsReaderService = new BlockingRawTableRowsReaderService();
-		const assessmentQueueService = store.add(new AssessmentQueueService(
+		const tableFactsQueueService = store.add(new RawTableFactsQueueService(
 			sessionService,
-			assessmentService,
+			tableFactsService,
 			rawTableRowsReaderService,
 		));
-		const contribution = store.add(new AssessmentContribution(
+		const contribution = store.add(new RawTableFactsContribution(
 			sessionService,
-			assessmentQueueService,
+			tableFactsQueueService,
 		));
 
 		sessionService.commitFileImport(createInlineImportResult());
 		await waitUntil(() => rawTableRowsReaderService.inputs.length === 1);
 		sessionService.commitFileImport(createInlineImportResult());
 		rawTableRowsReaderService.resolveFirstRead();
-		await waitUntil(() => assessmentService.inputs.length === 1);
+		await waitUntil(() => tableFactsService.inputs.length === 1);
 
 		assert.deepEqual(
-			assessmentService.inputs.map(input => input.sourceRawTableVersion),
+			tableFactsService.inputs.map(input => input.sourceRawTableVersion),
 			[2],
 		);
 
 		contribution.dispose();
-		assessmentQueueService.dispose();
+		tableFactsQueueService.dispose();
 	});
 
-	test("discards stale queued assessment when schema profile version changes while rows are loading", async () => {
+	test("discards stale queued tableFacts when schema profile version changes while rows are loading", async () => {
 		const sessionService = store.add(new SessionService());
-		const assessmentService = new TestAssessmentService();
+		const tableFactsService = new TestRawTableFactsService();
 		const rawTableRowsReaderService = new BlockingRawTableRowsReaderService();
 		const schemaProfileService = new TestSchemaProfileService();
-		const assessmentQueueService = store.add(new AssessmentQueueService(
+		const tableFactsQueueService = store.add(new RawTableFactsQueueService(
 			sessionService,
-			assessmentService,
+			tableFactsService,
 			rawTableRowsReaderService,
 			schemaProfileService,
 		));
-		const contribution = store.add(new AssessmentContribution(
+		const contribution = store.add(new RawTableFactsContribution(
 			sessionService,
-			assessmentQueueService,
+			tableFactsQueueService,
 		));
 
 		sessionService.commitFileImport(createInlineImportResult());
 		await waitUntil(() => rawTableRowsReaderService.inputs.length === 1);
 		schemaProfileService.setVersion(1);
 		rawTableRowsReaderService.resolveFirstRead();
-		await waitUntil(() => assessmentService.inputs.length === 1);
+		await waitUntil(() => tableFactsService.inputs.length === 1);
 
 		assert.deepEqual(
-			assessmentService.inputs.map(input => input.schemaProfileVersion),
+			tableFactsService.inputs.map(input => input.schemaProfileVersion),
 			[1],
 		);
 		assert.equal(
@@ -359,32 +359,32 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 		);
 
 		contribution.dispose();
-		assessmentQueueService.dispose();
+		tableFactsQueueService.dispose();
 	});
 
-	test("publishes queued and running raw table assessment state", async () => {
+	test("publishes queued and running raw table tableFacts state", async () => {
 		const sessionService = store.add(new SessionService());
-		const assessmentService = new TestAssessmentService();
+		const tableFactsService = new TestRawTableFactsService();
 		const rawTableRowsReaderService = new BlockingRawTableRowsReaderService();
-		const assessmentQueueService = store.add(new AssessmentQueueService(
+		const tableFactsQueueService = store.add(new RawTableFactsQueueService(
 			sessionService,
-			assessmentService,
+			tableFactsService,
 			rawTableRowsReaderService,
 		));
 		const observedStates: string[][] = [];
-		const disposable = store.add(assessmentQueueService.onDidChangeRawTableFactsQueueState(() => {
-			observedStates.push(assessmentQueueService.getQueueSnapshot().rawTables.map(state =>
+		const disposable = store.add(tableFactsQueueService.onDidChangeRawTableFactsQueueState(() => {
+			observedStates.push(tableFactsQueueService.getQueueSnapshot().rawTables.map(state =>
 				`${state.state}:${state.priority}:${state.fileId}:${state.rawTableId}:${state.sourceRawTableVersion}`
 			));
 		}));
 
 		sessionService.commitFileImport(createInlineImportResult());
-		assessmentQueueService.enqueueRawTables([
+		tableFactsQueueService.enqueueRawTables([
 			{ fileId: "file-a", rawTableId: "table-a" },
 		]);
-		await waitUntil(() => assessmentQueueService.getQueueSnapshot().rawTables.some(state => state.state === "running"));
+		await waitUntil(() => tableFactsQueueService.getQueueSnapshot().rawTables.some(state => state.state === "running"));
 
-		assert.deepEqual(assessmentQueueService.getQueueSnapshot(), {
+		assert.deepEqual(tableFactsQueueService.getQueueSnapshot(), {
 			rawTables: [{
 				fileId: "file-a",
 				priority: "background",
@@ -397,14 +397,14 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 		assert.ok(observedStates.some(state => state.includes("running:background:file-a:table-a:1")));
 
 		rawTableRowsReaderService.resolveFirstRead();
-		await waitUntil(() => assessmentQueueService.getQueueSnapshot().rawTables.length === 0);
+		await waitUntil(() => tableFactsQueueService.getQueueSnapshot().rawTables.length === 0);
 
-		assert.equal(assessmentService.inputs.length, 1);
+		assert.equal(tableFactsService.inputs.length, 1);
 		disposable.dispose();
-		assessmentQueueService.dispose();
+		tableFactsQueueService.dispose();
 	});
 
-	test("cleans queued and preferred assessment refs when files are removed or session clears", () => {
+	test("cleans queued and preferred tableFacts refs when files are removed or session clears", () => {
 		const eventEmitter = new Emitter<SessionChangeEvent>();
 		const sessionService = {
 				commitRawTableFacts: () => undefined,
@@ -417,18 +417,18 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 			}),
 			onDidChangeSession: eventEmitter.event,
 		} as unknown as SessionService;
-		const assessmentQueueService = store.add(new AssessmentQueueService(
+		const tableFactsQueueService = store.add(new RawTableFactsQueueService(
 			sessionService,
-			new TestAssessmentService(),
+			new TestRawTableFactsService(),
 			new TestRawTableRowsReaderService(),
 		));
-		const inspect = assessmentQueueService as unknown as {
+		const inspect = tableFactsQueueService as unknown as {
 			pendingVisibleRefsByKey: Map<string, unknown>;
 			preferredOrderByKey: Map<string, unknown>;
 			preferredPriorityByKey: Map<string, unknown>;
 		};
 
-		assessmentQueueService.prioritizeRawTables([
+		tableFactsQueueService.prioritizeRawTables([
 			{ fileId: "file-a", rawTableId: "table-a" },
 			{ fileId: "file-b", rawTableId: "table-b" },
 		], "visible");
@@ -460,41 +460,26 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 	});
 });
 
-class TestAssessmentService implements IAssessmentService {
+class TestRawTableFactsService implements IRawTableFactsService {
 	public declare readonly _serviceBrand: undefined;
 
-	public readonly inputs: AssessRawTableInput[] = [];
+	public readonly inputs: CreateRawTableFactsInput[] = [];
 
-	public createImportAssessmentSeedFromFile(_file: File): Promise<ImportAssessmentSeed> {
-		return Promise.reject(new Error("Not implemented."));
-	}
-
-	public createImportTableFactsSeedFromFile(file: File): Promise<ImportAssessmentSeed> {
-		return this.createImportAssessmentSeedFromFile(file);
-	}
-
-	public createImportAssessmentSeedFromRows(
-		_fileName: string,
-		_rows: readonly (readonly string[])[],
-	): Promise<ImportAssessmentSeed> {
+	public createImportTableFactsSeedFromFile(_file: File): Promise<ImportTableFactsSeed> {
 		return Promise.reject(new Error("Not implemented."));
 	}
 
 	public createImportTableFactsSeedFromRows(
-		fileName: string,
-		rows: readonly (readonly string[])[],
-	): Promise<ImportAssessmentSeed> {
-		return this.createImportAssessmentSeedFromRows(fileName, rows);
+		_fileName: string,
+		_rows: readonly (readonly string[])[],
+	): Promise<ImportTableFactsSeed> {
+		return Promise.reject(new Error("Not implemented."));
 	}
 
-	public createRawTableFacts(input: AssessRawTableInput): Promise<RawTableAssessmentRecord> {
-		return this.assessRawTable(input);
-	}
-
-	public assessRawTable(input: AssessRawTableInput): Promise<RawTableAssessmentRecord> {
+	public createRawTableFacts(input: CreateRawTableFactsInput): Promise<RawTableFactsRecord> {
 		this.inputs.push(input);
 		const blockId = input.rawTableId === "table-a" ? "block-a" : `block-${input.rawTableId}`;
-		return Promise.resolve(createRawTableAssessmentRecord({
+		return Promise.resolve(createRawTableFactsRecord({
 			fileId: input.fileId,
 			rawTableId: input.rawTableId,
 			blockId,
@@ -504,22 +489,22 @@ class TestAssessmentService implements IAssessmentService {
 	}
 }
 
-const createRawTableAssessmentRecord = ({
-	assessmentRuleVersion = ASSESSMENT_RULE_VERSION,
+const createRawTableFactsRecord = ({
+	tableFactsRuleVersion = TABLE_FACTS_RULE_VERSION,
 	blockId = "block-a",
 	fileId,
 	rawTableId,
 	schemaProfileVersion = 0,
 	sourceRawTableVersion,
 }: {
-	readonly assessmentRuleVersion?: number;
+	readonly tableFactsRuleVersion?: number;
 	readonly blockId?: string;
 	readonly fileId: string;
 	readonly rawTableId: string;
 	readonly schemaProfileVersion?: number;
 	readonly sourceRawTableVersion: number;
-}): RawTableAssessmentRecord => ({
-	assessmentRuleVersion,
+}): RawTableFactsRecord => ({
+	tableFactsRuleVersion,
 	schemaProfileVersion,
 	blocks: [{
 		columnCount: 2,
@@ -746,7 +731,7 @@ const waitUntil = async (
 		await new Promise<void>(resolve => setTimeout(resolve, 0));
 	}
 
-	assert.ok(predicate(), "Timed out waiting for asynchronous assessment work.");
+	assert.ok(predicate(), "Timed out waiting for asynchronous tableFacts work.");
 };
 
 class TestRawTableRowsReaderService implements IRawTableRowsReaderService {

@@ -99,7 +99,7 @@ view -> props, commands, owner service APIs
 ```
 
 Avoid `service -> view`, `service -> CommandsRegistry`, `session -> UI state`,
-`converter -> assessment/template/plot`, `plot -> chart DOM`, and
+`converter -> tableFacts/template/plot`, `plot -> chart DOM`, and
 `chart -> raw table parsing`.
 
 ## Imports

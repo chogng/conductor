@@ -293,7 +293,7 @@ const validateSourceHintPredicate = (
   recipeId: string,
 ): void => {
   if (Array.isArray(predicate.instrumentAny) && predicate.instrumentAny.length) {
-    diagnostics.push(createRecipeDiagnostic(recipeId, "recipe.unsupportedSourceHintInstrument", "Recipe sourceHint.instrumentAny is unsupported until Assessment provides instrument metadata."));
+    diagnostics.push(createRecipeDiagnostic(recipeId, "recipe.unsupportedSourceHintInstrument", "Recipe sourceHint.instrumentAny is unsupported until table facts provide instrument metadata."));
   }
 };
 

@@ -5,15 +5,15 @@
 import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import { ASSESSMENT_RULE_VERSION, type RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
-import { createRawTableFactsFromLegacyAssessment } from "src/cs/workbench/services/assessment/common/legacyAssessmentAdapter";
+import { TABLE_FACTS_RULE_VERSION, type RawTableFactsRecord } from "src/cs/workbench/services/tableFacts/common/tableFacts";
+import { createRawTableFactsFromLegacyTableFacts } from "src/cs/workbench/services/tableFacts/common/legacyTableFactsAdapter";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
 
-suite("workbench/services/assessment/test/common/assessmentEvidence", () => {
+suite("workbench/services/tableFacts/test/common/tableFactsLegacyAdapter", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
 
-  test("adapts legacy assessment records into raw table facts only", () => {
-    const tableFacts = createRawTableFactsFromLegacyAssessment(createLegacyAssessment());
+  test("adapts legacy tableFacts records into raw table facts only", () => {
+    const tableFacts = createRawTableFactsFromLegacyTableFacts(createLegacyTableFacts());
     const context = tableFacts as Record<string, unknown>;
 
     assert.equal(context.recipeFingerprint, undefined);
@@ -31,15 +31,15 @@ suite("workbench/services/assessment/test/common/assessmentEvidence", () => {
   });
 });
 
-type LegacyAssessmentRecord = RawTableAssessmentRecord & {
+type LegacyTableFactsRecord = RawTableFactsRecord & {
   readonly recipeFingerprint?: unknown;
   readonly reviewedTemplate?: unknown;
   readonly selectedTemplate?: unknown;
   readonly templateCandidates?: unknown;
 };
 
-const createLegacyAssessment = (): RawTableAssessmentRecord => ({
-  assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
+const createLegacyTableFacts = (): RawTableFactsRecord => ({
+  tableFactsRuleVersion: TABLE_FACTS_RULE_VERSION,
   schemaProfileVersion: 0,
   fileId: "file-a",
   rawTableId: "table-a",
@@ -56,4 +56,4 @@ const createLegacyAssessment = (): RawTableAssessmentRecord => ({
   reviewedTemplate: { id: "reviewed-template" },
   selectedTemplate: { id: "selected-template" },
   templateCandidates: [{ id: "candidate" }],
-} as LegacyAssessmentRecord);
+} as LegacyTableFactsRecord);

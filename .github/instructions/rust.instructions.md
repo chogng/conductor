@@ -1,6 +1,6 @@
 ---
 description: Rust execution branch guidelines for Conductor desktop - runtime route, domain boundaries, payload shape, parity, fallback, and lifecycle.
-applyTo: 'src/cs/workbench/services/{files,assessment,table,template,plot,parameters,export,origin,search}/**,src/cs/platform/rust/**,src/cs/code/electron-main/{rustHostChannels.ts,rustHostService.ts,app.ts},src/cs/base/parts/sandbox/electron-browser/preload.ts,cli/**,extensions/**'
+applyTo: 'src/cs/workbench/services/{files,tableFacts,table,template,plot,parameters,export,origin,search}/**,src/cs/platform/rust/**,src/cs/code/electron-main/{rustHostChannels.ts,rustHostService.ts,app.ts},src/cs/base/parts/sandbox/electron-browser/preload.ts,cli/**,extensions/**'
 ---
 # Rust Execution Branch
 
@@ -24,8 +24,8 @@ orchestration, Session commits, stale-result checks, fallback policy, view
 state, DOM, and user-facing notifications.
 
 Rust may own heavy execution and runtime caches for file conversion, workbook
-sheet extraction, table reads, table-fact production (legacy assessment
-implementation), template extraction, metric/Rc calculation, plot-frame
+sheet extraction, table reads, table-fact production, template extraction,
+metric/Rc calculation, plot-frame
 construction, downsampling, search, and export artifact generation.
 
 ## Runtime Route
@@ -84,9 +84,9 @@ TypeScript remains the semantic baseline. Rust may accelerate or mirror domain
 execution, but it must not silently fork product rules.
 
 When changing a rule mirrored under `cli/` or `extensions/`, update both sides
-in the same change. This is mandatory for table-fact family/role/confidence
-(legacy assessment implementation), auto extraction planning, calculation,
-export, plot, search, and table rules with Rust branches.
+in the same change. This is mandatory for table-fact family/role/confidence,
+auto extraction planning, calculation, export, plot, search, and table rules
+with Rust branches.
 
 Run the matching verifier. For auto extraction and table-fact-derived planning:
 
@@ -104,7 +104,7 @@ Return data only at stable domain boundaries:
 | Stage | TS owner | Rust may do | Return to TS |
 | --- | --- | --- | --- |
 | File conversion | files electron-browser conversion service | parse CSV/XLS/XLSX, split sheets, create normalized CSV artifacts | `FileConversionResult`-compatible descriptors, raw table metadata, diagnostics |
-| Table facts | table-fact producer; legacy assessment service until migrated | block/group/role inference | `RawTableFactsRecord` (`RawTableAssessmentRecord` compatibility name only) |
+| Table facts | table-fact producer | block/group/role inference | `RawTableFactsRecord` |
 | Table preview | table rows reader | chunk/cell/raw metadata reads | bounded rows or selected cells |
 | Slice execution | slice service | extraction/process | `SliceRun`, series/curve descriptors, diagnostics |
 | Plot | plot service | calculation, scaling, log transform, downsampling, plot frame | `PlotRenderModel` / bounded plot frame |
@@ -164,9 +164,9 @@ preview rows, `rowCount`, `columnCount`, `maxCellLengths`, `health`, and
 table-fact seed/summary data. Full row storage belongs to open/table preview
 paths.
 
-Folder import may use a table-fact prepare batch path (legacy name may still be
-`assessImportBatch`), descriptor caching by normalized path/size/mtime, and
-bounded Rust worker parallelism. Electron main must still emit per-file prepare
+Folder import may use a table-fact prepare batch path, descriptor caching by
+normalized path/size/mtime, and bounded Rust worker parallelism. Electron main
+must still emit per-file prepare
 results through the files service contract. Prefer small result chunks and badge
 latency over maximum batch throughput.
 

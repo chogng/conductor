@@ -1,12 +1,12 @@
 ---
-description: Explorer badge projection rules for fast first-frame decorations, assessment confirmation, visible-first scheduling, stale result protection, and row reuse.
-applyTo: 'src/cs/workbench/contrib/files/**,src/cs/workbench/services/assessment/**,src/cs/workbench/browser/workbenchDomainBridge.ts'
+description: Explorer badge projection rules for fast first-frame decorations, table-fact confirmation, visible-first scheduling, stale result protection, and row reuse.
+applyTo: 'src/cs/workbench/contrib/files/**,src/cs/workbench/services/tableFacts/**,src/cs/workbench/browser/workbenchDomainBridge.ts'
 ---
 # Explorer Badge Projection
 
 Explorer badges are Files Explorer UI decorations. They are not canonical
-Session records and must not become converter, template, chart, table, or
-assessment decision inputs.
+Session records and must not become converter, table-fact, review, slice,
+template, chart, or table decision inputs.
 
 ## Ownership
 
@@ -23,8 +23,7 @@ Full badge:
 - comes from formal Review/Slice projections committed through Session;
 - is the final Explorer badge projection;
 - may override or clear any fast badge;
-- represents review readiness, slice progress, or final unavailable/error state,
-  not Assessment-owned `ready` / `unknown` decisions.
+- represents review readiness, slice progress, or final unavailable/error state.
 
 ## State Flow
 
@@ -45,19 +44,19 @@ Explorer reports actual rendered range from ObjectTree/List. Do not calculate
 "first page" from density or row height.
 
 ```txt
-visible rows   -> assessment priority visible
-overscan rows  -> assessment priority nearby
-remaining rows -> assessment priority background
-assessment queue state -> WorkbenchDomainBridge -> ExplorerFileEntry.badgeState
+visible rows   -> table-fact priority visible
+overscan rows  -> table-fact priority nearby
+remaining rows -> table-fact priority background
+table-fact queue state -> WorkbenchDomainBridge -> ExplorerFileEntry.badgeState
 ```
 
-Assessment queue entries dedupe by raw table identity and source version. Drop
+Table-fact queue entries dedupe by raw table identity and source version. Drop
 stale queued results if the raw table version changes.
 
 ## Rendering
 
 Every file row renders a stable badge slot in the first frame. Row layout must
-not wait for full assessment.
+not wait for full table-fact production.
 
 Virtualized rows are reusable DOM. Bind badge updates to the current row key
 before writing text, state, title, or classes. Repeated renders with the same

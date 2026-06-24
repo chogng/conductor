@@ -16,7 +16,7 @@ structure/column/block facts, not the UI `ITableService` selection model.
 Slice executes the reviewed `Template`; Review judges usability; Template owns
 materialization.
 
-Do not add consumer-shaped template sections such as `template.assessment`,
+Do not add consumer-shaped template sections such as `template.review`,
 `template.slicing`, or `template.binding`. Template may own table-fact
 projection and materialization, but it must keep raw table facts distinct from
 the executable `Template` snapshot.
@@ -82,10 +82,9 @@ rawTableChanged / recipeChanged / userTemplateChanged / schemaProfileChanged
   -> ReviewService reviews materialized candidates
 ```
 
-During migration, some table-fact production still lives under
-`services/assessment`. Candidate derivation belongs under
-`services/template/common`; do not add new materializers under Assessment,
-Review, or Slice.
+Table-fact production belongs under `services/tableFacts`. Candidate derivation
+belongs under `services/template/common`; do not add new materializers under
+TableFacts, Review, or Slice.
 
 Manual execution:
 
@@ -176,9 +175,9 @@ Use `records.instructions.md` for `TemplateApplyPresetRecord`,
 ## Do Not
 
 - Do not infer IV/CV/transfer/output inside the executable `Template` spec or
-  Slice path. Such inference belongs to Template-owned table-fact/materializer
-  helpers during migration out of Assessment.
-- Do not split `Template` by assessment/slice/binding/apply consumers.
+  Slice path. Such inference belongs to table-fact production and
+  Template-owned materializer helpers before Review/Slice.
+- Do not split `Template` by review/slice/binding/apply consumers.
 - Do not store template form draft state in Session.
 - Do not let worker payload format leak into Session records.
 - Do not let TemplateView mutate Session directly.

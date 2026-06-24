@@ -6,8 +6,8 @@ import assert from "assert";
 
 import { Event } from "src/cs/base/common/event";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import { ASSESSMENT_RULE_VERSION } from "src/cs/workbench/services/assessment/common/assessment";
-import { AssessmentService } from "src/cs/workbench/services/assessment/browser/assessmentService";
+import { TABLE_FACTS_RULE_VERSION } from "src/cs/workbench/services/tableFacts/common/tableFacts";
+import { RawTableFactsService } from "src/cs/workbench/services/tableFacts/browser/rawTableFactsService";
 import type {
 	ISchemaProfileService,
 	SchemaProfile,
@@ -17,12 +17,12 @@ import {
 	createSchemaProfileFromConfirmation,
 } from "src/cs/workbench/services/schemaProfile/common/schemaProfileConfirmation";
 
-suite("workbench/services/assessment/test/browser/assessmentService", () => {
+suite("workbench/services/tableFacts/test/browser/rawTableFactsService", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-  test("creates import assessment seed through the service owner", async () => {
-    const service = store.add(new AssessmentService());
-    const result = await service.createImportAssessmentSeedFromRows("transfer.csv", [
+  test("creates import tableFacts seed through the service owner", async () => {
+    const service = store.add(new RawTableFactsService());
+    const result = await service.createImportTableFactsSeedFromRows("transfer.csv", [
       ["SetupTitle", "Transfer_DB"],
       ["TestParameter", "Channel.VName", "Vg", "Vd", "Vs"],
       ["TestParameter", "Channel.Func", "VAR1", "VAR2", "CONST"],
@@ -39,9 +39,9 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
     assert.equal(result.xAxisRole, "vg");
   });
 
-  test("wraps raw table assessment records with source version", async () => {
-    const service = store.add(new AssessmentService());
-    const result = await service.assessRawTable({
+  test("wraps raw table tableFacts records with source version", async () => {
+    const service = store.add(new RawTableFactsService());
+    const result = await service.createRawTableFacts({
       fileId: "file-a",
       rawTableId: "raw-a",
       sourceRawTableVersion: 3,
@@ -54,7 +54,7 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
 
     assert.equal(result.fileId, "file-a");
     assert.equal(result.rawTableId, "raw-a");
-    assert.equal(result.assessmentRuleVersion, ASSESSMENT_RULE_VERSION);
+    assert.equal(result.tableFactsRuleVersion, TABLE_FACTS_RULE_VERSION);
     assert.equal(result.sourceRawTableVersion, 3);
     assert.deepEqual(result.structure.headerRows.map(row => ({
       rowIndex: row.rowIndex,
@@ -136,8 +136,8 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
   });
 
   test("profiles stripped CH1/CH2 raw table columns even when family needs review", async () => {
-    const service = store.add(new AssessmentService());
-    const result = await service.assessRawTable({
+    const service = store.add(new RawTableFactsService());
+    const result = await service.createRawTableFacts({
       fileId: "file-b",
       rawTableId: "raw-b",
       sourceRawTableVersion: 1,
@@ -203,8 +203,8 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
   });
 
   test("keeps semantic review required for generic pairwise X/Y layout", async () => {
-    const service = store.add(new AssessmentService());
-    const result = await service.assessRawTable({
+    const service = store.add(new RawTableFactsService());
+    const result = await service.createRawTableFacts({
       fileId: "file-generic-xy",
       rawTableId: "raw-generic-xy",
       sourceRawTableVersion: 1,
@@ -249,8 +249,8 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
   });
 
   test("splits repeated header sections into measurement blocks", async () => {
-    const service = store.add(new AssessmentService());
-    const result = await service.assessRawTable({
+    const service = store.add(new RawTableFactsService());
+    const result = await service.createRawTableFacts({
       fileId: "file-repeated",
       rawTableId: "raw-repeated",
       sourceRawTableVersion: 1,
@@ -410,8 +410,8 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
   });
 
   test("uses exact schema profile matches as confirmed column semantics", async () => {
-    const service = store.add(new AssessmentService());
-    const result = await service.assessRawTable({
+    const service = store.add(new RawTableFactsService());
+    const result = await service.createRawTableFacts({
       fileId: "file-profile",
       rawTableId: "raw-profile",
       sourceRawTableVersion: 1,
@@ -504,15 +504,15 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
     );
   });
 
-  test("allows exact user-confirmed profiles to unlock unambiguous automatic assessment", async () => {
-    const service = store.add(new AssessmentService());
+  test("allows exact user-confirmed profiles to unlock unambiguous automatic tableFacts", async () => {
+    const service = store.add(new RawTableFactsService());
     const rows = [
       ["DataName", "Input A", "Output B"],
       ["DataValue", "-1", "1e-12"],
       ["DataValue", "0", "1e-9"],
       ["DataValue", "1", "2e-7"],
     ];
-    const first = await service.assessRawTable({
+    const first = await service.createRawTableFacts({
       fileId: "file-profile-loop",
       rawTableId: "raw-profile-loop",
       sourceRawTableVersion: 1,
@@ -538,7 +538,7 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
     });
     assert.ok(profile);
 
-    const result = await service.assessRawTable({
+    const result = await service.createRawTableFacts({
       fileId: "file-profile-loop-next",
       rawTableId: "raw-profile-loop-next",
       sourceRawTableVersion: 1,
@@ -564,14 +564,14 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
   });
 
   test("keeps generic exact profile voltage/current bindings in review", async () => {
-    const service = store.add(new AssessmentService());
+    const service = store.add(new RawTableFactsService());
     const rows = [
       ["DataName", "Input A", "Output B"],
       ["DataValue", "-1", "1e-12"],
       ["DataValue", "0", "1e-9"],
       ["DataValue", "1", "2e-7"],
     ];
-    const first = await service.assessRawTable({
+    const first = await service.createRawTableFacts({
       fileId: "file-generic-profile-loop",
       rawTableId: "raw-generic-profile-loop",
       sourceRawTableVersion: 1,
@@ -595,7 +595,7 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
     });
     assert.ok(profile);
 
-    const result = await service.assessRawTable({
+    const result = await service.createRawTableFacts({
       fileId: "file-generic-profile-loop-next",
       rawTableId: "raw-generic-profile-loop-next",
       sourceRawTableVersion: 1,
@@ -608,7 +608,7 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
   });
 
   test("reads exact schema profile matches from the schema profile service", async () => {
-    const service = store.add(new AssessmentService(new TestSchemaProfileService({
+    const service = store.add(new RawTableFactsService(new TestSchemaProfileService({
       version: 5,
       profiles: [{
         id: "profile-service-input-output",
@@ -636,7 +636,7 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
         ],
       }],
     })));
-    const result = await service.assessRawTable({
+    const result = await service.createRawTableFacts({
       fileId: "file-profile-service",
       rawTableId: "raw-profile-service",
       sourceRawTableVersion: 1,
@@ -664,9 +664,9 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
     );
   });
 
-  test("keeps medium-confidence capacitance-frequency assessment inferred", async () => {
-    const service = store.add(new AssessmentService());
-    const result = await service.assessRawTable({
+  test("keeps medium-confidence capacitance-frequency tableFacts inferred", async () => {
+    const service = store.add(new RawTableFactsService());
+    const result = await service.createRawTableFacts({
       fileId: "file-c",
       rawTableId: "raw-c",
       sourceRawTableVersion: 1,

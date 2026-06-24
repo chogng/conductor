@@ -25,9 +25,8 @@ measurement blocks, diagnostics, import-preview seed heuristics, and record
 factories.
 
 `services/tableFacts/browser` owns the injectable TableFacts producer, queue,
-and lifecycle contribution. Old Assessment common/browser paths may re-export
-TableFacts symbols during migration. New code must import formal contracts,
-helpers, and browser implementations from `services/tableFacts`.
+and lifecycle contribution. New code must import formal contracts, helpers, and
+browser implementations from `services/tableFacts`.
 
 TableFacts must not produce `TemplateDraft`, `ReviewedTemplate`,
 `ReviewDecision`, `systemRecommended`, or `SliceRequest`.
@@ -62,4 +61,5 @@ TableFacts must not produce `TemplateDraft`, `ReviewedTemplate`,
   recommendation.
 - Slice executes reviewed/manual Template snapshots and must not re-detect
   table facts.
-- Legacy Assessment names are compatibility aliases only.
+- Retired table-fact service, record, and command names must not be reintroduced
+  as compatibility aliases.

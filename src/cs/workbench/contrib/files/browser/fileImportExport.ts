@@ -1237,11 +1237,12 @@ const createPreparedImportFromConvertedFile = async ({
     sourceSizeBytes: pendingImportFile.sourceSize,
     tables: createImportedRawTableInputs(prepared, fileId),
   });
-  const preparedTableFactsSeed = await createPreparedTableFactsFromImportRecord(
-    createPreparedTableFactsSeedFromRows,
-    pendingImportFile,
-    importRecord,
-  );
+  const preparedTableFactsSeed = readPreparedTableFactsSeed(prepared.tableFactsSeed) ??
+    await createPreparedTableFactsFromImportRecord(
+      createPreparedTableFactsSeedFromRows,
+      pendingImportFile,
+      importRecord,
+    );
 
   return {
     importRecord,
@@ -1252,6 +1253,73 @@ const createPreparedImportFromConvertedFile = async ({
     sourcePath,
   };
 };
+
+const readPreparedTableFactsSeed = (
+  value: unknown,
+): ImportTableFactsSeed | undefined => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const seed = value as Partial<ImportTableFactsSeed>;
+  const curveFamily = seed.curveFamily;
+  const curveTypeConfidence = seed.curveTypeConfidence;
+  const xAxisRole = seed.xAxisRole;
+  const xAxisRoleSource = seed.xAxisRoleSource;
+  if (
+    !isTableFactsCurveFamily(curveFamily) ||
+    !isTableFactsConfidence(curveTypeConfidence) ||
+    typeof seed.curveTypeNeedsReview !== "boolean" ||
+    !Array.isArray(seed.curveTypeReasons) ||
+    seed.curveTypeReasons.some(reason => typeof reason !== "string") ||
+    (seed.curveType !== null && typeof seed.curveType !== "string") ||
+    !isTableFactsAxisRole(xAxisRole) ||
+    !isTableFactsAxisRoleSource(xAxisRoleSource) ||
+    (seed.ivMode !== undefined && seed.ivMode !== null && seed.ivMode !== "transfer" && seed.ivMode !== "output" && seed.ivMode !== "unknown")
+  ) {
+    return undefined;
+  }
+  return {
+    curveFamily,
+    curveType: seed.curveType ?? null,
+    curveTypeConfidence,
+    curveTypeNeedsReview: seed.curveTypeNeedsReview,
+    curveTypeReasons: seed.curveTypeReasons,
+    ivMode: seed.ivMode ?? null,
+    xAxisRole,
+    xAxisRoleSource,
+  };
+};
+
+const isTableFactsCurveFamily = (
+  value: unknown,
+): value is ImportTableFactsSeed["curveFamily"] =>
+  value === "iv" ||
+  value === "cv" ||
+  value === "cf" ||
+  value === "pv" ||
+  value === "it" ||
+  value === "unknown";
+
+const isTableFactsConfidence = (
+  value: unknown,
+): value is ImportTableFactsSeed["curveTypeConfidence"] =>
+  value === "high" || value === "medium" || value === "low";
+
+const isTableFactsAxisRole = (
+  value: unknown,
+): value is ImportTableFactsSeed["xAxisRole"] =>
+  value === "vg" || value === "vd" || value === null;
+
+const isTableFactsAxisRoleSource = (
+  value: unknown,
+): value is ImportTableFactsSeed["xAxisRoleSource"] =>
+  value === "filename" ||
+  value === "hint" ||
+  value === "label" ||
+  value === "metadata" ||
+  value === "schemaProfile" ||
+  value === "shape" ||
+  value === null;
 
 const createPreparedTableFactsFromImportRecord = (
   createPreparedTableFactsSeedFromRows: PreparedTableFactsSeedFactory | undefined,
@@ -2287,7 +2355,7 @@ const getPrepareFailureReason = (failure: FileImportPrepareFailure): string => {
         "files.import.failureReasonExcelConversion",
         "Excel conversion failed.",
       );
-    case "RUST_IMPORT_ASSESSMENT_FAILED":
+    case "RUST_IMPORT_TABLE_FACTS_FAILED":
       return localize(
         "files.import.failureReasonImportCheck",
         "The file could not be checked for import.",

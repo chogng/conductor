@@ -479,7 +479,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
         mode: "auto",
         selection: { kind: "auto" },
         sourceRawTableVersion: 1,
-        sourceTableFactsSignature: "assessment-a",
+        sourceTableFactsSignature: "tableFacts-a",
         template: {
           schemaVersion: 1,
           name: "Detected IV Transfer",
@@ -825,9 +825,9 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   test("commits raw table facts when source version matches", () => {
     const session = store.add(new SessionService());
     session.commitFileImport(createSingleRawTableImportResult());
-    const assessment = createRawTableAssessment(1);
+    const tableFacts = createRawTableFacts(1);
 
-    session.commitRawTableFacts(assessment);
+    session.commitRawTableFacts(tableFacts);
 
     const file = session.getSnapshot().filesById["file-a"];
     assert.equal(file.tableFactsByRawTableId["table-a"].sourceRawTableVersion, 1);
@@ -841,22 +841,22 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     const disposable = session.onDidChangeSession(event => {
       events.push(event);
     });
-    const assessment = createRawTableAssessment(0);
+    const tableFacts = createRawTableFacts(0);
 
     const result = session.commitFileImport(createSingleRawTableImportResult(), {
       rawTableFacts: [{
-        assessmentRuleVersion: assessment.assessmentRuleVersion,
-        schemaProfileVersion: assessment.schemaProfileVersion,
-        blocks: assessment.blocks,
-        columnProfiles: assessment.columnProfiles,
-        createdAt: assessment.createdAt,
-        diagnostics: assessment.diagnostics,
-        fileId: assessment.fileId,
-        groups: assessment.groups,
-        layoutCandidates: assessment.layoutCandidates,
-        rawTableId: assessment.rawTableId,
-        semanticCandidates: assessment.semanticCandidates,
-        structure: assessment.structure,
+        tableFactsRuleVersion: tableFacts.tableFactsRuleVersion,
+        schemaProfileVersion: tableFacts.schemaProfileVersion,
+        blocks: tableFacts.blocks,
+        columnProfiles: tableFacts.columnProfiles,
+        createdAt: tableFacts.createdAt,
+        diagnostics: tableFacts.diagnostics,
+        fileId: tableFacts.fileId,
+        groups: tableFacts.groups,
+        layoutCandidates: tableFacts.layoutCandidates,
+        rawTableId: tableFacts.rawTableId,
+        semanticCandidates: tableFacts.semanticCandidates,
+        structure: tableFacts.structure,
       }],
     });
 
@@ -887,8 +887,8 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     events.length = 0;
 
     session.commitRawTableFactsBatch([
-      createRawTableAssessment(1, "table-a", "block-a"),
-      createRawTableAssessment(1, "table-b", "block-b"),
+      createRawTableFacts(1, "table-a", "block-a"),
+      createRawTableFacts(1, "table-b", "block-b"),
     ]);
 
     const file = session.getSnapshot().filesById["file-a"];
@@ -914,11 +914,11 @@ suite("workbench/services/session/test/browser/sessionService", () => {
       events.push(event);
     });
     session.commitFileImport(createSingleRawTableImportResult());
-    const assessment = createRawTableAssessment(1);
-    session.commitRawTableFacts(assessment);
+    const tableFacts = createRawTableFacts(1);
+    session.commitRawTableFacts(tableFacts);
     events.length = 0;
 
-    session.commitRawTableReviews([createRawTableReview(assessment)]);
+    session.commitRawTableReviews([createRawTableReview(tableFacts)]);
 
     const file = session.getSnapshot().filesById["file-a"];
     assert.equal(file.rawTableReviewsByRawTableId?.["table-a"]?.decision.kind, "ready");
@@ -935,13 +935,13 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   test("clears stale raw table reviews when table facts change", () => {
     const session = store.add(new SessionService());
     session.commitFileImport(createSingleRawTableImportResult());
-    const assessment = createRawTableAssessment(1);
-    session.commitRawTableFacts(assessment);
-    session.commitRawTableReviews([createRawTableReview(assessment)]);
+    const tableFacts = createRawTableFacts(1);
+    session.commitRawTableFacts(tableFacts);
+    session.commitRawTableReviews([createRawTableReview(tableFacts)]);
 
     session.commitRawTableFacts({
-      ...assessment,
-      schemaProfileVersion: assessment.schemaProfileVersion + 1,
+      ...tableFacts,
+      schemaProfileVersion: tableFacts.schemaProfileVersion + 1,
     });
 
     const file = session.getSnapshot().filesById["file-a"];
@@ -952,7 +952,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     const session = store.add(new SessionService());
     session.commitFileImport(createSingleRawTableImportResult());
 
-    session.commitRawTableFacts(createRawTableAssessment(0));
+    session.commitRawTableFacts(createRawTableFacts(0));
 
     const file = session.getSnapshot().filesById["file-a"];
     assert.deepEqual(file.tableFactsByRawTableId, {});
@@ -1584,12 +1584,12 @@ const createSourceKeyedImportedFileRecord = (
   },
 });
 
-const createRawTableAssessment = (
+const createRawTableFacts = (
   sourceRawTableVersion: number,
   rawTableId = "table-a",
   blockId = "block-a",
 ): RawTableFactsRecord => ({
-  assessmentRuleVersion: TABLE_FACTS_RULE_VERSION,
+  tableFactsRuleVersion: TABLE_FACTS_RULE_VERSION,
   schemaProfileVersion: 0,
   blocks: [{
     columnCount: 2,
@@ -1625,14 +1625,14 @@ const createRawTableAssessment = (
 });
 
 const createRawTableReview = (
-  assessment: RawTableFactsRecord,
+  tableFacts: RawTableFactsRecord,
 ): RawTableReviewRecord => {
   const template = createTestTemplate();
   return {
-    fileId: assessment.fileId,
-    rawTableId: assessment.rawTableId,
-    sourceRawTableVersion: assessment.sourceRawTableVersion,
-    evidenceSignature: createReviewEvidenceSignature(assessment, {
+    fileId: tableFacts.fileId,
+    rawTableId: tableFacts.rawTableId,
+    sourceRawTableVersion: tableFacts.sourceRawTableVersion,
+    evidenceSignature: createReviewEvidenceSignature(tableFacts, {
       columnCount: 2,
       fileName: "Transfer.csv",
       rowCount: 2,

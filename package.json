@@ -16,7 +16,7 @@
     "generate:icons": "node scripts/run-powershell.mjs scripts/generate-icons.ps1",
     "verify:conductor-rs-artifacts": "node scripts/verify-conductor-rs-artifacts.mjs",
     "verify:conductor-rs-smoke": "node scripts/verify-conductor-rs-smoke.mjs",
-    "verify:rust-assessment-parity": "node --experimental-strip-types scripts/verify-rust-assessment-parity.mjs",
+    "verify:rust-table-facts-parity": "node --experimental-strip-types scripts/verify-rust-table-facts-parity.mjs",
     "dev": "npm run dev:vite --",
     "dev:vite": "npm run deps:ensure && vite --configLoader runner",
     "dev:desktop": "npm run deps:ensure && npm run build:desktop:core && node --experimental-strip-types scripts/dev-desktop.ts",

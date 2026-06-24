@@ -1,5 +1,5 @@
 mod analysis;
-mod assessment;
+mod table_facts;
 mod cells;
 mod converter;
 mod dataset;
@@ -25,8 +25,8 @@ use dataset::EngineDataset;
 use dataset::load_dataset;
 use dataset::load_import_dataset;
 use detect::*;
-use import::IMPORT_ASSESSMENT_PREVIEW_ROWS;
-use import::build_import_assessment;
+use import::IMPORT_TABLE_FACTS_PREVIEW_ROWS;
+use import::build_import_table_facts_seed;
 use infer::infer_auto_segmentation_from_x_values;
 use infer::infer_metadata_group_shape;
 use legend::LegendMode;
@@ -56,8 +56,8 @@ use std::thread;
 use std::time::Instant;
 use utils::*;
 
-const IMPORT_ASSESSMENT_BATCH_PARALLEL_MIN_ENTRIES: usize = 8;
-const IMPORT_ASSESSMENT_BATCH_MAX_THREADS: usize = 4;
+const IMPORT_TABLE_FACTS_BATCH_PARALLEL_MIN_ENTRIES: usize = 8;
+const IMPORT_TABLE_FACTS_BATCH_MAX_THREADS: usize = 4;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -71,7 +71,7 @@ struct EngineRequest {
     curve_filter_field: Option<String>,
     curve_filter_key: Option<String>,
     end_row: Option<usize>,
-    entries: Option<Vec<ImportAssessmentBatchEntry>>,
+    entries: Option<Vec<ImportTableFactsBatchEntry>>,
     file_id: Option<String>,
     file_name: Option<String>,
     id: u64,
@@ -98,7 +98,7 @@ struct EngineRequest {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ImportAssessmentBatchEntry {
+struct ImportTableFactsBatchEntry {
     file_name: Option<String>,
     path: String,
 }
@@ -2433,7 +2433,7 @@ fn resolve_import_file_name(path: &Path, file_name: Option<&str>) -> String {
 }
 
 fn build_import_prepare_result(path: &Path, file_name: String) -> Result<Value, String> {
-    let import_result = load_import_dataset(path, IMPORT_ASSESSMENT_PREVIEW_ROWS)?;
+    let import_result = load_import_dataset(path, IMPORT_TABLE_FACTS_PREVIEW_ROWS)?;
     let Some(summary) = import_result.summary else {
         return Ok(json!({
             "columnCount": 0,
@@ -2446,7 +2446,7 @@ fn build_import_prepare_result(path: &Path, file_name: String) -> Result<Value, 
     };
 
     Ok(json!({
-        "assessment": build_import_assessment(
+        "tableFactsSeed": build_import_table_facts_seed(
             &file_name,
             summary.preview_rows,
         ),
@@ -2471,7 +2471,7 @@ fn build_import_batch_failure(code: &str, message: String, started: Instant) -> 
     })
 }
 
-fn assess_import_batch_entry(entry: &ImportAssessmentBatchEntry) -> Value {
+fn prepare_import_table_facts_batch_entry(entry: &ImportTableFactsBatchEntry) -> Value {
     let started = Instant::now();
     let path_text = entry.path.trim();
     if path_text.is_empty() {
@@ -2505,11 +2505,11 @@ fn assess_import_batch_entry(entry: &ImportAssessmentBatchEntry) -> Value {
     }
 }
 
-fn resolve_import_assessment_batch_threads(
+fn resolve_import_table_facts_batch_threads(
     entry_count: usize,
     requested_threads: Option<usize>,
 ) -> usize {
-    if entry_count < IMPORT_ASSESSMENT_BATCH_PARALLEL_MIN_ENTRIES {
+    if entry_count < IMPORT_TABLE_FACTS_BATCH_PARALLEL_MIN_ENTRIES {
         return 1;
     }
 
@@ -2520,25 +2520,25 @@ fn resolve_import_assessment_batch_threads(
     let default_threads = available_threads
         .saturating_sub(1)
         .max(1)
-        .min(IMPORT_ASSESSMENT_BATCH_MAX_THREADS);
+        .min(IMPORT_TABLE_FACTS_BATCH_MAX_THREADS);
     requested_threads
         .unwrap_or(default_threads)
         .max(1)
         .min(available_threads)
-        .min(IMPORT_ASSESSMENT_BATCH_MAX_THREADS)
+        .min(IMPORT_TABLE_FACTS_BATCH_MAX_THREADS)
         .min(entry_count)
 }
 
-fn assess_import_batch_entries(
-    entries: &[ImportAssessmentBatchEntry],
+fn prepare_import_table_facts_batch_entries(
+    entries: &[ImportTableFactsBatchEntry],
     requested_threads: Option<usize>,
 ) -> (Vec<Value>, usize) {
-    let worker_count = resolve_import_assessment_batch_threads(entries.len(), requested_threads);
+    let worker_count = resolve_import_table_facts_batch_threads(entries.len(), requested_threads);
     if worker_count <= 1 {
         return (
             entries
                 .iter()
-                .map(assess_import_batch_entry)
+                .map(prepare_import_table_facts_batch_entry)
                 .collect::<Vec<_>>(),
             1,
         );
@@ -2558,7 +2558,7 @@ fn assess_import_batch_entries(
                     let Some(entry) = entries.get(index) else {
                         break;
                     };
-                    let result = assess_import_batch_entry(entry);
+                    let result = prepare_import_table_facts_batch_entry(entry);
                     results.lock().expect("batch result lock poisoned")[index] = Some(result);
                 }
             });
@@ -2617,7 +2617,7 @@ fn handle_request(
                 (Err(error), _) | (_, Err(error)) => Err(error),
             }
         }
-        "assessImport" => {
+        "prepareImport" => {
             let path_text = request
                 .path
                 .as_deref()
@@ -2627,14 +2627,14 @@ fn handle_request(
             let file_name = resolve_import_file_name(&path, request.file_name.as_deref());
             build_import_prepare_result(&path, file_name)
         }
-        "assessImportBatch" => {
+        "prepareImportBatch" => {
             let started = Instant::now();
             let entries = request
                 .entries
                 .as_ref()
                 .filter(|entries| !entries.is_empty())
                 .ok_or_else(|| "missing entries".to_string())?;
-            let (results, parallelism) = assess_import_batch_entries(entries, request.threads);
+            let (results, parallelism) = prepare_import_table_facts_batch_entries(entries, request.threads);
             Ok(json!({
                 "durationMs": import_batch_duration_ms(started),
                 "parallelism": parallelism,
@@ -3090,7 +3090,7 @@ fn helper_doctor_json() -> Value {
         "helper": helper_version_json(),
         "capabilities": [
             "stdio-worker",
-            "import-assessment",
+            "import-table-facts",
             "csv-preview",
             "excel-conversion",
             "origin-export",
@@ -3179,16 +3179,16 @@ fn main() {
                             std::process::exit(1);
                         }
                     }
-                    let assessment = build_import_assessment(
+                    let table_facts = build_import_table_facts_seed(
                         result
                             .path
                             .file_name()
                             .and_then(|value| value.to_str())
                             .unwrap_or(""),
-                        result.assessment_rows.clone(),
+                        result.table_facts_rows.clone(),
                     );
                     let manifest = json!({
-                        "assessment": assessment,
+                        "tableFactsSeed": table_facts,
                         "cells": result.stats.cells,
                         "columnCount": result.stats.column_count,
                         "convertMs": result.stats.convert_ms,

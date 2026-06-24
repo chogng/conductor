@@ -250,7 +250,7 @@ export const readTraceState = async (page) => page.evaluate(() => {
     .find(button => /^(应用到所有|Apply to All)$/.test((button.textContent || "").trim()));
   return {
     dom: {
-      assessment: hosts.filter(host => host.dataset.badgeSource === "assessment").length,
+      tableFacts: hosts.filter(host => host.dataset.badgeSource === "tableFacts").length,
       fast: hosts.filter(host => host.dataset.badgeSource === "fast").length,
       hosts: hosts.length,
       loading: [...document.querySelectorAll("[data-source-status]")]
@@ -280,7 +280,7 @@ export const installPageTraceObservers = async (page) => page.evaluate(() => {
     const hosts = [...document.querySelectorAll("[data-badge-state]")];
     const sourceHosts = [...document.querySelectorAll("[data-source-status]")];
     return {
-      assessmentBadgeCount: hosts.filter(host => host.dataset.badgeSource === "assessment").length,
+      tableFactsBadgeCount: hosts.filter(host => host.dataset.badgeSource === "tableFacts").length,
       fastBadgeCount: hosts.filter(host => host.dataset.badgeSource === "fast").length,
       hostCount: hosts.length,
       loadingSourceCount: sourceHosts.filter(host =>
@@ -294,7 +294,7 @@ export const installPageTraceObservers = async (page) => page.evaluate(() => {
   const emitBadgeDom = () => {
     const dom = readBadgeDom();
     const signature = [
-      dom.assessmentBadgeCount,
+      dom.tableFactsBadgeCount,
       dom.fastBadgeCount,
       dom.hostCount,
       dom.loadingSourceCount,
@@ -435,7 +435,7 @@ export const createPhaseRecorder = (page, runtime) => {
 
 
 export const waitForTraceCompletion = async ({
-  expectedAssessmentBadgeCount,
+  expectedTableFactsBadgeCount,
   expectedPrepareCompletionCount,
   page,
   timeoutMs,
@@ -450,9 +450,9 @@ export const waitForTraceCompletion = async ({
       event.stage === "import.prepare.file.complete" ||
       event.stage === "import.prepare.file.failed"
     ).length;
-    const assessmentBadgeCount = Math.max(
-      Number(projection?.meta?.assessmentBadgeCount ?? 0),
-      Number(latest.dom?.assessment ?? 0),
+    const tableFactsBadgeCount = Math.max(
+      Number(projection?.meta?.tableFactsBadgeCount ?? 0),
+      Number(latest.dom?.tableFacts ?? 0),
     );
     const loadingSourceCount = Math.max(
       Number(projection?.meta?.loadingSourceCount ?? 0),
@@ -461,7 +461,7 @@ export const waitForTraceCompletion = async ({
     const applyReady = latest.dom?.applyVisible === true && latest.dom?.applyDisabled === false;
     if (
       prepareCompletionCount >= expectedPrepareCompletionCount &&
-      assessmentBadgeCount >= expectedAssessmentBadgeCount &&
+      tableFactsBadgeCount >= expectedTableFactsBadgeCount &&
       (loadingSourceCount === 0 || applyReady)
     ) {
       return latest;
@@ -470,6 +470,6 @@ export const waitForTraceCompletion = async ({
   }
   throw new Error(
     `Timed out waiting for ${expectedPrepareCompletionCount} prepare completions and ` +
-      `${expectedAssessmentBadgeCount} assessment badges. Last state: ${JSON.stringify(latest?.dom)}`,
+      `${expectedTableFactsBadgeCount} tableFacts badges. Last state: ${JSON.stringify(latest?.dom)}`,
   );
 };

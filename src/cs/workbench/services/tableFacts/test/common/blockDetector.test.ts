@@ -5,14 +5,14 @@
 import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import type { ImportAssessmentSeed } from "src/cs/workbench/services/assessment/common/assessment";
+import type { ImportTableFactsSeed } from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import { detectMeasurementBlocks } from "src/cs/workbench/services/tableFacts/common/blockDetector";
 
-suite("workbench/services/assessment/common/blockDetector", () => {
+suite("workbench/services/tableFacts/common/blockDetector", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test("creates a measurement block from table facts seed evidence", () => {
-		const tableFactsSeed: ImportAssessmentSeed = {
+		const tableFactsSeed: ImportTableFactsSeed = {
 			curveFamily: "iv",
 			curveType: "output (vd)",
 			curveTypeConfidence: "high",
@@ -51,7 +51,7 @@ suite("workbench/services/assessment/common/blockDetector", () => {
 					confidence: 0.82,
 				}],
 			},
-			diagnosticCodes: ["assessment.reason.1"],
+			diagnosticCodes: ["tableFacts.reason.1"],
 			fileId: "file-a",
 			fileName: "output.csv",
 			rawTableId: "raw-a",
@@ -90,6 +90,6 @@ suite("workbench/services/assessment/common/blockDetector", () => {
 			role: "id",
 			unit: "A",
 		}]);
-		assert.deepEqual(blocks[0].diagnosticCodes, ["assessment.reason.1"]);
+		assert.deepEqual(blocks[0].diagnosticCodes, ["tableFacts.reason.1"]);
 	});
 });

@@ -4,7 +4,7 @@ applyTo: 'src/cs/workbench/services/table/**,src/cs/workbench/contrib/table/**'
 ---
 # Table
 
-Table shows raw tables and assessment block ranges. It does not identify
+Table shows raw tables and table-fact block ranges. It does not identify
 measurement structure.
 
 ## Ownership
@@ -20,10 +20,10 @@ measurement structure.
 - paged raw rows cache, loading state, row request lifecycle, worker lifecycle;
 - block table preview model and invalidation when source changes.
 
-It consumes Session snapshots, raw table row readers, assessment ranges,
+It consumes Session snapshots, raw table row readers, table-fact ranges,
 settings for visual display preferences, and pure `TableSource` open intents.
-It does not own import, assessment, template execution, plot/chart models, or
-canonical Session records.
+It does not own import, table-fact production, template execution, plot/chart
+models, or canonical Session records.
 
 ## Core Files
 

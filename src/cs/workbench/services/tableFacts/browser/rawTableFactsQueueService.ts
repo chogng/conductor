@@ -7,6 +7,7 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
 import {
+  getRawTableFactsRuleVersion,
   TABLE_FACTS_RULE_VERSION,
   type RawTableFactsRecord,
 } from "src/cs/workbench/services/template/common/tableFacts";
@@ -532,9 +533,9 @@ const hasCurrentTableFacts = (
 ): boolean => {
   const tableFacts = file.tableFactsByRawTableId[rawTableId];
   return Boolean(
-    tableFacts &&
+      tableFacts &&
       tableFacts.sourceRawTableVersion === (file.rawTableVersionsById[rawTableId] ?? 0) &&
-      tableFacts.assessmentRuleVersion === TABLE_FACTS_RULE_VERSION &&
+      getRawTableFactsRuleVersion(tableFacts) === TABLE_FACTS_RULE_VERSION &&
       tableFacts.schemaProfileVersion === schemaProfileVersion,
   );
 };

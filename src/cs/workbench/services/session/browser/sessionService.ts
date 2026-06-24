@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Browser implementation of the session data table. This is the only mutable
-// owner for canonical imported files, assessments, slice runs, curves, and metrics.
+// owner for canonical imported files, table facts, slice runs, curves, and metrics.
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
@@ -63,6 +63,9 @@ import type {
 } from "src/cs/workbench/services/files/common/rawTable";
 import type {
   RawTableFactsRecord,
+} from "src/cs/workbench/services/template/common/tableFacts";
+import {
+  getRawTableFactsRuleVersion,
 } from "src/cs/workbench/services/template/common/tableFacts";
 import type {
   MeasurementBlockRecord,
@@ -636,7 +639,7 @@ const createImportRawTableFactRecords = (
     }
 
     records.push({
-      assessmentRuleVersion: normalizeAssessmentRuleVersion(tableFacts.assessmentRuleVersion) ?? 0,
+      tableFactsRuleVersion: getRawTableFactsRuleVersion(tableFacts),
       schemaProfileVersion: normalizeSchemaProfileVersion(tableFacts.schemaProfileVersion),
       blocks: tableFacts.blocks,
       columnProfiles: tableFacts.columnProfiles ?? [],
@@ -703,7 +706,7 @@ const commitRawTableFactsToFiles = (
     delete legacyTableFacts.decision;
     const committedTableFacts: RawTableFactsRecord = {
       ...legacyTableFacts,
-      assessmentRuleVersion: normalizeAssessmentRuleVersion(tableFacts.assessmentRuleVersion) ?? 0,
+      tableFactsRuleVersion: getRawTableFactsRuleVersion(tableFacts),
       schemaProfileVersion: normalizeSchemaProfileVersion(tableFacts.schemaProfileVersion),
       fileId,
       rawTableId,
@@ -754,8 +757,8 @@ const commitRawTableReviewsToFiles = (
     const rawTableId = normalizeId(review.rawTableId);
     const file = fileId ? nextFilesById[fileId] : undefined;
     const table = rawTableId ? file?.raw.tablesById[rawTableId] : undefined;
-    const assessment = rawTableId ? file?.tableFactsByRawTableId?.[rawTableId] : undefined;
-    if (!file || !rawTableId || !table || !assessment) {
+    const tableFacts = rawTableId ? file?.tableFactsByRawTableId?.[rawTableId] : undefined;
+    if (!file || !rawTableId || !table || !tableFacts) {
       continue;
     }
 
@@ -768,7 +771,7 @@ const commitRawTableReviewsToFiles = (
     const evidenceSignature = normalizeOptionalText(review.evidenceSignature);
     if (
       !evidenceSignature ||
-      evidenceSignature !== createReviewEvidenceSignature(assessment, {
+      evidenceSignature !== createReviewEvidenceSignature(tableFacts, {
         columnCount: table.columnCount,
         fileName: file.name,
         rowCount: table.rowCount,
@@ -1228,8 +1231,7 @@ const normalizeSliceRunRecord = (
     selection: normalizeTemplateSelection(input.selection),
     sourceRawTableVersion: normalizeNonNegativeInteger(input.sourceRawTableVersion),
     sourceTableFactsSignature: normalizeOptionalText(
-      input.sourceTableFactsSignature ??
-        (input as { readonly sourceAssessmentSignature?: string }).sourceAssessmentSignature,
+      input.sourceTableFactsSignature,
     ),
     inputRanges: normalizeSliceInputRanges(input.inputRanges, fileId, rawTableId),
     outputSeriesIds: uniqueStrings(
@@ -1564,11 +1566,6 @@ const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
 const normalizeId = (value: unknown): string => String(value ?? "").trim();
-
-const normalizeAssessmentRuleVersion = (value: unknown): number | undefined => {
-  const version = Math.floor(Number(value));
-  return Number.isFinite(version) && version > 0 ? version : undefined;
-};
 
 const normalizeSchemaProfileVersion = (value: unknown): number => {
   const version = Math.floor(Number(value));
