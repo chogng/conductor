@@ -156,6 +156,7 @@ suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
 
 function createQuickInputService(shownPrefixes: string[]): IQuickInputService {
   const quickAccess: IQuickAccessController = {
+    pick: async () => undefined,
     show: (value = "") => {
       shownPrefixes.push(value);
     },
@@ -163,6 +164,9 @@ function createQuickInputService(shownPrefixes: string[]): IQuickInputService {
 
   return {
     _serviceBrand: undefined,
+    createQuickPick: () => {
+      throw new Error("createQuickPick is not used by this test");
+    },
     quickAccess,
     pick: async <T extends QuickPickItem>(_options: QuickPickOptions<T>): Promise<T | undefined> => undefined,
   };

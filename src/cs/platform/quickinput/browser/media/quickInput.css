@@ -56,6 +56,7 @@
   border: none;
   border-radius: 6px;
   color: rgb(var(--text-secondary));
+  cursor: pointer;
   display: flex;
   font-size: 13px;
   gap: 12px;
@@ -63,6 +64,7 @@
   outline: none;
   padding: 7px 9px;
   text-align: left;
+  user-select: none;
 }
 
 .quick-input-item:hover,
@@ -90,6 +92,44 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.quick-input-item-actions {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.quick-input-item-button {
+  align-items: center;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: rgb(var(--text-tertiary));
+  display: inline-flex;
+  font-size: 11px;
+  height: 22px;
+  justify-content: center;
+  min-width: 22px;
+  padding: 0 5px;
+}
+
+.quick-input-item-button:hover {
+  background: rgb(var(--bg-surface-active));
+  color: rgb(var(--text-primary));
+}
+
+.quick-input-separator {
+  align-items: center;
+  color: rgb(var(--text-tertiary));
+  display: flex;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  min-height: 24px;
+  padding: 7px 9px 3px;
+  text-transform: uppercase;
 }
 
 .quick-input-empty {

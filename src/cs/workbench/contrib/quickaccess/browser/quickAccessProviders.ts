@@ -11,7 +11,7 @@ import { COMMANDS_QUICK_ACCESS_PREFIX } from "src/cs/workbench/contrib/quickacce
 
 export const FILES_QUICK_ACCESS_PREFIX = "file ";
 
-export class DefaultQuickAccessProvider extends PickerQuickAccessProvider {
+export class DefaultQuickAccessProvider extends PickerQuickAccessProvider<QuickAccessItem> {
   public constructor(
     @IQuickInputService private readonly quickInputService: IQuickInputService,
   ) {
@@ -36,12 +36,12 @@ export class DefaultQuickAccessProvider extends PickerQuickAccessProvider {
   }
 }
 
-export class FilesQuickAccessProvider extends PickerQuickAccessProvider {
+export class FilesQuickAccessProvider extends PickerQuickAccessProvider<QuickAccessItem> {
   public constructor(
     @IExplorerService private readonly explorerService: IExplorerService,
     @IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
   ) {
-    super();
+    super(FILES_QUICK_ACCESS_PREFIX);
   }
 
   protected getPicks(filter: string): readonly QuickAccessItem[] {

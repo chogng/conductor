@@ -1,4 +1,5 @@
-import { PickerQuickAccessProvider } from "src/cs/platform/quickinput/browser/pickerQuickAccess";
+import { CancellationToken } from "src/cs/base/common/async";
+import { localize } from "src/cs/nls";
 import { isLocalizedString, type ICommandActionTitle } from "src/cs/platform/action/common/action";
 import {
   IMenuService,
@@ -7,47 +8,43 @@ import {
 } from "src/cs/platform/actions/common/actions";
 import {
   ICommandService,
+  type ICommandService as ICommandServiceType,
 } from "src/cs/platform/commands/common/commands";
 import {
   IContextKeyService,
   type IContextKeyService as IContextKeyServiceType,
 } from "src/cs/platform/contextkey/common/contextkey";
 import {
-  type QuickAccessItem,
-} from "src/cs/platform/quickinput/common/quickAccess";
+  AbstractCommandsQuickAccessProvider,
+  type ICommandQuickPick,
+} from "src/cs/platform/quickinput/browser/commandsQuickAccess";
 
-export const COMMANDS_QUICK_ACCESS_PREFIX = ">";
+export const COMMANDS_QUICK_ACCESS_PREFIX = AbstractCommandsQuickAccessProvider.PREFIX;
 
-type QuickAccessCommand = QuickAccessItem & {
-  readonly id: string;
-  readonly label: string;
-  readonly description: string;
-};
-
-export class CommandsQuickAccessProvider extends PickerQuickAccessProvider<QuickAccessCommand> {
+export class CommandsQuickAccessProvider extends AbstractCommandsQuickAccessProvider {
   public constructor(
-    @ICommandService private readonly commandService: ICommandService,
+    @ICommandService commandService: ICommandServiceType,
     @IMenuService private readonly menuService: IMenuService,
     @IContextKeyService private readonly contextKeyService: IContextKeyServiceType,
   ) {
-    super();
+    super({
+      noResultsPick: {
+        commandId: "",
+        id: "quickAccess.commands.noResults",
+        label: localize("quickAccess.commands.noResults", "No matching commands"),
+      },
+      showAlias: false,
+    }, commandService);
   }
 
-  protected getPicks(filter: string): readonly QuickAccessCommand[] {
-    const normalizedFilter = filter.trim().toLowerCase();
-    const commands = getQuickAccessCommands(
-      this.menuService,
-      this.contextKeyService,
-      commandId => {
-        void this.commandService.executeCommand(commandId);
-      },
-    );
-    if (!normalizedFilter) {
-      return commands;
+  protected async getCommandPicks(token: CancellationToken): Promise<Array<ICommandQuickPick>> {
+    if (token.isCancellationRequested) {
+      return [];
     }
 
-    return commands.filter(command =>
-      `${command.label} ${command.description} ${command.id}`.toLowerCase().includes(normalizedFilter),
+    return getQuickAccessCommands(
+      this.menuService,
+      this.contextKeyService,
     );
   }
 }
@@ -55,10 +52,9 @@ export class CommandsQuickAccessProvider extends PickerQuickAccessProvider<Quick
 const getQuickAccessCommands = (
   menuService: IMenuService,
   contextKeyService: IContextKeyServiceType,
-  runCommand: (commandId: string) => void,
-): readonly QuickAccessCommand[] => {
+): ICommandQuickPick[] => {
   const groups = menuService.getMenuActions(MenuId.CommandPalette, contextKeyService);
-  const commands = new Map<string, QuickAccessCommand>();
+  const commands = new Map<string, ICommandQuickPick>();
 
   for (const [, actions] of groups) {
     for (const action of actions) {
@@ -66,29 +62,27 @@ const getQuickAccessCommands = (
         continue;
       }
 
-      const command = createQuickAccessCommand(action, runCommand);
+      const command = createQuickAccessCommand(action);
       if (command) {
-        commands.set(command.id, command);
+        commands.set(command.commandId, command);
       }
     }
   }
 
-  return Array.from(commands.values()).sort((a, b) =>
-    a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
-  );
+  return Array.from(commands.values());
 };
 
 const createQuickAccessCommand = (
   action: MenuItemAction,
-  runCommand: (commandId: string) => void,
-): QuickAccessCommand | null => {
+): ICommandQuickPick | null => {
   if (!action.enabled || !action.id || !action.label) {
     return null;
   }
 
   const commandId = action.id;
   return {
-    accept: () => runCommand(commandId),
+    commandCategory: titleToString(action.item.category),
+    commandId,
     id: commandId,
     label: action.label,
     description: titleToString(action.item.category),

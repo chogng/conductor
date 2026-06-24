@@ -1,22 +1,20 @@
 import assert from "assert";
 
 import { DisposableStore } from "src/cs/base/common/lifecycle";
+import { ContextKeyService } from "src/cs/platform/contextkey/browser/contextKeyService";
+import { IContextKeyService } from "src/cs/platform/contextkey/common/contextkey";
 import { InstantiationService } from "src/cs/platform/instantiation/common/instantiationService";
 import { ServiceCollection } from "src/cs/platform/instantiation/common/serviceCollection";
 import { Registry } from "src/cs/platform/registry/common/platform";
+import { PickerQuickAccessProvider } from "src/cs/platform/quickinput/browser/pickerQuickAccess";
 import { QuickAccessController } from "src/cs/platform/quickinput/browser/quickAccess";
 import {
   QuickAccessExtensions,
-  type IQuickAccessController,
   type IQuickAccessRegistry,
   type QuickAccessItem,
-  type QuickAccessProvider,
 } from "src/cs/platform/quickinput/common/quickAccess";
 import {
   IQuickInputService,
-  type IQuickInputService as IQuickInputServiceType,
-  type QuickPickItem,
-  type QuickPickOptions,
 } from "src/cs/platform/quickinput/common/quickInput";
 import { BrowserQuickInputService } from "src/cs/platform/quickinput/browser/quickInputService";
 
@@ -52,16 +50,16 @@ suite("base/test/browser/platform/quickInputService", () => {
   test("instantiates quick access providers on first use", async () => {
     const store = new DisposableStore();
     const registry = Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.QuickAccess);
-    const pickedItems: QuickPickItem[][] = [];
     const providedFilters: string[] = [];
     let constructedProviders = 0;
 
-    class TestQuickAccessProvider implements QuickAccessProvider {
+    class TestQuickAccessProvider extends PickerQuickAccessProvider<QuickAccessItem> {
       public constructor() {
+        super("lazy-test ");
         constructedProviders += 1;
       }
 
-      public provide(filter: string): readonly QuickAccessItem[] {
+      protected getPicks(filter: string): readonly QuickAccessItem[] {
         providedFilters.push(filter);
         return [{
           id: `test.${filter}`,
@@ -70,16 +68,12 @@ suite("base/test/browser/platform/quickInputService", () => {
       }
     }
 
-    const quickInputService: IQuickInputServiceType = {
-      _serviceBrand: undefined,
-      quickAccess: { show: () => undefined } satisfies IQuickAccessController,
-      pick: async <T extends QuickPickItem>(options: QuickPickOptions<T>): Promise<T | undefined> => {
-        pickedItems.push([...options.items]);
-        return undefined;
-      },
-    };
-    const serviceCollection = new ServiceCollection([IQuickInputService, quickInputService]);
+    const serviceCollection = new ServiceCollection();
     const controllerInstantiationService = store.add(new InstantiationService(serviceCollection));
+    const quickInputService = store.add(new BrowserQuickInputService(controllerInstantiationService));
+    const contextKeyService = store.add(new ContextKeyService());
+    serviceCollection.set(IQuickInputService, quickInputService);
+    serviceCollection.set(IContextKeyService, contextKeyService);
 
     store.add(registry.registerQuickAccessProvider({
       ctor: TestQuickAccessProvider,
@@ -99,7 +93,10 @@ suite("base/test/browser/platform/quickInputService", () => {
 
       assert.equal(constructedProviders, 1);
       assert.deepEqual(providedFilters, ["alpha", "beta"]);
-      assert.deepEqual(pickedItems.map(items => items[0]?.id), ["test.alpha", "test.beta"]);
+      assert.equal(
+        document.querySelector<HTMLElement>(".quick-input-item")?.dataset.quickPickItemId,
+        "test.beta",
+      );
     } finally {
       store.dispose();
     }
