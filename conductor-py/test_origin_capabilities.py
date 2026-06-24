@@ -55,7 +55,7 @@ class OriginCapabilitiesTest(unittest.TestCase):
         self.assertEqual(plan.axis_frame["xOpposite"], True)
         self.assertEqual(plan.style_legend["fontSize"], 12.0)
 
-    def test_resolve_capability_plan_maps_legacy_axis_commands_to_advanced(self):
+    def test_resolve_capability_plan_maps_axis_limits_to_advanced_settings(self):
         plan = resolve_capability_plan({
             "axis": {
                 "commands": ["layer.y.type=2"],

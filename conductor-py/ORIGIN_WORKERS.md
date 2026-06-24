@@ -137,7 +137,7 @@ Expected outputs:
 3. `New workbook` (`workbookBooks`):
    Reuse one Origin session/window and create one new workbook (`newbook`) per thumbnail.
 4. `New window` (`separate`):
-   Keep the legacy per-job behavior so each thumbnail can open through an independent Origin launch/session path.
+   Keep the per-job behavior so each thumbnail can open through an independent Origin launch/session path.
 
 Implementation note:
 

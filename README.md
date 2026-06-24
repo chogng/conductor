@@ -142,7 +142,7 @@ and `scripts/code.bat` are the upstream-style user-facing entry scripts. See
 the [project wiki](https://github.com/chogng/conductor/wiki) for architecture
 and responsibility-boundary notes.
 
-Legacy direct entry:
+Direct npm entry:
 
 ```bash
 npm run dev:desktop

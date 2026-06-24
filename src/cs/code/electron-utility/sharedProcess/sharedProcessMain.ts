@@ -1,5 +1,5 @@
 import { cleanSharedProcessLogs } from "./contrib/logsDataCleaner.js";
-import { cleanLegacyStoreData } from "./contrib/legacyStoreDataCleaner.js";
+import { cleanRetiredStoreData } from "./contrib/retiredStoreDataCleaner.js";
 import { updateLocalizations } from "./contrib/localizationsUpdater.js";
 import { cleanOriginRuntimeStorage } from "./contrib/originRuntimeStorageCleaner.js";
 import { cleanRustProcessingCaches } from "./contrib/rustCacheCleaner.js";
@@ -37,8 +37,8 @@ const contributions: readonly SharedProcessContribution[] = [
 		startup: cleanUnusedWorkspaceStorageData,
 	},
 	{
-		id: "legacyStoreDataCleaner",
-		startup: cleanLegacyStoreData,
+		id: "retiredStoreDataCleaner",
+		startup: cleanRetiredStoreData,
 	},
   {
     id: "originRuntimeStorageCleaner",

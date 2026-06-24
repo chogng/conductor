@@ -423,7 +423,7 @@ function resolveDesktopWindowAppearanceStyle(
     // Never set `transparent: true` on macOS. A transparent window is created as
     // a borderless, layer-backed NSWindow which (a) bypasses the NSVisualEffectView
     // so native vibrancy never composites (flat gray instead of blurred
-    // wallpaper) and (b) renders the legacy/compact traffic-light buttons instead
+    // wallpaper) and (b) renders the compact traffic-light buttons instead
     // of the standard system size. A normal titled window with a clear background
     // color lets the native vibrancy material show through and keeps the standard
     // window controls.

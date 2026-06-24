@@ -2297,7 +2297,7 @@ export class PlotService extends Disposable implements IPlotService {
   private getStoredAxisSettings(): FileAxisSettingsOverrides {
     return {
       xUnitByFileId: {
-        ...readLegacyStringMap(this.settingsService.getConductorSettings()?.xUnitByFileId),
+        ...readRetiredSettingsStringMap(this.settingsService.getConductorSettings()?.xUnitByFileId),
         ...this.storageService.getObject<Record<string, string>>(
           PLOT_AXIS_STORAGE_KEYS.xUnitByFileId,
           StorageScope.PROFILE,
@@ -2305,7 +2305,7 @@ export class PlotService extends Disposable implements IPlotService {
         ),
       },
       yScaleByFileId: {
-        ...readLegacyStringMap(this.settingsService.getConductorSettings()?.yScaleByFileId),
+        ...readRetiredSettingsStringMap(this.settingsService.getConductorSettings()?.yScaleByFileId),
         ...this.storageService.getObject<Record<string, string>>(
           PLOT_AXIS_STORAGE_KEYS.yScaleByFileId,
           StorageScope.PROFILE,
@@ -2313,7 +2313,7 @@ export class PlotService extends Disposable implements IPlotService {
         ),
       },
       yUnitByFileId: {
-        ...readLegacyStringMap(this.settingsService.getConductorSettings()?.yUnitByFileId),
+        ...readRetiredSettingsStringMap(this.settingsService.getConductorSettings()?.yUnitByFileId),
         ...this.storageService.getObject<Record<string, string>>(
           PLOT_AXIS_STORAGE_KEYS.yUnitByFileId,
           StorageScope.PROFILE,
@@ -2614,7 +2614,7 @@ const normalizeLegendLabelMap = (
   return result;
 };
 
-const readLegacyStringMap = (value: unknown): Record<string, string> => {
+const readRetiredSettingsStringMap = (value: unknown): Record<string, string> => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {};
   }

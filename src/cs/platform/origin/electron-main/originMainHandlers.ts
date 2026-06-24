@@ -498,11 +498,11 @@ function normalizeOriginCapabilitiesPayload(rawCapabilities: unknown): Record<st
 
   const axisLimitsRaw = pickSection(axisSection.limits);
   for (const axisName of ["x", "y"] as const) {
-    const legacyAxis = normalizeAxisLimitShape(axisLimitsRaw[axisName]);
-    if (!legacyAxis) {
+    const axisLimitShape = normalizeAxisLimitShape(axisLimitsRaw[axisName]);
+    if (!axisLimitShape) {
       continue;
     }
-    const { scale, ...range } = legacyAxis;
+    const { scale, ...range } = axisLimitShape;
     if (Object.keys(range).length && !axisRangeNormalized[axisName]) {
       axisRangeNormalized[axisName] = range;
     }

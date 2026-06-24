@@ -31,7 +31,7 @@ table preview state.
 | `common/calculationRecordBuilder.ts` | facade for calculated curve/metric commit payloads. |
 | `common/calculationCurveRecordBuilder.ts` | derived and second-derived `CurveRecord` builders. |
 | `common/calculationMetricRecordBuilder.ts` | `MetricRecord` builders from base curves/metric inputs. |
-| `common/calculationReadModel.ts` | derived read models and legacy compatibility projections. |
+| `common/calculationReadModel.ts` | derived read models and retired-payload compatibility projections. |
 | `common/calculationCacheAccess.ts` / `calculationCachePolicy.ts` | cache access/invalidation/retention. |
 | `common/gm.ts`, `ss.ts`, `vth.ts`, `ionIoff.ts`, `sweepSegmentation.ts` | focused algorithm families/helpers. |
 | `browser/calculationService.ts` | service owner: signatures, pending queue, priority lane, worker chunks, Session commits. |

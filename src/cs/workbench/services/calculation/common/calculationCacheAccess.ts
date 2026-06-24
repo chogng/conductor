@@ -13,7 +13,7 @@ import {
 
 // TODO(conductor-architecture): Migration bridge.
 // Prefer canonical FileRecord.calculationCache; keep analysisCache reads only for
-// legacy compatibility until legacy session payloads are removed.
+// retired payload compatibility until old session snapshots are removed.
 export type CachedCalculationSeriesResult = {
   baseCurrent?: unknown;
   gm?: unknown;
@@ -52,7 +52,7 @@ const getCanonicalCacheEntryValue = (
   return isObjectRecord(entry) && entry.kind === kind ? entry.value : undefined;
 };
 
-const getLegacyCalculationSeriesResult = (
+const getRetiredPayloadCalculationSeriesResult = (
   file: FileLike | null | undefined,
   seriesId: string,
 ): CachedCalculationSeriesResult | null => {
@@ -103,7 +103,7 @@ export const getCachedCalculationSeriesResult = (
     return cached;
   }
 
-  return getLegacyCalculationSeriesResult(file, seriesId);
+  return getRetiredPayloadCalculationSeriesResult(file, seriesId);
 };
 
 export const getCachedDerivativePoints = (

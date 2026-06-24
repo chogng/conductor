@@ -8,49 +8,49 @@ import os from "node:os";
 import path from "node:path";
 
 import {
-	deleteLegacyStoreDataFiles,
+	deleteRetiredStoreDataFiles,
 	migrateCustomStoreDataToDefault,
-} from "src/cs/code/electron-utility/sharedProcess/contrib/legacyStoreDataCleaner";
+} from "src/cs/code/electron-utility/sharedProcess/contrib/retiredStoreDataCleaner";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
-suite("code/electron-utility/sharedProcess/contrib/legacyStoreDataCleaner", () => {
+suite("code/electron-utility/sharedProcess/contrib/retiredStoreDataCleaner", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
 	function createTempDir(): string {
 		return fs.mkdtempSync(path.join(os.tmpdir(), "conductor-storage-cleanup-"));
 	}
 
-	test("deletes only known legacy store files", () => {
+	test("deletes only known retired store files", () => {
 		const root = createTempDir();
 		try {
-			const legacyHomeDir = path.join(root, ".device");
-			fs.mkdirSync(legacyHomeDir, { recursive: true });
-			fs.writeFileSync(path.join(legacyHomeDir, "config.json"), "{\"theme\":\"dark\"}", "utf8");
-			fs.writeFileSync(path.join(legacyHomeDir, "template.json"), "{\"templates\":[]}", "utf8");
-			fs.writeFileSync(path.join(legacyHomeDir, "store-path.json"), "{\"customStorePath\":null}", "utf8");
-			fs.writeFileSync(path.join(legacyHomeDir, "keep.json"), "{}", "utf8");
+			const retiredHomeDir = path.join(root, ".device");
+			fs.mkdirSync(retiredHomeDir, { recursive: true });
+			fs.writeFileSync(path.join(retiredHomeDir, "config.json"), "{\"theme\":\"dark\"}", "utf8");
+			fs.writeFileSync(path.join(retiredHomeDir, "template.json"), "{\"templates\":[]}", "utf8");
+			fs.writeFileSync(path.join(retiredHomeDir, "store-path.json"), "{\"customStorePath\":null}", "utf8");
+			fs.writeFileSync(path.join(retiredHomeDir, "keep.json"), "{}", "utf8");
 
-			const deleted = deleteLegacyStoreDataFiles(legacyHomeDir).map(filePath => path.basename(filePath)).sort();
+			const deleted = deleteRetiredStoreDataFiles(retiredHomeDir).map(filePath => path.basename(filePath)).sort();
 
 			assert.deepEqual(deleted, ["config.json", "store-path.json", "template.json"]);
-			assert.equal(fs.existsSync(path.join(legacyHomeDir, "config.json")), false);
-			assert.equal(fs.existsSync(path.join(legacyHomeDir, "template.json")), false);
-			assert.equal(fs.existsSync(path.join(legacyHomeDir, "store-path.json")), false);
-			assert.equal(fs.existsSync(path.join(legacyHomeDir, "keep.json")), true);
+			assert.equal(fs.existsSync(path.join(retiredHomeDir, "config.json")), false);
+			assert.equal(fs.existsSync(path.join(retiredHomeDir, "template.json")), false);
+			assert.equal(fs.existsSync(path.join(retiredHomeDir, "store-path.json")), false);
+			assert.equal(fs.existsSync(path.join(retiredHomeDir, "keep.json")), true);
 		} finally {
 			fs.rmSync(root, { force: true, recursive: true });
 		}
 	});
 
-	test("skips non-file legacy store paths", () => {
+	test("skips non-file retired store paths", () => {
 		const root = createTempDir();
 		try {
-			const legacyHomeDir = path.join(root, ".device");
-			fs.mkdirSync(path.join(legacyHomeDir, "template.json"), { recursive: true });
+			const retiredHomeDir = path.join(root, ".device");
+			fs.mkdirSync(path.join(retiredHomeDir, "template.json"), { recursive: true });
 
-			const deleted = deleteLegacyStoreDataFiles(legacyHomeDir);
+			const deleted = deleteRetiredStoreDataFiles(retiredHomeDir);
 
 			assert.deepEqual(deleted, []);
-			assert.equal(fs.statSync(path.join(legacyHomeDir, "template.json")).isDirectory(), true);
+			assert.equal(fs.statSync(path.join(retiredHomeDir, "template.json")).isDirectory(), true);
 		} finally {
 			fs.rmSync(root, { force: true, recursive: true });
 		}

@@ -15,7 +15,7 @@ context-menu entries, keybindings, or workflow controllers.
 - Command/action ids describe the owning operation, not the UI location.
 - Reuse the same owner command from titlebar, toolbar, menu, context menu, and keybinding entries.
 - Use UI-location names only for DOM ids, CSS hooks, test selectors, or local runtime action ids.
-- Workbench mode vocabulary is `table` and `chart`; avoid legacy/generic labels such as `analysis`.
+- Workbench mode vocabulary is `table` and `chart`; avoid retired/generic labels such as `analysis`.
 
 Avoid ids such as `titlebar.selectFile` when the owner is Files/Explorer or
 workbench mode switching.

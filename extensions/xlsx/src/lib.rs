@@ -75,7 +75,7 @@ fn write_result(text: String) -> *mut u8 {
 /// The browser import pipeline calls this for every `.xls`/`.xlsx` file. We
 /// support three families:
 ///   * Modern OOXML `.xlsx` (and `.xlsb` / `.ods`) — via calamine.
-///   * Legacy binary BIFF `.xls` — via calamine.
+///   * BIFF binary `.xls` — via calamine.
 ///   * SpreadsheetML 2003 XML saved with a `.xls` extension — a plain XML
 ///     dialect that calamine cannot read. Instrument/measurement tools (the
 ///     primary source of import data) commonly export this. We detect it and

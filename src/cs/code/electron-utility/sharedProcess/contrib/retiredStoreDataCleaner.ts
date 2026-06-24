@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { SharedProcessContributionContext } from "../sharedProcessMain.js";
 
-const LEGACY_STORE_DATA_FILES: readonly string[] = Object.freeze([
+const RETIRED_STORE_DATA_FILES: readonly string[] = Object.freeze([
 	"config.json",
 	"template.json",
 	"store-path.json",
@@ -21,15 +21,15 @@ interface StorePathConfig {
 	readonly customStorePath?: string | null;
 }
 
-export function deleteLegacyStoreDataFiles(
-	legacyHomeDir: string,
-	files: readonly string[] = LEGACY_STORE_DATA_FILES,
+export function deleteRetiredStoreDataFiles(
+	retiredHomeDir: string,
+	files: readonly string[] = RETIRED_STORE_DATA_FILES,
 ): string[] {
-	const legacyRoot = path.resolve(legacyHomeDir);
+	const retiredRoot = path.resolve(retiredHomeDir);
 	const deletedFiles: string[] = [];
 
 	for (const fileName of files) {
-		const filePath = path.join(legacyRoot, fileName);
+		const filePath = path.join(retiredRoot, fileName);
 		if (!fs.existsSync(filePath)) {
 			continue;
 		}
@@ -84,17 +84,17 @@ export function migrateCustomStoreDataToDefault(
 	files: readonly string[] = DEFAULT_STORE_DATA_FILES,
 ): string[] {
 	// Temporary compatibility for the removed custom store path. Keep this
-	// migration for two releases, then remove this legacy cleaner.
+	// migration for two releases, then remove this retired-path cleaner.
 	const customStorePath = readCustomStorePath(userDataHomeDir);
 	const storeConfigPath = path.join(userDataHomeDir, STORE_CONFIG_FILENAME);
 	if (!customStorePath || !path.isAbsolute(customStorePath)) {
-		return deleteLegacyStoreDataFiles(userDataHomeDir, [STORE_CONFIG_FILENAME]);
+		return deleteRetiredStoreDataFiles(userDataHomeDir, [STORE_CONFIG_FILENAME]);
 	}
 
 	const defaultRoot = path.resolve(userDataHomeDir);
 	const customRoot = path.resolve(path.dirname(customStorePath));
 	if (customRoot === defaultRoot) {
-		return deleteLegacyStoreDataFiles(userDataHomeDir, [STORE_CONFIG_FILENAME]);
+		return deleteRetiredStoreDataFiles(userDataHomeDir, [STORE_CONFIG_FILENAME]);
 	}
 
 	const migratedFiles: string[] = [];
@@ -115,20 +115,20 @@ export function migrateCustomStoreDataToDefault(
 	return migratedFiles;
 }
 
-export function cleanLegacyStoreData(
+export function cleanRetiredStoreData(
 	context: SharedProcessContributionContext,
 ): void {
 	try {
 		const cleanedFiles = [
-			...deleteLegacyStoreDataFiles(context.analysisHomeDir),
+			...deleteRetiredStoreDataFiles(context.analysisHomeDir),
 			...migrateCustomStoreDataToDefault(context.conductorUserDataHomeDir),
 		];
 		for (const filePath of cleanedFiles) {
-			context.log(`[shared-process] Cleaned legacy store data file: ${filePath}`);
+			context.log(`[shared-process] Cleaned retired store data file: ${filePath}`);
 		}
 	} catch (error) {
 		context.warn(
-			`[shared-process] Failed to clean legacy store data: ${context.analysisHomeDir}`,
+			`[shared-process] Failed to clean retired store data: ${context.analysisHomeDir}`,
 			error,
 		);
 	}

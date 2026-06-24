@@ -138,7 +138,7 @@ Use `Manager` only when none of those names is accurate.
 
 ## Migration Comments
 
-When keeping legacy code during migration, annotate the boundary:
+When keeping retired compatibility code during migration, annotate the boundary:
 
 ```ts
 // TODO(conductor-architecture): Migration bridge.

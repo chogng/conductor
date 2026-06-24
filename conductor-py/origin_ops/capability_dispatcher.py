@@ -562,20 +562,20 @@ def resolve_capability_plan(raw_capabilities) -> CapabilityPlan:
     axis_frame = normalize_axis_frame_settings(axis_capabilities.get("frame"))
     style_legend = normalize_style_legend_settings(style_capabilities.get("legend"))
     axis_limits = normalize_axis_limit_settings(axis_capabilities.get("limits"))
-    for axis_name, legacy_axis in axis_limits.items():
-        if not isinstance(legacy_axis, dict):
+    for axis_name, axis_limit in axis_limits.items():
+        if not isinstance(axis_limit, dict):
             continue
-        legacy_range = {
-            key: legacy_axis[key]
+        axis_limit_range = {
+            key: axis_limit[key]
             for key in ("from", "to", "step")
-            if key in legacy_axis
+            if key in axis_limit
         }
-        if legacy_range and axis_name not in axis_range:
-            axis_range[axis_name] = legacy_range
-        legacy_scale = legacy_axis.get("scale")
-        normalized_legacy_scale = legacy_scale.strip().lower() if isinstance(legacy_scale, str) else ""
-        if normalized_legacy_scale in ("linear", "log") and axis_name not in axis_scale:
-            axis_scale[axis_name] = {"mode": normalized_legacy_scale}
+        if axis_limit_range and axis_name not in axis_range:
+            axis_range[axis_name] = axis_limit_range
+        axis_limit_scale = axis_limit.get("scale")
+        normalized_axis_limit_scale = axis_limit_scale.strip().lower() if isinstance(axis_limit_scale, str) else ""
+        if normalized_axis_limit_scale in ("linear", "log") and axis_name not in axis_scale:
+            axis_scale[axis_name] = {"mode": normalized_axis_limit_scale}
     plot_command_override_raw = plot_capabilities.get("command")
     plot_command_override = (
         plot_command_override_raw.strip()

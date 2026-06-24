@@ -193,9 +193,9 @@ suite("workbench/services/files/test/browser/fileConverter import records", () =
       name: "mixed-types.xlsx",
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
-    const xls = await readFixtureFile("xls/legacy-mixed-types.xls", {
+    const xls = await readFixtureFile("xls/biff-mixed-types.xls", {
       lastModified: 123,
-      name: "legacy-mixed-types.xls",
+      name: "biff-mixed-types.xls",
       type: "application/vnd.ms-excel",
     });
 
@@ -225,8 +225,8 @@ suite("workbench/services/files/test/browser/fileConverter import records", () =
     const xlsRecord = await createImportedFileRecord({
       file: xls,
       fileId: "xls-fixture",
-      fileName: "legacy-mixed-types.xls",
-      sourcePath: "C:/data/legacy-mixed-types.xls",
+      fileName: "biff-mixed-types.xls",
+      sourcePath: "C:/data/biff-mixed-types.xls",
       tables: [
         {
           csvText: "Label,Number\nplain text,42.5",
@@ -257,7 +257,7 @@ suite("workbench/services/files/test/browser/fileConverter import records", () =
     });
     assert.deepEqual(xlsRecord.raw.rawTablesById["xls-fixture"].source, {
       kind: "excelSheet",
-      originalPath: "C:/data/legacy-mixed-types.xls",
+      originalPath: "C:/data/biff-mixed-types.xls",
       sheetIndex: 0,
       sheetName: "Sheet1",
     });

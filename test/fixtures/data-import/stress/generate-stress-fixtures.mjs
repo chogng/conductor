@@ -252,12 +252,12 @@ const writeXlsx = async (filePath, options) => {
   await fs.writeFile(filePath, bytes);
 };
 
-const createLegacyXlsRows = function* (rowCount, columnCount) {
+const createBiffXlsRows = function* (rowCount, columnCount) {
   yield '<html><head><meta charset="utf-8"></head><body><table>';
-  yield `<tr>${Array.from({ length: columnCount }, (_, column) => `<th>legacy_${column + 1}</th>`).join("")}</tr>`;
+  yield `<tr>${Array.from({ length: columnCount }, (_, column) => `<th>biff_${column + 1}</th>`).join("")}</tr>`;
   for (let row = 0; row < rowCount; row += 1) {
     yield `<tr>${Array.from({ length: columnCount }, (_, column) => {
-      const value = column % 5 === 0 ? `legacy ${row},${column}` : formatNumber((row + 1) * (column + 1));
+      const value = column % 5 === 0 ? `biff ${row},${column}` : formatNumber((row + 1) * (column + 1));
       return `<td>${xmlEscape(value)}</td>`;
     }).join("")}</tr>`;
   }
@@ -307,13 +307,12 @@ const main = async () => {
   });
   await logFile(`${options.xlsxSheets.toLocaleString()} XLSX sheets`, xlsxPath);
 
-  const xlsPath = path.join(options.outDir, "xls", `legacy-large-${options.xlsRows}x${options.xlsColumns}.xls`);
+  const xlsPath = path.join(options.outDir, "xls", `biff-large-${options.xlsRows}x${options.xlsColumns}.xls`);
   const xlsLines = await writeRows(
     xlsPath,
-    createLegacyXlsRows(options.xlsRows, options.xlsColumns),
+    createBiffXlsRows(options.xlsRows, options.xlsColumns),
   );
-  await logFile(`${xlsLines.toLocaleString()} legacy XLS HTML lines`, xlsPath);
+  await logFile(`${xlsLines.toLocaleString()} BIFF-compatible XLS HTML lines`, xlsPath);
 };
 
 await main();
-

@@ -10,7 +10,7 @@
     "deps:ensure": "node --experimental-strip-types build/npm/fast-install.ts",
     "sync:nls": "node --experimental-strip-types build/lib/nls.ts",
     "verify:icons": "node --experimental-strip-types build/win32/verify-icons.ts",
-    "verify:legacy-user-storage": "node scripts/verify-legacy-user-storage.mjs",
+    "verify:retired-user-storage": "node scripts/verify-retired-user-storage.mjs",
     "verify:nls": "node --experimental-strip-types build/lib/nls.ts",
     "build:recipes": "node scripts/buildRecipeBundle.mjs",
     "generate:icons": "node scripts/run-powershell.mjs scripts/generate-icons.ps1",

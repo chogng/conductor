@@ -6,7 +6,7 @@ applyTo: 'src/cs/workbench/services/recipe/**,resources/recipes/**,scripts/build
 
 `Recipe` is a passive built-in recipe for deriving a concrete `Template` from
 table facts. It is not a `Template`, not an executable extraction plan, not a
-provider, and not a legacy rule engine.
+provider, and not a retired rule engine.
 
 ```txt
 Recipe[]
@@ -112,7 +112,7 @@ RecipeService reload/change
   `TemplateRecipe`.
 - Do not move the Recipe catalog under Template ownership; Template only owns
   interpreting Recipe snapshots against table facts.
-- Do not call Recipe a rule or revive legacy Rule naming; Recipe is the current
+- Do not call Recipe a rule or revive retired Rule naming; Recipe is the current
   passive selector/projection model.
 - Do not let Recipe infer measurement family, roles, units, or table structure;
   those facts come from table-fact production.

@@ -268,7 +268,7 @@ const summarizeCanonicalCalculationCache = (
   });
 };
 
-const summarizeLegacyCalculationCachePayload = (
+const summarizeRetiredCalculationCachePayload = (
   payload: unknown,
 ): PerfMeta | null => {
   if (!isObjectRecord(payload) || !isObjectRecord(payload.series)) {
@@ -312,7 +312,7 @@ const summarizeCalculationCache = (file: unknown): PerfMeta => {
     }
   }
 
-  return summarizeLegacyCalculationCachePayload(file["analysisCache"]) ??
+  return summarizeRetiredCalculationCachePayload(file["analysisCache"]) ??
     createEmptyCalculationCacheSummary();
 };
 

@@ -16,10 +16,9 @@ Default output:
   csv/large-tall-200000x8.csv
   csv/wide-mixed-2000x256.csv
   xlsx/multi-sheet-3x5000x16.xlsx
-  xls/legacy-large-5000x12.xls
+  xls/biff-large-5000x12.xls
 ```
 
 The `.build/` output directory is intentionally git-ignored. Keep committed
 fixtures small; use this generator for import throughput, memory, and workbook
 multi-sheet stress checks.
-

@@ -2,14 +2,14 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const legacyFileNames = Object.freeze([
+const retiredFileNames = Object.freeze([
   "config.json",
   "template.json",
   "store-path.json",
 ]);
 
-const resolveLegacyHomeDir = () => {
-  const override = String(process.env.CONDUCTOR_LEGACY_HOME_DIR ?? "").trim();
+const resolveRetiredHomeDir = () => {
+  const override = String(process.env.CONDUCTOR_RETIRED_HOME_DIR ?? "").trim();
   if (override) {
     return path.resolve(override);
   }
@@ -17,18 +17,18 @@ const resolveLegacyHomeDir = () => {
   return path.join(os.homedir(), ".device");
 };
 
-const legacyHomeDir = resolveLegacyHomeDir();
+const retiredHomeDir = resolveRetiredHomeDir();
 const deleted = [];
 
-for (const fileName of legacyFileNames) {
-  const filePath = path.join(legacyHomeDir, fileName);
+for (const fileName of retiredFileNames) {
+  const filePath = path.join(retiredHomeDir, fileName);
   if (!fs.existsSync(filePath)) {
     continue;
   }
 
   const stat = fs.statSync(filePath);
   if (!stat.isFile()) {
-    console.warn(`[legacy-user-storage] skipped non-file: ${filePath}`);
+    console.warn(`[retired-user-storage] skipped non-file: ${filePath}`);
     continue;
   }
 
@@ -37,10 +37,10 @@ for (const fileName of legacyFileNames) {
 }
 
 if (deleted.length) {
-  console.log("[legacy-user-storage] deleted legacy files:");
+  console.log("[retired-user-storage] deleted retired files:");
   for (const filePath of deleted) {
     console.log(`- ${filePath}`);
   }
 } else {
-  console.log(`[legacy-user-storage] no legacy files found in ${legacyHomeDir}`);
+  console.log(`[retired-user-storage] no retired files found in ${retiredHomeDir}`);
 }
