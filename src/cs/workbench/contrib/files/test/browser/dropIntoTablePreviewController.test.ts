@@ -168,7 +168,6 @@ function createSessionService(): ISessionService {
     }),
     commitRawTableAssessment: () => undefined,
     commitRawTableAssessments: () => undefined,
-    commitTemplateResolutions: () => undefined,
     commitRawTableReviews: () => undefined,
     commitSliceRuns: () => undefined,
     commitCalculatedRecordsBatch: () => undefined,

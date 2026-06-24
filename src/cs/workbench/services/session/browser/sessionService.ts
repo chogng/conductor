@@ -69,11 +69,6 @@ import type {
 } from "src/cs/workbench/services/assessment/common/measurement";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 import {
-  createTemplateResolutionAssessmentSignature,
-  type RawTableTemplateResolutionRecord,
-  type TemplateResolutionCommit,
-} from "src/cs/workbench/services/templateResolution/common/templateResolution";
-import {
   createReviewEvidenceSignature,
   type RawTableReviewRecord,
   type ReviewCommit,
@@ -264,25 +259,6 @@ export class SessionService extends Disposable implements ISessionServiceType {
       fileIds: uniqueStrings(assessmentCommit.fileIds),
       rawTableIds: uniqueStrings(assessmentCommit.rawTableIds),
       rawTableRefs: uniqueRawTableRefs(assessmentCommit.rawTableRefs),
-    });
-  };
-
-  public commitTemplateResolutions = (resolutions: readonly TemplateResolutionCommit[]): void => {
-    const resolutionCommit = commitTemplateResolutionsToFiles(
-      this.snapshot.filesById,
-      resolutions,
-    );
-    if (!resolutionCommit.changed) {
-      return;
-    }
-
-    this.replaceSnapshot({
-      ...this.snapshot,
-      filesById: resolutionCommit.filesById,
-    }, "templateResolutionChanged", {
-      fileIds: uniqueStrings(resolutionCommit.fileIds),
-      rawTableIds: uniqueStrings(resolutionCommit.rawTableIds),
-      rawTableRefs: uniqueRawTableRefs(resolutionCommit.rawTableRefs),
     });
   };
 
@@ -622,14 +598,6 @@ type RawTableAssessmentCommitResult = {
   readonly rawTableRefs: readonly RawTableRef[];
 };
 
-type TemplateResolutionCommitResult = {
-  readonly changed: boolean;
-  readonly fileIds: readonly FileId[];
-  readonly filesById: Record<FileId, FileRecord>;
-  readonly rawTableIds: readonly string[];
-  readonly rawTableRefs: readonly RawTableRef[];
-};
-
 type RawTableReviewCommitResult = {
   readonly changed: boolean;
   readonly fileIds: readonly FileId[];
@@ -727,10 +695,6 @@ const commitRawTableAssessmentsToFiles = (
       committedBlocks.push(normalizedBlock);
     }
     const committedBlockIds = getUniqueIds(committedBlocks.map(block => block.id));
-    const templateResolutionsByRawTableId = {
-      ...(file.templateResolutionsByRawTableId ?? {}),
-    };
-    delete templateResolutionsByRawTableId[rawTableId];
     const rawTableReviewsByRawTableId = {
       ...(file.rawTableReviewsByRawTableId ?? {}),
     };
@@ -757,7 +721,6 @@ const commitRawTableAssessmentsToFiles = (
           ...(file.assessmentsByRawTableId ?? {}),
           [rawTableId]: committedAssessment,
         },
-        templateResolutionsByRawTableId,
         rawTableReviewsByRawTableId,
         measurementBlocksById,
         measurementBlockOrder: [...measurementBlockOrder, ...committedBlockIds],
@@ -776,95 +739,6 @@ const commitRawTableAssessmentsToFiles = (
     rawTableRefs: committedRawTableRefs,
   };
 };
-
-const commitTemplateResolutionsToFiles = (
-  initialFilesById: Record<FileId, FileRecord>,
-  resolutions: readonly TemplateResolutionCommit[],
-): TemplateResolutionCommitResult => {
-  let nextFilesById = initialFilesById;
-  const committedFileIds: FileId[] = [];
-  const committedRawTableIds: string[] = [];
-  const committedRawTableRefs: RawTableRef[] = [];
-
-  for (const resolution of resolutions) {
-    const fileId = normalizeId(resolution.fileId);
-    const rawTableId = normalizeId(resolution.rawTableId);
-    const file = fileId ? nextFilesById[fileId] : undefined;
-    const table = rawTableId ? file?.raw.tablesById[rawTableId] : undefined;
-    const assessment = rawTableId ? file?.assessmentsByRawTableId?.[rawTableId] : undefined;
-    if (!file || !rawTableId || !table || !assessment) {
-      continue;
-    }
-
-    const rawTableVersion = file.rawTableVersionsById?.[rawTableId] ?? 0;
-    const sourceRawTableVersion = normalizeNonNegativeInteger(resolution.sourceRawTableVersion);
-    if (rawTableVersion !== sourceRawTableVersion) {
-      continue;
-    }
-
-    const sourceAssessmentSignature = normalizeOptionalText(resolution.sourceAssessmentSignature);
-    if (
-      !sourceAssessmentSignature ||
-      sourceAssessmentSignature !== createTemplateResolutionAssessmentSignature(assessment, {
-        columnCount: table.columnCount,
-        fileName: file.name,
-        rowCount: table.rowCount,
-      })
-    ) {
-      continue;
-    }
-
-    const committedResolution: RawTableTemplateResolutionRecord = {
-      ...resolution,
-      fileId,
-      rawTableId,
-      sourceRawTableVersion,
-      sourceAssessmentSignature,
-      recipeFingerprint: normalizeOptionalText(resolution.recipeFingerprint) ?? "",
-      templateCatalogVersion: normalizeNonNegativeInteger(resolution.templateCatalogVersion),
-      templateCandidates: resolution.templateCandidates ?? [],
-      diagnostics: resolution.diagnostics ?? [],
-      resolvedAt: normalizeNonNegativeInteger(resolution.resolvedAt),
-    };
-    const current = file.templateResolutionsByRawTableId?.[rawTableId];
-    if (isSameTemplateResolutionRecord(current, committedResolution)) {
-      continue;
-    }
-
-    nextFilesById = {
-      ...nextFilesById,
-      [fileId]: {
-        ...file,
-        templateResolutionsByRawTableId: {
-          ...(file.templateResolutionsByRawTableId ?? {}),
-          [rawTableId]: committedResolution,
-        },
-      },
-    };
-    committedFileIds.push(fileId);
-    committedRawTableIds.push(rawTableId);
-    committedRawTableRefs.push({ fileId, rawTableId });
-  }
-
-  return {
-    changed: nextFilesById !== initialFilesById,
-    fileIds: committedFileIds,
-    filesById: nextFilesById,
-    rawTableIds: committedRawTableIds,
-    rawTableRefs: committedRawTableRefs,
-  };
-};
-
-const isSameTemplateResolutionRecord = (
-  current: RawTableTemplateResolutionRecord | undefined,
-  next: RawTableTemplateResolutionRecord,
-): boolean => Boolean(current && JSON.stringify({
-  ...current,
-  resolvedAt: 0,
-}) === JSON.stringify({
-  ...next,
-  resolvedAt: 0,
-}));
 
 const commitRawTableReviewsToFiles = (
   initialFilesById: Record<FileId, FileRecord>,
@@ -1023,7 +897,6 @@ const createFileRecordFromImportedFile = (
     raw,
     rawTableVersionsById: createInitialRawTableVersions(raw.tableOrder),
     assessmentsByRawTableId: {},
-    templateResolutionsByRawTableId: {},
     rawTableReviewsByRawTableId: {},
     measurementBlocksById: {},
     measurementBlockOrder: [],

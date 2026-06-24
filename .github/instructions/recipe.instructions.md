@@ -52,10 +52,8 @@ table structure from raw rows.
 | `cli/resources/recipes.v1.json` | generated CLI bundle. Do not edit manually. |
 
 Automatic recipe materialization belongs in Template. Template Resolution is
-not part of the primary TableFacts + Recipe -> Template -> Review -> Slice
-flow. While the legacy compatibility bridge exists, it may consume pure
-Template materializers only to write old summary records; it must not own a
-second selector/materialization implementation:
+retired and must not be reintroduced as a compatibility bridge or second
+selector/materialization implementation:
 
 | File | Responsibility |
 | --- | --- |
@@ -120,4 +118,4 @@ RecipeService reload/change
 - Do not let Recipe infer measurement family, roles, units, or table structure;
   those facts come from table-fact production.
 - Do not let Recipe read rows, services, Session, files, or table state.
-- Do not let Review, Slice, or TemplateResolution own Recipe interpretation.
+- Do not let Review, Slice, or any compatibility bridge own Recipe interpretation.

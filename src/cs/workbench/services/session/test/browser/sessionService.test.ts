@@ -31,10 +31,6 @@ import { getLatestSliceRunRecord } from "src/cs/workbench/services/session/commo
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import type { SliceCommit } from "src/cs/workbench/services/slice/common/slice";
 import {
-  createTemplateResolutionAssessmentSignature,
-  type RawTableTemplateResolutionRecord,
-} from "src/cs/workbench/services/templateResolution/common/templateResolution";
-import {
   createReviewEvidenceSignature,
   type RawTableReviewRecord,
 } from "src/cs/workbench/services/review/common/review";
@@ -912,47 +908,6 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     disposable.dispose();
   });
 
-  test("commits template resolutions with scoped change events", () => {
-    const session = store.add(new SessionService());
-    const events: SessionChangeEvent[] = [];
-    const disposable = session.onDidChangeSession(event => {
-      events.push(event);
-    });
-    session.commitFileImport(createSingleRawTableImportResult());
-    const assessment = createRawTableAssessment(1);
-    session.commitRawTableAssessment(assessment);
-    events.length = 0;
-
-    session.commitTemplateResolutions([createTemplateResolution(assessment)]);
-
-    const file = session.getSnapshot().filesById["file-a"];
-    assert.equal(file.templateResolutionsByRawTableId?.["table-a"]?.templateCandidates[0]?.templateFingerprint, "template:test");
-    assert.deepEqual(events, [{
-      fileIds: ["file-a"],
-      rawTableIds: ["table-a"],
-      rawTableRefs: [{ fileId: "file-a", rawTableId: "table-a" }],
-      reason: "templateResolutionChanged",
-      sessionVersion: 3,
-    }]);
-    disposable.dispose();
-  });
-
-  test("clears stale template resolutions when assessment changes", () => {
-    const session = store.add(new SessionService());
-    session.commitFileImport(createSingleRawTableImportResult());
-    const assessment = createRawTableAssessment(1);
-    session.commitRawTableAssessment(assessment);
-    session.commitTemplateResolutions([createTemplateResolution(assessment)]);
-
-    session.commitRawTableAssessment({
-      ...assessment,
-      schemaProfileVersion: assessment.schemaProfileVersion + 1,
-    });
-
-    const file = session.getSnapshot().filesById["file-a"];
-    assert.equal(file.templateResolutionsByRawTableId?.["table-a"], undefined);
-  });
-
   test("commits raw table reviews with scoped change events", () => {
     const session = store.add(new SessionService());
     const events: SessionChangeEvent[] = [];
@@ -1669,38 +1624,6 @@ const createRawTableAssessment = (
   sourceRawTableVersion,
   structure: createEmptyRawTableStructure(),
 });
-
-const createTemplateResolution = (
-  assessment: RawTableAssessmentRecord,
-): RawTableTemplateResolutionRecord => {
-  return {
-    fileId: assessment.fileId,
-    rawTableId: assessment.rawTableId,
-    sourceRawTableVersion: assessment.sourceRawTableVersion,
-    sourceAssessmentSignature: createTemplateResolutionAssessmentSignature(assessment, {
-      columnCount: 2,
-      fileName: "Transfer.csv",
-      rowCount: 2,
-    }),
-    recipeFingerprint: "recipe:test",
-    templateCatalogVersion: 1,
-    templateCandidates: [{
-      id: "recipe:test:block-a",
-      source: {
-        kind: "recipe",
-        recipeId: "recipe:test",
-        recipeVersion: 1,
-      },
-      templateFingerprint: "template:test",
-      confidence: 0.95,
-      state: "ready",
-      reasons: [],
-      diagnosticCodes: [],
-    }],
-    diagnostics: [],
-    resolvedAt: 1,
-  };
-};
 
 const createRawTableReview = (
   assessment: RawTableAssessmentRecord,

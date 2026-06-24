@@ -37,7 +37,6 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
     for (const reason of [
       "rawTablesChanged",
       "assessmentChanged",
-      "templateResolutionChanged",
       "calculatedRecordsChanged",
       "metricsChanged",
     ] satisfies SessionChangeReason[]) {
@@ -476,7 +475,6 @@ const createSessionServiceStub = ({
   commitMetricsBatch,
   commitRawTableAssessment: () => undefined,
   commitRawTableAssessments: () => undefined,
-  commitTemplateResolutions: () => undefined,
   commitRawTableReviews: () => undefined,
   commitSliceRuns: () => undefined,
   getSnapshot,

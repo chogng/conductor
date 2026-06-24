@@ -304,7 +304,7 @@ export class ReviewService extends Disposable implements IReviewServiceType {
 
   private resolveManualTemplate(
     selection: ManualTemplateReviewRequest["selection"],
-  ): ManualTemplateResolution {
+  ): ManualTemplateLookupResult {
     if (selection.kind === "inline") {
       const templateFingerprint = createTemplateFingerprint(selection.template);
       return {
@@ -346,7 +346,7 @@ export class ReviewService extends Disposable implements IReviewServiceType {
   }
 }
 
-type ManualTemplateResolution =
+type ManualTemplateLookupResult =
   | {
       readonly kind: "resolved";
       readonly candidateId: string;

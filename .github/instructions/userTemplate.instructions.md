@@ -11,8 +11,7 @@ is not the Template UI form state.
 
 `IUserTemplateService` owns native UserTemplate CRUD/import/export and catalog
 snapshots. Template materializers, Review manual paths, Template UI, Explorer
-template pickers, explicit Slice template lookup, and TemplateResolution legacy
-compatibility code consume
+template pickers, and explicit Slice template lookup consume
 `UserTemplateSnapshot` or `getTemplate(id)` instead of reading a legacy template
 catalog.
 
@@ -24,7 +23,7 @@ catalog.
 - user-template lookup by id;
 - native user-template CRUD/import/export;
 - user-template change events used by Template materialization, Review manual
-  paths, and TemplateResolution legacy compatibility invalidation.
+  paths, and Template UI projections.
 
 It does not own:
 
@@ -46,11 +45,6 @@ UserTemplate create/update/delete/import
   -> IReviewService reviews materialized candidates
   -> RawTableReviewRecord
 ```
-
-TemplateResolution may also observe `userTemplateChanged` while the legacy
-compatibility bridge exists, but it only refreshes old candidate-summary
-records and is not on the primary TableFacts + Recipe/UserTemplate -> Template
--> Review -> Slice path.
 
 Manual execution:
 

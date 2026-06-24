@@ -129,7 +129,6 @@ Runtime folders:
 | `IAssessmentService` | migration helper for Template-owned table facts: structure, profiles, semantics, groups, blocks, diagnostics |
 | `IRecipeService` | passive built-in rules; it does not evaluate tables or materialize Templates |
 | `services/template` | canonical Template spec and target owner for `TableFacts + Recipe/UserTemplate -> Template` materialization |
-| `ITemplateResolutionService` | legacy compatibility bridge for old candidate summaries; it is not on the primary TableFacts + Recipe/UserTemplate -> Template -> Review -> Slice path |
 | `IReviewService` | materialized Template candidate review, selected `ReviewedTemplate`, manual adjustment state, and system-application recommendation |
 | `IUserTemplateService` | native user template catalog CRUD/snapshots/import/export and explicit template lookup |
 | `ITableService` | table source, rows, selection snapshot, reveal/highlight |
@@ -202,8 +201,6 @@ Specific flow owners:
   `RawTableReviewRecord` decisions.
 - ReviewApply: consumes `ReviewDecision.ready.application.systemRecommended`, applies idempotency guards, and submits Slice requests.
 - Slice execution: Slice executes concrete reviewed/manual Template snapshots and commits SliceRun/series/base curves.
-- TemplateResolution: legacy compatibility bridge only; primary candidates are
-  materialized by Template, then reviewed by Review.
 - Calculation: calculation services derive curves/metrics and commit through Session.
 - Plot: Plot consumes canonical curves/metrics and produces render models.
 - Chart: Chart hosts plot UI; it does not interpret raw session facts.

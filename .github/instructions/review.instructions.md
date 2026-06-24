@@ -74,14 +74,12 @@ user command / UserTemplate picker / saved-selection compatibility picker / inli
 | `browser/reviewApply.contribution.ts` | no-UI bridge from system-recommended Review decisions to Slice requests. |
 
 Template materializers live under `services/template/common` and produce
-`TemplateDraft` values before Review status/policy projection. During
-migration, Template Resolution may reuse those pure materializers
-only as a legacy compatibility bridge for old candidate summaries. It is not a
-prerequisite for Review and is not on the primary path.
+`TemplateDraft` values before Review status/policy projection. Template
+Resolution has retired and must not be reintroduced as a Review prerequisite or
+candidate-summary bridge.
 User-template candidates must come through `IUserTemplateService` and
 `UserTemplateSnapshot`. New decision logic belongs in Review; new provider and
-materialization logic belongs in Template, not TemplateResolution, Assessment,
-Explorer, or Slice.
+materialization logic belongs in Template, not Assessment, Explorer, or Slice.
 
 ## Rules
 
@@ -114,6 +112,6 @@ Explorer, or Slice.
   user-command controller.
 - Do not read raw rows, rerun table-fact detection, or materialize Recipes.
 - Do not store user template catalog data in Review records.
-- Do not let Template materializers, Assessment migration helpers,
-  TemplateResolution, Slice, or Explorer decide
+- Do not let Template materializers, Assessment migration helpers, Slice, or
+  Explorer decide
   `systemRecommended`.

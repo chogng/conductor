@@ -35,7 +35,6 @@ at the type name.
 | `RawTableSourceRecord` | converter/session | CSV, Excel sheet, clipboard, manual, unknown | Source provenance only, not measurement semantics. |
 | `RawTableRowsRecord` | converter/session | inline, normalized CSV, unavailable | Large rows should use artifact/path references. |
 | `RawTableAssessmentRecord` | Template table facts migration + Session | `IAssessmentService` until migrated | Tied to raw table version, assessment rule version, and schema profile version; stores table facts: structure, column profiles, semantic candidates, groups, blocks, and diagnostics. |
-| `RawTableTemplateResolutionRecord` | Template Resolution legacy bridge + Session | `ITemplateResolutionService` | Legacy compatibility record tied to table-fact signature, recipe fingerprint, and legacy template catalog version; stores candidate summaries only and is not on the primary TableFacts + Recipe/UserTemplate -> Template -> Review -> Slice path. |
 | `RawTableReviewRecord` | Review + Session | `IReviewService` | Tied to template candidate signature, Recipe fingerprint, UserTemplate/saved-template fingerprint, review engine version, and review policy version; stores candidates, reviews, and `ReviewDecision`. |
 | `MeasurementGroupRecord` | Template table facts migration + Session | assessment helper until migrated | Group/device labels and ordered block ids. |
 | `MeasurementBlockRecord` | Template table facts migration + Session | assessment helper until migrated | Measurement family/mode/source ranges/column roles. |
@@ -197,21 +196,6 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
   selected-template field.
 - `ReviewedTemplate.source` records provenance only. Manual/system/user command
   execution sources belong to `SliceRequest.trigger`.
-
-### Template Resolution Bridge
-
-- `RawTableTemplateResolutionRecord` is a legacy compatibility bridge fact for
-  old automatic Template candidate summaries for one raw table.
-- Resolution records store the migration `sourceAssessmentSignature` table-fact
-  signature, `recipeFingerprint`,
-  `templateCatalogVersion` sourced from `UserTemplateSnapshot.version`, ranked
-  `templateCandidates`, diagnostics, and `resolvedAt`.
-- Resolution records do not store selected Template snapshots or application
-  decisions. Review owns selected `ReviewedTemplate` snapshots.
-- Resolution records do not store raw rows, table-fact blocks duplicated as
-  owners, Review policy output, Slice queue state, or Slice output.
-- Resolution records are not required for the primary TableFacts +
-  Recipe/UserTemplate -> Template -> Review -> Slice path.
 
 ### Slice
 

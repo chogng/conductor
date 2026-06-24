@@ -15,7 +15,7 @@
 > 8. UserTemplate 独立为 services/userTemplate + contrib/userTemplate。
 > 9. Template provenance 和 execution trigger 分离。
 > 10. 旧 Assessment 必须退到 table facts helper，不能继续作为主链路概念。
-> 11. Recipe/UserTemplate candidate materializer 归 Template；TemplateResolution 不在主链路，只可作为 legacy compatibility bridge 消费纯 materializer。
+> 11. Recipe/UserTemplate candidate materializer 归 Template；TemplateResolution 已退场，不能作为 legacy compatibility bridge 复活。
 
 ---
 
@@ -95,17 +95,11 @@ TemplateDraft / Template
   -> RawTableReviewRecord
 ```
 
-TemplateResolution 不在主链路。若代码或文档仍提到它，只能表示旧
-`RawTableTemplateResolutionRecord` 的 legacy compatibility bridge：
-
-```txt
-TableFacts + Recipe/UserTemplate snapshots
-  -> Template materializers
-  -> legacy RawTableTemplateResolutionRecord summaries
-```
-
-它不得成为 Review 的前置步骤，不得选择 final template，不得决定
-`systemRecommended`，不得创建 `SliceRequest`。
+TemplateResolution 不在主链路，且旧
+`RawTableTemplateResolutionRecord` summary bridge 已退场。不要恢复
+`ITemplateResolutionService`、`commitTemplateResolutions`、或
+`templateResolutionChanged` 事件；候选由 Template materializers 产生并直接交给
+Review。
 
 记录提交边界：
 
@@ -1852,7 +1846,7 @@ new table facts have no review fields
 15. Legacy Assessment 通过 adapter 拆为 table facts / optional review，不能简单 alias。
 16. ReviewService 内部只保留 review 纯函数，不拥有 Recipe materialization。
 17. ReviewPolicyVersion 覆盖所有 decision 规则。
-18. TemplateResolution 不在主链路，只作为 legacy compatibility bridge 保留旧摘要记录。
+18. TemplateResolution 已退场；不要保留或恢复旧摘要记录桥。
 ```
 
 ---
