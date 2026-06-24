@@ -3,11 +3,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ColumnProfile } from "src/cs/workbench/services/assessment/common/columnProfile";
+import type { AssessmentDiagnostic } from "src/cs/workbench/services/assessment/common/diagnostics";
 import type { LayoutCandidate } from "src/cs/workbench/services/assessment/common/layoutCandidate";
-import type { MeasurementBlockRecord } from "src/cs/workbench/services/assessment/common/measurement";
-import type { RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
+import type {
+  MeasurementBlockRecord,
+  MeasurementGroupRecord,
+} from "src/cs/workbench/services/assessment/common/measurement";
 import type { RawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 import type { ColumnSemanticCandidate } from "src/cs/workbench/services/assessment/common/semanticCandidate";
+
+// Bump this when table-fact heuristics change in a way that should invalidate
+// stored raw table fact records.
+export const TABLE_FACTS_RULE_VERSION = 2;
+
+export type RawTableFactsRecord = {
+  // TODO(conductor-architecture): Persisted compatibility field.
+  // Rename to tableFactsRuleVersion when the Session record key migration lands.
+  readonly assessmentRuleVersion: number;
+  readonly schemaProfileVersion: number;
+  readonly fileId: string;
+  readonly rawTableId: string;
+  readonly sourceRawTableVersion: number;
+  readonly structure: RawTableStructure;
+  readonly columnProfiles: readonly ColumnProfile[];
+  readonly layoutCandidates: readonly LayoutCandidate[];
+  readonly semanticCandidates: readonly ColumnSemanticCandidate[];
+  readonly groups: readonly MeasurementGroupRecord[];
+  readonly blocks: readonly MeasurementBlockRecord[];
+  readonly diagnostics: readonly AssessmentDiagnostic[];
+  readonly createdAt: number;
+};
 
 export type RawTableFacts = {
   readonly structure: RawTableStructure;
@@ -27,8 +52,8 @@ export type RawTableFactsSourceMetadata = {
   readonly sourceRawTableVersion: number;
 };
 
-export const createRawTableFactsFromAssessmentRecord = (
-  record: RawTableAssessmentRecord,
+export const createRawTableFactsFromRecord = (
+  record: RawTableFactsRecord,
   sourceMetadata?: Partial<RawTableFactsSourceMetadata>,
 ): RawTableFacts => ({
   structure: record.structure,
@@ -43,3 +68,6 @@ export const createRawTableFactsFromAssessmentRecord = (
     ...sourceMetadata,
   },
 });
+
+export const createRawTableFactsFromAssessmentRecord =
+  createRawTableFactsFromRecord;

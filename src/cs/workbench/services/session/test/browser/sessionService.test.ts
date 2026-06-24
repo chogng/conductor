@@ -480,7 +480,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
         mode: "auto",
         selection: { kind: "auto" },
         sourceRawTableVersion: 1,
-        sourceAssessmentSignature: "assessment-a",
+        sourceTableFactsSignature: "assessment-a",
         template: {
           schemaVersion: 1,
           name: "Detected IV Transfer",
@@ -767,7 +767,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
       rows: [["Vg", "Id"], ["0", "1e-9"]],
     });
     assert.deepEqual(file.rawTableVersionsById, { "sheet-1": 1 });
-    assert.deepEqual(file.assessmentsByRawTableId, {});
+    assert.deepEqual(file.tableFactsByRawTableId, {});
   });
 
   test("increments raw table versions when imported files replace an existing source", () => {
@@ -828,10 +828,10 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     session.commitFileImport(createSingleRawTableImportResult());
     const assessment = createRawTableAssessment(1);
 
-    session.commitRawTableAssessment(assessment);
+    session.commitRawTableFacts(assessment);
 
     const file = session.getSnapshot().filesById["file-a"];
-    assert.equal(file.assessmentsByRawTableId["table-a"].sourceRawTableVersion, 1);
+    assert.equal(file.tableFactsByRawTableId["table-a"].sourceRawTableVersion, 1);
     assert.deepEqual(file.measurementBlockOrder, ["block-a"]);
     assert.equal(file.measurementBlocksById["block-a"].family, "iv");
   });
@@ -845,7 +845,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     const assessment = createRawTableAssessment(0);
 
     const result = session.commitFileImport(createSingleRawTableImportResult(), {
-      rawTableAssessments: [{
+      rawTableFacts: [{
         assessmentRuleVersion: assessment.assessmentRuleVersion,
         schemaProfileVersion: assessment.schemaProfileVersion,
         blocks: assessment.blocks,
@@ -866,7 +866,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
       skippedDuplicateFileIds: [],
     });
     const file = session.getSnapshot().filesById["file-a"];
-    assert.equal(file.assessmentsByRawTableId["table-a"].sourceRawTableVersion, 1);
+    assert.equal(file.tableFactsByRawTableId["table-a"].sourceRawTableVersion, 1);
     assert.deepEqual(file.measurementBlockOrder, ["block-a"]);
     assert.deepEqual(events, [{
       fileIds: ["file-a"],
@@ -887,13 +887,13 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     session.commitFileImport(createMultiRawTableImportResult());
     events.length = 0;
 
-    session.commitRawTableAssessments([
+    session.commitRawTableFactsBatch([
       createRawTableAssessment(1, "table-a", "block-a"),
       createRawTableAssessment(1, "table-b", "block-b"),
     ]);
 
     const file = session.getSnapshot().filesById["file-a"];
-    assert.deepEqual(Object.keys(file.assessmentsByRawTableId).sort(), ["table-a", "table-b"]);
+    assert.deepEqual(Object.keys(file.tableFactsByRawTableId).sort(), ["table-a", "table-b"]);
     assert.deepEqual(file.measurementBlockOrder, ["block-a", "block-b"]);
     assert.deepEqual(events, [{
       fileIds: ["file-a"],
@@ -902,7 +902,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
         { fileId: "file-a", rawTableId: "table-a" },
         { fileId: "file-a", rawTableId: "table-b" },
       ],
-      reason: "assessmentChanged",
+      reason: "tableFactsChanged",
       sessionVersion: 2,
     }]);
     disposable.dispose();
@@ -916,7 +916,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     });
     session.commitFileImport(createSingleRawTableImportResult());
     const assessment = createRawTableAssessment(1);
-    session.commitRawTableAssessment(assessment);
+    session.commitRawTableFacts(assessment);
     events.length = 0;
 
     session.commitRawTableReviews([createRawTableReview(assessment)]);
@@ -937,10 +937,10 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     const session = store.add(new SessionService());
     session.commitFileImport(createSingleRawTableImportResult());
     const assessment = createRawTableAssessment(1);
-    session.commitRawTableAssessment(assessment);
+    session.commitRawTableFacts(assessment);
     session.commitRawTableReviews([createRawTableReview(assessment)]);
 
-    session.commitRawTableAssessment({
+    session.commitRawTableFacts({
       ...assessment,
       schemaProfileVersion: assessment.schemaProfileVersion + 1,
     });
@@ -953,10 +953,10 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     const session = store.add(new SessionService());
     session.commitFileImport(createSingleRawTableImportResult());
 
-    session.commitRawTableAssessment(createRawTableAssessment(0));
+    session.commitRawTableFacts(createRawTableAssessment(0));
 
     const file = session.getSnapshot().filesById["file-a"];
-    assert.deepEqual(file.assessmentsByRawTableId, {});
+    assert.deepEqual(file.tableFactsByRawTableId, {});
     assert.deepEqual(file.measurementBlockOrder, []);
   });
 

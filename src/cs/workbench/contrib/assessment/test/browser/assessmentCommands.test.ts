@@ -161,7 +161,7 @@ const createSnapshot = (
 	fileOrder: ["file-a"],
 	filesById: {
 		"file-a": {
-			assessmentsByRawTableId: {
+			tableFactsByRawTableId: {
 				[assessment.rawTableId]: assessment,
 			},
 		},

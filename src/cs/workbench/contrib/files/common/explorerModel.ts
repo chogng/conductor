@@ -45,18 +45,18 @@ export type ExplorerBadgeState =
 			readonly kind: "ready";
 			readonly label: ExplorerBadgeLabel;
 			readonly message?: string | null;
-			readonly source: "fast" | "assessment";
+			readonly source: "fast" | "tableFacts";
 		}
 	| {
 			readonly kind: "pending";
 			readonly queueState?: "queued" | "running";
-			readonly source?: "assessment";
+			readonly source?: "tableFacts";
 		}
 	| { readonly kind: "none" }
 	| {
 			readonly kind: "unknown";
 			readonly message?: string | null;
-			readonly source: "fast" | "assessment";
+			readonly source: "fast" | "tableFacts";
 			readonly suspectedType?: string | null;
 		}
 	| { readonly kind: "error"; readonly message?: string | null };
@@ -76,8 +76,8 @@ export type ExplorerFileEntry = {
 	readonly sourcePath?: string | null;
 	readonly sourceStatus?: ExplorerSourceStatus;
 	readonly sourceStatusMessage?: string | null;
-	readonly assessmentHealth?: "ok" | "suspect" | "decodeFailed" | "parseFailed" | "unsupported" | "empty";
-	readonly assessmentHealthMessage?: string | null;
+	readonly rawTableHealth?: "ok" | "suspect" | "decodeFailed" | "parseFailed" | "unsupported" | "empty";
+	readonly rawTableHealthMessage?: string | null;
 	readonly templateEligibility?: "eligible" | "notEligible" | "needsUserAction";
 	readonly badgeState?: ExplorerBadgeState;
 	readonly fileVersion?: number;
@@ -89,7 +89,7 @@ export type ExplorerFileEntry = {
 };
 
 export type ExplorerBadgeProjectionSummary = {
-	readonly assessmentBadgeCount: number;
+	readonly tableFactsBadgeCount: number;
 	readonly failedSourceCount: number;
 	readonly fastBadgeCount: number;
 	readonly loadingSourceCount: number;
@@ -180,7 +180,7 @@ export const getExplorerTreeFileKey = <TEntry extends ExplorerFileEntry>(
 export const summarizeExplorerBadgeProjection = (
 	files: readonly ExplorerFileEntry[],
 ): ExplorerBadgeProjectionSummary => {
-	let assessmentBadgeCount = 0;
+	let tableFactsBadgeCount = 0;
 	let fastBadgeCount = 0;
 	let pendingBadgeCount = 0;
 	let loadingSourceCount = 0;
@@ -190,8 +190,8 @@ export const summarizeExplorerBadgeProjection = (
 	for (const file of files) {
 		const badgeState = file.badgeState;
 		if (badgeState?.kind === "ready" || badgeState?.kind === "unknown") {
-			if (badgeState.source === "assessment") {
-				assessmentBadgeCount += 1;
+			if (badgeState.source === "tableFacts") {
+				tableFactsBadgeCount += 1;
 			} else if (badgeState.source === "fast") {
 				fastBadgeCount += 1;
 			}
@@ -209,7 +209,7 @@ export const summarizeExplorerBadgeProjection = (
 	}
 
 	return {
-		assessmentBadgeCount,
+		tableFactsBadgeCount,
 		failedSourceCount,
 		fastBadgeCount,
 		loadingSourceCount,
@@ -232,8 +232,8 @@ const createExplorerBadgeProjectionFileSignature = (file: ExplorerFileEntry): st
 		file.sourceStatus ?? "",
 		file.sourceStatusMessage ?? "",
 		createRawTableStatusSignature(file.rawTableStatus),
-		file.assessmentHealth ?? "",
-		file.assessmentHealthMessage ?? "",
+		file.rawTableHealth ?? "",
+		file.rawTableHealthMessage ?? "",
 		file.templateEligibility ?? "",
 		badgeState?.kind ?? "",
 		badgeMessage,
@@ -262,8 +262,8 @@ export const createExplorerFilePresentationSignature = (
 		entry.sourceStatus ?? "",
 		entry.sourceStatusMessage ?? "",
 		createRawTableStatusSignature(entry.rawTableStatus),
-		entry.assessmentHealth ?? "",
-		entry.assessmentHealthMessage ?? "",
+		entry.rawTableHealth ?? "",
+		entry.rawTableHealthMessage ?? "",
 		entry.templateEligibility ?? "",
 		badgeState?.kind ?? "",
 		badgeMessage,
@@ -555,7 +555,7 @@ const hasFileRecordChartData = (file: FileRecord): boolean =>
 	collectFileRecordBaseCurves(file).length > 0 ||
 	collectFileRecordMeasurementBlocks(file).length > 0;
 
-const hasExplorerAssessmentSummary = (
+const hasExplorerTableFactsSummary = (
 	file: Pick<
 		SessionFile | ProcessedEntry,
 		"curveType" | "curveTypeConfidence" | "curveTypeNeedsReview" | "curveTypeReasons"
@@ -568,20 +568,20 @@ const hasExplorerAssessmentSummary = (
 			file.curveTypeReasons?.length,
 	);
 
-const createExplorerAssessmentBadgeState = (
+const createExplorerTableFactsBadgeState = (
 	file: Pick<
 		SessionFile | ProcessedEntry,
 		"curveType" | "curveTypeConfidence" | "curveTypeNeedsReview" | "curveTypeReasons"
 	>,
 	xAxisRole?: SessionFile["xAxisRole"],
 ): ExplorerBadgeState => {
-	if (!hasExplorerAssessmentSummary(file)) {
+	if (!hasExplorerTableFactsSummary(file)) {
 		return { kind: "pending" };
 	}
 
 	const curveType = getOptionalNullableString(file.curveType);
 	if (!curveType || curveType.toLowerCase() === "unknown") {
-		return { kind: "unknown", source: "assessment" };
+		return { kind: "unknown", source: "tableFacts" };
 	}
 
 	const label = toExplorerBadgeLabel(
@@ -592,22 +592,22 @@ const createExplorerAssessmentBadgeState = (
 				confidence: "confirmed",
 				kind: "ready",
 				label,
-				source: "assessment",
+				source: "tableFacts",
 			}
-		: { kind: "unknown", source: "assessment" };
+		: { kind: "unknown", source: "tableFacts" };
 };
 
 const createExplorerHealthFields = (
 	file: Pick<
 		SessionFile,
-		"assessmentHealth" | "assessmentHealthMessage" | "templateEligibility"
+		"rawTableHealth" | "rawTableHealthMessage" | "templateEligibility"
 	> | undefined,
 ): Pick<
 	ExplorerFileEntry,
-	"assessmentHealth" | "assessmentHealthMessage" | "templateEligibility"
+	"rawTableHealth" | "rawTableHealthMessage" | "templateEligibility"
 > => ({
-	...(file?.assessmentHealth ? { assessmentHealth: file.assessmentHealth } : {}),
-	...(file?.assessmentHealthMessage ? { assessmentHealthMessage: file.assessmentHealthMessage } : {}),
+	...(file?.rawTableHealth ? { rawTableHealth: file.rawTableHealth } : {}),
+	...(file?.rawTableHealthMessage ? { rawTableHealthMessage: file.rawTableHealthMessage } : {}),
 	...(file?.templateEligibility ? { templateEligibility: file.templateEligibility } : {}),
 });
 
@@ -645,7 +645,7 @@ export const createRawExplorerFiles = (
 		sourceKey: getOptionalString(file.sourceKey),
 		sourcePath: file.sourcePath,
 		...createExplorerHealthFields(file),
-		badgeState: createExplorerAssessmentBadgeState(file, file.xAxisRole),
+		badgeState: createExplorerTableFactsBadgeState(file, file.xAxisRole),
 		fileVersion: getExplorerFileVersion(file.sourceVersion),
 		curveType: file.curveType ?? null,
 		curveTypeBadgeLabel: getExplorerCurveTypeBadgeLabel(
@@ -701,7 +701,7 @@ export const createChartExplorerFilesFromRecords = (
 			sourcePath: file.raw.filePath ?? rawFile?.sourcePath,
 			...createExplorerHealthFields(rawFile),
 			fileVersion: getFileRecordVersion(file, rawFile?.sourceVersion),
-			badgeState: createExplorerAssessmentBadgeState({
+			badgeState: createExplorerTableFactsBadgeState({
 				curveType,
 				curveTypeConfidence: rawFile?.curveTypeConfidence,
 				curveTypeNeedsReview: rawFile?.curveTypeNeedsReview,
@@ -760,7 +760,7 @@ export const createChartExplorerFiles = (
 			sourcePath: rawFile?.sourcePath,
 			...createExplorerHealthFields(rawFile),
 			fileVersion: getExplorerFileVersion(rawFile?.sourceVersion),
-			badgeState: createExplorerAssessmentBadgeState({
+			badgeState: createExplorerTableFactsBadgeState({
 				curveType,
 				curveTypeConfidence:
 					processedFile.curveTypeConfidence ?? rawFile?.curveTypeConfidence,

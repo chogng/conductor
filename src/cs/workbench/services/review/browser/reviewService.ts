@@ -30,7 +30,7 @@ import {
   deriveAutomaticTemplateDrafts,
 } from "src/cs/workbench/services/template/common/automaticTemplateMaterializer";
 import {
-  createRawTableFactsFromAssessmentRecord,
+  createRawTableFactsFromRecord,
 } from "src/cs/workbench/services/template/common/tableFacts";
 import type { TemplateDraft } from "src/cs/workbench/services/template/common/templateDraft";
 import {
@@ -82,7 +82,7 @@ export class ReviewService extends Disposable implements IReviewServiceType {
   }
 
   public deriveAndReview(input: ReviewInput): ReviewResult {
-    const tableFacts = createRawTableFactsFromAssessmentRecord(input.assessment, {
+    const tableFacts = createRawTableFactsFromRecord(input.tableFacts, {
       columnCount: input.columnCount,
       fileName: input.fileName ?? undefined,
       rowCount: input.rowCount,
@@ -153,11 +153,11 @@ export class ReviewService extends Disposable implements IReviewServiceType {
     const snapshot = this.sessionService.getSnapshot();
     const file = snapshot.filesById[ref.fileId];
     const table = file?.raw.tablesById[ref.rawTableId];
-    const assessment = file?.assessmentsByRawTableId?.[ref.rawTableId];
-    if (!file || !table || !assessment) {
+    const tableFacts = file?.tableFactsByRawTableId?.[ref.rawTableId];
+    if (!file || !table || !tableFacts) {
       return createInvalidManualReviewResult(
         "review.manual.missingEvidence",
-        "Manual review needs an imported raw table with Assessment evidence.",
+        "Manual review needs an imported raw table with table facts.",
       );
     }
 
@@ -248,14 +248,14 @@ export class ReviewService extends Disposable implements IReviewServiceType {
     recipeSnapshot: ReturnType<IRecipeServiceType["getSnapshot"]>,
     userTemplateSnapshot: UserTemplateSnapshot,
   ): RawTableReviewRecord | null {
-    const assessment = file?.assessmentsByRawTableId?.[ref.rawTableId];
+    const tableFacts = file?.tableFactsByRawTableId?.[ref.rawTableId];
     const table = file?.raw.tablesById[ref.rawTableId];
-    if (!file || !assessment || !table) {
+    if (!file || !tableFacts || !table) {
       return null;
     }
 
     const result = this.deriveAndReview({
-      assessment,
+      tableFacts,
       columnCount: table.columnCount,
       fileName: file.name,
       recipeSnapshot,
@@ -265,8 +265,8 @@ export class ReviewService extends Disposable implements IReviewServiceType {
     return {
       fileId: ref.fileId,
       rawTableId: ref.rawTableId,
-      sourceRawTableVersion: assessment.sourceRawTableVersion,
-      evidenceSignature: createReviewEvidenceSignature(assessment, {
+      sourceRawTableVersion: tableFacts.sourceRawTableVersion,
+      evidenceSignature: createReviewEvidenceSignature(tableFacts, {
         columnCount: table.columnCount,
         fileName: file.name,
         rowCount: table.rowCount,
@@ -630,7 +630,7 @@ const getRawTableRefsForReviewSnapshot = (
     if (!file) {
       continue;
     }
-    for (const rawTableId of Object.keys(file.assessmentsByRawTableId ?? {})) {
+    for (const rawTableId of Object.keys(file.tableFactsByRawTableId ?? {})) {
       if (file.raw.tablesById[rawTableId]) {
         refs.push({ fileId, rawTableId });
       }

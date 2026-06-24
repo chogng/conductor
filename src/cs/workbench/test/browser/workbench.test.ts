@@ -90,7 +90,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     const snapshot = session.getSnapshot();
     const input = createExplorerPaneInput({
       activePlotType: "iv",
-      assessmentQueueSnapshot: {
+      tableFactsQueueSnapshot: {
         rawTables: [{
           fileId: "file-a",
           priority: "visible",
@@ -110,7 +110,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.deepEqual(input.files[0]?.badgeState, {
       kind: "pending",
       queueState: "running",
-      source: "assessment",
+      source: "tableFacts",
     });
   });
 
@@ -314,7 +314,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
         {
           badgeState: {
             kind: "unknown",
-            source: "assessment",
+            source: "tableFacts",
           },
           chartMessage: "Unknown.csv has unknown curve type.",
           chartState: "skipped",
@@ -325,7 +325,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
             confidence: "confirmed",
             kind: "ready",
             label: "transfer",
-            source: "assessment",
+            source: "tableFacts",
           },
           chartMessage: "Failed.csv could not be sliced.",
           chartState: "failed",
@@ -336,7 +336,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
             confidence: "confirmed",
             kind: "ready",
             label: "output",
-            source: "assessment",
+            source: "tableFacts",
           },
           chartMessage: null,
           chartState: "queued",
@@ -518,7 +518,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
         columnCount: 2,
       },
     ]);
-    session.commitRawTableAssessment({
+    session.commitRawTableFacts({
       assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
       schemaProfileVersion: 0,
       blocks: [{
@@ -598,7 +598,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
             confidence: "confirmed",
             kind: "ready",
             label: "transfer",
-            source: "assessment",
+            source: "tableFacts",
           },
           curveTypeBadgeLabel: "transfer",
           fileId: "ready-file",
@@ -611,8 +611,8 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     const session = store.add(new SessionService());
     commitRawFilesForTest(session, [
       {
-        assessmentHealth: "decodeFailed",
-        assessmentHealthMessage: "Content is unreadable: suspected binary file or encoding mismatch.",
+        rawTableHealth: "decodeFailed",
+        rawTableHealthMessage: "Content is unreadable: suspected binary file or encoding mismatch.",
         columnCount: 0,
         fileId: "decode-failed",
         fileName: "Output_Vd.csv",
@@ -1104,7 +1104,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       rows: [],
     }]);
     const assessment = createRawTableAssessmentForTest();
-    session.commitRawTableAssessment(assessment);
+    session.commitRawTableFacts(assessment);
     const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
     const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
     globalThis.requestAnimationFrame = ((callback: FrameRequestCallback): number => {
@@ -1256,11 +1256,11 @@ const createDomainBridgeOptionsForTest = ({
   readonly tableSources?: Array<string | null>;
   readonly visibleDetailPanes?: readonly ["inspector"] | readonly [];
 }): ConstructorParameters<typeof WorkbenchDomainBridge>[0] => ({
-  assessmentQueueService: {
+  rawTableFactsQueueService: {
     _serviceBrand: undefined,
     enqueueRawTables: () => undefined,
     getQueueSnapshot: () => ({ rawTables: [] }),
-    onDidChangeAssessmentQueueState: Event.None as Event<void>,
+    onDidChangeRawTableFactsQueueState: Event.None as Event<void>,
     prioritizeRawTables: () => undefined,
   },
   calculationService: {
@@ -1574,21 +1574,21 @@ const createImportedFileRecordForTest = (
         [fileId]: {
           columnCount: Math.max(0, Math.floor(Number(file.columnCount) || 0)),
           fileId,
-          health: file.assessmentHealth
+          health: file.rawTableHealth
             ? {
-                state: file.assessmentHealth,
-                message: file.assessmentHealthMessage ?? "",
+                state: file.rawTableHealth,
+                message: file.rawTableHealthMessage ?? "",
               }
             : undefined,
           maxCellLengths: Array.isArray(file.maxCellLengths) ? file.maxCellLengths : [],
           rawTableId: fileId,
           rowCount: Math.max(0, Math.floor(Number(file.rowCount) || 0)),
-          rows: file.assessmentHealth === "decodeFailed" ||
-            file.assessmentHealth === "parseFailed" ||
-            file.assessmentHealth === "unsupported"
+          rows: file.rawTableHealth === "decodeFailed" ||
+            file.rawTableHealth === "parseFailed" ||
+            file.rawTableHealth === "unsupported"
             ? {
                 kind: "unavailable",
-                reason: file.assessmentHealthMessage ?? "",
+                reason: file.rawTableHealthMessage ?? "",
               }
             : {
                 kind: "inline",

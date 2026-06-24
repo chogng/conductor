@@ -92,7 +92,7 @@ const createEmptyFileRecord = (fileId: string, fileName: string): FileRecord => 
     name: fileName,
     raw,
     rawTableVersionsById: createRawTableVersions(raw.tableOrder),
-    assessmentsByRawTableId: {},
+    tableFactsByRawTableId: {},
     rawTableReviewsByRawTableId: {},
     measurementBlocksById: {},
     measurementBlockOrder: [],
@@ -142,7 +142,12 @@ const mergeSourceFileRecord = (
     rowCount: readInteger(sourceFile, "rowCount") ?? 0,
     columnCount: readInteger(sourceFile, "columnCount") ?? 0,
     maxCellLengths: readNumberArray(sourceFile.maxCellLengths),
-    health: normalizeRawTableHealth(sourceFile.assessmentHealth, sourceFile.assessmentHealthMessage),
+    health: normalizeRawTableHealth(
+      sourceFile.rawTableHealth ??
+        (sourceFile as { readonly assessmentHealth?: SessionFile["rawTableHealth"] }).assessmentHealth,
+      sourceFile.rawTableHealthMessage ??
+        (sourceFile as { readonly assessmentHealthMessage?: string | null }).assessmentHealthMessage,
+    ),
     templateEligibility: normalizeTemplateEligibility(sourceFile.templateEligibility),
   };
   const shouldDropDefaultTable =
@@ -175,7 +180,7 @@ const mergeSourceFileRecord = (
     record.rawTableVersionsById,
     changedRawTableIds,
   );
-  const retainedAssessmentRecords = retainRawTableAssessmentRecords(
+  const retainedTableFactsRecords = retainRawTableFactsRecords(
     record,
     new Set(tableOrder),
     changedRawTableIds,
@@ -202,7 +207,7 @@ const mergeSourceFileRecord = (
       tableOrder,
     },
     rawTableVersionsById,
-    ...retainedAssessmentRecords,
+    ...retainedTableFactsRecords,
   };
 };
 
@@ -251,13 +256,14 @@ const areTableRecordsEqual = (
   current.health?.message === next.health?.message &&
   current.templateEligibility === next.templateEligibility;
 
-const retainRawTableAssessmentRecords = (
+const retainRawTableFactsRecords = (
   record: FileRecord,
   liveRawTableIds: ReadonlySet<string>,
   changedRawTableIds: ReadonlySet<string>,
-): Pick<FileRecord, "assessmentsByRawTableId" | "rawTableReviewsByRawTableId" | "measurementBlocksById" | "measurementBlockOrder"> => {
-  const assessmentsByRawTableId = filterRecord(
-    record.assessmentsByRawTableId ?? {},
+): Pick<FileRecord, "tableFactsByRawTableId" | "rawTableReviewsByRawTableId" | "measurementBlocksById" | "measurementBlockOrder"> => {
+  const sourceTableFactsByRawTableId = getTableFactsByRawTableId(record);
+  const tableFactsByRawTableId = filterRecord(
+    sourceTableFactsByRawTableId,
     rawTableId => liveRawTableIds.has(rawTableId) && !changedRawTableIds.has(rawTableId),
   );
   const rawTableReviewsByRawTableId = filterRecord(
@@ -272,13 +278,28 @@ const retainRawTableAssessmentRecords = (
   );
 
   return {
-    assessmentsByRawTableId,
+    tableFactsByRawTableId,
     rawTableReviewsByRawTableId,
     measurementBlocksById,
     measurementBlockOrder: (record.measurementBlockOrder ?? []).filter(blockId =>
       Boolean(measurementBlocksById[blockId])
     ),
   };
+};
+
+const getTableFactsByRawTableId = (
+  record: FileRecord,
+): FileRecord["tableFactsByRawTableId"] => {
+  if (record.tableFactsByRawTableId) {
+    return record.tableFactsByRawTableId;
+  }
+
+  // TODO(conductor-architecture): Legacy persisted Session compatibility.
+  // Older records used `assessmentsByRawTableId`; normalize it into the
+  // Template-owned table-facts field at the adapter boundary only.
+  return (record as unknown as {
+    readonly assessmentsByRawTableId?: FileRecord["tableFactsByRawTableId"];
+  }).assessmentsByRawTableId ?? {};
 };
 
 const areNumberArraysEqual = (
@@ -390,13 +411,13 @@ export const createRawFilesFromRecords = (
 
       rawFiles.push({
         ...baseFile,
-        ...createRawFileAssessmentSummary(file, tableId),
+        ...createRawFileTableFactsSummary(file, tableId),
         sheetId: table.sheetId,
         sheetName: table.sheetName ?? null,
         sourceKey: table.tableKey,
         sourceVersion: file.rawTableVersionsById?.[tableId] ?? 0,
-        assessmentHealth: table.health?.state,
-        assessmentHealthMessage: table.health?.message ?? null,
+        rawTableHealth: table.health?.state,
+        rawTableHealthMessage: table.health?.message ?? null,
         templateEligibility: table.templateEligibility,
         rowCount: table.rowCount,
         columnCount: table.columnCount,
@@ -413,7 +434,7 @@ export const createRawFilesFromRecords = (
     if (!pushedTableIds.size) {
       rawFiles.push({
         ...baseFile,
-        ...createRawFileAssessmentSummary(file),
+        ...createRawFileTableFactsSummary(file),
       });
     }
   }
@@ -421,13 +442,13 @@ export const createRawFilesFromRecords = (
   return rawFiles;
 };
 
-type RawFileAssessmentSummary = Pick<
+type RawFileTableFactsSummary = Pick<
   SessionFile,
-  | "assessmentBlocks"
-  | "assessmentColumnProfiles"
-  | "assessmentLayoutCandidates"
-  | "assessmentSchemaFingerprint"
-  | "assessmentSemanticCandidates"
+  | "tableFactsBlocks"
+  | "tableFactsColumnProfiles"
+  | "tableFactsLayoutCandidates"
+  | "tableFactsSchemaFingerprint"
+  | "tableFactsSemanticCandidates"
   | "curveType"
   | "curveTypeConfidence"
   | "curveTypeNeedsReview"
@@ -436,15 +457,15 @@ type RawFileAssessmentSummary = Pick<
   | "xAxisRoleSource"
 >;
 
-const createRawFileAssessmentSummary = (
+const createRawFileTableFactsSummary = (
   file: FileRecord,
   rawTableId?: string,
-): RawFileAssessmentSummary => {
-  const rawAssessment = rawTableId
-    ? file.assessmentsByRawTableId?.[rawTableId]
+): RawFileTableFactsSummary => {
+  const rawTableFacts = rawTableId
+    ? file.tableFactsByRawTableId?.[rawTableId]
     : undefined;
-  const block = rawAssessment?.blocks.find((candidate) => candidate.family !== "unknown") ??
-    rawAssessment?.blocks[0] ??
+  const block = rawTableFacts?.blocks.find((candidate) => candidate.family !== "unknown") ??
+    rawTableFacts?.blocks[0] ??
     (rawTableId
       ? undefined
       : file.measurementBlockOrder
@@ -453,23 +474,23 @@ const createRawFileAssessmentSummary = (
   const xAxisRole = createXAxisRoleFromMeasurementBlock(block);
   const curveType = createCurveTypeFromMeasurementBlock(block, xAxisRole) ??
     getFileRecordCurveType(file);
-  const reasons = rawAssessment?.diagnostics
+  const reasons = rawTableFacts?.diagnostics
     ?.map((diagnostic) => normalizeOptionalText(diagnostic.message))
     .filter((message): message is string => Boolean(message));
 
   return {
-    assessmentBlocks: rawAssessment?.blocks.length
-      ? [...rawAssessment.blocks]
+    tableFactsBlocks: rawTableFacts?.blocks.length
+      ? [...rawTableFacts.blocks]
       : undefined,
-    assessmentColumnProfiles: rawAssessment?.columnProfiles.length
-      ? [...rawAssessment.columnProfiles]
+    tableFactsColumnProfiles: rawTableFacts?.columnProfiles.length
+      ? [...rawTableFacts.columnProfiles]
       : undefined,
-    assessmentLayoutCandidates: rawAssessment?.layoutCandidates.length
-      ? [...rawAssessment.layoutCandidates]
+    tableFactsLayoutCandidates: rawTableFacts?.layoutCandidates.length
+      ? [...rawTableFacts.layoutCandidates]
       : undefined,
-    assessmentSchemaFingerprint: rawAssessment?.structure.fingerprint || undefined,
-    assessmentSemanticCandidates: rawAssessment?.semanticCandidates.length
-      ? [...rawAssessment.semanticCandidates]
+    tableFactsSchemaFingerprint: rawTableFacts?.structure.fingerprint || undefined,
+    tableFactsSemanticCandidates: rawTableFacts?.semanticCandidates.length
+      ? [...rawTableFacts.semanticCandidates]
       : undefined,
     curveType: curveType ?? null,
     curveTypeConfidence: normalizeBlockConfidence(block?.confidence),

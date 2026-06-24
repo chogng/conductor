@@ -45,7 +45,7 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 		sessionService.commitFileImport(createImportResult());
 		const assessment = createAssessment();
 
-		sessionService.commitRawTableAssessment(assessment);
+		sessionService.commitRawTableFacts(assessment);
 		sessionService.commitRawTableReviews([createReview(assessment)]);
 
 		assert.deepEqual(sliceService.enqueuedRefs, [[{
@@ -58,7 +58,7 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 		const sessionService = store.add(new SessionService());
 		sessionService.commitFileImport(createImportResult());
 		const assessment = createAssessment();
-		sessionService.commitRawTableAssessment(assessment);
+		sessionService.commitRawTableFacts(assessment);
 		sessionService.commitRawTableReviews([createReview(assessment)]);
 		const template = createTemplate();
 		sessionService.commitSliceRuns([{
@@ -185,13 +185,13 @@ class TestReviewContribution extends Disposable {
 	) {
 		super();
 		this._register(this.sessionService.onDidChangeSession(event => {
-			if (event.reason !== "assessmentChanged") {
+			if (event.reason !== "tableFactsChanged") {
 				return;
 			}
 
 			const snapshot = this.sessionService.getSnapshot();
 			this.sessionService.commitRawTableReviews((event.rawTableRefs ?? [])
-				.map(ref => snapshot.filesById[ref.fileId]?.assessmentsByRawTableId[ref.rawTableId])
+				.map(ref => snapshot.filesById[ref.fileId]?.tableFactsByRawTableId[ref.rawTableId])
 				.filter((assessment): assessment is RawTableAssessmentRecord => Boolean(assessment))
 				.map(assessment => createReview(assessment, createAutoTemplate())));
 		}));

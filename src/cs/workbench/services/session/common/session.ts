@@ -19,9 +19,9 @@ import type {
 } from "src/cs/workbench/services/session/common/sessionModel";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import type { FileImportResult } from "src/cs/workbench/services/files/common/files";
-import type { RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
 import type { SliceCommit } from "src/cs/workbench/services/slice/common/slice";
 import type { ReviewCommit } from "src/cs/workbench/services/review/common/review";
+import type { RawTableFactsRecord } from "src/cs/workbench/services/template/common/tableFacts";
 
 export const ISessionService = createDecorator<ISessionService>("sessionService");
 
@@ -64,8 +64,8 @@ export type CommitFileImportResult = {
   readonly skippedDuplicateFileIds: readonly FileId[];
 };
 
-export type CommitFileImportRawTableAssessmentInput =
-  Omit<RawTableAssessmentRecord, "assessmentRuleVersion" | "fileId" | "rawTableId" | "schemaProfileVersion" | "sourceRawTableVersion"> & {
+export type CommitFileImportRawTableFactsInput =
+  Omit<RawTableFactsRecord, "assessmentRuleVersion" | "fileId" | "rawTableId" | "schemaProfileVersion" | "sourceRawTableVersion"> & {
     readonly fileId: FileId;
     readonly rawTableId?: string | null;
     readonly assessmentRuleVersion?: number;
@@ -73,7 +73,7 @@ export type CommitFileImportRawTableAssessmentInput =
   };
 
 export type CommitFileImportOptions = {
-  readonly rawTableAssessments?: readonly CommitFileImportRawTableAssessmentInput[];
+  readonly rawTableFacts?: readonly CommitFileImportRawTableFactsInput[];
 };
 
 export interface ISessionService {
@@ -85,8 +85,8 @@ export interface ISessionService {
 
   clearSession(): void;
   commitFileImport(result: FileImportResult, options?: CommitFileImportOptions): CommitFileImportResult;
-  commitRawTableAssessment(assessment: RawTableAssessmentRecord): void;
-  commitRawTableAssessments(assessments: readonly RawTableAssessmentRecord[]): void;
+  commitRawTableFacts(tableFacts: RawTableFactsRecord): void;
+  commitRawTableFactsBatch(tableFacts: readonly RawTableFactsRecord[]): void;
   commitRawTableReviews(reviews: readonly ReviewCommit[]): void;
   commitSliceRuns(inputs: readonly SliceCommit[]): void;
   commitCalculatedRecordsBatch(inputs: CommitCalculatedRecordsBatchInput): void;

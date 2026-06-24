@@ -53,7 +53,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           confidence: "confirmed",
           kind: "ready",
           label: "transfer",
-          source: "assessment",
+          source: "tableFacts",
         },
         fileId: "file-a",
         fileName: "A.csv",
@@ -61,7 +61,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
       {
         badgeState: {
           kind: "unknown",
-          source: "assessment",
+          source: "tableFacts",
         },
         fileId: "file-b",
         fileName: "B.csv",
@@ -73,7 +73,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           confidence: "confirmed",
           kind: "ready",
           label: "transfer",
-          source: "assessment",
+          source: "tableFacts",
         },
         chartMessage: "Ready",
         chartState: "ready",
@@ -84,7 +84,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
       {
         badgeState: {
           kind: "unknown",
-          source: "assessment",
+          source: "tableFacts",
         },
         chartState: "none",
         fileId: "file-b",
@@ -96,7 +96,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     assert.equal(tableSummary.signature, chartSummary.signature);
     assert.deepEqual(
       {
-        assessmentBadgeCount: tableSummary.assessmentBadgeCount,
+        tableFactsBadgeCount: tableSummary.tableFactsBadgeCount,
         failedSourceCount: tableSummary.failedSourceCount,
         fastBadgeCount: tableSummary.fastBadgeCount,
         loadingSourceCount: tableSummary.loadingSourceCount,
@@ -104,7 +104,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
         totalFileCount: tableSummary.totalFileCount,
       },
       {
-        assessmentBadgeCount: chartSummary.assessmentBadgeCount,
+        tableFactsBadgeCount: chartSummary.tableFactsBadgeCount,
         failedSourceCount: chartSummary.failedSourceCount,
         fastBadgeCount: chartSummary.fastBadgeCount,
         loadingSourceCount: chartSummary.loadingSourceCount,
@@ -119,7 +119,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           confidence: "confirmed",
           kind: "ready",
           label: "transfer",
-          source: "assessment",
+          source: "tableFacts",
         },
         fileId: "file-a",
         fileName: "A.csv",
@@ -135,7 +135,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
       },
     ]);
     assert.notEqual(tableSummary.signature, skippedSummary.signature);
-    assert.equal(skippedSummary.assessmentBadgeCount, 1);
+    assert.equal(skippedSummary.tableFactsBadgeCount, 1);
   });
 
   test("file presentation signature includes raw table status projection", () => {
@@ -206,7 +206,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
         confidence: "confirmed",
         kind: "ready",
         label: "output",
-        source: "assessment",
+        source: "tableFacts",
       },
       curveType: "output",
       curveTypeBadgeLabel: "output",
@@ -309,7 +309,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
             confidence: "confirmed",
             kind: "ready",
             label: "output",
-            source: "assessment",
+            source: "tableFacts",
           },
           curveType: "output (vd)",
           curveTypeBadgeLabel: "output",
@@ -362,7 +362,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           confidence: "confirmed",
           kind: "ready",
           label: "mixed",
-          source: "assessment",
+          source: "tableFacts",
         },
         curveType: "iv",
         curveTypeBadgeLabel: "iv",
@@ -420,7 +420,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           confidence: "confirmed",
           kind: "ready",
           label: "transfer",
-          source: "assessment",
+          source: "tableFacts",
         },
         curveType: "transfer",
         curveTypeBadgeLabel: "transfer",
@@ -455,7 +455,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           confidence: "confirmed",
           kind: "ready",
           label: "output",
-          source: "assessment",
+          source: "tableFacts",
         },
         chartState: "ready",
         curveType: "output",
@@ -639,7 +639,7 @@ const createFileRecord = (
   const hasChartData = options.hasChartData ?? true;
   const hasAssessmentBlock = options.hasAssessmentBlock ?? false;
   return {
-    assessmentsByRawTableId: {},
+    tableFactsByRawTableId: {},
     curvesByKey: hasChartData
       ? {
         "base:iv:transfer:series-1": {

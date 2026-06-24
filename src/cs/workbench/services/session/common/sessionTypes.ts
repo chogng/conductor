@@ -12,18 +12,18 @@ export type SessionFile = {
   relativePath?: string | null;
   sourceVersion?: number;
   sourcePath?: string | null;
-  assessmentHealth?: "ok" | "suspect" | "decodeFailed" | "parseFailed" | "unsupported" | "empty";
-  assessmentHealthMessage?: string | null;
+  rawTableHealth?: "ok" | "suspect" | "decodeFailed" | "parseFailed" | "unsupported" | "empty";
+  rawTableHealthMessage?: string | null;
   templateEligibility?: "eligible" | "notEligible" | "needsUserAction";
   curveType?: string | null;
   curveTypeConfidence?: "high" | "medium" | "low";
   curveTypeNeedsReview?: boolean;
   curveTypeReasons?: string[];
-  assessmentBlocks?: readonly MeasurementBlockRecord[];
-  assessmentColumnProfiles?: readonly ColumnProfile[];
-  assessmentLayoutCandidates?: readonly LayoutCandidate[];
-  assessmentSchemaFingerprint?: SchemaFingerprint;
-  assessmentSemanticCandidates?: readonly ColumnSemanticCandidate[];
+  tableFactsBlocks?: readonly MeasurementBlockRecord[];
+  tableFactsColumnProfiles?: readonly ColumnProfile[];
+  tableFactsLayoutCandidates?: readonly LayoutCandidate[];
+  tableFactsSchemaFingerprint?: SchemaFingerprint;
+  tableFactsSemanticCandidates?: readonly ColumnSemanticCandidate[];
   xAxisRole?: "vg" | "vd" | null;
   xAxisRoleSource?:
     | "filename"

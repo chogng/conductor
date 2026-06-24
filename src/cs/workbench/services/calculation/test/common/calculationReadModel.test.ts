@@ -348,7 +348,7 @@ const createFileRecord = (
 ): FileRecord => {
   const curveKey = `base:iv:transfer:${seriesId}` as BaseCurveKey;
   return {
-    assessmentsByRawTableId: {},
+    tableFactsByRawTableId: {},
     curvesByKey: {
       [curveKey]: {
         curveFamily: "iv",

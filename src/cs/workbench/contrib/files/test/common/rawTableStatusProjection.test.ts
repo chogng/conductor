@@ -241,7 +241,7 @@ const createFileRecord = ({
 			"table-a": 1,
 			"table-b": 1,
 		},
-		assessmentsByRawTableId: {},
+		tableFactsByRawTableId: {},
 		rawTableReviewsByRawTableId: review
 			? {
 					[review.rawTableId]: review,

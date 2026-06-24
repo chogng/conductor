@@ -31,7 +31,7 @@ import {
 } from "src/cs/workbench/services/slice/common/slice";
 import { executeSlicePlan } from "src/cs/workbench/services/slice/common/sliceExecutor";
 import {
-	createSliceAssessmentSignature,
+	createSliceTableFactsSignature,
 	createSlicePlan,
 } from "src/cs/workbench/services/slice/common/slicePlanner";
 import {
@@ -231,23 +231,23 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	private createAutoRequest(ref: RawTableRef): SliceRequest | null {
 		const snapshot = this.sessionService.getSnapshot();
 		const file = snapshot.filesById[ref.fileId];
-		const assessment = file?.assessmentsByRawTableId[ref.rawTableId];
+		const tableFacts = file?.tableFactsByRawTableId[ref.rawTableId];
 		const table = file?.raw.tablesById[ref.rawTableId];
 		const review = file?.rawTableReviewsByRawTableId?.[ref.rawTableId];
-		if (!file || !assessment || !table || !isSystemRecommendedReview(review)) {
+		if (!file || !tableFacts || !table || !isSystemRecommendedReview(review)) {
 			return null;
 		}
 		const reviewedTemplate = review.decision.reviewedTemplate;
 		const reviewSignature = createReviewRecordSignature(review);
 		const requestSignature = createAutomaticSliceRequestSignature({
 			reviewSignature,
-			sourceRawTableVersion: assessment.sourceRawTableVersion,
+			sourceRawTableVersion: tableFacts.sourceRawTableVersion,
 			templateFingerprint: reviewedTemplate.templateFingerprint,
 		});
 		return {
 			id: `slice-request:${ref.fileId}:${ref.rawTableId}:${requestSignature}`,
 			ref,
-			sourceRawTableVersion: assessment.sourceRawTableVersion,
+			sourceRawTableVersion: tableFacts.sourceRawTableVersion,
 			reviewedTemplate,
 			trigger: {
 				kind: "reviewDecision",
@@ -262,9 +262,9 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	private createRequestPlan(request: SliceRequest): SlicePlan | null {
 		const snapshot = this.sessionService.getSnapshot();
 		const file = snapshot.filesById[request.ref.fileId];
-		const assessment = file?.assessmentsByRawTableId[request.ref.rawTableId];
+		const tableFacts = file?.tableFactsByRawTableId[request.ref.rawTableId];
 		const table = file?.raw.tablesById[request.ref.rawTableId];
-		if (!file || !assessment || !table) {
+		if (!file || !tableFacts || !table) {
 			return null;
 		}
 		if ((file.rawTableVersionsById[request.ref.rawTableId] ?? 0) !== request.sourceRawTableVersion) {
@@ -278,12 +278,12 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			selection: request.trigger.kind === "reviewDecision"
 				? { kind: "auto" }
 				: { kind: "inline", template: request.reviewedTemplate.template },
-			sourceAssessmentSignature: createSliceAssessmentSignature(assessment, {
+			sourceTableFactsSignature: createSliceTableFactsSignature(tableFacts, {
 				reviewSignature: request.trigger.kind === "reviewDecision"
 					? request.trigger.reviewSignature
 					: request.requestSignature,
 			}),
-			measurement: getSliceMeasurementBinding(assessment),
+			measurement: getSliceMeasurementBinding(tableFacts),
 			template: request.reviewedTemplate.template,
 			templateFingerprint: request.reviewedTemplate.templateFingerprint,
 		});
@@ -302,7 +302,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			mode: "manual",
 			ref,
 			selection,
-			measurement: getSliceMeasurementBinding(file.assessmentsByRawTableId[ref.rawTableId]),
+			measurement: getSliceMeasurementBinding(file.tableFactsByRawTableId[ref.rawTableId]),
 			template,
 		});
 	}
@@ -313,7 +313,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		mode,
 		ref,
 		selection,
-		sourceAssessmentSignature,
+		sourceTableFactsSignature,
 		template,
 		templateFingerprint,
 	}: {
@@ -322,7 +322,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		readonly mode: SlicePlan["mode"];
 		readonly ref: RawTableRef;
 		readonly selection: TemplateSelection;
-		readonly sourceAssessmentSignature?: string;
+		readonly sourceTableFactsSignature?: string;
 		readonly template: Template;
 		readonly templateFingerprint?: string;
 	}): SlicePlan | null {
@@ -336,7 +336,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			mode,
 			selection,
 			sourceRawTableVersion: file.rawTableVersionsById[ref.rawTableId] ?? 0,
-			sourceAssessmentSignature,
+			sourceTableFactsSignature,
 			measurement,
 			template,
 			templateFingerprint,
@@ -436,7 +436,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			const currentPlan = this.createAutoPlan(plan.ref);
 			return Boolean(
 				currentPlan &&
-					currentPlan.sourceAssessmentSignature === plan.sourceAssessmentSignature &&
+					currentPlan.sourceTableFactsSignature === plan.sourceTableFactsSignature &&
 					currentPlan.templateFingerprint === plan.templateFingerprint,
 			);
 		}
@@ -500,7 +500,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 				run.mode === "auto" &&
 				run.rawTableId === ref.rawTableId &&
 				run.sourceRawTableVersion === plan.sourceRawTableVersion &&
-				run.sourceAssessmentSignature === plan.sourceAssessmentSignature &&
+				run.sourceTableFactsSignature === plan.sourceTableFactsSignature &&
 				run.templateFingerprint === plan.templateFingerprint &&
 				run.errors.length === 0,
 		);
@@ -646,9 +646,9 @@ const isSameSliceFileState = (
 	("message" in current ? current.message : undefined) === ("message" in next ? next.message : undefined);
 
 const getSliceMeasurementBinding = (
-	assessment: { readonly blocks?: readonly { readonly family: string; readonly ivMode?: string | null; readonly itMode?: string | null }[] } | undefined,
+	tableFacts: { readonly blocks?: readonly { readonly family: string; readonly ivMode?: string | null; readonly itMode?: string | null }[] } | undefined,
 ): SliceMeasurementBinding | undefined => {
-	const block = assessment?.blocks?.find(candidate => isSliceCurveFamily(candidate.family));
+	const block = tableFacts?.blocks?.find(candidate => isSliceCurveFamily(candidate.family));
 	if (!block || !isSliceCurveFamily(block.family)) {
 		return undefined;
 	}

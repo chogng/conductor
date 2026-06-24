@@ -9,12 +9,12 @@ import {
 	type IWorkbenchContribution,
 } from "src/cs/workbench/common/contributions";
 import {
-	AssessmentContributionId,
-	IAssessmentQueueService,
-	type IAssessmentQueueService as IAssessmentQueueServiceType,
+	IRawTableFactsQueueService,
+	RawTableFactsContributionId,
+	type IRawTableFactsQueueService as IRawTableFactsQueueServiceType,
 } from "src/cs/workbench/services/assessment/common/assessment";
 import {
-	getRawTableRefsForAssessmentEvent,
+	getRawTableRefsForTableFactsEvent,
 } from "src/cs/workbench/services/assessment/browser/assessmentQueueService";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import {
@@ -22,12 +22,12 @@ import {
 	type ISessionService as ISessionServiceType,
 } from "src/cs/workbench/services/session/common/session";
 
-export class AssessmentContribution extends Disposable implements IWorkbenchContribution {
+export class RawTableFactsContribution extends Disposable implements IWorkbenchContribution {
 	private disposed = false;
 
 	public constructor(
 		@ISessionService private readonly sessionService: ISessionServiceType,
-		@IAssessmentQueueService private readonly assessmentQueueService: IAssessmentQueueServiceType,
+		@IRawTableFactsQueueService private readonly rawTableFactsQueueService: IRawTableFactsQueueServiceType,
 	) {
 		super();
 
@@ -50,7 +50,7 @@ export class AssessmentContribution extends Disposable implements IWorkbenchCont
 		}
 
 		const snapshot = this.sessionService.getSnapshot();
-		this.assessmentQueueService.enqueueRawTables(getRawTableRefsForAssessmentEvent(
+		this.rawTableFactsQueueService.enqueueRawTables(getRawTableRefsForTableFactsEvent(
 			event.rawTableRefs,
 			event.fileIds,
 			event.rawTableIds,
@@ -64,7 +64,7 @@ export class AssessmentContribution extends Disposable implements IWorkbenchCont
 		}
 
 		const snapshot = this.sessionService.getSnapshot();
-		this.assessmentQueueService.enqueueRawTables(getRawTableRefsForAssessmentEvent(
+		this.rawTableFactsQueueService.enqueueRawTables(getRawTableRefsForTableFactsEvent(
 			undefined,
 			undefined,
 			undefined,
@@ -73,8 +73,10 @@ export class AssessmentContribution extends Disposable implements IWorkbenchCont
 	}
 }
 
+export { RawTableFactsContribution as AssessmentContribution };
+
 registerWorkbenchContribution2(
-	AssessmentContributionId,
-	AssessmentContribution,
+	RawTableFactsContributionId,
+	RawTableFactsContribution,
 	WorkbenchPhase.AfterRestored,
 );

@@ -7,6 +7,9 @@ import type {
   AssessmentFileInput,
   AssessmentRows,
   ImportAssessmentSeed,
+  ImportTableFactsSeed,
+  RawTableFactsFileInput,
+  RawTableFactsRows,
 } from "src/cs/workbench/services/assessment/common/assessment";
 import type {
   IvSweepMode,
@@ -21,10 +24,10 @@ import {
 const FILE_ASSESSMENT_PREVIEW_BYTES = 128 * 1024;
 const FILE_ASSESSMENT_PREVIEW_ROWS = 256;
 
-export const createImportAssessmentSeedFromRows = async (
+export const createImportTableFactsSeedFromRows = async (
   fileName: string,
-  rows: AssessmentRows,
-): Promise<ImportAssessmentSeed> => {
+  rows: RawTableFactsRows,
+): Promise<ImportTableFactsSeed> => {
   const assessment = createImportAssessmentSeed({
     fileName,
     metadata: extractImportAssessmentSeedMetadata(rows.map(row => [...row])),
@@ -40,6 +43,11 @@ export const createImportAssessmentSeedFromRows = async (
     xAxisRoleSource: assessment.xAxisRoleSource,
   };
 };
+
+export const createImportAssessmentSeedFromRows = (
+  fileName: string,
+  rows: AssessmentRows,
+): Promise<ImportAssessmentSeed> => createImportTableFactsSeedFromRows(fileName, rows);
 
 const getMeasurementFamily = (
   curveType: CurveKind,
@@ -62,9 +70,9 @@ const getIvMode = (
   return null;
 };
 
-export const createImportAssessmentSeedFromFile = async (
-  file: AssessmentFileInput,
-): Promise<ImportAssessmentSeed> => {
+export const createImportTableFactsSeedFromFile = async (
+  file: RawTableFactsFileInput,
+): Promise<ImportTableFactsSeed> => {
   const previewText = await file
     .slice(0, FILE_ASSESSMENT_PREVIEW_BYTES)
     .text();
@@ -77,5 +85,9 @@ export const createImportAssessmentSeedFromFile = async (
         row.map(value => String(value ?? ""))
       )
     : [];
-  return createImportAssessmentSeedFromRows(file?.name ?? "", rows);
+  return createImportTableFactsSeedFromRows(file?.name ?? "", rows);
 };
+
+export const createImportAssessmentSeedFromFile = (
+  file: AssessmentFileInput,
+): Promise<ImportAssessmentSeed> => createImportTableFactsSeedFromFile(file);

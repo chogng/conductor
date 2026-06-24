@@ -16,7 +16,7 @@ import type {
   FileConverterPreparedFile,
 } from "../../../../services/files/common/fileConverterBackend.ts";
 import {
-  createImportAssessmentSeedFromRows,
+  createImportTableFactsSeedFromRows,
 } from "../../../../services/assessment/browser/importAssessmentSeed.ts";
 import { NotificationService } from "../../../../services/notification/common/notificationService.ts";
 import {
@@ -395,7 +395,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     const failedFiles: FileImportPrepareFailure[] = [];
     const firstImport = await prepareFirstPendingImportFile({
       canApplyResult: () => true,
-      createPreparedAssessmentFromRows: createImportAssessmentSeedFromRows,
+      createPreparedTableFactsSeedFromRows: createImportTableFactsSeedFromRows,
       failedFiles,
       fileConverterBackend: createFileConverterBackendStub(),
       pendingImportFiles: [
@@ -404,7 +404,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       selectedRelativePath: null,
     });
 
-    const assessment = firstImport.result?.prepared.fileInfo.preparedAssessment;
+    const assessment = firstImport.result?.prepared.fileInfo.preparedTableFactsSeed;
     assert.ok(assessment);
     assert.equal(assessment.curveFamily, "iv");
     assert.equal(assessment.ivMode, "transfer");

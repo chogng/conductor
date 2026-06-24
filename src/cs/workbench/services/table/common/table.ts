@@ -79,8 +79,8 @@ type TableFile = {
 	sheetName?: string | null;
 	sourceKey?: string;
 	sourceVersion?: number;
-	assessmentHealth?: "ok" | "suspect" | "decodeFailed" | "parseFailed" | "unsupported" | "empty";
-	assessmentHealthMessage?: string | null;
+	rawTableHealth?: "ok" | "suspect" | "decodeFailed" | "parseFailed" | "unsupported" | "empty";
+	rawTableHealthMessage?: string | null;
 	templateEligibility?: "eligible" | "notEligible" | "needsUserAction";
 	rowCount: number;
 	columnCount: number;

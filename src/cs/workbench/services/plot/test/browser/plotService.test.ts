@@ -2795,7 +2795,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
 
     for (const reason of [
       "rawTablesChanged",
-      "assessmentChanged",
+      "tableFactsChanged",
       "calculatedRecordsChanged",
       "metricsChanged",
       "metricInputsChanged",
@@ -2906,8 +2906,8 @@ const createSessionServiceStub = (
   }),
   commitMetrics: () => undefined,
   commitMetricsBatch: () => undefined,
-  commitRawTableAssessment: () => undefined,
-  commitRawTableAssessments: () => undefined,
+  commitRawTableFacts: () => undefined,
+  commitRawTableFactsBatch: () => undefined,
   commitRawTableReviews: () => undefined,
   commitSliceRuns: () => undefined,
   getSnapshot: () => snapshot,
@@ -2965,7 +2965,7 @@ const createFileRecord = (
   const curveBKey = "base:iv:transfer:series-b" as BaseCurveKey;
 
   return {
-    assessmentsByRawTableId: {},
+    tableFactsByRawTableId: {},
     curvesByKey: {
       [curveAKey]: {
         curveFamily: "iv",

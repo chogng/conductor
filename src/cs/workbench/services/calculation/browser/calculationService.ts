@@ -908,7 +908,7 @@ export const shouldUpdateCalculationForSessionChange = (
     case "curvesChanged":
       return hasBaseCurveChange(event);
     case "rawTablesChanged":
-    case "assessmentChanged":
+    case "tableFactsChanged":
     case "calculatedRecordsChanged":
     case "metricsChanged":
       return false;

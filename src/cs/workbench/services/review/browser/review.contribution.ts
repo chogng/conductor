@@ -41,7 +41,7 @@ export class ReviewContribution extends Disposable implements IWorkbenchContribu
 		super();
 
 		this._register(this.sessionService.onDidChangeSession(event => {
-			if (event.reason === "assessmentChanged" || event.reason === "fileMetadataChanged") {
+			if (event.reason === "tableFactsChanged" || event.reason === "fileMetadataChanged") {
 				this.enqueueChangedEvidence(event);
 			}
 		}));
@@ -99,7 +99,7 @@ const filterEvidenceRefs = (
 	const seen = new Set<string>();
 	for (const ref of refs) {
 		const file = snapshot.filesById[ref.fileId];
-		if (!file?.raw.tablesById[ref.rawTableId] || !file.assessmentsByRawTableId?.[ref.rawTableId]) {
+		if (!file?.raw.tablesById[ref.rawTableId] || !file.tableFactsByRawTableId?.[ref.rawTableId]) {
 			continue;
 		}
 

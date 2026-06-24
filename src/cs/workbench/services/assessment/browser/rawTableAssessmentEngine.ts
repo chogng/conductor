@@ -4,7 +4,7 @@
 
 import type {
 	AssessRawTableInput,
-	RawTableAssessmentRecord,
+	RawTableFactsRecord,
 } from "src/cs/workbench/services/assessment/common/assessment";
 import {
 	createColumnProfiles,
@@ -19,19 +19,19 @@ import {
 	findExactSchemaProfileMatch,
 } from "src/cs/workbench/services/schemaProfile/common/schemaProfileMatcher";
 import {
-	createRawTableAssessmentRecordFromImportAssessment,
+	createRawTableFactsRecordFromImportSeed,
 	getAssessmentConfidenceScore,
 	getColumnCount,
 	normalizePositiveCount,
 } from "src/cs/workbench/services/assessment/common/assessmentRecord";
 import { createProfileBackedAssessment } from "src/cs/workbench/services/assessment/common/schemaProfileAssessment";
-import { createImportAssessmentSeedFromRows } from "src/cs/workbench/services/assessment/browser/importAssessmentSeed";
+import { createImportTableFactsSeedFromRows } from "src/cs/workbench/services/assessment/browser/importAssessmentSeed";
 
 export class RawTableAssessmentEngine {
 	public async assess(
 		input: AssessRawTableInput,
-	): Promise<RawTableAssessmentRecord> {
-		const seedAssessment = await createImportAssessmentSeedFromRows(
+	): Promise<RawTableFactsRecord> {
+		const tableFactsSeed = await createImportTableFactsSeedFromRows(
 			input.fileName ?? input.rawTableId,
 			input.rows,
 		);
@@ -51,7 +51,7 @@ export class RawTableAssessmentEngine {
 			profiles: input.schemaProfiles ?? [],
 		});
 		const effectiveAssessment = createProfileBackedAssessment({
-			assessment: seedAssessment,
+			assessment: tableFactsSeed,
 			columnProfiles,
 			schemaProfile: schemaProfileMatch?.profile ?? null,
 		});
@@ -81,9 +81,8 @@ export class RawTableAssessmentEngine {
 			rowCount,
 			structure,
 		});
-		return createRawTableAssessmentRecordFromImportAssessment({
+		return createRawTableFactsRecordFromImportSeed({
 			...input,
-			assessment: effectiveAssessment,
 			blocks,
 			columnProfile,
 			columnProfiles,
@@ -95,6 +94,7 @@ export class RawTableAssessmentEngine {
 			schemaProfileVersion: input.schemaProfileVersion,
 			semanticCandidates,
 			structure,
+			tableFactsSeed: effectiveAssessment,
 		});
 	}
 }

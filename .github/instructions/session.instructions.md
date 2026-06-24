@@ -23,7 +23,7 @@ session. It is not a view-state store and not a workflow dispatcher.
 | File | Responsibility |
 | --- | --- |
 | `common/session.ts` | service contract, snapshot, commit inputs, events. |
-| `common/sessionModel.ts` | canonical records: files, raw, assessment, slice runs, series, curves, metrics, cache. |
+| `common/sessionModel.ts` | canonical records: files, raw, table facts, reviews, slice runs, series, curves, metrics, cache. |
 | `common/sessionEvents.ts` | change reasons, affected ids, helper types. |
 | `common/sessionReadModel.ts` | read-only projections. |
 | `common/sessionModelAdapter.ts` | temporary legacy adapter; shrink over time. |
@@ -31,7 +31,7 @@ session. It is not a view-state store and not a workflow dispatcher.
 
 ## Canonical Data Only
 
-Session may store imported files, raw tables/versions, assessments, blocks,
+Session may store imported files, raw tables/versions, table facts, reviews,
 slice runs, series, curves, metrics, metric inputs, and rebuildable calculation
 cache descriptors.
 
@@ -44,8 +44,8 @@ request ids, row caches, or thumbnail caches.
 - Every canonical mutation goes through `SessionService`.
 - Every commit validates affected ids.
 - Import commits return committed file ids and skipped duplicate source ids for caller follow-up.
-- Assessment commits check `sourceRawTableVersion`.
-- Raw table replacement invalidates stale assessments, slice runs, curves, and metrics for that raw table.
+- Table-fact commits check `sourceRawTableVersion`.
+- Raw table replacement invalidates stale table facts, reviews, slice runs, curves, and metrics for that raw table.
 - Calculation output that includes derived curves and metrics should use `commitCalculatedRecordsBatch`.
 - Events include affected ids; consumers ignore unrelated changes.
 
@@ -57,7 +57,7 @@ has produced the domain result.
 | Workflow | Preferred producer | Session method |
 | --- | --- | --- |
 | import | Explorer source workflow after conversion | `commitFileImport` |
-| assessment | assessment contribution/command | `commitRawTableAssessment` |
+| table facts | table-fact producer; legacy assessment implementation while migrating | `commitRawTableFacts` |
 | review | review contribution/command after candidate review | `commitRawTableReviews` |
 | slice | slice service after planning/execution | `commitSliceRuns` |
 | calculated curves/metrics | calculation service | `commitCalculatedRecordsBatch` |

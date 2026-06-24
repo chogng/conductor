@@ -6,6 +6,8 @@ import {
 	ASSESSMENT_RULE_VERSION,
 	type AssessRawTableInput,
 	type ImportAssessmentSeed,
+	type ImportTableFactsSeed,
+	type RawTableFactsRecord,
 	type RawTableAssessmentRecord,
 } from "src/cs/workbench/services/assessment/common/assessment";
 import {
@@ -38,9 +40,9 @@ import { createColumnSemanticCandidates } from "src/cs/workbench/services/assess
 import type { SchemaProfile } from "src/cs/workbench/services/schemaProfile/common/schemaProfile";
 import { findExactSchemaProfileMatch } from "src/cs/workbench/services/schemaProfile/common/schemaProfileMatcher";
 
-export type CreateRawTableAssessmentRecordInput =
+export type CreateRawTableFactsRecordFromImportSeedInput =
 	Omit<AssessRawTableInput, "rows"> & {
-		readonly assessment: ImportAssessmentSeed;
+		readonly tableFactsSeed: ImportTableFactsSeed;
 		readonly blocks?: readonly MeasurementBlockRecord[];
 		readonly columnProfile?: MeasurementColumnProfile;
 		readonly columnProfiles?: readonly ColumnProfile[];
@@ -51,10 +53,15 @@ export type CreateRawTableAssessmentRecordInput =
 		readonly structure?: RawTableStructure;
 	};
 
-export const createRawTableAssessmentRecordFromImportAssessment = (
-	input: CreateRawTableAssessmentRecordInput,
-): RawTableAssessmentRecord => {
-	const assessment = input.assessment;
+export type CreateRawTableAssessmentRecordInput =
+	Omit<CreateRawTableFactsRecordFromImportSeedInput, "tableFactsSeed"> & {
+		readonly assessment: ImportAssessmentSeed;
+	};
+
+export const createRawTableFactsRecordFromImportSeed = (
+	input: CreateRawTableFactsRecordFromImportSeedInput,
+): RawTableFactsRecord => {
+	const assessment = input.tableFactsSeed;
 	const columnCount = normalizePositiveCount(input.columnCount) ?? 0;
 	const rowCount = normalizePositiveCount(input.rowCount) ?? 0;
 	const schemaProfileVersion = normalizeSchemaProfileVersion(input.schemaProfileVersion);
@@ -124,6 +131,13 @@ export const createRawTableAssessmentRecordFromImportAssessment = (
 		createdAt: Date.now(),
 	};
 };
+
+export const createRawTableAssessmentRecordFromImportAssessment = (
+	input: CreateRawTableAssessmentRecordInput,
+): RawTableAssessmentRecord => createRawTableFactsRecordFromImportSeed({
+	...input,
+	tableFactsSeed: input.assessment,
+});
 
 export const getColumnCount = (rows: readonly (readonly unknown[])[]): number => {
 	let columnCount = 0;

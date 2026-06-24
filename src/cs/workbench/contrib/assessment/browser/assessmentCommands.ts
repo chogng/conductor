@@ -6,7 +6,7 @@ import {
 	CommandsRegistry,
 	type ICommandHandler,
 } from "src/cs/platform/commands/common/commands";
-import type { RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
+import type { RawTableFactsRecord } from "src/cs/workbench/services/assessment/common/assessment";
 import type { MeasurementColumnRole } from "src/cs/workbench/services/assessment/common/measurement";
 import type { CanonicalUnit } from "src/cs/workbench/services/assessment/common/semanticCandidate";
 import {
@@ -23,25 +23,31 @@ import {
 	type ISessionService as ISessionServiceType,
 } from "src/cs/workbench/services/session/common/session";
 
+export const CONFIRM_TABLE_FACTS_SCHEMA_PROFILE_COMMAND_ID =
+	"tableFacts.confirmSchemaProfile";
 export const CONFIRM_ASSESSMENT_SCHEMA_PROFILE_COMMAND_ID =
 	"assessment.confirmSchemaProfile";
 
-export type ConfirmAssessmentSchemaProfileCommandBinding = {
+export type ConfirmTableFactsSchemaProfileCommandBinding = {
 	readonly rawCol?: unknown;
 	readonly role?: unknown;
 	readonly axis?: unknown;
 	readonly canonicalUnit?: unknown;
 };
+export type ConfirmAssessmentSchemaProfileCommandBinding =
+	ConfirmTableFactsSchemaProfileCommandBinding;
 
-export type ConfirmAssessmentSchemaProfileCommandArgs = {
+export type ConfirmTableFactsSchemaProfileCommandArgs = {
 	readonly fileId?: unknown;
 	readonly rawTableId?: unknown;
 	readonly id?: unknown;
 	readonly scope?: unknown;
-	readonly bindings?: readonly ConfirmAssessmentSchemaProfileCommandBinding[];
+	readonly bindings?: readonly ConfirmTableFactsSchemaProfileCommandBinding[];
 };
+export type ConfirmAssessmentSchemaProfileCommandArgs =
+	ConfirmTableFactsSchemaProfileCommandArgs;
 
-export const confirmAssessmentSchemaProfileFromSession = (
+export const confirmTableFactsSchemaProfileFromSession = (
 	args: unknown,
 	sessionService: Pick<ISessionServiceType, "getSnapshot">,
 	schemaProfileService: Pick<ISchemaProfileServiceType, "confirmProfile">,
@@ -57,8 +63,8 @@ export const confirmAssessmentSchemaProfileFromSession = (
 		return null;
 	}
 
-	const assessment = findAssessment(file.assessmentsByRawTableId, commandArgs.rawTableId);
-	if (!assessment?.structure.fingerprint || !assessment.columnProfiles.length) {
+	const tableFacts = findTableFacts(file.tableFactsByRawTableId, commandArgs.rawTableId);
+	if (!tableFacts?.structure.fingerprint || !tableFacts.columnProfiles.length) {
 		return null;
 	}
 
@@ -70,17 +76,19 @@ export const confirmAssessmentSchemaProfileFromSession = (
 	return schemaProfileService.confirmProfile({
 		id: commandArgs.id,
 		scope: commandArgs.scope,
-		schemaFingerprint: assessment.structure.fingerprint,
-		columnProfiles: assessment.columnProfiles,
+		schemaFingerprint: tableFacts.structure.fingerprint,
+		columnProfiles: tableFacts.columnProfiles,
 		bindings,
 	});
 };
+export const confirmAssessmentSchemaProfileFromSession =
+	confirmTableFactsSchemaProfileFromSession;
 
-const confirmAssessmentSchemaProfileHandler: ICommandHandler<[unknown], SchemaProfile | null> = (
+const confirmTableFactsSchemaProfileHandler: ICommandHandler<[unknown], SchemaProfile | null> = (
 	accessor,
 	args,
 ) =>
-	confirmAssessmentSchemaProfileFromSession(
+	confirmTableFactsSchemaProfileFromSession(
 		args,
 		accessor.get(ISessionService),
 		accessor.get(ISchemaProfileService),
@@ -93,13 +101,13 @@ const normalizeConfirmArgs = (
 	readonly rawTableId: string | null;
 	readonly id?: string | null;
 	readonly scope?: SchemaProfileScope;
-	readonly bindings: readonly ConfirmAssessmentSchemaProfileCommandBinding[];
+	readonly bindings: readonly ConfirmTableFactsSchemaProfileCommandBinding[];
 } | null => {
 	if (!args || typeof args !== "object") {
 		return null;
 	}
 
-	const candidate = args as ConfirmAssessmentSchemaProfileCommandArgs;
+	const candidate = args as ConfirmTableFactsSchemaProfileCommandArgs;
 	const fileId = normalizeText(candidate.fileId);
 	if (!fileId || !Array.isArray(candidate.bindings)) {
 		return null;
@@ -114,20 +122,20 @@ const normalizeConfirmArgs = (
 	};
 };
 
-const findAssessment = (
-	assessmentsByRawTableId: Readonly<Record<string, RawTableAssessmentRecord>>,
+const findTableFacts = (
+	tableFactsByRawTableId: Readonly<Record<string, RawTableFactsRecord>>,
 	rawTableId: string | null,
-): RawTableAssessmentRecord | null => {
+): RawTableFactsRecord | null => {
 	if (rawTableId) {
-		return assessmentsByRawTableId[rawTableId] ?? null;
+		return tableFactsByRawTableId[rawTableId] ?? null;
 	}
 
-	const assessments = Object.values(assessmentsByRawTableId);
-	return assessments.length === 1 ? assessments[0] : null;
+	const tableFacts = Object.values(tableFactsByRawTableId);
+	return tableFacts.length === 1 ? tableFacts[0] : null;
 };
 
 const normalizeBindings = (
-	bindings: readonly ConfirmAssessmentSchemaProfileCommandBinding[],
+	bindings: readonly ConfirmTableFactsSchemaProfileCommandBinding[],
 ): readonly SchemaProfileConfirmationBinding[] => {
 	const result: SchemaProfileConfirmationBinding[] = [];
 	for (const binding of bindings) {
@@ -197,6 +205,11 @@ const normalizeText = (
 	String(value ?? "").trim();
 
 CommandsRegistry.registerCommand({
+	id: CONFIRM_TABLE_FACTS_SCHEMA_PROFILE_COMMAND_ID,
+	handler: confirmTableFactsSchemaProfileHandler,
+});
+
+CommandsRegistry.registerCommand({
 	id: CONFIRM_ASSESSMENT_SCHEMA_PROFILE_COMMAND_ID,
-	handler: confirmAssessmentSchemaProfileHandler,
+	handler: confirmTableFactsSchemaProfileHandler,
 });

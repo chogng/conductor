@@ -59,9 +59,9 @@ import type {
 } from "src/cs/workbench/services/slice/common/slice";
 import {
   getRawTableRefsForFileIds,
-  type AssessmentQueueSnapshot,
-  type AssessmentRawTableQueueState,
-  type IAssessmentQueueService,
+  type RawTableFactsQueueSnapshot,
+  type RawTableFactsRawTableQueueState,
+  type IRawTableFactsQueueService,
 } from "src/cs/workbench/services/assessment/common/assessment";
 import {
   createFastImportBadgeAssessment,
@@ -81,7 +81,7 @@ export type WorkbenchDomainBridgeSyncOptions = {
 
 export type WorkbenchDomainBridgeOptions = {
   readonly chartService: IChartService;
-  readonly assessmentQueueService: IAssessmentQueueService;
+  readonly rawTableFactsQueueService: IRawTableFactsQueueService;
   readonly calculationService: ICalculationService;
   readonly explorerService: IExplorerService;
   readonly layoutService: IWorkbenchLayoutService;
@@ -113,7 +113,7 @@ export class WorkbenchDomainBridge extends Disposable {
     this._register(this.options.explorerService.onDidChangeVisibleFileIds(event => {
       this.prioritizeVisibleExplorerFiles(event.visibleFileIds, event.nearbyFileIds);
     }));
-    this._register(this.options.assessmentQueueService.onDidChangeAssessmentQueueState(() => this.scheduleSync()));
+    this._register(this.options.rawTableFactsQueueService.onDidChangeRawTableFactsQueueState(() => this.scheduleSync()));
     this._register(this.options.plotService.onDidChangePlotState(() => this.scheduleSync()));
     this._register(this.options.sliceService.onDidChangeSliceState(() => this.scheduleInteractiveSync()));
     this._register(this.options.layoutService.onDidChangeWorkbenchNavigation(() => this.scheduleSync()));
@@ -355,7 +355,7 @@ export class WorkbenchDomainBridge extends Disposable {
       plotService: this.options.plotService,
       readModel,
       snapshot,
-      assessmentQueueSnapshot: this.options.assessmentQueueService.getQueueSnapshot(),
+      tableFactsQueueSnapshot: this.options.rawTableFactsQueueService.getQueueSnapshot(),
       sliceState,
     });
   }
@@ -455,11 +455,11 @@ export class WorkbenchDomainBridge extends Disposable {
     nearbyFileIds: readonly string[],
   ): void {
     const snapshot = this.options.sessionService.getSnapshot();
-    this.options.assessmentQueueService.prioritizeRawTables(
+    this.options.rawTableFactsQueueService.prioritizeRawTables(
       getRawTableRefsForFileIds(visibleFileIds, snapshot),
       "visible",
     );
-    this.options.assessmentQueueService.prioritizeRawTables(
+    this.options.rawTableFactsQueueService.prioritizeRawTables(
       getRawTableRefsForFileIds(nearbyFileIds, snapshot),
       "nearby",
     );
@@ -673,7 +673,7 @@ type CreateExplorerPaneInputOptions = {
   readonly plotService: Pick<IPlotService, "getCalculatedData">;
   readonly readModel: SessionReadModel;
   readonly snapshot: SessionSnapshot;
-  readonly assessmentQueueSnapshot?: AssessmentQueueSnapshot;
+  readonly tableFactsQueueSnapshot?: RawTableFactsQueueSnapshot;
   readonly sliceState: SliceState;
 };
 
@@ -742,7 +742,7 @@ export const createExplorerPaneInput = ({
   plotAxisSettings,
   readModel,
   snapshot,
-  assessmentQueueSnapshot,
+  tableFactsQueueSnapshot,
   sliceState,
 }: CreateExplorerPaneInputOptions): ExplorerPaneInput => {
   const rawFiles = readModel.rawFiles;
@@ -753,7 +753,7 @@ export const createExplorerPaneInput = ({
     applyAssessmentQueueExplorerBadges(
       createRawExplorerFiles(rawFiles),
       snapshot,
-      assessmentQueueSnapshot,
+      tableFactsQueueSnapshot,
     ),
     snapshot,
   );
@@ -854,7 +854,7 @@ const applyFastExplorerBadges = (
 const applyAssessmentQueueExplorerBadges = (
   files: readonly ExplorerFileEntry[],
   snapshot: SessionSnapshot,
-  queueSnapshot: AssessmentQueueSnapshot | undefined,
+  queueSnapshot: RawTableFactsQueueSnapshot | undefined,
 ): ExplorerFileEntry[] => {
   if (!queueSnapshot?.rawTables.length) {
     return [...files];
@@ -867,7 +867,7 @@ const applyAssessmentQueueExplorerBadges = (
 const applyAssessmentQueueExplorerBadge = (
   file: ExplorerFileEntry,
   snapshot: SessionSnapshot,
-  queueStatesByRefKey: ReadonlyMap<string, AssessmentRawTableQueueState>,
+  queueStatesByRefKey: ReadonlyMap<string, RawTableFactsRawTableQueueState>,
 ): ExplorerFileEntry => {
   if (file.badgeState?.kind !== "pending") {
     return file;
@@ -890,7 +890,7 @@ const applyAssessmentQueueExplorerBadge = (
     badgeState: {
       kind: "pending",
       queueState: queueState.state,
-      source: "assessment",
+      source: "tableFacts",
     },
   };
 };
@@ -920,9 +920,9 @@ const applyRawTableStatusProjections = (
   });
 
 const createAssessmentQueueStatesByRefKey = (
-  snapshot: AssessmentQueueSnapshot,
-): ReadonlyMap<string, AssessmentRawTableQueueState> => {
-  const statesByRefKey = new Map<string, AssessmentRawTableQueueState>();
+  snapshot: RawTableFactsQueueSnapshot,
+): ReadonlyMap<string, RawTableFactsRawTableQueueState> => {
+  const statesByRefKey = new Map<string, RawTableFactsRawTableQueueState>();
   for (const state of snapshot.rawTables) {
     const fileId = String(state.fileId ?? "").trim();
     const rawTableId = String(state.rawTableId ?? "").trim();

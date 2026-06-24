@@ -39,7 +39,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		));
 
 		const result = service.deriveAndReview({
-			assessment: createAssessment(),
+			tableFacts: createAssessment(),
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			recipeSnapshot: recipeService.getSnapshot(),
@@ -65,7 +65,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		));
 
 		const result = service.deriveAndReview({
-			assessment: createAssessment(),
+			tableFacts: createAssessment(),
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			recipeSnapshot: recipeService.getSnapshot(),
@@ -101,7 +101,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		));
 
 		const result = service.deriveAndReview({
-			assessment: createAssessment(),
+			tableFacts: createAssessment(),
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			recipeSnapshot: recipeService.getSnapshot(),
@@ -131,7 +131,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		));
 
 		const result = service.deriveAndReview({
-			assessment: createAssessment(),
+			tableFacts: createAssessment(),
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			recipeSnapshot: recipeService.getSnapshot(),
@@ -161,7 +161,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		));
 
 		sessionService.commitFileImport(createImportResult());
-		sessionService.commitRawTableAssessment(createAssessment());
+		sessionService.commitRawTableFacts(createAssessment());
 
 		let record = sessionService.getSnapshot().filesById["file-a"]
 			.rawTableReviewsByRawTableId?.["table-a"];
@@ -186,7 +186,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			userTemplateService,
 		));
 		sessionService.commitFileImport(createImportResult());
-		sessionService.commitRawTableAssessment(createAssessment());
+		sessionService.commitRawTableFacts(createAssessment());
 
 		const result = service.reviewManualTemplate({
 			ref: { fileId: "file-a", rawTableId: "table-a" },
@@ -216,7 +216,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			userTemplateService,
 		));
 		sessionService.commitFileImport(createImportResult());
-		sessionService.commitRawTableAssessment(createAssessment());
+		sessionService.commitRawTableFacts(createAssessment());
 
 		const result = service.reviewManualTemplate({
 			ref: { fileId: "file-a", rawTableId: "table-a" },
@@ -246,7 +246,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			userTemplateService,
 		));
 		sessionService.commitFileImport(createImportResult());
-		sessionService.commitRawTableAssessment(createAssessment());
+		sessionService.commitRawTableFacts(createAssessment());
 
 		const result = service.reviewManualTemplate({
 			ref: { fileId: "file-a", rawTableId: "table-a" },
@@ -278,7 +278,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			userTemplateService,
 		));
 		sessionService.commitFileImport(createImportResult());
-		sessionService.commitRawTableAssessment(createAssessment());
+		sessionService.commitRawTableFacts(createAssessment());
 
 		const result = service.reviewManualTemplate({
 			ref: { fileId: "file-a", rawTableId: "table-a" },
@@ -309,7 +309,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			userTemplateService,
 		));
 		sessionService.commitFileImport(createImportResult());
-		sessionService.commitRawTableAssessment(createAssessment());
+		sessionService.commitRawTableFacts(createAssessment());
 
 		const result = service.reviewManualTemplate({
 			ref: { fileId: "file-a", rawTableId: "table-a" },

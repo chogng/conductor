@@ -281,14 +281,14 @@ suite("workbench/browser/workbench layout integration", () => {
     }>();
     const plotPrefetches: Array<{ fileIds: readonly string[]; priority: string }> = [];
     const thumbnailPrefetches: Array<{ fileIds: readonly string[]; priority: string }> = [];
-    const assessmentPriorities: string[] = [];
+    const tableFactsPriorities: string[] = [];
     const bridge = new WorkbenchDomainBridge({
-      assessmentQueueService: {
+      rawTableFactsQueueService: {
         enqueueRawTables: () => undefined,
         getQueueSnapshot: () => ({ rawTables: [] }),
-        onDidChangeAssessmentQueueState: Event.None as Event<void>,
+        onDidChangeRawTableFactsQueueState: Event.None as Event<void>,
         prioritizeRawTables: (_rawTableRefs: unknown, priority: string) => {
-          assessmentPriorities.push(priority);
+          tableFactsPriorities.push(priority);
         },
       },
       calculationService: {
@@ -347,7 +347,7 @@ suite("workbench/browser/workbench layout integration", () => {
         visibleFileIds: ["file-a"],
       });
 
-      assert.deepEqual(assessmentPriorities, ["visible", "nearby"]);
+      assert.deepEqual(tableFactsPriorities, ["visible", "nearby"]);
       assert.deepEqual(plotPrefetches, []);
       assert.deepEqual(thumbnailPrefetches, []);
     } finally {
@@ -362,10 +362,10 @@ suite("workbench/browser/workbench layout integration", () => {
     const plotDisplayPrefetches: Array<{ fileId?: string | null; plotType?: string; priority: string; sessionVersion?: number }> = [];
     const chartActiveFileIds: Array<string | null | undefined> = [];
     const bridge = new WorkbenchDomainBridge({
-      assessmentQueueService: {
+      rawTableFactsQueueService: {
         enqueueRawTables: () => undefined,
         getQueueSnapshot: () => ({ rawTables: [] }),
-        onDidChangeAssessmentQueueState: Event.None as Event<void>,
+        onDidChangeRawTableFactsQueueState: Event.None as Event<void>,
         prioritizeRawTables: () => undefined,
       },
       calculationService: {
@@ -478,7 +478,7 @@ const createProcessedFileRecord = (fileId: string): FileRecord => {
   const curveKey = `base:iv:transfer:${fileId}-series` as BaseCurveKey;
   const seriesId = `${fileId}-series`;
   return {
-    assessmentsByRawTableId: {},
+    tableFactsByRawTableId: {},
     curvesByKey: {
       [curveKey]: {
         curveFamily: "iv",
@@ -559,11 +559,11 @@ const createWorkbenchOptions = ({
   };
 
   return {
-    assessmentQueueService: {
+    rawTableFactsQueueService: {
       _serviceBrand: undefined,
       enqueueRawTables: () => undefined,
       getQueueSnapshot: () => ({ rawTables: [] }),
-      onDidChangeAssessmentQueueState: Event.None as Event<void>,
+      onDidChangeRawTableFactsQueueState: Event.None as Event<void>,
       prioritizeRawTables: () => undefined,
     },
     calculationService: {

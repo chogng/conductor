@@ -525,7 +525,7 @@ const createFileRecord = (): FileRecord => ({
 		},
 	},
 	rawTableVersionsById: {},
-	assessmentsByRawTableId: {},
+	tableFactsByRawTableId: {},
 	seriesById: {
 		"series-a": {
 			fileId: "file-a",

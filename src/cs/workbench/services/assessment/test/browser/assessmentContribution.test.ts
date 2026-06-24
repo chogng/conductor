@@ -58,7 +58,7 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 		const file = sessionService.getSnapshot().filesById["file-a"];
 		assert.deepEqual(
 			{
-				assessmentVersion: file.assessmentsByRawTableId["table-a"]?.sourceRawTableVersion,
+				assessmentVersion: file.tableFactsByRawTableId["table-a"]?.sourceRawTableVersion,
 				assessedInputs: assessmentService.inputs.map(input => ({
 					columnCount: input.columnCount,
 					fileId: input.fileId,
@@ -102,7 +102,7 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 		));
 		const assessmentEventSizes: number[] = [];
 		const disposable = store.add(sessionService.onDidChangeSession(event => {
-			if (event.reason === "assessmentChanged") {
+			if (event.reason === "tableFactsChanged") {
 				assessmentEventSizes.push(event.rawTableRefs?.length ?? 0);
 			}
 		}));
@@ -125,7 +125,7 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 	test("reassesses restored raw tables when the assessment rule version is stale", async () => {
 		const sessionService = store.add(new SessionService());
 		sessionService.commitFileImport(createInlineImportResult());
-		sessionService.commitRawTableAssessment(createRawTableAssessmentRecord({
+		sessionService.commitRawTableFacts(createRawTableAssessmentRecord({
 			assessmentRuleVersion: ASSESSMENT_RULE_VERSION - 1,
 			fileId: "file-a",
 			rawTableId: "table-a",
@@ -147,7 +147,7 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 
 		const file = sessionService.getSnapshot().filesById["file-a"];
 		assert.equal(
-			file.assessmentsByRawTableId["table-a"]?.assessmentRuleVersion,
+			file.tableFactsByRawTableId["table-a"]?.assessmentRuleVersion,
 			ASSESSMENT_RULE_VERSION,
 		);
 		assert.deepEqual(
@@ -177,7 +177,7 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 
 		sessionService.commitFileImport(createInlineImportResult());
 		await waitUntil(() => assessmentService.inputs.length === 1);
-		assert.equal(sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.schemaProfileVersion, 0);
+		assert.equal(sessionService.getSnapshot().filesById["file-a"].tableFactsByRawTableId["table-a"]?.schemaProfileVersion, 0);
 
 		schemaProfileService.setVersion(1);
 		await waitUntil(() => assessmentService.inputs.length === 2);
@@ -186,7 +186,7 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 			assessmentService.inputs.map(input => input.schemaProfileVersion),
 			[0, 1],
 		);
-		assert.equal(sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.schemaProfileVersion, 1);
+		assert.equal(sessionService.getSnapshot().filesById["file-a"].tableFactsByRawTableId["table-a"]?.schemaProfileVersion, 1);
 
 		contribution.dispose();
 		assessmentQueueService.dispose();
@@ -210,12 +210,12 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 
 		sessionService.commitFileImport(createProfileConfirmationImportResult());
 		await waitUntil(() => Boolean(
-			sessionService.getSnapshot().filesById["file-profile"]?.assessmentsByRawTableId["table-profile"],
+			sessionService.getSnapshot().filesById["file-profile"]?.tableFactsByRawTableId["table-profile"],
 		));
 
 		const initial = sessionService.getSnapshot()
 			.filesById["file-profile"]
-			.assessmentsByRawTableId["table-profile"];
+			.tableFactsByRawTableId["table-profile"];
 		assert.ok(initial);
 		assert.equal(initial.schemaProfileVersion, 0);
 		assert.equal(initial.blocks[0]?.family, "unknown");
@@ -240,13 +240,13 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 		await waitUntil(() =>
 			sessionService.getSnapshot()
 				.filesById["file-profile"]
-				.assessmentsByRawTableId["table-profile"]
+				.tableFactsByRawTableId["table-profile"]
 				?.schemaProfileVersion === 1
 		);
 
 		const reassessed = sessionService.getSnapshot()
 			.filesById["file-profile"]
-			.assessmentsByRawTableId["table-profile"];
+			.tableFactsByRawTableId["table-profile"];
 		assert.ok(reassessed);
 		assert.equal(reassessed.blocks[0]?.family, "iv");
 		assert.equal(reassessed.blocks[0]?.ivMode, "transfer");
@@ -354,7 +354,7 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 			[1],
 		);
 		assert.equal(
-			sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.schemaProfileVersion,
+			sessionService.getSnapshot().filesById["file-a"].tableFactsByRawTableId["table-a"]?.schemaProfileVersion,
 			1,
 		);
 
@@ -372,7 +372,7 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 			rawTableRowsReaderService,
 		));
 		const observedStates: string[][] = [];
-		const disposable = store.add(assessmentQueueService.onDidChangeAssessmentQueueState(() => {
+		const disposable = store.add(assessmentQueueService.onDidChangeRawTableFactsQueueState(() => {
 			observedStates.push(assessmentQueueService.getQueueSnapshot().rawTables.map(state =>
 				`${state.state}:${state.priority}:${state.fileId}:${state.rawTableId}:${state.sourceRawTableVersion}`
 			));
@@ -407,8 +407,9 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 	test("cleans queued and preferred assessment refs when files are removed or session clears", () => {
 		const eventEmitter = new Emitter<SessionChangeEvent>();
 		const sessionService = {
-			commitRawTableAssessments: () => undefined,
-			getSnapshot: () => ({
+				commitRawTableFacts: () => undefined,
+				commitRawTableFactsBatch: () => undefined,
+				getSnapshot: () => ({
 				fileOrder: [],
 				filesById: {},
 				schemaVersion: 1,
@@ -468,11 +469,26 @@ class TestAssessmentService implements IAssessmentService {
 		return Promise.reject(new Error("Not implemented."));
 	}
 
+	public createImportTableFactsSeedFromFile(file: File): Promise<ImportAssessmentSeed> {
+		return this.createImportAssessmentSeedFromFile(file);
+	}
+
 	public createImportAssessmentSeedFromRows(
 		_fileName: string,
 		_rows: readonly (readonly string[])[],
 	): Promise<ImportAssessmentSeed> {
 		return Promise.reject(new Error("Not implemented."));
+	}
+
+	public createImportTableFactsSeedFromRows(
+		fileName: string,
+		rows: readonly (readonly string[])[],
+	): Promise<ImportAssessmentSeed> {
+		return this.createImportAssessmentSeedFromRows(fileName, rows);
+	}
+
+	public createRawTableFacts(input: AssessRawTableInput): Promise<RawTableAssessmentRecord> {
+		return this.assessRawTable(input);
 	}
 
 	public assessRawTable(input: AssessRawTableInput): Promise<RawTableAssessmentRecord> {

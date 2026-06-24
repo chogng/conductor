@@ -233,7 +233,7 @@ const commitSliceRunForTest = (
       mode: "auto",
       selection: { kind: "auto" },
       sourceRawTableVersion: 1,
-      sourceAssessmentSignature: "assessment:test",
+      sourceTableFactsSignature: "assessment:test",
       template: {
         schemaVersion: 1,
         name: "Detected IV Transfer",

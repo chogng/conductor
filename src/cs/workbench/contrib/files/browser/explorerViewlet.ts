@@ -73,8 +73,9 @@ import {
   createFastImportBadgeAssessment,
 } from "src/cs/workbench/services/assessment/common/importAssessmentSeedHeuristics";
 import {
-  IAssessmentService,
-  type ImportAssessmentSeed,
+  IRawTableFactsService,
+  type ImportTableFactsSeed,
+  type IRawTableFactsService as IRawTableFactsServiceType,
 } from "src/cs/workbench/services/assessment/common/assessment";
 import {
   IThumbnailPreviewService,
@@ -135,7 +136,7 @@ export class ExplorerViewPane extends ViewPane {
     @IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
     @INotificationService private readonly notificationService: INotificationService,
     @ISessionService private readonly sessionService: ISessionService,
-    @IAssessmentService private readonly assessmentService: IAssessmentService,
+    @IRawTableFactsService private readonly rawTableFactsService: IRawTableFactsServiceType,
     @IThumbnailPreviewService private readonly thumbnailPreviewService: IThumbnailPreviewService,
     @IThumbnailService private readonly thumbnailService: IThumbnailService,
     @IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
@@ -164,8 +165,8 @@ export class ExplorerViewPane extends ViewPane {
 
     this.sourceWorkflow = new FileSourceWorkflow({
       commandService: this.commandService,
-      createPreparedAssessmentFromRows: (fileName, rows) =>
-        this.assessmentService.createImportAssessmentSeedFromRows(fileName, rows),
+      createPreparedTableFactsSeedFromRows: (fileName, rows) =>
+        this.rawTableFactsService.createImportTableFactsSeedFromRows(fileName, rows),
       fileConverterBackendService: this.fileConverterBackendService,
       filesService: this.filesService,
       getFiles: () => this.committedFiles,
@@ -523,7 +524,7 @@ export class ExplorerViewPane extends ViewPane {
     const pendingEntries = this.pendingSourceEntries.map(entry =>
       normalizeSourceKey(entry.sourceKey) === sourceKey
         ? createPendingSourceEntry({
-            badgeState: createPendingAssessmentBadgeState(change.preparedAssessment) ?? entry.badgeState,
+            badgeState: createPendingTableFactsBadgeState(change.preparedTableFactsSeed) ?? entry.badgeState,
             message: change.message ?? null,
             pendingFile,
             status: change.status,
@@ -532,7 +533,7 @@ export class ExplorerViewPane extends ViewPane {
     );
     if (!pendingEntries.some(entry => normalizeSourceKey(entry.sourceKey) === sourceKey)) {
       pendingEntries.push(createPendingSourceEntry({
-        badgeState: createPendingAssessmentBadgeState(change.preparedAssessment),
+        badgeState: createPendingTableFactsBadgeState(change.preparedTableFactsSeed),
         message: change.message ?? null,
         pendingFile,
         status: change.status,
@@ -1047,7 +1048,7 @@ const markExplorerBadgeProjection = (
   }
 
   markTemplateApplyPerformanceTrace("import.badge.projection", {
-    assessmentBadgeCount: summary.assessmentBadgeCount,
+    tableFactsBadgeCount: summary.tableFactsBadgeCount,
     failedSourceCount: summary.failedSourceCount,
     fastBadgeCount: summary.fastBadgeCount,
     loadingSourceCount: summary.loadingSourceCount,
@@ -1080,18 +1081,18 @@ function createPendingSourceEntry({
   };
 }
 
-function createPendingAssessmentBadgeState(
-  assessment: ImportAssessmentSeed | undefined,
+function createPendingTableFactsBadgeState(
+  tableFactsSeed: ImportTableFactsSeed | undefined,
 ): ExplorerFileEntry["badgeState"] | undefined {
-  if (!assessment) {
+  if (!tableFactsSeed) {
     return undefined;
   }
 
-  const curveType = String(assessment.curveType ?? "").trim();
+  const curveType = String(tableFactsSeed.curveType ?? "").trim();
   if (!curveType || curveType.toLowerCase() === "unknown") {
     return {
       kind: "unknown",
-      source: "assessment",
+      source: "tableFacts",
     };
   }
 
@@ -1101,12 +1102,12 @@ function createPendingAssessmentBadgeState(
         confidence: "confirmed",
         kind: "ready",
         label,
-        message: assessment.curveTypeReasons.join("; ") || null,
-        source: "assessment",
+        message: tableFactsSeed.curveTypeReasons.join("; ") || null,
+        source: "tableFacts",
       }
     : {
         kind: "unknown",
-        source: "assessment",
+        source: "tableFacts",
         suspectedType: curveType,
       };
 }

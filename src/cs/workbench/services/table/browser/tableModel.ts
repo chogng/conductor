@@ -930,9 +930,9 @@ const createTableSourceEntry = (entry: SessionFile): TableSourceEntry | null => 
 };
 
 const isUnhealthyTableSource = (entry: SessionFile): boolean =>
-  entry.assessmentHealth === "decodeFailed" ||
-  entry.assessmentHealth === "parseFailed" ||
-  entry.assessmentHealth === "unsupported";
+  entry.rawTableHealth === "decodeFailed" ||
+  entry.rawTableHealth === "parseFailed" ||
+  entry.rawTableHealth === "unsupported";
 
 const shouldCacheColumnDisplayProfile = (
   sampleCount: number,
@@ -989,8 +989,8 @@ const collectNumericColumnSamples = (
 };
 
 const getUnhealthyTableMessage = (entry: SessionFile): string => {
-  const message = String(entry.assessmentHealthMessage ?? "").trim().toLowerCase();
-  if (entry.assessmentHealth === "decodeFailed") {
+  const message = String(entry.rawTableHealthMessage ?? "").trim().toLowerCase();
+  if (entry.rawTableHealth === "decodeFailed") {
     if (message.includes("converted csv")) {
       return localize(
         "table.preview.convertedCsvUnreadable",
@@ -1008,13 +1008,13 @@ const getUnhealthyTableMessage = (entry: SessionFile): string => {
       "File content cannot be decoded as a valid CSV table.",
     );
   }
-  if (entry.assessmentHealth === "parseFailed") {
+  if (entry.rawTableHealth === "parseFailed") {
     return localize(
       "table.preview.parseFailed",
       "File content could not pass CSV table structure validation.",
     );
   }
-  if (entry.assessmentHealth === "unsupported") {
+  if (entry.rawTableHealth === "unsupported") {
     return localize(
       "table.preview.unsupported",
       "This file format is not supported for table preview.",
@@ -1036,8 +1036,8 @@ const createTableFileFromSourceEntry = (
   sheetName: sourceEntry.sheetName,
   sourceKey: sourceEntry.sourceKey,
   sourceVersion: sourceEntry.sourceVersion,
-  assessmentHealth: sourceEntry.entry.assessmentHealth,
-  assessmentHealthMessage: sourceEntry.entry.assessmentHealthMessage,
+  rawTableHealth: sourceEntry.entry.rawTableHealth,
+  rawTableHealthMessage: sourceEntry.entry.rawTableHealthMessage,
   templateEligibility: sourceEntry.entry.templateEligibility,
   rowCount: Math.max(0, Math.floor(Number(sourceEntry.entry.rowCount) || 0)),
   columnCount: Math.max(0, Math.floor(Number(sourceEntry.entry.columnCount) || 0)),
@@ -1069,8 +1069,8 @@ export const areTableFilesEqual = (
   current?.sheetName === next.sheetName &&
   current?.sourceKey === next.sourceKey &&
   normalizeSourceVersion(current?.sourceVersion) === normalizeSourceVersion(next.sourceVersion) &&
-  current?.assessmentHealth === next.assessmentHealth &&
-  current?.assessmentHealthMessage === next.assessmentHealthMessage &&
+  current?.rawTableHealth === next.rawTableHealth &&
+  current?.rawTableHealthMessage === next.rawTableHealthMessage &&
   current?.templateEligibility === next.templateEligibility &&
   current?.rowCount === next.rowCount &&
   current?.columnCount === next.columnCount &&

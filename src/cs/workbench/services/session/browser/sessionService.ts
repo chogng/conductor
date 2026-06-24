@@ -31,7 +31,7 @@ import {
   ISessionService,
   type CommitCalculatedRecordsBatchInput,
   type CommitFileImportOptions,
-  type CommitFileImportRawTableAssessmentInput,
+  type CommitFileImportRawTableFactsInput,
   type CommitFileImportResult,
   type CommitCurvesBatchInput,
   type CommitCurvesInput,
@@ -62,8 +62,8 @@ import type {
   RawTableRecord,
 } from "src/cs/workbench/services/files/common/rawTable";
 import type {
-  RawTableAssessmentRecord,
-} from "src/cs/workbench/services/assessment/common/assessment";
+  RawTableFactsRecord,
+} from "src/cs/workbench/services/template/common/tableFacts";
 import type {
   MeasurementBlockRecord,
 } from "src/cs/workbench/services/assessment/common/measurement";
@@ -190,19 +190,19 @@ export class SessionService extends Disposable implements ISessionServiceType {
       };
     }
     const rawTableRefs = createRawTableRefs(committedRecords);
-    const assessmentRecords = createImportRawTableAssessmentRecords(
-      options.rawTableAssessments ?? [],
+    const tableFactRecords = createImportRawTableFactRecords(
+      options.rawTableFacts ?? [],
       nextFilesById,
       committedRecords.map(record => record.id),
     );
-    const assessmentCommit = commitRawTableAssessmentsToFiles(
+    const tableFactsCommit = commitRawTableFactsToFiles(
       nextFilesById,
-      assessmentRecords,
+      tableFactRecords,
     );
 
     this.replaceSnapshot({
       ...this.snapshot,
-      filesById: assessmentCommit.filesById,
+      filesById: tableFactsCommit.filesById,
       fileOrder: nextFileOrder,
     }, "rawTablesChanged", {
       fileIds: committedRecords.map(record => record.id),
@@ -239,26 +239,26 @@ export class SessionService extends Disposable implements ISessionServiceType {
     return true;
   }
 
-  public commitRawTableAssessment = (assessment: RawTableAssessmentRecord): void => {
-    this.commitRawTableAssessments([assessment]);
+  public commitRawTableFacts = (tableFacts: RawTableFactsRecord): void => {
+    this.commitRawTableFactsBatch([tableFacts]);
   };
 
-  public commitRawTableAssessments = (assessments: readonly RawTableAssessmentRecord[]): void => {
-    const assessmentCommit = commitRawTableAssessmentsToFiles(
+  public commitRawTableFactsBatch = (tableFacts: readonly RawTableFactsRecord[]): void => {
+    const tableFactsCommit = commitRawTableFactsToFiles(
       this.snapshot.filesById,
-      assessments,
+      tableFacts,
     );
-    if (!assessmentCommit.changed) {
+    if (!tableFactsCommit.changed) {
       return;
     }
 
     this.replaceSnapshot({
       ...this.snapshot,
-      filesById: assessmentCommit.filesById,
-    }, "assessmentChanged", {
-      fileIds: uniqueStrings(assessmentCommit.fileIds),
-      rawTableIds: uniqueStrings(assessmentCommit.rawTableIds),
-      rawTableRefs: uniqueRawTableRefs(assessmentCommit.rawTableRefs),
+      filesById: tableFactsCommit.filesById,
+    }, "tableFactsChanged", {
+      fileIds: uniqueStrings(tableFactsCommit.fileIds),
+      rawTableIds: uniqueStrings(tableFactsCommit.rawTableIds),
+      rawTableRefs: uniqueRawTableRefs(tableFactsCommit.rawTableRefs),
     });
   };
 
@@ -590,7 +590,7 @@ const EMPTY_FILE_IMPORT_COMMIT_RESULT: CommitFileImportResult = {
   skippedDuplicateFileIds: [],
 };
 
-type RawTableAssessmentCommitResult = {
+type RawTableFactsCommitResult = {
   readonly changed: boolean;
   readonly fileIds: readonly FileId[];
   readonly filesById: Record<FileId, FileRecord>;
@@ -606,25 +606,25 @@ type RawTableReviewCommitResult = {
   readonly rawTableRefs: readonly RawTableRef[];
 };
 
-const createImportRawTableAssessmentRecords = (
-  assessments: readonly CommitFileImportRawTableAssessmentInput[],
+const createImportRawTableFactRecords = (
+  rawTableFacts: readonly CommitFileImportRawTableFactsInput[],
   filesById: Record<FileId, FileRecord>,
   committedFileIds: readonly FileId[],
-): RawTableAssessmentRecord[] => {
-  if (!assessments.length || !committedFileIds.length) {
+): RawTableFactsRecord[] => {
+  if (!rawTableFacts.length || !committedFileIds.length) {
     return [];
   }
 
   const committedFileIdSet = new Set(committedFileIds);
-  const records: RawTableAssessmentRecord[] = [];
-  for (const assessment of assessments) {
-    const fileId = normalizeId(assessment.fileId);
+  const records: RawTableFactsRecord[] = [];
+  for (const tableFacts of rawTableFacts) {
+    const fileId = normalizeId(tableFacts.fileId);
     if (!fileId || !committedFileIdSet.has(fileId)) {
       continue;
     }
 
     const file = filesById[fileId];
-    const rawTableId = normalizeId(assessment.rawTableId) ||
+    const rawTableId = normalizeId(tableFacts.rawTableId) ||
       normalizeId(file?.raw.tableOrder[0]);
     if (!file || !rawTableId || !file.raw.tablesById[rawTableId]) {
       continue;
@@ -636,44 +636,44 @@ const createImportRawTableAssessmentRecords = (
     }
 
     records.push({
-      assessmentRuleVersion: normalizeAssessmentRuleVersion(assessment.assessmentRuleVersion) ?? 0,
-      schemaProfileVersion: normalizeSchemaProfileVersion(assessment.schemaProfileVersion),
-      blocks: assessment.blocks,
-      columnProfiles: assessment.columnProfiles ?? [],
-      createdAt: assessment.createdAt,
-      diagnostics: assessment.diagnostics,
+      assessmentRuleVersion: normalizeAssessmentRuleVersion(tableFacts.assessmentRuleVersion) ?? 0,
+      schemaProfileVersion: normalizeSchemaProfileVersion(tableFacts.schemaProfileVersion),
+      blocks: tableFacts.blocks,
+      columnProfiles: tableFacts.columnProfiles ?? [],
+      createdAt: tableFacts.createdAt,
+      diagnostics: tableFacts.diagnostics,
       fileId,
-      groups: assessment.groups,
-      layoutCandidates: assessment.layoutCandidates ?? [],
+      groups: tableFacts.groups,
+      layoutCandidates: tableFacts.layoutCandidates ?? [],
       rawTableId,
-      semanticCandidates: assessment.semanticCandidates ?? [],
+      semanticCandidates: tableFacts.semanticCandidates ?? [],
       sourceRawTableVersion,
-      structure: assessment.structure ?? createEmptyRawTableStructure(),
+      structure: tableFacts.structure ?? createEmptyRawTableStructure(),
     });
   }
 
   return records;
 };
 
-const commitRawTableAssessmentsToFiles = (
+const commitRawTableFactsToFiles = (
   initialFilesById: Record<FileId, FileRecord>,
-  assessments: readonly RawTableAssessmentRecord[],
-): RawTableAssessmentCommitResult => {
+  tableFactsRecords: readonly RawTableFactsRecord[],
+): RawTableFactsCommitResult => {
   let nextFilesById = initialFilesById;
   const committedFileIds: FileId[] = [];
   const committedRawTableIds: string[] = [];
   const committedRawTableRefs: RawTableRef[] = [];
 
-  for (const assessment of assessments) {
-    const fileId = normalizeId(assessment.fileId);
-    const rawTableId = normalizeId(assessment.rawTableId);
+  for (const tableFacts of tableFactsRecords) {
+    const fileId = normalizeId(tableFacts.fileId);
+    const rawTableId = normalizeId(tableFacts.rawTableId);
     const file = fileId ? nextFilesById[fileId] : undefined;
     if (!file || !rawTableId || !file.raw.tablesById[rawTableId]) {
       continue;
     }
 
     const rawTableVersion = file.rawTableVersionsById?.[rawTableId] ?? 0;
-    if (rawTableVersion !== assessment.sourceRawTableVersion) {
+    if (rawTableVersion !== tableFacts.sourceRawTableVersion) {
       continue;
     }
 
@@ -685,7 +685,7 @@ const commitRawTableAssessmentsToFiles = (
       Boolean(measurementBlocksById[blockId])
     );
     const committedBlocks: MeasurementBlockRecord[] = [];
-    for (const block of assessment.blocks) {
+    for (const block of tableFacts.blocks) {
       const normalizedBlock = normalizeMeasurementBlock(block, fileId, rawTableId);
       if (!normalizedBlock) {
         continue;
@@ -699,27 +699,27 @@ const commitRawTableAssessmentsToFiles = (
       ...(file.rawTableReviewsByRawTableId ?? {}),
     };
     delete rawTableReviewsByRawTableId[rawTableId];
-    const assessmentFacts = { ...assessment } as RawTableAssessmentRecord & { decision?: unknown };
-    delete assessmentFacts.decision;
-    const committedAssessment: RawTableAssessmentRecord = {
-      ...assessmentFacts,
-      assessmentRuleVersion: normalizeAssessmentRuleVersion(assessment.assessmentRuleVersion) ?? 0,
-      schemaProfileVersion: normalizeSchemaProfileVersion(assessment.schemaProfileVersion),
+    const legacyTableFacts = { ...tableFacts } as RawTableFactsRecord & { decision?: unknown };
+    delete legacyTableFacts.decision;
+    const committedTableFacts: RawTableFactsRecord = {
+      ...legacyTableFacts,
+      assessmentRuleVersion: normalizeAssessmentRuleVersion(tableFacts.assessmentRuleVersion) ?? 0,
+      schemaProfileVersion: normalizeSchemaProfileVersion(tableFacts.schemaProfileVersion),
       fileId,
       rawTableId,
       blocks: committedBlocks,
-      columnProfiles: assessment.columnProfiles ?? [],
-      layoutCandidates: assessment.layoutCandidates ?? [],
-      semanticCandidates: assessment.semanticCandidates ?? [],
-      structure: assessment.structure ?? createEmptyRawTableStructure(),
+      columnProfiles: tableFacts.columnProfiles ?? [],
+      layoutCandidates: tableFacts.layoutCandidates ?? [],
+      semanticCandidates: tableFacts.semanticCandidates ?? [],
+      structure: tableFacts.structure ?? createEmptyRawTableStructure(),
     };
     nextFilesById = {
       ...nextFilesById,
       [fileId]: {
         ...file,
-        assessmentsByRawTableId: {
-          ...(file.assessmentsByRawTableId ?? {}),
-          [rawTableId]: committedAssessment,
+        tableFactsByRawTableId: {
+          ...(file.tableFactsByRawTableId ?? {}),
+          [rawTableId]: committedTableFacts,
         },
         rawTableReviewsByRawTableId,
         measurementBlocksById,
@@ -754,7 +754,7 @@ const commitRawTableReviewsToFiles = (
     const rawTableId = normalizeId(review.rawTableId);
     const file = fileId ? nextFilesById[fileId] : undefined;
     const table = rawTableId ? file?.raw.tablesById[rawTableId] : undefined;
-    const assessment = rawTableId ? file?.assessmentsByRawTableId?.[rawTableId] : undefined;
+    const assessment = rawTableId ? file?.tableFactsByRawTableId?.[rawTableId] : undefined;
     if (!file || !rawTableId || !table || !assessment) {
       continue;
     }
@@ -896,7 +896,7 @@ const createFileRecordFromImportedFile = (
       fileId,
     raw,
     rawTableVersionsById: createInitialRawTableVersions(raw.tableOrder),
-    assessmentsByRawTableId: {},
+    tableFactsByRawTableId: {},
     rawTableReviewsByRawTableId: {},
     measurementBlocksById: {},
     measurementBlockOrder: [],
@@ -1227,7 +1227,10 @@ const normalizeSliceRunRecord = (
     rawTableId,
     selection: normalizeTemplateSelection(input.selection),
     sourceRawTableVersion: normalizeNonNegativeInteger(input.sourceRawTableVersion),
-    sourceAssessmentSignature: normalizeOptionalText(input.sourceAssessmentSignature),
+    sourceTableFactsSignature: normalizeOptionalText(
+      input.sourceTableFactsSignature ??
+        (input as { readonly sourceAssessmentSignature?: string }).sourceAssessmentSignature,
+    ),
     inputRanges: normalizeSliceInputRanges(input.inputRanges, fileId, rawTableId),
     outputSeriesIds: uniqueStrings(
       (Array.isArray(input.outputSeriesIds) ? input.outputSeriesIds : [])

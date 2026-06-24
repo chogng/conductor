@@ -8,14 +8,14 @@ import { InstantiationType, registerSingleton } from "src/cs/platform/instantiat
 import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
 import {
   ASSESSMENT_RULE_VERSION,
-  IAssessmentQueueService,
-  IAssessmentService,
-  type AssessmentQueuePriority,
-  type AssessmentQueueSnapshot,
-  type AssessmentRawTableQueueState,
-  type IAssessmentQueueService as IAssessmentQueueServiceType,
-  type IAssessmentService as IAssessmentServiceType,
-  type RawTableAssessmentRecord,
+  IRawTableFactsQueueService,
+  IRawTableFactsService,
+  type IRawTableFactsQueueService as IRawTableFactsQueueServiceType,
+  type IRawTableFactsService as IRawTableFactsServiceType,
+  type RawTableFactsQueuePriority,
+  type RawTableFactsQueueSnapshot,
+  type RawTableFactsRawTableQueueState,
+  type RawTableFactsRecord,
 } from "src/cs/workbench/services/assessment/common/assessment";
 import {
   IRawTableRowsReaderService,
@@ -42,24 +42,24 @@ const RAW_TABLE_ASSESSMENT_PREVIEW_ROWS = 256;
 const RAW_TABLE_ASSESSMENT_BACKGROUND_COMMIT_BATCH_SIZE = 16;
 
 type QueuedRawTableAssessment = {
-  readonly priority: AssessmentQueuePriority;
+  readonly priority: RawTableFactsQueuePriority;
   readonly ref: RawTableRef;
   readonly schemaProfileVersion: number;
   readonly schemaProfiles: readonly SchemaProfile[];
   readonly sourceRawTableVersion: number;
 };
 
-export class AssessmentQueueService extends Disposable implements IAssessmentQueueServiceType {
+export class RawTableFactsQueueService extends Disposable implements IRawTableFactsQueueServiceType {
   public declare readonly _serviceBrand: undefined;
 
-  private readonly onDidChangeAssessmentQueueStateEmitter = this._register(new Emitter<void>());
-  public readonly onDidChangeAssessmentQueueState = this.onDidChangeAssessmentQueueStateEmitter.event;
+  private readonly onDidChangeRawTableFactsQueueStateEmitter = this._register(new Emitter<void>());
+  public readonly onDidChangeRawTableFactsQueueState = this.onDidChangeRawTableFactsQueueStateEmitter.event;
 
   private readonly pendingBackgroundRefsByKey = new Map<string, QueuedRawTableAssessment>();
   private readonly pendingNearbyRefsByKey = new Map<string, QueuedRawTableAssessment>();
   private readonly pendingVisibleRefsByKey = new Map<string, QueuedRawTableAssessment>();
   private readonly preferredOrderByKey = new Map<string, number>();
-  private readonly preferredPriorityByKey = new Map<string, AssessmentQueuePriority>();
+  private readonly preferredPriorityByKey = new Map<string, RawTableFactsQueuePriority>();
   private currentRawTableAssessment: QueuedRawTableAssessment | null = null;
   private disposed = false;
   private isAssessmentQueueRunning = false;
@@ -67,7 +67,7 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
 
   public constructor(
     @ISessionService private readonly sessionService: ISessionServiceType,
-    @IAssessmentService private readonly assessmentService: IAssessmentServiceType,
+    @IRawTableFactsService private readonly rawTableFactsService: IRawTableFactsServiceType,
     @IRawTableRowsReaderService private readonly rawTableRowsReaderService: IRawTableRowsReaderServiceType,
     @ISchemaProfileService private readonly schemaProfileService?: ISchemaProfileServiceType,
   ) {
@@ -127,7 +127,7 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
 
   public prioritizeRawTables(
     refs: readonly RawTableRef[],
-    priority: AssessmentQueuePriority,
+    priority: RawTableFactsQueuePriority,
   ): void {
     let didChangeQueue = false;
     for (const ref of uniqueRawTableRefs(refs)) {
@@ -151,7 +151,7 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
     this.startAssessmentQueue();
   }
 
-  public getQueueSnapshot(): AssessmentQueueSnapshot {
+  public getQueueSnapshot(): RawTableFactsQueueSnapshot {
     return {
       rawTables: [
         ...this.getQueueSnapshotForPriority("visible"),
@@ -176,7 +176,7 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
     }
 
     this.isAssessmentQueueRunning = true;
-    const assessments: RawTableAssessmentRecord[] = [];
+    const assessments: RawTableFactsRecord[] = [];
     let hasCommittedAssessment = false;
     try {
       while (!this.disposed) {
@@ -186,7 +186,7 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
         }
 
         this.setCurrentRawTableAssessment(entry);
-        let assessment: RawTableAssessmentRecord | null = null;
+        let assessment: RawTableFactsRecord | null = null;
         try {
           assessment = await this.assessRawTableRef(entry);
         } finally {
@@ -201,14 +201,14 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
           ? RAW_TABLE_ASSESSMENT_BACKGROUND_COMMIT_BATCH_SIZE
           : 1;
         if (assessments.length >= commitBatchSize) {
-          this.sessionService.commitRawTableAssessments(assessments);
+          this.sessionService.commitRawTableFactsBatch(assessments);
           assessments.length = 0;
           hasCommittedAssessment = true;
         }
       }
 
       if (!this.disposed && assessments.length > 0) {
-        this.sessionService.commitRawTableAssessments(assessments);
+        this.sessionService.commitRawTableFactsBatch(assessments);
       }
     } finally {
       this.isAssessmentQueueRunning = false;
@@ -220,7 +220,7 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
 
   private async assessRawTableRef(
     entry: QueuedRawTableAssessment,
-  ): Promise<RawTableAssessmentRecord | null> {
+  ): Promise<RawTableFactsRecord | null> {
     const targetRef = entry.ref;
     const queuedSourceRawTableVersion = entry.sourceRawTableVersion;
     const queuedSchemaProfileVersion = entry.schemaProfileVersion;
@@ -264,7 +264,7 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
       return null;
     }
 
-    return this.assessmentService.assessRawTable({
+    return this.rawTableFactsService.createRawTableFacts({
       columnCount: table.columnCount,
       fileId: file.id,
       fileName: getAssessmentSourceName(file),
@@ -278,7 +278,7 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
   }
 
   private getQueueForPriority(
-    priority: AssessmentQueuePriority,
+    priority: RawTableFactsQueuePriority,
   ): Map<string, QueuedRawTableAssessment> {
     switch (priority) {
       case "visible":
@@ -299,7 +299,7 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
   private movePendingRawTableRef(
     entry: QueuedRawTableAssessment,
     key: string,
-    priority: AssessmentQueuePriority,
+    priority: RawTableFactsQueuePriority,
   ): void {
     this.deletePendingRawTableRef(key);
     this.getQueueForPriority(priority).set(key, entry);
@@ -337,7 +337,7 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
 
   private createQueuedRawTableAssessment(
     ref: RawTableRef,
-    priority: AssessmentQueuePriority,
+    priority: RawTableFactsQueuePriority,
   ): QueuedRawTableAssessment | null {
     const snapshot = this.sessionService.getSnapshot();
     const schemaProfileSnapshot = this.getSchemaProfileSnapshot();
@@ -366,8 +366,8 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
   }
 
   private getQueueSnapshotForPriority(
-    priority: AssessmentQueuePriority,
-  ): AssessmentRawTableQueueState[] {
+    priority: RawTableFactsQueuePriority,
+  ): RawTableFactsRawTableQueueState[] {
     return [...this.getQueueForPriority(priority).values()]
       .map(entry => toRawTableQueueState(entry, "queued"));
   }
@@ -409,7 +409,7 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
     return this.schemaProfileService?.getSnapshot() ?? EMPTY_SCHEMA_PROFILE_SNAPSHOT;
   }
 
-  private reorderQueueForPriority(priority: AssessmentQueuePriority): void {
+  private reorderQueueForPriority(priority: RawTableFactsQueuePriority): void {
     const queue = this.getQueueForPriority(priority);
     if (queue.size <= 1) {
       return;
@@ -482,12 +482,14 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
 
   private fireAssessmentQueueStateChange(): void {
     if (!this.disposed) {
-      this.onDidChangeAssessmentQueueStateEmitter.fire(undefined);
+      this.onDidChangeRawTableFactsQueueStateEmitter.fire(undefined);
     }
   }
 }
 
-export const getRawTableRefsForAssessmentEvent = (
+export { RawTableFactsQueueService as AssessmentQueueService };
+
+export const getRawTableRefsForTableFactsEvent = (
   refs: readonly RawTableRef[] | undefined,
   fileIds: readonly string[] | undefined,
   rawTableIds: readonly string[] | undefined,
@@ -521,14 +523,16 @@ export const getRawTableRefsForAssessmentEvent = (
 const getRawTableRefsForAssessmentSnapshot = (
   snapshot: SessionSnapshot,
 ): RawTableRef[] =>
-  getRawTableRefsForAssessmentEvent(undefined, undefined, undefined, snapshot);
+  getRawTableRefsForTableFactsEvent(undefined, undefined, undefined, snapshot);
+
+export const getRawTableRefsForAssessmentEvent = getRawTableRefsForTableFactsEvent;
 
 const hasCurrentAssessment = (
   file: FileRecord,
   rawTableId: string,
   schemaProfileVersion: number,
 ): boolean => {
-  const assessment = file.assessmentsByRawTableId[rawTableId];
+  const assessment = file.tableFactsByRawTableId[rawTableId];
   return Boolean(
     assessment &&
       assessment.sourceRawTableVersion === (file.rawTableVersionsById[rawTableId] ?? 0) &&
@@ -592,8 +596,8 @@ const getRawTableRefKey = (
 
 const toRawTableQueueState = (
   entry: QueuedRawTableAssessment,
-  state: AssessmentRawTableQueueState["state"],
-): AssessmentRawTableQueueState => ({
+  state: RawTableFactsRawTableQueueState["state"],
+): RawTableFactsRawTableQueueState => ({
   fileId: entry.ref.fileId,
   priority: entry.priority,
   rawTableId: entry.ref.rawTableId,
@@ -631,7 +635,7 @@ const normalizeSourceName = (
 };
 
 registerSingleton(
-  IAssessmentQueueService,
-  AssessmentQueueService as unknown as new (...services: BrandedService[]) => IAssessmentQueueServiceType,
+  IRawTableFactsQueueService,
+  RawTableFactsQueueService as unknown as new (...services: BrandedService[]) => IRawTableFactsQueueServiceType,
   InstantiationType.Delayed,
 );

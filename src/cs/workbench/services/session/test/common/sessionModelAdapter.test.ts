@@ -379,7 +379,7 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
       ...records.filesById,
       "file-a": {
         ...file,
-        assessmentsByRawTableId: {
+        tableFactsByRawTableId: {
           "file-a": assessment,
         },
         measurementBlocksById: {
@@ -389,16 +389,16 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
       },
     }, records.fileOrder);
 
-    assert.deepEqual(rawFiles[0]?.assessmentBlocks?.map(block => block.id), ["file-a:block:0"]);
-    assert.equal(rawFiles[0]?.assessmentSchemaFingerprint, "dataname|vg|id");
-    assert.deepEqual(rawFiles[0]?.assessmentColumnProfiles?.map(profile => ({
+    assert.deepEqual(rawFiles[0]?.tableFactsBlocks?.map(block => block.id), ["file-a:block:0"]);
+    assert.equal(rawFiles[0]?.tableFactsSchemaFingerprint, "dataname|vg|id");
+    assert.deepEqual(rawFiles[0]?.tableFactsColumnProfiles?.map(profile => ({
       rawCol: profile.rawCol,
       normalizedHeader: profile.normalizedHeader,
     })), [
       { rawCol: 0, normalizedHeader: "vg" },
       { rawCol: 1, normalizedHeader: "id" },
     ]);
-    assert.deepEqual(rawFiles[0]?.assessmentSemanticCandidates?.map(candidate => ({
+    assert.deepEqual(rawFiles[0]?.tableFactsSemanticCandidates?.map(candidate => ({
       rawCol: candidate.rawCol,
       role: candidate.roleCandidates[0]?.role,
       unit: candidate.unitCandidates[0]?.canonicalUnit,
@@ -406,7 +406,7 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
       { rawCol: 0, role: "vg", unit: "V" },
       { rawCol: 1, role: "id", unit: "A" },
     ]);
-    assert.deepEqual(rawFiles[0]?.assessmentLayoutCandidates?.map(candidate => candidate.id), ["layout:simpleXY"]);
+    assert.deepEqual(rawFiles[0]?.tableFactsLayoutCandidates?.map(candidate => candidate.id), ["layout:simpleXY"]);
   });
 
   test("materializes base curves from display curve type labels", () => {

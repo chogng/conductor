@@ -112,7 +112,7 @@ const createCalculationWorkerFileRecord = (file: FileRecord): FileRecord => {
   }
 
   const workerFile: FileRecord = {
-    assessmentsByRawTableId: {},
+    tableFactsByRawTableId: {},
     curvesByKey,
     id: file.id,
     kind: file.kind,

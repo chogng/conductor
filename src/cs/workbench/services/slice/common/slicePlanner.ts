@@ -52,7 +52,7 @@ export const createSlicePlan = (
 		mode: input.mode,
 		selection: input.selection,
 		sourceRawTableVersion: input.sourceRawTableVersion,
-		sourceAssessmentSignature: input.sourceAssessmentSignature,
+		sourceTableFactsSignature: input.sourceTableFactsSignature,
 		measurement: input.measurement,
 		template: input.template,
 		templateFingerprint,
@@ -120,7 +120,7 @@ const isColumnInBounds = (
 	column >= 0 &&
 	column < columnCount;
 
-export const createSliceAssessmentSignature = ({
+export const createSliceTableFactsSignature = ({
 	assessmentRuleVersion,
 	schemaProfileVersion,
 	sourceRawTableVersion,

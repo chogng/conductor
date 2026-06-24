@@ -4,7 +4,6 @@
 
 import type { Event } from "src/cs/base/common/event";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type { RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
 import type { RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
 import type {
   FileId,
@@ -12,6 +11,7 @@ import type {
   SheetId,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
+import type { RawTableFactsRecord } from "src/cs/workbench/services/template/common/tableFacts";
 import type { AutomaticTemplateCandidateSource } from "src/cs/workbench/services/template/common/templateDraft";
 import type { UserTemplateSnapshot } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
@@ -170,7 +170,7 @@ export type RawTableReviewRecord = {
 };
 
 export type ReviewInput = {
-  readonly assessment: RawTableAssessmentRecord;
+  readonly tableFacts: RawTableFactsRecord;
   readonly columnCount?: number;
   readonly fileName?: string | null;
   readonly recipeSnapshot: RecipeSnapshot;
@@ -219,7 +219,7 @@ export const createReviewEvidenceSignature = ({
   sourceRawTableVersion,
   structure,
 }: Pick<
-  RawTableAssessmentRecord,
+  RawTableFactsRecord,
   | "assessmentRuleVersion"
   | "blocks"
   | "columnProfiles"

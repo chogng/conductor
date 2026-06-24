@@ -66,7 +66,7 @@ export type SliceRun = {
   readonly mode: "auto" | "manual";
   readonly selection: TemplateSelection;
   readonly sourceRawTableVersion: number;
-  readonly sourceAssessmentSignature?: string;
+  readonly sourceTableFactsSignature?: string;
   readonly template: Template;
   readonly templateFingerprint: string;
   readonly inputRanges: readonly SliceRawTableRangeRef[];
@@ -100,7 +100,7 @@ export type SlicePlan = {
   readonly mode: SliceRun["mode"];
   readonly selection: TemplateSelection;
   readonly sourceRawTableVersion: number;
-  readonly sourceAssessmentSignature?: string;
+  readonly sourceTableFactsSignature?: string;
   readonly measurement?: SliceMeasurementBinding;
   readonly template: Template;
   readonly templateFingerprint: string;
@@ -122,7 +122,7 @@ export type CreateSlicePlanInput = {
   readonly mode: SliceRun["mode"];
   readonly selection: TemplateSelection;
   readonly sourceRawTableVersion: number;
-  readonly sourceAssessmentSignature?: string;
+  readonly sourceTableFactsSignature?: string;
   readonly measurement?: SliceMeasurementBinding;
   readonly template: Template;
   readonly templateFingerprint?: string;

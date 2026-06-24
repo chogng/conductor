@@ -4,35 +4,37 @@
 
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { Event } from "src/cs/base/common/event";
-import type { ColumnProfile } from "src/cs/workbench/services/assessment/common/columnProfile";
-import type { AssessmentDiagnostic } from "src/cs/workbench/services/assessment/common/diagnostics";
 import type {
   IvSweepMode,
-  MeasurementBlockRecord,
   MeasurementFamily,
-  MeasurementGroupRecord,
 } from "src/cs/workbench/services/assessment/common/measurement";
-import type { LayoutCandidate } from "src/cs/workbench/services/assessment/common/layoutCandidate";
-import type { RawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
-import type { ColumnSemanticCandidate } from "src/cs/workbench/services/assessment/common/semanticCandidate";
 import type { SchemaProfile } from "src/cs/workbench/services/schemaProfile/common/schemaProfile";
 import type {
   RawTableRef,
 } from "src/cs/workbench/services/session/common/sessionModel";
+import {
+  TABLE_FACTS_RULE_VERSION,
+  type RawTableFactsRecord,
+} from "src/cs/workbench/services/template/common/tableFacts";
 
-export const IAssessmentService = createDecorator<IAssessmentService>("assessmentService");
-export const IAssessmentQueueService = createDecorator<IAssessmentQueueService>("assessmentQueueService");
-export const AssessmentContributionId = "workbench.services.assessment.lifecycle";
+export type { RawTableFactsRecord };
 
-// Bump this when assessment heuristics change in a way that should invalidate
-// stored raw table assessment records.
-export const ASSESSMENT_RULE_VERSION = 2;
+export const IRawTableFactsService = createDecorator<IRawTableFactsService>("rawTableFactsService");
+export const IRawTableFactsQueueService = createDecorator<IRawTableFactsQueueService>("rawTableFactsQueueService");
+export const IAssessmentService = IRawTableFactsService;
+export const IAssessmentQueueService = IRawTableFactsQueueService;
+export const RawTableFactsContributionId = "workbench.services.rawTableFacts.lifecycle";
+export const AssessmentContributionId = RawTableFactsContributionId;
 
-export type AssessmentRows = readonly (readonly string[])[];
+export const ASSESSMENT_RULE_VERSION = TABLE_FACTS_RULE_VERSION;
 
-export type ImportAssessmentSeedAxisRole = "vg" | "vd" | null;
+export type RawTableFactsRows = readonly (readonly string[])[];
+export type AssessmentRows = RawTableFactsRows;
 
-export type ImportAssessmentSeedAxisRoleSource =
+export type ImportTableFactsSeedAxisRole = "vg" | "vd" | null;
+export type ImportAssessmentSeedAxisRole = ImportTableFactsSeedAxisRole;
+
+export type ImportTableFactsSeedAxisRoleSource =
   | "filename"
   | "hint"
   | "label"
@@ -40,89 +42,84 @@ export type ImportAssessmentSeedAxisRoleSource =
   | "schemaProfile"
   | "shape"
   | null;
+export type ImportAssessmentSeedAxisRoleSource = ImportTableFactsSeedAxisRoleSource;
 
-export type ImportAssessmentSeed = {
+export type ImportTableFactsSeed = {
   curveFamily: MeasurementFamily;
   curveType: string | null;
   curveTypeConfidence: "high" | "medium" | "low";
   curveTypeNeedsReview: boolean;
   curveTypeReasons: string[];
   ivMode?: IvSweepMode | null;
-  xAxisRole: ImportAssessmentSeedAxisRole;
-  xAxisRoleSource: ImportAssessmentSeedAxisRoleSource;
+  xAxisRole: ImportTableFactsSeedAxisRole;
+  xAxisRoleSource: ImportTableFactsSeedAxisRoleSource;
 };
+export type ImportAssessmentSeed = ImportTableFactsSeed;
 
-export type AssessmentFileInput = {
+export type RawTableFactsFileInput = {
   readonly name: string;
   slice(start?: number, end?: number): {
     text(): Promise<string>;
   };
 };
+export type AssessmentFileInput = RawTableFactsFileInput;
 
-export type AssessRawTableInput = {
+export type CreateRawTableFactsInput = {
   readonly columnCount?: number;
   readonly fileId: string;
   readonly rawTableId: string;
   readonly rowCount?: number;
   readonly sourceRawTableVersion: number;
-  readonly rows: AssessmentRows;
+  readonly rows: RawTableFactsRows;
   readonly fileName?: string | null;
   readonly schemaProfiles?: readonly SchemaProfile[];
   readonly schemaProfileVersion?: number;
 };
+export type AssessRawTableInput = CreateRawTableFactsInput;
 
-export type RawTableAssessmentRecord = {
-  readonly assessmentRuleVersion: number;
-  readonly schemaProfileVersion: number;
-  readonly fileId: string;
-  readonly rawTableId: string;
-  readonly sourceRawTableVersion: number;
-  readonly structure: RawTableStructure;
-  readonly columnProfiles: readonly ColumnProfile[];
-  readonly layoutCandidates: readonly LayoutCandidate[];
-  readonly semanticCandidates: readonly ColumnSemanticCandidate[];
-  readonly groups: readonly MeasurementGroupRecord[];
-  readonly blocks: readonly MeasurementBlockRecord[];
-  readonly diagnostics: readonly AssessmentDiagnostic[];
-  readonly createdAt: number;
-};
+export type RawTableAssessmentRecord = RawTableFactsRecord;
 
-export interface IAssessmentService {
+export interface IRawTableFactsService {
   readonly _serviceBrand: undefined;
 
-  createImportAssessmentSeedFromFile(file: AssessmentFileInput): Promise<ImportAssessmentSeed>;
-  createImportAssessmentSeedFromRows(fileName: string, rows: AssessmentRows): Promise<ImportAssessmentSeed>;
-  assessRawTable(input: AssessRawTableInput): Promise<RawTableAssessmentRecord>;
+  createImportTableFactsSeedFromFile(file: RawTableFactsFileInput): Promise<ImportTableFactsSeed>;
+  createImportTableFactsSeedFromRows(fileName: string, rows: RawTableFactsRows): Promise<ImportTableFactsSeed>;
+  createRawTableFacts(input: CreateRawTableFactsInput): Promise<RawTableFactsRecord>;
 }
+export type IAssessmentService = IRawTableFactsService;
 
-export type AssessmentQueuePriority = "visible" | "nearby" | "background";
+export type RawTableFactsQueuePriority = "visible" | "nearby" | "background";
+export type AssessmentQueuePriority = RawTableFactsQueuePriority;
 
 // Conductor-specific service-local queue state for Explorer projections.
 // This is not a canonical Session record.
-export type AssessmentRawTableQueueState = {
+export type RawTableFactsRawTableQueueState = {
   readonly fileId: string;
-  readonly priority: AssessmentQueuePriority;
+  readonly priority: RawTableFactsQueuePriority;
   readonly rawTableId: string;
   readonly sourceRawTableVersion: number;
   readonly state: "queued" | "running";
 };
+export type AssessmentRawTableQueueState = RawTableFactsRawTableQueueState;
 
-export type AssessmentQueueSnapshot = {
-  readonly rawTables: readonly AssessmentRawTableQueueState[];
+export type RawTableFactsQueueSnapshot = {
+  readonly rawTables: readonly RawTableFactsRawTableQueueState[];
 };
+export type AssessmentQueueSnapshot = RawTableFactsQueueSnapshot;
 
-export interface IAssessmentQueueService {
+export interface IRawTableFactsQueueService {
   readonly _serviceBrand: undefined;
 
-  readonly onDidChangeAssessmentQueueState: Event<void>;
+  readonly onDidChangeRawTableFactsQueueState: Event<void>;
 
   enqueueRawTables(refs: readonly RawTableRef[]): void;
-  getQueueSnapshot(): AssessmentQueueSnapshot;
+  getQueueSnapshot(): RawTableFactsQueueSnapshot;
   prioritizeRawTables(
     refs: readonly RawTableRef[],
-    priority: AssessmentQueuePriority,
+    priority: RawTableFactsQueuePriority,
   ): void;
 }
+export type IAssessmentQueueService = IRawTableFactsQueueService;
 
 type AssessmentRawTableSnapshot = {
   readonly filesById: Readonly<Record<string, {

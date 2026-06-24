@@ -16,7 +16,7 @@ import type {
 import type { FileImportResult, ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import { SliceService } from "src/cs/workbench/services/slice/browser/sliceService";
-import { createSliceAssessmentSignature } from "src/cs/workbench/services/slice/common/slicePlanner";
+import { createSliceTableFactsSignature } from "src/cs/workbench/services/slice/common/slicePlanner";
 import type { Template } from "src/cs/workbench/services/template/common/template";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import {
@@ -88,7 +88,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		const sliceService = store.add(new SliceService(sessionService));
 		sessionService.commitFileImport(createImportResult());
 		const assessment = createAssessment();
-		sessionService.commitRawTableAssessment(assessment);
+		sessionService.commitRawTableFacts(assessment);
 		sessionService.commitRawTableReviews([createReview(assessment)]);
 
 		sliceService.enqueueAuto([{
@@ -106,7 +106,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		const sliceService = store.add(new SliceService(sessionService));
 		sessionService.commitFileImport(createImportResult());
 		const assessment = createAssessment();
-		sessionService.commitRawTableAssessment(assessment);
+		sessionService.commitRawTableFacts(assessment);
 		sessionService.commitRawTableReviews([createReview(assessment, {
 			recipeFingerprint: "recipe:first",
 		})]);
@@ -142,7 +142,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		));
 		sessionService.commitFileImport(createImportResult());
 		const assessment = createAssessment();
-		sessionService.commitRawTableAssessment(assessment);
+		sessionService.commitRawTableFacts(assessment);
 		sessionService.commitRawTableReviews([createReview(assessment)]);
 
 		sliceService.enqueueAuto([{
@@ -176,7 +176,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		));
 		sessionService.commitFileImport(createImportResult());
 		const latestAssessment = createAssessment();
-		sessionService.commitRawTableAssessment(latestAssessment);
+		sessionService.commitRawTableFacts(latestAssessment);
 		sessionService.commitRawTableReviews([createReview(latestAssessment, {
 			recipeFingerprint: "recipe:first",
 		})]);
@@ -203,8 +203,8 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		const record = sessionService.getSnapshot().filesById["file-a"];
 		assert.equal(Object.keys(record.sliceRunsById ?? {}).length, 1);
 		assert.equal(
-			record.sliceRunsById?.[record.latestSliceRunId!]?.sourceAssessmentSignature,
-			createSliceAssessmentSignature(latestAssessment, {
+			record.sliceRunsById?.[record.latestSliceRunId!]?.sourceTableFactsSignature,
+			createSliceTableFactsSignature(latestAssessment, {
 				reviewSignature: createReviewRecordSignature(latestReview),
 			}),
 		);
