@@ -1,5 +1,5 @@
 ---
-description: Assessment compatibility shell - current raw table fact production before ownership moves into Template materialization.
+description: Assessment compatibility shell for legacy raw table fact imports.
 applyTo: 'src/cs/workbench/services/assessment/**'
 ---
 # Assessment Compatibility Shell
@@ -8,17 +8,18 @@ Assessment is a compatibility/migration name for raw table fact production.
 The formal service contract is `IRawTableFactsService` under
 `services/tableFacts/common/tableFacts.ts`. Target architecture does not keep
 Assessment as a primary domain: Template owns `TableFacts +
-Recipe/UserTemplate -> Template` materialization. Until implementation files
-move, Assessment remains the current compatibility location for structure,
-column, semantic, block, and diagnostic facts.
+Recipe/UserTemplate -> Template` materialization. The implementation files now
+live under `services/tableFacts`; Assessment paths are legacy re-export and
+adapter surfaces only.
 
-Assessment must stay facts-only while it exists. It must not become a second
-Review implementation, rank Template candidates, choose a `ReviewedTemplate`,
-decide `systemRecommended`, or grow into a separate evidence service.
+Assessment must stay a compatibility shell while it exists. It must not become
+a second Review implementation, rank Template candidates, choose a
+`ReviewedTemplate`, decide `systemRecommended`, or grow into a separate
+evidence service.
 
 ## Ownership
 
-The table-fact producer (`IRawTableFactsService`) currently produces:
+The table-fact producer (`IRawTableFactsService`) produces:
 
 - measurement group/device/sample label detection;
 - block/range detection within raw tables;
@@ -51,7 +52,7 @@ indexing beyond diagnostics metadata.
 | `common/assessment.ts` | compatibility re-export for legacy Assessment names. |
 | `common/assessmentRecord.ts` | compatibility re-export/wrapper for legacy raw table assessment factory names. |
 | `common/measurement.ts` / `common/diagnostics.ts` / `common/rawTableStructure.ts` / `common/columnProfile.ts` / `common/layoutCandidate.ts` / `common/semanticCandidate.ts` / `common/blockDetector.ts` / `common/importAssessmentSeedHeuristics.ts` | compatibility re-exports for old Assessment import paths. |
-| `common/schemaProfileAssessment.ts` | pure exact-schema-profile family/mode inference layered on top of table-fact column profiles. |
+| `common/schemaProfileAssessment.ts` | compatibility wrapper for exact-schema-profile family/mode inference layered on top of table-fact column profiles. |
 | `common/assessmentEvidence.ts` | compatibility re-export for Template-owned raw table facts; do not add new APIs here. |
 | `common/legacyAssessmentAdapter.ts` | migration adapter from legacy assessment records into table facts when persisted data contains old decision fields. |
 | `../schemaProfile/common/schemaProfile.ts` | user-confirmed schema profile evidence records. |
@@ -59,10 +60,12 @@ indexing beyond diagnostics metadata.
 | `../schemaProfile/common/schemaProfileMatcher.ts` | exact schema fingerprint matching and column binding lookup. |
 | `../schemaProfile/browser/schemaProfileStoreService.ts` | profile-scope persistence and versioned schema profile snapshots. |
 | `../schemaProfile/browser/schemaProfileService.ts` | schema profile owner API consumed by the table-fact producer. |
-| `browser/assessmentService.ts` | compatibility browser orchestration and branch selection. |
-| `browser/rawTableAssessmentEngine.ts` | raw table-fact workflow that composes import seed evidence with structure, profile, semantic, and block evidence. |
-| `browser/importAssessmentSeed.ts` | browser adapter from import file/row previews to import seed evidence. |
-| `browser/assessment.contribution.ts` | compatibility session subscriber that schedules/commits table facts. |
+| `../tableFacts/browser/rawTableFactsService.ts` | injectable `IRawTableFactsService` implementation. |
+| `../tableFacts/browser/rawTableFactsQueueService.ts` | queue implementation that schedules and commits table facts. |
+| `../tableFacts/browser/rawTableFactsEngine.ts` | raw table-fact workflow that composes import seed evidence with structure, profile, semantic, and block evidence. |
+| `../tableFacts/browser/importTableFactsSeed.ts` | browser adapter from import file/row previews to import seed evidence. |
+| `../tableFacts/browser/rawTableFacts.contribution.ts` | session subscriber that schedules table facts. |
+| `browser/assessmentService.ts` / `browser/assessmentQueueService.ts` / `browser/rawTableAssessmentEngine.ts` / `browser/importAssessmentSeed.ts` / `browser/assessment.contribution.ts` | compatibility re-exports for old Assessment browser import paths. |
 | `test/fixtures/**` | fixture corpus for current table-fact invariants: structure, layout, column semantics, profile exact-match safety, and Template materialization inputs. |
 
 ## Flow
@@ -70,16 +73,15 @@ indexing beyond diagnostics metadata.
 ```txt
 workbench restored / current session audit
   -> TableFacts queue
-     (legacy implementation may still be AssessmentQueueService.enqueueRawTables)
 rawTablesChanged
   -> SessionSnapshot / RawTableRecord
   -> TableFacts queue captures raw table version and schema profile snapshot/version
   -> TableFacts queue drops queued/running work when any captured input
      changes before or after row reads
   -> table-fact producer
-     (IRawTableFactsService.createRawTableFacts; legacy assessRawTable alias may remain)
+     (IRawTableFactsService.createRawTableFacts)
   -> captured SchemaProfile snapshot
-  -> RawTableAssessmentEngine.assess
+  -> RawTableFactsEngine.assess
   -> detectRawTableStructure / createColumnProfiles
   -> detectLayoutCandidates
   -> optional exact SchemaProfile fingerprint match
@@ -134,17 +136,17 @@ rawTablesChanged
   `MeasurementBlockRecord`; repeated block regions must produce separate blocks
   with per-block source ranges. Template materializers must consume those facts
   instead of re-detecting them.
-- Assessment must not emit ready/inferred/review/unknown decisions or automatic
+- Assessment compatibility paths must not emit ready/inferred/review/unknown decisions or automatic
   apply gates. `ReviewDecision.application` owns system-application decisions
   from Review confidence and diagnostics.
 - Current migration evidence shape is table facts, not `RecipeEvidence`.
   Recipe is fixed rules; Template combines table facts with Recipe/UserTemplate
   snapshots.
-- Assessment must not resolve Recipe snapshots, UserTemplate catalogs, or
+- Assessment compatibility paths must not resolve Recipe snapshots, UserTemplate catalogs, or
   selected Template snapshots. Template owns materialization; Review owns
   candidate review and selected `ReviewedTemplate` persistence.
 - A confident layout with weak or unknown semantics is still only a table fact.
-  Review, not Assessment, decides whether the resulting Template needs manual
+  Review, not Assessment compatibility code, decides whether the resulting Template needs manual
   adjustment or can be applied.
 - TypeScript table-fact rules are semantic baseline. When changing mirrored
   table-fact rules, update Rust mirrors under `cli/src/assessment.rs` /

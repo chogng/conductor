@@ -144,7 +144,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(result.decision.kind === "ready" && result.decision.application.reason, "review.ready.lowConfidence");
 	});
 
-	test("commits reviews after assessment and refreshes on recipe changes", () => {
+	test("commits reviews after table facts and refreshes on recipe changes", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();

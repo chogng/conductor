@@ -125,7 +125,7 @@ command APIs.
 | Explorer add/remove/select/toggle layout | `IExplorerService` or `IExplorerWorkflowService` |
 | low-level filesystem operations | `IFileService`, usually not user-facing workbench commands |
 | raw import conversion | Explorer source workflow + files conversion helpers + Session commit |
-| table facts | table-fact producer (`IRawTableFactsService`; legacy `IAssessmentService` while migrating) then Session commit |
+| table facts | table-fact producer (`IRawTableFactsService`) then Session commit; legacy Assessment command ids may remain as compatibility aliases |
 | table reveal/copy/select | `ITableService` |
 | template save/delete/import/apply | `IUserTemplateService` for library management; Slice command handlers for application |
 | plot type/unit/scale/visibility | `IPlotService` |

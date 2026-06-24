@@ -11,8 +11,8 @@ import { detectMeasurementBlocks } from "src/cs/workbench/services/tableFacts/co
 suite("workbench/services/assessment/common/blockDetector", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test("creates a measurement block from assessed table evidence", () => {
-		const assessment: ImportAssessmentSeed = {
+	test("creates a measurement block from table facts seed evidence", () => {
+		const tableFactsSeed: ImportAssessmentSeed = {
 			curveFamily: "iv",
 			curveType: "output (vd)",
 			curveTypeConfidence: "high",
@@ -23,8 +23,6 @@ suite("workbench/services/assessment/common/blockDetector", () => {
 			xAxisRoleSource: "metadata",
 		};
 		const blocks = detectMeasurementBlocks({
-			assessment,
-			assessmentConfidence: 0.9,
 			columnCount: 3,
 			columnProfile: {
 				headerRange: {
@@ -58,6 +56,8 @@ suite("workbench/services/assessment/common/blockDetector", () => {
 			fileName: "output.csv",
 			rawTableId: "raw-a",
 			rowCount: 5,
+			tableFactsConfidence: 0.9,
+			tableFactsSeed,
 		});
 
 		assert.equal(blocks.length, 1);

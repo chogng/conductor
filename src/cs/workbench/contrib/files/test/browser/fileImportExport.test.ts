@@ -17,7 +17,7 @@ import type {
 } from "../../../../services/files/common/fileConverterBackend.ts";
 import {
   createImportTableFactsSeedFromRows,
-} from "../../../../services/assessment/browser/importAssessmentSeed.ts";
+} from "../../../../services/tableFacts/browser/importTableFactsSeed.ts";
 import { NotificationService } from "../../../../services/notification/common/notificationService.ts";
 import {
   canImportFolderWithFileService,
@@ -391,7 +391,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.equal(failedFiles.length, 0);
   });
 
-  test("creates prepared assessment from converted inline rows", async () => {
+  test("creates prepared table facts from converted inline rows", async () => {
     const failedFiles: FileImportPrepareFailure[] = [];
     const firstImport = await prepareFirstPendingImportFile({
       canApplyResult: () => true,

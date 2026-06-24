@@ -80,22 +80,20 @@ export const createRawTableFactsRecordFromImportSeed = (
 		});
 	const semanticCandidates = input.semanticCandidates ??
 		createColumnSemanticCandidates({
-			assessment: tableFactsSeed,
 			columnProfiles,
 			schemaProfile,
+			tableFactsSeed,
 		});
 	const columnProfile = input.columnProfile ??
 		createMeasurementColumnProfile({
-			assessment: tableFactsSeed,
 			columnProfiles,
 			rows: input.rows ?? [],
 			semanticCandidates,
 			structure,
+			tableFactsSeed,
 		});
 	const tableFactsConfidence = getTableFactsConfidenceScore(tableFactsSeed);
 	const blocks = input.blocks ?? detectMeasurementBlocks({
-		assessment: tableFactsSeed,
-		assessmentConfidence: tableFactsConfidence,
 		columnCount,
 		columnProfile,
 		diagnosticCodes,
@@ -104,6 +102,8 @@ export const createRawTableFactsRecordFromImportSeed = (
 		rawTableId: input.rawTableId,
 		rowCount,
 		structure,
+		tableFactsConfidence,
+		tableFactsSeed,
 	});
 	const diagnostics = createTableFactsReasonDiagnostics({
 		reasons: tableFactsSeed.curveTypeReasons,

@@ -278,7 +278,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     );
   });
 
-  test("createRawExplorerFiles projects consumed assessment labels", () => {
+  test("createRawExplorerFiles projects consumed table-fact labels", () => {
     assert.deepEqual(
       createRawExplorerFiles([
         {
@@ -432,7 +432,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     ]);
   });
 
-  test("createChartExplorerFilesFromRecords projects assessment-only canonical files", () => {
+  test("createChartExplorerFilesFromRecords projects table-facts-only canonical files", () => {
     const files = createChartExplorerFilesFromRecords(
       {
         "raw-1": createFileRecord("raw-1", {
@@ -477,7 +477,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     );
   });
 
-  test("createRawExplorerFiles projects pending badge state before assessment", () => {
+  test("createRawExplorerFiles projects pending badge state before table facts", () => {
     assert.deepEqual(
       createRawExplorerFiles([
         {

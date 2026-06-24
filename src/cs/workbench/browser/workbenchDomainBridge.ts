@@ -750,7 +750,7 @@ export const createExplorerPaneInput = ({
   const isThumbnailLayout = isChartMode && explorerService.viewLayout === "thumbnail";
   const selectionKind: ExplorerSelectionKind = isChartMode ? "chart" : "table";
   const rawExplorerFiles = applyFastExplorerBadges(
-    applyAssessmentQueueExplorerBadges(
+    applyTableFactsQueueExplorerBadges(
       createRawExplorerFiles(rawFiles),
       snapshot,
       tableFactsQueueSnapshot,
@@ -851,7 +851,7 @@ const applyFastExplorerBadges = (
 ): ExplorerFileEntry[] =>
   files.map(file => applyFastExplorerBadge(file, snapshot));
 
-const applyAssessmentQueueExplorerBadges = (
+const applyTableFactsQueueExplorerBadges = (
   files: readonly ExplorerFileEntry[],
   snapshot: SessionSnapshot,
   queueSnapshot: RawTableFactsQueueSnapshot | undefined,
@@ -860,11 +860,11 @@ const applyAssessmentQueueExplorerBadges = (
     return [...files];
   }
 
-  const queueStatesByRefKey = createAssessmentQueueStatesByRefKey(queueSnapshot);
-  return files.map(file => applyAssessmentQueueExplorerBadge(file, snapshot, queueStatesByRefKey));
+  const queueStatesByRefKey = createTableFactsQueueStatesByRefKey(queueSnapshot);
+  return files.map(file => applyTableFactsQueueExplorerBadge(file, snapshot, queueStatesByRefKey));
 };
 
-const applyAssessmentQueueExplorerBadge = (
+const applyTableFactsQueueExplorerBadge = (
   file: ExplorerFileEntry,
   snapshot: SessionSnapshot,
   queueStatesByRefKey: ReadonlyMap<string, RawTableFactsRawTableQueueState>,
@@ -919,7 +919,7 @@ const applyRawTableStatusProjections = (
     };
   });
 
-const createAssessmentQueueStatesByRefKey = (
+const createTableFactsQueueStatesByRefKey = (
   snapshot: RawTableFactsQueueSnapshot,
 ): ReadonlyMap<string, RawTableFactsRawTableQueueState> => {
   const statesByRefKey = new Map<string, RawTableFactsRawTableQueueState>();

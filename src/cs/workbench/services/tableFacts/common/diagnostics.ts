@@ -40,9 +40,3 @@ export const createTableFactsReasonDiagnostics = ({
     relatedBlockId,
   }));
 };
-
-export type AssessmentDiagnosticSeverity = TableFactsDiagnosticSeverity;
-export type AssessmentSourceRange = TableFactsSourceRange;
-export type AssessmentDiagnostic = TableFactsDiagnostic;
-export const createAssessmentReasonDiagnosticCodes = createTableFactsReasonDiagnosticCodes;
-export const createAssessmentReasonDiagnostics = createTableFactsReasonDiagnostics;

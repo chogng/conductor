@@ -76,7 +76,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     });
   });
 
-  test("projects assessment queue state into raw explorer badges", () => {
+  test("projects table facts queue state into raw explorer badges", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     commitRawFilesForTest(session, [{
@@ -252,7 +252,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.deepEqual(input.files.map(file => file.chartState), ["ready", "none"]);
   });
 
-  test("keeps chart slice states from replacing assessment badges", () => {
+  test("keeps chart slice states from replacing table facts badges", () => {
     const snapshot = store.add(new SessionService()).getSnapshot();
     const input = createExplorerPaneInput({
       activePlotType: "iv",
@@ -494,7 +494,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.equal(explorerService.selectedProcessedFileId, "raw-only");
   });
 
-  test("projects fast badge estimates before full assessment is ready", () => {
+  test("projects fast badge estimates before full table facts are ready", () => {
     const session = store.add(new SessionService());
     commitRawFilesForTest(session, [
       {

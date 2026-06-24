@@ -21,8 +21,8 @@ import "src/cs/workbench/workbench.common.main";
 
 //#region --- workbench services
 
-import "src/cs/workbench/services/assessment/browser/assessmentService";
-import "src/cs/workbench/services/assessment/browser/assessmentQueueService";
+import "src/cs/workbench/services/tableFacts/browser/rawTableFactsService";
+import "src/cs/workbench/services/tableFacts/browser/rawTableFactsQueueService";
 import "src/cs/workbench/services/appearance/browser/appearanceService";
 import "src/cs/workbench/services/lifecycle/browser/lifecycleService";
 import "src/cs/workbench/services/chart/browser/chartService";
@@ -64,7 +64,7 @@ import "src/cs/workbench/contrib/template/browser/templateViewStateService";
 //#region --- workbench service contributions
 
 import "src/cs/workbench/services/calculation/browser/calculation.contribution";
-import "src/cs/workbench/services/assessment/browser/assessment.contribution";
+import "src/cs/workbench/services/tableFacts/browser/rawTableFacts.contribution";
 import "src/cs/workbench/services/review/browser/review.contribution";
 import "src/cs/workbench/services/review/browser/reviewApply.contribution";
 import "src/cs/workbench/services/slice/browser/slicePriority.contribution";
@@ -107,6 +107,6 @@ import "src/cs/workbench/contrib/themes/browser/themes.contribution";
 import "src/cs/workbench/contrib/export/browser/export.contribution";
 import "src/cs/workbench/contrib/parameters/browser/parameters.contribution";
 import "src/cs/workbench/contrib/origin/browser/origin.contribution";
-import "src/cs/workbench/contrib/assessment/browser/assessment.contribution";
+import "src/cs/workbench/contrib/tableFacts/browser/tableFacts.contribution";
 
 //#endregion

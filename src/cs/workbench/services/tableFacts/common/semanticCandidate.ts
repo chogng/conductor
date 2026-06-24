@@ -22,7 +22,7 @@ import builtinSemanticLexicon from "./builtinSemanticLexicon.json";
 export type EvidenceSource =
 	| "header"
 	| "unitRow"
-	| "assessment"
+	| "tableFactsSeed"
 	| "schemaProfile"
 	| "roleDefault";
 
@@ -49,19 +49,19 @@ export type ColumnSemanticCandidate = {
 };
 
 export const createColumnSemanticCandidates = ({
-	assessment,
 	columnProfiles,
 	schemaProfile,
+	tableFactsSeed,
 }: {
-	readonly assessment: ImportTableFactsSeed;
 	readonly columnProfiles: readonly ColumnProfile[];
 	readonly schemaProfile?: SchemaProfile | null;
+	readonly tableFactsSeed: ImportTableFactsSeed;
 }): readonly ColumnSemanticCandidate[] =>
 	columnProfiles.map(profile => {
 		const schemaProfileBinding = schemaProfile
 			? findSchemaProfileBindingForColumn(schemaProfile, profile)
 			: null;
-		const headerRole = inferColumnRole(profile.headerText, assessment);
+		const headerRole = inferColumnRole(profile.headerText, tableFactsSeed);
 		const roleCandidates = createRoleCandidates({
 			headerRole,
 			profile,
@@ -97,7 +97,7 @@ export const getPreferredUnitCandidate = (
 
 const inferColumnRole = (
 	headerText: string,
-	assessment: ImportTableFactsSeed,
+	tableFactsSeed: ImportTableFactsSeed,
 ): MeasurementColumnRole => {
 	const normalized = normalizeCellText(headerText).toLowerCase();
 	const compact = normalizeCompactText(normalized);
@@ -140,9 +140,9 @@ const inferColumnRole = (
 		return "time";
 	}
 	if (matchesLexicon(text, "voltage", { contains: true })) {
-		return assessment.xAxisRole === "vg"
+		return tableFactsSeed.xAxisRole === "vg"
 			? "vg"
-			: assessment.xAxisRole === "vd"
+			: tableFactsSeed.xAxisRole === "vd"
 				? "vd"
 				: "voltage";
 	}
@@ -150,7 +150,7 @@ const inferColumnRole = (
 		return "current";
 	}
 	if (
-		assessment.curveFamily === "pv" &&
+		tableFactsSeed.curveFamily === "pv" &&
 		matchesLexicon(text, "pulseCurrent")
 	) {
 		return "current";

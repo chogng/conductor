@@ -162,7 +162,7 @@ suite("workbench/contrib/files/test/browser/explorerSessionImport", () => {
     );
   });
 
-  test("commits prepared import assessments with the imported raw table version", () => {
+  test("commits prepared import table facts with the imported raw table version", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const events: SessionChangeEvent[] = [];

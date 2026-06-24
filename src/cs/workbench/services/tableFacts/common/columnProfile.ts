@@ -115,17 +115,17 @@ export const createColumnProfiles = ({
 };
 
 export const createMeasurementColumnProfile = ({
-	assessment,
 	columnProfiles,
 	rows,
 	semanticCandidates,
 	structure,
+	tableFactsSeed,
 }: {
-	readonly assessment: ImportTableFactsSeed;
 	readonly columnProfiles?: readonly ColumnProfile[];
 	readonly rows: RawTableFactsRows;
 	readonly semanticCandidates?: readonly ColumnSemanticCandidate[];
 	readonly structure?: RawTableStructure;
+	readonly tableFactsSeed: ImportTableFactsSeed;
 }): MeasurementColumnProfile => {
 	if (!rows.length) {
 		return { columns: [] };
@@ -140,8 +140,8 @@ export const createMeasurementColumnProfile = ({
 		structure: tableStructure,
 	});
 	const candidates = semanticCandidates ?? createColumnSemanticCandidates({
-		assessment,
 		columnProfiles: profiles,
+		tableFactsSeed,
 	});
 	const candidatesByCol = new Map(candidates.map(candidate => [candidate.rawCol, candidate]));
 	const columns: MeasurementColumnRef[] = [];

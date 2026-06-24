@@ -114,10 +114,10 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         relatedTarget: null,
       }));
 
-      const rows = [...(contextViewService.renderedElement?.querySelectorAll<HTMLElement>(".file-list-hover-assessment-row") ?? [])]
+      const rows = [...(contextViewService.renderedElement?.querySelectorAll<HTMLElement>(".file-list-hover-table-facts-row") ?? [])]
         .map(row => [
-          row.querySelector(".file-list-hover-assessment-label")?.textContent ?? "",
-          row.querySelector(".file-list-hover-assessment-value")?.textContent ?? "",
+          row.querySelector(".file-list-hover-table-facts-label")?.textContent ?? "",
+          row.querySelector(".file-list-hover-table-facts-value")?.textContent ?? "",
         ]);
       assert.deepEqual(rows, [
         ["文件：", "Output_.csv"],
@@ -432,7 +432,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     const viewer = new ExplorerViewer(host, hoverHost, props, labels);
 
     try {
-      const badge = host.querySelector<HTMLElement>(".file-list-item-assessment");
+      const badge = host.querySelector<HTMLElement>(".file-list-item-table-facts");
       assert.ok(badge);
       assert.equal(badge.textContent, "...");
 

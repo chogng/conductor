@@ -168,9 +168,9 @@ Slice
 ### 2.2 Template TableFacts
 
 TableFacts 是 Template materialization 的表格事实输入。正式服务入口是
-`IRawTableFactsService` / `RawTableFactsRecord`；当前实现文件仍可能留在
-`services/assessment` 兼容壳内，`IAssessmentService` /
-`RawTableAssessmentRecord` 只能作为迁移别名。不要新建独立 evidence service；目标是把
+`IRawTableFactsService` / `RawTableFactsRecord`；当前实现文件已经落到
+`services/tableFacts`，`services/assessment` 只保留兼容 re-export / adapter，
+`IAssessmentService` / `RawTableAssessmentRecord` 只能作为迁移别名。不要新建独立 evidence service；目标是把
 `TableFacts + Recipe/UserTemplate -> Template` 收到 Template 职责面。
 目标文档、目标 API 和新代码应使用 TableFacts/RawTableFacts 命名；Assessment
 命名只能出现在兼容壳、旧持久化读取、或迁移说明里。
@@ -1306,9 +1306,8 @@ Files import
 ```txt
 rawTablesChanged / schemaProfileChanged / tableFactsEngineChanged
   -> TableFacts queue
-     (legacy compatibility implementation may still be AssessmentQueueService)
   -> table-fact producer
-     (IRawTableFactsService; implementation may still live under Assessment shell)
+     (IRawTableFactsService)
   -> Session.commitRawTableFacts
   -> tableFactsChanged
 ```
@@ -1552,9 +1551,33 @@ src/cs/workbench/services/slice/
     slicePriority.contribution.ts
 ```
 
-### 21.7 services/assessment compatibility shell
+### 21.7 services/tableFacts + services/assessment compatibility shell
 
-短期只作为兼容壳保留：
+正式 TableFacts 合同、helper、browser 实现位于：
+
+```txt
+src/cs/workbench/services/tableFacts/
+  common/
+    tableFacts.ts
+    tableFactsRecord.ts
+    rawTableStructure.ts
+    columnProfile.ts
+    layoutCandidate.ts
+    semanticCandidate.ts
+    measurement.ts
+    diagnostics.ts
+    blockDetector.ts
+    importTableFactsSeedHeuristics.ts
+    schemaProfileTableFacts.ts
+  browser/
+    importTableFactsSeed.ts
+    rawTableFactsEngine.ts
+    rawTableFactsService.ts
+    rawTableFactsQueueService.ts
+    rawTableFacts.contribution.ts
+```
+
+Assessment 短期只作为兼容壳保留：
 
 ```txt
 src/cs/workbench/services/assessment/
@@ -1565,31 +1588,39 @@ src/cs/workbench/services/assessment/
     layoutCandidate.ts
     semanticCandidate.ts
     measurement.ts
+    diagnostics.ts
+    blockDetector.ts
+    importAssessmentSeedHeuristics.ts
+    schemaProfileAssessment.ts
     legacyAssessmentAdapter.ts
   browser/
     assessmentService.ts
     assessmentQueueService.ts
+    assessment.contribution.ts
+    importAssessmentSeed.ts
+    rawTableAssessmentEngine.ts
 ```
 
 语义收缩为：
 
 ```txt
 assessment == migration table-fact helper
-assessment == compatibility implementation shell
+assessment == compatibility re-export / adapter shell
 assessment != Template materializer
 assessment != Review
 assessment != primary domain
 ```
 
-Assessment 可以产出 structure、profiles、semantic candidates、blocks、
-diagnostics 和 table-fact signature；不得产出 TemplateDraft、ReviewedTemplate、
-ReviewDecision、systemRecommended 或 SliceRequest。
+TableFacts 产出 structure、profiles、semantic candidates、blocks、
+diagnostics 和 table-fact signature；Assessment 兼容路径只能转发/适配这些事实，
+不得产出 TemplateDraft、ReviewedTemplate、ReviewDecision、systemRecommended 或 SliceRequest。
 
 长期迁移目标：
 
 ```txt
 table facts service contracts -> src/cs/workbench/services/tableFacts/common/tableFacts.ts
 table facts record factories/helpers -> src/cs/workbench/services/tableFacts/common/*
+table facts browser implementation -> src/cs/workbench/services/tableFacts/browser/*
 canonical table-facts record projection helpers -> src/cs/workbench/services/template/common/tableFacts.ts
 materializers -> src/cs/workbench/services/template/common/*Materializer*
 ```

@@ -17,7 +17,7 @@ import type { RawTableFacts } from "src/cs/workbench/services/template/common/ta
 suite("workbench/services/template/test/common/recipeSelectorEvaluator", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
 
-  test("matches builtin IV transfer recipe against assessment block evidence", () => {
+  test("matches builtin IV transfer recipe against table-fact block evidence", () => {
     const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
     assert.ok(recipe);
 

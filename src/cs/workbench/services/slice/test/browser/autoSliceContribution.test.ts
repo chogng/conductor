@@ -7,9 +7,9 @@ import assert from "assert";
 import { Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import { AssessmentContribution } from "src/cs/workbench/services/assessment/browser/assessment.contribution";
-import { AssessmentQueueService } from "src/cs/workbench/services/assessment/browser/assessmentQueueService";
-import { AssessmentService } from "src/cs/workbench/services/assessment/browser/assessmentService";
+import { RawTableFactsContribution } from "src/cs/workbench/services/tableFacts/browser/rawTableFacts.contribution";
+import { RawTableFactsQueueService } from "src/cs/workbench/services/tableFacts/browser/rawTableFactsQueueService";
+import { RawTableFactsService } from "src/cs/workbench/services/tableFacts/browser/rawTableFactsService";
 import { TABLE_FACTS_RULE_VERSION, type RawTableFactsRecord } from "src/cs/workbench/services/template/common/tableFacts";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
 import type {
@@ -54,7 +54,7 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 		}]]);
 	});
 
-	test("does not enqueue assessments after latest manual slice run", () => {
+	test("does not enqueue automatic slices after latest manual slice run", () => {
 		const sessionService = store.add(new SessionService());
 		sessionService.commitFileImport(createImportResult());
 		const assessment = createAssessment();
@@ -102,8 +102,8 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 	test("runs raw import through reviewed automatic template into slice curves", async () => {
 		const sessionService = store.add(new SessionService());
 		const rowsReaderService = new TestRawTableRowsReaderService();
-		const assessmentService = store.add(new AssessmentService());
-		const assessmentQueueService = store.add(new AssessmentQueueService(
+		const assessmentService = store.add(new RawTableFactsService());
+		const assessmentQueueService = store.add(new RawTableFactsQueueService(
 			sessionService,
 			assessmentService,
 			rowsReaderService,
@@ -113,7 +113,7 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 			undefined,
 			rowsReaderService,
 		));
-		store.add(new AssessmentContribution(sessionService, assessmentQueueService));
+		store.add(new RawTableFactsContribution(sessionService, assessmentQueueService));
 		store.add(new TestReviewContribution(sessionService));
 		store.add(new AutoSliceContribution(sessionService, sliceService));
 

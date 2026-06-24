@@ -822,7 +822,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     assert.equal(session.getSnapshot().filesById["file-next-id"], undefined);
   });
 
-  test("commits raw table assessment when source version matches", () => {
+  test("commits raw table facts when source version matches", () => {
     const session = store.add(new SessionService());
     session.commitFileImport(createSingleRawTableImportResult());
     const assessment = createRawTableAssessment(1);
@@ -835,7 +835,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     assert.equal(file.measurementBlocksById["block-a"].family, "iv");
   });
 
-  test("commits file import and prepared assessment in one raw table event", () => {
+  test("commits file import and prepared table facts in one raw table event", () => {
     const session = store.add(new SessionService());
     const events: SessionChangeEvent[] = [];
     const disposable = session.onDidChangeSession(event => {
@@ -877,7 +877,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     disposable.dispose();
   });
 
-  test("commits multiple raw table assessments with one change event", () => {
+  test("commits multiple raw table facts with one change event", () => {
     const session = store.add(new SessionService());
     const events: SessionChangeEvent[] = [];
     const disposable = session.onDidChangeSession(event => {
@@ -932,7 +932,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     disposable.dispose();
   });
 
-  test("clears stale raw table reviews when assessment changes", () => {
+  test("clears stale raw table reviews when table facts change", () => {
     const session = store.add(new SessionService());
     session.commitFileImport(createSingleRawTableImportResult());
     const assessment = createRawTableAssessment(1);
@@ -948,7 +948,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     assert.equal(file.rawTableReviewsByRawTableId?.["table-a"], undefined);
   });
 
-  test("ignores stale raw table assessment versions", () => {
+  test("ignores stale raw table facts versions", () => {
     const session = store.add(new SessionService());
     session.commitFileImport(createSingleRawTableImportResult());
 

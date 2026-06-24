@@ -2289,8 +2289,8 @@ const getPrepareFailureReason = (failure: FileImportPrepareFailure): string => {
       );
     case "RUST_IMPORT_ASSESSMENT_FAILED":
       return localize(
-        "files.import.failureReasonAssessment",
-        "The file could not be assessed for import.",
+        "files.import.failureReasonImportCheck",
+        "The file could not be checked for import.",
       );
     case "UNSUPPORTED_IMPORT_FORMAT":
       return localize(

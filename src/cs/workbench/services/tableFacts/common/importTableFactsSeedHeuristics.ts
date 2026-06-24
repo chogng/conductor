@@ -24,9 +24,9 @@ export type CurveKind =
   | "cf"
   | "unknown";
 
-export type ImportAssessmentSeedConfidence = "high" | "medium" | "low";
+export type ImportTableFactsSeedHeuristicConfidence = "high" | "medium" | "low";
 
-export type ImportAssessmentSeedSource =
+export type ImportTableFactsSeedHeuristicSource =
   | "metadata"
   | "filename"
   | "hint"
@@ -34,7 +34,7 @@ export type ImportAssessmentSeedSource =
   | "shape"
   | null;
 
-export type ImportAssessmentSeedMetadata = {
+export type ImportTableFactsSeedHeuristicMetadata = {
   channelFuncs: string[];
   channelVNames: string[];
   dataNameColumns: string[];
@@ -53,18 +53,18 @@ export type ImportAssessmentSeedMetadata = {
   xAxisData: string;
 };
 
-export type ImportAssessmentSeed = {
-  confidence: ImportAssessmentSeedConfidence;
+export type ImportTableFactsSeedHeuristic = {
+  confidence: ImportTableFactsSeedHeuristicConfidence;
   curveType: CurveKind;
   curveTypeLabel: string | null;
   needsReview: boolean;
   reasons: string[];
   xAxisRole: AxisRole | null;
-  xAxisRoleSource: ImportAssessmentSeedSource;
+  xAxisRoleSource: ImportTableFactsSeedHeuristicSource;
 };
 
-export type FastImportBadgeAssessment = {
-  confidence: Extract<ImportAssessmentSeedConfidence, "medium" | "low">;
+export type FastImportBadgeTableFacts = {
+  confidence: Extract<ImportTableFactsSeedHeuristicConfidence, "medium" | "low">;
   curveType: Exclude<CurveKind, "unknown">;
   curveTypeLabel: string;
   reason: string;
@@ -78,10 +78,10 @@ export type FastImportBadgeInput = {
   readonly sheetName?: unknown;
 };
 
-type ImportAssessmentSeedInput = {
+type ImportTableFactsSeedHeuristicInput = {
   fileName?: unknown;
   fileNameRole?: AxisRole | null;
-  metadata?: Partial<ImportAssessmentSeedMetadata> | null;
+  metadata?: Partial<ImportTableFactsSeedHeuristicMetadata> | null;
   xAxisLabelHint?: unknown;
   xAxisLabel?: unknown;
 };
@@ -89,11 +89,11 @@ type ImportAssessmentSeedInput = {
 type FileEvidence = {
   reason: string;
   role: AxisRole;
-  source: NonNullable<ImportAssessmentSeedSource>;
+  source: NonNullable<ImportTableFactsSeedHeuristicSource>;
   weight: number;
 };
 
-const MAX_ASSESSMENT_REASONS = 2;
+const MAX_TABLE_FACTS_SEED_REASONS = 2;
 
 const unwrapBraceToken = (value: unknown): string => {
   const normalized = normalizeCellText(value);
@@ -336,9 +336,9 @@ const collectStrippedSweepShapeStats = (
   };
 };
 
-export const extractImportAssessmentSeedMetadata = (
+export const extractImportTableFactsSeedMetadata = (
   rows: Array<Array<unknown> | null | undefined>,
-): ImportAssessmentSeedMetadata => {
+): ImportTableFactsSeedHeuristicMetadata => {
   let setupTitle = "";
   let xAxisData = "";
   let notesText = "";
@@ -595,12 +595,12 @@ const hasVoltageHint = (value: unknown): boolean => {
     compact.includes("bias");
 };
 
-export const createFastImportBadgeAssessment = ({
+export const createFastImportBadgeTableFacts = ({
   fileName,
   relativePath,
   rows,
   sheetName,
-}: FastImportBadgeInput): FastImportBadgeAssessment | null => {
+}: FastImportBadgeInput): FastImportBadgeTableFacts | null => {
   const sourceText = [
     fileName,
     relativePath,
@@ -725,13 +725,13 @@ const detectCapacitanceCurveKind = ({
   xAxisLabelHint,
   xAxisLabel,
 }: Pick<
-  ImportAssessmentSeedInput,
+  ImportTableFactsSeedHeuristicInput,
   "fileName" | "metadata" | "xAxisLabelHint" | "xAxisLabel"
 >): {
-  confidence: ImportAssessmentSeedConfidence;
+  confidence: ImportTableFactsSeedHeuristicConfidence;
   curveType: Exclude<CurveKind, "transfer" | "output" | "unknown">;
   reason: string;
-  source: NonNullable<ImportAssessmentSeedSource>;
+  source: NonNullable<ImportTableFactsSeedHeuristicSource>;
 } | null => {
   const metadataLikeTexts = [
     metadata?.setupTitle,
@@ -789,11 +789,11 @@ const detectCapacitanceCurveKind = ({
 const detectPulseVoltageCurveKind = ({
   fileName,
   metadata,
-}: Pick<ImportAssessmentSeedInput, "fileName" | "metadata">): {
-  confidence: ImportAssessmentSeedConfidence;
+}: Pick<ImportTableFactsSeedHeuristicInput, "fileName" | "metadata">): {
+  confidence: ImportTableFactsSeedHeuristicConfidence;
   curveType: "pv";
   reason: string;
-  source: NonNullable<ImportAssessmentSeedSource>;
+  source: NonNullable<ImportTableFactsSeedHeuristicSource>;
 } | null => {
   const hasFastIvOrIvtHint = (value: unknown): boolean => {
     const text = normalizeCellText(value).toLowerCase();
@@ -821,7 +821,7 @@ const detectPulseVoltageCurveKind = ({
   };
 };
 
-const reasonPrefixBySource: Record<NonNullable<ImportAssessmentSeedSource>, string> = {
+const reasonPrefixBySource: Record<NonNullable<ImportTableFactsSeedHeuristicSource>, string> = {
   filename: "Filename",
   label: "Axis label",
   metadata: "Metadata",
@@ -835,7 +835,7 @@ const pushEvidence = (
   evidence: FileEvidence[],
   role: AxisRole | null,
   weight: number,
-  source: NonNullable<ImportAssessmentSeedSource>,
+  source: NonNullable<ImportTableFactsSeedHeuristicSource>,
   message: string,
 ) => {
   if (!role) return;
@@ -853,7 +853,7 @@ const collectRoleEvidence = ({
   metadata,
   xAxisLabelHint,
   xAxisLabel,
-}: ImportAssessmentSeedInput): FileEvidence[] => {
+}: ImportTableFactsSeedHeuristicInput): FileEvidence[] => {
   const evidence: FileEvidence[] = [];
   const normalizedMetadata = metadata ?? {};
   const fileNameRoleFromText = detectAxisRole(fileName);
@@ -1019,7 +1019,7 @@ const hasStrongMetadataConflict = (evidence: FileEvidence[]): boolean => {
 
 const resolveRoleSource = (
   winningEvidence: FileEvidence[],
-): NonNullable<ImportAssessmentSeedSource> | null => {
+): NonNullable<ImportTableFactsSeedHeuristicSource> | null => {
   if (!winningEvidence.length) return null;
   if (winningEvidence.some((entry) => entry.source === "metadata")) return "metadata";
   if (winningEvidence.some((entry) => entry.source === "hint")) return "hint";
@@ -1029,13 +1029,13 @@ const resolveRoleSource = (
   return null;
 };
 
-export const createImportAssessmentSeed = ({
+export const createImportTableFactsSeedHeuristic = ({
   fileName,
   fileNameRole = null,
   metadata,
   xAxisLabelHint,
   xAxisLabel,
-}: ImportAssessmentSeedInput): ImportAssessmentSeed => {
+}: ImportTableFactsSeedHeuristicInput): ImportTableFactsSeedHeuristic => {
   const normalizedMetadata = metadata ?? {};
   const evidence = collectRoleEvidence({
     fileName,
@@ -1107,14 +1107,14 @@ export const createImportAssessmentSeed = ({
           "Metadata signals disagree on whether VAR1/X belongs to Vg or Vd.",
           ...evidence
             .sort((left, right) => right.weight - left.weight)
-            .slice(0, MAX_ASSESSMENT_REASONS)
+            .slice(0, MAX_TABLE_FACTS_SEED_REASONS)
             .map((entry) => entry.reason),
           ...strippedMetadataReason,
         ]
       : [
           ...evidence
             .sort((left, right) => right.weight - left.weight)
-            .slice(0, MAX_ASSESSMENT_REASONS)
+            .slice(0, MAX_TABLE_FACTS_SEED_REASONS)
             .map((entry) => entry.reason),
           ...strippedMetadataReason,
           ...(evidence.length
@@ -1136,7 +1136,7 @@ export const createImportAssessmentSeed = ({
   const hasMetadataSupport = winningEvidence.some((entry) => entry.source === "metadata");
   const curveType = winningRole === "vg" ? "transfer" : "output";
 
-  let confidence: ImportAssessmentSeedConfidence = "low";
+  let confidence: ImportTableFactsSeedHeuristicConfidence = "low";
   if (hasMetadataSupport && strongestWinningWeight >= 14 && scoreGap >= 10) {
     confidence = "high";
   } else if ((hasMetadataSupport && scoreGap >= 6) || scoreGap >= 8) {
@@ -1170,19 +1170,9 @@ export const createImportAssessmentSeed = ({
     needsReview: confidence === "low",
     reasons: winningEvidence
       .sort((left, right) => right.weight - left.weight)
-      .slice(0, MAX_ASSESSMENT_REASONS)
+      .slice(0, MAX_TABLE_FACTS_SEED_REASONS)
       .map((entry) => entry.reason),
     xAxisRole: winningRole,
     xAxisRoleSource: resolveRoleSource(winningEvidence),
   };
 };
-
-export type ImportTableFactsSeedHeuristicConfidence = ImportAssessmentSeedConfidence;
-export type ImportTableFactsSeedHeuristicSource = ImportAssessmentSeedSource;
-export type ImportTableFactsSeedHeuristicMetadata = ImportAssessmentSeedMetadata;
-export type ImportTableFactsSeedHeuristic = ImportAssessmentSeed;
-export type FastImportBadgeTableFacts = FastImportBadgeAssessment;
-
-export const extractImportTableFactsSeedMetadata = extractImportAssessmentSeedMetadata;
-export const createFastImportBadgeTableFacts = createFastImportBadgeAssessment;
-export const createImportTableFactsSeedHeuristic = createImportAssessmentSeed;

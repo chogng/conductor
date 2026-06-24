@@ -222,7 +222,7 @@
   padding-left: 4px;
 }
 
-.file-list-item-assessment {
+.file-list-item-table-facts {
   display: inline-flex;
   max-width: 82px;
   min-width: 28px;
@@ -240,59 +240,59 @@
   white-space: nowrap;
 }
 
-.file-list-item-assessment[data-state="pending"] {
+.file-list-item-table-facts[data-state="pending"] {
   color: rgb(var(--text-secondary) / 0.72);
 }
 
-.file-list-item-assessment[data-source="fast"] {
+.file-list-item-table-facts[data-source="fast"] {
   color: rgb(var(--text-secondary) / 0.9);
 }
 
-.file-list-item-assessment[data-state="unknown"] {
+.file-list-item-table-facts[data-state="unknown"] {
   color: rgb(var(--text-secondary) / 0.9);
 }
 
-.file-list-tree-root[data-show-badges="false"] .file-list-item-assessment {
+.file-list-tree-root[data-show-badges="false"] .file-list-item-table-facts {
   display: none;
 }
 
-.file-list-item-assessment[data-color="blue"] {
+.file-list-item-table-facts[data-color="blue"] {
   background-color: rgb(37 99 235 / 0.12);
   color: rgb(37 99 235 / 1);
 }
 
-.file-list-item-assessment[data-color="green"] {
+.file-list-item-table-facts[data-color="green"] {
   background-color: rgb(5 150 105 / 0.12);
   color: rgb(5 150 105 / 1);
 }
 
-.file-list-item-assessment[data-color="purple"] {
+.file-list-item-table-facts[data-color="purple"] {
   background-color: rgb(124 58 237 / 0.12);
   color: rgb(124 58 237 / 1);
 }
 
-.file-list-item-assessment[data-color="orange"] {
+.file-list-item-table-facts[data-color="orange"] {
   background-color: rgb(217 119 6 / 0.12);
   color: rgb(217 119 6 / 1);
 }
 
-.file-list-item-assessment[data-color="red"] {
+.file-list-item-table-facts[data-color="red"] {
   background-color: rgb(220 38 38 / 0.12);
   color: rgb(220 38 38 / 1);
 }
 
-.file-list-item-assessment[data-color="cyan"] {
+.file-list-item-table-facts[data-color="cyan"] {
   background-color: rgb(8 145 178 / 0.12);
   color: rgb(8 145 178 / 1);
 }
 
-.file-list-item-assessment[data-warning="true"] {
+.file-list-item-table-facts[data-warning="true"] {
   background-color: rgb(217 119 6 / 0.12);
   border-color: rgb(217 119 6 / 0.45);
   color: rgb(217 119 6 / 1);
 }
 
-.file-list-item-assessment[data-warning="true"]:is(.dark *) {
+.file-list-item-table-facts[data-warning="true"]:is(.dark *) {
   background-color: rgb(251 191 36 / 0.14);
   border-color: rgb(251 191 36 / 0.45);
   color: rgb(251 191 36 / 1);
@@ -494,9 +494,9 @@
   color: rgb(var(--text-primary) / 1);
 }
 
-/* Assessment hover is text content, so it keeps content-driven width. */
-.file-list-hover.file-list-hover--assessment,
-.context-view.fixed.file-list-hover.file-list-hover--assessment {
+/* Table-facts hover is text content, so it keeps content-driven width. */
+.file-list-hover.file-list-hover--table-facts,
+.context-view.fixed.file-list-hover.file-list-hover--table-facts {
   padding: 7px 9px;
   background-color: #ffffff;
 }
@@ -508,7 +508,7 @@
   padding: 7px 9px;
 }
 
-.file-list-hover-assessment {
+.file-list-hover-table-facts {
   display: grid;
   gap: 4px;
   margin: 0;
@@ -516,40 +516,40 @@
   line-height: 1.35;
 }
 
-.file-list-hover-assessment-row {
+.file-list-hover-table-facts-row {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   column-gap: 6px;
 }
 
-.file-list-hover-assessment-label {
+.file-list-hover-table-facts-label {
   margin: 0;
   color: rgb(var(--text-secondary) / 1);
   font-weight: 500;
   white-space: nowrap;
 }
 
-.file-list-hover-assessment-value {
+.file-list-hover-table-facts-value {
   margin: 0;
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.file-list-hover-assessment-list {
+.file-list-hover-table-facts-list {
   display: grid;
   gap: 3px;
 }
 
-.file-list-hover-assessment-list-item {
+.file-list-hover-table-facts-list-item {
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.file-list-hover-assessment[data-warning="true"] {
+.file-list-hover-table-facts[data-warning="true"] {
   color: rgb(217 119 6 / 1);
 }
 
-.file-list-hover-assessment[data-warning="true"]:is(.dark *) {
+.file-list-hover-table-facts[data-warning="true"]:is(.dark *) {
   color: rgb(251 191 36 / 1);
 }
 

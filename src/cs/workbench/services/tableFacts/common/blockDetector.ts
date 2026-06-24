@@ -18,8 +18,6 @@ import type {
 } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
 
 export type DetectMeasurementBlocksInput = {
-	readonly assessment: ImportTableFactsSeed;
-	readonly assessmentConfidence: number;
 	readonly columnCount: number;
 	readonly columnProfile: MeasurementColumnProfile;
 	readonly diagnosticCodes: readonly string[];
@@ -28,11 +26,11 @@ export type DetectMeasurementBlocksInput = {
 	readonly rawTableId: string;
 	readonly rowCount: number;
 	readonly structure?: RawTableStructure;
+	readonly tableFactsConfidence: number;
+	readonly tableFactsSeed: ImportTableFactsSeed;
 };
 
 export const detectMeasurementBlocks = ({
-	assessment,
-	assessmentConfidence,
 	columnCount,
 	columnProfile,
 	diagnosticCodes,
@@ -41,11 +39,13 @@ export const detectMeasurementBlocks = ({
 	rawTableId,
 	rowCount,
 	structure,
+	tableFactsConfidence,
+	tableFactsSeed,
 }: DetectMeasurementBlocksInput): readonly MeasurementBlockRecord[] => {
 	const fullRange = createFullRange(rowCount, columnCount);
-	const family = getMeasurementFamily(assessment);
-	const ivMode = getIvMode(assessment);
-	const label = assessment.curveType ?? fileName ?? rawTableId;
+	const family = getMeasurementFamily(tableFactsSeed);
+	const ivMode = getIvMode(tableFactsSeed);
+	const label = tableFactsSeed.curveType ?? fileName ?? rawTableId;
 	if (structure && structure.blockRegions.length > 1) {
 		return structure.blockRegions.map((blockRegion, index) => {
 			const dataRegion = structure.dataRegions[index] ?? null;
@@ -67,7 +67,7 @@ export const detectMeasurementBlocks = ({
 				columns: {
 					columns: retargetColumnsToHeaderRange(columnProfile.columns, headerRange),
 				},
-				confidence: assessmentConfidence,
+				confidence: tableFactsConfidence,
 				rowCount: dataRegion?.rowCount ?? getRangeRowCount(blockRegion.range),
 				columnCount: dataRegion?.columnCount ?? getRangeColumnCount(blockRegion.range),
 				diagnosticCodes,
@@ -90,7 +90,7 @@ export const detectMeasurementBlocks = ({
 		columns: {
 			columns: columnProfile.columns,
 		},
-		confidence: assessmentConfidence,
+		confidence: tableFactsConfidence,
 		rowCount,
 		columnCount,
 		diagnosticCodes,
@@ -142,21 +142,21 @@ const getRangeColumnCount = (
 	Math.max(0, range.endCol - range.startCol + 1);
 
 const getMeasurementFamily = (
-	assessment: ImportTableFactsSeed,
+	tableFactsSeed: ImportTableFactsSeed,
 ): MeasurementFamily => {
 	if (
-		assessment.curveFamily === "iv" ||
-		assessment.curveFamily === "cv" ||
-		assessment.curveFamily === "cf" ||
-		assessment.curveFamily === "pv" ||
-		assessment.curveFamily === "it"
+		tableFactsSeed.curveFamily === "iv" ||
+		tableFactsSeed.curveFamily === "cv" ||
+		tableFactsSeed.curveFamily === "cf" ||
+		tableFactsSeed.curveFamily === "pv" ||
+		tableFactsSeed.curveFamily === "it"
 	) {
-		return assessment.curveFamily;
+		return tableFactsSeed.curveFamily;
 	}
 	if (
-		assessment.xAxisRole === "vg" ||
-		assessment.xAxisRole === "vd" ||
-		isIvCurveTypeText(assessment.curveType)
+		tableFactsSeed.xAxisRole === "vg" ||
+		tableFactsSeed.xAxisRole === "vd" ||
+		isIvCurveTypeText(tableFactsSeed.curveType)
 	) {
 		return "iv";
 	}
@@ -164,24 +164,24 @@ const getMeasurementFamily = (
 };
 
 const getIvMode = (
-	assessment: ImportTableFactsSeed,
+	tableFactsSeed: ImportTableFactsSeed,
 ): IvSweepMode | undefined => {
 	if (
-		assessment.curveFamily === "iv" ||
-		assessment.xAxisRole === "vg" ||
-		assessment.xAxisRole === "vd" ||
-		isIvCurveTypeText(assessment.curveType)
+		tableFactsSeed.curveFamily === "iv" ||
+		tableFactsSeed.xAxisRole === "vg" ||
+		tableFactsSeed.xAxisRole === "vd" ||
+		isIvCurveTypeText(tableFactsSeed.curveType)
 	) {
-		if (assessment.ivMode === "transfer" || assessment.ivMode === "output") {
-			return assessment.ivMode;
+		if (tableFactsSeed.ivMode === "transfer" || tableFactsSeed.ivMode === "output") {
+			return tableFactsSeed.ivMode;
 		}
-		if (assessment.xAxisRole === "vg") {
+		if (tableFactsSeed.xAxisRole === "vg") {
 			return "transfer";
 		}
-		if (assessment.xAxisRole === "vd") {
+		if (tableFactsSeed.xAxisRole === "vd") {
 			return "output";
 		}
-		const curveType = String(assessment.curveType ?? "").toLowerCase();
+		const curveType = String(tableFactsSeed.curveType ?? "").toLowerCase();
 		if (curveType.includes("transfer")) {
 			return "transfer";
 		}

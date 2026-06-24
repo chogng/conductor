@@ -280,7 +280,7 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
     assert.equal(record.metricsBySeriesId, undefined);
   });
 
-  test("projects assessment evidence back to raw file entries", () => {
+  test("projects table facts back to raw file entries", () => {
     const records = mergeRawFilesIntoRecords({}, [], [{
       fileId: "file-a",
       fileName: "Review.csv",
