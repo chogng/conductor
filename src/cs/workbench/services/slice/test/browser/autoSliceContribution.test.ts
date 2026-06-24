@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 import { AssessmentContribution } from "src/cs/workbench/services/assessment/browser/assessment.contribution";
 import { AssessmentQueueService } from "src/cs/workbench/services/assessment/browser/assessmentQueueService";
 import { AssessmentService } from "src/cs/workbench/services/assessment/browser/assessmentService";
-import { ASSESSMENT_RULE_VERSION, type RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
+import { TABLE_FACTS_RULE_VERSION, type RawTableFactsRecord } from "src/cs/workbench/services/template/common/tableFacts";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 import type {
 	IRawTableRowsReaderService,
@@ -192,14 +192,14 @@ class TestReviewContribution extends Disposable {
 			const snapshot = this.sessionService.getSnapshot();
 			this.sessionService.commitRawTableReviews((event.rawTableRefs ?? [])
 				.map(ref => snapshot.filesById[ref.fileId]?.tableFactsByRawTableId[ref.rawTableId])
-				.filter((assessment): assessment is RawTableAssessmentRecord => Boolean(assessment))
+				.filter((assessment): assessment is RawTableFactsRecord => Boolean(assessment))
 				.map(assessment => createReview(assessment, createAutoTemplate())));
 		}));
 	}
 }
 
 const createReview = (
-	assessment: RawTableAssessmentRecord,
+	assessment: RawTableFactsRecord,
 	template = createTemplate(),
 ): RawTableReviewRecord => {
 	return {
@@ -267,8 +267,8 @@ const createReview = (
 	};
 };
 
-const createAssessment = (): RawTableAssessmentRecord => ({
-	assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
+const createAssessment = (): RawTableFactsRecord => ({
+	assessmentRuleVersion: TABLE_FACTS_RULE_VERSION,
 	schemaProfileVersion: 0,
 	fileId: "file-a",
 	rawTableId: "table-a",

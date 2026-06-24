@@ -62,7 +62,7 @@ import {
   type RawTableFactsQueueSnapshot,
   type RawTableFactsRawTableQueueState,
   type IRawTableFactsQueueService,
-} from "src/cs/workbench/services/assessment/common/assessment";
+} from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import {
   createFastImportBadgeAssessment,
 } from "src/cs/workbench/services/assessment/common/importAssessmentSeedHeuristics";

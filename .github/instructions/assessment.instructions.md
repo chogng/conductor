@@ -5,10 +5,12 @@ applyTo: 'src/cs/workbench/services/assessment/**'
 # Assessment Compatibility Shell
 
 Assessment is a compatibility/migration name for raw table fact production.
-Target architecture does not keep Assessment as a primary domain: Template owns
-`TableFacts + Recipe/UserTemplate -> Template` materialization. Until that
-migration completes, Assessment remains the current implementation location for
-structure, column, semantic, block, and diagnostic facts.
+The formal service contract is `IRawTableFactsService` under
+`services/tableFacts/common/tableFacts.ts`. Target architecture does not keep
+Assessment as a primary domain: Template owns `TableFacts +
+Recipe/UserTemplate -> Template` materialization. Until implementation files
+move, Assessment remains the current compatibility location for structure,
+column, semantic, block, and diagnostic facts.
 
 Assessment must stay facts-only while it exists. It must not become a second
 Review implementation, rank Template candidates, choose a `ReviewedTemplate`,
@@ -16,7 +18,7 @@ decide `systemRecommended`, or grow into a separate evidence service.
 
 ## Ownership
 
-The table-fact producer (legacy `IAssessmentService`) currently produces:
+The table-fact producer (`IRawTableFactsService`) currently produces:
 
 - measurement group/device/sample label detection;
 - block/range detection within raw tables;
@@ -35,7 +37,8 @@ indexing beyond diagnostics metadata.
 
 | File | Responsibility |
 | --- | --- |
-| `common/assessment.ts` | compatibility service contract, inputs/results. |
+| `../tableFacts/common/tableFacts.ts` | formal TableFacts service contract, queue contract, inputs/results, and raw-table ref helpers. |
+| `common/assessment.ts` | compatibility re-export for legacy Assessment names. |
 | `common/assessmentRecord.ts` | legacy raw table assessment compatibility factory and normalization helpers. |
 | `common/measurement.ts` | blocks, groups, column maps, sweep/mode/family types. |
 | `common/diagnostics.ts` | diagnostic severity, codes, messages, source ranges. |
@@ -72,7 +75,7 @@ rawTablesChanged
   -> TableFacts queue drops queued/running work when any captured input
      changes before or after row reads
   -> table-fact producer
-     (legacy implementation may still be IAssessmentService.assessRawTable)
+     (IRawTableFactsService.createRawTableFacts; legacy assessRawTable alias may remain)
   -> captured SchemaProfile snapshot
   -> RawTableAssessmentEngine.assess
   -> detectRawTableStructure / createColumnProfiles
@@ -153,10 +156,10 @@ rawTablesChanged
 
 ## Commands
 
-Table-fact production currently runs from session events through the Assessment
+Table-fact production currently runs from session events through the TableFacts
 compatibility shell. Direct commands are only for explicit reprocessing or
 developer tools and must delegate to the table-fact producer
-(`IAssessmentService` while migrating) then Session `commitRawTableFacts`.
+(`IRawTableFactsService`) then Session `commitRawTableFacts`.
 Commands must not
 detect blocks themselves. Commands that record user-confirmed column roles or
 units must read the current `RawTableFactsRecord` fingerprint/column profiles

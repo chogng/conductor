@@ -35,7 +35,7 @@ import {
   MAX_FOLDER_WALK_DEPTH,
 } from "src/cs/workbench/contrib/files/browser/fileConstants";
 import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
-import type { ImportTableFactsSeed } from "src/cs/workbench/services/assessment/common/assessment";
+import type { ImportTableFactsSeed } from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import {
   buildFileSourceIdentityKey,
   buildItemKey,

@@ -40,7 +40,7 @@ import { ICalculationService } from "src/cs/workbench/services/calculation/commo
 import {
   IRawTableFactsQueueService,
   type IRawTableFactsQueueService as IRawTableFactsQueueServiceType,
-} from "src/cs/workbench/services/assessment/common/assessment";
+} from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import {
   ExplorerViewId,
   IExplorerService,

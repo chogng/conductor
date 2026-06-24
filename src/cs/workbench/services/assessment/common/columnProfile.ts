@@ -3,8 +3,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type {
-	AssessmentRows,
-} from "src/cs/workbench/services/assessment/common/assessment";
+	ImportTableFactsSeed,
+	RawTableFactsRows,
+} from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import type { AssessmentSourceRange } from "src/cs/workbench/services/assessment/common/diagnostics";
 import type {
 	MeasurementColumnRef,
@@ -24,7 +25,6 @@ import {
 	normalizeCellText,
 	parseFiniteNumber,
 } from "src/cs/workbench/common/cellText";
-import type { ImportAssessmentSeed } from "src/cs/workbench/services/assessment/common/assessment";
 
 export type ColumnKind = "numeric" | "text" | "mixed" | "empty";
 
@@ -60,7 +60,7 @@ export const createColumnProfiles = ({
 	rows,
 	structure,
 }: {
-	readonly rows: AssessmentRows;
+	readonly rows: RawTableFactsRows;
 	readonly structure?: RawTableStructure;
 }): readonly ColumnProfile[] => {
 	if (!rows.length) {
@@ -121,9 +121,9 @@ export const createMeasurementColumnProfile = ({
 	semanticCandidates,
 	structure,
 }: {
-	readonly assessment: ImportAssessmentSeed;
+	readonly assessment: ImportTableFactsSeed;
 	readonly columnProfiles?: readonly ColumnProfile[];
-	readonly rows: AssessmentRows;
+	readonly rows: RawTableFactsRows;
 	readonly semanticCandidates?: readonly ColumnSemanticCandidate[];
 	readonly structure?: RawTableStructure;
 }): MeasurementColumnProfile => {
@@ -187,7 +187,7 @@ const collectColumnValues = ({
 	readonly dataEndRow: number;
 	readonly dataStartRow: number;
 	readonly rawCol: number;
-	readonly rows: AssessmentRows;
+	readonly rows: RawTableFactsRows;
 }): readonly unknown[] => {
 	const values: unknown[] = [];
 	for (let rowIndex = dataStartRow; rowIndex <= dataEndRow && rowIndex < rows.length; rowIndex += 1) {
@@ -197,7 +197,7 @@ const collectColumnValues = ({
 };
 
 const getNormalizedRow = (
-	rows: AssessmentRows,
+	rows: RawTableFactsRows,
 	rowIndex: number,
 	columnCount: number,
 ): string[] => {

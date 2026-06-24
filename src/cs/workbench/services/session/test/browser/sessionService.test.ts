@@ -14,8 +14,7 @@ import {
   mergeProcessedFileIntoRecords,
   createRawFilesFromRecords,
 } from "src/cs/workbench/services/session/common/sessionModelAdapter";
-import { ASSESSMENT_RULE_VERSION } from "src/cs/workbench/services/assessment/common/assessment";
-import type { RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
+import { TABLE_FACTS_RULE_VERSION, type RawTableFactsRecord } from "src/cs/workbench/services/template/common/tableFacts";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 import type { CalculatedPlotsByKey } from "src/cs/workbench/services/calculation/common/calculationReadModel";
 import type {
@@ -1589,8 +1588,8 @@ const createRawTableAssessment = (
   sourceRawTableVersion: number,
   rawTableId = "table-a",
   blockId = "block-a",
-): RawTableAssessmentRecord => ({
-  assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
+): RawTableFactsRecord => ({
+  assessmentRuleVersion: TABLE_FACTS_RULE_VERSION,
   schemaProfileVersion: 0,
   blocks: [{
     columnCount: 2,
@@ -1626,7 +1625,7 @@ const createRawTableAssessment = (
 });
 
 const createRawTableReview = (
-  assessment: RawTableAssessmentRecord,
+  assessment: RawTableFactsRecord,
 ): RawTableReviewRecord => {
   const template = createTestTemplate();
   return {

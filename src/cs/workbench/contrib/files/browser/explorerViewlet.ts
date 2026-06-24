@@ -76,7 +76,7 @@ import {
   IRawTableFactsService,
   type ImportTableFactsSeed,
   type IRawTableFactsService as IRawTableFactsServiceType,
-} from "src/cs/workbench/services/assessment/common/assessment";
+} from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import {
   IThumbnailPreviewService,
   IThumbnailService,

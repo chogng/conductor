@@ -12,7 +12,7 @@ import {
 	IRawTableFactsQueueService,
 	RawTableFactsContributionId,
 	type IRawTableFactsQueueService as IRawTableFactsQueueServiceType,
-} from "src/cs/workbench/services/assessment/common/assessment";
+} from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import {
 	getRawTableRefsForTableFactsEvent,
 } from "src/cs/workbench/services/assessment/browser/assessmentQueueService";

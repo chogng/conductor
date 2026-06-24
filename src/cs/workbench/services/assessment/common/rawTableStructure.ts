@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AssessmentRows } from "src/cs/workbench/services/assessment/common/assessment";
+import type { RawTableFactsRows } from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import type { AssessmentSourceRange } from "src/cs/workbench/services/assessment/common/diagnostics";
 import {
 	normalizeCellText,
@@ -54,7 +54,7 @@ export const createEmptyRawTableStructure = (): RawTableStructure => ({
 });
 
 export const detectRawTableStructure = (
-	rows: AssessmentRows,
+	rows: RawTableFactsRows,
 ): RawTableStructure => {
 	const columnCount = getColumnCount(rows);
 	if (!rows.length || columnCount <= 0) {
@@ -97,7 +97,7 @@ export const getRawTableStructureColumnCount = (
 const getColumnCount = getRawTableStructureColumnCount;
 
 const findRawTableHeaderRow = (
-	rows: AssessmentRows,
+	rows: RawTableFactsRows,
 	columnCount: number,
 ): HeaderRowCandidate => {
 	for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
@@ -154,7 +154,7 @@ const findRepeatedHeaderRows = ({
 }: {
 	readonly columnCount: number;
 	readonly primaryHeader: HeaderRowCandidate;
-	readonly rows: AssessmentRows;
+	readonly rows: RawTableFactsRows;
 }): readonly HeaderRowCandidate[] => {
 	const fingerprint = createSchemaFingerprint(
 		getNormalizedRow(rows, primaryHeader.rowIndex, columnCount),
@@ -193,7 +193,7 @@ const findRepeatedHeaderRows = ({
 };
 
 const findStrongHeaderRowAt = (
-	rows: AssessmentRows,
+	rows: RawTableFactsRows,
 	rowIndex: number,
 	columnCount: number,
 ): HeaderRowCandidate | null => {
@@ -232,7 +232,7 @@ const createRegionsForHeaders = ({
 }: {
 	readonly columnCount: number;
 	readonly headerRows: readonly HeaderRowCandidate[];
-	readonly rows: AssessmentRows;
+	readonly rows: RawTableFactsRows;
 }): {
 	readonly blockRegions: readonly BlockRegion[];
 	readonly dataRegions: readonly DataRegion[];
@@ -283,7 +283,7 @@ const createRegionsForHeaders = ({
 };
 
 const findUnitRow = (
-	rows: AssessmentRows,
+	rows: RawTableFactsRows,
 	headerRowIndex: number,
 	columnCount: number,
 ): UnitRowCandidate | null => {
@@ -327,7 +327,7 @@ const rowLooksUnitRow = (
 	) > 0;
 
 const findDataStartRow = (
-	rows: AssessmentRows,
+	rows: RawTableFactsRows,
 	headerRowIndex: number,
 	unitRowIndex: number | null,
 	beforeRowIndex = rows.length,
@@ -343,7 +343,7 @@ const findDataStartRow = (
 };
 
 const findDataEndRow = (
-	rows: AssessmentRows,
+	rows: RawTableFactsRows,
 	dataStartRow: number,
 	beforeRowIndex = rows.length - 1,
 ): number => {
@@ -382,7 +382,7 @@ const createRange = (
 });
 
 const getNormalizedRow = (
-	rows: AssessmentRows,
+	rows: RawTableFactsRows,
 	rowIndex: number,
 	columnCount: number,
 ): string[] => {

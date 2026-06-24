@@ -44,7 +44,7 @@ the closest-looking name.
 | file conversion | parse sources into raw file/table records | `services/files/browser/fileConverter.ts` |
 | conversion result | converter output ready for Session | `FileConversionResult` |
 | session commit | canonical import storage | `ISessionService.commitFileImport(...)` |
-| table facts | raw tables -> structure/profile/semantic/block facts | table-fact producer (`IRawTableFactsService`; legacy `IAssessmentService` while migrating) |
+| table facts | raw tables -> structure/profile/semantic/block facts | table-fact producer (`IRawTableFactsService`; current implementation may still live under the Assessment compatibility shell) |
 
 Use user-facing "Import" in labels if appropriate, but use precise internal
 names: collect sources, convert files, commit converted files, upload,
@@ -202,7 +202,7 @@ Explorer view code may:
 - call commands, `IExplorerService`, or `IExplorerWorkflowService` for user intent.
 
 Explorer view code must not parse files, read raw table rows directly, call the
-table-fact producer (`IAssessmentService` during migration), mutate Session,
+table-fact producer (`IRawTableFactsService`), mutate Session,
 build plot models, or clear global thumbnail bitmap cache on ordinary prop
 changes.
 

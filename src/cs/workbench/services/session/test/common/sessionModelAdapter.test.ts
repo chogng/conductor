@@ -15,9 +15,9 @@ import {
   getFileRecordCurveType,
 } from "src/cs/workbench/services/session/common/sessionRecordProjection";
 import {
-  ASSESSMENT_RULE_VERSION,
-  type RawTableAssessmentRecord,
-} from "src/cs/workbench/services/assessment/common/assessment";
+  TABLE_FACTS_RULE_VERSION,
+  type RawTableFactsRecord,
+} from "src/cs/workbench/services/template/common/tableFacts";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 import { createEmptyTemplateApplyConfig } from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
 
@@ -290,8 +290,8 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
     const file = records.filesById["file-a"];
     assert.ok(file);
 
-    const assessment: RawTableAssessmentRecord = {
-      assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
+    const assessment: RawTableFactsRecord = {
+      assessmentRuleVersion: TABLE_FACTS_RULE_VERSION,
       schemaProfileVersion: 0,
       blocks: [{
         id: "file-a:block:0",

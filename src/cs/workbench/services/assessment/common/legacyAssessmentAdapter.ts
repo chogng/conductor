@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
+import type { RawTableFactsRecord } from "src/cs/workbench/services/template/common/tableFacts";
 import {
   createRawTableFactsFromAssessmentRecord,
   type RawTableFacts,
@@ -10,7 +10,7 @@ import {
 } from "src/cs/workbench/services/template/common/tableFacts";
 
 export const createRawTableFactsFromLegacyAssessment = (
-  record: RawTableAssessmentRecord,
+  record: RawTableFactsRecord,
   sourceMetadata?: Partial<RawTableFactsSourceMetadata>,
 ): RawTableFacts =>
   createRawTableFactsFromAssessmentRecord(record, sourceMetadata);

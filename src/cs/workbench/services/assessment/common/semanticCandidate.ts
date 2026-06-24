@@ -3,8 +3,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type {
-	ImportAssessmentSeed,
-} from "src/cs/workbench/services/assessment/common/assessment";
+	ImportTableFactsSeed,
+} from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import type { ColumnProfile } from "src/cs/workbench/services/assessment/common/columnProfile";
 import type { MeasurementColumnRole } from "src/cs/workbench/services/assessment/common/measurement";
 import type {
@@ -53,7 +53,7 @@ export const createColumnSemanticCandidates = ({
 	columnProfiles,
 	schemaProfile,
 }: {
-	readonly assessment: ImportAssessmentSeed;
+	readonly assessment: ImportTableFactsSeed;
 	readonly columnProfiles: readonly ColumnProfile[];
 	readonly schemaProfile?: SchemaProfile | null;
 }): readonly ColumnSemanticCandidate[] =>
@@ -97,7 +97,7 @@ export const getPreferredUnitCandidate = (
 
 const inferColumnRole = (
 	headerText: string,
-	assessment: ImportAssessmentSeed,
+	assessment: ImportTableFactsSeed,
 ): MeasurementColumnRole => {
 	const normalized = normalizeCellText(headerText).toLowerCase();
 	const compact = normalizeCompactText(normalized);

@@ -7,7 +7,10 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
 import {
-  ASSESSMENT_RULE_VERSION,
+  TABLE_FACTS_RULE_VERSION,
+  type RawTableFactsRecord,
+} from "src/cs/workbench/services/template/common/tableFacts";
+import {
   IRawTableFactsQueueService,
   IRawTableFactsService,
   type IRawTableFactsQueueService as IRawTableFactsQueueServiceType,
@@ -15,8 +18,7 @@ import {
   type RawTableFactsQueuePriority,
   type RawTableFactsQueueSnapshot,
   type RawTableFactsRawTableQueueState,
-  type RawTableFactsRecord,
-} from "src/cs/workbench/services/assessment/common/assessment";
+} from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import {
   IRawTableRowsReaderService,
   type IRawTableRowsReaderService as IRawTableRowsReaderServiceType,
@@ -536,7 +538,7 @@ const hasCurrentAssessment = (
   return Boolean(
     assessment &&
       assessment.sourceRawTableVersion === (file.rawTableVersionsById[rawTableId] ?? 0) &&
-      assessment.assessmentRuleVersion === ASSESSMENT_RULE_VERSION &&
+      assessment.assessmentRuleVersion === TABLE_FACTS_RULE_VERSION &&
       assessment.schemaProfileVersion === schemaProfileVersion,
   );
 };

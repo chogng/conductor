@@ -126,7 +126,7 @@ Runtime folders:
 | `IExplorerService` | Files Explorer UI state: resources, selection, expansion, layout, context |
 | `fileConverter.ts` / files service helpers | CSV/XLS/XLSX/clipboard/manual conversion into raw table records |
 | `ISessionService` | canonical session ledger and change events |
-| TableFacts producer (`IRawTableFactsService`; legacy `IAssessmentService` during migration) | Template-owned table facts: structure, profiles, semantics, groups, blocks, diagnostics |
+| TableFacts producer (`IRawTableFactsService`; current implementation may still live under the Assessment compatibility shell) | Template-owned table facts: structure, profiles, semantics, groups, blocks, diagnostics |
 | `IRecipeService` | passive built-in rules; it does not evaluate tables or materialize Templates |
 | `services/template` | canonical Template spec and target owner for `TableFacts + Recipe/UserTemplate -> Template` materialization |
 | `IReviewService` | materialized Template candidate review, selected `ReviewedTemplate`, manual adjustment state, and system-application recommendation |

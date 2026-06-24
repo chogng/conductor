@@ -4,13 +4,10 @@
 
 import Papa from "papaparse";
 import type {
-  AssessmentFileInput,
-  AssessmentRows,
-  ImportAssessmentSeed,
   ImportTableFactsSeed,
   RawTableFactsFileInput,
   RawTableFactsRows,
-} from "src/cs/workbench/services/assessment/common/assessment";
+} from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import type {
   IvSweepMode,
   MeasurementFamily,
@@ -46,8 +43,8 @@ export const createImportTableFactsSeedFromRows = async (
 
 export const createImportAssessmentSeedFromRows = (
   fileName: string,
-  rows: AssessmentRows,
-): Promise<ImportAssessmentSeed> => createImportTableFactsSeedFromRows(fileName, rows);
+  rows: RawTableFactsRows,
+): Promise<ImportTableFactsSeed> => createImportTableFactsSeedFromRows(fileName, rows);
 
 const getMeasurementFamily = (
   curveType: CurveKind,
@@ -89,5 +86,5 @@ export const createImportTableFactsSeedFromFile = async (
 };
 
 export const createImportAssessmentSeedFromFile = (
-  file: AssessmentFileInput,
-): Promise<ImportAssessmentSeed> => createImportTableFactsSeedFromFile(file);
+  file: RawTableFactsFileInput,
+): Promise<ImportTableFactsSeed> => createImportTableFactsSeedFromFile(file);

@@ -34,7 +34,7 @@ import type { INotificationService } from "src/cs/workbench/services/notificatio
 import type { ISessionService } from "src/cs/workbench/services/session/common/session";
 import type { ISliceService } from "src/cs/workbench/services/slice/common/slice";
 import type { IThumbnailPreviewService, IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
-import type { IRawTableFactsService } from "src/cs/workbench/services/assessment/common/assessment";
+import type { IRawTableFactsService } from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { IUserTemplateService } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 

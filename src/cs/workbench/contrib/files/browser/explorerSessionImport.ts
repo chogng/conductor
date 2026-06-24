@@ -15,7 +15,7 @@ import {
 } from "src/cs/workbench/services/files/common/files";
 import {
   createRawTableFactsRecordFromImportSeed,
-} from "src/cs/workbench/services/assessment/common/assessmentRecord";
+} from "src/cs/workbench/services/tableFacts/common/tableFactsRecord";
 import type {
   CommitFileImportRawTableFactsInput,
   ISessionService,

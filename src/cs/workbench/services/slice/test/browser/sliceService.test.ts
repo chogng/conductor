@@ -6,7 +6,7 @@ import assert from "assert";
 
 import { Event } from "src/cs/base/common/event";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import { ASSESSMENT_RULE_VERSION, type RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
+import { TABLE_FACTS_RULE_VERSION, type RawTableFactsRecord } from "src/cs/workbench/services/template/common/tableFacts";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 import type {
 	IRawTableRowsReaderService,
@@ -323,7 +323,7 @@ const createTemplate = (): Template => ({
 });
 
 const createReview = (
-	assessment: RawTableAssessmentRecord,
+	assessment: RawTableFactsRecord,
 	options: {
 		readonly recipeFingerprint?: string;
 		readonly template?: Template;
@@ -456,8 +456,8 @@ const createUserTemplateForTest = (template: Template): UserTemplate => {
 	};
 };
 
-const createAssessment = (): RawTableAssessmentRecord => ({
-	assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
+const createAssessment = (): RawTableFactsRecord => ({
+	assessmentRuleVersion: TABLE_FACTS_RULE_VERSION,
 	schemaProfileVersion: 0,
 	fileId: "file-a",
 	rawTableId: "table-a",

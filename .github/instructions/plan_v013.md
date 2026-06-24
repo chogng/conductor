@@ -167,9 +167,10 @@ Slice
 
 ### 2.2 Template TableFacts
 
-TableFacts 是 Template materialization 的表格事实输入。当前实现名仍是
-`IAssessmentService` / `RawTableAssessmentRecord`，但这是迁移状态，不是
-最终 domain。不要新建独立 evidence service；目标是把
+TableFacts 是 Template materialization 的表格事实输入。正式服务入口是
+`IRawTableFactsService` / `RawTableFactsRecord`；当前实现文件仍可能留在
+`services/assessment` 兼容壳内，`IAssessmentService` /
+`RawTableAssessmentRecord` 只能作为迁移别名。不要新建独立 evidence service；目标是把
 `TableFacts + Recipe/UserTemplate -> Template` 收到 Template 职责面。
 目标文档、目标 API 和新代码应使用 TableFacts/RawTableFacts 命名；Assessment
 命名只能出现在兼容壳、旧持久化读取、或迁移说明里。
@@ -1307,7 +1308,7 @@ rawTablesChanged / schemaProfileChanged / tableFactsEngineChanged
   -> TableFacts queue
      (legacy compatibility implementation may still be AssessmentQueueService)
   -> table-fact producer
-     (legacy compatibility implementation may still be IAssessmentService)
+     (IRawTableFactsService; implementation may still live under Assessment shell)
   -> Session.commitRawTableFacts
   -> tableFactsChanged
 ```
@@ -1587,7 +1588,8 @@ ReviewDecision、systemRecommended 或 SliceRequest。
 长期迁移目标：
 
 ```txt
-table facts contracts/helpers -> src/cs/workbench/services/template/common/tableFacts.ts
+table facts service contracts -> src/cs/workbench/services/tableFacts/common/tableFacts.ts
+table facts records/helpers -> src/cs/workbench/services/template/common/tableFacts.ts
 materializers -> src/cs/workbench/services/template/common/*Materializer*
 ```
 

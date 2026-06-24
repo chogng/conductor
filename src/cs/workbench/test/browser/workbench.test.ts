@@ -13,9 +13,9 @@ import {
 } from "src/cs/workbench/browser/workbenchDomainBridge";
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
 import {
-  ASSESSMENT_RULE_VERSION,
-  type RawTableAssessmentRecord,
-} from "src/cs/workbench/services/assessment/common/assessment";
+  TABLE_FACTS_RULE_VERSION,
+  type RawTableFactsRecord,
+} from "src/cs/workbench/services/template/common/tableFacts";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
 import type {
@@ -519,7 +519,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       },
     ]);
     session.commitRawTableFacts({
-      assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
+      assessmentRuleVersion: TABLE_FACTS_RULE_VERSION,
       schemaProfileVersion: 0,
       blocks: [{
 	        columnCount: 2,
@@ -1450,8 +1450,8 @@ const commitRawFilesForTest = (
   session.commitFileImport(createFileImportResultForTest(files));
 };
 
-const createRawTableAssessmentForTest = (): RawTableAssessmentRecord => ({
-  assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
+const createRawTableAssessmentForTest = (): RawTableFactsRecord => ({
+  assessmentRuleVersion: TABLE_FACTS_RULE_VERSION,
   schemaProfileVersion: 0,
   blocks: [{
     columnCount: 2,
@@ -1486,7 +1486,7 @@ const createRawTableAssessmentForTest = (): RawTableAssessmentRecord => ({
 });
 
 const createReviewRecordForTest = (
-  assessment: RawTableAssessmentRecord,
+  assessment: RawTableFactsRecord,
 ): RawTableReviewRecord => ({
   fileId: assessment.fileId,
   rawTableId: assessment.rawTableId,

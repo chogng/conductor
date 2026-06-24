@@ -7,17 +7,13 @@ import { InstantiationType, registerSingleton } from "src/cs/platform/instantiat
 import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
 import {
   IRawTableFactsService,
-  type AssessmentFileInput,
-  type AssessmentRows,
-  type AssessRawTableInput,
   type CreateRawTableFactsInput,
   type IRawTableFactsService as IRawTableFactsServiceType,
-  type ImportAssessmentSeed,
   type ImportTableFactsSeed,
   type RawTableFactsFileInput,
   type RawTableFactsRecord,
   type RawTableFactsRows,
-} from "src/cs/workbench/services/assessment/common/assessment";
+} from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import {
   createImportTableFactsSeedFromFile,
   createImportTableFactsSeedFromRows,
@@ -49,14 +45,14 @@ export class RawTableFactsService extends Disposable implements IRawTableFactsSe
     return createImportTableFactsSeedFromRows(fileName, rows);
   }
 
-  public createImportAssessmentSeedFromFile(file: AssessmentFileInput): Promise<ImportAssessmentSeed> {
+  public createImportAssessmentSeedFromFile(file: RawTableFactsFileInput): Promise<ImportTableFactsSeed> {
     return this.createImportTableFactsSeedFromFile(file);
   }
 
   public createImportAssessmentSeedFromRows(
     fileName: string,
-    rows: AssessmentRows,
-  ): Promise<ImportAssessmentSeed> {
+    rows: RawTableFactsRows,
+  ): Promise<ImportTableFactsSeed> {
     return this.createImportTableFactsSeedFromRows(fileName, rows);
   }
 
@@ -72,7 +68,7 @@ export class RawTableFactsService extends Disposable implements IRawTableFactsSe
     });
   }
 
-  public assessRawTable(input: AssessRawTableInput): Promise<RawTableFactsRecord> {
+  public assessRawTable(input: CreateRawTableFactsInput): Promise<RawTableFactsRecord> {
     return this.createRawTableFacts(input);
   }
 }

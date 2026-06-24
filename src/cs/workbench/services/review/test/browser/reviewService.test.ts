@@ -9,7 +9,7 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { StorageScope } from "src/cs/platform/storage/common/storage";
 import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
-import { ASSESSMENT_RULE_VERSION, type RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
+import { TABLE_FACTS_RULE_VERSION, type RawTableFactsRecord } from "src/cs/workbench/services/template/common/tableFacts";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 import type { FileImportResult, ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
@@ -410,8 +410,8 @@ class TestStorageService extends AbstractStorageService {
 	}
 }
 
-const createAssessment = (): RawTableAssessmentRecord => ({
-	assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
+const createAssessment = (): RawTableFactsRecord => ({
+	assessmentRuleVersion: TABLE_FACTS_RULE_VERSION,
 	schemaProfileVersion: 0,
 	fileId: "file-a",
 	rawTableId: "table-a",

@@ -3,8 +3,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type {
-	ImportAssessmentSeed,
-} from "src/cs/workbench/services/assessment/common/assessment";
+	ImportTableFactsSeed,
+} from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import type { MeasurementColumnProfile } from "src/cs/workbench/services/assessment/common/columnProfile";
 import type { AssessmentSourceRange } from "src/cs/workbench/services/assessment/common/diagnostics";
 import type {
@@ -18,7 +18,7 @@ import type {
 } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 
 export type DetectMeasurementBlocksInput = {
-	readonly assessment: ImportAssessmentSeed;
+	readonly assessment: ImportTableFactsSeed;
 	readonly assessmentConfidence: number;
 	readonly columnCount: number;
 	readonly columnProfile: MeasurementColumnProfile;
@@ -142,7 +142,7 @@ const getRangeColumnCount = (
 	Math.max(0, range.endCol - range.startCol + 1);
 
 const getMeasurementFamily = (
-	assessment: ImportAssessmentSeed,
+	assessment: ImportTableFactsSeed,
 ): MeasurementFamily => {
 	if (
 		assessment.curveFamily === "iv" ||
@@ -164,7 +164,7 @@ const getMeasurementFamily = (
 };
 
 const getIvMode = (
-	assessment: ImportAssessmentSeed,
+	assessment: ImportTableFactsSeed,
 ): IvSweepMode | undefined => {
 	if (
 		assessment.curveFamily === "iv" ||

@@ -3,9 +3,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type {
-	AssessRawTableInput,
+	CreateRawTableFactsInput,
 	RawTableFactsRecord,
-} from "src/cs/workbench/services/assessment/common/assessment";
+} from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import {
 	createColumnProfiles,
 	createMeasurementColumnProfile,
@@ -20,16 +20,16 @@ import {
 } from "src/cs/workbench/services/schemaProfile/common/schemaProfileMatcher";
 import {
 	createRawTableFactsRecordFromImportSeed,
-	getAssessmentConfidenceScore,
 	getColumnCount,
+	getTableFactsConfidenceScore,
 	normalizePositiveCount,
-} from "src/cs/workbench/services/assessment/common/assessmentRecord";
+} from "src/cs/workbench/services/tableFacts/common/tableFactsRecord";
 import { createProfileBackedAssessment } from "src/cs/workbench/services/assessment/common/schemaProfileAssessment";
 import { createImportTableFactsSeedFromRows } from "src/cs/workbench/services/assessment/browser/importAssessmentSeed";
 
 export class RawTableAssessmentEngine {
 	public async assess(
-		input: AssessRawTableInput,
+		input: CreateRawTableFactsInput,
 	): Promise<RawTableFactsRecord> {
 		const tableFactsSeed = await createImportTableFactsSeedFromRows(
 			input.fileName ?? input.rawTableId,
@@ -67,7 +67,7 @@ export class RawTableAssessmentEngine {
 			semanticCandidates,
 			structure,
 		});
-		const assessmentConfidence = getAssessmentConfidenceScore(effectiveAssessment);
+		const assessmentConfidence = getTableFactsConfidenceScore(effectiveAssessment);
 		const diagnosticCodes = createAssessmentReasonDiagnosticCodes(effectiveAssessment.curveTypeReasons);
 		const blocks = detectMeasurementBlocks({
 			assessment: effectiveAssessment,
