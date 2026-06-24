@@ -28,9 +28,17 @@ import {
 } from "src/cs/workbench/services/template/common/autoTemplate";
 import { TemplateCommandId } from "src/cs/workbench/services/template/common/template";
 import type {
-  ITemplateService,
   TemplateApplyPresetRecord,
 } from "src/cs/workbench/services/template/common/template";
+import {
+  createTemplateFromApplyPresetRecord,
+} from "src/cs/workbench/services/template/common/templateLegacyAdapter";
+import type {
+  IUserTemplateService,
+} from "src/cs/workbench/services/userTemplate/common/userTemplate";
+import {
+  createTemplateApplyPresetRecordFromUserTemplate,
+} from "src/cs/workbench/contrib/template/browser/templateUserTemplateAdapter";
 import type {
   ITemplateViewStateService,
   TemplateMode,
@@ -68,8 +76,8 @@ export type TemplateViewOptions = {
   readonly commandService: Pick<ICommandService, "executeCommand">;
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
   readonly notificationService: Pick<INotificationService, "notify">;
-  readonly templateService: ITemplateService;
   readonly templateViewStateService: ITemplateViewStateService;
+  readonly userTemplateService: IUserTemplateService;
   readonly rawFiles?: SessionFile[];
   readonly tableService?: Pick<
     ITableService,
@@ -147,6 +155,7 @@ export class TemplateView {
   private stopOnErrorDraft: boolean | null = null;
   private applyView: TemplateApplyView | null = null;
   private editorView: TemplateEditorView | null = null;
+  private hasRequestedUserTemplates = false;
   private stopOnErrorDraftSource: TemplateApplyConfig | null = null;
 
   constructor(props: TemplateViewOptions) {
@@ -411,11 +420,12 @@ export class TemplateView {
   }
 
   private ensureTemplatesLoaded(): void {
-    if (this.props.templateService.hasLoadedTemplateList()) {
+    if (this.hasRequestedUserTemplates) {
       return;
     }
 
-    this.props.templateService.refreshTemplates()
+    this.hasRequestedUserTemplates = true;
+    this.props.userTemplateService.refreshTemplates()
       .then(() => {
         this.updateApplyView();
         this.updateEditorView();
@@ -451,7 +461,7 @@ export class TemplateView {
       config: this.readTemplateFormState(),
       selectedTemplateId: this.readSelectedTemplateId(),
       stopOnErrorDraft: this.stopOnErrorDraft,
-      templates: this.props.templateService.getTemplateList(),
+      templates: this.getTemplateApplyPresetRecords(),
     });
   }
 
@@ -518,7 +528,7 @@ export class TemplateView {
       }),
     ];
 
-    const templates = this.props.templateService.getTemplateList();
+    const templates = this.getTemplateApplyPresetRecords();
     for (const template of templates) {
       const templateId = String(template.id ?? "");
       if (!templateId) {
@@ -644,9 +654,24 @@ export class TemplateView {
         ...(templateId ? { id: templateId } : {}),
         name,
       };
-      const saved = await this.props.templateService.saveTemplate({
-        ...persistedTemplate,
-      });
+      const template = createTemplateFromApplyPresetRecord(persistedTemplate);
+      if (!template) {
+        this.showNotification(localize("template.invalidConfiguration", "Invalid configuration"), "warning");
+        return;
+      }
+
+      const savedUserTemplate = templateId
+        ? await this.props.userTemplateService.updateTemplate(templateId, {
+            name,
+            source: "userCreated",
+            template,
+          })
+        : await this.props.userTemplateService.createTemplate({
+            name,
+            source: "userCreated",
+            template,
+          });
+      const saved = createTemplateApplyPresetRecordFromUserTemplate(savedUserTemplate);
 
       this.stopOnErrorDraft = Boolean(saved.stopOnError);
       this.props.templateViewStateService.finishTemplateEditor(saved);
@@ -675,9 +700,9 @@ export class TemplateView {
     if (
       selectedTemplateId &&
       !isAutoTemplateId(selectedTemplateId) &&
-      this.props.templateService.hasLoadedTemplateList()
+      this.hasRequestedUserTemplates
     ) {
-      const found = this.props.templateService.getTemplateList().find((template) => template.id === selectedTemplateId);
+      const found = this.getTemplateApplyPresetRecords().find((template) => template.id === selectedTemplateId);
       if (found) {
         this.stopOnErrorDraft = Boolean(found.stopOnError);
         this.props.templateViewStateService.cancelTemplateEditor({
@@ -691,6 +716,11 @@ export class TemplateView {
     this.props.templateViewStateService.cancelTemplateEditor({
       stopOnError: config.stopOnError,
     });
+  }
+
+  private getTemplateApplyPresetRecords(): readonly TemplateApplyPresetRecord[] {
+    return this.props.userTemplateService.getSnapshot().templates
+      .map(createTemplateApplyPresetRecordFromUserTemplate);
   }
 }
 

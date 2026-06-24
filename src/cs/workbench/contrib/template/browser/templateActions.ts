@@ -25,13 +25,22 @@ import {
   toTemplateNameKey,
 } from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
 import {
-  ITemplateService,
   TemplateCommandId,
   type TemplateApplyPresetRecord,
 } from "src/cs/workbench/services/template/common/template";
 import {
+  createTemplateFromApplyPresetRecord,
+} from "src/cs/workbench/services/template/common/templateLegacyAdapter";
+import {
   validateTemplateForSave,
 } from "src/cs/workbench/services/template/common/templateValidation";
+import {
+  IUserTemplateService,
+  type IUserTemplateService as IUserTemplateServiceType,
+} from "src/cs/workbench/services/userTemplate/common/userTemplate";
+import {
+  createTemplateApplyPresetRecordFromUserTemplate,
+} from "src/cs/workbench/contrib/template/browser/templateUserTemplateAdapter";
 import {
   runSliceWithTemplateHandler,
 } from "src/cs/workbench/contrib/slice/browser/sliceCommands";
@@ -240,7 +249,7 @@ function applyTemplate(accessor: ServicesAccessor, incremental: boolean): void {
 }
 
 async function deleteTemplate(accessor: ServicesAccessor, template: unknown): Promise<void> {
-  const templateService = accessor.get(ITemplateService);
+  const userTemplateService = accessor.get(IUserTemplateService);
   const templateViewStateService = accessor.get(ITemplateViewStateService);
   const notificationService = accessor.get(INotificationService);
   const target = normalizeTemplateActionTarget(template)
@@ -258,7 +267,7 @@ async function deleteTemplate(accessor: ServicesAccessor, template: unknown): Pr
   }
 
   try {
-    await templateService.deleteTemplate(templateId);
+    await userTemplateService.deleteTemplate(templateId);
     templateViewStateService.selectTemplate({
       stopOnError: target?.stopOnError,
     });
@@ -278,7 +287,7 @@ async function deleteTemplate(accessor: ServicesAccessor, template: unknown): Pr
 }
 
 async function importTemplate(accessor: ServicesAccessor): Promise<void> {
-  const templateService = accessor.get(ITemplateService);
+  const userTemplateService = accessor.get(IUserTemplateService);
   const templateViewStateService = accessor.get(ITemplateViewStateService);
   const notificationService = accessor.get(INotificationService);
   const controller = new TemplateImportController(
@@ -289,7 +298,7 @@ async function importTemplate(accessor: ServicesAccessor): Promise<void> {
 
   try {
     await controller.importTemplateFromDialog(async (payload) => {
-      await importTemplatePayload(payload, templateService, templateViewStateService, notificationService);
+      await importTemplatePayload(payload, userTemplateService, templateViewStateService, notificationService);
     });
   } catch (err) {
     notificationService.notify({
@@ -302,7 +311,7 @@ async function importTemplate(accessor: ServicesAccessor): Promise<void> {
 
 async function importTemplatePayload(
   payload: unknown,
-  templateService: ITemplateService,
+  userTemplateService: IUserTemplateServiceType,
   templateViewStateService: ITemplateViewStateServiceType,
   notificationService: INotificationService,
 ): Promise<void> {
@@ -319,7 +328,7 @@ async function importTemplatePayload(
     return;
   }
 
-  const templates = await templateService.refreshTemplates();
+  const templates = await userTemplateService.refreshTemplates();
   const nameKey = toTemplateNameKey(draft.name);
   const conflict = templates.find((template) => toTemplateNameKey(template.name) === nameKey);
   let overwriteTemplateId: string | undefined;
@@ -359,11 +368,40 @@ async function importTemplatePayload(
     return;
   }
 
-  const saved = await templateService.saveTemplate({
+  const template = createTemplateFromApplyPresetRecord({
     ...validation.normalized,
     ...(overwriteTemplateId ? { id: overwriteTemplateId } : {}),
     name: draft.name,
   });
+  if (!template) {
+    notificationService.notify({
+      id: "template.notification",
+      message: localize("template.invalidConfiguration", "Invalid configuration"),
+      severity: Severity.Warning,
+    });
+    return;
+  }
+
+  const result = await userTemplateService.importTemplates({
+    overwrite: Boolean(overwriteTemplateId),
+    templates: [{
+      ...(overwriteTemplateId ? { id: overwriteTemplateId } : {}),
+      name: draft.name,
+      source: "imported",
+      template,
+    }],
+  });
+  const savedUserTemplate = result.imported[0];
+  if (!savedUserTemplate) {
+    notificationService.notify({
+      id: "template.notification",
+      message: localize("template.import.invalidFormat", "Invalid template file format."),
+      severity: Severity.Warning,
+    });
+    return;
+  }
+
+  const saved = createTemplateApplyPresetRecordFromUserTemplate(savedUserTemplate);
   templateViewStateService.selectTemplate({
     ...cloneTemplateApplyConfig(saved),
     id: saved.id,

@@ -19,8 +19,8 @@ Legacy/manual extraction presets are not the domain `Template`; name them
 
 ## Ownership
 
-`ITemplateService` owns core Template spec helpers and legacy saved
-apply-preset CRUD during migration. It does not own UserTemplate catalog
+`ITemplateService` owns core Template spec helpers and the legacy saved
+apply-preset bridge during migration. It does not own UserTemplate catalog
 semantics, selected-template/form editor state, Review decisions, per-file
 template selections, or raw-file view input.
 
@@ -56,9 +56,10 @@ table selection state, plot rendering, or chart state.
 | `common/templateSelection.ts` | selection records/helpers. |
 | `browser/templateService.ts` | CRUD, cached preset list, catalog snapshot/version read APIs. |
 | `browser/templateStoreService.ts` / `electron-browser/templateStoreService.ts` | browser fallback and desktop persistence. |
-| `contrib/template/browser/templateFileTransfer.ts` | Template UI JSON import/export workflow helper; parses/serializes bundles and delegates persistence to `ITemplateService`. |
+| `contrib/template/browser/templateFileTransfer.ts` | Template UI JSON import/export workflow helper; parses/serializes legacy bundles. |
+| `contrib/template/browser/templateUserTemplateAdapter.ts` | View-model adapter from UserTemplate snapshots into legacy editable apply records. |
 | `contrib/template/browser/templateViewStateService.ts` | Template UI selected-template/form editor state. |
-| `contrib/template/browser/templateAuxiliaryBarViewPane.ts` / `views/templateView.ts` | UI shell; renders template catalog + view state and sends commands. |
+| `contrib/template/browser/templateAuxiliaryBarViewPane.ts` / `views/templateView.ts` | UI shell; renders UserTemplate catalog + view state and sends commands. |
 
 ## Flow
 
@@ -100,9 +101,9 @@ into canonical `Template` snapshots before Slice runs.
 - Do not reintroduce Template-owned workflow inputs or
   `TemplateState.selectionsByFileId`; slicing selections come from
   `ISliceService`.
-- Template list consumers must read `ITemplateService.getTemplateList()` and
-  subscribe to `onDidChangeTemplates`; they must not maintain a second
-  template list cache in Explorer or Template UI.
+- Template UI library management must read/write `IUserTemplateService`; legacy
+  `TemplateApplyConfig` is only an editor view model and import/export bundle
+  compatibility format.
 - `activeFileId` should move the current chart/Explorer target to the front of full and incremental slice queues.
 - Explorer hover/selection priority for slicing belongs to
   `SlicePriorityContribution` -> `ISliceService.prioritize(...)`; do not route

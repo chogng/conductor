@@ -7,6 +7,9 @@ import type {
 	TemplateApplicability,
 	TemplateAxisBinding,
 	TemplateBlock,
+	TemplateColumnRange,
+	TemplateLegend,
+	TemplateRowRange,
 	TemplateSegmentation,
 } from "src/cs/workbench/services/template/common/templateSpec";
 import type {
@@ -14,9 +17,13 @@ import type {
 	TemplateSnapshot,
 } from "src/cs/workbench/services/template/common/template";
 import {
+	createEmptyTemplateApplyConfig,
 	normalizeTemplateApplyConfigRecord,
 	type TemplateApplyConfig,
 } from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
+import {
+	toCellLabel,
+} from "src/cs/workbench/services/template/common/templateCellRef";
 import { resolveTemplateXRange } from "src/cs/workbench/services/template/common/templateXRange";
 
 export const createTemplateSnapshotFromApplyPresets = (
@@ -94,6 +101,25 @@ export const createTemplateFromApplyPresetRecord = (
 	};
 };
 
+export const createTemplateApplyPresetRecordFromTemplate = (
+	template: Template,
+): TemplateApplyPresetRecord => {
+	const block = template.blocks[0];
+	const config = createEmptyTemplateApplyConfig({
+		name: template.name,
+		stopOnError: template.stopOnError,
+		...(block ? createTemplateApplyConfigFromBlock(block) : {}),
+	});
+
+	return {
+		...config,
+		...(normalizeOptionalText(template.id) ? { id: normalizeOptionalText(template.id) } : {}),
+		version: normalizeTemplateVersion(template.version),
+		...(template.applicability ? { applicability: template.applicability } : {}),
+		template,
+	};
+};
+
 const readCanonicalTemplate = (
 	record: TemplateApplyPresetRecord,
 ): Template | null => {
@@ -157,6 +183,84 @@ const getTemplateSegmentation = (
 			return { kind: "auto" };
 	}
 };
+
+const createTemplateApplyConfigFromBlock = (
+	block: TemplateBlock,
+): Partial<TemplateApplyConfig> => {
+	const xRanges = createTemplateXRangesFromAxis(block.x, block.rowRange);
+	const segmentation = getTemplateApplySegmentationFields(block.segmentation);
+	const titles = block.titles;
+	return {
+		bottomTitle: titles?.bottom ?? "",
+		leftTitle: titles?.left ?? "",
+		legendPrefix: block.legend.prefix ?? "",
+		xColumns: [...block.x.columns],
+		xRanges,
+		...getTemplateApplyRowFields(block.x, block.rowRange),
+		...segmentation,
+		xUnit: block.x.unit ?? "V",
+		yColumns: [...block.y.columns],
+		yLegendTarget: getTemplateApplyLegendTarget(block.legend),
+		yUnit: block.y.unit ?? "A",
+	};
+};
+
+const createTemplateXRangesFromAxis = (
+	axis: TemplateAxisBinding,
+	rowRange: TemplateRowRange,
+) =>
+	(axis.ranges?.length ? axis.ranges : axis.columns.map((column): TemplateColumnRange => ({
+		column,
+		startRow: rowRange.startRow,
+		endRow: rowRange.endRow,
+	}))).map(range => ({
+		start: toCellLabel(range.startRow, range.column),
+		end: range.endRow === "end" ? "End" : toCellLabel(range.endRow, range.column),
+	}));
+
+const getTemplateApplyRowFields = (
+	axis: TemplateAxisBinding,
+	rowRange: TemplateRowRange,
+): Pick<TemplateApplyConfig, "xDataEnd" | "xDataStart"> => {
+	const firstColumn = axis.columns[0] ?? axis.ranges?.[0]?.column ?? 0;
+	return {
+		xDataStart: toCellLabel(rowRange.startRow, firstColumn),
+		xDataEnd: rowRange.endRow === "end" ? "" : toCellLabel(rowRange.endRow, firstColumn),
+	};
+};
+
+const getTemplateApplySegmentationFields = (
+	segmentation: TemplateSegmentation,
+): Pick<TemplateApplyConfig, "xPointsPerGroup" | "xSegmentCount" | "xSegmentationMode"> => {
+	switch (segmentation.kind) {
+		case "fixedPoints":
+			return {
+				xPointsPerGroup: String(segmentation.pointsPerGroup),
+				xSegmentCount: "",
+				xSegmentationMode: "points",
+			};
+		case "fixedSegments":
+			return {
+				xPointsPerGroup: "",
+				xSegmentCount: String(segmentation.segmentCount),
+				xSegmentationMode: "segments",
+			};
+		case "auto":
+		case "none":
+			return {
+				xPointsPerGroup: "",
+				xSegmentCount: "",
+				xSegmentationMode: "auto",
+			};
+	}
+};
+
+const getTemplateApplyLegendTarget = (
+	legend: TemplateLegend,
+): TemplateApplyConfig["yLegendTarget"] =>
+	legend.target === "group" || legend.target === "yColumn"
+		? legend.target
+		: "auto";
 
 const readTemplateApplicability = (
 	record: TemplateApplyPresetRecord,

@@ -127,7 +127,7 @@ command APIs.
 | raw import conversion | Explorer source workflow + files conversion helpers + Session commit |
 | assessment | `IAssessmentService` then Session commit |
 | table reveal/copy/select | `ITableService` |
-| template save/delete/import/apply | `ITemplateService` / apply controller |
+| template save/delete/import/apply | `IUserTemplateService` for library management; Slice command handlers for application |
 | plot type/unit/scale/visibility | `IPlotService` |
 | chart legend/inspector/focus | `IChartService` or explicit chart view workflow service |
 | thumbnail cache/layout | `IThumbnailService` for cache, `IExplorerService` for layout |

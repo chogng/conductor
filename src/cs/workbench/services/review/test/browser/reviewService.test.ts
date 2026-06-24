@@ -7,6 +7,8 @@ import assert from "assert";
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import { StorageScope } from "src/cs/platform/storage/common/storage";
+import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
 import { ASSESSMENT_RULE_VERSION, type RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 import type { FileImportResult, ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
@@ -23,15 +25,18 @@ import type {
 	TemplateSnapshot,
 } from "src/cs/workbench/services/template/common/template";
 import { UserTemplateService } from "src/cs/workbench/services/userTemplate/browser/userTemplateService";
+import { UserTemplateStoreService } from "src/cs/workbench/services/userTemplate/browser/userTemplateStoreService";
 
 suite("workbench/services/review/test/browser/reviewService", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const createUserTemplateStoreServiceForTest = () =>
+		store.add(new UserTemplateStoreService(store.add(new TestStorageService())));
 
 	test("derives recipe candidates into a system-recommended review decision", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const templateService = store.add(new TestTemplateService());
-		const userTemplateService = store.add(new UserTemplateService(templateService));
+		const userTemplateService = store.add(new UserTemplateService(createUserTemplateStoreServiceForTest(), templateService));
 		const service = store.add(new ReviewService(
 			sessionService,
 			recipeService,
@@ -64,7 +69,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:none", []));
 		const templateService = store.add(new TestTemplateService([template]));
-		const userTemplateService = store.add(new UserTemplateService(templateService));
+		const userTemplateService = store.add(new UserTemplateService(createUserTemplateStoreServiceForTest(), templateService));
 		const service = store.add(new ReviewService(
 			sessionService,
 			recipeService,
@@ -90,7 +95,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const templateService = store.add(new TestTemplateService());
-		const userTemplateService = store.add(new UserTemplateService(templateService));
+		const userTemplateService = store.add(new UserTemplateService(createUserTemplateStoreServiceForTest(), templateService));
 		const service = store.add(new ReviewService(
 			sessionService,
 			recipeService,
@@ -123,7 +128,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const templateService = store.add(new TestTemplateService());
-		const userTemplateService = store.add(new UserTemplateService(templateService));
+		const userTemplateService = store.add(new UserTemplateService(createUserTemplateStoreServiceForTest(), templateService));
 		const service = store.add(new ReviewService(
 			sessionService,
 			recipeService,
@@ -149,7 +154,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const templateService = store.add(new TestTemplateService([template]));
-		const userTemplateService = store.add(new UserTemplateService(templateService));
+		const userTemplateService = store.add(new UserTemplateService(createUserTemplateStoreServiceForTest(), templateService));
 		const service = store.add(new ReviewService(
 			sessionService,
 			recipeService,
@@ -180,7 +185,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const templateService = store.add(new TestTemplateService());
-		const userTemplateService = store.add(new UserTemplateService(templateService));
+		const userTemplateService = store.add(new UserTemplateService(createUserTemplateStoreServiceForTest(), templateService));
 		const service = store.add(new ReviewService(
 			sessionService,
 			recipeService,
@@ -208,7 +213,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const templateService = store.add(new TestTemplateService([template]));
-		const userTemplateService = store.add(new UserTemplateService(templateService));
+		const userTemplateService = store.add(new UserTemplateService(createUserTemplateStoreServiceForTest(), templateService));
 		const service = store.add(new ReviewService(
 			sessionService,
 			recipeService,
@@ -240,7 +245,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const templateService = store.add(new TestTemplateService());
-		const userTemplateService = store.add(new UserTemplateService(templateService));
+		const userTemplateService = store.add(new UserTemplateService(createUserTemplateStoreServiceForTest(), templateService));
 		const service = store.add(new ReviewService(
 			sessionService,
 			recipeService,
@@ -363,6 +368,33 @@ class TestTemplateService extends Disposable implements ITemplateService {
 
 	public saveTemplate(_template: TemplateApplyPresetSaveInput): Promise<TemplateApplyPresetRecord> {
 		throw new Error("Unexpected template save in review test.");
+	}
+}
+
+class TestStorageService extends AbstractStorageService {
+	private readonly values = new Map<string, string>();
+
+	protected readValue(key: string, scope: StorageScope): string | undefined {
+		return this.values.get(this.storageKey(key, scope));
+	}
+
+	protected writeValue(key: string, scope: StorageScope, value: string): void {
+		this.values.set(this.storageKey(key, scope), value);
+	}
+
+	protected deleteValue(key: string, scope: StorageScope): void {
+		this.values.delete(this.storageKey(key, scope));
+	}
+
+	protected readKeys(scope: StorageScope): string[] {
+		const prefix = this.storageKey("", scope);
+		return [...this.values.keys()]
+			.filter(key => key.startsWith(prefix))
+			.map(key => key.slice(prefix.length));
+	}
+
+	private storageKey(key: string, scope: StorageScope): string {
+		return `${scope}:${key}`;
 	}
 }
 

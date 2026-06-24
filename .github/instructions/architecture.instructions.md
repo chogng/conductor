@@ -130,7 +130,7 @@ Runtime folders:
 | `IRecipeService` | passive built-in recipes used by Review candidate providers to derive Template drafts from raw table evidence |
 | `ITemplateResolutionService` | migration bridge for deriving Recipe/saved-template candidates; it is not the final decision owner |
 | `IReviewService` | template candidate review, selected `ReviewedTemplate`, manual adjustment state, and system-application recommendation |
-| `IUserTemplateService` | target owner for user template catalog snapshots; current saved-template catalog is a migration bridge until UserTemplate lands |
+| `IUserTemplateService` | native user template catalog CRUD/snapshots plus legacy saved-template projection during migration |
 | `ITableService` | table source, rows, selection snapshot, reveal/highlight |
 | `ITemplateService` | core Template specs plus legacy saved preset CRUD during UserTemplate migration |
 | `ITemplateViewStateService` | Template UI selected-template/form editor state |

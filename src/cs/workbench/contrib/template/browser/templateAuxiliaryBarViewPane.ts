@@ -15,10 +15,12 @@ import { createSessionReadModel } from "src/cs/workbench/services/session/common
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import {
-  ITemplateService,
   TemplateAuxiliaryBarViewId,
-  type ITemplateService as ITemplateServiceType,
 } from "src/cs/workbench/services/template/common/template";
+import {
+  IUserTemplateService,
+  type IUserTemplateService as IUserTemplateServiceType,
+} from "src/cs/workbench/services/userTemplate/common/userTemplate";
 import {
   TemplateView,
   type TemplateViewOptions,
@@ -43,7 +45,7 @@ export class TemplateAuxiliaryBarViewPane extends ViewPane {
     @INotificationService private readonly notificationService: INotificationService,
     @ISessionService private readonly sessionService: ISessionService,
     @ITableService private readonly tableService: ITableService,
-    @ITemplateService private readonly templateService: ITemplateServiceType,
+    @IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
     @ITemplateViewStateService private readonly templateViewStateService: ITemplateViewStateServiceType,
   ) {
     super({
@@ -64,7 +66,7 @@ export class TemplateAuxiliaryBarViewPane extends ViewPane {
       this.updateTitle();
       this.update();
     }));
-    this._register(this.templateService.onDidChangeTemplates(() => {
+    this._register(this.userTemplateService.onDidChangeUserTemplates(() => {
       this.update();
     }));
     this.updateTitle();
@@ -99,8 +101,8 @@ export class TemplateAuxiliaryBarViewPane extends ViewPane {
       notificationService: this.notificationService,
       rawFiles: createSessionReadModel(this.sessionService.getSnapshot()).rawFiles,
       tableService: this.tableService,
-      templateService: this.templateService,
       templateViewStateService: this.templateViewStateService,
+      userTemplateService: this.userTemplateService,
     };
   }
 }
