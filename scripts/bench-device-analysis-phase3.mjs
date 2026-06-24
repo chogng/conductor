@@ -3,21 +3,32 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 import {
   computeBaseCurrentMetrics,
+  isTransferLikeFile,
+} from "../src/cs/workbench/services/calculation/common/ionIoff.ts";
+import {
   computeCentralDerivative,
+} from "../src/cs/workbench/services/calculation/common/gm.ts";
+import {
   computeSubthresholdSwing,
   computeSubthresholdSwingFitAuto,
-  isTransferLikeFile,
-} from "../src/cs/workbench/contrib/calculation/common/firstCalculation.ts";
+} from "../src/cs/workbench/services/calculation/common/ss.ts";
 import {
   buildPoints,
   downsamplePointsForDisplay,
-} from "../src/cs/workbench/contrib/plot/browser/plotViewModel.ts";
+} from "../src/cs/workbench/services/plot/browser/plotViewModel.ts";
+import {
+  createPrepareImportBatchRequests,
+  createProcessRequestsFromPrepareResponses,
+} from "./lib/recipe-template-process.mjs";
 
 const ROOT = process.cwd();
 const OUTPUT_DIR = path.join(ROOT, ".build", "bench", "device-analysis-phase3");
-const REQUESTS_PATH = path.join(OUTPUT_DIR, "requests.jsonl");
+const FILES_PATH = path.join(OUTPUT_DIR, "files.json");
+const PREPARE_REQUESTS_PATH = path.join(OUTPUT_DIR, "prepare-requests.jsonl");
+const PREPARE_RESULTS_PATH = path.join(OUTPUT_DIR, "rust-prepare-results.jsonl");
+const PROCESS_REQUESTS_PATH = path.join(OUTPUT_DIR, "requests.jsonl");
 const RUST_RESULTS_PATH = path.join(OUTPUT_DIR, "rust-results.jsonl");
-const REQUESTS_PATH = path.join(OUTPUT_DIR, "analysis-requests.jsonl");
+const ANALYSIS_REQUESTS_PATH = path.join(OUTPUT_DIR, "analysis-requests.jsonl");
 const RUST_ANALYSIS_RESULTS_PATH = path.join(OUTPUT_DIR, "rust-analysis-results.jsonl");
 const PROCESS_TIMING_PATH = path.join(OUTPUT_DIR, "rust-process-timing.json");
 const TIMING_PATH = path.join(OUTPUT_DIR, "rust-analysis-timing.json");
@@ -89,6 +100,14 @@ const readJsonLines = async (filePath) => {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => JSON.parse(line));
+};
+
+const writeJsonLines = async (filePath, values) => {
+  await fs.writeFile(
+    filePath,
+    `${values.map(value => JSON.stringify(value)).join("\n")}\n`,
+    "utf8",
+  );
 };
 
 const readJsonIfExists = async (filePath) => {
@@ -268,23 +287,21 @@ const prepare = async (rootArg) => {
   await fs.rm(OUTPUT_DIR, { force: true, recursive: true });
   await fs.mkdir(OUTPUT_DIR, { recursive: true });
   const files = await walkFiles(selectedRoot);
-  const requests = files.map((filePath, index) =>
-    JSON.stringify({
-      command: "processFileAuto",
-      fileId: `phase3-${index}`,
-      fileName: path.basename(filePath),
-      id: index + 1,
-      maxPoints: 600,
-      path: filePath,
-    }),
-  );
-  await fs.writeFile(REQUESTS_PATH, `${requests.join("\n")}\n`, "utf8");
-  await fs.writeFile(
-    path.join(OUTPUT_DIR, "files.json"),
-    `${JSON.stringify(files, null, 2)}\n`,
-    "utf8",
-  );
+  await writeJsonLines(PREPARE_REQUESTS_PATH, createPrepareImportBatchRequests(files));
+  await fs.writeFile(FILES_PATH, `${JSON.stringify(files, null, 2)}\n`, "utf8");
   console.log(`[phase3-bench] prepared files=${files.length} root=${selectedRoot}`);
+};
+
+const planProcess = async () => {
+  const files = JSON.parse(await fs.readFile(FILES_PATH, "utf8"));
+  const prepareResponses = await readJsonLines(PREPARE_RESULTS_PATH);
+  const processRequests = createProcessRequestsFromPrepareResponses({
+    fileIdPrefix: "phase3",
+    files,
+    prepareResponses,
+  });
+  await writeJsonLines(PROCESS_REQUESTS_PATH, processRequests);
+  console.log(`[phase3-bench] planned process requests files=${processRequests.length}`);
 };
 
 const buildRustAnalysisSeries = (file) => {
@@ -328,7 +345,7 @@ const prepareRustAnalysis = async () => {
       }),
     );
   }
-  await fs.writeFile(REQUESTS_PATH, `${requests.join("\n")}\n`, "utf8");
+  await fs.writeFile(ANALYSIS_REQUESTS_PATH, `${requests.join("\n")}\n`, "utf8");
   console.log(
     `[phase3-bench] prepared rust analysis requests files=${requests.length} series=${seriesCount}`,
   );
@@ -472,11 +489,13 @@ const analyze = async () => {
 const mode = process.argv[2] || "prepare";
 if (mode === "prepare") {
   await prepare(process.argv[3]);
+} else if (mode === "plan-process") {
+  await planProcess();
 } else if (mode === "prepare-rust-analysis") {
   await prepareRustAnalysis();
 } else if (mode === "analyze") {
   await analyze();
 } else {
-  console.error("Usage: node --experimental-strip-types scripts/bench-device-analysis-phase3.mjs <prepare|prepare-rust-analysis|analyze> [root]");
+  console.error("Usage: node --experimental-strip-types scripts/bench-device-analysis-phase3.mjs <prepare|plan-process|prepare-rust-analysis|analyze> [root]");
   process.exitCode = 2;
 }

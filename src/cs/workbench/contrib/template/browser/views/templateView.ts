@@ -130,7 +130,7 @@ export const createTemplateApplyViewState = ({
   );
   const selectedTemplateLabel =
     !selectedTemplateId || isAutoTemplateId(selectedTemplateId)
-      ? localize("template.autoExtraction", "Auto extraction")
+      ? localize("template.recommendedTemplate", "Recommended template")
       : templates?.find((template) => template.id === selectedTemplateId)?.name ||
         selectedTemplateId;
 
@@ -518,8 +518,8 @@ export class TemplateView {
     const actions: IAction[] = [
       createMenuAction({
         id: "template.select.auto",
-        label: localize("template.autoExtraction", "Auto extraction"),
-        left: createMenuItemLabel(localize("template.autoExtraction", "Auto extraction")),
+        label: localize("template.recommendedTemplate", "Recommended template"),
+        left: createMenuItemLabel(localize("template.recommendedTemplate", "Recommended template")),
         run: () => this.selectTemplate(null),
         right: isAutoTemplateId(selectedTemplateId || AUTO_TEMPLATE_MENU_VALUE) ? createTemplateMenuIcon(LxIcon.check) : undefined,
         selected: isAutoTemplateId(selectedTemplateId || AUTO_TEMPLATE_MENU_VALUE),

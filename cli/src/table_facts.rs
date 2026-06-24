@@ -1162,8 +1162,10 @@ mod tests {
 
     #[test]
     fn cs_voltage_headers_classify_as_cv() {
-        let table_facts =
-            build_import_table_facts_seed("sample.csv", table(&[&["Voltage", "Cs"], &["0", "1e-12"]]));
+        let table_facts = build_import_table_facts_seed(
+            "sample.csv",
+            table(&[&["Voltage", "Cs"], &["0", "1e-12"]]),
+        );
 
         assert_eq!(
             table_facts.get("curveFamily").and_then(Value::as_str),

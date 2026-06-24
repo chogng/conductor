@@ -1,14 +1,13 @@
 mod analysis;
-mod table_facts;
 mod cells;
 mod converter;
 mod dataset;
-mod detect;
 mod import;
 mod infer;
 mod legend;
 mod rc;
 mod rules;
+mod table_facts;
 mod utils;
 
 use analysis::AnalysisSeriesRequest;
@@ -24,7 +23,6 @@ use converter::write_csv_cell;
 use dataset::EngineDataset;
 use dataset::load_dataset;
 use dataset::load_import_dataset;
-use detect::*;
 use import::IMPORT_TABLE_FACTS_PREVIEW_ROWS;
 use import::build_import_table_facts_seed;
 use infer::infer_auto_segmentation_from_x_values;
@@ -82,7 +80,6 @@ struct EngineRequest {
     source_file: Option<AnalysisSourceFile>,
     start_row: Option<usize>,
     threads: Option<usize>,
-    total_row_count: Option<usize>,
     max_points: Option<usize>,
     metric_kind: Option<String>,
     metric_series: Option<Vec<OriginExportMetricSeriesRequest>>,
@@ -147,871 +144,6 @@ struct EngineResponse {
     result: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<EngineError>,
-}
-
-fn auto_config_json(
-    bottom_title: String,
-    left_title: String,
-    start_row: usize,
-    x_col: usize,
-    y_cols: Vec<usize>,
-    group_size: Option<usize>,
-    groups: Option<usize>,
-    x_unit: &str,
-    y_unit: &str,
-    legend_prefix: String,
-    legend_start_cell: Option<(usize, usize)>,
-    legend_start_value: Option<String>,
-    legend_count: Option<usize>,
-    legend_step: Option<f64>,
-    legend_target: &str,
-) -> Value {
-    json!({
-        "autoDetectCurveType": true,
-        "bottomTitle": bottom_title,
-        "endRow": "end",
-        "fileNameVdKeywords": "",
-        "fileNameVgKeywords": "",
-        "groupSize": group_size,
-        "groups": groups,
-        "leftTitle": left_title,
-        "legendPrefix": legend_prefix,
-        "startRow": start_row,
-        "xCol": x_col,
-        "xSegmentationMode": if group_size.is_some() { "points" } else { "auto" },
-        "xUnit": x_unit,
-        "yCols": y_cols,
-        "yLegendStartCell": legend_start_cell.map(|(row, col)| json!({ "rowIndex": row, "colIndex": col })),
-        "yLegendStartValue": legend_start_value,
-        "yLegendCount": legend_count,
-        "yLegendStep": legend_step,
-        "yLegendTarget": legend_target,
-        "yUnit": y_unit,
-    })
-}
-
-fn add_auto_blocks_to_config(mut config: Value, blocks: Vec<Value>) -> Value {
-    if let Some(object) = config.as_object_mut() {
-        object.insert("blocks".to_string(), json!(blocks));
-    }
-    config
-}
-
-fn auto_shared_x_block_json(
-    headers: &[String],
-    header_row_index: usize,
-    x_col: usize,
-    y_cols: &[usize],
-    x_axis_role: Option<&str>,
-) -> Value {
-    let first_y_col = y_cols.first().copied();
-    let legend_step = if y_cols.len() >= 2 {
-        y_cols[1].saturating_sub(y_cols[0])
-    } else {
-        1
-    };
-    let start_col = y_cols.iter().copied().fold(x_col, usize::min);
-    let end_col = y_cols.iter().copied().fold(x_col, usize::max);
-
-    json!({
-        "bottomTitle": headers.get(x_col).map(String::as_str).unwrap_or("X"),
-        "endCol": end_col,
-        "legendStartCell": if y_cols.len() > 1 {
-            first_y_col
-                .map(|col| json!({ "rowIndex": header_row_index, "colIndex": col }))
-                .unwrap_or(Value::Null)
-        } else {
-            Value::Null
-        },
-        "legendStep": if y_cols.len() > 1 { json!(legend_step) } else { Value::Null },
-        "legendTarget": if y_cols.len() > 1 { "yColumn" } else { "auto" },
-        "startCol": start_col,
-        "xAxisRole": x_axis_role,
-        "xCol": x_col,
-        "yCols": y_cols,
-    })
-}
-
-fn infer_auto_extraction_result(dataset: &EngineDataset, total_row_count: Option<usize>) -> Value {
-    match infer_auto_worker_config(dataset, total_row_count) {
-        Ok(config) => json!({
-            "ok": true,
-            "config": config,
-            "plan": infer_auto_extraction_plan_from_config(&config),
-        }),
-        Err(message) => json!({
-            "ok": false,
-            "message": message,
-            "reasons": [message],
-        }),
-    }
-}
-
-fn infer_auto_worker_config(
-    dataset: &EngineDataset,
-    total_row_count: Option<usize>,
-) -> Result<Value, String> {
-    if dataset.rows.is_empty() {
-        return Err(format!(
-            "{}: no rows available for auto extraction.",
-            dataset.file_name
-        ));
-    }
-    let header_row_index = find_header_row_index(dataset);
-    let headers = row_trimmed(dataset, header_row_index);
-    let data_start_row_index = (header_row_index + 1).min(dataset.rows.len());
-    let total_row_count = total_row_count
-        .filter(|value| *value >= dataset.rows.len())
-        .unwrap_or(dataset.rows.len());
-    let metadata = extract_auto_metadata(dataset);
-    let (curve_type, x_axis_role, x_axis_role_source, confidence, needs_template) =
-        classify_auto_curve(&dataset.file_name, &metadata, &headers);
-
-    if metadata.is_stripped_channel_sweep {
-        let ch1_voltage_col = headers.iter().position(|entry| entry == "CH1 Voltage");
-        let ch2_voltage_col = headers.iter().position(|entry| entry == "CH2 Voltage");
-        let ch1_current_col = headers.iter().position(|entry| entry == "CH1 Current");
-        let ch2_current_col = headers.iter().position(|entry| entry == "CH2 Current");
-        let (
-            Some(ch1_voltage_col),
-            Some(ch2_voltage_col),
-            Some(ch1_current_col),
-            Some(ch2_current_col),
-        ) = (
-            ch1_voltage_col,
-            ch2_voltage_col,
-            ch1_current_col,
-            ch2_current_col,
-        )
-        else {
-            return Err(format!(
-                "{}: missing CH1/CH2 voltage/current columns.",
-                dataset.file_name
-            ));
-        };
-        let Some(swept_axis) = metadata.stripped_sweep_voltage_axis else {
-            return Err(format!(
-                "{}: unable to infer stripped sweep roles automatically.",
-                dataset.file_name
-            ));
-        };
-        let role = x_axis_role.unwrap_or("vd");
-        let x_col = if swept_axis == "ch1" {
-            ch1_voltage_col
-        } else {
-            ch2_voltage_col
-        };
-        let fixed_voltage_col = if swept_axis == "ch1" {
-            ch2_voltage_col
-        } else {
-            ch1_voltage_col
-        };
-        let y_col = if curve_type == "output" {
-            if swept_axis == "ch1" {
-                ch1_current_col
-            } else {
-                ch2_current_col
-            }
-        } else if swept_axis == "ch1" {
-            ch2_current_col
-        } else {
-            ch1_current_col
-        };
-        let point_col = headers.iter().position(|entry| entry == "Point");
-        let var2_col = headers.iter().position(|entry| entry == "VAR2");
-        let (group_size, groups) = resolve_auto_group_shape_full(
-            dataset,
-            data_start_row_index,
-            x_col,
-            point_col,
-            var2_col,
-            total_row_count,
-        );
-        let grouped = group_size.is_some() && groups.unwrap_or(1) > 1;
-        let fixed_value = if grouped {
-            None
-        } else {
-            metadata
-                .stripped_fixed_voltage_magnitude
-                .map(format_compact_number)
-        };
-        let bias_role = if role == "vg" { "Vd" } else { "Vg" };
-        return Ok(with_auto_curve_info(
-            auto_config_json(
-                if role == "vg" {
-                    "Vg".to_string()
-                } else {
-                    "Vd".to_string()
-                },
-                "Id".to_string(),
-                data_start_row_index,
-                x_col,
-                vec![y_col],
-                group_size,
-                groups,
-                "V",
-                "A",
-                bias_role.to_string(),
-                if grouped {
-                    Some((data_start_row_index, fixed_voltage_col))
-                } else {
-                    None
-                },
-                fixed_value.clone(),
-                if grouped {
-                    None
-                } else if fixed_value.is_some() {
-                    Some(1)
-                } else {
-                    None
-                },
-                None,
-                if grouped {
-                    "group"
-                } else if fixed_value.is_some() {
-                    "yColumn"
-                } else {
-                    "auto"
-                },
-            ),
-            &curve_type,
-            Some(role),
-            "shape",
-            &confidence,
-            needs_template,
-        ));
-    }
-
-    let mut separated_blocks = Vec::<Value>::new();
-    let mut separated_y_cols = Vec::<usize>::new();
-    let mut index = 0usize;
-    while index < headers.len() {
-        let header = headers.get(index).map(String::as_str).unwrap_or("");
-        let (suffix_axis, _) = structured_axis_suffix(header);
-        let role = detect_axis_role_text(header);
-        let normalized = header.to_ascii_lowercase();
-        let looks_like_x = column_has_numeric_rows(dataset, data_start_row_index, index, 2)
-            && !current_header_looks_like_drain_current(header)
-            && (suffix_axis == Some("x")
-                || role == x_axis_role
-                || role.is_some()
-                || normalized.contains("voltage"));
-        if !looks_like_x {
-            index += 1;
-            continue;
-        }
-
-        let mut y_cols = Vec::<usize>::new();
-        let mut scan = index + 1;
-        let mut end_col = index;
-        while scan < headers.len() {
-            let candidate = headers.get(scan).map(String::as_str).unwrap_or("");
-            let (candidate_suffix_axis, _) = structured_axis_suffix(candidate);
-            let candidate_role = detect_axis_role_text(candidate);
-            let candidate_normalized = candidate.to_ascii_lowercase();
-            let candidate_looks_like_x =
-                column_has_numeric_rows(dataset, data_start_row_index, scan, 2)
-                    && !current_header_looks_like_drain_current(candidate)
-                    && (candidate_suffix_axis == Some("x")
-                        || candidate_role == x_axis_role
-                        || candidate_role.is_some()
-                        || candidate_normalized.contains("voltage"));
-            if candidate_looks_like_x {
-                break;
-            }
-            if current_header_looks_like_drain_current(candidate)
-                && column_has_numeric_rows(dataset, data_start_row_index, scan, 2)
-            {
-                y_cols.push(scan);
-                end_col = scan;
-            }
-            scan += 1;
-        }
-
-        if !y_cols.is_empty() {
-            let block_role = x_axis_role.or(role).or_else(|| {
-                if normalized.contains("drain") {
-                    Some("vd")
-                } else if normalized.contains("gate") {
-                    Some("vg")
-                } else {
-                    None
-                }
-            });
-            separated_y_cols.extend(y_cols.iter().copied());
-            separated_blocks.push(json!({
-                "bottomTitle": if header.trim().is_empty() { "X" } else { header },
-                "endCol": end_col,
-                "legendStartCell": if y_cols.len() > 1 { json!({ "rowIndex": header_row_index, "colIndex": y_cols[0] }) } else { Value::Null },
-                "legendStep": if y_cols.len() > 1 { json!(if y_cols.len() >= 2 { y_cols[1] - y_cols[0] } else { 1 }) } else { Value::Null },
-                "legendTarget": if y_cols.len() > 1 { "yColumn" } else { "auto" },
-                "startCol": index,
-                "xAxisRole": block_role,
-                "xCol": index,
-                "yCols": y_cols,
-            }));
-            index = scan.max(index + 1);
-        } else {
-            index += 1;
-        }
-    }
-    if separated_blocks.len() >= 2
-        && separated_blocks.iter().any(|block| {
-            block
-                .get("yCols")
-                .and_then(Value::as_array)
-                .map(|items| items.len() > 1)
-                .unwrap_or(false)
-        })
-    {
-        let first_block = &separated_blocks[0];
-        let x_col = first_block.get("xCol").and_then(Value::as_u64).unwrap_or(0) as usize;
-        let role = x_axis_role
-            .or_else(|| detect_axis_role_text(headers.get(x_col).map(String::as_str).unwrap_or("")))
-            .or_else(|| {
-                let normalized = headers
-                    .get(x_col)
-                    .map(|value| value.to_ascii_lowercase())
-                    .unwrap_or_default();
-                if normalized.contains("drain") {
-                    Some("vd")
-                } else if normalized.contains("gate") {
-                    Some("vg")
-                } else {
-                    None
-                }
-            });
-        let inferred_curve = if curve_type != "unknown" {
-            curve_type.as_str()
-        } else if role == Some("vg") {
-            "transfer"
-        } else if role == Some("vd") {
-            "output"
-        } else {
-            "unknown"
-        };
-        let config = auto_config_json(
-            if role == Some("vg") {
-                "Vg".to_string()
-            } else if role == Some("vd") {
-                "Vd".to_string()
-            } else {
-                headers
-                    .get(x_col)
-                    .cloned()
-                    .unwrap_or_else(|| "X".to_string())
-            },
-            "Id".to_string(),
-            data_start_row_index,
-            x_col,
-            separated_y_cols.clone(),
-            None,
-            Some(1),
-            "V",
-            "A",
-            String::new(),
-            Some((header_row_index, separated_y_cols[0])),
-            None,
-            Some(separated_y_cols.len()),
-            Some(1.0),
-            "yColumn",
-        );
-        return Ok(with_auto_curve_info(
-            add_auto_blocks_to_config(config, separated_blocks),
-            inferred_curve,
-            role,
-            x_axis_role_source,
-            &confidence,
-            needs_template,
-        ));
-    }
-
-    let mut pair_candidates = Vec::<(usize, usize)>::new();
-    for index in 0..headers.len().saturating_sub(1) {
-        let (left_axis, left_stem) = structured_axis_suffix(&headers[index]);
-        let (right_axis, right_stem) = structured_axis_suffix(&headers[index + 1]);
-        if left_axis == Some("x")
-            && right_axis == Some("y")
-            && !left_stem.is_empty()
-            && left_stem == right_stem
-            && column_has_numeric_rows(dataset, data_start_row_index, index, 2)
-            && column_has_numeric_rows(dataset, data_start_row_index, index + 1, 2)
-        {
-            pair_candidates.push((index, index + 1));
-        }
-    }
-
-    let mut adjacent_voltage_current_pairs = Vec::<(usize, usize)>::new();
-    for index in 0..headers.len().saturating_sub(1) {
-        let left = &headers[index];
-        let right = &headers[index + 1];
-        if detect_axis_role_text(left).is_none()
-            || !column_has_numeric_rows(dataset, data_start_row_index, index, 2)
-            || !column_has_numeric_rows(dataset, data_start_row_index, index + 1, 2)
-            || !is_current_like_header(right)
-            || current_header_looks_like_gate_current(right)
-            || !current_header_looks_like_drain_current(right)
-        {
-            continue;
-        }
-        adjacent_voltage_current_pairs.push((index, index + 1));
-    }
-
-    if adjacent_voltage_current_pairs.len() >= 2
-        && adjacent_voltage_current_pairs.iter().all(|pair| {
-            columns_share_equivalent_x(
-                dataset,
-                data_start_row_index,
-                adjacent_voltage_current_pairs[0].0,
-                pair.0,
-            )
-        })
-    {
-        let x_col = adjacent_voltage_current_pairs[0].0;
-        let y_cols = adjacent_voltage_current_pairs
-            .iter()
-            .map(|pair| pair.1)
-            .collect::<Vec<_>>();
-        let first_x_header = headers.get(x_col).map(String::as_str).unwrap_or("");
-        let first_x_header_normalized = first_x_header.to_ascii_lowercase();
-        let role = x_axis_role
-            .or_else(|| detect_axis_role_text(first_x_header))
-            .or_else(|| {
-                if first_x_header_normalized.contains("drain") {
-                    Some("vd")
-                } else if first_x_header_normalized.contains("gate") {
-                    Some("vg")
-                } else {
-                    None
-                }
-            });
-        if let Some(role) = role {
-            let inferred_curve = if curve_type != "unknown" {
-                curve_type.as_str()
-            } else if role == "vg" {
-                "transfer"
-            } else {
-                "output"
-            };
-            let y_step = if adjacent_voltage_current_pairs.len() >= 2 {
-                adjacent_voltage_current_pairs[1].1 - adjacent_voltage_current_pairs[0].1
-            } else {
-                1
-            };
-            let config = auto_config_json(
-                if role == "vg" {
-                    "Vg".to_string()
-                } else {
-                    "Vd".to_string()
-                },
-                "Id".to_string(),
-                data_start_row_index,
-                x_col,
-                y_cols.clone(),
-                None,
-                Some(1),
-                "V",
-                "A",
-                String::new(),
-                Some((header_row_index, y_cols[0])),
-                None,
-                Some(y_cols.len()),
-                Some(y_step as f64),
-                "yColumn",
-            );
-            return Ok(with_auto_curve_info(
-                add_auto_blocks_to_config(
-                    config,
-                    vec![auto_shared_x_block_json(
-                        &headers,
-                        header_row_index,
-                        x_col,
-                        &y_cols,
-                        Some(role),
-                    )],
-                ),
-                inferred_curve,
-                Some(role),
-                x_axis_role_source,
-                &confidence,
-                needs_template,
-            ));
-        }
-    }
-
-    if pair_candidates.len() >= 2
-        && pair_candidates.iter().all(|pair| {
-            columns_share_equivalent_x(dataset, data_start_row_index, pair_candidates[0].0, pair.0)
-        })
-    {
-        let x_col = pair_candidates[0].0;
-        let y_cols = pair_candidates
-            .iter()
-            .map(|pair| pair.1)
-            .collect::<Vec<_>>();
-        let role = x_axis_role.or_else(|| {
-            detect_axis_role_text(headers.get(x_col).map(String::as_str).unwrap_or(""))
-        });
-        let inferred_curve = if curve_type != "unknown" {
-            curve_type.as_str()
-        } else if role == Some("vg") {
-            "transfer"
-        } else if role == Some("vd") {
-            "output"
-        } else {
-            "unknown"
-        };
-        let (x_unit, y_unit, left_title) = match inferred_curve {
-            "cv" => (
-                "V",
-                "F",
-                headers[*y_cols.last().unwrap_or(&pair_candidates[0].1)].clone(),
-            ),
-            "cf" => (
-                "Hz",
-                "F",
-                headers[*y_cols.last().unwrap_or(&pair_candidates[0].1)].clone(),
-            ),
-            "pv" => (
-                "V",
-                "A",
-                headers[*y_cols.last().unwrap_or(&pair_candidates[0].1)].clone(),
-            ),
-            _ => ("V", "A", "Id".to_string()),
-        };
-        let y_step = if matches!(inferred_curve, "cv" | "cf" | "pv") {
-            1
-        } else if pair_candidates.len() >= 2 {
-            pair_candidates[1].1 - pair_candidates[0].1
-        } else {
-            1
-        };
-        let bottom_title = if role == Some("vg") {
-            "Vg".to_string()
-        } else if role == Some("vd") {
-            "Vd".to_string()
-        } else {
-            headers
-                .get(x_col)
-                .cloned()
-                .unwrap_or_else(|| "X".to_string())
-        };
-        let role_source = if matches!(inferred_curve, "cv" | "cf" | "pv") && role.is_none() {
-            "label"
-        } else {
-            x_axis_role_source
-        };
-        let config = auto_config_json(
-            bottom_title,
-            left_title,
-            data_start_row_index,
-            x_col,
-            y_cols.clone(),
-            None,
-            Some(1),
-            x_unit,
-            y_unit,
-            String::new(),
-            Some((header_row_index, pair_candidates[0].1)),
-            None,
-            Some(pair_candidates.len()),
-            Some(y_step as f64),
-            "yColumn",
-        );
-        return Ok(with_auto_curve_info(
-            add_auto_blocks_to_config(
-                config,
-                vec![auto_shared_x_block_json(
-                    &headers,
-                    header_row_index,
-                    x_col,
-                    &y_cols,
-                    role,
-                )],
-            ),
-            inferred_curve,
-            role,
-            role_source,
-            &confidence,
-            needs_template,
-        ));
-    }
-
-    if curve_type == "pv" || curve_type == "cv" || curve_type == "cf" {
-        let x_candidates = find_numeric_semantic_columns(
-            dataset,
-            &headers,
-            data_start_row_index,
-            if curve_type == "cf" {
-                is_frequency_like_header
-            } else {
-                is_voltage_like_header
-            },
-        );
-        let y_candidates = find_numeric_semantic_columns(
-            dataset,
-            &headers,
-            data_start_row_index,
-            if curve_type == "pv" {
-                is_current_like_header
-            } else {
-                is_capacitance_like_header
-            },
-        );
-        let (x_col, y_col) = choose_best_semantic_pair(&x_candidates, &y_candidates);
-        if let (Some(x_col), Some(y_col)) = (x_col, y_col) {
-            let y_cols = if curve_type == "cv" || curve_type == "cf" {
-                y_candidates
-                    .into_iter()
-                    .filter(|col| *col >= x_col)
-                    .collect::<Vec<_>>()
-            } else {
-                vec![y_col]
-            };
-            let y_cols = if y_cols.is_empty() {
-                vec![y_col]
-            } else {
-                y_cols
-            };
-            let config = auto_config_json(
-                headers
-                    .get(x_col)
-                    .cloned()
-                    .unwrap_or_else(|| "X".to_string()),
-                headers
-                    .get(*y_cols.last().unwrap_or(&y_col))
-                    .cloned()
-                    .unwrap_or_else(|| "Y".to_string()),
-                data_start_row_index,
-                x_col,
-                y_cols.clone(),
-                None,
-                Some(1),
-                if curve_type == "cf" { "Hz" } else { "V" },
-                if curve_type == "pv" { "A" } else { "F" },
-                String::new(),
-                if y_cols.len() > 1 {
-                    Some((header_row_index, y_cols[0]))
-                } else {
-                    None
-                },
-                None,
-                if y_cols.len() > 1 {
-                    Some(y_cols.len())
-                } else {
-                    None
-                },
-                if y_cols.len() > 1 { Some(1.0) } else { None },
-                if y_cols.len() > 1 { "yColumn" } else { "auto" },
-            );
-            return Ok(with_auto_curve_info(
-                add_auto_blocks_to_config(
-                    config,
-                    vec![auto_shared_x_block_json(
-                        &headers,
-                        header_row_index,
-                        x_col,
-                        &y_cols,
-                        x_axis_role,
-                    )],
-                ),
-                &curve_type,
-                x_axis_role,
-                x_axis_role_source,
-                &confidence,
-                needs_template,
-            ));
-        }
-    }
-
-    let mut x_candidates = Vec::<usize>::new();
-    for (index, header) in headers.iter().enumerate() {
-        if !column_has_numeric_rows(dataset, data_start_row_index, index, 2) {
-            continue;
-        }
-        let role = detect_axis_role_text(header);
-        if role.is_some() && (x_axis_role.is_none() || role == x_axis_role) {
-            x_candidates.push(index);
-        }
-    }
-    let x_col = x_candidates.first().copied().ok_or_else(|| {
-        format!(
-            "{}: unable to locate auto extraction columns.",
-            dataset.file_name
-        )
-    })?;
-    let y_candidates = headers
-        .iter()
-        .enumerate()
-        .filter(|(index, header)| {
-            *index != x_col
-                && current_header_looks_like_drain_current(header)
-                && column_has_numeric_rows(dataset, data_start_row_index, *index, 2)
-        })
-        .map(|(index, _)| index)
-        .collect::<Vec<_>>();
-    let y_cols = if y_candidates.len() >= 2 {
-        y_candidates
-    } else {
-        headers
-            .iter()
-            .enumerate()
-            .find(|(index, header)| {
-                *index != x_col
-                    && (current_header_looks_like_drain_current(header)
-                        || normalize_header_compact(header) == "id")
-                    && !current_header_looks_like_gate_current(header)
-                    && column_has_numeric_rows(dataset, data_start_row_index, *index, 2)
-            })
-            .map(|(index, _)| vec![index])
-            .unwrap_or_default()
-    };
-    if y_cols.is_empty() {
-        return Err(format!(
-            "{}: unable to locate auto extraction columns.",
-            dataset.file_name
-        ));
-    }
-    let point_col = headers
-        .iter()
-        .position(|entry| clean_cell_text(entry) == "Point");
-    let var2_col = headers
-        .iter()
-        .position(|entry| clean_cell_text(entry) == "VAR2");
-    let (group_size, groups) = resolve_auto_group_shape_full(
-        dataset,
-        data_start_row_index,
-        x_col,
-        point_col,
-        var2_col,
-        total_row_count,
-    );
-    let bias_role = if x_axis_role == Some("vg") {
-        "vd"
-    } else {
-        "vg"
-    };
-    let legend_col = headers
-        .iter()
-        .enumerate()
-        .find(|(index, header)| {
-            *index != x_col
-                && detect_axis_role_text(header) == Some(bias_role)
-                && column_has_numeric_rows(dataset, data_start_row_index, *index, 2)
-        })
-        .map(|(index, _)| index);
-    let generated =
-        if legend_col.is_none() && detect_axis_role_text(&metadata.var2_name) == Some(bias_role) {
-            parse_var_sweep_from_notes(&metadata.notes_text, "VAR2")
-                .or_else(|| parse_secondary_sweep_from_rows(dataset))
-        } else {
-            None
-        };
-    let grouped = group_size.is_some()
-        && groups.unwrap_or(1) > 1
-        && (legend_col.is_some() || generated.as_ref().and_then(|value| value.0).is_some());
-    let single_generated = !grouped && generated.as_ref().and_then(|value| value.0) == Some(1);
-    let generated_start = generated
-        .as_ref()
-        .and_then(|value| value.1)
-        .map(format_compact_number);
-    let generated_count = generated.as_ref().and_then(|value| value.0);
-    let generated_step = generated.as_ref().and_then(|value| value.2);
-
-    let config = auto_config_json(
-        if x_axis_role == Some("vg") {
-            "Vg".to_string()
-        } else if x_axis_role == Some("vd") {
-            "Vd".to_string()
-        } else {
-            headers
-                .get(x_col)
-                .cloned()
-                .unwrap_or_else(|| "X".to_string())
-        },
-        if headers
-            .get(y_cols[0])
-            .map(|value| current_header_looks_like_drain_current(value))
-            .unwrap_or(false)
-        {
-            "Id".to_string()
-        } else {
-            headers
-                .get(y_cols[0])
-                .cloned()
-                .unwrap_or_else(|| "Y".to_string())
-        },
-        data_start_row_index,
-        x_col,
-        y_cols.clone(),
-        group_size,
-        groups,
-        "V",
-        "A",
-        if y_cols.len() > 1 {
-            String::new()
-        } else if bias_role == "vd" {
-            "Vd".to_string()
-        } else {
-            "Vg".to_string()
-        },
-        if grouped {
-            legend_col.map(|col| (data_start_row_index, col))
-        } else if y_cols.len() > 1 {
-            Some((header_row_index, y_cols[0]))
-        } else {
-            None
-        },
-        if grouped && legend_col.is_none() {
-            generated_start.clone()
-        } else if single_generated {
-            generated_start
-        } else {
-            None
-        },
-        if y_cols.len() > 1 {
-            Some(y_cols.len())
-        } else if grouped && legend_col.is_none() {
-            generated_count
-        } else if single_generated {
-            Some(1)
-        } else {
-            None
-        },
-        if y_cols.len() > 1 {
-            Some(1.0)
-        } else if grouped && legend_col.is_none() {
-            generated_step
-        } else {
-            None
-        },
-        if y_cols.len() > 1 {
-            "yColumn"
-        } else if grouped {
-            "group"
-        } else if single_generated {
-            "yColumn"
-        } else {
-            "auto"
-        },
-    );
-    Ok(with_auto_curve_info(
-        add_auto_blocks_to_config(
-            config,
-            vec![auto_shared_x_block_json(
-                &headers,
-                header_row_index,
-                x_col,
-                &y_cols,
-                x_axis_role,
-            )],
-        ),
-        &curve_type,
-        x_axis_role,
-        x_axis_role_source,
-        &confidence,
-        needs_template,
-    ))
 }
 
 fn build_uniform_sample_indices(length: usize, target: usize) -> Option<Vec<usize>> {
@@ -1481,7 +613,61 @@ fn process_file(
     }))
 }
 
-fn process_auto_configured_file(
+fn copy_block_config_field(
+    object: &mut serde_json::Map<String, Value>,
+    block: &Value,
+    block_key: &str,
+    config_key: &str,
+) {
+    if let Some(value) = block.get(block_key).or_else(|| block.get(config_key)) {
+        object.insert(config_key.to_string(), value.clone());
+    }
+}
+
+fn create_template_block_config(config: &Value, block: &Value) -> Value {
+    let mut block_config = config.clone();
+    if let Some(object) = block_config.as_object_mut() {
+        object.remove("blocks");
+        for key in [
+            "autoCurveType",
+            "bottomTitle",
+            "endRow",
+            "groupSize",
+            "groups",
+            "leftTitle",
+            "legendPrefix",
+            "segmentCount",
+            "startRow",
+            "xCol",
+            "xSegmentationMode",
+            "xUnit",
+            "yCols",
+            "yLegendCount",
+            "yLegendStartValue",
+            "yLegendStep",
+            "yLegendTarget",
+            "yUnit",
+        ] {
+            copy_block_config_field(object, block, key, key);
+        }
+        copy_block_config_field(object, block, "legendStartCell", "yLegendStartCell");
+        copy_block_config_field(object, block, "legendTarget", "yLegendTarget");
+        copy_block_config_field(object, block, "legendStep", "yLegendStep");
+        if block.get("yLegendCount").is_none() {
+            let legend_count = block
+                .get("yCols")
+                .and_then(Value::as_array)
+                .map(|items| items.len());
+            object.insert("yLegendCount".to_string(), json!(legend_count));
+        }
+        if !object.contains_key("yLegendTarget") {
+            object.insert("yLegendTarget".to_string(), json!("auto"));
+        }
+    }
+    block_config
+}
+
+fn process_configured_file(
     file_id: &str,
     dataset: &EngineDataset,
     config: &Value,
@@ -1495,7 +681,7 @@ fn process_auto_configured_file(
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
-    if blocks.len() <= 1 {
+    if blocks.is_empty() {
         return process_file(
             file_id,
             dataset,
@@ -1506,42 +692,22 @@ fn process_auto_configured_file(
             calculation_cache_path,
         );
     }
+    if blocks.len() == 1 {
+        let block_config = create_template_block_config(config, &blocks[0]);
+        return process_file(
+            file_id,
+            dataset,
+            &block_config,
+            curve_filter_key,
+            curve_filter_field,
+            max_points_raw,
+            calculation_cache_path,
+        );
+    }
 
     let mut processed_blocks = Vec::<(usize, Value, Value)>::new();
     for (block_index, block) in blocks.iter().enumerate() {
-        let mut block_config = config.clone();
-        if let Some(object) = block_config.as_object_mut() {
-            object.remove("blocks");
-            if let Some(value) = block.get("bottomTitle") {
-                object.insert("bottomTitle".to_string(), value.clone());
-            }
-            if let Some(value) = block.get("xCol") {
-                object.insert("xCol".to_string(), value.clone());
-            }
-            if let Some(value) = block.get("yCols") {
-                object.insert("yCols".to_string(), value.clone());
-            }
-            object.insert(
-                "yLegendStartCell".to_string(),
-                block.get("legendStartCell").cloned().unwrap_or(Value::Null),
-            );
-            object.insert(
-                "yLegendTarget".to_string(),
-                block
-                    .get("legendTarget")
-                    .cloned()
-                    .unwrap_or_else(|| json!("auto")),
-            );
-            object.insert(
-                "yLegendStep".to_string(),
-                block.get("legendStep").cloned().unwrap_or(Value::Null),
-            );
-            let legend_count = block
-                .get("yCols")
-                .and_then(Value::as_array)
-                .map(|items| items.len());
-            object.insert("yLegendCount".to_string(), json!(legend_count));
-        }
+        let block_config = create_template_block_config(config, block);
         let processed = process_file(
             file_id,
             dataset,
@@ -1557,7 +723,7 @@ fn process_auto_configured_file(
     let mut merged = processed_blocks
         .first()
         .map(|(_, _, processed)| processed.clone())
-        .ok_or_else(|| "auto blocks produced no processed data".to_string())?;
+        .ok_or_else(|| "template blocks produced no processed data".to_string())?;
     let mut x_groups = Vec::<Value>::new();
     let mut series = Vec::<Value>::new();
     let mut y_columns = Vec::<Value>::new();
@@ -1630,7 +796,7 @@ fn process_auto_configured_file(
 
     if let Some(object) = merged.as_object_mut() {
         object.insert(
-            "autoBlocks".to_string(),
+            "templateBlocks".to_string(),
             json!(
                 processed_blocks
                     .iter()
@@ -2445,15 +1611,17 @@ fn build_import_prepare_result(path: &Path, file_name: String) -> Result<Value, 
         }));
     };
 
+    let preview_rows = summary.preview_rows;
     Ok(json!({
         "tableFactsSeed": build_import_table_facts_seed(
             &file_name,
-            summary.preview_rows,
+            preview_rows.clone(),
         ),
         "columnCount": summary.column_count,
         "fileName": file_name,
         "health": import_result.health,
         "maxCellLengths": summary.max_cell_lengths,
+        "previewRows": preview_rows,
         "rowCount": summary.row_count,
     }))
 }
@@ -2634,7 +1802,8 @@ fn handle_request(
                 .as_ref()
                 .filter(|entries| !entries.is_empty())
                 .ok_or_else(|| "missing entries".to_string())?;
-            let (results, parallelism) = prepare_import_table_facts_batch_entries(entries, request.threads);
+            let (results, parallelism) =
+                prepare_import_table_facts_batch_entries(entries, request.threads);
             Ok(json!({
                 "durationMs": import_batch_duration_ms(started),
                 "parallelism": parallelism,
@@ -2717,70 +1886,6 @@ fn handle_request(
                 "cells": results,
             }))
         }
-        "inferAutoWorkerConfig" => {
-            let file_id = request
-                .file_id
-                .as_deref()
-                .filter(|value| !value.trim().is_empty())
-                .ok_or_else(|| "missing fileId".to_string())?;
-            if !cache.contains_key(file_id) {
-                let path_text = request
-                    .path
-                    .as_deref()
-                    .filter(|value| !value.trim().is_empty())
-                    .ok_or_else(|| "file is not open in engine".to_string())?;
-                let path = PathBuf::from(path_text);
-                let file_name = request.file_name.clone().unwrap_or_else(|| {
-                    path.file_name()
-                        .and_then(|value| value.to_str())
-                        .unwrap_or("")
-                        .to_string()
-                });
-                let dataset = load_dataset(&path, &file_name)?;
-                cache.insert(file_id.to_string(), dataset);
-            }
-            let dataset = cache
-                .get(file_id)
-                .ok_or_else(|| "file is not open in engine".to_string())?;
-            let config = infer_auto_worker_config(dataset, request.total_row_count)?;
-            Ok(json!({
-                "fileId": file_id,
-                "fileName": dataset.file_name,
-                "config": config,
-            }))
-        }
-        "inferAutoExtraction" => {
-            let file_id = request
-                .file_id
-                .as_deref()
-                .filter(|value| !value.trim().is_empty())
-                .ok_or_else(|| "missing fileId".to_string())?;
-            if !cache.contains_key(file_id) {
-                let path_text = request
-                    .path
-                    .as_deref()
-                    .filter(|value| !value.trim().is_empty())
-                    .ok_or_else(|| "file is not open in engine".to_string())?;
-                let path = PathBuf::from(path_text);
-                let file_name = request.file_name.clone().unwrap_or_else(|| {
-                    path.file_name()
-                        .and_then(|value| value.to_str())
-                        .unwrap_or("")
-                        .to_string()
-                });
-                let dataset = load_dataset(&path, &file_name)?;
-                cache.insert(file_id.to_string(), dataset);
-            }
-            let dataset = cache
-                .get(file_id)
-                .ok_or_else(|| "file is not open in engine".to_string())?;
-            let mut result = infer_auto_extraction_result(dataset, request.total_row_count);
-            if let Some(object) = result.as_object_mut() {
-                object.insert("fileId".to_string(), json!(file_id));
-                object.insert("fileName".to_string(), json!(dataset.file_name));
-            }
-            Ok(result)
-        }
         "processFile" => {
             let file_id = request
                 .file_id
@@ -2810,7 +1915,7 @@ fn handle_request(
                 .config
                 .as_ref()
                 .ok_or_else(|| "missing config".to_string())?;
-            process_file(
+            process_configured_file(
                 file_id,
                 dataset,
                 config,
@@ -2819,46 +1924,6 @@ fn handle_request(
                 request.max_points,
                 request.calculation_cache_path.as_deref(),
             )
-        }
-        "processFileAuto" => {
-            let file_id = request
-                .file_id
-                .as_deref()
-                .filter(|value| !value.trim().is_empty())
-                .ok_or_else(|| "missing fileId".to_string())?;
-            if !cache.contains_key(file_id) {
-                let path_text = request
-                    .path
-                    .as_deref()
-                    .filter(|value| !value.trim().is_empty())
-                    .ok_or_else(|| "file is not open in engine".to_string())?;
-                let path = PathBuf::from(path_text);
-                let file_name = request.file_name.clone().unwrap_or_else(|| {
-                    path.file_name()
-                        .and_then(|value| value.to_str())
-                        .unwrap_or("")
-                        .to_string()
-                });
-                let dataset = load_dataset(&path, &file_name)?;
-                cache.insert(file_id.to_string(), dataset);
-            }
-            let dataset = cache
-                .get(file_id)
-                .ok_or_else(|| "file is not open in engine".to_string())?;
-            let config = infer_auto_worker_config(dataset, request.total_row_count)?;
-            let mut processed = process_auto_configured_file(
-                file_id,
-                dataset,
-                &config,
-                request.curve_filter_key.as_deref(),
-                request.curve_filter_field.as_deref(),
-                request.max_points,
-                request.calculation_cache_path.as_deref(),
-            )?;
-            if let Some(object) = processed.as_object_mut() {
-                object.insert("autoConfig".to_string(), config);
-            }
-            Ok(processed)
         }
         "analyzeSeriesBatch" => {
             let series = request

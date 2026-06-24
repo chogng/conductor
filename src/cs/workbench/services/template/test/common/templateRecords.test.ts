@@ -12,7 +12,7 @@ suite("workbench/services/template/common/templateRecords", () => {
   test("template records keep only user apply presets", () => {
     assert.deepEqual(
       filterUserTemplateApplyPresetRecords([
-        { id: "__auto__", name: "Auto extraction" },
+        { id: "__auto__", name: "Recommended template" },
         { id: "tpl-1", name: "User template" },
         null,
         "invalid",

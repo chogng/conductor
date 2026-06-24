@@ -51,17 +51,6 @@ export type ReadCellsRequest = {
   fileId: string;
 };
 
-export type ProcessFileRequest = {
-  auto: boolean;
-  config: RustProcessConfig | null;
-  curveFilterField: string | null;
-  curveFilterKey: string | null;
-  fileId: string;
-  fileName: string;
-  inputPath: string;
-  maxPoints: number;
-};
-
 export type CalculateRcRequest = {
   devices: unknown[];
   options: Record<string, unknown>;
@@ -96,7 +85,6 @@ export interface IRustHostService {
   openFile(request: OpenFileRequest): Promise<RustHostResponse>;
   previewMeta(request: PreviewMetaRequest): Promise<RustHostResponse>;
   previewRows(request: PreviewRowsRequest): Promise<RustHostResponse>;
-  processFile(request: ProcessFileRequest): Promise<RustHostResponse>;
   readCell(request: ReadCellRequest): Promise<RustHostResponse>;
   readCells(request: ReadCellsRequest): Promise<RustHostResponse>;
 }

@@ -1,6 +1,6 @@
 param(
   [string]$ProjectRoot = "",
-  [ValidateSet("process", "export")]
+  [ValidateSet("prepare", "process", "export")]
   [string]$Mode = "process"
 )
 
@@ -16,12 +16,19 @@ $RsTargetDir = Join-Path $ProjectRoot ".build\cache\conductor-rs-cli-target"
 $RsWorkerExe = Join-Path $RsTargetDir "release\conductor-rs.exe"
 $PackagedRsWorkerExe = Join-Path $ProjectRoot "resources\bin\conductor-rs.exe"
 $BenchDir = Join-Path $ProjectRoot ".build\verify\rust-origin-export"
-$FilesPath = Join-Path $BenchDir "files.json"
+$PrepareRequestsPath = Join-Path $BenchDir "prepare-requests.jsonl"
+$PrepareResultsPath = Join-Path $BenchDir "prepare-results.jsonl"
 $ProcessRequestsPath = Join-Path $BenchDir "process-requests.jsonl"
 $ProcessResultsPath = Join-Path $BenchDir "process-results.jsonl"
 $ExportRequestsPath = Join-Path $BenchDir "export-requests.jsonl"
 $ExportResultsPath = Join-Path $BenchDir "export-results.jsonl"
 
+if ($Mode -eq "prepare" -and -not (Test-Path -LiteralPath $PrepareRequestsPath)) {
+  throw "Rust origin-export prepare requests were not prepared: $PrepareRequestsPath"
+}
+if ($Mode -eq "process" -and -not (Test-Path -LiteralPath $ProcessRequestsPath)) {
+  throw "Rust origin-export process requests were not prepared: $ProcessRequestsPath"
+}
 if ($Mode -eq "export" -and -not (Test-Path -LiteralPath $ExportRequestsPath)) {
   throw "Rust origin-export export requests were not prepared: $ExportRequestsPath"
 }
@@ -35,26 +42,15 @@ try {
   if (-not (Test-Path -LiteralPath $RsWorkerExe)) {
     $RsWorkerExe = $PackagedRsWorkerExe
   }
-  if ($Mode -eq "process") {
-    if (-not (Test-Path -LiteralPath $FilesPath)) {
-      throw "Rust origin-export files list was not prepared: $FilesPath"
+  if ($Mode -eq "prepare") {
+    $results = Get-Content -LiteralPath $PrepareRequestsPath -Raw | & $RsWorkerExe --stdio-worker
+    if ($LASTEXITCODE -ne 0) {
+      throw "Rust origin-export prepare run failed with exit code $LASTEXITCODE"
     }
-    $files = (Get-Content -LiteralPath $FilesPath -Raw | ConvertFrom-Json).files
-    $requests = @()
-    for ($index = 0; $index -lt $files.Count; $index++) {
-      $filePath = $files[$index]
-      $requests += [pscustomobject]@{
-        command = "processFileAuto"
-        fileId = "origin-export-$index"
-        fileName = [System.IO.Path]::GetFileName($filePath)
-        id = $index + 1
-        maxPoints = 600
-        path = $filePath
-      }
-    }
-    $requestsText = ($requests | ForEach-Object { $_ | ConvertTo-Json -Compress }) -join "`n"
-    $requestsText = "$requestsText`n"
-    $requestsText | Set-Content -LiteralPath $ProcessRequestsPath -Encoding UTF8
+    $results | Set-Content -LiteralPath $PrepareResultsPath -Encoding UTF8
+    Write-Host "[rust-origin-export-compat] wrote prepare results to $PrepareResultsPath"
+  } elseif ($Mode -eq "process") {
+    $requestsText = Get-Content -LiteralPath $ProcessRequestsPath -Raw
     $results = $requestsText | & $RsWorkerExe --stdio-worker
     if ($LASTEXITCODE -ne 0) {
       throw "Rust origin-export process run failed with exit code $LASTEXITCODE"

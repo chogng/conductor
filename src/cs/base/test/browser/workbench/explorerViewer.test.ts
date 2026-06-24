@@ -252,7 +252,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       ...createViewerProps(),
       templateRecords: [{
         id: autoTemplateSelectionId,
-        name: "Auto extraction",
+        name: "Recommended template",
       }],
     }, labels);
 
@@ -301,7 +301,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       assert.equal(sliceTemplate.enabled, true);
       assert.deepEqual(
         setTemplate.actions.map(action => action.label),
-        ["Auto extraction", "Template A"],
+        ["Recommended template", "Template A"],
       );
       assert.equal(setTemplate.actions.some(action => action.id.endsWith(".loading")), false);
     } finally {

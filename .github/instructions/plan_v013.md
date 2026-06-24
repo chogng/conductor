@@ -16,6 +16,7 @@
 > 9. Template provenance 和 execution trigger 分离。
 > 10. 旧 table-fact 迁移命名已退场，不能继续作为主链路概念或兼容壳保留。
 > 11. Recipe/UserTemplate candidate materializer 归 Template；TemplateResolution 已退场，不能作为 legacy compatibility bridge 复活。
+> 12. 旧 Auto Extraction 退场；默认选择语义是 Review 推荐的 Template，不是从 raw rows 绕过 Template/Review 的自动提取旁路。
 
 ---
 
@@ -35,6 +36,10 @@ Review
 Slice
   -> SliceRequest / SlicePlan / SliceRun
 ```
+
+不存在单独的 Auto Extraction 主链路。系统推荐模板必须来自
+`TableFacts + Recipe/UserTemplate -> Template -> Review`，Slice 只消费
+`ReviewedTemplate` 或手动 review 后的 Template snapshot。
 
 主链路展开：
 
@@ -1398,6 +1403,7 @@ ReviewPolicy
 Recipe selector
 UserTemplate catalog
 Template candidate selection
+Template config inference
 systemRecommended/userActionRequired decision
 Session commit
 UI state
@@ -1412,6 +1418,17 @@ P2: column numeric profile descriptor
 P3: partial table-fact descriptor
 P4: full table-fact descriptor
 ```
+
+Rust stdio worker 的 `processFile` 只执行明确 Template config。验证/bench 脚本如需
+生成处理输入，也必须走：
+
+```txt
+prepareImportBatch
+  -> TS TableFacts + Recipe/UserTemplate Template materializer
+  -> processFile
+```
+
+不得恢复 `processFileAuto` 或从 raw rows 直接推断 process config 的脚本旁路。
 
 最终：
 

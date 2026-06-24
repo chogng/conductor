@@ -146,11 +146,11 @@ export class TemplateApplyView {
 
     const autoTitle = document.createElement("h3");
     autoTitle.className = "template_auto_card_title";
-    autoTitle.textContent = localize("template.autoExtract.title", "Smart auto extraction");
+    autoTitle.textContent = localize("template.recommendedTemplate.title", "Recommended template");
 
     const autoDescription = document.createElement("p");
     autoDescription.className = "template_auto_card_description";
-    autoDescription.textContent = localize("template.autoExtract.description", "The system analyzes imported file formats and extracts variables and related parameters automatically. Suitable for standard IV/CV data formats.");
+    autoDescription.textContent = localize("template.recommendedTemplate.description", "The system uses table facts, recipes, and review results to choose the template for slicing.");
 
     this.autoCard.append(autoTitle, autoDescription);
     this.element.append(this.autoCard);

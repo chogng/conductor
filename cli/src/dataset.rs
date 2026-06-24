@@ -1,7 +1,6 @@
 use encoding_rs::GB18030;
 use serde_json::Value;
 use serde_json::json;
-use std::cell::Ref;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::Path;
@@ -101,34 +100,6 @@ impl EngineDataset {
             .and_then(|column| column.get(row_index))
             .copied()
             .flatten()
-    }
-
-    pub fn column_number_values_ref(&self, col_index: usize) -> Ref<'_, Vec<Option<f64>>> {
-        self.ensure_numeric_column(col_index);
-        Ref::map(self.numeric_column_cache.borrow(), |cache| {
-            cache
-                .get(&col_index)
-                .expect("numeric column cache should exist after ensure_numeric_column")
-        })
-    }
-
-    pub fn has_numeric_rows(
-        &self,
-        data_start_row_index: usize,
-        col_index: usize,
-        minimum_count: usize,
-    ) -> bool {
-        let values = self.column_number_values_ref(col_index);
-        let mut count = 0usize;
-        for value in values.iter().skip(data_start_row_index) {
-            if value.is_some() {
-                count += 1;
-                if count >= minimum_count {
-                    return true;
-                }
-            }
-        }
-        false
     }
 
     fn ensure_numeric_column(&self, col_index: usize) {

@@ -198,7 +198,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     const options = {
       badgeColorSignature: "output:green",
       isEditing: false,
-      templateLabel: "Auto extraction",
+      templateLabel: "Recommended template",
       templateSelectionId: "auto",
     };
     const file = {

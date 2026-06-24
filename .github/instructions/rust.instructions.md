@@ -24,8 +24,8 @@ orchestration, Session commits, stale-result checks, fallback policy, view
 state, DOM, and user-facing notifications.
 
 Rust may own heavy execution and runtime caches for file conversion, workbook
-sheet extraction, table reads, table-fact production, template extraction,
-metric/Rc calculation, plot-frame
+sheet extraction, table reads, table-fact production, explicit slice/template
+execution, metric/Rc calculation, plot-frame
 construction, downsampling, search, and export artifact generation.
 
 ## Runtime Route
@@ -85,13 +85,12 @@ execution, but it must not silently fork product rules.
 
 When changing a rule mirrored under `cli/` or `extensions/`, update both sides
 in the same change. This is mandatory for table-fact family/role/confidence,
-auto extraction planning, calculation, export, plot, search, and table rules
-with Rust branches.
+calculation, export, plot, search, and table rules with Rust branches.
 
-Run the matching verifier. For auto extraction and table-fact-derived planning:
+Run the matching verifier. For table-fact-derived planning:
 
 ```txt
-npm run verify:rust-auto-extraction
+npm run verify:rust-table-facts-parity
 ```
 
 If no verifier exists for a mirrored rule, add or extend one before relying on

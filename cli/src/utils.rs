@@ -84,25 +84,8 @@ pub fn clean_cell_text(raw: &str) -> String {
     raw.trim().trim_matches('\u{feff}').trim().to_string()
 }
 
-pub fn normalize_header_compact(raw: &str) -> String {
-    clean_cell_text(raw)
-        .to_ascii_lowercase()
-        .chars()
-        .filter(|ch| ch.is_ascii_alphanumeric())
-        .collect()
-}
-
 pub fn cell_number(dataset: &EngineDataset, row_index: usize, col_index: usize) -> Option<f64> {
     dataset.cell_number(row_index, col_index)
-}
-
-pub fn column_has_numeric_rows(
-    dataset: &EngineDataset,
-    data_start_row_index: usize,
-    col_index: usize,
-    minimum_count: usize,
-) -> bool {
-    dataset.has_numeric_rows(data_start_row_index, col_index, minimum_count)
 }
 
 pub fn approx_equal(left: f64, right: f64, tolerance: f64) -> bool {

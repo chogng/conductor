@@ -110,20 +110,19 @@ fixture 现在用于压测格式混合和错误路径，不代表已经支持多
 - renderer/main IPC 可以 stream per-file result；Explorer 在文件准备完成后
   尽快投影 table-fact badge。
 
-### 自动提取、处理和分析
+### 显式模板处理和分析
 
 入口：
 
-- stdio commands：`inferAutoExtraction`、`processFile`、`processFileAuto`、
-  `analyzeSeriesBatch`
+- stdio commands：`processFile`、`analyzeSeriesBatch`
 
 职责：
 
-- 从文件名、metadata、表头和 X 值形态推断 curve type、X/Y 列、
+- 从显式模板配置和 X 值形态处理 curve type、X/Y 列、
   data start、group size、segment shape。
 - 按 extraction config 抽取 series、legend、domain、labels 和单位。
 - 计算 gm、SS、自动 SS fit、Ion/Ioff 等派生指标。
-- 大结果优先写临时 JSON artifact，由 Electron hydrate，减少 IPC 大对象。
+- 大结果优先写临时 JSON artifact，由调用方 hydrate，减少 IPC 大对象。
 
 ### Rc/TLM 计算
 
@@ -172,7 +171,6 @@ fixture 现在用于压测格式混合和错误路径，不代表已经支持多
 ```sh
 npm run build:conductor-rs
 npm run build:desktop:core
-npm run verify:rust-auto-extraction
 npm run verify:rust-ss-auto
 npm run verify:rust-origin-export
 ```

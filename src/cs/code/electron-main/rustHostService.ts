@@ -9,7 +9,6 @@ import type {
   OpenFileRequest,
   PreviewMetaRequest,
   PreviewRowsRequest,
-  ProcessFileRequest,
   ReadCellRequest,
   ReadCellsRequest,
   RustHostResponse,
@@ -18,8 +17,6 @@ import type {
 
 type ServiceHelpers = {
   createOriginExportTempPath: (fileId: string, csvName: string) => string;
-  createRustProcessingResultTempDir: (fileId: string) => string;
-  hydrateRustProcessingResultRefs: (result: unknown, tempDir?: string | null) => Promise<unknown>;
   isRustProcessFileConfigSupported: (config: RustProcessConfig | null) => boolean;
   isSupportedInputPath: (filePath: string) => boolean;
 };
@@ -167,60 +164,6 @@ export class RustHostService implements IRustHostService {
       return buildFailure(
         "RUST_ENGINE_READ_CELLS_FAILED",
         (error as Error)?.message || "conductor-rs failed to read cells.",
-        startedAt,
-      );
-    }
-  }
-
-  public async processFile(request: ProcessFileRequest): Promise<RustHostResponse> {
-    if (!request.fileId || !request.inputPath || !this.options.isSupportedInputPath(request.inputPath)) {
-      return buildFailure(ErrorCode.InvalidPath, "Invalid file path.");
-    }
-    if (!request.auto && !this.options.isRustProcessFileConfigSupported(request.config)) {
-      return buildFailure(
-        "RUST_ENGINE_PROCESS_UNSUPPORTED_CONFIG",
-        "conductor-rs does not support this extraction config yet.",
-      );
-    }
-
-    const startedAt = Date.now();
-    const tempDir = this.options.createRustProcessingResultTempDir(request.fileId);
-    const calculationCachePath = path.join(tempDir, "calculation-cache.json");
-    try {
-      const result = await this.options.rustWorkerHost.sendProcessingCommand(
-        request.auto ? "processFileAuto" : "processFile",
-        {
-          calculationCachePath,
-          config: request.config,
-          curveFilterField: request.curveFilterField,
-          curveFilterKey: request.curveFilterKey,
-          fileId: request.fileId,
-          fileName: request.fileName || path.basename(request.inputPath),
-          maxPoints: request.maxPoints,
-          path: request.inputPath,
-        },
-      );
-      await this.options.hydrateRustProcessingResultRefs(result, tempDir);
-      if (result && typeof result === "object" && !Array.isArray(result)) {
-        const resultObject = result as {
-          autoConfig?: unknown;
-          originExportConfig?: unknown;
-          originExportSourcePath?: unknown;
-        };
-        resultObject.originExportSourcePath = request.inputPath;
-        resultObject.originExportConfig =
-          request.auto && resultObject.autoConfig && typeof resultObject.autoConfig === "object"
-            ? resultObject.autoConfig
-            : request.config;
-      }
-      void this.options.rustWorkerHost.disposeProcessingFile(request.fileId);
-      return buildSuccess(startedAt, result, "rust-pool");
-    } catch (error) {
-      void this.options.rustWorkerHost.disposeProcessingFile(request.fileId);
-      void fs.promises.rm(tempDir, { force: true, recursive: true }).catch(() => {});
-      return buildFailure(
-        "RUST_ENGINE_PROCESS_FAILED",
-        (error as Error)?.message || "conductor-rs failed to process file.",
         startedAt,
       );
     }

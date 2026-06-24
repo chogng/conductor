@@ -412,8 +412,8 @@ const createFileFastTableFacts = (
       source: "fast",
       state: "unknown",
       template: localize(
-        "files.autoTemplateUnavailableDecode",
-        "Auto extraction unavailable.",
+        "files.recommendedTemplateUnavailableDecode",
+        "Recommended template unavailable.",
       ),
       title: filenameReason ||
         localize("files.autoContentParseFailed", "Content parsing failed: text encoding is invalid or file content is unreadable."),
@@ -458,8 +458,8 @@ const createFileFastTableFacts = (
     state: isUnhealthy ? "unknown" : "fast",
     template: isUnhealthy
       ? localize(
-          "files.autoTemplateUnavailableDecode",
-          "Auto extraction unavailable.",
+          "files.recommendedTemplateUnavailableDecode",
+          "Recommended template unavailable.",
         )
       : localize("files.autoTemplatePending", "Waiting for table facts"),
     title: fileEntry.badgeState.message ??
@@ -1488,7 +1488,7 @@ export class ExplorerViewer implements IDisposable {
       createMenuAction({
         checked: currentSelection.kind === "auto",
         id: `${actionPrefix}.auto`,
-        label: localize("template.autoExtraction", "Auto extraction"),
+        label: localize("template.recommendedTemplate", "Recommended template"),
         run: () => {
           void this.props.commandService.executeCommand(
             commandId,
@@ -1604,7 +1604,7 @@ export class ExplorerViewer implements IDisposable {
     };
 
     if (selection.kind === "auto") {
-      return localize("template.autoExtraction", "Auto extraction");
+      return localize("template.recommendedTemplate", "Recommended template");
     }
     if (selection.kind === "inline") {
       return selection.template.name;

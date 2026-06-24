@@ -216,10 +216,6 @@ function createDesktopImportBridge(ipcRenderer: IpcRenderer) {
       return ipcRenderer.invoke(workbenchIpcChannels.rustHostReadCells, payload);
     },
 
-    async processFileWithRust(payload: unknown) {
-      return ipcRenderer.invoke(workbenchIpcChannels.rustHostProcessFile, payload);
-    },
-
     async calculateFileRcWithRust(payload: unknown) {
       return ipcRenderer.invoke(workbenchIpcChannels.rustHostCalculateRc, payload);
     },

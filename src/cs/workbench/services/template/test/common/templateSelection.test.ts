@@ -89,7 +89,7 @@ suite("workbench/services/template/test/common/templateSelection", () => {
 		assert.deepEqual(createCurrentTemplateSelectionDisplay({
 			selectedTemplateId: null,
 		}), {
-			label: "template.autoExtraction",
+			label: "template.recommendedTemplate",
 			selection: { kind: "auto" },
 		});
 		assert.deepEqual(createCurrentTemplateSelectionDisplay({

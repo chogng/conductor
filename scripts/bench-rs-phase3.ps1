@@ -1,6 +1,6 @@
 param(
   [string]$ProjectRoot = "",
-  [ValidateSet("process", "analysis")]
+  [ValidateSet("prepare", "process", "analysis")]
   [string]$RequestSet = "process"
 )
 
@@ -14,7 +14,11 @@ $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 $WorkspaceDir = $ProjectRoot
 $RsTargetDir = Join-Path $ProjectRoot ".build\cache\conductor-rs-cli-target"
 $BenchDir = Join-Path $ProjectRoot ".build\bench\device-analysis-phase3"
-if ($RequestSet -eq "analysis") {
+if ($RequestSet -eq "prepare") {
+  $RequestsPath = Join-Path $BenchDir "prepare-requests.jsonl"
+  $ResultsPath = Join-Path $BenchDir "rust-prepare-results.jsonl"
+  $TimingPath = Join-Path $BenchDir "rust-prepare-timing.json"
+} elseif ($RequestSet -eq "analysis") {
   $RequestsPath = Join-Path $BenchDir "analysis-requests.jsonl"
   $ResultsPath = Join-Path $BenchDir "rust-analysis-results.jsonl"
   $TimingPath = Join-Path $BenchDir "rust-analysis-timing.json"

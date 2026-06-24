@@ -32,7 +32,7 @@ suite("workbench/contrib/template/test/browser/templateView", () => {
     );
   });
 
-  test("createTemplateApplyViewState falls back to auto label and draft stop-on-error", () => {
+  test("createTemplateApplyViewState falls back to recommended label and draft stop-on-error", () => {
     const config = createEmptyTemplateApplyConfig({
       name: "",
       stopOnError: false,
@@ -46,7 +46,7 @@ suite("workbench/contrib/template/test/browser/templateView", () => {
     });
 
     assert.equal(state.canDeleteTemplate, false);
-    assert.equal(state.selectedTemplateLabel, "template.autoExtraction");
+    assert.equal(state.selectedTemplateLabel, "template.recommendedTemplate");
     assert.equal(state.stopOnError, true);
   });
 

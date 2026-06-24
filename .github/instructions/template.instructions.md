@@ -62,7 +62,6 @@ plot rendering, or chart state.
 | `common/automaticTemplateMaterializer.ts` | combines Recipe and UserTemplate materializers into the automatic candidate set. |
 | `common/template.ts` | `TemplateApplyPresetRecord`, command ids, and re-exported template spec types. |
 | `common/templateLegacyAdapter.ts` | adapter between historical/manual apply-preset view models and canonical block-aware `Template`. |
-| `common/autoTemplateApplyConfig.ts` | legacy serializer from auto-extraction plan shape into editable apply/worker config records; do not add detection logic here. |
 | `common/templateApplyConfigUtils.ts` | legacy/manual apply config normalization and cloning. |
 | `common/templateSelection.ts` | selection records/helpers. |
 | `contrib/template/browser/templateFileTransfer.ts` | Template UI JSON import/export workflow helper; parses/serializes legacy bundles. |
@@ -108,9 +107,9 @@ into canonical `Template` snapshots before Slice runs.
 - Legacy/manual apply presets may be bridged through `TemplateApplyConfig` and
   `templateLegacyAdapter`; they are inputs to `Template` snapshots, not an
   execution workflow.
-- Legacy raw-header auto-template inference is compatibility-only. New
-  `TableFacts + Recipe/UserTemplate -> Template` derivation belongs in Template
-  materialization helpers, not Template execution.
+- Legacy raw-header auto-template inference is retired from product execution.
+  New `TableFacts + Recipe/UserTemplate -> Template` derivation belongs in
+  Template materialization helpers, not Template execution.
 - Do not export or share a special Auto Template ID as domain API. UI-only
   values stay local to their view, and compatibility parsing for old `"0"` /
   `"__auto__"` values must go through `isAutoTemplateId(...)`.

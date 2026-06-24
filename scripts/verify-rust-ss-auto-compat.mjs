@@ -3,11 +3,15 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 import {
   computeBaseCurrentMetrics,
+  isTransferLikeFile,
+} from "../src/cs/workbench/services/calculation/common/ionIoff.ts";
+import {
   computeCentralDerivative,
+} from "../src/cs/workbench/services/calculation/common/gm.ts";
+import {
   computeSubthresholdSwing,
   computeSubthresholdSwingFitAuto,
-  isTransferLikeFile,
-} from "../src/cs/workbench/contrib/calculation/common/firstCalculation.ts";
+} from "../src/cs/workbench/services/calculation/common/ss.ts";
 
 const ROOT = process.cwd();
 const PHASE3_DIR = path.join(ROOT, ".build", "bench", "device-analysis-phase3");

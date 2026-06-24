@@ -125,7 +125,7 @@ export const getTemplateSelectionLabel = (
   templates: readonly TemplateApplyPresetRecord[] | null | undefined,
 ): string => {
   if (selection.kind === "auto") {
-    return localize("template.autoExtraction", "Auto extraction");
+    return localize("template.recommendedTemplate", "Recommended template");
   }
   if (selection.kind === "inline") {
     return selection.template.name;
@@ -147,7 +147,7 @@ export const createCurrentTemplateSelectionDisplay = ({
   const selection = createTemplateSelection(selectedTemplateId);
   if (selection.kind === "auto") {
     return {
-      label: localize("template.autoExtraction", "Auto extraction"),
+      label: localize("template.recommendedTemplate", "Recommended template"),
       selection,
     };
   }

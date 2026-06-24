@@ -25,7 +25,6 @@ export const workbenchIpcChannels = {
   rustHostPreviewRows: "conductor:rust:preview-rows",
   rustHostReadCell: "conductor:rust:read-cell",
   rustHostReadCells: "conductor:rust:read-cells",
-  rustHostProcessFile: "conductor:rust:process-file",
   rustHostCalculateRc: "conductor:rust:calculate-rc",
   rustHostExportOriginCsv: "conductor:rust:export-origin-csv",
   originZipSave: "conductor:origin:zip:save",

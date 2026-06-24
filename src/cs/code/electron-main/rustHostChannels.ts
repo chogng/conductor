@@ -8,7 +8,6 @@ import type {
   OpenFileRequest,
   PreviewMetaRequest,
   PreviewRowsRequest,
-  ProcessFileRequest,
   ReadCellRequest,
   ReadCellsRequest,
   RustProcessConfig,
@@ -24,7 +23,6 @@ type RegisterRustHandlersOptions = {
     | "rustHostOpen"
     | "rustHostPreviewMeta"
     | "rustHostPreviewRows"
-    | "rustHostProcessFile"
     | "rustHostReadCell"
     | "rustHostReadCells"
   >;
@@ -159,25 +157,6 @@ export const registerRustHostChannels = ({
     return runForeground(() => rustService.readCells(request));
   };
 
-  const handleRustEngineProcessFile = async (
-    _event: IpcMainInvokeEvent,
-    payload: unknown,
-  ) => {
-    const record = readObject(payload);
-    const config = readObject(record?.config) as RustProcessConfig | null;
-    const request: ProcessFileRequest = {
-      auto: record?.auto === true,
-      config,
-      curveFilterField: readString(record?.curveFilterField) || null,
-      curveFilterKey: readString(record?.curveFilterKey) || null,
-      fileId: readString(record?.fileId),
-      fileName: readString(record?.fileName),
-      inputPath: normalizeAbsoluteFilePath(record?.path),
-      maxPoints: Math.max(2, Math.floor(Number(record?.maxPoints) || 600)),
-    };
-    return rustService.processFile(request);
-  };
-
   const handleRustEngineAnalyzeRc = async (
     _event: IpcMainInvokeEvent,
     payload: unknown,
@@ -249,10 +228,6 @@ export const registerRustHostChannels = ({
     handleRustEngineReadCells,
   );
   ipcMain.handle(
-    ipcChannels.rustHostProcessFile,
-    handleRustEngineProcessFile,
-  );
-  ipcMain.handle(
     ipcChannels.rustHostCalculateRc,
     handleRustEngineAnalyzeRc,
   );
@@ -272,7 +247,6 @@ export const registerRustHostChannels = ({
       ipcMain.removeHandler(ipcChannels.rustHostPreviewRows);
       ipcMain.removeHandler(ipcChannels.rustHostReadCell);
       ipcMain.removeHandler(ipcChannels.rustHostReadCells);
-      ipcMain.removeHandler(ipcChannels.rustHostProcessFile);
       ipcMain.removeHandler(ipcChannels.rustHostCalculateRc);
       ipcMain.removeHandler(ipcChannels.rustHostExportOriginCsv);
       ipcMain.removeHandler(ipcChannels.rustHostDispose);

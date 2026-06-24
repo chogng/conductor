@@ -649,14 +649,6 @@ function resolveRustExcelConverterPath() {
   });
 }
 
-function createRustProcessingResultTempDir(fileId) {
-  runSharedProcessStartupContributionsOnce("rust-processing");
-  const safeFileId = String(fileId || "file").replace(/[^a-zA-Z0-9._-]+/g, "_");
-  const root = getTempRootDir();
-  fs.mkdirSync(root, { recursive: true });
-  return fs.mkdtempSync(path.join(root, `rust-process-${safeFileId}-`));
-}
-
 function createRustOriginExportTempPath(fileId, csvName) {
   runSharedProcessStartupContributionsOnce("origin-export-stream");
   const safeFileId = String(fileId || "file").replace(/[^a-zA-Z0-9._-]+/g, "_");
@@ -708,26 +700,6 @@ function isReadableOriginStreamExportPath(filePath) {
   } catch {
     return false;
   }
-}
-
-async function hydrateRustProcessingResultRefs(result, tempDir = null) {
-  if (!result || typeof result !== "object" || Array.isArray(result)) return result;
-
-  const ref = result.calculationCacheRef;
-  const refPath =
-    ref && typeof ref === "object" && typeof ref.path === "string"
-      ? normalizeAbsoluteFilePath(ref.path)
-      : "";
-  if (refPath && ref?.format === "json") {
-    const text = await fs.promises.readFile(refPath, "utf8");
-    result.analysisCache = JSON.parse(text);
-    delete result.calculationCacheRef;
-  }
-
-  if (tempDir) {
-    void fs.promises.rm(tempDir, { force: true, recursive: true }).catch(() => {});
-  }
-  return result;
 }
 
 function stopAllRustEngines() {
@@ -2441,8 +2413,6 @@ if (hasSingleInstanceLock) {
     runForeground: task => rustPriorityGate.runForeground(task),
     rustService: new RustHostService({
       createOriginExportTempPath: createRustOriginExportTempPath,
-      createRustProcessingResultTempDir,
-      hydrateRustProcessingResultRefs,
       isRustProcessFileConfigSupported,
       isSupportedInputPath: isSupportedRustInputPath,
       rustWorkerHost,

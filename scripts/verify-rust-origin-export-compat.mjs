@@ -7,7 +7,11 @@ import {
   buildOriginExportPlan,
   isRustOriginCsvEligiblePayload,
   resolveRustOriginCsvYTransformForPayload,
-} from "../src/cs/workbench/contrib/export/common/originSelectionExport.ts";
+} from "../src/cs/workbench/services/export/common/originExport.ts";
+import {
+  createPrepareImportBatchRequests,
+  createProcessRequestsFromPrepareResponses,
+} from "./lib/recipe-template-process.mjs";
 
 const ROOT = process.cwd();
 const OUTPUT_DIR = path.join(ROOT, ".build", "verify", "rust-origin-export");
@@ -15,6 +19,8 @@ const RUST_CSV_DIR = path.join(OUTPUT_DIR, "rust-csv");
 const EXPECTED_DIR = path.join(OUTPUT_DIR, "expected");
 const FILES_PATH = path.join(OUTPUT_DIR, "files.json");
 const MANIFEST_PATH = path.join(OUTPUT_DIR, "manifest.json");
+const PREPARE_REQUESTS_PATH = path.join(OUTPUT_DIR, "prepare-requests.jsonl");
+const PREPARE_RESULTS_PATH = path.join(OUTPUT_DIR, "prepare-results.jsonl");
 const PROCESS_REQUESTS_PATH = path.join(OUTPUT_DIR, "process-requests.jsonl");
 const PROCESS_RESULTS_PATH = path.join(OUTPUT_DIR, "process-results.jsonl");
 const EXPORT_REQUESTS_PATH = path.join(OUTPUT_DIR, "export-requests.jsonl");
@@ -292,7 +298,20 @@ const prepare = async (selectedRoot) => {
   const files = await walkFiles(selectedRoot);
   await fs.mkdir(OUTPUT_DIR, { recursive: true });
   await fs.writeFile(FILES_PATH, `${JSON.stringify({ root: selectedRoot, files }, null, 2)}\n`, "utf8");
+  await writeJsonLines(PREPARE_REQUESTS_PATH, createPrepareImportBatchRequests(files));
   console.log(`[rust-origin-export-compat] prepared files=${files.length} root=${selectedRoot}`);
+};
+
+const planProcess = async () => {
+  const { files } = JSON.parse(await fs.readFile(FILES_PATH, "utf8"));
+  const prepareResponses = await readJsonLines(PREPARE_RESULTS_PATH);
+  const processRequests = createProcessRequestsFromPrepareResponses({
+    fileIdPrefix: "origin-export",
+    files,
+    prepareResponses,
+  });
+  await writeJsonLines(PROCESS_REQUESTS_PATH, processRequests);
+  console.log(`[rust-origin-export-compat] planned processRequests=${processRequests.length}`);
 };
 
 const plan = async () => {
@@ -434,6 +453,8 @@ if (command === "prepare") {
     );
   }
   await prepare(selectedRoot);
+} else if (command === "plan-process") {
+  await planProcess();
 } else if (command === "plan") {
   await plan();
 } else if (command === "compare") {

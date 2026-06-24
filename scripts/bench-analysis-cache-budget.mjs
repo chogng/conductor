@@ -3,6 +3,9 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
+import {
+  createProcessRequestFromPrepareResult,
+} from "./lib/recipe-template-process.mjs";
 
 const ROOT = process.cwd();
 const WORKER_FILE_NAME = process.platform === "win32" ? "conductor-rs.exe" : "conductor-rs";
@@ -224,13 +227,27 @@ try {
       path.join(os.tmpdir(), "conductor-analysis-cache-bench-"),
     );
     try {
-      const result = await rsWorker.send("processFileAuto", {
-        calculationCachePath: path.join(tempDir, "calculation-cache.json"),
-        fileId: `analysis-cache-${index}`,
-        fileName: path.basename(filePath),
-        maxPoints: 600,
-        path: filePath,
+      const prepareResult = await rsWorker.send("prepareImportBatch", {
+        entries: [{
+          fileName: path.basename(filePath),
+          path: filePath,
+        }],
       });
+      const preparedFile = Array.isArray(prepareResult?.results) ? prepareResult.results[0] : null;
+      const request = createProcessRequestFromPrepareResult({
+        calculationCachePath: path.join(tempDir, "calculation-cache.json"),
+        fileIdPrefix: "analysis-cache",
+        filePath,
+        index,
+        prepareResult: preparedFile,
+      });
+      if (!request.config) {
+        throw new Error("missing template config");
+      }
+      const payload = { ...request };
+      delete payload.command;
+      delete payload.id;
+      const result = await rsWorker.send(request.command, payload);
       await hydrateCalculationCacheRef(result);
       const summary = summarizeAnalysisCache(result);
       if (!summary.series) {
