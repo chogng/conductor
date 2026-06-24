@@ -37,7 +37,7 @@ import type {
   SessionFile,
 } from "src/cs/workbench/services/session/common/sessionTypes";
 import type { TableSource } from "src/cs/workbench/services/table/common/table";
-import { createTemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
+import { createTemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { SliceCommit } from "src/cs/workbench/services/slice/common/slice";
 import {

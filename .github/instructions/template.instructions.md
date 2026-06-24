@@ -54,16 +54,15 @@ plot rendering, or chart state.
 | File | Responsibility |
 | --- | --- |
 | `common/templateSpec.ts` | pure block-aware `Template` spec: row ranges, axis bindings, segmentation, legends, titles, applicability, and execution defaults. |
-| `common/builtinTemplateSpecs.ts` | built-in domain template specs. |
 | `common/templateDraft.ts` | candidate draft shape produced from `TableFacts + Recipe/UserTemplate` before Review status/policy projection. |
 | `common/recipeSelectorEvaluator.ts` | pure Recipe selector evaluator over canonical table facts. |
 | `common/recipeTemplateMaterializer.ts` | pure Recipe + table-facts materializer that creates `TemplateDraft` candidates. |
 | `common/userTemplateMaterializer.ts` | pure UserTemplate + table-facts materializer that creates `TemplateDraft` candidates. |
 | `common/automaticTemplateMaterializer.ts` | combines Recipe and UserTemplate materializers into the automatic candidate set. |
-| `common/template.ts` | `TemplateApplyPresetRecord`, command ids, and re-exported template spec types. |
+| `common/template.ts` | `TemplateApplyPresetRecord` and re-exported template spec types. |
 | `common/templateLegacyAdapter.ts` | adapter between historical/manual apply-preset view models and canonical block-aware `Template`. |
 | `common/templateApplyConfigUtils.ts` | legacy/manual apply config normalization and cloning. |
-| `common/templateSelection.ts` | selection records/helpers. |
+| `contrib/template/browser/templateIds.ts` | Template UI view id and command ids. |
 | `contrib/template/browser/templateFileTransfer.ts` | Template UI JSON import/export workflow helper; parses/serializes legacy bundles. |
 | `contrib/template/browser/templateUserTemplateAdapter.ts` | View-model adapter from UserTemplate snapshots into legacy editable apply records. |
 | `contrib/template/browser/templateViewStateService.ts` | Template UI selected-template/form editor state. |

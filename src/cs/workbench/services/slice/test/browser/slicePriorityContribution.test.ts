@@ -22,7 +22,7 @@ import type {
 	SliceState,
 } from "src/cs/workbench/services/slice/common/slice";
 import type { RawTableRef } from "src/cs/workbench/services/session/common/sessionModel";
-import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
+import type { TemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
 
 suite("workbench/services/slice/test/browser/slicePriorityContribution", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

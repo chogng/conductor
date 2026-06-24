@@ -98,6 +98,7 @@ generation, Session mutation, or DOM rendering.
 | `contrib/files/common/explorerModel.ts` | Explorer resources/items/tree helpers. |
 | `contrib/files/common/explorerFileNestingTrie.ts` | Explorer display-only file nesting pattern matching. |
 | `contrib/files/browser/explorerViewlet.ts` | Explorer `ViewPane` host and sidebar actions. |
+| `contrib/files/browser/templateSelectionDisplay.ts` | Explorer current-template display projection from Template UI state and Slice selection helpers. |
 | `contrib/files/browser/views/explorerView.ts` | Explorer DOM shell/drag-drop host. |
 | `contrib/files/browser/views/explorerViewer.ts` | Tree/thumbnail renderer, row templates, context menus, Explorer-owned hover containers. |
 | `contrib/files/browser/fileActions.ts` / `fileCommands.ts` | Files/Explorer action and command handlers. |

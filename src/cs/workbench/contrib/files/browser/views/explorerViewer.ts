@@ -99,7 +99,7 @@ import {
   resolveTemplateSelectionForFile,
   type TemplateSelection,
   type TemplateSelectionsByFileId,
-} from "src/cs/workbench/services/template/common/templateSelection";
+} from "src/cs/workbench/services/slice/common/templateSelection";
 import type { TemplateApplyPresetRecord } from "src/cs/workbench/services/template/common/template";
 import { isAutoTemplateId } from "src/cs/workbench/services/template/common/autoTemplate";
 

@@ -26,8 +26,8 @@ import {
 } from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
 import {
   TemplateCommandId,
-  type TemplateApplyPresetRecord,
-} from "src/cs/workbench/services/template/common/template";
+} from "src/cs/workbench/contrib/template/browser/templateIds";
+import type { TemplateApplyPresetRecord } from "src/cs/workbench/services/template/common/template";
 import {
   createTemplateFromApplyPresetRecord,
 } from "src/cs/workbench/services/template/common/templateLegacyAdapter";

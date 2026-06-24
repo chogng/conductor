@@ -29,7 +29,7 @@ import type {
 	SliceState,
 } from "src/cs/workbench/services/slice/common/slice";
 import type { Template } from "src/cs/workbench/services/template/common/template";
-import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
+import type { TemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
 import {
 	createReviewEvidenceSignature,
 	type RawTableReviewRecord,

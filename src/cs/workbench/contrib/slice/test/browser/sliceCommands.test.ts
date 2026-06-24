@@ -31,7 +31,7 @@ import {
 	type TemplateState,
 	ITemplateViewStateService,
 } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
-import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
+import type { TemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
 
 suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

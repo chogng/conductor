@@ -16,7 +16,7 @@ import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import {
   TemplateAuxiliaryBarViewId,
-} from "src/cs/workbench/services/template/common/template";
+} from "src/cs/workbench/contrib/template/browser/templateIds";
 import {
   IUserTemplateService,
   type IUserTemplateService as IUserTemplateServiceType,

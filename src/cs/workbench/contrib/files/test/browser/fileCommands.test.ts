@@ -6,7 +6,7 @@ import type { ServicesAccessor, ServiceIdentifier } from "../../../../../platfor
 import { ExplorerWorkflowService } from "../../../../../workbench/contrib/files/browser/explorerWorkflowService.ts";
 import { IExplorerService, IExplorerWorkflowService } from "../../../../../workbench/contrib/files/browser/files.ts";
 import { ISliceService } from "src/cs/workbench/services/slice/common/slice";
-import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
+import type { TemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
 import {
   ADD_FOLDER_ACTION_ID,
   CLOSE_FILE_ITEM_COMMAND_ID,

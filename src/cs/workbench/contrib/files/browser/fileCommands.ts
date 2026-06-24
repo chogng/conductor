@@ -5,7 +5,7 @@
 import type { ICommandHandler } from "src/cs/platform/commands/common/commands";
 import { IExplorerService, IExplorerWorkflowService, type ExplorerSelectionKind } from "src/cs/workbench/contrib/files/browser/files";
 import { ISliceService } from "src/cs/workbench/services/slice/common/slice";
-import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
+import type { TemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
 
 export const addFolderHandler: ICommandHandler = accessor => {
   accessor.get(IExplorerWorkflowService).openFolderImport();

@@ -18,7 +18,7 @@ import type { Template } from "src/cs/workbench/services/template/common/templat
 import type {
   TemplateSelection,
   TemplateSelectionsByFileId,
-} from "src/cs/workbench/services/template/common/templateSelection";
+} from "src/cs/workbench/services/slice/common/templateSelection";
 import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/review";
 
 export const ISliceService = createDecorator<ISliceService>("sliceService");

@@ -48,7 +48,7 @@ import {
 import type { SliceRun } from "src/cs/workbench/services/slice/common/slice";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import type { Template, TemplateSegmentation } from "src/cs/workbench/services/template/common/templateSpec";
-import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
+import type { TemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
 
 const CALCULATION_CACHE_PAYLOAD_VERSION = 2;
 

@@ -7,7 +7,11 @@ import { localize } from "src/cs/nls";
 import type { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import type { IFileService } from "src/cs/platform/files/common/files";
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
-import type { TemplateImportPayloadHandler } from "src/cs/workbench/services/template/common/template";
+
+export type TemplateImportPayloadHandler = (
+  payload: unknown,
+  options: { fileName: string },
+) => Promise<unknown> | unknown;
 
 export class TemplateImportController {
   constructor(

@@ -23,7 +23,7 @@ import {
 import {
   getTemplateSelectionTemplateId,
   type TemplateSelection,
-} from "src/cs/workbench/services/template/common/templateSelection";
+} from "src/cs/workbench/services/slice/common/templateSelection";
 import {
   createRawTableStatusSignature,
 } from "src/cs/workbench/contrib/files/common/rawTableStatusProjection";

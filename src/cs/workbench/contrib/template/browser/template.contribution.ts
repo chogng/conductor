@@ -13,7 +13,7 @@ import {
 } from "src/cs/workbench/common/views";
 import { registerTemplateActions } from "src/cs/workbench/contrib/template/browser/templateActions";
 import { TemplateAuxiliaryBarViewPane } from "src/cs/workbench/contrib/template/browser/templateAuxiliaryBarViewPane";
-import { TemplateAuxiliaryBarViewId } from "src/cs/workbench/services/template/common/template";
+import { TemplateAuxiliaryBarViewId } from "src/cs/workbench/contrib/template/browser/templateIds";
 
 registerTemplateActions();
 

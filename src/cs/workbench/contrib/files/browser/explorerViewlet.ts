@@ -83,7 +83,7 @@ import {
 } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import {
   createCurrentTemplateSelectionDisplay,
-} from "src/cs/workbench/services/template/common/templateSelection";
+} from "src/cs/workbench/contrib/files/browser/templateSelectionDisplay";
 import {
   ITemplateViewStateService,
   type ITemplateViewStateService as ITemplateViewStateServiceType,

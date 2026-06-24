@@ -10,7 +10,7 @@ import type { IContextMenuService } from "src/cs/platform/contextview/browser/co
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import { localize } from "src/cs/nls";
 import { SliceCommandId } from "src/cs/workbench/contrib/slice/common/slice";
-import { TemplateCommandId } from "src/cs/workbench/services/template/common/template";
+import { TemplateCommandId } from "src/cs/workbench/contrib/template/browser/templateIds";
 
 export type TemplateApplyViewOptions = {
   readonly commandService: Pick<ICommandService, "executeCommand">;

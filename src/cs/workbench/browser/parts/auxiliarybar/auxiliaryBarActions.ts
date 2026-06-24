@@ -28,7 +28,7 @@ import {
 } from "src/cs/workbench/services/search/common/search";
 import {
   TemplateAuxiliaryBarViewId,
-} from "src/cs/workbench/services/template/common/template";
+} from "src/cs/workbench/contrib/template/browser/templateIds";
 import type { TemplateMode } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
 
 export type AuxiliaryBarView = "template" | "search" | "export" | "parameters" | "settings";

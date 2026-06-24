@@ -26,7 +26,7 @@ import { validateTemplateForSave } from "src/cs/workbench/services/template/comm
 import {
   isAutoTemplateId,
 } from "src/cs/workbench/services/template/common/autoTemplate";
-import { TemplateCommandId } from "src/cs/workbench/services/template/common/template";
+import { TemplateCommandId } from "src/cs/workbench/contrib/template/browser/templateIds";
 import type {
   TemplateApplyPresetRecord,
 } from "src/cs/workbench/services/template/common/template";

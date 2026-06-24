@@ -41,7 +41,7 @@ import {
   getTemplateSelectionTemplateId,
   resolveTemplateSelectionForFile,
   type TemplateSelectionsByFileId,
-} from "src/cs/workbench/services/template/common/templateSelection";
+} from "src/cs/workbench/services/slice/common/templateSelection";
 import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import type { FileSourceWorkflow } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import {

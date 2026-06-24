@@ -4,19 +4,19 @@
 
 import assert from "assert";
 
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
-	createCurrentTemplateSelectionDisplay,
 	createTemplateSelection,
 	getTemplateSelectionId,
 	getTemplateSelectionTemplateId,
 	removeTemplateSelectionsForFiles,
 	removeTemplateSelectionsForTemplate,
 	resolveTemplateSelectionForFile,
-} from "src/cs/workbench/services/template/common/templateSelection";
-import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+} from "src/cs/workbench/services/slice/common/templateSelection";
 
-suite("workbench/services/template/test/common/templateSelection", () => {
-  ensureNoDisposablesAreLeakedInTestSuite();
+suite("workbench/services/slice/test/common/templateSelection", () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test("creates auto and saved template selections", () => {
 		assert.deepEqual(createTemplateSelection(null), { kind: "auto" });
 		assert.deepEqual(createTemplateSelection("auto"), { kind: "auto" });
@@ -83,27 +83,5 @@ suite("workbench/services/template/test/common/templateSelection", () => {
 				"file-c": { kind: "auto" },
 			},
 		);
-	});
-
-	test("creates current template display from selected id and form name", () => {
-		assert.deepEqual(createCurrentTemplateSelectionDisplay({
-			selectedTemplateId: null,
-		}), {
-			label: "template.recommendedTemplate",
-			selection: { kind: "auto" },
-		});
-		assert.deepEqual(createCurrentTemplateSelectionDisplay({
-			formName: " My Template ",
-			selectedTemplateId: "template-a",
-		}), {
-			label: "My Template",
-			selection: { kind: "saved", templateId: "template-a" },
-		});
-		assert.deepEqual(createCurrentTemplateSelectionDisplay({
-			selectedTemplateId: "template-a",
-		}), {
-			label: "template-a",
-			selection: { kind: "saved", templateId: "template-a" },
-		});
 	});
 });

@@ -40,8 +40,8 @@ import {
 } from "src/cs/workbench/services/review/common/review";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
-import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
-import { getTemplateSelectionTemplateId } from "src/cs/workbench/services/template/common/templateSelection";
+import type { TemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
+import { getTemplateSelectionTemplateId } from "src/cs/workbench/services/slice/common/templateSelection";
 import {
 	IUserTemplateService,
 	type IUserTemplateService as IUserTemplateServiceType,

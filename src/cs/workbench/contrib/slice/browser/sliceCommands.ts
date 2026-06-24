@@ -36,7 +36,7 @@ import { createTemplateFromApplyPresetRecord } from "src/cs/workbench/services/t
 import {
 	createInlineTemplateSelection,
 	type TemplateSelection,
-} from "src/cs/workbench/services/template/common/templateSelection";
+} from "src/cs/workbench/services/slice/common/templateSelection";
 import {
 	validateTemplateForApply,
 } from "src/cs/workbench/services/template/common/templateValidation";

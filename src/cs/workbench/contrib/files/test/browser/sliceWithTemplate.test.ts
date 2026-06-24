@@ -16,7 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 import type { TemplateState } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
 import type { TemplateApplyPresetRecord } from "src/cs/workbench/services/template/common/template";
 import { createEmptyTemplateApplyConfig } from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
-import { createTemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
+import { createTemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
 
 suite("workbench/contrib/files/test/browser/sliceWithTemplate", () => {
   ensureNoDisposablesAreLeakedInTestSuite();

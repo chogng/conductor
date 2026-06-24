@@ -18,7 +18,7 @@ import type {
 import type {
   TemplateSelection,
   TemplateSelectionsByFileId,
-} from "src/cs/workbench/services/template/common/templateSelection";
+} from "src/cs/workbench/services/slice/common/templateSelection";
 
 export const IExplorerService = createDecorator<IExplorerService>("explorerService");
 export const IExplorerWorkflowService = createDecorator<IExplorerWorkflowService>("explorerWorkflowService");
