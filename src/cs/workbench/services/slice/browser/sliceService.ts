@@ -19,13 +19,6 @@ import {
 	IRawTableRowsReaderService,
 	type IRawTableRowsReaderService as IRawTableRowsReaderServiceType,
 } from "src/cs/workbench/services/files/common/rawTableRowsReader";
-import { createAssessmentEvidenceFromRecord } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
-import type { RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
-import {
-	IRecipeService,
-	type IRecipeService as IRecipeServiceType,
-	type RecipeSnapshot,
-} from "src/cs/workbench/services/recipe/common/recipe";
 import {
 	ISliceService,
 	type ISliceService as ISliceServiceType,
@@ -33,17 +26,18 @@ import {
 	type SliceFileState,
 	type SliceMeasurementBinding,
 	type SlicePlan,
+	type SliceRequest,
 	type SliceState,
 } from "src/cs/workbench/services/slice/common/slice";
 import { executeSlicePlan } from "src/cs/workbench/services/slice/common/sliceExecutor";
 import {
-	materializeRecipeTemplates,
-	selectAutomaticRecipeTemplate,
-} from "src/cs/workbench/services/slice/common/recipeTemplateMaterializer";
-import {
 	createSliceAssessmentSignature,
 	createSlicePlan,
 } from "src/cs/workbench/services/slice/common/slicePlanner";
+import {
+	createReviewRecordSignature,
+	type RawTableReviewRecord,
+} from "src/cs/workbench/services/review/common/review";
 import {
 	ITemplateService,
 	type ITemplateService as ITemplateServiceType,
@@ -74,7 +68,6 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		@ISessionService private readonly sessionService: ISessionServiceType,
 		@ITemplateService private readonly templateService?: ITemplateServiceType,
 		@IRawTableRowsReaderService private readonly rawTableRowsReaderService?: IRawTableRowsReaderServiceType,
-		@IRecipeService private readonly recipeService?: IRecipeServiceType,
 	) {
 		super();
 		this._register(this.sessionService.onDidChangeSession(event => {
@@ -97,15 +90,43 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		};
 	}
 
+	public submit(requests: readonly SliceRequest[]): void {
+		let didChange = false;
+		for (const request of requests) {
+			const plan = this.createRequestPlan(request);
+			if (!plan) {
+				didChange = this.setFileState(request.ref.fileId, {
+					state: "skipped",
+					code: "slice.requestInvalid",
+					message: "The slice request is no longer valid.",
+				}) || didChange;
+				continue;
+			}
+
+			if (request.trigger.kind === "reviewDecision" && this.isLatestAutoRunCurrent(request.ref, plan)) {
+				didChange = this.setFileState(request.ref.fileId, { state: "ready" }) || didChange;
+				continue;
+			}
+
+			this.enqueueSliceEntry({ ref: request.ref, plan });
+			didChange = this.setFileState(request.ref.fileId, { state: "queued" }) || didChange;
+		}
+		if (didChange) {
+			this.fireSliceStateChange();
+		}
+		this.startSliceQueue();
+	}
+
 	public enqueueAuto(refs: readonly RawTableRef[]): void {
 		let didChange = false;
 		for (const ref of uniqueRawTableRefs(refs)) {
-			const plan = this.createAutoPlan(ref);
+			const request = this.createAutoRequest(ref);
+			const plan = request ? this.createRequestPlan(request) : null;
 			if (!plan) {
 				didChange = this.setFileState(ref.fileId, {
 					state: "skipped",
-					code: "slice.autoRecipeTemplateMissing",
-					message: "No Recipe-backed template is available for automatic slicing.",
+					code: "slice.templateResolutionMissing",
+					message: "No resolved template is available for automatic slicing.",
 				}) || didChange;
 				continue;
 			}
@@ -203,43 +224,68 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	}
 
 	private createAutoPlan(ref: RawTableRef): SlicePlan | null {
+		const request = this.createAutoRequest(ref);
+		return request ? this.createRequestPlan(request) : null;
+	}
+
+	private createAutoRequest(ref: RawTableRef): SliceRequest | null {
 		const snapshot = this.sessionService.getSnapshot();
 		const file = snapshot.filesById[ref.fileId];
 		const assessment = file?.assessmentsByRawTableId[ref.rawTableId];
 		const table = file?.raw.tablesById[ref.rawTableId];
-		if (!file || !assessment || !table || assessment.decision.autoApplyAllowed !== true) {
+		const review = file?.rawTableReviewsByRawTableId?.[ref.rawTableId];
+		if (!file || !assessment || !table || !isSystemRecommendedReview(review)) {
 			return null;
 		}
-
-		const recipeSnapshot = this.getRecipeSnapshot();
-		const evidence = createAssessmentEvidenceFromRecord(assessment, {
-			fileName: file.name,
-			rowCount: table.rowCount,
-			columnCount: table.columnCount,
+		const reviewedTemplate = review.decision.reviewedTemplate;
+		const reviewSignature = createReviewRecordSignature(review);
+		const requestSignature = createAutomaticSliceRequestSignature({
+			reviewSignature,
+			sourceRawTableVersion: assessment.sourceRawTableVersion,
+			templateFingerprint: reviewedTemplate.templateFingerprint,
 		});
-		const automaticTemplate = selectAutomaticRecipeTemplate(
-			materializeRecipeTemplates({
-				evidence,
-				recipeSnapshot,
-			}),
-			true,
-		);
-		if (!automaticTemplate) {
+		return {
+			id: `slice-request:${ref.fileId}:${ref.rawTableId}:${requestSignature}`,
+			ref,
+			sourceRawTableVersion: assessment.sourceRawTableVersion,
+			reviewedTemplate,
+			trigger: {
+				kind: "reviewDecision",
+				reviewSignature,
+				submittedBy: "system",
+			},
+			requestSignature,
+			createdAt: Date.now(),
+		};
+	}
+
+	private createRequestPlan(request: SliceRequest): SlicePlan | null {
+		const snapshot = this.sessionService.getSnapshot();
+		const file = snapshot.filesById[request.ref.fileId];
+		const assessment = file?.assessmentsByRawTableId[request.ref.rawTableId];
+		const table = file?.raw.tablesById[request.ref.rawTableId];
+		if (!file || !assessment || !table) {
+			return null;
+		}
+		if ((file.rawTableVersionsById[request.ref.rawTableId] ?? 0) !== request.sourceRawTableVersion) {
 			return null;
 		}
 
 		return this.createPlan({
 			file,
-			mode: "auto",
-			ref,
-			selection: { kind: "auto" },
-			sourceAssessmentSignature: createSliceAssessmentSignature(
-				assessment,
-				recipeSnapshot.fingerprint,
-			),
+			mode: request.trigger.kind === "reviewDecision" ? "auto" : "manual",
+			ref: request.ref,
+			selection: request.trigger.kind === "reviewDecision"
+				? { kind: "auto" }
+				: { kind: "inline", template: request.reviewedTemplate.template },
+			sourceAssessmentSignature: createSliceAssessmentSignature(assessment, {
+				reviewSignature: request.trigger.kind === "reviewDecision"
+					? request.trigger.reviewSignature
+					: request.requestSignature,
+			}),
 			measurement: getSliceMeasurementBinding(assessment),
-			template: automaticTemplate.template,
-			templateFingerprint: automaticTemplate.templateFingerprint,
+			template: request.reviewedTemplate.template,
+			templateFingerprint: request.reviewedTemplate.templateFingerprint,
 		});
 	}
 
@@ -445,10 +491,6 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		return this.templateService.getTemplate(templateId) ?? null;
 	}
 
-	private getRecipeSnapshot(): RecipeSnapshot {
-		return this.recipeService?.getSnapshot() ?? EMPTY_RECIPE_SNAPSHOT;
-	}
-
 	private isLatestAutoRunCurrent(ref: RawTableRef, plan: SlicePlan): boolean {
 		const snapshot = this.sessionService.getSnapshot();
 		const file = snapshot.filesById[ref.fileId];
@@ -573,12 +615,27 @@ const sameRawTableRef = (
 
 const normalizeText = (value: unknown): string => String(value ?? "").trim();
 
-const EMPTY_RECIPE_SNAPSHOT: RecipeSnapshot = {
-	version: 0,
-	fingerprint: "recipe:legacy",
-	recipes: [],
-	diagnostics: [],
-};
+const createAutomaticSliceRequestSignature = ({
+	reviewSignature,
+	sourceRawTableVersion,
+	templateFingerprint,
+}: {
+	readonly reviewSignature: string;
+	readonly sourceRawTableVersion: number;
+	readonly templateFingerprint: string;
+}): string => JSON.stringify({
+	reviewSignature,
+	sourceRawTableVersion,
+	templateFingerprint,
+});
+
+const isSystemRecommendedReview = (
+	review: RawTableReviewRecord | undefined,
+): review is RawTableReviewRecord & {
+	readonly decision: Extract<RawTableReviewRecord["decision"], { readonly kind: "ready" }>;
+} =>
+	review?.decision.kind === "ready" &&
+	review.decision.application.kind === "systemRecommended";
 
 const isSameSliceFileState = (
 	current: SliceFileState | undefined,

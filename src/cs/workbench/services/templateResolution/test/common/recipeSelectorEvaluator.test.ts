@@ -6,7 +6,7 @@ import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { AssessmentEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
-import { evaluateRecipeSelector } from "src/cs/workbench/services/slice/common/recipeSelectorEvaluator";
+import { evaluateRecipeSelector } from "src/cs/workbench/services/templateResolution/common/recipeSelectorEvaluator";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 import type {
   MeasurementBlockRecord,
@@ -14,7 +14,7 @@ import type {
 } from "src/cs/workbench/services/assessment/common/measurement";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
 
-suite("workbench/services/slice/test/common/recipeSelectorEvaluator", () => {
+suite("workbench/services/templateResolution/test/common/recipeSelectorEvaluator", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
 
   test("matches builtin IV transfer recipe against assessment block evidence", () => {

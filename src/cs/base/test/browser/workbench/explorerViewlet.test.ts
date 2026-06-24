@@ -35,6 +35,7 @@ import type { INotificationService } from "src/cs/workbench/services/notificatio
 import type { ISessionService } from "src/cs/workbench/services/session/common/session";
 import type { ISliceService } from "src/cs/workbench/services/slice/common/slice";
 import type { IThumbnailPreviewService, IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
+import type { IAssessmentService } from "src/cs/workbench/services/assessment/common/assessment";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/files/browser/explorerViewlet", () => {
@@ -170,6 +171,7 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
       removeFiles: options.removeFiles ?? (() => undefined),
       renameFile: () => undefined,
     } as unknown as ISessionService,
+    {} as unknown as IAssessmentService,
     {
       onDidChangePreview: Event.None,
       get: () => ({ kind: "idle" }),

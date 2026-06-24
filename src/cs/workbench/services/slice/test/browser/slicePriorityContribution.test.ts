@@ -18,6 +18,7 @@ import { SlicePriorityContribution } from "src/cs/workbench/services/slice/brows
 import type {
 	ISliceService,
 	RunSliceWithTemplateInput,
+	SliceRequest,
 	SliceState,
 } from "src/cs/workbench/services/slice/common/slice";
 import type { RawTableRef } from "src/cs/workbench/services/session/common/sessionModel";
@@ -69,6 +70,7 @@ class TestSliceService implements ISliceService {
 	}
 
 	public enqueueAuto(_refs: readonly RawTableRef[]): void {}
+	public submit(_requests: readonly SliceRequest[]): void {}
 	public runWithTemplate(_input: RunSliceWithTemplateInput): void {}
 
 	public prioritize(fileId: string): void {

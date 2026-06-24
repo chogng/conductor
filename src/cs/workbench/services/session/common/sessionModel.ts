@@ -7,6 +7,8 @@ import type {
 } from "src/cs/workbench/services/files/common/rawTable";
 import type { SliceRun, SliceRunId } from "src/cs/workbench/services/slice/common/slice";
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
+import type { RawTableTemplateResolutionRecord } from "src/cs/workbench/services/templateResolution/common/templateResolution";
+import type { RawTableReviewRecord } from "src/cs/workbench/services/review/common/review";
 
 export type FileId = string;
 export type SheetId = string;
@@ -68,6 +70,8 @@ export type FileRecord = {
   raw: RawRecord;
   rawTableVersionsById: Record<SheetId, number>;
   assessmentsByRawTableId: Record<SheetId, RawTableAssessmentRecord>;
+  templateResolutionsByRawTableId?: Record<SheetId, RawTableTemplateResolutionRecord>;
+  rawTableReviewsByRawTableId?: Record<SheetId, RawTableReviewRecord>;
   measurementBlocksById: Record<string, MeasurementBlockRecord>;
   measurementBlockOrder: string[];
   sliceRunsById?: Record<SliceRunId, SliceRun>;

@@ -5,6 +5,7 @@
 import assert from "assert";
 
 import { Event } from "src/cs/base/common/event";
+import { Disposable } from "src/cs/base/common/lifecycle";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { AssessmentContribution } from "src/cs/workbench/services/assessment/browser/assessment.contribution";
 import { AssessmentQueueService } from "src/cs/workbench/services/assessment/browser/assessmentQueueService";
@@ -24,26 +25,28 @@ import { SliceService } from "src/cs/workbench/services/slice/browser/sliceServi
 import type {
 	ISliceService,
 	RunSliceWithTemplateInput,
+	SliceRequest,
 	SliceState,
 } from "src/cs/workbench/services/slice/common/slice";
 import type { Template } from "src/cs/workbench/services/template/common/template";
 import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
-import type {
-	IRecipeService,
-	RecipeSnapshot,
-} from "src/cs/workbench/services/recipe/common/recipe";
-import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
+import {
+	createReviewEvidenceSignature,
+	type RawTableReviewRecord,
+} from "src/cs/workbench/services/review/common/review";
 
 suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test("enqueues ready auto-applicable assessments after assessment commit", () => {
+	test("enqueues system-recommended reviews after review commit", () => {
 		const sessionService = store.add(new SessionService());
 		const sliceService = new TestSliceService();
 		store.add(new AutoSliceContribution(sessionService, sliceService));
 		sessionService.commitFileImport(createImportResult());
+		const assessment = createAssessment();
 
-		sessionService.commitRawTableAssessment(createAssessment());
+		sessionService.commitRawTableAssessment(assessment);
+		sessionService.commitRawTableReviews([createReview(assessment)]);
 
 		assert.deepEqual(sliceService.enqueuedRefs, [[{
 			fileId: "file-a",
@@ -56,6 +59,7 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 		sessionService.commitFileImport(createImportResult());
 		const assessment = createAssessment();
 		sessionService.commitRawTableAssessment(assessment);
+		sessionService.commitRawTableReviews([createReview(assessment)]);
 		const template = createTemplate();
 		sessionService.commitSliceRuns([{
 			run: {
@@ -95,10 +99,9 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 		assert.deepEqual(sliceService.enqueuedRefs, []);
 	});
 
-	test("runs raw import through recipe-materialized automatic template into slice curves", async () => {
+	test("runs raw import through reviewed automatic template into slice curves", async () => {
 		const sessionService = store.add(new SessionService());
 		const rowsReaderService = new TestRawTableRowsReaderService();
-		const recipeService = new TestRecipeService();
 		const assessmentService = store.add(new AssessmentService());
 		const assessmentQueueService = store.add(new AssessmentQueueService(
 			sessionService,
@@ -109,10 +112,10 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 			sessionService,
 			undefined,
 			rowsReaderService,
-			recipeService,
 		));
 		store.add(new AssessmentContribution(sessionService, assessmentQueueService));
-		store.add(new AutoSliceContribution(sessionService, sliceService, recipeService));
+		store.add(new TestReviewContribution(sessionService));
+		store.add(new AutoSliceContribution(sessionService, sliceService));
 
 		sessionService.commitFileImport(createImportResult());
 		await waitUntil(() =>
@@ -150,6 +153,13 @@ class TestSliceService implements ISliceService {
 		}
 	}
 
+	public submit(requests: readonly SliceRequest[]): void {
+		const refs = requests.map(request => request.ref);
+		if (refs.length) {
+			this.enqueuedRefs.push(refs);
+		}
+	}
+
 	public runWithTemplate(_input: RunSliceWithTemplateInput): void {}
 	public prioritize(_fileId: string): void {}
 	public cancel(_fileIds?: readonly string[]): void {}
@@ -169,24 +179,93 @@ class TestRawTableRowsReaderService implements IRawTableRowsReaderService {
 	}
 }
 
-class TestRecipeService implements IRecipeService {
-	public declare readonly _serviceBrand: undefined;
+class TestReviewContribution extends Disposable {
+	public constructor(
+		private readonly sessionService: SessionService,
+	) {
+		super();
+		this._register(this.sessionService.onDidChangeSession(event => {
+			if (event.reason !== "assessmentChanged") {
+				return;
+			}
 
-	public readonly onDidChangeRecipes = Event.None as Event<void>;
-
-	public getSnapshot(): RecipeSnapshot {
-		return {
-			version: 1,
-			fingerprint: "recipe:test",
-			recipes: builtinRecipes,
-			diagnostics: [],
-		};
-	}
-
-	public reload(): Promise<void> {
-		return Promise.resolve();
+			const snapshot = this.sessionService.getSnapshot();
+			this.sessionService.commitRawTableReviews((event.rawTableRefs ?? [])
+				.map(ref => snapshot.filesById[ref.fileId]?.assessmentsByRawTableId[ref.rawTableId])
+				.filter((assessment): assessment is RawTableAssessmentRecord => Boolean(assessment))
+				.map(assessment => createReview(assessment, createAutoTemplate())));
+		}));
 	}
 }
+
+const createReview = (
+	assessment: RawTableAssessmentRecord,
+	template = createTemplate(),
+): RawTableReviewRecord => {
+	return {
+		fileId: assessment.fileId,
+		rawTableId: assessment.rawTableId,
+		sourceRawTableVersion: assessment.sourceRawTableVersion,
+		evidenceSignature: createReviewEvidenceSignature(assessment, {
+			columnCount: 3,
+			fileName: "Raw.csv",
+			rowCount: 3,
+		}),
+		recipeFingerprint: "recipe:test",
+		userTemplateCatalogVersion: 1,
+		userTemplateEffectiveFingerprint: "legacy-template:test",
+		reviewEngineVersion: 1,
+		reviewPolicyVersion: 1,
+		candidates: [{
+			id: "recipe:builtin.iv.transfer:block-a",
+			source: {
+				kind: "recipe",
+				recipeId: "builtin.iv.transfer",
+				recipeVersion: 1,
+			},
+			templateFingerprint: "template:auto",
+			displayName: template.name,
+			reasonCodes: [],
+			diagnosticCodes: [],
+		}],
+		reviews: [{
+			candidateId: "recipe:builtin.iv.transfer:block-a",
+			templateFingerprint: "template:auto",
+			status: "ready",
+			confidence: 0.95,
+			reasons: [],
+			diagnostics: [],
+		}],
+		decision: {
+			kind: "ready",
+			reviewedTemplate: {
+				candidateId: "recipe:builtin.iv.transfer:block-a",
+				source: {
+					kind: "recipe",
+					recipeId: "builtin.iv.transfer",
+					recipeVersion: 1,
+				},
+				template,
+				templateFingerprint: "template:auto",
+				review: {
+					candidateId: "recipe:builtin.iv.transfer:block-a",
+					templateFingerprint: "template:auto",
+					status: "ready",
+					confidence: 0.95,
+					reasons: [],
+					diagnostics: [],
+				},
+			},
+			application: {
+				kind: "systemRecommended",
+				reason: "review.ready.systemRecommended",
+			},
+			summary: "Template is ready.",
+			suggestedActions: [],
+		},
+		createdAt: 1,
+	};
+};
 
 const createAssessment = (): RawTableAssessmentRecord => ({
 	assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
@@ -227,13 +306,11 @@ const createAssessment = (): RawTableAssessmentRecord => ({
 				unit: "V",
 				headerText: "Vg",
 				confidence: 0.95,
-				source: {
-					range: {
-						startRow: 0,
-						endRow: 2,
-						startCol: 1,
-						endCol: 1,
-					},
+				sourceRange: {
+					startRow: 0,
+					endRow: 2,
+					startCol: 1,
+					endCol: 1,
 				},
 			}, {
 				rawCol: 2,
@@ -241,13 +318,11 @@ const createAssessment = (): RawTableAssessmentRecord => ({
 				unit: "A",
 				headerText: "Id",
 				confidence: 0.95,
-				source: {
-					range: {
-						startRow: 0,
-						endRow: 2,
-						startCol: 2,
-						endCol: 2,
-					},
+				sourceRange: {
+					startRow: 0,
+					endRow: 2,
+					startCol: 2,
+					endCol: 2,
 				},
 			}],
 		},
@@ -291,6 +366,21 @@ const createTemplate = (): Template => ({
 		},
 	}],
 	stopOnError: false,
+});
+
+const createAutoTemplate = (): Template => ({
+	...createTemplate(),
+	blocks: [{
+		...createTemplate().blocks[0]!,
+		x: {
+			columns: [1],
+			unit: "V",
+		},
+		y: {
+			columns: [2],
+			unit: "A",
+		},
+	}],
 });
 
 const createImportResult = (): FileImportResult => ({

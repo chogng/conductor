@@ -4,12 +4,12 @@
 
 import type { AssessmentEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
 import type { MeasurementBlockRecord } from "src/cs/workbench/services/assessment/common/measurement";
-import { evaluateRecipeSelector } from "src/cs/workbench/services/slice/common/recipeSelectorEvaluator";
+import { evaluateRecipeSelector } from "src/cs/workbench/services/templateResolution/common/recipeSelectorEvaluator";
 import type {
   RecipeSelectorBlockMatch,
   RecipeSelectorCapture,
   RecipeSelectorEvaluation,
-} from "src/cs/workbench/services/slice/common/recipeSelectorEvaluator";
+} from "src/cs/workbench/services/templateResolution/common/recipeSelectorEvaluator";
 import type { Recipe, RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
 import type {
   RecipeColumnProjection,

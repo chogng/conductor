@@ -19,12 +19,45 @@ import type {
   TemplateSelection,
   TemplateSelectionsByFileId,
 } from "src/cs/workbench/services/template/common/templateSelection";
+import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/review";
 
 export const ISliceService = createDecorator<ISliceService>("sliceService");
 export const AutoSliceContributionId = "workbench.services.slice.auto";
 export const SlicePriorityContributionId = "workbench.services.slice.priority";
 
 export type SliceRunId = string;
+
+export type SliceRequestTrigger =
+  | {
+      readonly kind: "reviewDecision";
+      readonly reviewSignature: string;
+      readonly submittedBy: "system";
+    }
+  | {
+      readonly kind: "userCommand";
+      readonly commandId?: string;
+      readonly submittedBy: "user";
+    }
+  | {
+      readonly kind: "batchCommand";
+      readonly batchId: string;
+      readonly submittedBy: "user";
+    }
+  | {
+      readonly kind: "rerun";
+      readonly previousRunId: string;
+      readonly submittedBy: "user" | "system";
+    };
+
+export type SliceRequest = {
+  readonly id: string;
+  readonly ref: RawTableRef;
+  readonly sourceRawTableVersion: number;
+  readonly reviewedTemplate: ReviewedTemplate;
+  readonly trigger: SliceRequestTrigger;
+  readonly requestSignature: string;
+  readonly createdAt: number;
+};
 
 export type SliceRun = {
   readonly id: SliceRunId;
@@ -129,6 +162,7 @@ export interface ISliceService {
   readonly onDidChangeSliceState: Event<void>;
 
   getState(): SliceState;
+  submit(requests: readonly SliceRequest[]): void;
   enqueueAuto(refs: readonly RawTableRef[]): void;
   runWithTemplate(input: RunSliceWithTemplateInput): void;
   prioritize(fileId: string): void;

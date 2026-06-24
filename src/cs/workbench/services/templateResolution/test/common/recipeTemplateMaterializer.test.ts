@@ -6,16 +6,16 @@ import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { AssessmentEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
-import { evaluateRecipeSelector } from "src/cs/workbench/services/slice/common/recipeSelectorEvaluator";
+import { evaluateRecipeSelector } from "src/cs/workbench/services/templateResolution/common/recipeSelectorEvaluator";
 import type {
 	MeasurementBlockRecord,
 	MeasurementColumnRef,
 } from "src/cs/workbench/services/assessment/common/measurement";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
-import { materializeRecipeTemplate } from "src/cs/workbench/services/slice/common/recipeTemplateMaterializer";
+import { materializeRecipeTemplate } from "src/cs/workbench/services/templateResolution/common/recipeTemplateMaterializer";
 
-suite("workbench/services/slice/test/common/recipeTemplateMaterializer", () => {
+suite("workbench/services/templateResolution/test/common/recipeTemplateMaterializer", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test("materializes builtin IV transfer recipe into a block-aware template", () => {
@@ -120,12 +120,10 @@ const createColumn = (
 	unit,
 	headerText: role,
 	confidence: 0.95,
-	source: {
-		range: {
-			startRow: 0,
-			endRow: 3,
-			startCol: rawCol,
-			endCol: rawCol,
-		},
+	sourceRange: {
+		startRow: 0,
+		endRow: 3,
+		startCol: rawCol,
+		endCol: rawCol,
 	},
 });

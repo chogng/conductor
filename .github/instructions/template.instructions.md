@@ -5,8 +5,9 @@ applyTo: 'src/cs/workbench/services/template/**,src/cs/workbench/contrib/templat
 # Template
 
 `Template` is a concrete extraction/slicing spec for raw tables whose
-measurement structure has already been determined. It is materialized from
-Recipe-backed automatic slicing or created by users, then executed by Slice.
+measurement structure has already been determined. It is materialized by Review
+candidate providers from Recipes or supplied by UserTemplate/manual input, then
+executed by Slice after review.
 
 Do not add consumer-shaped template sections such as `template.assessment`,
 `template.slicing`, or `template.binding`. Do not make Template describe how to
@@ -18,10 +19,10 @@ Legacy/manual extraction presets are not the domain `Template`; name them
 
 ## Ownership
 
-`ITemplateService` owns saved apply-preset CRUD, the cached preset list, list
-events, the template catalog snapshot/version, and canonical
-`getTemplate(id)` reads. It does not own selected-template/form editor state,
-per-file template selections, or raw-file view input.
+`ITemplateService` owns core Template spec helpers and legacy saved
+apply-preset CRUD during migration. It does not own UserTemplate catalog
+semantics, selected-template/form editor state, Review decisions, per-file
+template selections, or raw-file view input.
 
 `ITemplateViewStateService` in Template contrib owns selected-template/form
 editor state for Template UI and related view projections. Slicing selections
@@ -62,10 +63,11 @@ table selection state, plot rendering, or chart state.
 ## Flow
 
 ```txt
-manual saved-template run
-  -> ISliceService.runWithTemplate(...)
-  -> SliceService resolves Template snapshot from TemplateService
-  -> Slice executes the selected Template snapshot
+manual saved/UserTemplate run
+  -> ReviewService.reviewManualTemplate(...)
+  -> ManualTemplateReviewResult.ready
+  -> ISliceService.submit(SliceRequest(trigger = userCommand))
+  -> Slice executes the reviewed Template snapshot
 ```
 
 Template execution enters through Slice. Saved/manual apply presets are adapted
@@ -73,8 +75,9 @@ into canonical `Template` snapshots before Slice runs.
 
 ## Rules
 
-- `Template` is a concrete extraction/slicing spec. Slice materializes it from
-  Recipe for automatic execution or resolves it from manual/saved input.
+- `Template` is a concrete extraction/slicing spec. Review candidate providers
+  materialize it from Recipe/UserTemplate sources; Slice consumes reviewed or
+  manual snapshots and must not materialize Recipes.
 - Engines should consume `Template`, not consumer-specific sub-templates.
 - Legacy/manual apply presets may be bridged through `TemplateApplyConfig` and
   `templateLegacyAdapter`; they are inputs to `Template` snapshots, not an
@@ -112,11 +115,10 @@ into canonical `Template` snapshots before Slice runs.
 - `SliceRun` records include template fingerprint and source block ids.
 - Execution commits through `commitSliceRuns(...)`; do not add Template-owned
   run/output commit or cleanup APIs.
-- Skip missing, legacy curve-only, unknown, low-confidence, review-required, or
-  `AssessmentDecision.autoApplyAllowed !== true` assessments by default.
-  Automatic slicing must also require Assessment blocks with usable X/Y
-  bindings and canonical units; keep skipped files visible through Explorer
-  badges.
+- Review, not Template or Slice, decides whether missing, legacy curve-only,
+  unknown, low-confidence, review-required, or ambiguous evidence can be
+  applied by the system. Keep skipped/blocked files visible through Explorer
+  badges driven by Review and Slice projections.
 - Full/incremental apply must not start while another extraction job is running or while Explorer has pending/preparing sources.
 - Session cleanup: `filesRemoved` removes affected queued files; `sessionCleared` terminates and resets active processing.
 
@@ -129,8 +131,8 @@ do not route execution through Template code.
 
 ```txt
 slice.runWithTemplate command
-  -> ISliceService
-  -> resolve TemplateSelection / Template snapshot
+  -> ReviewService.reviewManualTemplate
+  -> ISliceService.submit(SliceRequest)
   -> SlicePlan + SliceCommit
   -> ISessionService.commitSliceRuns
 ```

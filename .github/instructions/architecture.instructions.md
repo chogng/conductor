@@ -126,10 +126,13 @@ Runtime folders:
 | `IExplorerService` | Files Explorer UI state: resources, selection, expansion, layout, context |
 | `fileConverter.ts` / files service helpers | CSV/XLS/XLSX/clipboard/manual conversion into raw table records |
 | `ISessionService` | canonical session ledger and change events |
-| `IAssessmentService` | raw table interpretation: groups, blocks, roles, diagnostics |
-| `IRecipeService` | passive built-in recipes used by Slice to derive automatic Template snapshots from Assessment evidence |
+| `IAssessmentService` | raw table evidence: structure, profiles, semantics, groups, blocks, diagnostics; migration name for RawTableEvidence |
+| `IRecipeService` | passive built-in recipes used by Review candidate providers to derive Template drafts from raw table evidence |
+| `ITemplateResolutionService` | migration bridge for deriving Recipe/saved-template candidates; it is not the final decision owner |
+| `IReviewService` | template candidate review, selected `ReviewedTemplate`, manual adjustment state, and system-application recommendation |
+| `IUserTemplateService` | target owner for user template catalog snapshots; current saved-template catalog is a migration bridge until UserTemplate lands |
 | `ITableService` | table source, rows, selection snapshot, reveal/highlight |
-| `ITemplateService` | saved template catalog, legacy preset CRUD, and canonical `Template` reads |
+| `ITemplateService` | core Template specs plus legacy saved preset CRUD during UserTemplate migration |
 | `ITemplateViewStateService` | Template UI selected-template/form editor state |
 | calculation services/helpers | derived curves and metrics commit payloads |
 | `IPlotService` | plot render models, plot settings, series visibility/focus |
@@ -180,8 +183,10 @@ Explorer source workflow
 Specific flow owners:
 
 - Import/source collection: Explorer/files workflow coordinates; converter returns results; Session commits.
-- Assessment: Assessment service reads raw tables and commits assessment records.
-- Slice execution: Slice reads Assessment evidence plus current Recipe/manual Template state and commits SliceRun/series/base curves.
+- RawTableEvidence: Assessment service currently reads raw tables and commits evidence-shaped assessment records; long term this moves to RawTableEvidence naming.
+- Review: consumes raw table evidence plus current Recipe/UserTemplate snapshots, reviews Template candidates, and commits `RawTableReviewRecord` decisions.
+- ReviewApply: consumes `ReviewDecision.ready.application.systemRecommended`, applies idempotency guards, and submits Slice requests.
+- Slice execution: Slice executes concrete reviewed/manual Template snapshots and commits SliceRun/series/base curves.
 - Calculation: calculation services derive curves/metrics and commit through Session.
 - Plot: Plot consumes canonical curves/metrics and produces render models.
 - Chart: Chart hosts plot UI; it does not interpret raw session facts.

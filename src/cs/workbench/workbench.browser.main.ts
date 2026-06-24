@@ -40,7 +40,9 @@ import "src/cs/workbench/services/schemaProfile/browser/schemaProfileStoreServic
 import "src/cs/workbench/services/schemaProfile/browser/schemaProfileService";
 import "src/cs/workbench/services/slice/browser/sliceService";
 import "src/cs/workbench/services/recipe/browser/recipeService";
+import "src/cs/workbench/services/review/browser/reviewService";
 import "src/cs/workbench/services/template/browser/templateService";
+import "src/cs/workbench/services/templateResolution/browser/templateResolutionService";
 import "src/cs/workbench/services/themes/browser/themeService";
 import "src/cs/workbench/services/thumbnail/browser/thumbnailService";
 import "src/cs/workbench/services/views/browser/viewDescriptorService";
@@ -63,7 +65,9 @@ import "src/cs/workbench/contrib/template/browser/templateViewStateService";
 
 import "src/cs/workbench/services/calculation/browser/calculation.contribution";
 import "src/cs/workbench/services/assessment/browser/assessment.contribution";
-import "src/cs/workbench/services/slice/browser/autoSlice.contribution";
+import "src/cs/workbench/services/templateResolution/browser/templateResolution.contribution";
+import "src/cs/workbench/services/review/browser/review.contribution";
+import "src/cs/workbench/services/review/browser/reviewApply.contribution";
 import "src/cs/workbench/services/slice/browser/slicePriority.contribution";
 
 //#endregion

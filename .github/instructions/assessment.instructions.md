@@ -1,11 +1,12 @@
 ---
-description: Assessment service - raw table interpretation, measurement block detection, column role mapping, sweep mode inference, confidence, and diagnostics.
+description: Assessment service - raw table evidence, measurement block detection, column role mapping, sweep mode inference, and diagnostics.
 applyTo: 'src/cs/workbench/services/assessment/**'
 ---
 # Assessment
 
-Assessment converts raw table facts into measurement structure. It is the only
-owner of group/block/column role/sweep mode detection.
+Assessment currently converts raw table facts into measurement evidence. It is
+the only owner of group/block/column role/sweep mode detection and is the
+migration location for the future RawTableEvidence service.
 
 ## Ownership
 
@@ -16,11 +17,12 @@ owner of group/block/column role/sweep mode detection.
 - IV/CV/CF/PV/IT family detection;
 - IV transfer/output and IT mode detection;
 - raw column semantic role mapping;
-- confidence and diagnostics;
+- evidence confidence and diagnostics;
 - Rust/WASM/TypeScript assessment branch selection.
 
 It does not own file conversion, Session storage, template execution, plot/chart
-rendering, table UI selection, or search indexing beyond diagnostics metadata.
+rendering, table UI selection, Review decisions, system application
+recommendations, or search indexing beyond diagnostics metadata.
 
 ## Core Files
 
@@ -28,7 +30,7 @@ rendering, table UI selection, or search indexing beyond diagnostics metadata.
 | --- | --- |
 | `common/assessment.ts` | service contract, inputs/results. |
 | `common/assessmentRecord.ts` | raw table assessment record factory and normalization helpers. |
-| `common/assessmentDecision.ts` | assessment decision state and automatic-apply gate records. |
+| `common/assessmentDecision.ts` | legacy evidence-level decision summary used during migration; new system-application decisions belong to Review. |
 | `common/measurement.ts` | blocks, groups, column maps, sweep/mode/family types. |
 | `common/diagnostics.ts` | diagnostic severity, codes, messages, source ranges. |
 | `common/rawTableStructure.ts` | header row, unit row, data region, block region, and schema fingerprint detection. |
@@ -39,7 +41,8 @@ rendering, table UI selection, or search indexing beyond diagnostics metadata.
 | `common/semanticCandidate.ts` | role, unit, confidence, evidence, and display-scale candidates. |
 | `common/schemaProfileAssessment.ts` | pure exact-schema-profile family/mode inference layered on top of Assessment column profiles. |
 | `common/blockDetector.ts` | measurement block construction from structure ranges, column maps, and family evidence. |
-| `common/assessmentEvidence.ts` | standard evidence snapshot consumed by downstream automatic slicing; Assessment produces evidence but does not select templates. |
+| `common/assessmentEvidence.ts` | standard evidence snapshot consumed by Review candidate derivation; Assessment produces evidence but does not select templates. |
+| `common/legacyAssessmentAdapter.ts` | migration adapter from legacy assessment records into RawTableEvidence/Review shapes when persisted data contains old decision fields. |
 | `../schemaProfile/common/schemaProfile.ts` | user-confirmed schema profile evidence records. |
 | `../schemaProfile/common/schemaProfileConfirmation.ts` | pure builder for user-confirmed role/unit mappings into exact-fingerprint schema profiles. |
 | `../schemaProfile/common/schemaProfileMatcher.ts` | exact schema fingerprint matching and column binding lookup. |
@@ -70,7 +73,7 @@ rawTablesChanged
   -> optional exact SchemaProfile fingerprint match
   -> createColumnSemanticCandidates
   -> detectMeasurementBlocks
-  -> create AssessmentDecision
+  -> create legacy AssessmentDecision evidence summary
   -> RawTableAssessmentRecord
   -> ISessionService.commitRawTableAssessment
 ```
@@ -118,10 +121,12 @@ rawTablesChanged
   `MeasurementBlockRecord`; repeated block regions must produce separate blocks
   with per-block source ranges. Template code must consume those blocks instead
   of re-detecting them.
-- `AssessmentDecision.autoApplyAllowed` is the automatic-calculation gate. Keep it false when required bindings or units are missing.
+- `AssessmentDecision.autoApplyAllowed` is a legacy evidence summary during the
+  Review migration. New code must not treat it as the system-application gate;
+  `ReviewDecision.application` owns that decision.
 - Assessment must not resolve Recipe snapshots, saved Template catalogs, or
-  selected Template snapshots. Slice owns recipe-to-Template materialization for
-  automatic execution.
+  selected Template snapshots. Review owns candidate review and selected
+  `ReviewedTemplate` persistence for automatic execution.
 - A confident layout with weak or unknown semantics should use
   `reviewRequired`, not `ready`; layout ready is not calculation ready.
 - TypeScript assessment rules are semantic baseline. When changing mirrored
@@ -132,7 +137,7 @@ rawTablesChanged
 - Add or update fixture corpus cases when changing structure, layout, semantic,
   profile matching, block construction, or decision-gate behavior. Fixture
   expectations should cover data regions, numeric columns, block count/family,
-  column roles/units, and `autoApplyAllowed`, not only display curve type.
+  column roles/units, and Review handoff behavior, not only display curve type.
 
 ## Commands
 

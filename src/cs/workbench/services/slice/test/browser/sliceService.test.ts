@@ -17,12 +17,12 @@ import type { FileImportResult, ImportedFileRecord } from "src/cs/workbench/serv
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import { SliceService } from "src/cs/workbench/services/slice/browser/sliceService";
 import { createSliceAssessmentSignature } from "src/cs/workbench/services/slice/common/slicePlanner";
-import type {
-	IRecipeService,
-	RecipeSnapshot,
-} from "src/cs/workbench/services/recipe/common/recipe";
-import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
 import type { ITemplateService, Template } from "src/cs/workbench/services/template/common/template";
+import {
+	createReviewEvidenceSignature,
+	createReviewRecordSignature,
+	type RawTableReviewRecord,
+} from "src/cs/workbench/services/review/common/review";
 
 suite("workbench/services/slice/test/browser/sliceService", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -78,16 +78,13 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		});
 	});
 
-	test("queues automatic slice when a recipe matches a ready assessment", () => {
+	test("queues automatic slice when a resolved template is available", () => {
 		const sessionService = store.add(new SessionService());
-		const sliceService = store.add(new SliceService(
-			sessionService,
-			undefined,
-			undefined,
-			new TestRecipeService(),
-		));
+		const sliceService = store.add(new SliceService(sessionService));
 		sessionService.commitFileImport(createImportResult());
-		sessionService.commitRawTableAssessment(createAssessment());
+		const assessment = createAssessment();
+		sessionService.commitRawTableAssessment(assessment);
+		sessionService.commitRawTableReviews([createReview(assessment)]);
 
 		sliceService.enqueueAuto([{
 			fileId: "file-a",
@@ -101,21 +98,21 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 
 	test("keeps one pending automatic slice plan per raw table", () => {
 		const sessionService = store.add(new SessionService());
-		const recipeService = new TestRecipeService("recipe:first");
-		const sliceService = store.add(new SliceService(
-			sessionService,
-			undefined,
-			undefined,
-			recipeService,
-		));
+		const sliceService = store.add(new SliceService(sessionService));
 		sessionService.commitFileImport(createImportResult());
-		sessionService.commitRawTableAssessment(createAssessment());
+		const assessment = createAssessment();
+		sessionService.commitRawTableAssessment(assessment);
+		sessionService.commitRawTableReviews([createReview(assessment, {
+			recipeFingerprint: "recipe:first",
+		})]);
 
 		sliceService.enqueueAuto([{
 			fileId: "file-a",
 			rawTableId: "table-a",
 		}]);
-		recipeService.setFingerprint("recipe:second");
+		sessionService.commitRawTableReviews([createReview(assessment, {
+			recipeFingerprint: "recipe:second",
+		})]);
 		sliceService.enqueueAuto([{
 			fileId: "file-a",
 			rawTableId: "table-a",
@@ -137,10 +134,11 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 			sessionService,
 			undefined,
 			rowsReaderService,
-			new TestRecipeService(),
 		));
 		sessionService.commitFileImport(createImportResult());
-		sessionService.commitRawTableAssessment(createAssessment());
+		const assessment = createAssessment();
+		sessionService.commitRawTableAssessment(assessment);
+		sessionService.commitRawTableReviews([createReview(assessment)]);
 
 		sliceService.enqueueAuto([{
 			fileId: "file-a",
@@ -159,23 +157,24 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		]);
 	});
 
-	test("drops stale automatic slice plans when assessment changes while rows are loading", async () => {
+	test("drops stale automatic slice plans when review changes while rows are loading", async () => {
 		const sessionService = store.add(new SessionService());
 		const rowsReaderService = new BlockingRawTableRowsReaderService([
 			["Vg", "Id"],
 			["0", "1"],
 			["1", "2"],
 		]);
-		const recipeService = new TestRecipeService("recipe:first");
 		const sliceService = store.add(new SliceService(
 			sessionService,
 			undefined,
 			rowsReaderService,
-			recipeService,
 		));
 		sessionService.commitFileImport(createImportResult());
 		const latestAssessment = createAssessment();
 		sessionService.commitRawTableAssessment(latestAssessment);
+		sessionService.commitRawTableReviews([createReview(latestAssessment, {
+			recipeFingerprint: "recipe:first",
+		})]);
 
 		sliceService.enqueueAuto([{
 			fileId: "file-a",
@@ -183,7 +182,10 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		}]);
 		await waitUntil(() => rowsReaderService.inputs.length === 1);
 
-		recipeService.setFingerprint("recipe:second");
+		const latestReview = createReview(latestAssessment, {
+			recipeFingerprint: "recipe:second",
+		});
+		sessionService.commitRawTableReviews([latestReview]);
 		sliceService.enqueueAuto([{
 			fileId: "file-a",
 			rawTableId: "table-a",
@@ -197,7 +199,9 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		assert.equal(Object.keys(record.sliceRunsById ?? {}).length, 1);
 		assert.equal(
 			record.sliceRunsById?.[record.latestSliceRunId!]?.sourceAssessmentSignature,
-			createSliceAssessmentSignature(latestAssessment, "recipe:second"),
+			createSliceAssessmentSignature(latestAssessment, {
+				reviewSignature: createReviewRecordSignature(latestReview),
+			}),
 		);
 	});
 
@@ -244,7 +248,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		assert.equal(sliceService.getState().fileStates.has("file-a"), false);
 	});
 
-	test("marks automatic slice skipped when no assessment can materialize a recipe template", () => {
+	test("marks automatic slice skipped when no review decision is available", () => {
 		const sessionService = store.add(new SessionService());
 		const sliceService = store.add(new SliceService(sessionService));
 		sessionService.commitFileImport(createImportResult());
@@ -313,6 +317,82 @@ const createTemplate = (): Template => ({
 	stopOnError: false,
 });
 
+const createReview = (
+	assessment: RawTableAssessmentRecord,
+	options: {
+		readonly recipeFingerprint?: string;
+		readonly template?: Template;
+		readonly userTemplateCatalogVersion?: number;
+		readonly templateFingerprint?: string;
+	} = {},
+): RawTableReviewRecord => {
+	const template = options.template ?? createTemplate();
+	const templateFingerprint = options.templateFingerprint ?? "template:auto";
+	return {
+		fileId: assessment.fileId,
+		rawTableId: assessment.rawTableId,
+		sourceRawTableVersion: assessment.sourceRawTableVersion,
+		evidenceSignature: createReviewEvidenceSignature(assessment, {
+			columnCount: 2,
+			fileName: "Raw.csv",
+			rowCount: 3,
+		}),
+		recipeFingerprint: options.recipeFingerprint ?? "recipe:test",
+		userTemplateCatalogVersion: options.userTemplateCatalogVersion ?? 1,
+		userTemplateEffectiveFingerprint: "legacy-template:test",
+		reviewEngineVersion: 1,
+		reviewPolicyVersion: 1,
+		candidates: [{
+			id: "recipe:builtin.iv.transfer:block-a",
+			source: {
+				kind: "recipe",
+				recipeId: "builtin.iv.transfer",
+				recipeVersion: 1,
+			},
+			templateFingerprint,
+			displayName: template.name,
+			reasonCodes: [],
+			diagnosticCodes: [],
+		}],
+		reviews: [{
+			candidateId: "recipe:builtin.iv.transfer:block-a",
+			templateFingerprint,
+			status: "ready",
+			confidence: 0.95,
+			reasons: [],
+			diagnostics: [],
+		}],
+		decision: {
+			kind: "ready",
+			reviewedTemplate: {
+				candidateId: "recipe:builtin.iv.transfer:block-a",
+				source: {
+					kind: "recipe",
+					recipeId: "builtin.iv.transfer",
+					recipeVersion: 1,
+				},
+				template,
+				templateFingerprint,
+				review: {
+					candidateId: "recipe:builtin.iv.transfer:block-a",
+					templateFingerprint,
+					status: "ready",
+					confidence: 0.95,
+					reasons: [],
+					diagnostics: [],
+				},
+			},
+			application: {
+				kind: "systemRecommended",
+				reason: "review.ready.systemRecommended",
+			},
+			summary: "Template is ready.",
+			suggestedActions: [],
+		},
+		createdAt: 1,
+	};
+};
+
 const createTemplateServiceForTest = (template: Template | (() => Template)): ITemplateService => {
 	const getCurrentTemplate = () => typeof template === "function" ? template() : template;
 	return {
@@ -337,33 +417,6 @@ const createTemplateServiceForTest = (template: Template | (() => Template)): IT
 	},
 	} as unknown as ITemplateService;
 };
-
-class TestRecipeService implements IRecipeService {
-	public declare readonly _serviceBrand: undefined;
-	public readonly onDidChangeRecipes = Event.None as Event<void>;
-	private fingerprint: string;
-
-	public constructor(fingerprint = "recipe:test") {
-		this.fingerprint = fingerprint;
-	}
-
-	public setFingerprint(fingerprint: string): void {
-		this.fingerprint = fingerprint;
-	}
-
-	public getSnapshot(): RecipeSnapshot {
-		return {
-			version: 1,
-			fingerprint: this.fingerprint,
-			recipes: builtinRecipes,
-			diagnostics: [],
-		};
-	}
-
-	public reload(): Promise<void> {
-		return Promise.resolve();
-	}
-}
 
 const createAssessment = (): RawTableAssessmentRecord => ({
 	assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
@@ -404,13 +457,11 @@ const createAssessment = (): RawTableAssessmentRecord => ({
 				unit: "V",
 				headerText: "Vg",
 				confidence: 0.95,
-				source: {
-					range: {
-						startRow: 0,
-						endRow: 2,
-						startCol: 0,
-						endCol: 0,
-					},
+				sourceRange: {
+					startRow: 0,
+					endRow: 2,
+					startCol: 0,
+					endCol: 0,
 				},
 			}, {
 				rawCol: 1,
@@ -418,13 +469,11 @@ const createAssessment = (): RawTableAssessmentRecord => ({
 				unit: "A",
 				headerText: "Id",
 				confidence: 0.95,
-				source: {
-					range: {
-						startRow: 0,
-						endRow: 2,
-						startCol: 1,
-						endCol: 1,
-					},
+				sourceRange: {
+					startRow: 0,
+					endRow: 2,
+					startCol: 1,
+					endCol: 1,
 				},
 			}],
 		},

@@ -93,6 +93,8 @@ const createEmptyFileRecord = (fileId: string, fileName: string): FileRecord => 
     raw,
     rawTableVersionsById: createRawTableVersions(raw.tableOrder),
     assessmentsByRawTableId: {},
+    templateResolutionsByRawTableId: {},
+    rawTableReviewsByRawTableId: {},
     measurementBlocksById: {},
     measurementBlockOrder: [],
     seriesById: {},
@@ -254,9 +256,17 @@ const retainRawTableAssessmentRecords = (
   record: FileRecord,
   liveRawTableIds: ReadonlySet<string>,
   changedRawTableIds: ReadonlySet<string>,
-): Pick<FileRecord, "assessmentsByRawTableId" | "measurementBlocksById" | "measurementBlockOrder"> => {
+): Pick<FileRecord, "assessmentsByRawTableId" | "templateResolutionsByRawTableId" | "rawTableReviewsByRawTableId" | "measurementBlocksById" | "measurementBlockOrder"> => {
   const assessmentsByRawTableId = filterRecord(
     record.assessmentsByRawTableId ?? {},
+    rawTableId => liveRawTableIds.has(rawTableId) && !changedRawTableIds.has(rawTableId),
+  );
+  const templateResolutionsByRawTableId = filterRecord(
+    record.templateResolutionsByRawTableId ?? {},
+    rawTableId => liveRawTableIds.has(rawTableId) && !changedRawTableIds.has(rawTableId),
+  );
+  const rawTableReviewsByRawTableId = filterRecord(
+    record.rawTableReviewsByRawTableId ?? {},
     rawTableId => liveRawTableIds.has(rawTableId) && !changedRawTableIds.has(rawTableId),
   );
   const measurementBlocksById = filterRecord(
@@ -268,6 +278,8 @@ const retainRawTableAssessmentRecords = (
 
   return {
     assessmentsByRawTableId,
+    templateResolutionsByRawTableId,
+    rawTableReviewsByRawTableId,
     measurementBlocksById,
     measurementBlockOrder: (record.measurementBlockOrder ?? []).filter(blockId =>
       Boolean(measurementBlocksById[blockId])

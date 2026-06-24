@@ -69,6 +69,16 @@ import type {
   MeasurementBlockRecord,
 } from "src/cs/workbench/services/assessment/common/measurement";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
+import {
+  createTemplateResolutionAssessmentSignature,
+  type RawTableTemplateResolutionRecord,
+  type TemplateResolutionCommit,
+} from "src/cs/workbench/services/templateResolution/common/templateResolution";
+import {
+  createReviewEvidenceSignature,
+  type RawTableReviewRecord,
+  type ReviewCommit,
+} from "src/cs/workbench/services/review/common/review";
 
 export class SessionService extends Disposable implements ISessionServiceType {
   public declare readonly _serviceBrand: undefined;
@@ -255,6 +265,44 @@ export class SessionService extends Disposable implements ISessionServiceType {
       fileIds: uniqueStrings(assessmentCommit.fileIds),
       rawTableIds: uniqueStrings(assessmentCommit.rawTableIds),
       rawTableRefs: uniqueRawTableRefs(assessmentCommit.rawTableRefs),
+    });
+  };
+
+  public commitTemplateResolutions = (resolutions: readonly TemplateResolutionCommit[]): void => {
+    const resolutionCommit = commitTemplateResolutionsToFiles(
+      this.snapshot.filesById,
+      resolutions,
+    );
+    if (!resolutionCommit.changed) {
+      return;
+    }
+
+    this.replaceSnapshot({
+      ...this.snapshot,
+      filesById: resolutionCommit.filesById,
+    }, "templateResolutionChanged", {
+      fileIds: uniqueStrings(resolutionCommit.fileIds),
+      rawTableIds: uniqueStrings(resolutionCommit.rawTableIds),
+      rawTableRefs: uniqueRawTableRefs(resolutionCommit.rawTableRefs),
+    });
+  };
+
+  public commitRawTableReviews = (reviews: readonly ReviewCommit[]): void => {
+    const reviewCommit = commitRawTableReviewsToFiles(
+      this.snapshot.filesById,
+      reviews,
+    );
+    if (!reviewCommit.changed) {
+      return;
+    }
+
+    this.replaceSnapshot({
+      ...this.snapshot,
+      filesById: reviewCommit.filesById,
+    }, "reviewChanged", {
+      fileIds: uniqueStrings(reviewCommit.fileIds),
+      rawTableIds: uniqueStrings(reviewCommit.rawTableIds),
+      rawTableRefs: uniqueRawTableRefs(reviewCommit.rawTableRefs),
     });
   };
 
@@ -575,6 +623,22 @@ type RawTableAssessmentCommitResult = {
   readonly rawTableRefs: readonly RawTableRef[];
 };
 
+type TemplateResolutionCommitResult = {
+  readonly changed: boolean;
+  readonly fileIds: readonly FileId[];
+  readonly filesById: Record<FileId, FileRecord>;
+  readonly rawTableIds: readonly string[];
+  readonly rawTableRefs: readonly RawTableRef[];
+};
+
+type RawTableReviewCommitResult = {
+  readonly changed: boolean;
+  readonly fileIds: readonly FileId[];
+  readonly filesById: Record<FileId, FileRecord>;
+  readonly rawTableIds: readonly string[];
+  readonly rawTableRefs: readonly RawTableRef[];
+};
+
 const createImportRawTableAssessmentRecords = (
   assessments: readonly CommitFileImportRawTableAssessmentInput[],
   filesById: Record<FileId, FileRecord>,
@@ -665,6 +729,14 @@ const commitRawTableAssessmentsToFiles = (
       committedBlocks.push(normalizedBlock);
     }
     const committedBlockIds = getUniqueIds(committedBlocks.map(block => block.id));
+    const templateResolutionsByRawTableId = {
+      ...(file.templateResolutionsByRawTableId ?? {}),
+    };
+    delete templateResolutionsByRawTableId[rawTableId];
+    const rawTableReviewsByRawTableId = {
+      ...(file.rawTableReviewsByRawTableId ?? {}),
+    };
+    delete rawTableReviewsByRawTableId[rawTableId];
     const committedAssessment: RawTableAssessmentRecord = {
       ...assessment,
       assessmentRuleVersion: normalizeAssessmentRuleVersion(assessment.assessmentRuleVersion) ?? 0,
@@ -686,6 +758,8 @@ const commitRawTableAssessmentsToFiles = (
           ...(file.assessmentsByRawTableId ?? {}),
           [rawTableId]: committedAssessment,
         },
+        templateResolutionsByRawTableId,
+        rawTableReviewsByRawTableId,
         measurementBlocksById,
         measurementBlockOrder: [...measurementBlockOrder, ...committedBlockIds],
       },
@@ -703,6 +777,187 @@ const commitRawTableAssessmentsToFiles = (
     rawTableRefs: committedRawTableRefs,
   };
 };
+
+const commitTemplateResolutionsToFiles = (
+  initialFilesById: Record<FileId, FileRecord>,
+  resolutions: readonly TemplateResolutionCommit[],
+): TemplateResolutionCommitResult => {
+  let nextFilesById = initialFilesById;
+  const committedFileIds: FileId[] = [];
+  const committedRawTableIds: string[] = [];
+  const committedRawTableRefs: RawTableRef[] = [];
+
+  for (const resolution of resolutions) {
+    const fileId = normalizeId(resolution.fileId);
+    const rawTableId = normalizeId(resolution.rawTableId);
+    const file = fileId ? nextFilesById[fileId] : undefined;
+    const table = rawTableId ? file?.raw.tablesById[rawTableId] : undefined;
+    const assessment = rawTableId ? file?.assessmentsByRawTableId?.[rawTableId] : undefined;
+    if (!file || !rawTableId || !table || !assessment) {
+      continue;
+    }
+
+    const rawTableVersion = file.rawTableVersionsById?.[rawTableId] ?? 0;
+    const sourceRawTableVersion = normalizeNonNegativeInteger(resolution.sourceRawTableVersion);
+    if (rawTableVersion !== sourceRawTableVersion) {
+      continue;
+    }
+
+    const sourceAssessmentSignature = normalizeOptionalText(resolution.sourceAssessmentSignature);
+    if (
+      !sourceAssessmentSignature ||
+      sourceAssessmentSignature !== createTemplateResolutionAssessmentSignature(assessment, {
+        columnCount: table.columnCount,
+        fileName: file.name,
+        rowCount: table.rowCount,
+      })
+    ) {
+      continue;
+    }
+
+    const committedResolution: RawTableTemplateResolutionRecord = {
+      ...resolution,
+      fileId,
+      rawTableId,
+      sourceRawTableVersion,
+      sourceAssessmentSignature,
+      recipeFingerprint: normalizeOptionalText(resolution.recipeFingerprint) ?? "",
+      templateCatalogVersion: normalizeNonNegativeInteger(resolution.templateCatalogVersion),
+      templateCandidates: resolution.templateCandidates ?? [],
+      diagnostics: resolution.diagnostics ?? [],
+      resolvedAt: normalizeNonNegativeInteger(resolution.resolvedAt),
+    };
+    const current = file.templateResolutionsByRawTableId?.[rawTableId];
+    if (isSameTemplateResolutionRecord(current, committedResolution)) {
+      continue;
+    }
+
+    nextFilesById = {
+      ...nextFilesById,
+      [fileId]: {
+        ...file,
+        templateResolutionsByRawTableId: {
+          ...(file.templateResolutionsByRawTableId ?? {}),
+          [rawTableId]: committedResolution,
+        },
+      },
+    };
+    committedFileIds.push(fileId);
+    committedRawTableIds.push(rawTableId);
+    committedRawTableRefs.push({ fileId, rawTableId });
+  }
+
+  return {
+    changed: nextFilesById !== initialFilesById,
+    fileIds: committedFileIds,
+    filesById: nextFilesById,
+    rawTableIds: committedRawTableIds,
+    rawTableRefs: committedRawTableRefs,
+  };
+};
+
+const isSameTemplateResolutionRecord = (
+  current: RawTableTemplateResolutionRecord | undefined,
+  next: RawTableTemplateResolutionRecord,
+): boolean => Boolean(current && JSON.stringify({
+  ...current,
+  resolvedAt: 0,
+}) === JSON.stringify({
+  ...next,
+  resolvedAt: 0,
+}));
+
+const commitRawTableReviewsToFiles = (
+  initialFilesById: Record<FileId, FileRecord>,
+  reviews: readonly ReviewCommit[],
+): RawTableReviewCommitResult => {
+  let nextFilesById = initialFilesById;
+  const committedFileIds: FileId[] = [];
+  const committedRawTableIds: string[] = [];
+  const committedRawTableRefs: RawTableRef[] = [];
+
+  for (const review of reviews) {
+    const fileId = normalizeId(review.fileId);
+    const rawTableId = normalizeId(review.rawTableId);
+    const file = fileId ? nextFilesById[fileId] : undefined;
+    const table = rawTableId ? file?.raw.tablesById[rawTableId] : undefined;
+    const assessment = rawTableId ? file?.assessmentsByRawTableId?.[rawTableId] : undefined;
+    if (!file || !rawTableId || !table || !assessment) {
+      continue;
+    }
+
+    const rawTableVersion = file.rawTableVersionsById?.[rawTableId] ?? 0;
+    const sourceRawTableVersion = normalizeNonNegativeInteger(review.sourceRawTableVersion);
+    if (rawTableVersion !== sourceRawTableVersion) {
+      continue;
+    }
+
+    const evidenceSignature = normalizeOptionalText(review.evidenceSignature);
+    if (
+      !evidenceSignature ||
+      evidenceSignature !== createReviewEvidenceSignature(assessment, {
+        columnCount: table.columnCount,
+        fileName: file.name,
+        rowCount: table.rowCount,
+      })
+    ) {
+      continue;
+    }
+
+    const committedReview: RawTableReviewRecord = {
+      ...review,
+      fileId,
+      rawTableId,
+      sourceRawTableVersion,
+      evidenceSignature,
+      recipeFingerprint: normalizeOptionalText(review.recipeFingerprint) ?? "",
+      userTemplateCatalogVersion: normalizeNonNegativeInteger(review.userTemplateCatalogVersion),
+      userTemplateEffectiveFingerprint: normalizeOptionalText(review.userTemplateEffectiveFingerprint) ?? "",
+      reviewEngineVersion: normalizeNonNegativeInteger(review.reviewEngineVersion),
+      reviewPolicyVersion: normalizeNonNegativeInteger(review.reviewPolicyVersion),
+      candidates: review.candidates ?? [],
+      reviews: review.reviews ?? [],
+      createdAt: normalizeNonNegativeInteger(review.createdAt),
+    };
+    const current = file.rawTableReviewsByRawTableId?.[rawTableId];
+    if (isSameRawTableReviewRecord(current, committedReview)) {
+      continue;
+    }
+
+    nextFilesById = {
+      ...nextFilesById,
+      [fileId]: {
+        ...file,
+        rawTableReviewsByRawTableId: {
+          ...(file.rawTableReviewsByRawTableId ?? {}),
+          [rawTableId]: committedReview,
+        },
+      },
+    };
+    committedFileIds.push(fileId);
+    committedRawTableIds.push(rawTableId);
+    committedRawTableRefs.push({ fileId, rawTableId });
+  }
+
+  return {
+    changed: nextFilesById !== initialFilesById,
+    fileIds: committedFileIds,
+    filesById: nextFilesById,
+    rawTableIds: committedRawTableIds,
+    rawTableRefs: committedRawTableRefs,
+  };
+};
+
+const isSameRawTableReviewRecord = (
+  current: RawTableReviewRecord | undefined,
+  next: RawTableReviewRecord,
+): boolean => Boolean(current && JSON.stringify({
+  ...current,
+  createdAt: 0,
+}) === JSON.stringify({
+  ...next,
+  createdAt: 0,
+}));
 
 const createSourceFileIdsByKey = (
   filesById: Readonly<Record<FileId, FileRecord>>,
@@ -769,6 +1024,8 @@ const createFileRecordFromImportedFile = (
     raw,
     rawTableVersionsById: createInitialRawTableVersions(raw.tableOrder),
     assessmentsByRawTableId: {},
+    templateResolutionsByRawTableId: {},
+    rawTableReviewsByRawTableId: {},
     measurementBlocksById: {},
     measurementBlockOrder: [],
     seriesById: {},

@@ -128,9 +128,29 @@ export const createSliceAssessmentSignature = ({
 	readonly assessmentRuleVersion: number;
 	readonly schemaProfileVersion: number;
 	readonly sourceRawTableVersion: number;
-}, recipeFingerprint?: string): string => JSON.stringify({
+}, resolution?: {
+	readonly recipeFingerprint?: string;
+	readonly reviewSignature?: string;
+	readonly templateCatalogVersion?: number;
+}): string => JSON.stringify({
 	assessmentRuleVersion,
 	schemaProfileVersion,
 	sourceRawTableVersion,
-	recipeFingerprint: recipeFingerprint ? String(recipeFingerprint).trim() : undefined,
+	recipeFingerprint: normalizeSignatureText(resolution?.recipeFingerprint),
+	reviewSignature: normalizeSignatureText(resolution?.reviewSignature),
+	templateCatalogVersion: normalizeSignatureInteger(resolution?.templateCatalogVersion),
 });
+
+const normalizeSignatureText = (
+	value: unknown,
+): string | undefined => {
+	const normalized = String(value ?? "").trim();
+	return normalized || undefined;
+};
+
+const normalizeSignatureInteger = (
+	value: unknown,
+): number | undefined => {
+	const normalized = Math.floor(Number(value));
+	return Number.isFinite(normalized) && normalized >= 0 ? normalized : undefined;
+};

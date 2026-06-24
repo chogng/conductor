@@ -2796,6 +2796,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     for (const reason of [
       "rawTablesChanged",
       "assessmentChanged",
+      "templateResolutionChanged",
       "calculatedRecordsChanged",
       "metricsChanged",
       "metricInputsChanged",
@@ -2908,6 +2909,8 @@ const createSessionServiceStub = (
   commitMetricsBatch: () => undefined,
   commitRawTableAssessment: () => undefined,
   commitRawTableAssessments: () => undefined,
+  commitTemplateResolutions: () => undefined,
+  commitRawTableReviews: () => undefined,
   commitSliceRuns: () => undefined,
   getSnapshot: () => snapshot,
   renameFile: () => false,

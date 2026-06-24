@@ -909,6 +909,7 @@ export const shouldUpdateCalculationForSessionChange = (
       return hasBaseCurveChange(event);
     case "rawTablesChanged":
     case "assessmentChanged":
+    case "templateResolutionChanged":
     case "calculatedRecordsChanged":
     case "metricsChanged":
       return false;

@@ -1295,6 +1295,7 @@ const createDomainBridgeOptionsForTest = ({
     prioritize: () => undefined,
     runWithTemplate: () => undefined,
     setTemplateSelection: () => undefined,
+    submit: () => undefined,
   } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["sliceService"],
   settingsService: {
     getConductorSettings: () => undefined,

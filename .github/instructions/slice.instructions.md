@@ -4,18 +4,16 @@ applyTo: 'src/cs/workbench/services/slice/**,src/cs/workbench/contrib/slice/**'
 ---
 # Slice
 
-Slice is the execution owner for concrete `Template` snapshots. Automatic mode
-materializes current Recipe projections against Assessment evidence before
-planning. It does not classify raw data.
+Slice is the execution owner for concrete reviewed or manual `Template`
+snapshots. It does not classify raw data, interpret Recipes, review template
+quality, or decide whether the system should apply a template.
 
 ## Ownership
 
 `ISliceService` owns:
 
-- per-file `TemplateSelection` for slicing;
-- automatic slice queue entries from ready Assessment decisions and current
-  Recipe snapshots;
-- manual slice requests with inline or saved templates;
+- per-file legacy `TemplateSelection` adapters during migration;
+- `SliceRequest` queue entries from ReviewApply or user commands;
 - slice file state, priority, cancellation, and queue draining;
 - calling the planner/executor and committing `SliceCommit` through Session.
 
@@ -30,27 +28,25 @@ returns a `SliceCommit`. It must not call services or reread Session.
 
 | File | Responsibility |
 | --- | --- |
-| `common/slice.ts` | service contract, `SliceRun`, `SlicePlan`, commit/state/input types. |
+| `common/slice.ts` | service contract, `SliceRequest`, `SliceRun`, `SlicePlan`, commit/state/input types. |
 | `common/slicePlanner.ts` | pure plan/range generation and assessment signature helpers. |
 | `common/sliceExecutor.ts` | pure row execution into `SliceCommit`. |
-| `common/recipeSelectorEvaluator.ts` | pure finite-DSL evaluator for `RecipeSelector` against Assessment evidence. |
-| `common/recipeTemplateMaterializer.ts` | pure Recipe selector/projection materialization into concrete `Template` snapshots for automatic slicing. |
 | `browser/sliceService.ts` | injectable owner for queue, selection, progress state, row reading, and Session commit. |
-| `browser/autoSlice.contribution.ts` | lifecycle subscriber from `assessmentChanged` to `ISliceService.enqueueAuto(...)`. |
+| `../review/browser/reviewApply.contribution.ts` | lifecycle bridge from `reviewChanged` system recommendations to Slice requests. |
 | `browser/slicePriority.contribution.ts` | lifecycle subscriber from Explorer selection/hover facts to `ISliceService.prioritize(...)`. |
 | `contrib/slice/browser/sliceCommands.ts` / `sliceActions.ts` | command/action entry for user-triggered slicing; normalizes targets and delegates to `ISliceService`. |
 
 ## Flow
 
 ```txt
-Session assessmentChanged
-  -> AutoSliceContribution rereads SessionSnapshot
-  -> autoApplyAllowed + no newer manual SliceRun
-  -> ISliceService.enqueueAuto(rawTableRefs)
-  -> SliceService rereads Assessment evidence + current Recipe snapshot
-  -> SliceService materializes/selects Recipe-backed Template snapshot
+Session reviewChanged
+  -> ReviewApplyContribution rereads SessionSnapshot
+  -> ReviewDecision.ready + application.systemRecommended
+  -> idempotency/staleness guard
+  -> ISliceService.submit(SliceRequest[])
+  -> SliceService reads reviewed Template snapshot from request
   -> SlicePlanner.createSlicePlan(...)
-  -> SliceService verifies source version, assessment signature, and template fingerprint
+  -> SliceService verifies source version, review/request/template fingerprints
   -> RawTableRowsReader reads rows
   -> SliceService verifies the same plan signatures again
   -> SliceExecutor.executeSlicePlan(...)
@@ -66,18 +62,20 @@ files.item.setTemplate command
   -> SliceState.templateSelectionsByFileId
 
 command/action/controller
-  -> ISliceService.runWithTemplate({ ref, selection })
-  -> resolve inline/saved Template
+  -> ReviewService.reviewManualTemplate(...)
+  -> ready ManualTemplateReviewResult
+  -> ISliceService.submit(SliceRequest(trigger = userCommand))
+  -> SliceService reads reviewed inline/saved Template snapshot
   -> same planner/executor/commit path
 ```
 
 Bulk command flow:
 
 ```txt
-slice.runWithTemplate / slice.runWithTemplateIncremental command
+slice.runWithTemplate / slice.runWithTemplateIncremental command during migration
   -> collect RawTableRef targets from SessionSnapshot
-  -> resolve TemplateSelection from current Template owner state
-  -> ISliceService.runWithTemplate(...) for each target
+  -> review selected Template through Review
+  -> ISliceService.submit(...) for each ready target
 ```
 
 Priority flow:
@@ -110,18 +108,18 @@ SliceState.fileStates
 
 - Slice consumes Assessment facts; it must not detect headers, roles, family, or
   mode from raw rows.
-- Automatic mode materializes the current Recipe snapshot against Assessment
-  evidence into a Template snapshot, then executes that snapshot.
-- Manual mode may use an inline template or a saved template resolved through
-  TemplateService; compatibility adapters may convert historical/manual presets into
-  canonical `Template`.
+- Automatic execution consumes `ReviewDecision.ready.reviewedTemplate` and
+  executes that stored Template snapshot.
+- Manual execution must first produce a `ManualTemplateReviewResult.ready`
+  value. Compatibility adapters may convert historical/manual presets into
+  canonical `Template` snapshots before review.
 - `Template` coordinates are raw-table relative. Runtime provenance belongs to
   `SlicePlan.inputRanges` and `SliceRun.inputRanges`.
 - `commitSliceRuns(...)` is the Session boundary. Do not commit run, series, and
   curves through separate Session calls.
 - Slice queue entries must be dropped as stale if their source raw table
-  version, automatic assessment signature, Recipe fingerprint, or saved-template fingerprint changes
-  before commit.
+  version, review signature, request signature, or reviewed-template
+  fingerprint changes before commit.
 - Contributions only subscribe and delegate. They do not plan, execute, read
   rows, or commit Session.
 - Slice commands may collect stable `RawTableRef` command targets from
@@ -132,5 +130,9 @@ SliceState.fileStates
 - Do not interpret raw rows/header semantics here; Recipe projection may only
   consume Assessment evidence.
 - Do not re-run Assessment logic in Slice.
+- Do not import RecipeService, recipe selector evaluators, or recipe Template
+  materializers into Slice.
+- Do not inspect Review confidence, candidate margin, or diagnostics to decide
+  automatic execution.
 - Do not store Slice queue/progress in Session.
 - Do not call or reintroduce a Template-owned apply workflow from Slice.

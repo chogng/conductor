@@ -1,5 +1,5 @@
 ---
-description: Recipe service - passive selector/projection recipes consumed by Slice to derive automatic Template snapshots.
+description: Recipe service - passive selector/projection recipes consumed by Review candidate providers to derive Template drafts.
 applyTo: 'src/cs/workbench/services/recipe/**,resources/recipes/**,scripts/buildRecipeBundle.mjs,cli/resources/recipes.v1.json'
 ---
 # Recipe
@@ -10,10 +10,10 @@ not a provider, and not a legacy rule engine.
 
 ```txt
 Recipe[]
-  -> Slice recipe materialization
-  -> Template snapshot
-  -> SlicePlan
-  -> SliceRun
+  -> Review candidate provider
+  -> TemplateDraft
+  -> ReviewDecision
+  -> SliceRequest
 ```
 
 ## Ownership
@@ -23,7 +23,7 @@ diagnostics, reload, and `onDidChangeRecipes` event. It does not evaluate raw
 tables, score matches, materialize Template snapshots, execute slicing, or
 mutate Session.
 
-Slice owns recipe interpretation for automatic execution:
+Review candidate providers own recipe interpretation for automatic review:
 
 - `RecipeSelector` evaluation against `AssessmentEvidence`;
 - `RecipeProjection` materialization into canonical block-aware `Template`
@@ -49,12 +49,13 @@ infer measurement family, roles, units, or table structure from raw rows.
 | `scripts/buildRecipeBundle.mjs` | builds generated TypeScript and CLI recipe bundles. |
 | `cli/resources/recipes.v1.json` | generated CLI bundle. Do not edit manually. |
 
-Automatic recipe materialization lives in Slice files:
+Automatic recipe materialization lives in Review candidate-provider code. During
+the current migration bridge, it may still live in Template Resolution files:
 
 | File | Responsibility |
 | --- | --- |
-| `slice/common/recipeSelectorEvaluator.ts` | evaluates `RecipeSelector` against `AssessmentEvidence`. |
-| `slice/common/recipeTemplateMaterializer.ts` | materializes matched captures into concrete `Template` snapshots. |
+| `templateResolution/common/recipeSelectorEvaluator.ts` | evaluates `RecipeSelector` against `AssessmentEvidence`. |
+| `templateResolution/common/recipeTemplateMaterializer.ts` | materializes matched captures into concrete `Template` snapshots. |
 
 ## Flow
 
@@ -63,10 +64,11 @@ resources/recipes/v1/index.json
   -> scripts/buildRecipeBundle.mjs
   -> builtinRecipes.generated.ts + cli/resources/recipes.v1.json
   -> RecipeService.getSnapshot()
-  -> AutoSliceContribution observes recipe/session changes
-  -> SliceService rereads current Assessment evidence
-  -> Slice evaluates selector/projection
-  -> Slice executes materialized Template snapshot
+  -> ReviewContribution observes recipe/evidence/UserTemplate changes
+  -> ReviewService rereads current raw table evidence
+  -> Review candidate provider evaluates selector/projection
+  -> ReviewDecision stores selected ReviewedTemplate snapshot when ready
+  -> ReviewApply submits SliceRequest only when systemRecommended
 ```
 
 Recipe changes are owner-event-reread:
@@ -74,9 +76,9 @@ Recipe changes are owner-event-reread:
 ```txt
 RecipeService reload/change
   -> onDidChangeRecipes
-  -> AutoSliceContribution rereads SessionSnapshot
-  -> ISliceService.enqueueAuto(...)
-  -> stale queued/running automatic slices are dropped by recipe fingerprint
+  -> ReviewContribution rereads SessionSnapshot
+  -> IReviewService derives affected reviews
+  -> Session reviewChanged
 ```
 
 ## Rules
@@ -89,17 +91,17 @@ RecipeService reload/change
 - `RecipeService` may validate, fingerprint, and publish recipes. It must not
   evaluate recipes against raw tables or materialize templates.
 - New selector predicates belong in `recipeSelector.ts`, validation in
-  `recipeCodec.ts`, and matching behavior in Slice's
-  `recipeSelectorEvaluator.ts`.
+  `recipeCodec.ts`, and matching behavior in Review candidate-provider code
+  or the migration Template Resolution bridge.
 - New projection nodes belong in `recipeProjection.ts`, validation in
-  `recipeCodec.ts`, and materialization behavior in Slice's
-  `recipeTemplateMaterializer.ts`.
+  `recipeCodec.ts`, and materialization behavior in Review candidate-provider
+  code or the migration Template Resolution bridge.
 - `RecipeAssociation` is only for static routing from a selector to an existing
   `templateId`; do not use it for selector/projection derivation.
 - `RecipeProvider` should only be introduced for true TypeScript provider
   behavior. JSON recipes are not providers.
-- `SliceRun.sourceAssessmentSignature` records the recipe fingerprint used for
-  automatic Template materialization. Session does not store recipe JSON.
+- Review records the recipe fingerprint used for candidate review and selected
+  `ReviewedTemplate` snapshots. Session does not store recipe JSON.
 - After editing recipe JSON, run `npm run build:recipes` and commit the
   generated bundles with the source JSON.
 
