@@ -4,27 +4,83 @@
 
 import type { Event } from "src/cs/base/common/event";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
+import type { ColumnProfile } from "src/cs/workbench/services/tableFacts/common/columnProfile";
+import type { TableFactsDiagnostic } from "src/cs/workbench/services/tableFacts/common/diagnostics";
+import type { LayoutCandidate } from "src/cs/workbench/services/tableFacts/common/layoutCandidate";
 import type {
 	IvSweepMode,
+	MeasurementBlockRecord,
 	MeasurementFamily,
+	MeasurementGroupRecord,
 } from "src/cs/workbench/services/tableFacts/common/measurement";
+import type { RawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
+import type { ColumnSemanticCandidate } from "src/cs/workbench/services/tableFacts/common/semanticCandidate";
 import type { SchemaProfile } from "src/cs/workbench/services/schemaProfile/common/schemaProfile";
 import type {
 	RawTableRef,
 } from "src/cs/workbench/services/session/common/sessionModel";
-import {
-	TABLE_FACTS_RULE_VERSION,
-	getRawTableFactsRuleVersion,
-	type RawTableFactsRecord,
-} from "src/cs/workbench/services/template/common/tableFacts";
 
-export {
-	TABLE_FACTS_RULE_VERSION,
-	getRawTableFactsRuleVersion,
+// Bump this when table-fact heuristics change in a way that should invalidate
+// stored raw table fact records.
+export const TABLE_FACTS_RULE_VERSION = 2;
+
+export type RawTableFactsRecord = {
+	readonly tableFactsRuleVersion: number;
+	readonly schemaProfileVersion: number;
+	readonly fileId: string;
+	readonly rawTableId: string;
+	readonly sourceRawTableVersion: number;
+	readonly structure: RawTableStructure;
+	readonly columnProfiles: readonly ColumnProfile[];
+	readonly layoutCandidates: readonly LayoutCandidate[];
+	readonly semanticCandidates: readonly ColumnSemanticCandidate[];
+	readonly groups: readonly MeasurementGroupRecord[];
+	readonly blocks: readonly MeasurementBlockRecord[];
+	readonly diagnostics: readonly TableFactsDiagnostic[];
+	readonly createdAt: number;
 };
-export type {
-	RawTableFactsRecord,
-} from "src/cs/workbench/services/template/common/tableFacts";
+
+export const getRawTableFactsRuleVersion = (
+	record: {
+		readonly tableFactsRuleVersion?: number;
+	},
+): number =>
+	normalizeRuleVersion(record.tableFactsRuleVersion) ?? 0;
+
+export type RawTableFacts = {
+	readonly structure: RawTableStructure;
+	readonly columnProfiles: readonly ColumnProfile[];
+	readonly layoutCandidates: readonly LayoutCandidate[];
+	readonly semanticCandidates: readonly ColumnSemanticCandidate[];
+	readonly blocks: readonly MeasurementBlockRecord[];
+	readonly sourceMetadata: RawTableFactsSourceMetadata;
+};
+
+export type RawTableFactsSourceMetadata = {
+	readonly fileId: string;
+	readonly rawTableId: string;
+	readonly fileName?: string | null;
+	readonly rowCount?: number;
+	readonly columnCount?: number;
+	readonly sourceRawTableVersion: number;
+};
+
+export const createRawTableFactsFromRecord = (
+	record: RawTableFactsRecord,
+	sourceMetadata?: Partial<RawTableFactsSourceMetadata>,
+): RawTableFacts => ({
+	structure: record.structure,
+	columnProfiles: record.columnProfiles,
+	layoutCandidates: record.layoutCandidates,
+	semanticCandidates: record.semanticCandidates,
+	blocks: record.blocks,
+	sourceMetadata: {
+		fileId: record.fileId,
+		rawTableId: record.rawTableId,
+		sourceRawTableVersion: record.sourceRawTableVersion,
+		...sourceMetadata,
+	},
+});
 
 export const IRawTableFactsService = createDecorator<IRawTableFactsService>("rawTableFactsService");
 export const IRawTableFactsQueueService = createDecorator<IRawTableFactsQueueService>("rawTableFactsQueueService");
@@ -166,4 +222,11 @@ const uniqueRawTableRefs = (
 	}
 
 	return result;
+};
+
+const normalizeRuleVersion = (
+	value: unknown,
+): number | undefined => {
+	const version = Math.floor(Number(value));
+	return Number.isFinite(version) && version >= 0 ? version : undefined;
 };

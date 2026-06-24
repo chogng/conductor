@@ -10,7 +10,7 @@ import {
   getRawTableFactsRuleVersion,
   TABLE_FACTS_RULE_VERSION,
   type RawTableFactsRecord,
-} from "src/cs/workbench/services/template/common/tableFacts";
+} from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import {
   IRawTableFactsQueueService,
   IRawTableFactsService,

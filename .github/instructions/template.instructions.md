@@ -17,9 +17,9 @@ Slice executes the reviewed `Template`; Review judges usability; Template owns
 materialization.
 
 Do not add consumer-shaped template sections such as `template.review`,
-`template.slicing`, or `template.binding`. Template may own table-fact
-projection and materialization, but it must keep raw table facts distinct from
-the executable `Template` snapshot.
+`template.slicing`, or `template.binding`. Template consumes TableFacts-owned
+raw-table facts and owns materialization, but it must keep raw table facts
+distinct from the executable `Template` snapshot.
 
 Legacy/manual extraction presets are not the domain `Template`; name them
 `TemplateApplyPresetRecord` / `TemplateApplyConfig`.

@@ -6,7 +6,7 @@ import type {
 } from "src/cs/workbench/services/files/common/rawTable";
 import type { SliceRun, SliceRunId } from "src/cs/workbench/services/slice/common/slice";
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
-import type { RawTableFactsRecord } from "src/cs/workbench/services/template/common/tableFacts";
+import type { RawTableFactsRecord } from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import type { RawTableReviewRecord } from "src/cs/workbench/services/review/common/review";
 
 export type FileId = string;

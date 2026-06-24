@@ -15,7 +15,7 @@ import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorer
 import {
   TABLE_FACTS_RULE_VERSION,
   type RawTableFactsRecord,
-} from "src/cs/workbench/services/template/common/tableFacts";
+} from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
 import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
 import type {

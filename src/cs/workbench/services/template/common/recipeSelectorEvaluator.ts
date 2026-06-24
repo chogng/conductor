@@ -16,7 +16,7 @@ import type {
   RecipeSelectorPredicate,
 } from "src/cs/workbench/services/recipe/common/recipeSelector";
 import type { Recipe } from "src/cs/workbench/services/recipe/common/recipe";
-import type { RawTableFacts } from "src/cs/workbench/services/template/common/tableFacts";
+import type { RawTableFacts } from "src/cs/workbench/services/tableFacts/common/tableFacts";
 
 export type RecipeSelectorCapture =
   | {

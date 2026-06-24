@@ -2,7 +2,7 @@ import path from "node:path";
 import { builtinRecipes } from "../../src/cs/workbench/services/recipe/common/builtinRecipes.generated.ts";
 import { createRecipeSnapshot } from "../../src/cs/workbench/services/recipe/common/recipeCodec.ts";
 import { createRawTableFactsRecordFromImportSeed } from "../../src/cs/workbench/services/tableFacts/common/tableFactsRecord.ts";
-import { createRawTableFactsFromRecord } from "../../src/cs/workbench/services/template/common/tableFacts.ts";
+import { createRawTableFactsFromRecord } from "../../src/cs/workbench/services/tableFacts/common/tableFacts.ts";
 import { deriveRecipeTemplateDrafts } from "../../src/cs/workbench/services/template/common/recipeTemplateMaterializer.ts";
 
 const DEFAULT_MAX_POINTS = 600;

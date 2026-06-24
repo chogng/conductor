@@ -10,7 +10,7 @@ import type {
   RecipeSelectorEvaluation,
 } from "src/cs/workbench/services/template/common/recipeSelectorEvaluator";
 import type { Recipe, RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
-import type { RawTableFacts } from "src/cs/workbench/services/template/common/tableFacts";
+import type { RawTableFacts } from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import type {
   TemplateDraft,
   TemplateDraftDiagnostic,

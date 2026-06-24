@@ -6,7 +6,7 @@ import {
 	CommandsRegistry,
 	type ICommandHandler,
 } from "src/cs/platform/commands/common/commands";
-import type { RawTableFactsRecord } from "src/cs/workbench/services/template/common/tableFacts";
+import type { RawTableFactsRecord } from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import type { MeasurementColumnRole } from "src/cs/workbench/services/tableFacts/common/measurement";
 import type { CanonicalUnit } from "src/cs/workbench/services/tableFacts/common/semanticCandidate";
 import {

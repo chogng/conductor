@@ -1584,7 +1584,7 @@ ReviewDecision、systemRecommended 或 SliceRequest。
 table facts service contracts -> src/cs/workbench/services/tableFacts/common/tableFacts.ts
 table facts record factories/helpers -> src/cs/workbench/services/tableFacts/common/*
 table facts browser implementation -> src/cs/workbench/services/tableFacts/browser/*
-canonical table-facts record projection helpers -> src/cs/workbench/services/template/common/tableFacts.ts
+canonical table-facts record projection helpers -> src/cs/workbench/services/tableFacts/common/tableFacts.ts
 materializers -> src/cs/workbench/services/template/common/*Materializer*
 ```
 

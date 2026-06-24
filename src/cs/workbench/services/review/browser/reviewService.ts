@@ -31,7 +31,7 @@ import {
 } from "src/cs/workbench/services/template/common/automaticTemplateMaterializer";
 import {
   createRawTableFactsFromRecord,
-} from "src/cs/workbench/services/template/common/tableFacts";
+} from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import type { TemplateDraft } from "src/cs/workbench/services/template/common/templateDraft";
 import {
   ISessionService,

@@ -10,7 +10,7 @@ import type {
   TemplateDraft,
   TemplateDraftDiagnostic,
 } from "src/cs/workbench/services/template/common/templateDraft";
-import type { RawTableFacts } from "src/cs/workbench/services/template/common/tableFacts";
+import type { RawTableFacts } from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import type {
   UserTemplate,
   UserTemplateSnapshot,

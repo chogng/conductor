@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 import { RawTableFactsContribution } from "src/cs/workbench/services/tableFacts/browser/rawTableFacts.contribution";
 import { RawTableFactsQueueService } from "src/cs/workbench/services/tableFacts/browser/rawTableFactsQueueService";
 import { RawTableFactsService } from "src/cs/workbench/services/tableFacts/browser/rawTableFactsService";
-import { TABLE_FACTS_RULE_VERSION, type RawTableFactsRecord } from "src/cs/workbench/services/template/common/tableFacts";
+import { TABLE_FACTS_RULE_VERSION, type RawTableFactsRecord } from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
 import type {
 	IRawTableRowsReaderService,

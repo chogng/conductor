@@ -11,7 +11,7 @@ import type {
   SheetId,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
-import type { RawTableFactsRecord } from "src/cs/workbench/services/template/common/tableFacts";
+import type { RawTableFactsRecord } from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import type { AutomaticTemplateCandidateSource } from "src/cs/workbench/services/template/common/templateDraft";
 import type { UserTemplateSnapshot } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 

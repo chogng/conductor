@@ -12,7 +12,7 @@ import type {
   MeasurementColumnRef,
 } from "src/cs/workbench/services/tableFacts/common/measurement";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
-import type { RawTableFacts } from "src/cs/workbench/services/template/common/tableFacts";
+import type { RawTableFacts } from "src/cs/workbench/services/tableFacts/common/tableFacts";
 
 suite("workbench/services/template/test/common/recipeSelectorEvaluator", () => {
   ensureNoDisposablesAreLeakedInTestSuite();

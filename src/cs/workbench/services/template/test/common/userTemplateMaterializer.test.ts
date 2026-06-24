@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import type { Template } from "src/cs/workbench/services/template/common/template";
-import type { RawTableFacts } from "src/cs/workbench/services/template/common/tableFacts";
+import type { RawTableFacts } from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import { deriveUserTemplateDrafts } from "src/cs/workbench/services/template/common/userTemplateMaterializer";
 import type {
 	UserTemplate,

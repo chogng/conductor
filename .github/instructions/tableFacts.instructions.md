@@ -35,7 +35,7 @@ TableFacts must not produce `TemplateDraft`, `ReviewedTemplate`,
 
 | File | Responsibility |
 | --- | --- |
-| `common/tableFacts.ts` | `IRawTableFactsService`, queue contract, service inputs, and raw-table ref helpers. |
+| `common/tableFacts.ts` | `RawTableFactsRecord` / `RawTableFacts` contracts, rule version, `IRawTableFactsService`, queue contract, service inputs, and raw-table ref helpers. |
 | `common/tableFactsRecord.ts` | `RawTableFactsRecord` factory and normalization helpers. |
 | `common/rawTableStructure.ts` | physical table structure and schema fingerprint detection. |
 | `common/columnProfile.ts` | neutral raw-column profiles and measurement column projections. |

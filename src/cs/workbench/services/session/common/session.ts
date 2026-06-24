@@ -21,7 +21,7 @@ import type { SessionChangeEvent } from "src/cs/workbench/services/session/commo
 import type { FileImportResult } from "src/cs/workbench/services/files/common/files";
 import type { SliceCommit } from "src/cs/workbench/services/slice/common/slice";
 import type { ReviewCommit } from "src/cs/workbench/services/review/common/review";
-import type { RawTableFactsRecord } from "src/cs/workbench/services/template/common/tableFacts";
+import type { RawTableFactsRecord } from "src/cs/workbench/services/tableFacts/common/tableFacts";
 
 export const ISessionService = createDecorator<ISessionService>("sessionService");
 

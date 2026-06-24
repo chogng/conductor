@@ -13,7 +13,7 @@ import type {
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
 import { materializeRecipeTemplateDraft } from "src/cs/workbench/services/template/common/recipeTemplateMaterializer";
-import type { RawTableFacts } from "src/cs/workbench/services/template/common/tableFacts";
+import type { RawTableFacts } from "src/cs/workbench/services/tableFacts/common/tableFacts";
 
 suite("workbench/services/template/test/common/recipeTemplateMaterializer", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

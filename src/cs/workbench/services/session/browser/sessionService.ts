@@ -63,10 +63,10 @@ import type {
 } from "src/cs/workbench/services/files/common/rawTable";
 import type {
   RawTableFactsRecord,
-} from "src/cs/workbench/services/template/common/tableFacts";
+} from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import {
   getRawTableFactsRuleVersion,
-} from "src/cs/workbench/services/template/common/tableFacts";
+} from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import type {
   MeasurementBlockRecord,
 } from "src/cs/workbench/services/tableFacts/common/measurement";
