@@ -115,14 +115,14 @@ suite("workbench/services/session/test/common/sessionReadModel", () => {
       rawRecords.filesById,
       rawRecords.fileOrder,
       {
-        bottomTitle: "Legacy Gate",
+        bottomTitle: "Gate Voltage",
         fileId: "file-a",
         fileName: "Transfer.csv",
         curveType: "transfer",
         xAxisRole: "vg",
         xUnit: "V",
         yUnit: "A",
-        leftTitle: "Legacy Current",
+        leftTitle: "Drain Current",
         xGroups: [[0, 1, 2]],
         series: [{
           id: "series-1",

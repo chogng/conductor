@@ -143,7 +143,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     assert.deepEqual(session.getSnapshot().fileOrder, []);
   });
 
-  test("omits legacy buckets from the session snapshot", () => {
+  test("omits retired buckets from the session snapshot", () => {
     const session = store.add(new SessionService());
 
     commitRawFilesForTest(session, [{ fileId: "file-a", fileName: "Raw A.csv" }]);
@@ -1639,7 +1639,7 @@ const createRawTableReview = (
     }),
     recipeFingerprint: "recipe:test",
     userTemplateCatalogVersion: 1,
-    userTemplateEffectiveFingerprint: "legacy-template:test",
+    userTemplateEffectiveFingerprint: "user-template:test",
     reviewEngineVersion: 1,
     reviewPolicyVersion: 1,
     candidates: [{

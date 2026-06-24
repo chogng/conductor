@@ -9,7 +9,7 @@ import type {
 } from "src/cs/workbench/services/calculation/common/calculationReadModel";
 import type {
   CurveData,
-  CurveKey as LegacyCurveKey,
+  CurveKey as CompatibleCurveKey,
   FileSemantics,
 } from "src/cs/workbench/services/session/common/fileSemantics";
 import type {
@@ -63,7 +63,7 @@ type ProcessedCalculationCachePayload = {
   touchedAt?: number;
 };
 
-type LegacyTemplateApplyConfig = {
+type ProcessedTemplateApplyConfigRecord = {
   readonly name?: string;
   readonly xColumns: number[];
   readonly xDataStart: number;
@@ -723,7 +723,7 @@ export const mergeCurveDataIntoRecords = (
   fileOrder: readonly FileId[],
   data: CurveData,
 ): Pick<SessionSnapshot, "filesById" | "fileOrder"> => {
-  const curve = createCurveRecordFromLegacyCurve(data);
+  const curve = createCurveRecordFromCompatibleCurve(data);
   if (!curve) {
     return {
       filesById: { ...filesById },
@@ -751,10 +751,10 @@ export const mergeCurveDataIntoRecords = (
 export const removeCurveDataFromRecords = (
   filesById: Readonly<Record<FileId, FileRecord>>,
   fileOrder: readonly FileId[],
-  key: LegacyCurveKey,
+  key: CompatibleCurveKey,
 ): Pick<SessionSnapshot, "filesById" | "fileOrder"> => {
   const fileId = normalizeId(key.fileId);
-  const curveKey = createCurveRecordKeyFromLegacyKey(key);
+  const curveKey = createCurveRecordKeyFromCompatibleKey(key);
   const file = fileId ? filesById[fileId] : undefined;
   if (!file || !curveKey || !file.curvesByKey[curveKey]) {
     return {
@@ -805,8 +805,8 @@ export const pruneCurveDataRecords = (
 };
 
 export const createCanonicalCurveKeyFromCurveKey = (
-  key: LegacyCurveKey,
-): SessionCurveKey | null => createCurveRecordKeyFromLegacyKey(key);
+  key: CompatibleCurveKey,
+): SessionCurveKey | null => createCurveRecordKeyFromCompatibleKey(key);
 
 const getOrderedFileRecords = (
   filesById: Readonly<Record<FileId, FileRecord>>,
@@ -911,8 +911,8 @@ const filterCurveRecords = (
   return changed ? next : { ...curvesByKey };
 };
 
-const createCurveRecordKeyFromLegacyKey = (
-  key: LegacyCurveKey,
+const createCurveRecordKeyFromCompatibleKey = (
+  key: CompatibleCurveKey,
 ): SessionCurveKey | null => {
   const seriesId = normalizeId(key.seriesId);
   if (!seriesId) {
@@ -1119,7 +1119,7 @@ const mergeProcessedFileRecord = (
     { kind: "auto" as const },
   );
   const fileName = readRecordString(processedFile, "fileName") ?? record.raw.fileName;
-  const sliceRun = createLegacyProcessedSliceRun({
+  const sliceRun = createProcessedSliceRunFromOutput({
     config: templateConfig,
     errors: readStringArray(processedFile.errors),
     fileId,
@@ -1152,7 +1152,7 @@ const mergeProcessedFileRecord = (
   };
 };
 
-const createLegacyProcessedSliceRun = ({
+const createProcessedSliceRunFromOutput = ({
   config,
   errors,
   fileId,
@@ -1163,7 +1163,7 @@ const createLegacyProcessedSliceRun = ({
   selection,
   warnings,
 }: {
-  readonly config: LegacyTemplateApplyConfig;
+  readonly config: ProcessedTemplateApplyConfigRecord;
   readonly errors: readonly string[];
   readonly fileId: FileId;
   readonly outputCurveKeys: readonly SessionCurveKey[];
@@ -1177,9 +1177,9 @@ const createLegacyProcessedSliceRun = ({
     record.raw.tableOrder[0] ??
     fileId;
   const sourceRawTableVersion = record.rawTableVersionsById[rawTableId] ?? 0;
-  const template = createLegacyProcessedTemplate(config, fileId);
+  const template = createTemplateFromProcessedApplyConfig(config, fileId);
   const templateFingerprint = createTemplateFingerprint(template);
-  const inputRanges = createLegacyProcessedSliceInputRanges({
+  const inputRanges = createProcessedSliceInputRanges({
     config,
     fileId,
     processedFile,
@@ -1203,8 +1203,8 @@ const createLegacyProcessedSliceRun = ({
   };
 };
 
-const createLegacyProcessedTemplate = (
-  config: LegacyTemplateApplyConfig,
+const createTemplateFromProcessedApplyConfig = (
+  config: ProcessedTemplateApplyConfigRecord,
   fileId: string,
 ): Template => ({
   schemaVersion: 1,
@@ -1225,7 +1225,7 @@ const createLegacyProcessedTemplate = (
       columns: config.yColumns,
       ...(config.yUnit ? { unit: config.yUnit } : {}),
     },
-    segmentation: createLegacyProcessedTemplateSegmentation(config),
+    segmentation: createProcessedTemplateSegmentation(config),
     legend: {
       target: config.yLegendTarget,
       ...(config.legendPrefix ? { prefix: config.legendPrefix } : {}),
@@ -1241,8 +1241,8 @@ const createLegacyProcessedTemplate = (
   }],
 });
 
-const createLegacyProcessedTemplateSegmentation = (
-  config: LegacyTemplateApplyConfig,
+const createProcessedTemplateSegmentation = (
+  config: ProcessedTemplateApplyConfigRecord,
 ): TemplateSegmentation => {
   if (config.xSegmentationMode === "points" && config.xPointsPerGroup) {
     return { kind: "fixedPoints", pointsPerGroup: config.xPointsPerGroup };
@@ -1253,13 +1253,13 @@ const createLegacyProcessedTemplateSegmentation = (
   return { kind: "auto" };
 };
 
-const createLegacyProcessedSliceInputRanges = ({
+const createProcessedSliceInputRanges = ({
   config,
   fileId,
   processedFile,
   rawTableId,
 }: {
-  readonly config: LegacyTemplateApplyConfig;
+  readonly config: ProcessedTemplateApplyConfigRecord;
   readonly fileId: string;
   readonly processedFile: ProcessedEntry;
   readonly rawTableId: string;
@@ -1370,7 +1370,7 @@ const setSeriesLabelOverride = (
 
 const createTemplateApplyConfigRecord = (
   config: TemplateApplyConfig,
-): LegacyTemplateApplyConfig => ({
+): ProcessedTemplateApplyConfigRecord => ({
   name: normalizeOptionalText(config.name),
   xColumns: normalizeColumnIndexes(config.xColumns),
   xDataStart: parseNumberOr(config.xDataStart, 0),
@@ -1395,7 +1395,7 @@ const createTemplateApplyConfigRecordFromAppliedConfig = (
   config: unknown,
   fallback: TemplateApplyConfig,
   processedFile?: ProcessedEntry,
-): LegacyTemplateApplyConfig => {
+): ProcessedTemplateApplyConfigRecord => {
   const fallbackRecord = createTemplateApplyConfigRecord(fallback);
   const processedConfig = createTemplateApplyConfigFallbackFromProcessedFile(processedFile);
   if (!isObjectRecord(config)) {
@@ -1425,7 +1425,7 @@ const createTemplateApplyConfigRecordFromAppliedConfig = (
     readConfigNumber(config, "xPointsPerGroup") ??
     readConfigNumber(config, "groupSize") ??
     fallbackRecord.xPointsPerGroup;
-  const xSegmentationMode = resolveLegacyTemplateSegmentationMode(
+  const xSegmentationMode = resolveProcessedTemplateSegmentationMode(
     normalizeXSegmentationMode(
       config.xSegmentationMode,
       fallbackRecord.xSegmentationMode,
@@ -1489,7 +1489,7 @@ const createTemplateApplyConfigRecordFromAppliedConfig = (
 
 const createTemplateApplyConfigFallbackFromProcessedFile = (
   processedFile: ProcessedEntry | undefined,
-): Partial<LegacyTemplateApplyConfig> => {
+): Partial<ProcessedTemplateApplyConfigRecord> => {
   if (!processedFile) {
     return {};
   }
@@ -1510,17 +1510,17 @@ const shouldDefaultExtractionXColumn = (config: Record<string, unknown>): boolea
 
 const normalizeXSegmentationMode = (
   value: unknown,
-  fallback: LegacyTemplateApplyConfig["xSegmentationMode"],
-): LegacyTemplateApplyConfig["xSegmentationMode"] =>
+  fallback: ProcessedTemplateApplyConfigRecord["xSegmentationMode"],
+): ProcessedTemplateApplyConfigRecord["xSegmentationMode"] =>
   value === "points" || value === "segments" || value === "auto"
     ? value
     : fallback;
 
-const resolveLegacyTemplateSegmentationMode = (
-  mode: LegacyTemplateApplyConfig["xSegmentationMode"],
+const resolveProcessedTemplateSegmentationMode = (
+  mode: ProcessedTemplateApplyConfigRecord["xSegmentationMode"],
   xPointsPerGroup: number | undefined,
   xSegmentCount: number | undefined,
-): LegacyTemplateApplyConfig["xSegmentationMode"] => {
+): ProcessedTemplateApplyConfigRecord["xSegmentationMode"] => {
   if (mode !== "auto") {
     return mode;
   }
@@ -1538,13 +1538,13 @@ const isPositiveNumber = (value: number | undefined): boolean =>
 
 const normalizeYLegendTarget = (
   value: unknown,
-  fallback: LegacyTemplateApplyConfig["yLegendTarget"],
-): LegacyTemplateApplyConfig["yLegendTarget"] =>
+  fallback: ProcessedTemplateApplyConfigRecord["yLegendTarget"],
+): ProcessedTemplateApplyConfigRecord["yLegendTarget"] =>
   value === "yColumn" || value === "group" || value === "auto"
     ? value
     : fallback;
 
-const createCurveRecordFromLegacyCurve = (
+const createCurveRecordFromCompatibleCurve = (
   data: CurveData,
 ): CurveRecord | null => {
   const fileId = normalizeId(data.fileId);
@@ -1638,7 +1638,7 @@ const createCurveRecordFromCalculatedSeries = (
   data: CalculatedData,
   series: CalculatedSeries,
   fileId: string,
-): CurveRecord | null => createCurveRecordFromLegacyCurve({
+): CurveRecord | null => createCurveRecordFromCompatibleCurve({
   curveKind: series.kind,
   fileId,
   seriesId: series.id,

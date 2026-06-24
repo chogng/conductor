@@ -86,7 +86,7 @@ materialization logic belongs in Template, not TableFacts, Explorer, or Slice.
 - `ReviewDecision` is the only source for template usability and system
   application recommendations.
 - System recommendation policy is Review-owned: it uses `TemplateReview`
-  confidence and Review diagnostics/policy, not legacy apply fields.
+  confidence and Review diagnostics/policy, not retired apply fields.
 - `TemplateDraft` is Template materialization pipeline data consumed by Review.
   It may carry derivation confidence,
   derivation reasons, diagnostics, and optional captures, but it must not carry

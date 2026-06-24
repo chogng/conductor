@@ -5,15 +5,14 @@
 import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import { TABLE_FACTS_RULE_VERSION, type RawTableFactsRecord } from "src/cs/workbench/services/tableFacts/common/tableFacts";
-import { createRawTableFactsFromLegacyTableFacts } from "src/cs/workbench/services/tableFacts/common/legacyTableFactsAdapter";
+import { createRawTableFactsFromRecord, TABLE_FACTS_RULE_VERSION, type RawTableFactsRecord } from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
 
-suite("workbench/services/tableFacts/test/common/tableFactsLegacyAdapter", () => {
+suite("workbench/services/tableFacts/test/common/tableFactsRecord", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
 
-  test("adapts legacy tableFacts records into raw table facts only", () => {
-    const tableFacts = createRawTableFactsFromLegacyTableFacts(createLegacyTableFacts());
+  test("drops retired review/template fields from raw table facts", () => {
+    const tableFacts = createRawTableFactsFromRecord(createTableFactsRecordWithRetiredFields());
     const context = tableFacts as Record<string, unknown>;
 
     assert.equal(context.recipeFingerprint, undefined);
@@ -31,14 +30,14 @@ suite("workbench/services/tableFacts/test/common/tableFactsLegacyAdapter", () =>
   });
 });
 
-type LegacyTableFactsRecord = RawTableFactsRecord & {
+type RawTableFactsRecordWithRetiredFields = RawTableFactsRecord & {
   readonly recipeFingerprint?: unknown;
   readonly reviewedTemplate?: unknown;
   readonly selectedTemplate?: unknown;
   readonly templateCandidates?: unknown;
 };
 
-const createLegacyTableFacts = (): RawTableFactsRecord => ({
+const createTableFactsRecordWithRetiredFields = (): RawTableFactsRecord => ({
   tableFactsRuleVersion: TABLE_FACTS_RULE_VERSION,
   schemaProfileVersion: 0,
   fileId: "file-a",
@@ -52,8 +51,8 @@ const createLegacyTableFacts = (): RawTableFactsRecord => ({
   blocks: [],
   diagnostics: [],
   createdAt: 1,
-  recipeFingerprint: "recipe:legacy",
+  recipeFingerprint: "recipe:retired-field",
   reviewedTemplate: { id: "reviewed-template" },
   selectedTemplate: { id: "selected-template" },
   templateCandidates: [{ id: "candidate" }],
-} as LegacyTableFactsRecord);
+} as RawTableFactsRecordWithRetiredFields);

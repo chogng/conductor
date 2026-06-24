@@ -26,7 +26,7 @@ session. It is not a view-state store and not a workflow dispatcher.
 | `common/sessionModel.ts` | canonical records: files, raw, table facts, reviews, slice runs, series, curves, metrics, cache. |
 | `common/sessionEvents.ts` | change reasons, affected ids, helper types. |
 | `common/sessionReadModel.ts` | read-only projections. |
-| `common/sessionModelAdapter.ts` | temporary legacy adapter; shrink over time. |
+| `common/sessionModelAdapter.ts` | compatibility projections between raw/processed helper payloads and canonical records; shrink over time. |
 | `browser/sessionService.ts` | mutable model owner, validation, versioning, events. |
 
 ## Canonical Data Only

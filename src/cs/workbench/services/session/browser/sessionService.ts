@@ -702,10 +702,10 @@ const commitRawTableFactsToFiles = (
       ...(file.rawTableReviewsByRawTableId ?? {}),
     };
     delete rawTableReviewsByRawTableId[rawTableId];
-    const legacyTableFacts = { ...tableFacts } as RawTableFactsRecord & { decision?: unknown };
-    delete legacyTableFacts.decision;
+    const tableFactsWithoutRetiredDecision = { ...tableFacts } as RawTableFactsRecord & { decision?: unknown };
+    delete tableFactsWithoutRetiredDecision.decision;
     const committedTableFacts: RawTableFactsRecord = {
-      ...legacyTableFacts,
+      ...tableFactsWithoutRetiredDecision,
       tableFactsRuleVersion: getRawTableFactsRuleVersion(tableFacts),
       schemaProfileVersion: normalizeSchemaProfileVersion(tableFacts.schemaProfileVersion),
       fileId,
