@@ -69,16 +69,13 @@ user command / UserTemplate picker / saved-selection compatibility picker / inli
 | File | Responsibility |
 | --- | --- |
 | `common/review.ts` | service contract, Review records, candidate summaries, decisions, manual review results, and signatures. |
-| `common/templateDraft.ts` | migration location for full candidate draft shape before Review status/policy projection; target owner is Template. |
-| `common/automaticTemplateDraftProvider.ts` | migration provider combining Recipe and UserTemplate draft sources; new provider logic belongs in Template. |
-| `common/recipeSelectorEvaluator.ts` | migration Recipe selector evaluator against table facts; target owner is Template materialization. |
-| `common/recipeTemplateDraftProvider.ts` | migration materializer from Recipe selector/projection matches into `TemplateDraft` values; target owner is Template. |
-| `common/userTemplateDraftProvider.ts` | migration UserTemplate compatibility draft provider; target owner is Template. |
 | `browser/reviewService.ts` | injectable owner that reads snapshots, runs pure review helpers, and commits review records. |
 | `browser/review.contribution.ts` | lifecycle subscriber for evidence, Recipe, UserTemplate, and policy changes. |
 | `browser/reviewApply.contribution.ts` | no-UI bridge from system-recommended Review decisions to Slice requests. |
 
-During migration, Template Resolution may reuse existing pure draft providers
+Template materializers live under `services/template/common` and produce
+`TemplateDraft` values before Review status/policy projection. During
+migration, Template Resolution may reuse those pure materializers
 only as a legacy compatibility bridge for old candidate summaries. It is not a
 prerequisite for Review and is not on the primary path.
 User-template candidates must come through `IUserTemplateService` and

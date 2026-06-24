@@ -5,28 +5,28 @@
 import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import type { RawTableEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
-import { evaluateRecipeSelector } from "src/cs/workbench/services/review/common/recipeSelectorEvaluator";
+import { evaluateRecipeSelector } from "src/cs/workbench/services/template/common/recipeSelectorEvaluator";
 import type {
 	MeasurementBlockRecord,
 	MeasurementColumnRef,
 } from "src/cs/workbench/services/assessment/common/measurement";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
-import { materializeRecipeTemplateDraft } from "src/cs/workbench/services/review/common/recipeTemplateDraftProvider";
+import { materializeRecipeTemplateDraft } from "src/cs/workbench/services/template/common/recipeTemplateMaterializer";
+import type { RawTableFacts } from "src/cs/workbench/services/template/common/tableFacts";
 
-suite("workbench/services/review/test/common/recipeTemplateDraftProvider", () => {
+suite("workbench/services/template/test/common/recipeTemplateMaterializer", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test("materializes builtin IV transfer recipe into a block-aware template", () => {
 		const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
 		assert.ok(recipe);
 
-		const evidence = createEvidence();
-		const evaluation = evaluateRecipeSelector(recipe, evidence);
+		const tableFacts = createTableFacts();
+		const evaluation = evaluateRecipeSelector(recipe, tableFacts);
 		const draft = materializeRecipeTemplateDraft({
 			recipe,
-			evidence,
+			tableFacts,
 			evaluation,
 		});
 
@@ -53,7 +53,7 @@ suite("workbench/services/review/test/common/recipeTemplateDraftProvider", () =>
 	});
 });
 
-const createEvidence = (): RawTableEvidence => ({
+const createTableFacts = (): RawTableFacts => ({
 	structure: {
 		...createEmptyRawTableStructure(),
 		fingerprint: "schema-a",

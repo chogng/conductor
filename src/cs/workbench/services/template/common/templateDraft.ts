@@ -2,13 +2,25 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type {
-  AutomaticTemplateCandidateSource,
-  ReviewDiagnostic,
-} from "src/cs/workbench/services/review/common/review";
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
 
-export type TemplateDraftDiagnostic = ReviewDiagnostic;
+export type AutomaticTemplateCandidateSource =
+  | {
+      readonly kind: "recipe";
+      readonly recipeId: string;
+      readonly recipeVersion: number;
+    }
+  | {
+      readonly kind: "userTemplate";
+      readonly templateId: string;
+      readonly templateVersion: number;
+    };
+
+export type TemplateDraftDiagnostic = {
+  readonly severity: "info" | "warning" | "error";
+  readonly code: string;
+  readonly message: string;
+};
 
 export type TemplateDraft = {
   readonly id: string;

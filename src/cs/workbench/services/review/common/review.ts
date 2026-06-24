@@ -12,6 +12,7 @@ import type {
   SheetId,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
+import type { AutomaticTemplateCandidateSource } from "src/cs/workbench/services/template/common/templateDraft";
 import type { UserTemplateSnapshot } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
 export const IReviewService = createDecorator<IReviewService>("reviewService");
@@ -27,18 +28,6 @@ export type ReviewDiagnostic = {
   readonly code: string;
   readonly message: string;
 };
-
-export type AutomaticTemplateCandidateSource =
-  | {
-      readonly kind: "recipe";
-      readonly recipeId: string;
-      readonly recipeVersion: number;
-    }
-  | {
-      readonly kind: "userTemplate";
-      readonly templateId: string;
-      readonly templateVersion: number;
-    };
 
 export type TemplateCandidateSummary = {
   readonly id: string;

@@ -2,19 +2,19 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { RawTableEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
 import type { MeasurementBlockRecord } from "src/cs/workbench/services/assessment/common/measurement";
-import { evaluateRecipeSelector } from "src/cs/workbench/services/review/common/recipeSelectorEvaluator";
+import { evaluateRecipeSelector } from "src/cs/workbench/services/template/common/recipeSelectorEvaluator";
 import type {
   RecipeSelectorBlockMatch,
   RecipeSelectorCapture,
   RecipeSelectorEvaluation,
-} from "src/cs/workbench/services/review/common/recipeSelectorEvaluator";
+} from "src/cs/workbench/services/template/common/recipeSelectorEvaluator";
 import type { Recipe, RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
+import type { RawTableFacts } from "src/cs/workbench/services/template/common/tableFacts";
 import type {
   TemplateDraft,
   TemplateDraftDiagnostic,
-} from "src/cs/workbench/services/review/common/templateDraft";
+} from "src/cs/workbench/services/template/common/templateDraft";
 import type {
   RecipeColumnProjection,
   RecipeValueExpression,
@@ -28,18 +28,18 @@ import type {
 } from "src/cs/workbench/services/template/common/templateSpec";
 
 export const deriveRecipeTemplateDrafts = ({
-  evidence,
+  tableFacts,
   recipeSnapshot,
 }: {
-  readonly evidence: RawTableEvidence;
+  readonly tableFacts: RawTableFacts;
   readonly recipeSnapshot?: RecipeSnapshot;
 }): readonly TemplateDraft[] => {
   const drafts: TemplateDraft[] = [];
   for (const recipe of recipeSnapshot?.recipes ?? []) {
-    const evaluation = evaluateRecipeSelector(recipe, evidence);
+    const evaluation = evaluateRecipeSelector(recipe, tableFacts);
     const draft = materializeRecipeTemplateDraft({
       recipe,
-      evidence,
+      tableFacts,
       evaluation,
     });
     if (draft) {
@@ -55,11 +55,11 @@ export const deriveRecipeTemplateDrafts = ({
 
 export const materializeRecipeTemplateDraft = ({
   recipe,
-  evidence,
+  tableFacts,
   evaluation,
 }: {
   readonly recipe: Recipe;
-  readonly evidence: RawTableEvidence;
+  readonly tableFacts: RawTableFacts;
   readonly evaluation: RecipeSelectorEvaluation;
 }): TemplateDraft | null => {
   if (!evaluation.matched || !evaluation.matches.length) {
@@ -73,7 +73,7 @@ export const materializeRecipeTemplateDraft = ({
   const blocks: TemplateBlock[] = [];
   const diagnostics = new Set<string>();
   for (const match of matches) {
-    const block = getMatchedBlock(evidence, match);
+    const block = getMatchedBlock(tableFacts, match);
     if (!block) {
       diagnostics.add("recipeProjection.missingBlock");
       continue;
@@ -93,13 +93,13 @@ export const materializeRecipeTemplateDraft = ({
 
   const template: Template = {
     schemaVersion: 1,
-    name: resolveTemplateValue(projection.name, matches[0], getMatchedBlock(evidence, matches[0])) || recipe.id,
+    name: resolveTemplateValue(projection.name, matches[0], getMatchedBlock(tableFacts, matches[0])) || recipe.id,
     version: 1,
     blocks,
     stopOnError: projection.stopOnError ?? false,
     applicability: {
-      schemaFingerprint: evidence.structure.fingerprint,
-      columnCount: evidence.sourceMetadata.columnCount,
+      schemaFingerprint: tableFacts.structure.fingerprint,
+      columnCount: tableFacts.sourceMetadata.columnCount,
     },
   };
   const templateFingerprint = createTemplateFingerprint(template);
@@ -113,7 +113,7 @@ export const materializeRecipeTemplateDraft = ({
     },
     template,
     templateFingerprint,
-    derivationConfidence: getTemplateConfidence(matches, evidence),
+    derivationConfidence: getTemplateConfidence(matches, tableFacts),
     derivationReasons: matches.flatMap(match => match.reasons),
     derivationDiagnostics: [...diagnostics].map(createTemplateDraftDiagnostic),
   };
@@ -221,12 +221,12 @@ const readColumnsCapture = (
     : null;
 
 const getMatchedBlock = (
-  evidence: RawTableEvidence,
+  tableFacts: RawTableFacts,
   match: RecipeSelectorBlockMatch | undefined,
 ): MeasurementBlockRecord | null =>
   match?.blockId
-    ? evidence.blocks.find(block => block.id === match.blockId) ?? null
-    : evidence.blocks[0] ?? null;
+    ? tableFacts.blocks.find(block => block.id === match.blockId) ?? null
+    : tableFacts.blocks[0] ?? null;
 
 const getBlockDataRowRange = (
   block: MeasurementBlockRecord,
@@ -240,10 +240,10 @@ const getBlockDataRowRange = (
 
 const getTemplateConfidence = (
   matches: readonly RecipeSelectorBlockMatch[],
-  evidence: RawTableEvidence,
+  tableFacts: RawTableFacts,
 ): number => {
   const confidences = matches
-    .map(match => getMatchedBlock(evidence, match)?.confidence)
+    .map(match => getMatchedBlock(tableFacts, match)?.confidence)
     .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
   if (!confidences.length) {
     return 0.5;

@@ -5,22 +5,22 @@
 import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import type { RawTableEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import type { Template } from "src/cs/workbench/services/template/common/template";
-import { deriveUserTemplateDrafts } from "src/cs/workbench/services/review/common/userTemplateDraftProvider";
+import type { RawTableFacts } from "src/cs/workbench/services/template/common/tableFacts";
+import { deriveUserTemplateDrafts } from "src/cs/workbench/services/template/common/userTemplateMaterializer";
 import type {
 	UserTemplate,
 	UserTemplateSnapshot,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
-suite("workbench/services/review/test/common/userTemplateDraftProvider", () => {
+suite("workbench/services/template/test/common/userTemplateMaterializer", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test("keeps compatible user templates as ready drafts", () => {
 		const drafts = deriveUserTemplateDrafts({
-			evidence: createEvidence(),
+			tableFacts: createTableFacts(),
 			userTemplateSnapshot: createUserTemplateSnapshot([createUserTemplate({
 				...createTemplate(),
 				id: "template-a",
@@ -41,7 +41,7 @@ suite("workbench/services/review/test/common/userTemplateDraftProvider", () => {
 
 	test("rejects user templates with mismatched applicability", () => {
 		const drafts = deriveUserTemplateDrafts({
-			evidence: createEvidence(),
+			tableFacts: createTableFacts(),
 			userTemplateSnapshot: createUserTemplateSnapshot([createUserTemplate({
 				...createTemplate(),
 				id: "template-a",
@@ -79,7 +79,7 @@ const createUserTemplate = (template: Template): UserTemplate => ({
 	updatedAt: 0,
 });
 
-const createEvidence = (): RawTableEvidence => ({
+const createTableFacts = (): RawTableFacts => ({
 	structure: {
 		...createEmptyRawTableStructure(),
 		fingerprint: "schema-a",

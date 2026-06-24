@@ -6,9 +6,6 @@ import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
-  createRawTableEvidenceFromAssessmentRecord,
-} from "src/cs/workbench/services/assessment/common/assessmentEvidence";
-import {
   IRecipeService,
   type IRecipeService as IRecipeServiceType,
 } from "src/cs/workbench/services/recipe/common/recipe";
@@ -31,8 +28,11 @@ import {
 } from "src/cs/workbench/services/review/common/review";
 import {
   deriveAutomaticTemplateDrafts,
-} from "src/cs/workbench/services/review/common/automaticTemplateDraftProvider";
-import type { TemplateDraft } from "src/cs/workbench/services/review/common/templateDraft";
+} from "src/cs/workbench/services/template/common/automaticTemplateMaterializer";
+import {
+  createRawTableFactsFromAssessmentRecord,
+} from "src/cs/workbench/services/template/common/tableFacts";
+import type { TemplateDraft } from "src/cs/workbench/services/template/common/templateDraft";
 import {
   ISessionService,
   type ISessionService as ISessionServiceType,
@@ -82,13 +82,13 @@ export class ReviewService extends Disposable implements IReviewServiceType {
   }
 
   public deriveAndReview(input: ReviewInput): ReviewResult {
-    const evidence = createRawTableEvidenceFromAssessmentRecord(input.assessment, {
+    const tableFacts = createRawTableFactsFromAssessmentRecord(input.assessment, {
       columnCount: input.columnCount,
       fileName: input.fileName ?? undefined,
       rowCount: input.rowCount,
     });
     const candidates = deriveAutomaticTemplateDrafts({
-      evidence,
+      tableFacts,
       recipeSnapshot: input.recipeSnapshot,
       userTemplateSnapshot: input.userTemplateSnapshot,
     });

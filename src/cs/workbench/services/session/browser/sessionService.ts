@@ -735,10 +735,10 @@ const commitRawTableAssessmentsToFiles = (
       ...(file.rawTableReviewsByRawTableId ?? {}),
     };
     delete rawTableReviewsByRawTableId[rawTableId];
-    const assessmentEvidence = { ...assessment } as RawTableAssessmentRecord & { decision?: unknown };
-    delete assessmentEvidence.decision;
+    const assessmentFacts = { ...assessment } as RawTableAssessmentRecord & { decision?: unknown };
+    delete assessmentFacts.decision;
     const committedAssessment: RawTableAssessmentRecord = {
-      ...assessmentEvidence,
+      ...assessmentFacts,
       assessmentRuleVersion: normalizeAssessmentRuleVersion(assessment.assessmentRuleVersion) ?? 0,
       schemaProfileVersion: normalizeSchemaProfileVersion(assessment.schemaProfileVersion),
       fileId,

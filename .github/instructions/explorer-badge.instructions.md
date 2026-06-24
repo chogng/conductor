@@ -20,22 +20,24 @@ Fast badge:
 
 Full badge:
 
-- comes from formal assessment results committed through Session;
-- is the final Explorer badge fact;
+- comes from formal Review/Slice projections committed through Session;
+- is the final Explorer badge projection;
 - may override or clear any fast badge;
-- represented as `source: "assessment"` with confirmed `ready` or final `unknown`.
+- represents review readiness, slice progress, or final unavailable/error state,
+  not Assessment-owned `ready` / `unknown` decisions.
 
 ## State Flow
 
 ```txt
 pending -> fast/tentative
-pending -> assessment ready/unknown
-fast/tentative -> assessment ready/unknown
+pending -> review/slice projection
+fast/tentative -> review/slice projection
 pending/fast -> error
 ```
 
-Full assessment always wins. If assessment returns unknown, Explorer must not
-keep showing a fast badge as confirmed.
+Formal Review/Slice projection always wins. If Review cannot provide a ready
+template or Slice reports a terminal failure, Explorer must not keep showing a
+fast badge as confirmed.
 
 ## Scheduling
 

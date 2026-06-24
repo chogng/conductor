@@ -47,7 +47,7 @@ indexing beyond diagnostics metadata.
 | `common/semanticCandidate.ts` | role, unit, confidence, evidence, and display-scale candidates. |
 | `common/schemaProfileAssessment.ts` | pure exact-schema-profile family/mode inference layered on top of Assessment column profiles. |
 | `common/blockDetector.ts` | measurement block construction from structure ranges, column maps, and family evidence. |
-| `common/assessmentEvidence.ts` | migration table-fact snapshot consumed by current draft providers; target owner for table+recipe materialization is Template. |
+| `common/assessmentEvidence.ts` | compatibility re-export for Template-owned raw table facts; do not add new APIs here. |
 | `common/legacyAssessmentAdapter.ts` | migration adapter from legacy assessment records into table facts when persisted data contains old decision fields. |
 | `../schemaProfile/common/schemaProfile.ts` | user-confirmed schema profile evidence records. |
 | `../schemaProfile/common/schemaProfileConfirmation.ts` | pure builder for user-confirmed role/unit mappings into exact-fingerprint schema profiles. |
@@ -135,8 +135,9 @@ rawTablesChanged
 - Assessment must not resolve Recipe snapshots, UserTemplate catalogs, or
   selected Template snapshots. Template owns materialization; Review owns
   candidate review and selected `ReviewedTemplate` persistence.
-- A confident layout with weak or unknown semantics should use
-  `reviewRequired`, not `ready`; layout ready is not calculation ready.
+- A confident layout with weak or unknown semantics is still only a table fact.
+  Review, not Assessment, decides whether the resulting Template needs manual
+  adjustment or can be applied.
 - TypeScript assessment rules are semantic baseline. When changing mirrored
   assessment rules, update Rust mirrors under `cli/src/assessment.rs` /
   `cli/src/detect.rs`.

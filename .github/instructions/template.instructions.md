@@ -55,7 +55,11 @@ plot rendering, or chart state.
 | --- | --- |
 | `common/templateSpec.ts` | pure block-aware `Template` spec: row ranges, axis bindings, segmentation, legends, titles, applicability, and execution defaults. |
 | `common/builtinTemplateSpecs.ts` | built-in domain template specs. |
-| `common/*TemplateDraft*` / materializers | target home for pure `TableFacts + Recipe/UserTemplate -> TemplateDraft/Template` helpers; do not add new materializers under Review or Slice. |
+| `common/templateDraft.ts` | candidate draft shape produced from `TableFacts + Recipe/UserTemplate` before Review status/policy projection. |
+| `common/recipeSelectorEvaluator.ts` | pure Recipe selector evaluator over canonical table facts. |
+| `common/recipeTemplateMaterializer.ts` | pure Recipe + table-facts materializer that creates `TemplateDraft` candidates. |
+| `common/userTemplateMaterializer.ts` | pure UserTemplate + table-facts materializer that creates `TemplateDraft` candidates. |
+| `common/automaticTemplateMaterializer.ts` | combines Recipe and UserTemplate materializers into the automatic candidate set. |
 | `common/template.ts` | `TemplateApplyPresetRecord`, command ids, and re-exported template spec types. |
 | `common/templateLegacyAdapter.ts` | adapter between historical/manual apply-preset view models and canonical block-aware `Template`. |
 | `common/autoTemplateApplyConfig.ts` | legacy serializer from auto-extraction plan shape into editable apply/worker config records; do not add detection logic here. |
@@ -79,9 +83,9 @@ rawTableChanged / recipeChanged / userTemplateChanged / schemaProfileChanged
 ```
 
 During migration, some table-fact production still lives under
-`services/assessment`, and some draft providers still live under
-`services/review/common`. Do not add new candidate derivation there; move new
-work toward Template.
+`services/assessment`. Candidate derivation belongs under
+`services/template/common`; do not add new materializers under Assessment,
+Review, or Slice.
 
 Manual execution:
 

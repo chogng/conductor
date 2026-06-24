@@ -5,7 +5,6 @@
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
-import { createRawTableEvidenceFromAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
 import {
   IRecipeService,
   type IRecipeService as IRecipeServiceType,
@@ -20,8 +19,9 @@ import type {
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
   deriveAutomaticTemplateDrafts,
-} from "src/cs/workbench/services/review/common/automaticTemplateDraftProvider";
-import type { TemplateDraft } from "src/cs/workbench/services/review/common/templateDraft";
+} from "src/cs/workbench/services/template/common/automaticTemplateMaterializer";
+import { createRawTableFactsFromAssessmentRecord } from "src/cs/workbench/services/template/common/tableFacts";
+import type { TemplateDraft } from "src/cs/workbench/services/template/common/templateDraft";
 import {
   createTemplateResolutionAssessmentSignature,
   ITemplateResolutionService,
@@ -96,13 +96,13 @@ export class TemplateResolutionService extends Disposable implements ITemplateRe
   }
 
   public resolve(input: TemplateResolutionInput): TemplateResolutionResult {
-    const evidence = createRawTableEvidenceFromAssessmentRecord(input.assessment, {
+    const tableFacts = createRawTableFactsFromAssessmentRecord(input.assessment, {
       fileName: input.fileName ?? undefined,
       rowCount: input.rowCount,
       columnCount: input.columnCount,
     });
     const candidates = sortTemplateCandidates(deriveAutomaticTemplateDrafts({
-      evidence,
+      tableFacts,
       recipeSnapshot: input.recipeSnapshot,
       userTemplateSnapshot: input.userTemplateSnapshot,
     }).map(createTemplateCandidateFromDraft));

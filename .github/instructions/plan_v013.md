@@ -1468,6 +1468,7 @@ src/cs/workbench/services/template/
     templateValidation.ts
     templateFingerprint.ts
     templateRange.ts
+    tableFacts.ts
     templateDraft.ts
     automaticTemplateMaterializer.ts
     recipeSelectorEvaluator.ts
@@ -1513,21 +1514,11 @@ src/cs/workbench/contrib/userTemplate/
 ```txt
 src/cs/workbench/services/review/
   common/
-    templateCandidate.ts
-    templateDraft.ts
-	    templateReview.ts
-	    reviewedTemplate.ts
-	    reviewDecision.ts
-	    manualTemplateReview.ts
-	    templateReviewer.ts
-	    reviewSelectionPolicy.ts
-	    reviewRecordBuilder.ts
-    reviewFingerprint.ts
+    review.ts
   browser/
     reviewService.ts
-    reviewQueueService.ts
-    reviewApply.contribution.ts
     review.contribution.ts
+    reviewApply.contribution.ts
 ```
 
 ### 21.5 contrib/review

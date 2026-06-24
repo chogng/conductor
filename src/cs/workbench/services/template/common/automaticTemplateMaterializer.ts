@@ -2,28 +2,28 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { RawTableEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
 import type { RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
-import { deriveRecipeTemplateDrafts } from "src/cs/workbench/services/review/common/recipeTemplateDraftProvider";
-import type { TemplateDraft } from "src/cs/workbench/services/review/common/templateDraft";
-import { deriveUserTemplateDrafts } from "src/cs/workbench/services/review/common/userTemplateDraftProvider";
+import { deriveRecipeTemplateDrafts } from "src/cs/workbench/services/template/common/recipeTemplateMaterializer";
+import type { RawTableFacts } from "src/cs/workbench/services/template/common/tableFacts";
+import type { TemplateDraft } from "src/cs/workbench/services/template/common/templateDraft";
+import { deriveUserTemplateDrafts } from "src/cs/workbench/services/template/common/userTemplateMaterializer";
 import type { UserTemplateSnapshot } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
 export const deriveAutomaticTemplateDrafts = ({
-  evidence,
+  tableFacts,
   recipeSnapshot,
   userTemplateSnapshot,
 }: {
-  readonly evidence: RawTableEvidence;
+  readonly tableFacts: RawTableFacts;
   readonly recipeSnapshot: RecipeSnapshot;
   readonly userTemplateSnapshot: UserTemplateSnapshot;
 }): readonly TemplateDraft[] => sortTemplateDrafts([
   ...deriveRecipeTemplateDrafts({
-    evidence,
+    tableFacts,
     recipeSnapshot,
   }),
   ...deriveUserTemplateDrafts({
-    evidence,
+    tableFacts,
     userTemplateSnapshot,
   }),
 ]);

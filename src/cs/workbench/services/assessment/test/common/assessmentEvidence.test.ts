@@ -6,15 +6,15 @@ import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { ASSESSMENT_RULE_VERSION, type RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
-import { createRawTableEvidenceFromLegacyAssessment } from "src/cs/workbench/services/assessment/common/legacyAssessmentAdapter";
+import { createRawTableFactsFromLegacyAssessment } from "src/cs/workbench/services/assessment/common/legacyAssessmentAdapter";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 
 suite("workbench/services/assessment/test/common/assessmentEvidence", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
 
-  test("adapts legacy assessment records into raw table evidence only", () => {
-    const evidence = createRawTableEvidenceFromLegacyAssessment(createLegacyAssessment());
-    const context = evidence as Record<string, unknown>;
+  test("adapts legacy assessment records into raw table facts only", () => {
+    const tableFacts = createRawTableFactsFromLegacyAssessment(createLegacyAssessment());
+    const context = tableFacts as Record<string, unknown>;
 
     assert.equal(context.recipeFingerprint, undefined);
     assert.equal(context.templateCandidates, undefined);

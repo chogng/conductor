@@ -2,7 +2,6 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { RawTableEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
 import type {
   MeasurementBlockRecord,
   MeasurementColumnRef,
@@ -17,6 +16,7 @@ import type {
   RecipeSelectorPredicate,
 } from "src/cs/workbench/services/recipe/common/recipeSelector";
 import type { Recipe } from "src/cs/workbench/services/recipe/common/recipe";
+import type { RawTableFacts } from "src/cs/workbench/services/template/common/tableFacts";
 
 export type RecipeSelectorCapture =
   | {
@@ -44,7 +44,7 @@ export type RecipeSelectorEvaluation = {
 };
 
 type EvaluationContext = {
-  readonly evidence: RawTableEvidence;
+  readonly tableFacts: RawTableFacts;
   readonly block: MeasurementBlockRecord | null;
 };
 
@@ -72,11 +72,11 @@ type MatchResult =
 
 export const evaluateRecipeSelector = (
   recipe: Recipe,
-  evidence: RawTableEvidence,
+  tableFacts: RawTableFacts,
 ): RecipeSelectorEvaluation => {
-  const contexts = evidence.blocks.length
-    ? evidence.blocks.map(block => ({ evidence, block }))
-    : [{ evidence, block: null }];
+  const contexts = tableFacts.blocks.length
+    ? tableFacts.blocks.map(block => ({ tableFacts, block }))
+    : [{ tableFacts, block: null }];
   const matches: RecipeSelectorBlockMatch[] = [];
   const diagnosticCodes = new Set<string>();
 
@@ -188,11 +188,11 @@ const evaluatePredicate = (
     case "canonicalUnit":
       return evaluateCanonicalUnitPredicate(predicate, context);
     case "layoutEvidence":
-      return evaluateLayoutEvidencePredicate(predicate, context.evidence);
+      return evaluateLayoutEvidencePredicate(predicate, context.tableFacts);
     case "sourceHint":
-      return evaluateSourceHintPredicate(predicate, context.evidence);
+      return evaluateSourceHintPredicate(predicate, context.tableFacts);
     case "schemaFingerprint":
-      return evaluateSchemaFingerprintPredicate(predicate, context.evidence);
+      return evaluateSchemaFingerprintPredicate(predicate, context.tableFacts);
   }
 };
 
@@ -267,9 +267,9 @@ const evaluateCanonicalUnitPredicate = (
 
 const evaluateLayoutEvidencePredicate = (
   predicate: LayoutEvidenceSelectorPredicate,
-  evidence: RawTableEvidence,
+  tableFacts: RawTableFacts,
 ): PredicateResult =>
-  evidence.layoutCandidates.some(candidate =>
+  tableFacts.layoutCandidates.some(candidate =>
     predicate.layoutAny.includes(candidate.layoutKind) &&
     meetsMinConfidence(candidate.confidence, predicate.minConfidence)
   )
@@ -278,9 +278,9 @@ const evaluateLayoutEvidencePredicate = (
 
 const evaluateSourceHintPredicate = (
   predicate: SourceHintSelectorPredicate,
-  evidence: RawTableEvidence,
+  tableFacts: RawTableFacts,
 ): PredicateResult => {
-  const fileName = normalizeText(evidence.sourceMetadata.fileName);
+  const fileName = normalizeText(tableFacts.sourceMetadata.fileName);
   const extension = getFileExtension(fileName);
   const matchesFileName = !predicate.fileNameIncludesAny?.length ||
     predicate.fileNameIncludesAny.some(value => fileName.includes(normalizeText(value)));
@@ -294,9 +294,9 @@ const evaluateSourceHintPredicate = (
 
 const evaluateSchemaFingerprintPredicate = (
   predicate: SchemaFingerprintSelectorPredicate,
-  evidence: RawTableEvidence,
+  tableFacts: RawTableFacts,
 ): PredicateResult =>
-  predicate.fingerprintAny.includes(evidence.structure.fingerprint)
+  predicate.fingerprintAny.includes(tableFacts.structure.fingerprint)
     ? { matched: true, reason: "schemaFingerprint" }
     : { matched: false, diagnosticCode: "recipeSelector.schemaFingerprintMismatch" };
 
@@ -306,7 +306,7 @@ const getColumnsForScope = (
 ): readonly MeasurementColumnRef[] =>
   scope === "matchedBlock"
     ? context.block?.columns.columns ?? []
-    : context.evidence.blocks.flatMap(block => block.columns.columns);
+    : context.tableFacts.blocks.flatMap(block => block.columns.columns);
 
 const isCountWithinBounds = (
   count: number,

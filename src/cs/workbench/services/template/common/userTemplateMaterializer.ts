@@ -2,7 +2,6 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { RawTableEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
 import type {
   TemplateAxisBinding,
   TemplateRowRange,
@@ -10,23 +9,24 @@ import type {
 import type {
   TemplateDraft,
   TemplateDraftDiagnostic,
-} from "src/cs/workbench/services/review/common/templateDraft";
+} from "src/cs/workbench/services/template/common/templateDraft";
+import type { RawTableFacts } from "src/cs/workbench/services/template/common/tableFacts";
 import type {
   UserTemplate,
   UserTemplateSnapshot,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
 export const deriveUserTemplateDrafts = ({
-  evidence,
+  tableFacts,
   userTemplateSnapshot,
 }: {
-  readonly evidence: RawTableEvidence;
+  readonly tableFacts: RawTableFacts;
   readonly userTemplateSnapshot: UserTemplateSnapshot;
 }): readonly TemplateDraft[] => {
   const drafts: TemplateDraft[] = [];
   for (const userTemplate of userTemplateSnapshot.templates) {
     const draft = deriveUserTemplateDraft({
-      evidence,
+      tableFacts,
       userTemplate,
     });
     if (draft) {
@@ -41,10 +41,10 @@ export const deriveUserTemplateDrafts = ({
 };
 
 const deriveUserTemplateDraft = ({
-  evidence,
+  tableFacts,
   userTemplate,
 }: {
-  readonly evidence: RawTableEvidence;
+  readonly tableFacts: RawTableFacts;
   readonly userTemplate: UserTemplate;
 }): TemplateDraft | null => {
   const diagnostics = new Set<string>();
@@ -57,13 +57,13 @@ const deriveUserTemplateDraft = ({
 
   if (
     template.applicability?.schemaFingerprint &&
-    template.applicability.schemaFingerprint !== evidence.structure.fingerprint
+    template.applicability.schemaFingerprint !== tableFacts.structure.fingerprint
   ) {
     return null;
   }
   if (
     Number.isInteger(template.applicability?.columnCount) &&
-    template.applicability?.columnCount !== evidence.sourceMetadata.columnCount
+    template.applicability?.columnCount !== tableFacts.sourceMetadata.columnCount
   ) {
     return null;
   }
@@ -74,8 +74,8 @@ const deriveUserTemplateDraft = ({
   if (Number.isInteger(template.applicability?.columnCount)) {
     reasons.push("userTemplate.columnCount");
   }
-  const rowCount = evidence.sourceMetadata.rowCount;
-  const columnCount = evidence.sourceMetadata.columnCount;
+  const rowCount = tableFacts.sourceMetadata.rowCount;
+  const columnCount = tableFacts.sourceMetadata.columnCount;
   if (
     typeof rowCount !== "number" ||
     typeof columnCount !== "number" ||
