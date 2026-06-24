@@ -4,20 +4,20 @@ applyTo: 'src/cs/workbench/services/templateResolution/**'
 ---
 # Template Resolution
 
-Template Resolution is a migration bridge for automatic candidate derivation.
+Template Resolution is a migration bridge for old automatic-candidate records.
 It consumes stored Assessment evidence, current Recipe snapshots, and the
-UserTemplate catalog. It must not read raw rows and it must not be the
-final template usability or system-application decision owner.
+UserTemplate catalog, then projects Review-owned `TemplateDraft` values into
+legacy `RawTableTemplateResolutionRecord` summaries. It must not read raw rows,
+own Recipe/UserTemplate candidate providers, or decide final template usability
+and system application.
 
 ## Ownership
 
 `ITemplateResolutionService` owns during migration:
 
 - rebuilding `RawTableEvidence` from `RawTableAssessmentRecord`;
-- evaluating `RecipeSelector` predicates against Assessment evidence;
-- materializing `RecipeProjection` into concrete `Template` snapshots;
-- evaluating UserTemplate catalog compatibility against stored evidence;
-- ranking candidate summaries for downstream Review;
+- consuming Review-owned automatic `TemplateDraft` providers;
+- projecting drafts into legacy Template Resolution candidate summaries;
 - committing `RawTableTemplateResolutionRecord` values through Session.
 
 It does not own:
@@ -35,10 +35,7 @@ It does not own:
 | --- | --- |
 | `common/templateResolution.ts` | service contract, record, candidate, diagnostic, signature, and commit types. |
 | `common/templateCandidate.ts` | candidate/source normalization helpers when needed. |
-| `common/recipeSelectorEvaluator.ts` | pure finite-DSL evaluator for `RecipeSelector` against `RawTableEvidence`. |
-| `common/recipeTemplateMaterializer.ts` | pure Recipe projection materialization into concrete `Template` snapshots. |
-| `common/userTemplateEvaluator.ts` | pure UserTemplate compatibility evaluation against Assessment evidence. |
-| `browser/templateResolutionService.ts` | injectable owner for resolve/enqueue/commit state. |
+| `browser/templateResolutionService.ts` | injectable bridge for resolve/enqueue/commit state; consumes Review-owned draft providers and writes legacy summaries. |
 | `browser/templateResolution.contribution.ts` | lifecycle subscriber for Assessment, Recipe, and UserTemplate catalog changes. |
 
 ## Flow
@@ -83,10 +80,11 @@ IUserTemplateService.onDidChangeUserTemplates
   invalidation inputs for Review, not execution triggers.
 - Resolution invalidates on Assessment evidence signature, Recipe fingerprint,
   or UserTemplate catalog version changes.
-- Recipe selector/projection behavior belongs here while the bridge exists,
-  then moves behind Review candidate providers. It does not belong in Slice.
-- UserTemplate compatibility belongs here during migration, not in Template
-  view code and not in Slice.
+- Recipe selector/projection behavior belongs to Review candidate providers.
+  Template Resolution may import the pure provider only to write compatibility
+  summaries. It does not belong in Slice.
+- UserTemplate compatibility belongs to Review candidate providers during the
+  bridge, not in Template Resolution, Template view code, or Slice.
 - Diagnostics are resolution diagnostics: selector mismatches, projection
   failures, UserTemplate incompatibility, or candidate conflicts. Raw table
   semantic diagnostics remain Assessment-owned.
@@ -100,6 +98,9 @@ IUserTemplateService.onDidChangeUserTemplates
 - Do not call `ISliceService` from Template Resolution.
 - Do not let Template Resolution decide `systemRecommended`, manual adjustment,
   or invalid states.
+- Do not add new selector/materializer/provider implementations under
+  `services/templateResolution/common`; keep candidate derivation in
+  `services/review/common`.
 - Do not let RecipeService evaluate recipes or materialize Templates.
 - Do not let Slice import RecipeService, recipe selector evaluators, or recipe
   materializers.

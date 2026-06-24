@@ -15,6 +15,7 @@
 > 8. UserTemplate 独立为 services/userTemplate + contrib/userTemplate。
 > 9. Template provenance 和 execution trigger 分离。
 > 10. 旧 Assessment 必须拆为 RawTableEvidence + Review，不能简单 alias。
+> 11. Recipe/UserTemplate candidate provider 归 Review；TemplateResolution 只可作为旧记录兼容 bridge 消费 Review-owned draft provider。
 
 ---
 
@@ -174,7 +175,8 @@ diagnostics
 
 ### 2.3 Recipe
 
-Recipe 是系统规则候选来源。
+Recipe 是系统规则候选数据来源。`Recipe` 本身不生成 Template；
+Review-owned candidate provider 解释 `RecipeSelector` / `RecipeProjection`。
 
 ```txt
 Recipe + RawTableEvidence -> TemplateDraft
@@ -192,7 +194,9 @@ Recipe + RawTableEvidence -> TemplateDraft
 
 ### 2.4 UserTemplate
 
-UserTemplate 是用户模板库领域对象。
+UserTemplate 是用户模板库领域对象。`UserTemplate` 本身不做 Review；
+Review-owned candidate provider 根据 `UserTemplateSnapshot` 和
+`RawTableEvidence` 产生 draft。
 
 ```txt
 UserTemplateSnapshot + RawTableEvidence -> TemplateDraft
@@ -548,11 +552,19 @@ export type TemplateDraft = {
   readonly template: Template;
   readonly templateFingerprint: string;
 
+  readonly derivationConfidence: number;
   readonly derivationReasons: readonly string[];
-  readonly derivationDiagnostics: readonly DraftDiagnostic[];
+  readonly derivationDiagnostics: readonly TemplateDraftDiagnostic[];
 
   readonly captures?: Readonly<Record<string, unknown>>;
 };
+```
+
+`TemplateDraft` 不携带 `ready` / `needsAdjustment` / `invalid` 或旧
+`review` 状态；这些由 Review policy 投影为 `TemplateReview`。
+
+```ts
+export type TemplateDraftDiagnostic = ReviewDiagnostic;
 ```
 
 ### 6.2 TemplateCandidateSummary
@@ -597,6 +609,8 @@ manual 不在 AutomaticTemplateCandidateSource 中。
 ```
 
 manual/user command 是 SliceRequest trigger，不是候选来源。
+`savedTemplate` 是 manual request 的兼容 selection 名称，不是
+`AutomaticTemplateCandidateSource`。
 
 ### 6.4 TemplateReview
 
@@ -660,6 +674,7 @@ export type ReviewedTemplate = {
 manual
 auto
 userCommand
+savedTemplate
 ```
 
 这些属于 `SliceRequest.trigger`。
@@ -891,7 +906,9 @@ export interface IReviewService {
 
 ```txt
 reviewPipeline.ts
-candidateProviders.ts
+automaticTemplateDraftProvider.ts
+recipeTemplateDraftProvider.ts
+userTemplateDraftProvider.ts
 templateReviewer.ts
 reviewSelectionPolicy.ts
 reviewRecordBuilder.ts
@@ -1441,9 +1458,10 @@ src/cs/workbench/services/review/
     reviewedTemplate.ts
     reviewDecision.ts
     manualTemplateReview.ts
-    recipeTemplateDeriver.ts
+    automaticTemplateDraftProvider.ts
+    recipeSelectorEvaluator.ts
+    recipeTemplateDraftProvider.ts
     userTemplateDraftProvider.ts
-    candidateProviders.ts
     templateReviewer.ts
     reviewSelectionPolicy.ts
     reviewRecordBuilder.ts
@@ -1622,11 +1640,13 @@ Explorer 状态来自 projection，不散落在 UI 组件里。
 
 ```txt
 1. reviewPipeline.ts。
-2. candidateProviders.ts。
-3. templateReviewer.ts。
-4. reviewSelectionPolicy.ts。
-5. reviewRecordBuilder.ts。
-6. reviewService.ts 只做 orchestration。
+2. automaticTemplateDraftProvider.ts。
+3. recipeTemplateDraftProvider.ts。
+4. userTemplateDraftProvider.ts。
+5. templateReviewer.ts。
+6. reviewSelectionPolicy.ts。
+7. reviewRecordBuilder.ts。
+8. reviewService.ts 只做 orchestration。
 ```
 
 验收：

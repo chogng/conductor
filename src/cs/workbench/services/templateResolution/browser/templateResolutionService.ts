@@ -19,11 +19,9 @@ import type {
   RawTableRef,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
-  evaluateUserTemplateCandidates,
-} from "src/cs/workbench/services/templateResolution/common/userTemplateEvaluator";
-import {
-  materializeRecipeTemplates,
-} from "src/cs/workbench/services/templateResolution/common/recipeTemplateMaterializer";
+  deriveAutomaticTemplateDrafts,
+} from "src/cs/workbench/services/review/common/automaticTemplateDraftProvider";
+import type { TemplateDraft } from "src/cs/workbench/services/review/common/templateDraft";
 import {
   createTemplateResolutionAssessmentSignature,
   ITemplateResolutionService,
@@ -103,31 +101,11 @@ export class TemplateResolutionService extends Disposable implements ITemplateRe
       rowCount: input.rowCount,
       columnCount: input.columnCount,
     });
-    const recipeCandidates = materializeRecipeTemplates({
+    const candidates = sortTemplateCandidates(deriveAutomaticTemplateDrafts({
       evidence,
       recipeSnapshot: input.recipeSnapshot,
-    }).map((candidate): TemplateCandidate => ({
-      id: candidate.id,
-      source: {
-        kind: "recipe",
-        recipeId: candidate.recipeId,
-        recipeVersion: candidate.recipeVersion,
-      },
-      template: candidate.template,
-      templateFingerprint: candidate.templateFingerprint,
-      confidence: candidate.confidence,
-      state: candidate.state,
-      reasons: candidate.reasons,
-      diagnosticCodes: candidate.diagnosticCodes,
-    }));
-    const userTemplateCandidates = evaluateUserTemplateCandidates({
-      evidence,
       userTemplateSnapshot: input.userTemplateSnapshot,
-    });
-    const candidates = sortTemplateCandidates([
-      ...recipeCandidates,
-      ...userTemplateCandidates,
-    ]);
+    }).map(createTemplateCandidateFromDraft));
     const diagnostics = createResolutionDiagnostics(candidates);
 
     return {
@@ -252,6 +230,19 @@ const createResolutionDiagnostics = (
     message: "Template candidates are available for Review.",
   }];
 };
+
+const createTemplateCandidateFromDraft = (
+  draft: TemplateDraft,
+): TemplateCandidate => ({
+  id: draft.id,
+  source: draft.source,
+  template: draft.template,
+  templateFingerprint: draft.templateFingerprint,
+  confidence: draft.derivationConfidence,
+  state: draft.derivationDiagnostics.length ? "review" : "ready",
+  reasons: draft.derivationReasons,
+  diagnosticCodes: draft.derivationDiagnostics.map(diagnostic => diagnostic.code),
+});
 
 const sortTemplateCandidates = (
   candidates: readonly TemplateCandidate[],

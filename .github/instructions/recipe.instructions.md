@@ -49,13 +49,16 @@ infer measurement family, roles, units, or table structure from raw rows.
 | `scripts/buildRecipeBundle.mjs` | builds generated TypeScript and CLI recipe bundles. |
 | `cli/resources/recipes.v1.json` | generated CLI bundle. Do not edit manually. |
 
-Automatic recipe materialization lives in Review candidate-provider code. During
-the current migration bridge, it may still live in Template Resolution files:
+Automatic recipe materialization lives in Review candidate-provider code.
+Template Resolution may consume the Review-owned pure provider while the
+migration bridge exists, but it must not own a second selector/materialization
+implementation:
 
 | File | Responsibility |
 | --- | --- |
-| `templateResolution/common/recipeSelectorEvaluator.ts` | evaluates `RecipeSelector` against `RawTableEvidence`. |
-| `templateResolution/common/recipeTemplateMaterializer.ts` | materializes matched captures into concrete `Template` snapshots. |
+| `review/common/recipeSelectorEvaluator.ts` | evaluates `RecipeSelector` against `RawTableEvidence`. |
+| `review/common/recipeTemplateDraftProvider.ts` | materializes matched captures into concrete `TemplateDraft` snapshots. |
+| `review/common/automaticTemplateDraftProvider.ts` | combines Recipe and UserTemplate draft providers into Review-owned automatic candidates. |
 
 ## Flow
 
@@ -91,11 +94,10 @@ RecipeService reload/change
 - `RecipeService` may validate, fingerprint, and publish recipes. It must not
   evaluate recipes against raw tables or materialize templates.
 - New selector predicates belong in `recipeSelector.ts`, validation in
-  `recipeCodec.ts`, and matching behavior in Review candidate-provider code
-  or the migration Template Resolution bridge.
+  `recipeCodec.ts`, and matching behavior in Review candidate-provider code.
 - New projection nodes belong in `recipeProjection.ts`, validation in
   `recipeCodec.ts`, and materialization behavior in Review candidate-provider
-  code or the migration Template Resolution bridge.
+  code.
 - `RecipeAssociation` is only for static routing from a selector to an existing
   `templateId`; do not use it for selector/projection derivation.
 - `RecipeProvider` should only be introduced for true TypeScript provider

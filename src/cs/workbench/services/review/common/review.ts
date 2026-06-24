@@ -38,11 +38,6 @@ export type AutomaticTemplateCandidateSource =
       readonly kind: "userTemplate";
       readonly templateId: string;
       readonly templateVersion: number;
-    }
-  | {
-      readonly kind: "savedTemplate";
-      readonly templateId: string;
-      readonly templateVersion: number;
     };
 
 export type TemplateCandidateSummary = {
@@ -77,11 +72,6 @@ export type ReviewedTemplateSource =
     }
   | {
       readonly kind: "userTemplate";
-      readonly templateId: string;
-      readonly templateVersion: number;
-    }
-  | {
-      readonly kind: "savedTemplate";
       readonly templateId: string;
       readonly templateVersion: number;
     }

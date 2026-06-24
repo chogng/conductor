@@ -9,17 +9,17 @@ import type { RawTableEvidence } from "src/cs/workbench/services/assessment/comm
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import type { Template } from "src/cs/workbench/services/template/common/template";
-import { evaluateUserTemplateCandidates } from "src/cs/workbench/services/templateResolution/common/userTemplateEvaluator";
+import { deriveUserTemplateDrafts } from "src/cs/workbench/services/review/common/userTemplateDraftProvider";
 import type {
 	UserTemplate,
 	UserTemplateSnapshot,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
-suite("workbench/services/templateResolution/test/common/userTemplateEvaluator", () => {
+suite("workbench/services/review/test/common/userTemplateDraftProvider", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test("keeps compatible user templates as ready candidates", () => {
-		const candidates = evaluateUserTemplateCandidates({
+	test("keeps compatible user templates as ready drafts", () => {
+		const drafts = deriveUserTemplateDrafts({
 			evidence: createEvidence(),
 			userTemplateSnapshot: createUserTemplateSnapshot([createUserTemplate({
 				...createTemplate(),
@@ -32,15 +32,15 @@ suite("workbench/services/templateResolution/test/common/userTemplateEvaluator",
 			})]),
 		});
 
-		assert.equal(candidates.length, 1);
-		assert.equal(candidates[0]?.source.kind, "userTemplate");
-		assert.equal(candidates[0]?.source.templateId, "template-a");
-		assert.equal(candidates[0]?.state, "ready");
-		assert.equal(candidates[0]?.confidence, 0.95);
+		assert.equal(drafts.length, 1);
+		assert.equal(drafts[0]?.source.kind, "userTemplate");
+		assert.equal(drafts[0]?.source.kind === "userTemplate" && drafts[0].source.templateId, "template-a");
+		assert.equal(drafts[0]?.derivationDiagnostics.length, 0);
+		assert.equal(drafts[0]?.derivationConfidence, 0.95);
 	});
 
 	test("rejects user templates with mismatched applicability", () => {
-		const candidates = evaluateUserTemplateCandidates({
+		const drafts = deriveUserTemplateDrafts({
 			evidence: createEvidence(),
 			userTemplateSnapshot: createUserTemplateSnapshot([createUserTemplate({
 				...createTemplate(),
@@ -51,7 +51,7 @@ suite("workbench/services/templateResolution/test/common/userTemplateEvaluator",
 			})]),
 		});
 
-		assert.deepEqual(candidates, []);
+		assert.deepEqual(drafts, []);
 	});
 });
 

@@ -8,49 +8,45 @@ import type {
   TemplateRowRange,
 } from "src/cs/workbench/services/template/common/templateSpec";
 import type {
-  TemplateCandidate,
-  TemplateCandidateSource,
-} from "src/cs/workbench/services/templateResolution/common/templateResolution";
+  TemplateDraft,
+  TemplateDraftDiagnostic,
+} from "src/cs/workbench/services/review/common/templateDraft";
 import type {
   UserTemplate,
   UserTemplateSnapshot,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
-export type UserTemplateCandidate = Omit<TemplateCandidate, "source"> & {
-  readonly source: Extract<TemplateCandidateSource, { readonly kind: "userTemplate" }>;
-};
-
-export const evaluateUserTemplateCandidates = ({
+export const deriveUserTemplateDrafts = ({
   evidence,
   userTemplateSnapshot,
 }: {
   readonly evidence: RawTableEvidence;
   readonly userTemplateSnapshot: UserTemplateSnapshot;
-}): readonly UserTemplateCandidate[] => {
-  const candidates: UserTemplateCandidate[] = [];
+}): readonly TemplateDraft[] => {
+  const drafts: TemplateDraft[] = [];
   for (const userTemplate of userTemplateSnapshot.templates) {
-    const candidate = evaluateUserTemplateCandidate({
+    const draft = deriveUserTemplateDraft({
       evidence,
       userTemplate,
     });
-    if (candidate) {
-      candidates.push(candidate);
+    if (draft) {
+      drafts.push(draft);
     }
   }
 
-  return candidates.sort((left, right) =>
-    right.confidence - left.confidence ||
+  return drafts.sort((left, right) =>
+    right.derivationConfidence - left.derivationConfidence ||
     left.id.localeCompare(right.id)
   );
 };
 
-const evaluateUserTemplateCandidate = ({
+const deriveUserTemplateDraft = ({
   evidence,
   userTemplate,
 }: {
   readonly evidence: RawTableEvidence;
   readonly userTemplate: UserTemplate;
-}): UserTemplateCandidate | null => {
+}): TemplateDraft | null => {
   const diagnostics = new Set<string>();
   const reasons: string[] = [];
   const template = userTemplate.template;
@@ -110,12 +106,19 @@ const evaluateUserTemplateCandidate = ({
     },
     template,
     templateFingerprint: userTemplate.templateFingerprint,
-    confidence: diagnostics.size ? 0.6 : getUserTemplateConfidence(userTemplate),
-    state: diagnostics.size ? "review" : "ready",
-    reasons,
-    diagnosticCodes: [...diagnostics],
+    derivationConfidence: diagnostics.size ? 0.6 : getUserTemplateConfidence(userTemplate),
+    derivationReasons: reasons,
+    derivationDiagnostics: [...diagnostics].map(createTemplateDraftDiagnostic),
   };
 };
+
+const createTemplateDraftDiagnostic = (
+  code: string,
+): TemplateDraftDiagnostic => ({
+  severity: "warning",
+  code,
+  message: code,
+});
 
 const getUserTemplateConfidence = (
   userTemplate: UserTemplate,

@@ -4,13 +4,17 @@
 
 import type { RawTableEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
 import type { MeasurementBlockRecord } from "src/cs/workbench/services/assessment/common/measurement";
-import { evaluateRecipeSelector } from "src/cs/workbench/services/templateResolution/common/recipeSelectorEvaluator";
+import { evaluateRecipeSelector } from "src/cs/workbench/services/review/common/recipeSelectorEvaluator";
 import type {
   RecipeSelectorBlockMatch,
   RecipeSelectorCapture,
   RecipeSelectorEvaluation,
-} from "src/cs/workbench/services/templateResolution/common/recipeSelectorEvaluator";
+} from "src/cs/workbench/services/review/common/recipeSelectorEvaluator";
 import type { Recipe, RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
+import type {
+  TemplateDraft,
+  TemplateDraftDiagnostic,
+} from "src/cs/workbench/services/review/common/templateDraft";
 import type {
   RecipeColumnProjection,
   RecipeValueExpression,
@@ -23,45 +27,33 @@ import type {
   TemplateRowRange,
 } from "src/cs/workbench/services/template/common/templateSpec";
 
-export type MaterializedRecipeTemplate = {
-  readonly id: string;
-  readonly recipeId: string;
-  readonly recipeVersion: number;
-  readonly template: Template;
-  readonly templateFingerprint: string;
-  readonly confidence: number;
-  readonly state: "ready" | "review";
-  readonly reasons: readonly string[];
-  readonly diagnosticCodes: readonly string[];
-};
-
-export const materializeRecipeTemplates = ({
+export const deriveRecipeTemplateDrafts = ({
   evidence,
   recipeSnapshot,
 }: {
   readonly evidence: RawTableEvidence;
   readonly recipeSnapshot?: RecipeSnapshot;
-}): readonly MaterializedRecipeTemplate[] => {
-  const materializedTemplates: MaterializedRecipeTemplate[] = [];
+}): readonly TemplateDraft[] => {
+  const drafts: TemplateDraft[] = [];
   for (const recipe of recipeSnapshot?.recipes ?? []) {
     const evaluation = evaluateRecipeSelector(recipe, evidence);
-    const materializedTemplate = materializeRecipeTemplate({
+    const draft = materializeRecipeTemplateDraft({
       recipe,
       evidence,
       evaluation,
     });
-    if (materializedTemplate) {
-      materializedTemplates.push(materializedTemplate);
+    if (draft) {
+      drafts.push(draft);
     }
   }
 
-  return materializedTemplates.sort((left, right) =>
-    right.confidence - left.confidence ||
+  return drafts.sort((left, right) =>
+    right.derivationConfidence - left.derivationConfidence ||
     left.id.localeCompare(right.id)
   );
 };
 
-export const materializeRecipeTemplate = ({
+export const materializeRecipeTemplateDraft = ({
   recipe,
   evidence,
   evaluation,
@@ -69,7 +61,7 @@ export const materializeRecipeTemplate = ({
   readonly recipe: Recipe;
   readonly evidence: RawTableEvidence;
   readonly evaluation: RecipeSelectorEvaluation;
-}): MaterializedRecipeTemplate | null => {
+}): TemplateDraft | null => {
   if (!evaluation.matched || !evaluation.matches.length) {
     return null;
   }
@@ -114,16 +106,26 @@ export const materializeRecipeTemplate = ({
 
   return {
     id: `recipe-template:${recipe.id}:${recipe.version}`,
-    recipeId: recipe.id,
-    recipeVersion: recipe.version,
+    source: {
+      kind: "recipe",
+      recipeId: recipe.id,
+      recipeVersion: recipe.version,
+    },
     template,
     templateFingerprint,
-    confidence: getTemplateConfidence(matches, evidence),
-    state: diagnostics.size ? "review" : "ready",
-    reasons: matches.flatMap(match => match.reasons),
-    diagnosticCodes: [...diagnostics],
+    derivationConfidence: getTemplateConfidence(matches, evidence),
+    derivationReasons: matches.flatMap(match => match.reasons),
+    derivationDiagnostics: [...diagnostics].map(createTemplateDraftDiagnostic),
   };
 };
+
+const createTemplateDraftDiagnostic = (
+  code: string,
+): TemplateDraftDiagnostic => ({
+  severity: "warning",
+  code,
+  message: code,
+});
 
 const materializeTemplateBlock = (
   recipe: Recipe,

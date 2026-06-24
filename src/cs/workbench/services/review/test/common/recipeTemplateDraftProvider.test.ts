@@ -6,16 +6,16 @@ import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { RawTableEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
-import { evaluateRecipeSelector } from "src/cs/workbench/services/templateResolution/common/recipeSelectorEvaluator";
+import { evaluateRecipeSelector } from "src/cs/workbench/services/review/common/recipeSelectorEvaluator";
 import type {
 	MeasurementBlockRecord,
 	MeasurementColumnRef,
 } from "src/cs/workbench/services/assessment/common/measurement";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
-import { materializeRecipeTemplate } from "src/cs/workbench/services/templateResolution/common/recipeTemplateMaterializer";
+import { materializeRecipeTemplateDraft } from "src/cs/workbench/services/review/common/recipeTemplateDraftProvider";
 
-suite("workbench/services/templateResolution/test/common/recipeTemplateMaterializer", () => {
+suite("workbench/services/review/test/common/recipeTemplateDraftProvider", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test("materializes builtin IV transfer recipe into a block-aware template", () => {
@@ -24,31 +24,32 @@ suite("workbench/services/templateResolution/test/common/recipeTemplateMateriali
 
 		const evidence = createEvidence();
 		const evaluation = evaluateRecipeSelector(recipe, evidence);
-		const materializedTemplate = materializeRecipeTemplate({
+		const draft = materializeRecipeTemplateDraft({
 			recipe,
 			evidence,
 			evaluation,
 		});
 
-		assert.ok(materializedTemplate);
-		assert.equal(materializedTemplate.state, "ready");
-		assert.equal(materializedTemplate.recipeId, "builtin.iv.transfer");
-		assert.equal(materializedTemplate.template.schemaVersion, 1);
-		assert.equal(materializedTemplate.template.blocks.length, 1);
-		assert.deepEqual(materializedTemplate.template.blocks[0]?.rowRange, {
+		assert.ok(draft);
+		assert.equal(draft.source.kind, "recipe");
+		assert.equal(draft.source.kind === "recipe" && draft.source.recipeId, "builtin.iv.transfer");
+		assert.equal(draft.derivationDiagnostics.length, 0);
+		assert.equal(draft.template.schemaVersion, 1);
+		assert.equal(draft.template.blocks.length, 1);
+		assert.deepEqual(draft.template.blocks[0]?.rowRange, {
 			startRow: 1,
 			endRow: 3,
 		});
-		assert.deepEqual(materializedTemplate.template.blocks[0]?.x, {
+		assert.deepEqual(draft.template.blocks[0]?.x, {
 			columns: [0],
 			unit: "V",
 		});
-		assert.deepEqual(materializedTemplate.template.blocks[0]?.y, {
+		assert.deepEqual(draft.template.blocks[0]?.y, {
 			columns: [1],
 			unit: "A",
 		});
-		assert.equal(materializedTemplate.template.blocks[0]?.segmentation.kind, "auto");
-		assert.ok(materializedTemplate.templateFingerprint);
+		assert.equal(draft.template.blocks[0]?.segmentation.kind, "auto");
+		assert.ok(draft.templateFingerprint);
 	});
 });
 

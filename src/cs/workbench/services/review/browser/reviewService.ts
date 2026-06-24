@@ -7,7 +7,6 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
   createRawTableEvidenceFromAssessmentRecord,
-  type RawTableEvidence,
 } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
 import {
   IRecipeService,
@@ -18,7 +17,6 @@ import {
   REVIEW_ENGINE_VERSION,
   REVIEW_POLICY_VERSION,
   createReviewEvidenceSignature,
-  type AutomaticTemplateCandidateSource,
   type IReviewService as IReviewServiceType,
   type ManualTemplateReviewRequest,
   type ManualTemplateReviewResult,
@@ -31,6 +29,10 @@ import {
   type TemplateCandidateSummary,
   type TemplateReview,
 } from "src/cs/workbench/services/review/common/review";
+import {
+  deriveAutomaticTemplateDrafts,
+} from "src/cs/workbench/services/review/common/automaticTemplateDraftProvider";
+import type { TemplateDraft } from "src/cs/workbench/services/review/common/templateDraft";
 import {
   ISessionService,
   type ISessionService as ISessionServiceType,
@@ -46,23 +48,12 @@ import {
 } from "src/cs/workbench/services/template/common/template";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import {
-  materializeRecipeTemplates,
-} from "src/cs/workbench/services/templateResolution/common/recipeTemplateMaterializer";
-import type {
-  TemplateCandidate,
-} from "src/cs/workbench/services/templateResolution/common/templateResolution";
-import {
-  evaluateUserTemplateCandidates,
-} from "src/cs/workbench/services/templateResolution/common/userTemplateEvaluator";
-import {
   IUserTemplateService,
   type IUserTemplateService as IUserTemplateServiceType,
   type UserTemplateSnapshot,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
-type ReviewTemplateCandidate = Omit<TemplateCandidate, "source"> & {
-  readonly source: AutomaticTemplateCandidateSource;
-};
+type ReviewTemplateCandidate = TemplateDraft;
 
 export class ReviewService extends Disposable implements IReviewServiceType {
   public declare readonly _serviceBrand: undefined;
@@ -96,30 +87,11 @@ export class ReviewService extends Disposable implements IReviewServiceType {
       fileName: input.fileName ?? undefined,
       rowCount: input.rowCount,
     });
-    const recipeCandidates = materializeRecipeTemplates({
+    const candidates = deriveAutomaticTemplateDrafts({
       evidence,
       recipeSnapshot: input.recipeSnapshot,
-    }).map((candidate): ReviewTemplateCandidate => ({
-      id: candidate.id,
-      source: {
-        kind: "recipe",
-        recipeId: candidate.recipeId,
-        recipeVersion: candidate.recipeVersion,
-      },
-      template: candidate.template,
-      templateFingerprint: candidate.templateFingerprint,
-      confidence: candidate.confidence,
-      state: candidate.state,
-      reasons: candidate.reasons,
-      diagnosticCodes: candidate.diagnosticCodes,
-    }));
-    const candidates = sortReviewCandidates([
-      ...recipeCandidates,
-      ...evaluateUserTemplateCandidates({
-        evidence,
-        userTemplateSnapshot: input.userTemplateSnapshot,
-      }),
-    ]);
+      userTemplateSnapshot: input.userTemplateSnapshot,
+    });
     const reviews = candidates.map(createTemplateReview);
     const readyCandidate = candidates.find(candidate => {
       const review = reviews.find(candidateReview => candidateReview.candidateId === candidate.id);
@@ -365,17 +337,11 @@ export class ReviewService extends Disposable implements IReviewServiceType {
     return {
       kind: "resolved",
       candidateId: `manual:${selection.kind}:${templateId}`,
-      source: selection.kind === "userTemplate"
-        ? {
-            kind: "userTemplate",
-            templateId: userTemplate.id,
-            templateVersion: userTemplate.version,
-          }
-        : {
-            kind: "savedTemplate",
-            templateId: userTemplate.id,
-            templateVersion: userTemplate.version,
-          },
+      source: {
+        kind: "userTemplate",
+        templateId: userTemplate.id,
+        templateVersion: userTemplate.version,
+      },
       template: userTemplate.template,
     };
   }
@@ -493,8 +459,6 @@ const getManualTemplateReason = (
   switch (source.kind) {
     case "inline":
       return "review.manual.inlineTemplate";
-    case "savedTemplate":
-      return "review.manual.savedTemplate";
     case "userTemplate":
       return "review.manual.userTemplate";
     case "recipe":
@@ -618,7 +582,7 @@ const createReviewDecision = ({
     diagnostics: [{
       severity: "warning",
       code: "review.noCandidates",
-      message: "No Recipe or saved Template candidates matched this raw table evidence.",
+      message: "No Recipe or UserTemplate candidates matched this raw table evidence.",
     }],
     suggestedActions: [{ id: "review.createTemplate", label: "Create template" }],
   };
@@ -631,8 +595,8 @@ const createTemplateCandidateSummary = (
   source: candidate.source,
   templateFingerprint: candidate.templateFingerprint,
   displayName: candidate.template.name,
-  reasonCodes: candidate.reasons,
-  diagnosticCodes: candidate.diagnosticCodes,
+  reasonCodes: candidate.derivationReasons,
+  diagnosticCodes: candidate.derivationDiagnostics.map(diagnostic => diagnostic.code),
 });
 
 const createTemplateReview = (
@@ -640,12 +604,12 @@ const createTemplateReview = (
 ): TemplateReview => ({
   candidateId: candidate.id,
   templateFingerprint: candidate.templateFingerprint,
-  status: candidate.state === "ready"
+  status: candidate.derivationDiagnostics.length === 0
     ? "ready"
     : "needsAdjustment",
-  confidence: normalizeConfidence(candidate.confidence),
-  reasons: candidate.reasons,
-  diagnostics: candidate.diagnosticCodes.map(createReviewDiagnostic),
+  confidence: normalizeConfidence(candidate.derivationConfidence),
+  reasons: candidate.derivationReasons,
+  diagnostics: candidate.derivationDiagnostics,
 });
 
 const createReviewDiagnostic = (
@@ -661,18 +625,6 @@ const toReviewedTemplateSource = (
 ): ReviewedTemplateSource => {
   return source;
 };
-
-const sortReviewCandidates = (
-  candidates: readonly ReviewTemplateCandidate[],
-): readonly ReviewTemplateCandidate[] => [...candidates].sort((left, right) =>
-  getCandidateStateRank(right) - getCandidateStateRank(left) ||
-  right.confidence - left.confidence ||
-  left.id.localeCompare(right.id)
-);
-
-const getCandidateStateRank = (
-  candidate: ReviewTemplateCandidate,
-): number => candidate.state === "ready" ? 1 : 0;
 
 const getRawTableRefsForReviewSnapshot = (
   snapshot: ReturnType<ISessionServiceType["getSnapshot"]>,

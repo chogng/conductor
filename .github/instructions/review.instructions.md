@@ -65,22 +65,31 @@ user command / UserTemplate picker / saved-selection compatibility picker / inli
 | File | Responsibility |
 | --- | --- |
 | `common/review.ts` | service contract, Review records, candidate summaries, decisions, manual review results, and signatures. |
+| `common/templateDraft.ts` | internal full candidate draft shape before Review status/policy projection. |
+| `common/automaticTemplateDraftProvider.ts` | Review-owned pure provider combining Recipe and UserTemplate draft sources. |
+| `common/recipeSelectorEvaluator.ts` | pure Recipe selector evaluator against Assessment evidence. |
+| `common/recipeTemplateDraftProvider.ts` | materializes Recipe selector/projection matches into `TemplateDraft` values. |
+| `common/userTemplateDraftProvider.ts` | derives UserTemplate compatibility drafts from `UserTemplateSnapshot`. |
 | `browser/reviewService.ts` | injectable owner that reads snapshots, runs pure review helpers, and commits review records. |
 | `browser/review.contribution.ts` | lifecycle subscriber for evidence, Recipe, UserTemplate, and policy changes. |
 | `browser/reviewApply.contribution.ts` | no-UI bridge from system-recommended Review decisions to Slice requests. |
 
-During migration, Review may reuse TemplateResolution candidate helpers.
-User-template candidates must come through `IUserTemplateService` and
-`UserTemplateSnapshot`. New decision logic still belongs in Review, not
-TemplateResolution, Assessment, Explorer, or Slice.
+During migration, Template Resolution may reuse Review-owned pure draft
+providers to write legacy candidate summaries. User-template candidates must
+come through `IUserTemplateService` and `UserTemplateSnapshot`. New decision
+logic and new provider logic still belong in Review, not TemplateResolution,
+Assessment, Explorer, or Slice.
 
 ## Rules
 
 - `ReviewDecision` is the only source for template usability and system
   application recommendations.
+- `TemplateDraft` is Review pipeline data. It may carry derivation confidence,
+  derivation reasons, diagnostics, and optional captures, but it must not carry
+  final `ready` / `needsAdjustment` / `invalid` status.
 - `ReviewedTemplate.source` describes template provenance only: Recipe,
-  UserTemplate, saved-selection compatibility, or inline. It must not encode manual,
-  auto, user command, or system trigger.
+  UserTemplate, or inline. It must not encode manual, auto, saved-selection
+  compatibility, user command, or system trigger.
 - Execution trigger belongs to `SliceRequest.trigger`.
 - Non-selected candidate records store summaries only. Detail rematerialization
   must verify Recipe/UserTemplate fingerprints and return a stale result when
@@ -90,7 +99,8 @@ TemplateResolution, Assessment, Explorer, or Slice.
 - Explorer reads `RawTableReviewRecord` and Slice state as projection inputs;
   it does not perform Review policy checks.
 - Manual Review requests may accept `savedTemplate` compatibility selections,
-  but lookup must go through `IUserTemplateService`.
+  but lookup must go through `IUserTemplateService` and the resulting
+  `ReviewedTemplate.source` must be `userTemplate`.
 
 ## Do Not
 

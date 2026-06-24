@@ -173,10 +173,10 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		});
 
 		assert.equal(result.kind, "ready");
-		assert.equal(result.kind === "ready" && result.reviewedTemplate.source.kind, "savedTemplate");
+		assert.equal(result.kind === "ready" && result.reviewedTemplate.source.kind, "userTemplate");
 		assert.equal(
 			result.kind === "ready" &&
-				result.reviewedTemplate.source.kind === "savedTemplate" &&
+				result.reviewedTemplate.source.kind === "userTemplate" &&
 				result.reviewedTemplate.source.templateId,
 			"template-a",
 		);
