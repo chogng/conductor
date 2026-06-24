@@ -17,13 +17,7 @@ import type { IRecipeService, Recipe, RecipeSnapshot } from "src/cs/workbench/se
 import { ReviewContribution } from "src/cs/workbench/services/review/browser/review.contribution";
 import { ReviewService } from "src/cs/workbench/services/review/browser/reviewService";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
-import type {
-	ITemplateService,
-	Template,
-	TemplateApplyPresetRecord,
-	TemplateApplyPresetSaveInput,
-	TemplateSnapshot,
-} from "src/cs/workbench/services/template/common/template";
+import type { Template } from "src/cs/workbench/services/template/common/template";
 import { UserTemplateService } from "src/cs/workbench/services/userTemplate/browser/userTemplateService";
 import { UserTemplateStoreService } from "src/cs/workbench/services/userTemplate/browser/userTemplateStoreService";
 
@@ -31,12 +25,13 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const createUserTemplateStoreServiceForTest = () =>
 		store.add(new UserTemplateStoreService(store.add(new TestStorageService())));
+	const createUserTemplateServiceForTest = () =>
+		store.add(new UserTemplateService(createUserTemplateStoreServiceForTest()));
 
 	test("derives recipe candidates into a system-recommended review decision", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
-		const templateService = store.add(new TestTemplateService());
-		const userTemplateService = store.add(new UserTemplateService(createUserTemplateStoreServiceForTest(), templateService));
+		const userTemplateService = createUserTemplateServiceForTest();
 		const service = store.add(new ReviewService(
 			sessionService,
 			recipeService,
@@ -58,7 +53,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(result.decision.kind === "ready" && result.decision.reviewedTemplate.source.kind, "recipe");
 	});
 
-	test("derives user template candidates from the user template snapshot", () => {
+	test("derives user template candidates from the user template snapshot", async () => {
 		const template = createTemplate({
 			id: "template-a",
 			applicability: {
@@ -68,8 +63,12 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		});
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:none", []));
-		const templateService = store.add(new TestTemplateService([template]));
-		const userTemplateService = store.add(new UserTemplateService(createUserTemplateStoreServiceForTest(), templateService));
+		const userTemplateService = createUserTemplateServiceForTest();
+		await userTemplateService.createTemplate({
+			id: "template-a",
+			name: "Transfer",
+			template,
+		});
 		const service = store.add(new ReviewService(
 			sessionService,
 			recipeService,
@@ -94,8 +93,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	test("commits reviews after assessment and refreshes on recipe changes", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
-		const templateService = store.add(new TestTemplateService());
-		const userTemplateService = store.add(new UserTemplateService(createUserTemplateStoreServiceForTest(), templateService));
+		const userTemplateService = createUserTemplateServiceForTest();
 		const service = store.add(new ReviewService(
 			sessionService,
 			recipeService,
@@ -127,8 +125,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	test("reviews inline manual templates as ready", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
-		const templateService = store.add(new TestTemplateService());
-		const userTemplateService = store.add(new UserTemplateService(createUserTemplateStoreServiceForTest(), templateService));
+		const userTemplateService = createUserTemplateServiceForTest();
 		const service = store.add(new ReviewService(
 			sessionService,
 			recipeService,
@@ -149,12 +146,16 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(result.kind === "ready" && result.reviewedTemplate.source.kind, "inline");
 	});
 
-	test("reviews legacy saved manual templates as ready", () => {
+	test("reviews saved manual selections through user templates as ready", async () => {
 		const template = createTemplate({ id: "template-a", name: "Saved Transfer" });
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
-		const templateService = store.add(new TestTemplateService([template]));
-		const userTemplateService = store.add(new UserTemplateService(createUserTemplateStoreServiceForTest(), templateService));
+		const userTemplateService = createUserTemplateServiceForTest();
+		await userTemplateService.createTemplate({
+			id: "template-a",
+			name: "Saved Transfer",
+			template,
+		});
 		const service = store.add(new ReviewService(
 			sessionService,
 			recipeService,
@@ -184,8 +185,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	test("returns structured invalid result when a manual saved template is missing", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
-		const templateService = store.add(new TestTemplateService());
-		const userTemplateService = store.add(new UserTemplateService(createUserTemplateStoreServiceForTest(), templateService));
+		const userTemplateService = createUserTemplateServiceForTest();
 		const service = store.add(new ReviewService(
 			sessionService,
 			recipeService,
@@ -208,12 +208,16 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(result.diagnostics[0]?.code, "review.manual.templateNotFound");
 	});
 
-	test("reviews user templates through the user template service", () => {
+	test("reviews user templates through the user template service", async () => {
 		const template = createTemplate({ id: "user-template-a", name: "User Transfer" });
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
-		const templateService = store.add(new TestTemplateService([template]));
-		const userTemplateService = store.add(new UserTemplateService(createUserTemplateStoreServiceForTest(), templateService));
+		const userTemplateService = createUserTemplateServiceForTest();
+		await userTemplateService.createTemplate({
+			id: "user-template-a",
+			name: "User Transfer",
+			template,
+		});
 		const service = store.add(new ReviewService(
 			sessionService,
 			recipeService,
@@ -244,8 +248,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	test("returns structured adjustment result for manual template bounds issues", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
-		const templateService = store.add(new TestTemplateService());
-		const userTemplateService = store.add(new UserTemplateService(createUserTemplateStoreServiceForTest(), templateService));
+		const userTemplateService = createUserTemplateServiceForTest();
 		const service = store.add(new ReviewService(
 			sessionService,
 			recipeService,
@@ -323,51 +326,6 @@ class TestRecipeService extends Disposable implements IRecipeService {
 
 	public reload(): Promise<void> {
 		return Promise.resolve();
-	}
-}
-
-class TestTemplateService extends Disposable implements ITemplateService {
-	public declare readonly _serviceBrand: undefined;
-
-	private readonly onDidChangeTemplatesEmitter = this._register(new Emitter<readonly TemplateApplyPresetRecord[]>());
-	public readonly onDidChangeTemplates = this.onDidChangeTemplatesEmitter.event;
-	private version = 1;
-
-	public constructor(
-		private readonly templates: readonly Template[] = [],
-	) {
-		super();
-	}
-
-	public getSnapshot(): TemplateSnapshot {
-		return {
-			version: this.version,
-			templates: this.templates,
-		};
-	}
-
-	public getTemplate(id: string): Template | undefined {
-		return this.templates.find(template => String(template.id ?? template.name ?? "").trim() === id);
-	}
-
-	public getTemplateList(): readonly TemplateApplyPresetRecord[] {
-		return [];
-	}
-
-	public hasLoadedTemplateList(): boolean {
-		return true;
-	}
-
-	public refreshTemplates(): Promise<readonly TemplateApplyPresetRecord[]> {
-		return Promise.resolve([]);
-	}
-
-	public deleteTemplate(_id: string): Promise<void> {
-		return Promise.resolve();
-	}
-
-	public saveTemplate(_template: TemplateApplyPresetSaveInput): Promise<TemplateApplyPresetRecord> {
-		throw new Error("Unexpected template save in review test.");
 	}
 }
 

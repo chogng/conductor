@@ -33,7 +33,8 @@ import type {
   ITemplateViewStateService,
   TemplateState,
 } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
-import type { ITemplateService, TemplateApplyPresetRecord } from "src/cs/workbench/services/template/common/template";
+import { createTemplateApplyPresetRecordFromUserTemplate } from "src/cs/workbench/contrib/template/browser/templateUserTemplateAdapter";
+import type { TemplateApplyPresetRecord } from "src/cs/workbench/services/template/common/template";
 import type { ISliceService } from "src/cs/workbench/services/slice/common/slice";
 import {
   createTemplateSelection,
@@ -49,6 +50,10 @@ import {
   normalizeTemplateSliceFilePrefix,
   type TemplateSlicePlan,
 } from "src/cs/workbench/contrib/files/browser/sliceWithTemplate";
+import type {
+  IUserTemplateService,
+  UserTemplate,
+} from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
 import "src/cs/workbench/contrib/files/browser/media/sliceWithTemplate.css";
 
@@ -61,8 +66,8 @@ export type SliceWithTemplateControllerOptions = {
   readonly removeOriginalFile: (fileId: string) => void;
   readonly sliceService: ISliceService;
   readonly sourceWorkflow: FileSourceWorkflow;
-  readonly templateService: ITemplateService;
   readonly templateViewStateService: ITemplateViewStateService;
+  readonly userTemplateService: IUserTemplateService;
 };
 
 type SliceDialogState = {
@@ -317,7 +322,7 @@ export class SliceWithTemplateController extends Disposable {
     disposeStore.add(this.options.templateViewStateService.onDidChangeTemplateState(templateState => {
       this.handleTemplateStateChanged(dialog, templateState);
     }));
-    disposeStore.add(this.options.templateService.onDidChangeTemplates(() => {
+    disposeStore.add(this.options.userTemplateService.onDidChangeUserTemplates(() => {
       this.handleTemplateListChanged(dialog);
     }));
     disposeStore.add(this.options.sliceService.onDidChangeSliceState(() => {
@@ -369,7 +374,7 @@ export class SliceWithTemplateController extends Disposable {
     const syncId = dialog.syncId;
     try {
       const [templates, csvText] = await Promise.all([
-        this.options.templateService.refreshTemplates(),
+        this.options.userTemplateService.refreshTemplates(),
         this.readSliceTargetText(dialog.state),
       ]);
       if (this.activeDialog !== dialog || dialog.syncId !== syncId) {
@@ -379,7 +384,7 @@ export class SliceWithTemplateController extends Disposable {
       const templateState = this.options.templateViewStateService.getState();
       const resolvedTemplates = resolveTemplateSliceTemplatesForState({
         templateState,
-        templates,
+        templates: createTemplateApplyPresetRecordsFromUserTemplates(templates),
       });
       dialog.state = {
         ...dialog.state,
@@ -435,7 +440,7 @@ export class SliceWithTemplateController extends Disposable {
 
     const templates = resolveTemplateSliceTemplatesForState({
       templateState,
-      templates: this.options.templateService.getTemplateList(),
+      templates: this.getCachedUserTemplates(),
     });
     dialog.state = {
       ...dialog.state,
@@ -460,7 +465,7 @@ export class SliceWithTemplateController extends Disposable {
     const templateState = this.options.templateViewStateService.getState();
     const templates = resolveTemplateSliceTemplatesForState({
       templateState,
-      templates: this.options.templateService.getTemplateList(),
+      templates: this.getCachedUserTemplates(),
     });
     dialog.state = {
       ...dialog.state,
@@ -485,7 +490,7 @@ export class SliceWithTemplateController extends Disposable {
     const templateState = this.options.templateViewStateService.getState();
     const templates = resolveTemplateSliceTemplatesForState({
       templateState,
-      templates: this.options.templateService.getTemplateList(),
+      templates: this.getCachedUserTemplates(),
     });
     dialog.state = {
       ...dialog.state,
@@ -756,10 +761,17 @@ export class SliceWithTemplateController extends Disposable {
   }
 
   private getCachedUserTemplates(): readonly TemplateApplyPresetRecord[] {
-    return this.options.templateService.getTemplateList();
+    return createTemplateApplyPresetRecordsFromUserTemplates(
+      this.options.userTemplateService.getSnapshot().templates,
+    );
   }
 
 }
+
+const createTemplateApplyPresetRecordsFromUserTemplates = (
+  templates: readonly UserTemplate[],
+): readonly TemplateApplyPresetRecord[] =>
+  templates.map(createTemplateApplyPresetRecordFromUserTemplate);
 
 function createField(labelText: string, control: HTMLElement): HTMLElement {
   const field = document.createElement("label");

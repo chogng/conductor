@@ -17,12 +17,17 @@ import type { FileImportResult, ImportedFileRecord } from "src/cs/workbench/serv
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import { SliceService } from "src/cs/workbench/services/slice/browser/sliceService";
 import { createSliceAssessmentSignature } from "src/cs/workbench/services/slice/common/slicePlanner";
-import type { ITemplateService, Template } from "src/cs/workbench/services/template/common/template";
+import type { Template } from "src/cs/workbench/services/template/common/template";
+import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import {
 	createReviewEvidenceSignature,
 	createReviewRecordSignature,
 	type RawTableReviewRecord,
 } from "src/cs/workbench/services/review/common/review";
+import type {
+	IUserTemplateService,
+	UserTemplate,
+} from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
 suite("workbench/services/slice/test/browser/sliceService", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -50,13 +55,13 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		assert.equal(state.templateSelectionsByFileId["file-a"]?.kind, "inline");
 	});
 
-	test("queues manual saved templates through canonical template lookup", () => {
+	test("queues manual saved selections through user template lookup", () => {
 		const sessionService = store.add(new SessionService());
 		const template = {
 			...createTemplate(),
 			id: "template-a",
 		};
-		const sliceService = store.add(new SliceService(sessionService, createTemplateServiceForTest(template)));
+		const sliceService = store.add(new SliceService(sessionService, createUserTemplateServiceForTest(template)));
 		sessionService.commitFileImport(createImportResult());
 
 		sliceService.runWithTemplate({
@@ -205,7 +210,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		);
 	});
 
-	test("drops stale manual saved-template plans when the saved template changes while rows are loading", async () => {
+	test("drops stale manual saved-template plans when the user template changes while rows are loading", async () => {
 		const sessionService = store.add(new SessionService());
 		const rowsReaderService = new BlockingRawTableRowsReaderService([
 			["Vg", "Id"],
@@ -218,7 +223,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		};
 		const sliceService = store.add(new SliceService(
 			sessionService,
-			createTemplateServiceForTest(() => savedTemplate),
+			createUserTemplateServiceForTest(() => savedTemplate),
 			rowsReaderService,
 		));
 		sessionService.commitFileImport(createImportResult());
@@ -393,29 +398,62 @@ const createReview = (
 	};
 };
 
-const createTemplateServiceForTest = (template: Template | (() => Template)): ITemplateService => {
+const createUserTemplateServiceForTest = (template: Template | (() => Template)): IUserTemplateService => {
 	const getCurrentTemplate = () => typeof template === "function" ? template() : template;
+	const getCurrentUserTemplate = () => createUserTemplateForTest(getCurrentTemplate());
 	return {
 	_serviceBrand: undefined,
+	createTemplate: async () => {
+		throw new Error("Unexpected user template create in slice test.");
+	},
 	deleteTemplate: async () => undefined,
-	getSnapshot: () => ({
-		templates: [getCurrentTemplate()],
+	duplicateTemplate: async () => {
+		throw new Error("Unexpected user template duplicate in slice test.");
+	},
+	exportTemplates: () => ({
 		version: 1,
+		source: "conductor.userTemplate",
+		templates: [getCurrentUserTemplate()],
+	}),
+	getSnapshot: () => ({
+		version: 1,
+		workspaceVersion: 0,
+		globalVersion: 1,
+		workspaceFingerprint: "workspace:test",
+		globalFingerprint: "global:test",
+		effectiveFingerprint: "effective:test",
+		templates: [getCurrentUserTemplate()],
 	}),
 	getTemplate: (id: string) => {
-		const currentTemplate = getCurrentTemplate();
-		return String(id ?? "").trim() === currentTemplate.id ? currentTemplate : undefined;
+		const userTemplate = getCurrentUserTemplate();
+		return String(id ?? "").trim() === userTemplate.id ? userTemplate : undefined;
 	},
-	getTemplateList: () => {
-		throw new Error("SliceService must not read legacy template apply preset lists.");
+	importTemplates: async () => ({
+		imported: [],
+		skipped: [],
+	}),
+	onDidChangeUserTemplates: Event.None,
+	refreshTemplates: async () => [getCurrentUserTemplate()],
+	updateTemplate: async () => {
+		throw new Error("Unexpected user template update in slice test.");
 	},
-	hasLoadedTemplateList: () => true,
-	onDidChangeTemplates: Event.None,
-	refreshTemplates: async () => [],
-	saveTemplate: async () => {
-		throw new Error("Unexpected template save in slice test.");
-	},
-	} as unknown as ITemplateService;
+	} as unknown as IUserTemplateService;
+};
+
+const createUserTemplateForTest = (template: Template): UserTemplate => {
+	const id = String(template.id ?? template.name ?? "template-a").trim();
+	const name = String(template.name ?? id).trim();
+	return {
+		id,
+		name,
+		version: Math.max(1, Math.floor(Number(template.version)) || 1),
+		scope: "global",
+		source: "userCreated",
+		template,
+		templateFingerprint: createTemplateFingerprint(template),
+		createdAt: 0,
+		updatedAt: 0,
+	};
 };
 
 const createAssessment = (): RawTableAssessmentRecord => ({

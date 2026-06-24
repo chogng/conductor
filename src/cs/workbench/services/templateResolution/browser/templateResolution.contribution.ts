@@ -20,14 +20,14 @@ import {
 import type { RawTableRef } from "src/cs/workbench/services/session/common/sessionModel";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import {
-	ITemplateService,
-	type ITemplateService as ITemplateServiceType,
-} from "src/cs/workbench/services/template/common/template";
-import {
 	ITemplateResolutionService,
 	TemplateResolutionContributionId,
 	type ITemplateResolutionService as ITemplateResolutionServiceType,
 } from "src/cs/workbench/services/templateResolution/common/templateResolution";
+import {
+	IUserTemplateService,
+	type IUserTemplateService as IUserTemplateServiceType,
+} from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
 export class TemplateResolutionContribution extends Disposable implements IWorkbenchContribution {
 	private disposed = false;
@@ -36,7 +36,7 @@ export class TemplateResolutionContribution extends Disposable implements IWorkb
 		@ISessionService private readonly sessionService: ISessionServiceType,
 		@ITemplateResolutionService private readonly templateResolutionService: ITemplateResolutionServiceType,
 		@IRecipeService private readonly recipeService: IRecipeServiceType,
-		@ITemplateService private readonly templateService: ITemplateServiceType,
+		@IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
 	) {
 		super();
 
@@ -48,7 +48,7 @@ export class TemplateResolutionContribution extends Disposable implements IWorkb
 		this._register(this.recipeService.onDidChangeRecipes(() => {
 			this.enqueueCurrentAssessments();
 		}));
-		this._register(this.templateService.onDidChangeTemplates(() => {
+		this._register(this.userTemplateService.onDidChangeUserTemplates(() => {
 			this.enqueueCurrentAssessments();
 		}));
 		this.enqueueCurrentAssessments();

@@ -19,10 +19,9 @@ export type UserTemplateScope =
 export type UserTemplateSource =
   | "userCreated"
   | "imported"
-  | "confirmedFromReview"
-  | "legacyPreset";
+  | "confirmedFromReview";
 
-export type NativeUserTemplateSource = Exclude<UserTemplateSource, "legacyPreset">;
+export type NativeUserTemplateSource = UserTemplateSource;
 
 export type UserTemplate = {
   readonly id: string;

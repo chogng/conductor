@@ -9,10 +9,10 @@ imported, or review-confirmed `Template` snapshots with catalog provenance,
 scope, versioning, and fingerprints. It is not the core `Template` spec and it
 is not the Template UI form state.
 
-`IUserTemplateService` owns native UserTemplate CRUD/import/export and merges
-that native catalog with the legacy saved-template projection during migration.
-New Review code must consume the `UserTemplateSnapshot` rather than reading the
-legacy template catalog directly.
+`IUserTemplateService` owns native UserTemplate CRUD/import/export and catalog
+snapshots. Review, TemplateResolution, Template UI, Explorer template pickers,
+and explicit Slice template lookup consume `UserTemplateSnapshot` or
+`getTemplate(id)` instead of reading a legacy template catalog.
 
 ## Ownership
 
@@ -21,9 +21,8 @@ legacy template catalog directly.
 - user-template catalog snapshots and effective fingerprints;
 - user-template lookup by id;
 - native user-template CRUD/import/export;
-- user-template change events used by Review invalidation;
-- migration projection from legacy saved templates while Template CRUD is
-  still backed by `ITemplateService`.
+- user-template change events used by Review and TemplateResolution
+  invalidation.
 
 It does not own:
 
@@ -41,16 +40,7 @@ UserTemplate create/update/delete/import
   -> IUserTemplateService
   -> IUserTemplateStoreService
   -> userTemplateChanged
-  -> ReviewContribution rereads evidence + RecipeSnapshot + UserTemplateSnapshot
-```
-
-Migration projection:
-
-```txt
-legacy TemplateService catalog change
-  -> UserTemplateService projects UserTemplateSnapshot
-  -> onDidChangeUserTemplates
-  -> ReviewContribution rereads evidence + RecipeSnapshot + UserTemplateSnapshot
+  -> ReviewContribution / TemplateResolutionContribution reread evidence + RecipeSnapshot + UserTemplateSnapshot
   -> IReviewService.deriveAndReview(...)
   -> RawTableReviewRecord
 ```
@@ -58,7 +48,7 @@ legacy TemplateService catalog change
 Manual execution:
 
 ```txt
-user template picker / legacy saved template picker
+user template picker / saved-selection compatibility picker
   -> IReviewService.reviewManualTemplate(...)
   -> IUserTemplateService.getTemplate(...)
   -> ManualTemplateReviewResult.ready
@@ -73,9 +63,6 @@ user template picker / legacy saved template picker
   executable template snapshot in `ReviewDecision.ready.reviewedTemplate`.
 - Native UserTemplates are persisted by scope: `global` in profile storage and
   `workspace` in workspace storage. Do not store them in Session.
-- Native UserTemplates win over legacy projections when ids collide.
-- Legacy saved templates projected through `IUserTemplateService` use
-  `source: "legacyPreset"` until the old saved-template catalog is retired.
 - Template UI library management reads and writes through
   `IUserTemplateService`. The existing form may keep using legacy
   `TemplateApplyConfig` as an editor view model, but persistence must
@@ -86,4 +73,5 @@ user template picker / legacy saved template picker
 - Do not call UserTemplate a Recipe or a Template sub-type.
 - Do not store UserTemplate catalog records in Session.
 - Do not let UserTemplate evaluate raw table evidence or choose candidates.
-- Do not let Slice read UserTemplate catalogs.
+- Do not let Slice enumerate or evaluate UserTemplate catalogs; Slice may only
+  resolve an explicit selected template id through `IUserTemplateService`.

@@ -1,5 +1,5 @@
 ---
-description: Template service - template catalog/preset CRUD, canonical Template specs, and legacy preset conversion.
+description: Template domain - canonical Template specs, editor view-model conversion, and Template UI state.
 applyTo: 'src/cs/workbench/services/template/**,src/cs/workbench/contrib/template/**'
 ---
 # Template
@@ -19,19 +19,18 @@ Legacy/manual extraction presets are not the domain `Template`; name them
 
 ## Ownership
 
-`ITemplateService` owns core Template spec helpers and the legacy saved
-apply-preset bridge during migration. It does not own UserTemplate catalog
-semantics, selected-template/form editor state, Review decisions, per-file
-template selections, or raw-file view input.
+Template owns the core `Template` spec and legacy apply-preset view-model
+conversion. It does not own UserTemplate catalog CRUD, catalog snapshots,
+Review decisions, per-file template selections, or raw-file view input.
 
 `ITemplateViewStateService` in Template contrib owns selected-template/form
 editor state for Template UI and related view projections. Slicing selections
 belong to `ISliceService`, and Template UI reads Session projections in contrib
 code.
 
-`ITemplateStoreService` owns template persistence backend access. Desktop
-`template.json` persistence uses platform file service and
-`IJSONEditingService`; Electron main only exposes generic file capability.
+`IUserTemplateService` owns persisted user-template catalog records. Template
+UI may adapt records into `TemplateApplyConfig` while editing, but must
+materialize writes back through `IUserTemplateService`.
 
 Old Template-owned apply controllers, planners, processing workers, and
 run/output Session commits have been removed. New execution behavior belongs in
@@ -48,14 +47,11 @@ table selection state, plot rendering, or chart state.
 | --- | --- |
 | `common/templateSpec.ts` | pure block-aware `Template` spec: row ranges, axis bindings, segmentation, legends, titles, applicability, and execution defaults. |
 | `common/builtinTemplateSpecs.ts` | built-in domain template specs. |
-| `common/template.ts` | template catalog service contract, `TemplateApplyPresetRecord`, CRUD contracts, `getTemplate(id)`, and re-exported template spec types. |
-| `common/templateLegacyAdapter.ts` | migration adapter from historical/manual presets into canonical block-aware `Template`. |
+| `common/template.ts` | `TemplateApplyPresetRecord`, command ids, and re-exported template spec types. |
+| `common/templateLegacyAdapter.ts` | adapter between historical/manual apply-preset view models and canonical block-aware `Template`. |
 | `common/autoTemplateApplyConfig.ts` | legacy serializer from auto-extraction plan shape into editable apply/worker config records; do not add detection logic here. |
 | `common/templateApplyConfigUtils.ts` | legacy/manual apply config normalization and cloning. |
-| `common/templateStore.ts` | persistence backend contract and data normalization. |
 | `common/templateSelection.ts` | selection records/helpers. |
-| `browser/templateService.ts` | CRUD, cached preset list, catalog snapshot/version read APIs. |
-| `browser/templateStoreService.ts` / `electron-browser/templateStoreService.ts` | browser fallback and desktop persistence. |
 | `contrib/template/browser/templateFileTransfer.ts` | Template UI JSON import/export workflow helper; parses/serializes legacy bundles. |
 | `contrib/template/browser/templateUserTemplateAdapter.ts` | View-model adapter from UserTemplate snapshots into legacy editable apply records. |
 | `contrib/template/browser/templateViewStateService.ts` | Template UI selected-template/form editor state. |
@@ -64,7 +60,7 @@ table selection state, plot rendering, or chart state.
 ## Flow
 
 ```txt
-manual legacy saved/UserTemplate/inline run
+manual saved-selection compatibility/UserTemplate/inline run
   -> ReviewService.reviewManualTemplate(...)
   -> ManualTemplateReviewResult.ready
   -> ISliceService.submit(SliceRequest(trigger = userCommand))
@@ -97,7 +93,7 @@ into canonical `Template` snapshots before Slice runs.
   Explorer current-template display is a view projection in ExplorerViewPane;
   per-file slicing selections come from `ISliceService`.
 - Per-file template selections for slicing belong to `ISliceService`; do not
-  store them in `TemplateState` or `ITemplateService`.
+  store them in `TemplateState` or `IUserTemplateService`.
 - Do not reintroduce Template-owned workflow inputs or
   `TemplateState.selectionsByFileId`; slicing selections come from
   `ISliceService`.

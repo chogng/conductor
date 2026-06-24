@@ -7,33 +7,34 @@ import assert from "assert";
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import { StorageScope } from "src/cs/platform/storage/common/storage";
+import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
 import { ASSESSMENT_RULE_VERSION, type RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 import type { FileImportResult, ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
 import type { IRecipeService, RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
-import type {
-	ITemplateService,
-	Template,
-	TemplateApplyPresetRecord,
-	TemplateApplyPresetSaveInput,
-	TemplateSnapshot,
-} from "src/cs/workbench/services/template/common/template";
 import { TemplateResolutionContribution } from "src/cs/workbench/services/templateResolution/browser/templateResolution.contribution";
 import { TemplateResolutionService } from "src/cs/workbench/services/templateResolution/browser/templateResolutionService";
+import { UserTemplateService } from "src/cs/workbench/services/userTemplate/browser/userTemplateService";
+import { UserTemplateStoreService } from "src/cs/workbench/services/userTemplate/browser/userTemplateStoreService";
 
 suite("workbench/services/templateResolution/test/browser/templateResolutionService", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const createUserTemplateServiceForTest = () =>
+		store.add(new UserTemplateService(
+			store.add(new UserTemplateStoreService(store.add(new TestStorageService()))),
+		));
 
 	test("resolves recipe candidates for review", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
-		const templateService = store.add(new TestTemplateService());
+		const userTemplateService = createUserTemplateServiceForTest();
 		const service = store.add(new TemplateResolutionService(
 			sessionService,
 			recipeService,
-			templateService,
+			userTemplateService,
 		));
 
 		const result = service.resolve({
@@ -42,11 +43,11 @@ suite("workbench/services/templateResolution/test/browser/templateResolutionServ
 			fileName: "Transfer.csv",
 			recipeSnapshot: recipeService.getSnapshot(),
 			rowCount: 3,
-			templateSnapshot: templateService.getSnapshot(),
+			userTemplateSnapshot: userTemplateService.getSnapshot(),
 		});
 
 		assert.equal(result.recipeFingerprint, "recipe:first");
-		assert.equal(result.templateCatalogVersion, 1);
+		assert.equal(result.templateCatalogVersion, 0);
 		assert.equal(result.templateCandidates[0]?.source.kind, "recipe");
 		assert.equal(result.templateCandidates[0]?.source.kind === "recipe" && result.templateCandidates[0].source.recipeId, "builtin.iv.transfer");
 		assert.equal(result.templateCandidates[0]?.state, "ready");
@@ -55,17 +56,17 @@ suite("workbench/services/templateResolution/test/browser/templateResolutionServ
 	test("commits template resolutions after assessment and refreshes on recipe changes", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
-		const templateService = store.add(new TestTemplateService());
+		const userTemplateService = createUserTemplateServiceForTest();
 		const service = store.add(new TemplateResolutionService(
 			sessionService,
 			recipeService,
-			templateService,
+			userTemplateService,
 		));
 		store.add(new TemplateResolutionContribution(
 			sessionService,
 			service,
 			recipeService,
-			templateService,
+			userTemplateService,
 		));
 
 		sessionService.commitFileImport(createImportResult());
@@ -118,42 +119,30 @@ class TestRecipeService extends Disposable implements IRecipeService {
 	}
 }
 
-class TestTemplateService extends Disposable implements ITemplateService {
-	public declare readonly _serviceBrand: undefined;
+class TestStorageService extends AbstractStorageService {
+	private readonly values = new Map<string, string>();
 
-	private readonly onDidChangeTemplatesEmitter = this._register(new Emitter<readonly TemplateApplyPresetRecord[]>());
-	public readonly onDidChangeTemplates = this.onDidChangeTemplatesEmitter.event;
-	private version = 1;
-
-	public getSnapshot(): TemplateSnapshot {
-		return {
-			version: this.version,
-			templates: [],
-		};
+	protected readValue(key: string, scope: StorageScope): string | undefined {
+		return this.values.get(this.storageKey(key, scope));
 	}
 
-	public getTemplate(_id: string): Template | undefined {
-		return undefined;
+	protected writeValue(key: string, scope: StorageScope, value: string): void {
+		this.values.set(this.storageKey(key, scope), value);
 	}
 
-	public getTemplateList(): readonly TemplateApplyPresetRecord[] {
-		return [];
+	protected deleteValue(key: string, scope: StorageScope): void {
+		this.values.delete(this.storageKey(key, scope));
 	}
 
-	public hasLoadedTemplateList(): boolean {
-		return true;
+	protected readKeys(scope: StorageScope): string[] {
+		const prefix = this.storageKey("", scope);
+		return [...this.values.keys()]
+			.filter(key => key.startsWith(prefix))
+			.map(key => key.slice(prefix.length));
 	}
 
-	public refreshTemplates(): Promise<readonly TemplateApplyPresetRecord[]> {
-		return Promise.resolve([]);
-	}
-
-	public deleteTemplate(_id: string): Promise<void> {
-		return Promise.resolve();
-	}
-
-	public saveTemplate(_template: TemplateApplyPresetSaveInput): Promise<TemplateApplyPresetRecord> {
-		throw new Error("Unexpected template save in template resolution test.");
+	private storageKey(key: string, scope: StorageScope): string {
+		return `${scope}:${key}`;
 	}
 }
 

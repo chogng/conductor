@@ -3,28 +3,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { RawTableEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
-import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
-import type { TemplateSnapshot } from "src/cs/workbench/services/template/common/template";
 import type {
-  Template,
   TemplateAxisBinding,
   TemplateRowRange,
 } from "src/cs/workbench/services/template/common/templateSpec";
-import type { TemplateCandidate } from "src/cs/workbench/services/templateResolution/common/templateResolution";
+import type {
+  TemplateCandidate,
+  TemplateCandidateSource,
+} from "src/cs/workbench/services/templateResolution/common/templateResolution";
+import type {
+  UserTemplate,
+  UserTemplateSnapshot,
+} from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
-export const evaluateSavedTemplateCandidates = ({
+export type UserTemplateCandidate = Omit<TemplateCandidate, "source"> & {
+  readonly source: Extract<TemplateCandidateSource, { readonly kind: "userTemplate" }>;
+};
+
+export const evaluateUserTemplateCandidates = ({
   evidence,
-  templateSnapshot,
+  userTemplateSnapshot,
 }: {
   readonly evidence: RawTableEvidence;
-  readonly templateSnapshot: TemplateSnapshot;
-}): readonly TemplateCandidate[] => {
-  const candidates: TemplateCandidate[] = [];
-  for (const template of templateSnapshot.templates) {
-    const candidate = evaluateSavedTemplateCandidate({
+  readonly userTemplateSnapshot: UserTemplateSnapshot;
+}): readonly UserTemplateCandidate[] => {
+  const candidates: UserTemplateCandidate[] = [];
+  for (const userTemplate of userTemplateSnapshot.templates) {
+    const candidate = evaluateUserTemplateCandidate({
       evidence,
-      template,
-      templateSnapshotVersion: templateSnapshot.version,
+      userTemplate,
     });
     if (candidate) {
       candidates.push(candidate);
@@ -37,17 +44,16 @@ export const evaluateSavedTemplateCandidates = ({
   );
 };
 
-const evaluateSavedTemplateCandidate = ({
+const evaluateUserTemplateCandidate = ({
   evidence,
-  template,
-  templateSnapshotVersion,
+  userTemplate,
 }: {
   readonly evidence: RawTableEvidence;
-  readonly template: Template;
-  readonly templateSnapshotVersion: number;
-}): TemplateCandidate | null => {
+  readonly userTemplate: UserTemplate;
+}): UserTemplateCandidate | null => {
   const diagnostics = new Set<string>();
   const reasons: string[] = [];
+  const template = userTemplate.template;
 
   if (!template.blocks.length) {
     return null;
@@ -67,10 +73,10 @@ const evaluateSavedTemplateCandidate = ({
   }
 
   if (template.applicability?.schemaFingerprint) {
-    reasons.push("savedTemplate.schemaFingerprint");
+    reasons.push("userTemplate.schemaFingerprint");
   }
   if (Number.isInteger(template.applicability?.columnCount)) {
-    reasons.push("savedTemplate.columnCount");
+    reasons.push("userTemplate.columnCount");
   }
   const rowCount = evidence.sourceMetadata.rowCount;
   const columnCount = evidence.sourceMetadata.columnCount;
@@ -85,38 +91,36 @@ const evaluateSavedTemplateCandidate = ({
 
   for (const block of template.blocks) {
     if (!isRowRangeInBounds(block.rowRange, rowCount)) {
-      diagnostics.add("savedTemplate.rowRangeOutOfBounds");
+      diagnostics.add("userTemplate.rowRangeOutOfBounds");
     }
     if (!isAxisInBounds(block.x, columnCount)) {
-      diagnostics.add("savedTemplate.xAxisOutOfBounds");
+      diagnostics.add("userTemplate.xAxisOutOfBounds");
     }
     if (!isAxisInBounds(block.y, columnCount)) {
-      diagnostics.add("savedTemplate.yAxisOutOfBounds");
+      diagnostics.add("userTemplate.yAxisOutOfBounds");
     }
   }
 
-  const templateFingerprint = createTemplateFingerprint(template);
-  const templateId = String(template.id ?? template.name ?? templateFingerprint).trim() ||
-    templateFingerprint;
   return {
-    id: `saved-template:${templateId}`,
+    id: `user-template:${userTemplate.id}`,
     source: {
-      kind: "savedTemplate",
-      templateId,
-      templateVersion: normalizeTemplateVersion(template.version, templateSnapshotVersion),
+      kind: "userTemplate",
+      templateId: userTemplate.id,
+      templateVersion: userTemplate.version,
     },
     template,
-    templateFingerprint,
-    confidence: diagnostics.size ? 0.6 : getSavedTemplateConfidence(template),
+    templateFingerprint: userTemplate.templateFingerprint,
+    confidence: diagnostics.size ? 0.6 : getUserTemplateConfidence(userTemplate),
     state: diagnostics.size ? "review" : "ready",
     reasons,
     diagnosticCodes: [...diagnostics],
   };
 };
 
-const getSavedTemplateConfidence = (
-  template: Template,
+const getUserTemplateConfidence = (
+  userTemplate: UserTemplate,
 ): number => {
+  const { template } = userTemplate;
   if (template.applicability?.schemaFingerprint) {
     return 0.95;
   }
@@ -159,13 +163,3 @@ const isColumnInBounds = (
   Number.isInteger(column) &&
   column >= 0 &&
   column < columnCount;
-
-const normalizeTemplateVersion = (
-  templateVersion: unknown,
-  templateSnapshotVersion: number,
-): number => {
-  const version = Math.floor(Number(templateVersion));
-  return Number.isInteger(version) && version > 0
-    ? version
-    : Math.max(1, Math.floor(Number(templateSnapshotVersion)) || 1);
-};

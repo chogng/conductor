@@ -6,10 +6,7 @@ import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
-  ITemplateService,
-  type ITemplateService as ITemplateServiceType,
   type Template,
-  type TemplateSnapshot,
 } from "src/cs/workbench/services/template/common/template";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import {
@@ -48,22 +45,15 @@ export class UserTemplateService extends Disposable implements IUserTemplateServ
   public constructor(
     @IUserTemplateStoreService
     private readonly userTemplateStoreService: IUserTemplateStoreServiceType,
-    @ITemplateService private readonly templateService: ITemplateServiceType,
   ) {
     super();
     this._register(this.userTemplateStoreService.onDidChangeUserTemplates(() => {
       this.fireChange();
     }));
-    this._register(this.templateService.onDidChangeTemplates(() => {
-      this.fireChange();
-    }));
   }
 
   public getSnapshot(): UserTemplateSnapshot {
-    return createUserTemplateSnapshot({
-      legacySnapshot: this.templateService.getSnapshot(),
-      nativeSnapshot: this.userTemplateStoreService.getSnapshot(),
-    });
+    return createUserTemplateSnapshot(this.userTemplateStoreService.getSnapshot());
   }
 
   public getTemplate(id: string): UserTemplate | undefined {
@@ -74,7 +64,6 @@ export class UserTemplateService extends Disposable implements IUserTemplateServ
   }
 
   public async refreshTemplates(): Promise<readonly UserTemplate[]> {
-    await this.templateService.refreshTemplates();
     return this.getSnapshot().templates;
   }
 
@@ -131,12 +120,6 @@ export class UserTemplateService extends Disposable implements IUserTemplateServ
       .find(template => template.id === templateId);
     if (nativeTemplate) {
       this.userTemplateStoreService.removeTemplate(templateId);
-      return;
-    }
-
-    const userTemplate = this.getTemplate(templateId);
-    if (userTemplate?.source === "legacyPreset") {
-      await this.templateService.deleteTemplate(templateId);
     }
   }
 
@@ -225,37 +208,15 @@ export class UserTemplateService extends Disposable implements IUserTemplateServ
   }
 }
 
-export const createUserTemplateSnapshotFromLegacyTemplates = (
-  templateSnapshot: TemplateSnapshot,
-): UserTemplateSnapshot => createUserTemplateSnapshot({
-  legacySnapshot: templateSnapshot,
-  nativeSnapshot: {
-    version: 0,
-    workspaceVersion: 0,
-    globalVersion: 0,
-    templates: [],
-  },
-});
-
-export const createUserTemplateSnapshot = ({
-  legacySnapshot,
-  nativeSnapshot,
-}: {
-  readonly legacySnapshot: TemplateSnapshot;
-  readonly nativeSnapshot: UserTemplateStoreSnapshot;
-}): UserTemplateSnapshot => {
-  const nativeTemplates = nativeSnapshot.templates.map(compactUserTemplate);
-  const nativeIds = new Set(nativeTemplates.map(template => template.id));
-  const legacyTemplates = createLegacyUserTemplates(legacySnapshot)
-    .filter(template => !nativeIds.has(template.id));
-  const templates = [
-    ...nativeTemplates,
-    ...legacyTemplates,
-  ].sort(compareUserTemplates);
+export const createUserTemplateSnapshot = (
+  nativeSnapshot: UserTemplateStoreSnapshot,
+): UserTemplateSnapshot => {
+  const templates = nativeSnapshot.templates.map(compactUserTemplate)
+    .sort(compareUserTemplates);
   const workspaceTemplates = templates.filter(template => template.scope === "workspace");
   const globalTemplates = templates.filter(template => template.scope === "global");
   const workspaceVersion = nativeSnapshot.workspaceVersion;
-  const globalVersion = nativeSnapshot.globalVersion + legacySnapshot.version;
+  const globalVersion = nativeSnapshot.globalVersion;
   const workspaceFingerprint = createUserTemplateCatalogFingerprint(
     workspaceVersion,
     workspaceTemplates,
@@ -266,7 +227,7 @@ export const createUserTemplateSnapshot = ({
   );
 
   return {
-    version: nativeSnapshot.version + legacySnapshot.version,
+    version: nativeSnapshot.version,
     workspaceVersion,
     globalVersion,
     workspaceFingerprint,
@@ -278,35 +239,6 @@ export const createUserTemplateSnapshot = ({
     templates,
   };
 };
-
-const createLegacyUserTemplates = (
-  templateSnapshot: TemplateSnapshot,
-): readonly UserTemplate[] =>
-  templateSnapshot.templates.map((template): UserTemplate => {
-    const templateFingerprint = createTemplateFingerprint(template);
-    const id = normalizeText(template.id) ||
-      normalizeText(template.name) ||
-      templateFingerprint;
-    const name = normalizeText(template.name) || id;
-    const version = normalizeTemplateVersion(template.version, templateSnapshot.version);
-    const normalizedTemplate = normalizeTemplateForCatalog({
-      id,
-      name,
-      template,
-      version,
-    });
-    return {
-      id,
-      name,
-      version,
-      scope: "global",
-      source: "legacyPreset",
-      template: normalizedTemplate,
-      templateFingerprint: createTemplateFingerprint(normalizedTemplate),
-      createdAt: 0,
-      updatedAt: 0,
-    };
-  });
 
 const createNativeUserTemplate = (
   input: UserTemplateCreateInput,
@@ -499,16 +431,6 @@ const createUserTemplateId = (
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
   return id || "user-template";
-};
-
-const normalizeTemplateVersion = (
-  templateVersion: unknown,
-  fallbackVersion: number,
-): number => {
-  const version = Math.floor(Number(templateVersion));
-  return Number.isInteger(version) && version > 0
-    ? version
-    : Math.max(1, Math.floor(Number(fallbackVersion)) || 1);
 };
 
 const normalizeTags = (

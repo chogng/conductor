@@ -52,7 +52,7 @@ reviewChanged
 Manual execution:
 
 ```txt
-user command / legacy saved template picker / inline template editor
+user command / UserTemplate picker / saved-selection compatibility picker / inline template editor
   -> IReviewService.reviewManualTemplate(...)
   -> ManualTemplateReviewResult
   -> ready result only
@@ -70,17 +70,16 @@ user command / legacy saved template picker / inline template editor
 | `browser/reviewApply.contribution.ts` | no-UI bridge from system-recommended Review decisions to Slice requests. |
 
 During migration, Review may reuse TemplateResolution candidate helpers.
-User-template candidates must come through `IUserTemplateService`, even when
-that service is projecting the legacy saved-template catalog. New decision
-logic still belongs in Review, not TemplateResolution, Assessment, Explorer, or
-Slice.
+User-template candidates must come through `IUserTemplateService` and
+`UserTemplateSnapshot`. New decision logic still belongs in Review, not
+TemplateResolution, Assessment, Explorer, or Slice.
 
 ## Rules
 
 - `ReviewDecision` is the only source for template usability and system
   application recommendations.
 - `ReviewedTemplate.source` describes template provenance only: Recipe,
-  UserTemplate, legacy saved template, or inline. It must not encode manual,
+  UserTemplate, saved-selection compatibility, or inline. It must not encode manual,
   auto, user command, or system trigger.
 - Execution trigger belongs to `SliceRequest.trigger`.
 - Non-selected candidate records store summaries only. Detail rematerialization
@@ -90,8 +89,8 @@ Slice.
   diagnostic handling, override rules, or source priority changes.
 - Explorer reads `RawTableReviewRecord` and Slice state as projection inputs;
   it does not perform Review policy checks.
-- Manual Review requests may accept legacy saved Template ids during the
-  UserTemplate migration, but lookup must go through `IUserTemplateService`.
+- Manual Review requests may accept `savedTemplate` compatibility selections,
+  but lookup must go through `IUserTemplateService`.
 
 ## Do Not
 

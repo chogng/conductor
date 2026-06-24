@@ -675,7 +675,6 @@
   "template.yTarget.auto": "自动",
   "template.yTarget.column": "Y 列",
   "template.yTarget.group": "分组",
-  "templateStore.desktopBridgeUnavailable": "模板存储桌面桥接不可用",
   "themes.commands.category": "主题",
   "themes.commands.resetWorkbenchBackground": "重置工作台背景",
   "themes.commands.resetWorkbenchBackground.description": "重置工作台页面背景颜色。",

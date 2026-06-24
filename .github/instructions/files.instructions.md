@@ -155,8 +155,8 @@ The Explorer current-template menu display is view projection, not Bridge
 state:
 
 ```txt
-ITemplateViewStateService.onDidChangeTemplateState / ITemplateService.onDidChangeTemplates
-  -> ExplorerViewPane rereads TemplateViewStateService + TemplateService
+ITemplateViewStateService.onDidChangeTemplateState / IUserTemplateService.onDidChangeUserTemplates
+  -> ExplorerViewPane rereads TemplateViewStateService + UserTemplateService
   -> Explorer view props currentTemplateLabel/currentTemplateSelection
 ```
 

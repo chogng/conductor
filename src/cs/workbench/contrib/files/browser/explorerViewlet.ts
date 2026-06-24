@@ -67,6 +67,7 @@ import {
   markTemplateApplyPerformanceTrace,
 } from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
 import { SliceWithTemplateController } from "src/cs/workbench/contrib/files/browser/sliceWithTemplateController";
+import { createTemplateApplyPresetRecordFromUserTemplate } from "src/cs/workbench/contrib/template/browser/templateUserTemplateAdapter";
 import { ISessionService } from "src/cs/workbench/services/session/common/session";
 import {
   createFastImportBadgeAssessment,
@@ -79,7 +80,6 @@ import {
   IThumbnailPreviewService,
   IThumbnailService,
 } from "src/cs/workbench/services/thumbnail/common/thumbnail";
-import { ITemplateService } from "src/cs/workbench/services/template/common/template";
 import {
   createCurrentTemplateSelectionDisplay,
 } from "src/cs/workbench/services/template/common/templateSelection";
@@ -90,6 +90,10 @@ import {
 import { ISliceService } from "src/cs/workbench/services/slice/common/slice";
 import { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import { IAppearanceService } from "src/cs/workbench/services/appearance/common/appearance";
+import {
+  IUserTemplateService,
+  type IUserTemplateService as IUserTemplateServiceType,
+} from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
 import "src/cs/workbench/contrib/files/browser/views/media/explorerViewlet.css";
 
@@ -134,7 +138,7 @@ export class ExplorerViewPane extends ViewPane {
     @IAssessmentService private readonly assessmentService: IAssessmentService,
     @IThumbnailPreviewService private readonly thumbnailPreviewService: IThumbnailPreviewService,
     @IThumbnailService private readonly thumbnailService: IThumbnailService,
-    @ITemplateService private readonly templateService: ITemplateService,
+    @IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
     @ITemplateViewStateService private readonly templateViewStateService: ITemplateViewStateServiceType,
     @ISliceService private readonly sliceService: ISliceService,
   ) {
@@ -192,8 +196,8 @@ export class ExplorerViewPane extends ViewPane {
       removeOriginalFile: fileId => this.handleCloseFile(fileId),
       sliceService: this.sliceService,
       sourceWorkflow: this.sourceWorkflow,
-      templateService: this.templateService,
       templateViewStateService: this.templateViewStateService,
+      userTemplateService: this.userTemplateService,
     }));
 
     this._register(this.explorerService.onDidChangePaneInput(() => {
@@ -233,7 +237,7 @@ export class ExplorerViewPane extends ViewPane {
     this._register(this.appearanceService.onDidChangeAppearance(() => {
       this.syncView();
     }));
-    this._register(this.templateService.onDidChangeTemplates(() => {
+    this._register(this.userTemplateService.onDidChangeUserTemplates(() => {
       this.syncView();
     }));
     this._register(this.templateViewStateService.onDidChangeTemplateState(() => {
@@ -384,7 +388,7 @@ export class ExplorerViewPane extends ViewPane {
       currentTemplateSelection: currentTemplate.selection,
       fileTemplateSelectionsByFileId: input.fileTemplateSelectionsByFileId,
       editable: this.explorerService.getContext().editable,
-      templateRecords: this.templateService.getTemplateList(),
+      templateRecords: this.createTemplateRecords(),
       files,
       folderImportSupport: getFolderImportSupportForFileService(this.filesService),
       isDragging: this.isDragging,
@@ -859,7 +863,7 @@ export class ExplorerViewPane extends ViewPane {
   }
 
   private readonly loadTemplates = (): void => {
-    this.templateService.refreshTemplates()
+    this.userTemplateService.refreshTemplates()
       .then(() => {
         if (!this.disposed) {
           this.syncView();
@@ -874,6 +878,11 @@ export class ExplorerViewPane extends ViewPane {
         this.syncView();
       });
   };
+
+  private createTemplateRecords() {
+    return this.userTemplateService.getSnapshot().templates
+      .map(createTemplateApplyPresetRecordFromUserTemplate);
+  }
 
   private removeFiles(fileIds: readonly string[]): void {
     const normalizedFileIds = getNormalizedFileIds(fileIds);

@@ -456,8 +456,7 @@ export type UserTemplateScope =
 export type UserTemplateSource =
   | "userCreated"
   | "imported"
-  | "confirmedFromReview"
-  | "legacyPreset";
+  | "confirmedFromReview";
 
 export type UserTemplate = {
   readonly id: string;

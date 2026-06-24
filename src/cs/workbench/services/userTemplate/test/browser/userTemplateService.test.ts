@@ -4,8 +4,6 @@
 
 import assert from "assert";
 
-import { Emitter } from "src/cs/base/common/event";
-import { Disposable } from "src/cs/base/common/lifecycle";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
   StorageScope,
@@ -13,13 +11,7 @@ import {
   type StorageValue,
 } from "src/cs/platform/storage/common/storage";
 import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
-import type {
-  ITemplateService,
-  Template,
-  TemplateApplyPresetRecord,
-  TemplateApplyPresetSaveInput,
-  TemplateSnapshot,
-} from "src/cs/workbench/services/template/common/template";
+import type { Template } from "src/cs/workbench/services/template/common/template";
 import { UserTemplateService } from "src/cs/workbench/services/userTemplate/browser/userTemplateService";
 import {
   USER_TEMPLATE_GLOBAL_STORAGE_KEY,
@@ -29,40 +21,6 @@ import {
 
 suite("workbench/services/userTemplate/test/browser/userTemplateService", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
-
-  test("projects legacy template snapshots into user template snapshots", () => {
-    const { service } = createUserTemplateServiceForTest(store, {
-      legacyTemplates: [createTemplate({
-        id: "template-a",
-        name: "Transfer",
-        version: 3,
-      })],
-    });
-
-    const snapshot = service.getSnapshot();
-
-    assert.equal(snapshot.version, 1);
-    assert.equal(snapshot.globalVersion, 1);
-    assert.equal(snapshot.templates.length, 1);
-    assert.equal(snapshot.templates[0]?.id, "template-a");
-    assert.equal(snapshot.templates[0]?.source, "legacyPreset");
-    assert.equal(snapshot.templates[0]?.template.name, "Transfer");
-    assert.ok(snapshot.effectiveFingerprint.includes("template-a"));
-  });
-
-  test("fires user template changes when the legacy catalog changes", () => {
-    const { service, templateService } = createUserTemplateServiceForTest(store);
-    const events: string[] = [];
-    const disposable = service.onDidChangeUserTemplates(event => {
-      events.push(event.effectiveFingerprint);
-    });
-
-    templateService.setTemplates([createTemplate({ id: "template-a" })]);
-
-    assert.equal(events.length, 1);
-    assert.equal(service.getTemplate("template-a")?.id, "template-a");
-    disposable.dispose();
-  });
 
   test("persists native templates by scope and exposes CRUD operations", async () => {
     const { service, storageService } = createUserTemplateServiceForTest(store);
@@ -145,115 +103,22 @@ suite("workbench/services/userTemplate/test/browser/userTemplateService", () => 
     assert.equal(service.getTemplate("template-a")?.name, "Transfer Overwritten");
   });
 
-  test("native templates shadow legacy projections with the same id", async () => {
-    const { service } = createUserTemplateServiceForTest(store, {
-      legacyTemplates: [createTemplate({
-        id: "template-a",
-        name: "Legacy Transfer",
-      })],
-    });
-
-    const updated = await service.updateTemplate("template-a", {
-      name: "Native Transfer",
-    });
-
-    const snapshot = service.getSnapshot();
-    assert.equal(updated.id, "template-a");
-    assert.equal(snapshot.templates.length, 1);
-    assert.equal(snapshot.templates[0]?.source, "imported");
-    assert.equal(snapshot.templates[0]?.name, "Native Transfer");
-  });
-
-  test("deletes legacy projections through the migration bridge", async () => {
-    const { service, templateService } = createUserTemplateServiceForTest(store, {
-      legacyTemplates: [createTemplate({
-        id: "template-a",
-        name: "Legacy Transfer",
-      })],
-    });
-
-    await service.deleteTemplate("template-a");
-
-    assert.deepEqual(templateService.deletedTemplateIds, ["template-a"]);
-  });
 });
 
 type TestDisposableStore = ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>;
 
 const createUserTemplateServiceForTest = (
   store: TestDisposableStore,
-  {
-    legacyTemplates = [],
-  }: {
-    readonly legacyTemplates?: readonly Template[];
-  } = {},
 ) => {
   const storageService = store.add(new TestStorageService());
   const storeService = store.add(new UserTemplateStoreService(storageService));
-  const templateService = store.add(new TestTemplateService(legacyTemplates));
-  const service = store.add(new UserTemplateService(storeService, templateService));
+  const service = store.add(new UserTemplateService(storeService));
   return {
     service,
     storageService,
     storeService,
-    templateService,
   };
 };
-
-class TestTemplateService extends Disposable implements ITemplateService {
-  public declare readonly _serviceBrand: undefined;
-
-  private readonly onDidChangeTemplatesEmitter =
-    this._register(new Emitter<readonly TemplateApplyPresetRecord[]>());
-  public readonly onDidChangeTemplates =
-    this.onDidChangeTemplatesEmitter.event;
-  public readonly deletedTemplateIds: string[] = [];
-  private version = 1;
-
-  public constructor(
-    private templates: readonly Template[] = [],
-  ) {
-    super();
-  }
-
-  public setTemplates(templates: readonly Template[]): void {
-    this.templates = templates;
-    this.version += 1;
-    this.onDidChangeTemplatesEmitter.fire([]);
-  }
-
-  public getSnapshot(): TemplateSnapshot {
-    return {
-      version: this.version,
-      templates: this.templates,
-    };
-  }
-
-  public getTemplate(id: string): Template | undefined {
-    return this.templates.find(template => String(template.id ?? "").trim() === id);
-  }
-
-  public getTemplateList(): readonly TemplateApplyPresetRecord[] {
-    return [];
-  }
-
-  public hasLoadedTemplateList(): boolean {
-    return true;
-  }
-
-  public refreshTemplates(): Promise<readonly TemplateApplyPresetRecord[]> {
-    return Promise.resolve([]);
-  }
-
-  public deleteTemplate(_id: string): Promise<void> {
-    this.deletedTemplateIds.push(_id);
-    return Promise.resolve();
-  }
-
-  public saveTemplate(_template: TemplateApplyPresetSaveInput): Promise<TemplateApplyPresetRecord> {
-    throw new Error("Unexpected template save in user template test.");
-  }
-}
 
 class TestStorageService extends AbstractStorageService {
   private readonly values = new Map<string, string>();

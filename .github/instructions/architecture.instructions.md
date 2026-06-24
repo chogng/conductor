@@ -128,11 +128,10 @@ Runtime folders:
 | `ISessionService` | canonical session ledger and change events |
 | `IAssessmentService` | raw table evidence: structure, profiles, semantics, groups, blocks, diagnostics; migration name for RawTableEvidence |
 | `IRecipeService` | passive built-in recipes used by Review candidate providers to derive Template drafts from raw table evidence |
-| `ITemplateResolutionService` | migration bridge for deriving Recipe/saved-template candidates; it is not the final decision owner |
+| `ITemplateResolutionService` | migration bridge for deriving Recipe/UserTemplate candidates; it is not the final decision owner |
 | `IReviewService` | template candidate review, selected `ReviewedTemplate`, manual adjustment state, and system-application recommendation |
-| `IUserTemplateService` | native user template catalog CRUD/snapshots plus legacy saved-template projection during migration |
+| `IUserTemplateService` | native user template catalog CRUD/snapshots/import/export and explicit template lookup |
 | `ITableService` | table source, rows, selection snapshot, reveal/highlight |
-| `ITemplateService` | core Template specs plus legacy saved preset CRUD during UserTemplate migration |
 | `ITemplateViewStateService` | Template UI selected-template/form editor state |
 | calculation services/helpers | derived curves and metrics commit payloads |
 | `IPlotService` | plot render models, plot settings, series visibility/focus |
@@ -306,7 +305,7 @@ Runtime folders:
 | `ISessionService` | canonical session ledger and change events |
 | `IAssessmentService` | raw table interpretation: groups, blocks, roles, diagnostics |
 | `ITableService` | table source, rows, selection snapshot, reveal/highlight |
-| `ITemplateService` | saved template catalog, legacy preset CRUD, and canonical `Template` reads |
+| `IUserTemplateService` | native user template catalog CRUD/snapshots/import/export and explicit template lookup |
 | `ITemplateViewStateService` | Template UI selected-template/form editor state |
 | calculation services/helpers | derived curves and metrics commit payloads |
 | `IPlotService` | plot render models, plot settings, series visibility/focus |

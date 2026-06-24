@@ -24,7 +24,6 @@ import {
   type IExplorerWorkflowService,
 } from "src/cs/workbench/contrib/files/browser/files";
 import { DEFAULT_EXPLORER_APPEARANCE, type IAppearanceService } from "src/cs/workbench/services/appearance/common/appearance";
-import type { ITemplateService, TemplateApplyPresetSaveInput } from "src/cs/workbench/services/template/common/template";
 import type {
   ITemplateViewStateService,
   TemplateState,
@@ -37,6 +36,7 @@ import type { ISliceService } from "src/cs/workbench/services/slice/common/slice
 import type { IThumbnailPreviewService, IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import type { IAssessmentService } from "src/cs/workbench/services/assessment/common/assessment";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import type { IUserTemplateService } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
 suite("workbench/contrib/files/browser/explorerViewlet", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
@@ -184,7 +184,7 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
       drawPlotThumbnail: () => undefined,
       warmPlotThumbnail: () => undefined,
     } as unknown as IThumbnailService,
-    createTemplateService(),
+    createUserTemplateService(),
     createTemplateViewStateService(),
     createSliceService(),
   );
@@ -248,17 +248,40 @@ const flushPromises = async (): Promise<void> => {
   await Promise.resolve();
 };
 
-const createTemplateService = (): ITemplateService => ({
+const createUserTemplateService = (): IUserTemplateService => ({
   _serviceBrand: undefined,
-  onDidChangeTemplates: Event.None,
+  onDidChangeUserTemplates: Event.None,
+  createTemplate: async () => {
+    throw new Error("Unexpected user template create in explorer viewlet test.");
+  },
   deleteTemplate: async () => undefined,
-  getSnapshot: () => ({ templates: [], version: 0 }),
+  duplicateTemplate: async () => {
+    throw new Error("Unexpected user template duplicate in explorer viewlet test.");
+  },
+  exportTemplates: () => ({
+    version: 1,
+    source: "conductor.userTemplate",
+    templates: [],
+  }),
+  getSnapshot: () => ({
+    version: 0,
+    workspaceVersion: 0,
+    globalVersion: 0,
+    workspaceFingerprint: "",
+    globalFingerprint: "",
+    effectiveFingerprint: "",
+    templates: [],
+  }),
   getTemplate: () => undefined,
-  getTemplateList: () => [],
-  hasLoadedTemplateList: () => true,
+  importTemplates: async () => ({
+    imported: [],
+    skipped: [],
+  }),
   refreshTemplates: async () => [],
-  saveTemplate: async (template: TemplateApplyPresetSaveInput) => template,
-} as unknown as ITemplateService);
+  updateTemplate: async () => {
+    throw new Error("Unexpected user template update in explorer viewlet test.");
+  },
+} as unknown as IUserTemplateService);
 
 const createTemplateViewStateService = (): ITemplateViewStateService => ({
   _serviceBrand: undefined,

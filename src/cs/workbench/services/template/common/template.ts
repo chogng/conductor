@@ -2,10 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { TemplateApplyConfig } from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
-import type { Event } from "src/cs/base/common/event";
-import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
 
 export type {
   Template,
@@ -46,28 +43,3 @@ export type TemplateApplyPresetRecord = Partial<TemplateApplyConfig> &
   }> & {
     readonly [key: string]: unknown;
   };
-
-export type TemplateApplyPresetSaveInput = TemplateApplyConfig &
-  Partial<{
-    readonly id: string | null;
-  }>;
-
-export type TemplateSnapshot = {
-  readonly version: number;
-  readonly templates: readonly Template[];
-};
-
-export const ITemplateService = createDecorator<ITemplateService>("templateService");
-
-export interface ITemplateService {
-  readonly _serviceBrand: undefined;
-  readonly onDidChangeTemplates: Event<readonly TemplateApplyPresetRecord[]>;
-
-  getSnapshot(): TemplateSnapshot;
-  getTemplate(id: string): Template | undefined;
-  getTemplateList(): readonly TemplateApplyPresetRecord[];
-  hasLoadedTemplateList(): boolean;
-  refreshTemplates(): Promise<readonly TemplateApplyPresetRecord[]>;
-  deleteTemplate(id: string): Promise<void>;
-  saveTemplate(template: TemplateApplyPresetSaveInput): Promise<TemplateApplyPresetRecord>;
-}

@@ -88,7 +88,7 @@ series, template decisions, or assessment confidence.
 | `TableColumnWidth` | `ITableService` + storage | workspace view state | table source key or explicit width reset |
 | `ExplorerState` | `IExplorerService` | service state | Explorer selection/layout/expansion/source workflow changes |
 | `ExplorerResource` / `ExplorerFileEntry` | Explorer projection | derived view input | session, source workflow, badge/template/chart state projections |
-| `UserTemplateSnapshot` | `IUserTemplateService` | service-local snapshot | legacy template catalog version or future native user-template store version. |
+| `UserTemplateSnapshot` | `IUserTemplateService` | service-local snapshot | native user-template store version, scope versions, and effective fingerprint. |
 | `SearchQuery` / `SearchResult` | `ISearchService` | service state/model | query/options/session/plot index |
 | `ExportState` / `ExportPlan` | `IExportService` | service state/derived plan | export options/session/plot changes |
 | `ParametersState` / `ParameterRowModel` | `IParametersService` | service state/model | metrics, manual inputs, selected file/plot context |
@@ -184,7 +184,7 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
 - `RawTableReviewRecord` is the canonical audit fact for template usability and
   system-application recommendation for one raw table.
 - Review records store the evidence signature, Recipe fingerprint,
-  UserTemplate or legacy saved-template catalog fingerprint, ranked candidate
+  UserTemplate catalog fingerprint, ranked candidate
   summaries, per-candidate reviews, `ReviewDecision`, and creation time.
 - `ReviewDecision.kind === "ready"` carries the selected
   `ReviewedTemplate.template` snapshot; that snapshot must be executable even
@@ -200,8 +200,8 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
 - `RawTableTemplateResolutionRecord` is a migration bridge fact for automatic
   Template candidate derivation for one raw table.
 - Resolution records store `sourceAssessmentSignature`, `recipeFingerprint`,
-  legacy `templateCatalogVersion`, ranked `templateCandidates`, diagnostics,
-  and `resolvedAt`.
+  `templateCatalogVersion` sourced from `UserTemplateSnapshot.version`, ranked
+  `templateCandidates`, diagnostics, and `resolvedAt`.
 - Resolution records do not store selected Template snapshots or application
   decisions. Review owns selected `ReviewedTemplate` snapshots.
 - Resolution records do not store raw rows, Assessment blocks duplicated as

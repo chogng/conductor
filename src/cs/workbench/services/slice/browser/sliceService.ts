@@ -38,14 +38,14 @@ import {
 	createReviewRecordSignature,
 	type RawTableReviewRecord,
 } from "src/cs/workbench/services/review/common/review";
-import {
-	ITemplateService,
-	type ITemplateService as ITemplateServiceType,
-} from "src/cs/workbench/services/template/common/template";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
 import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
 import { getTemplateSelectionTemplateId } from "src/cs/workbench/services/template/common/templateSelection";
+import {
+	IUserTemplateService,
+	type IUserTemplateService as IUserTemplateServiceType,
+} from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
 type SliceQueueEntry = {
 	readonly ref: RawTableRef;
@@ -66,7 +66,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 
 	public constructor(
 		@ISessionService private readonly sessionService: ISessionServiceType,
-		@ITemplateService private readonly templateService?: ITemplateServiceType,
+		@IUserTemplateService private readonly userTemplateService?: IUserTemplateServiceType,
 		@IRawTableRowsReaderService private readonly rawTableRowsReaderService?: IRawTableRowsReaderServiceType,
 	) {
 		super();
@@ -484,11 +484,11 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			return selection.template;
 		}
 		const templateId = getTemplateSelectionTemplateId(selection);
-		if (!templateId || !this.templateService) {
+		if (!templateId || !this.userTemplateService) {
 			return null;
 		}
 
-		return this.templateService.getTemplate(templateId) ?? null;
+		return this.userTemplateService.getTemplate(templateId)?.template ?? null;
 	}
 
 	private isLatestAutoRunCurrent(ref: RawTableRef, plan: SlicePlan): boolean {

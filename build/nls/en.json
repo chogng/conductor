@@ -675,7 +675,6 @@
   "template.yTarget.auto": "Auto",
   "template.yTarget.column": "Y column",
   "template.yTarget.group": "Group",
-  "templateStore.desktopBridgeUnavailable": "Template store desktop bridge unavailable.",
   "themes.commands.category": "Themes",
   "themes.commands.resetWorkbenchBackground": "Reset Workbench Background",
   "themes.commands.resetWorkbenchBackground.description": "Reset the workbench page background color.",

@@ -14,7 +14,6 @@ import type {
 } from "src/cs/workbench/services/template/common/templateSpec";
 import type {
 	TemplateApplyPresetRecord,
-	TemplateSnapshot,
 } from "src/cs/workbench/services/template/common/template";
 import {
 	createEmptyTemplateApplyConfig,
@@ -25,16 +24,6 @@ import {
 	toCellLabel,
 } from "src/cs/workbench/services/template/common/templateCellRef";
 import { resolveTemplateXRange } from "src/cs/workbench/services/template/common/templateXRange";
-
-export const createTemplateSnapshotFromApplyPresets = (
-	templates: readonly TemplateApplyPresetRecord[],
-	version: number,
-): TemplateSnapshot => ({
-	version: normalizeNonNegativeInteger(version),
-	templates: templates
-		.map(createTemplateFromApplyPresetRecord)
-		.filter((template): template is Template => Boolean(template)),
-});
 
 export const createTemplateFromApplyPresetRecord = (
 	record: TemplateApplyPresetRecord,
@@ -303,11 +292,6 @@ const normalizeCellRowOrEnd = (value: unknown): number | "end" => {
 const normalizePositiveInteger = (value: unknown): number | undefined => {
 	const numberValue = Math.floor(Number(value));
 	return Number.isFinite(numberValue) && numberValue > 0 ? numberValue : undefined;
-};
-
-const normalizeNonNegativeInteger = (value: unknown): number => {
-	const numberValue = Math.floor(Number(value));
-	return Number.isFinite(numberValue) && numberValue >= 0 ? numberValue : 0;
 };
 
 const normalizeOptionalText = (value: unknown): string | undefined => {

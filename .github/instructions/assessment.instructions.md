@@ -126,7 +126,7 @@ rawTablesChanged
   `ReviewDecision.application` owns that decision.
 - The evidence type is `RawTableEvidence`, not `RecipeEvidence`: Recipe consumes
   raw-table evidence, but it does not own or name that evidence.
-- Assessment must not resolve Recipe snapshots, saved Template catalogs, or
+- Assessment must not resolve Recipe snapshots, UserTemplate catalogs, or
   selected Template snapshots. Review owns candidate review and selected
   `ReviewedTemplate` persistence for automatic execution.
 - A confident layout with weak or unknown semantics should use

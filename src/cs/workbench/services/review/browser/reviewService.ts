@@ -46,18 +46,17 @@ import {
 } from "src/cs/workbench/services/template/common/template";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import {
-  evaluateSavedTemplateCandidates,
-} from "src/cs/workbench/services/templateResolution/common/savedTemplateEvaluator";
-import {
   materializeRecipeTemplates,
 } from "src/cs/workbench/services/templateResolution/common/recipeTemplateMaterializer";
 import type {
   TemplateCandidate,
 } from "src/cs/workbench/services/templateResolution/common/templateResolution";
 import {
+  evaluateUserTemplateCandidates,
+} from "src/cs/workbench/services/templateResolution/common/userTemplateEvaluator";
+import {
   IUserTemplateService,
   type IUserTemplateService as IUserTemplateServiceType,
-  type UserTemplate,
   type UserTemplateSnapshot,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
@@ -674,59 +673,6 @@ const sortReviewCandidates = (
 const getCandidateStateRank = (
   candidate: ReviewTemplateCandidate,
 ): number => candidate.state === "ready" ? 1 : 0;
-
-const evaluateUserTemplateCandidates = ({
-  evidence,
-  userTemplateSnapshot,
-}: {
-  readonly evidence: RawTableEvidence;
-  readonly userTemplateSnapshot: UserTemplateSnapshot;
-}): readonly ReviewTemplateCandidate[] => {
-  if (!userTemplateSnapshot.templates.length) {
-    return [];
-  }
-
-  const userTemplateByTemplateId = new Map<string, UserTemplate>();
-  for (const userTemplate of userTemplateSnapshot.templates) {
-    userTemplateByTemplateId.set(getTemplateCandidateId(userTemplate), userTemplate);
-  }
-
-  return evaluateSavedTemplateCandidates({
-    evidence,
-    templateSnapshot: {
-      version: userTemplateSnapshot.version,
-      templates: userTemplateSnapshot.templates.map(userTemplate => userTemplate.template),
-    },
-  }).flatMap((candidate): readonly ReviewTemplateCandidate[] => {
-    if (candidate.source.kind !== "savedTemplate") {
-      return [];
-    }
-
-    const userTemplate = userTemplateByTemplateId.get(candidate.source.templateId);
-    if (!userTemplate) {
-      return [];
-    }
-
-    return [{
-      ...candidate,
-      id: `user-template:${userTemplate.id}`,
-      source: {
-        kind: "userTemplate",
-        templateId: userTemplate.id,
-        templateVersion: userTemplate.version,
-      },
-      templateFingerprint: userTemplate.templateFingerprint,
-    }];
-  });
-};
-
-const getTemplateCandidateId = (
-  userTemplate: UserTemplate,
-): string => String(
-  userTemplate.template.id ??
-    userTemplate.template.name ??
-    userTemplate.templateFingerprint,
-).trim() || userTemplate.templateFingerprint;
 
 const getRawTableRefsForReviewSnapshot = (
   snapshot: ReturnType<ISessionServiceType["getSnapshot"]>,

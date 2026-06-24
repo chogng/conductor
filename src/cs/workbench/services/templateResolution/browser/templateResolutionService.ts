@@ -19,12 +19,8 @@ import type {
   RawTableRef,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
-  ITemplateService,
-  type ITemplateService as ITemplateServiceType,
-} from "src/cs/workbench/services/template/common/template";
-import {
-  evaluateSavedTemplateCandidates,
-} from "src/cs/workbench/services/templateResolution/common/savedTemplateEvaluator";
+  evaluateUserTemplateCandidates,
+} from "src/cs/workbench/services/templateResolution/common/userTemplateEvaluator";
 import {
   materializeRecipeTemplates,
 } from "src/cs/workbench/services/templateResolution/common/recipeTemplateMaterializer";
@@ -39,6 +35,11 @@ import {
   type TemplateResolutionQueueSnapshot,
   type TemplateResolutionResult,
 } from "src/cs/workbench/services/templateResolution/common/templateResolution";
+import {
+  IUserTemplateService,
+  type IUserTemplateService as IUserTemplateServiceType,
+  type UserTemplateSnapshot,
+} from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
 export class TemplateResolutionService extends Disposable implements ITemplateResolutionServiceType {
   public declare readonly _serviceBrand: undefined;
@@ -52,7 +53,7 @@ export class TemplateResolutionService extends Disposable implements ITemplateRe
   public constructor(
     @ISessionService private readonly sessionService: ISessionServiceType,
     @IRecipeService private readonly recipeService: IRecipeServiceType,
-    @ITemplateService private readonly templateService: ITemplateServiceType,
+    @IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
   ) {
     super();
     this._register(this.sessionService.onDidChangeSession(event => {
@@ -119,19 +120,19 @@ export class TemplateResolutionService extends Disposable implements ITemplateRe
       reasons: candidate.reasons,
       diagnosticCodes: candidate.diagnosticCodes,
     }));
-    const savedTemplateCandidates = evaluateSavedTemplateCandidates({
+    const userTemplateCandidates = evaluateUserTemplateCandidates({
       evidence,
-      templateSnapshot: input.templateSnapshot,
+      userTemplateSnapshot: input.userTemplateSnapshot,
     });
     const candidates = sortTemplateCandidates([
       ...recipeCandidates,
-      ...savedTemplateCandidates,
+      ...userTemplateCandidates,
     ]);
     const diagnostics = createResolutionDiagnostics(candidates);
 
     return {
       recipeFingerprint: input.recipeSnapshot.fingerprint,
-      templateCatalogVersion: input.templateSnapshot.version,
+      templateCatalogVersion: input.userTemplateSnapshot.version,
       templateCandidates: candidates.map(({ template: _template, ...summary }) => summary),
       diagnostics,
     };
@@ -152,13 +153,13 @@ export class TemplateResolutionService extends Disposable implements ITemplateRe
         const commits: RawTableTemplateResolutionRecord[] = [];
         const snapshot = this.sessionService.getSnapshot();
         const recipeSnapshot = this.recipeService.getSnapshot();
-        const templateSnapshot = this.templateService.getSnapshot();
+        const userTemplateSnapshot = this.userTemplateService.getSnapshot();
         for (const ref of refs) {
           const commit = this.createResolutionCommit(
             ref,
             snapshot.filesById[ref.fileId],
             recipeSnapshot,
-            templateSnapshot,
+            userTemplateSnapshot,
           );
           if (commit) {
             commits.push(commit);
@@ -178,7 +179,7 @@ export class TemplateResolutionService extends Disposable implements ITemplateRe
     ref: RawTableRef,
     file: FileRecord | undefined,
     recipeSnapshot: ReturnType<IRecipeServiceType["getSnapshot"]>,
-    templateSnapshot: ReturnType<ITemplateServiceType["getSnapshot"]>,
+    userTemplateSnapshot: UserTemplateSnapshot,
   ): RawTableTemplateResolutionRecord | null {
     const assessment = file?.assessmentsByRawTableId?.[ref.rawTableId];
     const table = file?.raw.tablesById[ref.rawTableId];
@@ -192,7 +193,7 @@ export class TemplateResolutionService extends Disposable implements ITemplateRe
       fileName: file.name,
       recipeSnapshot,
       rowCount: table.rowCount,
-      templateSnapshot,
+      userTemplateSnapshot,
     });
     return {
       fileId: ref.fileId,
@@ -242,7 +243,7 @@ const createResolutionDiagnostics = (
     return [{
       severity: "warning",
       code: "templateResolution.noCandidates",
-      message: "No Recipe or saved Template candidates matched this assessment.",
+      message: "No Recipe or UserTemplate candidates matched this assessment.",
     }];
   }
   return [{

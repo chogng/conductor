@@ -40,7 +40,6 @@ import "src/cs/workbench/services/schemaProfile/browser/schemaProfileStoreServic
 import "src/cs/workbench/services/schemaProfile/browser/schemaProfileService";
 import "src/cs/workbench/services/slice/browser/sliceService";
 import "src/cs/workbench/services/recipe/browser/recipeService";
-import "src/cs/workbench/services/template/browser/templateService";
 import "src/cs/workbench/services/userTemplate/browser/userTemplateStoreService";
 import "src/cs/workbench/services/userTemplate/browser/userTemplateService";
 import "src/cs/workbench/services/review/browser/reviewService";
