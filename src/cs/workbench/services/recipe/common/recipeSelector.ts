@@ -2,14 +2,14 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { LayoutKind } from "src/cs/workbench/services/assessment/common/layoutCandidate";
+import type { LayoutKind } from "src/cs/workbench/services/tableFacts/common/layoutCandidate";
 import type {
   IvSweepMode,
   ItSweepMode,
   MeasurementColumnRole,
   MeasurementFamily,
-} from "src/cs/workbench/services/assessment/common/measurement";
-import type { CanonicalUnit } from "src/cs/workbench/services/assessment/common/semanticCandidate";
+} from "src/cs/workbench/services/tableFacts/common/measurement";
+import type { CanonicalUnit } from "src/cs/workbench/services/tableFacts/common/semanticCandidate";
 
 export type RecipeSelector = {
   readonly all?: readonly RecipeSelectorPredicate[];

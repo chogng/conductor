@@ -6,7 +6,7 @@ import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { ImportAssessmentSeed } from "src/cs/workbench/services/assessment/common/assessment";
-import { detectMeasurementBlocks } from "src/cs/workbench/services/assessment/common/blockDetector";
+import { detectMeasurementBlocks } from "src/cs/workbench/services/tableFacts/common/blockDetector";
 
 suite("workbench/services/assessment/common/blockDetector", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

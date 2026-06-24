@@ -36,8 +36,8 @@ at the type name.
 | `RawTableRowsRecord` | converter/session | inline, normalized CSV, unavailable | Large rows should use artifact/path references. |
 | `RawTableFactsRecord` | Template table facts + Session | table-fact producer (`IRawTableFactsService`; implementation may still live under Assessment compatibility shell) | Tied to raw table version, table-fact rule version, and schema profile version; stores structure, column profiles, semantic candidates, groups, blocks, and diagnostics. Legacy `RawTableAssessmentRecord` is a compatibility name only. |
 | `RawTableReviewRecord` | Review + Session | `IReviewService` | Tied to template candidate signature, Recipe fingerprint, UserTemplate/saved-template fingerprint, review engine version, and review policy version; stores candidates, reviews, and `ReviewDecision`. |
-| `MeasurementGroupRecord` | Template table facts + Session | table-fact producer; legacy assessment helper until migrated | Group/device labels and ordered block ids. |
-| `MeasurementBlockRecord` | Template table facts + Session | table-fact producer; legacy assessment helper until migrated | Measurement family/mode/source ranges/column roles. |
+| `MeasurementGroupRecord` | Template table facts + Session | table-fact producer / TableFacts helpers; legacy Assessment path may re-export during migration | Group/device labels and ordered block ids. |
+| `MeasurementBlockRecord` | Template table facts + Session | table-fact producer / TableFacts helpers; legacy Assessment path may re-export during migration | Measurement family/mode/source ranges/column roles. |
 | `SliceRun` | Slice + Session | slice execution | Executed template snapshot, source table-fact signature, input ranges, output series ids, output curve keys, warnings, and errors. |
 | `SeriesRecord` | Slice/calculation + Session | slice or curve commit | Series metadata and raw/block provenance. |
 | `CurveRecord` | Slice/calculation + Session | slice/calculation commit | Base/derived curve points, lineage, domain, signature. |

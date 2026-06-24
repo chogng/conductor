@@ -2,15 +2,15 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ColumnProfile } from "src/cs/workbench/services/assessment/common/columnProfile";
-import type { AssessmentDiagnostic } from "src/cs/workbench/services/assessment/common/diagnostics";
-import type { LayoutCandidate } from "src/cs/workbench/services/assessment/common/layoutCandidate";
+import type { ColumnProfile } from "src/cs/workbench/services/tableFacts/common/columnProfile";
+import type { TableFactsDiagnostic } from "src/cs/workbench/services/tableFacts/common/diagnostics";
+import type { LayoutCandidate } from "src/cs/workbench/services/tableFacts/common/layoutCandidate";
 import type {
   MeasurementBlockRecord,
   MeasurementGroupRecord,
-} from "src/cs/workbench/services/assessment/common/measurement";
-import type { RawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
-import type { ColumnSemanticCandidate } from "src/cs/workbench/services/assessment/common/semanticCandidate";
+} from "src/cs/workbench/services/tableFacts/common/measurement";
+import type { RawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
+import type { ColumnSemanticCandidate } from "src/cs/workbench/services/tableFacts/common/semanticCandidate";
 
 // Bump this when table-fact heuristics change in a way that should invalidate
 // stored raw table fact records.
@@ -30,7 +30,7 @@ export type RawTableFactsRecord = {
   readonly semanticCandidates: readonly ColumnSemanticCandidate[];
   readonly groups: readonly MeasurementGroupRecord[];
   readonly blocks: readonly MeasurementBlockRecord[];
-  readonly diagnostics: readonly AssessmentDiagnostic[];
+  readonly diagnostics: readonly TableFactsDiagnostic[];
   readonly createdAt: number;
 };
 

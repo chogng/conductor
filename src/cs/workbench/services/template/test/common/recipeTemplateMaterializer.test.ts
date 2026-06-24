@@ -9,8 +9,8 @@ import { evaluateRecipeSelector } from "src/cs/workbench/services/template/commo
 import type {
 	MeasurementBlockRecord,
 	MeasurementColumnRef,
-} from "src/cs/workbench/services/assessment/common/measurement";
-import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
+} from "src/cs/workbench/services/tableFacts/common/measurement";
+import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
 import { materializeRecipeTemplateDraft } from "src/cs/workbench/services/template/common/recipeTemplateMaterializer";
 import type { RawTableFacts } from "src/cs/workbench/services/template/common/tableFacts";

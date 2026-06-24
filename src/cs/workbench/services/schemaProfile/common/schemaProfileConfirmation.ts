@@ -4,16 +4,16 @@
 
 import type {
 	ColumnProfile,
-} from "src/cs/workbench/services/assessment/common/columnProfile";
+} from "src/cs/workbench/services/tableFacts/common/columnProfile";
 import type {
 	MeasurementColumnRole,
-} from "src/cs/workbench/services/assessment/common/measurement";
+} from "src/cs/workbench/services/tableFacts/common/measurement";
 import type {
 	SchemaFingerprint,
-} from "src/cs/workbench/services/assessment/common/rawTableStructure";
+} from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
 import type {
 	CanonicalUnit,
-} from "src/cs/workbench/services/assessment/common/semanticCandidate";
+} from "src/cs/workbench/services/tableFacts/common/semanticCandidate";
 import {
 	normalizeCellText,
 } from "src/cs/workbench/common/cellText";

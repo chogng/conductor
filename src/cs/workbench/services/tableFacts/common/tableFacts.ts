@@ -7,7 +7,7 @@ import { createDecorator } from "src/cs/platform/instantiation/common/instantiat
 import type {
 	IvSweepMode,
 	MeasurementFamily,
-} from "src/cs/workbench/services/assessment/common/measurement";
+} from "src/cs/workbench/services/tableFacts/common/measurement";
 import type { SchemaProfile } from "src/cs/workbench/services/schemaProfile/common/schemaProfile";
 import type {
 	RawTableRef,

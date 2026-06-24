@@ -64,8 +64,8 @@ import {
   type IRawTableFactsQueueService,
 } from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import {
-  createFastImportBadgeAssessment,
-} from "src/cs/workbench/services/assessment/common/importAssessmentSeedHeuristics";
+  createFastImportBadgeTableFacts,
+} from "src/cs/workbench/services/tableFacts/common/importTableFactsSeedHeuristics";
 import type { IThumbnailPreviewService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import {
   isTemplateApplyPerformanceTraceEnabled,
@@ -1027,7 +1027,7 @@ const applyFastExplorerBadge = (
   const fileId = String(file.fileId ?? "").trim();
   const fileRecord = fileId ? snapshot.filesById[fileId] : undefined;
   const table = findExplorerRawTable(file, fileRecord)?.table ?? null;
-  const fastBadge = createFastImportBadgeAssessment({
+  const fastBadge = createFastImportBadgeTableFacts({
     fileName: file.fileName ?? fileRecord?.raw.fileName,
     relativePath: file.relativePath ?? fileRecord?.raw.relativePath,
     rows: getFastBadgeRows(table),

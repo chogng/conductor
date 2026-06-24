@@ -5,7 +5,7 @@
 import type {
   MeasurementBlockRecord,
   MeasurementColumnRef,
-} from "src/cs/workbench/services/assessment/common/measurement";
+} from "src/cs/workbench/services/tableFacts/common/measurement";
 import type {
   CanonicalUnitSelectorPredicate,
   ColumnRoleSelectorPredicate,

@@ -7,8 +7,8 @@ import {
 	type ICommandHandler,
 } from "src/cs/platform/commands/common/commands";
 import type { RawTableFactsRecord } from "src/cs/workbench/services/template/common/tableFacts";
-import type { MeasurementColumnRole } from "src/cs/workbench/services/assessment/common/measurement";
-import type { CanonicalUnit } from "src/cs/workbench/services/assessment/common/semanticCandidate";
+import type { MeasurementColumnRole } from "src/cs/workbench/services/tableFacts/common/measurement";
+import type { CanonicalUnit } from "src/cs/workbench/services/tableFacts/common/semanticCandidate";
 import {
 	ISchemaProfileService,
 	type ISchemaProfileService as ISchemaProfileServiceType,

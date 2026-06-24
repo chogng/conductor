@@ -6,11 +6,11 @@ import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { evaluateRecipeSelector } from "src/cs/workbench/services/template/common/recipeSelectorEvaluator";
-import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
+import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
 import type {
   MeasurementBlockRecord,
   MeasurementColumnRef,
-} from "src/cs/workbench/services/assessment/common/measurement";
+} from "src/cs/workbench/services/tableFacts/common/measurement";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
 import type { RawTableFacts } from "src/cs/workbench/services/template/common/tableFacts";
 

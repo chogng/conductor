@@ -7,7 +7,7 @@ import assert from "assert";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { ASSESSMENT_RULE_VERSION, type RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
 import { createRawTableFactsFromLegacyAssessment } from "src/cs/workbench/services/assessment/common/legacyAssessmentAdapter";
-import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
+import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
 
 suite("workbench/services/assessment/test/common/assessmentEvidence", () => {
   ensureNoDisposablesAreLeakedInTestSuite();

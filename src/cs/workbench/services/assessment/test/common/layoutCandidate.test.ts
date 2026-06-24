@@ -5,11 +5,11 @@
 import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import { createColumnProfiles } from "src/cs/workbench/services/assessment/common/columnProfile";
+import { createColumnProfiles } from "src/cs/workbench/services/tableFacts/common/columnProfile";
 import {
 	detectLayoutCandidates,
-} from "src/cs/workbench/services/assessment/common/layoutCandidate";
-import { detectRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
+} from "src/cs/workbench/services/tableFacts/common/layoutCandidate";
+import { detectRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
 
 suite("workbench/services/assessment/common/layoutCandidate", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

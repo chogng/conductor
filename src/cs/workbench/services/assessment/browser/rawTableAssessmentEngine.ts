@@ -9,12 +9,12 @@ import type {
 import {
 	createColumnProfiles,
 	createMeasurementColumnProfile,
-} from "src/cs/workbench/services/assessment/common/columnProfile";
-import { detectMeasurementBlocks } from "src/cs/workbench/services/assessment/common/blockDetector";
-import { createAssessmentReasonDiagnosticCodes } from "src/cs/workbench/services/assessment/common/diagnostics";
-import { detectLayoutCandidates } from "src/cs/workbench/services/assessment/common/layoutCandidate";
-import { detectRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
-import { createColumnSemanticCandidates } from "src/cs/workbench/services/assessment/common/semanticCandidate";
+} from "src/cs/workbench/services/tableFacts/common/columnProfile";
+import { detectMeasurementBlocks } from "src/cs/workbench/services/tableFacts/common/blockDetector";
+import { createTableFactsReasonDiagnosticCodes } from "src/cs/workbench/services/tableFacts/common/diagnostics";
+import { detectLayoutCandidates } from "src/cs/workbench/services/tableFacts/common/layoutCandidate";
+import { detectRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
+import { createColumnSemanticCandidates } from "src/cs/workbench/services/tableFacts/common/semanticCandidate";
 import {
 	findExactSchemaProfileMatch,
 } from "src/cs/workbench/services/schemaProfile/common/schemaProfileMatcher";
@@ -68,7 +68,7 @@ export class RawTableAssessmentEngine {
 			structure,
 		});
 		const assessmentConfidence = getTableFactsConfidenceScore(effectiveAssessment);
-		const diagnosticCodes = createAssessmentReasonDiagnosticCodes(effectiveAssessment.curveTypeReasons);
+		const diagnosticCodes = createTableFactsReasonDiagnosticCodes(effectiveAssessment.curveTypeReasons);
 		const blocks = detectMeasurementBlocks({
 			assessment: effectiveAssessment,
 			assessmentConfidence,

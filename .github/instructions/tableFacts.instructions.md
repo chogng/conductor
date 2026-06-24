@@ -1,0 +1,60 @@
+---
+description: TableFacts domain - raw-table structure, profiles, semantics, blocks, diagnostics, queue contracts, and compatibility boundaries.
+applyTo: 'src/cs/workbench/services/tableFacts/**'
+---
+# TableFacts
+
+TableFacts is the raw-table fact layer consumed by Template materialization.
+It is not Review, not Recipe, and not Slice.
+
+```txt
+RawTableRecord + SchemaProfile snapshot
+  -> IRawTableFactsService
+  -> RawTableFactsRecord
+  + Recipe/UserTemplate snapshots
+  -> Template materialization
+  -> Review
+  -> Slice
+```
+
+## Ownership
+
+`services/tableFacts/common` owns formal TableFacts contracts and pure helpers:
+structure detection, column profiles, semantic candidates, layout candidates,
+measurement blocks, diagnostics, import-preview seed heuristics, and record
+factories.
+
+During migration, browser implementations may still live under
+`services/assessment/browser`, and old Assessment common paths may re-export
+TableFacts symbols. New code must import formal contracts and helpers from
+`services/tableFacts/common`.
+
+TableFacts must not produce `TemplateDraft`, `ReviewedTemplate`,
+`ReviewDecision`, `systemRecommended`, or `SliceRequest`.
+
+## Core Files
+
+| File | Responsibility |
+| --- | --- |
+| `common/tableFacts.ts` | `IRawTableFactsService`, queue contract, service inputs, and raw-table ref helpers. |
+| `common/tableFactsRecord.ts` | `RawTableFactsRecord` factory and normalization helpers. |
+| `common/rawTableStructure.ts` | physical table structure and schema fingerprint detection. |
+| `common/columnProfile.ts` | neutral raw-column profiles and measurement column projections. |
+| `common/semanticCandidate.ts` | role/unit/display-scale candidates. |
+| `common/layoutCandidate.ts` | shape-only binding drafts for materialization/review prefill. |
+| `common/blockDetector.ts` | measurement block construction from table facts. |
+| `common/measurement.ts` | measurement family/mode/block/column record types. |
+| `common/diagnostics.ts` | table-fact diagnostics and source ranges. |
+| `common/importTableFactsSeedHeuristics.ts` | import-preview seed and fast badge heuristics. |
+
+## Rules
+
+- TableFacts may infer structure, profiles, semantic candidates, groups,
+  blocks, and diagnostics only.
+- Recipe is fixed selector/projection data; Template materializers interpret it
+  against TableFacts.
+- Review owns candidate ranking, selected reviewed template, and application
+  recommendation.
+- Slice executes reviewed/manual Template snapshots and must not re-detect
+  table facts.
+- Legacy Assessment names are compatibility aliases only.

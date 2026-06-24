@@ -7,12 +7,12 @@ import type {
 } from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import type {
 	ColumnProfile,
-} from "src/cs/workbench/services/assessment/common/columnProfile";
+} from "src/cs/workbench/services/tableFacts/common/columnProfile";
 import type {
 	IvSweepMode,
 	MeasurementColumnRole,
 	MeasurementFamily,
-} from "src/cs/workbench/services/assessment/common/measurement";
+} from "src/cs/workbench/services/tableFacts/common/measurement";
 import type {
 	SchemaProfile,
 	SchemaProfileBinding,

@@ -12,14 +12,14 @@ import type {
 import type {
 	LayoutBindingDraft,
 	LayoutKind,
-} from "src/cs/workbench/services/assessment/common/layoutCandidate";
+} from "src/cs/workbench/services/tableFacts/common/layoutCandidate";
 import type {
 	MeasurementFamily,
 	IvSweepMode,
-} from "src/cs/workbench/services/assessment/common/measurement";
+} from "src/cs/workbench/services/tableFacts/common/measurement";
 import type {
 	EvidenceSource,
-} from "src/cs/workbench/services/assessment/common/semanticCandidate";
+} from "src/cs/workbench/services/tableFacts/common/semanticCandidate";
 import type {
 	SchemaProfile,
 } from "src/cs/workbench/services/schemaProfile/common/schemaProfile";

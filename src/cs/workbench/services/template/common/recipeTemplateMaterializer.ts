@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { MeasurementBlockRecord } from "src/cs/workbench/services/assessment/common/measurement";
+import type { MeasurementBlockRecord } from "src/cs/workbench/services/tableFacts/common/measurement";
 import { evaluateRecipeSelector } from "src/cs/workbench/services/template/common/recipeSelectorEvaluator";
 import type {
   RecipeSelectorBlockMatch,

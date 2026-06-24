@@ -18,7 +18,7 @@ import {
 	ASSESSMENT_RULE_VERSION,
 	type RawTableAssessmentRecord,
 } from "src/cs/workbench/services/assessment/common/assessment";
-import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
+import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
 import {
 	ISchemaProfileService,
 	type ISchemaProfileService as ISchemaProfileServiceType,

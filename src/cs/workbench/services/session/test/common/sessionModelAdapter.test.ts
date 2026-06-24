@@ -18,7 +18,7 @@ import {
   TABLE_FACTS_RULE_VERSION,
   type RawTableFactsRecord,
 } from "src/cs/workbench/services/template/common/tableFacts";
-import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
+import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
 import { createEmptyTemplateApplyConfig } from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
 
 suite("workbench/services/session/test/common/sessionModelAdapter", () => {

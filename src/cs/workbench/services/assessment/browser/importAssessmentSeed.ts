@@ -11,12 +11,12 @@ import type {
 import type {
   IvSweepMode,
   MeasurementFamily,
-} from "src/cs/workbench/services/assessment/common/measurement";
+} from "src/cs/workbench/services/tableFacts/common/measurement";
 import {
-  createImportAssessmentSeed,
-  extractImportAssessmentSeedMetadata,
+  createImportTableFactsSeedHeuristic,
+  extractImportTableFactsSeedMetadata,
   type CurveKind,
-} from "src/cs/workbench/services/assessment/common/importAssessmentSeedHeuristics";
+} from "src/cs/workbench/services/tableFacts/common/importTableFactsSeedHeuristics";
 
 const FILE_ASSESSMENT_PREVIEW_BYTES = 128 * 1024;
 const FILE_ASSESSMENT_PREVIEW_ROWS = 256;
@@ -25,9 +25,9 @@ export const createImportTableFactsSeedFromRows = async (
   fileName: string,
   rows: RawTableFactsRows,
 ): Promise<ImportTableFactsSeed> => {
-  const assessment = createImportAssessmentSeed({
+  const assessment = createImportTableFactsSeedHeuristic({
     fileName,
-    metadata: extractImportAssessmentSeedMetadata(rows.map(row => [...row])),
+    metadata: extractImportTableFactsSeedMetadata(rows.map(row => [...row])),
   });
   return {
     curveFamily: getMeasurementFamily(assessment.curveType),

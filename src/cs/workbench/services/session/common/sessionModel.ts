@@ -1,4 +1,4 @@
-import type { MeasurementBlockRecord } from "src/cs/workbench/services/assessment/common/measurement";
+import type { MeasurementBlockRecord } from "src/cs/workbench/services/tableFacts/common/measurement";
 import type { FileImportSourceKind } from "src/cs/workbench/services/files/common/files";
 import type {
   RawTableHealthRecord,

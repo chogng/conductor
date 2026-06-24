@@ -4,7 +4,7 @@
 
 import assert from "assert";
 
-import type { ColumnProfile } from "src/cs/workbench/services/assessment/common/columnProfile";
+import type { ColumnProfile } from "src/cs/workbench/services/tableFacts/common/columnProfile";
 import type { SchemaProfile } from "src/cs/workbench/services/schemaProfile/common/schemaProfile";
 import {
 	findExactSchemaProfileMatch,

@@ -3,8 +3,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { normalizeCellText } from "src/cs/workbench/common/cellText";
-import type { ColumnProfile } from "src/cs/workbench/services/assessment/common/columnProfile";
-import type { SchemaFingerprint } from "src/cs/workbench/services/assessment/common/rawTableStructure";
+import type { ColumnProfile } from "src/cs/workbench/services/tableFacts/common/columnProfile";
+import type { SchemaFingerprint } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
 import type {
 	SchemaProfile,
 	SchemaProfileBinding,

@@ -13,30 +13,30 @@ import type {
 import {
 	createMeasurementBlockId,
 	detectMeasurementBlocks,
-} from "src/cs/workbench/services/assessment/common/blockDetector";
+} from "src/cs/workbench/services/tableFacts/common/blockDetector";
 import {
 	detectLayoutCandidates,
 	type LayoutCandidate,
-} from "src/cs/workbench/services/assessment/common/layoutCandidate";
+} from "src/cs/workbench/services/tableFacts/common/layoutCandidate";
 import {
-	createAssessmentReasonDiagnosticCodes,
-	createAssessmentReasonDiagnostics,
-} from "src/cs/workbench/services/assessment/common/diagnostics";
+	createTableFactsReasonDiagnosticCodes,
+	createTableFactsReasonDiagnostics,
+} from "src/cs/workbench/services/tableFacts/common/diagnostics";
 import type {
 	MeasurementBlockRecord,
-} from "src/cs/workbench/services/assessment/common/measurement";
+} from "src/cs/workbench/services/tableFacts/common/measurement";
 import {
 	createColumnProfiles,
 	createMeasurementColumnProfile,
 	type ColumnProfile,
 	type MeasurementColumnProfile,
-} from "src/cs/workbench/services/assessment/common/columnProfile";
+} from "src/cs/workbench/services/tableFacts/common/columnProfile";
 import {
 	detectRawTableStructure,
 	type RawTableStructure,
-} from "src/cs/workbench/services/assessment/common/rawTableStructure";
-import type { ColumnSemanticCandidate } from "src/cs/workbench/services/assessment/common/semanticCandidate";
-import { createColumnSemanticCandidates } from "src/cs/workbench/services/assessment/common/semanticCandidate";
+} from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
+import type { ColumnSemanticCandidate } from "src/cs/workbench/services/tableFacts/common/semanticCandidate";
+import { createColumnSemanticCandidates } from "src/cs/workbench/services/tableFacts/common/semanticCandidate";
 import type { SchemaProfile } from "src/cs/workbench/services/schemaProfile/common/schemaProfile";
 import { findExactSchemaProfileMatch } from "src/cs/workbench/services/schemaProfile/common/schemaProfileMatcher";
 
@@ -60,7 +60,7 @@ export const createRawTableFactsRecordFromImportSeed = (
 	const columnCount = normalizePositiveCount(input.columnCount) ?? 0;
 	const rowCount = normalizePositiveCount(input.rowCount) ?? 0;
 	const schemaProfileVersion = normalizeSchemaProfileVersion(input.schemaProfileVersion);
-	const diagnosticCodes = createAssessmentReasonDiagnosticCodes(tableFactsSeed.curveTypeReasons);
+	const diagnosticCodes = createTableFactsReasonDiagnosticCodes(tableFactsSeed.curveTypeReasons);
 	const structure = input.structure ?? detectRawTableStructure(input.rows ?? []);
 	const schemaProfile = input.schemaProfile ??
 		findExactSchemaProfileMatch({
@@ -105,7 +105,7 @@ export const createRawTableFactsRecordFromImportSeed = (
 		rowCount,
 		structure,
 	});
-	const diagnostics = createAssessmentReasonDiagnostics({
+	const diagnostics = createTableFactsReasonDiagnostics({
 		reasons: tableFactsSeed.curveTypeReasons,
 		relatedBlockId: blocks[0]?.id ?? createMeasurementBlockId(input.rawTableId, 0),
 	});

@@ -11,7 +11,7 @@ import { AssessmentContribution } from "src/cs/workbench/services/assessment/bro
 import { AssessmentQueueService } from "src/cs/workbench/services/assessment/browser/assessmentQueueService";
 import { AssessmentService } from "src/cs/workbench/services/assessment/browser/assessmentService";
 import { TABLE_FACTS_RULE_VERSION, type RawTableFactsRecord } from "src/cs/workbench/services/template/common/tableFacts";
-import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
+import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
 import type {
 	IRawTableRowsReaderService,
 	RawTableRows,

@@ -70,8 +70,8 @@ import { SliceWithTemplateController } from "src/cs/workbench/contrib/files/brow
 import { createTemplateApplyPresetRecordFromUserTemplate } from "src/cs/workbench/contrib/template/browser/templateUserTemplateAdapter";
 import { ISessionService } from "src/cs/workbench/services/session/common/session";
 import {
-  createFastImportBadgeAssessment,
-} from "src/cs/workbench/services/assessment/common/importAssessmentSeedHeuristics";
+  createFastImportBadgeTableFacts,
+} from "src/cs/workbench/services/tableFacts/common/importTableFactsSeedHeuristics";
 import {
   IRawTableFactsService,
   type ImportTableFactsSeed,
@@ -1115,7 +1115,7 @@ function createPendingTableFactsBadgeState(
 function createPendingFastBadgeState(
   pendingFile: PendingImportFile,
 ): ExplorerFileEntry["badgeState"] {
-  const fastBadge = createFastImportBadgeAssessment({
+  const fastBadge = createFastImportBadgeTableFacts({
     fileName: pendingFile.sourceName,
     relativePath: pendingFile.relativePath,
   });

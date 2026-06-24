@@ -66,8 +66,8 @@ import type {
 } from "src/cs/workbench/services/template/common/tableFacts";
 import type {
   MeasurementBlockRecord,
-} from "src/cs/workbench/services/assessment/common/measurement";
-import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
+} from "src/cs/workbench/services/tableFacts/common/measurement";
+import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
 import {
   createReviewEvidenceSignature,
   type RawTableReviewRecord,

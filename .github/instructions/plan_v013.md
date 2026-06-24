@@ -1589,7 +1589,8 @@ ReviewDecision、systemRecommended 或 SliceRequest。
 
 ```txt
 table facts service contracts -> src/cs/workbench/services/tableFacts/common/tableFacts.ts
-table facts records/helpers -> src/cs/workbench/services/template/common/tableFacts.ts
+table facts record factories/helpers -> src/cs/workbench/services/tableFacts/common/*
+canonical table-facts record projection helpers -> src/cs/workbench/services/template/common/tableFacts.ts
 materializers -> src/cs/workbench/services/template/common/*Materializer*
 ```
 

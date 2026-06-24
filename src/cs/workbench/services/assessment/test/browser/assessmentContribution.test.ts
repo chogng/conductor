@@ -16,7 +16,7 @@ import type {
 	ImportAssessmentSeed,
 	RawTableAssessmentRecord,
 } from "src/cs/workbench/services/assessment/common/assessment";
-import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
+import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
 import type { FileImportResult } from "src/cs/workbench/services/files/common/files";
 import type {
 	IRawTableRowsReaderService,

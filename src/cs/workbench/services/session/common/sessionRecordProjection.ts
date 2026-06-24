@@ -6,7 +6,7 @@ import {
   type FileRecord,
   type IvCurveMode,
 } from "src/cs/workbench/services/session/common/sessionModel";
-import type { MeasurementBlockRecord } from "src/cs/workbench/services/assessment/common/measurement";
+import type { MeasurementBlockRecord } from "src/cs/workbench/services/tableFacts/common/measurement";
 import type { SliceRun } from "src/cs/workbench/services/slice/common/slice";
 import type { TemplateBlock } from "src/cs/workbench/services/template/common/templateSpec";
 import type {

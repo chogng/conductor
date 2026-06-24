@@ -38,18 +38,20 @@ indexing beyond diagnostics metadata.
 | File | Responsibility |
 | --- | --- |
 | `../tableFacts/common/tableFacts.ts` | formal TableFacts service contract, queue contract, inputs/results, and raw-table ref helpers. |
+| `../tableFacts/common/tableFactsRecord.ts` | TableFacts record factory and normalization helpers. |
+| `../tableFacts/common/measurement.ts` | blocks, groups, column maps, sweep/mode/family types. |
+| `../tableFacts/common/diagnostics.ts` | diagnostic severity, codes, messages, source ranges. |
+| `../tableFacts/common/rawTableStructure.ts` | header row, unit row, data region, block region, and schema fingerprint detection. |
+| `../tableFacts/common/importTableFactsSeedHeuristics.ts` | file-level import/preview seed heuristics and metadata extractor; do not add new block-aware rules here. |
+| `../tableFacts/common/columnProfile.ts` | neutral raw-table column kind and numeric-stat profiling. |
+| `../tableFacts/common/layoutCandidate.ts` | shape-only layout candidates and X/Y binding drafts for UI prefill; no measurement semantics. |
+| `../tableFacts/common/builtinSemanticLexicon.json` | maintained semantic vocabulary for header-token role evidence; not user-generated rules. |
+| `../tableFacts/common/semanticCandidate.ts` | role, unit, confidence, evidence, and display-scale candidates. |
+| `../tableFacts/common/blockDetector.ts` | measurement block construction from structure ranges, column maps, and family evidence. |
 | `common/assessment.ts` | compatibility re-export for legacy Assessment names. |
-| `common/assessmentRecord.ts` | legacy raw table assessment compatibility factory and normalization helpers. |
-| `common/measurement.ts` | blocks, groups, column maps, sweep/mode/family types. |
-| `common/diagnostics.ts` | diagnostic severity, codes, messages, source ranges. |
-| `common/rawTableStructure.ts` | header row, unit row, data region, block region, and schema fingerprint detection. |
-| `common/importAssessmentSeedHeuristics.ts` | file-level import/preview seed heuristics and metadata extractor; do not add new block-aware rules here. |
-| `common/columnProfile.ts` | neutral raw-table column kind and numeric-stat profiling. |
-| `common/layoutCandidate.ts` | shape-only layout candidates and X/Y binding drafts for UI prefill; no measurement semantics. |
-| `common/builtinSemanticLexicon.json` | maintained semantic vocabulary for header-token role evidence; not user-generated rules. |
-| `common/semanticCandidate.ts` | role, unit, confidence, evidence, and display-scale candidates. |
+| `common/assessmentRecord.ts` | compatibility re-export/wrapper for legacy raw table assessment factory names. |
+| `common/measurement.ts` / `common/diagnostics.ts` / `common/rawTableStructure.ts` / `common/columnProfile.ts` / `common/layoutCandidate.ts` / `common/semanticCandidate.ts` / `common/blockDetector.ts` / `common/importAssessmentSeedHeuristics.ts` | compatibility re-exports for old Assessment import paths. |
 | `common/schemaProfileAssessment.ts` | pure exact-schema-profile family/mode inference layered on top of table-fact column profiles. |
-| `common/blockDetector.ts` | measurement block construction from structure ranges, column maps, and family evidence. |
 | `common/assessmentEvidence.ts` | compatibility re-export for Template-owned raw table facts; do not add new APIs here. |
 | `common/legacyAssessmentAdapter.ts` | migration adapter from legacy assessment records into table facts when persisted data contains old decision fields. |
 | `../schemaProfile/common/schemaProfile.ts` | user-confirmed schema profile evidence records. |

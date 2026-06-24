@@ -1,8 +1,8 @@
-﻿import type { ColumnProfile } from "src/cs/workbench/services/assessment/common/columnProfile";
-import type { LayoutCandidate } from "src/cs/workbench/services/assessment/common/layoutCandidate";
-import type { MeasurementBlockRecord } from "src/cs/workbench/services/assessment/common/measurement";
-import type { SchemaFingerprint } from "src/cs/workbench/services/assessment/common/rawTableStructure";
-import type { ColumnSemanticCandidate } from "src/cs/workbench/services/assessment/common/semanticCandidate";
+﻿import type { ColumnProfile } from "src/cs/workbench/services/tableFacts/common/columnProfile";
+import type { LayoutCandidate } from "src/cs/workbench/services/tableFacts/common/layoutCandidate";
+import type { MeasurementBlockRecord } from "src/cs/workbench/services/tableFacts/common/measurement";
+import type { SchemaFingerprint } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
+import type { ColumnSemanticCandidate } from "src/cs/workbench/services/tableFacts/common/semanticCandidate";
 
 export type SessionFile = {
   file?: unknown;
