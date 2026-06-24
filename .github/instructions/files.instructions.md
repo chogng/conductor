@@ -124,7 +124,7 @@ Explorer drop/dialog/clipboard/folder
   -> fileImportExport.ts optional prepared assessment seed from converted row preview
   -> ISessionService.commitFileImport(...)
   -> SessionChangeEvent subscribers
-  -> Explorer resources / Table / Assessment / Template / Plot / Search / Export
+  -> Explorer resources / Table / Assessment / Review / Slice / Template / Plot / Search / Export
 ```
 
 Slice with template follows the same ownership split:

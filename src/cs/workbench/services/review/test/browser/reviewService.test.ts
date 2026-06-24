@@ -48,9 +48,34 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		});
 
 		assert.equal(result.recipeFingerprint, "recipe:first");
+		assert.equal(result.reviewPolicyVersion, 2);
 		assert.equal(result.decision.kind, "ready");
 		assert.equal(result.decision.kind === "ready" && result.decision.application.kind, "systemRecommended");
 		assert.equal(result.decision.kind === "ready" && result.decision.reviewedTemplate.source.kind, "recipe");
+	});
+
+	test("does not use assessment auto-apply allowance as the review application gate", () => {
+		const sessionService = store.add(new SessionService());
+		const recipeService = store.add(new TestRecipeService("recipe:first"));
+		const userTemplateService = createUserTemplateServiceForTest();
+		const service = store.add(new ReviewService(
+			sessionService,
+			recipeService,
+			userTemplateService,
+		));
+
+		const result = service.deriveAndReview({
+			assessment: createAssessment({ autoApplyAllowed: false }),
+			columnCount: 2,
+			fileName: "Transfer.csv",
+			recipeSnapshot: recipeService.getSnapshot(),
+			rowCount: 3,
+			userTemplateSnapshot: userTemplateService.getSnapshot(),
+		});
+
+		assert.equal(result.decision.kind, "ready");
+		assert.equal(result.decision.kind === "ready" && result.decision.application.kind, "systemRecommended");
+		assert.equal(result.decision.kind === "ready" && result.decision.application.reason, "review.ready.systemRecommended");
 	});
 
 	test("derives user template candidates from the user template snapshot", async () => {
@@ -88,6 +113,35 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(result.candidates[0]?.source.kind, "userTemplate");
 		assert.equal(result.decision.kind, "ready");
 		assert.equal(result.decision.kind === "ready" && result.decision.reviewedTemplate.source.kind, "userTemplate");
+	});
+
+	test("requires user action when Review confidence is below the system recommendation threshold", async () => {
+		const sessionService = store.add(new SessionService());
+		const recipeService = store.add(new TestRecipeService("recipe:none", []));
+		const userTemplateService = createUserTemplateServiceForTest();
+		await userTemplateService.createTemplate({
+			id: "template-a",
+			name: "Transfer",
+			template: createTemplate({ id: "template-a" }),
+		});
+		const service = store.add(new ReviewService(
+			sessionService,
+			recipeService,
+			userTemplateService,
+		));
+
+		const result = service.deriveAndReview({
+			assessment: createAssessment(),
+			columnCount: 2,
+			fileName: "Transfer.csv",
+			recipeSnapshot: recipeService.getSnapshot(),
+			rowCount: 3,
+			userTemplateSnapshot: userTemplateService.getSnapshot(),
+		});
+
+		assert.equal(result.decision.kind, "ready");
+		assert.equal(result.decision.kind === "ready" && result.decision.application.kind, "userActionRequired");
+		assert.equal(result.decision.kind === "ready" && result.decision.application.reason, "review.ready.lowConfidence");
 	});
 
 	test("commits reviews after assessment and refreshes on recipe changes", () => {
@@ -356,7 +410,11 @@ class TestStorageService extends AbstractStorageService {
 	}
 }
 
-const createAssessment = (): RawTableAssessmentRecord => ({
+const createAssessment = ({
+	autoApplyAllowed = true,
+}: {
+	readonly autoApplyAllowed?: boolean;
+} = {}): RawTableAssessmentRecord => ({
 	assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
 	schemaProfileVersion: 0,
 	fileId: "file-a",
@@ -422,7 +480,7 @@ const createAssessment = (): RawTableAssessmentRecord => ({
 	}],
 	decision: {
 		state: "ready",
-		autoApplyAllowed: true,
+		autoApplyAllowed,
 		confidence: 0.95,
 		reasons: [],
 	},

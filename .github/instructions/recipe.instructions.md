@@ -11,9 +11,9 @@ not a provider, and not a legacy rule engine.
 ```txt
 Recipe[]
   -> Review candidate provider
-  -> TemplateDraft
-  -> ReviewDecision
-  -> SliceRequest
+  -> TemplateDraft / Template
+  -> Review
+  -> Slice
 ```
 
 ## Ownership
@@ -50,9 +50,10 @@ infer measurement family, roles, units, or table structure from raw rows.
 | `cli/resources/recipes.v1.json` | generated CLI bundle. Do not edit manually. |
 
 Automatic recipe materialization lives in Review candidate-provider code.
-Template Resolution may consume the Review-owned pure provider while the
-migration bridge exists, but it must not own a second selector/materialization
-implementation:
+Template Resolution is not part of the primary Recipe -> TemplateDraft/Template
+-> Review -> Slice flow. While the legacy compatibility bridge exists, it may
+consume the Review-owned pure provider only to write old summary records; it
+must not own a second selector/materialization implementation:
 
 | File | Responsibility |
 | --- | --- |

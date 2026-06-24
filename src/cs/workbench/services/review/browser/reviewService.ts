@@ -108,7 +108,6 @@ export class ReviewService extends Disposable implements IReviewServiceType {
       reviews,
       decision: createReviewDecision({
         candidates,
-        legacyAutoApplyAllowed: input.assessment.decision.autoApplyAllowed,
         readyCandidate,
         reviews,
       }),
@@ -520,28 +519,24 @@ const isColumnInBounds = (
 
 const createReviewDecision = ({
   candidates,
-  legacyAutoApplyAllowed,
   readyCandidate,
   reviews,
 }: {
   readonly candidates: readonly ReviewTemplateCandidate[];
-  readonly legacyAutoApplyAllowed: boolean;
   readonly readyCandidate: ReviewTemplateCandidate | undefined;
   readonly reviews: readonly TemplateReview[];
 }): ReviewResult["decision"] => {
   if (readyCandidate) {
     const review = reviews.find(candidateReview => candidateReview.candidateId === readyCandidate.id) ??
       createTemplateReview(readyCandidate);
-    const application = legacyAutoApplyAllowed && review.confidence >= SYSTEM_RECOMMENDED_CONFIDENCE
+    const application = review.confidence >= SYSTEM_RECOMMENDED_CONFIDENCE
       ? {
           kind: "systemRecommended" as const,
           reason: "review.ready.systemRecommended",
         }
       : {
           kind: "userActionRequired" as const,
-          reason: legacyAutoApplyAllowed
-            ? "review.ready.lowConfidence"
-            : "review.ready.legacyEvidenceRequiresUserAction",
+          reason: "review.ready.lowConfidence",
         };
     return {
       kind: "ready",

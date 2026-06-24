@@ -58,6 +58,8 @@ has produced the domain result.
 | --- | --- | --- |
 | import | Explorer source workflow after conversion | `commitFileImport` |
 | assessment | assessment contribution/command | `commitRawTableAssessment` |
+| review | review contribution/command after candidate review | `commitRawTableReviews` |
+| template resolution legacy bridge | template resolution contribution during compatibility migration | `commitTemplateResolutions` |
 | slice | slice service after planning/execution | `commitSliceRuns` |
 | calculated curves/metrics | calculation service | `commitCalculatedRecordsBatch` |
 | metric input | parameters service | `setMetricInput` / `clearMetricInput` |

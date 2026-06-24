@@ -1,15 +1,19 @@
 ---
-description: Template Resolution service - migration bridge for deriving Assessment evidence plus Recipe/UserTemplate catalogs into Template candidate records.
+description: Template Resolution service - legacy compatibility bridge for old Template Resolution candidate summary records.
 applyTo: 'src/cs/workbench/services/templateResolution/**'
 ---
 # Template Resolution
 
-Template Resolution is a migration bridge for old automatic-candidate records.
-It consumes stored Assessment evidence, current Recipe snapshots, and the
-UserTemplate catalog, then projects Review-owned `TemplateDraft` values into
-legacy `RawTableTemplateResolutionRecord` summaries. It must not read raw rows,
-own Recipe/UserTemplate candidate providers, or decide final template usability
-and system application.
+Template Resolution is a legacy compatibility bridge for old
+automatic-candidate summary records. It is not part of the primary
+Recipe/UserTemplate -> TemplateDraft/Template -> Review -> Slice path.
+
+When compatibility records are still required, it consumes stored Assessment
+evidence, current Recipe snapshots, and the UserTemplate catalog, then projects
+Review-owned `TemplateDraft` values into legacy
+`RawTableTemplateResolutionRecord` summaries. It must not read raw rows, own
+Recipe/UserTemplate candidate providers, feed Review as a prerequisite, or
+decide final template usability and system application.
 
 ## Ownership
 
@@ -36,27 +40,38 @@ It does not own:
 | `common/templateResolution.ts` | service contract, record, candidate, diagnostic, signature, and commit types. |
 | `common/templateCandidate.ts` | candidate/source normalization helpers when needed. |
 | `browser/templateResolutionService.ts` | injectable bridge for resolve/enqueue/commit state; consumes Review-owned draft providers and writes legacy summaries. |
-| `browser/templateResolution.contribution.ts` | lifecycle subscriber for Assessment, Recipe, and UserTemplate catalog changes. |
+| `browser/templateResolution.contribution.ts` | legacy helper for explicit compatibility runs; it is not registered by the workbench entry point. |
 
 ## Flow
 
+Primary Review flow bypasses Template Resolution:
+
+```txt
+Assessment / RawTableEvidence
+  -> Review-owned Recipe/UserTemplate draft providers
+  -> TemplateDraft / Template
+  -> IReviewService.deriveAndReview(...)
+  -> ISessionService.commitRawTableReviews(...)
+```
+
+Legacy compatibility flow only:
+
 ```txt
 Session assessmentChanged / fileMetadataChanged
-  -> TemplateResolutionContribution
+  -> explicitly constructed TemplateResolutionContribution
   -> ITemplateResolutionService.enqueueForAssessments(rawTableRefs)
   -> TemplateResolutionService reads SessionSnapshot
   -> resolve RawTableEvidence + RecipeSnapshot + UserTemplateSnapshot
   -> ISessionService.commitTemplateResolutions(...)
   -> Session templateResolutionChanged
-  -> ReviewContribution / ReviewService deriveAndReview
-  -> Session reviewChanged
+  -> legacy consumers may refresh old candidate-summary views
 ```
 
 Recipe changes:
 
 ```txt
 RecipeService.onDidChangeRecipes
-  -> TemplateResolutionContribution
+  -> explicitly constructed TemplateResolutionContribution
   -> ITemplateResolutionService.enqueueAllCurrentAssessments()
   -> commit TemplateResolution records only
 ```
@@ -65,7 +80,7 @@ UserTemplate catalog changes:
 
 ```txt
 IUserTemplateService.onDidChangeUserTemplates
-  -> TemplateResolutionContribution
+  -> explicitly constructed TemplateResolutionContribution
   -> ITemplateResolutionService.enqueueAllCurrentAssessments()
   -> rerun UserTemplate compatibility only from stored Assessment evidence
 ```
@@ -77,7 +92,8 @@ IUserTemplateService.onDidChangeUserTemplates
 - During the bridge, Template Resolution stores candidate summaries only.
   Selected executable Template snapshots belong to Review records.
 - Resolution records use a separate `templateResolutionChanged` event and are
-  invalidation inputs for Review, not execution triggers.
+  legacy compatibility invalidation signals, not Review prerequisites or
+  execution triggers.
 - Resolution invalidates on Assessment evidence signature, Recipe fingerprint,
   or UserTemplate catalog version changes.
 - Recipe selector/projection behavior belongs to Review candidate providers.

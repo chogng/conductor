@@ -35,7 +35,7 @@ at the type name.
 | `RawTableSourceRecord` | converter/session | CSV, Excel sheet, clipboard, manual, unknown | Source provenance only, not measurement semantics. |
 | `RawTableRowsRecord` | converter/session | inline, normalized CSV, unavailable | Large rows should use artifact/path references. |
 | `RawTableAssessmentRecord` | Assessment/RawTableEvidence + Session | `IAssessmentService` | Tied to raw table version, assessment rule version, and schema profile version; stores structure, column profiles, semantic candidates, groups, blocks, legacy evidence decision, and diagnostics. |
-| `RawTableTemplateResolutionRecord` | Template Resolution bridge + Session | `ITemplateResolutionService` | Migration record tied to assessment signature, recipe fingerprint, and legacy template catalog version; stores candidate summaries/compatibility data for Review. |
+| `RawTableTemplateResolutionRecord` | Template Resolution legacy bridge + Session | `ITemplateResolutionService` | Legacy compatibility record tied to assessment signature, recipe fingerprint, and legacy template catalog version; stores candidate summaries only and is not on the primary Recipe/UserTemplate -> TemplateDraft/Template -> Review -> Slice path. |
 | `RawTableReviewRecord` | Review + Session | `IReviewService` | Tied to evidence signature, Recipe fingerprint, UserTemplate/saved-template fingerprint, review engine version, and review policy version; stores candidates, reviews, and `ReviewDecision`. |
 | `MeasurementGroupRecord` | Assessment + Session | assessment | Group/device labels and ordered block ids. |
 | `MeasurementBlockRecord` | Assessment + Session | assessment | Measurement family/mode/source ranges/column roles. |
@@ -113,6 +113,9 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
 - `RawTableEvidence` is the clean evidence shape produced from
   `RawTableAssessmentRecord`; it contains structure, column profiles, layout
   candidates, semantic candidates, blocks, and source metadata only.
+- Assessment is the current RawTableEvidence owner. It is not a Review clone
+  and must not store TemplateDraft, ReviewedTemplate, ReviewDecision, or
+  system-application output.
 - Do not call raw-table evidence `RecipeEvidence`. Recipe consumes evidence but
   does not own it.
 - `MeasurementBlockRecord.family` stores measurement family (`iv`, `cv`, `cf`,
@@ -197,8 +200,8 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
 
 ### Template Resolution Bridge
 
-- `RawTableTemplateResolutionRecord` is a migration bridge fact for automatic
-  Template candidate derivation for one raw table.
+- `RawTableTemplateResolutionRecord` is a legacy compatibility bridge fact for
+  old automatic Template candidate summaries for one raw table.
 - Resolution records store `sourceAssessmentSignature`, `recipeFingerprint`,
   `templateCatalogVersion` sourced from `UserTemplateSnapshot.version`, ranked
   `templateCandidates`, diagnostics, and `resolvedAt`.
@@ -206,6 +209,8 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
   decisions. Review owns selected `ReviewedTemplate` snapshots.
 - Resolution records do not store raw rows, Assessment blocks duplicated as
   owners, Review policy output, Slice queue state, or Slice output.
+- Resolution records are not required for the primary Recipe/UserTemplate ->
+  TemplateDraft/Template -> Review -> Slice path.
 
 ### Slice
 

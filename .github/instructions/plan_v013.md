@@ -6,8 +6,8 @@
 > 核心原则：
 >
 > 1. Files 提供 raw table 原始事实。
-> 2. RawTableEvidence 从 raw rows 派生测量证据。
-> 3. Recipe 和 UserTemplate 只是 TemplateDraft 候选来源。
+> 2. Assessment 就是当前 RawTableEvidence 证据层：只从 raw rows 派生测量证据，不复刻 Review。
+> 3. Recipe 和 UserTemplate 只是 TemplateDraft/Template 候选来源，由 Review-owned provider 解释。
 > 4. Review 是模板可用性、手动调整建议、系统应用建议的唯一决策层。
 > 5. Explorer 订阅 ReviewRecord，并与 SliceRun 状态合成 UI 状态。
 > 6. ReviewApplyContribution 只做幂等提交桥接，不做模板质量判断。
@@ -15,7 +15,7 @@
 > 8. UserTemplate 独立为 services/userTemplate + contrib/userTemplate。
 > 9. Template provenance 和 execution trigger 分离。
 > 10. 旧 Assessment 必须拆为 RawTableEvidence + Review，不能简单 alias。
-> 11. Recipe/UserTemplate candidate provider 归 Review；TemplateResolution 只可作为旧记录兼容 bridge 消费 Review-owned draft provider。
+> 11. Recipe/UserTemplate candidate provider 归 Review；TemplateResolution 不在主链路，只可作为 legacy compatibility bridge 消费 Review-owned draft provider。
 
 ---
 
@@ -25,58 +25,41 @@
 Files
   -> RawTableRecord
 
-RawTableEvidence
-  -> RawTableEvidenceRecord
+Assessment / RawTableEvidence
+  -> evidence only
 
-RecipeService
-  -> RecipeSnapshot
+Recipe / UserTemplate
+  -> TemplateDraft / Template
 
-UserTemplateService
-  -> UserTemplateSnapshot
+Review
+  -> ReviewDecision / ReviewedTemplate
 
-ReviewService
-  -> TemplateDraft[]
-  -> TemplateCandidateSummary[]
-  -> TemplateReview[]
-  -> ReviewDecision
-  -> RawTableReviewRecord
-
-Explorer
-  -> ReviewRecord + SliceRun + SliceQueue
-  -> RawTableExplorerStatus
-
-ReviewApplyContribution
-  -> ReviewDecision.application.systemRecommended
-  -> idempotency guard
-  -> SliceRequest
-
-SliceService
-  -> SliceRequest
-  -> SlicePlan
-  -> TS/Rust Executor
-  -> SliceRun
-
-Session
-  -> canonical ledger
+Slice
+  -> SliceRequest / SlicePlan / SliceRun
 ```
 
-架构图：
+主链路展开：
 
 ```txt
 Files
   |
   v
-RawTableEvidence
+Assessment / RawTableEvidence
   |
   v
-ReviewService <--------- RecipeService
-  |           <--------- UserTemplateService
+Recipe/UserTemplate candidate providers
   |
   v
-Session.commitRawTableReviews
+TemplateDraft / Template
   |
-  +--> Explorer
-  |      ReviewRecord + SliceRun -> UI status
+  v
+ReviewService
+  |
+  v
+RawTableReviewRecord
+  |
+  +--> Explorer projection
+  |      ReviewRecord + SliceRun/SliceState -> UI status
   |
   +--> ReviewApplyContribution
           |
@@ -91,12 +74,58 @@ Session.commitRawTableReviews
        SlicePlan / Executor / SliceRun
 ```
 
+Recipe 和 UserTemplate 是 candidate source，不是 decision source：
+
+```txt
+RawTableEvidence + RecipeSnapshot
+  -> Review-owned recipe provider
+  -> TemplateDraft / Template
+
+RawTableEvidence + UserTemplateSnapshot
+  -> Review-owned user-template provider
+  -> TemplateDraft / Template
+```
+
+Review 是唯一把候选变成可执行 `ReviewedTemplate` 和应用建议的层：
+
+```txt
+TemplateDraft / Template
+  -> TemplateReview
+  -> ReviewDecision
+  -> RawTableReviewRecord
+```
+
+TemplateResolution 不在主链路。若代码或文档仍提到它，只能表示旧
+`RawTableTemplateResolutionRecord` 的 legacy compatibility bridge：
+
+```txt
+Assessment evidence + Recipe/UserTemplate snapshots
+  -> Review-owned draft providers
+  -> legacy RawTableTemplateResolutionRecord summaries
+```
+
+它不得成为 Review 的前置步骤，不得选择 final template，不得决定
+`systemRecommended`，不得创建 `SliceRequest`。
+
+记录提交边界：
+
+```txt
+Assessment
+  -> ISessionService.commitRawTableAssessment
+
+Review
+  -> ISessionService.commitRawTableReviews
+
+Slice
+  -> ISessionService.commitSliceRuns
+```
+
 手动路径：
 
 ```txt
-contrib/review or contrib/userTemplate
-  -> user selects template
-  -> ReviewService.reviewManualTemplate
+Template UI / UserTemplate picker / command
+  -> user selects Template or UserTemplate
+  -> ReviewService.reviewManualTemplate(...)
   -> ManualTemplateReviewResult
   -> if ready: create SliceRequest(trigger = userCommand)
   -> SliceService.submit
@@ -144,7 +173,9 @@ Slice
 
 ### 2.2 RawTableEvidence
 
-RawTableEvidence 是 measurement evidence owner。
+RawTableEvidence 是 measurement evidence owner；当前实现名是
+`IAssessmentService` / `RawTableAssessmentRecord`。Assessment 在 v013 语义中
+等同于 RawTableEvidence 证据层，不是 Review 的翻版。
 
 负责：
 
@@ -167,6 +198,7 @@ diagnostics
 
 ```txt
 不解释 Recipe
+不生成 TemplateDraft
 不生成 ReviewDecision
 不判断能否系统应用
 不创建 SliceRequest
@@ -321,19 +353,23 @@ progress/status event
 
 ---
 
-## 3. 原 Assessment 的拆分
+## 3. Assessment 与 RawTableEvidence
 
-原先 `assessment` 实际混了两类能力：
+当前 `assessment` 名称承载 RawTableEvidence 证据层。它可以继续作为
+迁移期服务名，但语义必须收缩为 evidence-only。不要把 Assessment 做成
+Review 的翻版，也不要让 Assessment 输出候选排序、最终模板、或系统应用建议。
+
+旧 `assessment` record 可能混了两类能力：
 
 ```txt
 1. raw table / column / semantic / block analysis
 2. selected template / confidence / can auto apply / needs user action
 ```
 
-v013 拆分为：
+v013 的责任归属为：
 
 ```txt
-RawTableEvidence:
+Assessment / RawTableEvidence:
   第 1 类。
 
 Review:
@@ -988,7 +1024,7 @@ conflict resolution 规则
 建议类型：
 
 ```ts
-export const REVIEW_POLICY_VERSION = 1;
+export const REVIEW_POLICY_VERSION = 2;
 
 export type ReviewSelectionPolicy = {
   readonly version: number;
@@ -1004,6 +1040,11 @@ export type ReviewSelectionPolicy = {
   readonly criticalDiagnosticCodes: readonly string[];
 };
 ```
+
+`REVIEW_POLICY_VERSION = 2` 起，`systemRecommended` 不再读取
+`AssessmentDecision.autoApplyAllowed`。Assessment 只提供证据；Review 根据
+`TemplateReview.confidence`、diagnostics 和 Review policy 生成
+`ReviewDecision.application`。
 
 ---
 
@@ -1255,21 +1296,21 @@ Files import
   -> rawTablesChanged
 ```
 
-### Evidence
+### Assessment / RawTableEvidence
 
 ```txt
-rawTablesChanged / schemaProfileChanged / evidenceEngineChanged
-  -> RawTableEvidenceQueue
-  -> RawTableEvidenceService.build
-  -> Session.commitRawTableEvidences
-  -> evidenceChanged
+rawTablesChanged / schemaProfileChanged / assessmentEngineChanged
+  -> AssessmentQueueService
+  -> IAssessmentService.assessRawTable
+  -> Session.commitRawTableAssessment
+  -> assessmentChanged / evidenceChanged projection
 ```
 
 ### Review
 
 ```txt
-evidenceChanged / recipeChanged / userTemplateChanged / reviewPolicyChanged
-  -> ReviewQueue
+assessmentChanged / recipeChanged / userTemplateChanged / reviewPolicyChanged
+  -> ReviewContribution
   -> ReviewService.deriveAndReview
   -> Session.commitRawTableReviews
   -> reviewChanged
@@ -1526,8 +1567,13 @@ src/cs/workbench/services/assessment/
 语义收缩为：
 
 ```txt
-assessment == RawTableEvidence
+assessment == RawTableEvidence evidence layer
+assessment != Review
 ```
+
+Assessment 可以产出 structure、profiles、semantic candidates、blocks、
+diagnostics 和 evidence signature；不得产出 TemplateDraft、ReviewedTemplate、
+ReviewDecision、systemRecommended 或 SliceRequest。
 
 长期迁移：
 
@@ -1797,6 +1843,7 @@ new RawTableEvidence has no review fields
 15. Legacy Assessment 通过 adapter 拆为 Evidence/Review，不能简单 alias。
 16. ReviewService 内部拆纯函数。
 17. ReviewPolicyVersion 覆盖所有 decision 规则。
+18. TemplateResolution 不在主链路，只作为 legacy compatibility bridge 保留旧摘要记录。
 ```
 
 ---

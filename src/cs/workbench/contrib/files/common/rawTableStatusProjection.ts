@@ -284,12 +284,29 @@ const getLatestCurrentRawTableSliceRun = ({
 	readonly rawTableId: SheetId;
 	readonly sourceRawTableVersion: number;
 }): SliceRun | undefined => {
-	const run = getLatestSliceRunRecord(file);
-	return run?.rawTableId === rawTableId &&
-		run.sourceRawTableVersion === sourceRawTableVersion
-		? run
-		: undefined;
+	const latestFileRun = getLatestSliceRunRecord(file);
+	if (isCurrentRawTableSliceRun(latestFileRun, rawTableId, sourceRawTableVersion)) {
+		return latestFileRun;
+	}
+
+	const runs = Object.values(file.sliceRunsById ?? {});
+	for (let index = runs.length - 1; index >= 0; index -= 1) {
+		const run = runs[index];
+		if (isCurrentRawTableSliceRun(run, rawTableId, sourceRawTableVersion)) {
+			return run;
+		}
+	}
+
+	return undefined;
 };
+
+const isCurrentRawTableSliceRun = (
+	run: SliceRun | undefined,
+	rawTableId: SheetId,
+	sourceRawTableVersion: number,
+): run is SliceRun =>
+	run?.rawTableId === rawTableId &&
+	run.sourceRawTableVersion === sourceRawTableVersion;
 
 const normalizeId = (
 	value: unknown,

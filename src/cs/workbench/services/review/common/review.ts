@@ -20,7 +20,7 @@ export const ReviewContributionId = "workbench.services.review.lifecycle";
 export const ReviewApplyContributionId = "workbench.services.review.apply";
 
 export const REVIEW_ENGINE_VERSION = 1;
-export const REVIEW_POLICY_VERSION = 1;
+export const REVIEW_POLICY_VERSION = 2;
 
 export type ReviewDiagnostic = {
   readonly severity: "info" | "warning" | "error";

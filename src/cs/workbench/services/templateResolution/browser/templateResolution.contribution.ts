@@ -3,11 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from "src/cs/base/common/lifecycle";
-import {
-	registerWorkbenchContribution2,
-	WorkbenchPhase,
-	type IWorkbenchContribution,
-} from "src/cs/workbench/common/contributions";
+import type { IWorkbenchContribution } from "src/cs/workbench/common/contributions";
 import {
 	IRecipeService,
 	type IRecipeService as IRecipeServiceType,
@@ -21,7 +17,6 @@ import type { RawTableRef } from "src/cs/workbench/services/session/common/sessi
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import {
 	ITemplateResolutionService,
-	TemplateResolutionContributionId,
 	type ITemplateResolutionService as ITemplateResolutionServiceType,
 } from "src/cs/workbench/services/templateResolution/common/templateResolution";
 import {
@@ -137,9 +132,3 @@ const getRawTableRefsFromAffectedFiles = (
 	}
 	return refs;
 };
-
-registerWorkbenchContribution2(
-	TemplateResolutionContributionId,
-	TemplateResolutionContribution,
-	WorkbenchPhase.AfterRestored,
-);

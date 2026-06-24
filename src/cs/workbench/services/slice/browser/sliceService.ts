@@ -125,8 +125,8 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			if (!plan) {
 				didChange = this.setFileState(ref.fileId, {
 					state: "skipped",
-					code: "slice.templateResolutionMissing",
-					message: "No resolved template is available for automatic slicing.",
+					code: "slice.reviewDecisionMissing",
+					message: "No reviewed template is available for automatic slicing.",
 				}) || didChange;
 				continue;
 			}

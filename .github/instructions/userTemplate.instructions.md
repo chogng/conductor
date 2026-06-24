@@ -10,9 +10,10 @@ scope, versioning, and fingerprints. It is not the core `Template` spec and it
 is not the Template UI form state.
 
 `IUserTemplateService` owns native UserTemplate CRUD/import/export and catalog
-snapshots. Review, TemplateResolution, Template UI, Explorer template pickers,
-and explicit Slice template lookup consume `UserTemplateSnapshot` or
-`getTemplate(id)` instead of reading a legacy template catalog.
+snapshots. Review, Template UI, Explorer template pickers, explicit Slice
+template lookup, and TemplateResolution legacy compatibility code consume
+`UserTemplateSnapshot` or `getTemplate(id)` instead of reading a legacy template
+catalog.
 
 ## Ownership
 
@@ -21,8 +22,8 @@ and explicit Slice template lookup consume `UserTemplateSnapshot` or
 - user-template catalog snapshots and effective fingerprints;
 - user-template lookup by id;
 - native user-template CRUD/import/export;
-- user-template change events used by Review and TemplateResolution
-  invalidation.
+- user-template change events used by Review and by TemplateResolution legacy
+  compatibility invalidation.
 
 It does not own:
 
@@ -40,10 +41,15 @@ UserTemplate create/update/delete/import
   -> IUserTemplateService
   -> IUserTemplateStoreService
   -> userTemplateChanged
-  -> ReviewContribution / TemplateResolutionContribution reread evidence + RecipeSnapshot + UserTemplateSnapshot
+  -> ReviewContribution rereads evidence + RecipeSnapshot + UserTemplateSnapshot
   -> IReviewService.deriveAndReview(...)
   -> RawTableReviewRecord
 ```
+
+TemplateResolution may also observe `userTemplateChanged` while the legacy
+compatibility bridge exists, but it only refreshes old candidate-summary
+records and is not on the primary Recipe/UserTemplate -> TemplateDraft/Template
+-> Review -> Slice path.
 
 Manual execution:
 

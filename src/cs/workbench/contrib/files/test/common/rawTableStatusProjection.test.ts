@@ -118,6 +118,42 @@ suite("workbench/contrib/files/common/rawTableStatusProjection", () => {
 		assert.equal(status.kind === "sliced" && status.runId, "slice-a");
 	});
 
+	test("projects the latest current slice run for the requested raw table", () => {
+		const file = createFileRecord({
+			review: createReviewRecord({
+				decision: {
+					kind: "ready",
+					reviewedTemplate: createReviewedTemplate(),
+					application: {
+						kind: "systemRecommended",
+						reason: "review.ready.systemRecommended",
+					},
+					summary: "Ready",
+					suggestedActions: [],
+				},
+			}),
+			sliceRuns: [
+				createSliceRun({
+					id: "slice-table-a",
+					rawTableId: "table-a",
+				}),
+				createSliceRun({
+					id: "slice-table-b",
+					rawTableId: "table-b",
+				}),
+			],
+			latestSliceRunId: "slice-table-b",
+		});
+
+		const status = createRawTableStatusProjection({
+			file,
+			rawTableId: "table-a",
+		});
+
+		assert.equal(status.kind, "sliced");
+		assert.equal(status.kind === "sliced" && status.runId, "slice-table-a");
+	});
+
 	test("does not attach stale or wrong-table facts to a raw table", () => {
 		const file = createFileRecord({
 			review: {
@@ -179,43 +215,48 @@ suite("workbench/contrib/files/common/rawTableStatusProjection", () => {
 });
 
 const createFileRecord = ({
+	latestSliceRunId,
 	review,
 	sliceRun,
+	sliceRuns,
 }: {
+	readonly latestSliceRunId?: string;
 	readonly review?: RawTableReviewRecord;
 	readonly sliceRun?: SliceRun;
-} = {}): FileRecord => ({
-	id: "file-a",
-	name: "Transfer.csv",
-	kind: "csv",
-	raw: {
-		fileId: "file-a",
-		fileName: "Transfer.csv",
-		tableOrder: ["table-a"],
-		tablesById: {},
-	},
-	rawTableVersionsById: {
-		"table-a": 1,
-	},
-	assessmentsByRawTableId: {},
-	rawTableReviewsByRawTableId: review
-		? {
-				[review.rawTableId]: review,
-			}
-		: {},
-	measurementBlocksById: {},
-	measurementBlockOrder: [],
-	sliceRunsById: sliceRun
-		? {
-				[sliceRun.id]: sliceRun,
-			}
-		: {},
-	latestSliceRunId: sliceRun?.id,
-	seriesById: {},
-	seriesOrder: [],
-	curvesByKey: {},
-	metricsByKey: {},
-});
+	readonly sliceRuns?: readonly SliceRun[];
+} = {}): FileRecord => {
+	const runs = sliceRuns ?? (sliceRun ? [sliceRun] : []);
+	const fallbackLatestRunId = runs.length ? runs[runs.length - 1]!.id : undefined;
+	return {
+		id: "file-a",
+		name: "Transfer.csv",
+		kind: "csv",
+		raw: {
+			fileId: "file-a",
+			fileName: "Transfer.csv",
+			tableOrder: ["table-a"],
+			tablesById: {},
+		},
+		rawTableVersionsById: {
+			"table-a": 1,
+			"table-b": 1,
+		},
+		assessmentsByRawTableId: {},
+		rawTableReviewsByRawTableId: review
+			? {
+					[review.rawTableId]: review,
+				}
+			: {},
+		measurementBlocksById: {},
+		measurementBlockOrder: [],
+		sliceRunsById: Object.fromEntries(runs.map(run => [run.id, run])),
+		latestSliceRunId: latestSliceRunId ?? sliceRun?.id ?? fallbackLatestRunId,
+		seriesById: {},
+		seriesOrder: [],
+		curvesByKey: {},
+		metricsByKey: {},
+	};
+};
 
 const createReviewRecord = ({
 	decision,
@@ -258,13 +299,21 @@ const createReviewedTemplate = (): RawTableReviewRecord["decision"] extends infe
 	},
 });
 
-const createSliceRun = (): SliceRun => ({
-	id: "slice-a",
+const createSliceRun = ({
+	id = "slice-a",
+	rawTableId = "table-a",
+	sourceRawTableVersion = 1,
+}: {
+	readonly id?: string;
+	readonly rawTableId?: string;
+	readonly sourceRawTableVersion?: number;
+} = {}): SliceRun => ({
+	id,
 	fileId: "file-a",
-	rawTableId: "table-a",
+	rawTableId,
 	mode: "auto",
 	selection: { kind: "auto" },
-	sourceRawTableVersion: 1,
+	sourceRawTableVersion,
 	template: createTemplate(),
 	templateFingerprint: "template:test",
 	inputRanges: [],

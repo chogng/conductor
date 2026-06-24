@@ -8,6 +8,10 @@ Assessment currently converts raw table facts into measurement evidence. It is
 the only owner of group/block/column role/sweep mode detection and is the
 migration location for the future RawTableEvidence service.
 
+In architecture terms, Assessment is RawTableEvidence today. It is an evidence
+layer only: it must not become a second Review implementation, rank Template
+candidates, choose a `ReviewedTemplate`, or decide `systemRecommended`.
+
 ## Ownership
 
 `IAssessmentService` owns:
@@ -121,9 +125,10 @@ rawTablesChanged
   `MeasurementBlockRecord`; repeated block regions must produce separate blocks
   with per-block source ranges. Template code must consume those blocks instead
   of re-detecting them.
-- `AssessmentDecision.autoApplyAllowed` is a legacy evidence summary during the
-  Review migration. New code must not treat it as the system-application gate;
-  `ReviewDecision.application` owns that decision.
+- `AssessmentDecision.autoApplyAllowed` is a legacy evidence summary only.
+  Review policy v2 and later must not consume it as the system-application
+  gate; `ReviewDecision.application` owns that decision from Review confidence
+  and diagnostics.
 - The evidence type is `RawTableEvidence`, not `RecipeEvidence`: Recipe consumes
   raw-table evidence, but it does not own or name that evidence.
 - Assessment must not resolve Recipe snapshots, UserTemplate catalogs, or

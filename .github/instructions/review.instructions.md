@@ -8,6 +8,10 @@ Review is the owner of Template usability and application decisions for raw
 tables. It consumes raw table evidence plus Recipe/UserTemplate candidate
 sources and writes auditable `RawTableReviewRecord` facts.
 
+The primary template path is Recipe/UserTemplate -> TemplateDraft/Template ->
+Review -> Slice, with Assessment supplying RawTableEvidence as input. Review is
+the first layer that may choose usability or system application.
+
 ## Ownership
 
 `IReviewService` owns:
@@ -75,15 +79,19 @@ user command / UserTemplate picker / saved-selection compatibility picker / inli
 | `browser/reviewApply.contribution.ts` | no-UI bridge from system-recommended Review decisions to Slice requests. |
 
 During migration, Template Resolution may reuse Review-owned pure draft
-providers to write legacy candidate summaries. User-template candidates must
-come through `IUserTemplateService` and `UserTemplateSnapshot`. New decision
-logic and new provider logic still belong in Review, not TemplateResolution,
-Assessment, Explorer, or Slice.
+providers only as a legacy compatibility bridge for old candidate summaries.
+It is not a prerequisite for Review and is not on the primary path.
+User-template candidates must come through `IUserTemplateService` and
+`UserTemplateSnapshot`. New decision logic and new provider logic still belong
+in Review, not TemplateResolution, Assessment, Explorer, or Slice.
 
 ## Rules
 
 - `ReviewDecision` is the only source for template usability and system
   application recommendations.
+- System recommendation policy is Review-owned: it uses `TemplateReview`
+  confidence and Review diagnostics/policy, not
+  `AssessmentDecision.autoApplyAllowed`.
 - `TemplateDraft` is Review pipeline data. It may carry derivation confidence,
   derivation reasons, diagnostics, and optional captures, but it must not carry
   final `ready` / `needsAdjustment` / `invalid` status.

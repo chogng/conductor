@@ -17,9 +17,6 @@ import type { UserTemplateSnapshot } from "src/cs/workbench/services/userTemplat
 export const ITemplateResolutionService =
   createDecorator<ITemplateResolutionService>("templateResolutionService");
 
-export const TemplateResolutionContributionId =
-  "workbench.services.templateResolution.lifecycle";
-
 export type TemplateCandidateSource =
   | {
       readonly kind: "recipe";
