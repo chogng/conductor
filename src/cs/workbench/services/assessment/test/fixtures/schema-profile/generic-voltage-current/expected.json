@@ -1,6 +1,4 @@
 {
-  "decision": "reviewRequired",
-  "autoApplyAllowed": false,
   "layoutKind": "metadataPreamble",
   "blocks": 1,
   "blockFamily": "unknown",

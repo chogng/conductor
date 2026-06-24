@@ -90,8 +90,7 @@ in Review, not TemplateResolution, Assessment, Explorer, or Slice.
 - `ReviewDecision` is the only source for template usability and system
   application recommendations.
 - System recommendation policy is Review-owned: it uses `TemplateReview`
-  confidence and Review diagnostics/policy, not
-  `AssessmentDecision.autoApplyAllowed`.
+  confidence and Review diagnostics/policy, not Assessment auto-apply fields.
 - `TemplateDraft` is Review pipeline data. It may carry derivation confidence,
   derivation reasons, diagnostics, and optional captures, but it must not carry
   final `ready` / `needsAdjustment` / `invalid` status.

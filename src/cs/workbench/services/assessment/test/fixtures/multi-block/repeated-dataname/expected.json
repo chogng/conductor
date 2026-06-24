@@ -1,6 +1,4 @@
 {
-  "decision": "ready",
-  "autoApplyAllowed": true,
   "layoutKind": "repeatedBlock",
   "blocks": 2,
   "blockFamily": "iv",

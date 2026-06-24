@@ -1,6 +1,4 @@
 {
-  "decision": "inferred",
-  "autoApplyAllowed": false,
   "layoutKind": "simpleXY",
   "blocks": 1,
   "blockFamily": "cv",

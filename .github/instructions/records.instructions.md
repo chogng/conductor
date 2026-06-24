@@ -34,7 +34,7 @@ at the type name.
 | `RawTableRecord` | `ISessionService` | `fileConverter.ts` | Physical rows/source/health/template eligibility. Use `rawTableId`; keep failed rows unavailable. |
 | `RawTableSourceRecord` | converter/session | CSV, Excel sheet, clipboard, manual, unknown | Source provenance only, not measurement semantics. |
 | `RawTableRowsRecord` | converter/session | inline, normalized CSV, unavailable | Large rows should use artifact/path references. |
-| `RawTableAssessmentRecord` | Assessment/RawTableEvidence + Session | `IAssessmentService` | Tied to raw table version, assessment rule version, and schema profile version; stores structure, column profiles, semantic candidates, groups, blocks, legacy evidence decision, and diagnostics. |
+| `RawTableAssessmentRecord` | Assessment/RawTableEvidence + Session | `IAssessmentService` | Tied to raw table version, assessment rule version, and schema profile version; stores structure, column profiles, semantic candidates, groups, blocks, and diagnostics. |
 | `RawTableTemplateResolutionRecord` | Template Resolution legacy bridge + Session | `ITemplateResolutionService` | Legacy compatibility record tied to assessment signature, recipe fingerprint, and legacy template catalog version; stores candidate summaries only and is not on the primary Recipe/UserTemplate -> TemplateDraft/Template -> Review -> Slice path. |
 | `RawTableReviewRecord` | Review + Session | `IReviewService` | Tied to evidence signature, Recipe fingerprint, UserTemplate/saved-template fingerprint, review engine version, and review policy version; stores candidates, reviews, and `ReviewDecision`. |
 | `MeasurementGroupRecord` | Assessment + Session | assessment | Group/device labels and ordered block ids. |
@@ -133,16 +133,15 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
 - Semantic candidates keep role/unit candidates, confidence, evidence sources,
   confirmation state, and display-scale suggestions.
 - Column refs keep raw column, header text, role, unit, source range, confidence.
-- Assessment decisions keep ready/inferred/review/unknown/failed state,
-  automatic-apply allowance, confidence, and gating reasons.
 - `RawTableAssessmentRecord.schemaProfileVersion` records the profile snapshot
   used for semantic evidence; profile changes make older assessments stale.
 - Assessment records do not store Recipe fingerprints, Template/UserTemplate
-  catalog versions, Template candidates, reviewed templates, or selected
-  Template snapshots. Review owns candidate review and application decisions.
+  catalog versions, Template candidates, reviewed templates, selected Template
+  snapshots, decision state, confidence gates, or auto-apply flags. Review owns
+  candidate review and application decisions.
 - Session raw-file read entries may project assessment schema fingerprints,
   column profiles, semantic candidates, blocks, layout candidates, and
-  decisions for template planning or UI review; they remain derived read
+  diagnostics for template planning or UI review; they remain derived read
   models, not duplicate owners.
 - Diagnostics keep severity, code, message, source range, and related group/block ids.
 

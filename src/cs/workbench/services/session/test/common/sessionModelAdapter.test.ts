@@ -280,7 +280,7 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
     assert.equal(record.metricsBySeriesId, undefined);
   });
 
-  test("projects assessment decision gates back to raw file entries", () => {
+  test("projects assessment evidence back to raw file entries", () => {
     const records = mergeRawFilesIntoRecords({}, [], [{
       fileId: "file-a",
       fileName: "Review.csv",
@@ -328,12 +328,6 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
         kind: "numeric",
       }],
       createdAt: 1,
-      decision: {
-        autoApplyAllowed: false,
-        confidence: 0.6,
-        reasons: ["Assessment is not confirmed enough for automatic calculation."],
-        state: "reviewRequired",
-      },
       diagnostics: [],
       fileId: "file-a",
       groups: [],
@@ -395,8 +389,6 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
       },
     }, records.fileOrder);
 
-    assert.equal(rawFiles[0]?.assessmentDecisionState, "reviewRequired");
-    assert.equal(rawFiles[0]?.assessmentAutoApplyAllowed, false);
     assert.deepEqual(rawFiles[0]?.assessmentBlocks?.map(block => block.id), ["file-a:block:0"]);
     assert.equal(rawFiles[0]?.assessmentSchemaFingerprint, "dataname|vg|id");
     assert.deepEqual(rawFiles[0]?.assessmentColumnProfiles?.map(profile => ({
@@ -415,10 +407,6 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
       { rawCol: 1, role: "id", unit: "A" },
     ]);
     assert.deepEqual(rawFiles[0]?.assessmentLayoutCandidates?.map(candidate => candidate.id), ["layout:simpleXY"]);
-    assert.equal(rawFiles[0]?.assessmentDecisionConfidence, 0.6);
-    assert.deepEqual(rawFiles[0]?.assessmentDecisionReasons, [
-      "Assessment is not confirmed enough for automatic calculation.",
-    ]);
   });
 
   test("materializes base curves from display curve type labels", () => {

@@ -331,12 +331,6 @@ const createAssessment = (): RawTableAssessmentRecord => ({
 		confidence: 0.95,
 		diagnosticCodes: [],
 	}],
-	decision: {
-		state: "ready",
-		autoApplyAllowed: true,
-		confidence: 0.95,
-		reasons: [],
-	},
 	diagnostics: [],
 	createdAt: 1,
 });

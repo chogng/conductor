@@ -1,5 +1,4 @@
-﻿import type { AssessmentDecisionState } from "src/cs/workbench/services/assessment/common/assessmentDecision";
-import type { ColumnProfile } from "src/cs/workbench/services/assessment/common/columnProfile";
+﻿import type { ColumnProfile } from "src/cs/workbench/services/assessment/common/columnProfile";
 import type { LayoutCandidate } from "src/cs/workbench/services/assessment/common/layoutCandidate";
 import type { MeasurementBlockRecord } from "src/cs/workbench/services/assessment/common/measurement";
 import type { SchemaFingerprint } from "src/cs/workbench/services/assessment/common/rawTableStructure";
@@ -20,11 +19,7 @@ export type SessionFile = {
   curveTypeConfidence?: "high" | "medium" | "low";
   curveTypeNeedsReview?: boolean;
   curveTypeReasons?: string[];
-  assessmentAutoApplyAllowed?: boolean;
   assessmentBlocks?: readonly MeasurementBlockRecord[];
-  assessmentDecisionConfidence?: number;
-  assessmentDecisionReasons?: string[];
-  assessmentDecisionState?: AssessmentDecisionState;
   assessmentColumnProfiles?: readonly ColumnProfile[];
   assessmentLayoutCandidates?: readonly LayoutCandidate[];
   assessmentSchemaFingerprint?: SchemaFingerprint;

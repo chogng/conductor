@@ -1,6 +1,4 @@
 {
-  "decision": "ready",
-  "autoApplyAllowed": true,
   "layoutKind": "metadataPreamble",
   "blocks": 1,
   "blockFamily": "iv",

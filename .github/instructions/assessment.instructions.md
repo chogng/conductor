@@ -34,7 +34,6 @@ recommendations, or search indexing beyond diagnostics metadata.
 | --- | --- |
 | `common/assessment.ts` | service contract, inputs/results. |
 | `common/assessmentRecord.ts` | raw table assessment record factory and normalization helpers. |
-| `common/assessmentDecision.ts` | legacy evidence-level decision summary used during migration; new system-application decisions belong to Review. |
 | `common/measurement.ts` | blocks, groups, column maps, sweep/mode/family types. |
 | `common/diagnostics.ts` | diagnostic severity, codes, messages, source ranges. |
 | `common/rawTableStructure.ts` | header row, unit row, data region, block region, and schema fingerprint detection. |
@@ -53,11 +52,10 @@ recommendations, or search indexing beyond diagnostics metadata.
 | `../schemaProfile/browser/schemaProfileStoreService.ts` | profile-scope persistence and versioned schema profile snapshots. |
 | `../schemaProfile/browser/schemaProfileService.ts` | schema profile owner API consumed by Assessment. |
 | `browser/assessmentService.ts` | browser orchestration and branch selection. |
-| `browser/rawTableAssessmentEngine.ts` | raw table assessment workflow that composes import seed evidence with structure, profile, semantic, block, and decision evidence. |
-| `browser/assessmentDecisionPolicy.ts` | decision gate from assessment evidence to ready/inferred/review/unknown states. |
+| `browser/rawTableAssessmentEngine.ts` | raw table assessment workflow that composes import seed evidence with structure, profile, semantic, and block evidence. |
 | `browser/importAssessmentSeed.ts` | browser adapter from import file/row previews to import seed evidence. |
 | `browser/assessment.contribution.ts` | session subscriber that schedules/commits assessments. |
-| `test/fixtures/**` | fixture corpus for Assessment V2 invariants: structure, layout, column semantics, profile exact-match safety, and auto-apply gates. |
+| `test/fixtures/**` | fixture corpus for Assessment V2 invariants: structure, layout, column semantics, profile exact-match safety, and Review handoff evidence. |
 
 ## Flow
 
@@ -77,7 +75,6 @@ rawTablesChanged
   -> optional exact SchemaProfile fingerprint match
   -> createColumnSemanticCandidates
   -> detectMeasurementBlocks
-  -> create legacy AssessmentDecision evidence summary
   -> RawTableAssessmentRecord
   -> ISessionService.commitRawTableAssessment
 ```
@@ -125,10 +122,9 @@ rawTablesChanged
   `MeasurementBlockRecord`; repeated block regions must produce separate blocks
   with per-block source ranges. Template code must consume those blocks instead
   of re-detecting them.
-- `AssessmentDecision.autoApplyAllowed` is a legacy evidence summary only.
-  Review policy v2 and later must not consume it as the system-application
-  gate; `ReviewDecision.application` owns that decision from Review confidence
-  and diagnostics.
+- Assessment must not emit ready/inferred/review/unknown decisions or automatic
+  apply gates. `ReviewDecision.application` owns system-application decisions
+  from Review confidence and diagnostics.
 - The evidence type is `RawTableEvidence`, not `RecipeEvidence`: Recipe consumes
   raw-table evidence, but it does not own or name that evidence.
 - Assessment must not resolve Recipe snapshots, UserTemplate catalogs, or
@@ -142,7 +138,7 @@ rawTablesChanged
 - Mirrored assessment rule changes require targeted tests and compatibility
   fixtures when classification/confidence/record shape changes.
 - Add or update fixture corpus cases when changing structure, layout, semantic,
-  profile matching, block construction, or decision-gate behavior. Fixture
+  profile matching, block construction, or Review handoff behavior. Fixture
   expectations should cover data regions, numeric columns, block count/family,
   column roles/units, and Review handoff behavior, not only display curve type.
 

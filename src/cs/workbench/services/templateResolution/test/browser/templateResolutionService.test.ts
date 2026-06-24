@@ -209,16 +209,10 @@ const createAssessment = (): RawTableAssessmentRecord => ({
 		columnCount: 2,
 		confidence: 0.95,
 		diagnosticCodes: [],
-	}],
-	decision: {
-		state: "ready",
-		autoApplyAllowed: true,
-		confidence: 0.95,
-		reasons: [],
-	},
-	diagnostics: [],
-	createdAt: 1,
-});
+		}],
+		diagnostics: [],
+		createdAt: 1,
+	});
 
 const createImportResult = (): FileImportResult => ({
 	createdAt: 1,

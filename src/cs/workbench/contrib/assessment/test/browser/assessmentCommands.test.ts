@@ -140,12 +140,6 @@ const createRawTableAssessment = (): RawTableAssessmentRecord => ({
 		kind: "numeric",
 	}],
 	createdAt: 1,
-	decision: {
-		autoApplyAllowed: false,
-		confidence: 0.5,
-		reasons: [],
-		state: "reviewRequired",
-	},
 	diagnostics: [],
 	fileId: "file-a",
 	groups: [],

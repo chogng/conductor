@@ -219,8 +219,6 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 		assert.ok(initial);
 		assert.equal(initial.schemaProfileVersion, 0);
 		assert.equal(initial.blocks[0]?.family, "unknown");
-		assert.equal(initial.decision.state, "reviewRequired");
-		assert.equal(initial.decision.autoApplyAllowed, false);
 
 		const profile = schemaProfileService.confirmProfile({
 			schemaFingerprint: initial.structure.fingerprint,
@@ -252,8 +250,6 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 		assert.ok(reassessed);
 		assert.equal(reassessed.blocks[0]?.family, "iv");
 		assert.equal(reassessed.blocks[0]?.ivMode, "transfer");
-		assert.equal(reassessed.decision.state, "ready");
-		assert.equal(reassessed.decision.autoApplyAllowed, true);
 		assert.deepEqual(
 			reassessed.blocks[0]?.columns.columns.map(({ rawCol, role, unit, confidence }) => ({
 				rawCol,
@@ -532,12 +528,6 @@ const createRawTableAssessmentRecord = ({
 	}],
 	columnProfiles: [],
 	createdAt: 123,
-	decision: {
-		autoApplyAllowed: false,
-		confidence: 0.3,
-		reasons: [],
-		state: "reviewRequired",
-	},
 	diagnostics: [],
 	fileId,
 	groups: [],

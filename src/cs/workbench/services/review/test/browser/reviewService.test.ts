@@ -54,7 +54,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(result.decision.kind === "ready" && result.decision.reviewedTemplate.source.kind, "recipe");
 	});
 
-	test("does not use assessment auto-apply allowance as the review application gate", () => {
+	test("uses the Review decision application as the system application gate", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
@@ -65,7 +65,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		));
 
 		const result = service.deriveAndReview({
-			assessment: createAssessment({ autoApplyAllowed: false }),
+			assessment: createAssessment(),
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			recipeSnapshot: recipeService.getSnapshot(),
@@ -410,11 +410,7 @@ class TestStorageService extends AbstractStorageService {
 	}
 }
 
-const createAssessment = ({
-	autoApplyAllowed = true,
-}: {
-	readonly autoApplyAllowed?: boolean;
-} = {}): RawTableAssessmentRecord => ({
+const createAssessment = (): RawTableAssessmentRecord => ({
 	assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
 	schemaProfileVersion: 0,
 	fileId: "file-a",
@@ -478,12 +474,6 @@ const createAssessment = ({
 		confidence: 0.95,
 		diagnosticCodes: [],
 	}],
-	decision: {
-		state: "ready",
-		autoApplyAllowed,
-		confidence: 0.95,
-		reasons: [],
-	},
 	diagnostics: [],
 	createdAt: 1,
 });

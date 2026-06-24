@@ -9,10 +9,6 @@ import {
 	type RawTableAssessmentRecord,
 } from "src/cs/workbench/services/assessment/common/assessment";
 import {
-	createUnknownAssessmentDecision,
-	type AssessmentDecision,
-} from "src/cs/workbench/services/assessment/common/assessmentDecision";
-import {
 	createMeasurementBlockId,
 	detectMeasurementBlocks,
 } from "src/cs/workbench/services/assessment/common/blockDetector";
@@ -48,7 +44,6 @@ export type CreateRawTableAssessmentRecordInput =
 		readonly blocks?: readonly MeasurementBlockRecord[];
 		readonly columnProfile?: MeasurementColumnProfile;
 		readonly columnProfiles?: readonly ColumnProfile[];
-		readonly decision?: AssessmentDecision;
 		readonly layoutCandidates?: readonly LayoutCandidate[];
 		readonly rows?: AssessRawTableInput["rows"];
 		readonly schemaProfile?: SchemaProfile | null;
@@ -95,8 +90,6 @@ export const createRawTableAssessmentRecordFromImportAssessment = (
 			semanticCandidates,
 			structure,
 		});
-	const decision = input.decision ??
-		createUnknownAssessmentDecision(assessment.curveTypeReasons);
 	const assessmentConfidence = getAssessmentConfidenceScore(assessment);
 	const blocks = input.blocks ?? detectMeasurementBlocks({
 		assessment,
@@ -127,7 +120,6 @@ export const createRawTableAssessmentRecordFromImportAssessment = (
 		semanticCandidates,
 		groups: [],
 		blocks,
-		decision,
 		diagnostics,
 		createdAt: Date.now(),
 	};

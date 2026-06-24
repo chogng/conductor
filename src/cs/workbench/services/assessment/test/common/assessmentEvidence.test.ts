@@ -13,10 +13,9 @@ suite("workbench/services/assessment/test/common/assessmentEvidence", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
 
   test("adapts legacy assessment records into raw table evidence only", () => {
-    const evidence = createRawTableEvidenceFromLegacyAssessment(createAssessment());
+    const evidence = createRawTableEvidenceFromLegacyAssessment(createLegacyAssessment());
     const context = evidence as Record<string, unknown>;
 
-    assert.equal(context.decision, undefined);
     assert.equal(context.recipeFingerprint, undefined);
     assert.equal(context.templateCandidates, undefined);
     assert.equal(context.selectedTemplate, undefined);
@@ -32,7 +31,14 @@ suite("workbench/services/assessment/test/common/assessmentEvidence", () => {
   });
 });
 
-const createAssessment = (): RawTableAssessmentRecord => ({
+type LegacyAssessmentRecord = RawTableAssessmentRecord & {
+  readonly recipeFingerprint?: unknown;
+  readonly reviewedTemplate?: unknown;
+  readonly selectedTemplate?: unknown;
+  readonly templateCandidates?: unknown;
+};
+
+const createLegacyAssessment = (): RawTableAssessmentRecord => ({
   assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
   schemaProfileVersion: 0,
   fileId: "file-a",
@@ -44,12 +50,10 @@ const createAssessment = (): RawTableAssessmentRecord => ({
   semanticCandidates: [],
   groups: [],
   blocks: [],
-  decision: {
-    state: "reviewRequired",
-    autoApplyAllowed: false,
-    confidence: 0.4,
-    reasons: ["assessment.reviewRequired"],
-  },
   diagnostics: [],
   createdAt: 1,
-});
+  recipeFingerprint: "recipe:legacy",
+  reviewedTemplate: { id: "reviewed-template" },
+  selectedTemplate: { id: "selected-template" },
+  templateCandidates: [{ id: "candidate" }],
+} as LegacyAssessmentRecord);

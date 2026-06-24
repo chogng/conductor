@@ -107,7 +107,6 @@ export const createTemplateResolutionAssessmentSignature = ({
   assessmentRuleVersion,
   blocks,
   columnProfiles,
-  decision,
   groups,
   layoutCandidates,
   schemaProfileVersion,
@@ -119,7 +118,6 @@ export const createTemplateResolutionAssessmentSignature = ({
   | "assessmentRuleVersion"
   | "blocks"
   | "columnProfiles"
-  | "decision"
   | "groups"
   | "layoutCandidates"
   | "schemaProfileVersion"
@@ -141,7 +139,6 @@ export const createTemplateResolutionAssessmentSignature = ({
   semanticCandidates,
   groups,
   blocks,
-  decision,
 });
 
 const normalizeSignatureText = (

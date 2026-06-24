@@ -1,6 +1,4 @@
 {
-  "decision": "reviewRequired",
-  "autoApplyAllowed": false,
   "layoutKind": "wideMatrix",
   "blocks": 1,
   "blockFamily": "unknown",

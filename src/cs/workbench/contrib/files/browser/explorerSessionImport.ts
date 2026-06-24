@@ -171,7 +171,6 @@ const createPreparedImportAssessmentInputs = (
       blocks: assessment.blocks,
       columnProfiles: assessment.columnProfiles,
       createdAt: assessment.createdAt,
-      decision: assessment.decision,
       diagnostics: assessment.diagnostics,
       fileId: assessment.fileId,
       groups: assessment.groups,

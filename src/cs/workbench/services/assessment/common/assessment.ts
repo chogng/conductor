@@ -4,7 +4,6 @@
 
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { Event } from "src/cs/base/common/event";
-import type { AssessmentDecision } from "src/cs/workbench/services/assessment/common/assessmentDecision";
 import type { ColumnProfile } from "src/cs/workbench/services/assessment/common/columnProfile";
 import type { AssessmentDiagnostic } from "src/cs/workbench/services/assessment/common/diagnostics";
 import type {
@@ -84,7 +83,6 @@ export type RawTableAssessmentRecord = {
   readonly semanticCandidates: readonly ColumnSemanticCandidate[];
   readonly groups: readonly MeasurementGroupRecord[];
   readonly blocks: readonly MeasurementBlockRecord[];
-  readonly decision: AssessmentDecision;
   readonly diagnostics: readonly AssessmentDiagnostic[];
   readonly createdAt: number;
 };

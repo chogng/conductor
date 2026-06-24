@@ -109,9 +109,6 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
     assert.equal(result.blocks[0].family, "iv");
     assert.equal(result.blocks[0].ivMode, "transfer");
     assert.equal(result.blocks[0].confidence, 0.9);
-    assert.equal(result.decision.state, "ready");
-    assert.equal(result.decision.autoApplyAllowed, true);
-    assert.equal(result.decision.confidence, 0.9);
     assert.deepEqual(
       result.blocks[0].columns.columns.map(({ rawCol, role, unit, confidence }) => ({
         rawCol,
@@ -186,8 +183,6 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
         { rawCol: 6, kind: "numeric" },
       ],
     );
-    assert.equal(result.decision.state, "reviewRequired");
-    assert.equal(result.decision.autoApplyAllowed, false);
     assert.deepEqual(
       result.blocks[0].columns.columns.map(({ rawCol, headerText, role, unit }) => ({
         rawCol,
@@ -236,9 +231,21 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
       result.semanticCandidates.map(candidate => candidate.roleCandidates[0]?.role),
       ["unknown", "unknown", "unknown", "unknown", "unknown", "unknown"],
     );
-    assert.equal(result.decision.state, "reviewRequired");
-    assert.equal(result.decision.autoApplyAllowed, false);
-    assert.ok(result.decision.reasons.includes("Layout is ready, but measurement semantics need review."));
+    assert.deepEqual(
+      result.blocks[0].columns.columns.map(({ rawCol, role, unit }) => ({
+        rawCol,
+        role,
+        unit,
+      })),
+      [
+        { rawCol: 0, role: "unknown", unit: null },
+        { rawCol: 1, role: "unknown", unit: null },
+        { rawCol: 2, role: "unknown", unit: null },
+        { rawCol: 3, role: "unknown", unit: null },
+        { rawCol: 4, role: "unknown", unit: null },
+        { rawCol: 5, role: "unknown", unit: null },
+      ],
+    );
   });
 
   test("splits repeated header sections into measurement blocks", async () => {
@@ -400,8 +407,6 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
         ],
       },
     ]);
-    assert.equal(result.decision.state, "ready");
-    assert.equal(result.decision.autoApplyAllowed, true);
   });
 
   test("uses exact schema profile matches as confirmed column semantics", async () => {
@@ -485,8 +490,6 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
         },
       ],
     );
-    assert.equal(result.decision.state, "ready");
-    assert.equal(result.decision.autoApplyAllowed, true);
     assert.deepEqual(
       result.blocks[0].columns.columns.map(({ rawCol, role, unit, confidence }) => ({
         rawCol,
@@ -516,8 +519,7 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
       fileName: "custom.csv",
       rows,
     });
-    assert.equal(first.decision.state, "reviewRequired");
-    assert.equal(first.decision.autoApplyAllowed, false);
+    assert.equal(first.blocks[0].family, "unknown");
 
     const profile = createSchemaProfileFromConfirmation({
       schemaFingerprint: first.structure.fingerprint,
@@ -547,9 +549,6 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
 
     assert.equal(result.blocks[0].family, "iv");
     assert.equal(result.blocks[0].ivMode, "transfer");
-    assert.equal(result.decision.state, "ready");
-    assert.equal(result.decision.autoApplyAllowed, true);
-    assert.ok(result.decision.reasons.includes("Exact schema profile confirms transfer x/y bindings."));
     assert.deepEqual(
       result.blocks[0].columns.columns.map(({ rawCol, role, unit, confidence }) => ({
         rawCol,
@@ -606,8 +605,6 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
     });
 
     assert.equal(result.blocks[0].family, "unknown");
-    assert.equal(result.decision.state, "reviewRequired");
-    assert.equal(result.decision.autoApplyAllowed, false);
   });
 
   test("reads exact schema profile matches from the schema profile service", async () => {
@@ -681,8 +678,6 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
     });
 
     assert.equal(result.blocks[0].family, "cf");
-    assert.equal(result.decision.state, "inferred");
-    assert.equal(result.decision.autoApplyAllowed, false);
     assert.deepEqual(
       result.blocks[0].columns.columns.map(({ rawCol, role, unit }) => ({
         rawCol,

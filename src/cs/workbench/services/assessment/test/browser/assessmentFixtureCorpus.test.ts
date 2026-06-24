@@ -10,9 +10,6 @@ import type {
 	RawTableAssessmentRecord,
 } from "src/cs/workbench/services/assessment/common/assessment";
 import type {
-	AssessmentDecisionState,
-} from "src/cs/workbench/services/assessment/common/assessmentDecision";
-import type {
 	LayoutBindingDraft,
 	LayoutKind,
 } from "src/cs/workbench/services/assessment/common/layoutCandidate";
@@ -75,8 +72,6 @@ type FixtureColumnExpectation = {
 };
 
 type FixtureExpected = {
-	readonly decision: AssessmentDecisionState;
-	readonly autoApplyAllowed: boolean;
 	readonly layoutKind: LayoutKind;
 	readonly blocks: number;
 	readonly blockFamily: MeasurementFamily;
@@ -221,8 +216,6 @@ const assertFixtureResult = (
 	result: RawTableAssessmentRecord,
 	expected: FixtureExpected,
 ): void => {
-	assert.equal(result.decision.state, expected.decision);
-	assert.equal(result.decision.autoApplyAllowed, expected.autoApplyAllowed);
 	assert.equal(result.layoutCandidates[0]?.layoutKind, expected.layoutKind);
 	assert.equal(result.blocks.length, expected.blocks);
 	assert.equal(result.blocks[0]?.family, expected.blockFamily);

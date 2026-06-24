@@ -1,6 +1,4 @@
 {
-  "decision": "reviewRequired",
-  "autoApplyAllowed": false,
   "layoutKind": "timeSeries",
   "blocks": 1,
   "blockFamily": "unknown",

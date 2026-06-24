@@ -385,8 +385,7 @@ export type RawTableAssessmentRecord = RawTableEvidenceRecord;
 因为旧 record 可能还有：
 
 ```txt
-decision
-autoApplyAllowed
+legacy application decision fields
 templateCandidates
 selectedTemplate
 recipeFingerprint
@@ -394,7 +393,8 @@ recipeFingerprint
 
 这些字段不属于 RawTableEvidence。
 
-必须使用 adapter：
+当前 `RawTableAssessmentRecord` 不再保存这些字段；只在读取旧持久化数据
+或迁移 fixture 时，把旧字段当作兼容输入剥离。必须使用 adapter：
 
 ```txt
 legacyAssessmentRecord
@@ -1041,8 +1041,8 @@ export type ReviewSelectionPolicy = {
 };
 ```
 
-`REVIEW_POLICY_VERSION = 2` 起，`systemRecommended` 不再读取
-`AssessmentDecision.autoApplyAllowed`。Assessment 只提供证据；Review 根据
+`REVIEW_POLICY_VERSION = 2` 起，`systemRecommended` 不再读取任何
+Assessment auto-apply 字段。Assessment 只提供证据；Review 根据
 `TemplateReview.confidence`、diagnostics 和 Review policy 生成
 `ReviewDecision.application`。
 

@@ -64,7 +64,6 @@ import type {
 import type {
   RawTableAssessmentRecord,
 } from "src/cs/workbench/services/assessment/common/assessment";
-import { createUnknownAssessmentDecision } from "src/cs/workbench/services/assessment/common/assessmentDecision";
 import type {
   MeasurementBlockRecord,
 } from "src/cs/workbench/services/assessment/common/measurement";
@@ -674,7 +673,6 @@ const createImportRawTableAssessmentRecords = (
       blocks: assessment.blocks,
       columnProfiles: assessment.columnProfiles ?? [],
       createdAt: assessment.createdAt,
-      decision: assessment.decision ?? createUnknownAssessmentDecision(),
       diagnostics: assessment.diagnostics,
       fileId,
       groups: assessment.groups,
@@ -737,15 +735,16 @@ const commitRawTableAssessmentsToFiles = (
       ...(file.rawTableReviewsByRawTableId ?? {}),
     };
     delete rawTableReviewsByRawTableId[rawTableId];
+    const assessmentEvidence = { ...assessment } as RawTableAssessmentRecord & { decision?: unknown };
+    delete assessmentEvidence.decision;
     const committedAssessment: RawTableAssessmentRecord = {
-      ...assessment,
+      ...assessmentEvidence,
       assessmentRuleVersion: normalizeAssessmentRuleVersion(assessment.assessmentRuleVersion) ?? 0,
       schemaProfileVersion: normalizeSchemaProfileVersion(assessment.schemaProfileVersion),
       fileId,
       rawTableId,
       blocks: committedBlocks,
       columnProfiles: assessment.columnProfiles ?? [],
-      decision: assessment.decision ?? createUnknownAssessmentDecision(),
       layoutCandidates: assessment.layoutCandidates ?? [],
       semanticCandidates: assessment.semanticCandidates ?? [],
       structure: assessment.structure ?? createEmptyRawTableStructure(),

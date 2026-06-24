@@ -24,7 +24,6 @@ import {
 	getColumnCount,
 	normalizePositiveCount,
 } from "src/cs/workbench/services/assessment/common/assessmentRecord";
-import { createAssessmentDecision } from "src/cs/workbench/services/assessment/browser/assessmentDecisionPolicy";
 import { createProfileBackedAssessment } from "src/cs/workbench/services/assessment/common/schemaProfileAssessment";
 import { createImportAssessmentSeedFromRows } from "src/cs/workbench/services/assessment/browser/importAssessmentSeed";
 
@@ -82,11 +81,6 @@ export class RawTableAssessmentEngine {
 			rowCount,
 			structure,
 		});
-		const decision = createAssessmentDecision({
-			assessment: effectiveAssessment,
-			columnProfile,
-			layoutCandidates,
-		});
 		return createRawTableAssessmentRecordFromImportAssessment({
 			...input,
 			assessment: effectiveAssessment,
@@ -94,7 +88,6 @@ export class RawTableAssessmentEngine {
 			columnProfile,
 			columnProfiles,
 			columnCount,
-			decision,
 			layoutCandidates,
 			rowCount,
 			rows: input.rows,
