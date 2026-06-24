@@ -10,21 +10,21 @@ import type { IContextMenuService } from "src/cs/platform/contextview/browser/co
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import { localize } from "src/cs/nls";
 import { SliceCommandId } from "src/cs/workbench/contrib/slice/common/slice";
-import { TemplateCommandId } from "src/cs/workbench/contrib/template/browser/templateIds";
+import { TemplateCommandId } from "src/cs/workbench/contrib/template/common/template";
 
-export type TemplateApplyViewOptions = {
+export type TemplateManagementViewOptions = {
   readonly commandService: Pick<ICommandService, "executeCommand">;
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
   readonly createTemplateActions: () => IAction[];
 };
 
-export type TemplateApplyViewState = {
+export type TemplateManagementViewState = {
   readonly canDeleteTemplate: boolean;
   readonly selectedTemplateLabel: string;
   readonly stopOnError: boolean;
 };
 
-export class TemplateApplyView {
+export class TemplateManagementView {
   public readonly element: HTMLElement;
   private readonly disposables = new DisposableStore();
   private readonly dropdownMenu: DropdownMenu;
@@ -33,11 +33,11 @@ export class TemplateApplyView {
   private readonly autoCard: HTMLElement;
 
   constructor(
-    private readonly options: TemplateApplyViewOptions,
-    state: TemplateApplyViewState,
+    private readonly options: TemplateManagementViewOptions,
+    state: TemplateManagementViewState,
   ) {
     this.element = document.createElement("div");
-    this.element.className = "template_apply_view template_view_content";
+    this.element.className = "template_management_view template_view_content";
 
     const dropdownRow = document.createElement("div");
     dropdownRow.className = "template_picker_field";
@@ -99,7 +99,7 @@ export class TemplateApplyView {
     this.element.append(dropdownRow);
 
     const applyActions = document.createElement("div");
-    applyActions.className = "template_apply_actions";
+    applyActions.className = "template_management_actions";
 
     const applyAllButton = createButton({
       label: localize("template.applyAll.label", "Apply to All"),
@@ -162,7 +162,7 @@ export class TemplateApplyView {
     this.update(state);
   }
 
-  public update(state: TemplateApplyViewState): void {
+  public update(state: TemplateManagementViewState): void {
     this.dropdownLabel.textContent = state.selectedTemplateLabel;
     this.dropdownLabel.parentElement?.setAttribute("aria-label", state.selectedTemplateLabel);
 

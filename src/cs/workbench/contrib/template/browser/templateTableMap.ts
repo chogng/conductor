@@ -7,7 +7,7 @@ import {
   parseCellLabel,
   toCellLabel,
 } from "src/cs/workbench/services/template/common/templateCellRef";
-import type { TemplateApplyConfig } from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
+import type { TemplateEditorConfig } from "src/cs/workbench/services/template/common/templateEditorConfig";
 import {
   normalizeColumnIndexes,
 } from "src/cs/workbench/services/template/common/templateXYBinding";
@@ -19,6 +19,9 @@ import {
   type TemplateXRange,
 } from "src/cs/workbench/services/template/common/templateXRange";
 
+// UI-only bidirectional map between table picking and Template editor fields.
+// Forward: ITableService selection -> TemplateEditorConfig updates.
+// Reverse: TemplateEditorConfig cell labels -> ITableService active-cell targets.
 export { normalizeColumnIndexes };
 
 export const areColumnIndexesEqual = (
@@ -42,7 +45,7 @@ export const areTableCellsEqual = (
     return !first && !second;
   }
 
-	return first.fileId === second.fileId &&
+  return first.fileId === second.fileId &&
     first.sheetId === second.sheetId &&
     first.rowIndex === second.rowIndex &&
     first.colIndex === second.colIndex;
@@ -70,7 +73,7 @@ export const areTableRangesEqual = (
 export const resolveTemplateColumnSelectionUpdate = (
   selection: TableSelection,
   target: TemplateColumnPickTarget = "yColumns",
-): Partial<TemplateApplyConfig> => {
+): Partial<TemplateEditorConfig> => {
   const columns = normalizeColumnIndexes(selection.selectedColumns);
   return target === "yColumns" ? { yColumns: columns } : {};
 };
@@ -86,7 +89,7 @@ export const resolveTemplateXRangeSelectionUpdate = (
     readonly replaceFrom?: number;
     readonly rowCount?: number | null;
   } = {},
-): Partial<TemplateApplyConfig> => {
+): Partial<TemplateEditorConfig> => {
   const selectedRanges = normalizeTableRanges(selection.ranges)
     .flatMap(range => createTemplateXRangesFromTableRange(range, rowCount));
   if (!selectedRanges.length) {
@@ -109,8 +112,8 @@ export const resolveTemplateXRangeSelectionUpdate = (
 export const resolveTemplateCellSelectionUpdate = (
   activeCell: TableCell | null | undefined,
   activePickField: TemplatePickFieldName | null,
-): Partial<TemplateApplyConfig> => {
-  const updates: Partial<TemplateApplyConfig> = {};
+): Partial<TemplateEditorConfig> => {
+  const updates: Partial<TemplateEditorConfig> = {};
   if (!activeCell || !activePickField) {
     return updates;
   }
@@ -188,7 +191,7 @@ function createTemplateXRangesFromTableRange(
 }
 
 export const resolveTemplateCellSelection = (
-  config: TemplateApplyConfig,
+  config: TemplateEditorConfig,
   activePickField: TemplatePickFieldName | null,
   currentCell: TableCell | null | undefined,
 ): TableCell | null => {

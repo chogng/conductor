@@ -406,7 +406,7 @@ html[data-nav="keyboard"] .template_field .inputbox_field[data-picking="true"]::
   overflow: visible;
 }
 
-.template_apply_actions {
+.template_management_actions {
   padding-inline: 2px;
 }
 
@@ -420,7 +420,7 @@ html[data-nav="keyboard"] .template_field .inputbox_field[data-picking="true"]::
   font-weight: 500;
 }
 
-.template_apply_actions {
+.template_management_actions {
   display: grid;
   flex-shrink: 0;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);

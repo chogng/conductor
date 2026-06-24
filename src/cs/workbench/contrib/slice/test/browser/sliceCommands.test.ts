@@ -26,7 +26,7 @@ import {
 	type SliceRequest,
 	type SliceState,
 } from "src/cs/workbench/services/slice/common/slice";
-import { createEmptyTemplateApplyConfig } from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
+import { createEmptyTemplateEditorConfig } from "src/cs/workbench/services/template/common/templateEditorConfig";
 import {
 	type TemplateState,
 	ITemplateViewStateService,
@@ -66,7 +66,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 			sliceService,
 			templateState: createTemplateState({
 				selectedTemplateId: "template-a",
-				formState: createEmptyTemplateApplyConfig({
+				formState: createEmptyTemplateEditorConfig({
 					name: "Template A",
 					xColumns: [0],
 					xDataStart: "A2",
@@ -208,7 +208,7 @@ const createTemplateViewStateService = (state: TemplateState): ITemplateViewStat
 });
 
 const createTemplateState = (overrides: Partial<TemplateState> = {}): TemplateState => ({
-	formState: createEmptyTemplateApplyConfig(),
+	formState: createEmptyTemplateEditorConfig(),
 	mode: "management",
 	selectedTemplateId: null,
 	...overrides,

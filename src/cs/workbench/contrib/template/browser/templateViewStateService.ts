@@ -8,20 +8,20 @@ import { InstantiationType, registerSingleton } from "src/cs/platform/instantiat
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import { isAutoTemplateId } from "src/cs/workbench/services/template/common/autoTemplate";
 import type {
-  TemplateApplyPresetRecord,
+  TemplateEditorRecord,
 } from "src/cs/workbench/services/template/common/template";
 import {
-  cloneTemplateApplyConfig,
-  createEmptyTemplateApplyConfig,
-  type TemplateApplyConfig,
-} from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
+  cloneTemplateEditorConfig,
+  createEmptyTemplateEditorConfig,
+  type TemplateEditorConfig,
+} from "src/cs/workbench/services/template/common/templateEditorConfig";
 import type { Event } from "src/cs/base/common/event";
 
 export const ITemplateViewStateService =
   createDecorator<ITemplateViewStateService>("templateViewStateService");
 
 export type TemplateEditorCancelOptions = {
-  readonly fallbackTemplate?: TemplateApplyPresetRecord | null;
+  readonly fallbackTemplate?: TemplateEditorRecord | null;
   readonly stopOnError?: boolean;
 };
 
@@ -30,7 +30,7 @@ export type TemplateMode = "management" | "editor";
 export type TemplateState = {
   readonly mode: TemplateMode;
   readonly selectedTemplateId: string | null;
-  readonly formState: TemplateApplyConfig;
+  readonly formState: TemplateEditorConfig;
 };
 
 export type TemplateStateSetter<T> = (value: T | ((previous: T) => T)) => void;
@@ -39,13 +39,13 @@ export interface ITemplateViewStateService {
   readonly _serviceBrand: undefined;
   readonly onDidChangeTemplateState: Event<TemplateState>;
 
-  selectTemplate(template?: TemplateApplyPresetRecord | null): boolean;
-  createTemplateDraft(template?: Partial<TemplateApplyConfig> | null): void;
+  selectTemplate(template?: TemplateEditorRecord | null): boolean;
+  createTemplateDraft(template?: Partial<TemplateEditorConfig> | null): void;
   cancelTemplateEditor(options?: TemplateEditorCancelOptions): void;
-  editTemplate(template: TemplateApplyPresetRecord): boolean;
-  finishTemplateEditor(template: TemplateApplyPresetRecord): void;
+  editTemplate(template: TemplateEditorRecord): boolean;
+  finishTemplateEditor(template: TemplateEditorRecord): void;
   getState(): TemplateState;
-  setFormState: TemplateStateSetter<TemplateApplyConfig>;
+  setFormState: TemplateStateSetter<TemplateEditorConfig>;
 }
 
 export class TemplateViewStateService extends Disposable implements ITemplateViewStateService {
@@ -56,12 +56,12 @@ export class TemplateViewStateService extends Disposable implements ITemplateVie
 
   private state: TemplateState = createDefaultTemplateState();
 
-  public selectTemplate(template: TemplateApplyPresetRecord | null = null): boolean {
+  public selectTemplate(template: TemplateEditorRecord | null = null): boolean {
     const stopOnError = getTemplateStopOnError(template, this.state.formState.stopOnError);
     if (!template) {
       this.updateState({
         selectedTemplateId: null,
-        formState: createEmptyTemplateApplyConfig({
+        formState: createEmptyTemplateEditorConfig({
           stopOnError,
         }),
         mode: "management",
@@ -73,7 +73,7 @@ export class TemplateViewStateService extends Disposable implements ITemplateVie
     if (!templateId) {
       this.updateState({
         selectedTemplateId: null,
-        formState: createEmptyTemplateApplyConfig({
+        formState: createEmptyTemplateEditorConfig({
           stopOnError,
         }),
         mode: "management",
@@ -83,16 +83,16 @@ export class TemplateViewStateService extends Disposable implements ITemplateVie
 
     this.updateState({
       selectedTemplateId: templateId,
-      formState: cloneTemplateApplyConfig(template),
+      formState: cloneTemplateEditorConfig(template),
       mode: "management",
     });
     return true;
   }
 
-  public createTemplateDraft(template: Partial<TemplateApplyConfig> | null = null): void {
+  public createTemplateDraft(template: Partial<TemplateEditorConfig> | null = null): void {
     this.updateState({
       selectedTemplateId: null,
-      formState: createEmptyTemplateApplyConfig({
+      formState: createEmptyTemplateEditorConfig({
         stopOnError: getTemplateStopOnError(template, this.state.formState.stopOnError),
       }),
       mode: "editor",
@@ -105,7 +105,7 @@ export class TemplateViewStateService extends Disposable implements ITemplateVie
     if (fallbackTemplate && templateId) {
       this.updateState({
         selectedTemplateId: templateId,
-        formState: cloneTemplateApplyConfig(fallbackTemplate),
+        formState: cloneTemplateEditorConfig(fallbackTemplate),
         mode: "management",
       });
       return;
@@ -116,14 +116,14 @@ export class TemplateViewStateService extends Disposable implements ITemplateVie
       : this.state.formState.stopOnError;
     this.updateState({
       selectedTemplateId: null,
-      formState: createEmptyTemplateApplyConfig({
+      formState: createEmptyTemplateEditorConfig({
         stopOnError,
       }),
       mode: "management",
     });
   }
 
-  public editTemplate(template: TemplateApplyPresetRecord): boolean {
+  public editTemplate(template: TemplateEditorRecord): boolean {
     const templateId = getTemplateId(template);
     if (!templateId) {
       return false;
@@ -131,16 +131,16 @@ export class TemplateViewStateService extends Disposable implements ITemplateVie
 
     this.updateState({
       selectedTemplateId: templateId,
-      formState: cloneTemplateApplyConfig(template),
+      formState: cloneTemplateEditorConfig(template),
       mode: "editor",
     });
     return true;
   }
 
-  public finishTemplateEditor(template: TemplateApplyPresetRecord): void {
+  public finishTemplateEditor(template: TemplateEditorRecord): void {
     this.updateState({
       selectedTemplateId: getTemplateId(template),
-      formState: cloneTemplateApplyConfig(template),
+      formState: cloneTemplateEditorConfig(template),
       mode: "management",
     });
   }
@@ -149,7 +149,7 @@ export class TemplateViewStateService extends Disposable implements ITemplateVie
     return this.state;
   }
 
-  public readonly setFormState = (value: TemplateApplyConfig | ((previous: TemplateApplyConfig) => TemplateApplyConfig)): void => {
+  public readonly setFormState = (value: TemplateEditorConfig | ((previous: TemplateEditorConfig) => TemplateEditorConfig)): void => {
     this.updateState({ formState: resolveNext(value, this.state.formState) });
   };
 
@@ -167,13 +167,13 @@ export class TemplateViewStateService extends Disposable implements ITemplateVie
   }
 }
 
-const getTemplateId = (template: TemplateApplyPresetRecord): string | null => {
+const getTemplateId = (template: TemplateEditorRecord): string | null => {
   const templateId = String(template.id ?? "").trim();
   return templateId && !isAutoTemplateId(templateId) ? templateId : null;
 };
 
 const getTemplateStopOnError = (
-  template: Partial<TemplateApplyConfig> | null,
+  template: Partial<TemplateEditorConfig> | null,
   fallback: boolean,
 ): boolean =>
   typeof template?.stopOnError === "boolean"
@@ -183,7 +183,7 @@ const getTemplateStopOnError = (
 const createDefaultTemplateState = (): TemplateState => ({
   mode: "management",
   selectedTemplateId: null,
-  formState: createEmptyTemplateApplyConfig(),
+  formState: createEmptyTemplateEditorConfig(),
 });
 
 const resolveNext = <T,>(value: T | ((previous: T) => T), previous: T): T =>

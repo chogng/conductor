@@ -171,11 +171,11 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
   partitioned into table-fact/slicing/binding/apply sub-templates.
 - Review consumes materialized Template candidates. Slice consumes reviewed
   Template snapshots. Neither re-materializes Recipe or table facts.
-- `TemplateApplyConfig` owns manual extraction configuration such as
+- `TemplateEditorConfig` owns manual extraction configuration such as
   data rows, segmentation, legend target, units, titles, y columns, and
   stop-on-error. It may be adapted into a canonical `Template` snapshot, but it
   is not Session canonical data.
-- `TemplateApplyPresetRecord` owns saved user apply-preset data, not canonical
+- `TemplateEditorRecord` owns editable user-template data, not canonical
   measurement structure.
 - `TemplateState` owns Template UI selected-template/form editor state through
   `ITemplateViewStateService`; it is not session canonical data and does not

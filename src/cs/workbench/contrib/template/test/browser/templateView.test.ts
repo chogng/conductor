@@ -1,8 +1,8 @@
 import assert from "assert";
 
-import { createEmptyTemplateApplyConfig } from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
+import { createEmptyTemplateEditorConfig } from "src/cs/workbench/services/template/common/templateEditorConfig";
 import {
-  createTemplateApplyViewState,
+  createTemplateManagementViewState,
   resolveTemplateSaveId,
   shouldSyncTemplateEditorTableSelection,
 } from "src/cs/workbench/contrib/template/browser/views/templateView";
@@ -12,13 +12,13 @@ suite("workbench/contrib/template/test/browser/templateView", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
   const autoTemplateSelectionId = "auto";
 
-  test("createTemplateApplyViewState uses loaded templates for the selected label", () => {
-    const config = createEmptyTemplateApplyConfig({
+  test("createTemplateManagementViewState uses loaded templates for the selected label", () => {
+    const config = createEmptyTemplateEditorConfig({
       name: "Transfer",
     });
 
     assert.deepEqual(
-      createTemplateApplyViewState({
+      createTemplateManagementViewState({
         config,
         selectedTemplateId: "template-a",
         stopOnErrorDraft: null,
@@ -32,13 +32,13 @@ suite("workbench/contrib/template/test/browser/templateView", () => {
     );
   });
 
-  test("createTemplateApplyViewState falls back to recommended label and draft stop-on-error", () => {
-    const config = createEmptyTemplateApplyConfig({
+  test("createTemplateManagementViewState falls back to recommended label and draft stop-on-error", () => {
+    const config = createEmptyTemplateEditorConfig({
       name: "",
       stopOnError: false,
     });
 
-    const state = createTemplateApplyViewState({
+    const state = createTemplateManagementViewState({
       config,
       selectedTemplateId: autoTemplateSelectionId,
       stopOnErrorDraft: true,
@@ -50,9 +50,9 @@ suite("workbench/contrib/template/test/browser/templateView", () => {
     assert.equal(state.stopOnError, true);
   });
 
-  test("createTemplateApplyViewState falls back to selected template id before templates load", () => {
-    const state = createTemplateApplyViewState({
-      config: createEmptyTemplateApplyConfig(),
+  test("createTemplateManagementViewState falls back to selected template id before templates load", () => {
+    const state = createTemplateManagementViewState({
+      config: createEmptyTemplateEditorConfig(),
       selectedTemplateId: "template-a",
       stopOnErrorDraft: null,
       templates: null,

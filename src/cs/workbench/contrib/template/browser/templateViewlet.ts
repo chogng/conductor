@@ -14,9 +14,7 @@ import { ISessionService } from "src/cs/workbench/services/session/common/sessio
 import { createSessionReadModel } from "src/cs/workbench/services/session/common/sessionReadModel";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
-import {
-  TemplateAuxiliaryBarViewId,
-} from "src/cs/workbench/contrib/template/browser/templateIds";
+import { TemplateViewId } from "src/cs/workbench/contrib/template/common/template";
 import {
   IUserTemplateService,
   type IUserTemplateService as IUserTemplateServiceType,
@@ -35,7 +33,7 @@ import "src/cs/workbench/contrib/template/browser/media/templateViewPane.css";
 const TEMPLATE_TITLE = localize("template.management.title", "Template Management");
 const TEMPLATE_EDITOR_TITLE = localize("template.editor.title", "Template Editor");
 
-export class TemplateAuxiliaryBarViewPane extends ViewPane {
+export class TemplateViewPane extends ViewPane {
   private readonly content = document.createElement("div");
   private readonly templateView: TemplateView;
 
@@ -49,7 +47,7 @@ export class TemplateAuxiliaryBarViewPane extends ViewPane {
     @ITemplateViewStateService private readonly templateViewStateService: ITemplateViewStateServiceType,
   ) {
     super({
-      id: TemplateAuxiliaryBarViewId,
+      id: TemplateViewId,
       title: TEMPLATE_TITLE,
       className: "auxiliarybar_view_pane template_auxiliarybar_view_pane",
       bodyClassName: "workbench-part-view-pane__body",

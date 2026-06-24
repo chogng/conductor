@@ -11,7 +11,7 @@ import {
   type TemplateXRange,
 } from "src/cs/workbench/services/template/common/templateXRange";
 
-export type TemplateApplyConfig = {
+export type TemplateEditorConfig = {
   bottomTitle: string;
   leftTitle: string;
   legendPrefix: string;
@@ -33,9 +33,9 @@ export type TemplateApplyConfig = {
   yUnit: string;
 };
 
-export const createEmptyTemplateApplyConfig = (
-  overrides: Partial<TemplateApplyConfig> = {},
-): TemplateApplyConfig => {
+export const createEmptyTemplateEditorConfig = (
+  overrides: Partial<TemplateEditorConfig> = {},
+): TemplateEditorConfig => {
   const config = {
     name: "",
     xDataStart: "",
@@ -99,11 +99,11 @@ export const normalizeXDataEndValue = (value: unknown): string => {
   return raw;
 };
 
-export const cloneTemplateApplyConfig = (
-  config: Partial<TemplateApplyConfig>,
-): TemplateApplyConfig => {
+export const cloneTemplateEditorConfig = (
+  config: Partial<TemplateEditorConfig>,
+): TemplateEditorConfig => {
   const yColumns = normalizeColumnIndexes(config.yColumns);
-  const cloned = createEmptyTemplateApplyConfig({
+  const cloned = createEmptyTemplateEditorConfig({
     bottomTitle: config.bottomTitle,
     leftTitle: config.leftTitle,
     legendPrefix: config.legendPrefix,
@@ -138,9 +138,9 @@ export const cloneTemplateApplyConfig = (
   };
 };
 
-export const normalizeTemplateApplyConfigRecord = (
-  source: Partial<TemplateApplyConfig> & Record<string, unknown>,
-): TemplateApplyConfig => {
+export const normalizeTemplateEditorConfigRecord = (
+  source: Partial<TemplateEditorConfig> & Record<string, unknown>,
+): TemplateEditorConfig => {
   const xDataStart = String(source?.xDataStart ?? "");
   const xDataEnd = normalizeXDataEndValue(source?.xDataEnd);
   const yColumns = normalizeColumnIndexes(source?.yColumns);
@@ -155,7 +155,7 @@ export const normalizeTemplateApplyConfigRecord = (
     ? xColumnsFromRanges
     : normalizeTemplateXColumns(source?.xColumns, xDataStart);
 
-  return createEmptyTemplateApplyConfig({
+  return createEmptyTemplateEditorConfig({
     name: String(source?.name ?? ""),
     xDataStart,
     xDataEnd,

@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-export const TemplateAuxiliaryBarViewId = "workbench.template.auxiliarybar";
+export const TemplateViewId = "workbench.template.auxiliarybar";
 
 export const TemplateCommandId = {
 	selectTemplate: "template.selectTemplate",

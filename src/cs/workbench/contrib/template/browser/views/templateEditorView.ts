@@ -8,7 +8,7 @@ import { LxIcon } from "src/cs/base/common/lxicon";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import { localize } from "src/cs/nls";
 import { X_UNIT_VALUES, Y_UNIT_VALUES } from "src/cs/workbench/services/plot/common/units";
-import type { TemplateApplyConfig } from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
+import type { TemplateEditorConfig } from "src/cs/workbench/services/template/common/templateEditorConfig";
 import { toColumnLabel } from "src/cs/workbench/services/template/common/templateCellRef";
 import {
   formatTemplateXRangeLabel,
@@ -32,8 +32,8 @@ export type TemplateColumnPickTarget = "xRanges" | "yColumns";
 
 type TemplateStringFieldName = Exclude<
   {
-    [K in keyof TemplateApplyConfig]: TemplateApplyConfig[K] extends string ? K : never;
-  }[keyof TemplateApplyConfig],
+    [K in keyof TemplateEditorConfig]: TemplateEditorConfig[K] extends string ? K : never;
+  }[keyof TemplateEditorConfig],
   "xSegmentationMode" | "xUnit" | "yLegendTarget" | "yUnit"
 >;
 
@@ -56,13 +56,13 @@ export type TemplateEditorViewOptions = {
   readonly onColumnPickTargetChange: (target: TemplateColumnPickTarget) => void;
   readonly onPickFieldFocus: (field: TemplatePickFieldName | null) => void;
   readonly onSave: () => void;
-  readonly onUpdateConfig: (updates: Partial<TemplateApplyConfig>) => void;
+  readonly onUpdateConfig: (updates: Partial<TemplateEditorConfig>) => void;
 };
 
 export type TemplateEditorViewState = {
   readonly activePickField: TemplatePickFieldName | null;
   readonly activeColumnPickTarget: TemplateColumnPickTarget;
-  readonly config: TemplateApplyConfig;
+  readonly config: TemplateEditorConfig;
   readonly selectedXRangeLabels: readonly string[];
   readonly selectedYColumnLabels: readonly string[];
 };
@@ -76,7 +76,7 @@ const PICKABLE_TEMPLATE_FIELDS: ReadonlySet<TemplateEditorInputName> = new Set([
 
 const X_SEGMENTATION_OPTIONS: Array<{
   label: string;
-  value: TemplateApplyConfig["xSegmentationMode"];
+  value: TemplateEditorConfig["xSegmentationMode"];
 }> = [
   { label: localize("template.xMode.auto", "Auto"), value: "auto" },
   { label: localize("template.xMode.points", "Point count"), value: "points" },
@@ -85,19 +85,19 @@ const X_SEGMENTATION_OPTIONS: Array<{
 
 const Y_LEGEND_TARGET_OPTIONS: Array<{
   label: string;
-  value: TemplateApplyConfig["yLegendTarget"];
+  value: TemplateEditorConfig["yLegendTarget"];
 }> = [
   { label: localize("template.yTarget.auto", "Auto"), value: "auto" },
   { label: localize("template.yTarget.column", "Y column"), value: "yColumn" },
   { label: localize("template.yTarget.group", "Group"), value: "group" },
 ];
 
-const X_UNIT_OPTIONS: Array<{ label: string; value: TemplateApplyConfig["xUnit"] }> = X_UNIT_VALUES.map((value) => ({
+const X_UNIT_OPTIONS: Array<{ label: string; value: TemplateEditorConfig["xUnit"] }> = X_UNIT_VALUES.map((value) => ({
   label: value,
   value,
 }));
 
-const Y_UNIT_OPTIONS: Array<{ label: string; value: TemplateApplyConfig["yUnit"] }> = Y_UNIT_VALUES.map((value) => ({
+const Y_UNIT_OPTIONS: Array<{ label: string; value: TemplateEditorConfig["yUnit"] }> = Y_UNIT_VALUES.map((value) => ({
   label: value,
   value,
 }));
@@ -106,10 +106,10 @@ export class TemplateEditorView {
   public readonly element: HTMLElement;
   private readonly disposables = new DisposableStore();
   private readonly inputs: Record<TemplateEditorInputName, HTMLInputElement>;
-  private readonly xSegmentationMode: SelectField<TemplateApplyConfig["xSegmentationMode"]>;
-  private readonly xUnit: SelectField<TemplateApplyConfig["xUnit"]>;
-  private readonly yLegendTarget: SelectField<TemplateApplyConfig["yLegendTarget"]>;
-  private readonly yUnit: SelectField<TemplateApplyConfig["yUnit"]>;
+  private readonly xSegmentationMode: SelectField<TemplateEditorConfig["xSegmentationMode"]>;
+  private readonly xUnit: SelectField<TemplateEditorConfig["xUnit"]>;
+  private readonly yLegendTarget: SelectField<TemplateEditorConfig["yLegendTarget"]>;
+  private readonly yUnit: SelectField<TemplateEditorConfig["yUnit"]>;
   private readonly xRangeInput: TemplateChipInput;
   private readonly yColumnsInput: TemplateChipInput;
   private readonly focusInputValues = new Map<TemplateEditorInputName, string>();
@@ -548,7 +548,7 @@ export class TemplateEditorView {
     });
   }
 
-  private updateXSegmentationFields(mode: TemplateApplyConfig["xSegmentationMode"]): void {
+  private updateXSegmentationFields(mode: TemplateEditorConfig["xSegmentationMode"]): void {
     this.setFieldHidden(this.inputs.xSegmentCount, mode !== "segments");
     this.setFieldHidden(this.inputs.xPointsPerGroup, mode !== "points");
   }

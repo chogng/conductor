@@ -1,21 +1,21 @@
 import assert from "assert";
 
 import { toColumnLabel } from "src/cs/workbench/services/template/common/templateCellRef";
-import type { TemplateApplyConfig } from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
+import type { TemplateEditorConfig } from "src/cs/workbench/services/template/common/templateEditorConfig";
 import {
   areTableCellsEqual,
   areColumnIndexesEqual,
   normalizeColumnIndexes,
   resolveTemplateCellSelection,
-	  resolveTemplateCellSelectionUpdate,
-	  resolveTemplateColumnSelectionUpdate,
-	  resolveTemplateXRangeSelectionUpdate,
-	} from "../../browser/templateSelection.ts";
+  resolveTemplateCellSelectionUpdate,
+  resolveTemplateColumnSelectionUpdate,
+  resolveTemplateXRangeSelectionUpdate,
+} from "../../browser/templateTableMap.ts";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
-suite("workbench/contrib/template/test/browser/templateSelection", () => {
+suite("workbench/contrib/template/test/browser/templateTableMap", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
-  test("template selection normalizes and labels columns", () => {
+  test("template table map normalizes and labels columns", () => {
     assert.deepEqual(normalizeColumnIndexes([2.9, 0, 2, -1, Number.NaN, 1]), [2, 0, 1]);
     assert.equal(areColumnIndexesEqual([2, 0, 2], [0, 2]), false);
     assert.equal(toColumnLabel(0), "A");
@@ -23,7 +23,7 @@ suite("workbench/contrib/template/test/browser/templateSelection", () => {
     assert.equal(toColumnLabel(26), "AA");
   });
 
-  test("template selection compares active cells", () => {
+  test("template table map compares active cells", () => {
     assert.equal(areTableCellsEqual(null, undefined), true);
     assert.equal(
       areTableCellsEqual(
@@ -41,16 +41,16 @@ suite("workbench/contrib/template/test/browser/templateSelection", () => {
     );
   });
 
-  test("template selection resolves column updates", () => {
+  test("template table map resolves column updates", () => {
     assert.deepEqual(
       resolveTemplateColumnSelectionUpdate({
         selectedColumns: [4, 3, 4],
         activeCell: { rowIndex: 3, colIndex: 3 },
-	      }),
-	      {
-	        yColumns: [4, 3],
-	      },
-	    );
+      }),
+      {
+        yColumns: [4, 3],
+      },
+    );
 
     assert.deepEqual(
       resolveTemplateColumnSelectionUpdate({}),
@@ -58,9 +58,9 @@ suite("workbench/contrib/template/test/browser/templateSelection", () => {
         yColumns: [],
       },
     );
-	  });
+  });
 
-  test("template selection resolves X range updates", () => {
+  test("template table map resolves X range updates", () => {
     assert.deepEqual(
       resolveTemplateXRangeSelectionUpdate({
         ranges: [{
@@ -84,7 +84,7 @@ suite("workbench/contrib/template/test/browser/templateSelection", () => {
     );
   });
 
-  test("template selection resolves active cell updates", () => {
+  test("template table map resolves active cell updates", () => {
     assert.deepEqual(
       resolveTemplateCellSelectionUpdate(
         { rowIndex: 3, colIndex: 3 },
@@ -124,8 +124,8 @@ suite("workbench/contrib/template/test/browser/templateSelection", () => {
     );
   });
 
-  test("template selection resolves focused field back to active cell", () => {
-    const config: TemplateApplyConfig = {
+  test("template table map resolves focused field back to active cell", () => {
+    const config: TemplateEditorConfig = {
       bottomTitle: "",
       leftTitle: "",
       legendPrefix: "",

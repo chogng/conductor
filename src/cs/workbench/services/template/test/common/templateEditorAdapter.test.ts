@@ -5,16 +5,16 @@
 import assert from "assert";
 
 import {
-  createTemplateApplyPresetRecordFromTemplate,
-  createTemplateFromApplyPresetRecord,
-} from "src/cs/workbench/services/template/common/templateApplyPresetAdapter";
+  createTemplateEditorRecordFromTemplate,
+  createTemplateFromEditorRecord,
+} from "src/cs/workbench/services/template/common/templateEditorAdapter";
 import type { Template } from "src/cs/workbench/services/template/common/template";
 
-suite("workbench/services/template/test/common/templateApplyPresetAdapter", () => {
-  test("projects canonical templates into editable apply preset records", () => {
+suite("workbench/services/template/test/common/templateEditorAdapter", () => {
+  test("projects canonical templates into editable template editor records", () => {
     const template = createTemplate();
 
-    const record = createTemplateApplyPresetRecordFromTemplate(template);
+    const record = createTemplateEditorRecordFromTemplate(template);
 
     assert.equal(record.id, "template-a");
     assert.equal(record.name, "Transfer");
@@ -32,12 +32,12 @@ suite("workbench/services/template/test/common/templateApplyPresetAdapter", () =
     assert.equal(record.legendPrefix, "Vd");
   });
 
-  test("round trips editable apply preset records through canonical templates", () => {
+  test("round trips editable template editor records through canonical templates", () => {
     const template = createTemplate();
 
-    const record = createTemplateApplyPresetRecordFromTemplate(template);
+    const record = createTemplateEditorRecordFromTemplate(template);
     const { template: _template, ...editableRecord } = record;
-    const roundTripped = createTemplateFromApplyPresetRecord(editableRecord);
+    const roundTripped = createTemplateFromEditorRecord(editableRecord);
 
     assert.equal(roundTripped?.id, "template-a");
     assert.equal(roundTripped?.name, "Transfer");

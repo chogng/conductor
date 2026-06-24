@@ -15,8 +15,8 @@ import { localize } from "src/cs/nls";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
 import {
-  type TemplateApplyConfig,
-} from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
+  type TemplateEditorConfig,
+} from "src/cs/workbench/services/template/common/templateEditorConfig";
 import {
   Severity,
   type INotificationService,
@@ -26,18 +26,18 @@ import { validateTemplateForSave } from "src/cs/workbench/services/template/comm
 import {
   isAutoTemplateId,
 } from "src/cs/workbench/services/template/common/autoTemplate";
-import { TemplateCommandId } from "src/cs/workbench/contrib/template/browser/templateIds";
+import { TemplateCommandId } from "src/cs/workbench/contrib/template/common/template";
 import type {
-  TemplateApplyPresetRecord,
+  TemplateEditorRecord,
 } from "src/cs/workbench/services/template/common/template";
 import {
-  createTemplateFromApplyPresetRecord,
-} from "src/cs/workbench/services/template/common/templateApplyPresetAdapter";
+  createTemplateFromEditorRecord,
+} from "src/cs/workbench/services/template/common/templateEditorAdapter";
 import type {
   IUserTemplateService,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 import {
-  createTemplateApplyPresetRecordFromUserTemplate,
+  createTemplateEditorRecordFromUserTemplate,
 } from "src/cs/workbench/contrib/template/browser/templateUserTemplateAdapter";
 import type {
   ITemplateViewStateService,
@@ -45,7 +45,7 @@ import type {
 } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import type { ITableService, TableSelection } from "src/cs/workbench/services/table/common/table";
-import { TemplateApplyView } from "src/cs/workbench/contrib/template/browser/views/templateApplyView";
+import { TemplateManagementView } from "src/cs/workbench/contrib/template/browser/views/templateManagementView";
 import {
   TemplateEditorView,
   type TemplateColumnPickTarget,
@@ -61,7 +61,7 @@ import {
   resolveTemplateCellSelectionUpdate,
   resolveTemplateColumnSelectionUpdate,
   resolveTemplateXRangeSelectionUpdate,
-} from "src/cs/workbench/contrib/template/browser/templateSelection";
+} from "src/cs/workbench/contrib/template/browser/templateTableMap";
 import {
   areTemplateXRangesEqual,
   formatTemplateXRangeLabel,
@@ -106,19 +106,19 @@ export const resolveTemplateSaveId = (
     : undefined;
 };
 
-export type TemplateApplyStateInput = {
-  readonly config: TemplateApplyConfig;
+export type TemplateManagementStateInput = {
+  readonly config: TemplateEditorConfig;
   readonly selectedTemplateId: string | null;
   readonly stopOnErrorDraft: boolean | null;
-  readonly templates: readonly TemplateApplyPresetRecord[] | null;
+  readonly templates: readonly TemplateEditorRecord[] | null;
 };
 
-export const createTemplateApplyViewState = ({
+export const createTemplateManagementViewState = ({
   config,
   selectedTemplateId,
   stopOnErrorDraft,
   templates,
-}: TemplateApplyStateInput) => {
+}: TemplateManagementStateInput) => {
   const effectiveConfig = stopOnErrorDraft === null
     ? config
     : {
@@ -153,10 +153,10 @@ export class TemplateView {
   private tableService: TemplateViewOptions["tableService"] | null = null;
   private mode: TemplateMode | null = null;
   private stopOnErrorDraft: boolean | null = null;
-  private applyView: TemplateApplyView | null = null;
+  private managementView: TemplateManagementView | null = null;
   private editorView: TemplateEditorView | null = null;
   private hasRequestedUserTemplates = false;
-  private stopOnErrorDraftSource: TemplateApplyConfig | null = null;
+  private stopOnErrorDraftSource: TemplateEditorConfig | null = null;
 
   constructor(props: TemplateViewOptions) {
     this.props = props;
@@ -177,7 +177,7 @@ export class TemplateView {
     return this.props.templateViewStateService.getState().selectedTemplateId;
   }
 
-  private readTemplateFormState(): TemplateApplyConfig {
+  private readTemplateFormState(): TemplateEditorConfig {
     return this.props.templateViewStateService.getState().formState;
   }
 
@@ -197,12 +197,12 @@ export class TemplateView {
       }
       replaceChildrenIfChanged(
         this.configElement,
-        nextMode === "management" ? this.getApplyView().element : this.getEditorView().element,
+        nextMode === "management" ? this.getManagementView().element : this.getEditorView().element,
       );
     }
 
     if (nextMode === "management") {
-      this.updateApplyView();
+      this.updateManagementView();
       return;
     }
 
@@ -214,9 +214,9 @@ export class TemplateView {
     this.disposeTableSelectionListener?.();
     this.disposeTableSelectionListener = null;
     this.clearTemplateTableSelection();
-    this.applyView?.dispose();
+    this.managementView?.dispose();
     this.editorView?.dispose();
-    this.applyView = null;
+    this.managementView = null;
     this.editorView = null;
     this.configElement.replaceChildren();
     this.configElement.remove();
@@ -224,7 +224,7 @@ export class TemplateView {
     this.element.remove();
   }
 
-  private getEffectiveTemplateFormState(): TemplateApplyConfig {
+  private getEffectiveTemplateFormState(): TemplateEditorConfig {
     const config = this.readTemplateFormState();
     if (this.stopOnErrorDraft === null) {
       return config;
@@ -281,10 +281,10 @@ export class TemplateView {
     this.disposeTableSelectionListener = () => disposable.dispose();
   }
 
-  private updateTemplateFormState(updates: Partial<TemplateApplyConfig>): void {
+  private updateTemplateFormState(updates: Partial<TemplateEditorConfig>): void {
     const current = this.getEffectiveTemplateFormState();
     let changed = false;
-    const next: TemplateApplyConfig = {
+    const next: TemplateEditorConfig = {
       ...current,
       ...updates,
     };
@@ -311,7 +311,7 @@ export class TemplateView {
       if (key === "xColumns" || key === "xRanges" || key === "yColumns") {
         continue;
       }
-      if (current[key as keyof TemplateApplyConfig] !== value) {
+      if (current[key as keyof TemplateEditorConfig] !== value) {
         changed = true;
       }
     }
@@ -427,7 +427,7 @@ export class TemplateView {
     this.hasRequestedUserTemplates = true;
     this.props.userTemplateService.refreshTemplates()
       .then(() => {
-        this.updateApplyView();
+        this.updateManagementView();
         this.updateEditorView();
       })
       .catch((err) => {
@@ -440,28 +440,28 @@ export class TemplateView {
       });
   }
 
-  private getApplyView(): TemplateApplyView {
-    if (!this.applyView) {
-      this.applyView = new TemplateApplyView({
+  private getManagementView(): TemplateManagementView {
+    if (!this.managementView) {
+      this.managementView = new TemplateManagementView({
         commandService: this.props.commandService,
         contextMenuService: this.props.contextMenuService,
         createTemplateActions: () => this.createTemplateActions(),
-      }, this.getApplyViewState());
+      }, this.getManagementViewState());
     }
 
-    return this.applyView;
+    return this.managementView;
   }
 
-  private updateApplyView(): void {
-    this.applyView?.update(this.getApplyViewState());
+  private updateManagementView(): void {
+    this.managementView?.update(this.getManagementViewState());
   }
 
-  private getApplyViewState() {
-    return createTemplateApplyViewState({
+  private getManagementViewState() {
+    return createTemplateManagementViewState({
       config: this.readTemplateFormState(),
       selectedTemplateId: this.readSelectedTemplateId(),
       stopOnErrorDraft: this.stopOnErrorDraft,
-      templates: this.getTemplateApplyPresetRecords(),
+      templates: this.getTemplateEditorRecords(),
     });
   }
 
@@ -528,7 +528,7 @@ export class TemplateView {
       }),
     ];
 
-    const templates = this.getTemplateApplyPresetRecords();
+    const templates = this.getTemplateEditorRecords();
     for (const template of templates) {
       const templateId = String(template.id ?? "");
       if (!templateId) {
@@ -581,7 +581,7 @@ export class TemplateView {
     });
   }
 
-  private createTemplateItemActions(template: TemplateApplyPresetRecord): MenuItemAction[] {
+  private createTemplateItemActions(template: TemplateEditorRecord): MenuItemAction[] {
     const templateId = String(template.id ?? "");
     return [
       {
@@ -605,20 +605,20 @@ export class TemplateView {
     ];
   }
 
-  private editTemplate(template: TemplateApplyPresetRecord): void {
+  private editTemplate(template: TemplateEditorRecord): void {
     this.stopOnErrorDraft = Boolean(template.stopOnError);
     void this.props.commandService.executeCommand(TemplateCommandId.editTemplate, template);
   }
 
-  private exportTemplate(template: TemplateApplyPresetRecord | TemplateApplyConfig): void {
+  private exportTemplate(template: TemplateEditorRecord | TemplateEditorConfig): void {
     void this.props.commandService.executeCommand(TemplateCommandId.exportTemplate, template);
   }
 
-  private deleteTemplate(template: TemplateApplyPresetRecord): void {
+  private deleteTemplate(template: TemplateEditorRecord): void {
     void this.props.commandService.executeCommand(TemplateCommandId.deleteTemplate, template);
   }
 
-  private selectTemplate(template: TemplateApplyPresetRecord | null): void {
+  private selectTemplate(template: TemplateEditorRecord | null): void {
     const config = this.getEffectiveTemplateFormState();
     if (!template) {
       this.stopOnErrorDraft = config.stopOnError;
@@ -654,7 +654,7 @@ export class TemplateView {
         ...(templateId ? { id: templateId } : {}),
         name,
       };
-      const template = createTemplateFromApplyPresetRecord(persistedTemplate);
+      const template = createTemplateFromEditorRecord(persistedTemplate);
       if (!template) {
         this.showNotification(localize("template.invalidConfiguration", "Invalid configuration"), "warning");
         return;
@@ -671,7 +671,7 @@ export class TemplateView {
             source: "userCreated",
             template,
           });
-      const saved = createTemplateApplyPresetRecordFromUserTemplate(savedUserTemplate);
+      const saved = createTemplateEditorRecordFromUserTemplate(savedUserTemplate);
 
       this.stopOnErrorDraft = Boolean(saved.stopOnError);
       this.props.templateViewStateService.finishTemplateEditor(saved);
@@ -702,7 +702,7 @@ export class TemplateView {
       !isAutoTemplateId(selectedTemplateId) &&
       this.hasRequestedUserTemplates
     ) {
-      const found = this.getTemplateApplyPresetRecords().find((template) => template.id === selectedTemplateId);
+      const found = this.getTemplateEditorRecords().find((template) => template.id === selectedTemplateId);
       if (found) {
         this.stopOnErrorDraft = Boolean(found.stopOnError);
         this.props.templateViewStateService.cancelTemplateEditor({
@@ -718,9 +718,9 @@ export class TemplateView {
     });
   }
 
-  private getTemplateApplyPresetRecords(): readonly TemplateApplyPresetRecord[] {
+  private getTemplateEditorRecords(): readonly TemplateEditorRecord[] {
     return this.props.userTemplateService.getSnapshot().templates
-      .map(createTemplateApplyPresetRecordFromUserTemplate);
+      .map(createTemplateEditorRecordFromUserTemplate);
   }
 }
 

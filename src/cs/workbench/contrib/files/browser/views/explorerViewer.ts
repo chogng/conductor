@@ -99,7 +99,7 @@ import {
   type TemplateSelection,
   type TemplateSelectionsByFileId,
 } from "src/cs/workbench/services/slice/common/templateSelection";
-import type { TemplateApplyPresetRecord } from "src/cs/workbench/services/template/common/template";
+import type { TemplateEditorRecord } from "src/cs/workbench/services/template/common/template";
 import { isAutoTemplateId } from "src/cs/workbench/services/template/common/autoTemplate";
 
 export type ExplorerViewerProps = {
@@ -116,7 +116,7 @@ export type ExplorerViewerProps = {
   readonly thumbnailService: IThumbnailService;
   readonly fileTemplateSelectionsByFileId?: TemplateSelectionsByFileId;
   readonly editable?: ExplorerEditableData | null;
-  readonly templateRecords?: readonly TemplateApplyPresetRecord[];
+  readonly templateRecords?: readonly TemplateEditorRecord[];
   readonly files: ExplorerFileEntry[];
   readonly mode?: WorkbenchMainPart;
   readonly viewLayout?: FilesViewLayout;

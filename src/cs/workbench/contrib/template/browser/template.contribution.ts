@@ -11,11 +11,11 @@ import {
   type IViewContainersRegistry,
   type IViewsRegistry,
 } from "src/cs/workbench/common/views";
-import { registerTemplateActions } from "src/cs/workbench/contrib/template/browser/templateActions";
-import { TemplateAuxiliaryBarViewPane } from "src/cs/workbench/contrib/template/browser/templateAuxiliaryBarViewPane";
-import { TemplateAuxiliaryBarViewId } from "src/cs/workbench/contrib/template/browser/templateIds";
+import { registerTemplateCommands } from "src/cs/workbench/contrib/template/browser/templateCommands";
+import { TemplateViewId } from "src/cs/workbench/contrib/template/common/template";
+import { TemplateViewPane } from "src/cs/workbench/contrib/template/browser/templateViewlet";
 
-registerTemplateActions();
+registerTemplateCommands();
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
@@ -23,9 +23,9 @@ const container = viewContainersRegistry.get(WorkbenchViewContainers.auxiliaryba
 
 if (container) {
   viewsRegistry.registerViews([{
-    id: TemplateAuxiliaryBarViewId,
+    id: TemplateViewId,
     name: localize("template.management.title", "Template Management"),
-    ctorDescriptor: new SyncDescriptor(TemplateAuxiliaryBarViewPane),
+    ctorDescriptor: new SyncDescriptor(TemplateViewPane),
     hideByDefault: false,
     order: 0,
   }], container);

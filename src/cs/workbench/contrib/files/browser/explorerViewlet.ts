@@ -66,7 +66,7 @@ import {
 import {
   markTemplateApplyPerformanceTrace,
 } from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
-import { createTemplateApplyPresetRecordFromUserTemplate } from "src/cs/workbench/contrib/template/browser/templateUserTemplateAdapter";
+import { createTemplateEditorRecordFromUserTemplate } from "src/cs/workbench/contrib/template/browser/templateUserTemplateAdapter";
 import { ISessionService } from "src/cs/workbench/services/session/common/session";
 import {
   createFastImportBadgeTableFacts,
@@ -841,7 +841,7 @@ export class ExplorerViewPane extends ViewPane {
 
   private createTemplateRecords() {
     return this.userTemplateService.getSnapshot().templates
-      .map(createTemplateApplyPresetRecordFromUserTemplate);
+      .map(createTemplateEditorRecordFromUserTemplate);
   }
 
   private removeFiles(fileIds: readonly string[]): void {

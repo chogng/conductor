@@ -20,9 +20,9 @@ import type {
   SessionSnapshot,
 } from "src/cs/workbench/services/session/common/session";
 import {
-  createEmptyTemplateApplyConfig,
-  type TemplateApplyConfig,
-} from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
+  createEmptyTemplateEditorConfig,
+  type TemplateEditorConfig,
+} from "src/cs/workbench/services/template/common/templateEditorConfig";
 import { normalizeColumnIndexes } from "src/cs/workbench/services/template/common/templateXYBinding";
 import type {
   BaseCurveFamily,
@@ -63,7 +63,7 @@ type ProcessedCalculationCachePayload = {
   touchedAt?: number;
 };
 
-type ProcessedTemplateApplyConfigRecord = {
+type ProcessedTemplateEditorConfigRecord = {
   readonly name?: string;
   readonly xColumns: number[];
   readonly xDataStart: number;
@@ -1038,10 +1038,10 @@ const mergeProcessedFileRecord = (
   options: MergeProcessedFileOptions = {},
 ): FileRecord => {
   const fileId = readRecordString(processedFile, "fileId") ?? record.id;
-  const emptyTemplateApplyConfig = createEmptyTemplateApplyConfig();
-  const templateConfig = createTemplateApplyConfigRecordFromAppliedConfig(
+  const emptyTemplateEditorConfig = createEmptyTemplateEditorConfig();
+  const templateConfig = createTemplateEditorConfigRecordFromAppliedConfig(
     options.appliedTemplateApplyConfig,
-    emptyTemplateApplyConfig,
+    emptyTemplateEditorConfig,
     processedFile,
   );
   const xCanonicalFactor = getCanonicalXUnitFactor(templateConfig.xUnit);
@@ -1163,7 +1163,7 @@ const createProcessedSliceRunFromOutput = ({
   selection,
   warnings,
 }: {
-  readonly config: ProcessedTemplateApplyConfigRecord;
+  readonly config: ProcessedTemplateEditorConfigRecord;
   readonly errors: readonly string[];
   readonly fileId: FileId;
   readonly outputCurveKeys: readonly SessionCurveKey[];
@@ -1177,7 +1177,7 @@ const createProcessedSliceRunFromOutput = ({
     record.raw.tableOrder[0] ??
     fileId;
   const sourceRawTableVersion = record.rawTableVersionsById[rawTableId] ?? 0;
-  const template = createTemplateFromProcessedApplyConfig(config, fileId);
+  const template = createTemplateFromProcessedEditorConfig(config, fileId);
   const templateFingerprint = createTemplateFingerprint(template);
   const inputRanges = createProcessedSliceInputRanges({
     config,
@@ -1203,8 +1203,8 @@ const createProcessedSliceRunFromOutput = ({
   };
 };
 
-const createTemplateFromProcessedApplyConfig = (
-  config: ProcessedTemplateApplyConfigRecord,
+const createTemplateFromProcessedEditorConfig = (
+  config: ProcessedTemplateEditorConfigRecord,
   fileId: string,
 ): Template => ({
   schemaVersion: 1,
@@ -1242,7 +1242,7 @@ const createTemplateFromProcessedApplyConfig = (
 });
 
 const createProcessedTemplateSegmentation = (
-  config: ProcessedTemplateApplyConfigRecord,
+  config: ProcessedTemplateEditorConfigRecord,
 ): TemplateSegmentation => {
   if (config.xSegmentationMode === "points" && config.xPointsPerGroup) {
     return { kind: "fixedPoints", pointsPerGroup: config.xPointsPerGroup };
@@ -1259,7 +1259,7 @@ const createProcessedSliceInputRanges = ({
   processedFile,
   rawTableId,
 }: {
-  readonly config: ProcessedTemplateApplyConfigRecord;
+  readonly config: ProcessedTemplateEditorConfigRecord;
   readonly fileId: string;
   readonly processedFile: ProcessedEntry;
   readonly rawTableId: string;
@@ -1368,9 +1368,9 @@ const setSeriesLabelOverride = (
   },
 });
 
-const createTemplateApplyConfigRecord = (
-  config: TemplateApplyConfig,
-): ProcessedTemplateApplyConfigRecord => ({
+const createTemplateEditorConfigRecord = (
+  config: TemplateEditorConfig,
+): ProcessedTemplateEditorConfigRecord => ({
   name: normalizeOptionalText(config.name),
   xColumns: normalizeColumnIndexes(config.xColumns),
   xDataStart: parseNumberOr(config.xDataStart, 0),
@@ -1391,13 +1391,13 @@ const createTemplateApplyConfigRecord = (
   yColumns: Array.isArray(config.yColumns) ? config.yColumns : [],
 });
 
-const createTemplateApplyConfigRecordFromAppliedConfig = (
+const createTemplateEditorConfigRecordFromAppliedConfig = (
   config: unknown,
-  fallback: TemplateApplyConfig,
+  fallback: TemplateEditorConfig,
   processedFile?: ProcessedEntry,
-): ProcessedTemplateApplyConfigRecord => {
-  const fallbackRecord = createTemplateApplyConfigRecord(fallback);
-  const processedConfig = createTemplateApplyConfigFallbackFromProcessedFile(processedFile);
+): ProcessedTemplateEditorConfigRecord => {
+  const fallbackRecord = createTemplateEditorConfigRecord(fallback);
+  const processedConfig = createTemplateEditorConfigFallbackFromProcessedFile(processedFile);
   if (!isObjectRecord(config)) {
     return {
       ...fallbackRecord,
@@ -1487,9 +1487,9 @@ const createTemplateApplyConfigRecordFromAppliedConfig = (
   };
 };
 
-const createTemplateApplyConfigFallbackFromProcessedFile = (
+const createTemplateEditorConfigFallbackFromProcessedFile = (
   processedFile: ProcessedEntry | undefined,
-): Partial<ProcessedTemplateApplyConfigRecord> => {
+): Partial<ProcessedTemplateEditorConfigRecord> => {
   if (!processedFile) {
     return {};
   }
@@ -1510,17 +1510,17 @@ const shouldDefaultExtractionXColumn = (config: Record<string, unknown>): boolea
 
 const normalizeXSegmentationMode = (
   value: unknown,
-  fallback: ProcessedTemplateApplyConfigRecord["xSegmentationMode"],
-): ProcessedTemplateApplyConfigRecord["xSegmentationMode"] =>
+  fallback: ProcessedTemplateEditorConfigRecord["xSegmentationMode"],
+): ProcessedTemplateEditorConfigRecord["xSegmentationMode"] =>
   value === "points" || value === "segments" || value === "auto"
     ? value
     : fallback;
 
 const resolveProcessedTemplateSegmentationMode = (
-  mode: ProcessedTemplateApplyConfigRecord["xSegmentationMode"],
+  mode: ProcessedTemplateEditorConfigRecord["xSegmentationMode"],
   xPointsPerGroup: number | undefined,
   xSegmentCount: number | undefined,
-): ProcessedTemplateApplyConfigRecord["xSegmentationMode"] => {
+): ProcessedTemplateEditorConfigRecord["xSegmentationMode"] => {
   if (mode !== "auto") {
     return mode;
   }
@@ -1538,8 +1538,8 @@ const isPositiveNumber = (value: number | undefined): boolean =>
 
 const normalizeYLegendTarget = (
   value: unknown,
-  fallback: ProcessedTemplateApplyConfigRecord["yLegendTarget"],
-): ProcessedTemplateApplyConfigRecord["yLegendTarget"] =>
+  fallback: ProcessedTemplateEditorConfigRecord["yLegendTarget"],
+): ProcessedTemplateEditorConfigRecord["yLegendTarget"] =>
   value === "yColumn" || value === "group" || value === "auto"
     ? value
     : fallback;

@@ -19,7 +19,7 @@ import {
   type RawTableFactsRecord,
 } from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
-import { createEmptyTemplateApplyConfig } from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
+import { createEmptyTemplateEditorConfig } from "src/cs/workbench/services/template/common/templateEditorConfig";
 
 suite("workbench/services/session/test/common/sessionModelAdapter", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
@@ -110,7 +110,7 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
       fileName: "Transfer.csv",
     }]);
     const templateConfig = {
-      ...createEmptyTemplateApplyConfig(),
+      ...createEmptyTemplateEditorConfig(),
       name: "Transfer Template",
       xDataStart: "12",
       xDataEnd: "48",

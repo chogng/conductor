@@ -27,8 +27,8 @@ import {
   SearchViewId,
 } from "src/cs/workbench/services/search/common/search";
 import {
-  TemplateAuxiliaryBarViewId,
-} from "src/cs/workbench/contrib/template/browser/templateIds";
+  TemplateViewId,
+} from "src/cs/workbench/contrib/template/common/template";
 import type { TemplateMode } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
 
 export type AuxiliaryBarView = "template" | "search" | "export" | "parameters" | "settings";
@@ -57,7 +57,7 @@ export const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
     id: "template",
     mode: "table",
     order: 0,
-    viewId: TemplateAuxiliaryBarViewId,
+    viewId: TemplateViewId,
     labelKey: "template.management.title",
     label: "Template Management",
   },

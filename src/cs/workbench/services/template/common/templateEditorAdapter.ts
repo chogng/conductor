@@ -13,27 +13,27 @@ import type {
 	TemplateSegmentation,
 } from "src/cs/workbench/services/template/common/templateSpec";
 import type {
-	TemplateApplyPresetRecord,
+	TemplateEditorRecord,
 } from "src/cs/workbench/services/template/common/template";
 import {
-	createEmptyTemplateApplyConfig,
-	normalizeTemplateApplyConfigRecord,
-	type TemplateApplyConfig,
-} from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
+	createEmptyTemplateEditorConfig,
+	normalizeTemplateEditorConfigRecord,
+	type TemplateEditorConfig,
+} from "src/cs/workbench/services/template/common/templateEditorConfig";
 import {
 	toCellLabel,
 } from "src/cs/workbench/services/template/common/templateCellRef";
 import { resolveTemplateXRange } from "src/cs/workbench/services/template/common/templateXRange";
 
-export const createTemplateFromApplyPresetRecord = (
-	record: TemplateApplyPresetRecord,
+export const createTemplateFromEditorRecord = (
+	record: TemplateEditorRecord,
 ): Template | null => {
 	const canonicalTemplate = readCanonicalTemplate(record);
 	if (canonicalTemplate) {
 		return canonicalTemplate;
 	}
 
-	const config = normalizeTemplateApplyConfigRecord(record);
+	const config = normalizeTemplateEditorConfigRecord(record);
 	if (!config.xColumns.length || !config.yColumns.length) {
 		return null;
 	}
@@ -90,14 +90,14 @@ export const createTemplateFromApplyPresetRecord = (
 	};
 };
 
-export const createTemplateApplyPresetRecordFromTemplate = (
+export const createTemplateEditorRecordFromTemplate = (
 	template: Template,
-): TemplateApplyPresetRecord => {
+): TemplateEditorRecord => {
 	const block = template.blocks[0];
-	const config = createEmptyTemplateApplyConfig({
+	const config = createEmptyTemplateEditorConfig({
 		name: template.name,
 		stopOnError: template.stopOnError,
-		...(block ? createTemplateApplyConfigFromBlock(block) : {}),
+		...(block ? createTemplateEditorConfigFromBlock(block) : {}),
 	});
 
 	return {
@@ -110,7 +110,7 @@ export const createTemplateApplyPresetRecordFromTemplate = (
 };
 
 const readCanonicalTemplate = (
-	record: TemplateApplyPresetRecord,
+	record: TemplateEditorRecord,
 ): Template | null => {
 	const value = record.template;
 	if (!isTemplate(value)) {
@@ -134,7 +134,7 @@ const isTemplate = (value: unknown): value is Template => {
 };
 
 const getTemplateRowRange = (
-	config: TemplateApplyConfig,
+	config: TemplateEditorConfig,
 ): TemplateBlock["rowRange"] => {
 	const firstRange = config.xRanges
 		.map(range => resolveTemplateXRange(range))
@@ -153,7 +153,7 @@ const getTemplateRowRange = (
 };
 
 const getTemplateSegmentation = (
-	config: TemplateApplyConfig,
+	config: TemplateEditorConfig,
 ): TemplateSegmentation => {
 	switch (config.xSegmentationMode) {
 		case "points": {
@@ -173,11 +173,11 @@ const getTemplateSegmentation = (
 	}
 };
 
-const createTemplateApplyConfigFromBlock = (
+const createTemplateEditorConfigFromBlock = (
 	block: TemplateBlock,
-): Partial<TemplateApplyConfig> => {
+): Partial<TemplateEditorConfig> => {
 	const xRanges = createTemplateXRangesFromAxis(block.x, block.rowRange);
-	const segmentation = getTemplateApplySegmentationFields(block.segmentation);
+	const segmentation = getTemplateEditorSegmentationFields(block.segmentation);
 	const titles = block.titles;
 	return {
 		bottomTitle: titles?.bottom ?? "",
@@ -185,11 +185,11 @@ const createTemplateApplyConfigFromBlock = (
 		legendPrefix: block.legend.prefix ?? "",
 		xColumns: [...block.x.columns],
 		xRanges,
-		...getTemplateApplyRowFields(block.x, block.rowRange),
+		...getTemplateEditorRowFields(block.x, block.rowRange),
 		...segmentation,
 		xUnit: block.x.unit ?? "V",
 		yColumns: [...block.y.columns],
-		yLegendTarget: getTemplateApplyLegendTarget(block.legend),
+		yLegendTarget: getTemplateEditorLegendTarget(block.legend),
 		yUnit: block.y.unit ?? "A",
 	};
 };
@@ -207,10 +207,10 @@ const createTemplateXRangesFromAxis = (
 		end: range.endRow === "end" ? "End" : toCellLabel(range.endRow, range.column),
 	}));
 
-const getTemplateApplyRowFields = (
+const getTemplateEditorRowFields = (
 	axis: TemplateAxisBinding,
 	rowRange: TemplateRowRange,
-): Pick<TemplateApplyConfig, "xDataEnd" | "xDataStart"> => {
+): Pick<TemplateEditorConfig, "xDataEnd" | "xDataStart"> => {
 	const firstColumn = axis.columns[0] ?? axis.ranges?.[0]?.column ?? 0;
 	return {
 		xDataStart: toCellLabel(rowRange.startRow, firstColumn),
@@ -218,9 +218,9 @@ const getTemplateApplyRowFields = (
 	};
 };
 
-const getTemplateApplySegmentationFields = (
+const getTemplateEditorSegmentationFields = (
 	segmentation: TemplateSegmentation,
-): Pick<TemplateApplyConfig, "xPointsPerGroup" | "xSegmentCount" | "xSegmentationMode"> => {
+): Pick<TemplateEditorConfig, "xPointsPerGroup" | "xSegmentCount" | "xSegmentationMode"> => {
 	switch (segmentation.kind) {
 		case "fixedPoints":
 			return {
@@ -244,15 +244,15 @@ const getTemplateApplySegmentationFields = (
 	}
 };
 
-const getTemplateApplyLegendTarget = (
+const getTemplateEditorLegendTarget = (
 	legend: TemplateLegend,
-): TemplateApplyConfig["yLegendTarget"] =>
+): TemplateEditorConfig["yLegendTarget"] =>
 	legend.target === "group" || legend.target === "yColumn"
 		? legend.target
 		: "auto";
 
 const readTemplateApplicability = (
-	record: TemplateApplyPresetRecord,
+	record: TemplateEditorRecord,
 ): TemplateApplicability | undefined => {
 	const value = record.applicability;
 	if (!value || typeof value !== "object" || Array.isArray(value)) {

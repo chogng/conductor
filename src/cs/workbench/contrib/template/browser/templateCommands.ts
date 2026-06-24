@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from "src/cs/nls";
+import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
 import { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import { IFileService } from "src/cs/platform/files/common/files";
@@ -20,17 +21,17 @@ import {
   isAutoTemplateId,
 } from "src/cs/workbench/services/template/common/autoTemplate";
 import {
-  cloneTemplateApplyConfig,
-  normalizeTemplateApplyConfigRecord,
+  cloneTemplateEditorConfig,
+  normalizeTemplateEditorConfigRecord,
   toTemplateNameKey,
-} from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
+} from "src/cs/workbench/services/template/common/templateEditorConfig";
 import {
   TemplateCommandId,
-} from "src/cs/workbench/contrib/template/browser/templateIds";
-import type { TemplateApplyPresetRecord } from "src/cs/workbench/services/template/common/template";
+} from "src/cs/workbench/contrib/template/common/template";
+import type { TemplateEditorRecord } from "src/cs/workbench/services/template/common/template";
 import {
-  createTemplateFromApplyPresetRecord,
-} from "src/cs/workbench/services/template/common/templateApplyPresetAdapter";
+  createTemplateFromEditorRecord,
+} from "src/cs/workbench/services/template/common/templateEditorAdapter";
 import {
   validateTemplateForSave,
 } from "src/cs/workbench/services/template/common/templateValidation";
@@ -39,7 +40,7 @@ import {
   type IUserTemplateService as IUserTemplateServiceType,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 import {
-  createTemplateApplyPresetRecordFromUserTemplate,
+  createTemplateEditorRecordFromUserTemplate,
 } from "src/cs/workbench/contrib/template/browser/templateUserTemplateAdapter";
 import {
   runSliceWithTemplateHandler,
@@ -49,16 +50,20 @@ import {
   type ITemplateViewStateService as ITemplateViewStateServiceType,
 } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
 
-export function registerTemplateActions(): void {
-  registerAction2(SelectTemplateAction);
-  registerAction2(CreateTemplateAction);
-  registerAction2(DeleteTemplateAction);
-  registerAction2(ImportTemplateAction);
-  registerAction2(EditTemplateAction);
-  registerAction2(ExportTemplateAction);
-  registerAction2(ApplyTemplateAction);
-  registerAction2(ApplyTemplateIncrementalAction);
-  registerAction2(SetTemplateStopOnErrorAction);
+export function registerTemplateCommands(): IDisposable {
+  const disposables = new DisposableStore();
+
+  disposables.add(registerAction2(SelectTemplateAction));
+  disposables.add(registerAction2(CreateTemplateAction));
+  disposables.add(registerAction2(DeleteTemplateAction));
+  disposables.add(registerAction2(ImportTemplateAction));
+  disposables.add(registerAction2(EditTemplateAction));
+  disposables.add(registerAction2(ExportTemplateAction));
+  disposables.add(registerAction2(ApplyTemplateAction));
+  disposables.add(registerAction2(ApplyTemplateIncrementalAction));
+  disposables.add(registerAction2(SetTemplateStopOnErrorAction));
+
+  return disposables;
 }
 
 export class SelectTemplateAction extends Action2 {
@@ -238,9 +243,9 @@ export class SetTemplateStopOnErrorAction extends Action2 {
   }
 }
 
-function normalizeTemplateActionTarget(value: unknown): TemplateApplyPresetRecord | null {
+function normalizeTemplateActionTarget(value: unknown): TemplateEditorRecord | null {
   return value && typeof value === "object"
-    ? value as TemplateApplyPresetRecord
+    ? value as TemplateEditorRecord
     : null;
 }
 
@@ -318,7 +323,7 @@ async function importTemplatePayload(
   const entry = payload && typeof payload === "object"
     ? payload as Record<string, unknown>
     : {};
-  const draft = normalizeTemplateApplyConfigRecord(entry);
+  const draft = normalizeTemplateEditorConfigRecord(entry);
   if (!draft.name) {
     notificationService.notify({
       id: "template.notification",
@@ -368,7 +373,7 @@ async function importTemplatePayload(
     return;
   }
 
-  const template = createTemplateFromApplyPresetRecord({
+  const template = createTemplateFromEditorRecord({
     ...validation.normalized,
     ...(overwriteTemplateId ? { id: overwriteTemplateId } : {}),
     name: draft.name,
@@ -401,9 +406,9 @@ async function importTemplatePayload(
     return;
   }
 
-  const saved = createTemplateApplyPresetRecordFromUserTemplate(savedUserTemplate);
+  const saved = createTemplateEditorRecordFromUserTemplate(savedUserTemplate);
   templateViewStateService.selectTemplate({
-    ...cloneTemplateApplyConfig(saved),
+    ...cloneTemplateEditorConfig(saved),
     id: saved.id,
   });
   notificationService.notify({
@@ -414,7 +419,7 @@ async function importTemplatePayload(
   });
 }
 
-function createCurrentTemplateActionTarget(templateViewStateService: ITemplateViewStateServiceType): TemplateApplyPresetRecord | null {
+function createCurrentTemplateActionTarget(templateViewStateService: ITemplateViewStateServiceType): TemplateEditorRecord | null {
   const state = templateViewStateService.getState();
   if (!state.selectedTemplateId || isAutoTemplateId(state.selectedTemplateId)) {
     return null;
@@ -426,7 +431,7 @@ function createCurrentTemplateActionTarget(templateViewStateService: ITemplateVi
   };
 }
 
-function exportTemplateBundle(template: TemplateApplyPresetRecord | null): string | null {
+function exportTemplateBundle(template: TemplateEditorRecord | null): string | null {
   if (!template?.name) {
     return null;
   }
@@ -434,11 +439,11 @@ function exportTemplateBundle(template: TemplateApplyPresetRecord | null): strin
   return downloadTemplateBundle({
     version: 1,
     source: "conductor",
-    ...cloneTemplateApplyConfig(template),
+    ...cloneTemplateEditorConfig(template),
   });
 }
 
-function getTemplateActionTargetId(template: TemplateApplyPresetRecord | null): string | null {
+function getTemplateActionTargetId(template: TemplateEditorRecord | null): string | null {
   const templateId = String(template?.id ?? "").trim();
   return templateId && !isAutoTemplateId(templateId) ? templateId : null;
 }

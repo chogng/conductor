@@ -21,13 +21,13 @@ Do not add consumer-shaped template sections such as `template.review`,
 raw-table facts and owns materialization, but it must keep raw table facts
 distinct from the executable `Template` snapshot.
 
-Manual apply presets are not the domain `Template`; name them
-`TemplateApplyPresetRecord` / `TemplateApplyConfig`.
+Template editor form records are not the domain `Template`; name them
+`TemplateEditorRecord` / `TemplateEditorConfig`.
 
 ## Ownership
 
 Template owns the core `Template` spec, table+recipe materialization helpers,
-and apply-preset editor conversion. It does not own UserTemplate
+and editor-record conversion. It does not own UserTemplate
 catalog CRUD, catalog snapshots, Review decisions, per-file template
 selections, or raw-file view input.
 
@@ -37,7 +37,7 @@ belong to `ISliceService`, and Template UI reads Session projections in contrib
 code.
 
 `IUserTemplateService` owns persisted user-template catalog records. Template
-UI may adapt records into `TemplateApplyConfig` while editing, but must
+UI may adapt records into `TemplateEditorConfig` while editing, but must
 materialize writes back through `IUserTemplateService`.
 
 Old Template-owned apply controllers, planners, processing workers, and
@@ -59,14 +59,19 @@ plot rendering, or chart state.
 | `common/recipeTemplateMaterializer.ts` | pure Recipe + table-facts materializer that creates `TemplateDraft` candidates. |
 | `common/userTemplateMaterializer.ts` | pure UserTemplate + table-facts materializer that creates `TemplateDraft` candidates. |
 | `common/automaticTemplateMaterializer.ts` | combines Recipe and UserTemplate materializers into the automatic candidate set. |
-| `common/template.ts` | `TemplateApplyPresetRecord` and re-exported template spec types. |
-| `common/templateApplyPresetAdapter.ts` | adapter between manual apply-preset view models and canonical block-aware `Template`. |
-| `common/templateApplyConfigUtils.ts` | manual apply config normalization and cloning. |
-| `contrib/template/browser/templateIds.ts` | Template UI view id and command ids. |
-| `contrib/template/browser/templateImportExport.ts` | Template UI JSON import/export file-transfer helper; dialog, file read, and download plumbing only. Payload semantics stay with Template actions and `IUserTemplateService`. |
-| `contrib/template/browser/templateUserTemplateAdapter.ts` | View-model adapter from UserTemplate snapshots into editable apply records. |
+| `common/template.ts` | `TemplateEditorRecord` and re-exported template spec types. |
+| `common/templateEditorAdapter.ts` | adapter between Template editor records and canonical block-aware `Template`. |
+| `common/templateEditorConfig.ts` | Template editor config normalization and cloning. |
+| `contrib/template/common/template.ts` | Template workbench view id and command ids shared by contribution, commands, and view code. |
+| `contrib/template/browser/templateCommands.ts` | Template command registration and handlers; delegates library management to `IUserTemplateService` and execution wrappers to Slice. |
+| `contrib/template/browser/templateImportExport.ts` | Template UI JSON import/export file-transfer helper; dialog, file read, and download plumbing only. Payload semantics stay with Template commands and `IUserTemplateService`. |
+| `contrib/template/browser/templateTableMap.ts` | Bidirectional UI-only mapper between `ITableService` selection/cell/range state and Template editor `TemplateEditorConfig` fields. |
+| `contrib/template/browser/templateUserTemplateAdapter.ts` | View-model adapter from UserTemplate snapshots into editable Template editor records. |
 | `contrib/template/browser/templateViewStateService.ts` | Template UI selected-template/form editor state. |
-| `contrib/template/browser/templateAuxiliaryBarViewPane.ts` / `views/templateView.ts` | UI shell; renders UserTemplate catalog + view state and sends commands. |
+| `contrib/template/browser/templateViewlet.ts` | Workbench `ViewPane` entry; owns Template pane DI, lifecycle, service subscriptions, and title updates. |
+| `contrib/template/browser/views/templateView.ts` | Template pane coordinator; switches management/editor mode, builds child view state, handles child callbacks, and syncs table selection. |
+| `contrib/template/browser/views/templateManagementView.ts` | Template management leaf view; renders picker, management controls, and Slice apply buttons. |
+| `contrib/template/browser/views/templateEditorView.ts` | Template editor leaf view; renders the editable `TemplateEditorConfig` form and reports user edits upward. |
 
 ## Flow
 
@@ -94,7 +99,7 @@ manual saved-selection compatibility/UserTemplate/inline run
   -> Slice executes the reviewed Template snapshot
 ```
 
-Template execution enters through Slice. Saved/manual apply presets are adapted
+Template execution enters through Slice. Saved/manual editor records are adapted
 into canonical `Template` snapshots before Slice runs.
 
 ## Rules
@@ -103,8 +108,8 @@ into canonical `Template` snapshots before Slice runs.
   produce it from table facts plus Recipe/UserTemplate sources; Slice consumes
   reviewed or manual snapshots and must not materialize Recipes.
 - Engines should consume `Template`, not consumer-specific sub-templates.
-- Manual apply presets may be bridged through `TemplateApplyConfig` and
-  `templateApplyPresetAdapter`; they are inputs to `Template` snapshots, not an
+- Template editor records may be bridged through `TemplateEditorConfig` and
+  `templateEditorAdapter`; they are inputs to `Template` snapshots, not an
   execution workflow.
 - Raw-header auto-template inference is retired from product execution.
   New `TableFacts + Recipe/UserTemplate -> Template` derivation belongs in
@@ -125,7 +130,7 @@ into canonical `Template` snapshots before Slice runs.
   `TemplateState.selectionsByFileId`; slicing selections come from
   `ISliceService`.
 - Template UI library management must read/write `IUserTemplateService`;
-  `TemplateApplyConfig` is only an editor view model and import/export bundle
+  `TemplateEditorConfig` is only an editor view model and import/export bundle
   compatibility format.
 - `activeFileId` should move the current chart/Explorer target to the front of full and incremental slice queues.
 - Explorer hover/selection priority for slicing belongs to
@@ -166,8 +171,8 @@ Commands/controllers must not re-detect table structure.
 
 ## Field Catalog
 
-Use `records.instructions.md` for `TemplateApplyPresetRecord`,
-`TemplateApplyConfig`, `Template`, `TemplateState`, and `SliceRun`.
+Use `records.instructions.md` for `TemplateEditorRecord`,
+`TemplateEditorConfig`, `Template`, `TemplateState`, and `SliceRun`.
 
 ## Do Not
 

@@ -32,7 +32,7 @@ import {
 import {
 	isAutoTemplateId,
 } from "src/cs/workbench/services/template/common/autoTemplate";
-import { createTemplateFromApplyPresetRecord } from "src/cs/workbench/services/template/common/templateApplyPresetAdapter";
+import { createTemplateFromEditorRecord } from "src/cs/workbench/services/template/common/templateEditorAdapter";
 import {
 	createInlineTemplateSelection,
 	type TemplateSelection,
@@ -114,7 +114,7 @@ const createSliceCommandTemplateSelection = (
 		return null;
 	}
 
-	const template = createTemplateFromApplyPresetRecord({
+	const template = createTemplateFromEditorRecord({
 		...validation.normalized,
 		id: state.selectedTemplateId,
 	});

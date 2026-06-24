@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { TemplateApplyConfig } from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
+import type { TemplateEditorConfig } from "src/cs/workbench/services/template/common/templateEditorConfig";
 
 export type {
 	Template,
@@ -16,7 +16,7 @@ export type {
 	TemplateTitles,
 } from "src/cs/workbench/services/template/common/templateSpec";
 
-export type TemplateApplyPresetRecord = Partial<TemplateApplyConfig> &
+export type TemplateEditorRecord = Partial<TemplateEditorConfig> &
 	Partial<{
 		readonly id: string | null;
 	}> & {

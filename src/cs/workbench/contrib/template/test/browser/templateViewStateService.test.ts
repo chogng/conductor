@@ -6,7 +6,7 @@ import assert from "assert";
 
 import { TemplateViewStateService } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import { createEmptyTemplateApplyConfig } from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
+import { createEmptyTemplateEditorConfig } from "src/cs/workbench/services/template/common/templateEditorConfig";
 
 suite("workbench/contrib/template/browser/templateViewStateService", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
@@ -14,7 +14,7 @@ suite("workbench/contrib/template/browser/templateViewStateService", () => {
   test("editTemplate publishes editor state", () => {
     const service = new TemplateViewStateService();
     const template = {
-      ...createEmptyTemplateApplyConfig({
+      ...createEmptyTemplateEditorConfig({
         name: "Transfer",
         stopOnError: true,
       }),
@@ -30,7 +30,7 @@ suite("workbench/contrib/template/browser/templateViewStateService", () => {
     assert.deepEqual(service.getState(), {
       mode: "editor",
       selectedTemplateId: "template-a",
-      formState: createEmptyTemplateApplyConfig({
+      formState: createEmptyTemplateEditorConfig({
         name: "Transfer",
         stopOnError: true,
       }),
@@ -44,7 +44,7 @@ suite("workbench/contrib/template/browser/templateViewStateService", () => {
   test("finishes template editor into management state", () => {
     const service = new TemplateViewStateService();
     const savedTemplate = {
-      ...createEmptyTemplateApplyConfig({
+      ...createEmptyTemplateEditorConfig({
         name: "Transfer",
         stopOnError: true,
       }),
@@ -57,7 +57,7 @@ suite("workbench/contrib/template/browser/templateViewStateService", () => {
     assert.deepEqual(service.getState(), {
       mode: "management",
       selectedTemplateId: "template-a",
-      formState: createEmptyTemplateApplyConfig({
+      formState: createEmptyTemplateEditorConfig({
         name: "Transfer",
         stopOnError: true,
       }),
@@ -68,7 +68,7 @@ suite("workbench/contrib/template/browser/templateViewStateService", () => {
   test("cancels template editor with fallback or stop-on-error preference", () => {
     const service = new TemplateViewStateService();
     const fallbackTemplate = {
-      ...createEmptyTemplateApplyConfig({
+      ...createEmptyTemplateEditorConfig({
         name: "Output",
         stopOnError: true,
       }),
@@ -76,7 +76,7 @@ suite("workbench/contrib/template/browser/templateViewStateService", () => {
     };
 
     service.editTemplate(fallbackTemplate);
-    service.setFormState(createEmptyTemplateApplyConfig({
+    service.setFormState(createEmptyTemplateEditorConfig({
       name: "Draft",
       stopOnError: false,
     }));
@@ -87,7 +87,7 @@ suite("workbench/contrib/template/browser/templateViewStateService", () => {
     assert.deepEqual(service.getState(), {
       mode: "management",
       selectedTemplateId: "template-b",
-      formState: createEmptyTemplateApplyConfig({
+      formState: createEmptyTemplateEditorConfig({
         name: "Output",
         stopOnError: true,
       }),
@@ -99,7 +99,7 @@ suite("workbench/contrib/template/browser/templateViewStateService", () => {
     assert.deepEqual(service.getState(), {
       mode: "management",
       selectedTemplateId: null,
-      formState: createEmptyTemplateApplyConfig({
+      formState: createEmptyTemplateEditorConfig({
         stopOnError: true,
       }),
     });
