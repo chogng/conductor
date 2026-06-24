@@ -6,7 +6,7 @@ import type {
 import {
   parseCellLabel,
   toCellLabel,
-} from "src/cs/workbench/services/template/common/templateCellRef";
+} from "src/cs/workbench/services/template/common/templateCellRange";
 import type { TemplateEditorConfig } from "src/cs/workbench/services/template/common/templateEditorConfig";
 import {
   normalizeColumnIndexes,
@@ -17,7 +17,7 @@ import {
   normalizeTemplateXRange,
   normalizeTemplateXRanges,
   type TemplateXRange,
-} from "src/cs/workbench/services/template/common/templateXRange";
+} from "src/cs/workbench/services/template/common/templateCellRange";
 
 // UI-only bidirectional map between table picking and Template editor fields.
 // Forward: ITableService selection -> TemplateEditorConfig updates.

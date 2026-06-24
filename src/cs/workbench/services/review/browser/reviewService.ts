@@ -27,12 +27,13 @@ import {
   type TemplateReview,
 } from "src/cs/workbench/services/review/common/review";
 import {
-  deriveAutomaticTemplateDrafts,
-} from "src/cs/workbench/services/template/common/automaticTemplateMaterializer";
-import {
   createRawTableFactsFromRecord,
 } from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import type { TemplateDraft } from "src/cs/workbench/services/template/common/templateDraft";
+import {
+  ITemplateMaterializationService,
+  type ITemplateMaterializationService as ITemplateMaterializationServiceType,
+} from "src/cs/workbench/services/template/common/templateMaterialization";
 import {
   ISessionService,
   type ISessionService as ISessionServiceType,
@@ -68,6 +69,7 @@ export class ReviewService extends Disposable implements IReviewServiceType {
     @ISessionService private readonly sessionService: ISessionServiceType,
     @IRecipeService private readonly recipeService: IRecipeServiceType,
     @IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
+    @ITemplateMaterializationService private readonly templateMaterializationService: ITemplateMaterializationServiceType,
   ) {
     super();
     this._register(this.sessionService.onDidChangeSession(event => {
@@ -87,7 +89,7 @@ export class ReviewService extends Disposable implements IReviewServiceType {
       fileName: input.fileName ?? undefined,
       rowCount: input.rowCount,
     });
-    const candidates = deriveAutomaticTemplateDrafts({
+    const candidates = this.templateMaterializationService.materializeAutomaticDrafts({
       tableFacts,
       recipeSnapshot: input.recipeSnapshot,
       userTemplateSnapshot: input.userTemplateSnapshot,

@@ -439,13 +439,15 @@ materializer：
 
 ```txt
 templateSpec.ts
-templateCodec.ts
-templateValidation.ts
 templateFingerprint.ts
-templateRange.ts
+templateCellRange.ts
+templateXYBinding.ts
 templateDraft.ts
+automaticTemplateMaterializer.ts
+recipeSelectorEvaluator.ts
 recipeTemplateMaterializer.ts
 userTemplateMaterializer.ts
+templateEditorConfig.ts
 templateEditorAdapter.ts
 ```
 
@@ -1444,16 +1446,15 @@ ReviewDecision ready/systemRecommended
 src/cs/workbench/services/template/
   common/
     templateSpec.ts
-    templateCodec.ts
-    templateValidation.ts
     templateFingerprint.ts
-    templateRange.ts
-    tableFacts.ts
+    templateCellRange.ts
+    templateXYBinding.ts
     templateDraft.ts
     automaticTemplateMaterializer.ts
     recipeSelectorEvaluator.ts
     recipeTemplateMaterializer.ts
     userTemplateMaterializer.ts
+    templateEditorConfig.ts
     templateEditorAdapter.ts
 ```
 

@@ -9,15 +9,15 @@ import type { IContextMenuService } from "src/cs/platform/contextview/browser/co
 import { localize } from "src/cs/nls";
 import { X_UNIT_VALUES, Y_UNIT_VALUES } from "src/cs/workbench/services/plot/common/units";
 import type { TemplateEditorConfig } from "src/cs/workbench/services/template/common/templateEditorConfig";
-import { toColumnLabel } from "src/cs/workbench/services/template/common/templateCellRef";
 import {
   formatTemplateXRangeLabel,
   getTemplateXRangeColumns,
   getTemplateXRangeFormFields,
   normalizeTemplateXRange,
   normalizeTemplateXRanges,
+  toColumnLabel,
   type TemplateXRange,
-} from "src/cs/workbench/services/template/common/templateXRange";
+} from "src/cs/workbench/services/template/common/templateCellRange";
 import { normalizeColumnIndexes } from "src/cs/workbench/services/template/common/templateXYBinding";
 
 export type TemplatePickFieldName =

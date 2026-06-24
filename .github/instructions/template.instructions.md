@@ -58,12 +58,14 @@ plot rendering, or chart state.
 | `common/recipeSelectorEvaluator.ts` | pure Recipe selector evaluator over canonical table facts. |
 | `common/recipeTemplateMaterializer.ts` | pure Recipe + table-facts materializer that creates `TemplateDraft` candidates. |
 | `common/userTemplateMaterializer.ts` | pure UserTemplate + table-facts materializer that creates `TemplateDraft` candidates. |
-| `common/automaticTemplateMaterializer.ts` | combines Recipe and UserTemplate materializers into the automatic candidate set. |
+| `common/templateMaterialization.ts` | service contract for cross-service Template materialization. |
+| `browser/templateMaterializationService.ts` | injectable owner API that combines Recipe/UserTemplate materializers into the automatic candidate set for Review and other services. |
 | `common/template.ts` | `TemplateEditorRecord` and re-exported template spec types. |
 | `common/templateEditorAdapter.ts` | adapter between Template editor records and canonical block-aware `Template`. |
-| `common/templateEditorConfig.ts` | Template editor config normalization and cloning. |
-| `common/templateValidation.ts` / `common/templateXYBinding.ts` | Template editor/save validation and pure XY column-count checks. |
-| `common/templateCellRef.ts` / `common/templateXRange.ts` | A1-style cell and X range helpers used by Template editor records and validation. |
+| `common/templateEditorConfig.ts` | Template editor config normalization, cloning, and save/apply validation. |
+| `common/templateCellRange.ts` | A1-style cell and X range helpers used by Template editor records and validation. |
+| `common/templateXYBinding.ts` | Pure XY column-count checks for Template editor/save validation. |
+| `common/templateFingerprint.ts` | Stable Template fingerprint generation for materialized candidates. |
 | `contrib/template/common/template.ts` | Template workbench view id and command ids shared by contribution, commands, and view code. |
 | `contrib/template/browser/templateCommands.ts` | Template command registration and handlers; delegates library management to `IUserTemplateService` and execution wrappers to Slice. |
 | `contrib/template/browser/templateImportExport.ts` | Template UI JSON import/export file-transfer helper; dialog, file read, and download plumbing only. Payload semantics stay with Template commands and `IUserTemplateService`. |
@@ -81,14 +83,14 @@ Automatic materialization:
 
 ```txt
 rawTableChanged / recipeChanged / userTemplateChanged / schemaProfileChanged
-  -> Template contribution/materializer
-  -> read canonical raw table facts and Recipe/UserTemplate snapshots
-  -> materialize Template candidates
-  -> ReviewService reviews materialized candidates
+  -> ReviewService reads canonical raw table facts and Recipe/UserTemplate snapshots
+  -> ITemplateMaterializationService materializes Template candidates
+  -> ReviewService reviews candidates
 ```
 
 Table-fact production belongs under `services/tableFacts`. Candidate derivation
-belongs under `services/template/common`; do not add new materializers under
+enters through `ITemplateMaterializationService`; pure materialization helpers
+stay under `services/template/common`. Do not add new materializers under
 TableFacts, Review, or Slice.
 
 Manual execution:

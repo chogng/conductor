@@ -34,12 +34,12 @@ import {
 } from "src/cs/workbench/services/slice/common/templateSelection";
 import { createTemplateFromEditorRecord } from "src/cs/workbench/services/template/common/templateEditorAdapter";
 import {
+	validateTemplateForApply,
+} from "src/cs/workbench/services/template/common/templateEditorConfig";
+import {
 	createInlineTemplateSelection,
 	type TemplateSelection,
 } from "src/cs/workbench/services/slice/common/templateSelection";
-import {
-	validateTemplateForApply,
-} from "src/cs/workbench/services/template/common/templateValidation";
 
 export type RunSliceWithTemplateCommandOptions = {
 	readonly incremental?: boolean;

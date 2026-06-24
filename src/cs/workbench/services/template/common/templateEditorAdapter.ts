@@ -22,8 +22,8 @@ import {
 } from "src/cs/workbench/services/template/common/templateEditorConfig";
 import {
 	toCellLabel,
-} from "src/cs/workbench/services/template/common/templateCellRef";
-import { resolveTemplateXRange } from "src/cs/workbench/services/template/common/templateXRange";
+	resolveTemplateXRange,
+} from "src/cs/workbench/services/template/common/templateCellRange";
 
 export const createTemplateFromEditorRecord = (
 	record: TemplateEditorRecord,

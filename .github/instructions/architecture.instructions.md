@@ -128,7 +128,7 @@ Runtime folders:
 | `ISessionService` | canonical session ledger and change events |
 | TableFacts producer (`IRawTableFactsService`) | TableFacts-owned raw-table facts: structure, profiles, semantics, groups, blocks, diagnostics |
 | `IRecipeService` | passive built-in rules; it does not evaluate tables or materialize Templates |
-| `services/template` | canonical Template spec and target owner for `TableFacts + Recipe/UserTemplate -> Template` materialization |
+| `ITemplateMaterializationService` / `services/template` | canonical Template spec and target owner for `TableFacts + Recipe/UserTemplate -> Template` materialization |
 | `IReviewService` | materialized Template candidate review, selected `ReviewedTemplate`, manual adjustment state, and system-application recommendation |
 | `IUserTemplateService` | native user template catalog CRUD/snapshots/import/export and explicit template lookup |
 | `ITableService` | table source, rows, selection snapshot, reveal/highlight |

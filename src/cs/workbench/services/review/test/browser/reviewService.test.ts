@@ -17,7 +17,9 @@ import type { IRecipeService, Recipe, RecipeSnapshot } from "src/cs/workbench/se
 import { ReviewContribution } from "src/cs/workbench/services/review/browser/review.contribution";
 import { ReviewService } from "src/cs/workbench/services/review/browser/reviewService";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
+import { TemplateMaterializationService } from "src/cs/workbench/services/template/browser/templateMaterializationService";
 import type { Template } from "src/cs/workbench/services/template/common/template";
+import type { IUserTemplateService } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 import { UserTemplateService } from "src/cs/workbench/services/userTemplate/browser/userTemplateService";
 import { UserTemplateStoreService } from "src/cs/workbench/services/userTemplate/browser/userTemplateStoreService";
 
@@ -27,16 +29,22 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		store.add(new UserTemplateStoreService(store.add(new TestStorageService())));
 	const createUserTemplateServiceForTest = () =>
 		store.add(new UserTemplateService(createUserTemplateStoreServiceForTest()));
+	const createReviewServiceForTest = (
+		sessionService: SessionService,
+		recipeService: IRecipeService,
+		userTemplateService: IUserTemplateService,
+	) => store.add(new ReviewService(
+		sessionService,
+		recipeService,
+		userTemplateService,
+		new TemplateMaterializationService(),
+	));
 
 	test("derives recipe candidates into a system-recommended review decision", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
-		const service = store.add(new ReviewService(
-			sessionService,
-			recipeService,
-			userTemplateService,
-		));
+		const service = createReviewServiceForTest(sessionService, recipeService, userTemplateService);
 
 		const result = service.deriveAndReview({
 			tableFacts: createTableFacts(),
@@ -58,11 +66,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
-		const service = store.add(new ReviewService(
-			sessionService,
-			recipeService,
-			userTemplateService,
-		));
+		const service = createReviewServiceForTest(sessionService, recipeService, userTemplateService);
 
 		const result = service.deriveAndReview({
 			tableFacts: createTableFacts(),
@@ -94,11 +98,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			name: "Transfer",
 			template,
 		});
-		const service = store.add(new ReviewService(
-			sessionService,
-			recipeService,
-			userTemplateService,
-		));
+		const service = createReviewServiceForTest(sessionService, recipeService, userTemplateService);
 
 		const result = service.deriveAndReview({
 			tableFacts: createTableFacts(),
@@ -124,11 +124,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			name: "Transfer",
 			template: createTemplate({ id: "template-a" }),
 		});
-		const service = store.add(new ReviewService(
-			sessionService,
-			recipeService,
-			userTemplateService,
-		));
+		const service = createReviewServiceForTest(sessionService, recipeService, userTemplateService);
 
 		const result = service.deriveAndReview({
 			tableFacts: createTableFacts(),
@@ -148,11 +144,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
-		const service = store.add(new ReviewService(
-			sessionService,
-			recipeService,
-			userTemplateService,
-		));
+		const service = createReviewServiceForTest(sessionService, recipeService, userTemplateService);
 		store.add(new ReviewContribution(
 			sessionService,
 			service,
@@ -180,11 +172,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
-		const service = store.add(new ReviewService(
-			sessionService,
-			recipeService,
-			userTemplateService,
-		));
+		const service = createReviewServiceForTest(sessionService, recipeService, userTemplateService);
 		sessionService.commitFileImport(createImportResult());
 		sessionService.commitRawTableFacts(createTableFacts());
 
@@ -210,11 +198,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			name: "Saved Transfer",
 			template,
 		});
-		const service = store.add(new ReviewService(
-			sessionService,
-			recipeService,
-			userTemplateService,
-		));
+		const service = createReviewServiceForTest(sessionService, recipeService, userTemplateService);
 		sessionService.commitFileImport(createImportResult());
 		sessionService.commitRawTableFacts(createTableFacts());
 
@@ -240,11 +224,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
-		const service = store.add(new ReviewService(
-			sessionService,
-			recipeService,
-			userTemplateService,
-		));
+		const service = createReviewServiceForTest(sessionService, recipeService, userTemplateService);
 		sessionService.commitFileImport(createImportResult());
 		sessionService.commitRawTableFacts(createTableFacts());
 
@@ -272,11 +252,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			name: "User Transfer",
 			template,
 		});
-		const service = store.add(new ReviewService(
-			sessionService,
-			recipeService,
-			userTemplateService,
-		));
+		const service = createReviewServiceForTest(sessionService, recipeService, userTemplateService);
 		sessionService.commitFileImport(createImportResult());
 		sessionService.commitRawTableFacts(createTableFacts());
 
@@ -303,11 +279,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
-		const service = store.add(new ReviewService(
-			sessionService,
-			recipeService,
-			userTemplateService,
-		));
+		const service = createReviewServiceForTest(sessionService, recipeService, userTemplateService);
 		sessionService.commitFileImport(createImportResult());
 		sessionService.commitRawTableFacts(createTableFacts());
 

@@ -1,6 +1,6 @@
 import assert from "assert";
 
-import { toColumnLabel } from "src/cs/workbench/services/template/common/templateCellRef";
+import { toColumnLabel } from "src/cs/workbench/services/template/common/templateCellRange";
 import type { TemplateEditorConfig } from "src/cs/workbench/services/template/common/templateEditorConfig";
 import {
   areTableCellsEqual,

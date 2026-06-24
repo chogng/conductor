@@ -16,13 +16,13 @@ import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
 import {
   type TemplateEditorConfig,
+  validateTemplateForSave,
 } from "src/cs/workbench/services/template/common/templateEditorConfig";
 import {
   Severity,
   type INotificationService,
   type NotificationPresentationType,
 } from "src/cs/workbench/services/notification/common/notificationService";
-import { validateTemplateForSave } from "src/cs/workbench/services/template/common/templateValidation";
 import {
   isAutoTemplateId,
 } from "src/cs/workbench/services/slice/common/templateSelection";
@@ -68,7 +68,7 @@ import {
   getTemplateXRangeColumns,
   getTemplateXRangeFormFields,
   normalizeTemplateXRanges,
-} from "src/cs/workbench/services/template/common/templateXRange";
+} from "src/cs/workbench/services/template/common/templateCellRange";
 
 import "src/cs/workbench/contrib/template/browser/views/media/templateView.css";
 

@@ -24,6 +24,7 @@ import {
   cloneTemplateEditorConfig,
   normalizeTemplateEditorConfigRecord,
   toTemplateNameKey,
+  validateTemplateForSave,
 } from "src/cs/workbench/services/template/common/templateEditorConfig";
 import {
   TemplateCommandId,
@@ -32,9 +33,6 @@ import type { TemplateEditorRecord } from "src/cs/workbench/services/template/co
 import {
   createTemplateFromEditorRecord,
 } from "src/cs/workbench/services/template/common/templateEditorAdapter";
-import {
-  validateTemplateForSave,
-} from "src/cs/workbench/services/template/common/templateValidation";
 import {
   IUserTemplateService,
   type IUserTemplateService as IUserTemplateServiceType,

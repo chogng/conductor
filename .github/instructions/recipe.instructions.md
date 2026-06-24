@@ -58,7 +58,8 @@ selector/materialization implementation:
 | --- | --- |
 | `template/common/recipeSelectorEvaluator.ts` | target home for evaluating `RecipeSelector` against table facts. |
 | `template/common/recipeTemplateMaterializer.ts` | target home for materializing matched captures into concrete `TemplateDraft` snapshots. |
-| `template/common/automaticTemplateMaterializer.ts` | target home for combining Recipe and UserTemplate materializers into automatic candidates. |
+| `template/common/templateMaterialization.ts` | service contract for cross-service Template materialization. |
+| `template/browser/templateMaterializationService.ts` | target home for combining Recipe and UserTemplate materializers into automatic candidates. |
 
 ## Flow
 
@@ -67,8 +68,8 @@ resources/recipes/v1/index.json
   -> scripts/buildRecipeBundle.mjs
   -> builtinRecipes.generated.ts + cli/resources/recipes.v1.json
   -> RecipeService.getSnapshot()
-  -> Template materializer observes recipe/table-fact/UserTemplate changes
-  -> Template materializer evaluates selector/projection
+  -> ReviewService observes recipe/table-fact/UserTemplate changes
+  -> ITemplateMaterializationService evaluates selector/projection
   -> ReviewService reviews materialized candidates
   -> ReviewDecision stores selected ReviewedTemplate snapshot when ready
   -> ReviewApply submits SliceRequest only when systemRecommended
@@ -79,7 +80,7 @@ Recipe changes are owner-event-reread:
 ```txt
 RecipeService reload/change
   -> onDidChangeRecipes
-  -> Template materialization refreshes affected candidates
+  -> IReviewService requests Template materialization for affected candidates
   -> IReviewService reviews affected candidates
   -> Session reviewChanged
 ```
