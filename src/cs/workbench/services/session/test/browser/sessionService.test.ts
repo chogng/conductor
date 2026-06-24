@@ -182,7 +182,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
         y: [1],
       }],
     }, {
-      appliedTemplateSelection: { kind: "template", templateId: "template-a" },
+      appliedTemplateSelection: { kind: "saved", templateId: "template-a" },
     });
 
     assert.deepEqual(getLatestSliceRunRecord(session.getSnapshot().filesById["file-a"])?.selection, {
@@ -265,7 +265,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
         y: [1e-9, 1e-6],
       },
     }, {
-      appliedTemplateSelection: { kind: "template", templateId: "template-a" },
+      appliedTemplateSelection: { kind: "saved", templateId: "template-a" },
     });
 
     const snapshot = session.getSnapshot();

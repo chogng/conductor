@@ -1316,7 +1316,7 @@ const normalizeTemplateSelection = (
   if (selection?.kind === "inline" && selection.template) {
     return selection;
   }
-  if (selection?.kind === "saved" || selection?.kind === "template") {
+  if (selection?.kind === "saved") {
     const templateId = normalizeId(selection.templateId);
     return templateId ? { kind: "saved", templateId } : { kind: "auto" };
   }

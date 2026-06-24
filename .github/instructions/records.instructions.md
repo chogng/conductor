@@ -171,7 +171,7 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
   partitioned into table-fact/slicing/binding/apply sub-templates.
 - Review consumes materialized Template candidates. Slice consumes reviewed
   Template snapshots. Neither re-materializes Recipe or table facts.
-- `TemplateApplyConfig` owns legacy/manual extraction configuration such as
+- `TemplateApplyConfig` owns manual extraction configuration such as
   data rows, segmentation, legend target, units, titles, y columns, and
   stop-on-error. It may be adapted into a canonical `Template` snapshot, but it
   is not Session canonical data.
@@ -200,8 +200,8 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
 ### Slice
 
 - `SliceRun` is the canonical fact for executing a concrete `Template`.
-- `SliceRequest` is the intended single execution input. During migration,
-  legacy `enqueueAuto` / `runWithTemplate` APIs may remain as adapters only.
+- `SliceRequest` is the intended single execution input. Compatibility
+  `enqueueAuto` / `runWithTemplate` APIs may remain as adapters only.
 - `SliceRun.template` is the executed snapshot from a reviewed automatic
   template or manual input.
 - `SliceRun.sourceTableFactsSignature` is a migration field name tying automatic

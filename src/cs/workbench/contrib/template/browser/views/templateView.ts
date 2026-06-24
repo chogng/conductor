@@ -32,7 +32,7 @@ import type {
 } from "src/cs/workbench/services/template/common/template";
 import {
   createTemplateFromApplyPresetRecord,
-} from "src/cs/workbench/services/template/common/templateLegacyAdapter";
+} from "src/cs/workbench/services/template/common/templateApplyPresetAdapter";
 import type {
   IUserTemplateService,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
@@ -66,7 +66,7 @@ import {
   areTemplateXRangesEqual,
   formatTemplateXRangeLabel,
   getTemplateXRangeColumns,
-  getTemplateXRangeLegacyFields,
+  getTemplateXRangeFormFields,
   normalizeTemplateXRanges,
 } from "src/cs/workbench/services/template/common/templateXRange";
 
@@ -292,11 +292,11 @@ export class TemplateView {
     if (Array.isArray(updates.xRanges)) {
       const xRanges = normalizeTemplateXRanges(updates.xRanges, next.xDataStart, next.xDataEnd, next.xColumns);
       changed = !areTemplateXRangesEqual(current.xRanges, xRanges);
-      const legacyFields = getTemplateXRangeLegacyFields(xRanges);
+      const xRangeFormFields = getTemplateXRangeFormFields(xRanges);
       next.xRanges = xRanges;
       next.xColumns = getTemplateXRangeColumns(xRanges);
-      next.xDataStart = legacyFields.xDataStart;
-      next.xDataEnd = legacyFields.xDataEnd;
+      next.xDataStart = xRangeFormFields.xDataStart;
+      next.xDataEnd = xRangeFormFields.xDataEnd;
     } else if (Array.isArray(updates.xColumns)) {
       changed = changed || !areColumnIndexesEqual(current.xColumns, updates.xColumns);
       next.xColumns = normalizeColumnIndexes(updates.xColumns);

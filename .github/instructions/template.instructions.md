@@ -21,13 +21,13 @@ Do not add consumer-shaped template sections such as `template.review`,
 raw-table facts and owns materialization, but it must keep raw table facts
 distinct from the executable `Template` snapshot.
 
-Legacy/manual extraction presets are not the domain `Template`; name them
+Manual apply presets are not the domain `Template`; name them
 `TemplateApplyPresetRecord` / `TemplateApplyConfig`.
 
 ## Ownership
 
 Template owns the core `Template` spec, table+recipe materialization helpers,
-and legacy apply-preset view-model conversion. It does not own UserTemplate
+and apply-preset editor conversion. It does not own UserTemplate
 catalog CRUD, catalog snapshots, Review decisions, per-file template
 selections, or raw-file view input.
 
@@ -60,11 +60,11 @@ plot rendering, or chart state.
 | `common/userTemplateMaterializer.ts` | pure UserTemplate + table-facts materializer that creates `TemplateDraft` candidates. |
 | `common/automaticTemplateMaterializer.ts` | combines Recipe and UserTemplate materializers into the automatic candidate set. |
 | `common/template.ts` | `TemplateApplyPresetRecord` and re-exported template spec types. |
-| `common/templateLegacyAdapter.ts` | adapter between historical/manual apply-preset view models and canonical block-aware `Template`. |
-| `common/templateApplyConfigUtils.ts` | legacy/manual apply config normalization and cloning. |
+| `common/templateApplyPresetAdapter.ts` | adapter between manual apply-preset view models and canonical block-aware `Template`. |
+| `common/templateApplyConfigUtils.ts` | manual apply config normalization and cloning. |
 | `contrib/template/browser/templateIds.ts` | Template UI view id and command ids. |
-| `contrib/template/browser/templateFileTransfer.ts` | Template UI JSON import/export workflow helper; parses/serializes legacy bundles. |
-| `contrib/template/browser/templateUserTemplateAdapter.ts` | View-model adapter from UserTemplate snapshots into legacy editable apply records. |
+| `contrib/template/browser/templateFileTransfer.ts` | Template UI JSON import/export workflow helper; parses/serializes apply-preset bundles. |
+| `contrib/template/browser/templateUserTemplateAdapter.ts` | View-model adapter from UserTemplate snapshots into editable apply records. |
 | `contrib/template/browser/templateViewStateService.ts` | Template UI selected-template/form editor state. |
 | `contrib/template/browser/templateAuxiliaryBarViewPane.ts` / `views/templateView.ts` | UI shell; renders UserTemplate catalog + view state and sends commands. |
 
@@ -103,15 +103,14 @@ into canonical `Template` snapshots before Slice runs.
   produce it from table facts plus Recipe/UserTemplate sources; Slice consumes
   reviewed or manual snapshots and must not materialize Recipes.
 - Engines should consume `Template`, not consumer-specific sub-templates.
-- Legacy/manual apply presets may be bridged through `TemplateApplyConfig` and
-  `templateLegacyAdapter`; they are inputs to `Template` snapshots, not an
+- Manual apply presets may be bridged through `TemplateApplyConfig` and
+  `templateApplyPresetAdapter`; they are inputs to `Template` snapshots, not an
   execution workflow.
-- Legacy raw-header auto-template inference is retired from product execution.
+- Raw-header auto-template inference is retired from product execution.
   New `TableFacts + Recipe/UserTemplate -> Template` derivation belongs in
   Template materialization helpers, not Template execution.
 - Do not export or share a special Auto Template ID as domain API. UI-only
-  values stay local to their view, and compatibility parsing for old `"0"` /
-  `"__auto__"` values must go through `isAutoTemplateId(...)`.
+  values stay local to their view.
 - Template may read current table selection through injected `ITableService` public APIs only as explicit user input.
 - Do not pass `ITableService`, table row readers, or table model methods through Template view/workflow input.
 - Template execution is an owner API on `ISliceService`; UI must not invoke
@@ -125,7 +124,7 @@ into canonical `Template` snapshots before Slice runs.
 - Do not reintroduce Template-owned workflow inputs or
   `TemplateState.selectionsByFileId`; slicing selections come from
   `ISliceService`.
-- Template UI library management must read/write `IUserTemplateService`; legacy
+- Template UI library management must read/write `IUserTemplateService`;
   `TemplateApplyConfig` is only an editor view model and import/export bundle
   compatibility format.
 - `activeFileId` should move the current chart/Explorer target to the front of full and incremental slice queues.
@@ -140,7 +139,7 @@ into canonical `Template` snapshots before Slice runs.
 - `SliceRun` records include template fingerprint and source block ids.
 - Execution commits through `commitSliceRuns(...)`; do not add Template-owned
   run/output commit or cleanup APIs.
-- Review, not Template or Slice, decides whether missing, legacy curve-only,
+- Review, not Template or Slice, decides whether missing, curve-only,
   unknown, low-confidence, review-required, or ambiguous evidence can be
   applied by the system. Keep skipped/blocked files visible through Explorer
   badges driven by Review and Slice projections.

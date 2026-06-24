@@ -6,7 +6,7 @@ import { parseCellLabel } from "src/cs/workbench/services/template/common/templa
 import { normalizeColumnIndexes } from "src/cs/workbench/services/template/common/templateXYBinding";
 import {
   getTemplateXRangeColumns,
-  getTemplateXRangeLegacyFields,
+  getTemplateXRangeFormFields,
   normalizeTemplateXRanges,
   type TemplateXRange,
 } from "src/cs/workbench/services/template/common/templateXRange";
@@ -64,16 +64,16 @@ export const createEmptyTemplateApplyConfig = (
     xDataEnd,
     config.xColumns,
   );
-  const legacyXRange = getTemplateXRangeLegacyFields(xRanges);
+  const xRangeFormFields = getTemplateXRangeFormFields(xRanges);
   const xColumns = getTemplateXRangeColumns(xRanges).length
     ? getTemplateXRangeColumns(xRanges)
-    : normalizeTemplateXColumns(config.xColumns, legacyXRange.xDataStart || config.xDataStart);
+    : normalizeTemplateXColumns(config.xColumns, xRangeFormFields.xDataStart || config.xDataStart);
   const yColumns = normalizeColumnIndexes(config.yColumns);
   return {
     ...config,
     xColumns,
-    xDataEnd: legacyXRange.xDataEnd || xDataEnd,
-    xDataStart: legacyXRange.xDataStart || String(config.xDataStart ?? ""),
+    xDataEnd: xRangeFormFields.xDataEnd || xDataEnd,
+    xDataStart: xRangeFormFields.xDataStart || String(config.xDataStart ?? ""),
     xRanges,
     yColumns,
   };

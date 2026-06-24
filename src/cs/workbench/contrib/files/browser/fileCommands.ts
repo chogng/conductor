@@ -103,11 +103,7 @@ const isTemplateSelection = (value: unknown): value is TemplateSelection => {
     return true;
   }
 
-  if (
-    (candidate.kind === "saved" || candidate.kind === "template") &&
-    typeof candidate.templateId === "string" &&
-    candidate.templateId.trim().length > 0
-  ) {
+  if (candidate.kind === "saved" && typeof candidate.templateId === "string" && candidate.templateId.trim().length > 0) {
     return true;
   }
 

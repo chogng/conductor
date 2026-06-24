@@ -13,7 +13,7 @@ import {
 } from "src/cs/workbench/services/template/common/templateXYBinding";
 import {
   getTemplateXRangeColumns,
-  getTemplateXRangeLegacyFields,
+  getTemplateXRangeFormFields,
   normalizeTemplateXRange,
   normalizeTemplateXRanges,
   type TemplateXRange,
@@ -100,7 +100,7 @@ export const resolveTemplateXRangeSelectionUpdate = (
     ...selectedRanges,
   ]);
   return {
-    ...getTemplateXRangeLegacyFields(xRanges),
+    ...getTemplateXRangeFormFields(xRanges),
     xColumns: getTemplateXRangeColumns(xRanges),
     xRanges,
   };

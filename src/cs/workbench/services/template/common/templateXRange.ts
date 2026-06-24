@@ -42,9 +42,9 @@ export function normalizeTemplateXRange(value: unknown): TemplateXRange | null {
 
 export function normalizeTemplateXRanges(
 	values: readonly unknown[] | undefined,
-	legacyStart?: unknown,
-	legacyEnd?: unknown,
-	legacyColumns?: readonly unknown[],
+	formStart?: unknown,
+	formEnd?: unknown,
+	formColumns?: readonly unknown[],
 ): TemplateXRange[] {
 	const ranges = Array.isArray(values)
 		? values
@@ -55,7 +55,7 @@ export function normalizeTemplateXRanges(
 		return ranges;
 	}
 
-	return createLegacyTemplateXRanges(legacyStart, legacyEnd, legacyColumns);
+	return createTemplateXRangesFromFormFields(formStart, formEnd, formColumns);
 }
 
 export function formatTemplateXRangeLabel(range: TemplateXRange): string {
@@ -106,7 +106,7 @@ export function getTemplateXRangeColumns(ranges: readonly TemplateXRange[]): num
 	return normalizeColumnIndexes(columns);
 }
 
-export function getTemplateXRangeLegacyFields(ranges: readonly TemplateXRange[]): {
+export function getTemplateXRangeFormFields(ranges: readonly TemplateXRange[]): {
 	readonly xDataEnd: string;
 	readonly xDataStart: string;
 } {
@@ -199,20 +199,20 @@ function normalizeTemplateXRangeParts({
 	};
 }
 
-function createLegacyTemplateXRanges(
-	legacyStart: unknown,
-	legacyEnd: unknown,
-	legacyColumns: readonly unknown[] | undefined,
+function createTemplateXRangesFromFormFields(
+	formStart: unknown,
+	formEnd: unknown,
+	formColumns: readonly unknown[] | undefined,
 ): TemplateXRange[] {
-	const startCell = parseCellLabel(legacyStart);
+	const startCell = parseCellLabel(formStart);
 	if (!startCell) {
 		return [];
 	}
 
-	const columns = normalizeColumnIndexes(legacyColumns).length
-		? normalizeColumnIndexes(legacyColumns)
+	const columns = normalizeColumnIndexes(formColumns).length
+		? normalizeColumnIndexes(formColumns)
 		: [startCell.colIndex];
-	const endLabel = normalizeTemplateXRangeEndLabel(legacyEnd);
+	const endLabel = normalizeTemplateXRangeEndLabel(formEnd);
 	const endCell = isTemplateXRangeEnd(endLabel) ? null : parseCellLabel(endLabel);
 	const endRow = endCell?.rowIndex ?? startCell.rowIndex;
 

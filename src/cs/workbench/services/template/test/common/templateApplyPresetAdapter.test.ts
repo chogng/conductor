@@ -7,10 +7,10 @@ import assert from "assert";
 import {
   createTemplateApplyPresetRecordFromTemplate,
   createTemplateFromApplyPresetRecord,
-} from "src/cs/workbench/services/template/common/templateLegacyAdapter";
+} from "src/cs/workbench/services/template/common/templateApplyPresetAdapter";
 import type { Template } from "src/cs/workbench/services/template/common/template";
 
-suite("workbench/services/template/test/common/templateLegacyAdapter", () => {
+suite("workbench/services/template/test/common/templateApplyPresetAdapter", () => {
   test("projects canonical templates into editable apply preset records", () => {
     const template = createTemplate();
 

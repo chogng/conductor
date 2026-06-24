@@ -12,7 +12,7 @@ is not the Template UI form state.
 `IUserTemplateService` owns native UserTemplate CRUD/import/export and catalog
 snapshots. Template materializers, Review manual paths, Template UI, Explorer
 template pickers, and explicit Slice template lookup consume
-`UserTemplateSnapshot` or `getTemplate(id)` instead of reading a legacy template
+`UserTemplateSnapshot` or `getTemplate(id)` instead of reading a template
 catalog.
 
 ## Ownership
@@ -65,7 +65,7 @@ user template picker / saved-selection compatibility picker
 - Native UserTemplates are persisted by scope: `global` in profile storage and
   `workspace` in workspace storage. Do not store them in Session.
 - Template UI library management reads and writes through
-  `IUserTemplateService`. The existing form may keep using legacy
+  `IUserTemplateService`. The existing form may keep using
   `TemplateApplyConfig` as an editor view model, but persistence must
   materialize a `UserTemplate.template` snapshot.
 

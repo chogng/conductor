@@ -12,7 +12,7 @@ import {
 } from "src/cs/workbench/services/template/common/templateXYBinding";
 import {
   getTemplateXRangeColumns,
-  getTemplateXRangeLegacyFields,
+  getTemplateXRangeFormFields,
   haveTemplateXRangesSameRows,
   normalizeTemplateXRanges,
   type TemplateXRange,
@@ -141,7 +141,7 @@ export function validateTemplateForSave<T extends ValidationConfig>(
       ...config,
       xColumns,
       xRanges,
-      ...getTemplateXRangeLegacyFields(xRanges),
+      ...getTemplateXRangeFormFields(xRanges),
       yColumns,
       bottomTitle: varPair.vg,
       legendPrefix: varPair.vd,
@@ -190,7 +190,7 @@ export function validateTemplateForApply<T extends ValidationConfig>(
       legendPrefix: varPair.vd,
       xColumns,
       xRanges,
-      ...getTemplateXRangeLegacyFields(xRanges),
+      ...getTemplateXRangeFormFields(xRanges),
       yColumns,
       xUnit: normalizeAxisUnit(config?.xUnit),
       yUnit: normalizeYUnit(config?.yUnit, "A"),

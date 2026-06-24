@@ -30,7 +30,7 @@ import {
 import type { TemplateApplyPresetRecord } from "src/cs/workbench/services/template/common/template";
 import {
   createTemplateFromApplyPresetRecord,
-} from "src/cs/workbench/services/template/common/templateLegacyAdapter";
+} from "src/cs/workbench/services/template/common/templateApplyPresetAdapter";
 import {
   validateTemplateForSave,
 } from "src/cs/workbench/services/template/common/templateValidation";

@@ -162,7 +162,7 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
       snapshot,
       {
         appliedTemplateApplyConfig: templateConfig,
-        appliedTemplateSelection: { kind: "template", templateId: "template-a" },
+        appliedTemplateSelection: { kind: "saved", templateId: "template-a" },
       },
     );
     const calculatedRecords = replaceCalculatedCurvesInRecords(
@@ -523,7 +523,7 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
       },
       createSnapshot(rawRecords),
       {
-        appliedTemplateSelection: { kind: "template", templateId: "template-a" },
+        appliedTemplateSelection: { kind: "saved", templateId: "template-a" },
       },
     );
     const sliceRun = getLatestSliceRunRecord(processedRecords.filesById["file-a"]);

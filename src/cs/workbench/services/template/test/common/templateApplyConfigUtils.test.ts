@@ -30,14 +30,14 @@ suite("workbench/services/template/common/templateApplyConfigUtils", () => {
     );
   });
 
-  test("template apply config normalizes legacy End keyword to empty", () => {
+  test("template apply config normalizes End keyword to empty", () => {
     assert.equal(
       cloneTemplateApplyConfig({ xDataStart: "D5", xDataEnd: "end" }).xDataEnd,
       "",
     );
   });
 
-  test("template apply config derives legacy X columns without storing an XY mode", () => {
+  test("template apply config derives X columns without storing an XY mode", () => {
     const oneYColumn = normalizeTemplateApplyConfigRecord({
       xDataStart: "D5",
       yColumns: [4],

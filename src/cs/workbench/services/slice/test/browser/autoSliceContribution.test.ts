@@ -213,7 +213,7 @@ const createReview = (
 		}),
 		recipeFingerprint: "recipe:test",
 		userTemplateCatalogVersion: 1,
-		userTemplateEffectiveFingerprint: "legacy-template:test",
+		userTemplateEffectiveFingerprint: "user-template:test",
 		reviewEngineVersion: 1,
 		reviewPolicyVersion: 1,
 		candidates: [{

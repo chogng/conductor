@@ -12,7 +12,7 @@ quality, or decide whether the system should apply a template.
 
 `ISliceService` owns:
 
-- per-file legacy `TemplateSelection` adapters during migration;
+- per-file `TemplateSelection` state;
 - `SliceRequest` queue entries from ReviewApply or user commands;
 - slice file state, priority, cancellation, and queue draining;
 - calling the planner/executor and committing `SliceCommit` through Session.
@@ -29,7 +29,7 @@ returns a `SliceCommit`. It must not call services or reread Session.
 | File | Responsibility |
 | --- | --- |
 | `common/slice.ts` | service contract, `SliceRequest`, `SliceRun`, `SlicePlan`, commit/state/input types. |
-| `common/templateSelection.ts` | per-file legacy `TemplateSelection` records and normalization helpers owned by Slice state. |
+| `common/templateSelection.ts` | per-file `TemplateSelection` records and normalization helpers owned by Slice state. |
 | `common/slicePlanner.ts` | pure plan/range generation and migration source/table-fact signature helpers. |
 | `common/sliceExecutor.ts` | pure row execution into `SliceCommit`. |
 | `browser/sliceService.ts` | injectable owner for queue, selection, progress state, row reading, and Session commit. |
@@ -73,7 +73,7 @@ command/action/controller
 Bulk command flow:
 
 ```txt
-slice.runWithTemplate / slice.runWithTemplateIncremental command during migration
+slice.runWithTemplate / slice.runWithTemplateIncremental command
   -> collect RawTableRef targets from SessionSnapshot
   -> review selected Template through Review
   -> ISliceService.submit(...) for each ready target

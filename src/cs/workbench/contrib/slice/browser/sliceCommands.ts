@@ -32,7 +32,7 @@ import {
 import {
 	isAutoTemplateId,
 } from "src/cs/workbench/services/template/common/autoTemplate";
-import { createTemplateFromApplyPresetRecord } from "src/cs/workbench/services/template/common/templateLegacyAdapter";
+import { createTemplateFromApplyPresetRecord } from "src/cs/workbench/services/template/common/templateApplyPresetAdapter";
 import {
 	createInlineTemplateSelection,
 	type TemplateSelection,

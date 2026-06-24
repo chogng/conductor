@@ -453,7 +453,7 @@ templateRange.ts
 templateDraft.ts
 recipeTemplateMaterializer.ts
 userTemplateMaterializer.ts
-templateLegacyAdapter.ts
+templateApplyPresetAdapter.ts
 ```
 
 不负责：
@@ -1461,7 +1461,7 @@ src/cs/workbench/services/template/
     recipeSelectorEvaluator.ts
     recipeTemplateMaterializer.ts
     userTemplateMaterializer.ts
-    templateLegacyAdapter.ts
+    templateApplyPresetAdapter.ts
 ```
 
 ### 21.2 services/userTemplate

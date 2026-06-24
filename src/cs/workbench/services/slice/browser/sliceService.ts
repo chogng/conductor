@@ -573,8 +573,9 @@ const normalizeTemplateSelection = (
 		return selection;
 	}
 
-	const templateId = getTemplateSelectionTemplateId(selection);
-	return templateId ? { kind: "saved", templateId } : { kind: "auto" };
+	return selection.templateId.trim()
+		? { kind: "saved", templateId: selection.templateId.trim() }
+		: { kind: "auto" };
 };
 
 const normalizeRawTableRef = (

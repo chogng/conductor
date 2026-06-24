@@ -52,8 +52,7 @@ export type MetricKey = `${MetricFamily}:${SeriesId}:${string}`;
 export type TemplateSelectionRecord =
   | { kind: "auto" }
   | { kind: "saved"; templateId: string }
-  | { kind: "inline"; template: Template }
-  | { kind: "template"; templateId: string };
+  | { kind: "inline"; template: Template };
 
 export type SessionModel = {
   schemaVersion: 1;

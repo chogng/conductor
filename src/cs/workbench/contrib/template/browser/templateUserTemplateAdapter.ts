@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { TemplateApplyPresetRecord } from "src/cs/workbench/services/template/common/template";
-import { createTemplateApplyPresetRecordFromTemplate } from "src/cs/workbench/services/template/common/templateLegacyAdapter";
+import { createTemplateApplyPresetRecordFromTemplate } from "src/cs/workbench/services/template/common/templateApplyPresetAdapter";
 import type { UserTemplate } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
 export const createTemplateApplyPresetRecordFromUserTemplate = (

@@ -20,8 +20,6 @@ suite("workbench/services/slice/test/common/templateSelection", () => {
 	test("creates auto and saved template selections", () => {
 		assert.deepEqual(createTemplateSelection(null), { kind: "auto" });
 		assert.deepEqual(createTemplateSelection("auto"), { kind: "auto" });
-		assert.deepEqual(createTemplateSelection("0"), { kind: "auto" });
-		assert.deepEqual(createTemplateSelection("__auto__"), { kind: "auto" });
 		assert.deepEqual(createTemplateSelection(" template-a "), {
 			kind: "saved",
 			templateId: "template-a",
@@ -44,13 +42,6 @@ suite("workbench/services/slice/test/common/templateSelection", () => {
 			{ kind: "saved", templateId: "template-file" },
 		);
 		assert.equal(resolveTemplateSelectionForFile("file-b", {}, current), current);
-	});
-
-	test("reads legacy template selections as saved template ids", () => {
-		assert.equal(
-			getTemplateSelectionTemplateId({ kind: "template", templateId: " template-a " }),
-			"template-a",
-		);
 	});
 
 	test("removes selections for deleted files", () => {

@@ -13,7 +13,7 @@ import { toColumnLabel } from "src/cs/workbench/services/template/common/templat
 import {
   formatTemplateXRangeLabel,
   getTemplateXRangeColumns,
-  getTemplateXRangeLegacyFields,
+  getTemplateXRangeFormFields,
   normalizeTemplateXRange,
   normalizeTemplateXRanges,
   type TemplateXRange,
@@ -438,7 +438,7 @@ export class TemplateEditorView {
   private updateXRanges(ranges: readonly TemplateXRange[]): void {
     const xRanges = normalizeTemplateXRanges(ranges);
     this.options.onUpdateConfig({
-      ...getTemplateXRangeLegacyFields(xRanges),
+      ...getTemplateXRangeFormFields(xRanges),
       xColumns: getTemplateXRangeColumns(xRanges),
       xRanges,
     });

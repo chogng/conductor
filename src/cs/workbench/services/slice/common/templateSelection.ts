@@ -12,10 +12,7 @@ const AUTO_TEMPLATE_SELECTION_ID = "auto";
 export type TemplateSelection =
 	| { readonly kind: "auto" }
 	| { readonly kind: "saved"; readonly templateId: string }
-	| { readonly kind: "inline"; readonly template: Template }
-	// Compatibility with UI state written before the TemplateSelection split.
-	// New code should emit "saved".
-	| { readonly kind: "template"; readonly templateId: string };
+	| { readonly kind: "inline"; readonly template: Template };
 
 export type TemplateSelectionsByFileId = Record<string, TemplateSelection>;
 
@@ -40,8 +37,8 @@ export const createInlineTemplateSelection = (template: Template): TemplateSelec
 
 export const isSavedTemplateSelection = (
 	selection: TemplateSelection | null | undefined,
-): selection is Extract<TemplateSelection, { readonly kind: "saved" | "template" }> =>
-	selection?.kind === "saved" || selection?.kind === "template";
+): selection is Extract<TemplateSelection, { readonly kind: "saved" }> =>
+	selection?.kind === "saved";
 
 export const getTemplateSelectionTemplateId = (
 	selection: TemplateSelection | null | undefined,

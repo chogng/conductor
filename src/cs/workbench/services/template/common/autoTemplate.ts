@@ -2,9 +2,9 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-const LEGACY_AUTO_TEMPLATE_IDS = new Set(["auto", "0", "__auto__"]);
+const AUTO_TEMPLATE_IDS = new Set(["auto"]);
 
 export const isAutoTemplateId = (templateId: unknown): boolean => {
   const normalizedTemplateId = String(templateId ?? "").trim();
-  return LEGACY_AUTO_TEMPLATE_IDS.has(normalizedTemplateId);
+  return AUTO_TEMPLATE_IDS.has(normalizedTemplateId);
 };
