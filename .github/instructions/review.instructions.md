@@ -5,18 +5,18 @@ applyTo: 'src/cs/workbench/services/review/**,src/cs/workbench/contrib/review/**
 # Review
 
 Review is the owner of Template usability and application decisions for raw
-tables. It consumes raw table evidence plus Recipe/UserTemplate candidate
-sources and writes auditable `RawTableReviewRecord` facts.
+tables. It consumes materialized Template candidates and writes auditable
+`RawTableReviewRecord` facts.
 
-The primary template path is Recipe/UserTemplate -> TemplateDraft/Template ->
-Review -> Slice, with Assessment supplying RawTableEvidence as input. Review is
-the first layer that may choose usability or system application.
+The primary template path is TableFacts + Recipe/UserTemplate -> Template ->
+Review -> Slice. Review is the first layer that may choose usability or system
+application.
 
 ## Ownership
 
 `IReviewService` owns:
 
-- deriving Template drafts from Recipe and UserTemplate snapshots;
+- reviewing Template candidates materialized by Template;
 - reviewing candidates into `ready`, `needsAdjustment`, or `invalid`;
 - selecting the `ReviewedTemplate` snapshot when a candidate is ready;
 - deciding `systemRecommended` versus `userActionRequired`;
@@ -24,8 +24,8 @@ the first layer that may choose usability or system application.
 - committing `RawTableReviewRecord` values through Session.
 
 It does not own raw row profiling, Recipe catalog storage, UserTemplate catalog
-CRUD, Slice planning/execution, Explorer UI projection, or Template editor view
-state.
+CRUD, Template materialization, Slice planning/execution, Explorer UI
+projection, or Template editor view state.
 
 `ReviewApplyContribution` is a bridge only. It listens to `reviewChanged`,
 reads `ReviewDecision`, applies idempotency/staleness guards, and submits Slice
@@ -35,7 +35,7 @@ severity to decide whether a template is usable.
 ## Flow
 
 ```txt
-evidenceChanged / recipeChanged / userTemplateChanged / reviewPolicyChanged
+templateCandidatesChanged / reviewPolicyChanged
   -> ReviewContribution
   -> IReviewService.deriveAndReview(...)
   -> ISessionService.commitRawTableReviews(...)
@@ -69,29 +69,31 @@ user command / UserTemplate picker / saved-selection compatibility picker / inli
 | File | Responsibility |
 | --- | --- |
 | `common/review.ts` | service contract, Review records, candidate summaries, decisions, manual review results, and signatures. |
-| `common/templateDraft.ts` | internal full candidate draft shape before Review status/policy projection. |
-| `common/automaticTemplateDraftProvider.ts` | Review-owned pure provider combining Recipe and UserTemplate draft sources. |
-| `common/recipeSelectorEvaluator.ts` | pure Recipe selector evaluator against Assessment evidence. |
-| `common/recipeTemplateDraftProvider.ts` | materializes Recipe selector/projection matches into `TemplateDraft` values. |
-| `common/userTemplateDraftProvider.ts` | derives UserTemplate compatibility drafts from `UserTemplateSnapshot`. |
+| `common/templateDraft.ts` | migration location for full candidate draft shape before Review status/policy projection; target owner is Template. |
+| `common/automaticTemplateDraftProvider.ts` | migration provider combining Recipe and UserTemplate draft sources; new provider logic belongs in Template. |
+| `common/recipeSelectorEvaluator.ts` | migration Recipe selector evaluator against table facts; target owner is Template materialization. |
+| `common/recipeTemplateDraftProvider.ts` | migration materializer from Recipe selector/projection matches into `TemplateDraft` values; target owner is Template. |
+| `common/userTemplateDraftProvider.ts` | migration UserTemplate compatibility draft provider; target owner is Template. |
 | `browser/reviewService.ts` | injectable owner that reads snapshots, runs pure review helpers, and commits review records. |
 | `browser/review.contribution.ts` | lifecycle subscriber for evidence, Recipe, UserTemplate, and policy changes. |
 | `browser/reviewApply.contribution.ts` | no-UI bridge from system-recommended Review decisions to Slice requests. |
 
-During migration, Template Resolution may reuse Review-owned pure draft
-providers only as a legacy compatibility bridge for old candidate summaries.
-It is not a prerequisite for Review and is not on the primary path.
+During migration, Template Resolution may reuse existing pure draft providers
+only as a legacy compatibility bridge for old candidate summaries. It is not a
+prerequisite for Review and is not on the primary path.
 User-template candidates must come through `IUserTemplateService` and
-`UserTemplateSnapshot`. New decision logic and new provider logic still belong
-in Review, not TemplateResolution, Assessment, Explorer, or Slice.
+`UserTemplateSnapshot`. New decision logic belongs in Review; new provider and
+materialization logic belongs in Template, not TemplateResolution, Assessment,
+Explorer, or Slice.
 
 ## Rules
 
 - `ReviewDecision` is the only source for template usability and system
   application recommendations.
 - System recommendation policy is Review-owned: it uses `TemplateReview`
-  confidence and Review diagnostics/policy, not Assessment auto-apply fields.
-- `TemplateDraft` is Review pipeline data. It may carry derivation confidence,
+  confidence and Review diagnostics/policy, not legacy assessment apply fields.
+- `TemplateDraft` is Template materialization pipeline data consumed by Review.
+  It may carry derivation confidence,
   derivation reasons, diagnostics, and optional captures, but it must not carry
   final `ready` / `needsAdjustment` / `invalid` status.
 - `ReviewedTemplate.source` describes template provenance only: Recipe,
@@ -113,7 +115,8 @@ in Review, not TemplateResolution, Assessment, Explorer, or Slice.
 
 - Do not call Slice from `ReviewService`; use `ReviewApplyContribution` or a
   user-command controller.
-- Do not read raw rows or rerun evidence detection.
+- Do not read raw rows, rerun table-fact detection, or materialize Recipes.
 - Do not store user template catalog data in Review records.
-- Do not let Assessment, TemplateResolution, Slice, or Explorer decide
+- Do not let Template materializers, Assessment migration helpers,
+  TemplateResolution, Slice, or Explorer decide
   `systemRecommended`.

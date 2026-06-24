@@ -29,17 +29,17 @@ at the type name.
 | Record | Owner | Producer | Invalidation / notes |
 | --- | --- | --- | --- |
 | `SessionModel` | `ISessionService` | session commits | Canonical root: `schemaVersion`, `sessionVersion`, `filesById`, `fileOrder`. |
-| `FileRecord` | `ISessionService` | import, assessment, slice, calculation, metric commits | Owns one imported file/workbook lifecycle. |
+| `FileRecord` | `ISessionService` | import, table-fact, review, slice, calculation, metric commits | Owns one imported file/workbook lifecycle. |
 | `RawRecord` | `ISessionService` | file conversion commit | Raw file facts and `rawTablesById`; no assessment/template/plot semantics. |
 | `RawTableRecord` | `ISessionService` | `fileConverter.ts` | Physical rows/source/health/template eligibility. Use `rawTableId`; keep failed rows unavailable. |
 | `RawTableSourceRecord` | converter/session | CSV, Excel sheet, clipboard, manual, unknown | Source provenance only, not measurement semantics. |
 | `RawTableRowsRecord` | converter/session | inline, normalized CSV, unavailable | Large rows should use artifact/path references. |
-| `RawTableAssessmentRecord` | Assessment/RawTableEvidence + Session | `IAssessmentService` | Tied to raw table version, assessment rule version, and schema profile version; stores structure, column profiles, semantic candidates, groups, blocks, and diagnostics. |
-| `RawTableTemplateResolutionRecord` | Template Resolution legacy bridge + Session | `ITemplateResolutionService` | Legacy compatibility record tied to assessment signature, recipe fingerprint, and legacy template catalog version; stores candidate summaries only and is not on the primary Recipe/UserTemplate -> TemplateDraft/Template -> Review -> Slice path. |
-| `RawTableReviewRecord` | Review + Session | `IReviewService` | Tied to evidence signature, Recipe fingerprint, UserTemplate/saved-template fingerprint, review engine version, and review policy version; stores candidates, reviews, and `ReviewDecision`. |
-| `MeasurementGroupRecord` | Assessment + Session | assessment | Group/device labels and ordered block ids. |
-| `MeasurementBlockRecord` | Assessment + Session | assessment | Measurement family/mode/source ranges/column roles. |
-| `SliceRun` | Slice + Session | slice execution | Executed template snapshot, source assessment signature, input ranges, output series ids, output curve keys, warnings, and errors. |
+| `RawTableAssessmentRecord` | Template table facts migration + Session | `IAssessmentService` until migrated | Tied to raw table version, assessment rule version, and schema profile version; stores table facts: structure, column profiles, semantic candidates, groups, blocks, and diagnostics. |
+| `RawTableTemplateResolutionRecord` | Template Resolution legacy bridge + Session | `ITemplateResolutionService` | Legacy compatibility record tied to table-fact signature, recipe fingerprint, and legacy template catalog version; stores candidate summaries only and is not on the primary TableFacts + Recipe/UserTemplate -> Template -> Review -> Slice path. |
+| `RawTableReviewRecord` | Review + Session | `IReviewService` | Tied to template candidate signature, Recipe fingerprint, UserTemplate/saved-template fingerprint, review engine version, and review policy version; stores candidates, reviews, and `ReviewDecision`. |
+| `MeasurementGroupRecord` | Template table facts migration + Session | assessment helper until migrated | Group/device labels and ordered block ids. |
+| `MeasurementBlockRecord` | Template table facts migration + Session | assessment helper until migrated | Measurement family/mode/source ranges/column roles. |
+| `SliceRun` | Slice + Session | slice execution | Executed template snapshot, source table-fact signature, input ranges, output series ids, output curve keys, warnings, and errors. |
 | `SeriesRecord` | Slice/calculation + Session | slice or curve commit | Series metadata and raw/block provenance. |
 | `CurveRecord` | Slice/calculation + Session | slice/calculation commit | Base/derived curve points, lineage, domain, signature. |
 | `MetricRecord` | Parameters/calculation + Session | metric commit | Scalar/structured metric value with input signatures. |
@@ -52,7 +52,7 @@ caches.
 ## Raw Data Provenance
 
 Use `RawTableRangeRef` for anything that points back to source cells:
-assessment blocks, columns, diagnostics, search results, parameters, export
+table-fact blocks, columns, diagnostics, search results, parameters, export
 provenance, and template inputs.
 
 `RangeRef` is physical zero-based inclusive coordinates:
@@ -70,7 +70,7 @@ provenance, and template inputs.
 | `FileImportDiagnostic` | converter/files workflow | Import warnings/errors only; not IV/CV assessment. |
 
 Conversion records must not encode measurement blocks, curve types, plot
-series, template decisions, or assessment confidence.
+series, template decisions, or table-fact confidence.
 
 ## Service-Local State
 
@@ -92,7 +92,7 @@ series, template decisions, or assessment confidence.
 | `SearchQuery` / `SearchResult` | `ISearchService` | service state/model | query/options/session/plot index |
 | `ExportState` / `ExportPlan` | `IExportService` | service state/derived plan | export options/session/plot changes |
 | `ParametersState` / `ParameterRowModel` | `IParametersService` | service state/model | metrics, manual inputs, selected file/plot context |
-| `SchemaProfile` | schema profile source / Assessment consumer | service-local or external profile evidence, not Session canonical | exact schema fingerprint, confirmed count, conflict count |
+| `SchemaProfile` | schema profile source / table-fact consumer | service-local or external profile evidence, not Session canonical | exact schema fingerprint, confirmed count, conflict count |
 
 Service-local view input events should not carry the full snapshot as the data
 path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
@@ -108,16 +108,16 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
 - Decode/parse failures stay as health/unavailable row records; they do not
   become normal rows.
 
-### Assessment
+### Table Facts / Assessment Migration
 
-- `RawTableEvidence` is the clean evidence shape produced from
-  `RawTableAssessmentRecord`; it contains structure, column profiles, layout
-  candidates, semantic candidates, blocks, and source metadata only.
-- Assessment is the current RawTableEvidence owner. It is not a Review clone
-  and must not store TemplateDraft, ReviewedTemplate, ReviewDecision, or
-  system-application output.
-- Do not call raw-table evidence `RecipeEvidence`. Recipe consumes evidence but
-  does not own it.
+- `RawTableAssessmentRecord` is the current migration storage shape for table
+  facts. It contains structure, column profiles, layout candidates, semantic
+  candidates, blocks, and source metadata only.
+- Target ownership is Template materialization: `TableFacts +
+  Recipe/UserTemplate -> Template`. Do not promote Assessment into a permanent
+  domain or standalone evidence service.
+- Do not call table facts `RecipeEvidence`. Recipe is fixed rules; Template
+  combines rules with table facts.
 - `MeasurementBlockRecord.family` stores measurement family (`iv`, `cv`, `cf`,
   `pv`, `it`, `unknown`), not plot transfer/output labels.
 - `ivMode` is valid only for IV blocks; `itMode` is valid only for IT blocks.
@@ -135,25 +135,25 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
 - Column refs keep raw column, header text, role, unit, source range, confidence.
 - `RawTableAssessmentRecord.schemaProfileVersion` records the profile snapshot
   used for semantic evidence; profile changes make older assessments stale.
-- Assessment records do not store Recipe fingerprints, Template/UserTemplate
+- Table-fact records do not store Recipe fingerprints, Template/UserTemplate
   catalog versions, Template candidates, reviewed templates, selected Template
   snapshots, decision state, confidence gates, or auto-apply flags. Review owns
   candidate review and application decisions.
-- Session raw-file read entries may project assessment schema fingerprints,
+- Session raw-file read entries may project table schema fingerprints,
   column profiles, semantic candidates, blocks, layout candidates, and
-  diagnostics for template planning or UI review; they remain derived read
+  diagnostics for Template materialization or UI review; they remain derived read
   models, not duplicate owners.
 - Diagnostics keep severity, code, message, source range, and related group/block ids.
 
 ### Schema profiles
 
 - `SchemaProfile` stores user-confirmed bindings for one exact raw-table schema
-  fingerprint; it is evidence consumed by Assessment, not assessment output.
+  fingerprint; it is table-fact input, not Session canonical output.
 - `SchemaProfileService` owns profile-scope storage and versioned snapshots;
   Session does not store profile records.
 - User confirmation of role/unit bindings enters through
   `SchemaProfileService.confirmProfile(...)`; callers provide confirmed columns
-  and Assessment-owned column profiles, and the schema profile owner persists a
+  and current table-fact column profiles, and the schema profile owner persists a
   service-local exact-fingerprint profile snapshot.
 - `SchemaProfileBinding.selector` may use column index, normalized header, or
   both. When both are present, both must match the profiled column.
@@ -165,12 +165,13 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
 
 ### Template
 
-- `Template` is a pure data-structure spec. It describes source hints, table
-  structure, layout, blocks, fields, measurement, and defaults. It is not
-  persisted in Session and must not be partitioned into assessment/slicing/
-  binding/apply sub-templates.
-- Assessment, slicing, and binding engines consume the same full
-  `Template` and interpret the fields they own.
+- `Template` is a pure executable data-structure spec produced by
+  `TableFacts + Recipe/UserTemplate` materialization. It describes source hints,
+  table structure, layout, blocks, fields, measurement, and defaults. It is not
+  persisted in Session outside reviewed/slice snapshots and must not be
+  partitioned into assessment/slicing/binding/apply sub-templates.
+- Review consumes materialized Template candidates. Slice consumes reviewed
+  Template snapshots. Neither re-materializes Recipe or table facts.
 - `TemplateApplyConfig` owns legacy/manual extraction configuration such as
   data rows, segmentation, legend target, units, titles, y columns, and
   stop-on-error. It may be adapted into a canonical `Template` snapshot, but it
@@ -185,7 +186,7 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
 
 - `RawTableReviewRecord` is the canonical audit fact for template usability and
   system-application recommendation for one raw table.
-- Review records store the evidence signature, Recipe fingerprint,
+- Review records store the template candidate signature, Recipe fingerprint,
   UserTemplate catalog fingerprint, ranked candidate
   summaries, per-candidate reviews, `ReviewDecision`, and creation time.
 - `ReviewDecision.kind === "ready"` carries the selected
@@ -201,15 +202,16 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
 
 - `RawTableTemplateResolutionRecord` is a legacy compatibility bridge fact for
   old automatic Template candidate summaries for one raw table.
-- Resolution records store `sourceAssessmentSignature`, `recipeFingerprint`,
+- Resolution records store the migration `sourceAssessmentSignature` table-fact
+  signature, `recipeFingerprint`,
   `templateCatalogVersion` sourced from `UserTemplateSnapshot.version`, ranked
   `templateCandidates`, diagnostics, and `resolvedAt`.
 - Resolution records do not store selected Template snapshots or application
   decisions. Review owns selected `ReviewedTemplate` snapshots.
-- Resolution records do not store raw rows, Assessment blocks duplicated as
+- Resolution records do not store raw rows, table-fact blocks duplicated as
   owners, Review policy output, Slice queue state, or Slice output.
-- Resolution records are not required for the primary Recipe/UserTemplate ->
-  TemplateDraft/Template -> Review -> Slice path.
+- Resolution records are not required for the primary TableFacts +
+  Recipe/UserTemplate -> Template -> Review -> Slice path.
 
 ### Slice
 
@@ -218,8 +220,8 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
   legacy `enqueueAuto` / `runWithTemplate` APIs may remain as adapters only.
 - `SliceRun.template` is the executed snapshot from a reviewed automatic
   template or manual input.
-- `SliceRun.sourceAssessmentSignature` ties automatic runs to the evidence and
-  review facts used to submit the request.
+- `SliceRun.sourceAssessmentSignature` is a migration field name tying automatic
+  runs to the table facts and review facts used to submit the request.
 - `SliceCommit` atomically commits the `SliceRun`, produced `SeriesRecord`
   values, and produced base `CurveRecord` values through Session.
 - Session read projections derive chart axis titles and units from the latest

@@ -66,7 +66,7 @@ Subscriptions must be disposed through the owner lifecycle.
 
 | State kind | Owner | Examples |
 | --- | --- | --- |
-| Canonical model state | `ISessionService` and domain commit APIs | raw files, assessments, slice runs, curves, metrics |
+| Canonical model state | `ISessionService` and domain commit APIs | raw files, table facts, reviews, slice runs, curves, metrics |
 | Domain service state | The domain service | plot settings, chart view input, template catalog state, table source/selection snapshot |
 | View state | The view/widget/service that renders it | focus, local selection, template form draft, scroll, expansion, hover, layout mode |
 | Derived model | Producer service | plot render model, table display profile, search model, thumbnail preview |
@@ -126,10 +126,11 @@ Runtime folders:
 | `IExplorerService` | Files Explorer UI state: resources, selection, expansion, layout, context |
 | `fileConverter.ts` / files service helpers | CSV/XLS/XLSX/clipboard/manual conversion into raw table records |
 | `ISessionService` | canonical session ledger and change events |
-| `IAssessmentService` | raw table evidence: structure, profiles, semantics, groups, blocks, diagnostics; migration name for RawTableEvidence |
-| `IRecipeService` | passive built-in recipes used by Review candidate providers to derive Template drafts from raw table evidence |
-| `ITemplateResolutionService` | legacy compatibility bridge for old candidate summaries; it is not on the primary Recipe/UserTemplate -> TemplateDraft/Template -> Review -> Slice path |
-| `IReviewService` | template candidate review, selected `ReviewedTemplate`, manual adjustment state, and system-application recommendation |
+| `IAssessmentService` | migration helper for Template-owned table facts: structure, profiles, semantics, groups, blocks, diagnostics |
+| `IRecipeService` | passive built-in rules; it does not evaluate tables or materialize Templates |
+| `services/template` | canonical Template spec and target owner for `TableFacts + Recipe/UserTemplate -> Template` materialization |
+| `ITemplateResolutionService` | legacy compatibility bridge for old candidate summaries; it is not on the primary TableFacts + Recipe/UserTemplate -> Template -> Review -> Slice path |
+| `IReviewService` | materialized Template candidate review, selected `ReviewedTemplate`, manual adjustment state, and system-application recommendation |
 | `IUserTemplateService` | native user template catalog CRUD/snapshots/import/export and explicit template lookup |
 | `ITableService` | table source, rows, selection snapshot, reveal/highlight |
 | `ITemplateViewStateService` | Template UI selected-template/form editor state |
@@ -175,16 +176,17 @@ Explorer source workflow
   -> fileConverter.ts FileConversionResult
   -> ISessionService.commitFileImport
   -> SessionChangeEvent
-  -> Assessment/Review/Slice/Table/Template/Plot/Search/Export/Parameters subscribers
+  -> Template/Review/Slice/Table/Plot/Search/Export/Parameters subscribers
   -> downstream services reread SessionSnapshot and own their state
 ```
 
 Primary template flow:
 
 ```txt
-Assessment / RawTableEvidence
-  -> Recipe/UserTemplate candidate providers
-  -> TemplateDraft / Template
+Raw table facts
+  + Recipe/UserTemplate snapshots
+  -> Template materialization
+  -> Template candidates / Template
   -> ReviewDecision / ReviewedTemplate
   -> SliceRequest
   -> SliceRun
@@ -193,11 +195,15 @@ Assessment / RawTableEvidence
 Specific flow owners:
 
 - Import/source collection: Explorer/files workflow coordinates; converter returns results; Session commits.
-- RawTableEvidence: Assessment service currently reads raw tables and commits evidence-shaped assessment records; long term this moves to RawTableEvidence naming.
-- Review: consumes raw table evidence plus current Recipe/UserTemplate snapshots, reviews Template candidates, and commits `RawTableReviewRecord` decisions.
+- Table facts / Template materialization: Template is the target owner for
+  `TableFacts + Recipe/UserTemplate -> Template`. Current assessment records
+  are a migration storage shape for table facts, not the target domain name.
+- Review: consumes materialized Template candidates, reviews them, and commits
+  `RawTableReviewRecord` decisions.
 - ReviewApply: consumes `ReviewDecision.ready.application.systemRecommended`, applies idempotency guards, and submits Slice requests.
 - Slice execution: Slice executes concrete reviewed/manual Template snapshots and commits SliceRun/series/base curves.
-- TemplateResolution: legacy compatibility bridge only; primary Review derives candidates directly from evidence plus Recipe/UserTemplate snapshots.
+- TemplateResolution: legacy compatibility bridge only; primary candidates are
+  materialized by Template, then reviewed by Review.
 - Calculation: calculation services derive curves/metrics and commit through Session.
 - Plot: Plot consumes canonical curves/metrics and produces render models.
 - Chart: Chart hosts plot UI; it does not interpret raw session facts.
@@ -207,7 +213,7 @@ Specific flow owners:
 ## Canonical Session
 
 `SessionModel` is the canonical in-memory ledger. It stores imported files,
-raw tables, assessments, slice runs, series, curves, metrics, metric inputs,
+raw tables, table facts, reviews, slice runs, series, curves, metrics, metric inputs,
 and rebuildable calculation cache descriptors.
 
 Keep out of Session:

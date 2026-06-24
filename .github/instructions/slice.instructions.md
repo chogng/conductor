@@ -18,7 +18,7 @@ quality, or decide whether the system should apply a template.
 - calling the planner/executor and committing `SliceCommit` through Session.
 
 `SlicePlanner` owns deterministic plan creation from immutable inputs:
-`Template`, raw table dimensions, source versions, and Assessment-provided
+`Template`, raw table dimensions, source versions, and Template-provided
 measurement bindings. It must not read rows, start workers, or mutate Session.
 
 `SliceExecutor` owns execution of a `SlicePlan` against supplied rows and
@@ -29,7 +29,7 @@ returns a `SliceCommit`. It must not call services or reread Session.
 | File | Responsibility |
 | --- | --- |
 | `common/slice.ts` | service contract, `SliceRequest`, `SliceRun`, `SlicePlan`, commit/state/input types. |
-| `common/slicePlanner.ts` | pure plan/range generation and assessment signature helpers. |
+| `common/slicePlanner.ts` | pure plan/range generation and migration source/table-fact signature helpers. |
 | `common/sliceExecutor.ts` | pure row execution into `SliceCommit`. |
 | `browser/sliceService.ts` | injectable owner for queue, selection, progress state, row reading, and Session commit. |
 | `../review/browser/reviewApply.contribution.ts` | lifecycle bridge from `reviewChanged` system recommendations to Slice requests. |
@@ -106,8 +106,8 @@ RawTableReviewRecord + SliceState.fileStates + latest SliceRun
 
 ## Rules
 
-- Slice consumes Assessment facts; it must not detect headers, roles, family, or
-  mode from raw rows.
+- Slice consumes reviewed Template snapshots; it must not detect headers, roles,
+  family, or mode from raw rows.
 - Automatic execution consumes `ReviewDecision.ready.reviewedTemplate` and
   executes that stored Template snapshot.
 - Manual execution must first produce a `ManualTemplateReviewResult.ready`
@@ -127,8 +127,8 @@ RawTableReviewRecord + SliceState.fileStates + latest SliceRun
 
 ## Do Not
 
-- Do not interpret raw rows/header semantics here; Recipe projection may only
-  consume Assessment evidence.
+- Do not interpret raw rows/header semantics here; Recipe projection and
+  Template materialization happen before Review/Slice.
 - Do not re-run Assessment logic in Slice.
 - Do not import RecipeService, recipe selector evaluators, or recipe Template
   materializers into Slice.

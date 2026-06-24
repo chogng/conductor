@@ -1,27 +1,35 @@
 ---
-description: Template domain - canonical Template specs, editor view-model conversion, and Template UI state.
+description: Template domain - canonical Template specs, table+recipe materialization, editor view-model conversion, and Template UI state.
 applyTo: 'src/cs/workbench/services/template/**,src/cs/workbench/contrib/template/**'
 ---
 # Template
 
-`Template` is a concrete extraction/slicing spec for raw tables whose
-measurement structure has already been determined. It is materialized by Review
-candidate providers from Recipes or supplied by UserTemplate/manual input, then
-executed by Slice after review.
+`Template` is the concrete extraction/slicing spec produced by applying table
+facts to Recipe or UserTemplate rules. In target architecture:
+
+```txt
+TableFacts + Recipe/UserTemplate -> Template candidates -> Review -> Slice
+```
+
+The "Table" in this formula means canonical raw-table facts and derived
+structure/column/block facts, not the UI `ITableService` selection model.
+Slice executes the reviewed `Template`; Review judges usability; Template owns
+materialization.
 
 Do not add consumer-shaped template sections such as `template.assessment`,
-`template.slicing`, or `template.binding`. Do not make Template describe how to
-detect raw table structure, measurement family, roles, or units; those facts
-belong to Assessment evidence.
+`template.slicing`, or `template.binding`. Template may own table-fact
+projection and materialization, but it must keep raw table facts distinct from
+the executable `Template` snapshot.
 
 Legacy/manual extraction presets are not the domain `Template`; name them
 `TemplateApplyPresetRecord` / `TemplateApplyConfig`.
 
 ## Ownership
 
-Template owns the core `Template` spec and legacy apply-preset view-model
-conversion. It does not own UserTemplate catalog CRUD, catalog snapshots,
-Review decisions, per-file template selections, or raw-file view input.
+Template owns the core `Template` spec, table+recipe materialization helpers,
+and legacy apply-preset view-model conversion. It does not own UserTemplate
+catalog CRUD, catalog snapshots, Review decisions, per-file template
+selections, or raw-file view input.
 
 `ITemplateViewStateService` in Template contrib owns selected-template/form
 editor state for Template UI and related view projections. Slicing selections
@@ -38,8 +46,8 @@ Slice; do not add primary planning, queue, worker, commit, or workflow-input
 responsibility under Template. Progress and readiness surfaces come from
 `ISliceService`.
 
-Template specs do not own assessment, slicing execution, binding, raw import,
-table selection state, plot rendering, or chart state.
+Template specs do not own slicing execution, raw import, table selection state,
+plot rendering, or chart state.
 
 ## Core Files
 
@@ -47,6 +55,7 @@ table selection state, plot rendering, or chart state.
 | --- | --- |
 | `common/templateSpec.ts` | pure block-aware `Template` spec: row ranges, axis bindings, segmentation, legends, titles, applicability, and execution defaults. |
 | `common/builtinTemplateSpecs.ts` | built-in domain template specs. |
+| `common/*TemplateDraft*` / materializers | target home for pure `TableFacts + Recipe/UserTemplate -> TemplateDraft/Template` helpers; do not add new materializers under Review or Slice. |
 | `common/template.ts` | `TemplateApplyPresetRecord`, command ids, and re-exported template spec types. |
 | `common/templateLegacyAdapter.ts` | adapter between historical/manual apply-preset view models and canonical block-aware `Template`. |
 | `common/autoTemplateApplyConfig.ts` | legacy serializer from auto-extraction plan shape into editable apply/worker config records; do not add detection logic here. |
@@ -58,6 +67,23 @@ table selection state, plot rendering, or chart state.
 | `contrib/template/browser/templateAuxiliaryBarViewPane.ts` / `views/templateView.ts` | UI shell; renders UserTemplate catalog + view state and sends commands. |
 
 ## Flow
+
+Automatic materialization:
+
+```txt
+rawTableChanged / recipeChanged / userTemplateChanged / schemaProfileChanged
+  -> Template contribution/materializer
+  -> read canonical raw table facts and Recipe/UserTemplate snapshots
+  -> materialize Template candidates
+  -> ReviewService reviews materialized candidates
+```
+
+During migration, some table-fact production still lives under
+`services/assessment`, and some draft providers still live under
+`services/review/common`. Do not add new candidate derivation there; move new
+work toward Template.
+
+Manual execution:
 
 ```txt
 manual saved-selection compatibility/UserTemplate/inline run
@@ -72,15 +98,16 @@ into canonical `Template` snapshots before Slice runs.
 
 ## Rules
 
-- `Template` is a concrete extraction/slicing spec. Review candidate providers
-  materialize it from Recipe/UserTemplate sources; Slice consumes reviewed or
-  manual snapshots and must not materialize Recipes.
+- `Template` is a concrete extraction/slicing spec. Template materializers
+  produce it from table facts plus Recipe/UserTemplate sources; Slice consumes
+  reviewed or manual snapshots and must not materialize Recipes.
 - Engines should consume `Template`, not consumer-specific sub-templates.
 - Legacy/manual apply presets may be bridged through `TemplateApplyConfig` and
   `templateLegacyAdapter`; they are inputs to `Template` snapshots, not an
   execution workflow.
-- Legacy raw-header auto-template inference is compatibility-only and lives
-  outside Template; do not add new detection rules to Template execution.
+- Legacy raw-header auto-template inference is compatibility-only. New
+  `TableFacts + Recipe/UserTemplate -> Template` derivation belongs in Template
+  materialization helpers, not Template execution.
 - Do not export or share a special Auto Template ID as domain API. UI-only
   values stay local to their view, and compatibility parsing for old `"0"` /
   `"__auto__"` values must go through `isAutoTemplateId(...)`.
@@ -144,7 +171,9 @@ Use `records.instructions.md` for `TemplateApplyPresetRecord`,
 
 ## Do Not
 
-- Do not infer IV/CV/transfer/output from raw headers here.
+- Do not infer IV/CV/transfer/output inside the executable `Template` spec or
+  Slice path. Such inference belongs to Template-owned table-fact/materializer
+  helpers during migration out of Assessment.
 - Do not split `Template` by assessment/slice/binding/apply consumers.
 - Do not store template form draft state in Session.
 - Do not let worker payload format leak into Session records.
