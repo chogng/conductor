@@ -5,7 +5,7 @@
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
-import { createAssessmentEvidenceFromRecord } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
+import { createRawTableEvidenceFromAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
 import {
   IRecipeService,
   type IRecipeService as IRecipeServiceType,
@@ -97,7 +97,7 @@ export class TemplateResolutionService extends Disposable implements ITemplateRe
   }
 
   public resolve(input: TemplateResolutionInput): TemplateResolutionResult {
-    const evidence = createAssessmentEvidenceFromRecord(input.assessment, {
+    const evidence = createRawTableEvidenceFromAssessmentRecord(input.assessment, {
       fileName: input.fileName ?? undefined,
       rowCount: input.rowCount,
       columnCount: input.columnCount,

@@ -13,7 +13,7 @@ final template usability or system-application decision owner.
 
 `ITemplateResolutionService` owns during migration:
 
-- rebuilding `AssessmentEvidence` from `RawTableAssessmentRecord`;
+- rebuilding `RawTableEvidence` from `RawTableAssessmentRecord`;
 - evaluating `RecipeSelector` predicates against Assessment evidence;
 - materializing `RecipeProjection` into concrete `Template` snapshots;
 - evaluating saved Template catalog compatibility against stored evidence;
@@ -35,7 +35,7 @@ It does not own:
 | --- | --- |
 | `common/templateResolution.ts` | service contract, record, candidate, diagnostic, signature, and commit types. |
 | `common/templateCandidate.ts` | candidate/source normalization helpers when needed. |
-| `common/recipeSelectorEvaluator.ts` | pure finite-DSL evaluator for `RecipeSelector` against `AssessmentEvidence`. |
+| `common/recipeSelectorEvaluator.ts` | pure finite-DSL evaluator for `RecipeSelector` against `RawTableEvidence`. |
 | `common/recipeTemplateMaterializer.ts` | pure Recipe projection materialization into concrete `Template` snapshots. |
 | `common/savedTemplateEvaluator.ts` | pure saved Template compatibility evaluation against Assessment evidence. |
 | `browser/templateResolutionService.ts` | injectable owner for resolve/enqueue/commit state. |
@@ -48,7 +48,7 @@ Session assessmentChanged / fileMetadataChanged
   -> TemplateResolutionContribution
   -> ITemplateResolutionService.enqueueForAssessments(rawTableRefs)
   -> TemplateResolutionService reads SessionSnapshot
-  -> resolve AssessmentEvidence + RecipeSnapshot + legacy TemplateSnapshot
+  -> resolve RawTableEvidence + RecipeSnapshot + legacy TemplateSnapshot
   -> ISessionService.commitTemplateResolutions(...)
   -> Session templateResolutionChanged
   -> ReviewContribution / ReviewService deriveAndReview

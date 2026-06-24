@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AssessmentEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
+import type { RawTableEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
 import type { MeasurementBlockRecord } from "src/cs/workbench/services/assessment/common/measurement";
 import { evaluateRecipeSelector } from "src/cs/workbench/services/templateResolution/common/recipeSelectorEvaluator";
 import type {
@@ -39,7 +39,7 @@ export const materializeRecipeTemplates = ({
   evidence,
   recipeSnapshot,
 }: {
-  readonly evidence: AssessmentEvidence;
+  readonly evidence: RawTableEvidence;
   readonly recipeSnapshot?: RecipeSnapshot;
 }): readonly MaterializedRecipeTemplate[] => {
   const materializedTemplates: MaterializedRecipeTemplate[] = [];
@@ -67,7 +67,7 @@ export const materializeRecipeTemplate = ({
   evaluation,
 }: {
   readonly recipe: Recipe;
-  readonly evidence: AssessmentEvidence;
+  readonly evidence: RawTableEvidence;
   readonly evaluation: RecipeSelectorEvaluation;
 }): MaterializedRecipeTemplate | null => {
   if (!evaluation.matched || !evaluation.matches.length) {
@@ -219,7 +219,7 @@ const readColumnsCapture = (
     : null;
 
 const getMatchedBlock = (
-  evidence: AssessmentEvidence,
+  evidence: RawTableEvidence,
   match: RecipeSelectorBlockMatch | undefined,
 ): MeasurementBlockRecord | null =>
   match?.blockId
@@ -238,7 +238,7 @@ const getBlockDataRowRange = (
 
 const getTemplateConfidence = (
   matches: readonly RecipeSelectorBlockMatch[],
-  evidence: AssessmentEvidence,
+  evidence: RawTableEvidence,
 ): number => {
   const confidences = matches
     .map(match => getMatchedBlock(evidence, match)?.confidence)

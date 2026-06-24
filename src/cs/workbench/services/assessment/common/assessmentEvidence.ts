@@ -9,16 +9,16 @@ import type { RawTableStructure } from "src/cs/workbench/services/assessment/com
 import type { ColumnSemanticCandidate } from "src/cs/workbench/services/assessment/common/semanticCandidate";
 import type { RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
 
-export type AssessmentEvidence = {
+export type RawTableEvidence = {
   readonly structure: RawTableStructure;
   readonly columnProfiles: readonly ColumnProfile[];
   readonly layoutCandidates: readonly LayoutCandidate[];
   readonly semanticCandidates: readonly ColumnSemanticCandidate[];
   readonly blocks: readonly MeasurementBlockRecord[];
-  readonly sourceMetadata: AssessmentSourceMetadata;
+  readonly sourceMetadata: RawTableEvidenceSourceMetadata;
 };
 
-export type AssessmentSourceMetadata = {
+export type RawTableEvidenceSourceMetadata = {
   readonly fileId: string;
   readonly rawTableId: string;
   readonly fileName?: string | null;
@@ -27,10 +27,13 @@ export type AssessmentSourceMetadata = {
   readonly sourceRawTableVersion: number;
 };
 
-export const createAssessmentEvidenceFromRecord = (
+export type AssessmentEvidence = RawTableEvidence;
+export type AssessmentSourceMetadata = RawTableEvidenceSourceMetadata;
+
+export const createRawTableEvidenceFromAssessmentRecord = (
   record: RawTableAssessmentRecord,
-  sourceMetadata?: Partial<AssessmentSourceMetadata>,
-): AssessmentEvidence => ({
+  sourceMetadata?: Partial<RawTableEvidenceSourceMetadata>,
+): RawTableEvidence => ({
   structure: record.structure,
   columnProfiles: record.columnProfiles,
   layoutCandidates: record.layoutCandidates,
@@ -43,3 +46,6 @@ export const createAssessmentEvidenceFromRecord = (
     ...sourceMetadata,
   },
 });
+
+export const createAssessmentEvidenceFromRecord =
+  createRawTableEvidenceFromAssessmentRecord;

@@ -25,9 +25,9 @@ import {
 import type { RawTableRef } from "src/cs/workbench/services/session/common/sessionModel";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import {
-	ITemplateService,
-	type ITemplateService as ITemplateServiceType,
-} from "src/cs/workbench/services/template/common/template";
+	IUserTemplateService,
+	type IUserTemplateService as IUserTemplateServiceType,
+} from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
 export class ReviewContribution extends Disposable implements IWorkbenchContribution {
 	private disposed = false;
@@ -36,7 +36,7 @@ export class ReviewContribution extends Disposable implements IWorkbenchContribu
 		@ISessionService private readonly sessionService: ISessionServiceType,
 		@IReviewService private readonly reviewService: IReviewServiceType,
 		@IRecipeService private readonly recipeService: IRecipeServiceType,
-		@ITemplateService private readonly templateService: ITemplateServiceType,
+		@IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
 	) {
 		super();
 
@@ -48,7 +48,7 @@ export class ReviewContribution extends Disposable implements IWorkbenchContribu
 		this._register(this.recipeService.onDidChangeRecipes(() => {
 			this.enqueueCurrentEvidence();
 		}));
-		this._register(this.templateService.onDidChangeTemplates(() => {
+		this._register(this.userTemplateService.onDidChangeUserTemplates(() => {
 			this.enqueueCurrentEvidence();
 		}));
 		this.enqueueCurrentEvidence();

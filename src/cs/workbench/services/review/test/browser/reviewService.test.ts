@@ -11,7 +11,7 @@ import { ASSESSMENT_RULE_VERSION, type RawTableAssessmentRecord } from "src/cs/w
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 import type { FileImportResult, ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
-import type { IRecipeService, RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
+import type { IRecipeService, Recipe, RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
 import { ReviewContribution } from "src/cs/workbench/services/review/browser/review.contribution";
 import { ReviewService } from "src/cs/workbench/services/review/browser/reviewService";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
@@ -22,6 +22,7 @@ import type {
 	TemplateApplyPresetSaveInput,
 	TemplateSnapshot,
 } from "src/cs/workbench/services/template/common/template";
+import { UserTemplateService } from "src/cs/workbench/services/userTemplate/browser/userTemplateService";
 
 suite("workbench/services/review/test/browser/reviewService", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -30,10 +31,11 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const templateService = store.add(new TestTemplateService());
+		const userTemplateService = store.add(new UserTemplateService(templateService));
 		const service = store.add(new ReviewService(
 			sessionService,
 			recipeService,
-			templateService,
+			userTemplateService,
 		));
 
 		const result = service.deriveAndReview({
@@ -42,7 +44,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			fileName: "Transfer.csv",
 			recipeSnapshot: recipeService.getSnapshot(),
 			rowCount: 3,
-			templateSnapshot: templateService.getSnapshot(),
+			userTemplateSnapshot: userTemplateService.getSnapshot(),
 		});
 
 		assert.equal(result.recipeFingerprint, "recipe:first");
@@ -51,20 +53,54 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(result.decision.kind === "ready" && result.decision.reviewedTemplate.source.kind, "recipe");
 	});
 
+	test("derives user template candidates from the user template snapshot", () => {
+		const template = createTemplate({
+			id: "template-a",
+			applicability: {
+				schemaFingerprint: createEmptyRawTableStructure().fingerprint,
+				columnCount: 2,
+			},
+		});
+		const sessionService = store.add(new SessionService());
+		const recipeService = store.add(new TestRecipeService("recipe:none", []));
+		const templateService = store.add(new TestTemplateService([template]));
+		const userTemplateService = store.add(new UserTemplateService(templateService));
+		const service = store.add(new ReviewService(
+			sessionService,
+			recipeService,
+			userTemplateService,
+		));
+
+		const result = service.deriveAndReview({
+			assessment: createAssessment(),
+			columnCount: 2,
+			fileName: "Transfer.csv",
+			recipeSnapshot: recipeService.getSnapshot(),
+			rowCount: 3,
+			userTemplateSnapshot: userTemplateService.getSnapshot(),
+		});
+
+		assert.equal(result.userTemplateCatalogVersion, 1);
+		assert.equal(result.candidates[0]?.source.kind, "userTemplate");
+		assert.equal(result.decision.kind, "ready");
+		assert.equal(result.decision.kind === "ready" && result.decision.reviewedTemplate.source.kind, "userTemplate");
+	});
+
 	test("commits reviews after assessment and refreshes on recipe changes", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const templateService = store.add(new TestTemplateService());
+		const userTemplateService = store.add(new UserTemplateService(templateService));
 		const service = store.add(new ReviewService(
 			sessionService,
 			recipeService,
-			templateService,
+			userTemplateService,
 		));
 		store.add(new ReviewContribution(
 			sessionService,
 			service,
 			recipeService,
-			templateService,
+			userTemplateService,
 		));
 
 		sessionService.commitFileImport(createImportResult());
@@ -87,10 +123,11 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const templateService = store.add(new TestTemplateService());
+		const userTemplateService = store.add(new UserTemplateService(templateService));
 		const service = store.add(new ReviewService(
 			sessionService,
 			recipeService,
-			templateService,
+			userTemplateService,
 		));
 		sessionService.commitFileImport(createImportResult());
 		sessionService.commitRawTableAssessment(createAssessment());
@@ -112,10 +149,11 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const templateService = store.add(new TestTemplateService([template]));
+		const userTemplateService = store.add(new UserTemplateService(templateService));
 		const service = store.add(new ReviewService(
 			sessionService,
 			recipeService,
-			templateService,
+			userTemplateService,
 		));
 		sessionService.commitFileImport(createImportResult());
 		sessionService.commitRawTableAssessment(createAssessment());
@@ -142,10 +180,11 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const templateService = store.add(new TestTemplateService());
+		const userTemplateService = store.add(new UserTemplateService(templateService));
 		const service = store.add(new ReviewService(
 			sessionService,
 			recipeService,
-			templateService,
+			userTemplateService,
 		));
 		sessionService.commitFileImport(createImportResult());
 		sessionService.commitRawTableAssessment(createAssessment());
@@ -164,14 +203,16 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(result.diagnostics[0]?.code, "review.manual.templateNotFound");
 	});
 
-	test("returns structured invalid result for user templates until the catalog service lands", () => {
+	test("reviews user templates through the user template service", () => {
+		const template = createTemplate({ id: "user-template-a", name: "User Transfer" });
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
-		const templateService = store.add(new TestTemplateService());
+		const templateService = store.add(new TestTemplateService([template]));
+		const userTemplateService = store.add(new UserTemplateService(templateService));
 		const service = store.add(new ReviewService(
 			sessionService,
 			recipeService,
-			templateService,
+			userTemplateService,
 		));
 		sessionService.commitFileImport(createImportResult());
 		sessionService.commitRawTableAssessment(createAssessment());
@@ -184,20 +225,26 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			},
 		});
 
-		if (result.kind !== "invalid") {
-			assert.fail(`Expected invalid manual review result, got ${result.kind}.`);
+		if (result.kind !== "ready") {
+			assert.fail(`Expected ready manual review result, got ${result.kind}.`);
 		}
-		assert.equal(result.diagnostics[0]?.code, "review.manual.userTemplateUnavailable");
+		assert.equal(result.reviewedTemplate.source.kind, "userTemplate");
+		assert.equal(
+			result.reviewedTemplate.source.kind === "userTemplate" &&
+				result.reviewedTemplate.source.templateId,
+			"user-template-a",
+		);
 	});
 
 	test("returns structured adjustment result for manual template bounds issues", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const templateService = store.add(new TestTemplateService());
+		const userTemplateService = store.add(new UserTemplateService(templateService));
 		const service = store.add(new ReviewService(
 			sessionService,
 			recipeService,
-			templateService,
+			userTemplateService,
 		));
 		sessionService.commitFileImport(createImportResult());
 		sessionService.commitRawTableAssessment(createAssessment());
@@ -246,7 +293,10 @@ class TestRecipeService extends Disposable implements IRecipeService {
 	private fingerprint: string;
 	private version = 1;
 
-	public constructor(fingerprint: string) {
+	public constructor(
+		fingerprint: string,
+		private readonly recipes: readonly Recipe[] = builtinRecipes,
+	) {
 		super();
 		this.fingerprint = fingerprint;
 	}
@@ -261,7 +311,7 @@ class TestRecipeService extends Disposable implements IRecipeService {
 		return {
 			version: this.version,
 			fingerprint: this.fingerprint,
-			recipes: builtinRecipes,
+			recipes: this.recipes,
 			diagnostics: [],
 		};
 	}

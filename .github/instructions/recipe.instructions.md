@@ -25,7 +25,7 @@ mutate Session.
 
 Review candidate providers own recipe interpretation for automatic review:
 
-- `RecipeSelector` evaluation against `AssessmentEvidence`;
+- `RecipeSelector` evaluation against `RawTableEvidence`;
 - `RecipeProjection` materialization into canonical block-aware `Template`
   snapshots;
 - materialized-template ordering and automatic-template choice.
@@ -54,7 +54,7 @@ the current migration bridge, it may still live in Template Resolution files:
 
 | File | Responsibility |
 | --- | --- |
-| `templateResolution/common/recipeSelectorEvaluator.ts` | evaluates `RecipeSelector` against `AssessmentEvidence`. |
+| `templateResolution/common/recipeSelectorEvaluator.ts` | evaluates `RecipeSelector` against `RawTableEvidence`. |
 | `templateResolution/common/recipeTemplateMaterializer.ts` | materializes matched captures into concrete `Template` snapshots. |
 
 ## Flow
@@ -85,7 +85,7 @@ RecipeService reload/change
 
 - A `Recipe` must stay passive JSON with `id`, `version`, `priority`,
   `selector`, and `projection`.
-- `RecipeSelector` describes which `AssessmentEvidence` can match.
+- `RecipeSelector` describes which `RawTableEvidence` can match.
 - `RecipeProjection` describes how matched captures become a concrete
   `Template`.
 - `RecipeService` may validate, fingerprint, and publish recipes. It must not

@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AssessmentEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
+import type { RawTableEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
 import type {
   MeasurementBlockRecord,
   MeasurementColumnRef,
@@ -44,7 +44,7 @@ export type RecipeSelectorEvaluation = {
 };
 
 type EvaluationContext = {
-  readonly evidence: AssessmentEvidence;
+  readonly evidence: RawTableEvidence;
   readonly block: MeasurementBlockRecord | null;
 };
 
@@ -72,7 +72,7 @@ type MatchResult =
 
 export const evaluateRecipeSelector = (
   recipe: Recipe,
-  evidence: AssessmentEvidence,
+  evidence: RawTableEvidence,
 ): RecipeSelectorEvaluation => {
   const contexts = evidence.blocks.length
     ? evidence.blocks.map(block => ({ evidence, block }))
@@ -267,7 +267,7 @@ const evaluateCanonicalUnitPredicate = (
 
 const evaluateLayoutEvidencePredicate = (
   predicate: LayoutEvidenceSelectorPredicate,
-  evidence: AssessmentEvidence,
+  evidence: RawTableEvidence,
 ): PredicateResult =>
   evidence.layoutCandidates.some(candidate =>
     predicate.layoutAny.includes(candidate.layoutKind) &&
@@ -278,7 +278,7 @@ const evaluateLayoutEvidencePredicate = (
 
 const evaluateSourceHintPredicate = (
   predicate: SourceHintSelectorPredicate,
-  evidence: AssessmentEvidence,
+  evidence: RawTableEvidence,
 ): PredicateResult => {
   const fileName = normalizeText(evidence.sourceMetadata.fileName);
   const extension = getFileExtension(fileName);
@@ -294,7 +294,7 @@ const evaluateSourceHintPredicate = (
 
 const evaluateSchemaFingerprintPredicate = (
   predicate: SchemaFingerprintSelectorPredicate,
-  evidence: AssessmentEvidence,
+  evidence: RawTableEvidence,
 ): PredicateResult =>
   predicate.fingerprintAny.includes(evidence.structure.fingerprint)
     ? { matched: true, reason: "schemaFingerprint" }

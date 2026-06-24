@@ -5,7 +5,7 @@
 import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import type { AssessmentEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
+import type { RawTableEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
 import { evaluateRecipeSelector } from "src/cs/workbench/services/templateResolution/common/recipeSelectorEvaluator";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 import type {
@@ -86,7 +86,7 @@ const createEvidence = ({
   readonly columns: readonly MeasurementColumnRef[];
   readonly family: MeasurementBlockRecord["family"];
   readonly ivMode?: MeasurementBlockRecord["ivMode"];
-}): AssessmentEvidence => ({
+}): RawTableEvidence => ({
   structure: {
     ...createEmptyRawTableStructure(),
     fingerprint: "schema-a",

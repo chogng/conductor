@@ -88,6 +88,7 @@ series, template decisions, or assessment confidence.
 | `TableColumnWidth` | `ITableService` + storage | workspace view state | table source key or explicit width reset |
 | `ExplorerState` | `IExplorerService` | service state | Explorer selection/layout/expansion/source workflow changes |
 | `ExplorerResource` / `ExplorerFileEntry` | Explorer projection | derived view input | session, source workflow, badge/template/chart state projections |
+| `UserTemplateSnapshot` | `IUserTemplateService` | service-local snapshot | legacy template catalog version or future native user-template store version. |
 | `SearchQuery` / `SearchResult` | `ISearchService` | service state/model | query/options/session/plot index |
 | `ExportState` / `ExportPlan` | `IExportService` | service state/derived plan | export options/session/plot changes |
 | `ParametersState` / `ParameterRowModel` | `IParametersService` | service state/model | metrics, manual inputs, selected file/plot context |
@@ -109,6 +110,11 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
 
 ### Assessment
 
+- `RawTableEvidence` is the clean evidence shape produced from
+  `RawTableAssessmentRecord`; it contains structure, column profiles, layout
+  candidates, semantic candidates, blocks, and source metadata only.
+- Do not call raw-table evidence `RecipeEvidence`. Recipe consumes evidence but
+  does not own it.
 - `MeasurementBlockRecord.family` stores measurement family (`iv`, `cv`, `cf`,
   `pv`, `it`, `unknown`), not plot transfer/output labels.
 - `ivMode` is valid only for IV blocks; `itMode` is valid only for IT blocks.

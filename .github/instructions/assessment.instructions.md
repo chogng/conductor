@@ -41,8 +41,8 @@ recommendations, or search indexing beyond diagnostics metadata.
 | `common/semanticCandidate.ts` | role, unit, confidence, evidence, and display-scale candidates. |
 | `common/schemaProfileAssessment.ts` | pure exact-schema-profile family/mode inference layered on top of Assessment column profiles. |
 | `common/blockDetector.ts` | measurement block construction from structure ranges, column maps, and family evidence. |
-| `common/assessmentEvidence.ts` | standard evidence snapshot consumed by Review candidate derivation; Assessment produces evidence but does not select templates. |
-| `common/legacyAssessmentAdapter.ts` | migration adapter from legacy assessment records into RawTableEvidence/Review shapes when persisted data contains old decision fields. |
+| `common/assessmentEvidence.ts` | `RawTableEvidence` snapshot consumed by Review candidate derivation; Assessment produces evidence but does not select templates. |
+| `common/legacyAssessmentAdapter.ts` | migration adapter from legacy assessment records into `RawTableEvidence` when persisted data contains old decision fields. |
 | `../schemaProfile/common/schemaProfile.ts` | user-confirmed schema profile evidence records. |
 | `../schemaProfile/common/schemaProfileConfirmation.ts` | pure builder for user-confirmed role/unit mappings into exact-fingerprint schema profiles. |
 | `../schemaProfile/common/schemaProfileMatcher.ts` | exact schema fingerprint matching and column binding lookup. |
@@ -124,6 +124,8 @@ rawTablesChanged
 - `AssessmentDecision.autoApplyAllowed` is a legacy evidence summary during the
   Review migration. New code must not treat it as the system-application gate;
   `ReviewDecision.application` owns that decision.
+- The evidence type is `RawTableEvidence`, not `RecipeEvidence`: Recipe consumes
+  raw-table evidence, but it does not own or name that evidence.
 - Assessment must not resolve Recipe snapshots, saved Template catalogs, or
   selected Template snapshots. Review owns candidate review and selected
   `ReviewedTemplate` persistence for automatic execution.

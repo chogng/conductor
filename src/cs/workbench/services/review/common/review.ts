@@ -11,8 +11,8 @@ import type {
   RawTableRef,
   SheetId,
 } from "src/cs/workbench/services/session/common/sessionModel";
-import type { TemplateSnapshot } from "src/cs/workbench/services/template/common/template";
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
+import type { UserTemplateSnapshot } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
 export const IReviewService = createDecorator<IReviewService>("reviewService");
 
@@ -196,7 +196,7 @@ export type ReviewInput = {
   readonly fileName?: string | null;
   readonly recipeSnapshot: RecipeSnapshot;
   readonly rowCount?: number;
-  readonly templateSnapshot: TemplateSnapshot;
+  readonly userTemplateSnapshot: UserTemplateSnapshot;
 };
 
 export type ReviewResult = Omit<

@@ -5,7 +5,7 @@
 import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import type { AssessmentEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
+import type { RawTableEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 import { evaluateSavedTemplateCandidates } from "src/cs/workbench/services/templateResolution/common/savedTemplateEvaluator";
 import type { Template } from "src/cs/workbench/services/template/common/template";
@@ -55,7 +55,7 @@ suite("workbench/services/templateResolution/test/common/savedTemplateEvaluator"
 	});
 });
 
-const createEvidence = (): AssessmentEvidence => ({
+const createEvidence = (): RawTableEvidence => ({
 	structure: {
 		...createEmptyRawTableStructure(),
 		fingerprint: "schema-a",

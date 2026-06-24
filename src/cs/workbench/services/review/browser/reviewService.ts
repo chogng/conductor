@@ -5,7 +5,10 @@
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
-import { createAssessmentEvidenceFromRecord } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
+import {
+  createRawTableEvidenceFromAssessmentRecord,
+  type RawTableEvidence,
+} from "src/cs/workbench/services/assessment/common/assessmentEvidence";
 import {
   IRecipeService,
   type IRecipeService as IRecipeServiceType,
@@ -37,12 +40,9 @@ import type {
   RawTableRef,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
-  ITemplateService,
   type Template,
   type TemplateAxisBinding,
-  type ITemplateService as ITemplateServiceType,
   type TemplateRowRange,
-  type TemplateSnapshot,
 } from "src/cs/workbench/services/template/common/template";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import {
@@ -54,6 +54,16 @@ import {
 import type {
   TemplateCandidate,
 } from "src/cs/workbench/services/templateResolution/common/templateResolution";
+import {
+  IUserTemplateService,
+  type IUserTemplateService as IUserTemplateServiceType,
+  type UserTemplate,
+  type UserTemplateSnapshot,
+} from "src/cs/workbench/services/userTemplate/common/userTemplate";
+
+type ReviewTemplateCandidate = Omit<TemplateCandidate, "source"> & {
+  readonly source: AutomaticTemplateCandidateSource;
+};
 
 export class ReviewService extends Disposable implements IReviewServiceType {
   public declare readonly _serviceBrand: undefined;
@@ -67,7 +77,7 @@ export class ReviewService extends Disposable implements IReviewServiceType {
   public constructor(
     @ISessionService private readonly sessionService: ISessionServiceType,
     @IRecipeService private readonly recipeService: IRecipeServiceType,
-    @ITemplateService private readonly templateService: ITemplateServiceType,
+    @IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
   ) {
     super();
     this._register(this.sessionService.onDidChangeSession(event => {
@@ -82,7 +92,7 @@ export class ReviewService extends Disposable implements IReviewServiceType {
   }
 
   public deriveAndReview(input: ReviewInput): ReviewResult {
-    const evidence = createAssessmentEvidenceFromRecord(input.assessment, {
+    const evidence = createRawTableEvidenceFromAssessmentRecord(input.assessment, {
       columnCount: input.columnCount,
       fileName: input.fileName ?? undefined,
       rowCount: input.rowCount,
@@ -90,7 +100,7 @@ export class ReviewService extends Disposable implements IReviewServiceType {
     const recipeCandidates = materializeRecipeTemplates({
       evidence,
       recipeSnapshot: input.recipeSnapshot,
-    }).map((candidate): TemplateCandidate => ({
+    }).map((candidate): ReviewTemplateCandidate => ({
       id: candidate.id,
       source: {
         kind: "recipe",
@@ -106,9 +116,9 @@ export class ReviewService extends Disposable implements IReviewServiceType {
     }));
     const candidates = sortReviewCandidates([
       ...recipeCandidates,
-      ...evaluateSavedTemplateCandidates({
+      ...evaluateUserTemplateCandidates({
         evidence,
-        templateSnapshot: input.templateSnapshot,
+        userTemplateSnapshot: input.userTemplateSnapshot,
       }),
     ]);
     const reviews = candidates.map(createTemplateReview);
@@ -119,8 +129,8 @@ export class ReviewService extends Disposable implements IReviewServiceType {
 
     return {
       recipeFingerprint: input.recipeSnapshot.fingerprint,
-      userTemplateCatalogVersion: input.templateSnapshot.version,
-      userTemplateEffectiveFingerprint: createLegacyTemplateSnapshotFingerprint(input.templateSnapshot),
+      userTemplateCatalogVersion: input.userTemplateSnapshot.version,
+      userTemplateEffectiveFingerprint: input.userTemplateSnapshot.effectiveFingerprint,
       reviewEngineVersion: REVIEW_ENGINE_VERSION,
       reviewPolicyVersion: REVIEW_POLICY_VERSION,
       candidates: candidates.map(createTemplateCandidateSummary),
@@ -240,13 +250,13 @@ export class ReviewService extends Disposable implements IReviewServiceType {
         const commits: RawTableReviewRecord[] = [];
         const snapshot = this.sessionService.getSnapshot();
         const recipeSnapshot = this.recipeService.getSnapshot();
-        const templateSnapshot = this.templateService.getSnapshot();
+        const userTemplateSnapshot = this.userTemplateService.getSnapshot();
         for (const ref of refs) {
           const commit = this.createReviewCommit(
             ref,
             snapshot.filesById[ref.fileId],
             recipeSnapshot,
-            templateSnapshot,
+            userTemplateSnapshot,
           );
           if (commit) {
             commits.push(commit);
@@ -266,7 +276,7 @@ export class ReviewService extends Disposable implements IReviewServiceType {
     ref: RawTableRef,
     file: FileRecord | undefined,
     recipeSnapshot: ReturnType<IRecipeServiceType["getSnapshot"]>,
-    templateSnapshot: ReturnType<ITemplateServiceType["getSnapshot"]>,
+    userTemplateSnapshot: UserTemplateSnapshot,
   ): RawTableReviewRecord | null {
     const assessment = file?.assessmentsByRawTableId?.[ref.rawTableId];
     const table = file?.raw.tablesById[ref.rawTableId];
@@ -280,7 +290,7 @@ export class ReviewService extends Disposable implements IReviewServiceType {
       fileName: file.name,
       recipeSnapshot,
       rowCount: table.rowCount,
-      templateSnapshot,
+      userTemplateSnapshot,
     });
     return {
       fileId: ref.fileId,
@@ -344,33 +354,30 @@ export class ReviewService extends Disposable implements IReviewServiceType {
       };
     }
 
-    if (selection.kind === "userTemplate") {
-      return {
-        kind: "invalid",
-        code: "review.manual.userTemplateUnavailable",
-        message: "UserTemplate review is not available until the UserTemplate catalog service is registered.",
-      };
-    }
-
-    const template = this.templateService.getTemplate(templateId);
-    if (!template) {
+    const userTemplate = this.userTemplateService.getTemplate(templateId);
+    if (!userTemplate) {
       return {
         kind: "invalid",
         code: "review.manual.templateNotFound",
-        message: "The selected Template could not be found.",
+        message: "The selected UserTemplate could not be found.",
       };
     }
 
-    const templateSnapshot = this.templateService.getSnapshot();
     return {
       kind: "resolved",
-      candidateId: `manual:saved-template:${templateId}`,
-      source: {
-        kind: "savedTemplate",
-        templateId,
-        templateVersion: normalizeTemplateVersion(template.version, templateSnapshot.version),
-      },
-      template,
+      candidateId: `manual:${selection.kind}:${templateId}`,
+      source: selection.kind === "userTemplate"
+        ? {
+            kind: "userTemplate",
+            templateId: userTemplate.id,
+            templateVersion: userTemplate.version,
+          }
+        : {
+            kind: "savedTemplate",
+            templateId: userTemplate.id,
+            templateVersion: userTemplate.version,
+          },
+      template: userTemplate.template,
     };
   }
 }
@@ -548,25 +555,15 @@ const isColumnInBounds = (
   column >= 0 &&
   column < columnCount;
 
-const normalizeTemplateVersion = (
-  templateVersion: unknown,
-  templateSnapshotVersion: number,
-): number => {
-  const version = Math.floor(Number(templateVersion));
-  return Number.isInteger(version) && version > 0
-    ? version
-    : Math.max(1, Math.floor(Number(templateSnapshotVersion)) || 1);
-};
-
 const createReviewDecision = ({
   candidates,
   legacyAutoApplyAllowed,
   readyCandidate,
   reviews,
 }: {
-  readonly candidates: readonly TemplateCandidate[];
+  readonly candidates: readonly ReviewTemplateCandidate[];
   readonly legacyAutoApplyAllowed: boolean;
-  readonly readyCandidate: TemplateCandidate | undefined;
+  readonly readyCandidate: ReviewTemplateCandidate | undefined;
   readonly reviews: readonly TemplateReview[];
 }): ReviewResult["decision"] => {
   if (readyCandidate) {
@@ -629,10 +626,10 @@ const createReviewDecision = ({
 };
 
 const createTemplateCandidateSummary = (
-  candidate: TemplateCandidate,
+  candidate: ReviewTemplateCandidate,
 ): TemplateCandidateSummary => ({
   id: candidate.id,
-  source: toAutomaticTemplateCandidateSource(candidate.source),
+  source: candidate.source,
   templateFingerprint: candidate.templateFingerprint,
   displayName: candidate.template.name,
   reasonCodes: candidate.reasons,
@@ -640,7 +637,7 @@ const createTemplateCandidateSummary = (
 });
 
 const createTemplateReview = (
-  candidate: TemplateCandidate,
+  candidate: ReviewTemplateCandidate,
 ): TemplateReview => ({
   candidateId: candidate.id,
   templateFingerprint: candidate.templateFingerprint,
@@ -660,54 +657,76 @@ const createReviewDiagnostic = (
   message: code,
 });
 
-const toAutomaticTemplateCandidateSource = (
-  source: TemplateCandidate["source"],
-): AutomaticTemplateCandidateSource => {
-  if (source.kind === "recipe") {
-    return source;
-  }
-  return {
-    kind: "savedTemplate",
-    templateId: source.templateId,
-    templateVersion: source.templateVersion,
-  };
-};
-
 const toReviewedTemplateSource = (
-  source: TemplateCandidate["source"],
+  source: ReviewTemplateCandidate["source"],
 ): ReviewedTemplateSource => {
-  if (source.kind === "recipe") {
-    return source;
-  }
-  return {
-    kind: "savedTemplate",
-    templateId: source.templateId,
-    templateVersion: source.templateVersion,
-  };
+  return source;
 };
 
 const sortReviewCandidates = (
-  candidates: readonly TemplateCandidate[],
-): readonly TemplateCandidate[] => [...candidates].sort((left, right) =>
+  candidates: readonly ReviewTemplateCandidate[],
+): readonly ReviewTemplateCandidate[] => [...candidates].sort((left, right) =>
   getCandidateStateRank(right) - getCandidateStateRank(left) ||
   right.confidence - left.confidence ||
   left.id.localeCompare(right.id)
 );
 
 const getCandidateStateRank = (
-  candidate: TemplateCandidate,
+  candidate: ReviewTemplateCandidate,
 ): number => candidate.state === "ready" ? 1 : 0;
 
-const createLegacyTemplateSnapshotFingerprint = (
-  snapshot: TemplateSnapshot,
-): string => JSON.stringify({
-  kind: "legacyTemplateSnapshot",
-  version: snapshot.version,
-  templates: snapshot.templates.map(template => ({
-    id: String(template.id ?? ""),
-    version: template.version,
-  })),
-});
+const evaluateUserTemplateCandidates = ({
+  evidence,
+  userTemplateSnapshot,
+}: {
+  readonly evidence: RawTableEvidence;
+  readonly userTemplateSnapshot: UserTemplateSnapshot;
+}): readonly ReviewTemplateCandidate[] => {
+  if (!userTemplateSnapshot.templates.length) {
+    return [];
+  }
+
+  const userTemplateByTemplateId = new Map<string, UserTemplate>();
+  for (const userTemplate of userTemplateSnapshot.templates) {
+    userTemplateByTemplateId.set(getTemplateCandidateId(userTemplate), userTemplate);
+  }
+
+  return evaluateSavedTemplateCandidates({
+    evidence,
+    templateSnapshot: {
+      version: userTemplateSnapshot.version,
+      templates: userTemplateSnapshot.templates.map(userTemplate => userTemplate.template),
+    },
+  }).flatMap((candidate): readonly ReviewTemplateCandidate[] => {
+    if (candidate.source.kind !== "savedTemplate") {
+      return [];
+    }
+
+    const userTemplate = userTemplateByTemplateId.get(candidate.source.templateId);
+    if (!userTemplate) {
+      return [];
+    }
+
+    return [{
+      ...candidate,
+      id: `user-template:${userTemplate.id}`,
+      source: {
+        kind: "userTemplate",
+        templateId: userTemplate.id,
+        templateVersion: userTemplate.version,
+      },
+      templateFingerprint: userTemplate.templateFingerprint,
+    }];
+  });
+};
+
+const getTemplateCandidateId = (
+  userTemplate: UserTemplate,
+): string => String(
+  userTemplate.template.id ??
+    userTemplate.template.name ??
+    userTemplate.templateFingerprint,
+).trim() || userTemplate.templateFingerprint;
 
 const getRawTableRefsForReviewSnapshot = (
   snapshot: ReturnType<ISessionServiceType["getSnapshot"]>,

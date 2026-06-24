@@ -69,9 +69,11 @@ user command / legacy saved template picker / inline template editor
 | `browser/review.contribution.ts` | lifecycle subscriber for evidence, Recipe, UserTemplate, and policy changes. |
 | `browser/reviewApply.contribution.ts` | no-UI bridge from system-recommended Review decisions to Slice requests. |
 
-During migration, Review may reuse TemplateResolution candidate helpers and the
-legacy saved-template catalog. New decision logic still belongs in Review, not
-TemplateResolution, Assessment, Explorer, or Slice.
+During migration, Review may reuse TemplateResolution candidate helpers.
+User-template candidates must come through `IUserTemplateService`, even when
+that service is projecting the legacy saved-template catalog. New decision
+logic still belongs in Review, not TemplateResolution, Assessment, Explorer, or
+Slice.
 
 ## Rules
 
@@ -89,8 +91,7 @@ TemplateResolution, Assessment, Explorer, or Slice.
 - Explorer reads `RawTableReviewRecord` and Slice state as projection inputs;
   it does not perform Review policy checks.
 - Manual Review requests may accept legacy saved Template ids during the
-  UserTemplate migration. UserTemplate ids must return a structured unavailable
-  result until `IUserTemplateService` owns that catalog.
+  UserTemplate migration, but lookup must go through `IUserTemplateService`.
 
 ## Do Not
 

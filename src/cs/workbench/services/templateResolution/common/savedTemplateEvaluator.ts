@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AssessmentEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
+import type { RawTableEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import type { TemplateSnapshot } from "src/cs/workbench/services/template/common/template";
 import type {
@@ -16,7 +16,7 @@ export const evaluateSavedTemplateCandidates = ({
   evidence,
   templateSnapshot,
 }: {
-  readonly evidence: AssessmentEvidence;
+  readonly evidence: RawTableEvidence;
   readonly templateSnapshot: TemplateSnapshot;
 }): readonly TemplateCandidate[] => {
   const candidates: TemplateCandidate[] = [];
@@ -42,7 +42,7 @@ const evaluateSavedTemplateCandidate = ({
   template,
   templateSnapshotVersion,
 }: {
-  readonly evidence: AssessmentEvidence;
+  readonly evidence: RawTableEvidence;
   readonly template: Template;
   readonly templateSnapshotVersion: number;
 }): TemplateCandidate | null => {
