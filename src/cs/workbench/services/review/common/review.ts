@@ -138,6 +138,42 @@ export type ReviewDecision =
       readonly suggestedActions: readonly ReviewSuggestedAction[];
     };
 
+export type ManualTemplateReviewRequest = {
+  readonly ref: RawTableRef;
+  readonly selection:
+    | {
+        readonly kind: "userTemplate";
+        readonly templateId: string;
+      }
+    | {
+        readonly kind: "savedTemplate";
+        readonly templateId: string;
+      }
+    | {
+        readonly kind: "inline";
+        readonly template: Template;
+      };
+};
+
+export type ManualTemplateReviewResult =
+  | {
+      readonly kind: "ready";
+      readonly reviewedTemplate: ReviewedTemplate;
+      readonly suggestedActions: readonly ReviewSuggestedAction[];
+    }
+  | {
+      readonly kind: "needsManualAdjustment";
+      readonly review: TemplateReview;
+      readonly diagnostics: readonly ReviewDiagnostic[];
+      readonly suggestedActions: readonly ReviewSuggestedAction[];
+    }
+  | {
+      readonly kind: "invalid";
+      readonly review?: TemplateReview;
+      readonly diagnostics: readonly ReviewDiagnostic[];
+      readonly suggestedActions: readonly ReviewSuggestedAction[];
+    };
+
 export type RawTableReviewRecord = {
   readonly fileId: FileId;
   readonly rawTableId: SheetId;
@@ -189,6 +225,7 @@ export interface IReviewService {
   enqueueAllCurrentEvidence(): void;
   enqueueForEvidence(refs: readonly RawTableRef[]): void;
   getQueueSnapshot(): ReviewQueueSnapshot;
+  reviewManualTemplate(input: ManualTemplateReviewRequest): ManualTemplateReviewResult;
 }
 
 export const createReviewEvidenceSignature = ({

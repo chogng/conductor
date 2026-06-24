@@ -77,8 +77,8 @@ TemplateService.onDidChangeTemplates
 
 - Template Resolution may read `SessionSnapshot`, `RecipeSnapshot`, and legacy
   `TemplateSnapshot`; it must not read raw rows or call row readers.
-- During the bridge, `selectedTemplate` may exist only as compatibility data
-  for older Slice code. New application decisions must read Review records.
+- During the bridge, Template Resolution stores candidate summaries only.
+  Selected executable Template snapshots belong to Review records.
 - Resolution records use a separate `templateResolutionChanged` event and are
   invalidation inputs for Review, not execution triggers.
 - Resolution invalidates on Assessment evidence signature, Recipe fingerprint,
@@ -90,8 +90,8 @@ TemplateService.onDidChangeTemplates
 - Diagnostics are resolution diagnostics: selector mismatches, projection
   failures, saved-template incompatibility, or candidate conflicts. Raw table
   semantic diagnostics remain Assessment-owned.
-- Automatic Slice must consume Review decisions, not
-  `RawTableTemplateResolutionRecord.selectedTemplate`.
+- Automatic Slice must consume Review decisions, not Template Resolution
+  candidate ordering.
 
 ## Do Not
 

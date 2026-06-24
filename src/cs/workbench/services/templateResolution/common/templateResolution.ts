@@ -52,13 +52,6 @@ export type TemplateCandidate = TemplateCandidateSummary & {
   readonly template: Template;
 };
 
-export type SelectedTemplateCandidate = {
-  readonly candidateId: string;
-  readonly source: TemplateCandidateSource;
-  readonly template: Template;
-  readonly templateFingerprint: string;
-};
-
 export type RawTableTemplateResolutionRecord = {
   readonly fileId: FileId;
   readonly rawTableId: SheetId;
@@ -67,7 +60,6 @@ export type RawTableTemplateResolutionRecord = {
   readonly recipeFingerprint: string;
   readonly templateCatalogVersion: number;
   readonly templateCandidates: readonly TemplateCandidateSummary[];
-  readonly selectedTemplate?: SelectedTemplateCandidate;
   readonly diagnostics: readonly TemplateResolutionDiagnostic[];
   readonly resolvedAt: number;
 };

@@ -927,7 +927,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     session.commitTemplateResolutions([createTemplateResolution(assessment)]);
 
     const file = session.getSnapshot().filesById["file-a"];
-    assert.equal(file.templateResolutionsByRawTableId?.["table-a"]?.selectedTemplate?.template.name, "Transfer");
+    assert.equal(file.templateResolutionsByRawTableId?.["table-a"]?.templateCandidates[0]?.templateFingerprint, "template:test");
     assert.deepEqual(events, [{
       fileIds: ["file-a"],
       rawTableIds: ["table-a"],
@@ -1680,7 +1680,6 @@ const createRawTableAssessment = (
 const createTemplateResolution = (
   assessment: RawTableAssessmentRecord,
 ): RawTableTemplateResolutionRecord => {
-  const template = createTestTemplate();
   return {
     fileId: assessment.fileId,
     rawTableId: assessment.rawTableId,
@@ -1705,16 +1704,6 @@ const createTemplateResolution = (
       reasons: [],
       diagnosticCodes: [],
     }],
-    selectedTemplate: {
-      candidateId: "recipe:test:block-a",
-      source: {
-        kind: "recipe",
-        recipeId: "recipe:test",
-        recipeVersion: 1,
-      },
-      template,
-      templateFingerprint: "template:test",
-    },
     diagnostics: [],
     resolvedAt: 1,
   };

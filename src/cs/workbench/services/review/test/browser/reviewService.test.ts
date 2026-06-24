@@ -82,6 +82,160 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(record?.recipeFingerprint, "recipe:second");
 		assert.equal(record?.decision.kind, "ready");
 	});
+
+	test("reviews inline manual templates as ready", () => {
+		const sessionService = store.add(new SessionService());
+		const recipeService = store.add(new TestRecipeService("recipe:first"));
+		const templateService = store.add(new TestTemplateService());
+		const service = store.add(new ReviewService(
+			sessionService,
+			recipeService,
+			templateService,
+		));
+		sessionService.commitFileImport(createImportResult());
+		sessionService.commitRawTableAssessment(createAssessment());
+
+		const result = service.reviewManualTemplate({
+			ref: { fileId: "file-a", rawTableId: "table-a" },
+			selection: {
+				kind: "inline",
+				template: createTemplate(),
+			},
+		});
+
+		assert.equal(result.kind, "ready");
+		assert.equal(result.kind === "ready" && result.reviewedTemplate.source.kind, "inline");
+	});
+
+	test("reviews legacy saved manual templates as ready", () => {
+		const template = createTemplate({ id: "template-a", name: "Saved Transfer" });
+		const sessionService = store.add(new SessionService());
+		const recipeService = store.add(new TestRecipeService("recipe:first"));
+		const templateService = store.add(new TestTemplateService([template]));
+		const service = store.add(new ReviewService(
+			sessionService,
+			recipeService,
+			templateService,
+		));
+		sessionService.commitFileImport(createImportResult());
+		sessionService.commitRawTableAssessment(createAssessment());
+
+		const result = service.reviewManualTemplate({
+			ref: { fileId: "file-a", rawTableId: "table-a" },
+			selection: {
+				kind: "savedTemplate",
+				templateId: "template-a",
+			},
+		});
+
+		assert.equal(result.kind, "ready");
+		assert.equal(result.kind === "ready" && result.reviewedTemplate.source.kind, "savedTemplate");
+		assert.equal(
+			result.kind === "ready" &&
+				result.reviewedTemplate.source.kind === "savedTemplate" &&
+				result.reviewedTemplate.source.templateId,
+			"template-a",
+		);
+	});
+
+	test("returns structured invalid result when a manual saved template is missing", () => {
+		const sessionService = store.add(new SessionService());
+		const recipeService = store.add(new TestRecipeService("recipe:first"));
+		const templateService = store.add(new TestTemplateService());
+		const service = store.add(new ReviewService(
+			sessionService,
+			recipeService,
+			templateService,
+		));
+		sessionService.commitFileImport(createImportResult());
+		sessionService.commitRawTableAssessment(createAssessment());
+
+		const result = service.reviewManualTemplate({
+			ref: { fileId: "file-a", rawTableId: "table-a" },
+			selection: {
+				kind: "savedTemplate",
+				templateId: "missing-template",
+			},
+		});
+
+		if (result.kind !== "invalid") {
+			assert.fail(`Expected invalid manual review result, got ${result.kind}.`);
+		}
+		assert.equal(result.diagnostics[0]?.code, "review.manual.templateNotFound");
+	});
+
+	test("returns structured invalid result for user templates until the catalog service lands", () => {
+		const sessionService = store.add(new SessionService());
+		const recipeService = store.add(new TestRecipeService("recipe:first"));
+		const templateService = store.add(new TestTemplateService());
+		const service = store.add(new ReviewService(
+			sessionService,
+			recipeService,
+			templateService,
+		));
+		sessionService.commitFileImport(createImportResult());
+		sessionService.commitRawTableAssessment(createAssessment());
+
+		const result = service.reviewManualTemplate({
+			ref: { fileId: "file-a", rawTableId: "table-a" },
+			selection: {
+				kind: "userTemplate",
+				templateId: "user-template-a",
+			},
+		});
+
+		if (result.kind !== "invalid") {
+			assert.fail(`Expected invalid manual review result, got ${result.kind}.`);
+		}
+		assert.equal(result.diagnostics[0]?.code, "review.manual.userTemplateUnavailable");
+	});
+
+	test("returns structured adjustment result for manual template bounds issues", () => {
+		const sessionService = store.add(new SessionService());
+		const recipeService = store.add(new TestRecipeService("recipe:first"));
+		const templateService = store.add(new TestTemplateService());
+		const service = store.add(new ReviewService(
+			sessionService,
+			recipeService,
+			templateService,
+		));
+		sessionService.commitFileImport(createImportResult());
+		sessionService.commitRawTableAssessment(createAssessment());
+
+		const result = service.reviewManualTemplate({
+			ref: { fileId: "file-a", rawTableId: "table-a" },
+			selection: {
+				kind: "inline",
+				template: createTemplate({
+					blocks: [{
+						rowRange: {
+							startRow: 1,
+							endRow: 2,
+						},
+						x: {
+							columns: [0],
+							unit: "V",
+						},
+						y: {
+							columns: [5],
+							unit: "A",
+						},
+						segmentation: {
+							kind: "none",
+						},
+						legend: {
+							target: "auto",
+						},
+					}],
+				}),
+			},
+		});
+
+		if (result.kind !== "needsManualAdjustment") {
+			assert.fail(`Expected adjustment manual review result, got ${result.kind}.`);
+		}
+		assert.equal(result.diagnostics[0]?.code, "review.manual.yAxisOutOfBounds");
+	});
 });
 
 class TestRecipeService extends Disposable implements IRecipeService {
@@ -124,15 +278,21 @@ class TestTemplateService extends Disposable implements ITemplateService {
 	public readonly onDidChangeTemplates = this.onDidChangeTemplatesEmitter.event;
 	private version = 1;
 
+	public constructor(
+		private readonly templates: readonly Template[] = [],
+	) {
+		super();
+	}
+
 	public getSnapshot(): TemplateSnapshot {
 		return {
 			version: this.version,
-			templates: [],
+			templates: this.templates,
 		};
 	}
 
-	public getTemplate(_id: string): Template | undefined {
-		return undefined;
+	public getTemplate(id: string): Template | undefined {
+		return this.templates.find(template => String(template.id ?? template.name ?? "").trim() === id);
 	}
 
 	public getTemplateList(): readonly TemplateApplyPresetRecord[] {
@@ -265,4 +425,35 @@ const createImportedFile = (): ImportedFileRecord => ({
 		},
 		rawTableOrder: ["table-a"],
 	},
+});
+
+const createTemplate = (
+	overrides: Partial<Template> = {},
+): Template => ({
+	schemaVersion: 1,
+	id: "template-inline",
+	name: "Transfer",
+	version: 1,
+	blocks: [{
+		rowRange: {
+			startRow: 1,
+			endRow: 2,
+		},
+		x: {
+			columns: [0],
+			unit: "V",
+		},
+		y: {
+			columns: [1],
+			unit: "A",
+		},
+		segmentation: {
+			kind: "none",
+		},
+		legend: {
+			target: "auto",
+		},
+	}],
+	stopOnError: false,
+	...overrides,
 });

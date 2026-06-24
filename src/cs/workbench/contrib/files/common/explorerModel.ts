@@ -24,6 +24,10 @@ import {
 	ExplorerFileNestingTrie,
 	type ExplorerFileNestingPattern,
 } from "src/cs/workbench/contrib/files/common/explorerFileNestingTrie";
+import {
+	createRawTableStatusSignature,
+	type RawTableExplorerStatus,
+} from "src/cs/workbench/contrib/files/common/rawTableStatusProjection";
 
 export type ExplorerSourceStatus = "pending" | "preparing" | "failed";
 
@@ -66,6 +70,7 @@ export type ExplorerFileEntry = {
 	readonly hasChartData?: boolean;
 	readonly itemKey?: string;
 	readonly normalizedCsvPath?: string | null;
+	readonly rawTableStatus?: RawTableExplorerStatus;
 	readonly relativePath?: string | null;
 	readonly sourceKey?: string;
 	readonly sourcePath?: string | null;
@@ -226,6 +231,7 @@ const createExplorerBadgeProjectionFileSignature = (file: ExplorerFileEntry): st
 		getExplorerTreeFileKey(file),
 		file.sourceStatus ?? "",
 		file.sourceStatusMessage ?? "",
+		createRawTableStatusSignature(file.rawTableStatus),
 		file.assessmentHealth ?? "",
 		file.assessmentHealthMessage ?? "",
 		file.templateEligibility ?? "",
@@ -255,6 +261,7 @@ export const createExplorerFilePresentationSignature = (
 		entry.fileId ?? "",
 		entry.sourceStatus ?? "",
 		entry.sourceStatusMessage ?? "",
+		createRawTableStatusSignature(entry.rawTableStatus),
 		entry.assessmentHealth ?? "",
 		entry.assessmentHealthMessage ?? "",
 		entry.templateEligibility ?? "",

@@ -99,9 +99,9 @@ Session sessionCleared
 Explorer projection:
 
 ```txt
-SliceState.fileStates
+RawTableReviewRecord + SliceState.fileStates + latest SliceRun
   -> WorkbenchDomainBridge / ExplorerPaneInput
-  -> chartState + chartMessage
+  -> rawTableStatus + chartState + chartMessage
 ```
 
 ## Rules

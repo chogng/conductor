@@ -26,7 +26,7 @@ import { TemplateResolutionService } from "src/cs/workbench/services/templateRes
 suite("workbench/services/templateResolution/test/browser/templateResolutionService", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test("resolves recipe candidates into a selected template", () => {
+	test("resolves recipe candidates for review", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const templateService = store.add(new TestTemplateService());
@@ -47,8 +47,8 @@ suite("workbench/services/templateResolution/test/browser/templateResolutionServ
 
 		assert.equal(result.recipeFingerprint, "recipe:first");
 		assert.equal(result.templateCatalogVersion, 1);
-		assert.equal(result.selectedTemplate?.source.kind, "recipe");
-		assert.equal(result.selectedTemplate?.source.kind === "recipe" && result.selectedTemplate.source.recipeId, "builtin.iv.transfer");
+		assert.equal(result.templateCandidates[0]?.source.kind, "recipe");
+		assert.equal(result.templateCandidates[0]?.source.kind === "recipe" && result.templateCandidates[0].source.recipeId, "builtin.iv.transfer");
 		assert.equal(result.templateCandidates[0]?.state, "ready");
 	});
 
@@ -74,14 +74,14 @@ suite("workbench/services/templateResolution/test/browser/templateResolutionServ
 		let record = sessionService.getSnapshot().filesById["file-a"]
 			.templateResolutionsByRawTableId?.["table-a"];
 		assert.equal(record?.recipeFingerprint, "recipe:first");
-		assert.equal(record?.selectedTemplate?.source.kind, "recipe");
+		assert.equal(record?.templateCandidates[0]?.source.kind, "recipe");
 
 		recipeService.setFingerprint("recipe:second");
 
 		record = sessionService.getSnapshot().filesById["file-a"]
 			.templateResolutionsByRawTableId?.["table-a"];
 		assert.equal(record?.recipeFingerprint, "recipe:second");
-		assert.equal(record?.selectedTemplate?.source.kind, "recipe");
+		assert.equal(record?.templateCandidates[0]?.source.kind, "recipe");
 	});
 });
 

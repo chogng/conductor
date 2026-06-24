@@ -723,6 +723,11 @@ const applyFileItemShellState = (
   } else {
     delete host.dataset.chartState;
   }
+  if (fileEntry.rawTableStatus?.kind) {
+    host.dataset.rawTableStatus = fileEntry.rawTableStatus.kind;
+  } else {
+    delete host.dataset.rawTableStatus;
+  }
   if (typeof fileEntry.hasChartData === "boolean") {
     host.dataset.hasChartData = fileEntry.hasChartData ? "true" : "false";
   } else {
@@ -2104,6 +2109,7 @@ export class ExplorerViewer implements IDisposable {
     delete host.dataset.autoWarning;
     delete host.dataset.chartState;
     delete host.dataset.hasChartData;
+    delete host.dataset.rawTableStatus;
     delete host.dataset.fileId;
     delete host.dataset.itemKey;
     delete host.dataset.selected;

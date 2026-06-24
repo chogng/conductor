@@ -194,10 +194,10 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
 - `RawTableTemplateResolutionRecord` is a migration bridge fact for automatic
   Template candidate derivation for one raw table.
 - Resolution records store `sourceAssessmentSignature`, `recipeFingerprint`,
-  legacy `templateCatalogVersion`, ranked `templateCandidates`, optional
-  compatibility `selectedTemplate`, diagnostics, and `resolvedAt`.
-- New consumers must not treat `selectedTemplate` as an application decision;
-  Review owns selected `ReviewedTemplate` snapshots.
+  legacy `templateCatalogVersion`, ranked `templateCandidates`, diagnostics,
+  and `resolvedAt`.
+- Resolution records do not store selected Template snapshots or application
+  decisions. Review owns selected `ReviewedTemplate` snapshots.
 - Resolution records do not store raw rows, Assessment blocks duplicated as
   owners, Review policy output, Slice queue state, or Slice output.
 

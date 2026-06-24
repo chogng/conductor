@@ -52,7 +52,7 @@ reviewChanged
 Manual execution:
 
 ```txt
-user command / template picker
+user command / legacy saved template picker / inline template editor
   -> IReviewService.reviewManualTemplate(...)
   -> ManualTemplateReviewResult
   -> ready result only
@@ -88,6 +88,9 @@ TemplateResolution, Assessment, Explorer, or Slice.
   diagnostic handling, override rules, or source priority changes.
 - Explorer reads `RawTableReviewRecord` and Slice state as projection inputs;
   it does not perform Review policy checks.
+- Manual Review requests may accept legacy saved Template ids during the
+  UserTemplate migration. UserTemplate ids must return a structured unavailable
+  result until `IUserTemplateService` owns that catalog.
 
 ## Do Not
 

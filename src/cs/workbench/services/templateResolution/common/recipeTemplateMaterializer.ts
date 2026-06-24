@@ -61,17 +61,6 @@ export const materializeRecipeTemplates = ({
   );
 };
 
-export const selectAutomaticRecipeTemplate = (
-  materializedTemplates: readonly MaterializedRecipeTemplate[],
-  autoApplyAllowed: boolean,
-): MaterializedRecipeTemplate | null => {
-  if (!autoApplyAllowed) {
-    return null;
-  }
-
-  return materializedTemplates.find(template => template.state === "ready") ?? null;
-};
-
 export const materializeRecipeTemplate = ({
   recipe,
   evidence,

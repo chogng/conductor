@@ -63,7 +63,7 @@ table selection state, plot rendering, or chart state.
 ## Flow
 
 ```txt
-manual saved/UserTemplate run
+manual legacy saved/UserTemplate/inline run
   -> ReviewService.reviewManualTemplate(...)
   -> ManualTemplateReviewResult.ready
   -> ISliceService.submit(SliceRequest(trigger = userCommand))
@@ -132,6 +132,7 @@ do not route execution through Template code.
 ```txt
 slice.runWithTemplate command
   -> ReviewService.reviewManualTemplate
+  -> ready ManualTemplateReviewResult
   -> ISliceService.submit(SliceRequest)
   -> SlicePlan + SliceCommit
   -> ISessionService.commitSliceRuns

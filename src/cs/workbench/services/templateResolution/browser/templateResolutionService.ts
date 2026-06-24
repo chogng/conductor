@@ -127,25 +127,12 @@ export class TemplateResolutionService extends Disposable implements ITemplateRe
       ...recipeCandidates,
       ...savedTemplateCandidates,
     ]);
-    const selectedTemplate = input.assessment.decision.autoApplyAllowed === true
-      ? candidates.find(candidate => candidate.state === "ready")
-      : undefined;
-    const diagnostics = createResolutionDiagnostics(candidates, selectedTemplate);
+    const diagnostics = createResolutionDiagnostics(candidates);
 
     return {
       recipeFingerprint: input.recipeSnapshot.fingerprint,
       templateCatalogVersion: input.templateSnapshot.version,
       templateCandidates: candidates.map(({ template: _template, ...summary }) => summary),
-      ...(selectedTemplate
-        ? {
-          selectedTemplate: {
-            candidateId: selectedTemplate.id,
-            source: selectedTemplate.source,
-            template: selectedTemplate.template,
-            templateFingerprint: selectedTemplate.templateFingerprint,
-          },
-        }
-        : {}),
       diagnostics,
     };
   }
@@ -250,11 +237,7 @@ export class TemplateResolutionService extends Disposable implements ITemplateRe
 
 const createResolutionDiagnostics = (
   candidates: readonly TemplateCandidate[],
-  selectedTemplate: TemplateCandidate | undefined,
 ): readonly TemplateResolutionDiagnostic[] => {
-  if (selectedTemplate) {
-    return [];
-  }
   if (!candidates.length) {
     return [{
       severity: "warning",
@@ -264,8 +247,8 @@ const createResolutionDiagnostics = (
   }
   return [{
     severity: "info",
-    code: "templateResolution.reviewRequired",
-    message: "Template candidates are available but none are ready for automatic slicing.",
+    code: "templateResolution.candidatesAvailable",
+    message: "Template candidates are available for Review.",
   }];
 };
 

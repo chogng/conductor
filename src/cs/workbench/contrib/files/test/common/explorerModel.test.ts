@@ -138,6 +138,62 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     assert.equal(skippedSummary.assessmentBadgeCount, 1);
   });
 
+  test("file presentation signature includes raw table status projection", () => {
+    const baseOptions = {
+      badgeColorSignature: "",
+      isEditing: false,
+      templateLabel: "",
+      templateSelectionId: "",
+    };
+    const readySignature = createExplorerFilePresentationSignature({
+      fileId: "file-a",
+      fileName: "A.csv",
+      rawTableStatus: {
+        kind: "systemRecommended",
+        rawTableId: "table-a",
+        reviewSignature: "review:a",
+        templateFingerprint: "template:a",
+      },
+    }, baseOptions);
+    const slicedSignature = createExplorerFilePresentationSignature({
+      fileId: "file-a",
+      fileName: "A.csv",
+      rawTableStatus: {
+        kind: "sliced",
+        rawTableId: "table-a",
+        runId: "slice-a",
+        sourceRawTableVersion: 1,
+        templateFingerprint: "template:a",
+      },
+    }, baseOptions);
+
+    assert.notEqual(readySignature, slicedSignature);
+  });
+
+  test("badge projection signature includes raw table status projection", () => {
+    const pendingSummary = summarizeExplorerBadgeProjection([{
+      fileId: "file-a",
+      fileName: "A.csv",
+      rawTableStatus: {
+        kind: "reviewPending",
+        rawTableId: "table-a",
+        sourceRawTableVersion: 1,
+      },
+    }]);
+    const invalidSummary = summarizeExplorerBadgeProjection([{
+      fileId: "file-a",
+      fileName: "A.csv",
+      rawTableStatus: {
+        kind: "invalid",
+        rawTableId: "table-a",
+        diagnosticCodes: ["review.noCandidates"],
+        reasons: ["review.noCandidates"],
+      },
+    }]);
+
+    assert.notEqual(pendingSummary.signature, invalidSummary.signature);
+  });
+
   test("createExplorerFilePresentationSignature ignores chart-only metadata", () => {
     const options = {
       badgeColorSignature: "output:green",

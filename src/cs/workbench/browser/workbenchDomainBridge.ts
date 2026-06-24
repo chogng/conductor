@@ -21,6 +21,9 @@ import {
   buildExplorerTree,
   type ExplorerTreeNode,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
+import {
+  createRawTableStatusProjection,
+} from "src/cs/workbench/contrib/files/common/rawTableStatusProjection";
 import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import { createChartViewInput } from "src/cs/workbench/services/chart/browser/chartViewInput";
 import type { ChartFileOption } from "src/cs/workbench/services/chart/common/chartFileOptions";
@@ -754,13 +757,21 @@ export const createExplorerPaneInput = ({
     ),
     snapshot,
   );
-  const files = applyChartExplorerStates(isThumbnailLayout
-    ? createChartExplorerFilesFromRecords(
+  const rawStatusExplorerFiles = applyRawTableStatusProjections(rawExplorerFiles, {
+    sliceState,
+    snapshot,
+  });
+  const chartBaseFiles = isThumbnailLayout
+    ? applyRawTableStatusProjections(createChartExplorerFilesFromRecords(
       snapshot.filesById,
       snapshot.fileOrder,
       rawFiles,
-    )
-    : rawExplorerFiles, {
+    ), {
+      sliceState,
+      snapshot,
+    })
+    : rawStatusExplorerFiles;
+  const files = applyChartExplorerStates(chartBaseFiles, {
       isChartMode,
       sliceState,
       snapshot,
@@ -778,7 +789,7 @@ export const createExplorerPaneInput = ({
     mode,
     originOpenPlotOptions,
     plotAxisSettings,
-    quickAccessFiles: rawExplorerFiles,
+    quickAccessFiles: rawStatusExplorerFiles,
     selectedFileId,
     selectionKind,
     thumbnailFiles: readModel.processedFiles,
@@ -883,6 +894,30 @@ const applyAssessmentQueueExplorerBadge = (
     },
   };
 };
+
+const applyRawTableStatusProjections = (
+  files: readonly ExplorerFileEntry[],
+  {
+    sliceState,
+    snapshot,
+  }: {
+    readonly sliceState: SliceState;
+    readonly snapshot: SessionSnapshot;
+  },
+): ExplorerFileEntry[] =>
+  files.map(file => {
+    const fileId = String(file.fileId ?? "").trim();
+    const fileRecord = fileId ? snapshot.filesById[fileId] : undefined;
+    const rawTableId = findExplorerRawTable(file, fileRecord)?.rawTableId ?? null;
+    return {
+      ...file,
+      rawTableStatus: createRawTableStatusProjection({
+        file: fileRecord,
+        rawTableId,
+        sliceFileState: fileId ? sliceState.fileStates.get(fileId) : undefined,
+      }),
+    };
+  });
 
 const createAssessmentQueueStatesByRefKey = (
   snapshot: AssessmentQueueSnapshot,

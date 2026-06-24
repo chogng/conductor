@@ -17,6 +17,8 @@ import {
   createReviewEvidenceSignature,
   type AutomaticTemplateCandidateSource,
   type IReviewService as IReviewServiceType,
+  type ManualTemplateReviewRequest,
+  type ManualTemplateReviewResult,
   type RawTableReviewRecord,
   type ReviewDiagnostic,
   type ReviewInput,
@@ -36,9 +38,13 @@ import type {
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
   ITemplateService,
+  type Template,
+  type TemplateAxisBinding,
   type ITemplateService as ITemplateServiceType,
+  type TemplateRowRange,
   type TemplateSnapshot,
 } from "src/cs/workbench/services/template/common/template";
+import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import {
   evaluateSavedTemplateCandidates,
 } from "src/cs/workbench/services/templateResolution/common/savedTemplateEvaluator";
@@ -158,6 +164,67 @@ export class ReviewService extends Disposable implements IReviewServiceType {
     };
   }
 
+  public reviewManualTemplate(input: ManualTemplateReviewRequest): ManualTemplateReviewResult {
+    const ref = normalizeRawTableRef(input.ref);
+    if (!ref) {
+      return createInvalidManualReviewResult("review.manual.invalidRef", "Manual review needs a raw table target.");
+    }
+
+    const snapshot = this.sessionService.getSnapshot();
+    const file = snapshot.filesById[ref.fileId];
+    const table = file?.raw.tablesById[ref.rawTableId];
+    const assessment = file?.assessmentsByRawTableId?.[ref.rawTableId];
+    if (!file || !table || !assessment) {
+      return createInvalidManualReviewResult(
+        "review.manual.missingEvidence",
+        "Manual review needs an imported raw table with Assessment evidence.",
+      );
+    }
+
+    const resolvedTemplate = this.resolveManualTemplate(input.selection);
+    if (resolvedTemplate.kind === "invalid") {
+      return createInvalidManualReviewResult(resolvedTemplate.code, resolvedTemplate.message);
+    }
+
+    const reviewInput = createManualTemplateReview({
+      candidateId: resolvedTemplate.candidateId,
+      columnCount: table.columnCount,
+      source: resolvedTemplate.source,
+      template: resolvedTemplate.template,
+      rowCount: table.rowCount,
+    });
+
+    if (reviewInput.review.status === "ready") {
+      return {
+        kind: "ready",
+        reviewedTemplate: {
+          candidateId: reviewInput.candidateId,
+          source: reviewInput.source,
+          template: reviewInput.template,
+          templateFingerprint: reviewInput.templateFingerprint,
+          review: reviewInput.review,
+        },
+        suggestedActions: [],
+      };
+    }
+
+    if (reviewInput.review.status === "needsAdjustment") {
+      return {
+        kind: "needsManualAdjustment",
+        review: reviewInput.review,
+        diagnostics: reviewInput.review.diagnostics,
+        suggestedActions: [{ id: "review.adjustTemplate", label: "Adjust template" }],
+      };
+    }
+
+    return {
+      kind: "invalid",
+      review: reviewInput.review,
+      diagnostics: reviewInput.review.diagnostics,
+      suggestedActions: [{ id: "review.createTemplate", label: "Create template" }],
+    };
+  }
+
   private drainQueue(): void {
     if (this.isReviewing) {
       return;
@@ -254,7 +321,242 @@ export class ReviewService extends Disposable implements IReviewServiceType {
   private fireReviewStateChange(): void {
     this.onDidChangeReviewStateEmitter.fire(undefined);
   }
+
+  private resolveManualTemplate(
+    selection: ManualTemplateReviewRequest["selection"],
+  ): ManualTemplateResolution {
+    if (selection.kind === "inline") {
+      const templateFingerprint = createTemplateFingerprint(selection.template);
+      return {
+        kind: "resolved",
+        candidateId: `manual:inline:${templateFingerprint}`,
+        source: { kind: "inline" },
+        template: selection.template,
+      };
+    }
+
+    const templateId = normalizeText(selection.templateId);
+    if (!templateId) {
+      return {
+        kind: "invalid",
+        code: "review.manual.emptyTemplateId",
+        message: "Manual review needs a Template id.",
+      };
+    }
+
+    if (selection.kind === "userTemplate") {
+      return {
+        kind: "invalid",
+        code: "review.manual.userTemplateUnavailable",
+        message: "UserTemplate review is not available until the UserTemplate catalog service is registered.",
+      };
+    }
+
+    const template = this.templateService.getTemplate(templateId);
+    if (!template) {
+      return {
+        kind: "invalid",
+        code: "review.manual.templateNotFound",
+        message: "The selected Template could not be found.",
+      };
+    }
+
+    const templateSnapshot = this.templateService.getSnapshot();
+    return {
+      kind: "resolved",
+      candidateId: `manual:saved-template:${templateId}`,
+      source: {
+        kind: "savedTemplate",
+        templateId,
+        templateVersion: normalizeTemplateVersion(template.version, templateSnapshot.version),
+      },
+      template,
+    };
+  }
 }
+
+type ManualTemplateResolution =
+  | {
+      readonly kind: "resolved";
+      readonly candidateId: string;
+      readonly source: ReviewedTemplateSource;
+      readonly template: Template;
+    }
+  | {
+      readonly kind: "invalid";
+      readonly code: string;
+      readonly message: string;
+    };
+
+type ManualTemplateReview = {
+  readonly candidateId: string;
+  readonly source: ReviewedTemplateSource;
+  readonly template: Template;
+  readonly templateFingerprint: string;
+  readonly review: TemplateReview;
+};
+
+const createManualTemplateReview = ({
+  candidateId,
+  columnCount,
+  rowCount,
+  source,
+  template,
+}: {
+  readonly candidateId: string;
+  readonly columnCount: number;
+  readonly rowCount: number;
+  readonly source: ReviewedTemplateSource;
+  readonly template: Template;
+}): ManualTemplateReview => {
+  const templateFingerprint = createTemplateFingerprint(template);
+  const diagnostics = getManualTemplateDiagnosticCodes({
+    columnCount,
+    rowCount,
+    template,
+  });
+  const status = getManualTemplateReviewStatus(template, diagnostics);
+  const review: TemplateReview = {
+    candidateId,
+    templateFingerprint,
+    status,
+    confidence: status === "ready" ? 1 : 0,
+    reasons: [getManualTemplateReason(source)],
+    diagnostics: diagnostics.map(createReviewDiagnostic),
+  };
+
+  return {
+    candidateId,
+    source,
+    template,
+    templateFingerprint,
+    review,
+  };
+};
+
+const getManualTemplateDiagnosticCodes = ({
+  columnCount,
+  rowCount,
+  template,
+}: {
+  readonly columnCount: number;
+  readonly rowCount: number;
+  readonly template: Template;
+}): readonly string[] => {
+  const diagnostics = new Set<string>();
+  if (!template.blocks.length) {
+    diagnostics.add("review.manual.noBlocks");
+    return [...diagnostics];
+  }
+
+  if (!Number.isInteger(rowCount) || rowCount <= 0) {
+    diagnostics.add("review.manual.invalidRowCount");
+  }
+  if (!Number.isInteger(columnCount) || columnCount <= 0) {
+    diagnostics.add("review.manual.invalidColumnCount");
+  }
+
+  for (const block of template.blocks) {
+    if (!isRowRangeInBounds(block.rowRange, rowCount)) {
+      diagnostics.add("review.manual.rowRangeOutOfBounds");
+    }
+    if (!isAxisInBounds(block.x, columnCount, rowCount)) {
+      diagnostics.add("review.manual.xAxisOutOfBounds");
+    }
+    if (!isAxisInBounds(block.y, columnCount, rowCount)) {
+      diagnostics.add("review.manual.yAxisOutOfBounds");
+    }
+  }
+
+  return [...diagnostics];
+};
+
+const getManualTemplateReviewStatus = (
+  template: Template,
+  diagnostics: readonly string[],
+): TemplateReview["status"] => {
+  if (!template.blocks.length || diagnostics.includes("review.manual.invalidRowCount") || diagnostics.includes("review.manual.invalidColumnCount")) {
+    return "invalid";
+  }
+  return diagnostics.length ? "needsAdjustment" : "ready";
+};
+
+const getManualTemplateReason = (
+  source: ReviewedTemplateSource,
+): string => {
+  switch (source.kind) {
+    case "inline":
+      return "review.manual.inlineTemplate";
+    case "savedTemplate":
+      return "review.manual.savedTemplate";
+    case "userTemplate":
+      return "review.manual.userTemplate";
+    case "recipe":
+      return "review.manual.recipeTemplate";
+  }
+};
+
+const createInvalidManualReviewResult = (
+  code: string,
+  message: string,
+): ManualTemplateReviewResult => ({
+  kind: "invalid",
+  diagnostics: [{
+    severity: "error",
+    code,
+    message,
+  }],
+  suggestedActions: [{ id: "review.selectTemplate", label: "Select template" }],
+});
+
+const isRowRangeInBounds = (
+  rowRange: TemplateRowRange,
+  rowCount: number,
+): boolean => {
+  const startRow = Math.floor(Number(rowRange.startRow));
+  const endRow = rowRange.endRow === "end"
+    ? Math.max(0, rowCount - 1)
+    : Math.floor(Number(rowRange.endRow));
+  return Number.isInteger(startRow) &&
+    Number.isInteger(endRow) &&
+    startRow >= 0 &&
+    startRow < rowCount &&
+    endRow >= startRow &&
+    endRow < rowCount;
+};
+
+const isAxisInBounds = (
+  axis: TemplateAxisBinding,
+  columnCount: number,
+  rowCount: number,
+): boolean =>
+  axis.columns.length > 0 &&
+  axis.columns.every(column => isColumnInBounds(column, columnCount)) &&
+  (axis.ranges ?? []).every(range =>
+    isColumnInBounds(range.column, columnCount) &&
+    isRowRangeInBounds({
+      startRow: range.startRow,
+      endRow: range.endRow,
+    }, rowCount)
+  );
+
+const isColumnInBounds = (
+  column: number,
+  columnCount: number,
+): boolean =>
+  Number.isInteger(column) &&
+  column >= 0 &&
+  column < columnCount;
+
+const normalizeTemplateVersion = (
+  templateVersion: unknown,
+  templateSnapshotVersion: number,
+): number => {
+  const version = Math.floor(Number(templateVersion));
+  return Number.isInteger(version) && version > 0
+    ? version
+    : Math.max(1, Math.floor(Number(templateSnapshotVersion)) || 1);
+};
 
 const createReviewDecision = ({
   candidates,

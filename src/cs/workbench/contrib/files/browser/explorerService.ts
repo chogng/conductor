@@ -24,6 +24,9 @@ import {
   getTemplateSelectionTemplateId,
   type TemplateSelection,
 } from "src/cs/workbench/services/template/common/templateSelection";
+import {
+  createRawTableStatusSignature,
+} from "src/cs/workbench/contrib/files/common/rawTableStatusProjection";
 
 export class ExplorerService extends Disposable implements IExplorerService {
   public declare readonly _serviceBrand: undefined;
@@ -449,6 +452,8 @@ const areExplorerFilesEqual = (
       file.sourcePath === nextFile.sourcePath &&
       file.sourceStatus === nextFile.sourceStatus &&
       file.sourceStatusMessage === nextFile.sourceStatusMessage &&
+      createRawTableStatusSignature(file.rawTableStatus) ===
+        createRawTableStatusSignature(nextFile.rawTableStatus) &&
       file.badgeState?.kind === nextFile.badgeState?.kind &&
       file.fileVersion === nextFile.fileVersion &&
       (
