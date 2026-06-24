@@ -98,7 +98,6 @@ generation, Session mutation, or DOM rendering.
 | `contrib/files/common/explorerModel.ts` | Explorer resources/items/tree helpers. |
 | `contrib/files/common/explorerFileNestingTrie.ts` | Explorer display-only file nesting pattern matching. |
 | `contrib/files/browser/explorerViewlet.ts` | Explorer `ViewPane` host and sidebar actions. |
-| `contrib/files/browser/templateSelectionDisplay.ts` | Explorer current-template display projection from Template UI state and Slice selection helpers. |
 | `contrib/files/browser/views/explorerView.ts` | Explorer DOM shell/drag-drop host. |
 | `contrib/files/browser/views/explorerViewer.ts` | Tree/thumbnail renderer, row templates, context menus, Explorer-owned hover containers. |
 | `contrib/files/browser/fileActions.ts` / `fileCommands.ts` | Files/Explorer action and command handlers. |
@@ -128,20 +127,6 @@ Explorer drop/dialog/clipboard/folder
   -> Explorer resources / TableFacts / Template / Review / Slice / Plot / Search / Export
 ```
 
-Slice with template follows the same ownership split:
-
-```txt
-Explorer context menu
-  -> files.item.sliceWithTemplate command
-  -> IExplorerWorkflowService.sliceFileWithTemplate(fileId)
-  -> SliceWithTemplateController modal
-  -> IFileService read/write/delete actual files
-  -> FileSourceWorkflow.importGeneratedFiles(...)
-  -> fileConverter.ts
-  -> ISessionService.commitFileImport(...)
-  -> Explorer resources / downstream subscribers
-```
-
 Per-file template selection is a Files command surface but not Files state:
 
 ```txt
@@ -152,14 +137,9 @@ Explorer context menu / template picker
   -> WorkbenchDomainBridge projects selection into Explorer pane input
 ```
 
-The Explorer current-template menu display is view projection, not Bridge
-state:
-
-```txt
-ITemplateViewStateService.onDidChangeTemplateState / IUserTemplateService.onDidChangeUserTemplates
-  -> ExplorerViewPane rereads TemplateViewStateService + UserTemplateService
-  -> Explorer view props currentTemplateLabel/currentTemplateSelection
-```
+Explorer template-menu labels are view projection, not Bridge state. Explorer
+reads `IUserTemplateService` snapshots for labels and `ISliceService` selection
+projection from pane input; it does not read Template editor draft state.
 
 Slice progress/readiness is likewise projected, not owned, by Explorer:
 

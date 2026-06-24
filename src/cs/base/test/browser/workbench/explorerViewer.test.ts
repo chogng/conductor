@@ -27,7 +27,6 @@ import {
   RENAME_FILE_ITEM_COMMAND_ID,
   REVEAL_IN_OS_COMMAND_ID,
   SET_FILE_TEMPLATE_COMMAND_ID,
-  SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
 } from "src/cs/workbench/contrib/files/common/files";
 import type {
   IThumbnailService,
@@ -259,14 +258,10 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     try {
       const actions = getFileContextActions(viewer, "file-a");
       const setTemplate = actions.find(action => action.id === SET_FILE_TEMPLATE_COMMAND_ID);
-      const sliceTemplate = actions.find(action => action.id === SLICE_FILE_WITH_TEMPLATE_COMMAND_ID);
 
       assert.ok(setTemplate);
-      assert.ok(sliceTemplate);
       assert.equal(setTemplate.enabled, false);
-      assert.equal(sliceTemplate.enabled, false);
       assert.equal(setTemplate instanceof SubmenuAction, false);
-      assert.equal(sliceTemplate instanceof SubmenuAction, false);
     } finally {
       viewer.dispose();
       labels.dispose();
@@ -274,7 +269,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     }
   });
 
-  test("creates template submenu and direct slice action when user templates are available", () => {
+  test("creates template submenu when user templates are available", () => {
     const host = document.createElement("div");
     const hoverHost = document.createElement("div");
     const labels = new ResourceLabels();
@@ -292,13 +287,9 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     try {
       const actions = getFileContextActions(viewer, "file-a");
       const setTemplate = actions.find(action => action.id === SET_FILE_TEMPLATE_COMMAND_ID);
-      const sliceTemplate = actions.find(action => action.id === SLICE_FILE_WITH_TEMPLATE_COMMAND_ID);
 
       assert.ok(setTemplate instanceof SubmenuAction);
-      assert.ok(sliceTemplate);
-      assert.equal(sliceTemplate instanceof SubmenuAction, false);
       assert.equal(setTemplate.enabled, true);
-      assert.equal(sliceTemplate.enabled, true);
       assert.deepEqual(
         setTemplate.actions.map(action => action.label),
         ["Recommended template", "Template A"],
@@ -341,7 +332,6 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           REVEAL_IN_OS_COMMAND_ID,
           Separator.ID,
           SET_FILE_TEMPLATE_COMMAND_ID,
-          SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
           Separator.ID,
           RENAME_FILE_ITEM_COMMAND_ID,
           DELETE_FILE_ITEM_COMMAND_ID,

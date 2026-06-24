@@ -16,7 +16,6 @@ suite("workbench/contrib/files/test/browser/explorerWorkflowService", () => {
     let closeRequests = 0;
     const closedFileIds: string[] = [];
     const deletedFileIds: string[] = [];
-    const slicedFileIds: string[] = [];
     const registration = store.add(service.registerHandler({
       openFolderImport: () => {
         importRequests += 1;
@@ -30,9 +29,6 @@ suite("workbench/contrib/files/test/browser/explorerWorkflowService", () => {
       deleteFile: fileId => {
         deletedFileIds.push(fileId);
       },
-      sliceFileWithTemplate: fileId => {
-        slicedFileIds.push(fileId);
-      },
     }));
 
     service.openFolderImport();
@@ -41,23 +37,18 @@ suite("workbench/contrib/files/test/browser/explorerWorkflowService", () => {
     service.closeFile(" ");
     service.deleteFile(" file-b ");
     service.deleteFile(" ");
-    service.sliceFileWithTemplate(" file-c ");
-    service.sliceFileWithTemplate(" ");
 
     assert.equal(importRequests, 1);
     assert.equal(closeRequests, 1);
     assert.deepEqual(closedFileIds, ["file-a"]);
     assert.deepEqual(deletedFileIds, ["file-b"]);
-    assert.deepEqual(slicedFileIds, ["file-c"]);
 
     registration.dispose();
     service.closeFile("file-d");
     service.deleteFile("file-e");
-    service.sliceFileWithTemplate("file-d");
 
     assert.deepEqual(closedFileIds, ["file-a"]);
     assert.deepEqual(deletedFileIds, ["file-b"]);
-    assert.deepEqual(slicedFileIds, ["file-c"]);
     service.dispose();
   });
 });

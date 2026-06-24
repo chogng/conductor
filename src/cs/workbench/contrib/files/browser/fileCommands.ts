@@ -76,18 +76,6 @@ export const setFileTemplateHandler: ICommandHandler<[unknown, unknown]> = (
   sliceService.setTemplateSelection(normalizedFileId, selection);
 };
 
-export const sliceFileWithTemplateHandler: ICommandHandler<[unknown]> = (
-  accessor,
-  fileId,
-) => {
-  const normalizedFileId = normalizeCommandFileId(fileId);
-  if (!normalizedFileId) {
-    return;
-  }
-
-  accessor.get(IExplorerWorkflowService).sliceFileWithTemplate(normalizedFileId);
-};
-
 const normalizeCommandFileId = (fileId: unknown): string | null => {
   const normalized = String(fileId ?? "").trim();
   return normalized || null;

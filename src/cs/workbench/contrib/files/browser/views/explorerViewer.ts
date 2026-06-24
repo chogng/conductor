@@ -43,7 +43,6 @@ import {
   REVEAL_IN_OS_COMMAND_ID,
   RENAME_FILE_ITEM_COMMAND_ID,
   SET_FILE_TEMPLATE_COMMAND_ID,
-  SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
 } from "src/cs/workbench/contrib/files/common/files";
 import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
 import type {
@@ -115,8 +114,6 @@ export type ExplorerViewerProps = {
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly thumbnailPreviewService: IThumbnailPreviewService;
   readonly thumbnailService: IThumbnailService;
-  readonly currentTemplateLabel?: string;
-  readonly currentTemplateSelection?: TemplateSelection;
   readonly fileTemplateSelectionsByFileId?: TemplateSelectionsByFileId;
   readonly editable?: ExplorerEditableData | null;
   readonly templateRecords?: readonly TemplateApplyPresetRecord[];
@@ -1386,17 +1383,6 @@ export class ExplorerViewer implements IDisposable {
         fileId,
         label: localize("files.item.setTemplate", "Set with Template"),
       }),
-      createMenuAction({
-        enabled: this.hasUserTemplates(),
-        id: SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
-        label: localize("files.item.sliceWithTemplate", "Slice with Template"),
-        run: () => {
-          void this.props.commandService.executeCommand(
-            SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
-            fileId,
-          );
-        },
-      }),
     ];
     const editActions: IAction[] = [
       createMenuAction({
@@ -1599,9 +1585,6 @@ export class ExplorerViewer implements IDisposable {
     props: ExplorerViewerProps = this.props,
   ): string {
     const selection = this.resolveFileTemplateSelection(fileEntry.fileId, props);
-    const currentSelection = props.currentTemplateSelection ?? {
-      kind: "auto",
-    };
 
     if (selection.kind === "auto") {
       return localize("template.recommendedTemplate", "Recommended template");
@@ -1611,13 +1594,6 @@ export class ExplorerViewer implements IDisposable {
     }
 
     const selectionTemplateId = getTemplateSelectionTemplateId(selection);
-    if (
-      selectionTemplateId &&
-      selectionTemplateId === getTemplateSelectionTemplateId(currentSelection)
-    ) {
-      return props.currentTemplateLabel || selectionTemplateId;
-    }
-
     return props.templateRecords?.find(template => template.id === selectionTemplateId)?.name ||
       selectionTemplateId ||
       localize("template.unknownTemplate", "Unknown template");
@@ -1627,13 +1603,10 @@ export class ExplorerViewer implements IDisposable {
     fileId: string | null | undefined,
     props: ExplorerViewerProps = this.props,
   ): TemplateSelection {
-    const currentSelection: TemplateSelection = props.currentTemplateSelection ?? {
-      kind: "auto",
-    };
     return resolveTemplateSelectionForFile(
       fileId,
       props.fileTemplateSelectionsByFileId ?? {},
-      currentSelection,
+      { kind: "auto" },
     );
   }
 

@@ -14,7 +14,6 @@ import {
   DELETE_FILE_ITEM_COMMAND_ID,
   RENAME_FILE_ITEM_COMMAND_ID,
   SET_FILE_TEMPLATE_COMMAND_ID,
-  SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
 } from "src/cs/workbench/contrib/files/common/files";
 import "../../browser/fileActions.contribution.ts";
 import {
@@ -24,7 +23,6 @@ import {
   deleteFileItemHandler,
   renameFileItemHandler,
   setFileTemplateHandler,
-  sliceFileWithTemplateHandler,
 } from "../../browser/fileCommands.ts";
 
 suite("workbench/contrib/files/test/browser/fileCommands", () => {
@@ -34,7 +32,6 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
     const explorerWorkflowService = store.add(new ExplorerWorkflowService());
     let closedFileId: string | null = null;
     let deletedFileId: string | null = null;
-    let slicedFileId: string | null = null;
     let renameSelection: unknown = null;
     let editableState: unknown = null;
     let templateSelection:
@@ -48,9 +45,6 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
       },
       deleteFile: fileId => {
         deletedFileId = fileId;
-      },
-      sliceFileWithTemplate: fileId => {
-        slicedFileId = fileId;
       },
     }));
     const sliceService = {
@@ -84,11 +78,9 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
       kind: "saved",
       templateId: " ",
     });
-    sliceFileWithTemplateHandler(accessor, " file-3 ");
 
     assert.equal(closedFileId, "file-1");
     assert.equal(deletedFileId, "file-2");
-    assert.equal(slicedFileId, "file-3");
     assert.deepEqual(renameSelection, {
       reveal: "force",
       target: {
@@ -127,7 +119,6 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
       },
       closeFile: () => undefined,
       deleteFile: () => undefined,
-      sliceFileWithTemplate: () => undefined,
     }));
     const accessor = createAccessor([
       [IExplorerWorkflowService, explorerWorkflowService],
@@ -148,7 +139,6 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
     let closeRequests = 0;
     let closedFileId: string | null = null;
     let deletedFileId: string | null = null;
-    let slicedFileId: string | null = null;
     let renameSelection: unknown = null;
     let editableState: unknown = null;
     let templateSelection:
@@ -166,9 +156,6 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
       },
       deleteFile: fileId => {
         deletedFileId = fileId;
-      },
-      sliceFileWithTemplate: fileId => {
-        slicedFileId = fileId;
       },
     }));
     const explorerService = createExplorerServiceStub({
@@ -199,7 +186,6 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
     CommandsRegistry.getCommand(SET_FILE_TEMPLATE_COMMAND_ID)?.handler(accessor, "file-2", {
       kind: "auto",
     });
-    CommandsRegistry.getCommand(SLICE_FILE_WITH_TEMPLATE_COMMAND_ID)?.handler(accessor, "file-2");
 
     assert.equal(importRequests, 1);
     assert.equal(closeRequests, 1);
@@ -223,14 +209,12 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
       fileId: "file-2",
       selection: { kind: "auto" },
     });
-    assert.equal(slicedFileId, "file-2");
     assert.ok(CommandsRegistry.getCommand(ADD_FOLDER_ACTION_ID));
     assert.ok(CommandsRegistry.getCommand(CLOSE_FOLDER_ACTION_ID));
     assert.ok(CommandsRegistry.getCommand(CLOSE_FILE_ITEM_COMMAND_ID));
     assert.ok(CommandsRegistry.getCommand(DELETE_FILE_ITEM_COMMAND_ID));
     assert.ok(CommandsRegistry.getCommand(RENAME_FILE_ITEM_COMMAND_ID));
     assert.ok(CommandsRegistry.getCommand(SET_FILE_TEMPLATE_COMMAND_ID));
-    assert.ok(CommandsRegistry.getCommand(SLICE_FILE_WITH_TEMPLATE_COMMAND_ID));
     workflowRegistration.dispose();
     explorerWorkflowService.dispose();
   });

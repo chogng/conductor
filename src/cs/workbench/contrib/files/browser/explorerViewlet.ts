@@ -66,7 +66,6 @@ import {
 import {
   markTemplateApplyPerformanceTrace,
 } from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
-import { SliceWithTemplateController } from "src/cs/workbench/contrib/files/browser/sliceWithTemplateController";
 import { createTemplateApplyPresetRecordFromUserTemplate } from "src/cs/workbench/contrib/template/browser/templateUserTemplateAdapter";
 import { ISessionService } from "src/cs/workbench/services/session/common/session";
 import {
@@ -81,14 +80,6 @@ import {
   IThumbnailPreviewService,
   IThumbnailService,
 } from "src/cs/workbench/services/thumbnail/common/thumbnail";
-import {
-  createCurrentTemplateSelectionDisplay,
-} from "src/cs/workbench/contrib/files/browser/templateSelectionDisplay";
-import {
-  ITemplateViewStateService,
-  type ITemplateViewStateService as ITemplateViewStateServiceType,
-} from "src/cs/workbench/contrib/template/browser/templateViewStateService";
-import { ISliceService } from "src/cs/workbench/services/slice/common/slice";
 import { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import { IAppearanceService } from "src/cs/workbench/services/appearance/common/appearance";
 import {
@@ -104,7 +95,6 @@ export class ExplorerViewPane extends ViewPane {
   private readonly explorerHost: HTMLDivElement;
   private readonly listRef: { current: ListHandle | null } = { current: null };
   private readonly sourceWorkflow: FileSourceWorkflow;
-  private readonly sliceWithTemplateController: SliceWithTemplateController;
   private explorerView: ExplorerView | null = null;
   private input: ExplorerPaneInput | null = null;
   private internalFiles: PreparedFileImportEntry[] = [];
@@ -140,8 +130,6 @@ export class ExplorerViewPane extends ViewPane {
     @IThumbnailPreviewService private readonly thumbnailPreviewService: IThumbnailPreviewService,
     @IThumbnailService private readonly thumbnailService: IThumbnailService,
     @IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
-    @ITemplateViewStateService private readonly templateViewStateService: ITemplateViewStateServiceType,
-    @ISliceService private readonly sliceService: ISliceService,
   ) {
     super({
       id: ExplorerViewId,
@@ -190,16 +178,6 @@ export class ExplorerViewPane extends ViewPane {
       },
       syncView: () => this.syncView(),
     });
-    this.sliceWithTemplateController = this._register(new SliceWithTemplateController({
-      filesService: this.filesService,
-      getFiles: () => this.committedFiles,
-      notificationService: this.notificationService,
-      removeOriginalFile: fileId => this.handleCloseFile(fileId),
-      sliceService: this.sliceService,
-      sourceWorkflow: this.sourceWorkflow,
-      templateViewStateService: this.templateViewStateService,
-      userTemplateService: this.userTemplateService,
-    }));
 
     this._register(this.explorerService.onDidChangePaneInput(() => {
       this.update(this.explorerService.getPaneInput());
@@ -229,19 +207,11 @@ export class ExplorerViewPane extends ViewPane {
           void this.handleDeleteFile(fileId);
         }
       },
-      sliceFileWithTemplate: fileId => {
-        if (this.fileIds.includes(fileId)) {
-          this.sliceWithTemplateController.open(fileId);
-        }
-      },
     }));
     this._register(this.appearanceService.onDidChangeAppearance(() => {
       this.syncView();
     }));
     this._register(this.userTemplateService.onDidChangeUserTemplates(() => {
-      this.syncView();
-    }));
-    this._register(this.templateViewStateService.onDidChangeTemplateState(() => {
       this.syncView();
     }));
 
@@ -371,7 +341,6 @@ export class ExplorerViewPane extends ViewPane {
   private createExplorerViewProps(): ExplorerViewProps {
     const input = this.paneInput;
     const files = this.files;
-    const currentTemplate = this.createCurrentTemplateSelectionDisplay();
     this.markExplorerBadgeProjection(files);
     return {
       selectedFileId: this.selectedFileId,
@@ -385,8 +354,6 @@ export class ExplorerViewPane extends ViewPane {
       plotAxisSettings: input.plotAxisSettings,
       thumbnailPreviewService: this.thumbnailPreviewService,
       thumbnailService: this.thumbnailService,
-      currentTemplateLabel: currentTemplate.label,
-      currentTemplateSelection: currentTemplate.selection,
       fileTemplateSelectionsByFileId: input.fileTemplateSelectionsByFileId,
       editable: this.explorerService.getContext().editable,
       templateRecords: this.createTemplateRecords(),
@@ -410,14 +377,6 @@ export class ExplorerViewPane extends ViewPane {
       thumbnailFiles: input.thumbnailFiles,
       thumbnailPlotModelsByFileId: input.thumbnailPlotModelsByFileId,
     };
-  }
-
-  private createCurrentTemplateSelectionDisplay(): ReturnType<typeof createCurrentTemplateSelectionDisplay> {
-    const templateState = this.templateViewStateService.getState();
-    return createCurrentTemplateSelectionDisplay({
-      formName: templateState.formState.name,
-      selectedTemplateId: templateState.selectedTemplateId,
-    });
   }
 
   private markExplorerBadgeProjection(files: readonly ExplorerFileEntry[]): void {

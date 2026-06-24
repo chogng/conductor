@@ -12,7 +12,6 @@ import {
   DELETE_FILE_ITEM_COMMAND_ID,
   RENAME_FILE_ITEM_COMMAND_ID,
   SET_FILE_TEMPLATE_COMMAND_ID,
-  SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
 } from "src/cs/workbench/contrib/files/common/files";
 import {
   addFolderHandler,
@@ -21,7 +20,6 @@ import {
   deleteFileItemHandler,
   renameFileItemHandler,
   setFileTemplateHandler,
-  sliceFileWithTemplateHandler,
 } from "src/cs/workbench/contrib/files/browser/fileCommands";
 
 export class AddFolderAction extends Action2 {
@@ -117,21 +115,5 @@ export class SetFileTemplateAction extends Action2 {
 
   public run(accessor: ServicesAccessor, fileId: unknown, selection: unknown): void {
     setFileTemplateHandler(accessor, fileId, selection);
-  }
-}
-
-export class SliceFileWithTemplateAction extends Action2 {
-  public constructor() {
-    super({
-      id: SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
-      title: localize("files.item.sliceWithTemplate", "Slice with Template"),
-      metadata: {
-        description: localize("files.actions.sliceFileWithTemplate", "Slice an imported file with a template."),
-      },
-    });
-  }
-
-  public run(accessor: ServicesAccessor, fileId: unknown): void {
-    sliceFileWithTemplateHandler(accessor, fileId);
   }
 }
