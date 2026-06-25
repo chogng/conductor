@@ -70,6 +70,44 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
     assert.equal(service.selectedRawFileId, "file-b");
   });
 
+  test("tracks source key as part of explorer selection", () => {
+    const service = store.add(new ExplorerService());
+    const events: ExplorerSelectionChangeEvent[] = [];
+    const disposable = store.add(service.onDidChangeSelection(event => {
+      events.push(event);
+    }));
+
+    service.select({
+      candidateFileIds: ["file-a"],
+      candidateSourceKeys: ["source-a", "source-b"],
+      fileId: "file-a",
+      kind: "table",
+      sourceKey: "source-a",
+    });
+    service.select({
+      candidateFileIds: ["file-a"],
+      candidateSourceKeys: ["source-a", "source-b"],
+      fileId: "file-a",
+      kind: "table",
+      sourceKey: "source-b",
+    });
+    service.select({
+      candidateFileIds: ["file-a"],
+      candidateSourceKeys: ["source-a", "source-b"],
+      fileId: "file-a",
+      kind: "table",
+      sourceKey: "source-c",
+    });
+
+    assert.equal(service.selectedRawFileId, "file-a");
+    assert.equal(service.selectedRawSourceKey, "source-b");
+    assert.deepEqual(events, [
+      { kind: "table", selectedFileId: "file-a", selectedSourceKey: "source-a" },
+      { kind: "table", selectedFileId: "file-a", selectedSourceKey: "source-b" },
+    ]);
+    disposable.dispose();
+  });
+
   test("notifies views only with accepted selection targets", () => {
     const service = store.add(new ExplorerService());
     const viewSelections: Array<{

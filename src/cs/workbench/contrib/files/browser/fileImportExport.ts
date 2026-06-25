@@ -40,6 +40,7 @@ import {
   buildItemKey,
   isExcelImportFileName,
   isSupportedImportFileName,
+  isTsvImportFileName,
   type FileSource,
   type FolderFileCollection,
   type FolderFileCollectionBatch,
@@ -49,6 +50,10 @@ import {
   type ImportedFileRecord,
   type ImportFileData,
 } from "src/cs/workbench/services/files/common/files";
+import {
+  tableFileFormatService,
+  type TableFileFormatService,
+} from "src/cs/workbench/services/table/common/tableFileFormat";
 import {
   convertImportFile,
   convertPreparedImportFileResult,
@@ -1857,7 +1862,8 @@ export const buildImportErrorMessage = ({
     errors.push(
       localize(
         "files.import.unsupportedFilesSkipped",
-        "Skipped unsupported files in the selected folder. Supported: .csv, .xls, .xlsx",
+        "Skipped unsupported files in the selected folder. Supported: {extensions}",
+        { extensions: tableFileFormatService.getSupportedExtensions().join(", ") },
       ),
     );
   }
@@ -2266,7 +2272,7 @@ function formatExternalChangesMessage(changes: WorkspaceExternalChanges): string
   );
 }
 
-type CollectFolderImportFilesOptions = {
+export type CollectFolderImportFilesOptions = {
   readonly onBatch?: (batch: FolderFileCollectionBatch) => Promise<void> | void;
   readonly shouldContinue?: () => boolean;
 };
@@ -2399,7 +2405,7 @@ export const collectDroppedFiles = async (
     }
 
     if (item.file) {
-      if (!isSupportedImportFileName(item.file.name)) {
+      if (!tableFileFormatService.canHandle(item.file.name)) {
         continue;
       }
 
@@ -2414,7 +2420,7 @@ export const collectDroppedFiles = async (
     getDroppedFileKey(file, relativePath)
   ));
   for (const file of Array.from(dataTransfer.files)) {
-    if (!isSupportedImportFileName(file.name)) {
+    if (!tableFileFormatService.canHandle(file.name)) {
       continue;
     }
 
@@ -2480,7 +2486,7 @@ async function collectFileSystemHandleFiles(
   const relativePath = parentPath ? `${parentPath}/${handle.name}` : handle.name;
 
   if (WebFileSystemAccess.isFileSystemFileHandle(handle)) {
-    if (!isSupportedImportFileName(handle.name)) {
+    if (!tableFileFormatService.canHandle(handle.name)) {
       return;
     }
 
@@ -2551,7 +2557,7 @@ async function collectWebkitEntryFiles(
   const relativePath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
 
   if (entry.isFile) {
-    if (!isSupportedImportFileName(entry.name)) {
+    if (!tableFileFormatService.canHandle(entry.name)) {
       return;
     }
 
@@ -2644,6 +2650,9 @@ function getFileMimeType(fileName: string): string {
   if (isExcelImportFileName(fileName)) {
     return "application/octet-stream";
   }
+  if (isTsvImportFileName(fileName)) {
+    return "text/tab-separated-values;charset=utf-8";
+  }
 
   return "text/csv;charset=utf-8";
 }
@@ -2688,27 +2697,51 @@ export async function collectFolderImportFilesIncrementally(
   filesService: IFileService,
   options: CollectFolderImportFilesOptions = {},
 ): Promise<FolderFileCollection> {
-  const startedAt = getPerfNow();
-  const root = URI.revive(folder);
-  const rootName = getPathBaseName(root.path) || "Folder";
-  const files: FolderImportFileSource[] = [];
-  const readFailures: FolderFileReadFailure[] = [];
-  const canUseNativePath = !(filesService.getProvider(root.scheme) instanceof HTMLFileSystemProvider);
+  return new TableResourceImporter(filesService).importFolder(folder, options);
+}
 
-  markTemplateApplyPerformanceTrace("import.folder.scan.start", {
-    canUseNativePath,
-    folderPath: root.fsPath || root.toString(),
-  });
-  await collectFolderFilesAt(root, rootName, files, readFailures, 0, filesService, options, canUseNativePath);
-  markTemplateApplyPerformanceTrace("import.folder.scan.complete", {
-    canUseNativePath,
-    durationMs: getPerfNow() - startedAt,
-    fileCount: files.length,
-    folderPath: root.fsPath || root.toString(),
-    readFailureCount: readFailures.length,
-    totalSizeBytes: files.reduce((sum, file) => sum + file.size, 0),
-  });
-  return { files, readFailures };
+export class TableResourceImporter {
+  public constructor(
+    private readonly filesService: IFileService,
+    private readonly formatService: TableFileFormatService = tableFileFormatService,
+  ) {}
+
+  public async importFolder(
+    folder: URI,
+    options: CollectFolderImportFilesOptions = {},
+  ): Promise<FolderFileCollection> {
+    const startedAt = getPerfNow();
+    const root = URI.revive(folder);
+    const rootName = getPathBaseName(root.path) || "Folder";
+    const files: FolderImportFileSource[] = [];
+    const readFailures: FolderFileReadFailure[] = [];
+    const canUseNativePath = !(this.filesService.getProvider(root.scheme) instanceof HTMLFileSystemProvider);
+
+    markTemplateApplyPerformanceTrace("import.folder.scan.start", {
+      canUseNativePath,
+      folderPath: root.fsPath || root.toString(),
+    });
+    await collectFolderFilesAt(
+      root,
+      rootName,
+      files,
+      readFailures,
+      0,
+      this.filesService,
+      this.formatService,
+      options,
+      canUseNativePath,
+    );
+    markTemplateApplyPerformanceTrace("import.folder.scan.complete", {
+      canUseNativePath,
+      durationMs: getPerfNow() - startedAt,
+      fileCount: files.length,
+      folderPath: root.fsPath || root.toString(),
+      readFailureCount: readFailures.length,
+      totalSizeBytes: files.reduce((sum, file) => sum + file.size, 0),
+    });
+    return { files, readFailures };
+  }
 }
 
 function shouldContinueCollecting(options: CollectFolderImportFilesOptions): boolean {
@@ -2722,6 +2755,7 @@ async function collectFolderFilesAt(
   readFailures: FolderFileReadFailure[],
   depth: number,
   filesService: IFileService,
+  formatService: TableFileFormatService,
   options: CollectFolderImportFilesOptions,
   canUseNativePath: boolean,
 ): Promise<void> {
@@ -2767,7 +2801,7 @@ async function collectFolderFilesAt(
       continue;
     }
 
-    if ((type & FileType.File) !== FileType.File || !isSupportedImportFileName(name)) {
+    if ((type & FileType.File) !== FileType.File || !formatService.canHandle(child)) {
       continue;
     }
 
@@ -2800,6 +2834,7 @@ async function collectFolderFilesAt(
       readFailures,
       depth + 1,
       filesService,
+      formatService,
       options,
       canUseNativePath,
     );

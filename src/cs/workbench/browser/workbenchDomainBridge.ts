@@ -221,7 +221,7 @@ export class WorkbenchDomainBridge extends Disposable {
       readModel,
       this.options.layoutService.activeWorkbenchMainPart,
     );
-    this.options.tableService.open(createRawTableSource(explorerSelection.selectedRawFileId));
+    this.options.tableService.open(createRawTableSource(explorerSelection));
 
     if (deferSecondaryWork) {
       this.scheduleDeferredSecondarySync();
@@ -675,25 +675,42 @@ type CreateExplorerPaneInputOptions = {
 
 type ExplorerSessionSelection = {
   readonly selectedRawFileId: string | null;
+  readonly selectedRawSourceKey: string | null;
   readonly selectedProcessedFileId: string | null;
+  readonly selectedProcessedSourceKey: string | null;
+};
+
+type ExplorerSessionSourceIdentity = {
+  readonly fileId: string;
+  readonly sourceKey: string | null;
 };
 
 type ExplorerSessionSelectionInput = {
-  readonly rawFileIds: readonly string[];
+  readonly rawSources: readonly ExplorerSessionSourceIdentity[];
   readonly processedFileIds: readonly string[];
 };
 
 type ExplorerSelectionState = Pick<
   IExplorerService,
   | "selectedProcessedFileId"
+  | "selectedProcessedSourceKey"
   | "selectedRawFileId"
+  | "selectedRawSourceKey"
 >;
 
 const createExplorerSessionSelectionInput = (
   readModel: SessionReadModel,
 ): ExplorerSessionSelectionInput => ({
   processedFileIds: readModel.processedFileIds,
-  rawFileIds: readModel.rawFiles.flatMap(file => file.fileId ? [file.fileId] : []),
+  rawSources: readModel.rawFiles.flatMap(file => {
+    const fileId = normalizeExplorerSelectionFileId(file.fileId);
+    return fileId
+      ? [{
+          fileId,
+          sourceKey: normalizeExplorerSelectionSourceKey(file.sourceKey),
+        }]
+      : [];
+  }),
 });
 
 export const resolveExplorerSessionSelection = (
@@ -703,11 +720,18 @@ export const resolveExplorerSessionSelection = (
   const input = createExplorerSessionSelectionInput(readModel);
   const selectedFileId = resolveExplorerSelectedFileId(
     getExplorerSelectedFileId(explorerService),
-    input.rawFileIds,
+    input.rawSources.map(source => source.fileId),
+  );
+  const selectedSourceKey = resolveExplorerSelectedSourceKey(
+    getExplorerSelectedSourceKey(explorerService),
+    selectedFileId,
+    input.rawSources,
   );
   return {
     selectedProcessedFileId: selectedFileId,
+    selectedProcessedSourceKey: selectedSourceKey,
     selectedRawFileId: selectedFileId,
+    selectedRawSourceKey: selectedSourceKey,
   };
 };
 
@@ -721,12 +745,20 @@ export const reconcileExplorerSessionSelection = (
     explorerService,
     kind,
     getExplorerSelectedFileId(explorerService),
-    input.rawFileIds,
+    input.rawSources,
+    getExplorerSelectedSourceKey(explorerService),
+  );
+  const selectedSourceKey = resolveExplorerSelectedSourceKey(
+    getExplorerSelectedSourceKey(explorerService),
+    selectedFileId,
+    input.rawSources,
   );
 
   return {
     selectedProcessedFileId: selectedFileId,
+    selectedProcessedSourceKey: selectedSourceKey,
     selectedRawFileId: selectedFileId,
+    selectedRawSourceKey: selectedSourceKey,
   };
 };
 
@@ -775,6 +807,11 @@ export const createExplorerPaneInput = ({
     getExplorerSelectedFileId(explorerService),
     selectionFileIds,
   );
+  const selectedSourceKey = resolveVisibleExplorerSelectedSourceKey(
+    getExplorerSelectedSourceKey(explorerService),
+    selectedFileId,
+    files,
+  );
   return {
     activePlotType,
     fileTemplateSelectionsByFileId: sliceState.templateSelectionsByFileId,
@@ -784,6 +821,7 @@ export const createExplorerPaneInput = ({
     plotAxisSettings,
     quickAccessFiles: rawStatusExplorerFiles,
     selectedFileId,
+    selectedSourceKey,
     selectionKind,
     thumbnailFiles: readModel.processedFiles,
   };
@@ -793,13 +831,22 @@ const reconcileExplorerSelectedFileId = (
   explorerService: Pick<IExplorerService, "select">,
   kind: ExplorerSelectionKind,
   selectedFileId: string | null,
-  fileIds: readonly string[],
+  rawSources: readonly ExplorerSessionSourceIdentity[],
+  selectedSourceKey: string | null,
 ): string | null => {
+  const fileIds = rawSources.map(source => source.fileId);
   const nextSelectedFileId = resolveExplorerSelectedFileId(selectedFileId, fileIds);
+  const nextSelectedSourceKey = resolveExplorerSelectedSourceKey(
+    selectedSourceKey,
+    nextSelectedFileId,
+    rawSources,
+  );
   explorerService.select({
     candidateFileIds: fileIds,
+    candidateSourceKeys: rawSources.flatMap(source => source.sourceKey ? [source.sourceKey] : []),
     fileId: nextSelectedFileId,
     kind,
+    sourceKey: nextSelectedSourceKey,
   });
   return nextSelectedFileId;
 };
@@ -815,6 +862,19 @@ const getExplorerSelectedFileId = (
   return normalizeExplorerSelectionFileId(explorerService.selectedProcessedFileId);
 };
 
+const getExplorerSelectedSourceKey = (
+  explorerService: ExplorerSelectionState,
+): string | null => {
+  const normalizedRawSourceKey = normalizeExplorerSelectionSourceKey(
+    explorerService.selectedRawSourceKey,
+  );
+  if (normalizedRawSourceKey) {
+    return normalizedRawSourceKey;
+  }
+
+  return normalizeExplorerSelectionSourceKey(explorerService.selectedProcessedSourceKey);
+};
+
 const resolveVisibleExplorerSelectedFileId = (
   selectedFileId: string | null,
   fileIds: readonly string[],
@@ -825,8 +885,64 @@ const resolveVisibleExplorerSelectedFileId = (
     : null;
 };
 
+const resolveVisibleExplorerSelectedSourceKey = (
+  selectedSourceKey: string | null,
+  selectedFileId: string | null,
+  files: readonly ExplorerFileEntry[],
+): string | null => {
+  const normalizedFileId = normalizeExplorerSelectionFileId(selectedFileId);
+  if (!normalizedFileId) {
+    return null;
+  }
+
+  const sourceKey = normalizeExplorerSelectionSourceKey(selectedSourceKey);
+  if (
+    sourceKey &&
+    files.some(file =>
+      normalizeExplorerSelectionFileId(file.fileId) === normalizedFileId &&
+      normalizeExplorerSelectionSourceKey(file.sourceKey) === sourceKey)
+  ) {
+    return sourceKey;
+  }
+
+  return files
+    .map(file => ({
+      fileId: normalizeExplorerSelectionFileId(file.fileId),
+      sourceKey: normalizeExplorerSelectionSourceKey(file.sourceKey),
+    }))
+    .find(source => source.fileId === normalizedFileId)?.sourceKey ?? null;
+};
+
+const resolveExplorerSelectedSourceKey = (
+  selectedSourceKey: string | null,
+  selectedFileId: string | null,
+  rawSources: readonly ExplorerSessionSourceIdentity[],
+): string | null => {
+  const normalizedFileId = normalizeExplorerSelectionFileId(selectedFileId);
+  if (!normalizedFileId) {
+    return null;
+  }
+
+  const normalizedSourceKey = normalizeExplorerSelectionSourceKey(selectedSourceKey);
+  if (
+    normalizedSourceKey &&
+    rawSources.some(source =>
+      source.fileId === normalizedFileId &&
+      source.sourceKey === normalizedSourceKey)
+  ) {
+    return normalizedSourceKey;
+  }
+
+  return rawSources.find(source => source.fileId === normalizedFileId)?.sourceKey ?? null;
+};
+
 const normalizeExplorerSelectionFileId = (fileId: unknown): string | null => {
   const normalized = String(fileId ?? "").trim();
+  return normalized || null;
+};
+
+const normalizeExplorerSelectionSourceKey = (sourceKey: unknown): string | null => {
+  const normalized = String(sourceKey ?? "").trim();
   return normalized || null;
 };
 
@@ -1034,9 +1150,19 @@ const findExplorerRawTable = (
     : null;
 };
 
-const createRawTableSource = (fileId: string | null): TableSource | null => {
-  const normalizedFileId = String(fileId ?? "").trim();
-  return normalizedFileId ? { fileId: normalizedFileId } : null;
+const createRawTableSource = (
+  selection: Pick<ExplorerSessionSelection, "selectedRawFileId" | "selectedRawSourceKey">,
+): TableSource | null => {
+  const fileId = normalizeExplorerSelectionFileId(selection.selectedRawFileId);
+  if (!fileId) {
+    return null;
+  }
+
+  const sourceKey = normalizeExplorerSelectionSourceKey(selection.selectedRawSourceKey);
+  return {
+    fileId,
+    ...(sourceKey ? { sourceKey } : {}),
+  };
 };
 
 const createRawTableRefKey = (

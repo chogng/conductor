@@ -318,8 +318,18 @@ export class ExplorerViewPane extends ViewPane {
       .filter((fileId): fileId is string => Boolean(fileId));
   }
 
+  private get sourceKeys(): readonly string[] {
+    return this.files
+      .map(file => normalizeSourceKey(file.sourceKey))
+      .filter((sourceKey): sourceKey is string => Boolean(sourceKey));
+  }
+
   private get selectedFileId(): string | null {
     return this.paneInput.selectedFileId;
+  }
+
+  private get selectedSourceKey(): string | null {
+    return this.paneInput.selectedSourceKey ?? null;
   }
 
   private get viewLayout(): FilesViewLayout {
@@ -332,6 +342,7 @@ export class ExplorerViewPane extends ViewPane {
     this.markExplorerBadgeProjection(files);
     return {
       selectedFileId: this.selectedFileId,
+      selectedSourceKey: this.selectedSourceKey,
       expandedFolderKeys: this.explorerService.expandedFolderKeys,
       explorerAppearance: this.appearanceService.getAppearance().explorer,
       activePlotType: input.activePlotType,
@@ -632,8 +643,11 @@ export class ExplorerViewPane extends ViewPane {
     this.openFileDialog();
   };
 
-  private readonly handleSelectFile = (fileId: string | null): void => {
-    this.selectFile(fileId, "force");
+  private readonly handleSelectFile = (
+    fileId: string | null,
+    sourceKey: string | null = null,
+  ): void => {
+    this.selectFile(fileId, "force", sourceKey);
     this.syncView();
   };
 
@@ -937,11 +951,17 @@ export class ExplorerViewPane extends ViewPane {
     return normalizeRelativePath(selectedFile?.relativePath);
   }
 
-  private selectFile(fileId: string | null, reveal?: "force"): string | null {
+  private selectFile(
+    fileId: string | null,
+    reveal?: "force",
+    sourceKey: string | null = null,
+  ): string | null {
     return this.explorerService.select({
       candidateFileIds: this.fileIds,
+      candidateSourceKeys: this.sourceKeys,
       fileId: normalizeFileId(fileId),
       kind: this.paneInput.selectionKind,
+      sourceKey: normalizeSourceKey(sourceKey),
     }, reveal);
   }
 
@@ -1047,6 +1067,7 @@ const EMPTY_EXPLORER_PANE_INPUT: ExplorerPaneInput = {
   files: [],
   mode: "table",
   selectedFileId: null,
+  selectedSourceKey: null,
   selectionKind: "table",
   thumbnailFiles: [],
 };

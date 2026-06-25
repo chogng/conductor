@@ -28,6 +28,12 @@ suite("workbench/contrib/files/common/explorerModel", () => {
       fileName: "raw.csv",
       relativePath: "batch/raw.csv",
     };
+    const sourceKeyEntry = {
+      fileId: "file-a",
+      fileName: "raw.csv",
+      relativePath: "batch/raw.csv",
+      sourceKey: "source-key",
+    };
     const itemKeyEntry = {
       itemKey: "source-item",
       fileName: "raw.csv",
@@ -38,10 +44,12 @@ suite("workbench/contrib/files/common/explorerModel", () => {
       relativePath: "batch/raw.csv",
     };
 
-    assert.equal(getExplorerTreeFileKey(emptyFileIdEntry), "");
-    assert.equal(buildExplorerTree([emptyFileIdEntry])[0]?.children?.[0]?.key, "");
+    assert.equal(getExplorerTreeFileKey(emptyFileIdEntry), "source-item");
+    assert.equal(buildExplorerTree([emptyFileIdEntry])[0]?.children?.[0]?.key, "source-item");
     assert.equal(getExplorerTreeFileKey(itemKeyEntry), "source-item");
     assert.equal(buildExplorerTree([itemKeyEntry])[0]?.children?.[0]?.key, "source-item");
+    assert.equal(getExplorerTreeFileKey(sourceKeyEntry), "source-key");
+    assert.equal(buildExplorerTree([sourceKeyEntry])[0]?.children?.[0]?.key, "source-key");
     assert.equal(getExplorerTreeFileKey(fallbackEntry), "file:batch/raw.csv");
     assert.equal(buildExplorerTree([fallbackEntry])[0]?.children?.[0]?.key, "file:batch/raw.csv");
   });
@@ -271,6 +279,17 @@ suite("workbench/contrib/files/common/explorerModel", () => {
         {
           ...files[1],
           relativePath: "renamed/B.csv",
+        },
+      ]),
+    );
+
+    assert.notEqual(
+      createExplorerTreeStructureSignature(files),
+      createExplorerTreeStructureSignature([
+        files[0],
+        {
+          ...files[1],
+          sourceKey: "raw:b-next",
         },
       ]),
     );

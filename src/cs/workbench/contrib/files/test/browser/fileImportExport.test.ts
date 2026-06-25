@@ -27,10 +27,12 @@ import {
   getFolderImportSupportForFileService,
   prepareFirstPendingImportFile,
   prepareRemainingPendingImportFiles,
+  TableResourceImporter,
   type FileImportPrepareFailure,
   type FileSource,
   type PendingImportFile,
 } from "../../browser/fileImportExport.ts";
+import { TableFileFormatService } from "src/cs/workbench/services/table/common/tableFileFormat";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/files/test/browser/fileImportExport", () => {
@@ -218,6 +220,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
           ],
           name: "OUTPUT",
         }),
+        createFileHandle("4.tsv", "Vg\tId\n0\t4"),
         createFileHandle("1.xlsx", "workbook"),
       ],
       name: "293K",
@@ -232,6 +235,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
         "293K/TRANSFER/3.csv",
         "293K/TRANSFER/10.csv",
         "293K/2.csv",
+        "293K/4.tsv",
         "293K/1.xlsx",
       ],
     );
@@ -284,6 +288,28 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.deepEqual(result.files.map(file => file.relativePath), ["selected-folder/transfer.csv"]);
     assert.equal(result.readFailures.length, 0);
     assert.equal(unsupportedStatCount, 0);
+  });
+
+  test("TableResourceImporter delegates table support checks to format service", async () => {
+    const root = createDirectoryHandle({
+      children: [
+        createFileHandle("transfer.csv", "Vg,Id\n0,1"),
+        createFileHandle("notes.txt", "not a table"),
+      ],
+      name: "selected-folder",
+    });
+    const provider = store.add(new HTMLFileSystemProvider());
+    const filesService = store.add(new FileService());
+    store.add(filesService.registerProvider("file", provider));
+    const folder = await provider.registerDirectoryHandle(root);
+    const formatService = new RecordingTableFileFormatService();
+    const result = await new TableResourceImporter(
+      filesService,
+      formatService,
+    ).importFolder(folder);
+
+    assert.deepEqual(result.files.map(file => file.relativePath), ["selected-folder/transfer.csv"]);
+    assert.deepEqual([...formatService.checkedNames].sort(), ["notes.txt", "transfer.csv"]);
   });
 
   test("collectFolderImportFiles reports the file path when stat returns invalid metadata", async () => {
@@ -873,6 +899,24 @@ type TestDataTransferItem = Omit<Partial<DataTransferItem>, "webkitGetAsEntry"> 
   readonly getAsFileSystemHandle?: () => Promise<FileSystemHandle | null>;
   readonly webkitGetAsEntry?: () => unknown;
 };
+
+class RecordingTableFileFormatService extends TableFileFormatService {
+  public readonly checkedNames: string[] = [];
+
+  public override canHandle(resource: URI | string | null | undefined): boolean {
+    this.checkedNames.push(getResourceName(resource));
+    return super.canHandle(resource);
+  }
+}
+
+function getResourceName(resource: URI | string | null | undefined): string {
+  if (typeof resource === "string") {
+    return resource.split(/[\\/]/).pop() || resource;
+  }
+
+  const path = String(resource?.path ?? "");
+  return path.split(/[\\/]/).pop() || path;
+}
 
 function createDataTransfer({
   files,

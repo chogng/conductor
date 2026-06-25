@@ -41,6 +41,7 @@ export type ExplorerPaneInput = {
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly quickAccessFiles?: ExplorerFileEntry[];
   readonly selectedFileId: string | null;
+  readonly selectedSourceKey?: string | null;
   readonly selectionKind: ExplorerSelectionKind;
   readonly thumbnailFiles: ProcessedEntry[];
   readonly thumbnailPlotModelsByFileId?: Readonly<Record<string, ExplorerThumbnailPlotModel>>;
@@ -49,6 +50,7 @@ export type ExplorerPaneInput = {
 export type ExplorerSelectionChangeEvent = {
   readonly kind: ExplorerSelectionKind;
   readonly selectedFileId: string | null;
+  readonly selectedSourceKey?: string | null;
 };
 
 export type ExplorerFolderExpansionChangeEvent = {
@@ -68,13 +70,17 @@ export type ExplorerSelectionTarget = {
   readonly kind: ExplorerSelectionKind;
   readonly fileId: string | null;
   readonly candidateFileIds?: readonly string[];
+  readonly candidateSourceKeys?: readonly string[];
+  readonly sourceKey?: string | null;
 };
 
 export type ExplorerRevealMode = boolean | "force";
 
 export type ExplorerContext = {
   readonly selectedRawFileId: string | null;
+  readonly selectedRawSourceKey: string | null;
   readonly selectedProcessedFileId: string | null;
+  readonly selectedProcessedSourceKey: string | null;
   readonly hoveredFileId: string | null;
   readonly expandedFolderKeys: readonly string[];
   readonly viewLayout: ExplorerViewLayout;
@@ -102,7 +108,9 @@ export interface IExplorerService {
 
   readonly hasPendingSourceFiles: boolean;
   readonly selectedRawFileId: string | null;
+  readonly selectedRawSourceKey: string | null;
   readonly selectedProcessedFileId: string | null;
+  readonly selectedProcessedSourceKey: string | null;
   readonly hoveredFileId: string | null;
   readonly expandedFolderKeys: readonly string[];
   readonly viewLayout: ExplorerViewLayout;

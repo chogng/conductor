@@ -7,8 +7,11 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { IStorageService, StorageScope, StorageTarget } from "src/cs/platform/storage/common/storage";
 import {
+  areTableSourcesEqual,
+  getTableSourceIdentityKey,
   ITableService,
   ITableRowsReaderService,
+  normalizeTableSource,
   TABLE_COPY_MAX_CELLS,
   type TableViewModel,
   type TableRevealMode,
@@ -411,7 +414,7 @@ export class TableService extends Disposable implements ITableService {
 
   public open(source: TableSource | null): void {
     const nextSource = normalizeTableSource(source);
-    if (isSameTableSource(this.currentSource, nextSource) && this.tableViewModel) {
+    if (areTableSourcesEqual(this.currentSource, nextSource) && this.tableViewModel) {
       return;
     }
     this.currentSource = nextSource;
@@ -422,7 +425,7 @@ export class TableService extends Disposable implements ITableService {
     const snapshot = this.sessionService.getSnapshot();
     const rawFiles = createRawFilesFromRecords(snapshot.filesById, snapshot.fileOrder);
     const source = resolveAvailableTableSource(rawFiles, this.currentSource);
-    if (!isSameTableSource(this.currentSource, source)) {
+    if (!areTableSourcesEqual(this.currentSource, source)) {
       this.currentSource = source;
     }
 
@@ -687,18 +690,11 @@ const isSameTableState = (
   current.selectedSheetId === next.selectedSheetId &&
   current.sourceKey === next.sourceKey &&
   current.fileName === next.fileName &&
-    current.dimensions === next.dimensions &&
+  current.dimensions === next.dimensions &&
   current.displayVersion === next.displayVersion &&
-  isSameTableSource(current.source, next.source) &&
+  areTableSourcesEqual(current.source, next.source) &&
   areNullableTableFilesEqual(current.file, next.file) &&
   areTableLoadStatesEqual(current.loadState, next.loadState);
-
-const isSameTableSource = (
-  current: TableSource | null | undefined,
-  next: TableSource | null | undefined,
-): boolean =>
-  current?.fileId === next?.fileId &&
-  current?.sheetId === next?.sheetId;
 
 const areNullableTableFilesEqual = (
   current: TableFile | null | undefined,
@@ -709,21 +705,6 @@ const areNullableTableFilesEqual = (
   }
 
   return areTableFilesEqual(current, next);
-};
-
-const normalizeTableSource = (source: TableSource | null | undefined): TableSource | null => {
-  const fileId = String(source?.fileId ?? "").trim();
-  if (!fileId) {
-    return null;
-  }
-
-  const sheetId = typeof source?.sheetId === "string" && source.sheetId.trim()
-    ? source.sheetId.trim()
-    : null;
-  return {
-    fileId,
-    sheetId,
-  };
 };
 
 const resolveAvailableTableSource = (
@@ -743,6 +724,11 @@ const isSessionFileForTableSource = (
   rawFile: SessionFile,
   source: TableSource,
 ): boolean => {
+  const sourceKey = getTableSourceIdentityKey(source);
+  if (sourceKey) {
+    return readSessionFileString(rawFile, "sourceKey") === sourceKey;
+  }
+
   const fileId = readSessionFileString(rawFile, "fileId");
   if (fileId !== source.fileId) {
     return false;

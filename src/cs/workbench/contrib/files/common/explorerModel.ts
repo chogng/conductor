@@ -172,7 +172,7 @@ export const getExplorerTreeFileKey = <TEntry extends ExplorerFileEntry>(
 	entry: TEntry,
 	pathParts?: readonly string[],
 ): string =>
-	entry.fileId ?? entry.itemKey ?? `file:${(pathParts ?? [
+	entry.itemKey ?? entry.sourceKey ?? entry.fileId ?? `file:${(pathParts ?? [
 		...normalizePath(entry.relativePath),
 	]).join("/") || getExplorerFileName(entry)}`;
 
@@ -287,6 +287,7 @@ export const createExplorerTreeStructureSignature = (
 		.map((entry) => [
 			entry.fileId ?? "",
 			entry.itemKey ?? "",
+			entry.sourceKey ?? "",
 			entry.relativePath ?? "",
 			getExplorerFileName(entry),
 		].join("\u001f"))

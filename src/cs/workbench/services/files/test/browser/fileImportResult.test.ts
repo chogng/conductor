@@ -81,6 +81,30 @@ suite("workbench/services/files/test/browser/fileConverter import records", () =
     assert.deepEqual(rows.values[3], [""]);
   });
 
+  test("creates inline raw table records from TSV files", async () => {
+    const file = new File(["Gate\tDrain\n0\t1e-9"], "transfer.tsv", {
+      lastModified: 123,
+      type: "text/tab-separated-values",
+    });
+
+    const record = await createImportedFileRecord({
+      file,
+      fileId: "file-tsv",
+      fileName: "transfer.tsv",
+    });
+
+    const table = record.raw.rawTablesById["file-tsv"];
+    assert.equal(record.kind, "csv");
+    assert.deepEqual(table.rows, {
+      kind: "inline",
+      values: [["Gate", "Drain"], ["0", "1e-9"]],
+    });
+    assert.deepEqual(table.source, {
+      kind: "csv",
+      originalPath: null,
+    });
+  });
+
   test("marks binary-like CSV files as decode failed without inline garbage rows", async () => {
     const file = new File([
       new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00]),

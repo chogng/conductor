@@ -244,6 +244,74 @@ suite("workbench/services/table/browser/tableService", () => {
     service.dispose();
   });
 
+  test("opens a session raw table by explicit source key", async () => {
+    const openedPayloads: unknown[] = [];
+    const tableRowsReaderService = createTableRowsReaderService({
+      openSource: async (payload) => {
+        openedPayloads.push(payload);
+        const request = payload as {
+          readonly fileName?: string;
+          readonly sheetId?: string | null;
+          readonly sourceKey?: string;
+        };
+        return {
+          ok: true,
+          result: {
+            columnCount: 1,
+            fileId: request.sourceKey,
+            fileName: request.fileName,
+            maxCellLengths: [1],
+            rowCount: 1,
+            seedRows: [[request.sourceKey]],
+            seedStartRow: 0,
+            sheetId: request.sheetId,
+            sourceKey: request.sourceKey,
+          },
+        };
+      },
+    });
+    const { service } = createTableServiceFixture({
+      rawFiles: [
+        createRawFile({
+          normalizedCsvPath: "C:/tmp/raw-a.csv",
+          sheetId: "sheet-a",
+          sheetName: "Alpha",
+          sourceKey: "source-key-a",
+        }),
+        createRawFile({
+          normalizedCsvPath: "C:/tmp/raw-b.csv",
+          sheetId: "sheet-b",
+          sheetName: "Beta",
+          sourceKey: "source-key-b",
+        }),
+      ],
+      tableRowsReaderService,
+    });
+
+    service.open({ fileId: "file-a", sourceKey: "source-key-b" });
+    await waitForTableService();
+
+    const state = service.getViewInput()?.tableState;
+    assert.equal(state?.selectedFileId, "file-a");
+    assert.equal(state?.selectedSheetId, "sheet-b");
+    assert.equal(state?.sourceKey, "source-key-b");
+    assert.deepEqual(state?.source, {
+      fileId: "file-a",
+      sheetId: "sheet-b",
+      sourceKey: "source-key-b",
+    });
+    assert.deepEqual(openedPayloads[0], {
+      fileId: "source-key-b",
+      fileName: "Raw.csv",
+      path: "C:/tmp/raw-b.csv",
+      seedRows: 5000,
+      sheetId: "sheet-b",
+      sheetName: "Beta",
+      sourceKey: "source-key-b",
+    });
+    service.dispose();
+  });
+
   test("keeps table view input stable for equivalent open sources", () => {
     const { service } = createTableServiceFixture({
       rawFiles: [createRawFile()],

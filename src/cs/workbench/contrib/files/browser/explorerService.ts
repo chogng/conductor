@@ -47,6 +47,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
   public readonly onDidChangePaneInput = this.onDidChangePaneInputEmitter.event;
 
   private currentSelectedFileId: string | null = null;
+  private currentSelectedSourceKey: string | null = null;
   private currentHoveredFileId: string | null = null;
   private currentExpandedFolderKeys: readonly string[] = [];
   private knownFolderKeys: readonly string[] = [];
@@ -66,12 +67,20 @@ export class ExplorerService extends Disposable implements IExplorerService {
     return this.currentSelectedFileId;
   }
 
+  public get selectedRawSourceKey(): string | null {
+    return this.currentSelectedSourceKey;
+  }
+
   public get hasPendingSourceFiles(): boolean {
     return this.currentHasPendingSourceFiles;
   }
 
   public get selectedProcessedFileId(): string | null {
     return this.currentSelectedFileId;
+  }
+
+  public get selectedProcessedSourceKey(): string | null {
+    return this.currentSelectedSourceKey;
   }
 
   public get hoveredFileId(): string | null {
@@ -92,7 +101,9 @@ export class ExplorerService extends Disposable implements IExplorerService {
       expandedFolderKeys: this.currentExpandedFolderKeys,
       hoveredFileId: this.currentHoveredFileId,
       selectedProcessedFileId: this.selectedProcessedFileId,
+      selectedProcessedSourceKey: this.selectedProcessedSourceKey,
       selectedRawFileId: this.selectedRawFileId,
+      selectedRawSourceKey: this.selectedRawSourceKey,
       toCopy: this.toCopy,
       viewLayout: this.currentViewLayout,
     };
@@ -108,9 +119,11 @@ export class ExplorerService extends Disposable implements IExplorerService {
   public select(target: ExplorerSelectionTarget, reveal?: ExplorerRevealMode): string | null {
     const result = this.applySelection(target);
     if (result.accepted && (result.changed || reveal !== undefined)) {
+      const { sourceKey: _sourceKey, ...targetWithoutSourceKey } = target;
       const acceptedTarget: ExplorerSelectionTarget = {
-        ...target,
+        ...targetWithoutSourceKey,
         fileId: result.selectedFileId,
+        ...(result.selectedSourceKey ? { sourceKey: result.selectedSourceKey } : {}),
       };
       for (const view of this.views) {
         view.selectResource?.(acceptedTarget, reveal);
@@ -245,8 +258,10 @@ export class ExplorerService extends Disposable implements IExplorerService {
     readonly accepted: boolean;
     readonly changed: boolean;
     readonly selectedFileId: string | null;
+    readonly selectedSourceKey: string | null;
   } {
     const nextFileId = normalizeExplorerFileId(target.fileId);
+    const nextSourceKey = normalizeExplorerSourceKey(target.sourceKey);
     if (nextFileId && target.candidateFileIds) {
       const candidates = getNormalizedExplorerFileIds(target.candidateFileIds);
       if (!candidates.includes(nextFileId)) {
@@ -254,16 +269,29 @@ export class ExplorerService extends Disposable implements IExplorerService {
           accepted: false,
           changed: false,
           selectedFileId: this.getSelectedFileId(),
+          selectedSourceKey: this.currentSelectedSourceKey,
+        };
+      }
+    }
+    if (nextSourceKey && target.candidateSourceKeys) {
+      const candidates = getNormalizedExplorerSourceKeys(target.candidateSourceKeys);
+      if (!candidates.includes(nextSourceKey)) {
+        return {
+          accepted: false,
+          changed: false,
+          selectedFileId: this.getSelectedFileId(),
+          selectedSourceKey: this.currentSelectedSourceKey,
         };
       }
     }
 
-    const result = this.setSelectedFileId(nextFileId);
+    const result = this.setSelectedTarget(nextFileId, nextSourceKey);
     this.fireSelectionChange(target.kind, result);
     return {
       accepted: true,
       changed: result.changed,
       selectedFileId: result.selectedFileId,
+      selectedSourceKey: result.selectedSourceKey,
     };
   }
 
@@ -271,30 +299,40 @@ export class ExplorerService extends Disposable implements IExplorerService {
     return this.currentSelectedFileId;
   }
 
-  private setSelectedFileId(fileId: string | null): {
+  private setSelectedTarget(fileId: string | null, sourceKey: string | null): {
     readonly changed: boolean;
     readonly selectedFileId: string | null;
+    readonly selectedSourceKey: string | null;
   } {
     const nextFileId = normalizeExplorerFileId(fileId);
+    const nextSourceKey = normalizeExplorerSourceKey(sourceKey);
     const currentFileId = this.getSelectedFileId();
-    if (currentFileId === nextFileId) {
+    const currentSourceKey = this.currentSelectedSourceKey;
+    if (currentFileId === nextFileId && currentSourceKey === nextSourceKey) {
       return {
         changed: false,
         selectedFileId: nextFileId,
+        selectedSourceKey: nextSourceKey,
       };
     }
 
     this.currentSelectedFileId = nextFileId;
+    this.currentSelectedSourceKey = nextSourceKey;
 
     return {
       changed: true,
       selectedFileId: nextFileId,
+      selectedSourceKey: nextSourceKey,
     };
   }
 
   private fireSelectionChange(
     kind: ExplorerSelectionKind,
-    result: { readonly changed: boolean; readonly selectedFileId: string | null },
+    result: {
+      readonly changed: boolean;
+      readonly selectedFileId: string | null;
+      readonly selectedSourceKey: string | null;
+    },
   ): void {
     if (!result.changed) {
       return;
@@ -303,6 +341,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
     this.onDidChangeSelectionEmitter.fire({
       kind,
       selectedFileId: result.selectedFileId,
+      ...(result.selectedSourceKey ? { selectedSourceKey: result.selectedSourceKey } : {}),
     });
   }
 
@@ -371,8 +410,31 @@ const getNormalizedExplorerFileIds = (
   return result;
 };
 
+const getNormalizedExplorerSourceKeys = (
+  sourceKeys: readonly string[],
+): readonly string[] => {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const sourceKey of sourceKeys) {
+    const normalized = normalizeExplorerSourceKey(sourceKey);
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+
+    seen.add(normalized);
+    result.push(normalized);
+  }
+
+  return result;
+};
+
 const normalizeExplorerFileId = (fileId: unknown): string | null => {
   const normalized = String(fileId ?? "").trim();
+  return normalized || null;
+};
+
+const normalizeExplorerSourceKey = (sourceKey: unknown): string | null => {
+  const normalized = String(sourceKey ?? "").trim();
   return normalized || null;
 };
 
@@ -383,6 +445,7 @@ const isSameExplorerPaneInput = (
   current.activePlotType === next.activePlotType &&
   current.mode === next.mode &&
   current.selectedFileId === next.selectedFileId &&
+  current.selectedSourceKey === next.selectedSourceKey &&
   current.selectionKind === next.selectionKind &&
   areTemplateSelectionsEqual(
     current.fileTemplateSelectionsByFileId ?? {},
@@ -431,7 +494,8 @@ const isSameExplorerEditableData = (
 ): boolean =>
   current?.isEditing === next?.isEditing &&
   current?.resource.kind === next?.resource.kind &&
-  current?.resource.fileId === next?.resource.fileId;
+  current?.resource.fileId === next?.resource.fileId &&
+  current?.resource.sourceKey === next?.resource.sourceKey;
 
 const areExplorerFilesEqual = (
   current: ExplorerPaneInput["files"],

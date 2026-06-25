@@ -6,25 +6,12 @@ import type {
   RawTableRecord,
 } from "src/cs/workbench/services/files/common/rawTable";
 import type { URI } from "src/cs/base/common/uri";
+import {
+  TABLE_IMPORT_FILE_EXTENSIONS,
+  tableFileFormatService,
+} from "src/cs/workbench/services/table/common/tableFileFormat";
 
-export const IMPORT_FILE_EXTENSIONS = [".csv", ".xls", ".xlsx"] as const;
-
-const SUPPORTED_IMPORT_FILE_EXTENSIONS = new Set<string>(IMPORT_FILE_EXTENSIONS);
-const EXCEL_IMPORT_FILE_EXTENSIONS = new Set<string>([".xls", ".xlsx"]);
-const XLSX_IMPORT_FILE_EXTENSIONS = new Set<string>([".xlsx"]);
-
-const toLowerTrimmed = (value: unknown): string =>
-  String(value ?? "").trim().toLowerCase();
-
-const getFileExtension = (fileName: unknown): string => {
-  const normalized = toLowerTrimmed(fileName);
-  const dotIndex = normalized.lastIndexOf(".");
-  if (dotIndex <= 0) {
-    return "";
-  }
-
-  return normalized.slice(dotIndex);
-};
+export const IMPORT_FILE_EXTENSIONS = TABLE_IMPORT_FILE_EXTENSIONS;
 
 const fnv1a32 = (input: unknown): string => {
   const str = String(input ?? "");
@@ -37,13 +24,19 @@ const fnv1a32 = (input: unknown): string => {
 };
 
 export const isSupportedImportFileName = (fileName: unknown): boolean =>
-  SUPPORTED_IMPORT_FILE_EXTENSIONS.has(getFileExtension(fileName));
+  tableFileFormatService.canHandle(String(fileName ?? ""));
+
+export const isDelimitedTextImportFileName = (fileName: unknown): boolean =>
+  tableFileFormatService.isDelimitedText(String(fileName ?? ""));
 
 export const isExcelImportFileName = (fileName: unknown): boolean =>
-  EXCEL_IMPORT_FILE_EXTENSIONS.has(getFileExtension(fileName));
+  tableFileFormatService.isExcel(String(fileName ?? ""));
+
+export const isTsvImportFileName = (fileName: unknown): boolean =>
+  tableFileFormatService.isTsv(String(fileName ?? ""));
 
 export const isXlsxImportFileName = (fileName: unknown): boolean =>
-  XLSX_IMPORT_FILE_EXTENSIONS.has(getFileExtension(fileName));
+  tableFileFormatService.isXlsx(String(fileName ?? ""));
 
 export type FileEntry = {
   file?: unknown;
@@ -226,7 +219,7 @@ export const createFileImportResultFromRecords = (
 });
 
 export const isExcelFileImportSourceName = (fileName: string): boolean =>
-  /\.(xls|xlsx)$/i.test(fileName);
+  isExcelImportFileName(fileName);
 
 export const isSupportedFileImportSourceName = (fileName: string): boolean =>
-  /\.(csv|xls|xlsx)$/i.test(fileName);
+  isSupportedImportFileName(fileName);

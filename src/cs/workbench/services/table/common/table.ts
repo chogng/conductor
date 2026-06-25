@@ -70,6 +70,7 @@ type TableHighlight = {
 export type TableSource = {
 	readonly fileId: string;
 	readonly sheetId?: string | null;
+	readonly sourceKey?: string | null;
 };
 
 type TableFile = {
@@ -194,7 +195,60 @@ export type TableViewInput = {
 	readonly tableState: TableState;
 };
 
+export const getTableSourceIdentityKey = (
+	source: TableSource | null | undefined,
+): string | null => {
+	const sourceKey = typeof source?.sourceKey === "string" ? source.sourceKey.trim() : "";
+	return sourceKey || null;
+};
+
+export const normalizeTableSource = (
+	source: TableSource | null | undefined,
+): TableSource | null => {
+	const fileId = String(source?.fileId ?? "").trim();
+	if (!fileId) {
+		return null;
+	}
+
+	const sheetId = typeof source?.sheetId === "string" && source.sheetId.trim()
+		? source.sheetId.trim()
+		: null;
+	const sourceKey = getTableSourceIdentityKey(source);
+	return {
+		fileId,
+		sheetId,
+		...(sourceKey ? { sourceKey } : {}),
+	};
+};
+
+export const areTableSourcesEqual = (
+	current: TableSource | null | undefined,
+	next: TableSource | null | undefined,
+): boolean => {
+	const currentSource = normalizeTableSource(current);
+	const nextSource = normalizeTableSource(next);
+	if (!currentSource || !nextSource) {
+		return currentSource === nextSource;
+	}
+
+	const currentSourceKey = getTableSourceIdentityKey(currentSource);
+	const nextSourceKey = getTableSourceIdentityKey(nextSource);
+	if (currentSourceKey || nextSourceKey) {
+		return currentSourceKey === nextSourceKey &&
+			currentSource.fileId === nextSource.fileId &&
+			currentSource.sheetId === nextSource.sheetId;
+	}
+
+	return currentSource.fileId === nextSource.fileId &&
+		currentSource.sheetId === nextSource.sheetId;
+};
+
 export const toTableSourceKey = (source: TableSource): string => {
+	const sourceKey = getTableSourceIdentityKey(source);
+	if (sourceKey) {
+		return sourceKey;
+	}
+
 	const fileId = encodeURIComponent(source.fileId);
 	const sheetId = typeof source.sheetId === "string" && source.sheetId
 		? encodeURIComponent(source.sheetId)

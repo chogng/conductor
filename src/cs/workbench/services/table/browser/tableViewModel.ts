@@ -13,6 +13,7 @@ import {
   type TableRowsReaderProvider,
   type TableRowsVersionChangeEvent,
   type TableSource,
+  getTableSourceIdentityKey,
   toTableSourceKey,
 } from "src/cs/workbench/services/table/common/table";
 import {
@@ -915,9 +916,11 @@ const createTableSourceEntry = (entry: SessionFile): TableSourceEntry | null => 
   }
 
   const sheetId = getEntrySheetId(entry);
+  const sourceKey = readEntryString(entry, "sourceKey");
   const source: TableSource = {
     fileId,
     sheetId,
+    ...(sourceKey ? { sourceKey } : {}),
   };
 
   return {
@@ -925,7 +928,7 @@ const createTableSourceEntry = (entry: SessionFile): TableSourceEntry | null => 
     sheetName: getEntrySheetName(entry),
     source,
     sourceVersion: normalizeSourceVersion(entry.sourceVersion),
-    sourceKey: readEntryString(entry, "sourceKey") ?? toTableSourceKey(source),
+    sourceKey: sourceKey ?? toTableSourceKey(source),
   };
 };
 
@@ -1201,6 +1204,7 @@ const createTableViewModel = ({
 
   const activeFileId = source?.fileId ?? null;
   const activeSheetId = source?.sheetId ?? null;
+  const activeSourceIdentityKey = getTableSourceIdentityKey(source);
   const hasControlledPreviewFile = file !== undefined;
   const hasControlledPreviewStatus = loadState !== undefined;
   const previewFile = file ?? null;
@@ -1330,6 +1334,10 @@ const createTableViewModel = ({
   }, [sourceEntries]);
 
   const selectedSource = memoValue((): TableSourceEntry | null => {
+    if (activeSourceIdentityKey) {
+      return sourcesByKey.get(activeSourceIdentityKey) ?? null;
+    }
+
     if (!deferredActiveFileId) {
       return null;
     }
@@ -1352,6 +1360,8 @@ const createTableViewModel = ({
   }, [
     deferredActiveFileId,
     deferredActiveSheetId,
+    activeSourceIdentityKey,
+    sourcesByKey,
     sourcesByFileId,
   ]);
 
@@ -2879,8 +2889,8 @@ const createTableViewModel = ({
         file: hasCurrentSource ? currentFile : null,
         fileName,
         loadState: previewStatusRef.current,
-        selectedFileId: activeFileId ?? null,
-        selectedSheetId: activeSheetId ?? null,
+        selectedFileId: selectedSource?.source.fileId ?? activeFileId ?? null,
+        selectedSheetId: selectedSource?.source.sheetId ?? activeSheetId ?? null,
         source: selectedSource?.source ?? null,
         sourceKey: activeSourceKey,
         displayVersion: settingsVersion,

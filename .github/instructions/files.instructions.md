@@ -25,6 +25,9 @@ platform/files/IFileService
 workbench/services/files/fileConverter.ts
   CSV/XLS/XLSX/clipboard/manual -> FileConversionResult / RawTableRecord
 
+workbench/services/table/common/tableFileFormat.ts
+  table import format policy for CSV/TSV/XLS/XLSX resources
+
 workbench/services/tableFile/ITableFileService
   imported data-file/raw-table owner, backed by Session ledger during migration
 
@@ -44,7 +47,8 @@ the closest-looking name.
 | Term | Meaning | Owner |
 | --- | --- | --- |
 | file transfer / upload / download | moving bytes/resources | `contrib/files/browser/fileImportExport.ts` and platform file APIs |
-| source collection | dialog/drop/folder/clipboard/manual -> file sources | Explorer workflow/helpers |
+| source collection | dialog/drop/folder/clipboard/manual -> supported table file sources | Explorer workflow/helpers plus table format policy |
+| table resource filtering | URI/file-name support checks before stat/read/parse where possible | `services/table/common/tableFileFormat.ts` and `TableResourceImporter` |
 | file conversion | parse sources into raw file/table records | `services/files/browser/fileConverter.ts` |
 | conversion result | converter output ready for TableFile | `FileConversionResult` |
 | table-file commit | canonical imported data-file/raw-table storage | `ITableFileService.commitImport(...)` |
@@ -74,7 +78,7 @@ platform/files -> workbench/**
 Explorer owns:
 
 - Files container Explorer view host;
-- resource tree, selection, expansion, layout (`tree` / `thumbnail`), focus/edit state;
+- resource tree, selection, optional raw-table `sourceKey`, expansion, layout (`tree` / `thumbnail`), focus/edit state;
 - file/folder commands, actions, context menus, drag/drop UI;
 - hover triggers, timing, anchors, context-view containers, positioning, dismissal;
 - thumbnail candidate filtering before thumbnail UI renders;
@@ -116,6 +120,7 @@ projections arrive.
 | `services/files/common/rawTable.ts` | Raw table records and range refs. |
 | `services/files/browser/fileConverter.ts` | Source conversion into TableFile-ready raw models. |
 | `services/files/electron-browser/fileConversionService.ts` | Desktop conversion service branch behind files service contract. |
+| `services/table/common/tableFileFormat.ts` | Table import format policy and resource/name support checks consumed by source collection. |
 | `services/tableFile/common/tableFile.ts` | Imported data-file/raw-table owner contract. |
 | `services/tableFile/browser/tableFileService.ts` | TableFile owner API backed by Session during migration. |
 | `platform/files/common/files.ts` / `fileService.ts` | Filesystem service contract and provider dispatch. |
@@ -129,6 +134,7 @@ subscribe to table/template/table-model state.
 
 ```txt
 Explorer drop/dialog/clipboard/folder
+  -> TableFileFormatService / TableResourceImporter resource filter
   -> source collection / pending Explorer entries
   -> fileConverter.ts
   -> FileConversionResult
@@ -200,6 +206,10 @@ changes.
 Tree and thumbnail are two presentations over the same Explorer resource model.
 They must share selection, file item actions, context menus, and source
 workflow wiring. Thumbnail rendering details live in `thumbnail.instructions.md`.
+When a table file has multiple raw-table entries, Explorer selection keeps
+`fileId` for file actions and may carry `sourceKey` to identify the exact table
+source. Table opening consumes that source key through `WorkbenchDomainBridge`;
+file close/delete/template actions still operate on `fileId`.
 
 Explorer badge projection details live in `explorer-badge.instructions.md`.
 

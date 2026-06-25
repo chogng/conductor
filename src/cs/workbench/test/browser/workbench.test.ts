@@ -790,7 +790,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const chartViewInputs: Array<{ readonly activeFileId: string | null; readonly hasChartData?: boolean }> = [];
-    const tableSources: Array<string | null> = [];
+    const tableSources: Array<TableSource | null> = [];
     commitRawFilesForTest(session, [
       {
         columnCount: 2,
@@ -811,7 +811,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     try {
       bridge.sync({ deferSecondaryWork: true });
 
-      assert.deepEqual(tableSources, ["file-a"]);
+      assert.deepEqual(tableSources.map(source => source?.fileId ?? null), ["file-a"]);
       assert.deepEqual(chartViewInputs, []);
 
       await new Promise(resolve => globalThis.setTimeout(resolve, 0));
@@ -821,6 +821,35 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
         hasChartData: false,
       });
       assert.equal(explorerService.getPaneInput()?.selectedFileId, "file-a");
+    } finally {
+      bridge.dispose();
+    }
+  });
+
+  test("opens selected table source key from explorer selection", () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+    const tableSources: Array<TableSource | null> = [];
+    session.commitFileImport(createMultiRawTableImportResultForTest());
+    explorerService.select({
+      fileId: "file-a",
+      kind: "table",
+      sourceKey: "source-key-b",
+    });
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      explorerService,
+      prioritizedCalculationFileIds: [],
+      prioritizedTemplateFileIds: [],
+      session,
+      tableSources,
+    }));
+    try {
+      bridge.sync();
+
+      assert.equal(tableSources.at(-1)?.fileId, "file-a");
+      assert.equal(tableSources.at(-1)?.sourceKey, "source-key-b");
+      assert.equal(explorerService.getPaneInput()?.selectedFileId, "file-a");
+      assert.equal(explorerService.getPaneInput()?.selectedSourceKey, "source-key-b");
     } finally {
       bridge.dispose();
     }
@@ -1211,7 +1240,7 @@ const createDomainBridgeOptionsForTest = ({
   readonly sliceStateEvent?: Event<unknown>;
   readonly sliceTemplateSelectionsByFileId?: SliceState["templateSelectionsByFileId"];
   readonly thumbnailPrefetches?: Array<{ readonly fileIds: readonly string[]; readonly priority: string }>;
-  readonly tableSources?: Array<string | null>;
+  readonly tableSources?: Array<TableSource | null>;
   readonly visibleDetailPanes?: readonly ["inspector"] | readonly [];
 }): ConstructorParameters<typeof WorkbenchDomainBridge>[0] => ({
   tableModelQueueService: {
@@ -1309,7 +1338,7 @@ const createDomainBridgeOptionsForTest = ({
   tableService: {
     getViewInput: () => null,
     open: (source: TableSource | null) => {
-        tableSources?.push(source?.fileId ?? null);
+        tableSources?.push(source);
       },
   } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["tableService"],
   thumbnailPreviewService: {
@@ -1507,6 +1536,25 @@ const createFileImportResultForTest = (
     .filter((file): file is ImportedFileRecord => Boolean(file)),
 });
 
+const createMultiRawTableImportResultForTest = (): FileImportResult => ({
+  createdAt: 1,
+  diagnostics: [],
+  files: [{
+    id: "file-a",
+    kind: "csv",
+    name: "Workbook.xlsx",
+    raw: {
+      fileId: "file-a",
+      fileName: "Workbook.xlsx",
+      rawTableOrder: ["source-key-a", "source-key-b"],
+      rawTablesById: {
+        "source-key-a": createRawTableRecordForTest("file-a", "source-key-a"),
+        "source-key-b": createRawTableRecordForTest("file-a", "source-key-b"),
+      },
+    },
+  }],
+});
+
 const createImportedFileRecordForTest = (
   file: SessionFile,
 ): ImportedFileRecord | null => {
@@ -1561,3 +1609,21 @@ const createImportedFileRecordForTest = (
     },
   };
 };
+
+const createRawTableRecordForTest = (
+  fileId: string,
+  rawTableId: string,
+): ImportedFileRecord["raw"]["rawTablesById"][string] => ({
+  columnCount: 2,
+  fileId,
+  maxCellLengths: [1, 1],
+  rawTableId,
+  rowCount: 1,
+  rows: {
+    kind: "inline",
+    values: [["x", "y"]],
+  },
+  source: {
+    kind: "csv",
+  },
+});

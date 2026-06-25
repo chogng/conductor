@@ -6,7 +6,9 @@ import Papa from "papaparse";
 
 import { startPerf } from "src/cs/workbench/common/perf";
 import {
+  isDelimitedTextImportFileName,
   isExcelFileImportSourceName,
+  isTsvImportFileName,
   type FileImportSourceKind,
   type ImportedFileRecord,
   type ImportFileData,
@@ -237,6 +239,8 @@ const convertBrowserFile = async (
 const getBrowserFileMimeType = (fileName: string): string =>
   isExcelFileImportSourceName(fileName)
     ? "application/octet-stream"
+    : isTsvImportFileName(fileName)
+      ? "text/tab-separated-values;charset=utf-8"
     : "text/csv;charset=utf-8";
 
 const toBrowserFile = async (file: ImportFileData): Promise<File> => {
@@ -921,7 +925,7 @@ const getImportSourceKind = (fileName: string): FileImportSourceKind => {
   if (isExcelFileImportSourceName(fileName)) {
     return "excel";
   }
-  return /\.csv$/i.test(fileName) ? "csv" : "unknown";
+  return isDelimitedTextImportFileName(fileName) ? "csv" : "unknown";
 };
 
 const normalizeRequiredText = (

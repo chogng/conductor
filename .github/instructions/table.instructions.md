@@ -25,11 +25,22 @@ settings for visual display preferences, and pure `TableSource` open intents.
 It does not own import, table-model production, template execution, plot/chart
 models, or canonical Session records.
 
+`TableSource.sourceKey` is the exact raw-table/source identity when available.
+Use it to disambiguate multiple raw tables under the same file. `fileId` and
+`sheetId` remain the compatibility route for older callers and user-facing file
+selection, but row caches, worker requests, and column width persistence should
+scope by the resolved source key.
+
+Use the common helpers from `services/table/common/table.ts` when normalizing,
+comparing, or keying `TableSource` values. Do not duplicate source-key trimming
+or equality rules in service/view files.
+
 ## Core Files
 
 | File | Responsibility |
 | --- | --- |
 | `services/table/common/table.ts` | service contract, model contracts, source key helpers. |
+| `services/table/common/tableFileFormat.ts` | table import format policy and resource/name support checks. |
 | `common/tableColumnLayout.ts` | width policy and storage serialization. |
 | `common/tableDisplayProfile.ts` / `numericFormat.ts` | display profile and numeric formatting helpers. |
 | `browser/tableService.ts` | table service owner, view input, copy text, column width persistence. |

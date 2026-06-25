@@ -14,9 +14,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 
 suite("workbench/services/tableModel/test/browser/importTableModelSeed", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
-  test("isSupportedImportFileName accepts csv/xls/xlsx with case-insensitive suffixes", () => {
+  test("isSupportedImportFileName accepts table import suffixes case-insensitively", () => {
     assert.equal(isSupportedImportFileName("sample.csv"), true);
     assert.equal(isSupportedImportFileName("sample.CSV"), true);
+    assert.equal(isSupportedImportFileName("sample.tsv"), true);
     assert.equal(isSupportedImportFileName("sample.xls"), true);
     assert.equal(isSupportedImportFileName("sample.XLSX"), true);
     assert.equal(isSupportedImportFileName("sample.txt"), false);
