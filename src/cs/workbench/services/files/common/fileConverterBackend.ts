@@ -32,8 +32,6 @@ export type FileConverterPreparedFile = {
 	readonly sourceLastModified?: number;
 	readonly sourcePath?: string;
 	readonly sourceSizeBytes?: number;
-	readonly tableFactsSeed?: unknown;
-	readonly tableModelSeed?: unknown;
 	readonly templateEligibility?: TemplateEligibility;
 	readonly code?: string;
 	readonly message?: string;

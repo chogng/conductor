@@ -50,19 +50,19 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     const tableSummary = summarizeExplorerBadgeProjection([
       {
         badgeState: {
-          confidence: "confirmed",
-          kind: "ready",
-          label: "transfer",
-          source: "tableModel",
-        },
+	          confidence: "confirmed",
+	          kind: "ready",
+	          label: "transfer",
+	          source: "review",
+	        },
         fileId: "file-a",
         fileName: "A.csv",
       },
       {
-        badgeState: {
-          kind: "unknown",
-          source: "tableModel",
-        },
+	        badgeState: {
+	          kind: "unknown",
+	          source: "review",
+	        },
         fileId: "file-b",
         fileName: "B.csv",
       },
@@ -70,11 +70,11 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     const chartSummary = summarizeExplorerBadgeProjection([
       {
         badgeState: {
-          confidence: "confirmed",
-          kind: "ready",
-          label: "transfer",
-          source: "tableModel",
-        },
+	          confidence: "confirmed",
+	          kind: "ready",
+	          label: "transfer",
+	          source: "review",
+	        },
         chartMessage: "Ready",
         chartState: "ready",
         fileId: "file-a",
@@ -82,10 +82,10 @@ suite("workbench/contrib/files/common/explorerModel", () => {
         hasChartData: true,
       },
       {
-        badgeState: {
-          kind: "unknown",
-          source: "tableModel",
-        },
+	        badgeState: {
+	          kind: "unknown",
+	          source: "review",
+	        },
         chartState: "none",
         fileId: "file-b",
         fileName: "Processed B.csv",
@@ -96,17 +96,15 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     assert.equal(tableSummary.signature, chartSummary.signature);
     assert.deepEqual(
       {
-        tableModelBadgeCount: tableSummary.tableModelBadgeCount,
+	        confirmedBadgeCount: tableSummary.confirmedBadgeCount,
         failedSourceCount: tableSummary.failedSourceCount,
-        fastBadgeCount: tableSummary.fastBadgeCount,
         loadingSourceCount: tableSummary.loadingSourceCount,
         pendingBadgeCount: tableSummary.pendingBadgeCount,
         totalFileCount: tableSummary.totalFileCount,
       },
       {
-        tableModelBadgeCount: chartSummary.tableModelBadgeCount,
+	        confirmedBadgeCount: chartSummary.confirmedBadgeCount,
         failedSourceCount: chartSummary.failedSourceCount,
-        fastBadgeCount: chartSummary.fastBadgeCount,
         loadingSourceCount: chartSummary.loadingSourceCount,
         pendingBadgeCount: chartSummary.pendingBadgeCount,
         totalFileCount: chartSummary.totalFileCount,
@@ -116,11 +114,11 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     const skippedSummary = summarizeExplorerBadgeProjection([
       {
         badgeState: {
-          confidence: "confirmed",
-          kind: "ready",
-          label: "transfer",
-          source: "tableModel",
-        },
+	          confidence: "confirmed",
+	          kind: "ready",
+	          label: "transfer",
+	          source: "review",
+	        },
         fileId: "file-a",
         fileName: "A.csv",
       },
@@ -135,7 +133,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
       },
     ]);
     assert.notEqual(tableSummary.signature, skippedSummary.signature);
-    assert.equal(skippedSummary.tableModelBadgeCount, 1);
+    assert.equal(skippedSummary.confirmedBadgeCount, 1);
   });
 
   test("file presentation signature includes raw table status projection", () => {
@@ -204,9 +202,9 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     const file = {
       badgeState: {
         confidence: "confirmed",
-        kind: "ready",
-        label: "output",
-        source: "tableModel",
+	        kind: "ready",
+	        label: "output",
+	        source: "review",
       },
       curveType: "output",
       curveTypeBadgeLabel: "output",
@@ -278,7 +276,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     );
   });
 
-  test("createRawExplorerFiles projects consumed table-model labels", () => {
+  test("createRawExplorerFiles projects confirmed curve labels", () => {
     assert.deepEqual(
       createRawExplorerFiles([
         {
@@ -307,9 +305,9 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           sourcePath: "C:/data/raw.csv",
           badgeState: {
             confidence: "confirmed",
-            kind: "ready",
-            label: "output",
-            source: "tableModel",
+	            kind: "ready",
+	            label: "output",
+	            source: "review",
           },
           curveType: "output (vd)",
           curveTypeBadgeLabel: "output",
@@ -360,9 +358,9 @@ suite("workbench/contrib/files/common/explorerModel", () => {
         sourcePath: "C:/data/raw.csv",
         badgeState: {
           confidence: "confirmed",
-          kind: "ready",
-          label: "mixed",
-          source: "tableModel",
+	          kind: "ready",
+	          label: "mixed",
+	          source: "review",
         },
         curveType: "iv",
         curveTypeBadgeLabel: "iv",
@@ -418,9 +416,9 @@ suite("workbench/contrib/files/common/explorerModel", () => {
         sourcePath: "C:/canonical/raw.csv",
         badgeState: {
           confidence: "confirmed",
-          kind: "ready",
-          label: "transfer",
-          source: "tableModel",
+	          kind: "ready",
+	          label: "transfer",
+	          source: "review",
         },
         curveType: "transfer",
         curveTypeBadgeLabel: "transfer",
@@ -432,7 +430,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     ]);
   });
 
-  test("createChartExplorerFilesFromRecords projects table-models-only canonical files", () => {
+  test("createChartExplorerFilesFromRecords projects canonical files with measurement blocks", () => {
     const files = createChartExplorerFilesFromRecords(
       {
         "raw-1": createFileRecord("raw-1", {
@@ -453,9 +451,9 @@ suite("workbench/contrib/files/common/explorerModel", () => {
       {
         badgeState: {
           confidence: "confirmed",
-          kind: "ready",
-          label: "output",
-          source: "tableModel",
+	          kind: "ready",
+	          label: "output",
+	          source: "review",
         },
         chartState: "ready",
         curveType: "output",
@@ -477,7 +475,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     );
   });
 
-  test("createRawExplorerFiles projects pending badge state before table model", () => {
+  test("createRawExplorerFiles projects pending badge state before confirmed projection", () => {
     assert.deepEqual(
       createRawExplorerFiles([
         {

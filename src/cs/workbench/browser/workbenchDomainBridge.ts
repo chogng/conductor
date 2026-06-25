@@ -16,7 +16,6 @@ import {
   createChartExplorerFilesFromRecords,
   createRawExplorerFiles,
   resolveExplorerSelectedFileId,
-  toExplorerBadgeLabel,
   type ExplorerFileEntry,
   buildExplorerTree,
   type ExplorerTreeNode,
@@ -63,9 +62,6 @@ import {
   type TableModelRawTableQueueState,
   type ITableModelQueueService,
 } from "src/cs/workbench/services/tableModel/common/tableModel";
-import {
-  createFastImportBadgeTableModel,
-} from "src/cs/workbench/services/tableModel/common/importTableModelSeedHeuristics";
 import type { IThumbnailPreviewService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import {
   isTemplateApplyPerformanceTraceEnabled,
@@ -749,13 +745,10 @@ export const createExplorerPaneInput = ({
   const isChartMode = mode === "chart";
   const isThumbnailLayout = isChartMode && explorerService.viewLayout === "thumbnail";
   const selectionKind: ExplorerSelectionKind = isChartMode ? "chart" : "table";
-  const rawExplorerFiles = applyFastExplorerBadges(
-    applyTableModelQueueExplorerBadges(
-      createRawExplorerFiles(rawFiles),
-      snapshot,
-      tableModelQueueSnapshot,
-    ),
+  const rawExplorerFiles = applyTableModelQueueExplorerBadges(
+    createRawExplorerFiles(rawFiles),
     snapshot,
+    tableModelQueueSnapshot,
   );
   const rawStatusExplorerFiles = applyRawTableStatusProjections(rawExplorerFiles, {
     sliceState,
@@ -844,12 +837,6 @@ const getExplorerPaneFileIds = (
     .map(file => String(file.fileId ?? "").trim())
     .filter(fileId => fileId.length > 0);
 };
-
-const applyFastExplorerBadges = (
-  files: readonly ExplorerFileEntry[],
-  snapshot: SessionSnapshot,
-): ExplorerFileEntry[] =>
-  files.map(file => applyFastExplorerBadge(file, snapshot));
 
 const applyTableModelQueueExplorerBadges = (
   files: readonly ExplorerFileEntry[],
@@ -1016,70 +1003,6 @@ const getChartStateMessage = (
   return null;
 };
 
-const applyFastExplorerBadge = (
-  file: ExplorerFileEntry,
-  snapshot: SessionSnapshot,
-): ExplorerFileEntry => {
-  if (file.badgeState?.kind !== "pending") {
-    return file;
-  }
-
-  const fileId = String(file.fileId ?? "").trim();
-  const fileRecord = fileId ? snapshot.filesById[fileId] : undefined;
-  const table = findExplorerRawTable(file, fileRecord)?.table ?? null;
-  const fastBadge = createFastImportBadgeTableModel({
-    fileName: file.fileName ?? fileRecord?.raw.fileName,
-    relativePath: file.relativePath ?? fileRecord?.raw.relativePath,
-    rows: getFastBadgeRows(table),
-    sheetName: table?.sheetName,
-  });
-  if (!fastBadge) {
-    if (isUnhealthyRawTable(table)) {
-      return {
-        ...file,
-        badgeState: {
-          kind: "unknown",
-          source: "fast",
-        },
-      };
-    }
-    return file;
-  }
-
-  const label = toExplorerBadgeLabel(fastBadge.curveType);
-  if (!label) {
-    return file;
-  }
-  if (isUnhealthyRawTable(table)) {
-    return {
-      ...file,
-      badgeState: {
-        kind: "unknown",
-        source: "fast",
-        suspectedType: fastBadge.curveTypeLabel,
-      },
-    };
-  }
-
-  return {
-    ...file,
-    badgeState: {
-      confidence: "tentative",
-      kind: "ready",
-      label,
-      message: fastBadge.reason,
-      source: "fast",
-    },
-  };
-};
-
-const isUnhealthyRawTable = (
-  table: TableRecord | null,
-): boolean =>
-  table?.health?.state === "decodeFailed" ||
-  table?.health?.state === "parseFailed" ||
-  table?.health?.state === "unsupported";
-
 const findExplorerRawTable = (
   file: ExplorerFileEntry,
   fileRecord: FileRecord | undefined,
@@ -1109,19 +1032,6 @@ const findExplorerRawTable = (
         table,
       }
     : null;
-};
-
-const getFastBadgeRows = (
-  table: TableRecord | null,
-): readonly (readonly unknown[])[] | undefined => {
-  if (isUnhealthyRawTable(table)) {
-    return undefined;
-  }
-
-  const rowStore = table?.rowStore;
-  return rowStore?.kind === "memory"
-    ? rowStore.rows.slice(0, 4)
-    : undefined;
 };
 
 const createRawTableSource = (fileId: string | null): TableSource | null => {

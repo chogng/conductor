@@ -1,5 +1,5 @@
 ---
-description: Explorer badge projection rules for fast first-frame decorations, table-model confirmation, visible-first scheduling, stale result protection, and row reuse.
+description: Explorer badge projection rules for pending decorations, table-model queue progress, Review/Slice confirmation, visible-first scheduling, stale result protection, and row reuse.
 applyTo: 'src/cs/workbench/contrib/files/**,src/cs/workbench/services/tableModel/**,src/cs/workbench/browser/workbenchDomainBridge.ts'
 ---
 # Explorer Badge Projection
@@ -10,33 +10,32 @@ template, chart, or table decision inputs.
 
 ## Ownership
 
-Fast badge:
+Pending badge:
 
 - Explorer projection only;
 - first-frame display and stable badge slot layout;
-- may use only cheap signals: file name, relative path, extension, sheet name, available header/sample rows;
-- must not read files, write Session, alter converter output, select templates, or drive table/chart decisions;
-- represented as `ExplorerBadgeState` with `source: "fast"` and `confidence: "tentative"`.
+- may show pending source status or TableModel queue progress only;
+- must not infer semantic labels from file name, path, extension, sheet name, header rows, or source rows;
+- must not read files, write Session, alter converter output, select templates, or drive table/chart decisions.
 
-Full badge:
+Confirmed badge:
 
-- comes from formal Review/Slice projections committed through Session;
-- is the final Explorer badge projection;
-- may override or clear any fast badge;
-- represents review readiness, slice progress, or final unavailable/error state.
+- comes from formal Review/Slice/processed projections committed through Session;
+- is the final Explorer semantic badge projection;
+- represents reviewed template readiness, slice progress, executed curve type, or final unavailable/error state.
 
 ## State Flow
 
 ```txt
-pending -> fast/tentative
 pending -> review/slice projection
-fast/tentative -> review/slice projection
-pending/fast -> error
+pending -> table-model queue progress
+table-model queue progress -> review/slice projection
+pending -> error
 ```
 
 Formal Review/Slice projection always wins. If Review cannot provide a ready
 template or Slice reports a terminal failure, Explorer must not keep showing a
-fast badge as confirmed.
+semantic badge from earlier table-model progress.
 
 ## Scheduling
 
@@ -56,7 +55,7 @@ stale queued results if the raw table version changes.
 ## Rendering
 
 Every file row renders a stable badge slot in the first frame. Row layout must
-not wait for full table-model production.
+not wait for full table-model, Review, or Slice production.
 
 Virtualized rows are reusable DOM. Bind badge updates to the current row key
 before writing text, state, title, or classes. Repeated renders with the same

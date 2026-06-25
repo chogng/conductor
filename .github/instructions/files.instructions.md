@@ -92,6 +92,11 @@ Files conversion helpers own:
 They do not own platform providers, measurement detection, template apply, plot
 generation, TableFile/Session mutation, or DOM rendering.
 
+Explorer import workflows must not infer semantic badges during source
+collection or conversion. Pending source rows may show only pending, preparing,
+or failed UI state until TableFile commits and downstream Review/Slice
+projections arrive.
+
 ## Core Files
 
 | File | Responsibility |
@@ -127,7 +132,6 @@ Explorer drop/dialog/clipboard/folder
   -> source collection / pending Explorer entries
   -> fileConverter.ts
   -> FileConversionResult
-  -> fileImportExport.ts optional prepared table-model seed from converted row preview
   -> ITableFileService.commitImport(...)
   -> table-file / SessionChangeEvent subscribers
   -> Explorer resources / TableModel / Template / Review / Slice / Plot / Search / Export

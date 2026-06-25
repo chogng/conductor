@@ -5,7 +5,7 @@ applyTo: 'src/cs/workbench/services/tableModel/**,src/cs/workbench/contrib/table
 # TableModel
 
 TableModel is the derived model layer for raw tables consumed by Template materialization.
-It is not Review, not Recipe, and not Slice.
+It is not Review, not Recipe, and not Slice. TableModel 负责“把表格源数据变成 Template 能理解的结构语义”
 
 ```txt
 ITableFileService RawTableRecord + SchemaProfile snapshot
@@ -51,8 +51,8 @@ TableModel must not produce `TemplateDraft`, `ReviewedTemplate`,
 | `common/blockDetector.ts` | measurement block construction from table model. |
 | `common/measurement.ts` | measurement family/mode/block/column record types. |
 | `common/diagnostics.ts` | table-model diagnostics and source ranges. |
-| `common/importTableModelSeedHeuristics.ts` | import-preview seed and fast badge heuristics. |
-| `browser/importTableModelSeed.ts` | browser preview adapter from file/rows to `ImportTableModelSeed`. |
+| `common/importTableModelSeedHeuristics.ts` | table-model seed heuristics used inside TableModel production. |
+| `browser/importTableModelSeed.ts` | browser adapter from file/rows to `ImportTableModelSeed` for TableModel production. |
 | `browser/tableModelEngine.ts` | browser TableModel production workflow. |
 | `browser/tableModelService.ts` | injectable `ITableModelService` implementation. |
 | `browser/tableModelQueueService.ts` | injectable queue for scheduling table-model production and committing derived records through the Session ledger. |

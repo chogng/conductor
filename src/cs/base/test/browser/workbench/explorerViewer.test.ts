@@ -88,7 +88,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           confidence: "confirmed",
           kind: "ready",
           label: "output",
-          source: "tableModel",
+          source: "review",
         },
         fileId: "file-a",
         fileName: "Output_.csv",
@@ -194,7 +194,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       files: [{
         badgeState: {
           kind: "unknown",
-          source: "tableModel",
+          source: "review",
         },
         curveType: "unknown",
         curveTypeBadgeLabel: "unknown",
@@ -428,15 +428,15 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
 
       viewer.setProps({
         ...props,
-        files: [{
-          ...initialFile,
-          badgeState: {
-            confidence: "tentative",
-            kind: "ready",
-            label: "cv",
-            source: "fast",
-          },
-        }],
+	        files: [{
+	          ...initialFile,
+	          badgeState: {
+	            confidence: "confirmed",
+	            kind: "ready",
+	            label: "cv",
+	            source: "review",
+	          },
+	        }],
       });
 
       assert.equal(setChildrenCount, 0);
@@ -453,15 +453,15 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
             cv: "green",
           },
         },
-        files: [{
-          ...initialFile,
-          badgeState: {
-            confidence: "tentative",
-            kind: "ready",
-            label: "cv",
-            source: "fast",
-          },
-        }],
+	        files: [{
+	          ...initialFile,
+	          badgeState: {
+	            confidence: "confirmed",
+	            kind: "ready",
+	            label: "cv",
+	            source: "review",
+	          },
+	        }],
       });
 
       assert.deepEqual(rerenderedKeys, [["file-a"], ["file-a"]]);
@@ -645,7 +645,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           confidence: "confirmed",
           kind: "ready",
           label: "output",
-          source: "tableModel",
+          source: "review",
         },
         chartState: "ready",
         curveType: "IV",
@@ -714,7 +714,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
             confidence: "confirmed",
             kind: "ready",
             label: "transfer",
-            source: "tableModel",
+            source: "review",
           },
           chartState: "processing",
           curveType: "IV",
@@ -730,7 +730,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
             confidence: "confirmed",
             kind: "ready",
             label: "transfer",
-            source: "tableModel",
+            source: "review",
           },
           chartState: "processing",
           curveType: "IV",
@@ -823,7 +823,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
             confidence: "confirmed",
             kind: "ready",
             label: "transfer",
-            source: "tableModel",
+            source: "review",
           },
           chartState: "ready",
           curveType: "IV",
@@ -840,7 +840,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
             confidence: "confirmed",
             kind: "ready",
             label: "transfer",
-            source: "tableModel",
+            source: "review",
           },
           chartState: "ready",
           curveType: "IV",
@@ -938,7 +938,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
             confidence: "confirmed",
             kind: "ready",
             label: "transfer",
-            source: "tableModel",
+            source: "review",
           },
           chartState: "ready",
           curveType: "IV",
@@ -955,7 +955,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
             confidence: "confirmed",
             kind: "ready",
             label: "transfer",
-            source: "tableModel",
+            source: "review",
           },
           chartState: "ready",
           curveType: "IV",
@@ -1039,7 +1039,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
             confidence: "confirmed",
             kind: "ready",
             label: "transfer",
-            source: "tableModel",
+            source: "review",
           },
           curveType: "IV",
           curveTypeBadgeLabel: "transfer",
@@ -1054,7 +1054,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
             confidence: "confirmed",
             kind: "ready",
             label: "transfer",
-            source: "tableModel",
+            source: "review",
           },
           curveType: "IV",
           curveTypeBadgeLabel: "transfer",
@@ -1177,7 +1177,7 @@ const createViewerProps = (): ExplorerViewerProps => ({
       confidence: "confirmed",
       kind: "ready",
       label: "mixed",
-      source: "tableModel",
+      source: "review",
     },
     curveType: "IV",
     curveTypeBadgeLabel: "transfer",

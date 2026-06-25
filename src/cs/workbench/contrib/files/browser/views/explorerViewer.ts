@@ -157,7 +157,7 @@ const getFileHoverThumbnailWidth = (): number =>
 type FileItemTableModel = {
   readonly label: string;
   readonly isWarning: boolean;
-  readonly source: "tableModel";
+  readonly source: "review";
   readonly state: "ready" | "unknown";
   readonly type: string;
   readonly confidence: string;
@@ -179,18 +179,6 @@ type FilePendingTableModel = {
   readonly source?: "tableModel";
   readonly state: "pending";
   readonly title: string;
-};
-
-type FileFastTableModel = {
-  readonly label: string;
-  readonly isWarning: boolean;
-  readonly confidence: string;
-  readonly reasons: readonly string[];
-  readonly source: "fast";
-  readonly state: "fast" | "unknown";
-  readonly template: string;
-  readonly title: string;
-  readonly type: string;
 };
 
 type FileHoverContext = {
@@ -287,10 +275,10 @@ const createFileItemTableModel = (
   templateLabel: string,
 ): FileItemTableModel | null => {
   const badgeState = fileEntry.badgeState;
-  if (
-    (badgeState?.kind !== "ready" && badgeState?.kind !== "unknown") ||
-    badgeState?.source !== "tableModel"
-  ) {
+	if (
+		(badgeState?.kind !== "ready" && badgeState?.kind !== "unknown") ||
+		badgeState?.source !== "review"
+	) {
     return null;
   }
 
@@ -317,7 +305,7 @@ const createFileItemTableModel = (
       badgeState.kind === "unknown" ||
       fileEntry?.curveTypeNeedsReview === true ||
       fileEntry?.curveTypeConfidence === "low",
-    source: "tableModel",
+    source: "review",
     state: badgeState.kind === "unknown" ? "unknown" : "ready",
     type: curveType,
     confidence,
@@ -377,100 +365,6 @@ const createFilePendingTableModel = (
       : localize("files.autoAnalyzing", "Analyzing"),
   };
 };
-
-const createFileFastTableModel = (
-  fileEntry: ExplorerFileEntry,
-): FileFastTableModel | null => {
-  if (
-    fileEntry.badgeState?.kind === "unknown" &&
-    fileEntry.badgeState.source === "fast"
-  ) {
-    const healthMessage = getLocalizedTableModelHealthMessage(fileEntry);
-    const suspectedType = String(fileEntry.badgeState.suspectedType ?? "").trim();
-    const filenameReason = suspectedType
-      ? localize(
-          "files.autoFastUnknownFromName",
-          "File name or path suggests {type}, but content was not parsed.",
-          { type: suspectedType },
-        )
-      : String(fileEntry.badgeState.message ?? "").trim() ||
-        localize("files.autoContentNotParsed", "Content was not parsed.");
-    return {
-      label: localize("files.autoUnknown", "Unknown"),
-      confidence: "low",
-      isWarning: true,
-      reasons: [
-        filenameReason ||
-          localize("files.autoFastFileNameEvidence", "File name or path contains curve-type hints."),
-        healthMessage ||
-          localize("files.autoContentParseFailed", "Content parsing failed: text encoding is invalid or file content is unreadable."),
-        localize("files.autoContentNotUsed", "Table content was not used as table-model evidence."),
-      ],
-      source: "fast",
-      state: "unknown",
-      template: localize(
-        "files.recommendedTemplateUnavailableDecode",
-        "Recommended template unavailable.",
-      ),
-      title: filenameReason ||
-        localize("files.autoContentParseFailed", "Content parsing failed: text encoding is invalid or file content is unreadable."),
-      type: localize("files.autoUnknown", "Unknown"),
-    };
-  }
-
-  if (
-    fileEntry.badgeState?.kind !== "ready" ||
-    fileEntry.badgeState.source !== "fast"
-  ) {
-    return null;
-  }
-
-  const label = String(fileEntry.badgeState.label ?? "").trim();
-  if (!label) {
-    return null;
-  }
-
-  const isUnhealthy = isUnhealthyRawTableHealth(fileEntry.rawTableHealth);
-  const type = isUnhealthy ? localize("files.autoUnknown", "Unknown") : label;
-  const healthMessage = getLocalizedTableModelHealthMessage(fileEntry);
-  const reasons = isUnhealthy
-    ? [
-        fileEntry.badgeState.message ??
-          localize("files.autoSuspectedType", "Suspected {type}", { type: label }),
-        healthMessage ||
-          localize("files.autoContentParseFailed", "Content parsing failed: text encoding is invalid or file content is unreadable."),
-        localize("files.autoContentNotUsed", "Table content was not used as table-model evidence."),
-      ]
-    : [
-        fileEntry.badgeState.message ??
-          localize("files.autoFastBadge", "Fast estimate"),
-      ];
-
-  return {
-    label: isUnhealthy ? localize("files.autoUnknown", "Unknown") : label,
-    confidence: isUnhealthy ? "low" : "tentative",
-    isWarning: isUnhealthy,
-    reasons,
-    source: "fast",
-    state: isUnhealthy ? "unknown" : "fast",
-    template: isUnhealthy
-      ? localize(
-          "files.recommendedTemplateUnavailableDecode",
-          "Recommended template unavailable.",
-        )
-      : localize("files.autoTemplatePending", "Waiting for table model"),
-    title: fileEntry.badgeState.message ??
-      localize("files.autoFastBadge", "Fast estimate"),
-    type,
-  };
-};
-
-const isUnhealthyRawTableHealth = (
-  health: ExplorerFileEntry["rawTableHealth"],
-): boolean =>
-  health === "decodeFailed" ||
-  health === "parseFailed" ||
-  health === "unsupported";
 
 const getLocalizedTableModelHealthMessage = (
   fileEntry: ExplorerFileEntry,
@@ -624,7 +518,7 @@ const normalizeFileHoverText = (
 
 const createBadgePresentation = (
   fileKey: string,
-  badge: FileItemTableModel | FileSourceStatusBadge | FileFastTableModel | FilePendingTableModel | null,
+  badge: FileItemTableModel | FileSourceStatusBadge | FilePendingTableModel | null,
   badgeColors: FilesExplorerBadgeColors,
 ): ExplorerBadgePresentation => {
   if (!badge) {
@@ -643,7 +537,7 @@ const createBadgePresentation = (
 };
 
 const resolveBadgePresentationColor = (
-  badge: FileItemTableModel | FileSourceStatusBadge | FileFastTableModel | FilePendingTableModel,
+  badge: FileItemTableModel | FileSourceStatusBadge | FilePendingTableModel,
   badgeColors: FilesExplorerBadgeColors,
 ): string | null => {
   if (badge.state === "source" || badge.state === "pending") {
@@ -1627,7 +1521,6 @@ export class ExplorerViewer implements IDisposable {
       fileEntry,
       this.resolveFileTemplateLabel(fileEntry),
     );
-    const fastTableModel = createFileFastTableModel(fileEntry);
     const pendingTableModel = createFilePendingTableModel(fileEntry);
     const { host } = template;
     const fileKey = getFileRenderKey(fileEntry);
@@ -1682,7 +1575,7 @@ export class ExplorerViewer implements IDisposable {
     template.fileRenderKey = fileKey;
     template.filePresentationSignature = presentationSignature;
     template.badge.bind(fileKey);
-    const hoverTableModel = tableModelBadge ?? (fastTableModel?.isWarning ? fastTableModel : null);
+    const hoverTableModel = tableModelBadge;
     if (hoverTableModel) {
       host.dataset.autoType = hoverTableModel.type;
       host.dataset.autoConfidence = hoverTableModel.confidence;
@@ -1756,7 +1649,7 @@ export class ExplorerViewer implements IDisposable {
     }
     const badge = sourceStatus?.status === "failed"
       ? sourceStatus
-      : tableModelBadge ?? fastTableModel ?? sourceStatus ?? pendingTableModel;
+      : tableModelBadge ?? sourceStatus ?? pendingTableModel;
     template.badge.setBadge(fileKey, createBadgePresentation(
       fileKey,
       badge,

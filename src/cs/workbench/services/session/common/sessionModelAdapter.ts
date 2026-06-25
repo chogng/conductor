@@ -43,7 +43,7 @@ import type {
 } from "src/cs/workbench/services/session/common/sessionModel";
 import { getLatestSliceRunRecord } from "src/cs/workbench/services/session/common/sessionModel";
 import {
-  getFileRecordCurveType,
+  collectFileRecordBaseCurves,
 } from "src/cs/workbench/services/session/common/sessionRecordProjection";
 import type { SliceRun } from "src/cs/workbench/services/slice/common/slice";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
@@ -388,7 +388,7 @@ export const createRawFilesFromRecords = (
       rawKey: file.raw.rawKey,
       relativePath: file.raw.relativePath ?? null,
       sourcePath: file.raw.filePath ?? null,
-      curveType: getFileRecordCurveType(file) ?? null,
+      curveType: getFileRecordSlicedCurveType(file) ?? null,
     };
     const pushedTableIds = new Set<string>();
     const pushTable = (tableId: string): void => {
@@ -442,12 +442,6 @@ type RawFileTableModelSummary = Pick<
   | "tableModelLayoutCandidates"
   | "tableModelSchemaFingerprint"
   | "tableModelSemanticCandidates"
-  | "curveType"
-  | "curveTypeConfidence"
-  | "curveTypeNeedsReview"
-  | "curveTypeReasons"
-  | "xAxisRole"
-  | "xAxisRoleSource"
 >;
 
 const createRawFileTableModelSummary = (
@@ -457,19 +451,6 @@ const createRawFileTableModelSummary = (
   const tableModel = rawTableId
     ? file.tableModelByRawTableId?.[rawTableId]
     : undefined;
-  const block = tableModel?.blocks.find((candidate) => candidate.family !== "unknown") ??
-    tableModel?.blocks[0] ??
-    (rawTableId
-      ? undefined
-      : file.measurementBlockOrder
-          .map((blockId) => file.measurementBlocksById[blockId])
-          .find(Boolean));
-  const xAxisRole = createXAxisRoleFromMeasurementBlock(block);
-  const curveType = createCurveTypeFromMeasurementBlock(block, xAxisRole) ??
-    getFileRecordCurveType(file);
-  const reasons = tableModel?.diagnostics
-    ?.map((diagnostic) => normalizeOptionalText(diagnostic.message))
-    .filter((message): message is string => Boolean(message));
 
   return {
     tableModelBlocks: tableModel?.blocks.length
@@ -485,63 +466,23 @@ const createRawFileTableModelSummary = (
     tableModelSemanticCandidates: tableModel?.semanticCandidates.length
       ? [...tableModel.semanticCandidates]
       : undefined,
-    curveType: curveType ?? null,
-    curveTypeConfidence: normalizeBlockConfidence(block?.confidence),
-    curveTypeNeedsReview: block ? block.family === "unknown" : undefined,
-    curveTypeReasons: reasons?.length ? reasons : undefined,
-    xAxisRole,
-    xAxisRoleSource: xAxisRole ? "metadata" : null,
   };
 };
 
-const createCurveTypeFromMeasurementBlock = (
-  block: FileRecord["measurementBlocksById"][string] | undefined,
-  xAxisRole: SessionFile["xAxisRole"],
-): string | null => {
-  if (!block || block.family === "unknown") {
-    return null;
-  }
-  if (block.family === "iv") {
-    if (block.ivMode === "transfer") {
-      return xAxisRole === "vg" ? "transfer (vg)" : "transfer";
-    }
-    if (block.ivMode === "output") {
-      return xAxisRole === "vd" ? "output (vd)" : "output";
-    }
-    return "iv";
-  }
-  return block.family;
-};
-
-const createXAxisRoleFromMeasurementBlock = (
-  block: FileRecord["measurementBlocksById"][string] | undefined,
-): SessionFile["xAxisRole"] => {
-  if (!block || block.family !== "iv") {
-    return null;
-  }
-  if (block.ivMode === "transfer") {
-    return "vg";
-  }
-  if (block.ivMode === "output") {
-    return "vd";
-  }
-  return null;
-};
-
-const normalizeBlockConfidence = (
-  value: number | undefined,
-): SessionFile["curveTypeConfidence"] | undefined => {
-  if (!Number.isFinite(value)) {
+const getFileRecordSlicedCurveType = (
+  file: FileRecord,
+): string | undefined => {
+  const curve = collectFileRecordBaseCurves(file)[0];
+  if (!curve) {
     return undefined;
   }
-  const confidence = Number(value);
-  if (confidence >= 0.8) {
-    return "high";
+  if (curve.curveFamily === "iv" && curve.ivMode) {
+    return curve.ivMode;
   }
-  if (confidence >= 0.5) {
-    return "medium";
+  if (curve.curveFamily === "it" && curve.itMode) {
+    return curve.itMode;
   }
-  return "low";
+  return curve.curveFamily;
 };
 
 const normalizeRawTableHealth = (

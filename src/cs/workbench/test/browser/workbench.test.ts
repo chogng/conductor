@@ -252,7 +252,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.deepEqual(input.files.map(file => file.chartState), ["ready", "none"]);
   });
 
-  test("keeps chart slice states from replacing TableModel badges", () => {
+  test("keeps chart slice states from replacing confirmed badges", () => {
     const snapshot = store.add(new SessionService()).getSnapshot();
     const input = createExplorerPaneInput({
       activePlotType: "iv",
@@ -312,10 +312,10 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       })),
       [
         {
-          badgeState: {
-            kind: "unknown",
-            source: "tableModel",
-          },
+	          badgeState: {
+	            kind: "unknown",
+	            source: "review",
+	          },
           chartMessage: "Unknown.csv has unknown curve type.",
           chartState: "skipped",
           fileId: "unknown-file",
@@ -323,10 +323,10 @@ suite("workbench/browser/workbench Explorer pane input", () => {
         {
           badgeState: {
             confidence: "confirmed",
-            kind: "ready",
-            label: "transfer",
-            source: "tableModel",
-          },
+	            kind: "ready",
+	            label: "transfer",
+	            source: "review",
+	          },
           chartMessage: "Failed.csv could not be sliced.",
           chartState: "failed",
           fileId: "failed-file",
@@ -334,10 +334,10 @@ suite("workbench/browser/workbench Explorer pane input", () => {
         {
           badgeState: {
             confidence: "confirmed",
-            kind: "ready",
-            label: "output",
-            source: "tableModel",
-          },
+	            kind: "ready",
+	            label: "output",
+	            source: "review",
+	          },
           chartMessage: null,
           chartState: "queued",
           fileId: "queued-file",
@@ -494,7 +494,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.equal(explorerService.selectedProcessedFileId, "raw-only");
   });
 
-  test("projects fast badge estimates before full TableModel records are ready", () => {
+  test("keeps raw explorer badges pending before Review or Slice records are ready", () => {
     const session = store.add(new SessionService());
     commitRawFilesForTest(session, [
       {
@@ -573,71 +573,29 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       [
         {
           badgeState: {
-            confidence: "tentative",
-            kind: "ready",
-            label: "output",
-            message: "Fast badge from file name or path.",
-            source: "fast",
+            kind: "pending",
           },
           curveTypeBadgeLabel: null,
           fileId: "output-file",
         },
         {
           badgeState: {
-            confidence: "tentative",
-            kind: "ready",
-            label: "transfer",
-            message: "Fast badge from visible table headers.",
-            source: "fast",
+            kind: "pending",
           },
           curveTypeBadgeLabel: null,
           fileId: "header-file",
         },
         {
           badgeState: {
-            confidence: "confirmed",
-            kind: "ready",
-            label: "transfer",
-            source: "tableModel",
+            kind: "pending",
           },
-          curveTypeBadgeLabel: "transfer",
+          curveTypeBadgeLabel: null,
           fileId: "ready-file",
         },
       ],
     );
   });
 
-  test("projects unhealthy filename-only hints as unknown fast badges", () => {
-    const session = store.add(new SessionService());
-    commitRawFilesForTest(session, [
-      {
-        rawTableHealth: "decodeFailed",
-        rawTableHealthMessage: "Content is unreadable: suspected binary file or encoding mismatch.",
-        columnCount: 0,
-        fileId: "decode-failed",
-        fileName: "Output_Vd.csv",
-        rowCount: 0,
-        templateEligibility: "notEligible",
-      },
-    ]);
-    const snapshot = session.getSnapshot();
-    const input = createExplorerPaneInput({
-      activePlotType: "iv",
-      explorerService: store.add(new ExplorerService()),
-      mode: "table",
-      plotService: createPlotService(),
-      readModel: createSessionReadModel(snapshot),
-      snapshot,
-      sliceState: createSliceStateForTest(),
-    });
-
-    const badgeState = input.files[0]?.badgeState;
-    if (badgeState?.kind !== "unknown") {
-      assert.fail(`Expected unknown fast badge, got ${badgeState?.kind ?? "none"}.`);
-    }
-    assert.equal(badgeState.source, "fast");
-    assert.equal(badgeState.suspectedType, "output (vd)");
-  });
 });
 
 suite("workbench/browser/workbench initial mode", () => {

@@ -12,7 +12,6 @@ import type {
   PreparedFileImportInfo,
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import type { ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
-import type { ImportTableModelSeed } from "src/cs/workbench/services/tableModel/common/tableModel";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import { TableFileService } from "src/cs/workbench/services/tableFile/browser/tableFileService";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
@@ -169,7 +168,7 @@ suite("workbench/contrib/files/test/browser/explorerTableFileImport", () => {
     );
   });
 
-  test("commits imported raw table without materializing prepared table model", () => {
+  test("commits imported raw table without materializing TableModel", () => {
     const session = store.add(new SessionService());
     const tableFileService = new TableFileService(session);
     const explorerService = store.add(new ExplorerService());
@@ -181,18 +180,7 @@ suite("workbench/contrib/files/test/browser/explorerTableFileImport", () => {
     commitExplorerTableFileImport({
       explorerService,
       importedFiles: [
-        createPreparedFileImportInfo("file-a", "Transfer.csv", {
-          preparedTableModelSeed: {
-            curveFamily: "iv",
-            curveType: "Transfer",
-            curveTypeConfidence: "high",
-            curveTypeNeedsReview: false,
-            curveTypeReasons: ["Detected transfer data."],
-            ivMode: "transfer",
-            xAxisRole: "vg",
-            xAxisRoleSource: "metadata",
-          },
-        }),
+        createPreparedFileImportInfo("file-a", "Transfer.csv"),
       ],
       mode: "append",
       tableFileService,
@@ -210,7 +198,6 @@ const createPreparedFileImportInfo = (
   fileId: string,
   fileName: string,
   options: {
-    readonly preparedTableModelSeed?: ImportTableModelSeed;
     readonly relativePath?: string | null;
     readonly sourceKey?: string;
   } = {},
@@ -223,7 +210,6 @@ const createPreparedFileImportInfo = (
   lastModified: 1,
   rowCount: 2,
   size: 2,
-  preparedTableModelSeed: options.preparedTableModelSeed,
   relativePath: options.relativePath ?? null,
   sourceKey: options.sourceKey,
 });

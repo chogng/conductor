@@ -7,7 +7,7 @@ applyTo: 'src/cs/workbench/services/tableFile/**'
 `ITableFileService` owns the imported data-file/raw-table surface. It is
 Conductor's counterpart to upstream `TextFileService` / working-copy model
 ownership: Explorer is UI, Table is the preview/editor surface, and TableFile is
-the canonical data-file model API.
+the canonical data-file model API. 负责把文件变成表格源数据
 
 ```txt
 Explorer source workflow

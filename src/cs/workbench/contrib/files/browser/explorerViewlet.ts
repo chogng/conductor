@@ -51,7 +51,6 @@ import {
   resolveExplorerSelectionAfterRemoval,
   resolveExplorerSelectedFileId,
   summarizeExplorerBadgeProjection,
-  toExplorerBadgeLabel,
   type ExplorerBadgeProjectionSummary,
   type ExplorerFileEntry,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
@@ -68,12 +67,6 @@ import {
 } from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
 import { createTemplateEditorRecordFromUserTemplate } from "src/cs/workbench/contrib/template/browser/templateUserTemplateAdapter";
 import { ITableFileService } from "src/cs/workbench/services/tableFile/common/tableFile";
-import {
-  createFastImportBadgeTableModel,
-} from "src/cs/workbench/services/tableModel/common/importTableModelSeedHeuristics";
-import {
-  type ImportTableModelSeed,
-} from "src/cs/workbench/services/tableModel/common/tableModel";
 import {
   IThumbnailPreviewService,
   IThumbnailService,
@@ -478,7 +471,7 @@ export class ExplorerViewPane extends ViewPane {
     const pendingEntries = this.pendingSourceEntries.map(entry =>
       normalizeSourceKey(entry.sourceKey) === sourceKey
         ? createPendingSourceEntry({
-            badgeState: createPendingTableModelBadgeState(change.preparedTableModelSeed) ?? entry.badgeState,
+            badgeState: entry.badgeState,
             message: change.message ?? null,
             pendingFile,
             status: change.status,
@@ -487,7 +480,6 @@ export class ExplorerViewPane extends ViewPane {
     );
     if (!pendingEntries.some(entry => normalizeSourceKey(entry.sourceKey) === sourceKey)) {
       pendingEntries.push(createPendingSourceEntry({
-        badgeState: createPendingTableModelBadgeState(change.preparedTableModelSeed),
         message: change.message ?? null,
         pendingFile,
         status: change.status,
@@ -1001,11 +993,10 @@ const markExplorerBadgeProjection = (
     return;
   }
 
-  markTemplateApplyPerformanceTrace("import.badge.projection", {
-    tableModelBadgeCount: summary.tableModelBadgeCount,
-    failedSourceCount: summary.failedSourceCount,
-    fastBadgeCount: summary.fastBadgeCount,
-    loadingSourceCount: summary.loadingSourceCount,
+	  markTemplateApplyPerformanceTrace("import.badge.projection", {
+	    confirmedBadgeCount: summary.confirmedBadgeCount,
+	    failedSourceCount: summary.failedSourceCount,
+	    loadingSourceCount: summary.loadingSourceCount,
     pendingBadgeCount: summary.pendingBadgeCount,
     totalFileCount: summary.totalFileCount,
   });
@@ -1024,7 +1015,7 @@ function createPendingSourceEntry({
 }): ExplorerFileEntry {
   const relativePath = normalizeRelativePath(pendingFile.relativePath);
   return {
-    badgeState: badgeState ?? createPendingFastBadgeState(pendingFile),
+    badgeState: badgeState ?? { kind: "pending" },
     fileName: pendingFile.sourceName,
     itemKey: pendingFile.sourceKey,
     relativePath,
@@ -1033,56 +1024,6 @@ function createPendingSourceEntry({
     sourceStatus: status,
     sourceStatusMessage: message,
   };
-}
-
-function createPendingTableModelBadgeState(
-  tableModelSeed: ImportTableModelSeed | undefined,
-): ExplorerFileEntry["badgeState"] | undefined {
-  if (!tableModelSeed) {
-    return undefined;
-  }
-
-  const curveType = String(tableModelSeed.curveType ?? "").trim();
-  if (!curveType || curveType.toLowerCase() === "unknown") {
-    return {
-      kind: "unknown",
-      source: "tableModel",
-    };
-  }
-
-  const label = toExplorerBadgeLabel(curveType);
-  return label
-    ? {
-        confidence: "confirmed",
-        kind: "ready",
-        label,
-        message: tableModelSeed.curveTypeReasons.join("; ") || null,
-        source: "tableModel",
-      }
-    : {
-        kind: "unknown",
-        source: "tableModel",
-        suspectedType: curveType,
-      };
-}
-
-function createPendingFastBadgeState(
-  pendingFile: PendingImportFile,
-): ExplorerFileEntry["badgeState"] {
-  const fastBadge = createFastImportBadgeTableModel({
-    fileName: pendingFile.sourceName,
-    relativePath: pendingFile.relativePath,
-  });
-  const label = fastBadge ? toExplorerBadgeLabel(fastBadge.curveType) : null;
-  return fastBadge && label
-    ? {
-        confidence: "tentative",
-        kind: "ready",
-        label,
-        message: fastBadge.reason,
-        source: "fast",
-      }
-    : { kind: "pending" };
 }
 
 function getPendingSourcePath(pendingFile: PendingImportFile): string | null {
