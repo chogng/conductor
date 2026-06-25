@@ -9,7 +9,7 @@ import {
 	type ISessionService as ISessionServiceType,
 } from "src/cs/workbench/services/session/common/session";
 import type { FileId } from "src/cs/workbench/services/session/common/sessionModel";
-import { tableFileFormatService } from "src/cs/workbench/services/table/common/tableFileFormat";
+import { tableFileFormatService } from "src/cs/workbench/services/tablefile/common/tableFileFormat";
 import {
 	type CommitTableFileImportResult,
 	ITableFileService,

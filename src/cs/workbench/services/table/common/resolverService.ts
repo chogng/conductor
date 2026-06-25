@@ -13,7 +13,7 @@ import type {
 	TableModelPreviewInput,
 	TableModelSheetSnapshot,
 } from "src/cs/workbench/services/table/common/model";
-import type { TableFileFormat } from "src/cs/workbench/services/table/common/tableFileFormat";
+import type { TableFileFormat } from "src/cs/workbench/services/tablefile/common/tableFileFormat";
 
 export const ITableModelService = createDecorator<ITableModelService>("tableModelService");
 

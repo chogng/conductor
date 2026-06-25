@@ -14,7 +14,7 @@ import type {
 	TableModelPreviewInput,
 } from "src/cs/workbench/services/table/common/model";
 import type { TableSource } from "src/cs/workbench/services/table/common/table";
-import { tableFileFormatService } from "src/cs/workbench/services/table/common/tableFileFormat";
+import { tableFileFormatService } from "src/cs/workbench/services/tablefile/common/tableFileFormat";
 import {
 	getTableFileReadEncoding,
 } from "src/cs/workbench/services/tablefile/common/encoding";

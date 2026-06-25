@@ -7,7 +7,7 @@ import type {
 	IFileContent,
 	IReadFileEncoding,
 } from "src/cs/platform/files/common/files";
-import { tableFileFormatService } from "src/cs/workbench/services/table/common/tableFileFormat";
+import { tableFileFormatService } from "src/cs/workbench/services/tablefile/common/tableFileFormat";
 
 export type TableFileDecodedContent = {
 	readonly bytes: ArrayBuffer;

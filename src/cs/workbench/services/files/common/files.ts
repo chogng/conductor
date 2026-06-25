@@ -9,7 +9,7 @@ import type { URI } from "src/cs/base/common/uri";
 import {
   TABLE_IMPORT_FILE_EXTENSIONS,
   tableFileFormatService,
-} from "src/cs/workbench/services/table/common/tableFileFormat";
+} from "src/cs/workbench/services/tablefile/common/tableFileFormat";
 
 export const IMPORT_FILE_EXTENSIONS = TABLE_IMPORT_FILE_EXTENSIONS;
 

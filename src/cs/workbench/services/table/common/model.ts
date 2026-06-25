@@ -12,7 +12,7 @@ import {
 import {
 	tableFileFormatService,
 	type TableFileFormat,
-} from "src/cs/workbench/services/table/common/tableFileFormat";
+} from "src/cs/workbench/services/tablefile/common/tableFileFormat";
 
 export interface ITableModelPosition {
 	readonly columnIndex: number;

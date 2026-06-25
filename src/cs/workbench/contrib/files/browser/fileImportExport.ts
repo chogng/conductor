@@ -53,7 +53,7 @@ import {
 import {
   tableFileFormatService,
   type TableFileFormatService,
-} from "src/cs/workbench/services/table/common/tableFileFormat";
+} from "src/cs/workbench/services/tablefile/common/tableFileFormat";
 import {
   convertImportFile,
   convertPreparedImportFileResult,

@@ -25,7 +25,7 @@ platform/files/IFileService
 workbench/services/files/fileConverter.ts
   CSV/TSV/XLS/XLSX/clipboard/manual -> FileConversionResult / RawTableRecord
 
-workbench/services/table/common/tableFileFormat.ts
+workbench/services/tablefile/common/tableFileFormat.ts
   table import format policy for CSV/TSV/XLS/XLSX resources
 
 workbench/services/tablefile/TableFileEditorModel
@@ -51,7 +51,7 @@ the closest-looking name.
 | --- | --- | --- |
 | file transfer / upload / download | moving bytes/resources | `contrib/files/browser/fileImportExport.ts` and platform file APIs |
 | source collection | dialog/drop/folder/clipboard/manual -> supported table file sources | Explorer workflow/helpers plus table format policy |
-| table editor support check | URI/file-name support checks before opening a table editor/preview or before read/parse where possible; `.csv`/`.tsv`/`.xls`/`.xlsx` are table formats, not URI schemes, read encodings, or languageIds | `services/table/common/tableFileFormat.ts`, command/editor/model resolver |
+| table editor support check | URI/file-name support checks before opening a table editor/preview or before read/parse where possible; `.csv`/`.tsv`/`.xls`/`.xlsx` are table formats, not URI schemes, read encodings, or languageIds | `services/tablefile/common/tableFileFormat.ts`, command/editor/model resolver |
 | table editor/model lifecycle | service-local URI/input model for open, preview, cache, reload, watch, save, and source-version state | `services/tablefile` working-copy owner plus table model resolver; no resource record and not Session |
 | file conversion | parse sources into raw file/table records | `services/files/browser/fileConverter.ts` |
 | conversion result | converter output ready for TableFile | `FileConversionResult` |
@@ -124,7 +124,7 @@ projections arrive.
 | `services/files/common/rawTable.ts` | Raw table records and range refs. |
 | `services/files/browser/fileConverter.ts` | Source conversion into TableFile-ready raw models. |
 | `services/files/electron-browser/fileConversionService.ts` | Desktop conversion service branch behind files service contract. |
-| `services/table/common/tableFileFormat.ts` | Table import format policy and resource/name support checks consumed by source collection. |
+| `services/tablefile/common/tableFileFormat.ts` | Table import format policy and resource/name support checks consumed by source collection and tablefile resolve. |
 | `services/table/common/parsers.ts` | Table-owned CSV/TSV/XLSX physical table structure parser for URI-backed `ITableModel` content/sheet snapshots. |
 | `services/tablefile/common/tablefile.ts` | Explicit imported data-file/raw-table bridge contract. |
 | `services/tablefile/browser/tableFileService.ts` | URI-backed file resolve service for table resources; owns read encoding choice before delegating to the editor model manager. |
@@ -143,7 +143,7 @@ subscribe to table/template/table-model state.
 
 Files and Explorer may filter sources with `TableFileFormatService.canHandle`.
 That check is table format policy: CSV/TSV/XLS/XLSX support belongs to
-`services/table/common/tableFileFormat.ts`. Do not model those extensions as
+`services/tablefile/common/tableFileFormat.ts`. Do not model those extensions as
 URI schemes, text editor language ids, or separate encoding identities.
 
 `services/tablefile/common/encoding.ts` only chooses the read mode after a table

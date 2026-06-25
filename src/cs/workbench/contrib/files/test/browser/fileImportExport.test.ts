@@ -32,7 +32,7 @@ import {
   type FileSource,
   type PendingImportFile,
 } from "../../browser/fileImportExport.ts";
-import { TableFileFormatService } from "src/cs/workbench/services/table/common/tableFileFormat";
+import { TableFileFormatService } from "src/cs/workbench/services/tablefile/common/tableFileFormat";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/files/test/browser/fileImportExport", () => {

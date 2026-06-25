@@ -63,8 +63,9 @@ The explicit converted import bridge does not own:
 `services/tablefile/common/encoding.ts` is a helper for read mode and byte
 conversion after the table format has already been identified. It must not
 become the owner for supported extensions or parser dispatch. CSV/TSV/XLS/XLSX
-belong to `TableFileFormatService`; URI scheme describes resource origin, and
-text `languageId` is not part of table file support.
+belong to `TableFileFormatService` in
+`services/tablefile/common/tableFileFormat.ts`; URI scheme describes resource
+origin, and text `languageId` is not part of table file support.
 
 ## Migration Boundary
 
@@ -91,6 +92,7 @@ through `ISessionService` while Session remains the canonical migration ledger.
 | File | Responsibility |
 | --- | --- |
 | `common/tablefile.ts` | service contract and snapshot/change aliases for explicitly imported table files. |
+| `common/tableFileFormat.ts` | table file format policy and resource/name support checks for CSV/TSV/XLS/XLSX. |
 | `browser/tableFileService.ts` | URI-backed file resolve service for table resources; owns read encoding choice before delegating to the editor model manager. |
 | `browser/browserTableFileService.ts` | browser `ITableFileService` implementation and singleton registration for the explicit converted import bridge. |
 | `common/encoding.ts` | table file read mode, base64/utf8 byte decoding, and mime helpers; not a table format/support owner. |

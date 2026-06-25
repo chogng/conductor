@@ -23,7 +23,7 @@ import {
   type TableViewInput,
 } from "src/cs/workbench/services/table/common/table";
 import type { NumericDisplayMode } from "src/cs/workbench/services/table/common/tableDisplayProfile";
-import { tableFileFormatService } from "src/cs/workbench/services/table/common/tableFileFormat";
+import { tableFileFormatService } from "src/cs/workbench/services/tablefile/common/tableFileFormat";
 import {
   toStoredTableColumnLayout,
   toTableColumnWidths,
