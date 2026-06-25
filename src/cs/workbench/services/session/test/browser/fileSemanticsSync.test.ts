@@ -43,7 +43,7 @@ const createSnapshot = (file: FileRecord): SessionSnapshot => ({
 });
 
 const createFileRecord = (): FileRecord => ({
-	tableFactsByRawTableId: {},
+	tableModelByRawTableId: {},
 	curvesByKey: {},
 	id: "file-a",
 	kind: "unknown",

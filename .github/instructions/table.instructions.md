@@ -4,7 +4,7 @@ applyTo: 'src/cs/workbench/services/table/**,src/cs/workbench/contrib/table/**'
 ---
 # Table
 
-Table shows raw tables and table-fact block ranges. It does not identify
+Table shows raw tables and table-model block ranges. It does not identify
 measurement structure.
 
 ## Ownership
@@ -20,9 +20,9 @@ measurement structure.
 - paged raw rows cache, loading state, row request lifecycle, worker lifecycle;
 - block table preview model and invalidation when source changes.
 
-It consumes TableFile/Session snapshots, raw table row readers, table-fact ranges,
+It consumes TableFile/Session snapshots, raw table row readers, table-model ranges,
 settings for visual display preferences, and pure `TableSource` open intents.
-It does not own import, table-fact production, template execution, plot/chart
+It does not own import, table-model production, template execution, plot/chart
 models, or canonical Session records.
 
 ## Core Files
@@ -33,7 +33,7 @@ models, or canonical Session records.
 | `common/tableColumnLayout.ts` | width policy and storage serialization. |
 | `common/tableDisplayProfile.ts` / `numericFormat.ts` | display profile and numeric formatting helpers. |
 | `browser/tableService.ts` | table service owner, view input, copy text, column width persistence. |
-| `browser/tableModel.ts` | per-table data model: source switching, row cache, selection/highlight/reveal, worker/reader lifecycle. |
+| `browser/tableViewModel.ts` | per-table preview view model: source switching, row cache, selection/highlight/reveal, worker/reader lifecycle. |
 | `browser/tableRowsReaderService.ts` | browser row reader fallback. |
 | `electron-browser/tableRowsReader.ts` | desktop row/cell reads through Rust IPC/preload. |
 | `base/browser/ui/table/tableWidget.ts` / `table.css` | Conductor-specific two-dimensional table widget facade and structural CSS over the virtual table base. |
@@ -43,7 +43,7 @@ models, or canonical Session records.
 | `contrib/table/browser/tableWidgetService.ts` | active widget controller registry for commands. |
 | `contrib/table/browser/tableCommands.ts` / `tableActions.ts` | commands and action registration. |
 
-`tableModel.ts` is the owner for table data-plane helpers. Do not split row
+`tableViewModel.ts` is the owner for table preview data-plane helpers. Do not split row
 cache, cell-read, or selection-state helpers into production files unless they
 become an independent service boundary.
 
@@ -52,7 +52,7 @@ become an independent service boundary.
 ```txt
 TableFile/Session/settings/command/search bridge
   -> ITableService.open(source) / reveal / select
-  -> tableModel loads rows through reader
+  -> tableViewModel loads rows through reader
   -> TableController consumes view input
   -> TableWidget adapts table state to base table widget renderers
   -> base table widget owns structural CSS, zoom state, column resize mechanics, and facade defaults
@@ -65,8 +65,8 @@ TableWidget header scale badge / shared stepper
   -> TableController forwards the policy to TableWidget
   -> TableWidget keeps column selection and scale adjustment mutually exclusive
   -> ITableService.adjustColumnDisplayScale / resetColumnDisplayScale
-  -> TableService delegates to its active tableModel
-  -> tableModel emits display rows-version dirty ranges
+  -> TableService delegates to its active tableViewModel
+  -> tableViewModel emits display rows-version dirty ranges
   -> TableWidget rerenders affected visible cells and header scale controls
 ```
 
@@ -124,7 +124,7 @@ selection DOM state to be rewritten.
 Keep domain behavior out of the base table:
 
 - raw row cache, worker requests, source identity, and selected text belong to
-  `ITableService` / `tableModel`;
+  `ITableService` / `tableViewModel`;
 - numeric formatting, display profiles, persisted column widths, and table
   source lifecycle stay in the table feature owner;
 - zoom controls, commands, and persistence policy may be feature-specific, but
@@ -152,7 +152,7 @@ type TableSelectionTarget =
 
 Use owner APIs such as `tableWidget.select(...)`,
 `tableService.open(source)`, `tableService.select(...)`,
-`tableService.reveal(...)`, and `tableModel.setSelection(...)`. Do not add
+`tableService.reveal(...)`, and `tableViewModel.setSelection(...)`. Do not add
 behavior methods to `TableCell` or `TableRange`.
 
 ## Commands

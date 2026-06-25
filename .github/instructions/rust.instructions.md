@@ -1,6 +1,6 @@
 ---
 description: Rust execution branch guidelines for Conductor desktop - runtime route, domain boundaries, payload shape, parity, fallback, and lifecycle.
-applyTo: 'src/cs/workbench/services/{files,tableFacts,table,template,plot,parameters,export,origin,search}/**,src/cs/platform/rust/**,src/cs/code/electron-main/{rustHostChannels.ts,rustHostService.ts,app.ts},src/cs/base/parts/sandbox/electron-browser/preload.ts,cli/**,extensions/**'
+applyTo: 'src/cs/workbench/services/{files,tableModel,table,template,plot,parameters,export,origin,search}/**,src/cs/platform/rust/**,src/cs/code/electron-main/{rustHostChannels.ts,rustHostService.ts,app.ts},src/cs/base/parts/sandbox/electron-browser/preload.ts,cli/**,extensions/**'
 ---
 # Rust Execution Branch
 
@@ -24,7 +24,7 @@ orchestration, Session commits, stale-result checks, fallback policy, view
 state, DOM, and user-facing notifications.
 
 Rust may own heavy execution and runtime caches for file conversion, workbook
-sheet extraction, table reads, table-fact production, explicit slice/template
+sheet extraction, table reads, table-model production, explicit slice/template
 execution, metric/Rc calculation, plot-frame
 construction, downsampling, search, and export artifact generation.
 
@@ -84,13 +84,13 @@ TypeScript remains the semantic baseline. Rust may accelerate or mirror domain
 execution, but it must not silently fork product rules.
 
 When changing a rule mirrored under `cli/` or `extensions/`, update both sides
-in the same change. This is mandatory for table-fact family/role/confidence,
+in the same change. This is mandatory for table-model family/role/confidence,
 calculation, export, plot, search, and table rules with Rust branches.
 
-Run the matching verifier. For table-fact-derived planning:
+Run the matching verifier. For table-model-derived planning:
 
 ```txt
-npm run verify:rust-table-facts-parity
+npm run verify:rust-table-models-parity
 ```
 
 If no verifier exists for a mirrored rule, add or extend one before relying on
@@ -103,7 +103,7 @@ Return data only at stable domain boundaries:
 | Stage | TS owner | Rust may do | Return to TS |
 | --- | --- | --- | --- |
 | File conversion | files electron-browser conversion service | parse CSV/XLS/XLSX, split sheets, create normalized CSV artifacts | `FileConversionResult`-compatible descriptors, raw table metadata, diagnostics |
-| Table facts | table-fact producer | block/group/role inference | `RawTableFactsRecord` |
+| Table model | table-model producer | block/group/role inference | `TableModelRecord` |
 | Table preview | table rows reader | chunk/cell/raw metadata reads | bounded rows or selected cells |
 | Slice execution | slice service | extraction/process | `SliceRun`, series/curve descriptors, diagnostics |
 | Plot | plot service | calculation, scaling, log transform, downsampling, plot frame | `PlotRenderModel` / bounded plot frame |
@@ -125,7 +125,7 @@ Rust JSON
 
 Every long-lived Rust request must include enough identity to reject stale
 results: request id, session version, file id, raw table id/version,
-table-fact version, template config fingerprint, curve signature, or other
+table-model version, template config fingerprint, curve signature, or other
 stage-specific signature.
 
 Before committing, check that the source still exists and versions/signatures
@@ -160,10 +160,10 @@ produced it: `EngineDatasetRef`, `EngineCurveRef`, `ExportArtifactRecord`, not
 Desktop import badge readiness is latency-sensitive. CSV badge prepare should
 use the import summary path: decode/health check, stream records, bounded
 preview rows, `rowCount`, `columnCount`, `maxCellLengths`, `health`, and
-table-fact seed/summary data. Full row storage belongs to open/table preview
+table-model seed/summary data. Full row storage belongs to open/table preview
 paths.
 
-Folder import may use a table-fact prepare batch path, descriptor caching by
+Folder import may use a table-model prepare batch path, descriptor caching by
 normalized path/size/mtime, and bounded Rust worker parallelism. Electron main
 must still emit per-file prepare
 results through the files service contract. Prefer small result chunks and badge

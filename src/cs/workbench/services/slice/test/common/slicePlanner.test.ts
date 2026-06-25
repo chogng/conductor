@@ -20,7 +20,7 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 			mode: "auto",
 			selection: { kind: "auto" },
 			sourceRawTableVersion: 3,
-			sourceTableFactsSignature: "tableFacts-a",
+			sourceTableModelSignature: "tableModel-a",
 			template: createTemplate(),
 			rowCount: 5,
 			columnCount: 3,

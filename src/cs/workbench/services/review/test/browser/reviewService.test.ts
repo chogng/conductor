@@ -9,8 +9,8 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { StorageScope } from "src/cs/platform/storage/common/storage";
 import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
-import { TABLE_FACTS_RULE_VERSION, type RawTableFactsRecord } from "src/cs/workbench/services/tableFacts/common/tableFacts";
-import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
+import { TABLE_MODEL_RULE_VERSION, type TableModelRecord } from "src/cs/workbench/services/tableModel/common/tableModel";
+import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
 import type { FileImportResult, ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
 import type { IRecipeService, Recipe, RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
@@ -47,7 +47,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const service = createReviewServiceForTest(sessionService, recipeService, userTemplateService);
 
 		const result = service.deriveAndReview({
-			tableFacts: createTableFacts(),
+			tableModel: createTableModel(),
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			recipeSnapshot: recipeService.getSnapshot(),
@@ -69,7 +69,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const service = createReviewServiceForTest(sessionService, recipeService, userTemplateService);
 
 		const result = service.deriveAndReview({
-			tableFacts: createTableFacts(),
+			tableModel: createTableModel(),
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			recipeSnapshot: recipeService.getSnapshot(),
@@ -101,7 +101,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const service = createReviewServiceForTest(sessionService, recipeService, userTemplateService);
 
 		const result = service.deriveAndReview({
-			tableFacts: createTableFacts(),
+			tableModel: createTableModel(),
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			recipeSnapshot: recipeService.getSnapshot(),
@@ -127,7 +127,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const service = createReviewServiceForTest(sessionService, recipeService, userTemplateService);
 
 		const result = service.deriveAndReview({
-			tableFacts: createTableFacts(),
+			tableModel: createTableModel(),
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			recipeSnapshot: recipeService.getSnapshot(),
@@ -140,7 +140,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(result.decision.kind === "ready" && result.decision.application.reason, "review.ready.lowConfidence");
 	});
 
-	test("commits reviews after table facts and refreshes on recipe changes", () => {
+	test("commits reviews after TableModel and refreshes on recipe changes", () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
@@ -153,7 +153,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		));
 
 		sessionService.commitFileImport(createImportResult());
-		sessionService.commitRawTableFacts(createTableFacts());
+		sessionService.commitTableModel(createTableModel());
 
 		let record = sessionService.getSnapshot().filesById["file-a"]
 			.rawTableReviewsByRawTableId?.["table-a"];
@@ -174,7 +174,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 		const service = createReviewServiceForTest(sessionService, recipeService, userTemplateService);
 		sessionService.commitFileImport(createImportResult());
-		sessionService.commitRawTableFacts(createTableFacts());
+		sessionService.commitTableModel(createTableModel());
 
 		const result = service.reviewManualTemplate({
 			ref: { fileId: "file-a", rawTableId: "table-a" },
@@ -200,7 +200,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		});
 		const service = createReviewServiceForTest(sessionService, recipeService, userTemplateService);
 		sessionService.commitFileImport(createImportResult());
-		sessionService.commitRawTableFacts(createTableFacts());
+		sessionService.commitTableModel(createTableModel());
 
 		const result = service.reviewManualTemplate({
 			ref: { fileId: "file-a", rawTableId: "table-a" },
@@ -226,7 +226,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 		const service = createReviewServiceForTest(sessionService, recipeService, userTemplateService);
 		sessionService.commitFileImport(createImportResult());
-		sessionService.commitRawTableFacts(createTableFacts());
+		sessionService.commitTableModel(createTableModel());
 
 		const result = service.reviewManualTemplate({
 			ref: { fileId: "file-a", rawTableId: "table-a" },
@@ -254,7 +254,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		});
 		const service = createReviewServiceForTest(sessionService, recipeService, userTemplateService);
 		sessionService.commitFileImport(createImportResult());
-		sessionService.commitRawTableFacts(createTableFacts());
+		sessionService.commitTableModel(createTableModel());
 
 		const result = service.reviewManualTemplate({
 			ref: { fileId: "file-a", rawTableId: "table-a" },
@@ -281,7 +281,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 		const service = createReviewServiceForTest(sessionService, recipeService, userTemplateService);
 		sessionService.commitFileImport(createImportResult());
-		sessionService.commitRawTableFacts(createTableFacts());
+		sessionService.commitTableModel(createTableModel());
 
 		const result = service.reviewManualTemplate({
 			ref: { fileId: "file-a", rawTableId: "table-a" },
@@ -382,8 +382,8 @@ class TestStorageService extends AbstractStorageService {
 	}
 }
 
-const createTableFacts = (): RawTableFactsRecord => ({
-	tableFactsRuleVersion: TABLE_FACTS_RULE_VERSION,
+const createTableModel = (): TableModelRecord => ({
+	tableModelRuleVersion: TABLE_MODEL_RULE_VERSION,
 	schemaProfileVersion: 0,
 	fileId: "file-a",
 	rawTableId: "table-a",

@@ -105,7 +105,7 @@ type TableCellReadRequest = {
 };
 
 /**
- * Half-open dirty range from the table model. Missing row/column bounds mean
+ * Half-open dirty range from the table view model. Missing row/column bounds mean
  * the change applies to the currently visible span on that axis.
  */
 export type TableDirtyRange = {
@@ -134,7 +134,7 @@ export type TableState = {
 	readonly displayVersion?: number;
 };
 
-export type TableModel = {
+export type TableViewModel = {
 	cancelPendingRowRequests: () => void;
 	clearState: (options?: { clearSelection?: boolean }) => void;
 	disposeFileCache: (fileId: string) => void;
@@ -172,8 +172,8 @@ export type TableModel = {
 	subscribeRowsVersion: (callback: (event: TableRowsVersionChangeEvent) => void) => () => void;
 };
 
-export type TableViewModel = Pick<
-	TableModel,
+export type TableWidgetViewModel = Pick<
+	TableViewModel,
 	| "ensureRows"
 	| "getColumnDisplayProfile"
 	| "getHighlight"
@@ -190,7 +190,7 @@ export type TableViewModel = Pick<
 >;
 
 export type TableViewInput = {
-	readonly tableModel: TableViewModel;
+	readonly tableViewModel: TableWidgetViewModel;
 	readonly tableState: TableState;
 };
 

@@ -21,7 +21,7 @@ import type { SessionChangeEvent } from "src/cs/workbench/services/session/commo
 import type { FileImportResult } from "src/cs/workbench/services/files/common/files";
 import type { SliceCommit } from "src/cs/workbench/services/slice/common/slice";
 import type { ReviewCommit } from "src/cs/workbench/services/review/common/review";
-import type { RawTableFactsRecord } from "src/cs/workbench/services/tableFacts/common/tableFacts";
+import type { TableModelRecord } from "src/cs/workbench/services/tableModel/common/tableModel";
 
 export const ISessionService = createDecorator<ISessionService>("sessionService");
 
@@ -64,18 +64,6 @@ export type CommitFileImportResult = {
   readonly skippedDuplicateFileIds: readonly FileId[];
 };
 
-export type CommitFileImportRawTableFactsInput =
-  Omit<RawTableFactsRecord, "tableFactsRuleVersion" | "fileId" | "rawTableId" | "schemaProfileVersion" | "sourceRawTableVersion"> & {
-    readonly fileId: FileId;
-    readonly rawTableId?: string | null;
-    readonly tableFactsRuleVersion?: number;
-    readonly schemaProfileVersion?: number;
-  };
-
-export type CommitFileImportOptions = {
-  readonly rawTableFacts?: readonly CommitFileImportRawTableFactsInput[];
-};
-
 export interface ISessionService {
   readonly _serviceBrand: undefined;
   readonly onDidChangeSession: Event<SessionChangeEvent>;
@@ -84,9 +72,9 @@ export interface ISessionService {
   readonly clearMetricInput: (fileId: string, metricKey: MetricKey) => void;
 
   clearSession(): void;
-  commitFileImport(result: FileImportResult, options?: CommitFileImportOptions): CommitFileImportResult;
-  commitRawTableFacts(tableFacts: RawTableFactsRecord): void;
-  commitRawTableFactsBatch(tableFacts: readonly RawTableFactsRecord[]): void;
+  commitFileImport(result: FileImportResult): CommitFileImportResult;
+  commitTableModel(tableModel: TableModelRecord): void;
+  commitTableModelBatch(tableModel: readonly TableModelRecord[]): void;
   commitRawTableReviews(reviews: readonly ReviewCommit[]): void;
   commitSliceRuns(inputs: readonly SliceCommit[]): void;
   commitCalculatedRecordsBatch(inputs: CommitCalculatedRecordsBatchInput): void;

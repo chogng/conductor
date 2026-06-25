@@ -5,7 +5,7 @@
 import type {
   MeasurementBlockRecord,
   MeasurementColumnRef,
-} from "src/cs/workbench/services/tableFacts/common/measurement";
+} from "src/cs/workbench/services/tableModel/common/measurement";
 import type {
   CanonicalUnitSelectorPredicate,
   ColumnRoleSelectorPredicate,
@@ -16,7 +16,7 @@ import type {
   RecipeSelectorPredicate,
 } from "src/cs/workbench/services/recipe/common/recipeSelector";
 import type { Recipe } from "src/cs/workbench/services/recipe/common/recipe";
-import type { RawTableFacts } from "src/cs/workbench/services/tableFacts/common/tableFacts";
+import type { TableModel } from "src/cs/workbench/services/tableModel/common/tableModel";
 
 export type RecipeSelectorCapture =
   | {
@@ -44,7 +44,7 @@ export type RecipeSelectorEvaluation = {
 };
 
 type EvaluationContext = {
-  readonly tableFacts: RawTableFacts;
+  readonly tableModel: TableModel;
   readonly block: MeasurementBlockRecord | null;
 };
 
@@ -72,11 +72,11 @@ type MatchResult =
 
 export const evaluateRecipeSelector = (
   recipe: Recipe,
-  tableFacts: RawTableFacts,
+  tableModel: TableModel,
 ): RecipeSelectorEvaluation => {
-  const contexts = tableFacts.blocks.length
-    ? tableFacts.blocks.map(block => ({ tableFacts, block }))
-    : [{ tableFacts, block: null }];
+  const contexts = tableModel.blocks.length
+    ? tableModel.blocks.map(block => ({ tableModel, block }))
+    : [{ tableModel, block: null }];
   const matches: RecipeSelectorBlockMatch[] = [];
   const diagnosticCodes = new Set<string>();
 
@@ -188,11 +188,11 @@ const evaluatePredicate = (
     case "canonicalUnit":
       return evaluateCanonicalUnitPredicate(predicate, context);
     case "layoutEvidence":
-      return evaluateLayoutEvidencePredicate(predicate, context.tableFacts);
+      return evaluateLayoutEvidencePredicate(predicate, context.tableModel);
     case "sourceHint":
-      return evaluateSourceHintPredicate(predicate, context.tableFacts);
+      return evaluateSourceHintPredicate(predicate, context.tableModel);
     case "schemaFingerprint":
-      return evaluateSchemaFingerprintPredicate(predicate, context.tableFacts);
+      return evaluateSchemaFingerprintPredicate(predicate, context.tableModel);
   }
 };
 
@@ -267,9 +267,9 @@ const evaluateCanonicalUnitPredicate = (
 
 const evaluateLayoutEvidencePredicate = (
   predicate: LayoutEvidenceSelectorPredicate,
-  tableFacts: RawTableFacts,
+  tableModel: TableModel,
 ): PredicateResult =>
-  tableFacts.layoutCandidates.some(candidate =>
+  tableModel.layoutCandidates.some(candidate =>
     predicate.layoutAny.includes(candidate.layoutKind) &&
     meetsMinConfidence(candidate.confidence, predicate.minConfidence)
   )
@@ -278,9 +278,9 @@ const evaluateLayoutEvidencePredicate = (
 
 const evaluateSourceHintPredicate = (
   predicate: SourceHintSelectorPredicate,
-  tableFacts: RawTableFacts,
+  tableModel: TableModel,
 ): PredicateResult => {
-  const fileName = normalizeText(tableFacts.sourceMetadata.fileName);
+  const fileName = normalizeText(tableModel.sourceMetadata.fileName);
   const extension = getFileExtension(fileName);
   const matchesFileName = !predicate.fileNameIncludesAny?.length ||
     predicate.fileNameIncludesAny.some(value => fileName.includes(normalizeText(value)));
@@ -294,9 +294,9 @@ const evaluateSourceHintPredicate = (
 
 const evaluateSchemaFingerprintPredicate = (
   predicate: SchemaFingerprintSelectorPredicate,
-  tableFacts: RawTableFacts,
+  tableModel: TableModel,
 ): PredicateResult =>
-  predicate.fingerprintAny.includes(tableFacts.structure.fingerprint)
+  predicate.fingerprintAny.includes(tableModel.structure.fingerprint)
     ? { matched: true, reason: "schemaFingerprint" }
     : { matched: false, diagnosticCode: "recipeSelector.schemaFingerprintMismatch" };
 
@@ -306,7 +306,7 @@ const getColumnsForScope = (
 ): readonly MeasurementColumnRef[] =>
   scope === "matchedBlock"
     ? context.block?.columns.columns ?? []
-    : context.tableFacts.blocks.flatMap(block => block.columns.columns);
+    : context.tableModel.blocks.flatMap(block => block.columns.columns);
 
 const isCountWithinBounds = (
   count: number,

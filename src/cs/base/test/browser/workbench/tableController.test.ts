@@ -7,7 +7,7 @@ import assert from "assert";
 import { Event } from "src/cs/base/common/event";
 import {
 	TableController,
-	type TableControllerModel,
+	type TableControllerViewModel,
 	type TableControllerProps,
 } from "src/cs/workbench/contrib/table/browser/tableController";
 import type {
@@ -20,7 +20,7 @@ import type {
 } from "src/cs/workbench/services/table/common/table";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
-type TableHighlight = ReturnType<TableControllerModel["getHighlight"]>;
+type TableHighlight = ReturnType<TableControllerViewModel["getHighlight"]>;
 
 suite("workbench/contrib/table/browser/tableController", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
@@ -59,12 +59,12 @@ suite("workbench/contrib/table/browser/tableController", () => {
 });
 
 function createTableControllerProps(): TableControllerProps {
-	const tableModel = createTableModel();
+	const tableViewModel = createTableViewModel();
 	const tableState = createTableState();
 
 	return {
 		onSelect: () => true,
-		tableModel,
+		tableViewModel,
 		tableService: createTableService(),
 		tableState,
 	};
@@ -91,7 +91,7 @@ function createTableState(): TableState {
 	};
 }
 
-function createTableModel(): TableControllerModel {
+function createTableViewModel(): TableControllerViewModel {
 	return {
 		ensureRows: async () => undefined,
 		getColumnDisplayProfile: colIndex => createRawColumnDisplayProfile(colIndex),

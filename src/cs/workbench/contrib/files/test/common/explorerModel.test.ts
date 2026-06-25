@@ -53,7 +53,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           confidence: "confirmed",
           kind: "ready",
           label: "transfer",
-          source: "tableFacts",
+          source: "tableModel",
         },
         fileId: "file-a",
         fileName: "A.csv",
@@ -61,7 +61,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
       {
         badgeState: {
           kind: "unknown",
-          source: "tableFacts",
+          source: "tableModel",
         },
         fileId: "file-b",
         fileName: "B.csv",
@@ -73,7 +73,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           confidence: "confirmed",
           kind: "ready",
           label: "transfer",
-          source: "tableFacts",
+          source: "tableModel",
         },
         chartMessage: "Ready",
         chartState: "ready",
@@ -84,7 +84,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
       {
         badgeState: {
           kind: "unknown",
-          source: "tableFacts",
+          source: "tableModel",
         },
         chartState: "none",
         fileId: "file-b",
@@ -96,7 +96,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     assert.equal(tableSummary.signature, chartSummary.signature);
     assert.deepEqual(
       {
-        tableFactsBadgeCount: tableSummary.tableFactsBadgeCount,
+        tableModelBadgeCount: tableSummary.tableModelBadgeCount,
         failedSourceCount: tableSummary.failedSourceCount,
         fastBadgeCount: tableSummary.fastBadgeCount,
         loadingSourceCount: tableSummary.loadingSourceCount,
@@ -104,7 +104,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
         totalFileCount: tableSummary.totalFileCount,
       },
       {
-        tableFactsBadgeCount: chartSummary.tableFactsBadgeCount,
+        tableModelBadgeCount: chartSummary.tableModelBadgeCount,
         failedSourceCount: chartSummary.failedSourceCount,
         fastBadgeCount: chartSummary.fastBadgeCount,
         loadingSourceCount: chartSummary.loadingSourceCount,
@@ -119,7 +119,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           confidence: "confirmed",
           kind: "ready",
           label: "transfer",
-          source: "tableFacts",
+          source: "tableModel",
         },
         fileId: "file-a",
         fileName: "A.csv",
@@ -135,7 +135,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
       },
     ]);
     assert.notEqual(tableSummary.signature, skippedSummary.signature);
-    assert.equal(skippedSummary.tableFactsBadgeCount, 1);
+    assert.equal(skippedSummary.tableModelBadgeCount, 1);
   });
 
   test("file presentation signature includes raw table status projection", () => {
@@ -206,7 +206,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
         confidence: "confirmed",
         kind: "ready",
         label: "output",
-        source: "tableFacts",
+        source: "tableModel",
       },
       curveType: "output",
       curveTypeBadgeLabel: "output",
@@ -278,7 +278,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     );
   });
 
-  test("createRawExplorerFiles projects consumed table-fact labels", () => {
+  test("createRawExplorerFiles projects consumed table-model labels", () => {
     assert.deepEqual(
       createRawExplorerFiles([
         {
@@ -309,7 +309,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
             confidence: "confirmed",
             kind: "ready",
             label: "output",
-            source: "tableFacts",
+            source: "tableModel",
           },
           curveType: "output (vd)",
           curveTypeBadgeLabel: "output",
@@ -362,7 +362,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           confidence: "confirmed",
           kind: "ready",
           label: "mixed",
-          source: "tableFacts",
+          source: "tableModel",
         },
         curveType: "iv",
         curveTypeBadgeLabel: "iv",
@@ -420,7 +420,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           confidence: "confirmed",
           kind: "ready",
           label: "transfer",
-          source: "tableFacts",
+          source: "tableModel",
         },
         curveType: "transfer",
         curveTypeBadgeLabel: "transfer",
@@ -432,11 +432,11 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     ]);
   });
 
-  test("createChartExplorerFilesFromRecords projects table-facts-only canonical files", () => {
+  test("createChartExplorerFilesFromRecords projects table-models-only canonical files", () => {
     const files = createChartExplorerFilesFromRecords(
       {
         "raw-1": createFileRecord("raw-1", {
-          hasTableFactsBlock: true,
+          hasTableModelBlock: true,
           hasChartData: false,
         }),
       },
@@ -455,7 +455,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           confidence: "confirmed",
           kind: "ready",
           label: "output",
-          source: "tableFacts",
+          source: "tableModel",
         },
         chartState: "ready",
         curveType: "output",
@@ -477,7 +477,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     );
   });
 
-  test("createRawExplorerFiles projects pending badge state before table facts", () => {
+  test("createRawExplorerFiles projects pending badge state before table model", () => {
     assert.deepEqual(
       createRawExplorerFiles([
         {
@@ -632,14 +632,14 @@ suite("workbench/contrib/files/common/explorerModel", () => {
 const createFileRecord = (
   fileId: string,
   options: {
-    readonly hasTableFactsBlock?: boolean;
+    readonly hasTableModelBlock?: boolean;
     readonly hasChartData?: boolean;
   } = {},
 ): FileRecord => {
   const hasChartData = options.hasChartData ?? true;
-  const hasTableFactsBlock = options.hasTableFactsBlock ?? false;
+  const hasTableModelBlock = options.hasTableModelBlock ?? false;
   return {
-    tableFactsByRawTableId: {},
+    tableModelByRawTableId: {},
     curvesByKey: hasChartData
       ? {
         "base:iv:transfer:series-1": {
@@ -661,8 +661,8 @@ const createFileRecord = (
       : {},
     id: fileId,
     kind: "csv",
-    measurementBlockOrder: hasTableFactsBlock ? ["block-1"] : [],
-    measurementBlocksById: hasTableFactsBlock
+    measurementBlockOrder: hasTableModelBlock ? ["block-1"] : [],
+    measurementBlocksById: hasTableModelBlock
       ? {
         "block-1": {
           columnCount: 2,

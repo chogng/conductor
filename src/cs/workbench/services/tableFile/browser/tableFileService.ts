@@ -9,14 +9,12 @@ import {
 } from "src/cs/workbench/services/session/common/session";
 import {
 	ITableFileService,
-	type CommitTableFileImportOptions,
 	type CommitTableFileImportResult,
 	type ITableFileService as ITableFileServiceType,
 	type TableFileSnapshot,
 } from "src/cs/workbench/services/tableFile/common/tableFile";
 import type { FileImportResult } from "src/cs/workbench/services/files/common/files";
 import type { FileId } from "src/cs/workbench/services/session/common/sessionModel";
-import type { RawTableFactsRecord } from "src/cs/workbench/services/tableFacts/common/tableFacts";
 
 // TODO(conductor-architecture): Migration bridge.
 // TableFile owns imported data-file APIs while Session remains the backing ledger.
@@ -37,17 +35,8 @@ export class TableFileService implements ITableFileServiceType {
 
 	public commitImport(
 		result: FileImportResult,
-		options?: CommitTableFileImportOptions,
 	): CommitTableFileImportResult {
-		return this.sessionService.commitFileImport(result, options);
-	}
-
-	public commitTableFacts(tableFacts: RawTableFactsRecord): void {
-		this.sessionService.commitRawTableFacts(tableFacts);
-	}
-
-	public commitTableFactsBatch(tableFacts: readonly RawTableFactsRecord[]): void {
-		this.sessionService.commitRawTableFactsBatch(tableFacts);
+		return this.sessionService.commitFileImport(result);
 	}
 
 	public getSnapshot(): TableFileSnapshot {

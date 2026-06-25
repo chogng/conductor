@@ -6,22 +6,22 @@ import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { evaluateRecipeSelector } from "src/cs/workbench/services/template/common/recipeSelectorEvaluator";
-import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
+import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
 import type {
   MeasurementBlockRecord,
   MeasurementColumnRef,
-} from "src/cs/workbench/services/tableFacts/common/measurement";
+} from "src/cs/workbench/services/tableModel/common/measurement";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
-import type { RawTableFacts } from "src/cs/workbench/services/tableFacts/common/tableFacts";
+import type { TableModel } from "src/cs/workbench/services/tableModel/common/tableModel";
 
 suite("workbench/services/template/test/common/recipeSelectorEvaluator", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
 
-  test("matches builtin IV transfer recipe against table-fact block evidence", () => {
+  test("matches builtin IV transfer recipe against table-model block evidence", () => {
     const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
     assert.ok(recipe);
 
-    const evaluation = evaluateRecipeSelector(recipe, createTableFacts({
+    const evaluation = evaluateRecipeSelector(recipe, createTableModel({
       family: "iv",
       ivMode: "transfer",
       columns: [{
@@ -57,7 +57,7 @@ suite("workbench/services/template/test/common/recipeSelectorEvaluator", () => {
     const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
     assert.ok(recipe);
 
-    const evaluation = evaluateRecipeSelector(recipe, createTableFacts({
+    const evaluation = evaluateRecipeSelector(recipe, createTableModel({
       family: "iv",
       ivMode: "transfer",
       columns: [{
@@ -78,7 +78,7 @@ suite("workbench/services/template/test/common/recipeSelectorEvaluator", () => {
   });
 });
 
-const createTableFacts = ({
+const createTableModel = ({
   columns,
   family,
   ivMode,
@@ -86,7 +86,7 @@ const createTableFacts = ({
   readonly columns: readonly MeasurementColumnRef[];
   readonly family: MeasurementBlockRecord["family"];
   readonly ivMode?: MeasurementBlockRecord["ivMode"];
-}): RawTableFacts => ({
+}): TableModel => ({
   structure: {
     ...createEmptyRawTableStructure(),
     fingerprint: "schema-a",

@@ -13,7 +13,7 @@ import {
 } from "src/cs/workbench/services/notification/common/notificationService";
 import {
 	getRawTableRefsForFileIds,
-} from "src/cs/workbench/services/tableFacts/common/tableFacts";
+} from "src/cs/workbench/services/tableModel/common/tableModel";
 import {
 	ISessionService,
 	type SessionSnapshot,

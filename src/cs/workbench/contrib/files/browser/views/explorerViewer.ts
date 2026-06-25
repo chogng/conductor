@@ -146,7 +146,7 @@ const FILE_HOVER_HIDE_DELAY_MS = 120;
 const FILE_HOVER_THUMBNAIL_WIDTH = 360;
 const FILE_HOVER_THUMBNAIL_VIEWPORT_RATIO = 0.44;
 const HOVER_THUMBNAIL_CACHE_LIMIT = 32;
-const FILE_TABLE_FACTS_REASON_SEPARATOR = "\u001d";
+const FILE_TABLE_MODEL_REASON_SEPARATOR = "\u001d";
 
 const getFileHoverThumbnailWidth = (): number =>
   Math.max(1, Math.min(
@@ -154,10 +154,10 @@ const getFileHoverThumbnailWidth = (): number =>
     Math.floor(window.innerWidth * FILE_HOVER_THUMBNAIL_VIEWPORT_RATIO),
   ));
 
-type FileItemTableFacts = {
+type FileItemTableModel = {
   readonly label: string;
   readonly isWarning: boolean;
-  readonly source: "tableFacts";
+  readonly source: "tableModel";
   readonly state: "ready" | "unknown";
   readonly type: string;
   readonly confidence: string;
@@ -173,15 +173,15 @@ type FileSourceStatusBadge = {
   readonly title: string | null;
 };
 
-type FilePendingTableFacts = {
+type FilePendingTableModel = {
   readonly label: string;
   readonly isWarning: boolean;
-  readonly source?: "tableFacts";
+  readonly source?: "tableModel";
   readonly state: "pending";
   readonly title: string;
 };
 
-type FileFastTableFacts = {
+type FileFastTableModel = {
   readonly label: string;
   readonly isWarning: boolean;
   readonly confidence: string;
@@ -235,7 +235,7 @@ type TreeModelCache = {
 
 type HoverContent =
   | {
-    readonly kind: "tableFacts";
+    readonly kind: "tableModel";
     readonly fileContext: FileHoverContext | null;
     readonly isWarning: boolean;
     readonly type: string;
@@ -271,7 +271,7 @@ type ThumbnailGridItemCacheEntry = {
   thumbnail: HTMLElement;
 };
 
-const hasFileItemTableFacts = (
+const hasFileItemTableModel = (
   fileEntry: ExplorerFileEntry,
   reasons: readonly string[],
 ): boolean =>
@@ -282,14 +282,14 @@ const hasFileItemTableFacts = (
       reasons.length,
   );
 
-const createFileItemTableFacts = (
+const createFileItemTableModel = (
   fileEntry: ExplorerFileEntry,
   templateLabel: string,
-): FileItemTableFacts | null => {
+): FileItemTableModel | null => {
   const badgeState = fileEntry.badgeState;
   if (
     (badgeState?.kind !== "ready" && badgeState?.kind !== "unknown") ||
-    badgeState?.source !== "tableFacts"
+    badgeState?.source !== "tableModel"
   ) {
     return null;
   }
@@ -300,7 +300,7 @@ const createFileItemTableFacts = (
   const reasons = (fileEntry.curveTypeReasons ?? [])
     .map(reason => String(reason).trim())
     .filter(Boolean);
-  if (!hasFileItemTableFacts(fileEntry, reasons)) {
+  if (!hasFileItemTableModel(fileEntry, reasons)) {
     return null;
   }
 
@@ -317,7 +317,7 @@ const createFileItemTableFacts = (
       badgeState.kind === "unknown" ||
       fileEntry?.curveTypeNeedsReview === true ||
       fileEntry?.curveTypeConfidence === "low",
-    source: "tableFacts",
+    source: "tableModel",
     state: badgeState.kind === "unknown" ? "unknown" : "ready",
     type: curveType,
     confidence,
@@ -359,9 +359,9 @@ const createFileSourceStatusBadge = (
   }
 };
 
-const createFilePendingTableFacts = (
+const createFilePendingTableModel = (
   fileEntry: ExplorerFileEntry,
-): FilePendingTableFacts | null => {
+): FilePendingTableModel | null => {
   const badgeState = fileEntry.badgeState;
   if (badgeState?.kind !== "pending") {
     return null;
@@ -373,19 +373,19 @@ const createFilePendingTableFacts = (
     ...(badgeState.source ? { source: badgeState.source } : {}),
     state: "pending",
     title: badgeState.queueState === "queued"
-      ? localize("files.autoQueued", "Waiting for table facts")
+      ? localize("files.autoQueued", "Waiting for table model")
       : localize("files.autoAnalyzing", "Analyzing"),
   };
 };
 
-const createFileFastTableFacts = (
+const createFileFastTableModel = (
   fileEntry: ExplorerFileEntry,
-): FileFastTableFacts | null => {
+): FileFastTableModel | null => {
   if (
     fileEntry.badgeState?.kind === "unknown" &&
     fileEntry.badgeState.source === "fast"
   ) {
-    const healthMessage = getLocalizedTableFactsHealthMessage(fileEntry);
+    const healthMessage = getLocalizedTableModelHealthMessage(fileEntry);
     const suspectedType = String(fileEntry.badgeState.suspectedType ?? "").trim();
     const filenameReason = suspectedType
       ? localize(
@@ -404,7 +404,7 @@ const createFileFastTableFacts = (
           localize("files.autoFastFileNameEvidence", "File name or path contains curve-type hints."),
         healthMessage ||
           localize("files.autoContentParseFailed", "Content parsing failed: text encoding is invalid or file content is unreadable."),
-        localize("files.autoContentNotUsed", "Table content was not used as table-fact evidence."),
+        localize("files.autoContentNotUsed", "Table content was not used as table-model evidence."),
       ],
       source: "fast",
       state: "unknown",
@@ -432,14 +432,14 @@ const createFileFastTableFacts = (
 
   const isUnhealthy = isUnhealthyRawTableHealth(fileEntry.rawTableHealth);
   const type = isUnhealthy ? localize("files.autoUnknown", "Unknown") : label;
-  const healthMessage = getLocalizedTableFactsHealthMessage(fileEntry);
+  const healthMessage = getLocalizedTableModelHealthMessage(fileEntry);
   const reasons = isUnhealthy
     ? [
         fileEntry.badgeState.message ??
           localize("files.autoSuspectedType", "Suspected {type}", { type: label }),
         healthMessage ||
           localize("files.autoContentParseFailed", "Content parsing failed: text encoding is invalid or file content is unreadable."),
-        localize("files.autoContentNotUsed", "Table content was not used as table-fact evidence."),
+        localize("files.autoContentNotUsed", "Table content was not used as table-model evidence."),
       ]
     : [
         fileEntry.badgeState.message ??
@@ -458,7 +458,7 @@ const createFileFastTableFacts = (
           "files.recommendedTemplateUnavailableDecode",
           "Recommended template unavailable.",
         )
-      : localize("files.autoTemplatePending", "Waiting for table facts"),
+      : localize("files.autoTemplatePending", "Waiting for table model"),
     title: fileEntry.badgeState.message ??
       localize("files.autoFastBadge", "Fast estimate"),
     type,
@@ -472,7 +472,7 @@ const isUnhealthyRawTableHealth = (
   health === "parseFailed" ||
   health === "unsupported";
 
-const getLocalizedTableFactsHealthMessage = (
+const getLocalizedTableModelHealthMessage = (
   fileEntry: ExplorerFileEntry,
 ): string => {
   const message = String(fileEntry.rawTableHealthMessage ?? "").trim();
@@ -624,7 +624,7 @@ const normalizeFileHoverText = (
 
 const createBadgePresentation = (
   fileKey: string,
-  badge: FileItemTableFacts | FileSourceStatusBadge | FileFastTableFacts | FilePendingTableFacts | null,
+  badge: FileItemTableModel | FileSourceStatusBadge | FileFastTableModel | FilePendingTableModel | null,
   badgeColors: FilesExplorerBadgeColors,
 ): ExplorerBadgePresentation => {
   if (!badge) {
@@ -643,7 +643,7 @@ const createBadgePresentation = (
 };
 
 const resolveBadgePresentationColor = (
-  badge: FileItemTableFacts | FileSourceStatusBadge | FileFastTableFacts | FilePendingTableFacts,
+  badge: FileItemTableModel | FileSourceStatusBadge | FileFastTableModel | FilePendingTableModel,
   badgeColors: FilesExplorerBadgeColors,
 ): string | null => {
   if (badge.state === "source" || badge.state === "pending") {
@@ -742,27 +742,27 @@ const applyFileItemShellState = (
   }
 };
 
-const createTableFactsRow = (
+const createTableModelRow = (
   label: string,
   value: string | readonly string[],
 ): HTMLElement => {
   const row = document.createElement("div");
-  row.className = "file-list-hover-table-facts-row";
+  row.className = "file-list-hover-table-models-row";
 
   const term = document.createElement("dt");
-  term.className = "file-list-hover-table-facts-label";
+  term.className = "file-list-hover-table-models-label";
   term.textContent = label;
 
   const description = document.createElement("dd");
-  description.className = "file-list-hover-table-facts-value";
+  description.className = "file-list-hover-table-models-value";
   if (typeof value === "string") {
     description.textContent = value;
   } else {
     const list = document.createElement("div");
-    list.className = "file-list-hover-table-facts-list";
+    list.className = "file-list-hover-table-models-list";
     for (const item of value) {
       const entry = document.createElement("div");
-      entry.className = "file-list-hover-table-facts-list-item";
+      entry.className = "file-list-hover-table-models-list-item";
       entry.textContent = item;
       list.appendChild(entry);
     }
@@ -785,21 +785,21 @@ const appendFileHoverContextRows = (
   }
 
   if (context.fileName) {
-    container.appendChild(createTableFactsRow(
+    container.appendChild(createTableModelRow(
       localize("files.hoverFileLabel", "File:"),
       context.fileName,
     ));
   }
 
   if (context.path && context.path !== context.fileName) {
-    container.appendChild(createTableFactsRow(
+    container.appendChild(createTableModelRow(
       localize("files.hoverPathLabel", "Path:"),
       context.path,
     ));
   }
 
   if (options.includeType && context.typeLabel) {
-    container.appendChild(createTableFactsRow(
+    container.appendChild(createTableModelRow(
       localize("files.hoverTypeLabel", "Type:"),
       context.typeLabel,
     ));
@@ -1623,12 +1623,12 @@ export class ExplorerViewer implements IDisposable {
         this.props.editable.resource.fileId === fileId,
     );
     const sourceStatus = createFileSourceStatusBadge(fileEntry);
-    const tableFactsBadge = createFileItemTableFacts(
+    const tableModelBadge = createFileItemTableModel(
       fileEntry,
       this.resolveFileTemplateLabel(fileEntry),
     );
-    const fastTableFacts = createFileFastTableFacts(fileEntry);
-    const pendingTableFacts = createFilePendingTableFacts(fileEntry);
+    const fastTableModel = createFileFastTableModel(fileEntry);
+    const pendingTableModel = createFilePendingTableModel(fileEntry);
     const { host } = template;
     const fileKey = getFileRenderKey(fileEntry);
     const presentationSignature = this.createFilePresentationSignature(fileEntry, this.props);
@@ -1682,13 +1682,13 @@ export class ExplorerViewer implements IDisposable {
     template.fileRenderKey = fileKey;
     template.filePresentationSignature = presentationSignature;
     template.badge.bind(fileKey);
-    const hoverTableFacts = tableFactsBadge ?? (fastTableFacts?.isWarning ? fastTableFacts : null);
-    if (hoverTableFacts) {
-      host.dataset.autoType = hoverTableFacts.type;
-      host.dataset.autoConfidence = hoverTableFacts.confidence;
-      host.dataset.autoReasons = hoverTableFacts.reasons.join(FILE_TABLE_FACTS_REASON_SEPARATOR);
-      host.dataset.autoTemplate = hoverTableFacts.template;
-      host.dataset.autoWarning = hoverTableFacts.isWarning ? "true" : "false";
+    const hoverTableModel = tableModelBadge ?? (fastTableModel?.isWarning ? fastTableModel : null);
+    if (hoverTableModel) {
+      host.dataset.autoType = hoverTableModel.type;
+      host.dataset.autoConfidence = hoverTableModel.confidence;
+      host.dataset.autoReasons = hoverTableModel.reasons.join(FILE_TABLE_MODEL_REASON_SEPARATOR);
+      host.dataset.autoTemplate = hoverTableModel.template;
+      host.dataset.autoWarning = hoverTableModel.isWarning ? "true" : "false";
     } else {
       delete host.dataset.autoType;
       delete host.dataset.autoConfidence;
@@ -1756,7 +1756,7 @@ export class ExplorerViewer implements IDisposable {
     }
     const badge = sourceStatus?.status === "failed"
       ? sourceStatus
-      : tableFactsBadge ?? fastTableFacts ?? sourceStatus ?? pendingTableFacts;
+      : tableModelBadge ?? fastTableModel ?? sourceStatus ?? pendingTableModel;
     template.badge.setBadge(fileKey, createBadgePresentation(
       fileKey,
       badge,
@@ -1954,10 +1954,10 @@ export class ExplorerViewer implements IDisposable {
 
     const actions = document.createElement("div");
     actions.className = "file-list-item-actions";
-    const tableFactsHost = document.createElement("span");
-    tableFactsHost.className = "file-list-item-table-facts";
-    tableFactsHost.hidden = true;
-    const badge = new ExplorerBadgeNode(tableFactsHost);
+    const tableModelHost = document.createElement("span");
+    tableModelHost.className = "file-list-item-table-models";
+    tableModelHost.hidden = true;
+    const badge = new ExplorerBadgeNode(tableModelHost);
 
     const removeButton = document.createElement("button");
     removeButton.type = "button";
@@ -1983,7 +1983,7 @@ export class ExplorerViewer implements IDisposable {
     });
     appendIcon(removeButton, LxIcon.close);
 
-    actions.append(tableFactsHost, removeButton);
+    actions.append(tableModelHost, removeButton);
     return template;
   }
 
@@ -2330,7 +2330,7 @@ export class ExplorerViewer implements IDisposable {
     }
     const classNames = isThumbnailHover
       ? ["file-list-hover", "file-list-hover--thumbnail"]
-      : ["file-list-hover", "file-list-hover--table-facts"];
+      : ["file-list-hover", "file-list-hover--table-models"];
 
     this.hoverView = this.props.contextViewService.showContextView({
       anchorAxisAlignment: AnchorAxisAlignment.HORIZONTAL,
@@ -2365,7 +2365,7 @@ export class ExplorerViewer implements IDisposable {
         }
         container.classList.remove(
           "file-list-hover",
-          "file-list-hover--table-facts",
+          "file-list-hover--table-models",
           "file-list-hover--thumbnail",
         );
         container.removeAttribute("role");
@@ -2380,7 +2380,7 @@ export class ExplorerViewer implements IDisposable {
       return this.resolveThumbnailHoverContent(item);
     }
 
-    return this.resolveTableFactsHoverContent(item);
+    return this.resolveTableModelHoverContent(item);
   }
 
   private resolveThumbnailHoverContent(item: HTMLElement): HoverContent | null {
@@ -2425,7 +2425,7 @@ export class ExplorerViewer implements IDisposable {
     ) ?? null;
   }
 
-  private resolveTableFactsHoverContent(item: HTMLElement): HoverContent | null {
+  private resolveTableModelHoverContent(item: HTMLElement): HoverContent | null {
     const fileContext = this.resolveFileHoverContext(item);
     const type = item.dataset.autoType ?? "";
     if (!type) {
@@ -2438,13 +2438,13 @@ export class ExplorerViewer implements IDisposable {
     }
 
     return {
-      kind: "tableFacts",
+      kind: "tableModel",
       fileContext,
       isWarning: item.dataset.autoWarning === "true",
       type,
       confidence: item.dataset.autoConfidence ?? "",
       reasons: (item.dataset.autoReasons ?? "")
-        .split(FILE_TABLE_FACTS_REASON_SEPARATOR)
+        .split(FILE_TABLE_MODEL_REASON_SEPARATOR)
         .map(reason => reason.trim())
         .filter(Boolean),
       template: item.dataset.autoTemplate ?? "",
@@ -2500,8 +2500,8 @@ export class ExplorerViewer implements IDisposable {
     container.dataset.hoverKind = content.kind;
     container.replaceChildren();
     const details = document.createElement("dl");
-    details.className = "file-list-hover-table-facts";
-    details.dataset.warning = content.kind === "tableFacts" && content.isWarning ? "true" : "false";
+    details.className = "file-list-hover-table-models";
+    details.dataset.warning = content.kind === "tableModel" && content.isWarning ? "true" : "false";
     appendFileHoverContextRows(details, content.fileContext, {
       includeType: content.kind === "file",
     });
@@ -2511,10 +2511,10 @@ export class ExplorerViewer implements IDisposable {
     }
 
     details.append(
-      createTableFactsRow(localize("files.autoTypeLabel", "Type:"), content.type),
-      createTableFactsRow(localize("files.autoConfidenceLabel", "Confidence:"), content.confidence),
-      createTableFactsRow(localize("files.autoReasonLabel", "Basis:"), content.reasons),
-      createTableFactsRow(localize("files.autoTemplateLabel", "Template:"), content.template),
+      createTableModelRow(localize("files.autoTypeLabel", "Type:"), content.type),
+      createTableModelRow(localize("files.autoConfidenceLabel", "Confidence:"), content.confidence),
+      createTableModelRow(localize("files.autoReasonLabel", "Basis:"), content.reasons),
+      createTableModelRow(localize("files.autoTemplateLabel", "Template:"), content.template),
     );
     container.appendChild(details);
   }
@@ -3225,7 +3225,7 @@ function isSameHoverContent(
     return areFileHoverContextsEqual(left.fileContext, right.fileContext);
   }
 
-  if (left.kind !== "tableFacts" || right.kind !== "tableFacts") {
+  if (left.kind !== "tableModel" || right.kind !== "tableModel") {
     return false;
   }
 

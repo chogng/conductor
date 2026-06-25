@@ -74,7 +74,7 @@ function createFileRecord(
 	hasBaseCurve = hasChartData,
 ): FileRecord {
 	return {
-		tableFactsByRawTableId: {},
+		tableModelByRawTableId: {},
 		curvesByKey: hasBaseCurve
 			? {
 				"base:iv:transfer:series-a": {

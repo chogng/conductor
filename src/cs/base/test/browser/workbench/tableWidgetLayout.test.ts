@@ -46,7 +46,7 @@ suite("base/browser/workbench tableWidget layout", () => {
   test("rerenders visible cells when layout changes the viewport width", async () => {
     const widget = new TableWidget({
       onSelect: () => true,
-      tableModel: createTableWidgetModel(),
+      tableViewModel: createTableWidgetModel(),
       tableState: createTableWidgetState(),
     });
     document.body.append(widget.element);
@@ -73,7 +73,7 @@ suite("base/browser/workbench tableWidget layout", () => {
   test("fills wide viewports with bounded virtual empty columns", async () => {
     const widget = new TableWidget({
       onSelect: () => true,
-      tableModel: {
+      tableViewModel: {
         ...createTableWidgetModel(),
         getRow: rowIndex => [
           `A${rowIndex + 1}`,
@@ -103,7 +103,7 @@ suite("base/browser/workbench tableWidget layout", () => {
   test("keeps rendered table DOM while selected source is loading", async () => {
     const widget = new TableWidget({
       onSelect: () => true,
-      tableModel: createTableWidgetModel(),
+      tableViewModel: createTableWidgetModel(),
       tableState: createTableWidgetState(),
     });
     document.body.append(widget.element);
@@ -134,7 +134,7 @@ suite("base/browser/workbench tableWidget layout", () => {
 
       widget.update({
         onSelect: () => true,
-        tableModel: createTableWidgetModel(),
+        tableViewModel: createTableWidgetModel(),
         tableState: createTableWidgetState({
           file: null,
           fileId: "file-b",
@@ -150,7 +150,7 @@ suite("base/browser/workbench tableWidget layout", () => {
 
       widget.update({
         onSelect: () => true,
-        tableModel: createTableWidgetModel(),
+        tableViewModel: createTableWidgetModel(),
         tableState: createTableWidgetState({
           file: null,
           fileId: "file-b",
@@ -170,7 +170,7 @@ suite("base/browser/workbench tableWidget layout", () => {
 
       widget.update({
         onSelect: () => true,
-        tableModel: createTableWidgetModel(() => ({}), {
+        tableViewModel: createTableWidgetModel(() => ({}), {
           getRow: rowIndex => [
             `next-A${rowIndex + 1}`,
             `next-B${rowIndex + 1}`,
@@ -207,7 +207,7 @@ suite("base/browser/workbench tableWidget layout", () => {
   test("keeps rendered table shell while loading before visible ranges are cached", () => {
     const widget = new TableWidget({
       onSelect: () => true,
-      tableModel: createTableWidgetModel(),
+      tableViewModel: createTableWidgetModel(),
       tableState: createTableWidgetState(),
     });
     document.body.append(widget.element);
@@ -218,7 +218,7 @@ suite("base/browser/workbench tableWidget layout", () => {
 
       widget.update({
         onSelect: () => true,
-        tableModel: createTableWidgetModel(),
+        tableViewModel: createTableWidgetModel(),
         tableState: createTableWidgetState({
           file: null,
           fileId: "file-b",
@@ -242,7 +242,7 @@ suite("base/browser/workbench tableWidget layout", () => {
     const dynamicModel = createContentDirtyTableWidgetModel();
     const widget = new TableWidget({
       onSelect: () => true,
-      tableModel: dynamicModel.model,
+      tableViewModel: dynamicModel.model,
       tableState: createTableWidgetState(),
     });
     document.body.append(widget.element);
@@ -261,7 +261,7 @@ suite("base/browser/workbench tableWidget layout", () => {
 
       widget.update({
         onSelect: () => true,
-        tableModel: dynamicModel.model,
+        tableViewModel: dynamicModel.model,
         tableState: createTableWidgetState({
           file: null,
           fileId: "file-b",
@@ -292,7 +292,7 @@ suite("base/browser/workbench tableWidget layout", () => {
   test("switches ready sources by patching body content without mutating body cells", async () => {
     const widget = new TableWidget({
       onSelect: () => true,
-      tableModel: createTableWidgetModel(),
+      tableViewModel: createTableWidgetModel(),
       tableState: createTableWidgetState(),
     });
     document.body.append(widget.element);
@@ -322,7 +322,7 @@ suite("base/browser/workbench tableWidget layout", () => {
 
       widget.update({
         onSelect: () => true,
-        tableModel: createTableWidgetModel(() => ({}), {
+        tableViewModel: createTableWidgetModel(() => ({}), {
           getRow: rowIndex => [
             `next-A${rowIndex + 1}`,
             `next-B${rowIndex + 1}`,
@@ -359,7 +359,7 @@ suite("base/browser/workbench tableWidget layout", () => {
   test("exposes rendered size and base zoom state", async () => {
     const widget = new TableWidget({
       onSelect: () => true,
-      tableModel: createTableWidgetModel(),
+      tableViewModel: createTableWidgetModel(),
       tableState: createTableWidgetState(),
     });
     document.body.append(widget.element);
@@ -383,7 +383,7 @@ suite("base/browser/workbench tableWidget layout", () => {
       assert.deepEqual(sizeEvents, []);
       widget.update({
         onSelect: () => true,
-        tableModel: createTableWidgetModel(),
+        tableViewModel: createTableWidgetModel(),
         tableState: createTableWidgetState({ columnCount: 4 }),
       });
       assert.deepEqual(widget.getSize(), { columnCount: 4, rowCount: 20 });
@@ -414,7 +414,7 @@ suite("base/browser/workbench tableWidget layout", () => {
       storeColumnWidths: (_sourceKey, widths) => {
         storedWidths.push(widths);
       },
-      tableModel: createTableWidgetModel(),
+      tableViewModel: createTableWidgetModel(),
       tableState: createTableWidgetState(),
     });
     document.body.append(widget.element);
@@ -482,7 +482,7 @@ suite("base/browser/workbench tableWidget layout", () => {
     const widget = new TableWidget({
       hoverDelegate,
       onSelect: () => true,
-      tableModel: createSmartTableWidgetModel(),
+      tableViewModel: createSmartTableWidgetModel(),
       tableState: createTableWidgetState(),
     });
     document.body.append(widget.element);
@@ -517,7 +517,7 @@ suite("base/browser/workbench tableWidget layout", () => {
     const dynamicModel = createDynamicScaleTableWidgetModel();
     const widget = new TableWidget({
       onSelect: () => true,
-      tableModel: dynamicModel.model,
+      tableViewModel: dynamicModel.model,
       tableState: createTableWidgetState(),
     });
     document.body.append(widget.element);
@@ -556,7 +556,7 @@ suite("base/browser/workbench tableWidget layout", () => {
       onAdjustColumnDisplayScale: dynamicModel.adjustColumnDisplayScale,
       onResetColumnDisplayScale: dynamicModel.resetColumnDisplayScale,
       onSelect: () => true,
-      tableModel: dynamicModel.model,
+      tableViewModel: dynamicModel.model,
       tableState: createTableWidgetState(),
     });
     document.body.append(widget.element);
@@ -589,7 +589,7 @@ suite("base/browser/workbench tableWidget layout", () => {
     const dynamicModel = createContentDirtyTableWidgetModel();
     const widget = new TableWidget({
       onSelect: () => true,
-      tableModel: dynamicModel.model,
+      tableViewModel: dynamicModel.model,
       tableState: createTableWidgetState(),
     });
     document.body.append(widget.element);
@@ -636,7 +636,7 @@ suite("base/browser/workbench tableWidget layout", () => {
       onAdjustColumnDisplayScale: dynamicModel.adjustColumnDisplayScale,
       onResetColumnDisplayScale: dynamicModel.resetColumnDisplayScale,
       onSelect: () => true,
-      tableModel: dynamicModel.model,
+      tableViewModel: dynamicModel.model,
       tableState: createTableWidgetState(),
     });
     document.body.append(widget.element);
@@ -677,7 +677,7 @@ suite("base/browser/workbench tableWidget layout", () => {
       onAdjustColumnDisplayScale: dynamicModel.adjustColumnDisplayScale,
       onResetColumnDisplayScale: dynamicModel.resetColumnDisplayScale,
       onSelect: () => true,
-      tableModel: dynamicModel.model,
+      tableViewModel: dynamicModel.model,
       tableState: createTableWidgetState(),
     });
     document.body.append(widget.element);
@@ -756,7 +756,7 @@ suite("base/browser/workbench tableWidget layout", () => {
       onAdjustColumnDisplayScale: dynamicModel.adjustColumnDisplayScale,
       onResetColumnDisplayScale: dynamicModel.resetColumnDisplayScale,
       onSelect: () => true,
-      tableModel: dynamicModel.model,
+      tableViewModel: dynamicModel.model,
       tableState: createTableWidgetState(),
     });
     document.body.append(widget.element);
@@ -786,7 +786,7 @@ suite("base/browser/workbench tableWidget layout", () => {
       onAdjustColumnDisplayScale: dynamicModel.adjustColumnDisplayScale,
       onResetColumnDisplayScale: dynamicModel.resetColumnDisplayScale,
       onSelect: () => true,
-      tableModel: dynamicModel.model,
+      tableViewModel: dynamicModel.model,
       tableState: createTableWidgetState(),
     });
     document.body.append(widget.element);
@@ -823,7 +823,7 @@ suite("base/browser/workbench tableWidget layout", () => {
         selectedColumns.push([...(selection.selectedColumns ?? [])]);
         return true;
       },
-      tableModel: dynamicModel.model,
+      tableViewModel: dynamicModel.model,
       tableState: createTableWidgetState(),
     });
     document.body.append(widget.element);
@@ -862,7 +862,7 @@ suite("base/browser/workbench tableWidget layout", () => {
         selectedColumns.push([...(selection.selectedColumns ?? [])]);
         return true;
       },
-      tableModel: createTableWidgetModel(() => selection),
+      tableViewModel: createTableWidgetModel(() => selection),
       tableState: createTableWidgetState(),
     });
     document.body.append(widget.element);
@@ -892,7 +892,7 @@ suite("base/browser/workbench tableWidget layout", () => {
         selectedColumns.push([...(target?.kind === "columns" ? target.columns : [])]);
         return true;
       },
-      tableModel: createTableWidgetModel(),
+      tableViewModel: createTableWidgetModel(),
       tableState: createTableWidgetState(),
     });
     document.body.append(widget.element);
@@ -923,7 +923,7 @@ suite("base/browser/workbench tableWidget layout", () => {
         selectedColumns.push([...(selection.selectedColumns ?? [])]);
         return true;
       },
-      tableModel: createTableWidgetModel(() => selection),
+      tableViewModel: createTableWidgetModel(() => selection),
       tableState: createTableWidgetState(),
     });
     document.body.append(widget.element);
@@ -958,7 +958,7 @@ suite("base/browser/workbench tableWidget layout", () => {
         }
         return true;
       },
-      tableModel: createTableWidgetModel(() => selection, {
+      tableViewModel: createTableWidgetModel(() => selection, {
         onDidChangeSelection: callback => {
           selectionListeners.add(callback);
           return () => {

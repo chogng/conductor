@@ -4,7 +4,7 @@
 
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
-import type { RawTableFacts } from "src/cs/workbench/services/tableFacts/common/tableFacts";
+import type { TableModel } from "src/cs/workbench/services/tableModel/common/tableModel";
 import type { TemplateDraft } from "src/cs/workbench/services/template/common/templateDraft";
 import type { UserTemplateSnapshot } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
@@ -12,7 +12,7 @@ export const ITemplateMaterializationService =
 	createDecorator<ITemplateMaterializationService>("templateMaterializationService");
 
 export type TemplateMaterializationInput = {
-	readonly tableFacts: RawTableFacts;
+	readonly tableModel: TableModel;
 	readonly recipeSnapshot: RecipeSnapshot;
 	readonly userTemplateSnapshot: UserTemplateSnapshot;
 };

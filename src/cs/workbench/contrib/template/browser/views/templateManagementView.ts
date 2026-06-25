@@ -150,7 +150,7 @@ export class TemplateManagementView {
 
     const autoDescription = document.createElement("p");
     autoDescription.className = "template_auto_card_description";
-    autoDescription.textContent = localize("template.recommendedTemplate.description", "The system uses table facts, recipes, and review results to choose the template for slicing.");
+    autoDescription.textContent = localize("template.recommendedTemplate.description", "The system uses table model, recipes, and review results to choose the template for slicing.");
 
     this.autoCard.append(autoTitle, autoDescription);
     this.element.append(this.autoCard);

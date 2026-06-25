@@ -154,7 +154,7 @@ suite("workbench/contrib/files/common/rawTableStatusProjection", () => {
 		assert.equal(status.kind === "sliced" && status.runId, "slice-table-a");
 	});
 
-	test("does not attach stale or wrong-table facts to a raw table", () => {
+	test("does not attach stale or wrong-table model to a raw table", () => {
 		const file = createFileRecord({
 			review: {
 				...createReviewRecord({
@@ -241,7 +241,7 @@ const createFileRecord = ({
 			"table-a": 1,
 			"table-b": 1,
 		},
-		tableFactsByRawTableId: {},
+		tableModelByRawTableId: {},
 		rawTableReviewsByRawTableId: review
 			? {
 					[review.rawTableId]: review,

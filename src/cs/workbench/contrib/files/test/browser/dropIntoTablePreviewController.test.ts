@@ -164,8 +164,6 @@ function createTableFileService(): ITableFileService {
       importedFileIds: [],
       skippedDuplicateFileIds: [],
     }),
-    commitTableFacts: () => undefined,
-    commitTableFactsBatch: () => undefined,
     getSnapshot: () => ({
       fileOrder: [],
       filesById: {},

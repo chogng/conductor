@@ -21,7 +21,7 @@ models for Chart, Thumbnail, Search, and Export.
 - render/display model assembly from Session curves/metrics;
 - calculated-data and display-model caches/prefetch queues.
 
-It does not own DOM rendering, chart panel layout, raw parsing, table-fact
+It does not own DOM rendering, chart panel layout, raw parsing, table-model
 production, template execution, or thumbnail bitmap cache.
 
 ## Core Files
@@ -134,5 +134,5 @@ Use `records.instructions.md` for `PlotState`, `PlotRenderModel`,
 - Do not put canvas/SVG DOM code in `PlotService`.
 - Do not let Chart rebuild curve domains from raw Session records.
 - Do not duplicate downsampling logic in Thumbnail.
-- Do not compute table facts or template outputs in Plot.
+- Do not compute table model or template outputs in Plot.
 - Do not store Plot display state in Session unless it becomes saved project state.

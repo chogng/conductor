@@ -69,13 +69,11 @@ import {
 import { createTemplateEditorRecordFromUserTemplate } from "src/cs/workbench/contrib/template/browser/templateUserTemplateAdapter";
 import { ITableFileService } from "src/cs/workbench/services/tableFile/common/tableFile";
 import {
-  createFastImportBadgeTableFacts,
-} from "src/cs/workbench/services/tableFacts/common/importTableFactsSeedHeuristics";
+  createFastImportBadgeTableModel,
+} from "src/cs/workbench/services/tableModel/common/importTableModelSeedHeuristics";
 import {
-  IRawTableFactsService,
-  type ImportTableFactsSeed,
-  type IRawTableFactsService as IRawTableFactsServiceType,
-} from "src/cs/workbench/services/tableFacts/common/tableFacts";
+  type ImportTableModelSeed,
+} from "src/cs/workbench/services/tableModel/common/tableModel";
 import {
   IThumbnailPreviewService,
   IThumbnailService,
@@ -126,7 +124,6 @@ export class ExplorerViewPane extends ViewPane {
     @IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
     @INotificationService private readonly notificationService: INotificationService,
     @ITableFileService private readonly tableFileService: ITableFileService,
-    @IRawTableFactsService private readonly rawTableFactsService: IRawTableFactsServiceType,
     @IThumbnailPreviewService private readonly thumbnailPreviewService: IThumbnailPreviewService,
     @IThumbnailService private readonly thumbnailService: IThumbnailService,
     @IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
@@ -153,8 +150,6 @@ export class ExplorerViewPane extends ViewPane {
 
     this.sourceWorkflow = new FileSourceWorkflow({
       commandService: this.commandService,
-      createPreparedTableFactsSeedFromRows: (fileName, rows) =>
-        this.rawTableFactsService.createImportTableFactsSeedFromRows(fileName, rows),
       fileConverterBackendService: this.fileConverterBackendService,
       filesService: this.filesService,
       getFiles: () => this.committedFiles,
@@ -483,7 +478,7 @@ export class ExplorerViewPane extends ViewPane {
     const pendingEntries = this.pendingSourceEntries.map(entry =>
       normalizeSourceKey(entry.sourceKey) === sourceKey
         ? createPendingSourceEntry({
-            badgeState: createPendingTableFactsBadgeState(change.preparedTableFactsSeed) ?? entry.badgeState,
+            badgeState: createPendingTableModelBadgeState(change.preparedTableModelSeed) ?? entry.badgeState,
             message: change.message ?? null,
             pendingFile,
             status: change.status,
@@ -492,7 +487,7 @@ export class ExplorerViewPane extends ViewPane {
     );
     if (!pendingEntries.some(entry => normalizeSourceKey(entry.sourceKey) === sourceKey)) {
       pendingEntries.push(createPendingSourceEntry({
-        badgeState: createPendingTableFactsBadgeState(change.preparedTableFactsSeed),
+        badgeState: createPendingTableModelBadgeState(change.preparedTableModelSeed),
         message: change.message ?? null,
         pendingFile,
         status: change.status,
@@ -1007,7 +1002,7 @@ const markExplorerBadgeProjection = (
   }
 
   markTemplateApplyPerformanceTrace("import.badge.projection", {
-    tableFactsBadgeCount: summary.tableFactsBadgeCount,
+    tableModelBadgeCount: summary.tableModelBadgeCount,
     failedSourceCount: summary.failedSourceCount,
     fastBadgeCount: summary.fastBadgeCount,
     loadingSourceCount: summary.loadingSourceCount,
@@ -1040,18 +1035,18 @@ function createPendingSourceEntry({
   };
 }
 
-function createPendingTableFactsBadgeState(
-  tableFactsSeed: ImportTableFactsSeed | undefined,
+function createPendingTableModelBadgeState(
+  tableModelSeed: ImportTableModelSeed | undefined,
 ): ExplorerFileEntry["badgeState"] | undefined {
-  if (!tableFactsSeed) {
+  if (!tableModelSeed) {
     return undefined;
   }
 
-  const curveType = String(tableFactsSeed.curveType ?? "").trim();
+  const curveType = String(tableModelSeed.curveType ?? "").trim();
   if (!curveType || curveType.toLowerCase() === "unknown") {
     return {
       kind: "unknown",
-      source: "tableFacts",
+      source: "tableModel",
     };
   }
 
@@ -1061,12 +1056,12 @@ function createPendingTableFactsBadgeState(
         confidence: "confirmed",
         kind: "ready",
         label,
-        message: tableFactsSeed.curveTypeReasons.join("; ") || null,
-        source: "tableFacts",
+        message: tableModelSeed.curveTypeReasons.join("; ") || null,
+        source: "tableModel",
       }
     : {
         kind: "unknown",
-        source: "tableFacts",
+        source: "tableModel",
         suspectedType: curveType,
       };
 }
@@ -1074,7 +1069,7 @@ function createPendingTableFactsBadgeState(
 function createPendingFastBadgeState(
   pendingFile: PendingImportFile,
 ): ExplorerFileEntry["badgeState"] {
-  const fastBadge = createFastImportBadgeTableFacts({
+  const fastBadge = createFastImportBadgeTableModel({
     fileName: pendingFile.sourceName,
     relativePath: pendingFile.relativePath,
   });

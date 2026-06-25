@@ -16,7 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 
 suite("workbench/services/files/test/browser/fileConverter", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
-  test("converts browser CSV files without tableFacts semantics", async () => {
+  test("converts browser CSV files without tableModel semantics", async () => {
     const file = new File(["a,b\n1,2"], "sample.csv", {
       lastModified: 123,
       type: "text/csv",
@@ -37,7 +37,7 @@ suite("workbench/services/files/test/browser/fileConverter", () => {
     assert.equal(result.normalizedCsvPath, null);
     assert.equal(result.normalizedSizeBytes, file.size);
     assert.equal(result.sourceName, "sample.csv");
-    assert.equal("tableFacts" in result, false);
+    assert.equal("tableModel" in result, false);
   });
 
   test("loads normalized CSV artifacts through the conversion boundary", async () => {

@@ -92,7 +92,7 @@ const createEmptyFileRecord = (fileId: string, fileName: string): FileRecord => 
     name: fileName,
     raw,
     rawTableVersionsById: createRawTableVersions(raw.tableOrder),
-    tableFactsByRawTableId: {},
+    tableModelByRawTableId: {},
     rawTableReviewsByRawTableId: {},
     measurementBlocksById: {},
     measurementBlockOrder: [],
@@ -178,7 +178,7 @@ const mergeSourceFileRecord = (
     record.rawTableVersionsById,
     changedRawTableIds,
   );
-  const retainedTableFactsRecords = retainRawTableFactsRecords(
+  const retainedTableModelRecords = retainTableModelRecords(
     record,
     new Set(tableOrder),
     changedRawTableIds,
@@ -205,7 +205,7 @@ const mergeSourceFileRecord = (
       tableOrder,
     },
     rawTableVersionsById,
-    ...retainedTableFactsRecords,
+    ...retainedTableModelRecords,
   };
 };
 
@@ -254,14 +254,14 @@ const areTableRecordsEqual = (
   current.health?.message === next.health?.message &&
   current.templateEligibility === next.templateEligibility;
 
-const retainRawTableFactsRecords = (
+const retainTableModelRecords = (
   record: FileRecord,
   liveRawTableIds: ReadonlySet<string>,
   changedRawTableIds: ReadonlySet<string>,
-): Pick<FileRecord, "tableFactsByRawTableId" | "rawTableReviewsByRawTableId" | "measurementBlocksById" | "measurementBlockOrder"> => {
-  const sourceTableFactsByRawTableId = getTableFactsByRawTableId(record);
-  const tableFactsByRawTableId = filterRecord(
-    sourceTableFactsByRawTableId,
+): Pick<FileRecord, "tableModelByRawTableId" | "rawTableReviewsByRawTableId" | "measurementBlocksById" | "measurementBlockOrder"> => {
+  const sourceTableModelByRawTableId = getTableModelByRawTableId(record);
+  const tableModelByRawTableId = filterRecord(
+    sourceTableModelByRawTableId,
     rawTableId => liveRawTableIds.has(rawTableId) && !changedRawTableIds.has(rawTableId),
   );
   const rawTableReviewsByRawTableId = filterRecord(
@@ -276,7 +276,7 @@ const retainRawTableFactsRecords = (
   );
 
   return {
-    tableFactsByRawTableId,
+    tableModelByRawTableId,
     rawTableReviewsByRawTableId,
     measurementBlocksById,
     measurementBlockOrder: (record.measurementBlockOrder ?? []).filter(blockId =>
@@ -285,11 +285,11 @@ const retainRawTableFactsRecords = (
   };
 };
 
-const getTableFactsByRawTableId = (
+const getTableModelByRawTableId = (
   record: FileRecord,
-): FileRecord["tableFactsByRawTableId"] => {
-  if (record.tableFactsByRawTableId) {
-    return record.tableFactsByRawTableId;
+): FileRecord["tableModelByRawTableId"] => {
+  if (record.tableModelByRawTableId) {
+    return record.tableModelByRawTableId;
   }
 
   return {};
@@ -404,7 +404,7 @@ export const createRawFilesFromRecords = (
 
       rawFiles.push({
         ...baseFile,
-        ...createRawFileTableFactsSummary(file, tableId),
+        ...createRawFileTableModelSummary(file, tableId),
         sheetId: table.sheetId,
         sheetName: table.sheetName ?? null,
         sourceKey: table.tableKey,
@@ -427,7 +427,7 @@ export const createRawFilesFromRecords = (
     if (!pushedTableIds.size) {
       rawFiles.push({
         ...baseFile,
-        ...createRawFileTableFactsSummary(file),
+        ...createRawFileTableModelSummary(file),
       });
     }
   }
@@ -435,13 +435,13 @@ export const createRawFilesFromRecords = (
   return rawFiles;
 };
 
-type RawFileTableFactsSummary = Pick<
+type RawFileTableModelSummary = Pick<
   SessionFile,
-  | "tableFactsBlocks"
-  | "tableFactsColumnProfiles"
-  | "tableFactsLayoutCandidates"
-  | "tableFactsSchemaFingerprint"
-  | "tableFactsSemanticCandidates"
+  | "tableModelBlocks"
+  | "tableModelColumnProfiles"
+  | "tableModelLayoutCandidates"
+  | "tableModelSchemaFingerprint"
+  | "tableModelSemanticCandidates"
   | "curveType"
   | "curveTypeConfidence"
   | "curveTypeNeedsReview"
@@ -450,15 +450,15 @@ type RawFileTableFactsSummary = Pick<
   | "xAxisRoleSource"
 >;
 
-const createRawFileTableFactsSummary = (
+const createRawFileTableModelSummary = (
   file: FileRecord,
   rawTableId?: string,
-): RawFileTableFactsSummary => {
-  const rawTableFacts = rawTableId
-    ? file.tableFactsByRawTableId?.[rawTableId]
+): RawFileTableModelSummary => {
+  const tableModel = rawTableId
+    ? file.tableModelByRawTableId?.[rawTableId]
     : undefined;
-  const block = rawTableFacts?.blocks.find((candidate) => candidate.family !== "unknown") ??
-    rawTableFacts?.blocks[0] ??
+  const block = tableModel?.blocks.find((candidate) => candidate.family !== "unknown") ??
+    tableModel?.blocks[0] ??
     (rawTableId
       ? undefined
       : file.measurementBlockOrder
@@ -467,23 +467,23 @@ const createRawFileTableFactsSummary = (
   const xAxisRole = createXAxisRoleFromMeasurementBlock(block);
   const curveType = createCurveTypeFromMeasurementBlock(block, xAxisRole) ??
     getFileRecordCurveType(file);
-  const reasons = rawTableFacts?.diagnostics
+  const reasons = tableModel?.diagnostics
     ?.map((diagnostic) => normalizeOptionalText(diagnostic.message))
     .filter((message): message is string => Boolean(message));
 
   return {
-    tableFactsBlocks: rawTableFacts?.blocks.length
-      ? [...rawTableFacts.blocks]
+    tableModelBlocks: tableModel?.blocks.length
+      ? [...tableModel.blocks]
       : undefined,
-    tableFactsColumnProfiles: rawTableFacts?.columnProfiles.length
-      ? [...rawTableFacts.columnProfiles]
+    tableModelColumnProfiles: tableModel?.columnProfiles.length
+      ? [...tableModel.columnProfiles]
       : undefined,
-    tableFactsLayoutCandidates: rawTableFacts?.layoutCandidates.length
-      ? [...rawTableFacts.layoutCandidates]
+    tableModelLayoutCandidates: tableModel?.layoutCandidates.length
+      ? [...tableModel.layoutCandidates]
       : undefined,
-    tableFactsSchemaFingerprint: rawTableFacts?.structure.fingerprint || undefined,
-    tableFactsSemanticCandidates: rawTableFacts?.semanticCandidates.length
-      ? [...rawTableFacts.semanticCandidates]
+    tableModelSchemaFingerprint: tableModel?.structure.fingerprint || undefined,
+    tableModelSemanticCandidates: tableModel?.semanticCandidates.length
+      ? [...tableModel.semanticCandidates]
       : undefined,
     curveType: curveType ?? null,
     curveTypeConfidence: normalizeBlockConfidence(block?.confidence),

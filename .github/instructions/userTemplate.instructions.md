@@ -41,7 +41,7 @@ UserTemplate create/update/delete/import
   -> IUserTemplateService
   -> IUserTemplateStoreService
   -> userTemplateChanged
-  -> Template materializer rereads table facts + RecipeSnapshot + UserTemplateSnapshot
+  -> Template materializer rereads table model + RecipeSnapshot + UserTemplateSnapshot
   -> IReviewService reviews materialized candidates
   -> RawTableReviewRecord
 ```
@@ -84,6 +84,6 @@ user template picker / saved-selection compatibility picker
 
 - Do not call UserTemplate a Recipe or a Template sub-type.
 - Do not store UserTemplate catalog records in Session.
-- Do not let UserTemplate evaluate table facts or choose candidates.
+- Do not let UserTemplate evaluate table model or choose candidates.
 - Do not let Slice enumerate or evaluate UserTemplate catalogs; Slice may only
   resolve an explicit selected template id through `IUserTemplateService`.

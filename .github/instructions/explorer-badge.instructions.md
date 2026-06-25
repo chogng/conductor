@@ -1,11 +1,11 @@
 ---
-description: Explorer badge projection rules for fast first-frame decorations, table-fact confirmation, visible-first scheduling, stale result protection, and row reuse.
-applyTo: 'src/cs/workbench/contrib/files/**,src/cs/workbench/services/tableFacts/**,src/cs/workbench/browser/workbenchDomainBridge.ts'
+description: Explorer badge projection rules for fast first-frame decorations, table-model confirmation, visible-first scheduling, stale result protection, and row reuse.
+applyTo: 'src/cs/workbench/contrib/files/**,src/cs/workbench/services/tableModel/**,src/cs/workbench/browser/workbenchDomainBridge.ts'
 ---
 # Explorer Badge Projection
 
 Explorer badges are Files Explorer UI decorations. They are not canonical
-Session records and must not become converter, table-fact, review, slice,
+Session records and must not become converter, table-model, review, slice,
 template, chart, or table decision inputs.
 
 ## Ownership
@@ -44,19 +44,19 @@ Explorer reports actual rendered range from ObjectTree/List. Do not calculate
 "first page" from density or row height.
 
 ```txt
-visible rows   -> table-fact priority visible
-overscan rows  -> table-fact priority nearby
-remaining rows -> table-fact priority background
-table-fact queue state -> WorkbenchDomainBridge -> ExplorerFileEntry.badgeState
+visible rows   -> table-model priority visible
+overscan rows  -> table-model priority nearby
+remaining rows -> table-model priority background
+table-model queue state -> WorkbenchDomainBridge -> ExplorerFileEntry.badgeState
 ```
 
-Table-fact queue entries dedupe by raw table identity and source version. Drop
+Table-model queue entries dedupe by raw table identity and source version. Drop
 stale queued results if the raw table version changes.
 
 ## Rendering
 
 Every file row renders a stable badge slot in the first frame. Row layout must
-not wait for full table-fact production.
+not wait for full table-model production.
 
 Virtualized rows are reusable DOM. Bind badge updates to the current row key
 before writing text, state, title, or classes. Repeated renders with the same

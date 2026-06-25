@@ -13,10 +13,10 @@ import {
 import type { TableColumnWidth } from "src/cs/workbench/services/table/common/tableColumnLayout";
 import type { ITableService } from "src/cs/workbench/services/table/common/table";
 
-export type TableControllerModel = TableWidgetModel;
+export type TableControllerViewModel = TableWidgetModel;
 
-type TableState = ReturnType<TableControllerModel["getState"]>;
-type TableSelection = ReturnType<TableControllerModel["getSelection"]>;
+type TableState = ReturnType<TableControllerViewModel["getState"]>;
+type TableSelection = ReturnType<TableControllerViewModel["getSelection"]>;
 
 export type TableControllerProps = {
   readonly canAdjustColumnScale?: boolean;
@@ -32,7 +32,7 @@ export type TableControllerProps = {
     sourceKey: string | null | undefined,
     widths: readonly TableColumnWidth[],
   ) => void;
-  readonly tableModel: TableControllerModel;
+  readonly tableViewModel: TableControllerViewModel;
   readonly tableService: ITableService;
   readonly tableState: TableState;
 };
@@ -115,7 +115,7 @@ export class TableController {
 const toWidgetProps = ({
   canAdjustColumnScale,
   columnHeaderSelection,
-  tableModel,
+  tableViewModel,
   tableState,
   getColumnWidths,
   hoverDelegate,
@@ -135,6 +135,6 @@ const toWidgetProps = ({
     tableService.resetColumnDisplayScale(colIndex),
   onSelect,
   storeColumnWidths,
-  tableModel,
+  tableViewModel,
   tableState,
 });

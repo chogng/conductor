@@ -12,9 +12,9 @@ Search is a consumer and indexer. It does not produce canonical data.
 results for raw cells/tables/groups/blocks/columns/curves/metrics/parameters,
 and navigation target generation.
 
-It consumes Session, table facts, review results, optional Plot display models
+It consumes Session, table model, review results, optional Plot display models
 for currently plotted chart/inspector series, and owner services for reveal
-requests. It does not own import, table-fact production, template execution, plot
+requests. It does not own import, table-model production, template execution, plot
 calculation, or Session mutation.
 
 ## Core Files

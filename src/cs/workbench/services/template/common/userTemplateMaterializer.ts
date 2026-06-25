@@ -10,23 +10,23 @@ import type {
   TemplateDraft,
   TemplateDraftDiagnostic,
 } from "src/cs/workbench/services/template/common/templateDraft";
-import type { RawTableFacts } from "src/cs/workbench/services/tableFacts/common/tableFacts";
+import type { TableModel } from "src/cs/workbench/services/tableModel/common/tableModel";
 import type {
   UserTemplate,
   UserTemplateSnapshot,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
 export const deriveUserTemplateDrafts = ({
-  tableFacts,
+  tableModel,
   userTemplateSnapshot,
 }: {
-  readonly tableFacts: RawTableFacts;
+  readonly tableModel: TableModel;
   readonly userTemplateSnapshot: UserTemplateSnapshot;
 }): readonly TemplateDraft[] => {
   const drafts: TemplateDraft[] = [];
   for (const userTemplate of userTemplateSnapshot.templates) {
     const draft = deriveUserTemplateDraft({
-      tableFacts,
+      tableModel,
       userTemplate,
     });
     if (draft) {
@@ -41,10 +41,10 @@ export const deriveUserTemplateDrafts = ({
 };
 
 const deriveUserTemplateDraft = ({
-  tableFacts,
+  tableModel,
   userTemplate,
 }: {
-  readonly tableFacts: RawTableFacts;
+  readonly tableModel: TableModel;
   readonly userTemplate: UserTemplate;
 }): TemplateDraft | null => {
   const diagnostics = new Set<string>();
@@ -57,13 +57,13 @@ const deriveUserTemplateDraft = ({
 
   if (
     template.applicability?.schemaFingerprint &&
-    template.applicability.schemaFingerprint !== tableFacts.structure.fingerprint
+    template.applicability.schemaFingerprint !== tableModel.structure.fingerprint
   ) {
     return null;
   }
   if (
     Number.isInteger(template.applicability?.columnCount) &&
-    template.applicability?.columnCount !== tableFacts.sourceMetadata.columnCount
+    template.applicability?.columnCount !== tableModel.sourceMetadata.columnCount
   ) {
     return null;
   }
@@ -74,8 +74,8 @@ const deriveUserTemplateDraft = ({
   if (Number.isInteger(template.applicability?.columnCount)) {
     reasons.push("userTemplate.columnCount");
   }
-  const rowCount = tableFacts.sourceMetadata.rowCount;
-  const columnCount = tableFacts.sourceMetadata.columnCount;
+  const rowCount = tableModel.sourceMetadata.rowCount;
+  const columnCount = tableModel.sourceMetadata.columnCount;
   if (
     typeof rowCount !== "number" ||
     typeof columnCount !== "number" ||

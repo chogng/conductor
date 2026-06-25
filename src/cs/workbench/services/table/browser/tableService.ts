@@ -10,7 +10,7 @@ import {
   ITableService,
   ITableRowsReaderService,
   TABLE_COPY_MAX_CELLS,
-  type TableModel,
+  type TableViewModel,
   type TableRevealMode,
   type TableRevealOptions,
   type TableRevealTarget,
@@ -37,25 +37,25 @@ import {
   TableStateScope,
   areTableFilesEqual,
   areTableLoadStatesEqual,
-  createTableModelWithScope,
-  createTableModelInScope,
+  createTableViewModelWithScope,
+  createTableViewModelInScope,
   normalizeColumnIndexes,
   normalizeTableCell,
   normalizeTableSelection,
-  type CreateTableModelWithScopeOptions,
-} from "src/cs/workbench/services/table/browser/tableModel";
+  type CreateTableViewModelWithScopeOptions,
+} from "src/cs/workbench/services/table/browser/tableViewModel";
 
-type TableState = ReturnType<TableModel["getState"]>;
-type TableCell = NonNullable<ReturnType<TableModel["getRevealCell"]>>;
-type TableSelection = ReturnType<TableModel["getSelection"]>;
+type TableState = ReturnType<TableViewModel["getState"]>;
+type TableCell = NonNullable<ReturnType<TableViewModel["getRevealCell"]>>;
+type TableSelection = ReturnType<TableViewModel["getSelection"]>;
 type TableRange = NonNullable<TableSelection["ranges"]>[number];
 type TableFile = NonNullable<TableState["file"]>;
 type TableServiceViewInput = {
-  readonly tableModel: TableModel;
+  readonly tableViewModel: TableViewModel;
   readonly tableState: TableState;
 };
 
-export { createTableModelWithScope } from "src/cs/workbench/services/table/browser/tableModel";
+export { createTableViewModelWithScope } from "src/cs/workbench/services/table/browser/tableViewModel";
 
 type TableCopyPlan = {
   readonly columnIndexes: readonly number[];
@@ -74,8 +74,8 @@ type TableTargetContext = {
 
 const TABLE_COLUMN_LAYOUT_STORAGE_KEY_PREFIX = "table.columnLayout.";
 
-const getTableTargetContext = (tableModel: TableModel): TableTargetContext | null => {
-  const state = tableModel.getState();
+const getTableTargetContext = (tableViewModel: TableViewModel): TableTargetContext | null => {
+  const state = tableViewModel.getState();
   const file = state.file;
   if (!file) {
     return null;
@@ -133,10 +133,10 @@ const acceptsTargetSheet = (
   sheetId === context.sheetId;
 
 const normalizeTargetCell = (
-  tableModel: TableModel,
+  tableViewModel: TableViewModel,
   cell: TableCell,
 ): TableCell | null => {
-  const context = getTableTargetContext(tableModel);
+  const context = getTableTargetContext(tableViewModel);
   const normalizedCell = normalizeTableCell(cell);
   if (!context || !normalizedCell) {
     return null;
@@ -161,10 +161,10 @@ const normalizeTargetCell = (
 };
 
 const normalizeTargetRange = (
-  tableModel: TableModel,
+  tableViewModel: TableViewModel,
   range: TableRange,
 ): TableRange | null => {
-  const context = getTableTargetContext(tableModel);
+  const context = getTableTargetContext(tableViewModel);
   const normalizedRange = normalizeTableSelection({ ranges: [range] }).ranges?.[0];
   if (!context || !normalizedRange) {
     return null;
@@ -197,10 +197,10 @@ const normalizeTargetRange = (
 };
 
 const normalizeTargetColumns = (
-  tableModel: TableModel,
+  tableViewModel: TableViewModel,
   columns: readonly number[],
 ): number[] | null => {
-  const context = getTableTargetContext(tableModel);
+  const context = getTableTargetContext(tableViewModel);
   if (!context || context.columnCount <= 0) {
     return null;
   }
@@ -214,10 +214,10 @@ const normalizeTargetColumns = (
 };
 
 const resolveSelectionForTarget = (
-  tableModel: TableModel,
+  tableViewModel: TableViewModel,
   target: TableSelectionTarget,
 ): TableSelection | null => {
-  const selection = tableModel.getSelection();
+  const selection = tableViewModel.getSelection();
 
   switch (target.kind) {
     case "cell": {
@@ -227,7 +227,7 @@ const resolveSelectionForTarget = (
           activeCell: null,
         };
       }
-      const activeCell = normalizeTargetCell(tableModel, target.cell);
+      const activeCell = normalizeTargetCell(tableViewModel, target.cell);
       return activeCell
         ? {
             activeCell,
@@ -236,7 +236,7 @@ const resolveSelectionForTarget = (
         : null;
     }
     case "range": {
-      const range = normalizeTargetRange(tableModel, target.range);
+      const range = normalizeTargetRange(tableViewModel, target.range);
       return range
         ? {
             activeCell: {
@@ -251,7 +251,7 @@ const resolveSelectionForTarget = (
         : null;
     }
     case "columns": {
-      const selectedColumns = normalizeTargetColumns(tableModel, target.columns);
+      const selectedColumns = normalizeTargetColumns(tableViewModel, target.columns);
       return selectedColumns
         ? {
             ...selection,
@@ -263,14 +263,14 @@ const resolveSelectionForTarget = (
 };
 
 const resolveRevealCellForTarget = (
-  tableModel: TableModel,
+  tableViewModel: TableViewModel,
   target: TableRevealTarget,
 ): TableCell | null => {
   switch (target.kind) {
     case "cell":
-      return normalizeTargetCell(tableModel, target.cell);
+      return normalizeTargetCell(tableViewModel, target.cell);
     case "range": {
-      const range = normalizeTargetRange(tableModel, target.range);
+      const range = normalizeTargetRange(tableViewModel, target.range);
       return range
         ? {
             colIndex: range.startCol,
@@ -283,16 +283,16 @@ const resolveRevealCellForTarget = (
   }
 };
 
-const resolveTableCopyPlan = (tableModel: TableModel): TableCopyPlan | null => {
-  const context = getTableTargetContext(tableModel);
+const resolveTableCopyPlan = (tableViewModel: TableViewModel): TableCopyPlan | null => {
+  const context = getTableTargetContext(tableViewModel);
   if (!context || context.rowCount <= 0 || context.columnCount <= 0) {
     return null;
   }
 
   const sourceKey = context.file.sourceKey || context.file.fileId;
-  const selection = tableModel.getSelection();
+  const selection = tableViewModel.getSelection();
   const selectedRange = selection.ranges?.[0]
-    ? normalizeTargetRange(tableModel, selection.ranges[0])
+    ? normalizeTargetRange(tableViewModel, selection.ranges[0])
     : null;
   if (selectedRange) {
     return {
@@ -304,7 +304,7 @@ const resolveTableCopyPlan = (tableModel: TableModel): TableCopyPlan | null => {
   }
 
   const activeCell = selection.activeCell
-    ? normalizeTargetCell(tableModel, selection.activeCell)
+    ? normalizeTargetCell(tableViewModel, selection.activeCell)
     : null;
   if (activeCell) {
     return {
@@ -316,7 +316,7 @@ const resolveTableCopyPlan = (tableModel: TableModel): TableCopyPlan | null => {
   }
 
   const selectedColumns = selection.selectedColumns?.length
-    ? normalizeTargetColumns(tableModel, selection.selectedColumns)
+    ? normalizeTargetColumns(tableViewModel, selection.selectedColumns)
     : null;
   if (selectedColumns?.length) {
     return {
@@ -331,12 +331,12 @@ const resolveTableCopyPlan = (tableModel: TableModel): TableCopyPlan | null => {
 };
 
 const createTableSelectionTsv = (
-  tableModel: TableModel,
+  tableViewModel: TableViewModel,
   plan: TableCopyPlan,
 ): string => {
   const rows: string[] = [];
   for (let rowIndex = plan.startRow; rowIndex <= plan.endRow; rowIndex += 1) {
-    const row = tableModel.getRow(rowIndex) ?? [];
+    const row = tableViewModel.getRow(rowIndex) ?? [];
     rows.push(plan.columnIndexes
       .map(colIndex => formatTableCopyCell(row[colIndex]))
       .join("\t"));
@@ -378,12 +378,12 @@ export class TableService extends Disposable implements ITableService {
 
   private readonly scope = this._register(new TableStateScope());
   private currentSource: TableSource | null = null;
-  private tableModel: TableModel | null = null;
-  private tableStateModel: TableModel | null = null;
+  private tableViewModel: TableViewModel | null = null;
+  private tableStateViewModel: TableViewModel | null = null;
   private tableStateListener: (() => void) | null = null;
   private viewInput: TableViewInput | null = null;
-  private selectionTableModel: TableModel | null = null;
-  private tableModelSelectionListener: (() => void) | null = null;
+  private selectionTableViewModel: TableViewModel | null = null;
+  private tableViewModelSelectionListener: (() => void) | null = null;
   private numericDisplayMode: NumericDisplayMode;
   private displayVersion = 0;
 
@@ -411,14 +411,14 @@ export class TableService extends Disposable implements ITableService {
 
   public open(source: TableSource | null): void {
     const nextSource = normalizeTableSource(source);
-    if (isSameTableSource(this.currentSource, nextSource) && this.tableModel) {
+    if (isSameTableSource(this.currentSource, nextSource) && this.tableViewModel) {
       return;
     }
     this.currentSource = nextSource;
     this.refreshFromSession();
   }
 
-  private refreshFromSession(options: { forceViewInput?: boolean } = {}): TableModel {
+  private refreshFromSession(options: { forceViewInput?: boolean } = {}): TableViewModel {
     const snapshot = this.sessionService.getSnapshot();
     const rawFiles = createRawFilesFromRecords(snapshot.filesById, snapshot.fileOrder);
     const source = resolveAvailableTableSource(rawFiles, this.currentSource);
@@ -426,30 +426,30 @@ export class TableService extends Disposable implements ITableService {
       this.currentSource = source;
     }
 
-    const tableModel = createTableModelInScope(this.scope, {
+    const tableViewModel = createTableViewModelInScope(this.scope, {
       rawFiles,
       source,
       tableRowsReaderService: this.tableRowsReaderService,
       numericDisplayMode: this.numericDisplayMode,
       settingsVersion: this.displayVersion,
     });
-    this.bindActiveTableModel(tableModel);
-    this.bindTableModelState(tableModel);
+    this.bindActiveTableViewModel(tableViewModel);
+    this.bindTableViewModelState(tableViewModel);
     this.updateViewInput({
-      tableModel,
-      tableState: tableModel.getState(),
+      tableViewModel,
+      tableState: tableViewModel.getState(),
     }, options);
-    return tableModel;
+    return tableViewModel;
   }
 
   public override dispose(): void {
     this.tableStateListener?.();
     this.tableStateListener = null;
-    this.tableStateModel = null;
-    this.tableModelSelectionListener?.();
-    this.tableModelSelectionListener = null;
-    this.selectionTableModel = null;
-    this.tableModel = null;
+    this.tableStateViewModel = null;
+    this.tableViewModelSelectionListener?.();
+    this.tableViewModelSelectionListener = null;
+    this.selectionTableViewModel = null;
+    this.tableViewModel = null;
 
     if (this.viewInput) {
       this.viewInput = null;
@@ -464,7 +464,7 @@ export class TableService extends Disposable implements ITableService {
   }
 
   public getSelection(): TableSelection {
-    return this.getActiveTableModel()?.getSelection() ?? normalizeTableSelection(null);
+    return this.getActiveTableViewModel()?.getSelection() ?? normalizeTableSelection(null);
   }
 
   public getColumnWidths(sourceKey: string | null | undefined): readonly TableColumnWidth[] {
@@ -481,23 +481,23 @@ export class TableService extends Disposable implements ITableService {
   }
 
   public getPreviewRow(rowIndex: number): unknown[] | null {
-    return this.getActiveTableModel()?.getRow(rowIndex) ?? null;
+    return this.getActiveTableViewModel()?.getRow(rowIndex) ?? null;
   }
 
   public adjustColumnDisplayScale(colIndex: number, deltaExponent: number): boolean {
-    return this.getActiveTableModel()?.adjustColumnDisplayScale(colIndex, deltaExponent) ?? false;
+    return this.getActiveTableViewModel()?.adjustColumnDisplayScale(colIndex, deltaExponent) ?? false;
   }
 
   public resetColumnDisplayScale(colIndex: number): boolean {
-    return this.getActiveTableModel()?.resetColumnDisplayScale(colIndex) ?? false;
+    return this.getActiveTableViewModel()?.resetColumnDisplayScale(colIndex) ?? false;
   }
 
   public async getSelectionText(
     maxCellCount: number = TABLE_COPY_MAX_CELLS,
   ): Promise<TableSelectionTextResult> {
-    const tableModel = this.getActiveTableModel();
-    const plan = tableModel ? resolveTableCopyPlan(tableModel) : null;
-    if (!tableModel || !plan) {
+    const tableViewModel = this.getActiveTableViewModel();
+    const plan = tableViewModel ? resolveTableCopyPlan(tableViewModel) : null;
+    if (!tableViewModel || !plan) {
       return { kind: "empty" };
     }
 
@@ -513,50 +513,50 @@ export class TableService extends Disposable implements ITableService {
       };
     }
 
-    await tableModel.ensureRows(plan.sourceKey, plan.startRow, plan.endRow + 1);
+    await tableViewModel.ensureRows(plan.sourceKey, plan.startRow, plan.endRow + 1);
     return {
       columnCount,
       kind: "ok",
       rowCount,
-      text: createTableSelectionTsv(tableModel, plan),
+      text: createTableSelectionTsv(tableViewModel, plan),
     };
   }
 
   public clearHighlight(): void {
-    this.getActiveTableModel()?.clearHighlight();
+    this.getActiveTableViewModel()?.clearHighlight();
   }
 
   public highlightColumns(columnIndexes: readonly number[]): void {
-    this.getActiveTableModel()?.highlightColumns(columnIndexes);
+    this.getActiveTableViewModel()?.highlightColumns(columnIndexes);
   }
 
   public clearSelection(): boolean {
-    return this.getActiveTableModel()?.clearSelection() ?? false;
+    return this.getActiveTableViewModel()?.clearSelection() ?? false;
   }
 
   public select(
     target: TableSelectionTarget | null,
     reveal?: TableRevealMode,
   ): boolean {
-    const tableModel = this.getActiveTableModel();
-    if (!tableModel) {
+    const tableViewModel = this.getActiveTableViewModel();
+    if (!tableViewModel) {
       return false;
     }
 
     if (!target) {
-      return tableModel.clearSelection();
+      return tableViewModel.clearSelection();
     }
 
-    const selection = resolveSelectionForTarget(tableModel, target);
+    const selection = resolveSelectionForTarget(tableViewModel, target);
     if (!selection) {
       return false;
     }
 
-    tableModel.setSelection(selection);
+    tableViewModel.setSelection(selection);
     if (reveal && target.kind === "range") {
-      this.revealTarget(tableModel, target);
+      this.revealTarget(tableViewModel, target);
     } else if (reveal && target.kind === "cell" && target.cell) {
-      this.revealTarget(tableModel, {
+      this.revealTarget(tableViewModel, {
         kind: "cell",
         cell: target.cell,
       });
@@ -568,21 +568,21 @@ export class TableService extends Disposable implements ITableService {
     target: TableRevealTarget | null,
     _options: TableRevealOptions = {},
   ): boolean {
-    const tableModel = this.getActiveTableModel();
-    if (!tableModel) {
+    const tableViewModel = this.getActiveTableViewModel();
+    if (!tableViewModel) {
       return false;
     }
 
     if (!target) {
-      tableModel.revealCell(null);
+      tableViewModel.revealCell(null);
       return true;
     }
 
-    return this.revealTarget(tableModel, target);
+    return this.revealTarget(tableViewModel, target);
   }
 
   public selectAllColumns(): boolean {
-    return this.getActiveTableModel()?.selectAllColumns() ?? false;
+    return this.getActiveTableViewModel()?.selectAllColumns() ?? false;
   }
 
   public storeColumnWidths(
@@ -617,58 +617,58 @@ export class TableService extends Disposable implements ITableService {
     }
 
     this.viewInput = input;
-    this.bindActiveTableModel(input.tableModel);
+    this.bindActiveTableViewModel(input.tableViewModel);
     this.onDidChangeTableViewInputEmitter.fire(undefined);
   }
 
-  private getActiveTableModel(): TableModel | null {
-    return this.tableModel;
+  private getActiveTableViewModel(): TableViewModel | null {
+    return this.tableViewModel;
   }
 
   private revealTarget(
-    tableModel: TableModel,
+    tableViewModel: TableViewModel,
     target: TableRevealTarget,
   ): boolean {
-    const cell = resolveRevealCellForTarget(tableModel, target);
+    const cell = resolveRevealCellForTarget(tableViewModel, target);
     if (!cell) {
       return false;
     }
 
-    tableModel.revealCell(cell);
+    tableViewModel.revealCell(cell);
     return true;
   }
 
-  private bindActiveTableModel(tableModel: TableModel): void {
-    this.tableModel = tableModel;
-    if (this.selectionTableModel === tableModel) {
+  private bindActiveTableViewModel(tableViewModel: TableViewModel): void {
+    this.tableViewModel = tableViewModel;
+    if (this.selectionTableViewModel === tableViewModel) {
       return;
     }
 
-    this.tableModelSelectionListener?.();
-    this.selectionTableModel = tableModel;
-    this.tableModelSelectionListener = tableModel.onDidChangeSelection((selection) => {
+    this.tableViewModelSelectionListener?.();
+    this.selectionTableViewModel = tableViewModel;
+    this.tableViewModelSelectionListener = tableViewModel.onDidChangeSelection((selection) => {
       this.onDidChangeSelectionEmitter.fire(selection);
     });
   }
 
-  private bindTableModelState(tableModel: TableModel): void {
-    if (this.tableStateModel === tableModel) {
+  private bindTableViewModelState(tableViewModel: TableViewModel): void {
+    if (this.tableStateViewModel === tableViewModel) {
       return;
     }
 
     this.tableStateListener?.();
-    this.tableStateModel = tableModel;
-    this.tableStateListener = tableModel.onDidChangeState(() => {
+    this.tableStateViewModel = tableViewModel;
+    this.tableStateListener = tableViewModel.onDidChangeState(() => {
       this.updateViewInput({
-        tableModel,
-        tableState: tableModel.getState(),
+        tableViewModel,
+        tableState: tableViewModel.getState(),
       });
     });
   }
 }
 
-export const createTableModelForInput = (options: CreateTableModelWithScopeOptions): TableModel => {
-  return createTableModelWithScope(options);
+export const createTableViewModelForInput = (options: CreateTableViewModelWithScopeOptions): TableViewModel => {
+  return createTableViewModelWithScope(options);
 };
 
 registerSingleton(ITableService, TableService, InstantiationType.Delayed);

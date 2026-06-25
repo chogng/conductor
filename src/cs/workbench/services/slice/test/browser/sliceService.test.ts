@@ -6,8 +6,8 @@ import assert from "assert";
 
 import { Event } from "src/cs/base/common/event";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import { TABLE_FACTS_RULE_VERSION, type RawTableFactsRecord } from "src/cs/workbench/services/tableFacts/common/tableFacts";
-import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
+import { TABLE_MODEL_RULE_VERSION, type TableModelRecord } from "src/cs/workbench/services/tableModel/common/tableModel";
+import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
 import type {
 	IRawTableRowsReaderService,
 	RawTableRows,
@@ -16,7 +16,7 @@ import type {
 import type { FileImportResult, ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import { SliceService } from "src/cs/workbench/services/slice/browser/sliceService";
-import { createSliceTableFactsSignature } from "src/cs/workbench/services/slice/common/slicePlanner";
+import { createSliceTableModelSignature } from "src/cs/workbench/services/slice/common/slicePlanner";
 import type { Template } from "src/cs/workbench/services/template/common/template";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import {
@@ -87,9 +87,9 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		const sessionService = store.add(new SessionService());
 		const sliceService = store.add(new SliceService(sessionService));
 		sessionService.commitFileImport(createImportResult());
-		const tableFacts = createTableFacts();
-		sessionService.commitRawTableFacts(tableFacts);
-		sessionService.commitRawTableReviews([createReview(tableFacts)]);
+		const tableModel = createTableModel();
+		sessionService.commitTableModel(tableModel);
+		sessionService.commitRawTableReviews([createReview(tableModel)]);
 
 		sliceService.enqueueAuto([{
 			fileId: "file-a",
@@ -105,9 +105,9 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		const sessionService = store.add(new SessionService());
 		const sliceService = store.add(new SliceService(sessionService));
 		sessionService.commitFileImport(createImportResult());
-		const tableFacts = createTableFacts();
-		sessionService.commitRawTableFacts(tableFacts);
-		sessionService.commitRawTableReviews([createReview(tableFacts, {
+		const tableModel = createTableModel();
+		sessionService.commitTableModel(tableModel);
+		sessionService.commitRawTableReviews([createReview(tableModel, {
 			recipeFingerprint: "recipe:first",
 		})]);
 
@@ -115,7 +115,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 			fileId: "file-a",
 			rawTableId: "table-a",
 		}]);
-		sessionService.commitRawTableReviews([createReview(tableFacts, {
+		sessionService.commitRawTableReviews([createReview(tableModel, {
 			recipeFingerprint: "recipe:second",
 		})]);
 		sliceService.enqueueAuto([{
@@ -141,9 +141,9 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 			rowsReaderService,
 		));
 		sessionService.commitFileImport(createImportResult());
-		const tableFacts = createTableFacts();
-		sessionService.commitRawTableFacts(tableFacts);
-		sessionService.commitRawTableReviews([createReview(tableFacts)]);
+		const tableModel = createTableModel();
+		sessionService.commitTableModel(tableModel);
+		sessionService.commitRawTableReviews([createReview(tableModel)]);
 
 		sliceService.enqueueAuto([{
 			fileId: "file-a",
@@ -175,9 +175,9 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 			rowsReaderService,
 		));
 		sessionService.commitFileImport(createImportResult());
-		const latestTableFacts = createTableFacts();
-		sessionService.commitRawTableFacts(latestTableFacts);
-		sessionService.commitRawTableReviews([createReview(latestTableFacts, {
+		const latestTableModel = createTableModel();
+		sessionService.commitTableModel(latestTableModel);
+		sessionService.commitRawTableReviews([createReview(latestTableModel, {
 			recipeFingerprint: "recipe:first",
 		})]);
 
@@ -187,7 +187,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		}]);
 		await waitUntil(() => rowsReaderService.inputs.length === 1);
 
-		const latestReview = createReview(latestTableFacts, {
+		const latestReview = createReview(latestTableModel, {
 			recipeFingerprint: "recipe:second",
 		});
 		sessionService.commitRawTableReviews([latestReview]);
@@ -203,8 +203,8 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		const record = sessionService.getSnapshot().filesById["file-a"];
 		assert.equal(Object.keys(record.sliceRunsById ?? {}).length, 1);
 		assert.equal(
-			record.sliceRunsById?.[record.latestSliceRunId!]?.sourceTableFactsSignature,
-			createSliceTableFactsSignature(latestTableFacts, {
+			record.sliceRunsById?.[record.latestSliceRunId!]?.sourceTableModelSignature,
+			createSliceTableModelSignature(latestTableModel, {
 				reviewSignature: createReviewRecordSignature(latestReview),
 			}),
 		);
@@ -323,7 +323,7 @@ const createTemplate = (): Template => ({
 });
 
 const createReview = (
-	tableFacts: RawTableFactsRecord,
+	tableModel: TableModelRecord,
 	options: {
 		readonly recipeFingerprint?: string;
 		readonly template?: Template;
@@ -334,10 +334,10 @@ const createReview = (
 	const template = options.template ?? createTemplate();
 	const templateFingerprint = options.templateFingerprint ?? "template:auto";
 	return {
-		fileId: tableFacts.fileId,
-		rawTableId: tableFacts.rawTableId,
-		sourceRawTableVersion: tableFacts.sourceRawTableVersion,
-		evidenceSignature: createReviewEvidenceSignature(tableFacts, {
+		fileId: tableModel.fileId,
+		rawTableId: tableModel.rawTableId,
+		sourceRawTableVersion: tableModel.sourceRawTableVersion,
+		evidenceSignature: createReviewEvidenceSignature(tableModel, {
 			columnCount: 2,
 			fileName: "Raw.csv",
 			rowCount: 3,
@@ -456,8 +456,8 @@ const createUserTemplateForTest = (template: Template): UserTemplate => {
 	};
 };
 
-const createTableFacts = (): RawTableFactsRecord => ({
-	tableFactsRuleVersion: TABLE_FACTS_RULE_VERSION,
+const createTableModel = (): TableModelRecord => ({
+	tableModelRuleVersion: TABLE_MODEL_RULE_VERSION,
 	schemaProfileVersion: 0,
 	fileId: "file-a",
 	rawTableId: "table-a",

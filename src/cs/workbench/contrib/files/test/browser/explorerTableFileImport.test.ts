@@ -12,7 +12,7 @@ import type {
   PreparedFileImportInfo,
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import type { ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
-import type { ImportTableFactsSeed } from "src/cs/workbench/services/tableFacts/common/tableFacts";
+import type { ImportTableModelSeed } from "src/cs/workbench/services/tableModel/common/tableModel";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import { TableFileService } from "src/cs/workbench/services/tableFile/browser/tableFileService";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
@@ -169,7 +169,7 @@ suite("workbench/contrib/files/test/browser/explorerTableFileImport", () => {
     );
   });
 
-  test("commits prepared import table facts with the imported raw table version", () => {
+  test("commits imported raw table without materializing prepared table model", () => {
     const session = store.add(new SessionService());
     const tableFileService = new TableFileService(session);
     const explorerService = store.add(new ExplorerService());
@@ -182,7 +182,7 @@ suite("workbench/contrib/files/test/browser/explorerTableFileImport", () => {
       explorerService,
       importedFiles: [
         createPreparedFileImportInfo("file-a", "Transfer.csv", {
-          preparedTableFactsSeed: {
+          preparedTableModelSeed: {
             curveFamily: "iv",
             curveType: "Transfer",
             curveTypeConfidence: "high",
@@ -199,11 +199,8 @@ suite("workbench/contrib/files/test/browser/explorerTableFileImport", () => {
     });
 
     const file = session.getSnapshot().filesById["file-a"];
-    const tableFacts = file.tableFactsByRawTableId["file-a"];
-    assert.equal(tableFacts.sourceRawTableVersion, file.rawTableVersionsById["file-a"]);
-    assert.equal(tableFacts.blocks[0].label, "Transfer");
-    assert.equal(tableFacts.blocks[0].family, "iv");
-    assert.equal(tableFacts.blocks[0].ivMode, "transfer");
+    assert.deepEqual(file.tableModelByRawTableId, {});
+    assert.equal(file.rawTableVersionsById["file-a"], 1);
     assert.deepEqual(events.map(event => event.reason), ["rawTablesChanged"]);
     disposable.dispose();
   });
@@ -213,7 +210,7 @@ const createPreparedFileImportInfo = (
   fileId: string,
   fileName: string,
   options: {
-    readonly preparedTableFactsSeed?: ImportTableFactsSeed;
+    readonly preparedTableModelSeed?: ImportTableModelSeed;
     readonly relativePath?: string | null;
     readonly sourceKey?: string;
   } = {},
@@ -226,7 +223,7 @@ const createPreparedFileImportInfo = (
   lastModified: 1,
   rowCount: 2,
   size: 2,
-  preparedTableFactsSeed: options.preparedTableFactsSeed,
+  preparedTableModelSeed: options.preparedTableModelSeed,
   relativePath: options.relativePath ?? null,
   sourceKey: options.sourceKey,
 });

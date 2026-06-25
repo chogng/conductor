@@ -9,11 +9,11 @@ import { evaluateRecipeSelector } from "src/cs/workbench/services/template/commo
 import type {
 	MeasurementBlockRecord,
 	MeasurementColumnRef,
-} from "src/cs/workbench/services/tableFacts/common/measurement";
-import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
+} from "src/cs/workbench/services/tableModel/common/measurement";
+import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
 import { materializeRecipeTemplateDraft } from "src/cs/workbench/services/template/common/recipeTemplateMaterializer";
-import type { RawTableFacts } from "src/cs/workbench/services/tableFacts/common/tableFacts";
+import type { TableModel } from "src/cs/workbench/services/tableModel/common/tableModel";
 
 suite("workbench/services/template/test/common/recipeTemplateMaterializer", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -22,11 +22,11 @@ suite("workbench/services/template/test/common/recipeTemplateMaterializer", () =
 		const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
 		assert.ok(recipe);
 
-		const tableFacts = createTableFacts();
-		const evaluation = evaluateRecipeSelector(recipe, tableFacts);
+		const tableModel = createTableModel();
+		const evaluation = evaluateRecipeSelector(recipe, tableModel);
 		const draft = materializeRecipeTemplateDraft({
 			recipe,
-			tableFacts,
+			tableModel,
 			evaluation,
 		});
 
@@ -53,7 +53,7 @@ suite("workbench/services/template/test/common/recipeTemplateMaterializer", () =
 	});
 });
 
-const createTableFacts = (): RawTableFacts => ({
+const createTableModel = (): TableModel => ({
 	structure: {
 		...createEmptyRawTableStructure(),
 		fingerprint: "schema-a",

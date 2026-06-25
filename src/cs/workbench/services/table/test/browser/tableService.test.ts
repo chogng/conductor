@@ -7,18 +7,18 @@ import { AbstractStorageService } from "src/cs/platform/storage/common/storageSe
 import type {
   TableRowsReaderProvider,
   TableState,
-  TableViewModel,
+  TableWidgetViewModel,
 } from "src/cs/workbench/services/table/common/table";
 import {
   TableService,
 } from "src/cs/workbench/services/table/browser/tableService";
 import {
   areTableSelectionsEqual,
-  createTableModelInScope,
+  createTableViewModelInScope,
   normalizeTableSelection,
   TableStateScope,
-  type CreateTableModelWithScopeOptions,
-} from "src/cs/workbench/services/table/browser/tableModel";
+  type CreateTableViewModelWithScopeOptions,
+} from "src/cs/workbench/services/table/browser/tableViewModel";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
@@ -33,8 +33,8 @@ let tableTestStore: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite> |
 suite("workbench/services/table/browser/tableService", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
   tableTestStore = store;
-  const createModel = (options: CreateTableModelWithScopeOptions) =>
-    createTableModelInScope(store.add(new TableStateScope()), options);
+  const createModel = (options: CreateTableViewModelWithScopeOptions) =>
+    createTableViewModelInScope(store.add(new TableStateScope()), options);
 
   test("loads imported preview using the raw source key", async () => {
     let openedPayload: unknown = null;
@@ -237,7 +237,7 @@ suite("workbench/services/table/browser/tableService", () => {
     service.open({ fileId: "file-a" });
     sessionService.setRawFiles([createRawFile()]);
 
-    assert.notEqual(service.getViewInput()?.tableModel, null);
+    assert.notEqual(service.getViewInput()?.tableViewModel, null);
     assert.equal(service.getViewInput()?.tableState.selectedFileId, "file-a");
     assert.equal(changeCount, 2);
     disposable.dispose();
@@ -436,7 +436,7 @@ suite("workbench/services/table/browser/tableService", () => {
       }
 
       sessionService.setRawFiles(createRawFiles());
-      model = service.getViewInput()?.tableModel ?? model;
+      model = service.getViewInput()?.tableViewModel ?? model;
     });
 
     await new Promise(resolve => setTimeout(resolve, 0));
@@ -1048,8 +1048,8 @@ const createRowsTableReader = (
   });
 };
 
-const getRequiredTableViewModel = (service: TableService): TableViewModel => {
-  const model = service.getViewInput()?.tableModel;
+const getRequiredTableViewModel = (service: TableService): TableWidgetViewModel => {
+  const model = service.getViewInput()?.tableViewModel;
   assert.ok(model);
   return model;
 };

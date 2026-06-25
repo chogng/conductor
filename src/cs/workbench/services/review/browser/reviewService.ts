@@ -27,8 +27,8 @@ import {
   type TemplateReview,
 } from "src/cs/workbench/services/review/common/review";
 import {
-  createRawTableFactsFromRecord,
-} from "src/cs/workbench/services/tableFacts/common/tableFacts";
+  TableModel,
+} from "src/cs/workbench/services/tableModel/common/tableModel";
 import type { TemplateDraft } from "src/cs/workbench/services/template/common/templateDraft";
 import {
   ITemplateMaterializationService,
@@ -84,13 +84,13 @@ export class ReviewService extends Disposable implements IReviewServiceType {
   }
 
   public deriveAndReview(input: ReviewInput): ReviewResult {
-    const tableFacts = createRawTableFactsFromRecord(input.tableFacts, {
+    const tableModel = TableModel.fromRecord(input.tableModel, {
       columnCount: input.columnCount,
       fileName: input.fileName ?? undefined,
       rowCount: input.rowCount,
     });
     const candidates = this.templateMaterializationService.materializeAutomaticDrafts({
-      tableFacts,
+      tableModel,
       recipeSnapshot: input.recipeSnapshot,
       userTemplateSnapshot: input.userTemplateSnapshot,
     });
@@ -155,11 +155,11 @@ export class ReviewService extends Disposable implements IReviewServiceType {
     const snapshot = this.sessionService.getSnapshot();
     const file = snapshot.filesById[ref.fileId];
     const table = file?.raw.tablesById[ref.rawTableId];
-    const tableFacts = file?.tableFactsByRawTableId?.[ref.rawTableId];
-    if (!file || !table || !tableFacts) {
+    const tableModel = file?.tableModelByRawTableId?.[ref.rawTableId];
+    if (!file || !table || !tableModel) {
       return createInvalidManualReviewResult(
         "review.manual.missingEvidence",
-        "Manual review needs an imported raw table with table facts.",
+        "Manual review needs an imported raw table with table model.",
       );
     }
 
@@ -250,14 +250,14 @@ export class ReviewService extends Disposable implements IReviewServiceType {
     recipeSnapshot: ReturnType<IRecipeServiceType["getSnapshot"]>,
     userTemplateSnapshot: UserTemplateSnapshot,
   ): RawTableReviewRecord | null {
-    const tableFacts = file?.tableFactsByRawTableId?.[ref.rawTableId];
+    const tableModel = file?.tableModelByRawTableId?.[ref.rawTableId];
     const table = file?.raw.tablesById[ref.rawTableId];
-    if (!file || !tableFacts || !table) {
+    if (!file || !tableModel || !table) {
       return null;
     }
 
     const result = this.deriveAndReview({
-      tableFacts,
+      tableModel,
       columnCount: table.columnCount,
       fileName: file.name,
       recipeSnapshot,
@@ -267,8 +267,8 @@ export class ReviewService extends Disposable implements IReviewServiceType {
     return {
       fileId: ref.fileId,
       rawTableId: ref.rawTableId,
-      sourceRawTableVersion: tableFacts.sourceRawTableVersion,
-      evidenceSignature: createReviewEvidenceSignature(tableFacts, {
+      sourceRawTableVersion: tableModel.sourceRawTableVersion,
+      evidenceSignature: createReviewEvidenceSignature(tableModel, {
         columnCount: table.columnCount,
         fileName: file.name,
         rowCount: table.rowCount,
@@ -632,7 +632,7 @@ const getRawTableRefsForReviewSnapshot = (
     if (!file) {
       continue;
     }
-    for (const rawTableId of Object.keys(file.tableFactsByRawTableId ?? {})) {
+    for (const rawTableId of Object.keys(file.tableModelByRawTableId ?? {})) {
       if (file.raw.tablesById[rawTableId]) {
         refs.push({ fileId, rawTableId });
       }

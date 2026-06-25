@@ -13,10 +13,10 @@ import {
 } from "src/cs/workbench/browser/workbenchDomainBridge";
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
 import {
-  TABLE_FACTS_RULE_VERSION,
-  type RawTableFactsRecord,
-} from "src/cs/workbench/services/tableFacts/common/tableFacts";
-import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
+  TABLE_MODEL_RULE_VERSION,
+  type TableModelRecord,
+} from "src/cs/workbench/services/tableModel/common/tableModel";
+import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
 import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
 import type {
   FileImportResult,
@@ -76,7 +76,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     });
   });
 
-  test("projects table facts queue state into raw explorer badges", () => {
+  test("projects TableModel queue state into raw explorer badges", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     commitRawFilesForTest(session, [{
@@ -90,7 +90,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     const snapshot = session.getSnapshot();
     const input = createExplorerPaneInput({
       activePlotType: "iv",
-      tableFactsQueueSnapshot: {
+      tableModelQueueSnapshot: {
         rawTables: [{
           fileId: "file-a",
           priority: "visible",
@@ -110,7 +110,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.deepEqual(input.files[0]?.badgeState, {
       kind: "pending",
       queueState: "running",
-      source: "tableFacts",
+      source: "tableModel",
     });
   });
 
@@ -252,7 +252,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.deepEqual(input.files.map(file => file.chartState), ["ready", "none"]);
   });
 
-  test("keeps chart slice states from replacing table facts badges", () => {
+  test("keeps chart slice states from replacing TableModel badges", () => {
     const snapshot = store.add(new SessionService()).getSnapshot();
     const input = createExplorerPaneInput({
       activePlotType: "iv",
@@ -314,7 +314,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
         {
           badgeState: {
             kind: "unknown",
-            source: "tableFacts",
+            source: "tableModel",
           },
           chartMessage: "Unknown.csv has unknown curve type.",
           chartState: "skipped",
@@ -325,7 +325,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
             confidence: "confirmed",
             kind: "ready",
             label: "transfer",
-            source: "tableFacts",
+            source: "tableModel",
           },
           chartMessage: "Failed.csv could not be sliced.",
           chartState: "failed",
@@ -336,7 +336,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
             confidence: "confirmed",
             kind: "ready",
             label: "output",
-            source: "tableFacts",
+            source: "tableModel",
           },
           chartMessage: null,
           chartState: "queued",
@@ -494,7 +494,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.equal(explorerService.selectedProcessedFileId, "raw-only");
   });
 
-  test("projects fast badge estimates before full table facts are ready", () => {
+  test("projects fast badge estimates before full TableModel records are ready", () => {
     const session = store.add(new SessionService());
     commitRawFilesForTest(session, [
       {
@@ -518,8 +518,8 @@ suite("workbench/browser/workbench Explorer pane input", () => {
         columnCount: 2,
       },
     ]);
-    session.commitRawTableFacts({
-      tableFactsRuleVersion: TABLE_FACTS_RULE_VERSION,
+    session.commitTableModel({
+      tableModelRuleVersion: TABLE_MODEL_RULE_VERSION,
       schemaProfileVersion: 0,
       blocks: [{
 	        columnCount: 2,
@@ -598,7 +598,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
             confidence: "confirmed",
             kind: "ready",
             label: "transfer",
-            source: "tableFacts",
+            source: "tableModel",
           },
           curveTypeBadgeLabel: "transfer",
           fileId: "ready-file",
@@ -1103,8 +1103,8 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       rowCount: 2,
       rows: [],
     }]);
-    const tableFacts = createRawTableFactsForTest();
-    session.commitRawTableFacts(tableFacts);
+    const tableModel = createTableModelForTest();
+    session.commitTableModel(tableModel);
     const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
     const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
     globalThis.requestAnimationFrame = ((callback: FrameRequestCallback): number => {
@@ -1126,7 +1126,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
 
       assert.equal(explorerService.getPaneInput()?.files[0]?.rawTableStatus?.kind, "reviewPending");
 
-      session.commitRawTableReviews([createReviewRecordForTest(tableFacts)]);
+      session.commitRawTableReviews([createReviewRecordForTest(tableModel)]);
       await new Promise(resolve => globalThis.setTimeout(resolve, 0));
 
       const status = explorerService.getPaneInput()?.files[0]?.rawTableStatus;
@@ -1256,11 +1256,11 @@ const createDomainBridgeOptionsForTest = ({
   readonly tableSources?: Array<string | null>;
   readonly visibleDetailPanes?: readonly ["inspector"] | readonly [];
 }): ConstructorParameters<typeof WorkbenchDomainBridge>[0] => ({
-  rawTableFactsQueueService: {
+  tableModelQueueService: {
     _serviceBrand: undefined,
     enqueueRawTables: () => undefined,
     getQueueSnapshot: () => ({ rawTables: [] }),
-    onDidChangeRawTableFactsQueueState: Event.None as Event<void>,
+    onDidChangeTableModelQueueState: Event.None as Event<void>,
     prioritizeRawTables: () => undefined,
   },
   calculationService: {
@@ -1450,8 +1450,8 @@ const commitRawFilesForTest = (
   session.commitFileImport(createFileImportResultForTest(files));
 };
 
-const createRawTableFactsForTest = (): RawTableFactsRecord => ({
-  tableFactsRuleVersion: TABLE_FACTS_RULE_VERSION,
+const createTableModelForTest = (): TableModelRecord => ({
+  tableModelRuleVersion: TABLE_MODEL_RULE_VERSION,
   schemaProfileVersion: 0,
   blocks: [{
     columnCount: 2,
@@ -1486,12 +1486,12 @@ const createRawTableFactsForTest = (): RawTableFactsRecord => ({
 });
 
 const createReviewRecordForTest = (
-  tableFacts: RawTableFactsRecord,
+  tableModel: TableModelRecord,
 ): RawTableReviewRecord => ({
-  fileId: tableFacts.fileId,
-  rawTableId: tableFacts.rawTableId,
-  sourceRawTableVersion: tableFacts.sourceRawTableVersion,
-  evidenceSignature: createReviewEvidenceSignature(tableFacts, {
+  fileId: tableModel.fileId,
+  rawTableId: tableModel.rawTableId,
+  sourceRawTableVersion: tableModel.sourceRawTableVersion,
+  evidenceSignature: createReviewEvidenceSignature(tableModel, {
     columnCount: 2,
     fileName: "A.csv",
     rowCount: 2,

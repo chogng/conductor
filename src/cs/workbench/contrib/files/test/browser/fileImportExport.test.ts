@@ -16,8 +16,8 @@ import type {
   FileConverterPreparedFile,
 } from "../../../../services/files/common/fileConverterBackend.ts";
 import {
-  createImportTableFactsSeedFromRows,
-} from "../../../../services/tableFacts/browser/importTableFactsSeed.ts";
+  createImportTableModelSeedFromRows,
+} from "../../../../services/tableModel/browser/importTableModelSeed.ts";
 import { NotificationService } from "../../../../services/notification/common/notificationService.ts";
 import {
   canImportFolderWithFileService,
@@ -391,11 +391,11 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.equal(failedFiles.length, 0);
   });
 
-  test("creates prepared table facts from converted inline rows", async () => {
+  test("creates prepared table model seed from converted inline rows", async () => {
     const failedFiles: FileImportPrepareFailure[] = [];
     const firstImport = await prepareFirstPendingImportFile({
       canApplyResult: () => true,
-      createPreparedTableFactsSeedFromRows: createImportTableFactsSeedFromRows,
+      createPreparedTableModelSeedFromRows: createImportTableModelSeedFromRows,
       failedFiles,
       fileConverterBackend: createFileConverterBackendStub(),
       pendingImportFiles: [
@@ -404,10 +404,10 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       selectedRelativePath: null,
     });
 
-    const tableFacts = firstImport.result?.prepared.fileInfo.preparedTableFactsSeed;
-    assert.ok(tableFacts);
-    assert.equal(tableFacts.curveFamily, "iv");
-    assert.equal(tableFacts.ivMode, "transfer");
+    const tableModel = firstImport.result?.prepared.fileInfo.preparedTableModelSeed;
+    assert.ok(tableModel);
+    assert.equal(tableModel.curveFamily, "iv");
+    assert.equal(tableModel.ivMode, "transfer");
     assert.equal(failedFiles.length, 0);
   });
 

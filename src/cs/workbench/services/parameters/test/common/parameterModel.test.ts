@@ -183,7 +183,7 @@ const createCanonicalFileRecord = (
   };
 
   return {
-    tableFactsByRawTableId: {},
+    tableModelByRawTableId: {},
     curvesByKey: {
       [curveKey]: {
         curveFamily: "iv",

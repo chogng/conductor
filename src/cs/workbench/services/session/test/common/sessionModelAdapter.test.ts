@@ -15,10 +15,10 @@ import {
   getFileRecordCurveType,
 } from "src/cs/workbench/services/session/common/sessionRecordProjection";
 import {
-  TABLE_FACTS_RULE_VERSION,
-  type RawTableFactsRecord,
-} from "src/cs/workbench/services/tableFacts/common/tableFacts";
-import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
+  TABLE_MODEL_RULE_VERSION,
+  type TableModelRecord,
+} from "src/cs/workbench/services/tableModel/common/tableModel";
+import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
 import { createEmptyTemplateEditorConfig } from "src/cs/workbench/services/template/common/templateEditorConfig";
 
 suite("workbench/services/session/test/common/sessionModelAdapter", () => {
@@ -280,7 +280,7 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
     assert.equal(record.metricsBySeriesId, undefined);
   });
 
-  test("projects table facts back to raw file entries", () => {
+  test("projects TableModel back to raw file entries", () => {
     const records = mergeRawFilesIntoRecords({}, [], [{
       fileId: "file-a",
       fileName: "Review.csv",
@@ -290,8 +290,8 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
     const file = records.filesById["file-a"];
     assert.ok(file);
 
-    const tableFacts: RawTableFactsRecord = {
-      tableFactsRuleVersion: TABLE_FACTS_RULE_VERSION,
+    const tableModel: TableModelRecord = {
+      tableModelRuleVersion: TABLE_MODEL_RULE_VERSION,
       schemaProfileVersion: 0,
       blocks: [{
         id: "file-a:block:0",
@@ -379,26 +379,26 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
       ...records.filesById,
       "file-a": {
         ...file,
-        tableFactsByRawTableId: {
-          "file-a": tableFacts,
+        tableModelByRawTableId: {
+          "file-a": tableModel,
         },
         measurementBlocksById: {
-          "file-a:block:0": tableFacts.blocks[0],
+          "file-a:block:0": tableModel.blocks[0],
         },
         measurementBlockOrder: ["file-a:block:0"],
       },
     }, records.fileOrder);
 
-    assert.deepEqual(rawFiles[0]?.tableFactsBlocks?.map(block => block.id), ["file-a:block:0"]);
-    assert.equal(rawFiles[0]?.tableFactsSchemaFingerprint, "dataname|vg|id");
-    assert.deepEqual(rawFiles[0]?.tableFactsColumnProfiles?.map(profile => ({
+    assert.deepEqual(rawFiles[0]?.tableModelBlocks?.map(block => block.id), ["file-a:block:0"]);
+    assert.equal(rawFiles[0]?.tableModelSchemaFingerprint, "dataname|vg|id");
+    assert.deepEqual(rawFiles[0]?.tableModelColumnProfiles?.map(profile => ({
       rawCol: profile.rawCol,
       normalizedHeader: profile.normalizedHeader,
     })), [
       { rawCol: 0, normalizedHeader: "vg" },
       { rawCol: 1, normalizedHeader: "id" },
     ]);
-    assert.deepEqual(rawFiles[0]?.tableFactsSemanticCandidates?.map(candidate => ({
+    assert.deepEqual(rawFiles[0]?.tableModelSemanticCandidates?.map(candidate => ({
       rawCol: candidate.rawCol,
       role: candidate.roleCandidates[0]?.role,
       unit: candidate.unitCandidates[0]?.canonicalUnit,
@@ -406,7 +406,7 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
       { rawCol: 0, role: "vg", unit: "V" },
       { rawCol: 1, role: "id", unit: "A" },
     ]);
-    assert.deepEqual(rawFiles[0]?.tableFactsLayoutCandidates?.map(candidate => candidate.id), ["layout:simpleXY"]);
+    assert.deepEqual(rawFiles[0]?.tableModelLayoutCandidates?.map(candidate => candidate.id), ["layout:simpleXY"]);
   });
 
   test("materializes base curves from display curve type labels", () => {

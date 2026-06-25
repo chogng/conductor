@@ -1,8 +1,8 @@
-﻿import type { ColumnProfile } from "src/cs/workbench/services/tableFacts/common/columnProfile";
-import type { LayoutCandidate } from "src/cs/workbench/services/tableFacts/common/layoutCandidate";
-import type { MeasurementBlockRecord } from "src/cs/workbench/services/tableFacts/common/measurement";
-import type { SchemaFingerprint } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
-import type { ColumnSemanticCandidate } from "src/cs/workbench/services/tableFacts/common/semanticCandidate";
+﻿import type { ColumnProfile } from "src/cs/workbench/services/tableModel/common/columnProfile";
+import type { LayoutCandidate } from "src/cs/workbench/services/tableModel/common/layoutCandidate";
+import type { MeasurementBlockRecord } from "src/cs/workbench/services/tableModel/common/measurement";
+import type { SchemaFingerprint } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
+import type { ColumnSemanticCandidate } from "src/cs/workbench/services/tableModel/common/semanticCandidate";
 
 export type SessionFile = {
   file?: unknown;
@@ -19,11 +19,11 @@ export type SessionFile = {
   curveTypeConfidence?: "high" | "medium" | "low";
   curveTypeNeedsReview?: boolean;
   curveTypeReasons?: string[];
-  tableFactsBlocks?: readonly MeasurementBlockRecord[];
-  tableFactsColumnProfiles?: readonly ColumnProfile[];
-  tableFactsLayoutCandidates?: readonly LayoutCandidate[];
-  tableFactsSchemaFingerprint?: SchemaFingerprint;
-  tableFactsSemanticCandidates?: readonly ColumnSemanticCandidate[];
+  tableModelBlocks?: readonly MeasurementBlockRecord[];
+  tableModelColumnProfiles?: readonly ColumnProfile[];
+  tableModelLayoutCandidates?: readonly LayoutCandidate[];
+  tableModelSchemaFingerprint?: SchemaFingerprint;
+  tableModelSemanticCandidates?: readonly ColumnSemanticCandidate[];
   xAxisRole?: "vg" | "vd" | null;
   xAxisRoleSource?:
     | "filename"

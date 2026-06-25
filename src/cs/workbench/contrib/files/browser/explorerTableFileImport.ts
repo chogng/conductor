@@ -13,11 +13,7 @@ import {
   createFileImportResultFromRecords,
   type ImportedFileRecord,
 } from "src/cs/workbench/services/files/common/files";
-import {
-  createRawTableFactsRecordFromImportSeed,
-} from "src/cs/workbench/services/tableFacts/common/tableFactsRecord";
 import type {
-  CommitTableFileImportRawTableFactsInput,
   ITableFileService,
 } from "src/cs/workbench/services/tableFile/common/tableFile";
 import {
@@ -69,20 +65,15 @@ export const commitExplorerTableFileImport = ({
   const importResult = createFileImportResultFromRecords(
     normalizedFiles.map(file => file.importRecord),
   );
-  const preparedTableFacts = createPreparedImportTableFactInputs(normalizedFiles);
   markTemplateApplyPerformanceTrace("import.tableFile.commit.start", {
     fileCount: normalizedFiles.length,
     mode,
-    preparedTableFactsSeedCount: preparedTableFacts.length,
   });
 
   if (mode === "replace") {
     tableFileService.clearTableFiles();
-    const commitResult = tableFileService.commitImport(importResult, {
-      rawTableFacts: preparedTableFacts,
-    });
+    const commitResult = tableFileService.commitImport(importResult);
     const committedFileIds = commitResult.importedFileIds;
-    markPreparedImportTableFactsCommitted(preparedTableFacts, committedFileIds);
     markTemplateApplyPerformanceTrace("import.tableFile.commit.complete", {
       committedFileCount: committedFileIds.length,
       mode,
@@ -104,11 +95,8 @@ export const commitExplorerTableFileImport = ({
     };
   }
 
-  const commitResult = tableFileService.commitImport(importResult, {
-    rawTableFacts: preparedTableFacts,
-  });
+  const commitResult = tableFileService.commitImport(importResult);
   const committedFileIds = commitResult.importedFileIds;
-  markPreparedImportTableFactsCommitted(preparedTableFacts, committedFileIds);
   markTemplateApplyPerformanceTrace("import.tableFile.commit.complete", {
     committedFileCount: committedFileIds.length,
     mode,
@@ -139,62 +127,6 @@ export const commitExplorerTableFileImport = ({
     selectedFileId: nextSelectedFileId,
     shouldNavigateToTable: true,
   };
-};
-
-const createPreparedImportTableFactInputs = (
-  importedFiles: readonly NormalizedPreparedFileImportInfo[],
-): CommitTableFileImportRawTableFactsInput[] => {
-  const tableFactsRecords: CommitTableFileImportRawTableFactsInput[] = [];
-  for (const importedFile of importedFiles) {
-    if (!importedFile.preparedTableFactsSeed) {
-      continue;
-    }
-
-    const rawTableId = normalizeFileId(importedFile.importRecord.raw.rawTableOrder[0]);
-    const table = rawTableId ? importedFile.importRecord.raw.rawTablesById[rawTableId] : undefined;
-    if (!rawTableId || !table) {
-      continue;
-    }
-
-    const tableFacts = createRawTableFactsRecordFromImportSeed({
-      columnCount: table.columnCount,
-      fileId: importedFile.fileId,
-      fileName: importedFile.importRecord.name,
-      rawTableId,
-      rowCount: table.rowCount,
-      rows: table.rows.kind === "inline" ? table.rows.values : undefined,
-      sourceRawTableVersion: 0,
-      tableFactsSeed: importedFile.preparedTableFactsSeed,
-    });
-    tableFactsRecords.push({
-      tableFactsRuleVersion: tableFacts.tableFactsRuleVersion,
-      blocks: tableFacts.blocks,
-      columnProfiles: tableFacts.columnProfiles,
-      createdAt: tableFacts.createdAt,
-      diagnostics: tableFacts.diagnostics,
-      fileId: tableFacts.fileId,
-      groups: tableFacts.groups,
-      layoutCandidates: tableFacts.layoutCandidates,
-      rawTableId: tableFacts.rawTableId,
-      semanticCandidates: tableFacts.semanticCandidates,
-      structure: tableFacts.structure,
-    });
-  }
-
-  return tableFactsRecords;
-};
-
-const markPreparedImportTableFactsCommitted = (
-  tableFactsRecords: readonly CommitTableFileImportRawTableFactsInput[],
-  committedFileIds: readonly string[],
-): void => {
-  const committedFileIdSet = new Set(committedFileIds);
-  markTemplateApplyPerformanceTrace("import.tableFacts.prepared.commit", {
-    tableFactsCount: tableFactsRecords.filter(tableFacts =>
-      committedFileIdSet.has(normalizeFileId(tableFacts.fileId) ?? "")
-    ).length,
-    committedFileCount: committedFileIdSet.size,
-  });
 };
 
 const getTableFileIds = (

@@ -2,9 +2,9 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { MeasurementColumnRole } from "src/cs/workbench/services/tableFacts/common/measurement";
-import type { SchemaFingerprint } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
-import type { CanonicalUnit } from "src/cs/workbench/services/tableFacts/common/semanticCandidate";
+import type { MeasurementColumnRole } from "src/cs/workbench/services/tableModel/common/measurement";
+import type { SchemaFingerprint } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
+import type { CanonicalUnit } from "src/cs/workbench/services/tableModel/common/semanticCandidate";
 import type { Event } from "src/cs/base/common/event";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type {
@@ -32,8 +32,8 @@ export type SchemaProfileBinding = {
 };
 
 // User-confirmed evidence for an exact raw-table schema fingerprint.
-// TableFacts may consume matching bindings as semantic evidence, but the
-// table-facts record remains the canonical owner of resulting blocks/candidates.
+// TableModel may consume matching bindings as semantic evidence, but the
+// table-models record remains the canonical owner of resulting blocks/candidates.
 export type SchemaProfile = {
 	readonly id?: string;
 	readonly scope: SchemaProfileScope;

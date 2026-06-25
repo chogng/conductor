@@ -7,11 +7,11 @@ import assert from "assert";
 import { Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import { RawTableFactsContribution } from "src/cs/workbench/services/tableFacts/browser/rawTableFacts.contribution";
-import { RawTableFactsQueueService } from "src/cs/workbench/services/tableFacts/browser/rawTableFactsQueueService";
-import { RawTableFactsService } from "src/cs/workbench/services/tableFacts/browser/rawTableFactsService";
-import { TABLE_FACTS_RULE_VERSION, type RawTableFactsRecord } from "src/cs/workbench/services/tableFacts/common/tableFacts";
-import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
+import { TableModelContribution } from "src/cs/workbench/services/tableModel/browser/tableModel.contribution";
+import { TableModelQueueService } from "src/cs/workbench/services/tableModel/browser/tableModelQueueService";
+import { TableModelService } from "src/cs/workbench/services/tableModel/browser/tableModelService";
+import { TABLE_MODEL_RULE_VERSION, type TableModelRecord } from "src/cs/workbench/services/tableModel/common/tableModel";
+import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
 import type {
 	IRawTableRowsReaderService,
 	RawTableRows,
@@ -44,10 +44,10 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 		const sliceService = new TestSliceService();
 		store.add(new AutoSliceContribution(sessionService, sliceService));
 		sessionService.commitFileImport(createImportResult());
-		const tableFacts = createTableFacts();
+		const tableModel = createTableModel();
 
-		sessionService.commitRawTableFacts(tableFacts);
-		sessionService.commitRawTableReviews([createReview(tableFacts)]);
+		sessionService.commitTableModel(tableModel);
+		sessionService.commitRawTableReviews([createReview(tableModel)]);
 
 		assert.deepEqual(sliceService.enqueuedRefs, [[{
 			fileId: "file-a",
@@ -58,9 +58,9 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 	test("does not enqueue automatic slices after latest manual slice run", () => {
 		const sessionService = store.add(new SessionService());
 		sessionService.commitFileImport(createImportResult());
-		const tableFacts = createTableFacts();
-		sessionService.commitRawTableFacts(tableFacts);
-		sessionService.commitRawTableReviews([createReview(tableFacts)]);
+		const tableModel = createTableModel();
+		sessionService.commitTableModel(tableModel);
+		sessionService.commitRawTableReviews([createReview(tableModel)]);
 		const template = createTemplate();
 		sessionService.commitSliceRuns([{
 			run: {
@@ -72,7 +72,7 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 					kind: "inline",
 					template,
 				},
-				sourceRawTableVersion: tableFacts.sourceRawTableVersion,
+				sourceRawTableVersion: tableModel.sourceRawTableVersion,
 				template,
 				templateFingerprint: "template:manual",
 				inputRanges: [{
@@ -104,10 +104,11 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 		const sessionService = store.add(new SessionService());
 		const tableFileService = new TableFileService(sessionService);
 		const rowsReaderService = new TestRawTableRowsReaderService();
-		const tableFactsService = store.add(new RawTableFactsService());
-		const tableFactsQueueService = store.add(new RawTableFactsQueueService(
+		const tableModelService = store.add(new TableModelService());
+		const tableModelQueueService = store.add(new TableModelQueueService(
 			tableFileService,
-			tableFactsService,
+			sessionService,
+			tableModelService,
 			rowsReaderService,
 		));
 		const sliceService = store.add(new SliceService(
@@ -115,7 +116,7 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 			undefined,
 			rowsReaderService,
 		));
-		store.add(new RawTableFactsContribution(tableFileService, tableFactsQueueService));
+		store.add(new TableModelContribution(tableFileService, tableModelQueueService));
 		store.add(new TestReviewContribution(sessionService));
 		store.add(new AutoSliceContribution(sessionService, sliceService));
 
@@ -187,28 +188,28 @@ class TestReviewContribution extends Disposable {
 	) {
 		super();
 		this._register(this.sessionService.onDidChangeSession(event => {
-			if (event.reason !== "tableFactsChanged") {
+			if (event.reason !== "tableModelChanged") {
 				return;
 			}
 
 			const snapshot = this.sessionService.getSnapshot();
 			this.sessionService.commitRawTableReviews((event.rawTableRefs ?? [])
-				.map(ref => snapshot.filesById[ref.fileId]?.tableFactsByRawTableId[ref.rawTableId])
-				.filter((tableFacts): tableFacts is RawTableFactsRecord => Boolean(tableFacts))
-				.map(tableFacts => createReview(tableFacts, createAutoTemplate())));
+				.map(ref => snapshot.filesById[ref.fileId]?.tableModelByRawTableId[ref.rawTableId])
+				.filter((tableModel): tableModel is TableModelRecord => Boolean(tableModel))
+				.map(tableModel => createReview(tableModel, createAutoTemplate())));
 		}));
 	}
 }
 
 const createReview = (
-	tableFacts: RawTableFactsRecord,
+	tableModel: TableModelRecord,
 	template = createTemplate(),
 ): RawTableReviewRecord => {
 	return {
-		fileId: tableFacts.fileId,
-		rawTableId: tableFacts.rawTableId,
-		sourceRawTableVersion: tableFacts.sourceRawTableVersion,
-		evidenceSignature: createReviewEvidenceSignature(tableFacts, {
+		fileId: tableModel.fileId,
+		rawTableId: tableModel.rawTableId,
+		sourceRawTableVersion: tableModel.sourceRawTableVersion,
+		evidenceSignature: createReviewEvidenceSignature(tableModel, {
 			columnCount: 3,
 			fileName: "Raw.csv",
 			rowCount: 3,
@@ -269,8 +270,8 @@ const createReview = (
 	};
 };
 
-const createTableFacts = (): RawTableFactsRecord => ({
-	tableFactsRuleVersion: TABLE_FACTS_RULE_VERSION,
+const createTableModel = (): TableModelRecord => ({
+	tableModelRuleVersion: TABLE_MODEL_RULE_VERSION,
 	schemaProfileVersion: 0,
 	fileId: "file-a",
 	rawTableId: "table-a",

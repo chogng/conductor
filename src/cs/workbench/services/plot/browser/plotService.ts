@@ -2340,7 +2340,7 @@ export const shouldInvalidatePlotModelsForSessionChange = (
     case "sessionCleared":
       return true;
     case "rawTablesChanged":
-    case "tableFactsChanged":
+    case "tableModelChanged":
     case "reviewChanged":
     case "calculatedRecordsChanged":
     case "metricsChanged":

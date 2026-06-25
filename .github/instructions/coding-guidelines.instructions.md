@@ -67,10 +67,10 @@ args, resolve services/controllers, call owner APIs, and return.
 | `IFileService` | platform filesystem capability |
 | `files` module | Files capability/container and source workflow surface |
 | `IExplorerService` | Explorer UI state: resources, selection, reveal, expansion, layout, context |
-| `ITableFileService` | imported data-file/raw-table model owner, Conductor's TextFileService equivalent |
+| `ITableFileService` | imported data-file/raw-table owner, Conductor's TextFileService equivalent |
 | `ExplorerView` / `ExplorerViewer` | Files container UI rendering |
 | `fileImportExport.ts` | file transfer and source collection helpers |
-| `fileConverter.ts` | CSV/XLS/XLSX/clipboard/manual conversion to raw table facts |
+| `fileConverter.ts` | CSV/XLS/XLSX/clipboard/manual conversion to raw table records |
 
 Do not introduce `IFileImportService` by default. Source collection stays in
 Explorer/files workflow; conversion stays in `workbench/services/files`;
@@ -100,7 +100,7 @@ view -> props, commands, owner service APIs
 ```
 
 Avoid `service -> view`, `service -> CommandsRegistry`, `session -> UI state`,
-`converter -> tableFacts/template/plot`, `plot -> chart DOM`, and
+`converter -> tableModel/template/plot`, `plot -> chart DOM`, and
 `chart -> raw table parsing`.
 
 ## Imports

@@ -29,16 +29,16 @@ at the type name.
 | Record | Owner | Producer | Invalidation / notes |
 | --- | --- | --- | --- |
 | `SessionModel` | `ISessionService` | session commits | Canonical root: `schemaVersion`, `sessionVersion`, `filesById`, `fileOrder`. |
-| `FileRecord` | `ITableFileService` + Session ledger | import, table-fact, review, slice, calculation, metric commits | Owns one imported file/workbook lifecycle; TableFile is the public owner surface for imported data files. |
-| `RawRecord` | `ITableFileService` + Session ledger | file conversion commit | Raw file facts and `rawTablesById`; no table-fact/template/plot semantics. |
+| `FileRecord` | `ITableFileService` + Session ledger | import, table-model, review, slice, calculation, metric commits | Owns one imported file/workbook lifecycle; TableFile is the public owner surface for imported data files. |
+| `RawRecord` | `ITableFileService` + Session ledger | file conversion commit | Raw file facts and `rawTablesById`; no table-model/template/plot semantics. |
 | `RawTableRecord` | `ITableFileService` + Session ledger | `fileConverter.ts` through TableFile commit | Physical rows/source/health/template eligibility. Use `rawTableId`; keep failed rows unavailable. |
 | `RawTableSourceRecord` | converter/session | CSV, Excel sheet, clipboard, manual, unknown | Source provenance only, not measurement semantics. |
 | `RawTableRowsRecord` | converter/session | inline, normalized CSV, unavailable | Large rows should use artifact/path references. |
-| `RawTableFactsRecord` | TableFacts + `ITableFileService` + Session ledger | table-fact producer (`IRawTableFactsService`) | Tied to raw table version, table-fact rule version, and schema profile version; stores structure, column profiles, semantic candidates, groups, blocks, and diagnostics. |
+| `TableModelRecord` | TableModel + Session ledger | table-model producer (`ITableModelService`) | Tied to raw table version, table-model rule version, and schema profile version; stores structure, column profiles, semantic candidates, groups, blocks, and diagnostics. |
 | `RawTableReviewRecord` | Review + Session | `IReviewService` | Tied to template candidate signature, Recipe fingerprint, UserTemplate/saved-template fingerprint, review engine version, and review policy version; stores candidates, reviews, and `ReviewDecision`. |
-| `MeasurementGroupRecord` | TableFacts + `ITableFileService` + Session ledger | table-fact producer / TableFacts helpers | Group/device labels and ordered block ids. |
-| `MeasurementBlockRecord` | TableFacts + `ITableFileService` + Session ledger | table-fact producer / TableFacts helpers | Measurement family/mode/source ranges/column roles. |
-| `SliceRun` | Slice + Session | slice execution | Executed template snapshot, source table-fact signature, input ranges, output series ids, output curve keys, warnings, and errors. |
+| `MeasurementGroupRecord` | TableModel + Session ledger | table-model producer / TableModel helpers | Group/device labels and ordered block ids. |
+| `MeasurementBlockRecord` | TableModel + Session ledger | table-model producer / TableModel helpers | Measurement family/mode/source ranges/column roles. |
+| `SliceRun` | Slice + Session | slice execution | Executed template snapshot, source table-model signature, input ranges, output series ids, output curve keys, warnings, and errors. |
 | `SeriesRecord` | Slice/calculation + Session | slice or curve commit | Series metadata and raw/block provenance. |
 | `CurveRecord` | Slice/calculation + Session | slice/calculation commit | Base/derived curve points, lineage, domain, signature. |
 | `MetricRecord` | Parameters/calculation + Session | metric commit | Scalar/structured metric value with input signatures. |
@@ -51,7 +51,7 @@ caches.
 ## Raw Data Provenance
 
 Use `RawTableRangeRef` for anything that points back to source cells:
-table-fact blocks, columns, diagnostics, search results, parameters, export
+table-model blocks, columns, diagnostics, search results, parameters, export
 provenance, and template inputs.
 
 `RangeRef` is physical zero-based inclusive coordinates:
@@ -66,16 +66,16 @@ provenance, and template inputs.
 | `FileImportInput` | files source workflow | Sources plus conversion options. Do not turn options into Explorer UI state. |
 | `FileConversionResult` | `fileConverter.ts` output; TableFile commits | Contains converted files and diagnostics. Not the entire Explorer add-data workflow result. |
 | `ImportedFileRecord` | converter output; TableFile commits | `id`, `name`, `kind`, `raw`. One Excel workbook should produce one imported file with one raw table per sheet. |
-| `FileImportDiagnostic` | converter/files workflow | Import warnings/errors only; not IV/CV table-fact classification. |
+| `FileImportDiagnostic` | converter/files workflow | Import warnings/errors only; not IV/CV table-model classification. |
 
 Conversion records must not encode measurement blocks, curve types, plot
-series, template decisions, or table-fact confidence.
+series, template decisions, or table-model confidence.
 
 ## Service-Local State
 
 | State/model | Owner | Storage | Invalidation |
 | --- | --- | --- | --- |
-| `ColumnDisplayProfile` | `TableModel` / `ITableService` | derived view/service state | raw source version, numeric display mode, cache clear |
+| `ColumnDisplayProfile` | `TableViewModel` / `ITableService` | derived view/service state | raw source version, numeric display mode, cache clear |
 | `TemplateState` | `ITemplateViewStateService` | service-local view state | selected-template/form/editor view interactions |
 | `PlotState` | `IPlotService` | service state/settings-backed pieces | plot setting changes |
 | `PlotRenderModel` | `IPlotService` | derived model/cache | source curve keys, settings, visibility/focus, signatures |
@@ -91,7 +91,7 @@ series, template decisions, or table-fact confidence.
 | `SearchQuery` / `SearchResult` | `ISearchService` | service state/model | query/options/session/plot index |
 | `ExportState` / `ExportPlan` | `IExportService` | service state/derived plan | export options/session/plot changes |
 | `ParametersState` / `ParameterRowModel` | `IParametersService` | service state/model | metrics, manual inputs, selected file/plot context |
-| `SchemaProfile` | schema profile source / table-fact consumer | service-local or external profile evidence, not Session canonical | exact schema fingerprint, confirmed count, conflict count |
+| `SchemaProfile` | schema profile source / table-model consumer | service-local or external profile evidence, not Session canonical | exact schema fingerprint, confirmed count, conflict count |
 
 Service-local view input events should not carry the full snapshot as the data
 path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
@@ -107,16 +107,16 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
 - Decode/parse failures stay as health/unavailable row records; they do not
   become normal rows.
 
-### Table Facts
+### Table Model
 
-- `RawTableFactsRecord` is the target storage shape for table facts. It contains
+- `TableModelRecord` is the target storage shape for table model. It contains
   structure, column profiles, layout candidates, semantic candidates, blocks,
   diagnostics, and source metadata only.
 - Primary consumer path is Template materialization:
-  `Recipe/UserTemplate + TableFacts -> Template`. Do not introduce a separate
+  `Recipe/UserTemplate + TableModel -> Template`. Do not introduce a separate
   evidence service for this path.
-- Do not call table facts `RecipeEvidence`. Recipe is fixed rules; Template
-  combines rules with table facts.
+- Do not call table model `RecipeEvidence`. Recipe is fixed rules; Template
+  combines rules with table model.
 - `MeasurementBlockRecord.family` stores measurement family (`iv`, `cv`, `cf`,
   `pv`, `it`, `unknown`), not plot transfer/output labels.
 - `ivMode` is valid only for IV blocks; `itMode` is valid only for IT blocks.
@@ -132,9 +132,9 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
 - Semantic candidates keep role/unit candidates, confidence, evidence sources,
   confirmation state, and display-scale suggestions.
 - Column refs keep raw column, header text, role, unit, source range, confidence.
-- `RawTableFactsRecord.schemaProfileVersion` records the profile snapshot used
-  for semantic evidence; profile changes make older table facts stale.
-- Table-fact records do not store Recipe fingerprints, Template/UserTemplate
+- `TableModelRecord.schemaProfileVersion` records the profile snapshot used
+  for semantic evidence; profile changes make older table model stale.
+- Table-model records do not store Recipe fingerprints, Template/UserTemplate
   catalog versions, Template candidates, reviewed templates, selected Template
   snapshots, decision state, confidence gates, or auto-apply flags. Review owns
   candidate review and application decisions.
@@ -147,12 +147,12 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
 ### Schema profiles
 
 - `SchemaProfile` stores user-confirmed bindings for one exact raw-table schema
-  fingerprint; it is table-fact input, not Session canonical output.
+  fingerprint; it is table-model input, not Session canonical output.
 - `SchemaProfileService` owns profile-scope storage and versioned snapshots;
   Session does not store profile records.
 - User confirmation of role/unit bindings enters through
   `SchemaProfileService.confirmProfile(...)`; callers provide confirmed columns
-  and current table-fact column profiles, and the schema profile owner persists a
+  and current table-model column profiles, and the schema profile owner persists a
   service-local exact-fingerprint profile snapshot.
 - `SchemaProfileBinding.selector` may use column index, normalized header, or
   both. When both are present, both must match the profiled column.
@@ -165,12 +165,12 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
 ### Template
 
 - `Template` is a pure executable data-structure spec produced by
-  `TableFacts + Recipe/UserTemplate` materialization. It describes source hints,
+  `TableModel + Recipe/UserTemplate` materialization. It describes source hints,
   table structure, layout, blocks, fields, measurement, and defaults. It is not
   persisted in Session outside reviewed/slice snapshots and must not be
-  partitioned into table-fact/slicing/binding/apply sub-templates.
+  partitioned into table-model/slicing/binding/apply sub-templates.
 - Review consumes materialized Template candidates. Slice consumes reviewed
-  Template snapshots. Neither re-materializes Recipe or table facts.
+  Template snapshots. Neither re-materializes Recipe or table model.
 - `TemplateEditorConfig` owns manual extraction configuration such as
   data rows, segmentation, legend target, units, titles, y columns, and
   stop-on-error. It may be adapted into a canonical `Template` snapshot, but it
@@ -204,8 +204,8 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
   `enqueueAuto` / `runWithTemplate` APIs may remain as adapters only.
 - `SliceRun.template` is the executed snapshot from a reviewed automatic
   template or manual input.
-- `SliceRun.sourceTableFactsSignature` is a migration field name tying automatic
-  runs to the table facts and review facts used to submit the request.
+- `SliceRun.sourceTableModelSignature` ties automatic runs to the table model
+  and review records used to submit the request.
 - `SliceCommit` atomically commits the `SliceRun`, produced `SeriesRecord`
   values, and produced base `CurveRecord` values through Session.
 - Session read projections derive chart axis titles and units from the latest

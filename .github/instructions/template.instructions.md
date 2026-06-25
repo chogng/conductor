@@ -4,21 +4,21 @@ applyTo: 'src/cs/workbench/services/template/**,src/cs/workbench/contrib/templat
 ---
 # Template
 
-`Template` is the concrete extraction/slicing spec produced by applying table
-facts to Recipe or UserTemplate rules. In target architecture:
+`Template` is the concrete extraction/slicing spec produced by applying the
+table model to Recipe or UserTemplate rules. In target architecture:
 
 ```txt
-TableFacts + Recipe/UserTemplate -> Template candidates -> Review -> Slice
+TableModel + Recipe/UserTemplate -> Template candidates -> Review -> Slice
 ```
 
-The "Table" in this formula means canonical raw-table facts and derived
-structure/column/block facts, not the UI `ITableService` selection model.
+The "Table" in this formula means canonical TableModel with derived
+structure/column/block data, not the UI `ITableService` selection model.
 Slice executes the reviewed `Template`; Review judges usability; Template owns
 materialization.
 
 Do not add consumer-shaped template sections such as `template.review`,
-`template.slicing`, or `template.binding`. Template consumes TableFacts-owned
-raw-table facts and owns materialization, but it must keep raw table facts
+`template.slicing`, or `template.binding`. Template consumes TableModel-owned
+TableModel and owns materialization, but it must keep TableModel
 distinct from the executable `Template` snapshot.
 
 Template editor form records are not the domain `Template`; name them
@@ -54,10 +54,10 @@ plot rendering, or chart state.
 | File | Responsibility |
 | --- | --- |
 | `common/templateSpec.ts` | pure block-aware `Template` spec: row ranges, axis bindings, segmentation, legends, titles, applicability, and execution defaults. |
-| `common/templateDraft.ts` | candidate draft shape produced from `TableFacts + Recipe/UserTemplate` before Review status/policy projection. |
-| `common/recipeSelectorEvaluator.ts` | pure Recipe selector evaluator over canonical table facts. |
-| `common/recipeTemplateMaterializer.ts` | pure Recipe + table-facts materializer that creates `TemplateDraft` candidates. |
-| `common/userTemplateMaterializer.ts` | pure UserTemplate + table-facts materializer that creates `TemplateDraft` candidates. |
+| `common/templateDraft.ts` | candidate draft shape produced from `TableModel + Recipe/UserTemplate` before Review status/policy projection. |
+| `common/recipeSelectorEvaluator.ts` | pure Recipe selector evaluator over canonical table model. |
+| `common/recipeTemplateMaterializer.ts` | pure Recipe + table-models materializer that creates `TemplateDraft` candidates. |
+| `common/userTemplateMaterializer.ts` | pure UserTemplate + table-models materializer that creates `TemplateDraft` candidates. |
 | `common/templateMaterialization.ts` | service contract for cross-service Template materialization. |
 | `browser/templateMaterializationService.ts` | injectable owner API that combines Recipe/UserTemplate materializers into the automatic candidate set for Review and other services. |
 | `common/template.ts` | `TemplateEditorRecord` and re-exported template spec types. |
@@ -83,15 +83,15 @@ Automatic materialization:
 
 ```txt
 rawTableChanged / recipeChanged / userTemplateChanged / schemaProfileChanged
-  -> ReviewService reads canonical raw table facts and Recipe/UserTemplate snapshots
+  -> ReviewService reads canonical TableModel and Recipe/UserTemplate snapshots
   -> ITemplateMaterializationService materializes Template candidates
   -> ReviewService reviews candidates
 ```
 
-Table-fact production belongs under `services/tableFacts`. Candidate derivation
+Table-model production belongs under `services/tableModel`. Candidate derivation
 enters through `ITemplateMaterializationService`; pure materialization helpers
 stay under `services/template/common`. Do not add new materializers under
-TableFacts, Review, or Slice.
+TableModel, Review, or Slice.
 
 Manual execution:
 
@@ -118,14 +118,14 @@ import/export command
 ## Rules
 
 - `Template` is a concrete extraction/slicing spec. Template materializers
-  produce it from table facts plus Recipe/UserTemplate sources; Slice consumes
+  produce it from table model plus Recipe/UserTemplate sources; Slice consumes
   reviewed or manual snapshots and must not materialize Recipes.
 - Engines should consume `Template`, not consumer-specific sub-templates.
 - Template editor records may be bridged through `TemplateEditorConfig` and
   `templateEditorAdapter`; they are inputs to `Template` snapshots, not an
   execution workflow.
 - Raw-header auto-template inference is retired from product execution.
-  New `TableFacts + Recipe/UserTemplate -> Template` derivation belongs in
+  New `TableModel + Recipe/UserTemplate -> Template` derivation belongs in
   Template materialization helpers, not Template execution.
 - Automatic template selection ids belong to Slice `templateSelection`, not
   Template common. Template common must not own selection sentinels.
@@ -193,7 +193,7 @@ Use `records.instructions.md` for `TemplateEditorRecord`,
 ## Do Not
 
 - Do not infer IV/CV/transfer/output inside the executable `Template` spec or
-  Slice path. Such inference belongs to table-fact production and
+  Slice path. Such inference belongs to table-model production and
   Template-owned materializer helpers before Review/Slice.
 - Do not split `Template` by review/slice/binding/apply consumers.
 - Do not store template form draft state in Session.

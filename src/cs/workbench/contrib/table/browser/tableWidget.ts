@@ -154,7 +154,7 @@ export type TableWidgetProps = {
     sourceKey: string | null | undefined,
     widths: readonly TableColumnWidth[],
   ) => void;
-  readonly tableModel: TableWidgetModel;
+  readonly tableViewModel: TableWidgetModel;
   readonly tableState: TableState;
 };
 
@@ -251,7 +251,7 @@ export class TableWidget {
           this.renderBodyCellContent(content, descriptor.rowIndex, descriptor.colIndex);
         },
         renderColumnHeader: (cell, descriptor) => {
-          this.syncHeaderColumnElement(cell, descriptor.colIndex, this.props.tableModel);
+          this.syncHeaderColumnElement(cell, descriptor.colIndex, this.props.tableViewModel);
         },
         renderRowHeader: (cell, descriptor) => {
           const label = cell.firstElementChild;
@@ -301,26 +301,26 @@ export class TableWidget {
       this.onColumnScaleControlClick(event as MouseEvent);
     }));
     this.store.add(this.bodyRangeSelectionStore);
-    this.bindTableState(props.tableModel);
+    this.bindTableState(props.tableViewModel);
     this.syncColumnWidthSource();
     this.renderedInputKey = getTableWidgetInputKey(props);
     this.render();
   }
 
   public update(props: TableWidgetProps): void {
-    const previousModel = this.props.tableModel;
+    const previousModel = this.props.tableViewModel;
     const previousCanAdjustColumnScale = this.canAdjustColumnScale();
     const nextInputKey = getTableWidgetInputKey(props);
     this.props = props;
-    if (previousModel !== props.tableModel) {
-      this.bindTableState(props.tableModel);
+    if (previousModel !== props.tableViewModel) {
+      this.bindTableState(props.tableViewModel);
     }
     this.syncColumnWidthSource();
-    if (previousModel === props.tableModel && previousCanAdjustColumnScale !== this.canAdjustColumnScale()) {
+    if (previousModel === props.tableViewModel && previousCanAdjustColumnScale !== this.canAdjustColumnScale()) {
       this.syncVisibleHeaderColumnScaleBadges();
     }
     this.syncSharedColumnScaleControl();
-    if (previousModel === props.tableModel && this.renderedInputKey === nextInputKey) {
+    if (previousModel === props.tableViewModel && this.renderedInputKey === nextInputKey) {
       return;
     }
 
@@ -404,7 +404,7 @@ export class TableWidget {
   }
 
   public getSelection(): TableSelection {
-    return this.props.tableModel.getSelection();
+    return this.props.tableViewModel.getSelection();
   }
 
   public select(
@@ -623,30 +623,30 @@ export class TableWidget {
     return this.grid.scrollHorizontally(delta);
   }
 
-  private bindTableState(tableModel: TableWidgetModel): void {
+  private bindTableState(tableViewModel: TableWidgetModel): void {
     this.disposeSelectionListener?.();
     this.disposeHighlightListener?.();
     this.disposeRevealCellListener?.();
     this.disposeRowsVersionListener?.();
     this.disposeStateListener?.();
-    this.disposeSelectionListener = tableModel.onDidChangeSelection(() => {
+    this.disposeSelectionListener = tableViewModel.onDidChangeSelection(() => {
       this.syncSelectionState();
     });
-    this.disposeRowsVersionListener = tableModel.subscribeRowsVersion(event => {
+    this.disposeRowsVersionListener = tableViewModel.subscribeRowsVersion(event => {
       this.syncRows(event);
     });
-    this.disposeHighlightListener = tableModel.onDidChangeHighlight(() => {
+    this.disposeHighlightListener = tableViewModel.onDidChangeHighlight(() => {
       this.syncSelectionState();
     });
-    this.disposeRevealCellListener = tableModel.onDidChangeRevealCell((cell) => {
+    this.disposeRevealCellListener = tableViewModel.onDidChangeRevealCell((cell) => {
       if (cell) {
         this.revealCell(cell);
       }
     });
-    this.disposeStateListener = tableModel.onDidChangeState(() => {
+    this.disposeStateListener = tableViewModel.onDidChangeState(() => {
       this.props = {
         ...this.props,
-        tableState: tableModel.getState(),
+        tableState: tableViewModel.getState(),
       };
       this.renderedInputKey = getTableWidgetInputKey(this.props);
       this.render();
@@ -764,7 +764,7 @@ export class TableWidget {
 
   private renderTable(): boolean {
     const endTrace = this.performance.start("table.renderTable");
-    const { tableModel, tableState } = this.props;
+    const { tableViewModel, tableState } = this.props;
     const tableFile = tableState.file;
     const bodyCellRenderCountStart = this.tracedBodyCellRenderCount;
     const headerCellRenderCountStart = this.tracedHeaderCellRenderCount;
@@ -803,7 +803,7 @@ export class TableWidget {
       this.syncSelectionState();
 
       if (tableFile?.fileId) {
-        this.ensureRows(tableModel, tableFile.sourceKey ?? tableFile.fileId, this.getBodyRowRange());
+        this.ensureRows(tableViewModel, tableFile.sourceKey ?? tableFile.fileId, this.getBodyRowRange());
       }
 
       return gridChanged;
@@ -829,7 +829,7 @@ export class TableWidget {
   }
 
   private ensureRows(
-    tableModel: TableWidgetModel,
+    tableViewModel: TableWidgetModel,
     sourceKey: string,
     rowRange: TableWidgetRange,
   ): void {
@@ -844,7 +844,7 @@ export class TableWidget {
       requestedRows: Math.max(0, rowRange.endIndex - rowRange.startIndex),
       startRow: rowRange.startIndex,
     });
-    void tableModel.ensureRows(sourceKey, rowRange.startIndex, rowRange.endIndex).then(
+    void tableViewModel.ensureRows(sourceKey, rowRange.startIndex, rowRange.endIndex).then(
       () => {
         endTrace({ status: "resolved" });
         this.clearPendingEnsureRows(requestKey);
@@ -865,7 +865,7 @@ export class TableWidget {
   private syncHeaderColumnElement(
     cell: HTMLElement,
     colIndex: number,
-    tableModel: TableWidgetModel,
+    tableViewModel: TableWidgetModel,
   ): void {
     this.tracedHeaderCellRenderCount += 1;
     let button = cell.querySelector<HTMLButtonElement>(".table_view_column_button");
@@ -887,7 +887,7 @@ export class TableWidget {
     }
 
     const columnLabel = VirtualTableGridModel.getColumnLabel(colIndex);
-    const profile = tableModel.getColumnDisplayProfile(colIndex);
+    const profile = tableViewModel.getColumnDisplayProfile(colIndex);
     const colIndexValue = String(colIndex);
     setDatasetValue(cell, "tableViewColumnIndex", colIndexValue);
     setDatasetValue(button, "colIndex", colIndexValue);
@@ -1035,7 +1035,7 @@ export class TableWidget {
       this.syncHeaderColumnElement(
         cell,
         columnRange.startIndex + columnOffset,
-        this.props.tableModel,
+        this.props.tableViewModel,
       );
       changed = true;
     }
@@ -1051,7 +1051,7 @@ export class TableWidget {
         continue;
       }
 
-      const profile = this.props.tableModel.getColumnDisplayProfile(columnRange.startIndex + columnOffset);
+      const profile = this.props.tableViewModel.getColumnDisplayProfile(columnRange.startIndex + columnOffset);
       this.syncHeaderColumnScaleBadge(
         this.headerColumnScaleBadges.get(cell),
         columnRange.startIndex + columnOffset,
@@ -1092,14 +1092,14 @@ export class TableWidget {
   private getRowsRenderVersion(): string {
     return [
       this.renderedSourceKey ?? "",
-      this.props.tableModel.getRowsVersion(),
+      this.props.tableViewModel.getRowsVersion(),
       this.props.tableState.displayVersion ?? 0,
     ].join("\u001f");
   }
 
   private getHeaderRenderVersion(): string {
     return [
-      this.props.tableModel.getRowsVersion(),
+      this.props.tableViewModel.getRowsVersion(),
       this.props.tableState.displayVersion ?? 0,
     ].join("\u001f");
   }
@@ -1162,7 +1162,7 @@ export class TableWidget {
     this.syncSelectionState();
     const tableFile = this.props.tableState.file;
     if (tableFile?.fileId) {
-      this.ensureRows(this.props.tableModel, tableFile.sourceKey ?? tableFile.fileId, this.getBodyRowRange());
+      this.ensureRows(this.props.tableViewModel, tableFile.sourceKey ?? tableFile.fileId, this.getBodyRowRange());
     }
     return true;
   }
@@ -1177,9 +1177,9 @@ export class TableWidget {
     if (!element) {
       return;
     }
-    const row = this.props.tableModel.getRow(rowIndex) ?? [];
+    const row = this.props.tableViewModel.getRow(rowIndex) ?? [];
     const rawValue = row[colIndex];
-    const profile = this.props.tableModel.getColumnDisplayProfile(colIndex);
+    const profile = this.props.tableViewModel.getColumnDisplayProfile(colIndex);
     const displayText = formatCell(rawValue, profile);
     this.updateCellDisplay(
       this.getBodyCellState(element),
@@ -1201,11 +1201,11 @@ export class TableWidget {
         return;
       }
 
-      const { tableModel } = this.props;
+      const { tableViewModel } = this.props;
       const rowCount = this.bodyRowCount;
       const columnCount = this.bodyColumnCount;
       const startColumnIndex = this.bodyStartColumnIndex;
-      const selection = tableModel.getSelection();
+      const selection = tableViewModel.getSelection();
       const activeCell = normalizeActiveCell(
         selection.activeCell,
         this.bodyStartRowIndex,
@@ -1222,7 +1222,7 @@ export class TableWidget {
         columnCount,
       );
       const highlightedColumns = toColumnSet(
-        tableModel.getHighlight().columns,
+        tableViewModel.getHighlight().columns,
         startColumnIndex,
         columnCount,
       );
@@ -1633,7 +1633,7 @@ export class TableWidget {
       return;
     }
 
-    const profile = this.props.tableModel.getColumnDisplayProfile(colIndex);
+    const profile = this.props.tableViewModel.getColumnDisplayProfile(colIndex);
     if (!isTableColumnScaleStepperVisible(profile)) {
       this.hideColumnScaleControl();
       return;

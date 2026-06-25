@@ -66,7 +66,7 @@ Subscriptions must be disposed through the owner lifecycle.
 
 | State kind | Owner | Examples |
 | --- | --- | --- |
-| Canonical model state | `ITableFileService`, `ISessionService` ledger, and domain commit APIs | imported table files, raw tables, table facts, reviews, slice runs, curves, metrics |
+| Canonical model state | `ITableFileService`, `ISessionService` ledger, and domain commit APIs | imported table files, raw tables, table model, reviews, slice runs, curves, metrics |
 | Domain service state | The domain service | plot settings, chart view input, template catalog state, table source/selection snapshot |
 | View state | The view/widget/service that renders it | focus, local selection, template form draft, scroll, expansion, hover, layout mode |
 | Derived model | Producer service | plot render model, table display profile, search model, thumbnail preview |
@@ -125,11 +125,11 @@ Runtime folders:
 | `IFileService` | platform filesystem bytes/stat/watch/provider capability |
 | `IExplorerService` | Files Explorer UI state: resources, selection, expansion, layout, context |
 | `fileConverter.ts` / files service helpers | CSV/XLS/XLSX/clipboard/manual conversion into raw table records |
-| `ITableFileService` | imported data-file/raw-table model owner, raw table identity/version lifecycle, TableFacts commits |
+| `ITableFileService` | imported data-file/raw-table owner and raw table identity/version lifecycle |
 | `ISessionService` | canonical analysis ledger backing table-file and downstream records |
-| TableFacts producer (`IRawTableFactsService`) | TableFacts-owned raw-table facts: structure, profiles, semantics, groups, blocks, diagnostics |
+| TableModel producer (`ITableModelService`) | derived TableModel for raw-table structure, profiles, semantics, groups, blocks, diagnostics |
 | `IRecipeService` | passive built-in rules; it does not evaluate tables or materialize Templates |
-| `ITemplateMaterializationService` / `services/template` | canonical Template spec and target owner for `TableFacts + Recipe/UserTemplate -> Template` materialization |
+| `ITemplateMaterializationService` / `services/template` | canonical Template spec and target owner for `TableModel + Recipe/UserTemplate -> Template` materialization |
 | `IReviewService` | materialized Template candidate review, selected `ReviewedTemplate`, manual adjustment state, and system-application recommendation |
 | `IUserTemplateService` | native user template catalog CRUD/snapshots/import/export and explicit template lookup |
 | `ITableService` | table source, rows, selection snapshot, reveal/highlight |
@@ -183,7 +183,7 @@ Explorer source workflow
 Primary template flow:
 
 ```txt
-Raw table facts
+TableModel
   + Recipe/UserTemplate snapshots
   -> Template materialization
   -> Template candidates / Template
@@ -194,11 +194,11 @@ Raw table facts
 
 Specific flow owners:
 
-- Import/source collection: Explorer/files workflow coordinates; converter returns results; TableFile commits imported data-file/raw-table model state.
-- Session ledger: Session currently backs TableFile storage and downstream analysis records during migration.
-- Table facts / Template materialization: TableFacts is the raw-table fact
+- Import/source collection: Explorer/files workflow coordinates; converter returns results; TableFile commits imported data-file/raw-table state.
+- Session ledger: Session currently backs TableFile storage and downstream analysis records, including TableModel commits, during migration.
+- Table model / Template materialization: TableModel is the derived raw-table
   input, and Template is the target owner for
-  `Recipe/UserTemplate + TableFacts -> Template`. Do not keep retired
+  `Recipe/UserTemplate + TableModel -> Template`. Do not keep retired
   service, record, or command names in new docs or APIs.
 - Review: consumes materialized Template candidates, reviews them, and commits
   `RawTableReviewRecord` decisions.
@@ -215,7 +215,7 @@ Specific flow owners:
 `ITableFileService` is the owner surface for imported data-file and raw-table
 lifecycle. During migration, `SessionModel` is the canonical in-memory ledger
 backing TableFile plus downstream analysis facts. It stores imported files, raw
-tables, table facts, reviews, slice runs, series, curves, metrics, metric
+tables, table model, reviews, slice runs, series, curves, metrics, metric
 inputs, and rebuildable calculation cache descriptors.
 
 Keep out of Session:

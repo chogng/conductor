@@ -8,7 +8,7 @@ Review is the owner of Template usability and application decisions for raw
 tables. It consumes materialized Template candidates and writes auditable
 `RawTableReviewRecord` facts.
 
-The primary template path is TableFacts + Recipe/UserTemplate -> Template ->
+The primary template path is TableModel + Recipe/UserTemplate -> Template ->
 Review -> Slice. Review is the first layer that may choose usability or system
 application.
 
@@ -79,7 +79,7 @@ Resolution has retired and must not be reintroduced as a Review prerequisite or
 candidate-summary bridge.
 User-template candidates must come through `IUserTemplateService` and
 `UserTemplateSnapshot`. New decision logic belongs in Review; new provider and
-materialization logic belongs in Template, not TableFacts, Explorer, or Slice.
+materialization logic belongs in Template, not TableModel, Explorer, or Slice.
 
 ## Rules
 
@@ -110,7 +110,7 @@ materialization logic belongs in Template, not TableFacts, Explorer, or Slice.
 
 - Do not call Slice from `ReviewService`; use `ReviewApplyContribution` or a
   user-command controller.
-- Do not read raw rows, rerun table-fact detection, or materialize Recipes.
+- Do not read raw rows, rerun table-model detection, or materialize Recipes.
 - Do not store user template catalog data in Review records.
-- Do not let Template materializers, TableFacts producers, Slice, or Explorer decide
+- Do not let Template materializers, TableModel producers, Slice, or Explorer decide
   `systemRecommended`.

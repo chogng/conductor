@@ -35,7 +35,7 @@ import {
   MAX_FOLDER_WALK_DEPTH,
 } from "src/cs/workbench/contrib/files/browser/fileConstants";
 import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
-import type { ImportTableFactsSeed } from "src/cs/workbench/services/tableFacts/common/tableFacts";
+import type { ImportTableModelSeed } from "src/cs/workbench/services/tableModel/common/tableModel";
 import {
   buildFileSourceIdentityKey,
   buildItemKey,
@@ -174,7 +174,7 @@ export type PreparedFileImportInfo = SessionFile & {
   readonly size: number;
   readonly lastModified: number;
   readonly normalizedCsvPath?: string | null;
-  readonly preparedTableFactsSeed?: ImportTableFactsSeed;
+  readonly preparedTableModelSeed?: ImportTableModelSeed;
   readonly relativePath?: string | null;
   readonly sourceKey?: string;
   readonly sourcePath?: string | null;
@@ -199,7 +199,7 @@ export type PendingImportSourceStatus = "pending" | "preparing" | "failed";
 
 export type PendingImportSourceStatusChange = {
   readonly message?: string | null;
-  readonly preparedTableFactsSeed?: ImportTableFactsSeed;
+  readonly preparedTableModelSeed?: ImportTableModelSeed;
   readonly status: PendingImportSourceStatus;
 };
 
@@ -217,7 +217,7 @@ export type PreparedFileSourcesImport = {
 
 export type PrepareFileSourcesForImportOptions = {
   readonly canApplyResult?: () => boolean;
-  readonly createPreparedTableFactsSeedFromRows?: PreparedTableFactsSeedFactory;
+  readonly createPreparedTableModelSeedFromRows?: PreparedTableModelSeedFactory;
   readonly fileConverterBackend: FileConverterBackend;
   readonly selectedRelativePath?: string | null;
   readonly sources: readonly FileSource[];
@@ -232,7 +232,7 @@ export type PrepareDroppedFilesForImportOptions = Omit<
 
 export type FileSourceWorkflowOptions = {
   readonly commandService: Pick<ICommandService, "executeCommand">;
-  readonly createPreparedTableFactsSeedFromRows?: PreparedTableFactsSeedFactory;
+  readonly createPreparedTableModelSeedFromRows?: PreparedTableModelSeedFactory;
   readonly fileConverterBackendService: FileConverterBackend;
   readonly filesService: IFileService;
   readonly getFiles: () => readonly ExplorerFileEntry[];
@@ -257,10 +257,10 @@ export type FileSourceWorkflowOptions = {
   readonly syncView: () => void;
 };
 
-export type PreparedTableFactsSeedFactory = (
+export type PreparedTableModelSeedFactory = (
   fileName: string,
   rows: readonly (readonly string[])[],
-) => Promise<ImportTableFactsSeed>;
+) => Promise<ImportTableModelSeed>;
 
 export const pickImportFolder = async ({
   defaultUri,
@@ -502,7 +502,7 @@ export class FileSourceWorkflow implements IDisposable {
       : null;
     const firstImport = await prepareFirstPendingImportFile({
       canApplyResult,
-      createPreparedTableFactsSeedFromRows: this.options.createPreparedTableFactsSeedFromRows,
+      createPreparedTableModelSeedFromRows: this.options.createPreparedTableModelSeedFromRows,
       failedFiles,
       fileConverterBackend: this.options.fileConverterBackendService,
       onPendingFileStatusChange: this.options.onUpdatePendingSourceFile,
@@ -519,7 +519,7 @@ export class FileSourceWorkflow implements IDisposable {
     if (canApplyResult()) {
       acceptedCount += await prepareRemainingPendingImportFiles({
         canApplyResult,
-        createPreparedTableFactsSeedFromRows: this.options.createPreparedTableFactsSeedFromRows,
+        createPreparedTableModelSeedFromRows: this.options.createPreparedTableModelSeedFromRows,
         failedFiles,
         fileConverterBackend: this.options.fileConverterBackendService,
         onPendingFileStatusChange: this.options.onUpdatePendingSourceFile,
@@ -574,7 +574,7 @@ export class FileSourceWorkflow implements IDisposable {
 
           acceptedCount += await prepareRemainingPendingImportFiles({
             canApplyResult,
-            createPreparedTableFactsSeedFromRows: this.options.createPreparedTableFactsSeedFromRows,
+            createPreparedTableModelSeedFromRows: this.options.createPreparedTableModelSeedFromRows,
             failedFiles,
             fileConverterBackend: this.options.fileConverterBackendService,
             onPendingFileStatusChange: this.options.onUpdatePendingSourceFile,
@@ -911,7 +911,7 @@ export class FileSourceWorkflow implements IDisposable {
       });
       acceptedCount = await prepareRemainingPendingImportFiles({
         canApplyResult,
-        createPreparedTableFactsSeedFromRows: this.options.createPreparedTableFactsSeedFromRows,
+        createPreparedTableModelSeedFromRows: this.options.createPreparedTableModelSeedFromRows,
         failedFiles,
         fileConverterBackend: this.options.fileConverterBackendService,
         onPendingFileStatusChange: this.options.onUpdatePendingSourceFile,
@@ -1072,7 +1072,7 @@ export const collectPendingImportFiles = (
 export const preparePendingImportFile = async (
   fileConverterBackend: FileConverterBackend,
   pendingImportFile: PendingImportFile,
-  createPreparedTableFactsSeedFromRows?: PreparedTableFactsSeedFactory,
+  createPreparedTableModelSeedFromRows?: PreparedTableModelSeedFactory,
 ): Promise<PendingImportFileResult> => {
   const {
     finishFilePerf,
@@ -1086,7 +1086,7 @@ export const preparePendingImportFile = async (
   let normalizedSizeBytes = 0;
   let importRecord: ImportedFileRecord;
   let prepared: ConvertedImportFile;
-  let preparedTableFactsSeed: ImportTableFactsSeed | undefined;
+  let preparedTableModelSeed: ImportTableModelSeed | undefined;
   let fileId = "";
 
   try {
@@ -1124,7 +1124,7 @@ export const preparePendingImportFile = async (
       sourceSizeBytes: pendingImportFile.sourceSize,
     });
     const converted = await createPreparedImportFromConvertedFile({
-      createPreparedTableFactsSeedFromRows,
+      createPreparedTableModelSeedFromRows,
       fileId,
       pendingImportFile,
       prepared,
@@ -1134,7 +1134,7 @@ export const preparePendingImportFile = async (
     sourcePath = converted.sourcePath;
     normalizedSizeBytes = converted.normalizedSizeBytes;
     importRecord = converted.importRecord;
-    preparedTableFactsSeed = converted.preparedTableFactsSeed;
+    preparedTableModelSeed = converted.preparedTableModelSeed;
   } catch (error) {
     const failure = toPrepareFailure(
       error,
@@ -1176,7 +1176,7 @@ export const preparePendingImportFile = async (
     size: normalizedSizeBytes,
     lastModified: normalizedFile.lastModified,
     normalizedCsvPath,
-    preparedTableFactsSeed,
+    preparedTableModelSeed,
     relativePath,
     sourceKey,
     sourcePath,
@@ -1190,7 +1190,7 @@ export const preparePendingImportFile = async (
   markTemplateApplyPerformanceTrace("import.prepare.file.complete", {
     fileId,
     fileName: pendingImportFile.sourceName,
-    hasPreparedTableFacts: Boolean(preparedTableFactsSeed),
+    hasPreparedTableModel: Boolean(preparedTableModelSeed),
     normalizedSizeBytes,
     relativePath,
     sourceKind: pendingImportFile.kind,
@@ -1204,12 +1204,12 @@ export const preparePendingImportFile = async (
 };
 
 const createPreparedImportFromConvertedFile = async ({
-  createPreparedTableFactsSeedFromRows,
+  createPreparedTableModelSeedFromRows,
   fileId,
   pendingImportFile,
   prepared,
 }: {
-  readonly createPreparedTableFactsSeedFromRows?: PreparedTableFactsSeedFactory;
+  readonly createPreparedTableModelSeedFromRows?: PreparedTableModelSeedFactory;
   readonly fileId: string;
   readonly pendingImportFile: PendingImportFile;
   readonly prepared: ConvertedImportFile;
@@ -1218,7 +1218,7 @@ const createPreparedImportFromConvertedFile = async ({
   readonly normalizedCsvPath: string | null;
   readonly normalizedFile: File;
   readonly normalizedSizeBytes: number;
-  readonly preparedTableFactsSeed?: ImportTableFactsSeed;
+  readonly preparedTableModelSeed?: ImportTableModelSeed;
   readonly sourcePath: string | null;
 }> => {
   const normalizedFile = prepared.file;
@@ -1237,9 +1237,9 @@ const createPreparedImportFromConvertedFile = async ({
     sourceSizeBytes: pendingImportFile.sourceSize,
     tables: createImportedRawTableInputs(prepared, fileId),
   });
-  const preparedTableFactsSeed = readPreparedTableFactsSeed(prepared.tableFactsSeed) ??
-    await createPreparedTableFactsFromImportRecord(
-      createPreparedTableFactsSeedFromRows,
+  const preparedTableModelSeed = readPreparedTableModelSeed(prepared.tableModelSeed ?? prepared.tableFactsSeed) ??
+    await createPreparedTableModelFromImportRecord(
+      createPreparedTableModelSeedFromRows,
       pendingImportFile,
       importRecord,
     );
@@ -1249,31 +1249,31 @@ const createPreparedImportFromConvertedFile = async ({
     normalizedCsvPath,
     normalizedFile,
     normalizedSizeBytes,
-    preparedTableFactsSeed,
+    preparedTableModelSeed,
     sourcePath,
   };
 };
 
-const readPreparedTableFactsSeed = (
+const readPreparedTableModelSeed = (
   value: unknown,
-): ImportTableFactsSeed | undefined => {
+): ImportTableModelSeed | undefined => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return undefined;
   }
-  const seed = value as Partial<ImportTableFactsSeed>;
+  const seed = value as Partial<ImportTableModelSeed>;
   const curveFamily = seed.curveFamily;
   const curveTypeConfidence = seed.curveTypeConfidence;
   const xAxisRole = seed.xAxisRole;
   const xAxisRoleSource = seed.xAxisRoleSource;
   if (
-    !isTableFactsCurveFamily(curveFamily) ||
-    !isTableFactsConfidence(curveTypeConfidence) ||
+    !isTableModelCurveFamily(curveFamily) ||
+    !isTableModelConfidence(curveTypeConfidence) ||
     typeof seed.curveTypeNeedsReview !== "boolean" ||
     !Array.isArray(seed.curveTypeReasons) ||
     seed.curveTypeReasons.some(reason => typeof reason !== "string") ||
     (seed.curveType !== null && typeof seed.curveType !== "string") ||
-    !isTableFactsAxisRole(xAxisRole) ||
-    !isTableFactsAxisRoleSource(xAxisRoleSource) ||
+    !isTableModelAxisRole(xAxisRole) ||
+    !isTableModelAxisRoleSource(xAxisRoleSource) ||
     (seed.ivMode !== undefined && seed.ivMode !== null && seed.ivMode !== "transfer" && seed.ivMode !== "output" && seed.ivMode !== "unknown")
   ) {
     return undefined;
@@ -1290,9 +1290,9 @@ const readPreparedTableFactsSeed = (
   };
 };
 
-const isTableFactsCurveFamily = (
+const isTableModelCurveFamily = (
   value: unknown,
-): value is ImportTableFactsSeed["curveFamily"] =>
+): value is ImportTableModelSeed["curveFamily"] =>
   value === "iv" ||
   value === "cv" ||
   value === "cf" ||
@@ -1300,19 +1300,19 @@ const isTableFactsCurveFamily = (
   value === "it" ||
   value === "unknown";
 
-const isTableFactsConfidence = (
+const isTableModelConfidence = (
   value: unknown,
-): value is ImportTableFactsSeed["curveTypeConfidence"] =>
+): value is ImportTableModelSeed["curveTypeConfidence"] =>
   value === "high" || value === "medium" || value === "low";
 
-const isTableFactsAxisRole = (
+const isTableModelAxisRole = (
   value: unknown,
-): value is ImportTableFactsSeed["xAxisRole"] =>
+): value is ImportTableModelSeed["xAxisRole"] =>
   value === "vg" || value === "vd" || value === null;
 
-const isTableFactsAxisRoleSource = (
+const isTableModelAxisRoleSource = (
   value: unknown,
-): value is ImportTableFactsSeed["xAxisRoleSource"] =>
+): value is ImportTableModelSeed["xAxisRoleSource"] =>
   value === "filename" ||
   value === "hint" ||
   value === "label" ||
@@ -1321,15 +1321,15 @@ const isTableFactsAxisRoleSource = (
   value === "shape" ||
   value === null;
 
-const createPreparedTableFactsFromImportRecord = (
-  createPreparedTableFactsSeedFromRows: PreparedTableFactsSeedFactory | undefined,
+const createPreparedTableModelFromImportRecord = (
+  createPreparedTableModelSeedFromRows: PreparedTableModelSeedFactory | undefined,
   pendingImportFile: PendingImportFile,
   importRecord: ImportedFileRecord,
-): Promise<ImportTableFactsSeed | undefined> => {
+): Promise<ImportTableModelSeed | undefined> => {
   const rawTableId = importRecord.raw.rawTableOrder[0];
   const table = rawTableId ? importRecord.raw.rawTablesById[rawTableId] : undefined;
   if (
-    !createPreparedTableFactsSeedFromRows ||
+    !createPreparedTableModelSeedFromRows ||
     !table ||
     table.rows.kind !== "inline" ||
     table.rows.values.length === 0
@@ -1337,7 +1337,7 @@ const createPreparedTableFactsFromImportRecord = (
     return Promise.resolve(undefined);
   }
 
-  return createPreparedTableFactsSeedFromRows(
+  return createPreparedTableModelSeedFromRows(
     pendingImportFile.relativePath || pendingImportFile.sourceName,
     table.rows.values,
   );
@@ -1380,7 +1380,7 @@ const createImportedRawTableInputs = (
 
 export async function prepareFirstPendingImportFile({
   canApplyResult,
-  createPreparedTableFactsSeedFromRows,
+  createPreparedTableModelSeedFromRows,
   failedFiles,
   fileConverterBackend,
   onPendingFileStatusChange,
@@ -1388,7 +1388,7 @@ export async function prepareFirstPendingImportFile({
   selectedRelativePath,
 }: {
   readonly canApplyResult: () => boolean;
-  readonly createPreparedTableFactsSeedFromRows?: PreparedTableFactsSeedFactory;
+  readonly createPreparedTableModelSeedFromRows?: PreparedTableModelSeedFactory;
   readonly failedFiles: FileImportPrepareFailure[];
   readonly fileConverterBackend: FileConverterBackend;
   readonly onPendingFileStatusChange?: (
@@ -1419,7 +1419,7 @@ export async function prepareFirstPendingImportFile({
     const preparedImportFile = await preparePendingImportFile(
       fileConverterBackend,
       pendingImportFile,
-      createPreparedTableFactsSeedFromRows,
+      createPreparedTableModelSeedFromRows,
     );
     if (!preparedImportFile.ok) {
       failedFiles.push(preparedImportFile.error);
@@ -1429,9 +1429,9 @@ export async function prepareFirstPendingImportFile({
       });
       continue;
     }
-    if (preparedImportFile.prepared.fileInfo.preparedTableFactsSeed) {
+    if (preparedImportFile.prepared.fileInfo.preparedTableModelSeed) {
       onPendingFileStatusChange?.(pendingImportFile, {
-        preparedTableFactsSeed: preparedImportFile.prepared.fileInfo.preparedTableFactsSeed,
+        preparedTableModelSeed: preparedImportFile.prepared.fileInfo.preparedTableModelSeed,
         status: "preparing",
       });
     }
@@ -1452,7 +1452,7 @@ export async function prepareFirstPendingImportFile({
 
 export async function prepareRemainingPendingImportFiles({
   canApplyResult,
-  createPreparedTableFactsSeedFromRows,
+  createPreparedTableModelSeedFromRows,
   failedFiles,
   fileConverterBackend,
   onPendingFileStatusChange,
@@ -1461,7 +1461,7 @@ export async function prepareRemainingPendingImportFiles({
   skippedIndexes,
 }: {
   readonly canApplyResult: () => boolean;
-  readonly createPreparedTableFactsSeedFromRows?: PreparedTableFactsSeedFactory;
+  readonly createPreparedTableModelSeedFromRows?: PreparedTableModelSeedFactory;
   readonly failedFiles: FileImportPrepareFailure[];
   readonly fileConverterBackend: FileConverterBackend;
   readonly onPendingFileStatusChange?: (
@@ -1481,7 +1481,7 @@ export async function prepareRemainingPendingImportFiles({
 
   const batchAcceptedCount = await prepareRemainingPendingImportFilesBatch({
     canApplyResult,
-    createPreparedTableFactsSeedFromRows,
+    createPreparedTableModelSeedFromRows,
     failedFiles,
     fileConverterBackend,
     onPendingFileStatusChange,
@@ -1566,7 +1566,7 @@ export async function prepareRemainingPendingImportFiles({
         const preparedImportFile = await preparePendingImportFile(
           fileConverterBackend,
           pendingImportFile,
-          createPreparedTableFactsSeedFromRows,
+          createPreparedTableModelSeedFromRows,
         );
         if (!canApplyResult()) {
           return;
@@ -1608,7 +1608,7 @@ export async function prepareRemainingPendingImportFiles({
 
 async function prepareRemainingPendingImportFilesBatch({
   canApplyResult,
-  createPreparedTableFactsSeedFromRows,
+  createPreparedTableModelSeedFromRows,
   failedFiles,
   fileConverterBackend,
   onPendingFileStatusChange,
@@ -1617,7 +1617,7 @@ async function prepareRemainingPendingImportFilesBatch({
   remainingIndexes,
 }: {
   readonly canApplyResult: () => boolean;
-  readonly createPreparedTableFactsSeedFromRows?: PreparedTableFactsSeedFactory;
+  readonly createPreparedTableModelSeedFromRows?: PreparedTableModelSeedFactory;
   readonly failedFiles: FileImportPrepareFailure[];
   readonly fileConverterBackend: FileConverterBackend;
   readonly onPendingFileStatusChange?: (
@@ -1808,7 +1808,7 @@ async function prepareRemainingPendingImportFilesBatch({
         const syncPrepared = convertPreparedImportFileResultSync(convertOptions);
         const prepared = syncPrepared ?? await convertPreparedImportFileResult(convertOptions);
         const converted = await createPreparedImportFromConvertedFile({
-          createPreparedTableFactsSeedFromRows,
+          createPreparedTableModelSeedFromRows,
           fileId,
           pendingImportFile,
           prepared,
@@ -1817,14 +1817,14 @@ async function prepareRemainingPendingImportFilesBatch({
           durationMs: getPerfNow() - materializeStartedAt,
           fileName: pendingImportFile.sourceName,
           hasHealth: Boolean(prepared.health),
-          hasPreparedTableFacts: Boolean(converted.preparedTableFactsSeed),
+          hasPreparedTableModel: Boolean(converted.preparedTableModelSeed),
           index: offset,
           normalizedCsvPath: prepared.normalizedCsvPath ? "path" : null,
           sourceSizeBytes: pendingImportFile.sourceSize,
         });
-        if (converted.preparedTableFactsSeed) {
+        if (converted.preparedTableModelSeed) {
           onPendingFileStatusChange?.(pendingImportFile, {
-            preparedTableFactsSeed: converted.preparedTableFactsSeed,
+            preparedTableModelSeed: converted.preparedTableModelSeed,
             status: "preparing",
           });
         }
@@ -1846,7 +1846,7 @@ async function prepareRemainingPendingImportFilesBatch({
             size: converted.normalizedSizeBytes,
             lastModified: converted.normalizedFile.lastModified,
             normalizedCsvPath: converted.normalizedCsvPath,
-            preparedTableFactsSeed: converted.preparedTableFactsSeed,
+            preparedTableModelSeed: converted.preparedTableModelSeed,
             relativePath: pendingImportFile.relativePath,
             sourceKey: pendingImportFile.sourceKey,
             sourcePath: converted.sourcePath,
@@ -1855,7 +1855,7 @@ async function prepareRemainingPendingImportFilesBatch({
         markTemplateApplyPerformanceTrace("import.prepare.file.complete", {
           fileId: converted.importRecord.id,
           fileName: pendingImportFile.sourceName,
-          hasPreparedTableFacts: Boolean(converted.preparedTableFactsSeed),
+          hasPreparedTableModel: Boolean(converted.preparedTableModelSeed),
           normalizedSizeBytes: converted.normalizedSizeBytes,
           relativePath: pendingImportFile.relativePath,
           sourceKind: pendingImportFile.kind,
@@ -2076,7 +2076,7 @@ export const prepareDroppedFilesForImport = async ({
 
 export const prepareFileSourcesForImport = async ({
   canApplyResult = () => true,
-  createPreparedTableFactsSeedFromRows,
+  createPreparedTableModelSeedFromRows,
   fileConverterBackend,
   selectedRelativePath = null,
   sources,
@@ -2100,7 +2100,7 @@ export const prepareFileSourcesForImport = async ({
   const preparedFiles: PreparedFileImport[] = [];
   const firstImport = await prepareFirstPendingImportFile({
     canApplyResult,
-    createPreparedTableFactsSeedFromRows,
+    createPreparedTableModelSeedFromRows,
     failedFiles,
     fileConverterBackend,
     pendingImportFiles,
@@ -2112,7 +2112,7 @@ export const prepareFileSourcesForImport = async ({
 
   await prepareRemainingPendingImportFiles({
     canApplyResult,
-    createPreparedTableFactsSeedFromRows,
+    createPreparedTableModelSeedFromRows,
     failedFiles,
     fileConverterBackend,
     onPreparedFiles: nextPreparedFiles => {

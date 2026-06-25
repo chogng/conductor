@@ -11,7 +11,7 @@ import type {
   SheetId,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
-import type { RawTableFactsRecord } from "src/cs/workbench/services/tableFacts/common/tableFacts";
+import type { TableModelRecord } from "src/cs/workbench/services/tableModel/common/tableModel";
 import type { AutomaticTemplateCandidateSource } from "src/cs/workbench/services/template/common/templateDraft";
 import type { UserTemplateSnapshot } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
@@ -170,7 +170,7 @@ export type RawTableReviewRecord = {
 };
 
 export type ReviewInput = {
-  readonly tableFacts: RawTableFactsRecord;
+  readonly tableModel: TableModelRecord;
   readonly columnCount?: number;
   readonly fileName?: string | null;
   readonly recipeSnapshot: RecipeSnapshot;
@@ -208,7 +208,7 @@ export interface IReviewService {
 }
 
 export const createReviewEvidenceSignature = ({
-  tableFactsRuleVersion,
+  tableModelRuleVersion,
   blocks,
   columnProfiles,
   diagnostics,
@@ -219,8 +219,8 @@ export const createReviewEvidenceSignature = ({
   sourceRawTableVersion,
   structure,
 }: Pick<
-  RawTableFactsRecord,
-  | "tableFactsRuleVersion"
+  TableModelRecord,
+  | "tableModelRuleVersion"
   | "blocks"
   | "columnProfiles"
   | "diagnostics"
@@ -231,7 +231,7 @@ export const createReviewEvidenceSignature = ({
   | "sourceRawTableVersion"
   | "structure"
 >, context: ReviewEvidenceSignatureContext = {}): string => JSON.stringify({
-  tableFactsRuleVersion,
+  tableModelRuleVersion,
   schemaProfileVersion,
   sourceMetadata: {
     columnCount: normalizeSignatureInteger(context.columnCount),

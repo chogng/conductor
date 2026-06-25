@@ -52,6 +52,7 @@ export type ConvertedImportFile = {
   sourceName: string;
   sourceSizeBytes: number;
   tableFactsSeed?: unknown;
+  tableModelSeed?: unknown;
   templateEligibility?: TemplateEligibility;
 };
 
@@ -526,7 +527,7 @@ const createConvertedImportFileFromPreparedResult = ({
     sourcePath: result.sourcePath ?? sourcePath,
     sourceName: result.sourceName ?? metadata.fileName,
     sourceSizeBytes: Number(result.sourceSizeBytes) || metadata.size,
-    tableFactsSeed: result.tableFactsSeed,
+    tableModelSeed: result.tableModelSeed ?? result.tableFactsSeed,
     templateEligibility: shouldForceNotEligibleForHealth(normalizedHealth)
       ? "notEligible"
       : result.templateEligibility,

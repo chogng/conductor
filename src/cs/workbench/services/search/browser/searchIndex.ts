@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { TableFactsSourceRange } from "src/cs/workbench/services/tableFacts/common/diagnostics";
+import type { TableModelSourceRange } from "src/cs/workbench/services/tableModel/common/diagnostics";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import type {
   CurveKey,
@@ -224,7 +224,7 @@ const createRawTablePreview = (table: TableRecord): string =>
 const toRawTableRange = (
   fileId: FileId,
   rawTableId: SheetId,
-  range: TableFactsSourceRange | undefined,
+  range: TableModelSourceRange | undefined,
 ): RawTableRangeRef | undefined =>
   range
     ? {

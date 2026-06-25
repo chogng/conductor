@@ -14,8 +14,8 @@ import {
   mergeProcessedFileIntoRecords,
   createRawFilesFromRecords,
 } from "src/cs/workbench/services/session/common/sessionModelAdapter";
-import { TABLE_FACTS_RULE_VERSION, type RawTableFactsRecord } from "src/cs/workbench/services/tableFacts/common/tableFacts";
-import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableFacts/common/rawTableStructure";
+import { TABLE_MODEL_RULE_VERSION, type TableModelRecord } from "src/cs/workbench/services/tableModel/common/tableModel";
+import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
 import type { CalculatedPlotsByKey } from "src/cs/workbench/services/calculation/common/calculationReadModel";
 import type {
   FileImportResult,
@@ -479,7 +479,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
         mode: "auto",
         selection: { kind: "auto" },
         sourceRawTableVersion: 1,
-        sourceTableFactsSignature: "tableFacts-a",
+        sourceTableModelSignature: "tableModel-a",
         template: {
           schemaVersion: 1,
           name: "Detected IV Transfer",
@@ -766,7 +766,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
       rows: [["Vg", "Id"], ["0", "1e-9"]],
     });
     assert.deepEqual(file.rawTableVersionsById, { "sheet-1": 1 });
-    assert.deepEqual(file.tableFactsByRawTableId, {});
+    assert.deepEqual(file.tableModelByRawTableId, {});
   });
 
   test("increments raw table versions when imported files replace an existing source", () => {
@@ -822,51 +822,35 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     assert.equal(session.getSnapshot().filesById["file-next-id"], undefined);
   });
 
-  test("commits raw table facts when source version matches", () => {
+  test("commits TableModel when source version matches", () => {
     const session = store.add(new SessionService());
     session.commitFileImport(createSingleRawTableImportResult());
-    const tableFacts = createRawTableFacts(1);
+    const tableModel = createTableModel(1);
 
-    session.commitRawTableFacts(tableFacts);
+    session.commitTableModel(tableModel);
 
     const file = session.getSnapshot().filesById["file-a"];
-    assert.equal(file.tableFactsByRawTableId["table-a"].sourceRawTableVersion, 1);
+    assert.equal(file.tableModelByRawTableId["table-a"].sourceRawTableVersion, 1);
     assert.deepEqual(file.measurementBlockOrder, ["block-a"]);
     assert.equal(file.measurementBlocksById["block-a"].family, "iv");
   });
 
-  test("commits file import and prepared table facts in one raw table event", () => {
+  test("commits file import as raw table data without TableModel", () => {
     const session = store.add(new SessionService());
     const events: SessionChangeEvent[] = [];
     const disposable = session.onDidChangeSession(event => {
       events.push(event);
     });
-    const tableFacts = createRawTableFacts(0);
 
-    const result = session.commitFileImport(createSingleRawTableImportResult(), {
-      rawTableFacts: [{
-        tableFactsRuleVersion: tableFacts.tableFactsRuleVersion,
-        schemaProfileVersion: tableFacts.schemaProfileVersion,
-        blocks: tableFacts.blocks,
-        columnProfiles: tableFacts.columnProfiles,
-        createdAt: tableFacts.createdAt,
-        diagnostics: tableFacts.diagnostics,
-        fileId: tableFacts.fileId,
-        groups: tableFacts.groups,
-        layoutCandidates: tableFacts.layoutCandidates,
-        rawTableId: tableFacts.rawTableId,
-        semanticCandidates: tableFacts.semanticCandidates,
-        structure: tableFacts.structure,
-      }],
-    });
+    const result = session.commitFileImport(createSingleRawTableImportResult());
 
     assert.deepEqual(result, {
       importedFileIds: ["file-a"],
       skippedDuplicateFileIds: [],
     });
     const file = session.getSnapshot().filesById["file-a"];
-    assert.equal(file.tableFactsByRawTableId["table-a"].sourceRawTableVersion, 1);
-    assert.deepEqual(file.measurementBlockOrder, ["block-a"]);
+    assert.deepEqual(file.tableModelByRawTableId, {});
+    assert.deepEqual(file.measurementBlockOrder, []);
     assert.deepEqual(events, [{
       fileIds: ["file-a"],
       rawTableIds: ["table-a"],
@@ -877,7 +861,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     disposable.dispose();
   });
 
-  test("commits multiple raw table facts with one change event", () => {
+  test("commits multiple TableModel records with one change event", () => {
     const session = store.add(new SessionService());
     const events: SessionChangeEvent[] = [];
     const disposable = session.onDidChangeSession(event => {
@@ -886,13 +870,13 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     session.commitFileImport(createMultiRawTableImportResult());
     events.length = 0;
 
-    session.commitRawTableFactsBatch([
-      createRawTableFacts(1, "table-a", "block-a"),
-      createRawTableFacts(1, "table-b", "block-b"),
+    session.commitTableModelBatch([
+      createTableModel(1, "table-a", "block-a"),
+      createTableModel(1, "table-b", "block-b"),
     ]);
 
     const file = session.getSnapshot().filesById["file-a"];
-    assert.deepEqual(Object.keys(file.tableFactsByRawTableId).sort(), ["table-a", "table-b"]);
+    assert.deepEqual(Object.keys(file.tableModelByRawTableId).sort(), ["table-a", "table-b"]);
     assert.deepEqual(file.measurementBlockOrder, ["block-a", "block-b"]);
     assert.deepEqual(events, [{
       fileIds: ["file-a"],
@@ -901,7 +885,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
         { fileId: "file-a", rawTableId: "table-a" },
         { fileId: "file-a", rawTableId: "table-b" },
       ],
-      reason: "tableFactsChanged",
+      reason: "tableModelChanged",
       sessionVersion: 2,
     }]);
     disposable.dispose();
@@ -914,11 +898,11 @@ suite("workbench/services/session/test/browser/sessionService", () => {
       events.push(event);
     });
     session.commitFileImport(createSingleRawTableImportResult());
-    const tableFacts = createRawTableFacts(1);
-    session.commitRawTableFacts(tableFacts);
+    const tableModel = createTableModel(1);
+    session.commitTableModel(tableModel);
     events.length = 0;
 
-    session.commitRawTableReviews([createRawTableReview(tableFacts)]);
+    session.commitRawTableReviews([createRawTableReview(tableModel)]);
 
     const file = session.getSnapshot().filesById["file-a"];
     assert.equal(file.rawTableReviewsByRawTableId?.["table-a"]?.decision.kind, "ready");
@@ -932,30 +916,30 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     disposable.dispose();
   });
 
-  test("clears stale raw table reviews when table facts change", () => {
+  test("clears stale raw table reviews when TableModel changes", () => {
     const session = store.add(new SessionService());
     session.commitFileImport(createSingleRawTableImportResult());
-    const tableFacts = createRawTableFacts(1);
-    session.commitRawTableFacts(tableFacts);
-    session.commitRawTableReviews([createRawTableReview(tableFacts)]);
+    const tableModel = createTableModel(1);
+    session.commitTableModel(tableModel);
+    session.commitRawTableReviews([createRawTableReview(tableModel)]);
 
-    session.commitRawTableFacts({
-      ...tableFacts,
-      schemaProfileVersion: tableFacts.schemaProfileVersion + 1,
+    session.commitTableModel({
+      ...tableModel,
+      schemaProfileVersion: tableModel.schemaProfileVersion + 1,
     });
 
     const file = session.getSnapshot().filesById["file-a"];
     assert.equal(file.rawTableReviewsByRawTableId?.["table-a"], undefined);
   });
 
-  test("ignores stale raw table facts versions", () => {
+  test("ignores stale TableModel versions", () => {
     const session = store.add(new SessionService());
     session.commitFileImport(createSingleRawTableImportResult());
 
-    session.commitRawTableFacts(createRawTableFacts(0));
+    session.commitTableModel(createTableModel(0));
 
     const file = session.getSnapshot().filesById["file-a"];
-    assert.deepEqual(file.tableFactsByRawTableId, {});
+    assert.deepEqual(file.tableModelByRawTableId, {});
     assert.deepEqual(file.measurementBlockOrder, []);
   });
 
@@ -1584,12 +1568,12 @@ const createSourceKeyedImportedFileRecord = (
   },
 });
 
-const createRawTableFacts = (
+const createTableModel = (
   sourceRawTableVersion: number,
   rawTableId = "table-a",
   blockId = "block-a",
-): RawTableFactsRecord => ({
-  tableFactsRuleVersion: TABLE_FACTS_RULE_VERSION,
+): TableModelRecord => ({
+  tableModelRuleVersion: TABLE_MODEL_RULE_VERSION,
   schemaProfileVersion: 0,
   blocks: [{
     columnCount: 2,
@@ -1625,14 +1609,14 @@ const createRawTableFacts = (
 });
 
 const createRawTableReview = (
-  tableFacts: RawTableFactsRecord,
+  tableModel: TableModelRecord,
 ): RawTableReviewRecord => {
   const template = createTestTemplate();
   return {
-    fileId: tableFacts.fileId,
-    rawTableId: tableFacts.rawTableId,
-    sourceRawTableVersion: tableFacts.sourceRawTableVersion,
-    evidenceSignature: createReviewEvidenceSignature(tableFacts, {
+    fileId: tableModel.fileId,
+    rawTableId: tableModel.rawTableId,
+    sourceRawTableVersion: tableModel.sourceRawTableVersion,
+    evidenceSignature: createReviewEvidenceSignature(tableModel, {
       columnCount: 2,
       fileName: "Transfer.csv",
       rowCount: 2,

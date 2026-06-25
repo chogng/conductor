@@ -37,7 +37,7 @@ Explorer/files owns every Explorer concern:
 - shared file item commands/actions used by both tree and thumbnail layouts.
 
 Thumbnail does not own Explorer selection/layout, raw session curves,
-table-fact production, chart shell state, export payloads, file import, or
+table-model production, chart shell state, export payloads, file import, or
 Explorer file filtering.
 
 ## Core Files

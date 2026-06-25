@@ -88,7 +88,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           confidence: "confirmed",
           kind: "ready",
           label: "output",
-          source: "tableFacts",
+          source: "tableModel",
         },
         fileId: "file-a",
         fileName: "Output_.csv",
@@ -113,10 +113,10 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         relatedTarget: null,
       }));
 
-      const rows = [...(contextViewService.renderedElement?.querySelectorAll<HTMLElement>(".file-list-hover-table-facts-row") ?? [])]
+      const rows = [...(contextViewService.renderedElement?.querySelectorAll<HTMLElement>(".file-list-hover-table-models-row") ?? [])]
         .map(row => [
-          row.querySelector(".file-list-hover-table-facts-label")?.textContent ?? "",
-          row.querySelector(".file-list-hover-table-facts-value")?.textContent ?? "",
+          row.querySelector(".file-list-hover-table-models-label")?.textContent ?? "",
+          row.querySelector(".file-list-hover-table-models-value")?.textContent ?? "",
         ]);
       assert.deepEqual(rows, [
         ["文件：", "Output_.csv"],
@@ -194,7 +194,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       files: [{
         badgeState: {
           kind: "unknown",
-          source: "tableFacts",
+          source: "tableModel",
         },
         curveType: "unknown",
         curveTypeBadgeLabel: "unknown",
@@ -422,7 +422,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     const viewer = new ExplorerViewer(host, hoverHost, props, labels);
 
     try {
-      const badge = host.querySelector<HTMLElement>(".file-list-item-table-facts");
+      const badge = host.querySelector<HTMLElement>(".file-list-item-table-models");
       assert.ok(badge);
       assert.equal(badge.textContent, "...");
 
@@ -645,7 +645,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           confidence: "confirmed",
           kind: "ready",
           label: "output",
-          source: "tableFacts",
+          source: "tableModel",
         },
         chartState: "ready",
         curveType: "IV",
@@ -714,7 +714,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
             confidence: "confirmed",
             kind: "ready",
             label: "transfer",
-            source: "tableFacts",
+            source: "tableModel",
           },
           chartState: "processing",
           curveType: "IV",
@@ -730,7 +730,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
             confidence: "confirmed",
             kind: "ready",
             label: "transfer",
-            source: "tableFacts",
+            source: "tableModel",
           },
           chartState: "processing",
           curveType: "IV",
@@ -823,7 +823,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
             confidence: "confirmed",
             kind: "ready",
             label: "transfer",
-            source: "tableFacts",
+            source: "tableModel",
           },
           chartState: "ready",
           curveType: "IV",
@@ -840,7 +840,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
             confidence: "confirmed",
             kind: "ready",
             label: "transfer",
-            source: "tableFacts",
+            source: "tableModel",
           },
           chartState: "ready",
           curveType: "IV",
@@ -938,7 +938,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
             confidence: "confirmed",
             kind: "ready",
             label: "transfer",
-            source: "tableFacts",
+            source: "tableModel",
           },
           chartState: "ready",
           curveType: "IV",
@@ -955,7 +955,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
             confidence: "confirmed",
             kind: "ready",
             label: "transfer",
-            source: "tableFacts",
+            source: "tableModel",
           },
           chartState: "ready",
           curveType: "IV",
@@ -1039,7 +1039,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
             confidence: "confirmed",
             kind: "ready",
             label: "transfer",
-            source: "tableFacts",
+            source: "tableModel",
           },
           curveType: "IV",
           curveTypeBadgeLabel: "transfer",
@@ -1054,7 +1054,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
             confidence: "confirmed",
             kind: "ready",
             label: "transfer",
-            source: "tableFacts",
+            source: "tableModel",
           },
           curveType: "IV",
           curveTypeBadgeLabel: "transfer",
@@ -1177,7 +1177,7 @@ const createViewerProps = (): ExplorerViewerProps => ({
       confidence: "confirmed",
       kind: "ready",
       label: "mixed",
-      source: "tableFacts",
+      source: "tableModel",
     },
     curveType: "IV",
     curveTypeBadgeLabel: "transfer",

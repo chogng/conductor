@@ -52,7 +52,7 @@ export const createSlicePlan = (
 		mode: input.mode,
 		selection: input.selection,
 		sourceRawTableVersion: input.sourceRawTableVersion,
-		sourceTableFactsSignature: input.sourceTableFactsSignature,
+		sourceTableModelSignature: input.sourceTableModelSignature,
 		measurement: input.measurement,
 		template: input.template,
 		templateFingerprint,
@@ -120,12 +120,12 @@ const isColumnInBounds = (
 	column >= 0 &&
 	column < columnCount;
 
-export const createSliceTableFactsSignature = ({
-	tableFactsRuleVersion,
+export const createSliceTableModelSignature = ({
+	tableModelRuleVersion,
 	schemaProfileVersion,
 	sourceRawTableVersion,
 }: {
-	readonly tableFactsRuleVersion: number;
+	readonly tableModelRuleVersion: number;
 	readonly schemaProfileVersion: number;
 	readonly sourceRawTableVersion: number;
 }, resolution?: {
@@ -133,7 +133,7 @@ export const createSliceTableFactsSignature = ({
 	readonly reviewSignature?: string;
 	readonly templateCatalogVersion?: number;
 }): string => JSON.stringify({
-	tableFactsRuleVersion,
+	tableModelRuleVersion,
 	schemaProfileVersion,
 	sourceRawTableVersion,
 	recipeFingerprint: normalizeSignatureText(resolution?.recipeFingerprint),

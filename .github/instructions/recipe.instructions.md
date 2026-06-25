@@ -5,12 +5,12 @@ applyTo: 'src/cs/workbench/services/recipe/**,resources/recipes/**,scripts/build
 # Recipe
 
 `Recipe` is a passive built-in recipe for deriving a concrete `Template` from
-table facts. It is not a `Template`, not an executable extraction plan, not a
+table model. It is not a `Template`, not an executable extraction plan, not a
 provider, and not a retired rule engine.
 
 ```txt
 Recipe[]
-  + TableFacts
+  + TableModel
   -> Template materializer
   -> TemplateDraft / Template
   -> Review
@@ -26,12 +26,12 @@ mutate Session.
 
 Template materializers own recipe interpretation:
 
-- `RecipeSelector` evaluation against table facts;
+- `RecipeSelector` evaluation against table model;
 - `RecipeProjection` materialization into canonical block-aware `Template`
   snapshots;
 - materialized-template ordering before Review.
 
-Recipe consumes only table facts through Template materializers. Recipe must
+Recipe consumes only table model through Template materializers. Recipe must
 not infer measurement family, roles, units, or table structure from raw rows.
 
 ## Core Files
@@ -39,7 +39,7 @@ not infer measurement family, roles, units, or table structure from raw rows.
 | File | Responsibility |
 | --- | --- |
 | `common/recipe.ts` | `Recipe`, `RecipeSnapshot`, diagnostics, and `IRecipeService` contract. |
-| `common/recipeSelector.ts` | finite selector DSL for matching table facts. |
+| `common/recipeSelector.ts` | finite selector DSL for matching table model. |
 | `common/recipeProjection.ts` | finite projection DSL for turning selector captures into a `Template`. |
 | `common/recipeAssociation.ts` | reserved static `selector -> templateId` association shape only. Do not use for derivation recipes. |
 | `common/recipeCodec.ts` | JSON normalization, validation diagnostics, stable fingerprinting. |
@@ -56,7 +56,7 @@ selector/materialization implementation:
 
 | File | Responsibility |
 | --- | --- |
-| `template/common/recipeSelectorEvaluator.ts` | target home for evaluating `RecipeSelector` against table facts. |
+| `template/common/recipeSelectorEvaluator.ts` | target home for evaluating `RecipeSelector` against table model. |
 | `template/common/recipeTemplateMaterializer.ts` | target home for materializing matched captures into concrete `TemplateDraft` snapshots. |
 | `template/common/templateMaterialization.ts` | service contract for cross-service Template materialization. |
 | `template/browser/templateMaterializationService.ts` | target home for combining Recipe and UserTemplate materializers into automatic candidates. |
@@ -68,7 +68,7 @@ resources/recipes/v1/index.json
   -> scripts/buildRecipeBundle.mjs
   -> builtinRecipes.generated.ts + cli/resources/recipes.v1.json
   -> RecipeService.getSnapshot()
-  -> ReviewService observes recipe/table-fact/UserTemplate changes
+  -> ReviewService observes recipe/table-model/UserTemplate changes
   -> ITemplateMaterializationService evaluates selector/projection
   -> ReviewService reviews materialized candidates
   -> ReviewDecision stores selected ReviewedTemplate snapshot when ready
@@ -89,7 +89,7 @@ RecipeService reload/change
 
 - A `Recipe` must stay passive JSON with `id`, `version`, `priority`,
   `selector`, and `projection`.
-- `RecipeSelector` describes which table facts can match.
+- `RecipeSelector` describes which table model can match.
 - `RecipeProjection` describes how matched captures become a concrete
   `Template`.
 - `RecipeService` may validate, fingerprint, and publish recipes. It must not
@@ -112,10 +112,10 @@ RecipeService reload/change
 - Do not call this layer `Rule`, `TemplateRule`, `Descriptor`, or
   `TemplateRecipe`.
 - Do not move the Recipe catalog under Template ownership; Template only owns
-  interpreting Recipe snapshots against table facts.
+  interpreting Recipe snapshots against table model.
 - Do not call Recipe a rule or revive retired Rule naming; Recipe is the current
   passive selector/projection model.
 - Do not let Recipe infer measurement family, roles, units, or table structure;
-  those facts come from table-fact production.
+  those facts come from table-model production.
 - Do not let Recipe read rows, services, Session, files, or table state.
 - Do not let Review, Slice, or any compatibility bridge own Recipe interpretation.

@@ -29,7 +29,6 @@ import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/b
 import type { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import type { ITableFileService } from "src/cs/workbench/services/tableFile/common/tableFile";
 import type { IThumbnailPreviewService, IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
-import type { IRawTableFactsService } from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { IUserTemplateService } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
@@ -167,14 +166,11 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
         importedFileIds: [],
         skippedDuplicateFileIds: [],
       }),
-      commitTableFacts: () => undefined,
-      commitTableFactsBatch: () => undefined,
       getSnapshot: () => ({ filesById: {}, fileOrder: [] }),
       onDidChangeTableFiles: Event.None,
       removeFiles: options.removeFiles ?? (() => undefined),
       renameFile: () => undefined,
     } as unknown as ITableFileService,
-    {} as unknown as IRawTableFactsService,
     {
       onDidChangePreview: Event.None,
       get: () => ({ kind: "idle" }),

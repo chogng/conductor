@@ -18,11 +18,11 @@ export class TemplateMaterializationService implements ITemplateMaterializationS
 	public materializeAutomaticDrafts(input: TemplateMaterializationInput): readonly TemplateDraft[] {
 		return sortTemplateDrafts([
 			...deriveRecipeTemplateDrafts({
-				tableFacts: input.tableFacts,
+				tableModel: input.tableModel,
 				recipeSnapshot: input.recipeSnapshot,
 			}),
 			...deriveUserTemplateDrafts({
-				tableFacts: input.tableFacts,
+				tableModel: input.tableModel,
 				userTemplateSnapshot: input.userTemplateSnapshot,
 			}),
 		]);
