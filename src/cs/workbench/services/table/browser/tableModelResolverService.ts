@@ -11,11 +11,7 @@ import {
 } from "src/cs/platform/instantiation/common/extensions";
 import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
 import { IFileService } from "src/cs/platform/files/common/files";
-import {
-  IFileConverterBackendService,
-  type IFileConverterBackendService as IFileConverterBackendServiceType,
-} from "src/cs/workbench/services/files/common/fileConverterBackend";
-import { TableFileEditorModelManager } from "src/cs/workbench/services/table/browser/tableFileEditorModelManager";
+import { TableFileEditorModelManager } from "src/cs/workbench/services/tablefile/common/tableFileEditorModelManager";
 import {
   toTableSourceKey,
   type TableSource,
@@ -125,13 +121,11 @@ export class TableModelResolverService extends Disposable implements ITableModel
 
   public constructor(
     @IFileService fileService: IFileService,
-    @IFileConverterBackendService fileConverterBackendService: IFileConverterBackendServiceType,
   ) {
     super();
 
     this.tableFileEditorModelManager = this._register(new TableFileEditorModelManager(
       fileService,
-      fileConverterBackendService,
     ));
     this._register(this.tableFileEditorModelManager.onDidChangeModel(model => {
       this.onDidChangeModelEmitter.fire(model);

@@ -11,13 +11,9 @@ import {
   type IFileChange,
 } from "src/cs/platform/files/common/files";
 import {
-  IFileConverterBackendService,
-  type IFileConverterBackendService as IFileConverterBackendServiceType,
-} from "src/cs/workbench/services/files/common/fileConverterBackend";
-import {
   TableFileEditorModel,
   TableModel,
-} from "src/cs/workbench/services/table/common/tableFileEditorModel";
+} from "src/cs/workbench/services/tablefile/common/tableFileEditorModel";
 import {
   toTableSourceKey,
   type TableSource,
@@ -26,7 +22,7 @@ import {
   type ITableModel,
   type TableModelPreviewInput,
 } from "src/cs/workbench/services/table/common/tableModel";
-import { TableFileEditorModelContentResolver } from "src/cs/workbench/services/table/browser/tableFileEditorModelContentResolver";
+import { TableFileEditorModelContentResolver } from "src/cs/workbench/services/tablefile/common/tableFileEditorModelContentResolver";
 
 export class TableFileEditorModelManager extends Disposable {
   private readonly onDidChangeModelEmitter =
@@ -40,12 +36,10 @@ export class TableFileEditorModelManager extends Disposable {
 
   public constructor(
     @IFileService private readonly fileService: IFileService,
-    @IFileConverterBackendService private readonly fileConverterBackendService: IFileConverterBackendServiceType,
   ) {
     super();
     this.contentResolver = new TableFileEditorModelContentResolver(
       this.fileService,
-      this.fileConverterBackendService,
     );
     this._register(this.fileService.onDidFilesChange(changes => {
       this.onDidFilesChange(changes);

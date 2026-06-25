@@ -19,7 +19,7 @@ import type {
 } from "src/cs/workbench/services/files/common/rawTableRowsReader";
 import type { FileImportResult, ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
-import { TableFileService } from "src/cs/workbench/services/tableFile/browser/tableFileService";
+import { TableFileService } from "src/cs/workbench/services/tablefile/browser/tableFileService";
 import type { RawTableRef } from "src/cs/workbench/services/session/common/sessionModel";
 import { AutoSliceContribution } from "src/cs/workbench/services/slice/browser/autoSlice.contribution";
 import { SliceService } from "src/cs/workbench/services/slice/browser/sliceService";

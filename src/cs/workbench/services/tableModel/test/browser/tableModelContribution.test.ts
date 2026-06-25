@@ -34,8 +34,8 @@ import {
 } from "src/cs/workbench/services/schemaProfile/common/schemaProfileConfirmation";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
-import type { ITableFileService } from "src/cs/workbench/services/tableFile/common/tableFile";
-import { TableFileService } from "src/cs/workbench/services/tableFile/browser/tableFileService";
+import type { ITableFileService } from "src/cs/workbench/services/tablefile/common/tableFile";
+import { TableFileService } from "src/cs/workbench/services/tablefile/browser/tableFileService";
 
 suite("workbench/services/tableModel/test/browser/tableModelContribution", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

@@ -13,7 +13,7 @@ import type {
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import type { ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
-import { TableFileService } from "src/cs/workbench/services/tableFile/browser/tableFileService";
+import { TableFileService } from "src/cs/workbench/services/tablefile/browser/tableFileService";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 

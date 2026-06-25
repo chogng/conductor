@@ -4,6 +4,7 @@
 
 import assert from "assert";
 
+import JSZip from "jszip";
 import { Emitter, Event } from "src/cs/base/common/event";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
@@ -13,8 +14,7 @@ import {
 	type IFileChange,
 	type IFileService,
 } from "src/cs/platform/files/common/files";
-import type { IFileConverterBackendService } from "src/cs/workbench/services/files/common/fileConverterBackend";
-import { TableFileEditorModelManager } from "src/cs/workbench/services/table/browser/tableFileEditorModelManager";
+import { TableFileEditorModelManager } from "src/cs/workbench/services/tablefile/common/tableFileEditorModelManager";
 import { TableModelResolverService } from "src/cs/workbench/services/table/browser/tableModelResolverService";
 import type { ITableModelContentProvider } from "src/cs/workbench/services/table/common/resolverService";
 
@@ -32,7 +32,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 				size: 10,
 				type: FileType.File,
 			}),
-		}), createFileConverterBackendStub()));
+		})));
 
 		const reference = await service.createModelReference(resource);
 		store.add(reference);
@@ -92,7 +92,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 				readCount += 1;
 				return { encoding: "utf8", value: "A\tB\n1\t2" };
 			},
-		}), createFileConverterBackendStub()));
+		})));
 
 		const first = await service.createModelReference(resource);
 		const second = await service.createModelReference(resource);
@@ -120,7 +120,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 				readCount += 1;
 				return { encoding: "utf8", value: "A,B\n1,2" };
 			},
-		}), createFileConverterBackendStub()));
+		})));
 
 		const reference = await service.createModelReference(resource);
 		assert.equal(service.get(resource), reference.object);
@@ -148,7 +148,6 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		});
 		const service = store.add(new TableModelResolverService(
 			createFileServiceStub(),
-			createFileConverterBackendStub(),
 		));
 		const registration = service.registerContentProvider({
 			canHandleResource: candidate => candidate.scheme === "table-memory",
@@ -212,7 +211,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 				size: text.length,
 				type: FileType.File,
 			}),
-		}), createFileConverterBackendStub()));
+		})));
 		const fileEditorModel = manager.getOrCreateFileEditorModel(resource);
 
 		await manager.resolveModel(fileEditorModel);
@@ -248,7 +247,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 				size: text.length,
 				type: FileType.File,
 			}),
-		}), createFileConverterBackendStub()));
+		})));
 		const fileEditorModel = manager.getOrCreateFileEditorModel(resource);
 
 		await manager.resolveModel(fileEditorModel);
@@ -292,7 +291,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 				size: text.length,
 				type: FileType.File,
 			}),
-		}), createFileConverterBackendStub()));
+		})));
 		const fileEditorModel = manager.getOrCreateFileEditorModel(resource);
 
 		await manager.resolveModel(fileEditorModel);
@@ -333,7 +332,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 				text = content;
 				mtime = 30;
 			},
-		}), createFileConverterBackendStub()));
+		})));
 		const fileEditorModel = manager.getOrCreateFileEditorModel(resource);
 
 		await manager.resolveModel(fileEditorModel);
@@ -370,7 +369,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 				size: text.length,
 				type: FileType.File,
 			}),
-		}), createFileConverterBackendStub()));
+		})));
 		const fileEditorModel = manager.getOrCreateFileEditorModel(resource);
 
 		await manager.resolveModel(fileEditorModel);
@@ -407,7 +406,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 				size: text.length,
 				type: FileType.File,
 			}),
-		}), createFileConverterBackendStub()));
+		})));
 		const fileEditorModel = manager.getOrCreateFileEditorModel(resource);
 
 		await manager.resolveModel(fileEditorModel);
@@ -443,7 +442,6 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 	test("keeps unsupported resources out of the table model support set", () => {
 		const service = store.add(new TableModelResolverService(
 			createFileServiceStub(),
-			createFileConverterBackendStub(),
 		));
 
 		assert.equal(service.canHandleResource(URI.file("/workspace/readme.md")), false);
@@ -452,7 +450,6 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 	test("rejects unsupported resources at the resolver boundary", async () => {
 		const service = store.add(new TableModelResolverService(
 			createFileServiceStub(),
-			createFileConverterBackendStub(),
 		));
 
 		await assert.rejects(
@@ -461,29 +458,23 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		);
 	});
 
-	test("creates sheet snapshots for Excel resources through the converter backend", async () => {
+	test("creates sheet snapshots for xlsx resources without the import converter", async () => {
 		const resource = URI.file("/workspace/data/workbook.xlsx");
+		const workbookBase64 = await createXlsxBase64([{
+			name: "Forward",
+			rows: [["Vg", "Id"], ["0", "1"]],
+		}, {
+			name: "Reverse",
+			rows: [["Vd", "Id"], ["1", "2"]],
+		}]);
 		const service = store.add(new TableModelResolverService(createFileServiceStub({
-			readFile: async () => ({ encoding: "base64", value: "AA==" }),
+			readFile: async () => ({ encoding: "base64", value: workbookBase64 }),
 			stat: async () => ({
 				ctime: 1,
 				mtime: 42,
 				path: resource.path,
 				size: 10,
 				type: FileType.File,
-			}),
-		}), createFileConverterBackendStub({
-			canPrepareFile: () => true,
-			prepareFile: async () => ({
-				sheets: [{
-					csvText: "Vg,Id\n0,1",
-					sheetIndex: 0,
-					sheetName: "Forward",
-				}, {
-					csvText: "Vd,Id\n1,2",
-					sheetIndex: 1,
-					sheetName: "Reverse",
-				}],
 			}),
 		})));
 
@@ -499,18 +490,18 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		})), [{
 			columnCount: 2,
 			rowCount: 2,
-			sheetId: "0:Forward",
+			sheetId: "1:Forward",
 			sheetName: "Forward",
-			sourceKey: `${resource.toString()}::0%3AForward`,
+			sourceKey: `${resource.toString()}::1%3AForward`,
 		}, {
 			columnCount: 2,
 			rowCount: 2,
-			sheetId: "1:Reverse",
+			sheetId: "2:Reverse",
 			sheetName: "Reverse",
-			sourceKey: `${resource.toString()}::1%3AReverse`,
+			sourceKey: `${resource.toString()}::2%3AReverse`,
 		}]);
 		assert.equal(
-			service.getPreviewInput({ resource, sheetId: "1:Reverse" })?.sheetName,
+			service.getPreviewInput({ resource, sheetId: "2:Reverse" })?.sheetName,
 			"Reverse",
 		);
 	});
@@ -541,13 +532,75 @@ const createFileServiceStub = (
 	...overrides,
 } as IFileService);
 
-const createFileConverterBackendStub = (
-	overrides: Partial<IFileConverterBackendService> = {},
-): IFileConverterBackendService => ({
-	_serviceBrand: undefined,
-	canPrepareFile: () => false,
-	canReadConvertedCsv: () => false,
-	prepareFile: async () => ({ ok: false }),
-	readConvertedCsv: async () => ({ ok: false }),
-	...overrides,
-} as IFileConverterBackendService);
+const createXlsxBase64 = async (
+	sheets: readonly { readonly name: string; readonly rows: readonly (readonly string[])[] }[],
+): Promise<string> => {
+	const zip = new JSZip();
+	zip.file("xl/workbook.xml", [
+		'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">',
+		"<sheets>",
+		...sheets.map((sheet, index) =>
+			`<sheet name="${escapeXml(sheet.name)}" sheetId="${index + 1}" r:id="rId${index + 1}"/>`
+		),
+		"</sheets>",
+		"</workbook>",
+	].join(""));
+	zip.file("xl/_rels/workbook.xml.rels", [
+		'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">',
+		...sheets.map((_, index) =>
+			`<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${index + 1}.xml"/>`
+		),
+		"</Relationships>",
+	].join(""));
+	for (let index = 0; index < sheets.length; index += 1) {
+		zip.file(`xl/worksheets/sheet${index + 1}.xml`, createXlsxSheetXml(sheets[index]!.rows));
+	}
+	const buffer = await zip.generateAsync({ type: "arraybuffer" });
+	return arrayBufferToBase64(buffer);
+};
+
+const createXlsxSheetXml = (
+	rows: readonly (readonly string[])[],
+): string => [
+	'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">',
+	"<sheetData>",
+	...rows.map((row, rowIndex) => [
+		`<row r="${rowIndex + 1}">`,
+		...row.map((value, columnIndex) =>
+			`<c r="${getCellReference(rowIndex, columnIndex)}" t="inlineStr"><is><t>${escapeXml(value)}</t></is></c>`
+		),
+		"</row>",
+	].join("")),
+	"</sheetData>",
+	"</worksheet>",
+].join("");
+
+const getCellReference = (rowIndex: number, columnIndex: number): string =>
+	`${getColumnLabel(columnIndex)}${rowIndex + 1}`;
+
+const getColumnLabel = (columnIndex: number): string => {
+	let value = columnIndex + 1;
+	let label = "";
+	while (value > 0) {
+		const remainder = (value - 1) % 26;
+		label = String.fromCharCode(65 + remainder) + label;
+		value = Math.floor((value - 1) / 26);
+	}
+	return label;
+};
+
+const escapeXml = (value: string): string =>
+	value
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&apos;");
+
+const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
+	let binary = "";
+	for (const byte of new Uint8Array(buffer)) {
+		binary += String.fromCharCode(byte);
+	}
+	return globalThis.btoa(binary);
+};

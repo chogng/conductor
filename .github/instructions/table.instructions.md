@@ -45,15 +45,16 @@ or equality rules in service/view files.
 | File | Responsibility |
 | --- | --- |
 | `services/table/common/table.ts` | service contract, model contracts, source key helpers. |
-| `services/table/common/tableModel.ts` | URI-backed `TableModel` snapshot shape; service-local, not Session. |
-| `services/table/common/resolverService.ts` | URI -> `TableModel` reference service contract, following upstream resolver service shape. |
-| `services/table/common/tableFileEditorModel.ts` | URI-backed `TableFileEditorModel` / `TableModel` implementation: file working-copy lifecycle, sourceVersion, parsed content snapshot state, sheet snapshot state, and model change events without DOM/browser content reading. |
+| `services/table/common/tableModel.ts` | URI-backed `ITableModel` snapshot/interface shape; service-local, not Session. |
+| `services/table/common/resolverService.ts` | URI -> `ITableModel` reference service contract, following upstream resolver service shape. |
 | `services/table/common/tableFileFormat.ts` | table import format policy and resource/name support checks. |
+| `services/table/common/tableModelContentParser.ts` | CSV/TSV/XLSX text/bytes -> `ITableModel` content and sheet snapshots. |
+| `services/tablefile/common/tableFileEditorModel.ts` | URI-backed `TableFileEditorModel` and associated local `TableModel` implementation: file working-copy lifecycle, sourceVersion, parsed content snapshot state, sheet snapshot state, and model change events without DOM/browser content reading. |
 | `common/tableColumnLayout.ts` | width policy and storage serialization. |
 | `common/tableDisplayProfile.ts` / `numericFormat.ts` | display profile and numeric formatting helpers. |
-| `browser/tableModelResolverService.ts` | `ITableModelService` implementation: URI -> `TableModel` reference, support check, reference/cache entry, content-provider/file-backed dispatch, and reference-counted cache release. |
-| `browser/tableFileEditorModelContentResolver.ts` | Browser runtime content resolver for file-backed table models: read resource bytes into DOM `File`, decode base64, prepare Excel content, and build transient preview input carrying `resource`/sheet metadata rather than fake raw `fileId`/`sourceKey`. |
-| `browser/tableFileEditorModelManager.ts` | file-backed table model manager: cache/reuse, reload/remove, pending resolve de-duplication, and model change events. |
+| `browser/tableModelResolverService.ts` | `ITableModelService` implementation: URI -> `ITableModel` reference, support check, reference/cache entry, content-provider/file-backed dispatch, and reference-counted cache release. |
+| `services/tablefile/common/tableFileEditorModelContentResolver.ts` | Conductor-specific runtime content resolver for file-backed table models: read resource bytes into `File`, call the table content parser, and build transient preview input carrying `resource`/sheet metadata rather than fake raw `fileId`/`sourceKey`. |
+| `services/tablefile/common/tableFileEditorModelManager.ts` | file-backed table model manager: cache/reuse, reload/remove, pending resolve de-duplication, and model change events. |
 | `browser/tableService.ts` | table service owner, view input, copy text, column width persistence. |
 | `browser/tableViewModel.ts` | per-table preview view model: source switching, row cache, selection/highlight/reveal, worker/reader lifecycle. |
 | `browser/tableRowsReaderService.ts` | browser row reader fallback. |
@@ -77,9 +78,10 @@ TableFile/Session/settings/command/search bridge
   -> resource sources resolve through ITableModelService / tableModelResolverService by URI
   -> tableModelResolverService resolves provider-backed virtual resources or delegates file-backed resources to tableFileEditorModelManager
   -> tableFileEditorModelManager resolves/reloads cached TableFileEditorModel instances
-  -> TableFileEditorModel owns file watch/stat, dirty/save/revert, orphan/conflict state, sourceVersion, and updates TableModel through the browser content resolver
-  -> TableModel snapshot owns parsed CSV/TSV content and Excel sheet content when conversion metadata is available
-  -> tableViewModel reads resource-backed TableModel content without converting the source identity into a raw fileId; raw/session sources still use reader/worker
+  -> TableFileEditorModel owns file watch/stat, dirty/save/revert, orphan/conflict state, sourceVersion, and asks the content resolver to load file content
+  -> tableFileEditorModelContentResolver reads resource bytes/text and delegates CSV/TSV/XLSX parsing to tableModelContentParser
+  -> ITableModel snapshot owns parsed CSV/TSV/XLSX content and sheet content
+  -> tableViewModel reads resource-backed ITableModel content without converting the source identity into a raw fileId; raw/session sources still use reader/worker
   -> TableController consumes view input
   -> TableWidget adapts table state to base table widget renderers
   -> base table widget owns structural CSS, zoom state, column resize mechanics, and facade defaults

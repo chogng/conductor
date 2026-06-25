@@ -27,7 +27,7 @@ import { DEFAULT_EXPLORER_APPEARANCE, type IAppearanceService } from "src/cs/wor
 import type { FileConverterBackend } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import type { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
-import type { ITableFileService } from "src/cs/workbench/services/tableFile/common/tableFile";
+import type { ITableFileService } from "src/cs/workbench/services/tablefile/common/tableFile";
 import type { IThumbnailPreviewService, IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { IUserTemplateService } from "src/cs/workbench/services/userTemplate/common/userTemplate";

@@ -2,8 +2,6 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import Papa from "papaparse";
-
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
@@ -364,56 +362,6 @@ export class TableFileEditorModel extends Disposable {
 	}
 }
 
-export const createTableModelContentSnapshot = (
-	text: string | null,
-	format: TableFileFormat | null,
-): TableModelContentSnapshot | null => {
-	if (text === null || (format !== "csv" && format !== "tsv")) {
-		return null;
-	}
-
-	const parsed = Papa.parse<unknown[]>(text, {
-		delimiter: format === "tsv" ? "\t" : ",",
-		skipEmptyLines: false,
-	});
-	const rows = parsed.data.map(row => row.map(cell => cell == null ? "" : String(cell)));
-	const columnCount = rows.reduce(
-		(count, row) => Math.max(count, row.length),
-		0,
-	);
-	const maxCellLengths = Array.from({ length: columnCount }, (_, columnIndex) =>
-		rows.reduce(
-			(length, row) => Math.max(length, String(row[columnIndex] ?? "").length),
-			0,
-		)
-	);
-	return {
-		columnCount,
-		maxCellLengths,
-		rowCount: rows.length,
-		rows,
-	};
-};
-
-export const createEmptyTableModelContentSnapshot = (
-	rowCount: unknown,
-	columnCount: unknown,
-	maxCellLengths: readonly number[] | undefined,
-): TableModelContentSnapshot | null => {
-	const normalizedRowCount = normalizeNonNegativeInteger(rowCount);
-	const normalizedColumnCount = normalizeNonNegativeInteger(columnCount);
-	if (normalizedRowCount === null || normalizedColumnCount === null) {
-		return null;
-	}
-
-	return {
-		columnCount: normalizedColumnCount,
-		maxCellLengths: normalizeMaxCellLengths(maxCellLengths, normalizedColumnCount),
-		rowCount: normalizedRowCount,
-		rows: [],
-	};
-};
-
 export const getResourceFileName = (resource: URI): string => {
 	const path = String(resource.path ?? "").replace(/\\/g, "/");
 	const index = path.lastIndexOf("/");
@@ -438,17 +386,3 @@ export const getErrorMessage = (error: unknown): string =>
 	error instanceof Error && error.message.trim()
 		? error.message
 		: "The file could not be read.";
-
-const normalizeNonNegativeInteger = (value: unknown): number | null => {
-	const number = Number(value);
-	return Number.isInteger(number) && number >= 0 ? number : null;
-};
-
-const normalizeMaxCellLengths = (
-	values: readonly number[] | undefined,
-	columnCount: number,
-): readonly number[] =>
-	Array.from({ length: columnCount }, (_, index) => {
-		const value = Number(values?.[index]);
-		return Number.isFinite(value) && value >= 0 ? value : 0;
-	});

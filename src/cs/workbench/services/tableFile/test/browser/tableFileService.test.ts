@@ -9,10 +9,10 @@ import type {
   ImportedFileRecord,
 } from "src/cs/workbench/services/files/common/files";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
-import { TableFileService } from "src/cs/workbench/services/tableFile/browser/tableFileService";
+import { TableFileService } from "src/cs/workbench/services/tablefile/browser/tableFileService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
-suite("workbench/services/tableFile/test/browser/tableFileService", () => {
+suite("workbench/services/tablefile/test/browser/tableFileService", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
 
   test("rejects unsupported resources at the table-file owner boundary", () => {

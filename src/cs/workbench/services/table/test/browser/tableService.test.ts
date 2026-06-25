@@ -1,5 +1,6 @@
 import assert from "assert";
 
+import JSZip from "jszip";
 import { Emitter, Event } from "src/cs/base/common/event";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
@@ -30,7 +31,6 @@ import type { SessionSnapshot } from "src/cs/workbench/services/session/common/s
 import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
 import { mergeRawFilesIntoRecords } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
-import type { IFileConverterBackendService } from "src/cs/workbench/services/files/common/fileConverterBackend";
 
 type TableFile = NonNullable<TableState["file"]>;
 type TableLoadState = TableState["loadState"];
@@ -141,27 +141,20 @@ suite("workbench/services/table/browser/tableService", () => {
 
   test("opens Excel table resource sheets through the table model snapshot", async () => {
     const resource = URI.file("/workspace/data/workbook.xlsx");
+    const workbookBase64 = await createXlsxBase64([{
+      name: "Forward",
+      rows: [["Vg", "Id"], ["0", "1"]],
+    }, {
+      name: "Reverse",
+      rows: [["Vd", "Id"], ["1", "2"]],
+    }]);
     const { service } = createTableServiceFixture({
-      fileConverterBackendService: createFileConverterBackendStub({
-        canPrepareFile: () => true,
-        prepareFile: async () => ({
-          sheets: [{
-            csvText: "Vg,Id\n0,1",
-            sheetIndex: 0,
-            sheetName: "Forward",
-          }, {
-            csvText: "Vd,Id\n1,2",
-            sheetIndex: 1,
-            sheetName: "Reverse",
-          }],
-        }),
-      }),
       fileService: createFileServiceStub({
-        readFile: async () => ({ encoding: "base64", value: "AA==" }),
+        readFile: async () => ({ encoding: "base64", value: workbookBase64 }),
       }),
     });
 
-    service.open({ resource, sheetId: "1:Reverse" });
+    service.open({ resource, sheetId: "2:Reverse" });
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
       if (service.getViewInput()?.tableState.loadState.state === "ready") {
@@ -170,7 +163,7 @@ suite("workbench/services/table/browser/tableService", () => {
       await waitForTableService();
     }
 
-    assert.equal(service.getViewInput()?.tableState.selectedSheetId, "1:Reverse");
+    assert.equal(service.getViewInput()?.tableState.selectedSheetId, "2:Reverse");
     assert.equal(service.getViewInput()?.tableState.file?.sheetName, "Reverse");
     assert.deepStrictEqual(service.getPreviewRow(0), ["Vd", "Id"]);
     assert.deepStrictEqual(service.getPreviewRow(1), ["1", "2"]);
@@ -1013,14 +1006,12 @@ type TableServiceFixture = {
 };
 
 const createTableServiceFixture = ({
-  fileConverterBackendService = createFileConverterBackendStub(),
   fileService = createFileServiceStub(),
   rawFiles = [],
   settingsService = createSettingsServiceStub(),
   storageService = new TestStorageService(),
   tableRowsReaderService = createTableRowsReaderService(),
 }: {
-  readonly fileConverterBackendService?: IFileConverterBackendService;
   readonly rawFiles?: readonly SessionFile[];
   readonly settingsService?: ISettingsService;
   readonly storageService?: TestStorageService;
@@ -1031,8 +1022,7 @@ const createTableServiceFixture = ({
   const sessionService = new TestSessionService(rawFiles);
   const tableModelService = tableTestStore?.add(new TableModelResolverService(
     fileService,
-    fileConverterBackendService,
-  )) ?? new TableModelResolverService(fileService, fileConverterBackendService);
+  )) ?? new TableModelResolverService(fileService);
   const service = new TableService(
     tableRowsReaderService as never,
     sessionService as never,
@@ -1085,16 +1075,78 @@ const createFileServiceStub = (
   ...overrides,
 } as IFileService);
 
-const createFileConverterBackendStub = (
-  overrides: Partial<IFileConverterBackendService> = {},
-): IFileConverterBackendService => ({
-  _serviceBrand: undefined,
-  canPrepareFile: () => false,
-  canReadConvertedCsv: () => false,
-  prepareFile: async () => ({ ok: false }),
-  readConvertedCsv: async () => ({ ok: false }),
-  ...overrides,
-} as IFileConverterBackendService);
+const createXlsxBase64 = async (
+  sheets: readonly { readonly name: string; readonly rows: readonly (readonly string[])[] }[],
+): Promise<string> => {
+  const zip = new JSZip();
+  zip.file("xl/workbook.xml", [
+    '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">',
+    "<sheets>",
+    ...sheets.map((sheet, index) =>
+      `<sheet name="${escapeXml(sheet.name)}" sheetId="${index + 1}" r:id="rId${index + 1}"/>`
+    ),
+    "</sheets>",
+    "</workbook>",
+  ].join(""));
+  zip.file("xl/_rels/workbook.xml.rels", [
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">',
+    ...sheets.map((_, index) =>
+      `<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${index + 1}.xml"/>`
+    ),
+    "</Relationships>",
+  ].join(""));
+  for (let index = 0; index < sheets.length; index += 1) {
+    zip.file(`xl/worksheets/sheet${index + 1}.xml`, createXlsxSheetXml(sheets[index]!.rows));
+  }
+  const buffer = await zip.generateAsync({ type: "arraybuffer" });
+  return arrayBufferToBase64(buffer);
+};
+
+const createXlsxSheetXml = (
+  rows: readonly (readonly string[])[],
+): string => [
+  '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">',
+  "<sheetData>",
+  ...rows.map((row, rowIndex) => [
+    `<row r="${rowIndex + 1}">`,
+    ...row.map((value, columnIndex) =>
+      `<c r="${getCellReference(rowIndex, columnIndex)}" t="inlineStr"><is><t>${escapeXml(value)}</t></is></c>`
+    ),
+    "</row>",
+  ].join("")),
+  "</sheetData>",
+  "</worksheet>",
+].join("");
+
+const getCellReference = (rowIndex: number, columnIndex: number): string =>
+  `${getColumnLabel(columnIndex)}${rowIndex + 1}`;
+
+const getColumnLabel = (columnIndex: number): string => {
+  let value = columnIndex + 1;
+  let label = "";
+  while (value > 0) {
+    const remainder = (value - 1) % 26;
+    label = String.fromCharCode(65 + remainder) + label;
+    value = Math.floor((value - 1) / 26);
+  }
+  return label;
+};
+
+const escapeXml = (value: string): string =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+
+const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
+  let binary = "";
+  for (const byte of new Uint8Array(buffer)) {
+    binary += String.fromCharCode(byte);
+  }
+  return globalThis.btoa(binary);
+};
 
 class TestSessionService {
   private readonly onDidChangeSessionEmitter = new Emitter<SessionChangeEvent>();

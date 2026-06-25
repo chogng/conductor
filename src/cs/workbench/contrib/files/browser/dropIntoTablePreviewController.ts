@@ -18,7 +18,7 @@ import {
   INotificationService,
   Severity,
 } from "src/cs/workbench/services/notification/common/notificationService";
-import { ITableFileService } from "src/cs/workbench/services/tableFile/common/tableFile";
+import { ITableFileService } from "src/cs/workbench/services/tablefile/common/tableFile";
 import { ITableDropTargetService } from "src/cs/workbench/services/table/browser/tableDropTargetService";
 
 type TablePreviewDropTargetRegistration = {
