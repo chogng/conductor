@@ -18,7 +18,7 @@ import type {
 import {
   TableService,
 } from "src/cs/workbench/services/table/browser/tableService";
-import { TableModelResolverService } from "src/cs/workbench/services/table/browser/tableModelResolverService";
+import { TableModelResolverService } from "src/cs/workbench/services/tablemodeResolver/common/tableModelResolverService";
 import {
   areTableSelectionsEqual,
   createTableViewModelInScope,

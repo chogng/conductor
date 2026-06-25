@@ -27,7 +27,7 @@ import {
   type ColumnDisplayProfile,
   type NumericDisplayMode,
 } from "src/cs/workbench/services/table/common/tableDisplayProfile";
-import type { TableModelContentSnapshot } from "src/cs/workbench/services/table/common/tableModel";
+import type { TableModelContentSnapshot } from "src/cs/workbench/services/table/common/model";
 import { loadConvertedCsvFile } from "src/cs/workbench/services/files/browser/fileConverter";
 
 // TableViewModel owns the service data plane: source switching, worker lifecycle,

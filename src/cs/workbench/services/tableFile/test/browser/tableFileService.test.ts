@@ -9,15 +9,15 @@ import type {
   ImportedFileRecord,
 } from "src/cs/workbench/services/files/common/files";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
-import { TableFileService } from "src/cs/workbench/services/tablefile/browser/tableFileService";
+import { BrowserTableFileService } from "src/cs/workbench/services/tablefile/browser/browserTableFileService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
-suite("workbench/services/tablefile/test/browser/tableFileService", () => {
+suite("workbench/services/tablefile/test/browser/browserTableFileService", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
 
   test("rejects unsupported resources at the table-file owner boundary", () => {
     const session = store.add(new SessionService());
-    const tableFileService = new TableFileService(session);
+    const tableFileService = new BrowserTableFileService(session);
 
     assert.throws(
       () => tableFileService.commitImport(createImportResult("notes.txt")),
@@ -28,7 +28,7 @@ suite("workbench/services/tablefile/test/browser/tableFileService", () => {
 
   test("commits supported TSV imports", () => {
     const session = store.add(new SessionService());
-    const tableFileService = new TableFileService(session);
+    const tableFileService = new BrowserTableFileService(session);
 
     const result = tableFileService.commitImport(createImportResult("transfer.tsv"));
 
@@ -38,7 +38,7 @@ suite("workbench/services/tablefile/test/browser/tableFileService", () => {
 
   test("allows display names when raw file name keeps the supported suffix", () => {
     const session = store.add(new SessionService());
-    const tableFileService = new TableFileService(session);
+    const tableFileService = new BrowserTableFileService(session);
 
     const result = tableFileService.commitImport({
       ...createImportResult("Transfer"),

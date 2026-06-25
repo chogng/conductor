@@ -12,16 +12,21 @@ import {
 } from "src/cs/platform/files/common/files";
 import {
   TableFileEditorModel,
-  TableModel,
+  type TableFileEditorModelResolveOptions,
 } from "src/cs/workbench/services/tablefile/common/tableFileEditorModel";
+import {
+  TableModel,
+  type ITableModel,
+  type TableModelPreviewInput,
+} from "src/cs/workbench/services/table/common/model";
 import {
   toTableSourceKey,
   type TableSource,
 } from "src/cs/workbench/services/table/common/table";
-import {
-  type ITableModel,
-  type TableModelPreviewInput,
-} from "src/cs/workbench/services/table/common/tableModel";
+
+export type TableFileEditorModelManagerResolveOptions = TableFileEditorModelResolveOptions & {
+  readonly force?: boolean;
+};
 
 export class TableFileEditorModelManager extends Disposable {
   private readonly onDidChangeModelEmitter =
@@ -60,9 +65,10 @@ export class TableFileEditorModelManager extends Disposable {
 
   public async resolveModel(
     model: TableFileEditorModel,
-    options: { readonly force?: boolean } = {},
+    options: TableFileEditorModelManagerResolveOptions = {},
   ): Promise<void> {
-    if (!options.force && model.model.getSnapshot().loadState.state === "ready") {
+    const { force, ...resolveOptions } = options;
+    if (!force && model.model.getSnapshot().loadState.state === "ready") {
       return;
     }
 
@@ -73,7 +79,7 @@ export class TableFileEditorModelManager extends Disposable {
       return;
     }
 
-    const pendingResolve = model.resolve().finally(() => {
+    const pendingResolve = model.resolve(resolveOptions).finally(() => {
       if (this.pendingResolves.get(key) === pendingResolve) {
         this.pendingResolves.delete(key);
       }

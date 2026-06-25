@@ -15,16 +15,199 @@ import {
 	type IFileService,
 } from "src/cs/platform/files/common/files";
 import { TableFileEditorModelManager } from "src/cs/workbench/services/tablefile/common/tableFileEditorModelManager";
-import { TableModelResolverService } from "src/cs/workbench/services/table/browser/tableModelResolverService";
+import { TableModelResolverService } from "src/cs/workbench/services/tablemodeResolver/common/tableModelResolverService";
+import {
+	TableModel,
+	TableModelRange,
+	TableModelSelection,
+	TableModelSelectionDirection,
+	type TableModelDecorationsChangedEvent,
+} from "src/cs/workbench/services/table/common/model";
 import type { ITableModelContentProvider } from "src/cs/workbench/services/table/common/resolverService";
 
 suite("workbench/services/table/test/browser/tableModel", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test("exposes core content, version, range, and selection helpers", async () => {
+		const resource = URI.file("/workspace/data/core.csv");
+		const model = store.add(new TableModel(resource, resource.toString()));
+		const contentEvents: { readonly sourceVersion: number; readonly version: number }[] = [];
+		store.add(model.onDidChangeContent(event => {
+			contentEvents.push({
+				sourceVersion: event.sourceVersion,
+				version: event.version,
+			});
+		}));
+
+		await model.resolve({
+			resolveContent: async () => ({
+				content: {
+					columnCount: 3,
+					maxCellLengths: [1, 1, 1],
+					rowCount: 2,
+					rows: [["A", "B", "C"], ["1", "2", "3"]],
+				},
+				previewInput: null,
+				sourceVersion: 12,
+			}),
+		});
+
+		const validatedRange = model.validateRange(new TableModelRange(0, 1, 5, 5));
+		const validatedSelection = model.validateSelection(new TableModelSelection(5, 5, 0, 1));
+
+		assert.deepStrictEqual({
+			cell: model.getCellValue(1, 2),
+			contentEvents,
+			fullRange: toRangeLiteral(model.getFullModelRange()),
+			range: toRangeLiteral(validatedRange),
+			rows: model.getValueInRange(new TableModelRange(0, 1, 2, 3)),
+			selection: {
+				direction: validatedSelection.getDirection(),
+				position: toPositionLiteral(validatedSelection.getPosition()),
+				range: toRangeLiteral(validatedSelection),
+				start: toPositionLiteral(validatedSelection.getSelectionStart()),
+			},
+			sourceVersion: model.getSourceVersionId(),
+			version: model.getVersionId(),
+		}, {
+			cell: "3",
+			contentEvents: [{
+				sourceVersion: 12,
+				version: 1,
+			}],
+			fullRange: {
+				endColumnIndexExclusive: 3,
+				endRowIndexExclusive: 2,
+				startColumnIndex: 0,
+				startRowIndex: 0,
+			},
+			range: {
+				endColumnIndexExclusive: 3,
+				endRowIndexExclusive: 2,
+				startColumnIndex: 1,
+				startRowIndex: 0,
+			},
+			rows: [["B", "C"], ["2", "3"]],
+			selection: {
+				direction: TableModelSelectionDirection.BottomRightToTopLeft,
+				position: {
+					columnIndex: 1,
+					rowIndex: 0,
+				},
+				range: {
+					endColumnIndexExclusive: 3,
+					endRowIndexExclusive: 2,
+					startColumnIndex: 1,
+					startRowIndex: 0,
+				},
+				start: {
+					columnIndex: 2,
+					rowIndex: 1,
+				},
+			},
+			sourceVersion: 12,
+			version: 1,
+		});
+	});
+
+	test("tracks table model decorations through owner-scoped deltas", async () => {
+		const resource = URI.file("/workspace/data/decorations.csv");
+		const model = store.add(new TableModel(resource, resource.toString()));
+		await model.resolve({
+			resolveContent: async () => ({
+				content: {
+					columnCount: 3,
+					maxCellLengths: [1, 1, 1],
+					rowCount: 2,
+					rows: [["A", "B", "C"], ["1", "2", "3"]],
+				},
+				previewInput: null,
+				sourceVersion: 12,
+			}),
+		});
+		const decorationEvents: TableModelDecorationsChangedEvent[] = [];
+		store.add(model.onDidChangeDecorations(event => {
+			decorationEvents.push(event);
+		}));
+
+		const firstIds = model.deltaDecorations([], [{
+			options: {
+				className: "table-cell-warning",
+				description: "warning",
+				zIndex: 2,
+			},
+			range: new TableModelRange(0, 0, 1, 1),
+		}], 7);
+		const secondIds = model.changeDecorations(accessor => {
+			accessor.changeDecoration(firstIds[0]!, new TableModelRange(0, 1, 2, 3));
+			accessor.changeDecorationOptions(firstIds[0]!, {
+				className: "table-cell-info",
+				description: "info",
+				zIndex: 1,
+			});
+			return accessor.deltaDecorations([], [{
+				options: {
+					description: "row",
+					isWholeRow: true,
+					zIndex: 3,
+				},
+				range: new TableModelRange(1, 0, 2, 3),
+			}]);
+		}, 7) ?? [];
+		const wrongOwnerResult = model.deltaDecorations(firstIds, [], 8);
+		const decorationsBeforeRemove = model.getAllDecorations(7).map(decoration => ({
+			description: decoration.options.description,
+			id: decoration.id,
+			range: toRangeLiteral(decoration.range),
+		}));
+		const intersectingDecorationIds = model
+			.getDecorationsInRange(new TableModelRange(1, 2, 2, 3), 7)
+			.map(decoration => decoration.id);
+		model.removeAllDecorationsWithOwnerId(7);
+
+		assert.deepStrictEqual({
+			afterRemove: model.getAllDecorations(7),
+			decorationsBeforeRemove,
+			eventCount: decorationEvents.length,
+			intersectingDecorationIds,
+			secondIds,
+			wrongOwnerResult,
+		}, {
+			afterRemove: [],
+			decorationsBeforeRemove: [{
+				description: "info",
+				id: firstIds[0],
+				range: {
+					endColumnIndexExclusive: 3,
+					endRowIndexExclusive: 2,
+					startColumnIndex: 1,
+					startRowIndex: 0,
+				},
+			}, {
+				description: "row",
+				id: secondIds[0],
+				range: {
+					endColumnIndexExclusive: 3,
+					endRowIndexExclusive: 2,
+					startColumnIndex: 0,
+					startRowIndex: 1,
+				},
+			}],
+			eventCount: 3,
+			intersectingDecorationIds: [firstIds[0], secondIds[0]],
+			secondIds,
+			wrongOwnerResult: [],
+		});
+	});
+
 	test("creates a URI-backed model reference from the file service", async () => {
 		const resource = URI.file("/workspace/data/transfer.csv");
+		let readEncoding: unknown = null;
 		const service = store.add(new TableModelResolverService(createFileServiceStub({
-			readFile: async () => ({ encoding: "utf8", value: "Vg,Id\n0,1" }),
+			readFile: async (_resource, options) => {
+				readEncoding = options?.encoding;
+				return { encoding: "utf8", value: "Vg,Id\n0,1" };
+			},
 			stat: async () => ({
 				ctime: 1,
 				mtime: 42,
@@ -82,6 +265,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 			sourceVersion: 42,
 			version: 1,
 		});
+		assert.equal(readEncoding, "utf8");
 	});
 
 	test("reuses the cached model for repeated references", async () => {
@@ -460,6 +644,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 
 	test("creates sheet snapshots for xlsx resources without the import converter", async () => {
 		const resource = URI.file("/workspace/data/workbook.xlsx");
+		let readEncoding: unknown = null;
 		const workbookBase64 = await createXlsxBase64([{
 			name: "Forward",
 			rows: [["Vg", "Id"], ["0", "1"]],
@@ -468,7 +653,10 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 			rows: [["Vd", "Id"], ["1", "2"]],
 		}]);
 		const service = store.add(new TableModelResolverService(createFileServiceStub({
-			readFile: async () => ({ encoding: "base64", value: workbookBase64 }),
+			readFile: async (_resource, options) => {
+				readEncoding = options?.encoding;
+				return { encoding: "base64", value: workbookBase64 };
+			},
 			stat: async () => ({
 				ctime: 1,
 				mtime: 42,
@@ -504,7 +692,31 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 			service.getPreviewInput({ resource, sheetId: "2:Reverse" })?.sheetName,
 			"Reverse",
 		);
+		assert.equal(readEncoding, "base64");
 	});
+});
+
+const toRangeLiteral = (range: TableModelRange): {
+	readonly endColumnIndexExclusive: number;
+	readonly endRowIndexExclusive: number;
+	readonly startColumnIndex: number;
+	readonly startRowIndex: number;
+} => ({
+	endColumnIndexExclusive: range.endColumnIndexExclusive,
+	endRowIndexExclusive: range.endRowIndexExclusive,
+	startColumnIndex: range.startColumnIndex,
+	startRowIndex: range.startRowIndex,
+});
+
+const toPositionLiteral = (position: {
+	readonly columnIndex: number;
+	readonly rowIndex: number;
+}): {
+	readonly columnIndex: number;
+	readonly rowIndex: number;
+} => ({
+	columnIndex: position.columnIndex,
+	rowIndex: position.rowIndex,
 });
 
 const createFileServiceStub = (

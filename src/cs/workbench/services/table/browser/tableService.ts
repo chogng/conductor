@@ -49,7 +49,7 @@ import {
   type CreateTableViewModelWithScopeOptions,
 } from "src/cs/workbench/services/table/browser/tableViewModel";
 import { ITableModelService } from "src/cs/workbench/services/table/common/resolverService";
-import type { TableModelPreviewInput } from "src/cs/workbench/services/table/common/tableModel";
+import type { TableModelPreviewInput } from "src/cs/workbench/services/table/common/model";
 
 type TableState = ReturnType<TableViewModel["getState"]>;
 type TableCell = NonNullable<ReturnType<TableViewModel["getRevealCell"]>>;

@@ -36,7 +36,7 @@ import "src/cs/workbench/services/parameters/browser/parametersService";
 import "src/cs/workbench/services/plot/browser/plotService";
 import "src/cs/workbench/services/search/browser/searchService";
 import "src/cs/workbench/services/session/browser/sessionService";
-import "src/cs/workbench/services/tablefile/browser/tableFileService";
+import "src/cs/workbench/services/tablefile/browser/browserTableFileService";
 import "src/cs/workbench/services/schemaProfile/browser/schemaProfileStoreService";
 import "src/cs/workbench/services/schemaProfile/browser/schemaProfileService";
 import "src/cs/workbench/services/slice/browser/sliceService";
@@ -50,7 +50,7 @@ import "src/cs/workbench/services/thumbnail/browser/thumbnailService";
 import "src/cs/workbench/services/views/browser/viewDescriptorService";
 import "src/cs/workbench/services/views/browser/viewsService";
 import "src/cs/workbench/services/table/browser/tableDropTargetService";
-import "src/cs/workbench/services/table/browser/tableModelResolverService";
+import "src/cs/workbench/services/tablemodeResolver/common/tableModelResolverService";
 import "src/cs/workbench/services/table/browser/tableService";
 
 //#endregion

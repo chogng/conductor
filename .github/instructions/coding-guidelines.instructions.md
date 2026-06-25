@@ -70,7 +70,7 @@ args, resolve services/controllers, call owner APIs, and return.
 | `ITableFileService` | imported data-file/raw-table owner, Conductor's TextFileService equivalent |
 | `ExplorerView` / `ExplorerViewer` | Files container UI rendering |
 | `fileImportExport.ts` | file transfer and source collection helpers |
-| `fileConverter.ts` | CSV/XLS/XLSX/clipboard/manual conversion to raw table records |
+| `fileConverter.ts` | CSV/TSV/XLS/XLSX/clipboard/manual conversion to raw table records |
 
 Do not introduce `IFileImportService` by default. Source collection stays in
 Explorer/files workflow; conversion stays in `workbench/services/files`;

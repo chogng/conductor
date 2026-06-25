@@ -1,5 +1,5 @@
 ---
-description: TableFile services - URI-backed file working copies plus imported table-file migration bridge.
+description: TableFile services - URI-backed file working copies plus explicit imported table-file bridge.
 applyTo: 'src/cs/workbench/services/tablefile/**'
 ---
 # TableFile
@@ -7,18 +7,20 @@ applyTo: 'src/cs/workbench/services/tablefile/**'
 `services/tablefile` follows upstream `workbench/services/textfile` naming for
 file-backed table lifecycles. The target architecture is URI-backed:
 `TableFileEditorModel` owns the file working-copy lifecycle around a
-URI-backed `ITableModel`, while `ITableFileService` remains the imported
-data-file/raw-table migration bridge backed by Session.
+URI-backed `ITableModel`, while `ITableFileService` remains the explicit
+converted data-file/raw-table import bridge backed by Session.
 
 ```txt
 URI/resource open
   -> ITableModelService.createModelReference(resource)
+  -> TableModelResolverService
+  -> TableFileService chooses file read encoding
   -> TableFileEditorModelManager
   -> TableFileEditorModel
   -> ITableModel snapshot/version/sourceVersion
   -> Table / Template / Review / Slice consumers read URI-backed model facts
 
-Legacy explicit import
+Explicit converted import
   -> fileConverter.ts FileConversionResult
   -> ITableFileService.commitImport(...)
   -> table-file change event
@@ -35,26 +37,39 @@ Legacy explicit import
   checks;
 - updates to the associated `ITableModel` after file content changes.
 
-`ITableFileService` owns the legacy explicit import bridge:
+`TableFileService` owns the file-backed branch between resolver and editor model:
+
+- file-backed table resource support checks after resolver/provider dispatch;
+- read encoding choice before the file is read;
+- delegation to `TableFileEditorModelManager` for cached model creation,
+  resolve, reload, and release.
+
+`ITableFileService` owns the explicit converted import bridge:
 
 - imported data-file and raw-table lifecycle API;
 - `fileId`, `rawTableId`, and `sourceRawTableVersion` identity surface;
 - rename/remove/clear operations for imported table files;
 - table-file change events for subscribers.
 
-TableFile does not own:
+The explicit converted import bridge does not own:
 
-- file format filtering, preview rows, reload/watch state, or model caches;
+- URI-backed preview rows, file working-copy reload/watch state, or model caches;
 - Explorer tree, selection, expansion, drag/drop UI, or pending-source rows;
 - Table preview selection, row cache, reveal/highlight, or column widths;
 - table-model detection, Recipe materialization, Review decisions, or Slice
   execution;
 - plot/chart/search/export/parameter view state.
 
+`services/tablefile/common/encoding.ts` is a helper for read mode and byte
+conversion after the table format has already been identified. It must not
+become the owner for supported extensions or parser dispatch. CSV/TSV/XLS/XLSX
+belong to `TableFileFormatService`; URI scheme describes resource origin, and
+text `languageId` is not part of table file support.
+
 ## Migration Boundary
 
 `ITableFileService` currently delegates storage and mutation to
-`ISessionService`. This is intentional compatibility shape for explicit import
+`ISessionService`. This is the current owner shape for explicit converted import
 flows while the product moves to URI-backed table opens. New table open,
 preview, cache, reload, save, and source-version work should use
 `TableFileEditorModel` / `ITableModel` through `ITableModelService`, not expand
@@ -62,7 +77,7 @@ Session-backed raw-table ownership.
 
 Do not route table URI open/preview lifecycle through `ITableFileService`.
 That lifecycle follows the upstream file -> editor shape and stays service-local
-unless a user explicitly invokes the legacy conversion/import path.
+unless a user explicitly invokes the converted import path.
 
 Do not call `ISessionService.commitFileImport(...)`,
 `renameFile(...)`, `removeFiles(...)`, or `clearSession()` from Explorer/files
@@ -75,9 +90,10 @@ through `ISessionService` while Session remains the canonical migration ledger.
 
 | File | Responsibility |
 | --- | --- |
-| `common/tablefile.ts` | service contract and snapshot/change aliases for legacy imported table files. |
-| `browser/tableFileService.ts` | imported table-file bridge backed by `ISessionService` during migration. |
-| `common/encoding.ts` | table file read encoding, base64/utf8 byte decoding, and mime helpers. |
+| `common/tablefile.ts` | service contract and snapshot/change aliases for explicitly imported table files. |
+| `browser/tableFileService.ts` | URI-backed file resolve service for table resources; owns read encoding choice before delegating to the editor model manager. |
+| `browser/browserTableFileService.ts` | browser `ITableFileService` implementation and singleton registration for the explicit converted import bridge. |
+| `common/encoding.ts` | table file read mode, base64/utf8 byte decoding, and mime helpers; not a table format/support owner. |
 | `common/tableFileEditorModel.ts` | URI-backed file working-copy, file-backed read/preview/sourceVersion flow, and associated `ITableModel` lifecycle. |
 | `common/tableFileEditorModelManager.ts` | file-backed table working-copy cache/reuse/reload/remove owner. |
 

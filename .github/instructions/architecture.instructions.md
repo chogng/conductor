@@ -129,7 +129,7 @@ Runtime folders:
 | --- | --- |
 | `IFileService` | platform filesystem bytes/stat/watch/provider capability |
 | `IExplorerService` | Files Explorer UI state: resources, selection, expansion, layout, context |
-| `fileConverter.ts` / files service helpers | CSV/XLS/XLSX/clipboard/manual conversion into raw table records |
+| `fileConverter.ts` / files service helpers | CSV/TSV/XLS/XLSX/clipboard/manual conversion into raw table records |
 | `ITableFileService` | imported data-file/raw-table owner and raw table identity/version lifecycle |
 | `ISessionService` | canonical analysis ledger backing table-file and downstream records |
 | TableModel producer (`ITableModelProducerService`) | derived raw-table structure/semantics producer during migration; table URI/editor-model naming follows `.github/instructions/迁移说明.md` |

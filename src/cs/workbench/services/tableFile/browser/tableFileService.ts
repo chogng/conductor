@@ -2,77 +2,87 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
-import {
-	ISessionService,
-	type ISessionService as ISessionServiceType,
-} from "src/cs/workbench/services/session/common/session";
-import {
-	ITableFileService,
-	type CommitTableFileImportResult,
-	type ITableFileService as ITableFileServiceType,
-	type TableFileSnapshot,
-} from "src/cs/workbench/services/tablefile/common/tablefile";
-import type { FileImportResult } from "src/cs/workbench/services/files/common/files";
+import type { Event } from "src/cs/base/common/event";
+import { Disposable } from "src/cs/base/common/lifecycle";
+import type { URI } from "src/cs/base/common/uri";
+import type {
+	IFileService,
+	IReadFileEncoding,
+} from "src/cs/platform/files/common/files";
+import type {
+	ITableModel,
+	TableModelPreviewInput,
+} from "src/cs/workbench/services/table/common/model";
+import type { TableSource } from "src/cs/workbench/services/table/common/table";
 import { tableFileFormatService } from "src/cs/workbench/services/table/common/tableFileFormat";
-import type { FileId } from "src/cs/workbench/services/session/common/sessionModel";
+import {
+	getTableFileReadEncoding,
+} from "src/cs/workbench/services/tablefile/common/encoding";
+import {
+	TableFileEditorModel,
+} from "src/cs/workbench/services/tablefile/common/tableFileEditorModel";
+import {
+	TableFileEditorModelManager,
+	type TableFileEditorModelManagerResolveOptions,
+} from "src/cs/workbench/services/tablefile/common/tableFileEditorModelManager";
 
-// TODO(conductor-architecture): Migration bridge.
-// TableFile owns imported data-file APIs while Session remains the backing ledger.
-export class TableFileService implements ITableFileServiceType {
-	public declare readonly _serviceBrand: undefined;
-
-	public readonly onDidChangeTableFiles: ITableFileServiceType["onDidChangeTableFiles"];
+export class TableFileService extends Disposable {
+	private readonly tableFileEditorModelManager: TableFileEditorModelManager;
+	public readonly onDidChangeModel: Event<ITableModel>;
 
 	public constructor(
-		@ISessionService private readonly sessionService: ISessionServiceType,
+		fileService: IFileService,
 	) {
-		this.onDidChangeTableFiles = this.sessionService.onDidChangeSession;
+		super();
+
+		this.tableFileEditorModelManager = this._register(new TableFileEditorModelManager(
+			fileService,
+		));
+		this.onDidChangeModel = this.tableFileEditorModelManager.onDidChangeModel;
 	}
 
-	public clearTableFiles(): void {
-		this.sessionService.clearSession();
+	public canHandleResource(resource: URI): boolean {
+		return tableFileFormatService.canHandle(resource);
 	}
 
-	public commitImport(
-		result: FileImportResult,
-	): CommitTableFileImportResult {
-		assertSupportedTableFileImport(result);
-		return this.sessionService.commitFileImport(result);
+	public getReadEncoding(resource: URI): IReadFileEncoding {
+		return getTableFileReadEncoding(resource);
 	}
 
-	public getSnapshot(): TableFileSnapshot {
-		return this.sessionService.getSnapshot();
+	public get(resource: URI | null | undefined): ITableModel | undefined {
+		return this.tableFileEditorModelManager.get(resource);
 	}
 
-	public removeFiles(fileIds: readonly string[]): void {
-		this.sessionService.removeFiles(fileIds);
+	public getPreviewInput(source: TableSource | null | undefined): TableModelPreviewInput | null {
+		return this.tableFileEditorModelManager.getPreviewInput(source);
 	}
 
-	public renameFile(fileId: FileId, name: string): boolean {
-		return this.sessionService.renameFile(fileId, name);
+	public getOrCreateFileEditorModel(
+		resource: URI,
+		source?: TableSource | null,
+	): TableFileEditorModel {
+		if (!this.canHandleResource(resource)) {
+			throw new Error(`Unsupported table file: ${resource.toString()}`);
+		}
+
+		return this.tableFileEditorModelManager.getOrCreateFileEditorModel(resource, source);
+	}
+
+	public async resolveModel(
+		model: TableFileEditorModel,
+		options: TableFileEditorModelManagerResolveOptions = {},
+	): Promise<void> {
+		await this.tableFileEditorModelManager.resolveModel(model, {
+			...options,
+			readEncoding: options.readEncoding ?? this.getReadEncoding(model.resource),
+		});
+	}
+
+	public resolve(resource: URI, source?: TableSource | null): void {
+		void this.resolveModel(this.getOrCreateFileEditorModel(resource, source));
+	}
+
+	public remove(resource: URI): void {
+		this.tableFileEditorModelManager.remove(resource);
 	}
 }
-
-const assertSupportedTableFileImport = (
-	result: FileImportResult,
-): void => {
-	for (const file of result.files) {
-		const fileNames = getImportedTableFileNameCandidates(file);
-		if (!fileNames.some(fileName => tableFileFormatService.canHandle(fileName))) {
-			throw new Error(`Unsupported table file: ${fileNames[0] ?? "Unknown file"}`);
-		}
-	}
-};
-
-const getImportedTableFileNameCandidates = (
-	file: FileImportResult["files"][number],
-): readonly string[] => [
-	file.name,
-	file.raw.fileName,
-	file.id,
-]
-	.map(value => String(value ?? "").trim())
-	.filter((value): value is string => Boolean(value));
-
-registerSingleton(ITableFileService, TableFileService, InstantiationType.Delayed);

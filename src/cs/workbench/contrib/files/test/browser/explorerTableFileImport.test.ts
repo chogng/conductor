@@ -13,7 +13,7 @@ import type {
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import type { ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
-import { TableFileService } from "src/cs/workbench/services/tablefile/browser/tableFileService";
+import { BrowserTableFileService } from "src/cs/workbench/services/tablefile/browser/browserTableFileService";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -21,7 +21,7 @@ suite("workbench/contrib/files/test/browser/explorerTableFileImport", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
   test("replace commits imported records and selects the requested table file", () => {
     const session = store.add(new SessionService());
-    const tableFileService = new TableFileService(session);
+    const tableFileService = new BrowserTableFileService(session);
     const explorerService = store.add(new ExplorerService());
 
     const result = commitExplorerTableFileImport({
@@ -44,7 +44,7 @@ suite("workbench/contrib/files/test/browser/explorerTableFileImport", () => {
 
   test("append selects first imported file only when no raw table file is active", () => {
     const session = store.add(new SessionService());
-    const tableFileService = new TableFileService(session);
+    const tableFileService = new BrowserTableFileService(session);
     const explorerService = store.add(new ExplorerService());
 
     const first = commitExplorerTableFileImport({
@@ -69,7 +69,7 @@ suite("workbench/contrib/files/test/browser/explorerTableFileImport", () => {
 
   test("append ignores files already imported from the same source", () => {
     const session = store.add(new SessionService());
-    const tableFileService = new TableFileService(session);
+    const tableFileService = new BrowserTableFileService(session);
     const explorerService = store.add(new ExplorerService());
 
     const first = commitExplorerTableFileImport({
@@ -103,7 +103,7 @@ suite("workbench/contrib/files/test/browser/explorerTableFileImport", () => {
 
   test("append selects the imported file when session has files but explorer has no active raw file", () => {
     const session = store.add(new SessionService());
-    const tableFileService = new TableFileService(session);
+    const tableFileService = new BrowserTableFileService(session);
 
     commitExplorerTableFileImport({
       explorerService: store.add(new ExplorerService()),
@@ -127,7 +127,7 @@ suite("workbench/contrib/files/test/browser/explorerTableFileImport", () => {
 
   test("replace clears previous session data before committing imported records", () => {
     const session = store.add(new SessionService());
-    const tableFileService = new TableFileService(session);
+    const tableFileService = new BrowserTableFileService(session);
     const explorerService = store.add(new ExplorerService());
 
     commitExplorerTableFileImport({
@@ -149,7 +149,7 @@ suite("workbench/contrib/files/test/browser/explorerTableFileImport", () => {
 
   test("commits imported row records through the table-file owner", () => {
     const session = store.add(new SessionService());
-    const tableFileService = new TableFileService(session);
+    const tableFileService = new BrowserTableFileService(session);
     const explorerService = store.add(new ExplorerService());
 
     commitExplorerTableFileImport({
@@ -170,7 +170,7 @@ suite("workbench/contrib/files/test/browser/explorerTableFileImport", () => {
 
   test("commits imported raw table without materializing TableModel", () => {
     const session = store.add(new SessionService());
-    const tableFileService = new TableFileService(session);
+    const tableFileService = new BrowserTableFileService(session);
     const explorerService = store.add(new ExplorerService());
     const events: SessionChangeEvent[] = [];
     const disposable = session.onDidChangeSession(event => {

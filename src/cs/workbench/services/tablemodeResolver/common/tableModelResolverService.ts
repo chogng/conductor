@@ -11,98 +11,23 @@ import {
 } from "src/cs/platform/instantiation/common/extensions";
 import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
 import { IFileService } from "src/cs/platform/files/common/files";
-import { TableFileEditorModelManager } from "src/cs/workbench/services/tablefile/common/tableFileEditorModelManager";
 import {
   toTableSourceKey,
   type TableSource,
 } from "src/cs/workbench/services/table/common/table";
-import type {
-  ITableModel,
-  TableModelContentSnapshot,
-  TableModelLoadState,
-  TableModelPreviewInput,
-  TableModelSheetSnapshot,
-  TableModelSnapshot,
-} from "src/cs/workbench/services/table/common/tableModel";
+import {
+  TableModel,
+  type ITableModel,
+  type TableModelPreviewInput,
+  type TableModelResolvedContent,
+} from "src/cs/workbench/services/table/common/model";
 import {
   type ITableModelContentProvider,
   ITableModelService,
   type ITableModelReference,
   type TableModelContentProviderResult,
 } from "src/cs/workbench/services/table/common/resolverService";
-import {
-  tableFileFormatService,
-  type TableFileFormat,
-} from "src/cs/workbench/services/table/common/tableFileFormat";
-
-class ProvidedTableModel extends Disposable implements ITableModel {
-  private readonly onDidChangeEmitter = this._register(new Emitter<ITableModel>());
-  public readonly onDidChange: Event<ITableModel> = this.onDidChangeEmitter.event;
-
-  private content: TableModelContentSnapshot | null = null;
-  private format: TableFileFormat | null = null;
-  private loadState: TableModelLoadState = { state: "idle", message: "" };
-  private previewInput: TableModelPreviewInput | null = null;
-  private sheets: readonly TableModelSheetSnapshot[] = [];
-  private sourceVersion = 0;
-  private version = 0;
-
-  public constructor(
-    public readonly resource: URI,
-    public readonly sourceKey: string,
-    private readonly provider: ITableModelContentProvider,
-  ) {
-    super();
-  }
-
-  public getPreviewInput(_source?: TableSource | null): TableModelPreviewInput | null {
-    return this.previewInput;
-  }
-
-  public getSnapshot(): TableModelSnapshot {
-    return {
-      content: this.content,
-      format: this.format,
-      loadState: this.loadState,
-      resource: this.resource,
-      previewInput: this.previewInput,
-      sheets: this.sheets,
-      sourceKey: this.sourceKey,
-      sourceVersion: this.sourceVersion,
-      version: this.version,
-    };
-  }
-
-  public async resolve(source?: TableSource | null): Promise<void> {
-    this.loadState = { state: "loading", message: "" };
-    this.onDidChangeEmitter.fire(this);
-    try {
-      this.applyProviderResult(await this.provider.resolveTableModel(this.resource, source));
-      this.loadState = { state: "ready", message: "" };
-    } catch (error) {
-      this.content = null;
-      this.previewInput = null;
-      this.sheets = [];
-      this.loadState = { state: "error", message: getErrorMessage(error) };
-    }
-
-    this.version += 1;
-    this.onDidChangeEmitter.fire(this);
-  }
-
-  private applyProviderResult(result: TableModelContentProviderResult): void {
-    this.content = result.content;
-    this.format = result.format ?? null;
-    this.previewInput = result.previewInput ?? null;
-    this.sheets = result.sheets ?? (result.content ? [{
-      content: result.content,
-      sheetId: this.sourceKey,
-      sheetName: null,
-      sourceKey: this.sourceKey,
-    }] : []);
-    this.sourceVersion = normalizeResourceSourceVersion(result.sourceVersion);
-  }
-}
+import { TableFileService } from "src/cs/workbench/services/tablefile/browser/tableFileService";
 
 export class TableModelResolverService extends Disposable implements ITableModelService {
   public declare readonly _serviceBrand: undefined;
@@ -112,11 +37,11 @@ export class TableModelResolverService extends Disposable implements ITableModel
   public readonly onDidChangeModel: Event<ITableModel> =
     this.onDidChangeModelEmitter.event;
 
-  private readonly tableFileEditorModelManager: TableFileEditorModelManager;
+  private readonly tableFileService: TableFileService;
 
   private readonly contentProviders: ITableModelContentProvider[] = [];
   private readonly pendingProviderResolves = new Map<string, Promise<void>>();
-  private readonly providerModels = new Map<string, ProvidedTableModel>();
+  private readonly providerModels = new Map<string, TableModel>();
   private readonly references = new Map<string, { count: number; resource: URI }>();
 
   public constructor(
@@ -124,16 +49,14 @@ export class TableModelResolverService extends Disposable implements ITableModel
   ) {
     super();
 
-    this.tableFileEditorModelManager = this._register(new TableFileEditorModelManager(
-      fileService,
-    ));
-    this._register(this.tableFileEditorModelManager.onDidChangeModel(model => {
+    this.tableFileService = this._register(new TableFileService(fileService));
+    this._register(this.tableFileService.onDidChangeModel(model => {
       this.onDidChangeModelEmitter.fire(model);
     }));
   }
 
   public canHandleResource(resource: URI): boolean {
-    return tableFileFormatService.canHandle(resource) || Boolean(this.findContentProvider(resource));
+    return this.tableFileService.canHandleResource(resource) || Boolean(this.findContentProvider(resource));
   }
 
   public registerContentProvider(provider: ITableModelContentProvider): { dispose(): void } {
@@ -166,8 +89,8 @@ export class TableModelResolverService extends Disposable implements ITableModel
 
     const provider = this.findContentProvider(resource);
     if (provider) {
-      const model = this.getOrCreateProviderModel(resource, provider, source);
-      await this.resolveProviderModel(model, source);
+      const model = this.getOrCreateProviderModel(resource, source);
+      await this.resolveProviderModel(model, provider, source);
       return {
         object: model,
         dispose: () => {
@@ -176,8 +99,8 @@ export class TableModelResolverService extends Disposable implements ITableModel
       };
     }
 
-    const fileEditorModel = this.tableFileEditorModelManager.getOrCreateFileEditorModel(resource, source);
-    await this.tableFileEditorModelManager.resolveModel(fileEditorModel);
+    const fileEditorModel = this.tableFileService.getOrCreateFileEditorModel(resource, source);
+    await this.tableFileService.resolveModel(fileEditorModel);
 
     return {
       object: fileEditorModel.model,
@@ -190,7 +113,7 @@ export class TableModelResolverService extends Disposable implements ITableModel
   public get(resource: URI | null | undefined): ITableModel | undefined {
     const key = resource?.toString();
     return key
-      ? this.providerModels.get(key) ?? this.tableFileEditorModelManager.get(resource)
+      ? this.providerModels.get(key) ?? this.tableFileService.get(resource)
       : undefined;
   }
 
@@ -203,17 +126,17 @@ export class TableModelResolverService extends Disposable implements ITableModel
       }
     }
 
-    return this.tableFileEditorModelManager.getPreviewInput(source);
+    return this.tableFileService.getPreviewInput(source);
   }
 
   public resolve(resource: URI, source?: TableSource | null): void {
     const provider = this.findContentProvider(resource);
     if (provider) {
-      void this.resolveProviderModel(this.getOrCreateProviderModel(resource, provider, source), source);
+      void this.resolveProviderModel(this.getOrCreateProviderModel(resource, source), provider, source);
       return;
     }
 
-    this.tableFileEditorModelManager.resolve(resource, source);
+    this.tableFileService.resolve(resource, source);
   }
 
   private releaseModelReference(key: string): void {
@@ -240,7 +163,7 @@ export class TableModelResolverService extends Disposable implements ITableModel
       return;
     }
 
-    this.tableFileEditorModelManager.remove(reference.resource);
+    this.tableFileService.remove(reference.resource);
   }
 
   private findContentProvider(resource: URI): ITableModelContentProvider | null {
@@ -249,16 +172,14 @@ export class TableModelResolverService extends Disposable implements ITableModel
 
   private getOrCreateProviderModel(
     resource: URI,
-    provider: ITableModelContentProvider,
     source?: TableSource | null,
-  ): ProvidedTableModel {
+  ): TableModel {
     const key = resource.toString();
     let model = this.providerModels.get(key);
     if (!model) {
-      model = this._register(new ProvidedTableModel(
+      model = this._register(new TableModel(
         resource,
         toTableSourceKey(source ?? { resource }),
-        provider,
       ));
       this._register(model.onDidChange(changedModel => {
         this.onDidChangeModelEmitter.fire(changedModel);
@@ -269,7 +190,8 @@ export class TableModelResolverService extends Disposable implements ITableModel
   }
 
   private async resolveProviderModel(
-    model: ProvidedTableModel,
+    model: TableModel,
+    provider: ITableModelContentProvider,
     source?: TableSource | null,
   ): Promise<void> {
     if (model.getSnapshot().loadState.state === "ready") {
@@ -283,7 +205,12 @@ export class TableModelResolverService extends Disposable implements ITableModel
       return;
     }
 
-    const pendingResolve = model.resolve(source).finally(() => {
+    const pendingResolve = model.resolve({
+      resolveContent: async () =>
+        toProviderResolvedContent(
+          await provider.resolveTableModel(model.resource, source),
+        ),
+    }).finally(() => {
       if (this.pendingProviderResolves.get(key) === pendingResolve) {
         this.pendingProviderResolves.delete(key);
       }
@@ -293,13 +220,15 @@ export class TableModelResolverService extends Disposable implements ITableModel
   }
 }
 
-const normalizeResourceSourceVersion = (value: unknown): number =>
-  Math.max(0, Math.floor(Number(value) || 0));
-
-const getErrorMessage = (error: unknown): string =>
-  error instanceof Error && error.message.trim()
-    ? error.message
-    : "The table model provider could not resolve the resource.";
+const toProviderResolvedContent = (
+  result: TableModelContentProviderResult,
+): TableModelResolvedContent => ({
+  content: result.content,
+  format: result.format ?? null,
+  previewInput: result.previewInput ?? null,
+  sheets: result.sheets,
+  sourceVersion: result.sourceVersion,
+});
 
 registerSingleton(
   ITableModelService,

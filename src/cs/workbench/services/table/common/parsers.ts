@@ -10,30 +10,30 @@ import { toTableSourceKey } from "src/cs/workbench/services/table/common/table";
 import {
   type TableModelContentSnapshot,
   type TableModelSheetSnapshot,
-} from "src/cs/workbench/services/table/common/tableModel";
+} from "src/cs/workbench/services/table/common/model";
 import {
   tableFileFormatService,
   type TableFileFormat,
 } from "src/cs/workbench/services/table/common/tableFileFormat";
 
-export type TableModelContentParseInput = {
+export type TableStructureParseInput = {
   readonly bytes: ArrayBuffer;
   readonly resource: URI;
   readonly sourceKey: string;
   readonly text: string | null;
 };
 
-export type ParsedTableModelContent = {
+export type ParsedTableStructure = {
   readonly content: TableModelContentSnapshot | null;
   readonly sheets: readonly TableModelSheetSnapshot[];
 };
 
-export const parseTableModelContent = async ({
+export const parseTableStructure = async ({
   bytes,
   resource,
   sourceKey,
   text,
-}: TableModelContentParseInput): Promise<ParsedTableModelContent> => {
+}: TableStructureParseInput): Promise<ParsedTableStructure> => {
   const format = tableFileFormatService.getFormat(resource);
   if (format === "xls") {
     throw new Error("Legacy .xls table resources need native parser support.");
@@ -98,7 +98,7 @@ const parseXlsxTableModelContent = async ({
   readonly bytes: ArrayBuffer;
   readonly resource: URI;
   readonly sourceKey: string;
-}): Promise<ParsedTableModelContent> => {
+}): Promise<ParsedTableStructure> => {
   const workbook = await readXlsxWorkbook(bytes);
   const sheets: TableModelSheetSnapshot[] = [];
   for (let index = 0; index < workbook.sheets.length; index += 1) {

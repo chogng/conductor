@@ -102,7 +102,7 @@ Return data only at stable domain boundaries:
 
 | Stage | TS owner | Rust may do | Return to TS |
 | --- | --- | --- | --- |
-| File conversion | files electron-browser conversion service | parse CSV/XLS/XLSX, split sheets, create normalized CSV artifacts | `FileConversionResult`-compatible descriptors, raw table metadata, diagnostics |
+| File conversion | files electron-browser conversion service | parse CSV/TSV/XLS/XLSX, split sheets, create normalized CSV artifacts | `FileConversionResult`-compatible descriptors, raw table metadata, diagnostics |
 | Table model | table-model producer | block/group/role inference | `TableModelRecord` |
 | Table preview | table rows reader | chunk/cell/raw metadata reads | bounded rows or selected cells |
 | Slice execution | slice service | extraction/process | `SliceRun`, series/curve descriptors, diagnostics |
