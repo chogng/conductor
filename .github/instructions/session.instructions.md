@@ -39,9 +39,11 @@ Session may store imported files, raw tables/versions, table model, reviews,
 slice runs, series, curves, metrics, metric inputs, and rebuildable calculation
 cache descriptors.
 
-Session must not store table selection/focus/scroll, chart zoom/popovers, active
-plot tabs, template drafts, search queries, export dialog state, worker refs,
-request ids, row caches, or thumbnail caches.
+Session must not store URI/editor input models, format support-check results,
+preview rows, watch/reload state, cache entries, active resource/view input,
+table selection/focus/scroll, chart zoom/popovers, active plot tabs, template
+drafts, search queries, export dialog state, worker refs, request ids, row
+caches, or thumbnail caches.
 
 ## Commit Rules
 
@@ -60,6 +62,10 @@ service/controller has produced the domain result. Imported data-file and raw
 table lifecycle callers use `ITableFileService`; TableModel production commits
 derived `TableModelRecord` values through Session while it remains the
 migration ledger.
+
+Opening or previewing a table URI follows upstream file -> editor ownership and
+is not a Session workflow. Session only receives explicit conversion/import
+results and downstream analysis records.
 
 | Workflow | Preferred producer | Session method |
 | --- | --- | --- |

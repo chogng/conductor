@@ -28,6 +28,8 @@ TableFile owns:
 
 TableFile does not own:
 
+- URI/editor input models before commit;
+- file format filtering, preview rows, reload/watch state, or model caches;
 - Explorer tree, selection, expansion, drag/drop UI, or pending-source rows;
 - Table preview selection, row cache, reveal/highlight, or column widths;
 - table-model detection, Recipe materialization, Review decisions, or Slice
@@ -41,6 +43,10 @@ This is intentional migration shape: callers should depend on
 `ITableFileService` for imported table-file ownership, while Session remains the
 ledger backing until raw table records are fully separated from analysis
 records.
+
+Do not route table URI open/preview lifecycle through TableFile. That lifecycle
+follows the upstream file -> editor shape and stays service-local until a
+conversion result is explicitly committed through `ITableFileService`.
 
 Do not call `ISessionService.commitFileImport(...)`,
 `renameFile(...)`, `removeFiles(...)`, or `clearSession()` from Explorer/files

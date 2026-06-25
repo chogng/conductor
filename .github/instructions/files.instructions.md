@@ -28,6 +28,9 @@ workbench/services/files/fileConverter.ts
 workbench/services/table/common/tableFileFormat.ts
   table import format policy for CSV/TSV/XLS/XLSX resources
 
+workbench table editor/model resolver
+  URI/resource -> editor/model open/preview/cache/reload lifecycle; no resource record
+
 workbench/services/tableFile/ITableFileService
   imported data-file/raw-table owner, backed by Session ledger during migration
 
@@ -48,7 +51,8 @@ the closest-looking name.
 | --- | --- | --- |
 | file transfer / upload / download | moving bytes/resources | `contrib/files/browser/fileImportExport.ts` and platform file APIs |
 | source collection | dialog/drop/folder/clipboard/manual -> supported table file sources | Explorer workflow/helpers plus table format policy |
-| table resource filtering | URI/file-name support checks before stat/read/parse where possible | `services/table/common/tableFileFormat.ts` and `TableResourceImporter` |
+| table editor support check | URI/file-name support checks before opening a table editor/preview or before read/parse where possible | `services/table/common/tableFileFormat.ts`, command/editor/model resolver |
+| table editor/model lifecycle | service-local URI/input model for open, preview, cache, reload, and watch state | table editor/model owner; no resource record and not Session |
 | file conversion | parse sources into raw file/table records | `services/files/browser/fileConverter.ts` |
 | conversion result | converter output ready for TableFile | `FileConversionResult` |
 | table-file commit | canonical imported data-file/raw-table storage | `ITableFileService.commitImport(...)` |
@@ -130,11 +134,28 @@ It may collect sources, watch imported folders, call conversion helpers, and
 return prepared imports to the caller. It must not own TableFile/Session records or
 subscribe to table/template/table-model state.
 
-## Data Workflow
+## Resource/Open Workflow
+
+Use the upstream file -> editor shape for table resources:
+
+```txt
+Explorer/drop/dialog/folder URI
+  -> command/editor/model resolver
+  -> TableFileFormatService.canHandle(resource)
+  -> editor/model owns URI, format, load state, preview rows, cache/reload/watch
+  -> table/editor/explorer views read the model or service state
+```
+
+This lifecycle is service-local. Do not introduce `TableResourceRecord`,
+`TableResourceImporter`, or any table-resource ledger for it. Do not write
+resource/editor models, preview rows, watch/reload state, cache entries, or
+active view input to Session.
+
+## Commit Workflow
 
 ```txt
 Explorer drop/dialog/clipboard/folder
-  -> TableFileFormatService / TableResourceImporter resource filter
+  -> command/editor/source workflow support check
   -> source collection / pending Explorer entries
   -> fileConverter.ts
   -> FileConversionResult
@@ -142,6 +163,10 @@ Explorer drop/dialog/clipboard/folder
   -> table-file / SessionChangeEvent subscribers
   -> Explorer resources / TableModel / Template / Review / Slice / Plot / Search / Export
 ```
+
+Only this explicit conversion/commit path creates canonical imported
+data-file/raw-table records. Passing a URI through a support check or opening it
+for preview is not a Session commit.
 
 Per-file template selection is a Files command surface but not Files state:
 

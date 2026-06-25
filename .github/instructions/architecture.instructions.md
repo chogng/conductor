@@ -220,13 +220,28 @@ inputs, and rebuildable calculation cache descriptors.
 
 Keep out of Session:
 
+- URI/editor input models and format support-check results;
 - table selection, focus, scroll, width, row caches;
+- file preview rows, file watch/reload state, model caches, active resource/view
+  input, and other service-local lifecycle state;
 - chart zoom, popovers, pane visibility;
 - template draft/form UI state;
 - search query or selected result;
 - export dialog state;
 - thumbnail bitmap/preview caches;
 - worker refs, request ids, transient lifecycle state.
+
+Follow the upstream file -> editor shape for open/preview flows:
+
+```txt
+URI/resource
+  -> editor/input resolver or model service
+  -> model owns URI, format, load state, preview rows, cache/reload/watch
+```
+
+Those editor/input models are not Session records. Only explicit converted imports and
+downstream analysis facts flow through `ITableFileService` and the Session
+ledger.
 
 Use `records.instructions.md` for record/state field ownership and invalidation.
 

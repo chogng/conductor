@@ -44,9 +44,10 @@ at the type name.
 | `MetricRecord` | Parameters/calculation + Session | metric commit | Scalar/structured metric value with input signatures. |
 | `MetricInputRecord` | Parameters + Session | user/manual metric input | Canonical user input affecting metric computation. |
 
-Session must not store view state such as selection, scroll, popovers, draft
-forms, search query, export dialog state, thumbnail caches, worker refs, or row
-caches.
+Session must not store URI/editor input models, format support-check results,
+preview rows, watch/reload state, model caches, active resource/view input, or
+view state such as selection, scroll, popovers, draft forms, search query,
+export dialog state, thumbnail caches, worker refs, or row caches.
 
 ## Raw Data Provenance
 
@@ -75,6 +76,7 @@ series, template decisions, or table-model confidence.
 
 | State/model | Owner | Storage | Invalidation |
 | --- | --- | --- | --- |
+| Table editor/input model | table editor/model owner | service-local URI/input model, not a Session record | resource change, reload, close/dispose, cache invalidation |
 | `ColumnDisplayProfile` | `TableViewModel` / `ITableService` | derived view/service state | raw source version, numeric display mode, cache clear |
 | `TemplateState` | `ITemplateViewStateService` | service-local view state | selected-template/form/editor view interactions |
 | `PlotState` | `IPlotService` | service state/settings-backed pieces | plot setting changes |
