@@ -69,9 +69,12 @@ export type ExplorerFileEntry = {
 	readonly fileName?: string;
 	readonly hasChartData?: boolean;
 	readonly itemKey?: string;
+	readonly localImport?: boolean;
 	readonly normalizedCsvPath?: string | null;
 	readonly rawTableStatus?: RawTableExplorerStatus;
 	readonly relativePath?: string | null;
+	readonly sheetId?: string | null;
+	readonly sheetName?: string | null;
 	readonly sourceKey?: string;
 	readonly sourcePath?: string | null;
 	readonly sourceStatus?: ExplorerSourceStatus;

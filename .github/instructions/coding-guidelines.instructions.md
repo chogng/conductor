@@ -74,7 +74,8 @@ args, resolve services/controllers, call owner APIs, and return.
 
 Do not introduce `IFileImportService` by default. Source collection stays in
 Explorer/files workflow; conversion stays in `workbench/services/files`;
-canonical imported file commits go through `ISessionService`.
+ordinary Explorer file-to-table imports update Explorer-local rows and open
+URI-backed table resources through `ITableService`.
 
 ## Service APIs
 

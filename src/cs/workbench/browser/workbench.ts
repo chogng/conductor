@@ -87,7 +87,7 @@ import {
 } from "src/cs/workbench/browser/window";
 import {
   WorkbenchDomainBridge,
-  resolveExplorerSessionSelection,
+  resolveExplorerDomainSelection,
 } from "src/cs/workbench/browser/workbenchDomainBridge";
 import { ITableService } from "src/cs/workbench/services/table/common/table";
 import { TableViewId } from "src/cs/workbench/contrib/table/common/table";
@@ -1328,7 +1328,7 @@ export class Workbench extends Layout {
   //#region view inputs and selection
 
   private getSelectedProcessedFileId(readModel: SessionReadModel): string | null {
-    return resolveExplorerSessionSelection(this.explorerService, readModel).selectedProcessedFileId;
+    return resolveExplorerDomainSelection(this.explorerService, readModel).selectedProcessedFileId;
   }
 
   private getSelectedProcessedFileRecord(

@@ -798,6 +798,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
         fileName: "A.csv",
         rowCount: 2,
         rows: [],
+        sourcePath: "/data/A.csv",
       },
     ]);
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
@@ -811,7 +812,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     try {
       bridge.sync({ deferSecondaryWork: true });
 
-      assert.deepEqual(tableSources.map(source => source?.fileId ?? null), ["file-a"]);
+      assert.deepEqual(tableSources.map(source => source?.resource?.toString() ?? null), ["file:///data/A.csv"]);
       assert.deepEqual(chartViewInputs, []);
 
       await new Promise(resolve => globalThis.setTimeout(resolve, 0));
@@ -851,6 +852,51 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       assert.equal(tableSources.at(-1)?.resource?.toString(), "file:///data/Workbook.xlsx");
       assert.equal(explorerService.getPaneInput()?.selectedFileId, "file-a");
       assert.equal(explorerService.getPaneInput()?.selectedSourceKey, "source-key-b");
+    } finally {
+      bridge.dispose();
+    }
+  });
+
+  test("keeps Explorer-local table imports out of Session reconciliation", () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+    const tableSources: Array<TableSource | null> = [];
+    explorerService.updatePaneInput({
+      files: [{
+        fileId: "local-a",
+        fileName: "Local.csv",
+        localImport: true,
+        normalizedCsvPath: "/data/Local.csv",
+        sourceKey: "local-source",
+      }],
+      mode: "table",
+      selectedFileId: "local-a",
+      selectedSourceKey: "local-source",
+      selectionKind: "table",
+      thumbnailFiles: [],
+    });
+    explorerService.select({
+      candidateFileIds: ["local-a"],
+      candidateSourceKeys: ["local-source"],
+      fileId: "local-a",
+      kind: "table",
+      sourceKey: "local-source",
+    });
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      explorerService,
+      prioritizedCalculationFileIds: [],
+      prioritizedTemplateFileIds: [],
+      session,
+      tableSources,
+    }));
+    try {
+      bridge.sync();
+
+      assert.deepEqual(tableSources, []);
+      assert.equal(explorerService.selectedRawFileId, "local-a");
+      assert.equal(explorerService.selectedRawSourceKey, "local-source");
+      assert.equal(explorerService.getPaneInput()?.selectedFileId, "local-a");
+      assert.equal(explorerService.getPaneInput()?.files.some(file => file.localImport), true);
     } finally {
       bridge.dispose();
     }
@@ -1576,6 +1622,7 @@ const createImportedFileRecordForTest = (
     raw: {
       fileId,
       fileName,
+      filePath: typeof file.sourcePath === "string" ? file.sourcePath : null,
       relativePath: file.relativePath,
       rawTableOrder: [fileId],
       rawTablesById: {

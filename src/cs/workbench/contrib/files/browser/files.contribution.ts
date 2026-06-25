@@ -11,9 +11,7 @@ import {
   type IViewContainersRegistry,
   type IViewsRegistry,
 } from "src/cs/workbench/common/views";
-import { registerWorkbenchContribution2, WorkbenchPhase } from "src/cs/workbench/common/contributions";
 import "src/cs/workbench/contrib/files/browser/fileActions.contribution";
-import { DropIntoTablePreviewController } from "src/cs/workbench/contrib/files/browser/dropIntoTablePreviewController";
 import { ExplorerViewPane } from "src/cs/workbench/contrib/files/browser/explorerViewlet";
 import { ExplorerViewId } from "src/cs/workbench/contrib/files/browser/files";
 
@@ -30,5 +28,3 @@ if (container) {
     order: 0,
   }], container);
 }
-
-registerWorkbenchContribution2(DropIntoTablePreviewController.ID, DropIntoTablePreviewController, WorkbenchPhase.BlockStartup);

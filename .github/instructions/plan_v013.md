@@ -1268,8 +1268,8 @@ candidate 是否冲突
 
 ```txt
 Files import
-  -> Session.commitFileImport
-  -> rawTablesChanged
+  -> Explorer-local imported rows
+  -> ITableService.open({ resource })
 ```
 
 ### Template TableModel

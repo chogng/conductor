@@ -20,7 +20,7 @@ model services.
 | `SessionSnapshot` | read-only consumer data |
 | `SessionReadModel` | derived read projection |
 | `SessionChangeEvent` | specific invalidation event |
-| explicit import APIs | `ISessionService.commitFileImport`, rename, remove, and clear for converted imported raw tables |
+| legacy explicit import APIs | `ISessionService.commitFileImport`, rename, remove, and clear for migration-ledger raw tables; not the Explorer ordinary file-to-table path |
 
 ## Core Files
 
@@ -58,34 +58,34 @@ caches, or thumbnail caches.
 ## Workflow Boundary
 
 Commands may call Session commit methods only after another owner
-service/controller has produced the domain result. Imported data-file and raw
-table lifecycle callers use `ISessionService` after files conversion; TableModel
+service/controller has produced the domain result. Ordinary Explorer
+file-to-table imports stay out of Session after files conversion: Explorer owns
+local visible rows and hands off URI resources to `ITableService`. TableModel
 production commits derived `TableModelRecord` values through Session while it
 remains the migration ledger.
 
 Opening or previewing a table URI follows upstream file -> editor ownership and
-is not a Session workflow. Session only receives explicit conversion/import
-results and downstream analysis records.
+is not a Session workflow. Session only receives legacy migration-ledger raw
+table records and downstream analysis records.
 
 | Workflow | Preferred producer | Session method |
 | --- | --- | --- |
-| import | Explorer source workflow after files conversion | `commitFileImport` |
+| legacy raw import | migration owner after conversion | `commitFileImport` |
 | table model | `ITableModelProducerService` / table-model queue | `commitTableModel` backing API |
 | review | review contribution/command after candidate review | `commitRawTableReviews` |
 | slice | slice service after planning/execution | `commitSliceRuns` |
 | calculated curves/metrics | calculation service | `commitCalculatedRecordsBatch` |
 | metric input | parameters service | `setMetricInput` / `clearMetricInput` |
-| file removal | Explorer action/controller after file workflow succeeds | `removeFiles` plus separate Explorer selection follow-up |
-| clear imported table files/session | Explorer or global Workbench command | `clearSession` |
+| legacy file removal | migration owner after file workflow succeeds | `removeFiles` |
+| clear legacy imported table files/session | migration/global Workbench command | `clearSession` |
 
 Do not make another service fire request/submit events only so Workbench can
 mutate Session. The caller that owns the workflow result calls the owning
 service API, and consumers react to owner change events.
 
-Production Explorer/files/TableModel code may call Session import, rename,
-remove, or clear APIs only from the workflow owner that has produced the
-corresponding conversion/removal result. Do not route URI open/preview lifecycle
-through Session.
+Production Explorer/files code must not call Session import, rename, remove, or
+clear APIs for the ordinary file-to-table path. Do not route URI open/preview
+lifecycle through Session.
 
 Do not add Template-owned run/output commit or cleanup APIs. Template execution
 results enter Session only through Slice commits.

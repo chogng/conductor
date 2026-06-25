@@ -24,17 +24,18 @@ measurement structure.
 - paged raw rows cache, loading state, row request lifecycle, worker lifecycle;
 - block table preview model and invalidation when source changes.
 
-It consumes Session snapshots, raw table row readers, table-model ranges,
-settings for visual display preferences, and pure `TableSource` open intents.
-It does not own import, table-model production, template execution, plot/chart
-models, or canonical Session records.
+It consumes URI-backed `ITableModel` preview input, raw row readers for legacy
+view-model paths, table-model ranges, settings for visual display preferences,
+and resource-backed `TableSource` open intents. It does not own import,
+table-model production, template execution, plot/chart models, or canonical
+Session records.
 
 `TableSource.resource` is the primary open identity for file -> table preview,
 matching the upstream file -> editor shape. `TableSource.sourceKey`, when
-present, is raw-table provenance for imported/session records or sheet
-disambiguation; it must not replace the URI identity for resource opens.
-`fileId` and `sheetId` remain the compatibility route for imported raw/session
-callers.
+present, is raw-table provenance or sheet disambiguation; it must not replace
+the URI identity for resource opens. `ITableService.open(...)` rejects
+non-resource sources; `fileId` compatibility belongs only to lower-level legacy
+raw/session view-model tests and migration code.
 
 Use the common helpers from `services/table/common/table.ts` when normalizing,
 comparing, or keying `TableSource` values. Do not duplicate source-key trimming
@@ -67,6 +68,7 @@ or equality rules in service/view files.
 | `contrib/table/browser/tableWidget.ts` | raw table adapter/renderers over the base table widget, keyboard/mouse/wheel, local selection, zoom controls, and column width persistence callbacks. |
 | `contrib/table/browser/tableController.ts` | adapter from view input/callbacks to widget props. |
 | `contrib/table/browser/tableWidgetService.ts` | active widget controller registry for commands. |
+| `contrib/table/browser/tableDropTarget.ts` | table preview resource-drop target, following the upstream editor drop-target shape and delegating DataTransfer source collection to files helpers. |
 | `contrib/table/browser/tableCommands.ts` / `tableActions.ts` | commands and action registration. |
 
 `tableViewModel.ts` is the owner for table preview data-plane helpers. Do not split row

@@ -17,12 +17,14 @@ import {
   ICommandService,
 } from "src/cs/platform/commands/common/commands";
 import { IHoverService } from "src/cs/platform/hover/browser/hoverService";
+import { IInstantiationService } from "src/cs/platform/instantiation/common/instantiation";
+import { createCenterAreaShell } from "src/cs/workbench/browser/parts/centerArea/centerArea";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
-import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
 import {
   TableController,
   type TableControllerProps,
 } from "src/cs/workbench/contrib/table/browser/tableController";
+import { TableDropTarget } from "src/cs/workbench/contrib/table/browser/tableDropTarget";
 import {
   createTableStepper,
   type TableStepper,
@@ -38,9 +40,6 @@ import {
 import {
   type TableWidgetColumnHeaderSelection,
 } from "src/cs/workbench/contrib/table/browser/tableWidget";
-import {
-  ITableDropTargetService,
-} from "src/cs/workbench/services/table/browser/tableDropTargetService";
 import {
   ITableService,
   type TableViewInput,
@@ -62,7 +61,7 @@ type HeaderState = {
 const ZOOM_CONTROL_ACTION_ID = "table.header.zoom";
 
 export class TableViewPane extends ViewPane {
-  private readonly previewPart: HTMLElement;
+  private readonly centerArea: HTMLElement;
   private readonly store = new DisposableStore();
   private readonly content = document.createElement("div");
   private readonly headerTitle = document.createElement("div");
@@ -85,10 +84,10 @@ export class TableViewPane extends ViewPane {
 
   constructor(
     @ITableService private readonly tableService: ITableService,
-    @ITableDropTargetService private readonly tableDropTargetService: ITableDropTargetService,
     @ITableWidgetService private readonly tableWidgetService: ITableWidgetService,
     @ICommandService private readonly commandService: ICommandService,
     @IHoverService private readonly hoverService: IHoverService,
+    @IInstantiationService private readonly instantiationService: IInstantiationService,
     @ITemplateViewStateService private readonly templateViewStateService: ITemplateViewStateService,
   ) {
     super({
@@ -115,7 +114,7 @@ export class TableViewPane extends ViewPane {
     this.renderHeaderActions();
     this.headerTitle.append(this.headerLeft, this.headerCenter);
     this.headerRight.append(this.dimensions, this.actionBar.domNode);
-    this.previewPart = createPreviewPart({
+    this.centerArea = createCenterAreaShell({
       id: TableViewId,
       ariaLabel: localize("table.ariaLabel", "Table"),
       actionbarContent: this.headerRight,
@@ -123,8 +122,8 @@ export class TableViewPane extends ViewPane {
       children: this.content,
       titleContent: this.headerTitle,
     });
-    this.body.append(this.previewPart);
-    this._register(this.tableDropTargetService.registerDropTargetElement(this.previewPart));
+    this.body.append(this.centerArea);
+    this._register(this.instantiationService.createInstance(TableDropTarget, this.centerArea));
     this._register(this.tableService.onDidChangeTableViewInput(() => {
       const input = this.tableService.getViewInput();
       if (input) {
@@ -160,7 +159,7 @@ export class TableViewPane extends ViewPane {
     this.controller = null;
     this.store.dispose();
     this.content.replaceChildren();
-    this.previewPart.remove();
+    this.centerArea.remove();
     super.dispose();
   }
 

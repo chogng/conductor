@@ -27,10 +27,7 @@ import {
   TableStateScope,
   type CreateTableViewModelWithScopeOptions,
 } from "src/cs/workbench/services/table/browser/tableViewModel";
-import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
-import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
-import { mergeRawFilesIntoRecords } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 
 type TableFile = NonNullable<TableState["file"]>;
@@ -110,10 +107,10 @@ suite("workbench/services/table/browser/tableService", () => {
     assert.equal(stateChangeCount > 0, true);
   });
 
-  test("opens table resource without committing a session record", async () => {
+  test("opens table resource without a session record", async () => {
     let openSourceCount = 0;
     const resource = URI.file("/workspace/data/transfer.csv");
-    const { service, sessionService } = createTableServiceFixture({
+    const { service } = createTableServiceFixture({
       tableRowsReaderService: createTableRowsReaderService({
         openSource: async () => {
           openSourceCount += 1;
@@ -131,7 +128,6 @@ suite("workbench/services/table/browser/tableService", () => {
       await waitForTableService();
     }
 
-    assert.deepStrictEqual(sessionService.getSnapshot().fileOrder, []);
     assert.equal(openSourceCount, 0);
     assert.equal(service.getViewInput()?.tableState.source?.resource?.toString(), resource.toString());
     assert.equal(service.getViewInput()?.tableState.file?.fileId, undefined);
@@ -293,106 +289,47 @@ suite("workbench/services/table/browser/tableService", () => {
     assert.deepEqual(model.getSelection().selectedColumns, [0, 1, 2]);
   });
 
-  test("publishes table view input from the current session source", () => {
-    const { service, sessionService } = createTableServiceFixture({
-      rawFiles: [createRawFile()],
-    });
+  test("publishes table view input from the current resource source", async () => {
+    const resource = URI.file("/workspace/data/current.csv");
+    const { service } = createTableServiceFixture();
     let changeCount = 0;
     const disposable = store.add(service.onDidChangeTableViewInput(() => {
       changeCount += 1;
     }));
 
-    service.open({ fileId: "file-a" });
-    sessionService.setRawFiles([createRawFile()]);
+    service.open({ resource });
+    await waitForReadyTableService(service);
 
     assert.notEqual(service.getViewInput()?.tableViewModel, null);
-    assert.equal(service.getViewInput()?.tableState.selectedFileId, "file-a");
-    assert.equal(changeCount, 2);
+    assert.equal(service.getViewInput()?.tableState.source?.resource?.toString(), resource.toString());
+    assert.equal(changeCount > 0, true);
     disposable.dispose();
     service.dispose();
   });
 
-  test("opens a session raw table by explicit source key", async () => {
-    const openedPayloads: unknown[] = [];
-    const tableRowsReaderService = createTableRowsReaderService({
-      openSource: async (payload) => {
-        openedPayloads.push(payload);
-        const request = payload as {
-          readonly fileName?: string;
-          readonly sheetId?: string | null;
-          readonly sourceKey?: string;
-        };
-        return {
-          ok: true,
-          result: {
-            columnCount: 1,
-            fileId: request.sourceKey,
-            fileName: request.fileName,
-            maxCellLengths: [1],
-            rowCount: 1,
-            seedRows: [[request.sourceKey]],
-            seedStartRow: 0,
-            sheetId: request.sheetId,
-            sourceKey: request.sourceKey,
-          },
-        };
-      },
-    });
-    const { service } = createTableServiceFixture({
-      rawFiles: [
-        createRawFile({
-          normalizedCsvPath: "C:/tmp/raw-a.csv",
-          sheetId: "sheet-a",
-          sheetName: "Alpha",
-          sourceKey: "source-key-a",
-        }),
-        createRawFile({
-          normalizedCsvPath: "C:/tmp/raw-b.csv",
-          sheetId: "sheet-b",
-          sheetName: "Beta",
-          sourceKey: "source-key-b",
-        }),
-      ],
-      tableRowsReaderService,
-    });
+  test("ignores non-resource table sources", () => {
+    const { service } = createTableServiceFixture();
 
     service.open({ fileId: "file-a", sourceKey: "source-key-b" });
-    await waitForTableService();
 
     const state = service.getViewInput()?.tableState;
-    assert.equal(state?.selectedFileId, "file-a");
-    assert.equal(state?.selectedSheetId, "sheet-b");
-    assert.equal(state?.sourceKey, "source-key-b");
-    assert.deepEqual(state?.source, {
-      fileId: "file-a",
-      sheetId: "sheet-b",
-      sourceKey: "source-key-b",
-    });
-    assert.deepEqual(openedPayloads[0], {
-      fileId: "source-key-b",
-      fileName: "Raw.csv",
-      path: "C:/tmp/raw-b.csv",
-      seedRows: 5000,
-      sheetId: "sheet-b",
-      sheetName: "Beta",
-      sourceKey: "source-key-b",
-    });
+    assert.equal(state?.source, null);
+    assert.equal(state?.file, null);
     service.dispose();
   });
 
   test("keeps table view input stable for equivalent open sources", () => {
-    const { service } = createTableServiceFixture({
-      rawFiles: [createRawFile()],
-    });
+    const resource = URI.file("/workspace/data/stable.csv");
+    const { service } = createTableServiceFixture();
     let changeCount = 0;
     const disposable = store.add(service.onDidChangeTableViewInput(() => {
       changeCount += 1;
     }));
 
-    service.open({ fileId: "file-a" });
+    service.open({ resource });
     const firstOpenChangeCount = changeCount;
     const model = getRequiredTableViewModel(service);
-    service.open({ fileId: "file-a" });
+    service.open({ resource });
     const sameModel = getRequiredTableViewModel(service);
 
     assert.equal(sameModel, model);
@@ -407,8 +344,8 @@ suite("workbench/services/table/browser/tableService", () => {
     const settingsService = createSettingsServiceStub({
       onDidChangeNumericDisplayMode: numericDisplayModeEmitter.event,
     });
+    const resource = URI.file("/workspace/data/display-version.csv");
     const { service } = createTableServiceFixture({
-      rawFiles: [createRawFile()],
       settingsService,
     });
     let changeCount = 0;
@@ -416,7 +353,7 @@ suite("workbench/services/table/browser/tableService", () => {
       changeCount += 1;
     }));
 
-    service.open({ fileId: "file-a" });
+    service.open({ resource });
     const initialChangeCount = changeCount;
     assert.equal(service.getViewInput()?.tableState.displayVersion, 0);
 
@@ -441,18 +378,17 @@ suite("workbench/services/table/browser/tableService", () => {
       ["A1", "B\t1"],
       ["A2", "B\"2"],
     ];
+    const resource = URI.file("/workspace/data/copy.csv");
     const { service } = createTableServiceFixture({
-      rawFiles: [createRawFile({ normalizedCsvPath: "C:/tmp/raw.csv" })],
-      tableRowsReaderService: createRowsTableReader(rows),
+      fileService: createCsvFileService(rows),
     });
-    service.open({ fileId: "file-a" });
-    await waitForTableService();
+    service.open({ resource });
+    await waitForReadyTableService(service);
     service.select({
       kind: "range",
       range: {
         endCol: 1,
         endRow: 1,
-        fileId: "file-a",
         startCol: 0,
         startRow: 0,
       },
@@ -466,15 +402,15 @@ suite("workbench/services/table/browser/tableService", () => {
   });
 
   test("refuses oversized table selection text", async () => {
+    const resource = URI.file("/workspace/data/oversized.csv");
     const { service } = createTableServiceFixture({
-      rawFiles: [createRawFile({ normalizedCsvPath: "C:/tmp/raw.csv" })],
-      tableRowsReaderService: createRowsTableReader([
+      fileService: createCsvFileService([
         ["A1", "B1"],
         ["A2", "B2"],
       ]),
     });
-    service.open({ fileId: "file-a" });
-    await waitForTableService();
+    service.open({ resource });
+    await waitForReadyTableService(service);
     service.select({
       columns: [0, 1],
       kind: "columns",
@@ -528,63 +464,6 @@ suite("workbench/services/table/browser/tableService", () => {
     assert.equal(model.getState().loadState.state, "loading");
   });
 
-  test("keeps an active preview request across equivalent caller refreshes", async () => {
-    let openSourceCount = 0;
-    const { service, sessionService } = createTableServiceFixture({
-      rawFiles: [createRawFile({
-        normalizedCsvPath: "C:/tmp/raw.csv",
-        sourceVersion: 1,
-      })],
-      tableRowsReaderService: createTableRowsReaderService({
-        openSource: async () => {
-          openSourceCount += 1;
-          return {
-            ok: true,
-            result: {
-              fileId: "source-key-a",
-              sourceKey: "source-key-a",
-              fileName: "Raw.csv",
-              rowCount: 2,
-              columnCount: 2,
-              maxCellLengths: [1, 1],
-              seedStartRow: 0,
-              seedRows: [["x", "y"], [1, 2]],
-            },
-          };
-        },
-      }),
-    });
-    const createRawFiles = () => [{
-      file: {},
-      fileId: "file-a",
-      fileName: "Raw.csv",
-      normalizedCsvPath: "C:/tmp/raw.csv",
-      sourceKey: "source-key-a",
-      sourceVersion: 1,
-    }];
-    service.open({ fileId: "file-a" });
-    let model = getRequiredTableViewModel(service);
-    let refreshCount = 0;
-    const disposeListener = model.onDidChangeState(() => {
-      refreshCount += 1;
-      if (refreshCount > 8) {
-        assert.fail("Equivalent table refreshes should not restart preview indefinitely.");
-      }
-
-      sessionService.setRawFiles(createRawFiles());
-      model = service.getViewInput()?.tableViewModel ?? model;
-    });
-
-    await new Promise(resolve => setTimeout(resolve, 0));
-    await new Promise(resolve => setTimeout(resolve, 0));
-
-    assert.equal(openSourceCount, 1);
-    assert.equal(model.getState().loadState.state, "ready");
-    assert.equal(model.getState().file?.sourceKey, "source-key-a");
-    disposeListener();
-    service.dispose();
-  });
-
   test("clears preview lifecycle when the selected source version changes", () => {
     const rawFiles = [{
       file: {},
@@ -617,17 +496,17 @@ suite("workbench/services/table/browser/tableService", () => {
   });
 
   test("runs table owner operations through the service active model", async () => {
+    const resource = URI.file("/workspace/data/owner.csv");
     const { service } = createTableServiceFixture({
-      rawFiles: [createRawFile({ normalizedCsvPath: "C:/tmp/raw.csv" })],
-      tableRowsReaderService: createRowsTableReader([
+      fileService: createCsvFileService([
         ["A1", "B1"],
         ["A2", "B2"],
       ]),
     });
     assert.equal(service.selectAllColumns(), false);
 
-    service.open({ fileId: "file-a" });
-    await waitForTableService();
+    service.open({ resource });
+    await waitForReadyTableService(service);
     const model = getRequiredTableViewModel(service);
 
     assert.equal(service.selectAllColumns(), true);
@@ -636,22 +515,22 @@ suite("workbench/services/table/browser/tableService", () => {
   });
 
   test("adjusts column display scale through the service owner API", async () => {
+    const resource = URI.file("/workspace/data/display-scale.csv");
     const { service } = createTableServiceFixture({
-      rawFiles: [createRawFile({ normalizedCsvPath: "C:/tmp/raw.csv" })],
-      settingsService: createSettingsServiceStub({
-        getConductorSettings: () => ({ numericDisplayMode: "smart" }),
-      }),
-      tableRowsReaderService: createRowsTableReader([
+      fileService: createCsvFileService([
         ["CH1 Current"],
         ["-3.70327E-009"],
         ["-3.49201E-009"],
         ["-3.04700E-009"],
       ]),
+      settingsService: createSettingsServiceStub({
+        getConductorSettings: () => ({ numericDisplayMode: "smart" }),
+      }),
     });
 
     assert.equal(service.adjustColumnDisplayScale(0, 1), false);
-    service.open({ fileId: "file-a" });
-    await waitForTableService();
+    service.open({ resource });
+    await waitForReadyTableService(service);
     const model = getRequiredTableViewModel(service);
 
     assert.equal(model.getColumnDisplayProfile(0).scaleExponent, -9);
@@ -690,22 +569,14 @@ suite("workbench/services/table/browser/tableService", () => {
   });
 
   test("selects table targets through the service owner API", async () => {
+    const resource = URI.file("/workspace/data/select.csv");
     const { service } = createTableServiceFixture({
-      rawFiles: [createRawFile({
-        normalizedCsvPath: "C:/tmp/raw.csv",
-        sheetId: "sheet-a",
-        sourceKey: "source-key-a",
-      })],
-      tableRowsReaderService: createRowsTableReader([
+      fileService: createCsvFileService([
         ["A1", "B1", "C1"],
         ["A2", "B2", "C2"],
         ["A3", "B3", "C3"],
         ["A4", "B4", "C4"],
-      ], {
-        fileId: "source-key-a",
-        sheetId: "sheet-a",
-        sourceKey: "source-key-a",
-      }),
+      ]),
     });
     const events: unknown[] = [];
     const disposable = store.add(service.onDidChangeSelection(selection => {
@@ -717,8 +588,8 @@ suite("workbench/services/table/browser/tableService", () => {
       cell: { colIndex: 0, rowIndex: 0 },
     }), false);
 
-    service.open({ fileId: "file-a", sheetId: "sheet-a" });
-    await waitForTableService();
+    service.open({ resource });
+    await waitForReadyTableService(service);
     const model = getRequiredTableViewModel(service);
 
     assert.deepEqual(service.getSelection(), normalizeTableSelection(null));
@@ -726,16 +597,14 @@ suite("workbench/services/table/browser/tableService", () => {
       kind: "cell",
       cell: {
         colIndex: 2,
-        fileId: "file-a",
         rowIndex: 1,
-        sheetId: "sheet-a",
       },
     }), true);
     assert.deepEqual(model.getSelection().activeCell, {
       colIndex: 2,
-      fileId: "file-a",
+      fileId: null,
       rowIndex: 1,
-      sheetId: "sheet-a",
+      sheetId: null,
     });
 
     assert.equal(service.select({
@@ -771,17 +640,17 @@ suite("workbench/services/table/browser/tableService", () => {
   });
 
   test("clears table highlight through the service owner API", async () => {
+    const resource = URI.file("/workspace/data/highlight.csv");
     const { service } = createTableServiceFixture({
-      rawFiles: [createRawFile({ normalizedCsvPath: "C:/tmp/raw.csv" })],
-      tableRowsReaderService: createRowsTableReader([
+      fileService: createCsvFileService([
         ["A1", "B1", "C1"],
         ["A2", "B2", "C2"],
         ["A3", "B3", "C3"],
         ["A4", "B4", "C4"],
       ]),
     });
-    service.open({ fileId: "file-a" });
-    await waitForTableService();
+    service.open({ resource });
+    await waitForReadyTableService(service);
     const model = getRequiredTableViewModel(service);
     const highlightEvents: unknown[] = [];
     model.onDidChangeHighlight((highlight) => {
@@ -802,30 +671,22 @@ suite("workbench/services/table/browser/tableService", () => {
   });
 
   test("reveals table targets through the service owner API", async () => {
+    const resource = URI.file("/workspace/data/reveal.csv");
     const { service } = createTableServiceFixture({
-      rawFiles: [createRawFile({
-        normalizedCsvPath: "C:/tmp/raw.csv",
-        sheetId: "sheet-a",
-        sourceKey: "source-key-a",
-      })],
-      tableRowsReaderService: createRowsTableReader([
+      fileService: createCsvFileService([
         ["A1", "B1", "C1"],
         ["A2", "B2", "C2"],
         ["A3", "B3", "C3"],
         ["A4", "B4", "C4"],
-      ], {
-        fileId: "source-key-a",
-        sheetId: "sheet-a",
-        sourceKey: "source-key-a",
-      }),
+      ]),
     });
     assert.equal(service.reveal({
       kind: "cell",
       cell: { colIndex: 0, rowIndex: 0 },
     }), false);
 
-    service.open({ fileId: "file-a", sheetId: "sheet-a" });
-    await waitForTableService();
+    service.open({ resource });
+    await waitForReadyTableService(service);
     const model = getRequiredTableViewModel(service);
     const revealEvents: unknown[] = [];
     model.onDidChangeRevealCell((cell) => {
@@ -837,17 +698,15 @@ suite("workbench/services/table/browser/tableService", () => {
       range: {
         endCol: 2,
         endRow: 3,
-        fileId: "file-a",
-        sheetId: "sheet-a",
         startCol: 1,
         startRow: 2,
       },
     }), true);
     assert.deepEqual(model.getRevealCell(), {
       colIndex: 1,
-      fileId: "file-a",
+      fileId: null,
       rowIndex: 2,
-      sheetId: "sheet-a",
+      sheetId: null,
     });
 
     assert.equal(service.reveal(null), true);
@@ -855,9 +714,9 @@ suite("workbench/services/table/browser/tableService", () => {
     assert.deepEqual(revealEvents, [
       {
         colIndex: 1,
-        fileId: "file-a",
+        fileId: null,
         rowIndex: 2,
-        sheetId: "sheet-a",
+        sheetId: null,
       },
       null,
     ]);
@@ -889,84 +748,10 @@ suite("workbench/services/table/browser/tableService", () => {
     }]);
   });
 
-  test("releases stale reader sources after source changes", async () => {
-    let resolveFirstOpen:
-      | ((value: Awaited<ReturnType<TableRowsReaderProvider["openSource"]>>) => void)
-      | null = null;
-    let openSourceCount = 0;
-    const releasePayloads: unknown[] = [];
-    const tableRowsReaderService = createTableRowsReaderService({
-      canReleaseSource: () => true,
-      releaseSource: async (payload) => {
-        releasePayloads.push(payload);
-        return {};
-      },
-      openSource: async () => {
-        openSourceCount += 1;
-        if (openSourceCount === 1) {
-          return new Promise(resolve => {
-            resolveFirstOpen = resolve;
-          });
-        }
-
-        return new Promise(() => undefined);
-      },
-    });
-    const rawFiles = [
-      {
-        file: {},
-        fileId: "file-a",
-        fileName: "Raw A.csv",
-        normalizedCsvPath: "C:/tmp/raw-a.csv",
-        sourceKey: "source-key-a",
-      },
-      {
-        file: {},
-        fileId: "file-b",
-        fileName: "Raw B.csv",
-        normalizedCsvPath: "C:/tmp/raw-b.csv",
-        sourceKey: "source-key-b",
-      },
-    ];
-    const { service } = createTableServiceFixture({
-      rawFiles,
-      tableRowsReaderService,
-    });
-
-    service.open({ fileId: "file-a" });
-    service.open({ fileId: "file-b" });
-
-    assert.notEqual(resolveFirstOpen, null);
-    const completeFirstOpen = resolveFirstOpen as unknown as ((
-      value: Awaited<ReturnType<TableRowsReaderProvider["openSource"]>>,
-    ) => void);
-    completeFirstOpen({
-      ok: true,
-      result: {
-        columnCount: 2,
-        fileId: "source-key-a",
-        fileName: "Raw A.csv",
-        maxCellLengths: [1, 1],
-        rowCount: 2,
-        seedRows: [["x", "y"], [1, 2]],
-        seedStartRow: 0,
-        sourceKey: "source-key-a",
-      },
-    });
-    await new Promise(resolve => setTimeout(resolve, 0));
-
-    assert.equal(
-      releasePayloads.some(payload =>
-        (payload as { fileId?: unknown }).fileId === "source-key-a"),
-      true,
-    );
-    service.dispose();
-  });
-
   test("clears published table view input on dispose", () => {
+    const resource = URI.file("/workspace/data/dispose.csv");
     const { service } = createTableServiceFixture({
-      rawFiles: [createRawFile({ normalizedCsvPath: "C:/tmp/raw.csv" })],
-      tableRowsReaderService: createRowsTableReader([
+      fileService: createCsvFileService([
         ["A1", "B1"],
         ["A2", "B2"],
       ]),
@@ -976,11 +761,11 @@ suite("workbench/services/table/browser/tableService", () => {
       changeCount += 1;
     }));
 
-    service.open({ fileId: "file-a" });
+    service.open({ resource });
     service.dispose();
 
     assert.equal(service.getViewInput(), null);
-    assert.equal(changeCount, 3);
+    assert.equal(changeCount > 0, true);
   });
 });
 
@@ -1002,25 +787,21 @@ const createTableRowsReaderService = (
 
 type TableServiceFixture = {
   readonly service: TableService;
-  readonly sessionService: TestSessionService;
   readonly storageService: TestStorageService;
 };
 
 const createTableServiceFixture = ({
   fileService = createFileServiceStub(),
-  rawFiles = [],
   settingsService = createSettingsServiceStub(),
   storageService = new TestStorageService(),
   tableRowsReaderService = createTableRowsReaderService(),
 }: {
-  readonly rawFiles?: readonly SessionFile[];
   readonly settingsService?: ISettingsService;
   readonly storageService?: TestStorageService;
   readonly fileService?: IFileService;
   readonly tableRowsReaderService?: TableRowsReaderProvider;
 } = {}): TableServiceFixture => {
   tableTestStore?.add(storageService);
-  const sessionService = new TestSessionService(rawFiles);
   const tableFileService = tableTestStore?.add(new TableFileService(fileService))
     ?? new TableFileService(fileService);
   const tableModelService = tableTestStore?.add(new TableModelResolverService(
@@ -1028,7 +809,6 @@ const createTableServiceFixture = ({
   )) ?? new TableModelResolverService(tableFileService);
   const service = new TableService(
     tableRowsReaderService as never,
-    sessionService as never,
     storageService as never,
     settingsService as never,
     tableModelService as never,
@@ -1036,7 +816,6 @@ const createTableServiceFixture = ({
   tableTestStore?.add(service);
   return {
     service,
-    sessionService,
     storageService,
   };
 };
@@ -1077,6 +856,24 @@ const createFileServiceStub = (
   writeFile: async () => undefined,
   ...overrides,
 } as IFileService);
+
+const createCsvFileService = (rows: readonly (readonly unknown[])[]): IFileService =>
+  createFileServiceStub({
+    readFile: async () => ({
+      encoding: "utf8",
+      value: createCsvContent(rows),
+    }),
+  });
+
+const createCsvContent = (rows: readonly (readonly unknown[])[]): string =>
+  rows.map(row => row.map(formatCsvCell).join(",")).join("\n");
+
+const formatCsvCell = (value: unknown): string => {
+  const text = String(value ?? "");
+  return /[",\r\n]/.test(text)
+    ? `"${text.replace(/"/g, "\"\"")}"`
+    : text;
+};
 
 const createXlsxBase64 = async (
   sheets: readonly { readonly name: string; readonly rows: readonly (readonly string[])[] }[],
@@ -1151,37 +948,6 @@ const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
   return globalThis.btoa(binary);
 };
 
-class TestSessionService {
-  private readonly onDidChangeSessionEmitter = new Emitter<SessionChangeEvent>();
-  public readonly onDidChangeSession = this.onDidChangeSessionEmitter.event;
-  private sessionVersion = 0;
-  private snapshot: SessionSnapshot = createSessionSnapshot([]);
-
-  public constructor(rawFiles: readonly SessionFile[] = []) {
-    this.setRawFiles(rawFiles, false);
-  }
-
-  public getSnapshot(): SessionSnapshot {
-    return this.snapshot;
-  }
-
-  public setRawFiles(
-    rawFiles: readonly SessionFile[],
-    fireEvent = true,
-  ): void {
-    this.sessionVersion += 1;
-    this.snapshot = createSessionSnapshot(rawFiles, this.sessionVersion);
-    if (fireEvent) {
-      this.onDidChangeSessionEmitter.fire({
-        fileIds: this.snapshot.fileOrder,
-        rawTableRefs: [],
-        reason: "rawTablesChanged",
-        sessionVersion: this.sessionVersion,
-      });
-    }
-  }
-}
-
 class TestStorageService extends AbstractStorageService {
   private readonly values = new Map<string, string>();
 
@@ -1213,19 +979,6 @@ class TestStorageService extends AbstractStorageService {
   }
 }
 
-const createSessionSnapshot = (
-  rawFiles: readonly SessionFile[],
-  sessionVersion = 0,
-): SessionSnapshot => {
-  const records = mergeRawFilesIntoRecords({}, [], rawFiles);
-  return {
-    schemaVersion: 1,
-    sessionVersion,
-    filesById: records.filesById,
-    fileOrder: records.fileOrder,
-  };
-};
-
 const createRawFile = (
   overrides: Partial<SessionFile> = {},
 ): SessionFile => ({
@@ -1236,60 +989,6 @@ const createRawFile = (
   ...overrides,
 });
 
-const createRowsTableReader = (
-  rows: readonly unknown[][],
-  options: {
-    readonly fileId?: string;
-    readonly sheetId?: string | null;
-    readonly sourceKey?: string;
-  } = {},
-): TableRowsReaderProvider => {
-  const sourceKey = options.sourceKey ?? "source-key-a";
-  const fileId = options.fileId ?? sourceKey;
-  const sheetId = options.sheetId ?? null;
-  const normalizedRows = rows.map(row => [...row]);
-  return createTableRowsReaderService({
-    canReadRows: () => true,
-    openSource: async () => ({
-      ok: true,
-      result: {
-        columnCount: Math.max(0, normalizedRows[0]?.length ?? 0),
-        fileId,
-        fileName: "Raw.csv",
-        maxCellLengths: [],
-        rowCount: normalizedRows.length,
-        seedRows: normalizedRows,
-        seedStartRow: 0,
-        sheetId,
-        sourceKey,
-      },
-    }),
-    readRows: async (payload) => {
-      const payloadRange = payload as {
-        readonly endRow?: unknown;
-        readonly startRow?: unknown;
-      };
-      const startRow = Math.max(
-        0,
-        Math.floor(Number(payloadRange.startRow) || 0),
-      );
-      const endRow = Math.max(
-        startRow,
-        Math.floor(Number(payloadRange.endRow) || startRow),
-      );
-      return {
-        ok: true,
-        result: {
-          fileId,
-          rows: normalizedRows.slice(startRow, endRow),
-          sourceKey,
-          startRow,
-        },
-      };
-    },
-  });
-};
-
 const getRequiredTableViewModel = (service: TableService): TableWidgetViewModel => {
   const model = service.getViewInput()?.tableViewModel;
   assert.ok(model);
@@ -1299,4 +998,13 @@ const getRequiredTableViewModel = (service: TableService): TableWidgetViewModel 
 const waitForTableService = async (): Promise<void> => {
   await new Promise(resolve => setTimeout(resolve, 0));
   await new Promise(resolve => setTimeout(resolve, 0));
+};
+
+const waitForReadyTableService = async (service: TableService): Promise<void> => {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    if (service.getViewInput()?.tableState.loadState.state === "ready") {
+      return;
+    }
+    await waitForTableService();
+  }
 };

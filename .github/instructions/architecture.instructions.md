@@ -177,11 +177,11 @@ High-level analysis flow:
 
 ```txt
 Explorer source workflow
-  -> fileConverter.ts FileConversionResult
-  -> ISessionService.commitFileImport
-  -> SessionChangeEvent
-  -> Template/Review/Slice/Table/Plot/Search/Export/Parameters subscribers
-  -> downstream services reread SessionSnapshot and own their state
+  -> fileConverter.ts PreparedFileImport
+  -> Explorer-local imported rows
+  -> ITableService.open({ resource })
+  -> TableFileEditorModel / ITableModel snapshot/version
+  -> downstream services consume URI-backed model facts or their own state
 ```
 
 Primary template flow:
@@ -198,8 +198,8 @@ TableModel
 
 Specific flow owners:
 
-- Import/source collection: Explorer/files workflow coordinates; converter returns results; Session commits imported data-file/raw-table state.
-- Session ledger: Session backs explicit imported raw-table storage and downstream analysis records, including TableModel commits, during migration.
+- Import/source collection: Explorer/files workflow coordinates; converter returns prepared file results; Explorer owns local visible rows and table-resource open handoff.
+- Session ledger: Session backs only legacy imported raw-table storage and downstream analysis records, including TableModel commits, during migration.
 - Table model / Template materialization: TableModel is the derived raw-table
   input, and Template is the target owner for
   `Recipe/UserTemplate + TableModel -> Template`. Do not keep retired

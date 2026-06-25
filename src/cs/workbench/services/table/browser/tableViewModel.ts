@@ -41,6 +41,7 @@ type TableCell = NonNullable<ReturnType<TableViewModel["getRevealCell"]>>;
 type TableSelection = ReturnType<TableViewModel["getSelection"]>;
 type TableRange = NonNullable<TableSelection["ranges"]>[number];
 type TableFile = NonNullable<TableState["file"]>;
+export type TablePreviewSourceInput = SessionFile;
 type TableHighlight = ReturnType<TableViewModel["getHighlight"]>;
 type TableLoadState = TableState["loadState"];
 
@@ -890,28 +891,28 @@ const formatTableFileName = (fileName: string | null | undefined): string =>
   fileName ? String(fileName).replace(/\.csv$/i, "") : "";
 
 type TableSourceEntry = {
-  readonly entry: SessionFile;
+  readonly entry: TablePreviewSourceInput;
   readonly source: TableSource;
   readonly sourceKey: string;
   readonly sourceVersion: number;
   readonly sheetName: string | null;
 };
 
-const readEntryString = (entry: SessionFile | null | undefined, key: string): string | null => {
+const readEntryString = (entry: TablePreviewSourceInput | null | undefined, key: string): string | null => {
   const value = entry?.[key];
   return typeof value === "string" && value.trim() ? value.trim() : null;
 };
 
-const getEntrySheetName = (entry: SessionFile | null | undefined): string | null =>
+const getEntrySheetName = (entry: TablePreviewSourceInput | null | undefined): string | null =>
   readEntryString(entry, "sheetName") ??
   readEntryString(entry, "worksheetName");
 
-const getEntrySheetId = (entry: SessionFile | null | undefined): string | null =>
+const getEntrySheetId = (entry: TablePreviewSourceInput | null | undefined): string | null =>
   readEntryString(entry, "sheetId") ??
   readEntryString(entry, "worksheetId") ??
   getEntrySheetName(entry);
 
-const getEntryResource = (entry: SessionFile | null | undefined): URI | null => {
+const getEntryResource = (entry: TablePreviewSourceInput | null | undefined): URI | null => {
   const resource = entry?.resource;
   return resource && typeof resource === "object" && typeof (resource as URI).toString === "function"
     ? resource as URI
@@ -919,7 +920,7 @@ const getEntryResource = (entry: SessionFile | null | undefined): URI | null => 
 };
 
 const getEntryTableModelContent = (
-  entry: SessionFile | null | undefined,
+  entry: TablePreviewSourceInput | null | undefined,
 ): TableModelContentSnapshot | null => {
   const content = entry?.tableModelContent;
   if (!content || typeof content !== "object") {
@@ -930,7 +931,7 @@ const getEntryTableModelContent = (
   return Array.isArray(candidate.rows) ? candidate as TableModelContentSnapshot : null;
 };
 
-const createTableSourceEntry = (entry: SessionFile): TableSourceEntry | null => {
+const createTableSourceEntry = (entry: TablePreviewSourceInput): TableSourceEntry | null => {
   const fileId = readEntryString(entry, "fileId");
   const resource = getEntryResource(entry);
   if (!fileId && !resource) {
@@ -959,7 +960,7 @@ const createTableSourceEntry = (entry: SessionFile): TableSourceEntry | null => 
   };
 };
 
-const isUnhealthyTableSource = (entry: SessionFile): boolean =>
+const isUnhealthyTableSource = (entry: TablePreviewSourceInput): boolean =>
   entry.rawTableHealth === "decodeFailed" ||
   entry.rawTableHealth === "parseFailed" ||
   entry.rawTableHealth === "unsupported";
@@ -1018,7 +1019,7 @@ const collectNumericColumnSamples = (
   };
 };
 
-const getUnhealthyTableMessage = (entry: SessionFile): string => {
+const getUnhealthyTableMessage = (entry: TablePreviewSourceInput): string => {
   const message = String(entry.rawTableHealthMessage ?? "").trim().toLowerCase();
   if (entry.rawTableHealth === "decodeFailed") {
     if (message.includes("converted csv")) {
@@ -1148,7 +1149,7 @@ type WorkerMessage =
 type TableViewModelInput = {
   numericDisplayMode?: NumericDisplayMode;
   tableRowsReaderService?: TableRowsReaderProvider;
-  rawFiles?: SessionFile[];
+  rawFiles?: TablePreviewSourceInput[];
   settingsVersion?: number;
   source?: TableSource | null;
 };

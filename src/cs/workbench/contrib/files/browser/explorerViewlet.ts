@@ -60,17 +60,20 @@ import {
   type FileConverterBackend,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import {
-  commitExplorerTableFileImport,
-} from "src/cs/workbench/contrib/files/browser/explorerTableFileImport";
-import {
   markTemplateApplyPerformanceTrace,
 } from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
 import { createTemplateEditorRecordFromUserTemplate } from "src/cs/workbench/contrib/template/browser/templateUserTemplateAdapter";
-import { ISessionService } from "src/cs/workbench/services/session/common/session";
 import {
   IThumbnailPreviewService,
   IThumbnailService,
 } from "src/cs/workbench/services/thumbnail/common/thumbnail";
+import {
+  ITableService,
+  type TableSource,
+} from "src/cs/workbench/services/table/common/table";
+import {
+  tableFileFormatService,
+} from "src/cs/workbench/services/tablefile/common/tableFileFormat";
 import { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import { IAppearanceService } from "src/cs/workbench/services/appearance/common/appearance";
 import {
@@ -88,9 +91,11 @@ export class ExplorerViewPane extends ViewPane {
   private readonly sourceWorkflow: FileSourceWorkflow;
   private explorerView: ExplorerView | null = null;
   private input: ExplorerPaneInput | null = null;
-  private internalFiles: PreparedFileImportEntry[] = [];
+  private internalFiles: ExplorerFileEntry[] = [];
   private pendingSourceEntries: ExplorerFileEntry[] = [];
   private replaceSourceKeys: string[] | null = null;
+  private readonly locallyRemovedFileIds = new Set<string>();
+  private readonly locallyRenamedFileNames = new Map<string, string>();
   private mergedFilesCache: {
     readonly committedFiles: readonly ExplorerFileEntry[];
     readonly files: ExplorerFileEntry[];
@@ -116,7 +121,7 @@ export class ExplorerViewPane extends ViewPane {
     @IAppearanceService private readonly appearanceService: IAppearanceService,
     @IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
     @INotificationService private readonly notificationService: INotificationService,
-    @ISessionService private readonly sessionService: ISessionService,
+    @ITableService private readonly tableService: ITableService,
     @IThumbnailPreviewService private readonly thumbnailPreviewService: IThumbnailPreviewService,
     @IThumbnailService private readonly thumbnailService: IThumbnailService,
     @IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
@@ -305,11 +310,14 @@ export class ExplorerViewPane extends ViewPane {
 
   private get committedFiles(): ExplorerFileEntry[] {
     const inputFiles = this.input?.files;
-    return Array.isArray(inputFiles) ? inputFiles : this.internalFiles;
-  }
-
-  private get isControlled(): boolean {
-    return Array.isArray(this.input?.files);
+    return applyLocalExplorerFileOverrides(
+      mergeExplorerCommittedFiles(
+        Array.isArray(inputFiles) ? inputFiles : [],
+        this.internalFiles,
+      ),
+      this.locallyRemovedFileIds,
+      this.locallyRenamedFileNames,
+    );
   }
 
   private get fileIds(): readonly string[] {
@@ -413,7 +421,8 @@ export class ExplorerViewPane extends ViewPane {
       return;
     }
 
-    this.sessionService.renameFile(normalizedFileId, normalizedName);
+    this.renameExplorerFile(normalizedFileId, normalizedName);
+    this.syncView();
   };
 
   private syncView(): void {
@@ -587,9 +596,7 @@ export class ExplorerViewPane extends ViewPane {
   }
 
   private showMoreActions(anchor: HTMLElement): void {
-    const canCloseFolder =
-      this.files.length > 0 ||
-      getTableFileIds(this.sessionService).length > 0;
+    const canCloseFolder = this.files.length > 0;
     const isChartMode = this.paneInput.mode === "chart";
     const isThumbnailView = isChartMode && this.viewLayout === "thumbnail";
     this.contextMenuService.showContextMenu({
@@ -647,7 +654,9 @@ export class ExplorerViewPane extends ViewPane {
     fileId: string | null,
     sourceKey: string | null = null,
   ): void => {
-    this.selectFile(fileId, "force", sourceKey);
+    const selectedFileId = this.selectFile(fileId, "force", sourceKey);
+    this.publishExplorerPaneInput();
+    this.openSelectedTableFile(selectedFileId, sourceKey);
     this.syncView();
   };
 
@@ -755,17 +764,8 @@ export class ExplorerViewPane extends ViewPane {
     this.sourceWorkflow.closeImportedSources();
     this.isDragging = false;
 
-    const fileIds = uniqueFileIds([
-      ...this.fileIds,
-      ...getTableFileIds(this.sessionService),
-    ]);
-    if (!this.isControlled) {
-      this.internalFiles = [];
-    }
-
-    if (fileIds.length > 0) {
-      this.sessionService.removeFiles(fileIds);
-    }
+    const fileIds = uniqueFileIds(this.fileIds);
+    this.removeFiles(fileIds);
     this.clearExplorerSelections();
     this.syncView();
   }
@@ -851,13 +851,39 @@ export class ExplorerViewPane extends ViewPane {
       return;
     }
 
-    if (!this.isControlled) {
-      const removedFileIds = new Set(normalizedFileIds);
-      this.internalFiles = this.internalFiles.filter((entry) => !removedFileIds.has(entry.fileId ?? ""));
+    this.hideExplorerFiles(normalizedFileIds);
+    this.selectRawFileAfterRemoval(normalizedFileIds);
+  }
+
+  private hideExplorerFiles(fileIds: readonly string[]): void {
+    const removedFileIds = new Set(fileIds);
+    for (const fileId of removedFileIds) {
+      this.locallyRemovedFileIds.add(fileId);
+      this.locallyRenamedFileNames.delete(fileId);
     }
-    this.sessionService.removeFiles(normalizedFileIds);
-    if (this.paneInput.selectionKind !== "table") {
-      this.selectRawFileAfterRemoval(normalizedFileIds);
+
+    this.internalFiles = this.internalFiles.filter((entry) => !removedFileIds.has(entry.fileId ?? ""));
+    this.mergedFilesCache = null;
+    this.publishExplorerPaneInput();
+  }
+
+  private renameExplorerFile(fileId: string, fileName: string): void {
+    this.locallyRenamedFileNames.set(fileId, fileName);
+    this.internalFiles = this.internalFiles.map(entry =>
+      entry.fileId === fileId
+        ? { ...entry, fileName }
+        : entry);
+    this.mergedFilesCache = null;
+    this.publishExplorerPaneInput();
+  }
+
+  private restoreExplorerFiles(fileIds: readonly string[]): void {
+    let changed = false;
+    for (const fileId of getNormalizedFileIds(fileIds)) {
+      changed = this.locallyRemovedFileIds.delete(fileId) || changed;
+    }
+    if (changed) {
+      this.mergedFilesCache = null;
     }
   }
 
@@ -866,26 +892,37 @@ export class ExplorerViewPane extends ViewPane {
     importedFiles: PreparedFileImportInfo[],
     selectedFileId: string | null = importedFiles[0]?.fileId ?? null,
   ): void {
-    if (!this.isControlled) {
-      this.internalFiles = [...fileEntries];
-      this.syncView();
+    const localEntries = createLocalExplorerImportEntries(fileEntries, importedFiles);
+    assertSupportedExplorerImportEntries(localEntries, importedFiles);
+    const previousFileIds = this.fileIds;
+    const nextFileIds = new Set(
+      localEntries
+        .map(entry => normalizeFileId(entry.fileId))
+        .filter((fileId): fileId is string => Boolean(fileId)),
+    );
+    this.locallyRemovedFileIds.clear();
+    for (const fileId of previousFileIds) {
+      if (!nextFileIds.has(fileId)) {
+        this.locallyRemovedFileIds.add(fileId);
+      }
     }
+    this.locallyRenamedFileNames.clear();
+    this.internalFiles = localEntries;
+    this.mergedFilesCache = null;
+    this.publishExplorerPaneInput();
 
-    const importResult = commitExplorerTableFileImport({
-      explorerService: this.explorerService,
-      importedFiles,
-      mode: "replace",
-      selectedFileId,
-      sessionService: this.sessionService,
-    });
     this.removePendingSourceFiles(getImportSourceKeys(importedFiles));
-    if (!importResult.importedFileIds.length) {
+    const selectedEntry = resolveSelectedExplorerImportEntry(localEntries, selectedFileId);
+    if (!selectedEntry) {
+      this.syncView();
       return;
     }
 
-    if (importResult.shouldNavigateToTable) {
-      this.navigateToTableAfterImport();
-    }
+    this.selectFile(selectedEntry.fileId ?? null, "force", selectedEntry.sourceKey ?? null);
+    this.publishExplorerPaneInput();
+    this.openExplorerTableFile(selectedEntry);
+    this.navigateToTableAfterImport();
+    this.syncView();
   }
 
   private appendImportedFiles(
@@ -896,25 +933,32 @@ export class ExplorerViewPane extends ViewPane {
       return;
     }
 
-    if (!this.isControlled) {
-      this.internalFiles = [...this.internalFiles, ...fileEntries];
-      this.syncView();
-    }
-
-    const importResult = commitExplorerTableFileImport({
-      explorerService: this.explorerService,
-      importedFiles,
-      mode: "append",
-      sessionService: this.sessionService,
-    });
+    const localEntries = createLocalExplorerImportEntries(fileEntries, importedFiles);
+    assertSupportedExplorerImportEntries(localEntries, importedFiles);
+    const importedEntries = filterNewExplorerImportEntries(localEntries, this.committedFiles);
     this.removePendingSourceFiles(getImportSourceKeys(importedFiles));
-    if (!importResult.importedFileIds.length) {
+    if (!importedEntries.length) {
+      this.syncView();
       return;
     }
 
-    if (importResult.shouldNavigateToTable) {
-      this.navigateToTableAfterImport();
+    this.restoreExplorerFiles(importedEntries.map(file => file.fileId ?? ""));
+    this.internalFiles = mergeExplorerCommittedFiles(this.internalFiles, importedEntries);
+    this.mergedFilesCache = null;
+    this.publishExplorerPaneInput();
+
+    const currentSelectedFileId = normalizeFileId(this.explorerService.selectedRawFileId);
+    const currentSelectedEntry = currentSelectedFileId
+      ? findExplorerFileEntry(this.files, currentSelectedFileId, this.explorerService.selectedRawSourceKey)
+      : null;
+    if (!currentSelectedEntry) {
+      const selectedEntry = importedEntries[0] ?? null;
+      this.selectFile(selectedEntry?.fileId ?? null, "force", selectedEntry?.sourceKey ?? null);
+      this.publishExplorerPaneInput();
+      this.openExplorerTableFile(selectedEntry);
     }
+    this.navigateToTableAfterImport();
+    this.syncView();
   }
 
   private appendPreparedImportFiles(preparedFiles: readonly PreparedFileImport[]): void {
@@ -965,6 +1009,44 @@ export class ExplorerViewPane extends ViewPane {
     }, reveal);
   }
 
+  private publishExplorerPaneInput(): void {
+    const input = this.paneInput;
+    const selectedFileId = input.selectionKind === "chart"
+      ? this.explorerService.selectedProcessedFileId
+      : this.explorerService.selectedRawFileId;
+    const selectedSourceKey = input.selectionKind === "chart"
+      ? this.explorerService.selectedProcessedSourceKey
+      : this.explorerService.selectedRawSourceKey;
+    this.explorerService.updatePaneInput({
+      ...input,
+      files: this.committedFiles,
+      selectedFileId,
+      selectedSourceKey,
+    });
+  }
+
+  private openSelectedTableFile(
+    fileId: string | null,
+    sourceKey: string | null,
+  ): void {
+    if (this.paneInput.selectionKind !== "table") {
+      return;
+    }
+
+    this.openExplorerTableFile(findExplorerFileEntry(this.files, fileId, sourceKey));
+  }
+
+  private openExplorerTableFile(file: ExplorerFileEntry | null | undefined): void {
+    if (this.paneInput.selectionKind !== "table") {
+      return;
+    }
+
+    const source = createTableSourceFromExplorerFile(file);
+    if (source) {
+      this.tableService.open(source);
+    }
+  }
+
   private selectRawFileAfterRemoval(fileIds: readonly string[]): void {
     const removedFileIds = getNormalizedFileIds(fileIds);
     if (!removedFileIds.length) {
@@ -972,7 +1054,7 @@ export class ExplorerViewPane extends ViewPane {
     }
 
     const removedFileIdSet = new Set(removedFileIds);
-    const remainingFileIds = getTableFileIds(this.sessionService)
+    const remainingFileIds = this.fileIds
       .filter(fileId => !removedFileIdSet.has(fileId));
     const nextSelectedFileId = resolveExplorerSelectionAfterRemoval({
       currentFileId: this.explorerService.selectedRawFileId,
@@ -981,9 +1063,12 @@ export class ExplorerViewPane extends ViewPane {
     });
     this.explorerService.select({
       candidateFileIds: remainingFileIds,
+      candidateSourceKeys: this.sourceKeys,
       fileId: nextSelectedFileId,
       kind: "table",
     }, "force");
+    this.publishExplorerPaneInput();
+    this.openSelectedTableFile(nextSelectedFileId, null);
   }
 
   private clearExplorerSelections(): void {
@@ -1063,6 +1148,299 @@ function getImportSourceKeys(
     .filter((sourceKey): sourceKey is string => typeof sourceKey === "string");
 }
 
+function createLocalExplorerImportEntries(
+  fileEntries: readonly PreparedFileImportEntry[],
+  importedFiles: readonly PreparedFileImportInfo[],
+): ExplorerFileEntry[] {
+  const result: ExplorerFileEntry[] = [];
+  const count = Math.max(fileEntries.length, importedFiles.length);
+  for (let index = 0; index < count; index += 1) {
+    const importedFile = importedFiles[index];
+    if (!importedFile) {
+      continue;
+    }
+
+    result.push(...createLocalExplorerImportEntriesForFile(
+      fileEntries[index],
+      importedFile,
+    ));
+  }
+  return result;
+}
+
+function createLocalExplorerImportEntriesForFile(
+  fileEntry: PreparedFileImportEntry | undefined,
+  importedFile: PreparedFileImportInfo,
+): ExplorerFileEntry[] {
+  const rawTables = getImportedRawTableEntries(importedFile);
+  if (!rawTables.length) {
+    return [createLocalExplorerImportEntry(fileEntry, importedFile)];
+  }
+
+  return rawTables.map(rawTable =>
+    createLocalExplorerImportEntry(fileEntry, importedFile, rawTable));
+}
+
+function createLocalExplorerImportEntry(
+  fileEntry: PreparedFileImportEntry | undefined,
+  importedFile: PreparedFileImportInfo,
+  rawTable?: ImportedRawTableEntry,
+): ExplorerFileEntry {
+  const rawTableId = normalizeSourceKey(rawTable?.rawTableId);
+  const table = rawTable?.table;
+  const normalizedCsvPath = getRawTableNormalizedCsvPath(table) ??
+    normalizePathValue(fileEntry?.normalizedCsvPath) ??
+    normalizePathValue(importedFile.normalizedCsvPath);
+  const sourcePath = normalizePathValue(fileEntry?.sourcePath) ??
+    normalizePathValue(importedFile.sourcePath) ??
+    getRawTableOriginalPath(table) ??
+    normalizePathValue(importedFile.importRecord.raw.filePath);
+  const sheetName = table?.source.kind === "excelSheet"
+    ? table.source.sheetName ?? null
+    : null;
+  const itemKey = normalizeSourceKey(fileEntry?.itemKey) ??
+    normalizeSourceKey(importedFile.sourceKey) ??
+    normalizeFileId(importedFile.fileId) ??
+    rawTableId ??
+    "";
+
+  return {
+    file: fileEntry?.file ?? importedFile.file,
+    fileId: importedFile.fileId,
+    fileName: importedFile.fileName,
+    itemKey: rawTableId ? `${itemKey}:${rawTableId}` : itemKey,
+    localImport: true,
+    normalizedCsvPath,
+    relativePath: fileEntry?.relativePath ?? importedFile.relativePath ?? null,
+    sheetId: rawTableId,
+    sheetName,
+    sourceKey: rawTableId ?? importedFile.sourceKey ?? fileEntry?.sourceKey,
+    sourcePath,
+    ...(table?.health?.state ? { rawTableHealth: table.health.state } : {}),
+    ...(table?.health?.message ? { rawTableHealthMessage: table.health.message } : {}),
+    ...(table?.templateEligibility ? { templateEligibility: table.templateEligibility } : {}),
+  };
+}
+
+type ImportedRawTableEntry = {
+  readonly rawTableId: string;
+  readonly table: PreparedFileImportInfo["importRecord"]["raw"]["rawTablesById"][string];
+};
+
+function getImportedRawTableEntries(
+  importedFile: PreparedFileImportInfo,
+): readonly ImportedRawTableEntry[] {
+  const rawTablesById = importedFile.importRecord.raw.rawTablesById;
+  const rawTableIds = uniqueStrings([
+    ...importedFile.importRecord.raw.rawTableOrder,
+    ...Object.keys(rawTablesById),
+  ]);
+  return rawTableIds.flatMap(rawTableId => {
+    const normalizedRawTableId = normalizeSourceKey(rawTableId);
+    const table = normalizedRawTableId ? rawTablesById[normalizedRawTableId] : null;
+    return normalizedRawTableId && table
+      ? [{ rawTableId: normalizedRawTableId, table }]
+      : [];
+  });
+}
+
+function getRawTableNormalizedCsvPath(
+  table: ImportedRawTableEntry["table"] | undefined,
+): string | null {
+  return table?.rows.kind === "normalizedCsv"
+    ? normalizePathValue(table.rows.normalizedCsvPath)
+    : null;
+}
+
+function getRawTableOriginalPath(
+  table: ImportedRawTableEntry["table"] | undefined,
+): string | null {
+  const source = table?.source;
+  return source && source.kind !== "unknown"
+    ? normalizePathValue(source.originalPath)
+    : null;
+}
+
+function filterNewExplorerImportEntries(
+  entries: readonly ExplorerFileEntry[],
+  currentFiles: readonly ExplorerFileEntry[],
+): ExplorerFileEntry[] {
+  const seen = new Set(currentFiles.map(getExplorerFileEntryKey));
+  const result: ExplorerFileEntry[] = [];
+  for (const entry of entries) {
+    const key = getExplorerFileEntryKey(entry);
+    if (!key || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    result.push(entry);
+  }
+  return result;
+}
+
+function mergeExplorerCommittedFiles(
+  baseFiles: readonly ExplorerFileEntry[],
+  localFiles: readonly ExplorerFileEntry[],
+): ExplorerFileEntry[] {
+  if (!baseFiles.length) {
+    return [...localFiles];
+  }
+  if (!localFiles.length) {
+    return [...baseFiles];
+  }
+
+  const result = [...baseFiles];
+  const indexesByKey = new Map<string, number>();
+  for (let index = 0; index < result.length; index += 1) {
+    const key = getExplorerFileEntryKey(result[index]);
+    if (key) {
+      indexesByKey.set(key, index);
+    }
+  }
+
+  for (const file of localFiles) {
+    const key = getExplorerFileEntryKey(file);
+    const index = key ? indexesByKey.get(key) : undefined;
+    if (index === undefined) {
+      if (key) {
+        indexesByKey.set(key, result.length);
+      }
+      result.push(file);
+      continue;
+    }
+
+    result[index] = file;
+  }
+  return result;
+}
+
+function resolveSelectedExplorerImportEntry(
+  entries: readonly ExplorerFileEntry[],
+  selectedFileId: string | null,
+): ExplorerFileEntry | null {
+  const normalizedFileId = normalizeFileId(selectedFileId);
+  return normalizedFileId
+    ? entries.find(entry => normalizeFileId(entry.fileId) === normalizedFileId) ?? entries[0] ?? null
+    : entries[0] ?? null;
+}
+
+function findExplorerFileEntry(
+  files: readonly ExplorerFileEntry[],
+  fileId: string | null | undefined,
+  sourceKey: string | null | undefined,
+): ExplorerFileEntry | null {
+  const normalizedFileId = normalizeFileId(fileId);
+  if (!normalizedFileId) {
+    return null;
+  }
+
+  const normalizedSourceKey = normalizeSourceKey(sourceKey);
+  if (normalizedSourceKey) {
+    const sourceMatch = files.find(file =>
+      normalizeFileId(file.fileId) === normalizedFileId &&
+      normalizeSourceKey(file.sourceKey) === normalizedSourceKey);
+    if (sourceMatch) {
+      return sourceMatch;
+    }
+  }
+
+  return files.find(file => normalizeFileId(file.fileId) === normalizedFileId) ?? null;
+}
+
+function createTableSourceFromExplorerFile(
+  file: ExplorerFileEntry | null | undefined,
+): TableSource | null {
+  const path = getExplorerFileTablePath(file);
+  if (!path) {
+    return null;
+  }
+
+  const resource = URI.file(path);
+  const normalizedCsvPath = normalizePathValue(file?.normalizedCsvPath);
+  const sheetId = path !== normalizedCsvPath && tableFileFormatService.isExcel(resource)
+    ? normalizeSourceKey(file?.sheetId)
+    : null;
+  const sourceKey = normalizeSourceKey(file?.sourceKey);
+  return {
+    resource,
+    ...(sheetId ? { sheetId } : {}),
+    ...(sourceKey ? { sourceKey } : {}),
+  };
+}
+
+function getExplorerFileTablePath(file: ExplorerFileEntry | null | undefined): string | null {
+  return normalizePathValue(file?.normalizedCsvPath) ??
+    normalizePathValue(file?.sourcePath);
+}
+
+function assertSupportedExplorerImportEntries(
+  entries: readonly ExplorerFileEntry[],
+  importedFiles: readonly PreparedFileImportInfo[],
+): void {
+  const entryPaths = new Map(
+    entries
+      .map(entry => [normalizeFileId(entry.fileId), getExplorerFileTablePath(entry)] as const)
+      .filter((entry): entry is readonly [string, string] => Boolean(entry[0] && entry[1])),
+  );
+  for (const file of importedFiles) {
+    const candidates = [
+      ...getImportedTableFileNameCandidates(file),
+      entryPaths.get(normalizeFileId(file.fileId) ?? "") ?? "",
+    ];
+    if (!candidates.some(candidate => tableFileFormatService.canHandle(candidate))) {
+      throw new Error(`Unsupported table file: ${candidates[0] || "Unknown file"}`);
+    }
+  }
+}
+
+function getImportedTableFileNameCandidates(
+  file: PreparedFileImportInfo,
+): readonly string[] {
+  return [
+    file.fileName,
+    file.importRecord.name,
+    file.importRecord.raw.fileName,
+    file.fileId,
+  ]
+    .map(value => String(value ?? "").trim())
+    .filter((value): value is string => Boolean(value));
+}
+
+function getExplorerFileEntryKey(file: ExplorerFileEntry | undefined): string {
+  const sourceKey = normalizeSourceKey(file?.sourceKey);
+  if (sourceKey) {
+    return `source:${sourceKey}`;
+  }
+
+  const fileId = normalizeFileId(file?.fileId);
+  if (fileId) {
+    return `file:${fileId}`;
+  }
+
+  return normalizeSourceKey(file?.itemKey) ?? "";
+}
+
+function normalizePathValue(value: unknown): string | null {
+  const path = String(value ?? "").trim();
+  return path || null;
+}
+
+function uniqueStrings(values: readonly string[]): readonly string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const value of values) {
+    const normalized = String(value ?? "").trim();
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+
+    seen.add(normalized);
+    result.push(normalized);
+  }
+  return result;
+}
+
 const EMPTY_EXPLORER_PANE_INPUT: ExplorerPaneInput = {
   files: [],
   mode: "table",
@@ -1119,22 +1497,35 @@ function normalizeSourceKey(value: unknown): string | null {
   return sourceKey || null;
 }
 
+function applyLocalExplorerFileOverrides(
+  files: readonly ExplorerFileEntry[],
+  removedFileIds: ReadonlySet<string>,
+  renamedFileNames: ReadonlyMap<string, string>,
+): ExplorerFileEntry[] {
+  if (removedFileIds.size === 0 && renamedFileNames.size === 0) {
+    return files as ExplorerFileEntry[];
+  }
+
+  const result: ExplorerFileEntry[] = [];
+  for (const file of files) {
+    const fileId = normalizeFileId(file.fileId);
+    if (fileId && removedFileIds.has(fileId)) {
+      continue;
+    }
+
+    const fileName = fileId ? renamedFileNames.get(fileId) : undefined;
+    result.push(fileName ? { ...file, fileName } : file);
+  }
+
+  return result;
+}
+
 function getNormalizedFileIds(values: readonly string[]): readonly string[] {
   return uniqueFileIds(
     values
       .map(value => normalizeFileId(value))
       .filter((fileId): fileId is string => Boolean(fileId)),
   );
-}
-
-function getTableFileIds(
-  sessionService: Pick<ISessionService, "getSnapshot">,
-): readonly string[] {
-  const snapshot = sessionService.getSnapshot();
-  return uniqueFileIds([
-    ...snapshot.fileOrder,
-    ...Object.keys(snapshot.filesById),
-  ]).filter(fileId => Boolean(snapshot.filesById[fileId]));
 }
 
 function uniqueFileIds(values: readonly string[]): readonly string[] {

@@ -217,12 +217,15 @@ export class WorkbenchDomainBridge extends Disposable {
     }, {
       fileIds: readModel.processedFileIds,
     });
-    const explorerSelection = reconcileExplorerSessionSelection(
+    const explorerSelection = reconcileExplorerDomainSelection(
       this.options.explorerService,
       readModel,
       this.options.layoutService.activeWorkbenchMainPart,
     );
-    this.options.tableService.open(createRawTableSource(explorerSelection, snapshot.filesById));
+    const tableSource = createRawTableSource(explorerSelection, snapshot.filesById);
+    if (tableSource || !explorerSelection.selectedRawFileId) {
+      this.options.tableService.open(tableSource);
+    }
 
     if (deferSecondaryWork) {
       this.scheduleDeferredSecondarySync();
@@ -297,7 +300,7 @@ export class WorkbenchDomainBridge extends Disposable {
       sessionVersion: snapshot.sessionVersion,
     });
     const readModel = createSessionReadModel(snapshot);
-    const explorerSelection = resolveExplorerSessionSelection(
+    const explorerSelection = resolveExplorerDomainSelection(
       this.options.explorerService,
       readModel,
     );
@@ -311,7 +314,7 @@ export class WorkbenchDomainBridge extends Disposable {
   private syncSecondaryProjection(
     snapshot: SessionSnapshot,
     readModel: SessionReadModel,
-    explorerSelection: ExplorerSessionSelection,
+    explorerSelection: ExplorerDomainSelection,
   ): void {
     const sliceState = this.options.sliceService.getState();
     this.options.explorerService.updatePaneInput(this.getExplorerPaneInput(
@@ -360,7 +363,7 @@ export class WorkbenchDomainBridge extends Disposable {
   private getChartViewInput(
     snapshot: SessionSnapshot,
     readModel: SessionReadModel,
-    activeFileId = resolveExplorerSessionSelection(
+    activeFileId = resolveExplorerDomainSelection(
       this.options.explorerService,
       readModel,
     ).selectedProcessedFileId,
@@ -674,20 +677,20 @@ type CreateExplorerPaneInputOptions = {
   readonly sliceState: SliceState;
 };
 
-type ExplorerSessionSelection = {
+type ExplorerDomainSelection = {
   readonly selectedRawFileId: string | null;
   readonly selectedRawSourceKey: string | null;
   readonly selectedProcessedFileId: string | null;
   readonly selectedProcessedSourceKey: string | null;
 };
 
-type ExplorerSessionSourceIdentity = {
+type ExplorerSourceIdentity = {
   readonly fileId: string;
   readonly sourceKey: string | null;
 };
 
-type ExplorerSessionSelectionInput = {
-  readonly rawSources: readonly ExplorerSessionSourceIdentity[];
+type ExplorerDomainSelectionInput = {
+  readonly rawSources: readonly ExplorerSourceIdentity[];
   readonly processedFileIds: readonly string[];
 };
 
@@ -699,26 +702,64 @@ type ExplorerSelectionState = Pick<
   | "selectedRawSourceKey"
 >;
 
-const createExplorerSessionSelectionInput = (
+const createExplorerDomainSelectionInput = (
   readModel: SessionReadModel,
-): ExplorerSessionSelectionInput => ({
+  localFiles: readonly ExplorerFileEntry[] = [],
+): ExplorerDomainSelectionInput => ({
   processedFileIds: readModel.processedFileIds,
-  rawSources: readModel.rawFiles.flatMap(file => {
-    const fileId = normalizeExplorerSelectionFileId(file.fileId);
-    return fileId
-      ? [{
-          fileId,
-          sourceKey: normalizeExplorerSelectionSourceKey(file.sourceKey),
-        }]
-      : [];
-  }),
+  rawSources: mergeExplorerSourceIdentities(
+    readModel.rawFiles.flatMap(file => {
+      const fileId = normalizeExplorerSelectionFileId(file.fileId);
+      return fileId
+        ? [{
+            fileId,
+            sourceKey: normalizeExplorerSelectionSourceKey(file.sourceKey),
+          }]
+        : [];
+    }),
+    localFiles.flatMap(file => {
+      const fileId = normalizeExplorerSelectionFileId(file.fileId);
+      return file.localImport && fileId
+        ? [{
+            fileId,
+            sourceKey: normalizeExplorerSelectionSourceKey(file.sourceKey),
+          }]
+        : [];
+    }),
+  ),
 });
 
-export const resolveExplorerSessionSelection = (
+const mergeExplorerSourceIdentities = (
+  sessionSources: readonly ExplorerSourceIdentity[],
+  localSources: readonly ExplorerSourceIdentity[],
+): readonly ExplorerSourceIdentity[] => {
+  if (!localSources.length) {
+    return sessionSources;
+  }
+
+  const result = [...sessionSources];
+  const seen = new Set(result.map(getExplorerSourceIdentityKey));
+  for (const source of localSources) {
+    const key = getExplorerSourceIdentityKey(source);
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    result.push(source);
+  }
+  return result;
+};
+
+const getExplorerSourceIdentityKey = (
+  source: ExplorerSourceIdentity,
+): string => `${source.fileId}\u0000${source.sourceKey ?? ""}`;
+
+export const resolveExplorerDomainSelection = (
   explorerService: ExplorerSelectionState,
   readModel: SessionReadModel,
-): ExplorerSessionSelection => {
-  const input = createExplorerSessionSelectionInput(readModel);
+): ExplorerDomainSelection => {
+  const input = createExplorerDomainSelectionInput(readModel);
   const selectedFileId = resolveExplorerSelectedFileId(
     getExplorerSelectedFileId(explorerService),
     input.rawSources.map(source => source.fileId),
@@ -736,12 +777,15 @@ export const resolveExplorerSessionSelection = (
   };
 };
 
-export const reconcileExplorerSessionSelection = (
+export const reconcileExplorerDomainSelection = (
   explorerService: IExplorerService,
   readModel: SessionReadModel,
   kind: ExplorerSelectionKind = "table",
-): ExplorerSessionSelection => {
-  const input = createExplorerSessionSelectionInput(readModel);
+): ExplorerDomainSelection => {
+  const input = createExplorerDomainSelectionInput(
+    readModel,
+    explorerService.getPaneInput()?.files ?? [],
+  );
   const selectedFileId = reconcileExplorerSelectedFileId(
     explorerService,
     kind,
@@ -783,10 +827,13 @@ export const createExplorerPaneInput = ({
     snapshot,
     tableModelQueueSnapshot,
   );
-  const rawStatusExplorerFiles = applyRawTableStatusProjections(rawExplorerFiles, {
+  const rawStatusExplorerFiles = mergeExplorerPaneLocalImportFiles(
+    applyRawTableStatusProjections(rawExplorerFiles, {
     sliceState,
     snapshot,
-  });
+    }),
+    explorerService.getPaneInput()?.files ?? [],
+  );
   const chartBaseFiles = isThumbnailLayout
     ? applyRawTableStatusProjections(createChartExplorerFilesFromRecords(
       snapshot.filesById,
@@ -832,7 +879,7 @@ const reconcileExplorerSelectedFileId = (
   explorerService: Pick<IExplorerService, "select">,
   kind: ExplorerSelectionKind,
   selectedFileId: string | null,
-  rawSources: readonly ExplorerSessionSourceIdentity[],
+  rawSources: readonly ExplorerSourceIdentity[],
   selectedSourceKey: string | null,
 ): string | null => {
   const fileIds = rawSources.map(source => source.fileId);
@@ -917,7 +964,7 @@ const resolveVisibleExplorerSelectedSourceKey = (
 const resolveExplorerSelectedSourceKey = (
   selectedSourceKey: string | null,
   selectedFileId: string | null,
-  rawSources: readonly ExplorerSessionSourceIdentity[],
+  rawSources: readonly ExplorerSourceIdentity[],
 ): string | null => {
   const normalizedFileId = normalizeExplorerSelectionFileId(selectedFileId);
   if (!normalizedFileId) {
@@ -953,6 +1000,39 @@ const getExplorerPaneFileIds = (
   return files
     .map(file => String(file.fileId ?? "").trim())
     .filter(fileId => fileId.length > 0);
+};
+
+const mergeExplorerPaneLocalImportFiles = (
+  sessionFiles: readonly ExplorerFileEntry[],
+  currentFiles: readonly ExplorerFileEntry[],
+): ExplorerFileEntry[] => {
+  const localFiles = currentFiles.filter(file => file.localImport);
+  if (!localFiles.length) {
+    return sessionFiles as ExplorerFileEntry[];
+  }
+
+  const result = [...sessionFiles];
+  const seen = new Set(result.map(getExplorerPaneFileKey));
+  for (const file of localFiles) {
+    const key = getExplorerPaneFileKey(file);
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    result.push(file);
+  }
+  return result;
+};
+
+const getExplorerPaneFileKey = (file: ExplorerFileEntry): string => {
+  const sourceKey = normalizeExplorerSelectionSourceKey(file.sourceKey);
+  if (sourceKey) {
+    return `source:${sourceKey}`;
+  }
+
+  const fileId = normalizeExplorerSelectionFileId(file.fileId);
+  return fileId ? `file:${fileId}` : `item:${String(file.itemKey ?? "")}`;
 };
 
 const applyTableModelQueueExplorerBadges = (
@@ -1152,7 +1232,7 @@ const findExplorerRawTable = (
 };
 
 const createRawTableSource = (
-  selection: Pick<ExplorerSessionSelection, "selectedRawFileId" | "selectedRawSourceKey">,
+  selection: Pick<ExplorerDomainSelection, "selectedRawFileId" | "selectedRawSourceKey">,
   filesById: Readonly<Record<string, FileRecord>>,
 ): TableSource | null => {
   const fileId = normalizeExplorerSelectionFileId(selection.selectedRawFileId);
@@ -1169,10 +1249,7 @@ const createRawTableSource = (
     };
   }
 
-  return {
-    fileId,
-    ...(sourceKey ? { sourceKey } : {}),
-  };
+  return null;
 };
 
 const getRawTableResource = (file: FileRecord | undefined): URI | null => {

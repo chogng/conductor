@@ -2,54 +2,110 @@ import {
   getButtonClassName,
   getButtonContentClassName,
 } from "src/cs/base/browser/ui/button/button";
-import {
-  getWorkbenchPreviewAreaActionClassName,
-  normalizeWorkbenchPreviewAreaHeaderActions,
-} from "src/cs/workbench/browser/parts/previewArea/previewActions";
 
-export type WorkbenchPreviewAreaBadge = {
+export type WorkbenchCenterAreaBadge = {
   text: string;
   tone?: "default" | "accent" | "success" | "warning" | "danger";
 };
 
-export type WorkbenchPreviewAreaAction = {
+export type WorkbenchCenterAreaAction = {
   id: string;
   title: string;
   isActive?: boolean;
   isDisabled?: boolean;
   isDanger?: boolean;
   icon?: Node | string | null;
-  badge?: WorkbenchPreviewAreaBadge;
+  badge?: WorkbenchCenterAreaBadge;
 };
 
-export type WorkbenchPreviewAreaHeaderAction = WorkbenchPreviewAreaAction & {
+export type WorkbenchCenterAreaHeaderAction = WorkbenchCenterAreaAction & {
   kind?: "primary" | "secondary" | "icon";
 };
 
-export type WorkbenchPreviewAreaPartState = {
+export type WorkbenchCenterAreaState = {
   id?: string;
   className?: string;
   title?: string;
   titleContent?: Node | null;
   description?: string;
-  badge?: WorkbenchPreviewAreaBadge;
+  badge?: WorkbenchCenterAreaBadge;
   labelledBy?: string;
-  headerActions?: WorkbenchPreviewAreaHeaderAction[];
+  headerActions?: WorkbenchCenterAreaHeaderAction[];
   actionbarContent?: Node | null;
   isBusy?: boolean;
 };
 
-export type WorkbenchPreviewAreaActionHandler = (
-  action: WorkbenchPreviewAreaAction,
+export type WorkbenchCenterAreaActionHandler = (
+  action: WorkbenchCenterAreaAction,
 ) => void;
 
-export type PreviewPartOptions = WorkbenchPreviewAreaPartState & {
+export type CenterAreaShellOptions = WorkbenchCenterAreaState & {
   ariaLabel?: string;
   children?: Node | null;
-  onAction?: WorkbenchPreviewAreaActionHandler;
+  onAction?: WorkbenchCenterAreaActionHandler;
 };
 
-export const createPreviewPart = ({
+const isValidCenterAreaBadge = (
+  badge: WorkbenchCenterAreaBadge | undefined,
+): badge is WorkbenchCenterAreaBadge =>
+  !!badge && typeof badge.text === "string" && badge.text.trim().length > 0;
+
+export const normalizeWorkbenchCenterAreaActions = (
+  actions: WorkbenchCenterAreaAction[] | undefined,
+): WorkbenchCenterAreaAction[] =>
+  Array.isArray(actions)
+    ? actions
+        .filter(
+          (action) =>
+            !!action &&
+            typeof action.id === "string" &&
+            typeof action.title === "string",
+        )
+        .map((action) => ({
+          ...action,
+          badge: isValidCenterAreaBadge(action.badge)
+            ? action.badge
+            : undefined,
+        }))
+    : [];
+
+const normalizeWorkbenchCenterAreaHeaderActions = (
+  actions: WorkbenchCenterAreaHeaderAction[] | undefined,
+): WorkbenchCenterAreaHeaderAction[] =>
+  Array.isArray(actions)
+    ? actions
+        .filter(
+          (action) =>
+            !!action &&
+            typeof action.id === "string" &&
+            typeof action.title === "string",
+        )
+        .map((action) => ({
+          ...action,
+          badge: isValidCenterAreaBadge(action.badge)
+            ? action.badge
+            : undefined,
+          kind: action.kind ?? "secondary",
+        }))
+    : [];
+
+const getWorkbenchCenterAreaActionClassName = (
+  action: WorkbenchCenterAreaAction,
+): string => {
+  const tokens = ["workbench_center_area_action"];
+
+  if (action.isActive) {
+    tokens.push("workbench_center_area_action--active");
+  }
+
+  if (action.isDanger) {
+    tokens.push("workbench_center_area_action--danger");
+  }
+
+  return tokens.join(" ");
+};
+
+export const createCenterAreaShell = ({
   ariaLabel,
   actionbarContent,
   badge,
@@ -63,7 +119,7 @@ export const createPreviewPart = ({
   onAction,
   title,
   titleContent,
-}: PreviewPartOptions): HTMLElement => {
+}: CenterAreaShellOptions): HTMLElement => {
   const root = document.createElement("section");
   if (id) {
     root.id = id;
@@ -73,16 +129,16 @@ export const createPreviewPart = ({
   }
   setOptionalAttribute(root, "aria-label", ariaLabel);
   setOptionalAttribute(root, "aria-labelledby", labelledBy);
-  root.className = `workbench_preview_area_part ${className}`.trim();
+  root.className = `workbench_center_area_shell ${className}`.trim();
 
   const normalizedHeaderActions =
-    normalizeWorkbenchPreviewAreaHeaderActions(headerActions);
+    normalizeWorkbenchCenterAreaHeaderActions(headerActions);
   const hasHeaderContent = Boolean(titleContent || title || description || badge);
   const hasActionbarContent = Boolean(actionbarContent || normalizedHeaderActions.length > 0);
 
   if (hasHeaderContent || hasActionbarContent) {
     root.append(
-      createPreviewHeader({
+      createCenterAreaHeader({
         actionbarContent,
         badge,
         description,
@@ -96,7 +152,7 @@ export const createPreviewPart = ({
   }
 
   const content = document.createElement("div");
-  content.className = "workbench_preview_area_content";
+  content.className = "workbench_center_area_content";
   if (children) {
     content.append(children);
   }
@@ -105,7 +161,7 @@ export const createPreviewPart = ({
   return root;
 };
 
-const createPreviewHeader = ({
+const createCenterAreaHeader = ({
   actionbarContent,
   badge,
   description,
@@ -116,36 +172,36 @@ const createPreviewHeader = ({
   titleContent,
 }: {
   readonly actionbarContent?: Node | null;
-  readonly badge?: WorkbenchPreviewAreaBadge;
+  readonly badge?: WorkbenchCenterAreaBadge;
   readonly description?: string;
   readonly hasHeaderContent: boolean;
-  readonly normalizedHeaderActions: WorkbenchPreviewAreaHeaderAction[];
-  readonly onAction?: WorkbenchPreviewAreaActionHandler;
+  readonly normalizedHeaderActions: WorkbenchCenterAreaHeaderAction[];
+  readonly onAction?: WorkbenchCenterAreaActionHandler;
   readonly title?: string;
   readonly titleContent?: Node | null;
 }): HTMLElement => {
   const header = document.createElement("div");
-  header.className = `workbench_preview_area_header ${!hasHeaderContent ? "workbench_preview_area_header--actions-only" : ""}`.trim();
+  header.className = `workbench_center_area_header ${!hasHeaderContent ? "workbench_center_area_header--actions-only" : ""}`.trim();
 
   if (titleContent || title || description || badge) {
     const main = document.createElement("div");
-    main.className = "workbench_preview_area_header_main title-label";
+    main.className = "workbench_center_area_header_main title-label";
     if (titleContent) {
       main.append(titleContent);
     }
     if (title) {
       const heading = document.createElement("h2");
-      heading.className = "workbench_preview_area_title";
+      heading.className = "workbench_center_area_title";
       heading.textContent = title;
       main.append(heading);
     }
     if (description) {
       const text = document.createElement("p");
-      text.className = "workbench_preview_area_description";
+      text.className = "workbench_center_area_description";
       text.textContent = description;
       main.append(text);
     }
-    const badgeElement = createPreviewBadge(badge);
+    const badgeElement = createCenterAreaBadge(badge);
     if (badgeElement) {
       main.append(badgeElement);
     }
@@ -154,12 +210,12 @@ const createPreviewHeader = ({
 
   if (actionbarContent || normalizedHeaderActions.length > 0) {
     const actions = document.createElement("div");
-    actions.className = "workbench_preview_area_header_actions actionbar";
+    actions.className = "workbench_center_area_header_actions actionbar";
     if (actionbarContent) {
       actions.append(actionbarContent);
     }
     for (const action of normalizedHeaderActions) {
-      actions.append(createPreviewAction(action, onAction, action.kind));
+      actions.append(createCenterAreaAction(action, onAction, action.kind));
     }
     header.append(actions);
   }
@@ -167,24 +223,24 @@ const createPreviewHeader = ({
   return header;
 };
 
-const createPreviewBadge = (
-  badge: WorkbenchPreviewAreaBadge | undefined,
+const createCenterAreaBadge = (
+  badge: WorkbenchCenterAreaBadge | undefined,
 ): HTMLElement | null => {
   if (!badge) {
     return null;
   }
 
   const element = document.createElement("span");
-  element.className = "workbench_preview_area_badge";
+  element.className = "workbench_center_area_badge";
   element.dataset.tone = badge.tone ?? "default";
   element.textContent = badge.text;
   return element;
 };
 
-const createPreviewAction = (
-  action: WorkbenchPreviewAreaAction,
-  onAction: WorkbenchPreviewAreaActionHandler | undefined,
-  kind?: WorkbenchPreviewAreaHeaderAction["kind"],
+const createCenterAreaAction = (
+  action: WorkbenchCenterAreaAction,
+  onAction: WorkbenchCenterAreaActionHandler | undefined,
+  kind?: WorkbenchCenterAreaHeaderAction["kind"],
 ): HTMLButtonElement => {
   const button = document.createElement("button");
   button.id = action.id;
@@ -196,8 +252,8 @@ const createPreviewAction = (
   if (kind === "icon") {
     button.className = getButtonClassName({
       className: action.isActive
-        ? "workbench_preview_area_header_icon_btn workbench_preview_area_header_icon_btn--active"
-        : "workbench_preview_area_header_icon_btn",
+        ? "workbench_center_area_header_icon_btn workbench_center_area_header_icon_btn--active"
+        : "workbench_center_area_header_icon_btn",
       disabled: action.isDisabled,
       size: "iconSm",
       variant: "ghost",
@@ -210,7 +266,7 @@ const createPreviewAction = (
 
   if (kind) {
     button.className = getButtonClassName({
-      className: "workbench_preview_area_header_btn",
+      className: "workbench_center_area_header_btn",
       disabled: action.isDisabled,
       size: "sm",
       variant: kind === "primary" ? "primary" : "ghost",
@@ -222,10 +278,10 @@ const createPreviewAction = (
     return button;
   }
 
-  button.className = getWorkbenchPreviewAreaActionClassName(action);
+  button.className = getWorkbenchCenterAreaActionClassName(action);
   appendIcon(button, action.icon);
   button.append(createTextSpan(action.title));
-  const badge = createPreviewBadge(action.badge);
+  const badge = createCenterAreaBadge(action.badge);
   if (badge) {
     button.append(badge);
   }
@@ -254,7 +310,7 @@ const appendIcon = (
   }
 
   const wrapper = document.createElement("span");
-  wrapper.className = "workbench_preview_area_action_icon";
+  wrapper.className = "workbench_center_area_action_icon";
   wrapper.setAttribute("aria-hidden", "true");
   if (typeof icon === "string") {
     wrapper.innerHTML = icon;
@@ -266,7 +322,7 @@ const appendIcon = (
 
 const createTextSpan = (text: string): HTMLSpanElement => {
   const span = document.createElement("span");
-  span.className = "workbench_preview_area_action_label";
+  span.className = "workbench_center_area_action_label";
   span.textContent = text;
   return span;
 };
@@ -281,4 +337,4 @@ const setOptionalAttribute = (
   }
 };
 
-export default createPreviewPart;
+export default createCenterAreaShell;

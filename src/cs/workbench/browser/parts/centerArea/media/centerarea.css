@@ -1,4 +1,4 @@
-.workbench_preview_area_part {
+.workbench_center_area_shell {
   display: flex;
   position: relative;
   height: 100%;
@@ -12,13 +12,13 @@
   background-color: rgb(var(--bg-surface) / 1);
 }
 
-.workbench_layout_split--with-auxiliarybar .workbench_preview_area_part {
+.workbench_layout_split--with-auxiliarybar .workbench_center_area_shell {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
   border-right-width: 0;
 }
 
-.workbench_preview_area_part--dragging::after {
+.workbench_center_area_shell--dragging::after {
   content: "";
   position: absolute;
   z-index: 20;
@@ -28,11 +28,11 @@
   pointer-events: none;
 }
 
-.workbench_preview_area_part[aria-busy="true"] {
+.workbench_center_area_shell[aria-busy="true"] {
   cursor: progress;
 }
 
-.workbench_preview_area_header {
+.workbench_center_area_header {
   box-sizing: border-box;
   display: flex;
   height: 44px;
@@ -44,7 +44,7 @@
   padding: 0 10px;
 }
 
-.workbench_preview_area_header_main {
+.workbench_center_area_header_main {
   display: flex;
   min-width: 0px;
   flex: 1 1 0%;
@@ -52,27 +52,27 @@
   gap: 0.5rem;
 }
 
-.workbench_preview_area_header_actions {
+.workbench_center_area_header_actions {
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
-.workbench_preview_area_header--actions-only .workbench_preview_area_header_actions {
+.workbench_center_area_header--actions-only .workbench_center_area_header_actions {
   width: 100%;
 }
 
-.workbench_preview_area_header_btn,
-.workbench_preview_area_header_icon_btn {
+.workbench_center_area_header_btn,
+.workbench_center_area_header_icon_btn {
   flex-shrink: 0;
 }
 
-.workbench_preview_area_header_icon_btn--active {
+.workbench_center_area_header_icon_btn--active {
   background-color: rgb(var(--bg-200) / 0.7);
   color: rgb(var(--text-primary) / 1);
 }
 
-.workbench_preview_area_title {
+.workbench_center_area_title {
   margin: 0;
   font-size: 0.875rem;
   line-height: 1.25rem;
@@ -81,7 +81,7 @@
   color: rgb(var(--text-primary) / var(--tw-text-opacity, 1));
 }
 
-.workbench_preview_area_description {
+.workbench_center_area_description {
   margin: 0;
   font-size: 0.75rem;
   line-height: 1rem;
@@ -89,7 +89,7 @@
   color: rgb(var(--text-secondary) / var(--tw-text-opacity, 1));
 }
 
-.workbench_preview_area_action {
+.workbench_center_area_action {
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
@@ -111,11 +111,11 @@
   background: transparent;
 }
 
-.workbench_preview_area_action_icon {
+.workbench_center_area_action_icon {
   flex-shrink: 0;
 }
 
-.workbench_preview_area_action_label {
+.workbench_center_area_action_label {
   min-width: 0px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -123,24 +123,24 @@
   text-align: left;
 }
 
-.workbench_preview_area_action:hover {
+.workbench_center_area_action:hover {
   background-color: rgb(var(--bg-200) / 0.5);
   --tw-text-opacity: 1;
   color: rgb(var(--text-primary) / var(--tw-text-opacity, 1));
 }
 
-.workbench_preview_area_action--active {
+.workbench_center_area_action--active {
   background-color: rgb(var(--bg-200) / 0.6);
   --tw-text-opacity: 1;
   color: rgb(var(--text-primary) / var(--tw-text-opacity, 1));
 }
 
-.workbench_preview_area_action--danger:hover {
+.workbench_center_area_action--danger:hover {
   --tw-text-opacity: 1;
   color: rgb(var(--text-danger) / var(--tw-text-opacity, 1));
 }
 
-.workbench_preview_area_badge {
+.workbench_center_area_badge {
   display: inline-flex;
   min-width: 1.5rem;
   align-items: center;
@@ -156,27 +156,27 @@
   color: rgb(var(--text-secondary));
 }
 
-.workbench_preview_area_badge[data-tone="accent"] {
+.workbench_center_area_badge[data-tone="accent"] {
   background: rgb(var(--accent) / 0.16);
   color: rgb(var(--accent));
 }
 
-.workbench_preview_area_badge[data-tone="success"] {
+.workbench_center_area_badge[data-tone="success"] {
   background: rgb(var(--status-approved-rgb) / 0.16);
   color: rgb(var(--status-approved-rgb));
 }
 
-.workbench_preview_area_badge[data-tone="warning"] {
+.workbench_center_area_badge[data-tone="warning"] {
   background: rgb(var(--status-pending-rgb) / 0.16);
   color: rgb(var(--status-pending-rgb));
 }
 
-.workbench_preview_area_badge[data-tone="danger"] {
+.workbench_center_area_badge[data-tone="danger"] {
   background: rgb(var(--status-rejected-rgb) / 0.16);
   color: rgb(var(--status-rejected-rgb));
 }
 
-.workbench_preview_area_content {
+.workbench_center_area_content {
   display: flex;
   min-height: 0px;
   min-width: 0px;

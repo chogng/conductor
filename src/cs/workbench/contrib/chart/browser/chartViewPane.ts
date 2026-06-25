@@ -10,8 +10,8 @@ import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { ICommandService } from "src/cs/platform/commands/common/commands";
 import { localize } from "src/cs/nls";
 import { logPerf } from "src/cs/workbench/common/perf";
+import { createCenterAreaShell } from "src/cs/workbench/browser/parts/centerArea/centerArea";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
-import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
 import { ChartViewId } from "src/cs/workbench/services/chart/common/chart";
 import { createPlotTabs, getPlotPanelId, getPlotTabId } from "src/cs/workbench/contrib/chart/browser/chartPlotTabs";
 import {
@@ -64,7 +64,7 @@ import "src/cs/workbench/contrib/chart/browser/media/chart.css";
 const INSPECTOR_PREFETCH_STABLE_DELAY_MS = 320;
 
 export class ChartViewPane extends ViewPane {
-  private readonly previewPart: HTMLElement;
+  private readonly centerArea: HTMLElement;
   private readonly headerTabs = document.createElement("div");
   private readonly headerActions = document.createElement("div");
   private readonly headerActionBar: ActionBar;
@@ -141,7 +141,7 @@ export class ChartViewPane extends ViewPane {
     this.headerActions.append(this.headerActionBar.domNode);
     this.content.className = "chart_view_pane_content";
     this.content.append(this.chartPanel.element);
-    this.previewPart = createPreviewPart({
+    this.centerArea = createCenterAreaShell({
       id: ChartViewId,
       ariaLabel: localize("chart.title", "Chart"),
       actionbarContent: this.headerActions,
@@ -204,7 +204,7 @@ export class ChartViewPane extends ViewPane {
     this.paneStore.add(this.chartTitleEditService.registerHandler({
       editAxisTitle: request => this.editAxisTitleRequest(request),
     }));
-    this.body.append(this.previewPart);
+    this.body.append(this.centerArea);
     this.update(this.chartService.getViewInput() ?? this.props);
   }
 
@@ -222,7 +222,7 @@ export class ChartViewPane extends ViewPane {
     this.cancelPendingInspectorPrefetch();
     this.disposeLegendPopover();
     this.content.replaceChildren();
-    this.previewPart.remove();
+    this.centerArea.remove();
     super.dispose();
   }
 
@@ -234,7 +234,7 @@ export class ChartViewPane extends ViewPane {
     this.headerStore.clear();
     const activeFile = resolveActiveChartFileOption(props);
     const isEmpty = props.hasChartData !== true;
-    this.previewPart.dataset.headerVisible = isEmpty ? "false" : "true";
+    this.centerArea.dataset.headerVisible = isEmpty ? "false" : "true";
     this.headerTabs.replaceChildren();
     this.removeHeaderUnitControls();
     this.removeHeaderFileSelect();
@@ -600,7 +600,7 @@ export class ChartViewPane extends ViewPane {
     this.legendPopover?.remove();
     this.legendPopover = legend;
     this.legendContext = context;
-    this.previewPart.append(legend);
+    this.centerArea.append(legend);
   }
 
   private editLegendItem(context: LegendContext, legendKey: string, currentLabel: string): void {

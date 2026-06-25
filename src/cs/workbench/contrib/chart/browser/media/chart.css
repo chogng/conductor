@@ -20,7 +20,7 @@
   overflow: hidden;
 }
 
-.chart_view_pane[data-header-visible="false"] > .workbench_preview_area_header {
+.chart_view_pane[data-header-visible="false"] > .workbench_center_area_header {
   display: none;
 }
 
