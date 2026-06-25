@@ -22,7 +22,6 @@ import {
   type ITableModel,
   type TableModelPreviewInput,
 } from "src/cs/workbench/services/table/common/tableModel";
-import { TableFileEditorModelContentResolver } from "src/cs/workbench/services/tablefile/common/tableFileEditorModelContentResolver";
 
 export class TableFileEditorModelManager extends Disposable {
   private readonly onDidChangeModelEmitter =
@@ -32,15 +31,11 @@ export class TableFileEditorModelManager extends Disposable {
 
   private readonly fileEditorModels = new Map<string, TableFileEditorModel>();
   private readonly pendingResolves = new Map<string, Promise<void>>();
-  private readonly contentResolver: TableFileEditorModelContentResolver;
 
   public constructor(
     @IFileService private readonly fileService: IFileService,
   ) {
     super();
-    this.contentResolver = new TableFileEditorModelContentResolver(
-      this.fileService,
-    );
     this._register(this.fileService.onDidFilesChange(changes => {
       this.onDidFilesChange(changes);
     }));
@@ -134,7 +129,6 @@ export class TableFileEditorModelManager extends Disposable {
         resource,
         toTableSourceKey(source ?? { resource }),
         this.fileService,
-        this.contentResolver,
       ));
       const createdModel = model;
       this._register(createdModel.onDidChangeState(() => {

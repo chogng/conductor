@@ -15,7 +15,7 @@ import {
 } from "src/cs/workbench/services/files/common/files";
 import type {
   ITableFileService,
-} from "src/cs/workbench/services/tablefile/common/tableFile";
+} from "src/cs/workbench/services/tablefile/common/tablefile";
 import {
   markTemplateApplyPerformanceTrace,
 } from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";

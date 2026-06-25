@@ -126,11 +126,11 @@ projections arrive.
 | `services/files/electron-browser/fileConversionService.ts` | Desktop conversion service branch behind files service contract. |
 | `services/table/common/tableFileFormat.ts` | Table import format policy and resource/name support checks consumed by source collection. |
 | `services/table/common/tableModelContentParser.ts` | Table-owned CSV/TSV/XLSX parser for URI-backed `ITableModel` content/sheet snapshots. |
-| `services/tablefile/common/tableFile.ts` | Legacy imported data-file/raw-table bridge contract. |
+| `services/tablefile/common/tablefile.ts` | Legacy imported data-file/raw-table bridge contract. |
 | `services/tablefile/browser/tableFileService.ts` | TableFile bridge API backed by Session during migration. |
+| `services/tablefile/common/encoding.ts` | Table file read encoding and base64/utf8 byte helpers for URI-backed opens. |
 | `services/tablefile/common/tableFileEditorModel.ts` | URI-backed table file working-copy and associated ITableModel lifecycle. |
 | `services/tablefile/common/tableFileEditorModelManager.ts` | File-backed table working-copy cache/reuse/reload/remove owner. |
-| `services/tablefile/common/tableFileEditorModelContentResolver.ts` | Conductor-specific file content adapter for URI-backed table model opens; reads bytes/text and delegates parsing to table, not the legacy import/conversion chain. |
 | `platform/files/common/files.ts` / `fileService.ts` | Filesystem service contract and provider dispatch. |
 
 `FileSourceWorkflow` is a private Explorer view helper, not a service boundary.

@@ -12,7 +12,7 @@ import {
 	type CommitTableFileImportResult,
 	type ITableFileService as ITableFileServiceType,
 	type TableFileSnapshot,
-} from "src/cs/workbench/services/tablefile/common/tableFile";
+} from "src/cs/workbench/services/tablefile/common/tablefile";
 import type { FileImportResult } from "src/cs/workbench/services/files/common/files";
 import { tableFileFormatService } from "src/cs/workbench/services/table/common/tableFileFormat";
 import type { FileId } from "src/cs/workbench/services/session/common/sessionModel";

@@ -39,7 +39,7 @@ import {
   ITableFileService,
   type ITableFileService as ITableFileServiceType,
   type TableFileSnapshot,
-} from "src/cs/workbench/services/tablefile/common/tableFile";
+} from "src/cs/workbench/services/tablefile/common/tablefile";
 import {
   ISessionService,
   type ISessionService as ISessionServiceType,

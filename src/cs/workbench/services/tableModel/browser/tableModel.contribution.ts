@@ -20,7 +20,7 @@ import type { SessionChangeEvent } from "src/cs/workbench/services/session/commo
 import {
 	ITableFileService,
 	type ITableFileService as ITableFileServiceType,
-} from "src/cs/workbench/services/tablefile/common/tableFile";
+} from "src/cs/workbench/services/tablefile/common/tablefile";
 
 export class TableModelContribution extends Disposable implements IWorkbenchContribution {
 	private disposed = false;

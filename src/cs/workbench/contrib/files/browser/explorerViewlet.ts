@@ -66,7 +66,7 @@ import {
   markTemplateApplyPerformanceTrace,
 } from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
 import { createTemplateEditorRecordFromUserTemplate } from "src/cs/workbench/contrib/template/browser/templateUserTemplateAdapter";
-import { ITableFileService } from "src/cs/workbench/services/tablefile/common/tableFile";
+import { ITableFileService } from "src/cs/workbench/services/tablefile/common/tablefile";
 import {
   IThumbnailPreviewService,
   IThumbnailService,

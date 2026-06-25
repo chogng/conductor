@@ -75,11 +75,11 @@ through `ISessionService` while Session remains the canonical migration ledger.
 
 | File | Responsibility |
 | --- | --- |
-| `common/tableFile.ts` | service contract and snapshot/change aliases for legacy imported table files. |
+| `common/tablefile.ts` | service contract and snapshot/change aliases for legacy imported table files. |
 | `browser/tableFileService.ts` | imported table-file bridge backed by `ISessionService` during migration. |
-| `common/tableFileEditorModel.ts` | URI-backed file working-copy and associated `ITableModel` lifecycle. |
+| `common/encoding.ts` | table file read encoding, base64/utf8 byte decoding, and mime helpers. |
+| `common/tableFileEditorModel.ts` | URI-backed file working-copy, file-backed read/preview/sourceVersion flow, and associated `ITableModel` lifecycle. |
 | `common/tableFileEditorModelManager.ts` | file-backed table working-copy cache/reuse/reload/remove owner. |
-| `common/tableFileEditorModelContentResolver.ts` | Conductor-specific runtime content resolver that reads URI resource bytes/text, builds `File`/preview/sourceVersion metadata, and delegates CSV/TSV/XLSX parsing to `services/table/common/tableModelContentParser.ts`; it must not route URI-backed opens through the legacy import/conversion chain. |
 
 ## Rules
 

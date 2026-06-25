@@ -49,11 +49,11 @@ or equality rules in service/view files.
 | `services/table/common/resolverService.ts` | URI -> `ITableModel` reference service contract, following upstream resolver service shape. |
 | `services/table/common/tableFileFormat.ts` | table import format policy and resource/name support checks. |
 | `services/table/common/tableModelContentParser.ts` | CSV/TSV/XLSX text/bytes -> `ITableModel` content and sheet snapshots. |
-| `services/tablefile/common/tableFileEditorModel.ts` | URI-backed `TableFileEditorModel` and associated local `TableModel` implementation: file working-copy lifecycle, sourceVersion, parsed content snapshot state, sheet snapshot state, and model change events without DOM/browser content reading. |
+| `services/tablefile/common/encoding.ts` | table file read encoding, base64/utf8 byte decoding, and mime helpers. |
+| `services/tablefile/common/tableFileEditorModel.ts` | URI-backed `TableFileEditorModel` and associated local `TableModel` implementation: file working-copy lifecycle, file-backed read/preview/sourceVersion flow, parsed content snapshot state, sheet snapshot state, and model change events. |
 | `common/tableColumnLayout.ts` | width policy and storage serialization. |
 | `common/tableDisplayProfile.ts` / `numericFormat.ts` | display profile and numeric formatting helpers. |
 | `browser/tableModelResolverService.ts` | `ITableModelService` implementation: URI -> `ITableModel` reference, support check, reference/cache entry, content-provider/file-backed dispatch, and reference-counted cache release. |
-| `services/tablefile/common/tableFileEditorModelContentResolver.ts` | Conductor-specific runtime content resolver for file-backed table models: read resource bytes into `File`, call the table content parser, and build transient preview input carrying `resource`/sheet metadata rather than fake raw `fileId`/`sourceKey`. |
 | `services/tablefile/common/tableFileEditorModelManager.ts` | file-backed table model manager: cache/reuse, reload/remove, pending resolve de-duplication, and model change events. |
 | `browser/tableService.ts` | table service owner, view input, copy text, column width persistence. |
 | `browser/tableViewModel.ts` | per-table preview view model: source switching, row cache, selection/highlight/reveal, worker/reader lifecycle. |
@@ -78,8 +78,7 @@ TableFile/Session/settings/command/search bridge
   -> resource sources resolve through ITableModelService / tableModelResolverService by URI
   -> tableModelResolverService resolves provider-backed virtual resources or delegates file-backed resources to tableFileEditorModelManager
   -> tableFileEditorModelManager resolves/reloads cached TableFileEditorModel instances
-  -> TableFileEditorModel owns file watch/stat, dirty/save/revert, orphan/conflict state, sourceVersion, and asks the content resolver to load file content
-  -> tableFileEditorModelContentResolver reads resource bytes/text and delegates CSV/TSV/XLSX parsing to tableModelContentParser
+  -> TableFileEditorModel owns file watch/stat, dirty/save/revert, orphan/conflict state, sourceVersion, reads resource bytes/text through tablefile encoding helpers, and delegates CSV/TSV/XLSX parsing to tableModelContentParser
   -> ITableModel snapshot owns parsed CSV/TSV/XLSX content and sheet content
   -> tableViewModel reads resource-backed ITableModel content without converting the source identity into a raw fileId; raw/session sources still use reader/worker
   -> TableController consumes view input
