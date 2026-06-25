@@ -29,9 +29,9 @@ at the type name.
 | Record | Owner | Producer | Invalidation / notes |
 | --- | --- | --- | --- |
 | `SessionModel` | `ISessionService` | session commits | Canonical root: `schemaVersion`, `sessionVersion`, `filesById`, `fileOrder`. |
-| `FileRecord` | `ITableFileService` + Session ledger | import, table-model, review, slice, calculation, metric commits | Owns one imported file/workbook lifecycle; TableFile is the public owner surface for imported data files. |
-| `RawRecord` | `ITableFileService` + Session ledger | file conversion commit | Raw file facts and `rawTablesById`; no table-model/template/plot semantics. |
-| `RawTableRecord` | `ITableFileService` + Session ledger | `fileConverter.ts` through TableFile commit | Physical rows/source/health/template eligibility. Use `rawTableId`; keep failed rows unavailable. |
+| `FileRecord` | `ISessionService` | import, table-model, review, slice, calculation, metric commits | Owns one imported file/workbook lifecycle in the explicit conversion ledger. |
+| `RawRecord` | `ISessionService` | file conversion commit | Raw file facts and `rawTablesById`; no table-model/template/plot semantics. |
+| `RawTableRecord` | `ISessionService` | `fileConverter.ts` through Session import commit | Physical rows/source/health/template eligibility. Use `rawTableId`; keep failed rows unavailable. |
 | `RawTableSourceRecord` | converter/session | CSV, Excel sheet, clipboard, manual, unknown | Source provenance only, not measurement semantics. |
 | `RawTableRowsRecord` | converter/session | inline, normalized CSV, unavailable | Large rows should use artifact/path references. |
 | `TableModelRecord` | TableModel + Session ledger | table-model producer (`ITableModelProducerService`) | Tied to raw table version, table-model rule version, and schema profile version; stores structure, column profiles, semantic candidates, groups, blocks, and diagnostics. |
@@ -65,8 +65,8 @@ provenance, and template inputs.
 | Type | Owner | Notes |
 | --- | --- | --- |
 | `FileImportInput` | files source workflow | Sources plus conversion options. Do not turn options into Explorer UI state. |
-| `FileConversionResult` | `fileConverter.ts` output; TableFile commits | Contains converted files and diagnostics. Not the entire Explorer add-data workflow result. |
-| `ImportedFileRecord` | converter output; TableFile commits | `id`, `name`, `kind`, `raw`. One Excel workbook should produce one imported file with one raw table per sheet. |
+| `FileConversionResult` | `fileConverter.ts` output; Session import commits | Contains converted files and diagnostics. Not the entire Explorer add-data workflow result. |
+| `ImportedFileRecord` | converter output; Session import commits | `id`, `name`, `kind`, `raw`. One Excel workbook should produce one imported file with one raw table per sheet. |
 | `FileImportDiagnostic` | converter/files workflow | Import warnings/errors only; not IV/CV table-model classification. |
 
 Conversion records must not encode measurement blocks, curve types, plot

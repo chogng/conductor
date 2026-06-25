@@ -14,6 +14,7 @@ import {
 	type IFileChange,
 	type IFileService,
 } from "src/cs/platform/files/common/files";
+import { TableFileService } from "src/cs/workbench/services/tablefile/browser/tableFileService";
 import { TableFileEditorModelManager } from "src/cs/workbench/services/tablefile/common/tableFileEditorModelManager";
 import { TableModelResolverService } from "src/cs/workbench/services/tablemodeResolver/common/tableModelResolverService";
 import {
@@ -27,6 +28,8 @@ import type { ITableModelContentProvider } from "src/cs/workbench/services/table
 
 suite("workbench/services/table/test/browser/tableModel", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const createResolverService = (fileService: IFileService = createFileServiceStub()) =>
+		store.add(new TableModelResolverService(store.add(new TableFileService(fileService))));
 
 	test("exposes core content, version, range, and selection helpers", async () => {
 		const resource = URI.file("/workspace/data/core.csv");
@@ -203,7 +206,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 	test("creates a URI-backed model reference from the file service", async () => {
 		const resource = URI.file("/workspace/data/transfer.csv");
 		let readEncoding: unknown = null;
-		const service = store.add(new TableModelResolverService(createFileServiceStub({
+		const service = createResolverService(createFileServiceStub({
 			readFile: async (_resource, options) => {
 				readEncoding = options?.encoding;
 				return { encoding: "utf8", value: "Vg,Id\n0,1" };
@@ -215,7 +218,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 				size: 10,
 				type: FileType.File,
 			}),
-		})));
+		}));
 
 		const reference = await service.createModelReference(resource);
 		store.add(reference);
@@ -271,12 +274,12 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 	test("reuses the cached model for repeated references", async () => {
 		let readCount = 0;
 		const resource = URI.file("/workspace/data/reuse.tsv");
-		const service = store.add(new TableModelResolverService(createFileServiceStub({
+		const service = createResolverService(createFileServiceStub({
 			readFile: async () => {
 				readCount += 1;
 				return { encoding: "utf8", value: "A\tB\n1\t2" };
 			},
-		})));
+		}));
 
 		const first = await service.createModelReference(resource);
 		const second = await service.createModelReference(resource);
@@ -299,12 +302,12 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 	test("releases file-backed model cache after the last reference is disposed", async () => {
 		let readCount = 0;
 		const resource = URI.file("/workspace/data/release.csv");
-		const service = store.add(new TableModelResolverService(createFileServiceStub({
+		const service = createResolverService(createFileServiceStub({
 			readFile: async () => {
 				readCount += 1;
 				return { encoding: "utf8", value: "A,B\n1,2" };
 			},
-		})));
+		}));
 
 		const reference = await service.createModelReference(resource);
 		assert.equal(service.get(resource), reference.object);
@@ -330,9 +333,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 			path: "/generated/report",
 			scheme: "table-memory",
 		});
-		const service = store.add(new TableModelResolverService(
-			createFileServiceStub(),
-		));
+		const service = createResolverService();
 		const registration = service.registerContentProvider({
 			canHandleResource: candidate => candidate.scheme === "table-memory",
 			dispose: () => {
@@ -624,17 +625,13 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 	});
 
 	test("keeps unsupported resources out of the table model support set", () => {
-		const service = store.add(new TableModelResolverService(
-			createFileServiceStub(),
-		));
+		const service = createResolverService();
 
 		assert.equal(service.canHandleResource(URI.file("/workspace/readme.md")), false);
 	});
 
 	test("rejects unsupported resources at the resolver boundary", async () => {
-		const service = store.add(new TableModelResolverService(
-			createFileServiceStub(),
-		));
+		const service = createResolverService();
 
 		await assert.rejects(
 			() => service.createModelReference(URI.file("/workspace/readme.md")),
@@ -652,7 +649,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 			name: "Reverse",
 			rows: [["Vd", "Id"], ["1", "2"]],
 		}]);
-		const service = store.add(new TableModelResolverService(createFileServiceStub({
+		const service = createResolverService(createFileServiceStub({
 			readFile: async (_resource, options) => {
 				readEncoding = options?.encoding;
 				return { encoding: "base64", value: workbookBase64 };
@@ -664,7 +661,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 				size: 10,
 				type: FileType.File,
 			}),
-		})));
+		}));
 
 		const reference = await service.createModelReference(resource);
 		store.add(reference);

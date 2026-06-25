@@ -13,7 +13,7 @@ TableModel is the derived model layer for raw tables consumed by Template materi
 It is not Review, not Recipe, and not Slice. TableModel 负责“把表格源数据变成 Template 能理解的结构语义”
 
 ```txt
-ITableFileService RawTableRecord + SchemaProfile snapshot
+ISessionService RawTableRecord + SchemaProfile snapshot
   -> ITableModelProducerService
   -> ITableModelProducerService.getOrCreate(...)
   -> TableModel.create(...)
@@ -61,7 +61,7 @@ TableModel must not produce `TemplateDraft`, `ReviewedTemplate`,
 | `browser/tableModelEngine.ts` | browser TableModel production workflow. |
 | `browser/tableModelService.ts` | injectable `ITableModelProducerService` implementation. |
 | `browser/tableModelQueueService.ts` | injectable queue for scheduling table-model production and committing derived records through the Session ledger. |
-| `browser/tableModel.contribution.ts` | table-file lifecycle subscriber that enqueues raw tables. |
+| `browser/tableModel.contribution.ts` | Session raw-table lifecycle subscriber that enqueues raw tables. |
 | `contrib/tableModel/browser/tableModelCommands.ts` | TableModel command/action registration and handlers; delegates to owner services. |
 | `contrib/tableModel/browser/tableModel.contribution.ts` | workbench contribution wiring for TableModel commands. |
 
@@ -72,7 +72,7 @@ TableModel must not produce `TemplateDraft`, `ReviewedTemplate`,
 - `blocks`, `columnProfiles`, `layoutCandidates`, `semanticCandidates`, and
   `structure` are fields on `TableModelRecord`; do not present them as a
   separate facts/evidence service.
-- TableModel reads raw tables from `ITableFileService` snapshots and commits
+- TableModel reads raw tables from `ISessionService` snapshots and commits
   `TableModelRecord` values through `ISessionService` while Session remains
   the migration ledger.
 - Recipe is fixed selector/projection data; Template materializers interpret it

@@ -18,7 +18,7 @@ import {
   INotificationService,
   Severity,
 } from "src/cs/workbench/services/notification/common/notificationService";
-import { ITableFileService } from "src/cs/workbench/services/tablefile/common/tablefile";
+import { ISessionService } from "src/cs/workbench/services/session/common/session";
 import { ITableDropTargetService } from "src/cs/workbench/services/table/browser/tableDropTargetService";
 
 type TablePreviewDropTargetRegistration = {
@@ -30,7 +30,7 @@ type DropImportServices = {
   readonly explorerService: IExplorerService;
   readonly fileConverterBackendService: IFileConverterBackendService;
   readonly notificationService: INotificationService;
-  readonly tableFileService: ITableFileService;
+  readonly sessionService: ISessionService;
 };
 
 const TABLE_PREVIEW_DRAGGING_CLASS_NAME = "workbench_preview_area_part--dragging";
@@ -125,7 +125,7 @@ export class DropIntoTablePreviewController extends Disposable implements IWorkb
         explorerService: accessor.get(IExplorerService),
         fileConverterBackendService: accessor.get(IFileConverterBackendService),
         notificationService: accessor.get(INotificationService),
-        tableFileService: accessor.get(ITableFileService),
+        sessionService: accessor.get(ISessionService),
       },
     ));
   }
@@ -152,7 +152,7 @@ export class DropIntoTablePreviewController extends Disposable implements IWorkb
       explorerService: services.explorerService,
       importedFiles: preparedFiles.map(prepared => prepared.fileInfo),
       mode: "append",
-      tableFileService: services.tableFileService,
+      sessionService: services.sessionService,
     });
     this.showImportError(errorMessage, services.notificationService);
   }

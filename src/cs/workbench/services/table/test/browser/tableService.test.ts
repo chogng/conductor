@@ -18,6 +18,7 @@ import type {
 import {
   TableService,
 } from "src/cs/workbench/services/table/browser/tableService";
+import { TableFileService } from "src/cs/workbench/services/tablefile/browser/tableFileService";
 import { TableModelResolverService } from "src/cs/workbench/services/tablemodeResolver/common/tableModelResolverService";
 import {
   areTableSelectionsEqual,
@@ -1020,9 +1021,11 @@ const createTableServiceFixture = ({
 } = {}): TableServiceFixture => {
   tableTestStore?.add(storageService);
   const sessionService = new TestSessionService(rawFiles);
+  const tableFileService = tableTestStore?.add(new TableFileService(fileService))
+    ?? new TableFileService(fileService);
   const tableModelService = tableTestStore?.add(new TableModelResolverService(
-    fileService,
-  )) ?? new TableModelResolverService(fileService);
+    tableFileService,
+  )) ?? new TableModelResolverService(tableFileService);
   const service = new TableService(
     tableRowsReaderService as never,
     sessionService as never,

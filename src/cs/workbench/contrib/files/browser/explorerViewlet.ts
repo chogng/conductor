@@ -66,7 +66,7 @@ import {
   markTemplateApplyPerformanceTrace,
 } from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
 import { createTemplateEditorRecordFromUserTemplate } from "src/cs/workbench/contrib/template/browser/templateUserTemplateAdapter";
-import { ITableFileService } from "src/cs/workbench/services/tablefile/common/tablefile";
+import { ISessionService } from "src/cs/workbench/services/session/common/session";
 import {
   IThumbnailPreviewService,
   IThumbnailService,
@@ -116,7 +116,7 @@ export class ExplorerViewPane extends ViewPane {
     @IAppearanceService private readonly appearanceService: IAppearanceService,
     @IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
     @INotificationService private readonly notificationService: INotificationService,
-    @ITableFileService private readonly tableFileService: ITableFileService,
+    @ISessionService private readonly sessionService: ISessionService,
     @IThumbnailPreviewService private readonly thumbnailPreviewService: IThumbnailPreviewService,
     @IThumbnailService private readonly thumbnailService: IThumbnailService,
     @IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
@@ -413,7 +413,7 @@ export class ExplorerViewPane extends ViewPane {
       return;
     }
 
-    this.tableFileService.renameFile(normalizedFileId, normalizedName);
+    this.sessionService.renameFile(normalizedFileId, normalizedName);
   };
 
   private syncView(): void {
@@ -589,7 +589,7 @@ export class ExplorerViewPane extends ViewPane {
   private showMoreActions(anchor: HTMLElement): void {
     const canCloseFolder =
       this.files.length > 0 ||
-      getTableFileIds(this.tableFileService).length > 0;
+      getTableFileIds(this.sessionService).length > 0;
     const isChartMode = this.paneInput.mode === "chart";
     const isThumbnailView = isChartMode && this.viewLayout === "thumbnail";
     this.contextMenuService.showContextMenu({
@@ -757,14 +757,14 @@ export class ExplorerViewPane extends ViewPane {
 
     const fileIds = uniqueFileIds([
       ...this.fileIds,
-      ...getTableFileIds(this.tableFileService),
+      ...getTableFileIds(this.sessionService),
     ]);
     if (!this.isControlled) {
       this.internalFiles = [];
     }
 
     if (fileIds.length > 0) {
-      this.tableFileService.removeFiles(fileIds);
+      this.sessionService.removeFiles(fileIds);
     }
     this.clearExplorerSelections();
     this.syncView();
@@ -855,7 +855,7 @@ export class ExplorerViewPane extends ViewPane {
       const removedFileIds = new Set(normalizedFileIds);
       this.internalFiles = this.internalFiles.filter((entry) => !removedFileIds.has(entry.fileId ?? ""));
     }
-    this.tableFileService.removeFiles(normalizedFileIds);
+    this.sessionService.removeFiles(normalizedFileIds);
     if (this.paneInput.selectionKind !== "table") {
       this.selectRawFileAfterRemoval(normalizedFileIds);
     }
@@ -876,7 +876,7 @@ export class ExplorerViewPane extends ViewPane {
       importedFiles,
       mode: "replace",
       selectedFileId,
-      tableFileService: this.tableFileService,
+      sessionService: this.sessionService,
     });
     this.removePendingSourceFiles(getImportSourceKeys(importedFiles));
     if (!importResult.importedFileIds.length) {
@@ -905,7 +905,7 @@ export class ExplorerViewPane extends ViewPane {
       explorerService: this.explorerService,
       importedFiles,
       mode: "append",
-      tableFileService: this.tableFileService,
+      sessionService: this.sessionService,
     });
     this.removePendingSourceFiles(getImportSourceKeys(importedFiles));
     if (!importResult.importedFileIds.length) {
@@ -972,7 +972,7 @@ export class ExplorerViewPane extends ViewPane {
     }
 
     const removedFileIdSet = new Set(removedFileIds);
-    const remainingFileIds = getTableFileIds(this.tableFileService)
+    const remainingFileIds = getTableFileIds(this.sessionService)
       .filter(fileId => !removedFileIdSet.has(fileId));
     const nextSelectedFileId = resolveExplorerSelectionAfterRemoval({
       currentFileId: this.explorerService.selectedRawFileId,
@@ -1128,9 +1128,9 @@ function getNormalizedFileIds(values: readonly string[]): readonly string[] {
 }
 
 function getTableFileIds(
-  tableFileService: Pick<ITableFileService, "getSnapshot">,
+  sessionService: Pick<ISessionService, "getSnapshot">,
 ): readonly string[] {
-  const snapshot = tableFileService.getSnapshot();
+  const snapshot = sessionService.getSnapshot();
   return uniqueFileIds([
     ...snapshot.fileOrder,
     ...Object.keys(snapshot.filesById),

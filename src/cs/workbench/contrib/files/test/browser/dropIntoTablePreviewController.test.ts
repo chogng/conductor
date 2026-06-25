@@ -15,7 +15,7 @@ import {
   INotificationService,
   NotificationService,
 } from "src/cs/workbench/services/notification/common/notificationService";
-import { ITableFileService } from "src/cs/workbench/services/tablefile/common/tablefile";
+import { ISessionService, type ISessionService as ISessionServiceType } from "src/cs/workbench/services/session/common/session";
 import type { ITableDropTargetService } from "src/cs/workbench/services/table/browser/tableDropTargetService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -85,7 +85,7 @@ function createController(
   store: Pick<DisposableStore, "add">,
 ): DropIntoTablePreviewController {
   const instantiationService = store.add(new InstantiationService(new ServiceCollection(
-    [ITableFileService, createTableFileService()],
+    [ISessionService, createSessionService()],
     [IExplorerService, createExplorerService()],
     [IFileConverterBackendService, createFileConverterBackendService()],
     [INotificationService, store.add(new NotificationService())],
@@ -155,15 +155,25 @@ function createTestElement(): HTMLElement {
   return new TestElement() as unknown as HTMLElement;
 }
 
-function createTableFileService(): ITableFileService {
+function createSessionService(): ISessionServiceType {
   return {
     _serviceBrand: undefined,
-    onDidChangeTableFiles: BaseEvent.None as ITableFileService["onDidChangeTableFiles"],
-    clearTableFiles: () => undefined,
-    commitImport: () => ({
+    onDidChangeSession: BaseEvent.None as ISessionServiceType["onDidChangeSession"],
+    clearMetricInput: () => undefined,
+    clearSession: () => undefined,
+    commitCalculatedRecordsBatch: () => undefined,
+    commitCurves: () => undefined,
+    commitCurvesBatch: () => undefined,
+    commitFileImport: () => ({
       importedFileIds: [],
       skippedDuplicateFileIds: [],
     }),
+    commitMetrics: () => undefined,
+    commitMetricsBatch: () => undefined,
+    commitRawTableReviews: () => undefined,
+    commitSliceRuns: () => undefined,
+    commitTableModel: () => undefined,
+    commitTableModelBatch: () => undefined,
     getSnapshot: () => ({
       fileOrder: [],
       filesById: {},
@@ -172,6 +182,7 @@ function createTableFileService(): ITableFileService {
     }),
     renameFile: () => false,
     removeFiles: () => undefined,
+    setMetricInput: () => undefined,
   };
 }
 

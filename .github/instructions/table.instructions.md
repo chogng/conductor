@@ -24,7 +24,7 @@ measurement structure.
 - paged raw rows cache, loading state, row request lifecycle, worker lifecycle;
 - block table preview model and invalidation when source changes.
 
-It consumes TableFile/Session snapshots, raw table row readers, table-model ranges,
+It consumes Session snapshots, raw table row readers, table-model ranges,
 settings for visual display preferences, and pure `TableSource` open intents.
 It does not own import, table-model production, template execution, plot/chart
 models, or canonical Session records.
@@ -49,7 +49,9 @@ or equality rules in service/view files.
 | `services/table/common/resolverService.ts` | URI -> `ITableModel` reference service contract, following upstream resolver service shape. |
 | `services/table/common/parsers.ts` | CSV/TSV/XLSX text/bytes -> physical table structure snapshots for `ITableModel` content and sheets. |
 | `services/tablemodeResolver/common/tableModelResolverService.ts` | `ITableModelService` implementation: URI -> `ITableModel` reference, support check, reference/cache entry, content-provider/file-backed dispatch, and reference-counted cache release. |
+| `services/tablefile/common/tablefiles.ts` | `ITableFileService` contract for the file-backed table working-copy branch. |
 | `services/tablefile/common/tableFileFormat.ts` | table file format policy and resource/name support checks; owns CSV/TSV/XLS/XLSX support, not URI scheme, read encoding, or languageId. |
+| `services/tablefile/browser/browserTableFileService.ts` | browser DI registration for the file-backed table working-copy service. |
 | `services/tablefile/browser/tableFileService.ts` | file-backed table resolve service: validates table file support, chooses read encoding, and delegates cached file editor models to the manager. |
 | `services/tablefile/common/encoding.ts` | table file read encoding, base64/utf8 byte decoding, and mime helpers. |
 | `services/tablefile/common/tableFileEditorModel.ts` | URI-backed `TableFileEditorModel`: file working-copy lifecycle, file-backed read/preview/sourceVersion flow, and updates to the associated `ITableModel`. |
@@ -91,7 +93,7 @@ explicitly changed.
 ## Flow
 
 ```txt
-TableFile/Session/settings/command/search bridge
+Session/settings/command/search bridge
   -> ITableService.open(source) / reveal / select
   -> resource sources resolve through ITableModelService / tablemodeResolver/common/tableModelResolverService by URI
   -> tableModelResolverService resolves provider-backed virtual resources or delegates file-backed resources to tablefile/browser/tableFileService

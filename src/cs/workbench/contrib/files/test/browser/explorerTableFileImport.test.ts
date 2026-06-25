@@ -13,7 +13,6 @@ import type {
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import type { ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
-import { BrowserTableFileService } from "src/cs/workbench/services/tablefile/browser/browserTableFileService";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -21,7 +20,6 @@ suite("workbench/contrib/files/test/browser/explorerTableFileImport", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
   test("replace commits imported records and selects the requested table file", () => {
     const session = store.add(new SessionService());
-    const tableFileService = new BrowserTableFileService(session);
     const explorerService = store.add(new ExplorerService());
 
     const result = commitExplorerTableFileImport({
@@ -32,7 +30,7 @@ suite("workbench/contrib/files/test/browser/explorerTableFileImport", () => {
       ],
       mode: "replace",
       selectedFileId: "file-b",
-      tableFileService,
+      sessionService: session,
     });
 
     assert.deepEqual(result.importedFileIds, ["file-a", "file-b"]);
@@ -44,21 +42,20 @@ suite("workbench/contrib/files/test/browser/explorerTableFileImport", () => {
 
   test("append selects first imported file only when no raw table file is active", () => {
     const session = store.add(new SessionService());
-    const tableFileService = new BrowserTableFileService(session);
     const explorerService = store.add(new ExplorerService());
 
     const first = commitExplorerTableFileImport({
       explorerService,
       importedFiles: [createPreparedFileImportInfo("file-a", "A.csv")],
       mode: "append",
-      tableFileService,
+      sessionService: session,
     });
 
     const second = commitExplorerTableFileImport({
       explorerService,
       importedFiles: [createPreparedFileImportInfo("file-b", "B.csv")],
       mode: "append",
-      tableFileService,
+      sessionService: session,
     });
 
     assert.equal(first.selectedFileId, "file-a");
@@ -67,9 +64,40 @@ suite("workbench/contrib/files/test/browser/explorerTableFileImport", () => {
     assert.equal(explorerService.selectedRawFileId, "file-a");
   });
 
+  test("rejects unsupported resources before committing to the session ledger", () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+
+    assert.throws(
+      () => commitExplorerTableFileImport({
+        explorerService,
+        importedFiles: [createPreparedFileImportInfo("file-a", "notes.txt")],
+        mode: "append",
+        sessionService: session,
+      }),
+      /Unsupported table file: notes\.txt/,
+    );
+    assert.deepEqual(session.getSnapshot().fileOrder, []);
+  });
+
+  test("allows display names when raw file name keeps the supported suffix", () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+
+    const result = commitExplorerTableFileImport({
+      explorerService,
+      importedFiles: [createPreparedFileImportInfo("file-a", "Transfer", {
+        rawFileName: "Transfer.csv",
+      })],
+      mode: "append",
+      sessionService: session,
+    });
+
+    assert.deepEqual(result.importedFileIds, ["file-a"]);
+  });
+
   test("append ignores files already imported from the same source", () => {
     const session = store.add(new SessionService());
-    const tableFileService = new BrowserTableFileService(session);
     const explorerService = store.add(new ExplorerService());
 
     const first = commitExplorerTableFileImport({
@@ -80,7 +108,7 @@ suite("workbench/contrib/files/test/browser/explorerTableFileImport", () => {
         }),
       ],
       mode: "append",
-      tableFileService,
+      sessionService: session,
     });
     const second = commitExplorerTableFileImport({
       explorerService,
@@ -90,7 +118,7 @@ suite("workbench/contrib/files/test/browser/explorerTableFileImport", () => {
         }),
       ],
       mode: "append",
-      tableFileService,
+      sessionService: session,
     });
 
     assert.deepEqual(first.importedFileIds, ["file-a"]);
@@ -103,13 +131,12 @@ suite("workbench/contrib/files/test/browser/explorerTableFileImport", () => {
 
   test("append selects the imported file when session has files but explorer has no active raw file", () => {
     const session = store.add(new SessionService());
-    const tableFileService = new BrowserTableFileService(session);
 
     commitExplorerTableFileImport({
       explorerService: store.add(new ExplorerService()),
       importedFiles: [createPreparedFileImportInfo("file-a", "A.csv")],
       mode: "append",
-      tableFileService,
+      sessionService: session,
     });
 
     const explorerService = store.add(new ExplorerService());
@@ -117,7 +144,7 @@ suite("workbench/contrib/files/test/browser/explorerTableFileImport", () => {
       explorerService,
       importedFiles: [createPreparedFileImportInfo("file-b", "B.csv")],
       mode: "append",
-      tableFileService,
+      sessionService: session,
     });
 
     assert.equal(result.selectedFileId, "file-b");
@@ -127,36 +154,34 @@ suite("workbench/contrib/files/test/browser/explorerTableFileImport", () => {
 
   test("replace clears previous session data before committing imported records", () => {
     const session = store.add(new SessionService());
-    const tableFileService = new BrowserTableFileService(session);
     const explorerService = store.add(new ExplorerService());
 
     commitExplorerTableFileImport({
       explorerService,
       importedFiles: [createPreparedFileImportInfo("file-a", "A.csv")],
       mode: "append",
-      tableFileService,
+      sessionService: session,
     });
     commitExplorerTableFileImport({
       explorerService,
       importedFiles: [createPreparedFileImportInfo("file-b", "B.csv")],
       mode: "replace",
-      tableFileService,
+      sessionService: session,
     });
 
     assert.deepEqual(session.getSnapshot().fileOrder, ["file-b"]);
     assert.equal(explorerService.selectedRawFileId, "file-b");
   });
 
-  test("commits imported row records through the table-file owner", () => {
+  test("commits imported row records through the session ledger", () => {
     const session = store.add(new SessionService());
-    const tableFileService = new BrowserTableFileService(session);
     const explorerService = store.add(new ExplorerService());
 
     commitExplorerTableFileImport({
       explorerService,
       importedFiles: [createPreparedFileImportInfo("file-a", "Transfer.csv")],
       mode: "append",
-      tableFileService,
+      sessionService: session,
     });
 
     assert.deepEqual(
@@ -170,7 +195,6 @@ suite("workbench/contrib/files/test/browser/explorerTableFileImport", () => {
 
   test("commits imported raw table without materializing TableModel", () => {
     const session = store.add(new SessionService());
-    const tableFileService = new BrowserTableFileService(session);
     const explorerService = store.add(new ExplorerService());
     const events: SessionChangeEvent[] = [];
     const disposable = session.onDidChangeSession(event => {
@@ -183,7 +207,7 @@ suite("workbench/contrib/files/test/browser/explorerTableFileImport", () => {
         createPreparedFileImportInfo("file-a", "Transfer.csv"),
       ],
       mode: "append",
-      tableFileService,
+      sessionService: session,
     });
 
     const file = session.getSnapshot().filesById["file-a"];
@@ -198,6 +222,7 @@ const createPreparedFileImportInfo = (
   fileId: string,
   fileName: string,
   options: {
+    readonly rawFileName?: string;
     readonly relativePath?: string | null;
     readonly sourceKey?: string;
   } = {},
@@ -218,6 +243,7 @@ const createImportedFileRecord = (
   fileId: string,
   fileName: string,
   options: {
+    readonly rawFileName?: string;
     readonly relativePath?: string | null;
     readonly sourceKey?: string;
   } = {},
@@ -227,7 +253,7 @@ const createImportedFileRecord = (
   name: fileName,
   raw: {
     fileId,
-    fileName,
+    fileName: options.rawFileName ?? fileName,
     lastModified: 1,
     relativePath: options.relativePath ?? null,
     ...(options.sourceKey ? { rawKey: options.sourceKey } : {}),

@@ -71,7 +71,7 @@ Subscriptions must be disposed through the owner lifecycle.
 
 | State kind | Owner | Examples |
 | --- | --- | --- |
-| Canonical model state | `ITableFileService`, `ISessionService` ledger, and domain commit APIs | imported table files, raw tables, table model, reviews, slice runs, curves, metrics |
+| Canonical model state | `ISessionService` ledger and domain commit APIs | imported table files, raw tables, table model, reviews, slice runs, curves, metrics |
 | Domain service state | The domain service | plot settings, chart view input, template catalog state, table source/selection snapshot |
 | View state | The view/widget/service that renders it | focus, local selection, template form draft, scroll, expansion, hover, layout mode |
 | Derived model | Producer service | plot render model, table display profile, search model, thumbnail preview |
@@ -130,8 +130,7 @@ Runtime folders:
 | `IFileService` | platform filesystem bytes/stat/watch/provider capability |
 | `IExplorerService` | Files Explorer UI state: resources, selection, expansion, layout, context |
 | `fileConverter.ts` / files service helpers | CSV/TSV/XLS/XLSX/clipboard/manual conversion into raw table records |
-| `ITableFileService` | imported data-file/raw-table owner and raw table identity/version lifecycle |
-| `ISessionService` | canonical analysis ledger backing table-file and downstream records |
+| `ISessionService` | canonical imported data-file/raw-table ledger and downstream analysis records |
 | TableModel producer (`ITableModelProducerService`) | derived raw-table structure/semantics producer during migration; table URI/editor-model naming follows `.github/instructions/迁移说明.md` |
 | `IRecipeService` | passive built-in rules; it does not evaluate tables or materialize Templates |
 | `ITemplateMaterializationService` / `services/template` | canonical Template spec and target owner for `TableModel + Recipe/UserTemplate -> Template` materialization |
@@ -179,10 +178,10 @@ High-level analysis flow:
 ```txt
 Explorer source workflow
   -> fileConverter.ts FileConversionResult
-  -> ITableFileService.commitImport
-  -> table-file / SessionChangeEvent
+  -> ISessionService.commitFileImport
+  -> SessionChangeEvent
   -> Template/Review/Slice/Table/Plot/Search/Export/Parameters subscribers
-  -> downstream services reread TableFileSnapshot/SessionSnapshot and own their state
+  -> downstream services reread SessionSnapshot and own their state
 ```
 
 Primary template flow:
@@ -199,8 +198,8 @@ TableModel
 
 Specific flow owners:
 
-- Import/source collection: Explorer/files workflow coordinates; converter returns results; TableFile commits imported data-file/raw-table state.
-- Session ledger: Session currently backs TableFile storage and downstream analysis records, including TableModel commits, during migration.
+- Import/source collection: Explorer/files workflow coordinates; converter returns results; Session commits imported data-file/raw-table state.
+- Session ledger: Session backs explicit imported raw-table storage and downstream analysis records, including TableModel commits, during migration.
 - Table model / Template materialization: TableModel is the derived raw-table
   input, and Template is the target owner for
   `Recipe/UserTemplate + TableModel -> Template`. Do not keep retired
@@ -217,11 +216,10 @@ Specific flow owners:
 
 ## Canonical Session
 
-`ITableFileService` is the owner surface for imported data-file and raw-table
-lifecycle. During migration, `SessionModel` is the canonical in-memory ledger
-backing TableFile plus downstream analysis facts. It stores imported files, raw
-tables, table model, reviews, slice runs, series, curves, metrics, metric
-inputs, and rebuildable calculation cache descriptors.
+`SessionModel` is the canonical in-memory ledger for explicit converted
+imported data-file/raw-table lifecycle plus downstream analysis facts. It stores
+imported files, raw tables, table model, reviews, slice runs, series, curves,
+metrics, metric inputs, and rebuildable calculation cache descriptors.
 
 Keep out of Session:
 
@@ -244,9 +242,8 @@ URI/resource
   -> model owns URI, format, load state, preview rows, cache/reload/watch
 ```
 
-Those editor/input models are not Session records. Only explicit converted imports and
-downstream analysis facts flow through `ITableFileService` and the Session
-ledger.
+Those editor/input models are not Session records. Only explicit converted
+imports and downstream analysis facts flow through the Session ledger.
 
 Use `records.instructions.md` for record/state field ownership and invalidation.
 
@@ -277,7 +274,7 @@ Before approving a change, verify:
 2. Does user intent enter through a command/action/controller or owner API?
 3. Does only the owner mutate the state?
 4. Are events facts, with subscribers rereading public state?
-5. Are imported table-file facts behind `ITableFileService`, analysis facts in the Session ledger, and view/service state outside Session?
+5. Are imported table-file and analysis facts in the Session ledger, while view/service state stays outside Session?
 6. Does the dependency direction stay within the layer rules?
 7. Are record fields documented in `records.instructions.md` when shared?
 8. Are subscriptions disposed?

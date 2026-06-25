@@ -36,13 +36,9 @@ import type {
   TableRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
-  ITableFileService,
-  type ITableFileService as ITableFileServiceType,
-  type TableFileSnapshot,
-} from "src/cs/workbench/services/tablefile/common/tablefile";
-import {
   ISessionService,
   type ISessionService as ISessionServiceType,
+  type SessionSnapshot,
 } from "src/cs/workbench/services/session/common/session";
 
 const TABLE_MODEL_PREVIEW_ROWS = 256;
@@ -73,14 +69,13 @@ export class TableModelQueueService extends Disposable implements ITableModelQue
   private nextPreferredOrder = 0;
 
   public constructor(
-    @ITableFileService private readonly tableFileService: ITableFileServiceType,
     @ISessionService private readonly sessionService: ISessionServiceType,
     @ITableModelProducerService private readonly tableModelService: ITableModelProducerServiceType,
     @IRawTableRowsReaderService private readonly rawTableRowsReaderService: IRawTableRowsReaderServiceType,
     @ISchemaProfileService private readonly schemaProfileService?: ISchemaProfileServiceType,
   ) {
     super();
-    this._register(this.tableFileService.onDidChangeTableFiles(event => {
+    this._register(this.sessionService.onDidChangeSession(event => {
       if (event.reason === "sessionCleared") {
         this.clearQueuedRawTableRefs();
         return;
@@ -92,7 +87,7 @@ export class TableModelQueueService extends Disposable implements ITableModelQue
     }));
     if (this.schemaProfileService) {
       this._register(this.schemaProfileService.onDidChangeSchemaProfiles(() => {
-        this.enqueueRawTables(getRawTableRefsForTableModelSnapshot(this.tableFileService.getSnapshot()));
+        this.enqueueRawTables(getRawTableRefsForTableModelSnapshot(this.sessionService.getSnapshot()));
       }));
     }
   }
@@ -233,7 +228,7 @@ export class TableModelQueueService extends Disposable implements ITableModelQue
     const queuedSourceRawTableVersion = entry.sourceRawTableVersion;
     const queuedSchemaProfileVersion = entry.schemaProfileVersion;
     const schemaProfileSnapshot = this.getSchemaProfileSnapshot();
-    const snapshot = this.tableFileService.getSnapshot();
+    const snapshot = this.sessionService.getSnapshot();
     const file = snapshot.filesById[targetRef.fileId];
     if (!file) {
       return null;
@@ -347,7 +342,7 @@ export class TableModelQueueService extends Disposable implements ITableModelQue
     ref: RawTableRef,
     priority: TableModelQueuePriority,
   ): QueuedTableModel | null {
-    const snapshot = this.tableFileService.getSnapshot();
+    const snapshot = this.sessionService.getSnapshot();
     const schemaProfileSnapshot = this.getSchemaProfileSnapshot();
     const file = snapshot.filesById[ref.fileId];
     const sourceRawTableVersion = file?.rawTableVersionsById[ref.rawTableId];
@@ -402,7 +397,7 @@ export class TableModelQueueService extends Disposable implements ITableModelQue
     ref: RawTableRef,
     sourceRawTableVersion: number,
   ): boolean {
-    const file = this.tableFileService.getSnapshot().filesById[ref.fileId];
+    const file = this.sessionService.getSnapshot().filesById[ref.fileId];
     return Boolean(
       file?.raw.tablesById[ref.rawTableId] &&
         (file.rawTableVersionsById[ref.rawTableId] ?? 0) === sourceRawTableVersion,
@@ -499,7 +494,7 @@ export const getRawTableRefsForTableModelEvent = (
   refs: readonly RawTableRef[] | undefined,
   fileIds: readonly string[] | undefined,
   rawTableIds: readonly string[] | undefined,
-  snapshot: TableFileSnapshot,
+  snapshot: SessionSnapshot,
 ): RawTableRef[] => {
   if (refs?.length) {
     return uniqueRawTableRefs(refs);
@@ -527,7 +522,7 @@ export const getRawTableRefsForTableModelEvent = (
 };
 
 const getRawTableRefsForTableModelSnapshot = (
-  snapshot: TableFileSnapshot,
+  snapshot: SessionSnapshot,
 ): RawTableRef[] =>
   getRawTableRefsForTableModelEvent(undefined, undefined, undefined, snapshot);
 

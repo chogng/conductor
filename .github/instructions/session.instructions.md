@@ -5,10 +5,10 @@ applyTo: 'src/cs/workbench/services/session/**'
 # Session
 
 `SessionService` is the canonical in-memory ledger for the current analysis
-session. It is not a view-state store, not a workflow dispatcher, and not the
-public imported data-file owner surface. `ITableFileService` owns imported
-data-file/raw-table lifecycle APIs and delegates to Session while the ledger
-backs those records.
+session. It is not a view-state store and not a workflow dispatcher. It now owns
+the explicit converted imported data-file/raw-table lifecycle APIs directly
+after files conversion, while URI-backed table opens stay in tablefile/editor
+model services.
 
 ## Concepts
 
@@ -20,7 +20,7 @@ backs those records.
 | `SessionSnapshot` | read-only consumer data |
 | `SessionReadModel` | derived read projection |
 | `SessionChangeEvent` | specific invalidation event |
-| `ITableFileService` | imported table-file/raw-table owner API backed by Session during migration |
+| explicit import APIs | `ISessionService.commitFileImport`, rename, remove, and clear for converted imported raw tables |
 
 ## Core Files
 
@@ -57,11 +57,11 @@ caches, or thumbnail caches.
 
 ## Workflow Boundary
 
-Commands may call Session backing commit methods only after another owner
+Commands may call Session commit methods only after another owner
 service/controller has produced the domain result. Imported data-file and raw
-table lifecycle callers use `ITableFileService`; TableModel production commits
-derived `TableModelRecord` values through Session while it remains the
-migration ledger.
+table lifecycle callers use `ISessionService` after files conversion; TableModel
+production commits derived `TableModelRecord` values through Session while it
+remains the migration ledger.
 
 Opening or previewing a table URI follows upstream file -> editor ownership and
 is not a Session workflow. Session only receives explicit conversion/import
@@ -69,23 +69,23 @@ results and downstream analysis records.
 
 | Workflow | Preferred producer | Session method |
 | --- | --- | --- |
-| import | `ITableFileService` after Explorer source workflow conversion | `commitFileImport` backing API |
+| import | Explorer source workflow after files conversion | `commitFileImport` |
 | table model | `ITableModelProducerService` / table-model queue | `commitTableModel` backing API |
 | review | review contribution/command after candidate review | `commitRawTableReviews` |
 | slice | slice service after planning/execution | `commitSliceRuns` |
 | calculated curves/metrics | calculation service | `commitCalculatedRecordsBatch` |
 | metric input | parameters service | `setMetricInput` / `clearMetricInput` |
-| file removal | `ITableFileService` after Explorer action/controller | `removeFiles` backing API plus separate Explorer selection follow-up |
-| clear imported table files/session | `ITableFileService` or global Workbench command | `clearSession` backing API |
+| file removal | Explorer action/controller after file workflow succeeds | `removeFiles` plus separate Explorer selection follow-up |
+| clear imported table files/session | Explorer or global Workbench command | `clearSession` |
 
 Do not make another service fire request/submit events only so Workbench can
 mutate Session. The caller that owns the workflow result calls the owning
 service API, and consumers react to owner change events.
 
-Production Explorer/files/TableModel code should not call the import,
-table-model, rename, remove, or clear backing APIs directly. Use
-`ITableFileService` so imported data-file ownership stays separate from the
-analysis ledger.
+Production Explorer/files/TableModel code may call Session import, rename,
+remove, or clear APIs only from the workflow owner that has produced the
+corresponding conversion/removal result. Do not route URI open/preview lifecycle
+through Session.
 
 Do not add Template-owned run/output commit or cleanup APIs. Template execution
 results enter Session only through Slice commits.

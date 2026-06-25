@@ -25,8 +25,13 @@ import {
 	TableFileEditorModelManager,
 	type TableFileEditorModelManagerResolveOptions,
 } from "src/cs/workbench/services/tablefile/common/tableFileEditorModelManager";
+import type {
+	ITableFileService,
+} from "src/cs/workbench/services/tablefile/common/tablefiles";
 
-export class TableFileService extends Disposable {
+export class TableFileService extends Disposable implements ITableFileService {
+	public declare readonly _serviceBrand: undefined;
+
 	private readonly tableFileEditorModelManager: TableFileEditorModelManager;
 	public readonly onDidChangeModel: Event<ITableModel>;
 

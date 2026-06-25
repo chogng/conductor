@@ -27,7 +27,7 @@ import { DEFAULT_EXPLORER_APPEARANCE, type IAppearanceService } from "src/cs/wor
 import type { FileConverterBackend } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import type { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
-import type { ITableFileService } from "src/cs/workbench/services/tablefile/common/tablefile";
+import type { ISessionService } from "src/cs/workbench/services/session/common/session";
 import type { IThumbnailPreviewService, IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { IUserTemplateService } from "src/cs/workbench/services/userTemplate/common/userTemplate";
@@ -161,16 +161,27 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
       notify: () => undefined,
     } as unknown as INotificationService,
     {
-      clearTableFiles: () => undefined,
-      commitImport: () => ({
+      clearMetricInput: () => undefined,
+      clearSession: () => undefined,
+      commitCalculatedRecordsBatch: () => undefined,
+      commitCurves: () => undefined,
+      commitCurvesBatch: () => undefined,
+      commitFileImport: () => ({
         importedFileIds: [],
         skippedDuplicateFileIds: [],
       }),
+      commitMetrics: () => undefined,
+      commitMetricsBatch: () => undefined,
+      commitRawTableReviews: () => undefined,
+      commitSliceRuns: () => undefined,
+      commitTableModel: () => undefined,
+      commitTableModelBatch: () => undefined,
       getSnapshot: () => ({ filesById: {}, fileOrder: [] }),
-      onDidChangeTableFiles: Event.None,
+      onDidChangeSession: Event.None,
       removeFiles: options.removeFiles ?? (() => undefined),
       renameFile: () => undefined,
-    } as unknown as ITableFileService,
+      setMetricInput: () => undefined,
+    } as unknown as ISessionService,
     {
       onDidChangePreview: Event.None,
       get: () => ({ kind: "idle" }),

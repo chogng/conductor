@@ -18,20 +18,20 @@ import {
 } from "src/cs/workbench/services/tableModel/browser/tableModelQueueService";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import {
-	ITableFileService,
-	type ITableFileService as ITableFileServiceType,
-} from "src/cs/workbench/services/tablefile/common/tablefile";
+	ISessionService,
+	type ISessionService as ISessionServiceType,
+} from "src/cs/workbench/services/session/common/session";
 
 export class TableModelContribution extends Disposable implements IWorkbenchContribution {
 	private disposed = false;
 
 	public constructor(
-		@ITableFileService private readonly tableFileService: ITableFileServiceType,
+		@ISessionService private readonly sessionService: ISessionServiceType,
 		@ITableModelQueueService private readonly tableModelQueueService: ITableModelQueueServiceType,
 	) {
 		super();
 
-		this._register(this.tableFileService.onDidChangeTableFiles(event => {
+		this._register(this.sessionService.onDidChangeSession(event => {
 			if (event.reason === "rawTablesChanged") {
 				this.enqueueChangedRawTables(event);
 			}
@@ -49,7 +49,7 @@ export class TableModelContribution extends Disposable implements IWorkbenchCont
 			return;
 		}
 
-		const snapshot = this.tableFileService.getSnapshot();
+		const snapshot = this.sessionService.getSnapshot();
 		this.tableModelQueueService.enqueueRawTables(getRawTableRefsForTableModelEvent(
 			event.rawTableRefs,
 			event.fileIds,
@@ -63,7 +63,7 @@ export class TableModelContribution extends Disposable implements IWorkbenchCont
 			return;
 		}
 
-		const snapshot = this.tableFileService.getSnapshot();
+		const snapshot = this.sessionService.getSnapshot();
 		this.tableModelQueueService.enqueueRawTables(getRawTableRefsForTableModelEvent(
 			undefined,
 			undefined,

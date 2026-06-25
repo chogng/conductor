@@ -19,7 +19,6 @@ import type {
 } from "src/cs/workbench/services/files/common/rawTableRowsReader";
 import type { FileImportResult, ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
-import { BrowserTableFileService } from "src/cs/workbench/services/tablefile/browser/browserTableFileService";
 import type { RawTableRef } from "src/cs/workbench/services/session/common/sessionModel";
 import { AutoSliceContribution } from "src/cs/workbench/services/slice/browser/autoSlice.contribution";
 import { SliceService } from "src/cs/workbench/services/slice/browser/sliceService";
@@ -102,11 +101,9 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 
 	test("runs raw import through reviewed automatic template into slice curves", async () => {
 		const sessionService = store.add(new SessionService());
-		const tableFileService = new BrowserTableFileService(sessionService);
 		const rowsReaderService = new TestRawTableRowsReaderService();
 		const tableModelService = store.add(new TableModelProducerService());
 		const tableModelQueueService = store.add(new TableModelQueueService(
-			tableFileService,
 			sessionService,
 			tableModelService,
 			rowsReaderService,
@@ -116,7 +113,7 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 			undefined,
 			rowsReaderService,
 		));
-		store.add(new TableModelContribution(tableFileService, tableModelQueueService));
+		store.add(new TableModelContribution(sessionService, tableModelQueueService));
 		store.add(new TestReviewContribution(sessionService));
 		store.add(new AutoSliceContribution(sessionService, sliceService));
 

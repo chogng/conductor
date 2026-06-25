@@ -14,8 +14,9 @@ import {
   type ImportedFileRecord,
 } from "src/cs/workbench/services/files/common/files";
 import type {
-  ITableFileService,
-} from "src/cs/workbench/services/tablefile/common/tablefile";
+  ISessionService,
+} from "src/cs/workbench/services/session/common/session";
+import { tableFileFormatService } from "src/cs/workbench/services/tablefile/common/tableFileFormat";
 import {
   markTemplateApplyPerformanceTrace,
 } from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
@@ -31,10 +32,10 @@ type ExplorerTableFileImportOptions = {
   readonly importedFiles: readonly PreparedFileImportInfo[];
   readonly mode: "append" | "replace";
   readonly selectedFileId?: string | null;
-  readonly tableFileService: Pick<
-    ITableFileService,
-    | "clearTableFiles"
-    | "commitImport"
+  readonly sessionService: Pick<
+    ISessionService,
+    | "clearSession"
+    | "commitFileImport"
     | "getSnapshot"
   >;
 };
@@ -49,7 +50,7 @@ export const commitExplorerTableFileImport = ({
   importedFiles,
   mode,
   selectedFileId,
-  tableFileService,
+  sessionService,
 }: ExplorerTableFileImportOptions): ExplorerTableFileImportResult => {
   const normalizedFiles = normalizePreparedImportedFiles(importedFiles);
   if (!normalizedFiles.length) {
@@ -60,21 +61,22 @@ export const commitExplorerTableFileImport = ({
     };
   }
 
-  const currentRawFileIds = getTableFileIds(tableFileService);
+  const currentRawFileIds = getTableFileIds(sessionService);
   const currentSelectedRawFileId = normalizeFileId(explorerService.selectedRawFileId);
   const importResult = createFileImportResultFromRecords(
     normalizedFiles.map(file => file.importRecord),
   );
-  markTemplateApplyPerformanceTrace("import.tableFile.commit.start", {
+  assertSupportedTableFileImport(importResult.files);
+  markTemplateApplyPerformanceTrace("import.session.commit.start", {
     fileCount: normalizedFiles.length,
     mode,
   });
 
   if (mode === "replace") {
-    tableFileService.clearTableFiles();
-    const commitResult = tableFileService.commitImport(importResult);
+    sessionService.clearSession();
+    const commitResult = sessionService.commitFileImport(importResult);
     const committedFileIds = commitResult.importedFileIds;
-    markTemplateApplyPerformanceTrace("import.tableFile.commit.complete", {
+    markTemplateApplyPerformanceTrace("import.session.commit.complete", {
       committedFileCount: committedFileIds.length,
       mode,
       skippedDuplicateFileCount: commitResult.skippedDuplicateFileIds.length,
@@ -95,9 +97,9 @@ export const commitExplorerTableFileImport = ({
     };
   }
 
-  const commitResult = tableFileService.commitImport(importResult);
+  const commitResult = sessionService.commitFileImport(importResult);
   const committedFileIds = commitResult.importedFileIds;
-  markTemplateApplyPerformanceTrace("import.tableFile.commit.complete", {
+  markTemplateApplyPerformanceTrace("import.session.commit.complete", {
     committedFileCount: committedFileIds.length,
     mode,
     skippedDuplicateFileCount: commitResult.skippedDuplicateFileIds.length,
@@ -130,13 +132,34 @@ export const commitExplorerTableFileImport = ({
 };
 
 const getTableFileIds = (
-  tableFileService: Pick<ITableFileService, "getSnapshot">,
+  sessionService: Pick<ISessionService, "getSnapshot">,
 ): readonly string[] => {
-  const snapshot = tableFileService.getSnapshot();
+  const snapshot = sessionService.getSnapshot();
   return snapshot.fileOrder
     .map(fileId => normalizeFileId(fileId))
     .filter((fileId): fileId is string => Boolean(fileId && snapshot.filesById[fileId]));
 };
+
+const assertSupportedTableFileImport = (
+  files: readonly ImportedFileRecord[],
+): void => {
+  for (const file of files) {
+    const fileNames = getImportedTableFileNameCandidates(file);
+    if (!fileNames.some(fileName => tableFileFormatService.canHandle(fileName))) {
+      throw new Error(`Unsupported table file: ${fileNames[0] ?? "Unknown file"}`);
+    }
+  }
+};
+
+const getImportedTableFileNameCandidates = (
+  file: ImportedFileRecord,
+): readonly string[] => [
+  file.name,
+  file.raw.fileName,
+  file.id,
+]
+  .map(value => String(value ?? "").trim())
+  .filter((value): value is string => Boolean(value));
 
 const normalizeFileId = (value: unknown): string | null => {
   const fileId = String(value ?? "").trim();

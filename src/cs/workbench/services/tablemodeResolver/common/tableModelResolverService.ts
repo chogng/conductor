@@ -10,7 +10,6 @@ import {
   registerSingleton,
 } from "src/cs/platform/instantiation/common/extensions";
 import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
-import { IFileService } from "src/cs/platform/files/common/files";
 import {
   toTableSourceKey,
   type TableSource,
@@ -27,7 +26,10 @@ import {
   type ITableModelReference,
   type TableModelContentProviderResult,
 } from "src/cs/workbench/services/table/common/resolverService";
-import { TableFileService } from "src/cs/workbench/services/tablefile/browser/tableFileService";
+import {
+  ITableFileService,
+  type ITableFileService as ITableFileServiceType,
+} from "src/cs/workbench/services/tablefile/common/tablefiles";
 
 export class TableModelResolverService extends Disposable implements ITableModelService {
   public declare readonly _serviceBrand: undefined;
@@ -37,19 +39,16 @@ export class TableModelResolverService extends Disposable implements ITableModel
   public readonly onDidChangeModel: Event<ITableModel> =
     this.onDidChangeModelEmitter.event;
 
-  private readonly tableFileService: TableFileService;
-
   private readonly contentProviders: ITableModelContentProvider[] = [];
   private readonly pendingProviderResolves = new Map<string, Promise<void>>();
   private readonly providerModels = new Map<string, TableModel>();
   private readonly references = new Map<string, { count: number; resource: URI }>();
 
   public constructor(
-    @IFileService fileService: IFileService,
+    @ITableFileService private readonly tableFileService: ITableFileServiceType,
   ) {
     super();
 
-    this.tableFileService = this._register(new TableFileService(fileService));
     this._register(this.tableFileService.onDidChangeModel(model => {
       this.onDidChangeModelEmitter.fire(model);
     }));

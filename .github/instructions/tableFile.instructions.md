@@ -1,5 +1,5 @@
 ---
-description: TableFile services - URI-backed file working copies plus explicit imported table-file bridge.
+description: TableFile services - URI-backed file working copies, format policy, and encoding helpers.
 applyTo: 'src/cs/workbench/services/tablefile/**'
 ---
 # TableFile
@@ -7,13 +7,14 @@ applyTo: 'src/cs/workbench/services/tablefile/**'
 `services/tablefile` follows upstream `workbench/services/textfile` naming for
 file-backed table lifecycles. The target architecture is URI-backed:
 `TableFileEditorModel` owns the file working-copy lifecycle around a
-URI-backed `ITableModel`, while `ITableFileService` remains the explicit
-converted data-file/raw-table import bridge backed by Session.
+URI-backed `ITableModel`. Explicit converted data-file/raw-table imports are
+Session ledger commits and no longer have a tablefile bridge service.
 
 ```txt
 URI/resource open
   -> ITableModelService.createModelReference(resource)
   -> TableModelResolverService
+  -> ITableFileService / BrowserTableFileService
   -> TableFileService chooses file read encoding
   -> TableFileEditorModelManager
   -> TableFileEditorModel
@@ -22,9 +23,9 @@ URI/resource open
 
 Explicit converted import
   -> fileConverter.ts FileConversionResult
-  -> ITableFileService.commitImport(...)
-  -> table-file change event
-  -> migration subscribers reread imported raw-table snapshots
+  -> ISessionService.commitFileImport(...)
+  -> SessionChangeEvent
+  -> migration subscribers reread Session raw-table snapshots
 ```
 
 ## Ownership
@@ -44,14 +45,14 @@ Explicit converted import
 - delegation to `TableFileEditorModelManager` for cached model creation,
   resolve, reload, and release.
 
-`ITableFileService` owns the explicit converted import bridge:
+Session owns the remaining explicit converted import ledger:
 
-- imported data-file and raw-table lifecycle API;
+- imported data-file and raw-table lifecycle commits;
 - `fileId`, `rawTableId`, and `sourceRawTableVersion` identity surface;
-- rename/remove/clear operations for imported table files;
-- table-file change events for subscribers.
+- rename/remove/clear operations for imported files;
+- Session change events for subscribers.
 
-The explicit converted import bridge does not own:
+This explicit converted import ledger does not own:
 
 - URI-backed preview rows, file working-copy reload/watch state, or model caches;
 - Explorer tree, selection, expansion, drag/drop UI, or pending-source rows;
@@ -69,42 +70,41 @@ origin, and text `languageId` is not part of table file support.
 
 ## Migration Boundary
 
-`ITableFileService` currently delegates storage and mutation to
-`ISessionService`. This is the current owner shape for explicit converted import
-flows while the product moves to URI-backed table opens. New table open,
-preview, cache, reload, save, and source-version work should use
+The retired imported-table-file bridge has been removed. Explicit converted
+import flows call `ISessionService` after files conversion while the product
+moves to URI-backed table opens. New table open, preview, cache, reload, save,
+and source-version work should use
 `TableFileEditorModel` / `ITableModel` through `ITableModelService`, not expand
 Session-backed raw-table ownership.
 
-Do not route table URI open/preview lifecycle through `ITableFileService`.
+Do not route table URI open/preview lifecycle through Session.
 That lifecycle follows the upstream file -> editor shape and stays service-local
 unless a user explicitly invokes the converted import path.
 
-Do not call `ISessionService.commitFileImport(...)`,
-`renameFile(...)`, `removeFiles(...)`, or `clearSession()` from Explorer/files
-code. Use
-`ITableFileService` owner APIs and let the backing implementation decide how the
-ledger is stored. TableModel production may commit `TableModelRecord` values
-through `ISessionService` while Session remains the canonical migration ledger.
+Explorer/files code may call `ISessionService.commitFileImport(...)`,
+`renameFile(...)`, `removeFiles(...)`, or `clearSession()` only after it owns the
+explicit conversion/removal workflow result. TableModel production commits
+`TableModelRecord` values through `ISessionService` while Session remains the
+canonical migration ledger.
 
 ## Core Files
 
 | File | Responsibility |
 | --- | --- |
-| `common/tablefile.ts` | service contract and snapshot/change aliases for explicitly imported table files. |
+| `common/tablefiles.ts` | `ITableFileService` contract for file-backed table working-copy lifecycle; not a converted import ledger. |
 | `common/tableFileFormat.ts` | table file format policy and resource/name support checks for CSV/TSV/XLS/XLSX. |
+| `browser/browserTableFileService.ts` | browser DI registration for the URI-backed table file service. |
 | `browser/tableFileService.ts` | URI-backed file resolve service for table resources; owns read encoding choice before delegating to the editor model manager. |
-| `browser/browserTableFileService.ts` | browser `ITableFileService` implementation and singleton registration for the explicit converted import bridge. |
 | `common/encoding.ts` | table file read mode, base64/utf8 byte decoding, and mime helpers; not a table format/support owner. |
 | `common/tableFileEditorModel.ts` | URI-backed file working-copy, file-backed read/preview/sourceVersion flow, and associated `ITableModel` lifecycle. |
 | `common/tableFileEditorModelManager.ts` | file-backed table working-copy cache/reuse/reload/remove owner. |
 
 ## Rules
 
-- `ITableFileService` APIs act on pure values; records do not gain behavior
-  methods.
-- Events are facts. Subscribers must reread `getSnapshot()` after
-  `onDidChangeTableFiles`.
+- Explicit import APIs act on pure values; records do not gain behavior methods.
+- TableFile events are facts. Subscribers reread the resolved `ITableModel`
+  snapshot after `onDidChangeModel`; explicit import subscribers still reread
+  `ISessionService.getSnapshot()` after relevant `onDidChangeSession` events.
 - Keep TableFile services independent of views, commands, and Table widget
   state.
 - Keep table-model inference and derived record commits in
