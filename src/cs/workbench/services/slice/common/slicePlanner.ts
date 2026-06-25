@@ -123,11 +123,17 @@ const isColumnInBounds = (
 export const createSliceTableModelSignature = ({
 	tableModelRuleVersion,
 	schemaProfileVersion,
+	sourceModelVersion,
 	sourceRawTableVersion,
+	sourceUri,
+	sourceVersion,
 }: {
 	readonly tableModelRuleVersion: number;
 	readonly schemaProfileVersion: number;
+	readonly sourceModelVersion?: number;
 	readonly sourceRawTableVersion: number;
+	readonly sourceUri?: string;
+	readonly sourceVersion?: number;
 }, resolution?: {
 	readonly recipeFingerprint?: string;
 	readonly reviewSignature?: string;
@@ -135,6 +141,11 @@ export const createSliceTableModelSignature = ({
 }): string => JSON.stringify({
 	tableModelRuleVersion,
 	schemaProfileVersion,
+	...createSourceModelSignature({
+		sourceModelVersion,
+		sourceUri,
+		sourceVersion,
+	}),
 	sourceRawTableVersion,
 	recipeFingerprint: normalizeSignatureText(resolution?.recipeFingerprint),
 	reviewSignature: normalizeSignatureText(resolution?.reviewSignature),
@@ -153,4 +164,27 @@ const normalizeSignatureInteger = (
 ): number | undefined => {
 	const normalized = Math.floor(Number(value));
 	return Number.isFinite(normalized) && normalized >= 0 ? normalized : undefined;
+};
+
+const createSourceModelSignature = ({
+	sourceModelVersion,
+	sourceUri,
+	sourceVersion,
+}: {
+	readonly sourceModelVersion?: number;
+	readonly sourceUri?: string;
+	readonly sourceVersion?: number;
+}): { readonly sourceModel?: { readonly modelVersion?: number; readonly sourceUri?: string; readonly sourceVersion?: number } } => {
+	const modelVersion = normalizeSignatureInteger(sourceModelVersion);
+	const normalizedSourceUri = normalizeSignatureText(sourceUri);
+	const normalizedSourceVersion = normalizeSignatureInteger(sourceVersion);
+	return modelVersion !== undefined || normalizedSourceUri || normalizedSourceVersion !== undefined
+		? {
+				sourceModel: {
+					modelVersion,
+					sourceUri: normalizedSourceUri,
+					sourceVersion: normalizedSourceVersion,
+				},
+			}
+		: {};
 };

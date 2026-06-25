@@ -50,6 +50,7 @@ import "src/cs/workbench/services/thumbnail/browser/thumbnailService";
 import "src/cs/workbench/services/views/browser/viewDescriptorService";
 import "src/cs/workbench/services/views/browser/viewsService";
 import "src/cs/workbench/services/table/browser/tableDropTargetService";
+import "src/cs/workbench/services/table/browser/tableModelResolverService";
 import "src/cs/workbench/services/table/browser/tableService";
 
 //#endregion

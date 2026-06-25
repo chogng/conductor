@@ -52,7 +52,10 @@ export type TableModelRecord = {
 	readonly schemaProfileVersion: number;
 	readonly fileId: string;
 	readonly rawTableId: string;
+	readonly sourceModelVersion?: number;
 	readonly sourceRawTableVersion: number;
+	readonly sourceUri?: string;
+	readonly sourceVersion?: number;
 	readonly structure: RawTableStructure;
 	readonly columnProfiles: readonly ColumnProfile[];
 	readonly layoutCandidates: readonly LayoutCandidate[];
@@ -85,7 +88,10 @@ export type TableModelSourceMetadata = {
 	readonly fileName?: string | null;
 	readonly rowCount?: number;
 	readonly columnCount?: number;
+	readonly sourceModelVersion?: number;
 	readonly sourceRawTableVersion: number;
+	readonly sourceUri?: string;
+	readonly sourceVersion?: number;
 };
 
 export type TableModelCreateInput =
@@ -164,7 +170,14 @@ export namespace TableModel {
 			schemaProfileVersion,
 			fileId: input.fileId,
 			rawTableId: input.rawTableId,
+			...(normalizeSourceModelVersion(input.sourceModelVersion) !== undefined
+				? { sourceModelVersion: normalizeSourceModelVersion(input.sourceModelVersion) }
+				: {}),
 			sourceRawTableVersion: input.sourceRawTableVersion,
+			...(normalizeSourceText(input.sourceUri) ? { sourceUri: normalizeSourceText(input.sourceUri) } : {}),
+			...(normalizeSourceModelVersion(input.sourceVersion) !== undefined
+				? { sourceVersion: normalizeSourceModelVersion(input.sourceVersion) }
+				: {}),
 			structure,
 			columnProfiles,
 			layoutCandidates,
@@ -188,13 +201,16 @@ export namespace TableModel {
 		sourceMetadata: {
 			fileId: record.fileId,
 			rawTableId: record.rawTableId,
+			...(record.sourceModelVersion !== undefined ? { sourceModelVersion: record.sourceModelVersion } : {}),
 			sourceRawTableVersion: record.sourceRawTableVersion,
+			...(record.sourceUri ? { sourceUri: record.sourceUri } : {}),
+			...(record.sourceVersion !== undefined ? { sourceVersion: record.sourceVersion } : {}),
 			...sourceMetadata,
 		},
 	});
 }
 
-export const ITableModelService = createDecorator<ITableModelService>("tableModelService");
+export const ITableModelProducerService = createDecorator<ITableModelProducerService>("tableModelProducerService");
 export const ITableModelQueueService = createDecorator<ITableModelQueueService>("tableModelQueueService");
 export const TableModelContributionId = "workbench.services.tableModel.lifecycle";
 
@@ -234,14 +250,17 @@ export type CreateTableModelInput = {
 	readonly fileId: string;
 	readonly rawTableId: string;
 	readonly rowCount?: number;
+	readonly sourceModelVersion?: number;
 	readonly sourceRawTableVersion: number;
+	readonly sourceUri?: string;
+	readonly sourceVersion?: number;
 	readonly rows: TableModelRows;
 	readonly fileName?: string | null;
 	readonly schemaProfiles?: readonly SchemaProfile[];
 	readonly schemaProfileVersion?: number;
 };
 
-export interface ITableModelService {
+export interface ITableModelProducerService {
 	readonly _serviceBrand: undefined;
 
 	createImportTableModelSeedFromFile(file: TableModelFileInput): Promise<ImportTableModelSeed>;
@@ -341,6 +360,20 @@ const normalizeRuleVersion = (
 ): number | undefined => {
 	const version = Math.floor(Number(value));
 	return Number.isFinite(version) && version >= 0 ? version : undefined;
+};
+
+const normalizeSourceModelVersion = (
+	value: unknown,
+): number | undefined => {
+	const version = Math.floor(Number(value));
+	return Number.isFinite(version) && version >= 0 ? version : undefined;
+};
+
+const normalizeSourceText = (
+	value: unknown,
+): string | undefined => {
+	const text = String(value ?? "").trim();
+	return text || undefined;
 };
 
 export const getColumnCount = (rows: readonly (readonly unknown[])[]): number => {

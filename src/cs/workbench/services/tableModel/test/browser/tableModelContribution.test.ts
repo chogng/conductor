@@ -8,11 +8,11 @@ import { Emitter } from "src/cs/base/common/event";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { TableModelContribution } from "src/cs/workbench/services/tableModel/browser/tableModel.contribution";
 import { TableModelQueueService } from "src/cs/workbench/services/tableModel/browser/tableModelQueueService";
-import { TableModelService } from "src/cs/workbench/services/tableModel/browser/tableModelService";
+import { TableModelProducerService } from "src/cs/workbench/services/tableModel/browser/tableModelService";
 import { TABLE_MODEL_RULE_VERSION } from "src/cs/workbench/services/tableModel/common/tableModel";
 import type {
 	CreateTableModelInput,
-	ITableModelService,
+	ITableModelProducerService,
 	ImportTableModelSeed,
 	TableModelRecord,
 } from "src/cs/workbench/services/tableModel/common/tableModel";
@@ -43,7 +43,7 @@ suite("workbench/services/tableModel/test/browser/tableModelContribution", () =>
 	test("assesses inline raw tables after table-file import commits", async () => {
 		const sessionService = store.add(new SessionService());
 		const tableFileService = new TableFileService(sessionService);
-		const tableModelService = new TestTableModelService();
+		const tableModelService = new TestTableModelProducerService();
 		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
 		const tableModelQueueService = store.add(new TableModelQueueService(
 			tableFileService,
@@ -98,7 +98,7 @@ suite("workbench/services/tableModel/test/browser/tableModelContribution", () =>
 	test("commits the first TableModel then batches background results", async () => {
 		const sessionService = store.add(new SessionService());
 		const tableFileService = new TableFileService(sessionService);
-		const tableModelService = new TestTableModelService();
+		const tableModelService = new TestTableModelProducerService();
 		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
 		const tableModelQueueService = store.add(new TableModelQueueService(
 			tableFileService,
@@ -137,7 +137,7 @@ suite("workbench/services/tableModel/test/browser/tableModelContribution", () =>
 			rawTableId: "table-a",
 			sourceRawTableVersion: 1,
 		}));
-		const tableModelService = new TestTableModelService();
+		const tableModelService = new TestTableModelProducerService();
 		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
 		const tableFileService = new TableFileService(sessionService);
 		const tableModelQueueService = store.add(new TableModelQueueService(
@@ -170,7 +170,7 @@ suite("workbench/services/tableModel/test/browser/tableModelContribution", () =>
 	test("reassesses raw tables when schema profile version changes", async () => {
 		const sessionService = store.add(new SessionService());
 		const tableFileService = new TableFileService(sessionService);
-		const tableModelService = new TestTableModelService();
+		const tableModelService = new TestTableModelProducerService();
 		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
 		const schemaProfileService = new TestSchemaProfileService();
 		const tableModelQueueService = store.add(new TableModelQueueService(
@@ -207,7 +207,7 @@ suite("workbench/services/tableModel/test/browser/tableModelContribution", () =>
 		const tableFileService = new TableFileService(sessionService);
 		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
 		const schemaProfileService = new TestSchemaProfileService();
-		const tableModelService = store.add(new TableModelService(schemaProfileService));
+		const tableModelService = store.add(new TableModelProducerService(schemaProfileService));
 		const tableModelQueueService = store.add(new TableModelQueueService(
 			tableFileService,
 			sessionService,
@@ -283,7 +283,7 @@ suite("workbench/services/tableModel/test/browser/tableModelContribution", () =>
 	test("prioritizes visible raw tables before background TableModel work", async () => {
 		const sessionService = store.add(new SessionService());
 		const tableFileService = new TableFileService(sessionService);
-		const tableModelService = new TestTableModelService();
+		const tableModelService = new TestTableModelProducerService();
 		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
 		const tableModelQueueService = store.add(new TableModelQueueService(
 			tableFileService,
@@ -315,7 +315,7 @@ suite("workbench/services/tableModel/test/browser/tableModelContribution", () =>
 	test("discards stale queued TableModel work when raw table version changes while rows are loading", async () => {
 		const sessionService = store.add(new SessionService());
 		const tableFileService = new TableFileService(sessionService);
-		const tableModelService = new TestTableModelService();
+		const tableModelService = new TestTableModelProducerService();
 		const rawTableRowsReaderService = new BlockingRawTableRowsReaderService();
 		const tableModelQueueService = store.add(new TableModelQueueService(
 			tableFileService,
@@ -346,7 +346,7 @@ suite("workbench/services/tableModel/test/browser/tableModelContribution", () =>
 	test("discards stale queued TableModel work when schema profile version changes while rows are loading", async () => {
 		const sessionService = store.add(new SessionService());
 		const tableFileService = new TableFileService(sessionService);
-		const tableModelService = new TestTableModelService();
+		const tableModelService = new TestTableModelProducerService();
 		const rawTableRowsReaderService = new BlockingRawTableRowsReaderService();
 		const schemaProfileService = new TestSchemaProfileService();
 		const tableModelQueueService = store.add(new TableModelQueueService(
@@ -383,7 +383,7 @@ suite("workbench/services/tableModel/test/browser/tableModelContribution", () =>
 	test("publishes queued and running TableModel state per raw table", async () => {
 		const sessionService = store.add(new SessionService());
 		const tableFileService = new TableFileService(sessionService);
-		const tableModelService = new TestTableModelService();
+		const tableModelService = new TestTableModelProducerService();
 		const rawTableRowsReaderService = new BlockingRawTableRowsReaderService();
 		const tableModelQueueService = store.add(new TableModelQueueService(
 			tableFileService,
@@ -447,7 +447,7 @@ suite("workbench/services/tableModel/test/browser/tableModelContribution", () =>
 		const tableModelQueueService = store.add(new TableModelQueueService(
 			tableFileService,
 			sessionService,
-			new TestTableModelService(),
+			new TestTableModelProducerService(),
 			new TestRawTableRowsReaderService(),
 		));
 		const inspect = tableModelQueueService as unknown as {
@@ -488,7 +488,7 @@ suite("workbench/services/tableModel/test/browser/tableModelContribution", () =>
 	});
 });
 
-class TestTableModelService implements ITableModelService {
+class TestTableModelProducerService implements ITableModelProducerService {
 	public declare readonly _serviceBrand: undefined;
 
 	public readonly inputs: CreateTableModelInput[] = [];

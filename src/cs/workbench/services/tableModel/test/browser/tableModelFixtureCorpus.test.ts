@@ -5,7 +5,7 @@
 import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import { TableModelService } from "src/cs/workbench/services/tableModel/browser/tableModelService";
+import { TableModelProducerService } from "src/cs/workbench/services/tableModel/browser/tableModelService";
 import type {
 	TableModelRecord,
 } from "src/cs/workbench/services/tableModel/common/tableModel";
@@ -197,7 +197,7 @@ suite("workbench/services/tableModel/test/browser/tableModelFixtureCorpus", () =
 
 	for (const fixture of fixtures) {
 		test(`assesses fixture ${fixture.id}`, async () => {
-			const service = store.add(new TableModelService());
+			const service = store.add(new TableModelProducerService());
 			const result = await service.getOrCreate({
 				fileId: `fixture:${fixture.id}`,
 				rawTableId: "raw",

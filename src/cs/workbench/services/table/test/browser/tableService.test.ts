@@ -17,6 +17,7 @@ import type {
 import {
   TableService,
 } from "src/cs/workbench/services/table/browser/tableService";
+import { TableModelResolverService } from "src/cs/workbench/services/table/browser/tableModelResolverService";
 import {
   areTableSelectionsEqual,
   createTableViewModelInScope,
@@ -29,6 +30,7 @@ import type { SessionSnapshot } from "src/cs/workbench/services/session/common/s
 import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
 import { mergeRawFilesIntoRecords } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
+import type { IFileConverterBackendService } from "src/cs/workbench/services/files/common/fileConverterBackend";
 
 type TableFile = NonNullable<TableState["file"]>;
 type TableLoadState = TableState["loadState"];
@@ -108,25 +110,13 @@ suite("workbench/services/table/browser/tableService", () => {
   });
 
   test("opens table resource without committing a session record", async () => {
-    let openedPayload: unknown = null;
+    let openSourceCount = 0;
     const resource = URI.file("/workspace/data/transfer.csv");
     const { service, sessionService } = createTableServiceFixture({
       tableRowsReaderService: createTableRowsReaderService({
-        openSource: async payload => {
-          openedPayload = payload;
-          return {
-            ok: true,
-            result: {
-              fileId: resource.toString(),
-              sourceKey: resource.toString(),
-              fileName: "transfer.csv",
-              rowCount: 2,
-              columnCount: 2,
-              maxCellLengths: [1, 1],
-              seedStartRow: 0,
-              seedRows: [["x", "y"], [1, 2]],
-            },
-          };
+        openSource: async () => {
+          openSourceCount += 1;
+          return { ok: false };
         },
       }),
     });
@@ -141,17 +131,49 @@ suite("workbench/services/table/browser/tableService", () => {
     }
 
     assert.deepStrictEqual(sessionService.getSnapshot().fileOrder, []);
-    assert.deepStrictEqual(openedPayload, {
-      fileId: resource.toString(),
-      fileName: "transfer.csv",
-      path: resource.fsPath,
-      seedRows: 5000,
-      sheetId: null,
-      sheetName: null,
-      sourceKey: resource.toString(),
-    });
+    assert.equal(openSourceCount, 0);
     assert.equal(service.getViewInput()?.tableState.source?.resource?.toString(), resource.toString());
+    assert.equal(service.getViewInput()?.tableState.file?.fileId, undefined);
     assert.equal(service.getViewInput()?.tableState.file?.sourceKey, resource.toString());
+    assert.deepStrictEqual(service.getPreviewRow(0), ["A", "B"]);
+    assert.deepStrictEqual(service.getPreviewRow(1), ["1", "2"]);
+  });
+
+  test("opens Excel table resource sheets through the table model snapshot", async () => {
+    const resource = URI.file("/workspace/data/workbook.xlsx");
+    const { service } = createTableServiceFixture({
+      fileConverterBackendService: createFileConverterBackendStub({
+        canPrepareFile: () => true,
+        prepareFile: async () => ({
+          sheets: [{
+            csvText: "Vg,Id\n0,1",
+            sheetIndex: 0,
+            sheetName: "Forward",
+          }, {
+            csvText: "Vd,Id\n1,2",
+            sheetIndex: 1,
+            sheetName: "Reverse",
+          }],
+        }),
+      }),
+      fileService: createFileServiceStub({
+        readFile: async () => ({ encoding: "base64", value: "AA==" }),
+      }),
+    });
+
+    service.open({ resource, sheetId: "1:Reverse" });
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      if (service.getViewInput()?.tableState.loadState.state === "ready") {
+        break;
+      }
+      await waitForTableService();
+    }
+
+    assert.equal(service.getViewInput()?.tableState.selectedSheetId, "1:Reverse");
+    assert.equal(service.getViewInput()?.tableState.file?.sheetName, "Reverse");
+    assert.deepStrictEqual(service.getPreviewRow(0), ["Vd", "Id"]);
+    assert.deepStrictEqual(service.getPreviewRow(1), ["1", "2"]);
   });
 
   test("table selection equality accepts normalized duplicates", () => {
@@ -991,12 +1013,14 @@ type TableServiceFixture = {
 };
 
 const createTableServiceFixture = ({
+  fileConverterBackendService = createFileConverterBackendStub(),
   fileService = createFileServiceStub(),
   rawFiles = [],
   settingsService = createSettingsServiceStub(),
   storageService = new TestStorageService(),
   tableRowsReaderService = createTableRowsReaderService(),
 }: {
+  readonly fileConverterBackendService?: IFileConverterBackendService;
   readonly rawFiles?: readonly SessionFile[];
   readonly settingsService?: ISettingsService;
   readonly storageService?: TestStorageService;
@@ -1005,12 +1029,16 @@ const createTableServiceFixture = ({
 } = {}): TableServiceFixture => {
   tableTestStore?.add(storageService);
   const sessionService = new TestSessionService(rawFiles);
+  const tableModelService = tableTestStore?.add(new TableModelResolverService(
+    fileService,
+    fileConverterBackendService,
+  )) ?? new TableModelResolverService(fileService, fileConverterBackendService);
   const service = new TableService(
     tableRowsReaderService as never,
     sessionService as never,
     storageService as never,
     settingsService as never,
-    fileService as never,
+    tableModelService as never,
   );
   tableTestStore?.add(service);
   return {
@@ -1056,6 +1084,17 @@ const createFileServiceStub = (
   writeFile: async () => undefined,
   ...overrides,
 } as IFileService);
+
+const createFileConverterBackendStub = (
+  overrides: Partial<IFileConverterBackendService> = {},
+): IFileConverterBackendService => ({
+  _serviceBrand: undefined,
+  canPrepareFile: () => false,
+  canReadConvertedCsv: () => false,
+  prepareFile: async () => ({ ok: false }),
+  readConvertedCsv: async () => ({ ok: false }),
+  ...overrides,
+} as IFileConverterBackendService);
 
 class TestSessionService {
   private readonly onDidChangeSessionEmitter = new Emitter<SessionChangeEvent>();

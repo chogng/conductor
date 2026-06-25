@@ -121,6 +121,10 @@ RawTableReviewRecord + SliceState.fileStates + latest SliceRun
 - Slice queue entries must be dropped as stale if their source raw table
   version, review signature, request signature, or reviewed-template
   fingerprint changes before commit.
+- Slice table-model signatures include URI-backed source identity and
+  `sourceVersion` / `modelVersion` when present, so queued plans and latest-run
+  guards can detect editor-model changes in addition to raw table version
+  changes.
 - Contributions only subscribe and delegate. They do not plan, execute, read
   rows, or commit Session.
 - Slice commands may collect stable `RawTableRef` command targets from

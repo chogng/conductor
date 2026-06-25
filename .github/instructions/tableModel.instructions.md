@@ -4,13 +4,18 @@ applyTo: 'src/cs/workbench/services/tableModel/**,src/cs/workbench/contrib/table
 ---
 # TableModel
 
+For the table URI/editor-model migration under `services/table/**`, follow
+`.github/instructions/迁移说明.md` first. This file describes the legacy
+`services/tableModel/**` derived structure/semantics producer; its
+`browser/tableModelService.ts` is not the URI-backed table model resolver.
+
 TableModel is the derived model layer for raw tables consumed by Template materialization.
 It is not Review, not Recipe, and not Slice. TableModel 负责“把表格源数据变成 Template 能理解的结构语义”
 
 ```txt
 ITableFileService RawTableRecord + SchemaProfile snapshot
-  -> ITableModelService
-  -> ITableModelService.getOrCreate(...)
+  -> ITableModelProducerService
+  -> ITableModelProducerService.getOrCreate(...)
   -> TableModel.create(...)
   -> TableModelRecord
   -> ISessionService.commitTableModel(...)
@@ -42,7 +47,7 @@ TableModel must not produce `TemplateDraft`, `ReviewedTemplate`,
 
 | File | Responsibility |
 | --- | --- |
-| `common/tableModel.ts` | `TableModelRecord` / `TableModel` contracts, `TableModel.create(...)`, rule version, `ITableModelService`, queue contract, service inputs, and raw-table ref helpers. |
+| `common/tableModel.ts` | `TableModelRecord` / `TableModel` contracts, `TableModel.create(...)`, rule version, `ITableModelProducerService`, queue contract, service inputs, and raw-table ref helpers. |
 | `common/tableModelRecord.ts` | compatibility re-export for model creation/normalization helpers. |
 | `common/rawTableStructure.ts` | physical table structure and schema fingerprint detection. |
 | `common/columnProfile.ts` | neutral raw-column profiles and measurement column projections. |
@@ -54,7 +59,7 @@ TableModel must not produce `TemplateDraft`, `ReviewedTemplate`,
 | `common/importTableModelSeedHeuristics.ts` | table-model seed heuristics used inside TableModel production. |
 | `browser/importTableModelSeed.ts` | browser adapter from file/rows to `ImportTableModelSeed` for TableModel production. |
 | `browser/tableModelEngine.ts` | browser TableModel production workflow. |
-| `browser/tableModelService.ts` | injectable `ITableModelService` implementation. |
+| `browser/tableModelService.ts` | injectable `ITableModelProducerService` implementation. |
 | `browser/tableModelQueueService.ts` | injectable queue for scheduling table-model production and committing derived records through the Session ledger. |
 | `browser/tableModel.contribution.ts` | table-file lifecycle subscriber that enqueues raw tables. |
 | `contrib/tableModel/browser/tableModelCommands.ts` | TableModel command/action registration and handlers; delegates to owner services. |

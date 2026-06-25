@@ -34,7 +34,7 @@ at the type name.
 | `RawTableRecord` | `ITableFileService` + Session ledger | `fileConverter.ts` through TableFile commit | Physical rows/source/health/template eligibility. Use `rawTableId`; keep failed rows unavailable. |
 | `RawTableSourceRecord` | converter/session | CSV, Excel sheet, clipboard, manual, unknown | Source provenance only, not measurement semantics. |
 | `RawTableRowsRecord` | converter/session | inline, normalized CSV, unavailable | Large rows should use artifact/path references. |
-| `TableModelRecord` | TableModel + Session ledger | table-model producer (`ITableModelService`) | Tied to raw table version, table-model rule version, and schema profile version; stores structure, column profiles, semantic candidates, groups, blocks, and diagnostics. |
+| `TableModelRecord` | TableModel + Session ledger | table-model producer (`ITableModelProducerService`) | Tied to raw table version, table-model rule version, and schema profile version; stores structure, column profiles, semantic candidates, groups, blocks, and diagnostics. |
 | `RawTableReviewRecord` | Review + Session | `IReviewService` | Tied to template candidate signature, Recipe fingerprint, UserTemplate/saved-template fingerprint, review engine version, and review policy version; stores candidates, reviews, and `ReviewDecision`. |
 | `MeasurementGroupRecord` | TableModel + Session ledger | table-model producer / TableModel helpers | Group/device labels and ordered block ids. |
 | `MeasurementBlockRecord` | TableModel + Session ledger | table-model producer / TableModel helpers | Measurement family/mode/source ranges/column roles. |
@@ -142,6 +142,10 @@ disambiguation and must not replace the URI identity for resource opens.
 - Column refs keep raw column, header text, role, unit, source range, confidence.
 - `TableModelRecord.schemaProfileVersion` records the profile snapshot used
   for semantic evidence; profile changes make older table model stale.
+- `TableModelRecord.sourceUri`, `sourceVersion`, and `sourceModelVersion` are
+  optional migration provenance for URI-backed table models. Review and Slice
+  signatures consume them when present; they do not make table editor runtime
+  state a Session record.
 - Table-model records do not store Recipe fingerprints, Template/UserTemplate
   catalog versions, Template candidates, reviewed templates, selected Template
   snapshots, decision state, confidence gates, or auto-apply flags. Review owns

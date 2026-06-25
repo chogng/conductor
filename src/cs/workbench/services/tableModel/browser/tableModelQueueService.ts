@@ -13,9 +13,9 @@ import {
 } from "src/cs/workbench/services/tableModel/common/tableModel";
 import {
   ITableModelQueueService,
-  ITableModelService,
+  ITableModelProducerService,
   type ITableModelQueueService as ITableModelQueueServiceType,
-  type ITableModelService as ITableModelServiceType,
+  type ITableModelProducerService as ITableModelProducerServiceType,
   type TableModelQueuePriority,
   type TableModelQueueSnapshot,
   type TableModelRawTableQueueState,
@@ -75,7 +75,7 @@ export class TableModelQueueService extends Disposable implements ITableModelQue
   public constructor(
     @ITableFileService private readonly tableFileService: ITableFileServiceType,
     @ISessionService private readonly sessionService: ISessionServiceType,
-    @ITableModelService private readonly tableModelService: ITableModelServiceType,
+    @ITableModelProducerService private readonly tableModelService: ITableModelProducerServiceType,
     @IRawTableRowsReaderService private readonly rawTableRowsReaderService: IRawTableRowsReaderServiceType,
     @ISchemaProfileService private readonly schemaProfileService?: ISchemaProfileServiceType,
   ) {

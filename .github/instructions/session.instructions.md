@@ -70,7 +70,7 @@ results and downstream analysis records.
 | Workflow | Preferred producer | Session method |
 | --- | --- | --- |
 | import | `ITableFileService` after Explorer source workflow conversion | `commitFileImport` backing API |
-| table model | `ITableModelService` / table-model queue | `commitTableModel` backing API |
+| table model | `ITableModelProducerService` / table-model queue | `commitTableModel` backing API |
 | review | review contribution/command after candidate review | `commitRawTableReviews` |
 | slice | slice service after planning/execution | `commitSliceRuns` |
 | calculated curves/metrics | calculation service | `commitCalculatedRecordsBatch` |

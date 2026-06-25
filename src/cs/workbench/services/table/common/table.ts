@@ -76,7 +76,7 @@ export type TableSource = {
 };
 
 type TableFile = {
-	fileId: string;
+	fileId?: string | null;
 	fileName: string;
 	sheetId?: string | null;
 	sheetName?: string | null;
@@ -257,7 +257,10 @@ export const areTableSourcesEqual = (
 export const toTableSourceKey = (source: TableSource): string => {
 	const resourceKey = getTableSourceResourceKey(source);
 	if (resourceKey) {
-		return resourceKey;
+		const sheetId = typeof source.sheetId === "string" && source.sheetId
+			? encodeURIComponent(source.sheetId)
+			: "";
+		return sheetId ? `${resourceKey}::${sheetId}` : resourceKey;
 	}
 
 	const sourceKey = getTableSourceIdentityKey(source);

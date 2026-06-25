@@ -9,7 +9,7 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { TableModelContribution } from "src/cs/workbench/services/tableModel/browser/tableModel.contribution";
 import { TableModelQueueService } from "src/cs/workbench/services/tableModel/browser/tableModelQueueService";
-import { TableModelService } from "src/cs/workbench/services/tableModel/browser/tableModelService";
+import { TableModelProducerService } from "src/cs/workbench/services/tableModel/browser/tableModelService";
 import { TABLE_MODEL_RULE_VERSION, type TableModelRecord } from "src/cs/workbench/services/tableModel/common/tableModel";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
 import type {
@@ -104,7 +104,7 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 		const sessionService = store.add(new SessionService());
 		const tableFileService = new TableFileService(sessionService);
 		const rowsReaderService = new TestRawTableRowsReaderService();
-		const tableModelService = store.add(new TableModelService());
+		const tableModelService = store.add(new TableModelProducerService());
 		const tableModelQueueService = store.add(new TableModelQueueService(
 			tableFileService,
 			sessionService,

@@ -7,8 +7,8 @@ import { InstantiationType, registerSingleton } from "src/cs/platform/instantiat
 import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
 import {
   type CreateTableModelInput,
-  ITableModelService,
-  type ITableModelService as ITableModelServiceType,
+  ITableModelProducerService,
+  type ITableModelProducerService as ITableModelProducerServiceType,
   type ImportTableModelSeed,
   type TableModelFileInput,
   type TableModelRecord,
@@ -24,7 +24,7 @@ import {
   type ISchemaProfileService as ISchemaProfileServiceType,
 } from "src/cs/workbench/services/schemaProfile/common/schemaProfile";
 
-export class TableModelService extends Disposable implements ITableModelServiceType {
+export class TableModelProducerService extends Disposable implements ITableModelProducerServiceType {
   public declare readonly _serviceBrand: undefined;
   private readonly tableModelEngine = new TableModelEngine();
 
@@ -60,7 +60,7 @@ export class TableModelService extends Disposable implements ITableModelServiceT
 }
 
 registerSingleton(
-  ITableModelService,
-  TableModelService as unknown as new (...services: BrandedService[]) => ITableModelServiceType,
+  ITableModelProducerService,
+  TableModelProducerService as unknown as new (...services: BrandedService[]) => ITableModelProducerServiceType,
   InstantiationType.Delayed,
 );

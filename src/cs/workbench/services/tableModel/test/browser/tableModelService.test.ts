@@ -7,7 +7,7 @@ import assert from "assert";
 import { Event } from "src/cs/base/common/event";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { TABLE_MODEL_RULE_VERSION } from "src/cs/workbench/services/tableModel/common/tableModel";
-import { TableModelService } from "src/cs/workbench/services/tableModel/browser/tableModelService";
+import { TableModelProducerService } from "src/cs/workbench/services/tableModel/browser/tableModelService";
 import type {
 	ISchemaProfileService,
 	SchemaProfile,
@@ -21,7 +21,7 @@ suite("workbench/services/tableModel/test/browser/tableModelService", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
 
   test("creates import TableModel seed through the service owner", async () => {
-    const service = store.add(new TableModelService());
+    const service = store.add(new TableModelProducerService());
     const result = await service.createImportTableModelSeedFromRows("transfer.csv", [
       ["SetupTitle", "Transfer_DB"],
       ["TestParameter", "Channel.VName", "Vg", "Vd", "Vs"],
@@ -40,7 +40,7 @@ suite("workbench/services/tableModel/test/browser/tableModelService", () => {
   });
 
   test("wraps TableModel records with source version", async () => {
-    const service = store.add(new TableModelService());
+    const service = store.add(new TableModelProducerService());
     const result = await service.getOrCreate({
       fileId: "file-a",
       rawTableId: "raw-a",
@@ -136,7 +136,7 @@ suite("workbench/services/tableModel/test/browser/tableModelService", () => {
   });
 
   test("profiles stripped CH1/CH2 raw table columns even when family needs review", async () => {
-    const service = store.add(new TableModelService());
+    const service = store.add(new TableModelProducerService());
     const result = await service.getOrCreate({
       fileId: "file-b",
       rawTableId: "raw-b",
@@ -203,7 +203,7 @@ suite("workbench/services/tableModel/test/browser/tableModelService", () => {
   });
 
   test("keeps semantic review required for generic pairwise X/Y layout", async () => {
-    const service = store.add(new TableModelService());
+    const service = store.add(new TableModelProducerService());
     const result = await service.getOrCreate({
       fileId: "file-generic-xy",
       rawTableId: "raw-generic-xy",
@@ -249,7 +249,7 @@ suite("workbench/services/tableModel/test/browser/tableModelService", () => {
   });
 
   test("splits repeated header sections into measurement blocks", async () => {
-    const service = store.add(new TableModelService());
+    const service = store.add(new TableModelProducerService());
     const result = await service.getOrCreate({
       fileId: "file-repeated",
       rawTableId: "raw-repeated",
@@ -410,7 +410,7 @@ suite("workbench/services/tableModel/test/browser/tableModelService", () => {
   });
 
   test("uses exact schema profile matches as confirmed column semantics", async () => {
-    const service = store.add(new TableModelService());
+    const service = store.add(new TableModelProducerService());
     const result = await service.getOrCreate({
       fileId: "file-profile",
       rawTableId: "raw-profile",
@@ -505,7 +505,7 @@ suite("workbench/services/tableModel/test/browser/tableModelService", () => {
   });
 
   test("allows exact user-confirmed profiles to unlock unambiguous automatic TableModel", async () => {
-    const service = store.add(new TableModelService());
+    const service = store.add(new TableModelProducerService());
     const rows = [
       ["DataName", "Input A", "Output B"],
       ["DataValue", "-1", "1e-12"],
@@ -564,7 +564,7 @@ suite("workbench/services/tableModel/test/browser/tableModelService", () => {
   });
 
   test("keeps generic exact profile voltage/current bindings in review", async () => {
-    const service = store.add(new TableModelService());
+    const service = store.add(new TableModelProducerService());
     const rows = [
       ["DataName", "Input A", "Output B"],
       ["DataValue", "-1", "1e-12"],
@@ -608,7 +608,7 @@ suite("workbench/services/tableModel/test/browser/tableModelService", () => {
   });
 
   test("reads exact schema profile matches from the schema profile service", async () => {
-    const service = store.add(new TableModelService(new TestSchemaProfileService({
+    const service = store.add(new TableModelProducerService(new TestSchemaProfileService({
       version: 5,
       profiles: [{
         id: "profile-service-input-output",
@@ -665,7 +665,7 @@ suite("workbench/services/tableModel/test/browser/tableModelService", () => {
   });
 
   test("keeps medium-confidence capacitance-frequency TableModel inferred", async () => {
-    const service = store.add(new TableModelService());
+    const service = store.add(new TableModelProducerService());
     const result = await service.getOrCreate({
       fileId: "file-c",
       rawTableId: "raw-c",

@@ -216,7 +216,10 @@ export const createReviewEvidenceSignature = ({
   layoutCandidates,
   schemaProfileVersion,
   semanticCandidates,
+  sourceModelVersion,
   sourceRawTableVersion,
+  sourceUri,
+  sourceVersion,
   structure,
 }: Pick<
   TableModelRecord,
@@ -228,7 +231,10 @@ export const createReviewEvidenceSignature = ({
   | "layoutCandidates"
   | "schemaProfileVersion"
   | "semanticCandidates"
+  | "sourceModelVersion"
   | "sourceRawTableVersion"
+  | "sourceUri"
+  | "sourceVersion"
   | "structure"
 >, context: ReviewEvidenceSignatureContext = {}): string => JSON.stringify({
   tableModelRuleVersion,
@@ -238,6 +244,11 @@ export const createReviewEvidenceSignature = ({
     fileName: normalizeSignatureText(context.fileName),
     rowCount: normalizeSignatureInteger(context.rowCount),
   },
+  ...createSourceModelSignature({
+    sourceModelVersion,
+    sourceUri,
+    sourceVersion,
+  }),
   sourceRawTableVersion,
   structure,
   columnProfiles,
@@ -279,4 +290,27 @@ const normalizeSignatureInteger = (
 ): number | undefined => {
   const normalized = Math.floor(Number(value));
   return Number.isFinite(normalized) && normalized >= 0 ? normalized : undefined;
+};
+
+const createSourceModelSignature = ({
+  sourceModelVersion,
+  sourceUri,
+  sourceVersion,
+}: {
+  readonly sourceModelVersion?: number;
+  readonly sourceUri?: string;
+  readonly sourceVersion?: number;
+}): { readonly sourceModel?: { readonly modelVersion?: number; readonly sourceUri?: string; readonly sourceVersion?: number } } => {
+  const modelVersion = normalizeSignatureInteger(sourceModelVersion);
+  const normalizedSourceUri = normalizeSignatureText(sourceUri);
+  const normalizedSourceVersion = normalizeSignatureInteger(sourceVersion);
+  return modelVersion !== undefined || normalizedSourceUri || normalizedSourceVersion !== undefined
+    ? {
+        sourceModel: {
+          modelVersion,
+          sourceUri: normalizedSourceUri,
+          sourceVersion: normalizedSourceVersion,
+        },
+      }
+    : {};
 };

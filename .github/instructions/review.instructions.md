@@ -98,6 +98,9 @@ materialization logic belongs in Template, not TableModel, Explorer, or Slice.
 - Non-selected candidate records store summaries only. Detail rematerialization
   must verify Recipe/UserTemplate fingerprints and return a stale result when
   snapshots no longer match.
+- Review evidence signatures include URI-backed `TableModel` source identity
+  and `sourceVersion` / `modelVersion` when present, so reviewed facts can go
+  stale on editor-model changes as well as raw table version changes.
 - Bump `reviewPolicyVersion` whenever thresholds, conflict rules, critical
   diagnostic handling, override rules, or source priority changes.
 - Explorer reads `RawTableReviewRecord` and Slice state as projection inputs;

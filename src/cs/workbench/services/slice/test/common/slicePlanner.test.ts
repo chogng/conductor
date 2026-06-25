@@ -5,7 +5,10 @@
 import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import { createSlicePlan } from "src/cs/workbench/services/slice/common/slicePlanner";
+import {
+	createSlicePlan,
+	createSliceTableModelSignature,
+} from "src/cs/workbench/services/slice/common/slicePlanner";
 import type { Template } from "src/cs/workbench/services/template/common/template";
 
 suite("workbench/services/slice/test/common/slicePlanner", () => {
@@ -75,6 +78,29 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 		assert.deepEqual(plan.blocks, []);
 		assert.deepEqual(plan.inputRanges, []);
 		assert.deepEqual(plan.errors, ["slicePlanner.blockRangeOutOfBounds"]);
+	});
+
+	test("includes URI-backed table model versions in table model signatures", () => {
+		const baseSignature = createSliceTableModelSignature({
+			tableModelRuleVersion: 2,
+			schemaProfileVersion: 3,
+			sourceRawTableVersion: 4,
+		});
+		const uriSignature = createSliceTableModelSignature({
+			tableModelRuleVersion: 2,
+			schemaProfileVersion: 3,
+			sourceModelVersion: 6,
+			sourceRawTableVersion: 4,
+			sourceUri: "file:///workspace/data/source.csv",
+			sourceVersion: 5,
+		});
+
+		assert.notEqual(baseSignature, uriSignature);
+		assert.deepEqual(JSON.parse(uriSignature).sourceModel, {
+			modelVersion: 6,
+			sourceUri: "file:///workspace/data/source.csv",
+			sourceVersion: 5,
+		});
 	});
 });
 

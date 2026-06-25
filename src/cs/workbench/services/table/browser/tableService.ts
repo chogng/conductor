@@ -4,7 +4,6 @@
 
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
-import { IFileService } from "src/cs/platform/files/common/files";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { IStorageService, StorageScope, StorageTarget } from "src/cs/platform/storage/common/storage";
 import {
@@ -49,7 +48,8 @@ import {
   normalizeTableSelection,
   type CreateTableViewModelWithScopeOptions,
 } from "src/cs/workbench/services/table/browser/tableViewModel";
-import { TableModelService } from "src/cs/workbench/services/table/browser/tableModelService";
+import { ITableModelService } from "src/cs/workbench/services/table/common/resolverService";
+import type { TableModelPreviewInput } from "src/cs/workbench/services/table/common/tableModel";
 
 type TableState = ReturnType<TableViewModel["getState"]>;
 type TableCell = NonNullable<ReturnType<TableViewModel["getRevealCell"]>>;
@@ -161,7 +161,7 @@ const normalizeTargetCell = (
 
   return {
     ...normalizedCell,
-    fileId: context.file.fileId,
+    ...(context.file.fileId ? { fileId: context.file.fileId } : {}),
     sheetId: context.sheetId,
   };
 };
@@ -197,7 +197,7 @@ const normalizeTargetRange = (
     ...normalizedRange,
     endCol,
     endRow,
-    fileId: context.file.fileId,
+    ...(context.file.fileId ? { fileId: context.file.fileId } : {}),
     sheetId: context.sheetId,
   };
 };
@@ -296,6 +296,9 @@ const resolveTableCopyPlan = (tableViewModel: TableViewModel): TableCopyPlan | n
   }
 
   const sourceKey = context.file.sourceKey || context.file.fileId;
+  if (!sourceKey) {
+    return null;
+  }
   const selection = tableViewModel.getSelection();
   const selectedRange = selection.ranges?.[0]
     ? normalizeTargetRange(tableViewModel, selection.ranges[0])
@@ -392,17 +395,15 @@ export class TableService extends Disposable implements ITableService {
   private tableViewModelSelectionListener: (() => void) | null = null;
   private numericDisplayMode: NumericDisplayMode;
   private displayVersion = 0;
-  private readonly tableModelService: TableModelService;
 
   public constructor(
     @ITableRowsReaderService private readonly tableRowsReaderService: ITableRowsReaderService,
     @ISessionService private readonly sessionService: ISessionService,
     @IStorageService private readonly storageService: IStorageService,
     @ISettingsService private readonly settingsService: ISettingsService,
-    @IFileService private readonly fileService: IFileService,
+    @ITableModelService private readonly tableModelService: ITableModelService,
   ) {
     super();
-    this.tableModelService = this._register(new TableModelService(this.fileService));
     this.numericDisplayMode = normalizeNumericDisplayMode(
       this.settingsService.getConductorSettings()?.numericDisplayMode,
     );
@@ -459,12 +460,12 @@ export class TableService extends Disposable implements ITableService {
   }
 
   private getRawFilesForCurrentSource(rawFiles: readonly SessionFile[]): SessionFile[] {
-    const sessionFile = this.tableModelService.getSessionFile(this.currentSource);
-    if (!this.currentSource?.resource || !sessionFile) {
+    const previewInput = this.tableModelService.getPreviewInput(this.currentSource);
+    if (!this.currentSource?.resource || !previewInput) {
       return [...rawFiles];
     }
 
-    return [sessionFile, ...rawFiles];
+    return [toTransientSessionFile(previewInput), ...rawFiles];
   }
 
   private resolveTableModel(source: TableSource | null): void {
@@ -771,7 +772,7 @@ const isSessionFileForTableSource = (
     return true;
   }
 
-  return getSessionFileSheetId(rawFile) === source.sheetId;
+  return getPreviewInputSheetId(rawFile) === source.sheetId;
 };
 
 const getTableColumnLayoutStorageKey = (
@@ -783,11 +784,14 @@ const getTableColumnLayoutStorageKey = (
     : null;
 };
 
-const getSessionFileSheetId = (rawFile: SessionFile): string | null =>
+const getPreviewInputSheetId = (rawFile: SessionFile): string | null =>
   readSessionFileString(rawFile, "sheetId") ??
   readSessionFileString(rawFile, "worksheetId") ??
   readSessionFileString(rawFile, "sheetName") ??
   readSessionFileString(rawFile, "worksheetName");
+
+const toTransientSessionFile = (previewInput: TableModelPreviewInput): SessionFile =>
+  previewInput as SessionFile;
 
 const readSessionFileString = (
   rawFile: SessionFile,

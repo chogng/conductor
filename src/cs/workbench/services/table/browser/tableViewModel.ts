@@ -27,6 +27,7 @@ import {
   type ColumnDisplayProfile,
   type NumericDisplayMode,
 } from "src/cs/workbench/services/table/common/tableDisplayProfile";
+import type { TableModelContentSnapshot } from "src/cs/workbench/services/table/common/tableModel";
 import { loadConvertedCsvFile } from "src/cs/workbench/services/files/browser/fileConverter";
 
 // TableViewModel owns the service data plane: source switching, worker lifecycle,
@@ -890,7 +891,7 @@ const formatTableFileName = (fileName: string | null | undefined): string =>
 
 type TableSourceEntry = {
   readonly entry: SessionFile;
-  readonly source: TableSource & { readonly fileId: string };
+  readonly source: TableSource;
   readonly sourceKey: string;
   readonly sourceVersion: number;
   readonly sheetName: string | null;
@@ -917,27 +918,44 @@ const getEntryResource = (entry: SessionFile | null | undefined): URI | null => 
     : null;
 };
 
+const getEntryTableModelContent = (
+  entry: SessionFile | null | undefined,
+): TableModelContentSnapshot | null => {
+  const content = entry?.tableModelContent;
+  if (!content || typeof content !== "object") {
+    return null;
+  }
+
+  const candidate = content as Partial<TableModelContentSnapshot>;
+  return Array.isArray(candidate.rows) ? candidate as TableModelContentSnapshot : null;
+};
+
 const createTableSourceEntry = (entry: SessionFile): TableSourceEntry | null => {
   const fileId = readEntryString(entry, "fileId");
-  if (!fileId) {
+  const resource = getEntryResource(entry);
+  if (!fileId && !resource) {
     return null;
   }
 
   const sheetId = getEntrySheetId(entry);
   const sourceKey = readEntryString(entry, "sourceKey");
-  const source: TableSource & { readonly fileId: string } = {
-    fileId,
-    ...(getEntryResource(entry) ? { resource: getEntryResource(entry) } : {}),
+  const source: TableSource = {
+    ...(fileId ? { fileId } : {}),
+    ...(resource ? { resource } : {}),
     sheetId,
     ...(sourceKey ? { sourceKey } : {}),
   };
+  const resolvedSourceKey = sourceKey ?? toTableSourceKey(source);
+  if (!resolvedSourceKey) {
+    return null;
+  }
 
   return {
     entry,
     sheetName: getEntrySheetName(entry),
     source,
     sourceVersion: normalizeSourceVersion(entry.sourceVersion),
-    sourceKey: sourceKey ?? toTableSourceKey(source),
+    sourceKey: resolvedSourceKey,
   };
 };
 
@@ -1042,7 +1060,7 @@ const getUnhealthyTableMessage = (entry: SessionFile): string => {
 const createTableFileFromSourceEntry = (
   sourceEntry: TableSourceEntry,
 ): TableFile => ({
-  fileId: sourceEntry.source.fileId,
+  ...(sourceEntry.source.fileId ? { fileId: sourceEntry.source.fileId } : {}),
   fileName: String(sourceEntry.entry.fileName ?? ""),
   sheetId: sourceEntry.source.sheetId ?? null,
   sheetName: sourceEntry.sheetName,
@@ -1335,16 +1353,34 @@ const createTableViewModel = ({
   const sourcesByFileId = memoValue(() => {
     const map = new Map<string, TableSourceEntry[]>();
     for (const sourceEntry of sourceEntries) {
-      const fileSources = map.get(sourceEntry.source.fileId) ?? [];
+      const fileId = sourceEntry.source.fileId;
+      if (!fileId) {
+        continue;
+      }
+      const fileSources = map.get(fileId) ?? [];
       fileSources.push(sourceEntry);
-      map.set(sourceEntry.source.fileId, fileSources);
+      map.set(fileId, fileSources);
     }
     return map;
   }, [sourceEntries]);
 
   const selectedSource = memoValue((): TableSourceEntry | null => {
     if (activeSourceIdentityKey) {
-      return sourcesByKey.get(activeSourceIdentityKey) ?? null;
+      const exactSource = sourcesByKey.get(activeSourceIdentityKey);
+      if (exactSource) {
+        return exactSource;
+      }
+
+      const resourceKey = source?.resource?.toString()?.trim() ?? "";
+      if (resourceKey) {
+        const resourceSource = sourceEntries.find(sourceEntry =>
+          sourceEntry.source.resource?.toString() === resourceKey &&
+          (!activeSheetId || sourceEntry.source.sheetId === activeSheetId)
+        );
+        if (resourceSource) {
+          return resourceSource;
+        }
+      }
     }
 
     if (!deferredActiveFileId) {
@@ -1370,6 +1406,9 @@ const createTableViewModel = ({
     deferredActiveFileId,
     deferredActiveSheetId,
     activeSourceIdentityKey,
+    activeSheetId,
+    source,
+    sourceEntries,
     sourcesByKey,
     sourcesByFileId,
   ]);
@@ -1784,7 +1823,7 @@ const createTableViewModel = ({
           ? previewPayload.maxCellLengths.map((n) => Number(n) || 0)
           : [];
         const nextPreviewFile: TableFile = {
-          fileId: sourceEntry?.source.fileId ?? String(previewPayload.fileId || ""),
+          ...(sourceEntry?.source.fileId ? { fileId: sourceEntry.source.fileId } : {}),
           fileName: String(previewPayload.fileName || ""),
           sheetId: sourceEntry?.source.sheetId ?? previewPayload.sheetId ?? null,
           sheetName: sourceEntry?.sheetName ?? previewPayload.sheetName ?? null,
@@ -1950,7 +1989,7 @@ const createTableViewModel = ({
     const targetFile = targetSource?.entry ?? null;
     const targetSourceKey = targetSource?.sourceKey ?? null;
     const targetSourceSignature = activeSourceSignature;
-    if (!targetSource || !targetFile?.file || !targetFile?.fileId || !targetSourceKey) return;
+    if (!targetSource || !targetFile?.file || !targetSourceKey) return;
     if (isUnhealthyTableSource(targetFile)) {
       const nextPreviewFile = createTableFileFromSourceEntry(targetSource);
       clearPendingPreviewRequest(previewRequestIdRef.current);
@@ -1968,6 +2007,30 @@ const createTableViewModel = ({
           state: "error",
           message: getUnhealthyTableMessage(targetFile),
         });
+      });
+      return;
+    }
+    const tableModelContent = getEntryTableModelContent(targetFile);
+    if (tableModelContent) {
+      const nextPreviewFile = createTableFileFromSourceEntry(targetSource);
+      clearPendingPreviewRequest(previewRequestIdRef.current);
+      pendingPreviewFileIdRef.current = null;
+      activatePreviewFileCache(targetSourceKey);
+      mergePreviewSeedRows(
+        targetSourceKey,
+        0,
+        tableModelContent.rows as unknown[][],
+      );
+      runImmediately(() => {
+        if (
+          !(
+            isTableFileForSource(previewFileRef.current, targetSourceKey) &&
+            areTableFilesEqual(previewFileRef.current, nextPreviewFile)
+          )
+        ) {
+          setPreviewFile(nextPreviewFile);
+        }
+        setPreviewStatus({ state: "ready", message: "" });
       });
       return;
     }
@@ -2028,7 +2091,7 @@ const createTableViewModel = ({
           requestId,
           fileId: previewTargetSourceKey,
           sourceKey: previewTargetSourceKey,
-          physicalFileId: previewTargetSource.source.fileId,
+          ...(previewTargetSource.source.fileId ? { physicalFileId: previewTargetSource.source.fileId } : {}),
           sheetId: previewTargetSource.source.sheetId ?? null,
           sheetName: previewTargetSource.sheetName,
           file: convertedFile,
@@ -2078,7 +2141,7 @@ const createTableViewModel = ({
                 ? previewPayload.fileId
                 : previewTargetSourceKey;
           const nextPreviewFile: TableFile = {
-            fileId: previewTargetSource.source.fileId,
+            ...(previewTargetSource.source.fileId ? { fileId: previewTargetSource.source.fileId } : {}),
             fileName: String(previewPayload.fileName || ""),
             sheetId: previewTargetSource.source.sheetId ?? previewPayload.sheetId ?? null,
             sheetName: previewTargetSource.sheetName ?? previewPayload.sheetName ?? null,

@@ -45,11 +45,14 @@ or equality rules in service/view files.
 | File | Responsibility |
 | --- | --- |
 | `services/table/common/table.ts` | service contract, model contracts, source key helpers. |
-| `services/table/common/tableModel.ts` | URI-backed `TableModel` / `ITableModelService` contract and snapshot shape; service-local, not Session. |
+| `services/table/common/tableModel.ts` | URI-backed `TableModel` snapshot shape; service-local, not Session. |
+| `services/table/common/resolverService.ts` | URI -> `TableModel` reference service contract, following upstream resolver service shape. |
 | `services/table/common/tableFileFormat.ts` | table import format policy and resource/name support checks. |
 | `common/tableColumnLayout.ts` | width policy and storage serialization. |
 | `common/tableDisplayProfile.ts` / `numericFormat.ts` | display profile and numeric formatting helpers. |
-| `browser/tableModelService.ts` | URI/resource table model service: resolve, read, transient preview `SessionFile` migration bridge, model cache, and model change events. |
+| `browser/tableModelResolverService.ts` | `ITableModelService` implementation: URI -> `TableModel` reference, support check, reference/cache entry, content-provider/file-backed dispatch, and reference-counted cache release. |
+| `browser/tableFileEditorModel.ts` | file-backed table working copy and URI-backed `TableModel` implementation: watch, stat/read, dirty/save/revert, orphan/conflict/error state, sourceVersion, parsed content snapshots, sheet snapshots, and transient preview input migration bridge. Resource-backed preview input carries `resource`/sheet metadata, not fake raw `fileId`/`sourceKey`. |
+| `browser/tableFileEditorModelManager.ts` | file-backed table model manager: cache/reuse, reload/remove, pending resolve de-duplication, and model change events. |
 | `browser/tableService.ts` | table service owner, view input, copy text, column width persistence. |
 | `browser/tableViewModel.ts` | per-table preview view model: source switching, row cache, selection/highlight/reveal, worker/reader lifecycle. |
 | `browser/tableRowsReaderService.ts` | browser row reader fallback. |
@@ -70,9 +73,12 @@ become an independent service boundary.
 ```txt
 TableFile/Session/settings/command/search bridge
   -> ITableService.open(source) / reveal / select
-  -> resource sources resolve through tableModelService by URI
-  -> tableModelService produces transient preview input, not Session records
-  -> tableViewModel loads rows through reader
+  -> resource sources resolve through ITableModelService / tableModelResolverService by URI
+  -> tableModelResolverService resolves provider-backed virtual resources or delegates file-backed resources to tableFileEditorModelManager
+  -> tableFileEditorModelManager resolves/reloads cached TableFileEditorModel instances
+  -> TableFileEditorModel owns file watch/stat/read, dirty/save/revert, orphan/conflict state, sourceVersion, and updates TableModel
+  -> TableModel snapshot owns parsed CSV/TSV content and Excel sheet content when conversion metadata is available
+  -> tableViewModel reads resource-backed TableModel content without converting the source identity into a raw fileId; raw/session sources still use reader/worker
   -> TableController consumes view input
   -> TableWidget adapts table state to base table widget renderers
   -> base table widget owns structural CSS, zoom state, column resize mechanics, and facade defaults

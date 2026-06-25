@@ -56,7 +56,7 @@ the closest-looking name.
 | file conversion | parse sources into raw file/table records | `services/files/browser/fileConverter.ts` |
 | conversion result | converter output ready for TableFile | `FileConversionResult` |
 | table-file commit | canonical imported data-file/raw-table storage | `ITableFileService.commitImport(...)` |
-| table model | raw tables -> structure/profile/semantic/block model | table-model producer (`ITableModelService`) |
+| table model | raw tables -> structure/profile/semantic/block model | table-model producer (`ITableModelProducerService`) |
 
 Use user-facing "Import" in labels if appropriate, but use precise internal
 names: collect sources, convert files, commit converted files, upload,
@@ -224,7 +224,7 @@ Explorer view code may:
 - call commands, `IExplorerService`, or `IExplorerWorkflowService` for user intent.
 
 Explorer view code must not parse files, read raw table rows directly, call the
-table-model producer (`ITableModelService`), mutate TableFile/Session,
+table-model producer (`ITableModelProducerService`), mutate TableFile/Session,
 build plot models, or clear global thumbnail bitmap cache on ordinary prop
 changes.
 

@@ -132,7 +132,7 @@ Runtime folders:
 | `fileConverter.ts` / files service helpers | CSV/XLS/XLSX/clipboard/manual conversion into raw table records |
 | `ITableFileService` | imported data-file/raw-table owner and raw table identity/version lifecycle |
 | `ISessionService` | canonical analysis ledger backing table-file and downstream records |
-| TableModel producer (`ITableModelService`) | legacy derived raw-table structure/semantics producer during migration; table URI/editor-model naming follows `.github/instructions/迁移说明.md` |
+| TableModel producer (`ITableModelProducerService`) | derived raw-table structure/semantics producer during migration; table URI/editor-model naming follows `.github/instructions/迁移说明.md` |
 | `IRecipeService` | passive built-in rules; it does not evaluate tables or materialize Templates |
 | `ITemplateMaterializationService` / `services/template` | canonical Template spec and target owner for `TableModel + Recipe/UserTemplate -> Template` materialization |
 | `IReviewService` | materialized Template candidate review, selected `ReviewedTemplate`, manual adjustment state, and system-application recommendation |
