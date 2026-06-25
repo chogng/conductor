@@ -15,6 +15,10 @@ import {
   type IFileConverterBackendService as IFileConverterBackendServiceType,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import {
+  TableFileEditorModel,
+  TableModel,
+} from "src/cs/workbench/services/table/common/tableFileEditorModel";
+import {
   toTableSourceKey,
   type TableSource,
 } from "src/cs/workbench/services/table/common/table";
@@ -22,10 +26,7 @@ import {
   type ITableModel,
   type TableModelPreviewInput,
 } from "src/cs/workbench/services/table/common/tableModel";
-import {
-  TableFileEditorModel,
-  TableModel,
-} from "src/cs/workbench/services/table/browser/tableFileEditorModel";
+import { TableFileEditorModelContentResolver } from "src/cs/workbench/services/table/browser/tableFileEditorModelContentResolver";
 
 export class TableFileEditorModelManager extends Disposable {
   private readonly onDidChangeModelEmitter =
@@ -35,12 +36,17 @@ export class TableFileEditorModelManager extends Disposable {
 
   private readonly fileEditorModels = new Map<string, TableFileEditorModel>();
   private readonly pendingResolves = new Map<string, Promise<void>>();
+  private readonly contentResolver: TableFileEditorModelContentResolver;
 
   public constructor(
     @IFileService private readonly fileService: IFileService,
     @IFileConverterBackendService private readonly fileConverterBackendService: IFileConverterBackendServiceType,
   ) {
     super();
+    this.contentResolver = new TableFileEditorModelContentResolver(
+      this.fileService,
+      this.fileConverterBackendService,
+    );
     this._register(this.fileService.onDidFilesChange(changes => {
       this.onDidFilesChange(changes);
     }));
@@ -134,15 +140,16 @@ export class TableFileEditorModelManager extends Disposable {
         resource,
         toTableSourceKey(source ?? { resource }),
         this.fileService,
-        this.fileConverterBackendService,
+        this.contentResolver,
       ));
-      this._register(model.onDidChangeState(() => {
-        this.onDidChangeModelEmitter.fire(model.model);
+      const createdModel = model;
+      this._register(createdModel.onDidChangeState(() => {
+        this.onDidChangeModelEmitter.fire(createdModel.model);
       }));
-      this._register(model.model.onDidChange(changedModel => {
+      this._register(createdModel.model.onDidChange(changedModel => {
         this.onDidChangeModelEmitter.fire(changedModel);
       }));
-      this.fileEditorModels.set(key, model);
+      this.fileEditorModels.set(key, createdModel);
     }
     return model;
   }
