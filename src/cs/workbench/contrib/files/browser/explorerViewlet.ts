@@ -61,13 +61,13 @@ import {
   type FileConverterBackend,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import {
-  commitExplorerSessionImport,
-} from "src/cs/workbench/contrib/files/browser/explorerSessionImport";
+  commitExplorerTableFileImport,
+} from "src/cs/workbench/contrib/files/browser/explorerTableFileImport";
 import {
   markTemplateApplyPerformanceTrace,
 } from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
 import { createTemplateEditorRecordFromUserTemplate } from "src/cs/workbench/contrib/template/browser/templateUserTemplateAdapter";
-import { ISessionService } from "src/cs/workbench/services/session/common/session";
+import { ITableFileService } from "src/cs/workbench/services/tableFile/common/tableFile";
 import {
   createFastImportBadgeTableFacts,
 } from "src/cs/workbench/services/tableFacts/common/importTableFactsSeedHeuristics";
@@ -125,7 +125,7 @@ export class ExplorerViewPane extends ViewPane {
     @IAppearanceService private readonly appearanceService: IAppearanceService,
     @IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
     @INotificationService private readonly notificationService: INotificationService,
-    @ISessionService private readonly sessionService: ISessionService,
+    @ITableFileService private readonly tableFileService: ITableFileService,
     @IRawTableFactsService private readonly rawTableFactsService: IRawTableFactsServiceType,
     @IThumbnailPreviewService private readonly thumbnailPreviewService: IThumbnailPreviewService,
     @IThumbnailService private readonly thumbnailService: IThumbnailService,
@@ -414,7 +414,7 @@ export class ExplorerViewPane extends ViewPane {
       return;
     }
 
-    this.sessionService.renameFile(normalizedFileId, normalizedName);
+    this.tableFileService.renameFile(normalizedFileId, normalizedName);
   };
 
   private syncView(): void {
@@ -591,7 +591,7 @@ export class ExplorerViewPane extends ViewPane {
   private showMoreActions(anchor: HTMLElement): void {
     const canCloseFolder =
       this.files.length > 0 ||
-      getSessionFileIds(this.sessionService).length > 0;
+      getTableFileIds(this.tableFileService).length > 0;
     const isChartMode = this.paneInput.mode === "chart";
     const isThumbnailView = isChartMode && this.viewLayout === "thumbnail";
     this.contextMenuService.showContextMenu({
@@ -756,14 +756,14 @@ export class ExplorerViewPane extends ViewPane {
 
     const fileIds = uniqueFileIds([
       ...this.fileIds,
-      ...getSessionFileIds(this.sessionService),
+      ...getTableFileIds(this.tableFileService),
     ]);
     if (!this.isControlled) {
       this.internalFiles = [];
     }
 
     if (fileIds.length > 0) {
-      this.sessionService.removeFiles(fileIds);
+      this.tableFileService.removeFiles(fileIds);
     }
     this.clearExplorerSelections();
     this.syncView();
@@ -854,7 +854,7 @@ export class ExplorerViewPane extends ViewPane {
       const removedFileIds = new Set(normalizedFileIds);
       this.internalFiles = this.internalFiles.filter((entry) => !removedFileIds.has(entry.fileId ?? ""));
     }
-    this.sessionService.removeFiles(normalizedFileIds);
+    this.tableFileService.removeFiles(normalizedFileIds);
     if (this.paneInput.selectionKind !== "table") {
       this.selectRawFileAfterRemoval(normalizedFileIds);
     }
@@ -870,12 +870,12 @@ export class ExplorerViewPane extends ViewPane {
       this.syncView();
     }
 
-    const importResult = commitExplorerSessionImport({
+    const importResult = commitExplorerTableFileImport({
       explorerService: this.explorerService,
       importedFiles,
       mode: "replace",
       selectedFileId,
-      sessionService: this.sessionService,
+      tableFileService: this.tableFileService,
     });
     this.removePendingSourceFiles(getImportSourceKeys(importedFiles));
     if (!importResult.importedFileIds.length) {
@@ -900,11 +900,11 @@ export class ExplorerViewPane extends ViewPane {
       this.syncView();
     }
 
-    const importResult = commitExplorerSessionImport({
+    const importResult = commitExplorerTableFileImport({
       explorerService: this.explorerService,
       importedFiles,
       mode: "append",
-      sessionService: this.sessionService,
+      tableFileService: this.tableFileService,
     });
     this.removePendingSourceFiles(getImportSourceKeys(importedFiles));
     if (!importResult.importedFileIds.length) {
@@ -965,7 +965,7 @@ export class ExplorerViewPane extends ViewPane {
     }
 
     const removedFileIdSet = new Set(removedFileIds);
-    const remainingFileIds = getSessionFileIds(this.sessionService)
+    const remainingFileIds = getTableFileIds(this.tableFileService)
       .filter(fileId => !removedFileIdSet.has(fileId));
     const nextSelectedFileId = resolveExplorerSelectionAfterRemoval({
       currentFileId: this.explorerService.selectedRawFileId,
@@ -1170,10 +1170,10 @@ function getNormalizedFileIds(values: readonly string[]): readonly string[] {
   );
 }
 
-function getSessionFileIds(
-  sessionService: Pick<ISessionService, "getSnapshot">,
+function getTableFileIds(
+  tableFileService: Pick<ITableFileService, "getSnapshot">,
 ): readonly string[] {
-  const snapshot = sessionService.getSnapshot();
+  const snapshot = tableFileService.getSnapshot();
   return uniqueFileIds([
     ...snapshot.fileOrder,
     ...Object.keys(snapshot.filesById),

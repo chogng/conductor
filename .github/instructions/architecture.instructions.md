@@ -66,7 +66,7 @@ Subscriptions must be disposed through the owner lifecycle.
 
 | State kind | Owner | Examples |
 | --- | --- | --- |
-| Canonical model state | `ISessionService` and domain commit APIs | raw files, table facts, reviews, slice runs, curves, metrics |
+| Canonical model state | `ITableFileService`, `ISessionService` ledger, and domain commit APIs | imported table files, raw tables, table facts, reviews, slice runs, curves, metrics |
 | Domain service state | The domain service | plot settings, chart view input, template catalog state, table source/selection snapshot |
 | View state | The view/widget/service that renders it | focus, local selection, template form draft, scroll, expansion, hover, layout mode |
 | Derived model | Producer service | plot render model, table display profile, search model, thumbnail preview |
@@ -125,7 +125,8 @@ Runtime folders:
 | `IFileService` | platform filesystem bytes/stat/watch/provider capability |
 | `IExplorerService` | Files Explorer UI state: resources, selection, expansion, layout, context |
 | `fileConverter.ts` / files service helpers | CSV/XLS/XLSX/clipboard/manual conversion into raw table records |
-| `ISessionService` | canonical session ledger and change events |
+| `ITableFileService` | imported data-file/raw-table model owner, raw table identity/version lifecycle, TableFacts commits |
+| `ISessionService` | canonical analysis ledger backing table-file and downstream records |
 | TableFacts producer (`IRawTableFactsService`) | TableFacts-owned raw-table facts: structure, profiles, semantics, groups, blocks, diagnostics |
 | `IRecipeService` | passive built-in rules; it does not evaluate tables or materialize Templates |
 | `ITemplateMaterializationService` / `services/template` | canonical Template spec and target owner for `TableFacts + Recipe/UserTemplate -> Template` materialization |
@@ -173,10 +174,10 @@ High-level analysis flow:
 ```txt
 Explorer source workflow
   -> fileConverter.ts FileConversionResult
-  -> ISessionService.commitFileImport
-  -> SessionChangeEvent
+  -> ITableFileService.commitImport
+  -> table-file / SessionChangeEvent
   -> Template/Review/Slice/Table/Plot/Search/Export/Parameters subscribers
-  -> downstream services reread SessionSnapshot and own their state
+  -> downstream services reread TableFileSnapshot/SessionSnapshot and own their state
 ```
 
 Primary template flow:
@@ -193,7 +194,8 @@ Raw table facts
 
 Specific flow owners:
 
-- Import/source collection: Explorer/files workflow coordinates; converter returns results; Session commits.
+- Import/source collection: Explorer/files workflow coordinates; converter returns results; TableFile commits imported data-file/raw-table model state.
+- Session ledger: Session currently backs TableFile storage and downstream analysis records during migration.
 - Table facts / Template materialization: TableFacts is the raw-table fact
   input, and Template is the target owner for
   `Recipe/UserTemplate + TableFacts -> Template`. Do not keep retired
@@ -210,9 +212,11 @@ Specific flow owners:
 
 ## Canonical Session
 
-`SessionModel` is the canonical in-memory ledger. It stores imported files,
-raw tables, table facts, reviews, slice runs, series, curves, metrics, metric inputs,
-and rebuildable calculation cache descriptors.
+`ITableFileService` is the owner surface for imported data-file and raw-table
+lifecycle. During migration, `SessionModel` is the canonical in-memory ledger
+backing TableFile plus downstream analysis facts. It stores imported files, raw
+tables, table facts, reviews, slice runs, series, curves, metrics, metric
+inputs, and rebuildable calculation cache descriptors.
 
 Keep out of Session:
 
@@ -253,7 +257,7 @@ Before approving a change, verify:
 2. Does user intent enter through a command/action/controller or owner API?
 3. Does only the owner mutate the state?
 4. Are events facts, with subscribers rereading public state?
-5. Are canonical facts in Session and view/service state outside Session?
+5. Are imported table-file facts behind `ITableFileService`, analysis facts in the Session ledger, and view/service state outside Session?
 6. Does the dependency direction stay within the layer rules?
 7. Are record fields documented in `records.instructions.md` when shared?
 8. Are subscriptions disposed?

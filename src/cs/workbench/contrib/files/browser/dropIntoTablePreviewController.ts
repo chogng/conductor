@@ -8,8 +8,8 @@ import { IInstantiationService } from "src/cs/platform/instantiation/common/inst
 import type { IWorkbenchContribution } from "src/cs/workbench/common/contributions";
 import { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
 import {
-  commitExplorerSessionImport,
-} from "src/cs/workbench/contrib/files/browser/explorerSessionImport";
+  commitExplorerTableFileImport,
+} from "src/cs/workbench/contrib/files/browser/explorerTableFileImport";
 import {
   prepareDroppedFilesForImport,
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
@@ -18,7 +18,7 @@ import {
   INotificationService,
   Severity,
 } from "src/cs/workbench/services/notification/common/notificationService";
-import { ISessionService } from "src/cs/workbench/services/session/common/session";
+import { ITableFileService } from "src/cs/workbench/services/tableFile/common/tableFile";
 import { ITableDropTargetService } from "src/cs/workbench/services/table/browser/tableDropTargetService";
 
 type TablePreviewDropTargetRegistration = {
@@ -30,7 +30,7 @@ type DropImportServices = {
   readonly explorerService: IExplorerService;
   readonly fileConverterBackendService: IFileConverterBackendService;
   readonly notificationService: INotificationService;
-  readonly sessionService: ISessionService;
+  readonly tableFileService: ITableFileService;
 };
 
 const TABLE_PREVIEW_DRAGGING_CLASS_NAME = "workbench_preview_area_part--dragging";
@@ -125,7 +125,7 @@ export class DropIntoTablePreviewController extends Disposable implements IWorkb
         explorerService: accessor.get(IExplorerService),
         fileConverterBackendService: accessor.get(IFileConverterBackendService),
         notificationService: accessor.get(INotificationService),
-        sessionService: accessor.get(ISessionService),
+        tableFileService: accessor.get(ITableFileService),
       },
     ));
   }
@@ -148,11 +148,11 @@ export class DropIntoTablePreviewController extends Disposable implements IWorkb
       return;
     }
 
-    commitExplorerSessionImport({
+    commitExplorerTableFileImport({
       explorerService: services.explorerService,
       importedFiles: preparedFiles.map(prepared => prepared.fileInfo),
       mode: "append",
-      sessionService: services.sessionService,
+      tableFileService: services.tableFileService,
     });
     this.showImportError(errorMessage, services.notificationService);
   }

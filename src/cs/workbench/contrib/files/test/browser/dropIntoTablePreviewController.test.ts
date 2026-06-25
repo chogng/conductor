@@ -15,7 +15,7 @@ import {
   INotificationService,
   NotificationService,
 } from "src/cs/workbench/services/notification/common/notificationService";
-import { ISessionService } from "src/cs/workbench/services/session/common/session";
+import { ITableFileService } from "src/cs/workbench/services/tableFile/common/tableFile";
 import type { ITableDropTargetService } from "src/cs/workbench/services/table/browser/tableDropTargetService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -85,7 +85,7 @@ function createController(
   store: Pick<DisposableStore, "add">,
 ): DropIntoTablePreviewController {
   const instantiationService = store.add(new InstantiationService(new ServiceCollection(
-    [ISessionService, createSessionService()],
+    [ITableFileService, createTableFileService()],
     [IExplorerService, createExplorerService()],
     [IFileConverterBackendService, createFileConverterBackendService()],
     [INotificationService, store.add(new NotificationService())],
@@ -155,26 +155,17 @@ function createTestElement(): HTMLElement {
   return new TestElement() as unknown as HTMLElement;
 }
 
-function createSessionService(): ISessionService {
+function createTableFileService(): ITableFileService {
   return {
     _serviceBrand: undefined,
-    onDidChangeSession: BaseEvent.None as ISessionService["onDidChangeSession"],
-    setMetricInput: () => undefined,
-    clearMetricInput: () => undefined,
-    clearSession: () => undefined,
-    commitFileImport: () => ({
+    onDidChangeTableFiles: BaseEvent.None as ITableFileService["onDidChangeTableFiles"],
+    clearTableFiles: () => undefined,
+    commitImport: () => ({
       importedFileIds: [],
       skippedDuplicateFileIds: [],
     }),
-    commitRawTableFacts: () => undefined,
-    commitRawTableFactsBatch: () => undefined,
-    commitRawTableReviews: () => undefined,
-    commitSliceRuns: () => undefined,
-    commitCalculatedRecordsBatch: () => undefined,
-    commitCurves: () => undefined,
-    commitCurvesBatch: () => undefined,
-    commitMetrics: () => undefined,
-    commitMetricsBatch: () => undefined,
+    commitTableFacts: () => undefined,
+    commitTableFactsBatch: () => undefined,
     getSnapshot: () => ({
       fileOrder: [],
       filesById: {},

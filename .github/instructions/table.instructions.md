@@ -20,7 +20,7 @@ measurement structure.
 - paged raw rows cache, loading state, row request lifecycle, worker lifecycle;
 - block table preview model and invalidation when source changes.
 
-It consumes Session snapshots, raw table row readers, table-fact ranges,
+It consumes TableFile/Session snapshots, raw table row readers, table-fact ranges,
 settings for visual display preferences, and pure `TableSource` open intents.
 It does not own import, table-fact production, template execution, plot/chart
 models, or canonical Session records.
@@ -50,7 +50,7 @@ become an independent service boundary.
 ## Flow
 
 ```txt
-Session/settings/command/search bridge
+TableFile/Session/settings/command/search bridge
   -> ITableService.open(source) / reveal / select
   -> tableModel loads rows through reader
   -> TableController consumes view input

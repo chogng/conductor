@@ -8,9 +8,10 @@ TableFacts is the raw-table fact layer consumed by Template materialization.
 It is not Review, not Recipe, and not Slice.
 
 ```txt
-RawTableRecord + SchemaProfile snapshot
+ITableFileService RawTableRecord + SchemaProfile snapshot
   -> IRawTableFactsService
   -> RawTableFactsRecord
+  -> ITableFileService.commitTableFacts(...)
   + Recipe/UserTemplate snapshots
   -> Template materialization
   -> Review
@@ -48,13 +49,15 @@ TableFacts must not produce `TemplateDraft`, `ReviewedTemplate`,
 | `browser/importTableFactsSeed.ts` | browser preview adapter from file/rows to `ImportTableFactsSeed`. |
 | `browser/rawTableFactsEngine.ts` | browser raw-table facts workflow. |
 | `browser/rawTableFactsService.ts` | injectable `IRawTableFactsService` implementation. |
-| `browser/rawTableFactsQueueService.ts` | injectable queue for scheduling and committing table facts. |
-| `browser/rawTableFacts.contribution.ts` | session lifecycle subscriber that enqueues raw tables. |
+| `browser/rawTableFactsQueueService.ts` | injectable queue for scheduling and committing table facts through `ITableFileService`. |
+| `browser/rawTableFacts.contribution.ts` | table-file lifecycle subscriber that enqueues raw tables. |
 
 ## Rules
 
 - TableFacts may infer structure, profiles, semantic candidates, groups,
   blocks, and diagnostics only.
+- TableFacts reads raw tables from `ITableFileService` snapshots and commits
+  `RawTableFactsRecord` values back through `ITableFileService`.
 - Recipe is fixed selector/projection data; Template materializers interpret it
   against TableFacts.
 - Review owns candidate ranking, selected reviewed template, and application

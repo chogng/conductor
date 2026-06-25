@@ -29,15 +29,15 @@ at the type name.
 | Record | Owner | Producer | Invalidation / notes |
 | --- | --- | --- | --- |
 | `SessionModel` | `ISessionService` | session commits | Canonical root: `schemaVersion`, `sessionVersion`, `filesById`, `fileOrder`. |
-| `FileRecord` | `ISessionService` | import, table-fact, review, slice, calculation, metric commits | Owns one imported file/workbook lifecycle. |
-| `RawRecord` | `ISessionService` | file conversion commit | Raw file facts and `rawTablesById`; no table-fact/template/plot semantics. |
-| `RawTableRecord` | `ISessionService` | `fileConverter.ts` | Physical rows/source/health/template eligibility. Use `rawTableId`; keep failed rows unavailable. |
+| `FileRecord` | `ITableFileService` + Session ledger | import, table-fact, review, slice, calculation, metric commits | Owns one imported file/workbook lifecycle; TableFile is the public owner surface for imported data files. |
+| `RawRecord` | `ITableFileService` + Session ledger | file conversion commit | Raw file facts and `rawTablesById`; no table-fact/template/plot semantics. |
+| `RawTableRecord` | `ITableFileService` + Session ledger | `fileConverter.ts` through TableFile commit | Physical rows/source/health/template eligibility. Use `rawTableId`; keep failed rows unavailable. |
 | `RawTableSourceRecord` | converter/session | CSV, Excel sheet, clipboard, manual, unknown | Source provenance only, not measurement semantics. |
 | `RawTableRowsRecord` | converter/session | inline, normalized CSV, unavailable | Large rows should use artifact/path references. |
-| `RawTableFactsRecord` | TableFacts + Session | table-fact producer (`IRawTableFactsService`) | Tied to raw table version, table-fact rule version, and schema profile version; stores structure, column profiles, semantic candidates, groups, blocks, and diagnostics. |
+| `RawTableFactsRecord` | TableFacts + `ITableFileService` + Session ledger | table-fact producer (`IRawTableFactsService`) | Tied to raw table version, table-fact rule version, and schema profile version; stores structure, column profiles, semantic candidates, groups, blocks, and diagnostics. |
 | `RawTableReviewRecord` | Review + Session | `IReviewService` | Tied to template candidate signature, Recipe fingerprint, UserTemplate/saved-template fingerprint, review engine version, and review policy version; stores candidates, reviews, and `ReviewDecision`. |
-| `MeasurementGroupRecord` | TableFacts + Session | table-fact producer / TableFacts helpers | Group/device labels and ordered block ids. |
-| `MeasurementBlockRecord` | TableFacts + Session | table-fact producer / TableFacts helpers | Measurement family/mode/source ranges/column roles. |
+| `MeasurementGroupRecord` | TableFacts + `ITableFileService` + Session ledger | table-fact producer / TableFacts helpers | Group/device labels and ordered block ids. |
+| `MeasurementBlockRecord` | TableFacts + `ITableFileService` + Session ledger | table-fact producer / TableFacts helpers | Measurement family/mode/source ranges/column roles. |
 | `SliceRun` | Slice + Session | slice execution | Executed template snapshot, source table-fact signature, input ranges, output series ids, output curve keys, warnings, and errors. |
 | `SeriesRecord` | Slice/calculation + Session | slice or curve commit | Series metadata and raw/block provenance. |
 | `CurveRecord` | Slice/calculation + Session | slice/calculation commit | Base/derived curve points, lineage, domain, signature. |
@@ -64,8 +64,8 @@ provenance, and template inputs.
 | Type | Owner | Notes |
 | --- | --- | --- |
 | `FileImportInput` | files source workflow | Sources plus conversion options. Do not turn options into Explorer UI state. |
-| `FileConversionResult` | `fileConverter.ts` output; Session commits | Contains converted files and diagnostics. Not the entire Explorer add-data workflow result. |
-| `ImportedFileRecord` | converter output; Session commits | `id`, `name`, `kind`, `raw`. One Excel workbook should produce one imported file with one raw table per sheet. |
+| `FileConversionResult` | `fileConverter.ts` output; TableFile commits | Contains converted files and diagnostics. Not the entire Explorer add-data workflow result. |
+| `ImportedFileRecord` | converter output; TableFile commits | `id`, `name`, `kind`, `raw`. One Excel workbook should produce one imported file with one raw table per sheet. |
 | `FileImportDiagnostic` | converter/files workflow | Import warnings/errors only; not IV/CV table-fact classification. |
 
 Conversion records must not encode measurement blocks, curve types, plot

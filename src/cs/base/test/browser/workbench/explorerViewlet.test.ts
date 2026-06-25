@@ -27,7 +27,7 @@ import { DEFAULT_EXPLORER_APPEARANCE, type IAppearanceService } from "src/cs/wor
 import type { FileConverterBackend } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import type { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
-import type { ISessionService } from "src/cs/workbench/services/session/common/session";
+import type { ITableFileService } from "src/cs/workbench/services/tableFile/common/tableFile";
 import type { IThumbnailPreviewService, IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import type { IRawTableFactsService } from "src/cs/workbench/services/tableFacts/common/tableFacts";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
@@ -162,10 +162,18 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
       notify: () => undefined,
     } as unknown as INotificationService,
     {
+      clearTableFiles: () => undefined,
+      commitImport: () => ({
+        importedFileIds: [],
+        skippedDuplicateFileIds: [],
+      }),
+      commitTableFacts: () => undefined,
+      commitTableFactsBatch: () => undefined,
       getSnapshot: () => ({ filesById: {}, fileOrder: [] }),
+      onDidChangeTableFiles: Event.None,
       removeFiles: options.removeFiles ?? (() => undefined),
       renameFile: () => undefined,
-    } as unknown as ISessionService,
+    } as unknown as ITableFileService,
     {} as unknown as IRawTableFactsService,
     {
       onDidChangePreview: Event.None,

@@ -17,28 +17,28 @@ import {
   createRawTableFactsRecordFromImportSeed,
 } from "src/cs/workbench/services/tableFacts/common/tableFactsRecord";
 import type {
-  CommitFileImportRawTableFactsInput,
-  ISessionService,
-} from "src/cs/workbench/services/session/common/session";
+  CommitTableFileImportRawTableFactsInput,
+  ITableFileService,
+} from "src/cs/workbench/services/tableFile/common/tableFile";
 import {
   markTemplateApplyPerformanceTrace,
 } from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
 
-export type ExplorerSessionImportResult = {
+export type ExplorerTableFileImportResult = {
   readonly importedFileIds: readonly string[];
   readonly selectedFileId: string | null;
   readonly shouldNavigateToTable: boolean;
 };
 
-type ExplorerSessionImportOptions = {
+type ExplorerTableFileImportOptions = {
   readonly explorerService: Pick<IExplorerService, "selectedRawFileId" | "select">;
   readonly importedFiles: readonly PreparedFileImportInfo[];
   readonly mode: "append" | "replace";
   readonly selectedFileId?: string | null;
-  readonly sessionService: Pick<
-    ISessionService,
-    | "clearSession"
-    | "commitFileImport"
+  readonly tableFileService: Pick<
+    ITableFileService,
+    | "clearTableFiles"
+    | "commitImport"
     | "getSnapshot"
   >;
 };
@@ -48,13 +48,13 @@ type NormalizedPreparedFileImportInfo = PreparedFileImportInfo & {
   readonly importRecord: ImportedFileRecord;
 };
 
-export const commitExplorerSessionImport = ({
+export const commitExplorerTableFileImport = ({
   explorerService,
   importedFiles,
   mode,
   selectedFileId,
-  sessionService,
-}: ExplorerSessionImportOptions): ExplorerSessionImportResult => {
+  tableFileService,
+}: ExplorerTableFileImportOptions): ExplorerTableFileImportResult => {
   const normalizedFiles = normalizePreparedImportedFiles(importedFiles);
   if (!normalizedFiles.length) {
     return {
@@ -64,26 +64,26 @@ export const commitExplorerSessionImport = ({
     };
   }
 
-  const currentRawFileIds = getSessionRawFileIds(sessionService);
+  const currentRawFileIds = getTableFileIds(tableFileService);
   const currentSelectedRawFileId = normalizeFileId(explorerService.selectedRawFileId);
   const importResult = createFileImportResultFromRecords(
     normalizedFiles.map(file => file.importRecord),
   );
   const preparedTableFacts = createPreparedImportTableFactInputs(normalizedFiles);
-  markTemplateApplyPerformanceTrace("import.session.commit.start", {
+  markTemplateApplyPerformanceTrace("import.tableFile.commit.start", {
     fileCount: normalizedFiles.length,
     mode,
     preparedTableFactsSeedCount: preparedTableFacts.length,
   });
 
   if (mode === "replace") {
-    sessionService.clearSession();
-    const commitResult = sessionService.commitFileImport(importResult, {
+    tableFileService.clearTableFiles();
+    const commitResult = tableFileService.commitImport(importResult, {
       rawTableFacts: preparedTableFacts,
     });
     const committedFileIds = commitResult.importedFileIds;
     markPreparedImportTableFactsCommitted(preparedTableFacts, committedFileIds);
-    markTemplateApplyPerformanceTrace("import.session.commit.complete", {
+    markTemplateApplyPerformanceTrace("import.tableFile.commit.complete", {
       committedFileCount: committedFileIds.length,
       mode,
       skippedDuplicateFileCount: commitResult.skippedDuplicateFileIds.length,
@@ -104,12 +104,12 @@ export const commitExplorerSessionImport = ({
     };
   }
 
-  const commitResult = sessionService.commitFileImport(importResult, {
+  const commitResult = tableFileService.commitImport(importResult, {
     rawTableFacts: preparedTableFacts,
   });
   const committedFileIds = commitResult.importedFileIds;
   markPreparedImportTableFactsCommitted(preparedTableFacts, committedFileIds);
-  markTemplateApplyPerformanceTrace("import.session.commit.complete", {
+  markTemplateApplyPerformanceTrace("import.tableFile.commit.complete", {
     committedFileCount: committedFileIds.length,
     mode,
     skippedDuplicateFileCount: commitResult.skippedDuplicateFileIds.length,
@@ -143,8 +143,8 @@ export const commitExplorerSessionImport = ({
 
 const createPreparedImportTableFactInputs = (
   importedFiles: readonly NormalizedPreparedFileImportInfo[],
-): CommitFileImportRawTableFactsInput[] => {
-  const tableFactsRecords: CommitFileImportRawTableFactsInput[] = [];
+): CommitTableFileImportRawTableFactsInput[] => {
+  const tableFactsRecords: CommitTableFileImportRawTableFactsInput[] = [];
   for (const importedFile of importedFiles) {
     if (!importedFile.preparedTableFactsSeed) {
       continue;
@@ -185,7 +185,7 @@ const createPreparedImportTableFactInputs = (
 };
 
 const markPreparedImportTableFactsCommitted = (
-  tableFactsRecords: readonly CommitFileImportRawTableFactsInput[],
+  tableFactsRecords: readonly CommitTableFileImportRawTableFactsInput[],
   committedFileIds: readonly string[],
 ): void => {
   const committedFileIdSet = new Set(committedFileIds);
@@ -197,10 +197,10 @@ const markPreparedImportTableFactsCommitted = (
   });
 };
 
-const getSessionRawFileIds = (
-  sessionService: Pick<ISessionService, "getSnapshot">,
+const getTableFileIds = (
+  tableFileService: Pick<ITableFileService, "getSnapshot">,
 ): readonly string[] => {
-  const snapshot = sessionService.getSnapshot();
+  const snapshot = tableFileService.getSnapshot();
   return snapshot.fileOrder
     .map(fileId => normalizeFileId(fileId))
     .filter((fileId): fileId is string => Boolean(fileId && snapshot.filesById[fileId]));

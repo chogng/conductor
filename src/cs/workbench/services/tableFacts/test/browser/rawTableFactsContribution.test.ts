@@ -34,21 +34,24 @@ import {
 } from "src/cs/workbench/services/schemaProfile/common/schemaProfileConfirmation";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
+import type { ITableFileService } from "src/cs/workbench/services/tableFile/common/tableFile";
+import { TableFileService } from "src/cs/workbench/services/tableFile/browser/tableFileService";
 
 suite("workbench/services/tableFacts/test/browser/tableFactsContribution", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test("assesses inline raw tables after session import commits", async () => {
+	test("assesses inline raw tables after table-file import commits", async () => {
 		const sessionService = store.add(new SessionService());
+		const tableFileService = new TableFileService(sessionService);
 		const tableFactsService = new TestRawTableFactsService();
 		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
 		const tableFactsQueueService = store.add(new RawTableFactsQueueService(
-			sessionService,
+			tableFileService,
 			tableFactsService,
 			rawTableRowsReaderService,
 		));
 		const contribution = store.add(new RawTableFactsContribution(
-			sessionService,
+			tableFileService,
 			tableFactsQueueService,
 		));
 
@@ -93,10 +96,11 @@ suite("workbench/services/tableFacts/test/browser/tableFactsContribution", () =>
 
 	test("commits the first tableFacts then batches background results", async () => {
 		const sessionService = store.add(new SessionService());
+		const tableFileService = new TableFileService(sessionService);
 		const tableFactsService = new TestRawTableFactsService();
 		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
 		const tableFactsQueueService = store.add(new RawTableFactsQueueService(
-			sessionService,
+			tableFileService,
 			tableFactsService,
 			rawTableRowsReaderService,
 		));
@@ -107,7 +111,7 @@ suite("workbench/services/tableFacts/test/browser/tableFactsContribution", () =>
 			}
 		}));
 		const contribution = store.add(new RawTableFactsContribution(
-			sessionService,
+			tableFileService,
 			tableFactsQueueService,
 		));
 
@@ -133,13 +137,14 @@ suite("workbench/services/tableFacts/test/browser/tableFactsContribution", () =>
 		}));
 		const tableFactsService = new TestRawTableFactsService();
 		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
+		const tableFileService = new TableFileService(sessionService);
 		const tableFactsQueueService = store.add(new RawTableFactsQueueService(
-			sessionService,
+			tableFileService,
 			tableFactsService,
 			rawTableRowsReaderService,
 		));
 		const contribution = store.add(new RawTableFactsContribution(
-			sessionService,
+			tableFileService,
 			tableFactsQueueService,
 		));
 
@@ -161,17 +166,18 @@ suite("workbench/services/tableFacts/test/browser/tableFactsContribution", () =>
 
 	test("reassesses raw tables when schema profile version changes", async () => {
 		const sessionService = store.add(new SessionService());
+		const tableFileService = new TableFileService(sessionService);
 		const tableFactsService = new TestRawTableFactsService();
 		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
 		const schemaProfileService = new TestSchemaProfileService();
 		const tableFactsQueueService = store.add(new RawTableFactsQueueService(
-			sessionService,
+			tableFileService,
 			tableFactsService,
 			rawTableRowsReaderService,
 			schemaProfileService,
 		));
 		const contribution = store.add(new RawTableFactsContribution(
-			sessionService,
+			tableFileService,
 			tableFactsQueueService,
 		));
 
@@ -194,17 +200,18 @@ suite("workbench/services/tableFacts/test/browser/tableFactsContribution", () =>
 
 	test("reassesses with confirmed schema profile evidence after profile changes", async () => {
 		const sessionService = store.add(new SessionService());
+		const tableFileService = new TableFileService(sessionService);
 		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
 		const schemaProfileService = new TestSchemaProfileService();
 		const tableFactsService = store.add(new RawTableFactsService(schemaProfileService));
 		const tableFactsQueueService = store.add(new RawTableFactsQueueService(
-			sessionService,
+			tableFileService,
 			tableFactsService,
 			rawTableRowsReaderService,
 			schemaProfileService,
 		));
 		const contribution = store.add(new RawTableFactsContribution(
-			sessionService,
+			tableFileService,
 			tableFactsQueueService,
 		));
 
@@ -270,15 +277,16 @@ suite("workbench/services/tableFacts/test/browser/tableFactsContribution", () =>
 
 	test("prioritizes visible raw tables before background tableFacts", async () => {
 		const sessionService = store.add(new SessionService());
+		const tableFileService = new TableFileService(sessionService);
 		const tableFactsService = new TestRawTableFactsService();
 		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
 		const tableFactsQueueService = store.add(new RawTableFactsQueueService(
-			sessionService,
+			tableFileService,
 			tableFactsService,
 			rawTableRowsReaderService,
 		));
 		const contribution = store.add(new RawTableFactsContribution(
-			sessionService,
+			tableFileService,
 			tableFactsQueueService,
 		));
 
@@ -300,15 +308,16 @@ suite("workbench/services/tableFacts/test/browser/tableFactsContribution", () =>
 
 	test("discards stale queued tableFacts when raw table version changes while rows are loading", async () => {
 		const sessionService = store.add(new SessionService());
+		const tableFileService = new TableFileService(sessionService);
 		const tableFactsService = new TestRawTableFactsService();
 		const rawTableRowsReaderService = new BlockingRawTableRowsReaderService();
 		const tableFactsQueueService = store.add(new RawTableFactsQueueService(
-			sessionService,
+			tableFileService,
 			tableFactsService,
 			rawTableRowsReaderService,
 		));
 		const contribution = store.add(new RawTableFactsContribution(
-			sessionService,
+			tableFileService,
 			tableFactsQueueService,
 		));
 
@@ -329,17 +338,18 @@ suite("workbench/services/tableFacts/test/browser/tableFactsContribution", () =>
 
 	test("discards stale queued tableFacts when schema profile version changes while rows are loading", async () => {
 		const sessionService = store.add(new SessionService());
+		const tableFileService = new TableFileService(sessionService);
 		const tableFactsService = new TestRawTableFactsService();
 		const rawTableRowsReaderService = new BlockingRawTableRowsReaderService();
 		const schemaProfileService = new TestSchemaProfileService();
 		const tableFactsQueueService = store.add(new RawTableFactsQueueService(
-			sessionService,
+			tableFileService,
 			tableFactsService,
 			rawTableRowsReaderService,
 			schemaProfileService,
 		));
 		const contribution = store.add(new RawTableFactsContribution(
-			sessionService,
+			tableFileService,
 			tableFactsQueueService,
 		));
 
@@ -364,10 +374,11 @@ suite("workbench/services/tableFacts/test/browser/tableFactsContribution", () =>
 
 	test("publishes queued and running raw table tableFacts state", async () => {
 		const sessionService = store.add(new SessionService());
+		const tableFileService = new TableFileService(sessionService);
 		const tableFactsService = new TestRawTableFactsService();
 		const rawTableRowsReaderService = new BlockingRawTableRowsReaderService();
 		const tableFactsQueueService = store.add(new RawTableFactsQueueService(
-			sessionService,
+			tableFileService,
 			tableFactsService,
 			rawTableRowsReaderService,
 		));
@@ -406,19 +417,27 @@ suite("workbench/services/tableFacts/test/browser/tableFactsContribution", () =>
 
 	test("cleans queued and preferred tableFacts refs when files are removed or session clears", () => {
 		const eventEmitter = new Emitter<SessionChangeEvent>();
-		const sessionService = {
-				commitRawTableFacts: () => undefined,
-				commitRawTableFactsBatch: () => undefined,
-				getSnapshot: () => ({
+		const tableFileService: ITableFileService = {
+			_serviceBrand: undefined,
+			clearTableFiles: () => undefined,
+			commitImport: () => ({
+				importedFileIds: [],
+				skippedDuplicateFileIds: [],
+			}),
+			commitTableFacts: () => undefined,
+			commitTableFactsBatch: () => undefined,
+			getSnapshot: () => ({
 				fileOrder: [],
 				filesById: {},
 				schemaVersion: 1,
 				sessionVersion: 1,
 			}),
-			onDidChangeSession: eventEmitter.event,
-		} as unknown as SessionService;
+			onDidChangeTableFiles: eventEmitter.event,
+			removeFiles: () => undefined,
+			renameFile: () => false,
+		};
 		const tableFactsQueueService = store.add(new RawTableFactsQueueService(
-			sessionService,
+			tableFileService,
 			new TestRawTableFactsService(),
 			new TestRawTableRowsReaderService(),
 		));

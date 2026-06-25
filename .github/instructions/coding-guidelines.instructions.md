@@ -67,13 +67,14 @@ args, resolve services/controllers, call owner APIs, and return.
 | `IFileService` | platform filesystem capability |
 | `files` module | Files capability/container and source workflow surface |
 | `IExplorerService` | Explorer UI state: resources, selection, reveal, expansion, layout, context |
+| `ITableFileService` | imported data-file/raw-table model owner, Conductor's TextFileService equivalent |
 | `ExplorerView` / `ExplorerViewer` | Files container UI rendering |
 | `fileImportExport.ts` | file transfer and source collection helpers |
 | `fileConverter.ts` | CSV/XLS/XLSX/clipboard/manual conversion to raw table facts |
 
 Do not introduce `IFileImportService` by default. Source collection stays in
 Explorer/files workflow; conversion stays in `workbench/services/files`;
-canonical commit stays in `ISessionService`.
+canonical imported table-file commits go through `ITableFileService`.
 
 ## Service APIs
 

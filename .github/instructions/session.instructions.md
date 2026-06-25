@@ -5,7 +5,10 @@ applyTo: 'src/cs/workbench/services/session/**'
 # Session
 
 `SessionService` is the canonical in-memory ledger for the current analysis
-session. It is not a view-state store and not a workflow dispatcher.
+session. It is not a view-state store, not a workflow dispatcher, and not the
+public imported data-file owner surface. `ITableFileService` owns imported
+data-file/raw-table lifecycle APIs and delegates to Session while the ledger
+backs those records.
 
 ## Concepts
 
@@ -17,6 +20,7 @@ session. It is not a view-state store and not a workflow dispatcher.
 | `SessionSnapshot` | read-only consumer data |
 | `SessionReadModel` | derived read projection |
 | `SessionChangeEvent` | specific invalidation event |
+| `ITableFileService` | imported table-file/raw-table owner API backed by Session during migration |
 
 ## Core Files
 
@@ -51,23 +55,29 @@ request ids, row caches, or thumbnail caches.
 
 ## Workflow Boundary
 
-Commands may call Session commit methods only after another service/controller
-has produced the domain result.
+Commands may call Session backing commit methods only after another owner
+service/controller has produced the domain result. For imported data files and
+raw table facts, production callers use `ITableFileService` instead.
 
 | Workflow | Preferred producer | Session method |
 | --- | --- | --- |
-| import | Explorer source workflow after conversion | `commitFileImport` |
-| table facts | table-fact producer | `commitRawTableFacts` |
+| import | `ITableFileService` after Explorer source workflow conversion | `commitFileImport` backing API |
+| table facts | `ITableFileService` after table-fact producer | `commitRawTableFacts` backing API |
 | review | review contribution/command after candidate review | `commitRawTableReviews` |
 | slice | slice service after planning/execution | `commitSliceRuns` |
 | calculated curves/metrics | calculation service | `commitCalculatedRecordsBatch` |
 | metric input | parameters service | `setMetricInput` / `clearMetricInput` |
-| file removal | Explorer action/controller | `removeFiles` plus separate Explorer selection follow-up |
-| clear session | Explorer or global Workbench command | `clearSession` |
+| file removal | `ITableFileService` after Explorer action/controller | `removeFiles` backing API plus separate Explorer selection follow-up |
+| clear imported table files/session | `ITableFileService` or global Workbench command | `clearSession` backing API |
 
 Do not make another service fire request/submit events only so Workbench can
-mutate Session. The caller that owns the workflow result calls Session, and
-consumers react to `SessionChangeEvent`.
+mutate Session. The caller that owns the workflow result calls the owning
+service API, and consumers react to owner change events.
+
+Production Explorer/files/TableFacts code should not call the import,
+raw-table-fact, rename, remove, or clear backing APIs directly. Use
+`ITableFileService` so imported data-file ownership stays separate from the
+analysis ledger.
 
 Do not add Template-owned run/output commit or cleanup APIs. Template execution
 results enter Session only through Slice commits.

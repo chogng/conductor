@@ -36,10 +36,10 @@ import type {
   TableRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
-  ISessionService,
-  type SessionSnapshot,
-  type ISessionService as ISessionServiceType,
-} from "src/cs/workbench/services/session/common/session";
+  ITableFileService,
+  type ITableFileService as ITableFileServiceType,
+  type TableFileSnapshot,
+} from "src/cs/workbench/services/tableFile/common/tableFile";
 
 const RAW_TABLE_FACTS_PREVIEW_ROWS = 256;
 const RAW_TABLE_FACTS_BACKGROUND_COMMIT_BATCH_SIZE = 16;
@@ -69,13 +69,13 @@ export class RawTableFactsQueueService extends Disposable implements IRawTableFa
   private nextPreferredOrder = 0;
 
   public constructor(
-    @ISessionService private readonly sessionService: ISessionServiceType,
+    @ITableFileService private readonly tableFileService: ITableFileServiceType,
     @IRawTableFactsService private readonly rawTableFactsService: IRawTableFactsServiceType,
     @IRawTableRowsReaderService private readonly rawTableRowsReaderService: IRawTableRowsReaderServiceType,
     @ISchemaProfileService private readonly schemaProfileService?: ISchemaProfileServiceType,
   ) {
     super();
-    this._register(this.sessionService.onDidChangeSession(event => {
+    this._register(this.tableFileService.onDidChangeTableFiles(event => {
       if (event.reason === "sessionCleared") {
         this.clearQueuedRawTableRefs();
         return;
@@ -87,7 +87,7 @@ export class RawTableFactsQueueService extends Disposable implements IRawTableFa
     }));
     if (this.schemaProfileService) {
       this._register(this.schemaProfileService.onDidChangeSchemaProfiles(() => {
-        this.enqueueRawTables(getRawTableRefsForTableFactsSnapshot(this.sessionService.getSnapshot()));
+        this.enqueueRawTables(getRawTableRefsForTableFactsSnapshot(this.tableFileService.getSnapshot()));
       }));
     }
   }
@@ -204,14 +204,14 @@ export class RawTableFactsQueueService extends Disposable implements IRawTableFa
           ? RAW_TABLE_FACTS_BACKGROUND_COMMIT_BATCH_SIZE
           : 1;
         if (tableFactsBatch.length >= commitBatchSize) {
-          this.sessionService.commitRawTableFactsBatch(tableFactsBatch);
+          this.tableFileService.commitTableFactsBatch(tableFactsBatch);
           tableFactsBatch.length = 0;
           hasCommittedTableFacts = true;
         }
       }
 
       if (!this.disposed && tableFactsBatch.length > 0) {
-        this.sessionService.commitRawTableFactsBatch(tableFactsBatch);
+        this.tableFileService.commitTableFactsBatch(tableFactsBatch);
       }
     } finally {
       this.isRawTableFactsQueueRunning = false;
@@ -228,7 +228,7 @@ export class RawTableFactsQueueService extends Disposable implements IRawTableFa
     const queuedSourceRawTableVersion = entry.sourceRawTableVersion;
     const queuedSchemaProfileVersion = entry.schemaProfileVersion;
     const schemaProfileSnapshot = this.getSchemaProfileSnapshot();
-    const snapshot = this.sessionService.getSnapshot();
+    const snapshot = this.tableFileService.getSnapshot();
     const file = snapshot.filesById[targetRef.fileId];
     if (!file) {
       return null;
@@ -342,7 +342,7 @@ export class RawTableFactsQueueService extends Disposable implements IRawTableFa
     ref: RawTableRef,
     priority: RawTableFactsQueuePriority,
   ): QueuedRawTableFacts | null {
-    const snapshot = this.sessionService.getSnapshot();
+    const snapshot = this.tableFileService.getSnapshot();
     const schemaProfileSnapshot = this.getSchemaProfileSnapshot();
     const file = snapshot.filesById[ref.fileId];
     const sourceRawTableVersion = file?.rawTableVersionsById[ref.rawTableId];
@@ -397,7 +397,7 @@ export class RawTableFactsQueueService extends Disposable implements IRawTableFa
     ref: RawTableRef,
     sourceRawTableVersion: number,
   ): boolean {
-    const file = this.sessionService.getSnapshot().filesById[ref.fileId];
+    const file = this.tableFileService.getSnapshot().filesById[ref.fileId];
     return Boolean(
       file?.raw.tablesById[ref.rawTableId] &&
         (file.rawTableVersionsById[ref.rawTableId] ?? 0) === sourceRawTableVersion,
@@ -494,7 +494,7 @@ export const getRawTableRefsForTableFactsEvent = (
   refs: readonly RawTableRef[] | undefined,
   fileIds: readonly string[] | undefined,
   rawTableIds: readonly string[] | undefined,
-  snapshot: SessionSnapshot,
+  snapshot: TableFileSnapshot,
 ): RawTableRef[] => {
   if (refs?.length) {
     return uniqueRawTableRefs(refs);
@@ -522,7 +522,7 @@ export const getRawTableRefsForTableFactsEvent = (
 };
 
 const getRawTableRefsForTableFactsSnapshot = (
-  snapshot: SessionSnapshot,
+  snapshot: TableFileSnapshot,
 ): RawTableRef[] =>
   getRawTableRefsForTableFactsEvent(undefined, undefined, undefined, snapshot);
 

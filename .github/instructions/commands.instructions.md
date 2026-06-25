@@ -124,8 +124,8 @@ command APIs.
 | workbench navigation/mode/sidebar/window chrome | layout service or native host; titlebar only renders buttons |
 | Explorer add/remove/select/toggle layout | `IExplorerService` or `IExplorerWorkflowService` |
 | low-level filesystem operations | `IFileService`, usually not user-facing workbench commands |
-| raw import conversion | Explorer source workflow + files conversion helpers + Session commit |
-| table facts | table-fact producer (`IRawTableFactsService`) then Session commit |
+| raw import conversion | Explorer source workflow + files conversion helpers + `ITableFileService.commitImport(...)` |
+| table facts | table-fact producer (`IRawTableFactsService`) then `ITableFileService.commitTableFacts(...)` |
 | table reveal/copy/select | `ITableService` |
 | template save/delete/import/apply | `IUserTemplateService` for library management; Slice command handlers for application |
 | plot type/unit/scale/visibility | `IPlotService` |
@@ -153,4 +153,4 @@ service API.
 - Do not register broad feature commands in `workbench.ts` unless truly global.
 - Do not make `SessionService` dispatch user workflows.
 - Do not make Chart own Plot commands.
-- Do not inline Explorer import conversion/session commit in command handlers; delegate to Explorer source workflow.
+- Do not inline Explorer import conversion/table-file commit in command handlers; delegate to Explorer source workflow.
