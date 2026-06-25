@@ -4,6 +4,7 @@
 
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
+import { IFileService } from "src/cs/platform/files/common/files";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { IStorageService, StorageScope, StorageTarget } from "src/cs/platform/storage/common/storage";
 import {
@@ -23,6 +24,7 @@ import {
   type TableViewInput,
 } from "src/cs/workbench/services/table/common/table";
 import type { NumericDisplayMode } from "src/cs/workbench/services/table/common/tableDisplayProfile";
+import { tableFileFormatService } from "src/cs/workbench/services/table/common/tableFileFormat";
 import {
   toStoredTableColumnLayout,
   toTableColumnWidths,
@@ -47,6 +49,7 @@ import {
   normalizeTableSelection,
   type CreateTableViewModelWithScopeOptions,
 } from "src/cs/workbench/services/table/browser/tableViewModel";
+import { TableModelService } from "src/cs/workbench/services/table/browser/tableModelService";
 
 type TableState = ReturnType<TableViewModel["getState"]>;
 type TableCell = NonNullable<ReturnType<TableViewModel["getRevealCell"]>>;
@@ -389,18 +392,24 @@ export class TableService extends Disposable implements ITableService {
   private tableViewModelSelectionListener: (() => void) | null = null;
   private numericDisplayMode: NumericDisplayMode;
   private displayVersion = 0;
+  private readonly tableModelService: TableModelService;
 
   public constructor(
     @ITableRowsReaderService private readonly tableRowsReaderService: ITableRowsReaderService,
     @ISessionService private readonly sessionService: ISessionService,
     @IStorageService private readonly storageService: IStorageService,
     @ISettingsService private readonly settingsService: ISettingsService,
+    @IFileService private readonly fileService: IFileService,
   ) {
     super();
+    this.tableModelService = this._register(new TableModelService(this.fileService));
     this.numericDisplayMode = normalizeNumericDisplayMode(
       this.settingsService.getConductorSettings()?.numericDisplayMode,
     );
     this._register(this.sessionService.onDidChangeSession(() => this.refreshFromSession()));
+    this._register(this.tableModelService.onDidChangeModel(() => {
+      this.refreshFromSession({ forceViewInput: true });
+    }));
     this._register(this.settingsService.onDidChangeNumericDisplayMode(mode => {
       if (this.numericDisplayMode === mode) {
         return;
@@ -414,16 +423,20 @@ export class TableService extends Disposable implements ITableService {
 
   public open(source: TableSource | null): void {
     const nextSource = normalizeTableSource(source);
-    if (areTableSourcesEqual(this.currentSource, nextSource) && this.tableViewModel) {
+    const supportedSource = isSupportedTableSource(nextSource) ? nextSource : null;
+    if (areTableSourcesEqual(this.currentSource, supportedSource) && this.tableViewModel) {
       return;
     }
-    this.currentSource = nextSource;
+    this.currentSource = supportedSource;
+    this.resolveTableModel(supportedSource);
     this.refreshFromSession();
   }
 
   private refreshFromSession(options: { forceViewInput?: boolean } = {}): TableViewModel {
     const snapshot = this.sessionService.getSnapshot();
-    const rawFiles = createRawFilesFromRecords(snapshot.filesById, snapshot.fileOrder);
+    const rawFiles = this.getRawFilesForCurrentSource(
+      createRawFilesFromRecords(snapshot.filesById, snapshot.fileOrder),
+    );
     const source = resolveAvailableTableSource(rawFiles, this.currentSource);
     if (!areTableSourcesEqual(this.currentSource, source)) {
       this.currentSource = source;
@@ -443,6 +456,22 @@ export class TableService extends Disposable implements ITableService {
       tableState: tableViewModel.getState(),
     }, options);
     return tableViewModel;
+  }
+
+  private getRawFilesForCurrentSource(rawFiles: readonly SessionFile[]): SessionFile[] {
+    const sessionFile = this.tableModelService.getSessionFile(this.currentSource);
+    if (!this.currentSource?.resource || !sessionFile) {
+      return [...rawFiles];
+    }
+
+    return [sessionFile, ...rawFiles];
+  }
+
+  private resolveTableModel(source: TableSource | null): void {
+    const resource = source?.resource;
+    if (resource) {
+      this.tableModelService.resolve(resource, source);
+    }
   }
 
   public override dispose(): void {
@@ -715,6 +744,10 @@ const resolveAvailableTableSource = (
     return null;
   }
 
+  if (source.resource && tableFileFormatService.canHandle(source.resource)) {
+    return source;
+  }
+
   return rawFiles.some(rawFile => isSessionFileForTableSource(rawFile, source))
     ? source
     : null;
@@ -763,3 +796,6 @@ const readSessionFileString = (
   const value = rawFile[key];
   return typeof value === "string" && value.trim() ? value.trim() : null;
 };
+
+const isSupportedTableSource = (source: TableSource | null): boolean =>
+  !source?.resource || tableFileFormatService.canHandle(source.resource);

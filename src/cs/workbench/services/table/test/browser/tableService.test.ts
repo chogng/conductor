@@ -1,7 +1,12 @@
 import assert from "assert";
 
 import { Emitter, Event } from "src/cs/base/common/event";
+import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import {
+  FileType,
+  type IFileService,
+} from "src/cs/platform/files/common/files";
 import { StorageScope } from "src/cs/platform/storage/common/storage";
 import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
 import type {
@@ -100,6 +105,53 @@ suite("workbench/services/table/browser/tableService", () => {
     assert.equal(model.getState().file?.sourceKey, "source-key-a");
     assert.equal(model.getState().loadState.state, "ready");
     assert.equal(stateChangeCount > 0, true);
+  });
+
+  test("opens table resource without committing a session record", async () => {
+    let openedPayload: unknown = null;
+    const resource = URI.file("/workspace/data/transfer.csv");
+    const { service, sessionService } = createTableServiceFixture({
+      tableRowsReaderService: createTableRowsReaderService({
+        openSource: async payload => {
+          openedPayload = payload;
+          return {
+            ok: true,
+            result: {
+              fileId: resource.toString(),
+              sourceKey: resource.toString(),
+              fileName: "transfer.csv",
+              rowCount: 2,
+              columnCount: 2,
+              maxCellLengths: [1, 1],
+              seedStartRow: 0,
+              seedRows: [["x", "y"], [1, 2]],
+            },
+          };
+        },
+      }),
+    });
+
+    service.open({ resource });
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      if (service.getViewInput()?.tableState.loadState.state === "ready") {
+        break;
+      }
+      await waitForTableService();
+    }
+
+    assert.deepStrictEqual(sessionService.getSnapshot().fileOrder, []);
+    assert.deepStrictEqual(openedPayload, {
+      fileId: resource.toString(),
+      fileName: "transfer.csv",
+      path: resource.fsPath,
+      seedRows: 5000,
+      sheetId: null,
+      sheetName: null,
+      sourceKey: resource.toString(),
+    });
+    assert.equal(service.getViewInput()?.tableState.source?.resource?.toString(), resource.toString());
+    assert.equal(service.getViewInput()?.tableState.file?.sourceKey, resource.toString());
   });
 
   test("table selection equality accepts normalized duplicates", () => {
@@ -939,6 +991,7 @@ type TableServiceFixture = {
 };
 
 const createTableServiceFixture = ({
+  fileService = createFileServiceStub(),
   rawFiles = [],
   settingsService = createSettingsServiceStub(),
   storageService = new TestStorageService(),
@@ -947,6 +1000,7 @@ const createTableServiceFixture = ({
   readonly rawFiles?: readonly SessionFile[];
   readonly settingsService?: ISettingsService;
   readonly storageService?: TestStorageService;
+  readonly fileService?: IFileService;
   readonly tableRowsReaderService?: TableRowsReaderProvider;
 } = {}): TableServiceFixture => {
   tableTestStore?.add(storageService);
@@ -956,6 +1010,7 @@ const createTableServiceFixture = ({
     sessionService as never,
     storageService as never,
     settingsService as never,
+    fileService as never,
   );
   tableTestStore?.add(service);
   return {
@@ -976,6 +1031,31 @@ const createSettingsServiceStub = (
   onDidChangeSettingsViewInput: Event.None,
   ...overrides,
 } as ISettingsService);
+
+const createFileServiceStub = (
+  overrides: Partial<IFileService> = {},
+): IFileService => ({
+  _serviceBrand: undefined,
+  deleteFile: async () => undefined,
+  exists: async () => true,
+  getProvider: () => undefined,
+  moveFileToTrash: async () => undefined,
+  onDidFilesChange: Event.None,
+  readDir: async () => [],
+  readFile: async () => ({ encoding: "utf8", value: "A,B\n1,2" }),
+  realpath: async resource => resource,
+  registerProvider: () => ({ dispose: () => undefined }),
+  stat: async resource => ({
+    ctime: 1,
+    mtime: 2,
+    path: resource.path,
+    size: 7,
+    type: FileType.File,
+  }),
+  watch: () => ({ dispose: () => undefined }),
+  writeFile: async () => undefined,
+  ...overrides,
+} as IFileService);
 
 class TestSessionService {
   private readonly onDidChangeSessionEmitter = new Emitter<SessionChangeEvent>();

@@ -99,10 +99,11 @@ Service-local view input events should not carry the full snapshot as the data
 path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
 `getPaneInput()`.
 
-`TableSource` is a service-local open target, not a Session record. `fileId`
-identifies the imported file/workbook for compatibility and file actions;
-`sourceKey`, when present, identifies the exact raw table/source selected for
-preview, row caches, worker requests, and column-width scope.
+`TableSource` is a service-local open target, not a Session record. `resource`
+is the primary file -> table open identity, following the upstream file ->
+editor shape. `fileId` identifies imported raw/session files for compatibility
+and file actions; `sourceKey`, when present, is raw-table provenance or sheet
+disambiguation and must not replace the URI identity for resource opens.
 
 ## Domain Field Rules
 

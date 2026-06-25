@@ -4,6 +4,7 @@
 
 import { localize } from "src/cs/nls";
 import { Disposable } from "src/cs/base/common/lifecycle";
+import type { URI } from "src/cs/base/common/uri";
 import type {
   SessionFile,
 } from "src/cs/workbench/services/session/common/sessionTypes";
@@ -889,7 +890,7 @@ const formatTableFileName = (fileName: string | null | undefined): string =>
 
 type TableSourceEntry = {
   readonly entry: SessionFile;
-  readonly source: TableSource;
+  readonly source: TableSource & { readonly fileId: string };
   readonly sourceKey: string;
   readonly sourceVersion: number;
   readonly sheetName: string | null;
@@ -909,6 +910,13 @@ const getEntrySheetId = (entry: SessionFile | null | undefined): string | null =
   readEntryString(entry, "worksheetId") ??
   getEntrySheetName(entry);
 
+const getEntryResource = (entry: SessionFile | null | undefined): URI | null => {
+  const resource = entry?.resource;
+  return resource && typeof resource === "object" && typeof (resource as URI).toString === "function"
+    ? resource as URI
+    : null;
+};
+
 const createTableSourceEntry = (entry: SessionFile): TableSourceEntry | null => {
   const fileId = readEntryString(entry, "fileId");
   if (!fileId) {
@@ -917,8 +925,9 @@ const createTableSourceEntry = (entry: SessionFile): TableSourceEntry | null => 
 
   const sheetId = getEntrySheetId(entry);
   const sourceKey = readEntryString(entry, "sourceKey");
-  const source: TableSource = {
+  const source: TableSource & { readonly fileId: string } = {
     fileId,
+    ...(getEntryResource(entry) ? { resource: getEntryResource(entry) } : {}),
     sheetId,
     ...(sourceKey ? { sourceKey } : {}),
   };

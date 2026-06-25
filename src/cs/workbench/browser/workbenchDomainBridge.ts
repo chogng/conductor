@@ -4,6 +4,7 @@
 
 import { runWhenGlobalIdle } from "src/cs/base/common/async";
 import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
+import { URI } from "src/cs/base/common/uri";
 import { startPerf } from "src/cs/workbench/common/perf";
 import {
   type ExplorerPaneInput,
@@ -221,7 +222,7 @@ export class WorkbenchDomainBridge extends Disposable {
       readModel,
       this.options.layoutService.activeWorkbenchMainPart,
     );
-    this.options.tableService.open(createRawTableSource(explorerSelection));
+    this.options.tableService.open(createRawTableSource(explorerSelection, snapshot.filesById));
 
     if (deferSecondaryWork) {
       this.scheduleDeferredSecondarySync();
@@ -1152,6 +1153,7 @@ const findExplorerRawTable = (
 
 const createRawTableSource = (
   selection: Pick<ExplorerSessionSelection, "selectedRawFileId" | "selectedRawSourceKey">,
+  filesById: Readonly<Record<string, FileRecord>>,
 ): TableSource | null => {
   const fileId = normalizeExplorerSelectionFileId(selection.selectedRawFileId);
   if (!fileId) {
@@ -1159,10 +1161,23 @@ const createRawTableSource = (
   }
 
   const sourceKey = normalizeExplorerSelectionSourceKey(selection.selectedRawSourceKey);
+  const resource = getRawTableResource(filesById[fileId]);
+  if (resource) {
+    return {
+      resource,
+      ...(sourceKey ? { sourceKey } : {}),
+    };
+  }
+
   return {
     fileId,
     ...(sourceKey ? { sourceKey } : {}),
   };
+};
+
+const getRawTableResource = (file: FileRecord | undefined): URI | null => {
+  const filePath = String(file?.raw.filePath ?? "").trim();
+  return filePath ? URI.file(filePath) : null;
 };
 
 const createRawTableRefKey = (

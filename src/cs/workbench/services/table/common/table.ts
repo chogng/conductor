@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Event } from "src/cs/base/common/event";
+import type { URI } from "src/cs/base/common/uri";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { ConvertedCsvReaderService } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import type { ColumnDisplayProfile } from "src/cs/workbench/services/table/common/tableDisplayProfile";
@@ -68,7 +69,8 @@ type TableHighlight = {
 };
 
 export type TableSource = {
-	readonly fileId: string;
+	readonly fileId?: string | null;
+	readonly resource?: URI | null;
 	readonly sheetId?: string | null;
 	readonly sourceKey?: string | null;
 };
@@ -198,24 +200,25 @@ export type TableViewInput = {
 export const getTableSourceIdentityKey = (
 	source: TableSource | null | undefined,
 ): string | null => {
-	const sourceKey = typeof source?.sourceKey === "string" ? source.sourceKey.trim() : "";
-	return sourceKey || null;
+	return getTableSourceResourceKey(source) ?? getTableSourceRawKey(source);
 };
 
 export const normalizeTableSource = (
 	source: TableSource | null | undefined,
 ): TableSource | null => {
+	const resource = source?.resource ?? null;
 	const fileId = String(source?.fileId ?? "").trim();
-	if (!fileId) {
+	const sourceKey = getTableSourceRawKey(source);
+	if (!fileId && !resource && !sourceKey) {
 		return null;
 	}
 
 	const sheetId = typeof source?.sheetId === "string" && source.sheetId.trim()
 		? source.sheetId.trim()
 		: null;
-	const sourceKey = getTableSourceIdentityKey(source);
 	return {
-		fileId,
+		...(fileId ? { fileId } : {}),
+		...(resource ? { resource } : {}),
 		sheetId,
 		...(sourceKey ? { sourceKey } : {}),
 	};
@@ -231,6 +234,14 @@ export const areTableSourcesEqual = (
 		return currentSource === nextSource;
 	}
 
+	const currentResourceKey = getTableSourceResourceKey(currentSource);
+	const nextResourceKey = getTableSourceResourceKey(nextSource);
+	if (currentResourceKey || nextResourceKey) {
+		return currentResourceKey === nextResourceKey &&
+			getTableSourceRawKey(currentSource) === getTableSourceRawKey(nextSource) &&
+			currentSource.sheetId === nextSource.sheetId;
+	}
+
 	const currentSourceKey = getTableSourceIdentityKey(currentSource);
 	const nextSourceKey = getTableSourceIdentityKey(nextSource);
 	if (currentSourceKey || nextSourceKey) {
@@ -244,16 +255,35 @@ export const areTableSourcesEqual = (
 };
 
 export const toTableSourceKey = (source: TableSource): string => {
+	const resourceKey = getTableSourceResourceKey(source);
+	if (resourceKey) {
+		return resourceKey;
+	}
+
 	const sourceKey = getTableSourceIdentityKey(source);
 	if (sourceKey) {
 		return sourceKey;
 	}
 
-	const fileId = encodeURIComponent(source.fileId);
+	const fileId = encodeURIComponent(source.fileId || "");
 	const sheetId = typeof source.sheetId === "string" && source.sheetId
 		? encodeURIComponent(source.sheetId)
 		: "";
 	return sheetId ? `${fileId}::${sheetId}` : fileId;
+};
+
+const getTableSourceResourceKey = (
+	source: TableSource | null | undefined,
+): string | null => {
+	const resourceKey = source?.resource?.toString()?.trim() ?? "";
+	return resourceKey || null;
+};
+
+const getTableSourceRawKey = (
+	source: TableSource | null | undefined,
+): string | null => {
+	const sourceKey = typeof source?.sourceKey === "string" ? source.sourceKey.trim() : "";
+	return sourceKey || null;
 };
 
 export const ITableRowsReaderService =

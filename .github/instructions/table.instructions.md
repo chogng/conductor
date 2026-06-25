@@ -4,6 +4,10 @@ applyTo: 'src/cs/workbench/services/table/**,src/cs/workbench/contrib/table/**'
 ---
 # Table
 
+For the table URI/editor-model migration, `.github/instructions/迁移说明.md`
+has higher priority than this file and other table/model/session notes. If a
+rule here conflicts with that migration document, follow the migration document.
+
 Table shows raw tables and table-model block ranges. It does not identify
 measurement structure.
 
@@ -25,11 +29,12 @@ settings for visual display preferences, and pure `TableSource` open intents.
 It does not own import, table-model production, template execution, plot/chart
 models, or canonical Session records.
 
-`TableSource.sourceKey` is the exact raw-table/source identity when available.
-Use it to disambiguate multiple raw tables under the same file. `fileId` and
-`sheetId` remain the compatibility route for older callers and user-facing file
-selection, but row caches, worker requests, and column width persistence should
-scope by the resolved source key.
+`TableSource.resource` is the primary open identity for file -> table preview,
+matching the upstream file -> editor shape. `TableSource.sourceKey`, when
+present, is raw-table provenance for imported/session records or sheet
+disambiguation; it must not replace the URI identity for resource opens.
+`fileId` and `sheetId` remain the compatibility route for imported raw/session
+callers.
 
 Use the common helpers from `services/table/common/table.ts` when normalizing,
 comparing, or keying `TableSource` values. Do not duplicate source-key trimming
@@ -40,9 +45,11 @@ or equality rules in service/view files.
 | File | Responsibility |
 | --- | --- |
 | `services/table/common/table.ts` | service contract, model contracts, source key helpers. |
+| `services/table/common/tableModel.ts` | URI-backed `TableModel` / `ITableModelService` contract and snapshot shape; service-local, not Session. |
 | `services/table/common/tableFileFormat.ts` | table import format policy and resource/name support checks. |
 | `common/tableColumnLayout.ts` | width policy and storage serialization. |
 | `common/tableDisplayProfile.ts` / `numericFormat.ts` | display profile and numeric formatting helpers. |
+| `browser/tableModelService.ts` | URI/resource table model service: resolve, read, transient preview `SessionFile` migration bridge, model cache, and model change events. |
 | `browser/tableService.ts` | table service owner, view input, copy text, column width persistence. |
 | `browser/tableViewModel.ts` | per-table preview view model: source switching, row cache, selection/highlight/reveal, worker/reader lifecycle. |
 | `browser/tableRowsReaderService.ts` | browser row reader fallback. |
@@ -63,6 +70,8 @@ become an independent service boundary.
 ```txt
 TableFile/Session/settings/command/search bridge
   -> ITableService.open(source) / reveal / select
+  -> resource sources resolve through tableModelService by URI
+  -> tableModelService produces transient preview input, not Session records
   -> tableViewModel loads rows through reader
   -> TableController consumes view input
   -> TableWidget adapts table state to base table widget renderers

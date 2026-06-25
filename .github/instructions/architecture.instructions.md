@@ -4,6 +4,11 @@ applyTo: 'src/cs/**'
 ---
 # Conductor Architecture
 
+For the table URI/editor-model migration, `.github/instructions/迁移说明.md`
+has higher priority than this file. If the legacy TableModel/TableModelService
+wording here conflicts with that migration document, follow the migration
+document.
+
 Use this file before adding a service, moving state, wiring a contribution, or
 changing ownership. Domain-specific rules live in the matching
 `*.instructions.md` file.
@@ -127,7 +132,7 @@ Runtime folders:
 | `fileConverter.ts` / files service helpers | CSV/XLS/XLSX/clipboard/manual conversion into raw table records |
 | `ITableFileService` | imported data-file/raw-table owner and raw table identity/version lifecycle |
 | `ISessionService` | canonical analysis ledger backing table-file and downstream records |
-| TableModel producer (`ITableModelService`) | derived TableModel for raw-table structure, profiles, semantics, groups, blocks, diagnostics |
+| TableModel producer (`ITableModelService`) | legacy derived raw-table structure/semantics producer during migration; table URI/editor-model naming follows `.github/instructions/迁移说明.md` |
 | `IRecipeService` | passive built-in rules; it does not evaluate tables or materialize Templates |
 | `ITemplateMaterializationService` / `services/template` | canonical Template spec and target owner for `TableModel + Recipe/UserTemplate -> Template` materialization |
 | `IReviewService` | materialized Template candidate review, selected `ReviewedTemplate`, manual adjustment state, and system-application recommendation |

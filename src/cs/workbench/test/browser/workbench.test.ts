@@ -846,8 +846,9 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     try {
       bridge.sync();
 
-      assert.equal(tableSources.at(-1)?.fileId, "file-a");
+      assert.equal(tableSources.at(-1)?.fileId, undefined);
       assert.equal(tableSources.at(-1)?.sourceKey, "source-key-b");
+      assert.equal(tableSources.at(-1)?.resource?.toString(), "file:///data/Workbook.xlsx");
       assert.equal(explorerService.getPaneInput()?.selectedFileId, "file-a");
       assert.equal(explorerService.getPaneInput()?.selectedSourceKey, "source-key-b");
     } finally {
@@ -1546,6 +1547,7 @@ const createMultiRawTableImportResultForTest = (): FileImportResult => ({
     raw: {
       fileId: "file-a",
       fileName: "Workbook.xlsx",
+      filePath: "/data/Workbook.xlsx",
       rawTableOrder: ["source-key-a", "source-key-b"],
       rawTablesById: {
         "source-key-a": createRawTableRecordForTest("file-a", "source-key-a"),
