@@ -2399,6 +2399,10 @@ export const collectDroppedFiles = async (
     }
 
     if (item.file) {
+      if (!isSupportedImportFileName(item.file.name)) {
+        continue;
+      }
+
       droppedFiles.push({
         file: item.file,
         relativePath: getDroppedFileRelativePath(item.file),
@@ -2410,6 +2414,10 @@ export const collectDroppedFiles = async (
     getDroppedFileKey(file, relativePath)
   ));
   for (const file of Array.from(dataTransfer.files)) {
+    if (!isSupportedImportFileName(file.name)) {
+      continue;
+    }
+
     const relativePath = getDroppedFileRelativePath(file);
     const key = getDroppedFileKey(file, relativePath);
     if (seenFiles.has(key)) {
@@ -2472,6 +2480,10 @@ async function collectFileSystemHandleFiles(
   const relativePath = parentPath ? `${parentPath}/${handle.name}` : handle.name;
 
   if (WebFileSystemAccess.isFileSystemFileHandle(handle)) {
+    if (!isSupportedImportFileName(handle.name)) {
+      return;
+    }
+
     const file = await tryReadFileSystemHandleFile(handle);
     if (file) {
       files.push({ file, relativePath });
@@ -2539,6 +2551,10 @@ async function collectWebkitEntryFiles(
   const relativePath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
 
   if (entry.isFile) {
+    if (!isSupportedImportFileName(entry.name)) {
+      return;
+    }
+
     const file = await tryReadWebkitEntryFile(entry as WebkitFileSystemFileEntry);
     if (file) {
       files.push({ file, relativePath });

@@ -256,6 +256,36 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.equal(result.readFailures[0].message, "Permission denied");
   });
 
+  test("collectFolderImportFiles skips unsupported files before stat", async () => {
+    const root = createDirectoryHandle({
+      children: [
+        createFileHandle("transfer.csv", "Vg,Id\n0,1"),
+        createFileHandle("notes.txt", "not a table"),
+      ],
+      name: "selected-folder",
+    });
+    const provider = store.add(new HTMLFileSystemProvider());
+    const filesService = store.add(new FileService());
+    store.add(filesService.registerProvider("file", provider));
+    const folder = await provider.registerDirectoryHandle(root);
+    const originalStat = filesService.stat.bind(filesService);
+    let unsupportedStatCount = 0;
+    filesService.stat = async resource => {
+      if (resource.path.endsWith("/notes.txt")) {
+        unsupportedStatCount += 1;
+        throw new Error("Unsupported files should not be statted.");
+      }
+
+      return originalStat(resource);
+    };
+
+    const result = await collectFolderImportFiles(folder, filesService);
+
+    assert.deepEqual(result.files.map(file => file.relativePath), ["selected-folder/transfer.csv"]);
+    assert.equal(result.readFailures.length, 0);
+    assert.equal(unsupportedStatCount, 0);
+  });
+
   test("collectFolderImportFiles reports the file path when stat returns invalid metadata", async () => {
     const root = createDirectoryHandle({
       children: [
@@ -422,6 +452,37 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.deepEqual(result.map(source => source.relativePath), ["root/child/nested.csv"]);
   });
 
+  test("collectDroppedFiles skips unsupported file system handles before reading", async () => {
+    let unsupportedReadCount = 0;
+    const unsupportedHandle: FileSystemFileHandle = {
+      kind: "file",
+      name: "notes.txt",
+      getFile: async () => {
+        unsupportedReadCount += 1;
+        return new File(["not a table"], "notes.txt", {
+          lastModified: 1,
+          type: "text/plain",
+        });
+      },
+    };
+
+    const result = await collectDroppedFiles(createDataTransfer({
+      files: [],
+      items: [{
+        getAsFileSystemHandle: async () => createDirectoryHandle({
+          children: [
+            unsupportedHandle,
+            createFileHandle("transfer.csv", "Vg,Id\n0,1"),
+          ],
+          name: "root",
+        }),
+      }],
+    }));
+
+    assert.deepEqual(result.map(source => source.relativePath), ["root/transfer.csv"]);
+    assert.equal(unsupportedReadCount, 0);
+  });
+
   test("collectDroppedFiles falls back to webkit entries", async () => {
     const result = await collectDroppedFiles(createDataTransfer({
       files: [],
@@ -466,6 +527,21 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.deepEqual(result.map(source => source.relativePath), ["A.csv"]);
   });
 
+  test("collectDroppedFiles skips unsupported FileList entries", async () => {
+    const result = await collectDroppedFiles(createDataTransfer({
+      files: [
+        createCsvFile("transfer.csv", "Vg,Id\n0,1"),
+        new File(["not a table"], "notes.txt", {
+          lastModified: 1,
+          type: "text/plain",
+        }),
+      ],
+      items: [],
+    }));
+
+    assert.deepEqual(result.map(source => source.relativePath), ["transfer.csv"]);
+  });
+
   test("collectDroppedFiles keeps FileList webkit relative paths", async () => {
     const file = createDirectoryFile("folder/A.csv", "Vg,Id\n0,1");
     const result = await collectDroppedFiles(createDataTransfer({
@@ -474,6 +550,16 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     }));
 
     assert.deepEqual(result.map(source => source.relativePath), ["folder/A.csv"]);
+  });
+
+  test("collectPendingImportFiles keeps unsupported source guard", () => {
+    const result = collectPendingImportFiles([
+      createDataFileSource("notes.txt"),
+    ]);
+
+    assert.equal(result.hasAnyUnsupportedFiles, true);
+    assert.equal(result.pendingImportFiles.length, 0);
+    assert.equal(result.unsupportedCount, 1);
   });
 
   test("prepares the selected relative path first", async () => {
