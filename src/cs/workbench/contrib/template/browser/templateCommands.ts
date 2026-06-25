@@ -14,28 +14,20 @@ import {
   Severity,
 } from "src/cs/workbench/services/notification/common/notificationService";
 import {
-  downloadTemplateBundle,
+  TemplateExportController,
   TemplateImportController,
 } from "src/cs/workbench/contrib/template/browser/templateImportExport";
 import {
   isAutoTemplateId,
 } from "src/cs/workbench/services/slice/common/templateSelection";
 import {
-  cloneTemplateEditorConfig,
-  normalizeTemplateEditorConfigRecord,
-  toTemplateNameKey,
-  validateTemplateForSave,
-} from "src/cs/workbench/services/template/common/templateEditorConfig";
-import {
   TemplateCommandId,
 } from "src/cs/workbench/contrib/template/common/template";
 import type { TemplateEditorRecord } from "src/cs/workbench/services/template/common/template";
 import {
-  createTemplateFromEditorRecord,
-} from "src/cs/workbench/services/template/common/templateEditorAdapter";
-import {
   IUserTemplateService,
   type IUserTemplateService as IUserTemplateServiceType,
+  type UserTemplateImportInput,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 import {
   createTemplateEditorRecordFromUserTemplate,
@@ -173,17 +165,7 @@ export class ExportTemplateAction extends Action2 {
   }
 
   public run(accessor: ServicesAccessor, template?: unknown): void {
-    const templateViewStateService = accessor.get(ITemplateViewStateService);
-    const target = normalizeTemplateActionTarget(template)
-      ?? createCurrentTemplateActionTarget(templateViewStateService);
-    const exported = exportTemplateBundle(target);
-    if (!exported) {
-      accessor.get(INotificationService).notify({
-        id: "template.notification",
-        message: localize("template.export.requiresSelection", "Please select a template to export."),
-        severity: Severity.Warning,
-      });
-    }
+    void exportTemplate(accessor, template);
   }
 }
 
@@ -312,17 +294,70 @@ async function importTemplate(accessor: ServicesAccessor): Promise<void> {
   }
 }
 
+async function exportTemplate(accessor: ServicesAccessor, template: unknown): Promise<void> {
+  const userTemplateService = accessor.get(IUserTemplateService);
+  const templateViewStateService = accessor.get(ITemplateViewStateService);
+  const notificationService = accessor.get(INotificationService);
+  const target = normalizeTemplateActionTarget(template)
+    ?? createCurrentTemplateActionTarget(templateViewStateService);
+  const templateId = getTemplateActionTargetId(target);
+  if (!templateId) {
+    notificationService.notify({
+      id: "template.notification",
+      message: localize("template.export.requiresSelection", "Please select a saved template to export."),
+      severity: Severity.Warning,
+    });
+    return;
+  }
+
+  const payload = userTemplateService.exportTemplates([templateId]);
+  const userTemplate = payload.templates[0];
+  if (!userTemplate) {
+    notificationService.notify({
+      id: "template.notification",
+      message: localize("template.export.notFound", "The selected template could not be found."),
+      severity: Severity.Warning,
+    });
+    return;
+  }
+
+  const controller = new TemplateExportController(
+    accessor.get(IFileDialogService),
+    accessor.get(IFileService),
+    accessor.get(IPathService),
+  );
+
+  try {
+    const result = await controller.exportTemplateToDialog(payload, {
+      templateName: userTemplate.name,
+    });
+    if (result.kind === "canceled") {
+      return;
+    }
+
+    notificationService.notify({
+      id: "template.notification",
+      message: localize("template.export.success", "Template exported"),
+      presentation: { type: "success" },
+      severity: Severity.Info,
+    });
+  } catch (err) {
+    notificationService.notify({
+      id: "template.notification",
+      message: localize("template.export.failed", "Failed to export template: {error}", { error: String(err) }),
+      severity: Severity.Error,
+    });
+  }
+}
+
 async function importTemplatePayload(
   payload: unknown,
   userTemplateService: IUserTemplateServiceType,
   templateViewStateService: ITemplateViewStateServiceType,
   notificationService: INotificationService,
 ): Promise<void> {
-  const entry = payload && typeof payload === "object"
-    ? payload as Record<string, unknown>
-    : {};
-  const draft = normalizeTemplateEditorConfigRecord(entry);
-  if (!draft.name) {
+  const importInput = toUserTemplateImportInput(payload);
+  if (!importInput) {
     notificationService.notify({
       id: "template.notification",
       message: localize("template.import.invalidFormat", "Invalid template file format."),
@@ -331,90 +366,45 @@ async function importTemplatePayload(
     return;
   }
 
-  const templates = await userTemplateService.refreshTemplates();
-  const nameKey = toTemplateNameKey(draft.name);
-  const conflict = templates.find((template) => toTemplateNameKey(template.name) === nameKey);
-  let overwriteTemplateId: string | undefined;
-  if (conflict) {
-    let suffix = 1;
-    let newName = `${draft.name}(${suffix})`;
-    while (templates.some((template) => toTemplateNameKey(template.name) === toTemplateNameKey(newName))) {
-      suffix++;
-      newName = `${draft.name}(${suffix})`;
-    }
-
-    const confirmMessage = localize(
-      "template.import.conflict",
-      "Template \"{name}\" already exists.\nOK: import as \"{newName}\".\nCancel: overwrite the existing template.",
-      { name: draft.name, newName },
-    );
-    const shouldRename = typeof window !== "undefined" && typeof window.confirm === "function"
-      ? window.confirm(confirmMessage)
-      : true;
-    if (shouldRename) {
-      draft.name = newName;
-    } else if (conflict.id) {
-      const templateId = String(conflict.id).trim();
-      if (templateId) {
-        overwriteTemplateId = templateId;
-      }
-    }
-  }
-
-  const validation = validateTemplateForSave(draft);
-  if (!validation.ok || !validation.normalized) {
-    notificationService.notify({
-      id: "template.notification",
-      message: validation.message || localize("template.invalidConfiguration", "Invalid configuration"),
-      severity: Severity.Warning,
-    });
-    return;
-  }
-
-  const template = createTemplateFromEditorRecord({
-    ...validation.normalized,
-    ...(overwriteTemplateId ? { id: overwriteTemplateId } : {}),
-    name: draft.name,
-  });
-  if (!template) {
-    notificationService.notify({
-      id: "template.notification",
-      message: localize("template.invalidConfiguration", "Invalid configuration"),
-      severity: Severity.Warning,
-    });
-    return;
-  }
-
-  const result = await userTemplateService.importTemplates({
-    overwrite: Boolean(overwriteTemplateId),
-    templates: [{
-      ...(overwriteTemplateId ? { id: overwriteTemplateId } : {}),
-      name: draft.name,
-      source: "imported",
-      template,
-    }],
-  });
+  const result = await userTemplateService.importTemplates(importInput);
   const savedUserTemplate = result.imported[0];
   if (!savedUserTemplate) {
     notificationService.notify({
       id: "template.notification",
-      message: localize("template.import.invalidFormat", "Invalid template file format."),
+      message: result.skipped.length
+        ? localize("template.import.noneImported", "No templates were imported.")
+        : localize("template.import.invalidFormat", "Invalid template file format."),
       severity: Severity.Warning,
     });
     return;
   }
 
   const saved = createTemplateEditorRecordFromUserTemplate(savedUserTemplate);
-  templateViewStateService.selectTemplate({
-    ...cloneTemplateEditorConfig(saved),
-    id: saved.id,
-  });
+  templateViewStateService.selectTemplate(saved);
   notificationService.notify({
     id: "template.notification",
     message: localize("template.import.success", "Template imported"),
     presentation: { type: "success" },
     severity: Severity.Info,
   });
+}
+
+function toUserTemplateImportInput(payload: unknown): UserTemplateImportInput | null {
+  const entry = payload && typeof payload === "object" && !Array.isArray(payload)
+    ? payload as Record<string, unknown>
+    : null;
+  if (
+    !entry ||
+    entry.source !== "conductor.userTemplate" ||
+    entry.version !== 1 ||
+    !Array.isArray(entry.templates)
+  ) {
+    return null;
+  }
+
+  return {
+    templates: entry.templates as UserTemplateImportInput["templates"],
+  };
 }
 
 function createCurrentTemplateActionTarget(templateViewStateService: ITemplateViewStateServiceType): TemplateEditorRecord | null {
@@ -427,18 +417,6 @@ function createCurrentTemplateActionTarget(templateViewStateService: ITemplateVi
     ...state.formState,
     id: state.selectedTemplateId,
   };
-}
-
-function exportTemplateBundle(template: TemplateEditorRecord | null): string | null {
-  if (!template?.name) {
-    return null;
-  }
-
-  return downloadTemplateBundle({
-    version: 1,
-    source: "conductor",
-    ...cloneTemplateEditorConfig(template),
-  });
 }
 
 function getTemplateActionTargetId(template: TemplateEditorRecord | null): string | null {

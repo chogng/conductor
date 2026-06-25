@@ -6,6 +6,11 @@ type NativeOpenDialogResult = {
   readonly filePaths: readonly string[];
 };
 
+type NativeSaveDialogResult = {
+  readonly canceled: boolean;
+  readonly filePath?: string;
+};
+
 type NativeMessageBoxResult = {
   readonly checkboxChecked?: boolean;
   readonly response: number;
@@ -31,6 +36,16 @@ export class NativeHostMainService {
     options: unknown,
   ): Promise<NativeMessageBoxResult> {
     return this.dialogMainService.showMessageBox(
+      options,
+      win && !win.isDestroyed() ? win : undefined,
+    );
+  }
+
+  public showSaveDialogForWindow(
+    win: BrowserWindow | null | undefined,
+    options: unknown,
+  ): Promise<NativeSaveDialogResult> {
+    return this.dialogMainService.showSaveDialog(
       options,
       win && !win.isDestroyed() ? win : undefined,
     );

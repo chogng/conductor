@@ -1,8 +1,10 @@
 import type { URI } from "src/cs/base/common/uri";
+import { getMediaOrTextMime, Mimes } from "src/cs/base/common/mime";
 import {
   IFileDialogService,
   type IFileDialogService as IFileDialogServiceType,
   type IOpenDialogOptions,
+  type ISaveDialogOptions,
 } from "src/cs/platform/dialogs/common/dialogs";
 import {
   IFileService,
@@ -13,6 +15,7 @@ import { InstantiationType, registerSingleton } from "src/cs/platform/instantiat
 import {
   WebFileSystemAccess,
   type FileSystemDirectoryHandle,
+  type FileSystemFileHandle,
 } from "src/cs/platform/files/browser/webFileSystemAccess";
 import { AbstractFileDialogService } from "src/cs/workbench/services/dialogs/browser/abstractFileDialogService";
 
@@ -22,6 +25,13 @@ type FilePickerWindow = Window & typeof globalThis & {
     mode?: "read" | "readwrite";
     startIn?: string;
   }) => Promise<FileSystemDirectoryHandle>;
+  showSaveFilePicker?: (options?: {
+    suggestedName?: string;
+    types?: readonly {
+      readonly accept: Record<string, readonly string[]>;
+      readonly description: string;
+    }[];
+  }) => Promise<FileSystemFileHandle>;
 };
 
 type DirectoryInputElement = HTMLInputElement & {
@@ -61,7 +71,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
         const handle = await this.pickDirectoryHandle(picker);
         return handle ? [await provider.registerDirectoryHandle(handle)] : undefined;
       } catch (error) {
-        if (isDirectoryPickerCancel(error)) {
+        if (isPickerCancel(error)) {
           return undefined;
         }
 
@@ -81,6 +91,49 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
     }
 
     return [await provider.registerDirectoryInputFiles(files)];
+  }
+
+  public override canSaveFile(): boolean {
+    const activeWindow = globalThis.window as FilePickerWindow | undefined;
+    return Boolean(activeWindow && WebFileSystemAccess.canSaveFile(activeWindow));
+  }
+
+  public override async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
+    const schema = this.getFileSystemSchema(options);
+    if (this.shouldUseSimplified(schema)) {
+      return undefined;
+    }
+
+    const provider = this.filesService.getProvider("file");
+    if (!(provider instanceof HTMLFileSystemProvider)) {
+      return undefined;
+    }
+
+    const activeWindow = globalThis.window as FilePickerWindow | undefined;
+    const picker = activeWindow?.showSaveFilePicker;
+    if (!activeWindow || !WebFileSystemAccess.canSaveFile(activeWindow) || typeof picker !== "function") {
+      return undefined;
+    }
+
+    try {
+      const handle = await picker({
+        suggestedName: getDefaultSaveFileName(options),
+        types: getSaveFileTypes(options),
+      });
+      return WebFileSystemAccess.isFileSystemFileHandle(handle)
+        ? provider.registerWritableFileHandle(handle)
+        : undefined;
+    } catch (error) {
+      if (isPickerCancel(error)) {
+        return undefined;
+      }
+
+      if (!isInterceptedFileChooserError(error)) {
+        throw error;
+      }
+    }
+
+    return undefined;
   }
 
   private async pickDirectoryHandle(
@@ -183,7 +236,57 @@ const getAcceptAttribute = (options: IOpenDialogOptions): string => {
   return extensions || "";
 };
 
-function isDirectoryPickerCancel(error: unknown): boolean {
+function getDefaultSaveFileName(options: ISaveDialogOptions): string | undefined {
+  const path = options.defaultUri?.path.replace(/\\/g, "/");
+  if (!path) {
+    return undefined;
+  }
+
+  return path.slice(path.lastIndexOf("/") + 1) || undefined;
+}
+
+function getSaveFileTypes(
+  options: ISaveDialogOptions,
+): readonly { readonly accept: Record<string, readonly string[]>; readonly description: string }[] | undefined {
+  if (!options.filters?.length) {
+    return undefined;
+  }
+
+  const types = options.filters
+    .map(filter => ({
+      description: filter.name,
+      accept: getSaveFileAccept(filter.extensions),
+    }))
+    .filter(type => Object.keys(type.accept).length > 0);
+
+  return types.length ? types : undefined;
+}
+
+function getSaveFileAccept(extensions: readonly string[]): Record<string, readonly string[]> {
+  const accept: Record<string, string[]> = {};
+  for (const extension of extensions) {
+    const normalizedExtension = normalizePickerExtension(extension);
+    if (!normalizedExtension) {
+      continue;
+    }
+
+    const mime = getMediaOrTextMime(`file${normalizedExtension}`) ?? Mimes.binary;
+    accept[mime] ??= [];
+    accept[mime].push(normalizedExtension);
+  }
+
+  return accept;
+}
+
+function normalizePickerExtension(extension: string): string {
+  if (extension === "*") {
+    return "";
+  }
+
+  return extension.startsWith(".") ? extension : `.${extension}`;
+}
+
+function isPickerCancel(error: unknown): boolean {
   return error instanceof Error &&
     error.name === "AbortError" &&
     !isInterceptedFileChooserError(error);

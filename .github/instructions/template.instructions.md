@@ -68,7 +68,7 @@ plot rendering, or chart state.
 | `common/templateFingerprint.ts` | Stable Template fingerprint generation for materialized candidates. |
 | `contrib/template/common/template.ts` | Template workbench view id and command ids shared by contribution, commands, and view code. |
 | `contrib/template/browser/templateCommands.ts` | Template command registration and handlers; delegates library management to `IUserTemplateService` and execution wrappers to Slice. |
-| `contrib/template/browser/templateImportExport.ts` | Template UI JSON import/export file-transfer helper; dialog, file read, and download plumbing only. Payload semantics stay with Template commands and `IUserTemplateService`. |
+| `contrib/template/browser/templateImportExport.ts` | Template UI JSON import/export file-transfer helper; dialog, file read, save-file write, and browser download fallback plumbing only. Payload semantics stay with Template commands and `IUserTemplateService`. |
 | `contrib/template/browser/templateTableMap.ts` | Bidirectional UI-only mapper between `ITableService` selection/cell/range state and Template editor `TemplateEditorConfig` fields. |
 | `contrib/template/browser/templateUserTemplateAdapter.ts` | View-model adapter from UserTemplate snapshots into editable Template editor records. |
 | `contrib/template/browser/templateViewStateService.ts` | Template UI selected-template/form editor state. |
@@ -106,6 +106,15 @@ manual saved-selection compatibility/UserTemplate/inline run
 Template execution enters through Slice. Saved/manual editor records are adapted
 into canonical `Template` snapshots before Slice runs.
 
+JSON import/export:
+
+```txt
+import/export command
+  -> templateImportExport reads JSON or exports the native payload through save-file/write or browser download
+  -> templateCommands validates the native UserTemplate catalog payload
+  -> IUserTemplateService imports/exports native UserTemplate catalog payloads
+```
+
 ## Rules
 
 - `Template` is a concrete extraction/slicing spec. Template materializers
@@ -134,8 +143,11 @@ into canonical `Template` snapshots before Slice runs.
   `TemplateState.selectionsByFileId`; slicing selections come from
   `ISliceService`.
 - Template UI library management must read/write `IUserTemplateService`;
-  `TemplateEditorConfig` is only an editor view model and import/export bundle
-  compatibility format.
+  `TemplateEditorConfig` is only an editor view model and must not be used as
+  the JSON import/export payload format.
+- Browser export fallback may download the native `conductor.userTemplate`
+  JSON payload when the platform cannot expose a save-file target. It must not
+  resurrect the retired Template-editor bundle payload.
 - `activeFileId` should move the current chart/Explorer target to the front of full and incremental slice queues.
 - Explorer hover/selection priority for slicing belongs to
   `SlicePriorityContribution` -> `ISliceService.prioritize(...)`; do not route

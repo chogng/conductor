@@ -3,6 +3,7 @@ import type { URI } from "src/cs/base/common/uri";
 import {
   type IFileDialogService,
   type IOpenDialogOptions,
+  type ISaveDialogOptions,
 } from "src/cs/platform/dialogs/common/dialogs";
 
 const FILE_SCHEME = "file";
@@ -30,4 +31,12 @@ export abstract class AbstractFileDialogService extends Disposable implements IF
   }
 
   public abstract showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined>;
+
+  public canSaveFile(): boolean {
+    return false;
+  }
+
+  public showSaveDialog(_options: ISaveDialogOptions): Promise<URI | undefined> {
+    return Promise.resolve(undefined);
+  }
 }

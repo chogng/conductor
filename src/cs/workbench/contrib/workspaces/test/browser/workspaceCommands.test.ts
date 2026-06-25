@@ -41,10 +41,12 @@ suite("workbench/contrib/workspaces/test/browser/workspaceCommands", () => {
       [IFileService, new TestFileService()],
       [IFileDialogService, {
         _serviceBrand: undefined,
+        canSaveFile: () => true,
         showOpenDialog: async (options: IOpenDialogOptions) => {
           openDialogDefaultUri = options.defaultUri;
           return [selectedFolder];
         },
+        showSaveDialog: async () => undefined,
       }],
       [IPathService, createPathService(userHome)],
       [IStorageService, storageService],
@@ -74,10 +76,12 @@ suite("workbench/contrib/workspaces/test/browser/workspaceCommands", () => {
       })],
       [IFileDialogService, {
         _serviceBrand: undefined,
+        canSaveFile: () => true,
         showOpenDialog: async (options: IOpenDialogOptions) => {
           openDialogDefaultUri = options.defaultUri;
           return [selectedFolder];
         },
+        showSaveDialog: async () => undefined,
       }],
       [IPathService, createPathService(userHome)],
       [IStorageService, storageService],
@@ -107,7 +111,9 @@ suite("workbench/contrib/workspaces/test/browser/workspaceCommands", () => {
       })],
       [IFileDialogService, {
         _serviceBrand: undefined,
+        canSaveFile: () => true,
         showOpenDialog: async () => [selectedFolder],
+        showSaveDialog: async () => undefined,
       }],
       [IPathService, createPathService(userHome)],
       [IStorageService, storageService],
@@ -133,10 +139,12 @@ suite("workbench/contrib/workspaces/test/browser/workspaceCommands", () => {
       [IFileService, new TestFileService()],
       [IFileDialogService, {
         _serviceBrand: undefined,
+        canSaveFile: () => true,
         showOpenDialog: async (options: IOpenDialogOptions) => {
           openDialogDefaultUri = options.defaultUri;
           return [selectedFolder];
         },
+        showSaveDialog: async () => undefined,
       }],
       [IPathService, createPathService(userHome)],
       [IStorageService, storageService],
@@ -157,7 +165,9 @@ suite("workbench/contrib/workspaces/test/browser/workspaceCommands", () => {
       [IFileService, new TestFileService([lastSelectedFolder])],
       [IFileDialogService, {
         _serviceBrand: undefined,
+        canSaveFile: () => true,
         showOpenDialog: async () => undefined,
+        showSaveDialog: async () => undefined,
       }],
       [IPathService, createPathService(userHome)],
       [IStorageService, storageService],

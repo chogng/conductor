@@ -14,6 +14,7 @@ export type FileSystemHandleBase = {
 
 export type FileSystemFileHandle = FileSystemHandleBase & {
   readonly kind: "file";
+  createWritable?: () => Promise<FileSystemWritableFileStream>;
   getFile(): Promise<File>;
 };
 
@@ -28,9 +29,19 @@ export type FileSystemDirectoryHandle = FileSystemHandleBase & {
 
 export type FileSystemHandle = FileSystemDirectoryHandle | FileSystemFileHandle;
 
+export type FileSystemWritableFileStream = {
+  abort?: () => Promise<void>;
+  close: () => Promise<void>;
+  write: (data: Blob | BufferSource | string) => Promise<void>;
+};
+
 export namespace WebFileSystemAccess {
   export function supported(obj: typeof globalThis): boolean {
     return typeof (obj as typeof globalThis & { showDirectoryPicker?: unknown })?.showDirectoryPicker === "function";
+  }
+
+  export function canSaveFile(obj: typeof globalThis): boolean {
+    return typeof (obj as typeof globalThis & { showSaveFilePicker?: unknown })?.showSaveFilePicker === "function";
   }
 
   export function isFileSystemHandle(handle: unknown): handle is FileSystemHandle {

@@ -46,6 +46,14 @@ UserTemplate create/update/delete/import
   -> RawTableReviewRecord
 ```
 
+JSON import/export:
+
+```txt
+Template import/export command
+  -> templateImportExport reads JSON files or exports native payloads through save-file/write or browser download
+  -> IUserTemplateService imports/exports native UserTemplate payloads
+```
+
 Manual execution:
 
 ```txt
@@ -68,6 +76,9 @@ user template picker / saved-selection compatibility picker
   `IUserTemplateService`. The form uses `TemplateEditorConfig` as an editor
   view model, but persistence must
   materialize a `UserTemplate.template` snapshot.
+- UserTemplate import/export payload semantics stay on `IUserTemplateService`.
+  File-system writes and browser download fallback are Template UI/platform
+  transfer concerns, not catalog persistence.
 
 ## Do Not
 

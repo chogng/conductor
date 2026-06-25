@@ -29,6 +29,21 @@ export interface INativeOpenDialogResult {
     readonly filePaths: readonly string[];
 }
 
+export interface INativeSaveDialogOptions {
+    readonly buttonLabel?: string;
+    readonly defaultPath?: string;
+    readonly filters?: readonly {
+        readonly extensions: readonly string[];
+        readonly name: string;
+    }[];
+    readonly title?: string;
+}
+
+export interface INativeSaveDialogResult {
+    readonly canceled: boolean;
+    readonly filePath?: string;
+}
+
 export interface INativeMessageBoxOptions {
     readonly buttons?: readonly string[];
     readonly cancelId?: number;
@@ -65,6 +80,7 @@ export interface INativeHostService {
 
     getEnvironment(): Promise<INativeHostEnvironment>;
     showOpenDialog(options: INativeOpenDialogOptions): Promise<INativeOpenDialogResult>;
+    showSaveDialog(options: INativeSaveDialogOptions): Promise<INativeSaveDialogResult>;
     showMessageBox(options: INativeMessageBoxOptions): Promise<INativeMessageBoxResult>;
     showItemInFolder(path: string): Promise<void>;
     toggleDevTools(): Promise<void>;

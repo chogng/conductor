@@ -86,10 +86,12 @@ suite("workbench/contrib/update/test/browser/update", () => {
       })],
       [IFileDialogService, {
         _serviceBrand: undefined,
+        canSaveFile: () => true,
         showOpenDialog: async (options: IOpenDialogOptions) => {
           dialogOptions.push(options);
           return [URI.file("C:\\updates\\Conductor-Studio-1.5.20-windows-x64-setup.exe")];
         },
+        showSaveDialog: async () => undefined,
       }],
     ]);
 
@@ -168,10 +170,12 @@ suite("workbench/contrib/update/test/browser/update", () => {
       })],
       [IFileDialogService, {
         _serviceBrand: undefined,
+        canSaveFile: () => true,
         showOpenDialog: async (options: IOpenDialogOptions) => {
           dialogOptions.push(options);
           return [URI.file("C:\\updates\\Conductor-Studio-1.5.20-windows-x64-setup.exe")];
         },
+        showSaveDialog: async () => undefined,
       }],
     ]);
 

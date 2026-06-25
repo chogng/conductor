@@ -6,6 +6,8 @@ import {
   type MessageBoxReturnValue,
   type OpenDialogOptions,
   type OpenDialogReturnValue,
+  type SaveDialogOptions,
+  type SaveDialogReturnValue,
 } from "electron";
 
 const allowedOpenDialogProperties = new Set([
@@ -39,6 +41,16 @@ export class DialogMainService {
     return window
       ? dialog.showMessageBox(window, normalizedOptions)
       : dialog.showMessageBox(normalizedOptions);
+  }
+
+  public async showSaveDialog(
+    options: unknown,
+    window?: BrowserWindow,
+  ): Promise<SaveDialogReturnValue> {
+    const normalizedOptions = this.normalizeSaveDialogOptions(options);
+    return window
+      ? dialog.showSaveDialog(window, normalizedOptions)
+      : dialog.showSaveDialog(normalizedOptions);
   }
 
   private normalizeOpenDialogOptions(options: unknown): OpenDialogOptions {
@@ -81,6 +93,20 @@ export class DialogMainService {
       message: typeof record.message === "string" ? record.message : "",
       title: typeof record.title === "string" ? record.title : undefined,
       type: isMessageBoxType(record.type) ? record.type : "none",
+    };
+  }
+
+  private normalizeSaveDialogOptions(options: unknown): SaveDialogOptions {
+    const record =
+      options && typeof options === "object" && !Array.isArray(options)
+        ? options as Record<string, unknown>
+        : {};
+
+    return {
+      buttonLabel: typeof record.buttonLabel === "string" ? record.buttonLabel : undefined,
+      defaultPath: typeof record.defaultPath === "string" ? record.defaultPath : undefined,
+      filters: this.normalizeFilters(record.filters),
+      title: typeof record.title === "string" ? record.title : undefined,
     };
   }
 

@@ -26,7 +26,8 @@ type RegisteredBrowserFileRoot = {
 };
 
 type RegisteredBrowserFile = {
-  readonly file: File;
+  readonly file?: File;
+  readonly handle?: FileSystemFileHandle;
   readonly path: string;
 };
 
@@ -307,6 +308,13 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
     return URI.from({ path, scheme: "file" });
   }
 
+  public registerWritableFileHandle(handle: FileSystemFileHandle): URI {
+    const id = createRandomId("browserfile");
+    const path = normalizePath(`/${id}/${handle.name || "file"}`);
+    this.files.set(path, { handle, path });
+    return URI.from({ path, scheme: "file" });
+  }
+
   public async exists(resource: URI): Promise<boolean> {
     if (this.getFile(resource)) {
       return true;
@@ -339,8 +347,11 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
     options?: IReadFileOptions,
   ): Promise<IFileContent> {
     const registeredFile = this.getFile(resource);
-    if (registeredFile) {
+    if (registeredFile?.file) {
       return fileToContent(registeredFile.file, options);
+    }
+    if (registeredFile?.handle) {
+      return fileToContent(await registeredFile.handle.getFile(), options);
     }
 
     const resolved = await this.resolve(resource);
@@ -351,8 +362,20 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
     return fileToContent(await resolved.handle.getFile(), options);
   }
 
-  public writeFile(_resource: URI, _content: string): Promise<void> {
-    return Promise.reject(new Error("Browser file handles are read-only."));
+  public async writeFile(resource: URI, content: string): Promise<void> {
+    const registeredFile = this.getFile(resource);
+    if (!registeredFile?.handle || typeof registeredFile.handle.createWritable !== "function") {
+      return Promise.reject(new Error("Browser file handles are read-only."));
+    }
+
+    const writable = await registeredFile.handle.createWritable();
+    try {
+      await writable.write(content);
+      await writable.close();
+    } catch (error) {
+      await writable.abort?.().catch(() => undefined);
+      throw error;
+    }
   }
 
   public deleteFile(_resource: URI): Promise<void> {
@@ -374,12 +397,22 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 
   public async stat(resource: URI): Promise<IFileStat> {
     const registeredFile = this.getFile(resource);
-    if (registeredFile) {
+    if (registeredFile?.file) {
       return {
         ctime: registeredFile.file.lastModified,
         mtime: registeredFile.file.lastModified,
         path: resource.fsPath,
         size: registeredFile.file.size,
+        type: FileType.File,
+      };
+    }
+    if (registeredFile?.handle) {
+      const file = await registeredFile.handle.getFile();
+      return {
+        ctime: file.lastModified,
+        mtime: file.lastModified,
+        path: resource.fsPath,
+        size: file.size,
         type: FileType.File,
       };
     }

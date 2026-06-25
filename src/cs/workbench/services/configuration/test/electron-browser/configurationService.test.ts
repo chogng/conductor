@@ -135,6 +135,10 @@ class TestNativeHostService implements INativeHostService {
 		return { canceled: true, filePaths: [] };
 	}
 
+	public async showSaveDialog(): Promise<{ readonly canceled: boolean }> {
+		return { canceled: true };
+	}
+
 	public async showMessageBox(): Promise<{ readonly response: number }> {
 		return { response: 0 };
 	}

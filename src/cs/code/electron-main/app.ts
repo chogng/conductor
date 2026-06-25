@@ -1014,6 +1014,13 @@ function createNativeHostChannel(): IServerChannel<string> {
         return nativeHostMainService.showMessageBoxForWindow(win, args[0]) as Promise<T>;
       }
 
+      if (command === "showSaveDialog") {
+        if (!win) {
+          return { canceled: true } as T;
+        }
+        return nativeHostMainService.showSaveDialogForWindow(win, args[0]) as Promise<T>;
+      }
+
       if (command === "showItemInFolder") {
         if (!win) {
           return undefined as T;

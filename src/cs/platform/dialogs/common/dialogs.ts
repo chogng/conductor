@@ -144,8 +144,17 @@ export type IOpenDialogOptions = {
   readonly title?: string;
 };
 
+export type ISaveDialogOptions = {
+  readonly defaultUri?: URI;
+  readonly filters?: readonly FileFilter[];
+  readonly saveLabel?: string;
+  readonly title?: string;
+};
+
 export interface IFileDialogService {
   readonly _serviceBrand: undefined;
 
+  canSaveFile(): boolean;
   showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined>;
+  showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined>;
 }

@@ -23,6 +23,35 @@ suite("platform/files/test/browser/fileService", () => {
     };
   }
 
+  function createWritableFileHandle(name: string): {
+    readonly getText: () => string;
+    readonly handle: FileSystemFileHandle;
+  } {
+    let text = "";
+    return {
+      getText: () => text,
+      handle: {
+        kind: "file",
+        name,
+        createWritable: async () => ({
+          abort: async () => undefined,
+          close: async () => undefined,
+          write: async data => {
+            if (typeof data !== "string") {
+              throw new Error("Expected string write content.");
+            }
+
+            text = data;
+          },
+        }),
+        getFile: async () => new File([text], name, {
+          lastModified: 1,
+          type: "application/json;charset=utf-8",
+        }),
+      },
+    };
+  }
+
   function createDirectoryFile(path: string, text: string): File {
     const name = path.split("/").pop() || "file";
     const file = new File([text], name, {
@@ -223,5 +252,19 @@ suite("platform/files/test/browser/fileService", () => {
     assert.equal((await filesService.readFile(encodedPercent)).value, "Vg,Id\n0,1");
     assert.equal((await filesService.stat(rawPercent)).type, FileType.File);
     assert.equal((await filesService.readFile(rawPercent)).value, "Vg,Id\n1,2");
+  });
+
+  test("FileService writes browser writable file handles", async () => {
+    const { filesService, provider } = createBrowserFileService();
+    const writable = createWritableFileHandle("template.json");
+    const resource = provider.registerWritableFileHandle(writable.handle);
+
+    await filesService.writeFile(resource, "{\"source\":\"conductor.userTemplate\"}\n");
+
+    assert.equal(writable.getText(), "{\"source\":\"conductor.userTemplate\"}\n");
+    assert.equal(
+      (await filesService.readFile(resource)).value,
+      "{\"source\":\"conductor.userTemplate\"}\n",
+    );
   });
 });
