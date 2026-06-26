@@ -24,7 +24,6 @@ import {
   type IExplorerWorkflowService,
 } from "src/cs/workbench/contrib/files/browser/files";
 import { DEFAULT_EXPLORER_APPEARANCE, type IAppearanceService } from "src/cs/workbench/services/appearance/common/appearance";
-import type { FileConverterBackend } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import type { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import type { ITableService } from "src/cs/workbench/services/table/common/table";
@@ -147,7 +146,6 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
         return toDisposable(() => undefined);
       },
     } as unknown as IExplorerWorkflowService,
-    {} as unknown as FileConverterBackend,
     {
       getProvider: () => undefined,
       moveFileToTrash: options.moveFileToTrash ?? (async () => undefined),

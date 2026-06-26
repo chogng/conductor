@@ -10,11 +10,6 @@ import type {
 } from "../../../../../platform/files/browser/webFileSystemAccess.ts";
 import { FileService } from "../../../../../platform/files/common/fileService.ts";
 import { IMPORT_ERROR_NOTIFICATION_ID } from "../../browser/fileConstants.ts";
-import type {
-  FileConverterBackend,
-  FileConverterPreparePayload,
-  FileConverterPreparedFile,
-} from "../../../../services/files/common/fileConverterBackend.ts";
 import { NotificationService } from "../../../../services/notification/common/notificationService.ts";
 import {
   canImportFolderWithFileService,
@@ -371,7 +366,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.equal(await file.text(), "Vg,Id\n0,1");
   });
 
-  test("folder file load content failures become relative path prepare failures", async () => {
+  test("folder file content read failures do not block resource prepare", async () => {
     const root = createDirectoryHandle({
       children: [
         createFileHandle("broken-content.csv", "Vg,Id\n0,1"),
@@ -394,18 +389,16 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     const firstImport = await prepareFirstPendingImportFile({
       canApplyResult: () => true,
       failedFiles,
-      fileConverterBackend: createFileConverterBackendStub(),
+      filesService,
       pendingImportFiles,
       selectedRelativePath: null,
     });
 
-    assert.equal(firstImport.result, null);
-    assert.equal(failedFiles.length, 1);
-    assert.equal(failedFiles[0].fileName, "selected-folder/broken-content.csv");
-    assert.equal(failedFiles[0].message, "The file content could not be read.");
+    assert.equal(firstImport.result?.prepared.fileInfo.fileName, "broken-content.csv");
+    assert.equal(failedFiles.length, 0);
   });
 
-  test("folder file load retries transient invalid file content", async () => {
+  test("folder file prepare does not read content before table open", async () => {
     const root = createDirectoryHandle({
       children: [
         createFileHandle("flaky-content.csv", "Vg,Id\n0,1"),
@@ -435,12 +428,13 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     const firstImport = await prepareFirstPendingImportFile({
       canApplyResult: () => true,
       failedFiles,
-      fileConverterBackend: createFileConverterBackendStub(),
+      filesService,
       pendingImportFiles,
       selectedRelativePath: null,
     });
 
     assert.equal(firstImport.result?.prepared.fileInfo.fileName, "flaky-content.csv");
+    assert.equal(readCount, 0);
     assert.equal(failedFiles.length, 0);
   });
 
@@ -590,10 +584,12 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
 
   test("prepares the selected relative path first", async () => {
     const failedFiles: FileImportPrepareFailure[] = [];
+    const filesService = store.add(new FileService());
+    store.add(filesService.registerProvider("file", store.add(new HTMLFileSystemProvider())));
     const result = await prepareFirstPendingImportFile({
       canApplyResult: () => true,
       failedFiles,
-      fileConverterBackend: createFileConverterBackendStub(),
+      filesService,
       pendingImportFiles: [
         createDataPendingFile("A.csv", "folder/A.csv"),
         createDataPendingFile("B.csv", "folder/B.csv"),
@@ -609,12 +605,13 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
 
   test("prepare failures include relative paths in file lists", async () => {
     const failedFiles: FileImportPrepareFailure[] = [];
+    const filesService = store.add(new FileService());
     const result = await prepareFirstPendingImportFile({
       canApplyResult: () => true,
       failedFiles,
-      fileConverterBackend: createFileConverterBackendStub(),
+      filesService,
       pendingImportFiles: [
-        createPathPendingFile("A.csv", "folder/A.csv"),
+        createDataPendingFile("A.csv", "folder/A.csv"),
       ],
       selectedRelativePath: null,
     });
@@ -625,14 +622,14 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
   });
 
   test("appends remaining prepared files in pending import order", async () => {
-    const backend = createControlledPathBackend();
     const failedFiles: FileImportPrepareFailure[] = [];
+    const filesService = store.add(new FileService());
     const appendedFileNames: string[] = [];
 
-    const importPromise = prepareRemainingPendingImportFiles({
+    const acceptedCount = await prepareRemainingPendingImportFiles({
       canApplyResult: () => true,
       failedFiles,
-      fileConverterBackend: backend,
+      filesService,
       onPreparedFiles: preparedFiles => {
         appendedFileNames.push(...preparedFiles.map(file => file.fileInfo.fileName));
       },
@@ -644,47 +641,25 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       skippedIndexes: new Set<number>(),
     });
 
-    await nextTurn();
-    assert.deepEqual(backend.fileNames, ["A.csv", "B.csv", "C.csv"]);
-
-    backend.resolve("C.csv", "Vg,Id\n0,3");
-    await nextTurn();
-    assert.deepEqual(appendedFileNames, []);
-
-    backend.resolve("A.csv", "Vg,Id\n0,1");
-    await nextTurn();
-    assert.deepEqual(appendedFileNames, ["A.csv"]);
-
-    backend.resolve("B.csv", "Vg,Id\n0,2");
-    const acceptedCount = await importPromise;
-
     assert.equal(acceptedCount, 3);
     assert.deepEqual(appendedFileNames, ["A.csv", "B.csv", "C.csv"]);
     assert.equal(failedFiles.length, 0);
   });
 
-  test("passes source metadata to path batch prepare backend", async () => {
+  test("path prepare preserves table resource metadata", async () => {
     const failedFiles: FileImportPrepareFailure[] = [];
-    const payloads: FileConverterPreparePayload[] = [];
-    const backend = createFileConverterBackendStub({
-      canPrepareFile: () => true,
-      prepareFilesStream: async (nextPayloads, onResult) => {
-        payloads.push(...nextPayloads);
-        const results = nextPayloads.map((payload, index): FileConverterPreparedFile => ({
-          csvText: `Vg,Id\n0,${index}`,
-          ok: true,
-          sourcePath: payload.path,
-        }));
-        results.forEach((result, index) => onResult({ index, result }));
-        return results;
-      },
-    });
+    const filesService = store.add(new FileService());
+    const preparedPaths: string[] = [];
 
     const acceptedCount = await prepareRemainingPendingImportFiles({
       canApplyResult: () => true,
       failedFiles,
-      fileConverterBackend: backend,
-      onPreparedFiles: () => undefined,
+      filesService,
+      onPreparedFiles: preparedFiles => {
+        preparedPaths.push(...preparedFiles.map(file =>
+          String(file.fileInfo.resource?.fsPath ?? "").replace(/\\/g, "/")
+        ));
+      },
       pendingImportFiles: [
         createPathPendingFile("A.csv", "folder/A.csv"),
         createPathPendingFile("B.csv", "folder/B.csv"),
@@ -693,48 +668,19 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     });
 
     assert.equal(acceptedCount, 2);
-    assert.deepEqual(payloads.map(payload => ({
-      fileName: payload.fileName,
-      path: payload.path,
-      sourceMtimeMs: payload.sourceMtimeMs,
-      sourceSizeBytes: payload.sourceSizeBytes,
-    })), [
-      {
-        fileName: "A.csv",
-        path: "/C:/data/A.csv",
-        sourceMtimeMs: 123,
-        sourceSizeBytes: 12,
-      },
-      {
-        fileName: "B.csv",
-        path: "/C:/data/B.csv",
-        sourceMtimeMs: 123,
-        sourceSizeBytes: 12,
-      },
-    ]);
+    assert.deepEqual(preparedPaths, ["C:/data/A.csv", "C:/data/B.csv"]);
     assert.equal(failedFiles.length, 0);
   });
 
-  test("streams large path batch imports through a larger append window after first feedback", async () => {
+  test("large path imports use larger append windows after first feedback", async () => {
     const failedFiles: FileImportPrepareFailure[] = [];
+    const filesService = store.add(new FileService());
     const appendCounts: number[] = [];
-    const backend = createFileConverterBackendStub({
-      canPrepareFile: () => true,
-      prepareFilesStream: async (payloads, onResult) => {
-        const results = payloads.map((payload, index): FileConverterPreparedFile => ({
-          csvText: `Vg,Id\n0,${index}`,
-          ok: true,
-          sourcePath: payload.path,
-        }));
-        results.forEach((result, index) => onResult({ index, result }));
-        return results;
-      },
-    });
 
     const acceptedCount = await prepareRemainingPendingImportFiles({
       canApplyResult: () => true,
       failedFiles,
-      fileConverterBackend: backend,
+      filesService,
       onPreparedFiles: preparedFiles => {
         appendCounts.push(preparedFiles.length);
       },
@@ -751,12 +697,13 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
   test("dropped file import appends instead of replacing existing files", async () => {
     const appendedFileNames: string[] = [];
     const replacedFileNames: string[] = [];
+    const filesService = store.add(new FileService());
+    store.add(filesService.registerProvider("file", store.add(new HTMLFileSystemProvider())));
     const workflow = new FileSourceWorkflow({
       commandService: {
         executeCommand: async <R,>() => undefined as R | undefined,
       },
-      fileConverterBackendService: createFileConverterBackendStub(),
-      filesService: store.add(new FileService()),
+      filesService,
       getFiles: () => [{
         fileId: "existing-file",
         fileName: "Existing.csv",
@@ -787,14 +734,15 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
   });
 
   test("closing imported sources prevents delayed prepared files from appending", async () => {
-    const backend = createControlledPathBackend();
     const appendedFileNames: string[] = [];
+    const filesService = store.add(new FileService());
+    store.add(filesService.registerProvider("file", store.add(new HTMLFileSystemProvider())));
+    const delayedSource = createDelayedLoadFileSource("A.csv", "folder/A.csv");
     const workflow = new FileSourceWorkflow({
       commandService: {
         executeCommand: async <R,>() => undefined as R | undefined,
       },
-      fileConverterBackendService: backend,
-      filesService: store.add(new FileService()),
+      filesService,
       getFiles: () => [],
       getSelectedRelativePath: () => null,
       isDisposed: () => false,
@@ -812,16 +760,11 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
 
     const importPromise = (workflow as unknown as {
       importFiles(files: readonly FileSource[]): Promise<void>;
-    }).importFiles([
-      createPathFileSource("A.csv", "folder/A.csv"),
-      createPathFileSource("B.csv", "folder/B.csv"),
-    ]);
+    }).importFiles([delayedSource.source]);
 
     await nextTurn();
-    assert.deepEqual(backend.fileNames, ["A.csv"]);
-
     workflow.closeImportedSources();
-    backend.resolve("A.csv", "Vg,Id\n0,1");
+    delayedSource.resolve();
     await importPromise;
     workflow.dispose();
 
@@ -851,7 +794,6 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
           throw error;
         },
       },
-      fileConverterBackendService: createFileConverterBackendStub(),
       filesService: store.add(new FileService()),
       getFiles: () => [],
       getSelectedRelativePath: () => null,
@@ -879,20 +821,6 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.ok(message?.includes("293K/blocked.csv"), String(message));
     assert.ok(message?.includes("Permission denied"), String(message));
   });
-});
-
-const createFileConverterBackendStub = (
-  overrides: Partial<FileConverterBackend> = {},
-): FileConverterBackend => ({
-  canPrepareFile: () => false,
-  prepareFile: async () => ({
-    ok: false,
-  }),
-  canReadConvertedCsv: () => false,
-  readConvertedCsv: async () => ({
-    ok: false,
-  }),
-  ...overrides,
 });
 
 type TestDataTransferItem = Omit<Partial<DataTransferItem>, "webkitGetAsEntry"> & {
@@ -997,39 +925,6 @@ function createWebkitDirectoryEntry(
   } as unknown as FileSystemDirectoryEntry;
 }
 
-function createControlledPathBackend(): FileConverterBackend & {
-  readonly fileNames: readonly string[];
-  resolve(fileName: string, csvText: string): void;
-} {
-  const requests = new Map<string, {
-    readonly payload: FileConverterPreparePayload;
-    readonly resolve: (value: FileConverterPreparedFile) => void;
-  }>();
-  const fileNames: string[] = [];
-
-  return {
-    canPrepareFile: () => true,
-    canReadConvertedCsv: () => false,
-    fileNames,
-    prepareFile: payload => {
-      fileNames.push(payload.fileName);
-      return new Promise<FileConverterPreparedFile>(resolve => {
-        requests.set(payload.fileName, { payload, resolve });
-      });
-    },
-    readConvertedCsv: async () => ({ ok: false }),
-    resolve: (fileName, csvText) => {
-      const request = requests.get(fileName);
-      assert.ok(request, `Expected pending backend request for ${fileName}`);
-      request.resolve({
-        csvText,
-        ok: true,
-        sourcePath: request.payload.path,
-      });
-    },
-  };
-}
-
 function createDataPendingFile(
   fileName: string,
   relativePath: string,
@@ -1054,6 +949,33 @@ function createDataFileSource(fileName: string): FileSource {
     kind: "data",
     relativePath: null,
     resource: null,
+  };
+}
+
+function createDelayedLoadFileSource(
+  fileName: string,
+  relativePath: string,
+): {
+  readonly source: FileSource;
+  resolve(): void;
+} {
+  let resolveLoad: ((file: File) => void) | null = null;
+  return {
+    source: {
+      canUseNativePath: false,
+      fileName,
+      kind: "path",
+      lastModified: 123,
+      loadFile: () => new Promise<File>(resolve => {
+        resolveLoad = resolve;
+      }),
+      relativePath,
+      resource: URIClass.file(""),
+      size: 12,
+    },
+    resolve: () => {
+      resolveLoad?.(createCsvFile(fileName, "Vg,Id\n0,1"));
+    },
   };
 }
 

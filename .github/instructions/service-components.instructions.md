@@ -67,7 +67,7 @@ Prefer explicit ownership:
 ```txt
 ExplorerService owns ExplorerState.
 fileActions.ts / fileImportExport.ts coordinate add-data workflows.
-fileConverter.ts converts sources into raw records.
+fileImportExport.ts prepares resource-backed Explorer source rows.
 SessionService commits canonical records.
 PlotService owns plot state and render models.
 ChartService owns chart shell state only.

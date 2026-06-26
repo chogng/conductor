@@ -4,20 +4,12 @@
 
 import Papa from "papaparse";
 
-import {
-	loadConvertedCsvFile,
-} from "src/cs/workbench/services/files/browser/fileConverter";
-import type {
-	ConvertedCsvReaderService,
-} from "src/cs/workbench/services/files/common/fileConverterBackend";
 import type {
 	RawTableRows,
 	RawTableRowsReadInput as RawTableRowsReadInputBase,
 } from "src/cs/workbench/services/files/common/rawTableRowsReader";
 
-export type RawTableRowsReadInput = {
-	readonly convertedCsvReaderService: ConvertedCsvReaderService;
-} & RawTableRowsReadInputBase;
+export type RawTableRowsReadInput = RawTableRowsReadInputBase;
 
 export async function readRawTableRows(
 	input: RawTableRowsReadInput,
@@ -31,20 +23,16 @@ export async function readRawTableRows(
 		return limitRows(rowStore.rows, input.maxRows).map(convertRowToStrings);
 	}
 
-	const file = await loadConvertedCsvFile({
-		convertedCsvReaderService: input.convertedCsvReaderService,
-		fallbackFile: input.fallbackFile,
-		fileName: input.fileName ?? undefined,
-		lastModified: input.lastModified ?? undefined,
-		maxRows: input.maxRows,
-		normalizedCsvPath: rowStore.normalizedCsvPath,
-	});
-	if (!file) {
+	const fallbackFile = input.fallbackFile;
+	if (!isTextReadableFile(fallbackFile)) {
 		return null;
 	}
 
-	return parseCsvRows(await file.text(), input.maxRows);
+	return parseCsvRows(await fallbackFile.text(), input.maxRows);
 }
+
+const isTextReadableFile = (value: unknown): value is { text(): Promise<string> } =>
+	!!value && typeof value === "object" && typeof (value as { text?: unknown }).text === "function";
 
 function parseCsvRows(text: string, maxRows?: number): RawTableRows {
 	const preview = normalizeMaxRows(maxRows);

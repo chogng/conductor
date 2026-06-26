@@ -70,10 +70,10 @@ args, resolve services/controllers, call owner APIs, and return.
 | `ISessionService` | imported data-file/raw-table ledger plus downstream analysis records |
 | `ExplorerView` / `ExplorerViewer` | Files container UI rendering |
 | `fileImportExport.ts` | file transfer and source collection helpers |
-| `fileConverter.ts` | CSV/TSV/XLS/XLSX/clipboard/manual conversion to raw table records |
+| `ITableFileService` / `TableFileEditorModel` | URI-backed table file open/cache/reload/save lifecycle |
 
 Do not introduce `IFileImportService` by default. Source collection stays in
-Explorer/files workflow; conversion stays in `workbench/services/files`;
+Explorer/files workflow; raw-table row readers stay in `workbench/services/files`;
 ordinary Explorer file-to-table imports update Explorer-local rows and open
 URI-backed table resources through `ITableService`.
 
@@ -101,7 +101,7 @@ view -> props, commands, owner service APIs
 ```
 
 Avoid `service -> view`, `service -> CommandsRegistry`, `session -> UI state`,
-`converter -> tableModel/template/plot`, `plot -> chart DOM`, and
+`source preparation -> tableModel/template/plot`, `plot -> chart DOM`, and
 `chart -> raw table parsing`.
 
 ## Imports

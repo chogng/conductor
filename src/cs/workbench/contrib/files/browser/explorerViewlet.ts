@@ -56,10 +56,6 @@ import {
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import { TOGGLE_THUMBNAIL_VIEW_ACTION_ID } from "src/cs/workbench/contrib/thumbnail/common/thumbnail";
 import {
-  IFileConverterBackendService,
-  type FileConverterBackend,
-} from "src/cs/workbench/services/files/common/fileConverterBackend";
-import {
   markTemplateApplyPerformanceTrace,
 } from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
 import { createTemplateEditorRecordFromUserTemplate } from "src/cs/workbench/contrib/template/browser/templateUserTemplateAdapter";
@@ -116,7 +112,6 @@ export class ExplorerViewPane extends ViewPane {
     @IDialogService private readonly dialogService: IDialogService,
     @IExplorerService private readonly explorerService: IExplorerService,
     @IExplorerWorkflowService private readonly explorerWorkflowService: IExplorerWorkflowService,
-    @IFileConverterBackendService private readonly fileConverterBackendService: FileConverterBackend,
     @IFileService private readonly filesService: IFileService,
     @IAppearanceService private readonly appearanceService: IAppearanceService,
     @IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -148,7 +143,6 @@ export class ExplorerViewPane extends ViewPane {
 
     this.sourceWorkflow = new FileSourceWorkflow({
       commandService: this.commandService,
-      fileConverterBackendService: this.fileConverterBackendService,
       filesService: this.filesService,
       getFiles: () => this.committedFiles,
       getSelectedRelativePath: () => this.getSelectedRelativePath(),
@@ -1172,93 +1166,34 @@ function createLocalExplorerImportEntriesForFile(
   fileEntry: PreparedFileImportEntry | undefined,
   importedFile: PreparedFileImportInfo,
 ): ExplorerFileEntry[] {
-  const rawTables = getImportedRawTableEntries(importedFile);
-  if (!rawTables.length) {
-    return [createLocalExplorerImportEntry(fileEntry, importedFile)];
-  }
-
-  return rawTables.map(rawTable =>
-    createLocalExplorerImportEntry(fileEntry, importedFile, rawTable));
+  return [createLocalExplorerImportEntry(fileEntry, importedFile)];
 }
 
 function createLocalExplorerImportEntry(
   fileEntry: PreparedFileImportEntry | undefined,
   importedFile: PreparedFileImportInfo,
-  rawTable?: ImportedRawTableEntry,
 ): ExplorerFileEntry {
-  const rawTableId = normalizeSourceKey(rawTable?.rawTableId);
-  const table = rawTable?.table;
-  const normalizedCsvPath = getRawTableNormalizedCsvPath(table) ??
+  const normalizedCsvPath =
     normalizePathValue(fileEntry?.normalizedCsvPath) ??
     normalizePathValue(importedFile.normalizedCsvPath);
   const sourcePath = normalizePathValue(fileEntry?.sourcePath) ??
-    normalizePathValue(importedFile.sourcePath) ??
-    getRawTableOriginalPath(table) ??
-    normalizePathValue(importedFile.importRecord.raw.filePath);
-  const sheetName = table?.source.kind === "excelSheet"
-    ? table.source.sheetName ?? null
-    : null;
+    normalizePathValue(importedFile.sourcePath);
   const itemKey = normalizeSourceKey(fileEntry?.itemKey) ??
     normalizeSourceKey(importedFile.sourceKey) ??
-    normalizeFileId(importedFile.fileId) ??
-    rawTableId ??
-    "";
+    normalizeFileId(importedFile.fileId) ?? "";
 
   return {
     file: fileEntry?.file ?? importedFile.file,
     fileId: importedFile.fileId,
     fileName: importedFile.fileName,
-    itemKey: rawTableId ? `${itemKey}:${rawTableId}` : itemKey,
+    itemKey,
     localImport: true,
     normalizedCsvPath,
     relativePath: fileEntry?.relativePath ?? importedFile.relativePath ?? null,
-    sheetId: rawTableId,
-    sheetName,
-    sourceKey: rawTableId ?? importedFile.sourceKey ?? fileEntry?.sourceKey,
+    resource: fileEntry?.resource ?? importedFile.resource ?? null,
+    sourceKey: importedFile.sourceKey ?? fileEntry?.sourceKey,
     sourcePath,
-    ...(table?.health?.state ? { rawTableHealth: table.health.state } : {}),
-    ...(table?.health?.message ? { rawTableHealthMessage: table.health.message } : {}),
-    ...(table?.templateEligibility ? { templateEligibility: table.templateEligibility } : {}),
   };
-}
-
-type ImportedRawTableEntry = {
-  readonly rawTableId: string;
-  readonly table: PreparedFileImportInfo["importRecord"]["raw"]["rawTablesById"][string];
-};
-
-function getImportedRawTableEntries(
-  importedFile: PreparedFileImportInfo,
-): readonly ImportedRawTableEntry[] {
-  const rawTablesById = importedFile.importRecord.raw.rawTablesById;
-  const rawTableIds = uniqueStrings([
-    ...importedFile.importRecord.raw.rawTableOrder,
-    ...Object.keys(rawTablesById),
-  ]);
-  return rawTableIds.flatMap(rawTableId => {
-    const normalizedRawTableId = normalizeSourceKey(rawTableId);
-    const table = normalizedRawTableId ? rawTablesById[normalizedRawTableId] : null;
-    return normalizedRawTableId && table
-      ? [{ rawTableId: normalizedRawTableId, table }]
-      : [];
-  });
-}
-
-function getRawTableNormalizedCsvPath(
-  table: ImportedRawTableEntry["table"] | undefined,
-): string | null {
-  return table?.rows.kind === "normalizedCsv"
-    ? normalizePathValue(table.rows.normalizedCsvPath)
-    : null;
-}
-
-function getRawTableOriginalPath(
-  table: ImportedRawTableEntry["table"] | undefined,
-): string | null {
-  const source = table?.source;
-  return source && source.kind !== "unknown"
-    ? normalizePathValue(source.originalPath)
-    : null;
 }
 
 function filterNewExplorerImportEntries(
@@ -1351,14 +1286,14 @@ function findExplorerFileEntry(
 function createTableSourceFromExplorerFile(
   file: ExplorerFileEntry | null | undefined,
 ): TableSource | null {
-  const path = getExplorerFileTablePath(file);
-  if (!path) {
+  const resource = getExplorerFileTableResource(file);
+  if (!resource) {
     return null;
   }
 
-  const resource = URI.file(path);
+  const tablePath = getExplorerFileTablePath(file);
   const normalizedCsvPath = normalizePathValue(file?.normalizedCsvPath);
-  const sheetId = path !== normalizedCsvPath && tableFileFormatService.isExcel(resource)
+  const sheetId = tablePath !== normalizedCsvPath && tableFileFormatService.isExcel(resource)
     ? normalizeSourceKey(file?.sheetId)
     : null;
   const sourceKey = normalizeSourceKey(file?.sourceKey);
@@ -1367,6 +1302,16 @@ function createTableSourceFromExplorerFile(
     ...(sheetId ? { sheetId } : {}),
     ...(sourceKey ? { sourceKey } : {}),
   };
+}
+
+function getExplorerFileTableResource(file: ExplorerFileEntry | null | undefined): URI | null {
+  const resource = file?.resource ? URI.revive(file.resource) : null;
+  if (resource) {
+    return resource;
+  }
+
+  const path = getExplorerFileTablePath(file);
+  return path ? URI.file(path) : null;
 }
 
 function getExplorerFileTablePath(file: ExplorerFileEntry | null | undefined): string | null {
@@ -1399,8 +1344,8 @@ function getImportedTableFileNameCandidates(
 ): readonly string[] {
   return [
     file.fileName,
-    file.importRecord.name,
-    file.importRecord.raw.fileName,
+    file.sourcePath,
+    file.resource?.path,
     file.fileId,
   ]
     .map(value => String(value ?? "").trim())
@@ -1424,21 +1369,6 @@ function getExplorerFileEntryKey(file: ExplorerFileEntry | undefined): string {
 function normalizePathValue(value: unknown): string | null {
   const path = String(value ?? "").trim();
   return path || null;
-}
-
-function uniqueStrings(values: readonly string[]): readonly string[] {
-  const result: string[] = [];
-  const seen = new Set<string>();
-  for (const value of values) {
-    const normalized = String(value ?? "").trim();
-    if (!normalized || seen.has(normalized)) {
-      continue;
-    }
-
-    seen.add(normalized);
-    result.push(normalized);
-  }
-  return result;
 }
 
 const EMPTY_EXPLORER_PANE_INPUT: ExplorerPaneInput = {

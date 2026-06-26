@@ -29,11 +29,11 @@ at the type name.
 | Record | Owner | Producer | Invalidation / notes |
 | --- | --- | --- | --- |
 | `SessionModel` | `ISessionService` | session commits | Canonical root: `schemaVersion`, `sessionVersion`, `filesById`, `fileOrder`. |
-| `FileRecord` | `ISessionService` | import, table-model, review, slice, calculation, metric commits | Owns one imported file/workbook lifecycle in the explicit conversion ledger. |
-| `RawRecord` | `ISessionService` | file conversion commit | Raw file facts and `rawTablesById`; no table-model/template/plot semantics. |
-| `RawTableRecord` | `ISessionService` | `fileConverter.ts` through Session import commit | Physical rows/source/health/template eligibility. Use `rawTableId`; keep failed rows unavailable. |
-| `RawTableSourceRecord` | converter/session | CSV, Excel sheet, clipboard, manual, unknown | Source provenance only, not measurement semantics. |
-| `RawTableRowsRecord` | converter/session | inline, normalized CSV, unavailable | Large rows should use artifact/path references. |
+| `FileRecord` | `ISessionService` | import, table-model, review, slice, calculation, metric commits | Owns one imported file/workbook lifecycle in the remaining raw-table ledger. |
+| `RawRecord` | `ISessionService` | raw-table import commit | Raw file facts and `rawTablesById`; no table-model/template/plot semantics. |
+| `RawTableRecord` | `ISessionService` | Session import commit | Physical rows/source/health/template eligibility. Use `rawTableId`; keep failed rows unavailable. |
+| `RawTableSourceRecord` | files/session | CSV, Excel sheet, clipboard, manual, unknown | Source provenance only, not measurement semantics. |
+| `RawTableRowsRecord` | files/session | inline, normalized CSV, unavailable | Large rows should use artifact/path references. |
 | `TableModelRecord` | TableModel + Session ledger | table-model producer (`ITableModelProducerService`) | Tied to raw table version, table-model rule version, and schema profile version; stores structure, column profiles, semantic candidates, groups, blocks, and diagnostics. |
 | `RawTableReviewRecord` | Review + Session | `IReviewService` | Tied to template candidate signature, Recipe fingerprint, UserTemplate/saved-template fingerprint, review engine version, and review policy version; stores candidates, reviews, and `ReviewDecision`. |
 | `MeasurementGroupRecord` | TableModel + Session ledger | table-model producer / TableModel helpers | Group/device labels and ordered block ids. |
@@ -60,16 +60,16 @@ provenance, and template inputs.
 
 `RawTableRangeRef` adds `fileId`, `rawTableId`, and `range`.
 
-## File Conversion Records
+## File Import Records
 
 | Type | Owner | Notes |
 | --- | --- | --- |
-| `FileImportInput` | files source workflow | Sources plus conversion options. Do not turn options into Explorer UI state. |
-| `FileConversionResult` | `fileConverter.ts` output; Session import commits | Contains converted files and diagnostics. Not the entire Explorer add-data workflow result. |
-| `ImportedFileRecord` | converter output; Session import commits | `id`, `name`, `kind`, `raw`. One Excel workbook should produce one imported file with one raw table per sheet. |
-| `FileImportDiagnostic` | converter/files workflow | Import warnings/errors only; not IV/CV table-model classification. |
+| `FileImportInput` | files source workflow | Sources plus import options. Do not turn options into Explorer UI state. |
+| `FileImportResult` | files source/import helpers; Session import commits | Contains imported files and diagnostics. Not the entire Explorer add-data workflow result. |
+| `ImportedFileRecord` | files source/import helpers; Session import commits | `id`, `name`, `kind`, `raw`. One workbook should produce one imported file with one raw table per sheet when this legacy ledger is used. |
+| `FileImportDiagnostic` | files workflow | Import warnings/errors only; not IV/CV table-model classification. |
 
-Conversion records must not encode measurement blocks, curve types, plot
+Import records must not encode measurement blocks, curve types, plot
 series, template decisions, or table-model confidence.
 
 ## Service-Local State
@@ -250,7 +250,7 @@ disambiguation and must not replace the URI identity for resource opens.
 - `ExplorerState` owns layout, selected file id, expanded folders, folder order,
   source workflow status, error, and drag state.
 - `ExplorerFileEntry` is a projection for rendering; badge/chart/template fields
-  are display facts, not conversion output.
+  are display facts, not source preparation output.
 
 ## Do Not
 

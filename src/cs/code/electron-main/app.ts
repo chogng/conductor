@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFile } from "node:child_process";
 import { createRequire } from "node:module";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
@@ -158,18 +157,7 @@ const RUST_PROCESSING_POOL_SIZE = resolveRustProcessingPoolSize({
   envValue: process.env.CONDUCTOR_RUST_PROCESSING_POOL_SIZE,
 });
 const TABLE_FOREGROUND_IDLE_GRACE_MS = 16;
-const FILE_IMPORT_BACKGROUND_MAX_ACTIVE = Math.max(1, RUST_PROCESSING_POOL_SIZE);
-const FILE_IMPORT_RUST_BATCH_MAX_ACTIVE = FILE_IMPORT_BACKGROUND_MAX_ACTIVE;
-const FILE_IMPORT_RUST_BATCH_LARGE_MAX_ACTIVE = Math.max(
-  1,
-  Math.ceil(FILE_IMPORT_RUST_BATCH_MAX_ACTIVE / 2),
-);
-const FILE_IMPORT_RUST_BATCH_PARALLELISM = 1;
-const FILE_IMPORT_RUST_BATCH_SMALL_COMMAND_SIZE = 4;
-const FILE_IMPORT_RUST_BATCH_LARGE_COMMAND_SIZE = 2;
-const FILE_IMPORT_RUST_BATCH_LARGE_THRESHOLD = 64;
-const FILE_IMPORT_PREPARE_CACHE_MAX_ENTRIES = 4096;
-const FILE_IMPORT_PREWARM_TIMEOUT_MS = 30000;
+const RUST_BACKGROUND_MAX_ACTIVE = Math.max(1, RUST_PROCESSING_POOL_SIZE);
 const rustWorkerHost = new RustWorkerHost({
   isWindows,
   processingPoolSize: RUST_PROCESSING_POOL_SIZE,
@@ -280,11 +268,9 @@ class RustPriorityGate {
 }
 
 const rustPriorityGate = new RustPriorityGate({
-  backgroundMaxActive: FILE_IMPORT_BACKGROUND_MAX_ACTIVE,
+  backgroundMaxActive: RUST_BACKGROUND_MAX_ACTIVE,
   foregroundIdleGraceMs: TABLE_FOREGROUND_IDLE_GRACE_MS,
 });
-const fileImportPrepareCache = new Map();
-let rustProcessingPrewarmPromise = null;
 
 class MainFileSystemProvider implements IFileSystemProvider {
   public readonly onDidFilesChange;
@@ -619,34 +605,15 @@ function getOriginRuntimeStorageDir() {
   return path.join(getOriginRuntimeRootDir(), "origin");
 }
 
-function getRustExcelJobRootDir() {
-  return path.join(getTempRootDir(), "rust-xls-jobs");
-}
-
 function normalizeAbsoluteFilePath(rawPath) {
   const normalized = typeof rawPath === "string" ? rawPath.trim() : "";
   if (!normalized || !path.isAbsolute(normalized)) return "";
   return path.normalize(normalized);
 }
 
-function isSupportedRustExcelInputPath(filePath) {
-  const ext = path.extname(filePath).toLowerCase();
-  return ext === ".xls" || ext === ".xlsx";
-}
-
 function isSupportedRustInputPath(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   return ext === ".csv";
-}
-
-function resolveRustExcelConverterPath() {
-  return resolveRustWorkerExecutablePath({
-    appRootPath: getAppRootPath(),
-    env: process.env,
-    isDev,
-    platform: process.platform,
-    resourcesPath: getResourcesPath(),
-  });
 }
 
 function createRustOriginExportTempPath(fileId, csvName) {
@@ -714,116 +681,6 @@ function isRustProcessFileConfigSupported(config) {
   if (mode && mode !== "auto" && mode !== "points" && mode !== "segments") return false;
   if (!Array.isArray(config.yCols) || !config.yCols.length) return false;
   return true;
-}
-
-function runRustExcelConverter(executablePath, inputPath, outputPath, manifestPath = null) {
-  return new Promise((resolve, reject) => {
-    const args = ["--convert-one", inputPath, "--out", outputPath];
-    if (manifestPath) {
-      args.push("--manifest", manifestPath);
-    }
-    execFile(
-      executablePath,
-      args,
-      {
-        timeout: 120000,
-        windowsHide: true,
-      },
-      (error, stdout, stderr) => {
-        if (error) {
-          reject(
-            new Error(
-              stderr?.trim() ||
-                stdout?.trim() ||
-                error.message ||
-                "Rust Excel converter failed.",
-            ),
-          );
-          return;
-        }
-        resolve({ stdout, stderr });
-      },
-    );
-  });
-}
-
-function readRustExcelConvertManifest(manifestPath) {
-  try {
-    if (!manifestPath || !fs.existsSync(manifestPath)) return null;
-    const parsed = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function isRustConvertedCsvPath(filePath) {
-  const normalized = normalizeAbsoluteFilePath(filePath);
-  if (!normalized || path.extname(normalized).toLowerCase() !== ".csv") return false;
-  const root = path.normalize(getRustExcelJobRootDir());
-  const relative = path.relative(root, normalized);
-  return Boolean(relative) && !relative.startsWith("..") && !path.isAbsolute(relative);
-}
-
-async function handleExcelReadConvertedCsv(_event, payload) {
-  const rawPath = payload && typeof payload === "object" ? payload.path : payload;
-  const maxRows =
-    payload && typeof payload === "object" && Number.isFinite(Number(payload.maxRows))
-      ? Math.max(0, Math.floor(Number(payload.maxRows)))
-      : undefined;
-  const csvPath = normalizeAbsoluteFilePath(rawPath);
-  if (!isRustConvertedCsvPath(csvPath)) {
-    return {
-      ok: false,
-      code: "INVALID_CONVERTED_CSV_PATH",
-      message: "Invalid converted CSV path.",
-    };
-  }
-
-  try {
-    const stat = fs.statSync(csvPath);
-    if (!stat.isFile()) {
-      return {
-        ok: false,
-        code: "CONVERTED_CSV_NOT_FOUND",
-        message: "Converted CSV path is not a file.",
-      };
-    }
-    const csvText = fs.readFileSync(csvPath, "utf8");
-    return {
-      ok: true,
-      csvText: limitCsvRows(csvText, maxRows),
-      sizeBytes: stat.size,
-      source: "rust-converted-csv",
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      code: "CONVERTED_CSV_READ_FAILED",
-      message: error?.message || "Failed to read converted CSV.",
-    };
-  }
-}
-
-function limitCsvRows(text, maxRows) {
-  if (!Number.isFinite(maxRows) || maxRows < 0) {
-    return text;
-  }
-  if (maxRows === 0) {
-    return "";
-  }
-
-  let rowCount = 0;
-  for (let index = 0; index < text.length; index += 1) {
-    if (text.charCodeAt(index) !== 10) {
-      continue;
-    }
-    rowCount += 1;
-    if (rowCount >= maxRows) {
-      return text.slice(0, index);
-    }
-  }
-  return text;
 }
 
 const mainFileService = new FileService();
@@ -1085,7 +942,6 @@ function createSharedProcessContributionContext() {
     conductorUserDataHomeDir: getConductorUserDataHomeDir(),
     conductorLogHomeDir: getConductorLogHomeDir(),
     originRuntimeStorageDir: getOriginRuntimeStorageDir(),
-    rustExcelJobRootDir: getRustExcelJobRootDir(),
     log: (message: string) => {
       if (isDesktopBootProfileEnabled()) {
         console.info(message);
@@ -1145,13 +1001,6 @@ function scheduleSharedProcessStartupContributions(reason = "post-window") {
   }, SHARED_PROCESS_STARTUP_CONTRIBUTIONS_DELAY_MS);
 }
 
-function ensureRustExcelJobRoot() {
-  runSharedProcessStartupContributionsOnce("rust-excel");
-  const jobRoot = getRustExcelJobRootDir();
-  fs.mkdirSync(jobRoot, { recursive: true });
-  return jobRoot;
-}
-
 function handleDesktopAppearanceSet(event, payload) {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win || win.isDestroyed()) {
@@ -1169,624 +1018,6 @@ function handleDesktopAppearanceSet(event, payload) {
     ok: true,
     opaqueSurface: styleState?.opaqueSurface === true,
   };
-}
-
-async function handleExcelConvertRust(_event, payload) {
-  const rawPath = payload && typeof payload === "object" ? payload.path : payload;
-  const inputPath = normalizeAbsoluteFilePath(rawPath);
-  if (!inputPath || !isSupportedRustExcelInputPath(inputPath)) {
-    return {
-      ok: false,
-      code: "INVALID_EXCEL_PATH",
-      message: "Invalid Excel file path.",
-    };
-  }
-
-  try {
-    const stat = fs.statSync(inputPath);
-    if (!stat.isFile()) {
-      return {
-        ok: false,
-        code: "INVALID_EXCEL_PATH",
-        message: "Excel path is not a file.",
-      };
-    }
-  } catch (error) {
-    return {
-      ok: false,
-      code: "EXCEL_FILE_NOT_FOUND",
-      message: error?.message || "Excel file not found.",
-    };
-  }
-
-  const converterPath = resolveRustExcelConverterPath();
-  if (!converterPath) {
-    return {
-      ok: false,
-      code: "RUST_CONVERTER_NOT_FOUND",
-      message: "Rust Excel converter was not found.",
-    };
-  }
-
-  const startedAt = Date.now();
-  const returnCsvText = payload?.returnCsvText !== false;
-  const jobRoot = ensureRustExcelJobRoot();
-  const jobDir = fs.mkdtempSync(path.join(jobRoot, "job-"));
-  const csvPath = path.join(jobDir, "converted.csv");
-  const manifestPath = path.join(jobDir, "manifest.json");
-
-  try {
-    await runRustExcelConverter(converterPath, inputPath, csvPath, manifestPath);
-    const csvText = returnCsvText ? fs.readFileSync(csvPath, "utf8") : undefined;
-    const manifest = readRustExcelConvertManifest(manifestPath);
-    return {
-      ok: true,
-      csvPath,
-      csvText: returnCsvText ? csvText : undefined,
-      durationMs: Date.now() - startedAt,
-      manifest,
-      normalizedSizeBytes:
-        manifest?.csvBytes ?? fs.statSync(csvPath).size,
-      source: "rust",
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      code: "RUST_CONVERTER_FAILED",
-      message: error?.message || "Rust Excel conversion failed.",
-      durationMs: Date.now() - startedAt,
-    };
-  } finally {
-    if (returnCsvText) {
-      try {
-        fs.rmSync(jobDir, { recursive: true, force: true });
-      } catch {
-        // best-effort cleanup
-      }
-    }
-  }
-}
-
-function normalizeFileConversionPreparePayload(payload) {
-  const rawPath = payload && typeof payload === "object" ? payload.path : payload;
-  const inputPath = normalizeAbsoluteFilePath(rawPath);
-  const fileName =
-    payload && typeof payload.fileName === "string" && payload.fileName.trim()
-      ? payload.fileName.trim()
-      : inputPath
-        ? path.basename(inputPath)
-        : "";
-  const sourceMtimeMs = payload && typeof payload === "object"
-    ? readOptionalNonNegativeNumber(payload.sourceMtimeMs)
-    : null;
-  const sourceSizeBytes = payload && typeof payload === "object"
-    ? readOptionalNonNegativeNumber(payload.sourceSizeBytes)
-    : null;
-
-  return {
-    fileName,
-    inputPath,
-    sourceMtimeMs,
-    sourceSizeBytes,
-  };
-}
-
-function createFileConversionPrepareFailure(code, message, durationMs = null) {
-  return {
-    ok: false,
-    code,
-    ...(durationMs !== null ? { durationMs } : {}),
-    message,
-  };
-}
-
-function readNonNegativeDurationMs(value, fallback) {
-  const durationMs = Number(value);
-  return Number.isFinite(durationMs) && durationMs >= 0 ? durationMs : fallback;
-}
-
-function readOptionalNonNegativeNumber(value) {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) && numeric >= 0 ? numeric : null;
-}
-
-function cloneFileImportPrepareValue(value) {
-  if (typeof structuredClone === "function") {
-    return structuredClone(value);
-  }
-
-  return value && typeof value === "object"
-    ? JSON.parse(JSON.stringify(value))
-    : value;
-}
-
-function createFileImportPrepareCacheKey(metadata) {
-  const inputPath = typeof metadata?.inputPath === "string"
-    ? path.normalize(metadata.inputPath)
-    : "";
-  const sourceSizeBytes = Number(metadata?.sourceSizeBytes);
-  const sourceMtimeMs = Number(metadata?.sourceMtimeMs);
-  if (!inputPath || !Number.isFinite(sourceSizeBytes) || !Number.isFinite(sourceMtimeMs)) {
-    return null;
-  }
-
-  return `${inputPath}::${sourceSizeBytes}::${sourceMtimeMs}`;
-}
-
-function readFileImportPrepareCache(metadata, startedAt) {
-  const key = createFileImportPrepareCacheKey(metadata);
-  if (!key || !fileImportPrepareCache.has(key)) {
-    return null;
-  }
-
-  const cached = fileImportPrepareCache.get(key);
-  fileImportPrepareCache.delete(key);
-  fileImportPrepareCache.set(key, cached);
-  return {
-    ...cloneFileImportPrepareValue(cached),
-    cacheHit: true,
-    durationMs: Date.now() - startedAt,
-  };
-}
-
-function writeFileImportPrepareCache(metadata, result) {
-  if (!result?.ok) {
-    return;
-  }
-
-  const key = createFileImportPrepareCacheKey(metadata);
-  if (!key) {
-    return;
-  }
-
-  fileImportPrepareCache.set(key, cloneFileImportPrepareValue({
-    ...result,
-    cacheHit: false,
-  }));
-  while (fileImportPrepareCache.size > FILE_IMPORT_PREPARE_CACHE_MAX_ENTRIES) {
-    const firstKey = fileImportPrepareCache.keys().next().value;
-    if (firstKey === undefined) {
-      break;
-    }
-    fileImportPrepareCache.delete(firstKey);
-  }
-}
-
-function prewarmRustProcessingPool() {
-  if (rustProcessingPrewarmPromise) {
-    return rustProcessingPrewarmPromise;
-  }
-
-  rustProcessingPrewarmPromise = Promise.allSettled(
-    Array.from({ length: FILE_IMPORT_BACKGROUND_MAX_ACTIVE }, () =>
-      rustPriorityGate.runBackground(() =>
-        rustWorkerHost.sendProcessingCommand(
-          "clear",
-          {},
-          { timeoutMs: FILE_IMPORT_PREWARM_TIMEOUT_MS },
-        )
-      )
-    ),
-  ).then(() => undefined).catch((error) => {
-    console.warn("[rust] processing pool prewarm failed:", error);
-  });
-  return rustProcessingPrewarmPromise;
-}
-
-async function statFileConversionInput(inputPath) {
-  try {
-    const stat = await fs.promises.stat(inputPath);
-    if (!stat.isFile()) {
-      return {
-        ok: false,
-        result: createFileConversionPrepareFailure(
-          "INVALID_IMPORT_PATH",
-          "Import path is not a file.",
-        ),
-      };
-    }
-
-    return {
-      ok: true,
-      mtimeMs: stat.mtimeMs,
-      size: stat.size,
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      result: createFileConversionPrepareFailure(
-        "IMPORT_FILE_NOT_FOUND",
-        error?.message || "Import file not found.",
-      ),
-    };
-  }
-}
-
-async function resolveFileConversionInputMetadata(payload) {
-  const {
-    fileName,
-    inputPath,
-    sourceMtimeMs,
-    sourceSizeBytes,
-  } = normalizeFileConversionPreparePayload(payload);
-
-  if (!inputPath) {
-    return {
-      metadata: null,
-      ok: false,
-      result: createFileConversionPrepareFailure(
-        "INVALID_IMPORT_PATH",
-        "Invalid import file path.",
-      ),
-    };
-  }
-
-  if (sourceMtimeMs !== null && sourceSizeBytes !== null) {
-    return {
-      metadata: {
-        fileName,
-        inputPath,
-        sourceMtimeMs,
-        sourceSizeBytes,
-      },
-      ok: true,
-      result: null,
-    };
-  }
-
-  const stat = await statFileConversionInput(inputPath);
-  if (!stat.ok) {
-    return {
-      metadata: null,
-      ok: false,
-      result: stat.result,
-    };
-  }
-
-  return {
-    metadata: {
-      fileName,
-      inputPath,
-      sourceMtimeMs: stat.mtimeMs,
-      sourceSizeBytes: stat.size,
-    },
-    ok: true,
-    result: null,
-  };
-}
-
-function createPreparedCsvImportResult({
-  batchCommandSize = undefined,
-  batchDurationMs = undefined,
-  batchParallelism = undefined,
-  batchWorkerCount = undefined,
-  fileName,
-  inputPath,
-  result,
-  sourceMtimeMs,
-  sourceSizeBytes,
-  startedAt,
-}) {
-  const durationMs = readNonNegativeDurationMs(
-    result?.durationMs,
-    Date.now() - startedAt,
-  );
-
-  return {
-    ok: true,
-    tableFactsSeed: result?.tableFactsSeed,
-    ...(batchCommandSize !== undefined ? { batchCommandSize } : {}),
-    ...(batchDurationMs !== undefined ? { batchDurationMs } : {}),
-    ...(batchParallelism !== undefined ? { batchParallelism } : {}),
-    ...(batchWorkerCount !== undefined ? { batchWorkerCount } : {}),
-    columnCount: Number(result?.columnCount) || 0,
-    durationMs,
-    health: result?.health,
-    maxCellLengths: Array.isArray(result?.maxCellLengths)
-      ? result.maxCellLengths.map(value => Number(value) || 0)
-      : [],
-    normalizedCsvPath: inputPath,
-    normalizedSizeBytes: sourceSizeBytes,
-    rowCount: Number(result?.rowCount) || 0,
-    sourceLastModified: sourceMtimeMs,
-    sourceName: fileName,
-    sourcePath: inputPath,
-    sourceSizeBytes,
-    source: "rust",
-    templateEligibility: typeof result?.templateEligibility === "string"
-      ? result.templateEligibility
-      : undefined,
-  };
-}
-
-async function prepareFileConversionFromMetadata(metadata) {
-  const { fileName, inputPath, sourceMtimeMs, sourceSizeBytes } = metadata;
-  const startedAt = Date.now();
-
-  if (isSupportedRustExcelInputPath(inputPath)) {
-    const conversion = await rustPriorityGate.runBackground(() =>
-      handleExcelConvertRust(null, {
-        path: inputPath,
-        returnCsvText: false,
-      })
-    );
-    if (!conversion?.ok) {
-      return createFileConversionPrepareFailure(
-        conversion?.code || "RUST_IMPORT_PREPARE_FAILED",
-        conversion?.message || "Rust import preparation failed.",
-        Date.now() - startedAt,
-      );
-    }
-    return {
-      ok: true,
-      durationMs: Date.now() - startedAt,
-      health: {
-        state: "ok",
-        message: "",
-      },
-      manifest: conversion.manifest,
-      normalizedCsvPath: conversion.csvPath ?? null,
-      normalizedSizeBytes: conversion.normalizedSizeBytes,
-      sourceName: fileName,
-      sourcePath: inputPath,
-      sourceSizeBytes,
-      source: "rust",
-    };
-  }
-
-  if (!isSupportedRustInputPath(inputPath)) {
-    return createFileConversionPrepareFailure(
-      "UNSUPPORTED_IMPORT_FORMAT",
-      "Unsupported import file format.",
-      Date.now() - startedAt,
-    );
-  }
-
-  try {
-    const cached = readFileImportPrepareCache(metadata, startedAt);
-    if (cached) {
-      return cached;
-    }
-
-    const result = await rustPriorityGate.runBackground(() =>
-      rustWorkerHost.sendProcessingCommand("prepareImport", {
-        fileName,
-        path: inputPath,
-      })
-    );
-    const prepared = createPreparedCsvImportResult({
-      fileName,
-      inputPath,
-      result,
-      sourceMtimeMs,
-      sourceSizeBytes,
-      startedAt,
-    });
-    writeFileImportPrepareCache(metadata, prepared);
-    return prepared;
-  } catch (error) {
-    return createFileConversionPrepareFailure(
-      "RUST_IMPORT_PREPARE_FAILED",
-      error?.message || "Rust import preparation failed.",
-      Date.now() - startedAt,
-    );
-  }
-}
-
-async function prepareFileConversionFromPath(payload) {
-  const resolved = await resolveFileConversionInputMetadata(payload);
-  if (!resolved.ok || !resolved.metadata) {
-    return resolved.result;
-  }
-
-  return prepareFileConversionFromMetadata(resolved.metadata);
-}
-
-function chunkFileConversionEntries(entries, chunkSize) {
-  const chunks = [];
-  for (let index = 0; index < entries.length; index += chunkSize) {
-    chunks.push(entries.slice(index, index + chunkSize));
-  }
-  return chunks;
-}
-
-function getFileImportRustBatchCommandSize(entryCount) {
-  return entryCount > FILE_IMPORT_RUST_BATCH_LARGE_THRESHOLD
-    ? FILE_IMPORT_RUST_BATCH_LARGE_COMMAND_SIZE
-    : FILE_IMPORT_RUST_BATCH_SMALL_COMMAND_SIZE;
-}
-
-function getFileImportRustBatchMaxActive(entryCount) {
-  return entryCount > FILE_IMPORT_RUST_BATCH_LARGE_THRESHOLD
-    ? Math.min(FILE_IMPORT_RUST_BATCH_MAX_ACTIVE, FILE_IMPORT_RUST_BATCH_LARGE_MAX_ACTIVE)
-    : FILE_IMPORT_RUST_BATCH_MAX_ACTIVE;
-}
-
-function readBatchImportResults(response) {
-  if (Array.isArray(response)) {
-    return response;
-  }
-  if (response && typeof response === "object" && Array.isArray(response.results)) {
-    return response.results;
-  }
-  return [];
-}
-
-async function prepareCsvFileConversionBatchChunk(entries, setResult, scheduler) {
-  const startedAt = Date.now();
-  let response;
-  try {
-    response = await rustPriorityGate.runBackground(() =>
-      rustWorkerHost.sendProcessingCommand("prepareImportBatch", {
-        entries: entries.map(entry => ({
-          fileName: entry.fileName,
-          path: entry.inputPath,
-        })),
-        threads: FILE_IMPORT_RUST_BATCH_PARALLELISM,
-      })
-    );
-  } catch (error) {
-    for (const entry of entries) {
-      setResult(entry.index, createFileConversionPrepareFailure(
-        "RUST_IMPORT_PREPARE_FAILED",
-        error?.message || "Rust import preparation failed.",
-        Date.now() - startedAt,
-      ));
-    }
-    return;
-  }
-
-  const batchResults = readBatchImportResults(response);
-  const batchDurationMs = response && typeof response === "object"
-    ? readNonNegativeDurationMs(response.durationMs, Date.now() - startedAt)
-    : undefined;
-  const batchParallelism = response && typeof response === "object" && Number.isFinite(Number(response.parallelism))
-    ? Number(response.parallelism)
-    : undefined;
-  for (let offset = 0; offset < entries.length; offset += 1) {
-    const entry = entries[offset];
-    const result = batchResults[offset];
-    if (!result?.ok) {
-      setResult(entry.index, createFileConversionPrepareFailure(
-        typeof result?.code === "string" ? result.code : "RUST_IMPORT_PREPARE_FAILED",
-        typeof result?.message === "string" && result.message.trim()
-          ? result.message
-          : "Rust import preparation failed.",
-        readNonNegativeDurationMs(result?.durationMs, Date.now() - startedAt),
-      ));
-      continue;
-    }
-
-    const prepared = createPreparedCsvImportResult({
-      batchCommandSize: scheduler.batchCommandSize,
-      batchDurationMs,
-      batchParallelism,
-      batchWorkerCount: scheduler.workerCount,
-      fileName: entry.fileName,
-      inputPath: entry.inputPath,
-      result,
-      sourceMtimeMs: entry.sourceMtimeMs,
-      sourceSizeBytes: entry.sourceSizeBytes,
-      startedAt,
-    });
-    setResult(entry.index, prepared);
-    writeFileImportPrepareCache(entry, prepared);
-  }
-}
-
-async function prepareCsvFileConversionBatchEntries(entries, setResult) {
-  if (!entries.length) {
-    return;
-  }
-
-  const startedAt = Date.now();
-  const uncachedEntries = [];
-  for (const entry of entries) {
-    const cached = readFileImportPrepareCache(entry, startedAt);
-    if (cached) {
-      setResult(entry.index, cached);
-    } else {
-      uncachedEntries.push(entry);
-    }
-  }
-  if (!uncachedEntries.length) {
-    return;
-  }
-
-  const batchCommandSize = getFileImportRustBatchCommandSize(uncachedEntries.length);
-  const chunks = chunkFileConversionEntries(
-    uncachedEntries,
-    batchCommandSize,
-  );
-  let nextChunkIndex = 0;
-  const workerCount = Math.min(
-    getFileImportRustBatchMaxActive(uncachedEntries.length),
-    chunks.length,
-  );
-
-  await Promise.all(Array.from({ length: workerCount }, async () => {
-    while (true) {
-      const chunkIndex = nextChunkIndex;
-      nextChunkIndex += 1;
-      const chunk = chunks[chunkIndex];
-      if (!chunk) {
-        return;
-      }
-
-      await prepareCsvFileConversionBatchChunk(chunk, setResult, {
-        batchCommandSize,
-        workerCount,
-      });
-    }
-  }));
-}
-
-async function prepareFileConversionsFromPathEntries(entries, onResult = undefined) {
-  const results = new Array(entries.length);
-  const csvEntries = [];
-  const setResult = (index, result) => {
-    results[index] = result;
-    onResult?.(index, result);
-  };
-
-  await Promise.all(entries.map(async (entry, index) => {
-    const resolved = await resolveFileConversionInputMetadata(entry);
-    if (!resolved.ok || !resolved.metadata) {
-      setResult(index, resolved.result);
-      return;
-    }
-
-    const metadata = {
-      ...resolved.metadata,
-      index,
-    };
-    if (isSupportedRustInputPath(metadata.inputPath) && !isSupportedRustExcelInputPath(metadata.inputPath)) {
-      csvEntries.push(metadata);
-      return;
-    }
-
-    const result = await prepareFileConversionFromMetadata(metadata);
-    setResult(index, result);
-  }));
-
-  csvEntries.sort((a, b) => a.index - b.index);
-  await prepareCsvFileConversionBatchEntries(csvEntries, setResult);
-
-  return results;
-}
-
-async function handleFileConversionPrepare(_event, payload) {
-  return prepareFileConversionFromPath(payload);
-}
-
-async function handleFileConversionPrepareBatch(_event, payload) {
-  const entries = Array.isArray(payload) ? payload : [];
-  if (!entries.length) {
-    return [];
-  }
-
-  return prepareFileConversionsFromPathEntries(entries);
-}
-
-async function handleFileConversionPrepareStream(event, payload) {
-  const raw = payload && typeof payload === "object" ? payload : {};
-  const entries = Array.isArray(raw.entries) ? raw.entries : [];
-  if (!entries.length) {
-    return [];
-  }
-
-  const requestId = String(raw.requestId ?? "").trim();
-  const progressChannel = /^[a-z0-9-]+$/i.test(requestId)
-    ? `${ipcChannels.fileConversionPrepareStreamProgress}:${requestId}`
-    : null;
-  return prepareFileConversionsFromPathEntries(entries, (index, result) => {
-    if (progressChannel && !event.sender.isDestroyed()) {
-      event.sender.send(progressChannel, {
-        index,
-        result,
-      });
-    }
-  });
 }
 
 async function handleOriginZipSave(event, payload) {
@@ -2406,13 +1637,6 @@ if (hasSingleInstanceLock) {
       : undefined,
   );
   ipcMain.handle(ipcChannels.desktopAppearanceSet, handleDesktopAppearanceSet);
-  ipcMain.handle(ipcChannels.fileConversionPrepare, handleFileConversionPrepare);
-  ipcMain.handle(ipcChannels.fileConversionPrepareBatch, handleFileConversionPrepareBatch);
-  ipcMain.handle(ipcChannels.fileConversionPrepareStream, handleFileConversionPrepareStream);
-  ipcMain.handle(ipcChannels.excelConvertRust, (event, payload) =>
-    rustPriorityGate.runBackground(() => handleExcelConvertRust(event, payload)),
-  );
-  ipcMain.handle(ipcChannels.excelReadConvertedCsv, handleExcelReadConvertedCsv);
   ipcMain.handle(ipcChannels.demoFilesGet, handleAnalysisDemoFilesGet);
   rustHandlers = registerRustHostChannels({
     ipcChannels,
@@ -2443,7 +1667,6 @@ if (hasSingleInstanceLock) {
       return getOriginRuntimeRootDir();
     },
   });
-  void prewarmRustProcessingPool();
   themeMainServiceListener = mainThemeService.onDidChangeColorScheme(() => syncBootWindowTheme());
   void prepareStartupGate();
   const window = createMainWindow();
@@ -2496,11 +1719,6 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.desktopAutoUpdateInstallDownloaded);
   ipcMain.removeHandler(ipcChannels.desktopAutoUpdateApplySpecific);
   ipcMain.removeHandler(ipcChannels.desktopAppearanceSet);
-  ipcMain.removeHandler(ipcChannels.fileConversionPrepare);
-  ipcMain.removeHandler(ipcChannels.fileConversionPrepareBatch);
-  ipcMain.removeHandler(ipcChannels.fileConversionPrepareStream);
-  ipcMain.removeHandler(ipcChannels.excelConvertRust);
-  ipcMain.removeHandler(ipcChannels.excelReadConvertedCsv);
   ipcMain.removeHandler(ipcChannels.demoFilesGet);
   ipcMain.removeHandler(ipcChannels.originZipSave);
 });

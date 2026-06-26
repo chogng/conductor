@@ -156,42 +156,6 @@ function createDesktopAppBridge(ipcRenderer: IpcRenderer) {
 
 function createDesktopImportBridge(ipcRenderer: IpcRenderer) {
   return {
-    async convertExcelFileWithRust(payload: unknown) {
-      return ipcRenderer.invoke(workbenchIpcChannels.excelConvertRust, payload);
-    },
-
-    async prepareFileConversion(payload: unknown) {
-      return ipcRenderer.invoke(workbenchIpcChannels.fileConversionPrepare, payload);
-    },
-
-    async prepareFileConversions(payload: unknown) {
-      return ipcRenderer.invoke(workbenchIpcChannels.fileConversionPrepareBatch, payload);
-    },
-
-    async prepareFileConversionsStream(payload: unknown, listener: unknown) {
-      const requestId = createImportStreamRequestId();
-      const progressChannel = `${workbenchIpcChannels.fileConversionPrepareStreamProgress}:${requestId}`;
-      const handleProgress = (_event: Electron.IpcRendererEvent, message: unknown) => {
-        if (typeof listener === "function") {
-          listener(message);
-        }
-      };
-
-      ipcRenderer.on(progressChannel, handleProgress);
-      try {
-        return await ipcRenderer.invoke(workbenchIpcChannels.fileConversionPrepareStream, {
-          entries: payload,
-          requestId,
-        });
-      } finally {
-        ipcRenderer.removeListener(progressChannel, handleProgress);
-      }
-    },
-
-    async readConvertedCsvFileWithRust(payload: unknown) {
-      return ipcRenderer.invoke(workbenchIpcChannels.excelReadConvertedCsv, payload);
-    },
-
     async getFileDemoFiles() {
       return ipcRenderer.invoke(workbenchIpcChannels.demoFilesGet);
     },
@@ -209,11 +173,6 @@ function createDesktopImportBridge(ipcRenderer: IpcRenderer) {
     },
 
   };
-}
-
-function createImportStreamRequestId(): string {
-  const random = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER).toString(36);
-  return `${Date.now().toString(36)}-${random}`;
 }
 
 //#endregion

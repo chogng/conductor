@@ -23,8 +23,7 @@ TypeScript remains the control plane: commands, service contracts,
 orchestration, Session commits, stale-result checks, fallback policy, view
 state, DOM, and user-facing notifications.
 
-Rust may own heavy execution and runtime caches for file conversion, workbook
-sheet extraction, table reads, table-model production, explicit slice/template
+Rust may own heavy execution and runtime caches for table reads, table-model production, explicit slice/template
 execution, metric/Rc calculation, plot-frame
 construction, downsampling, search, and export artifact generation.
 
@@ -68,7 +67,7 @@ explorer.importFolderWithRust
 Prefer domain/runtime names:
 
 ```txt
-services/files/electron-browser/fileConversionService.ts
+services/parameters/electron-browser/rcCalculationBackendService.ts
 services/slice/electron-browser/sliceService.ts
 services/plot/electron-browser/plotService.ts
 services/export/electron-browser/exportService.ts
@@ -101,7 +100,6 @@ Return data only at stable domain boundaries:
 
 | Stage | TS owner | Rust may do | Return to TS |
 | --- | --- | --- | --- |
-| File conversion | files electron-browser conversion service | parse CSV/TSV/XLS/XLSX, split sheets, create normalized CSV artifacts | `FileConversionResult`-compatible descriptors, raw table metadata, diagnostics |
 | Table model | table-model producer | block/group/role inference | `TableModelRecord` |
 | Table preview | table rows reader | chunk/cell/raw metadata reads | bounded rows or selected cells |
 | Slice execution | slice service | extraction/process | `SliceRun`, series/curve descriptors, diagnostics |
@@ -141,7 +139,7 @@ Return freely:
 
 Do not return by default:
 
-- full converted CSV text;
+- full normalized CSV text;
 - whole raw tables;
 - full curve point arrays;
 - large intermediate metric arrays;
@@ -153,24 +151,6 @@ and keep the large-file path artifact/handle based.
 Names in canonical records should describe what the app has, not which runtime
 produced it: `EngineDatasetRef`, `EngineCurveRef`, `ExportArtifactRecord`, not
 `RustDataset`.
-
-## Import Badge Prepare
-
-Desktop import badge readiness is latency-sensitive. CSV badge prepare should
-use the import summary path: decode/health check, stream records, bounded
-preview rows, `rowCount`, `columnCount`, `maxCellLengths`, `health`, and
-table-model seed/summary data. Full row storage belongs to open/table preview
-paths.
-
-Folder import may use a table-model prepare batch path, descriptor caching by
-normalized path/size/mtime, and bounded Rust worker parallelism. Electron main
-must still emit per-file prepare
-results through the files service contract. Prefer small result chunks and badge
-latency over maximum batch throughput.
-
-When changing this path, run template apply performance traces for desktop and
-browser at 200 files minimum; include `--profile=mixed` for health/failure
-handling.
 
 ## Runtime Registration
 
@@ -184,7 +164,7 @@ services/plot/electron-browser/plotService.ts
 ```
 
 Fallback is owned by the domain service, not commands or views. Use
-stage-specific fallback: browser converter only for safe file sizes/types,
+stage-specific fallback: browser parser only for safe file sizes/types,
 normalized CSV reader for table preview, TS downsampling for small inline
 curves, TS export only when output size is safe for JS memory. Do not write one
 global fallback rule.
@@ -199,7 +179,7 @@ TypeScript Session is the recovery source.
 If a new `electron-browser` file uses Rust heavily, a short comment is enough:
 
 ```ts
-// Desktop implementation of file conversion. Uses conductor-rs for workbook conversion and normalized CSV artifacts; returns FileConversionResult-compatible descriptors.
+// Desktop implementation of Rc calculation. Uses conductor-rs for bounded numeric execution and returns metric descriptors.
 ```
 
 ## Do Not

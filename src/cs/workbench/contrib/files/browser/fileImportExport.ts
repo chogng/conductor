@@ -37,14 +37,12 @@ import {
 import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import {
   buildFileSourceIdentityKey,
-  buildItemKey,
   type FileSource,
   type FolderFileCollection,
   type FolderFileCollectionBatch,
   type FolderFileReadFailure,
   type FolderImportFileSource,
   type FolderImportFiles,
-  type ImportedFileRecord,
   type ImportFileData,
 } from "src/cs/workbench/services/files/common/files";
 import {
@@ -52,23 +50,8 @@ import {
   type TableFileFormatService,
 } from "src/cs/workbench/services/tablefile/common/tableFileFormat";
 import {
-  convertImportFile,
-  convertPreparedImportFileResult,
-  convertPreparedImportFileResultSync,
-  createImportedFileRecord,
-  FileConvertError,
-  type ConvertedImportFile,
-  type ConvertedImportSheet,
-  type FileConverterSource,
-} from "src/cs/workbench/services/files/browser/fileConverter";
-import {
   markTemplateApplyPerformanceTrace,
 } from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
-import type {
-  FileConverterBackend,
-  FileConverterPreparePayload,
-  FileConverterPreparedFile,
-} from "src/cs/workbench/services/files/common/fileConverterBackend";
 import {
   INotificationService,
   Severity,
@@ -88,7 +71,6 @@ import {
 
 export {
   buildFileIdentityKey,
-  buildItemKey,
   type FileSource,
 } from "src/cs/workbench/services/files/common/files";
 export type {
@@ -161,9 +143,10 @@ export type PreparedFileImportEntry = {
   readonly fileId: string;
   readonly file: File;
   readonly itemKey: string;
-  readonly sourceKey: string;
   readonly normalizedCsvPath?: string | null;
   readonly relativePath?: string | null;
+  readonly resource?: URI | null;
+  readonly sourceKey: string;
   readonly sourcePath?: string | null;
 };
 
@@ -171,11 +154,11 @@ export type PreparedFileImportInfo = SessionFile & {
   readonly fileId: string;
   readonly fileName: string;
   readonly file: File;
-  readonly importRecord: ImportedFileRecord;
-  readonly size: number;
   readonly lastModified: number;
   readonly normalizedCsvPath?: string | null;
   readonly relativePath?: string | null;
+  readonly resource?: URI | null;
+  readonly size: number;
   readonly sourceKey?: string;
   readonly sourcePath?: string | null;
 };
@@ -216,7 +199,7 @@ export type PreparedFileSourcesImport = {
 
 export type PrepareFileSourcesForImportOptions = {
   readonly canApplyResult?: () => boolean;
-  readonly fileConverterBackend: FileConverterBackend;
+  readonly filesService: IFileService;
   readonly selectedRelativePath?: string | null;
   readonly sources: readonly FileSource[];
 };
@@ -230,7 +213,6 @@ export type PrepareDroppedFilesForImportOptions = Omit<
 
 export type FileSourceWorkflowOptions = {
   readonly commandService: Pick<ICommandService, "executeCommand">;
-  readonly fileConverterBackendService: FileConverterBackend;
   readonly filesService: IFileService;
   readonly getFiles: () => readonly ExplorerFileEntry[];
   readonly getSelectedRelativePath: () => string | null;
@@ -314,7 +296,7 @@ export const canImportFolderWithFileService = (
 };
 
 // Explorer view-local source workflow helper. This is not a service boundary:
-// it collects dropped/folder sources, prepares conversion results, and returns
+// it collects dropped/folder sources, assigns table resources, and returns
 // prepared imports to the Explorer ViewPane; session commit remains outside.
 export class FileSourceWorkflow implements IDisposable {
   private readonly folderWatcher: WorkspaceWatcher;
@@ -495,7 +477,7 @@ export class FileSourceWorkflow implements IDisposable {
     const firstImport = await prepareFirstPendingImportFile({
       canApplyResult,
       failedFiles,
-      fileConverterBackend: this.options.fileConverterBackendService,
+      filesService: this.options.filesService,
       onPendingFileStatusChange: this.options.onUpdatePendingSourceFile,
       pendingImportFiles,
       selectedRelativePath,
@@ -511,7 +493,7 @@ export class FileSourceWorkflow implements IDisposable {
       acceptedCount += await prepareRemainingPendingImportFiles({
         canApplyResult,
         failedFiles,
-        fileConverterBackend: this.options.fileConverterBackendService,
+        filesService: this.options.filesService,
         onPendingFileStatusChange: this.options.onUpdatePendingSourceFile,
         onPreparedFiles: preparedFiles => this.options.onAppendPreparedFiles(preparedFiles),
         pendingImportFiles,
@@ -565,7 +547,7 @@ export class FileSourceWorkflow implements IDisposable {
           acceptedCount += await prepareRemainingPendingImportFiles({
             canApplyResult,
             failedFiles,
-            fileConverterBackend: this.options.fileConverterBackendService,
+            filesService: this.options.filesService,
             onPendingFileStatusChange: this.options.onUpdatePendingSourceFile,
             onPreparedFiles: preparedFiles => {
               if (hasReplacedPreparedFiles) {
@@ -901,7 +883,7 @@ export class FileSourceWorkflow implements IDisposable {
       acceptedCount = await prepareRemainingPendingImportFiles({
         canApplyResult,
         failedFiles,
-        fileConverterBackend: this.options.fileConverterBackendService,
+        filesService: this.options.filesService,
         onPendingFileStatusChange: this.options.onUpdatePendingSourceFile,
         onPreparedFiles: preparedFiles => this.options.onAppendPreparedFiles(preparedFiles),
         pendingImportFiles,
@@ -1058,7 +1040,7 @@ export const collectPendingImportFiles = (
 };
 
 export const preparePendingImportFile = async (
-  fileConverterBackend: FileConverterBackend,
+  filesService: IFileService,
   pendingImportFile: PendingImportFile,
 ): Promise<PendingImportFileResult> => {
   const {
@@ -1067,12 +1049,9 @@ export const preparePendingImportFile = async (
     sourceFile,
     sourceKey,
   } = pendingImportFile;
-  let normalizedFile: File;
-  let normalizedCsvPath: string | null = null;
-  let sourcePath: string | null = null;
-  let normalizedSizeBytes = 0;
-  let importRecord: ImportedFileRecord;
-  let prepared: ConvertedImportFile;
+  let resource: URI;
+  let sourcePath: string | null;
+  let file: File;
   let fileId = "";
 
   try {
@@ -1082,43 +1061,11 @@ export const preparePendingImportFile = async (
       sourceKind: pendingImportFile.kind,
       sourceSizeBytes: pendingImportFile.sourceSize,
     });
-    const convertStartedAt = getPerfNow();
-    markTemplateApplyPerformanceTrace("import.prepare.convert.start", {
-      fileName: pendingImportFile.sourceName,
-      relativePath,
-      sourceKind: pendingImportFile.kind,
-      sourceSizeBytes: pendingImportFile.sourceSize,
-    });
     fileId = createFileId();
-    prepared = await convertImportFile(
-      fileConverterBackend,
-      sourceFile ?? null,
-      resolveFileConverterSource(pendingImportFile),
-      {
-        fileName: pendingImportFile.sourceName,
-        lastModified: pendingImportFile.lastModified,
-        loadFile: pendingImportFile.loadFile,
-        size: pendingImportFile.sourceSize,
-      },
-    );
-    markTemplateApplyPerformanceTrace("import.prepare.convert.complete", {
-      durationMs: getPerfNow() - convertStartedAt,
-      fileName: pendingImportFile.sourceName,
-      normalizedCsvPath: prepared.normalizedCsvPath ? "path" : null,
-      relativePath,
-      sourceKind: pendingImportFile.kind,
-      sourceSizeBytes: pendingImportFile.sourceSize,
-    });
-    const converted = await createPreparedImportFromConvertedFile({
-      fileId,
-      pendingImportFile,
-      prepared,
-    });
-    normalizedFile = converted.normalizedFile;
-    normalizedCsvPath = converted.normalizedCsvPath;
-    sourcePath = converted.sourcePath;
-    normalizedSizeBytes = converted.normalizedSizeBytes;
-    importRecord = converted.importRecord;
+    const preparedResource = await resolvePendingImportResource(filesService, pendingImportFile);
+    resource = preparedResource.resource;
+    sourcePath = preparedResource.sourcePath;
+    file = createPreparedImportFile(pendingImportFile, sourceFile);
   } catch (error) {
     const failure = toPrepareFailure(
       error,
@@ -1145,22 +1092,21 @@ export const preparePendingImportFile = async (
 
   const fileEntry: PreparedFileImportEntry = {
     fileId,
-    file: normalizedFile,
-    itemKey: buildItemKey(normalizedFile, relativePath),
-    normalizedCsvPath,
+    file,
+    itemKey: sourceKey,
     relativePath,
+    resource,
     sourceKey,
     sourcePath,
   };
   const fileInfo: PreparedFileImportInfo = {
     fileId,
     fileName: pendingImportFile.sourceName,
-    file: normalizedFile,
-    importRecord,
-    size: normalizedSizeBytes,
-    lastModified: normalizedFile.lastModified,
-    normalizedCsvPath,
+    file,
+    lastModified: pendingImportFile.lastModified,
     relativePath,
+    resource,
+    size: pendingImportFile.sourceSize,
     sourceKey,
     sourcePath,
   };
@@ -1168,13 +1114,13 @@ export const preparePendingImportFile = async (
   finishFilePerf({
     accepted: true,
     fileId,
-    normalizedSizeBytes,
+    resource: sourcePath ?? resource.toString(),
   });
   markTemplateApplyPerformanceTrace("import.prepare.file.complete", {
     fileId,
     fileName: pendingImportFile.sourceName,
-    normalizedSizeBytes,
     relativePath,
+    resource: sourcePath ?? resource.toString(),
     sourceKind: pendingImportFile.kind,
     sourceSizeBytes: pendingImportFile.sourceSize,
   });
@@ -1185,93 +1131,118 @@ export const preparePendingImportFile = async (
   };
 };
 
-const createPreparedImportFromConvertedFile = async ({
-  fileId,
-  pendingImportFile,
-  prepared,
-}: {
-  readonly fileId: string;
-  readonly pendingImportFile: PendingImportFile;
-  readonly prepared: ConvertedImportFile;
-}): Promise<{
-  readonly importRecord: ImportedFileRecord;
-  readonly normalizedCsvPath: string | null;
-  readonly normalizedFile: File;
-  readonly normalizedSizeBytes: number;
-  readonly sourcePath: string | null;
-}> => {
-  const normalizedFile = prepared.file;
-  const normalizedCsvPath = prepared.normalizedCsvPath ?? null;
-  const sourcePath = prepared.sourcePath ?? null;
-  const normalizedSizeBytes = prepared.normalizedSizeBytes;
-  const importRecord = await createImportedFileRecord({
-    file: normalizedFile,
-    fileId,
-    fileName: pendingImportFile.sourceName,
-    lastModified: normalizedFile.lastModified,
-    normalizedCsvPath,
-    rawKey: pendingImportFile.sourceKey,
-    relativePath: pendingImportFile.relativePath,
-    sourcePath,
-    sourceSizeBytes: pendingImportFile.sourceSize,
-    tables: createImportedRawTableInputs(prepared, fileId),
-  });
+class ImportPrepareError extends Error {
+  public readonly code: string;
 
-  return {
-    importRecord,
-    normalizedCsvPath,
-    normalizedFile,
-    normalizedSizeBytes,
-    sourcePath,
-  };
+  public constructor(message: string, code: string) {
+    super(message);
+    this.code = code;
+    this.name = "ImportPrepareError";
+  }
+}
+
+const resolvePendingImportResource = async (
+  filesService: IFileService,
+  pendingImportFile: PendingImportFile,
+): Promise<{ readonly resource: URI; readonly sourcePath: string | null }> => {
+  const existingResource = pendingImportFile.resource
+    ? URI.revive(pendingImportFile.resource)
+    : null;
+  if (existingResource && tableFileFormatService.canHandle(existingResource)) {
+    return {
+      resource: existingResource,
+      sourcePath: getTableResourcePath(existingResource),
+    };
+  }
+
+  const registeredFileResource = await registerPendingImportFileResource(
+    filesService,
+    pendingImportFile,
+  );
+  if (registeredFileResource) {
+    return {
+      resource: registeredFileResource,
+      sourcePath: getTableResourcePath(registeredFileResource),
+    };
+  }
+
+  throw new ImportPrepareError(
+    localize(
+      "files.import.unresolvedTableResource",
+      "The file could not be assigned a table resource.",
+    ),
+    "UNRESOLVED_IMPORT_RESOURCE",
+  );
 };
 
-const createImportedRawTableInputs = (
-  prepared: {
-    readonly columnCount?: number;
-    readonly health?: ConvertedImportFile["health"];
-    readonly maxCellLengths?: readonly number[];
-    readonly normalizedCsvPath?: string | null;
-    readonly rowCount?: number;
-    readonly sheets?: readonly ConvertedImportSheet[];
-    readonly templateEligibility?: ConvertedImportFile["templateEligibility"];
-  },
-  fileId: string,
-) => prepared.sheets?.length
-  ? prepared.sheets.map((sheet, index) => ({
-      columnCount: sheet.columnCount,
-      csvText: sheet.csvText,
-      health: sheet.health,
-      maxCellLengths: sheet.maxCellLengths,
-      normalizedCsvPath: sheet.normalizedCsvPath,
-      sheetIndex: sheet.sheetIndex ?? index,
-      sheetName: sheet.sheetName,
-      templateEligibility: sheet.templateEligibility,
-    }))
-  : prepared.normalizedCsvPath
-    ? [{
-        columnCount: prepared.columnCount,
-        health: prepared.health,
-        maxCellLengths: prepared.maxCellLengths,
-        normalizedCsvPath: prepared.normalizedCsvPath,
-        rawTableId: fileId,
-        rowCount: prepared.rowCount,
-        sheetIndex: 0,
-        templateEligibility: prepared.templateEligibility,
-      }]
-  : undefined;
+const registerPendingImportFileResource = async (
+  filesService: IFileService,
+  pendingImportFile: PendingImportFile,
+): Promise<URI | null> => {
+  const provider = filesService.getProvider("file");
+  if (!(provider instanceof HTMLFileSystemProvider)) {
+    return null;
+  }
+
+  const sourceFile = await getPendingImportBrowserFile(pendingImportFile);
+  return sourceFile ? provider.registerFile(sourceFile) : null;
+};
+
+const getPendingImportBrowserFile = async (
+  pendingImportFile: PendingImportFile,
+): Promise<File | null> => {
+  if (isBrowserFile(pendingImportFile.sourceFile)) {
+    return pendingImportFile.sourceFile;
+  }
+
+  if (!pendingImportFile.loadFile) {
+    return null;
+  }
+
+  const loadedFile = await pendingImportFile.loadFile();
+  return isBrowserFile(loadedFile) ? loadedFile : null;
+};
+
+const createPreparedImportFile = (
+  pendingImportFile: PendingImportFile,
+  sourceFile: ImportFileData | undefined,
+): File => {
+  if (isBrowserFile(sourceFile)) {
+    return sourceFile;
+  }
+
+  return new File([], pendingImportFile.sourceName, {
+    lastModified: Number.isFinite(pendingImportFile.lastModified)
+      ? pendingImportFile.lastModified
+      : Date.now(),
+    type: getFileMimeType(pendingImportFile.sourceName),
+  });
+};
+
+const isBrowserFile = (value: unknown): value is File =>
+  typeof File !== "undefined" && value instanceof File;
+
+const getTableResourcePath = (resource: URI): string | null => {
+  const fsPath = String(resource.fsPath ?? "").trim();
+  if (fsPath) {
+    return fsPath;
+  }
+
+  const path = String(resource.path ?? "").trim();
+  return path || null;
+};
 
 export async function prepareFirstPendingImportFile({
   canApplyResult,
   failedFiles,
-  fileConverterBackend,
+  filesService,
   onPendingFileStatusChange,
   pendingImportFiles,
   selectedRelativePath,
 }: {
   readonly canApplyResult: () => boolean;
   readonly failedFiles: FileImportPrepareFailure[];
-  readonly fileConverterBackend: FileConverterBackend;
+  readonly filesService: IFileService;
   readonly onPendingFileStatusChange?: (
     pendingFile: PendingImportFile,
     change: PendingImportSourceStatusChange,
@@ -1298,7 +1269,7 @@ export async function prepareFirstPendingImportFile({
       status: "preparing",
     });
     const preparedImportFile = await preparePendingImportFile(
-      fileConverterBackend,
+      filesService,
       pendingImportFile,
     );
     if (!preparedImportFile.ok) {
@@ -1326,7 +1297,7 @@ export async function prepareFirstPendingImportFile({
 export async function prepareRemainingPendingImportFiles({
   canApplyResult,
   failedFiles,
-  fileConverterBackend,
+  filesService,
   onPendingFileStatusChange,
   onPreparedFiles,
   pendingImportFiles,
@@ -1334,7 +1305,7 @@ export async function prepareRemainingPendingImportFiles({
 }: {
   readonly canApplyResult: () => boolean;
   readonly failedFiles: FileImportPrepareFailure[];
-  readonly fileConverterBackend: FileConverterBackend;
+  readonly filesService: IFileService;
   readonly onPendingFileStatusChange?: (
     pendingFile: PendingImportFile,
     change: PendingImportSourceStatusChange,
@@ -1348,19 +1319,6 @@ export async function prepareRemainingPendingImportFiles({
     .filter(index => !skippedIndexes.has(index));
   if (remainingIndexes.length === 0) {
     return 0;
-  }
-
-  const batchAcceptedCount = await prepareRemainingPendingImportFilesBatch({
-    canApplyResult,
-    failedFiles,
-    fileConverterBackend,
-    onPendingFileStatusChange,
-    onPreparedFiles,
-    pendingImportFiles,
-    remainingIndexes,
-  });
-  if (batchAcceptedCount !== null) {
-    return batchAcceptedCount;
   }
 
   const readyByIndex = new Map<number, PreparedFileImport>();
@@ -1411,6 +1369,38 @@ export async function prepareRemainingPendingImportFiles({
     return preparedFiles.length;
   };
 
+  const getFlushableOffsetCount = (): number => {
+    let count = 0;
+    let offset = nextAppendOffset;
+    while (offset < remainingIndexes.length) {
+      const index = remainingIndexes[offset];
+      if (typeof index !== "number" || !completedIndexes.has(index)) {
+        break;
+      }
+
+      count += 1;
+      offset += 1;
+    }
+
+    return count;
+  };
+
+  const flushReadyImportsWhenUseful = (): number => {
+    const flushableOffsetCount = getFlushableOffsetCount();
+    const appendBatchSize = getPendingImportAppendBatchSize(
+      remainingIndexes.length,
+      acceptedCount,
+    );
+    if (
+      flushableOffsetCount < appendBatchSize &&
+      completedIndexes.size < remainingIndexes.length
+    ) {
+      return 0;
+    }
+
+    return flushReadyImports();
+  };
+
   const workerCount = Math.min(
     getPendingImportPrepareConcurrency(),
     remainingIndexes.length,
@@ -1434,7 +1424,7 @@ export async function prepareRemainingPendingImportFiles({
           status: "preparing",
         });
         const preparedImportFile = await preparePendingImportFile(
-          fileConverterBackend,
+          filesService,
           pendingImportFile,
         );
         if (!canApplyResult()) {
@@ -1451,7 +1441,7 @@ export async function prepareRemainingPendingImportFiles({
           });
         }
         completedIndexes.add(index);
-        acceptedCount += flushReadyImports();
+        acceptedCount += flushReadyImportsWhenUseful();
         markTemplateApplyPerformanceTrace("import.prepare.progress", {
           acceptedCount,
           completedCount: completedIndexes.size,
@@ -1474,376 +1464,6 @@ export async function prepareRemainingPendingImportFiles({
 
   return acceptedCount;
 }
-
-async function prepareRemainingPendingImportFilesBatch({
-  canApplyResult,
-  failedFiles,
-  fileConverterBackend,
-  onPendingFileStatusChange,
-  onPreparedFiles,
-  pendingImportFiles,
-  remainingIndexes,
-}: {
-  readonly canApplyResult: () => boolean;
-  readonly failedFiles: FileImportPrepareFailure[];
-  readonly fileConverterBackend: FileConverterBackend;
-  readonly onPendingFileStatusChange?: (
-    pendingFile: PendingImportFile,
-    change: PendingImportSourceStatusChange,
-  ) => void;
-  readonly onPreparedFiles: (preparedFiles: readonly PreparedFileImport[]) => void;
-  readonly pendingImportFiles: readonly PendingImportFile[];
-  readonly remainingIndexes: readonly number[];
-}): Promise<number | null> {
-  if (
-    typeof fileConverterBackend.prepareFiles !== "function" &&
-    typeof fileConverterBackend.prepareFilesStream !== "function"
-  ) {
-    return null;
-  }
-
-  const payloads: FileConverterPreparePayload[] = [];
-  const batchFiles: PendingImportFile[] = [];
-  for (const index of remainingIndexes) {
-    const pendingImportFile = pendingImportFiles[index];
-    if (!pendingImportFile) {
-      return null;
-    }
-
-    const source = resolveFileConverterSource(pendingImportFile);
-    if (source.kind !== "path" || !source.path.trim()) {
-      return null;
-    }
-
-    payloads.push({
-      fileName: pendingImportFile.sourceName,
-      path: source.path.trim(),
-      sourceMtimeMs: pendingImportFile.lastModified,
-      sourceSizeBytes: pendingImportFile.sourceSize,
-    });
-    batchFiles.push(pendingImportFile);
-  }
-  if (!payloads.length) {
-    return 0;
-  }
-
-  for (const pendingImportFile of batchFiles) {
-    onPendingFileStatusChange?.(pendingImportFile, {
-      status: "preparing",
-    });
-    markTemplateApplyPerformanceTrace("import.prepare.file.start", {
-      fileName: pendingImportFile.sourceName,
-      relativePath: pendingImportFile.relativePath,
-      sourceKind: pendingImportFile.kind,
-      sourceSizeBytes: pendingImportFile.sourceSize,
-    });
-  }
-
-  markTemplateApplyPerformanceTrace("import.prepare.batch.start", {
-    fileCount: batchFiles.length,
-    totalSizeBytes: batchFiles.reduce((sum, file) => sum + file.sourceSize, 0),
-  });
-
-  const readyByOffset = new Map<number, PreparedFileImport>();
-  const completedOffsets = new Set<number>();
-  const scheduledOffsets = new Set<number>();
-  const resultTasks: Promise<void>[] = [];
-  let nextAppendOffset = 0;
-  let acceptedCount = 0;
-
-  const flushReadyImports = (): number => {
-    const readyFiles: PreparedFileImport[] = [];
-    while (completedOffsets.has(nextAppendOffset)) {
-      const preparedFile = readyByOffset.get(nextAppendOffset);
-      if (preparedFile) {
-        readyFiles.push(preparedFile);
-      }
-      readyByOffset.delete(nextAppendOffset);
-      nextAppendOffset += 1;
-    }
-
-    if (!canApplyResult()) {
-      return 0;
-    }
-
-    if (readyFiles.length) {
-      const appendBatchSize = getPendingImportAppendBatchSize(
-        batchFiles.length,
-        acceptedCount,
-      );
-      const appendStartedAt = getPerfNow();
-      onPreparedFiles(readyFiles);
-      markTemplateApplyPerformanceTrace("import.prepare.append", {
-        acceptedBeforeAppendCount: acceptedCount,
-        appendBatchSize,
-        durationMs: getPerfNow() - appendStartedAt,
-        fileCount: readyFiles.length,
-        mode: "batch",
-      });
-    }
-    return readyFiles.length;
-  };
-
-  const getFlushableOffsetCount = (): number => {
-    let count = 0;
-    let offset = nextAppendOffset;
-    while (completedOffsets.has(offset)) {
-      count += 1;
-      offset += 1;
-    }
-    return count;
-  };
-
-  const flushReadyImportsWhenUseful = (): number => {
-    const flushableOffsetCount = getFlushableOffsetCount();
-    const appendBatchSize = getPendingImportAppendBatchSize(
-      batchFiles.length,
-      acceptedCount,
-    );
-    if (
-      flushableOffsetCount < appendBatchSize &&
-      completedOffsets.size < batchFiles.length
-    ) {
-      return 0;
-    }
-
-    return flushReadyImports();
-  };
-
-  const scheduleResult = (offset: number, result: FileConverterPreparedFile | undefined): void => {
-    if (
-      !Number.isInteger(offset) ||
-      offset < 0 ||
-      offset >= batchFiles.length ||
-      scheduledOffsets.has(offset)
-    ) {
-      return;
-    }
-
-    scheduledOffsets.add(offset);
-    const task = (async () => {
-      const pendingImportFile = batchFiles[offset];
-      if (!result?.ok) {
-        const failure = toPrepareFailure(
-          new FileConvertError(
-            typeof result?.message === "string" && result.message.trim()
-              ? result.message
-              : "Rust import preparation failed.",
-            typeof result?.code === "string" ? result.code : null,
-          ),
-          pendingImportFile.relativePath || pendingImportFile.sourceName,
-        );
-        failedFiles.push(failure);
-        onPendingFileStatusChange?.(pendingImportFile, {
-          message: failure.message,
-          status: "failed",
-        });
-        markTemplateApplyPerformanceTrace("import.prepare.file.failed", {
-          code: failure.code,
-          fileName: pendingImportFile.sourceName,
-          message: failure.message,
-          relativePath: pendingImportFile.relativePath,
-          sourceKind: pendingImportFile.kind,
-          sourceSizeBytes: pendingImportFile.sourceSize,
-        });
-        completedOffsets.add(offset);
-        acceptedCount += flushReadyImports();
-        return;
-      }
-
-      try {
-        const materializeStartedAt = getPerfNow();
-        markTemplateApplyPerformanceTrace("import.prepare.result.materialize.start", {
-          fileName: pendingImportFile.sourceName,
-          index: offset,
-          ok: Boolean(result.ok),
-          resultDurationMs: readTraceDurationMs(result.durationMs),
-          sourceSizeBytes: pendingImportFile.sourceSize,
-        });
-        const fileId = createFileId();
-        const convertOptions = {
-          fileConverterBackend,
-          metadata: {
-            fileName: pendingImportFile.sourceName,
-            lastModified: pendingImportFile.lastModified,
-            loadFile: pendingImportFile.loadFile,
-            size: pendingImportFile.sourceSize,
-          },
-          result,
-          sourcePath: payloads[offset].path,
-        };
-        const syncPrepared = convertPreparedImportFileResultSync(convertOptions);
-        const prepared = syncPrepared ?? await convertPreparedImportFileResult(convertOptions);
-        const converted = await createPreparedImportFromConvertedFile({
-          fileId,
-          pendingImportFile,
-          prepared,
-        });
-        markTemplateApplyPerformanceTrace("import.prepare.result.materialize.complete", {
-          durationMs: getPerfNow() - materializeStartedAt,
-          fileName: pendingImportFile.sourceName,
-          hasHealth: Boolean(prepared.health),
-          index: offset,
-          normalizedCsvPath: prepared.normalizedCsvPath ? "path" : null,
-          sourceSizeBytes: pendingImportFile.sourceSize,
-        });
-        readyByOffset.set(offset, {
-          fileEntry: {
-            fileId: converted.importRecord.id,
-            file: converted.normalizedFile,
-            itemKey: buildItemKey(converted.normalizedFile, pendingImportFile.relativePath),
-            normalizedCsvPath: converted.normalizedCsvPath,
-            relativePath: pendingImportFile.relativePath,
-            sourceKey: pendingImportFile.sourceKey,
-            sourcePath: converted.sourcePath,
-          },
-          fileInfo: {
-            fileId: converted.importRecord.id,
-            fileName: pendingImportFile.sourceName,
-            file: converted.normalizedFile,
-            importRecord: converted.importRecord,
-            size: converted.normalizedSizeBytes,
-            lastModified: converted.normalizedFile.lastModified,
-            normalizedCsvPath: converted.normalizedCsvPath,
-            relativePath: pendingImportFile.relativePath,
-            sourceKey: pendingImportFile.sourceKey,
-            sourcePath: converted.sourcePath,
-          },
-        });
-        markTemplateApplyPerformanceTrace("import.prepare.file.complete", {
-          fileId: converted.importRecord.id,
-          fileName: pendingImportFile.sourceName,
-          normalizedSizeBytes: converted.normalizedSizeBytes,
-          relativePath: pendingImportFile.relativePath,
-          sourceKind: pendingImportFile.kind,
-          sourceSizeBytes: pendingImportFile.sourceSize,
-        });
-      } catch (error) {
-        const failure = toPrepareFailure(
-          error,
-          pendingImportFile.relativePath || pendingImportFile.sourceName,
-        );
-        failedFiles.push(failure);
-        onPendingFileStatusChange?.(pendingImportFile, {
-          message: failure.message,
-          status: "failed",
-        });
-        markTemplateApplyPerformanceTrace("import.prepare.file.failed", {
-          code: failure.code,
-          fileName: pendingImportFile.sourceName,
-          message: failure.message,
-          relativePath: pendingImportFile.relativePath,
-          sourceKind: pendingImportFile.kind,
-          sourceSizeBytes: pendingImportFile.sourceSize,
-        });
-      } finally {
-        completedOffsets.add(offset);
-        acceptedCount += flushReadyImportsWhenUseful();
-        markTemplateApplyPerformanceTrace("import.prepare.progress", {
-          acceptedCount,
-          completedCount: completedOffsets.size,
-          failedCount: failedFiles.length,
-          totalCount: batchFiles.length,
-        });
-      }
-    })();
-    resultTasks.push(task);
-  };
-
-  try {
-    const backendMode = typeof fileConverterBackend.prepareFilesStream === "function"
-      ? "stream"
-      : "batch";
-    const backendStartedAt = getPerfNow();
-    markTemplateApplyPerformanceTrace("import.prepare.backend.invoke.start", {
-      fileCount: payloads.length,
-      mode: backendMode,
-      sourceMetadataCount: payloads.filter(payload =>
-        Number.isFinite(payload.sourceMtimeMs) &&
-        Number.isFinite(payload.sourceSizeBytes)
-      ).length,
-      totalSizeBytes: batchFiles.reduce((sum, file) => sum + file.sourceSize, 0),
-    });
-    const results = backendMode === "stream"
-        ? await fileConverterBackend.prepareFilesStream!(payloads, message => {
-          markTemplateApplyPerformanceTrace("import.prepare.backend.result", {
-            batchCommandSize: Number(message.result?.batchCommandSize) || null,
-            batchDurationMs: readTraceDurationMs(message.result?.batchDurationMs),
-            batchParallelism: Number(message.result?.batchParallelism) || null,
-            batchWorkerCount: Number(message.result?.batchWorkerCount) || null,
-            cacheHit: message.result?.cacheHit === true,
-            code: message.result?.code ?? null,
-            fileName: batchFiles[message.index]?.sourceName ?? null,
-            healthState: message.result?.health?.state ?? null,
-            index: message.index,
-            ok: Boolean(message.result?.ok),
-            resultDurationMs: readTraceDurationMs(message.result?.durationMs),
-            source: message.result?.sourcePath ?? message.result?.sourceName ?? null,
-            sourceSizeBytes: batchFiles[message.index]?.sourceSize ?? null,
-          });
-          scheduleResult(message.index, message.result);
-        })
-      : await fileConverterBackend.prepareFiles!(payloads);
-    markTemplateApplyPerformanceTrace("import.prepare.backend.invoke.complete", {
-      durationMs: getPerfNow() - backendStartedAt,
-      fileCount: payloads.length,
-      mode: backendMode,
-      resultCount: results.length,
-      streamedResultCount: scheduledOffsets.size,
-    });
-    for (let offset = 0; offset < batchFiles.length; offset += 1) {
-      if (!scheduledOffsets.has(offset)) {
-        markTemplateApplyPerformanceTrace("import.prepare.backend.result", {
-          batchCommandSize: Number(results[offset]?.batchCommandSize) || null,
-          batchDurationMs: readTraceDurationMs(results[offset]?.batchDurationMs),
-          batchParallelism: Number(results[offset]?.batchParallelism) || null,
-          batchWorkerCount: Number(results[offset]?.batchWorkerCount) || null,
-          cacheHit: results[offset]?.cacheHit === true,
-          code: results[offset]?.code ?? null,
-          fileName: batchFiles[offset]?.sourceName ?? null,
-          healthState: results[offset]?.health?.state ?? null,
-          index: offset,
-          ok: Boolean(results[offset]?.ok),
-          resultDurationMs: readTraceDurationMs(results[offset]?.durationMs),
-          source: results[offset]?.sourcePath ?? results[offset]?.sourceName ?? null,
-          sourceSizeBytes: batchFiles[offset]?.sourceSize ?? null,
-        });
-      }
-      scheduleResult(offset, results[offset]);
-    }
-    await Promise.all(resultTasks);
-  } catch (error) {
-    markTemplateApplyPerformanceTrace("import.prepare.batch.failed", {
-      completedCount: completedOffsets.size,
-      fileCount: batchFiles.length,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return completedOffsets.size ? acceptedCount : null;
-  }
-  if (!canApplyResult()) {
-    return 0;
-  }
-  acceptedCount += flushReadyImports();
-
-  markTemplateApplyPerformanceTrace("import.prepare.batch.complete", {
-    acceptedCount,
-    failedCount: failedFiles.length,
-    fileCount: batchFiles.length,
-  });
-  markTemplateApplyPerformanceTrace("import.prepare.complete", {
-    acceptedCount,
-    completedCount: batchFiles.length,
-    failedCount: failedFiles.length,
-    totalCount: batchFiles.length,
-  });
-
-  return acceptedCount;
-}
-
-const readTraceDurationMs = (value: unknown): number | null => {
-  const durationMs = Number(value);
-  return Number.isFinite(durationMs) && durationMs >= 0 ? durationMs : null;
-};
 
 export const buildImportErrorMessage = ({
   failedFiles,
@@ -1934,7 +1554,7 @@ export const prepareDroppedFilesForImport = async ({
 
 export const prepareFileSourcesForImport = async ({
   canApplyResult = () => true,
-  fileConverterBackend,
+  filesService,
   selectedRelativePath = null,
   sources,
 }: PrepareFileSourcesForImportOptions): Promise<PreparedFileSourcesImport> => {
@@ -1958,7 +1578,7 @@ export const prepareFileSourcesForImport = async ({
   const firstImport = await prepareFirstPendingImportFile({
     canApplyResult,
     failedFiles,
-    fileConverterBackend,
+    filesService,
     pendingImportFiles,
     selectedRelativePath,
   });
@@ -1969,7 +1589,7 @@ export const prepareFileSourcesForImport = async ({
   await prepareRemainingPendingImportFiles({
     canApplyResult,
     failedFiles,
-    fileConverterBackend,
+    filesService,
     onPreparedFiles: nextPreparedFiles => {
       preparedFiles.push(...nextPreparedFiles);
     },
@@ -2002,7 +1622,7 @@ const toPrepareFailure = (
   fileName: string,
 ): FileImportPrepareFailure => {
   const code =
-    error instanceof FileConvertError
+    error instanceof ImportPrepareError
       ? error.code
       : error && typeof error === "object" && "code" in error &&
           typeof (error as { code?: unknown }).code === "string"
@@ -2011,28 +1631,13 @@ const toPrepareFailure = (
   const message =
     error instanceof Error && error.message.trim()
       ? error.message
-      : "Import file preparation failed.";
+      : localize("files.import.prepareFailed", "Import file preparation failed.");
 
   return {
     code,
     fileName,
     message,
   };
-};
-
-const resolveFileConverterSource = (
-  pendingImportFile: PendingImportFile,
-): FileConverterSource => {
-  if (pendingImportFile.canUseNativePath === false) {
-    return { kind: "data" };
-  }
-
-  const path =
-    pendingImportFile.kind === "path"
-      ? String(pendingImportFile.resource?.fsPath ?? "").trim()
-      : "";
-
-  return path ? { kind: "path", path } : { kind: "data" };
 };
 
 function getPriorityImportIndexes(
@@ -2129,8 +1734,8 @@ const formatParseFailureMessage = (
   failedFiles: readonly FileImportPrepareFailure[],
 ): string => [
   localize(
-    "files.import.failedToParseFiles",
-    "Failed to parse {count} file(s).",
+    "files.import.failedToPrepareFiles",
+    "Failed to prepare {count} file(s).",
     { count: failedFiles.length },
   ),
   getImportErrorReason(failedFiles),
@@ -2186,49 +1791,25 @@ const getImportErrorReason = (
 
 const getPrepareFailureReason = (failure: FileImportPrepareFailure): string => {
   switch (failure.code) {
+    case "UNRESOLVED_IMPORT_RESOURCE":
+      return localize(
+        "files.import.failureReasonUnresolvedResource",
+        "The file could not be assigned a table resource.",
+      );
     case "UNRESOLVED_IMPORT_PATH":
       return localize(
         "files.import.failureReasonUnresolvedPath",
         "The local file path could not be resolved.",
       );
     case "IMPORT_FILE_NOT_FOUND":
-    case "EXCEL_FILE_NOT_FOUND":
       return localize(
         "files.import.failureReasonFileNotFound",
         "The file no longer exists or cannot be read.",
-      );
-    case "RUST_CONVERTER_NOT_FOUND":
-      return localize(
-        "files.import.failureReasonConverterMissing",
-        "The Excel conversion component was not found.",
-      );
-    case "RUST_CONVERTER_FAILED":
-    case "BROWSER_XLSX_CONVERSION_FAILED":
-    case "BROWSER_XLSX_CONVERSION_TIMEOUT":
-    case "BROWSER_XLSX_FILE_TOO_LARGE":
-      return localize(
-        "files.import.failureReasonExcelConversion",
-        "Excel conversion failed.",
-      );
-    case "RUST_IMPORT_TABLE_FACTS_FAILED":
-      return localize(
-        "files.import.failureReasonImportCheck",
-        "The file could not be checked for import.",
       );
     case "UNSUPPORTED_IMPORT_FORMAT":
       return localize(
         "files.import.failureReasonUnsupportedFormat",
         "The file format is not supported.",
-      );
-    case "EXCEL_CONVERSION_UNAVAILABLE":
-      return localize(
-        "files.import.failureReasonExcelUnavailable",
-        "Excel import requires a conversion component.",
-      );
-    case "RUST_IMPORT_PREPARE_FAILED":
-      return localize(
-        "files.import.failureReasonPrepare",
-        "Import preparation failed.",
       );
     default:
       return failure.message.trim() || localize(

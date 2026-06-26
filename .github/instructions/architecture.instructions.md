@@ -129,7 +129,7 @@ Runtime folders:
 | --- | --- |
 | `IFileService` | platform filesystem bytes/stat/watch/provider capability |
 | `IExplorerService` | Files Explorer UI state: resources, selection, expansion, layout, context |
-| `fileConverter.ts` / files service helpers | CSV/TSV/XLS/XLSX/clipboard/manual conversion into raw table records |
+| files source/raw-table helpers | source/import contracts, raw table records, and row preview helpers; ordinary Explorer imports stay URI-backed |
 | `ISessionService` | canonical imported data-file/raw-table ledger and downstream analysis records |
 | TableModel producer (`ITableModelProducerService`) | derived raw-table structure/semantics producer during migration; table URI/editor-model naming follows `.github/instructions/迁移说明.md` |
 | `IRecipeService` | passive built-in rules; it does not evaluate tables or materialize Templates |
@@ -177,7 +177,7 @@ High-level analysis flow:
 
 ```txt
 Explorer source workflow
-  -> fileConverter.ts PreparedFileImport
+  -> supported table resource URI / PreparedFileImport resource row
   -> Explorer-local imported rows
   -> ITableService.open({ resource })
   -> TableFileEditorModel / ITableModel snapshot/version
@@ -198,7 +198,7 @@ TableModel
 
 Specific flow owners:
 
-- Import/source collection: Explorer/files workflow coordinates; converter returns prepared file results; Explorer owns local visible rows and table-resource open handoff.
+- Import/source collection: Explorer/files workflow coordinates source preparation; Explorer owns local visible rows and table-resource open handoff.
 - Session ledger: Session backs only legacy imported raw-table storage and downstream analysis records, including TableModel commits, during migration.
 - Table model / Template materialization: TableModel is the derived raw-table
   input, and Template is the target owner for
@@ -216,8 +216,8 @@ Specific flow owners:
 
 ## Canonical Session
 
-`SessionModel` is the canonical in-memory ledger for explicit converted
-imported data-file/raw-table lifecycle plus downstream analysis facts. It stores
+`SessionModel` is the canonical in-memory ledger for the remaining imported
+data-file/raw-table lifecycle plus downstream analysis facts. It stores
 imported files, raw tables, table model, reviews, slice runs, series, curves,
 metrics, metric inputs, and rebuildable calculation cache descriptors.
 
@@ -242,7 +242,7 @@ URI/resource
   -> model owns URI, format, load state, preview rows, cache/reload/watch
 ```
 
-Those editor/input models are not Session records. Only explicit converted
+Those editor/input models are not Session records. Only legacy raw-table
 imports and downstream analysis facts flow through the Session ledger.
 
 Use `records.instructions.md` for record/state field ownership and invalidation.

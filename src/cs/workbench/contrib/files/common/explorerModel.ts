@@ -6,6 +6,7 @@ import {
 	isEqualOrParent as isPathEqualOrParent,
 	toSlashes,
 } from "src/cs/base/common/extpath";
+import type { URI } from "src/cs/base/common/uri";
 import type {
 	ProcessedEntry,
 	SessionFile,
@@ -73,6 +74,7 @@ export type ExplorerFileEntry = {
 	readonly normalizedCsvPath?: string | null;
 	readonly rawTableStatus?: RawTableExplorerStatus;
 	readonly relativePath?: string | null;
+	readonly resource?: URI | null;
 	readonly sheetId?: string | null;
 	readonly sheetName?: string | null;
 	readonly sourceKey?: string;

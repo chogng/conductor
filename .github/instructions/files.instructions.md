@@ -1,5 +1,5 @@
 ---
-description: Files capability and Explorer UI architecture - platform filesystem boundary, files conversion helpers, Explorer state, commands, and source workflow.
+description: Files capability and Explorer UI architecture - platform filesystem boundary, raw-table helpers, Explorer state, commands, and source workflow.
 applyTo: 'src/cs/platform/files/**,src/cs/workbench/services/files/**,src/cs/workbench/services/tablefile/**,src/cs/workbench/contrib/files/**'
 ---
 # Files Capability / Explorer UI
@@ -8,8 +8,8 @@ The files domain has four layers that must stay separate:
 
 | Layer | Owns | Must not own |
 | --- | --- | --- |
-| `platform/files` | URI filesystem providers, read/write/stat/watch, provider registration, browser/desktop adapters | Explorer state, raw table records, conversion, Session records |
-| `workbench/services/files` | non-UI files helpers: conversion contracts, `fileConverter.ts`, raw table records/readers, desktop/browser file-service bridges | Explorer state, DOM, menus, table-model/template/plot semantics |
+| `platform/files` | URI filesystem providers, read/write/stat/watch, provider registration, browser/desktop adapters | Explorer state, raw table records, source preparation, Session records |
+| `workbench/services/files` | non-UI files helpers: source/import contracts, raw table records/readers, browser file-service bridges | Explorer state, DOM, menus, table-model/template/plot semantics |
 | `workbench/services/tablefile` | URI-backed table file working-copy lifecycle, format policy, and encoding helpers | Explorer UI, Table preview state, table-model inference, Recipe/Review/Slice decisions, explicit import ledger commits |
 | `workbench/contrib/files` | Files feature UI: `IExplorerService`, Explorer model/view, source workflow, commands/actions/context menus | CSV/TSV/XLS/XLSX parsing internals, platform provider contracts, canonical Session ownership |
 
@@ -22,8 +22,8 @@ under `workbench/contrib/files`, following upstream VS Code shape.
 platform/files/IFileService
   low-level filesystem capability
 
-workbench/services/files/fileConverter.ts
-  CSV/TSV/XLS/XLSX/clipboard/manual -> FileConversionResult / RawTableRecord
+workbench/contrib/files/browser/fileImportExport.ts
+  dialog/drop/folder/clipboard/manual -> resource-backed PreparedFileImport rows
 
 workbench/services/tablefile/common/tableFileFormat.ts
   table import format policy for CSV/TSV/XLS/XLSX resources
@@ -50,13 +50,12 @@ the closest-looking name.
 | source collection | dialog/drop/folder/clipboard/manual -> supported table file sources | Explorer workflow/helpers plus table format policy |
 | table editor support check | URI/file-name support checks before opening a table editor/preview or before read/parse where possible; `.csv`/`.tsv`/`.xls`/`.xlsx` are table formats, not URI schemes, read encodings, or languageIds | `services/tablefile/common/tableFileFormat.ts`, command/editor/model resolver |
 | table editor/model lifecycle | service-local URI/input model for open, preview, cache, reload, watch, save, and source-version state | `services/tablefile` working-copy owner plus table model resolver; no resource record and not Session |
-| file conversion | parse sources into raw file/table records | `services/files/browser/fileConverter.ts` |
-| conversion result | converter output ready for Explorer-local rows and table resource open | `PreparedFileImport` / `PreparedFileImportEntry` |
+| source preparation result | Explorer-local row metadata, table resource URI, and diagnostics before table resource open | `PreparedFileImport` / `PreparedFileImportEntry` |
 | Explorer local import | explicit user import that updates Explorer-visible rows and opens a table resource without Session | `ExplorerViewPane` |
 | table model | raw tables -> structure/profile/semantic/block model | table-model producer (`ITableModelProducerService`) |
 
 Use user-facing "Import" in labels if appropriate, but use precise internal
-names: collect sources, convert files, prepare imported files, open table resources, upload,
+names: collect sources, prepare imported files, open table resources, upload,
 download, copy, close from Explorer, or delete from disk.
 
 ## Platform Boundary
@@ -85,20 +84,18 @@ Explorer owns:
 - thumbnail candidate filtering before thumbnail UI renders;
 - source workflow orchestration, Explorer-local imported rows, and optional UI follow-up after table resource opens.
 
-Files conversion helpers own:
+Explorer source workflow owns:
 
-- source metadata and bytes/path inputs from Explorer workflow code;
-- decode validation and CSV/TSV/XLS/XLSX/clipboard/manual parsing;
-- one `RawTableRecord` per CSV table or Excel sheet;
-- decode/parse health metadata without normalizing bad rows as valid table rows;
-- normalized CSV artifact references;
-- `FileConversionResult` and conversion diagnostics.
+- source metadata and bytes/path inputs from dialog/drop/folder/clipboard/manual entry points;
+- browser `File` provider registration when a dropped source has no durable resource URI;
+- `PreparedFileImport` / `PreparedFileImportEntry` rows, resource URIs, and source diagnostics.
 
-They do not own platform providers, measurement detection, template apply, plot
-generation, Session mutation, or DOM rendering.
+Files raw-table helpers own legacy raw-table records/readers and in-memory or
+fallback-file row previews. They do not own platform providers, measurement
+detection, template apply, plot generation, Session mutation, or DOM rendering.
 
 Explorer import workflows must not infer semantic badges during source
-collection or conversion. Pending source rows may show only pending, preparing,
+collection or source preparation. Pending source rows may show only pending, preparing,
 or failed UI state until the file is prepared and downstream Review/Slice
 projections arrive through their owning services.
 
@@ -117,11 +114,10 @@ projections arrive through their owning services.
 | `contrib/files/browser/fileActions.ts` / `fileCommands.ts` | Files/Explorer action and command handlers. |
 | `contrib/files/browser/fileActions.contribution.ts` | Command/action/menu/keybinding registration. |
 | `contrib/files/browser/fileImportExport.ts` | File transfer and source collection helpers. |
-| `services/files/common/files.ts` | Source/conversion contracts. |
+| `services/files/common/files.ts` | Source/import contracts and legacy raw-table record contracts. |
 | `services/files/common/rawTable.ts` | Raw table records and range refs. |
-| `services/files/browser/fileConverter.ts` | Source conversion into Session-ready raw models. |
-| `services/files/electron-browser/fileConversionService.ts` | Desktop conversion service branch behind files service contract. |
-| `services/tablefile/common/tablefiles.ts` | `ITableFileService` contract for URI-backed table file working-copy lifecycle; not a converted import ledger. |
+| `services/files/browser/rawTableRowsReader.ts` | Legacy raw-table row preview reader for in-memory rows and fallback files. |
+| `services/tablefile/common/tablefiles.ts` | `ITableFileService` contract for URI-backed table file working-copy lifecycle; not a raw-table import ledger. |
 | `services/tablefile/common/tableFileFormat.ts` | Table import format policy and resource/name support checks consumed by source collection and tablefile resolve. |
 | `services/table/common/parsers.ts` | Table-owned CSV/TSV/XLSX physical table structure parser for URI-backed `ITableModel` content/sheet snapshots. |
 | `services/tablefile/browser/browserTableFileService.ts` | Browser DI registration for the URI-backed table file service. |
@@ -132,7 +128,7 @@ projections arrive through their owning services.
 | `platform/files/common/files.ts` / `fileService.ts` | Filesystem service contract and provider dispatch. |
 
 `FileSourceWorkflow` is a private Explorer view helper, not a service boundary.
-It may collect sources, watch imported folders, call conversion helpers, and
+It may collect sources, watch imported folders, prepare resource-backed rows, and
 return prepared imports to the caller. It must not own Session records or
 subscribe to table/template/table-model state.
 
@@ -171,8 +167,8 @@ active view input to Session.
 Explorer drop/dialog/clipboard/folder
   -> command/editor/source workflow support check
   -> source collection / pending Explorer entries
-  -> fileConverter.ts
-  -> PreparedFileImport rows
+  -> assign table resource URI / register browser File with file provider when needed
+  -> PreparedFileImport resource rows
   -> ExplorerViewPane updates Explorer-local visible state
   -> ITableService.open({ resource })
   -> TableFileEditorModel / ITableModel own URI-backed preview lifecycle
@@ -226,7 +222,7 @@ Explorer item context menu Delete
 
 Pending source entries are display-only Explorer rows. They must not be
 committed to Session, selected as real files, used for duplicate detection, or
-participate in file actions. When conversion commits the real file, Explorer
+participate in file actions. When source preparation resolves the real file, Explorer
 replaces the pending projection.
 
 ## Explorer View Rules
@@ -292,7 +288,7 @@ Rules:
 
 Use `records.instructions.md` for:
 
-- `FileConversionResult`, `ImportedFileRecord`, `RawRecord`;
+- `FileImportResult`, `ImportedFileRecord`, `RawRecord`;
 - `RawTableRecord`, `RawTableSourceRecord`, `RawTableRowsRecord`;
 - `ExplorerState`, `ExplorerResource`, `ExplorerFileEntry`;
 - `SliceFileState`.
@@ -311,8 +307,7 @@ ExplorerViewPane / ExplorerView / ExplorerViewer
 explorerViewlet.ts
 fileActions.ts / fileCommands.ts / fileActions.contribution.ts
 fileImportExport.ts
-fileConverter.ts / fileConverter.worker.ts
-FileConversionResult
+FileImportResult
 RawTableRecord
 ```
 
@@ -344,13 +339,13 @@ those APIs as product command surfaces.
 
 ## Do Not
 
-- Do not put `curveType`, axis role, template need, table-model confidence, or review confidence in conversion results.
-- Do not generate measurement blocks, plot series, or template outputs in files conversion.
-- Do not commit Session from `fileConverter.ts`.
+- Do not put `curveType`, axis role, template need, table-model confidence, or review confidence in source preparation/import results.
+- Do not generate measurement blocks, plot series, or template outputs in files source preparation.
+- Do not commit Session from Explorer source preparation.
 - Do not let Explorer view code parse XLS/XLSX or raw rows.
 - Do not let Session read files from disk.
 - Do not expose Explorer UI state from `IFileService`.
-- Do not put source collection/conversion semantics into `platform/files`.
+- Do not put source collection/source preparation semantics into `platform/files`.
 - Do not create thumbnail-specific duplicates of Explorer file item commands.
 - Do not move thumbnail bitmap/cache rendering into Explorer/files.
 - Do not add thumbnail visibility/filter helpers under `workbench/services/thumbnail`.

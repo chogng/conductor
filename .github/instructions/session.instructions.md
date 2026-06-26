@@ -6,8 +6,8 @@ applyTo: 'src/cs/workbench/services/session/**'
 
 `SessionService` is the canonical in-memory ledger for the current analysis
 session. It is not a view-state store and not a workflow dispatcher. It now owns
-the explicit converted imported data-file/raw-table lifecycle APIs directly
-after files conversion, while URI-backed table opens stay in tablefile/editor
+the remaining imported data-file/raw-table lifecycle APIs directly
+for the migration ledger, while URI-backed table opens stay in tablefile/editor
 model services.
 
 ## Concepts
@@ -59,7 +59,7 @@ caches, or thumbnail caches.
 
 Commands may call Session commit methods only after another owner
 service/controller has produced the domain result. Ordinary Explorer
-file-to-table imports stay out of Session after files conversion: Explorer owns
+file-to-table imports stay out of Session after source preparation: Explorer owns
 local visible rows and hands off URI resources to `ITableService`. TableModel
 production commits derived `TableModelRecord` values through Session while it
 remains the migration ledger.
@@ -70,7 +70,7 @@ table records and downstream analysis records.
 
 | Workflow | Preferred producer | Session method |
 | --- | --- | --- |
-| legacy raw import | migration owner after conversion | `commitFileImport` |
+| legacy raw import | migration owner after raw-table import preparation | `commitFileImport` |
 | table model | `ITableModelProducerService` / table-model queue | `commitTableModel` backing API |
 | review | review contribution/command after candidate review | `commitRawTableReviews` |
 | slice | slice service after planning/execution | `commitSliceRuns` |

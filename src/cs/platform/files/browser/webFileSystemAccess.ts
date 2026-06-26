@@ -105,10 +105,10 @@ export type FolderImportSupport = {
 export function getFolderImportSupport(
   capabilities: FolderImportCapabilities,
 ): FolderImportSupport {
-  // Folder import depends on the conversion/preview worker path, which needs
+  // Folder import depends on the table parser/preview worker path, which needs
   // WebAssembly. Embedded contexts (e.g. the VS Code Simple Browser webview)
   // frequently block wasm compilation, which would let files be picked but not
-  // converted for workbench use.
+  // prepared for workbench use.
   if (!capabilities.hasWebAssembly) {
     return { reason: "no-webassembly", supported: false };
   }

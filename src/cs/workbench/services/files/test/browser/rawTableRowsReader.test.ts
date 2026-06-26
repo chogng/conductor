@@ -7,16 +7,12 @@ import assert from "assert";
 import {
 	readRawTableRows,
 } from "src/cs/workbench/services/files/browser/rawTableRowsReader";
-import type {
-	ConvertedCsvReaderService,
-} from "src/cs/workbench/services/files/common/fileConverterBackend";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/files/test/browser/rawTableRowsReader", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
 	test("reads inline raw table rows", async () => {
 		const rows = await readRawTableRows({
-			convertedCsvReaderService: createConvertedCsvReaderStub(),
 			rowStore: {
 				kind: "memory",
 				rows: [["Vg", "Id"], [0, 1e-9]],
@@ -28,7 +24,6 @@ suite("workbench/services/files/test/browser/rawTableRowsReader", () => {
 
 	test("limits inline raw table rows", async () => {
 		const rows = await readRawTableRows({
-			convertedCsvReaderService: createConvertedCsvReaderStub(),
 			maxRows: 2,
 			rowStore: {
 				kind: "memory",
@@ -39,19 +34,9 @@ suite("workbench/services/files/test/browser/rawTableRowsReader", () => {
 		assert.deepEqual(rows, [["Vg", "Id"], ["0", "1e-9"]]);
 	});
 
-	test("reads normalized CSV raw table rows", async () => {
-		let readPayload: unknown;
+	test("reads fallback file rows for external raw table stores", async () => {
 		const rows = await readRawTableRows({
-			convertedCsvReaderService: createConvertedCsvReaderStub({
-				canReadConvertedCsv: () => true,
-				readConvertedCsv: async payload => {
-					readPayload = payload;
-					return {
-						csvText: "\"Vg\",\"Id\"\n0,1e-9",
-						ok: true,
-					};
-				},
-			}),
+			fallbackFile: new File(["\"Vg\",\"Id\"\n0,1e-9"], "converted.csv"),
 			fileName: "converted.csv",
 			maxRows: 2,
 			rowStore: {
@@ -61,19 +46,5 @@ suite("workbench/services/files/test/browser/rawTableRowsReader", () => {
 		});
 
 		assert.deepEqual(rows, [["Vg", "Id"], ["0", "1e-9"]]);
-		assert.deepEqual(readPayload, {
-			maxRows: 2,
-			path: "C:/tmp/converted.csv",
-		});
 	});
-});
-
-const createConvertedCsvReaderStub = (
-	overrides: Partial<ConvertedCsvReaderService> = {},
-): ConvertedCsvReaderService => ({
-	canReadConvertedCsv: () => false,
-	readConvertedCsv: async () => ({
-		ok: false,
-	}),
-	...overrides,
 });

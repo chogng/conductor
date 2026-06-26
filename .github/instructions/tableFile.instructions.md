@@ -7,7 +7,7 @@ applyTo: 'src/cs/workbench/services/tablefile/**'
 `services/tablefile` follows upstream `workbench/services/textfile` naming for
 file-backed table lifecycles. The target architecture is URI-backed:
 `TableFileEditorModel` owns the file working-copy lifecycle around a
-URI-backed `ITableModel`. Explicit converted data-file/raw-table imports are
+URI-backed `ITableModel`. Legacy data-file/raw-table imports are
 Explorer-local file-to-table rows plus URI-backed table opens, and no longer
 have a tablefile bridge service or Session commit step.
 
@@ -22,8 +22,8 @@ URI/resource open
   -> ITableModel snapshot/version/sourceVersion
   -> Table / Template / Review / Slice consumers read URI-backed model facts
 
-Explicit converted import
-  -> fileConverter.ts PreparedFileImport
+Explicit Explorer import
+  -> fileImportExport.ts PreparedFileImport
   -> Explorer-local imported rows
   -> ITableService.open({ resource })
   -> TableFileEditorModel / ITableModel own URI-backed preview lifecycle
@@ -54,7 +54,7 @@ explicitly write canonical records:
 - rename/remove/clear operations for imported files;
 - Session change events for subscribers.
 
-This explicit converted import ledger does not own:
+This remaining raw-table import ledger does not own:
 
 - URI-backed preview rows, file working-copy reload/watch state, or model caches;
 - Explorer tree, selection, expansion, drag/drop UI, or pending-source rows;
@@ -72,8 +72,8 @@ origin, and text `languageId` is not part of table file support.
 
 ## Migration Boundary
 
-The retired imported-table-file bridge has been removed. Explicit converted
-Explorer import flows stay out of Session after files conversion: they update
+The retired imported-table-file bridge has been removed. Explicit Explorer
+import flows stay out of Session after source preparation: they update
 Explorer-local rows and open URI-backed table resources. New table open,
 preview, cache, reload, save, and source-version work should use
 `TableFileEditorModel` / `ITableModel` through `ITableModelService`, not expand
@@ -81,7 +81,7 @@ Session-backed raw-table ownership.
 
 Do not route table URI open/preview lifecycle through Session.
 That lifecycle follows the upstream file -> editor shape and stays service-local
-unless a user explicitly invokes the converted import path.
+unless a user explicitly invokes a legacy raw-table migration path.
 
 Explorer/files code must not call `ISessionService.commitFileImport(...)` for
 ordinary file-to-table imports. TableModel production may still commit
@@ -92,7 +92,7 @@ canonical migration ledger for those downstream records.
 
 | File | Responsibility |
 | --- | --- |
-| `common/tablefiles.ts` | `ITableFileService` contract for file-backed table working-copy lifecycle; not a converted import ledger. |
+| `common/tablefiles.ts` | `ITableFileService` contract for file-backed table working-copy lifecycle; not a raw-table import ledger. |
 | `common/tableFileFormat.ts` | table file format policy and resource/name support checks for CSV/TSV/XLS/XLSX. |
 | `browser/browserTableFileService.ts` | browser DI registration for the URI-backed table file service. |
 | `browser/tableFileService.ts` | URI-backed file resolve service for table resources; owns read encoding choice before delegating to the editor model manager. |
