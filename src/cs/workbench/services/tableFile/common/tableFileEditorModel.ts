@@ -12,20 +12,19 @@ import type {
 } from "src/cs/platform/files/common/files";
 import {
 	TableModel,
-	type TableModelContentSnapshot,
-	type TableModelPreviewInput,
 	type TableModelResolvedContent,
 } from "src/cs/workbench/services/table/common/model";
 import {
+	toTableSheetKey,
+} from "src/cs/workbench/services/table/common/table";
+import {
 	parseTableStructure,
 	type ParsedTableStructure,
-} from "src/cs/workbench/services/table/common/parsers";
+} from "src/cs/workbench/services/table/common/tableStructureParser";
 import {
-	decodeTableFileContent,
-	getTableFileMimeType,
-	getTableFileReadEncoding,
-	isFileContent,
-} from "src/cs/workbench/services/tablefile/common/encoding";
+	readTableFile,
+	type TableFileReadResult,
+} from "src/cs/workbench/services/tablefile/common/tableFileReader";
 
 export type TableFileEditorModelSnapshot = {
 	readonly conflict: boolean;
@@ -60,11 +59,10 @@ export class TableFileEditorModel extends Disposable {
 
 	public constructor(
 		public readonly resource: URI,
-		sourceKey: string,
 		private readonly fileService: IFileService,
 	) {
 		super();
-		this.model = this._register(new TableModel(resource, sourceKey));
+		this.model = this._register(new TableModel(resource));
 		this._register(this.fileService.watch(resource, { recursive: false }));
 	}
 
@@ -179,67 +177,34 @@ export class TableFileEditorModel extends Disposable {
 	}
 
 	private async resolveFromDisk(options: TableFileEditorModelResolveOptions = {}): Promise<void> {
-		const stat = await this.fileService.stat(this.resource);
-
-		this.lastResolvedStat = stat;
-		this.sourceVersion = normalizeResourceSourceVersion(stat.mtime);
 		await this.model.resolve({
 			checkResourceFormat: true,
-			createErrorPreviewInput: message =>
-				createFailedResourcePreviewInput({
-					message,
-					resource: this.resource,
-				}),
 			resolveContent: () =>
-				this.resolveContentFromDisk(stat, options),
-			sourceVersion: stat.mtime,
+				this.resolveContentFromDisk(options),
 		});
 		this.onDidChangeStateEmitter.fire(this);
 	}
 
 	private async resolveContentFromDisk(
-		stat: IFileStat,
 		options: TableFileEditorModelResolveOptions,
 	): Promise<TableModelResolvedContent> {
-		const fileName = getResourceFileName(this.resource);
-		const resourceFile = await this.readResourceAsBrowserFile(fileName, stat, options);
+		const readResult = await readTableFile(this.resource, this.fileService, options);
+		this.lastResolvedStat = readResult.stat;
+		this.sourceVersion = normalizeResourceSourceVersion(readResult.stat.mtime);
 		const parsedContent = await parseTableStructure({
-			bytes: resourceFile.bytes,
+			buffer: readResult.buffer,
+			defaultSheetKey: this.defaultSheetKey,
+			format: readResult.format,
 			resource: this.resource,
-			sourceKey: this.model.sourceKey,
-			text: resourceFile.text,
 		});
 		return createResolvedContent({
-			file: resourceFile.file,
-			fileName,
 			parsedContent,
-			resource: this.resource,
-			sourceKey: this.model.sourceKey,
-			stat,
+			readResult,
 		});
 	}
 
-	private async readResourceAsBrowserFile(
-		fileName: string,
-		stat: IFileStat,
-		options: TableFileEditorModelResolveOptions,
-	): Promise<{ readonly bytes: ArrayBuffer; readonly file: File; readonly text: string | null }> {
-		const content = await this.fileService.readFile(this.resource, {
-			encoding: options.readEncoding ?? getTableFileReadEncoding(this.resource),
-		});
-		if (!isFileContent(content)) {
-			throw new Error("The file content could not be read.");
-		}
-
-		const decodedContent = decodeTableFileContent(content);
-		return {
-			bytes: decodedContent.bytes,
-			file: new File([decodedContent.filePart], fileName, {
-				lastModified: normalizeResourceSourceVersion(stat.mtime) || Date.now(),
-				type: getTableFileMimeType(fileName),
-			}),
-			text: decodedContent.text,
-		};
+	private get defaultSheetKey(): string {
+		return toTableSheetKey({ resource: this.resource });
 	}
 
 	private setLifecycleState(update: {
@@ -274,130 +239,17 @@ export class TableFileEditorModel extends Disposable {
 }
 
 const createResolvedContent = ({
-	file,
-	fileName,
 	parsedContent,
-	resource,
-	sourceKey,
-	stat,
+	readResult,
 }: {
-	readonly file: File;
-	readonly fileName: string;
 	readonly parsedContent: ParsedTableStructure;
-	readonly resource: URI;
-	readonly sourceKey: string;
-	readonly stat: IFileStat;
-}): TableModelResolvedContent => {
-	const previewInputsBySourceKey: [string, TableModelPreviewInput][] = [];
-	let previewInput: TableModelPreviewInput | null = null;
-	for (const sheet of parsedContent.sheets) {
-		const hasDistinctSheetIdentity = sheet.sourceKey !== sourceKey || sheet.sheetName !== null;
-		const sheetPreviewInput = createResourcePreviewInput({
-			content: sheet.content,
-			file,
-			fileName,
-			resource,
-			...(hasDistinctSheetIdentity ? {
-				sheetId: sheet.sheetId,
-				sheetName: sheet.sheetName,
-			} : {}),
-			stat,
-		});
-		previewInputsBySourceKey.push([sheet.sourceKey, sheetPreviewInput]);
-		previewInput ??= sheetPreviewInput;
-	}
-
-	if (!previewInput) {
-		previewInput = createResourcePreviewInput({
-			content: parsedContent.content,
-			file,
-			fileName,
-			resource,
-			stat,
-		});
-		previewInputsBySourceKey.push([sourceKey, previewInput]);
-	}
-
-	return {
-		content: parsedContent.content,
-		previewInput,
-		previewInputsBySourceKey,
-		sheets: parsedContent.sheets,
-	};
-};
-
-const createResourcePreviewInput = ({
-	content,
-	file,
-	fileName,
-	resource,
-	sheetId,
-	sheetName,
-	stat,
-}: {
-	readonly content: TableModelContentSnapshot | null;
-	readonly file: File;
-	readonly fileName: string;
-	readonly resource: URI;
-	readonly sheetId?: string | null;
-	readonly sheetName?: string | null;
-	readonly stat: IFileStat;
-}): TableModelPreviewInput => ({
-	file,
-	fileName,
-	resource,
-	relativePath: fileName,
-	...(sheetId ? { sheetId } : {}),
-	...(sheetName ? { sheetName } : {}),
-	...(content ? {
-		columnCount: content.columnCount,
-		maxCellLengths: content.maxCellLengths,
-		rowCount: content.rowCount,
-		tableModelContent: content,
-	} : {}),
-	sourcePath: getResourcePath(resource),
-	sourceVersion: normalizeResourceSourceVersion(stat.mtime),
+	readonly readResult: TableFileReadResult;
+}): TableModelResolvedContent => ({
+	content: parsedContent.content,
+	format: readResult.format,
+	sheets: parsedContent.sheets,
+	sourceVersion: readResult.stat.mtime,
 });
-
-const createFailedResourcePreviewInput = ({
-	message,
-	resource,
-}: {
-	readonly message: string;
-	readonly resource: URI;
-}): TableModelPreviewInput => {
-	const fileName = getResourceFileName(resource);
-	return {
-		file: new File([], fileName, {
-			lastModified: Date.now(),
-			type: getTableFileMimeType(fileName),
-		}),
-		fileName,
-		resource,
-		rawTableHealth: "decodeFailed",
-		rawTableHealthMessage: message,
-		relativePath: fileName,
-		sourcePath: getResourcePath(resource),
-		sourceVersion: 0,
-	};
-};
-
-const getResourceFileName = (resource: URI): string => {
-	const path = String(resource.path ?? "").replace(/\\/g, "/");
-	const index = path.lastIndexOf("/");
-	const name = index >= 0 ? path.slice(index + 1) : path;
-	return name || "table.csv";
-};
-
-const getResourcePath = (resource: URI): string | null => {
-	const fsPath = typeof resource.fsPath === "string" ? resource.fsPath.trim() : "";
-	if (fsPath) {
-		return fsPath;
-	}
-
-	const path = String(resource.path ?? "").trim();
-	return path || null;
-};
 
 const normalizeResourceSourceVersion = (value: unknown): number =>
 	Math.max(0, Math.floor(Number(value) || 0));

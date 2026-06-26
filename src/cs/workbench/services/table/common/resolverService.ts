@@ -10,10 +10,9 @@ import type { TableSource } from "src/cs/workbench/services/table/common/table";
 import type {
 	ITableModel,
 	TableModelContentSnapshot,
-	TableModelPreviewInput,
 	TableModelSheetSnapshot,
 } from "src/cs/workbench/services/table/common/model";
-import type { TableFileFormat } from "src/cs/workbench/services/tablefile/common/tableFileFormat";
+import type { TableFormatId } from "src/cs/workbench/services/table/common/tableFormatService";
 
 export const ITableModelService = createDecorator<ITableModelService>("tableModelService");
 
@@ -31,8 +30,7 @@ export interface ITableModelReference extends IDisposable {
  */
 export type TableModelContentProviderResult = {
 	readonly content: TableModelContentSnapshot | null;
-	readonly format?: TableFileFormat | null;
-	readonly previewInput?: TableModelPreviewInput | null;
+	readonly format?: TableFormatId | null;
 	readonly sheets?: readonly TableModelSheetSnapshot[];
 	readonly sourceVersion?: number;
 };
@@ -87,12 +85,6 @@ export interface ITableModelService extends IDisposable {
 	 * Returns an already cached model for the resource, if one exists.
 	 */
 	get(resource: URI | null | undefined): ITableModel | undefined;
-
-	/**
-	 * Returns preview input for the table source when the backing model has
-	 * materialized one.
-	 */
-	getPreviewInput(source: TableSource | null | undefined): TableModelPreviewInput | null;
 
 	/**
 	 * Registers a provider for virtual or generated table resources.

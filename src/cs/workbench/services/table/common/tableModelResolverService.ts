@@ -11,13 +11,11 @@ import {
 } from "src/cs/platform/instantiation/common/extensions";
 import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
 import {
-  toTableSourceKey,
   type TableSource,
 } from "src/cs/workbench/services/table/common/table";
 import {
   TableModel,
   type ITableModel,
-  type TableModelPreviewInput,
   type TableModelResolvedContent,
 } from "src/cs/workbench/services/table/common/model";
 import {
@@ -116,18 +114,6 @@ export class TableModelResolverService extends Disposable implements ITableModel
       : undefined;
   }
 
-  public getPreviewInput(source: TableSource | null | undefined): TableModelPreviewInput | null {
-    const key = source?.resource?.toString();
-    if (key) {
-      const providerInput = this.providerModels.get(key)?.getPreviewInput(source);
-      if (providerInput) {
-        return providerInput;
-      }
-    }
-
-    return this.tableFileService.getPreviewInput(source);
-  }
-
   public resolve(resource: URI, source?: TableSource | null): void {
     const provider = this.findContentProvider(resource);
     if (provider) {
@@ -176,10 +162,7 @@ export class TableModelResolverService extends Disposable implements ITableModel
     const key = resource.toString();
     let model = this.providerModels.get(key);
     if (!model) {
-      model = this._register(new TableModel(
-        resource,
-        toTableSourceKey(source ?? { resource }),
-      ));
+      model = this._register(new TableModel(resource));
       this._register(model.onDidChange(changedModel => {
         this.onDidChangeModelEmitter.fire(changedModel);
       }));
@@ -205,10 +188,10 @@ export class TableModelResolverService extends Disposable implements ITableModel
     }
 
     const pendingResolve = model.resolve({
-      resolveContent: async () =>
-        toProviderResolvedContent(
-          await provider.resolveTableModel(model.resource, source),
-        ),
+      resolveContent: async () => {
+        const result = await provider.resolveTableModel(model.resource, source);
+        return toProviderResolvedContent(result);
+      },
     }).finally(() => {
       if (this.pendingProviderResolves.get(key) === pendingResolve) {
         this.pendingProviderResolves.delete(key);
@@ -217,6 +200,7 @@ export class TableModelResolverService extends Disposable implements ITableModel
     this.pendingProviderResolves.set(key, pendingResolve);
     await pendingResolve;
   }
+
 }
 
 const toProviderResolvedContent = (
@@ -224,7 +208,6 @@ const toProviderResolvedContent = (
 ): TableModelResolvedContent => ({
   content: result.content,
   format: result.format ?? null,
-  previewInput: result.previewInput ?? null,
   sheets: result.sheets,
   sourceVersion: result.sourceVersion,
 });

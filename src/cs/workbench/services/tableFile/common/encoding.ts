@@ -7,7 +7,7 @@ import type {
 	IFileContent,
 	IReadFileEncoding,
 } from "src/cs/platform/files/common/files";
-import { tableFileFormatService } from "src/cs/workbench/services/tablefile/common/tableFileFormat";
+import { tableFormatService } from "src/cs/workbench/services/table/common/tableFormatService";
 
 export type TableFileDecodedContent = {
 	readonly bytes: ArrayBuffer;
@@ -18,7 +18,7 @@ export type TableFileDecodedContent = {
 export const getTableFileReadEncoding = (
 	resource: URI | string | null | undefined,
 ): IReadFileEncoding =>
-	tableFileFormatService.isExcel(resource) ? "base64" : "utf8";
+	tableFormatService.isExcel(resource) ? "base64" : "utf8";
 
 export const decodeTableFileContent = (
 	content: IFileContent,
@@ -44,10 +44,10 @@ export const isFileContent = (value: unknown): value is IFileContent => {
 };
 
 export const getTableFileMimeType = (fileName: string): string => {
-	if (tableFileFormatService.isExcel(fileName)) {
+	if (tableFormatService.isExcel(fileName)) {
 		return "application/octet-stream";
 	}
-	if (tableFileFormatService.isTsv(fileName)) {
+	if (tableFormatService.isTsv(fileName)) {
 		return "text/tab-separated-values;charset=utf-8";
 	}
 	return "text/csv;charset=utf-8";

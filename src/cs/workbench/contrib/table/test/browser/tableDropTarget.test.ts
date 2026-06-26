@@ -143,7 +143,6 @@ function createTableModelService(): ITableModelService {
 			throw new Error("Unexpected model reference creation in table drop target tests.");
 		},
 		get: () => undefined,
-		getPreviewInput: () => null,
 		registerContentProvider: () => ({ dispose: () => undefined }),
 		resolve: () => undefined,
 		dispose: () => undefined,

@@ -178,7 +178,7 @@ suite("workbench/services/table/browser/tableViewModel display profiles", () => 
     const model = createTableViewModelInScope(store.add(new TableStateScope()), {
       numericDisplayMode: "smart",
       settingsVersion: 3,
-      previewInputs: [createResourcePreviewInput(resource, {
+      previewSources: [createResourceSourceInput(resource, {
         sourceVersion: 7,
         rows: [
           ["Time", "Current", "Status"],
@@ -210,7 +210,7 @@ suite("workbench/services/table/browser/tableViewModel display profiles", () => 
     const model = createTableViewModelInScope(store.add(new TableStateScope()), {
       numericDisplayMode: "smart",
       settingsVersion: 4,
-      previewInputs: [createResourcePreviewInput(resource, {
+      previewSources: [createResourceSourceInput(resource, {
         sourceVersion: 8,
         rows: [
           ["", "1.0E-009"],
@@ -240,7 +240,7 @@ suite("workbench/services/table/browser/tableViewModel display profiles", () => 
     const model = createTableViewModelInScope(store.add(new TableStateScope()), {
       numericDisplayMode: "smart",
       settingsVersion: 4,
-      previewInputs: [createResourcePreviewInput(resource, {
+      previewSources: [createResourceSourceInput(resource, {
         sourceVersion: 8,
         rows: [
           ["Current"],
@@ -265,7 +265,7 @@ suite("workbench/services/table/browser/tableViewModel display profiles", () => 
     const model = createTableViewModelInScope(store.add(new TableStateScope()), {
       numericDisplayMode: "smart",
       settingsVersion: 5,
-      previewInputs: [createResourcePreviewInput(resource, {
+      previewSources: [createResourceSourceInput(resource, {
         sourceVersion: 9,
         rows: [
           ["1.0E+006"],
@@ -290,7 +290,7 @@ suite("workbench/services/table/browser/tableViewModel display profiles", () => 
     const model = createTableViewModelInScope(store.add(new TableStateScope()), {
       numericDisplayMode: "smart",
       settingsVersion: 6,
-      previewInputs: [createResourcePreviewInput(resource, {
+      previewSources: [createResourceSourceInput(resource, {
         sourceVersion: 10,
         rows: [
           ["1.000000"],
@@ -314,7 +314,7 @@ suite("workbench/services/table/browser/tableViewModel display profiles", () => 
     const model = createTableViewModelInScope(store.add(new TableStateScope()), {
       numericDisplayMode: "smart",
       settingsVersion: 7,
-      previewInputs: [createResourcePreviewInput(resource, {
+      previewSources: [createResourceSourceInput(resource, {
         sourceVersion: 11,
         rows: [
           ["Repeat", "VAR2", "Point", "CH1 Voltage", "CH1 Current", "CH1 Resistance"],
@@ -344,7 +344,7 @@ suite("workbench/services/table/browser/tableViewModel display profiles", () => 
     const model = createTableViewModelInScope(store.add(new TableStateScope()), {
       numericDisplayMode: "smart",
       settingsVersion: 8,
-      previewInputs: [createResourcePreviewInput(resource, {
+      previewSources: [createResourceSourceInput(resource, {
         sourceVersion: 12,
         rows: [
           ["CH1 Current"],
@@ -386,7 +386,7 @@ suite("workbench/services/table/browser/tableViewModel display profiles", () => 
     const model = createTableViewModelInScope(store.add(new TableStateScope()), {
       numericDisplayMode: "smart",
       settingsVersion: 8,
-      previewInputs: [createResourcePreviewInput(resource, {
+      previewSources: [createResourceSourceInput(resource, {
         sourceVersion: 12,
         rows: [
           ["CH1 Current"],
@@ -419,7 +419,7 @@ suite("workbench/services/table/browser/tableViewModel display profiles", () => 
     const model = createTableViewModelInScope(store.add(new TableStateScope()), {
       numericDisplayMode: "smart",
       settingsVersion: 9,
-      previewInputs: [createResourcePreviewInput(resource, {
+      previewSources: [createResourceSourceInput(resource, {
         sourceVersion: 13,
         rows,
       })],
@@ -427,9 +427,9 @@ suite("workbench/services/table/browser/tableViewModel display profiles", () => 
     });
     store.add({ dispose: () => model.clearState() });
 
-    const sourceKey = resource.toString();
+    const sheetKey = resource.toString();
     assert.equal(model.getRow(0), null);
-    await model.ensureRows(sourceKey, 0, 1);
+    await model.ensureRows(sheetKey, 0, 1);
     assert.deepEqual(model.getRow(0), ["CH1 Current"]);
   });
 
@@ -437,7 +437,7 @@ suite("workbench/services/table/browser/tableViewModel display profiles", () => 
     const resource = URI.file("/workspace/raw-mode.csv");
     const model = createTableViewModelInScope(store.add(new TableStateScope()), {
       numericDisplayMode: "raw",
-      previewInputs: [createResourcePreviewInput(resource, {
+      previewSources: [createResourceSourceInput(resource, {
         rows: [
           ["-3.70327E-009"],
           ["-4.00000E-009"],
@@ -451,7 +451,7 @@ suite("workbench/services/table/browser/tableViewModel display profiles", () => 
   });
 });
 
-const createResourcePreviewInput = (
+const createResourceSourceInput = (
   resource: URI,
   {
     fileName = "Raw.csv",
@@ -465,7 +465,7 @@ const createResourcePreviewInput = (
 ) => {
   const content = createTableModelContent(rows);
   return {
-    input: {
+    data: {
       columnCount: content.columnCount,
       fileName,
       maxCellLengths: content.maxCellLengths,

@@ -1,5 +1,5 @@
 ---
-description: TableFile services - URI-backed file working copies, format policy, and encoding helpers.
+description: TableFile services - URI-backed file working copies and encoding helpers.
 applyTo: 'src/cs/workbench/services/tablefile/**'
 ---
 # TableFile
@@ -26,7 +26,7 @@ Explicit Explorer import
   -> fileImportExport.ts PreparedFileImport
   -> Explorer-local imported rows
   -> ITableService.open({ resource })
-  -> TableFileEditorModel / ITableModel own URI-backed preview lifecycle
+  -> TableFileEditorModel / ITableModel own URI-backed model lifecycle
 ```
 
 ## Ownership
@@ -56,7 +56,7 @@ explicitly write canonical records:
 
 This remaining raw-table import ledger does not own:
 
-- URI-backed preview rows, file working-copy reload/watch state, or model caches;
+- URI-backed preview projections, file working-copy reload/watch state, or model caches;
 - Explorer tree, selection, expansion, drag/drop UI, or pending-source rows;
 - Table preview selection, row cache, reveal/highlight, or column widths;
 - table-model detection, Recipe materialization, Review decisions, or Slice
@@ -66,8 +66,8 @@ This remaining raw-table import ledger does not own:
 `services/tablefile/common/encoding.ts` is a helper for read mode and byte
 conversion after the table format has already been identified. It must not
 become the owner for supported extensions or parser dispatch. CSV/TSV/XLS/XLSX
-belong to `TableFileFormatService` in
-`services/tablefile/common/tableFileFormat.ts`; URI scheme describes resource
+belong to `TableFormatService` in
+`services/table/common/tableFormatService.ts`; URI scheme describes resource
 origin, and text `languageId` is not part of table file support.
 
 ## Migration Boundary
@@ -75,11 +75,11 @@ origin, and text `languageId` is not part of table file support.
 The retired imported-table-file bridge has been removed. Explicit Explorer
 import flows stay out of Session after source preparation: they update
 Explorer-local rows and open URI-backed table resources. New table open,
-preview, cache, reload, save, and source-version work should use
+model projection, cache, reload, save, and source-version work should use
 `TableFileEditorModel` / `ITableModel` through `ITableModelService`, not expand
 Session-backed raw-table ownership.
 
-Do not route table URI open/preview lifecycle through Session.
+Do not route table URI open/model projection lifecycle through Session.
 That lifecycle follows the upstream file -> editor shape and stays service-local
 unless a user explicitly invokes a legacy raw-table migration path.
 
@@ -93,11 +93,11 @@ canonical migration ledger for those downstream records.
 | File | Responsibility |
 | --- | --- |
 | `common/tablefiles.ts` | `ITableFileService` contract for file-backed table working-copy lifecycle; not a raw-table import ledger. |
-| `common/tableFileFormat.ts` | table file format policy and resource/name support checks for CSV/TSV/XLS/XLSX. |
+| `common/tableFileReader.ts` | URI-backed table file reader; selects file read mode after format resolution and returns `TableReadBuffer`. |
 | `browser/browserTableFileService.ts` | browser DI registration for the URI-backed table file service. |
 | `browser/tableFileService.ts` | URI-backed file resolve service for table resources; owns read encoding choice before delegating to the editor model manager. |
 | `common/encoding.ts` | table file read mode, base64/utf8 byte decoding, and mime helpers; not a table format/support owner. |
-| `common/tableFileEditorModel.ts` | URI-backed file working-copy, file-backed read/preview/sourceVersion flow, and associated `ITableModel` lifecycle. |
+| `common/tableFileEditorModel.ts` | URI-backed file working-copy, file-backed read/sourceVersion flow, and associated `ITableModel` lifecycle. |
 | `common/tableFileEditorModelManager.ts` | file-backed table working-copy cache/reuse/reload/remove owner. |
 
 ## Rules

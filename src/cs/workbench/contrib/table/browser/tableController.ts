@@ -21,7 +21,7 @@ type TableSelection = ReturnType<TableControllerViewModel["getSelection"]>;
 export type TableControllerProps = {
   readonly canAdjustColumnScale?: boolean;
   readonly columnHeaderSelection?: TableWidgetColumnHeaderSelection;
-  readonly getColumnWidths?: (sourceKey: string | null | undefined) => readonly TableColumnWidth[];
+  readonly getColumnWidths?: (sheetKey: string | null | undefined) => readonly TableColumnWidth[];
   readonly hoverDelegate?: IHoverDelegate;
   readonly onCopySelection?: () => void;
   readonly onSelect: (
@@ -29,7 +29,7 @@ export type TableControllerProps = {
     reveal?: TableWidgetRevealMode,
   ) => boolean;
   readonly storeColumnWidths?: (
-    sourceKey: string | null | undefined,
+    sheetKey: string | null | undefined,
     widths: readonly TableColumnWidth[],
   ) => void;
   readonly tableViewModel: TableControllerViewModel;

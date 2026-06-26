@@ -27,7 +27,7 @@ import {
   type FileSource,
   type PendingImportFile,
 } from "../../browser/fileImportExport.ts";
-import { TableFileFormatService } from "src/cs/workbench/services/tablefile/common/tableFileFormat";
+import { TableFormatService } from "src/cs/workbench/services/table/common/tableFormatService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/files/test/browser/fileImportExport", () => {
@@ -297,7 +297,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     const filesService = store.add(new FileService());
     store.add(filesService.registerProvider("file", provider));
     const folder = await provider.registerDirectoryHandle(root);
-    const formatService = new RecordingTableFileFormatService();
+    const formatService = new RecordingTableFormatService();
     const result = await new TableResourceImporter(
       filesService,
       formatService,
@@ -828,7 +828,7 @@ type TestDataTransferItem = Omit<Partial<DataTransferItem>, "webkitGetAsEntry"> 
   readonly webkitGetAsEntry?: () => unknown;
 };
 
-class RecordingTableFileFormatService extends TableFileFormatService {
+class RecordingTableFormatService extends TableFormatService {
   public readonly checkedNames: string[] = [];
 
   public override canHandle(resource: URI | string | null | undefined): boolean {

@@ -24,37 +24,41 @@ measurement structure.
 - paged resource rows cache, loading state, and row request lifecycle;
 - block table preview model and invalidation when source changes.
 
-It consumes URI-backed `ITableModel` preview input, table-model ranges,
+It consumes URI-backed `ITableModel` snapshots plus service-projected view source data, table-model ranges,
 settings for visual display preferences, and resource-backed `TableSource`
 open intents. It does not own import,
 table-model production, template execution, plot/chart models, or canonical
 Session records.
 
 `TableSource.resource` is the primary open identity for file -> table preview,
-matching the upstream file -> editor shape. `TableSource.sourceKey`, when
-present, is raw-table provenance or sheet disambiguation; it must not replace
-the URI identity for resource opens. `ITableService.open(...)` rejects
-non-resource sources.
+matching the upstream file -> editor shape. `TableSource.sheetId`, when
+present, selects a sheet inside that resource. `ITableService.open(...)`
+rejects non-resource sources.
 
 Use the common helpers from `services/table/common/table.ts` when normalizing,
-comparing, or keying `TableSource` values. Do not duplicate source-key trimming
-or equality rules in service/view files.
+comparing, or keying `TableSource` values. URI-backed table view/cache/storage
+keys should use `toTableSheetKey` from `resource + sheetId`. Do not duplicate
+sheet-key derivation rules in service/view files.
 
 ## Core Files
 
 | File | Responsibility |
 | --- | --- |
-| `services/table/common/table.ts` | service contract, model contracts, source key helpers. |
-| `services/table/common/model.ts` | URI-backed `ITableModel` content model, ranges, selection value helpers, decorations, snapshots, and version events; service-local, not Session. |
+| `services/table/common/table.ts` | service contract, model contracts, URI-backed sheet-key helper, and table source normalization helpers. |
+| `services/table/common/model.ts` | URI-backed `ITableModel` content model, ranges, selection value helpers, decorations, resource/formatted content snapshots, `defaultSheetId`, and version events; service-local, not Session. Model snapshots do not own view projection or source-key identity. |
 | `services/table/common/resolverService.ts` | URI -> `ITableModel` reference service contract, following upstream resolver service shape. |
-| `services/table/common/parsers.ts` | CSV/TSV/XLSX text/bytes -> physical table structure snapshots for `ITableModel` content and sheets. |
-| `services/tablemodeResolver/common/tableModelResolverService.ts` | `ITableModelService` implementation: URI -> `ITableModel` reference, support check, reference/cache entry, content-provider/file-backed dispatch, and reference-counted cache release. |
+| `services/table/common/tableModelResolverService.ts` | `ITableModelService` implementation: URI -> `ITableModel` reference, support check, reference/cache entry, content-provider/file-backed dispatch, and reference-counted cache release. |
+| `services/table/common/tableFormatRegistry.ts` | known `TableFormatId` registrations, materialization capability, and default extension metadata. |
+| `services/table/common/tableFormatAssociations.ts` | resource/name/extension association helpers for table format resolution. |
+| `services/table/common/tableFormatService.ts` | table format policy and resource/name support checks; owns CSV/TSV/XLS/XLSX classification and CSV/TSV/XLSX materialization capability, not URI scheme, read encoding, or languageId. |
+| `services/table/common/tableReadBuffer.ts` | table-owned text/byte read buffer contracts between tablefile reader and parser. |
+| `services/table/common/tableStructureParser.ts` | CSV/TSV/XLSX `TableReadBuffer` -> physical table structure snapshots for `ITableModel` content and sheets. |
 | `services/tablefile/common/tablefiles.ts` | `ITableFileService` contract for the file-backed table working-copy branch. |
-| `services/tablefile/common/tableFileFormat.ts` | table file format policy and resource/name support checks; owns CSV/TSV/XLS/XLSX support, not URI scheme, read encoding, or languageId. |
+| `services/tablefile/common/tableFileReader.ts` | URI-backed table file reader; consumes `TableFormatId` policy and encoding helpers to produce `TableReadBuffer`. |
 | `services/tablefile/browser/browserTableFileService.ts` | browser DI registration for the file-backed table working-copy service. |
 | `services/tablefile/browser/tableFileService.ts` | file-backed table resolve service: validates table file support, chooses read encoding, and delegates cached file editor models to the manager. |
 | `services/tablefile/common/encoding.ts` | table file read encoding, base64/utf8 byte decoding, and mime helpers. |
-| `services/tablefile/common/tableFileEditorModel.ts` | URI-backed `TableFileEditorModel`: file working-copy lifecycle, file-backed read/preview/sourceVersion flow, and updates to the associated `ITableModel`. |
+| `services/tablefile/common/tableFileEditorModel.ts` | URI-backed `TableFileEditorModel`: file working-copy lifecycle, file-backed read/sourceVersion flow, and updates to the associated `ITableModel`. |
 | `common/tableColumnLayout.ts` | width policy and storage serialization. |
 | `common/tableDisplayProfile.ts` / `numericFormat.ts` | display profile and numeric formatting helpers. |
 | `services/tablefile/common/tableFileEditorModelManager.ts` | file-backed table model manager: cache/reuse, reload/remove, pending resolve de-duplication, and model change events. |
@@ -74,19 +78,22 @@ unless they become an independent service boundary.
 
 ## Resource Format Boundary
 
-Treat `.csv`, `.tsv`, `.xls`, and `.xlsx` as `TableFileFormat` values. They are
+Treat `.csv`, `.tsv`, `.xls`, and `.xlsx` as `TableFormatId` values. They are
 not URI schemes, text `languageId`s, or standalone encodings.
+`.xls` is a known table format id but is not considered handleable until a
+BIFF/OLE parser is available; ordinary import/open support currently includes
+CSV, TSV, and XLSX only.
 
 ```txt
 URI scheme -> resource origin/provider, such as file: or table-memory:
-TableFileFormat -> table content format, such as csv, tsv, xls, xlsx
+TableFormatId -> table content format, such as csv, tsv, xls, xlsx
 encoding/read mode -> file read strategy, such as utf8 or base64
 languageId -> text editor grammar identity; not used for table support checks
 ```
 
 `TableModelResolverService` may dispatch by scheme/provider to decide how a
 resource is obtained, but table support and parser choice must flow through
-`TableFileFormatService`. `.txt` is unsupported unless that format policy is
+`TableFormatService`. `.txt` is unsupported unless that format policy is
 explicitly changed.
 
 ## Flow
@@ -94,12 +101,13 @@ explicitly changed.
 ```txt
 Session/settings/command/search bridge
   -> ITableService.open(source) / reveal / select
-  -> resource sources resolve through ITableModelService / tablemodeResolver/common/tableModelResolverService by URI
+  -> resource sources resolve through ITableModelService / services/table/common/tableModelResolverService by URI
   -> tableModelResolverService resolves provider-backed virtual resources or delegates file-backed resources to tablefile/browser/tableFileService
-  -> tableFileService validates table file support, chooses read encoding, and delegates to tableFileEditorModelManager
+  -> tableFormatService validates table file support before tableFileService chooses read encoding and delegates to tableFileEditorModelManager
   -> tableFileEditorModelManager resolves/reloads cached TableFileEditorModel instances
-  -> TableFileEditorModel owns file watch/stat, dirty/save/revert, orphan/conflict state, sourceVersion, reads resource bytes/text through tablefile encoding helpers, and delegates CSV/TSV/XLSX physical table structure parsing to parsers.ts
-  -> ITableModel snapshot owns parsed CSV/TSV/XLSX content and sheet content
+  -> TableFileEditorModel owns file watch, dirty/save/revert, orphan/conflict state, and sourceVersion; it reads resources through tableFileReader into TableReadBuffer and delegates CSV/TSV/XLSX physical table structure parsing to tableStructureParser.ts
+  -> ITableModel snapshot owns parsed CSV/TSV/XLSX content, defaultSheetId, and sheet content
+  -> tableService/tableViewModel derives migration preview projection from TableModelSnapshot without pushing it into TableModelResolvedContent
   -> tableViewModel reads resource-backed ITableModel content without converting the source identity into a raw fileId
   -> TableController consumes view input
   -> TableWidget adapts table state to base table widget renderers
@@ -177,7 +185,7 @@ Keep domain behavior out of the base table:
   source lifecycle stay in the table feature owner;
 - zoom controls, commands, and persistence policy may be feature-specific, but
   they should drive the base table zoom API instead of duplicating zoom state;
-- column width persistence and source-key scoping stay in `ITableService` /
+- column width persistence and sheet-key scoping stay in `ITableService` /
   the table feature owner; feature widgets should subscribe to base resize
   facts and call their own width owner APIs;
 - selection/focus/highlight can use base geometry helpers, but persistence and

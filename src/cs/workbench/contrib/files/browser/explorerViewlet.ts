@@ -68,8 +68,8 @@ import {
   type TableSource,
 } from "src/cs/workbench/services/table/common/table";
 import {
-  tableFileFormatService,
-} from "src/cs/workbench/services/tablefile/common/tableFileFormat";
+  tableFormatService,
+} from "src/cs/workbench/services/table/common/tableFormatService";
 import { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import { IAppearanceService } from "src/cs/workbench/services/appearance/common/appearance";
 import {
@@ -1293,7 +1293,7 @@ function createTableSourceFromExplorerFile(
 
   const tablePath = getExplorerFileTablePath(file);
   const normalizedCsvPath = normalizePathValue(file?.normalizedCsvPath);
-  const sheetId = tablePath !== normalizedCsvPath && tableFileFormatService.isExcel(resource)
+  const sheetId = tablePath !== normalizedCsvPath && tableFormatService.isExcel(resource)
     ? normalizeSourceKey(file?.sheetId)
     : null;
   const sourceKey = normalizeSourceKey(file?.sourceKey);
@@ -1333,7 +1333,7 @@ function assertSupportedExplorerImportEntries(
       ...getImportedTableFileNameCandidates(file),
       entryPaths.get(normalizeFileId(file.fileId) ?? "") ?? "",
     ];
-    if (!candidates.some(candidate => tableFileFormatService.canHandle(candidate))) {
+    if (!candidates.some(candidate => tableFormatService.canHandle(candidate))) {
       throw new Error(`Unsupported table file: ${candidates[0] || "Unknown file"}`);
     }
   }

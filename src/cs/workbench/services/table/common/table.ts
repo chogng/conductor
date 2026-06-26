@@ -70,14 +70,13 @@ type TableHighlight = {
 export type TableSource = {
 	readonly resource?: URI | null;
 	readonly sheetId?: string | null;
-	readonly sourceKey?: string | null;
 };
 
 type TableFile = {
 	fileName: string;
 	sheetId?: string | null;
+	sheetKey?: string | null;
 	sheetName?: string | null;
-	sourceKey?: string;
 	sourceVersion?: number;
 	rawTableHealth?: "ok" | "suspect" | "decodeFailed" | "parseFailed" | "unsupported" | "empty";
 	rawTableHealthMessage?: string | null;
@@ -118,7 +117,7 @@ export type TableRowsVersionChangeEvent = {
 export type TableState = {
 	readonly selectedSheetId?: string | null;
 	readonly source?: TableSource | null;
-	readonly sourceKey?: string | null;
+	readonly sheetKey?: string | null;
 	readonly fileName: string;
 	readonly file: TableFile | null;
 	readonly loadState: TableLoadState;
@@ -130,11 +129,11 @@ export type TableViewModel = {
 	cancelPendingRowRequests: () => void;
 	clearState: (options?: { clearSelection?: boolean }) => void;
 	ensureCells: (
-		sourceKey: string,
+		sheetKey: string,
 		cells: TableCellReadRequest[],
 	) => Promise<void>;
 	ensureRows: (
-		sourceKey: string,
+		sheetKey: string,
 		startRow: number,
 		endRow: number,
 	) => Promise<void>;
@@ -186,14 +185,13 @@ export type TableViewInput = {
 export const getTableSourceIdentityKey = (
 	source: TableSource | null | undefined,
 ): string | null => {
-	return getTableSourceResourceKey(source) ?? getTableSourceRawKey(source);
+	return getTableSourceResourceKey(source);
 };
 
 export const normalizeTableSource = (
 	source: TableSource | null | undefined,
 ): TableSource | null => {
 	const resource = source?.resource ?? null;
-	const sourceKey = getTableSourceRawKey(source);
 	if (!resource) {
 		return null;
 	}
@@ -204,7 +202,6 @@ export const normalizeTableSource = (
 	return {
 		resource,
 		sheetId,
-		...(sourceKey ? { sourceKey } : {}),
 	};
 };
 
@@ -220,34 +217,17 @@ export const areTableSourcesEqual = (
 
 	const currentResourceKey = getTableSourceResourceKey(currentSource);
 	const nextResourceKey = getTableSourceResourceKey(nextSource);
-	if (currentResourceKey || nextResourceKey) {
-		return currentResourceKey === nextResourceKey &&
-			getTableSourceRawKey(currentSource) === getTableSourceRawKey(nextSource) &&
-			currentSource.sheetId === nextSource.sheetId;
-	}
-
-	const currentSourceKey = getTableSourceIdentityKey(currentSource);
-	const nextSourceKey = getTableSourceIdentityKey(nextSource);
-	if (currentSourceKey || nextSourceKey) {
-		return currentSourceKey === nextSourceKey &&
-			currentSource.sheetId === nextSource.sheetId;
-	}
-
-	return currentSource.sheetId === nextSource.sheetId;
+	return currentResourceKey === nextResourceKey &&
+		currentSource.sheetId === nextSource.sheetId;
 };
 
-export const toTableSourceKey = (source: TableSource): string => {
+export const toTableSheetKey = (source: TableSource): string => {
 	const resourceKey = getTableSourceResourceKey(source);
 	if (resourceKey) {
 		const sheetId = typeof source.sheetId === "string" && source.sheetId
 			? encodeURIComponent(source.sheetId)
 			: "";
 		return sheetId ? `${resourceKey}::${sheetId}` : resourceKey;
-	}
-
-	const sourceKey = getTableSourceIdentityKey(source);
-	if (sourceKey) {
-		return sourceKey;
 	}
 
 	return "";
@@ -258,13 +238,6 @@ const getTableSourceResourceKey = (
 ): string | null => {
 	const resourceKey = source?.resource?.toString()?.trim() ?? "";
 	return resourceKey || null;
-};
-
-const getTableSourceRawKey = (
-	source: TableSource | null | undefined,
-): string | null => {
-	const sourceKey = typeof source?.sourceKey === "string" ? source.sourceKey.trim() : "";
-	return sourceKey || null;
 };
 
 export const TABLE_COPY_MAX_CELLS = 100_000;
@@ -278,7 +251,7 @@ export interface ITableService {
 	adjustColumnDisplayScale(colIndex: number, deltaExponent: number): boolean;
 	clearSelection(): boolean;
 	clearHighlight(): void;
-	getColumnWidths(sourceKey: string | null | undefined): readonly TableColumnWidth[];
+	getColumnWidths(sheetKey: string | null | undefined): readonly TableColumnWidth[];
 	getPreviewRow(rowIndex: number): unknown[] | null;
 	getSelection(): TableSelection;
 	getSelectionText(maxCellCount?: number): Promise<TableSelectionTextResult>;
@@ -290,7 +263,7 @@ export interface ITableService {
 	select(target: TableSelectionTarget | null, reveal?: TableRevealMode): boolean;
 	selectAllColumns(): boolean;
 	storeColumnWidths(
-		sourceKey: string | null | undefined,
+		sheetKey: string | null | undefined,
 		widths: readonly TableColumnWidth[],
 	): void;
 }

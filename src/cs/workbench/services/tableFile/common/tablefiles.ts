@@ -9,7 +9,6 @@ import type { IReadFileEncoding } from "src/cs/platform/files/common/files";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type {
 	ITableModel,
-	TableModelPreviewInput,
 } from "src/cs/workbench/services/table/common/model";
 import type { TableSource } from "src/cs/workbench/services/table/common/table";
 import type {
@@ -34,7 +33,6 @@ export interface ITableFileService extends IDisposable {
 	canHandleResource(resource: URI): boolean;
 	getReadEncoding(resource: URI): IReadFileEncoding;
 	get(resource: URI | null | undefined): ITableModel | undefined;
-	getPreviewInput(source: TableSource | null | undefined): TableModelPreviewInput | null;
 	getOrCreateFileEditorModel(
 		resource: URI,
 		source?: TableSource | null,

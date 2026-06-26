@@ -5,27 +5,26 @@
 import assert from "assert";
 
 import { URI } from "src/cs/base/common/uri";
-import {
-	TableFileFormatService,
-} from "src/cs/workbench/services/tablefile/common/tableFileFormat";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import { TableFormatService } from "src/cs/workbench/services/table/common/tableFormatService";
 
-suite("workbench/services/tablefile/test/common/tableFileFormat", () => {
+suite("workbench/services/table/test/common/tableFormatService", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test("recognizes supported table resources by URI or name", () => {
-		const service = new TableFileFormatService();
+		const service = new TableFormatService();
 
 		assert.equal(service.canHandle(URI.file("/data/transfer.csv")), true);
 		assert.equal(service.canHandle(URI.file("/data/transfer.tsv")), true);
-		assert.equal(service.canHandle(URI.file("/data/workbook.xls")), true);
 		assert.equal(service.canHandle(URI.file("/data/workbook.xlsx")), true);
 		assert.equal(service.canHandle("TRANSFER.CSV"), true);
 	});
 
 	test("rejects unsupported and extension-only resources", () => {
-		const service = new TableFileFormatService();
+		const service = new TableFormatService();
 
+		assert.equal(service.getFormat(URI.file("/data/workbook.xls")), "xls");
+		assert.equal(service.canHandle(URI.file("/data/workbook.xls")), false);
 		assert.equal(service.canHandle(URI.file("/data/notes.txt")), false);
 		assert.equal(service.canHandle(URI.file("/data/image.png")), false);
 		assert.equal(service.canHandle(URI.file("/data/.csv")), false);
@@ -33,7 +32,7 @@ suite("workbench/services/tablefile/test/common/tableFileFormat", () => {
 	});
 
 	test("classifies delimited text and Excel formats", () => {
-		const service = new TableFileFormatService();
+		const service = new TableFormatService();
 
 		assert.equal(service.isDelimitedText("transfer.csv"), true);
 		assert.equal(service.isDelimitedText("transfer.tsv"), true);

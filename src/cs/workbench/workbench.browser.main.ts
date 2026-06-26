@@ -49,7 +49,7 @@ import "src/cs/workbench/services/themes/browser/themeService";
 import "src/cs/workbench/services/thumbnail/browser/thumbnailService";
 import "src/cs/workbench/services/views/browser/viewDescriptorService";
 import "src/cs/workbench/services/views/browser/viewsService";
-import "src/cs/workbench/services/tablemodeResolver/common/tableModelResolverService";
+import "src/cs/workbench/services/table/common/tableModelResolverService";
 import "src/cs/workbench/services/table/browser/tableService";
 
 //#endregion

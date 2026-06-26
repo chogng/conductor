@@ -16,7 +16,7 @@ import {
 } from "src/cs/platform/files/common/files";
 import { TableFileService } from "src/cs/workbench/services/tablefile/browser/tableFileService";
 import { TableFileEditorModelManager } from "src/cs/workbench/services/tablefile/common/tableFileEditorModelManager";
-import { TableModelResolverService } from "src/cs/workbench/services/tablemodeResolver/common/tableModelResolverService";
+import { TableModelResolverService } from "src/cs/workbench/services/table/common/tableModelResolverService";
 import {
 	TableModel,
 	TableModelRange,
@@ -33,7 +33,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 
 	test("exposes core content, version, range, and selection helpers", async () => {
 		const resource = URI.file("/workspace/data/core.csv");
-		const model = store.add(new TableModel(resource, resource.toString()));
+		const model = store.add(new TableModel(resource));
 		const contentEvents: { readonly sourceVersion: number; readonly version: number }[] = [];
 		store.add(model.onDidChangeContent(event => {
 			contentEvents.push({
@@ -50,7 +50,6 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 					rowCount: 2,
 					rows: [["A", "B", "C"], ["1", "2", "3"]],
 				},
-				previewInput: null,
 				sourceVersion: 12,
 			}),
 		});
@@ -115,7 +114,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 
 	test("tracks table model decorations through owner-scoped deltas", async () => {
 		const resource = URI.file("/workspace/data/decorations.csv");
-		const model = store.add(new TableModel(resource, resource.toString()));
+		const model = store.add(new TableModel(resource));
 		await model.resolve({
 			resolveContent: async () => ({
 				content: {
@@ -124,7 +123,6 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 					rowCount: 2,
 					rows: [["A", "B", "C"], ["1", "2", "3"]],
 				},
-				previewInput: null,
 				sourceVersion: 12,
 			}),
 		});
@@ -230,29 +228,13 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 				rowCount: 2,
 				rows: [["Vg", "Id"], ["0", "1"]],
 			},
+			defaultSheetId: resource.toString(),
 			format: "csv",
 			loadState: {
 				message: "",
 				state: "ready",
 			},
 			resource,
-			previewInput: {
-				file: reference.object.getSnapshot().previewInput?.file,
-				columnCount: 2,
-				fileName: "transfer.csv",
-				maxCellLengths: [2, 2],
-				relativePath: "transfer.csv",
-				resource,
-				rowCount: 2,
-				sourcePath: resource.fsPath,
-				sourceVersion: 42,
-				tableModelContent: {
-					columnCount: 2,
-					maxCellLengths: [2, 2],
-					rowCount: 2,
-					rows: [["Vg", "Id"], ["0", "1"]],
-				},
-			},
 			sheets: [{
 				content: {
 					columnCount: 2,
@@ -261,10 +243,9 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 					rows: [["Vg", "Id"], ["0", "1"]],
 				},
 				sheetId: resource.toString(),
+				sheetKey: resource.toString(),
 				sheetName: null,
-				sourceKey: resource.toString(),
 			}],
-			sourceKey: resource.toString(),
 			sourceVersion: 42,
 			version: 1,
 		});
@@ -290,12 +271,10 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 			canHandle: service.canHandleResource(resource),
 			isSameModel: first.object === second.object,
 			readCount,
-			sourceKey: first.object.sourceKey,
 		}, {
 			canHandle: true,
 			isSameModel: true,
 			readCount: 1,
-			sourceKey: resource.toString(),
 		});
 	});
 
@@ -361,7 +340,6 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 			content: reference.object.getSnapshot().content,
 			isCached: service.get(resource) === reference.object,
 			resolveCount,
-			sourceKey: reference.object.sourceKey,
 			sourceVersion: reference.object.getSnapshot().sourceVersion,
 		}, {
 			canHandle: true,
@@ -373,7 +351,6 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 			},
 			isCached: true,
 			resolveCount: 1,
-			sourceKey: resource.toString(),
 			sourceVersion: 7,
 		});
 
@@ -666,27 +643,28 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		const reference = await service.createModelReference(resource);
 		store.add(reference);
 
+		assert.equal(reference.object.getSnapshot().defaultSheetId, "1:Forward");
 		assert.deepStrictEqual(reference.object.getSnapshot().sheets.map(sheet => ({
 			columnCount: sheet.content?.columnCount,
 			rowCount: sheet.content?.rowCount,
 			sheetId: sheet.sheetId,
+			sheetKey: sheet.sheetKey,
 			sheetName: sheet.sheetName,
-			sourceKey: sheet.sourceKey,
 		})), [{
 			columnCount: 2,
 			rowCount: 2,
 			sheetId: "1:Forward",
+			sheetKey: `${resource.toString()}::1%3AForward`,
 			sheetName: "Forward",
-			sourceKey: `${resource.toString()}::1%3AForward`,
 		}, {
 			columnCount: 2,
 			rowCount: 2,
 			sheetId: "2:Reverse",
+			sheetKey: `${resource.toString()}::2%3AReverse`,
 			sheetName: "Reverse",
-			sourceKey: `${resource.toString()}::2%3AReverse`,
 		}]);
 		assert.equal(
-			service.getPreviewInput({ resource, sheetId: "2:Reverse" })?.sheetName,
+			reference.object.getSnapshot().sheets.find(sheet => sheet.sheetId === "2:Reverse")?.sheetName,
 			"Reverse",
 		);
 		assert.equal(readEncoding, "base64");

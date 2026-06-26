@@ -18,7 +18,7 @@ import {
   TableService,
 } from "src/cs/workbench/services/table/browser/tableService";
 import { TableFileService } from "src/cs/workbench/services/tablefile/browser/tableFileService";
-import { TableModelResolverService } from "src/cs/workbench/services/tablemodeResolver/common/tableModelResolverService";
+import { TableModelResolverService } from "src/cs/workbench/services/table/common/tableModelResolverService";
 import {
   areTableSelectionsEqual,
   createTableViewModelInScope,
@@ -51,7 +51,7 @@ suite("workbench/services/table/browser/tableService", () => {
     }
 
     assert.equal(service.getViewInput()?.tableState.source?.resource?.toString(), resource.toString());
-    assert.equal(service.getViewInput()?.tableState.file?.sourceKey, resource.toString());
+    assert.equal(service.getViewInput()?.tableState.file?.sheetKey, resource.toString());
     assert.deepStrictEqual(service.getPreviewRow(0), ["A", "B"]);
     assert.deepStrictEqual(service.getPreviewRow(1), ["1", "2"]);
   });
@@ -81,6 +81,7 @@ suite("workbench/services/table/browser/tableService", () => {
     }
 
     assert.equal(service.getViewInput()?.tableState.selectedSheetId, "2:Reverse");
+    assert.equal(service.getViewInput()?.tableState.file?.sheetKey, `${resource.toString()}::2%3AReverse`);
     assert.equal(service.getViewInput()?.tableState.file?.sheetName, "Reverse");
     assert.deepStrictEqual(service.getPreviewRow(0), ["Vd", "Id"]);
     assert.deepStrictEqual(service.getPreviewRow(1), ["1", "2"]);
@@ -150,7 +151,7 @@ suite("workbench/services/table/browser/tableService", () => {
     const events: string[] = [];
     const resource = URI.file("/workspace/data/selection.csv");
     const model = createModel({
-      previewInputs: [createResourcePreviewInput(resource, {
+      previewSources: [createResourceSourceInput(resource, {
         rows: [["A"]],
         sheetId: "sheet-a",
       })],
@@ -183,7 +184,7 @@ suite("workbench/services/table/browser/tableService", () => {
   test("selects all columns through table model command state", () => {
     const resource = URI.file("/workspace/data/all-columns.csv");
     const model = createModel({
-      previewInputs: [createResourcePreviewInput(resource, {
+      previewSources: [createResourceSourceInput(resource, {
         rows: [["A", "B", "C"], ["1", "2", "3"]],
       })],
       source: { resource },
@@ -214,7 +215,7 @@ suite("workbench/services/table/browser/tableService", () => {
   test("ignores non-resource table sources", () => {
     const { service } = createTableServiceFixture();
 
-    service.open({ sourceKey: "source-key-b" });
+    service.open({});
 
     const state = service.getViewInput()?.tableState;
     assert.equal(state?.source, null);
@@ -327,7 +328,7 @@ suite("workbench/services/table/browser/tableService", () => {
     service.dispose();
   });
 
-  test("does not carry preview lifecycle when the selected resource has no preview input", () => {
+  test("does not carry preview lifecycle when the selected resource has no source data", () => {
     const scope = store.add(new TableStateScope());
     const resourceA = URI.file("/workspace/data/a.csv");
     const resourceB = URI.file("/workspace/data/b.csv");
@@ -337,9 +338,9 @@ suite("workbench/services/table/browser/tableService", () => {
         fileName: "Raw A.csv",
         maxCellLengths: [1, 1],
         rowCount: 2,
-        sourceKey: resourceA.toString(),
+        sheetKey: resourceA.toString(),
       },
-      previewInputs: [createResourcePreviewInput(resourceA, {
+      previewSources: [createResourceSourceInput(resourceA, {
         fileName: "Raw A.csv",
         rows: [["A", "B"], ["1", "2"]],
       })],
@@ -347,7 +348,7 @@ suite("workbench/services/table/browser/tableService", () => {
     });
 
     const model = createTableViewModelInScope(scope, {
-      previewInputs: [],
+      previewSources: [],
       source: { resource: resourceB },
     });
 
@@ -363,10 +364,10 @@ suite("workbench/services/table/browser/tableService", () => {
         fileName: "Raw.csv",
         maxCellLengths: [1, 1],
         rowCount: 2,
-        sourceKey: resource.toString(),
+        sheetKey: resource.toString(),
         sourceVersion: 1,
       },
-      previewInputs: [createResourcePreviewInput(resource, {
+      previewSources: [createResourceSourceInput(resource, {
         rows: [["A", "B"], ["3", "4"]],
         sourceVersion: 2,
       })],
@@ -431,21 +432,21 @@ suite("workbench/services/table/browser/tableService", () => {
       storageService,
     });
 
-    assert.deepEqual(service.getColumnWidths("source-key-a"), []);
+    assert.deepEqual(service.getColumnWidths("sheet-key-a"), []);
 
-    service.storeColumnWidths("source-key-a", [
+    service.storeColumnWidths("sheet-key-a", [
       { colIndex: 2, width: 243.6 },
       { colIndex: 1, width: -12 },
     ]);
 
-    assert.deepEqual(service.getColumnWidths("source-key-a"), [
+    assert.deepEqual(service.getColumnWidths("sheet-key-a"), [
       { colIndex: 1, width: 0 },
       { colIndex: 2, width: 244 },
     ]);
 
-    service.storeColumnWidths("source-key-a", []);
+    service.storeColumnWidths("sheet-key-a", []);
 
-    assert.deepEqual(service.getColumnWidths("source-key-a"), []);
+    assert.deepEqual(service.getColumnWidths("sheet-key-a"), []);
     service.dispose();
     storageService.dispose();
   });
@@ -786,7 +787,7 @@ const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
   return globalThis.btoa(binary);
 };
 
-const createResourcePreviewInput = (
+const createResourceSourceInput = (
   resource: URI,
   {
     fileName = "Raw.csv",
@@ -802,7 +803,7 @@ const createResourcePreviewInput = (
 ) => {
   const content = createTableModelContent(rows);
   return {
-    input: {
+    data: {
       columnCount: content.columnCount,
       fileName,
       maxCellLengths: content.maxCellLengths,

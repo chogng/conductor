@@ -1,4 +1,4 @@
-# Files 导入映射说明
+# 相关链路映射说明
 
 这份说明记录上游 VS Code “文件 -> 文本模型/语言识别” 思路如何映射到
 Conductor 的 Files / Explorer 表格导入链路。

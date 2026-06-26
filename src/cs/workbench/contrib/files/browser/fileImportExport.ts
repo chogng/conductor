@@ -46,9 +46,9 @@ import {
   type ImportFileData,
 } from "src/cs/workbench/services/files/common/files";
 import {
-  tableFileFormatService,
-  type TableFileFormatService,
-} from "src/cs/workbench/services/tablefile/common/tableFileFormat";
+  tableFormatService,
+  type TableFormatService,
+} from "src/cs/workbench/services/table/common/tableFormatService";
 import {
   markTemplateApplyPerformanceTrace,
 } from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
@@ -1002,7 +1002,7 @@ export const collectPendingImportFiles = (
       continue;
     }
 
-    if (!tableFileFormatService.canHandle(sourceName)) {
+    if (!tableFormatService.canHandle(sourceName)) {
       hasAnyUnsupportedFiles = true;
       unsupportedCount += 1;
       finishFilePerf({ skipped: "unsupported" });
@@ -1148,7 +1148,7 @@ const resolvePendingImportResource = async (
   const existingResource = pendingImportFile.resource
     ? URI.revive(pendingImportFile.resource)
     : null;
-  if (existingResource && tableFileFormatService.canHandle(existingResource)) {
+  if (existingResource && tableFormatService.canHandle(existingResource)) {
     return {
       resource: existingResource,
       sourcePath: getTableResourcePath(existingResource),
@@ -1480,7 +1480,7 @@ export const buildImportErrorMessage = ({
       localize(
         "files.import.unsupportedFilesSkipped",
         "Skipped unsupported files in the selected folder. Supported: {extensions}",
-        { extensions: tableFileFormatService.getSupportedExtensions().join(", ") },
+        { extensions: tableFormatService.getSupportedExtensions().join(", ") },
       ),
     );
   }
@@ -1983,7 +1983,7 @@ export const collectDroppedFiles = async (
     }
 
     if (item.file) {
-      if (!tableFileFormatService.canHandle(item.file.name)) {
+      if (!tableFormatService.canHandle(item.file.name)) {
         continue;
       }
 
@@ -1998,7 +1998,7 @@ export const collectDroppedFiles = async (
     getDroppedFileKey(file, relativePath)
   ));
   for (const file of Array.from(dataTransfer.files)) {
-    if (!tableFileFormatService.canHandle(file.name)) {
+    if (!tableFormatService.canHandle(file.name)) {
       continue;
     }
 
@@ -2064,7 +2064,7 @@ async function collectFileSystemHandleFiles(
   const relativePath = parentPath ? `${parentPath}/${handle.name}` : handle.name;
 
   if (WebFileSystemAccess.isFileSystemFileHandle(handle)) {
-    if (!tableFileFormatService.canHandle(handle.name)) {
+    if (!tableFormatService.canHandle(handle.name)) {
       return;
     }
 
@@ -2135,7 +2135,7 @@ async function collectWebkitEntryFiles(
   const relativePath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
 
   if (entry.isFile) {
-    if (!tableFileFormatService.canHandle(entry.name)) {
+    if (!tableFormatService.canHandle(entry.name)) {
       return;
     }
 
@@ -2225,10 +2225,10 @@ function getPathBaseName(path: string): string {
 }
 
 function getFileMimeType(fileName: string): string {
-  if (tableFileFormatService.isExcel(fileName)) {
+  if (tableFormatService.isExcel(fileName)) {
     return "application/octet-stream";
   }
-  if (tableFileFormatService.isTsv(fileName)) {
+  if (tableFormatService.isTsv(fileName)) {
     return "text/tab-separated-values;charset=utf-8";
   }
 
@@ -2281,7 +2281,7 @@ export async function collectFolderImportFilesIncrementally(
 export class TableResourceImporter {
   public constructor(
     private readonly filesService: IFileService,
-    private readonly formatService: TableFileFormatService = tableFileFormatService,
+    private readonly formatService: TableFormatService = tableFormatService,
   ) {}
 
   public async importFolder(
@@ -2333,7 +2333,7 @@ async function collectFolderFilesAt(
   readFailures: FolderFileReadFailure[],
   depth: number,
   filesService: IFileService,
-  formatService: TableFileFormatService,
+  formatService: TableFormatService,
   options: CollectFolderImportFilesOptions,
   canUseNativePath: boolean,
 ): Promise<void> {
@@ -2464,8 +2464,8 @@ function compareFolderFileStatTasks(
   first: FolderFileStatTask,
   second: FolderFileStatTask,
 ): number {
-  const firstIsExcel = tableFileFormatService.isExcel(first.name);
-  const secondIsExcel = tableFileFormatService.isExcel(second.name);
+  const firstIsExcel = tableFormatService.isExcel(first.name);
+  const secondIsExcel = tableFormatService.isExcel(second.name);
   if (firstIsExcel !== secondIsExcel) {
     return firstIsExcel ? 1 : -1;
   }
@@ -2638,7 +2638,7 @@ async function readFileContent(
 ): Promise<IFileContent> {
   for (let attempt = 0; attempt < FILE_SOURCE_READ_ATTEMPTS; attempt += 1) {
     const content = await filesService.readFile(resource, {
-      encoding: tableFileFormatService.isExcel(name) ? "base64" : "utf8",
+      encoding: tableFormatService.isExcel(name) ? "base64" : "utf8",
     });
     if (isFileContent(content)) {
       return content;

@@ -86,7 +86,7 @@ series, template decisions, or table-model confidence.
 | `ChartViewInput` | `IChartService` | service-local snapshot | source owner changes; event announces snapshot changed only |
 | `TableState` | `ITableService` | service state | source, row cache, selection/highlight/reveal changes |
 | `TableSelection` | active `TableWidget` + `ITableService` snapshot | service-local | widget interaction or external reveal/select |
-| `TableColumnWidth` | `ITableService` + storage | workspace view state | table source key or explicit width reset |
+| `TableColumnWidth` | `ITableService` + storage | workspace view state | table sheet key or explicit width reset |
 | `ExplorerState` | `IExplorerService` | service state | Explorer selection/layout/expansion/source workflow changes |
 | `ExplorerResource` / `ExplorerFileEntry` | Explorer projection | derived view input | session, source workflow, badge/template/chart state projections |
 | `UserTemplateSnapshot` | `IUserTemplateService` | service-local snapshot | native user-template store version, scope versions, and effective fingerprint. |

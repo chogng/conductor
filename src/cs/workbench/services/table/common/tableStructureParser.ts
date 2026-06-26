@@ -6,21 +6,26 @@ import JSZip from "jszip";
 import Papa from "papaparse";
 
 import type { URI } from "src/cs/base/common/uri";
-import { toTableSourceKey } from "src/cs/workbench/services/table/common/table";
+import {
+	copyBytesToArrayBuffer,
+	readTableByteBuffer,
+	readTableTextBuffer,
+	type TableReadBuffer,
+} from "src/cs/workbench/services/table/common/tableReadBuffer";
+import { toTableSheetKey } from "src/cs/workbench/services/table/common/table";
 import {
   type TableModelContentSnapshot,
   type TableModelSheetSnapshot,
 } from "src/cs/workbench/services/table/common/model";
 import {
-  tableFileFormatService,
-  type TableFileFormat,
-} from "src/cs/workbench/services/tablefile/common/tableFileFormat";
+  type TableFormatId,
+} from "src/cs/workbench/services/table/common/tableFormatService";
 
 export type TableStructureParseInput = {
-  readonly bytes: ArrayBuffer;
+  readonly buffer: TableReadBuffer;
+  readonly format: TableFormatId;
   readonly resource: URI;
-  readonly sourceKey: string;
-  readonly text: string | null;
+  readonly defaultSheetKey: string;
 };
 
 export type ParsedTableStructure = {
@@ -29,39 +34,49 @@ export type ParsedTableStructure = {
 };
 
 export const parseTableStructure = async ({
-  bytes,
+  buffer,
+  defaultSheetKey,
+  format,
   resource,
-  sourceKey,
-  text,
 }: TableStructureParseInput): Promise<ParsedTableStructure> => {
-  const format = tableFileFormatService.getFormat(resource);
   if (format === "xls") {
     throw new Error("Legacy .xls table resources need native parser support.");
   }
 
   if (format === "xlsx") {
+    if (buffer.kind !== "bytes") {
+      throw new Error("The xlsx parser requires a byte table read buffer.");
+    }
+    const bytes = copyBytesToArrayBuffer(await readTableByteBuffer(buffer));
     return parseXlsxTableModelContent({
       bytes,
+      defaultSheetKey,
       resource,
-      sourceKey,
     });
   }
 
+  if (buffer.kind !== "text") {
+    return {
+      content: null,
+      sheets: [],
+    };
+  }
+  const text = await readTableTextBuffer(buffer);
   const content = createTableModelContentSnapshot(text, format);
   return {
     content,
     sheets: content ? [{
       content,
-      sheetId: sourceKey,
+      sheetId: defaultSheetKey,
+      sheetKey: defaultSheetKey,
       sheetName: null,
-      sourceKey,
     }] : [],
   };
 };
 
 const createTableModelContentSnapshot = (
   text: string | null,
-  format: TableFileFormat | null,
+  format: TableFormatId | null,
 ): TableModelContentSnapshot | null => {
   if (text === null || (format !== "csv" && format !== "tsv")) {
     return null;
@@ -92,12 +107,12 @@ const createTableModelContentSnapshot = (
 
 const parseXlsxTableModelContent = async ({
   bytes,
+  defaultSheetKey,
   resource,
-  sourceKey,
 }: {
   readonly bytes: ArrayBuffer;
+  readonly defaultSheetKey: string;
   readonly resource: URI;
-  readonly sourceKey: string;
 }): Promise<ParsedTableStructure> => {
   const workbook = await readXlsxWorkbook(bytes);
   const sheets: TableModelSheetSnapshot[] = [];
@@ -116,16 +131,16 @@ const parseXlsxTableModelContent = async ({
     sheets.push({
       content,
       sheetId,
+      sheetKey: toTableSheetKey({ resource, sheetId }),
       sheetName: sheet.name,
-      sourceKey: toTableSourceKey({ resource, sheetId }),
     });
   }
 
   const resolvedSheets = sheets.length ? sheets : [{
     content: createEmptyTableContent(),
-    sheetId: sourceKey,
+    sheetId: defaultSheetKey,
+    sheetKey: defaultSheetKey,
     sheetName: null,
-    sourceKey,
   }];
   return {
     content: resolvedSheets[0]?.content ?? null,

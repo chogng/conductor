@@ -15,12 +15,10 @@ import {
   type TableFileEditorModelResolveOptions,
 } from "src/cs/workbench/services/tablefile/common/tableFileEditorModel";
 import {
-  TableModel,
   type ITableModel,
-  type TableModelPreviewInput,
+  type TableModel,
 } from "src/cs/workbench/services/table/common/model";
 import {
-  toTableSourceKey,
   type TableSource,
 } from "src/cs/workbench/services/table/common/table";
 
@@ -49,13 +47,6 @@ export class TableFileEditorModelManager extends Disposable {
   public get(resource: URI | null | undefined): ITableModel | undefined {
     const key = getResourceKey(resource);
     return key ? this.fileEditorModels.get(key)?.model : undefined;
-  }
-
-  public getPreviewInput(source: TableSource | null | undefined): TableModelPreviewInput | null {
-    const model = this.get(source?.resource);
-    return model instanceof TableModel
-      ? model.getPreviewInput(source)
-      : model?.getSnapshot().previewInput ?? null;
   }
 
   public resolve(resource: URI, source?: TableSource | null): void {
@@ -133,7 +124,6 @@ export class TableFileEditorModelManager extends Disposable {
     if (!model) {
       model = this._register(new TableFileEditorModel(
         resource,
-        toTableSourceKey(source ?? { resource }),
         this.fileService,
       ));
       const createdModel = model;

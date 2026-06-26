@@ -31,6 +31,10 @@ import {
   ISettingsService,
   normalizeNumericDisplayMode,
 } from "src/cs/workbench/services/settings/common/settings";
+import type {
+  TableModelSheetSnapshot,
+  TableModelSnapshot,
+} from "src/cs/workbench/services/table/common/model";
 import {
   TableStateScope,
   areTableFilesEqual,
@@ -41,7 +45,8 @@ import {
   normalizeTableCell,
   normalizeTableSelection,
   type CreateTableViewModelWithScopeOptions,
-  type TableViewModelPreviewInput,
+  type TableViewModelSourceData,
+  type TableViewModelSourceInput,
 } from "src/cs/workbench/services/table/browser/tableViewModel";
 import { ITableModelService } from "src/cs/workbench/services/table/common/resolverService";
 
@@ -60,14 +65,14 @@ export { createTableViewModelWithScope } from "src/cs/workbench/services/table/b
 type TableCopyPlan = {
   readonly columnIndexes: readonly number[];
   readonly endRow: number;
-  readonly sourceKey: string;
+  readonly sheetKey: string;
   readonly startRow: number;
 };
 
 type TableTargetContext = {
   readonly columnCount: number;
   readonly file: TableFile;
-  readonly sourceKeys: ReadonlySet<string>;
+  readonly acceptedTargetKeys: ReadonlySet<string>;
   readonly rowCount: number;
   readonly sheetId: string | null;
 };
@@ -83,13 +88,13 @@ const getTableTargetContext = (tableViewModel: TableViewModel): TableTargetConte
 
   const rowCount = Math.max(0, Math.floor(Number(file.rowCount) || 0));
   const columnCount = Math.max(0, Math.floor(Number(file.columnCount) || 0));
-  const sourceKeys = new Set<string>();
+  const acceptedTargetKeys = new Set<string>();
   for (const value of [
-    file.sourceKey,
-    state.sourceKey,
+    file.sheetKey,
+    state.sheetKey,
   ]) {
     if (typeof value === "string" && value) {
-      sourceKeys.add(value);
+      acceptedTargetKeys.add(value);
     }
   }
 
@@ -98,7 +103,7 @@ const getTableTargetContext = (tableViewModel: TableViewModel): TableTargetConte
   return {
     columnCount,
     file,
-    sourceKeys,
+    acceptedTargetKeys,
     rowCount,
     sheetId,
   };
@@ -118,8 +123,8 @@ const acceptsTargetSource = (
   fileId: string | null | undefined,
 ): boolean =>
   !fileId ||
-  context.sourceKeys.size === 0 ||
-  context.sourceKeys.has(fileId);
+  context.acceptedTargetKeys.size === 0 ||
+  context.acceptedTargetKeys.has(fileId);
 
 const acceptsTargetSheet = (
   context: TableTargetContext,
@@ -284,8 +289,8 @@ const resolveTableCopyPlan = (tableViewModel: TableViewModel): TableCopyPlan | n
     return null;
   }
 
-  const sourceKey = context.file.sourceKey;
-  if (!sourceKey) {
+  const sheetKey = context.file.sheetKey;
+  if (!sheetKey) {
     return null;
   }
   const selection = tableViewModel.getSelection();
@@ -296,7 +301,7 @@ const resolveTableCopyPlan = (tableViewModel: TableViewModel): TableCopyPlan | n
     return {
       columnIndexes: createIndexRange(selectedRange.startCol, selectedRange.endCol),
       endRow: selectedRange.endRow,
-      sourceKey,
+      sheetKey,
       startRow: selectedRange.startRow,
     };
   }
@@ -308,7 +313,7 @@ const resolveTableCopyPlan = (tableViewModel: TableViewModel): TableCopyPlan | n
     return {
       columnIndexes: [activeCell.colIndex],
       endRow: activeCell.rowIndex,
-      sourceKey,
+      sheetKey,
       startRow: activeCell.rowIndex,
     };
   }
@@ -320,7 +325,7 @@ const resolveTableCopyPlan = (tableViewModel: TableViewModel): TableCopyPlan | n
     return {
       columnIndexes: selectedColumns,
       endRow: context.rowCount - 1,
-      sourceKey,
+      sheetKey,
       startRow: 0,
     };
   }
@@ -359,6 +364,86 @@ const formatTableCopyCell = (value: unknown): string => {
   return /[\t\r\n"]/.test(text)
     ? `"${text.replace(/"/g, "\"\"")}"`
     : text;
+};
+
+const createSourceDataFromModelSnapshot = (
+  snapshot: TableModelSnapshot | null,
+  source: TableSource,
+): TableViewModelSourceData | null => {
+  const resource = source.resource;
+  if (!snapshot || !resource) {
+    return null;
+  }
+
+  if (snapshot.loadState.state === "error") {
+    return {
+      fileName: getResourceFileName(resource),
+      rawTableHealth: "decodeFailed",
+      rawTableHealthMessage: snapshot.loadState.message,
+      relativePath: getResourceFileName(resource),
+      resource,
+      sourcePath: getResourcePath(resource),
+      sourceVersion: snapshot.sourceVersion,
+    };
+  }
+
+  if (snapshot.loadState.state !== "ready") {
+    return null;
+  }
+
+  const sheet = getSnapshotSheetForSource(snapshot, source);
+  const content = sheet?.content ?? snapshot.content;
+  if (!content) {
+    return null;
+  }
+
+  const fileName = getResourceFileName(resource);
+  return {
+    columnCount: content.columnCount,
+    fileName,
+    maxCellLengths: content.maxCellLengths,
+    relativePath: fileName,
+    resource,
+    rowCount: content.rowCount,
+    ...(sheet?.sheetId && (source.sheetId || sheet.sheetName) ? { sheetId: sheet.sheetId } : {}),
+    ...(sheet?.sheetName ? { sheetName: sheet.sheetName } : {}),
+    sourcePath: getResourcePath(resource),
+    sourceVersion: snapshot.sourceVersion,
+    tableModelContent: content,
+  };
+};
+
+const getSnapshotSheetForSource = (
+  snapshot: TableModelSnapshot,
+  source: TableSource,
+): TableModelSheetSnapshot | null => {
+  const sheetId = typeof source.sheetId === "string" && source.sheetId
+    ? source.sheetId
+    : null;
+  if (sheetId) {
+    return snapshot.sheets.find(sheet => sheet.sheetId === sheetId) ?? null;
+  }
+
+  return snapshot.sheets.find(sheet => sheet.sheetId === snapshot.defaultSheetId) ??
+    snapshot.sheets[0] ??
+    null;
+};
+
+const getResourceFileName = (resource: TableSource["resource"]): string => {
+  const path = String(resource?.path ?? "").replace(/\\/g, "/");
+  const index = path.lastIndexOf("/");
+  const name = index >= 0 ? path.slice(index + 1) : path;
+  return name || "table.csv";
+};
+
+const getResourcePath = (resource: TableSource["resource"]): string | null => {
+  const fsPath = typeof resource?.fsPath === "string" ? resource.fsPath.trim() : "";
+  if (fsPath) {
+    return fsPath;
+  }
+
+  const path = String(resource?.path ?? "").trim();
+  return path || null;
 };
 
 export class TableService extends Disposable implements ITableService {
@@ -420,14 +505,14 @@ export class TableService extends Disposable implements ITableService {
   }
 
   private refreshActiveSource(options: { forceViewInput?: boolean } = {}): TableViewModel {
-    const previewInputs = this.getPreviewInputsForCurrentSource();
+    const previewSources = this.getPreviewSourcesForCurrentSource();
     const source = this.resolveAvailableTableSource(this.currentSource);
     if (!areTableSourcesEqual(this.currentSource, source)) {
       this.currentSource = source;
     }
 
     const tableViewModel = createTableViewModelInScope(this.scope, {
-      previewInputs,
+      previewSources,
       source,
       numericDisplayMode: this.numericDisplayMode,
       settingsVersion: this.displayVersion,
@@ -441,16 +526,19 @@ export class TableService extends Disposable implements ITableService {
     return tableViewModel;
   }
 
-  private getPreviewInputsForCurrentSource(): TableViewModelPreviewInput[] {
+  private getPreviewSourcesForCurrentSource(): TableViewModelSourceInput[] {
     if (!this.currentSource) {
       return [];
     }
 
-    const previewInput = this.tableModelService.getPreviewInput(this.currentSource);
-    if (this.currentSource.resource) {
-      return previewInput
+    const sourceData = createSourceDataFromModelSnapshot(
+      this.tableModelService.get(this.currentSource.resource)?.getSnapshot() ?? null,
+      this.currentSource,
+    );
+    if (sourceData) {
+      return sourceData
         ? [{
-            input: previewInput,
+            data: sourceData,
             source: this.currentSource,
           }]
         : [];
@@ -507,8 +595,8 @@ export class TableService extends Disposable implements ITableService {
     return this.getActiveTableViewModel()?.getSelection() ?? normalizeTableSelection(null);
   }
 
-  public getColumnWidths(sourceKey: string | null | undefined): readonly TableColumnWidth[] {
-    const storageKey = getTableColumnLayoutStorageKey(sourceKey);
+  public getColumnWidths(sheetKey: string | null | undefined): readonly TableColumnWidth[] {
+    const storageKey = getTableColumnLayoutStorageKey(sheetKey);
     if (!storageKey) {
       return [];
     }
@@ -553,7 +641,7 @@ export class TableService extends Disposable implements ITableService {
       };
     }
 
-    await tableViewModel.ensureRows(plan.sourceKey, plan.startRow, plan.endRow + 1);
+    await tableViewModel.ensureRows(plan.sheetKey, plan.startRow, plan.endRow + 1);
     return {
       columnCount,
       kind: "ok",
@@ -626,10 +714,10 @@ export class TableService extends Disposable implements ITableService {
   }
 
   public storeColumnWidths(
-    sourceKey: string | null | undefined,
+    sheetKey: string | null | undefined,
     widths: readonly TableColumnWidth[],
   ): void {
-    const storageKey = getTableColumnLayoutStorageKey(sourceKey);
+    const storageKey = getTableColumnLayoutStorageKey(sheetKey);
     if (!storageKey) {
       return;
     }
@@ -724,7 +812,7 @@ const isSameTableState = (
   next: TableState,
 ): boolean =>
   current.selectedSheetId === next.selectedSheetId &&
-  current.sourceKey === next.sourceKey &&
+  current.sheetKey === next.sheetKey &&
   current.fileName === next.fileName &&
   current.dimensions === next.dimensions &&
   current.displayVersion === next.displayVersion &&
@@ -744,10 +832,10 @@ const areNullableTableFilesEqual = (
 };
 
 const getTableColumnLayoutStorageKey = (
-  sourceKey: string | null | undefined,
+  sheetKey: string | null | undefined,
 ): string | null => {
-  const normalizedSourceKey = typeof sourceKey === "string" ? sourceKey.trim() : "";
-  return normalizedSourceKey
-    ? `${TABLE_COLUMN_LAYOUT_STORAGE_KEY_PREFIX}${normalizedSourceKey}`
+  const normalizedSheetKey = typeof sheetKey === "string" ? sheetKey.trim() : "";
+  return normalizedSheetKey
+    ? `${TABLE_COLUMN_LAYOUT_STORAGE_KEY_PREFIX}${normalizedSheetKey}`
     : null;
 };

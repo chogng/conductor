@@ -11,10 +11,9 @@ import type {
 } from "src/cs/platform/files/common/files";
 import type {
 	ITableModel,
-	TableModelPreviewInput,
 } from "src/cs/workbench/services/table/common/model";
 import type { TableSource } from "src/cs/workbench/services/table/common/table";
-import { tableFileFormatService } from "src/cs/workbench/services/tablefile/common/tableFileFormat";
+import { tableFormatService } from "src/cs/workbench/services/table/common/tableFormatService";
 import {
 	getTableFileReadEncoding,
 } from "src/cs/workbench/services/tablefile/common/encoding";
@@ -47,7 +46,7 @@ export class TableFileService extends Disposable implements ITableFileService {
 	}
 
 	public canHandleResource(resource: URI): boolean {
-		return tableFileFormatService.canHandle(resource);
+		return tableFormatService.canHandle(resource);
 	}
 
 	public getReadEncoding(resource: URI): IReadFileEncoding {
@@ -56,10 +55,6 @@ export class TableFileService extends Disposable implements ITableFileService {
 
 	public get(resource: URI | null | undefined): ITableModel | undefined {
 		return this.tableFileEditorModelManager.get(resource);
-	}
-
-	public getPreviewInput(source: TableSource | null | undefined): TableModelPreviewInput | null {
-		return this.tableFileEditorModelManager.getPreviewInput(source);
 	}
 
 	public getOrCreateFileEditorModel(

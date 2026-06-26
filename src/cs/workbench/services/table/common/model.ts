@@ -6,13 +6,12 @@ import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
 import {
-	type TableSource,
-	toTableSourceKey,
+	toTableSheetKey,
 } from "src/cs/workbench/services/table/common/table";
 import {
-	tableFileFormatService,
-	type TableFileFormat,
-} from "src/cs/workbench/services/tablefile/common/tableFileFormat";
+	tableFormatService,
+	type TableFormatId,
+} from "src/cs/workbench/services/table/common/tableFormatService";
 
 export interface ITableModelPosition {
 	readonly columnIndex: number;
@@ -287,36 +286,17 @@ export type TableModelContentSnapshot = {
 export type TableModelSheetSnapshot = {
 	readonly content: TableModelContentSnapshot | null;
 	readonly sheetId: string;
+	readonly sheetKey: string;
 	readonly sheetName: string | null;
-	readonly sourceKey: string;
-};
-
-export type TableModelPreviewInput = {
-	readonly columnCount?: number;
-	readonly file?: unknown;
-	readonly fileName?: string;
-	readonly maxCellLengths?: readonly number[];
-	readonly normalizedCsvPath?: string | null;
-	readonly rawTableHealth?: "ok" | "suspect" | "decodeFailed" | "parseFailed" | "unsupported" | "empty";
-	readonly rawTableHealthMessage?: string | null;
-	readonly relativePath?: string | null;
-	readonly resource?: URI;
-	readonly rowCount?: number;
-	readonly sheetId?: string | null;
-	readonly sheetName?: string | null;
-	readonly sourcePath?: string | null;
-	readonly sourceVersion?: number;
-	readonly tableModelContent?: TableModelContentSnapshot;
 };
 
 export type TableModelSnapshot = {
 	readonly content: TableModelContentSnapshot | null;
-	readonly format: TableFileFormat | null;
+	readonly defaultSheetId: string | null;
+	readonly format: TableFormatId | null;
 	readonly loadState: TableModelLoadState;
 	readonly resource: URI;
-	readonly previewInput: TableModelPreviewInput | null;
 	readonly sheets: readonly TableModelSheetSnapshot[];
-	readonly sourceKey: string;
 	readonly sourceVersion: number;
 	readonly version: number;
 };
@@ -386,7 +366,6 @@ export interface ITableModel extends IDisposable {
 	readonly onDidChangeContent: Event<TableModelContentChangedEvent>;
 	readonly onDidChangeDecorations: Event<TableModelDecorationsChangedEvent>;
 	readonly resource: URI;
-	readonly sourceKey: string;
 	changeDecorations<T>(
 		callback: (changeAccessor: ITableModelDecorationsChangeAccessor) => T,
 		ownerId?: number,
@@ -406,7 +385,6 @@ export interface ITableModel extends IDisposable {
 		ownerId?: number,
 	): readonly ITableModelDecoration[];
 	getFullModelRange(): TableModelRange;
-	getPreviewInput(source?: TableSource | null): TableModelPreviewInput | null;
 	getRowCount(): number;
 	getRows(startRowIndex?: number, endRowIndexExclusive?: number): readonly (readonly string[])[];
 	getSnapshot(): TableModelSnapshot;
@@ -423,21 +401,15 @@ export interface ITableModel extends IDisposable {
 	validateSelection(selection: ITableModelSelection): TableModelSelection;
 }
 
-export type TableModelPreviewInputBySourceKey =
-	readonly [sourceKey: string, previewInput: TableModelPreviewInput];
-
 export type TableModelResolvedContent = {
 	readonly content: TableModelContentSnapshot | null;
-	readonly format?: TableFileFormat | null;
-	readonly previewInput: TableModelPreviewInput | null;
-	readonly previewInputsBySourceKey?: readonly TableModelPreviewInputBySourceKey[];
+	readonly format?: TableFormatId | null;
 	readonly sheets?: readonly TableModelSheetSnapshot[];
 	readonly sourceVersion?: unknown;
 };
 
 export type TableModelResolveOptions = {
 	readonly checkResourceFormat?: boolean;
-	readonly createErrorPreviewInput?: (message: string) => TableModelPreviewInput;
 	readonly resolveContent: () => Promise<TableModelResolvedContent>;
 	readonly sourceVersion?: unknown;
 };
@@ -472,10 +444,8 @@ export class TableModel extends Disposable implements ITableModel {
 	private decorationIdPool = 0;
 	private readonly decorations = new Map<string, MutableTableModelDecoration>();
 	private disposed = false;
-	private format: TableFileFormat | null;
+	private format: TableFormatId | null;
 	private loadState: TableModelLoadState = { state: "idle", message: "" };
-	private previewInput: TableModelPreviewInput | null = null;
-	private readonly previewInputsBySourceKey = new Map<string, TableModelPreviewInput>();
 	private resolveRequestId = 0;
 	private sheets: readonly TableModelSheetSnapshot[] = [];
 	private sourceVersion = 0;
@@ -484,10 +454,9 @@ export class TableModel extends Disposable implements ITableModel {
 
 	public constructor(
 		public readonly resource: URI,
-		public readonly sourceKey: string,
 	) {
 		super();
-		this.format = tableFileFormatService.getFormat(resource);
+		this.format = tableFormatService.getFormat(resource);
 	}
 
 	public override dispose(): void {
@@ -516,12 +485,11 @@ export class TableModel extends Disposable implements ITableModel {
 	public getSnapshot(): TableModelSnapshot {
 		return {
 			content: this.content,
+			defaultSheetId: this.sheets[0]?.sheetId ?? null,
 			format: this.format,
 			loadState: this.loadState,
 			resource: this.resource,
-			previewInput: this.previewInput,
 			sheets: this.sheets,
-			sourceKey: this.sourceKey,
 			sourceVersion: this.sourceVersion,
 			version: this.version,
 		};
@@ -639,27 +607,18 @@ export class TableModel extends Disposable implements ITableModel {
 		return TableModelRange.equals(range, this.validateRange(range));
 	}
 
-	public getPreviewInput(source?: TableSource | null): TableModelPreviewInput | null {
-		const sourceKey = toTableSourceKey(source ?? { resource: this.resource });
-		return this.previewInputsBySourceKey.get(sourceKey) ?? this.previewInput;
-	}
-
 	public async resolve({
 		checkResourceFormat,
-		createErrorPreviewInput,
 		resolveContent,
 		sourceVersion,
 	}: TableModelResolveOptions): Promise<void> {
-		if (checkResourceFormat && !tableFileFormatService.canHandle(this.resource)) {
-			this.setError(
-				`Unsupported table file: ${this.resource.toString()}`,
-				createErrorPreviewInput,
-			);
+		if (checkResourceFormat && !tableFormatService.canHandle(this.resource)) {
+			this.setError(`Unsupported table file: ${this.resource.toString()}`);
 			return;
 		}
 
 		const requestId = ++this.resolveRequestId;
-		this.format = tableFileFormatService.getFormat(this.resource);
+		this.format = tableFormatService.getFormat(this.resource);
 		this.loadState = { state: "loading", message: "" };
 		this.fireStateChanged();
 
@@ -671,8 +630,6 @@ export class TableModel extends Disposable implements ITableModel {
 			const message = getErrorMessage(error, "The table model could not be resolved.");
 			resolvedContent = {
 				content: null,
-				previewInput: createErrorPreviewInput?.(message) ?? null,
-				previewInputsBySourceKey: [],
 				sheets: [],
 			};
 			this.loadState = { state: "error", message };
@@ -789,22 +746,14 @@ export class TableModel extends Disposable implements ITableModel {
 		resolvedContent: TableModelResolvedContent,
 		sourceVersion: unknown,
 	): void {
-		this.previewInput = resolvedContent.previewInput;
 		this.content = resolvedContent.content;
 		this.format = resolvedContent.format ?? this.format;
 		this.sheets = resolvedContent.sheets ?? (resolvedContent.content ? [{
 			content: resolvedContent.content,
-			sheetId: this.sourceKey,
+			sheetId: toTableSheetKey({ resource: this.resource }),
+			sheetKey: toTableSheetKey({ resource: this.resource }),
 			sheetName: null,
-			sourceKey: this.sourceKey,
 		}] : []);
-		this.previewInputsBySourceKey.clear();
-		const previewInputsBySourceKey: readonly TableModelPreviewInputBySourceKey[] =
-			resolvedContent.previewInputsBySourceKey ??
-			(resolvedContent.previewInput ? [[this.sourceKey, resolvedContent.previewInput]] : []);
-		for (const [sourceKey, previewInput] of previewInputsBySourceKey) {
-			this.previewInputsBySourceKey.set(sourceKey, previewInput);
-		}
 		this.sourceVersion = normalizeResourceSourceVersion(sourceVersion);
 		this.version += 1;
 
@@ -820,16 +769,11 @@ export class TableModel extends Disposable implements ITableModel {
 		this.fireStateChanged();
 	}
 
-	private setError(
-		message: string,
-		createErrorPreviewInput?: (message: string) => TableModelPreviewInput,
-	): void {
+	private setError(message: string): void {
 		this.loadState = { state: "error", message };
-		this.previewInput = createErrorPreviewInput?.(message) ?? null;
 		this.content = null;
 		this.sheets = [];
 		this.sourceVersion = 0;
-		this.previewInputsBySourceKey.clear();
 		this.version += 1;
 
 		const event: TableModelContentChangedEvent = {
