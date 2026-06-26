@@ -25,7 +25,6 @@ import type {
 	RawTableRef,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
-	createSliceUriResourceKey,
 	ISliceService,
 	type ISliceService as ISliceServiceType,
 	type SliceUriRequest,
@@ -295,9 +294,9 @@ const createSliceUriRequest = ({
 		sourceVersion: review.sourceVersion,
 		templateFingerprint: reviewedTemplate.templateFingerprint,
 	});
-	const resourceKey = createSliceUriResourceKey(target);
+	const targetId = createSliceUriTargetId(target);
 	return {
-		id: `slice-uri-request:${resourceKey}:${requestSignature}`,
+		id: `slice-uri-request:${targetId}:${requestSignature}`,
 		target,
 		tableModel: review.tableModel!,
 		reviewedTemplate,
@@ -327,7 +326,6 @@ const getSliceCommandUriTargets = (
 	sliceService: ISliceServiceType,
 	incremental: boolean,
 ): SliceUriTarget[] => {
-	const state = sliceService.getState();
 	const result: SliceUriTarget[] = [];
 	const seen = new Set<string>();
 	for (const file of files) {
@@ -335,15 +333,15 @@ const getSliceCommandUriTargets = (
 		if (!target) {
 			continue;
 		}
-		const resourceKey = createSliceUriResourceKey(target);
-		if (incremental && state.uriResultsByResourceKey.has(resourceKey)) {
+		const targetId = createSliceUriTargetId(target);
+		if (incremental && sliceService.getUriResult(target)) {
 			continue;
 		}
-		if (seen.has(resourceKey)) {
+		if (seen.has(targetId)) {
 			continue;
 		}
 
-		seen.add(resourceKey);
+		seen.add(targetId);
 		result.push(target);
 	}
 	return result;
@@ -386,3 +384,11 @@ const createUriSliceRequestSignature = ({
 });
 
 const normalizeText = (value: unknown): string => String(value ?? "").trim();
+
+const createSliceUriTargetId = (
+	target: SliceUriTarget,
+): string => {
+	const resource = normalizeText(target.resource?.toString()).replace(/\\/g, "/");
+	const sheetId = normalizeText(target.sheetId);
+	return sheetId ? `${resource}\u0000${sheetId}` : resource;
+};

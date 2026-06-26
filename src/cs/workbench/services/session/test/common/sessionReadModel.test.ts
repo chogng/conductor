@@ -1,7 +1,7 @@
 import assert from "assert";
 
 import {
-  getCalculatedDataFromRecords,
+  createCalculatedDataForFileRecord,
 } from "src/cs/workbench/services/calculation/common/calculationReadModel";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import {
@@ -84,12 +84,10 @@ suite("workbench/services/session/test/common/sessionReadModel", () => {
     });
 
     const readModel = createSessionReadModel(snapshot);
-    const ivData = getCalculatedDataFromRecords(
-      snapshot.filesById,
-      snapshot.fileOrder,
-      "iv",
-      "file-a",
-    );
+    const ivData = createCalculatedDataForFileRecord({
+      file: snapshot.filesById["file-a"]!,
+      plotType: "iv",
+    });
 
     assert.deepEqual(readModel.processedFileIds, ["file-a"]);
     assert.equal(readModel.hasChartData, true);

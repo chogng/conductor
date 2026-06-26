@@ -45,9 +45,10 @@ import type {
   TableSource,
 } from "src/cs/workbench/services/table/common/table";
 import {
-  createSliceUriResourceKey,
   type ISliceService,
   type SliceFileState,
+  type SliceUriResult,
+  type SliceUriTarget,
   type SliceState,
 } from "src/cs/workbench/services/slice/common/slice";
 import type {
@@ -372,7 +373,7 @@ export class WorkbenchDomainBridge extends Disposable {
       chartActiveFileId &&
         (
           readModel.processedFileIds.includes(chartActiveFileId) ||
-          sliceState.uriResultsByResourceKey.has(chartActiveFileId)
+          sliceState.uriResults.some(result => createSliceUriTargetId(result.target) === chartActiveFileId)
         ),
     );
     const chartFileOptions = createActiveChartFileOptions(
@@ -646,8 +647,8 @@ const getChartCandidateFileIds = (
   for (const file of explorerFiles) {
     push(getExplorerFileChartTargetId(file));
   }
-  for (const resourceKey of sliceState.uriResultsByResourceKey.keys()) {
-    push(resourceKey);
+  for (const result of sliceState.uriResults) {
+    push(createSliceUriTargetId(result.target));
   }
   return result;
 };
@@ -661,15 +662,15 @@ const resolveChartTargetId = (
   if (!normalizedFileId) {
     return null;
   }
-  if (sliceState.uriResultsByResourceKey.has(normalizedFileId)) {
+  if (sliceState.uriResults.some(result => createSliceUriTargetId(result.target) === normalizedFileId)) {
     return normalizedFileId;
   }
 
   const explorerFile = explorerFiles.find(file =>
     normalizeExplorerSelectionFileId(file.fileId) === normalizedFileId);
-  const resourceKey = explorerFile ? getExplorerFileUriResourceKey(explorerFile) : null;
-  return resourceKey && sliceState.uriResultsByResourceKey.has(resourceKey)
-    ? resourceKey
+  const targetId = explorerFile ? getExplorerFileUriTargetId(explorerFile) : null;
+  return targetId && sliceState.uriResults.some(result => createSliceUriTargetId(result.target) === targetId)
+    ? targetId
     : normalizedFileId;
 };
 
@@ -888,7 +889,7 @@ export const createExplorerPaneInput = ({
   );
   const chartProcessedFileIds = mergeChartProcessedFileIds(
     readModel.processedFileIds,
-    sliceState.uriResultsByResourceKey,
+    sliceState.uriResults,
   );
   const chartBaseFiles = isThumbnailLayout
     ? filterExplorerFilesByProcessedIds(rawExplorerFilesWithLocalImports, chartProcessedFileIds)
@@ -926,11 +927,14 @@ export const createExplorerPaneInput = ({
 
 const mergeChartProcessedFileIds = (
   processedFileIds: readonly string[],
-  uriResultsByResourceKey: ReadonlyMap<string, unknown>,
+  uriResults: readonly SliceUriResult[],
 ): readonly string[] => {
   const result: string[] = [];
   const seen = new Set<string>();
-  for (const fileId of [...processedFileIds, ...uriResultsByResourceKey.keys()]) {
+  for (const fileId of [
+    ...processedFileIds,
+    ...uriResults.map(result => createSliceUriTargetId(result.target)),
+  ]) {
     const normalizedFileId = String(fileId ?? "").trim();
     if (!normalizedFileId || seen.has(normalizedFileId)) {
       continue;
@@ -1126,12 +1130,12 @@ const getExplorerPaneFileKey = (file: ExplorerFileEntry): string => {
 const getExplorerFileChartTargetId = (
   file: ExplorerFileEntry,
 ): string | null =>
-  getExplorerFileUriResourceKey(file) ??
+  getExplorerFileUriTargetId(file) ??
   normalizeExplorerSelectionFileId(file.fileId);
 
-const getExplorerFileUriResourceKey = (
+const getExplorerFileUriTarget = (
   file: ExplorerFileEntry,
-): string | null => {
+): SliceUriTarget | null => {
   if (!file.resource) {
     return null;
   }
@@ -1141,10 +1145,35 @@ const getExplorerFileUriResourceKey = (
     return null;
   }
 
-  return createSliceUriResourceKey({
+  return {
     resource,
     sheetId: normalizeExplorerSelectionItemKey(file.sheetId),
-  });
+  };
+};
+
+const getExplorerFileUriTargetId = (
+  file: ExplorerFileEntry,
+): string | null => {
+  const target = getExplorerFileUriTarget(file);
+  return target ? createSliceUriTargetId(target) : null;
+};
+
+const getSliceUriTargetState = (
+  sliceState: SliceState,
+  target: SliceUriTarget,
+): SliceFileState | undefined => {
+  const targetId = createSliceUriTargetId(target);
+  return sliceState.uriStates.find(entry =>
+    createSliceUriTargetId(entry.target) === targetId
+  )?.state;
+};
+
+const createSliceUriTargetId = (
+  target: SliceUriTarget,
+): string => {
+  const resource = String(target.resource?.toString() ?? "").trim().replace(/\\/g, "/");
+  const sheetId = normalizeExplorerSelectionItemKey(target.sheetId);
+  return sheetId ? `${resource}\u0000${sheetId}` : resource;
 };
 
 const applyChartExplorerStates = (
@@ -1165,11 +1194,12 @@ const applyChartExplorerStates = (
 
   return files.map(file => {
     const fileId = String(file.fileId ?? "").trim();
-    const resourceKey = getExplorerFileUriResourceKey(file);
+    const target = getExplorerFileUriTarget(file);
+    const targetId = target ? createSliceUriTargetId(target) : null;
     const hasChartData = hasFileChartData(snapshot.filesById[fileId]) ||
-      Boolean(resourceKey && sliceState.uriResultsByResourceKey.has(resourceKey));
+      Boolean(targetId && sliceState.uriResults.some(result => createSliceUriTargetId(result.target) === targetId));
     const ownerState = resolveExplorerFileProcessingState(
-      (resourceKey ? sliceState.uriStatesByResourceKey.get(resourceKey) : undefined) ??
+      (target ? getSliceUriTargetState(sliceState, target) : undefined) ??
       (fileId ? sliceState.fileStates.get(fileId) : undefined),
     );
     const chartState = resolveChartState(ownerState, hasChartData);

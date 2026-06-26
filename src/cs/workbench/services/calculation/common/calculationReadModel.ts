@@ -27,10 +27,7 @@ import type {
   ProcessedEntry,
   ProcessedSeries,
 } from "src/cs/workbench/services/session/common/sessionTypes";
-import {
-  createSliceUriResourceKey,
-  type SliceUriResult,
-} from "src/cs/workbench/services/slice/common/slice";
+import type { SliceUriResult, SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
 
 type ProcessedFileEntry = ProcessedEntry;
 
@@ -128,25 +125,6 @@ export const createCalculatedPlotsByKeyFromRecords = (
     processedFileCount,
   });
   return next;
-};
-
-export const getCalculatedDataFromRecords = (
-  filesById: Record<FileId, FileRecord>,
-  fileOrder: readonly FileId[],
-  plotType: CalculationKind,
-  fileId?: string | null,
-): CalculatedData | null => {
-  const normalizedFileId = String(fileId ?? "").trim();
-  if (normalizedFileId) {
-    const file = filesById[normalizedFileId];
-    return file && hasFileRecordChartData(file)
-      ? createCalculatedDataForFileRecord({ file, plotType })
-      : null;
-  }
-
-  const file = getOrderedFileRecords(filesById, fileOrder)
-    .find(hasFileRecordChartData);
-  return file ? createCalculatedDataForFileRecord({ file, plotType }) : null;
 };
 
 export const createCalculatedDataRecordInputSignature = (
@@ -251,7 +229,7 @@ export const createCalculatedDataForSliceUriResult = ({
     .filter((series): series is CalculatedSeries => Boolean(series));
   const points = seriesList.flatMap(series => series.data);
   const source = {
-    fileId: createSliceUriResourceKey(result.target),
+    fileId: createSliceUriTargetId(result.target),
     inputKind: "sliceUri" as const,
   };
   const xDomain = getFiniteDomain(points.map(point => Number(point.x)), [0, 1]);
@@ -458,8 +436,8 @@ const createProcessedFileEntryFromSliceUriResult = (
         y: getFiniteDomain(yValues, [0, 1]),
       }
       : undefined,
-    fileId: createSliceUriResourceKey(result.target),
-    fileName: result.target.resource.path.split(/[\\/]/).filter(Boolean).pop() ?? createSliceUriResourceKey(result.target),
+    fileId: createSliceUriTargetId(result.target),
+    fileName: result.target.resource.path.split(/[\\/]/).filter(Boolean).pop() ?? createSliceUriTargetId(result.target),
     series: createProcessedSeriesFromSliceUriResult(result, curves),
     supportsSs: curves.some(curve => curve.curveFamily === "iv" && curve.ivMode === "transfer"),
     xAxisRole: getSliceUriXAxisRole(curves[0]),
@@ -527,6 +505,14 @@ const getSliceTemplateBlockText = (
     }
   }
   return undefined;
+};
+
+const createSliceUriTargetId = (
+  target: SliceUriTarget,
+): string => {
+  const resource = String(target.resource?.toString() ?? "").trim().replace(/\\/g, "/");
+  const sheetId = String(target.sheetId ?? "").trim();
+  return sheetId ? `${resource}\u0000${sheetId}` : resource;
 };
 
 const resolveFileRecordSeriesName = (

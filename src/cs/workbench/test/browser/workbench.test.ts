@@ -1117,15 +1117,15 @@ const createSliceStateForTest = ({
   fileStates = new Map(),
   queueLength = 0,
   templateSelectionsByFileId = {},
-  uriStatesByResourceKey = new Map(),
-  uriResultsByResourceKey = new Map(),
+  uriStates = [],
+  uriResults = [],
 }: Partial<SliceState> = {}): SliceState => ({
   activeFileId,
   fileStates,
   queueLength,
   templateSelectionsByFileId,
-  uriStatesByResourceKey,
-  uriResultsByResourceKey,
+  uriStates,
+  uriResults,
 });
 
 const createDomainBridgeOptionsForTest = ({
@@ -1243,6 +1243,8 @@ const createDomainBridgeOptionsForTest = ({
     getState: () => createSliceStateForTest({
       templateSelectionsByFileId: sliceTemplateSelectionsByFileId,
     }),
+    getUriResult: () => null,
+    getUriState: () => undefined,
     onDidChangeSliceState: sliceStateEvent as Event<void>,
     prioritize: () => undefined,
     runWithTemplate: () => undefined,

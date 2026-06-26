@@ -14,7 +14,6 @@ import {
 import {
   createCalculatedDataForFileRecord,
   createCalculatedDataForSliceUriResult,
-  getCalculatedDataFromRecords,
   type CalculatedData,
 } from "src/cs/workbench/services/calculation/common/calculationReadModel";
 import { isPlotType } from "src/cs/workbench/services/plot/common/plot";
@@ -65,10 +64,10 @@ import {
   type SessionSnapshot,
 } from "src/cs/workbench/services/session/common/session";
 import {
-  createSliceUriResourceKey,
   ISliceService,
   type ISliceService as ISliceServiceType,
   type SliceUriResult,
+  type SliceUriTarget,
 } from "src/cs/workbench/services/slice/common/slice";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
@@ -353,23 +352,10 @@ export class PlotService extends Disposable implements IPlotService {
       return calculatedData;
     }
 
-    const calculatedData = getCalculatedDataFromRecords(
-      snapshot.filesById,
-      snapshot.fileOrder,
-      plotType,
-      input.fileId,
-    );
-    if (!calculatedData) {
-      const uriCalculatedData = this.getCalculatedDataForSliceUri(input.fileId, plotType);
-      endPerf({
-        resultPointsCount: uriCalculatedData?.pointsCount ?? 0,
-        source: "sliceUri",
-      });
-      return uriCalculatedData;
-    }
+    const calculatedData = this.getCalculatedDataForSliceUri(input.fileId, plotType);
     endPerf({
       resultPointsCount: calculatedData?.pointsCount ?? 0,
-      source: "recordsFallback",
+      source: "sliceUri",
     });
     return calculatedData;
   }
@@ -1307,7 +1293,8 @@ export class PlotService extends Disposable implements IPlotService {
         fileIds.add(context.fileId);
       }
     }
-    for (const fileId of state?.uriResultsByResourceKey.keys() ?? []) {
+    for (const result of state?.uriResults ?? []) {
+      const fileId = createSliceUriTargetId(result.target);
       const normalizedFileId = normalizeStateKey(fileId);
       if (normalizedFileId) {
         fileIds.add(normalizedFileId);
@@ -1431,7 +1418,7 @@ export class PlotService extends Disposable implements IPlotService {
       return null;
     }
 
-    const normalizedFileId = normalizeStateKey(createSliceUriResourceKey(result.target));
+    const normalizedFileId = normalizeStateKey(createSliceUriTargetId(result.target));
     if (!normalizedFileId) {
       return null;
     }
@@ -2413,17 +2400,17 @@ export class PlotService extends Disposable implements IPlotService {
   }
 
   private getSliceUriResult(fileId: FileId | null | undefined): SliceUriResult | null {
-    const results = this.sliceService?.getState().uriResultsByResourceKey;
-    if (!results?.size) {
+    const results = this.sliceService?.getState().uriResults;
+    if (!results?.length) {
       return null;
     }
 
     const normalizedFileId = normalizeStateKey(fileId);
     if (normalizedFileId) {
-      return results.get(normalizedFileId) ?? null;
+      return results.find(result => createSliceUriTargetId(result.target) === normalizedFileId) ?? null;
     }
 
-    return results.values().next().value ?? null;
+    return results[0] ?? null;
   }
 
   public getFileAxisSettings(snapshot: SessionSnapshot): PlotFileAxisSettings {
@@ -2588,6 +2575,14 @@ const getPlotLegendStateKey = (
   return normalizedFileId && isPlotType(plotType)
     ? `${normalizedFileId}:${plotType}`
     : null;
+};
+
+const createSliceUriTargetId = (
+  target: SliceUriTarget,
+): string => {
+  const resource = normalizeStateKey(target.resource?.toString()).replace(/\\/g, "/");
+  const sheetId = normalizeStateKey(target.sheetId);
+  return sheetId ? `${resource}\u0000${sheetId}` : resource;
 };
 
 const addPlotCacheChange = (

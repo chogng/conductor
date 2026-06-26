@@ -67,9 +67,17 @@ class TestSliceService implements ISliceService {
 			fileStates: new Map(),
 			queueLength: 0,
 			templateSelectionsByFileId: {},
-			uriStatesByResourceKey: new Map(),
-			uriResultsByResourceKey: new Map(),
+			uriStates: [],
+			uriResults: [],
 		};
+	}
+
+	public getUriResult(): null {
+		return null;
+	}
+
+	public getUriState(): undefined {
+		return undefined;
 	}
 
 	public enqueueAuto(_refs: readonly RawTableRef[]): void {}

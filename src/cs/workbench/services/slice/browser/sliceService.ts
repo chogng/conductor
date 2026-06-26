@@ -21,7 +21,6 @@ import {
 	type IRawTableRowsReaderService as IRawTableRowsReaderServiceType,
 } from "src/cs/workbench/services/files/common/rawTableRowsReader";
 import {
-	createSliceUriResourceKey,
 	ISliceService,
 	type ISliceService as ISliceServiceType,
 	type RunSliceWithTemplateInput,
@@ -37,6 +36,7 @@ import {
 	type SliceUriRun,
 	type SliceUriSeriesRecord,
 	type SliceUriTarget,
+	type SliceUriTargetState,
 } from "src/cs/workbench/services/slice/common/slice";
 import { executeSlicePlan } from "src/cs/workbench/services/slice/common/sliceExecutor";
 import {
@@ -94,9 +94,10 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	public readonly onDidChangeSliceState = this.onDidChangeSliceStateEmitter.event;
 
 	private readonly fileStates = new Map<string, SliceFileState>();
-	private readonly uriStatesByResourceKey = new Map<string, SliceFileState>();
+	private readonly uriStatesByCacheKey = new Map<string, SliceFileState>();
+	private readonly uriTargetsByCacheKey = new Map<string, SliceUriTarget>();
 	private readonly queue: SliceQueueEntry[] = [];
-	private readonly uriResultsByResourceKey = new Map<string, SliceUriResult>();
+	private readonly uriResultsByCacheKey = new Map<string, SliceUriResult>();
 	private templateSelectionsByFileId: Record<string, TemplateSelection> = {};
 	private activeFileId: string | null = null;
 	private isSliceQueueRunning = false;
@@ -127,12 +128,23 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	public getState(): SliceState {
 		return {
 			fileStates: new Map(this.fileStates),
-			uriStatesByResourceKey: new Map(this.uriStatesByResourceKey),
+			uriStates: [...this.uriStatesByCacheKey].map(([cacheKey, state]) => ({
+				target: this.uriTargetsByCacheKey.get(cacheKey)!,
+				state,
+			})).filter((entry): entry is SliceUriTargetState => Boolean(entry.target)),
 			queueLength: this.queue.length,
 			activeFileId: this.activeFileId,
 			templateSelectionsByFileId: { ...this.templateSelectionsByFileId },
-			uriResultsByResourceKey: new Map(this.uriResultsByResourceKey),
+			uriResults: [...this.uriResultsByCacheKey.values()],
 		};
+	}
+
+	public getUriResult(target: SliceUriTarget): SliceUriResult | null {
+		return this.uriResultsByCacheKey.get(createSliceUriCacheKey(target)) ?? null;
+	}
+
+	public getUriState(target: SliceUriTarget): SliceFileState | undefined {
+		return this.uriStatesByCacheKey.get(createSliceUriCacheKey(target));
 	}
 
 	public submit(requests: readonly SliceRequest[]): void {
@@ -165,10 +177,11 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	public submitUri(requests: readonly SliceUriRequest[]): void {
 		let didChange = false;
 		for (const request of requests) {
-			const resourceKey = createSliceUriResourceKey(request.target);
+			const cacheKey = createSliceUriCacheKey(request.target);
+			this.uriTargetsByCacheKey.set(cacheKey, normalizeSliceUriTarget(request.target));
 			const plan = this.createUriRequestPlan(request);
 			if (!plan) {
-				didChange = this.setUriState(resourceKey, {
+				didChange = this.setUriState(cacheKey, {
 					state: "skipped",
 					code: "slice.uriRequestInvalid",
 					message: "The URI slice request is no longer valid.",
@@ -177,12 +190,12 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			}
 
 			if (request.trigger.kind === "reviewDecision" && this.isLatestUriAutoRunCurrent(request, plan)) {
-				didChange = this.setUriState(resourceKey, { state: "ready" }) || didChange;
+				didChange = this.setUriState(cacheKey, { state: "ready" }) || didChange;
 				continue;
 			}
 
 			this.enqueueSliceEntry({ kind: "uri", request, plan });
-			didChange = this.setUriState(resourceKey, { state: "queued" }) || didChange;
+			didChange = this.setUriState(cacheKey, { state: "queued" }) || didChange;
 		}
 		if (didChange) {
 			this.fireSliceStateChange();
@@ -275,9 +288,10 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			didChange = this.setQueueEntryState(entry, { state: "none" }) || didChange;
 		}
 		if (cancelAll) {
-			didChange = this.fileStates.size > 0 || this.uriStatesByResourceKey.size > 0 || didChange;
+			didChange = this.fileStates.size > 0 || this.uriStatesByCacheKey.size > 0 || didChange;
 			this.fileStates.clear();
-			this.uriStatesByResourceKey.clear();
+			this.uriStatesByCacheKey.clear();
+			this.uriTargetsByCacheKey.clear();
 			this.activeFileId = null;
 		}
 		if (didChange) {
@@ -584,10 +598,10 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	}
 
 	private async processUriSliceEntry(entry: UriSliceQueueEntry): Promise<void> {
-		const resourceKey = createSliceUriResourceKey(entry.request.target);
+		const cacheKey = createSliceUriCacheKey(entry.request.target);
 		const resolved = await this.readRowsForUriRequest(entry.request);
 		if (!resolved) {
-			this.setUriState(resourceKey, {
+			this.setUriState(cacheKey, {
 				state: "failed",
 				code: "slice.uriRowsUnavailable",
 				message: "URI table rows are unavailable for slicing.",
@@ -609,12 +623,12 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			commit,
 			completedAt: Date.now(),
 			request: entry.request,
-			resourceKey,
 			sourceModelVersion: resolved.sourceModelVersion,
 			sourceVersion: resolved.sourceVersion,
 		});
-		this.uriResultsByResourceKey.set(resourceKey, result);
-		this.setUriState(resourceKey, result.run.errors.length
+		this.uriResultsByCacheKey.set(cacheKey, result);
+		this.uriTargetsByCacheKey.set(cacheKey, normalizeSliceUriTarget(entry.request.target));
+		this.setUriState(cacheKey, result.run.errors.length
 			? {
 				state: "failed",
 				code: result.run.errors[0] ?? "slice.failed",
@@ -732,7 +746,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	}
 
 	private isLatestUriAutoRunCurrent(request: SliceUriRequest, plan: SlicePlan): boolean {
-		const result = this.uriResultsByResourceKey.get(createSliceUriResourceKey(request.target));
+		const result = this.uriResultsByCacheKey.get(createSliceUriCacheKey(request.target));
 		const run = result?.run;
 		return Boolean(
 			result &&
@@ -757,13 +771,13 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		return true;
 	}
 
-	private setUriState(resourceKey: string, state: SliceFileState): boolean {
-		const current = this.uriStatesByResourceKey.get(resourceKey);
+	private setUriState(cacheKey: string, state: SliceFileState): boolean {
+		const current = this.uriStatesByCacheKey.get(cacheKey);
 		if (isSameSliceFileState(current, state)) {
 			return false;
 		}
 
-		this.uriStatesByResourceKey.set(resourceKey, state);
+		this.uriStatesByCacheKey.set(cacheKey, state);
 		return true;
 	}
 
@@ -784,22 +798,36 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			return false;
 		}
 
-		return entry.kind === "uri"
-			? this.uriStatesByResourceKey.delete(stateKey)
-			: this.fileStates.delete(stateKey);
+		if (entry.kind === "uri") {
+			const didDeleteState = this.uriStatesByCacheKey.delete(stateKey);
+			const didDeleteTarget = this.deleteUriTargetIfUnused(stateKey);
+			return didDeleteState || didDeleteTarget;
+		}
+
+		return this.fileStates.delete(stateKey);
+	}
+
+	private deleteUriTargetIfUnused(cacheKey: string): boolean {
+		if (this.uriResultsByCacheKey.has(cacheKey)) {
+			return false;
+		}
+
+		return this.uriTargetsByCacheKey.delete(cacheKey);
 	}
 
 	private clearState(): void {
 		const didChange = this.queue.length > 0 ||
 			this.fileStates.size > 0 ||
-			this.uriStatesByResourceKey.size > 0 ||
-			this.uriResultsByResourceKey.size > 0 ||
+			this.uriStatesByCacheKey.size > 0 ||
+			this.uriTargetsByCacheKey.size > 0 ||
+			this.uriResultsByCacheKey.size > 0 ||
 			Object.keys(this.templateSelectionsByFileId).length > 0 ||
 			this.activeFileId !== null;
 		this.queue.length = 0;
 		this.fileStates.clear();
-		this.uriStatesByResourceKey.clear();
-		this.uriResultsByResourceKey.clear();
+		this.uriStatesByCacheKey.clear();
+		this.uriTargetsByCacheKey.clear();
+		this.uriResultsByCacheKey.clear();
 		this.templateSelectionsByFileId = {};
 		this.activeFileId = null;
 		if (didChange) {
@@ -840,25 +868,26 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	}
 
 	private removeUriResultsForResource(resource: URI): void {
-		const resourceKey = normalizeResourceKey(resource);
-		if (!resourceKey) {
+		const cacheKey = normalizeResourceUri(resource);
+		if (!cacheKey) {
 			return;
 		}
 
 		let didChange = false;
 		for (let index = this.queue.length - 1; index >= 0; index -= 1) {
 			const entry = this.queue[index];
-			if (entry?.kind === "uri" && normalizeResourceKey(entry.request.target.resource) === resourceKey) {
+			if (entry?.kind === "uri" && normalizeResourceUri(entry.request.target.resource) === cacheKey) {
 				this.queue.splice(index, 1);
 				didChange = true;
 			}
 		}
-		for (const [resourceResultKey, result] of this.uriResultsByResourceKey) {
-			if (normalizeResourceKey(result.target.resource) !== resourceKey) {
+		for (const [resultCacheKey, result] of this.uriResultsByCacheKey) {
+			if (normalizeResourceUri(result.target.resource) !== cacheKey) {
 				continue;
 			}
-			this.uriResultsByResourceKey.delete(resourceResultKey);
-			this.uriStatesByResourceKey.delete(resourceResultKey);
+			this.uriResultsByCacheKey.delete(resultCacheKey);
+			this.uriStatesByCacheKey.delete(resultCacheKey);
+			this.uriTargetsByCacheKey.delete(resultCacheKey);
 			didChange = true;
 		}
 		if (didChange) {
@@ -875,19 +904,16 @@ const createSliceUriResult = ({
 	commit,
 	completedAt,
 	request,
-	resourceKey,
 	sourceModelVersion,
 	sourceVersion,
 }: {
 	readonly commit: SliceCommit;
 	readonly completedAt: number;
 	readonly request: SliceUriRequest;
-	readonly resourceKey: string;
 	readonly sourceModelVersion: number;
 	readonly sourceVersion: number;
 }): SliceUriResult => ({
-	target: request.target,
-	resourceKey,
+	target: normalizeSliceUriTarget(request.target),
 	run: createSliceUriRun(commit.run, request.target),
 	series: commit.series.map(series => createSliceUriSeriesRecord(series, request.target)),
 	curves: commit.curves.flatMap(curve => createSliceUriCurveRecord(curve, request.target) ?? []),
@@ -973,23 +999,23 @@ const normalizeRawTableRef = (
 const getSliceQueueEntryStateKey = (
 	entry: SliceQueueEntry,
 ): string | null => entry.kind === "uri"
-	? createSliceUriResourceKey(entry.request.target)
+	? createSliceUriCacheKey(entry.request.target)
 	: normalizeText(entry.ref.fileId);
 
 const getSliceQueueEntryKey = (
 	entry: SliceQueueEntry,
 ): string => entry.kind === "uri"
-	? `uri:${createSliceUriResourceKey(entry.request.target)}`
+	? `uri:${createSliceUriCacheKey(entry.request.target)}`
 	: `session:${entry.ref.fileId}\u0000${entry.ref.rawTableId}`;
 
 const createRawTableRefFromUriTarget = (
 	target: SliceUriTarget,
 	fallbackRawTableId: string,
 ): RawTableRef | null => {
-	const fileId = createSliceUriResourceKey(target);
+	const fileId = createSliceUriCacheKey(target);
 	const rawTableId = normalizeText(target.sheetId) ||
 		normalizeText(fallbackRawTableId) ||
-		normalizeResourceKey(target.resource);
+		normalizeResourceUri(target.resource);
 	return fileId && rawTableId ? { fileId, rawTableId } : null;
 };
 
@@ -998,6 +1024,13 @@ const createTableSourceFromUriTarget = (
 ): TableSource => ({
 	resource: target.resource,
 	...(normalizeText(target.sheetId) ? { sheetId: normalizeText(target.sheetId) } : {}),
+});
+
+const normalizeSliceUriTarget = (
+	target: SliceUriTarget,
+): SliceUriTarget => ({
+	resource: target.resource,
+	sheetId: normalizeText(target.sheetId) || null,
 });
 
 const getUriSliceSheet = (
@@ -1037,9 +1070,17 @@ const uniqueRawTableRefs = (
 
 const normalizeText = (value: unknown): string => String(value ?? "").trim();
 
-const normalizeResourceKey = (
+const normalizeResourceUri = (
 	resource: URI | null | undefined,
 ): string => normalizeText(resource?.toString()).replace(/\\/g, "/");
+
+const createSliceUriCacheKey = (
+	target: SliceUriTarget,
+): string => {
+	const resource = normalizeResourceUri(target.resource);
+	const sheetId = normalizeText(target.sheetId);
+	return sheetId ? `${resource}\u0000${sheetId}` : resource;
+};
 
 const createAutomaticSliceRequestSignature = ({
 	reviewSignature,

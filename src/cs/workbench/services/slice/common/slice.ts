@@ -63,8 +63,6 @@ export type SliceRequest = {
   readonly createdAt: number;
 };
 
-export type SliceUriResourceKey = string;
-
 export type SliceUriTarget = {
   readonly resource: URI;
   readonly sheetId?: SheetId | null;
@@ -154,7 +152,6 @@ export type SliceUriCurveRecord = SliceUriBaseCurveRecord;
 
 export type SliceUriResult = {
   readonly target: SliceUriTarget;
-  readonly resourceKey: SliceUriResourceKey;
   readonly run: SliceUriRun;
   readonly series: readonly SliceUriSeriesRecord[];
   readonly curves: readonly SliceUriCurveRecord[];
@@ -218,13 +215,18 @@ export type SliceFileState =
   | { readonly state: "skipped"; readonly code: string; readonly message: string }
   | { readonly state: "failed"; readonly code: string; readonly message: string };
 
+export type SliceUriTargetState = {
+  readonly target: SliceUriTarget;
+  readonly state: SliceFileState;
+};
+
 export type SliceState = {
   readonly fileStates: ReadonlyMap<string, SliceFileState>;
-  readonly uriStatesByResourceKey: ReadonlyMap<SliceUriResourceKey, SliceFileState>;
+  readonly uriStates: readonly SliceUriTargetState[];
   readonly queueLength: number;
   readonly activeFileId: string | null;
   readonly templateSelectionsByFileId: TemplateSelectionsByFileId;
-  readonly uriResultsByResourceKey: ReadonlyMap<SliceUriResourceKey, SliceUriResult>;
+  readonly uriResults: readonly SliceUriResult[];
 };
 
 export interface ISliceService {
@@ -233,6 +235,8 @@ export interface ISliceService {
   readonly onDidChangeSliceState: Event<void>;
 
   getState(): SliceState;
+  getUriResult(target: SliceUriTarget): SliceUriResult | null;
+  getUriState(target: SliceUriTarget): SliceFileState | undefined;
   submit(requests: readonly SliceRequest[]): void;
   submitUri(requests: readonly SliceUriRequest[]): void;
   enqueueAuto(refs: readonly RawTableRef[]): void;
@@ -241,11 +245,3 @@ export interface ISliceService {
   cancel(fileIds?: readonly string[]): void;
   setTemplateSelection(fileId: string, selection: TemplateSelection): void;
 }
-
-export const createSliceUriResourceKey = (
-  target: SliceUriTarget,
-): SliceUriResourceKey => {
-  const resource = String(target.resource?.toString() ?? "").trim().replace(/\\/g, "/");
-  const sheetId = String(target.sheetId ?? "").trim();
-  return sheetId ? `${resource}\u0000${sheetId}` : resource;
-};

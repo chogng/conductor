@@ -43,7 +43,7 @@ production, template execution, or thumbnail bitmap cache.
 ## Flow
 
 ```txt
-SessionSnapshot or SliceState.uriResultsByResourceKey + PlotState
+SessionSnapshot or SliceState URI target results + PlotState
   -> PlotService
   -> calculated-data cache / display-model cache / worker queues
   -> PlotRenderModel / PlotDisplayModel
@@ -83,7 +83,7 @@ uses platform storage; callers should not write settings/storage directly.
 ## Invalidation And Retention
 
 - Session changes should invalidate only affected file ids when possible.
-- Slice URI result changes should invalidate only affected resource keys when
+- Slice URI result changes should invalidate only affected URI targets when
   possible.
 - Plot-relevant data changes publish targeted calculated/display cache events.
 - Do not publish global `onDidChangePlotState` for unrelated file commits.

@@ -15,7 +15,6 @@ import {
   createCalculatedSeries,
   createSecondCalculatedData,
   getCalculatedData,
-  getCalculatedDataFromRecords,
   getCalculatedYUnitLabel,
 } from "../../common/calculationReadModel.ts";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
@@ -216,40 +215,6 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
     );
     assert.equal(iv?.xUnitLabel, "V");
     assert.equal(iv?.yUnitLabel, "A");
-  });
-
-  test("getCalculatedDataFromRecords resolves one canonical file without requiring a full plot map", () => {
-    const filesById = {
-      "file-a": createFileRecord(),
-      "file-b": createFileRecord("file-b", "series-b", [
-        { x: 0, y: 10 },
-        { x: 1, y: 20 },
-        { x: 2, y: 40 },
-      ]),
-    };
-
-    const requested = getCalculatedDataFromRecords(
-      filesById,
-      ["file-a", "file-b"],
-      "iv",
-      "file-b",
-    );
-    const fallback = getCalculatedDataFromRecords(
-      filesById,
-      ["file-a", "file-b"],
-      "iv",
-    );
-
-    assert.equal(requested?.activeFile?.fileId, "file-b");
-    assert.deepEqual(
-      requested?.seriesList[0]?.data.map((point) => point.y),
-      [10, 20, 40],
-    );
-    assert.equal(fallback?.activeFile?.fileId, "file-a");
-    assert.equal(
-      getCalculatedDataFromRecords(filesById, ["file-a", "file-b"], "iv", "missing"),
-      null,
-    );
   });
 
   test("createCalculatedDataRecordInputSignature ignores derived curve cache writes", () => {
