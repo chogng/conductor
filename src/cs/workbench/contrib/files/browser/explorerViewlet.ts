@@ -56,10 +56,15 @@ import { TOGGLE_THUMBNAIL_VIEW_ACTION_ID } from "src/cs/workbench/contrib/thumbn
 import { createTemplateEditorRecordFromUserTemplate } from "src/cs/workbench/contrib/template/browser/templateUserTemplateAdapter";
 import {
   ExplorerDecorationsProvider,
+  createExplorerDecorationResource,
 } from "src/cs/workbench/contrib/files/browser/views/explorerDecorationsProvider";
 import type {
   ExplorerDecorationData,
 } from "src/cs/workbench/contrib/files/browser/views/explorerDecorations";
+import {
+  IDecorationsService,
+  type IDecorationsService as IDecorationsServiceType,
+} from "src/cs/workbench/services/decorations/common/decorations";
 import {
   IThumbnailPreviewService,
   IThumbnailService,
@@ -103,7 +108,6 @@ export class ExplorerViewPane extends ViewPane {
     readonly pendingSourceEntries: readonly ExplorerFileEntry[];
     readonly replaceItemKeys: readonly string[] | null;
   } | null = null;
-  private readonly decorationsProvider: ExplorerDecorationsProvider;
   private isDragging = false;
   private disposed = false;
   private pendingLocalExpandedFolderKeys: readonly string[] | null = null;
@@ -123,6 +127,7 @@ export class ExplorerViewPane extends ViewPane {
     @IThumbnailPreviewService private readonly thumbnailPreviewService: IThumbnailPreviewService,
     @IThumbnailService private readonly thumbnailService: IThumbnailService,
     @IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
+    @IDecorationsService private readonly decorationsService: IDecorationsServiceType,
     @IReviewService reviewService: IReviewServiceType,
   ) {
     super({
@@ -169,10 +174,11 @@ export class ExplorerViewPane extends ViewPane {
       },
       syncView: () => this.syncView(),
     });
-    this.decorationsProvider = this._register(new ExplorerDecorationsProvider(
+    const decorationsProvider = this._register(new ExplorerDecorationsProvider(
       this.explorerService,
       reviewService,
     ));
+    this._register(this.decorationsService.registerDecorationsProvider(decorationsProvider));
 
     this._register(this.explorerService.onDidChangePaneInput(() => {
       this.update(this.explorerService.getPaneInput());
@@ -195,7 +201,7 @@ export class ExplorerViewPane extends ViewPane {
     this._register(this.userTemplateService.onDidChangeUserTemplates(() => {
       this.syncView();
     }));
-    this._register(this.decorationsProvider.onDidChange(() => {
+    this._register(this.decorationsService.onDidChangeDecorations(() => {
       this.syncView();
     }));
 
@@ -406,10 +412,10 @@ export class ExplorerViewPane extends ViewPane {
       if (!resource) {
         continue;
       }
-      const decoration = this.decorationsProvider.provideDecorations(
-        resource,
-        file.sheetId ?? null,
-      );
+      const decoration = this.decorationsService.getDecorationData(
+        createExplorerDecorationResource(resource, file.sheetId),
+        false,
+      )[0];
       if (decoration) {
         decorationsByFileKey[getExplorerTreeFileKey(file)] = decoration;
       }

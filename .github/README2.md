@@ -1,5 +1,46 @@
+# decorations的主调用流程图
 
 - 文件级调用图，每个节点标注了调用文件名
+
+```mermaid
+flowchart TB
+  subgraph A["数据层"]
+    A1["ExplorerModel / ExplorerItem"]
+    A2["ExplorerService"]
+    A3["ExplorerDataSource.getChildren()"]
+  end
+
+  subgraph B["装饰层"]
+    B1["ExplorerDecorationsProvider"]
+    B2["DecorationsService"]
+    B3["explorerRootErrorEmitter"]
+  end
+
+  subgraph C["渲染层"]
+    C1["ExplorerView.renderStat()"]
+    C2["ResourceLabels / ResourceLabelWidget"]
+  end
+
+  subgraph D["触发源"]
+    D1["workspace folders 变化"]
+    D2["root resolve 失败"]
+    D3["decorations 配置变化"]
+  end
+
+  D1 --> B1
+  D2 --> B3
+  D3 --> C1
+
+  A3 --> B3
+  B3 --> B1
+  A2 --> A1
+  B1 --> B2
+  C1 --> C2
+  C2 --> B2
+  B2 --> C2
+```
+
+
 ```mermaid
 flowchart TB
   %% ============ 触发源 ============
@@ -88,62 +129,142 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-  subgraph A["视图装配"]
-    A1["explorerViewlet.ts<br/>注册 ExplorerViewlet / ViewContainer"]
-    A2["explorerView.ts<br/>创建 ExplorerView"]
-    A3["explorerViewer.ts<br/>渲染 tree 节点"]
+  subgraph V["视图装配"]
+    V1["explorerViewlet.ts<br/>ExplorerViewletViewsContribution.registerViews()"]
+    V2["explorerView.ts<br/>ExplorerView.setTreeInput()"]
+    V3["explorerView.ts<br/>ExplorerView.onConfigurationUpdated()"]
+    V4["explorerViewer.ts<br/>ExplorerViewer.renderStat()"]
   end
 
-  subgraph B["装饰提供层"]
-    B1["explorerDecorationsProvider.ts<br/>ExplorerDecorationsProvider"]
-    B2["explorerDecorationsProvider.ts<br/>provideDecorations(fileStat)"]
-    B3["explorerViewer.ts<br/>explorerRootErrorEmitter"]
+  subgraph D["装饰提供层"]
+    D1["explorerDecorationsProvider.ts<br/>ExplorerDecorationsProvider.constructor()"]
+    D2["explorerDecorationsProvider.ts<br/>ExplorerDecorationsProvider.provideDecorations(resource)"]
+    D3["explorerDecorationsProvider.ts<br/>provideDecorations(fileStat)"]
+    D4["explorerViewer.ts<br/>explorerRootErrorEmitter"]
   end
 
-  subgraph C["装饰服务层"]
-    C1["decorations.ts<br/>IDecorationsService / IDecorationsProvider"]
-    C2["decorationsService.ts<br/>DecorationsService.registerDecorationsProvider()"]
-    C3["decorationsService.ts<br/>DecorationsService.getDecoration()"]
-    C4["decorationsService.ts<br/>onDidChangeDecorations"]
+  subgraph S["装饰服务层"]
+    S1["decorations.ts<br/>IDecorationsService / IDecorationsProvider"]
+    S2["decorationsService.ts<br/>registerDecorationsProvider(provider)"]
+    S3["decorationsService.ts<br/>getDecoration(uri, includeChildren)"]
+    S4["decorationsService.ts<br/>_fetchData() / _keepItem()"]
+    S5["decorationsService.ts<br/>onDidChangeDecorations"]
   end
 
-  subgraph D["标签渲染层"]
-    D1["labels.ts<br/>ResourceLabels"]
-    D2["labels.ts<br/>ResourceLabelWidget"]
-    D3["labels.ts<br/>notifyFileDecorationsChanges()"]
+  subgraph L["标签渲染层"]
+    L1["labels.ts<br/>ResourceLabels.constructor()"]
+    L2["labels.ts<br/>decorationsService.onDidChangeDecorations"]
+    L3["labels.ts<br/>widget.notifyFileDecorationsChanges(e)"]
+    L4["labels.ts<br/>ResourceLabelWidget.setResource()"]
   end
 
   subgraph E["Explorer 数据层"]
-    E1["explorerService.ts<br/>ExplorerService"]
-    E2["explorerModel.ts<br/>ExplorerModel / ExplorerItem"]
-    E3["explorerViewer.ts<br/>ExplorerDataSource.getChildren()"]
+    E1["explorerViewer.ts<br/>ExplorerDataSource.getChildren()"]
+    E2["explorerService.ts<br/>ExplorerService.findClosest()"]
+    E3["explorerModel.ts<br/>ExplorerModel / ExplorerItem"]
   end
 
-  subgraph F["配置层"]
-    F1["files.contribution.ts<br/>explorer.decorations.colors"]
-    F2["files.contribution.ts<br/>explorer.decorations.badges"]
-    F3["explorerView.ts<br/>onConfigurationUpdated()"]
+  subgraph C["配置层"]
+    C1["files.contribution.ts<br/>explorer.decorations.colors"]
+    C2["files.contribution.ts<br/>explorer.decorations.badges"]
+    C3["explorerView.ts<br/>onConfigurationUpdated()"]
   end
 
-  A1 --> A2 --> A3
-  A3 -->|setTreeInput 完成后注册| B1
-  B1 --> B2
-  B2 --> E1
-  E1 --> E2
-  E3 -->|root resolve 失败| B3
-  B3 --> B1
+  V1 --> V2
+  V2 --> D1
+  V2 --> V4
 
-  B1 -->|注册 provider| C2
+  D1 --> D4
+  D1 --> S2
+  D2 --> E2
+  E2 --> E3
+
+  E1 --> D4
+  D4 --> D1
+
+  S2 --> S4
+  S4 --> S5
+  S5 --> L2
+
+  V4 --> L4
+  L4 --> S3
+  S3 --> L4
+
+  L2 --> L3
+  L3 --> V4
+
+  C1 --> C3
   C2 --> C3
-  C2 --> C4
-  C4 --> D1
+  C3 --> V2
+```
 
-  A3 -->|renderStat()| D2
-  D2 -->|setResource(resource, options)| C3
-  C3 -->|返回 IDecoration| D2
-  C4 --> D3 --> D2
+```mermaid
+flowchart TB
+  subgraph V["视图装配"]
+    V1["explorerViewlet.ts<br/>ExplorerViewletViewsContribution.registerViews()"]
+    V2["explorerView.ts<br/>ExplorerView.setTreeInput()"]
+    V3["explorerView.ts<br/>ExplorerView.onConfigurationUpdated()"]
+    V4["explorerViewer.ts<br/>ExplorerViewer.renderStat()"]
+  end
 
-  F1 --> F3
-  F2 --> F3
-  F3 -->|refresh(true)| A2
-  ```
+  subgraph D["装饰提供层"]
+    D1["explorerDecorationsProvider.ts<br/>ExplorerDecorationsProvider.constructor()"]
+    D2["explorerDecorationsProvider.ts<br/>ExplorerDecorationsProvider.provideDecorations(resource)"]
+    D3["explorerDecorationsProvider.ts<br/>provideDecorations(fileStat)"]
+    D4["explorerViewer.ts<br/>explorerRootErrorEmitter"]
+  end
+
+  subgraph S["装饰服务层"]
+    S1["decorations.ts<br/>IDecorationsService / IDecorationsProvider"]
+    S2["decorationsService.ts<br/>registerDecorationsProvider(provider)"]
+    S3["decorationsService.ts<br/>getDecoration(uri, includeChildren)"]
+    S4["decorationsService.ts<br/>_fetchData() / _keepItem()"]
+    S5["decorationsService.ts<br/>onDidChangeDecorations"]
+  end
+
+  subgraph L["标签渲染层"]
+    L1["labels.ts<br/>ResourceLabels.constructor()"]
+    L2["labels.ts<br/>decorationsService.onDidChangeDecorations"]
+    L3["labels.ts<br/>widget.notifyFileDecorationsChanges(e)"]
+    L4["labels.ts<br/>ResourceLabelWidget.setResource()"]
+  end
+
+  subgraph E["Explorer 数据层"]
+    E1["explorerViewer.ts<br/>ExplorerDataSource.getChildren()"]
+    E2["explorerService.ts<br/>ExplorerService.findClosest()"]
+    E3["explorerModel.ts<br/>ExplorerModel / ExplorerItem"]
+  end
+
+  subgraph C["配置层"]
+    C1["files.contribution.ts<br/>explorer.decorations.colors"]
+    C2["files.contribution.ts<br/>explorer.decorations.badges"]
+    C3["explorerView.ts<br/>onConfigurationUpdated()"]
+  end
+
+  V1 --> V2
+  V2 --> D1
+  V2 --> V4
+
+  D1 --> D4
+  D1 --> S2
+  D2 --> E2
+  E2 --> E3
+
+  E1 --> D4
+  D4 --> D1
+
+  S2 --> S4
+  S4 --> S5
+  S5 --> L2
+
+  V4 --> L4
+  L4 --> S3
+  S3 --> L4
+
+  L2 --> L3
+  L3 --> V4
+
+  C1 --> C3
+  C2 --> C3
+  C3 --> V2
+```

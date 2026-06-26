@@ -23,7 +23,7 @@ Confirmed badge:
 - comes from `IReviewService.getLatestReviewSummary({ resource, sheetId })`;
 - is the final Explorer semantic badge projection;
 - represents reviewed template readiness, stale review, manual-adjustment needs, or final invalid review state.
-- is exposed to Explorer through `ExplorerDecorationsProvider`, not through `ExplorerFileEntry`.
+- is exposed to Explorer through `ExplorerDecorationsProvider` registered on `IDecorationsService`, not through `ExplorerFileEntry`.
 
 ## State Flow
 
@@ -32,6 +32,8 @@ ExplorerFileEntry resource + sheetId
   -> ExplorerDecorationsProvider.provideDecorations(resource)
   -> IReviewService.getLatestReviewSummary({ resource, sheetId })
   -> Explorer decoration data
+  -> IDecorationsService cache / onDidChangeDecorations
+  -> ExplorerViewPane decorationsByFileKey
   -> ExplorerViewer decorationsByFileKey
   -> ExplorerBadgeNode
 ```
@@ -49,7 +51,7 @@ Explorer reports actual rendered range from ObjectTree/List. Do not calculate
 visible rows   -> table-model priority visible
 overscan rows  -> table-model priority nearby
 remaining rows -> table-model priority background
-reviewChanged -> ExplorerDecorationsProvider.onDidChange -> ExplorerViewer rerender
+reviewChanged -> ExplorerDecorationsProvider.onDidChange -> IDecorationsService.onDidChangeDecorations -> ExplorerViewer rerender
 ```
 
 Table-model queue entries dedupe by raw table identity and source version. Drop

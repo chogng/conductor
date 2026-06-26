@@ -3,13 +3,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from "src/cs/nls";
+import type { IDecorationData } from "src/cs/workbench/services/decorations/common/decorations";
 import type { TableReviewSummary } from "src/cs/workbench/services/review/common/review";
 
-export type ExplorerDecorationData = {
-	readonly color?: string;
-	readonly letter?: string;
-	readonly tooltip?: string;
-};
+export type ExplorerDecorationData = IDecorationData;
 
 export const createExplorerDecorationDataFromReviewSummary = (
 	summary: TableReviewSummary | undefined,

@@ -5,6 +5,7 @@
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
+import type { CancellationToken } from "src/cs/base/common/async";
 import { localize } from "src/cs/nls";
 import {
 	IExplorerService,
@@ -19,8 +20,11 @@ import {
 	IReviewService,
 	type IReviewService as IReviewServiceType,
 } from "src/cs/workbench/services/review/common/review";
+import type {
+	IDecorationsProvider,
+} from "src/cs/workbench/services/decorations/common/decorations";
 
-export class ExplorerDecorationsProvider extends Disposable {
+export class ExplorerDecorationsProvider extends Disposable implements IDecorationsProvider {
 	public readonly label = localize("files.decorations.providerLabel", "Explorer");
 
 	private readonly onDidChangeEmitter = this._register(new Emitter<readonly URI[]>());
@@ -41,12 +45,13 @@ export class ExplorerDecorationsProvider extends Disposable {
 
 	public provideDecorations(
 		resource: URI,
-		sheetId?: ExplorerFileEntry["sheetId"],
+		_token?: CancellationToken,
 	): ExplorerDecorationData | undefined {
-		const entry = this.findExplorerEntry(resource);
+		const target = parseExplorerDecorationResource(resource);
+		const entry = this.findExplorerEntry(target.resource);
 		const summary = this.reviewService.getLatestReviewSummary({
-			resource,
-			sheetId: sheetId ?? entry?.sheetId ?? null,
+			resource: target.resource,
+			sheetId: target.sheetId ?? entry?.sheetId ?? null,
 		});
 		return createExplorerDecorationDataFromReviewSummary(summary);
 	}
@@ -71,12 +76,13 @@ export class ExplorerDecorationsProvider extends Disposable {
 			if (!entry.resource) {
 				continue;
 			}
-			const key = normalizeResourceKey(entry.resource);
+			const resource = createExplorerDecorationResource(entry.resource, entry.sheetId);
+			const key = normalizeResourceKey(resource);
 			if (!key || seen.has(key)) {
 				continue;
 			}
 			seen.add(key);
-			resources.push(entry.resource);
+			resources.push(resource);
 		}
 		return resources;
 	}
@@ -93,3 +99,33 @@ export class ExplorerDecorationsProvider extends Disposable {
 const normalizeResourceKey = (
 	resource: URI | null | undefined,
 ): string => resource?.toString().trim().replace(/\\/g, "/") ?? "";
+
+const SheetFragmentPrefix = "conductor.sheetId=";
+
+export const createExplorerDecorationResource = (
+	resource: URI,
+	sheetId?: ExplorerFileEntry["sheetId"],
+): URI => {
+	const normalizedSheetId = String(sheetId ?? "").trim();
+	return normalizedSheetId
+		? resource.with({ fragment: `${SheetFragmentPrefix}${encodeURIComponent(normalizedSheetId)}` })
+		: resource;
+};
+
+const parseExplorerDecorationResource = (
+	resource: URI,
+): {
+	readonly resource: URI;
+	readonly sheetId: string | null;
+} => {
+	const fragment = String(resource.fragment ?? "");
+	if (!fragment.startsWith(SheetFragmentPrefix)) {
+		return { resource, sheetId: null };
+	}
+
+	const encodedSheetId = fragment.slice(SheetFragmentPrefix.length);
+	return {
+		resource: resource.with({ fragment: "" }),
+		sheetId: decodeURIComponent(encodedSheetId),
+	};
+};
