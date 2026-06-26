@@ -1,8 +1,8 @@
 ---
-description: Explorer badge projection rules for pending decorations, table-model queue progress, Review/Slice confirmation, visible-first scheduling, stale result protection, and row reuse.
-applyTo: 'src/cs/workbench/contrib/files/**,src/cs/workbench/services/tableModel/**,src/cs/workbench/browser/workbenchDomainBridge.ts'
+description: Explorer decoration rules for review badges, visible-first scheduling, stale result protection, and row reuse.
+applyTo: 'src/cs/workbench/contrib/files/**,src/cs/workbench/services/review/**,src/cs/workbench/browser/workbenchDomainBridge.ts'
 ---
-# Explorer Badge Projection
+# Explorer Decorations
 
 Explorer badges are Files Explorer UI decorations. They are not canonical
 Session records and must not become converter, table-model, review, slice,
@@ -14,28 +14,31 @@ Pending badge:
 
 - Explorer projection only;
 - first-frame display and stable badge slot layout;
-- may show pending source status or TableModel queue progress only;
+- may show pending source status or pending Review summary only;
 - must not infer semantic labels from file name, path, extension, sheet name, header rows, or source rows;
 - must not read files, write Session, alter converter output, select templates, or drive table/chart decisions.
 
 Confirmed badge:
 
-- comes from formal Review/Slice/processed projections committed through Session;
+- comes from `IReviewService.getLatestReviewSummary({ resource, sheetId })`;
 - is the final Explorer semantic badge projection;
-- represents reviewed template readiness, slice progress, executed curve type, or final unavailable/error state.
+- represents reviewed template readiness, stale review, manual-adjustment needs, or final invalid review state.
+- is exposed to Explorer through `ExplorerDecorationsProvider`, not through `ExplorerFileEntry`.
 
 ## State Flow
 
 ```txt
-pending -> review/slice projection
-pending -> table-model queue progress
-table-model queue progress -> review/slice projection
-pending -> error
+ExplorerFileEntry resource + sheetId
+  -> ExplorerDecorationsProvider.provideDecorations(resource)
+  -> IReviewService.getLatestReviewSummary({ resource, sheetId })
+  -> Explorer decoration data
+  -> ExplorerViewer decorationsByFileKey
+  -> ExplorerBadgeNode
 ```
 
-Formal Review/Slice projection always wins. If Review cannot provide a ready
-template or Slice reports a terminal failure, Explorer must not keep showing a
-semantic badge from earlier table-model progress.
+Review is the source of semantic Explorer decorations. If Review cannot provide
+a ready template, Explorer must not keep showing a semantic badge from earlier
+table-model progress or row metadata.
 
 ## Scheduling
 
@@ -46,11 +49,12 @@ Explorer reports actual rendered range from ObjectTree/List. Do not calculate
 visible rows   -> table-model priority visible
 overscan rows  -> table-model priority nearby
 remaining rows -> table-model priority background
-table-model queue state -> WorkbenchDomainBridge -> ExplorerFileEntry.badgeState
+reviewChanged -> ExplorerDecorationsProvider.onDidChange -> ExplorerViewer rerender
 ```
 
 Table-model queue entries dedupe by raw table identity and source version. Drop
-stale queued results if the raw table version changes.
+stale queued results if the raw table version changes. Queue state must not be
+projected into Explorer decoration records.
 
 ## Rendering
 
@@ -60,3 +64,7 @@ not wait for full table-model, Review, or Slice production.
 Virtualized rows are reusable DOM. Bind badge updates to the current row key
 before writing text, state, title, or classes. Repeated renders with the same
 badge key should not rewrite DOM.
+
+Legacy `ExplorerFileEntry.badgeState` and `curveTypeBadgeLabel` are retired.
+New Explorer decoration work must use provider output keyed by Explorer file
+key, with Review summary as the semantic source.

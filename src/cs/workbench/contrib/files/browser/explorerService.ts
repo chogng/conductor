@@ -518,36 +518,8 @@ const areExplorerFilesEqual = (
       file.sourceStatusMessage === nextFile.sourceStatusMessage &&
       createRawTableStatusSignature(file.rawTableStatus) ===
         createRawTableStatusSignature(nextFile.rawTableStatus) &&
-      file.badgeState?.kind === nextFile.badgeState?.kind &&
       file.fileVersion === nextFile.fileVersion &&
-      (
-        file.badgeState?.kind !== "pending" ||
-        nextFile.badgeState?.kind === "pending" &&
-          file.badgeState.source === nextFile.badgeState.source &&
-          file.badgeState.queueState === nextFile.badgeState.queueState
-      ) &&
-      (
-        file.badgeState?.kind !== "error" ||
-        nextFile.badgeState?.kind === "error" &&
-          file.badgeState.message === nextFile.badgeState.message
-      ) &&
-      (
-        file.badgeState?.kind !== "ready" ||
-        nextFile.badgeState?.kind === "ready" &&
-          file.badgeState.label === nextFile.badgeState.label &&
-          file.badgeState.confidence === nextFile.badgeState.confidence &&
-          file.badgeState.source === nextFile.badgeState.source &&
-          file.badgeState.message === nextFile.badgeState.message
-      ) &&
-      (
-        file.badgeState?.kind !== "unknown" ||
-        nextFile.badgeState?.kind === "unknown" &&
-          file.badgeState.source === nextFile.badgeState.source &&
-          file.badgeState.message === nextFile.badgeState.message &&
-          file.badgeState.suspectedType === nextFile.badgeState.suspectedType
-      ) &&
       file.curveType === nextFile.curveType &&
-      file.curveTypeBadgeLabel === nextFile.curveTypeBadgeLabel &&
       file.curveTypeConfidence === nextFile.curveTypeConfidence &&
       file.curveTypeNeedsReview === nextFile.curveTypeNeedsReview &&
       areStringArraysEqual(file.curveTypeReasons ?? [], nextFile.curveTypeReasons ?? []);

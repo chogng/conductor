@@ -98,6 +98,7 @@ export class ExplorerView implements IDisposable {
       editable: this.props.editable,
       templateRecords: this.props.templateRecords,
       files: this.props.files,
+      decorationsByFileKey: this.props.decorationsByFileKey,
       folderImportSupport: this.props.folderImportSupport,
       mode: this.props.mode,
       viewLayout: this.props.viewLayout,

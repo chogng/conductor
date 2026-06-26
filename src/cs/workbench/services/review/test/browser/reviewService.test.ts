@@ -6,6 +6,7 @@ import assert from "assert";
 
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
+import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { StorageScope } from "src/cs/platform/storage/common/storage";
 import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
@@ -166,6 +167,38 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			.rawTableReviewsByRawTableId?.["table-a"];
 		assert.equal(record?.recipeFingerprint, "recipe:second");
 		assert.equal(record?.decision.kind, "ready");
+	});
+
+	test("returns latest review summaries for URI-backed table models", () => {
+		const sessionService = store.add(new SessionService());
+		const recipeService = store.add(new TestRecipeService("recipe:first"));
+		const userTemplateService = createUserTemplateServiceForTest();
+		const service = createReviewServiceForTest(sessionService, recipeService, userTemplateService);
+		store.add(new ReviewContribution(
+			sessionService,
+			service,
+			recipeService,
+			userTemplateService,
+		));
+
+		const resource = URI.file("/workspace/Transfer.csv");
+		sessionService.commitFileImport(createImportResult());
+		sessionService.commitTableModel(createTableModel({ sourceUri: resource.toString(), sourceVersion: 1 }));
+
+		const summary = service.getLatestReviewSummary({
+			resource,
+			sheetId: "table-a",
+		});
+
+		assert.equal(summary.state, "ready");
+		assert.equal(summary.resource, resource);
+		assert.equal(summary.sheetId, "table-a");
+		assert.equal(summary.reviewedSemanticLabel, "Detected IV Transfer");
+		assert.equal(summary.message, "Template is ready and recommended for system application.");
+		assert.deepEqual(summary.findingCodes, []);
+		assert.equal(typeof summary.confidence, "number");
+		assert.equal(Boolean(summary.reviewSignature), true);
+		assert.equal(Boolean(summary.templateFingerprint), true);
 	});
 
 	test("reviews inline manual templates as ready", () => {
@@ -382,7 +415,9 @@ class TestStorageService extends AbstractStorageService {
 	}
 }
 
-const createTableModel = (): TableModelRecord => ({
+const createTableModel = (
+	overrides: Partial<TableModelRecord> = {},
+): TableModelRecord => ({
 	tableModelRuleVersion: TABLE_MODEL_RULE_VERSION,
 	schemaProfileVersion: 0,
 	fileId: "file-a",
@@ -448,6 +483,7 @@ const createTableModel = (): TableModelRecord => ({
 	}],
 	diagnostics: [],
 	createdAt: 1,
+	...overrides,
 });
 
 const createImportResult = (): FileImportResult => ({

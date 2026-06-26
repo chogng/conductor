@@ -15,7 +15,6 @@ import {
   createRawExplorerFiles,
   getExplorerTreeFileKey,
   mergeExplorerSourceEntries,
-  summarizeExplorerBadgeProjection,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -54,96 +53,6 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     assert.equal(buildExplorerTree([fallbackEntry])[0]?.children?.[0]?.key, "file:batch/raw.csv");
   });
 
-  test("summarizeExplorerBadgeProjection ignores chart-only metadata", () => {
-    const tableSummary = summarizeExplorerBadgeProjection([
-      {
-        badgeState: {
-	          confidence: "confirmed",
-	          kind: "ready",
-	          label: "transfer",
-	          source: "review",
-	        },
-        fileId: "file-a",
-        fileName: "A.csv",
-      },
-      {
-	        badgeState: {
-	          kind: "unknown",
-	          source: "review",
-	        },
-        fileId: "file-b",
-        fileName: "B.csv",
-      },
-    ]);
-    const chartSummary = summarizeExplorerBadgeProjection([
-      {
-        badgeState: {
-	          confidence: "confirmed",
-	          kind: "ready",
-	          label: "transfer",
-	          source: "review",
-	        },
-        chartMessage: "Ready",
-        chartState: "ready",
-        fileId: "file-a",
-        fileName: "Processed A.csv",
-        hasChartData: true,
-      },
-      {
-	        badgeState: {
-	          kind: "unknown",
-	          source: "review",
-	        },
-        chartState: "none",
-        fileId: "file-b",
-        fileName: "Processed B.csv",
-        hasChartData: false,
-      },
-    ]);
-
-    assert.equal(tableSummary.signature, chartSummary.signature);
-    assert.deepEqual(
-      {
-	        confirmedBadgeCount: tableSummary.confirmedBadgeCount,
-        failedSourceCount: tableSummary.failedSourceCount,
-        loadingSourceCount: tableSummary.loadingSourceCount,
-        pendingBadgeCount: tableSummary.pendingBadgeCount,
-        totalFileCount: tableSummary.totalFileCount,
-      },
-      {
-	        confirmedBadgeCount: chartSummary.confirmedBadgeCount,
-        failedSourceCount: chartSummary.failedSourceCount,
-        loadingSourceCount: chartSummary.loadingSourceCount,
-        pendingBadgeCount: chartSummary.pendingBadgeCount,
-        totalFileCount: chartSummary.totalFileCount,
-      },
-    );
-
-    const skippedSummary = summarizeExplorerBadgeProjection([
-      {
-        badgeState: {
-	          confidence: "confirmed",
-	          kind: "ready",
-	          label: "transfer",
-	          source: "review",
-	        },
-        fileId: "file-a",
-        fileName: "A.csv",
-      },
-      {
-        badgeState: {
-          kind: "error",
-          message: "Skipped",
-        },
-        chartState: "skipped",
-        fileId: "file-b",
-        fileName: "B.csv",
-      },
-    ]);
-    assert.notEqual(tableSummary.signature, skippedSummary.signature);
-    assert.equal(skippedSummary.confirmedBadgeCount, 1);
-  });
-
   test("file presentation signature includes raw table status projection", () => {
     const baseOptions = {
       badgeColorSignature: "",
@@ -176,30 +85,6 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     assert.notEqual(readySignature, slicedSignature);
   });
 
-  test("badge projection signature includes raw table status projection", () => {
-    const pendingSummary = summarizeExplorerBadgeProjection([{
-      fileId: "file-a",
-      fileName: "A.csv",
-      rawTableStatus: {
-        kind: "reviewPending",
-        rawTableId: "table-a",
-        sourceRawTableVersion: 1,
-      },
-    }]);
-    const invalidSummary = summarizeExplorerBadgeProjection([{
-      fileId: "file-a",
-      fileName: "A.csv",
-      rawTableStatus: {
-        kind: "invalid",
-        rawTableId: "table-a",
-        diagnosticCodes: ["review.noCandidates"],
-        reasons: ["review.noCandidates"],
-      },
-    }]);
-
-    assert.notEqual(pendingSummary.signature, invalidSummary.signature);
-  });
-
   test("createExplorerFilePresentationSignature ignores chart-only metadata", () => {
     const options = {
       badgeColorSignature: "output:green",
@@ -208,14 +93,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
       templateSelectionId: "auto",
     };
     const file = {
-      badgeState: {
-        confidence: "confirmed",
-	        kind: "ready",
-	        label: "output",
-	        source: "review",
-      },
       curveType: "output",
-      curveTypeBadgeLabel: "output",
       curveTypeConfidence: "high",
       fileId: "file-a",
       fileName: "A.csv",
@@ -235,13 +113,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
       createExplorerFilePresentationSignature(file, options),
       createExplorerFilePresentationSignature({
         ...file,
-        badgeState: {
-          kind: "error",
-          message: "Skipped",
-        },
-        chartMessage: "Skipped",
-        chartState: "skipped",
-        hasChartData: false,
+        curveType: "transfer",
       }, options),
     );
   });
@@ -295,7 +167,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     );
   });
 
-  test("createRawExplorerFiles projects confirmed curve labels", () => {
+  test("createRawExplorerFiles projects raw file curve metadata", () => {
     assert.deepEqual(
       createRawExplorerFiles([
         {
@@ -321,14 +193,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           normalizedCsvPath: undefined,
           relativePath: "batch/raw.csv",
           sourcePath: "C:/data/raw.csv",
-          badgeState: {
-            confidence: "confirmed",
-	            kind: "ready",
-	            label: "output",
-	            source: "review",
-          },
           curveType: "output (vd)",
-          curveTypeBadgeLabel: "output",
           curveTypeConfidence: "medium",
           curveTypeNeedsReview: false,
           curveTypeReasons: ["Shape evidence matches output-style Id-Vd behavior."],
@@ -373,14 +238,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
         normalizedCsvPath: undefined,
         relativePath: "batch/raw.csv",
         sourcePath: "C:/data/raw.csv",
-        badgeState: {
-          confidence: "confirmed",
-	          kind: "ready",
-	          label: "mixed",
-	          source: "review",
-        },
         curveType: "iv",
-        curveTypeBadgeLabel: "iv",
         curveTypeConfidence: "high",
         curveTypeNeedsReview: undefined,
         curveTypeReasons: undefined,
@@ -430,14 +288,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
         normalizedCsvPath: "C:/normalized/raw.csv",
         relativePath: "batch/canonical.csv",
         sourcePath: "C:/canonical/raw.csv",
-        badgeState: {
-          confidence: "confirmed",
-	          kind: "ready",
-	          label: "transfer",
-	          source: "review",
-        },
         curveType: "transfer",
-        curveTypeBadgeLabel: "transfer",
         curveTypeConfidence: "low",
         curveTypeNeedsReview: true,
         curveTypeReasons: undefined,
@@ -458,22 +309,13 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     );
 
     assert.deepEqual(files.map(file => ({
-      badgeState: file.badgeState,
       chartState: file.chartState,
       curveType: file.curveType,
-      curveTypeBadgeLabel: file.curveTypeBadgeLabel,
       hasChartData: file.hasChartData,
     })), [
       {
-        badgeState: {
-          confidence: "confirmed",
-	          kind: "ready",
-	          label: "output",
-	          source: "review",
-        },
         chartState: "ready",
         curveType: "output",
-        curveTypeBadgeLabel: "output",
         hasChartData: true,
       },
     ]);
@@ -491,7 +333,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     );
   });
 
-  test("createRawExplorerFiles projects pending badge state before confirmed projection", () => {
+  test("createRawExplorerFiles omits legacy badge state", () => {
     assert.deepEqual(
       createRawExplorerFiles([
         {
@@ -511,9 +353,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           relativePath: "batch/raw.csv",
           itemKey: "item-key",
           sourcePath: undefined,
-          badgeState: { kind: "pending" },
           curveType: null,
-          curveTypeBadgeLabel: null,
           curveTypeConfidence: undefined,
           curveTypeNeedsReview: undefined,
           curveTypeReasons: undefined,

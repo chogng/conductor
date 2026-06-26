@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Event } from "src/cs/base/common/event";
+import type { URI } from "src/cs/base/common/uri";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
 import type {
@@ -189,6 +190,31 @@ export type ReviewQueueSnapshot = {
   readonly rawTables: readonly RawTableRef[];
 };
 
+export type TableReviewSummaryState =
+  | "missing"
+  | "pending"
+  | "stale"
+  | "ready"
+  | "needsAdjustment"
+  | "invalid";
+
+export type TableReviewSummaryTarget = {
+  readonly resource: URI;
+  readonly sheetId?: SheetId | null;
+};
+
+export type TableReviewSummary = {
+  readonly resource: URI;
+  readonly sheetId?: SheetId;
+  readonly state: TableReviewSummaryState;
+  readonly confidence?: number;
+  readonly reviewedSemanticLabel?: string;
+  readonly message?: string;
+  readonly findingCodes: readonly string[];
+  readonly reviewSignature?: string;
+  readonly templateFingerprint?: string;
+};
+
 export type ReviewEvidenceSignatureContext = {
   readonly columnCount?: number;
   readonly fileName?: string | null;
@@ -204,6 +230,7 @@ export interface IReviewService {
   enqueueAllCurrentEvidence(): void;
   enqueueForEvidence(refs: readonly RawTableRef[]): void;
   getQueueSnapshot(): ReviewQueueSnapshot;
+  getLatestReviewSummary(target: TableReviewSummaryTarget): TableReviewSummary;
   reviewManualTemplate(input: ManualTemplateReviewRequest): ManualTemplateReviewResult;
 }
 

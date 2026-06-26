@@ -45,19 +45,21 @@ import {
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
   getExplorerFolderPath,
+  getExplorerTreeFileKey,
   isExplorerPathInFolder,
   mergeExplorerSourceEntries,
   resolveExplorerSelectionAfterRemoval,
   resolveExplorerSelectedFileId,
-  summarizeExplorerBadgeProjection,
-  type ExplorerBadgeProjectionSummary,
   type ExplorerFileEntry,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import { TOGGLE_THUMBNAIL_VIEW_ACTION_ID } from "src/cs/workbench/contrib/thumbnail/common/thumbnail";
-import {
-  markTemplateApplyPerformanceTrace,
-} from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
 import { createTemplateEditorRecordFromUserTemplate } from "src/cs/workbench/contrib/template/browser/templateUserTemplateAdapter";
+import {
+  ExplorerDecorationsProvider,
+} from "src/cs/workbench/contrib/files/browser/views/explorerDecorationsProvider";
+import type {
+  ExplorerDecorationData,
+} from "src/cs/workbench/contrib/files/browser/views/explorerDecorations";
 import {
   IThumbnailPreviewService,
   IThumbnailService,
@@ -75,6 +77,10 @@ import {
   IUserTemplateService,
   type IUserTemplateService as IUserTemplateServiceType,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
+import {
+  IReviewService,
+  type IReviewService as IReviewServiceType,
+} from "src/cs/workbench/services/review/common/review";
 
 import "src/cs/workbench/contrib/files/browser/views/media/explorerViewlet.css";
 
@@ -97,8 +103,7 @@ export class ExplorerViewPane extends ViewPane {
     readonly pendingSourceEntries: readonly ExplorerFileEntry[];
     readonly replaceItemKeys: readonly string[] | null;
   } | null = null;
-  private lastBadgeProjectionFiles: readonly ExplorerFileEntry[] | null = null;
-  private lastBadgeProjectionSignature: string | null = null;
+  private readonly decorationsProvider: ExplorerDecorationsProvider;
   private isDragging = false;
   private disposed = false;
   private pendingLocalExpandedFolderKeys: readonly string[] | null = null;
@@ -118,6 +123,7 @@ export class ExplorerViewPane extends ViewPane {
     @IThumbnailPreviewService private readonly thumbnailPreviewService: IThumbnailPreviewService,
     @IThumbnailService private readonly thumbnailService: IThumbnailService,
     @IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
+    @IReviewService reviewService: IReviewServiceType,
   ) {
     super({
       id: ExplorerViewId,
@@ -163,6 +169,10 @@ export class ExplorerViewPane extends ViewPane {
       },
       syncView: () => this.syncView(),
     });
+    this.decorationsProvider = this._register(new ExplorerDecorationsProvider(
+      this.explorerService,
+      reviewService,
+    ));
 
     this._register(this.explorerService.onDidChangePaneInput(() => {
       this.update(this.explorerService.getPaneInput());
@@ -183,6 +193,9 @@ export class ExplorerViewPane extends ViewPane {
       this.syncView();
     }));
     this._register(this.userTemplateService.onDidChangeUserTemplates(() => {
+      this.syncView();
+    }));
+    this._register(this.decorationsProvider.onDidChange(() => {
       this.syncView();
     }));
 
@@ -345,7 +358,6 @@ export class ExplorerViewPane extends ViewPane {
   private createExplorerViewProps(): ExplorerViewProps {
     const input = this.paneInput;
     const files = this.files;
-    this.markExplorerBadgeProjection(files);
     return {
       selectedFileId: this.selectedFileId,
       selectedItemKey: this.selectedItemKey,
@@ -363,6 +375,7 @@ export class ExplorerViewPane extends ViewPane {
       editable: this.explorerService.getContext().editable,
       templateRecords: this.createTemplateRecords(),
       files,
+      decorationsByFileKey: this.createExplorerDecorationsByFileKey(files),
       folderImportSupport: getFolderImportSupportForFileService(this.filesService),
       isDragging: this.isDragging,
       mode: input.mode,
@@ -384,23 +397,24 @@ export class ExplorerViewPane extends ViewPane {
     };
   }
 
-  private markExplorerBadgeProjection(files: readonly ExplorerFileEntry[]): void {
-    if (this.lastBadgeProjectionFiles === files) {
-      return;
+  private createExplorerDecorationsByFileKey(
+    files: readonly ExplorerFileEntry[],
+  ): Readonly<Record<string, ExplorerDecorationData>> {
+    const decorationsByFileKey: Record<string, ExplorerDecorationData> = {};
+    for (const file of files) {
+      const resource = getExplorerFileTableResource(file);
+      if (!resource) {
+        continue;
+      }
+      const decoration = this.decorationsProvider.provideDecorations(
+        resource,
+        file.sheetId ?? null,
+      );
+      if (decoration) {
+        decorationsByFileKey[getExplorerTreeFileKey(file)] = decoration;
+      }
     }
-
-    this.lastBadgeProjectionFiles = files;
-    const summary = summarizeExplorerBadgeProjection(files);
-    if (!summary.totalFileCount) {
-      this.lastBadgeProjectionSignature = null;
-      return;
-    }
-    if (this.lastBadgeProjectionSignature === summary.signature) {
-      return;
-    }
-
-    this.lastBadgeProjectionSignature = summary.signature;
-    markExplorerBadgeProjection(summary);
+    return decorationsByFileKey;
   }
 
   private readonly handleCancelRenameFile = (): void => {
@@ -458,12 +472,10 @@ export class ExplorerViewPane extends ViewPane {
         continue;
       }
 
-      const current = entriesByItemKey.get(itemKey);
       entriesByItemKey.set(itemKey, createPendingSourceEntry({
-        badgeState: current?.badgeState,
-        message: current?.sourceStatusMessage ?? null,
+        message: entriesByItemKey.get(itemKey)?.sourceStatusMessage ?? null,
         pendingFile,
-        status: current?.sourceStatus ?? "pending",
+        status: entriesByItemKey.get(itemKey)?.sourceStatus ?? "pending",
       }));
       if (replaceItemKeys && !replaceItemKeys.includes(itemKey)) {
         replaceItemKeys.push(itemKey);
@@ -489,7 +501,6 @@ export class ExplorerViewPane extends ViewPane {
     const pendingEntries = this.pendingSourceEntries.map(entry =>
       normalizeItemKey(entry.itemKey) === itemKey
         ? createPendingSourceEntry({
-            badgeState: entry.badgeState,
             message: change.message ?? null,
             pendingFile,
             status: change.status,
@@ -1089,36 +1100,17 @@ export class ExplorerViewPane extends ViewPane {
   }
 }
 
-const markExplorerBadgeProjection = (
-  summary: ExplorerBadgeProjectionSummary,
-): void => {
-  if (!summary.totalFileCount) {
-    return;
-  }
-
-	  markTemplateApplyPerformanceTrace("import.badge.projection", {
-	    confirmedBadgeCount: summary.confirmedBadgeCount,
-	    failedSourceCount: summary.failedSourceCount,
-	    loadingSourceCount: summary.loadingSourceCount,
-    pendingBadgeCount: summary.pendingBadgeCount,
-    totalFileCount: summary.totalFileCount,
-  });
-};
-
 function createPendingSourceEntry({
-  badgeState,
   message,
   pendingFile,
   status,
 }: {
-  readonly badgeState?: ExplorerFileEntry["badgeState"];
   readonly message: string | null;
   readonly pendingFile: PendingImportFile;
   readonly status: ExplorerFileEntry["sourceStatus"];
 }): ExplorerFileEntry {
   const relativePath = normalizeRelativePath(pendingFile.relativePath);
   return {
-    badgeState: badgeState ?? { kind: "pending" },
     fileName: pendingFile.sourceName,
     itemKey: pendingFile.itemKey,
     relativePath,

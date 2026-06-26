@@ -85,6 +85,9 @@ import {
   type ExplorerBadgePresentation,
 } from "src/cs/workbench/contrib/files/browser/views/explorerBadgeNode";
 import type {
+  ExplorerDecorationData,
+} from "src/cs/workbench/contrib/files/browser/views/explorerDecorations";
+import type {
   IThumbnailPreviewService,
   IThumbnailService,
   ThumbnailPreviewState,
@@ -119,6 +122,7 @@ export type ExplorerViewerProps = {
   readonly editable?: ExplorerEditableData | null;
   readonly templateRecords?: readonly TemplateEditorRecord[];
   readonly files: ExplorerFileEntry[];
+  readonly decorationsByFileKey?: Readonly<Record<string, ExplorerDecorationData>>;
   readonly mode?: WorkbenchMainPart;
   readonly viewLayout?: FilesViewLayout;
   readonly folderImportSupport?: FolderImportSupport;
@@ -155,31 +159,12 @@ const getFileHoverThumbnailWidth = (): number =>
     Math.floor(window.innerWidth * FILE_HOVER_THUMBNAIL_VIEWPORT_RATIO),
   ));
 
-type FileItemTableModel = {
-  readonly label: string;
-  readonly isWarning: boolean;
-  readonly source: "review";
-  readonly state: "ready" | "unknown";
-  readonly type: string;
-  readonly confidence: string;
-  readonly reasons: readonly string[];
-  readonly template: string;
-};
-
 type FileSourceStatusBadge = {
   readonly label: string;
   readonly isWarning: boolean;
   readonly state: "source";
   readonly status: ExplorerSourceStatus;
   readonly title: string | null;
-};
-
-type FilePendingTableModel = {
-  readonly label: string;
-  readonly isWarning: boolean;
-  readonly source?: "tableModel";
-  readonly state: "pending";
-  readonly title: string;
 };
 
 type FileHoverContext = {
@@ -260,61 +245,6 @@ type ThumbnailGridItemCacheEntry = {
   thumbnail: HTMLElement;
 };
 
-const hasFileItemTableModel = (
-  fileEntry: ExplorerFileEntry,
-  reasons: readonly string[],
-): boolean =>
-  Boolean(
-    String(fileEntry.curveType ?? "").trim() ||
-      fileEntry.curveTypeConfidence ||
-      fileEntry.curveTypeNeedsReview === true ||
-      reasons.length,
-  );
-
-const createFileItemTableModel = (
-  fileEntry: ExplorerFileEntry,
-  templateLabel: string,
-): FileItemTableModel | null => {
-  const badgeState = fileEntry.badgeState;
-	if (
-		(badgeState?.kind !== "ready" && badgeState?.kind !== "unknown") ||
-		badgeState?.source !== "review"
-	) {
-    return null;
-  }
-
-  const confidence = fileEntry?.curveTypeConfidence
-    ? String(fileEntry.curveTypeConfidence).trim()
-    : localize("files.autoUnknown", "Unknown");
-  const reasons = (fileEntry.curveTypeReasons ?? [])
-    .map(reason => String(reason).trim())
-    .filter(Boolean);
-  if (!hasFileItemTableModel(fileEntry, reasons)) {
-    return null;
-  }
-
-  const curveType =
-    String(fileEntry.curveType ?? "").trim() ||
-    localize("files.autoUnknown", "Unknown");
-  const label = badgeState.kind === "ready"
-    ? badgeState.label
-    : localize("files.autoUnknown", "Unknown");
-
-  return {
-    label,
-    isWarning:
-      badgeState.kind === "unknown" ||
-      fileEntry?.curveTypeNeedsReview === true ||
-      fileEntry?.curveTypeConfidence === "low",
-    source: "review",
-    state: badgeState.kind === "unknown" ? "unknown" : "ready",
-    type: curveType,
-    confidence,
-    reasons: reasons.length ? reasons : [localize("files.autoNoReason", "Not available")],
-    template: templateLabel,
-  };
-};
-
 const createFileSourceStatusBadge = (
   fileEntry: ExplorerFileEntry,
 ): FileSourceStatusBadge | null => {
@@ -346,25 +276,6 @@ const createFileSourceStatusBadge = (
     default:
       return null;
   }
-};
-
-const createFilePendingTableModel = (
-  fileEntry: ExplorerFileEntry,
-): FilePendingTableModel | null => {
-  const badgeState = fileEntry.badgeState;
-  if (badgeState?.kind !== "pending") {
-    return null;
-  }
-
-  return {
-    label: "...",
-    isWarning: false,
-    ...(badgeState.source ? { source: badgeState.source } : {}),
-    state: "pending",
-    title: badgeState.queueState === "queued"
-      ? localize("files.autoQueued", "Waiting for table model")
-      : localize("files.autoAnalyzing", "Analyzing"),
-  };
 };
 
 const getLocalizedTableModelHealthMessage = (
@@ -513,12 +424,7 @@ const getFileHoverDirectoryPath = (
 const getFileHoverTypeLabel = (
   fileEntry: ExplorerFileEntry,
 ): string => {
-  if (fileEntry.badgeState?.kind === "ready") {
-    return normalizeFileHoverText(fileEntry.badgeState.label);
-  }
-
   return getFirstFileHoverText(
-    fileEntry.curveTypeBadgeLabel,
     fileEntry.curveType,
   );
 };
@@ -545,7 +451,7 @@ const normalizeFileHoverText = (
 
 const createBadgePresentation = (
   fileKey: string,
-  badge: FileItemTableModel | FileSourceStatusBadge | FilePendingTableModel | null,
+  badge: ExplorerDecorationData | FileSourceStatusBadge | null,
   badgeColors: FilesExplorerBadgeColors,
 ): ExplorerBadgePresentation => {
   if (!badge) {
@@ -555,18 +461,21 @@ const createBadgePresentation = (
   return {
     color: resolveBadgePresentationColor(badge, badgeColors),
     fileKey,
-    isWarning: badge.isWarning,
-    label: badge.label,
+    isWarning: "isWarning" in badge ? badge.isWarning : false,
+    label: "label" in badge ? badge.label : badge.letter ?? "",
     source: "source" in badge ? badge.source : null,
-    state: badge.state,
-    title: "title" in badge ? badge.title : null,
+    state: "state" in badge ? badge.state : "decoration",
+    title: "title" in badge ? badge.title : badge.tooltip ?? null,
   };
 };
 
 const resolveBadgePresentationColor = (
-  badge: FileItemTableModel | FileSourceStatusBadge | FilePendingTableModel,
+  badge: ExplorerDecorationData | FileSourceStatusBadge,
   badgeColors: FilesExplorerBadgeColors,
 ): string | null => {
+  if (!("state" in badge)) {
+    return normalizeDecorationColor(badge.color);
+  }
   if (badge.state === "source" || badge.state === "pending") {
     return null;
   }
@@ -578,6 +487,26 @@ const resolveBadgePresentationColor = (
   const label = badge.label.trim().toLowerCase();
   return badgeColors[label] ?? "neutral";
 };
+
+const normalizeDecorationColor = (
+  color: string | undefined,
+): string | null => {
+  const normalized = String(color ?? "").trim();
+  if (!normalized) {
+    return null;
+  }
+  return normalized.startsWith("charts.")
+    ? normalized.slice("charts.".length)
+    : normalized;
+};
+
+const createExplorerDecorationSignature = (
+  decoration: ExplorerDecorationData | undefined,
+): string => [
+  decoration?.color ?? "",
+  decoration?.letter ?? "",
+  decoration?.tooltip ?? "",
+].join("\u001d");
 
 const getFileIdsFromTreeNodes = (
   nodes: readonly ITreeNode<FileTreeNode>[],
@@ -1155,6 +1084,7 @@ export class ExplorerViewer implements IDisposable {
     entry: ExplorerFileEntry,
     props: ExplorerViewerProps,
   ): string {
+    const fileKey = getExplorerTreeFileKey(entry);
     return [
       createExplorerFilePresentationSignature(entry, {
         badgeColorSignature: this.getBadgeColorSignature(props.explorerAppearance?.badgeColors),
@@ -1166,6 +1096,7 @@ export class ExplorerViewer implements IDisposable {
         ),
       }),
       createFileHoverContextSignature(entry),
+      createExplorerDecorationSignature(props.decorationsByFileKey?.[fileKey]),
       props.mode ?? "",
     ].join("\u001f");
   }
@@ -1553,13 +1484,9 @@ export class ExplorerViewer implements IDisposable {
         this.props.editable.resource.fileId === fileId,
     );
     const sourceStatus = createFileSourceStatusBadge(fileEntry);
-    const tableModelBadge = createFileItemTableModel(
-      fileEntry,
-      this.resolveFileTemplateLabel(fileEntry),
-    );
-    const pendingTableModel = createFilePendingTableModel(fileEntry);
     const { host } = template;
     const fileKey = getFileRenderKey(fileEntry);
+    const decoration = this.props.decorationsByFileKey?.[getExplorerTreeFileKey(fileEntry)] ?? null;
     const presentationSignature = this.createFilePresentationSignature(fileEntry, this.props);
     if (this.hoverAnchor === host && template.fileId !== fileId) {
       this.hideFileItemHover(host);
@@ -1611,38 +1538,16 @@ export class ExplorerViewer implements IDisposable {
     template.fileRenderKey = fileKey;
     template.filePresentationSignature = presentationSignature;
     template.badge.bind(fileKey);
-    const hoverTableModel = tableModelBadge;
-    if (hoverTableModel) {
-      host.dataset.autoType = hoverTableModel.type;
-      host.dataset.autoConfidence = hoverTableModel.confidence;
-      host.dataset.autoReasons = hoverTableModel.reasons.join(FILE_TABLE_MODEL_REASON_SEPARATOR);
-      host.dataset.autoTemplate = hoverTableModel.template;
-      host.dataset.autoWarning = hoverTableModel.isWarning ? "true" : "false";
-    } else {
-      delete host.dataset.autoType;
-      delete host.dataset.autoConfidence;
-      delete host.dataset.autoReasons;
-      delete host.dataset.autoTemplate;
-      delete host.dataset.autoWarning;
-    }
+    delete host.dataset.autoType;
+    delete host.dataset.autoConfidence;
+    delete host.dataset.autoReasons;
+    delete host.dataset.autoTemplate;
+    delete host.dataset.autoWarning;
     if (sourceStatus) {
       host.dataset.sourceStatus = sourceStatus.status;
     } else {
       delete host.dataset.sourceStatus;
     }
-    if (fileEntry.badgeState?.kind) {
-      host.dataset.badgeState = fileEntry.badgeState.kind;
-    } else {
-      delete host.dataset.badgeState;
-    }
-    if (fileEntry.badgeState?.kind === "ready") {
-      host.dataset.badgeSource = fileEntry.badgeState.source;
-    } else if (fileEntry.badgeState?.kind === "unknown") {
-      host.dataset.badgeSource = fileEntry.badgeState.source;
-    } else {
-      delete host.dataset.badgeSource;
-    }
-
     template.editorStore.clear();
     template.label.element.style.display = "";
     template.label.setResource(
@@ -1685,7 +1590,7 @@ export class ExplorerViewer implements IDisposable {
     }
     const badge = sourceStatus?.status === "failed"
       ? sourceStatus
-      : tableModelBadge ?? sourceStatus ?? pendingTableModel;
+      : decoration ?? sourceStatus;
     template.badge.setBadge(fileKey, createBadgePresentation(
       fileKey,
       badge,

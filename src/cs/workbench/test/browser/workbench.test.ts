@@ -76,44 +76,6 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     });
   });
 
-  test("projects TableModel queue state into raw explorer badges", () => {
-    const session = store.add(new SessionService());
-    const explorerService = store.add(new ExplorerService());
-    commitRawFilesForTest(session, [{
-      columnCount: 0,
-      fileId: "file-a",
-      fileName: "notes.csv",
-      rowCount: 0,
-      rows: [],
-    }]);
-
-    const snapshot = session.getSnapshot();
-    const input = createExplorerPaneInput({
-      activePlotType: "iv",
-      tableModelQueueSnapshot: {
-        rawTables: [{
-          fileId: "file-a",
-          priority: "visible",
-          rawTableId: "file-a",
-          sourceRawTableVersion: 1,
-          state: "running",
-        }],
-      },
-      explorerService,
-      mode: "table",
-      plotService: createPlotService(),
-      readModel: createSessionReadModel(snapshot),
-      snapshot,
-      sliceState: createSliceStateForTest(),
-    });
-
-    assert.deepEqual(input.files[0]?.badgeState, {
-      kind: "pending",
-      queueState: "running",
-      source: "tableModel",
-    });
-  });
-
   test("keeps chart tree input on the stable raw file projection", () => {
     const session = store.add(new SessionService());
     commitRawFilesForTest(session, [
@@ -252,7 +214,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.deepEqual(input.files.map(file => file.chartState), ["ready", "none"]);
   });
 
-  test("keeps chart slice states from replacing confirmed badges", () => {
+  test("uses chart slice states without Explorer badge projection", () => {
     const snapshot = store.add(new SessionService()).getSnapshot();
     const input = createExplorerPaneInput({
       activePlotType: "iv",
@@ -305,39 +267,22 @@ suite("workbench/browser/workbench Explorer pane input", () => {
 
     assert.deepEqual(
       input.files.map(file => ({
-        badgeState: file.badgeState,
         chartMessage: file.chartMessage,
         chartState: file.chartState,
         fileId: file.fileId,
       })),
       [
         {
-	          badgeState: {
-	            kind: "unknown",
-	            source: "review",
-	          },
           chartMessage: "Unknown.csv has unknown curve type.",
           chartState: "skipped",
           fileId: "unknown-file",
         },
         {
-          badgeState: {
-            confidence: "confirmed",
-	            kind: "ready",
-	            label: "transfer",
-	            source: "review",
-	          },
           chartMessage: "Failed.csv could not be sliced.",
           chartState: "failed",
           fileId: "failed-file",
         },
         {
-          badgeState: {
-            confidence: "confirmed",
-	            kind: "ready",
-	            label: "output",
-	            source: "review",
-	          },
           chartMessage: null,
           chartState: "queued",
           fileId: "queued-file",
@@ -494,7 +439,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.equal(explorerService.selectedProcessedFileId, "raw-only");
   });
 
-  test("keeps raw explorer badges pending before Review or Slice records are ready", () => {
+  test("keeps raw explorer rows free of legacy badge projection", () => {
     const session = store.add(new SessionService());
     commitRawFilesForTest(session, [
       {
@@ -567,29 +512,19 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.deepEqual(
       input.files.map(file => ({
         fileId: file.fileId,
-        badgeState: file.badgeState,
-        curveTypeBadgeLabel: file.curveTypeBadgeLabel,
+        curveType: file.curveType,
       })),
       [
         {
-          badgeState: {
-            kind: "pending",
-          },
-          curveTypeBadgeLabel: null,
+          curveType: null,
           fileId: "output-file",
         },
         {
-          badgeState: {
-            kind: "pending",
-          },
-          curveTypeBadgeLabel: null,
+          curveType: null,
           fileId: "header-file",
         },
         {
-          badgeState: {
-            kind: "pending",
-          },
-          curveTypeBadgeLabel: null,
+          curveType: null,
           fileId: "ready-file",
         },
       ],

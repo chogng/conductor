@@ -59,8 +59,6 @@ import type {
 } from "src/cs/workbench/services/slice/common/slice";
 import {
   getRawTableRefsForFileIds,
-  type TableModelQueueSnapshot,
-  type TableModelRawTableQueueState,
   type ITableModelQueueService,
 } from "src/cs/workbench/services/tableModel/common/tableModel";
 import type { IThumbnailPreviewService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
@@ -355,7 +353,6 @@ export class WorkbenchDomainBridge extends Disposable {
       plotService: this.options.plotService,
       readModel,
       snapshot,
-      tableModelQueueSnapshot: this.options.tableModelQueueService.getQueueSnapshot(),
       sliceState,
     });
   }
@@ -673,7 +670,6 @@ type CreateExplorerPaneInputOptions = {
   readonly plotService: Pick<IPlotService, "getCalculatedData">;
   readonly readModel: SessionReadModel;
   readonly snapshot: SessionSnapshot;
-  readonly tableModelQueueSnapshot?: TableModelQueueSnapshot;
   readonly sliceState: SliceState;
 };
 
@@ -815,18 +811,13 @@ export const createExplorerPaneInput = ({
   plotAxisSettings,
   readModel,
   snapshot,
-  tableModelQueueSnapshot,
   sliceState,
 }: CreateExplorerPaneInputOptions): ExplorerPaneInput => {
   const rawFiles = readModel.rawFiles;
   const isChartMode = mode === "chart";
   const isThumbnailLayout = isChartMode && explorerService.viewLayout === "thumbnail";
   const selectionKind: ExplorerSelectionKind = isChartMode ? "chart" : "table";
-  const rawExplorerFiles = applyTableModelQueueExplorerBadges(
-    createRawExplorerFiles(rawFiles),
-    snapshot,
-    tableModelQueueSnapshot,
-  );
+  const rawExplorerFiles = createRawExplorerFiles(rawFiles);
   const rawStatusExplorerFiles = mergeExplorerPaneLocalImportFiles(
     applyRawTableStatusProjections(rawExplorerFiles, {
     sliceState,
@@ -1041,50 +1032,6 @@ const getExplorerPaneFileKey = (file: ExplorerFileEntry): string => {
   return fileId ? `file:${fileId}` : `item:${String(file.itemKey ?? "")}`;
 };
 
-const applyTableModelQueueExplorerBadges = (
-  files: readonly ExplorerFileEntry[],
-  snapshot: SessionSnapshot,
-  queueSnapshot: TableModelQueueSnapshot | undefined,
-): ExplorerFileEntry[] => {
-  if (!queueSnapshot?.rawTables.length) {
-    return [...files];
-  }
-
-  const queueStatesByRefKey = createTableModelQueueStatesByRefKey(queueSnapshot);
-  return files.map(file => applyTableModelQueueExplorerBadge(file, snapshot, queueStatesByRefKey));
-};
-
-const applyTableModelQueueExplorerBadge = (
-  file: ExplorerFileEntry,
-  snapshot: SessionSnapshot,
-  queueStatesByRefKey: ReadonlyMap<string, TableModelRawTableQueueState>,
-): ExplorerFileEntry => {
-  if (file.badgeState?.kind !== "pending") {
-    return file;
-  }
-
-  const fileId = String(file.fileId ?? "").trim();
-  const fileRecord = fileId ? snapshot.filesById[fileId] : undefined;
-  const match = findExplorerRawTable(file, fileRecord);
-  if (!fileId || !match) {
-    return file;
-  }
-
-  const queueState = queueStatesByRefKey.get(createRawTableRefKey(fileId, match.rawTableId));
-  if (!queueState) {
-    return file;
-  }
-
-  return {
-    ...file,
-    badgeState: {
-      kind: "pending",
-      queueState: queueState.state,
-      source: "tableModel",
-    },
-  };
-};
-
 const applyRawTableStatusProjections = (
   files: readonly ExplorerFileEntry[],
   {
@@ -1108,27 +1055,6 @@ const applyRawTableStatusProjections = (
       }),
     };
   });
-
-const createTableModelQueueStatesByRefKey = (
-  snapshot: TableModelQueueSnapshot,
-): ReadonlyMap<string, TableModelRawTableQueueState> => {
-  const statesByRefKey = new Map<string, TableModelRawTableQueueState>();
-  for (const state of snapshot.rawTables) {
-    const fileId = String(state.fileId ?? "").trim();
-    const rawTableId = String(state.rawTableId ?? "").trim();
-    if (!fileId || !rawTableId) {
-      continue;
-    }
-
-    const key = createRawTableRefKey(fileId, rawTableId);
-    const current = statesByRefKey.get(key);
-    if (!current || state.state === "running") {
-      statesByRefKey.set(key, state);
-    }
-  }
-
-  return statesByRefKey;
-};
 
 const applyChartExplorerStates = (
   files: readonly ExplorerFileEntry[],
@@ -1154,7 +1080,6 @@ const applyChartExplorerStates = (
     const chartMessage = getChartStateMessage(ownerState);
     return {
       ...file,
-      badgeState: file.badgeState,
       chartMessage,
       chartState,
       hasChartData,
@@ -1280,8 +1205,3 @@ const getRawTableResource = (file: FileRecord | undefined): URI | null => {
   const filePath = String(file?.raw.filePath ?? "").trim();
   return filePath ? URI.file(filePath) : null;
 };
-
-const createRawTableRefKey = (
-  fileId: string,
-  rawTableId: string,
-): string => `${fileId}\u0000${rawTableId}`;

@@ -14,6 +14,7 @@ import {
   REVIEW_ENGINE_VERSION,
   REVIEW_POLICY_VERSION,
   createReviewEvidenceSignature,
+  createReviewRecordSignature,
   type IReviewService as IReviewServiceType,
   type ManualTemplateReviewRequest,
   type ManualTemplateReviewResult,
@@ -22,6 +23,8 @@ import {
   type ReviewInput,
   type ReviewQueueSnapshot,
   type ReviewResult,
+  type TableReviewSummary,
+  type TableReviewSummaryTarget,
   type ReviewedTemplateSource,
   type TemplateCandidateSummary,
   type TemplateReview,
@@ -144,6 +147,59 @@ export class ReviewService extends Disposable implements IReviewServiceType {
     return {
       rawTables: [...this.pendingRefsByKey.values()],
     };
+  }
+
+  public getLatestReviewSummary(target: TableReviewSummaryTarget): TableReviewSummary {
+    const resourceKey = normalizeResourceKey(target.resource);
+    const requestedSheetId = normalizeText(target.sheetId);
+    const fallback = (): TableReviewSummary => ({
+      resource: target.resource,
+      ...(requestedSheetId ? { sheetId: requestedSheetId } : {}),
+      state: "missing",
+      findingCodes: [],
+    });
+    if (!resourceKey) {
+      return fallback();
+    }
+
+    const match = findReviewSummaryMatch({
+      resourceKey,
+      requestedSheetId,
+      snapshot: this.sessionService.getSnapshot(),
+    });
+    if (!match) {
+      return fallback();
+    }
+
+    const base = {
+      resource: target.resource,
+      sheetId: match.rawTableId,
+    };
+    const review = match.file.rawTableReviewsByRawTableId?.[match.rawTableId];
+    if (!review) {
+      return {
+        ...base,
+        state: "pending",
+        findingCodes: [],
+      };
+    }
+
+    if (review.sourceRawTableVersion !== match.tableModel.sourceRawTableVersion) {
+      return {
+        ...base,
+        state: "stale",
+        findingCodes: [],
+        message: "Review is stale for the current table model.",
+        reviewSignature: createReviewRecordSignature(review),
+        ...getReviewTemplateFingerprintFields(review),
+      };
+    }
+
+    return createTableReviewSummaryFromRecord({
+      resource: target.resource,
+      review,
+      sheetId: match.rawTableId,
+    });
   }
 
   public reviewManualTemplate(input: ManualTemplateReviewRequest): ManualTemplateReviewResult {
@@ -672,6 +728,113 @@ const normalizeRawTableRef = (
 const getRawTableRefKey = (
   ref: RawTableRef,
 ): string => `${ref.fileId}\u0000${ref.rawTableId}`;
+
+const findReviewSummaryMatch = ({
+  resourceKey,
+  requestedSheetId,
+  snapshot,
+}: {
+  readonly resourceKey: string;
+  readonly requestedSheetId: string;
+  readonly snapshot: ReturnType<ISessionServiceType["getSnapshot"]>;
+}): {
+  readonly file: FileRecord;
+  readonly rawTableId: string;
+  readonly tableModel: NonNullable<FileRecord["tableModelByRawTableId"][string]>;
+} | null => {
+  for (const fileId of snapshot.fileOrder) {
+    const file = snapshot.filesById[fileId];
+    if (!file) {
+      continue;
+    }
+    const tableModelEntries = Object.entries(file.tableModelByRawTableId ?? {});
+    for (const [rawTableId, tableModel] of tableModelEntries) {
+      if (requestedSheetId && rawTableId !== requestedSheetId) {
+        continue;
+      }
+      if (normalizeResourceText(tableModel.sourceUri) !== resourceKey) {
+        continue;
+      }
+      return { file, rawTableId, tableModel };
+    }
+  }
+
+  return null;
+};
+
+const createTableReviewSummaryFromRecord = ({
+  resource,
+  review,
+  sheetId,
+}: {
+  readonly resource: TableReviewSummary["resource"];
+  readonly review: RawTableReviewRecord;
+  readonly sheetId: string;
+}): TableReviewSummary => {
+  const reviewSignature = createReviewRecordSignature(review);
+  const decision = review.decision;
+  if (decision.kind === "ready") {
+    return {
+      resource,
+      sheetId,
+      state: "ready",
+      confidence: normalizeConfidence(decision.reviewedTemplate.review.confidence),
+      findingCodes: decision.reviewedTemplate.review.diagnostics.map(diagnostic => diagnostic.code),
+      message: decision.summary,
+      reviewedSemanticLabel: normalizeOptionalText(decision.reviewedTemplate.template.name),
+      reviewSignature,
+      templateFingerprint: decision.reviewedTemplate.templateFingerprint,
+    };
+  }
+
+  if (decision.kind === "needsManualAdjustment") {
+    const reviewCandidate = decision.candidateId
+      ? review.reviews.find(candidateReview => candidateReview.candidateId === decision.candidateId)
+      : undefined;
+    return {
+      resource,
+      sheetId,
+      state: "needsAdjustment",
+      ...(reviewCandidate ? { confidence: normalizeConfidence(reviewCandidate.confidence) } : {}),
+      findingCodes: decision.diagnostics.map(diagnostic => diagnostic.code),
+      message: decision.summary,
+      reviewSignature,
+    };
+  }
+
+  return {
+    resource,
+    sheetId,
+    state: "invalid",
+    findingCodes: decision.diagnostics.map(diagnostic => diagnostic.code),
+    message: decision.summary,
+    reviewSignature,
+  };
+};
+
+const getReviewTemplateFingerprintFields = (
+  review: RawTableReviewRecord,
+): Pick<TableReviewSummary, "templateFingerprint"> => {
+  const decision = review.decision;
+  return decision.kind === "ready"
+    ? { templateFingerprint: decision.reviewedTemplate.templateFingerprint }
+    : {};
+};
+
+const normalizeResourceKey = (
+  resource: TableReviewSummaryTarget["resource"],
+): string => normalizeResourceText(resource.toString());
+
+const normalizeResourceText = (
+  value: unknown,
+): string => normalizeText(value).replace(/\\/g, "/");
+
+const normalizeOptionalText = (
+  value: unknown,
+): string | undefined => {
+  const normalized = normalizeText(value);
+  return normalized || undefined;
+};
 
 const normalizeText = (
   value: unknown,

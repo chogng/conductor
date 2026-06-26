@@ -28,36 +28,6 @@ import {
 
 export type ExplorerSourceStatus = "pending" | "preparing" | "failed";
 
-export type ExplorerBadgeLabel =
-	| "transfer"
-	| "output"
-	| "cv"
-	| "cf"
-	| "pv"
-	| "mixed";
-
-export type ExplorerBadgeState =
-	| {
-			readonly confidence: "tentative" | "confirmed";
-			readonly kind: "ready";
-			readonly label: ExplorerBadgeLabel;
-			readonly message?: string | null;
-			readonly source: "review";
-		}
-	| {
-			readonly kind: "pending";
-			readonly queueState?: "queued" | "running";
-			readonly source?: "tableModel";
-		}
-	| { readonly kind: "none" }
-	| {
-			readonly kind: "unknown";
-			readonly message?: string | null;
-			readonly source: "review";
-			readonly suspectedType?: string | null;
-		}
-	| { readonly kind: "error"; readonly message?: string | null };
-
 export type ExplorerFileEntry = {
 	readonly chartMessage?: string | null;
 	readonly chartState?: "none" | "queued" | "processing" | "ready" | "failed" | "skipped";
@@ -79,10 +49,8 @@ export type ExplorerFileEntry = {
 	readonly rawTableHealth?: "ok" | "suspect" | "decodeFailed" | "parseFailed" | "unsupported" | "empty";
 	readonly rawTableHealthMessage?: string | null;
 	readonly templateEligibility?: "eligible" | "notEligible" | "needsUserAction";
-	readonly badgeState?: ExplorerBadgeState;
 	readonly fileVersion?: number;
 	readonly curveType?: string | null;
-	readonly curveTypeBadgeLabel?: string | null;
 	readonly curveTypeConfidence?: "high" | "medium" | "low";
 	readonly curveTypeNeedsReview?: boolean;
 	readonly curveTypeReasons?: readonly string[];
@@ -145,15 +113,6 @@ export type ExplorerThumbnailFile = Omit<ExplorerSemanticProjection, "curveType"
 	readonly xGroups?: readonly unknown[];
 	readonly xUnit?: string;
 	readonly yUnit?: string;
-};
-
-export type ExplorerBadgeProjectionSummary = {
-	readonly confirmedBadgeCount: number;
-	readonly failedSourceCount: number;
-	readonly loadingSourceCount: number;
-	readonly pendingBadgeCount: number;
-	readonly signature: string;
-	readonly totalFileCount: number;
 };
 
 export type ExplorerFilePresentationSignatureOptions = {
@@ -235,80 +194,10 @@ export const getExplorerTreeFileKey = <TEntry extends ExplorerFileEntry>(
 		...normalizePath(entry.relativePath),
 	]).join("/") || getExplorerFileName(entry)}`;
 
-export const summarizeExplorerBadgeProjection = (
-	files: readonly ExplorerFileEntry[],
-): ExplorerBadgeProjectionSummary => {
-	let confirmedBadgeCount = 0;
-	let pendingBadgeCount = 0;
-	let loadingSourceCount = 0;
-	let failedSourceCount = 0;
-	const signatureParts: string[] = [];
-
-	for (const file of files) {
-		const badgeState = file.badgeState;
-		if (badgeState?.kind === "ready" || badgeState?.kind === "unknown") {
-			confirmedBadgeCount += 1;
-		} else if (badgeState?.kind === "pending") {
-			pendingBadgeCount += 1;
-		}
-
-		if (file.sourceStatus === "pending" || file.sourceStatus === "preparing") {
-			loadingSourceCount += 1;
-		} else if (file.sourceStatus === "failed") {
-			failedSourceCount += 1;
-		}
-
-		signatureParts.push(createExplorerBadgeProjectionFileSignature(file));
-	}
-
-		return {
-			confirmedBadgeCount,
-			failedSourceCount,
-			loadingSourceCount,
-		pendingBadgeCount,
-		signature: signatureParts.join("\u001e"),
-		totalFileCount: files.length,
-	};
-};
-
-const createExplorerBadgeProjectionFileSignature = (file: ExplorerFileEntry): string => {
-	const badgeState = file.badgeState;
-	const badgeMessage =
-		badgeState?.kind === "error" ||
-		badgeState?.kind === "ready" ||
-		badgeState?.kind === "unknown"
-			? badgeState.message ?? ""
-			: "";
-	return [
-		getExplorerTreeFileKey(file),
-		file.sourceStatus ?? "",
-		file.sourceStatusMessage ?? "",
-		createRawTableStatusSignature(file.rawTableStatus),
-		file.rawTableHealth ?? "",
-		file.rawTableHealthMessage ?? "",
-		file.templateEligibility ?? "",
-		badgeState?.kind ?? "",
-		badgeMessage,
-		badgeState?.kind === "ready" ? badgeState.label : "",
-		badgeState?.kind === "ready" ? badgeState.confidence : "",
-		badgeState?.kind === "ready" ? badgeState.source : "",
-		badgeState?.kind === "pending" ? badgeState.source ?? "" : "",
-		badgeState?.kind === "pending" ? badgeState.queueState ?? "" : "",
-		badgeState?.kind === "unknown" ? badgeState.source : "",
-		badgeState?.kind === "unknown" ? badgeState.suspectedType ?? "" : "",
-	].join("\u001f");
-};
-
 export const createExplorerFilePresentationSignature = (
 	entry: ExplorerFileEntry,
 	options: ExplorerFilePresentationSignatureOptions,
 ): string => {
-	const badgeState = entry.badgeState;
-	const badgeMessage =
-		badgeState?.kind === "error" ||
-		badgeState?.kind === "ready"
-			? badgeState.message ?? ""
-			: "";
 	return [
 		entry.fileId ?? "",
 		entry.sourceStatus ?? "",
@@ -317,18 +206,7 @@ export const createExplorerFilePresentationSignature = (
 		entry.rawTableHealth ?? "",
 		entry.rawTableHealthMessage ?? "",
 		entry.templateEligibility ?? "",
-		badgeState?.kind ?? "",
-		badgeMessage,
-		badgeState?.kind === "ready" ? badgeState.label : "",
-		badgeState?.kind === "ready" ? badgeState.confidence : "",
-		badgeState?.kind === "ready" ? badgeState.source : "",
-		badgeState?.kind === "pending" ? badgeState.source ?? "" : "",
-		badgeState?.kind === "pending" ? badgeState.queueState ?? "" : "",
-		badgeState?.kind === "unknown" ? badgeState.source : "",
-		badgeState?.kind === "unknown" ? badgeState.message ?? "" : "",
-		badgeState?.kind === "unknown" ? badgeState.suspectedType ?? "" : "",
 		entry.curveType ?? "",
-		entry.curveTypeBadgeLabel ?? "",
 		entry.curveTypeConfidence ?? "",
 		entry.curveTypeNeedsReview === true ? "1" : "0",
 		(entry.curveTypeReasons ?? []).join("\u001d"),
@@ -548,100 +426,9 @@ const getOptionalString = (value: unknown): string | undefined => {
 	return text || undefined;
 };
 
-const getOptionalNullableString = (value: unknown): string | null => {
-	const text = String(value ?? "").trim();
-	return text || null;
-};
-
-const getExplorerCurveTypeBadgeLabel = (
-	curveType: unknown,
-	xAxisRole?: ExplorerXAxisRole,
-): string | null => {
-	const normalizedCurveType = getOptionalNullableString(curveType);
-	if (!normalizedCurveType) {
-		return null;
-	}
-	if (xAxisRole === "vg") {
-		return "transfer";
-	}
-	if (xAxisRole === "vd") {
-		return "output";
-	}
-	return normalizedCurveType;
-};
-
-export const toExplorerBadgeLabel = (
-	value: unknown,
-): ExplorerBadgeLabel | null => {
-	const normalized = String(value ?? "").trim().toLowerCase();
-	if (!normalized) {
-		return null;
-	}
-
-	if (normalized.includes("transfer")) {
-		return "transfer";
-	}
-	if (normalized.includes("output")) {
-		return "output";
-	}
-	if (normalized === "cv" || normalized.includes("capacitance-voltage")) {
-		return "cv";
-	}
-	if (normalized === "cf" || normalized.includes("capacitance-frequency")) {
-		return "cf";
-	}
-	if (normalized === "pv" || normalized.includes("photovoltaic")) {
-		return "pv";
-	}
-	if (normalized === "iv" || normalized.includes("id-v")) {
-		return "mixed";
-	}
-	if (normalized === "mixed") {
-		return "mixed";
-	}
-
-	return null;
-};
-
 const hasFileRecordChartData = (file: FileRecord): boolean =>
 	collectFileRecordBaseCurves(file).length > 0 ||
 	collectFileRecordMeasurementBlocks(file).length > 0;
-
-const hasExplorerSemanticSummary = (
-	file: ExplorerSemanticProjection,
-): boolean =>
-	Boolean(
-		getOptionalNullableString(file.curveType) ||
-			file.curveTypeConfidence ||
-			file.curveTypeNeedsReview === true ||
-			file.curveTypeReasons?.length,
-	);
-
-const createExplorerSemanticBadgeState = (
-	file: ExplorerSemanticProjection,
-	xAxisRole?: ExplorerXAxisRole,
-): ExplorerBadgeState => {
-	if (!hasExplorerSemanticSummary(file)) {
-		return { kind: "pending" };
-	}
-
-	const curveType = getOptionalNullableString(file.curveType);
-	if (!curveType || curveType.toLowerCase() === "unknown") {
-		return { kind: "unknown", source: "review" };
-	}
-
-	const label = toExplorerBadgeLabel(
-		getExplorerCurveTypeBadgeLabel(curveType, xAxisRole ?? null),
-	);
-	return label
-		? {
-					confidence: "confirmed",
-					kind: "ready",
-					label,
-					source: "review",
-				}
-		: { kind: "unknown", source: "review" };
-};
 
 const createExplorerHealthFields = (
 	file: Pick<
@@ -690,13 +477,8 @@ export const createRawExplorerFiles = (
 		itemKey: getOptionalString(file.itemKey ?? file.tableKey),
 		sourcePath: file.sourcePath,
 		...createExplorerHealthFields(file),
-		badgeState: createExplorerSemanticBadgeState(file, file.xAxisRole),
 		fileVersion: getExplorerFileVersion(file.sourceVersion),
 		curveType: file.curveType ?? null,
-		curveTypeBadgeLabel: getExplorerCurveTypeBadgeLabel(
-			file.curveType,
-			file.xAxisRole,
-		),
 		curveTypeConfidence: file.curveTypeConfidence,
 		curveTypeNeedsReview: file.curveTypeNeedsReview,
 		curveTypeReasons: file.curveTypeReasons,
@@ -745,14 +527,7 @@ export const createChartExplorerFilesFromRecords = (
 			sourcePath: file.raw.filePath ?? rawFile?.sourcePath,
 			...createExplorerHealthFields(rawFile),
 			fileVersion: getFileRecordVersion(file, rawFile?.sourceVersion),
-				badgeState: createExplorerSemanticBadgeState({
-				curveType,
-				curveTypeConfidence: rawFile?.curveTypeConfidence,
-				curveTypeNeedsReview: rawFile?.curveTypeNeedsReview,
-				curveTypeReasons: rawFile?.curveTypeReasons,
-			}, xAxisRole),
 			curveType,
-			curveTypeBadgeLabel: getExplorerCurveTypeBadgeLabel(curveType, xAxisRole),
 			curveTypeConfidence: rawFile?.curveTypeConfidence,
 			curveTypeNeedsReview: rawFile?.curveTypeNeedsReview,
 			curveTypeReasons: rawFile?.curveTypeReasons,
@@ -803,16 +578,7 @@ export const createChartExplorerFiles = (
 			sourcePath: rawFile?.sourcePath,
 			...createExplorerHealthFields(rawFile),
 			fileVersion: getExplorerFileVersion(rawFile?.sourceVersion),
-			badgeState: createExplorerSemanticBadgeState({
-				curveType,
-				curveTypeConfidence:
-					processedFile.curveTypeConfidence ?? rawFile?.curveTypeConfidence,
-				curveTypeNeedsReview:
-					processedFile.curveTypeNeedsReview ?? rawFile?.curveTypeNeedsReview,
-				curveTypeReasons: processedFile.curveTypeReasons ?? rawFile?.curveTypeReasons,
-			}, xAxisRole),
 			curveType,
-			curveTypeBadgeLabel: getExplorerCurveTypeBadgeLabel(curveType, xAxisRole),
 			curveTypeConfidence:
 				processedFile.curveTypeConfidence ?? rawFile?.curveTypeConfidence,
 			curveTypeNeedsReview:
