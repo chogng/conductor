@@ -12,6 +12,7 @@ export type SessionFile = {
   relativePath?: string | null;
   sourceVersion?: number;
   sourcePath?: string | null;
+  tableKey?: string | null;
   rawTableHealth?: "ok" | "suspect" | "decodeFailed" | "parseFailed" | "unsupported" | "empty";
   rawTableHealthMessage?: string | null;
   templateEligibility?: "eligible" | "notEligible" | "needsUserAction";

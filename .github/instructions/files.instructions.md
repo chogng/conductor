@@ -78,7 +78,7 @@ platform/files -> workbench/**
 Explorer owns:
 
 - Files container Explorer view host;
-- resource tree, selection, optional raw-table `sourceKey`, expansion, layout (`tree` / `thumbnail`), focus/edit state;
+- resource tree, selection, optional visible-row `itemKey`, expansion, layout (`tree` / `thumbnail`), focus/edit state;
 - file/folder commands, actions, context menus, drag/drop UI;
 - hover triggers, timing, anchors, context-view containers, positioning, dismissal;
 - thumbnail candidate filtering before thumbnail UI renders;
@@ -248,8 +248,8 @@ Tree and thumbnail are two presentations over the same Explorer resource model.
 They must share selection, file item actions, context menus, and source
 workflow wiring. Thumbnail rendering details live in `thumbnail.instructions.md`.
 When a table file has multiple table entries, Explorer selection keeps `fileId`
-for file actions and may carry `sourceKey` to identify the exact visible table
-source. Explorer-local imports open table resources directly through
+for file actions and may carry `itemKey` to identify the exact visible table
+row. Explorer-local imports open table resources directly through
 `ITableService.open({ resource })`; `WorkbenchDomainBridge` may still project
 Session-backed rows to table resources when a Session raw record has a
 `raw.filePath`. File close/delete/template actions still operate on `fileId`.

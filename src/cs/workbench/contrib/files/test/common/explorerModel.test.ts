@@ -28,11 +28,11 @@ suite("workbench/contrib/files/common/explorerModel", () => {
       fileName: "raw.csv",
       relativePath: "batch/raw.csv",
     };
-    const sourceKeyEntry = {
+    const fileIdItemKeyEntry = {
       fileId: "file-a",
       fileName: "raw.csv",
       relativePath: "batch/raw.csv",
-      sourceKey: "source-key",
+      itemKey: "item-key",
     };
     const itemKeyEntry = {
       itemKey: "source-item",
@@ -48,8 +48,8 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     assert.equal(buildExplorerTree([emptyFileIdEntry])[0]?.children?.[0]?.key, "source-item");
     assert.equal(getExplorerTreeFileKey(itemKeyEntry), "source-item");
     assert.equal(buildExplorerTree([itemKeyEntry])[0]?.children?.[0]?.key, "source-item");
-    assert.equal(getExplorerTreeFileKey(sourceKeyEntry), "source-key");
-    assert.equal(buildExplorerTree([sourceKeyEntry])[0]?.children?.[0]?.key, "source-key");
+    assert.equal(getExplorerTreeFileKey(fileIdItemKeyEntry), "item-key");
+    assert.equal(buildExplorerTree([fileIdItemKeyEntry])[0]?.children?.[0]?.key, "item-key");
     assert.equal(getExplorerTreeFileKey(fallbackEntry), "file:batch/raw.csv");
     assert.equal(buildExplorerTree([fallbackEntry])[0]?.children?.[0]?.key, "file:batch/raw.csv");
   });
@@ -289,7 +289,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
         files[0],
         {
           ...files[1],
-          sourceKey: "raw:b-next",
+          itemKey: "raw:b-next",
         },
       ]),
     );
@@ -303,7 +303,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           fileName: "raw.csv",
           itemKey: "raw-key",
           relativePath: "batch/raw.csv",
-          sourceKey: "source-key",
+          tableKey: "item-key",
           sourcePath: "C:/data/raw.csv",
           curveType: "output (vd)",
           curveTypeConfidence: "medium",
@@ -320,7 +320,6 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           itemKey: "raw-key",
           normalizedCsvPath: undefined,
           relativePath: "batch/raw.csv",
-          sourceKey: "source-key",
           sourcePath: "C:/data/raw.csv",
           badgeState: {
             confidence: "confirmed",
@@ -347,7 +346,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           fileName: "raw.csv",
           itemKey: "raw-key",
           relativePath: "batch/raw.csv",
-          sourceKey: "source-key",
+          tableKey: "item-key",
           sourcePath: "C:/data/raw.csv",
           curveType: "unknown",
           curveTypeConfidence: "low",
@@ -373,7 +372,6 @@ suite("workbench/contrib/files/common/explorerModel", () => {
         itemKey: "raw-key",
         normalizedCsvPath: undefined,
         relativePath: "batch/raw.csv",
-        sourceKey: "source-key",
         sourcePath: "C:/data/raw.csv",
         badgeState: {
           confidence: "confirmed",
@@ -412,7 +410,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           fileId: "raw-1",
           fileName: "raw.csv",
           itemKey: "source-item",
-          sourceKey: "source-key",
+          tableKey: "item-key",
           sourcePath: "C:/source/raw.csv",
           curveType: "unknown",
           curveTypeConfidence: "low",
@@ -431,7 +429,6 @@ suite("workbench/contrib/files/common/explorerModel", () => {
         itemKey: "source-item",
         normalizedCsvPath: "C:/normalized/raw.csv",
         relativePath: "batch/canonical.csv",
-        sourceKey: "source-key",
         sourcePath: "C:/canonical/raw.csv",
         badgeState: {
           confidence: "confirmed",
@@ -501,7 +498,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           fileId: "raw-1",
           fileName: "raw.csv",
           relativePath: "batch/raw.csv",
-          sourceKey: "source-key",
+          itemKey: "item-key",
           sourceVersion: 1,
         },
       ]),
@@ -510,10 +507,9 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           file: undefined,
           fileId: "raw-1",
           fileName: "raw.csv",
-          itemKey: undefined,
           normalizedCsvPath: undefined,
           relativePath: "batch/raw.csv",
-          sourceKey: "source-key",
+          itemKey: "item-key",
           sourcePath: undefined,
           badgeState: { kind: "pending" },
           curveType: null,
@@ -534,18 +530,18 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           {
             fileId: "file-1",
             fileName: "ready.csv",
-            sourceKey: "source-ready",
+            itemKey: "source-ready",
           },
         ],
         pendingSourceEntries: [
           {
             fileName: "ready.csv",
-            sourceKey: "source-ready",
+            itemKey: "source-ready",
             sourceStatus: "preparing",
           },
           {
             fileName: "later.csv",
-            sourceKey: "source-later",
+            itemKey: "source-later",
             sourceStatus: "pending",
           },
         ],
@@ -554,55 +550,55 @@ suite("workbench/contrib/files/common/explorerModel", () => {
         {
           fileId: "file-1",
           fileName: "ready.csv",
-          sourceKey: "source-ready",
+          itemKey: "source-ready",
         },
         {
           fileName: "later.csv",
-          sourceKey: "source-later",
+          itemKey: "source-later",
           sourceStatus: "pending",
         },
       ],
     );
   });
 
-  test("mergeExplorerSourceEntries replaces by source order and prefers committed files", () => {
+  test("mergeExplorerSourceEntries replaces by item order and prefers committed files", () => {
     assert.deepEqual(
       mergeExplorerSourceEntries({
         files: [
           {
             fileId: "old",
             fileName: "old.csv",
-            sourceKey: "source-old",
+            itemKey: "source-old",
           },
           {
             fileId: "ready",
             fileName: "ready.csv",
-            sourceKey: "source-ready",
+            itemKey: "source-ready",
           },
         ],
         pendingSourceEntries: [
           {
             fileName: "ready.csv",
-            sourceKey: "source-ready",
+            itemKey: "source-ready",
             sourceStatus: "preparing",
           },
           {
             fileName: "later.csv",
-            sourceKey: "source-later",
+            itemKey: "source-later",
             sourceStatus: "pending",
           },
         ],
-        replaceSourceKeys: ["source-ready", "source-later"],
+        replaceItemKeys: ["source-ready", "source-later"],
       }),
       [
         {
           fileId: "ready",
           fileName: "ready.csv",
-          sourceKey: "source-ready",
+          itemKey: "source-ready",
         },
         {
           fileName: "later.csv",
-          sourceKey: "source-later",
+          itemKey: "source-later",
           sourceStatus: "pending",
         },
       ],

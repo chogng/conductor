@@ -6,10 +6,10 @@ import { IFileService } from "src/cs/platform/files/common/files";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
 	TableFileService,
-} from "src/cs/workbench/services/tablefile/browser/tableFileService";
+} from "src/cs/workbench/services/tableFile/browser/tableFileService";
 import {
 	ITableFileService,
-} from "src/cs/workbench/services/tablefile/common/tablefiles";
+} from "src/cs/workbench/services/tableFile/common/tablefiles";
 
 export class BrowserTableFileService extends TableFileService {
 	public constructor(

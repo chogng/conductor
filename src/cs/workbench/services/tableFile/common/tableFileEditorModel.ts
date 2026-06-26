@@ -24,7 +24,7 @@ import {
 import {
 	readTableFile,
 	type TableFileReadResult,
-} from "src/cs/workbench/services/tablefile/common/tableFileReader";
+} from "src/cs/workbench/services/tableFile/common/tableFileReader";
 
 export type TableFileEditorModelSnapshot = {
 	readonly conflict: boolean;

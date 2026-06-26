@@ -78,14 +78,14 @@ function createTableState(): TableState {
 			fileName: "sample.csv",
 			maxCellLengths: [1, 1, 1],
 			rowCount: 3,
-			sourceKey: "file-a:1",
+			sheetKey: "file-a:1",
 		},
 		fileName: "sample.csv",
 		loadState: {
 			message: "",
 			state: "ready",
 		},
-		sourceKey: "file-a:1",
+		sheetKey: "file-a:1",
 	};
 }
 

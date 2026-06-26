@@ -101,9 +101,10 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
 
 `TableSource` is a service-local open target, not a Session record. `resource`
 is the primary file -> table open identity, following the upstream file ->
-editor shape. `fileId` identifies imported raw/session files for compatibility
-and file actions; `sourceKey`, when present, is raw-table provenance or sheet
-disambiguation and must not replace the URI identity for resource opens.
+editor shape. Explorer file actions keep `fileId`; Explorer visible-row
+disambiguation uses `itemKey`, and Session raw read projections use canonical
+`tableKey` when a legacy raw-table sheet needs a stable table key. Neither
+replaces the URI identity for resource opens.
 
 ## Domain Field Rules
 

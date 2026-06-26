@@ -9,7 +9,7 @@ import type { ColumnDisplayProfile } from "src/cs/workbench/services/table/commo
 import type { TableColumnWidth } from "src/cs/workbench/services/table/common/tableColumnLayout";
 
 // Pure data types for the table feature. This module is the common contract
-// entry point for table records, source keys, constants, and service contracts.
+// entry point for table records, source identity, constants, and service contracts.
 
 export type TableCell = {
 	readonly fileId?: string | null;

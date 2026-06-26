@@ -22,7 +22,7 @@ suite("workbench/services/session/test/common/sessionReadModel", () => {
       fileName: "Raw Transfer.csv",
       sheetId: "sheet-1",
       sheetName: "Data",
-      sourceKey: "file-a:sheet-1",
+      tableKey: "file-a:sheet-1",
       rowCount: 20,
       columnCount: 4,
       maxCellLengths: [1, 2, 3, 4],
@@ -39,12 +39,12 @@ suite("workbench/services/session/test/common/sessionReadModel", () => {
       readModel.rawFiles.map((file) => ({
         fileId: file.fileId,
         sheetId: file.sheetId,
-        sourceKey: file.sourceKey,
+        tableKey: file.tableKey,
       })),
       [{
         fileId: "file-a",
         sheetId: "sheet-1",
-        sourceKey: "file-a:sheet-1",
+        tableKey: "file-a:sheet-1",
       }],
     );
     assert.deepEqual(readModel.processedFileIds, []);
@@ -208,7 +208,7 @@ suite("workbench/services/session/test/common/sessionReadModel", () => {
       fileName: "Raw Transfer.csv",
       sheetId: "sheet-1",
       sheetName: "Data",
-      sourceKey: "file-a:sheet-1",
+      tableKey: "file-a:sheet-1",
       rowCount: 20,
       columnCount: 4,
       maxCellLengths: [1, 2, 3, 4],

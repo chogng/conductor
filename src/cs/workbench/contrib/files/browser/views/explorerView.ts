@@ -83,7 +83,7 @@ export class ExplorerView implements IDisposable {
   private createViewerProps(): ExplorerViewerProps {
     return {
       selectedFileId: this.props.selectedFileId,
-      selectedSourceKey: this.props.selectedSourceKey,
+      selectedItemKey: this.props.selectedItemKey,
       expandedFolderKeys: this.props.expandedFolderKeys,
       explorerAppearance: this.props.explorerAppearance,
       activePlotType: this.props.activePlotType,

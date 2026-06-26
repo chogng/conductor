@@ -138,7 +138,7 @@ suite("base/browser/workbench tableWidget layout", () => {
         tableState: createTableWidgetState({
           file: null,
           fileId: "file-b",
-          sourceKey: "file-b",
+          sheetKey: "file-b",
         }),
       });
 
@@ -158,7 +158,7 @@ suite("base/browser/workbench tableWidget layout", () => {
             message: "Loading preview...",
             state: "loading",
           },
-          sourceKey: "file-b",
+          sheetKey: "file-b",
         }),
       });
 
@@ -178,7 +178,7 @@ suite("base/browser/workbench tableWidget layout", () => {
         }),
         tableState: createTableWidgetState({
           fileId: "file-b",
-          sourceKey: "file-b",
+          sheetKey: "file-b",
         }),
       });
 
@@ -226,7 +226,7 @@ suite("base/browser/workbench tableWidget layout", () => {
             message: "Loading preview...",
             state: "loading",
           },
-          sourceKey: "file-b",
+          sheetKey: "file-b",
         }),
       });
 
@@ -269,7 +269,7 @@ suite("base/browser/workbench tableWidget layout", () => {
             message: "Loading preview...",
             state: "loading",
           },
-          sourceKey: "file-b",
+          sheetKey: "file-b",
         }),
       });
       dynamicModel.fireRowsVersion({
@@ -330,7 +330,7 @@ suite("base/browser/workbench tableWidget layout", () => {
         }),
         tableState: createTableWidgetState({
           fileId: "file-b",
-          sourceKey: "file-b",
+          sheetKey: "file-b",
         }),
       });
 
@@ -411,7 +411,7 @@ suite("base/browser/workbench tableWidget layout", () => {
     const storedWidths: unknown[] = [];
     const widget = new TableWidget({
       onSelect: () => true,
-      storeColumnWidths: (_sourceKey, widths) => {
+      storeColumnWidths: (_sheetKey, widths) => {
         storedWidths.push(widths);
       },
       tableViewModel: createTableWidgetModel(),
@@ -1044,11 +1044,11 @@ function createTableWidgetState(
     readonly fileId?: string;
     readonly loadState?: TableWidgetState["loadState"];
     readonly rowCount?: number;
-    readonly sourceKey?: string;
+    readonly sheetKey?: string;
   } = {},
 ): TableWidgetState {
   const fileId = options.fileId ?? "file-a";
-  const sourceKey = options.sourceKey ?? fileId;
+  const sheetKey = options.sheetKey ?? fileId;
   const rowCount = options.rowCount ?? 20;
   const columnCount = options.columnCount ?? 10;
   const file = options.file === undefined
@@ -1057,7 +1057,7 @@ function createTableWidgetState(
         fileName: "sample.csv",
         maxCellLengths: Array.from({ length: columnCount }, () => 2),
         rowCount,
-        sourceKey,
+        sheetKey,
       }
     : options.file;
   return {
@@ -1068,7 +1068,7 @@ function createTableWidgetState(
       message: "",
       state: "ready",
     },
-    sourceKey,
+    sheetKey,
   };
 }
 

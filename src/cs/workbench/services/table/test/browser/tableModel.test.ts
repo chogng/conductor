@@ -14,8 +14,8 @@ import {
 	type IFileChange,
 	type IFileService,
 } from "src/cs/platform/files/common/files";
-import { TableFileService } from "src/cs/workbench/services/tablefile/browser/tableFileService";
-import { TableFileEditorModelManager } from "src/cs/workbench/services/tablefile/common/tableFileEditorModelManager";
+import { TableFileService } from "src/cs/workbench/services/tableFile/browser/tableFileService";
+import { TableFileEditorModelManager } from "src/cs/workbench/services/tableFile/common/tableFileEditorModelManager";
 import { TableModelResolverService } from "src/cs/workbench/services/table/common/tableModelResolverService";
 import {
 	TableModel,

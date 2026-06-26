@@ -13,7 +13,7 @@ import {
 import {
   TableFileEditorModel,
   type TableFileEditorModelResolveOptions,
-} from "src/cs/workbench/services/tablefile/common/tableFileEditorModel";
+} from "src/cs/workbench/services/tableFile/common/tableFileEditorModel";
 import {
   type ITableModel,
   type TableModel,

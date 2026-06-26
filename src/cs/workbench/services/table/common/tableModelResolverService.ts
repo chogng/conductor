@@ -27,7 +27,7 @@ import {
 import {
   ITableFileService,
   type ITableFileService as ITableFileServiceType,
-} from "src/cs/workbench/services/tablefile/common/tablefiles";
+} from "src/cs/workbench/services/tableFile/common/tablefiles";
 
 export class TableModelResolverService extends Disposable implements ITableModelService {
   public declare readonly _serviceBrand: undefined;

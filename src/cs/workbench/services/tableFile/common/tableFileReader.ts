@@ -22,7 +22,7 @@ import {
 	getTableFileMimeType,
 	getTableFileReadEncoding,
 	isFileContent,
-} from "src/cs/workbench/services/tablefile/common/encoding";
+} from "src/cs/workbench/services/tableFile/common/encoding";
 
 export type TableFileReadOptions = {
 	readonly readEncoding?: IReadFileEncoding;

@@ -6,15 +6,15 @@ import type { Event } from "src/cs/base/common/event";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
-import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
+import type {
+  ExplorerFileEntry,
+  ExplorerThumbnailFile,
+} from "src/cs/workbench/contrib/files/common/explorerModel";
 import type { FilesViewLayout } from "src/cs/workbench/contrib/files/common/files";
 import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
 import type { PlotMainRenderModelSource } from "src/cs/workbench/services/plot/common/plotModel";
 import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
-import type {
-  ProcessedEntry,
-} from "src/cs/workbench/services/session/common/sessionTypes";
 import type {
   TemplateSelection,
   TemplateSelectionsByFileId,
@@ -41,16 +41,16 @@ export type ExplorerPaneInput = {
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly quickAccessFiles?: ExplorerFileEntry[];
   readonly selectedFileId: string | null;
-  readonly selectedSourceKey?: string | null;
+  readonly selectedItemKey?: string | null;
   readonly selectionKind: ExplorerSelectionKind;
-  readonly thumbnailFiles: ProcessedEntry[];
+  readonly thumbnailFiles: ExplorerThumbnailFile[];
   readonly thumbnailPlotModelsByFileId?: Readonly<Record<string, ExplorerThumbnailPlotModel>>;
 };
 
 export type ExplorerSelectionChangeEvent = {
   readonly kind: ExplorerSelectionKind;
   readonly selectedFileId: string | null;
-  readonly selectedSourceKey?: string | null;
+  readonly selectedItemKey?: string | null;
 };
 
 export type ExplorerFolderExpansionChangeEvent = {
@@ -70,17 +70,17 @@ export type ExplorerSelectionTarget = {
   readonly kind: ExplorerSelectionKind;
   readonly fileId: string | null;
   readonly candidateFileIds?: readonly string[];
-  readonly candidateSourceKeys?: readonly string[];
-  readonly sourceKey?: string | null;
+  readonly candidateItemKeys?: readonly string[];
+  readonly itemKey?: string | null;
 };
 
 export type ExplorerRevealMode = boolean | "force";
 
 export type ExplorerContext = {
   readonly selectedRawFileId: string | null;
-  readonly selectedRawSourceKey: string | null;
+  readonly selectedRawItemKey: string | null;
   readonly selectedProcessedFileId: string | null;
-  readonly selectedProcessedSourceKey: string | null;
+  readonly selectedProcessedItemKey: string | null;
   readonly hoveredFileId: string | null;
   readonly expandedFolderKeys: readonly string[];
   readonly viewLayout: ExplorerViewLayout;
@@ -108,9 +108,9 @@ export interface IExplorerService {
 
   readonly hasPendingSourceFiles: boolean;
   readonly selectedRawFileId: string | null;
-  readonly selectedRawSourceKey: string | null;
+  readonly selectedRawItemKey: string | null;
   readonly selectedProcessedFileId: string | null;
-  readonly selectedProcessedSourceKey: string | null;
+  readonly selectedProcessedItemKey: string | null;
   readonly hoveredFileId: string | null;
   readonly expandedFolderKeys: readonly string[];
   readonly viewLayout: ExplorerViewLayout;

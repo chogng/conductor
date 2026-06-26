@@ -77,7 +77,7 @@ export const createTablePerformanceDiagnosticsReportText = (): TablePerformanceD
     `Diagnostics enabled: ${report.diagnosticsEnabled ? "yes" : "no"}`,
     `Samples: ${report.sampleCount}`,
     "",
-    "This report is local-only and contains aggregated table performance measurements. It does not include file paths, file ids, source keys, selected file ids, raw cell contents, or user input.",
+    "This report is local-only and contains aggregated table performance measurements. It does not include file paths, file ids, item keys, selected file ids, raw cell contents, or user input.",
     "",
     report.sampleCount === 0
       ? "No table performance samples were collected yet. Enable table performance diagnostics, reproduce the slow table interaction, then copy this report again."

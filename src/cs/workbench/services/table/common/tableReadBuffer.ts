@@ -102,8 +102,11 @@ export const getTableReadBufferFilePart = async (
 	return copyBytesToArrayBuffer(bytes);
 };
 
-export const copyBytesToArrayBuffer = (bytes: Uint8Array): ArrayBuffer =>
-	bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+export const copyBytesToArrayBuffer = (bytes: Uint8Array): ArrayBuffer => {
+	const buffer = new ArrayBuffer(bytes.byteLength);
+	new Uint8Array(buffer).set(bytes);
+	return buffer;
+};
 
 const createSingleTextChunkIterable = (text: string): AsyncIterable<TableTextChunk> => ({
 	async *[Symbol.asyncIterator]() {

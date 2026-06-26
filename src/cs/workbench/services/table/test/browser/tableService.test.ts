@@ -17,7 +17,7 @@ import type {
 import {
   TableService,
 } from "src/cs/workbench/services/table/browser/tableService";
-import { TableFileService } from "src/cs/workbench/services/tablefile/browser/tableFileService";
+import { TableFileService } from "src/cs/workbench/services/tableFile/browser/tableFileService";
 import { TableModelResolverService } from "src/cs/workbench/services/table/common/tableModelResolverService";
 import {
   areTableSelectionsEqual,

@@ -70,7 +70,7 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
     assert.equal(service.selectedRawFileId, "file-b");
   });
 
-  test("tracks source key as part of explorer selection", () => {
+  test("tracks item key as part of explorer selection", () => {
     const service = store.add(new ExplorerService());
     const events: ExplorerSelectionChangeEvent[] = [];
     const disposable = store.add(service.onDidChangeSelection(event => {
@@ -79,31 +79,31 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
 
     service.select({
       candidateFileIds: ["file-a"],
-      candidateSourceKeys: ["source-a", "source-b"],
+      candidateItemKeys: ["source-a", "source-b"],
       fileId: "file-a",
       kind: "table",
-      sourceKey: "source-a",
+      itemKey: "source-a",
     });
     service.select({
       candidateFileIds: ["file-a"],
-      candidateSourceKeys: ["source-a", "source-b"],
+      candidateItemKeys: ["source-a", "source-b"],
       fileId: "file-a",
       kind: "table",
-      sourceKey: "source-b",
+      itemKey: "source-b",
     });
     service.select({
       candidateFileIds: ["file-a"],
-      candidateSourceKeys: ["source-a", "source-b"],
+      candidateItemKeys: ["source-a", "source-b"],
       fileId: "file-a",
       kind: "table",
-      sourceKey: "source-c",
+      itemKey: "source-c",
     });
 
     assert.equal(service.selectedRawFileId, "file-a");
-    assert.equal(service.selectedRawSourceKey, "source-b");
+    assert.equal(service.selectedRawItemKey, "source-b");
     assert.deepEqual(events, [
-      { kind: "table", selectedFileId: "file-a", selectedSourceKey: "source-a" },
-      { kind: "table", selectedFileId: "file-a", selectedSourceKey: "source-b" },
+      { kind: "table", selectedFileId: "file-a", selectedItemKey: "source-a" },
+      { kind: "table", selectedFileId: "file-a", selectedItemKey: "source-b" },
     ]);
     disposable.dispose();
   });

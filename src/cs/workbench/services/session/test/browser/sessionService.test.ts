@@ -787,8 +787,8 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   test("skips imported files that duplicate an existing raw source identity", () => {
     const session = store.add(new SessionService());
 
-    const first = session.commitFileImport(createSourceKeyedImportResult("file-a", "raw-source-key"));
-    const second = session.commitFileImport(createSourceKeyedImportResult("file-next-id", "raw-source-key"));
+    const first = session.commitFileImport(createRawIdentityKeyedImportResult("file-a", "raw-identity-key"));
+    const second = session.commitFileImport(createRawIdentityKeyedImportResult("file-next-id", "raw-identity-key"));
 
     assert.deepEqual(first, {
       importedFileIds: ["file-a"],
@@ -809,8 +809,8 @@ suite("workbench/services/session/test/browser/sessionService", () => {
       createdAt: 123,
       diagnostics: [],
       files: [
-        createSourceKeyedImportedFileRecord("file-a", "raw-source-key"),
-        createSourceKeyedImportedFileRecord("file-next-id", "raw-source-key"),
+        createRawIdentityKeyedImportedFileRecord("file-a", "raw-identity-key"),
+        createRawIdentityKeyedImportedFileRecord("file-next-id", "raw-identity-key"),
       ],
     });
 
@@ -943,7 +943,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     assert.deepEqual(file.measurementBlockOrder, []);
   });
 
-  test("keeps imported file handles and source keys through raw canonical projection", () => {
+  test("keeps imported file handles and table keys through raw canonical projection", () => {
     const session = store.add(new SessionService());
     const sourceFile = {
       lastModified: 123,
@@ -956,7 +956,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
       fileId: "file-a",
       fileName: "Transfer.csv",
       normalizedCsvPath: "C:/tmp/transfer.csv",
-      sourceKey: "transfer.csv::24::123",
+      tableKey: "transfer.csv::24::123",
       sourcePath: "C:/data/Transfer.csv",
       rowCount: 2,
       columnCount: 2,
@@ -968,7 +968,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
 
     assert.equal(rawFiles.length, 1);
     assert.equal(rawFiles[0].file, sourceFile);
-    assert.equal(rawFiles[0].sourceKey, "transfer.csv::24::123");
+    assert.equal(rawFiles[0].tableKey, "transfer.csv::24::123");
     assert.equal(rawFiles[0].normalizedCsvPath, "C:/tmp/transfer.csv");
     assert.equal(rawFiles[0].sourcePath, "C:/data/Transfer.csv");
     assert.equal(rawFiles[0].rowCount, 2);
@@ -1316,7 +1316,7 @@ const createImportedFileRecordForTest = (
 
   const fileName = String(file.fileName ?? fileId).trim() || fileId;
   const rawTableId = normalizeOptionalTestText(file.sheetId) ??
-    normalizeOptionalTestText(file.sourceKey) ??
+    normalizeOptionalTestText(file.tableKey) ??
     fileId;
   const sheetName = normalizeOptionalTestText(file.sheetName) ??
     normalizeOptionalTestText(file.worksheetName);
@@ -1324,7 +1324,7 @@ const createImportedFileRecordForTest = (
   const columnCount = Math.max(0, Math.floor(Number(file.columnCount) || 0));
   const lastModified = readRecordNumber(file.file, "lastModified");
   const rawKey = normalizeOptionalTestText(file.rawKey) ??
-    normalizeOptionalTestText(file.sourceKey) ??
+    normalizeOptionalTestText(file.tableKey) ??
     undefined;
   const size = readRecordNumber(file.file, "size");
   return {
@@ -1526,16 +1526,16 @@ const createMultiRawTableImportResult = (): FileImportResult => ({
   }],
 });
 
-const createSourceKeyedImportResult = (
+const createRawIdentityKeyedImportResult = (
   fileId: string,
   rawKey: string,
 ): FileImportResult => ({
   createdAt: 123,
   diagnostics: [],
-  files: [createSourceKeyedImportedFileRecord(fileId, rawKey)],
+  files: [createRawIdentityKeyedImportedFileRecord(fileId, rawKey)],
 });
 
-const createSourceKeyedImportedFileRecord = (
+const createRawIdentityKeyedImportedFileRecord = (
   fileId: string,
   rawKey: string,
 ): ImportedFileRecord => ({

@@ -16,17 +16,17 @@ import type { TableSource } from "src/cs/workbench/services/table/common/table";
 import { tableFormatService } from "src/cs/workbench/services/table/common/tableFormatService";
 import {
 	getTableFileReadEncoding,
-} from "src/cs/workbench/services/tablefile/common/encoding";
+} from "src/cs/workbench/services/tableFile/common/encoding";
 import {
 	TableFileEditorModel,
-} from "src/cs/workbench/services/tablefile/common/tableFileEditorModel";
+} from "src/cs/workbench/services/tableFile/common/tableFileEditorModel";
 import {
 	TableFileEditorModelManager,
 	type TableFileEditorModelManagerResolveOptions,
-} from "src/cs/workbench/services/tablefile/common/tableFileEditorModelManager";
+} from "src/cs/workbench/services/tableFile/common/tableFileEditorModelManager";
 import type {
 	ITableFileService,
-} from "src/cs/workbench/services/tablefile/common/tablefiles";
+} from "src/cs/workbench/services/tableFile/common/tablefiles";
 
 export class TableFileService extends Disposable implements ITableFileService {
 	public declare readonly _serviceBrand: undefined;

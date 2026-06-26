@@ -137,7 +137,8 @@ const mergeSourceFileRecord = (
     sheetId,
     sheetName: readRecordString(sourceFile, "sheetName") ??
       readRecordString(sourceFile, "worksheetName"),
-    tableKey: readRecordString(sourceFile, "sourceKey") ??
+    tableKey: readRecordString(sourceFile, "tableKey") ??
+      readRecordString(sourceFile, "itemKey") ??
       (sheetId === fileId ? fileId : `${fileId}:${sheetId}`),
     rowCount: readInteger(sourceFile, "rowCount") ?? 0,
     columnCount: readInteger(sourceFile, "columnCount") ?? 0,
@@ -407,7 +408,7 @@ export const createRawFilesFromRecords = (
         ...createRawFileTableModelSummary(file, tableId),
         sheetId: table.sheetId,
         sheetName: table.sheetName ?? null,
-        sourceKey: table.tableKey,
+        tableKey: table.tableKey,
         sourceVersion: file.rawTableVersionsById?.[tableId] ?? 0,
         rawTableHealth: table.health?.state,
         rawTableHealthMessage: table.health?.message ?? null,

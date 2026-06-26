@@ -74,12 +74,12 @@ function createFileEntry(source: FolderImportFileSource): FileEntry {
   return {
     fileId: relativePath,
     fileName: source.fileName,
-    relativePath,
-    sourceKey: buildFileSourceIdentityKey(
+    itemKey: buildFileSourceIdentityKey(
       source.fileName,
       source.size,
       source.lastModified,
       relativePath,
     ) || undefined,
+    relativePath,
   };
 }

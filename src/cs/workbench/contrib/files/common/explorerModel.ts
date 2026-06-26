@@ -8,10 +8,6 @@ import {
 } from "src/cs/base/common/extpath";
 import type { URI } from "src/cs/base/common/uri";
 import type {
-	ProcessedEntry,
-	SessionFile,
-} from "src/cs/workbench/services/session/common/sessionTypes";
-import type {
 	FileId,
 	FileRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
@@ -77,7 +73,6 @@ export type ExplorerFileEntry = {
 	readonly resource?: URI | null;
 	readonly sheetId?: string | null;
 	readonly sheetName?: string | null;
-	readonly sourceKey?: string;
 	readonly sourcePath?: string | null;
 	readonly sourceStatus?: ExplorerSourceStatus;
 	readonly sourceStatusMessage?: string | null;
@@ -91,6 +86,65 @@ export type ExplorerFileEntry = {
 	readonly curveTypeConfidence?: "high" | "medium" | "low";
 	readonly curveTypeNeedsReview?: boolean;
 	readonly curveTypeReasons?: readonly string[];
+};
+
+export type ExplorerCurveTypeConfidence = "high" | "medium" | "low";
+
+export type ExplorerXAxisRole = "vg" | "vd" | null;
+
+export type ExplorerXAxisRoleSource =
+	| "filename"
+	| "hint"
+	| "label"
+	| "metadata"
+	| "shape"
+	| null;
+
+export type ExplorerSemanticProjection = {
+	readonly curveType?: string | null;
+	readonly curveTypeConfidence?: ExplorerCurveTypeConfidence;
+	readonly curveTypeNeedsReview?: boolean;
+	readonly curveTypeReasons?: readonly string[];
+};
+
+export type ExplorerRawFileProjection = ExplorerSemanticProjection & {
+	readonly file?: unknown;
+	readonly fileId?: string;
+	readonly fileName?: string;
+	readonly itemKey?: string | null;
+	readonly normalizedCsvPath?: string | null;
+	readonly rawTableHealth?: "ok" | "suspect" | "decodeFailed" | "parseFailed" | "unsupported" | "empty";
+	readonly rawTableHealthMessage?: string | null;
+	readonly relativePath?: string | null;
+	readonly sourcePath?: string | null;
+	readonly sourceVersion?: number;
+	readonly tableKey?: string | null;
+	readonly templateEligibility?: "eligible" | "notEligible" | "needsUserAction";
+	readonly xAxisRole?: ExplorerXAxisRole;
+	readonly xAxisRoleSource?: ExplorerXAxisRoleSource;
+};
+
+export type ExplorerThumbnailFile = Omit<ExplorerSemanticProjection, "curveType"> & {
+	readonly calculationCache?: unknown;
+	readonly curveFilterField?: string | null;
+	readonly curveFilterKey?: string | null;
+	readonly curveType?: string;
+	readonly domain?: {
+		readonly x?: readonly [number, number];
+		readonly y?: readonly [number, number];
+	};
+	readonly fileId?: string;
+	readonly fileName?: string;
+	readonly series?: readonly unknown[];
+	readonly supportsSs?: boolean;
+	readonly x?: {
+		readonly sampledPoints?: number | null;
+	};
+	readonly xAxisRole?: ExplorerXAxisRole;
+	readonly xAxisRoleSource?: ExplorerXAxisRoleSource;
+	readonly xGroups?: readonly unknown[];
+	readonly xUnit?: string;
+	readonly yUnit?: string;
 };
 
 export type ExplorerBadgeProjectionSummary = {
@@ -177,7 +231,7 @@ export const getExplorerTreeFileKey = <TEntry extends ExplorerFileEntry>(
 	entry: TEntry,
 	pathParts?: readonly string[],
 ): string =>
-	entry.itemKey ?? entry.sourceKey ?? entry.fileId ?? `file:${(pathParts ?? [
+	entry.itemKey ?? entry.fileId ?? `file:${(pathParts ?? [
 		...normalizePath(entry.relativePath),
 	]).join("/") || getExplorerFileName(entry)}`;
 
@@ -292,7 +346,6 @@ export const createExplorerTreeStructureSignature = (
 		.map((entry) => [
 			entry.fileId ?? "",
 			entry.itemKey ?? "",
-			entry.sourceKey ?? "",
 			entry.relativePath ?? "",
 			getExplorerFileName(entry),
 		].join("\u001f"))
@@ -484,8 +537,8 @@ const getFileId = (file: Pick<ExplorerFileEntry, "fileId">): string =>
 	String(file?.fileId ?? "").trim();
 
 const getFileName = (
-	processedFile: ProcessedEntry,
-	rawFile: SessionFile | undefined,
+	processedFile: ExplorerThumbnailFile,
+	rawFile: ExplorerRawFileProjection | undefined,
 	fileId: string,
 ): string =>
 	String(processedFile.fileName ?? rawFile?.fileName ?? fileId).trim() || fileId;
@@ -502,7 +555,7 @@ const getOptionalNullableString = (value: unknown): string | null => {
 
 const getExplorerCurveTypeBadgeLabel = (
 	curveType: unknown,
-	xAxisRole: SessionFile["xAxisRole"],
+	xAxisRole?: ExplorerXAxisRole,
 ): string | null => {
 	const normalizedCurveType = getOptionalNullableString(curveType);
 	if (!normalizedCurveType) {
@@ -555,10 +608,7 @@ const hasFileRecordChartData = (file: FileRecord): boolean =>
 	collectFileRecordMeasurementBlocks(file).length > 0;
 
 const hasExplorerSemanticSummary = (
-	file: Pick<
-		SessionFile | ProcessedEntry,
-		"curveType" | "curveTypeConfidence" | "curveTypeNeedsReview" | "curveTypeReasons"
-	>,
+	file: ExplorerSemanticProjection,
 ): boolean =>
 	Boolean(
 		getOptionalNullableString(file.curveType) ||
@@ -568,11 +618,8 @@ const hasExplorerSemanticSummary = (
 	);
 
 const createExplorerSemanticBadgeState = (
-	file: Pick<
-		SessionFile | ProcessedEntry,
-		"curveType" | "curveTypeConfidence" | "curveTypeNeedsReview" | "curveTypeReasons"
-	>,
-	xAxisRole?: SessionFile["xAxisRole"],
+	file: ExplorerSemanticProjection,
+	xAxisRole?: ExplorerXAxisRole,
 ): ExplorerBadgeState => {
 	if (!hasExplorerSemanticSummary(file)) {
 		return { kind: "pending" };
@@ -598,7 +645,7 @@ const createExplorerSemanticBadgeState = (
 
 const createExplorerHealthFields = (
 	file: Pick<
-		SessionFile,
+		ExplorerRawFileProjection,
 		"rawTableHealth" | "rawTableHealthMessage" | "templateEligibility"
 	> | undefined,
 ): Pick<
@@ -632,16 +679,15 @@ const getFileRecordVersion = (
 };
 
 export const createRawExplorerFiles = (
-	rawFiles: readonly SessionFile[],
+	rawFiles: readonly ExplorerRawFileProjection[],
 ): ExplorerFileEntry[] =>
 	rawFiles.map(file => ({
 		file: file.file,
 		fileId: file.fileId,
 		fileName: file.fileName,
-		itemKey: getOptionalString(file.itemKey),
 		normalizedCsvPath: file.normalizedCsvPath,
 		relativePath: file.relativePath ?? null,
-		sourceKey: getOptionalString(file.sourceKey),
+		itemKey: getOptionalString(file.itemKey ?? file.tableKey),
 		sourcePath: file.sourcePath,
 		...createExplorerHealthFields(file),
 		badgeState: createExplorerSemanticBadgeState(file, file.xAxisRole),
@@ -659,9 +705,9 @@ export const createRawExplorerFiles = (
 export const createChartExplorerFilesFromRecords = (
 	filesById: Record<FileId, FileRecord>,
 	fileOrder: readonly FileId[],
-	rawFiles: readonly SessionFile[] = [],
+	rawFiles: readonly ExplorerRawFileProjection[] = [],
 ): ExplorerFileEntry[] => {
-	const rawFileById = new Map<string, SessionFile>();
+	const rawFileById = new Map<string, ExplorerRawFileProjection>();
 	for (const file of rawFiles) {
 		const fileId = getFileId(file);
 		if (fileId) {
@@ -693,10 +739,9 @@ export const createChartExplorerFilesFromRecords = (
 			fileId,
 			fileName: String(file.name ?? file.raw.fileName ?? rawFile?.fileName ?? fileId).trim() || fileId,
 			hasChartData: true,
-			itemKey: getOptionalString(rawFile?.itemKey ?? file.raw.rawKey),
 			normalizedCsvPath: file.raw.normalizedCsvPath ?? rawFile?.normalizedCsvPath,
 			relativePath: file.raw.relativePath ?? rawFile?.relativePath ?? null,
-			sourceKey: getOptionalString(rawFile?.sourceKey ?? file.raw.rawKey),
+			itemKey: getOptionalString(rawFile?.itemKey ?? rawFile?.tableKey ?? file.raw.rawKey),
 			sourcePath: file.raw.filePath ?? rawFile?.sourcePath,
 			...createExplorerHealthFields(rawFile),
 			fileVersion: getFileRecordVersion(file, rawFile?.sourceVersion),
@@ -725,10 +770,10 @@ export const createChartExplorerFilesFromRecords = (
 };
 
 export const createChartExplorerFiles = (
-	rawFiles: readonly SessionFile[],
-	processedFiles: readonly ProcessedEntry[],
+	rawFiles: readonly ExplorerRawFileProjection[],
+	processedFiles: readonly ExplorerThumbnailFile[],
 ): ExplorerFileEntry[] => {
-	const rawFileById = new Map<string, SessionFile>();
+	const rawFileById = new Map<string, ExplorerRawFileProjection>();
 	for (const file of rawFiles) {
 		const fileId = getFileId(file);
 		if (fileId) {
@@ -752,10 +797,9 @@ export const createChartExplorerFiles = (
 			fileId,
 			fileName: getFileName(processedFile, rawFile, fileId),
 			hasChartData: true,
-			itemKey: getOptionalString(rawFile?.itemKey),
 			normalizedCsvPath: rawFile?.normalizedCsvPath,
 			relativePath: rawFile?.relativePath ?? null,
-			sourceKey: getOptionalString(rawFile?.sourceKey),
+			itemKey: getOptionalString(rawFile?.itemKey ?? rawFile?.tableKey),
 			sourcePath: rawFile?.sourcePath,
 			...createExplorerHealthFields(rawFile),
 			fileVersion: getExplorerFileVersion(rawFile?.sourceVersion),
@@ -783,28 +827,28 @@ export const createChartExplorerFiles = (
 export const mergeExplorerSourceEntries = ({
 	files,
 	pendingSourceEntries,
-	replaceSourceKeys,
+	replaceItemKeys,
 }: {
 	readonly files: readonly ExplorerFileEntry[];
 	readonly pendingSourceEntries: readonly ExplorerFileEntry[];
-	readonly replaceSourceKeys?: readonly string[] | null;
+	readonly replaceItemKeys?: readonly string[] | null;
 }): ExplorerFileEntry[] => {
-	if (!pendingSourceEntries.length && !replaceSourceKeys?.length) {
+	if (!pendingSourceEntries.length && !replaceItemKeys?.length) {
 		return [...files];
 	}
 
-	const pendingBySourceKey = mapExplorerFilesBySourceKey(pendingSourceEntries);
-	const committedBySourceKey = mapExplorerFilesBySourceKey(files);
-	if (replaceSourceKeys?.length) {
+	const pendingByItemKey = mapExplorerFilesByItemKey(pendingSourceEntries);
+	const committedByItemKey = mapExplorerFilesByItemKey(files);
+	if (replaceItemKeys?.length) {
 		const result: ExplorerFileEntry[] = [];
-		const seenSourceKeys = new Set<string>();
-		for (const sourceKey of replaceSourceKeys) {
-			if (seenSourceKeys.has(sourceKey)) {
+		const seenItemKeys = new Set<string>();
+		for (const itemKey of replaceItemKeys) {
+			if (seenItemKeys.has(itemKey)) {
 				continue;
 			}
-			seenSourceKeys.add(sourceKey);
-			const committed = committedBySourceKey.get(sourceKey);
-			const pending = pendingBySourceKey.get(sourceKey);
+			seenItemKeys.add(itemKey);
+			const committed = committedByItemKey.get(itemKey);
+			const pending = pendingByItemKey.get(itemKey);
 			if (committed) {
 				result.push(committed);
 			} else if (pending) {
@@ -815,12 +859,12 @@ export const mergeExplorerSourceEntries = ({
 		return result;
 	}
 
-	const committedSourceKeys = new Set(committedBySourceKey.keys());
+	const committedItemKeys = new Set(committedByItemKey.keys());
 	return [
 		...files,
 		...pendingSourceEntries.filter(entry => {
-			const sourceKey = normalizeExplorerSourceKey(entry.sourceKey);
-			return !sourceKey || !committedSourceKeys.has(sourceKey);
+			const itemKey = normalizeExplorerItemKey(entry.itemKey);
+			return !itemKey || !committedItemKeys.has(itemKey);
 		}),
 	];
 };
@@ -883,21 +927,21 @@ const normalizeExplorerFileId = (fileId: unknown): string | null => {
 	return normalized || null;
 };
 
-const normalizeExplorerSourceKey = (sourceKey: unknown): string | null => {
-	const normalized = String(sourceKey ?? "").trim();
+const normalizeExplorerItemKey = (itemKey: unknown): string | null => {
+	const normalized = String(itemKey ?? "").trim();
 	return normalized || null;
 };
 
-const mapExplorerFilesBySourceKey = (
+const mapExplorerFilesByItemKey = (
 	files: readonly ExplorerFileEntry[],
 ): Map<string, ExplorerFileEntry> => {
 	const result = new Map<string, ExplorerFileEntry>();
 	for (const file of files) {
-		const sourceKey = normalizeExplorerSourceKey(file.sourceKey);
-		if (!sourceKey || result.has(sourceKey)) {
+		const itemKey = normalizeExplorerItemKey(file.itemKey);
+		if (!itemKey || result.has(itemKey)) {
 			continue;
 		}
-		result.set(sourceKey, file);
+		result.set(itemKey, file);
 	}
 	return result;
 };

@@ -707,8 +707,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       getFiles: () => [{
         fileId: "existing-file",
         fileName: "Existing.csv",
-        itemKey: "file:existing-file",
-        sourceKey: "Existing.csv::8::1",
+        itemKey: "Existing.csv::8::1",
       }],
       getSelectedRelativePath: () => null,
       isDisposed: () => false,
@@ -1032,7 +1031,7 @@ function createPendingFile({
     sourceFile,
     sourceName,
     sourceSize,
-    sourceKey: `${relativePath}::${sourceSize}::123`,
+    itemKey: `${relativePath}::${sourceSize}::123`,
   };
 }
 

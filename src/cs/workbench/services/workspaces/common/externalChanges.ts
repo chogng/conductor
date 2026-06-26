@@ -15,7 +15,7 @@ import {
 
 type WorkspaceSourceSnapshot = {
   readonly relativePath: string;
-  readonly sourceKey: string | null;
+  readonly identityKey: string | null;
 };
 
 export const resolveWorkspaceExternalChanges = ({
@@ -36,8 +36,8 @@ export const resolveWorkspaceExternalChanges = ({
 
     currentByPath.set(relativePath, {
       relativePath,
-      sourceKey: typeof file.sourceKey === "string" && file.sourceKey.trim()
-        ? file.sourceKey
+      identityKey: typeof file.itemKey === "string" && file.itemKey.trim()
+        ? file.itemKey
         : null,
     });
   }
@@ -51,7 +51,7 @@ export const resolveWorkspaceExternalChanges = ({
 
     scannedByPath.set(relativePath, {
       relativePath,
-      sourceKey: buildFileSourceIdentityKey(
+      identityKey: buildFileSourceIdentityKey(
         file.fileName,
         file.size,
         file.lastModified,
@@ -71,21 +71,21 @@ export const resolveWorkspaceExternalChanges = ({
         added.push({
           kind: "added",
           relativePath: scanned.relativePath,
-          sourceKey: scanned.sourceKey,
+          identityKey: scanned.identityKey,
         });
       }
       continue;
     }
 
     if (
-      current.sourceKey &&
-      scanned.sourceKey &&
-      current.sourceKey !== scanned.sourceKey
+      current.identityKey &&
+      scanned.identityKey &&
+      current.identityKey !== scanned.identityKey
     ) {
       modified.push({
         kind: "modified",
         relativePath: scanned.relativePath,
-        sourceKey: scanned.sourceKey,
+        identityKey: scanned.identityKey,
       });
     }
   }
@@ -95,7 +95,7 @@ export const resolveWorkspaceExternalChanges = ({
       deleted.push({
         kind: "deleted",
         relativePath: current.relativePath,
-        sourceKey: current.sourceKey,
+        identityKey: current.identityKey,
       });
     }
   }

@@ -54,7 +54,6 @@ import {
   markTemplateApplyPerformanceTrace,
 } from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
 import { FileKind, ResourceLabels, type IResourceLabel } from "src/cs/workbench/browser/labels";
-import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
 import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
 import type { FolderImportSupport } from "src/cs/platform/files/browser/webFileSystemAccess";
 import {
@@ -72,6 +71,7 @@ import {
   getExplorerTreeFileName,
   type ExplorerFileEntry,
   type ExplorerSourceStatus,
+  type ExplorerThumbnailFile,
   type ExplorerTreeNode,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import { createEmptyView } from "src/cs/workbench/contrib/files/browser/views/emptyView";
@@ -104,7 +104,7 @@ import { isAutoTemplateId } from "src/cs/workbench/services/slice/common/templat
 
 export type ExplorerViewerProps = {
   readonly selectedFileId?: string | null;
-  readonly selectedSourceKey?: string | null;
+  readonly selectedItemKey?: string | null;
   readonly expandedFolderKeys?: readonly string[];
   readonly explorerAppearance?: ExplorerAppearance;
   readonly activePlotType?: PlotType;
@@ -135,8 +135,8 @@ export type ExplorerViewerProps = {
   readonly onHoverFileChange?: (fileId: string | null) => void;
   readonly onCancelRenameFile?: () => void;
   readonly onRenameFile?: (fileId: string, nextName: string) => void;
-  readonly onSelectFile: (fileId: string | null, sourceKey?: string | null) => void;
-  readonly thumbnailFiles?: ProcessedEntry[];
+  readonly onSelectFile: (fileId: string | null, itemKey?: string | null) => void;
+  readonly thumbnailFiles?: ExplorerThumbnailFile[];
   readonly thumbnailPlotModelsByFileId?: Readonly<Record<string, ExplorerThumbnailPlotModel>>;
 };
 
@@ -412,33 +412,32 @@ const getFileRenderKey = (
   String(
     fileEntry.fileId ??
       fileEntry.itemKey ??
-      fileEntry.sourceKey ??
       fileEntry.fileName ??
       "",
   );
 
-const normalizeFileSourceKey = (sourceKey: unknown): string | null => {
-  const normalized = String(sourceKey ?? "").trim();
+const normalizeFileItemKey = (itemKey: unknown): string | null => {
+  const normalized = String(itemKey ?? "").trim();
   return normalized || null;
 };
 
 const isExplorerFileEntrySelected = (
   fileEntry: ExplorerFileEntry,
-  props: Pick<ExplorerViewerProps, "selectedFileId" | "selectedSourceKey">,
+  props: Pick<ExplorerViewerProps, "selectedFileId" | "selectedItemKey">,
 ): boolean => {
   const selectedFileId = String(props.selectedFileId ?? "").trim();
   if (!selectedFileId || selectedFileId !== String(fileEntry.fileId ?? "").trim()) {
     return false;
   }
 
-  const selectedSourceKey = normalizeFileSourceKey(props.selectedSourceKey);
-  return selectedSourceKey
-    ? selectedSourceKey === normalizeFileSourceKey(fileEntry.sourceKey)
+  const selectedItemKey = normalizeFileItemKey(props.selectedItemKey);
+  return selectedItemKey
+    ? selectedItemKey === normalizeFileItemKey(fileEntry.itemKey)
     : true;
 };
 
 const getSelectedTreeKey = (
-  props: Pick<ExplorerViewerProps, "files" | "selectedFileId" | "selectedSourceKey">,
+  props: Pick<ExplorerViewerProps, "files" | "selectedFileId" | "selectedItemKey">,
 ): string | null => {
   const selectedFile = props.files.find(file => isExplorerFileEntrySelected(file, props));
   return selectedFile ? getExplorerTreeFileKey(selectedFile) : null;
@@ -637,11 +636,11 @@ const applyFileItemShellState = (
   } else {
     delete host.dataset.fileId;
   }
-  const sourceKey = normalizeFileSourceKey(fileEntry.sourceKey);
-  if (sourceKey) {
-    host.dataset.sourceKey = sourceKey;
+  const itemKey = normalizeFileItemKey(fileEntry.itemKey);
+  if (itemKey) {
+    host.dataset.itemKey = itemKey;
   } else {
-    delete host.dataset.sourceKey;
+    delete host.dataset.itemKey;
   }
   if (fileEntry.chartState) {
     host.dataset.chartState = fileEntry.chartState;
@@ -662,11 +661,6 @@ const applyFileItemShellState = (
     host.dataset.editing = "true";
   } else {
     delete host.dataset.editing;
-  }
-  if (fileEntry?.itemKey) {
-    host.dataset.itemKey = fileEntry.itemKey;
-  } else {
-    delete host.dataset.itemKey;
   }
 };
 
@@ -844,9 +838,9 @@ export class ExplorerViewer implements IDisposable {
 
   setProps(nextProps: ExplorerViewerProps): void {
     const previousSelectedFileId = this.props.selectedFileId ?? null;
-    const previousSelectedSourceKey = this.props.selectedSourceKey ?? null;
+    const previousSelectedItemKey = this.props.selectedItemKey ?? null;
     const nextSelectedFileId = nextProps.selectedFileId ?? null;
-    const nextSelectedSourceKey = nextProps.selectedSourceKey ?? null;
+    const nextSelectedItemKey = nextProps.selectedItemKey ?? null;
     const previousExpandedFolderKeys = this.props.expandedFolderKeys ?? [];
     const nextExpandedFolderKeys = nextProps.expandedFolderKeys ?? [];
     const nextTreeStructureSignature = this.createTreeStructureSignature(nextProps.files);
@@ -862,7 +856,7 @@ export class ExplorerViewer implements IDisposable {
       : this.getChangedPresentationKeys(nextFilePresentationSignatures);
     const shouldUpdateOptions =
       previousSelectedFileId !== nextSelectedFileId ||
-      previousSelectedSourceKey !== nextSelectedSourceKey;
+      previousSelectedItemKey !== nextSelectedItemKey;
     const shouldUpdateFolderExpansion = !areStringArraysEqual(
       previousExpandedFolderKeys,
       nextExpandedFolderKeys,
@@ -891,11 +885,11 @@ export class ExplorerViewer implements IDisposable {
         fileCount: nextProps.files.length,
         nextMode: nextProps.mode,
         nextSelectedFileId,
-        nextSelectedSourceKey,
+        nextSelectedItemKey,
         nextViewLayout,
         previousMode: this.props.mode,
         previousSelectedFileId,
-        previousSelectedSourceKey,
+        previousSelectedItemKey,
         previousViewLayout: getEffectiveViewLayout(this.props),
         shouldClearPlotCache,
         shouldUpdateExplorerAppearance,
@@ -925,7 +919,7 @@ export class ExplorerViewer implements IDisposable {
           folderCount: this.treeModel.folderKeys.length,
           mode: nextProps.mode,
           selectedFileId: nextSelectedFileId,
-          selectedSourceKey: nextSelectedSourceKey,
+          selectedItemKey: nextSelectedItemKey,
           viewLayout: nextViewLayout,
         });
       }
@@ -1266,7 +1260,7 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
-    this.props.onSelectFile(fileEntry.fileId, fileEntry.sourceKey ?? null);
+    this.props.onSelectFile(fileEntry.fileId, fileEntry.itemKey ?? null);
   };
 
   private readonly handleListContextMenu = (event: MouseEvent): void => {
@@ -1783,7 +1777,7 @@ export class ExplorerViewer implements IDisposable {
     item.addEventListener("click", () => {
       this.props.onSelectFile(
         String(item.dataset.fileId ?? "").trim() || null,
-        String(item.dataset.sourceKey ?? "").trim() || null,
+        String(item.dataset.itemKey ?? "").trim() || null,
       );
     });
     return {
@@ -1821,7 +1815,7 @@ export class ExplorerViewer implements IDisposable {
       file,
       isLoading,
       isActive: fileId === (this.props.selectedFileId ?? null) &&
-        !this.props.selectedSourceKey,
+        !this.props.selectedItemKey,
       originOpenPlotOptions: this.props.originOpenPlotOptions,
       plotAxisSettings: this.props.plotAxisSettings,
       plotModel,
@@ -2024,7 +2018,6 @@ export class ExplorerViewer implements IDisposable {
     delete host.dataset.rawTableStatus;
     delete host.dataset.fileId;
     delete host.dataset.itemKey;
-    delete host.dataset.sourceKey;
     delete host.dataset.selected;
     host.dataset.expanded = isExpanded ? "true" : "false";
     template.name.textContent = node.name;

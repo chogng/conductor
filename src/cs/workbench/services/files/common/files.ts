@@ -24,7 +24,6 @@ export type FileEntry = {
   itemKey?: string;
   normalizedCsvPath?: string | null;
   relativePath?: string | null;
-  sourceKey?: string;
   sourcePath?: string | null;
 };
 

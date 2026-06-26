@@ -45,7 +45,7 @@ sheet-key derivation rules in service/view files.
 | File | Responsibility |
 | --- | --- |
 | `services/table/common/table.ts` | service contract, model contracts, URI-backed sheet-key helper, and table source normalization helpers. |
-| `services/table/common/model.ts` | URI-backed `ITableModel` content model, ranges, selection value helpers, decorations, resource/formatted content snapshots, `defaultSheetId`, and version events; service-local, not Session. Model snapshots do not own view projection or source-key identity. |
+| `services/table/common/model.ts` | URI-backed `ITableModel` content model, ranges, selection value helpers, decorations, resource/formatted content snapshots, `defaultSheetId`, and version events; service-local, not Session. Model snapshots do not own view projection or Explorer item identity. |
 | `services/table/common/resolverService.ts` | URI -> `ITableModel` reference service contract, following upstream resolver service shape. |
 | `services/table/common/tableModelResolverService.ts` | `ITableModelService` implementation: URI -> `ITableModel` reference, support check, reference/cache entry, content-provider/file-backed dispatch, and reference-counted cache release. |
 | `services/table/common/tableFormatRegistry.ts` | known `TableFormatId` registrations, materialization capability, and default extension metadata. |

@@ -12,7 +12,7 @@ export type WorkspaceExternalChangeKind = "added" | "modified" | "deleted";
 export type WorkspaceExternalChange = {
   readonly kind: WorkspaceExternalChangeKind;
   readonly relativePath: string;
-  readonly sourceKey?: string | null;
+  readonly identityKey?: string | null;
 };
 
 export type WorkspaceExternalChanges = {

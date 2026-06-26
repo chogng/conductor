@@ -13,10 +13,10 @@ import type {
 import type { TableSource } from "src/cs/workbench/services/table/common/table";
 import type {
 	TableFileEditorModel,
-} from "src/cs/workbench/services/tablefile/common/tableFileEditorModel";
+} from "src/cs/workbench/services/tableFile/common/tableFileEditorModel";
 import type {
 	TableFileEditorModelManagerResolveOptions,
-} from "src/cs/workbench/services/tablefile/common/tableFileEditorModelManager";
+} from "src/cs/workbench/services/tableFile/common/tableFileEditorModelManager";
 
 export const ITableFileService = createDecorator<ITableFileService>("tableFileService");
 

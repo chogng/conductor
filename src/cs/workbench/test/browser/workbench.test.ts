@@ -827,7 +827,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
-  test("opens selected table source key from explorer selection", () => {
+  test("opens selected table sheet from explorer item selection", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const tableSources: Array<TableSource | null> = [];
@@ -835,7 +835,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     explorerService.select({
       fileId: "file-a",
       kind: "table",
-      sourceKey: "source-key-b",
+      itemKey: "table-key-b",
     });
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
@@ -848,10 +848,10 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       bridge.sync();
 
       assert.equal(Object.prototype.hasOwnProperty.call(tableSources.at(-1) ?? {}, "fileId"), false);
-      assert.equal(tableSources.at(-1)?.sourceKey, "source-key-b");
+      assert.equal(tableSources.at(-1)?.sheetId, "table-key-b");
       assert.equal(tableSources.at(-1)?.resource?.toString(), "file:///data/Workbook.xlsx");
       assert.equal(explorerService.getPaneInput()?.selectedFileId, "file-a");
-      assert.equal(explorerService.getPaneInput()?.selectedSourceKey, "source-key-b");
+      assert.equal(explorerService.getPaneInput()?.selectedItemKey, "table-key-b");
     } finally {
       bridge.dispose();
     }
@@ -867,20 +867,20 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
         fileName: "Local.csv",
         localImport: true,
         normalizedCsvPath: "/data/Local.csv",
-        sourceKey: "local-source",
+        itemKey: "local-source",
       }],
       mode: "table",
       selectedFileId: "local-a",
-      selectedSourceKey: "local-source",
+      selectedItemKey: "local-source",
       selectionKind: "table",
       thumbnailFiles: [],
     });
     explorerService.select({
       candidateFileIds: ["local-a"],
-      candidateSourceKeys: ["local-source"],
+      candidateItemKeys: ["local-source"],
       fileId: "local-a",
       kind: "table",
-      sourceKey: "local-source",
+      itemKey: "local-source",
     });
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
@@ -894,7 +894,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
 
       assert.deepEqual(tableSources, []);
       assert.equal(explorerService.selectedRawFileId, "local-a");
-      assert.equal(explorerService.selectedRawSourceKey, "local-source");
+      assert.equal(explorerService.selectedRawItemKey, "local-source");
       assert.equal(explorerService.getPaneInput()?.selectedFileId, "local-a");
       assert.equal(explorerService.getPaneInput()?.files.some(file => file.localImport), true);
     } finally {
@@ -1594,10 +1594,10 @@ const createMultiRawTableImportResultForTest = (): FileImportResult => ({
       fileId: "file-a",
       fileName: "Workbook.xlsx",
       filePath: "/data/Workbook.xlsx",
-      rawTableOrder: ["source-key-a", "source-key-b"],
+      rawTableOrder: ["table-key-a", "table-key-b"],
       rawTablesById: {
-        "source-key-a": createRawTableRecordForTest("file-a", "source-key-a"),
-        "source-key-b": createRawTableRecordForTest("file-a", "source-key-b"),
+        "table-key-a": createRawTableRecordForTest("file-a", "table-key-a"),
+        "table-key-b": createRawTableRecordForTest("file-a", "table-key-b"),
       },
     },
   }],

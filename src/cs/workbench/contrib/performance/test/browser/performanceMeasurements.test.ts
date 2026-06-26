@@ -64,7 +64,7 @@ suite("workbench/contrib/performance/browser/performanceMeasurements", () => {
         measurement,
         trace: {
           selectedFileId: "dirty-file-id",
-          sourceKey: "dirty-source-key",
+          itemKey: "dirty-item-key",
         },
       };
     });
@@ -101,7 +101,7 @@ suite("workbench/contrib/performance/browser/performanceMeasurements", () => {
     setPerformanceMeasurementEnabled(true);
     const endTrace = startPerformanceMeasurement("table.renderTable", {
       selectedFileId: "dirty-file-id",
-      sourceKey: "dirty-source-key",
+      itemKey: "dirty-item-key",
     }, {
       visibleColumns: 4,
       visibleRows: 12,
@@ -137,7 +137,7 @@ suite("workbench/contrib/performance/browser/performanceMeasurements", () => {
     setPerformanceMeasurementEnabled(true);
     const endTrace = startPerformanceMeasurement("table.scroll", {
       selectedFileId: "dirty-file-id",
-      sourceKey: "dirty-source-key",
+      itemKey: "dirty-item-key",
     }, {
       visibleColumns: 6,
       visibleRows: 20,

@@ -163,8 +163,8 @@ export class SessionService extends Disposable implements ISessionServiceType {
     const committedRecords: FileRecord[] = [];
     const skippedDuplicateFileIds: FileId[] = [];
     for (const record of importedRecords) {
-      const sourceKey = getRawSourceIdentityKey(record.raw);
-      const duplicateFileId = sourceKey ? sourceFileIdsByKey.get(sourceKey) : undefined;
+      const rawIdentityKey = getRawSourceIdentityKey(record.raw);
+      const duplicateFileId = rawIdentityKey ? sourceFileIdsByKey.get(rawIdentityKey) : undefined;
       if (duplicateFileId && duplicateFileId !== record.id) {
         skippedDuplicateFileIds.push(record.id);
         continue;
@@ -177,8 +177,8 @@ export class SessionService extends Disposable implements ISessionServiceType {
       if (!nextFileOrder.includes(record.id)) {
         nextFileOrder = [...nextFileOrder, record.id];
       }
-      if (sourceKey) {
-        sourceFileIdsByKey.set(sourceKey, record.id);
+      if (rawIdentityKey) {
+        sourceFileIdsByKey.set(rawIdentityKey, record.id);
       }
       committedRecords.push(record);
     }
@@ -783,9 +783,9 @@ const createSourceFileIdsByKey = (
     ...Object.keys(filesById),
   ])) {
     const file = filesById[fileId];
-    const sourceKey = file ? getRawSourceIdentityKey(file.raw) : null;
-    if (sourceKey) {
-      result.set(sourceKey, fileId);
+    const rawIdentityKey = file ? getRawSourceIdentityKey(file.raw) : null;
+    if (rawIdentityKey) {
+      result.set(rawIdentityKey, fileId);
     }
   }
 

@@ -58,7 +58,6 @@ import {
   type INotificationHandle,
 } from "src/cs/workbench/services/notification/common/notificationService";
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
-import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
 import { WorkspaceWatcher } from "src/cs/workbench/services/workspaces/browser/workspaceWatcher";
 import { resolveWorkspaceExternalChanges } from "src/cs/workbench/services/workspaces/common/externalChanges";
 import {
@@ -100,7 +99,7 @@ export type PendingImportFile = {
   sourceFile?: ImportFileData;
   sourceName: string;
   sourceSize: number;
-  sourceKey: string;
+  itemKey: string;
 };
 
 export type PendingImportFilesResult = {
@@ -146,11 +145,10 @@ export type PreparedFileImportEntry = {
   readonly normalizedCsvPath?: string | null;
   readonly relativePath?: string | null;
   readonly resource?: URI | null;
-  readonly sourceKey: string;
   readonly sourcePath?: string | null;
 };
 
-export type PreparedFileImportInfo = SessionFile & {
+export type PreparedFileImportInfo = {
   readonly fileId: string;
   readonly fileName: string;
   readonly file: File;
@@ -159,7 +157,7 @@ export type PreparedFileImportInfo = SessionFile & {
   readonly relativePath?: string | null;
   readonly resource?: URI | null;
   readonly size: number;
-  readonly sourceKey?: string;
+  readonly itemKey?: string;
   readonly sourcePath?: string | null;
 };
 
@@ -991,13 +989,13 @@ export const collectPendingImportFiles = (
       fileName: sourceName,
       sizeBytes: sourceSize,
     });
-    const sourceKey = buildFileSourceIdentityKey(
+    const itemKey = buildFileSourceIdentityKey(
       sourceName,
       sourceSize,
       lastModified,
       relativePath,
     );
-    if (!sourceKey) {
+    if (!itemKey) {
       finishFilePerf({ skipped: "missing-key" });
       continue;
     }
@@ -1020,7 +1018,7 @@ export const collectPendingImportFiles = (
       sourceFile,
       sourceName,
       sourceSize,
-      sourceKey,
+      itemKey,
     });
   }
 
@@ -1047,7 +1045,7 @@ export const preparePendingImportFile = async (
     finishFilePerf,
     relativePath,
     sourceFile,
-    sourceKey,
+    itemKey,
   } = pendingImportFile;
   let resource: URI;
   let sourcePath: string | null;
@@ -1093,10 +1091,9 @@ export const preparePendingImportFile = async (
   const fileEntry: PreparedFileImportEntry = {
     fileId,
     file,
-    itemKey: sourceKey,
     relativePath,
     resource,
-    sourceKey,
+    itemKey,
     sourcePath,
   };
   const fileInfo: PreparedFileImportInfo = {
@@ -1107,7 +1104,7 @@ export const preparePendingImportFile = async (
     relativePath,
     resource,
     size: pendingImportFile.sourceSize,
-    sourceKey,
+    itemKey,
     sourcePath,
   };
 
