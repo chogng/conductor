@@ -7,24 +7,10 @@ import {
 	toSlashes,
 } from "src/cs/base/common/extpath";
 import type { URI } from "src/cs/base/common/uri";
-import type {
-	FileId,
-	FileRecord,
-} from "src/cs/workbench/services/session/common/sessionModel";
-import {
-	collectFileRecordBaseCurves,
-	collectFileRecordMeasurementBlocks,
-	getFileRecordAxisProjection,
-	getFileRecordCurveType,
-} from "src/cs/workbench/services/session/common/sessionRecordProjection";
 import {
 	ExplorerFileNestingTrie,
 	type ExplorerFileNestingPattern,
 } from "src/cs/workbench/contrib/files/common/explorerFileNestingTrie";
-import {
-	createRawTableStatusSignature,
-	type RawTableExplorerStatus,
-} from "src/cs/workbench/contrib/files/common/rawTableStatusProjection";
 
 export type ExplorerSourceStatus = "pending" | "preparing" | "failed";
 
@@ -38,7 +24,6 @@ export type ExplorerFileEntry = {
 	readonly itemKey?: string;
 	readonly localImport?: boolean;
 	readonly normalizedCsvPath?: string | null;
-	readonly rawTableStatus?: RawTableExplorerStatus;
 	readonly relativePath?: string | null;
 	readonly resource?: URI | null;
 	readonly sheetId?: string | null;
@@ -46,57 +31,25 @@ export type ExplorerFileEntry = {
 	readonly sourcePath?: string | null;
 	readonly sourceStatus?: ExplorerSourceStatus;
 	readonly sourceStatusMessage?: string | null;
-	readonly rawTableHealth?: "ok" | "suspect" | "decodeFailed" | "parseFailed" | "unsupported" | "empty";
-	readonly rawTableHealthMessage?: string | null;
-	readonly templateEligibility?: "eligible" | "notEligible" | "needsUserAction";
 	readonly fileVersion?: number;
-	readonly curveType?: string | null;
-	readonly curveTypeConfidence?: "high" | "medium" | "low";
-	readonly curveTypeNeedsReview?: boolean;
-	readonly curveTypeReasons?: readonly string[];
 };
 
-export type ExplorerCurveTypeConfidence = "high" | "medium" | "low";
-
-export type ExplorerXAxisRole = "vg" | "vd" | null;
-
-export type ExplorerXAxisRoleSource =
-	| "filename"
-	| "hint"
-	| "label"
-	| "metadata"
-	| "shape"
-	| null;
-
-export type ExplorerSemanticProjection = {
-	readonly curveType?: string | null;
-	readonly curveTypeConfidence?: ExplorerCurveTypeConfidence;
-	readonly curveTypeNeedsReview?: boolean;
-	readonly curveTypeReasons?: readonly string[];
-};
-
-export type ExplorerRawFileProjection = ExplorerSemanticProjection & {
+export type ExplorerRawFileInput = {
 	readonly file?: unknown;
 	readonly fileId?: string;
 	readonly fileName?: string;
 	readonly itemKey?: string | null;
 	readonly normalizedCsvPath?: string | null;
-	readonly rawTableHealth?: "ok" | "suspect" | "decodeFailed" | "parseFailed" | "unsupported" | "empty";
-	readonly rawTableHealthMessage?: string | null;
 	readonly relativePath?: string | null;
 	readonly sourcePath?: string | null;
 	readonly sourceVersion?: number;
 	readonly tableKey?: string | null;
-	readonly templateEligibility?: "eligible" | "notEligible" | "needsUserAction";
-	readonly xAxisRole?: ExplorerXAxisRole;
-	readonly xAxisRoleSource?: ExplorerXAxisRoleSource;
 };
 
-export type ExplorerThumbnailFile = Omit<ExplorerSemanticProjection, "curveType"> & {
+export type ExplorerThumbnailFile = {
 	readonly calculationCache?: unknown;
 	readonly curveFilterField?: string | null;
 	readonly curveFilterKey?: string | null;
-	readonly curveType?: string;
 	readonly domain?: {
 		readonly x?: readonly [number, number];
 		readonly y?: readonly [number, number];
@@ -108,8 +61,6 @@ export type ExplorerThumbnailFile = Omit<ExplorerSemanticProjection, "curveType"
 	readonly x?: {
 		readonly sampledPoints?: number | null;
 	};
-	readonly xAxisRole?: ExplorerXAxisRole;
-	readonly xAxisRoleSource?: ExplorerXAxisRoleSource;
 	readonly xGroups?: readonly unknown[];
 	readonly xUnit?: string;
 	readonly yUnit?: string;
@@ -202,14 +153,6 @@ export const createExplorerFilePresentationSignature = (
 		entry.fileId ?? "",
 		entry.sourceStatus ?? "",
 		entry.sourceStatusMessage ?? "",
-		createRawTableStatusSignature(entry.rawTableStatus),
-		entry.rawTableHealth ?? "",
-		entry.rawTableHealthMessage ?? "",
-		entry.templateEligibility ?? "",
-		entry.curveType ?? "",
-		entry.curveTypeConfidence ?? "",
-		entry.curveTypeNeedsReview === true ? "1" : "0",
-		(entry.curveTypeReasons ?? []).join("\u001d"),
 		options.badgeColorSignature,
 		options.templateLabel,
 		options.templateSelectionId,
@@ -411,38 +354,10 @@ export const isExplorerPathInFolder = (
 	);
 };
 
-const getFileId = (file: Pick<ExplorerFileEntry, "fileId">): string =>
-	String(file?.fileId ?? "").trim();
-
-const getFileName = (
-	processedFile: ExplorerThumbnailFile,
-	rawFile: ExplorerRawFileProjection | undefined,
-	fileId: string,
-): string =>
-	String(processedFile.fileName ?? rawFile?.fileName ?? fileId).trim() || fileId;
-
 const getOptionalString = (value: unknown): string | undefined => {
 	const text = String(value ?? "").trim();
 	return text || undefined;
 };
-
-const hasFileRecordChartData = (file: FileRecord): boolean =>
-	collectFileRecordBaseCurves(file).length > 0 ||
-	collectFileRecordMeasurementBlocks(file).length > 0;
-
-const createExplorerHealthFields = (
-	file: Pick<
-		ExplorerRawFileProjection,
-		"rawTableHealth" | "rawTableHealthMessage" | "templateEligibility"
-	> | undefined,
-): Pick<
-	ExplorerFileEntry,
-	"rawTableHealth" | "rawTableHealthMessage" | "templateEligibility"
-> => ({
-	...(file?.rawTableHealth ? { rawTableHealth: file.rawTableHealth } : {}),
-	...(file?.rawTableHealthMessage ? { rawTableHealthMessage: file.rawTableHealthMessage } : {}),
-	...(file?.templateEligibility ? { templateEligibility: file.templateEligibility } : {}),
-});
 
 const getExplorerFileVersion = (
 	value: unknown,
@@ -451,22 +366,8 @@ const getExplorerFileVersion = (
 	return Number.isFinite(version) && version >= 0 ? version : undefined;
 };
 
-const getFileRecordVersion = (
-	file: FileRecord,
-	fallback: unknown,
-): number | undefined => {
-	const versions = Object.values(file.rawTableVersionsById ?? {})
-		.map(value => getExplorerFileVersion(value))
-		.filter((value): value is number => typeof value === "number");
-	if (!versions.length) {
-		return getExplorerFileVersion(fallback);
-	}
-
-	return Math.max(...versions);
-};
-
 export const createRawExplorerFiles = (
-	rawFiles: readonly ExplorerRawFileProjection[],
+	rawFiles: readonly ExplorerRawFileInput[],
 ): ExplorerFileEntry[] =>
 	rawFiles.map(file => ({
 		file: file.file,
@@ -476,119 +377,8 @@ export const createRawExplorerFiles = (
 		relativePath: file.relativePath ?? null,
 		itemKey: getOptionalString(file.itemKey ?? file.tableKey),
 		sourcePath: file.sourcePath,
-		...createExplorerHealthFields(file),
 		fileVersion: getExplorerFileVersion(file.sourceVersion),
-		curveType: file.curveType ?? null,
-		curveTypeConfidence: file.curveTypeConfidence,
-		curveTypeNeedsReview: file.curveTypeNeedsReview,
-		curveTypeReasons: file.curveTypeReasons,
 	}));
-
-export const createChartExplorerFilesFromRecords = (
-	filesById: Record<FileId, FileRecord>,
-	fileOrder: readonly FileId[],
-	rawFiles: readonly ExplorerRawFileProjection[] = [],
-): ExplorerFileEntry[] => {
-	const rawFileById = new Map<string, ExplorerRawFileProjection>();
-	for (const file of rawFiles) {
-		const fileId = getFileId(file);
-		if (fileId) {
-			rawFileById.set(fileId, file);
-		}
-	}
-
-	const orderedFileIds = new Set<FileId>();
-	const files: ExplorerFileEntry[] = [];
-	const pushFile = (fileId: FileId): void => {
-		if (orderedFileIds.has(fileId)) {
-			return;
-		}
-		orderedFileIds.add(fileId);
-
-		const file = filesById[fileId];
-		if (!file || !hasFileRecordChartData(file)) {
-			return;
-		}
-
-		const rawFile = rawFileById.get(fileId);
-		const curveType = getFileRecordCurveType(file) ?? rawFile?.curveType ?? null;
-		const xAxisRole = getFileRecordAxisProjection(file).xAxisRole ??
-			rawFile?.xAxisRole ??
-			null;
-		files.push({
-			chartState: "ready",
-			file: file.raw.file ?? rawFile?.file,
-			fileId,
-			fileName: String(file.name ?? file.raw.fileName ?? rawFile?.fileName ?? fileId).trim() || fileId,
-			hasChartData: true,
-			normalizedCsvPath: file.raw.normalizedCsvPath ?? rawFile?.normalizedCsvPath,
-			relativePath: file.raw.relativePath ?? rawFile?.relativePath ?? null,
-			itemKey: getOptionalString(rawFile?.itemKey ?? rawFile?.tableKey ?? file.raw.rawKey),
-			sourcePath: file.raw.filePath ?? rawFile?.sourcePath,
-			...createExplorerHealthFields(rawFile),
-			fileVersion: getFileRecordVersion(file, rawFile?.sourceVersion),
-			curveType,
-			curveTypeConfidence: rawFile?.curveTypeConfidence,
-			curveTypeNeedsReview: rawFile?.curveTypeNeedsReview,
-			curveTypeReasons: rawFile?.curveTypeReasons,
-		});
-	};
-
-	for (const fileId of fileOrder) {
-		pushFile(fileId);
-	}
-	for (const fileId of Object.keys(filesById)) {
-		pushFile(fileId);
-	}
-
-	return files;
-};
-
-export const createChartExplorerFiles = (
-	rawFiles: readonly ExplorerRawFileProjection[],
-	processedFiles: readonly ExplorerThumbnailFile[],
-): ExplorerFileEntry[] => {
-	const rawFileById = new Map<string, ExplorerRawFileProjection>();
-	for (const file of rawFiles) {
-		const fileId = getFileId(file);
-		if (fileId) {
-			rawFileById.set(fileId, file);
-		}
-	}
-
-	const files: ExplorerFileEntry[] = [];
-	for (const processedFile of processedFiles) {
-		const fileId = getFileId(processedFile);
-		if (!fileId) {
-			continue;
-		}
-
-		const rawFile = rawFileById.get(fileId);
-		const curveType = processedFile.curveType ?? rawFile?.curveType ?? null;
-		const xAxisRole = processedFile.xAxisRole ?? rawFile?.xAxisRole ?? null;
-		files.push({
-			chartState: "ready",
-			file: rawFile?.file,
-			fileId,
-			fileName: getFileName(processedFile, rawFile, fileId),
-			hasChartData: true,
-			normalizedCsvPath: rawFile?.normalizedCsvPath,
-			relativePath: rawFile?.relativePath ?? null,
-			itemKey: getOptionalString(rawFile?.itemKey ?? rawFile?.tableKey),
-			sourcePath: rawFile?.sourcePath,
-			...createExplorerHealthFields(rawFile),
-			fileVersion: getExplorerFileVersion(rawFile?.sourceVersion),
-			curveType,
-			curveTypeConfidence:
-				processedFile.curveTypeConfidence ?? rawFile?.curveTypeConfidence,
-			curveTypeNeedsReview:
-				processedFile.curveTypeNeedsReview ?? rawFile?.curveTypeNeedsReview,
-			curveTypeReasons: processedFile.curveTypeReasons ?? rawFile?.curveTypeReasons,
-		});
-	}
-
-	return files;
-};
 
 export const mergeExplorerSourceEntries = ({
 	files,

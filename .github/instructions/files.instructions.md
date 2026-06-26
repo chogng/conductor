@@ -97,7 +97,7 @@ detection, template apply, plot generation, Session mutation, or DOM rendering.
 Explorer import workflows must not infer semantic badges during source
 collection or source preparation. Pending source rows may show only pending, preparing,
 or failed UI state until the file is prepared and downstream Review/Slice
-projections arrive through their owning services.
+state arrives through their owning services.
 
 ## Core Files
 
@@ -255,7 +255,7 @@ row. Explorer-local imports open table resources directly through
 Session-backed rows to table resources when a Session raw record has a
 `raw.filePath`. File close/delete/template actions still operate on `fileId`.
 
-Explorer badge projection details live in `explorer-badge.instructions.md`.
+Explorer decoration details live in `explorer-badge.instructions.md`.
 
 ## Command Entry
 
@@ -334,7 +334,7 @@ Import, badge, thumbnail, file-switch, and template-apply performance changes
 should be verified with `test:template-apply-performance-trace`.
 
 Run desktop and browser at 200 files minimum when touching import prepare,
-badge projection, thumbnail hover/grid, plot cache retention, or file-switch
+decoration display, thumbnail hover/grid, plot cache retention, or file-switch
 behavior. Use `--profile=mixed` for health/failure paths and the 260
 chart-target cache-lifecycle scenario for plot display cache eviction.
 

@@ -97,12 +97,16 @@ Session sessionCleared
   -> SliceService clears queue, file states, selections, active file
 ```
 
-Explorer projection:
+Explorer chart state:
 
 ```txt
-RawTableReviewRecord + SliceState.fileStates + latest SliceRun
+SliceState.fileStates + latest SliceRun
   -> WorkbenchDomainBridge / ExplorerPaneInput
-  -> rawTableStatus + chartState + chartMessage
+  -> chartState + chartMessage
+
+ReviewService TableReviewSummary
+  -> ExplorerDecorationsProvider / ExplorerViewPane
+  -> Explorer decoration + review hover
 ```
 
 ## Rules

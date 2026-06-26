@@ -14,7 +14,6 @@ import {
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
 import {
   TABLE_MODEL_RULE_VERSION,
-  type TableModelRecord,
 } from "src/cs/workbench/services/tableModel/common/tableModel";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
 import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
@@ -40,10 +39,6 @@ import type { TableSource } from "src/cs/workbench/services/table/common/table";
 import { createTemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { SliceCommit } from "src/cs/workbench/services/slice/common/slice";
-import {
-  createReviewEvidenceSignature,
-  type RawTableReviewRecord,
-} from "src/cs/workbench/services/review/common/review";
 
 suite("workbench/browser/workbench Explorer pane input", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -76,7 +71,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     });
   });
 
-  test("keeps chart tree input on the stable raw file projection", () => {
+  test("keeps chart tree input on the stable raw file rows", () => {
     const session = store.add(new SessionService());
     commitRawFilesForTest(session, [
       {
@@ -93,7 +88,6 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       },
     ]);
     commitTemplateOutputForTest(session, {
-      curveType: "transfer",
       fileId: "file-a",
       fileName: "Processed A.csv",
       series: [{
@@ -131,7 +125,6 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       .map(file => `${file.itemKey ?? file.fileId}:${file.fileId}`)
       .join("|");
     commitTemplateOutputForTest(session, {
-      curveType: "transfer",
       fileId: "raw-only",
       fileName: "Raw Only.csv",
       series: [{
@@ -178,7 +171,6 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       },
     ]);
     commitTemplateOutputForTest(session, {
-      curveType: "transfer",
       fileId: "file-a",
       fileName: "Processed A.csv",
       series: [{
@@ -214,7 +206,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.deepEqual(input.files.map(file => file.chartState), ["ready", "none"]);
   });
 
-  test("uses chart slice states without Explorer badge projection", () => {
+  test("uses chart slice states without Explorer badge fields", () => {
     const snapshot = store.add(new SessionService()).getSnapshot();
     const input = createExplorerPaneInput({
       activePlotType: "iv",
@@ -228,18 +220,14 @@ suite("workbench/browser/workbench Explorer pane input", () => {
         processedFiles: [],
         rawFiles: [
           {
-            curveType: "unknown",
-            curveTypeNeedsReview: true,
             fileId: "unknown-file",
             fileName: "Unknown.csv",
           },
           {
-            curveType: "transfer",
             fileId: "failed-file",
             fileName: "Failed.csv",
           },
           {
-            curveType: "output",
             fileId: "queued-file",
             fileName: "Queued.csv",
           },
@@ -249,8 +237,8 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       sliceState: createSliceStateForTest({
         fileStates: new Map([
           ["unknown-file", {
-            code: "unknownCurveType",
-            message: "Unknown.csv has unknown curve type.",
+            code: "slice.skipped",
+            message: "Unknown.csv was skipped.",
             state: "skipped",
           }],
           ["failed-file", {
@@ -273,7 +261,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       })),
       [
         {
-          chartMessage: "Unknown.csv has unknown curve type.",
+          chartMessage: "Unknown.csv was skipped.",
           chartState: "skipped",
           fileId: "unknown-file",
         },
@@ -304,7 +292,6 @@ suite("workbench/browser/workbench Explorer pane input", () => {
         processedFileIds: [],
         processedFiles: [],
         rawFiles: [{
-          curveType: "transfer",
           fileId: "file-a",
           fileName: "A.csv",
         }],
@@ -325,7 +312,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.equal(input.files[0]?.chartMessage, "Slice failed.");
   });
 
-  test("creates chart thumbnail input from processed file projection", () => {
+  test("creates chart thumbnail input from processed files", () => {
     const session = store.add(new SessionService());
     commitRawFilesForTest(session, [
       {
@@ -342,7 +329,6 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       },
     ]);
     commitTemplateOutputForTest(session, {
-      curveType: "transfer",
       fileId: "file-a",
       fileName: "Processed A.csv",
       series: [{
@@ -403,7 +389,6 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       },
     ]);
     commitTemplateOutputForTest(session, {
-      curveType: "transfer",
       fileId: "file-a",
       fileName: "Processed A.csv",
       series: [{
@@ -439,7 +424,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.equal(explorerService.selectedProcessedFileId, "raw-only");
   });
 
-  test("keeps raw explorer rows free of legacy badge projection", () => {
+  test("keeps raw explorer rows free of legacy semantic badge fields", () => {
     const session = store.add(new SessionService());
     commitRawFilesForTest(session, [
       {
@@ -512,19 +497,15 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.deepEqual(
       input.files.map(file => ({
         fileId: file.fileId,
-        curveType: file.curveType,
       })),
       [
         {
-          curveType: null,
           fileId: "output-file",
         },
         {
-          curveType: null,
           fileId: "header-file",
         },
         {
-          curveType: null,
           fileId: "ready-file",
         },
       ],
@@ -544,7 +525,6 @@ suite("workbench/browser/workbench initial mode", () => {
       columnCount: 2,
     }]);
     commitTemplateOutputForTest(session, {
-      curveType: "transfer",
       fileId: "file-a",
       fileName: "Processed A.csv",
       series: [{
@@ -721,7 +701,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
-  test("defers startup secondary projection while opening table source immediately", async () => {
+  test("defers startup secondary state while opening table source immediately", async () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const chartViewInputs: Array<{ readonly activeFileId: string | null; readonly hasChartData?: boolean }> = [];
@@ -941,7 +921,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
         },
       ]);
       commitTemplateOutputForTest(session, {
-        curveType: "transfer",
         fileId: "file-a",
         fileName: "A.csv",
         series: [{
@@ -952,7 +931,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
         xGroups: [[0, 1]],
       });
       commitTemplateOutputForTest(session, {
-        curveType: "transfer",
         fileId: "file-b",
         fileName: "B.csv",
         series: [{
@@ -1001,7 +979,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       },
     ]);
     commitTemplateOutputForTest(session, {
-      curveType: "transfer",
       fileId: "file-a",
       fileName: "A.csv",
       series: [{
@@ -1062,51 +1039,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
-  test("refreshes explorer raw table status from reviewChanged session events", async () => {
-    const session = store.add(new SessionService());
-    const explorerService = store.add(new ExplorerService());
-    commitRawFilesForTest(session, [{
-      columnCount: 2,
-      fileId: "file-a",
-      fileName: "A.csv",
-      rowCount: 2,
-      rows: [],
-    }]);
-    const tableModel = createTableModelForTest();
-    session.commitTableModel(tableModel);
-    const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
-    const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
-    globalThis.requestAnimationFrame = ((callback: FrameRequestCallback): number => {
-      const handle = globalThis.setTimeout(() => callback(0), 0);
-      return Number(handle);
-    }) as typeof requestAnimationFrame;
-    globalThis.cancelAnimationFrame = ((handle: number): void => {
-      globalThis.clearTimeout(handle);
-    }) as typeof cancelAnimationFrame;
-
-    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
-      explorerService,
-      prioritizedCalculationFileIds: [],
-      prioritizedTemplateFileIds: [],
-      session,
-    }));
-    try {
-      bridge.sync();
-
-      assert.equal(explorerService.getPaneInput()?.files[0]?.rawTableStatus?.kind, "reviewPending");
-
-      session.commitRawTableReviews([createReviewRecordForTest(tableModel)]);
-      await new Promise(resolve => globalThis.setTimeout(resolve, 0));
-
-      const status = explorerService.getPaneInput()?.files[0]?.rawTableStatus;
-      assert.equal(status?.kind, "systemRecommended");
-      assert.equal(status?.kind === "systemRecommended" && status.templateFingerprint, "template:test");
-    } finally {
-      bridge.dispose();
-      globalThis.requestAnimationFrame = originalRequestAnimationFrame;
-      globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
-    }
-  });
 });
 
 const createPlotDisplayModelForTest = (fileId: string): PlotDisplayModel => ({
@@ -1367,7 +1299,6 @@ const commitChartFilesForTest = (
   })));
   for (const fileId of fileIds) {
     commitTemplateOutputForTest(session, {
-      curveType: "transfer",
       fileId,
       fileName: `${fileId}.csv`,
       series: [{
@@ -1385,13 +1316,18 @@ const commitTemplateOutputForTest = (
   file: ProcessedEntry,
 ): void => {
   const snapshot = session.getSnapshot();
+  const processedFile: ProcessedEntry = {
+    curveFilterKey: "transfer",
+    xAxisRole: "vg",
+    ...file,
+  };
   const records = mergeProcessedFileIntoRecords(
     snapshot.filesById,
     snapshot.fileOrder,
-    file,
+    processedFile,
     snapshot,
   );
-  const fileId = String(file.fileId ?? "").trim();
+  const fileId = String(processedFile.fileId ?? "").trim();
   const record = fileId ? records.filesById[fileId] : undefined;
   const run = record ? getLatestSliceRunRecord(record) : undefined;
   const commit: SliceCommit | null = record && run
@@ -1418,95 +1354,6 @@ const commitRawFilesForTest = (
 ): void => {
   session.commitFileImport(createFileImportResultForTest(files));
 };
-
-const createTableModelForTest = (): TableModelRecord => ({
-  tableModelRuleVersion: TABLE_MODEL_RULE_VERSION,
-  schemaProfileVersion: 0,
-  blocks: [{
-    columnCount: 2,
-    columns: { columns: [] },
-    diagnosticCodes: [],
-    family: "iv",
-    fileId: "file-a",
-    id: "block-a",
-    ivMode: "transfer",
-    label: "Transfer",
-    rawTableId: "file-a",
-    rowCount: 2,
-    source: {
-      fullRange: {
-        endCol: 1,
-        endRow: 1,
-        startCol: 0,
-        startRow: 0,
-      },
-    },
-  }],
-  columnProfiles: [],
-  createdAt: 1,
-  diagnostics: [],
-  fileId: "file-a",
-  groups: [],
-  rawTableId: "file-a",
-  layoutCandidates: [],
-  semanticCandidates: [],
-  sourceRawTableVersion: 1,
-  structure: createEmptyRawTableStructure(),
-});
-
-const createReviewRecordForTest = (
-  tableModel: TableModelRecord,
-): RawTableReviewRecord => ({
-  fileId: tableModel.fileId,
-  rawTableId: tableModel.rawTableId,
-  sourceRawTableVersion: tableModel.sourceRawTableVersion,
-  evidenceSignature: createReviewEvidenceSignature(tableModel, {
-    columnCount: 2,
-    fileName: "A.csv",
-    rowCount: 2,
-  }),
-  recipeFingerprint: "recipe:test",
-  userTemplateCatalogVersion: 1,
-  userTemplateEffectiveFingerprint: "templates:test",
-  reviewEngineVersion: 1,
-  reviewPolicyVersion: 1,
-  candidates: [],
-  reviews: [],
-  decision: {
-    kind: "ready",
-    reviewedTemplate: {
-      candidateId: "candidate-a",
-      source: {
-        kind: "recipe",
-        recipeId: "recipe:test",
-        recipeVersion: 1,
-      },
-      template: {
-        schemaVersion: 1,
-        name: "Transfer",
-        version: 1,
-        blocks: [],
-        stopOnError: false,
-      },
-      templateFingerprint: "template:test",
-      review: {
-        candidateId: "candidate-a",
-        templateFingerprint: "template:test",
-        status: "ready",
-        confidence: 0.9,
-        reasons: [],
-        diagnostics: [],
-      },
-    },
-    application: {
-      kind: "systemRecommended",
-      reason: "review.ready.systemRecommended",
-    },
-    summary: "Ready",
-    suggestedActions: [],
-  },
-  createdAt: 1,
-});
 
 const createFileImportResultForTest = (
   files: readonly SessionFile[],

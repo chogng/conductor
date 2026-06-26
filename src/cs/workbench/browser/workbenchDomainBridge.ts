@@ -14,16 +14,12 @@ import {
 import type { ICalculationService } from "src/cs/workbench/services/calculation/common/calculation";
 import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
 import {
-  createChartExplorerFilesFromRecords,
   createRawExplorerFiles,
   resolveExplorerSelectedFileId,
   type ExplorerFileEntry,
   buildExplorerTree,
   type ExplorerTreeNode,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
-import {
-  createRawTableStatusProjection,
-} from "src/cs/workbench/contrib/files/common/rawTableStatusProjection";
 import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import { createChartViewInput } from "src/cs/workbench/services/chart/browser/chartViewInput";
 import type { ChartFileOption } from "src/cs/workbench/services/chart/common/chartFileOptions";
@@ -50,7 +46,6 @@ import type {
 } from "src/cs/workbench/services/table/common/table";
 import type {
   FileRecord,
-  TableRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import type {
   ISliceService,
@@ -235,7 +230,7 @@ export class WorkbenchDomainBridge extends Disposable {
       return;
     }
 
-    this.syncSecondaryProjection(snapshot, readModel, explorerSelection);
+    this.syncSecondaryState(snapshot, readModel, explorerSelection);
     endPerf({
       deferredSecondaryWork: false,
       processedFileCount: readModel.processedFileIds.length,
@@ -302,14 +297,14 @@ export class WorkbenchDomainBridge extends Disposable {
       this.options.explorerService,
       readModel,
     );
-    this.syncSecondaryProjection(snapshot, readModel, explorerSelection);
+    this.syncSecondaryState(snapshot, readModel, explorerSelection);
     endPerf({
       processedFileCount: readModel.processedFileIds.length,
       rawFileCount: readModel.rawFiles.length,
     });
   }
 
-  private syncSecondaryProjection(
+  private syncSecondaryState(
     snapshot: SessionSnapshot,
     readModel: SessionReadModel,
     explorerSelection: ExplorerDomainSelection,
@@ -818,23 +813,13 @@ export const createExplorerPaneInput = ({
   const isThumbnailLayout = isChartMode && explorerService.viewLayout === "thumbnail";
   const selectionKind: ExplorerSelectionKind = isChartMode ? "chart" : "table";
   const rawExplorerFiles = createRawExplorerFiles(rawFiles);
-  const rawStatusExplorerFiles = mergeExplorerPaneLocalImportFiles(
-    applyRawTableStatusProjections(rawExplorerFiles, {
-    sliceState,
-    snapshot,
-    }),
+  const rawExplorerFilesWithLocalImports = mergeExplorerPaneLocalImportFiles(
+    rawExplorerFiles,
     explorerService.getPaneInput()?.files ?? [],
   );
   const chartBaseFiles = isThumbnailLayout
-    ? applyRawTableStatusProjections(createChartExplorerFilesFromRecords(
-      snapshot.filesById,
-      snapshot.fileOrder,
-      rawFiles,
-    ), {
-      sliceState,
-      snapshot,
-    })
-    : rawStatusExplorerFiles;
+    ? filterExplorerFilesByProcessedIds(rawExplorerFilesWithLocalImports, readModel.processedFileIds)
+    : rawExplorerFilesWithLocalImports;
   const files = applyChartExplorerStates(chartBaseFiles, {
       isChartMode,
       sliceState,
@@ -858,7 +843,7 @@ export const createExplorerPaneInput = ({
     mode,
     originOpenPlotOptions,
     plotAxisSettings,
-    quickAccessFiles: rawStatusExplorerFiles,
+    quickAccessFiles: rawExplorerFilesWithLocalImports,
     selectedFileId,
     selectedItemKey,
     selectionKind,
@@ -999,6 +984,22 @@ const getExplorerPaneFileIds = (
     .filter(fileId => fileId.length > 0);
 };
 
+const filterExplorerFilesByProcessedIds = (
+  files: readonly ExplorerFileEntry[],
+  processedFileIds: readonly string[],
+): ExplorerFileEntry[] => {
+  const processedFileIdSet = new Set(
+    processedFileIds
+      .map(fileId => String(fileId ?? "").trim())
+      .filter(Boolean),
+  );
+  if (!processedFileIdSet.size) {
+    return [];
+  }
+
+  return files.filter(file => processedFileIdSet.has(String(file.fileId ?? "").trim()));
+};
+
 const mergeExplorerPaneLocalImportFiles = (
   sessionFiles: readonly ExplorerFileEntry[],
   currentFiles: readonly ExplorerFileEntry[],
@@ -1031,30 +1032,6 @@ const getExplorerPaneFileKey = (file: ExplorerFileEntry): string => {
   const fileId = normalizeExplorerSelectionFileId(file.fileId);
   return fileId ? `file:${fileId}` : `item:${String(file.itemKey ?? "")}`;
 };
-
-const applyRawTableStatusProjections = (
-  files: readonly ExplorerFileEntry[],
-  {
-    sliceState,
-    snapshot,
-  }: {
-    readonly sliceState: SliceState;
-    readonly snapshot: SessionSnapshot;
-  },
-): ExplorerFileEntry[] =>
-  files.map(file => {
-    const fileId = String(file.fileId ?? "").trim();
-    const fileRecord = fileId ? snapshot.filesById[fileId] : undefined;
-    const rawTableId = findExplorerRawTable(file, fileRecord)?.rawTableId ?? null;
-    return {
-      ...file,
-      rawTableStatus: createRawTableStatusProjection({
-        file: fileRecord,
-        rawTableId,
-        sliceFileState: fileId ? sliceState.fileStates.get(fileId) : undefined,
-      }),
-    };
-  });
 
 const applyChartExplorerStates = (
   files: readonly ExplorerFileEntry[],
@@ -1131,36 +1108,6 @@ const getChartStateMessage = (
   return null;
 };
 
-const findExplorerRawTable = (
-  file: ExplorerFileEntry,
-  fileRecord: FileRecord | undefined,
-): { readonly rawTableId: string; readonly table: TableRecord } | null => {
-  if (!fileRecord) {
-    return null;
-  }
-
-  const itemKey = String(file.itemKey ?? "").trim();
-  if (itemKey) {
-    const entry = findFileRecordTableByItemKey(fileRecord, itemKey);
-    if (entry) {
-      const [rawTableId, table] = entry;
-      return {
-        rawTableId,
-        table,
-      };
-    }
-  }
-
-  const firstTableId = fileRecord.raw.tableOrder[0];
-  const table = firstTableId ? fileRecord.raw.tablesById[firstTableId] ?? null : null;
-  return firstTableId && table
-    ? {
-        rawTableId: firstTableId,
-        table,
-      }
-    : null;
-};
-
 const createRawTableSource = (
   selection: Pick<ExplorerDomainSelection, "selectedRawFileId" | "selectedRawItemKey">,
   filesById: Readonly<Record<string, FileRecord>>,
@@ -1188,7 +1135,7 @@ const createRawTableSource = (
 const findFileRecordTableByItemKey = (
   fileRecord: FileRecord | undefined,
   itemKey: string,
-): [string, TableRecord] | null => {
+): [string, FileRecord["raw"]["tablesById"][string]] | null => {
   if (!fileRecord) {
     return null;
   }

@@ -88,7 +88,7 @@ series, template decisions, or table-model confidence.
 | `TableSelection` | active `TableWidget` + `ITableService` snapshot | service-local | widget interaction or external reveal/select |
 | `TableColumnWidth` | `ITableService` + storage | workspace view state | table sheet key or explicit width reset |
 | `ExplorerState` | `IExplorerService` | service state | Explorer selection/layout/expansion/source workflow changes |
-| `ExplorerResource` / `ExplorerFileEntry` | Explorer projection | derived view input | session, source workflow, badge/template/chart state projections |
+| `ExplorerResource` / `ExplorerFileEntry` | Explorer view input | derived view input | resource/source workflow plus template/chart display state; semantic decoration comes from Review providers |
 | `UserTemplateSnapshot` | `IUserTemplateService` | service-local snapshot | native user-template store version, scope versions, and effective fingerprint. |
 | `SearchQuery` / `SearchResult` | `ISearchService` | service state/model | query/options/session/plot index |
 | `ExportState` / `ExportPlan` | `IExportService` | service state/derived plan | export options/session/plot changes |
@@ -250,8 +250,9 @@ replaces the URI identity for resource opens.
 - `TableSelection` is interaction state, not Session data.
 - `ExplorerState` owns layout, selected file id, expanded folders, folder order,
   source workflow status, error, and drag state.
-- `ExplorerFileEntry` is a projection for rendering; badge/chart/template fields
-  are display facts, not source preparation output.
+- `ExplorerFileEntry` is derived view input for rendering; source/chart/template
+  fields are display facts, not source preparation output. Semantic Explorer
+  decoration comes from Review providers, not fields on `ExplorerFileEntry`.
 
 ## Do Not
 

@@ -12,7 +12,7 @@ template, chart, or table decision inputs.
 
 Pending badge:
 
-- Explorer projection only;
+- Explorer UI only;
 - first-frame display and stable badge slot layout;
 - may show pending source status or pending Review summary only;
 - must not infer semantic labels from file name, path, extension, sheet name, header rows, or source rows;
@@ -21,7 +21,7 @@ Pending badge:
 Confirmed badge:
 
 - comes from `IReviewService.getLatestReviewSummary({ resource, sheetId })`;
-- is the final Explorer semantic badge projection;
+- is the final Explorer semantic decoration display;
 - represents reviewed template readiness, stale review, manual-adjustment needs, or final invalid review state.
 - is exposed to Explorer through `ExplorerDecorationsProvider` registered on `IDecorationsService`, not through `ExplorerFileEntry`.
 
@@ -64,7 +64,7 @@ reviewChanged -> ExplorerDecorationsProvider.onDidChange -> IDecorationsService.
 
 Table-model queue entries dedupe by raw table identity and source version. Drop
 stale queued results if the raw table version changes. Queue state must not be
-projected into Explorer decoration records.
+written into Explorer decoration state.
 
 ## Rendering
 
@@ -75,6 +75,6 @@ Virtualized rows are reusable DOM. Bind badge updates to the current row key
 before writing text, state, title, or classes. Repeated renders with the same
 badge key should not rewrite DOM.
 
-Legacy `ExplorerFileEntry.badgeState` and `curveTypeBadgeLabel` are retired.
+Legacy Explorer semantic badge fields are retired.
 New Explorer decoration work must use provider output keyed by Explorer file
 key, with Review summary as the semantic source.

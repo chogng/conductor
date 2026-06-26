@@ -203,14 +203,6 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       contextViewService,
       expandedFolderKeys: ["folder:Folder"],
       files: [{
-        badgeState: {
-          kind: "unknown",
-          source: "review",
-        },
-        curveType: "unknown",
-        curveTypeBadgeLabel: "unknown",
-        curveTypeConfidence: "low",
-        curveTypeReasons: ["No reliable transfer/output metadata was found."],
         fileId: "file-a",
         fileName: "A.csv",
         itemKey: "file-a",
@@ -419,9 +411,6 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     hoverHost.append(host);
 
     const initialFile: ExplorerViewerProps["files"][number] = {
-      badgeState: {
-        kind: "pending",
-      },
       fileId: "file-a",
       fileName: "A.csv",
       itemKey: "file-a",
@@ -441,12 +430,6 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         ...props,
 	        files: [{
 	          ...initialFile,
-	          badgeState: {
-	            confidence: "confirmed",
-	            kind: "ready",
-	            label: "cv",
-	            source: "review",
-	          },
 	        }],
       });
 
@@ -466,12 +449,6 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         },
 	        files: [{
 	          ...initialFile,
-	          badgeState: {
-	            confidence: "confirmed",
-	            kind: "ready",
-	            label: "cv",
-	            source: "review",
-	          },
 	        }],
       });
 
@@ -652,17 +629,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       ...createViewerProps(),
       contextViewService,
       files: [{
-        badgeState: {
-          confidence: "confirmed",
-          kind: "ready",
-          label: "output",
-          source: "review",
-        },
         chartState: "ready",
-        curveType: "IV",
-        curveTypeBadgeLabel: "output",
-        curveTypeConfidence: "high",
-        curveTypeReasons: ["matched voltage/current columns"],
         fileId: "file-a",
         fileName: "A.csv",
         hasChartData: false,
@@ -721,33 +688,13 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       contextViewService,
       files: [
         {
-          badgeState: {
-            confidence: "confirmed",
-            kind: "ready",
-            label: "transfer",
-            source: "review",
-          },
           chartState: "processing",
-          curveType: "IV",
-          curveTypeBadgeLabel: "transfer",
-          curveTypeConfidence: "high",
-          curveTypeReasons: ["matched voltage/current columns"],
           fileId: "file-a",
           fileName: "A.csv",
           itemKey: "file-a",
         },
         {
-          badgeState: {
-            confidence: "confirmed",
-            kind: "ready",
-            label: "transfer",
-            source: "review",
-          },
           chartState: "processing",
-          curveType: "IV",
-          curveTypeBadgeLabel: "transfer",
-          curveTypeConfidence: "high",
-          curveTypeReasons: ["matched voltage/current columns"],
           fileId: "file-b",
           fileName: "B.csv",
           itemKey: "file-b",
@@ -830,34 +777,14 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       contextViewService,
       files: [
         {
-          badgeState: {
-            confidence: "confirmed",
-            kind: "ready",
-            label: "transfer",
-            source: "review",
-          },
           chartState: "ready",
-          curveType: "IV",
-          curveTypeBadgeLabel: "transfer",
-          curveTypeConfidence: "high",
-          curveTypeReasons: ["matched voltage/current columns"],
           fileId: "file-a",
           fileName: "A.csv",
           hasChartData: true,
           itemKey: "file-a",
         },
         {
-          badgeState: {
-            confidence: "confirmed",
-            kind: "ready",
-            label: "transfer",
-            source: "review",
-          },
           chartState: "ready",
-          curveType: "IV",
-          curveTypeBadgeLabel: "transfer",
-          curveTypeConfidence: "high",
-          curveTypeReasons: ["matched voltage/current columns"],
           fileId: "file-b",
           fileName: "B.csv",
           hasChartData: true,
@@ -945,34 +872,14 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       contextViewService,
       files: [
         {
-          badgeState: {
-            confidence: "confirmed",
-            kind: "ready",
-            label: "transfer",
-            source: "review",
-          },
           chartState: "ready",
-          curveType: "IV",
-          curveTypeBadgeLabel: "transfer",
-          curveTypeConfidence: "high",
-          curveTypeReasons: ["matched voltage/current columns"],
           fileId: "file-a",
           fileName: "A.csv",
           hasChartData: true,
           itemKey: "file-a",
         },
         {
-          badgeState: {
-            confidence: "confirmed",
-            kind: "ready",
-            label: "transfer",
-            source: "review",
-          },
           chartState: "ready",
-          curveType: "IV",
-          curveTypeBadgeLabel: "transfer",
-          curveTypeConfidence: "high",
-          curveTypeReasons: ["matched voltage/current columns"],
           fileId: "file-b",
           fileName: "B.csv",
           hasChartData: true,
@@ -1046,31 +953,11 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       contextViewService,
       files: [
         {
-          badgeState: {
-            confidence: "confirmed",
-            kind: "ready",
-            label: "transfer",
-            source: "review",
-          },
-          curveType: "IV",
-          curveTypeBadgeLabel: "transfer",
-          curveTypeConfidence: "high",
-          curveTypeReasons: ["matched voltage/current columns"],
           fileId: "file-a",
           fileName: "A.csv",
           itemKey: "file-a",
         },
         {
-          badgeState: {
-            confidence: "confirmed",
-            kind: "ready",
-            label: "transfer",
-            source: "review",
-          },
-          curveType: "IV",
-          curveTypeBadgeLabel: "transfer",
-          curveTypeConfidence: "high",
-          curveTypeReasons: ["matched voltage/current columns"],
           fileId: "file-b",
           fileName: "B.csv",
           itemKey: "file-b",
@@ -1184,16 +1071,6 @@ const createViewerProps = (): ExplorerViewerProps => ({
   } as unknown as IContextMenuService,
   contextViewService: new TestContextViewService(),
   files: [{
-    badgeState: {
-      confidence: "confirmed",
-      kind: "ready",
-      label: "mixed",
-      source: "review",
-    },
-    curveType: "IV",
-    curveTypeBadgeLabel: "transfer",
-    curveTypeConfidence: "high",
-    curveTypeReasons: ["matched voltage/current columns"],
     fileId: "file-a",
     fileName: "A.csv",
     itemKey: "file-a",

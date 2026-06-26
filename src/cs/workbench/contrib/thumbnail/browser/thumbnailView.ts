@@ -14,11 +14,9 @@ export type ThumbnailFileLike = {
   yUnit?: string;
   curveFilterKey?: string | null;
   curveFilterField?: string | null;
-  curveType?: string;
   x?: {
     sampledPoints?: number | null;
   };
-  xAxisRole?: "vg" | "vd" | null;
 };
 
 export type ThumbnailPlotModel = PlotMainRenderModelSource & {

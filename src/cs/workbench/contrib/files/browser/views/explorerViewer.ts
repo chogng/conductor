@@ -1666,7 +1666,6 @@ export class ExplorerViewer implements IDisposable {
       return this.props.files.map(file => ({
         curveFilterField: null,
         curveFilterKey: null,
-        curveType: file.curveType ?? undefined,
         fileId: file.fileId,
         fileName: file.fileName,
       }));
@@ -2889,7 +2888,6 @@ function getThumbnailFileLikeFromProps(
   return {
     curveFilterField: null,
     curveFilterKey: null,
-    curveType: file.curveType ?? undefined,
     fileId: file.fileId,
     fileName: file.fileName,
   };

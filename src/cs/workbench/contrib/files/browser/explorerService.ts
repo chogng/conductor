@@ -24,9 +24,6 @@ import {
   getTemplateSelectionTemplateId,
   type TemplateSelection,
 } from "src/cs/workbench/services/slice/common/templateSelection";
-import {
-  createRawTableStatusSignature,
-} from "src/cs/workbench/contrib/files/common/rawTableStatusProjection";
 
 export class ExplorerService extends Disposable implements IExplorerService {
   public declare readonly _serviceBrand: undefined;
@@ -516,13 +513,7 @@ const areExplorerFilesEqual = (
       file.sourcePath === nextFile.sourcePath &&
       file.sourceStatus === nextFile.sourceStatus &&
       file.sourceStatusMessage === nextFile.sourceStatusMessage &&
-      createRawTableStatusSignature(file.rawTableStatus) ===
-        createRawTableStatusSignature(nextFile.rawTableStatus) &&
-      file.fileVersion === nextFile.fileVersion &&
-      file.curveType === nextFile.curveType &&
-      file.curveTypeConfidence === nextFile.curveTypeConfidence &&
-      file.curveTypeNeedsReview === nextFile.curveTypeNeedsReview &&
-      areStringArraysEqual(file.curveTypeReasons ?? [], nextFile.curveTypeReasons ?? []);
+      file.fileVersion === nextFile.fileVersion;
   });
 
 const areOriginPlotOptionsEqual = (
@@ -566,14 +557,8 @@ const areProcessedEntriesEqual = (
       file.fileName === nextFile.fileName &&
       file.curveFilterKey === nextFile.curveFilterKey &&
       file.curveFilterField === nextFile.curveFilterField &&
-      file.curveType === nextFile.curveType &&
-      file.curveTypeConfidence === nextFile.curveTypeConfidence &&
-      file.curveTypeNeedsReview === nextFile.curveTypeNeedsReview &&
       file.supportsSs === nextFile.supportsSs &&
-      file.xAxisRole === nextFile.xAxisRole &&
-      file.xAxisRoleSource === nextFile.xAxisRoleSource &&
-      file.xUnit === nextFile.xUnit &&
-      areStringArraysEqual(file.curveTypeReasons ?? [], nextFile.curveTypeReasons ?? []);
+      file.xUnit === nextFile.xUnit;
   });
 
 const areThumbnailPlotModelsEqual = (

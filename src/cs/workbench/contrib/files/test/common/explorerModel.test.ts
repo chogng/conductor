@@ -4,14 +4,10 @@
 
 import assert from "assert";
 
-import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
-
 import {
   buildExplorerTree,
   createExplorerFilePresentationSignature,
   createExplorerTreeStructureSignature,
-  createChartExplorerFiles,
-  createChartExplorerFilesFromRecords,
   createRawExplorerFiles,
   getExplorerTreeFileKey,
   mergeExplorerSourceEntries,
@@ -53,38 +49,6 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     assert.equal(buildExplorerTree([fallbackEntry])[0]?.children?.[0]?.key, "file:batch/raw.csv");
   });
 
-  test("file presentation signature includes raw table status projection", () => {
-    const baseOptions = {
-      badgeColorSignature: "",
-      isEditing: false,
-      templateLabel: "",
-      templateSelectionId: "",
-    };
-    const readySignature = createExplorerFilePresentationSignature({
-      fileId: "file-a",
-      fileName: "A.csv",
-      rawTableStatus: {
-        kind: "systemRecommended",
-        rawTableId: "table-a",
-        reviewSignature: "review:a",
-        templateFingerprint: "template:a",
-      },
-    }, baseOptions);
-    const slicedSignature = createExplorerFilePresentationSignature({
-      fileId: "file-a",
-      fileName: "A.csv",
-      rawTableStatus: {
-        kind: "sliced",
-        rawTableId: "table-a",
-        runId: "slice-a",
-        sourceRawTableVersion: 1,
-        templateFingerprint: "template:a",
-      },
-    }, baseOptions);
-
-    assert.notEqual(readySignature, slicedSignature);
-  });
-
   test("createExplorerFilePresentationSignature ignores chart-only metadata", () => {
     const options = {
       badgeColorSignature: "output:green",
@@ -93,8 +57,6 @@ suite("workbench/contrib/files/common/explorerModel", () => {
       templateSelectionId: "auto",
     };
     const file = {
-      curveType: "output",
-      curveTypeConfidence: "high",
       fileId: "file-a",
       fileName: "A.csv",
     } as const;
@@ -106,14 +68,6 @@ suite("workbench/contrib/files/common/explorerModel", () => {
         chartMessage: "Ready",
         chartState: "ready",
         hasChartData: true,
-      }, options),
-    );
-
-    assert.notEqual(
-      createExplorerFilePresentationSignature(file, options),
-      createExplorerFilePresentationSignature({
-        ...file,
-        curveType: "transfer",
       }, options),
     );
   });
@@ -167,7 +121,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     );
   });
 
-  test("createRawExplorerFiles projects raw file curve metadata", () => {
+  test("createRawExplorerFiles projects source identity fields", () => {
     assert.deepEqual(
       createRawExplorerFiles([
         {
@@ -177,11 +131,6 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           relativePath: "batch/raw.csv",
           tableKey: "item-key",
           sourcePath: "C:/data/raw.csv",
-          curveType: "output (vd)",
-          curveTypeConfidence: "medium",
-          curveTypeNeedsReview: false,
-          curveTypeReasons: ["Shape evidence matches output-style Id-Vd behavior."],
-          xAxisRole: "vd",
         },
       ]),
       [
@@ -193,143 +142,9 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           normalizedCsvPath: undefined,
           relativePath: "batch/raw.csv",
           sourcePath: "C:/data/raw.csv",
-          curveType: "output (vd)",
-          curveTypeConfidence: "medium",
-          curveTypeNeedsReview: false,
-          curveTypeReasons: ["Shape evidence matches output-style Id-Vd behavior."],
           fileVersion: undefined,
         },
       ],
-    );
-  });
-
-  test("createChartExplorerFiles projects processed files with source paths", () => {
-    const files = createChartExplorerFiles(
-      [
-        {
-          fileId: "raw-1",
-          fileName: "raw.csv",
-          itemKey: "raw-key",
-          relativePath: "batch/raw.csv",
-          tableKey: "item-key",
-          sourcePath: "C:/data/raw.csv",
-          curveType: "unknown",
-          curveTypeConfidence: "low",
-        },
-      ],
-      [
-        {
-          fileId: "raw-1",
-          fileName: "processed.csv",
-          curveType: "iv",
-          curveTypeConfidence: "high",
-        },
-      ],
-    );
-
-    assert.deepEqual(files, [
-      {
-        chartState: "ready",
-        file: undefined,
-        fileId: "raw-1",
-        fileName: "processed.csv",
-        hasChartData: true,
-        itemKey: "raw-key",
-        normalizedCsvPath: undefined,
-        relativePath: "batch/raw.csv",
-        sourcePath: "C:/data/raw.csv",
-        curveType: "iv",
-        curveTypeConfidence: "high",
-        curveTypeNeedsReview: undefined,
-        curveTypeReasons: undefined,
-        fileVersion: undefined,
-      },
-    ]);
-  });
-
-  test("createChartExplorerFiles only includes processed files with ids", () => {
-    assert.deepEqual(
-      createChartExplorerFiles(
-        [{ fileId: "raw-only", fileName: "raw.csv" }],
-        [{ fileName: "missing-id.csv" }],
-      ),
-      [],
-    );
-  });
-
-  test("createChartExplorerFilesFromRecords projects canonical files", () => {
-    const files = createChartExplorerFilesFromRecords(
-      {
-        "raw-1": createFileRecord("raw-1"),
-      },
-      ["raw-1"],
-      [
-        {
-          fileId: "raw-1",
-          fileName: "raw.csv",
-          itemKey: "source-item",
-          tableKey: "item-key",
-          sourcePath: "C:/source/raw.csv",
-          curveType: "unknown",
-          curveTypeConfidence: "low",
-          curveTypeNeedsReview: true,
-        },
-      ],
-    );
-
-    assert.deepEqual(files, [
-      {
-        chartState: "ready",
-        file: undefined,
-        fileId: "raw-1",
-        fileName: "canonical.csv",
-        hasChartData: true,
-        itemKey: "source-item",
-        normalizedCsvPath: "C:/normalized/raw.csv",
-        relativePath: "batch/canonical.csv",
-        sourcePath: "C:/canonical/raw.csv",
-        curveType: "transfer",
-        curveTypeConfidence: "low",
-        curveTypeNeedsReview: true,
-        curveTypeReasons: undefined,
-        fileVersion: undefined,
-      },
-    ]);
-  });
-
-  test("createChartExplorerFilesFromRecords projects canonical files with measurement blocks", () => {
-    const files = createChartExplorerFilesFromRecords(
-      {
-        "raw-1": createFileRecord("raw-1", {
-          hasTableModelBlock: true,
-          hasChartData: false,
-        }),
-      },
-      ["raw-1"],
-    );
-
-    assert.deepEqual(files.map(file => ({
-      chartState: file.chartState,
-      curveType: file.curveType,
-      hasChartData: file.hasChartData,
-    })), [
-      {
-        chartState: "ready",
-        curveType: "output",
-        hasChartData: true,
-      },
-    ]);
-  });
-
-  test("createChartExplorerFilesFromRecords skips raw-only canonical files", () => {
-    assert.deepEqual(
-      createChartExplorerFilesFromRecords(
-        {
-          "raw-only": createFileRecord("raw-only", { hasChartData: false }),
-        },
-        ["raw-only"],
-      ),
-      [],
     );
   });
 
@@ -353,10 +168,6 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           relativePath: "batch/raw.csv",
           itemKey: "item-key",
           sourcePath: undefined,
-          curveType: null,
-          curveTypeConfidence: undefined,
-          curveTypeNeedsReview: undefined,
-          curveTypeReasons: undefined,
           fileVersion: 1,
         },
       ],
@@ -481,87 +292,3 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     assert.deepEqual(other.children?.map(node => node.name), ["device.meta.csv"]);
   });
 });
-
-const createFileRecord = (
-  fileId: string,
-  options: {
-    readonly hasTableModelBlock?: boolean;
-    readonly hasChartData?: boolean;
-  } = {},
-): FileRecord => {
-  const hasChartData = options.hasChartData ?? true;
-  const hasTableModelBlock = options.hasTableModelBlock ?? false;
-  return {
-    tableModelByRawTableId: {},
-    curvesByKey: hasChartData
-      ? {
-        "base:iv:transfer:series-1": {
-          curveFamily: "iv",
-          curveGeneration: "base",
-          fileId,
-          ivMode: "transfer",
-          lineage: {
-            baseFamily: "iv",
-            baseSeries: { fileId, seriesId: "series-1" },
-            curveGeneration: "base",
-            ivMode: "transfer",
-          },
-          points: [{ x: 0, y: 1 }],
-          seriesId: "series-1",
-          signature: "base-signature",
-        },
-      }
-      : {},
-    id: fileId,
-    kind: "csv",
-    measurementBlockOrder: hasTableModelBlock ? ["block-1"] : [],
-    measurementBlocksById: hasTableModelBlock
-      ? {
-        "block-1": {
-          columnCount: 2,
-          columns: { columns: [] },
-          diagnosticCodes: [],
-          family: "iv",
-          fileId,
-          id: "block-1",
-          ivMode: "output",
-          label: "output (vd)",
-          rawTableId: fileId,
-          rowCount: 2,
-          source: {
-            fullRange: {
-              startCol: 0,
-              endCol: 1,
-              startRow: 0,
-              endRow: 1,
-            },
-          },
-        },
-      }
-      : {},
-    metricsByKey: {},
-    name: "canonical.csv",
-    raw: {
-      fileId,
-      fileName: "canonical.csv",
-      filePath: "C:/canonical/raw.csv",
-      normalizedCsvPath: "C:/normalized/raw.csv",
-      rawKey: "record-key",
-      relativePath: "batch/canonical.csv",
-      tableOrder: [],
-      tablesById: {},
-    },
-    rawTableVersionsById: {},
-    seriesById: hasChartData
-      ? {
-        "series-1": {
-          fileId,
-          groupIndex: 0,
-          id: "series-1",
-          y: [1],
-        },
-      }
-      : {},
-    seriesOrder: hasChartData ? ["series-1"] : [],
-  };
-};

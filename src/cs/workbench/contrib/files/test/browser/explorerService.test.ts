@@ -224,47 +224,4 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
     disposable.dispose();
   });
 
-  test("publishes Explorer pane input when raw table status changes", () => {
-    const service = store.add(new ExplorerService());
-    let changeCount = 0;
-    const disposable = store.add(service.onDidChangePaneInput(() => {
-      changeCount += 1;
-    }));
-
-    service.updatePaneInput({
-      files: [{
-        fileId: "file-a",
-        fileName: "A.csv",
-        rawTableStatus: {
-          kind: "reviewPending",
-          rawTableId: "table-a",
-          sourceRawTableVersion: 1,
-        },
-      }],
-      mode: "table",
-      selectedFileId: null,
-      selectionKind: "table",
-      thumbnailFiles: [],
-    });
-    service.updatePaneInput({
-      files: [{
-        fileId: "file-a",
-        fileName: "A.csv",
-        rawTableStatus: {
-          kind: "systemRecommended",
-          rawTableId: "table-a",
-          reviewSignature: "review:a",
-          templateFingerprint: "template:a",
-        },
-      }],
-      mode: "table",
-      selectedFileId: null,
-      selectionKind: "table",
-      thumbnailFiles: [],
-    });
-
-    assert.equal(changeCount, 2);
-    disposable.dispose();
-  });
-
 });
