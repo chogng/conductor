@@ -361,15 +361,17 @@ VS Code:
 Conductor:
   ITableModel / TableReviewContext.evidence
     -> RecipeSnapshot / UserTemplateSnapshot
-    -> template materializer evaluates selector
-    -> TemplateCandidate(TemplateDraft + trace)
+    -> review candidate builder evaluates selector/projection
+    -> TableReviewCandidate(table interpretation + trace)
     -> TableReview
+    -> ReviewedTemplate
     -> Slice
 ```
 
 因此 Recipe 不是 reader/parser/model 的一部分，也不是执行器。Recipe 是 `ITableModel`
-之后 table semantic feature 的 passive catalog；真正消费已经 materialized 的 table
-evidence、解释 selector/projection、产出候选结果的是 Template materialization。
+之后 table semantic feature 的 passive catalog；真正消费 table context、解释
+selector/projection、产出候选结果的是 review candidate builder。中间候选仍然是 table
+语义，不叫 Template；只有 `TableReview` 通过后才产出 `ReviewedTemplate`。
 
 目标链路：
 
@@ -383,10 +385,29 @@ ITableModel / TableModelSnapshot
      - measurement blocks
   -> RecipeSnapshot / UserTemplateSnapshot
   -> recipe selector evaluation
-  -> recipe projection materialization
-  -> TemplateCandidate(TemplateDraft + materialization trace)
+  -> recipe projection over table context
+  -> TableReviewCandidate(table interpretation + trace)
   -> TableReviewResult
+  -> ReviewedTemplate
   -> Slice
+```
+
+```mermaid
+flowchart TD
+  A[resource URI + sheetId] --> B[ITableModelService / TableModelReference]
+  B --> C[TableModelSnapshot]
+  C --> D[TableReviewContext]
+  D --> E[evidence snapshot: structure / columns / semantics / measurements]
+  F[RecipeSnapshot / UserTemplateSnapshot] --> G[recipe selector evaluation]
+  E --> G
+  G --> H[recipe projection over table context]
+  H --> I[TableReviewCandidate: transient table interpretation + trace]
+  I --> J[TableReview scoring / findings / decision]
+  J -->|ready| K[ReviewedTemplate]
+  K --> L[Slice]
+  J -->|needsAdjustment| M[user adjustment / template edit]
+  M --> G
+  J -->|invalid| N[findings only / no Slice]
 ```
 
 硬边界：
@@ -397,21 +418,22 @@ ITableModel / TableModelSnapshot
 | Recipe 不消费 table rows，也不自己 evaluate selector。 | `services/template/common/recipeSelectorEvaluator.ts` 才把 selector 应用到 `TableReviewContext.evidence`。 |
 | Recipe 不决定 `tableFormatId`。 | format 仍由 `TableFormatService` / detector 负责。 |
 | Recipe 不修改 `TableModelResolvedContent` / `TableModelSnapshot`。 | `TableReviewContext.evidence` 是从模型派生的 feature 输入，不反写模型核心内容。 |
-| Recipe materialization 只产出 `TemplateCandidate`。 | `TemplateCandidate` 包含 `TemplateDraft` 和 materialization trace；`TableReview` 做 ranking/decision；Slice 执行 reviewed/manual Template，不重新解释 Recipe。 |
-| Recipe / materialization 不属于 `TableWidget` 渲染核心。 | 可按 model version / structure fingerprint / 用户动作 / 后台任务执行。 |
+| Recipe candidate builder 只产出 `TableReviewCandidate`。 | `TableReviewCandidate` 仍是临时表格候选解释和 trace，不是最终 Template；`TableReview` 通过后才生成 `ReviewedTemplate`。 |
+| Recipe / candidate builder 不属于 `TableWidget` 渲染核心。 | 可按 model version / structure fingerprint / 用户动作 / 后台任务执行；candidate 不长期缓存。 |
 
 这里的 Review 更准确应叫 `TableReview`：它是 URI-backed table feature 链路上的
 表格候选评估，不是代码审查，也不是当前 legacy raw-table review。`TableReview`
 必须按目标架构设计，不能按当前 legacy raw-table / session / `sourceKey`
 链路倒推。目标 `TableReview` 评估的是某个 `resource + sheetId` 上，
-Recipe materialization 产出的候选是否可靠：
+review candidate builder 产出的表格候选是否可靠：
 
 ```txt
 TableModelReference(resource, sheetId?)
   -> TableModelSnapshot(modelVersion, sourceVersion)
   -> TableReviewContext(evidence + structureFingerprint)
-  -> TemplateCandidate(TemplateDraft + selector/projection trace)
+  -> TableReviewCandidate(selector/projection trace + table interpretation)
   -> TableReviewResult
+  -> ReviewedTemplate
 ```
 
 `TableReview` 的输入和输出按目标口径看：
@@ -420,12 +442,12 @@ TableModelReference(resource, sheetId?)
 | --- | --- | --- |
 | table identity | `resource + sheetId?` | 对齐上游 resource model；不使用 `sourceKey`。 |
 | table context | `TableReviewContext` | 包含 `resource`、`sheetId`、model/source version、evidence fingerprint 和从模型派生的 evidence；不读文件、不访问 browser `File`。 |
-| recipe result | `TemplateCandidate[]` | materializer 已经按 Recipe selector / projection 产出候选；每个 candidate 内含 `TemplateDraft` 和 trace。 |
-| review output | `TableReviewResult` / findings / decision | ranking、置信度、问题列表、选中候选；不修改 `TableModel`。 |
+| recipe result | `TableReviewCandidate[]` | candidate builder 已经按 Recipe selector / projection 产出临时表格候选；每个 candidate 内含 table interpretation 和 trace。 |
+| review output | `TableReviewResult` / findings / decision / `ReviewedTemplate` | ranking、置信度、问题列表、选中候选；通过评估后才生成最终 `ReviewedTemplate`，不修改 `TableModel`。 |
 
 `TableReview` 可以参考 Recipe 的 rule metadata / expectation 来评分，但不能变成第二个
-selector evaluator 或第二个 materializer。它不重新解释 Recipe DSL，不重新产出
-`TemplateDraft`，只评估 materialization 已经产出的 `TemplateCandidate` 是否能被
+selector evaluator 或第二个 candidate builder。它不重新解释 Recipe DSL，不重新产出
+最终 `Template`，只评估 candidate builder 已经产出的 `TableReviewCandidate` 是否能被
 `TableReviewContext.evidence` 支撑。
 
 `TableReview` 的置信度必须是可解释评分，不是一个黑盒数字。目标算法分四步：
@@ -471,7 +493,7 @@ hard gates 和 cap 比权重更重要：
 
 | 条件 | 结果 |
 | --- | --- |
-| `TemplateCandidate` 的 modelVersion / evidenceFingerprint 已过期。 | `invalid`，confidence = 0。 |
+| `TableReviewCandidate` 的 modelVersion / evidenceFingerprint 已过期。 | `invalid`，confidence = 0。 |
 | parser 有 fatal diagnostic，或 `TableReviewContext.evidence` 不存在。 | `invalid`，confidence = 0。 |
 | required projection slot 缺失。 | `needsAdjustment`，confidence cap 0.49。 |
 | range 越界、空 range、sheet 不匹配。 | `invalid` 或 confidence cap 0.39。 |
@@ -483,8 +505,8 @@ factor score 的来源：
 
 | score | 来源 | 说明 |
 | --- | --- | --- |
-| `selectorScore` | `TemplateCandidate.selectorTrace` | selector 是否命中 required predicates，captures 是否完整；不是重新 evaluate selector。 |
-| `projectionScore` | `TemplateCandidate.draft` + projection trace | 模板必填字段、axis/series/range、参数映射是否完整且合法。 |
+| `selectorScore` | `TableReviewCandidate.selectorTrace` | selector 是否命中 required predicates，captures 是否完整；不是重新 evaluate selector。 |
+| `projectionScore` | `TableReviewCandidate.projectionTrace` / table interpretation | 候选的 axis/series/range、参数映射是否完整且合法；还不是最终 Template。 |
 | `semanticScore` | `TableReviewContext.evidence.semanticCandidates` / columnProfiles / units | 列角色、单位、类型、单调性等是否支持 candidate。 |
 | `dataQualityScore` | `TableReviewContext.evidence.structure` / measurement blocks | 行数、列数、空值比例、numeric coverage、block 稳定性。 |
 | `parseHealthScore` | `TableModelResolvedContent.diagnostics` 的投影 | 解析健康程度；只作为扣分项，不替代 parser diagnostics。 |
@@ -509,6 +531,7 @@ interface TableReviewResult {
 	readonly evidenceFingerprint: string;
 	readonly reviews: readonly TableTemplateReview[];
 	readonly decision: TableReviewDecision;
+	readonly reviewedTemplate?: ReviewedTemplate;
 }
 
 interface TableTemplateReview {
@@ -520,6 +543,29 @@ interface TableTemplateReview {
 }
 ```
 
+高置信度结果也要按上游 resource model 的方式保存和关联：URI 是身份锚点，
+不是信息容器。`TableReview` ready 后产生的 `ReviewedTemplate`、confidence、
+factors、findings、decision 应由 review service / cache 持有，并以
+`resource + sheetId` 关联到当前表格。
+
+| 信息 | owner | identity / invalidation | 说明 |
+| --- | --- | --- | --- |
+| latest review association | `ITableReviewService` / review cache | `resource + sheetId?` | UI、Explorer badge、Slice 入口按 URI 查最新有效 review。 |
+| review validity | `TableReviewResult` | `modelVersion`、`sourceVersion`、`evidenceFingerprint`、recipe/user-template fingerprint、review policy version | 任一输入变化即 stale，不能继续当 ready。 |
+| reviewed template | `TableReviewResult.reviewedTemplate` | 跟随 review result | 只有 `ready` 才有；Slice 只消费这里的 reviewed/manual template。 |
+| model core content | `TableModelSnapshot` | `resource + sheetId?` | 不保存 review decision，不反写 recipe 高置信度语义。 |
+
+这和上游 markers / decorations / language feature result 的关系类似：它们都以
+`ITextModel.uri` 为锚点关联到模型，但不是 URI 字符串本身的一部分，也不是文本模型
+的文件内容。Conductor 这里也一样：`TableReviewResult` 是 URI-backed table feature
+结果，订阅和查询应走 review service，例如 `getLatestReview(resource, sheetId?)`
+和 `onDidChangeTableReview` 这一类接口。
+
+首版不引入独立 `TableReviewModel`。`TableReviewResult` 本身是结果数据，
+`ITableReviewService` 负责 cache、stale、订阅和查询。只有当 review 后续出现
+pending/running/manual-edit/undo/partial-result 等复杂生命周期时，再考虑把
+`TableReviewModel` 作为 service 内部 per-resource state 引入。
+
 `TableReview` findings 和 parser diagnostics 也要分开：
 
 | 类型 | 来源 | 语义 |
@@ -528,18 +574,18 @@ interface TableTemplateReview {
 | review findings | `services/review/**` | 某个 recipe/template 候选套在这个表格上是否可靠。 |
 
 文件落点也要分清楚。Recipe 本身只是 catalog / selector / projection 定义；
-把 Recipe 应用到表格模型、产出 `TemplateDraft` 的行为属于 Template materialization。
+把 Recipe 应用到表格模型、产出 `TableReviewCandidate` 的行为属于 review candidate building。
+最终 `Template` 只在 `TableReview` 通过后生成，作为 `ReviewedTemplate` 进入 Slice。
 
 | 目标层 | 上游对应 | 目标 owner / 文件 | 职责 | 不拥有 |
 | --- | --- | --- | --- | --- |
 | Recipe catalog | 无同名上游文件；机制上类似 language feature provider 的静态来源。 | `services/recipe/common/recipe.ts`、`recipeSelector.ts`、`recipeProjection.ts`、`recipeCodec.ts` | 定义 passive `Recipe`、selector/projection DSL、校验、diagnostics、fingerprint。 | 不读取 table，不执行 selector，不产出 Template。 |
 | Built-in recipe bundle | 无同名上游文件；更接近内置 provider/extension contribution 的数据来源。 | `resources/recipes/v1/**/*.json`、`resources/recipes/v1/index.json`、`scripts/buildRecipeBundle.mjs`、`services/recipe/common/builtinRecipes.generated.ts` | 手写 JSON recipe 和生成内置 bundle。 | 不放运行时 table/materialization 逻辑。 |
-| Recipe service | `editor/common/services/languageFeatures.ts`、`editor/common/services/languageFeaturesService.ts`。 | `services/recipe/browser/recipeService.ts` | 发布 `RecipeSnapshot`、catalog fingerprint、diagnostics、`onDidChangeRecipes`。 | 不 evaluate tables，不 materialize Template，不写 Session。 |
-| TableReview context / evidence snapshot | `editor/common/model.ts`、`editor/common/model/textModel.ts` 作为 language feature 的输入模型。 | 首版合并进 `services/review/common/tableReview.ts` 的 `TableReviewContext`；如果后续多个 feature 复用，再拆 `services/table/common/tableEvidence.ts`。 | 从 `ITableModel` / `TableModelSnapshot` 派生 structure、columnProfiles、layoutCandidates、semanticCandidates、measurement blocks。 | 不解释 RecipeProjection，不产出 TemplateDraft。 |
+| Recipe service | `editor/common/services/languageFeatures.ts`、`editor/common/services/languageFeaturesService.ts`。 | `services/recipe/browser/recipeService.ts` | 发布 `RecipeSnapshot`、catalog fingerprint、diagnostics、`onDidChangeRecipes`。 | 不 evaluate tables，不构造 TableReviewCandidate，不写 Session。 |
+| TableReview context / evidence snapshot | `editor/common/model.ts`、`editor/common/model/textModel.ts` 作为 language feature 的输入模型。 | 首版合并进 `services/review/common/tableReview.ts` 的 `TableReviewContext`；如果后续多个 feature 复用，再拆 `services/table/common/tableEvidence.ts`。 | 从 `ITableModel` / `TableModelSnapshot` 派生 structure、columnProfiles、layoutCandidates、semanticCandidates、measurement blocks。 | 不解释 RecipeProjection，不产出 `TableReviewCandidate`。 |
 | Selector evaluation | `editor/common/languageFeatureRegistry.ts`、`editor/common/languageSelector.ts` 的 selector scoring / `ordered(model)`。 | `services/template/common/recipeSelectorEvaluator.ts` | 用 `RecipeSelector` 匹配 `TableReviewContext.evidence`，产出 captures / matches。 | 不拥有 Recipe catalog，不修改 table model。 |
-| Recipe materialization | 上游没有通用同名文件；最接近 hover/completion 等 feature consumer 调用 provider 的阶段，例如 `editor/contrib/hover/browser/getHover.ts`。 | `services/template/common/recipeTemplateMaterializer.ts` | 用 selector captures 和 `RecipeProjection` 产出 `TemplateCandidate`，其中包含 `TemplateDraft` 和 trace。 | 不做 TableReview decision，不提交 Slice。 |
-| Materialization service | 上游没有同名 domain service；对应 language feature consumer 的编排层，不是 registry 本身。 | `services/template/common/templateMaterialization.ts`、`services/template/browser/templateMaterializationService.ts` | 对外提供 `TableReviewContext.evidence + Recipe/UserTemplate -> TemplateCandidate[]` 的 owner API。 | 不读文件，不解析表格，不执行切片。 |
-| TableReview consumer | 无上游对应；Conductor 表格分析域新增。 | `services/review/**` | 消费 `TableReviewContext` 和 `TemplateCandidate[]`，做 review/ranking/decision。 | 不重新解释 Recipe，不重新 materialize。 |
+| Review candidate building | 上游没有通用同名文件；最接近 hover/completion 等 feature consumer 调用 provider 的阶段，例如 `editor/contrib/hover/browser/getHover.ts`。 | 首版放在 `services/review/common/tableReview.ts` 或 `services/review/common/tableReviewCandidate.ts`，作为 `ITableReviewService` 的内部步骤。 | 用 selector captures 和 `RecipeProjection` 产出 `TableReviewCandidate`，其中包含 table interpretation 和 trace。 | 不长期缓存，不做 TableReview decision，不产出最终 Template，不提交 Slice。 |
+| TableReview consumer | 无上游对应；Conductor 表格分析域新增。 | `services/review/**` | 消费 `TableReviewContext` 和临时 `TableReviewCandidate[]`，做 review/ranking/decision；ready 时产出 `ReviewedTemplate`。 | 不重新解释 Recipe，不把 candidate 作为独立 service/model。 |
 | Slice consumer | 无上游对应；Conductor 表格分析域新增。 | `services/slice/**` | 执行 reviewed/manual Template snapshot。 | 不读取 Recipe，不推断 table semantics。 |
 
 迁移参考：当前 `services/tableModel/common/rawTableStructure.ts`、`columnProfile.ts`、
@@ -556,10 +602,10 @@ URI-backed `ITableModel` 之后的 `TableReviewContext.evidence` / table feature
 | 不应放入 | 原因 |
 | --- | --- |
 | `contrib/files/**` | Files/Explorer 只负责 source/resource/open，不拥有 table semantic feature。 |
-| `services/tablefile/**` | tablefile 只负责 URI-backed 文件工作副本、读取、reload/save，不拥有 Recipe 或 Template materialization。 |
+| `services/tablefile/**` | tablefile 只负责 URI-backed 文件工作副本、读取、reload/save，不拥有 Recipe、TableReviewCandidate 或 TableReview。 |
 | `services/table/common/tableStructureParser.ts` | parser 只产出物理结构，不做 semantic candidates / recipe selector。 |
 | `services/recipe/**` | Recipe 只保存 passive catalog，不 evaluate table。 |
-| `TableWidget` / `tableViewModel` | 渲染和 view state 不执行 Recipe，也不 materialize Template。 |
+| `TableWidget` / `tableViewModel` | 渲染和 view state 不执行 Recipe，也不构造 TableReviewCandidate。 |
 
 对应上游看：
 
@@ -567,8 +613,8 @@ URI-backed `ITableModel` 之后的 `TableReviewContext.evidence` / table feature
 | --- | --- |
 | `languageFeatureRegistry` 保存 provider。 | `IRecipeService` 保存 passive recipe catalog。 |
 | provider selector 判断是否适用于 `ITextModel`。 | `recipeSelectorEvaluator.ts` 判断 Recipe 是否适用于 `TableReviewContext.evidence`。 |
-| provider 被调用后返回 hover/completion/code action。 | `recipeTemplateMaterializer.ts` 返回 `TemplateCandidate`。 |
-| editor/widget 只消费最终 view/model 状态。 | `TableWidget` 不执行 recipes，TableReview/Slice 消费 materialized result。 |
+| provider 被调用后返回 hover/completion/code action。 | review candidate builder 返回临时 `TableReviewCandidate`。 |
+| editor/widget 只消费最终 view/model 状态。 | `TableWidget` 不执行 recipes；`TableReview` 产出 `ReviewedTemplate` 后由 Slice 消费。 |
 
 命名上可以借上游的层次，但不要为了像上游而强行同名。目标规则是：
 
@@ -579,14 +625,15 @@ URI-backed `ITableModel` 之后的 `TableReviewContext.evidence` / table feature
 | `recipeCodec.ts` | 保留。 | 负责 JSON normalization、validation、fingerprint；不是上游 feature registry。 |
 | `recipeService.ts` | 保留。 | 类似 `languageFeaturesService.ts` 的服务入口，但语义是 catalog snapshot，不是 provider 执行器。 |
 | `builtinRecipes.generated.ts` | 保留。 | generated built-in catalog，类似内置 provider 数据来源，但没有上游同名文件。 |
-| `recipeSelectorEvaluator.ts` | 保留在 `services/template/common`。 | 行为是把 selector 应用到 `TableReviewContext.evidence`，已经进入 Template materialization，不属于 Recipe catalog。 |
-| `recipeTemplateMaterializer.ts` | 保留在 `services/template/common`。 | 行为是把 RecipeProjection materialize 成 `TemplateCandidate`，上游只能机制类比 feature consumer。 |
+| `recipeSelectorEvaluator.ts` | 保留在 `services/template/common`。 | 行为是把 selector 应用到 `TableReviewContext.evidence`，进入 review candidate building，不属于 Recipe catalog。 |
+| `tableReviewCandidate.ts` | 可作为 `services/review/common` 下的内部 helper。 | 行为是把 RecipeProjection 应用到表格 evidence，产出临时 `TableReviewCandidate`；最终 Template 由 `TableReview` ready 决策生成。 |
+| `recipeTemplateMaterializer.ts` | 不建议作为目标名。 | 容易误导成中间阶段已经产出 Template；目标语义应改成 `TableReviewCandidate`。 |
 | `recipeRegistry.ts` / `recipeCatalog.ts` | 仅在拆 catalog 时引入。 | 如果 `recipe.ts` 变胖，可以拆出 registry/catalog；优先 `recipeCatalog.ts` 表达 passive catalog，只有存在 runtime provider register/unregister 时才叫 registry。 |
 | `recipeFeatureRegistry.ts` | 不建议。 | 容易误导成 VS Code `LanguageFeatureRegistry` 一样的 runtime provider registry；当前 Recipe 是 passive JSON catalog。 |
 | `templateFeatureRegistry.ts` | 不建议。 | Template 是 materialization target，不是 feature provider registry。 |
 
 执行时机也应参考上游 language features：hover、completion、code action 通常按需或后台触发，
-不会阻塞 `ITextModel` 创建和 editor 基础渲染。Recipe materialization 也不应进入
+不会阻塞 `ITextModel` 创建和 editor 基础渲染。Table candidate building / TableReview 也不应进入
 `open -> render` 同步主路径；表格应该先打开和渲染，再基于模型版本、
 structure fingerprint、用户动作或后台任务执行。
 
