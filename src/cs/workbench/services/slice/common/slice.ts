@@ -22,7 +22,6 @@ import type {
 import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/review";
 
 export const ISliceService = createDecorator<ISliceService>("sliceService");
-export const AutoSliceContributionId = "workbench.services.slice.auto";
 export const SlicePriorityContributionId = "workbench.services.slice.priority";
 
 export type SliceRunId = string;

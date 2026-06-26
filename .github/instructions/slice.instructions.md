@@ -13,7 +13,8 @@ quality, or decide whether the system should apply a template.
 `ISliceService` owns:
 
 - per-file `TemplateSelection` state;
-- `SliceRequest` queue entries from ReviewApply or user commands;
+- `SliceRequest` queue entries from URI-backed review execution controllers or
+  user commands;
 - slice file state, priority, cancellation, and queue draining;
 - calling the planner/executor and committing `SliceCommit` through Session.
 
@@ -33,17 +34,14 @@ returns a `SliceCommit`. It must not call services or reread Session.
 | `common/slicePlanner.ts` | pure plan/range generation and migration source/table-model signature helpers. |
 | `common/sliceExecutor.ts` | pure row execution into `SliceCommit`. |
 | `browser/sliceService.ts` | injectable owner for queue, selection, progress state, row reading, and Session commit. |
-| `../review/browser/reviewApply.contribution.ts` | lifecycle bridge from `reviewChanged` system recommendations to Slice requests. |
 | `browser/slicePriority.contribution.ts` | lifecycle subscriber from Explorer selection/hover facts to `ISliceService.prioritize(...)`. |
 | `contrib/slice/browser/sliceCommands.ts` / `sliceActions.ts` | command/action entry for user-triggered slicing; normalizes targets and delegates to `ISliceService`. |
 
 ## Flow
 
 ```txt
-Session reviewChanged
-  -> ReviewApplyContribution rereads SessionSnapshot
-  -> ReviewDecision.ready + application.systemRecommended
-  -> idempotency/staleness guard
+URI-backed ReviewDecision.ready + application.systemRecommended
+  -> explicit execution controller validates model/source versions and review signature
   -> ISliceService.submit(SliceRequest[])
   -> SliceService reads reviewed Template snapshot from request
   -> SlicePlanner.createSlicePlan(...)

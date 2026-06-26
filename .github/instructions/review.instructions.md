@@ -4,9 +4,9 @@ applyTo: 'src/cs/workbench/services/review/**,src/cs/workbench/contrib/review/**
 ---
 # Review
 
-Review is the owner of Template usability and application decisions for raw
-tables. It consumes materialized Template candidates and writes auditable
-`RawTableReviewRecord` facts.
+Review is the owner of Template usability and application decisions for
+URI-backed table resources. It consumes materialized Template candidates and
+keeps latest review results keyed by `resource + sheetId`.
 
 The primary template path is TableModel + Recipe/UserTemplate -> Template ->
 Review -> Slice. Review is the first layer that may choose usability or system
@@ -21,37 +21,39 @@ application.
 - selecting the `ReviewedTemplate` snapshot when a candidate is ready;
 - deciding `systemRecommended` versus `userActionRequired`;
 - returning structured manual-template review results;
-- committing `RawTableReviewRecord` values through Session.
+- maintaining URI-backed latest review summaries keyed by `resource + sheetId`
+  for Explorer decorations and hover;
 
 It does not own raw row profiling, Recipe catalog storage, UserTemplate catalog
 CRUD, Template materialization, Slice planning/execution, Explorer UI
 projection, or Template editor view state.
 
-`ReviewApplyContribution` is a bridge only. It listens to `reviewChanged`,
-reads `ReviewDecision`, applies idempotency/staleness guards, and submits Slice
-requests. It must not inspect confidence, candidate margins, or diagnostic
-severity to decide whether a template is usable.
-
 ## Flow
 
+URI-backed Explorer summary:
+
 ```txt
-templateCandidatesChanged / reviewPolicyChanged
-  -> ReviewContribution
-  -> IReviewService.deriveAndReview(...)
-  -> ISessionService.commitRawTableReviews(...)
+Explorer decoration / hover
+  -> IReviewService.getLatestReviewSummary({ resource, sheetId })
+  -> ITableModelService.createModelReference(resource, source)
+  -> TableModelSnapshot content + source/model version
+  -> ITableModelProducerService.getOrCreate(...)
+  -> ITemplateMaterializationService materializes Template candidates
+  -> ReviewService reviews candidates
+  -> Review service-local summary cache keyed by resource + sheetId
   -> reviewChanged
+  -> Explorer rereads latest Review summary
 ```
 
-Automatic execution:
+This summary cache is service-local. It is invalidated by URI-backed table
+model changes, Recipe changes, and UserTemplate changes. Explorer must not fall
+back to Session raw-table records for URI-backed semantic decorations.
 
-```txt
-reviewChanged
-  -> ReviewApplyContribution
-  -> ReviewDecision.ready + application.systemRecommended
-  -> idempotency guard
-  -> SliceRequest(trigger = reviewDecision)
-  -> ISliceService.submit(...)
-```
+Automatic execution from Review is not wired through a Session review bridge.
+When automatic execution is reintroduced, it must submit explicit URI-backed
+`SliceRequest` values from the current `resource + sheetId` review result, with
+idempotency and staleness guards based on model/source versions and review
+signatures.
 
 Manual execution:
 
@@ -69,9 +71,7 @@ user command / UserTemplate picker / saved-selection compatibility picker / inli
 | File | Responsibility |
 | --- | --- |
 | `common/review.ts` | service contract, Review records, candidate summaries, decisions, manual review results, and signatures. |
-| `browser/reviewService.ts` | injectable owner that reads snapshots, runs pure review helpers, and commits review records. |
-| `browser/review.contribution.ts` | lifecycle subscriber for evidence, Recipe, UserTemplate, and policy changes. |
-| `browser/reviewApply.contribution.ts` | no-UI bridge from system-recommended Review decisions to Slice requests. |
+| `browser/reviewService.ts` | injectable owner that reads URI-backed table model snapshots, runs pure review helpers, and maintains latest review summaries. |
 
 Template materializers live under `services/template/common` and produce
 `TemplateDraft` values before Review status/policy projection. Template
@@ -103,16 +103,16 @@ materialization logic belongs in Template, not TableModel, Explorer, or Slice.
   stale on editor-model changes as well as raw table version changes.
 - Bump `reviewPolicyVersion` whenever thresholds, conflict rules, critical
   diagnostic handling, override rules, or source priority changes.
-- Explorer reads `RawTableReviewRecord` and Slice state as projection inputs;
-  it does not perform Review policy checks.
+- Explorer reads Review summaries and Slice state as projection inputs; it does
+  not perform Review policy checks.
 - Manual Review requests may accept `savedTemplate` compatibility selections,
   but lookup must go through `IUserTemplateService` and the resulting
   `ReviewedTemplate.source` must be `userTemplate`.
 
 ## Do Not
 
-- Do not call Slice from `ReviewService`; use `ReviewApplyContribution` or a
-  user-command controller.
+- Do not call Slice from `ReviewService`; use an explicit user-command or
+  URI-backed execution controller that submits `SliceRequest` values.
 - Do not read raw rows, rerun table-model detection, or materialize Recipes.
 - Do not store user template catalog data in Review records.
 - Do not let Template materializers, TableModel producers, Slice, or Explorer decide

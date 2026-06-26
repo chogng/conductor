@@ -5,6 +5,7 @@
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
+import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
 import {
   IRecipeService,
   type IRecipeService as IRecipeServiceType,
@@ -13,15 +14,11 @@ import {
   IReviewService,
   REVIEW_ENGINE_VERSION,
   REVIEW_POLICY_VERSION,
-  createReviewEvidenceSignature,
-  createReviewRecordSignature,
   type IReviewService as IReviewServiceType,
   type ManualTemplateReviewRequest,
   type ManualTemplateReviewResult,
-  type RawTableReviewRecord,
   type ReviewDiagnostic,
   type ReviewInput,
-  type ReviewQueueSnapshot,
   type ReviewResult,
   type TableReviewSummary,
   type TableReviewSummaryTarget,
@@ -31,7 +28,23 @@ import {
 } from "src/cs/workbench/services/review/common/review";
 import {
   TableModel,
+  ITableModelProducerService,
+  type ITableModelProducerService as ITableModelProducerServiceType,
+  type TableModelRecord,
 } from "src/cs/workbench/services/tableModel/common/tableModel";
+import type {
+  TableSource,
+} from "src/cs/workbench/services/table/common/table";
+import {
+  ITableModelService,
+  type ITableModelReference,
+  type ITableModelService as ITableModelServiceType,
+} from "src/cs/workbench/services/table/common/resolverService";
+import type {
+  TableModelContentSnapshot,
+  TableModelSheetSnapshot,
+  TableModelSnapshot,
+} from "src/cs/workbench/services/table/common/model";
 import type { TemplateDraft } from "src/cs/workbench/services/template/common/templateDraft";
 import {
   ITemplateMaterializationService,
@@ -42,7 +55,6 @@ import {
   type ISessionService as ISessionServiceType,
 } from "src/cs/workbench/services/session/common/session";
 import type {
-  FileRecord,
   RawTableRef,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
@@ -54,10 +66,19 @@ import { createTemplateFingerprint } from "src/cs/workbench/services/template/co
 import {
   IUserTemplateService,
   type IUserTemplateService as IUserTemplateServiceType,
-  type UserTemplateSnapshot,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
 type ReviewTemplateCandidate = TemplateDraft;
+
+type UriReviewTarget = {
+  readonly resource: TableReviewSummaryTarget["resource"];
+  readonly sheetId: string | null;
+};
+
+type UriReviewCacheEntry = {
+  readonly modelSignature: string;
+  readonly summary: TableReviewSummary;
+};
 
 export class ReviewService extends Disposable implements IReviewServiceType {
   public declare readonly _serviceBrand: undefined;
@@ -65,24 +86,29 @@ export class ReviewService extends Disposable implements IReviewServiceType {
   private readonly onDidChangeReviewStateEmitter = this._register(new Emitter<void>());
   public readonly onDidChangeReviewState = this.onDidChangeReviewStateEmitter.event;
 
-  private readonly pendingRefsByKey = new Map<string, RawTableRef>();
-  private isReviewing = false;
+  private readonly pendingUriReviewKeys = new Set<string>();
+  private readonly uriReviewCacheByKey = new Map<string, UriReviewCacheEntry>();
+  private readonly uriReviewTargetsByKey = new Map<string, UriReviewTarget>();
 
   public constructor(
     @ISessionService private readonly sessionService: ISessionServiceType,
     @IRecipeService private readonly recipeService: IRecipeServiceType,
     @IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
     @ITemplateMaterializationService private readonly templateMaterializationService: ITemplateMaterializationServiceType,
+    @ITableModelService private readonly tableModelService?: ITableModelServiceType,
+    @ITableModelProducerService private readonly tableModelProducerService?: ITableModelProducerServiceType,
   ) {
     super();
-    this._register(this.sessionService.onDidChangeSession(event => {
-      if (event.reason === "sessionCleared") {
-        this.clearQueue();
-        return;
-      }
-      if (event.reason === "filesRemoved" && event.fileIds?.length) {
-        this.deleteQueuedRefsForFiles(event.fileIds);
-      }
+    if (this.tableModelService) {
+      this._register(this.tableModelService.onDidChangeModel(model => {
+        this.invalidateUriReviewTargetsForResource(model.resource);
+      }));
+    }
+    this._register(this.recipeService.onDidChangeRecipes(() => {
+      this.invalidateAllUriReviewTargets();
+    }));
+    this._register(this.userTemplateService.onDidChangeUserTemplates(() => {
+      this.invalidateAllUriReviewTargets();
     }));
   }
 
@@ -119,87 +145,33 @@ export class ReviewService extends Disposable implements IReviewServiceType {
     };
   }
 
-  public enqueueAllCurrentEvidence(): void {
-    this.enqueueForEvidence(getRawTableRefsForReviewSnapshot(this.sessionService.getSnapshot()));
-  }
-
-  public enqueueForEvidence(refs: readonly RawTableRef[]): void {
-    let didChange = false;
-    for (const ref of uniqueRawTableRefs(refs)) {
-      const normalizedRef = normalizeRawTableRef(ref);
-      if (!normalizedRef) {
-        continue;
-      }
-      const key = getRawTableRefKey(normalizedRef);
-      if (!this.pendingRefsByKey.has(key)) {
-        this.pendingRefsByKey.set(key, normalizedRef);
-        didChange = true;
-      }
-    }
-
-    if (didChange) {
-      this.fireReviewStateChange();
-    }
-    this.drainQueue();
-  }
-
-  public getQueueSnapshot(): ReviewQueueSnapshot {
-    return {
-      rawTables: [...this.pendingRefsByKey.values()],
-    };
-  }
-
   public getLatestReviewSummary(target: TableReviewSummaryTarget): TableReviewSummary {
-    const resourceKey = normalizeResourceKey(target.resource);
-    const requestedSheetId = normalizeText(target.sheetId);
+    const reviewTarget = normalizeUriReviewTarget(target);
     const fallback = (): TableReviewSummary => ({
       resource: target.resource,
-      ...(requestedSheetId ? { sheetId: requestedSheetId } : {}),
+      ...(reviewTarget?.sheetId ? { sheetId: reviewTarget.sheetId } : {}),
       state: "missing",
       findingCodes: [],
     });
-    if (!resourceKey) {
+    if (!reviewTarget || !this.tableModelService || !this.tableModelProducerService) {
       return fallback();
     }
 
-    const match = findReviewSummaryMatch({
-      resourceKey,
-      requestedSheetId,
-      snapshot: this.sessionService.getSnapshot(),
-    });
-    if (!match) {
-      return fallback();
+    const key = getUriReviewTargetKey(reviewTarget);
+    this.uriReviewTargetsByKey.set(key, reviewTarget);
+    const modelSignature = this.getCurrentUriReviewModelSignature(reviewTarget);
+    const cached = this.uriReviewCacheByKey.get(key);
+    if (cached && (!modelSignature || cached.modelSignature === modelSignature)) {
+      return cached.summary;
     }
 
-    const base = {
-      resource: target.resource,
-      sheetId: match.rawTableId,
+    this.scheduleUriReview(reviewTarget);
+    return {
+      resource: reviewTarget.resource,
+      ...(reviewTarget.sheetId ? { sheetId: reviewTarget.sheetId } : {}),
+      state: "pending",
+      findingCodes: [],
     };
-    const review = match.file.rawTableReviewsByRawTableId?.[match.rawTableId];
-    if (!review) {
-      return {
-        ...base,
-        state: "pending",
-        findingCodes: [],
-      };
-    }
-
-    if (review.sourceRawTableVersion !== match.tableModel.sourceRawTableVersion) {
-      return {
-        ...base,
-        state: "stale",
-        findingCodes: [],
-        message: "Review is stale for the current table model.",
-        reviewSignature: createReviewRecordSignature(review),
-        ...getReviewTemplateFingerprintFields(review),
-      };
-    }
-
-    return createTableReviewSummaryFromRecord({
-      resource: target.resource,
-      review,
-      sheetId: match.rawTableId,
-    });
   }
 
   public reviewManualTemplate(input: ManualTemplateReviewRequest): ManualTemplateReviewResult {
@@ -263,101 +235,211 @@ export class ReviewService extends Disposable implements IReviewServiceType {
     };
   }
 
-  private drainQueue(): void {
-    if (this.isReviewing) {
+  private fireReviewStateChange(): void {
+    this.onDidChangeReviewStateEmitter.fire(undefined);
+  }
+
+  private scheduleUriReview(target: UriReviewTarget): void {
+    const key = getUriReviewTargetKey(target);
+    if (this.pendingUriReviewKeys.has(key)) {
       return;
     }
 
-    this.isReviewing = true;
-    try {
-      while (this.pendingRefsByKey.size) {
-        const refs = [...this.pendingRefsByKey.values()];
-        this.pendingRefsByKey.clear();
+    this.pendingUriReviewKeys.add(key);
+    void this.resolveUriReviewSummary(target)
+      .then(entry => {
+        if (entry) {
+          this.uriReviewCacheByKey.set(key, entry);
+        } else {
+          this.uriReviewCacheByKey.delete(key);
+        }
+      })
+      .finally(() => {
+        this.pendingUriReviewKeys.delete(key);
         this.fireReviewStateChange();
-
-        const commits: RawTableReviewRecord[] = [];
-        const snapshot = this.sessionService.getSnapshot();
-        const recipeSnapshot = this.recipeService.getSnapshot();
-        const userTemplateSnapshot = this.userTemplateService.getSnapshot();
-        for (const ref of refs) {
-          const commit = this.createReviewCommit(
-            ref,
-            snapshot.filesById[ref.fileId],
-            recipeSnapshot,
-            userTemplateSnapshot,
-          );
-          if (commit) {
-            commits.push(commit);
-          }
-        }
-
-        if (commits.length) {
-          this.sessionService.commitRawTableReviews(commits);
-        }
-      }
-    } finally {
-      this.isReviewing = false;
-    }
+      });
   }
 
-  private createReviewCommit(
-    ref: RawTableRef,
-    file: FileRecord | undefined,
-    recipeSnapshot: ReturnType<IRecipeServiceType["getSnapshot"]>,
-    userTemplateSnapshot: UserTemplateSnapshot,
-  ): RawTableReviewRecord | null {
-    const tableModel = file?.tableModelByRawTableId?.[ref.rawTableId];
-    const table = file?.raw.tablesById[ref.rawTableId];
-    if (!file || !tableModel || !table) {
+  private async resolveUriReviewSummary(target: UriReviewTarget): Promise<UriReviewCacheEntry | null> {
+    if (!this.tableModelService || !this.tableModelProducerService) {
       return null;
     }
 
+    let reference: ITableModelReference | null = null;
+    try {
+      reference = await this.tableModelService.createModelReference(
+        target.resource,
+        createTableSourceFromUriReviewTarget(target),
+      );
+      const snapshot = reference.object.getSnapshot();
+      return this.createUriReviewSummaryFromSnapshot(target, snapshot);
+    } catch (error) {
+      return {
+        modelSignature: createUriReviewErrorSignature(target, error),
+        summary: {
+          resource: target.resource,
+          ...(target.sheetId ? { sheetId: target.sheetId } : {}),
+          state: "invalid",
+          findingCodes: ["review.tableModelResolveFailed"],
+          message: getErrorMessage(error),
+        },
+      };
+    } finally {
+      reference?.dispose();
+    }
+  }
+
+  private async createUriReviewSummaryFromSnapshot(
+    target: UriReviewTarget,
+    snapshot: TableModelSnapshot,
+  ): Promise<UriReviewCacheEntry> {
+    const modelSignature = createUriReviewModelSignature({
+      recipeFingerprint: this.recipeService.getSnapshot().fingerprint,
+      snapshot,
+      target,
+      userTemplateEffectiveFingerprint: this.userTemplateService.getSnapshot().effectiveFingerprint,
+      userTemplateVersion: this.userTemplateService.getSnapshot().version,
+    });
+    if (snapshot.loadState.state === "error") {
+      return {
+        modelSignature,
+        summary: {
+          resource: target.resource,
+          ...(target.sheetId ? { sheetId: target.sheetId } : {}),
+          state: "invalid",
+          findingCodes: ["review.tableModelLoadFailed"],
+          message: snapshot.loadState.message,
+        },
+      };
+    }
+    if (snapshot.loadState.state !== "ready") {
+      return {
+        modelSignature,
+        summary: {
+          resource: target.resource,
+          ...(target.sheetId ? { sheetId: target.sheetId } : {}),
+          state: "pending",
+          findingCodes: [],
+        },
+      };
+    }
+
+    const selectedSheet = getUriReviewSheet(snapshot, target.sheetId);
+    const content = selectedSheet?.content ?? snapshot.content;
+    if (!content) {
+      return {
+        modelSignature,
+        summary: {
+          resource: target.resource,
+          ...(target.sheetId ? { sheetId: target.sheetId } : {}),
+          state: "invalid",
+          findingCodes: ["review.noTableContent"],
+          message: "Review needs resolved table content.",
+        },
+      };
+    }
+
+    const sheetId = selectedSheet?.sheetId ?? target.sheetId ?? snapshot.defaultSheetId ?? null;
+    const tableModel = await this.createUriTableModelRecord({
+      content,
+      sheetId,
+      snapshot,
+      target,
+    });
     const result = this.deriveAndReview({
       tableModel,
-      columnCount: table.columnCount,
-      fileName: file.name,
-      recipeSnapshot,
-      rowCount: table.rowCount,
-      userTemplateSnapshot,
+      columnCount: content.columnCount,
+      fileName: getUriReviewFileName(target.resource, selectedSheet),
+      recipeSnapshot: this.recipeService.getSnapshot(),
+      rowCount: content.rowCount,
+      userTemplateSnapshot: this.userTemplateService.getSnapshot(),
     });
+
     return {
-      fileId: ref.fileId,
-      rawTableId: ref.rawTableId,
-      sourceRawTableVersion: tableModel.sourceRawTableVersion,
-      evidenceSignature: createReviewEvidenceSignature(tableModel, {
-        columnCount: table.columnCount,
-        fileName: file.name,
-        rowCount: table.rowCount,
+      modelSignature,
+      summary: createTableReviewSummaryFromResult({
+        resource: target.resource,
+        result,
+        sheetId,
       }),
-      ...result,
-      createdAt: Date.now(),
     };
   }
 
-  private clearQueue(): void {
-    if (!this.pendingRefsByKey.size) {
-      return;
+  private createUriTableModelRecord({
+    content,
+    sheetId,
+    snapshot,
+    target,
+  }: {
+    readonly content: TableModelContentSnapshot;
+    readonly sheetId: string | null;
+    readonly snapshot: TableModelSnapshot;
+    readonly target: UriReviewTarget;
+  }): Promise<TableModelRecord> {
+    if (!this.tableModelProducerService) {
+      throw new Error("URI-backed review needs the table model producer service.");
     }
-    this.pendingRefsByKey.clear();
-    this.fireReviewStateChange();
+
+    const resourceText = target.resource.toString();
+    return this.tableModelProducerService.getOrCreate({
+      columnCount: content.columnCount,
+      fileId: getUriReviewFileId(target.resource),
+      fileName: getUriReviewFileName(target.resource, null),
+      rawTableId: sheetId ?? resourceText,
+      rowCount: content.rowCount,
+      rows: content.rows,
+      sourceModelVersion: snapshot.version,
+      sourceRawTableVersion: snapshot.sourceVersion,
+      sourceUri: resourceText,
+      sourceVersion: snapshot.sourceVersion,
+    });
   }
 
-  private deleteQueuedRefsForFiles(fileIds: readonly string[]): void {
-    const fileIdSet = new Set(fileIds.map(normalizeText).filter(Boolean));
+  private invalidateUriReviewTargetsForResource(resource: TableReviewSummaryTarget["resource"]): void {
+    const resourceKey = normalizeResourceKey(resource);
+    if (!resourceKey) {
+      return;
+    }
+
     let didChange = false;
-    for (const [key, ref] of this.pendingRefsByKey) {
-      if (fileIdSet.has(ref.fileId)) {
-        this.pendingRefsByKey.delete(key);
-        didChange = true;
+    for (const [key, target] of this.uriReviewTargetsByKey) {
+      if (normalizeResourceKey(target.resource) !== resourceKey) {
+        continue;
       }
+      this.uriReviewCacheByKey.delete(key);
+      this.scheduleUriReview(target);
+      didChange = true;
     }
     if (didChange) {
       this.fireReviewStateChange();
     }
   }
 
-  private fireReviewStateChange(): void {
-    this.onDidChangeReviewStateEmitter.fire(undefined);
+  private invalidateAllUriReviewTargets(): void {
+    if (!this.uriReviewTargetsByKey.size) {
+      return;
+    }
+
+    this.uriReviewCacheByKey.clear();
+    for (const target of this.uriReviewTargetsByKey.values()) {
+      this.scheduleUriReview(target);
+    }
+    this.fireReviewStateChange();
+  }
+
+  private getCurrentUriReviewModelSignature(target: UriReviewTarget): string | null {
+    const snapshot = this.tableModelService?.get(target.resource)?.getSnapshot();
+    if (!snapshot) {
+      return null;
+    }
+
+    return createUriReviewModelSignature({
+      recipeFingerprint: this.recipeService.getSnapshot().fingerprint,
+      snapshot,
+      target,
+      userTemplateEffectiveFingerprint: this.userTemplateService.getSnapshot().effectiveFingerprint,
+      userTemplateVersion: this.userTemplateService.getSnapshot().version,
+    });
   }
 
   private resolveManualTemplate(
@@ -679,44 +761,6 @@ const toReviewedTemplateSource = (
   return source;
 };
 
-const getRawTableRefsForReviewSnapshot = (
-  snapshot: ReturnType<ISessionServiceType["getSnapshot"]>,
-): RawTableRef[] => {
-  const refs: RawTableRef[] = [];
-  for (const fileId of snapshot.fileOrder) {
-    const file = snapshot.filesById[fileId];
-    if (!file) {
-      continue;
-    }
-    for (const rawTableId of Object.keys(file.tableModelByRawTableId ?? {})) {
-      if (file.raw.tablesById[rawTableId]) {
-        refs.push({ fileId, rawTableId });
-      }
-    }
-  }
-  return refs;
-};
-
-const uniqueRawTableRefs = (
-  refs: readonly RawTableRef[],
-): RawTableRef[] => {
-  const result: RawTableRef[] = [];
-  const seen = new Set<string>();
-  for (const ref of refs) {
-    const normalizedRef = normalizeRawTableRef(ref);
-    if (!normalizedRef) {
-      continue;
-    }
-    const key = getRawTableRefKey(normalizedRef);
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    result.push(normalizedRef);
-  }
-  return result;
-};
-
 const normalizeRawTableRef = (
   ref: RawTableRef,
 ): RawTableRef | null => {
@@ -725,58 +769,21 @@ const normalizeRawTableRef = (
   return fileId && rawTableId ? { fileId, rawTableId } : null;
 };
 
-const getRawTableRefKey = (
-  ref: RawTableRef,
-): string => `${ref.fileId}\u0000${ref.rawTableId}`;
-
-const findReviewSummaryMatch = ({
-  resourceKey,
-  requestedSheetId,
-  snapshot,
-}: {
-  readonly resourceKey: string;
-  readonly requestedSheetId: string;
-  readonly snapshot: ReturnType<ISessionServiceType["getSnapshot"]>;
-}): {
-  readonly file: FileRecord;
-  readonly rawTableId: string;
-  readonly tableModel: NonNullable<FileRecord["tableModelByRawTableId"][string]>;
-} | null => {
-  for (const fileId of snapshot.fileOrder) {
-    const file = snapshot.filesById[fileId];
-    if (!file) {
-      continue;
-    }
-    const tableModelEntries = Object.entries(file.tableModelByRawTableId ?? {});
-    for (const [rawTableId, tableModel] of tableModelEntries) {
-      if (requestedSheetId && rawTableId !== requestedSheetId) {
-        continue;
-      }
-      if (normalizeResourceText(tableModel.sourceUri) !== resourceKey) {
-        continue;
-      }
-      return { file, rawTableId, tableModel };
-    }
-  }
-
-  return null;
-};
-
-const createTableReviewSummaryFromRecord = ({
+const createTableReviewSummaryFromResult = ({
   resource,
-  review,
+  result,
   sheetId,
 }: {
   readonly resource: TableReviewSummary["resource"];
-  readonly review: RawTableReviewRecord;
-  readonly sheetId: string;
+  readonly result: ReviewResult;
+  readonly sheetId: string | null;
 }): TableReviewSummary => {
-  const reviewSignature = createReviewRecordSignature(review);
-  const decision = review.decision;
+  const reviewSignature = createReviewResultSignature(result);
+  const decision = result.decision;
   if (decision.kind === "ready") {
     return {
       resource,
-      sheetId,
+      ...(sheetId ? { sheetId } : {}),
       state: "ready",
       confidence: normalizeConfidence(decision.reviewedTemplate.review.confidence),
       findingCodes: decision.reviewedTemplate.review.diagnostics.map(diagnostic => diagnostic.code),
@@ -789,11 +796,11 @@ const createTableReviewSummaryFromRecord = ({
 
   if (decision.kind === "needsManualAdjustment") {
     const reviewCandidate = decision.candidateId
-      ? review.reviews.find(candidateReview => candidateReview.candidateId === decision.candidateId)
+      ? result.reviews.find(candidateReview => candidateReview.candidateId === decision.candidateId)
       : undefined;
     return {
       resource,
-      sheetId,
+      ...(sheetId ? { sheetId } : {}),
       state: "needsAdjustment",
       ...(reviewCandidate ? { confidence: normalizeConfidence(reviewCandidate.confidence) } : {}),
       findingCodes: decision.diagnostics.map(diagnostic => diagnostic.code),
@@ -804,7 +811,7 @@ const createTableReviewSummaryFromRecord = ({
 
   return {
     resource,
-    sheetId,
+    ...(sheetId ? { sheetId } : {}),
     state: "invalid",
     findingCodes: decision.diagnostics.map(diagnostic => diagnostic.code),
     message: decision.summary,
@@ -812,14 +819,119 @@ const createTableReviewSummaryFromRecord = ({
   };
 };
 
-const getReviewTemplateFingerprintFields = (
-  review: RawTableReviewRecord,
-): Pick<TableReviewSummary, "templateFingerprint"> => {
-  const decision = review.decision;
-  return decision.kind === "ready"
-    ? { templateFingerprint: decision.reviewedTemplate.templateFingerprint }
-    : {};
+const createReviewResultSignature = (
+  result: ReviewResult,
+): string => [
+  result.recipeFingerprint,
+  result.userTemplateCatalogVersion,
+  result.userTemplateEffectiveFingerprint,
+  result.reviewEngineVersion,
+  result.reviewPolicyVersion,
+  result.decision.kind,
+  result.decision.kind === "ready" ? result.decision.reviewedTemplate.templateFingerprint : "",
+  result.reviews.map(review => [
+    review.candidateId,
+    review.templateFingerprint,
+    review.status,
+    review.confidence,
+  ].join("\u001e")).join("\u001d"),
+].join("\u001f");
+
+const normalizeUriReviewTarget = (
+  target: TableReviewSummaryTarget,
+): UriReviewTarget | null => {
+  const resourceKey = normalizeResourceKey(target.resource);
+  if (!resourceKey) {
+    return null;
+  }
+
+  return {
+    resource: target.resource,
+    sheetId: normalizeText(target.sheetId) || null,
+  };
 };
+
+const getUriReviewTargetKey = (
+  target: UriReviewTarget,
+): string => [
+  normalizeResourceKey(target.resource),
+  target.sheetId ?? "",
+].join("\u001f");
+
+const createTableSourceFromUriReviewTarget = (
+  target: UriReviewTarget,
+): TableSource => ({
+  resource: target.resource,
+  ...(target.sheetId ? { sheetId: target.sheetId } : {}),
+});
+
+const getUriReviewSheet = (
+  snapshot: TableModelSnapshot,
+  requestedSheetId: string | null,
+): TableModelSheetSnapshot | null => {
+  if (requestedSheetId) {
+    return snapshot.sheets.find(sheet => sheet.sheetId === requestedSheetId) ?? null;
+  }
+
+  return snapshot.sheets.find(sheet => sheet.sheetId === snapshot.defaultSheetId) ??
+    snapshot.sheets[0] ??
+    null;
+};
+
+const createUriReviewModelSignature = ({
+  recipeFingerprint,
+  snapshot,
+  target,
+  userTemplateEffectiveFingerprint,
+  userTemplateVersion,
+}: {
+  readonly recipeFingerprint: string;
+  readonly snapshot: TableModelSnapshot;
+  readonly target: UriReviewTarget;
+  readonly userTemplateEffectiveFingerprint: string;
+  readonly userTemplateVersion: number;
+}): string => [
+  getUriReviewTargetKey(target),
+  snapshot.version,
+  snapshot.sourceVersion,
+  snapshot.loadState.state,
+  recipeFingerprint,
+  userTemplateEffectiveFingerprint,
+  userTemplateVersion,
+].join("\u001f");
+
+const createUriReviewErrorSignature = (
+  target: UriReviewTarget,
+  error: unknown,
+): string => [
+  getUriReviewTargetKey(target),
+  "error",
+  getErrorMessage(error),
+].join("\u001f");
+
+const getUriReviewFileId = (
+  resource: TableReviewSummaryTarget["resource"],
+): string => normalizeResourceKey(resource) || resource.toString();
+
+const getUriReviewFileName = (
+  resource: TableReviewSummaryTarget["resource"],
+  sheet: TableModelSheetSnapshot | null,
+): string => {
+  const sheetName = normalizeText(sheet?.sheetName);
+  if (sheetName) {
+    return sheetName;
+  }
+
+  const path = normalizeText(resource.path);
+  const name = path.split(/[\\/]/).filter(Boolean).pop();
+  return name || resource.toString();
+};
+
+const getErrorMessage = (
+  error: unknown,
+): string => error instanceof Error
+  ? error.message
+  : String(error ?? "Review failed.");
 
 const normalizeResourceKey = (
   resource: TableReviewSummaryTarget["resource"],
@@ -854,6 +966,6 @@ const SYSTEM_RECOMMENDED_CONFIDENCE = 0.8;
 
 registerSingleton(
   IReviewService,
-  ReviewService,
+  ReviewService as unknown as new (...services: BrandedService[]) => IReviewServiceType,
   InstantiationType.Delayed,
 );

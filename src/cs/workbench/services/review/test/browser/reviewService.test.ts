@@ -15,9 +15,16 @@ import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableMod
 import type { FileImportResult, ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
 import type { IRecipeService, Recipe, RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
-import { ReviewContribution } from "src/cs/workbench/services/review/browser/review.contribution";
 import { ReviewService } from "src/cs/workbench/services/review/browser/reviewService";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
+import { TableModel as TableContentModel, type ITableModel, type TableModelContentSnapshot } from "src/cs/workbench/services/table/common/model";
+import type { TableSource } from "src/cs/workbench/services/table/common/table";
+import type {
+	ITableModelContentProvider,
+	ITableModelReference,
+	ITableModelService,
+} from "src/cs/workbench/services/table/common/resolverService";
+import { TableModelProducerService } from "src/cs/workbench/services/tableModel/browser/tableModelService";
 import { TemplateMaterializationService } from "src/cs/workbench/services/template/browser/templateMaterializationService";
 import type { Template } from "src/cs/workbench/services/template/common/template";
 import type { IUserTemplateService } from "src/cs/workbench/services/userTemplate/common/userTemplate";
@@ -34,11 +41,15 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		sessionService: SessionService,
 		recipeService: IRecipeService,
 		userTemplateService: IUserTemplateService,
+		tableModelService?: ITableModelService,
+		tableModelProducerService?: TableModelProducerService,
 	) => store.add(new ReviewService(
 		sessionService,
 		recipeService,
 		userTemplateService,
 		new TemplateMaterializationService(),
+		tableModelService,
+		tableModelProducerService,
 	));
 
 	test("derives recipe candidates into a system-recommended review decision", () => {
@@ -141,55 +152,27 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(result.decision.kind === "ready" && result.decision.application.reason, "review.ready.lowConfidence");
 	});
 
-	test("commits reviews after TableModel and refreshes on recipe changes", () => {
+	test("returns latest review summaries for URI-backed table models", async () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
-		const service = createReviewServiceForTest(sessionService, recipeService, userTemplateService);
-		store.add(new ReviewContribution(
-			sessionService,
-			service,
-			recipeService,
-			userTemplateService,
-		));
-
-		sessionService.commitFileImport(createImportResult());
-		sessionService.commitTableModel(createTableModel());
-
-		let record = sessionService.getSnapshot().filesById["file-a"]
-			.rawTableReviewsByRawTableId?.["table-a"];
-		assert.equal(record?.recipeFingerprint, "recipe:first");
-		assert.equal(record?.decision.kind, "ready");
-
-		recipeService.setFingerprint("recipe:second");
-
-		record = sessionService.getSnapshot().filesById["file-a"]
-			.rawTableReviewsByRawTableId?.["table-a"];
-		assert.equal(record?.recipeFingerprint, "recipe:second");
-		assert.equal(record?.decision.kind, "ready");
-	});
-
-	test("returns latest review summaries for URI-backed table models", () => {
-		const sessionService = store.add(new SessionService());
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
-		const userTemplateService = createUserTemplateServiceForTest();
-		const service = createReviewServiceForTest(sessionService, recipeService, userTemplateService);
-		store.add(new ReviewContribution(
-			sessionService,
-			service,
-			recipeService,
-			userTemplateService,
-		));
-
 		const resource = URI.file("/workspace/Transfer.csv");
-		sessionService.commitFileImport(createImportResult());
-		sessionService.commitTableModel(createTableModel({ sourceUri: resource.toString(), sourceVersion: 1 }));
+		const service = createReviewServiceForTest(
+			sessionService,
+			recipeService,
+			userTemplateService,
+			store.add(new TestTableModelService(resource)),
+			store.add(new TableModelProducerService()),
+		);
 
-		const summary = service.getLatestReviewSummary({
+		const target = {
 			resource,
 			sheetId: "table-a",
-		});
+		};
+		assert.equal(service.getLatestReviewSummary(target).state, "pending");
+		await waitUntil(() => service.getLatestReviewSummary(target).state !== "pending");
 
+		const summary = service.getLatestReviewSummary(target);
 		assert.equal(summary.state, "ready");
 		assert.equal(summary.resource, resource);
 		assert.equal(summary.sheetId, "table-a");
@@ -414,6 +397,108 @@ class TestStorageService extends AbstractStorageService {
 		return `${scope}:${key}`;
 	}
 }
+
+class TestTableModelService extends Disposable implements ITableModelService {
+	public declare readonly _serviceBrand: undefined;
+
+	private readonly onDidChangeModelEmitter = this._register(new Emitter<ITableModel>());
+	public readonly onDidChangeModel = this.onDidChangeModelEmitter.event;
+	private readonly model: TableContentModel;
+
+	public constructor(
+		private readonly resource: URI,
+	) {
+		super();
+		this.model = this._register(new TableContentModel(resource));
+	}
+
+	public canHandleResource(resource: URI): boolean {
+		return resource.toString() === this.resource.toString();
+	}
+
+	public async createModelReference(
+		resource: URI,
+		source?: TableSource | null,
+	): Promise<ITableModelReference> {
+		if (!this.canHandleResource(resource)) {
+			throw new Error(`Unsupported test table resource: ${resource.toString()}`);
+		}
+
+		await this.resolveModel(source);
+		return {
+			object: this.model,
+			dispose: () => undefined,
+		};
+	}
+
+	public get(resource: URI | null | undefined): ITableModel | undefined {
+		return resource && this.canHandleResource(resource)
+			? this.model
+			: undefined;
+	}
+
+	public registerContentProvider(provider: ITableModelContentProvider): { dispose(): void } {
+		return {
+			dispose: () => {
+				provider.dispose();
+			},
+		};
+	}
+
+	public resolve(resource: URI, source?: TableSource | null): void {
+		if (!this.canHandleResource(resource)) {
+			return;
+		}
+
+		void this.resolveModel(source);
+	}
+
+	private async resolveModel(source?: TableSource | null): Promise<void> {
+		if (this.model.getSnapshot().loadState.state === "ready") {
+			return;
+		}
+
+		const content = createTestTableModelContent();
+		const sheetId = String(source?.sheetId ?? "table-a");
+		await this.model.resolve({
+			resolveContent: async () => ({
+				content,
+				format: "csv",
+				sheets: [{
+					content,
+					sheetId,
+					sheetKey: `${this.resource.toString()}::${encodeURIComponent(sheetId)}`,
+					sheetName: null,
+				}],
+				sourceVersion: 1,
+			}),
+		});
+		this.onDidChangeModelEmitter.fire(this.model);
+	}
+}
+
+const waitUntil = async (
+	condition: () => boolean,
+): Promise<void> => {
+	for (let attempt = 0; attempt < 20; attempt += 1) {
+		if (condition()) {
+			return;
+		}
+		await new Promise(resolve => setTimeout(resolve, 0));
+	}
+	assert.fail("Timed out waiting for condition.");
+};
+
+const createTestTableModelContent = (): TableModelContentSnapshot => ({
+	columnCount: 2,
+	maxCellLengths: [2, 2],
+	rowCount: 3,
+	rows: [
+		["Vg", "Id"],
+		["0", "1"],
+		["1", "2"],
+	],
+});
 
 const createTableModel = (
 	overrides: Partial<TableModelRecord> = {},

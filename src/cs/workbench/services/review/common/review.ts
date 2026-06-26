@@ -18,9 +18,6 @@ import type { UserTemplateSnapshot } from "src/cs/workbench/services/userTemplat
 
 export const IReviewService = createDecorator<IReviewService>("reviewService");
 
-export const ReviewContributionId = "workbench.services.review.lifecycle";
-export const ReviewApplyContributionId = "workbench.services.review.apply";
-
 export const REVIEW_ENGINE_VERSION = 1;
 export const REVIEW_POLICY_VERSION = 2;
 
@@ -186,10 +183,6 @@ export type ReviewResult = Omit<
 
 export type ReviewCommit = RawTableReviewRecord;
 
-export type ReviewQueueSnapshot = {
-  readonly rawTables: readonly RawTableRef[];
-};
-
 export type TableReviewSummaryState =
   | "missing"
   | "pending"
@@ -227,9 +220,6 @@ export interface IReviewService {
   readonly onDidChangeReviewState: Event<void>;
 
   deriveAndReview(input: ReviewInput): ReviewResult;
-  enqueueAllCurrentEvidence(): void;
-  enqueueForEvidence(refs: readonly RawTableRef[]): void;
-  getQueueSnapshot(): ReviewQueueSnapshot;
   getLatestReviewSummary(target: TableReviewSummaryTarget): TableReviewSummary;
   reviewManualTemplate(input: ManualTemplateReviewRequest): ManualTemplateReviewResult;
 }
