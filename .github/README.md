@@ -582,8 +582,14 @@ IReviewService.getLatestReviewSummary({ resource, sheetId })
   -> TableReviewSummary
   -> ExplorerDecorationsProvider.provideDecorations(resource)
   -> IDecorationsService cache / onDidChangeDecorations
-  -> ExplorerViewPane reads IDecorationData by Explorer decoration resource
+  -> ResourceLabels reads IDecoration by Explorer decoration resource
+  -> ExplorerViewPane reads IDecorationData for badge text
   -> ExplorerViewer decorationsByFileKey
+
+IReviewService.getLatestReviewSummary({ resource, sheetId })
+  -> TableReviewSummary
+  -> ExplorerViewPane reviewSummariesByFileKey
+  -> ExplorerViewer review hover content
 ```
 
 Explorer decoration 的输入是 review service 暴露的 `TableReviewSummary`，
@@ -612,6 +618,10 @@ Explorer 只能把这些状态映射成 `IDecorationData` 的 badge/letter、too
 color 和 presentation signature；
 不能重新 evaluate Recipe selector，不能重新解释 Template，也不能读取 table rows
 来补做语义判断。
+Explorer rich hover 也只能读同一个 `TableReviewSummary`；`ResourceLabels`
+只负责上游式的短 decoration color / tooltip / strikethrough，review 结果浮层
+属于 `ExplorerViewer` 的 hover presentation，不走 `ExplorerFileEntry` 旧字段或 DOM
+`auto*` dataset。
 
 现有 `rawTableStatusProjection`、`RawTableReviewRecord`、Session `rawTableId`、
 `rawTableReviewsByRawTableId`、slice run projection 等都属于 legacy raw-table 兼容层。
@@ -627,11 +637,12 @@ Explorer decoration 相关文件目标落点：
 | `services/review/common/tableReview.ts` | 定义 `TableReviewResult`、`TableReviewDecision`、confidence、findings、`ReviewedTemplate`，以及 `TableReviewSummary` 这类 review-owned 公开摘要。 | Explorer decoration UI 类型、颜色、文案、tree presentation signature。 |
 | `services/review/common/tableReviewService.ts` | 暴露 `getLatestReview(resource, sheetId?)` 给 review/Slice 级消费者，暴露 `getLatestReviewSummary(resource, sheetId?)` 给 Explorer decoration 这类摘要消费者，并提供 `onDidChangeTableReview`。 | decoration 映射、Explorer entry mutation、legacy raw-table fallback。 |
 | `services/review/browser/tableReviewService.ts` | 维护 URI-backed review cache、invalidation、后台 review 生命周期。 | DOM/UI decoration、Explorer tree state、Session raw-table review records。 |
-| `services/decorations/common/decorations.ts` / `browser/decorationsService.ts` | 对齐上游 decorations service。注册 `IDecorationsProvider`，缓存 provider 输出，合并 `onDidChangeDecorations`，并按 URI 提供 `IDecorationData`。 | Explorer 业务映射、review summary 查询、DOM badge 渲染。 |
+| `services/decorations/common/decorations.ts` / `browser/decorationsService.ts` | 对齐上游 decorations service。注册 `IDecorationsProvider`，缓存 provider 输出，合并 `onDidChangeDecorations`，并按 URI 提供 `IDecoration` / `IDecorationData`。 | Explorer 业务映射、review summary 查询、DOM badge 渲染。 |
+| `workbench/browser/labels.ts` | 对齐上游 ResourceLabels。`setResource(..., { fileDecorations })` 按 resource 向 `IDecorationsService` 读取 label color、tooltip、strikethrough，并响应 `onDidChangeDecorations`。 | review 查询、Explorer entry 查询、badge 文案映射。 |
 | `contrib/files/browser/views/explorerDecorationsProvider.ts` | 对齐上游 Explorer decoration provider。`provideDecorations(resource)` 按 resource 读取 Explorer entry 和 `IReviewService.getLatestReviewSummary(...)`，返回 `IDecorationData`，并把 review / pane input change 转成受影响 decoration resource。 | review 计算、candidate building、scoring、Template materialization、读取 table rows、直接刷新 Explorer view。 |
 | `contrib/files/browser/views/explorerDecorations.ts` | 可选 helper；只有 decoration 规则变多或多个 Files browser surface 复用时再拆。负责把 Explorer entry + `TableReviewSummary` 映射成 `IDecorationData`。 | review cache、review validity、legacy raw-table fallback。 |
 | `contrib/files/common/explorerModel.ts` | 保留 Explorer entry/tree/presentation 类型；不再承载 semantic badge 状态字段。 | review cache、review validity、raw-table review 兼容逻辑。 |
-| `contrib/files/browser/explorerViewlet.ts` | 注册 `ExplorerDecorationsProvider` 到 `IDecorationsService`，订阅 `onDidChangeDecorations` 后重读 service 的 `IDecorationData`，并通过 `decorationsByFileKey` 通知 Explorer row presentation 更新。 | review 计算、candidate building、scoring、直接调用 provider、直接读取 legacy Session review。 |
+| `contrib/files/browser/explorerViewlet.ts` | 注册 `ExplorerDecorationsProvider` 到 `IDecorationsService`，向 Explorer viewer 传递 decoration resource、badge text 用 `IDecorationData`，以及 hover 用 `TableReviewSummary`。 | review 计算、candidate building、scoring、直接调用 provider、直接读取 legacy Session review。 |
 | `contrib/files/common/rawTableStatusProjection.ts` | 仅保留 legacy raw-table migration bridge；需要保留时用注释说明退场条件。 | 新的 URI-backed decoration source、新字段、新业务分支。 |
 
 不要把 Explorer decoration 映射放到 `services/review/**`。Review service

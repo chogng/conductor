@@ -6,6 +6,7 @@ import { localize } from "src/cs/nls";
 import { DragAndDropObserver } from "src/cs/base/browser/dom";
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import { DisposableStore, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
+import type { IDecorationsService } from "src/cs/workbench/services/decorations/common/decorations";
 import { ResourceLabels } from "src/cs/workbench/browser/labels";
 import {
   ExplorerViewer,
@@ -15,6 +16,7 @@ import {
 import "src/cs/workbench/contrib/files/browser/views/media/explorerView.css";
 
 export type ExplorerViewProps = Omit<ExplorerViewerProps, "onOpenFileDialog"> & {
+  readonly decorationsService?: Pick<IDecorationsService, "getDecoration" | "onDidChangeDecorations">;
   readonly isDragging: boolean;
   readonly onDraggingChange: (isDragging: boolean) => void;
   readonly onDropFiles: (dataTransfer: DataTransfer | null) => void;
@@ -36,7 +38,7 @@ export class ExplorerView implements IDisposable {
     const dom = this.createDom();
     this.root = dom.root;
     this.viewport = dom.viewport;
-    const labels = new ResourceLabels();
+    const labels = new ResourceLabels(this.props.decorationsService);
     this.explorerViewer = this.disposables.add(
       new ExplorerViewer(dom.filledRoot, this.root, this.createViewerProps(), labels),
     );
@@ -98,7 +100,9 @@ export class ExplorerView implements IDisposable {
       editable: this.props.editable,
       templateRecords: this.props.templateRecords,
       files: this.props.files,
+      decorationResourcesByFileKey: this.props.decorationResourcesByFileKey,
       decorationsByFileKey: this.props.decorationsByFileKey,
+      reviewSummariesByFileKey: this.props.reviewSummariesByFileKey,
       folderImportSupport: this.props.folderImportSupport,
       mode: this.props.mode,
       viewLayout: this.props.viewLayout,

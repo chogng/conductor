@@ -24,6 +24,7 @@ import {
 } from "src/cs/base/browser/ui/tree/objectTree";
 import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
+import type { URI } from "src/cs/base/common/uri";
 import { AnchorAxisAlignment, AnchorPosition } from "src/cs/base/common/layout";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { isMacintosh, isWindows } from "src/cs/base/common/platform";
@@ -87,6 +88,7 @@ import {
 import type {
   ExplorerDecorationData,
 } from "src/cs/workbench/contrib/files/browser/views/explorerDecorations";
+import type { TableReviewSummary } from "src/cs/workbench/services/review/common/review";
 import type {
   IThumbnailPreviewService,
   IThumbnailService,
@@ -122,7 +124,9 @@ export type ExplorerViewerProps = {
   readonly editable?: ExplorerEditableData | null;
   readonly templateRecords?: readonly TemplateEditorRecord[];
   readonly files: ExplorerFileEntry[];
+  readonly decorationResourcesByFileKey?: Readonly<Record<string, URI>>;
   readonly decorationsByFileKey?: Readonly<Record<string, ExplorerDecorationData>>;
+  readonly reviewSummariesByFileKey?: Readonly<Record<string, TableReviewSummary>>;
   readonly mode?: WorkbenchMainPart;
   readonly viewLayout?: FilesViewLayout;
   readonly folderImportSupport?: FolderImportSupport;
@@ -151,7 +155,6 @@ const FILE_HOVER_HIDE_DELAY_MS = 120;
 const FILE_HOVER_THUMBNAIL_WIDTH = 360;
 const FILE_HOVER_THUMBNAIL_VIEWPORT_RATIO = 0.44;
 const HOVER_THUMBNAIL_CACHE_LIMIT = 32;
-const FILE_TABLE_MODEL_REASON_SEPARATOR = "\u001d";
 
 const getFileHoverThumbnailWidth = (): number =>
   Math.max(1, Math.min(
@@ -209,13 +212,14 @@ type TreeModelCache = {
 
 type HoverContent =
   | {
-    readonly kind: "tableModel";
-    readonly fileContext: FileHoverContext | null;
-    readonly isWarning: boolean;
-    readonly type: string;
+    readonly kind: "review";
     readonly confidence: string;
-    readonly reasons: readonly string[];
-    readonly template: string;
+    readonly fileContext: FileHoverContext | null;
+    readonly findingCodes: readonly string[];
+    readonly isWarning: boolean;
+    readonly message: string;
+    readonly semanticLabel: string;
+    readonly state: TableReviewSummary["state"];
   }
   | {
     readonly kind: "file";
@@ -278,45 +282,6 @@ const createFileSourceStatusBadge = (
   }
 };
 
-const getLocalizedTableModelHealthMessage = (
-  fileEntry: ExplorerFileEntry,
-): string => {
-  const message = String(fileEntry.rawTableHealthMessage ?? "").trim();
-  const lowerMessage = message.toLowerCase();
-  if (fileEntry.rawTableHealth === "decodeFailed") {
-    if (lowerMessage.includes("converted csv")) {
-      return localize(
-        "files.autoContentConvertedCsvUnreadable",
-        "Content could not be read from the converted CSV source.",
-      );
-    }
-    if (lowerMessage.includes("binary") || lowerMessage.includes("encoding")) {
-      return localize(
-        "files.autoContentBinaryOrEncoding",
-        "Content is unreadable: suspected binary file or encoding mismatch.",
-      );
-    }
-    return localize(
-      "files.autoContentDecodeFailed",
-      "Content decoding failed.",
-    );
-  }
-  if (fileEntry.rawTableHealth === "parseFailed") {
-    return localize(
-      "files.autoContentParseFailed",
-      "Content parsing failed: text encoding is invalid or file content is unreadable.",
-    );
-  }
-  if (fileEntry.rawTableHealth === "unsupported") {
-    return localize(
-      "files.autoContentUnsupported",
-      "Content format is not supported.",
-    );
-  }
-
-  return message;
-};
-
 const getFileRenderKey = (
   fileEntry: ExplorerFileEntry,
 ): string =>
@@ -359,7 +324,7 @@ const createFileHoverContext = (
 ): FileHoverContext | null => {
   const fileName = normalizeFileHoverText(getFileName(fileEntry));
   const path = getFileHoverPath(fileEntry);
-  const typeLabel = getFileHoverTypeLabel(fileEntry);
+  const typeLabel = "";
   if (!fileName && !path && !typeLabel) {
     return null;
   }
@@ -419,14 +384,6 @@ const getFileHoverDirectoryPath = (
   }
 
   return normalizedPath;
-};
-
-const getFileHoverTypeLabel = (
-  fileEntry: ExplorerFileEntry,
-): string => {
-  return getFirstFileHoverText(
-    fileEntry.curveType,
-  );
 };
 
 const getFirstFileHoverText = (
@@ -508,6 +465,60 @@ const createExplorerDecorationSignature = (
   decoration?.tooltip ?? "",
 ].join("\u001d");
 
+const createTableReviewSummarySignature = (
+  summary: TableReviewSummary | undefined,
+): string => [
+  summary?.state ?? "",
+  summary?.confidence ?? "",
+  summary?.reviewedSemanticLabel ?? "",
+  summary?.message ?? "",
+  summary?.findingCodes.join("\u001d") ?? "",
+  summary?.reviewSignature ?? "",
+  summary?.templateFingerprint ?? "",
+].join("\u001f");
+
+const getReviewStateLabel = (
+  state: TableReviewSummary["state"],
+): string => {
+  switch (state) {
+    case "ready":
+      return localize("files.reviewState.ready", "Ready");
+    case "pending":
+      return localize("files.reviewState.pending", "Pending");
+    case "stale":
+      return localize("files.reviewState.stale", "Stale");
+    case "needsAdjustment":
+      return localize("files.reviewState.needsAdjustment", "Needs adjustment");
+    case "invalid":
+      return localize("files.reviewState.invalid", "Invalid");
+    case "missing":
+    default:
+      return localize("files.reviewState.missing", "Missing");
+  }
+};
+
+const formatReviewConfidence = (
+  confidence: number | undefined,
+): string => {
+  if (typeof confidence !== "number" || !Number.isFinite(confidence)) {
+    return "";
+  }
+
+  const normalized = confidence > 1 ? confidence / 100 : confidence;
+  return `${Math.round(Math.max(0, Math.min(1, normalized)) * 100)}%`;
+};
+
+const getReviewSummarySemanticLabel = (
+  summary: TableReviewSummary,
+): string => String(summary.reviewedSemanticLabel ?? "").trim();
+
+const isReviewSummaryWarning = (
+  summary: TableReviewSummary,
+): boolean =>
+  summary.state === "stale" ||
+  summary.state === "needsAdjustment" ||
+  summary.state === "invalid";
+
 const getFileIdsFromTreeNodes = (
   nodes: readonly ITreeNode<FileTreeNode>[],
 ): string[] => {
@@ -575,11 +586,6 @@ const applyFileItemShellState = (
     host.dataset.chartState = fileEntry.chartState;
   } else {
     delete host.dataset.chartState;
-  }
-  if (fileEntry.rawTableStatus?.kind) {
-    host.dataset.rawTableStatus = fileEntry.rawTableStatus.kind;
-  } else {
-    delete host.dataset.rawTableStatus;
   }
   if (typeof fileEntry.hasChartData === "boolean") {
     host.dataset.hasChartData = fileEntry.hasChartData ? "true" : "false";
@@ -1097,6 +1103,7 @@ export class ExplorerViewer implements IDisposable {
       }),
       createFileHoverContextSignature(entry),
       createExplorerDecorationSignature(props.decorationsByFileKey?.[fileKey]),
+      createTableReviewSummarySignature(props.reviewSummariesByFileKey?.[fileKey]),
       props.mode ?? "",
     ].join("\u001f");
   }
@@ -1486,7 +1493,9 @@ export class ExplorerViewer implements IDisposable {
     const sourceStatus = createFileSourceStatusBadge(fileEntry);
     const { host } = template;
     const fileKey = getFileRenderKey(fileEntry);
-    const decoration = this.props.decorationsByFileKey?.[getExplorerTreeFileKey(fileEntry)] ?? null;
+    const treeFileKey = getExplorerTreeFileKey(fileEntry);
+    const decoration = this.props.decorationsByFileKey?.[treeFileKey] ?? null;
+    const decorationResource = this.props.decorationResourcesByFileKey?.[treeFileKey];
     const presentationSignature = this.createFilePresentationSignature(fileEntry, this.props);
     if (this.hoverAnchor === host && template.fileId !== fileId) {
       this.hideFileItemHover(host);
@@ -1538,11 +1547,7 @@ export class ExplorerViewer implements IDisposable {
     template.fileRenderKey = fileKey;
     template.filePresentationSignature = presentationSignature;
     template.badge.bind(fileKey);
-    delete host.dataset.autoType;
-    delete host.dataset.autoConfidence;
-    delete host.dataset.autoReasons;
-    delete host.dataset.autoTemplate;
-    delete host.dataset.autoWarning;
+    host.dataset.treeFileKey = treeFileKey;
     if (sourceStatus) {
       host.dataset.sourceStatus = sourceStatus.status;
     } else {
@@ -1557,6 +1562,11 @@ export class ExplorerViewer implements IDisposable {
       },
       {
         extraClasses: ["explorer-item"],
+        ...(decorationResource ? {
+          fileDecorations: {
+            resource: decorationResource,
+          },
+        } : {}),
         fileKind: FileKind.FILE,
       },
     );
@@ -1792,10 +1802,10 @@ export class ExplorerViewer implements IDisposable {
 
     const actions = document.createElement("div");
     actions.className = "file-list-item-actions";
-    const tableModelHost = document.createElement("span");
-    tableModelHost.className = "file-list-item-table-facts";
-    tableModelHost.hidden = true;
-    const badge = new ExplorerBadgeNode(tableModelHost);
+    const badgeHost = document.createElement("span");
+    badgeHost.className = "file-list-item-table-facts";
+    badgeHost.hidden = true;
+    const badge = new ExplorerBadgeNode(badgeHost);
 
     const removeButton = document.createElement("button");
     removeButton.type = "button";
@@ -1821,7 +1831,7 @@ export class ExplorerViewer implements IDisposable {
     });
     appendIcon(removeButton, LxIcon.close);
 
-    actions.append(tableModelHost, removeButton);
+    actions.append(badgeHost, removeButton);
     return template;
   }
 
@@ -1913,17 +1923,12 @@ export class ExplorerViewer implements IDisposable {
     host.className = "file-list-folder-item";
     host.title = node.name;
     host.removeAttribute("aria-label");
-    delete host.dataset.autoType;
-    delete host.dataset.autoConfidence;
-    delete host.dataset.autoReasons;
-    delete host.dataset.autoTemplate;
-    delete host.dataset.autoWarning;
     delete host.dataset.chartState;
     delete host.dataset.hasChartData;
-    delete host.dataset.rawTableStatus;
     delete host.dataset.fileId;
     delete host.dataset.itemKey;
     delete host.dataset.selected;
+    delete host.dataset.treeFileKey;
     host.dataset.expanded = isExpanded ? "true" : "false";
     template.name.textContent = node.name;
     template.countBadge.setCount(node.children?.length ?? 0);
@@ -2218,7 +2223,7 @@ export class ExplorerViewer implements IDisposable {
       return this.resolveThumbnailHoverContent(item);
     }
 
-    return this.resolveTableModelHoverContent(item);
+    return this.resolveReviewHoverContent(item);
   }
 
   private resolveThumbnailHoverContent(item: HTMLElement): HoverContent | null {
@@ -2263,10 +2268,13 @@ export class ExplorerViewer implements IDisposable {
     ) ?? null;
   }
 
-  private resolveTableModelHoverContent(item: HTMLElement): HoverContent | null {
+  private resolveReviewHoverContent(item: HTMLElement): HoverContent | null {
     const fileContext = this.resolveFileHoverContext(item);
-    const type = item.dataset.autoType ?? "";
-    if (!type) {
+    const treeFileKey = String(item.dataset.treeFileKey ?? "").trim();
+    const summary = treeFileKey
+      ? this.props.reviewSummariesByFileKey?.[treeFileKey]
+      : undefined;
+    if (!summary || summary.state === "missing") {
       return fileContext
         ? {
             kind: "file",
@@ -2276,16 +2284,14 @@ export class ExplorerViewer implements IDisposable {
     }
 
     return {
-      kind: "tableModel",
+      kind: "review",
+      confidence: formatReviewConfidence(summary.confidence),
       fileContext,
-      isWarning: item.dataset.autoWarning === "true",
-      type,
-      confidence: item.dataset.autoConfidence ?? "",
-      reasons: (item.dataset.autoReasons ?? "")
-        .split(FILE_TABLE_MODEL_REASON_SEPARATOR)
-        .map(reason => reason.trim())
-        .filter(Boolean),
-      template: item.dataset.autoTemplate ?? "",
+      findingCodes: summary.findingCodes,
+      isWarning: isReviewSummaryWarning(summary),
+      message: String(summary.message ?? "").trim(),
+      semanticLabel: getReviewSummarySemanticLabel(summary),
+      state: summary.state,
     };
   }
 
@@ -2339,7 +2345,7 @@ export class ExplorerViewer implements IDisposable {
     container.replaceChildren();
     const details = document.createElement("dl");
     details.className = "file-list-hover-table-facts";
-    details.dataset.warning = content.kind === "tableModel" && content.isWarning ? "true" : "false";
+    details.dataset.warning = content.kind === "review" && content.isWarning ? "true" : "false";
     appendFileHoverContextRows(details, content.fileContext, {
       includeType: content.kind === "file",
     });
@@ -2349,11 +2355,28 @@ export class ExplorerViewer implements IDisposable {
     }
 
     details.append(
-      createTableModelRow(localize("files.autoTypeLabel", "Type:"), content.type),
-      createTableModelRow(localize("files.autoConfidenceLabel", "Confidence:"), content.confidence),
-      createTableModelRow(localize("files.autoReasonLabel", "Basis:"), content.reasons),
-      createTableModelRow(localize("files.autoTemplateLabel", "Template:"), content.template),
+      createTableModelRow(localize("files.reviewStateLabel", "Review:"), getReviewStateLabel(content.state)),
     );
+    if (content.semanticLabel) {
+      details.append(
+        createTableModelRow(localize("files.reviewTypeLabel", "Type:"), content.semanticLabel),
+      );
+    }
+    if (content.confidence) {
+      details.append(
+        createTableModelRow(localize("files.reviewConfidenceLabel", "Confidence:"), content.confidence),
+      );
+    }
+    if (content.message) {
+      details.append(
+        createTableModelRow(localize("files.reviewMessageLabel", "Message:"), content.message),
+      );
+    }
+    if (content.findingCodes.length) {
+      details.append(
+        createTableModelRow(localize("files.reviewFindingsLabel", "Findings:"), content.findingCodes),
+      );
+    }
     container.appendChild(details);
   }
 
@@ -3063,17 +3086,18 @@ function isSameHoverContent(
     return areFileHoverContextsEqual(left.fileContext, right.fileContext);
   }
 
-  if (left.kind !== "tableModel" || right.kind !== "tableModel") {
+  if (left.kind !== "review" || right.kind !== "review") {
     return false;
   }
 
   return (
-    left.type === right.type &&
+    left.state === right.state &&
+    left.semanticLabel === right.semanticLabel &&
     left.confidence === right.confidence &&
-    left.template === right.template &&
+    left.message === right.message &&
     left.isWarning === right.isWarning &&
     areFileHoverContextsEqual(left.fileContext, right.fileContext) &&
-    areStringArraysEqual(left.reasons, right.reasons)
+    areStringArraysEqual(left.findingCodes, right.findingCodes)
   );
 }
 

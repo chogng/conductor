@@ -97,6 +97,35 @@ suite("workbench/services/decorations/test/browser/decorationsService", () => {
 		assert.equal(service.getDecorationData(child, false)[0]?.letter, "N");
 		assert.equal(service.getDecorationData(folder, true).length, 0);
 	});
+
+	test("reports decoration changes for the changed resource and its parents", () => {
+		const service = store.add(new DecorationsService());
+		const folder = URI.file("/workspace");
+		const child = URI.file("/workspace/data.csv");
+		const sibling = URI.file("/workspace/other.csv");
+		const grandchild = URI.file("/workspace/data.csv/nested");
+		const provider = new TestDecorationsProvider("review", {
+			letter: "R",
+			tooltip: "Ready",
+		});
+		store.add(provider);
+		store.add(service.registerDecorationsProvider(provider));
+
+		let affected: {
+			affectsResource(uri: URI): boolean;
+		} | null = null;
+		store.add(service.onDidChangeDecorations(event => {
+			affected = event;
+		}));
+
+		service.getDecorationData(child, false);
+		provider.fire([child]);
+
+		assert.equal(affected?.affectsResource(child), true);
+		assert.equal(affected?.affectsResource(folder), true);
+		assert.equal(affected?.affectsResource(sibling), false);
+		assert.equal(affected?.affectsResource(grandchild), false);
+	});
 });
 
 class TestDecorationsProvider extends Disposable implements IDecorationsProvider {

@@ -85,6 +85,7 @@ import {
 import {
   IReviewService,
   type IReviewService as IReviewServiceType,
+  type TableReviewSummary,
 } from "src/cs/workbench/services/review/common/review";
 
 import "src/cs/workbench/contrib/files/browser/views/media/explorerViewlet.css";
@@ -128,7 +129,7 @@ export class ExplorerViewPane extends ViewPane {
     @IThumbnailService private readonly thumbnailService: IThumbnailService,
     @IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
     @IDecorationsService private readonly decorationsService: IDecorationsServiceType,
-    @IReviewService reviewService: IReviewServiceType,
+    @IReviewService private readonly reviewService: IReviewServiceType,
   ) {
     super({
       id: ExplorerViewId,
@@ -176,7 +177,7 @@ export class ExplorerViewPane extends ViewPane {
     });
     const decorationsProvider = this._register(new ExplorerDecorationsProvider(
       this.explorerService,
-      reviewService,
+      this.reviewService,
     ));
     this._register(this.decorationsService.registerDecorationsProvider(decorationsProvider));
 
@@ -201,7 +202,10 @@ export class ExplorerViewPane extends ViewPane {
     this._register(this.userTemplateService.onDidChangeUserTemplates(() => {
       this.syncView();
     }));
-    this._register(this.decorationsService.onDidChangeDecorations(() => {
+    this._register(this.decorationsService.onDidChangeDecorations(event => {
+      if (!this.hasAffectedExplorerDecoration(event)) {
+        return;
+      }
       this.syncView();
     }));
 
@@ -381,7 +385,10 @@ export class ExplorerViewPane extends ViewPane {
       editable: this.explorerService.getContext().editable,
       templateRecords: this.createTemplateRecords(),
       files,
+      decorationResourcesByFileKey: this.createExplorerDecorationResourcesByFileKey(files),
       decorationsByFileKey: this.createExplorerDecorationsByFileKey(files),
+      reviewSummariesByFileKey: this.createExplorerReviewSummariesByFileKey(files),
+      decorationsService: this.decorationsService,
       folderImportSupport: getFolderImportSupportForFileService(this.filesService),
       isDragging: this.isDragging,
       mode: input.mode,
@@ -421,6 +428,51 @@ export class ExplorerViewPane extends ViewPane {
       }
     }
     return decorationsByFileKey;
+  }
+
+  private createExplorerDecorationResourcesByFileKey(
+    files: readonly ExplorerFileEntry[],
+  ): Readonly<Record<string, URI>> {
+    const resourcesByFileKey: Record<string, URI> = {};
+    for (const file of files) {
+      const resource = getExplorerFileTableResource(file);
+      if (!resource) {
+        continue;
+      }
+      resourcesByFileKey[getExplorerTreeFileKey(file)] =
+        createExplorerDecorationResource(resource, file.sheetId);
+    }
+    return resourcesByFileKey;
+  }
+
+  private createExplorerReviewSummariesByFileKey(
+    files: readonly ExplorerFileEntry[],
+  ): Readonly<Record<string, TableReviewSummary>> {
+    const summariesByFileKey: Record<string, TableReviewSummary> = {};
+    for (const file of files) {
+      const resource = getExplorerFileTableResource(file);
+      if (!resource) {
+        continue;
+      }
+      const summary = this.reviewService.getLatestReviewSummary({
+        resource,
+        sheetId: file.sheetId ?? null,
+      });
+      if (summary.state !== "missing") {
+        summariesByFileKey[getExplorerTreeFileKey(file)] = summary;
+      }
+    }
+    return summariesByFileKey;
+  }
+
+  private hasAffectedExplorerDecoration(event: { affectsResource(resource: URI): boolean }): boolean {
+    for (const file of this.files) {
+      const resource = getExplorerFileTableResource(file);
+      if (resource && event.affectsResource(createExplorerDecorationResource(resource, file.sheetId))) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private readonly handleCancelRenameFile = (): void => {

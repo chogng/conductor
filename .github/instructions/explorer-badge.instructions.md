@@ -33,14 +33,22 @@ ExplorerFileEntry resource + sheetId
   -> IReviewService.getLatestReviewSummary({ resource, sheetId })
   -> Explorer decoration data
   -> IDecorationsService cache / onDidChangeDecorations
-  -> ExplorerViewPane decorationsByFileKey
+  -> ResourceLabels fileDecorations for label color / tooltip
+  -> ExplorerViewPane decorationsByFileKey for badge text
   -> ExplorerViewer decorationsByFileKey
   -> ExplorerBadgeNode
+
+ExplorerFileEntry resource + sheetId
+  -> ExplorerViewPane reviewSummariesByFileKey
+  -> IReviewService.getLatestReviewSummary({ resource, sheetId })
+  -> ExplorerViewer review hover content
 ```
 
 Review is the source of semantic Explorer decorations. If Review cannot provide
 a ready template, Explorer must not keep showing a semantic badge from earlier
 table-model progress or row metadata.
+Explorer rich hover reads the same review-owned `TableReviewSummary`; label
+decorations own only short color/tooltip/strikethrough presentation.
 
 ## Scheduling
 

@@ -4,7 +4,6 @@
 
 import assert from "assert";
 
-import { createNLSConfiguration, setNLSConfiguration } from "src/cs/nls";
 import type {
   IContextMenuService,
   IContextViewDelegate,
@@ -14,6 +13,7 @@ import type {
 import { Separator, SubmenuAction, type IAction } from "src/cs/base/common/actions";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import { Emitter, Event } from "src/cs/base/common/event";
+import { URI } from "src/cs/base/common/uri";
 import { ObjectTree } from "src/cs/base/browser/ui/tree/objectTree";
 import { CommandsRegistry } from "src/cs/platform/commands/common/commands";
 import { ResourceLabels } from "src/cs/workbench/browser/labels";
@@ -21,6 +21,7 @@ import {
   ExplorerViewer,
   type ExplorerViewerProps,
 } from "src/cs/workbench/contrib/files/browser/views/explorerViewer";
+import { getExplorerTreeFileKey } from "src/cs/workbench/contrib/files/common/explorerModel";
 import {
   CLOSE_FILE_ITEM_COMMAND_ID,
   DELETE_FILE_ITEM_COMMAND_ID,
@@ -79,23 +80,31 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     document.body.append(hoverHost);
     hoverHost.append(host);
 
+    const file = {
+      fileId: "file-a",
+      fileName: "Output_.csv",
+      itemKey: "file-a",
+      relativePath: "293K/output/Output_.csv",
+      resource: URI.file("/workspace/Output_.csv"),
+    };
     const props: ExplorerViewerProps = {
       ...createViewerProps(),
       contextViewService,
       expandedFolderKeys: ["folder:293K", "folder:293K/output"],
-      files: [{
-        badgeState: {
-          confidence: "confirmed",
-          kind: "ready",
-          label: "output",
-          source: "review",
-        },
-        fileId: "file-a",
-        fileName: "Output_.csv",
-        itemKey: "file-a",
-        relativePath: "293K/output/Output_.csv",
-      }],
+      files: [file],
       mode: "table",
+      reviewSummariesByFileKey: {
+        [getExplorerTreeFileKey(file)]: {
+          confidence: 0.92,
+          findingCodes: ["review.ready.systemRecommended"],
+          message: "Template is ready.",
+          resource: URI.file("/workspace/Output_.csv"),
+          reviewedSemanticLabel: "output",
+          reviewSignature: "review:1",
+          state: "ready",
+          templateFingerprint: "template:1",
+        },
+      },
     };
     const viewer = new ExplorerViewer(host, hoverHost, props, labels);
 
@@ -103,8 +112,6 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       const content = host.querySelector<HTMLElement>(".file-list-item-content");
       assert.ok(content);
       assert.equal(content.hasAttribute("title"), false);
-
-      setNLSConfiguration(createNLSConfiguration("zh"));
 
       const item = host.querySelector<HTMLElement>(".file-list-item");
       assert.ok(item);
@@ -120,9 +127,13 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           row.querySelector(".file-list-hover-table-facts-value")?.textContent ?? "",
         ]);
       assert.deepEqual(rows, [
-        ["文件：", "Output_.csv"],
-        ["路径：", "293K/output"],
-        ["类型：", "output"],
+        ["File:", "Output_.csv"],
+        ["Path:", "293K/output"],
+        ["Review:", "Ready"],
+        ["Type:", "output"],
+        ["Confidence:", "92%"],
+        ["Message:", "Template is ready."],
+        ["Findings:", "review.ready.systemRecommended"],
       ]);
 
       viewer.setProps({
@@ -132,7 +143,6 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
 
       assert.equal(content.hasAttribute("title"), false);
     } finally {
-      setNLSConfiguration(createNLSConfiguration("en"));
       viewer.dispose();
       labels.dispose();
       hoverHost.remove();

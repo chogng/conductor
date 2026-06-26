@@ -28,8 +28,7 @@ class ResourceDecorationChangeEvent implements IResourceDecorationChangeEvent {
 		}
 
 		return this.resources.some(resource =>
-			extUri.isEqualOrParent(resource, uri) ||
-			extUri.isEqualOrParent(uri, resource));
+			extUri.isEqualOrParent(resource, uri));
 	}
 }
 
