@@ -847,7 +847,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     try {
       bridge.sync();
 
-      assert.equal(tableSources.at(-1)?.fileId, undefined);
+      assert.equal(Object.prototype.hasOwnProperty.call(tableSources.at(-1) ?? {}, "fileId"), false);
       assert.equal(tableSources.at(-1)?.sourceKey, "source-key-b");
       assert.equal(tableSources.at(-1)?.resource?.toString(), "file:///data/Workbook.xlsx");
       assert.equal(explorerService.getPaneInput()?.selectedFileId, "file-a");

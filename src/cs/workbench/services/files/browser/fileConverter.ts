@@ -6,9 +6,6 @@ import Papa from "papaparse";
 
 import { startPerf } from "src/cs/workbench/common/perf";
 import {
-  isDelimitedTextImportFileName,
-  isExcelFileImportSourceName,
-  isTsvImportFileName,
   type FileImportSourceKind,
   type ImportedFileRecord,
   type ImportFileData,
@@ -31,6 +28,9 @@ import type {
   FileConverterPreparedSheet,
   FileConverterPreparedFile,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
+import {
+  tableFileFormatService,
+} from "src/cs/workbench/services/tablefile/common/tableFileFormat";
 
 export type {
   ConvertedCsvReaderService,
@@ -214,7 +214,7 @@ const convertBrowserFile = async (
   file: File,
   sourcePath: string | null,
 ): Promise<ConvertedImportFile> => {
-  if (isExcelFileImportSourceName(file.name)) {
+  if (tableFileFormatService.isExcel(file.name)) {
     const convertedFile = await convertXlsxFile(file);
     return {
       file: convertedFile,
@@ -237,9 +237,9 @@ const convertBrowserFile = async (
 };
 
 const getBrowserFileMimeType = (fileName: string): string =>
-  isExcelFileImportSourceName(fileName)
+  tableFileFormatService.isExcel(fileName)
     ? "application/octet-stream"
-    : isTsvImportFileName(fileName)
+    : tableFileFormatService.isTsv(fileName)
       ? "text/tab-separated-values;charset=utf-8"
     : "text/csv;charset=utf-8";
 
@@ -880,7 +880,7 @@ const createRawTableSource = (
     readonly sheetIndex: number;
     readonly sheetName: string | null;
   },
-): RawTableSourceRecord => isExcelFileImportSourceName(fileName)
+): RawTableSourceRecord => tableFileFormatService.isExcel(fileName)
   ? {
       kind: "excelSheet",
       originalPath: sourcePath,
@@ -922,10 +922,10 @@ const getMaxCellLengths = (
 };
 
 const getImportSourceKind = (fileName: string): FileImportSourceKind => {
-  if (isExcelFileImportSourceName(fileName)) {
+  if (tableFileFormatService.isExcel(fileName)) {
     return "excel";
   }
-  return isDelimitedTextImportFileName(fileName) ? "csv" : "unknown";
+  return tableFileFormatService.isDelimitedText(fileName) ? "csv" : "unknown";
 };
 
 const normalizeRequiredText = (

@@ -75,7 +75,6 @@ function createTableState(): TableState {
 		dimensions: "3 x 3",
 		file: {
 			columnCount: 3,
-			fileId: "file-a",
 			fileName: "sample.csv",
 			maxCellLengths: [1, 1, 1],
 			rowCount: 3,
@@ -86,7 +85,6 @@ function createTableState(): TableState {
 			message: "",
 			state: "ready",
 		},
-		selectedFileId: "file-a",
 		sourceKey: "file-a:1",
 	};
 }

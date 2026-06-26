@@ -4,32 +4,12 @@
 
 import assert from "assert";
 import {
-  isExcelImportFileName,
-  isSupportedImportFileName,
-} from "src/cs/workbench/services/files/common/files";
-import {
   createImportTableModelSeedFromFile,
 } from "src/cs/workbench/services/tableModel/browser/importTableModelSeed";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/tableModel/test/browser/importTableModelSeed", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
-  test("isSupportedImportFileName accepts table import suffixes case-insensitively", () => {
-    assert.equal(isSupportedImportFileName("sample.csv"), true);
-    assert.equal(isSupportedImportFileName("sample.CSV"), true);
-    assert.equal(isSupportedImportFileName("sample.tsv"), true);
-    assert.equal(isSupportedImportFileName("sample.xls"), true);
-    assert.equal(isSupportedImportFileName("sample.XLSX"), true);
-    assert.equal(isSupportedImportFileName("sample.txt"), false);
-    assert.equal(isSupportedImportFileName("sample"), false);
-  });
-
-  test("isExcelImportFileName only accepts xls/xlsx", () => {
-    assert.equal(isExcelImportFileName("sample.xls"), true);
-    assert.equal(isExcelImportFileName("sample.xlsx"), true);
-    assert.equal(isExcelImportFileName("sample.csv"), false);
-  });
-
   test("creates transfer seed evidence from import metadata", async () => {
     const file = new File(
       [

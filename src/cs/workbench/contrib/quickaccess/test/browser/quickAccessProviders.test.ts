@@ -39,7 +39,7 @@ suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
 
   test("default provider switches to file and command providers", async () => {
     const shownPrefixes: string[] = [];
-    const provider = new DefaultQuickAccessProvider(createQuickInputService(shownPrefixes));
+    const provider = store.add(new DefaultQuickAccessProvider(createQuickInputService(shownPrefixes)));
     const picks = await provider.provide("");
 
     picks.find(pick => pick.id === "quickAccess.gotoFiles")?.accept?.();
@@ -70,10 +70,10 @@ suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
       selectionKind: "chart",
       thumbnailFiles: [],
     };
-    const provider = new FilesQuickAccessProvider(
+    const provider = store.add(new FilesQuickAccessProvider(
       createExplorerService(paneInput, selections),
       { activeWorkbenchMainPart: "chart" } as unknown as IWorkbenchLayoutService,
-    );
+    ));
     const picks = await provider.provide("beta");
 
     assert.deepEqual(picks.map(pick => ({
@@ -110,10 +110,10 @@ suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
       selectionKind: "chart",
       thumbnailFiles: [],
     };
-    const provider = new FilesQuickAccessProvider(
+    const provider = store.add(new FilesQuickAccessProvider(
       createExplorerService(paneInput, selections),
       { activeWorkbenchMainPart: "chart" } as unknown as IWorkbenchLayoutService,
-    );
+    ));
     const picks = await provider.provide("beta");
 
     assert.deepEqual(picks.map(pick => pick.label), ["Beta.csv"]);
@@ -144,7 +144,7 @@ suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
         title: "Disabled Command",
       },
     }));
-    const provider = new CommandsQuickAccessProvider(commandService, menuService, contextKeyService);
+    const provider = store.add(new CommandsQuickAccessProvider(commandService, menuService, contextKeyService));
 
     assert.deepEqual((await provider.provide("Command")).map(pick => pick.id), []);
 
@@ -184,7 +184,9 @@ function createExplorerService(
 	    hasPendingSourceFiles: false,
 	    hoveredFileId: null,
 	    selectedRawFileId: null,
+	    selectedRawSourceKey: null,
     selectedProcessedFileId: null,
+    selectedProcessedSourceKey: null,
     expandedFolderKeys: [],
     viewLayout: "tree",
 	    onDidChangePendingSourceFiles: Event.None as IExplorerService["onDidChangePendingSourceFiles"],
@@ -199,7 +201,9 @@ function createExplorerService(
 	      expandedFolderKeys: [],
 	      hoveredFileId: null,
 	      selectedProcessedFileId: null,
+      selectedProcessedSourceKey: null,
       selectedRawFileId: null,
+      selectedRawSourceKey: null,
       toCopy: {
         isCut: false,
         resources: [],

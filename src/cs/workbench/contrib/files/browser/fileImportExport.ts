@@ -38,9 +38,6 @@ import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/ex
 import {
   buildFileSourceIdentityKey,
   buildItemKey,
-  isExcelImportFileName,
-  isSupportedImportFileName,
-  isTsvImportFileName,
   type FileSource,
   type FolderFileCollection,
   type FolderFileCollectionBatch,
@@ -1023,7 +1020,7 @@ export const collectPendingImportFiles = (
       continue;
     }
 
-    if (!isSupportedImportFileName(sourceName)) {
+    if (!tableFileFormatService.canHandle(sourceName)) {
       hasAnyUnsupportedFiles = true;
       unsupportedCount += 1;
       finishFilePerf({ skipped: "unsupported" });
@@ -2647,10 +2644,10 @@ function getPathBaseName(path: string): string {
 }
 
 function getFileMimeType(fileName: string): string {
-  if (isExcelImportFileName(fileName)) {
+  if (tableFileFormatService.isExcel(fileName)) {
     return "application/octet-stream";
   }
-  if (isTsvImportFileName(fileName)) {
+  if (tableFileFormatService.isTsv(fileName)) {
     return "text/tab-separated-values;charset=utf-8";
   }
 
@@ -2886,8 +2883,8 @@ function compareFolderFileStatTasks(
   first: FolderFileStatTask,
   second: FolderFileStatTask,
 ): number {
-  const firstIsExcel = isExcelImportFileName(first.name);
-  const secondIsExcel = isExcelImportFileName(second.name);
+  const firstIsExcel = tableFileFormatService.isExcel(first.name);
+  const secondIsExcel = tableFileFormatService.isExcel(second.name);
   if (firstIsExcel !== secondIsExcel) {
     return firstIsExcel ? 1 : -1;
   }
@@ -3060,7 +3057,7 @@ async function readFileContent(
 ): Promise<IFileContent> {
   for (let attempt = 0; attempt < FILE_SOURCE_READ_ATTEMPTS; attempt += 1) {
     const content = await filesService.readFile(resource, {
-      encoding: isExcelImportFileName(name) ? "base64" : "utf8",
+      encoding: tableFileFormatService.isExcel(name) ? "base64" : "utf8",
     });
     if (isFileContent(content)) {
       return content;

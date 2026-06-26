@@ -27,7 +27,7 @@ import { DEFAULT_EXPLORER_APPEARANCE, type IAppearanceService } from "src/cs/wor
 import type { FileConverterBackend } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import type { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
-import type { ISessionService } from "src/cs/workbench/services/session/common/session";
+import type { ITableService } from "src/cs/workbench/services/table/common/table";
 import type { IThumbnailPreviewService, IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { IUserTemplateService } from "src/cs/workbench/services/userTemplate/common/userTemplate";
@@ -50,7 +50,7 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
   test("moves a confirmed file delete to trash before removing the imported file", async () => {
     let workflowHandler: ExplorerWorkflowHandler | null = null;
     const movedPaths: string[] = [];
-    const removedFileIds: string[][] = [];
+    const paneInputUpdates: ExplorerPaneInput[] = [];
     const pane = createExplorerViewPane({
       confirm: async () => ({ confirmed: true }),
       moveFileToTrash: async resource => {
@@ -59,15 +59,15 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
       onRegisterHandler: handler => {
         workflowHandler = handler;
       },
+      onUpdatePaneInput: input => {
+        paneInputUpdates.push(input);
+      },
       paneInput: createPaneInput([{
         fileId: "file-a",
         fileName: "source.csv",
         relativePath: "source.csv",
         sourcePath: "/tmp/source.csv",
       }]),
-      removeFiles: fileIds => {
-        removedFileIds.push([...fileIds]);
-      },
     });
 
     try {
@@ -76,7 +76,7 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
       await flushPromises();
 
       assert.deepEqual(movedPaths, ["/tmp/source.csv"]);
-      assert.deepEqual(removedFileIds, [["file-a"]]);
+      assert.deepEqual(paneInputUpdates.at(-1)?.files, []);
     } finally {
       pane.dispose();
     }
@@ -85,7 +85,7 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
   test("does not move or remove a file when delete confirmation is canceled", async () => {
     let workflowHandler: ExplorerWorkflowHandler | null = null;
     const movedPaths: string[] = [];
-    const removedFileIds: string[][] = [];
+    const paneInputUpdates: ExplorerPaneInput[] = [];
     const pane = createExplorerViewPane({
       confirm: async () => ({ confirmed: false }),
       moveFileToTrash: async resource => {
@@ -94,15 +94,15 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
       onRegisterHandler: handler => {
         workflowHandler = handler;
       },
+      onUpdatePaneInput: input => {
+        paneInputUpdates.push(input);
+      },
       paneInput: createPaneInput([{
         fileId: "file-a",
         fileName: "source.csv",
         relativePath: "source.csv",
         sourcePath: "/tmp/source.csv",
       }]),
-      removeFiles: fileIds => {
-        removedFileIds.push([...fileIds]);
-      },
     });
 
     try {
@@ -111,7 +111,7 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
       await flushPromises();
 
       assert.deepEqual(movedPaths, []);
-      assert.deepEqual(removedFileIds, []);
+      assert.deepEqual(paneInputUpdates, []);
     } finally {
       pane.dispose();
     }
@@ -122,8 +122,8 @@ type CreateExplorerViewPaneOptions = {
   readonly confirm?: IDialogService["confirm"];
   readonly moveFileToTrash?: (resource: URI) => Promise<void>;
   readonly onRegisterHandler?: (handler: ExplorerWorkflowHandler) => void;
+  readonly onUpdatePaneInput?: (input: ExplorerPaneInput) => void;
   readonly paneInput?: ExplorerPaneInput | null;
-  readonly removeFiles?: (fileIds: readonly string[]) => void;
 };
 
 const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): ExplorerViewPane =>
@@ -140,7 +140,7 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
       onDidShowDialog: Event.None,
       onWillShowDialog: Event.None,
     } as unknown as IDialogService,
-    createExplorerService(options.paneInput ?? null),
+    createExplorerService(options.paneInput ?? null, options.onUpdatePaneInput),
     {
       registerHandler: (handler: ExplorerWorkflowHandler) => {
         options.onRegisterHandler?.(handler);
@@ -161,27 +161,8 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
       notify: () => undefined,
     } as unknown as INotificationService,
     {
-      clearMetricInput: () => undefined,
-      clearSession: () => undefined,
-      commitCalculatedRecordsBatch: () => undefined,
-      commitCurves: () => undefined,
-      commitCurvesBatch: () => undefined,
-      commitFileImport: () => ({
-        importedFileIds: [],
-        skippedDuplicateFileIds: [],
-      }),
-      commitMetrics: () => undefined,
-      commitMetricsBatch: () => undefined,
-      commitRawTableReviews: () => undefined,
-      commitSliceRuns: () => undefined,
-      commitTableModel: () => undefined,
-      commitTableModelBatch: () => undefined,
-      getSnapshot: () => ({ filesById: {}, fileOrder: [] }),
-      onDidChangeSession: Event.None,
-      removeFiles: options.removeFiles ?? (() => undefined),
-      renameFile: () => undefined,
-      setMetricInput: () => undefined,
-    } as unknown as ISessionService,
+      open: () => undefined,
+    } as unknown as ITableService,
     {
       onDidChangePreview: Event.None,
       get: () => ({ kind: "idle" }),
@@ -197,7 +178,10 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
     createUserTemplateService(),
   );
 
-const createExplorerService = (paneInput: ExplorerPaneInput | null): IExplorerService => ({
+const createExplorerService = (
+  paneInput: ExplorerPaneInput | null,
+  onUpdatePaneInput?: (input: ExplorerPaneInput) => void,
+): IExplorerService => ({
   _serviceBrand: undefined,
   expandedFolderKeys: [],
   hasPendingSourceFiles: false,
@@ -210,7 +194,9 @@ const createExplorerService = (paneInput: ExplorerPaneInput | null): IExplorerSe
   onDidChangeViewLayout: Event.None,
   onDidChangeVisibleFileIds: Event.None,
   selectedProcessedFileId: null,
+  selectedProcessedSourceKey: null,
   selectedRawFileId: null,
+  selectedRawSourceKey: null,
   viewLayout: "tree",
   applyBulkEdit: async () => undefined,
   getCollapsedFolderKeys: () => [],
@@ -219,7 +205,9 @@ const createExplorerService = (paneInput: ExplorerPaneInput | null): IExplorerSe
     expandedFolderKeys: [],
     hoveredFileId: null,
     selectedProcessedFileId: null,
+    selectedProcessedSourceKey: null,
     selectedRawFileId: null,
+    selectedRawSourceKey: null,
     toCopy: {
       isCut: false,
       resources: [],
@@ -239,7 +227,9 @@ const createExplorerService = (paneInput: ExplorerPaneInput | null): IExplorerSe
   setViewLayout: () => undefined,
   setVisibleFileIds: () => undefined,
   toggleViewLayout: () => undefined,
-  updatePaneInput: () => undefined,
+  updatePaneInput: (input: ExplorerPaneInput) => {
+    onUpdatePaneInput?.(input);
+  },
 } as unknown as IExplorerService);
 
 const createPaneInput = (files: ExplorerFileEntry[]): ExplorerPaneInput => ({

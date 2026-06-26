@@ -6,12 +6,6 @@ import type {
   RawTableRecord,
 } from "src/cs/workbench/services/files/common/rawTable";
 import type { URI } from "src/cs/base/common/uri";
-import {
-  TABLE_IMPORT_FILE_EXTENSIONS,
-  tableFileFormatService,
-} from "src/cs/workbench/services/tablefile/common/tableFileFormat";
-
-export const IMPORT_FILE_EXTENSIONS = TABLE_IMPORT_FILE_EXTENSIONS;
 
 const fnv1a32 = (input: unknown): string => {
   const str = String(input ?? "");
@@ -22,21 +16,6 @@ const fnv1a32 = (input: unknown): string => {
   }
   return (hash >>> 0).toString(16).padStart(8, "0");
 };
-
-export const isSupportedImportFileName = (fileName: unknown): boolean =>
-  tableFileFormatService.canHandle(String(fileName ?? ""));
-
-export const isDelimitedTextImportFileName = (fileName: unknown): boolean =>
-  tableFileFormatService.isDelimitedText(String(fileName ?? ""));
-
-export const isExcelImportFileName = (fileName: unknown): boolean =>
-  tableFileFormatService.isExcel(String(fileName ?? ""));
-
-export const isTsvImportFileName = (fileName: unknown): boolean =>
-  tableFileFormatService.isTsv(String(fileName ?? ""));
-
-export const isXlsxImportFileName = (fileName: unknown): boolean =>
-  tableFileFormatService.isXlsx(String(fileName ?? ""));
 
 export type FileEntry = {
   file?: unknown;
@@ -217,9 +196,3 @@ export const createFileImportResultFromRecords = (
   diagnostics: [...(options.diagnostics ?? [])],
   files: [...files],
 });
-
-export const isExcelFileImportSourceName = (fileName: string): boolean =>
-  isExcelImportFileName(fileName);
-
-export const isSupportedFileImportSourceName = (fileName: string): boolean =>
-  isSupportedImportFileName(fileName);

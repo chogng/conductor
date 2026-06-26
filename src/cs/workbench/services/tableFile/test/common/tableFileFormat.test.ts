@@ -37,8 +37,10 @@ suite("workbench/services/tablefile/test/common/tableFileFormat", () => {
 
 		assert.equal(service.isDelimitedText("transfer.csv"), true);
 		assert.equal(service.isDelimitedText("transfer.tsv"), true);
+		assert.equal(service.isExcel("workbook.xls"), true);
 		assert.equal(service.isExcel("transfer.tsv"), false);
 		assert.equal(service.isExcel("workbook.xlsx"), true);
+		assert.equal(service.isExcel("sample.csv"), false);
 		assert.equal(service.isXlsx("workbook.xlsx"), true);
 	});
 });

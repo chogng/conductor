@@ -1054,7 +1054,6 @@ function createTableWidgetState(
   const file = options.file === undefined
     ? {
         columnCount,
-        fileId,
         fileName: "sample.csv",
         maxCellLengths: Array.from({ length: columnCount }, () => 2),
         rowCount,
@@ -1069,7 +1068,6 @@ function createTableWidgetState(
       message: "",
       state: "ready",
     },
-    selectedFileId: fileId,
     sourceKey,
   };
 }
