@@ -118,7 +118,7 @@ type CsvSeriesGroup = {
   yArr: number[];
 };
 
-export const createExportProcessedFilesFromRecords = (
+export const createExportProcessedFilesFromSession = (
   filesById: Record<FileId, FileRecord>,
   fileOrder: readonly FileId[],
 ): ProcessedFileEntry[] => {
@@ -148,7 +148,7 @@ export const createExportProcessedFilesFromRecords = (
   return entries;
 };
 
-export const buildCsvExportsFromRecords = (
+export const buildCsvExportsFromSession = (
   filesById: Record<FileId, FileRecord>,
   fileOrder: readonly FileId[],
   resolveCurveLabelForSeries?: ResolveCsvCurveLabelForSeries,
@@ -158,11 +158,11 @@ export const buildCsvExportsFromRecords = (
   xyPairCount: number;
 }> =>
   buildCsvExports(
-    createExportProcessedFilesFromRecords(filesById, fileOrder),
+    createExportProcessedFilesFromSession(filesById, fileOrder),
     resolveCurveLabelForSeries,
   );
 
-export const buildSsMetricsCsvFromRecords = ({
+export const buildSsMetricsCsvFromSession = ({
   filesById,
   fileOrder,
   manualSsRangesByFileId,
@@ -174,9 +174,9 @@ export const buildSsMetricsCsvFromRecords = ({
   ssMethod?: unknown;
 }): string =>
   buildSsMetricsCsv({
-    processedFiles: createExportProcessedFilesFromRecords(filesById, fileOrder),
+    processedFiles: createExportProcessedFilesFromSession(filesById, fileOrder),
     manualSsRangesByFileId: manualSsRangesByFileId ??
-      createManualSsRangesFromRecords(filesById, fileOrder),
+      createManualSsRangesFromSession(filesById, fileOrder),
     ssMethod,
   });
 
@@ -314,7 +314,7 @@ const getOrComputeSsFitAuto = (
     | undefined);
 };
 
-const createManualSsRangesFromRecords = (
+const createManualSsRangesFromSession = (
   filesById: Record<FileId, FileRecord>,
   fileOrder: readonly FileId[],
 ): ManualSsRangesByFileId => {

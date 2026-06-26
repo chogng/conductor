@@ -7,7 +7,7 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { localize } from "src/cs/nls";
 import {
-  createExportProcessedFilesFromRecords,
+  createExportProcessedFilesFromSession,
 } from "src/cs/workbench/services/export/browser/csvExport";
 import {
   createOriginCurveOptions,
@@ -282,7 +282,7 @@ export class BrowserExportService extends Disposable implements IExportService {
   }
 
   private resolveOriginExportFiles(input: OriginExportPlanInput): OriginExportFile[] {
-    const processedFiles = createExportProcessedFilesFromRecords(
+    const processedFiles = createExportProcessedFilesFromSession(
       input.snapshot.filesById,
       input.snapshot.fileOrder,
     ).map((file) => this.createOriginExportFile(file));

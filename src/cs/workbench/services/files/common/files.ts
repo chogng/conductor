@@ -183,15 +183,3 @@ export type FileImportResult = {
   readonly diagnostics: readonly FileImportDiagnostic[];
   readonly createdAt: number;
 };
-
-export const createFileImportResultFromRecords = (
-  files: readonly ImportedFileRecord[],
-  options: {
-    readonly createdAt?: number;
-    readonly diagnostics?: readonly FileImportDiagnostic[];
-  } = {},
-): FileImportResult => ({
-  createdAt: options.createdAt ?? Date.now(),
-  diagnostics: [...(options.diagnostics ?? [])],
-  files: [...files],
-});

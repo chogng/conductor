@@ -95,38 +95,6 @@ export const createCalculatedPlotsByKey = (
   return next;
 };
 
-export const createCalculatedPlotsByKeyFromRecords = (
-  filesById: Record<FileId, FileRecord>,
-  fileOrder: readonly FileId[],
-): CalculatedPlotsByKey => {
-  const endPerf = startPerf("createCalculatedPlotsByKeyFromRecords", {
-    fileCount: Object.keys(filesById).length,
-  });
-  const next: CalculatedPlotsByKey = {};
-  let processedFileCount = 0;
-  let plotCount = 0;
-  for (const file of getOrderedFileRecords(filesById, fileOrder)) {
-    if (!hasFileRecordChartData(file)) {
-      continue;
-    }
-
-    processedFileCount += 1;
-    for (const plotType of CalculationKinds) {
-      next[createCalculatedDataKey({ fileId: file.id, plotType })] =
-        createCalculatedDataForFileRecord({
-          file,
-          plotType,
-        });
-      plotCount += 1;
-    }
-  }
-  endPerf({
-    plotCount,
-    processedFileCount,
-  });
-  return next;
-};
-
 export const createCalculatedDataRecordInputSignature = (
   filesById: Record<FileId, FileRecord>,
   fileOrder: readonly FileId[],

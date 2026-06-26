@@ -84,13 +84,6 @@ export const hasFileRecordChartData = (
       collectFileRecordBaseCurves(file).length > 0,
   );
 
-export const createProcessedEntriesFromRecords = (
-  filesById: Readonly<Record<FileId, FileRecord>>,
-  fileOrder: readonly FileId[],
-): ProcessedEntry[] => {
-  return createProcessedReadModel(getOrderedFileRecords(filesById, fileOrder)).processedFiles;
-};
-
 const createProcessedReadModel = (
   files: readonly FileRecord[],
 ): Pick<SessionReadModel, "processedFileIds" | "processedFiles"> => {

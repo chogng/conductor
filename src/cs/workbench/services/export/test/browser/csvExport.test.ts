@@ -7,9 +7,9 @@ import type {
 
 import {
   buildCsvExports,
-  buildCsvExportsFromRecords,
+  buildCsvExportsFromSession,
   buildSsMetricsCsv,
-  buildSsMetricsCsvFromRecords,
+  buildSsMetricsCsvFromSession,
 } from "src/cs/workbench/services/export/browser/csvExport";
 import {
   buildOriginExportPlan,
@@ -62,8 +62,8 @@ suite("workbench/services/export/browser/csvExport", () => {
     );
   });
 
-  test("buildCsvExportsFromRecords writes canonical base curves", () => {
-    const exports = buildCsvExportsFromRecords(
+  test("buildCsvExportsFromSession writes canonical base curves", () => {
+    const exports = buildCsvExportsFromSession(
       {
         "file-a": createFileRecord("transfer"),
       },
@@ -79,8 +79,8 @@ suite("workbench/services/export/browser/csvExport", () => {
     );
   });
 
-  test("buildSsMetricsCsvFromRecords uses canonical IV mode", () => {
-    const csv = buildSsMetricsCsvFromRecords({
+  test("buildSsMetricsCsvFromSession uses canonical IV mode", () => {
+    const csv = buildSsMetricsCsvFromSession({
       filesById: {
         "file-a": createFileRecord("output"),
       },
@@ -100,7 +100,7 @@ suite("workbench/services/export/browser/csvExport", () => {
     assert.equal(byHeader.ss_reason, "not_transfer_curve");
   });
 
-  test("buildSsMetricsCsvFromRecords uses canonical manual SS range input", () => {
+  test("buildSsMetricsCsvFromSession uses canonical manual SS range input", () => {
     const file = createFileRecord("transfer");
     const metricKey = "subthreshold:series-a:ss:manual" as MetricKey;
     file.metricInputsByKey = {
@@ -116,7 +116,7 @@ suite("workbench/services/export/browser/csvExport", () => {
       },
     };
 
-    const csv = buildSsMetricsCsvFromRecords({
+    const csv = buildSsMetricsCsvFromSession({
       filesById: {
         "file-a": file,
       },

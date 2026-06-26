@@ -11,7 +11,6 @@ import {
   createCalculatedDataKey,
   createCalculatedDataRecordInputSignature,
   createCalculatedPlotsByKey,
-  createCalculatedPlotsByKeyFromRecords,
   createCalculatedSeries,
   createSecondCalculatedData,
   getCalculatedData,
@@ -191,30 +190,6 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
       byKey[createCalculatedDataKey({ fileId: "file-a", plotType: "ss" })]?.activeFile?.fileId,
       "file-a",
     );
-  });
-
-  test("createCalculatedPlotsByKeyFromRecords builds drawable data from canonical records", () => {
-    const byKey = createCalculatedPlotsByKeyFromRecords(
-      { "file-a": createFileRecord() },
-      ["file-a"],
-    );
-    const iv = getCalculatedData(byKey, "iv", "file-a");
-    const gm = getCalculatedData(byKey, "gm", "file-a");
-
-    assert.equal(iv?.activeFile?.fileId, "file-a");
-    assert.deepEqual(iv?.source, { fileId: "file-a", inputKind: "record" });
-    assert.equal(iv?.seriesList[0]?.id, "series-a");
-    assert.equal(iv?.seriesList[0]?.name, "Vd=0.1");
-    assert.deepEqual(
-      iv?.seriesList[0]?.data.map((point) => point.y),
-      [1, 2, 4],
-    );
-    assert.deepEqual(
-      gm?.seriesList[0]?.data.map((point) => point.y),
-      [1, 1.5, 2],
-    );
-    assert.equal(iv?.xUnitLabel, "V");
-    assert.equal(iv?.yUnitLabel, "A");
   });
 
   test("createCalculatedDataRecordInputSignature ignores derived curve cache writes", () => {
