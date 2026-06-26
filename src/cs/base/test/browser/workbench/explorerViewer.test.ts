@@ -423,7 +423,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     const viewer = new ExplorerViewer(host, hoverHost, props, labels);
 
     try {
-      const badge = host.querySelector<HTMLElement>(".file-list-item-table-models");
+      const badge = host.querySelector<HTMLElement>(".file-list-item-table-facts");
       assert.ok(badge);
       assert.equal(badge.textContent, "...");
 

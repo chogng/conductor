@@ -4,7 +4,7 @@
 
 import type { ICommandHandler } from "src/cs/platform/commands/common/commands";
 import { IExplorerService, ExplorerViewId, type ExplorerSelectionKind } from "src/cs/workbench/contrib/files/browser/files";
-import { ExplorerViewPane } from "src/cs/workbench/contrib/files/browser/explorerViewlet";
+import type { ExplorerViewPane } from "src/cs/workbench/contrib/files/browser/explorerViewlet";
 import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import { ISliceService } from "src/cs/workbench/services/slice/common/slice";
 import type { TemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";

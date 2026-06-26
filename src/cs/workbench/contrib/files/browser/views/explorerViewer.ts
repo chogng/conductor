@@ -1888,7 +1888,7 @@ export class ExplorerViewer implements IDisposable {
     const actions = document.createElement("div");
     actions.className = "file-list-item-actions";
     const tableModelHost = document.createElement("span");
-    tableModelHost.className = "file-list-item-table-models";
+    tableModelHost.className = "file-list-item-table-facts";
     tableModelHost.hidden = true;
     const badge = new ExplorerBadgeNode(tableModelHost);
 
