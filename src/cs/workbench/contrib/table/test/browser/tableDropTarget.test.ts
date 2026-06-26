@@ -45,10 +45,10 @@ suite("workbench/contrib/table/test/browser/tableDropTarget", () => {
 		);
 
 		dispatchDragEvent(tableTarget, "dragenter");
-		assert.equal(tableTarget.classList.contains("workbench_center_area_shell--dragging"), true);
+		assert.equal(tableTarget.classList.contains("table_view_drop_target--dragging"), true);
 
 		dropTarget.dispose();
-		assert.equal(tableTarget.classList.contains("workbench_center_area_shell--dragging"), false);
+		assert.equal(tableTarget.classList.contains("table_view_drop_target--dragging"), false);
 	});
 });
 
@@ -60,10 +60,10 @@ function assertDragOverAccepted(target: HTMLElement): void {
 	const event = dispatchDragEvent(target, "dragover");
 	assert.equal(event.defaultPrevented, true);
 	assert.equal(event.dataTransfer?.dropEffect, "copy");
-	assert.equal(target.classList.contains("workbench_center_area_shell--dragging"), true);
+	assert.equal(target.classList.contains("table_view_drop_target--dragging"), true);
 
 	target.dispatchEvent(new globalThis.Event("dragleave"));
-	assert.equal(target.classList.contains("workbench_center_area_shell--dragging"), false);
+	assert.equal(target.classList.contains("table_view_drop_target--dragging"), false);
 }
 
 function dispatchDragEvent(target: HTMLElement, type: string): DragEvent {

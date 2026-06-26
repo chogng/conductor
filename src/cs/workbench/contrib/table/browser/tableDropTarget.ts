@@ -22,7 +22,7 @@ import {
 	ITableModelService,
 } from "src/cs/workbench/services/table/common/resolverService";
 
-const TABLE_DROP_TARGET_DRAGGING_CLASS_NAME = "workbench_center_area_shell--dragging";
+const TABLE_DROP_TARGET_DRAGGING_CLASS_NAME = "table_view_drop_target--dragging";
 
 export class TableDropTarget extends Disposable {
 	public constructor(

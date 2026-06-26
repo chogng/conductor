@@ -15,6 +15,16 @@
   overflow: hidden;
 }
 
+.table_view_drop_target--dragging::after {
+  content: "";
+  position: absolute;
+  z-index: 20;
+  inset: 0;
+  border: 0;
+  background: rgb(var(--accent) / 0.08);
+  pointer-events: none;
+}
+
 .table_view_header_title {
   display: grid;
   min-width: 0;
