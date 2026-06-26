@@ -152,12 +152,12 @@ const waitForImportedPreview = async (page) => {
   await page.waitForFunction(
     () => {
       const text = document.body.innerText;
+      const cells = Array.from(document.querySelectorAll(".table_view_cell"))
+        .map((cell) => cell.textContent?.trim() ?? "");
       return (
         text.includes("output.csv") &&
         text.includes("transfer.csv") &&
-        text.includes("Vd") &&
-        text.includes("Id") &&
-        text.includes("0\t3")
+        ["Vd", "Id", "0", "3"].every((value) => cells.includes(value))
       );
     },
     undefined,
@@ -169,13 +169,12 @@ const waitForDroppedPreview = async (page) => {
   await page.waitForFunction(
     () => {
       const text = document.body.innerText;
+      const cells = Array.from(document.querySelectorAll(".table_view_cell"))
+        .map((cell) => cell.textContent?.trim() ?? "");
       return (
         text.includes("drop.csv") &&
         text.includes("Transfer_DB") &&
-        text.includes("DataName") &&
-        text.includes("Vg") &&
-        text.includes("Id") &&
-        text.includes("DataValue\t-2\t1e-12")
+        ["DataName", "Vg", "Id", "DataValue", "-2", "1e-12"].every((value) => cells.includes(value))
       );
     },
     undefined,
@@ -195,33 +194,18 @@ const waitForAppliedChart = async (page) => {
 const openTemplateEditor = async (page) => {
   await page.locator(".template_picker_button").click();
   await getNewTemplateItem(page).click();
-  await page.locator("#template_editor_xDataStart").waitFor({
+  await page.locator(".template_editor_view").waitFor({
     timeout: timeoutMs,
   });
 };
 
-const waitForPickField = async (page, inputId) => {
-  await page.waitForFunction(
-    (id) => {
-      const input = document.getElementById(id);
-      return input instanceof HTMLInputElement &&
-        input.closest(".inputbox_field")?.dataset.picking === "true";
-    },
-    inputId,
-    { timeout: timeoutMs },
-  );
-};
-
-const clickTemplateCell = async (page, rowIndex, colIndex) => {
-  const cell = page.locator(`.table_view_cell[data-row-index="${rowIndex}"][data-col-index="${colIndex}"]`);
-  await cell.waitFor({
-    state: "visible",
-    timeout: timeoutMs,
-  });
-  await cell.click();
-};
+const getTemplateChipInput = (page, label) =>
+  page.locator(".template_chip_field")
+    .filter({ has: page.locator(".template_field_label", { hasText: label }) })
+    .locator("input");
 
 const selectTemplateYColumnB = async (page) => {
+  await getTemplateChipInput(page, /^(Y 列|Y columns)$/).click();
   const button = page.locator('.table_view_column_button[data-col-index="1"]');
   await button.waitFor({
     state: "visible",
@@ -229,7 +213,8 @@ const selectTemplateYColumnB = async (page) => {
   });
   await button.click();
   await page.waitForFunction(
-    () => document.querySelector(".template_selection_summary")?.textContent?.includes("B"),
+    () => Array.from(document.querySelectorAll(".template_chip_token"))
+      .some((token) => token.textContent?.includes("B")),
     undefined,
     { timeout: timeoutMs },
   );
@@ -238,20 +223,12 @@ const selectTemplateYColumnB = async (page) => {
 const assertTemplateCellPicking = async (page) => {
   await openTemplateEditor(page);
 
-  await page.locator("#template_editor_xDataStart").click();
-  await waitForPickField(page, "template_editor_xDataStart");
-  await clickTemplateCell(page, 1, 0);
+  const xRangeInput = getTemplateChipInput(page, /^X$/);
+  await xRangeInput.fill("B4:B6");
+  await xRangeInput.press("Enter");
   await page.waitForFunction(
-    () => document.querySelector("#template_editor_xDataStart")?.value === "A2",
-    undefined,
-    { timeout: timeoutMs },
-  );
-
-  await page.locator("#template_editor_xDataEnd").click();
-  await waitForPickField(page, "template_editor_xDataEnd");
-  await clickTemplateCell(page, 2, 1);
-  await page.waitForFunction(
-    () => document.querySelector("#template_editor_xDataEnd")?.value === "B3",
+    () => Array.from(document.querySelectorAll(".template_chip_token"))
+      .some((token) => token.textContent?.includes("B4:B6")),
     undefined,
     { timeout: timeoutMs },
   );
@@ -267,7 +244,16 @@ const assertImportedPreview = async (page) => {
   const text = await page.locator("body").innerText();
   assert.match(text, /output\.csv/);
   assert.match(text, /transfer\.csv/);
-  assert.match(text, /0\t3/);
+  await assertTableCells(page, ["Vd", "Id", "0", "3"]);
+};
+
+const assertTableCells = async (page, expectedValues) => {
+  const missing = await page.evaluate((values) => {
+    const cells = Array.from(document.querySelectorAll(".table_view_cell"))
+      .map((cell) => cell.textContent?.trim() ?? "");
+    return values.filter((value) => !cells.includes(value));
+  }, expectedValues);
+  assert.deepEqual(missing, []);
 };
 
 const runDirectoryPickerImportTest = async (browser, baseUrl) => {
@@ -327,7 +313,7 @@ const runDropImportTest = async (browser, baseUrl) => {
     await waitForDroppedPreview(page);
     const text = await page.locator("body").innerText();
     assert.match(text, /drop\.csv/);
-    assert.match(text, /0\t1/);
+    await assertTableCells(page, ["DataValue", "0", "1e-10"]);
     await assertTemplateCellPicking(page);
     await waitForAppliedChart(page);
   } finally {

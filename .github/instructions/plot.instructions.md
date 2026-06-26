@@ -6,8 +6,8 @@ applyTo: 'src/cs/workbench/services/plot/**,src/cs/workbench/contrib/plot/**'
 
 Plot is the drawing core. Chart is a host that renders Plot output.
 
-`IPlotService` consumes Session curves/metrics and produces plot render/display
-models for Chart, Thumbnail, Search, and Export.
+`IPlotService` consumes Session curves/metrics and URI-backed Slice results, and
+produces plot render/display models for Chart, Thumbnail, Search, and Export.
 
 ## Ownership
 
@@ -18,7 +18,8 @@ models for Chart, Thumbnail, Search, and Export.
 - axis unit conversion and y-scale settings;
 - plot domains, ticks, display labels, legend labels;
 - display downsampling;
-- render/display model assembly from Session curves/metrics;
+- render/display model assembly from Session curves/metrics and URI-backed
+  Slice results;
 - calculated-data and display-model caches/prefetch queues.
 
 It does not own DOM rendering, chart panel layout, raw parsing, table-model
@@ -42,7 +43,7 @@ production, template execution, or thumbnail bitmap cache.
 ## Flow
 
 ```txt
-SessionSnapshot + PlotState
+SessionSnapshot or SliceState.uriResultsByResourceKey + PlotState
   -> PlotService
   -> calculated-data cache / display-model cache / worker queues
   -> PlotRenderModel / PlotDisplayModel
@@ -82,6 +83,8 @@ uses platform storage; callers should not write settings/storage directly.
 ## Invalidation And Retention
 
 - Session changes should invalidate only affected file ids when possible.
+- Slice URI result changes should invalidate only affected resource keys when
+  possible.
 - Plot-relevant data changes publish targeted calculated/display cache events.
 - Do not publish global `onDidChangePlotState` for unrelated file commits.
 - Active plot type changes cancel queued calculated-data prefetch.
@@ -90,10 +93,10 @@ uses platform storage; callers should not write settings/storage directly.
 - Eviction is silent cache lifecycle; data-change invalidation publishes events.
 - Cached reads for active chart, hover, file switch, and recent backfill refresh recency.
 
-Plot render models currently consume template/base curve records and Plot-owned
-settings. Do not invalidate active chart/hover caches for calculated-record,
-metric, or derived-only curve changes unless Plot starts consuming those as
-render inputs.
+Plot render models currently consume template/base curve records from Session
+or URI Slice results and Plot-owned settings. Do not invalidate active
+chart/hover caches for calculated-record, metric, or derived-only curve changes
+unless Plot starts consuming those as render inputs.
 
 ## Chart And Widget Rules
 

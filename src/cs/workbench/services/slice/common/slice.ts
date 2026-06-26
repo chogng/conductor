@@ -3,15 +3,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Event } from "src/cs/base/common/event";
+import type { URI } from "src/cs/base/common/uri";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type {
   CurveRecord,
   CurveKey,
+  BaseCurveRecord,
   BaseCurveFamily,
+  CurveLineage,
   ItCurveMode,
   IvCurveMode,
   RawTableRef,
   SeriesRecord,
+  SeriesId,
   SheetId,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
@@ -20,6 +24,7 @@ import type {
   TemplateSelectionsByFileId,
 } from "src/cs/workbench/services/slice/common/templateSelection";
 import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/review";
+import type { TableModelRecord } from "src/cs/workbench/services/tableModel/common/tableModel";
 
 export const ISliceService = createDecorator<ISliceService>("sliceService");
 export const SlicePriorityContributionId = "workbench.services.slice.priority";
@@ -58,6 +63,28 @@ export type SliceRequest = {
   readonly createdAt: number;
 };
 
+export type SliceUriResourceKey = string;
+
+export type SliceUriTarget = {
+  readonly resource: URI;
+  readonly sheetId?: SheetId | null;
+};
+
+export type SliceUriRequest = {
+  readonly id: string;
+  readonly target: SliceUriTarget;
+  readonly tableModel: TableModelRecord;
+  readonly reviewedTemplate: ReviewedTemplate;
+  readonly reviewSignature?: string;
+  readonly trigger: SliceRequestTrigger;
+  readonly requestSignature: string;
+  readonly createdAt: number;
+  readonly rowCount: number;
+  readonly columnCount: number;
+  readonly sourceModelVersion: number;
+  readonly sourceVersion: number;
+};
+
 export type SliceRun = {
   readonly id: SliceRunId;
   readonly fileId: string;
@@ -92,6 +119,49 @@ export type SliceCommit = {
   readonly run: SliceRun;
   readonly series: readonly SeriesRecord[];
   readonly curves: readonly CurveRecord[];
+};
+
+export type SliceUriRangeRef = {
+  readonly resource: URI;
+  readonly sheetId?: SheetId | null;
+  readonly range: SliceRangeRef;
+};
+
+export type SliceUriRun = Omit<SliceRun, "fileId" | "inputRanges" | "rawTableId"> & {
+  readonly resource: URI;
+  readonly sheetId?: SheetId | null;
+  readonly inputRanges: readonly SliceUriRangeRef[];
+};
+
+export type SliceUriSeriesRecord = Omit<SeriesRecord, "fileId" | "sheetId"> & {
+  readonly resource: URI;
+  readonly sheetId?: SheetId | null;
+};
+
+export type SliceUriBaseCurveRecord = Omit<BaseCurveRecord, "fileId" | "lineage"> & {
+  readonly resource: URI;
+  readonly sheetId?: SheetId | null;
+  readonly lineage: Omit<Extract<CurveLineage, { curveGeneration: "base" }>, "baseSeries"> & {
+    readonly baseSeries: {
+      readonly resource: URI;
+      readonly sheetId?: SheetId | null;
+      readonly seriesId: SeriesId;
+    };
+  };
+};
+
+export type SliceUriCurveRecord = SliceUriBaseCurveRecord;
+
+export type SliceUriResult = {
+  readonly target: SliceUriTarget;
+  readonly resourceKey: SliceUriResourceKey;
+  readonly run: SliceUriRun;
+  readonly series: readonly SliceUriSeriesRecord[];
+  readonly curves: readonly SliceUriCurveRecord[];
+  readonly requestSignature: string;
+  readonly sourceModelVersion: number;
+  readonly sourceVersion: number;
+  readonly completedAt: number;
 };
 
 export type SlicePlan = {
@@ -150,9 +220,11 @@ export type SliceFileState =
 
 export type SliceState = {
   readonly fileStates: ReadonlyMap<string, SliceFileState>;
+  readonly uriStatesByResourceKey: ReadonlyMap<SliceUriResourceKey, SliceFileState>;
   readonly queueLength: number;
   readonly activeFileId: string | null;
   readonly templateSelectionsByFileId: TemplateSelectionsByFileId;
+  readonly uriResultsByResourceKey: ReadonlyMap<SliceUriResourceKey, SliceUriResult>;
 };
 
 export interface ISliceService {
@@ -162,9 +234,18 @@ export interface ISliceService {
 
   getState(): SliceState;
   submit(requests: readonly SliceRequest[]): void;
+  submitUri(requests: readonly SliceUriRequest[]): void;
   enqueueAuto(refs: readonly RawTableRef[]): void;
   runWithTemplate(input: RunSliceWithTemplateInput): void;
   prioritize(fileId: string): void;
   cancel(fileIds?: readonly string[]): void;
   setTemplateSelection(fileId: string, selection: TemplateSelection): void;
 }
+
+export const createSliceUriResourceKey = (
+  target: SliceUriTarget,
+): SliceUriResourceKey => {
+  const resource = String(target.resource?.toString() ?? "").trim().replace(/\\/g, "/");
+  const sheetId = String(target.sheetId ?? "").trim();
+  return sheetId ? `${resource}\u0000${sheetId}` : resource;
+};

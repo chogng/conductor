@@ -20,6 +20,7 @@ import type {
 	RunSliceWithTemplateInput,
 	SliceRequest,
 	SliceState,
+	SliceUriRequest,
 } from "src/cs/workbench/services/slice/common/slice";
 import type { RawTableRef } from "src/cs/workbench/services/session/common/sessionModel";
 import type { TemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
@@ -66,11 +67,14 @@ class TestSliceService implements ISliceService {
 			fileStates: new Map(),
 			queueLength: 0,
 			templateSelectionsByFileId: {},
+			uriStatesByResourceKey: new Map(),
+			uriResultsByResourceKey: new Map(),
 		};
 	}
 
 	public enqueueAuto(_refs: readonly RawTableRef[]): void {}
 	public submit(_requests: readonly SliceRequest[]): void {}
+	public submitUri(_requests: readonly SliceUriRequest[]): void {}
 	public runWithTemplate(_input: RunSliceWithTemplateInput): void {}
 
 	public prioritize(fileId: string): void {

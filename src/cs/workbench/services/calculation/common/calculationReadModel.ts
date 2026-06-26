@@ -27,6 +27,10 @@ import type {
   ProcessedEntry,
   ProcessedSeries,
 } from "src/cs/workbench/services/session/common/sessionTypes";
+import {
+  createSliceUriResourceKey,
+  type SliceUriResult,
+} from "src/cs/workbench/services/slice/common/slice";
 
 type ProcessedFileEntry = ProcessedEntry;
 
@@ -51,7 +55,7 @@ export type CalculatedSeries = {
 
 export type CalculatedDataSource = {
   readonly fileId: string | null;
-  readonly inputKind: "processed" | "record" | CalculationKind;
+  readonly inputKind: "processed" | "record" | "sliceUri" | CalculationKind;
 };
 
 export type CalculatedData = {
@@ -191,6 +195,68 @@ export const createCalculatedDataForFileRecord = ({
   const xDomain = getFiniteDomain(points.map((point) => Number(point.x)), [0, 1]);
   const xUnitLabel = String(getFileRecordAxisProjection(file).xUnit ?? "");
   const yDomain = getFiniteDomain(points.map((point) => Number(point.y)), [0, 1]);
+  const yUnitLabel = getCalculatedYUnitLabel(plotType, activeFile);
+
+  return {
+    activeFile,
+    kind: plotType,
+    pointsCount: points.length,
+    seriesList,
+    signature: createCalculatedDataSignature({
+      activeFile,
+      kind: plotType,
+      pointsCount: points.length,
+      seriesList,
+      source,
+      xDomain,
+      xUnitLabel,
+      yDomain,
+      yUnitLabel,
+    }),
+    source,
+    xDomain,
+    xUnitLabel,
+    yDomain,
+    yUnitLabel,
+  };
+};
+
+export const createCalculatedDataForSliceUriResult = ({
+  plotType,
+  result,
+}: {
+  readonly plotType: CalculationKind;
+  readonly result: SliceUriResult;
+}): CalculatedData => {
+  const curves = result.curves;
+  const activeFile = createProcessedFileEntryFromSliceUriResult(result, curves);
+  const seriesById = new Map(result.series.map(series => [series.id, series]));
+  const usedIds = new Set<string>();
+  const seriesList = curves
+    .map((curve, index): CalculatedSeries | null => {
+      const data = resolveCalculatedPoints(plotType, curve.points);
+      if (!data.length) {
+        return null;
+      }
+
+      const id = resolveUniqueSeriesId(curve.seriesId || `series-${index + 1}`, index, usedIds);
+      const series = seriesById.get(curve.seriesId);
+      return {
+        data,
+        id,
+        kind: plotType,
+        name: String(series?.labelOverride ?? series?.name ?? series?.legendValue ?? `Series ${index + 1}`),
+      };
+    })
+    .filter((series): series is CalculatedSeries => Boolean(series));
+  const points = seriesList.flatMap(series => series.data);
+  const source = {
+    fileId: createSliceUriResourceKey(result.target),
+    inputKind: "sliceUri" as const,
+  };
+  const xDomain = getFiniteDomain(points.map(point => Number(point.x)), [0, 1]);
+  const xUnitLabel = String(activeFile?.xUnit ?? "");
+  const yDomain = getFiniteDomain(points.map(point => Number(point.y)), [0, 1]);
   const yUnitLabel = getCalculatedYUnitLabel(plotType, activeFile);
 
   return {
@@ -376,6 +442,91 @@ const createProcessedFileEntryFromRecord = (file: FileRecord): ProcessedFileEntr
     xLabel: axis.xLabel,
     yLabel: axis.yLabel,
   };
+};
+
+const createProcessedFileEntryFromSliceUriResult = (
+  result: SliceUriResult,
+  curves: SliceUriResult["curves"],
+): ProcessedFileEntry => {
+  const xValues = curves.flatMap(curve => curve.points.map(point => point.x));
+  const yValues = curves.flatMap(curve => curve.points.map(point => point.y));
+  return {
+    curveType: getSliceUriCurveType(curves[0]),
+    domain: curves.length
+      ? {
+        x: getFiniteDomain(xValues, [0, 1]),
+        y: getFiniteDomain(yValues, [0, 1]),
+      }
+      : undefined,
+    fileId: createSliceUriResourceKey(result.target),
+    fileName: result.target.resource.path.split(/[\\/]/).filter(Boolean).pop() ?? createSliceUriResourceKey(result.target),
+    series: createProcessedSeriesFromSliceUriResult(result, curves),
+    supportsSs: curves.some(curve => curve.curveFamily === "iv" && curve.ivMode === "transfer"),
+    xAxisRole: getSliceUriXAxisRole(curves[0]),
+    xGroups: curves.map(curve => curve.points.map(point => point.x)),
+    xLabel: getSliceTemplateBlockText(result, block => block.titles?.bottom),
+    xUnit: getSliceTemplateBlockText(result, block => block.x.unit),
+    yLabel: getSliceTemplateBlockText(result, block => block.titles?.left),
+    yUnit: getSliceTemplateBlockText(result, block => block.y.unit),
+  };
+};
+
+const createProcessedSeriesFromSliceUriResult = (
+  result: SliceUriResult,
+  curves: SliceUriResult["curves"],
+): ProcessedSeries[] => {
+  const seriesById = new Map(result.series.map(series => [series.id, series]));
+  return curves.map((curve, index): ProcessedSeries => {
+    const series = seriesById.get(curve.seriesId);
+    return {
+      groupIndex: index,
+      id: curve.seriesId || `series-${index + 1}`,
+      legendValue: series?.legendValue,
+      name: series?.labelOverride ?? series?.name ?? series?.legendValue,
+      y: curve.points.map(point => point.y),
+      yCol: Number.isInteger(Number(series?.yCol)) ? series?.yCol : index + 1,
+    };
+  });
+};
+
+const getSliceUriCurveType = (
+  curve: SliceUriResult["curves"][number] | undefined,
+): string | undefined => {
+  if (!curve) {
+    return undefined;
+  }
+  if (curve.curveFamily === "iv" && curve.ivMode) {
+    return curve.ivMode;
+  }
+  if (curve.curveFamily === "it" && curve.itMode) {
+    return curve.itMode;
+  }
+  return curve.curveFamily;
+};
+
+const getSliceUriXAxisRole = (
+  curve: SliceUriResult["curves"][number] | undefined,
+): ProcessedEntry["xAxisRole"] => {
+  if (curve?.curveFamily === "iv" && curve.ivMode === "transfer") {
+    return "vg";
+  }
+  if (curve?.curveFamily === "iv" && curve.ivMode === "output") {
+    return "vd";
+  }
+  return null;
+};
+
+const getSliceTemplateBlockText = (
+  result: SliceUriResult,
+  readValue: (block: SliceUriResult["run"]["template"]["blocks"][number]) => string | undefined,
+): string | undefined => {
+  for (const block of result.run.template.blocks) {
+    const text = String(readValue(block) ?? "").trim();
+    if (text) {
+      return text;
+    }
+  }
+  return undefined;
 };
 
 const resolveFileRecordSeriesName = (

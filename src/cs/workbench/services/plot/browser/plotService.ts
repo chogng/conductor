@@ -13,6 +13,7 @@ import {
 } from "src/cs/platform/storage/common/storage";
 import {
   createCalculatedDataForFileRecord,
+  createCalculatedDataForSliceUriResult,
   getCalculatedDataFromRecords,
   type CalculatedData,
 } from "src/cs/workbench/services/calculation/common/calculationReadModel";
@@ -63,6 +64,12 @@ import {
   ISessionService,
   type SessionSnapshot,
 } from "src/cs/workbench/services/session/common/session";
+import {
+  createSliceUriResourceKey,
+  ISliceService,
+  type ISliceService as ISliceServiceType,
+  type SliceUriResult,
+} from "src/cs/workbench/services/slice/common/slice";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 import {
@@ -185,6 +192,7 @@ export class PlotService extends Disposable implements IPlotService {
   };
   private readonly calculatedDataCacheByFile = new WeakMap<FileRecord, Partial<Record<PlotType, CalculatedData>>>();
   private readonly calculatedDataCacheKeys = new Set<string>();
+  private readonly calculatedDataCacheBySliceUriKey = new Map<string, CalculatedData>();
   private readonly unavailableCalculatedDataCacheKeys = new Set<string>();
   private readonly queuedCalculatedDataPrefetchByKey = new Map<string, QueuedCalculatedDataPrefetch>();
   private readonly inFlightCalculatedDataPrefetchByKey = new Map<string, InFlightPlotPrefetch>();
@@ -205,6 +213,7 @@ export class PlotService extends Disposable implements IPlotService {
     @ISessionService private readonly sessionService: ISessionService,
     @ISettingsService private readonly settingsService: ISettingsService,
     @IStorageService private readonly storageService: IStorageService,
+    @ISliceService private readonly sliceService?: ISliceServiceType,
   ) {
     super();
 
@@ -216,6 +225,11 @@ export class PlotService extends Disposable implements IPlotService {
       this.clearQueuedPlotDisplayModelPrefetch();
       this.onDidChangePlotStateEmitter.fire(this.state);
     }));
+    if (this.sliceService) {
+      this._register(this.sliceService.onDidChangeSliceState(() => {
+        this.invalidatePlotModelsForSliceStateChange();
+      }));
+    }
     this._register({ dispose: () => this.cancelScheduledCalculatedDataPrefetch() });
     this._register({ dispose: () => this.cancelScheduledPlotDisplayModelPrefetch() });
   }
@@ -237,7 +251,11 @@ export class PlotService extends Disposable implements IPlotService {
     const file = normalizedFileId
       ? snapshot.filesById[normalizedFileId] ?? null
       : resolveCalculatedDataFile(snapshot, input.fileId);
-    return file ? this.calculatedDataCacheByFile.get(file)?.[plotType] ?? null : null;
+    if (file) {
+      return this.calculatedDataCacheByFile.get(file)?.[plotType] ?? null;
+    }
+
+    return this.getCachedCalculatedDataForSliceUri(normalizedFileId, plotType);
   }
 
   public getCachedPlotLegendModel(input: PlotCalculatedDataInput): PlotLegendModel | null {
@@ -341,6 +359,14 @@ export class PlotService extends Disposable implements IPlotService {
       plotType,
       input.fileId,
     );
+    if (!calculatedData) {
+      const uriCalculatedData = this.getCalculatedDataForSliceUri(input.fileId, plotType);
+      endPerf({
+        resultPointsCount: uriCalculatedData?.pointsCount ?? 0,
+        source: "sliceUri",
+      });
+      return uriCalculatedData;
+    }
     endPerf({
       resultPointsCount: calculatedData?.pointsCount ?? 0,
       source: "recordsFallback",
@@ -1260,6 +1286,7 @@ export class PlotService extends Disposable implements IPlotService {
     const affectedFileIds = getAffectedPlotFileIds(event);
     if (shouldFullyInvalidatePlotModelsForSessionChange(event, affectedFileIds)) {
       this.calculatedDataCacheKeys.clear();
+      this.calculatedDataCacheBySliceUriKey.clear();
       this.unavailableCalculatedDataCacheKeys.clear();
       this.clearPlotDisplayModelCache();
       this.clearQueuedCalculatedDataPrefetch();
@@ -1269,6 +1296,26 @@ export class PlotService extends Disposable implements IPlotService {
     }
 
     this.clearPlotModelsForFileIds(affectedFileIds);
+  }
+
+  private invalidatePlotModelsForSliceStateChange(): void {
+    const state = this.sliceService?.getState();
+    const fileIds = new Set<FileId>();
+    for (const key of this.calculatedDataCacheBySliceUriKey.keys()) {
+      const context = getCalculatedDataPrefetchContext(key);
+      if (context) {
+        fileIds.add(context.fileId);
+      }
+    }
+    for (const fileId of state?.uriResultsByResourceKey.keys() ?? []) {
+      const normalizedFileId = normalizeStateKey(fileId);
+      if (normalizedFileId) {
+        fileIds.add(normalizedFileId);
+      }
+    }
+    if (fileIds.size) {
+      this.clearPlotModelsForFileIds(fileIds);
+    }
   }
 
   private clearPlotModelsForFileIds(fileIds: ReadonlySet<FileId>): void {
@@ -1283,6 +1330,14 @@ export class PlotService extends Disposable implements IPlotService {
       const keyContext = getCalculatedDataPrefetchContext(key);
       if (keyContext && fileIds.has(keyContext.fileId)) {
         this.calculatedDataCacheKeys.delete(key);
+        this.calculatedDataCacheBySliceUriKey.delete(key);
+        addPlotCacheChange(calculatedDataChanges, keyContext);
+      }
+    }
+    for (const key of [...this.calculatedDataCacheBySliceUriKey.keys()]) {
+      const keyContext = getCalculatedDataPrefetchContext(key);
+      if (keyContext && fileIds.has(keyContext.fileId)) {
+        this.calculatedDataCacheBySliceUriKey.delete(key);
         addPlotCacheChange(calculatedDataChanges, keyContext);
       }
     }
@@ -1359,6 +1414,78 @@ export class PlotService extends Disposable implements IPlotService {
         this.onDidChangePlotDisplayModelCacheEmitter.fire({ fileId, plotType });
       }
     }
+  }
+
+  private getCachedCalculatedDataForSliceUri(fileId: FileId | null, plotType: PlotType): CalculatedData | null {
+    const normalizedFileId = normalizeStateKey(fileId);
+    if (!normalizedFileId) {
+      return null;
+    }
+
+    return this.calculatedDataCacheBySliceUriKey.get(getCalculatedDataPrefetchKey(normalizedFileId, plotType)) ?? null;
+  }
+
+  private getCalculatedDataForSliceUri(fileId: FileId | null | undefined, plotType: PlotType): CalculatedData | null {
+    const result = this.getSliceUriResult(fileId);
+    if (!result || result.run.errors.length || !result.curves.length) {
+      return null;
+    }
+
+    const normalizedFileId = normalizeStateKey(createSliceUriResourceKey(result.target));
+    if (!normalizedFileId) {
+      return null;
+    }
+
+    const key = getCalculatedDataPrefetchKey(normalizedFileId, plotType);
+    const cached = this.calculatedDataCacheBySliceUriKey.get(key);
+    if (cached) {
+      return cached;
+    }
+
+    return this.cacheCalculatedDataForSliceUri(
+      normalizedFileId,
+      plotType,
+      createCalculatedDataForSliceUriResult({ plotType, result }),
+    );
+  }
+
+  private prefetchCalculatedDataForSliceUri(fileId: FileId, plotType: PlotType): void {
+    const normalizedFileId = normalizeStateKey(fileId);
+    if (!normalizedFileId) {
+      return;
+    }
+
+    const key = getCalculatedDataPrefetchKey(normalizedFileId, plotType);
+    if (this.hasCompletedCalculatedDataPrefetch(key)) {
+      return;
+    }
+
+    const calculatedData = this.getCalculatedDataForSliceUri(normalizedFileId, plotType);
+    if (!calculatedData) {
+      this.markCalculatedDataUnavailable(normalizedFileId, plotType);
+    }
+  }
+
+  private cacheCalculatedDataForSliceUri(
+    fileId: FileId,
+    plotType: PlotType,
+    calculatedData: CalculatedData,
+  ): CalculatedData {
+    const key = getCalculatedDataPrefetchKey(fileId, plotType);
+    const cached = this.calculatedDataCacheBySliceUriKey.get(key);
+    if (cached) {
+      return cached;
+    }
+
+    this.calculatedDataCacheBySliceUriKey.set(key, calculatedData);
+    this.unavailableCalculatedDataCacheKeys.delete(key);
+    this.calculatedDataCacheKeys.add(key);
+    this.onDidChangeCalculatedDataCacheEmitter.fire({
+      fileId,
+      plotType,
+    });
+    this.schedulePlotDisplayModelPrefetch();
+    return calculatedData;
   }
 
   private getCalculatedDataForFileRecord(file: FileRecord, plotType: PlotType): CalculatedData {
@@ -1465,6 +1592,8 @@ export class PlotService extends Disposable implements IPlotService {
       const file = snapshot.filesById[next.fileId];
       if (file) {
         this.prefetchCalculatedDataForFileRecord(file, next.plotType, snapshot.sessionVersion, next.priority);
+      } else {
+        this.prefetchCalculatedDataForSliceUri(next.fileId, next.plotType);
       }
       processed += 1;
 
@@ -2281,6 +2410,20 @@ export class PlotService extends Disposable implements IPlotService {
 
   private resolveSnapshot(snapshot: SessionSnapshot | undefined): SessionSnapshot | null {
     return snapshot ?? this.sessionService?.getSnapshot() ?? null;
+  }
+
+  private getSliceUriResult(fileId: FileId | null | undefined): SliceUriResult | null {
+    const results = this.sliceService?.getState().uriResultsByResourceKey;
+    if (!results?.size) {
+      return null;
+    }
+
+    const normalizedFileId = normalizeStateKey(fileId);
+    if (normalizedFileId) {
+      return results.get(normalizedFileId) ?? null;
+    }
+
+    return results.values().next().value ?? null;
   }
 
   public getFileAxisSettings(snapshot: SessionSnapshot): PlotFileAxisSettings {

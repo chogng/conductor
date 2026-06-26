@@ -13,10 +13,23 @@ quality, or decide whether the system should apply a template.
 `ISliceService` owns:
 
 - per-file `TemplateSelection` state;
-- `SliceRequest` queue entries from URI-backed review execution controllers or
-  user commands;
+- `SliceRequest` queue entries from legacy Session raw-table execution and
+  `SliceUriRequest` queue entries from URI-backed review execution controllers
+  or user commands;
 - slice file state, priority, cancellation, and queue draining;
-- calling the planner/executor and committing `SliceCommit` through Session.
+- calling the planner/executor and either committing legacy raw-table
+  `SliceCommit` values through Session or retaining URI-backed `SliceUriResult`
+  values in Slice service state.
+- URI-backed public APIs and state snapshots should be named around
+  `resource` / `target` / model references, following upstream resource-model
+  services. Private caches may use `ResourceMap` or a private index, but keyed
+  lookup details must not become public API names.
+- Prefer upstream-shaped names for URI-backed Slice state: public methods such
+  as `getUriResult(target)` / `getUriState(target)`, private caches such as
+  `resultsByResource` / `statesByResource` or `mapResourceToSliceResults`, and
+  nested sheet buckets such as `resultsBySheetId`. Do not export
+  `SliceUriResourceKey`, `createSliceUriResourceKey`, or public
+  `uriResultsByResourceKey` / `uriStatesByResourceKey` fields.
 
 `SlicePlanner` owns deterministic plan creation from immutable inputs:
 `Template`, raw table dimensions, source versions, and Template-provided
@@ -29,18 +42,20 @@ returns a `SliceCommit`. It must not call services or reread Session.
 
 | File | Responsibility |
 | --- | --- |
-| `common/slice.ts` | service contract, `SliceRequest`, `SliceRun`, `SlicePlan`, commit/state/input types. |
+| `common/slice.ts` | service contract, `SliceRequest`, `SliceUriRequest`, `SliceRun`, `SlicePlan`, commit/state/input types. |
 | `common/templateSelection.ts` | per-file `TemplateSelection` records, the automatic-selection sentinel, and normalization helpers owned by Slice state. |
 | `common/slicePlanner.ts` | pure plan/range generation and migration source/table-model signature helpers. |
 | `common/sliceExecutor.ts` | pure row execution into `SliceCommit`. |
-| `browser/sliceService.ts` | injectable owner for queue, selection, progress state, row reading, and Session commit. |
+| `browser/sliceService.ts` | injectable owner for queue, selection, progress state, row reading, Session commit, and URI result cache. |
 | `browser/slicePriority.contribution.ts` | lifecycle subscriber from Explorer selection/hover facts to `ISliceService.prioritize(...)`. |
 | `contrib/slice/browser/sliceCommands.ts` / `sliceActions.ts` | command/action entry for user-triggered slicing; normalizes targets and delegates to `ISliceService`. |
 
 ## Flow
 
+Session raw-table flow:
+
 ```txt
-URI-backed ReviewDecision.ready + application.systemRecommended
+Session RawTableRef + ReviewDecision.ready / manual review result
   -> explicit execution controller validates model/source versions and review signature
   -> ISliceService.submit(SliceRequest[])
   -> SliceService reads reviewed Template snapshot from request
@@ -53,7 +68,24 @@ URI-backed ReviewDecision.ready + application.systemRecommended
   -> Session sliceRunChanged
 ```
 
-Manual flow:
+URI-backed flow:
+
+```txt
+Explorer URI target + ReviewDecision.ready / manual review result
+  -> explicit execution controller validates model/source versions and review signature
+  -> ISliceService.submitUri(SliceUriRequest[])
+  -> SliceService reads reviewed Template snapshot from request
+  -> SlicePlanner.createSlicePlan(...)
+  -> SliceService verifies source/model versions and review/request/template fingerprints
+  -> ITableModelService model reference reads current rows
+  -> SliceService verifies the same plan signatures again
+  -> SliceExecutor.executeSlicePlan(...)
+  -> SliceService retains URI-target state and result
+  -> PlotService creates calculated data for the URI result
+  -> WorkbenchDomainBridge projects chart/explorer state
+```
+
+Manual selection flow:
 
 ```txt
 files.item.setTemplate command
@@ -61,20 +93,22 @@ files.item.setTemplate command
   -> SliceState.templateSelectionsByFileId
 
 command/action/controller
-  -> ReviewService.reviewManualTemplate(...)
+  -> ReviewService.reviewManualTemplate(...) or ReviewService.reviewUriManualTemplate(...)
   -> ready ManualTemplateReviewResult
-  -> ISliceService.submit(SliceRequest(trigger = userCommand))
+  -> ISliceService.submit(...) or ISliceService.submitUri(...)
   -> SliceService reads reviewed inline/saved Template snapshot
-  -> same planner/executor/commit path
+  -> same planner/executor path
+  -> Session commit for legacy raw tables, Slice URI result state for URI targets
 ```
 
 Bulk command flow:
 
 ```txt
 slice.runWithTemplate / slice.runWithTemplateIncremental command
-  -> collect RawTableRef targets from SessionSnapshot
+  -> collect RawTableRef targets from SessionSnapshot and URI targets from Explorer state
   -> review selected Template through Review
-  -> ISliceService.submit(...) for each ready target
+  -> ISliceService.submit(...) for legacy targets
+  -> ISliceService.submitUri(...) for URI targets
 ```
 
 Priority flow:
@@ -93,12 +127,15 @@ Session filesRemoved
 
 Session sessionCleared
   -> SliceService clears queue, file states, selections, active file
+
+TableModel resource changed
+  -> SliceService removes matching URI queue entries and URI results
 ```
 
 Explorer chart state:
 
 ```txt
-SliceState.fileStates + latest SliceRun
+SliceState.fileStates + latest SliceRun + SliceService URI-target state/results
   -> WorkbenchDomainBridge / ExplorerPaneInput
   -> chartState + chartMessage
 
@@ -118,8 +155,9 @@ ReviewService TableReviewSummary
   canonical `Template` snapshots before review.
 - `Template` coordinates are raw-table relative. Runtime provenance belongs to
   `SlicePlan.inputRanges` and `SliceRun.inputRanges`.
-- `commitSliceRuns(...)` is the Session boundary. Do not commit run, series, and
-  curves through separate Session calls.
+- `commitSliceRuns(...)` is the legacy Session boundary. URI-backed slice
+  results stay in Slice service URI-target state and must not be bridged into
+  Session.
 - Slice queue entries must be dropped as stale if their source raw table
   version, review signature, request signature, or reviewed-template
   fingerprint changes before commit.
@@ -127,10 +165,14 @@ ReviewService TableReviewSummary
   `sourceVersion` / `modelVersion` when present, so queued plans and latest-run
   guards can detect editor-model changes in addition to raw table version
   changes.
+- If an implementation needs a string lookup value, keep it private and name it
+  as an implementation detail such as `cacheKey` or `modelId`; do not name it
+  `resourceKey` or expose it from `common/slice.ts`.
 - Contributions only subscribe and delegate. They do not plan, execute, read
   rows, or commit Session.
 - Slice commands may collect stable `RawTableRef` command targets from
-  `SessionSnapshot`, but must not read rows, plan, execute, or commit Session.
+  `SessionSnapshot` and URI targets from Explorer state, but must not read rows,
+  plan, execute, or commit Session.
 
 ## Do Not
 
@@ -142,4 +184,5 @@ ReviewService TableReviewSummary
 - Do not inspect Review confidence, candidate margin, or diagnostics to decide
   automatic execution.
 - Do not store Slice queue/progress in Session.
+- Do not store URI-backed slice results in Session as a compatibility bridge.
 - Do not call or reintroduce a Template-owned apply workflow from Slice.

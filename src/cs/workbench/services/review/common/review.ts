@@ -128,8 +128,13 @@ export type ManualTemplateReviewRequest = {
       }
     | {
         readonly kind: "inline";
-        readonly template: Template;
-      };
+      readonly template: Template;
+    };
+};
+
+export type UriManualTemplateReviewRequest = {
+  readonly target: TableReviewSummaryTarget;
+  readonly selection: ManualTemplateReviewRequest["selection"];
 };
 
 export type ManualTemplateReviewResult =
@@ -208,6 +213,20 @@ export type TableReviewSummary = {
   readonly templateFingerprint?: string;
 };
 
+export type UriTableReview = {
+  readonly resource: URI;
+  readonly sheetId?: SheetId;
+  readonly summary: TableReviewSummary;
+  readonly result?: ReviewResult;
+  readonly tableModel?: TableModelRecord;
+  readonly reviewSignature?: string;
+  readonly sourceModelVersion?: number;
+  readonly sourceVersion?: number;
+  readonly rowCount?: number;
+  readonly columnCount?: number;
+  readonly fileName?: string | null;
+};
+
 export type ReviewEvidenceSignatureContext = {
   readonly columnCount?: number;
   readonly fileName?: string | null;
@@ -221,7 +240,9 @@ export interface IReviewService {
 
   deriveAndReview(input: ReviewInput): ReviewResult;
   getLatestReviewSummary(target: TableReviewSummaryTarget): TableReviewSummary;
+  reviewUriTable(target: TableReviewSummaryTarget): Promise<UriTableReview>;
   reviewManualTemplate(input: ManualTemplateReviewRequest): ManualTemplateReviewResult;
+  reviewUriManualTemplate(input: UriManualTemplateReviewRequest): Promise<ManualTemplateReviewResult>;
 }
 
 export const createReviewEvidenceSignature = ({

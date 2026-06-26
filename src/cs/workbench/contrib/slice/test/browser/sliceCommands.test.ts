@@ -19,12 +19,20 @@ import {
 } from "src/cs/workbench/services/notification/common/notificationService";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import { ISessionService } from "src/cs/workbench/services/session/common/session";
+import {
+	IReviewService,
+	type IReviewService as IReviewServiceType,
+} from "src/cs/workbench/services/review/common/review";
+import {
+	IWorkbenchLayoutService,
+} from "src/cs/workbench/services/layout/browser/layoutService";
 import type { RawTableRef } from "src/cs/workbench/services/session/common/sessionModel";
 import {
 	ISliceService,
 	type RunSliceWithTemplateInput,
 	type SliceRequest,
 	type SliceState,
+	type SliceUriRequest,
 } from "src/cs/workbench/services/slice/common/slice";
 import { createEmptyTemplateEditorConfig } from "src/cs/workbench/services/template/common/templateEditorConfig";
 import {
@@ -49,11 +57,11 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 			}),
 		}));
 
-		assert.deepEqual(sliceService.runs.map(run => run.ref), [{
+		assert.deepEqual(sliceService.autoRefs, [{
 			fileId: "file-a",
 			rawTableId: "table-a",
 		}]);
-		assert.deepEqual(sliceService.runs.map(run => run.selection), [{ kind: "auto" }]);
+		assert.deepEqual(sliceService.runs, []);
 	});
 
 	test("runs inline canonical template selection from the current template form", () => {
@@ -140,6 +148,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 class TestSliceService implements ISliceService {
 	public declare readonly _serviceBrand: undefined;
 	public readonly onDidChangeSliceState = Event.None as Event<void>;
+	public readonly autoRefs: RawTableRef[] = [];
 	public readonly runs: RunSliceWithTemplateInput[] = [];
 
 	public getState(): SliceState {
@@ -148,11 +157,16 @@ class TestSliceService implements ISliceService {
 			fileStates: new Map(),
 			queueLength: 0,
 			templateSelectionsByFileId: {},
+			uriStatesByResourceKey: new Map(),
+			uriResultsByResourceKey: new Map(),
 		};
 	}
 
-	public enqueueAuto(_refs: readonly RawTableRef[]): void {}
+	public enqueueAuto(refs: readonly RawTableRef[]): void {
+		this.autoRefs.push(...refs);
+	}
 	public submit(_requests: readonly SliceRequest[]): void {}
+	public submitUri(_requests: readonly SliceUriRequest[]): void {}
 	public runWithTemplate(input: RunSliceWithTemplateInput): void {
 		this.runs.push(input);
 	}
@@ -177,6 +191,7 @@ const createAccessor = ({
 	const services = new Map<ServiceIdentifier<unknown>, unknown>([
 		[IExplorerService, {
 			_serviceBrand: undefined,
+			getPaneInput: () => null,
 			hasPendingSourceFiles,
 		}],
 		[INotificationService, {
@@ -185,8 +200,13 @@ const createAccessor = ({
 				notifications.push(notification);
 			},
 		}],
+		[IReviewService, createReviewServiceForTest()],
 		[ISessionService, sessionService],
 		[ISliceService, sliceService],
+		[IWorkbenchLayoutService, {
+			_serviceBrand: undefined,
+			navigateToView: () => undefined,
+		}],
 		[ITemplateViewStateService, createTemplateViewStateService(templateState)],
 	]);
 	return {
@@ -205,6 +225,40 @@ const createTemplateViewStateService = (state: TemplateState): ITemplateViewStat
 	onDidChangeTemplateState: Event.None as Event<TemplateState>,
 	selectTemplate: () => false,
 	setFormState: () => undefined,
+});
+
+const createReviewServiceForTest = (): IReviewServiceType => ({
+	_serviceBrand: undefined,
+	deriveAndReview: () => {
+		throw new Error("Unexpected deriveAndReview in slice command test.");
+	},
+	getLatestReviewSummary: target => ({
+		resource: target.resource,
+		...(target.sheetId ? { sheetId: target.sheetId } : {}),
+		state: "missing",
+		findingCodes: [],
+	}),
+	onDidChangeReviewState: Event.None,
+	reviewManualTemplate: () => ({
+		kind: "invalid",
+		diagnostics: [],
+		suggestedActions: [],
+	}),
+	reviewUriManualTemplate: async () => ({
+		kind: "invalid",
+		diagnostics: [],
+		suggestedActions: [],
+	}),
+	reviewUriTable: async target => ({
+		resource: target.resource,
+		...(target.sheetId ? { sheetId: target.sheetId } : {}),
+		summary: {
+			resource: target.resource,
+			...(target.sheetId ? { sheetId: target.sheetId } : {}),
+			state: "missing",
+			findingCodes: [],
+		},
+	}),
 });
 
 const createTemplateState = (overrides: Partial<TemplateState> = {}): TemplateState => ({

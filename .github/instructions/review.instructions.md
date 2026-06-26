@@ -50,8 +50,8 @@ model changes, Recipe changes, and UserTemplate changes. Explorer must not fall
 back to Session raw-table records for URI-backed semantic decorations.
 
 Automatic execution from Review is not wired through a Session review bridge.
-When automatic execution is reintroduced, it must submit explicit URI-backed
-`SliceRequest` values from the current `resource + sheetId` review result, with
+User commands or explicit URI-backed execution controllers read the current
+`resource + sheetId` review result and submit URI-backed slice requests, with
 idempotency and staleness guards based on model/source versions and review
 signatures.
 
@@ -59,11 +59,12 @@ Manual execution:
 
 ```txt
 user command / UserTemplate picker / saved-selection compatibility picker / inline template editor
-  -> IReviewService.reviewManualTemplate(...)
+  -> IReviewService.reviewUriTable({ resource, sheetId })
+  -> IReviewService.reviewUriManualTemplate(...)
   -> ManualTemplateReviewResult
   -> ready result only
-  -> SliceRequest(trigger = userCommand)
-  -> ISliceService.submit(...)
+  -> SliceUriRequest(trigger = userCommand)
+  -> ISliceService.submitUri(...)
 ```
 
 ## Core Files

@@ -38,7 +38,7 @@ import type {
 import type { TableSource } from "src/cs/workbench/services/table/common/table";
 import { createTemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import type { SliceCommit } from "src/cs/workbench/services/slice/common/slice";
+import type { SliceCommit, SliceState } from "src/cs/workbench/services/slice/common/slice";
 
 suite("workbench/browser/workbench Explorer pane input", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1117,11 +1117,15 @@ const createSliceStateForTest = ({
   fileStates = new Map(),
   queueLength = 0,
   templateSelectionsByFileId = {},
+  uriStatesByResourceKey = new Map(),
+  uriResultsByResourceKey = new Map(),
 }: Partial<SliceState> = {}): SliceState => ({
   activeFileId,
   fileStates,
   queueLength,
   templateSelectionsByFileId,
+  uriStatesByResourceKey,
+  uriResultsByResourceKey,
 });
 
 const createDomainBridgeOptionsForTest = ({
@@ -1244,6 +1248,7 @@ const createDomainBridgeOptionsForTest = ({
     runWithTemplate: () => undefined,
     setTemplateSelection: () => undefined,
     submit: () => undefined,
+    submitUri: () => undefined,
   } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["sliceService"],
   settingsService: {
     getConductorSettings: () => undefined,

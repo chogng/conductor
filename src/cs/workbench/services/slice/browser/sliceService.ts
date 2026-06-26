@@ -4,6 +4,7 @@
 
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
+import type { URI } from "src/cs/base/common/uri";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
 import {
@@ -20,14 +21,22 @@ import {
 	type IRawTableRowsReaderService as IRawTableRowsReaderServiceType,
 } from "src/cs/workbench/services/files/common/rawTableRowsReader";
 import {
+	createSliceUriResourceKey,
 	ISliceService,
 	type ISliceService as ISliceServiceType,
 	type RunSliceWithTemplateInput,
+	type SliceCommit,
 	type SliceFileState,
 	type SliceMeasurementBinding,
 	type SlicePlan,
 	type SliceRequest,
 	type SliceState,
+	type SliceUriBaseCurveRecord,
+	type SliceUriRequest,
+	type SliceUriResult,
+	type SliceUriRun,
+	type SliceUriSeriesRecord,
+	type SliceUriTarget,
 } from "src/cs/workbench/services/slice/common/slice";
 import { executeSlicePlan } from "src/cs/workbench/services/slice/common/sliceExecutor";
 import {
@@ -46,10 +55,36 @@ import {
 	IUserTemplateService,
 	type IUserTemplateService as IUserTemplateServiceType,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
+import {
+	ITableModelService,
+	type ITableModelReference,
+	type ITableModelService as ITableModelServiceType,
+} from "src/cs/workbench/services/table/common/resolverService";
+import type {
+	TableModelContentSnapshot,
+	TableModelSheetSnapshot,
+	TableModelSnapshot,
+} from "src/cs/workbench/services/table/common/model";
+import type { TableSource } from "src/cs/workbench/services/table/common/table";
 
-type SliceQueueEntry = {
+type SessionSliceQueueEntry = {
+	readonly kind: "session";
 	readonly ref: RawTableRef;
 	readonly plan: SlicePlan;
+};
+
+type UriSliceQueueEntry = {
+	readonly kind: "uri";
+	readonly request: SliceUriRequest;
+	readonly plan: SlicePlan;
+};
+
+type SliceQueueEntry = SessionSliceQueueEntry | UriSliceQueueEntry;
+
+type ResolvedUriSliceRows = {
+	readonly content: TableModelContentSnapshot;
+	readonly sourceModelVersion: number;
+	readonly sourceVersion: number;
 };
 
 export class SliceService extends Disposable implements ISliceServiceType {
@@ -59,7 +94,9 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	public readonly onDidChangeSliceState = this.onDidChangeSliceStateEmitter.event;
 
 	private readonly fileStates = new Map<string, SliceFileState>();
+	private readonly uriStatesByResourceKey = new Map<string, SliceFileState>();
 	private readonly queue: SliceQueueEntry[] = [];
+	private readonly uriResultsByResourceKey = new Map<string, SliceUriResult>();
 	private templateSelectionsByFileId: Record<string, TemplateSelection> = {};
 	private activeFileId: string | null = null;
 	private isSliceQueueRunning = false;
@@ -68,6 +105,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		@ISessionService private readonly sessionService: ISessionServiceType,
 		@IUserTemplateService private readonly userTemplateService?: IUserTemplateServiceType,
 		@IRawTableRowsReaderService private readonly rawTableRowsReaderService?: IRawTableRowsReaderServiceType,
+		@ITableModelService private readonly tableModelService?: ITableModelServiceType,
 	) {
 		super();
 		this._register(this.sessionService.onDidChangeSession(event => {
@@ -79,14 +117,21 @@ export class SliceService extends Disposable implements ISliceServiceType {
 				this.removeFiles(event.fileIds);
 			}
 		}));
+		if (this.tableModelService) {
+			this._register(this.tableModelService.onDidChangeModel(model => {
+				this.removeUriResultsForResource(model.resource);
+			}));
+		}
 	}
 
 	public getState(): SliceState {
 		return {
 			fileStates: new Map(this.fileStates),
+			uriStatesByResourceKey: new Map(this.uriStatesByResourceKey),
 			queueLength: this.queue.length,
 			activeFileId: this.activeFileId,
 			templateSelectionsByFileId: { ...this.templateSelectionsByFileId },
+			uriResultsByResourceKey: new Map(this.uriResultsByResourceKey),
 		};
 	}
 
@@ -108,8 +153,36 @@ export class SliceService extends Disposable implements ISliceServiceType {
 				continue;
 			}
 
-			this.enqueueSliceEntry({ ref: request.ref, plan });
+			this.enqueueSliceEntry({ kind: "session", ref: request.ref, plan });
 			didChange = this.setFileState(request.ref.fileId, { state: "queued" }) || didChange;
+		}
+		if (didChange) {
+			this.fireSliceStateChange();
+		}
+		this.startSliceQueue();
+	}
+
+	public submitUri(requests: readonly SliceUriRequest[]): void {
+		let didChange = false;
+		for (const request of requests) {
+			const resourceKey = createSliceUriResourceKey(request.target);
+			const plan = this.createUriRequestPlan(request);
+			if (!plan) {
+				didChange = this.setUriState(resourceKey, {
+					state: "skipped",
+					code: "slice.uriRequestInvalid",
+					message: "The URI slice request is no longer valid.",
+				}) || didChange;
+				continue;
+			}
+
+			if (request.trigger.kind === "reviewDecision" && this.isLatestUriAutoRunCurrent(request, plan)) {
+				didChange = this.setUriState(resourceKey, { state: "ready" }) || didChange;
+				continue;
+			}
+
+			this.enqueueSliceEntry({ kind: "uri", request, plan });
+			didChange = this.setUriState(resourceKey, { state: "queued" }) || didChange;
 		}
 		if (didChange) {
 			this.fireSliceStateChange();
@@ -136,7 +209,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 				continue;
 			}
 
-			this.enqueueSliceEntry({ ref, plan });
+			this.enqueueSliceEntry({ kind: "session", ref, plan });
 			didChange = this.setFileState(ref.fileId, { state: "queued" }) || didChange;
 		}
 		if (didChange) {
@@ -164,7 +237,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			return;
 		}
 
-		this.enqueueSliceEntry({ ref: normalizedRef, plan });
+		this.enqueueSliceEntry({ kind: "session", ref: normalizedRef, plan });
 		if (this.setFileState(normalizedRef.fileId, { state: "queued" })) {
 			this.fireSliceStateChange();
 		}
@@ -178,7 +251,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		}
 
 		this.activeFileId = normalizedFileId;
-		const index = this.queue.findIndex(entry => entry.ref.fileId === normalizedFileId);
+		const index = this.queue.findIndex(entry => getSliceQueueEntryStateKey(entry) === normalizedFileId);
 		if (index > 0) {
 			const [entry] = this.queue.splice(index, 1);
 			if (entry) {
@@ -194,15 +267,17 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		let didChange = false;
 		for (let index = this.queue.length - 1; index >= 0; index -= 1) {
 			const entry = this.queue[index];
-			if (!entry || (!cancelAll && !normalizedFileIds.has(entry.ref.fileId))) {
+			const fileId = entry ? getSliceQueueEntryStateKey(entry) : null;
+			if (!entry || !fileId || (!cancelAll && !normalizedFileIds.has(fileId))) {
 				continue;
 			}
 			this.queue.splice(index, 1);
-			didChange = this.setFileState(entry.ref.fileId, { state: "none" }) || didChange;
+			didChange = this.setQueueEntryState(entry, { state: "none" }) || didChange;
 		}
 		if (cancelAll) {
-			didChange = this.fileStates.size > 0 || didChange;
+			didChange = this.fileStates.size > 0 || this.uriStatesByResourceKey.size > 0 || didChange;
 			this.fileStates.clear();
+			this.uriStatesByResourceKey.clear();
 			this.activeFileId = null;
 		}
 		if (didChange) {
@@ -289,6 +364,33 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		});
 	}
 
+	private createUriRequestPlan(request: SliceUriRequest): SlicePlan | null {
+		const ref = createRawTableRefFromUriTarget(request.target, request.tableModel.rawTableId);
+		if (!ref) {
+			return null;
+		}
+
+		const plan = createSlicePlan({
+			ref,
+			mode: request.trigger.kind === "reviewDecision" ? "auto" : "manual",
+			selection: request.trigger.kind === "reviewDecision"
+				? { kind: "auto" }
+				: { kind: "inline", template: request.reviewedTemplate.template },
+			sourceRawTableVersion: request.tableModel.sourceRawTableVersion,
+			sourceTableModelSignature: createSliceTableModelSignature(request.tableModel, {
+				reviewSignature: request.trigger.kind === "reviewDecision"
+					? request.trigger.reviewSignature
+					: request.requestSignature,
+			}),
+			measurement: getSliceMeasurementBinding(request.tableModel),
+			template: request.reviewedTemplate.template,
+			templateFingerprint: request.reviewedTemplate.templateFingerprint,
+			rowCount: request.rowCount,
+			columnCount: request.columnCount,
+		});
+		return plan.errors.length ? null : plan;
+	}
+
 	private createManualPlan(ref: RawTableRef, selection: TemplateSelection): SlicePlan | null {
 		const snapshot = this.sessionService.getSnapshot();
 		const file = snapshot.filesById[ref.fileId];
@@ -347,7 +449,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	}
 
 	private startSliceQueue(): void {
-		if (!this.rawTableRowsReaderService || this.isSliceQueueRunning) {
+		if (this.isSliceQueueRunning || !this.queue.length || !this.canProcessQueuedSlices()) {
 			return;
 		}
 
@@ -355,7 +457,8 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	}
 
 	private enqueueSliceEntry(entry: SliceQueueEntry): void {
-		const index = this.queue.findIndex(candidate => sameRawTableRef(candidate.ref, entry.ref));
+		const entryKey = getSliceQueueEntryKey(entry);
+		const index = this.queue.findIndex(candidate => getSliceQueueEntryKey(candidate) === entryKey);
 		if (index === -1) {
 			this.queue.push(entry);
 			return;
@@ -365,7 +468,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	}
 
 	private async drainSliceQueue(): Promise<void> {
-		if (!this.rawTableRowsReaderService || this.isSliceQueueRunning) {
+		if (this.isSliceQueueRunning || !this.canProcessQueuedSlices()) {
 			return;
 		}
 
@@ -377,8 +480,28 @@ export class SliceService extends Disposable implements ISliceServiceType {
 					continue;
 				}
 
-				this.setFileState(entry.ref.fileId, { state: "processing" });
+				const fileId = getSliceQueueEntryStateKey(entry);
+				if (!fileId) {
+					continue;
+				}
+
+				this.setQueueEntryState(entry, { state: "processing" });
 				this.fireSliceStateChange();
+
+				if (entry.kind === "uri") {
+					await this.processUriSliceEntry(entry);
+					continue;
+				}
+
+				if (!this.rawTableRowsReaderService) {
+					if (this.queue.some(candidate => candidate.kind === "uri" && this.tableModelService)) {
+						this.queue.push(entry);
+						continue;
+					}
+
+					this.queue.unshift(entry);
+					break;
+				}
 
 				if (!this.isCurrentSlicePlan(entry.plan)) {
 					this.dropStaleSliceEntry(entry);
@@ -416,7 +539,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			}
 		} finally {
 			this.isSliceQueueRunning = false;
-			if (this.rawTableRowsReaderService && this.queue.length) {
+			if (this.queue.length) {
 				this.startSliceQueue();
 			}
 		}
@@ -452,11 +575,77 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		return true;
 	}
 
+	private canProcessQueuedSlices(): boolean {
+		return this.queue.some(entry =>
+			entry.kind === "uri"
+				? Boolean(this.tableModelService)
+				: Boolean(this.rawTableRowsReaderService)
+		);
+	}
+
+	private async processUriSliceEntry(entry: UriSliceQueueEntry): Promise<void> {
+		const resourceKey = createSliceUriResourceKey(entry.request.target);
+		const resolved = await this.readRowsForUriRequest(entry.request);
+		if (!resolved) {
+			this.setUriState(resourceKey, {
+				state: "failed",
+				code: "slice.uriRowsUnavailable",
+				message: "URI table rows are unavailable for slicing.",
+			});
+			this.fireSliceStateChange();
+			return;
+		}
+
+		if (!this.isCurrentUriSlicePlan(entry, resolved)) {
+			this.dropStaleSliceEntry(entry);
+			return;
+		}
+
+		const commit = executeSlicePlan({
+			plan: entry.plan,
+			rows: resolved.content.rows,
+		});
+		const result = createSliceUriResult({
+			commit,
+			completedAt: Date.now(),
+			request: entry.request,
+			resourceKey,
+			sourceModelVersion: resolved.sourceModelVersion,
+			sourceVersion: resolved.sourceVersion,
+		});
+		this.uriResultsByResourceKey.set(resourceKey, result);
+		this.setUriState(resourceKey, result.run.errors.length
+			? {
+				state: "failed",
+				code: result.run.errors[0] ?? "slice.failed",
+				message: "Slice failed.",
+			}
+			: { state: "ready" });
+		this.fireSliceStateChange();
+	}
+
+	private isCurrentUriSlicePlan(
+		entry: UriSliceQueueEntry,
+		resolved: ResolvedUriSliceRows,
+	): boolean {
+		return entry.request.sourceModelVersion === resolved.sourceModelVersion &&
+			entry.request.sourceVersion === resolved.sourceVersion &&
+			entry.request.rowCount === resolved.content.rowCount &&
+			entry.request.columnCount === resolved.content.columnCount &&
+			entry.plan.sourceTableModelSignature === this.createUriRequestPlan(entry.request)?.sourceTableModelSignature &&
+			entry.plan.templateFingerprint === entry.request.reviewedTemplate.templateFingerprint;
+	}
+
 	private dropStaleSliceEntry(entry: SliceQueueEntry): void {
-		if (this.queue.some(candidate => candidate.ref.fileId === entry.ref.fileId)) {
-			this.setFileState(entry.ref.fileId, { state: "queued" });
+		const stateKey = getSliceQueueEntryStateKey(entry);
+		if (!stateKey) {
+			return;
+		}
+
+		if (this.queue.some(candidate => getSliceQueueEntryStateKey(candidate) === stateKey)) {
+			this.setQueueEntryState(entry, { state: "queued" });
 		} else {
-			this.fileStates.delete(entry.ref.fileId);
+			this.deleteQueueEntryState(entry);
 		}
 		this.fireSliceStateChange();
 	}
@@ -477,6 +666,42 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			lastModified: file.raw.lastModified ?? null,
 			rowStore: toRawTableRowsStore(table),
 		});
+	}
+
+	private async readRowsForUriRequest(
+		request: SliceUriRequest,
+	): Promise<ResolvedUriSliceRows | null> {
+		if (!this.tableModelService) {
+			return null;
+		}
+
+		let reference: ITableModelReference | null = null;
+		try {
+			reference = await this.tableModelService.createModelReference(
+				request.target.resource,
+				createTableSourceFromUriTarget(request.target),
+			);
+			const snapshot = reference.object.getSnapshot();
+			if (snapshot.loadState.state !== "ready") {
+				return null;
+			}
+
+			const selectedSheet = getUriSliceSheet(snapshot, request.target.sheetId ?? null);
+			const content = selectedSheet?.content ?? snapshot.content;
+			if (!content) {
+				return null;
+			}
+
+			return {
+				content,
+				sourceModelVersion: snapshot.version,
+				sourceVersion: snapshot.sourceVersion,
+			};
+		} catch {
+			return null;
+		} finally {
+			reference?.dispose();
+		}
 	}
 
 	private resolveTemplate(selection: TemplateSelection): Template | null {
@@ -506,6 +731,22 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		);
 	}
 
+	private isLatestUriAutoRunCurrent(request: SliceUriRequest, plan: SlicePlan): boolean {
+		const result = this.uriResultsByResourceKey.get(createSliceUriResourceKey(request.target));
+		const run = result?.run;
+		return Boolean(
+			result &&
+				run.mode === "auto" &&
+				run.sourceRawTableVersion === plan.sourceRawTableVersion &&
+				run.sourceTableModelSignature === plan.sourceTableModelSignature &&
+				run.templateFingerprint === plan.templateFingerprint &&
+				result.sourceModelVersion === request.sourceModelVersion &&
+				result.sourceVersion === request.sourceVersion &&
+				result.requestSignature === request.requestSignature &&
+				run.errors.length === 0,
+		);
+	}
+
 	private setFileState(fileId: string, state: SliceFileState): boolean {
 		const current = this.fileStates.get(fileId);
 		if (isSameSliceFileState(current, state)) {
@@ -516,13 +757,49 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		return true;
 	}
 
+	private setUriState(resourceKey: string, state: SliceFileState): boolean {
+		const current = this.uriStatesByResourceKey.get(resourceKey);
+		if (isSameSliceFileState(current, state)) {
+			return false;
+		}
+
+		this.uriStatesByResourceKey.set(resourceKey, state);
+		return true;
+	}
+
+	private setQueueEntryState(entry: SliceQueueEntry, state: SliceFileState): boolean {
+		const stateKey = getSliceQueueEntryStateKey(entry);
+		if (!stateKey) {
+			return false;
+		}
+
+		return entry.kind === "uri"
+			? this.setUriState(stateKey, state)
+			: this.setFileState(stateKey, state);
+	}
+
+	private deleteQueueEntryState(entry: SliceQueueEntry): boolean {
+		const stateKey = getSliceQueueEntryStateKey(entry);
+		if (!stateKey) {
+			return false;
+		}
+
+		return entry.kind === "uri"
+			? this.uriStatesByResourceKey.delete(stateKey)
+			: this.fileStates.delete(stateKey);
+	}
+
 	private clearState(): void {
 		const didChange = this.queue.length > 0 ||
 			this.fileStates.size > 0 ||
+			this.uriStatesByResourceKey.size > 0 ||
+			this.uriResultsByResourceKey.size > 0 ||
 			Object.keys(this.templateSelectionsByFileId).length > 0 ||
 			this.activeFileId !== null;
 		this.queue.length = 0;
 		this.fileStates.clear();
+		this.uriStatesByResourceKey.clear();
+		this.uriResultsByResourceKey.clear();
 		this.templateSelectionsByFileId = {};
 		this.activeFileId = null;
 		if (didChange) {
@@ -539,7 +816,8 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		let didChange = false;
 		for (let index = this.queue.length - 1; index >= 0; index -= 1) {
 			const entry = this.queue[index];
-			if (entry && normalizedFileIds.has(entry.ref.fileId)) {
+			const fileId = entry ? getSliceQueueEntryStateKey(entry) : null;
+			if (fileId && normalizedFileIds.has(fileId)) {
 				this.queue.splice(index, 1);
 				didChange = true;
 			}
@@ -561,10 +839,116 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		}
 	}
 
+	private removeUriResultsForResource(resource: URI): void {
+		const resourceKey = normalizeResourceKey(resource);
+		if (!resourceKey) {
+			return;
+		}
+
+		let didChange = false;
+		for (let index = this.queue.length - 1; index >= 0; index -= 1) {
+			const entry = this.queue[index];
+			if (entry?.kind === "uri" && normalizeResourceKey(entry.request.target.resource) === resourceKey) {
+				this.queue.splice(index, 1);
+				didChange = true;
+			}
+		}
+		for (const [resourceResultKey, result] of this.uriResultsByResourceKey) {
+			if (normalizeResourceKey(result.target.resource) !== resourceKey) {
+				continue;
+			}
+			this.uriResultsByResourceKey.delete(resourceResultKey);
+			this.uriStatesByResourceKey.delete(resourceResultKey);
+			didChange = true;
+		}
+		if (didChange) {
+			this.fireSliceStateChange();
+		}
+	}
+
 	private fireSliceStateChange(): void {
 		this.onDidChangeSliceStateEmitter.fire(undefined);
 	}
 }
+
+const createSliceUriResult = ({
+	commit,
+	completedAt,
+	request,
+	resourceKey,
+	sourceModelVersion,
+	sourceVersion,
+}: {
+	readonly commit: SliceCommit;
+	readonly completedAt: number;
+	readonly request: SliceUriRequest;
+	readonly resourceKey: string;
+	readonly sourceModelVersion: number;
+	readonly sourceVersion: number;
+}): SliceUriResult => ({
+	target: request.target,
+	resourceKey,
+	run: createSliceUriRun(commit.run, request.target),
+	series: commit.series.map(series => createSliceUriSeriesRecord(series, request.target)),
+	curves: commit.curves.flatMap(curve => createSliceUriCurveRecord(curve, request.target) ?? []),
+	requestSignature: request.requestSignature,
+	sourceModelVersion,
+	sourceVersion,
+	completedAt,
+});
+
+const createSliceUriRun = (
+	run: SliceCommit["run"],
+	target: SliceUriTarget,
+): SliceUriRun => {
+	const { fileId: _fileId, inputRanges, rawTableId: _rawTableId, ...rest } = run;
+	return {
+		...rest,
+		resource: target.resource,
+		sheetId: target.sheetId ?? null,
+		inputRanges: inputRanges.map(inputRange => ({
+			resource: target.resource,
+			sheetId: target.sheetId ?? null,
+			range: inputRange.range,
+		})),
+	};
+};
+
+const createSliceUriSeriesRecord = (
+	series: SliceCommit["series"][number],
+	target: SliceUriTarget,
+): SliceUriSeriesRecord => {
+	const { fileId: _fileId, sheetId: _sheetId, ...rest } = series;
+	return {
+		...rest,
+		resource: target.resource,
+		sheetId: target.sheetId ?? null,
+	};
+};
+
+const createSliceUriCurveRecord = (
+	curve: SliceCommit["curves"][number],
+	target: SliceUriTarget,
+): SliceUriBaseCurveRecord | null => {
+	if (curve.curveGeneration !== "base") {
+		return null;
+	}
+
+	const { fileId: _fileId, lineage, ...rest } = curve;
+	return {
+		...rest,
+		resource: target.resource,
+		sheetId: target.sheetId ?? null,
+		lineage: {
+			...lineage,
+			baseSeries: {
+				resource: target.resource,
+				sheetId: target.sheetId ?? null,
+				seriesId: lineage.baseSeries.seriesId,
+			},
+		},
+	};
+};
 
 const normalizeTemplateSelection = (
 	selection: TemplateSelection,
@@ -584,6 +968,50 @@ const normalizeRawTableRef = (
 	const fileId = normalizeText(ref?.fileId);
 	const rawTableId = normalizeText(ref?.rawTableId);
 	return fileId && rawTableId ? { fileId, rawTableId } : null;
+};
+
+const getSliceQueueEntryStateKey = (
+	entry: SliceQueueEntry,
+): string | null => entry.kind === "uri"
+	? createSliceUriResourceKey(entry.request.target)
+	: normalizeText(entry.ref.fileId);
+
+const getSliceQueueEntryKey = (
+	entry: SliceQueueEntry,
+): string => entry.kind === "uri"
+	? `uri:${createSliceUriResourceKey(entry.request.target)}`
+	: `session:${entry.ref.fileId}\u0000${entry.ref.rawTableId}`;
+
+const createRawTableRefFromUriTarget = (
+	target: SliceUriTarget,
+	fallbackRawTableId: string,
+): RawTableRef | null => {
+	const fileId = createSliceUriResourceKey(target);
+	const rawTableId = normalizeText(target.sheetId) ||
+		normalizeText(fallbackRawTableId) ||
+		normalizeResourceKey(target.resource);
+	return fileId && rawTableId ? { fileId, rawTableId } : null;
+};
+
+const createTableSourceFromUriTarget = (
+	target: SliceUriTarget,
+): TableSource => ({
+	resource: target.resource,
+	...(normalizeText(target.sheetId) ? { sheetId: normalizeText(target.sheetId) } : {}),
+});
+
+const getUriSliceSheet = (
+	snapshot: TableModelSnapshot,
+	requestedSheetId: string | null,
+): TableModelSheetSnapshot | null => {
+	const sheetId = normalizeText(requestedSheetId);
+	if (sheetId) {
+		return snapshot.sheets.find(sheet => sheet.sheetId === sheetId) ?? null;
+	}
+
+	return snapshot.sheets.find(sheet => sheet.sheetId === snapshot.defaultSheetId) ??
+		snapshot.sheets[0] ??
+		null;
 };
 
 const uniqueRawTableRefs = (
@@ -607,14 +1035,11 @@ const uniqueRawTableRefs = (
 	return result;
 };
 
-const sameRawTableRef = (
-	left: RawTableRef,
-	right: RawTableRef,
-): boolean =>
-	left.fileId === right.fileId &&
-	left.rawTableId === right.rawTableId;
-
 const normalizeText = (value: unknown): string => String(value ?? "").trim();
+
+const normalizeResourceKey = (
+	resource: URI | null | undefined,
+): string => normalizeText(resource?.toString()).replace(/\\/g, "/");
 
 const createAutomaticSliceRequestSignature = ({
 	reviewSignature,
