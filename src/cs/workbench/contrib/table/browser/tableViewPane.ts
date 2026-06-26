@@ -368,7 +368,7 @@ const getHeaderLabel = (mode: HeaderMode): string => {
 };
 
 const getHeaderState = ({ tableState }: TableViewPaneProps): HeaderState => {
-  const hasSelectedFile = Boolean(tableState.selectedFileId && tableState.fileName);
+  const hasSelectedFile = Boolean(tableState.sourceKey && tableState.fileName);
 
   return {
     fileName: tableState.fileName,

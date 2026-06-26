@@ -71,7 +71,6 @@ export type TableWidgetSelection = {
 };
 
 export type TableWidgetFile = {
-  readonly fileId: string;
   readonly fileName: string;
   readonly sheetId?: string | null;
   readonly sourceKey?: string;
@@ -85,7 +84,6 @@ export type TableWidgetLoadState = {
 };
 
 export type TableWidgetState = {
-  readonly selectedFileId: string | null;
   readonly selectedSheetId?: string | null;
   readonly sourceKey?: string | null;
   readonly fileName: string;
@@ -109,7 +107,7 @@ type TableWidgetRowsVersionChangeEvent = {
 
 export type TableWidgetModel = {
   readonly ensureRows: (
-    fileId: string,
+    sourceKey: string,
     startRow: number,
     endRow: number,
   ) => Promise<void>;
@@ -661,7 +659,7 @@ export class TableWidget {
     try {
       const { tableState } = this.props;
       const tableFile = tableState.file;
-      const sourceKey = tableState.sourceKey ?? tableState.selectedFileId ?? null;
+      const sourceKey = tableState.sourceKey ?? null;
       const keepRenderedTableWhilePendingSource = this.shouldKeepRenderedTableWhilePendingSource(
         tableFile,
         sourceKey,
@@ -681,7 +679,7 @@ export class TableWidget {
         this.grid.resetScrollTop();
       }
 
-      if (!tableState.selectedFileId || !tableFile) {
+      if (!sourceKey || !tableFile) {
         if (keepRenderedTableWhilePendingSource) {
           outcome = "loadingPreviousTable";
           didAttachContent = this.grid.attachContent();
@@ -775,7 +773,7 @@ export class TableWidget {
       if (!tableFile || tableFile.rowCount <= 0 || tableFile.columnCount <= 0) {
         if (this.shouldKeepRenderedTableWhilePendingSource(
           tableFile,
-          tableState.sourceKey ?? tableState.selectedFileId ?? null,
+          tableState.sourceKey ?? null,
         )) {
           outcome = "pendingSource";
           this.grid.attachContent();
@@ -802,8 +800,9 @@ export class TableWidget {
       this.syncCachedGridState();
       this.syncSelectionState();
 
-      if (tableFile?.fileId) {
-        this.ensureRows(tableViewModel, tableFile.sourceKey ?? tableFile.fileId, this.getBodyRowRange());
+      const sourceKey = tableFile.sourceKey ?? tableState.sourceKey ?? null;
+      if (sourceKey) {
+        this.ensureRows(tableViewModel, sourceKey, this.getBodyRowRange());
       }
 
       return gridChanged;
@@ -1123,8 +1122,7 @@ export class TableWidget {
         displayVersion: tableState.displayVersion ?? null,
         loadState: tableState.loadState.state,
         rowCount: tableFile?.rowCount ?? 0,
-        selectedFileId: tableState.selectedFileId ?? null,
-        sourceKey: tableState.sourceKey ?? tableFile?.sourceKey ?? tableState.selectedFileId ?? null,
+        sourceKey: tableState.sourceKey ?? tableFile?.sourceKey ?? null,
         visibleColumnStart: columnRange.startIndex,
         visibleColumns: columnRange.renderedCount,
         visibleRowStart: rowRange.startIndex,
@@ -1161,8 +1159,9 @@ export class TableWidget {
 
     this.syncSelectionState();
     const tableFile = this.props.tableState.file;
-    if (tableFile?.fileId) {
-      this.ensureRows(this.props.tableViewModel, tableFile.sourceKey ?? tableFile.fileId, this.getBodyRowRange());
+    const sourceKey = tableFile?.sourceKey ?? this.props.tableState.sourceKey ?? null;
+    if (sourceKey) {
+      this.ensureRows(this.props.tableViewModel, sourceKey, this.getBodyRowRange());
     }
     return true;
   }
@@ -1372,7 +1371,7 @@ export class TableWidget {
     tableFile: TableWidgetState["file"] | null | undefined,
     sourceKey: string | null,
   ): boolean {
-    const hasSelectedSource = Boolean(this.props.tableState.selectedFileId && sourceKey);
+    const hasSelectedSource = Boolean(sourceKey);
     const isPendingSelectedSource = hasSelectedSource &&
       !tableFile &&
       this.props.tableState.loadState.state !== "error";
@@ -1389,7 +1388,7 @@ export class TableWidget {
     const { tableState } = this.props;
     return this.grid.isContentAttached() &&
       tableState.loadState.state !== "loading" &&
-      Boolean(tableState.selectedFileId && tableState.file);
+      Boolean(tableState.sourceKey && tableState.file);
   }
 
   private getVisibleBodyCell(rowOffset: number, columnOffset: number): BodyCell | null {
@@ -1745,7 +1744,7 @@ export class TableWidget {
 
     const cell: TableCell = {
       colIndex: target.colIndex,
-      fileId: tableFile.fileId,
+      fileId: null,
       rowIndex: target.rowIndex,
       sheetId: tableFile.sheetId ?? null,
     };
@@ -1893,7 +1892,7 @@ export class TableWidget {
       kind: "range",
       range: {
         ...range,
-        fileId: tableFile.fileId,
+        fileId: null,
         sheetId: tableFile.sheetId ?? null,
       },
     }, reveal);
@@ -2038,7 +2037,7 @@ export class TableWidget {
       kind: "cell",
       cell: {
         colIndex: target.colIndex,
-        fileId: tableFile?.fileId ?? null,
+        fileId: null,
         rowIndex: target.rowIndex,
         sheetId: tableFile?.sheetId ?? null,
       },
@@ -2162,7 +2161,7 @@ export class TableWidget {
       kind: "cell",
       cell: {
         colIndex: target.colIndex,
-        fileId: tableFile?.fileId ?? null,
+        fileId: null,
         rowIndex: target.rowIndex,
         sheetId: tableFile?.sheetId ?? null,
       },
@@ -2314,12 +2313,10 @@ const getTableWidgetInputKey = ({
 }: TableWidgetProps): string => {
   const file = tableState.file;
   return [
-    tableState.selectedFileId ?? "",
     tableState.selectedSheetId ?? "",
     tableState.sourceKey ?? "",
     tableState.loadState.state,
     tableState.loadState.message,
-    file?.fileId ?? "",
     file?.sheetId ?? "",
     file?.sourceKey ?? "",
     file?.rowCount ?? "",

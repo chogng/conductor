@@ -20,15 +20,9 @@ export const workbenchIpcChannels = {
   excelConvertRust: "conductor:excel:convert-rust",
   excelReadConvertedCsv: "conductor:excel:read-converted-csv",
   demoFilesGet: "conductor:demo:files:get",
-  rustHostOpen: "conductor:rust:open",
-  rustHostPreviewMeta: "conductor:rust:preview-meta",
-  rustHostPreviewRows: "conductor:rust:preview-rows",
-  rustHostReadCell: "conductor:rust:read-cell",
-  rustHostReadCells: "conductor:rust:read-cells",
   rustHostCalculateRc: "conductor:rust:calculate-rc",
   rustHostExportOriginCsv: "conductor:rust:export-origin-csv",
   originZipSave: "conductor:origin:zip:save",
-  rustHostDispose: "conductor:rust:dispose",
 } as const;
 
 export type WorkbenchIpcChannel = (typeof workbenchIpcChannels)[keyof typeof workbenchIpcChannels];

@@ -153,22 +153,10 @@ export const resolveRustWorkerExecutablePath = ({
 export class RustWorkerHost implements IRustWorkerHost {
   public declare readonly _serviceBrand: undefined;
 
-  private previewChild: ChildProcessWithoutNullStreams | null = null;
-  private previewStdoutBuffer = "";
-  private previewRequestId = 0;
-  private readonly previewPending = new Map<number, PendingRustRequest>();
   private readonly processingSlots: RustWorkerSlot[] = [];
   private processingSlotCursor = 0;
 
   constructor(private readonly options: RustWorkerHostOptions) {}
-
-  public sendCommand(
-    command: string,
-    payload: RustWorkerCommandPayload = {},
-    options: RustWorkerCommandOptions = {},
-  ): Promise<unknown> {
-    return this.sendPreviewCommand(command, payload, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-  }
 
   public sendProcessingCommand(
     command: string,
@@ -184,21 +172,6 @@ export class RustWorkerHost implements IRustWorkerHost {
     );
   }
 
-  public async clear(): Promise<void> {
-    await this.sendCommand("clear", {}, { timeoutMs: DISPOSE_TIMEOUT_MS });
-  }
-
-  public async disposeFile(fileId: string): Promise<void> {
-    if (!fileId) return;
-    const [previewDispose] = await Promise.allSettled([
-      this.sendCommand("dispose", { fileId }, { timeoutMs: DISPOSE_TIMEOUT_MS }),
-      this.disposeProcessingFile(fileId),
-    ]);
-    if (previewDispose.status === "rejected") {
-      throw previewDispose.reason;
-    }
-  }
-
   public async disposeProcessingFile(fileId: string): Promise<void> {
     if (!fileId) return;
     const disposals = this.processingSlots
@@ -211,7 +184,6 @@ export class RustWorkerHost implements IRustWorkerHost {
 
   public stop(): void {
     this.stopProcessingEngines();
-    this.stopPreviewEngine();
   }
 
   private getExecutablePath(): string {
@@ -221,137 +193,6 @@ export class RustWorkerHost implements IRustWorkerHost {
     }
 
     return executablePath;
-  }
-
-  private ensurePreviewEngine(): ChildProcessWithoutNullStreams {
-    if (this.previewChild && !this.previewChild.killed) {
-      return this.previewChild;
-    }
-
-    const child = spawn(this.getExecutablePath(), ["--stdio-worker"], {
-      stdio: ["pipe", "pipe", "pipe"],
-      windowsHide: true,
-    });
-    this.previewChild = child;
-    this.previewStdoutBuffer = "";
-
-    child.stdout?.setEncoding("utf8");
-    child.stdout?.on("data", (chunk) => {
-      this.previewStdoutBuffer += String(chunk ?? "");
-      while (true) {
-        const newlineIndex = this.previewStdoutBuffer.indexOf("\n");
-        if (newlineIndex < 0) break;
-        const line = this.previewStdoutBuffer.slice(0, newlineIndex);
-        this.previewStdoutBuffer = this.previewStdoutBuffer.slice(newlineIndex + 1);
-        this.handlePreviewLine(line);
-      }
-    });
-
-    child.stderr?.setEncoding("utf8");
-    child.stderr?.on("data", (chunk) => {
-      const text = String(chunk ?? "").trim();
-      if (text) console.warn("[rust]", text);
-    });
-
-    child.on("error", (error) => {
-      if (this.previewChild === child) this.previewChild = null;
-      this.rejectPreviewPending(error);
-    });
-
-    child.on("exit", (code, signal) => {
-      if (this.previewChild === child) this.previewChild = null;
-      this.rejectPreviewPending(
-        new Error(
-          `conductor-rs exited (code=${code ?? "null"} signal=${signal ?? "null"}).`,
-        ),
-      );
-    });
-
-    return child;
-  }
-
-  private sendPreviewCommand(
-    command: string,
-    payload: RustWorkerCommandPayload,
-    timeoutMs: number,
-  ): Promise<unknown> {
-    const child = this.ensurePreviewEngine();
-    const id = (this.previewRequestId += 1);
-    const message = JSON.stringify({ id, command, ...payload });
-
-    return new Promise((resolve, reject) => {
-      const timeoutId = setTimeout(() => {
-        this.previewPending.delete(id);
-        reject(new Error(`conductor-rs command timed out: ${command}`));
-      }, timeoutMs);
-
-      this.previewPending.set(id, { reject, resolve, timeoutId });
-
-      try {
-        child.stdin.write(`${message}\n`, "utf8", (error) => {
-          if (!error) return;
-          this.previewPending.delete(id);
-          clearTimeout(timeoutId);
-          reject(error);
-        });
-      } catch (error) {
-        this.previewPending.delete(id);
-        clearTimeout(timeoutId);
-        reject(error);
-      }
-    });
-  }
-
-  private handlePreviewLine(line: string): void {
-    const text = String(line ?? "").trim();
-    if (!text) return;
-
-    let message: Record<string, unknown> | null = null;
-    try {
-      message = JSON.parse(text) as Record<string, unknown>;
-    } catch (error) {
-      console.warn("[rust] invalid conductor-rs JSON:", (error as Error)?.message || error);
-      return;
-    }
-
-    const id = Number(message?.id);
-    if (!Number.isFinite(id)) return;
-    const pending = this.previewPending.get(id);
-    if (!pending) return;
-
-    this.previewPending.delete(id);
-    clearTimeout(pending.timeoutId);
-
-    if (message?.ok === true) {
-      pending.resolve(message.result ?? {});
-      return;
-    }
-
-    const errorMessage =
-      typeof message?.error === "object" &&
-      message.error &&
-      typeof (message.error as { message?: unknown }).message === "string" &&
-      (message.error as { message: string }).message.trim()
-        ? (message.error as { message: string }).message
-        : "conductor-rs failed.";
-    pending.reject(new Error(errorMessage));
-  }
-
-  private rejectPreviewPending(error: unknown): void {
-    for (const pending of this.previewPending.values()) {
-      clearTimeout(pending.timeoutId);
-      pending.reject(error);
-    }
-    this.previewPending.clear();
-  }
-
-  private stopPreviewEngine(): void {
-    if (!this.previewChild) return;
-    const child = this.previewChild;
-    this.previewChild = null;
-    this.previewStdoutBuffer = "";
-    this.rejectPreviewPending(new Error("conductor-rs stopped."));
-    this.forceStopChildProcess(child);
   }
 
   private createProcessingSlot(name: string): RustWorkerSlot {

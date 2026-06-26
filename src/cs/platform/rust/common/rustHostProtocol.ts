@@ -20,37 +20,6 @@ export type RustHostResponse =
       message: string;
     };
 
-export type OpenFileRequest = {
-  fileId: string;
-  fileName: string;
-  inputPath: string;
-  seedRows: number;
-};
-
-export type PreviewRowsRequest = {
-  endRow: number;
-  fileId: string;
-  startRow: number;
-};
-
-export type PreviewMetaRequest = {
-  fileId: string;
-};
-
-export type ReadCellRequest = {
-  colIndex: number;
-  fileId: string;
-  rowIndex: number;
-};
-
-export type ReadCellsRequest = {
-  cells: Array<{
-    colIndex: number;
-    rowIndex: number;
-  }>;
-  fileId: string;
-};
-
 export type CalculateRcRequest = {
   devices: unknown[];
   options: Record<string, unknown>;
@@ -73,18 +42,7 @@ export type ExportOriginCsvRequest = {
   yTransform?: unknown;
 };
 
-export type DisposeFileRequest = {
-  clear: boolean;
-  fileId: string;
-};
-
 export interface IRustHostService {
   calculateRc(request: CalculateRcRequest): Promise<RustHostResponse>;
-  disposeFile(request: DisposeFileRequest): Promise<RustHostResponse>;
   exportOriginCsv(request: ExportOriginCsvRequest): Promise<RustHostResponse>;
-  openFile(request: OpenFileRequest): Promise<RustHostResponse>;
-  previewMeta(request: PreviewMetaRequest): Promise<RustHostResponse>;
-  previewRows(request: PreviewRowsRequest): Promise<RustHostResponse>;
-  readCell(request: ReadCellRequest): Promise<RustHostResponse>;
-  readCells(request: ReadCellsRequest): Promise<RustHostResponse>;
 }

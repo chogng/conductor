@@ -5,13 +5,9 @@
 import { localize } from "src/cs/nls";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
-import type {
-  SessionFile,
-} from "src/cs/workbench/services/session/common/sessionTypes";
 import {
   type TableDirtyRange,
   type TableViewModel,
-  type TableRowsReaderProvider,
   type TableRowsVersionChangeEvent,
   type TableSource,
   getTableSourceIdentityKey,
@@ -27,13 +23,15 @@ import {
   type ColumnDisplayProfile,
   type NumericDisplayMode,
 } from "src/cs/workbench/services/table/common/tableDisplayProfile";
-import type { TableModelContentSnapshot } from "src/cs/workbench/services/table/common/model";
-import { loadConvertedCsvFile } from "src/cs/workbench/services/files/browser/fileConverter";
+import type {
+  TableModelContentSnapshot,
+  TableModelPreviewInput,
+} from "src/cs/workbench/services/table/common/model";
 
-// TableViewModel owns the service data plane: source switching, worker lifecycle,
-// row paging, cache state, and the command-visible selection/highlight/reveal
-// snapshot. The pure cache/cell-read helpers live here so callers do not depend
-// on small implementation files beside the view-model owner.
+// TableViewModel owns the service data plane: source switching, row paging,
+// cache state, and the command-visible selection/highlight/reveal snapshot. The
+// pure cache/cell-read helpers live here so callers do not depend on small
+// implementation files beside the view-model owner.
 
 type TableCellReadRequest = Parameters<TableViewModel["ensureCells"]>[1][number];
 type TableState = ReturnType<TableViewModel["getState"]>;
@@ -41,7 +39,10 @@ type TableCell = NonNullable<ReturnType<TableViewModel["getRevealCell"]>>;
 type TableSelection = ReturnType<TableViewModel["getSelection"]>;
 type TableRange = NonNullable<TableSelection["ranges"]>[number];
 type TableFile = NonNullable<TableState["file"]>;
-export type TablePreviewSourceInput = SessionFile;
+export type TableViewModelPreviewInput = {
+  readonly input: TableModelPreviewInput;
+  readonly source?: TableSource | null;
+};
 type TableHighlight = ReturnType<TableViewModel["getHighlight"]>;
 type TableLoadState = TableState["loadState"];
 
@@ -57,10 +58,6 @@ const TABLE_COLUMN_DISPLAY_SCALE_MAX_EXPONENT = 99;
 
 type TableRowCache = Map<number, unknown[]>;
 type TableLoadedChunks = Set<number>;
-
-type TableCellReadResult = TableCellReadRequest & {
-  value?: unknown;
-};
 
 export type MissingTableRowChunkRange = {
   readonly rangeStart: number;
@@ -196,33 +193,6 @@ export const areTableSelectionsEqual = (
 export const sanitizeTableRowBatch = (rows: unknown): unknown[][] => {
   if (!Array.isArray(rows)) return [];
   return rows.map(row => Array.isArray(row) ? row : []);
-};
-
-export const isTableRowBatchResultForRequest = ({
-  requestFileId,
-  payloadSourceKey,
-  requestStartRow,
-  payloadFileId,
-  payloadStartRow,
-}: {
-  readonly requestFileId: unknown;
-  readonly payloadSourceKey?: unknown;
-  readonly requestStartRow: unknown;
-  readonly payloadFileId: unknown;
-  readonly payloadStartRow: unknown;
-}): boolean => {
-  const expectedFileId =
-    typeof requestFileId === "string" ? requestFileId : String(requestFileId || "");
-  const actualFileId =
-    typeof payloadFileId === "string" ? payloadFileId : String(payloadFileId || "");
-  const actualSourceKey =
-    typeof payloadSourceKey === "string" ? payloadSourceKey : String(payloadSourceKey || "");
-  const expectedStart = Math.max(0, toSafeInt(requestStartRow, 0));
-  const actualStart = Math.max(0, toSafeInt(payloadStartRow, 0));
-  return (
-    (expectedFileId === actualFileId || expectedFileId === actualSourceKey) &&
-    expectedStart === actualStart
-  );
 };
 
 export const hasChunkRowsInCache = (
@@ -626,107 +596,11 @@ const normalizeTableDirtyRange = (
   };
 };
 
-const toTableDirtyRangesFromRows = (
-  rows: Iterable<unknown>,
-): readonly TableDirtyRange[] => {
-  const rowIndexes = Array.from(rows)
-    .map(toSafeIndex)
-    .filter((index): index is number => index !== null)
-    .sort((left, right) => left - right);
-  if (!rowIndexes.length) {
-    return [];
-  }
-
-  const ranges: TableDirtyRange[] = [];
-  let startRow = rowIndexes[0];
-  let endRow = startRow + 1;
-  for (const rowIndex of rowIndexes.slice(1)) {
-    if (rowIndex <= endRow) {
-      endRow = Math.max(endRow, rowIndex + 1);
-    } else {
-      ranges.push({ startRow, endRow });
-      startRow = rowIndex;
-      endRow = rowIndex + 1;
-    }
-  }
-  ranges.push({ startRow, endRow });
-  return ranges;
-};
-
-export const buildTableCellReadRequests = ({
-  columnCount,
-  maxCells = 5000,
-  rowIndices,
-}: {
-  readonly columnCount: number;
-  readonly maxCells?: number;
-  readonly rowIndices: Iterable<unknown>;
-}): TableCellReadRequest[] => {
-  const safeColumnCount = Math.floor(Number(columnCount));
-  if (!Number.isInteger(safeColumnCount) || safeColumnCount <= 0) return [];
-
-  const rows = Array.from(rowIndices)
-    .map(toSafeIndex)
-    .filter((rowIndex): rowIndex is number => rowIndex !== null);
-  const uniqueRows = Array.from(new Set(rows)).sort((a, b) => a - b);
-  const safeMaxCells = Math.max(1, Math.floor(Number(maxCells) || 1));
-  if (uniqueRows.length * safeColumnCount > safeMaxCells) return [];
-
-  const cells: TableCellReadRequest[] = [];
-  for (const rowIndex of uniqueRows) {
-    for (let colIndex = 0; colIndex < safeColumnCount; colIndex += 1) {
-      cells.push({ colIndex, rowIndex });
-    }
-  }
-  return cells;
-};
-
-export const rowsFromTableCellReads = ({
-  cells,
-  columnCount,
-}: {
-  readonly cells: unknown;
-  readonly columnCount: number;
-}): Map<number, unknown[]> => {
-  const safeColumnCount = Math.floor(Number(columnCount));
-  const rows = new Map<number, unknown[]>();
-  if (!Array.isArray(cells) || safeColumnCount <= 0) return rows;
-
-  for (const rawCell of cells) {
-    if (!rawCell || typeof rawCell !== "object") continue;
-    const cell = rawCell as TableCellReadResult;
-    const rowIndex = toSafeIndex(cell.rowIndex);
-    const colIndex = toSafeIndex(cell.colIndex);
-    if (rowIndex === null || colIndex === null || colIndex >= safeColumnCount) {
-      continue;
-    }
-
-    let row = rows.get(rowIndex);
-    if (!row) {
-      row = Array.from({ length: safeColumnCount }, () => "");
-      rows.set(rowIndex, row);
-    }
-    row[colIndex] = cell.value ?? "";
-  }
-
-  return rows;
-};
-
 type SetStateAction<T> = T | ((previous: T) => T);
 type Dispatch<T> = (value: T) => void;
 
 type TableMutableRef<T> = {
   current: T;
-};
-
-type TableRowsRequest = {
-  fileId: string;
-  sheetId?: string | null;
-  sourceKey?: string;
-  startRow: number;
-  endRow: number;
-  reject: (error: unknown) => void;
-  resolve: (rows: unknown[][]) => void;
 };
 
 type EffectState = {
@@ -877,7 +751,6 @@ const memoCallback = <T extends (...args: any[]) => any>(
   callback: T,
   deps?: unknown[],
 ): T => getActiveTableStateScope().memoValue(() => callback, deps);
-const readImmediateValue = <T,>(value: T): T => value;
 const runEffect = (
   effect: () => void | (() => void),
   deps?: unknown[],
@@ -891,38 +764,46 @@ const formatTableFileName = (fileName: string | null | undefined): string =>
   fileName ? String(fileName).replace(/\.csv$/i, "") : "";
 
 type TableSourceEntry = {
-  readonly entry: TablePreviewSourceInput;
+  readonly content: TableModelContentSnapshot | null;
+  readonly input: TableModelPreviewInput;
   readonly source: TableSource;
   readonly sourceKey: string;
   readonly sourceVersion: number;
   readonly sheetName: string | null;
 };
 
-const readEntryString = (entry: TablePreviewSourceInput | null | undefined, key: string): string | null => {
-  const value = entry?.[key];
+const readPreviewInputString = (
+  input: TableModelPreviewInput | null | undefined,
+  key: keyof TableModelPreviewInput,
+): string | null => {
+  const value = input?.[key];
   return typeof value === "string" && value.trim() ? value.trim() : null;
 };
 
-const getEntrySheetName = (entry: TablePreviewSourceInput | null | undefined): string | null =>
-  readEntryString(entry, "sheetName") ??
-  readEntryString(entry, "worksheetName");
+const getPreviewInputSheetName = (
+  input: TableModelPreviewInput | null | undefined,
+): string | null => readPreviewInputString(input, "sheetName");
 
-const getEntrySheetId = (entry: TablePreviewSourceInput | null | undefined): string | null =>
-  readEntryString(entry, "sheetId") ??
-  readEntryString(entry, "worksheetId") ??
-  getEntrySheetName(entry);
+const getPreviewInputSheetId = (
+  input: TableModelPreviewInput | null | undefined,
+): string | null =>
+  readPreviewInputString(input, "sheetId") ??
+  getPreviewInputSheetName(input);
 
-const getEntryResource = (entry: TablePreviewSourceInput | null | undefined): URI | null => {
-  const resource = entry?.resource;
+const getPreviewInputResource = (
+  input: TableModelPreviewInput | null | undefined,
+  source: TableSource | null | undefined,
+): URI | null => {
+  const resource = input?.resource ?? source?.resource;
   return resource && typeof resource === "object" && typeof (resource as URI).toString === "function"
     ? resource as URI
     : null;
 };
 
-const getEntryTableModelContent = (
-  entry: TablePreviewSourceInput | null | undefined,
+const getPreviewInputTableModelContent = (
+  input: TableModelPreviewInput | null | undefined,
 ): TableModelContentSnapshot | null => {
-  const content = entry?.tableModelContent;
+  const content = input?.tableModelContent;
   if (!content || typeof content !== "object") {
     return null;
   }
@@ -931,39 +812,39 @@ const getEntryTableModelContent = (
   return Array.isArray(candidate.rows) ? candidate as TableModelContentSnapshot : null;
 };
 
-const createTableSourceEntry = (entry: TablePreviewSourceInput): TableSourceEntry | null => {
-  const fileId = readEntryString(entry, "fileId");
-  const resource = getEntryResource(entry);
-  if (!fileId && !resource) {
+const createTableSourceEntry = ({
+  input,
+  source,
+}: TableViewModelPreviewInput): TableSourceEntry | null => {
+  const resource = getPreviewInputResource(input, source);
+  if (!resource) {
     return null;
   }
 
-  const sheetId = getEntrySheetId(entry);
-  const sourceKey = readEntryString(entry, "sourceKey");
-  const source: TableSource = {
-    ...(fileId ? { fileId } : {}),
-    ...(resource ? { resource } : {}),
+  const sheetId = source?.sheetId ?? getPreviewInputSheetId(input);
+  const resolvedSource: TableSource = {
+    resource,
     sheetId,
-    ...(sourceKey ? { sourceKey } : {}),
   };
-  const resolvedSourceKey = sourceKey ?? toTableSourceKey(source);
+  const resolvedSourceKey = toTableSourceKey(resolvedSource);
   if (!resolvedSourceKey) {
     return null;
   }
 
   return {
-    entry,
-    sheetName: getEntrySheetName(entry),
-    source,
-    sourceVersion: normalizeSourceVersion(entry.sourceVersion),
+    content: getPreviewInputTableModelContent(input),
+    input,
+    sheetName: getPreviewInputSheetName(input),
+    source: resolvedSource,
+    sourceVersion: normalizeSourceVersion(input.sourceVersion),
     sourceKey: resolvedSourceKey,
   };
 };
 
-const isUnhealthyTableSource = (entry: TablePreviewSourceInput): boolean =>
-  entry.rawTableHealth === "decodeFailed" ||
-  entry.rawTableHealth === "parseFailed" ||
-  entry.rawTableHealth === "unsupported";
+const isUnhealthyTableSource = (input: TableModelPreviewInput): boolean =>
+  input.rawTableHealth === "decodeFailed" ||
+  input.rawTableHealth === "parseFailed" ||
+  input.rawTableHealth === "unsupported";
 
 const shouldCacheColumnDisplayProfile = (
   sampleCount: number,
@@ -1019,9 +900,9 @@ const collectNumericColumnSamples = (
   };
 };
 
-const getUnhealthyTableMessage = (entry: TablePreviewSourceInput): string => {
-  const message = String(entry.rawTableHealthMessage ?? "").trim().toLowerCase();
-  if (entry.rawTableHealth === "decodeFailed") {
+const getUnhealthyTableMessage = (input: TableModelPreviewInput): string => {
+  const message = String(input.rawTableHealthMessage ?? "").trim().toLowerCase();
+  if (input.rawTableHealth === "decodeFailed") {
     if (message.includes("converted csv")) {
       return localize(
         "table.preview.convertedCsvUnreadable",
@@ -1039,13 +920,13 @@ const getUnhealthyTableMessage = (entry: TablePreviewSourceInput): string => {
       "File content cannot be decoded as a valid CSV table.",
     );
   }
-  if (entry.rawTableHealth === "parseFailed") {
+  if (input.rawTableHealth === "parseFailed") {
     return localize(
       "table.preview.parseFailed",
       "File content could not pass CSV table structure validation.",
     );
   }
-  if (entry.rawTableHealth === "unsupported") {
+  if (input.rawTableHealth === "unsupported") {
     return localize(
       "table.preview.unsupported",
       "This file format is not supported for table preview.",
@@ -1061,19 +942,17 @@ const getUnhealthyTableMessage = (entry: TablePreviewSourceInput): string => {
 const createTableFileFromSourceEntry = (
   sourceEntry: TableSourceEntry,
 ): TableFile => ({
-  ...(sourceEntry.source.fileId ? { fileId: sourceEntry.source.fileId } : {}),
-  fileName: String(sourceEntry.entry.fileName ?? ""),
+  fileName: String(sourceEntry.input.fileName ?? ""),
   sheetId: sourceEntry.source.sheetId ?? null,
   sheetName: sourceEntry.sheetName,
   sourceKey: sourceEntry.sourceKey,
   sourceVersion: sourceEntry.sourceVersion,
-  rawTableHealth: sourceEntry.entry.rawTableHealth,
-  rawTableHealthMessage: sourceEntry.entry.rawTableHealthMessage,
-  templateEligibility: sourceEntry.entry.templateEligibility,
-  rowCount: Math.max(0, Math.floor(Number(sourceEntry.entry.rowCount) || 0)),
-  columnCount: Math.max(0, Math.floor(Number(sourceEntry.entry.columnCount) || 0)),
-  maxCellLengths: Array.isArray(sourceEntry.entry.maxCellLengths)
-    ? sourceEntry.entry.maxCellLengths.map(value => Number(value) || 0)
+  rawTableHealth: sourceEntry.input.rawTableHealth,
+  rawTableHealthMessage: sourceEntry.input.rawTableHealthMessage,
+  rowCount: Math.max(0, Math.floor(Number(sourceEntry.input.rowCount) || 0)),
+  columnCount: Math.max(0, Math.floor(Number(sourceEntry.input.columnCount) || 0)),
+  maxCellLengths: Array.isArray(sourceEntry.input.maxCellLengths)
+    ? sourceEntry.input.maxCellLengths.map(value => Number(value) || 0)
     : [],
 });
 
@@ -1094,7 +973,6 @@ export const areTableFilesEqual = (
   current: TableFile | null | undefined,
   next: TableFile,
 ): boolean =>
-  current?.fileId === next.fileId &&
   current?.fileName === next.fileName &&
   current?.sheetId === next.sheetId &&
   current?.sheetName === next.sheetName &&
@@ -1113,43 +991,9 @@ export const areTableFilesEqual = (
 const normalizeSourceVersion = (value: unknown): number =>
   Math.max(0, Math.floor(Number(value) || 0));
 
-type TablePreviewResultPayload = {
-  requestId: number;
-  fileId: string;
-  fileName: string;
-  sheetId?: string | null;
-  sheetName?: string | null;
-  sourceKey?: string;
-  rowCount: number;
-  columnCount: number;
-  maxCellLengths: number[];
-  seedRows?: unknown[][];
-  seedStartRow?: number;
-};
-
-type TableRowsResultPayload = {
-  requestId: number;
-  fileId: string;
-  sourceKey?: string;
-  startRow: number;
-  rows: unknown[][];
-};
-
-type WorkerErrorPayload = {
-  requestId: number;
-  message: string;
-};
-
-type WorkerMessage =
-  | { type: "tablePreviewResult"; payload: TablePreviewResultPayload }
-  | { type: "tableRowsResult"; payload: TableRowsResultPayload }
-  | { type: "workerError"; payload: WorkerErrorPayload }
-  | { type?: string; payload?: Record<string, unknown> | null };
-
 type TableViewModelInput = {
   numericDisplayMode?: NumericDisplayMode;
-  tableRowsReaderService?: TableRowsReaderProvider;
-  rawFiles?: TablePreviewSourceInput[];
+  previewInputs?: readonly TableViewModelPreviewInput[];
   settingsVersion?: number;
   source?: TableSource | null;
 };
@@ -1159,21 +1003,15 @@ export type CreateTableViewModelWithScopeOptions = TableViewModelInput & {
   loadState?: TableLoadState;
   setFile?: Dispatch<SetStateAction<TableFile | null>>;
   setLoadState?: Dispatch<SetStateAction<TableLoadState>>;
-  workerRef?: TableMutableRef<unknown | null>;
-  requestIdRef?: TableMutableRef<number>;
-  rowsRequestIdRef?: TableMutableRef<number>;
-  rowsRequestsRef?: TableMutableRef<Map<number, TableRowsRequest>>;
-  rowsCacheByFileIdRef?: TableMutableRef<Map<string, Map<number, unknown[]>>>;
-  loadedChunksByFileIdRef?: TableMutableRef<Map<string, Set<number>>>;
+  rowsCacheBySourceKeyRef?: TableMutableRef<Map<string, Map<number, unknown[]>>>;
+  loadedChunksBySourceKeyRef?: TableMutableRef<Map<string, Set<number>>>;
   rowsCacheRef?: TableMutableRef<Map<number, unknown[]>>;
   loadedChunksRef?: TableMutableRef<Set<number>>;
-  cacheFileIdRef?: TableMutableRef<string | null>;
-  cacheFileLruRef?: TableMutableRef<Set<string>>;
+  cacheSourceKeyRef?: TableMutableRef<string | null>;
+  cacheSourceLruRef?: TableMutableRef<Set<string>>;
 };
 
-type UseTableOptions = Omit<CreateTableViewModelWithScopeOptions, "workerRef"> & {
-  workerRef?: TableMutableRef<Worker | null>;
-};
+type UseTableOptions = CreateTableViewModelWithScopeOptions;
 type CreateTableOptions = UseTableOptions;
 
 const TABLE_LOAD_STATE_IDLE: TableLoadState = { state: "idle", message: "" };
@@ -1206,57 +1044,39 @@ type TableCopyPlan = {
 };
 
 const createTableViewModel = ({
-  tableRowsReaderService,
-  rawFiles = [],
+  previewInputs = [],
   source = null,
   numericDisplayMode = "raw",
   settingsVersion = 0,
   file,
   setFile,
   setLoadState,
-  workerRef,
-  requestIdRef,
   loadState,
-  rowsRequestIdRef,
-  rowsRequestsRef,
-  rowsCacheByFileIdRef,
-  loadedChunksByFileIdRef,
+  rowsCacheBySourceKeyRef,
+  loadedChunksBySourceKeyRef,
   rowsCacheRef,
   loadedChunksRef,
-  cacheFileIdRef,
-  cacheFileLruRef,
+  cacheSourceKeyRef,
+  cacheSourceLruRef,
 }: CreateTableOptions) => {
-  if (!tableRowsReaderService) {
-    throw new Error("Table model requires ITableRowsReaderService.");
-  }
-
-  const activeFileId = source?.fileId ?? null;
   const activeSheetId = source?.sheetId ?? null;
   const activeSourceIdentityKey = getTableSourceIdentityKey(source);
   const hasControlledPreviewFile = file !== undefined;
   const hasControlledPreviewStatus = loadState !== undefined;
   const previewFile = file ?? null;
   const previewStatus = loadState ?? TABLE_LOAD_STATE_IDLE;
-  const ownedPreviewWorkerRef = createTableRef<Worker | null>(null);
-  const ownedPreviewRequestIdRef = createTableRef(0);
-  const ownedTableRowsRequestIdRef = createTableRef(0);
-  const ownedTableRowsRequestsRef = createTableRef(new Map<number, TableRowsRequest>());
-  const ownedTableRowsCacheByFileIdRef = createTableRef(new Map<string, Map<number, unknown[]>>());
-  const ownedPreviewLoadedChunksByFileIdRef = createTableRef(new Map<string, Set<number>>());
+  const ownedTableRowsCacheBySourceKeyRef = createTableRef(new Map<string, Map<number, unknown[]>>());
+  const ownedPreviewLoadedChunksBySourceKeyRef = createTableRef(new Map<string, Set<number>>());
   const ownedTableRowsCacheRef = createTableRef(new Map<number, unknown[]>());
   const ownedPreviewLoadedChunksRef = createTableRef(new Set<number>());
-  const ownedPreviewCacheFileIdRef = createTableRef<string | null>(null);
-  const ownedPreviewCacheFileLruRef = createTableRef(new Set<string>());
-  const previewWorkerRef = workerRef ?? ownedPreviewWorkerRef;
-  const previewRequestIdRef = requestIdRef ?? ownedPreviewRequestIdRef;
-  const tableRowsRequestIdRef = rowsRequestIdRef ?? ownedTableRowsRequestIdRef;
-  const tableRowsRequestsRef = rowsRequestsRef ?? ownedTableRowsRequestsRef;
-  const tableRowsCacheByFileIdRef = rowsCacheByFileIdRef ?? ownedTableRowsCacheByFileIdRef;
-  const previewLoadedChunksByFileIdRef = loadedChunksByFileIdRef ?? ownedPreviewLoadedChunksByFileIdRef;
+  const ownedPreviewCacheSourceKeyRef = createTableRef<string | null>(null);
+  const ownedPreviewCacheSourceLruRef = createTableRef(new Set<string>());
+  const tableRowsCacheBySourceKeyRef = rowsCacheBySourceKeyRef ?? ownedTableRowsCacheBySourceKeyRef;
+  const previewLoadedChunksBySourceKeyRef = loadedChunksBySourceKeyRef ?? ownedPreviewLoadedChunksBySourceKeyRef;
   const tableRowsCacheRef = rowsCacheRef ?? ownedTableRowsCacheRef;
   const previewLoadedChunksRef = loadedChunksRef ?? ownedPreviewLoadedChunksRef;
-  const previewCacheFileIdRef = cacheFileIdRef ?? ownedPreviewCacheFileIdRef;
-  const previewCacheFileLruRef = cacheFileLruRef ?? ownedPreviewCacheFileLruRef;
+  const previewCacheSourceKeyRef = cacheSourceKeyRef ?? ownedPreviewCacheSourceKeyRef;
+  const previewCacheSourceLruRef = cacheSourceLruRef ?? ownedPreviewCacheSourceLruRef;
   const {
     cancelRowsVersionNotification,
     getRowsVersion,
@@ -1273,15 +1093,11 @@ const createTableViewModel = ({
   const revealCellSubscribersRef = createTableRef(new Set<(cell: TableCell | null) => void>());
   const stateSubscribersRef = createTableRef(new Set<() => void>());
 
-  const deferredActiveFileId = readImmediateValue(activeFileId);
-  const deferredActiveSheetId = readImmediateValue(activeSheetId);
   const previewStatusRef = createTableRef<TableLoadState>(previewStatus);
   const previewFileRef = createTableRef<TableFile | null>(previewFile);
-  const previewPendingChunksByFileIdRef = createTableRef<Map<string, Set<number>>>(
+  const previewPendingChunksBySourceKeyRef = createTableRef<Map<string, Set<number>>>(
     new Map(),
   );
-  const readerOpenedSourceKeysRef = createTableRef<Set<string>>(new Set());
-  const pendingPreviewFileIdRef = createTableRef<string | null>(null);
   const columnDisplayProfileCacheRef = createTableRef(new Map<string, ColumnDisplayProfile>());
   const columnDisplayScaleOverridesRef = createTableRef(new Map<string, number>());
   const columnDisplayScaleOverrideVersionRef = createTableRef(0);
@@ -1334,33 +1150,19 @@ const createTableViewModel = ({
   const sourceEntries = memoValue(() => {
     const entries: TableSourceEntry[] = [];
 
-    for (const entry of Array.isArray(rawFiles) ? rawFiles : []) {
-      const sourceEntry = createTableSourceEntry(entry);
+    for (const input of Array.isArray(previewInputs) ? previewInputs : []) {
+      const sourceEntry = createTableSourceEntry(input);
       if (!sourceEntry) continue;
       entries.push(sourceEntry);
     }
 
     return entries;
-  }, [rawFiles]);
+  }, [previewInputs]);
 
   const sourcesByKey = memoValue(() => {
     const map = new Map<string, TableSourceEntry>();
     for (const sourceEntry of sourceEntries) {
       map.set(sourceEntry.sourceKey, sourceEntry);
-    }
-    return map;
-  }, [sourceEntries]);
-
-  const sourcesByFileId = memoValue(() => {
-    const map = new Map<string, TableSourceEntry[]>();
-    for (const sourceEntry of sourceEntries) {
-      const fileId = sourceEntry.source.fileId;
-      if (!fileId) {
-        continue;
-      }
-      const fileSources = map.get(fileId) ?? [];
-      fileSources.push(sourceEntry);
-      map.set(fileId, fileSources);
     }
     return map;
   }, [sourceEntries]);
@@ -1384,34 +1186,13 @@ const createTableViewModel = ({
       }
     }
 
-    if (!deferredActiveFileId) {
-      return null;
-    }
-
-    const fileSources = sourcesByFileId.get(deferredActiveFileId);
-    if (!fileSources?.length) {
-      return null;
-    }
-
-    if (deferredActiveSheetId) {
-      const selectedSheetSource = fileSources.find(
-        (sourceEntry) => sourceEntry.source.sheetId === deferredActiveSheetId,
-      );
-      if (selectedSheetSource) {
-        return selectedSheetSource;
-      }
-    }
-
-    return fileSources[0] ?? null;
+    return null;
   }, [
-    deferredActiveFileId,
-    deferredActiveSheetId,
     activeSourceIdentityKey,
     activeSheetId,
     source,
     sourceEntries,
     sourcesByKey,
-    sourcesByFileId,
   ]);
 
   const activeSourceKey = selectedSource?.sourceKey ?? null;
@@ -1419,16 +1200,11 @@ const createTableViewModel = ({
     ? `${selectedSource.sourceKey}:${selectedSource.sourceVersion}`
     : null;
   const sourcesByKeyRef = createTableRef(new Map<string, TableSourceEntry>());
-  const sourcesByFileIdRef = createTableRef(new Map<string, TableSourceEntry[]>());
   const activeSourceKeyRef = createTableRef<string | null>(activeSourceKey);
 
   runEffect(() => {
     sourcesByKeyRef.current = sourcesByKey;
   }, [sourcesByKey]);
-
-  runEffect(() => {
-    sourcesByFileIdRef.current = sourcesByFileId;
-  }, [sourcesByFileId]);
 
   runEffect(() => {
     activeSourceKeyRef.current = activeSourceKey;
@@ -1469,40 +1245,34 @@ const createTableViewModel = ({
     }
   }, [activeSourceSignature]);
 
-  const clearPendingPreviewRequest = memoCallback((requestId: number) => {
-    if (requestId === previewRequestIdRef.current) {
-      pendingPreviewFileIdRef.current = null;
-    }
-  }, [previewRequestIdRef]);
+  const getOrCreatePreviewSourceCaches = memoCallback(
+    (sourceKey: string) => {
+      const cacheBySourceKey = tableRowsCacheBySourceKeyRef.current;
+      const chunksBySourceKey = previewLoadedChunksBySourceKeyRef.current;
 
-  const getOrCreatePreviewFileCaches = memoCallback(
-    (fileId: string) => {
-      const cacheByFileId = tableRowsCacheByFileIdRef.current;
-      const chunksByFileId = previewLoadedChunksByFileIdRef.current;
-
-      let rowCache = cacheByFileId.get(fileId);
+      let rowCache = cacheBySourceKey.get(sourceKey);
       if (!rowCache) {
         rowCache = new Map<number, unknown[]>();
-        cacheByFileId.set(fileId, rowCache);
+        cacheBySourceKey.set(sourceKey, rowCache);
       }
 
-      let loadedChunks = chunksByFileId.get(fileId);
+      let loadedChunks = chunksBySourceKey.get(sourceKey);
       if (!loadedChunks) {
         loadedChunks = new Set<number>();
-        chunksByFileId.set(fileId, loadedChunks);
+        chunksBySourceKey.set(sourceKey, loadedChunks);
       }
 
       return { loadedChunks, rowCache };
     },
-    [previewLoadedChunksByFileIdRef, tableRowsCacheByFileIdRef],
+    [previewLoadedChunksBySourceKeyRef, tableRowsCacheBySourceKeyRef],
   );
 
-  const getOrCreatePendingChunks = memoCallback((fileId: string) => {
-    const pendingByFileId = previewPendingChunksByFileIdRef.current;
-    let pendingChunks = pendingByFileId.get(fileId);
+  const getOrCreatePendingChunks = memoCallback((sourceKey: string) => {
+    const pendingBySourceKey = previewPendingChunksBySourceKeyRef.current;
+    let pendingChunks = pendingBySourceKey.get(sourceKey);
     if (!pendingChunks) {
       pendingChunks = new Set<number>();
-      pendingByFileId.set(fileId, pendingChunks);
+      pendingBySourceKey.set(sourceKey, pendingChunks);
     }
     return pendingChunks;
   }, []);
@@ -1545,12 +1315,12 @@ const createTableViewModel = ({
   ]);
 
   const mergePreviewSeedRows = memoCallback(
-    (fileId: string, startRow: number, rows: unknown[][]) => {
-      if (!fileId) return false;
+    (sourceKey: string, startRow: number, rows: unknown[][]) => {
+      if (!sourceKey) return false;
       const safeRows = sanitizeTableRowBatch(rows);
       if (!safeRows.length) return false;
 
-      const { loadedChunks, rowCache } = getOrCreatePreviewFileCaches(fileId);
+      const { loadedChunks, rowCache } = getOrCreatePreviewSourceCaches(sourceKey);
       const safeStart = Math.max(0, Math.floor(Number(startRow) || 0));
       const merged = mergeChunkRangeRows({
         rowCache,
@@ -1561,7 +1331,7 @@ const createTableViewModel = ({
         chunkSize: TABLE_UI_CHUNK_SIZE_ROWS,
         maxChunks: TABLE_MAX_CACHED_UI_CHUNKS_PER_FILE,
       });
-      if (merged.complete && previewCacheFileIdRef.current === fileId) {
+      if (merged.complete && previewCacheSourceKeyRef.current === sourceKey) {
         notifyTableRowsCacheChanged([{
           startRow: safeStart,
           endRow: safeStart + safeRows.length,
@@ -1569,54 +1339,28 @@ const createTableViewModel = ({
       }
       return merged.complete;
     },
-    [getOrCreatePreviewFileCaches, notifyTableRowsCacheChanged, previewCacheFileIdRef],
+    [getOrCreatePreviewSourceCaches, notifyTableRowsCacheChanged, previewCacheSourceKeyRef],
   );
 
   const cancelPendingTableRowRequests = memoCallback(() => {
-    const pendingRequests = tableRowsRequestsRef.current;
-    for (const request of pendingRequests.values()) {
-      try {
-        request?.resolve?.([]);
-      } catch {
-        // ignore
-      }
-    }
-
-    pendingRequests.clear();
-    previewPendingChunksByFileIdRef.current = new Map();
-  }, [tableRowsRequestsRef]);
+    previewPendingChunksBySourceKeyRef.current = new Map();
+  }, [previewPendingChunksBySourceKeyRef]);
 
   const assignCurrentPreviewCache = memoCallback(
     ({
-      fileId = null,
+      sourceKey = null,
       loadedChunks = new Set<number>(),
       rowCache = new Map<number, unknown[]>(),
     }: {
-      fileId?: string | null;
+      sourceKey?: string | null;
       loadedChunks?: Set<number>;
       rowCache?: Map<number, unknown[]>;
     } = {}) => {
-      previewCacheFileIdRef.current = fileId;
+      previewCacheSourceKeyRef.current = sourceKey;
       tableRowsCacheRef.current = rowCache;
       previewLoadedChunksRef.current = loadedChunks;
     },
-    [previewCacheFileIdRef, previewLoadedChunksRef, tableRowsCacheRef],
-  );
-
-  const releasePreviewSource = memoCallback(
-    (fileId: string) => {
-      if (typeof fileId !== "string" || !fileId) return;
-
-      previewWorkerRef.current?.postMessage({
-        type: "tableDispose",
-        payload: { fileId },
-      });
-      readerOpenedSourceKeysRef.current.delete(fileId);
-      if (tableRowsReaderService.canReleaseSource()) {
-        void tableRowsReaderService.releaseSource({ fileId });
-      }
-    },
-    [readerOpenedSourceKeysRef, previewWorkerRef, tableRowsReaderService],
+    [previewCacheSourceKeyRef, previewLoadedChunksRef, tableRowsCacheRef],
   );
 
   const resetCurrentPreviewCache = memoCallback(() => {
@@ -1625,18 +1369,10 @@ const createTableViewModel = ({
   }, [assignCurrentPreviewCache, notifyTableRowsCacheChanged]);
 
   const clearAllPreviewCaches = memoCallback(() => {
-    previewWorkerRef.current?.postMessage({
-      type: "tableDispose",
-      payload: { clear: true },
-    });
-    tableRowsCacheByFileIdRef.current = new Map();
-    previewLoadedChunksByFileIdRef.current = new Map();
-    previewCacheFileLruRef.current = new Set();
-    previewPendingChunksByFileIdRef.current = new Map();
-    readerOpenedSourceKeysRef.current = new Set();
-    if (tableRowsReaderService.canReleaseSource()) {
-      void tableRowsReaderService.releaseSource({ clear: true });
-    }
+    tableRowsCacheBySourceKeyRef.current = new Map();
+    previewLoadedChunksBySourceKeyRef.current = new Map();
+    previewCacheSourceLruRef.current = new Set();
+    previewPendingChunksBySourceKeyRef.current = new Map();
     assignCurrentPreviewCache();
     columnDisplayProfileCacheRef.current = new Map();
     notifyTableRowsCacheChanged();
@@ -1644,27 +1380,25 @@ const createTableViewModel = ({
     assignCurrentPreviewCache,
     columnDisplayProfileCacheRef,
     notifyTableRowsCacheChanged,
-    readerOpenedSourceKeysRef,
-    previewCacheFileLruRef,
-    previewLoadedChunksByFileIdRef,
-    tableRowsCacheByFileIdRef,
-    previewWorkerRef,
-    tableRowsReaderService,
+    previewCacheSourceLruRef,
+    previewLoadedChunksBySourceKeyRef,
+    tableRowsCacheBySourceKeyRef,
   ]);
 
   const invalidatePreviewRequests = memoCallback(() => {
-    previewRequestIdRef.current += 1;
     cancelPendingTableRowRequests();
-    pendingPreviewFileIdRef.current = null;
-    previewPendingChunksByFileIdRef.current = new Map();
+    previewPendingChunksBySourceKeyRef.current = new Map();
     columnDisplayProfileCacheRef.current = new Map();
-  }, [cancelPendingTableRowRequests, previewRequestIdRef]);
+  }, [
+    cancelPendingTableRowRequests,
+    columnDisplayProfileCacheRef,
+    previewPendingChunksBySourceKeyRef,
+  ]);
 
   const clearPreviewState = memoCallback(
     ({ clearSelection = false }: { clearSelection?: boolean } = {}) => {
       setPreviewFile(null);
       setPreviewStatus(TABLE_LOAD_STATE_IDLE);
-      pendingPreviewFileIdRef.current = null;
 
       if (clearSelection) {
         const clearedSelection = normalizeTableSelection(null);
@@ -1708,292 +1442,93 @@ const createTableViewModel = ({
     (sourceKey: string) => {
       if (typeof sourceKey !== "string" || !sourceKey) return;
 
-      tableRowsCacheByFileIdRef.current.delete(sourceKey);
-      previewLoadedChunksByFileIdRef.current.delete(sourceKey);
-      previewCacheFileLruRef.current.delete(sourceKey);
-      previewPendingChunksByFileIdRef.current.delete(sourceKey);
+      tableRowsCacheBySourceKeyRef.current.delete(sourceKey);
+      previewLoadedChunksBySourceKeyRef.current.delete(sourceKey);
+      previewCacheSourceLruRef.current.delete(sourceKey);
+      previewPendingChunksBySourceKeyRef.current.delete(sourceKey);
       for (const overrideKey of Array.from(columnDisplayScaleOverridesRef.current.keys())) {
         if (overrideKey.startsWith(`${sourceKey}:`)) {
           columnDisplayScaleOverridesRef.current.delete(overrideKey);
         }
       }
 
-      if (previewCacheFileIdRef.current === sourceKey) {
+      if (previewCacheSourceKeyRef.current === sourceKey) {
         resetCurrentPreviewCache();
       }
-
-      releasePreviewSource(sourceKey);
     },
     [
-      releasePreviewSource,
-      previewCacheFileIdRef,
-      previewCacheFileLruRef,
-      previewLoadedChunksByFileIdRef,
-      previewPendingChunksByFileIdRef,
-      tableRowsCacheByFileIdRef,
+      previewCacheSourceKeyRef,
+      previewCacheSourceLruRef,
+      previewLoadedChunksBySourceKeyRef,
+      previewPendingChunksBySourceKeyRef,
+      tableRowsCacheBySourceKeyRef,
       columnDisplayScaleOverridesRef,
       resetCurrentPreviewCache,
     ],
   );
 
-  const disposePreviewFileCache = memoCallback(
-    (fileId: string) => {
-      if (typeof fileId !== "string" || !fileId) return;
-
-      const sourceKeys = new Set<string>([toTableSourceKey({ fileId })]);
-      const fileSources = sourcesByFileIdRef.current.get(fileId) ?? [];
-      for (const sourceEntry of fileSources) {
-        sourceKeys.add(sourceEntry.sourceKey);
-      }
-
-      for (const sourceKey of sourceKeys) {
-        disposePreviewSourceCache(sourceKey);
-      }
-    },
-    [
-      disposePreviewSourceCache,
-      sourcesByFileIdRef,
-    ],
-  );
-
-  const touchPreviewFileCache = memoCallback(
+  const touchPreviewSourceCache = memoCallback(
     ({
       activateCurrent = false,
-      fileId,
+      sourceKey,
     }: {
       activateCurrent?: boolean;
-      fileId: string | null;
+      sourceKey: string | null;
     }) => {
-      if (!fileId) {
+      if (!sourceKey) {
         if (activateCurrent) {
-          previewCacheFileLruRef.current = new Set();
+          previewCacheSourceLruRef.current = new Set();
           assignCurrentPreviewCache();
         }
         return;
       }
 
-      const { loadedChunks, rowCache } = getOrCreatePreviewFileCaches(fileId);
+      const { loadedChunks, rowCache } = getOrCreatePreviewSourceCaches(sourceKey);
 
       if (activateCurrent) {
-        assignCurrentPreviewCache({ fileId, loadedChunks, rowCache });
+        assignCurrentPreviewCache({ sourceKey, loadedChunks, rowCache });
       }
 
-      const fileLru = previewCacheFileLruRef.current;
-      fileLru.delete(fileId);
-      fileLru.add(fileId);
+      const sourceLru = previewCacheSourceLruRef.current;
+      sourceLru.delete(sourceKey);
+      sourceLru.add(sourceKey);
 
-      while (fileLru.size > TABLE_MAX_CACHED_FILES) {
-        const oldestFileId = fileLru.values().next().value as string | undefined;
-        if (!oldestFileId || (activateCurrent && oldestFileId === fileId)) break;
+      while (sourceLru.size > TABLE_MAX_CACHED_FILES) {
+        const oldestSourceKey = sourceLru.values().next().value as string | undefined;
+        if (!oldestSourceKey || (activateCurrent && oldestSourceKey === sourceKey)) break;
 
-        disposePreviewSourceCache(oldestFileId);
+        disposePreviewSourceCache(oldestSourceKey);
       }
     },
     [
       assignCurrentPreviewCache,
       disposePreviewSourceCache,
-      getOrCreatePreviewFileCaches,
-      previewCacheFileLruRef,
+      getOrCreatePreviewSourceCaches,
+      previewCacheSourceLruRef,
     ],
   );
 
-  const activatePreviewFileCache = memoCallback(
-    (fileId: string | null) => {
-      touchPreviewFileCache({ activateCurrent: true, fileId });
+  const activatePreviewSourceCache = memoCallback(
+    (sourceKey: string | null) => {
+      touchPreviewSourceCache({ activateCurrent: true, sourceKey });
     },
-    [touchPreviewFileCache],
+    [touchPreviewSourceCache],
   );
-
-  const handlePreviewWorkerMessage = memoCallback(
-    (event: MessageEvent<WorkerMessage>) => {
-      const { type, payload } = event.data ?? {};
-
-      if (type === "tablePreviewResult" && payload) {
-        const previewPayload = payload as TablePreviewResultPayload;
-        if (previewPayload.requestId !== previewRequestIdRef.current) return;
-        clearPendingPreviewRequest(previewPayload.requestId);
-
-        const sourceKey =
-          typeof previewPayload.sourceKey === "string" && previewPayload.sourceKey
-            ? previewPayload.sourceKey
-            : typeof previewPayload.fileId === "string"
-              ? previewPayload.fileId
-              : null;
-        const sourceEntry = sourceKey ? sourcesByKeyRef.current.get(sourceKey) : null;
-        const maxCellLengths = Array.isArray(previewPayload.maxCellLengths)
-          ? previewPayload.maxCellLengths.map((n) => Number(n) || 0)
-          : [];
-        const nextPreviewFile: TableFile = {
-          ...(sourceEntry?.source.fileId ? { fileId: sourceEntry.source.fileId } : {}),
-          fileName: String(previewPayload.fileName || ""),
-          sheetId: sourceEntry?.source.sheetId ?? previewPayload.sheetId ?? null,
-          sheetName: sourceEntry?.sheetName ?? previewPayload.sheetName ?? null,
-          sourceKey: sourceKey ?? undefined,
-          sourceVersion: sourceEntry?.sourceVersion,
-          rowCount: Number(previewPayload.rowCount) || 0,
-          columnCount: Number(previewPayload.columnCount) || 0,
-          maxCellLengths,
-        };
-        const currentPreviewFile = previewFileRef.current;
-        const hasSamePreviewFile =
-          isTableFileForSource(currentPreviewFile, sourceKey) &&
-          areTableFilesEqual(currentPreviewFile, nextPreviewFile);
-        const shouldUpdatePreviewStatus =
-          previewStatusRef.current.state !== "ready" ||
-          previewStatusRef.current.message !== "";
-
-        if (hasSamePreviewFile && !shouldUpdatePreviewStatus) return;
-
-        activatePreviewFileCache(sourceKey);
-        if (sourceKey) {
-          mergePreviewSeedRows(
-            sourceKey,
-            Number(previewPayload.seedStartRow) || 0,
-            Array.isArray(previewPayload.seedRows) ? previewPayload.seedRows : [],
-          );
-        }
-
-        runImmediately(() => {
-          if (!hasSamePreviewFile) {
-            setPreviewFile(nextPreviewFile);
-          }
-          if (shouldUpdatePreviewStatus) {
-            setPreviewStatus({ state: "ready", message: "" });
-          }
-        });
-        return;
-      }
-
-      if (type === "tableRowsResult" && payload) {
-        const rowsPayload = payload as TableRowsResultPayload;
-        const requestId = Number(rowsPayload.requestId);
-        if (!Number.isFinite(requestId)) return;
-
-        const pendingRequest = tableRowsRequestsRef.current.get(requestId);
-        if (!pendingRequest) return;
-
-        tableRowsRequestsRef.current.delete(requestId);
-
-        const { reject, resolve } = pendingRequest;
-
-        try {
-          const fileId =
-            typeof rowsPayload.fileId === "string" ? rowsPayload.fileId : "";
-          const startRow = Math.max(
-            0,
-            Math.floor(Number(rowsPayload.startRow) || 0),
-          );
-          const rows = sanitizeTableRowBatch(rowsPayload.rows);
-
-          const isMatched = isTableRowBatchResultForRequest({
-            requestFileId: pendingRequest.fileId,
-            requestStartRow: pendingRequest.startRow,
-            payloadFileId: fileId,
-            payloadSourceKey: rowsPayload.sourceKey,
-            payloadStartRow: startRow,
-          });
-          if (!isMatched) {
-            resolve([]);
-            return;
-          }
-
-          resolve(rows);
-        } catch (error) {
-          reject(error);
-        }
-
-        return;
-      }
-
-      if (type === "workerError" && payload) {
-        const errorPayload = payload as WorkerErrorPayload;
-        const requestId = Number(errorPayload.requestId);
-        if (!Number.isFinite(requestId)) return;
-        const workerMessage =
-          typeof errorPayload.message === "string" && errorPayload.message
-            ? errorPayload.message
-            : "Unknown worker error";
-        const errorMessage = localize(
-          "table.preview.workerFailed",
-          "Preview worker failed.",
-        );
-
-        if (
-          requestId !== previewRequestIdRef.current &&
-          !tableRowsRequestsRef.current.has(requestId)
-        ) {
-          return;
-        }
-
-        if (tableRowsRequestsRef.current.has(requestId)) {
-          const pendingRequest = tableRowsRequestsRef.current.get(requestId);
-          tableRowsRequestsRef.current.delete(requestId);
-          pendingRequest?.reject?.(new Error(errorMessage));
-          return;
-        }
-
-        console.error("Preview worker error:", workerMessage);
-        clearPendingPreviewRequest(requestId);
-        runImmediately(() => {
-          clearPreviewState();
-        });
-      }
-    },
-    [
-      activatePreviewFileCache,
-      clearPreviewState,
-      mergePreviewSeedRows,
-      tableRowsRequestsRef,
-      previewRequestIdRef,
-      setPreviewFile,
-      clearPendingPreviewRequest,
-      sourcesByKeyRef,
-    ],
-  );
-
-  const createPreviewWorker = memoCallback(() => {
-    const worker = new Worker(
-      new URL("./tablePreviewWorker.ts", import.meta.url),
-      { type: "module" },
-    );
-
-    worker.onmessage = handlePreviewWorkerMessage;
-    previewWorkerRef.current = worker;
-    return worker;
-  }, [handlePreviewWorkerMessage, previewWorkerRef]);
-
-  // Avoid paying worker startup cost on app cold start before preview is needed.
-  const getOrCreatePreviewWorker = memoCallback(() => {
-    if (previewWorkerRef.current) return previewWorkerRef.current;
-    return createPreviewWorker();
-  }, [createPreviewWorker, previewWorkerRef]);
-
-  const resetPreviewWorker = memoCallback(() => {
-    cancelPendingTableRowRequests();
-
-    if (previewWorkerRef.current) {
-      previewWorkerRef.current.terminate();
-      previewWorkerRef.current = null;
-    }
-  }, [cancelPendingTableRowRequests, previewWorkerRef]);
 
   runEffect(() => {
     return () => {
       invalidatePreviewRequests();
       clearAllPreviewCaches();
-      resetPreviewWorker();
     };
-  }, [clearAllPreviewCaches, invalidatePreviewRequests, resetPreviewWorker]);
+  }, [clearAllPreviewCaches, invalidatePreviewRequests]);
 
   runEffect(() => {
     const targetSource = selectedSource;
-    const targetFile = targetSource?.entry ?? null;
+    const targetFile = targetSource?.input ?? null;
     const targetSourceKey = targetSource?.sourceKey ?? null;
-    const targetSourceSignature = activeSourceSignature;
-    if (!targetSource || !targetFile?.file || !targetSourceKey) return;
+    if (!targetSource || !targetFile || !targetSourceKey) return;
     if (isUnhealthyTableSource(targetFile)) {
       const nextPreviewFile = createTableFileFromSourceEntry(targetSource);
-      clearPendingPreviewRequest(previewRequestIdRef.current);
       disposePreviewSourceCache(targetSourceKey);
       runImmediately(() => {
         if (
@@ -2011,12 +1546,10 @@ const createTableViewModel = ({
       });
       return;
     }
-    const tableModelContent = getEntryTableModelContent(targetFile);
+    const tableModelContent = targetSource.content;
     if (tableModelContent) {
       const nextPreviewFile = createTableFileFromSourceEntry(targetSource);
-      clearPendingPreviewRequest(previewRequestIdRef.current);
-      pendingPreviewFileIdRef.current = null;
-      activatePreviewFileCache(targetSourceKey);
+      activatePreviewSourceCache(targetSourceKey);
       mergePreviewSeedRows(
         targetSourceKey,
         0,
@@ -2035,201 +1568,32 @@ const createTableViewModel = ({
       });
       return;
     }
-    if (isTableFileForSourceEntry(previewFileRef.current, targetSource)) return;
-    if (pendingPreviewFileIdRef.current === targetSourceSignature) return;
 
-    const previewTargetSource = targetSource;
-    const previewTargetFile = targetFile;
-    const previewTargetSourceKey = targetSourceKey;
-    const requestId = previewRequestIdRef.current + 1;
-    previewRequestIdRef.current = requestId;
-    pendingPreviewFileIdRef.current = targetSourceSignature;
-
+    const nextPreviewFile = createTableFileFromSourceEntry(targetSource);
+    disposePreviewSourceCache(targetSourceKey);
     runImmediately(() => {
-      setPreviewStatus({ state: "loading", message: localize("table.preview.loadingTitle", "Loading preview...") });
-    });
-
-    const postWorkerPreview = async () => {
-      const worker = getOrCreatePreviewWorker();
-      if (!worker) return;
-      const hasNormalizedCsvPath =
-        typeof previewTargetFile.normalizedCsvPath === "string" &&
-        previewTargetFile.normalizedCsvPath.trim().length > 0;
-      const convertedFile = await loadConvertedCsvFile({
-          convertedCsvReaderService: tableRowsReaderService,
-          fallbackFile: previewTargetFile.file,
-          fileName: previewTargetFile.fileName,
-          lastModified:
-            previewTargetFile.file instanceof File ? previewTargetFile.file.lastModified : null,
-          normalizedCsvPath: previewTargetFile.normalizedCsvPath,
-        });
-      if (requestId !== previewRequestIdRef.current) {
-        return;
+      if (
+        !(
+          isTableFileForSource(previewFileRef.current, targetSourceKey) &&
+          areTableFilesEqual(previewFileRef.current, nextPreviewFile)
+        )
+      ) {
+        setPreviewFile(nextPreviewFile);
       }
-      if (!convertedFile) {
-        clearPendingPreviewRequest(requestId);
-        runImmediately(() => {
-          setPreviewFile(createTableFileFromSourceEntry(previewTargetSource));
-          setPreviewStatus({
-            state: "error",
-            message: hasNormalizedCsvPath
-              ? localize(
-                  "table.preview.convertedCsvUnreadable",
-                  "File content cannot be decoded from the converted CSV source.",
-                )
-              : localize(
-                  "table.preview.workerUnreadableHint",
-                  "The system could not confirm this file is a valid CSV. It may be binary, damaged, or encoded with an unsupported format.",
-                ),
-          });
-        });
-        return;
-      }
-
-      worker.postMessage({
-        type: "tablePreview",
-        payload: {
-          requestId,
-          fileId: previewTargetSourceKey,
-          sourceKey: previewTargetSourceKey,
-          ...(previewTargetSource.source.fileId ? { physicalFileId: previewTargetSource.source.fileId } : {}),
-          sheetId: previewTargetSource.source.sheetId ?? null,
-          sheetName: previewTargetSource.sheetName,
-          file: convertedFile,
-          maxSeedRows: TABLE_MAX_CACHED_UI_ROWS_PER_FILE,
-        },
+      setPreviewStatus({
+        state: "error",
+        message: localize(
+          "table.preview.modelContentUnavailable",
+          "Table model content is unavailable for this resource.",
+        ),
       });
-    };
-
-    const readerInputPath =
-      typeof previewTargetFile.normalizedCsvPath === "string" &&
-      previewTargetFile.normalizedCsvPath.trim()
-        ? previewTargetFile.normalizedCsvPath.trim()
-        : typeof previewTargetFile.sourcePath === "string" &&
-            previewTargetFile.sourcePath.trim().toLowerCase().endsWith(".csv")
-          ? previewTargetFile.sourcePath.trim()
-          : null;
-    if (readerInputPath && tableRowsReaderService.canOpenSource()) {
-      void tableRowsReaderService
-        .openSource({
-          fileId: previewTargetSourceKey,
-          fileName: previewTargetFile.fileName ?? "",
-          path: readerInputPath,
-          seedRows: TABLE_MAX_CACHED_UI_ROWS_PER_FILE,
-          sheetId: previewTargetSource.source.sheetId ?? null,
-          sheetName: previewTargetSource.sheetName,
-          sourceKey: previewTargetSourceKey,
-        })
-        .then((response: any) => {
-          if (requestId === previewRequestIdRef.current) {
-            clearPendingPreviewRequest(requestId);
-          }
-          if (!response?.ok || !response?.result) {
-            if (requestId === previewRequestIdRef.current) {
-              void postWorkerPreview();
-            }
-            return;
-          }
-
-          const previewPayload = response.result as TablePreviewResultPayload;
-          const maxCellLengths = Array.isArray(previewPayload.maxCellLengths)
-            ? previewPayload.maxCellLengths.map((n) => Number(n) || 0)
-            : [];
-          const sourceKey =
-            typeof previewPayload.sourceKey === "string" && previewPayload.sourceKey
-              ? previewPayload.sourceKey
-              : typeof previewPayload.fileId === "string"
-                ? previewPayload.fileId
-                : previewTargetSourceKey;
-          const nextPreviewFile: TableFile = {
-            ...(previewTargetSource.source.fileId ? { fileId: previewTargetSource.source.fileId } : {}),
-            fileName: String(previewPayload.fileName || ""),
-            sheetId: previewTargetSource.source.sheetId ?? previewPayload.sheetId ?? null,
-            sheetName: previewTargetSource.sheetName ?? previewPayload.sheetName ?? null,
-            sourceKey,
-            sourceVersion: previewTargetSource.sourceVersion,
-            rowCount: Number(previewPayload.rowCount) || 0,
-            columnCount: Number(previewPayload.columnCount) || 0,
-            maxCellLengths,
-          };
-
-          if (requestId !== previewRequestIdRef.current) {
-            if (sourceKey && sourceKey !== activeSourceKeyRef.current) {
-              releasePreviewSource(sourceKey);
-            }
-            return;
-          }
-
-          if (sourceKey) {
-            const currentPreviewFile = previewFileRef.current;
-            const hasSamePreviewFile =
-              isTableFileForSource(currentPreviewFile, sourceKey) &&
-              areTableFilesEqual(currentPreviewFile, nextPreviewFile);
-            const shouldUpdatePreviewStatus =
-              previewStatusRef.current.state !== "ready" ||
-              previewStatusRef.current.message !== "";
-
-            if (hasSamePreviewFile && !shouldUpdatePreviewStatus) return;
-          }
-
-          if (sourceKey) {
-            readerOpenedSourceKeysRef.current.add(sourceKey);
-          }
-
-          activatePreviewFileCache(sourceKey);
-
-          if (sourceKey) {
-            mergePreviewSeedRows(
-              sourceKey,
-              Number(previewPayload.seedStartRow) || 0,
-              Array.isArray(previewPayload.seedRows)
-                ? previewPayload.seedRows
-                : [],
-            );
-          }
-
-          runImmediately(() => {
-            if (
-              !(
-                isTableFileForSource(previewFileRef.current, sourceKey) &&
-                areTableFilesEqual(previewFileRef.current, nextPreviewFile)
-              )
-            ) {
-              setPreviewFile(nextPreviewFile);
-            }
-            if (
-              previewStatusRef.current.state !== "ready" ||
-              previewStatusRef.current.message !== ""
-            ) {
-              setPreviewStatus({ state: "ready", message: "" });
-            }
-          });
-        })
-        .catch(() => {
-          if (requestId === previewRequestIdRef.current) {
-            clearPendingPreviewRequest(requestId);
-          }
-          if (requestId === previewRequestIdRef.current) {
-            void postWorkerPreview();
-          }
-        });
-      return;
-    }
-
-    void postWorkerPreview();
+    });
   }, [
-    activatePreviewFileCache,
+    activatePreviewSourceCache,
     activeSourceSignature,
-    activeSourceKeyRef,
-    readerOpenedSourceKeysRef,
-    deferredActiveFileId,
-    deferredActiveSheetId,
     disposePreviewSourceCache,
-    getOrCreatePreviewWorker,
     mergePreviewSeedRows,
-    releasePreviewSource,
     previewFileRef,
-    previewRequestIdRef,
     setPreviewStatus,
   ]);
 
@@ -2245,7 +1609,7 @@ const createTableViewModel = ({
   const createRawColumnDisplayProfile = memoCallback(
     (colIndex: number): ColumnDisplayProfile => {
       const currentFile = previewFileRef.current;
-      const rawTableId = currentFile?.sourceKey ?? activeSourceKey ?? currentFile?.fileId ?? "";
+      const rawTableId = currentFile?.sourceKey ?? activeSourceKey ?? "";
       return {
         rawTableId,
         columnId: String(Math.max(0, Math.floor(Number(colIndex) || 0))),
@@ -2290,7 +1654,7 @@ const createTableViewModel = ({
     (colIndex: number): ColumnDisplayProfile => {
       const currentFile = previewFileRef.current;
       const normalizedColIndex = Math.max(0, Math.floor(Number(colIndex) || 0));
-      const rawTableId = currentFile?.sourceKey ?? activeSourceKey ?? currentFile?.fileId ?? "";
+      const rawTableId = currentFile?.sourceKey ?? activeSourceKey ?? "";
       const sourceVersion = normalizeSourceVersion(currentFile?.sourceVersion);
       const overrideKey = createColumnDisplayScaleOverrideKey(rawTableId, normalizedColIndex);
       const overrideScaleExponent = columnDisplayScaleOverridesRef.current.get(overrideKey);
@@ -2365,21 +1729,6 @@ const createTableViewModel = ({
     ],
   );
 
-  const resolveRequestSourceKey = memoCallback(
-    (fileId: string): string | null => {
-      const currentFile = previewFileRef.current;
-      if (
-        currentFile?.sourceKey &&
-        (fileId === currentFile.fileId || fileId === currentFile.sourceKey)
-      ) {
-        return currentFile.sourceKey;
-      }
-
-      return fileId || null;
-    },
-    [previewFileRef],
-  );
-
   const adjustColumnDisplayScale = memoCallback(
     (colIndex: number, deltaExponent: number): boolean => {
       const normalizedColIndex = Math.max(0, Math.floor(Number(colIndex) || 0));
@@ -2430,7 +1779,7 @@ const createTableViewModel = ({
       }
 
       const currentFile = previewFileRef.current;
-      const rawTableId = currentFile?.sourceKey ?? activeSourceKey ?? currentFile?.fileId ?? "";
+      const rawTableId = currentFile?.sourceKey ?? activeSourceKey ?? "";
       const overrideKey = createColumnDisplayScaleOverrideKey(rawTableId, normalizedColIndex);
       if (!columnDisplayScaleOverridesRef.current.delete(overrideKey)) {
         return false;
@@ -2459,89 +1808,22 @@ const createTableViewModel = ({
   );
 
   const requestTableRowsRange = memoCallback(
-    (fileId: string, startRow: number, endRow: number): Promise<unknown[][]> => {
-      const sourceKey = resolveRequestSourceKey(fileId);
+    (sourceKey: string, startRow: number, endRow: number): Promise<unknown[][]> => {
       if (!sourceKey) return Promise.resolve([]);
-
-      const requestId = tableRowsRequestIdRef.current + 1;
-      tableRowsRequestIdRef.current = requestId;
 
       const start = Math.max(0, Math.floor(Number(startRow) || 0));
       const end = Math.max(start, Math.floor(Number(endRow) || start));
+      const rows = sourcesByKeyRef.current.get(sourceKey)?.content?.rows ?? [];
 
-      const requestRowsWithWorker = () => {
-        const worker = getOrCreatePreviewWorker();
-        if (!worker) return Promise.resolve([]);
-
-        return new Promise<unknown[][]>((resolve, reject) => {
-          tableRowsRequestsRef.current.set(requestId, {
-            endRow: end,
-            fileId: sourceKey,
-            reject,
-            resolve,
-            sourceKey,
-            startRow: start,
-          });
-          worker.postMessage({
-            type: "tableRows",
-            payload: {
-              requestId,
-              fileId: sourceKey,
-              sourceKey,
-              startRow: start,
-              endRow: end,
-            },
-          });
-        });
-      };
-
-      if (
-        readerOpenedSourceKeysRef.current.has(sourceKey) &&
-        tableRowsReaderService.canReadRows()
-      ) {
-        return tableRowsReaderService
-          .readRows({
-            endRow: end,
-            fileId: sourceKey,
-            sourceKey,
-            startRow: start,
-          })
-          .then((response: any) => {
-            if (!response?.ok || !response?.result) return [];
-            const rowsPayload = response.result as TableRowsResultPayload;
-            const rows = sanitizeTableRowBatch(rowsPayload.rows);
-            const payloadFileId =
-              typeof rowsPayload.fileId === "string" ? rowsPayload.fileId : "";
-            const payloadStartRow = Math.max(
-              0,
-              Math.floor(Number(rowsPayload.startRow) || 0),
-            );
-            const isMatched = isTableRowBatchResultForRequest({
-              requestFileId: sourceKey,
-              requestStartRow: start,
-              payloadFileId,
-              payloadSourceKey: rowsPayload.sourceKey,
-              payloadStartRow,
-            });
-            return isMatched ? rows : requestRowsWithWorker();
-          })
-          .catch(() => requestRowsWithWorker());
-      }
-
-      return requestRowsWithWorker();
+      return Promise.resolve(sanitizeTableRowBatch(rows.slice(start, end)));
     },
     [
-      getOrCreatePreviewWorker,
-      tableRowsRequestIdRef,
-      tableRowsRequestsRef,
-      resolveRequestSourceKey,
-      tableRowsReaderService,
+      sourcesByKeyRef,
     ],
   );
 
   const ensureTableCells = memoCallback(
-    async (fileId: string, cells: TableCellReadRequest[]) => {
-      const sourceKey = resolveRequestSourceKey(fileId);
+    async (sourceKey: string, cells: TableCellReadRequest[]) => {
       if (!sourceKey || !Array.isArray(cells) || !cells.length) return;
       const currentPreviewFile = previewFileRef.current;
       if (!currentPreviewFile?.rowCount || !Number.isFinite(currentPreviewFile.rowCount)) return;
@@ -2553,7 +1835,7 @@ const createTableViewModel = ({
       );
       if (totalRows <= 0 || columnCount <= 0) return;
 
-      const { rowCache } = getOrCreatePreviewFileCaches(sourceKey);
+      const { rowCache } = getOrCreatePreviewSourceCaches(sourceKey);
       const requestedRows = new Set<number>();
       for (const cell of cells) {
         const rowIndex = Math.floor(Number(cell?.rowIndex));
@@ -2573,43 +1855,6 @@ const createTableViewModel = ({
         }
       }
       if (!requestedRows.size) return;
-
-      if (
-        readerOpenedSourceKeysRef.current.has(sourceKey) &&
-        tableRowsReaderService.canReadCells()
-      ) {
-        const requestCells = buildTableCellReadRequests({
-          columnCount,
-          rowIndices: requestedRows,
-        });
-        if (requestCells.length > 0) {
-          try {
-            const response = await tableRowsReaderService.readCells({
-              cells: requestCells,
-              fileId: sourceKey,
-              sourceKey,
-            });
-            if (response?.ok && response?.result) {
-              const result = response.result as { cells?: unknown };
-              const rowsByIndex = rowsFromTableCellReads({
-                cells: result.cells,
-                columnCount,
-              });
-              if (rowsByIndex.size === requestedRows.size) {
-                for (const [rowIndex, row] of rowsByIndex.entries()) {
-                  rowCache.set(rowIndex, row);
-                }
-                if (previewCacheFileIdRef.current === sourceKey) {
-                  notifyTableRowsCacheChanged(toTableDirtyRangesFromRows(rowsByIndex.keys()));
-                }
-                return;
-              }
-            }
-          } catch {
-            // Fall through to the existing table-row path.
-          }
-        }
-      }
 
       const sortedRows = Array.from(requestedRows).sort((a, b) => a - b);
       const ranges: Array<[number, number]> = [];
@@ -2631,7 +1876,7 @@ const createTableViewModel = ({
         }
       }
 
-      if (changed && previewCacheFileIdRef.current === sourceKey) {
+      if (changed && previewCacheSourceKeyRef.current === sourceKey) {
         notifyTableRowsCacheChanged(ranges.map(([startRow, endRow]) => ({
           startRow,
           endRow,
@@ -2639,23 +1884,21 @@ const createTableViewModel = ({
       }
     },
     [
-      getOrCreatePreviewFileCaches,
+      getOrCreatePreviewSourceCaches,
       notifyTableRowsCacheChanged,
-      previewCacheFileIdRef,
+      previewCacheSourceKeyRef,
       previewFileRef,
       requestTableRowsRange,
-      resolveRequestSourceKey,
     ],
   );
 
   const ensureTableRows = memoCallback(
-    async (fileId: string, startRow: number, endRow: number) => {
+    async (sourceKey: string, startRow: number, endRow: number) => {
       const currentPreviewFile = previewFileRef.current;
       if (!currentPreviewFile?.rowCount || !Number.isFinite(currentPreviewFile.rowCount)) return;
-      const sourceKey = resolveRequestSourceKey(fileId);
       if (!sourceKey) return;
 
-      const { loadedChunks, rowCache } = getOrCreatePreviewFileCaches(sourceKey);
+      const { loadedChunks, rowCache } = getOrCreatePreviewSourceCaches(sourceKey);
       const pendingChunks = getOrCreatePendingChunks(sourceKey);
       const totalRows = Math.max(0, Math.floor(currentPreviewFile.rowCount));
       const start = Math.max(0, Math.min(totalRows, Math.floor(startRow || 0)));
@@ -2736,7 +1979,7 @@ const createTableViewModel = ({
           if (!merged.complete) return;
 
           if (
-            previewCacheFileIdRef.current === sourceKey &&
+            previewCacheSourceKeyRef.current === sourceKey &&
             merged.mergedChunkStarts.length > 0
           ) {
             dirtyRanges.push({ startRow: rangeStart, endRow: rangeEnd });
@@ -2770,12 +2013,11 @@ const createTableViewModel = ({
     },
     [
       getOrCreatePendingChunks,
-      getOrCreatePreviewFileCaches,
+      getOrCreatePreviewSourceCaches,
       notifyTableRowsCacheChanged,
-      previewCacheFileIdRef,
+      previewCacheSourceKeyRef,
       previewFileRef,
       requestTableRowsRange,
-      resolveRequestSourceKey,
     ],
   );
 
@@ -2934,15 +2176,8 @@ const createTableViewModel = ({
   const getState = memoCallback(
     (): TableState => {
       const currentFile = previewFileRef.current;
-      const selectedFileSources =
-        sourcesByFileIdRef.current.get(String(activeFileId ?? "")) ?? [];
-      const selectedSourceForName = activeSheetId
-        ? selectedFileSources.find(
-            (sourceEntry) => sourceEntry.source.sheetId === activeSheetId,
-          ) ?? selectedFileSources[0] ?? null
-        : selectedFileSources[0] ?? null;
-      const selectedFileName = selectedSourceForName?.entry.fileName ?? "";
-      const selectedSheetName = selectedSourceForName?.sheetName ?? null;
+      const selectedFileName = selectedSource?.input.fileName ?? "";
+      const selectedSheetName = selectedSource?.sheetName ?? null;
       const currentFileName = currentFile?.sheetName
         ? `${currentFile.fileName} / ${currentFile.sheetName}`
         : currentFile?.fileName;
@@ -2962,7 +2197,6 @@ const createTableViewModel = ({
         file: hasCurrentSource ? currentFile : null,
         fileName,
         loadState: previewStatusRef.current,
-        selectedFileId: selectedSource?.source.fileId ?? activeFileId ?? null,
         selectedSheetId: selectedSource?.source.sheetId ?? activeSheetId ?? null,
         source: selectedSource?.source ?? null,
         sourceKey: activeSourceKey,
@@ -2972,19 +2206,11 @@ const createTableViewModel = ({
     [
       previewFileRef,
       previewStatusRef,
-      activeFileId,
       activeSheetId,
       activeSourceKey,
       settingsVersion,
       selectedSource,
-      sourcesByFileIdRef,
     ],
-  );
-
-  const hasSourceFile = memoCallback(
-    (fileId: string | null | undefined): boolean =>
-      Boolean(fileId && sourcesByFileIdRef.current.has(fileId)),
-    [sourcesByFileIdRef],
   );
 
   return {
@@ -2993,7 +2219,6 @@ const createTableViewModel = ({
     clearHighlight,
     clearSelection,
     clearState: clearPreviewState,
-    disposeFileCache: disposePreviewFileCache,
     ensureCells: ensureTableCells,
     ensureRows: ensureTableRows,
     getColumnDisplayProfile,
@@ -3003,7 +2228,6 @@ const createTableViewModel = ({
     getRevealCell,
     getSelection,
     getState,
-    hasSourceFile,
     invalidateRequests: invalidatePreviewRequests,
     onDidChangeHighlight,
     onDidChangeRevealCell,
@@ -3011,7 +2235,6 @@ const createTableViewModel = ({
     onDidChangeSelection,
     revealCell,
     resetColumnDisplayScale,
-    resetWorker: resetPreviewWorker,
     selectAllColumns,
     setSelection,
     highlightColumns,
@@ -3038,18 +2261,7 @@ const clampColumnDisplayScaleExponent = (scaleExponent: number): number =>
 
 const toBrowserTableOptions = (options: CreateTableViewModelWithScopeOptions): UseTableOptions => ({
   ...options,
-  workerRef: asBrowserWorkerRef(options.workerRef),
 });
-
-const asBrowserWorkerRef = (
-  workerRef: CreateTableViewModelWithScopeOptions["workerRef"],
-): TableMutableRef<Worker | null> | undefined => {
-  if (!workerRef || typeof workerRef !== "object" || !("current" in workerRef)) {
-    return undefined;
-  }
-
-  return workerRef as TableMutableRef<Worker | null>;
-};
 
 export const createTableViewModelInScope = (
   scope: TableStateScope,
@@ -3062,8 +2274,6 @@ export const createTableViewModelInScope = (
 export const createTableViewModelWithScope = (
   options: CreateTableViewModelWithScopeOptions,
 ): TableViewModel => {
-  const scope = getTableStateScope(
-    asBrowserWorkerRef(options.workerRef) ?? defaultTableStateScopeKey,
-  );
+  const scope = getTableStateScope(defaultTableStateScopeKey);
   return createTableViewModelInScope(scope, options);
 };

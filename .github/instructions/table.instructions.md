@@ -21,12 +21,12 @@ measurement structure.
 - focus/reveal/highlight state;
 - column width persistence;
 - column-level display profiles for numeric presentation;
-- paged raw rows cache, loading state, row request lifecycle, worker lifecycle;
+- paged resource rows cache, loading state, and row request lifecycle;
 - block table preview model and invalidation when source changes.
 
-It consumes URI-backed `ITableModel` preview input, raw row readers for legacy
-view-model paths, table-model ranges, settings for visual display preferences,
-and resource-backed `TableSource` open intents. It does not own import,
+It consumes URI-backed `ITableModel` preview input, table-model ranges,
+settings for visual display preferences, and resource-backed `TableSource`
+open intents. It does not own import,
 table-model production, template execution, plot/chart models, or canonical
 Session records.
 
@@ -34,8 +34,7 @@ Session records.
 matching the upstream file -> editor shape. `TableSource.sourceKey`, when
 present, is raw-table provenance or sheet disambiguation; it must not replace
 the URI identity for resource opens. `ITableService.open(...)` rejects
-non-resource sources; `fileId` compatibility belongs only to lower-level legacy
-raw/session view-model tests and migration code.
+non-resource sources.
 
 Use the common helpers from `services/table/common/table.ts` when normalizing,
 comparing, or keying `TableSource` values. Do not duplicate source-key trimming
@@ -60,9 +59,7 @@ or equality rules in service/view files.
 | `common/tableDisplayProfile.ts` / `numericFormat.ts` | display profile and numeric formatting helpers. |
 | `services/tablefile/common/tableFileEditorModelManager.ts` | file-backed table model manager: cache/reuse, reload/remove, pending resolve de-duplication, and model change events. |
 | `browser/tableService.ts` | table service owner, view input, copy text, column width persistence. |
-| `browser/tableViewModel.ts` | per-table preview view model: source switching, row cache, selection/highlight/reveal, worker/reader lifecycle. |
-| `browser/tableRowsReaderService.ts` | browser row reader fallback. |
-| `electron-browser/tableRowsReader.ts` | desktop row/cell reads through Rust IPC/preload. |
+| `browser/tableViewModel.ts` | per-table preview view model: source switching, resource row cache, selection/highlight/reveal, and row request lifecycle. |
 | `base/browser/ui/table/tableWidget.ts` / `table.css` | Conductor-specific two-dimensional table widget facade and structural CSS over the virtual table base. |
 | `base/browser/ui/table/virtualTable.ts` | two-dimensional virtual table engine: visible range calculation, pooled corner/header/body DOM, scroll spacers, cell descriptor rebinding, and scroll/visible-range fact events. |
 | `contrib/table/browser/tableWidget.ts` | raw table adapter/renderers over the base table widget, keyboard/mouse/wheel, local selection, zoom controls, and column width persistence callbacks. |
@@ -71,9 +68,9 @@ or equality rules in service/view files.
 | `contrib/table/browser/tableDropTarget.ts` | table preview resource-drop target, following the upstream editor drop-target shape and delegating DataTransfer source collection to files helpers. |
 | `contrib/table/browser/tableCommands.ts` / `tableActions.ts` | commands and action registration. |
 
-`tableViewModel.ts` is the owner for table preview data-plane helpers. Do not split row
-cache, cell-read, or selection-state helpers into production files unless they
-become an independent service boundary.
+`tableViewModel.ts` is the owner for table preview data-plane helpers. Do not
+split row cache, cell-read, or selection-state helpers into production files
+unless they become an independent service boundary.
 
 ## Resource Format Boundary
 
@@ -103,7 +100,7 @@ Session/settings/command/search bridge
   -> tableFileEditorModelManager resolves/reloads cached TableFileEditorModel instances
   -> TableFileEditorModel owns file watch/stat, dirty/save/revert, orphan/conflict state, sourceVersion, reads resource bytes/text through tablefile encoding helpers, and delegates CSV/TSV/XLSX physical table structure parsing to parsers.ts
   -> ITableModel snapshot owns parsed CSV/TSV/XLSX content and sheet content
-  -> tableViewModel reads resource-backed ITableModel content without converting the source identity into a raw fileId; raw/session sources still use reader/worker
+  -> tableViewModel reads resource-backed ITableModel content without converting the source identity into a raw fileId
   -> TableController consumes view input
   -> TableWidget adapts table state to base table widget renderers
   -> base table widget owns structural CSS, zoom state, column resize mechanics, and facade defaults

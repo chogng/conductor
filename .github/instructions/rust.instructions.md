@@ -69,7 +69,6 @@ Prefer domain/runtime names:
 
 ```txt
 services/files/electron-browser/fileConversionService.ts
-services/table/electron-browser/tableRowsReader.ts
 services/slice/electron-browser/sliceService.ts
 services/plot/electron-browser/plotService.ts
 services/export/electron-browser/exportService.ts

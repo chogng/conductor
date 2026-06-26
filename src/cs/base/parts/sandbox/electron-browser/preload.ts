@@ -196,26 +196,6 @@ function createDesktopImportBridge(ipcRenderer: IpcRenderer) {
       return ipcRenderer.invoke(workbenchIpcChannels.demoFilesGet);
     },
 
-    async openFileWithRust(payload: unknown) {
-      return ipcRenderer.invoke(workbenchIpcChannels.rustHostOpen, payload);
-    },
-
-    async getFilePreviewMetaWithRust(payload: unknown) {
-      return ipcRenderer.invoke(workbenchIpcChannels.rustHostPreviewMeta, payload);
-    },
-
-    async getFilePreviewRowsWithRust(payload: unknown) {
-      return ipcRenderer.invoke(workbenchIpcChannels.rustHostPreviewRows, payload);
-    },
-
-    async readFileCellWithRust(payload: unknown) {
-      return ipcRenderer.invoke(workbenchIpcChannels.rustHostReadCell, payload);
-    },
-
-    async readFileCellsWithRust(payload: unknown) {
-      return ipcRenderer.invoke(workbenchIpcChannels.rustHostReadCells, payload);
-    },
-
     async calculateFileRcWithRust(payload: unknown) {
       return ipcRenderer.invoke(workbenchIpcChannels.rustHostCalculateRc, payload);
     },
@@ -228,9 +208,6 @@ function createDesktopImportBridge(ipcRenderer: IpcRenderer) {
       return ipcRenderer.invoke(workbenchIpcChannels.originZipSave, payload);
     },
 
-    async disposeFileWithRust(payload: unknown) {
-      return ipcRenderer.invoke(workbenchIpcChannels.rustHostDispose, payload);
-    },
   };
 }
 

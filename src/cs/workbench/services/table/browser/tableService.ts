@@ -9,7 +9,6 @@ import { IStorageService, StorageScope, StorageTarget } from "src/cs/platform/st
 import {
   areTableSourcesEqual,
   ITableService,
-  ITableRowsReaderService,
   normalizeTableSource,
   TABLE_COPY_MAX_CELLS,
   type TableViewModel,
@@ -42,10 +41,9 @@ import {
   normalizeTableCell,
   normalizeTableSelection,
   type CreateTableViewModelWithScopeOptions,
-  type TablePreviewSourceInput,
+  type TableViewModelPreviewInput,
 } from "src/cs/workbench/services/table/browser/tableViewModel";
 import { ITableModelService } from "src/cs/workbench/services/table/common/resolverService";
-import type { TableModelPreviewInput } from "src/cs/workbench/services/table/common/model";
 
 type TableState = ReturnType<TableViewModel["getState"]>;
 type TableCell = NonNullable<ReturnType<TableViewModel["getRevealCell"]>>;
@@ -69,7 +67,7 @@ type TableCopyPlan = {
 type TableTargetContext = {
   readonly columnCount: number;
   readonly file: TableFile;
-  readonly fileIds: ReadonlySet<string>;
+  readonly sourceKeys: ReadonlySet<string>;
   readonly rowCount: number;
   readonly sheetId: string | null;
 };
@@ -85,16 +83,13 @@ const getTableTargetContext = (tableViewModel: TableViewModel): TableTargetConte
 
   const rowCount = Math.max(0, Math.floor(Number(file.rowCount) || 0));
   const columnCount = Math.max(0, Math.floor(Number(file.columnCount) || 0));
-  const fileIds = new Set<string>();
+  const sourceKeys = new Set<string>();
   for (const value of [
-    file.fileId,
     file.sourceKey,
-    state.selectedFileId,
-    state.source?.fileId,
     state.sourceKey,
   ]) {
     if (typeof value === "string" && value) {
-      fileIds.add(value);
+      sourceKeys.add(value);
     }
   }
 
@@ -103,7 +98,7 @@ const getTableTargetContext = (tableViewModel: TableViewModel): TableTargetConte
   return {
     columnCount,
     file,
-    fileIds,
+    sourceKeys,
     rowCount,
     sheetId,
   };
@@ -118,13 +113,13 @@ const firstString = (...values: readonly unknown[]): string | null => {
   return null;
 };
 
-const acceptsTargetFile = (
+const acceptsTargetSource = (
   context: TableTargetContext,
   fileId: string | null | undefined,
 ): boolean =>
   !fileId ||
-  context.fileIds.size === 0 ||
-  context.fileIds.has(fileId);
+  context.sourceKeys.size === 0 ||
+  context.sourceKeys.has(fileId);
 
 const acceptsTargetSheet = (
   context: TableTargetContext,
@@ -149,7 +144,7 @@ const normalizeTargetCell = (
     context.columnCount <= 0 ||
     normalizedCell.rowIndex >= context.rowCount ||
     normalizedCell.colIndex >= context.columnCount ||
-    !acceptsTargetFile(context, normalizedCell.fileId) ||
+    !acceptsTargetSource(context, normalizedCell.fileId) ||
     !acceptsTargetSheet(context, normalizedCell.sheetId)
   ) {
     return null;
@@ -157,7 +152,6 @@ const normalizeTargetCell = (
 
   return {
     ...normalizedCell,
-    ...(context.file.fileId ? { fileId: context.file.fileId } : {}),
     sheetId: context.sheetId,
   };
 };
@@ -177,7 +171,7 @@ const normalizeTargetRange = (
     context.columnCount <= 0 ||
     normalizedRange.startRow >= context.rowCount ||
     normalizedRange.startCol >= context.columnCount ||
-    !acceptsTargetFile(context, normalizedRange.fileId) ||
+    !acceptsTargetSource(context, normalizedRange.fileId) ||
     !acceptsTargetSheet(context, normalizedRange.sheetId)
   ) {
     return null;
@@ -193,7 +187,6 @@ const normalizeTargetRange = (
     ...normalizedRange,
     endCol,
     endRow,
-    ...(context.file.fileId ? { fileId: context.file.fileId } : {}),
     sheetId: context.sheetId,
   };
 };
@@ -291,7 +284,7 @@ const resolveTableCopyPlan = (tableViewModel: TableViewModel): TableCopyPlan | n
     return null;
   }
 
-  const sourceKey = context.file.sourceKey || context.file.fileId;
+  const sourceKey = context.file.sourceKey;
   if (!sourceKey) {
     return null;
   }
@@ -393,7 +386,6 @@ export class TableService extends Disposable implements ITableService {
   private displayVersion = 0;
 
   public constructor(
-    @ITableRowsReaderService private readonly tableRowsReaderService: ITableRowsReaderService,
     @IStorageService private readonly storageService: IStorageService,
     @ISettingsService private readonly settingsService: ISettingsService,
     @ITableModelService private readonly tableModelService: ITableModelService,
@@ -428,16 +420,15 @@ export class TableService extends Disposable implements ITableService {
   }
 
   private refreshActiveSource(options: { forceViewInput?: boolean } = {}): TableViewModel {
-    const rawFiles = this.getRawFilesForCurrentSource();
+    const previewInputs = this.getPreviewInputsForCurrentSource();
     const source = this.resolveAvailableTableSource(this.currentSource);
     if (!areTableSourcesEqual(this.currentSource, source)) {
       this.currentSource = source;
     }
 
     const tableViewModel = createTableViewModelInScope(this.scope, {
-      rawFiles,
+      previewInputs,
       source,
-      tableRowsReaderService: this.tableRowsReaderService,
       numericDisplayMode: this.numericDisplayMode,
       settingsVersion: this.displayVersion,
     });
@@ -450,14 +441,19 @@ export class TableService extends Disposable implements ITableService {
     return tableViewModel;
   }
 
-  private getRawFilesForCurrentSource(): TablePreviewSourceInput[] {
+  private getPreviewInputsForCurrentSource(): TableViewModelPreviewInput[] {
     if (!this.currentSource) {
       return [];
     }
 
     const previewInput = this.tableModelService.getPreviewInput(this.currentSource);
     if (this.currentSource.resource) {
-      return previewInput ? [toTablePreviewSourceInput(previewInput)] : [];
+      return previewInput
+        ? [{
+            input: previewInput,
+            source: this.currentSource,
+          }]
+        : [];
     }
 
     return [];
@@ -727,7 +723,6 @@ const isSameTableState = (
   current: TableState,
   next: TableState,
 ): boolean =>
-  current.selectedFileId === next.selectedFileId &&
   current.selectedSheetId === next.selectedSheetId &&
   current.sourceKey === next.sourceKey &&
   current.fileName === next.fileName &&
@@ -756,6 +751,3 @@ const getTableColumnLayoutStorageKey = (
     ? `${TABLE_COLUMN_LAYOUT_STORAGE_KEY_PREFIX}${normalizedSourceKey}`
     : null;
 };
-
-const toTablePreviewSourceInput = (previewInput: TableModelPreviewInput): TablePreviewSourceInput =>
-  previewInput as TablePreviewSourceInput;

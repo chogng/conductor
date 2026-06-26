@@ -3,14 +3,8 @@ import path from "node:path";
 import type { IRustWorkerHost } from "../../platform/rust/common/rustWorker.js";
 import type {
   CalculateRcRequest,
-  DisposeFileRequest,
   ExportOriginCsvRequest,
   IRustHostService,
-  OpenFileRequest,
-  PreviewMetaRequest,
-  PreviewRowsRequest,
-  ReadCellRequest,
-  ReadCellsRequest,
   RustHostResponse,
   RustProcessConfig,
 } from "../../platform/rust/common/rustHostProtocol.js";
@@ -26,10 +20,6 @@ type ServiceOptions = ServiceHelpers & {
 };
 
 const ErrorCode = {
-  FileNotFound: "RUST_HOST_FILE_NOT_FOUND",
-  InvalidCell: "INVALID_RUST_HOST_CELL",
-  InvalidCells: "INVALID_RUST_HOST_CELLS",
-  InvalidFileId: "INVALID_RUST_HOST_FILE_ID",
   InvalidPath: "INVALID_RUST_HOST_PATH",
 } as const;
 
@@ -61,113 +51,6 @@ export class RustHostService implements IRustHostService {
   constructor(
     private readonly options: ServiceOptions,
   ) {}
-
-  public async openFile(request: OpenFileRequest): Promise<RustHostResponse> {
-    if (!request.fileId || !request.inputPath || !this.options.isSupportedInputPath(request.inputPath)) {
-      return buildFailure(ErrorCode.InvalidPath, "Invalid file path.");
-    }
-
-    try {
-      const stat = fs.statSync(request.inputPath);
-      if (!stat.isFile()) {
-        return buildFailure(ErrorCode.InvalidPath, "Rust host path is not a file.");
-      }
-    } catch (error) {
-      return buildFailure(
-        ErrorCode.FileNotFound,
-        (error as Error)?.message || "File not found.",
-      );
-    }
-
-    const startedAt = Date.now();
-    try {
-      const result = await this.options.rustWorkerHost.sendCommand("open", {
-        fileId: request.fileId,
-        fileName: request.fileName || path.basename(request.inputPath),
-        path: request.inputPath,
-        seedRows: request.seedRows,
-      });
-      return buildSuccess(startedAt, result, "rust");
-    } catch (error) {
-      return buildFailure(
-        "RUST_ENGINE_OPEN_FAILED",
-        (error as Error)?.message || "conductor-rs failed to open file.",
-        startedAt,
-      );
-    }
-  }
-
-  public async previewRows(request: PreviewRowsRequest): Promise<RustHostResponse> {
-    if (!request.fileId) {
-      return buildFailure(ErrorCode.InvalidFileId, "Missing file id.");
-    }
-
-    const startedAt = Date.now();
-    try {
-      const result = await this.options.rustWorkerHost.sendCommand("previewRows", request);
-      return buildSuccess(startedAt, result, "rust");
-    } catch (error) {
-      return buildFailure(
-        "RUST_ENGINE_PREVIEW_ROWS_FAILED",
-        (error as Error)?.message || "conductor-rs failed to read preview rows.",
-        startedAt,
-      );
-    }
-  }
-
-  public async previewMeta(request: PreviewMetaRequest): Promise<RustHostResponse> {
-    if (!request.fileId) {
-      return buildFailure(ErrorCode.InvalidFileId, "Missing file id.");
-    }
-
-    const startedAt = Date.now();
-    try {
-      const result = await this.options.rustWorkerHost.sendCommand("previewMeta", request);
-      return buildSuccess(startedAt, result, "rust");
-    } catch (error) {
-      return buildFailure(
-        "RUST_ENGINE_PREVIEW_META_FAILED",
-        (error as Error)?.message || "conductor-rs failed to read preview metadata.",
-        startedAt,
-      );
-    }
-  }
-
-  public async readCell(request: ReadCellRequest): Promise<RustHostResponse> {
-    if (!request.fileId) {
-      return buildFailure(ErrorCode.InvalidCell, "Invalid Rust host cell request.");
-    }
-
-    const startedAt = Date.now();
-    try {
-      const result = await this.options.rustWorkerHost.sendCommand("readCell", request);
-      return buildSuccess(startedAt, result, "rust");
-    } catch (error) {
-      return buildFailure(
-        "RUST_ENGINE_READ_CELL_FAILED",
-        (error as Error)?.message || "conductor-rs failed to read cell.",
-        startedAt,
-      );
-    }
-  }
-
-  public async readCells(request: ReadCellsRequest): Promise<RustHostResponse> {
-    if (!request.fileId || !request.cells.length) {
-      return buildFailure(ErrorCode.InvalidCells, "Invalid Rust host cells request.");
-    }
-
-    const startedAt = Date.now();
-    try {
-      const result = await this.options.rustWorkerHost.sendCommand("readCells", request);
-      return buildSuccess(startedAt, result, "rust");
-    } catch (error) {
-      return buildFailure(
-        "RUST_ENGINE_READ_CELLS_FAILED",
-        (error as Error)?.message || "conductor-rs failed to read cells.",
-        startedAt,
-      );
-    }
-  }
 
   public async calculateRc(request: CalculateRcRequest): Promise<RustHostResponse> {
     if (!request.devices.length) {
@@ -261,26 +144,4 @@ export class RustHostService implements IRustHostService {
     }
   }
 
-  public async disposeFile(request: DisposeFileRequest): Promise<RustHostResponse> {
-    try {
-      if (request.clear) {
-        await this.options.rustWorkerHost.clear();
-        return { ok: true, source: "rust" };
-      }
-      if (request.fileId) {
-        const [previewDispose] = await Promise.allSettled([
-          this.options.rustWorkerHost.disposeFile(request.fileId),
-        ]);
-        if (previewDispose.status === "rejected") {
-          throw previewDispose.reason;
-        }
-      }
-      return { ok: true, source: "rust" };
-    } catch (error) {
-      return buildFailure(
-        "RUST_ENGINE_DISPOSE_FAILED",
-        (error as Error)?.message || "conductor-rs dispose failed.",
-      );
-    }
-  }
 }

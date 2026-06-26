@@ -5,7 +5,6 @@
 import type { Event } from "src/cs/base/common/event";
 import type { URI } from "src/cs/base/common/uri";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type { ConvertedCsvReaderService } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import type { ColumnDisplayProfile } from "src/cs/workbench/services/table/common/tableDisplayProfile";
 import type { TableColumnWidth } from "src/cs/workbench/services/table/common/tableColumnLayout";
 
@@ -69,14 +68,12 @@ type TableHighlight = {
 };
 
 export type TableSource = {
-	readonly fileId?: string | null;
 	readonly resource?: URI | null;
 	readonly sheetId?: string | null;
 	readonly sourceKey?: string | null;
 };
 
 type TableFile = {
-	fileId?: string | null;
 	fileName: string;
 	sheetId?: string | null;
 	sheetName?: string | null;
@@ -93,13 +90,6 @@ type TableFile = {
 type TableLoadState = {
 	state: "idle" | "loading" | "ready" | "error";
 	message: string;
-};
-
-export type TableRowsReaderResultPayload = {
-	readonly message?: string;
-	readonly ok?: boolean;
-	readonly result?: unknown;
-	readonly [key: string]: unknown;
 };
 
 type TableCellReadRequest = {
@@ -126,7 +116,6 @@ export type TableRowsVersionChangeEvent = {
 };
 
 export type TableState = {
-	readonly selectedFileId: string | null;
 	readonly selectedSheetId?: string | null;
 	readonly source?: TableSource | null;
 	readonly sourceKey?: string | null;
@@ -140,13 +129,12 @@ export type TableState = {
 export type TableViewModel = {
 	cancelPendingRowRequests: () => void;
 	clearState: (options?: { clearSelection?: boolean }) => void;
-	disposeFileCache: (fileId: string) => void;
 	ensureCells: (
-		fileId: string,
+		sourceKey: string,
 		cells: TableCellReadRequest[],
 	) => Promise<void>;
 	ensureRows: (
-		fileId: string,
+		sourceKey: string,
 		startRow: number,
 		endRow: number,
 	) => Promise<void>;
@@ -157,13 +145,11 @@ export type TableViewModel = {
 	getState: () => TableState;
 	getRevealCell: () => TableCell | null;
 	getSelection: () => TableSelection;
-	hasSourceFile: (fileId: string | null | undefined) => boolean;
 	invalidateRequests: () => void;
 	onDidChangeState: (callback: () => void) => () => void;
 	onDidChangeSelection: (callback: (selection: TableSelection) => void) => () => void;
 	revealCell: (cell: TableCell | null) => void;
 	resetColumnDisplayScale: (colIndex: number) => boolean;
-	resetWorker: () => void;
 	clearHighlight: () => void;
 	clearSelection: () => boolean;
 	getHighlight: () => TableHighlight;
@@ -207,9 +193,8 @@ export const normalizeTableSource = (
 	source: TableSource | null | undefined,
 ): TableSource | null => {
 	const resource = source?.resource ?? null;
-	const fileId = String(source?.fileId ?? "").trim();
 	const sourceKey = getTableSourceRawKey(source);
-	if (!fileId && !resource && !sourceKey) {
+	if (!resource) {
 		return null;
 	}
 
@@ -217,8 +202,7 @@ export const normalizeTableSource = (
 		? source.sheetId.trim()
 		: null;
 	return {
-		...(fileId ? { fileId } : {}),
-		...(resource ? { resource } : {}),
+		resource,
 		sheetId,
 		...(sourceKey ? { sourceKey } : {}),
 	};
@@ -246,12 +230,10 @@ export const areTableSourcesEqual = (
 	const nextSourceKey = getTableSourceIdentityKey(nextSource);
 	if (currentSourceKey || nextSourceKey) {
 		return currentSourceKey === nextSourceKey &&
-			currentSource.fileId === nextSource.fileId &&
 			currentSource.sheetId === nextSource.sheetId;
 	}
 
-	return currentSource.fileId === nextSource.fileId &&
-		currentSource.sheetId === nextSource.sheetId;
+	return currentSource.sheetId === nextSource.sheetId;
 };
 
 export const toTableSourceKey = (source: TableSource): string => {
@@ -268,11 +250,7 @@ export const toTableSourceKey = (source: TableSource): string => {
 		return sourceKey;
 	}
 
-	const fileId = encodeURIComponent(source.fileId || "");
-	const sheetId = typeof source.sheetId === "string" && source.sheetId
-		? encodeURIComponent(source.sheetId)
-		: "";
-	return sheetId ? `${fileId}::${sheetId}` : fileId;
+	return "";
 };
 
 const getTableSourceResourceKey = (
@@ -289,25 +267,7 @@ const getTableSourceRawKey = (
 	return sourceKey || null;
 };
 
-export const ITableRowsReaderService =
-	createDecorator<ITableRowsReaderService>("tableRowsReaderService");
-
 export const TABLE_COPY_MAX_CELLS = 100_000;
-
-export type TableRowsReaderProvider = ConvertedCsvReaderService & {
-	canReleaseSource(): boolean;
-	canReadRows(): boolean;
-	canOpenSource(): boolean;
-	canReadCells(): boolean;
-	releaseSource(payload: unknown): Promise<unknown>;
-	readRows(payload: unknown): Promise<TableRowsReaderResultPayload>;
-	openSource(payload: unknown): Promise<TableRowsReaderResultPayload>;
-	readCells(payload: unknown): Promise<TableRowsReaderResultPayload>;
-};
-
-export interface ITableRowsReaderService extends TableRowsReaderProvider {
-	readonly _serviceBrand: undefined;
-}
 
 export const ITableService = createDecorator<ITableService>("tableService");
 
