@@ -34,8 +34,8 @@ workbench/services/tablefile/TableFileEditorModel
 workbench/contrib/files/IExplorerService
   resource tree, selection, expansion, tree/thumbnail layout
 
-workbench/contrib/files/IExplorerWorkflowService
-  view-local source/import/open/close/delete workflow dispatch
+workbench/contrib/files/ExplorerViewPane
+  view-local source/import/open/close/delete workflow host reached by commands through IViewsService.openView(...)
 ```
 
 Do not introduce `IFileViewService`, `IFilesExplorerService`, or
@@ -103,9 +103,8 @@ projections arrive through their owning services.
 
 | File | Responsibility |
 | --- | --- |
-| `contrib/files/browser/files.ts` | `IExplorerService`, `IExplorerWorkflowService`, view/context contracts. |
+| `contrib/files/browser/files.ts` | `IExplorerService`, view/context contracts. |
 | `contrib/files/browser/explorerService.ts` | Explorer state/model, selection/reveal, layout, expansion, pane input events. |
-| `contrib/files/browser/explorerWorkflowService.ts` | Dispatches view-local source/close/delete workflows registered by `ExplorerViewPane`. |
 | `contrib/files/common/explorerModel.ts` | Explorer resources/items/tree helpers. |
 | `contrib/files/common/explorerFileNestingTrie.ts` | Explorer display-only file nesting pattern matching. |
 | `contrib/files/browser/explorerViewlet.ts` | Explorer `ViewPane` host and sidebar actions. |
@@ -213,12 +212,14 @@ separate:
 ```txt
 Explorer item close button
   -> files.item.close command
-  -> IExplorerWorkflowService.closeFile(fileId)
+  -> IViewsService.openView(ExplorerViewId)
+  -> ExplorerViewPane.closeFile(fileId)
   -> ExplorerViewPane removes the row from Explorer-owned visible state
 
 Explorer item context menu Delete
   -> files.item.delete command
-  -> IExplorerWorkflowService.deleteFile(fileId)
+  -> IViewsService.openView(ExplorerViewId)
+  -> ExplorerViewPane.deleteFile(fileId)
   -> IDialogService confirms move to trash
   -> IFileService.moveFileToTrash(...)
   -> ExplorerViewPane removes the row from Explorer-owned visible state after success
@@ -237,7 +238,7 @@ Explorer view code may:
 - own DOM container, drag/drop handlers, row templates, context menus, and hover shell;
 - receive Explorer pane input as props;
 - narrow thumbnail files from Explorer view-model input;
-- call commands, `IExplorerService`, or `IExplorerWorkflowService` for user intent.
+- call commands or `IExplorerService` for user intent.
 
 Explorer view code must not parse files, read raw table rows directly, call the
 table-model producer (`ITableModelProducerService`), mutate Session,
@@ -264,11 +265,11 @@ Use the upstream registration split:
 fileActions.contribution.ts
   -> registers commands/actions/menus/keybindings
 fileActions.ts / fileCommands.ts
-  -> validates args and delegates
+  -> validates args and delegates to the owner or opens ExplorerViewPane for view-local workflows
 IExplorerService
   -> Explorer state
-IExplorerWorkflowService
-  -> view-local source/removal workflows
+IViewsService.openView(ExplorerViewId)
+  -> upstream-style access to ExplorerViewPane for view-local source/removal workflows
 services/files helpers
   -> non-UI file work
 ITableService
@@ -280,7 +281,7 @@ Rules:
 - `files.contribution.ts` registers the Files feature; do not make it a giant command bucket.
 - Browser commands live in `contrib/files/browser/fileActions.ts` / `fileCommands.ts`.
 - Desktop native helpers live in `contrib/files/electron-browser/*`.
-- Add-data commands call `IExplorerWorkflowService` when the actual picker/drop/folder workflow is view-local.
+- Add-data commands call `IViewsService.openView(ExplorerViewId)` when the actual picker/drop/folder workflow is view-local.
 - Selection/reveal uses `IExplorerService.select(...)` and `IExplorerView.selectResource(...)`.
 - Rename starts editable state through `IExplorerService.setEditable(...)`; Explorer view state owns display-name overrides for visible rows.
 - File-template selection delegates to `ISliceService.setTemplateSelection(...)`; Explorer owns the command surface, Slice owns the selection state and execution.
@@ -306,7 +307,6 @@ Use:
 
 ```txt
 ExplorerService
-ExplorerWorkflowService
 ExplorerViewPane / ExplorerView / ExplorerViewer
 explorerViewlet.ts
 fileActions.ts / fileCommands.ts / fileActions.contribution.ts

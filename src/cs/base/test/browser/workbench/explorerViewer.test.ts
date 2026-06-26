@@ -113,10 +113,11 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         relatedTarget: null,
       }));
 
-      const rows = [...(contextViewService.renderedElement?.querySelectorAll<HTMLElement>(".file-list-hover-table-models-row") ?? [])]
+      assert.ok(contextViewService.renderedElement?.classList.contains("file-list-hover--table-facts"));
+      const rows = [...(contextViewService.renderedElement?.querySelectorAll<HTMLElement>(".file-list-hover-table-facts-row") ?? [])]
         .map(row => [
-          row.querySelector(".file-list-hover-table-models-label")?.textContent ?? "",
-          row.querySelector(".file-list-hover-table-models-value")?.textContent ?? "",
+          row.querySelector(".file-list-hover-table-facts-label")?.textContent ?? "",
+          row.querySelector(".file-list-hover-table-facts-value")?.textContent ?? "",
         ]);
       assert.deepEqual(rows, [
         ["文件：", "Output_.csv"],

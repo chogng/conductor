@@ -669,22 +669,22 @@ const createTableModelRow = (
   value: string | readonly string[],
 ): HTMLElement => {
   const row = document.createElement("div");
-  row.className = "file-list-hover-table-models-row";
+  row.className = "file-list-hover-table-facts-row";
 
   const term = document.createElement("dt");
-  term.className = "file-list-hover-table-models-label";
+  term.className = "file-list-hover-table-facts-label";
   term.textContent = label;
 
   const description = document.createElement("dd");
-  description.className = "file-list-hover-table-models-value";
+  description.className = "file-list-hover-table-facts-value";
   if (typeof value === "string") {
     description.textContent = value;
   } else {
     const list = document.createElement("div");
-    list.className = "file-list-hover-table-models-list";
+    list.className = "file-list-hover-table-facts-list";
     for (const item of value) {
       const entry = document.createElement("div");
-      entry.className = "file-list-hover-table-models-list-item";
+      entry.className = "file-list-hover-table-facts-list-item";
       entry.textContent = item;
       list.appendChild(entry);
     }
@@ -2263,7 +2263,7 @@ export class ExplorerViewer implements IDisposable {
     }
     const classNames = isThumbnailHover
       ? ["file-list-hover", "file-list-hover--thumbnail"]
-      : ["file-list-hover", "file-list-hover--table-models"];
+      : ["file-list-hover", "file-list-hover--table-facts"];
 
     this.hoverView = this.props.contextViewService.showContextView({
       anchorAxisAlignment: AnchorAxisAlignment.HORIZONTAL,
@@ -2298,7 +2298,7 @@ export class ExplorerViewer implements IDisposable {
         }
         container.classList.remove(
           "file-list-hover",
-          "file-list-hover--table-models",
+          "file-list-hover--table-facts",
           "file-list-hover--thumbnail",
         );
         container.removeAttribute("role");
@@ -2433,7 +2433,7 @@ export class ExplorerViewer implements IDisposable {
     container.dataset.hoverKind = content.kind;
     container.replaceChildren();
     const details = document.createElement("dl");
-    details.className = "file-list-hover-table-models";
+    details.className = "file-list-hover-table-facts";
     details.dataset.warning = content.kind === "tableModel" && content.isWarning ? "true" : "false";
     appendFileHoverContextRows(details, content.fileContext, {
       includeType: content.kind === "file",

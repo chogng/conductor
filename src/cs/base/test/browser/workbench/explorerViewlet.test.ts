@@ -20,8 +20,6 @@ import {
   type ExplorerPaneInput,
   type IExplorerService,
   type ExplorerSelectionTarget,
-  type ExplorerWorkflowHandler,
-  type IExplorerWorkflowService,
 } from "src/cs/workbench/contrib/files/browser/files";
 import { DEFAULT_EXPLORER_APPEARANCE, type IAppearanceService } from "src/cs/workbench/services/appearance/common/appearance";
 import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
@@ -47,16 +45,12 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
   });
 
   test("moves a confirmed file delete to trash before removing the imported file", async () => {
-    let workflowHandler: ExplorerWorkflowHandler | null = null;
     const movedPaths: string[] = [];
     const paneInputUpdates: ExplorerPaneInput[] = [];
     const pane = createExplorerViewPane({
       confirm: async () => ({ confirmed: true }),
       moveFileToTrash: async resource => {
         movedPaths.push(resource.fsPath);
-      },
-      onRegisterHandler: handler => {
-        workflowHandler = handler;
       },
       onUpdatePaneInput: input => {
         paneInputUpdates.push(input);
@@ -70,9 +64,7 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
     });
 
     try {
-      assert.ok(workflowHandler);
-      (workflowHandler as ExplorerWorkflowHandler).deleteFile("file-a");
-      await flushPromises();
+      await pane.deleteFile("file-a");
 
       assert.deepEqual(movedPaths, ["/tmp/source.csv"]);
       assert.deepEqual(paneInputUpdates.at(-1)?.files, []);
@@ -82,16 +74,12 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
   });
 
   test("does not move or remove a file when delete confirmation is canceled", async () => {
-    let workflowHandler: ExplorerWorkflowHandler | null = null;
     const movedPaths: string[] = [];
     const paneInputUpdates: ExplorerPaneInput[] = [];
     const pane = createExplorerViewPane({
       confirm: async () => ({ confirmed: false }),
       moveFileToTrash: async resource => {
         movedPaths.push(resource.fsPath);
-      },
-      onRegisterHandler: handler => {
-        workflowHandler = handler;
       },
       onUpdatePaneInput: input => {
         paneInputUpdates.push(input);
@@ -105,9 +93,7 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
     });
 
     try {
-      assert.ok(workflowHandler);
-      (workflowHandler as ExplorerWorkflowHandler).deleteFile("file-a");
-      await flushPromises();
+      await pane.deleteFile("file-a");
 
       assert.deepEqual(movedPaths, []);
       assert.deepEqual(paneInputUpdates, []);
@@ -120,7 +106,6 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
 type CreateExplorerViewPaneOptions = {
   readonly confirm?: IDialogService["confirm"];
   readonly moveFileToTrash?: (resource: URI) => Promise<void>;
-  readonly onRegisterHandler?: (handler: ExplorerWorkflowHandler) => void;
   readonly onUpdatePaneInput?: (input: ExplorerPaneInput) => void;
   readonly paneInput?: ExplorerPaneInput | null;
 };
@@ -140,12 +125,6 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
       onWillShowDialog: Event.None,
     } as unknown as IDialogService,
     createExplorerService(options.paneInput ?? null, options.onUpdatePaneInput),
-    {
-      registerHandler: (handler: ExplorerWorkflowHandler) => {
-        options.onRegisterHandler?.(handler);
-        return toDisposable(() => undefined);
-      },
-    } as unknown as IExplorerWorkflowService,
     {
       getProvider: () => undefined,
       moveFileToTrash: options.moveFileToTrash ?? (async () => undefined),
@@ -237,12 +216,6 @@ const createPaneInput = (files: ExplorerFileEntry[]): ExplorerPaneInput => ({
   selectionKind: "table",
   thumbnailFiles: [],
 });
-
-const flushPromises = async (): Promise<void> => {
-  await Promise.resolve();
-  await Promise.resolve();
-  await Promise.resolve();
-};
 
 const createUserTemplateService = (): IUserTemplateService => ({
   _serviceBrand: undefined,

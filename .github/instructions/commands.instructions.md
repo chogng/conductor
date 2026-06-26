@@ -122,7 +122,7 @@ command APIs.
 | Command family | Owner |
 | --- | --- |
 | workbench navigation/mode/sidebar/window chrome | layout service or native host; titlebar only renders buttons |
-| Explorer add/remove/select/toggle layout | `IExplorerService` or `IExplorerWorkflowService` |
+| Explorer add/remove/select/toggle layout | `IExplorerService`, or `ExplorerViewPane` reached through `IViewsService.openView(...)` for view-local workflows |
 | low-level filesystem operations | `IFileService`, usually not user-facing workbench commands |
 | Explorer source import/open | Explorer source workflow + Explorer-local rows + `ITableService.open({ resource })` |
 | table model | table-model producer (`ITableModelProducerService`) then `ISessionService.commitTableModel(...)` |

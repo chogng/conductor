@@ -41,7 +41,6 @@ import {
 import {
   ExplorerViewId,
   IExplorerService,
-  IExplorerWorkflowService,
   type ExplorerPaneInput,
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
@@ -111,7 +110,6 @@ export class ExplorerViewPane extends ViewPane {
     @IContextViewService private readonly contextViewService: IContextViewService,
     @IDialogService private readonly dialogService: IDialogService,
     @IExplorerService private readonly explorerService: IExplorerService,
-    @IExplorerWorkflowService private readonly explorerWorkflowService: IExplorerWorkflowService,
     @IFileService private readonly filesService: IFileService,
     @IAppearanceService private readonly appearanceService: IAppearanceService,
     @IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -181,20 +179,6 @@ export class ExplorerViewPane extends ViewPane {
       }
       this.syncView();
     }));
-    this._register(this.explorerWorkflowService.registerHandler({
-      openFolderImport: () => this.openFileDialog(),
-      closeFolder: () => this.closeFolder(),
-      closeFile: fileId => {
-        if (this.fileIds.includes(fileId)) {
-          this.handleCloseFile(fileId);
-        }
-      },
-      deleteFile: fileId => {
-        if (this.fileIds.includes(fileId)) {
-          void this.handleDeleteFile(fileId);
-        }
-      },
-    }));
     this._register(this.appearanceService.onDidChangeAppearance(() => {
       this.syncView();
     }));
@@ -239,6 +223,26 @@ export class ExplorerViewPane extends ViewPane {
     this.explorerView = null;
     this.listRef.current = null;
     super.dispose();
+  }
+
+  public openFolderImport(): void {
+    this.openFileDialog();
+  }
+
+  public closeFile(fileId: string | null): void {
+    if (!fileId || !this.fileIds.includes(fileId)) {
+      return;
+    }
+
+    this.handleCloseFile(fileId);
+  }
+
+  public deleteFile(fileId: string | null): Promise<void> {
+    if (!fileId || !this.fileIds.includes(fileId)) {
+      return Promise.resolve();
+    }
+
+    return this.handleDeleteFile(fileId);
   }
 
   protected override layoutBody(height: number, width: number): void {
@@ -754,7 +758,7 @@ export class ExplorerViewPane extends ViewPane {
     this.syncView();
   };
 
-  private closeFolder(): void {
+  public closeFolder(): void {
     this.sourceWorkflow.closeImportedSources();
     this.isDragging = false;
 

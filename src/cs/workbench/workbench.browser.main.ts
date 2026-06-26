@@ -58,7 +58,6 @@ import "src/cs/workbench/services/table/browser/tableService";
 
 import "src/cs/workbench/contrib/chart/browser/chartTitleEditService";
 import "src/cs/workbench/contrib/files/browser/explorerService";
-import "src/cs/workbench/contrib/files/browser/explorerWorkflowService";
 import "src/cs/workbench/contrib/template/browser/templateViewStateService";
 
 //#endregion

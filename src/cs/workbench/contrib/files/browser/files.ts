@@ -21,7 +21,6 @@ import type {
 } from "src/cs/workbench/services/slice/common/templateSelection";
 
 export const IExplorerService = createDecorator<IExplorerService>("explorerService");
-export const IExplorerWorkflowService = createDecorator<IExplorerWorkflowService>("explorerWorkflowService");
 export const ExplorerViewId = "workbench.files";
 
 export type ExplorerSelectionKind = WorkbenchMainPart;
@@ -139,21 +138,4 @@ export interface IExplorerService {
   toggleViewLayout(): void;
   getPaneInput(): ExplorerPaneInput | null;
   updatePaneInput(input: ExplorerPaneInput): void;
-}
-
-export interface ExplorerWorkflowHandler {
-  openFolderImport(): void;
-  closeFolder(): void;
-  closeFile(fileId: string): void;
-  deleteFile(fileId: string): void;
-}
-
-export interface IExplorerWorkflowService {
-  readonly _serviceBrand: undefined;
-
-  registerHandler(handler: ExplorerWorkflowHandler): IDisposable;
-  openFolderImport(): void;
-  closeFolder(): void;
-  closeFile(fileId: string): void;
-  deleteFile(fileId: string): void;
 }
