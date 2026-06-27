@@ -4,7 +4,7 @@
 
 import assert from "assert";
 
-import { distinct, equals } from "../../common/arrays.ts";
+import { distinct, equals, mapFilter } from "../../common/arrays.ts";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/common/arrays", () => {
@@ -52,6 +52,13 @@ suite("base/test/common/arrays", () => {
         { id: "a", label: "first" },
         { id: "b", label: "second" },
       ],
+    );
+  });
+
+  test("mapFilter maps and removes undefined values", () => {
+    assert.deepEqual(
+      mapFilter([1, 2, 3], value => value % 2 === 0 ? `value-${value}` : undefined),
+      ["value-2"],
     );
   });
 });

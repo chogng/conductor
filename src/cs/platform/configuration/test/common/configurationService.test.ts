@@ -204,6 +204,24 @@ suite("platform/configuration/common/configurationService", () => {
     service.dispose();
   });
 
+  test("file backed service reads JSONC user settings", async () => {
+    const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-main-config-test-"));
+    const { service, settingsPath } = createFileBackedConfigurationService(userDataPath, store);
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+    fs.writeFileSync(
+      settingsPath,
+      "{\n  // User preference\n  \"theme\": \"dark\",\n  \"editor\": { \"tabSize\": 2, },\n}\n",
+      "utf8",
+    );
+
+    await service.initialize();
+
+    assert.equal(service.getValue("theme"), "dark");
+    assert.equal(service.getValue("editor.tabSize"), 2);
+
+    service.dispose();
+  });
+
   test("file backed service falls back to defaults for unreadable user settings", async () => {
     const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-main-config-test-"));
     const { service, settingsPath } = createFileBackedConfigurationService(userDataPath, store);

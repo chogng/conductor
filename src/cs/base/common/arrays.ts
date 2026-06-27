@@ -43,3 +43,19 @@ export function distinct<T>(
 
   return result;
 }
+
+export function mapFilter<T, R>(
+  values: readonly T[],
+  mapFn: (value: T, index: number) => R | undefined,
+): R[] {
+  const result: R[] = [];
+
+  for (let index = 0; index < values.length; index += 1) {
+    const mapped = mapFn(values[index], index);
+    if (mapped !== undefined) {
+      result.push(mapped);
+    }
+  }
+
+  return result;
+}

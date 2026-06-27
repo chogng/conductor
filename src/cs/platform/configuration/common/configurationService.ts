@@ -1,4 +1,6 @@
 import { Emitter } from "../../../base/common/event.js";
+import { isObjectRecord } from "../../../base/common/json.js";
+import { parse as parseJsonc } from "../../../base/common/jsonc.js";
 import { Disposable } from "../../../base/common/lifecycle.js";
 import type { URI } from "../../../base/common/uri.js";
 import {
@@ -304,13 +306,13 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
     }
 
     try {
-      const content = await this.userSettingsFileService.readFile(this.userSettingsResource, { encoding: "utf8" });
-      const raw = JSON.parse(content.value || "{}") as unknown;
-      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      const content = await this.userSettingsFileService.readFile(this.userSettingsResource);
+      const raw = parseJsonc(new TextDecoder().decode(content.value) || "{}");
+      if (!isObjectRecord(raw)) {
         return ConfigurationModel.createEmptyModel();
       }
 
-      return parseConfigurationModel(raw as Record<string, unknown>);
+      return parseConfigurationModel(raw);
     } catch {
       return ConfigurationModel.createEmptyModel();
     }
