@@ -7,10 +7,8 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import {
 	collectDroppedFiles,
+	type FileSource,
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
-import type {
-	FileSource,
-} from "src/cs/workbench/services/files/common/files";
 import {
 	INotificationService,
 	Severity,

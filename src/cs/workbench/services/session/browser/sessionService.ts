@@ -20,6 +20,7 @@ import {
   type MetricRecord,
   type RawTableRef,
   type RawRecord,
+  type RawTableRecord,
   type SeriesRecord,
   type TableRecord,
   type TableRowStoreRecord,
@@ -35,6 +36,8 @@ import {
   type CommitCurvesInput,
   type CommitMetricsBatchInput,
   type CommitMetricsInput,
+  type FileImportResult,
+  type ImportedFileRecord,
   type SessionSnapshot,
   type ISessionService as ISessionServiceType,
 } from "src/cs/workbench/services/session/common/session";
@@ -51,15 +54,6 @@ import {
   type SessionChangeEvent,
   type SessionChangeReason,
 } from "src/cs/workbench/services/session/common/sessionEvents";
-import {
-  buildFileSourceIdentityKey,
-  type FileImportResult,
-  type ImportedFileRecord,
-} from "src/cs/workbench/services/files/common/files";
-import type {
-  RawTableRecord,
-} from "src/cs/workbench/services/files/common/rawTable";
-
 export class SessionService extends Disposable implements ISessionServiceType {
   public declare readonly _serviceBrand: undefined;
 
@@ -564,6 +558,21 @@ const createRawSourceFingerprint = (
     raw.lastModified,
     raw.relativePath,
   )) ?? null;
+};
+
+const buildFileSourceIdentityKey = (
+  fileName: unknown,
+  size: unknown,
+  lastModified: unknown,
+  relativePath?: string | null,
+): string => {
+  const name = String(fileName ?? "").trim();
+  if (!name) {
+    return "";
+  }
+
+  const path = relativePath?.trim();
+  return `${path || name}::${Number(size) || 0}::${Number(lastModified) || 0}`;
 };
 
 const createFileRecordFromImportedFile = (

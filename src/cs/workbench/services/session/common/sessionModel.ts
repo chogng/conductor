@@ -1,8 +1,3 @@
-import type { FileImportSourceKind } from "src/cs/workbench/services/files/common/files";
-import type {
-  RawTableHealthRecord,
-  TemplateEligibility,
-} from "src/cs/workbench/services/files/common/rawTable";
 import type { SliceRun, SliceRunId } from "src/cs/workbench/services/slice/common/slice";
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
 
@@ -10,7 +5,7 @@ export type FileId = string;
 export type SheetId = string;
 export type SeriesId = string;
 export type CacheKey = string;
-export type FileKind = FileImportSourceKind;
+export type FileKind = "csv" | "excel" | "unknown";
 
 export type CurveGeneration = "base" | "derived" | "secondDerived";
 export type BaseCurveFamily = "iv" | "cv" | "cf" | "pv" | "it";
@@ -87,6 +82,74 @@ export type RawRecord = {
   normalizedCsvPath?: string | null;
   tablesById: Record<SheetId, TableRecord>;
   tableOrder: SheetId[];
+};
+
+export type RawTableSourceRecord =
+  | {
+      readonly kind: "csv";
+      readonly originalPath?: string | null;
+    }
+  | {
+      readonly kind: "excelSheet";
+      readonly sheetIndex: number;
+      readonly sheetName?: string | null;
+      readonly originalPath?: string | null;
+    }
+  | {
+      readonly kind: "unknown";
+    };
+
+export type RawTableHealthState =
+  | "ok"
+  | "suspect"
+  | "decodeFailed"
+  | "parseFailed"
+  | "unsupported"
+  | "empty";
+
+export type TemplateEligibility =
+  | "eligible"
+  | "notEligible"
+  | "needsUserAction";
+
+export type RawTableHealthRecord = {
+  readonly state: RawTableHealthState;
+  readonly message: string;
+  readonly decode?: {
+    readonly encoding?: string;
+    readonly confidence: number;
+    readonly replacementCharRatio: number;
+    readonly controlCharRatio: number;
+    readonly binaryLike: boolean;
+    readonly reason?: string;
+  };
+};
+
+export type RawTableRowsRecord =
+  | {
+      readonly kind: "inline";
+      readonly values: readonly (readonly string[])[];
+    }
+  | {
+      readonly kind: "normalizedCsv";
+      readonly normalizedCsvPath: string;
+      readonly formatVersion: number;
+    }
+  | {
+      readonly kind: "unavailable";
+      readonly reason: string;
+    };
+
+export type RawTableRecord = {
+  readonly fileId: string;
+  readonly rawTableId: string;
+  readonly source: RawTableSourceRecord;
+  readonly rows: RawTableRowsRecord;
+  readonly rowCount: number;
+  readonly columnCount: number;
+  readonly maxCellLengths?: readonly number[];
+  readonly health?: RawTableHealthRecord;
+  readonly templateEligibility?: TemplateEligibility;
 };
 
 export type TableRecord = {

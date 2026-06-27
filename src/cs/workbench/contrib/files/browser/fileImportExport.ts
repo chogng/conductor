@@ -37,16 +37,6 @@ import {
 } from "src/cs/workbench/contrib/files/browser/fileConstants";
 import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import {
-  buildFileSourceIdentityKey,
-  type FileSource,
-  type FolderFileCollection,
-  type FolderFileCollectionBatch,
-  type FolderFileReadFailure,
-  type FolderImportFileSource,
-  type FolderImportFiles,
-  type ImportFileData,
-} from "src/cs/workbench/services/files/common/files";
-import {
   tableFormatService,
   type TableFormatService,
 } from "src/cs/workbench/services/table/common/tableFormatService";
@@ -69,17 +59,108 @@ import {
   type WorkspaceExternalChanges,
 } from "src/cs/workbench/services/workspaces/common/workspaces";
 
-export {
-  buildFileIdentityKey,
-  type FileSource,
-} from "src/cs/workbench/services/files/common/files";
-export type {
-  FolderFileCollection,
-  FolderFileCollectionBatch,
-  FolderFileReadFailure,
-  FolderImportFileSource,
-  FolderImportFiles,
-} from "src/cs/workbench/services/files/common/files";
+const fnv1a32 = (input: unknown): string => {
+  const str = String(input ?? "");
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < str.length; index += 1) {
+    hash ^= str.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+};
+
+export type ImportFileData = {
+  readonly lastModified: number;
+  readonly name: string;
+  readonly size: number;
+  arrayBuffer(): Promise<ArrayBuffer>;
+  text(): Promise<string>;
+};
+
+export type DataFileSource = {
+  readonly file: ImportFileData;
+  readonly kind: "data";
+  readonly relativePath?: string | null;
+  readonly resource?: URI | null;
+};
+
+export type PathFileSource = {
+  readonly canUseNativePath?: boolean;
+  readonly file?: ImportFileData;
+  readonly fileName: string;
+  readonly kind: "path";
+  readonly lastModified: number;
+  readonly loadFile?: () => Promise<ImportFileData>;
+  readonly relativePath?: string | null;
+  readonly resource: URI;
+  readonly size: number;
+};
+
+export type FileSource = DataFileSource | PathFileSource;
+
+export type FolderImportFileSource = PathFileSource & {
+  readonly loadFile: () => Promise<ImportFileData>;
+};
+
+export type FolderFileReadFailure = {
+  readonly fileName: string;
+  readonly message: string;
+  readonly relativePath: string;
+};
+
+export type FolderFileCollection = {
+  readonly files: FolderImportFileSource[];
+  readonly readFailures: FolderFileReadFailure[];
+};
+
+export type FolderFileCollectionBatch = {
+  readonly files: FolderImportFileSource[];
+};
+
+export type FolderImportFiles = {
+  readonly files: FileSource[];
+  readonly folder: URI;
+  readonly readFailures: FolderFileReadFailure[];
+};
+
+export const buildFileIdentityKey = (
+  file: ImportFileData | null | undefined,
+  relativePath?: string | null,
+): string => {
+  if (!file) {
+    return "";
+  }
+
+  const path = relativePath?.trim();
+  return `${path || file.name}::${file.size}::${file.lastModified}`;
+};
+
+export const buildFileSourceIdentityKey = (
+  fileName: unknown,
+  size: unknown,
+  lastModified: unknown,
+  relativePath?: string | null,
+): string => {
+  const name = String(fileName ?? "").trim();
+  if (!name) {
+    return "";
+  }
+
+  const path = relativePath?.trim();
+  return `${path || name}::${Number(size) || 0}::${Number(lastModified) || 0}`;
+};
+
+export const buildItemKey = (
+  file: ImportFileData | null | undefined,
+  relativePath?: string | null,
+): string => {
+  const raw = buildFileIdentityKey(file, relativePath);
+  if (!raw) {
+    return "";
+  }
+
+  return `csv-${fnv1a32(raw)}`;
+};
 
 const PENDING_IMPORT_APPEND_BATCH_SIZE = 50;
 const PENDING_IMPORT_BULK_APPEND_BATCH_SIZE = 100;
@@ -2223,7 +2304,7 @@ function getPathBaseName(path: string): string {
 }
 
 function getFileMimeType(fileName: string): string {
-  if (tableFormatService.isExcel(fileName)) {
+  if (tableFormatService.isMaterializableWorkbook(fileName)) {
     return "application/octet-stream";
   }
   if (tableFormatService.isTsv(fileName)) {
@@ -2262,16 +2343,16 @@ export async function collectFolderImportFilesIncrementally(
   filesService: IFileService,
   options: CollectFolderImportFilesOptions = {},
 ): Promise<FolderFileCollection> {
-  return new TableResourceImporter(filesService).importFolder(folder, options);
+  return new FolderImportSourceCollector(filesService).collect(folder, options);
 }
 
-export class TableResourceImporter {
+export class FolderImportSourceCollector {
   public constructor(
     private readonly filesService: IFileService,
     private readonly formatService: TableFormatService = tableFormatService,
   ) {}
 
-  public async importFolder(
+  public async collect(
     folder: URI,
     options: CollectFolderImportFilesOptions = {},
   ): Promise<FolderFileCollection> {
@@ -2451,10 +2532,10 @@ function compareFolderFileStatTasks(
   first: FolderFileStatTask,
   second: FolderFileStatTask,
 ): number {
-  const firstIsExcel = tableFormatService.isExcel(first.name);
-  const secondIsExcel = tableFormatService.isExcel(second.name);
-  if (firstIsExcel !== secondIsExcel) {
-    return firstIsExcel ? 1 : -1;
+  const firstIsWorkbook = tableFormatService.isMaterializableWorkbook(first.name);
+  const secondIsWorkbook = tableFormatService.isMaterializableWorkbook(second.name);
+  if (firstIsWorkbook !== secondIsWorkbook) {
+    return firstIsWorkbook ? 1 : -1;
   }
 
   return first.relativePath.localeCompare(second.relativePath, undefined, {

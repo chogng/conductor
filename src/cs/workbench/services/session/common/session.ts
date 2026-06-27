@@ -13,12 +13,13 @@ import type {
   CurveRecord,
   FileId,
   FileRecord,
+  FileKind,
   MetricInputRecord,
   MetricKey,
   MetricRecord,
+  RawTableRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
-import type { FileImportResult } from "src/cs/workbench/services/files/common/files";
 import type { SliceCommit } from "src/cs/workbench/services/slice/common/slice";
 
 export const ISessionService = createDecorator<ISessionService>("sessionService");
@@ -60,6 +61,41 @@ export type SessionSnapshot = {
 export type CommitFileImportResult = {
   readonly importedFileIds: readonly FileId[];
   readonly skippedDuplicateFileIds: readonly FileId[];
+};
+
+export type FileImportDiagnosticSeverity = "info" | "warning" | "error";
+
+export type FileImportDiagnostic = {
+  readonly severity: FileImportDiagnosticSeverity;
+  readonly code: string;
+  readonly message: string;
+  readonly sourceName?: string | null;
+};
+
+export type RawImportRecord = {
+  readonly fileId: string;
+  readonly fileName: string;
+  readonly rawFile?: unknown;
+  readonly size?: number;
+  readonly lastModified?: number;
+  readonly rawKey?: string;
+  readonly relativePath?: string | null;
+  readonly filePath?: string | null;
+  readonly rawTablesById: Readonly<Record<string, RawTableRecord>>;
+  readonly rawTableOrder: readonly string[];
+};
+
+export type ImportedFileRecord = {
+  readonly id: string;
+  readonly name: string;
+  readonly kind: FileKind;
+  readonly raw: RawImportRecord;
+};
+
+export type FileImportResult = {
+  readonly files: readonly ImportedFileRecord[];
+  readonly diagnostics: readonly FileImportDiagnostic[];
+  readonly createdAt: number;
 };
 
 export interface ISessionService {

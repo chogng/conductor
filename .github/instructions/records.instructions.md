@@ -32,8 +32,8 @@ at the type name.
 | `FileRecord` | `ISessionService` | import, slice, calculation, metric commits | Owns one imported file/workbook lifecycle in the remaining raw-table ledger. |
 | `RawRecord` | `ISessionService` | raw-table import commit | Raw file facts and `rawTablesById`; no table-model/template/plot semantics. |
 | `RawTableRecord` | `ISessionService` | Session import commit | Physical rows/source/health/template eligibility. Use `rawTableId`; keep failed rows unavailable. |
-| `RawTableSourceRecord` | files/session | CSV, Excel sheet, clipboard, manual, unknown | Source provenance only, not measurement semantics. |
-| `RawTableRowsRecord` | files/session | inline, normalized CSV, unavailable | Large rows should use artifact/path references. |
+| `RawTableSourceRecord` | `ISessionService` | CSV, Excel sheet, clipboard, manual, unknown | Source provenance only, not measurement semantics. |
+| `RawTableRowsRecord` | `ISessionService` | inline, normalized CSV, unavailable | Large rows should use artifact/path references. |
 | `SliceRun` | Slice + Session | slice execution | Executed template snapshot, source signature, input ranges, output series ids, output curve keys, warnings, and errors. |
 | `SeriesRecord` | Slice/calculation + Session | slice or curve commit | Series metadata and raw/block provenance. |
 | `CurveRecord` | Slice/calculation + Session | slice/calculation commit | Base/derived curve points, lineage, domain, signature. |
@@ -60,9 +60,8 @@ provenance, and template inputs.
 
 | Type | Owner | Notes |
 | --- | --- | --- |
-| `FileImportInput` | files source workflow | Sources plus import options. Do not turn options into Explorer UI state. |
-| `FileImportResult` | files source/import helpers; Session import commits | Contains imported files and diagnostics. Not the entire Explorer add-data workflow result. |
-| `ImportedFileRecord` | files source/import helpers; Session import commits | `id`, `name`, `kind`, `raw`. One workbook should produce one imported file with one raw table per sheet when this migration ledger is used. |
+| `FileImportResult` | `ISessionService` migration-ledger import commits | Contains imported files and diagnostics. Not the entire Explorer add-data workflow result. |
+| `ImportedFileRecord` | `ISessionService` migration-ledger import commits | `id`, `name`, `kind`, `raw`. One workbook should produce one imported file with one raw table per sheet when this migration ledger is used. |
 | `FileImportDiagnostic` | files workflow | Import warnings/errors only; not IV/CV table-model classification. |
 
 Import records must not encode measurement blocks, curve types, plot

@@ -26,9 +26,37 @@ import type {
 import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/reviewModel";
 
 export const ISliceService = createDecorator<ISliceService>("sliceService");
+export const IRawTableRowsReaderService =
+  createDecorator<IRawTableRowsReaderService>("rawTableRowsReaderService");
 export const SlicePriorityContributionId = "workbench.services.slice.priority";
 
 export type SliceRunId = string;
+
+export type RawTableRowsStore =
+  | {
+      readonly kind: "memory";
+      readonly rows: readonly (readonly unknown[])[];
+    }
+  | {
+      readonly kind: "external";
+      readonly normalizedCsvPath?: string | null;
+    };
+
+export type RawTableRowsReadInput = {
+  readonly fallbackFile?: unknown;
+  readonly fileName?: string | null;
+  readonly lastModified?: number | null;
+  readonly maxRows?: number;
+  readonly rowStore?: RawTableRowsStore | null;
+};
+
+export type RawTableRows = readonly (readonly string[])[];
+
+export interface IRawTableRowsReaderService {
+  readonly _serviceBrand: undefined;
+
+  readRawTableRows(input: RawTableRowsReadInput): Promise<RawTableRows | null>;
+}
 
 export type SliceRequestTrigger =
   | {
@@ -78,7 +106,6 @@ export type SliceUriRequest = {
   readonly rowCount: number;
   readonly columnCount: number;
   readonly sourceTableModelSignature: string;
-  readonly measurement?: SliceMeasurementBinding;
   readonly sourceModelVersion: number;
   readonly sourceVersion: number;
 };
@@ -226,7 +253,6 @@ export type CreateSlicePlanInput = {
   readonly sourceRawTableVersion?: number;
   readonly sourceVersion?: number;
   readonly sourceTableModelSignature?: string;
-  readonly measurement?: SliceMeasurementBinding;
   readonly template: Template;
   readonly templateFingerprint?: string;
   readonly rowCount: number;

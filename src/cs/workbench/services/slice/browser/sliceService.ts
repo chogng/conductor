@@ -7,6 +7,7 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
+import Papa from "papaparse";
 import {
 	ISessionService,
 	type ISessionService as ISessionServiceType,
@@ -18,16 +19,16 @@ import type {
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
 	IRawTableRowsReaderService,
-	type IRawTableRowsReaderService as IRawTableRowsReaderServiceType,
-} from "src/cs/workbench/services/files/common/rawTableRowsReader";
-import {
 	ISliceService,
+	type IRawTableRowsReaderService as IRawTableRowsReaderServiceType,
+	type RawTableRows,
+	type RawTableRowsReadInput,
 	type ISliceService as ISliceServiceType,
-	type RunSliceWithTemplateInput,
 	type SliceCommit,
+	type SliceExecutionResult,
 	type SliceFileState,
-	type SliceMeasurementBinding,
 	type SlicePlan,
+	type SlicePlanRangeRef,
 	type SliceRequest,
 	type SliceState,
 	type SliceUriBaseCurveRecord,
@@ -36,36 +37,23 @@ import {
 	type SliceUriRun,
 	type SliceUriSeriesRecord,
 	type SliceUriTarget,
-	type SliceUriTargetState,
 } from "src/cs/workbench/services/slice/common/slice";
+import {
+	IDataResourceService,
+	type DataResourceStructuredContentSnapshot,
+	type IDataResourceService as IDataResourceServiceType,
+	type IDataResourceStructuredContentReference,
+} from "src/cs/workbench/services/dataResource/common/dataResource";
+import {
+	readStructuredContentRows,
+	type StructuredContentGridSnapshot,
+} from "src/cs/workbench/services/dataResource/common/structuredContent";
 import { executeSlicePlan } from "src/cs/workbench/services/slice/common/sliceExecutor";
 import {
-	createSliceTableModelSignature,
 	createSlicePlan,
 } from "src/cs/workbench/services/slice/common/slicePlanner";
-import {
-	createReviewRecordSignature,
-	type RawTableReviewRecord,
-} from "src/cs/workbench/services/review/common/review";
-import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
 import type { TemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
-import { getTemplateSelectionTemplateId } from "src/cs/workbench/services/slice/common/templateSelection";
-import {
-	IUserTemplateService,
-	type IUserTemplateService as IUserTemplateServiceType,
-} from "src/cs/workbench/services/userTemplate/common/userTemplate";
-import {
-	ITableModelService,
-	type ITableModelReference,
-	type ITableModelService as ITableModelServiceType,
-} from "src/cs/workbench/services/table/common/resolverService";
-import type {
-	TableModelContentSnapshot,
-	TableModelSheetSnapshot,
-	TableModelSnapshot,
-} from "src/cs/workbench/services/table/common/model";
-import type { TableSource } from "src/cs/workbench/services/table/common/table";
 
 type SessionSliceQueueEntry = {
 	readonly kind: "session";
@@ -82,16 +70,26 @@ type UriSliceQueueEntry = {
 type SliceQueueEntry = SessionSliceQueueEntry | UriSliceQueueEntry;
 
 type ResolvedUriSliceRows = {
-	readonly content: TableModelContentSnapshot;
+	readonly content: StructuredContentGridSnapshot;
 	readonly sourceModelVersion: number;
 	readonly sourceVersion: number;
 };
+
+class RawTableRowsReaderService extends Disposable implements IRawTableRowsReaderServiceType {
+	public declare readonly _serviceBrand: undefined;
+
+	public readRawTableRows(input: RawTableRowsReadInput): Promise<RawTableRows | null> {
+		return readRawTableRows(input);
+	}
+}
 
 export class SliceService extends Disposable implements ISliceServiceType {
 	public declare readonly _serviceBrand: undefined;
 
 	private readonly onDidChangeSliceStateEmitter = this._register(new Emitter<void>());
 	public readonly onDidChangeSliceState = this.onDidChangeSliceStateEmitter.event;
+	private readonly onDidChangeUriSliceResultEmitter = this._register(new Emitter<SliceUriTarget>());
+	public readonly onDidChangeUriSliceResult = this.onDidChangeUriSliceResultEmitter.event;
 
 	private readonly fileStates = new Map<string, SliceFileState>();
 	private readonly uriStatesByCacheKey = new Map<string, SliceFileState>();
@@ -100,13 +98,13 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	private readonly uriResultsByCacheKey = new Map<string, SliceUriResult>();
 	private templateSelectionsByFileId: Record<string, TemplateSelection> = {};
 	private activeFileId: string | null = null;
+	private activeQueueKey: string | null = null;
 	private isSliceQueueRunning = false;
 
 	public constructor(
 		@ISessionService private readonly sessionService: ISessionServiceType,
-		@IUserTemplateService private readonly userTemplateService?: IUserTemplateServiceType,
 		@IRawTableRowsReaderService private readonly rawTableRowsReaderService?: IRawTableRowsReaderServiceType,
-		@ITableModelService private readonly tableModelService?: ITableModelServiceType,
+		@IDataResourceService private readonly dataResourceService?: IDataResourceServiceType,
 	) {
 		super();
 		this._register(this.sessionService.onDidChangeSession(event => {
@@ -118,9 +116,9 @@ export class SliceService extends Disposable implements ISliceServiceType {
 				this.removeFiles(event.fileIds);
 			}
 		}));
-		if (this.tableModelService) {
-			this._register(this.tableModelService.onDidChangeModel(model => {
-				this.removeUriResultsForResource(model.resource);
+		if (this.dataResourceService) {
+			this._register(this.dataResourceService.onDidChangeResource(resource => {
+				this.removeUriResultsForResource(resource);
 			}));
 		}
 	}
@@ -128,14 +126,9 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	public getState(): SliceState {
 		return {
 			fileStates: new Map(this.fileStates),
-			uriStates: [...this.uriStatesByCacheKey].map(([cacheKey, state]) => ({
-				target: this.uriTargetsByCacheKey.get(cacheKey)!,
-				state,
-			})).filter((entry): entry is SliceUriTargetState => Boolean(entry.target)),
 			queueLength: this.queue.length,
 			activeFileId: this.activeFileId,
 			templateSelectionsByFileId: { ...this.templateSelectionsByFileId },
-			uriResults: [...this.uriResultsByCacheKey.values()],
 		};
 	}
 
@@ -206,55 +199,15 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	public enqueueAuto(refs: readonly RawTableRef[]): void {
 		let didChange = false;
 		for (const ref of uniqueRawTableRefs(refs)) {
-			const request = this.createAutoRequest(ref);
-			const plan = request ? this.createRequestPlan(request) : null;
-			if (!plan) {
-				didChange = this.setFileState(ref.fileId, {
-					state: "skipped",
-					code: "slice.reviewDecisionMissing",
-					message: "No reviewed template is available for automatic slicing.",
-				}) || didChange;
-				continue;
-			}
-
-			if (this.isLatestAutoRunCurrent(ref, plan)) {
-				didChange = this.setFileState(ref.fileId, { state: "ready" }) || didChange;
-				continue;
-			}
-
-			this.enqueueSliceEntry({ kind: "session", ref, plan });
-			didChange = this.setFileState(ref.fileId, { state: "queued" }) || didChange;
+			didChange = this.setFileState(ref.fileId, {
+				state: "skipped",
+				code: "slice.reviewDecisionMissing",
+				message: "No URI review decision is available for automatic slicing.",
+			}) || didChange;
 		}
 		if (didChange) {
 			this.fireSliceStateChange();
 		}
-		this.startSliceQueue();
-	}
-
-	public runWithTemplate(input: RunSliceWithTemplateInput): void {
-		const normalizedRef = normalizeRawTableRef(input.ref);
-		if (!normalizedRef) {
-			return;
-		}
-
-		this.setTemplateSelection(normalizedRef.fileId, input.selection);
-		const plan = this.createManualPlan(normalizedRef, input.selection);
-		if (!plan) {
-			if (this.setFileState(normalizedRef.fileId, {
-				state: "skipped",
-				code: "slice.templateUnavailable",
-				message: "The selected template could not be resolved for slicing.",
-			})) {
-				this.fireSliceStateChange();
-			}
-			return;
-		}
-
-		this.enqueueSliceEntry({ kind: "session", ref: normalizedRef, plan });
-		if (this.setFileState(normalizedRef.fileId, { state: "queued" })) {
-			this.fireSliceStateChange();
-		}
-		this.startSliceQueue();
 	}
 
 	public prioritize(fileId: string): void {
@@ -264,7 +217,22 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		}
 
 		this.activeFileId = normalizedFileId;
-		const index = this.queue.findIndex(entry => getSliceQueueEntryStateKey(entry) === normalizedFileId);
+		this.prioritizeQueueKey(normalizedFileId);
+	}
+
+	public prioritizeUri(target: SliceUriTarget): void {
+		const cacheKey = createSliceUriCacheKey(target);
+		if (!cacheKey) {
+			return;
+		}
+
+		this.uriTargetsByCacheKey.set(cacheKey, normalizeSliceUriTarget(target));
+		this.prioritizeQueueKey(cacheKey);
+	}
+
+	private prioritizeQueueKey(queueKey: string): void {
+		this.activeQueueKey = queueKey;
+		const index = this.queue.findIndex(entry => getSliceQueueEntryStateKey(entry) === queueKey);
 		if (index > 0) {
 			const [entry] = this.queue.splice(index, 1);
 			if (entry) {
@@ -285,6 +253,9 @@ export class SliceService extends Disposable implements ISliceServiceType {
 				continue;
 			}
 			this.queue.splice(index, 1);
+			if (this.activeQueueKey === fileId) {
+				this.activeQueueKey = null;
+			}
 			didChange = this.setQueueEntryState(entry, { state: "none" }) || didChange;
 		}
 		if (cancelAll) {
@@ -293,7 +264,39 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			this.uriStatesByCacheKey.clear();
 			this.uriTargetsByCacheKey.clear();
 			this.activeFileId = null;
+			this.activeQueueKey = null;
 		}
+		if (didChange) {
+			this.fireSliceStateChange();
+		}
+	}
+
+	public cancelUri(targets: readonly SliceUriTarget[]): void {
+		const cacheKeys = new Set(
+			targets
+				.map(target => createSliceUriCacheKey(target))
+				.filter(Boolean),
+		);
+		if (!cacheKeys.size) {
+			return;
+		}
+
+		let didChange = false;
+		for (let index = this.queue.length - 1; index >= 0; index -= 1) {
+			const entry = this.queue[index];
+			const queueKey = entry ? getSliceQueueEntryStateKey(entry) : null;
+			if (entry?.kind !== "uri" || !queueKey || !cacheKeys.has(queueKey)) {
+				continue;
+			}
+
+			this.queue.splice(index, 1);
+			if (this.activeQueueKey === queueKey) {
+				this.activeQueueKey = null;
+			}
+			didChange = this.setUriState(queueKey, { state: "none" }) || didChange;
+			didChange = this.deleteUriTargetIfUnused(queueKey) || didChange;
+		}
+
 		if (didChange) {
 			this.fireSliceStateChange();
 		}
@@ -312,48 +315,11 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		this.fireSliceStateChange();
 	}
 
-	private createAutoPlan(ref: RawTableRef): SlicePlan | null {
-		const request = this.createAutoRequest(ref);
-		return request ? this.createRequestPlan(request) : null;
-	}
-
-	private createAutoRequest(ref: RawTableRef): SliceRequest | null {
-		const snapshot = this.sessionService.getSnapshot();
-		const file = snapshot.filesById[ref.fileId];
-		const tableModel = file?.tableModelByRawTableId[ref.rawTableId];
-		const table = file?.raw.tablesById[ref.rawTableId];
-		const review = file?.rawTableReviewsByRawTableId?.[ref.rawTableId];
-		if (!file || !tableModel || !table || !isSystemRecommendedReview(review)) {
-			return null;
-		}
-		const reviewedTemplate = review.decision.reviewedTemplate;
-		const reviewSignature = createReviewRecordSignature(review);
-		const requestSignature = createAutomaticSliceRequestSignature({
-			reviewSignature,
-			sourceRawTableVersion: tableModel.sourceRawTableVersion,
-			templateFingerprint: reviewedTemplate.templateFingerprint,
-		});
-		return {
-			id: `slice-request:${ref.fileId}:${ref.rawTableId}:${requestSignature}`,
-			ref,
-			sourceRawTableVersion: tableModel.sourceRawTableVersion,
-			reviewedTemplate,
-			trigger: {
-				kind: "reviewDecision",
-				reviewSignature,
-				submittedBy: "system",
-			},
-			requestSignature,
-			createdAt: Date.now(),
-		};
-	}
-
 	private createRequestPlan(request: SliceRequest): SlicePlan | null {
 		const snapshot = this.sessionService.getSnapshot();
 		const file = snapshot.filesById[request.ref.fileId];
-		const tableModel = file?.tableModelByRawTableId[request.ref.rawTableId];
 		const table = file?.raw.tablesById[request.ref.rawTableId];
-		if (!file || !tableModel || !table) {
+		if (!file || !table) {
 			return null;
 		}
 		if ((file.rawTableVersionsById[request.ref.rawTableId] ?? 0) !== request.sourceRawTableVersion) {
@@ -367,36 +333,23 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			selection: request.trigger.kind === "reviewDecision"
 				? { kind: "auto" }
 				: { kind: "inline", template: request.reviewedTemplate.template },
-			sourceTableModelSignature: createSliceTableModelSignature(tableModel, {
-				reviewSignature: request.trigger.kind === "reviewDecision"
-					? request.trigger.reviewSignature
-					: request.requestSignature,
-			}),
-			measurement: getSliceMeasurementBinding(tableModel),
 			template: request.reviewedTemplate.template,
 			templateFingerprint: request.reviewedTemplate.templateFingerprint,
 		});
 	}
 
 	private createUriRequestPlan(request: SliceUriRequest): SlicePlan | null {
-		const ref = createRawTableRefFromUriTarget(request.target, request.tableModel.rawTableId);
-		if (!ref) {
-			return null;
-		}
-
 		const plan = createSlicePlan({
-			ref,
+			target: {
+				kind: "uri",
+				target: normalizeSliceUriTarget(request.target),
+			},
 			mode: request.trigger.kind === "reviewDecision" ? "auto" : "manual",
 			selection: request.trigger.kind === "reviewDecision"
 				? { kind: "auto" }
 				: { kind: "inline", template: request.reviewedTemplate.template },
-			sourceRawTableVersion: request.tableModel.sourceRawTableVersion,
-			sourceTableModelSignature: createSliceTableModelSignature(request.tableModel, {
-				reviewSignature: request.trigger.kind === "reviewDecision"
-					? request.trigger.reviewSignature
-					: request.requestSignature,
-			}),
-			measurement: getSliceMeasurementBinding(request.tableModel),
+			sourceVersion: request.sourceVersion,
+			sourceTableModelSignature: request.sourceTableModelSignature,
 			template: request.reviewedTemplate.template,
 			templateFingerprint: request.reviewedTemplate.templateFingerprint,
 			rowCount: request.rowCount,
@@ -405,27 +358,8 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		return plan.errors.length ? null : plan;
 	}
 
-	private createManualPlan(ref: RawTableRef, selection: TemplateSelection): SlicePlan | null {
-		const snapshot = this.sessionService.getSnapshot();
-		const file = snapshot.filesById[ref.fileId];
-		const template = this.resolveTemplate(selection);
-		if (!file || !template) {
-			return null;
-		}
-
-		return this.createPlan({
-			file,
-			mode: "manual",
-			ref,
-			selection,
-			measurement: getSliceMeasurementBinding(file.tableModelByRawTableId[ref.rawTableId]),
-			template,
-		});
-	}
-
 	private createPlan({
 		file,
-		measurement,
 		mode,
 		ref,
 		selection,
@@ -434,7 +368,6 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		templateFingerprint,
 	}: {
 		readonly file: FileRecord;
-		readonly measurement?: SliceMeasurementBinding;
 		readonly mode: SlicePlan["mode"];
 		readonly ref: RawTableRef;
 		readonly selection: TemplateSelection;
@@ -448,12 +381,14 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		}
 
 		const plan = createSlicePlan({
-			ref,
+			target: {
+				kind: "rawTable",
+				ref,
+			},
 			mode,
 			selection,
 			sourceRawTableVersion: file.rawTableVersionsById[ref.rawTableId] ?? 0,
 			sourceTableModelSignature,
-			measurement,
 			template,
 			templateFingerprint,
 			rowCount: table.rowCount,
@@ -508,7 +443,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 				}
 
 				if (!this.rawTableRowsReaderService) {
-					if (this.queue.some(candidate => candidate.kind === "uri" && this.tableModelService)) {
+					if (this.queue.some(candidate => candidate.kind === "uri" && this.dataResourceService)) {
 						this.queue.push(entry);
 						continue;
 					}
@@ -537,9 +472,13 @@ export class SliceService extends Disposable implements ISliceServiceType {
 					continue;
 				}
 
-				const commit = executeSlicePlan({
+				const execution = executeSlicePlan({
 					plan: entry.plan,
 					rows,
+				});
+				const commit = createSliceCommit({
+					execution,
+					plan: entry.plan,
 				});
 				this.sessionService.commitSliceRuns([commit]);
 				this.setFileState(entry.ref.fileId, commit.run.errors.length
@@ -560,30 +499,17 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	}
 
 	private isCurrentSlicePlan(plan: SlicePlan): boolean {
+		if (plan.target.kind !== "rawTable") {
+			return false;
+		}
+		const ref = plan.target.ref;
 		const snapshot = this.sessionService.getSnapshot();
-		const file = snapshot.filesById[plan.ref.fileId];
-		if (!file?.raw.tablesById[plan.ref.rawTableId]) {
+		const file = snapshot.filesById[ref.fileId];
+		if (!file?.raw.tablesById[ref.rawTableId]) {
 			return false;
 		}
-		if ((file.rawTableVersionsById[plan.ref.rawTableId] ?? 0) !== plan.sourceRawTableVersion) {
+		if ((file.rawTableVersionsById[ref.rawTableId] ?? 0) !== plan.sourceRawTableVersion) {
 			return false;
-		}
-
-		if (plan.mode === "auto") {
-			const currentPlan = this.createAutoPlan(plan.ref);
-			return Boolean(
-				currentPlan &&
-					currentPlan.sourceTableModelSignature === plan.sourceTableModelSignature &&
-					currentPlan.templateFingerprint === plan.templateFingerprint,
-			);
-		}
-
-		if (plan.selection.kind === "saved") {
-			const currentTemplate = this.resolveTemplate(plan.selection);
-			return Boolean(
-				currentTemplate &&
-					createTemplateFingerprint(currentTemplate) === plan.templateFingerprint,
-			);
 		}
 
 		return true;
@@ -592,7 +518,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	private canProcessQueuedSlices(): boolean {
 		return this.queue.some(entry =>
 			entry.kind === "uri"
-				? Boolean(this.tableModelService)
+				? Boolean(this.dataResourceService)
 				: Boolean(this.rawTableRowsReaderService)
 		);
 	}
@@ -615,12 +541,12 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			return;
 		}
 
-		const commit = executeSlicePlan({
+		const execution = executeSlicePlan({
 			plan: entry.plan,
-			rows: resolved.content.rows,
+			rows: readStructuredContentRowsForSlicePlan(resolved.content, entry.plan),
 		});
 		const result = createSliceUriResult({
-			commit,
+			execution,
 			completedAt: Date.now(),
 			request: entry.request,
 			sourceModelVersion: resolved.sourceModelVersion,
@@ -628,6 +554,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		});
 		this.uriResultsByCacheKey.set(cacheKey, result);
 		this.uriTargetsByCacheKey.set(cacheKey, normalizeSliceUriTarget(entry.request.target));
+		this.fireUriSliceResultChange(result.target);
 		this.setUriState(cacheKey, result.run.errors.length
 			? {
 				state: "failed",
@@ -667,9 +594,13 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	private async readRowsForPlan(
 		plan: SlicePlan,
 	): Promise<readonly (readonly unknown[])[] | null> {
+		if (plan.target.kind !== "rawTable") {
+			return null;
+		}
+		const ref = plan.target.ref;
 		const snapshot = this.sessionService.getSnapshot();
-		const file = snapshot.filesById[plan.ref.fileId];
-		const table = file?.raw.tablesById[plan.ref.rawTableId];
+		const file = snapshot.filesById[ref.fileId];
+		const table = file?.raw.tablesById[ref.rawTableId];
 		if (!file || !table || !this.rawTableRowsReaderService) {
 			return null;
 		}
@@ -685,49 +616,26 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	private async readRowsForUriRequest(
 		request: SliceUriRequest,
 	): Promise<ResolvedUriSliceRows | null> {
-		if (!this.tableModelService) {
+		if (!this.dataResourceService) {
 			return null;
 		}
 
-		let reference: ITableModelReference | null = null;
+		let reference: IDataResourceStructuredContentReference | null = null;
 		try {
-			reference = await this.tableModelService.createModelReference(
-				request.target.resource,
-				createTableSourceFromUriTarget(request.target),
-			);
-			const snapshot = reference.object.getSnapshot();
-			if (snapshot.loadState.state !== "ready") {
+			reference = await this.dataResourceService.resolveStructuredContent({
+				resource: request.target.resource,
+				sheetId: request.target.sheetId,
+			});
+			if (reference.object.kind !== "ready") {
 				return null;
 			}
 
-			const selectedSheet = getUriSliceSheet(snapshot, request.target.sheetId ?? null);
-			const content = selectedSheet?.content ?? snapshot.content;
-			if (!content) {
-				return null;
-			}
-
-			return {
-				content,
-				sourceModelVersion: snapshot.version,
-				sourceVersion: snapshot.sourceVersion,
-			};
+			return createResolvedUriSliceRows(reference.object.snapshot);
 		} catch {
 			return null;
 		} finally {
 			reference?.dispose();
 		}
-	}
-
-	private resolveTemplate(selection: TemplateSelection): Template | null {
-		if (selection.kind === "inline") {
-			return selection.template;
-		}
-		const templateId = getTemplateSelectionTemplateId(selection);
-		if (!templateId || !this.userTemplateService) {
-			return null;
-		}
-
-		return this.userTemplateService.getTemplate(templateId)?.template ?? null;
 	}
 
 	private isLatestAutoRunCurrent(ref: RawTableRef, plan: SlicePlan): boolean {
@@ -747,18 +655,18 @@ export class SliceService extends Disposable implements ISliceServiceType {
 
 	private isLatestUriAutoRunCurrent(request: SliceUriRequest, plan: SlicePlan): boolean {
 		const result = this.uriResultsByCacheKey.get(createSliceUriCacheKey(request.target));
-		const run = result?.run;
-		return Boolean(
-			result &&
-				run.mode === "auto" &&
-				run.sourceRawTableVersion === plan.sourceRawTableVersion &&
-				run.sourceTableModelSignature === plan.sourceTableModelSignature &&
-				run.templateFingerprint === plan.templateFingerprint &&
-				result.sourceModelVersion === request.sourceModelVersion &&
-				result.sourceVersion === request.sourceVersion &&
-				result.requestSignature === request.requestSignature &&
-				run.errors.length === 0,
-		);
+		if (!result) {
+			return false;
+		}
+
+		const run = result.run;
+		return run.mode === "auto" &&
+			run.sourceTableModelSignature === plan.sourceTableModelSignature &&
+			run.templateFingerprint === plan.templateFingerprint &&
+			result.sourceModelVersion === request.sourceModelVersion &&
+			result.sourceVersion === request.sourceVersion &&
+			result.requestSignature === request.requestSignature &&
+			run.errors.length === 0;
 	}
 
 	private setFileState(fileId: string, state: SliceFileState): boolean {
@@ -816,13 +724,15 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	}
 
 	private clearState(): void {
+		const uriResultTargets = [...this.uriResultsByCacheKey.values()].map(result => result.target);
 		const didChange = this.queue.length > 0 ||
 			this.fileStates.size > 0 ||
 			this.uriStatesByCacheKey.size > 0 ||
 			this.uriTargetsByCacheKey.size > 0 ||
 			this.uriResultsByCacheKey.size > 0 ||
 			Object.keys(this.templateSelectionsByFileId).length > 0 ||
-			this.activeFileId !== null;
+			this.activeFileId !== null ||
+			this.activeQueueKey !== null;
 		this.queue.length = 0;
 		this.fileStates.clear();
 		this.uriStatesByCacheKey.clear();
@@ -830,7 +740,11 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		this.uriResultsByCacheKey.clear();
 		this.templateSelectionsByFileId = {};
 		this.activeFileId = null;
+		this.activeQueueKey = null;
 		if (didChange) {
+			for (const target of uriResultTargets) {
+				this.fireUriSliceResultChange(target);
+			}
 			this.fireSliceStateChange();
 		}
 	}
@@ -861,6 +775,10 @@ export class SliceService extends Disposable implements ISliceServiceType {
 				this.activeFileId = null;
 				didChange = true;
 			}
+			if (this.activeQueueKey === fileId) {
+				this.activeQueueKey = null;
+				didChange = true;
+			}
 		}
 		if (didChange) {
 			this.fireSliceStateChange();
@@ -877,7 +795,13 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		for (let index = this.queue.length - 1; index >= 0; index -= 1) {
 			const entry = this.queue[index];
 			if (entry?.kind === "uri" && normalizeResourceUri(entry.request.target.resource) === cacheKey) {
+				const entryCacheKey = createSliceUriCacheKey(entry.request.target);
 				this.queue.splice(index, 1);
+				this.uriStatesByCacheKey.delete(entryCacheKey);
+				this.deleteUriTargetIfUnused(entryCacheKey);
+				if (this.activeQueueKey === entryCacheKey) {
+					this.activeQueueKey = null;
+				}
 				didChange = true;
 			}
 		}
@@ -888,6 +812,10 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			this.uriResultsByCacheKey.delete(resultCacheKey);
 			this.uriStatesByCacheKey.delete(resultCacheKey);
 			this.uriTargetsByCacheKey.delete(resultCacheKey);
+			if (this.activeQueueKey === resultCacheKey) {
+				this.activeQueueKey = null;
+			}
+			this.fireUriSliceResultChange(result.target);
 			didChange = true;
 		}
 		if (didChange) {
@@ -898,69 +826,125 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	private fireSliceStateChange(): void {
 		this.onDidChangeSliceStateEmitter.fire(undefined);
 	}
+
+	private fireUriSliceResultChange(target: SliceUriTarget): void {
+		this.onDidChangeUriSliceResultEmitter.fire(normalizeSliceUriTarget(target));
+	}
 }
 
 const createSliceUriResult = ({
-	commit,
+	execution,
 	completedAt,
 	request,
 	sourceModelVersion,
 	sourceVersion,
 }: {
-	readonly commit: SliceCommit;
+	readonly execution: SliceExecutionResult;
 	readonly completedAt: number;
 	readonly request: SliceUriRequest;
 	readonly sourceModelVersion: number;
 	readonly sourceVersion: number;
 }): SliceUriResult => ({
 	target: normalizeSliceUriTarget(request.target),
-	run: createSliceUriRun(commit.run, request.target),
-	series: commit.series.map(series => createSliceUriSeriesRecord(series, request.target)),
-	curves: commit.curves.flatMap(curve => createSliceUriCurveRecord(curve, request.target) ?? []),
+	run: createSliceUriRun(execution.run, request.target),
+	series: execution.series.map(series => createSliceUriSeriesRecord(series, request.target)),
+	curves: execution.curves.flatMap(curve => createSliceUriCurveRecord(curve, request.target) ?? []),
 	requestSignature: request.requestSignature,
 	sourceModelVersion,
 	sourceVersion,
 	completedAt,
 });
 
-const createSliceUriRun = (
-	run: SliceCommit["run"],
-	target: SliceUriTarget,
-): SliceUriRun => {
-	const { fileId: _fileId, inputRanges, rawTableId: _rawTableId, ...rest } = run;
+const createSliceCommit = ({
+	execution,
+	plan,
+}: {
+	readonly execution: SliceExecutionResult;
+	readonly plan: SlicePlan;
+}): SliceCommit => {
+	if (plan.target.kind !== "rawTable") {
+		throw new Error("Session slice commits require a raw-table plan target.");
+	}
+
+	const { ref } = plan.target;
 	return {
-		...rest,
-		resource: target.resource,
-		sheetId: target.sheetId ?? null,
-		inputRanges: inputRanges.map(inputRange => ({
-			resource: target.resource,
-			sheetId: target.sheetId ?? null,
-			range: inputRange.range,
+		run: {
+			...execution.run,
+			fileId: ref.fileId,
+			rawTableId: ref.rawTableId,
+			sourceRawTableVersion: plan.sourceRawTableVersion ?? 0,
+			inputRanges: execution.run.inputRanges.map(range => createSliceRawTableRangeRef(range, ref)),
+		},
+		series: execution.series.map(series => ({
+			...series,
+			fileId: ref.fileId,
+			sheetId: ref.rawTableId,
+		})),
+		curves: execution.curves.map(curve => ({
+			...curve,
+			fileId: ref.fileId,
+			lineage: {
+				...curve.lineage,
+				baseSeries: {
+					fileId: ref.fileId,
+					seriesId: curve.lineage.baseSeries.seriesId,
+				},
+			},
 		})),
 	};
 };
 
-const createSliceUriSeriesRecord = (
-	series: SliceCommit["series"][number],
+const createSliceRawTableRangeRef = (
+	range: SlicePlanRangeRef,
+	ref: RawTableRef,
+): SliceCommit["run"]["inputRanges"][number] => ({
+	fileId: "fileId" in range ? range.fileId : ref.fileId,
+	rawTableId: "rawTableId" in range ? range.rawTableId : ref.rawTableId,
+	range: range.range,
+});
+
+const createSliceUriRun = (
+	run: SliceExecutionResult["run"],
 	target: SliceUriTarget,
-): SliceUriSeriesRecord => {
-	const { fileId: _fileId, sheetId: _sheetId, ...rest } = series;
+): SliceUriRun => {
+	const { inputRanges, ...rest } = run;
 	return {
 		...rest,
+		resource: target.resource,
+		sheetId: target.sheetId ?? null,
+		inputRanges: inputRanges.map(inputRange => createSliceUriRangeRef(inputRange, target)),
+	};
+};
+
+const createSliceUriRangeRef = (
+	range: SlicePlanRangeRef,
+	target: SliceUriTarget,
+): SliceUriRun["inputRanges"][number] => ({
+	resource: "resource" in range ? range.resource : target.resource,
+	sheetId: "sheetId" in range ? range.sheetId ?? null : target.sheetId ?? null,
+	range: range.range,
+});
+
+const createSliceUriSeriesRecord = (
+	series: SliceExecutionResult["series"][number],
+	target: SliceUriTarget,
+): SliceUriSeriesRecord => {
+	return {
+		...series,
 		resource: target.resource,
 		sheetId: target.sheetId ?? null,
 	};
 };
 
 const createSliceUriCurveRecord = (
-	curve: SliceCommit["curves"][number],
+	curve: SliceExecutionResult["curves"][number],
 	target: SliceUriTarget,
 ): SliceUriBaseCurveRecord | null => {
 	if (curve.curveGeneration !== "base") {
 		return null;
 	}
 
-	const { fileId: _fileId, lineage, ...rest } = curve;
+	const { lineage, ...rest } = curve;
 	return {
 		...rest,
 		resource: target.resource,
@@ -1002,29 +986,27 @@ const getSliceQueueEntryStateKey = (
 	? createSliceUriCacheKey(entry.request.target)
 	: normalizeText(entry.ref.fileId);
 
+const readStructuredContentRowsForSlicePlan = (
+	content: StructuredContentGridSnapshot,
+	plan: SlicePlan,
+): readonly (readonly unknown[])[] => {
+	const rows: (readonly unknown[])[] = [];
+	for (const range of plan.inputRanges) {
+		const startRow = range.range.startRow;
+		const endRowExclusive = range.range.endRow + 1;
+		const rangeRows = readStructuredContentRows(content, startRow, endRowExclusive);
+		for (let index = 0; index < rangeRows.length; index += 1) {
+			rows[startRow + index] = rangeRows[index] ?? [];
+		}
+	}
+	return rows;
+};
+
 const getSliceQueueEntryKey = (
 	entry: SliceQueueEntry,
 ): string => entry.kind === "uri"
 	? `uri:${createSliceUriCacheKey(entry.request.target)}`
 	: `session:${entry.ref.fileId}\u0000${entry.ref.rawTableId}`;
-
-const createRawTableRefFromUriTarget = (
-	target: SliceUriTarget,
-	fallbackRawTableId: string,
-): RawTableRef | null => {
-	const fileId = createSliceUriCacheKey(target);
-	const rawTableId = normalizeText(target.sheetId) ||
-		normalizeText(fallbackRawTableId) ||
-		normalizeResourceUri(target.resource);
-	return fileId && rawTableId ? { fileId, rawTableId } : null;
-};
-
-const createTableSourceFromUriTarget = (
-	target: SliceUriTarget,
-): TableSource => ({
-	resource: target.resource,
-	...(normalizeText(target.sheetId) ? { sheetId: normalizeText(target.sheetId) } : {}),
-});
 
 const normalizeSliceUriTarget = (
 	target: SliceUriTarget,
@@ -1033,19 +1015,13 @@ const normalizeSliceUriTarget = (
 	sheetId: normalizeText(target.sheetId) || null,
 });
 
-const getUriSliceSheet = (
-	snapshot: TableModelSnapshot,
-	requestedSheetId: string | null,
-): TableModelSheetSnapshot | null => {
-	const sheetId = normalizeText(requestedSheetId);
-	if (sheetId) {
-		return snapshot.sheets.find(sheet => sheet.sheetId === sheetId) ?? null;
-	}
-
-	return snapshot.sheets.find(sheet => sheet.sheetId === snapshot.defaultSheetId) ??
-		snapshot.sheets[0] ??
-		null;
-};
+const createResolvedUriSliceRows = (
+	snapshot: DataResourceStructuredContentSnapshot,
+): ResolvedUriSliceRows => ({
+	content: snapshot.content,
+	sourceModelVersion: snapshot.sourceModelVersion,
+	sourceVersion: snapshot.sourceVersion,
+});
 
 const uniqueRawTableRefs = (
 	refs: readonly RawTableRef[],
@@ -1072,7 +1048,49 @@ const normalizeText = (value: unknown): string => String(value ?? "").trim();
 
 const normalizeResourceUri = (
 	resource: URI | null | undefined,
-): string => normalizeText(resource?.toString()).replace(/\\/g, "/");
+): string => {
+	const text = getResourceUriString(resource);
+	if (text) {
+		return text.replace(/\\/g, "/");
+	}
+
+	if (resource && typeof resource === "object") {
+		const candidate = resource as { readonly scheme?: unknown; readonly authority?: unknown; readonly path?: unknown; readonly query?: unknown; readonly fragment?: unknown };
+		const scheme = normalizeText(candidate.scheme);
+		const path = normalizeText(candidate.path);
+		if (scheme && path) {
+			const authority = normalizeText(candidate.authority);
+			const query = normalizeText(candidate.query);
+			const fragment = normalizeText(candidate.fragment);
+			return (scheme === "file"
+				? `file://${authority}${path}${query ? `?${query}` : ""}${fragment ? `#${fragment}` : ""}`
+				: `${scheme}://${authority}${path}${query ? `?${query}` : ""}${fragment ? `#${fragment}` : ""}`
+			).replace(/\\/g, "/");
+		}
+	}
+
+	return "";
+};
+
+const getResourceUriString = (
+	resource: unknown,
+): string => {
+	if (!resource) {
+		return "";
+	}
+
+	if (typeof resource === "string") {
+		return normalizeText(resource);
+	}
+
+	const toString = (resource as { readonly toString?: unknown }).toString;
+	if (typeof toString === "function" && toString !== Object.prototype.toString) {
+		const text = normalizeText(toString.call(resource));
+		return text === "[object Object]" ? "" : text;
+	}
+
+	return "";
+};
 
 const createSliceUriCacheKey = (
 	target: SliceUriTarget,
@@ -1082,28 +1100,6 @@ const createSliceUriCacheKey = (
 	return sheetId ? `${resource}\u0000${sheetId}` : resource;
 };
 
-const createAutomaticSliceRequestSignature = ({
-	reviewSignature,
-	sourceRawTableVersion,
-	templateFingerprint,
-}: {
-	readonly reviewSignature: string;
-	readonly sourceRawTableVersion: number;
-	readonly templateFingerprint: string;
-}): string => JSON.stringify({
-	reviewSignature,
-	sourceRawTableVersion,
-	templateFingerprint,
-});
-
-const isSystemRecommendedReview = (
-	review: RawTableReviewRecord | undefined,
-): review is RawTableReviewRecord & {
-	readonly decision: Extract<RawTableReviewRecord["decision"], { readonly kind: "ready" }>;
-} =>
-	review?.decision.kind === "ready" &&
-	review.decision.application.kind === "systemRecommended";
-
 const isSameSliceFileState = (
 	current: SliceFileState | undefined,
 	next: SliceFileState,
@@ -1111,41 +1107,6 @@ const isSameSliceFileState = (
 	current?.state === next.state &&
 	("code" in current ? current.code : undefined) === ("code" in next ? next.code : undefined) &&
 	("message" in current ? current.message : undefined) === ("message" in next ? next.message : undefined);
-
-const getSliceMeasurementBinding = (
-	tableModel: { readonly blocks?: readonly { readonly family: string; readonly ivMode?: string | null; readonly itMode?: string | null }[] } | undefined,
-): SliceMeasurementBinding | undefined => {
-	const block = tableModel?.blocks?.find(candidate => isSliceCurveFamily(candidate.family));
-	if (!block || !isSliceCurveFamily(block.family)) {
-		return undefined;
-	}
-
-	return {
-		curveFamily: block.family,
-		...(block.family === "iv" ? { ivMode: block.ivMode === "output" ? "output" : "transfer" } : {}),
-		...(block.family === "it" ? { itMode: normalizeItMode(block.itMode) } : {}),
-	};
-};
-
-const isSliceCurveFamily = (
-	family: string,
-): family is SliceMeasurementBinding["curveFamily"] =>
-	family === "iv" ||
-	family === "cv" ||
-	family === "cf" ||
-	family === "pv" ||
-	family === "it";
-
-const normalizeItMode = (
-	mode: string | null | undefined,
-): NonNullable<SliceMeasurementBinding["itMode"]> =>
-	mode === "stability" ||
-	mode === "transient" ||
-	mode === "retention" ||
-	mode === "biasStress" ||
-	mode === "photoResponse"
-		? mode
-		: "generic";
 
 const toRawTableRowsStore = (
 	table: TableRecord,
@@ -1165,6 +1126,61 @@ const toRawTableRowsStore = (
 		normalizedCsvPath: table.rowStore.normalizedCsvPath ?? null,
 	};
 };
+
+async function readRawTableRows(
+	input: RawTableRowsReadInput,
+): Promise<RawTableRows | null> {
+	const rowStore = input.rowStore;
+	if (!rowStore) {
+		return null;
+	}
+
+	if (rowStore.kind === "memory") {
+		return limitRows(rowStore.rows, input.maxRows).map(convertRowToStrings);
+	}
+
+	const fallbackFile = input.fallbackFile;
+	if (!isTextReadableFile(fallbackFile)) {
+		return null;
+	}
+
+	return parseCsvRows(await fallbackFile.text(), input.maxRows);
+}
+
+const isTextReadableFile = (value: unknown): value is { text(): Promise<string> } =>
+	!!value && typeof value === "object" && typeof (value as { text?: unknown }).text === "function";
+
+function parseCsvRows(text: string, maxRows?: number): RawTableRows {
+	const preview = normalizeMaxRows(maxRows);
+	const parsed = Papa.parse<unknown[]>(text, {
+		...(preview !== undefined ? { preview } : {}),
+		skipEmptyLines: false,
+	});
+	return parsed.data.map(convertRowToStrings);
+}
+
+function limitRows<T>(
+	rows: readonly T[],
+	maxRows: number | undefined,
+): readonly T[] {
+	const preview = normalizeMaxRows(maxRows);
+	return preview === undefined ? rows : rows.slice(0, preview);
+}
+
+function normalizeMaxRows(value: number | undefined): number | undefined {
+	const normalized = Math.floor(Number(value));
+	return Number.isFinite(normalized) && normalized >= 0 ? normalized : undefined;
+}
+
+function convertRowToStrings(row: readonly unknown[]): readonly string[] {
+	return row.map(cell => cell == null ? "" : String(cell));
+}
+
+registerSingleton(
+	IRawTableRowsReaderService,
+	RawTableRowsReaderService as unknown as new (...services: BrandedService[]) => IRawTableRowsReaderServiceType,
+	InstantiationType.Delayed,
+);
 
 registerSingleton(
 	ISliceService,

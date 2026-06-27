@@ -3,15 +3,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {
-  buildFileSourceIdentityKey,
-  type FileEntry,
-  type FolderImportFileSource,
-} from "src/cs/workbench/services/files/common/files";
-import {
   createWorkspaceSourcePathKey,
   type WorkspaceExternalChange,
   type WorkspaceExternalChanges,
 } from "src/cs/workbench/services/workspaces/common/workspaces";
+
+export type WorkspaceFileEntry = {
+  readonly fileId?: string;
+  readonly fileName?: string;
+  readonly itemKey?: string;
+  readonly lastModified?: number;
+  readonly relativePath?: string | null;
+  readonly size?: number;
+};
+
+export type WorkspaceScannedFile = {
+  readonly canUseNativePath?: boolean;
+  readonly fileName: string;
+  readonly kind?: string;
+  readonly lastModified: number;
+  readonly loadFile?: () => Promise<unknown>;
+  readonly relativePath?: string | null;
+  readonly resource?: unknown;
+  readonly size: number;
+};
 
 type WorkspaceSourceSnapshot = {
   readonly relativePath: string;
@@ -24,8 +39,8 @@ export const resolveWorkspaceExternalChanges = ({
   scannedFiles,
 }: {
   readonly excludedSourcePaths: ReadonlySet<string>;
-  readonly files: readonly FileEntry[];
-  readonly scannedFiles: readonly FolderImportFileSource[];
+  readonly files: readonly WorkspaceFileEntry[];
+  readonly scannedFiles: readonly WorkspaceScannedFile[];
 }): WorkspaceExternalChanges => {
   const currentByPath = new Map<string, WorkspaceSourceSnapshot>();
   for (const file of files) {
@@ -51,7 +66,7 @@ export const resolveWorkspaceExternalChanges = ({
 
     scannedByPath.set(relativePath, {
       relativePath,
-      identityKey: buildFileSourceIdentityKey(
+      identityKey: buildWorkspaceFileIdentityKey(
         file.fileName,
         file.size,
         file.lastModified,
@@ -102,3 +117,22 @@ export const resolveWorkspaceExternalChanges = ({
 
   return { added, modified, deleted };
 };
+
+export const buildWorkspaceFileIdentityKey = (
+  fileName: unknown,
+  size: unknown,
+  lastModified: unknown,
+  relativePath?: string | null,
+): string => {
+  const name = String(fileName ?? "").trim();
+  if (!name) {
+    return "";
+  }
+
+  const path = relativePath?.trim();
+  return `${path || name}::${Number(size) || 0}::${Number(lastModified) || 0}`;
+};
+
+export type FileEntry = WorkspaceFileEntry;
+export type FolderImportFileSource = WorkspaceScannedFile;
+export const buildFileSourceIdentityKey = buildWorkspaceFileIdentityKey;

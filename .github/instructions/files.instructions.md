@@ -1,6 +1,6 @@
 ---
-description: Files capability and Explorer UI architecture - platform filesystem boundary, raw-table helpers, Explorer state, commands, and source workflow.
-applyTo: 'src/cs/platform/files/**,src/cs/workbench/services/files/**,src/cs/workbench/services/tableFile/**,src/cs/workbench/contrib/files/**'
+description: Files capability and Explorer UI architecture - platform filesystem boundary, Explorer state, commands, and source workflow.
+applyTo: 'src/cs/platform/files/**,src/cs/workbench/services/tableFile/**,src/cs/workbench/contrib/files/**'
 ---
 # Files Capability / Explorer UI
 
@@ -9,7 +9,6 @@ The files domain has four layers that must stay separate:
 | Layer | Owns | Must not own |
 | --- | --- | --- |
 | `platform/files` | URI filesystem providers, read/write/stat/watch, provider registration, browser/desktop adapters | Explorer state, raw table records, source preparation, Session records |
-| `workbench/services/files` | non-UI files helpers: source/import contracts, raw table records/readers, browser file-service bridges | Explorer state, DOM, menus, table-model/template/plot semantics |
 | `workbench/services/tableFile` | URI-backed table file working-copy lifecycle, reader, and table text/byte helpers for file-backed models | Explorer UI, Table view state, preview projection, table-model inference, Recipe/Review/Slice decisions, explicit import ledger commits |
 | `workbench/contrib/files` | Files feature UI: `IExplorerService`, Explorer model/view, source workflow, commands/actions/context menus | CSV/TSV/XLS/XLSX parsing internals, platform provider contracts, canonical Session ownership |
 
@@ -62,6 +61,8 @@ download, copy, close from Explorer, or delete from disk.
 `IFileService` is filesystem capability only. It owns provider registration,
 `exists`, `readDir`, `readFile`, `writeFile`, `deleteFile`,
 `moveFileToTrash`, `realpath`, `stat`, `watch`, and provider change events.
+Desktop adapters also own reviving local filesystem IPC byte payloads so
+`IFileContent.value` leaves `platform/files` as a real `Uint8Array`.
 
 `IFileService` does not own Explorer tree state, selected resource, CSV/Excel
 parsing, raw table records, table model, or Session records.
@@ -89,9 +90,10 @@ Explorer source workflow owns:
 - browser `File` provider registration when a dropped source has no durable resource URI;
 - `PreparedFileImport` / `PreparedFileImportEntry` rows, resource URIs, and source diagnostics.
 
-Files raw-table helpers own migration-ledger raw-table records/readers and in-memory or
-fallback-file row previews. They do not own platform providers, measurement
-detection, template apply, plot generation, Session mutation, or DOM rendering.
+Migration-ledger raw-table records are Session contracts, and migration-ledger
+raw-row reading is a Slice execution detail. Files/Explorer does not own raw
+table records, row readers, measurement detection, template apply, plot
+generation, Session mutation, or DOM rendering outside its own views.
 
 Explorer import workflows must not infer semantic badges during source
 collection or source preparation. Pending source rows may show only pending, preparing,
@@ -112,9 +114,6 @@ state arrives through their owning services.
 | `contrib/files/browser/fileActions.ts` / `fileCommands.ts` | Files/Explorer action and command handlers. |
 | `contrib/files/browser/fileActions.contribution.ts` | Command/action/menu/keybinding registration. |
 | `contrib/files/browser/fileImportExport.ts` | File transfer and source collection helpers. |
-| `services/files/common/files.ts` | Source/import contracts and migration-ledger raw-table record contracts. |
-| `services/files/common/rawTable.ts` | Raw table records and range refs. |
-| `services/files/browser/rawTableRowsReader.ts` | Session migration-ledger raw-table row preview reader for in-memory rows and fallback files. |
 | `services/tableFile/common/tablefiles.ts` | `ITableFileService` contract for URI-backed table file working-copy lifecycle; not a raw-table import ledger. |
 | `services/table/common/tableFormatRegistry.ts` | Known table format IDs, materialization capability, and default extension metadata. |
 | `services/table/common/tableFormatAssociations.ts` | Resource/name/extension association helpers for table format resolution. |
@@ -269,8 +268,8 @@ IExplorerService
   -> Explorer state
 IViewsService.openView(ExplorerViewId)
   -> upstream-style access to ExplorerViewPane for view-local source/removal workflows
-services/files helpers
-  -> non-UI file work
+Explorer/source helpers
+  -> non-UI source collection work inside contrib/files
 ITableService
   -> table resource open for Explorer-local imports
 ```
