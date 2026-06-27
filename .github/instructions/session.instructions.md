@@ -20,7 +20,7 @@ model services.
 | `SessionSnapshot` | read-only consumer data |
 | `SessionReadModel` | derived read projection |
 | `SessionChangeEvent` | specific invalidation event |
-| legacy explicit import APIs | `ISessionService.commitFileImport`, rename, remove, and clear for migration-ledger raw tables; not the Explorer ordinary file-to-table path |
+| migration-ledger explicit import APIs | `ISessionService.commitFileImport`, rename, remove, and clear for migration-ledger raw tables; not the Explorer ordinary file-to-table path |
 
 ## Core Files
 
@@ -63,17 +63,17 @@ file-to-table imports stay out of Session after source preparation: Explorer own
 local visible rows and hands off URI resources to `ITableService`.
 
 Opening or previewing a table URI follows upstream file -> editor ownership and
-is not a Session workflow. Session only receives legacy migration-ledger raw
-table records and downstream analysis records.
+is not a Session workflow. Session only receives migration-ledger raw-table
+records and downstream analysis records.
 
 | Workflow | Preferred producer | Session method |
 | --- | --- | --- |
-| legacy raw import | migration owner after raw-table import preparation | `commitFileImport` |
+| migration-ledger raw import | migration owner after raw-table import preparation | `commitFileImport` |
 | slice | slice service after planning/execution | `commitSliceRuns` |
 | calculated curves/metrics | calculation service | `commitCalculatedRecordsBatch` |
 | metric input | parameters service | `setMetricInput` / `clearMetricInput` |
-| legacy file removal | migration owner after file workflow succeeds | `removeFiles` |
-| clear legacy imported table files/session | migration/global Workbench command | `clearSession` |
+| migration-ledger file removal | migration owner after file workflow succeeds | `removeFiles` |
+| clear migration-ledger imported table files/session | migration/global Workbench command | `clearSession` |
 
 Do not make another service fire request/submit events only so Workbench can
 mutate Session. The caller that owns the workflow result calls the owning

@@ -75,7 +75,6 @@ version changes, Recipe changes, and UserTemplate
 changes. Explorer must not fall back to Session raw-table records for
 URI-backed semantic decorations.
 
-Automatic execution from Review is not wired through a Session review bridge.
 User commands or explicit URI-backed execution controllers read the current URI
 review result and submit URI-backed slice requests, with idempotency and
 staleness guards based on contentHash/sourceVersion, model version, and review
@@ -107,15 +106,11 @@ user command / UserTemplate picker / inline template editor
 | `browser/reviewService.ts` | injectable owner that reads URI-backed table model snapshots, runs pure review helpers, and maintains latest review summaries. |
 
 Review candidate helpers live under `services/review/common` and produce
-`SegmentCandidate` / `ReviewCandidate` values before Review status/policy projection. Template
-Resolution and Template materialization services have retired and must not be
-reintroduced as Review prerequisites or candidate-summary bridges.
-User-template candidates must come through `IUserTemplateService` and
-`UserTemplateSnapshot`. New decision logic and candidate derivation logic belong
-in Review, not Template, TableModel, Explorer, or Slice.
-
-Legacy raw-table manual review has retired from the Review owner contract. New
-callers must use `reviewUriManualTemplate(...)` with a URI-backed content target.
+`SegmentCandidate` / `ReviewCandidate` values before Review status/policy projection.
+User-template candidates come through `IUserTemplateService` and
+`UserTemplateSnapshot`. Decision logic and candidate derivation logic belong in
+Review, not Template, TableModel, Explorer, or Slice. Manual callers use
+`reviewUriManualTemplate(...)` with a URI-backed content target.
 
 ## Rules
 
@@ -125,7 +120,7 @@ callers must use `reviewUriManualTemplate(...)` with a URI-backed content target
 - `ReviewDecision` is the only source for template usability and system
   application recommendations.
 - System recommendation policy is Review-owned: it uses `CandidateReview`
-  confidence, factors, findings, and Review policy, not retired apply fields.
+  confidence, factors, findings, and Review policy.
 - `SegmentCandidate`/`ReviewCandidate` is Review-owned pipeline data. It may
   carry candidate confidence, provider rank, reasons, diagnostics, optional
   captures, source selectors, `contentHash`, a review-owned executable
@@ -147,6 +142,9 @@ callers must use `reviewUriManualTemplate(...)` with a URI-backed content target
 - `ReviewedTemplate.source` describes template provenance only: Recipe,
   UserTemplate, or inline. It must not encode manual, auto, saved-selection
   compatibility, user command, or system trigger.
+- Accepted table measurement semantics belong on the reviewed executable
+  `Template` snapshot (`ReviewedTemplate.template.measurement`), not on
+  `UriReview`, `ReviewSummary`, or Slice request bridge fields.
 - Execution trigger belongs to `SliceRequest.trigger`.
 - Non-selected candidate records store summaries only. Detail rebuilding must
   verify Recipe/UserTemplate fingerprints and return a stale result when

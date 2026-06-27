@@ -7,7 +7,7 @@ applyTo: 'src/cs/workbench/services/tableFile/**'
 `services/tableFile` follows upstream `workbench/services/textfile` naming for
 file-backed table lifecycles. The target architecture is URI-backed:
 `TableFileEditorModel` owns the file working-copy lifecycle around a
-URI-backed `ITableModel`. Legacy data-file/raw-table imports are
+URI-backed `ITableModel`. Migration-ledger data-file/raw-table imports are
 Explorer-local file-to-table rows plus URI-backed table opens, and no longer
 have a tableFile bridge service or Session commit step.
 
@@ -72,16 +72,15 @@ origin, and text `languageId` is not part of table file support.
 
 ## Migration Boundary
 
-The retired imported-table-file bridge has been removed. Explicit Explorer
-import flows stay out of Session after source preparation: they update
-Explorer-local rows and open URI-backed table resources. New table open,
-model projection, cache, reload, save, and source-version work should use
+Explicit Explorer import flows stay out of Session after source preparation:
+they update Explorer-local rows and open URI-backed table resources. New table
+open, model projection, cache, reload, save, and source-version work should use
 `TableFileEditorModel` / `ITableModel` through `ITableModelService`, not expand
 Session-backed raw-table ownership.
 
 Do not route table URI open/model projection lifecycle through Session.
 That lifecycle follows the upstream file -> editor shape and stays service-local
-unless a user explicitly invokes a legacy raw-table migration path.
+unless a user explicitly invokes a migration-ledger raw-table path.
 
 Explorer/files code must not call `ISessionService.commitFileImport(...)` for
 ordinary file-to-table imports.

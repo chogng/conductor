@@ -81,7 +81,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		assert.equal(sliceService.getState().fileStates.has("file-a"), false);
 	});
 
-	test("marks legacy raw-table automatic slice skipped without Session review bridge", () => {
+	test("marks automatic raw-table enqueue skipped when no review decision is available", () => {
 		const sessionService = store.add(new SessionService());
 		const sliceService = store.add(new SliceService(sessionService));
 		sessionService.commitFileImport(createImportResult());
@@ -363,6 +363,10 @@ const createTemplate = (
 	schemaVersion: 1,
 	name: "Transfer",
 	version: 1,
+	measurement: {
+		curveFamily: "iv",
+		ivMode: "transfer",
+	},
 	blocks: [{
 		rowRange: {
 			startRow: options.startRow ?? 1,
@@ -452,10 +456,6 @@ const createUriSliceRequest = (
 		rowCount: options.rowCount ?? 3,
 		columnCount: 2,
 		sourceTableModelSignature: "table-model:uri",
-		measurement: {
-			curveFamily: "iv",
-			ivMode: "transfer",
-		},
 		sourceModelVersion: options.sourceModelVersion ?? 1,
 		sourceVersion: options.sourceVersion ?? 1,
 	};

@@ -89,7 +89,7 @@ Explorer source workflow owns:
 - browser `File` provider registration when a dropped source has no durable resource URI;
 - `PreparedFileImport` / `PreparedFileImportEntry` rows, resource URIs, and source diagnostics.
 
-Files raw-table helpers own legacy raw-table records/readers and in-memory or
+Files raw-table helpers own migration-ledger raw-table records/readers and in-memory or
 fallback-file row previews. They do not own platform providers, measurement
 detection, template apply, plot generation, Session mutation, or DOM rendering.
 
@@ -112,9 +112,9 @@ state arrives through their owning services.
 | `contrib/files/browser/fileActions.ts` / `fileCommands.ts` | Files/Explorer action and command handlers. |
 | `contrib/files/browser/fileActions.contribution.ts` | Command/action/menu/keybinding registration. |
 | `contrib/files/browser/fileImportExport.ts` | File transfer and source collection helpers. |
-| `services/files/common/files.ts` | Source/import contracts and legacy raw-table record contracts. |
+| `services/files/common/files.ts` | Source/import contracts and migration-ledger raw-table record contracts. |
 | `services/files/common/rawTable.ts` | Raw table records and range refs. |
-| `services/files/browser/rawTableRowsReader.ts` | Legacy raw-table row preview reader for in-memory rows and fallback files. |
+| `services/files/browser/rawTableRowsReader.ts` | Session migration-ledger raw-table row preview reader for in-memory rows and fallback files. |
 | `services/tableFile/common/tablefiles.ts` | `ITableFileService` contract for URI-backed table file working-copy lifecycle; not a raw-table import ledger. |
 | `services/table/common/tableFormatRegistry.ts` | Known table format IDs, materialization capability, and default extension metadata. |
 | `services/table/common/tableFormatAssociations.ts` | Resource/name/extension association helpers for table format resolution. |

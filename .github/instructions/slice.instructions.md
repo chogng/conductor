@@ -13,11 +13,11 @@ quality, or decide whether the system should apply a template.
 `ISliceService` owns:
 
 - per-file `TemplateSelection` state;
-- `SliceRequest` queue entries from legacy Session raw-table execution and
+- `SliceRequest` queue entries from Session migration-ledger raw-table execution and
   `SliceUriRequest` queue entries from URI-backed review execution controllers
   or user commands;
 - slice file state, priority, cancellation, and queue draining;
-- calling the planner/executor and either committing legacy raw-table
+- calling the planner/executor and either committing migration-ledger raw-table
   `SliceCommit` values through Session or retaining URI-backed `SliceUriResult`
   values in Slice service state.
 - URI-backed public APIs and state snapshots should be named around
@@ -41,7 +41,7 @@ workers, or mutate Session.
 
 `SliceExecutor` owns execution of a `SlicePlan` against supplied rows and
 returns target-neutral execution records. `SliceService` wraps those records as
-legacy `SliceCommit` values for Session raw-table requests or as
+migration-ledger `SliceCommit` values for Session raw-table requests or as
 `SliceUriResult` values for URI-backed requests. The executor must not call
 services or reread Session.
 
@@ -54,7 +54,7 @@ services or reread Session.
 | `common/slicePlanner.ts` | pure target-aware plan/range generation and migration source/table-model signature helpers. |
 | `common/sliceExecutor.ts` | pure row execution into target-neutral Slice execution records. |
 | `browser/sliceService.ts` | injectable owner for queue, selection, progress state, row reading, Session commit, and URI result cache. |
-| `browser/slicePriority.contribution.ts` | lifecycle subscriber from Explorer selection/hover facts to `ISliceService.prioritize(...)` for legacy raw files and `ISliceService.prioritizeUri(...)` for URI targets. |
+| `browser/slicePriority.contribution.ts` | lifecycle subscriber from Explorer selection/hover facts to `ISliceService.prioritize(...)` for Session migration-ledger raw files and `ISliceService.prioritizeUri(...)` for URI targets. |
 | `contrib/slice/browser/sliceCommands.ts` / `sliceActions.ts` | command/action entry for user-triggered slicing; normalizes targets and delegates to `ISliceService`. |
 
 ## Flow
@@ -76,9 +76,7 @@ Session RawTableRef + explicit reviewed/manual SliceRequest
   -> Session sliceRunChanged
 ```
 
-The legacy raw-table automatic review bridge has retired. `enqueueAuto(...)`
-does not rebuild Session review decisions; automatic system application must use
-the URI-backed Review -> Slice URI path.
+Automatic system application uses the URI-backed Review -> Slice URI path.
 
 URI-backed flow:
 
@@ -87,6 +85,7 @@ Explorer URI target + ReviewDecision.ready / manual review result
   -> explicit execution controller validates model/source versions and review signature
   -> ISliceService.submitUri(SliceUriRequest[])
   -> SliceService reads reviewed Template snapshot from request
+  -> SlicePlanner reads measurement binding from reviewed Template snapshot
   -> SlicePlanner.createSlicePlan(...)
   -> SliceService verifies source/model versions and review/request/template fingerprints
   -> ITableModelService model reference reads current rows
@@ -113,9 +112,8 @@ URI-backed command/action/controller
   -> same planner/executor path
   -> Slice URI result state for URI targets
 
-legacy raw-table command/action/controller
+Session migration-ledger raw-table command/action/controller
   -> manual slicing is disabled
-  -> no ReviewService raw-table fallback
 ```
 
 Bulk command flow:
@@ -136,7 +134,7 @@ Explorer selection / hover event
   -> Explorer resource entry resolves to URI target
   -> ISliceService.prioritizeUri(target)
 
-Legacy raw-file selection / hover event
+Session migration-ledger raw-file selection / hover event
   -> SlicePriorityContribution
   -> ISliceService.prioritize(fileId)
 ```
@@ -176,10 +174,10 @@ ReviewService ReviewSummary
   value. Compatibility adapters may convert historical/manual presets into
   canonical `Template` snapshots before review.
 - `Template` coordinates are physical table relative. Runtime provenance
-  belongs to `SlicePlan.inputRanges`, then to legacy `SliceRun.inputRanges` or
+  belongs to `SlicePlan.inputRanges`, then to Session migration-ledger `SliceRun.inputRanges` or
   URI-backed `SliceUriRun.inputRanges`. URI plans must carry URI range
   provenance directly, not synthetic raw-table refs.
-- `commitSliceRuns(...)` is the legacy Session boundary. URI-backed slice
+- `commitSliceRuns(...)` is the Session migration-ledger boundary. URI-backed slice
   results stay in Slice service URI-target state and must not be bridged into
   Session.
 - Slice queue entries must be dropped as stale if their source raw table

@@ -22,7 +22,7 @@ import { ISessionService } from "src/cs/workbench/services/session/common/sessio
 import {
 	IReviewService,
 	type IReviewService as IReviewServiceType,
-	type UriTableReview,
+	type UriReview,
 } from "src/cs/workbench/services/review/common/review";
 import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/reviewModel";
 import {
@@ -48,7 +48,7 @@ import { createTemplateFingerprint } from "src/cs/workbench/services/template/co
 suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test("does not enter legacy raw-table auto slicing from bulk apply", () => {
+	test("does not enter raw-table auto slicing from bulk apply", () => {
 		const sessionService = store.add(new SessionService());
 		sessionService.commitFileImport(createImportResult());
 		const sliceService = new TestSliceService();
@@ -69,7 +69,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 		assert.equal(notifications[0]?.message, "slice.runWithTemplate.noUriTables");
 	});
 
-	test("does not submit manual slicing without URI table targets from the current template form", () => {
+	test("does not submit manual slicing without URI content targets from the current template form", () => {
 		const sessionService = store.add(new SessionService());
 		sessionService.commitFileImport(createImportResult());
 		const sliceService = new TestSliceService();
@@ -130,7 +130,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 				sheetId: "sheet-a",
 			}],
 			reviewService: createReviewServiceForTest({
-				reviewUriTable: async target => createReadyUriReview({
+				reviewUri: async target => createReadyUriReview({
 					applicationKind: "systemRecommended",
 					reviewedTemplate,
 					reviewSignature,
@@ -176,7 +176,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 				sheetId: "sheet-a",
 			}],
 			reviewService: createReviewServiceForTest({
-				reviewUriTable: async target => createReadyUriReview({
+				reviewUri: async target => createReadyUriReview({
 					applicationKind: "userActionRequired",
 					reviewedTemplate,
 					reviewSignature: "review:user-action",
@@ -212,7 +212,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 			}],
 			notifications,
 			reviewService: createReviewServiceForTest({
-				reviewUriTable: async target => {
+				reviewUri: async target => {
 					const { reviewSignature: _reviewSignature, ...review } = createReadyUriReview({
 						applicationKind: "systemRecommended",
 						reviewedTemplate,
@@ -344,13 +344,13 @@ const createReviewServiceForTest = (
 		findingCodes: [],
 	}),
 	getLatestReview: () => undefined,
-	onDidChangeTableReview: Event.None as Event<void>,
+	onDidChangeReview: Event.None as Event<void>,
 	reviewUriManualTemplate: async () => ({
 		kind: "invalid",
 		diagnostics: [],
 		suggestedActions: [],
 	}),
-	reviewUriTable: async target => ({
+	reviewUri: async target => ({
 		resource: target.resource,
 		...(target.sheetId ? { sheetId: target.sheetId } : {}),
 		summary: {
@@ -377,7 +377,7 @@ const createReadyUriReview = ({
 	readonly sourceModelVersion?: number;
 	readonly sourceVersion?: number;
 	readonly target: { readonly resource: URI; readonly sheetId?: string | null };
-}): UriTableReview => ({
+}): UriReview => ({
 	resource: target.resource,
 	...(target.sheetId ? { sheetId: target.sheetId } : {}),
 	summary: {
@@ -412,10 +412,6 @@ const createReadyUriReview = ({
 		reviewedTemplate,
 	},
 	reviewSignature,
-	measurement: {
-		curveFamily: "iv",
-		ivMode: "transfer",
-	},
 	sourceModelVersion,
 	sourceVersion,
 	rowCount: 3,
@@ -470,6 +466,10 @@ const createReviewedTemplate = (): ReviewedTemplate => {
 		schemaVersion: 1,
 		name: "Detected IV Transfer",
 		version: 1,
+		measurement: {
+			curveFamily: "iv",
+			ivMode: "transfer",
+		},
 		blocks: [{
 			rowRange: {
 				startRow: 1,

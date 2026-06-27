@@ -5,7 +5,7 @@ applyTo: 'src/cs/**'
 # Conductor Architecture
 
 For the table URI/editor-model migration, `.github/instructions/迁移说明.md`
-has higher priority than this file. If the legacy TableModel/TableModelService
+has higher priority than this file. If the pre-migration TableModel/TableModelService
 wording here conflicts with that migration document, follow the migration
 document.
 
@@ -198,7 +198,7 @@ URI + contentHash/sourceVersion
 Specific flow owners:
 
 - Import/source collection: Explorer/files workflow coordinates source preparation; Explorer owns local visible rows and table-resource open handoff.
-- Session ledger: Session backs only legacy imported raw-table storage and downstream analysis records, including TableModel commits, during migration.
+- Session ledger: Session backs only migration-ledger imported raw-table storage and downstream analysis records, including TableModel commits, during migration.
 - Table model / Review candidate building: TableModel is the current table
   projection input. Review consumes URI/content-version evidence plus
   Recipe/UserTemplate snapshots to build transient `SegmentCandidate` / table
@@ -244,8 +244,8 @@ URI/resource
   -> model owns URI, format, load state, preview rows, cache/reload/watch
 ```
 
-Those editor/input models are not Session records. Only legacy raw-table
-imports and downstream analysis facts flow through the Session ledger.
+Those editor/input models are not Session records. Only migration-ledger
+raw-table imports and downstream analysis facts flow through the Session ledger.
 
 Use `records.instructions.md` for record/state field ownership and invalidation.
 

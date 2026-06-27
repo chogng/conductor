@@ -62,7 +62,7 @@ provenance, and template inputs.
 | --- | --- | --- |
 | `FileImportInput` | files source workflow | Sources plus import options. Do not turn options into Explorer UI state. |
 | `FileImportResult` | files source/import helpers; Session import commits | Contains imported files and diagnostics. Not the entire Explorer add-data workflow result. |
-| `ImportedFileRecord` | files source/import helpers; Session import commits | `id`, `name`, `kind`, `raw`. One workbook should produce one imported file with one raw table per sheet when this legacy ledger is used. |
+| `ImportedFileRecord` | files source/import helpers; Session import commits | `id`, `name`, `kind`, `raw`. One workbook should produce one imported file with one raw table per sheet when this migration ledger is used. |
 | `FileImportDiagnostic` | files workflow | Import warnings/errors only; not IV/CV table-model classification. |
 
 Import records must not encode measurement blocks, curve types, plot
@@ -99,7 +99,7 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
 is the primary file -> table open identity, following the upstream file ->
 editor shape. Explorer file actions keep `fileId`; Explorer visible-row
 disambiguation uses `itemKey`, and Session raw read projections use canonical
-`tableKey` when a legacy raw-table sheet needs a stable table key. Neither
+`tableKey` when a migration-ledger raw-table sheet needs a stable table key. Neither
 replaces the URI identity for resource opens.
 
 ## Domain Field Rules
@@ -192,8 +192,7 @@ replaces the URI identity for resource opens.
   `IReviewService` cache/state and associated with URI identity:
   `resource` plus optional `contentHash` / `sourceVersion` and optional
   `sheetId`. Do not expose a separate public result target.
-- Legacy Session raw-table review records and commit APIs have retired.
-  URI-backed latest review results stay in `IReviewService` cache/state.
+- URI-backed latest review results stay in `IReviewService` cache/state.
 - Review results store URI/content provenance, the candidate interpretation
   signature, Recipe fingerprint, UserTemplate catalog fingerprint, ranked
   candidate summaries, per-candidate reviews, and `ReviewDecision`.
@@ -221,7 +220,7 @@ replaces the URI identity for resource opens.
 - `SliceUriRequest` is the URI-backed execution input. Its target is
   `resource` plus optional `sheetId`; it must not be converted into a public or
   common synthetic raw-table identity.
-- `SlicePlan` carries either a legacy raw-table target or a URI target. Its
+- `SlicePlan` carries either a migration-ledger raw-table target or a URI target. Its
   input ranges preserve the same target provenance.
 - `SliceRun.template` is the executed snapshot from a reviewed automatic
   template or manual input.

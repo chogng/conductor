@@ -420,7 +420,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.equal(explorerService.selectedProcessedFileId, "raw-only");
   });
 
-  test("keeps raw explorer rows free of legacy semantic badge fields", () => {
+  test("keeps raw explorer rows free of review decoration fields", () => {
     const session = store.add(new SessionService());
     commitRawFilesForTest(session, [
       {
