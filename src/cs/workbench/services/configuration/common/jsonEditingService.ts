@@ -2,6 +2,8 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import { isObjectRecord } from "src/cs/base/common/json";
+import { parse as parseJsonc } from "src/cs/base/common/jsonc";
 import type { URI } from "src/cs/base/common/uri";
 import { IFileService } from "src/cs/platform/files/common/files";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
@@ -14,9 +16,6 @@ import {
 } from "src/cs/workbench/services/configuration/common/jsonEditing";
 
 type JsonContainer = Record<string, unknown> | unknown[];
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-	typeof value === "object" && value !== null && !Array.isArray(value);
 
 const createContainerForSegment = (segment: string | number): JsonContainer =>
 	typeof segment === "number" ? [] : {};
@@ -59,7 +58,7 @@ export class JSONEditingService implements IJSONEditingService {
 		}
 
 		try {
-			return JSON.parse(raw) as unknown;
+			return parseJsonc(raw);
 		} catch {
 			throw new JSONEditingError(
 				JSONEditingErrorCode.ERROR_INVALID_FILE,
@@ -107,7 +106,7 @@ function setJSONValueAtPath(target: JsonContainer, path: JSONPath, value: unknow
 }
 
 function ensureContainer(source: unknown, nextSegment: string | number): JsonContainer {
-	if (Array.isArray(source) || isRecord(source)) {
+	if (Array.isArray(source) || isObjectRecord(source)) {
 		return source;
 	}
 
@@ -121,7 +120,7 @@ function getOrCreateChildContainer(
 ): JsonContainer {
 	if (Array.isArray(target) && typeof segment === "number") {
 		const existing = target[segment];
-		if (Array.isArray(existing) || isRecord(existing)) {
+		if (Array.isArray(existing) || isObjectRecord(existing)) {
 			return existing;
 		}
 
@@ -133,7 +132,7 @@ function getOrCreateChildContainer(
 	if (!Array.isArray(target)) {
 		const key = String(segment);
 		const existing = target[key];
-		if (Array.isArray(existing) || isRecord(existing)) {
+		if (Array.isArray(existing) || isObjectRecord(existing)) {
 			return existing;
 		}
 

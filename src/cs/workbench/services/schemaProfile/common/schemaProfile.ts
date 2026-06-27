@@ -9,9 +9,7 @@ import type {
 } from "src/cs/workbench/services/dataResource/common/structuredContent";
 import type { Event } from "src/cs/base/common/event";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type {
-	ConfirmSchemaProfileInput,
-} from "src/cs/workbench/services/schemaProfile/common/schemaProfileConfirmation";
+import type { ConfirmSchemaProfileInput } from "src/cs/workbench/services/schemaProfile/common/schemaProfileConfirmation";
 
 export const ISchemaProfileService =
 	createDecorator<ISchemaProfileService>("schemaProfileService");

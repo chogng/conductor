@@ -2,10 +2,9 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Recipe, RecipeSnapshot } from "cs/workbench/services/recipes/common/recipe";
-import type {
-	RecipeLogicalRelation,
-} from "cs/workbench/services/recipes/common/recipeSchema";
+import { stableStringify } from "src/cs/base/common/objects";
+import type { Recipe, RecipeSnapshot } from "src/cs/workbench/services/recipes/common/recipe";
+import type { RecipeLogicalRelation } from "src/cs/workbench/services/recipes/common/recipeSchema";
 import type {
 	ReviewCandidate,
 	ReviewCandidateAxisBinding,
@@ -14,13 +13,13 @@ import type {
 	ReviewCandidateInterpretation,
 	ReviewCandidateRowRange,
 	ReviewContext,
-} from "src/cs/workbench/services/review/common/reviewModel";
+} from "./reviewModel";
 import {
 	evaluateReviewSelector,
 	type ReviewSelectorBlockMatch,
 	type ReviewSelectorCapture,
 	type ReviewSelectorEvaluation,
-} from "src/cs/workbench/services/review/common/reviewSelector";
+} from "./reviewSelector";
 import type {
 	StructuredMeasurementBlockRecord as MeasurementBlockRecord,
 } from "src/cs/workbench/services/dataResource/common/structuredContent";
@@ -614,45 +613,6 @@ const isColumnInBounds = (
 	Number.isInteger(column) &&
 	column >= 0 &&
 	column < columnCount;
-
-type JsonLike =
-	| string
-	| number
-	| boolean
-	| null
-	| JsonLike[]
-	| { [key: string]: JsonLike };
-
-const stableStringify = (
-	value: unknown,
-): string => {
-	const seen = new WeakSet<object>();
-
-	const normalize = (
-		input: unknown,
-	): JsonLike => {
-		if (!input || typeof input !== "object") {
-			return input as JsonLike;
-		}
-		if (seen.has(input)) {
-			return null;
-		}
-		seen.add(input);
-
-		if (Array.isArray(input)) {
-			return input.map(item => normalize(item));
-		}
-
-		const output: Record<string, JsonLike> = {};
-		for (const key of Object.keys(input).sort()) {
-			const record = input as Record<string, unknown>;
-			output[key] = normalize(record[key]);
-		}
-		return output;
-	};
-
-	return JSON.stringify(normalize(value));
-};
 
 const hashString = (
 	value: string,

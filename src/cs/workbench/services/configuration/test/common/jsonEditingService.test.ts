@@ -126,6 +126,20 @@ suite("workbench/services/configuration/common/jsonEditingService", () => {
 		assert.equal(files.getWrittenContent(resource), "{\n  \"editor\": {}\n}\n");
 	});
 
+	test("reads JSONC settings before writing JSON values", async () => {
+		const resource = URI.file("C:\\Users\\test\\AppData\\Roaming\\Conductor Studio\\User\\settings.json");
+		const files = new MemoryFileService();
+		files.setContent(resource, "{\n  // User preference\n  \"editor\": { \"tabSize\": 2, },\n}\n");
+		const service = new JSONEditingService(files);
+
+		await service.write(resource, [{ path: ["editor", "insertSpaces"], value: true }], true);
+
+		assert.equal(
+			files.getWrittenContent(resource),
+			"{\n  \"editor\": {\n    \"tabSize\": 2,\n    \"insertSpaces\": true\n  }\n}\n",
+		);
+	});
+
 	test("rejects writes to invalid JSON files", async () => {
 		const resource = URI.file("C:\\Users\\test\\AppData\\Roaming\\Conductor Studio\\User\\settings.json");
 		const files = new MemoryFileService();
