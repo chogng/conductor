@@ -21,7 +21,34 @@ Use this file as the short coding entry point. Before editing code, read:
 - Keep runtime folders honest: `common`, `browser`, `electron-browser`, `electron-main`, `node`.
 - Prefer upstream VS Code shape when a responsibility has an upstream counterpart.
 - Use constructors for DI and lifecycle wiring when a class owns runtime state.
+- Make code readability come from visible ownership, entry points, and side effects.
 - Conductor-specific additions must be named and justified as Conductor-specific.
+
+## Readable Code Shape
+
+Readable Conductor code should make the architecture visible. A reader should
+be able to identify the entry point, state owner, mutation point, event facts,
+and lifecycle owner without reconstructing hidden flow from helpers or naming
+history.
+
+Follow the upstream VS Code style in shape, not surface aesthetics:
+
+- registration files wire contributions and services;
+- commands, actions, and controllers normalize input and delegate;
+- services and models mutate only their owned state;
+- records, targets, candidates, and DTO-like values stay as data;
+- subscriptions, context keys, providers, and disposables are tied to a clear
+  lifecycle owner.
+
+When code feels messy, fix the ownership shape before local cleanup. Do not
+hide mixed responsibilities behind a helper, rename a file without moving the
+responsibility, or add formatting-only structure while old and new owners still
+share the same behavior.
+
+Avoid files that mix unrelated roles such as schema definitions, candidate
+building, evaluation, application planning, UI state, and compatibility bridges.
+If migration forces a temporary mix, mark the bridge explicitly and keep the new
+owner API clear.
 
 ## Root-Cause Fixes
 
