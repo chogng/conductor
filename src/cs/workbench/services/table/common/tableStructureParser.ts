@@ -24,6 +24,22 @@ export const PARSED_TABLE_ROW_WINDOW_SIZE = 1000;
 export type TableStructureParseInput = {
   readonly buffer: TableReadBuffer;
   readonly format: TableFormatId;
+  readonly xlsReader?: TableXlsReader;
+};
+
+export type TableXlsReader = (input: {
+  readonly bytes: Uint8Array;
+}) => Promise<TableXlsReadResult>;
+
+export type TableXlsReadResult = {
+  readonly sheets: readonly TableXlsReadSheet[];
+};
+
+export type TableXlsReadSheet = {
+  readonly diagnostics?: readonly TableParseDiagnostic[];
+  readonly rows: readonly (readonly string[])[];
+  readonly sheetId?: string;
+  readonly sheetName?: string | null;
 };
 
 export const DEFAULT_PHYSICAL_TABLE_SHEET_ID = "0";
@@ -57,12 +73,13 @@ export type ParsedTableStructure = {
 export const parseTableStructure = async ({
   buffer,
   format,
+  xlsReader,
 }: TableStructureParseInput): Promise<ParsedTableStructure> => {
   if (format === "xls") {
-    return createFatalParsedTableStructure(
-      "table.parser.parserUnavailable",
-      "Legacy .xls table resources need native parser support.",
-    );
+    return parseXlsTableModelContent({
+      buffer,
+      xlsReader,
+    });
   }
 
   if (format === "xlsx") {
@@ -141,6 +158,7 @@ const parseDelimitedTableContent = async (
   let previousWasCarriageReturn = false;
   let endedWithLineBreak = false;
   let hasNonWhitespaceText = false;
+  let reportedInvalidQuote = false;
 
   const finishCell = (): void => {
     row.push(cell);
@@ -155,9 +173,10 @@ const parseDelimitedTableContent = async (
     endedWithLineBreak = true;
   };
   const addInvalidQuoteDiagnostic = (): void => {
-    if (diagnostics.some(diagnostic => diagnostic.code === "table.parser.unescapedQuote")) {
+    if (reportedInvalidQuote) {
       return;
     }
+    reportedInvalidQuote = true;
     diagnostics.push({
       code: "table.parser.unescapedQuote",
       message: "The delimited table parser found characters after a closing quote.",
@@ -268,6 +287,311 @@ const parseDelimitedTableContent = async (
     diagnostics,
   };
 };
+
+const parseXlsTableModelContent = async ({
+  buffer,
+  xlsReader,
+}: {
+  readonly buffer: TableReadBuffer;
+  readonly xlsReader?: TableXlsReader;
+}): Promise<ParsedTableStructure> => {
+  if (buffer.kind !== "bytes") {
+    return createFatalParsedTableStructure(
+      "table.parser.bufferKindMismatch",
+      "The xls parser requires a byte table read buffer.",
+    );
+  }
+
+  const bytes = await readTableByteBuffer(buffer);
+  const sample = getAsciiCompatibleSample(bytes, 8192);
+  const text = decodeLegacyWorkbookText(bytes);
+  if (looksLikeHtmlWorkbook(sample)) {
+    const content = parseHtmlWorkbookTableContent(text);
+    return content
+      ? createSingleSheetParsedTableStructure(content, [])
+      : createFatalParsedTableStructure(
+        "table.parser.noReadableSheet",
+        "The xls workbook did not contain a readable HTML table.",
+      );
+  }
+
+  if (looksLikeSpreadsheetMlWorkbook(sample)) {
+    const content = parseSpreadsheetMlWorkbookContent(text);
+    return content
+      ? createSingleSheetParsedTableStructure(content, [])
+      : createFatalParsedTableStructure(
+        "table.parser.noReadableSheet",
+        "The xls workbook did not contain a readable SpreadsheetML sheet.",
+      );
+  }
+
+  if (!xlsReader) {
+    return createFatalParsedTableStructure(
+      "table.parser.binaryXlsUnsupported",
+      "Binary .xls workbooks are not supported in this environment. Save the workbook as .xlsx or export it as CSV.",
+    );
+  }
+
+  let readResult: TableXlsReadResult;
+  try {
+    readResult = await xlsReader({ bytes });
+  } catch (error) {
+    return createFatalParsedTableStructure(
+      "table.parser.malformedWorkbook",
+      getParserErrorMessage(error, "The xls workbook could not be parsed."),
+    );
+  }
+
+  return createParsedTableStructureFromXlsReadSheets(readResult.sheets);
+};
+
+const createSingleSheetParsedTableStructure = (
+  content: ParsedTableContent,
+  diagnostics: readonly TableParseDiagnostic[],
+): ParsedTableStructure => ({
+  content,
+  diagnostics: [],
+  sheets: [{
+    content,
+    diagnostics,
+    sheetId: DEFAULT_PHYSICAL_TABLE_SHEET_ID,
+    sheetName: null,
+  }],
+});
+
+const createParsedTableStructureFromXlsReadSheets = (
+  readSheets: readonly TableXlsReadSheet[],
+): ParsedTableStructure => {
+  const sheets = readSheets.map((sheet, index): ParsedTableSheet => {
+    const content = sheet.rows.length
+      ? createParsedTableContentFromRows(sheet.rows)
+      : null;
+    return {
+      content,
+      diagnostics: sheet.diagnostics ?? [],
+      sheetId: sheet.sheetId?.trim() || String(index),
+      sheetName: normalizeOptionalString(sheet.sheetName ?? undefined),
+    };
+  });
+  const firstReadableSheet = sheets.find(sheet => sheet.content);
+  if (!firstReadableSheet) {
+    return createFatalParsedTableStructure(
+      "table.parser.noReadableSheet",
+      "The xls workbook did not contain a readable worksheet.",
+    );
+  }
+
+  return {
+    content: firstReadableSheet.content,
+    diagnostics: [],
+    sheets,
+  };
+};
+
+const createParsedTableContentFromRows = (
+  rows: readonly (readonly string[])[],
+): ParsedTableContent => {
+  const contentBuilder = createParsedTableContentBuilder();
+  for (const row of rows) {
+    appendParsedTableRow(contentBuilder, row.map(cell => String(cell ?? "")));
+  }
+  return finalizeParsedTableContent(contentBuilder);
+};
+
+const decodeLegacyWorkbookText = (bytes: Uint8Array): string => {
+  const charset = detectDeclaredTextCharset(bytes);
+  const labels = uniqueStrings([
+    charset ? normalizeTextDecoderLabel(charset) : null,
+    charset,
+    "utf-8",
+  ]);
+  for (const label of labels) {
+    try {
+      return new TextDecoder(label).decode(bytes);
+    } catch {
+      // Try the next declared/default encoding label.
+    }
+  }
+  return new TextDecoder().decode(bytes);
+};
+
+const detectDeclaredTextCharset = (bytes: Uint8Array): string | null => {
+  const sample = getAsciiCompatibleSample(bytes, 8192);
+  const metaCharset = /<meta\b[^>]*\bcharset\s*=\s*["']?\s*([a-z0-9._-]+)/i.exec(sample)?.[1];
+  if (metaCharset) {
+    return metaCharset;
+  }
+  return /<\?xml\b[^>]*\bencoding\s*=\s*["']\s*([a-z0-9._-]+)/i.exec(sample)?.[1] ?? null;
+};
+
+const normalizeTextDecoderLabel = (label: string): string =>
+  /^(gb2312|gbk)$/i.test(label) ? "gb18030" : label;
+
+const uniqueStrings = (
+  values: readonly (string | null | undefined)[],
+): string[] => {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const normalized = String(value ?? "").trim();
+    const key = normalized.toLowerCase();
+    if (!normalized || seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    result.push(normalized);
+  }
+  return result;
+};
+
+const getAsciiCompatibleSample = (
+  bytes: Uint8Array,
+  limit: number,
+): string => {
+  let text = "";
+  const length = Math.min(bytes.byteLength, limit);
+  for (let index = 0; index < length; index += 1) {
+    const byte = bytes[index]!;
+    text += byte >= 0x20 && byte <= 0x7e ? String.fromCharCode(byte) : " ";
+  }
+  return text;
+};
+
+const looksLikeHtmlWorkbook = (text: string): boolean =>
+  /<html\b/i.test(text) || /<table\b/i.test(text);
+
+const looksLikeSpreadsheetMlWorkbook = (text: string): boolean =>
+  /urn:schemas-microsoft-com:office:spreadsheet/i.test(text) ||
+  /<Workbook\b/i.test(text) && /<Worksheet\b/i.test(text);
+
+const parseHtmlWorkbookTableContent = (
+  html: string,
+): ParsedTableContent | null => {
+  const tableBody = getFirstHtmlElementBody(html, "table");
+  if (tableBody === null) {
+    return null;
+  }
+
+  const contentBuilder = createParsedTableContentBuilder();
+  for (const rowElement of iterateHtmlElements(tableBody, "tr")) {
+    const row: string[] = [];
+    for (const cellElement of iterateHtmlTableCells(rowElement.body)) {
+      const attributes = parseXmlAttributes(cellElement.attributes);
+      const colspan = getPositiveIntegerAttribute(attributes, "colspan") ?? 1;
+      row.push(normalizeHtmlCellText(cellElement.body));
+      for (let spanIndex = 1; spanIndex < colspan; spanIndex += 1) {
+        row.push("");
+      }
+    }
+    if (row.length) {
+      appendParsedTableRow(contentBuilder, row);
+    }
+  }
+
+  return contentBuilder.rowCount
+    ? finalizeParsedTableContent(contentBuilder)
+    : null;
+};
+
+const parseSpreadsheetMlWorkbookContent = (
+  xml: string,
+): ParsedTableContent | null => {
+  const worksheetBody = getXmlElements(xml, "Worksheet")[0]?.body ?? xml;
+  const contentBuilder = createParsedTableContentBuilder();
+  for (const rowElement of iterateXmlElements(worksheetBody, "Row")) {
+    const row: string[] = [];
+    let nextColumnIndex = 0;
+    for (const cellElement of iterateXmlElements(rowElement.body, "Cell")) {
+      const attributes = parseXmlAttributes(cellElement.attributes);
+      const columnIndex = getPositiveIntegerAttribute(attributes, "Index");
+      if (columnIndex !== null) {
+        while (nextColumnIndex < columnIndex - 1) {
+          row.push("");
+          nextColumnIndex += 1;
+        }
+      }
+      row.push(getSpreadsheetMlCellText(cellElement.body));
+      nextColumnIndex += 1;
+    }
+    if (row.length) {
+      appendParsedTableRow(contentBuilder, row);
+    }
+  }
+
+  return contentBuilder.rowCount
+    ? finalizeParsedTableContent(contentBuilder)
+    : null;
+};
+
+const getFirstHtmlElementBody = (
+  html: string,
+  tagName: string,
+): string | null => {
+  const pattern = new RegExp(`<${tagName}\\b[^>]*>([\\s\\S]*?)<\\/${tagName}>`, "i");
+  return pattern.exec(html)?.[1] ?? null;
+};
+
+type HtmlElement = {
+  readonly attributes: string;
+  readonly body: string;
+};
+
+const iterateHtmlElements = function* (
+  html: string,
+  tagName: string,
+): IterableIterator<HtmlElement> {
+  const pattern = new RegExp(`<${tagName}\\b([^>]*)>([\\s\\S]*?)<\\/${tagName}>`, "gi");
+  for (const match of html.matchAll(pattern)) {
+    yield {
+      attributes: match[1] ?? "",
+      body: match[2] ?? "",
+    };
+  }
+};
+
+const iterateHtmlTableCells = function* (
+  html: string,
+): IterableIterator<HtmlElement> {
+  const pattern = /<(td|th)\b([^>]*)>([\s\S]*?)<\/\1>/gi;
+  for (const match of html.matchAll(pattern)) {
+    yield {
+      attributes: match[2] ?? "",
+      body: match[3] ?? "",
+    };
+  }
+};
+
+const normalizeHtmlCellText = (html: string): string =>
+  decodeMarkupEntities(
+    html
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<[^>]*>/g, "")
+      .trim(),
+  );
+
+const getSpreadsheetMlCellText = (body: string): string =>
+  getXmlElements(body, "Data")
+    .map(element => decodeMarkupEntities(element.body.replace(/<[^>]*>/g, "")))
+    .join("");
+
+const getPositiveIntegerAttribute = (
+  attributes: ReadonlyMap<string, string>,
+  name: string,
+): number | null => {
+  const nameLower = name.toLowerCase();
+  for (const [key, value] of attributes) {
+    const localName = key.includes(":") ? key.slice(key.lastIndexOf(":") + 1) : key;
+    if (localName.toLowerCase() !== nameLower) {
+      continue;
+    }
+    const integer = Number.parseInt(value, 10);
+    return Number.isFinite(integer) && integer > 0 ? integer : null;
+  }
+  return null;
+};
+
+const decodeMarkupEntities = (value: string): string =>
+  decodeXml(value.replace(/&nbsp;/gi, "\u00a0"));
 
 const parseXlsxTableModelContent = async ({
   bytes,

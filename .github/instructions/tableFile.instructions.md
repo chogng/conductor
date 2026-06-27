@@ -15,7 +15,7 @@ have a tableFile bridge service or Session commit step.
 URI/resource open
   -> ITableModelService.createModelReference(resource)
   -> TableModelResolverService
-  -> ITableFileService / BrowserTableFileService
+  -> ITableFileService / BrowserTableFileService or NativeTableFileService
   -> TableFileService chooses table read mode
   -> TableFileEditorModelManager
   -> TableFileEditorModel
@@ -45,6 +45,11 @@ Explicit Explorer import
 - table text/byte read mode choice after platform bytes are read;
 - delegation to `TableFileEditorModelManager` for cached model creation,
   resolve, reload, and release.
+
+`NativeTableFileService` is the desktop registration for the same tableFile
+lifecycle. It may provide a native `.xls` reader for binary BIFF/OLE workbooks
+that returns normalized sheet rows. It must not route CSV, TSV, or XLSX through
+the native reader.
 
 Session owns only the remaining migration ledger for domains that still
 explicitly write canonical records:
@@ -96,6 +101,7 @@ ordinary file-to-table imports.
 | `common/tableFileReader.ts` | URI-backed table file reader; reads platform bytes, selects table text/byte mode after format resolution, and returns `TableReadBuffer`. |
 | `browser/browserTableFileService.ts` | browser DI registration for the URI-backed table file service. |
 | `browser/tableFileService.ts` | URI-backed file resolve service for table resources; owns table read mode choice before delegating to the editor model manager. |
+| `electron-browser/nativeTableFileService.ts` | desktop DI registration for the URI-backed table file service; adds TS native BIFF/OLE `.xls` sheet-row reading only for `.xls` resolves. |
 | `common/encoding.ts` | table file text/byte mode, byte conversion, and mime helpers; not a table format/support owner. |
 | `common/tableFileEditorModel.ts` | URI-backed file working-copy, file-backed read/sourceVersion flow, and associated `ITableModel` lifecycle. |
 | `common/tableFileEditorModelManager.ts` | file-backed table working-copy cache/reuse/reload/remove owner. |

@@ -22,7 +22,7 @@ import {
 	type ParsedTableContent,
 	type ParsedTableSheet,
 	type ParsedTableStructure,
-	type TableXlsConverter,
+	type TableXlsReader,
 } from "src/cs/workbench/services/table/common/tableStructureParser";
 import {
 	readTableFile,
@@ -44,7 +44,7 @@ export type TableFileEditorModelSnapshot = {
 };
 
 export type TableFileEditorModelResolveOptions = TableFileReadOptions & {
-	readonly xlsConverter?: TableXlsConverter;
+	readonly xlsReader?: TableXlsReader;
 };
 
 export class TableFileEditorModel extends Disposable {
@@ -199,7 +199,7 @@ export class TableFileEditorModel extends Disposable {
 	private async resolveContentFromDisk(
 		options: TableFileEditorModelResolveOptions,
 	): Promise<TableModelResolvedContent> {
-		const { xlsConverter, ...readOptions } = options;
+		const { xlsReader, ...readOptions } = options;
 		let readResult: TableFileReadResult;
 		try {
 			readResult = await readTableFile(this.resource, this.fileService, readOptions);
@@ -216,7 +216,7 @@ export class TableFileEditorModel extends Disposable {
 		const parsedContent = await parseTableStructure({
 			buffer: readResult.buffer,
 			format: readResult.format,
-			...(readResult.format === "xls" && xlsConverter ? { xlsConverter } : {}),
+			...(readResult.format === "xls" && xlsReader ? { xlsReader } : {}),
 		});
 		return createResolvedContent({
 			parsedContent,

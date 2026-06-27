@@ -45,8 +45,8 @@ export class TableFileEditorModelManager extends Disposable {
   }
 
   public get(resource: URI | null | undefined): ITableModel | undefined {
-    const key = getResourceKey(resource);
-    return key ? this.fileEditorModels.get(key)?.model : undefined;
+    const cacheKey = getModelCacheKey(resource);
+    return cacheKey ? this.fileEditorModels.get(cacheKey)?.model : undefined;
   }
 
   public resolve(resource: URI, source?: TableSource | null): void {
@@ -63,48 +63,52 @@ export class TableFileEditorModelManager extends Disposable {
       return;
     }
 
-    const key = model.resource.toString();
-    const pending = this.pendingResolves.get(key);
+    const cacheKey = getModelCacheKey(model.resource);
+    if (!cacheKey) {
+      throw new Error("Cannot resolve a table model without a resource.");
+    }
+
+    const pending = this.pendingResolves.get(cacheKey);
     if (pending) {
       await pending;
       return;
     }
 
     const pendingResolve = model.resolve(resolveOptions).finally(() => {
-      if (this.pendingResolves.get(key) === pendingResolve) {
-        this.pendingResolves.delete(key);
+      if (this.pendingResolves.get(cacheKey) === pendingResolve) {
+        this.pendingResolves.delete(cacheKey);
       }
     });
-    this.pendingResolves.set(key, pendingResolve);
+    this.pendingResolves.set(cacheKey, pendingResolve);
     await pendingResolve;
   }
 
   public async reload(resource: URI): Promise<void> {
-    const key = getResourceKey(resource);
-    if (!key) {
+    const cacheKey = getModelCacheKey(resource);
+    if (!cacheKey) {
       throw new Error("Cannot reload a table model without a resource.");
     }
 
-    const model = this.fileEditorModels.get(key);
+    const model = this.fileEditorModels.get(cacheKey);
     if (model) {
       await this.resolveModel(model, { force: true });
     }
   }
 
   public remove(resource: URI): void {
-    const key = getResourceKey(resource);
-    if (!key) {
+    const cacheKey = getModelCacheKey(resource);
+    if (!cacheKey) {
       return;
     }
 
-    const model = this.fileEditorModels.get(key);
+    const model = this.fileEditorModels.get(cacheKey);
     if (!model) {
       return;
     }
 
     model.dispose();
-    this.fileEditorModels.delete(key);
-    this.pendingResolves.delete(key);
+    this.fileEditorModels.delete(cacheKey);
+    this.pendingResolves.delete(cacheKey);
   }
 
   public getOrCreateModel(resource: URI, source?: TableSource | null): TableModel {
@@ -115,12 +119,12 @@ export class TableFileEditorModelManager extends Disposable {
     resource: URI,
     source?: TableSource | null,
   ): TableFileEditorModel {
-    const key = getResourceKey(resource);
-    if (!key) {
+    const cacheKey = getModelCacheKey(resource);
+    if (!cacheKey) {
       throw new Error("Cannot resolve a table model without a resource.");
     }
 
-    let model = this.fileEditorModels.get(key);
+    let model = this.fileEditorModels.get(cacheKey);
     if (!model) {
       model = this._register(new TableFileEditorModel(
         resource,
@@ -133,7 +137,7 @@ export class TableFileEditorModelManager extends Disposable {
       this._register(createdModel.model.onDidChange(changedModel => {
         this.onDidChangeModelEmitter.fire(changedModel);
       }));
-      this.fileEditorModels.set(key, createdModel);
+      this.fileEditorModels.set(cacheKey, createdModel);
     }
     return model;
   }
@@ -163,9 +167,9 @@ export class TableFileEditorModelManager extends Disposable {
   }
 }
 
-const getResourceKey = (resource: URI | null | undefined): string | null => {
-  const key = resource?.toString()?.trim() ?? "";
-  return key || null;
+const getModelCacheKey = (resource: URI | null | undefined): string | null => {
+  const cacheKey = resource?.toString()?.trim() ?? "";
+  return cacheKey || null;
 };
 
 const isAddedFileChange = (change: IFileChange): boolean =>

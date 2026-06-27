@@ -16,7 +16,7 @@ export type TableFileReadMode = "bytes" | "text";
 export const getTableFileReadMode = (
 	format: TableFormatId,
 ): TableFileReadMode =>
-	format === "xlsx" ? "bytes" : "text";
+	format === "xls" || format === "xlsx" ? "bytes" : "text";
 
 export const decodeTableFileContent = (
 	content: Uint8Array,
@@ -33,7 +33,7 @@ export const decodeTableFileContent = (
 };
 
 export const getTableFileMimeType = (format: TableFormatId): string => {
-	if (format === "xlsx") {
+	if (format === "xls" || format === "xlsx") {
 		return "application/octet-stream";
 	}
 	if (format === "tsv") {

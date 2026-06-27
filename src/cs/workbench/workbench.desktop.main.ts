@@ -44,6 +44,7 @@ import "src/cs/workbench/services/storage/electron-browser/storageService.ts";
 import "src/cs/platform/files/electron-browser/fileService.ts";
 import "src/cs/workbench/services/parameters/electron-browser/rcCalculationBackendService.ts";
 import "src/cs/workbench/services/path/electron-browser/pathService.ts";
+import "src/cs/workbench/services/tableFile/electron-browser/nativeTableFileService.ts";
 import "src/cs/workbench/services/update/electron-browser/updateService.ts";
 
 //#endregion

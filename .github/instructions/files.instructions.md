@@ -119,12 +119,13 @@ state arrives through their owning services.
 | `services/tableFile/common/tablefiles.ts` | `ITableFileService` contract for URI-backed table file working-copy lifecycle; not a raw-table import ledger. |
 | `services/table/common/tableFormatRegistry.ts` | Known table format IDs, materialization capability, and default extension metadata. |
 | `services/table/common/tableFormatAssociations.ts` | Resource/name/extension association helpers for table format resolution. |
-| `services/table/common/tableFormatService.ts` | Table import format policy and resource/name support checks consumed by source collection and tableFile resolve; `.xls` is known but not handleable until parser support exists. |
+| `services/table/common/tableFormatService.ts` | Table import format policy and resource/name support checks consumed by source collection and tableFile resolve for CSV/TSV/XLS/XLSX resources. |
 | `services/table/common/tableReadBuffer.ts` | Table-owned text/byte read buffer contracts consumed by parsers. |
-| `services/table/common/tableStructureParser.ts` | Table-owned CSV/TSV/XLSX physical table structure parser for URI-backed `ITableModel` content/sheet snapshots. |
+| `services/table/common/tableStructureParser.ts` | Table-owned CSV/TSV/XLS/XLSX physical table structure parser for URI-backed `ITableModel` content/sheet snapshots, including legacy HTML/SpreadsheetML `.xls`; binary BIFF/OLE `.xls` requires the desktop native `.xls` sheet-row reader or returns a clear unsupported diagnostic. |
 | `services/tableFile/common/tableFileReader.ts` | URI-backed table file reader; reads platform bytes, selects table text/byte mode after format resolution, and returns `TableReadBuffer`. |
 | `services/tableFile/browser/browserTableFileService.ts` | Browser DI registration for the URI-backed table file service. |
 | `services/tableFile/browser/tableFileService.ts` | URI-backed file resolve service for table resources; owns table read mode choice before delegating to the editor model manager. |
+| `services/tableFile/electron-browser/nativeTableFileService.ts` | Desktop DI registration for the URI-backed table file service; supplies TS native BIFF/OLE `.xls` sheet-row reading only for `.xls` resolves. |
 | `services/tableFile/common/encoding.ts` | Table file text/byte mode, byte conversion, and mime helpers for URI-backed opens. |
 | `services/tableFile/common/tableFileEditorModel.ts` | URI-backed table file working-copy and associated ITableModel lifecycle. |
 | `services/tableFile/common/tableFileEditorModelManager.ts` | File-backed table working-copy cache/reuse/reload/remove owner. |
