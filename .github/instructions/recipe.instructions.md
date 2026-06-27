@@ -56,8 +56,6 @@ roles, units, or table structure from raw rows.
 | --- | --- |
 | `common/recipe.ts` | `Recipe`, `RecipeSnapshot`, diagnostics, and `IRecipeService` contract. |
 | `common/recipeSchema.ts` | finite authoring vocabulary for data ranges, block partitions, physical layouts, logical relations, domain hints, and role expectations. |
-| `common/recipeSelector.ts` | compatibility exports for role/domain vocabulary. Do not add behavior here. |
-| `common/recipeProjection.ts` | compatibility exports for range/layout/relation vocabulary. Do not add Template materialization here. |
 | `common/recipeCodec.ts` | JSON normalization, validation diagnostics, stable fingerprinting. |
 | `common/builtinRecipes.generated.ts` | generated built-in recipe bundle. Do not edit manually. |
 | `browser/recipeService.ts` | thin injectable owner for the built-in recipe snapshot and change event. |
