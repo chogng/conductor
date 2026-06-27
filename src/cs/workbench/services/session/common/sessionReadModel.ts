@@ -31,6 +31,8 @@ export type SessionReadModel = {
   readonly rawFiles: SessionFile[];
 };
 
+// TODO(conductor-architecture): Legacy session projection.
+// New table/file flows should use URI/resource-backed table editor models instead of adding Session read-model dependencies.
 let cachedSnapshot: SessionSnapshot | null = null;
 let cachedReadModel: SessionReadModel | null = null;
 

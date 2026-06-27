@@ -55,6 +55,8 @@ type CachedSessionSnapshotTrace = {
   readonly fileSummariesById: ReadonlyMap<FileId, SessionSnapshotTraceFileSummary>;
 };
 
+// TODO(conductor-architecture): Legacy session trace.
+// New table/file diagnostics should follow URI/resource-backed owners rather than expanding Session snapshot traces.
 let cachedTraceSnapshot: SessionSnapshot | null = null;
 let cachedTraceSummary: CachedSessionSnapshotTrace | null = null;
 
