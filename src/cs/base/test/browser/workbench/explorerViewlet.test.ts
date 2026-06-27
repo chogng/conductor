@@ -273,9 +273,6 @@ const createReviewService = (): IReviewService => ({
     state: "missing",
     findingCodes: [],
   }),
-  reviewRawTableManualTemplate: () => {
-    throw new Error("Unexpected manual review in explorer viewlet test.");
-  },
   reviewUriManualTemplate: async () => {
     throw new Error("Unexpected URI manual review in explorer viewlet test.");
   },

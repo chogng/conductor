@@ -62,7 +62,7 @@ signatures.
 Manual execution:
 
 ```txt
-user command / UserTemplate picker / saved-selection compatibility picker / inline template editor
+user command / UserTemplate picker / inline template editor
   -> IReviewService.reviewUriTable({ resource, sheetId })
   -> IReviewService.reviewUriManualTemplate(...)
   -> ManualTemplateReviewResult
@@ -75,7 +75,7 @@ user command / UserTemplate picker / saved-selection compatibility picker / inli
 
 | File | Responsibility |
 | --- | --- |
-| `common/review.ts` | service contract, URI/manual review request/result types, review evidence signatures, and the legacy raw-table manual review fail-closed boundary. |
+| `common/review.ts` | service contract, URI manual review request/result types, and review evidence signatures. |
 | `common/reviewModel.ts` | pure `TableReviewContext`, `TableReviewCandidate`, `TableReviewResult`, `TableReviewDecision`, factors, findings, `ReviewedTemplate`, and summary types. |
 | `common/reviewSelector.ts` | pure Recipe selector evaluation against table model evidence. |
 | `common/reviewCandidate.ts` | pure Recipe/UserTemplate candidate derivation from table evidence. |
@@ -91,10 +91,8 @@ User-template candidates must come through `IUserTemplateService` and
 `UserTemplateSnapshot`. New decision logic and candidate derivation logic belong
 in Review, not Template, TableModel, Explorer, or Slice.
 
-Legacy raw-table manual review is disabled at the Review owner boundary.
-`reviewRawTableManualTemplate(...)` remains only as a compatibility-shaped
-invalid result so old callers fail closed instead of reading Session evidence.
-New URI-backed callers must use `reviewUriManualTemplate(...)`.
+Legacy raw-table manual review has retired from the Review owner contract. New
+callers must use `reviewUriManualTemplate(...)` with a URI-backed table target.
 
 ## Rules
 
@@ -132,9 +130,9 @@ New URI-backed callers must use `reviewUriManualTemplate(...)`.
   diagnostic handling, override rules, or source priority changes.
 - Explorer reads Review summaries and Slice state as projection inputs; it does
   not perform Review policy checks.
-- Manual Review requests may accept `savedTemplate` compatibility selections,
-  but lookup must go through `IUserTemplateService` and the resulting
-  `ReviewedTemplate.source` must be `userTemplate`.
+- Manual Review requests may accept `userTemplate` selections; lookup must go
+  through `IUserTemplateService` and the resulting `ReviewedTemplate.source`
+  must be `userTemplate`.
 
 ## Do Not
 

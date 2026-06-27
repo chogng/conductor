@@ -229,7 +229,7 @@ const getManualReviewSelection = (
 	}
 	if (selection.kind === "saved") {
 		return {
-			kind: "savedTemplate",
+			kind: "userTemplate",
 			templateId: selection.templateId,
 		};
 	}

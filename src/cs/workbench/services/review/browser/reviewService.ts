@@ -14,7 +14,6 @@ import {
 import {
   IReviewService,
   type IReviewService as IReviewServiceType,
-  type RawTableManualTemplateReviewRequest,
   type ManualTemplateReviewResult,
   type ReviewDiagnostic,
   type ReviewedTableMeasurementBinding,
@@ -192,13 +191,6 @@ export class ReviewService extends Disposable implements IReviewServiceType {
     }
     this.fireTableReviewChange();
     return entry ? createUriTableReviewFromCacheEntry(entry) : fallback();
-  }
-
-  public reviewRawTableManualTemplate(input: RawTableManualTemplateReviewRequest): ManualTemplateReviewResult {
-    return createInvalidManualReviewResult(
-      "review.manual.rawTableManualDisabled",
-      "Legacy raw-table manual review is disabled. Use URI-backed table review.",
-    );
   }
 
   private reviewResolvedManualTemplate(

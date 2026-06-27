@@ -561,27 +561,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.deepEqual(result.reviews[0]?.findings.map(finding => finding.code), []);
 	});
 
-	test("disables legacy raw-table manual review", () => {
-		const sessionService = store.add(new SessionService());
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
-		const userTemplateService = createUserTemplateServiceForTest();
-		const service = createReviewServiceForTest(sessionService, recipeService, userTemplateService);
-		sessionService.commitFileImport(createImportResult());
-		sessionService.commitTableModel(createTableModel());
-
-		const result = service.reviewRawTableManualTemplate({
-			ref: { fileId: "file-a", rawTableId: "table-a" },
-			selection: {
-				kind: "inline",
-				template: createTemplate(),
-			},
-		});
-
-		if (result.kind !== "invalid") {
-			assert.fail(`Expected invalid manual review result, got ${result.kind}.`);
-		}
-		assert.equal(result.diagnostics[0]?.code, "review.manual.rawTableManualDisabled");
-	});
 });
 
 class TestRecipeService extends Disposable implements IRecipeService {

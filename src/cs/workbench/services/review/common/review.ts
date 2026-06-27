@@ -4,20 +4,13 @@
 
 import type { Event } from "src/cs/base/common/event";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type {
-  BaseCurveFamily,
-  ItCurveMode,
-  IvCurveMode,
-  RawTableRef,
-  SheetId,
-} from "src/cs/workbench/services/session/common/sessionModel";
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
-import type { TableModelRecord } from "src/cs/workbench/services/tableModel/common/tableModel";
 import type {
   ReviewDiagnostic,
   ReviewedTemplate,
   ReviewSuggestedAction,
   TableCandidateReview,
+  TableReviewEvidence,
   TableReviewResult,
   TableReviewSummary,
   TableReviewSummaryTarget,
@@ -56,18 +49,9 @@ export type ManualTemplateSelection =
       readonly templateId: string;
     }
   | {
-      readonly kind: "savedTemplate";
-      readonly templateId: string;
-    }
-  | {
       readonly kind: "inline";
       readonly template: Template;
     };
-
-export type RawTableManualTemplateReviewRequest = {
-  readonly ref: RawTableRef;
-  readonly selection: ManualTemplateSelection;
-};
 
 export type UriManualTemplateReviewRequest = {
   readonly target: TableReviewSummaryTarget;
@@ -94,14 +78,24 @@ export type ManualTemplateReviewResult =
     };
 
 export type ReviewedTableMeasurementBinding = {
-  readonly curveFamily: BaseCurveFamily;
-  readonly ivMode?: IvCurveMode | null;
-  readonly itMode?: ItCurveMode | null;
+  readonly curveFamily: ReviewedTableMeasurementFamily;
+  readonly ivMode?: ReviewedTableIvMode | null;
+  readonly itMode?: ReviewedTableItMode | null;
 };
+
+export type ReviewedTableMeasurementFamily = "iv" | "cv" | "cf" | "pv" | "it";
+export type ReviewedTableIvMode = "transfer" | "output";
+export type ReviewedTableItMode =
+  | "stability"
+  | "transient"
+  | "retention"
+  | "biasStress"
+  | "photoResponse"
+  | "generic";
 
 export type UriTableReview = {
   readonly resource: TableReviewSummaryTarget["resource"];
-  readonly sheetId?: SheetId;
+  readonly sheetId?: string;
   readonly summary: TableReviewSummary;
   readonly result?: TableReviewResult;
   readonly reviewSignature?: string;
@@ -117,7 +111,23 @@ export type ReviewEvidenceSignatureContext = {
   readonly columnCount?: number;
   readonly fileName?: string | null;
   readonly rowCount?: number;
-  readonly sheetId?: SheetId | null;
+  readonly sheetId?: string | null;
+};
+
+export type ReviewEvidenceSignatureInput = {
+  readonly tableModelRuleVersion: number;
+  readonly blocks: TableReviewEvidence["blocks"];
+  readonly columnProfiles: TableReviewEvidence["columnProfiles"];
+  readonly diagnostics: TableReviewEvidence["diagnostics"];
+  readonly groups: TableReviewEvidence["groups"];
+  readonly layoutCandidates: TableReviewEvidence["layoutCandidates"];
+  readonly schemaProfileVersion: number;
+  readonly semanticCandidates: TableReviewEvidence["semanticCandidates"];
+  readonly sourceModelVersion?: number;
+  readonly sourceRawTableVersion: number;
+  readonly sourceUri?: string;
+  readonly sourceVersion?: number;
+  readonly structure: TableReviewEvidence["structure"];
 };
 
 export interface IReviewService {
@@ -128,11 +138,6 @@ export interface IReviewService {
   getLatestReview(target: TableReviewSummaryTarget): UriTableReview | undefined;
   getLatestReviewSummary(target: TableReviewSummaryTarget): TableReviewSummary;
   reviewUriTable(target: TableReviewSummaryTarget): Promise<UriTableReview>;
-  /**
-   * Legacy raw-table compatibility boundary. Implementations must fail closed
-   * instead of reading Session evidence for URI-backed TableReview.
-   */
-  reviewRawTableManualTemplate(input: RawTableManualTemplateReviewRequest): ManualTemplateReviewResult;
   reviewUriManualTemplate(input: UriManualTemplateReviewRequest): Promise<ManualTemplateReviewResult>;
 }
 
@@ -150,22 +155,7 @@ export const createReviewEvidenceSignature = ({
   sourceUri,
   sourceVersion,
   structure,
-}: Pick<
-  TableModelRecord,
-  | "tableModelRuleVersion"
-  | "blocks"
-  | "columnProfiles"
-  | "diagnostics"
-  | "groups"
-  | "layoutCandidates"
-  | "schemaProfileVersion"
-  | "semanticCandidates"
-  | "sourceModelVersion"
-  | "sourceRawTableVersion"
-  | "sourceUri"
-  | "sourceVersion"
-  | "structure"
->, context: ReviewEvidenceSignatureContext = {}): string => {
+}: ReviewEvidenceSignatureInput, context: ReviewEvidenceSignatureContext = {}): string => {
   const sourceModelSignature = createSourceModelSignature({
     sourceSheetId: context.sheetId,
     sourceModelVersion,

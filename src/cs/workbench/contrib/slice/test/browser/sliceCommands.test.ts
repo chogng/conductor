@@ -69,21 +69,14 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 		assert.equal(notifications[0]?.message, "slice.runWithTemplate.noUriTables");
 	});
 
-	test("does not submit legacy raw-table manual slicing from the current template form", () => {
+	test("does not submit manual slicing without URI table targets from the current template form", () => {
 		const sessionService = store.add(new SessionService());
 		sessionService.commitFileImport(createImportResult());
 		const sliceService = new TestSliceService();
 		const notifications: INotification[] = [];
-		let didCallRawTableReview = false;
 
 		runSliceWithTemplateHandler(createAccessor({
 			notifications,
-			reviewService: createReviewServiceForTest({
-				reviewRawTableManualTemplate: () => {
-					didCallRawTableReview = true;
-					assert.fail("Legacy raw-table manual review should not be called.");
-				},
-			}),
 			sessionService,
 			sliceService,
 			templateState: createTemplateState({
@@ -98,8 +91,8 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 			}),
 		}));
 
-		assert.equal(didCallRawTableReview, false);
 		assert.deepEqual(sliceService.requests, []);
+		assert.deepEqual(sliceService.uriRequests, []);
 		assert.equal(notifications[0]?.id, "slice.notification");
 		assert.equal(notifications[0]?.message, "slice.runWithTemplate.noUriTables");
 	});
@@ -352,11 +345,6 @@ const createReviewServiceForTest = (
 	}),
 	getLatestReview: () => undefined,
 	onDidChangeTableReview: Event.None as Event<void>,
-	reviewRawTableManualTemplate: () => ({
-		kind: "invalid",
-		diagnostics: [],
-		suggestedActions: [],
-	}),
 	reviewUriManualTemplate: async () => ({
 		kind: "invalid",
 		diagnostics: [],
