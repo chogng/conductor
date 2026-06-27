@@ -132,8 +132,8 @@ Runtime folders:
 | files source/raw-table helpers | source/import contracts, raw table records, and row preview helpers; ordinary Explorer imports stay URI-backed |
 | `ISessionService` | canonical imported data-file/raw-table ledger and downstream analysis records |
 | `IRecipeService` | passive built-in rules; it does not evaluate tables or build review candidates |
-| `IReviewService` | URI-grounded content-version review: builds `SegmentCandidate`/review candidates from canonical evidence plus Recipe/UserTemplate snapshots, evaluates candidates, selects `ReviewedTemplate` for table adapters, owns manual adjustment state and system-application recommendation |
-| `services/template` | canonical executable Template spec, editor adapters, and manual-template UI state; it does not own automatic Recipe/UserTemplate candidate derivation |
+| `IReviewService` | URI-grounded content-version review: builds `SegmentCandidate`/review candidates from canonical evidence plus Recipe/UserTemplate/built-in template snapshots, evaluates candidates, selects `ReviewedTemplate` for table adapters, owns manual adjustment state and system-application recommendation |
+| `services/template` | canonical executable Template spec, editor adapters, and manual-template UI state; it does not own automatic Recipe/UserTemplate/built-in template candidate derivation |
 | `IUserTemplateService` | native user template catalog CRUD/snapshots/import/export and explicit template lookup |
 | `ITableService` | table source, rows, selection snapshot, reveal/highlight |
 | `ITemplateViewStateService` | Template UI selected-template/form editor state |
@@ -180,7 +180,8 @@ Explorer source workflow
   -> Explorer-local imported rows
   -> ITableService.open({ resource })
   -> TableFileEditorModel / ITableModel snapshot/version
-  -> downstream services consume URI-backed model facts or their own state
+  -> table UI materialization consumes URI-backed model facts
+  -> downstream services consume URI-backed content evidence or their own state
 ```
 
 Primary review/template flow:
@@ -188,7 +189,7 @@ Primary review/template flow:
 ```txt
 URI + contentHash/sourceVersion
   -> canonical content evidence
-  + Recipe/UserTemplate snapshots
+  + Recipe/UserTemplate/built-in template snapshots
   -> SegmentCandidate / ReviewCandidate
   -> ReviewResult / ReviewedTemplate
   -> SliceRequest
@@ -199,11 +200,12 @@ Specific flow owners:
 
 - Import/source collection: Explorer/files workflow coordinates source preparation; Explorer owns local visible rows and table-resource open handoff.
 - Session ledger: Session backs only migration-ledger imported raw-table storage and downstream analysis records, including TableModel commits, during migration.
-- Table model / Review candidate building: TableModel is the current table
-  projection input. Review consumes URI/content-version evidence plus
-  Recipe/UserTemplate snapshots to build transient `SegmentCandidate` / table
-  `ReviewCandidate` values. Do not keep retired service, record, or command
-  names in new docs or APIs.
+- Structured evidence / Review candidate building: Review consumes
+  URI/content-version structured evidence plus Recipe/UserTemplate/built-in
+  template snapshots to build transient `SegmentCandidate` / `ReviewCandidate`
+  values. Table UI/materialization is a branch on the same URI content chain,
+  not the public Review identity. Do not keep retired service, record, or
+  command names in new docs or APIs.
 - Review: evaluates candidates, selects a `ReviewedTemplate` for table adapter
   execution when ready, and keeps URI-backed review results service-local.
 - Explicit execution controllers and Slice commands consume

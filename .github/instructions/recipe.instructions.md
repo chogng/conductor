@@ -72,11 +72,11 @@ candidate implementation:
 | File | Responsibility |
 | --- | --- |
 | `review/common/reviewSelector.ts` | target home for checking Recipe authoring fields against `ReviewContext.evidence` and producing selector traces/captures. |
-| `review/common/reviewCandidate.ts` | target home for deriving `ReviewCandidate` values from Recipe/UserTemplate snapshots and `ReviewContext`. |
+| `review/common/reviewCandidate.ts` | target home for deriving `ReviewCandidate` values from Recipe/UserTemplate/built-in template snapshots and `ReviewContext`. |
 | `review/common/reviewModel.ts` | target home for context, candidate, result, factors, findings, and decision data shapes. |
-| `review/common/reviewEvidence.ts` | target home for URI/content evidence types used by ReviewContext; current table fields are one projection of that evidence. |
+| `review/common/reviewEvidence.ts` | target home for URI/content evidence types used by ReviewContext; current tabular fields are structured/matrix evidence facts. |
 | `review/common/reviewScoring.ts` | target home for scoring candidates into explainable factors/findings/status. |
-| `review/browser/reviewService.ts` | owner that combines Recipe, UserTemplate, and URI/content evidence into automatic review results; the current table model only supplies one projection. |
+| `review/browser/reviewService.ts` | owner that combines Recipe, UserTemplate, built-in template snapshots, and URI/content evidence into automatic review results; current tabular materialization may supply adapter facts during migration, but Review remains URI/content-evidence based. |
 
 ## Flow
 
@@ -155,8 +155,8 @@ RecipeService reload/change
 - Do not call Recipe a rule or revive retired Rule naming; Recipe is the current
   passive physical-layout/logical-relation model.
 - Do not let Recipe infer measurement family, roles, units, or structure;
-  those facts come from canonical content evidence. In the current table
-  projection, they are supplied by table-model production.
+  those facts come from canonical content evidence. In the current tabular
+  adapter, they are supplied by structured content evidence production.
 - Do not let Recipe read rows, services, Session, files, or table state.
 - Do not let Template, Slice, or any compatibility bridge own Recipe
   interpretation.

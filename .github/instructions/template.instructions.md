@@ -8,18 +8,22 @@ applyTo: 'src/cs/workbench/services/template/**,src/cs/workbench/contrib/templat
 Review has accepted automatic or manual input. In target architecture:
 
 ```txt
-TableModel + Recipe/UserTemplate -> ReviewCandidate -> ReviewResult / ReviewedTemplate -> Slice
+URI/content structured evidence + Recipe/UserTemplate/built-in template snapshot
+  -> ReviewCandidate
+  -> ReviewResult / ReviewedTemplate
+  -> Slice
 ```
 
-The "Table" in this formula means canonical TableModel with derived
-structure/column/block data, not the UI `ITableService` selection model.
-Slice executes the reviewed `Template`; Review judges usability; Template owns
-the executable spec and editor adapters.
+Automatic Review consumes structured content evidence for a URI-backed content
+version. Built-in recipes, built-in template snapshots, and user templates are
+candidate sources, but they do not bypass Review. Slice executes the reviewed
+`Template`; Review judges usability; Template owns the executable spec and
+editor adapters.
 
 Do not add consumer-shaped template sections such as `template.review`,
-`template.slicing`, or `template.binding`. Review consumes TableModel-owned
-TableModel evidence to build candidates; Template must keep TableModel distinct
-from the executable `Template` snapshot.
+`template.slicing`, or `template.binding`. Review consumes URI/content
+structured evidence to build candidates; Template must keep content evidence
+distinct from the executable `Template` snapshot.
 
 Template editor form records are not the domain `Template`; name them
 `TemplateEditorRecord` / `TemplateEditorConfig`.
@@ -53,7 +57,7 @@ plot rendering, or chart state.
 
 | File | Responsibility |
 | --- | --- |
-| `common/templateSpec.ts` | pure block-aware `Template` spec: row ranges, axis bindings, segmentation, legends, titles, applicability, and execution defaults. |
+| `common/templateSpec.ts` | pure block-aware `Template` spec: measurement binding, row ranges, axis bindings, segmentation, legends, titles, applicability, and execution defaults. |
 | `common/template.ts` | `TemplateEditorRecord` and re-exported template spec types. |
 | `common/templateEditorAdapter.ts` | adapter between Template editor records and canonical block-aware `Template`. |
 | `common/templateEditorConfig.ts` | Template editor config normalization, cloning, and save/apply validation. |
@@ -77,14 +81,14 @@ Automatic Review candidate derivation:
 
 ```txt
 review request / recipeChanged / userTemplateChanged
-  -> ReviewService reads content evidence and Recipe/UserTemplate snapshots
+  -> ReviewService reads content evidence and Recipe/UserTemplate/built-in template snapshots
   -> ReviewService derives ReviewCandidate values
   -> ReviewService scores candidates
 ```
 
 Automatic candidate derivation belongs under `services/review/common`. Do not
-add automatic Recipe/UserTemplate candidate builders under Template, Table, or
-Slice.
+add automatic Recipe/UserTemplate/built-in template candidate builders under
+Template, Table, or Slice.
 
 Manual execution:
 
@@ -113,14 +117,16 @@ import/export command
 
 - `Template` is a concrete extraction/slicing spec. Review produces reviewed
   snapshots from automatic candidates or manual input; Slice consumes reviewed
-  or manual snapshots and must not derive Recipe/UserTemplate candidates.
+  or manual snapshots and must not derive Recipe/UserTemplate/built-in template
+  candidates.
 - Engines should consume `Template`, not consumer-specific sub-templates.
 - Template editor records may be bridged through `TemplateEditorConfig` and
   `templateEditorAdapter`; they are inputs to `Template` snapshots, not an
   execution workflow.
 - Raw-header auto-template inference is retired from product execution.
-  New `TableModel + Recipe/UserTemplate -> ReviewCandidate` derivation
-  belongs in Review candidate helpers, not Template execution.
+  New `URI/content structured evidence + Recipe/UserTemplate/built-in template
+  snapshot -> ReviewCandidate` derivation belongs in Review candidate helpers,
+  not Template execution.
 - Automatic template selection ids belong to Slice `templateSelection`, not
   Template common. Template common must not own selection sentinels.
 - Template may read current table selection through injected `ITableService` public APIs only as explicit user input.
@@ -187,8 +193,8 @@ Use `records.instructions.md` for `TemplateEditorRecord`,
 ## Do Not
 
 - Do not infer IV/CV/transfer/output inside the executable `Template` spec or
-  Slice path. Such inference belongs to table-model production and
-  Review-owned candidate helpers before Review/Slice.
+  Slice path. Such inference belongs to structured content evidence production
+  and Review-owned candidate helpers before Slice.
 - Do not split `Template` by review/slice/binding/apply consumers.
 - Do not store template form draft state in Session.
 - Do not let worker payload format leak into Session records.

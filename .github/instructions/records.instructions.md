@@ -112,44 +112,11 @@ replaces the URI identity for resource opens.
 - Decode/parse failures stay as health/unavailable row records; they do not
   become normal rows.
 
-### Table Projection Evidence
-
-- Table projection evidence is a pure content/review value, not a Session
-  ledger record. It may contain structure, column profiles, layout candidates,
-  semantic candidates, groups, blocks, diagnostics, and source metadata.
-- Primary consumer path is optional `ReviewEvidence.tableProjection`. Review
-  candidate derivation combines Recipe/UserTemplate snapshots with URI/content
-  evidence.
-- Do not call content evidence `RecipeEvidence`. Recipe is fixed rules; Review
-  combines rules with URI/content evidence.
-- `MeasurementBlockRecord.family` stores measurement family (`iv`, `cv`, `cf`,
-  `pv`, `it`, `unknown`), not plot transfer/output labels.
-- `ivMode` is valid only for IV blocks; `itMode` is valid only for IT blocks.
-- Raw table structure keeps physical header row, unit row, data region, block
-  region, and schema fingerprint evidence without measurement-family semantics.
-- `BlockRegion.kind` distinguishes a single table region from conservative
-  repeated-header regions with the same exact schema fingerprint.
-- Column profiles keep neutral column kind and numeric-stat evidence.
-- Layout candidates keep shape-only binding drafts such as simple XY,
-  shared-X multi-Y, pairwise XY, grouped sweep, wide matrix, time series,
-  repeated block, and metadata preamble layouts. They are suitable for UI
-  prefill and review, not for automatic calculation by themselves.
-- Semantic candidates keep role/unit candidates, confidence, evidence sources,
-  confirmation state, and display-scale suggestions.
-- Column refs keep raw column, header text, role, unit, source range, confidence.
-- Projection evidence does not store Recipe fingerprints, Template/UserTemplate
-  catalog versions, review candidates, reviewed templates, selected Template
-  snapshots, decision state, confidence gates, or auto-apply flags. Review owns
-  candidate building, review, and application decisions.
-- Diagnostics keep severity, code, message, source range, and related group/block ids.
-  Parser `fatal` diagnostics may be projected into review evidence for blocking
-  Review hard gates; recoverable parser errors remain non-fatal diagnostics and
-  should only affect parse-health scoring.
-
 ### Schema profiles
 
 - `SchemaProfile` stores user-confirmed bindings for one exact raw-table schema
-  fingerprint; it is projection/review input, not Session canonical output.
+  fingerprint; it is structured-evidence/review input, not Session canonical
+  output.
 - `SchemaProfileService` owns profile-scope storage and versioned snapshots;
   Session does not store profile records.
 - User confirmation of role/unit bindings enters through
@@ -197,10 +164,10 @@ replaces the URI identity for resource opens.
   signature, Recipe fingerprint, UserTemplate catalog fingerprint, ranked
   candidate summaries, per-candidate reviews, and `ReviewDecision`.
 - `ReviewResult` records the review target identity when available
-  (`resource`, optional `contentHash`, optional `sheetId`), `modelVersion`,
-  `sourceVersion`, `evidenceFingerprint`, candidate summaries, per-candidate
-  factors/findings, decision, and the selected `reviewedTemplate` only when
-  ready.
+  (`resource`, optional `contentHash`, optional `sourceVersion`, optional
+  `sheetId`), `evidenceFingerprint`, optional `materializationVersion`,
+  candidate summaries, per-candidate factors/findings, decision, and the
+  selected `reviewedTemplate` only when ready.
 - `ReviewDecision.kind === "ready"` carries the selected
   `ReviewedTemplate.template` snapshot; that snapshot must be executable even
   if the source Recipe or UserTemplate changes later.
@@ -224,8 +191,13 @@ replaces the URI identity for resource opens.
   input ranges preserve the same target provenance.
 - `SliceRun.template` is the executed snapshot from a reviewed automatic
   template or manual input.
-- `SliceRun.sourceTableModelSignature` ties automatic runs to the table model
+- `SliceRun.sourceTableModelSignature` is a migration-ledger raw-table
+  compatibility field tying legacy automatic runs to the source table snapshot
   and review records used to submit the request.
+- URI-backed runs must use the URI target, contentHash/sourceVersion,
+  evidenceFingerprint, optional materializationVersion, review signature, and
+  template fingerprint carried by `SliceUriRequest` / `SliceUriRun`; do not
+  introduce table-model identity as the URI-backed result identity.
 - `SliceCommit` atomically commits the `SliceRun`, produced `SeriesRecord`
   values, and produced base `CurveRecord` values through Session.
 - `SliceUriResult` is Slice service-local state for URI-backed execution. It

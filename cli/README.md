@@ -1,5 +1,12 @@
 # Rust CLI 职责地图
 
+> Legacy note: 这份文档描述的是当前 Rust/CLI 数据平面和迁移期
+> table-model seed 路径，不是 TS Review/Slice 的目标架构说明。新的 TS
+> 责任边界以 `.github/README.md` 和 `.github/instructions/*.instructions.md`
+> 为准。Rust prepare 输出在目标架构里只能先视为 legacy seed / structured
+> hints；最终 Review evidence、Review decision 和 Explorer decoration 都由
+> TypeScript 的 owner 服务决定。
+
 这份文档记录 `conductor-rs` 当前负责的桌面数据平面，以及它和
 Electron / workbench TypeScript 的边界。Rust 负责重活，TypeScript
 仍负责产品状态、服务编排、Session commit 和 UI。
@@ -38,7 +45,7 @@ workbench service / Explorer workflow
   -> conductor-rs --stdio-worker
   -> Electron main normalizes result
   -> service converts to domain records
-  -> Session / Explorer / Table / TableFacts / Review / Slice consume normal state
+  -> Session / Explorer / Table / TableModel / Review / Slice consume normal state
 ```
 
 Rust CLI 不直接接触 Electron API、SessionModel、Explorer state、DOM、
@@ -82,21 +89,23 @@ fixture 现在用于压测格式混合和错误路径，不代表已经支持多
 - UTF-8 失败时用 GB18030 兜底。
 - 二进制、乱码、空文件会进入 health/failure 路径，不应污染正常 rows。
 
-### TableFacts import prepare 和 badge prepare
+### TableModel seed import prepare
 
 入口：
 
-- stdio commands：table-fact import prepare single/batch
+- stdio commands：table-model seed import prepare single/batch
 - Electron main：file conversion prepare / stream prepare
 
 职责：
 
 - 为 CSV 直接读取 summary：`rowCount`、`columnCount`、`maxCellLengths`、
   bounded preview rows 和 health。
-- 用 summary 构建 import table-fact seed，不为 badge prepare 构建完整
-  `EngineDataset.rows`。
+- 用 summary 构建 legacy import table-model seed，不为 Review / Explorer
+  decoration projection 构建完整 `EngineDataset.rows`。
 - 为 batch prepare 返回每个文件独立的 ok/failure、duration、health 和
-  table-fact seed。
+  `tableModelSeed`。workbench TypeScript 当前可把它规范化为 legacy
+  `ImportTableModelSeed` 或 structured hints；它不是目标架构里的
+  authoritative `ReviewEvidence`。
 - 对空文件、乱码、二进制伪装 CSV 返回 health，不让坏文件阻塞整批。
 
 桌面优化机制：
@@ -106,9 +115,10 @@ fixture 现在用于压测格式混合和错误路径，不代表已经支持多
 - app ready 后预热 Rust processing pool，减少首批 worker 启动成本。
 - folder import 使用较大的 stat batch，但 Rust prepare 结果保持小 chunk
   回流。当前默认大批量 CSV prepare 是 `2 files / Rust command`，Rust batch
-  内部并行度为 `1`，这个配置优先 badge latency，而不是单次 batch 吞吐。
+  内部并行度为 `1`，这个配置优先 per-file prepare latency，而不是单次 batch 吞吐。
 - renderer/main IPC 可以 stream per-file result；Explorer 在文件准备完成后
-  尽快投影 table-fact badge。
+  尽快进入 TypeScript 的 legacy table-model seed handoff。Review /
+  Explorer decoration 的目标链路以后续 TS 架构文档为准。
 
 ### 显式模板处理和分析
 
@@ -153,9 +163,9 @@ fixture 现在用于压测格式混合和错误路径，不代表已经支持多
   Excel one-shot、处理/导出主入口。
 - `cli/src/dataset.rs`：CSV decode、health、summary parser、`EngineDataset`、
   preview/cell reads、数值缓存。
-- `cli/src/detect.rs`：table-fact import prepare、curve type、metadata、表头和形态识别。
+- `cli/src/table_model_seed.rs`：table-model seed import prepare、curve type、metadata、表头和形态识别。
 - `cli/src/converter.rs`：Excel 读取和 normalized CSV 写出。
-- `cli/src/import.rs`：import table-fact adapter。
+- `cli/src/import.rs`：import table-model seed adapter。
 - `cli/src/infer.rs`：metadata 分组和 X 值重复形态推断。
 - `cli/src/analysis.rs`：gm、SS、SS fit、基础电流指标。
 - `cli/src/rc.rs`：Rc/TLM 分析。
@@ -201,7 +211,7 @@ npm run test:template-apply-performance-trace -- --runtime=browser --auto-browse
 
 报告里重点看：
 
-- first / half / all table-fact badge；
+- first / half / all Review decoration；
 - first / half / all prepare complete；
 - backend invoke wall time；
 - Rust per-file p50 / p95；

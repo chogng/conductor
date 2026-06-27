@@ -35,8 +35,8 @@ quality, or decide whether the system should apply a template.
   contract.
 
 `SlicePlanner` owns deterministic plan creation from immutable inputs:
-`Template`, session raw-table or URI target, table dimensions, source versions,
-and Template-provided measurement bindings. It must not read rows, start
+`Template`, session raw-table or URI target, execution dimensions,
+content/source versions, and Template-provided measurement bindings. It must not read rows, start
 workers, or mutate Session.
 
 `SliceExecutor` owns execution of a `SlicePlan` against supplied rows and
@@ -51,7 +51,7 @@ services or reread Session.
 | --- | --- |
 | `common/slice.ts` | service contract, `SliceRequest`, `SliceUriRequest`, `SliceRun`, `SlicePlan`, commit/state/input types. |
 | `common/templateSelection.ts` | per-file `TemplateSelection` records, the automatic-selection sentinel, and normalization helpers owned by Slice state. |
-| `common/slicePlanner.ts` | pure target-aware plan/range generation and migration source/table-model signature helpers. |
+| `common/slicePlanner.ts` | pure target-aware plan/range generation and migration source / URI content signature helpers. |
 | `common/sliceExecutor.ts` | pure row execution into target-neutral Slice execution records. |
 | `browser/sliceService.ts` | injectable owner for queue, selection, progress state, row reading, Session commit, and URI result cache. |
 | `browser/slicePriority.contribution.ts` | lifecycle subscriber from Explorer selection/hover facts to `ISliceService.prioritize(...)` for Session migration-ledger raw files and `ISliceService.prioritizeUri(...)` for URI targets. |
@@ -82,13 +82,13 @@ URI-backed flow:
 
 ```txt
 Explorer URI target + ReviewDecision.ready / manual review result
-  -> explicit execution controller validates model/source versions and review signature
+  -> explicit execution controller validates contentHash/sourceVersion, evidence fingerprint, review signature, and template fingerprint
   -> ISliceService.submitUri(SliceUriRequest[])
   -> SliceService reads reviewed Template snapshot from request
   -> SlicePlanner reads measurement binding from reviewed Template snapshot
   -> SlicePlanner.createSlicePlan(...)
-  -> SliceService verifies source/model versions and review/request/template fingerprints
-  -> ITableModelService model reference reads current rows
+  -> SliceService verifies content/source version, evidence/review/request/template fingerprints, and optional materialization version
+  -> current structured-content adapter reads execution rows/ranges for the URI target
   -> SliceService verifies the same plan signatures again
   -> SliceExecutor.executeSlicePlan(...)
   -> SliceService wraps execution records as SliceUriResult
@@ -148,7 +148,7 @@ Session filesRemoved
 Session sessionCleared
   -> SliceService clears queue, file states, selections, active file
 
-TableModel resource changed
+URI content/evidence/materialization changed
   -> SliceService removes matching URI queue entries and URI results
 ```
 
@@ -180,13 +180,17 @@ ReviewService ReviewSummary
 - `commitSliceRuns(...)` is the Session migration-ledger boundary. URI-backed slice
   results stay in Slice service URI-target state and must not be bridged into
   Session.
-- Slice queue entries must be dropped as stale if their source raw table
-  version, review signature, request signature, or reviewed-template
-  fingerprint changes before commit.
-- Slice table-model signatures include URI-backed source identity and
-  `sourceVersion` / `modelVersion` when present, so queued plans and latest-run
-  guards can detect editor-model changes in addition to raw table version
-  changes.
+- Migration-ledger raw Slice queue entries must be dropped as stale if their
+  source raw table version, request signature, or reviewed-template fingerprint
+  changes before commit.
+- URI-backed Slice queue entries must be dropped as stale if the URI content
+  target, `contentHash` / `sourceVersion`, `evidenceFingerprint`, optional
+  `materializationVersion`, review signature, request signature, or
+  reviewed-template fingerprint changes before commit.
+- URI-backed Slice signatures include source identity, content version,
+  evidence fingerprint, optional materialization version, review signature, and
+  template fingerprint, so queued plans and latest-run guards can detect stale
+  reviewed execution inputs.
 - If an implementation needs a string lookup value, keep it private and name it
   as an implementation detail such as `cacheKey` or `modelId`; do not name it
   `resourceKey` or expose it from `common/slice.ts`.
@@ -200,7 +204,7 @@ ReviewService ReviewSummary
 
 - Do not interpret raw rows/header semantics here; Recipe interpretation into
   `ReviewCandidate` happens in Review before Slice.
-- Do not re-run table-model production or Review candidate derivation in Slice.
+- Do not rebuild structured evidence or Review candidate derivation in Slice.
 - Do not import RecipeService, recipe matching helpers, or Review candidate
   builders into Slice.
 - Do not inspect Review confidence, candidate margin, or diagnostics to decide
