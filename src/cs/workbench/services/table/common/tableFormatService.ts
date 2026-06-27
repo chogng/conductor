@@ -18,10 +18,6 @@ export class TableFormatService {
 		return canMaterializeTableFormat(this.resolveFormat(resource));
 	}
 
-	public getFormat(resource: URI | string | null | undefined): TableFormatId | null {
-		return this.resolveFormat(resource);
-	}
-
 	public resolveFormat(resource: URI | string | null | undefined): TableFormatId | null {
 		return getTableFormatIdByResource(resource);
 	}
@@ -35,7 +31,12 @@ export class TableFormatService {
 		return format === "csv" || format === "tsv";
 	}
 
-	public isExcel(resource: URI | string | null | undefined): boolean {
+	public isWorkbook(resource: URI | string | null | undefined): boolean {
+		const format = this.resolveFormat(resource);
+		return format === "xls" || format === "xlsx";
+	}
+
+	public isMaterializableWorkbook(resource: URI | string | null | undefined): boolean {
 		const format = this.resolveFormat(resource);
 		return format === "xls" || format === "xlsx";
 	}

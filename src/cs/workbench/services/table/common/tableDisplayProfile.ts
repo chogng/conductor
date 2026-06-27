@@ -7,7 +7,6 @@ export type NumericDisplayMode = "raw" | "smart";
 export type ColumnDisplayMode = "raw" | "columnScale";
 
 export type ColumnDisplayProfile = {
-	readonly rawTableId: string;
 	readonly columnId: string;
 	readonly mode: ColumnDisplayMode;
 	readonly isNumericColumn: boolean;
@@ -20,7 +19,6 @@ export type ColumnDisplayProfile = {
 };
 
 export type TableDisplayProfile = {
-	readonly rawTableId: string;
 	readonly columns: readonly ColumnDisplayProfile[];
 	readonly sourceVersion: number;
 	readonly settingsVersion: number;

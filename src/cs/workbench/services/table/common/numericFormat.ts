@@ -32,8 +32,18 @@ const SUPERSCRIPT_DIGITS: Record<string, string> = {
 };
 
 export const parseNumericCell = (value: unknown): number | null => {
+	const sample = parseNumericScaleSample(value);
+	return sample?.value ?? null;
+};
+
+const parseNumericScaleSample = (value: unknown): NumericScaleSample | null => {
 	if (typeof value === "number") {
-		return Number.isFinite(value) ? value : null;
+		return Number.isFinite(value)
+			? {
+				isScientificNotation: false,
+				value,
+			}
+			: null;
 	}
 
 	if (typeof value !== "string") {
@@ -46,29 +56,25 @@ export const parseNumericCell = (value: unknown): number | null => {
 	}
 
 	const numericValue = Number(text);
-	return Number.isFinite(numericValue) ? numericValue : null;
+	if (!Number.isFinite(numericValue)) {
+		return null;
+	}
+
+	return {
+		isScientificNotation: SCIENTIFIC_NUMERIC_CELL_PATTERN.test(text),
+		value: numericValue,
+	};
 };
 
 export const chooseColumnScaleExponent = (
 	values: readonly number[],
 ): number => {
-	return chooseScaleBucket(values.map(value => ({
-		isScientificNotation: false,
-		value,
-	})));
+	return chooseScaleBucket(iterateNumericScaleSamples(values));
 };
 
 export const chooseColumnScaleExponentFromCells = (
 	values: readonly unknown[],
-): number => chooseScaleBucket(values.map(value => {
-	const numericValue = parseNumericCell(value);
-	return numericValue === null
-		? null
-		: {
-			isScientificNotation: isScientificNumericCell(value),
-			value: numericValue,
-		};
-}).filter((entry): entry is NumericScaleSample => entry !== null));
+): number => chooseScaleBucket(iterateCellScaleSamples(values));
 
 type NumericScaleSample = {
 	readonly isScientificNotation: boolean;
@@ -79,6 +85,28 @@ type ScaleBucketCount = {
 	readonly exponent: number;
 	count: number;
 	scientificCount: number;
+};
+
+const iterateNumericScaleSamples = function* (
+	values: readonly number[],
+): IterableIterator<NumericScaleSample> {
+	for (const value of values) {
+		yield {
+			isScientificNotation: false,
+			value,
+		};
+	}
+};
+
+const iterateCellScaleSamples = function* (
+	values: readonly unknown[],
+): IterableIterator<NumericScaleSample> {
+	for (const value of values) {
+		const sample = parseNumericScaleSample(value);
+		if (sample) {
+			yield sample;
+		}
+	}
 };
 
 export const toSuperscriptExponent = (exponent: number): string => {
@@ -134,7 +162,7 @@ export const formatRawCell = (value: unknown): string => {
 	return String(value);
 };
 
-const chooseScaleBucket = (samples: readonly NumericScaleSample[]): number => {
+const chooseScaleBucket = (samples: Iterable<NumericScaleSample>): number => {
 	const magnitudes: number[] = [];
 	const bucketCounts = new Map<number, ScaleBucketCount>();
 	for (const { isScientificNotation, value } of samples) {
@@ -239,11 +267,6 @@ const toEngineeringScaleExponent = (magnitude: number): number => {
 
 	return Math.floor(Math.log10(magnitude) / 3) * 3;
 };
-
-const isScientificNumericCell = (value: unknown): boolean =>
-	typeof value === "string" &&
-	NUMERIC_CELL_PATTERN.test(value.trim()) &&
-	SCIENTIFIC_NUMERIC_CELL_PATTERN.test(value.trim());
 
 const trimInsignificantTrailingZeros = (text: string): string => {
 	if (!text.includes(".")) {

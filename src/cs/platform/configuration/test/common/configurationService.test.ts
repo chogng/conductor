@@ -10,13 +10,14 @@ import {
 } from "src/cs/platform/configuration/common/configuration";
 import { ConfigurationService } from "src/cs/platform/configuration/common/configurationService";
 import { FileService } from "src/cs/platform/files/common/fileService";
-import type {
-  FileType,
-  IFileContent,
-  IFileStat,
-  IFileSystemProvider,
-  IReadFileOptions,
-  IWatchOptions,
+import {
+  FileSystemProviderCapabilities,
+  type FileType,
+  type IFileContent,
+  type IFileStat,
+  type IFileSystemProvider,
+  type IReadFileOptions,
+  type IWatchOptions,
 } from "src/cs/platform/files/common/files";
 import { DiskFileSystemProvider } from "src/cs/platform/files/node/diskFileSystemProvider";
 import type { DisposableStore, IDisposable } from "src/cs/base/common/lifecycle";
@@ -28,9 +29,11 @@ import { Registry } from "src/cs/platform/registry/common/platform";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 class TestFileSystemProvider implements IFileSystemProvider {
+  public readonly capabilities: FileSystemProviderCapabilities;
   public readonly onDidFilesChange;
 
   public constructor(private readonly provider: DiskFileSystemProvider) {
+    this.capabilities = provider.capabilities;
     this.onDidFilesChange = provider.onDidFilesChange;
   }
 

@@ -1,7 +1,7 @@
 import { distinct, equals as arraysEqual } from "../../../base/common/arrays.js";
 import {
-  ConfigurationTarget,
   getConfigurationValue,
+  type ConfigurationTarget,
   type IConfigurationChange,
   type IConfigurationChangeEvent,
   type IConfigurationCompareResult,

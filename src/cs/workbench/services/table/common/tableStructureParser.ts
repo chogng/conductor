@@ -629,7 +629,12 @@ const parseXlsxTableModelContent = async ({
       continue;
     }
 
-    const content = createTableModelContentFromXlsxSheet(sheetXml, workbook.sharedStrings);
+    const content = createTableModelContentFromXlsxSheet(
+      sheetXml,
+      workbook.sharedStrings,
+      workbook.styles,
+      workbook.date1904,
+    );
     if (!content) {
       continue;
     }
@@ -678,8 +683,10 @@ const getParserErrorMessage = (
     : fallback;
 
 type XlsxWorkbook = {
+  readonly date1904: boolean;
   readonly sharedStrings: readonly string[];
   readonly sheets: readonly XlsxSheet[];
+  readonly styles: XlsxStyles;
   readonly zip: ReadonlyMap<string, Uint8Array<ArrayBuffer>>;
 };
 
@@ -687,6 +694,10 @@ type XlsxSheet = {
   readonly id: string | null;
   readonly name: string | null;
   readonly path: string;
+};
+
+type XlsxStyles = {
+  readonly numberFormatsByStyleIndex: readonly (string | null)[];
 };
 
 const readXlsxWorkbook = async (bytes: ArrayBuffer): Promise<XlsxWorkbook> => {
@@ -697,11 +708,16 @@ const readXlsxWorkbook = async (bytes: ArrayBuffer): Promise<XlsxWorkbook> => {
   const sharedStringsXml = zip.has("xl/sharedStrings.xml")
     ? readZipText(zip, "xl/sharedStrings.xml")
     : "";
+  const stylesXml = zip.has("xl/styles.xml")
+    ? readZipText(zip, "xl/styles.xml")
+    : "";
   const relationships = parseXlsxRelationships(relsXml);
   const sheets = parseXlsxSheets(workbookXml, relationships);
   return {
+    date1904: parseXlsxDate1904(workbookXml),
     sharedStrings: parseXlsxSharedStrings(sharedStringsXml),
     sheets,
+    styles: parseXlsxStyles(stylesXml),
     zip,
   };
 };
@@ -748,9 +764,76 @@ const normalizeXlsxPath = (target: string): string => {
 const parseXlsxSharedStrings = (xml: string): readonly string[] =>
   getXmlElements(xml, "si").map(element => parseXlsxTextRuns(element.body));
 
+const parseXlsxDate1904 = (xml: string): boolean => {
+  const workbookPr = getXmlElements(xml, "workbookPr")[0];
+  if (!workbookPr) {
+    return false;
+  }
+
+  const attributes = parseXmlAttributes(workbookPr.attributes);
+  return attributes.get("date1904") === "1" ||
+    attributes.get("date1904")?.toLowerCase() === "true";
+};
+
+const parseXlsxStyles = (xml: string): XlsxStyles => {
+  if (!xml) {
+    return {
+      numberFormatsByStyleIndex: [],
+    };
+  }
+
+  const customNumberFormats = parseXlsxCustomNumberFormats(xml);
+  const cellXfs = getXmlElements(xml, "cellXfs")[0]?.body ?? "";
+  const numberFormatsByStyleIndex = getXmlElements(cellXfs, "xf").map(element => {
+    const attributes = parseXmlAttributes(element.attributes);
+    const numberFormatId = attributes.get("numFmtId");
+    if (!numberFormatId) {
+      return null;
+    }
+    return customNumberFormats.get(numberFormatId) ??
+      getXlsxBuiltInNumberFormat(numberFormatId);
+  });
+
+  return {
+    numberFormatsByStyleIndex,
+  };
+};
+
+const parseXlsxCustomNumberFormats = (xml: string): ReadonlyMap<string, string> => {
+  const formats = new Map<string, string>();
+  for (const element of getXmlElements(xml, "numFmt")) {
+    const attributes = parseXmlAttributes(element.attributes);
+    const id = attributes.get("numFmtId");
+    const formatCode = attributes.get("formatCode");
+    if (id && formatCode) {
+      formats.set(id, formatCode);
+    }
+  }
+  return formats;
+};
+
+const getXlsxBuiltInNumberFormat = (numberFormatId: string): string | null => {
+  switch (numberFormatId) {
+    case "14":
+      return "m/d/yy";
+    case "15":
+      return "d-mmm-yy";
+    case "16":
+      return "d-mmm";
+    case "17":
+      return "mmm-yy";
+    case "22":
+      return "m/d/yy h:mm";
+    default:
+      return null;
+  }
+};
+
 const createTableModelContentFromXlsxSheet = (
   xml: string,
   sharedStrings: readonly string[],
+  styles: XlsxStyles,
+  date1904: boolean,
 ): ParsedTableContent | null => {
   const contentBuilder = createParsedTableContentBuilder();
   for (const rowElement of iterateXmlElements(xml, "row")) {
@@ -759,7 +842,11 @@ const createTableModelContentFromXlsxSheet = (
     for (const cellElement of iterateXmlElements(rowElement.body, "c")) {
       const attributes = parseXmlAttributes(cellElement.attributes);
       const columnIndex = getCellColumnIndex(attributes.get("r")) ?? nextColumnIndex;
-      const value = getXlsxCellValue(cellElement.body, attributes, sharedStrings);
+      const value = getXlsxCellValue(cellElement.body, attributes, {
+        date1904,
+        sharedStrings,
+        styles,
+      });
       row[columnIndex] = value;
       nextColumnIndex = columnIndex + 1;
     }
@@ -771,7 +858,11 @@ const createTableModelContentFromXlsxSheet = (
 const getXlsxCellValue = (
   body: string,
   attributes: ReadonlyMap<string, string>,
-  sharedStrings: readonly string[],
+  workbook: {
+    readonly date1904: boolean;
+    readonly sharedStrings: readonly string[];
+    readonly styles: XlsxStyles;
+  },
 ): string => {
   const type = attributes.get("t") ?? "";
   if (type === "inlineStr") {
@@ -784,16 +875,67 @@ const getXlsxCellValue = (
   }
 
   if (type === "s") {
-    return sharedStrings[Number(rawValue)] ?? "";
+    return workbook.sharedStrings[Number(rawValue)] ?? "";
   }
   if (type === "b") {
     return rawValue === "1" ? "TRUE" : "FALSE";
+  }
+  const formattedDate = getXlsxFormattedDateValue(rawValue, attributes, workbook);
+  if (formattedDate !== null) {
+    return formattedDate;
   }
   return decodeXml(rawValue);
 };
 
 const parseXlsxTextRuns = (xml: string): string =>
   getXmlElements(xml, "t").map(element => decodeXml(element.body)).join("");
+
+const getXlsxFormattedDateValue = (
+  rawValue: string,
+  attributes: ReadonlyMap<string, string>,
+  workbook: {
+    readonly date1904: boolean;
+    readonly styles: XlsxStyles;
+  },
+): string | null => {
+  const styleIndex = Number(attributes.get("s"));
+  const numberFormat = Number.isInteger(styleIndex)
+    ? workbook.styles.numberFormatsByStyleIndex[styleIndex] ?? null
+    : null;
+  if (!numberFormat || !isXlsxDateNumberFormat(numberFormat)) {
+    return null;
+  }
+
+  return formatExcelSerialDate(rawValue, workbook.date1904);
+};
+
+const isXlsxDateNumberFormat = (formatCode: string): boolean => {
+  const normalized = formatCode
+    .replace(/"[^"]*"/g, "")
+    .replace(/\\./g, "")
+    .replace(/\[[^\]]*\]/g, "")
+    .toLowerCase();
+  return /[dy]/.test(normalized);
+};
+
+const formatExcelSerialDate = (
+  value: string,
+  date1904: boolean,
+): string | null => {
+  const serial = Number(value);
+  if (!Number.isFinite(serial)) {
+    return null;
+  }
+
+  const epoch = date1904
+    ? Date.UTC(1904, 0, 1)
+    : Date.UTC(1899, 11, 30);
+  const date = new Date(epoch + serial * 24 * 60 * 60 * 1000);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return date.toISOString().slice(0, 10);
+};
 
 type ParsedTableContentBuilder = {
   readonly maxCellLengths: number[];
@@ -894,11 +1036,11 @@ const getXmlElements = (xml: string, tagName: string): readonly XmlElement[] => 
 };
 
 const iterateXmlElements = function* (xml: string, tagName: string): IterableIterator<XmlElement> {
-  const pattern = new RegExp(`<[^\\s:>]*:?${tagName}\\b([^>]*)>([\\s\\S]*?)<\\/[^\\s:>]*:?${tagName}>|<[^\\s:>]*:?${tagName}\\b([^>]*)\\/>`, "g");
+  const pattern = new RegExp(`<[^\\s:>]*:?${tagName}\\b([^>]*)\\/>|<[^\\s:>]*:?${tagName}\\b([^>]*)>([\\s\\S]*?)<\\/[^\\s:>]*:?${tagName}>`, "g");
   for (const match of xml.matchAll(pattern)) {
     yield {
-      attributes: match[1] ?? match[3] ?? "",
-      body: match[2] ?? "",
+      attributes: match[1] ?? match[2] ?? "",
+      body: match[3] ?? "",
     };
   }
 };

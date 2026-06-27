@@ -190,7 +190,7 @@ export class TableModelResolverService extends Disposable implements ITableModel
     const pendingResolve = model.resolve({
       resolveContent: async () => {
         const result = await provider.resolveTableModel(model.resource, source);
-        return toProviderResolvedContent(result);
+        return toProviderResolvedContent(result, model.resource);
       },
     }).finally(() => {
       if (this.pendingProviderResolves.get(key) === pendingResolve) {
@@ -205,9 +205,13 @@ export class TableModelResolverService extends Disposable implements ITableModel
 
 const toProviderResolvedContent = (
   result: TableModelContentProviderResult,
+  resource: URI,
 ): TableModelResolvedContent => ({
   content: result.content,
-  format: result.format ?? null,
+  defaultSheetId: result.defaultSheetId,
+  diagnostics: result.diagnostics,
+  format: result.format,
+  resource,
   sheets: result.sheets,
   sourceVersion: result.sourceVersion,
 });

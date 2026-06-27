@@ -9,6 +9,7 @@ import { toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
 import {
 	FileChangeType,
+	FileSystemProviderCapabilities,
 	FileType,
 	type IFileChange,
 	type IFileContent,
@@ -45,6 +46,14 @@ class MemoryFileService implements IFileService {
 
 	public getProvider(): undefined {
 		return undefined;
+	}
+
+	public getProviderCapabilities(): FileSystemProviderCapabilities {
+		return FileSystemProviderCapabilities.FileRead |
+			FileSystemProviderCapabilities.FileWrite |
+			FileSystemProviderCapabilities.FileDelete |
+			FileSystemProviderCapabilities.FileTrash |
+			FileSystemProviderCapabilities.FileWatch;
 	}
 
 	public async exists(resource: URI): Promise<boolean> {

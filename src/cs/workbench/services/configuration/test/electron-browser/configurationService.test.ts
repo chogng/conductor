@@ -20,6 +20,7 @@ import { ConfigurationService } from "src/cs/platform/configuration/common/confi
 import { getUserSettingsResource } from "src/cs/platform/environment/common/environmentService";
 import {
 	FileChangeType,
+	FileSystemProviderCapabilities,
 	FileType,
 	type IFileChange,
 	type IFileContent,
@@ -59,6 +60,14 @@ class MemoryFileService implements IFileService {
 
 	public getProvider(): undefined {
 		return undefined;
+	}
+
+	public getProviderCapabilities(): FileSystemProviderCapabilities {
+		return FileSystemProviderCapabilities.FileRead |
+			FileSystemProviderCapabilities.FileWrite |
+			FileSystemProviderCapabilities.FileDelete |
+			FileSystemProviderCapabilities.FileTrash |
+			FileSystemProviderCapabilities.FileWatch;
 	}
 
 	public async exists(resource: URI): Promise<boolean> {
@@ -143,6 +152,7 @@ class TestNativeHostService implements INativeHostService {
 	}
 
 	public async showItemInFolder(): Promise<void> {}
+	public async writeElevated(): Promise<void> {}
 	public async toggleDevTools(): Promise<void> {}
 	public async reloadWindow(): Promise<void> {}
 	public async isMaximized(): Promise<boolean> { return false; }

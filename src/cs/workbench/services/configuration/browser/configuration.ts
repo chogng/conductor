@@ -2,6 +2,8 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import { isObjectRecord } from "src/cs/base/common/json";
+import { parse as parseJsonc } from "src/cs/base/common/jsonc";
 import { URI } from "src/cs/base/common/uri";
 import {
 	ConfigurationModel,
@@ -29,12 +31,12 @@ export class UserConfiguration {
 		}
 
 		const content = await this.fileService.readFile(this.settingsResource);
-		const raw = JSON.parse(new TextDecoder().decode(content.value) || "{}") as unknown;
-		if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+		const raw = parseJsonc(new TextDecoder().decode(content.value) || "{}");
+		if (!isObjectRecord(raw)) {
 			throw new Error(`User settings must be a JSON object: ${this.settingsResource.toString()}`);
 		}
 
-		return parseConfigurationModel(raw as Record<string, unknown>);
+		return parseConfigurationModel(raw);
 	}
 
 	public async writeConfiguration(model: ConfigurationModel): Promise<void> {

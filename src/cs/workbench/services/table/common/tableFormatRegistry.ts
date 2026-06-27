@@ -3,11 +3,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const TABLE_KNOWN_FILE_EXTENSIONS = [".csv", ".tsv", ".xls", ".xlsx"] as const;
-export const TABLE_IMPORT_FILE_EXTENSIONS = [".csv", ".tsv", ".xlsx"] as const;
+export const TABLE_IMPORT_FILE_EXTENSIONS = [".csv", ".tsv", ".xls", ".xlsx"] as const;
 
 export type TableKnownFileExtension = typeof TABLE_KNOWN_FILE_EXTENSIONS[number];
 export type TableImportFileExtension = typeof TABLE_IMPORT_FILE_EXTENSIONS[number];
-export type TableFormatId = "csv" | "tsv" | "xls" | "xlsx";
+export type TableFormatId = "csv" | "tsv" | "xls" | "xlsx" | "txtDelimited" | "txtFixedWidth";
 
 export type TableFormatRegistration = {
 	readonly id: TableFormatId;
@@ -18,8 +18,10 @@ export type TableFormatRegistration = {
 const TABLE_FORMAT_REGISTRATIONS: readonly TableFormatRegistration[] = [
 	{ id: "csv", extensions: [".csv"], canMaterialize: true },
 	{ id: "tsv", extensions: [".tsv"], canMaterialize: true },
-	{ id: "xls", extensions: [".xls"], canMaterialize: false },
+	{ id: "xls", extensions: [".xls"], canMaterialize: true },
 	{ id: "xlsx", extensions: [".xlsx"], canMaterialize: true },
+	{ id: "txtDelimited", extensions: [], canMaterialize: false },
+	{ id: "txtFixedWidth", extensions: [], canMaterialize: false },
 ];
 
 const TABLE_FORMAT_BY_EXTENSION = new Map<TableKnownFileExtension, TableFormatId>();

@@ -10,6 +10,7 @@ import type { TableSource } from "src/cs/workbench/services/table/common/table";
 import type {
 	ITableModel,
 	TableModelContentSnapshot,
+	TableParseDiagnostic,
 	TableModelSheetSnapshot,
 } from "src/cs/workbench/services/table/common/model";
 import type { TableFormatId } from "src/cs/workbench/services/table/common/tableFormatService";
@@ -30,7 +31,9 @@ export interface ITableModelReference extends IDisposable {
  */
 export type TableModelContentProviderResult = {
 	readonly content: TableModelContentSnapshot | null;
-	readonly format?: TableFormatId | null;
+	readonly defaultSheetId?: string | null;
+	readonly diagnostics?: readonly TableParseDiagnostic[];
+	readonly format: TableFormatId | null;
 	readonly sheets?: readonly TableModelSheetSnapshot[];
 	readonly sourceVersion?: number;
 };
@@ -38,7 +41,7 @@ export type TableModelContentProviderResult = {
 /**
  * Supplies already-materialized table content for virtual or provider-backed
  * resources. File-backed CSV/TSV/XLS/XLSX parsing belongs to table parsers and
- * tablefile services, not to this provider contract.
+ * tableFile services, not to this provider contract.
  */
 export interface ITableModelContentProvider extends IDisposable {
 	/**

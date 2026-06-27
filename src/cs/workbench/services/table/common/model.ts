@@ -5,13 +5,7 @@
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
-import {
-	toTableSheetKey,
-} from "src/cs/workbench/services/table/common/table";
-import {
-	tableFormatService,
-	type TableFormatId,
-} from "src/cs/workbench/services/table/common/tableFormatService";
+import type { TableFormatId } from "src/cs/workbench/services/table/common/tableFormatService";
 
 export interface ITableModelPosition {
 	readonly columnIndex: number;
@@ -281,18 +275,109 @@ export type TableModelContentSnapshot = {
 	readonly maxCellLengths: readonly number[];
 	readonly rowCount: number;
 	readonly rows: readonly (readonly string[])[];
+	readonly rowWindows?: readonly TableModelRowWindow[];
+};
+
+export type TableModelRowWindow = {
+	readonly startRowIndex: number;
+	readonly rows: readonly (readonly string[])[];
+};
+
+export const getTableModelContentCellValue = (
+	content: TableModelContentSnapshot | null | undefined,
+	rowIndex: number,
+	columnIndex: number,
+): string | null => {
+	if (!content) {
+		return null;
+	}
+
+	const safeRowIndex = normalizeNonNegativeInteger(rowIndex);
+	const safeColumnIndex = normalizeNonNegativeInteger(columnIndex);
+	if (
+		safeRowIndex >= content.rowCount ||
+		safeColumnIndex >= content.columnCount
+	) {
+		return null;
+	}
+
+	const row = getTableModelContentRow(content, safeRowIndex);
+	return row?.[safeColumnIndex] ?? "";
+};
+
+export const readTableModelContentRows = (
+	content: TableModelContentSnapshot | null | undefined,
+	startRowIndex = 0,
+	endRowIndexExclusive = content?.rowCount ?? 0,
+): readonly (readonly string[])[] => {
+	if (!content) {
+		return [];
+	}
+
+	const start = clampInteger(startRowIndex, 0, content.rowCount);
+	const end = clampInteger(endRowIndexExclusive, start, content.rowCount);
+	if (start >= end) {
+		return [];
+	}
+
+	if (!content.rowWindows?.length) {
+		return content.rows.slice(start, end);
+	}
+
+	const rows: (readonly string[])[] = [];
+	for (let rowIndex = start; rowIndex < end; rowIndex += 1) {
+		const row = getTableModelContentRow(content, rowIndex);
+		if (!row) {
+			break;
+		}
+		rows.push(row);
+	}
+	return rows;
+};
+
+const getTableModelContentRow = (
+	content: TableModelContentSnapshot,
+	rowIndex: number,
+): readonly string[] | undefined =>
+	getTableModelContentWindowRow(content.rowWindows ?? [], rowIndex) ??
+	content.rows[rowIndex];
+
+const getTableModelContentWindowRow = (
+	rowWindows: readonly TableModelRowWindow[],
+	rowIndex: number,
+): readonly string[] | undefined => {
+	for (const rowWindow of rowWindows) {
+		const start = normalizeNonNegativeInteger(rowWindow.startRowIndex);
+		const offset = rowIndex - start;
+		if (offset >= 0 && offset < rowWindow.rows.length) {
+			return rowWindow.rows[offset];
+		}
+	}
+	return undefined;
 };
 
 export type TableModelSheetSnapshot = {
 	readonly content: TableModelContentSnapshot | null;
+	readonly diagnostics?: readonly TableParseDiagnostic[];
 	readonly sheetId: string;
-	readonly sheetKey: string;
 	readonly sheetName: string | null;
+};
+
+export type TableParseDiagnosticSeverity = "info" | "warning" | "error" | "fatal";
+
+export type TableParseDiagnostic = {
+	readonly code: string;
+	readonly columnIndex?: number;
+	readonly message: string;
+	readonly rowIndex?: number;
+	readonly severity: TableParseDiagnosticSeverity;
+	readonly sheetId?: string;
 };
 
 export type TableModelSnapshot = {
 	readonly content: TableModelContentSnapshot | null;
 	readonly defaultSheetId: string | null;
+	readonly diagnostics: readonly TableParseDiagnostic[];
 	readonly format: TableFormatId | null;
 	readonly loadState: TableModelLoadState;
 	readonly resource: URI;
@@ -403,13 +488,15 @@ export interface ITableModel extends IDisposable {
 
 export type TableModelResolvedContent = {
 	readonly content: TableModelContentSnapshot | null;
-	readonly format?: TableFormatId | null;
+	readonly defaultSheetId?: string | null;
+	readonly diagnostics?: readonly TableParseDiagnostic[];
+	readonly format: TableFormatId | null;
+	readonly resource: URI;
 	readonly sheets?: readonly TableModelSheetSnapshot[];
 	readonly sourceVersion?: unknown;
 };
 
 export type TableModelResolveOptions = {
-	readonly checkResourceFormat?: boolean;
 	readonly resolveContent: () => Promise<TableModelResolvedContent>;
 	readonly sourceVersion?: unknown;
 };
@@ -441,8 +528,10 @@ export class TableModel extends Disposable implements ITableModel {
 		this.onDidChangeDecorationsEmitter.event;
 
 	private content: TableModelContentSnapshot | null = null;
+	private defaultSheetId: string | null = null;
 	private decorationIdPool = 0;
 	private readonly decorations = new Map<string, MutableTableModelDecoration>();
+	private diagnostics: readonly TableParseDiagnostic[] = [];
 	private disposed = false;
 	private format: TableFormatId | null;
 	private loadState: TableModelLoadState = { state: "idle", message: "" };
@@ -456,7 +545,7 @@ export class TableModel extends Disposable implements ITableModel {
 		public readonly resource: URI,
 	) {
 		super();
-		this.format = tableFormatService.getFormat(resource);
+		this.format = null;
 	}
 
 	public override dispose(): void {
@@ -485,7 +574,8 @@ export class TableModel extends Disposable implements ITableModel {
 	public getSnapshot(): TableModelSnapshot {
 		return {
 			content: this.content,
-			defaultSheetId: this.sheets[0]?.sheetId ?? null,
+			defaultSheetId: this.defaultSheetId,
+			diagnostics: this.diagnostics,
 			format: this.format,
 			loadState: this.loadState,
 			resource: this.resource,
@@ -512,25 +602,14 @@ export class TableModel extends Disposable implements ITableModel {
 	}
 
 	public getCellValue(rowIndex: number, columnIndex: number): string | null {
-		const safeRowIndex = normalizeNonNegativeInteger(rowIndex);
-		const safeColumnIndex = normalizeNonNegativeInteger(columnIndex);
-		if (
-			safeRowIndex >= this.getRowCount() ||
-			safeColumnIndex >= this.getColumnCount()
-		) {
-			return null;
-		}
-
-		return this.content?.rows[safeRowIndex]?.[safeColumnIndex] ?? "";
+		return getTableModelContentCellValue(this.content, rowIndex, columnIndex);
 	}
 
 	public getRows(
 		startRowIndex = 0,
 		endRowIndexExclusive = this.getRowCount(),
 	): readonly (readonly string[])[] {
-		const start = clampInteger(startRowIndex, 0, this.getRowCount());
-		const end = clampInteger(endRowIndexExclusive, start, this.getRowCount());
-		return this.content?.rows.slice(start, end) ?? [];
+		return readTableModelContentRows(this.content, startRowIndex, endRowIndexExclusive);
 	}
 
 	public getValueInRange(range: ITableModelRange): readonly (readonly string[])[] {
@@ -608,28 +687,32 @@ export class TableModel extends Disposable implements ITableModel {
 	}
 
 	public async resolve({
-		checkResourceFormat,
 		resolveContent,
 		sourceVersion,
 	}: TableModelResolveOptions): Promise<void> {
-		if (checkResourceFormat && !tableFormatService.canHandle(this.resource)) {
-			this.setError(`Unsupported table file: ${this.resource.toString()}`);
-			return;
-		}
-
 		const requestId = ++this.resolveRequestId;
-		this.format = tableFormatService.getFormat(this.resource);
 		this.loadState = { state: "loading", message: "" };
 		this.fireStateChanged();
 
 		let resolvedContent: TableModelResolvedContent;
 		try {
 			resolvedContent = await resolveContent();
+			if (!isSameTableModelResource(resolvedContent.resource, this.resource)) {
+				throw new Error(`Resolved table content resource does not match model resource: ${resolvedContent.resource.toString()}`);
+			}
 			this.loadState = { state: "ready", message: "" };
 		} catch (error) {
 			const message = getErrorMessage(error, "The table model could not be resolved.");
 			resolvedContent = {
 				content: null,
+				defaultSheetId: null,
+				diagnostics: [{
+					code: "table.resolve.failed",
+					message,
+					severity: "fatal",
+				}],
+				format: null,
+				resource: this.resource,
 				sheets: [],
 			};
 			this.loadState = { state: "error", message };
@@ -747,13 +830,17 @@ export class TableModel extends Disposable implements ITableModel {
 		sourceVersion: unknown,
 	): void {
 		this.content = resolvedContent.content;
-		this.format = resolvedContent.format ?? this.format;
+		this.diagnostics = resolvedContent.diagnostics ?? [];
+		this.format = resolvedContent.format;
 		this.sheets = resolvedContent.sheets ?? (resolvedContent.content ? [{
 			content: resolvedContent.content,
-			sheetId: toTableSheetKey({ resource: this.resource }),
-			sheetKey: toTableSheetKey({ resource: this.resource }),
+			sheetId: this.resource.toString(),
 			sheetName: null,
 		}] : []);
+		this.defaultSheetId = normalizeResolvedDefaultSheetId(
+			resolvedContent.defaultSheetId,
+			this.sheets,
+		);
 		this.sourceVersion = normalizeResourceSourceVersion(sourceVersion);
 		this.version += 1;
 
@@ -772,7 +859,13 @@ export class TableModel extends Disposable implements ITableModel {
 	private setError(message: string): void {
 		this.loadState = { state: "error", message };
 		this.content = null;
+		this.diagnostics = [{
+			code: "table.resolve.failed",
+			message,
+			severity: "fatal",
+		}];
 		this.sheets = [];
+		this.defaultSheetId = null;
 		this.sourceVersion = 0;
 		this.version += 1;
 
@@ -928,6 +1021,20 @@ const clampInteger = (value: number, min: number, max: number): number =>
 
 const normalizeResourceSourceVersion = (value: unknown): number =>
 	Math.max(0, Math.floor(Number(value) || 0));
+
+const isSameTableModelResource = (
+	first: URI,
+	second: URI,
+): boolean =>
+	first.toString() === second.toString();
+
+const normalizeResolvedDefaultSheetId = (
+	defaultSheetId: string | null | undefined,
+	sheets: readonly TableModelSheetSnapshot[],
+): string | null => {
+	const normalized = typeof defaultSheetId === "string" ? defaultSheetId.trim() : "";
+	return normalized || (sheets[0]?.sheetId ?? null);
+};
 
 const dedupeStrings = (values: readonly string[]): readonly string[] =>
 	Array.from(new Set(values));

@@ -7,9 +7,11 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
 import {
   type TableDirtyRange,
+  type TablePreviewHealth,
   type TableViewModel,
   type TableRowsVersionChangeEvent,
   type TableSource,
+  areTableSourcesEqual,
   toTableSheetKey,
 } from "src/cs/workbench/services/table/common/table";
 import {
@@ -22,8 +24,10 @@ import {
   type ColumnDisplayProfile,
   type NumericDisplayMode,
 } from "src/cs/workbench/services/table/common/tableDisplayProfile";
-import type {
-  TableModelContentSnapshot,
+import {
+  readTableModelContentRows,
+  type TableModelContentSnapshot,
+  type TableParseDiagnostic,
 } from "src/cs/workbench/services/table/common/model";
 
 // TableViewModel owns the service data plane: source switching, row paging,
@@ -31,7 +35,7 @@ import type {
 // pure cache/cell-read helpers live here so callers do not depend on small
 // implementation files beside the view-model owner.
 
-type TableCellReadRequest = Parameters<TableViewModel["ensureCells"]>[1][number];
+type TableCellReadRequest = Parameters<TableViewModel["ensureCells"]>[0][number];
 type TableState = ReturnType<TableViewModel["getState"]>;
 type TableCell = NonNullable<ReturnType<TableViewModel["getRevealCell"]>>;
 type TableSelection = ReturnType<TableViewModel["getSelection"]>;
@@ -39,10 +43,11 @@ type TableRange = NonNullable<TableSelection["ranges"]>[number];
 type TableFile = NonNullable<TableState["file"]>;
 export type TableViewModelSourceData = {
   readonly columnCount?: number;
+  readonly diagnostics?: readonly TableParseDiagnostic[];
   readonly fileName?: string;
   readonly maxCellLengths?: readonly number[];
-  readonly rawTableHealth?: "ok" | "suspect" | "decodeFailed" | "parseFailed" | "unsupported" | "empty";
-  readonly rawTableHealthMessage?: string | null;
+  readonly previewHealth?: TablePreviewHealth;
+  readonly previewHealthMessage?: string | null;
   readonly relativePath?: string | null;
   readonly resource?: URI;
   readonly rowCount?: number;
@@ -101,7 +106,6 @@ export const normalizeTableCell = (cell: TableCell | null | undefined): TableCel
   if (!Number.isInteger(colIndex) || colIndex < 0) return null;
 
   return {
-    fileId: typeof cell.fileId === "string" ? cell.fileId : null,
     sheetId: typeof cell.sheetId === "string" ? cell.sheetId : null,
     rowIndex,
     colIndex,
@@ -137,7 +141,6 @@ export const normalizeTableSelection = (
         }
 
         return {
-          fileId: typeof range.fileId === "string" ? range.fileId : null,
           sheetId: typeof range.sheetId === "string" ? range.sheetId : null,
           startRow: Math.max(0, Math.min(startRow, endRow)),
           endRow: Math.max(0, Math.max(startRow, endRow)),
@@ -157,8 +160,7 @@ const areTableCellsEqual = (
     return !first && !second;
   }
 
-  return first.fileId === second.fileId &&
-    first.sheetId === second.sheetId &&
+  return first.sheetId === second.sheetId &&
     first.rowIndex === second.rowIndex &&
     first.colIndex === second.colIndex;
 };
@@ -186,8 +188,7 @@ const areTableRangesEqual = (
         return false;
       }
 
-      return range.fileId === next.fileId &&
-        range.sheetId === next.sheetId &&
+      return range.sheetId === next.sheetId &&
         range.startRow === next.startRow &&
         range.endRow === next.endRow &&
         range.startCol === next.startCol &&
@@ -855,9 +856,9 @@ const createTableSourceEntry = ({
 };
 
 const isUnhealthyTableSource = (data: TableViewModelSourceData): boolean =>
-  data.rawTableHealth === "decodeFailed" ||
-  data.rawTableHealth === "parseFailed" ||
-  data.rawTableHealth === "unsupported";
+  data.previewHealth === "decodeFailed" ||
+  data.previewHealth === "parseFailed" ||
+  data.previewHealth === "unsupported";
 
 const shouldCacheColumnDisplayProfile = (
   sampleCount: number,
@@ -914,8 +915,8 @@ const collectNumericColumnSamples = (
 };
 
 const getUnhealthyTableMessage = (data: TableViewModelSourceData): string => {
-  const message = String(data.rawTableHealthMessage ?? "").trim().toLowerCase();
-  if (data.rawTableHealth === "decodeFailed") {
+  const message = String(data.previewHealthMessage ?? "").trim().toLowerCase();
+  if (data.previewHealth === "decodeFailed") {
     if (message.includes("converted csv")) {
       return localize(
         "table.preview.convertedCsvUnreadable",
@@ -933,13 +934,13 @@ const getUnhealthyTableMessage = (data: TableViewModelSourceData): string => {
       "File content cannot be decoded as a valid CSV table.",
     );
   }
-  if (data.rawTableHealth === "parseFailed") {
+  if (data.previewHealth === "parseFailed") {
     return localize(
       "table.preview.parseFailed",
       "File content could not pass CSV table structure validation.",
     );
   }
-  if (data.rawTableHealth === "unsupported") {
+  if (data.previewHealth === "unsupported") {
     return localize(
       "table.preview.unsupported",
       "This file format is not supported for table preview.",
@@ -955,13 +956,14 @@ const getUnhealthyTableMessage = (data: TableViewModelSourceData): string => {
 const createTableFileFromSourceEntry = (
   sourceEntry: TableSourceEntry,
 ): TableFile => ({
+  diagnostics: normalizeTableParseDiagnostics(sourceEntry.data.diagnostics),
   fileName: String(sourceEntry.data.fileName ?? ""),
   sheetId: sourceEntry.source.sheetId ?? null,
-  sheetKey: sourceEntry.sheetKey,
   sheetName: sourceEntry.sheetName,
+  source: sourceEntry.source,
   sourceVersion: sourceEntry.sourceVersion,
-  rawTableHealth: sourceEntry.data.rawTableHealth,
-  rawTableHealthMessage: sourceEntry.data.rawTableHealthMessage,
+  previewHealth: sourceEntry.data.previewHealth,
+  previewHealthMessage: sourceEntry.data.previewHealthMessage,
   rowCount: Math.max(0, Math.floor(Number(sourceEntry.data.rowCount) || 0)),
   columnCount: Math.max(0, Math.floor(Number(sourceEntry.data.columnCount) || 0)),
   maxCellLengths: Array.isArray(sourceEntry.data.maxCellLengths)
@@ -971,18 +973,19 @@ const createTableFileFromSourceEntry = (
 
 const isTableFileForSource = (
   file: TableFile | null | undefined,
-  sheetKey: string | null | undefined,
+  source: TableSource | null | undefined,
 ): boolean => Boolean(
-  sheetKey &&
-  file?.sheetKey === sheetKey,
+  source &&
+  areTableSourcesEqual(file?.source, source),
 );
 
 const isTableFileForSourceEntry = (
   file: TableFile | null | undefined,
   source: TableSourceEntry | null | undefined,
 ): boolean =>
-  Boolean(source) &&
-  isTableFileForSource(file, source?.sheetKey) &&
+  source !== null &&
+  source !== undefined &&
+  isTableFileForSource(file, source.source) &&
   normalizeSourceVersion(file?.sourceVersion) === normalizeSourceVersion(source?.sourceVersion);
 
 export const areTableFilesEqual = (
@@ -991,11 +994,12 @@ export const areTableFilesEqual = (
 ): boolean =>
   current?.fileName === next.fileName &&
   current?.sheetId === next.sheetId &&
-  current?.sheetKey === next.sheetKey &&
   current?.sheetName === next.sheetName &&
+  areTableSourcesEqual(current?.source, next.source) &&
   normalizeSourceVersion(current?.sourceVersion) === normalizeSourceVersion(next.sourceVersion) &&
-  current?.rawTableHealth === next.rawTableHealth &&
-  current?.rawTableHealthMessage === next.rawTableHealthMessage &&
+  areTableParseDiagnosticsEqual(current?.diagnostics, next.diagnostics) &&
+  current?.previewHealth === next.previewHealth &&
+  current?.previewHealthMessage === next.previewHealthMessage &&
   current?.templateEligibility === next.templateEligibility &&
   current?.rowCount === next.rowCount &&
   current?.columnCount === next.columnCount &&
@@ -1006,6 +1010,36 @@ export const areTableFilesEqual = (
 
 const normalizeSourceVersion = (value: unknown): number =>
   Math.max(0, Math.floor(Number(value) || 0));
+
+const normalizeTableParseDiagnostics = (
+  diagnostics: readonly TableParseDiagnostic[] | null | undefined,
+): readonly TableParseDiagnostic[] =>
+  Array.isArray(diagnostics) ? [...diagnostics] : [];
+
+const areTableParseDiagnosticsEqual = (
+  current: readonly TableParseDiagnostic[] | null | undefined,
+  next: readonly TableParseDiagnostic[] | null | undefined,
+): boolean => {
+  const left = current ?? [];
+  const right = next ?? [];
+  return left.length === right.length &&
+    left.every((diagnostic, index) => areTableParseDiagnosticEqual(diagnostic, right[index]));
+};
+
+const areTableParseDiagnosticEqual = (
+  current: TableParseDiagnostic,
+  next: TableParseDiagnostic | undefined,
+): boolean => {
+  if (!next) {
+    return false;
+  }
+  return current.code === next.code &&
+    current.message === next.message &&
+    current.severity === next.severity &&
+    current.rowIndex === next.rowIndex &&
+    current.columnIndex === next.columnIndex &&
+    current.sheetId === next.sheetId;
+};
 
 type TableViewModelInput = {
   numericDisplayMode?: NumericDisplayMode;
@@ -1184,10 +1218,10 @@ const createTableViewModel = ({
       }
     }
 
-    const resourceKey = source?.resource?.toString()?.trim() ?? "";
-    if (resourceKey) {
+    const resourceIdentity = source?.resource?.toString()?.trim() ?? "";
+    if (resourceIdentity) {
       const resourceSource = sourceEntries.find(sourceEntry =>
-        sourceEntry.source.resource?.toString() === resourceKey &&
+        sourceEntry.source.resource?.toString() === resourceIdentity &&
         (!activeSheetId || sourceEntry.source.sheetId === activeSheetId)
       );
       if (resourceSource) {
@@ -1542,7 +1576,7 @@ const createTableViewModel = ({
       runImmediately(() => {
         if (
           !(
-            isTableFileForSource(previewFileRef.current, targetSheetKey) &&
+            isTableFileForSource(previewFileRef.current, targetSource.source) &&
             areTableFilesEqual(previewFileRef.current, nextPreviewFile)
           )
         ) {
@@ -1562,12 +1596,16 @@ const createTableViewModel = ({
       mergePreviewSeedRows(
         targetSheetKey,
         0,
-        tableModelContent.rows as unknown[][],
+        readTableModelContentRows(
+          tableModelContent,
+          0,
+          Math.min(tableModelContent.rowCount, TABLE_UI_CHUNK_SIZE_ROWS),
+        ) as unknown[][],
       );
       runImmediately(() => {
         if (
           !(
-            isTableFileForSource(previewFileRef.current, targetSheetKey) &&
+            isTableFileForSource(previewFileRef.current, targetSource.source) &&
             areTableFilesEqual(previewFileRef.current, nextPreviewFile)
           )
         ) {
@@ -1583,7 +1621,7 @@ const createTableViewModel = ({
     runImmediately(() => {
       if (
         !(
-          isTableFileForSource(previewFileRef.current, targetSheetKey) &&
+          isTableFileForSource(previewFileRef.current, targetSource.source) &&
           areTableFilesEqual(previewFileRef.current, nextPreviewFile)
         )
       ) {
@@ -1618,9 +1656,7 @@ const createTableViewModel = ({
   const createRawColumnDisplayProfile = memoCallback(
     (colIndex: number): ColumnDisplayProfile => {
       const currentFile = previewFileRef.current;
-      const rawTableId = currentFile?.sheetKey ?? activeSheetKey ?? "";
       return {
-        rawTableId,
         columnId: String(Math.max(0, Math.floor(Number(colIndex) || 0))),
         mode: "raw",
         isNumericColumn: false,
@@ -1630,16 +1666,29 @@ const createTableViewModel = ({
         settingsVersion,
       };
     },
-    [activeSheetKey, previewFileRef, settingsVersion],
+    [previewFileRef, settingsVersion],
   );
 
   const collectColumnSampleValues = memoCallback(
     (colIndex: number): readonly unknown[] => {
       const currentFile = previewFileRef.current;
+      const sheetKey = activeSheetKey ?? "";
       const columnCount = Math.max(0, Math.floor(Number(currentFile?.columnCount) || 0));
       const normalizedColIndex = Math.max(0, Math.floor(Number(colIndex) || 0));
       if (normalizedColIndex >= columnCount) {
         return [];
+      }
+
+      const content = sourcesByKeyRef.current.get(sheetKey)?.content;
+      if (content) {
+        const contentSamples = readTableModelContentRows(
+          content,
+          0,
+          Math.min(content.rowCount, TABLE_COLUMN_PROFILE_MAX_SAMPLE_ROWS),
+        ).map(row => row[normalizedColIndex]);
+        if (contentSamples.length) {
+          return contentSamples;
+        }
       }
 
       const samples: unknown[] = [];
@@ -1656,19 +1705,19 @@ const createTableViewModel = ({
       }
       return samples;
     },
-    [previewFileRef, tableRowsCacheRef],
+    [activeSheetKey, previewFileRef, sourcesByKeyRef, tableRowsCacheRef],
   );
 
   const getColumnDisplayProfile = memoCallback(
     (colIndex: number): ColumnDisplayProfile => {
       const currentFile = previewFileRef.current;
       const normalizedColIndex = Math.max(0, Math.floor(Number(colIndex) || 0));
-      const rawTableId = currentFile?.sheetKey ?? activeSheetKey ?? "";
+      const sheetKey = activeSheetKey ?? "";
       const sourceVersion = normalizeSourceVersion(currentFile?.sourceVersion);
-      const overrideKey = createColumnDisplayScaleOverrideKey(rawTableId, normalizedColIndex);
+      const overrideKey = createColumnDisplayScaleOverrideKey(sheetKey, normalizedColIndex);
       const overrideScaleExponent = columnDisplayScaleOverridesRef.current.get(overrideKey);
       const cacheKey = [
-        rawTableId,
+        sheetKey,
         normalizedColIndex,
         sourceVersion,
         numericDisplayMode,
@@ -1710,7 +1759,6 @@ const createTableViewModel = ({
         ? clampColumnDisplayScaleExponent(overrideScaleExponent)
         : autoScaleExponent;
       const profile: ColumnDisplayProfile = {
-        rawTableId,
         columnId: String(normalizedColIndex),
         mode: "columnScale",
         isNumericColumn: true,
@@ -1756,7 +1804,8 @@ const createTableViewModel = ({
         return false;
       }
 
-      const overrideKey = createColumnDisplayScaleOverrideKey(profile.rawTableId, normalizedColIndex);
+      const sheetKey = activeSheetKey ?? "";
+      const overrideKey = createColumnDisplayScaleOverrideKey(sheetKey, normalizedColIndex);
       columnDisplayScaleOverridesRef.current.set(overrideKey, nextScaleExponent);
       columnDisplayScaleOverrideVersionRef.current += 1;
       notifyTableDisplayProfileChanged({
@@ -1772,6 +1821,7 @@ const createTableViewModel = ({
       return true;
     },
     [
+      activeSheetKey,
       columnDisplayScaleOverrideVersionRef,
       columnDisplayScaleOverridesRef,
       getColumnDisplayProfile,
@@ -1788,8 +1838,8 @@ const createTableViewModel = ({
       }
 
       const currentFile = previewFileRef.current;
-      const rawTableId = currentFile?.sheetKey ?? activeSheetKey ?? "";
-      const overrideKey = createColumnDisplayScaleOverrideKey(rawTableId, normalizedColIndex);
+      const sheetKey = activeSheetKey ?? "";
+      const overrideKey = createColumnDisplayScaleOverrideKey(sheetKey, normalizedColIndex);
       if (!columnDisplayScaleOverridesRef.current.delete(overrideKey)) {
         return false;
       }
@@ -1822,9 +1872,9 @@ const createTableViewModel = ({
 
       const start = Math.max(0, Math.floor(Number(startRow) || 0));
       const end = Math.max(start, Math.floor(Number(endRow) || start));
-      const rows = sourcesByKeyRef.current.get(sheetKey)?.content?.rows ?? [];
-
-      return Promise.resolve(sanitizeTableRowBatch(rows.slice(start, end)));
+      return Promise.resolve(sanitizeTableRowBatch(
+        readTableModelContentRows(sourcesByKeyRef.current.get(sheetKey)?.content, start, end) as unknown[][],
+      ));
     },
     [
       sourcesByKeyRef,
@@ -1832,7 +1882,8 @@ const createTableViewModel = ({
   );
 
   const ensureTableCells = memoCallback(
-    async (sheetKey: string, cells: TableCellReadRequest[]) => {
+    async (cells: TableCellReadRequest[]) => {
+      const sheetKey = activeSheetKeyRef.current;
       if (!sheetKey || !Array.isArray(cells) || !cells.length) return;
       const currentPreviewFile = previewFileRef.current;
       if (!currentPreviewFile?.rowCount || !Number.isFinite(currentPreviewFile.rowCount)) return;
@@ -1893,6 +1944,7 @@ const createTableViewModel = ({
       }
     },
     [
+      activeSheetKeyRef,
       getOrCreatePreviewSheetCaches,
       notifyTableRowsCacheChanged,
       previewCacheSheetKeyRef,
@@ -1902,7 +1954,8 @@ const createTableViewModel = ({
   );
 
   const ensureTableRows = memoCallback(
-    async (sheetKey: string, startRow: number, endRow: number) => {
+    async (startRow: number, endRow: number) => {
+      const sheetKey = activeSheetKeyRef.current;
       const currentPreviewFile = previewFileRef.current;
       if (!currentPreviewFile?.rowCount || !Number.isFinite(currentPreviewFile.rowCount)) return;
       if (!sheetKey) return;
@@ -2021,6 +2074,7 @@ const createTableViewModel = ({
       }
     },
     [
+      activeSheetKeyRef,
       getOrCreatePendingChunks,
       getOrCreatePreviewSheetCaches,
       notifyTableRowsCacheChanged,
@@ -2208,7 +2262,6 @@ const createTableViewModel = ({
         loadState: previewStatusRef.current,
         selectedSheetId: selectedSource?.source.sheetId ?? activeSheetId ?? null,
         source: selectedSource?.source ?? null,
-        sheetKey: activeSheetKey,
         displayVersion: settingsVersion,
       };
     },
@@ -2252,10 +2305,10 @@ const createTableViewModel = ({
 };
 
 const createColumnDisplayScaleOverrideKey = (
-  rawTableId: string,
+  sheetKey: string,
   colIndex: number,
 ): string => [
-  rawTableId,
+  sheetKey,
   Math.max(0, Math.floor(Number(colIndex) || 0)),
 ].join(":");
 
