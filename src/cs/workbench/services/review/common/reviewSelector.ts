@@ -6,7 +6,7 @@ import type {
 	MeasurementBlockRecord,
 	MeasurementColumnRef,
 } from "src/cs/workbench/services/tableModel/common/measurement";
-import type { TableReviewEvidence } from "src/cs/workbench/services/review/common/reviewModel";
+import type { ReviewEvidence } from "src/cs/workbench/services/review/common/reviewModel";
 import type {
 	CanonicalUnitSelectorPredicate,
 	ColumnRoleSelectorPredicate,
@@ -18,7 +18,7 @@ import type {
 } from "src/cs/workbench/services/recipe/common/recipeSelector";
 import type { Recipe } from "src/cs/workbench/services/recipe/common/recipe";
 
-export type TableReviewSelectorCapture =
+export type ReviewSelectorCapture =
 	| {
 		readonly kind: "columns";
 		readonly columns: readonly number[];
@@ -29,29 +29,29 @@ export type TableReviewSelectorCapture =
 		readonly units: readonly string[];
 	};
 
-export type TableReviewSelectorBlockMatch = {
+export type ReviewSelectorBlockMatch = {
 	readonly blockId?: string;
-	readonly captures: Readonly<Record<string, TableReviewSelectorCapture>>;
+	readonly captures: Readonly<Record<string, ReviewSelectorCapture>>;
 	readonly reasons: readonly string[];
 };
 
-export type TableReviewSelectorEvaluation = {
+export type ReviewSelectorEvaluation = {
 	readonly matched: boolean;
 	readonly recipeId: string;
 	readonly recipeVersion: number;
-	readonly matches: readonly TableReviewSelectorBlockMatch[];
+	readonly matches: readonly ReviewSelectorBlockMatch[];
 	readonly diagnosticCodes: readonly string[];
 };
 
 type EvaluationContext = {
-	readonly evidence: TableReviewEvidence;
+	readonly evidence: ReviewEvidence;
 	readonly block: MeasurementBlockRecord | null;
 };
 
 type PredicateResult =
 	| {
 		readonly matched: true;
-		readonly captures?: Readonly<Record<string, TableReviewSelectorCapture>>;
+		readonly captures?: Readonly<Record<string, ReviewSelectorCapture>>;
 		readonly reason?: string;
 	}
 	| {
@@ -62,7 +62,7 @@ type PredicateResult =
 type MatchResult =
 	| {
 		readonly matched: true;
-		readonly captures: Readonly<Record<string, TableReviewSelectorCapture>>;
+		readonly captures: Readonly<Record<string, ReviewSelectorCapture>>;
 		readonly reasons: readonly string[];
 	}
 	| {
@@ -70,14 +70,24 @@ type MatchResult =
 		readonly diagnosticCodes: readonly string[];
 	};
 
-export const evaluateTableReviewSelector = (
+export const evaluateReviewSelector = (
 	recipe: Recipe,
-	evidence: TableReviewEvidence,
-): TableReviewSelectorEvaluation => {
-	const contexts = evidence.blocks.length
-		? evidence.blocks.map(block => ({ evidence, block }))
+	evidence: ReviewEvidence,
+): ReviewSelectorEvaluation => {
+	const tableProjection = evidence.tableProjection;
+	if (!tableProjection) {
+		return {
+			matched: false,
+			recipeId: recipe.id,
+			recipeVersion: recipe.version,
+			matches: [],
+			diagnosticCodes: ["recipeSelector.missingTableProjection"],
+		};
+	}
+	const contexts = tableProjection.blocks.length
+		? tableProjection.blocks.map(block => ({ evidence, block }))
 		: [{ evidence, block: null }];
-	const matches: TableReviewSelectorBlockMatch[] = [];
+	const matches: ReviewSelectorBlockMatch[] = [];
 	const diagnosticCodes = new Set<string>();
 
 	for (const context of contexts) {
@@ -108,7 +118,7 @@ const evaluateSelector = (
 	selector: RecipeSelector,
 	context: EvaluationContext,
 ): MatchResult => {
-	const captures: Record<string, TableReviewSelectorCapture> = {};
+	const captures: Record<string, ReviewSelectorCapture> = {};
 	const reasons: string[] = [];
 	const diagnosticCodes = new Set<string>();
 
@@ -267,9 +277,9 @@ const evaluateCanonicalUnitPredicate = (
 
 const evaluateLayoutEvidencePredicate = (
 	predicate: LayoutEvidenceSelectorPredicate,
-	evidence: TableReviewEvidence,
+	evidence: ReviewEvidence,
 ): PredicateResult =>
-	evidence.layoutCandidates.some(candidate =>
+	evidence.tableProjection?.layoutCandidates.some(candidate =>
 		predicate.layoutAny.includes(candidate.layoutKind) &&
 		meetsMinConfidence(candidate.confidence, predicate.minConfidence)
 	)
@@ -278,7 +288,7 @@ const evaluateLayoutEvidencePredicate = (
 
 const evaluateSourceHintPredicate = (
 	predicate: SourceHintSelectorPredicate,
-	evidence: TableReviewEvidence,
+	evidence: ReviewEvidence,
 ): PredicateResult => {
 	const fileName = normalizeText(evidence.sourceMetadata.fileName);
 	const extension = getFileExtension(fileName);
@@ -294,9 +304,9 @@ const evaluateSourceHintPredicate = (
 
 const evaluateSchemaFingerprintPredicate = (
 	predicate: SchemaFingerprintSelectorPredicate,
-	evidence: TableReviewEvidence,
+	evidence: ReviewEvidence,
 ): PredicateResult =>
-	predicate.fingerprintAny.includes(evidence.structure.fingerprint)
+	evidence.tableProjection && predicate.fingerprintAny.includes(evidence.tableProjection.structure.fingerprint)
 		? { matched: true, reason: "schemaFingerprint" }
 		: { matched: false, diagnosticCode: "recipeSelector.schemaFingerprintMismatch" };
 
@@ -306,7 +316,7 @@ const getColumnsForScope = (
 ): readonly MeasurementColumnRef[] =>
 	scope === "matchedBlock"
 		? context.block?.columns.columns ?? []
-		: context.evidence.blocks.flatMap(block => block.columns.columns);
+		: context.evidence.tableProjection?.blocks.flatMap(block => block.columns.columns) ?? [];
 
 const isCountWithinBounds = (
 	count: number,
@@ -333,8 +343,8 @@ const meetsMinConfidence = (
 	Number(confidence ?? 1) >= minConfidence;
 
 const mergeCaptures = (
-	target: Record<string, TableReviewSelectorCapture>,
-	source: Readonly<Record<string, TableReviewSelectorCapture>> | undefined,
+	target: Record<string, ReviewSelectorCapture>,
+	source: Readonly<Record<string, ReviewSelectorCapture>> | undefined,
 ): void => {
 	if (!source) {
 		return;

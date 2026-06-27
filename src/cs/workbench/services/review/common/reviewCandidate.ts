@@ -9,56 +9,56 @@ import type {
 	RecipeValueExpression,
 } from "src/cs/workbench/services/recipe/common/recipeProjection";
 import type {
-	TableReviewCandidate,
-	TableReviewCandidateAxisBinding,
-	TableReviewCandidateBlock,
-	TableReviewCandidateDiagnostic,
-	TableReviewCandidateInterpretation,
-	TableReviewCandidateRowRange,
-	TableReviewContext,
+	ReviewCandidate,
+	ReviewCandidateAxisBinding,
+	ReviewCandidateBlock,
+	ReviewCandidateDiagnostic,
+	ReviewCandidateInterpretation,
+	ReviewCandidateRowRange,
+	ReviewContext,
 } from "src/cs/workbench/services/review/common/reviewModel";
 import {
-	evaluateTableReviewSelector,
-	type TableReviewSelectorBlockMatch,
-	type TableReviewSelectorCapture,
-	type TableReviewSelectorEvaluation,
+	evaluateReviewSelector,
+	type ReviewSelectorBlockMatch,
+	type ReviewSelectorCapture,
+	type ReviewSelectorEvaluation,
 } from "src/cs/workbench/services/review/common/reviewSelector";
 import type {
 	UserTemplate,
 	UserTemplateSnapshot,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
-export const deriveAutomaticTableReviewCandidates = ({
+export const deriveAutomaticReviewCandidates = ({
 	context,
 	recipeSnapshot,
 	userTemplateSnapshot,
 }: {
-	readonly context: TableReviewContext;
+	readonly context: ReviewContext;
 	readonly recipeSnapshot?: RecipeSnapshot;
 	readonly userTemplateSnapshot: UserTemplateSnapshot;
-}): readonly TableReviewCandidate[] =>
-	sortTableReviewCandidates([
-		...deriveRecipeTableReviewCandidates({
+}): readonly ReviewCandidate[] =>
+	sortReviewCandidates([
+		...deriveRecipeReviewCandidates({
 			context,
 			recipeSnapshot,
 		}),
-		...deriveUserTemplateTableReviewCandidates({
+		...deriveUserTemplateReviewCandidates({
 			context,
 			userTemplateSnapshot,
 		}),
 	]);
 
-export const deriveRecipeTableReviewCandidates = ({
+export const deriveRecipeReviewCandidates = ({
 	context,
 	recipeSnapshot,
 }: {
-	readonly context: TableReviewContext;
+	readonly context: ReviewContext;
 	readonly recipeSnapshot?: RecipeSnapshot;
-}): readonly TableReviewCandidate[] => {
-	const candidates: TableReviewCandidate[] = [];
+}): readonly ReviewCandidate[] => {
+	const candidates: ReviewCandidate[] = [];
 	for (const recipe of recipeSnapshot?.recipes ?? []) {
-		const evaluation = evaluateTableReviewSelector(recipe, context.evidence);
-		const candidate = createRecipeTableReviewCandidate({
+		const evaluation = evaluateReviewSelector(recipe, context.evidence);
+		const candidate = createRecipeReviewCandidate({
 			context,
 			recipe,
 			evaluation,
@@ -68,19 +68,19 @@ export const deriveRecipeTableReviewCandidates = ({
 		}
 	}
 
-	return sortTableReviewCandidates(candidates);
+	return sortReviewCandidates(candidates);
 };
 
-export const deriveUserTemplateTableReviewCandidates = ({
+export const deriveUserTemplateReviewCandidates = ({
 	context,
 	userTemplateSnapshot,
 }: {
-	readonly context: TableReviewContext;
+	readonly context: ReviewContext;
 	readonly userTemplateSnapshot: UserTemplateSnapshot;
-}): readonly TableReviewCandidate[] => {
-	const candidates: TableReviewCandidate[] = [];
+}): readonly ReviewCandidate[] => {
+	const candidates: ReviewCandidate[] = [];
 	for (const userTemplate of userTemplateSnapshot.templates) {
-		const candidate = createUserTemplateTableReviewCandidate({
+		const candidate = createUserTemplateReviewCandidate({
 			context,
 			userTemplate,
 		});
@@ -89,18 +89,18 @@ export const deriveUserTemplateTableReviewCandidates = ({
 		}
 	}
 
-	return sortTableReviewCandidates(candidates);
+	return sortReviewCandidates(candidates);
 };
 
-export const createRecipeTableReviewCandidate = ({
+export const createRecipeReviewCandidate = ({
 	context,
 	recipe,
 	evaluation,
 }: {
-	readonly context: TableReviewContext;
+	readonly context: ReviewContext;
 	readonly recipe: Recipe;
-	readonly evaluation: TableReviewSelectorEvaluation;
-}): TableReviewCandidate | null => {
+	readonly evaluation: ReviewSelectorEvaluation;
+}): ReviewCandidate | null => {
 	if (!evaluation.matched || !evaluation.matches.length) {
 		return null;
 	}
@@ -109,7 +109,7 @@ export const createRecipeTableReviewCandidate = ({
 	const matches = projection.blocks.source === "singleMatchedBlock"
 		? evaluation.matches.slice(0, 1)
 		: evaluation.matches;
-	const blocks: TableReviewCandidateBlock[] = [];
+	const blocks: ReviewCandidateBlock[] = [];
 	const diagnostics = new Set<string>();
 	for (const match of matches) {
 		const block = getMatchedBlock(context.evidence, match);
@@ -126,13 +126,15 @@ export const createRecipeTableReviewCandidate = ({
 		blocks.push(candidateBlock);
 	}
 
-	const interpretation = createTableReviewCandidateInterpretation({
+	const tableProjection = context.evidence.tableProjection;
+	const schemaFingerprint = tableProjection?.structure.fingerprint;
+	const interpretation = createReviewCandidateInterpretation({
 		name: resolveCandidateExpressionValue(projection.name, matches[0], getMatchedBlock(context.evidence, matches[0])) || recipe.id,
 		version: 1,
 		blocks,
 		stopOnError: projection.stopOnError ?? false,
 		applicability: {
-			schemaFingerprint: context.evidence.structure.fingerprint,
+			...(schemaFingerprint ? { schemaFingerprint } : {}),
 			columnCount: context.evidence.sourceMetadata.columnCount,
 		},
 	});
@@ -147,28 +149,29 @@ export const createRecipeTableReviewCandidate = ({
 		interpretation,
 		interpretationFingerprint: createCandidateInterpretationFingerprint(interpretation),
 		evidenceFingerprint: context.evidenceFingerprint,
+		...(context.contentHash ? { contentHash: context.contentHash } : {}),
 		...(context.modelVersion !== undefined ? { modelVersion: context.modelVersion } : {}),
 		...(context.sourceVersion !== undefined ? { sourceVersion: context.sourceVersion } : {}),
 		confidence: getRecipeCandidateConfidence(matches, context.evidence),
 		providerRank: recipe.priority,
 		selectorTrace: {
 			reasons: matches.flatMap(match => match.reasons),
-			diagnostics: evaluation.diagnosticCodes.map(createTableReviewCandidateDiagnostic),
+			diagnostics: evaluation.diagnosticCodes.map(createReviewCandidateDiagnostic),
 		},
 		projectionTrace: {
 			reasons: [],
-			diagnostics: [...diagnostics].map(createTableReviewCandidateDiagnostic),
+			diagnostics: [...diagnostics].map(createReviewCandidateDiagnostic),
 		},
 	};
 };
 
-const createUserTemplateTableReviewCandidate = ({
+const createUserTemplateReviewCandidate = ({
 	context,
 	userTemplate,
 }: {
-	readonly context: TableReviewContext;
+	readonly context: ReviewContext;
 	readonly userTemplate: UserTemplate;
-}): TableReviewCandidate | null => {
+}): ReviewCandidate | null => {
 	const diagnostics = new Set<string>();
 	const reasons: string[] = [];
 	const template = userTemplate.template;
@@ -179,7 +182,7 @@ const createUserTemplateTableReviewCandidate = ({
 
 	if (
 		template.applicability?.schemaFingerprint &&
-		template.applicability.schemaFingerprint !== context.evidence.structure.fingerprint
+		template.applicability.schemaFingerprint !== context.evidence.tableProjection?.structure.fingerprint
 	) {
 		return null;
 	}
@@ -241,6 +244,7 @@ const createUserTemplateTableReviewCandidate = ({
 			...(template.applicability ? { applicability: template.applicability } : {}),
 		}),
 		evidenceFingerprint: context.evidenceFingerprint,
+		...(context.contentHash ? { contentHash: context.contentHash } : {}),
 		...(context.modelVersion !== undefined ? { modelVersion: context.modelVersion } : {}),
 		...(context.sourceVersion !== undefined ? { sourceVersion: context.sourceVersion } : {}),
 		confidence: diagnostics.size ? 0.6 : getUserTemplateConfidence(userTemplate),
@@ -250,50 +254,50 @@ const createUserTemplateTableReviewCandidate = ({
 		},
 		projectionTrace: {
 			reasons: [],
-			diagnostics: [...diagnostics].map(createTableReviewCandidateDiagnostic),
+			diagnostics: [...diagnostics].map(createReviewCandidateDiagnostic),
 		},
 	};
 };
 
-const sortTableReviewCandidates = (
-	candidates: readonly TableReviewCandidate[],
-): readonly TableReviewCandidate[] => [...candidates].sort((left, right) =>
-	getTableReviewCandidateStateRank(right) - getTableReviewCandidateStateRank(left) ||
+const sortReviewCandidates = (
+	candidates: readonly ReviewCandidate[],
+): readonly ReviewCandidate[] => [...candidates].sort((left, right) =>
+	getReviewCandidateStateRank(right) - getReviewCandidateStateRank(left) ||
 	right.confidence - left.confidence ||
-	getTableReviewCandidateProviderRank(right) - getTableReviewCandidateProviderRank(left) ||
+	getReviewCandidateProviderRank(right) - getReviewCandidateProviderRank(left) ||
 	left.id.localeCompare(right.id)
 );
 
-const getTableReviewCandidateStateRank = (
-	candidate: TableReviewCandidate,
-): number => hasTableReviewCandidateDiagnostics(candidate) ? 0 : 1;
+const getReviewCandidateStateRank = (
+	candidate: ReviewCandidate,
+): number => hasReviewCandidateDiagnostics(candidate) ? 0 : 1;
 
-const hasTableReviewCandidateDiagnostics = (
-	candidate: TableReviewCandidate,
+const hasReviewCandidateDiagnostics = (
+	candidate: ReviewCandidate,
 ): boolean =>
 	candidate.selectorTrace.diagnostics.length > 0 ||
 	candidate.projectionTrace.diagnostics.length > 0;
 
-const getTableReviewCandidateProviderRank = (
-	candidate: TableReviewCandidate,
+const getReviewCandidateProviderRank = (
+	candidate: ReviewCandidate,
 ): number =>
 	Number.isFinite(candidate.providerRank) ? Number(candidate.providerRank) : 0;
 
-const createTableReviewCandidateDiagnostic = (
+const createReviewCandidateDiagnostic = (
 	code: string,
-): TableReviewCandidateDiagnostic => ({
+): ReviewCandidateDiagnostic => ({
 	severity: "warning",
 	code,
 	message: code,
 });
 
-const createTableReviewCandidateInterpretation = ({
+const createReviewCandidateInterpretation = ({
 	applicability,
 	blocks,
 	name,
 	stopOnError,
 	version,
-}: TableReviewCandidateInterpretation): TableReviewCandidateInterpretation => ({
+}: ReviewCandidateInterpretation): ReviewCandidateInterpretation => ({
 	name,
 	version,
 	blocks,
@@ -302,7 +306,7 @@ const createTableReviewCandidateInterpretation = ({
 });
 
 const createCandidateInterpretationFingerprint = (
-	interpretation: TableReviewCandidateInterpretation,
+	interpretation: ReviewCandidateInterpretation,
 ): string => {
 	const {
 		applicability,
@@ -328,10 +332,10 @@ const createReviewInterpretationFingerprint = (
 
 const createCandidateBlock = (
 	recipe: Recipe,
-	match: TableReviewSelectorBlockMatch,
+	match: ReviewSelectorBlockMatch,
 	block: MeasurementBlockRecord,
-	evidence: TableReviewContext["evidence"],
-): TableReviewCandidateBlock | null => {
+	evidence: ReviewContext["evidence"],
+): ReviewCandidateBlock | null => {
 	const projection = recipe.projection;
 	const x = createAxisBinding(projection.blocks.x, match, evidence);
 	const y = createAxisBinding(projection.blocks.y, match, evidence);
@@ -364,9 +368,9 @@ const createCandidateBlock = (
 
 const createAxisBinding = (
 	projection: RecipeColumnProjection,
-	match: TableReviewSelectorBlockMatch,
-	evidence: TableReviewContext["evidence"],
-): TableReviewCandidateAxisBinding | null => {
+	match: ReviewSelectorBlockMatch,
+	evidence: ReviewContext["evidence"],
+): ReviewCandidateAxisBinding | null => {
 	if (projection.columns.kind === "literalColumns") {
 		return {
 			columns: projection.columns.columns,
@@ -398,7 +402,7 @@ const createAxisBinding = (
 
 const resolveCandidateExpressionValue = (
 	expression: RecipeValueExpression,
-	match: TableReviewSelectorBlockMatch | undefined,
+	match: ReviewSelectorBlockMatch | undefined,
 	block: MeasurementBlockRecord | null,
 ): string => {
 	switch (expression.kind) {
@@ -424,17 +428,17 @@ const resolveCandidateExpressionValue = (
 };
 
 const readColumnsCapture = (
-	capture: TableReviewSelectorCapture | undefined,
-): Extract<TableReviewSelectorCapture, { readonly kind: "columns" }> | null =>
+	capture: ReviewSelectorCapture | undefined,
+): Extract<ReviewSelectorCapture, { readonly kind: "columns" }> | null =>
 	capture?.kind === "columns" && capture.columns.length
 		? capture
 		: null;
 
 const readLayoutBindingColumns = (
-	evidence: TableReviewContext["evidence"],
+	evidence: ReviewContext["evidence"],
 	target: "x" | "y" | "bias",
 ): readonly number[] => {
-	const binding = evidence.layoutCandidates
+	const binding = evidence.tableProjection?.layoutCandidates
 		.find(candidate => candidate.bindings.length)?.bindings[0];
 	if (!binding) {
 		return [];
@@ -458,16 +462,16 @@ const isIntegerColumn = (
 	Number.isInteger(value);
 
 const getMatchedBlock = (
-	evidence: TableReviewContext["evidence"],
-	match: TableReviewSelectorBlockMatch | undefined,
+	evidence: ReviewContext["evidence"],
+	match: ReviewSelectorBlockMatch | undefined,
 ): MeasurementBlockRecord | null =>
 	match?.blockId
-		? evidence.blocks.find(block => block.id === match.blockId) ?? null
-		: evidence.blocks[0] ?? null;
+		? evidence.tableProjection?.blocks.find(block => block.id === match.blockId) ?? null
+		: evidence.tableProjection?.blocks[0] ?? null;
 
 const getBlockDataRowRange = (
 	block: MeasurementBlockRecord,
-): TableReviewCandidateRowRange => {
+): ReviewCandidateRowRange => {
 	const sourceRange = block.source.dataRange ?? block.source.fullRange;
 	return {
 		startRow: sourceRange.startRow,
@@ -476,8 +480,8 @@ const getBlockDataRowRange = (
 };
 
 const getRecipeCandidateConfidence = (
-	matches: readonly TableReviewSelectorBlockMatch[],
-	evidence: TableReviewContext["evidence"],
+	matches: readonly ReviewSelectorBlockMatch[],
+	evidence: ReviewContext["evidence"],
 ): number => {
 	const confidences = matches
 		.map(match => getMatchedBlock(evidence, match)?.confidence)
@@ -503,7 +507,7 @@ const getUserTemplateConfidence = (
 };
 
 const isRowRangeInBounds = (
-	rowRange: TableReviewCandidateRowRange,
+	rowRange: ReviewCandidateRowRange,
 	rowCount: number,
 ): boolean => {
 	const startRow = Math.floor(Number(rowRange.startRow));
@@ -519,7 +523,7 @@ const isRowRangeInBounds = (
 };
 
 const isAxisInBounds = (
-	axis: TableReviewCandidateAxisBinding,
+	axis: ReviewCandidateAxisBinding,
 	columnCount: number,
 ): boolean =>
 	axis.columns.length > 0 &&

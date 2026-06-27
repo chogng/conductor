@@ -4,27 +4,27 @@
 
 import type {
 	ReviewDiagnostic,
-	TableCandidateReview,
-	TableReviewCandidate,
-	TableReviewCandidateAxisBinding,
-	TableReviewCandidateInterpretation,
-	TableReviewCandidateRowRange,
-	TableReviewContext,
-	TableReviewFactors,
-	TableReviewFinding,
+	CandidateReview,
+	ReviewCandidate,
+	ReviewCandidateAxisBinding,
+	ReviewCandidateInterpretation,
+	ReviewCandidateRowRange,
+	ReviewContext,
+	ReviewFactors,
+	ReviewFinding,
 } from "src/cs/workbench/services/review/common/reviewModel";
 
 const READY_CONFIDENCE = 0.85;
 const INVALID_CONFIDENCE = 0.5;
 const AMBIGUITY_MARGIN = 0.05;
 
-export const scoreTableReviewCandidates = ({
+export const scoreReviewCandidates = ({
 	candidates,
 	context,
 }: {
-	readonly candidates: readonly TableReviewCandidate[];
-	readonly context: TableReviewContext;
-}): readonly TableCandidateReview[] => {
+	readonly candidates: readonly ReviewCandidate[];
+	readonly context: ReviewContext;
+}): readonly CandidateReview[] => {
 	const baseScores = new Map<string, number>();
 	for (const candidate of candidates) {
 		baseScores.set(candidate.id, getBaseConfidence(createBaseFactors(candidate, context)));
@@ -37,7 +37,7 @@ export const scoreTableReviewCandidates = ({
 	const isAmbiguous = candidates.length > 1 && topScore - secondScore < AMBIGUITY_MARGIN;
 
 	return candidates.map(candidate =>
-		scoreTableReviewCandidate({
+		scoreReviewCandidate({
 			ambiguityPenalty: isAmbiguous ? 0.15 : 0,
 			candidate,
 			context,
@@ -45,19 +45,19 @@ export const scoreTableReviewCandidates = ({
 	);
 };
 
-export const scoreTableReviewCandidate = ({
+export const scoreReviewCandidate = ({
 	ambiguityPenalty = 0,
 	candidate,
 	context,
 }: {
 	readonly ambiguityPenalty?: number;
-	readonly candidate: TableReviewCandidate;
-	readonly context: TableReviewContext;
-}): TableCandidateReview => {
-	const findings = createTableReviewFindings(candidate, context, ambiguityPenalty);
+	readonly candidate: ReviewCandidate;
+	readonly context: ReviewContext;
+}): CandidateReview => {
+	const findings = createReviewFindings(candidate, context, ambiguityPenalty);
 	const baseFactors = createBaseFactors(candidate, context);
 	const diagnosticPenalty = getDiagnosticPenalty(candidate, findings);
-	const factors: TableReviewFactors = {
+	const factors: ReviewFactors = {
 		...baseFactors,
 		ambiguityPenalty,
 		conflictPenalty: 0,
@@ -93,7 +93,7 @@ export const scoreTableReviewCandidate = ({
 	};
 };
 
-export const createManualTableCandidateReview = ({
+export const createManualCandidateReview = ({
 	candidateId,
 	confidence,
 	diagnostics,
@@ -105,9 +105,9 @@ export const createManualTableCandidateReview = ({
 	readonly confidence: number;
 	readonly diagnostics: readonly ReviewDiagnostic[];
 	readonly reasons: readonly string[];
-	readonly status: TableCandidateReview["status"];
+	readonly status: CandidateReview["status"];
 	readonly interpretationFingerprint: string;
-}): TableCandidateReview => {
+}): CandidateReview => {
 	const normalizedConfidence = clampConfidence(confidence);
 	return {
 		candidateId,
@@ -137,9 +137,9 @@ export const createManualTableCandidateReview = ({
 };
 
 const createBaseFactors = (
-	candidate: TableReviewCandidate,
-	context: TableReviewContext,
-): Omit<TableReviewFactors, "ambiguityPenalty" | "conflictPenalty" | "diagnosticPenalty"> => ({
+	candidate: ReviewCandidate,
+	context: ReviewContext,
+): Omit<ReviewFactors, "ambiguityPenalty" | "conflictPenalty" | "diagnosticPenalty"> => ({
 	selectorScore: candidate.selectorTrace.diagnostics.length ? 0.45 : 1,
 	projectionScore: getProjectionScore(candidate, context),
 	semanticScore: clampConfidence(candidate.confidence),
@@ -149,7 +149,7 @@ const createBaseFactors = (
 });
 
 const getBaseConfidence = (
-	factors: Omit<TableReviewFactors, "ambiguityPenalty" | "conflictPenalty" | "diagnosticPenalty">,
+	factors: Omit<ReviewFactors, "ambiguityPenalty" | "conflictPenalty" | "diagnosticPenalty">,
 ): number =>
 	0.25 * factors.selectorScore +
 	0.25 * factors.projectionScore +
@@ -159,8 +159,8 @@ const getBaseConfidence = (
 	0.05 * factors.freshnessScore;
 
 const getProjectionScore = (
-	candidate: TableReviewCandidate,
-	context: TableReviewContext,
+	candidate: ReviewCandidate,
+	context: ReviewContext,
 ): number => {
 	if (candidate.projectionTrace.diagnostics.length) {
 		return 0.45;
@@ -170,46 +170,49 @@ const getProjectionScore = (
 };
 
 const getDataQualityScore = (
-	context: TableReviewContext,
+	context: ReviewContext,
 ): number => {
 	const rowCount = Number(context.evidence.sourceMetadata.rowCount);
 	const columnCount = Number(context.evidence.sourceMetadata.columnCount);
 	if (!Number.isInteger(rowCount) || rowCount <= 0 || !Number.isInteger(columnCount) || columnCount <= 0) {
 		return 0;
 	}
-	if (!context.evidence.blocks.length) {
+	const blocks = context.evidence.tableProjection?.blocks ?? [];
+	if (!blocks.length) {
 		return 0.4;
 	}
-	return clampConfidence(Math.min(1, 0.7 + context.evidence.blocks.length * 0.1));
+	return clampConfidence(Math.min(1, 0.7 + blocks.length * 0.1));
 };
 
 const getParseHealthScore = (
-	context: TableReviewContext,
+	context: ReviewContext,
 ): number => {
-	const fatalCount = context.evidence.diagnostics.filter(diagnostic => diagnostic.severity === "fatal").length;
-	const errorCount = context.evidence.diagnostics.filter(diagnostic => diagnostic.severity === "error").length;
-	const warningCount = context.evidence.diagnostics.filter(diagnostic => diagnostic.severity === "warning").length;
+	const diagnostics = context.evidence.tableProjection?.diagnostics ?? [];
+	const fatalCount = diagnostics.filter(diagnostic => diagnostic.severity === "fatal").length;
+	const errorCount = diagnostics.filter(diagnostic => diagnostic.severity === "error").length;
+	const warningCount = diagnostics.filter(diagnostic => diagnostic.severity === "warning").length;
 	return clampConfidence(1 - fatalCount - errorCount * 0.5 - warningCount * 0.15);
 };
 
 const getFreshnessScore = (
-	candidate: TableReviewCandidate,
-	context: TableReviewContext,
+	candidate: ReviewCandidate,
+	context: ReviewContext,
 ): number => {
 	return getFreshnessFindings(candidate, context).length ? 0 : 1;
 };
 
-const createTableReviewFindings = (
-	candidate: TableReviewCandidate,
-	context: TableReviewContext,
+const createReviewFindings = (
+	candidate: ReviewCandidate,
+	context: ReviewContext,
 	ambiguityPenalty: number,
-): readonly TableReviewFinding[] => {
-	const findings: TableReviewFinding[] = [];
+): readonly ReviewFinding[] => {
+	const findings: ReviewFinding[] = [];
 	findings.push(...getFreshnessFindings(candidate, context));
-	if (context.evidence.diagnostics.some(diagnostic => diagnostic.severity === "fatal")) {
+	const tableProjection = context.evidence.tableProjection;
+	if (tableProjection?.diagnostics.some(diagnostic => diagnostic.severity === "fatal")) {
 		findings.push(createFinding("error", "review.parserFatalDiagnostic", "Parser diagnostics contain a fatal error.", true));
 	}
-	if (!context.evidence.blocks.length) {
+	if (!tableProjection?.blocks.length) {
 		findings.push(createFinding("warning", "review.noMeasurementBlocks", "No measurement block evidence is available."));
 	}
 	for (const diagnostic of getCandidateDiagnostics(candidate)) {
@@ -228,12 +231,15 @@ const createTableReviewFindings = (
 };
 
 const getFreshnessFindings = (
-	candidate: TableReviewCandidate,
-	context: TableReviewContext,
-): readonly TableReviewFinding[] => {
-	const findings: TableReviewFinding[] = [];
+	candidate: ReviewCandidate,
+	context: ReviewContext,
+): readonly ReviewFinding[] => {
+	const findings: ReviewFinding[] = [];
 	if (candidate.evidenceFingerprint !== context.evidenceFingerprint) {
 		findings.push(createFinding("error", "review.staleEvidence", "Candidate evidence is stale.", true));
+	}
+	if (context.contentHash && candidate.contentHash !== context.contentHash) {
+		findings.push(createFinding("error", "review.staleContentHash", "Candidate content hash is stale.", true));
 	}
 	if (candidate.modelVersion !== context.modelVersion) {
 		findings.push(createFinding("error", "review.staleModelVersion", "Candidate model version is stale.", true));
@@ -245,10 +251,10 @@ const getFreshnessFindings = (
 };
 
 const validateCandidateInterpretationRanges = (
-	interpretation: TableReviewCandidateInterpretation,
-	context: TableReviewContext,
-): readonly TableReviewFinding[] => {
-	const findings: TableReviewFinding[] = [];
+	interpretation: ReviewCandidateInterpretation,
+	context: ReviewContext,
+): readonly ReviewFinding[] => {
+	const findings: ReviewFinding[] = [];
 	const rawRowCount = context.evidence.sourceMetadata.rowCount;
 	const rawColumnCount = context.evidence.sourceMetadata.columnCount;
 	const rowCount = typeof rawRowCount === "number" && Number.isInteger(rawRowCount) && rawRowCount > 0
@@ -286,7 +292,7 @@ const validateCandidateInterpretationRanges = (
 
 const applyConfidenceCaps = (
 	confidence: number,
-	findings: readonly TableReviewFinding[],
+	findings: readonly ReviewFinding[],
 ): number => {
 	if (findings.some(finding => finding.code === "review.rangeOutOfBounds")) {
 		return Math.min(confidence, 0.39);
@@ -304,31 +310,31 @@ const applyConfidenceCaps = (
 };
 
 const isRepairableProjectionFinding = (
-	finding: TableReviewFinding,
+	finding: ReviewFinding,
 ): boolean =>
 	finding.code === "recipeProjection.missingCapture" ||
 	finding.code === "recipeProjection.missingBlock" ||
 	finding.code === "review.missingProjectionBlock";
 
 const getDiagnosticPenalty = (
-	candidate: TableReviewCandidate,
-	findings: readonly TableReviewFinding[],
+	candidate: ReviewCandidate,
+	findings: readonly ReviewFinding[],
 ): number =>
 	Math.min(0.4, getCandidateDiagnostics(candidate).length * 0.1 + findings.filter(finding => finding.severity === "warning").length * 0.05);
 
 const getCandidateDiagnostics = (
-	candidate: TableReviewCandidate,
+	candidate: ReviewCandidate,
 ): readonly ReviewDiagnostic[] => [
 	...candidate.selectorTrace.diagnostics,
 	...candidate.projectionTrace.diagnostics,
 ];
 
 const createFinding = (
-	severity: TableReviewFinding["severity"],
+	severity: ReviewFinding["severity"],
 	code: string,
 	message: string,
 	blocking?: boolean,
-): TableReviewFinding => ({
+): ReviewFinding => ({
 	severity,
 	code,
 	message,
@@ -336,7 +342,7 @@ const createFinding = (
 });
 
 const isRowRangeInBounds = (
-	rowRange: TableReviewCandidateRowRange,
+	rowRange: ReviewCandidateRowRange,
 	rowCount: number,
 ): boolean => {
 	const startRow = Math.floor(Number(rowRange.startRow));
@@ -352,7 +358,7 @@ const isRowRangeInBounds = (
 };
 
 const isAxisInBounds = (
-	axis: TableReviewCandidateAxisBinding,
+	axis: ReviewCandidateAxisBinding,
 	columnCount: number,
 ): boolean =>
 	axis.columns.length > 0 &&

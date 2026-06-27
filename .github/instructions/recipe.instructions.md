@@ -1,19 +1,19 @@
 ---
-description: Recipe service - passive selector/projection recipes consumed by Template materializers to derive Template drafts.
+description: Recipe service - passive selector/projection recipes consumed by Review candidate builders to derive review candidates.
 applyTo: 'src/cs/workbench/services/recipe/**,resources/recipes/**,scripts/buildRecipeBundle.mjs,cli/resources/recipes.v1.json'
 ---
 # Recipe
 
-`Recipe` is a passive built-in recipe for deriving a concrete `Template` from
-table model. It is not a `Template`, not an executable extraction plan, not a
-provider, and not a retired rule engine.
+`Recipe` is a passive built-in recipe for deriving a `ReviewCandidate`
+from content evidence. It is not a `Template`, not an executable extraction
+plan, not a provider, and not a retired rule engine.
 
 ```txt
 Recipe[]
-  + TableModel
-  -> Template materializer
-  -> TemplateDraft / Template
-  -> Review
+  + Canonical content evidence
+  -> ReviewContext evidence
+  -> ReviewCandidate
+  -> ReviewResult / ReviewedTemplate
   -> Slice
 ```
 
@@ -21,27 +21,27 @@ Recipe[]
 
 `IRecipeService` owns the recipe catalog snapshot, catalog fingerprint,
 diagnostics, reload, and `onDidChangeRecipes` event. It does not evaluate raw
-tables, score matches, materialize Template snapshots, execute slicing, or
+tables, score matches, build review candidates, execute slicing, or
 mutate Session.
 
-Template materializers own recipe interpretation:
+Review candidate builders own recipe interpretation:
 
-- `RecipeSelector` evaluation against table model;
-- `RecipeProjection` materialization into canonical block-aware `Template`
-  snapshots;
-- materialized-template ordering before Review.
+- `RecipeSelector` evaluation against `ReviewContext.evidence`;
+- `RecipeProjection` interpretation into a candidate Template
+  interpretation;
+- candidate ordering before Review scoring.
 
-Recipe consumes only table model through Template materializers. Recipe must
-not infer measurement family, roles, units, or table structure from raw rows.
+Recipe consumes only ReviewContext evidence through Review-owned candidate
+builders. Recipe must not import table-model APIs or infer measurement family,
+roles, units, or table structure from raw rows.
 
 ## Core Files
 
 | File | Responsibility |
 | --- | --- |
 | `common/recipe.ts` | `Recipe`, `RecipeSnapshot`, diagnostics, and `IRecipeService` contract. |
-| `common/recipeSelector.ts` | finite selector DSL for matching table model. |
-| `common/recipeProjection.ts` | finite projection DSL for turning selector captures into a `Template`. |
-| `common/recipeAssociation.ts` | reserved static `selector -> templateId` association shape only. Do not use for derivation recipes. |
+| `common/recipeSelector.ts` | finite selector DSL and recipe-owned vocabulary for matching content evidence; no TableModel imports. |
+| `common/recipeProjection.ts` | finite projection DSL for describing how selector captures become a candidate Template interpretation. |
 | `common/recipeCodec.ts` | JSON normalization, validation diagnostics, stable fingerprinting. |
 | `common/builtinRecipes.generated.ts` | generated built-in recipe bundle. Do not edit manually. |
 | `browser/recipeService.ts` | thin injectable owner for the built-in recipe snapshot and change event. |
@@ -50,16 +50,18 @@ not infer measurement family, roles, units, or table structure from raw rows.
 | `scripts/buildRecipeBundle.mjs` | builds generated TypeScript and CLI recipe bundles. |
 | `cli/resources/recipes.v1.json` | generated CLI bundle. Do not edit manually. |
 
-Automatic recipe materialization belongs in Template. Template Resolution is
+Automatic recipe candidate derivation belongs in Review. Template Resolution is
 retired and must not be reintroduced as a compatibility bridge or second
-selector/materialization implementation:
+selector/candidate implementation:
 
 | File | Responsibility |
 | --- | --- |
-| `template/common/recipeSelectorEvaluator.ts` | target home for evaluating `RecipeSelector` against table model. |
-| `template/common/recipeTemplateMaterializer.ts` | target home for materializing matched captures into concrete `TemplateDraft` snapshots. |
-| `template/common/templateMaterialization.ts` | service contract for cross-service Template materialization. |
-| `template/browser/templateMaterializationService.ts` | target home for combining Recipe and UserTemplate materializers into automatic candidates. |
+| `review/common/reviewSelector.ts` | target home for evaluating `RecipeSelector` against `ReviewContext.evidence`. |
+| `review/common/reviewCandidate.ts` | target home for deriving `ReviewCandidate` values from Recipe/UserTemplate snapshots and `ReviewContext`. |
+| `review/common/reviewModel.ts` | target home for context, candidate, result, factors, findings, and decision data shapes. |
+| `review/common/reviewEvidence.ts` | target home for URI/content evidence types used by ReviewContext; current table fields are one projection of that evidence. |
+| `review/common/reviewScoring.ts` | target home for scoring candidates into explainable factors/findings/status. |
+| `review/browser/reviewService.ts` | owner that combines Recipe, UserTemplate, and URI/content evidence into automatic review results; the current table model only supplies one projection. |
 
 ## Flow
 
@@ -68,11 +70,11 @@ resources/recipes/v1/index.json
   -> scripts/buildRecipeBundle.mjs
   -> builtinRecipes.generated.ts + cli/resources/recipes.v1.json
   -> RecipeService.getSnapshot()
-  -> ReviewService observes recipe/table-model/UserTemplate changes
-  -> ITemplateMaterializationService evaluates selector/projection
-  -> ReviewService reviews materialized candidates
-  -> ReviewDecision stores selected ReviewedTemplate snapshot when ready
-  -> ReviewApply submits SliceRequest only when systemRecommended
+  -> ReviewService observes recipe/content-evidence/UserTemplate changes
+  -> ReviewService builds ReviewCandidate values from selector/projection
+  -> ReviewService scores candidates into ReviewResult
+  -> ReviewResult stores selected ReviewedTemplate snapshot when ready
+  -> explicit execution controller / Slice command submits SliceRequest only when systemRecommended
 ```
 
 Recipe changes are owner-event-reread:
@@ -80,26 +82,28 @@ Recipe changes are owner-event-reread:
 ```txt
 RecipeService reload/change
   -> onDidChangeRecipes
-  -> IReviewService requests Template materialization for affected candidates
+  -> IReviewService rebuilds affected ReviewCandidate values
   -> IReviewService reviews affected candidates
-  -> Session reviewChanged
+  -> IReviewService.onDidChangeReview
 ```
 
 ## Rules
 
 - A `Recipe` must stay passive JSON with `id`, `version`, `priority`,
   `selector`, and `projection`.
-- `RecipeSelector` describes which table model can match.
-- `RecipeProjection` describes how matched captures become a concrete
-  `Template`.
+- `RecipeSelector` describes which content evidence can match, using
+  recipe-owned vocabulary.
+- `RecipeProjection` describes how matched captures become a candidate
+  Template interpretation inside `ReviewCandidate`.
 - `RecipeService` may validate, fingerprint, and publish recipes. It must not
-  evaluate recipes against raw tables or materialize templates.
-- New selector predicates belong in `recipeSelector.ts`, validation in
-  `recipeCodec.ts`, and matching behavior in Template materializer code.
+  evaluate recipes against raw tables or build review candidates.
+- New selector predicates and DSL vocabulary belong in `recipeSelector.ts`, validation in
+  `recipeCodec.ts`, and matching behavior in Review candidate code.
 - New projection nodes belong in `recipeProjection.ts`, validation in
-  `recipeCodec.ts`, and materialization behavior in Template materializer code.
-- `RecipeAssociation` is only for static routing from a selector to an existing
-  `templateId`; do not use it for selector/projection derivation.
+  `recipeCodec.ts`, and candidate derivation behavior in Review candidate code.
+- Do not add static `selector -> templateId` association records. Recipe
+  selector/projection derivation goes through Review-owned
+  `ReviewCandidate` building.
 - `RecipeProvider` should only be introduced for true TypeScript provider
   behavior. JSON recipes are not providers.
 - Review records the recipe fingerprint used for candidate review and selected
@@ -111,11 +115,13 @@ RecipeService reload/change
 
 - Do not call this layer `Rule`, `TemplateRule`, `Descriptor`, or
   `TemplateRecipe`.
-- Do not move the Recipe catalog under Template ownership; Template only owns
-  interpreting Recipe snapshots against table model.
+- Do not move the Recipe catalog under Template ownership; Review owns
+  interpreting Recipe snapshots against URI/content evidence.
 - Do not call Recipe a rule or revive retired Rule naming; Recipe is the current
   passive selector/projection model.
-- Do not let Recipe infer measurement family, roles, units, or table structure;
-  those facts come from table-model production.
+- Do not let Recipe infer measurement family, roles, units, or structure;
+  those facts come from canonical content evidence. In the current table
+  projection, they are supplied by table-model production.
 - Do not let Recipe read rows, services, Session, files, or table state.
-- Do not let Review, Slice, or any compatibility bridge own Recipe interpretation.
+- Do not let Template, Slice, or any compatibility bridge own Recipe
+  interpretation.

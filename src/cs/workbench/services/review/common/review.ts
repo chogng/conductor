@@ -9,11 +9,11 @@ import type {
   ReviewDiagnostic,
   ReviewedTemplate,
   ReviewSuggestedAction,
-  TableCandidateReview,
-  TableReviewEvidence,
-  TableReviewResult,
-  TableReviewSummary,
-  TableReviewSummaryTarget,
+  CandidateReview,
+  ReviewTableProjectionEvidence,
+  ReviewResult,
+  ReviewSummary,
+  ReviewSummaryTarget,
 } from "src/cs/workbench/services/review/common/reviewModel";
 
 export type {
@@ -21,21 +21,23 @@ export type {
   ReviewedTemplate,
   ReviewedTemplateSource,
   ReviewSuggestedAction,
-  TableCandidateReview,
-  TableCandidateReviewStatus,
-  TableReviewCandidate,
-  TableReviewCandidateSummary,
-  TableReviewContext,
-  TableReviewDecision,
-  TableReviewEvidence,
-  TableReviewFactors,
-  TableReviewFinding,
-  TableReviewFindingSeverity,
-  TableReviewResult,
-  TableReviewSummary,
-  TableReviewSummaryState,
-  TableReviewSummaryTarget,
-  TableReviewSourceMetadata,
+  SegmentCandidate,
+  CandidateReview,
+  CandidateReviewStatus,
+  ReviewCandidate,
+  ReviewCandidateSummary,
+  ReviewContext,
+  ReviewDecision,
+  ReviewEvidence,
+  ReviewFactors,
+  ReviewFinding,
+  ReviewFindingSeverity,
+  ReviewResult,
+  ReviewSummary,
+  ReviewSummaryState,
+  ReviewSummaryTarget,
+  ReviewSourceMetadata,
+  ReviewTableProjectionEvidence,
 } from "src/cs/workbench/services/review/common/reviewModel";
 
 export const IReviewService = createDecorator<IReviewService>("reviewService");
@@ -54,7 +56,7 @@ export type ManualTemplateSelection =
     };
 
 export type UriManualTemplateReviewRequest = {
-  readonly target: TableReviewSummaryTarget;
+  readonly target: ReviewSummaryTarget;
   readonly selection: ManualTemplateSelection;
 };
 
@@ -66,13 +68,13 @@ export type ManualTemplateReviewResult =
     }
   | {
       readonly kind: "needsManualAdjustment";
-      readonly review: TableCandidateReview;
+      readonly review: CandidateReview;
       readonly diagnostics: readonly ReviewDiagnostic[];
       readonly suggestedActions: readonly ReviewSuggestedAction[];
     }
   | {
       readonly kind: "invalid";
-      readonly review?: TableCandidateReview;
+      readonly review?: CandidateReview;
       readonly diagnostics: readonly ReviewDiagnostic[];
       readonly suggestedActions: readonly ReviewSuggestedAction[];
     };
@@ -93,11 +95,12 @@ export type ReviewedTableItMode =
   | "photoResponse"
   | "generic";
 
-export type UriTableReview = {
-  readonly resource: TableReviewSummaryTarget["resource"];
+export type UriReview = {
+  readonly resource: ReviewSummaryTarget["resource"];
   readonly sheetId?: string;
-  readonly summary: TableReviewSummary;
-  readonly result?: TableReviewResult;
+  readonly contentHash?: string;
+  readonly summary: ReviewSummary;
+  readonly result?: ReviewResult;
   readonly reviewSignature?: string;
   readonly measurement?: ReviewedTableMeasurementBinding;
   readonly sourceModelVersion?: number;
@@ -109,6 +112,7 @@ export type UriTableReview = {
 
 export type ReviewEvidenceSignatureContext = {
   readonly columnCount?: number;
+  readonly contentHash?: string | null;
   readonly fileName?: string | null;
   readonly rowCount?: number;
   readonly sheetId?: string | null;
@@ -116,28 +120,29 @@ export type ReviewEvidenceSignatureContext = {
 
 export type ReviewEvidenceSignatureInput = {
   readonly tableModelRuleVersion: number;
-  readonly blocks: TableReviewEvidence["blocks"];
-  readonly columnProfiles: TableReviewEvidence["columnProfiles"];
-  readonly diagnostics: TableReviewEvidence["diagnostics"];
-  readonly groups: TableReviewEvidence["groups"];
-  readonly layoutCandidates: TableReviewEvidence["layoutCandidates"];
+  readonly blocks: ReviewTableProjectionEvidence["blocks"];
+  readonly columnProfiles: ReviewTableProjectionEvidence["columnProfiles"];
+  readonly diagnostics: ReviewTableProjectionEvidence["diagnostics"];
+  readonly groups: ReviewTableProjectionEvidence["groups"];
+  readonly layoutCandidates: ReviewTableProjectionEvidence["layoutCandidates"];
   readonly schemaProfileVersion: number;
-  readonly semanticCandidates: TableReviewEvidence["semanticCandidates"];
+  readonly semanticCandidates: ReviewTableProjectionEvidence["semanticCandidates"];
+  readonly sourceContentHash?: string;
   readonly sourceModelVersion?: number;
   readonly sourceRawTableVersion: number;
   readonly sourceUri?: string;
   readonly sourceVersion?: number;
-  readonly structure: TableReviewEvidence["structure"];
+  readonly structure: ReviewTableProjectionEvidence["structure"];
 };
 
 export interface IReviewService {
   readonly _serviceBrand: undefined;
 
-  readonly onDidChangeTableReview: Event<void>;
+  readonly onDidChangeReview: Event<void>;
 
-  getLatestReview(target: TableReviewSummaryTarget): UriTableReview | undefined;
-  getLatestReviewSummary(target: TableReviewSummaryTarget): TableReviewSummary;
-  reviewUriTable(target: TableReviewSummaryTarget): Promise<UriTableReview>;
+  getLatestReview(target: ReviewSummaryTarget): UriReview | undefined;
+  getLatestReviewSummary(target: ReviewSummaryTarget): ReviewSummary;
+  reviewUri(target: ReviewSummaryTarget): Promise<UriReview>;
   reviewUriManualTemplate(input: UriManualTemplateReviewRequest): Promise<ManualTemplateReviewResult>;
 }
 
@@ -150,6 +155,7 @@ export const createReviewEvidenceSignature = ({
   layoutCandidates,
   schemaProfileVersion,
   semanticCandidates,
+  sourceContentHash,
   sourceModelVersion,
   sourceRawTableVersion,
   sourceUri,
@@ -157,6 +163,7 @@ export const createReviewEvidenceSignature = ({
   structure,
 }: ReviewEvidenceSignatureInput, context: ReviewEvidenceSignatureContext = {}): string => {
   const sourceModelSignature = createSourceModelSignature({
+    contentHash: context.contentHash ?? sourceContentHash,
     sourceSheetId: context.sheetId,
     sourceModelVersion,
     sourceUri,
@@ -198,23 +205,27 @@ const normalizeSignatureInteger = (
 };
 
 const createSourceModelSignature = ({
+  contentHash,
   sourceSheetId,
   sourceModelVersion,
   sourceUri,
   sourceVersion,
 }: {
+  readonly contentHash?: string | null;
   readonly sourceSheetId?: string | null;
   readonly sourceModelVersion?: number;
   readonly sourceUri?: string;
   readonly sourceVersion?: number;
-}): { readonly sourceModel?: { readonly modelVersion?: number; readonly sheetId?: string; readonly sourceUri?: string; readonly sourceVersion?: number } } => {
+}): { readonly sourceModel?: { readonly contentHash?: string; readonly modelVersion?: number; readonly sheetId?: string; readonly sourceUri?: string; readonly sourceVersion?: number } } => {
+  const normalizedContentHash = normalizeSignatureText(contentHash);
   const modelVersion = normalizeSignatureInteger(sourceModelVersion);
   const normalizedSheetId = normalizeSignatureText(sourceSheetId);
   const normalizedSourceUri = normalizeSignatureText(sourceUri);
   const normalizedSourceVersion = normalizeSignatureInteger(sourceVersion);
-  return modelVersion !== undefined || normalizedSheetId || normalizedSourceUri || normalizedSourceVersion !== undefined
+  return normalizedContentHash || modelVersion !== undefined || normalizedSheetId || normalizedSourceUri || normalizedSourceVersion !== undefined
     ? {
         sourceModel: {
+          contentHash: normalizedContentHash,
           modelVersion,
           sheetId: normalizedSheetId,
           sourceUri: normalizedSourceUri,

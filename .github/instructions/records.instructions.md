@@ -29,13 +29,12 @@ at the type name.
 | Record | Owner | Producer | Invalidation / notes |
 | --- | --- | --- | --- |
 | `SessionModel` | `ISessionService` | session commits | Canonical root: `schemaVersion`, `sessionVersion`, `filesById`, `fileOrder`. |
-| `FileRecord` | `ISessionService` | import, table-model, review, slice, calculation, metric commits | Owns one imported file/workbook lifecycle in the remaining raw-table ledger. |
+| `FileRecord` | `ISessionService` | import, table-model, slice, calculation, metric commits | Owns one imported file/workbook lifecycle in the remaining raw-table ledger. |
 | `RawRecord` | `ISessionService` | raw-table import commit | Raw file facts and `rawTablesById`; no table-model/template/plot semantics. |
 | `RawTableRecord` | `ISessionService` | Session import commit | Physical rows/source/health/template eligibility. Use `rawTableId`; keep failed rows unavailable. |
 | `RawTableSourceRecord` | files/session | CSV, Excel sheet, clipboard, manual, unknown | Source provenance only, not measurement semantics. |
 | `RawTableRowsRecord` | files/session | inline, normalized CSV, unavailable | Large rows should use artifact/path references. |
 | `TableModelRecord` | TableModel + Session ledger | table-model producer (`ITableModelProducerService`) | Tied to raw table version, table-model rule version, and schema profile version; stores structure, column profiles, semantic candidates, groups, blocks, and diagnostics. |
-| `RawTableReviewRecord` | Review + Session | `IReviewService` | Tied to template candidate signature, Recipe fingerprint, UserTemplate/saved-template fingerprint, review engine version, and review policy version; stores candidates, reviews, and `ReviewDecision`. |
 | `MeasurementGroupRecord` | TableModel + Session ledger | table-model producer / TableModel helpers | Group/device labels and ordered block ids. |
 | `MeasurementBlockRecord` | TableModel + Session ledger | table-model producer / TableModel helpers | Measurement family/mode/source ranges/column roles. |
 | `SliceRun` | Slice + Session | slice execution | Executed template snapshot, source table-model signature, input ranges, output series ids, output curve keys, warnings, and errors. |
@@ -121,11 +120,12 @@ replaces the URI identity for resource opens.
 - `TableModelRecord` is the target storage shape for table model. It contains
   structure, column profiles, layout candidates, semantic candidates, blocks,
   diagnostics, and source metadata only.
-- Primary consumer path is Template materialization:
-  `Recipe/UserTemplate + TableModel -> Template`. Do not introduce a separate
-  evidence service for this path.
-- Do not call table model `RecipeEvidence`. Recipe is fixed rules; Template
-  combines rules with table model.
+- Primary consumer path is the current table projection feeding optional
+  `ReviewEvidence.tableProjection`. Review candidate derivation combines
+  Recipe/UserTemplate snapshots with URI/content evidence; TableModel is only
+  the current table-shaped evidence producer.
+- Do not call content evidence `RecipeEvidence`. Recipe is fixed rules; Review
+  combines rules with URI/content evidence.
 - `MeasurementBlockRecord.family` stores measurement family (`iv`, `cv`, `cf`,
   `pv`, `it`, `unknown`), not plot transfer/output labels.
 - `ivMode` is valid only for IV blocks; `itMode` is valid only for IT blocks.
@@ -148,14 +148,17 @@ replaces the URI identity for resource opens.
   signatures consume them when present; they do not make table editor runtime
   state a Session record.
 - Table-model records do not store Recipe fingerprints, Template/UserTemplate
-  catalog versions, Template candidates, reviewed templates, selected Template
+  catalog versions, review candidates, reviewed templates, selected Template
   snapshots, decision state, confidence gates, or auto-apply flags. Review owns
-  candidate review and application decisions.
+  candidate building, review, and application decisions.
 - Session raw-file read entries may project table schema fingerprints,
   column profiles, semantic candidates, blocks, layout candidates, and
-  diagnostics for Template materialization or UI review; they remain derived read
-  models, not duplicate owners.
+  diagnostics for Review candidate derivation or UI review; they remain derived
+  read models, not duplicate owners.
 - Diagnostics keep severity, code, message, source range, and related group/block ids.
+  Parser `fatal` diagnostics may be projected into table-model/review evidence
+  for blocking Review hard gates; recoverable parser errors remain non-fatal
+  diagnostics and should only affect parse-health scoring.
 
 ### Schema profiles
 
@@ -177,13 +180,15 @@ replaces the URI identity for resource opens.
 
 ### Template
 
-- `Template` is a pure executable data-structure spec produced by
-  `TableModel + Recipe/UserTemplate` materialization. It describes source hints,
-  table structure, layout, blocks, fields, measurement, and defaults. It is not
-  persisted in Session outside reviewed/slice snapshots and must not be
-  partitioned into table-model/slicing/binding/apply sub-templates.
-- Review consumes materialized Template candidates. Slice consumes reviewed
-  Template snapshots. Neither re-materializes Recipe or table model.
+- `Template` is a pure executable data-structure spec produced only after
+  Review accepts a `ReviewCandidate` interpretation or manual input. It
+  describes source hints, table structure, layout, blocks, fields, measurement,
+  and defaults. It is not persisted in Session outside SliceRun snapshots
+  and must not be partitioned into table-model/slicing/binding/apply
+  sub-templates.
+- Review consumes `ReviewCandidate` values. Slice consumes reviewed
+  Template snapshots. Neither Slice nor Template rebuilds Recipe or
+  URI/content evidence.
 - `TemplateEditorConfig` owns manual extraction configuration such as
   data rows, segmentation, legend target, units, titles, y columns, and
   stop-on-error. It may be adapted into a canonical `Template` snapshot, but it
@@ -196,11 +201,21 @@ replaces the URI identity for resource opens.
 
 ### Review
 
-- `RawTableReviewRecord` is the canonical audit fact for template usability and
-  system-application recommendation for one raw table.
-- Review records store the template candidate signature, Recipe fingerprint,
-  UserTemplate catalog fingerprint, ranked candidate
-  summaries, per-candidate reviews, `ReviewDecision`, and creation time.
+- `ReviewResult` is the Review-owned result fact for template usability
+  and system-application recommendation. URI-backed latest results are held by
+  `IReviewService` cache/state and associated with URI identity:
+  `resource` plus optional `contentHash` / `sourceVersion` and optional
+  `sheetId`. Do not expose a separate public result target.
+- Legacy Session raw-table review records and commit APIs have retired.
+  URI-backed latest review results stay in `IReviewService` cache/state.
+- Review results store URI/content provenance, the candidate interpretation
+  signature, Recipe fingerprint, UserTemplate catalog fingerprint, ranked
+  candidate summaries, per-candidate reviews, and `ReviewDecision`.
+- `ReviewResult` records the review target identity when available
+  (`resource`, optional `contentHash`, optional `sheetId`), `modelVersion`,
+  `sourceVersion`, `evidenceFingerprint`, candidate summaries, per-candidate
+  factors/findings, decision, and the selected `reviewedTemplate` only when
+  ready.
 - `ReviewDecision.kind === "ready"` carries the selected
   `ReviewedTemplate.template` snapshot; that snapshot must be executable even
   if the source Recipe or UserTemplate changes later.
@@ -213,14 +228,24 @@ replaces the URI identity for resource opens.
 ### Slice
 
 - `SliceRun` is the canonical fact for executing a concrete `Template`.
-- `SliceRequest` is the intended single execution input. Compatibility
-  `enqueueAuto` / `runWithTemplate` APIs may remain as adapters only.
+- `SliceRequest` is the intended single raw-table execution input. `enqueueAuto`
+  may remain as the automatic review-decision adapter; manual execution must
+  enter Slice through reviewed `SliceRequest` values, not a `runWithTemplate`
+  service API.
+- `SliceUriRequest` is the URI-backed execution input. Its target is
+  `resource` plus optional `sheetId`; it must not be converted into a public or
+  common synthetic raw-table identity.
+- `SlicePlan` carries either a legacy raw-table target or a URI target. Its
+  input ranges preserve the same target provenance.
 - `SliceRun.template` is the executed snapshot from a reviewed automatic
   template or manual input.
 - `SliceRun.sourceTableModelSignature` ties automatic runs to the table model
   and review records used to submit the request.
 - `SliceCommit` atomically commits the `SliceRun`, produced `SeriesRecord`
   values, and produced base `CurveRecord` values through Session.
+- `SliceUriResult` is Slice service-local state for URI-backed execution. It
+  stores `SliceUriRun`, URI series, and URI curves, and must not be committed
+  through Session as a compatibility bridge.
 - Session read projections derive chart axis titles and units from the latest
   `SliceRun.template`.
 
@@ -247,7 +272,10 @@ replaces the URI identity for resource opens.
 - `ChartViewInput` is a chart service snapshot; consumers reread it from
   `IChartService`.
 - `TableSource` is a pure open target, not raw rows or behavior.
-- `TableSelection` is interaction state, not Session data.
+- `TableSelection` is interaction state for the currently open table, not
+  Session data. Its cells/ranges carry coordinates and optional `sheetId` only;
+  they must not carry Explorer `fileId`, raw-table id, source key, or derived
+  sheet key.
 - `ExplorerState` owns layout, selected file id, expanded folders, folder order,
   source workflow status, error, and drag state.
 - `ExplorerFileEntry` is derived view input for rendering; source/chart/template

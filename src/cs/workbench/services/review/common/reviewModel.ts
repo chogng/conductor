@@ -3,49 +3,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { URI } from "src/cs/base/common/uri";
-import type { ColumnProfile } from "src/cs/workbench/services/tableModel/common/columnProfile";
-import type { TableModelDiagnostic } from "src/cs/workbench/services/tableModel/common/diagnostics";
-import type { LayoutCandidate } from "src/cs/workbench/services/tableModel/common/layoutCandidate";
 import type {
-	MeasurementBlockRecord,
-	MeasurementGroupRecord,
-} from "src/cs/workbench/services/tableModel/common/measurement";
-import type { RawTableStructure } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
-import type { ColumnSemanticCandidate } from "src/cs/workbench/services/tableModel/common/semanticCandidate";
+	ReviewEvidence,
+} from "src/cs/workbench/services/review/common/reviewEvidence";
 import type {
 	Template,
 } from "src/cs/workbench/services/template/common/templateSpec";
 
-export type TableReviewSourceMetadata = {
-	readonly columnCount?: number;
-	readonly fileName?: string | null;
-	readonly rowCount?: number;
-	readonly sourceModelVersion?: number;
-	readonly sourceUri?: string;
-	readonly sourceVersion?: number;
-};
+export type {
+	ReviewEvidence,
+	ReviewSourceMetadata,
+	ReviewTableProjectionEvidence,
+} from "src/cs/workbench/services/review/common/reviewEvidence";
 
-export type TableReviewEvidence = {
-	readonly structure: RawTableStructure;
-	readonly columnProfiles: readonly ColumnProfile[];
-	readonly layoutCandidates: readonly LayoutCandidate[];
-	readonly semanticCandidates: readonly ColumnSemanticCandidate[];
-	readonly groups: readonly MeasurementGroupRecord[];
-	readonly blocks: readonly MeasurementBlockRecord[];
-	readonly diagnostics: readonly TableModelDiagnostic[];
-	readonly sourceMetadata: TableReviewSourceMetadata;
-};
-
-export type TableReviewContext = {
+export type ReviewContext = {
 	readonly resource: URI;
 	readonly sheetId?: string;
+	readonly contentHash?: string;
 	readonly modelVersion: number;
 	readonly sourceVersion: number;
 	readonly evidenceFingerprint: string;
-	readonly evidence: TableReviewEvidence;
+	readonly evidence: ReviewEvidence;
 };
 
-export type TableReviewCandidateSource =
+export type ReviewCandidateSource =
 	| {
 		readonly kind: "recipe";
 		readonly recipeId: string;
@@ -57,92 +38,95 @@ export type TableReviewCandidateSource =
 		readonly templateVersion: number;
 	};
 
-export type TableReviewCandidateDiagnostic = {
+export type ReviewCandidateDiagnostic = {
 	readonly severity: "info" | "warning" | "error";
 	readonly code: string;
 	readonly message: string;
 };
 
-export type ReviewDiagnostic = TableReviewCandidateDiagnostic;
+export type ReviewDiagnostic = ReviewCandidateDiagnostic;
 
-export type TableReviewCandidateTrace = {
+export type ReviewCandidateTrace = {
 	readonly reasons: readonly string[];
-	readonly diagnostics: readonly TableReviewCandidateDiagnostic[];
+	readonly diagnostics: readonly ReviewCandidateDiagnostic[];
 };
 
-export type TableReviewCandidateApplicability = {
+export type ReviewCandidateApplicability = {
 	readonly schemaFingerprint?: string;
 	readonly columnCount?: number;
 };
 
-export type TableReviewCandidateRowRange = {
+export type ReviewCandidateRowRange = {
 	readonly startRow: number;
 	readonly endRow: number | "end";
 };
 
-export type TableReviewCandidateColumnRange = {
+export type ReviewCandidateColumnRange = {
 	readonly column: number;
 	readonly startRow: number;
 	readonly endRow: number | "end";
 };
 
-export type TableReviewCandidateAxisBinding = {
+export type ReviewCandidateAxisBinding = {
 	readonly columns: readonly number[];
-	readonly ranges?: readonly TableReviewCandidateColumnRange[];
+	readonly ranges?: readonly ReviewCandidateColumnRange[];
 	readonly unit?: string;
 };
 
-export type TableReviewCandidateSegmentation =
+export type ReviewCandidateSegmentation =
 	| { readonly kind: "auto" }
 	| { readonly kind: "none" }
 	| { readonly kind: "fixedPoints"; readonly pointsPerGroup: number }
 	| { readonly kind: "fixedSegments"; readonly segmentCount: number };
 
-export type TableReviewCandidateLegend = {
+export type ReviewCandidateLegend = {
 	readonly target: "auto" | "yColumn" | "group";
 	readonly prefix?: string;
 };
 
-export type TableReviewCandidateTitles = {
+export type ReviewCandidateTitles = {
 	readonly bottom?: string;
 	readonly left?: string;
 };
 
-export type TableReviewCandidateBlock = {
-	readonly rowRange: TableReviewCandidateRowRange;
-	readonly x: TableReviewCandidateAxisBinding;
-	readonly y: TableReviewCandidateAxisBinding;
-	readonly segmentation: TableReviewCandidateSegmentation;
-	readonly legend: TableReviewCandidateLegend;
-	readonly titles?: TableReviewCandidateTitles;
+export type ReviewCandidateBlock = {
+	readonly rowRange: ReviewCandidateRowRange;
+	readonly x: ReviewCandidateAxisBinding;
+	readonly y: ReviewCandidateAxisBinding;
+	readonly segmentation: ReviewCandidateSegmentation;
+	readonly legend: ReviewCandidateLegend;
+	readonly titles?: ReviewCandidateTitles;
 };
 
-export type TableReviewCandidateInterpretation = {
+export type ReviewCandidateInterpretation = {
 	readonly name: string;
 	readonly version: number;
-	readonly blocks: readonly TableReviewCandidateBlock[];
+	readonly blocks: readonly ReviewCandidateBlock[];
 	readonly stopOnError: boolean;
-	readonly applicability?: TableReviewCandidateApplicability;
+	readonly applicability?: ReviewCandidateApplicability;
 };
 
-export type TableReviewCandidate = {
+export type ReviewCandidate = {
 	readonly id: string;
-	readonly source: TableReviewCandidateSource;
-	readonly interpretation: TableReviewCandidateInterpretation;
+	readonly source: ReviewCandidateSource;
+	readonly interpretation: ReviewCandidateInterpretation;
 	readonly interpretationFingerprint: string;
 	readonly evidenceFingerprint: string;
+	readonly contentHash?: string;
 	readonly modelVersion?: number;
 	readonly sourceVersion?: number;
 	readonly confidence: number;
 	readonly providerRank?: number;
-	readonly selectorTrace: TableReviewCandidateTrace;
-	readonly projectionTrace: TableReviewCandidateTrace;
+	readonly selectorTrace: ReviewCandidateTrace;
+	readonly projectionTrace: ReviewCandidateTrace;
 	readonly captures?: Readonly<Record<string, unknown>>;
 };
 
-export type TableReviewCandidateSummary = {
+export type SegmentCandidate = ReviewCandidate;
+
+export type ReviewCandidateSummary = {
 	readonly id: string;
-	readonly source: TableReviewCandidateSource;
+	readonly source: ReviewCandidateSource;
 	readonly interpretationFingerprint: string;
 	readonly displayName?: string;
 	readonly providerRank?: number;
@@ -150,12 +134,12 @@ export type TableReviewCandidateSummary = {
 	readonly diagnosticCodes: readonly string[];
 };
 
-export type TableCandidateReviewStatus =
+export type CandidateReviewStatus =
 	| "ready"
 	| "needsAdjustment"
 	| "invalid";
 
-export type TableReviewFactors = {
+export type ReviewFactors = {
 	readonly selectorScore: number;
 	readonly projectionScore: number;
 	readonly semanticScore: number;
@@ -167,25 +151,25 @@ export type TableReviewFactors = {
 	readonly diagnosticPenalty: number;
 };
 
-export type TableReviewFindingSeverity =
+export type ReviewFindingSeverity =
 	| "info"
 	| "warning"
 	| "error";
 
-export type TableReviewFinding = {
-	readonly severity: TableReviewFindingSeverity;
+export type ReviewFinding = {
+	readonly severity: ReviewFindingSeverity;
 	readonly code: string;
 	readonly message: string;
 	readonly blocking?: boolean;
 };
 
-export type TableCandidateReview = {
+export type CandidateReview = {
 	readonly candidateId: string;
 	readonly interpretationFingerprint: string;
-	readonly status: TableCandidateReviewStatus;
+	readonly status: CandidateReviewStatus;
 	readonly confidence: number;
-	readonly factors: TableReviewFactors;
-	readonly findings: readonly TableReviewFinding[];
+	readonly factors: ReviewFactors;
+	readonly findings: readonly ReviewFinding[];
 	readonly reasons: readonly string[];
 	readonly diagnostics: readonly ReviewDiagnostic[];
 };
@@ -210,7 +194,7 @@ export type ReviewedTemplate = {
 	readonly source: ReviewedTemplateSource;
 	readonly template: Template;
 	readonly templateFingerprint: string;
-	readonly review: TableCandidateReview;
+	readonly review: CandidateReview;
 	readonly userOverride?: {
 		readonly confirmedAt: number;
 		readonly reason?: string;
@@ -222,7 +206,7 @@ export type ReviewSuggestedAction = {
 	readonly label: string;
 };
 
-export type TableReviewDecision =
+export type ReviewDecision =
 	| {
 		readonly kind: "ready";
 		readonly reviewedTemplate: ReviewedTemplate;
@@ -254,9 +238,10 @@ export type TableReviewDecision =
 		readonly suggestedActions: readonly ReviewSuggestedAction[];
 	};
 
-export type TableReviewResult = {
+export type ReviewResult = {
 	readonly resource?: URI;
 	readonly sheetId?: string;
+	readonly contentHash?: string;
 	readonly modelVersion?: number;
 	readonly sourceVersion?: number;
 	readonly evidenceFingerprint: string;
@@ -265,13 +250,13 @@ export type TableReviewResult = {
 	readonly userTemplateEffectiveFingerprint: string;
 	readonly reviewEngineVersion: number;
 	readonly reviewPolicyVersion: number;
-	readonly candidates: readonly TableReviewCandidateSummary[];
-	readonly reviews: readonly TableCandidateReview[];
-	readonly decision: TableReviewDecision;
+	readonly candidates: readonly ReviewCandidateSummary[];
+	readonly reviews: readonly CandidateReview[];
+	readonly decision: ReviewDecision;
 	readonly reviewedTemplate?: ReviewedTemplate;
 };
 
-export type TableReviewSummaryState =
+export type ReviewSummaryState =
 	| "missing"
 	| "pending"
 	| "stale"
@@ -279,15 +264,16 @@ export type TableReviewSummaryState =
 	| "needsAdjustment"
 	| "invalid";
 
-export type TableReviewSummaryTarget = {
+export type ReviewSummaryTarget = {
 	readonly resource: URI;
+	readonly contentHash?: string | null;
 	readonly sheetId?: string | null;
 };
 
-export type TableReviewSummary = {
+export type ReviewSummary = {
 	readonly resource: URI;
 	readonly sheetId?: string;
-	readonly state: TableReviewSummaryState;
+	readonly state: ReviewSummaryState;
 	readonly confidence?: number;
 	readonly reviewedSemanticLabel?: string;
 	readonly message?: string;

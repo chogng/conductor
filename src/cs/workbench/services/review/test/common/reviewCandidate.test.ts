@@ -7,14 +7,14 @@ import assert from "assert";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
-	createRecipeTableReviewCandidate,
-	deriveRecipeTableReviewCandidates,
-	deriveUserTemplateTableReviewCandidates,
+	createRecipeReviewCandidate,
+	deriveRecipeReviewCandidates,
+	deriveUserTemplateReviewCandidates,
 } from "src/cs/workbench/services/review/common/reviewCandidate";
 import {
-	scoreTableReviewCandidate,
+	scoreReviewCandidate,
 } from "src/cs/workbench/services/review/common/reviewScoring";
-import { evaluateTableReviewSelector } from "src/cs/workbench/services/review/common/reviewSelector";
+import { evaluateReviewSelector } from "src/cs/workbench/services/review/common/reviewSelector";
 import type {
 	MeasurementColumnRef,
 } from "src/cs/workbench/services/tableModel/common/measurement";
@@ -22,7 +22,7 @@ import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableMod
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import type { Template } from "src/cs/workbench/services/template/common/template";
-import type { TableReviewContext, TableReviewEvidence } from "src/cs/workbench/services/review/common/reviewModel";
+import type { SegmentCandidate, ReviewContext, ReviewEvidence } from "src/cs/workbench/services/review/common/reviewModel";
 import type {
 	UserTemplate,
 	UserTemplateSnapshot,
@@ -31,14 +31,14 @@ import type {
 suite("workbench/services/review/test/common/reviewCandidate", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test("builds builtin IV transfer recipe into a table review candidate", () => {
+	test("builds builtin IV transfer recipe into a review candidate", () => {
 		const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
 		assert.ok(recipe);
 
-		const evidence = createTableReviewEvidence();
-		const context = createTableReviewContext(evidence);
-		const evaluation = evaluateTableReviewSelector(recipe, evidence);
-		const candidate = createRecipeTableReviewCandidate({
+		const evidence = createReviewEvidence();
+		const context = createReviewContext(evidence);
+		const evaluation = evaluateReviewSelector(recipe, evidence);
+		const candidate = createRecipeReviewCandidate({
 			context,
 			recipe,
 			evaluation,
@@ -69,17 +69,17 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 		const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
 		assert.ok(recipe);
 
-		const evidence = createTableReviewEvidence({
+		const evidence = createReviewEvidence({
 			columns: [
 				createColumn(0, "voltage", "V", "CH1 Voltage"),
 				createColumn(1, "current", "A", "CH1 Current"),
 			],
 		});
-		const context = createTableReviewContext(evidence);
-		const candidate = createRecipeTableReviewCandidate({
+		const context = createReviewContext(evidence);
+		const candidate = createRecipeReviewCandidate({
 			context,
 			recipe,
-			evaluation: evaluateTableReviewSelector(recipe, evidence),
+			evaluation: evaluateReviewSelector(recipe, evidence),
 		});
 
 		assert.ok(candidate);
@@ -97,8 +97,8 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 		const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
 		assert.ok(recipe);
 
-		const evidence = createTableReviewEvidence();
-		const context = createTableReviewContext(evidence);
+		const evidence = createReviewEvidence();
+		const context = createReviewContext(evidence);
 		const incompleteRecipe = {
 			...recipe,
 			id: "workspace.missing-projection",
@@ -116,10 +116,10 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 				},
 			},
 		};
-		const candidate = createRecipeTableReviewCandidate({
+		const candidate = createRecipeReviewCandidate({
 			context,
 			recipe: incompleteRecipe,
-			evaluation: evaluateTableReviewSelector(incompleteRecipe, evidence),
+			evaluation: evaluateReviewSelector(incompleteRecipe, evidence),
 		});
 
 		assert.ok(candidate);
@@ -129,15 +129,15 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 			["recipeProjection.missingCapture"],
 		);
 
-		const review = scoreTableReviewCandidate({ candidate, context });
+		const review = scoreReviewCandidate({ candidate, context });
 		assert.equal(review.status, "needsAdjustment");
 		assert.equal(review.findings.some(finding => finding.code === "review.missingProjectionBlock"), true);
 		assert.ok(review.confidence <= 0.49, String(review.confidence));
 	});
 
-	test("keeps compatible user templates as ready table review candidates", () => {
-		const candidates = deriveUserTemplateTableReviewCandidates({
-			context: createTableReviewContext(createTableReviewEvidence()),
+	test("keeps compatible user templates as ready review candidates", () => {
+		const candidates = deriveUserTemplateReviewCandidates({
+			context: createReviewContext(createReviewEvidence()),
 			userTemplateSnapshot: createUserTemplateSnapshot([createUserTemplate({
 				...createTemplate(),
 				id: "template-a",
@@ -162,18 +162,18 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 		const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
 		assert.ok(recipe);
 
-		const evidence = createTableReviewEvidence();
-		const context = createTableReviewContext(evidence);
-		const candidate = createRecipeTableReviewCandidate({
+		const evidence = createReviewEvidence();
+		const context = createReviewContext(evidence);
+		const candidate = createRecipeReviewCandidate({
 			context,
 			recipe,
-			evaluation: evaluateTableReviewSelector(recipe, evidence),
+			evaluation: evaluateReviewSelector(recipe, evidence),
 		});
 		assert.ok(candidate);
 		const { modelVersion, ...candidateWithoutModelVersion } = candidate;
 		assert.equal(modelVersion, 3);
 
-		const staleReview = scoreTableReviewCandidate({
+		const staleReview = scoreReviewCandidate({
 			candidate: candidateWithoutModelVersion,
 			context,
 		});
@@ -182,11 +182,54 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 		assert.equal(staleReview.findings.some(finding => finding.code === "review.staleModelVersion"), true);
 	});
 
+	test("treats mismatched URI content hashes as stale", () => {
+		const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
+		assert.ok(recipe);
+
+		const evidence = createReviewEvidence();
+		const context = createReviewContext(evidence, { contentHash: "sha256:first" });
+		const candidate = createRecipeReviewCandidate({
+			context,
+			recipe,
+			evaluation: evaluateReviewSelector(recipe, evidence),
+		});
+		assert.ok(candidate);
+
+		const staleReview = scoreReviewCandidate({
+			candidate,
+			context: {
+				...context,
+				contentHash: "sha256:second",
+			},
+		});
+
+		assert.equal(staleReview.status, "invalid");
+		assert.equal(staleReview.findings.some(finding => finding.code === "review.staleContentHash"), true);
+	});
+
+	test("exports review candidates as segment candidates for the content-first pipeline", () => {
+		const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
+		assert.ok(recipe);
+
+		const evidence = createReviewEvidence();
+		const context = createReviewContext(evidence, { contentHash: "sha256:first" });
+		const candidate = createRecipeReviewCandidate({
+			context,
+			recipe,
+			evaluation: evaluateReviewSelector(recipe, evidence),
+		});
+		const segmentCandidate: SegmentCandidate = candidate;
+
+		assert.ok(segmentCandidate);
+		assert.equal(segmentCandidate.contentHash, "sha256:first");
+		assert.equal(segmentCandidate.evidenceFingerprint, "evidence:test");
+	});
+
 	test("orders matching recipe candidates by recipe priority", () => {
 		const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
 		assert.ok(recipe);
-		const candidates = deriveRecipeTableReviewCandidates({
-			context: createTableReviewContext(createTableReviewEvidence()),
+		const candidates = deriveRecipeReviewCandidates({
+			context: createReviewContext(createReviewEvidence()),
 			recipeSnapshot: {
 				version: 1,
 				fingerprint: "recipe:test",
@@ -213,8 +256,8 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 	});
 
 	test("rejects user templates with mismatched applicability", () => {
-		const candidates = deriveUserTemplateTableReviewCandidates({
-			context: createTableReviewContext(createTableReviewEvidence()),
+		const candidates = deriveUserTemplateReviewCandidates({
+			context: createReviewContext(createReviewEvidence()),
 			userTemplateSnapshot: createUserTemplateSnapshot([createUserTemplate({
 				...createTemplate(),
 				id: "template-a",
@@ -228,10 +271,14 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 	});
 });
 
-const createTableReviewContext = (
-	evidence: TableReviewEvidence,
-): TableReviewContext => ({
+const createReviewContext = (
+	evidence: ReviewEvidence,
+	options: {
+		readonly contentHash?: string;
+	} = {},
+): ReviewContext => ({
 	resource: URI.file("/workspace/transfer.csv"),
+	...(options.contentHash ? { contentHash: options.contentHash } : {}),
 	modelVersion: 3,
 	sourceVersion: 4,
 	evidenceFingerprint: "evidence:test",
@@ -262,63 +309,65 @@ const createUserTemplate = (template: Template): UserTemplate => ({
 	updatedAt: 0,
 });
 
-const createTableReviewEvidence = (options: {
+const createReviewEvidence = (options: {
 	readonly columns?: readonly MeasurementColumnRef[];
-} = {}): TableReviewEvidence => ({
-	structure: {
-		...createEmptyRawTableStructure(),
-		fingerprint: "schema-a",
-	},
-	columnProfiles: [],
-	layoutCandidates: [{
-		id: "layout-a",
-		layoutKind: "simpleXY",
-		confidence: 0.9,
-		bindings: [{
-			xCol: 0,
-			yCols: [1],
-		}],
-		reasons: [],
-	}],
-	semanticCandidates: [],
-	groups: [],
-	blocks: [{
-		id: "block-a",
-		fileId: "file-a",
-		rawTableId: "table-a",
-		label: "Transfer",
-		family: "iv",
-		ivMode: "transfer",
-		source: {
-			fullRange: {
-				startRow: 0,
-				endRow: 3,
-				startCol: 0,
-				endCol: 1,
-			},
-			dataRange: {
-				startRow: 1,
-				endRow: 3,
-				startCol: 0,
-				endCol: 1,
-			},
-		},
-		columns: {
-			columns: options.columns ?? [
-				createColumn(0, "vg", "V"),
-				createColumn(1, "id", "A"),
-			],
-		},
-		rowCount: 4,
-		columnCount: 2,
-		confidence: 0.95,
-		diagnosticCodes: [],
-	}],
-	diagnostics: [],
+} = {}): ReviewEvidence => ({
 	sourceMetadata: {
 		fileName: "Transfer.csv",
 		rowCount: 4,
 		columnCount: 2,
+	},
+	tableProjection: {
+		structure: {
+			...createEmptyRawTableStructure(),
+			fingerprint: "schema-a",
+		},
+		columnProfiles: [],
+		layoutCandidates: [{
+			id: "layout-a",
+			layoutKind: "simpleXY",
+			confidence: 0.9,
+			bindings: [{
+				xCol: 0,
+				yCols: [1],
+			}],
+			reasons: [],
+		}],
+		semanticCandidates: [],
+		groups: [],
+		blocks: [{
+			id: "block-a",
+			fileId: "file-a",
+			rawTableId: "table-a",
+			label: "Transfer",
+			family: "iv",
+			ivMode: "transfer",
+			source: {
+				fullRange: {
+					startRow: 0,
+					endRow: 3,
+					startCol: 0,
+					endCol: 1,
+				},
+				dataRange: {
+					startRow: 1,
+					endRow: 3,
+					startCol: 0,
+					endCol: 1,
+				},
+			},
+			columns: {
+				columns: options.columns ?? [
+					createColumn(0, "vg", "V"),
+					createColumn(1, "id", "A"),
+				],
+			},
+			rowCount: 4,
+			columnCount: 2,
+			confidence: 0.95,
+			diagnosticCodes: [],
+		}],
+		diagnostics: [],
 	},
 });
 

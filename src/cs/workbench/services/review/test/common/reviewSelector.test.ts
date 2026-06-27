@@ -5,23 +5,23 @@
 import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import { evaluateTableReviewSelector } from "src/cs/workbench/services/review/common/reviewSelector";
+import { evaluateReviewSelector } from "src/cs/workbench/services/review/common/reviewSelector";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
 import type {
 	MeasurementBlockRecord,
 	MeasurementColumnRef,
 } from "src/cs/workbench/services/tableModel/common/measurement";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
-import type { TableReviewEvidence } from "src/cs/workbench/services/review/common/reviewModel";
+import type { ReviewEvidence } from "src/cs/workbench/services/review/common/reviewModel";
 
 suite("workbench/services/review/test/common/reviewSelector", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test("matches builtin IV transfer recipe against table review evidence", () => {
+	test("matches builtin IV transfer recipe against review evidence", () => {
 		const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
 		assert.ok(recipe);
 
-		const evaluation = evaluateTableReviewSelector(recipe, createTableReviewEvidence({
+		const evaluation = evaluateReviewSelector(recipe, createReviewEvidence({
 			family: "iv",
 			ivMode: "transfer",
 			columns: [{
@@ -57,7 +57,7 @@ suite("workbench/services/review/test/common/reviewSelector", () => {
 		const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
 		assert.ok(recipe);
 
-		const evaluation = evaluateTableReviewSelector(recipe, createTableReviewEvidence({
+		const evaluation = evaluateReviewSelector(recipe, createReviewEvidence({
 			family: "iv",
 			ivMode: "transfer",
 			columns: [{
@@ -78,7 +78,7 @@ suite("workbench/services/review/test/common/reviewSelector", () => {
 	});
 });
 
-const createTableReviewEvidence = ({
+const createReviewEvidence = ({
 	columns,
 	family,
 	ivMode,
@@ -86,51 +86,53 @@ const createTableReviewEvidence = ({
 	readonly columns: readonly MeasurementColumnRef[];
 	readonly family: MeasurementBlockRecord["family"];
 	readonly ivMode?: MeasurementBlockRecord["ivMode"];
-}): TableReviewEvidence => ({
-	structure: {
-		...createEmptyRawTableStructure(),
-		fingerprint: "schema-a",
-	},
-	columnProfiles: [],
-	layoutCandidates: [{
-		id: "layout-a",
-		layoutKind: "simpleXY",
-		confidence: 0.9,
-		bindings: [{
-			xCol: 0,
-			yCols: [1],
-		}],
-		reasons: [],
-	}],
-	semanticCandidates: [],
-	groups: [],
-	blocks: [{
-		id: "block-a",
-		fileId: "file-a",
-		rawTableId: "table-a",
-		label: "Block A",
-		family,
-		ivMode,
-		source: {
-			fullRange: {
-				startRow: 0,
-				endRow: 1,
-				startCol: 0,
-				endCol: 1,
-			},
-		},
-		columns: {
-			columns,
-		},
-		rowCount: 2,
-		columnCount: 2,
-		confidence: 0.95,
-		diagnosticCodes: [],
-	}],
-	diagnostics: [],
+}): ReviewEvidence => ({
 	sourceMetadata: {
 		fileName: "transfer.csv",
 		rowCount: 2,
 		columnCount: 2,
+	},
+	tableProjection: {
+		structure: {
+			...createEmptyRawTableStructure(),
+			fingerprint: "schema-a",
+		},
+		columnProfiles: [],
+		layoutCandidates: [{
+			id: "layout-a",
+			layoutKind: "simpleXY",
+			confidence: 0.9,
+			bindings: [{
+				xCol: 0,
+				yCols: [1],
+			}],
+			reasons: [],
+		}],
+		semanticCandidates: [],
+		groups: [],
+		blocks: [{
+			id: "block-a",
+			fileId: "file-a",
+			rawTableId: "table-a",
+			label: "Block A",
+			family,
+			ivMode,
+			source: {
+				fullRange: {
+					startRow: 0,
+					endRow: 1,
+					startCol: 0,
+					endCol: 1,
+				},
+			},
+			columns: {
+				columns,
+			},
+			rowCount: 2,
+			columnCount: 2,
+			confidence: 0.95,
+			diagnosticCodes: [],
+		}],
+		diagnostics: [],
 	},
 });

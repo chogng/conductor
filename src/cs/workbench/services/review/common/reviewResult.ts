@@ -5,23 +5,23 @@
 import type {
 	ReviewDiagnostic,
 	ReviewedTemplateSource,
-	TableCandidateReview,
-	TableReviewCandidate,
-	TableReviewCandidateInterpretation,
-	TableReviewCandidateSummary,
-	TableReviewContext,
-	TableReviewResult,
-	TableReviewSourceMetadata,
-	TableReviewSummaryTarget,
+	CandidateReview,
+	ReviewCandidate,
+	ReviewCandidateInterpretation,
+	ReviewCandidateSummary,
+	ReviewContext,
+	ReviewResult,
+	ReviewSourceMetadata,
+	ReviewSummaryTarget,
 } from "src/cs/workbench/services/review/common/reviewModel";
 import { URI } from "src/cs/base/common/uri";
-import { deriveAutomaticTableReviewCandidates } from "src/cs/workbench/services/review/common/reviewCandidate";
+import { deriveAutomaticReviewCandidates } from "src/cs/workbench/services/review/common/reviewCandidate";
 import {
 	REVIEW_ENGINE_VERSION,
 	REVIEW_POLICY_VERSION,
 	createReviewEvidenceSignature,
 } from "src/cs/workbench/services/review/common/review";
-import { scoreTableReviewCandidates } from "src/cs/workbench/services/review/common/reviewScoring";
+import { scoreReviewCandidates } from "src/cs/workbench/services/review/common/reviewScoring";
 import type { RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
 import type { TableModelRecord } from "src/cs/workbench/services/tableModel/common/tableModel";
 import type { Template } from "src/cs/workbench/services/template/common/template";
@@ -30,33 +30,34 @@ import type { UserTemplateSnapshot } from "src/cs/workbench/services/userTemplat
 
 const SYSTEM_RECOMMENDED_CONFIDENCE = 0.85;
 
-export type TableReviewDerivationInput = {
+export type ReviewDerivationInput = {
 	readonly tableModel: TableModelRecord;
 	readonly columnCount?: number;
+	readonly contentHash?: string | null;
 	readonly fileName?: string | null;
 	readonly modelVersion: number;
 	readonly recipeSnapshot: RecipeSnapshot;
-	readonly resource: TableReviewSummaryTarget["resource"];
+	readonly resource: ReviewSummaryTarget["resource"];
 	readonly rowCount?: number;
 	readonly sheetId?: string | null;
 	readonly sourceVersion: number;
 	readonly userTemplateSnapshot: UserTemplateSnapshot;
 };
 
-export const deriveTableReviewResult = (
-	input: TableReviewDerivationInput,
-): TableReviewResult => {
-	const context = createTableReviewContext(input);
-	const candidates = deriveAutomaticTableReviewCandidates({
+export const deriveReviewResult = (
+	input: ReviewDerivationInput,
+): ReviewResult => {
+	const context = createReviewContext(input);
+	const candidates = deriveAutomaticReviewCandidates({
 		context,
 		recipeSnapshot: input.recipeSnapshot,
 		userTemplateSnapshot: input.userTemplateSnapshot,
 	});
-	const reviews = scoreTableReviewCandidates({
+	const reviews = scoreReviewCandidates({
 		candidates,
 		context,
 	});
-	const decision = createTableReviewDecision({
+	const decision = createReviewDecision({
 		candidates,
 		reviews,
 	});
@@ -65,6 +66,7 @@ export const deriveTableReviewResult = (
 		resource: context.resource,
 		modelVersion: context.modelVersion,
 		sourceVersion: context.sourceVersion,
+		...(context.contentHash ? { contentHash: context.contentHash } : {}),
 		...(context.sheetId ? { sheetId: context.sheetId } : {}),
 		evidenceFingerprint: context.evidenceFingerprint,
 		recipeFingerprint: input.recipeSnapshot.fingerprint,
@@ -72,18 +74,19 @@ export const deriveTableReviewResult = (
 		userTemplateEffectiveFingerprint: input.userTemplateSnapshot.effectiveFingerprint,
 		reviewEngineVersion: REVIEW_ENGINE_VERSION,
 		reviewPolicyVersion: REVIEW_POLICY_VERSION,
-		candidates: candidates.map(createTableReviewCandidateSummary),
+		candidates: candidates.map(createReviewCandidateSummary),
 		reviews,
 		decision,
 		...(decision.kind === "ready" ? { reviewedTemplate: decision.reviewedTemplate } : {}),
 	};
 };
 
-const createTableReviewContext = (
-	input: TableReviewDerivationInput,
-): TableReviewContext => {
+const createReviewContext = (
+	input: ReviewDerivationInput,
+): ReviewContext => {
 	const evidenceFingerprint = createReviewEvidenceSignature(input.tableModel, {
 		columnCount: input.columnCount,
+		contentHash: input.contentHash,
 		fileName: input.fileName,
 		rowCount: input.rowCount,
 		...(input.sheetId !== undefined ? { sheetId: input.sheetId } : {}),
@@ -93,25 +96,29 @@ const createTableReviewContext = (
 		resource: URI.revive(input.resource),
 		modelVersion: input.modelVersion,
 		sourceVersion: input.sourceVersion,
+		...(normalizeText(input.contentHash) ? { contentHash: normalizeText(input.contentHash) } : {}),
 		...(normalizeText(input.sheetId) ? { sheetId: normalizeText(input.sheetId) } : {}),
 		evidenceFingerprint,
 		evidence: {
-			structure: input.tableModel.structure,
-			columnProfiles: input.tableModel.columnProfiles,
-			layoutCandidates: input.tableModel.layoutCandidates,
-			semanticCandidates: input.tableModel.semanticCandidates,
-			groups: input.tableModel.groups,
-			blocks: input.tableModel.blocks,
-			diagnostics: input.tableModel.diagnostics,
-			sourceMetadata: createTableReviewSourceMetadata(input),
+			sourceMetadata: createReviewSourceMetadata(input),
+			tableProjection: {
+				structure: input.tableModel.structure,
+				columnProfiles: input.tableModel.columnProfiles,
+				layoutCandidates: input.tableModel.layoutCandidates,
+				semanticCandidates: input.tableModel.semanticCandidates,
+				groups: input.tableModel.groups,
+				blocks: input.tableModel.blocks,
+				diagnostics: input.tableModel.diagnostics,
+			},
 		},
 	};
 };
 
-const createTableReviewSourceMetadata = (
-	input: TableReviewDerivationInput,
-): TableReviewSourceMetadata => ({
+const createReviewSourceMetadata = (
+	input: ReviewDerivationInput,
+): ReviewSourceMetadata => ({
 	...(input.columnCount !== undefined ? { columnCount: input.columnCount } : {}),
+	...(normalizeText(input.contentHash) ? { contentHash: normalizeText(input.contentHash) } : {}),
 	...(input.fileName !== undefined ? { fileName: input.fileName } : {}),
 	...(input.rowCount !== undefined ? { rowCount: input.rowCount } : {}),
 	sourceModelVersion: input.modelVersion,
@@ -165,14 +172,14 @@ const getResourceString = (
 	return "";
 };
 
-const createTableReviewDecision = ({
+const createReviewDecision = ({
 	candidates,
 	reviews,
 }: {
-	readonly candidates: readonly TableReviewCandidate[];
-	readonly reviews: readonly TableCandidateReview[];
-}): TableReviewResult["decision"] => {
-	const readySelection = selectTableReviewCandidate({
+	readonly candidates: readonly ReviewCandidate[];
+	readonly reviews: readonly CandidateReview[];
+}): ReviewResult["decision"] => {
+	const readySelection = selectReviewCandidate({
 		candidates,
 		isEligibleReview: review => review.status === "ready",
 		reviews,
@@ -210,7 +217,7 @@ const createTableReviewDecision = ({
 	}
 
 	if (candidates.length) {
-		const selection = selectTableReviewCandidate({
+		const selection = selectReviewCandidate({
 			candidates,
 			isEligibleReview: review => review.status !== "ready",
 			reviews,
@@ -220,7 +227,7 @@ const createTableReviewDecision = ({
 		if (review?.status === "invalid" && review.findings.some(finding => finding.blocking)) {
 			return {
 				kind: "invalid",
-				summary: "Table review candidates are invalid.",
+				summary: "Review candidates are invalid.",
 				reasons: review.reasons,
 				diagnostics: createReviewDiagnosticsFromFindings(review.findings),
 				suggestedActions: [{ id: "review.createTemplate", label: "Create template" }],
@@ -229,7 +236,7 @@ const createTableReviewDecision = ({
 		return {
 			kind: "needsManualAdjustment",
 			...(candidate ? { candidateId: candidate.id } : {}),
-			summary: "Table review candidates need manual adjustment before application.",
+			summary: "Review candidates need manual adjustment before application.",
 			reasons: review?.reasons ?? ["review.noReadyCandidate"],
 			diagnostics: review?.diagnostics ?? [],
 			suggestedActions: [{ id: "review.adjustTemplate", label: "Adjust template" }],
@@ -238,26 +245,26 @@ const createTableReviewDecision = ({
 
 	return {
 		kind: "invalid",
-		summary: "No usable table review candidates were found.",
+		summary: "No usable review candidates were found.",
 		reasons: ["review.noCandidates"],
 		diagnostics: [{
 			severity: "warning",
 			code: "review.noCandidates",
-			message: "No Recipe or UserTemplate candidates matched this table evidence.",
+			message: "No Recipe or UserTemplate candidates matched this content evidence.",
 		}],
 		suggestedActions: [{ id: "review.createTemplate", label: "Create template" }],
 	};
 };
 
-const selectTableReviewCandidate = ({
+const selectReviewCandidate = ({
 	candidates,
 	isEligibleReview,
 	reviews,
 }: {
-	readonly candidates: readonly TableReviewCandidate[];
-	readonly isEligibleReview: (review: TableCandidateReview) => boolean;
-	readonly reviews: readonly TableCandidateReview[];
-}): { readonly candidate: TableReviewCandidate; readonly review: TableCandidateReview } | undefined => {
+	readonly candidates: readonly ReviewCandidate[];
+	readonly isEligibleReview: (review: CandidateReview) => boolean;
+	readonly reviews: readonly CandidateReview[];
+}): { readonly candidate: ReviewCandidate; readonly review: CandidateReview } | undefined => {
 	const candidateIndexById = new Map<string, number>();
 	candidates.forEach((candidate, index) => {
 		candidateIndexById.set(candidate.id, index);
@@ -266,7 +273,7 @@ const selectTableReviewCandidate = ({
 	return reviews
 		.filter(review => isEligibleReview(review) && candidateIndexById.has(review.candidateId))
 		.sort((left, right) =>
-			getTableCandidateReviewStatusRank(right.status) - getTableCandidateReviewStatusRank(left.status) ||
+			getCandidateReviewStatusRank(right.status) - getCandidateReviewStatusRank(left.status) ||
 			right.confidence - left.confidence ||
 			(candidateIndexById.get(left.candidateId) ?? Number.MAX_SAFE_INTEGER) -
 				(candidateIndexById.get(right.candidateId) ?? Number.MAX_SAFE_INTEGER)
@@ -275,11 +282,11 @@ const selectTableReviewCandidate = ({
 			const candidate = candidates[candidateIndexById.get(review.candidateId) ?? -1];
 			return candidate ? { candidate, review } : undefined;
 		})
-		.find((selection): selection is { readonly candidate: TableReviewCandidate; readonly review: TableCandidateReview } => Boolean(selection));
+		.find((selection): selection is { readonly candidate: ReviewCandidate; readonly review: CandidateReview } => Boolean(selection));
 };
 
-const getTableCandidateReviewStatusRank = (
-	status: TableCandidateReview["status"],
+const getCandidateReviewStatusRank = (
+	status: CandidateReview["status"],
 ): number => {
 	switch (status) {
 		case "ready":
@@ -292,7 +299,7 @@ const getTableCandidateReviewStatusRank = (
 };
 
 const createReviewDiagnosticsFromFindings = (
-	findings: readonly TableCandidateReview["findings"][number][],
+	findings: readonly CandidateReview["findings"][number][],
 ): readonly ReviewDiagnostic[] =>
 	findings.map(finding => ({
 		severity: finding.severity,
@@ -300,38 +307,38 @@ const createReviewDiagnosticsFromFindings = (
 		message: finding.message,
 	}));
 
-const createTableReviewCandidateSummary = (
-	candidate: TableReviewCandidate,
-): TableReviewCandidateSummary => ({
+const createReviewCandidateSummary = (
+	candidate: ReviewCandidate,
+): ReviewCandidateSummary => ({
 	id: candidate.id,
 	source: candidate.source,
 	interpretationFingerprint: candidate.interpretationFingerprint,
 	displayName: candidate.interpretation.name,
 	...(candidate.providerRank !== undefined ? { providerRank: candidate.providerRank } : {}),
-	reasonCodes: getTableReviewCandidateReasons(candidate),
-	diagnosticCodes: getTableReviewCandidateDiagnostics(candidate).map(diagnostic => diagnostic.code),
+	reasonCodes: getReviewCandidateReasons(candidate),
+	diagnosticCodes: getReviewCandidateDiagnostics(candidate).map(diagnostic => diagnostic.code),
 });
 
-const getTableReviewCandidateReasons = (
-	candidate: TableReviewCandidate,
+const getReviewCandidateReasons = (
+	candidate: ReviewCandidate,
 ): readonly string[] => [
 	...candidate.selectorTrace.reasons,
 	...candidate.projectionTrace.reasons,
 ];
 
-const getTableReviewCandidateDiagnostics = (
-	candidate: TableReviewCandidate,
+const getReviewCandidateDiagnostics = (
+	candidate: ReviewCandidate,
 ): readonly ReviewDiagnostic[] => [
 	...candidate.selectorTrace.diagnostics,
 	...candidate.projectionTrace.diagnostics,
 ];
 
 const toReviewedTemplateSource = (
-	source: TableReviewCandidate["source"],
+	source: ReviewCandidate["source"],
 ): ReviewedTemplateSource => source;
 
 const createReviewedTemplateSnapshotFromCandidateInterpretation = (
-	interpretation: TableReviewCandidateInterpretation,
+	interpretation: ReviewCandidateInterpretation,
 ): Template => ({
 	schemaVersion: 1,
 	name: interpretation.name,
