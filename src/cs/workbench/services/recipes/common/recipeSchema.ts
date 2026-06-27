@@ -103,3 +103,13 @@ export type RecipeRoles = {
 	readonly y: RecipeRole;
 	readonly group?: RecipeGroupRole;
 };
+
+export type RecipeSchema = {
+	readonly dataRange: RecipeDataRange;
+	readonly blockPartition: RecipeBlockPartition;
+	readonly withinBlock: RecipeWithinBlock;
+	readonly seriesPartition: RecipeSeriesPartition;
+	readonly logicalRelation: RecipeLogicalRelation;
+	readonly domain?: RecipeDomain;
+	readonly roles: RecipeRoles;
+};

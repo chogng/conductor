@@ -2,25 +2,12 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type {
-	Recipe,
-	RecipeDiagnostic,
-	RecipeSnapshot,
-} from "cs/workbench/services/recipes/common/recipe";
-import type {
-	RecipeBlockPartition,
-	RecipeDataRange,
-	RecipeDomain,
-	RecipeGroupRole,
-	RecipeRole,
-	RecipeRoles,
-	RecipeSeriesPartition,
-	RecipeWithinBlock,
-} from "cs/workbench/services/recipes/common/recipeSchema";
+import type * as RecipeContract from "./recipe";
+import type * as RecipeSchema from "./recipeSchema";
 
 type NormalizeRecipeResult = {
-	readonly recipes: readonly Recipe[];
-	readonly diagnostics: readonly RecipeDiagnostic[];
+	readonly recipes: readonly RecipeContract.Recipe[];
+	readonly diagnostics: readonly RecipeContract.RecipeDiagnostic[];
 };
 
 const RECIPE_DATA_RANGE_KINDS = new Set([
@@ -125,7 +112,7 @@ const RECIPE_ROLE_CARDINALITIES = new Set([
 export const createRecipeSnapshot = (
 	recipesInput: readonly unknown[],
 	version = 1,
-): RecipeSnapshot => {
+): RecipeContract.RecipeSnapshot => {
 	const { recipes, diagnostics } = normalizeRecipes(recipesInput);
 	return {
 		version,
@@ -138,8 +125,8 @@ export const createRecipeSnapshot = (
 export const normalizeRecipes = (
 	recipesInput: readonly unknown[],
 ): NormalizeRecipeResult => {
-	const recipes: Recipe[] = [];
-	const diagnostics: RecipeDiagnostic[] = [];
+	const recipes: RecipeContract.Recipe[] = [];
+	const diagnostics: RecipeContract.RecipeDiagnostic[] = [];
 	const seenIds = new Set<string>();
 
 	for (const input of recipesInput) {
@@ -173,7 +160,7 @@ export const normalizeRecipes = (
 };
 
 export const createRecipeSetFingerprint = (
-	recipes: readonly Recipe[],
+	recipes: readonly RecipeContract.Recipe[],
 ): string => `recipe:${hashString(stableStringify(recipes))}`;
 
 export const stableStringify = (value: unknown): string =>
@@ -182,8 +169,8 @@ export const stableStringify = (value: unknown): string =>
 const normalizeRecipe = (
 	input: unknown,
 ): {
-	readonly recipes: readonly Recipe[];
-	readonly diagnostics: readonly RecipeDiagnostic[];
+	readonly recipes: readonly RecipeContract.Recipe[];
+	readonly diagnostics: readonly RecipeContract.RecipeDiagnostic[];
 } => {
 	if (!isObjectRecord(input)) {
 		return {
@@ -206,21 +193,21 @@ const normalizeRecipe = (
 const normalizeConcreteRecipe = (
 	input: Record<string, unknown>,
 ): {
-	readonly recipes: readonly Recipe[];
-	readonly diagnostics: readonly RecipeDiagnostic[];
+	readonly recipes: readonly RecipeContract.Recipe[];
+	readonly diagnostics: readonly RecipeContract.RecipeDiagnostic[];
 } => {
-	const diagnostics: RecipeDiagnostic[] = [];
+	const diagnostics: RecipeContract.RecipeDiagnostic[] = [];
 	const id = normalizeText(input.id);
 	const version = normalizePositiveInteger(input.version);
 	const priority = normalizeFiniteNumber(input.priority);
 	const label = normalizeText(input.label);
-	const dataRange = isObjectRecord(input.dataRange) ? input.dataRange as RecipeDataRange : null;
-	const blockPartition = isObjectRecord(input.blockPartition) ? input.blockPartition as RecipeBlockPartition : null;
-	const withinBlock = isObjectRecord(input.withinBlock) ? input.withinBlock as RecipeWithinBlock : null;
+	const dataRange = isObjectRecord(input.dataRange) ? input.dataRange as RecipeSchema.RecipeDataRange : null;
+	const blockPartition = isObjectRecord(input.blockPartition) ? input.blockPartition as RecipeSchema.RecipeBlockPartition : null;
+	const withinBlock = isObjectRecord(input.withinBlock) ? input.withinBlock as RecipeSchema.RecipeWithinBlock : null;
 	const seriesPartition = readRecipeSeriesPartition(input.seriesPartition);
 	const logicalRelation = normalizeText(input.logicalRelation);
-	const domain = isObjectRecord(input.domain) ? input.domain as RecipeDomain : undefined;
-	const roles = isObjectRecord(input.roles) ? input.roles as RecipeRoles : null;
+	const domain = isObjectRecord(input.domain) ? input.domain as RecipeSchema.RecipeDomain : undefined;
+	const roles = isObjectRecord(input.roles) ? input.roles as RecipeSchema.RecipeRoles : null;
 
 	if (!id) {
 		diagnostics.push(createRecipeDiagnostic(id, "recipe.missingId", "Recipe id is required."));
@@ -273,7 +260,7 @@ const normalizeConcreteRecipe = (
 			blockPartition,
 			withinBlock,
 			seriesPartition,
-			logicalRelation: logicalRelation as Recipe["logicalRelation"],
+			logicalRelation: logicalRelation as RecipeContract.Recipe["logicalRelation"],
 			...(domain ? { domain } : {}),
 			roles,
 			...(typeof input.stopOnError === "boolean" ? { stopOnError: input.stopOnError } : {}),
@@ -285,22 +272,22 @@ const normalizeConcreteRecipe = (
 const normalizeRecipeWithVariants = (
 	input: Record<string, unknown>,
 ): {
-	readonly recipes: readonly Recipe[];
-	readonly diagnostics: readonly RecipeDiagnostic[];
+	readonly recipes: readonly RecipeContract.Recipe[];
+	readonly diagnostics: readonly RecipeContract.RecipeDiagnostic[];
 } => {
-	const diagnostics: RecipeDiagnostic[] = [];
+	const diagnostics: RecipeContract.RecipeDiagnostic[] = [];
 	const id = normalizeText(input.id);
 	const version = normalizePositiveInteger(input.version);
-	const dataRange = isObjectRecord(input.dataRange) ? input.dataRange as RecipeDataRange : null;
-	const blockPartition = isObjectRecord(input.blockPartition) ? input.blockPartition as RecipeBlockPartition : null;
-	const withinBlock = isObjectRecord(input.withinBlock) ? input.withinBlock as RecipeWithinBlock : null;
+	const dataRange = isObjectRecord(input.dataRange) ? input.dataRange as RecipeSchema.RecipeDataRange : null;
+	const blockPartition = isObjectRecord(input.blockPartition) ? input.blockPartition as RecipeSchema.RecipeBlockPartition : null;
+	const withinBlock = isObjectRecord(input.withinBlock) ? input.withinBlock as RecipeSchema.RecipeWithinBlock : null;
 	const seriesPartition = readRecipeSeriesPartition(input.seriesPartition);
 	const logicalRelation = normalizeText(input.logicalRelation);
-	const domain = isObjectRecord(input.domain) ? input.domain as RecipeDomain : undefined;
+	const domain = isObjectRecord(input.domain) ? input.domain as RecipeSchema.RecipeDomain : undefined;
 	const roles = input.roles === undefined
 		? undefined
 		: isObjectRecord(input.roles)
-			? input.roles as RecipeRoles
+			? input.roles as RecipeSchema.RecipeRoles
 			: null;
 	const priority = input.priority === undefined ? undefined : normalizeFiniteNumber(input.priority);
 	const label = input.label === undefined ? undefined : normalizeText(input.label);
@@ -337,7 +324,7 @@ const normalizeRecipeWithVariants = (
 	}
 
 	const baseHasErrors = diagnostics.some(diagnostic => diagnostic.severity === "error");
-	const recipes: Recipe[] = [];
+	const recipes: RecipeContract.Recipe[] = [];
 	if (!variants) {
 		return { recipes, diagnostics };
 	}
@@ -356,7 +343,7 @@ const normalizeRecipeWithVariants = (
 		const variantBlockPartition = variantInput.blockPartition === undefined
 			? blockPartition
 			: isObjectRecord(variantInput.blockPartition)
-				? variantInput.blockPartition as RecipeBlockPartition
+				? variantInput.blockPartition as RecipeSchema.RecipeBlockPartition
 				: null;
 		const variantSeriesPartition = variantInput.seriesPartition === undefined
 			? seriesPartition
@@ -364,12 +351,12 @@ const normalizeRecipeWithVariants = (
 		const variantLogicalRelation = variantInput.logicalRelation === undefined
 			? logicalRelation
 			: normalizeText(variantInput.logicalRelation);
-		const variantDomain = isObjectRecord(variantInput.domain) ? variantInput.domain as RecipeDomain : undefined;
+		const variantDomain = isObjectRecord(variantInput.domain) ? variantInput.domain as RecipeSchema.RecipeDomain : undefined;
 		const mergedDomain = mergeRecipeDomain(domain, variantDomain);
 		const variantRoles = variantInput.roles === undefined
 			? roles
 			: isObjectRecord(variantInput.roles)
-				? variantInput.roles as RecipeRoles
+				? variantInput.roles as RecipeSchema.RecipeRoles
 				: null;
 		const variantStopOnError = typeof variantInput.stopOnError === "boolean"
 			? variantInput.stopOnError
@@ -425,7 +412,7 @@ const normalizeRecipeWithVariants = (
 			blockPartition: variantBlockPartition,
 			withinBlock,
 			seriesPartition: variantSeriesPartition,
-			logicalRelation: variantLogicalRelation as Recipe["logicalRelation"],
+			logicalRelation: variantLogicalRelation as RecipeContract.Recipe["logicalRelation"],
 			...(mergedDomain ? { domain: mergedDomain } : {}),
 			roles: variantRoles,
 			...(variantStopOnError !== undefined ? { stopOnError: variantStopOnError } : {}),
@@ -436,8 +423,8 @@ const normalizeRecipeWithVariants = (
 };
 
 const validateRecipeDataRange = (
-	dataRange: RecipeDataRange | null,
-	diagnostics: RecipeDiagnostic[],
+	dataRange: RecipeSchema.RecipeDataRange | null,
+	diagnostics: RecipeContract.RecipeDiagnostic[],
 	recipeId: string,
 ): void => {
 	if (!dataRange || !RECIPE_DATA_RANGE_KINDS.has(String(dataRange.kind))) {
@@ -446,8 +433,8 @@ const validateRecipeDataRange = (
 };
 
 const validateRecipeBlockPartition = (
-	blockPartition: RecipeBlockPartition | null,
-	diagnostics: RecipeDiagnostic[],
+	blockPartition: RecipeSchema.RecipeBlockPartition | null,
+	diagnostics: RecipeContract.RecipeDiagnostic[],
 	recipeId: string,
 ): void => {
 	if (!blockPartition || !RECIPE_BLOCK_PARTITION_KINDS.has(String(blockPartition.kind))) {
@@ -463,8 +450,8 @@ const validateRecipeBlockPartition = (
 };
 
 const validateRecipeWithinBlock = (
-	withinBlock: RecipeWithinBlock | null,
-	diagnostics: RecipeDiagnostic[],
+	withinBlock: RecipeSchema.RecipeWithinBlock | null,
+	diagnostics: RecipeContract.RecipeDiagnostic[],
 	recipeId: string,
 ): void => {
 	if (!withinBlock) {
@@ -481,16 +468,16 @@ const validateRecipeWithinBlock = (
 
 const readRecipeSeriesPartition = (
 	value: unknown,
-): RecipeSeriesPartition | null => {
+): RecipeSchema.RecipeSeriesPartition | null => {
 	if (value === undefined) {
 		return { kind: "none" };
 	}
-	return isObjectRecord(value) ? value as RecipeSeriesPartition : null;
+	return isObjectRecord(value) ? value as RecipeSchema.RecipeSeriesPartition : null;
 };
 
 const validateRecipeSeriesPartition = (
-	seriesPartition: RecipeSeriesPartition | null,
-	diagnostics: RecipeDiagnostic[],
+	seriesPartition: RecipeSchema.RecipeSeriesPartition | null,
+	diagnostics: RecipeContract.RecipeDiagnostic[],
 	recipeId: string,
 ): void => {
 	if (!seriesPartition || !RECIPE_SERIES_PARTITION_KINDS.has(String(seriesPartition.kind))) {
@@ -514,7 +501,7 @@ const validateRecipeSeriesPartition = (
 
 const validateRecipeLogicalRelation = (
 	logicalRelation: string,
-	diagnostics: RecipeDiagnostic[],
+	diagnostics: RecipeContract.RecipeDiagnostic[],
 	recipeId: string,
 ): void => {
 	if (!RECIPE_LOGICAL_RELATIONS.has(logicalRelation)) {
@@ -523,8 +510,8 @@ const validateRecipeLogicalRelation = (
 };
 
 const validateRecipeDomain = (
-	domain: RecipeDomain,
-	diagnostics: RecipeDiagnostic[],
+	domain: RecipeSchema.RecipeDomain,
+	diagnostics: RecipeContract.RecipeDiagnostic[],
 	recipeId: string,
 ): void => {
 	if (domain.family !== undefined && !RECIPE_MEASUREMENT_FAMILIES.has(String(domain.family))) {
@@ -542,9 +529,9 @@ const validateRecipeDomain = (
 };
 
 const mergeRecipeDomain = (
-	base: RecipeDomain | undefined,
-	variant: RecipeDomain | undefined,
-): RecipeDomain | undefined =>
+	base: RecipeSchema.RecipeDomain | undefined,
+	variant: RecipeSchema.RecipeDomain | undefined,
+): RecipeSchema.RecipeDomain | undefined =>
 	base || variant
 		? {
 			...base,
@@ -553,8 +540,8 @@ const mergeRecipeDomain = (
 		: undefined;
 
 const validateRecipeRoles = (
-	roles: RecipeRoles | null,
-	diagnostics: RecipeDiagnostic[],
+	roles: RecipeSchema.RecipeRoles | null,
+	diagnostics: RecipeContract.RecipeDiagnostic[],
 	recipeId: string,
 ): void => {
 	if (!roles) {
@@ -570,8 +557,8 @@ const validateRecipeRoles = (
 };
 
 const validateRecipeRole = (
-	role: RecipeRole | undefined,
-	diagnostics: RecipeDiagnostic[],
+	role: RecipeSchema.RecipeRole | undefined,
+	diagnostics: RecipeContract.RecipeDiagnostic[],
 	recipeId: string,
 	roleName: string,
 ): void => {
@@ -591,8 +578,8 @@ const validateRecipeRole = (
 };
 
 const validateRecipeGroupRole = (
-	role: RecipeGroupRole,
-	diagnostics: RecipeDiagnostic[],
+	role: RecipeSchema.RecipeGroupRole,
+	diagnostics: RecipeContract.RecipeDiagnostic[],
 	recipeId: string,
 ): void => {
 	if (role.roleAny !== undefined && !isValidRoleList(role.roleAny)) {
@@ -611,7 +598,7 @@ const validateRecipeGroupRole = (
 
 const validateRecipeStopOnError = (
 	value: unknown,
-	diagnostics: RecipeDiagnostic[],
+	diagnostics: RecipeContract.RecipeDiagnostic[],
 	recipeId: string,
 ): void => {
 	if (value !== undefined && typeof value !== "boolean") {
@@ -636,7 +623,7 @@ const createRecipeDiagnostic = (
 	recipeId: string,
 	code: string,
 	message: string,
-): RecipeDiagnostic => ({
+): RecipeContract.RecipeDiagnostic => ({
 	recipeId: recipeId || undefined,
 	severity: "error",
 	code,

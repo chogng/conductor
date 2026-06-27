@@ -4,61 +4,43 @@
 
 import type { Event } from "src/cs/base/common/event";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type {
-	RecipeBlockPartition,
-	RecipeDataRange,
-	RecipeDomain,
-	RecipeLogicalRelation,
-	RecipeRoles,
-	RecipeSeriesPartition,
-	RecipeWithinBlock,
-} from "cs/workbench/services/recipes/common/recipeSchema";
+import type { RecipeSchema } from "./recipeSchema";
 
 export const IRecipeService =
   createDecorator<IRecipeService>("recipeService");
 
-export type Recipe = {
+export type Recipe = RecipeSchema & {
 	readonly id: string;
 	readonly version: number;
 	readonly priority: number;
 	readonly label: string;
-	readonly dataRange: RecipeDataRange;
-	readonly blockPartition: RecipeBlockPartition;
-	readonly withinBlock: RecipeWithinBlock;
-	readonly seriesPartition: RecipeSeriesPartition;
-	readonly logicalRelation: RecipeLogicalRelation;
-	readonly domain?: RecipeDomain;
-	readonly roles: RecipeRoles;
 	readonly stopOnError?: boolean;
 };
 
-export type RecipeVariant = {
+type RecipeVariantSchema = Partial<Pick<
+	RecipeSchema,
+	"blockPartition" | "logicalRelation" | "domain" | "roles" | "seriesPartition"
+>>;
+
+export type RecipeVariant = RecipeVariantSchema & {
 	readonly id: string;
-	readonly blockPartition?: RecipeBlockPartition;
-	readonly logicalRelation?: RecipeLogicalRelation;
 	readonly priority?: number;
 	readonly label?: string;
-	readonly domain?: RecipeDomain;
-	readonly roles?: RecipeRoles;
-	readonly seriesPartition?: RecipeSeriesPartition;
 	readonly stopOnError?: boolean;
 };
 
-export type RecipeAuthoring = Recipe | {
+type RecipeAuthoringSchema =
+	Omit<RecipeSchema, "seriesPartition" | "roles">
+	& Partial<Pick<RecipeSchema, "seriesPartition" | "roles">>;
+
+export type RecipeAuthoring = Recipe | (RecipeAuthoringSchema & {
 	readonly id: string;
 	readonly version: number;
-	readonly dataRange: RecipeDataRange;
-	readonly blockPartition: RecipeBlockPartition;
-	readonly withinBlock: RecipeWithinBlock;
-	readonly seriesPartition?: RecipeSeriesPartition;
-	readonly logicalRelation: RecipeLogicalRelation;
 	readonly priority?: number;
 	readonly label?: string;
-	readonly domain?: RecipeDomain;
-	readonly roles?: RecipeRoles;
 	readonly stopOnError?: boolean;
 	readonly variants: readonly RecipeVariant[];
-};
+});
 
 export type RecipeDiagnostic = {
   readonly recipeId?: string;

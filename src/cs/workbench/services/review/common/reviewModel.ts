@@ -3,19 +3,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { URI } from "src/cs/base/common/uri";
-import type {
-	ColumnProfile,
-	ColumnSemanticCandidate,
-	LayoutCandidate,
-	MeasurementBlockRecord,
-	MeasurementGroupRecord,
-	TableProjectionDiagnostic,
-	TableProjectionStructure,
-} from "src/cs/workbench/services/table/common/tableProjection";
+import type { StructuredContentEvidence } from "src/cs/workbench/services/dataResource/common/structuredContent";
 import type { Template, TemplateMeasurementBinding } from "src/cs/workbench/services/template/common/templateSpec";
 
-// Review owns these evidence shapes while it is their only consumer. Move them
-// to a neutral content/table owner only when another service needs the same facts.
+// Review owns this evidence wrapper around dataResource structured content.
 export type ReviewSourceMetadata = {
 	readonly columnCount?: number;
 	readonly contentHash?: string;
@@ -28,17 +19,7 @@ export type ReviewSourceMetadata = {
 
 export type ReviewEvidence = {
 	readonly sourceMetadata: ReviewSourceMetadata;
-	readonly tableProjection?: TableProjectionEvidence;
-};
-
-export type TableProjectionEvidence = {
-	readonly structure: TableProjectionStructure;
-	readonly columnProfiles: readonly ColumnProfile[];
-	readonly layoutCandidates: readonly LayoutCandidate[];
-	readonly semanticCandidates: readonly ColumnSemanticCandidate[];
-	readonly groups: readonly MeasurementGroupRecord[];
-	readonly blocks: readonly MeasurementBlockRecord[];
-	readonly diagnostics: readonly TableProjectionDiagnostic[];
+	readonly structuredContent?: StructuredContentEvidence;
 };
 
 export type ReviewContext = {

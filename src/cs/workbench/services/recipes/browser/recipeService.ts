@@ -2,24 +2,27 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from "src/cs/base/common/event";
+import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
-import { builtinRecipes } from "cs/workbench/services/recipes/common/builtinRecipes.generated";
-import {
-  IRecipeService,
-  type IRecipeService as IRecipeServiceType,
-  type RecipeSnapshot,
-} from "cs/workbench/services/recipes/common/recipe";
-import { createRecipeSnapshot } from "cs/workbench/services/recipes/common/recipeCodec";
+import { builtinRecipes } from "../common/builtinRecipes.generated";
+import { IRecipeService, type RecipeSnapshot } from "../common/recipe";
+import { createRecipeSnapshot } from "../common/recipeCodec";
 
-export class RecipeService extends Disposable implements IRecipeServiceType {
+export class RecipeService extends Disposable implements IRecipeService {
   public declare readonly _serviceBrand: undefined;
 
-  private readonly onDidChangeRecipesEmitter = this._register(new Emitter<void>());
-  public readonly onDidChangeRecipes = this.onDidChangeRecipesEmitter.event;
+  private readonly onDidChangeRecipesEmitter: Emitter<void>;
+  public readonly onDidChangeRecipes: Event<void>;
 
-  private snapshot = createRecipeSnapshot(builtinRecipes);
+  private snapshot: RecipeSnapshot;
+
+  public constructor() {
+    super();
+    this.onDidChangeRecipesEmitter = this._register(new Emitter<void>());
+    this.onDidChangeRecipes = this.onDidChangeRecipesEmitter.event;
+    this.snapshot = createRecipeSnapshot(builtinRecipes);
+  }
 
   public getSnapshot(): RecipeSnapshot {
     return this.snapshot;

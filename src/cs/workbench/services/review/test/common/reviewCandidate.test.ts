@@ -16,9 +16,9 @@ import {
 } from "src/cs/workbench/services/review/common/reviewDecision";
 import { evaluateReviewSelector } from "src/cs/workbench/services/review/common/reviewSelector";
 import {
-	createEmptyTableProjectionStructure,
-	type MeasurementColumnRef,
-} from "src/cs/workbench/services/table/common/tableProjection";
+	createEmptyStructuredContentStructure,
+	type StructuredMeasurementColumnRef as MeasurementColumnRef,
+} from "src/cs/workbench/services/dataResource/common/structuredContent";
 import { builtinRecipes } from "cs/workbench/services/recipes/common/builtinRecipes.generated";
 import type { Recipe } from "cs/workbench/services/recipes/common/recipe";
 import { createRecipeSnapshot } from "cs/workbench/services/recipes/common/recipeCodec";
@@ -327,9 +327,9 @@ const createReviewEvidence = (options: {
 		rowCount: 4,
 		columnCount: 2,
 	},
-	tableProjection: {
+	structuredContent: {
 		structure: {
-			...createEmptyTableProjectionStructure(),
+			...createEmptyStructuredContentStructure(),
 			fingerprint: "schema-a",
 		},
 		columnProfiles: [],

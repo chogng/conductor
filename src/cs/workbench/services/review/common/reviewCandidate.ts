@@ -22,8 +22,8 @@ import {
 	type ReviewSelectorEvaluation,
 } from "src/cs/workbench/services/review/common/reviewSelector";
 import type {
-	MeasurementBlockRecord,
-} from "src/cs/workbench/services/table/common/tableProjection";
+	StructuredMeasurementBlockRecord as MeasurementBlockRecord,
+} from "src/cs/workbench/services/dataResource/common/structuredContent";
 import type {
 	TemplateItMode,
 	TemplateIvMode,
@@ -136,8 +136,8 @@ export const createRecipeReviewCandidate = ({
 		blocks.push(candidateBlock);
 	}
 
-	const tableProjection = context.evidence.tableProjection;
-	const schemaFingerprint = tableProjection?.structure.fingerprint;
+	const structuredContent = context.evidence.structuredContent;
+	const schemaFingerprint = structuredContent?.structure.fingerprint;
 	const measurement = createCandidateMeasurementBinding(matchedBlocks);
 	const interpretation = createReviewCandidateInterpretation({
 		name: recipe.label || recipe.id,
@@ -194,7 +194,7 @@ const createUserTemplateReviewCandidate = ({
 
 	if (
 		template.applicability?.schemaFingerprint &&
-		template.applicability.schemaFingerprint !== context.evidence.tableProjection?.structure.fingerprint
+		template.applicability.schemaFingerprint !== context.evidence.structuredContent?.structure.fingerprint
 	) {
 		return null;
 	}
@@ -492,7 +492,7 @@ const readLayoutBindingColumns = (
 	target: "x" | "y" | "bias",
 ): readonly number[] => {
 	const layoutKinds = getLayoutBindingEvidenceKinds(recipe);
-	const binding = evidence.tableProjection?.layoutCandidates
+	const binding = evidence.structuredContent?.layoutCandidates
 		.find(candidate =>
 			(!layoutKinds.length || layoutKinds.includes(candidate.layoutKind)) &&
 			candidate.bindings.length
@@ -541,8 +541,8 @@ const getMatchedBlock = (
 	match: ReviewSelectorBlockMatch | undefined,
 ): MeasurementBlockRecord | null =>
 	match?.blockId
-		? evidence.tableProjection?.blocks.find(block => block.id === match.blockId) ?? null
-		: evidence.tableProjection?.blocks[0] ?? null;
+		? evidence.structuredContent?.blocks.find(block => block.id === match.blockId) ?? null
+		: evidence.structuredContent?.blocks[0] ?? null;
 
 const getBlockDataRowRange = (
 	block: MeasurementBlockRecord,

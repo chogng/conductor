@@ -3,9 +3,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type {
-	MeasurementBlockRecord,
-	MeasurementColumnRef,
-} from "src/cs/workbench/services/table/common/tableProjection";
+	StructuredMeasurementBlockRecord as MeasurementBlockRecord,
+	StructuredMeasurementColumnRef as MeasurementColumnRef,
+} from "src/cs/workbench/services/dataResource/common/structuredContent";
 import type { Recipe } from "cs/workbench/services/recipes/common/recipe";
 import type {
 	RecipePhysicalLayout,
@@ -72,19 +72,19 @@ export const evaluateReviewSelector = (
 	recipe: Recipe,
 	evidence: ReviewEvidence,
 ): ReviewSelectorEvaluation => {
-	const tableProjection = evidence.tableProjection;
-	if (!tableProjection) {
+	const structuredContent = evidence.structuredContent;
+	if (!structuredContent) {
 		return {
 			matched: false,
 			recipeId: recipe.id,
 			recipeVersion: recipe.version,
 			matches: [],
-			diagnosticCodes: ["recipeSelector.missingTableProjection"],
+			diagnosticCodes: ["recipeSelector.missingStructuredContent"],
 		};
 	}
 
-	const contexts = tableProjection.blocks.length
-		? tableProjection.blocks.map(block => ({ evidence, block }))
+	const contexts = structuredContent.blocks.length
+		? structuredContent.blocks.map(block => ({ evidence, block }))
 		: [{ evidence, block: null }];
 	const matches: ReviewSelectorBlockMatch[] = [];
 	const diagnosticCodes = new Set<string>();
@@ -158,7 +158,7 @@ const evaluateDataRange = (
 		return { matched: false, diagnosticCode: "recipeSelector.dataRangeMismatch" };
 	}
 	if (
-		context.evidence.tableProjection?.structure.dataRegions.length ||
+		context.evidence.structuredContent?.structure.dataRegions.length ||
 		context.block?.source.dataRange ||
 		context.block?.source.fullRange
 	) {
@@ -214,7 +214,7 @@ const evaluatePhysicalLayout = (
 	if (!layoutKinds.length) {
 		return { matched: true, reason: `physicalLayout:${layout}` };
 	}
-	const matched = evidence.tableProjection?.layoutCandidates.some(candidate =>
+	const matched = evidence.structuredContent?.layoutCandidates.some(candidate =>
 		layoutKinds.includes(candidate.layoutKind) &&
 		meetsMinConfidence(candidate.confidence, 0.75)
 	);
@@ -232,7 +232,7 @@ const evaluateSeriesPartition = (
 	}
 
 	const layoutKind = partition.layoutKind ?? "groupedSweep";
-	const matched = evidence.tableProjection?.layoutCandidates.some(candidate =>
+	const matched = evidence.structuredContent?.layoutCandidates.some(candidate =>
 		candidate.layoutKind === layoutKind &&
 		meetsMinConfidence(candidate.confidence, partition.minConfidence ?? 0.75) &&
 		candidate.bindings.some(hasSeriesPartitionBinding)

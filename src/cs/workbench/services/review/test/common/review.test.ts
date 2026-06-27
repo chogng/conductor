@@ -70,10 +70,10 @@ suite("workbench/services/review/test/common/review", () => {
     assert.equal(JSON.parse(firstContentSignature).sourceMetadata.contentHash, "sha256:first");
   });
 
-  test("includes table projection evidence in signatures", () => {
+  test("includes structured content evidence in signatures", () => {
     const signature = createReviewEvidenceSignature(createReviewEvidence());
 
-    assert.deepEqual(JSON.parse(signature).tableProjection.blocks, []);
+    assert.deepEqual(JSON.parse(signature).structuredContent.blocks, []);
   });
 });
 
@@ -86,7 +86,7 @@ const createReviewEvidence = (
     columnCount: 2,
     ...sourceMetadata,
   },
-  tableProjection: {
+  structuredContent: {
     structure: {
       headerRows: [],
       unitRows: [],

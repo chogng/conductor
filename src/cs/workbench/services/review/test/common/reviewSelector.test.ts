@@ -7,10 +7,10 @@ import assert from "assert";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { evaluateReviewSelector } from "src/cs/workbench/services/review/common/reviewSelector";
 import {
-	createEmptyTableProjectionStructure,
-	type MeasurementBlockRecord,
-	type MeasurementColumnRef,
-} from "src/cs/workbench/services/table/common/tableProjection";
+	createEmptyStructuredContentStructure,
+	type StructuredMeasurementBlockRecord as MeasurementBlockRecord,
+	type StructuredMeasurementColumnRef as MeasurementColumnRef,
+} from "src/cs/workbench/services/dataResource/common/structuredContent";
 import { builtinRecipes } from "cs/workbench/services/recipes/common/builtinRecipes.generated";
 import type { Recipe } from "cs/workbench/services/recipes/common/recipe";
 import { createRecipeSnapshot } from "cs/workbench/services/recipes/common/recipeCodec";
@@ -100,9 +100,9 @@ const createReviewEvidence = ({
 		rowCount: 2,
 		columnCount: 2,
 	},
-	tableProjection: {
+	structuredContent: {
 		structure: {
-			...createEmptyTableProjectionStructure(),
+			...createEmptyStructuredContentStructure(),
 			fingerprint: "schema-a",
 		},
 		columnProfiles: [],
