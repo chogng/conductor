@@ -20,8 +20,8 @@ suite("workbench/services/recipe/test/common/recipeCodec", () => {
 		assert.equal(snapshot.version, 1);
 		assert.equal(snapshot.diagnostics.length, 0);
 		assert.deepEqual(snapshot.recipes.map(recipe => recipe.id), [
-			"builtin.iv.transfer.x-y-group",
-			"builtin.iv.output.x-y-group",
+			"builtin.iv.transfer.grouped",
+			"builtin.iv.output.grouped",
 			"builtin.iv.transfer",
 			"builtin.iv.output",
 			"builtin.capacitance.cf",

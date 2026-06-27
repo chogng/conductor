@@ -17,8 +17,8 @@ suite("workbench/services/recipe/test/browser/recipeService", () => {
     assert.deepEqual(
       snapshot.recipes.map(recipe => recipe.id),
       [
-        "builtin.iv.transfer.x-y-group",
-        "builtin.iv.output.x-y-group",
+        "builtin.iv.transfer.grouped",
+        "builtin.iv.output.grouped",
         "builtin.iv.transfer",
         "builtin.iv.output",
         "builtin.capacitance.cf",

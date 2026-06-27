@@ -118,7 +118,7 @@ Recipe authoring 文件名按测量语言/领域命名，例如 `iv.json`、`cv.
 ```txt
 iv.json
   -> variants: builtin.iv.transfer, builtin.iv.output
-  -> grouped variants: builtin.iv.transfer.x-y-group, builtin.iv.output.x-y-group
+  -> grouped variants: builtin.iv.transfer.grouped, builtin.iv.output.grouped
 
 cf.json
 cv.json

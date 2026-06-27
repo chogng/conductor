@@ -160,7 +160,7 @@ export const builtinRecipes = [
     "logicalRelation": "oneX-oneY",
     "variants": [
       {
-        "id": "builtin.iv.transfer.x-y-group",
+        "id": "builtin.iv.transfer.grouped",
         "priority": 105,
         "label": "Detected IV Transfer",
         "blockPartition": {
@@ -203,7 +203,7 @@ export const builtinRecipes = [
         "stopOnError": false
       },
       {
-        "id": "builtin.iv.output.x-y-group",
+        "id": "builtin.iv.output.grouped",
         "priority": 104,
         "label": "Detected IV Output",
         "blockPartition": {

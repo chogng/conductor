@@ -516,7 +516,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 
 		assert.equal(result.decision.kind, "ready");
 		assert.equal(result.candidates[0]?.source.kind, "recipe");
-		assert.equal(result.candidates[0]?.source.kind === "recipe" && result.candidates[0].source.recipeId, "builtin.iv.output.x-y-group");
+		assert.equal(result.candidates[0]?.source.kind === "recipe" && result.candidates[0].source.recipeId, "builtin.iv.output.grouped");
 		assert.equal(result.candidates[0]?.displayName, "Detected IV Output");
 		assert.deepEqual(result.decision.kind === "ready" && result.decision.reviewedTemplate.template.blocks[0]?.x.columns, [3]);
 		assert.deepEqual(result.decision.kind === "ready" && result.decision.reviewedTemplate.template.blocks[0]?.y.columns, [4]);
@@ -554,7 +554,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 
 		assert.notEqual(result.decision.kind, "invalid");
 		assert.equal(result.candidates[0]?.source.kind, "recipe");
-		assert.equal(result.candidates[0]?.source.kind === "recipe" && result.candidates[0].source.recipeId, "builtin.iv.output.x-y-group");
+		assert.equal(result.candidates[0]?.source.kind === "recipe" && result.candidates[0].source.recipeId, "builtin.iv.output.grouped");
 		assert.deepEqual(result.candidates[0]?.diagnosticCodes, []);
 		assert.equal(result.decision.kind, "needsManualAdjustment");
 		assert.equal(result.decision.kind === "needsManualAdjustment" && result.decision.reasons.includes("review.noCandidates"), false);

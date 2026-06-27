@@ -94,7 +94,7 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 	});
 
 	test("builds grouped XY IV recipe from series partition layout bindings", () => {
-		const recipe = getBuiltinRecipe("builtin.iv.transfer.x-y-group");
+		const recipe = getBuiltinRecipe("builtin.iv.transfer.grouped");
 
 		const evidence = createReviewEvidence({
 			layoutKind: "groupedSweep",
