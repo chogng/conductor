@@ -27,7 +27,7 @@ import {
 	type ManualTemplateSelection,
 	type UriTableReview,
 } from "src/cs/workbench/services/review/common/review";
-import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/tableReview";
+import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/reviewModel";
 import {
 	IWorkbenchLayoutService,
 	type IWorkbenchLayoutService as IWorkbenchLayoutServiceType,

@@ -1,31 +1,35 @@
 ---
-description: Review service - Template candidate review, selected ReviewedTemplate snapshots, manual adjustment state, and system-application recommendations.
+description: Review service - TableReviewCandidate derivation/review, selected ReviewedTemplate snapshots, manual adjustment state, and system-application recommendations.
 applyTo: 'src/cs/workbench/services/review/**,src/cs/workbench/contrib/review/**'
 ---
 # Review
 
 Review is the owner of Template usability and application decisions for
-URI-backed table resources. It consumes materialized Template candidates and
-keeps latest review results keyed by `resource + sheetId`.
+URI-backed table resources. It builds `TableReviewCandidate` values from table
+evidence plus Recipe/UserTemplate snapshots and keeps latest review results
+keyed by `resource + sheetId`.
 
-The primary template path is TableModel + Recipe/UserTemplate -> Template ->
-Review -> Slice. Review is the first layer that may choose usability or system
-application.
+The primary template path is TableModel + Recipe/UserTemplate ->
+TableReviewCandidate -> TableReviewResult / ReviewedTemplate -> Slice. Review
+is the first layer that may choose usability or system application.
 
 ## Ownership
 
 `IReviewService` owns:
 
-- reviewing Template candidates materialized by Template;
+- building `TableReviewCandidate` values from table evidence and
+  Recipe/UserTemplate snapshots;
 - reviewing candidates into `ready`, `needsAdjustment`, or `invalid`;
 - selecting the `ReviewedTemplate` snapshot when a candidate is ready;
 - deciding `systemRecommended` versus `userActionRequired`;
 - returning structured manual-template review results;
+- exposing cache-only latest full table review results for Review/Slice-level
+  consumers through `getLatestReview({ resource, sheetId })`;
 - maintaining URI-backed latest review summaries keyed by `resource + sheetId`
   for Explorer decorations and hover;
 
 It does not own raw row profiling, Recipe catalog storage, UserTemplate catalog
-CRUD, Template materialization, Slice planning/execution, Explorer UI
+CRUD, canonical Template spec/editor state, Slice planning/execution, Explorer UI
 projection, or Template editor view state.
 
 ## Flow
@@ -36,10 +40,10 @@ URI-backed Explorer summary:
 Explorer decoration / hover
   -> IReviewService.getLatestReviewSummary({ resource, sheetId })
   -> ITableModelService.createModelReference(resource, source)
-  -> TableModelSnapshot content + source/model version
+  -> TableModelSnapshot content + parser diagnostics + source/model version
   -> ITableModelProducerService.getOrCreate(...)
-  -> ITemplateMaterializationService materializes Template candidates
-  -> ReviewService reviews candidates
+  -> ReviewService builds TableReviewCandidate values
+  -> ReviewService scores candidates
   -> Review service-local summary cache keyed by resource + sheetId
   -> reviewChanged
   -> Explorer rereads latest Review summary
@@ -71,33 +75,55 @@ user command / UserTemplate picker / saved-selection compatibility picker / inli
 
 | File | Responsibility |
 | --- | --- |
-| `common/review.ts` | service contract, Review records, candidate summaries, decisions, manual review results, and signatures. |
+| `common/review.ts` | service contract, URI/manual review request/result types, review evidence signatures, and the legacy raw-table manual review fail-closed boundary. |
+| `common/reviewModel.ts` | pure `TableReviewContext`, `TableReviewCandidate`, `TableReviewResult`, `TableReviewDecision`, factors, findings, `ReviewedTemplate`, and summary types. |
+| `common/reviewSelector.ts` | pure Recipe selector evaluation against table model evidence. |
+| `common/reviewCandidate.ts` | pure Recipe/UserTemplate candidate derivation from table evidence. |
+| `common/reviewScoring.ts` | pure TableReviewCandidate scoring into `TableCandidateReview` factors/findings/status. |
+| `common/reviewResult.ts` | pure TableReviewResult assembly from review context, candidates, scoring, and decision policy. |
 | `browser/reviewService.ts` | injectable owner that reads URI-backed table model snapshots, runs pure review helpers, and maintains latest review summaries. |
 
-Template materializers live under `services/template/common` and produce
-`TemplateDraft` values before Review status/policy projection. Template
-Resolution has retired and must not be reintroduced as a Review prerequisite or
-candidate-summary bridge.
+Review candidate helpers live under `services/review/common` and produce
+`TableReviewCandidate` values before Review status/policy projection. Template
+Resolution and Template materialization services have retired and must not be
+reintroduced as Review prerequisites or candidate-summary bridges.
 User-template candidates must come through `IUserTemplateService` and
-`UserTemplateSnapshot`. New decision logic belongs in Review; new provider and
-materialization logic belongs in Template, not TableModel, Explorer, or Slice.
+`UserTemplateSnapshot`. New decision logic and candidate derivation logic belong
+in Review, not Template, TableModel, Explorer, or Slice.
+
+Legacy raw-table manual review is disabled at the Review owner boundary.
+`reviewRawTableManualTemplate(...)` remains only as a compatibility-shaped
+invalid result so old callers fail closed instead of reading Session evidence.
+New URI-backed callers must use `reviewUriManualTemplate(...)`.
 
 ## Rules
 
-- `ReviewDecision` is the only source for template usability and system
+- `TableReviewDecision` is the only source for template usability and system
   application recommendations.
-- System recommendation policy is Review-owned: it uses `TemplateReview`
-  confidence and Review diagnostics/policy, not retired apply fields.
-- `TemplateDraft` is Template materialization pipeline data consumed by Review.
-  It may carry derivation confidence,
-  derivation reasons, diagnostics, and optional captures, but it must not carry
-  final `ready` / `needsAdjustment` / `invalid` status.
+- System recommendation policy is Review-owned: it uses `TableCandidateReview`
+  confidence, factors, findings, and Review policy, not retired apply fields.
+- `TableReviewCandidate` is Review-owned pipeline data. It may carry candidate
+  confidence, provider rank, reasons, diagnostics, optional captures, a
+  review-owned executable interpretation, and the candidate interpretation
+  fingerprint, but it must not carry final `ready` / `needsAdjustment` /
+  `invalid` status, a template fingerprint, or the final `Template` snapshot. Review creates that
+  snapshot only when a candidate is selected as `ReviewedTemplate`.
+- `TableReviewContext` is the Review input model for URI-backed table targets:
+  resource, optional sheetId, model/source versions, evidence fingerprint, and
+  evidence projected from the table model. Candidate building and scoring must
+  consume this context, not raw rows or Template service state.
+- `TableReviewFinding` is the Review-owned explanation surface. Parser
+  diagnostics may influence parseHealth and hard gates, but they are not the
+  same type or owner as Review findings.
+- Blocking Review findings, including parser-diagnostic hard gates projected
+  from URI-backed table snapshots, must produce an `invalid`
+  `TableReviewDecision` rather than a manual-adjustment state.
 - `ReviewedTemplate.source` describes template provenance only: Recipe,
   UserTemplate, or inline. It must not encode manual, auto, saved-selection
   compatibility, user command, or system trigger.
 - Execution trigger belongs to `SliceRequest.trigger`.
-- Non-selected candidate records store summaries only. Detail rematerialization
-  must verify Recipe/UserTemplate fingerprints and return a stale result when
+- Non-selected candidate records store summaries only. Detail rebuilding must
+  verify Recipe/UserTemplate fingerprints and return a stale result when
   snapshots no longer match.
 - Review evidence signatures include URI-backed `TableModel` source identity
   and `sourceVersion` / `modelVersion` when present, so reviewed facts can go
@@ -114,7 +140,8 @@ materialization logic belongs in Template, not TableModel, Explorer, or Slice.
 
 - Do not call Slice from `ReviewService`; use an explicit user-command or
   URI-backed execution controller that submits `SliceRequest` values.
-- Do not read raw rows, rerun table-model detection, or materialize Recipes.
+- Do not read raw rows, rerun table-model detection, or delegate candidate
+  derivation to Template.
 - Do not store user template catalog data in Review records.
-- Do not let Template materializers, TableModel producers, Slice, or Explorer decide
+- Do not let Template, TableModel producers, Slice, or Explorer decide
   `systemRecommended`.

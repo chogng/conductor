@@ -4,6 +4,7 @@
 
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
+import { URI } from "src/cs/base/common/uri";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
 import {
@@ -12,24 +13,25 @@ import {
 } from "src/cs/workbench/services/recipe/common/recipe";
 import {
   IReviewService,
-  REVIEW_ENGINE_VERSION,
-  REVIEW_POLICY_VERSION,
   type IReviewService as IReviewServiceType,
-  type ManualTemplateReviewRequest,
+  type RawTableManualTemplateReviewRequest,
   type ManualTemplateReviewResult,
   type ReviewDiagnostic,
-  type ReviewInput,
-  type ReviewResult,
+  type ReviewedTableMeasurementBinding,
   type TableReviewSummary,
   type TableReviewSummaryTarget,
   type ReviewedTemplateSource,
-  type TemplateCandidateSummary,
-  type TemplateReview,
+  type TableCandidateReview,
+  type TableReviewResult,
+  type ManualTemplateSelection,
   type UriManualTemplateReviewRequest,
   type UriTableReview,
 } from "src/cs/workbench/services/review/common/review";
 import {
-  TableModel,
+  createManualTableCandidateReview,
+} from "src/cs/workbench/services/review/common/reviewScoring";
+import { deriveTableReviewResult } from "src/cs/workbench/services/review/common/reviewResult";
+import {
   ITableModelProducerService,
   type ITableModelProducerService as ITableModelProducerServiceType,
   type TableModelRecord,
@@ -42,23 +44,16 @@ import {
   type ITableModelReference,
   type ITableModelService as ITableModelServiceType,
 } from "src/cs/workbench/services/table/common/resolverService";
-import type {
-  TableModelContentSnapshot,
-  TableModelSheetSnapshot,
-  TableModelSnapshot,
+import {
+  readTableModelContentRows,
+  type TableModelContentSnapshot,
+  type TableParseDiagnostic,
+  type TableModelSheetSnapshot,
+  type TableModelSnapshot,
 } from "src/cs/workbench/services/table/common/model";
-import type { TemplateDraft } from "src/cs/workbench/services/template/common/templateDraft";
-import {
-  ITemplateMaterializationService,
-  type ITemplateMaterializationService as ITemplateMaterializationServiceType,
-} from "src/cs/workbench/services/template/common/templateMaterialization";
-import {
-  ISessionService,
-  type ISessionService as ISessionServiceType,
-} from "src/cs/workbench/services/session/common/session";
 import type {
-  RawTableRef,
-} from "src/cs/workbench/services/session/common/sessionModel";
+  TableModelDiagnostic,
+} from "src/cs/workbench/services/tableModel/common/diagnostics";
 import {
   type Template,
   type TemplateAxisBinding,
@@ -70,8 +65,6 @@ import {
   type IUserTemplateService as IUserTemplateServiceType,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
-type ReviewTemplateCandidate = TemplateDraft;
-
 type UriReviewTarget = {
   readonly resource: TableReviewSummaryTarget["resource"];
   readonly sheetId: string | null;
@@ -81,30 +74,28 @@ type UriReviewCacheEntry = {
   readonly columnCount?: number;
   readonly fileName?: string | null;
   readonly modelSignature: string;
-  readonly result?: ReviewResult;
+  readonly measurement?: ReviewedTableMeasurementBinding;
+  readonly result?: TableReviewResult;
   readonly reviewSignature?: string;
   readonly sourceModelVersion?: number;
   readonly sourceVersion?: number;
   readonly summary: TableReviewSummary;
-  readonly tableModel?: TableModelRecord;
   readonly rowCount?: number;
 };
 
 export class ReviewService extends Disposable implements IReviewServiceType {
   public declare readonly _serviceBrand: undefined;
 
-  private readonly onDidChangeReviewStateEmitter = this._register(new Emitter<void>());
-  public readonly onDidChangeReviewState = this.onDidChangeReviewStateEmitter.event;
+  private readonly onDidChangeTableReviewEmitter = this._register(new Emitter<void>());
+  public readonly onDidChangeTableReview = this.onDidChangeTableReviewEmitter.event;
 
   private readonly pendingUriReviewKeys = new Set<string>();
   private readonly uriReviewCacheByKey = new Map<string, UriReviewCacheEntry>();
   private readonly uriReviewTargetsByKey = new Map<string, UriReviewTarget>();
 
   public constructor(
-    @ISessionService private readonly sessionService: ISessionServiceType,
     @IRecipeService private readonly recipeService: IRecipeServiceType,
     @IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
-    @ITemplateMaterializationService private readonly templateMaterializationService: ITemplateMaterializationServiceType,
     @ITableModelService private readonly tableModelService?: ITableModelServiceType,
     @ITableModelProducerService private readonly tableModelProducerService?: ITableModelProducerServiceType,
   ) {
@@ -122,37 +113,24 @@ export class ReviewService extends Disposable implements IReviewServiceType {
     }));
   }
 
-  public deriveAndReview(input: ReviewInput): ReviewResult {
-    const tableModel = TableModel.fromRecord(input.tableModel, {
-      columnCount: input.columnCount,
-      fileName: input.fileName ?? undefined,
-      rowCount: input.rowCount,
-    });
-    const candidates = this.templateMaterializationService.materializeAutomaticDrafts({
-      tableModel,
-      recipeSnapshot: input.recipeSnapshot,
-      userTemplateSnapshot: input.userTemplateSnapshot,
-    });
-    const reviews = candidates.map(createTemplateReview);
-    const readyCandidate = candidates.find(candidate => {
-      const review = reviews.find(candidateReview => candidateReview.candidateId === candidate.id);
-      return review?.status === "ready";
-    });
+  public getLatestReview(target: TableReviewSummaryTarget): UriTableReview | undefined {
+    const reviewTarget = normalizeUriReviewTarget(target);
+    if (!reviewTarget) {
+      return undefined;
+    }
 
-    return {
-      recipeFingerprint: input.recipeSnapshot.fingerprint,
-      userTemplateCatalogVersion: input.userTemplateSnapshot.version,
-      userTemplateEffectiveFingerprint: input.userTemplateSnapshot.effectiveFingerprint,
-      reviewEngineVersion: REVIEW_ENGINE_VERSION,
-      reviewPolicyVersion: REVIEW_POLICY_VERSION,
-      candidates: candidates.map(createTemplateCandidateSummary),
-      reviews,
-      decision: createReviewDecision({
-        candidates,
-        readyCandidate,
-        reviews,
-      }),
-    };
+    const cached = this.uriReviewCacheByKey.get(getUriReviewTargetKey(reviewTarget));
+    if (!cached) {
+      return undefined;
+    }
+
+    const modelSignature = this.getCurrentUriReviewModelSignature(reviewTarget);
+    if (isUriReviewCacheEntryFresh(cached, modelSignature)) {
+      return createUriTableReviewFromCacheEntry(cached);
+    }
+
+    this.scheduleUriReview(reviewTarget);
+    return createStaleUriTableReviewFromCacheEntry(cached, reviewTarget);
   }
 
   public getLatestReviewSummary(target: TableReviewSummaryTarget): TableReviewSummary {
@@ -171,11 +149,15 @@ export class ReviewService extends Disposable implements IReviewServiceType {
     this.uriReviewTargetsByKey.set(key, reviewTarget);
     const modelSignature = this.getCurrentUriReviewModelSignature(reviewTarget);
     const cached = this.uriReviewCacheByKey.get(key);
-    if (cached && (!modelSignature || cached.modelSignature === modelSignature)) {
+    if (cached && isUriReviewCacheEntryFresh(cached, modelSignature)) {
       return cached.summary;
     }
 
     this.scheduleUriReview(reviewTarget);
+    if (cached) {
+      return createStaleTableReviewSummaryFromCacheEntry(cached, reviewTarget);
+    }
+
     return {
       resource: reviewTarget.resource,
       ...(reviewTarget.sheetId ? { sheetId: reviewTarget.sheetId } : {}),
@@ -208,32 +190,19 @@ export class ReviewService extends Disposable implements IReviewServiceType {
     } else {
       this.uriReviewCacheByKey.delete(key);
     }
-    this.fireReviewStateChange();
+    this.fireTableReviewChange();
     return entry ? createUriTableReviewFromCacheEntry(entry) : fallback();
   }
 
-  public reviewManualTemplate(input: ManualTemplateReviewRequest): ManualTemplateReviewResult {
-    const ref = normalizeRawTableRef(input.ref);
-    if (!ref) {
-      return createInvalidManualReviewResult("review.manual.invalidRef", "Manual review needs a raw table target.");
-    }
-
-    const snapshot = this.sessionService.getSnapshot();
-    const file = snapshot.filesById[ref.fileId];
-    const table = file?.raw.tablesById[ref.rawTableId];
-    const tableModel = file?.tableModelByRawTableId?.[ref.rawTableId];
-    if (!file || !table || !tableModel) {
-      return createInvalidManualReviewResult(
-        "review.manual.missingEvidence",
-        "Manual review needs an imported raw table with table model.",
-      );
-    }
-
-    return this.reviewResolvedManualTemplate(input.selection, table.columnCount, table.rowCount);
+  public reviewRawTableManualTemplate(input: RawTableManualTemplateReviewRequest): ManualTemplateReviewResult {
+    return createInvalidManualReviewResult(
+      "review.manual.rawTableManualDisabled",
+      "Legacy raw-table manual review is disabled. Use URI-backed table review.",
+    );
   }
 
   private reviewResolvedManualTemplate(
-    selection: ManualTemplateReviewRequest["selection"],
+    selection: ManualTemplateSelection,
     columnCount: number,
     rowCount: number,
   ): ManualTemplateReviewResult {
@@ -298,8 +267,12 @@ export class ReviewService extends Disposable implements IReviewServiceType {
         return createInvalidManualReviewResult("review.manual.tableModelNotReady", "Manual review needs resolved table content.");
       }
 
-      const selectedSheet = getUriReviewSheet(snapshot, target.sheetId);
-      const content = selectedSheet?.content ?? snapshot.content;
+      const sheetResolution = resolveUriReviewSheet(snapshot, target.sheetId);
+      if (sheetResolution.kind === "missing") {
+        return createInvalidManualReviewResult("review.manual.sheetNotFound", "Manual review needs the requested sheet.");
+      }
+
+      const content = sheetResolution.sheet?.content ?? snapshot.content;
       if (!content) {
         return createInvalidManualReviewResult("review.manual.noTableContent", "Manual review needs resolved table content.");
       }
@@ -312,8 +285,8 @@ export class ReviewService extends Disposable implements IReviewServiceType {
     }
   }
 
-  private fireReviewStateChange(): void {
-    this.onDidChangeReviewStateEmitter.fire(undefined);
+  private fireTableReviewChange(): void {
+    this.onDidChangeTableReviewEmitter.fire(undefined);
   }
 
   private scheduleUriReview(target: UriReviewTarget): void {
@@ -333,7 +306,7 @@ export class ReviewService extends Disposable implements IReviewServiceType {
       })
       .finally(() => {
         this.pendingUriReviewKeys.delete(key);
-        this.fireReviewStateChange();
+        this.fireTableReviewChange();
       });
   }
 
@@ -401,8 +374,24 @@ export class ReviewService extends Disposable implements IReviewServiceType {
       };
     }
 
-    const selectedSheet = getUriReviewSheet(snapshot, target.sheetId);
-    const content = selectedSheet?.content ?? snapshot.content;
+    const sheetResolution = resolveUriReviewSheet(snapshot, target.sheetId);
+    if (sheetResolution.kind === "missing") {
+      return {
+        modelSignature,
+        summary: {
+          resource: target.resource,
+          ...(target.sheetId ? { sheetId: target.sheetId } : {}),
+          state: "invalid",
+          findingCodes: ["review.sheetNotFound"],
+          message: "Review needs the requested table sheet.",
+        },
+      };
+    }
+
+    const selectedSheet = sheetResolution.sheet;
+    const content = selectedSheet
+      ? selectedSheet.content
+      : snapshot.content;
     if (!content) {
       return {
         modelSignature,
@@ -416,27 +405,37 @@ export class ReviewService extends Disposable implements IReviewServiceType {
       };
     }
 
-    const sheetId = selectedSheet?.sheetId ?? target.sheetId ?? snapshot.defaultSheetId ?? null;
+    const selectedSheetId = selectedSheet?.sheetId ?? snapshot.defaultSheetId ?? null;
+    const targetSheetId = target.sheetId;
     const fileName = getUriReviewFileName(target.resource, selectedSheet);
     const tableModel = await this.createUriTableModelRecord({
       content,
-      sheetId,
+      sheetId: selectedSheetId,
       snapshot,
       target,
     });
-    const result = this.deriveAndReview({
+    const reviewTableModel = mergeParserDiagnosticsIntoTableModel(
       tableModel,
+      getUriReviewDiagnostics(snapshot, selectedSheet),
+    );
+    const result = deriveTableReviewResult({
+      tableModel: reviewTableModel,
       columnCount: content.columnCount,
       fileName,
+      modelVersion: snapshot.version,
       recipeSnapshot: this.recipeService.getSnapshot(),
+      resource: target.resource,
       rowCount: content.rowCount,
+      sheetId: targetSheetId ?? undefined,
+      sourceVersion: snapshot.sourceVersion,
       userTemplateSnapshot: this.userTemplateService.getSnapshot(),
     });
-    const reviewSignature = createReviewResultSignature(result);
+    const reviewSignature = createTableReviewResultSignature(result);
 
     return {
       columnCount: content.columnCount,
       fileName,
+      measurement: createReviewedTableMeasurementBinding(reviewTableModel),
       modelSignature,
       result,
       reviewSignature,
@@ -446,9 +445,8 @@ export class ReviewService extends Disposable implements IReviewServiceType {
       summary: createTableReviewSummaryFromResult({
         resource: target.resource,
         result,
-        sheetId,
+        sheetId: targetSheetId,
       }),
-      tableModel,
     };
   }
 
@@ -467,14 +465,17 @@ export class ReviewService extends Disposable implements IReviewServiceType {
       throw new Error("URI-backed review needs the table model producer service.");
     }
 
-    const resourceText = target.resource.toString();
+    const resourceText = normalizeResourceIdentity(target.resource);
+    // TODO(conductor-architecture): Migration bridge.
+    // ITableModelProducerService still requires raw-table version fields while it is the shared
+    // structure/semantics producer. Review evidence and public URI targets use sourceModel/sourceVersion.
     return this.tableModelProducerService.getOrCreate({
       columnCount: content.columnCount,
       fileId: getUriReviewFileId(target.resource),
       fileName: getUriReviewFileName(target.resource, null),
       rawTableId: sheetId ?? resourceText,
       rowCount: content.rowCount,
-      rows: content.rows,
+      rows: readTableModelContentRows(content, 0, content.rowCount),
       sourceModelVersion: snapshot.version,
       sourceRawTableVersion: snapshot.sourceVersion,
       sourceUri: resourceText,
@@ -483,22 +484,21 @@ export class ReviewService extends Disposable implements IReviewServiceType {
   }
 
   private invalidateUriReviewTargetsForResource(resource: TableReviewSummaryTarget["resource"]): void {
-    const resourceKey = normalizeResourceKey(resource);
-    if (!resourceKey) {
+    const resourceIdentity = normalizeResourceIdentity(resource);
+    if (!resourceIdentity) {
       return;
     }
 
     let didChange = false;
     for (const [key, target] of this.uriReviewTargetsByKey) {
-      if (normalizeResourceKey(target.resource) !== resourceKey) {
+      if (normalizeResourceIdentity(target.resource) !== resourceIdentity) {
         continue;
       }
-      this.uriReviewCacheByKey.delete(key);
       this.scheduleUriReview(target);
       didChange = true;
     }
     if (didChange) {
-      this.fireReviewStateChange();
+      this.fireTableReviewChange();
     }
   }
 
@@ -507,11 +507,10 @@ export class ReviewService extends Disposable implements IReviewServiceType {
       return;
     }
 
-    this.uriReviewCacheByKey.clear();
     for (const target of this.uriReviewTargetsByKey.values()) {
       this.scheduleUriReview(target);
     }
-    this.fireReviewStateChange();
+    this.fireTableReviewChange();
   }
 
   private getCurrentUriReviewModelSignature(target: UriReviewTarget): string | null {
@@ -530,7 +529,7 @@ export class ReviewService extends Disposable implements IReviewServiceType {
   }
 
   private resolveManualTemplate(
-    selection: ManualTemplateReviewRequest["selection"],
+    selection: ManualTemplateSelection,
   ): ManualTemplateLookupResult {
     if (selection.kind === "inline") {
       const templateFingerprint = createTemplateFingerprint(selection.template);
@@ -586,12 +585,80 @@ type ManualTemplateLookupResult =
       readonly message: string;
     };
 
+const mergeParserDiagnosticsIntoTableModel = (
+  tableModel: TableModelRecord,
+  parserDiagnostics: readonly TableParseDiagnostic[],
+): TableModelRecord => {
+  if (!parserDiagnostics.length) {
+    return tableModel;
+  }
+
+  return {
+    ...tableModel,
+    diagnostics: [
+      ...tableModel.diagnostics,
+      ...parserDiagnostics.map(toTableModelParserDiagnostic),
+    ],
+  };
+};
+
+const toTableModelParserDiagnostic = (
+  diagnostic: TableParseDiagnostic,
+): TableModelDiagnostic => ({
+  severity: diagnostic.severity,
+  code: diagnostic.code,
+  message: diagnostic.message,
+  ...(diagnostic.rowIndex !== undefined || diagnostic.columnIndex !== undefined ? {
+    sourceRange: {
+      startRow: diagnostic.rowIndex ?? 0,
+      endRow: diagnostic.rowIndex ?? 0,
+      startCol: diagnostic.columnIndex ?? 0,
+      endCol: diagnostic.columnIndex ?? 0,
+    },
+  } : {}),
+});
+
+const createReviewedTableMeasurementBinding = (
+  tableModel: TableModelRecord,
+): ReviewedTableMeasurementBinding | undefined => {
+  const block = tableModel.blocks.find(candidate => isReviewedCurveFamily(candidate.family));
+  if (!block || !isReviewedCurveFamily(block.family)) {
+    return undefined;
+  }
+
+  return {
+    curveFamily: block.family,
+    ...(block.family === "iv" ? { ivMode: block.ivMode === "output" ? "output" : "transfer" } : {}),
+    ...(block.family === "it" ? { itMode: normalizeReviewedItMode(block.itMode) } : {}),
+  };
+};
+
+const isReviewedCurveFamily = (
+  family: string,
+): family is ReviewedTableMeasurementBinding["curveFamily"] =>
+  family === "iv" ||
+  family === "cv" ||
+  family === "cf" ||
+  family === "pv" ||
+  family === "it";
+
+const normalizeReviewedItMode = (
+  mode: string | null | undefined,
+): NonNullable<ReviewedTableMeasurementBinding["itMode"]> =>
+  mode === "stability" ||
+  mode === "transient" ||
+  mode === "retention" ||
+  mode === "biasStress" ||
+  mode === "photoResponse"
+    ? mode
+    : "generic";
+
 type ManualTemplateReview = {
   readonly candidateId: string;
   readonly source: ReviewedTemplateSource;
   readonly template: Template;
   readonly templateFingerprint: string;
-  readonly review: TemplateReview;
+  readonly review: TableCandidateReview;
 };
 
 const createManualTemplateReview = ({
@@ -614,14 +681,19 @@ const createManualTemplateReview = ({
     template,
   });
   const status = getManualTemplateReviewStatus(template, diagnostics);
-  const review: TemplateReview = {
+  const diagnosticObjects = diagnostics.map(createReviewDiagnostic);
+  const review = createManualTableCandidateReview({
     candidateId,
-    templateFingerprint,
+    interpretationFingerprint: templateFingerprint,
     status,
-    confidence: status === "ready" ? 1 : 0,
+    confidence: status === "ready"
+      ? 1
+      : status === "needsAdjustment"
+        ? 0.6
+        : 0,
     reasons: [getManualTemplateReason(source)],
-    diagnostics: diagnostics.map(createReviewDiagnostic),
-  };
+    diagnostics: diagnosticObjects,
+  });
 
   return {
     candidateId,
@@ -672,7 +744,7 @@ const getManualTemplateDiagnosticCodes = ({
 const getManualTemplateReviewStatus = (
   template: Template,
   diagnostics: readonly string[],
-): TemplateReview["status"] => {
+): TableCandidateReview["status"] => {
   if (!template.blocks.length || diagnostics.includes("review.manual.invalidRowCount") || diagnostics.includes("review.manual.invalidColumnCount")) {
     return "invalid";
   }
@@ -688,7 +760,7 @@ const getManualTemplateReason = (
     case "userTemplate":
       return "review.manual.userTemplate";
     case "recipe":
-      return "review.manual.recipeTemplate";
+      return "review.manual.recipeReviewedTemplate";
   }
 };
 
@@ -744,96 +816,6 @@ const isColumnInBounds = (
   column >= 0 &&
   column < columnCount;
 
-const createReviewDecision = ({
-  candidates,
-  readyCandidate,
-  reviews,
-}: {
-  readonly candidates: readonly ReviewTemplateCandidate[];
-  readonly readyCandidate: ReviewTemplateCandidate | undefined;
-  readonly reviews: readonly TemplateReview[];
-}): ReviewResult["decision"] => {
-  if (readyCandidate) {
-    const review = reviews.find(candidateReview => candidateReview.candidateId === readyCandidate.id) ??
-      createTemplateReview(readyCandidate);
-    const application = review.confidence >= SYSTEM_RECOMMENDED_CONFIDENCE
-      ? {
-          kind: "systemRecommended" as const,
-          reason: "review.ready.systemRecommended",
-        }
-      : {
-          kind: "userActionRequired" as const,
-          reason: "review.ready.lowConfidence",
-        };
-    return {
-      kind: "ready",
-      reviewedTemplate: {
-        candidateId: readyCandidate.id,
-        source: toReviewedTemplateSource(readyCandidate.source),
-        template: readyCandidate.template,
-        templateFingerprint: readyCandidate.templateFingerprint,
-        review,
-      },
-      application,
-      summary: application.kind === "systemRecommended"
-        ? "Template is ready and recommended for system application."
-        : "Template is ready but requires user action before application.",
-      suggestedActions: application.kind === "systemRecommended"
-        ? []
-        : [{ id: "review.confirmTemplate", label: "Confirm template" }],
-    };
-  }
-
-  if (candidates.length) {
-    const candidate = candidates[0];
-    const review = candidate ? createTemplateReview(candidate) : undefined;
-    return {
-      kind: "needsManualAdjustment",
-      ...(candidate ? { candidateId: candidate.id } : {}),
-      summary: "Template candidates need manual adjustment before application.",
-      reasons: review?.reasons ?? ["review.noReadyCandidate"],
-      diagnostics: review?.diagnostics ?? [],
-      suggestedActions: [{ id: "review.adjustTemplate", label: "Adjust template" }],
-    };
-  }
-
-  return {
-    kind: "invalid",
-    summary: "No usable Template candidates were found.",
-    reasons: ["review.noCandidates"],
-    diagnostics: [{
-      severity: "warning",
-      code: "review.noCandidates",
-      message: "No Recipe or UserTemplate candidates matched this raw table evidence.",
-    }],
-    suggestedActions: [{ id: "review.createTemplate", label: "Create template" }],
-  };
-};
-
-const createTemplateCandidateSummary = (
-  candidate: ReviewTemplateCandidate,
-): TemplateCandidateSummary => ({
-  id: candidate.id,
-  source: candidate.source,
-  templateFingerprint: candidate.templateFingerprint,
-  displayName: candidate.template.name,
-  reasonCodes: candidate.derivationReasons,
-  diagnosticCodes: candidate.derivationDiagnostics.map(diagnostic => diagnostic.code),
-});
-
-const createTemplateReview = (
-  candidate: ReviewTemplateCandidate,
-): TemplateReview => ({
-  candidateId: candidate.id,
-  templateFingerprint: candidate.templateFingerprint,
-  status: candidate.derivationDiagnostics.length === 0
-    ? "ready"
-    : "needsAdjustment",
-  confidence: normalizeConfidence(candidate.derivationConfidence),
-  reasons: candidate.derivationReasons,
-  diagnostics: candidate.derivationDiagnostics,
-});
-
 const createReviewDiagnostic = (
   code: string,
 ): ReviewDiagnostic => ({
@@ -842,30 +824,16 @@ const createReviewDiagnostic = (
   message: code,
 });
 
-const toReviewedTemplateSource = (
-  source: ReviewTemplateCandidate["source"],
-): ReviewedTemplateSource => {
-  return source;
-};
-
-const normalizeRawTableRef = (
-  ref: RawTableRef,
-): RawTableRef | null => {
-  const fileId = normalizeText(ref.fileId);
-  const rawTableId = normalizeText(ref.rawTableId);
-  return fileId && rawTableId ? { fileId, rawTableId } : null;
-};
-
 const createTableReviewSummaryFromResult = ({
   resource,
   result,
   sheetId,
 }: {
   readonly resource: TableReviewSummary["resource"];
-  readonly result: ReviewResult;
+  readonly result: TableReviewResult;
   readonly sheetId: string | null;
 }): TableReviewSummary => {
-  const reviewSignature = createReviewResultSignature(result);
+  const reviewSignature = createTableReviewResultSignature(result);
   const decision = result.decision;
   if (decision.kind === "ready") {
     return {
@@ -873,7 +841,7 @@ const createTableReviewSummaryFromResult = ({
       ...(sheetId ? { sheetId } : {}),
       state: "ready",
       confidence: normalizeConfidence(decision.reviewedTemplate.review.confidence),
-      findingCodes: decision.reviewedTemplate.review.diagnostics.map(diagnostic => diagnostic.code),
+      findingCodes: decision.reviewedTemplate.review.findings.map(finding => finding.code),
       message: decision.summary,
       reviewedSemanticLabel: normalizeOptionalText(decision.reviewedTemplate.template.name),
       reviewSignature,
@@ -890,7 +858,9 @@ const createTableReviewSummaryFromResult = ({
       ...(sheetId ? { sheetId } : {}),
       state: "needsAdjustment",
       ...(reviewCandidate ? { confidence: normalizeConfidence(reviewCandidate.confidence) } : {}),
-      findingCodes: decision.diagnostics.map(diagnostic => diagnostic.code),
+      findingCodes: reviewCandidate
+        ? reviewCandidate.findings.map(finding => finding.code)
+        : decision.diagnostics.map(diagnostic => diagnostic.code),
       message: decision.summary,
       reviewSignature,
     };
@@ -913,8 +883,8 @@ const createUriTableReviewFromCacheEntry = (
   ...(entry.summary.sheetId ? { sheetId: entry.summary.sheetId } : {}),
   summary: entry.summary,
   ...(entry.result ? { result: entry.result } : {}),
-  ...(entry.tableModel ? { tableModel: entry.tableModel } : {}),
   ...(entry.reviewSignature ? { reviewSignature: entry.reviewSignature } : {}),
+  ...(entry.measurement ? { measurement: entry.measurement } : {}),
   ...(entry.sourceModelVersion !== undefined ? { sourceModelVersion: entry.sourceModelVersion } : {}),
   ...(entry.sourceVersion !== undefined ? { sourceVersion: entry.sourceVersion } : {}),
   ...(entry.rowCount !== undefined ? { rowCount: entry.rowCount } : {}),
@@ -922,9 +892,51 @@ const createUriTableReviewFromCacheEntry = (
   ...(entry.fileName !== undefined ? { fileName: entry.fileName } : {}),
 });
 
-const createReviewResultSignature = (
-  result: ReviewResult,
+const createStaleUriTableReviewFromCacheEntry = (
+  entry: UriReviewCacheEntry,
+  target: UriReviewTarget,
+): UriTableReview => ({
+  resource: target.resource,
+  ...(target.sheetId ? { sheetId: target.sheetId } : {}),
+  summary: createStaleTableReviewSummaryFromCacheEntry(entry, target),
+  ...(entry.measurement ? { measurement: entry.measurement } : {}),
+  ...(entry.sourceModelVersion !== undefined ? { sourceModelVersion: entry.sourceModelVersion } : {}),
+  ...(entry.sourceVersion !== undefined ? { sourceVersion: entry.sourceVersion } : {}),
+  ...(entry.rowCount !== undefined ? { rowCount: entry.rowCount } : {}),
+  ...(entry.columnCount !== undefined ? { columnCount: entry.columnCount } : {}),
+  ...(entry.fileName !== undefined ? { fileName: entry.fileName } : {}),
+});
+
+const createStaleTableReviewSummaryFromCacheEntry = (
+  entry: UriReviewCacheEntry,
+  target: UriReviewTarget,
+): TableReviewSummary => ({
+  resource: target.resource,
+  ...(target.sheetId ? { sheetId: target.sheetId } : {}),
+  state: "stale",
+  ...(entry.summary.confidence !== undefined ? { confidence: entry.summary.confidence } : {}),
+  ...(entry.summary.reviewedSemanticLabel ? { reviewedSemanticLabel: entry.summary.reviewedSemanticLabel } : {}),
+  findingCodes: distinctReviewFindingCodes([
+    "review.stale",
+    ...entry.summary.findingCodes,
+  ]),
+  message: "Review is stale. Waiting for updated table review.",
+});
+
+const isUriReviewCacheEntryFresh = (
+  entry: UriReviewCacheEntry,
+  modelSignature: string | null,
+): boolean =>
+  Boolean(modelSignature && entry.modelSignature === modelSignature);
+
+const createTableReviewResultSignature = (
+  result: TableReviewResult,
 ): string => [
+  normalizeResourceIdentity(result.resource),
+  result.sheetId ?? "",
+  result.modelVersion ?? "",
+  result.sourceVersion ?? "",
+  result.evidenceFingerprint,
   result.recipeFingerprint,
   result.userTemplateCatalogVersion,
   result.userTemplateEffectiveFingerprint,
@@ -934,22 +946,25 @@ const createReviewResultSignature = (
   result.decision.kind === "ready" ? result.decision.reviewedTemplate.templateFingerprint : "",
   result.reviews.map(review => [
     review.candidateId,
-    review.templateFingerprint,
+    review.interpretationFingerprint,
     review.status,
     review.confidence,
+    JSON.stringify(review.factors),
+    review.findings.map(finding => finding.code).join("\u001c"),
   ].join("\u001e")).join("\u001d"),
 ].join("\u001f");
 
 const normalizeUriReviewTarget = (
   target: TableReviewSummaryTarget,
 ): UriReviewTarget | null => {
-  const resourceKey = normalizeResourceKey(target.resource);
-  if (!resourceKey) {
+  const resource = URI.revive(target.resource);
+  const resourceIdentity = normalizeResourceIdentity(resource);
+  if (!resourceIdentity) {
     return null;
   }
 
   return {
-    resource: target.resource,
+    resource,
     sheetId: normalizeText(target.sheetId) || null,
   };
 };
@@ -957,7 +972,7 @@ const normalizeUriReviewTarget = (
 const getUriReviewTargetKey = (
   target: UriReviewTarget,
 ): string => [
-  normalizeResourceKey(target.resource),
+  normalizeResourceIdentity(target.resource),
   target.sheetId ?? "",
 ].join("\u001f");
 
@@ -968,18 +983,41 @@ const createTableSourceFromUriReviewTarget = (
   ...(target.sheetId ? { sheetId: target.sheetId } : {}),
 });
 
-const getUriReviewSheet = (
+type UriReviewSheetResolution =
+  | {
+      readonly kind: "found";
+      readonly sheet: TableModelSheetSnapshot | null;
+    }
+  | {
+      readonly kind: "missing";
+    };
+
+const resolveUriReviewSheet = (
   snapshot: TableModelSnapshot,
   requestedSheetId: string | null,
-): TableModelSheetSnapshot | null => {
+): UriReviewSheetResolution => {
   if (requestedSheetId) {
-    return snapshot.sheets.find(sheet => sheet.sheetId === requestedSheetId) ?? null;
+    const sheet = snapshot.sheets.find(candidate => candidate.sheetId === requestedSheetId);
+    return sheet
+      ? { kind: "found", sheet }
+      : { kind: "missing" };
   }
 
-  return snapshot.sheets.find(sheet => sheet.sheetId === snapshot.defaultSheetId) ??
-    snapshot.sheets[0] ??
-    null;
+  return {
+    kind: "found",
+    sheet: snapshot.sheets.find(sheet => sheet.sheetId === snapshot.defaultSheetId) ??
+      snapshot.sheets[0] ??
+      null,
+  };
 };
+
+const getUriReviewDiagnostics = (
+  snapshot: TableModelSnapshot,
+  sheet: TableModelSheetSnapshot | null,
+): readonly TableParseDiagnostic[] => [
+  ...snapshot.diagnostics,
+  ...(sheet?.diagnostics ?? []),
+];
 
 const createUriReviewModelSignature = ({
   recipeFingerprint,
@@ -1014,7 +1052,7 @@ const createUriReviewErrorSignature = (
 
 const getUriReviewFileId = (
   resource: TableReviewSummaryTarget["resource"],
-): string => normalizeResourceKey(resource) || resource.toString();
+): string => normalizeResourceIdentity(resource) || getResourceIdentityString(resource);
 
 const getUriReviewFileName = (
   resource: TableReviewSummaryTarget["resource"],
@@ -1027,7 +1065,7 @@ const getUriReviewFileName = (
 
   const path = normalizeText(resource.path);
   const name = path.split(/[\\/]/).filter(Boolean).pop();
-  return name || resource.toString();
+  return name || getResourceIdentityString(resource);
 };
 
 const getErrorMessage = (
@@ -1036,9 +1074,52 @@ const getErrorMessage = (
   ? error.message
   : String(error ?? "Review failed.");
 
-const normalizeResourceKey = (
-  resource: TableReviewSummaryTarget["resource"],
-): string => normalizeResourceText(resource.toString());
+const normalizeResourceIdentity = (
+  resource: TableReviewSummaryTarget["resource"] | undefined,
+): string => {
+  const text = getResourceIdentityString(resource);
+  if (text) {
+    return normalizeResourceText(text);
+  }
+
+  if (resource && typeof resource === "object") {
+    const candidate = resource as { readonly scheme?: unknown; readonly authority?: unknown; readonly path?: unknown; readonly query?: unknown; readonly fragment?: unknown };
+    const scheme = normalizeText(candidate.scheme);
+    const path = normalizeText(candidate.path);
+    if (scheme && path) {
+      const authority = normalizeText(candidate.authority);
+      const query = normalizeText(candidate.query);
+      const fragment = normalizeText(candidate.fragment);
+      return normalizeResourceText(
+        scheme === "file"
+          ? `file://${authority}${path}${query ? `?${query}` : ""}${fragment ? `#${fragment}` : ""}`
+          : `${scheme}://${authority}${path}${query ? `?${query}` : ""}${fragment ? `#${fragment}` : ""}`,
+      );
+    }
+  }
+
+  return "";
+};
+
+const getResourceIdentityString = (
+  resource: unknown,
+): string => {
+  if (!resource) {
+    return "";
+  }
+
+  if (typeof resource === "string") {
+    return normalizeText(resource);
+  }
+
+  const toString = (resource as { readonly toString?: unknown }).toString;
+  if (typeof toString === "function" && toString !== Object.prototype.toString) {
+    const text = normalizeText(toString.call(resource));
+    return text === "[object Object]" ? "" : text;
+  }
+
+  return "";
+};
 
 const normalizeResourceText = (
   value: unknown,
@@ -1065,7 +1146,22 @@ const normalizeConfidence = (
   return Math.max(0, Math.min(1, confidence));
 };
 
-const SYSTEM_RECOMMENDED_CONFIDENCE = 0.8;
+const distinctReviewFindingCodes = (
+  codes: readonly string[],
+): readonly string[] => {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const code of codes) {
+    const normalized = normalizeText(code);
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+
+    seen.add(normalized);
+    result.push(normalized);
+  }
+  return result;
+};
 
 registerSingleton(
   IReviewService,

@@ -30,6 +30,40 @@ suite("workbench/services/review/test/common/review", () => {
       sourceUri: "file:///workspace/data/source.csv",
       sourceVersion: 5,
     });
+    assert.equal(JSON.parse(uriSignature).sourceRawTableVersion, undefined);
+  });
+
+  test("includes URI sheet targets in evidence signatures", () => {
+    const firstSheetSignature = createReviewEvidenceSignature({
+      ...createTableModelRecord(),
+      sourceModelVersion: 6,
+      sourceUri: "file:///workspace/data/source.xlsx",
+      sourceVersion: 5,
+    }, {
+      sheetId: "sheet-a",
+    });
+    const secondSheetSignature = createReviewEvidenceSignature({
+      ...createTableModelRecord(),
+      sourceModelVersion: 6,
+      sourceUri: "file:///workspace/data/source.xlsx",
+      sourceVersion: 5,
+    }, {
+      sheetId: "sheet-b",
+    });
+
+    assert.notEqual(firstSheetSignature, secondSheetSignature);
+    assert.deepEqual(JSON.parse(firstSheetSignature).sourceModel, {
+      modelVersion: 6,
+      sheetId: "sheet-a",
+      sourceUri: "file:///workspace/data/source.xlsx",
+      sourceVersion: 5,
+    });
+  });
+
+  test("keeps legacy raw-table versions in evidence signatures without URI source identity", () => {
+    const signature = createReviewEvidenceSignature(createTableModelRecord());
+
+    assert.equal(JSON.parse(signature).sourceRawTableVersion, 4);
   });
 });
 

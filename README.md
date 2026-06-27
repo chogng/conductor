@@ -1,6 +1,6 @@
-ï»¿# Conductor Studio
+# Conductor Studio
 
-English | [ä¸­æ–‡](./README.zh-CN.md)
+English | [ÖÐÎÄ](./README.zh-CN.md)
 
 Conductor Studio is a desktop-first analysis tool for semiconductor device test data.
 It turns folders of raw CSV/Excel measurements into extracted curves,
@@ -163,6 +163,8 @@ Quality checks:
 npm run lint
 npm run typecheck
 npm run test:unit
+npm run test:table
+npm run test:review
 ```
 
 Targeted unit tests use the same compiled runner as `test:unit`: TypeScript is
@@ -172,7 +174,14 @@ directly through Mocha; Node's strip-types mode does not support the project's
 full TypeScript syntax.
 
 ```bash
-npm run test:unit:target -- src/cs/workbench/services/tableFacts/test/browser/importTableFactsSeed.test.ts
+npm run test:unit:target -- \
+  src/cs/workbench/services/table/test/browser/tableModel.test.ts \
+  src/cs/workbench/services/table/test/common/tableFormatService.test.ts \
+  src/cs/workbench/services/tableFile/test/common/tableFileReader.test.ts
+npm run test:unit:target -- \
+  src/cs/workbench/services/review/test/common/reviewCandidate.test.ts \
+  src/cs/workbench/services/review/test/common/reviewSelector.test.ts \
+  src/cs/workbench/services/review/test/browser/reviewService.test.ts
 npm run test:unit:target -- src/cs/workbench/services/table/test/browser
 ```
 
