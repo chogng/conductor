@@ -224,6 +224,55 @@ class RecordingViewsService implements IViewsService {
 
 suite("workbench/browser/workbench layout integration", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
+
+  test("reports initial render after the complete workbench split is mounted", () => {
+    const parent = document.createElement("div");
+    const storage = new TestStorageService();
+    const layoutService = new BrowserWorkbenchLayoutService(storage);
+    const viewsService = new RecordingViewsService(layoutService);
+    const contextKeyService = new ContextKeyService();
+    const readySnapshots: Array<{
+      readonly hasAuxiliaryBar: boolean;
+      readonly hasMain: boolean;
+      readonly hasSidebar: boolean;
+      readonly hasSplit: boolean;
+    }> = [];
+    document.body.append(parent);
+
+    const workbench = new Workbench(parent, createWorkbenchOptions({
+      contextKeyService,
+      layoutService,
+      onDidRenderInitialWorkbench: () => {
+        readySnapshots.push({
+          hasAuxiliaryBar: Boolean(parent.querySelector(".workbench_layout_split .workbench_layout_auxiliarybar")),
+          hasMain: Boolean(parent.querySelector(".workbench_layout_split #workbench-viewpane-main")),
+          hasSidebar: Boolean(parent.querySelector(".workbench_layout_split .workbench_layout_sidebar")),
+          hasSplit: Boolean(parent.querySelector(".workbench_layout_split")),
+        });
+      },
+      storage,
+      viewsService,
+    }));
+
+    try {
+      assert.deepEqual(readySnapshots, [{
+        hasAuxiliaryBar: true,
+        hasMain: true,
+        hasSidebar: true,
+        hasSplit: true,
+      }]);
+      assert.equal(viewsService.openCalls.includes(WorkbenchViewContainers.files), true);
+      assert.equal(viewsService.openCalls.includes(WorkbenchViewContainers.main), true);
+      assert.equal(viewsService.openCalls.includes(WorkbenchViewContainers.auxiliarybar), true);
+    } finally {
+      workbench.dispose();
+      contextKeyService.dispose();
+      layoutService.dispose();
+      storage.dispose();
+      parent.remove();
+    }
+  });
+
   test("settings navigation does not hide or reopen the auxiliary bar part", async () => {
     const parent = document.createElement("div");
     const storage = new TestStorageService();
@@ -525,11 +574,13 @@ const createProcessedFileRecord = (fileId: string): FileRecord => {
 const createWorkbenchOptions = ({
   contextKeyService,
   layoutService,
+  onDidRenderInitialWorkbench,
   storage,
   viewsService,
 }: {
   readonly contextKeyService: ContextKeyService;
   readonly layoutService: BrowserWorkbenchLayoutService;
+  readonly onDidRenderInitialWorkbench?: () => void;
   readonly storage: TestStorageService;
   readonly viewsService: RecordingViewsService;
 }): WorkbenchOptions => {
@@ -602,6 +653,7 @@ const createWorkbenchOptions = ({
     layoutService,
     menuService,
     notificationService,
+    onDidRenderInitialWorkbench,
     parametersService: {
       onDidChangeParametersViewState: Event.None,
       updateViewState: () => undefined,

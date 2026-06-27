@@ -132,7 +132,6 @@ import { registerNotificationCommands } from "src/cs/workbench/browser/parts/not
 type WorkbenchSessionSnapshot = SessionSnapshot;
 
 type WorkbenchFullRefreshReason =
-  | "deferredAuxiliaryBarViewContainer"
   | "initial"
   | "resetLayout"
   | "sameViewMode"
@@ -166,6 +165,7 @@ export type WorkbenchOptions = {
   readonly menuService?: IMenuService;
   readonly nativeHostService?: INativeHostService;
   readonly notificationService?: NotificationService;
+  readonly onDidRenderInitialWorkbench?: () => void;
   readonly parametersService?: IParametersService;
   readonly plotService?: IPlotService;
   readonly settingsService?: ISettingsService;
@@ -529,8 +529,8 @@ export class Workbench extends Layout {
   private scheduledAuxiliarySurfacesRefreshNeedsChrome = false;
   private lastObservedExportState: ExportState | null = null;
   private titlebarState: WorkbenchTitlebarState | undefined;
-  private deferAuxiliaryBarViewContainer = false;
-  private deferSidebarViewContainer = false;
+  private readonly onDidRenderInitialWorkbench: (() => void) | undefined;
+  private didRenderInitialWorkbench = false;
   private suppressNavigationRefresh = false;
   //#endregion
 
@@ -548,6 +548,7 @@ export class Workbench extends Layout {
     this.shellServices = shellServices;
     this.services = new Lazy(() => resolveWorkbenchServices(options, shellServices));
     this.titlebarState = options.titlebarState;
+    this.onDidRenderInitialWorkbench = options.onDidRenderInitialWorkbench;
     this.window = this._register(new WorkbenchWindow(parent, {
       ...options,
       titleService: shellServices.titleService ?? options.titleService,
@@ -720,8 +721,6 @@ export class Workbench extends Layout {
         }));
       });
 
-      this.deferAuxiliaryBarViewContainer = true;
-      this.deferSidebarViewContainer = true;
       measureWorkbenchBoot("workbench:service-layer:install:reset-view", () => {
         this.suppressNavigationRefresh = true;
         try {
@@ -736,86 +735,7 @@ export class Workbench extends Layout {
       measureWorkbenchBoot("workbench:service-layer:install:refresh-initial", () => {
         this.refreshWorkbench("initial");
       });
-      this.scheduleDeferredPeripheralViewContainers();
     });
-  }
-
-  private scheduleDeferredPeripheralViewContainers(): void {
-    if (!this.hasDeferredPeripheralViewContainers()) {
-      return;
-    }
-
-    logWorkbenchBoot("workbench:service-layer:deferred-peripheral:scheduled");
-    this._register(scheduleAtNextAnimationFrame(window, () => {
-      if (this.disposed || !this.hasDeferredPeripheralViewContainers()) {
-        return;
-      }
-
-      this._register(runWhenWindowIdle(window, () => {
-        if (this.disposed || !this.hasDeferredPeripheralViewContainers()) {
-          return;
-        }
-
-        this.flushDeferredSidebarViewContainer();
-      }, 500));
-    }));
-  }
-
-  private flushDeferredSidebarViewContainer(): void {
-    if (this.deferSidebarViewContainer) {
-      measureWorkbenchBoot("workbench:service-layer:deferred-sidebar-open", () => {
-        this.deferSidebarViewContainer = false;
-        this.updateViewContainers();
-        this.updateContextKeys();
-      });
-      this.scheduleDeferredSidebarViewContainerRender();
-      return;
-    }
-    this.scheduleDeferredAuxiliaryBarViewContainer();
-  }
-
-  private scheduleDeferredSidebarViewContainerRender(): void {
-    logWorkbenchBoot("workbench:service-layer:deferred-sidebar-render:scheduled");
-    this._register(scheduleAtNextAnimationFrame(window, () => {
-      if (this.disposed) {
-        return;
-      }
-
-      this._register(runWhenWindowIdle(window, () => {
-        if (this.disposed) {
-          return;
-        }
-
-        measureWorkbenchBoot("workbench:service-layer:deferred-sidebar-render", () => {
-          this.renderWorkbench();
-        });
-        this.scheduleDeferredAuxiliaryBarViewContainer();
-      }, 500));
-    }));
-  }
-
-  private scheduleDeferredAuxiliaryBarViewContainer(): void {
-    if (!this.deferAuxiliaryBarViewContainer) {
-      return;
-    }
-
-    logWorkbenchBoot("workbench:service-layer:deferred-auxiliarybar:scheduled");
-    this._register(scheduleAtNextAnimationFrame(window, () => {
-      if (this.disposed || !this.deferAuxiliaryBarViewContainer) {
-        return;
-      }
-
-      this._register(runWhenWindowIdle(window, () => {
-        if (this.disposed || !this.deferAuxiliaryBarViewContainer) {
-          return;
-        }
-
-        measureWorkbenchBoot("workbench:service-layer:deferred-auxiliarybar", () => {
-          this.deferAuxiliaryBarViewContainer = false;
-          this.refreshWorkbench("deferredAuxiliaryBarViewContainer");
-        });
-      }, 500));
-    }));
   }
 
   private getActiveTitleService(): ITitleService | undefined {
@@ -870,11 +790,9 @@ export class Workbench extends Layout {
     measureWorkbenchBoot(`workbench:refresh:${reason}:context`, () => {
       this.updateContextKeys();
     });
-    if (!this.shouldDeferAuxiliaryBarViewContainer()) {
-      measureWorkbenchBoot(`workbench:refresh:${reason}:auxiliary-view`, () => {
-        this.renderAuxiliaryBarView(snapshot, readModel);
-      });
-    }
+    measureWorkbenchBoot(`workbench:refresh:${reason}:auxiliary-view`, () => {
+      this.renderAuxiliaryBarView(snapshot, readModel);
+    });
     measureWorkbenchBoot(`workbench:refresh:${reason}:render`, () => {
       this.renderWorkbench();
     });
@@ -990,33 +908,25 @@ export class Workbench extends Layout {
   }
 
   private renderWorkbench(): void {
-    const deferSidebarViewContainer = this.shouldDeferSidebarViewContainer();
-    const deferAuxiliaryBarViewContainer = this.shouldDeferAuxiliaryBarViewContainer();
     measureWorkbenchBoot("workbench:render:set-parts", () => {
       this.setParts({
-        sidebar: deferSidebarViewContainer
-          ? null
-          : this.getViewContainerElement(WorkbenchViewContainers.files, null),
+        sidebar: this.getViewContainerElement(WorkbenchViewContainers.files, null),
         workbench: this.getViewContainerElement(
           WorkbenchViewContainers.main,
           this.activeWorkbenchMainPart === "chart" ? this.getChartViewElement() : this.getTableViewElement(),
         ),
-        auxiliaryBar: deferAuxiliaryBarViewContainer
-          ? null
-          : this.getViewContainerElement(
-            WorkbenchViewContainers.auxiliarybar,
-            this.getActiveAuxiliaryBarElement(),
-          ),
+        auxiliaryBar: this.getViewContainerElement(
+          WorkbenchViewContainers.auxiliarybar,
+          this.getActiveAuxiliaryBarElement(),
+        ),
         overlay: this.notifications.element,
         settings: this.getViewContainerElement(WorkbenchViewContainers.settings, null),
       });
     });
 
-    if (!deferSidebarViewContainer || !deferAuxiliaryBarViewContainer) {
-      measureWorkbenchBoot("workbench:render:layout-containers", () => {
-        this.layoutVisibleViewContainers();
-      });
-    }
+    measureWorkbenchBoot("workbench:render:layout-containers", () => {
+      this.layoutVisibleViewContainers();
+    });
 
     measureWorkbenchBoot("workbench:render:window-update", () => {
       this.window.update({
@@ -1026,6 +936,7 @@ export class Workbench extends Layout {
         titleService: this.titleService,
       });
     });
+    this.markInitialWorkbenchRenderComplete();
   }
 
   protected override onDidRenderLayout(): void {
@@ -1040,6 +951,15 @@ export class Workbench extends Layout {
       showDesktopCommandBar: getWorkbenchWindowState().isDesktopChromePreviewEnabled,
       titleService: this.titleService,
     });
+  }
+
+  private markInitialWorkbenchRenderComplete(): void {
+    if (this.didRenderInitialWorkbench) {
+      return;
+    }
+
+    this.didRenderInitialWorkbench = true;
+    this.onDidRenderInitialWorkbench?.();
   }
 
   public override dispose(): void {
@@ -1090,15 +1010,13 @@ export class Workbench extends Layout {
     const isChartActive = this.activeWorkbenchMainPart === "chart";
     const isSidebarVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
     const isAuxiliaryBarVisible = this.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
-    const deferSidebarViewContainer = this.shouldDeferSidebarViewContainer();
-    const deferAuxiliaryBarViewContainer = this.shouldDeferAuxiliaryBarViewContainer();
 
-    if (isSidebarVisible && !deferSidebarViewContainer) {
+    if (isSidebarVisible) {
       measureWorkbenchBoot("workbench:view-containers:open:files", () => {
         void this.viewsService.openViewContainer(WorkbenchViewContainers.files);
       });
     }
-    if (isAuxiliaryBarVisible && !deferAuxiliaryBarViewContainer) {
+    if (isAuxiliaryBarVisible) {
       measureWorkbenchBoot("workbench:view-containers:open:auxiliarybar", () => {
         void this.viewsService.openViewContainer(WorkbenchViewContainers.auxiliarybar);
       });
@@ -1120,34 +1038,18 @@ export class Workbench extends Layout {
     measureWorkbenchBoot("workbench:view-containers:set-visible", () => {
       this.viewsService.setViewVisible(
         ExplorerViewId,
-        isWorkbenchActive && isSidebarVisible && !deferSidebarViewContainer,
+        isWorkbenchActive && isSidebarVisible,
       );
       this.viewsService.setViewVisible(TableViewId, isWorkbenchActive && !isChartActive);
       this.viewsService.setViewVisible(ChartViewId, isWorkbenchActive && isChartActive);
       this.viewsService.setViewVisible(SettingsViewId, isSettingsActive);
     });
-    if (!deferSidebarViewContainer) {
-      measureWorkbenchBoot("workbench:view-containers:update-sidebar", () => {
-        this.updateSidebar(isWorkbenchActive && isSidebarVisible);
-      });
-    }
-    if (!deferAuxiliaryBarViewContainer) {
-      measureWorkbenchBoot("workbench:view-containers:update-auxiliarybar", () => {
-        this.updateAuxiliaryBar(isWorkbenchActive && isAuxiliaryBarVisible);
-      });
-    }
-  }
-
-  private hasDeferredPeripheralViewContainers(): boolean {
-    return this.deferSidebarViewContainer || this.deferAuxiliaryBarViewContainer;
-  }
-
-  private shouldDeferSidebarViewContainer(): boolean {
-    return this.deferSidebarViewContainer && this.activeView !== "settings";
-  }
-
-  private shouldDeferAuxiliaryBarViewContainer(): boolean {
-    return this.deferAuxiliaryBarViewContainer && this.activeView !== "settings";
+    measureWorkbenchBoot("workbench:view-containers:update-sidebar", () => {
+      this.updateSidebar(isWorkbenchActive && isSidebarVisible);
+    });
+    measureWorkbenchBoot("workbench:view-containers:update-auxiliarybar", () => {
+      this.updateAuxiliaryBar(isWorkbenchActive && isAuxiliaryBarVisible);
+    });
   }
 
   private updateContextKeys(): void {

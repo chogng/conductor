@@ -1,4 +1,3 @@
-import { scheduleAtNextAnimationFrame } from "src/cs/base/browser/dom";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
@@ -74,6 +73,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
 
     this.workbench = this._register(new Workbench(root, {
       instantiationService,
+      onDidRenderInitialWorkbench: () => markBootUiReady("workbench"),
     }));
     this._register(CommandsRegistry.registerCommand({
       id: WorkbenchLayoutCommandId.resetLayoutState,
@@ -82,11 +82,6 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
         description: localize("workbench.commands.resetLayoutState", "Reset workbench layout state"),
       },
     }));
-    this._register(
-      scheduleAtNextAnimationFrame(window, () => {
-        markBootUiReady("workbench");
-      }),
-    );
   }
 
   public get contentElement(): HTMLElement {
