@@ -174,7 +174,6 @@ export type WorkbenchOptions = {
   readonly id?: string;
   readonly instantiationService?: IInstantiationService;
   readonly showDesktopCommandBar?: boolean;
-  readonly showSkeleton?: boolean;
   readonly style?: WorkbenchStyle;
   readonly templateViewStateService?: ITemplateViewStateService;
   readonly thumbnailPreviewService?: IThumbnailPreviewService;
@@ -551,7 +550,6 @@ export class Workbench extends Layout {
     this.titlebarState = options.titlebarState;
     this.window = this._register(new WorkbenchWindow(parent, {
       ...options,
-      showSkeleton: deferServiceStartup || options.showSkeleton === true,
       titleService: shellServices.titleService ?? options.titleService,
     }));
     this.notifications = this._register(new NotificationToasts());
@@ -833,7 +831,6 @@ export class Workbench extends Layout {
     }
     this.window.update({
       ...options,
-      showSkeleton: options.showSkeleton ?? this.serviceStartupState !== "started",
       titleService: options.titleService ?? this.getActiveTitleService(),
     });
   }
@@ -1026,7 +1023,6 @@ export class Workbench extends Layout {
         id: "workbench-page",
         className: "workbench_root",
         showDesktopCommandBar: getWorkbenchWindowState().isDesktopChromePreviewEnabled,
-        showSkeleton: false,
         titleService: this.titleService,
       });
     });
@@ -1042,7 +1038,6 @@ export class Workbench extends Layout {
       id: "workbench-page",
       className: "workbench_root",
       showDesktopCommandBar: getWorkbenchWindowState().isDesktopChromePreviewEnabled,
-      showSkeleton: false,
       titleService: this.titleService,
     });
   }

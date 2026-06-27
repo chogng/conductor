@@ -14,7 +14,6 @@ export type WorkbenchWindowOptions = {
   readonly className?: string;
   readonly id?: string;
   readonly showDesktopCommandBar?: boolean;
-  readonly showSkeleton?: boolean;
   readonly style?: WorkbenchStyle;
   readonly titleService?: ITitleService;
 };
@@ -32,104 +31,16 @@ const createElement = <K extends keyof HTMLElementTagNameMap>(
   return element;
 };
 
-const appendChildren = <T extends HTMLElement>(
-  parent: T,
-  children: HTMLElement[],
-): T => {
-  for (const child of children) {
-    parent.appendChild(child);
-  }
-
-  return parent;
-};
-
-const createSkeleton = (showDesktopCommandBar: boolean): HTMLElement =>
-  appendChildren(
-    createElement(
-      "section",
-      "workbench_window_skeleton",
-    ),
-    [
-      appendChildren(
-        createElement(
-          "div",
-          showDesktopCommandBar
-            ? "workbench_window_skeleton_body workbench_window_skeleton_body--desktop-command-bar"
-            : "workbench_window_skeleton_body",
-        ),
-        [
-          appendChildren(
-            createElement(
-              "div",
-              "workbench_window_skeleton_grid",
-            ),
-            [
-              appendChildren(
-                createElement(
-                  "div",
-                  "workbench_window_skeleton_sidebar",
-                ),
-                [
-                  appendChildren(
-                    createElement(
-                      "div",
-                      "workbench_window_skeleton_sidebar_header",
-                    ),
-                    [
-                      createElement(
-                        "div",
-                        "workbench_window_skeleton_sidebar_action",
-                      ),
-                      createElement(
-                        "div",
-                        "workbench_window_skeleton_sidebar_icon",
-                      ),
-                    ],
-                  ),
-                  createElement("div", "workbench_window_skeleton_sidebar_label"),
-                  createElement(
-                    "div",
-                    "workbench_window_skeleton_sidebar_dropzone",
-                  ),
-                ],
-              ),
-              appendChildren(
-                createElement(
-                  "div",
-                  "workbench_window_skeleton_content",
-                ),
-                [
-                  appendChildren(
-                    createElement("div", "workbench_window_skeleton_content_inner"),
-                    [
-                      createElement(
-                        "div",
-                        "workbench_window_skeleton_content_panel",
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-    ],
-  );
-
 export class WorkbenchWindow extends Disposable {
   private readonly element: HTMLElement;
   private readonly titlebarHost = createElement("div");
   private readonly body = createElement("div", "workbench_window_body");
-  private readonly skeletonHost = createElement("div");
   private readonly contentHost = createElement(
     "div",
     "workbench_window_content",
   );
   private titlebarPart: IDisposable | undefined;
   private attachedTitleService: ITitleService | undefined;
-  private renderedSkeletonVisible: boolean | undefined;
-  private renderedSkeletonDesktopCommandBar: boolean | undefined;
 
   public readonly contentElement = this.contentHost;
 
@@ -141,7 +52,7 @@ export class WorkbenchWindow extends Disposable {
 
     this.element = createElement("div");
     this.element.append(this.titlebarHost, this.body);
-    this.body.append(this.skeletonHost, this.contentHost);
+    this.body.append(this.contentHost);
     parent.replaceChildren(this.element);
     this.update(options);
   }
@@ -153,7 +64,6 @@ export class WorkbenchWindow extends Disposable {
       className = "",
       id,
       showDesktopCommandBar = shouldShowDesktopCommandBar,
-      showSkeleton = true,
       style,
       titleService,
     } = options;
@@ -164,7 +74,6 @@ export class WorkbenchWindow extends Disposable {
     applyWorkbenchStyle(this.element, style);
 
     this.renderTitlebar(showDesktopCommandBar, titleService);
-    this.renderSkeleton(showSkeleton, showDesktopCommandBar);
   }
 
   private renderTitlebar(
@@ -187,28 +96,6 @@ export class WorkbenchWindow extends Disposable {
       this.titlebarPart = titleService.attachTitlebarPart(this.titlebarHost);
       return;
     }
-  }
-
-  private renderSkeleton(
-    showSkeleton: boolean,
-    showDesktopCommandBar: boolean,
-  ): void {
-    if (
-      this.renderedSkeletonVisible === showSkeleton &&
-      (!showSkeleton || this.renderedSkeletonDesktopCommandBar === showDesktopCommandBar)
-    ) {
-      return;
-    }
-
-    this.renderedSkeletonVisible = showSkeleton;
-    this.renderedSkeletonDesktopCommandBar = showSkeleton ? showDesktopCommandBar : undefined;
-
-    if (!showSkeleton) {
-      this.skeletonHost.replaceChildren();
-      return;
-    }
-
-    this.skeletonHost.replaceChildren(createSkeleton(showDesktopCommandBar));
   }
 
   private clearTitlebar(): void {
