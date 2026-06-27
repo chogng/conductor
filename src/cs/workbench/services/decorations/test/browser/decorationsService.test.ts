@@ -13,6 +13,7 @@ import { DecorationsService } from "src/cs/workbench/services/decorations/browse
 import type {
 	IDecorationData,
 	IDecorationsProvider,
+	IResourceDecorationChangeEvent,
 } from "src/cs/workbench/services/decorations/common/decorations";
 
 suite("workbench/services/decorations/test/browser/decorationsService", () => {
@@ -111,9 +112,7 @@ suite("workbench/services/decorations/test/browser/decorationsService", () => {
 		store.add(provider);
 		store.add(service.registerDecorationsProvider(provider));
 
-		let affected: {
-			affectsResource(uri: URI): boolean;
-		} | null = null;
+		let affected: IResourceDecorationChangeEvent | undefined;
 		store.add(service.onDidChangeDecorations(event => {
 			affected = event;
 		}));
@@ -121,10 +120,39 @@ suite("workbench/services/decorations/test/browser/decorationsService", () => {
 		service.getDecorationData(child, false);
 		provider.fire([child]);
 
-		assert.equal(affected?.affectsResource(child), true);
-		assert.equal(affected?.affectsResource(folder), true);
-		assert.equal(affected?.affectsResource(sibling), false);
-		assert.equal(affected?.affectsResource(grandchild), false);
+		const event = affected;
+		assert.ok(event);
+		assert.equal(event.affectsResource(child), true);
+		assert.equal(event.affectsResource(folder), true);
+		assert.equal(event.affectsResource(sibling), false);
+		assert.equal(event.affectsResource(grandchild), false);
+	});
+
+	test("keeps decoration change events scoped by URI identity", () => {
+		const service = store.add(new DecorationsService());
+		const changed = URI.from({ authority: "one", path: "/workspace/data.csv", scheme: "memfs" });
+		const changedParent = URI.from({ authority: "one", path: "/workspace", scheme: "memfs" });
+		const otherAuthorityParent = URI.from({ authority: "two", path: "/workspace", scheme: "memfs" });
+		const provider = new TestDecorationsProvider("review", {
+			letter: "R",
+			tooltip: "Ready",
+		});
+		store.add(provider);
+		store.add(service.registerDecorationsProvider(provider));
+
+		let affected: IResourceDecorationChangeEvent | undefined;
+		store.add(service.onDidChangeDecorations(event => {
+			affected = event;
+		}));
+
+		service.getDecorationData(changed, false);
+		provider.fire([changed]);
+
+		const event = affected;
+		assert.ok(event);
+		assert.equal(event.affectsResource(changed), true);
+		assert.equal(event.affectsResource(changedParent), true);
+		assert.equal(event.affectsResource(otherAuthorityParent), false);
 	});
 });
 

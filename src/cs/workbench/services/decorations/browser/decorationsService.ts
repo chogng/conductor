@@ -5,6 +5,7 @@
 import { isCancellationError, isThenable, CancellationTokenSource } from "src/cs/base/common/async";
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { DisposableStore, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
+import { ResourceTree } from "src/cs/base/common/resourceTree";
 import { extUri } from "src/cs/base/common/resources";
 import type { URI } from "src/cs/base/common/uri";
 import { LinkedList } from "src/cs/base/common/linkedList";
@@ -18,17 +19,47 @@ import {
 } from "src/cs/workbench/services/decorations/common/decorations";
 
 class ResourceDecorationChangeEvent implements IResourceDecorationChangeEvent {
+	private readonly treesByRootKey: Map<string, ResourceTree<true, undefined>> | null;
+	private readonly rootResourceKeys = new Set<string>();
+
 	public constructor(
-		private readonly resources: readonly URI[] | null,
-	) {}
+		resources: readonly URI[] | null,
+	) {
+		if (!resources) {
+			this.treesByRootKey = null;
+			return;
+		}
+
+		this.treesByRootKey = new Map();
+		for (const resource of resources) {
+			const root = getResourceTreeRoot(resource);
+			const rootKey = getResourceKey(root);
+			let tree = this.treesByRootKey.get(rootKey);
+			if (!tree) {
+				tree = new ResourceTree<true, undefined>(undefined, root);
+				this.treesByRootKey.set(rootKey, tree);
+			}
+
+			if (extUri.isEqual(resource, root)) {
+				this.rootResourceKeys.add(getResourceKey(resource));
+			} else {
+				tree.add(resource, true);
+			}
+		}
+	}
 
 	public affectsResource(uri: URI): boolean {
-		if (!this.resources) {
+		if (!this.treesByRootKey) {
 			return true;
 		}
 
-		return this.resources.some(resource =>
-			extUri.isEqualOrParent(resource, uri));
+		if (this.rootResourceKeys.has(getResourceKey(uri))) {
+			return true;
+		}
+
+		const tree = this.treesByRootKey.get(getResourceKey(getResourceTreeRoot(uri)));
+		const node = tree?.getNode(uri);
+		return Boolean(node && (node.element || node.childrenCount > 0));
 	}
 }
 
@@ -238,6 +269,10 @@ export class DecorationsService implements IDecorationsService {
 const getResourceKey = (
 	uri: URI,
 ): string => extUri.getComparisonKey(uri, false);
+
+const getResourceTreeRoot = (
+	uri: URI,
+): URI => uri.with({ path: "/" });
 
 const distinctStrings = (
 	values: readonly string[],
