@@ -73,6 +73,7 @@ suite("base/test/common/resourceTree", () => {
 		const folder = tree.root.get("folder");
 		assert.ok(folder);
 		assert.equal(folder.context, "context");
+		assert.equal(folder.name, "folder");
 		assert.equal(folder.relativePath, "/folder");
 		assert.equal(folder.uri.path, "/workspace/folder");
 

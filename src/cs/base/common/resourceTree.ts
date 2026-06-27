@@ -4,6 +4,7 @@
 
 import { extUri as defaultExtUri, type IExtUri } from "./resources.js";
 import { memoize } from "./decorators.js";
+import * as paths from "./path.js";
 import { URI } from "./uri.js";
 
 export interface IResourceNode<T, C = void> {
@@ -31,7 +32,7 @@ class ResourceNode<T, C> implements IResourceNode<T, C> {
 
 	@memoize
 	public get name(): string {
-		return basename(this.relativePath);
+		return paths.posix.basename(this.relativePath);
 	}
 
 	public constructor(
@@ -57,12 +58,6 @@ class ResourceNode<T, C> implements IResourceNode<T, C> {
 	public clear(): void {
 		this.childrenByName.clear();
 	}
-}
-
-function basename(path: string): string {
-	const trimmed = path.replace(/\/+$/, "");
-	const index = trimmed.lastIndexOf("/");
-	return index === -1 ? trimmed : trimmed.slice(index + 1);
 }
 
 function splitPath(path: string): string[] {
