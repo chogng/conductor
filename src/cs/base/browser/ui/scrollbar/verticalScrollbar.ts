@@ -16,10 +16,10 @@ export class VerticalScrollbar extends AbstractScrollbar {
   }
 
   protected applyThumbSize(size: number): void {
-    this.thumb.style.height = `${size}px`;
+    this.thumb.setHeight(size);
   }
 
   protected applyThumbOffset(offset: number): void {
-    this.thumb.style.transform = `translate3d(0, ${offset}px, 0)`;
+    this.thumb.domNode.style.transform = `translate3d(0, ${offset}px, 0)`;
   }
 }

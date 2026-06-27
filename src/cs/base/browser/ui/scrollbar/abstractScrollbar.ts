@@ -3,6 +3,7 @@ import {
   EventType,
   getDomRect,
 } from "src/cs/base/browser/dom";
+import { createFastDomNode, type FastDomNode } from "src/cs/base/browser/fastDomNode";
 import {
   DisposableStore,
   type IDisposable,
@@ -31,8 +32,8 @@ type DragState = {
 };
 
 export abstract class AbstractScrollbar implements IDisposable {
-  protected readonly track: HTMLDivElement;
-  protected readonly thumb: HTMLDivElement;
+  protected readonly track: FastDomNode<HTMLElement>;
+  protected readonly thumb: FastDomNode<HTMLElement>;
 
   private readonly scrollbarState = new ScrollbarState();
   private readonly visibilityController: ScrollbarVisibilityController;
@@ -49,15 +50,15 @@ export abstract class AbstractScrollbar implements IDisposable {
     thumbClassName: string,
     visibilityPolicy: ScrollbarVisibilityPolicy = "auto",
   ) {
-    this.track = document.createElement("div");
-    this.thumb = document.createElement("div");
-    this.track.className = `scrollAreaTrack ${trackClassName}`;
-    this.thumb.className = `scrollAreaThumb ${thumbClassName}`;
+    this.track = createFastDomNode(document.createElement("div"));
+    this.thumb = createFastDomNode(document.createElement("div"));
+    this.track.setClassName(`scrollAreaTrack ${trackClassName}`);
+    this.thumb.setClassName(`scrollAreaThumb ${thumbClassName}`);
     this.track.appendChild(this.thumb);
 
-    this.track.addEventListener("mousedown", this.handleTrackPointerDown);
-    this.thumb.addEventListener("mousedown", this.handleThumbPointerDown);
-    this.root.appendChild(this.track);
+    this.track.domNode.addEventListener("mousedown", this.handleTrackPointerDown);
+    this.thumb.domNode.addEventListener("mousedown", this.handleThumbPointerDown);
+    this.root.appendChild(this.track.domNode);
     this.visibilityController = new ScrollbarVisibilityController(
       this.root,
       this.track,
@@ -80,10 +81,10 @@ export abstract class AbstractScrollbar implements IDisposable {
 
   dispose(): void {
     this.dragListeners.dispose();
-    this.track.removeEventListener("mousedown", this.handleTrackPointerDown);
-    this.thumb.removeEventListener("mousedown", this.handleThumbPointerDown);
+    this.track.domNode.removeEventListener("mousedown", this.handleTrackPointerDown);
+    this.thumb.domNode.removeEventListener("mousedown", this.handleThumbPointerDown);
     this.visibilityController.dispose();
-    this.track.remove();
+    this.track.domNode.remove();
   }
 
   setVisibilityPolicy(policy: ScrollbarVisibilityPolicy): void {
@@ -135,7 +136,7 @@ export abstract class AbstractScrollbar implements IDisposable {
     };
     this.delegate.onDragStart(this.orientation);
 
-    const targetWindow = this.track.ownerDocument.defaultView ?? window;
+    const targetWindow = this.track.domNode.ownerDocument.defaultView ?? window;
     this.dragListeners.add(addDisposableListener(
       targetWindow,
       EventType.MOUSE_MOVE,

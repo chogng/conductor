@@ -16,10 +16,10 @@ export class HorizontalScrollbar extends AbstractScrollbar {
   }
 
   protected applyThumbSize(size: number): void {
-    this.thumb.style.width = `${size}px`;
+    this.thumb.setWidth(size);
   }
 
   protected applyThumbOffset(offset: number): void {
-    this.thumb.style.transform = `translate3d(${offset}px, 0, 0)`;
+    this.thumb.domNode.style.transform = `translate3d(${offset}px, 0, 0)`;
   }
 }

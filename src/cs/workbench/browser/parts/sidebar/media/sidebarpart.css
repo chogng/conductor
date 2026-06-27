@@ -10,6 +10,24 @@
   background-color: transparent;
 }
 
+.workbench_layout_sidebar::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: -1px;
+  bottom: 0;
+  z-index: 1;
+  width: 7px;
+  border-top-right-radius: 0.75rem;
+  pointer-events: none;
+  background: linear-gradient(
+    to left,
+    rgb(0 0 0 / 0.04) 0,
+    rgb(0 0 0 / 0.018) 2px,
+    rgb(0 0 0 / 0) 7px
+  );
+}
+
 .sidebar-hidden .workbench_layout_sidebar {
   opacity: 0;
   pointer-events: none;

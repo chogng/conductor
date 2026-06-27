@@ -1,3 +1,4 @@
+import type { FastDomNode } from "src/cs/base/browser/fastDomNode";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { ScrollbarOrientation } from "src/cs/base/browser/ui/scrollbar/scrollbarState";
 
@@ -9,11 +10,11 @@ export class ScrollbarVisibilityController implements IDisposable {
 
   constructor(
     private readonly root: HTMLElement,
-    private readonly track: HTMLElement,
+    private readonly track: FastDomNode<HTMLElement>,
     private readonly orientation: ScrollbarOrientation,
     private policy: ScrollbarVisibilityPolicy = "auto",
   ) {
-    this.track.dataset.scrollbarVisibility = this.policy;
+    this.track.setAttribute("data-scrollbar-visibility", this.policy);
     this.ensureVisibility();
   }
 
@@ -23,7 +24,7 @@ export class ScrollbarVisibilityController implements IDisposable {
     }
 
     this.policy = policy;
-    this.track.dataset.scrollbarVisibility = policy;
+    this.track.setAttribute("data-scrollbar-visibility", policy);
     return this.ensureVisibility();
   }
 
@@ -48,7 +49,7 @@ export class ScrollbarVisibilityController implements IDisposable {
     }
 
     this.isVisible = visible;
-    this.track.hidden = !visible;
+    this.track.domNode.hidden = !visible;
     this.root.dataset[this.orientation === "y" ? "scrollbarY" : "scrollbarX"] =
       visible ? "visible" : "hidden";
     return visible;
