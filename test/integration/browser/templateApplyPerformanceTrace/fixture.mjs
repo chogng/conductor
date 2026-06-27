@@ -1,4 +1,4 @@
-import {
+﻿import {
   createWriteStream,
   mkdirSync,
   readFileSync,
@@ -8,7 +8,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 
-import JSZip from "jszip";
+import { strToU8, zipSync } from "fflate";
 
 export const createRunId = () =>
   `${new Date().toISOString().replace(/[:.]/g, "-")}-${process.pid}`;
@@ -38,7 +38,7 @@ export const createUniqueImportFixture = async ({ fileCount, profile, rowCount, 
       runId,
     });
     files.push({
-      expectedTableFactsBadge: fixtureType === "healthyCsv" || fixtureType === "schemaVariantCsv",
+      expectedReviewDecoration: fixtureType === "healthyCsv" || fixtureType === "schemaVariantCsv",
       expectedPrepareFailure: fixtureType === "corruptXlsx",
       fileIndex: index,
       fileName,
@@ -53,7 +53,7 @@ export const createUniqueImportFixture = async ({ fileCount, profile, rowCount, 
   }, {});
   return {
     composition,
-    expectedTableFactsBadgeCount: files.filter(file => file.expectedTableFactsBadge).length,
+    expectedReviewDecorationCount: files.filter(file => file.expectedReviewDecoration).length,
     expectedPrepareCompletionCount: files.length,
     expectedPrepareFailureCount: files.filter(file => file.expectedPrepareFailure).length,
     files,
@@ -279,8 +279,8 @@ export const worksheetXml = ({ columnCount, fileIndex, rowCount, runId, sheetInd
 };
 
 export const writeTinyXlsx = async (filePath, options) => {
-  const zip = new JSZip();
-  zip.file("[Content_Types].xml", [
+  const entries = {};
+  addZipText(entries, "[Content_Types].xml", [
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
     '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">',
     '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>',
@@ -290,13 +290,13 @@ export const writeTinyXlsx = async (filePath, options) => {
       `<Override PartName="/xl/worksheets/sheet${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`),
     '</Types>',
   ].join(""));
-  zip.folder("_rels").file(".rels", [
+  addZipText(entries, "_rels/.rels", [
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
     '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">',
     '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>',
     '</Relationships>',
   ].join(""));
-  zip.folder("xl").file("workbook.xml", [
+  addZipText(entries, "xl/workbook.xml", [
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
     '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">',
     '<sheets>',
@@ -305,7 +305,7 @@ export const writeTinyXlsx = async (filePath, options) => {
     '</sheets>',
     '</workbook>',
   ].join(""));
-  zip.folder("xl").folder("_rels").file("workbook.xml.rels", [
+  addZipText(entries, "xl/_rels/workbook.xml.rels", [
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
     '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">',
     ...Array.from({ length: options.sheetCount }, (_, index) =>
@@ -313,20 +313,19 @@ export const writeTinyXlsx = async (filePath, options) => {
     '</Relationships>',
   ].join(""));
 
-  const worksheets = zip.folder("xl").folder("worksheets");
   for (let index = 0; index < options.sheetCount; index += 1) {
-    worksheets.file(`sheet${index + 1}.xml`, worksheetXml({
+    addZipText(entries, `xl/worksheets/sheet${index + 1}.xml`, worksheetXml({
       ...options,
       sheetIndex: index + 1,
     }));
   }
 
-  const bytes = await zip.generateAsync({
-    compression: "DEFLATE",
-    compressionOptions: { level: 6 },
-    type: "nodebuffer",
-  });
+  const bytes = zipSync(entries, { level: 6 });
   writeFileSync(filePath, bytes);
+};
+
+const addZipText = (entries, entryPath, contents) => {
+  entries[entryPath] = strToU8(contents);
 };
 
 

@@ -2,124 +2,306 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import JSZip from "jszip";
-import Papa from "papaparse";
-
-import type { URI } from "src/cs/base/common/uri";
+import {
+	readZipEntries,
+	readZipText,
+} from "src/cs/base/common/zip";
 import {
 	copyBytesToArrayBuffer,
 	readTableByteBuffer,
-	readTableTextBuffer,
+	readTableTextChunks,
 	type TableReadBuffer,
 } from "src/cs/workbench/services/table/common/tableReadBuffer";
-import { toTableSheetKey } from "src/cs/workbench/services/table/common/table";
 import {
-  type TableModelContentSnapshot,
-  type TableModelSheetSnapshot,
+  type TableParseDiagnostic,
 } from "src/cs/workbench/services/table/common/model";
 import {
   type TableFormatId,
 } from "src/cs/workbench/services/table/common/tableFormatService";
 
+export const PARSED_TABLE_ROW_WINDOW_SIZE = 1000;
+
 export type TableStructureParseInput = {
   readonly buffer: TableReadBuffer;
   readonly format: TableFormatId;
-  readonly resource: URI;
-  readonly defaultSheetKey: string;
+};
+
+export const DEFAULT_PHYSICAL_TABLE_SHEET_ID = "0";
+
+export type ParsedTableContent = {
+  readonly columnCount: number;
+  readonly maxCellLengths: readonly number[];
+  readonly rowCount: number;
+  readonly rows: readonly (readonly string[])[];
+  readonly rowWindows?: readonly ParsedTableRowWindow[];
+};
+
+export type ParsedTableRowWindow = {
+  readonly startRowIndex: number;
+  readonly rows: readonly (readonly string[])[];
+};
+
+export type ParsedTableSheet = {
+  readonly content: ParsedTableContent | null;
+  readonly diagnostics: readonly TableParseDiagnostic[];
+  readonly sheetId: string;
+  readonly sheetName: string | null;
 };
 
 export type ParsedTableStructure = {
-  readonly content: TableModelContentSnapshot | null;
-  readonly sheets: readonly TableModelSheetSnapshot[];
+  readonly content: ParsedTableContent | null;
+  readonly diagnostics: readonly TableParseDiagnostic[];
+  readonly sheets: readonly ParsedTableSheet[];
 };
 
 export const parseTableStructure = async ({
   buffer,
-  defaultSheetKey,
   format,
-  resource,
 }: TableStructureParseInput): Promise<ParsedTableStructure> => {
   if (format === "xls") {
-    throw new Error("Legacy .xls table resources need native parser support.");
+    return createFatalParsedTableStructure(
+      "table.parser.parserUnavailable",
+      "Legacy .xls table resources need native parser support.",
+    );
   }
 
   if (format === "xlsx") {
     if (buffer.kind !== "bytes") {
-      throw new Error("The xlsx parser requires a byte table read buffer.");
+      return createFatalParsedTableStructure(
+        "table.parser.bufferKindMismatch",
+        "The xlsx parser requires a byte table read buffer.",
+      );
     }
     const bytes = copyBytesToArrayBuffer(await readTableByteBuffer(buffer));
     return parseXlsxTableModelContent({
       bytes,
-      defaultSheetKey,
-      resource,
     });
+  }
+
+  if (format !== "csv" && format !== "tsv") {
+    return createFatalParsedTableStructure(
+      "table.parser.parserUnavailable",
+      `The ${format} table parser is not available.`,
+    );
   }
 
   if (buffer.kind !== "text") {
     return {
       content: null,
+      diagnostics: [{
+        code: "table.parser.bufferKindMismatch",
+        message: `The ${format} parser requires a text table read buffer.`,
+        severity: "fatal",
+      }],
       sheets: [],
     };
   }
-  const text = await readTableTextBuffer(buffer);
-  const content = createTableModelContentSnapshot(text, format);
+  const { content, diagnostics } = await createTableModelContentSnapshot(buffer, format);
+  if (!content && diagnostics.length) {
+    return {
+      content: null,
+      diagnostics,
+      sheets: [],
+    };
+  }
   return {
     content,
+    diagnostics: [],
     sheets: content ? [{
       content,
-      sheetId: defaultSheetKey,
-      sheetKey: defaultSheetKey,
+      diagnostics,
+      sheetId: DEFAULT_PHYSICAL_TABLE_SHEET_ID,
       sheetName: null,
     }] : [],
   };
 };
 
 const createTableModelContentSnapshot = (
-  text: string | null,
-  format: TableFormatId | null,
-): TableModelContentSnapshot | null => {
-  if (text === null || (format !== "csv" && format !== "tsv")) {
-    return null;
+  buffer: Extract<TableReadBuffer, { readonly kind: "text" }>,
+  format: "csv" | "tsv",
+): Promise<{
+  readonly content: ParsedTableContent | null;
+  readonly diagnostics: readonly TableParseDiagnostic[];
+}> => parseDelimitedTableContent(buffer, format === "tsv" ? "\t" : ",");
+
+const parseDelimitedTableContent = async (
+  buffer: Extract<TableReadBuffer, { readonly kind: "text" }>,
+  delimiter: "," | "\t",
+): Promise<{
+  readonly content: ParsedTableContent | null;
+  readonly diagnostics: readonly TableParseDiagnostic[];
+}> => {
+  const contentBuilder = createParsedTableContentBuilder();
+  const diagnostics: TableParseDiagnostic[] = [];
+  let row: string[] = [];
+  let cell = "";
+  let atCellStart = true;
+  let inQuotedCell = false;
+  let afterClosingQuote = false;
+  let previousWasCarriageReturn = false;
+  let endedWithLineBreak = false;
+  let hasNonWhitespaceText = false;
+
+  const finishCell = (): void => {
+    row.push(cell);
+    cell = "";
+    atCellStart = true;
+    afterClosingQuote = false;
+  };
+  const finishRow = (): void => {
+    finishCell();
+    appendParsedTableRow(contentBuilder, row);
+    row = [];
+    endedWithLineBreak = true;
+  };
+  const addInvalidQuoteDiagnostic = (): void => {
+    if (diagnostics.some(diagnostic => diagnostic.code === "table.parser.unescapedQuote")) {
+      return;
+    }
+    diagnostics.push({
+      code: "table.parser.unescapedQuote",
+      message: "The delimited table parser found characters after a closing quote.",
+      rowIndex: contentBuilder.rowCount,
+      severity: "error",
+    });
+  };
+
+  for await (const chunk of readTableTextChunks(buffer)) {
+    if (/\S/.test(chunk.text)) {
+      hasNonWhitespaceText = true;
+    }
+    for (let index = 0; index < chunk.text.length; index += 1) {
+      const char = chunk.text[index]!;
+      if (inQuotedCell) {
+        if (char === "\"") {
+          inQuotedCell = false;
+          afterClosingQuote = true;
+        } else {
+          cell += char;
+        }
+        endedWithLineBreak = false;
+        continue;
+      }
+
+      if (previousWasCarriageReturn) {
+        previousWasCarriageReturn = false;
+        if (char === "\n") {
+          continue;
+        }
+      }
+
+      if (afterClosingQuote) {
+        if (char === "\"") {
+          cell += "\"";
+          inQuotedCell = true;
+          afterClosingQuote = false;
+          atCellStart = false;
+        } else if (char === delimiter) {
+          finishCell();
+        } else if (char === "\r" || char === "\n") {
+          finishRow();
+          previousWasCarriageReturn = char === "\r";
+        } else {
+          addInvalidQuoteDiagnostic();
+          cell += char;
+          afterClosingQuote = false;
+          atCellStart = false;
+          endedWithLineBreak = false;
+        }
+        continue;
+      }
+
+      if (atCellStart && char === "\"") {
+        inQuotedCell = true;
+        atCellStart = false;
+        endedWithLineBreak = false;
+        continue;
+      }
+
+      if (char === delimiter) {
+        finishCell();
+        endedWithLineBreak = false;
+        continue;
+      }
+
+      if (char === "\r" || char === "\n") {
+        finishRow();
+        previousWasCarriageReturn = char === "\r";
+        continue;
+      }
+
+      cell += char;
+      atCellStart = false;
+      endedWithLineBreak = false;
+    }
   }
 
-  const parsed = Papa.parse<unknown[]>(text, {
-    delimiter: format === "tsv" ? "\t" : ",",
-    skipEmptyLines: false,
-  });
-  const rows = parsed.data.map(row => row.map(cell => cell == null ? "" : String(cell)));
-  const columnCount = rows.reduce(
-    (count, row) => Math.max(count, row.length),
-    0,
-  );
-  const maxCellLengths = Array.from({ length: columnCount }, (_, columnIndex) =>
-    rows.reduce(
-      (length, row) => Math.max(length, String(row[columnIndex] ?? "").length),
-      0,
-    )
-  );
+  if (!hasNonWhitespaceText) {
+    return {
+      content: null,
+      diagnostics: [{
+        code: "table.parser.empty",
+        message: "The table file is empty.",
+        severity: "fatal",
+      }],
+    };
+  }
+
+  if (inQuotedCell) {
+    diagnostics.push({
+      code: "table.parser.MissingQuotes",
+      message: "The delimited table parser found an unclosed quoted cell.",
+      rowIndex: contentBuilder.rowCount,
+      severity: "error",
+    });
+  }
+
+  if (endedWithLineBreak) {
+    appendParsedTableRow(contentBuilder, [""]);
+  } else if (row.length || cell.length || !atCellStart || afterClosingQuote) {
+    finishCell();
+    appendParsedTableRow(contentBuilder, row);
+  }
+
   return {
-    columnCount,
-    maxCellLengths,
-    rowCount: rows.length,
-    rows,
+    content: finalizeParsedTableContent(contentBuilder),
+    diagnostics,
   };
 };
 
 const parseXlsxTableModelContent = async ({
   bytes,
-  defaultSheetKey,
-  resource,
 }: {
   readonly bytes: ArrayBuffer;
-  readonly defaultSheetKey: string;
-  readonly resource: URI;
 }): Promise<ParsedTableStructure> => {
-  const workbook = await readXlsxWorkbook(bytes);
-  const sheets: TableModelSheetSnapshot[] = [];
+  let workbook: XlsxWorkbook;
+  try {
+    workbook = await readXlsxWorkbook(bytes);
+  } catch (error) {
+    return createFatalParsedTableStructure(
+      "table.parser.malformedWorkbook",
+      getParserErrorMessage(error, "The xlsx workbook could not be parsed."),
+    );
+  }
+  const sheets: ParsedTableSheet[] = [];
   for (let index = 0; index < workbook.sheets.length; index += 1) {
     const sheet = workbook.sheets[index]!;
-    const sheetXml = await workbook.zip.file(sheet.path)?.async("text");
+    const sheetId = getXlsxSheetId(sheet, index);
+    const sheetXml = workbook.zip.has(sheet.path)
+      ? readZipText(workbook.zip, sheet.path)
+      : "";
     if (!sheetXml) {
+      sheets.push({
+        content: null,
+        diagnostics: [{
+          code: "table.parser.missingSheetXml",
+          message: `The xlsx workbook is missing worksheet XML for ${sheet.name ?? sheetId}.`,
+          severity: "error",
+          sheetId,
+        }],
+        sheetId,
+        sheetName: sheet.name,
+      });
       continue;
     }
 
@@ -127,31 +309,54 @@ const parseXlsxTableModelContent = async ({
     if (!content) {
       continue;
     }
-    const sheetId = getXlsxSheetId(sheet, index);
     sheets.push({
       content,
+      diagnostics: [],
       sheetId,
-      sheetKey: toTableSheetKey({ resource, sheetId }),
       sheetName: sheet.name,
     });
   }
 
-  const resolvedSheets = sheets.length ? sheets : [{
-    content: createEmptyTableContent(),
-    sheetId: defaultSheetKey,
-    sheetKey: defaultSheetKey,
-    sheetName: null,
-  }];
+  const firstReadableSheet = sheets.find(sheet => sheet.content);
+  if (!firstReadableSheet) {
+    return createFatalParsedTableStructure(
+      "table.parser.noReadableSheet",
+      "The workbook did not contain a readable sheet.",
+    );
+  }
+
   return {
-    content: resolvedSheets[0]?.content ?? null,
-    sheets: resolvedSheets,
+    content: firstReadableSheet.content,
+    diagnostics: [],
+    sheets,
   };
 };
+
+const createFatalParsedTableStructure = (
+  code: string,
+  message: string,
+): ParsedTableStructure => ({
+  content: null,
+  diagnostics: [{
+    code,
+    message,
+    severity: "fatal",
+  }],
+  sheets: [],
+});
+
+const getParserErrorMessage = (
+  error: unknown,
+  fallback: string,
+): string =>
+  error instanceof Error && error.message.trim()
+    ? error.message
+    : fallback;
 
 type XlsxWorkbook = {
   readonly sharedStrings: readonly string[];
   readonly sheets: readonly XlsxSheet[];
-  readonly zip: JSZip;
+  readonly zip: ReadonlyMap<string, Uint8Array<ArrayBuffer>>;
 };
 
 type XlsxSheet = {
@@ -161,10 +366,13 @@ type XlsxSheet = {
 };
 
 const readXlsxWorkbook = async (bytes: ArrayBuffer): Promise<XlsxWorkbook> => {
-  const zip = await JSZip.loadAsync(bytes);
+  // XLSX is an OpenXML ZIP container; the table parser reads only workbook and worksheet XML entries.
+  const zip = readZipEntries(bytes);
   const workbookXml = await readZipText(zip, "xl/workbook.xml");
   const relsXml = await readZipText(zip, "xl/_rels/workbook.xml.rels");
-  const sharedStringsXml = await zip.file("xl/sharedStrings.xml")?.async("text") ?? "";
+  const sharedStringsXml = zip.has("xl/sharedStrings.xml")
+    ? readZipText(zip, "xl/sharedStrings.xml")
+    : "";
   const relationships = parseXlsxRelationships(relsXml);
   const sheets = parseXlsxSheets(workbookXml, relationships);
   return {
@@ -172,14 +380,6 @@ const readXlsxWorkbook = async (bytes: ArrayBuffer): Promise<XlsxWorkbook> => {
     sheets,
     zip,
   };
-};
-
-const readZipText = async (zip: JSZip, path: string): Promise<string> => {
-  const file = zip.file(path);
-  if (!file) {
-    throw new Error(`The xlsx workbook is missing ${path}.`);
-  }
-  return file.async("text");
 };
 
 const parseXlsxRelationships = (xml: string): Map<string, string> => {
@@ -227,31 +427,21 @@ const parseXlsxSharedStrings = (xml: string): readonly string[] =>
 const createTableModelContentFromXlsxSheet = (
   xml: string,
   sharedStrings: readonly string[],
-): TableModelContentSnapshot | null => {
-  const rowElements = getXmlElements(xml, "row");
-  const rows: string[][] = [];
-  let maxColumnCount = 0;
-  for (const rowElement of rowElements) {
+): ParsedTableContent | null => {
+  const contentBuilder = createParsedTableContentBuilder();
+  for (const rowElement of iterateXmlElements(xml, "row")) {
     const row: string[] = [];
     let nextColumnIndex = 0;
-    for (const cellElement of getXmlElements(rowElement.body, "c")) {
+    for (const cellElement of iterateXmlElements(rowElement.body, "c")) {
       const attributes = parseXmlAttributes(cellElement.attributes);
       const columnIndex = getCellColumnIndex(attributes.get("r")) ?? nextColumnIndex;
       const value = getXlsxCellValue(cellElement.body, attributes, sharedStrings);
       row[columnIndex] = value;
       nextColumnIndex = columnIndex + 1;
     }
-    const normalizedRow = row.map(value => value ?? "");
-    maxColumnCount = Math.max(maxColumnCount, normalizedRow.length);
-    rows.push(normalizedRow);
+    appendParsedTableRow(contentBuilder, Array.from({ length: row.length }, (_, columnIndex) => row[columnIndex] ?? ""));
   }
-
-  for (const row of rows) {
-    for (let columnIndex = row.length; columnIndex < maxColumnCount; columnIndex += 1) {
-      row[columnIndex] = "";
-    }
-  }
-  return rows.length ? createTableContent(rows, maxColumnCount) : createEmptyTableContent();
+  return finalizeParsedTableContent(contentBuilder);
 };
 
 const getXlsxCellValue = (
@@ -281,22 +471,80 @@ const getXlsxCellValue = (
 const parseXlsxTextRuns = (xml: string): string =>
   getXmlElements(xml, "t").map(element => decodeXml(element.body)).join("");
 
-const createTableContent = (
-  rows: readonly (readonly string[])[],
-  columnCount: number,
-): TableModelContentSnapshot => ({
-  columnCount,
-  maxCellLengths: Array.from({ length: columnCount }, (_, columnIndex) =>
-    rows.reduce(
-      (length, row) => Math.max(length, String(row[columnIndex] ?? "").length),
-      0,
-    )
-  ),
-  rowCount: rows.length,
-  rows,
+type ParsedTableContentBuilder = {
+  readonly maxCellLengths: number[];
+  readonly windows: ParsedTableRowWindow[];
+  columnCount: number;
+  currentWindowRows: string[][];
+  currentWindowStartRowIndex: number;
+  rowCount: number;
+};
+
+const createParsedTableContentBuilder = (): ParsedTableContentBuilder => ({
+  columnCount: 0,
+  currentWindowRows: [],
+  currentWindowStartRowIndex: 0,
+  maxCellLengths: [],
+  rowCount: 0,
+  windows: [],
 });
 
-const createEmptyTableContent = (): TableModelContentSnapshot => ({
+const appendParsedTableRow = (
+  builder: ParsedTableContentBuilder,
+  row: string[],
+): void => {
+  if (!builder.currentWindowRows.length) {
+    builder.currentWindowStartRowIndex = builder.rowCount;
+  }
+  builder.currentWindowRows.push(row);
+  builder.rowCount += 1;
+  builder.columnCount = Math.max(builder.columnCount, row.length);
+  for (let columnIndex = 0; columnIndex < row.length; columnIndex += 1) {
+    builder.maxCellLengths[columnIndex] = Math.max(
+      builder.maxCellLengths[columnIndex] ?? 0,
+      String(row[columnIndex] ?? "").length,
+    );
+  }
+  if (builder.currentWindowRows.length >= PARSED_TABLE_ROW_WINDOW_SIZE) {
+    flushParsedTableContentWindow(builder);
+  }
+};
+
+const finalizeParsedTableContent = (
+  builder: ParsedTableContentBuilder,
+): ParsedTableContent => {
+  flushParsedTableContentWindow(builder);
+  if (!builder.rowCount) {
+    return createEmptyTableContent();
+  }
+
+  const rows = builder.windows[0]?.rows ?? [];
+  return {
+    columnCount: builder.columnCount,
+    maxCellLengths: Array.from({ length: builder.columnCount }, (_, columnIndex) =>
+      builder.maxCellLengths[columnIndex] ?? 0
+    ),
+    rowCount: builder.rowCount,
+    rows,
+    ...(builder.rowCount > PARSED_TABLE_ROW_WINDOW_SIZE ? { rowWindows: builder.windows } : {}),
+  };
+};
+
+const flushParsedTableContentWindow = (
+  builder: ParsedTableContentBuilder,
+): void => {
+  if (!builder.currentWindowRows.length) {
+    return;
+  }
+  builder.windows.push({
+    startRowIndex: builder.currentWindowStartRowIndex,
+    rows: builder.currentWindowRows,
+  });
+  builder.currentWindowRows = [];
+  builder.currentWindowStartRowIndex = builder.rowCount;
+};
+
+const createEmptyTableContent = (): ParsedTableContent => ({
   columnCount: 0,
   maxCellLengths: [],
   rowCount: 0,
@@ -315,14 +563,20 @@ type XmlElement = {
 
 const getXmlElements = (xml: string, tagName: string): readonly XmlElement[] => {
   const elements: XmlElement[] = [];
-  const pattern = new RegExp(`<[^\\s:>]*:?${tagName}\\b([^>]*)>([\\s\\S]*?)<\\/[^\\s:>]*:?${tagName}>|<[^\\s:>]*:?${tagName}\\b([^>]*)\\/>`, "g");
-  for (const match of xml.matchAll(pattern)) {
-    elements.push({
-      attributes: match[1] ?? match[3] ?? "",
-      body: match[2] ?? "",
-    });
+  for (const element of iterateXmlElements(xml, tagName)) {
+    elements.push(element);
   }
   return elements;
+};
+
+const iterateXmlElements = function* (xml: string, tagName: string): IterableIterator<XmlElement> {
+  const pattern = new RegExp(`<[^\\s:>]*:?${tagName}\\b([^>]*)>([\\s\\S]*?)<\\/[^\\s:>]*:?${tagName}>|<[^\\s:>]*:?${tagName}\\b([^>]*)\\/>`, "g");
+  for (const match of xml.matchAll(pattern)) {
+    yield {
+      attributes: match[1] ?? match[3] ?? "",
+      body: match[2] ?? "",
+    };
+  }
 };
 
 const getFirstXmlElementBody = (xml: string, tagName: string): string | null =>

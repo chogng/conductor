@@ -2,8 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import JSZip from "jszip";
-
+import { createZipBuffer } from "src/cs/base/common/zip";
 import { localize } from "src/cs/nls";
 import { triggerBlobDownload } from "src/cs/workbench/services/export/browser/download";
 import {
@@ -461,19 +460,11 @@ export async function exportOriginZip(options: {
   )
     ? options.buildPayloads()
     : result;
-  const zip = new JSZip();
-  fullResult.payloads.forEach((payload, index) => {
-    zip.file(
-      sanitizeFilename(payload.csvName || `origin_${index + 1}.csv`),
-      String(payload.csvText ?? ""),
-    );
-  });
-
-  const zipBlob = await zip.generateAsync({
-    type: "blob",
-    compression: "DEFLATE",
-    compressionOptions: { level: 6 },
-  });
+  const zipBytes = createZipBuffer(fullResult.payloads.map((payload, index) => ({
+    contents: String(payload.csvText ?? ""),
+    path: sanitizeFilename(payload.csvName || `origin_${index + 1}.csv`),
+  })));
+  const zipBlob = new Blob([zipBytes], { type: "application/zip" });
   triggerBlobDownload(zipName, zipBlob);
   return {
     canvasCount: Number(fullResult.totalCanvasCount ?? 0),

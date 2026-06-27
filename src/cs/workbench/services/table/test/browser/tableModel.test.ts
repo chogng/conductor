@@ -4,8 +4,8 @@
 
 import assert from "assert";
 
-import JSZip from "jszip";
 import { Emitter, Event } from "src/cs/base/common/event";
+import { createZipBuffer, type ZipEntry } from "src/cs/base/common/zip";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
@@ -1009,9 +1009,11 @@ const createXlsxBase64 = async (
 		readonly missingSheetIndexes?: readonly number[];
 	} = {},
 ): Promise<string> => {
-	const zip = new JSZip();
+	const entries: ZipEntry[] = [];
 	const missingSheetIndexes = new Set(options.missingSheetIndexes ?? []);
-	zip.file("xl/workbook.xml", [
+	entries.push({
+		path: "xl/workbook.xml",
+		contents: [
 		'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">',
 		"<sheets>",
 		...sheets.map((sheet, index) =>
@@ -1019,29 +1021,35 @@ const createXlsxBase64 = async (
 		),
 		"</sheets>",
 		"</workbook>",
-	].join(""));
-	zip.file("xl/_rels/workbook.xml.rels", [
+	].join(""),
+	});
+	entries.push({
+		path: "xl/_rels/workbook.xml.rels",
+		contents: [
 		'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">',
 		...sheets.map((_, index) =>
 			`<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${index + 1}.xml"/>`
 		),
 		"</Relationships>",
-	].join(""));
+	].join(""),
+	});
 	for (let index = 0; index < sheets.length; index += 1) {
 		if (missingSheetIndexes.has(index)) {
 			continue;
 		}
-		zip.file(`xl/worksheets/sheet${index + 1}.xml`, createXlsxSheetXml(sheets[index]!.rows));
+		entries.push({
+			path: `xl/worksheets/sheet${index + 1}.xml`,
+			contents: createXlsxSheetXml(sheets[index]!.rows),
+		});
 	}
-	const buffer = await zip.generateAsync({ type: "arraybuffer" });
-	return arrayBufferToBase64(buffer);
+	return bytesToBase64(createZipBuffer(entries));
 };
 
 const createMalformedXlsxBase64 = async (): Promise<string> => {
-	const zip = new JSZip();
-	zip.file("[Content_Types].xml", "<Types></Types>");
-	const buffer = await zip.generateAsync({ type: "arraybuffer" });
-	return arrayBufferToBase64(buffer);
+	return bytesToBase64(createZipBuffer([{
+		path: "[Content_Types].xml",
+		contents: "<Types></Types>",
+	}]));
 };
 
 const createXlsxSheetXml = (
@@ -1082,9 +1090,9 @@ const escapeXml = (value: string): string =>
 		.replace(/"/g, "&quot;")
 		.replace(/'/g, "&apos;");
 
-const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
+const bytesToBase64 = (bytes: Uint8Array): string => {
 	let binary = "";
-	for (const byte of new Uint8Array(buffer)) {
+	for (const byte of bytes) {
 		binary += String.fromCharCode(byte);
 	}
 	return globalThis.btoa(binary);

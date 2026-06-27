@@ -104,7 +104,7 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes("node_modules")) return undefined;
 
-          if (id.includes("papaparse") || id.includes("jszip")) {
+          if (id.includes("papaparse") || id.includes("fflate")) {
             return "data-vendor";
           }
 

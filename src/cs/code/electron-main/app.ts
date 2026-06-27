@@ -1,8 +1,6 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { createRequire } from "node:module";
-import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import {
   app,
@@ -16,6 +14,7 @@ import {
 import { product } from "../../../bootstrap-meta.js";
 import type { IDisposable } from "../../base/common/lifecycle.js";
 import type { URI } from "../../base/common/uri.js";
+import { zip as createZip } from "../../base/node/zip.js";
 import { isLanguagePreference, resolveLanguageCode } from "../../base/common/platform.js";
 import { Server as ElectronIPCServer } from "../../base/parts/ipc/electron-main/ipc.electron.js";
 import { Event } from "../../base/common/event.js";
@@ -91,7 +90,6 @@ import { registerRustHostChannels } from "./rustHostChannels.js";
 import { RustHostService } from "./rustHostService.js";
 import { mainProcessMessage } from "./mainNls.js";
 
-const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 // app.ts is compiled to out/desktop/src/cs/code/electron-main.
@@ -1079,24 +1077,9 @@ async function handleOriginZipSave(event, payload) {
 
   const zipPath = result.filePath.replace(/\.zip$/i, "") + ".zip";
   try {
-    const JSZip = require("jszip");
-    const zip = new JSZip();
-    for (const entry of normalizedEntries) {
-      if (entry.path) {
-        zip.file(entry.name, fs.createReadStream(entry.path));
-      } else {
-        zip.file(entry.name, entry.text);
-      }
-    }
-    await pipeline(
-      zip.generateNodeStream({
-        compression: "DEFLATE",
-        compressionOptions: { level: 6 },
-        streamFiles: true,
-        type: "nodebuffer",
-      }),
-      fs.createWriteStream(zipPath),
-    );
+    await createZip(zipPath, normalizedEntries.map(entry => entry.path
+      ? { path: entry.name, localPath: entry.path }
+      : { path: entry.name, contents: entry.text }));
     try {
       await originHandlers?.runRuntimeCleanup();
     } catch (cleanupError) {
