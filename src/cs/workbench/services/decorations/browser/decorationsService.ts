@@ -2,7 +2,8 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { isCancellationError, isThenable, CancellationTokenSource } from "src/cs/base/common/async";
+import { CancellationTokenSource, isThenable } from "src/cs/base/common/async";
+import { isCancellationError } from "src/cs/base/common/errors";
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { DisposableStore, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { ResourceTree } from "src/cs/base/common/resourceTree";

@@ -1,18 +1,8 @@
+import { CancellationError } from "./errors.js";
 import { Disposable, DisposableStore, type IDisposable, isDisposable, toDisposable } from "./lifecycle.js";
 
 export function isThenable<T>(value: unknown): value is PromiseLike<T> {
     return !!value && typeof (value as PromiseLike<T>).then === "function";
-}
-
-export class CancellationError extends Error {
-    constructor() {
-        super("Canceled");
-        this.name = "CancellationError";
-    }
-}
-
-export function isCancellationError(error: unknown): error is CancellationError {
-    return error instanceof CancellationError || (error instanceof Error && error.name === "CancellationError");
 }
 
 export interface CancellationToken {

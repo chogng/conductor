@@ -1,4 +1,5 @@
-import { CancellationError, CancellationToken, CancellationTokenSource } from "../../../common/async.js";
+import { CancellationToken, CancellationTokenSource } from "../../../common/async.js";
+import { CancellationError } from "../../../common/errors.js";
 import { Emitter, Event } from "../../../common/event.js";
 import { DisposableStore, type IDisposable, toDisposable } from "../../../common/lifecycle.js";
 import {

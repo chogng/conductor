@@ -2,14 +2,12 @@ import assert from "assert";
 
 import {
   asPromise,
-  CancellationError,
   CancellationToken,
   CancellationTokenSource,
   createCancelablePromise,
   DeferredPromise,
   Delayer,
   disposableTimeout,
-  isCancellationError,
   isThenable,
   raceTimeout,
   RunOnceScheduler,
@@ -18,6 +16,10 @@ import {
   timeout,
   TimeoutTimer,
 } from "../../common/async.ts";
+import {
+  CancellationError,
+  isCancellationError,
+} from "../../common/errors.ts";
 import { toDisposable } from "../../common/lifecycle.ts";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 

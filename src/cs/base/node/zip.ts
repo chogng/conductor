@@ -8,7 +8,8 @@ import type { Readable } from "node:stream";
 import { open as openYauzl, type Entry, type ZipFile } from "yauzl";
 import { ZipFile as YazlZipFile } from "yazl";
 
-import { CancellationError, createCancelablePromise, type CancellationToken } from "../common/async.js";
+import { createCancelablePromise, type CancellationToken } from "../common/async.js";
+import { CancellationError } from "../common/errors.js";
 import { localize } from "../../nls.js";
 import { Promises } from "./pfs.js";
 
