@@ -43,8 +43,8 @@ export class TemplateImportController {
       return;
     }
 
-    const content = await this.filesService.readFile(resource, { encoding: "utf8" });
-    const payload = JSON.parse(content.value) as unknown;
+    const content = await this.filesService.readFile(resource);
+    const payload = JSON.parse(new TextDecoder().decode(content.value)) as unknown;
     await importTemplatesFromPayload(payload, { fileName: getResourceFileName(resource) });
   }
 }

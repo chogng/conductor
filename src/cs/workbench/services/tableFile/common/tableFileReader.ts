@@ -6,11 +6,13 @@ import type { URI } from "src/cs/base/common/uri";
 import type {
 	IFileService,
 	IFileStat,
-	IReadFileEncoding,
 } from "src/cs/platform/files/common/files";
 import type { TableReadBuffer } from "src/cs/workbench/services/table/common/tableReadBuffer";
+import type { TableParseDiagnostic } from "src/cs/workbench/services/table/common/model";
 import {
+	createTableByteChunkBuffer,
 	createTableByteBuffer,
+	createTableTextChunkBuffer,
 	createTableTextBuffer,
 } from "src/cs/workbench/services/table/common/tableReadBuffer";
 import {
@@ -18,15 +20,21 @@ import {
 	type TableFormatId,
 } from "src/cs/workbench/services/table/common/tableFormatService";
 import {
+	canMaterializeTableFormat,
+} from "src/cs/workbench/services/table/common/tableFormatRegistry";
+import {
 	decodeTableFileContent,
 	getTableFileMimeType,
-	getTableFileReadEncoding,
-	isFileContent,
+	getTableFileReadMode,
+	type TableFileReadMode,
 } from "src/cs/workbench/services/tableFile/common/encoding";
 
 export type TableFileReadOptions = {
-	readonly readEncoding?: IReadFileEncoding;
+	readonly chunkSizeBytes?: number;
+	readonly readMode?: TableFileReadMode;
 };
+
+const DefaultTableFileReadChunkSizeBytes = 1024 * 1024;
 
 export type TableFileReadResult = {
 	readonly buffer: TableReadBuffer;
@@ -36,40 +44,164 @@ export type TableFileReadResult = {
 	readonly stat: IFileStat;
 };
 
+export class TableFileReadDiagnosticError extends Error {
+	public readonly diagnostic: TableParseDiagnostic;
+	public readonly format: TableFormatId;
+	public readonly resource: URI;
+	public readonly stat: IFileStat;
+
+	public constructor({
+		diagnostic,
+		format,
+		resource,
+		stat,
+	}: {
+		readonly diagnostic: TableParseDiagnostic;
+		readonly format: TableFormatId;
+		readonly resource: URI;
+		readonly stat: IFileStat;
+	}) {
+		super(diagnostic.message);
+		this.name = "TableFileReadDiagnosticError";
+		this.diagnostic = diagnostic;
+		this.format = format;
+		this.resource = resource;
+		this.stat = stat;
+	}
+}
+
+export const isTableFileReadDiagnosticError = (
+	error: unknown,
+): error is TableFileReadDiagnosticError => error instanceof TableFileReadDiagnosticError;
+
 export const readTableFile = async (
 	resource: URI,
 	fileService: IFileService,
 	options: TableFileReadOptions = {},
 ): Promise<TableFileReadResult> => {
 	const format = tableFormatService.resolveFormat(resource);
-	if (!format) {
+	if (!format || !canMaterializeTableFormat(format)) {
 		throw new Error(`Unsupported table file: ${resource.toString()}`);
 	}
 
 	const stat = await fileService.stat(resource);
-	const content = await fileService.readFile(resource, {
-		encoding: options.readEncoding ?? getTableFileReadEncoding(resource),
-	});
-	if (!isFileContent(content)) {
-		throw new Error("The file content could not be read.");
+	const chunkSizeBytes = normalizeChunkSizeBytes(options.chunkSizeBytes);
+	if (stat.size > chunkSizeBytes) {
+		const chunks = await readTableFileByteChunks({
+			chunkSizeBytes,
+			fileService,
+			format,
+			resource,
+			stat,
+		});
+		return {
+			buffer: isDelimitedTableFormat(format)
+				? createTableTextChunkBuffer(chunks, "utf8")
+				: createTableByteChunkBuffer(chunks),
+			format,
+			mime: getTableFileMimeType(format),
+			resource,
+			stat,
+		};
 	}
 
-	const decodedContent = decodeTableFileContent(content);
-	const buffer = content.encoding === "utf8" && decodedContent.text !== null
-		? createTableTextBuffer(decodedContent.text, content.encoding)
+	const content = await fileService.readFile(resource);
+
+	let decodedContent: ReturnType<typeof decodeTableFileContent>;
+	try {
+		decodedContent = decodeTableFileContent(content.value, options.readMode ?? getTableFileReadMode(format));
+	} catch (error) {
+		throw createReadDiagnosticError({
+			format,
+			message: getErrorMessage(error, "The table file content could not be decoded."),
+			resource,
+			stat,
+		});
+	}
+	const buffer = decodedContent.text !== null
+		? createTableTextBuffer(decodedContent.text, "utf8")
 		: createTableByteBuffer(decodedContent.bytes);
 	return {
 		buffer,
 		format,
-		mime: getTableFileMimeType(getResourceFileName(resource)),
+		mime: getTableFileMimeType(format),
 		resource,
 		stat,
 	};
 };
 
-const getResourceFileName = (resource: URI): string => {
-	const path = String(resource.path ?? "").replace(/\\/g, "/");
-	const index = path.lastIndexOf("/");
-	const name = index >= 0 ? path.slice(index + 1) : path;
-	return name || "table.csv";
+const readTableFileByteChunks = async ({
+	chunkSizeBytes,
+	fileService,
+	format,
+	resource,
+	stat,
+}: {
+	readonly chunkSizeBytes: number;
+	readonly fileService: IFileService;
+	readonly format: TableFormatId;
+	readonly resource: URI;
+	readonly stat: IFileStat;
+}): Promise<readonly Uint8Array[]> => {
+	const chunks: Uint8Array[] = [];
+	for (let position = 0; position < stat.size; position += chunkSizeBytes) {
+		const length = Math.min(chunkSizeBytes, stat.size - position);
+		const content = await fileService.readFile(resource, {
+			position,
+			length,
+		});
+		try {
+			chunks.push(content.value);
+		} catch (error) {
+			throw createReadDiagnosticError({
+				format,
+				message: getErrorMessage(error, "The table file content could not be decoded."),
+				resource,
+				stat,
+			});
+		}
+	}
+	return chunks;
 };
+
+const normalizeChunkSizeBytes = (
+	value: number | undefined,
+): number => {
+	const normalized = Math.floor(Number(value));
+	return Number.isFinite(normalized) && normalized > 0
+		? normalized
+		: DefaultTableFileReadChunkSizeBytes;
+};
+
+const isDelimitedTableFormat = (
+	format: TableFormatId,
+): boolean =>
+	format === "csv" ||
+	format === "tsv";
+
+const createReadDiagnosticError = ({
+	format,
+	message,
+	resource,
+	stat,
+}: {
+	readonly format: TableFormatId;
+	readonly message: string;
+	readonly resource: URI;
+	readonly stat: IFileStat;
+}): TableFileReadDiagnosticError =>
+	new TableFileReadDiagnosticError({
+		diagnostic: {
+			code: "table.reader.decodeFailed",
+			message,
+			severity: "fatal",
+		},
+		format,
+		resource,
+		stat,
+	});
+
+const getErrorMessage = (error: unknown, fallback: string): string =>
+	error instanceof Error && error.message.trim()
+		? error.message
+		: fallback;

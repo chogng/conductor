@@ -51,9 +51,42 @@ suite("workbench/services/table/browser/tableService", () => {
     }
 
     assert.equal(service.getViewInput()?.tableState.source?.resource?.toString(), resource.toString());
-    assert.equal(service.getViewInput()?.tableState.file?.sheetKey, resource.toString());
+    assert.equal(service.getViewInput()?.tableState.file?.source?.resource?.toString(), resource.toString());
     assert.deepStrictEqual(service.getPreviewRow(0), ["A", "B"]);
     assert.deepStrictEqual(service.getPreviewRow(1), ["1", "2"]);
+  });
+
+  test("projects parser diagnostics into table preview health", async () => {
+    const resource = URI.file("/workspace/data/malformed.csv");
+    const { service } = createTableServiceFixture({
+      fileService: createFileServiceStub({
+        readFile: async () => textFileContent("A,B\n\"unterminated,1"),
+      }),
+    });
+
+    service.open({ resource });
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      if (service.getViewInput()?.tableState.loadState.state === "ready") {
+        break;
+      }
+      await waitForTableService();
+    }
+
+    assert.equal(service.getViewInput()?.tableState.file?.previewHealth, "parseFailed");
+    assert.deepStrictEqual(service.getViewInput()?.tableState.file?.diagnostics?.map(diagnostic => ({
+      code: diagnostic.code,
+      rowIndex: diagnostic.rowIndex,
+      severity: diagnostic.severity,
+    })), [{
+      code: "table.parser.MissingQuotes",
+      rowIndex: 1,
+      severity: "error",
+    }]);
+    assert.match(
+      service.getViewInput()?.tableState.file?.previewHealthMessage ?? "",
+      /quote/i,
+    );
   });
 
   test("opens Excel table resource sheets through the table model snapshot", async () => {
@@ -67,7 +100,7 @@ suite("workbench/services/table/browser/tableService", () => {
     }]);
     const { service } = createTableServiceFixture({
       fileService: createFileServiceStub({
-        readFile: async () => ({ encoding: "base64", value: workbookBase64 }),
+        readFile: async () => base64FileContent(workbookBase64),
       }),
     });
 
@@ -81,24 +114,57 @@ suite("workbench/services/table/browser/tableService", () => {
     }
 
     assert.equal(service.getViewInput()?.tableState.selectedSheetId, "2:Reverse");
-    assert.equal(service.getViewInput()?.tableState.file?.sheetKey, `${resource.toString()}::2%3AReverse`);
+    assert.equal(service.getViewInput()?.tableState.file?.source?.resource?.toString(), resource.toString());
+    assert.equal(service.getViewInput()?.tableState.file?.source?.sheetId, "2:Reverse");
     assert.equal(service.getViewInput()?.tableState.file?.sheetName, "Reverse");
     assert.deepStrictEqual(service.getPreviewRow(0), ["Vd", "Id"]);
     assert.deepStrictEqual(service.getPreviewRow(1), ["1", "2"]);
+  });
+
+  test("does not fall back to the default sheet when an explicit table sheet target is missing", async () => {
+    const resource = URI.file("/workspace/data/missing-sheet.xlsx");
+    const workbookBase64 = await createXlsxBase64([{
+      name: "Forward",
+      rows: [["Vg", "Id"], ["0", "1"]],
+    }, {
+      name: "Reverse",
+      rows: [["Vd", "Id"], ["1", "2"]],
+    }]);
+    const { service } = createTableServiceFixture({
+      fileService: createFileServiceStub({
+        readFile: async () => base64FileContent(workbookBase64),
+      }),
+    });
+
+    service.open({ resource, sheetId: "9:Missing" });
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      if (service.getViewInput()?.tableState.loadState.state === "error") {
+        break;
+      }
+      await waitForTableService();
+    }
+
+    const state = service.getViewInput()?.tableState;
+    assert.equal(state?.selectedSheetId, "9:Missing");
+    assert.equal(state?.source?.resource?.toString(), resource.toString());
+    assert.equal(state?.source?.sheetId, "9:Missing");
+    assert.equal(state?.file?.source?.sheetId, "9:Missing");
+    assert.equal(state?.file?.previewHealth, "parseFailed");
+    assert.deepStrictEqual(state?.file?.diagnostics?.map(diagnostic => diagnostic.code), ["table.sheetNotFound"]);
+    assert.equal(service.getPreviewRow(0), null);
   });
 
   test("table selection equality accepts normalized duplicates", () => {
     const first = normalizeTableSelection({
       activeCell: {
         colIndex: 2.9,
-        fileId: "file",
         rowIndex: 1.2,
         sheetId: "sheet",
       },
       ranges: [{
         endCol: 3,
         endRow: 2,
-        fileId: "file",
         sheetId: "sheet",
         startCol: 1,
         startRow: 5,
@@ -108,14 +174,12 @@ suite("workbench/services/table/browser/tableService", () => {
     const second = normalizeTableSelection({
       activeCell: {
         colIndex: 2,
-        fileId: "file",
         rowIndex: 1,
         sheetId: "sheet",
       },
       ranges: [{
         endCol: 3,
         endRow: 5,
-        fileId: "file",
         sheetId: "sheet",
         startCol: 1,
         startRow: 2,
@@ -129,7 +193,6 @@ suite("workbench/services/table/browser/tableService", () => {
     const first = normalizeTableSelection({
       activeCell: {
         colIndex: 2,
-        fileId: "file",
         rowIndex: 1,
         sheetId: "sheet",
       },
@@ -138,7 +201,6 @@ suite("workbench/services/table/browser/tableService", () => {
     const second = normalizeTableSelection({
       activeCell: {
         colIndex: 4,
-        fileId: "file",
         rowIndex: 1,
         sheetId: "sheet",
       },
@@ -166,7 +228,6 @@ suite("workbench/services/table/browser/tableService", () => {
     model.setSelection({
       activeCell: {
         colIndex: 0,
-        fileId: null,
         rowIndex: 1,
         sheetId: "sheet-a",
       },
@@ -175,7 +236,6 @@ suite("workbench/services/table/browser/tableService", () => {
     assert.deepEqual(events, ["notify:1"]);
     assert.deepEqual(model.getSelection().activeCell, {
       colIndex: 0,
-      fileId: null,
       rowIndex: 1,
       sheetId: "sheet-a",
     });
@@ -212,10 +272,10 @@ suite("workbench/services/table/browser/tableService", () => {
     service.dispose();
   });
 
-  test("ignores non-resource table sources", () => {
+  test("ignores missing table sources", () => {
     const { service } = createTableServiceFixture();
 
-    service.open({});
+    service.open(null);
 
     const state = service.getViewInput()?.tableState;
     assert.equal(state?.source, null);
@@ -338,7 +398,7 @@ suite("workbench/services/table/browser/tableService", () => {
         fileName: "Raw A.csv",
         maxCellLengths: [1, 1],
         rowCount: 2,
-        sheetKey: resourceA.toString(),
+        source: { resource: resourceA },
       },
       previewSources: [createResourceSourceInput(resourceA, {
         fileName: "Raw A.csv",
@@ -364,7 +424,7 @@ suite("workbench/services/table/browser/tableService", () => {
         fileName: "Raw.csv",
         maxCellLengths: [1, 1],
         rowCount: 2,
-        sheetKey: resource.toString(),
+        source: { resource },
         sourceVersion: 1,
       },
       previewSources: [createResourceSourceInput(resource, {
@@ -428,25 +488,29 @@ suite("workbench/services/table/browser/tableService", () => {
 
   test("owns table column width persistence", () => {
     const storageService = new TestStorageService();
+    const source = {
+      resource: URI.file("/workspace/data/widths.csv"),
+      sheetId: "sheet-a",
+    };
     const { service } = createTableServiceFixture({
       storageService,
     });
 
-    assert.deepEqual(service.getColumnWidths("sheet-key-a"), []);
+    assert.deepEqual(service.getColumnWidths(source), []);
 
-    service.storeColumnWidths("sheet-key-a", [
+    service.storeColumnWidths(source, [
       { colIndex: 2, width: 243.6 },
       { colIndex: 1, width: -12 },
     ]);
 
-    assert.deepEqual(service.getColumnWidths("sheet-key-a"), [
+    assert.deepEqual(service.getColumnWidths(source), [
       { colIndex: 1, width: 0 },
       { colIndex: 2, width: 244 },
     ]);
 
-    service.storeColumnWidths("sheet-key-a", []);
+    service.storeColumnWidths(source, []);
 
-    assert.deepEqual(service.getColumnWidths("sheet-key-a"), []);
+    assert.deepEqual(service.getColumnWidths(source), []);
     service.dispose();
     storageService.dispose();
   });
@@ -485,7 +549,6 @@ suite("workbench/services/table/browser/tableService", () => {
     }), true);
     assert.deepEqual(model.getSelection().activeCell, {
       colIndex: 2,
-      fileId: null,
       rowIndex: 1,
       sheetId: null,
     });
@@ -587,7 +650,6 @@ suite("workbench/services/table/browser/tableService", () => {
     }), true);
     assert.deepEqual(model.getRevealCell(), {
       colIndex: 1,
-      fileId: null,
       rowIndex: 2,
       sheetId: null,
     });
@@ -597,7 +659,6 @@ suite("workbench/services/table/browser/tableService", () => {
     assert.deepEqual(revealEvents, [
       {
         colIndex: 1,
-        fileId: null,
         rowIndex: 2,
         sheetId: null,
       },
@@ -681,7 +742,7 @@ const createFileServiceStub = (
   moveFileToTrash: async () => undefined,
   onDidFilesChange: Event.None,
   readDir: async () => [],
-  readFile: async () => ({ encoding: "utf8", value: "A,B\n1,2" }),
+  readFile: async () => textFileContent("A,B\n1,2"),
   realpath: async resource => resource,
   registerProvider: () => ({ dispose: () => undefined }),
   stat: async resource => ({
@@ -698,11 +759,16 @@ const createFileServiceStub = (
 
 const createCsvFileService = (rows: readonly (readonly unknown[])[]): IFileService =>
   createFileServiceStub({
-    readFile: async () => ({
-      encoding: "utf8",
-      value: createCsvContent(rows),
-    }),
+    readFile: async () => textFileContent(createCsvContent(rows)),
   });
+
+const textFileContent = (value: string): { readonly value: Uint8Array } => ({
+  value: new TextEncoder().encode(value),
+});
+
+const base64FileContent = (value: string): { readonly value: Uint8Array } => ({
+  value: Uint8Array.from(globalThis.atob(value), character => character.charCodeAt(0)),
+});
 
 const createCsvContent = (rows: readonly (readonly unknown[])[]): string =>
   rows.map(row => row.map(formatCsvCell).join(",")).join("\n");

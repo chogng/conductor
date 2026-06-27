@@ -40,8 +40,7 @@ suite("platform/files/test/common/fileService", () => {
     public async readFile(resource: URI, _options?: IReadFileOptions): Promise<IFileContent> {
       this.seenPaths.push(URI.revive(resource).path);
       return {
-        encoding: "utf8",
-        value: "Vg,Id\n0,1",
+        value: new TextEncoder().encode("Vg,Id\n0,1"),
       };
     }
 
@@ -90,7 +89,7 @@ suite("platform/files/test/common/fileService", () => {
 
     assert.equal(await service.exists(resource), true);
     assert.equal((await service.stat(resource)).type, FileType.File);
-    assert.equal((await service.readFile(resource)).value, "Vg,Id\n0,1");
+    assert.equal(new TextDecoder().decode((await service.readFile(resource)).value), "Vg,Id\n0,1");
     await service.deleteFile(resource);
     await service.moveFileToTrash(resource);
     assert.deepEqual(provider.seenPaths, [

@@ -28,8 +28,8 @@ export class UserConfiguration {
 			return ConfigurationModel.createEmptyModel();
 		}
 
-		const content = await this.fileService.readFile(this.settingsResource, { encoding: "utf8" });
-		const raw = JSON.parse(content.value || "{}") as unknown;
+		const content = await this.fileService.readFile(this.settingsResource);
+		const raw = JSON.parse(new TextDecoder().decode(content.value) || "{}") as unknown;
 		if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
 			throw new Error(`User settings must be a JSON object: ${this.settingsResource.toString()}`);
 		}

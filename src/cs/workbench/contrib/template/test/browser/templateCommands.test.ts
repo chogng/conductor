@@ -344,8 +344,7 @@ class TestFileService implements IFileService {
 
   public readFile(_resource: URI, _options?: IReadFileOptions): Promise<IFileContent> {
     return Promise.resolve({
-      encoding: "utf8",
-      value: this.content,
+      value: new TextEncoder().encode(this.content),
     });
   }
 

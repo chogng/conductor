@@ -259,30 +259,14 @@ async function* readDirectoryValues(
   }
 }
 
-function encodeBase64(content: Uint8Array): string {
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let index = 0; index < content.length; index += chunkSize) {
-    const chunk = content.subarray(index, index + chunkSize);
-    binary += String.fromCharCode(...chunk);
-  }
-
-  return btoa(binary);
-}
-
 async function fileToContent(
   file: File,
   options: IReadFileOptions = {},
 ): Promise<IFileContent> {
   const buffer = new Uint8Array(await file.arrayBuffer());
-  const content = sliceReadFileContent(buffer, options);
-  const encoding = options.encoding === "base64" ? "base64" : "utf8";
 
   return {
-    encoding,
-    value: encoding === "base64"
-      ? encodeBase64(content)
-      : new TextDecoder().decode(content),
+    value: sliceReadFileContent(buffer, options),
   };
 }
 

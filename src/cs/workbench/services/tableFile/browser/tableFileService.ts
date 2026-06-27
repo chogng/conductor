@@ -5,17 +5,15 @@
 import type { Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
-import type {
-	IFileService,
-	IReadFileEncoding,
-} from "src/cs/platform/files/common/files";
+import type { IFileService } from "src/cs/platform/files/common/files";
 import type {
 	ITableModel,
 } from "src/cs/workbench/services/table/common/model";
 import type { TableSource } from "src/cs/workbench/services/table/common/table";
 import { tableFormatService } from "src/cs/workbench/services/table/common/tableFormatService";
 import {
-	getTableFileReadEncoding,
+	getTableFileReadMode,
+	type TableFileReadMode,
 } from "src/cs/workbench/services/tableFile/common/encoding";
 import {
 	TableFileEditorModel,
@@ -49,8 +47,12 @@ export class TableFileService extends Disposable implements ITableFileService {
 		return tableFormatService.canHandle(resource);
 	}
 
-	public getReadEncoding(resource: URI): IReadFileEncoding {
-		return getTableFileReadEncoding(resource);
+	public getReadMode(resource: URI): TableFileReadMode {
+		const format = tableFormatService.resolveFormat(resource);
+		if (!format || !tableFormatService.canHandle(resource)) {
+			throw new Error(`Unsupported table file: ${resource.toString()}`);
+		}
+		return getTableFileReadMode(format);
 	}
 
 	public get(resource: URI | null | undefined): ITableModel | undefined {
@@ -74,7 +76,7 @@ export class TableFileService extends Disposable implements ITableFileService {
 	): Promise<void> {
 		await this.tableFileEditorModelManager.resolveModel(model, {
 			...options,
-			readEncoding: options.readEncoding ?? this.getReadEncoding(model.resource),
+			readMode: options.readMode ?? this.getReadMode(model.resource),
 		});
 	}
 

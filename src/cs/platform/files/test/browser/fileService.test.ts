@@ -211,7 +211,7 @@ suite("platform/files/test/browser/fileService", () => {
     const folder = await provider.registerDirectoryHandle(root);
     const output = folder.with({ path: `${folder.path}//nested/../nested/./output.csv` });
 
-    assert.equal((await filesService.readFile(output)).value, "Vd,Id\n0,3");
+    assert.equal(decodeFileContent(await filesService.readFile(output)), "Vd,Id\n0,3");
   });
 
   test("FileService reads browser directory input files as a virtual folder", async () => {
@@ -229,7 +229,7 @@ suite("platform/files/test/browser/fileService", () => {
       ["output.csv", FileType.File],
     ]);
     assert.equal(
-      (await filesService.readFile(folder.with({ path: `${folder.path}/nested/output.csv` }))).value,
+      decodeFileContent(await filesService.readFile(folder.with({ path: `${folder.path}/nested/output.csv` }))),
       "Vg,Id\n1,2",
     );
   });
@@ -249,9 +249,9 @@ suite("platform/files/test/browser/fileService", () => {
     const rawPercent = folder.with({ path: `${folder.path}/transfer%raw.csv` });
 
     assert.equal((await filesService.stat(encodedPercent)).type, FileType.File);
-    assert.equal((await filesService.readFile(encodedPercent)).value, "Vg,Id\n0,1");
+    assert.equal(decodeFileContent(await filesService.readFile(encodedPercent)), "Vg,Id\n0,1");
     assert.equal((await filesService.stat(rawPercent)).type, FileType.File);
-    assert.equal((await filesService.readFile(rawPercent)).value, "Vg,Id\n1,2");
+    assert.equal(decodeFileContent(await filesService.readFile(rawPercent)), "Vg,Id\n1,2");
   });
 
   test("FileService writes browser writable file handles", async () => {
@@ -263,8 +263,11 @@ suite("platform/files/test/browser/fileService", () => {
 
     assert.equal(writable.getText(), "{\"source\":\"conductor.userTemplate\"}\n");
     assert.equal(
-      (await filesService.readFile(resource)).value,
+      decodeFileContent(await filesService.readFile(resource)),
       "{\"source\":\"conductor.userTemplate\"}\n",
     );
   });
 });
+
+const decodeFileContent = (content: { readonly value: Uint8Array }): string =>
+  new TextDecoder().decode(content.value);

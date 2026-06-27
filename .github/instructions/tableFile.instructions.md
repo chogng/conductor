@@ -1,22 +1,22 @@
 ---
-description: TableFile services - URI-backed file working copies and encoding helpers.
-applyTo: 'src/cs/workbench/services/tablefile/**'
+description: TableFile services - URI-backed file working copies and table text/byte helpers.
+applyTo: 'src/cs/workbench/services/tableFile/**'
 ---
 # TableFile
 
-`services/tablefile` follows upstream `workbench/services/textfile` naming for
+`services/tableFile` follows upstream `workbench/services/textfile` naming for
 file-backed table lifecycles. The target architecture is URI-backed:
 `TableFileEditorModel` owns the file working-copy lifecycle around a
 URI-backed `ITableModel`. Legacy data-file/raw-table imports are
 Explorer-local file-to-table rows plus URI-backed table opens, and no longer
-have a tablefile bridge service or Session commit step.
+have a tableFile bridge service or Session commit step.
 
 ```txt
 URI/resource open
   -> ITableModelService.createModelReference(resource)
   -> TableModelResolverService
   -> ITableFileService / BrowserTableFileService
-  -> TableFileService chooses file read encoding
+  -> TableFileService chooses table read mode
   -> TableFileEditorModelManager
   -> TableFileEditorModel
   -> ITableModel snapshot/version/sourceVersion
@@ -42,7 +42,7 @@ Explicit Explorer import
 `TableFileService` owns the file-backed branch between resolver and editor model:
 
 - file-backed table resource support checks after resolver/provider dispatch;
-- read encoding choice before the file is read;
+- table text/byte read mode choice after platform bytes are read;
 - delegation to `TableFileEditorModelManager` for cached model creation,
   resolve, reload, and release.
 
@@ -59,11 +59,11 @@ This remaining raw-table import ledger does not own:
 - URI-backed preview projections, file working-copy reload/watch state, or model caches;
 - Explorer tree, selection, expansion, drag/drop UI, or pending-source rows;
 - Table preview selection, row cache, reveal/highlight, or column widths;
-- table-model detection, Recipe materialization, Review decisions, or Slice
+- table-model detection, Review candidate derivation, Review decisions, or Slice
   execution;
 - plot/chart/search/export/parameter view state.
 
-`services/tablefile/common/encoding.ts` is a helper for read mode and byte
+`services/tableFile/common/encoding.ts` is a helper for table read mode and byte
 conversion after the table format has already been identified. It must not
 become the owner for supported extensions or parser dispatch. CSV/TSV/XLS/XLSX
 belong to `TableFormatService` in
@@ -93,10 +93,10 @@ canonical migration ledger for those downstream records.
 | File | Responsibility |
 | --- | --- |
 | `common/tablefiles.ts` | `ITableFileService` contract for file-backed table working-copy lifecycle; not a raw-table import ledger. |
-| `common/tableFileReader.ts` | URI-backed table file reader; selects file read mode after format resolution and returns `TableReadBuffer`. |
+| `common/tableFileReader.ts` | URI-backed table file reader; reads platform bytes, selects table text/byte mode after format resolution, and returns `TableReadBuffer`. |
 | `browser/browserTableFileService.ts` | browser DI registration for the URI-backed table file service. |
-| `browser/tableFileService.ts` | URI-backed file resolve service for table resources; owns read encoding choice before delegating to the editor model manager. |
-| `common/encoding.ts` | table file read mode, base64/utf8 byte decoding, and mime helpers; not a table format/support owner. |
+| `browser/tableFileService.ts` | URI-backed file resolve service for table resources; owns table read mode choice before delegating to the editor model manager. |
+| `common/encoding.ts` | table file text/byte mode, byte conversion, and mime helpers; not a table format/support owner. |
 | `common/tableFileEditorModel.ts` | URI-backed file working-copy, file-backed read/sourceVersion flow, and associated `ITableModel` lifecycle. |
 | `common/tableFileEditorModelManager.ts` | file-backed table working-copy cache/reuse/reload/remove owner. |
 

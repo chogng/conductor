@@ -1,6 +1,6 @@
 ---
 description: Files capability and Explorer UI architecture - platform filesystem boundary, raw-table helpers, Explorer state, commands, and source workflow.
-applyTo: 'src/cs/platform/files/**,src/cs/workbench/services/files/**,src/cs/workbench/services/tablefile/**,src/cs/workbench/contrib/files/**'
+applyTo: 'src/cs/platform/files/**,src/cs/workbench/services/files/**,src/cs/workbench/services/tableFile/**,src/cs/workbench/contrib/files/**'
 ---
 # Files Capability / Explorer UI
 
@@ -10,7 +10,7 @@ The files domain has four layers that must stay separate:
 | --- | --- | --- |
 | `platform/files` | URI filesystem providers, read/write/stat/watch, provider registration, browser/desktop adapters | Explorer state, raw table records, source preparation, Session records |
 | `workbench/services/files` | non-UI files helpers: source/import contracts, raw table records/readers, browser file-service bridges | Explorer state, DOM, menus, table-model/template/plot semantics |
-| `workbench/services/tablefile` | URI-backed table file working-copy lifecycle, reader, and encoding helpers for file-backed models | Explorer UI, Table view state, preview projection, table-model inference, Recipe/Review/Slice decisions, explicit import ledger commits |
+| `workbench/services/tableFile` | URI-backed table file working-copy lifecycle, reader, and table text/byte helpers for file-backed models | Explorer UI, Table view state, preview projection, table-model inference, Recipe/Review/Slice decisions, explicit import ledger commits |
 | `workbench/contrib/files` | Files feature UI: `IExplorerService`, Explorer model/view, source workflow, commands/actions/context menus | CSV/TSV/XLS/XLSX parsing internals, platform provider contracts, canonical Session ownership |
 
 `Explorer` is the UI-state layer inside Files. Its service contract belongs
@@ -28,7 +28,7 @@ workbench/contrib/files/browser/fileImportExport.ts
 workbench/services/table/common/tableFormatService.ts
   table import format policy for CSV/TSV/XLS/XLSX resources
 
-workbench/services/tablefile/TableFileEditorModel
+workbench/services/tableFile/TableFileEditorModel
   URI/resource -> file working-copy open/cache/reload/save/sourceVersion lifecycle
 
 workbench/contrib/files/IExplorerService
@@ -49,7 +49,7 @@ the closest-looking name.
 | file transfer / upload / download | moving bytes/resources | `contrib/files/browser/fileImportExport.ts` and platform file APIs |
 | source collection | dialog/drop/folder/clipboard/manual -> supported table file sources | Explorer workflow/helpers plus table format policy |
 | table editor support check | URI/file-name support checks before opening a table editor/preview or before read/parse where possible; `.csv`/`.tsv`/`.xls`/`.xlsx` are table formats, not URI schemes, read encodings, or languageIds | `services/table/common/tableFormatService.ts`, command/editor/model resolver |
-| table editor/model lifecycle | service-local URI/input model for open, preview, cache, reload, watch, save, and source-version state | `services/tablefile` working-copy owner plus table model resolver; no resource record and not Session |
+| table editor/model lifecycle | service-local URI/input model for open, preview, cache, reload, watch, save, and source-version state | `services/tableFile` working-copy owner plus table model resolver; no resource record and not Session |
 | source preparation result | Explorer-local row metadata, table resource URI, and diagnostics before table resource open | `PreparedFileImport` / `PreparedFileImportEntry` |
 | Explorer local import | explicit user import that updates Explorer-visible rows and opens a table resource without Session | `ExplorerViewPane` |
 | table model | raw tables -> structure/profile/semantic/block model | table-model producer (`ITableModelProducerService`) |
@@ -116,18 +116,18 @@ state arrives through their owning services.
 | `services/files/common/files.ts` | Source/import contracts and legacy raw-table record contracts. |
 | `services/files/common/rawTable.ts` | Raw table records and range refs. |
 | `services/files/browser/rawTableRowsReader.ts` | Legacy raw-table row preview reader for in-memory rows and fallback files. |
-| `services/tablefile/common/tablefiles.ts` | `ITableFileService` contract for URI-backed table file working-copy lifecycle; not a raw-table import ledger. |
+| `services/tableFile/common/tablefiles.ts` | `ITableFileService` contract for URI-backed table file working-copy lifecycle; not a raw-table import ledger. |
 | `services/table/common/tableFormatRegistry.ts` | Known table format IDs, materialization capability, and default extension metadata. |
 | `services/table/common/tableFormatAssociations.ts` | Resource/name/extension association helpers for table format resolution. |
-| `services/table/common/tableFormatService.ts` | Table import format policy and resource/name support checks consumed by source collection and tablefile resolve; `.xls` is known but not handleable until parser support exists. |
+| `services/table/common/tableFormatService.ts` | Table import format policy and resource/name support checks consumed by source collection and tableFile resolve; `.xls` is known but not handleable until parser support exists. |
 | `services/table/common/tableReadBuffer.ts` | Table-owned text/byte read buffer contracts consumed by parsers. |
 | `services/table/common/tableStructureParser.ts` | Table-owned CSV/TSV/XLSX physical table structure parser for URI-backed `ITableModel` content/sheet snapshots. |
-| `services/tablefile/common/tableFileReader.ts` | URI-backed table file reader; selects read mode after format resolution and returns `TableReadBuffer`. |
-| `services/tablefile/browser/browserTableFileService.ts` | Browser DI registration for the URI-backed table file service. |
-| `services/tablefile/browser/tableFileService.ts` | URI-backed file resolve service for table resources; owns read encoding choice before delegating to the editor model manager. |
-| `services/tablefile/common/encoding.ts` | Table file read encoding and base64/utf8 byte helpers for URI-backed opens. |
-| `services/tablefile/common/tableFileEditorModel.ts` | URI-backed table file working-copy and associated ITableModel lifecycle. |
-| `services/tablefile/common/tableFileEditorModelManager.ts` | File-backed table working-copy cache/reuse/reload/remove owner. |
+| `services/tableFile/common/tableFileReader.ts` | URI-backed table file reader; reads platform bytes, selects table text/byte mode after format resolution, and returns `TableReadBuffer`. |
+| `services/tableFile/browser/browserTableFileService.ts` | Browser DI registration for the URI-backed table file service. |
+| `services/tableFile/browser/tableFileService.ts` | URI-backed file resolve service for table resources; owns table read mode choice before delegating to the editor model manager. |
+| `services/tableFile/common/encoding.ts` | Table file text/byte mode, byte conversion, and mime helpers for URI-backed opens. |
+| `services/tableFile/common/tableFileEditorModel.ts` | URI-backed table file working-copy and associated ITableModel lifecycle. |
+| `services/tableFile/common/tableFileEditorModelManager.ts` | File-backed table working-copy cache/reuse/reload/remove owner. |
 | `platform/files/common/files.ts` / `fileService.ts` | Filesystem service contract and provider dispatch. |
 
 `FileSourceWorkflow` is a private Explorer view helper, not a service boundary.
@@ -142,8 +142,8 @@ That check is table format policy: CSV/TSV/XLS/XLSX support belongs to
 `services/table/common/tableFormatService.ts`. Do not model those extensions as
 URI schemes, text editor language ids, or separate encoding identities.
 
-`services/tablefile/common/encoding.ts` only chooses the read mode after a table
-format is known, such as `utf8` for delimited text and `base64` for Excel bytes.
+`services/tableFile/common/encoding.ts` only chooses the table decode mode after a table
+format is known, such as text for delimited content and bytes for Excel content.
 `.txt` is not accepted as a table source unless `TableFormatService` is
 changed to give it explicit table semantics.
 
@@ -255,7 +255,7 @@ row. Explorer-local imports open table resources directly through
 Session-backed rows to table resources when a Session raw record has a
 `raw.filePath`. File close/delete/template actions still operate on `fileId`.
 
-Explorer decoration details live in `explorer-badge.instructions.md`.
+Explorer decoration details live in `explorer-decorations.instructions.md`.
 
 ## Command Entry
 

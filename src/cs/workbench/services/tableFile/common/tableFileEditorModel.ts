@@ -8,22 +8,26 @@ import type { URI } from "src/cs/base/common/uri";
 import type {
 	IFileService,
 	IFileStat,
-	IReadFileEncoding,
 } from "src/cs/platform/files/common/files";
 import {
 	TableModel,
+	type TableModelContentSnapshot,
+	type TableModelSheetSnapshot,
 	type TableModelResolvedContent,
 } from "src/cs/workbench/services/table/common/model";
 import {
-	toTableSheetKey,
-} from "src/cs/workbench/services/table/common/table";
-import {
+	DEFAULT_PHYSICAL_TABLE_SHEET_ID,
 	parseTableStructure,
+	type ParsedTableContent,
+	type ParsedTableSheet,
 	type ParsedTableStructure,
 } from "src/cs/workbench/services/table/common/tableStructureParser";
 import {
 	readTableFile,
+	isTableFileReadDiagnosticError,
+	type TableFileReadDiagnosticError,
 	type TableFileReadResult,
+	type TableFileReadOptions,
 } from "src/cs/workbench/services/tableFile/common/tableFileReader";
 
 export type TableFileEditorModelSnapshot = {
@@ -37,9 +41,7 @@ export type TableFileEditorModelSnapshot = {
 	readonly sourceVersion: number;
 };
 
-export type TableFileEditorModelResolveOptions = {
-	readonly readEncoding?: IReadFileEncoding;
-};
+export type TableFileEditorModelResolveOptions = TableFileReadOptions;
 
 export class TableFileEditorModel extends Disposable {
 	private readonly onDidChangeStateEmitter = this._register(new Emitter<TableFileEditorModel>());
@@ -178,7 +180,6 @@ export class TableFileEditorModel extends Disposable {
 
 	private async resolveFromDisk(options: TableFileEditorModelResolveOptions = {}): Promise<void> {
 		await this.model.resolve({
-			checkResourceFormat: true,
 			resolveContent: () =>
 				this.resolveContentFromDisk(options),
 		});
@@ -188,23 +189,28 @@ export class TableFileEditorModel extends Disposable {
 	private async resolveContentFromDisk(
 		options: TableFileEditorModelResolveOptions,
 	): Promise<TableModelResolvedContent> {
-		const readResult = await readTableFile(this.resource, this.fileService, options);
+		let readResult: TableFileReadResult;
+		try {
+			readResult = await readTableFile(this.resource, this.fileService, options);
+		} catch (error) {
+			if (isTableFileReadDiagnosticError(error)) {
+				this.lastResolvedStat = error.stat;
+				this.sourceVersion = normalizeResourceSourceVersion(error.stat.mtime);
+				return createResolvedContentFromReadDiagnostic(error);
+			}
+			throw error;
+		}
 		this.lastResolvedStat = readResult.stat;
 		this.sourceVersion = normalizeResourceSourceVersion(readResult.stat.mtime);
 		const parsedContent = await parseTableStructure({
 			buffer: readResult.buffer,
-			defaultSheetKey: this.defaultSheetKey,
 			format: readResult.format,
-			resource: this.resource,
 		});
 		return createResolvedContent({
 			parsedContent,
 			readResult,
+			resource: this.resource,
 		});
-	}
-
-	private get defaultSheetKey(): string {
-		return toTableSheetKey({ resource: this.resource });
 	}
 
 	private setLifecycleState(update: {
@@ -241,15 +247,70 @@ export class TableFileEditorModel extends Disposable {
 const createResolvedContent = ({
 	parsedContent,
 	readResult,
+	resource,
 }: {
 	readonly parsedContent: ParsedTableStructure;
 	readonly readResult: TableFileReadResult;
+	readonly resource: URI;
 }): TableModelResolvedContent => ({
-	content: parsedContent.content,
+	content: materializeModelContentSnapshot(parsedContent.content),
+	defaultSheetId: getModelDefaultSheetId(parsedContent.sheets, resource),
+	diagnostics: parsedContent.diagnostics,
 	format: readResult.format,
-	sheets: parsedContent.sheets,
+	resource,
+	sheets: materializeModelSheetSnapshots(parsedContent.sheets, resource),
 	sourceVersion: readResult.stat.mtime,
 });
+
+const createResolvedContentFromReadDiagnostic = (
+	error: TableFileReadDiagnosticError,
+): TableModelResolvedContent => ({
+	content: null,
+	defaultSheetId: null,
+	diagnostics: [error.diagnostic],
+	format: error.format,
+	resource: error.resource,
+	sheets: [],
+	sourceVersion: error.stat.mtime,
+});
+
+const materializeModelContentSnapshot = (
+	content: ParsedTableContent | null,
+): TableModelContentSnapshot | null => content
+	? {
+			columnCount: content.columnCount,
+			maxCellLengths: content.maxCellLengths,
+			rowCount: content.rowCount,
+			rows: content.rows,
+			...(content.rowWindows ? { rowWindows: content.rowWindows } : {}),
+		}
+	: null;
+
+const materializeModelSheetSnapshots = (
+	sheets: readonly ParsedTableSheet[],
+	resource: URI,
+): readonly TableModelSheetSnapshot[] =>
+	sheets.map(sheet => ({
+		content: materializeModelContentSnapshot(sheet.content),
+		diagnostics: sheet.diagnostics,
+		sheetId: sheet.sheetId === DEFAULT_PHYSICAL_TABLE_SHEET_ID && !sheet.sheetName
+			? resource.toString()
+			: sheet.sheetId,
+		sheetName: sheet.sheetName,
+	}));
+
+const getModelDefaultSheetId = (
+	sheets: readonly ParsedTableSheet[],
+	resource: URI,
+): string | null => {
+	const sheet = sheets.find(candidate => candidate.content) ?? sheets[0];
+	if (!sheet) {
+		return null;
+	}
+	return sheet.sheetId === DEFAULT_PHYSICAL_TABLE_SHEET_ID && !sheet.sheetName
+		? resource.toString()
+		: sheet.sheetId;
+};
 
 const normalizeResourceSourceVersion = (value: unknown): number =>
 	Math.max(0, Math.floor(Number(value) || 0));

@@ -15,7 +15,7 @@ export const enum FileType {
   SymbolicLink = 64,
 }
 
-export type IFileStat = {
+export type IStat = {
   readonly ctime: number;
   readonly mtime: number;
   readonly path: string;
@@ -23,15 +23,13 @@ export type IFileStat = {
   readonly type: FileType;
 };
 
-export type IReadFileEncoding = "base64" | "utf8";
+export type IFileStat = IStat;
 
 export type IReadFileOptions = IReadFileRangeOptions & {
-  readonly encoding?: IReadFileEncoding;
 };
 
 export type IFileContent = {
-  readonly encoding: IReadFileEncoding;
-  readonly value: string;
+  readonly value: Uint8Array;
 };
 
 export type IWatchOptions = {

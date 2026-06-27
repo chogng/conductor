@@ -88,14 +88,9 @@ export class DiskFileSystemProvider {
   ): Promise<IFileContent> {
     const target = this.toFilePath(resource);
     const buffer = await fs.promises.readFile(target);
-    const encoding = options.encoding === "base64" ? "base64" : "utf8";
-    const content = sliceReadFileContent(buffer, options);
 
     return {
-      encoding,
-      value: encoding === "base64"
-        ? Buffer.from(content).toString("base64")
-        : Buffer.from(content).toString("utf8"),
+      value: sliceReadFileContent(buffer, options),
     };
   }
 

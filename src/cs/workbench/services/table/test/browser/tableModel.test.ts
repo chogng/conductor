@@ -18,6 +18,7 @@ import { TableFileService } from "src/cs/workbench/services/tableFile/browser/ta
 import { TableFileEditorModelManager } from "src/cs/workbench/services/tableFile/common/tableFileEditorModelManager";
 import { TableModelResolverService } from "src/cs/workbench/services/table/common/tableModelResolverService";
 import {
+	readTableModelContentRows,
 	TableModel,
 	TableModelRange,
 	TableModelSelection,
@@ -25,11 +26,30 @@ import {
 	type TableModelDecorationsChangedEvent,
 } from "src/cs/workbench/services/table/common/model";
 import type { ITableModelContentProvider } from "src/cs/workbench/services/table/common/resolverService";
+import { PARSED_TABLE_ROW_WINDOW_SIZE } from "src/cs/workbench/services/table/common/tableStructureParser";
 
 suite("workbench/services/table/test/browser/tableModel", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const createResolverService = (fileService: IFileService = createFileServiceStub()) =>
 		store.add(new TableModelResolverService(store.add(new TableFileService(fileService))));
+
+	test("takes format from resolved content instead of inferring it on construction", async () => {
+		const resource = URI.file("/workspace/data/core.csv");
+		const model = store.add(new TableModel(resource));
+
+		assert.equal(model.getSnapshot().format, null);
+
+		await model.resolve({
+			resolveContent: async () => ({
+				content: null,
+				format: "csv",
+				resource,
+				sourceVersion: 12,
+			}),
+		});
+
+		assert.equal(model.getSnapshot().format, "csv");
+	});
 
 	test("exposes core content, version, range, and selection helpers", async () => {
 		const resource = URI.file("/workspace/data/core.csv");
@@ -50,6 +70,8 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 					rowCount: 2,
 					rows: [["A", "B", "C"], ["1", "2", "3"]],
 				},
+				format: "csv",
+				resource,
 				sourceVersion: 12,
 			}),
 		});
@@ -112,6 +134,61 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		});
 	});
 
+	test("reads model cells and ranges from content row windows", async () => {
+		const resource = URI.file("/workspace/data/windowed.csv");
+		const model = store.add(new TableModel(resource));
+
+		await model.resolve({
+			resolveContent: async () => ({
+				content: {
+					columnCount: 3,
+					maxCellLengths: [1, 1, 1],
+					rowCount: 4,
+					rows: [],
+					rowWindows: [{
+						startRowIndex: 1,
+						rows: [
+							["1", "2", "3"],
+							["4", "5", "6"],
+						],
+					}],
+				},
+				format: "csv",
+				resource,
+				sourceVersion: 12,
+			}),
+		});
+
+		assert.equal(model.getCellValue(2, 1), "5");
+		assert.deepStrictEqual(model.getRows(1, 3), [
+			["1", "2", "3"],
+			["4", "5", "6"],
+		]);
+		assert.deepStrictEqual(model.getValueInRange(new TableModelRange(1, 1, 3, 3)), [
+			["2", "3"],
+			["5", "6"],
+		]);
+		assert.deepStrictEqual(model.getRows(0, 2), []);
+	});
+
+	test("rejects resolved content for a different resource", async () => {
+		const resource = URI.file("/workspace/data/core.csv");
+		const model = store.add(new TableModel(resource));
+
+		await model.resolve({
+			resolveContent: async () => ({
+				content: null,
+				format: "csv",
+				resource: URI.file("/workspace/data/other.csv"),
+				sourceVersion: 12,
+			}),
+		});
+
+		assert.equal(model.getSnapshot().loadState.state, "error");
+		assert.equal(model.getSnapshot().content, null);
+		assert.equal(model.getSnapshot().diagnostics[0]?.code, "table.resolve.failed");
+	});
+
 	test("tracks table model decorations through owner-scoped deltas", async () => {
 		const resource = URI.file("/workspace/data/decorations.csv");
 		const model = store.add(new TableModel(resource));
@@ -123,6 +200,8 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 					rowCount: 2,
 					rows: [["A", "B", "C"], ["1", "2", "3"]],
 				},
+				format: "csv",
+				resource,
 				sourceVersion: 12,
 			}),
 		});
@@ -203,11 +282,11 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 
 	test("creates a URI-backed model reference from the file service", async () => {
 		const resource = URI.file("/workspace/data/transfer.csv");
-		let readEncoding: unknown = null;
+		let readOptions: unknown = null;
 		const service = createResolverService(createFileServiceStub({
 			readFile: async (_resource, options) => {
-				readEncoding = options?.encoding;
-				return { encoding: "utf8", value: "Vg,Id\n0,1" };
+				readOptions = options;
+				return textFileContent("Vg,Id\n0,1");
 			},
 			stat: async () => ({
 				ctime: 1,
@@ -229,6 +308,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 				rows: [["Vg", "Id"], ["0", "1"]],
 			},
 			defaultSheetId: resource.toString(),
+			diagnostics: [],
 			format: "csv",
 			loadState: {
 				message: "",
@@ -242,14 +322,78 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 					rowCount: 2,
 					rows: [["Vg", "Id"], ["0", "1"]],
 				},
+				diagnostics: [],
 				sheetId: resource.toString(),
-				sheetKey: resource.toString(),
 				sheetName: null,
 			}],
 			sourceVersion: 42,
 			version: 1,
 		});
-		assert.equal(readEncoding, "utf8");
+		assert.deepStrictEqual(readOptions, undefined);
+	});
+
+	test("keeps large file-backed table content in row windows", async () => {
+		const resource = URI.file("/workspace/data/large.csv");
+		const rowCount = PARSED_TABLE_ROW_WINDOW_SIZE + 3;
+		const service = createResolverService(createFileServiceStub({
+			readFile: async () =>
+				textFileContent(Array.from({ length: rowCount }, (_, index) => `r${index},${index}`).join("\n")),
+		}));
+
+		const reference = await service.createModelReference(resource);
+		store.add(reference);
+
+		const content = reference.object.getSnapshot().content;
+		assert.equal(content?.rowCount, rowCount);
+		assert.equal(content?.rows.length, PARSED_TABLE_ROW_WINDOW_SIZE);
+		assert.equal(content?.rowWindows?.length, 2);
+		assert.deepStrictEqual(readTableModelContentRows(content, rowCount - 1, rowCount), [[
+			`r${rowCount - 1}`,
+			String(rowCount - 1),
+		]]);
+	});
+
+	test("carries parser diagnostics on URI-backed model snapshots", async () => {
+		const resource = URI.file("/workspace/data/malformed.csv");
+		const service = createResolverService(createFileServiceStub({
+			readFile: async () => textFileContent("A,B\n\"unterminated,1"),
+		}));
+
+		const reference = await service.createModelReference(resource);
+		store.add(reference);
+
+		const snapshot = reference.object.getSnapshot();
+		assert.deepStrictEqual(snapshot.diagnostics, []);
+		assert.deepStrictEqual(snapshot.sheets[0]?.diagnostics?.map(diagnostic => ({
+			code: diagnostic.code,
+			rowIndex: diagnostic.rowIndex,
+			severity: diagnostic.severity,
+		})), [{
+			code: "table.parser.MissingQuotes",
+			rowIndex: 1,
+			severity: "error",
+		}]);
+	});
+
+	test("carries empty delimited parser diagnostics as file-level diagnostics", async () => {
+		const resource = URI.file("/workspace/data/empty.csv");
+		const service = createResolverService(createFileServiceStub({
+			readFile: async () => textFileContent(" \n\t "),
+		}));
+
+		const reference = await service.createModelReference(resource);
+		store.add(reference);
+
+		const snapshot = reference.object.getSnapshot();
+		assert.equal(snapshot.content, null);
+		assert.deepStrictEqual(snapshot.diagnostics.map(diagnostic => ({
+			code: diagnostic.code,
+			severity: diagnostic.severity,
+		})), [{
+			code: "table.parser.empty",
+			severity: "fatal",
+		}]);
+		assert.deepStrictEqual(snapshot.sheets, []);
 	});
 
 	test("reuses the cached model for repeated references", async () => {
@@ -258,7 +402,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		const service = createResolverService(createFileServiceStub({
 			readFile: async () => {
 				readCount += 1;
-				return { encoding: "utf8", value: "A\tB\n1\t2" };
+				return textFileContent("A\tB\n1\t2");
 			},
 		}));
 
@@ -284,7 +428,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		const service = createResolverService(createFileServiceStub({
 			readFile: async () => {
 				readCount += 1;
-				return { encoding: "utf8", value: "A,B\n1,2" };
+				return textFileContent("A,B\n1,2");
 			},
 		}));
 
@@ -365,7 +509,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		let mtime = 10;
 		const resource = URI.file("/workspace/data/reload.csv");
 		const manager = store.add(new TableFileEditorModelManager(createFileServiceStub({
-			readFile: async () => ({ encoding: "utf8", value: text }),
+			readFile: async () => textFileContent(text),
 			stat: async () => ({
 				ctime: 1,
 				mtime,
@@ -401,7 +545,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		const resource = URI.file("/workspace/data/watch.csv");
 		const manager = store.add(new TableFileEditorModelManager(createFileServiceStub({
 			onDidFilesChange: fileChanges.event,
-			readFile: async () => ({ encoding: "utf8", value: text }),
+			readFile: async () => textFileContent(text),
 			stat: async () => ({
 				ctime: 1,
 				mtime,
@@ -445,7 +589,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		const resource = URI.file("/workspace/data/conflict.csv");
 		const manager = store.add(new TableFileEditorModelManager(createFileServiceStub({
 			onDidFilesChange: fileChanges.event,
-			readFile: async () => ({ encoding: "utf8", value: text }),
+			readFile: async () => textFileContent(text),
 			stat: async () => ({
 				ctime: 1,
 				mtime,
@@ -481,7 +625,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		let writtenContent = "";
 		const resource = URI.file("/workspace/data/save.csv");
 		const manager = store.add(new TableFileEditorModelManager(createFileServiceStub({
-			readFile: async () => ({ encoding: "utf8", value: text }),
+			readFile: async () => textFileContent(text),
 			stat: async () => ({
 				ctime: 1,
 				mtime,
@@ -523,7 +667,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		let mtime = 10;
 		const resource = URI.file("/workspace/data/revert.csv");
 		const manager = store.add(new TableFileEditorModelManager(createFileServiceStub({
-			readFile: async () => ({ encoding: "utf8", value: text }),
+			readFile: async () => textFileContent(text),
 			stat: async () => ({
 				ctime: 1,
 				mtime,
@@ -560,7 +704,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		const resource = URI.file("/workspace/data/orphan.csv");
 		const manager = store.add(new TableFileEditorModelManager(createFileServiceStub({
 			onDidFilesChange: fileChanges.event,
-			readFile: async () => ({ encoding: "utf8", value: text }),
+			readFile: async () => textFileContent(text),
 			stat: async () => ({
 				ctime: 1,
 				mtime,
@@ -618,7 +762,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 
 	test("creates sheet snapshots for xlsx resources without the import converter", async () => {
 		const resource = URI.file("/workspace/data/workbook.xlsx");
-		let readEncoding: unknown = null;
+		let readOptions: unknown = null;
 		const workbookBase64 = await createXlsxBase64([{
 			name: "Forward",
 			rows: [["Vg", "Id"], ["0", "1"]],
@@ -628,8 +772,8 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		}]);
 		const service = createResolverService(createFileServiceStub({
 			readFile: async (_resource, options) => {
-				readEncoding = options?.encoding;
-				return { encoding: "base64", value: workbookBase64 };
+				readOptions = options;
+				return base64FileContent(workbookBase64);
 			},
 			stat: async () => ({
 				ctime: 1,
@@ -648,26 +792,158 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 			columnCount: sheet.content?.columnCount,
 			rowCount: sheet.content?.rowCount,
 			sheetId: sheet.sheetId,
-			sheetKey: sheet.sheetKey,
 			sheetName: sheet.sheetName,
 		})), [{
 			columnCount: 2,
 			rowCount: 2,
 			sheetId: "1:Forward",
-			sheetKey: `${resource.toString()}::1%3AForward`,
 			sheetName: "Forward",
 		}, {
 			columnCount: 2,
 			rowCount: 2,
 			sheetId: "2:Reverse",
-			sheetKey: `${resource.toString()}::2%3AReverse`,
 			sheetName: "Reverse",
 		}]);
 		assert.equal(
 			reference.object.getSnapshot().sheets.find(sheet => sheet.sheetId === "2:Reverse")?.sheetName,
 			"Reverse",
 		);
-		assert.equal(readEncoding, "base64");
+		assert.deepStrictEqual(readOptions, undefined);
+	});
+
+	test("keeps large xlsx sheet content in row windows", async () => {
+		const resource = URI.file("/workspace/data/large-workbook.xlsx");
+		const rowCount = PARSED_TABLE_ROW_WINDOW_SIZE + 2;
+		const workbookBase64 = await createXlsxBase64([{
+			name: "Large",
+			rows: Array.from({ length: rowCount }, (_, index) => [`r${index}`, String(index)]),
+		}]);
+		const service = createResolverService(createFileServiceStub({
+			readFile: async () => base64FileContent(workbookBase64),
+		}));
+
+		const reference = await service.createModelReference(resource);
+		store.add(reference);
+
+		const snapshot = reference.object.getSnapshot();
+		const content = snapshot.content;
+		assert.equal(snapshot.defaultSheetId, "1:Large");
+		assert.equal(content?.rowCount, rowCount);
+		assert.equal(content?.rows.length, PARSED_TABLE_ROW_WINDOW_SIZE);
+		assert.equal(content?.rowWindows?.length, 2);
+		assert.deepStrictEqual(readTableModelContentRows(content, rowCount - 1, rowCount), [[
+			`r${rowCount - 1}`,
+			String(rowCount - 1),
+		]]);
+	});
+
+	test("keeps xlsx sheet diagnostics without blocking readable sheets", async () => {
+		const resource = URI.file("/workspace/data/partial-workbook.xlsx");
+		const workbookBase64 = await createXlsxBase64([{
+			name: "Missing",
+			rows: [["Vg", "Id"], ["0", "1"]],
+		}, {
+			name: "Readable",
+			rows: [["Vd", "Id"], ["1", "2"]],
+		}], { missingSheetIndexes: [0] });
+		const service = createResolverService(createFileServiceStub({
+			readFile: async () => base64FileContent(workbookBase64),
+		}));
+
+		const reference = await service.createModelReference(resource);
+		store.add(reference);
+
+		const snapshot = reference.object.getSnapshot();
+		assert.equal(snapshot.defaultSheetId, "2:Readable");
+		assert.deepStrictEqual(snapshot.content?.rows, [["Vd", "Id"], ["1", "2"]]);
+		assert.equal(snapshot.sheets.length, 2);
+		assert.equal(snapshot.sheets[0]?.content, null);
+		assert.deepStrictEqual(snapshot.sheets[0]?.diagnostics?.map(diagnostic => ({
+			code: diagnostic.code,
+			severity: diagnostic.severity,
+			sheetId: diagnostic.sheetId,
+		})), [{
+			code: "table.parser.missingSheetXml",
+			severity: "error",
+			sheetId: "1:Missing",
+		}]);
+		assert.deepStrictEqual(snapshot.sheets[1]?.content?.rows, [["Vd", "Id"], ["1", "2"]]);
+	});
+
+	test("carries malformed xlsx parser diagnostics on URI-backed model snapshots", async () => {
+		const resource = URI.file("/workspace/data/malformed.xlsx");
+		const workbookBase64 = await createMalformedXlsxBase64();
+		const service = createResolverService(createFileServiceStub({
+			readFile: async () => base64FileContent(workbookBase64),
+		}));
+
+		const reference = await service.createModelReference(resource);
+		store.add(reference);
+
+		const snapshot = reference.object.getSnapshot();
+		assert.equal(snapshot.loadState.state, "ready");
+		assert.equal(snapshot.content, null);
+		assert.deepStrictEqual(snapshot.diagnostics.map(diagnostic => ({
+			code: diagnostic.code,
+			severity: diagnostic.severity,
+		})), [{
+			code: "table.parser.malformedWorkbook",
+			severity: "fatal",
+		}]);
+		assert.deepStrictEqual(snapshot.sheets, []);
+	});
+
+	test("carries malformed workbook bytes as file-level diagnostics on URI-backed model snapshots", async () => {
+		const resource = URI.file("/workspace/data/decode-failed.xlsx");
+		const service = createResolverService(createFileServiceStub({
+			readFile: async () => textFileContent("%"),
+			stat: async () => ({
+				ctime: 1,
+				mtime: 42,
+				path: resource.path,
+				size: 1,
+				type: FileType.File,
+			}),
+		}));
+
+		const reference = await service.createModelReference(resource);
+		store.add(reference);
+
+		const snapshot = reference.object.getSnapshot();
+		assert.equal(snapshot.loadState.state, "ready");
+		assert.equal(snapshot.content, null);
+		assert.equal(snapshot.format, "xlsx");
+		assert.equal(snapshot.sourceVersion, 42);
+		assert.deepStrictEqual(snapshot.diagnostics.map(diagnostic => ({
+			code: diagnostic.code,
+			severity: diagnostic.severity,
+		})), [{
+			code: "table.parser.malformedWorkbook",
+			severity: "fatal",
+		}]);
+		assert.deepStrictEqual(snapshot.sheets, []);
+	});
+
+	test("carries no-readable-sheet xlsx parser diagnostics as file-level diagnostics", async () => {
+		const resource = URI.file("/workspace/data/empty-workbook.xlsx");
+		const workbookBase64 = await createXlsxBase64([]);
+		const service = createResolverService(createFileServiceStub({
+			readFile: async () => base64FileContent(workbookBase64),
+		}));
+
+		const reference = await service.createModelReference(resource);
+		store.add(reference);
+
+		const snapshot = reference.object.getSnapshot();
+		assert.equal(snapshot.content, null);
+		assert.deepStrictEqual(snapshot.diagnostics.map(diagnostic => ({
+			code: diagnostic.code,
+			severity: diagnostic.severity,
+		})), [{
+			code: "table.parser.noReadableSheet",
+			severity: "fatal",
+		}]);
+		assert.deepStrictEqual(snapshot.sheets, []);
 	});
 });
 
@@ -704,7 +980,7 @@ const createFileServiceStub = (
 	moveFileToTrash: async () => undefined,
 	onDidFilesChange: Event.None,
 	readDir: async () => [],
-	readFile: async () => ({ encoding: "utf8", value: "A,B\n1,2" }),
+	readFile: async () => textFileContent("A,B\n1,2"),
 	realpath: async resource => resource,
 	registerProvider: () => ({ dispose: () => undefined }),
 	stat: async resource => ({
@@ -719,10 +995,22 @@ const createFileServiceStub = (
 	...overrides,
 } as IFileService);
 
+const textFileContent = (value: string): { readonly value: Uint8Array } => ({
+	value: new TextEncoder().encode(value),
+});
+
+const base64FileContent = (value: string): { readonly value: Uint8Array } => ({
+	value: Uint8Array.from(globalThis.atob(value), character => character.charCodeAt(0)),
+});
+
 const createXlsxBase64 = async (
 	sheets: readonly { readonly name: string; readonly rows: readonly (readonly string[])[] }[],
+	options: {
+		readonly missingSheetIndexes?: readonly number[];
+	} = {},
 ): Promise<string> => {
 	const zip = new JSZip();
+	const missingSheetIndexes = new Set(options.missingSheetIndexes ?? []);
 	zip.file("xl/workbook.xml", [
 		'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">',
 		"<sheets>",
@@ -740,8 +1028,18 @@ const createXlsxBase64 = async (
 		"</Relationships>",
 	].join(""));
 	for (let index = 0; index < sheets.length; index += 1) {
+		if (missingSheetIndexes.has(index)) {
+			continue;
+		}
 		zip.file(`xl/worksheets/sheet${index + 1}.xml`, createXlsxSheetXml(sheets[index]!.rows));
 	}
+	const buffer = await zip.generateAsync({ type: "arraybuffer" });
+	return arrayBufferToBase64(buffer);
+};
+
+const createMalformedXlsxBase64 = async (): Promise<string> => {
+	const zip = new JSZip();
+	zip.file("[Content_Types].xml", "<Types></Types>");
 	const buffer = await zip.generateAsync({ type: "arraybuffer" });
 	return arrayBufferToBase64(buffer);
 };

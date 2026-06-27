@@ -30,11 +30,11 @@ suite("platform/files/test/node/diskFileSystemProvider", () => {
         assert.equal((await provider.stat(resource)).type, FileType.File);
       }
       assert.equal(
-        (await provider.readFile(URI.file(path.join(root, "transfer%25.csv")))).value,
+        decodeFileContent(await provider.readFile(URI.file(path.join(root, "transfer%25.csv")))),
         "Vg,Id\n0,1",
       );
       assert.equal(
-        (await provider.readFile(URI.file(path.join(root, "transfer%raw.csv")))).value,
+        decodeFileContent(await provider.readFile(URI.file(path.join(root, "transfer%raw.csv")))),
         "Vg,Id\n1,2",
       );
     } finally {
@@ -42,17 +42,16 @@ suite("platform/files/test/node/diskFileSystemProvider", () => {
     }
   });
 
-  test("DiskFileSystemProvider returns base64 content without decoding percent paths", async () => {
+  test("DiskFileSystemProvider returns byte content without decoding percent paths", async () => {
     const root = createTempDir();
     try {
       const filePath = path.join(root, "transfer%25.csv");
       fs.writeFileSync(filePath, Buffer.from([0, 1, 2, 3]));
 
       const provider = new DiskFileSystemProvider();
-      const content = await provider.readFile(URI.file(filePath), { encoding: "base64" });
+      const content = await provider.readFile(URI.file(filePath));
 
-      assert.equal(content.encoding, "base64");
-      assert.equal(content.value, Buffer.from([0, 1, 2, 3]).toString("base64"));
+      assert.deepEqual([...content.value], [0, 1, 2, 3]);
     } finally {
       fs.rmSync(root, { force: true, recursive: true });
     }
@@ -122,3 +121,6 @@ suite("platform/files/test/node/diskFileSystemProvider", () => {
     }
   });
 });
+
+const decodeFileContent = (content: { readonly value: Uint8Array }): string =>
+  new TextDecoder().decode(content.value);

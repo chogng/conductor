@@ -57,8 +57,7 @@ class MemoryFileService implements IFileService {
 
 	public async readFile(resource: URI, _options?: IReadFileOptions): Promise<IFileContent> {
 		return {
-			encoding: "utf8",
-			value: this.files.get(URI.revive(resource).toString()) ?? "",
+			value: new TextEncoder().encode(this.files.get(URI.revive(resource).toString()) ?? ""),
 		};
 	}
 

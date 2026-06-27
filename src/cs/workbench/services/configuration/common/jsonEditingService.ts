@@ -52,8 +52,8 @@ export class JSONEditingService implements IJSONEditingService {
 			return {};
 		}
 
-		const content = await this.fileService.readFile(resource, { encoding: "utf8" });
-		const raw = content.value.trim();
+		const content = await this.fileService.readFile(resource);
+		const raw = new TextDecoder().decode(content.value).trim();
 		if (!raw) {
 			return {};
 		}

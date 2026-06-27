@@ -81,7 +81,7 @@ suite("workbench/contrib/template/browser/templateImportExport", () => {
     });
 
     assert.equal(result.kind, "saved");
-    assert.equal(saveOptions?.defaultUri?.fsPath, "/exports/Transfer.json");
+    assert.equal(saveOptions?.defaultUri?.path, "/exports/Transfer.json");
     assert.equal(writtenResource?.toString(), target.toString());
     assert.deepEqual(JSON.parse(writtenContent ?? ""), {
       source: "conductor.userTemplate",
