@@ -1,6 +1,8 @@
 {
   "schemaVersion": 1,
   "recipes": [
+    "iv/transfer-x-y-group.json",
+    "iv/output-x-y-group.json",
     "iv/transfer.json",
     "iv/output.json",
     "capacitance/cv.json",

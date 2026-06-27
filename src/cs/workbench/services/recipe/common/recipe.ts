@@ -4,18 +4,30 @@
 
 import type { Event } from "src/cs/base/common/event";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type { RecipeProjection } from "src/cs/workbench/services/recipe/common/recipeProjection";
-import type { RecipeSelector } from "src/cs/workbench/services/recipe/common/recipeSelector";
+import type {
+	RecipeBlockPartition,
+	RecipeDataRange,
+	RecipeDomain,
+	RecipeLogicalRelation,
+	RecipeRoles,
+	RecipeWithinBlock,
+} from "src/cs/workbench/services/recipe/common/recipeSchema";
 
 export const IRecipeService =
   createDecorator<IRecipeService>("recipeService");
 
 export type Recipe = {
-  readonly id: string;
-  readonly version: number;
-  readonly priority: number;
-  readonly selector: RecipeSelector;
-  readonly projection: RecipeProjection;
+	readonly id: string;
+	readonly version: number;
+	readonly priority: number;
+	readonly label: string;
+	readonly dataRange: RecipeDataRange;
+	readonly blockPartition: RecipeBlockPartition;
+	readonly withinBlock: RecipeWithinBlock;
+	readonly logicalRelation: RecipeLogicalRelation;
+	readonly domain?: RecipeDomain;
+	readonly roles: RecipeRoles;
+	readonly stopOnError?: boolean;
 };
 
 export type RecipeDiagnostic = {

@@ -93,46 +93,41 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 		});
 	});
 
-	test("keeps matched recipe candidates when projection slots need adjustment", () => {
-		const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
+	test("builds x-y-group IV recipe from physical layout bindings", () => {
+		const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer.x-y-group");
 		assert.ok(recipe);
 
-		const evidence = createReviewEvidence();
-		const context = createReviewContext(evidence);
-		const incompleteRecipe = {
-			...recipe,
-			id: "workspace.missing-projection",
-			projection: {
-				...recipe.projection,
-				blocks: {
-					...recipe.projection.blocks,
-					y: {
-						...recipe.projection.blocks.y,
-						columns: {
-							kind: "capturedColumns" as const,
-							capture: "missing-y",
-						},
-					},
-				},
+		const evidence = createReviewEvidence({
+			layoutKind: "groupedSweep",
+			layoutBinding: {
+				xCol: 2,
+				yCols: [3],
+				groupByCol: 0,
+				pointCol: 1,
 			},
-		};
+			columns: [
+				createColumn(2, "vg", "V"),
+				createColumn(3, "id", "A"),
+			],
+		});
+		const context = createReviewContext(evidence);
 		const candidate = createRecipeReviewCandidate({
 			context,
-			recipe: incompleteRecipe,
-			evaluation: evaluateReviewSelector(incompleteRecipe, evidence),
+			recipe,
+			evaluation: evaluateReviewSelector(recipe, evidence),
 		});
 
 		assert.ok(candidate);
-		assert.equal(candidate.interpretation.blocks.length, 0);
-		assert.deepEqual(
-			candidate.projectionTrace.diagnostics.map(diagnostic => diagnostic.code),
-			["recipeProjection.missingCapture"],
-		);
-
-		const review = scoreReviewCandidate({ candidate, context });
-		assert.equal(review.status, "needsAdjustment");
-		assert.equal(review.findings.some(finding => finding.code === "review.missingProjectionBlock"), true);
-		assert.ok(review.confidence <= 0.49, String(review.confidence));
+		assert.equal(candidate.projectionTrace.diagnostics.length, 0);
+		assert.deepEqual(candidate.interpretation.blocks[0]?.x, {
+			columns: [2],
+			unit: "V",
+		});
+		assert.deepEqual(candidate.interpretation.blocks[0]?.y, {
+			columns: [3],
+			unit: "A",
+		});
+		assert.equal(candidate.interpretation.blocks[0]?.legend.target, "group");
 	});
 
 	test("keeps compatible user templates as ready review candidates", () => {
@@ -311,6 +306,13 @@ const createUserTemplate = (template: Template): UserTemplate => ({
 
 const createReviewEvidence = (options: {
 	readonly columns?: readonly MeasurementColumnRef[];
+	readonly layoutBinding?: {
+		readonly xCol?: number;
+		readonly yCols?: readonly number[];
+		readonly groupByCol?: number;
+		readonly pointCol?: number;
+	};
+	readonly layoutKind?: "groupedSweep" | "simpleXY";
 } = {}): ReviewEvidence => ({
 	sourceMetadata: {
 		fileName: "Transfer.csv",
@@ -325,9 +327,9 @@ const createReviewEvidence = (options: {
 		columnProfiles: [],
 		layoutCandidates: [{
 			id: "layout-a",
-			layoutKind: "simpleXY",
+			layoutKind: options.layoutKind ?? "simpleXY",
 			confidence: 0.9,
-			bindings: [{
+			bindings: [options.layoutBinding ?? {
 				xCol: 0,
 				yCols: [1],
 			}],

@@ -16,8 +16,8 @@ import type { FileImportResult, ImportedFileRecord } from "src/cs/workbench/serv
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
 import type { IRecipeService, Recipe, RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
 import { ReviewService } from "src/cs/workbench/services/review/browser/reviewService";
-import type { TableReviewSummaryTarget } from "src/cs/workbench/services/review/common/review";
-import { deriveTableReviewResult } from "src/cs/workbench/services/review/common/reviewResult";
+import type { ReviewSummaryTarget } from "src/cs/workbench/services/review/common/review";
+import { deriveReviewResult } from "src/cs/workbench/services/review/common/reviewResult";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import {
 	TableModel as TableContentModel,
@@ -65,11 +65,11 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		sourceVersion: 1,
 	});
 
-	test("derives recipe table-review candidates into a system-recommended review decision", () => {
+	test("derives recipe review candidates into a system-recommended review decision", () => {
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 
-		const result = deriveTableReviewResult({
+		const result = deriveReviewResult({
 			tableModel: createTableModel(),
 			columnCount: 2,
 			fileName: "Transfer.csv",
@@ -95,7 +95,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 
-		const result = deriveTableReviewResult({
+		const result = deriveReviewResult({
 			tableModel: createTableModel(),
 			columnCount: 2,
 			fileName: "Transfer.csv",
@@ -124,7 +124,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		}]));
 		const userTemplateService = createUserTemplateServiceForTest();
 
-		const result = deriveTableReviewResult({
+		const result = deriveReviewResult({
 			tableModel: createTableModel(),
 			columnCount: 2,
 			fileName: "Transfer.csv",
@@ -159,7 +159,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			template,
 		});
 
-		const result = deriveTableReviewResult({
+		const result = deriveReviewResult({
 			tableModel: createTableModel(),
 			columnCount: 2,
 			fileName: "Transfer.csv",
@@ -184,7 +184,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			template: createTemplate({ id: "template-a" }),
 		});
 
-		const result = deriveTableReviewResult({
+		const result = deriveReviewResult({
 			tableModel: createTableModel(),
 			columnCount: 2,
 			fileName: "Transfer.csv",
@@ -232,7 +232,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(Boolean(summary.reviewSignature), true);
 		assert.equal(Boolean(summary.templateFingerprint), true);
 
-		const uriReview = await service.reviewUriTable(target);
+		const uriReview = await service.reviewUri(target);
 		assert.equal(uriReview.result?.resource?.toString(), resource.toString());
 		assert.equal(uriReview.result?.sheetId, "table-a");
 		assert.equal(uriReview.result?.modelVersion, 1);
@@ -256,8 +256,8 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			store.add(new TestTableModelService(resource)),
 			store.add(new TableModelProducerService()),
 		);
-		const target: TableReviewSummaryTarget = {
-			resource: resource.toJSON() as unknown as TableReviewSummaryTarget["resource"],
+		const target: ReviewSummaryTarget = {
+			resource: resource.toJSON() as unknown as ReviewSummaryTarget["resource"],
 			sheetId: "table-a",
 		};
 
@@ -269,7 +269,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(summary.resource.toString(), resource.toString());
 		assert.equal(summary.reviewSignature?.includes("[object Object]"), false);
 
-		const review = await service.reviewUriTable(target);
+		const review = await service.reviewUri(target);
 		assert.equal(review.resource.toString(), resource.toString());
 		assert.equal(review.result?.resource?.toString(), resource.toString());
 		assert.equal(review.reviewSignature?.includes("[object Object]"), false);
@@ -296,7 +296,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(summary.state, "ready");
 		assert.equal(summary.sheetId, undefined);
 
-		const uriReview = await service.reviewUriTable(target);
+		const uriReview = await service.reviewUri(target);
 		assert.equal(uriReview.sheetId, undefined);
 		assert.equal(uriReview.summary.sheetId, undefined);
 		assert.equal(uriReview.result?.sheetId, undefined);
@@ -398,9 +398,9 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const summary = service.getLatestReviewSummary(target);
 		assert.equal(summary.state, "invalid");
 		assert.deepEqual(summary.findingCodes, ["review.parserFatalDiagnostic"]);
-		assert.equal(summary.message, "Table review candidates are invalid.");
+		assert.equal(summary.message, "Review candidates are invalid.");
 
-		const uriReview = await service.reviewUriTable(target);
+		const uriReview = await service.reviewUri(target);
 		assert.equal(uriReview.result?.reviews.some(review =>
 			review.findings.some(finding => finding.code === "review.parserFatalDiagnostic")
 		), true);
@@ -431,7 +431,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.notEqual(summary.state, "invalid");
 		assert.equal(summary.findingCodes.includes("review.parserFatalDiagnostic"), false);
 
-		const uriReview = await service.reviewUriTable(target);
+		const uriReview = await service.reviewUri(target);
 		assert.equal(uriReview.result?.reviews.some(review =>
 			review.findings.some(finding => finding.code === "review.parserFatalDiagnostic")
 		), false);
@@ -467,7 +467,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 				rows: fixture.rows,
 				sourceRawTableVersion: 1,
 			});
-			const result = deriveTableReviewResult({
+			const result = deriveReviewResult({
 				tableModel,
 				columnCount: getFixtureColumnCount(fixture.rows),
 				fileName: fixture.fileName,
@@ -492,7 +492,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		}
 	});
 
-	test("matches grouped IV sweep recipes through layout binding projection", async () => {
+	test("matches x-y-group IV recipes through layout binding projection", async () => {
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const tableModelProducerService = store.add(new TableModelProducerService());
@@ -504,7 +504,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			sourceRawTableVersion: 1,
 		});
 
-		const result = deriveTableReviewResult({
+		const result = deriveReviewResult({
 			tableModel,
 			columnCount: getFixtureColumnCount(groupedSweepRows),
 			fileName: "Output [grouped].csv",
@@ -516,7 +516,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 
 		assert.equal(result.decision.kind, "ready");
 		assert.equal(result.candidates[0]?.source.kind, "recipe");
-		assert.equal(result.candidates[0]?.source.kind === "recipe" && result.candidates[0].source.recipeId, "builtin.iv.groupedOutput");
+		assert.equal(result.candidates[0]?.source.kind === "recipe" && result.candidates[0].source.recipeId, "builtin.iv.output.x-y-group");
 		assert.equal(result.candidates[0]?.displayName, "Detected IV Output");
 		assert.deepEqual(result.decision.kind === "ready" && result.decision.reviewedTemplate.template.blocks[0]?.x.columns, [3]);
 		assert.deepEqual(result.decision.kind === "ready" && result.decision.reviewedTemplate.template.blocks[0]?.y.columns, [4]);
@@ -542,7 +542,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			sourceRawTableVersion: 1,
 		});
 
-		const result = deriveTableReviewResult({
+		const result = deriveReviewResult({
 			tableModel,
 			columnCount: getFixtureColumnCount(rows),
 			fileName: "3.csv",
@@ -554,7 +554,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 
 		assert.notEqual(result.decision.kind, "invalid");
 		assert.equal(result.candidates[0]?.source.kind, "recipe");
-		assert.equal(result.candidates[0]?.source.kind === "recipe" && result.candidates[0].source.recipeId, "builtin.iv.groupedOutput");
+		assert.equal(result.candidates[0]?.source.kind === "recipe" && result.candidates[0].source.recipeId, "builtin.iv.output.x-y-group");
 		assert.deepEqual(result.candidates[0]?.diagnosticCodes, []);
 		assert.equal(result.decision.kind, "needsManualAdjustment");
 		assert.equal(result.decision.kind === "needsManualAdjustment" && result.decision.reasons.includes("review.noCandidates"), false);

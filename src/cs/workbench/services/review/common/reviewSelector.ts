@@ -6,17 +6,12 @@ import type {
 	MeasurementBlockRecord,
 	MeasurementColumnRef,
 } from "src/cs/workbench/services/tableModel/common/measurement";
-import type { ReviewEvidence } from "src/cs/workbench/services/review/common/reviewModel";
-import type {
-	CanonicalUnitSelectorPredicate,
-	ColumnRoleSelectorPredicate,
-	LayoutEvidenceSelectorPredicate,
-	SchemaFingerprintSelectorPredicate,
-	SourceHintSelectorPredicate,
-	RecipeSelector,
-	RecipeSelectorPredicate,
-} from "src/cs/workbench/services/recipe/common/recipeSelector";
 import type { Recipe } from "src/cs/workbench/services/recipe/common/recipe";
+import type {
+	RecipePhysicalLayout,
+	RecipeRole,
+} from "src/cs/workbench/services/recipe/common/recipeSchema";
+import type { ReviewEvidence } from "src/cs/workbench/services/review/common/reviewModel";
 
 export type ReviewSelectorCapture =
 	| {
@@ -48,17 +43,6 @@ type EvaluationContext = {
 	readonly block: MeasurementBlockRecord | null;
 };
 
-type PredicateResult =
-	| {
-		readonly matched: true;
-		readonly captures?: Readonly<Record<string, ReviewSelectorCapture>>;
-		readonly reason?: string;
-	}
-	| {
-		readonly matched: false;
-		readonly diagnosticCode?: string;
-	};
-
 type MatchResult =
 	| {
 		readonly matched: true;
@@ -68,6 +52,17 @@ type MatchResult =
 	| {
 		readonly matched: false;
 		readonly diagnosticCodes: readonly string[];
+	};
+
+type PredicateResult =
+	| {
+		readonly matched: true;
+		readonly captures?: Readonly<Record<string, ReviewSelectorCapture>>;
+		readonly reason?: string;
+	}
+	| {
+		readonly matched: false;
+		readonly diagnosticCode?: string;
 	};
 
 export const evaluateReviewSelector = (
@@ -84,6 +79,7 @@ export const evaluateReviewSelector = (
 			diagnosticCodes: ["recipeSelector.missingTableProjection"],
 		};
 	}
+
 	const contexts = tableProjection.blocks.length
 		? tableProjection.blocks.map(block => ({ evidence, block }))
 		: [{ evidence, block: null }];
@@ -91,7 +87,7 @@ export const evaluateReviewSelector = (
 	const diagnosticCodes = new Set<string>();
 
 	for (const context of contexts) {
-		const result = evaluateSelector(recipe.selector, context);
+		const result = evaluateRecipe(recipe, context);
 		if (result.matched) {
 			matches.push({
 				blockId: context.block?.id,
@@ -114,16 +110,24 @@ export const evaluateReviewSelector = (
 	};
 };
 
-const evaluateSelector = (
-	selector: RecipeSelector,
+const evaluateRecipe = (
+	recipe: Recipe,
 	context: EvaluationContext,
 ): MatchResult => {
 	const captures: Record<string, ReviewSelectorCapture> = {};
 	const reasons: string[] = [];
 	const diagnosticCodes = new Set<string>();
+	const predicates: readonly (() => PredicateResult)[] = [
+		() => evaluateDataRange(recipe, context),
+		() => evaluateBlockPartition(recipe, context.block),
+		() => evaluateDomain(recipe, context.block),
+		() => evaluatePhysicalLayout(recipe.withinBlock.physicalLayout, context.evidence),
+		() => evaluateRole("x", recipe.roles.x, context),
+		() => evaluateRole("y", recipe.roles.y, context),
+	];
 
-	for (const predicate of readPredicateArray(selector.all)) {
-		const result = evaluatePredicate(predicate, context);
+	for (const predicate of predicates) {
+		const result = predicate();
 		if (!result.matched) {
 			addDiagnosticCode(diagnosticCodes, result.diagnosticCode);
 			return {
@@ -135,45 +139,6 @@ const evaluateSelector = (
 		addReason(reasons, result.reason);
 	}
 
-	const anyPredicates = readPredicateArray(selector.any);
-	if (anyPredicates.length) {
-		let matchedAny = false;
-		const anyDiagnostics = new Set<string>();
-		for (const predicate of anyPredicates) {
-			const result = evaluatePredicate(predicate, context);
-			if (result.matched) {
-				mergeCaptures(captures, result.captures);
-				addReason(reasons, result.reason);
-				matchedAny = true;
-				break;
-			}
-			addDiagnosticCode(anyDiagnostics, result.diagnosticCode);
-		}
-		if (!matchedAny) {
-			return {
-				matched: false,
-				diagnosticCodes: [...anyDiagnostics],
-			};
-		}
-	}
-
-	for (const predicate of readPredicateArray(selector.not)) {
-		const result = evaluatePredicate(predicate, context);
-		if (result.matched) {
-			return {
-				matched: false,
-				diagnosticCodes: ["recipeSelector.notPredicateMatched"],
-			};
-		}
-	}
-
-	if (!readPredicateArray(selector.all).length && !anyPredicates.length) {
-		return {
-			matched: false,
-			diagnosticCodes: ["recipeSelector.emptySelector"],
-		};
-	}
-
 	return {
 		matched: true,
 		captures,
@@ -181,152 +146,136 @@ const evaluateSelector = (
 	};
 };
 
-const evaluatePredicate = (
-	predicate: RecipeSelectorPredicate,
+const evaluateDataRange = (
+	recipe: Recipe,
 	context: EvaluationContext,
 ): PredicateResult => {
-	switch (predicate.kind) {
-		case "blockFamily":
-			return context.block?.family === predicate.family &&
-				meetsMinConfidence(context.block.confidence, predicate.minConfidence)
-				? { matched: true, reason: `blockFamily:${predicate.family}` }
-				: { matched: false, diagnosticCode: "recipeSelector.blockFamilyMismatch" };
-		case "blockMode":
-			return evaluateBlockModePredicate(predicate, context.block);
-		case "columnRole":
-			return evaluateColumnRolePredicate(predicate, context);
-		case "canonicalUnit":
-			return evaluateCanonicalUnitPredicate(predicate, context);
-		case "layoutEvidence":
-			return evaluateLayoutEvidencePredicate(predicate, context.evidence);
-		case "sourceHint":
-			return evaluateSourceHintPredicate(predicate, context.evidence);
-		case "schemaFingerprint":
-			return evaluateSchemaFingerprintPredicate(predicate, context.evidence);
+	if (recipe.dataRange.kind !== "detectedDataRegion") {
+		return { matched: false, diagnosticCode: "recipeSelector.dataRangeMismatch" };
 	}
+	if (
+		context.evidence.tableProjection?.structure.dataRegions.length ||
+		context.block?.source.dataRange ||
+		context.block?.source.fullRange
+	) {
+		return { matched: true, reason: "dataRange:detectedDataRegion" };
+	}
+	return { matched: false, diagnosticCode: "recipeSelector.missingDataRange" };
 };
 
-const evaluateBlockModePredicate = (
-	predicate: Extract<RecipeSelectorPredicate, { readonly kind: "blockMode" }>,
+const evaluateBlockPartition = (
+	recipe: Recipe,
 	block: MeasurementBlockRecord | null,
 ): PredicateResult => {
-	if (!block || !meetsMinConfidence(block.confidence, predicate.minConfidence)) {
-		return { matched: false, diagnosticCode: "recipeSelector.blockModeMismatch" };
+	if (recipe.blockPartition.kind !== "measurementBlocks") {
+		return { matched: false, diagnosticCode: "recipeSelector.blockPartitionMismatch" };
 	}
-	if (predicate.ivMode && block.ivMode !== predicate.ivMode) {
-		return { matched: false, diagnosticCode: "recipeSelector.ivModeMismatch" };
+	if (!block) {
+		return { matched: false, diagnosticCode: "recipeSelector.missingMeasurementBlock" };
 	}
-	if (predicate.itMode && block.itMode !== predicate.itMode) {
-		return { matched: false, diagnosticCode: "recipeSelector.itModeMismatch" };
+	if (!meetsMinConfidence(block.confidence, recipe.blockPartition.minConfidence)) {
+		return { matched: false, diagnosticCode: "recipeSelector.blockConfidenceMismatch" };
 	}
-
-	return { matched: true, reason: "blockMode" };
+	return { matched: true, reason: `blockPartition:${recipe.blockPartition.select}` };
 };
 
-const evaluateColumnRolePredicate = (
-	predicate: ColumnRoleSelectorPredicate,
+const evaluateDomain = (
+	recipe: Recipe,
+	block: MeasurementBlockRecord | null,
+): PredicateResult => {
+	const domain = recipe.domain;
+	if (!domain) {
+		return { matched: true };
+	}
+	if (!block || !meetsMinConfidence(block.confidence, domain.minConfidence)) {
+		return { matched: false, diagnosticCode: "recipeSelector.blockFamilyMismatch" };
+	}
+	if (domain.family && block.family !== domain.family) {
+		return { matched: false, diagnosticCode: "recipeSelector.blockFamilyMismatch" };
+	}
+	if (domain.ivMode && block.ivMode !== domain.ivMode) {
+		return { matched: false, diagnosticCode: "recipeSelector.ivModeMismatch" };
+	}
+	if (domain.itMode && block.itMode !== domain.itMode) {
+		return { matched: false, diagnosticCode: "recipeSelector.itModeMismatch" };
+	}
+	return { matched: true, reason: domain.family ? `domain:${domain.family}` : undefined };
+};
+
+const evaluatePhysicalLayout = (
+	layout: RecipePhysicalLayout,
+	evidence: ReviewEvidence,
+): PredicateResult => {
+	const layoutKinds = getRequiredLayoutEvidenceKinds(layout);
+	if (!layoutKinds.length) {
+		return { matched: true, reason: `physicalLayout:${layout}` };
+	}
+	const matched = evidence.tableProjection?.layoutCandidates.some(candidate =>
+		layoutKinds.includes(candidate.layoutKind) &&
+		meetsMinConfidence(candidate.confidence, 0.75)
+	);
+	return matched
+		? { matched: true, reason: `physicalLayout:${layout}` }
+		: { matched: false, diagnosticCode: "recipeSelector.physicalLayoutMismatch" };
+};
+
+const evaluateRole = (
+	capture: "x" | "y",
+	role: RecipeRole,
 	context: EvaluationContext,
 ): PredicateResult => {
-	const columns = getColumnsForScope(predicate.within, context);
-	const matchedColumns = columns.filter(column =>
-		predicate.roleAny.includes(column.role) &&
-		(!predicate.canonicalUnit || normalizeUnit(column.unit) === predicate.canonicalUnit)
-	);
-	if (!isCountWithinBounds(matchedColumns.length, predicate.minCount, predicate.maxCount)) {
+	const matchedColumns = getColumnsForBlock(context.block)
+		.filter(column =>
+			role.roleAny.includes(column.role) &&
+			(!role.canonicalUnit || normalizeUnit(column.unit) === role.canonicalUnit) &&
+			meetsMinConfidence(column.confidence, role.minConfidence)
+		);
+	if (!isCountWithinBounds(matchedColumns.length, role.count)) {
 		return { matched: false, diagnosticCode: "recipeSelector.columnRoleMismatch" };
 	}
 
 	return {
 		matched: true,
 		captures: {
-			[predicate.capture]: {
+			[capture]: {
 				kind: "columns",
 				columns: matchedColumns.map(column => column.rawCol),
 				unit: getCommonUnit(matchedColumns),
 			},
 		},
-		reason: `columnRole:${predicate.capture}`,
+		reason: `role:${capture}`,
 	};
 };
 
-const evaluateCanonicalUnitPredicate = (
-	predicate: CanonicalUnitSelectorPredicate,
-	context: EvaluationContext,
-): PredicateResult => {
-	const units = getColumnsForScope(predicate.within, context)
-		.map(column => normalizeUnit(column.unit))
-		.filter((unit): unit is string => Boolean(unit && predicate.unitAny.includes(unit as never)));
-	const uniqueUnits = [...new Set(units)];
-	if (uniqueUnits.length < Math.max(1, Math.floor(Number(predicate.minCount) || 1))) {
-		return { matched: false, diagnosticCode: "recipeSelector.canonicalUnitMismatch" };
+const getRequiredLayoutEvidenceKinds = (
+	layout: RecipePhysicalLayout,
+): readonly string[] => {
+	switch (layout) {
+		case "x-y-group":
+			return ["groupedSweep"];
+		case "xyxyxy":
+			return ["pairwiseXY"];
+		case "blocks.xy":
+		case "blocks.xyyyy":
+			return ["repeatedBlock"];
+		case "xy":
+		case "xyyyy":
+			return [];
 	}
-
-	return {
-		matched: true,
-		captures: predicate.capture
-			? {
-				[predicate.capture]: {
-					kind: "units",
-					units: uniqueUnits,
-				},
-			}
-			: undefined,
-		reason: "canonicalUnit",
-	};
 };
 
-const evaluateLayoutEvidencePredicate = (
-	predicate: LayoutEvidenceSelectorPredicate,
-	evidence: ReviewEvidence,
-): PredicateResult =>
-	evidence.tableProjection?.layoutCandidates.some(candidate =>
-		predicate.layoutAny.includes(candidate.layoutKind) &&
-		meetsMinConfidence(candidate.confidence, predicate.minConfidence)
-	)
-		? { matched: true, reason: "layoutEvidence" }
-		: { matched: false, diagnosticCode: "recipeSelector.layoutEvidenceMismatch" };
-
-const evaluateSourceHintPredicate = (
-	predicate: SourceHintSelectorPredicate,
-	evidence: ReviewEvidence,
-): PredicateResult => {
-	const fileName = normalizeText(evidence.sourceMetadata.fileName);
-	const extension = getFileExtension(fileName);
-	const matchesFileName = !predicate.fileNameIncludesAny?.length ||
-		predicate.fileNameIncludesAny.some(value => fileName.includes(normalizeText(value)));
-	const matchesExtension = !predicate.extensionAny?.length ||
-		predicate.extensionAny.some(value => extension === normalizeExtension(value));
-
-	return matchesFileName && matchesExtension
-		? { matched: true, reason: "sourceHint" }
-		: { matched: false, diagnosticCode: "recipeSelector.sourceHintMismatch" };
-};
-
-const evaluateSchemaFingerprintPredicate = (
-	predicate: SchemaFingerprintSelectorPredicate,
-	evidence: ReviewEvidence,
-): PredicateResult =>
-	evidence.tableProjection && predicate.fingerprintAny.includes(evidence.tableProjection.structure.fingerprint)
-		? { matched: true, reason: "schemaFingerprint" }
-		: { matched: false, diagnosticCode: "recipeSelector.schemaFingerprintMismatch" };
-
-const getColumnsForScope = (
-	scope: ColumnRoleSelectorPredicate["within"],
-	context: EvaluationContext,
+const getColumnsForBlock = (
+	block: MeasurementBlockRecord | null,
 ): readonly MeasurementColumnRef[] =>
-	scope === "matchedBlock"
-		? context.block?.columns.columns ?? []
-		: context.evidence.tableProjection?.blocks.flatMap(block => block.columns.columns) ?? [];
+	block?.columns.columns ?? [];
 
 const isCountWithinBounds = (
 	count: number,
-	minCount: number | undefined,
-	maxCount: number | undefined,
-): boolean => {
-	const min = Math.max(1, Math.floor(Number(minCount) || 1));
-	const max = maxCount === undefined ? Number.POSITIVE_INFINITY : Math.floor(Number(maxCount));
-	return count >= min && count <= max;
-};
+	cardinality: RecipeRole["count"],
+): boolean =>
+	cardinality === "one"
+		? count === 1
+		: count >= 1;
 
 const getCommonUnit = (
 	columns: readonly MeasurementColumnRef[],
@@ -366,21 +315,5 @@ const addDiagnosticCode = (target: Set<string>, code: string | undefined): void 
 	}
 };
 
-const readPredicateArray = (
-	value: unknown,
-): readonly RecipeSelectorPredicate[] =>
-	Array.isArray(value) ? value as RecipeSelectorPredicate[] : [];
-
 const normalizeUnit = (value: unknown): string =>
 	String(value ?? "").trim();
-
-const normalizeText = (value: unknown): string =>
-	String(value ?? "").trim().toLowerCase();
-
-const getFileExtension = (value: string): string => {
-	const index = value.lastIndexOf(".");
-	return index === -1 ? "" : value.slice(index + 1);
-};
-
-const normalizeExtension = (value: unknown): string =>
-	normalizeText(value).replace(/^\./, "");

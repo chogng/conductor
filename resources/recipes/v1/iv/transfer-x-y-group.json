@@ -1,34 +1,34 @@
 {
-  "id": "builtin.iv.output",
+  "id": "builtin.iv.transfer.x-y-group",
   "version": 1,
-  "priority": 95,
-  "label": "Detected IV Output",
+  "priority": 105,
+  "label": "Detected IV Transfer",
   "dataRange": {
     "kind": "detectedDataRegion"
   },
   "blockPartition": {
     "kind": "measurementBlocks",
-    "select": "each",
-    "minConfidence": 0.75
+    "select": "first",
+    "minConfidence": 0.3
   },
   "withinBlock": {
-    "physicalLayout": "xy",
+    "physicalLayout": "x-y-group",
     "rowRange": "block.dataRange"
   },
-  "logicalRelation": "oneX-oneY",
+  "logicalRelation": "oneX-oneY-manyGroups",
   "domain": {
     "family": "iv",
-    "ivMode": "output",
-    "minConfidence": 0.75
+    "ivMode": "transfer",
+    "minConfidence": 0.3
   },
   "roles": {
     "x": {
       "roleAny": [
-        "vd",
+        "vg",
         "voltage"
       ],
       "canonicalUnit": "V",
-      "count": "one"
+      "count": "oneOrMore"
     },
     "y": {
       "roleAny": [
@@ -36,7 +36,10 @@
         "current"
       ],
       "canonicalUnit": "A",
-      "count": "one"
+      "count": "oneOrMore"
+    },
+    "group": {
+      "count": "oneOrMore"
     }
   },
   "stopOnError": false

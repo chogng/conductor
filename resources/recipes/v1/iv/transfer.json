@@ -2,79 +2,42 @@
   "id": "builtin.iv.transfer",
   "version": 1,
   "priority": 100,
-  "selector": {
-    "all": [
-      {
-        "kind": "blockFamily",
-        "family": "iv",
-        "minConfidence": 0.75
-      },
-      {
-        "kind": "blockMode",
-        "ivMode": "transfer",
-        "minConfidence": 0.75
-      },
-      {
-        "kind": "columnRole",
-        "capture": "x",
-        "within": "matchedBlock",
-        "roleAny": [
-          "vg"
-        ],
-        "axis": "x",
-        "canonicalUnit": "V",
-        "minCount": 1,
-        "maxCount": 1
-      },
-      {
-        "kind": "columnRole",
-        "capture": "y",
-        "within": "matchedBlock",
-        "roleAny": [
-          "id",
-          "current"
-        ],
-        "axis": "y",
-        "canonicalUnit": "A",
-        "minCount": 1
-      }
-    ]
+  "label": "Detected IV Transfer",
+  "dataRange": {
+    "kind": "detectedDataRegion"
   },
-  "projection": {
-    "name": {
-      "kind": "literal",
-      "value": "Detected IV Transfer"
+  "blockPartition": {
+    "kind": "measurementBlocks",
+    "select": "each",
+    "minConfidence": 0.75
+  },
+  "withinBlock": {
+    "physicalLayout": "xy",
+    "rowRange": "block.dataRange"
+  },
+  "logicalRelation": "oneX-oneY",
+  "domain": {
+    "family": "iv",
+    "ivMode": "transfer",
+    "minConfidence": 0.75
+  },
+  "roles": {
+    "x": {
+      "roleAny": [
+        "vg",
+        "voltage"
+      ],
+      "canonicalUnit": "V",
+      "count": "one"
     },
-    "blocks": {
-      "source": "eachMatchedBlock",
-      "rowRange": "block.dataRange",
-      "x": {
-        "columns": {
-          "kind": "capturedColumns",
-          "capture": "x"
-        },
-        "unit": {
-          "kind": "capturedCommonUnit",
-          "capture": "x"
-        }
-      },
-      "y": {
-        "columns": {
-          "kind": "capturedColumns",
-          "capture": "y"
-        },
-        "unit": {
-          "kind": "capturedCommonUnit",
-          "capture": "y"
-        }
-      },
-      "segmentation": {
-        "kind": "auto"
-      },
-      "legend": {
-        "target": "auto"
-      }
-    },
-    "stopOnError": false
-  }
+    "y": {
+      "roleAny": [
+        "id",
+        "current"
+      ],
+      "canonicalUnit": "A",
+      "count": "one"
+    }
+  },
+  "stopOnError": false
 }

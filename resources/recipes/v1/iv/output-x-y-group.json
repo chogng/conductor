@@ -1,25 +1,25 @@
 {
-  "id": "builtin.iv.output",
+  "id": "builtin.iv.output.x-y-group",
   "version": 1,
-  "priority": 95,
+  "priority": 104,
   "label": "Detected IV Output",
   "dataRange": {
     "kind": "detectedDataRegion"
   },
   "blockPartition": {
     "kind": "measurementBlocks",
-    "select": "each",
-    "minConfidence": 0.75
+    "select": "first",
+    "minConfidence": 0.3
   },
   "withinBlock": {
-    "physicalLayout": "xy",
+    "physicalLayout": "x-y-group",
     "rowRange": "block.dataRange"
   },
-  "logicalRelation": "oneX-oneY",
+  "logicalRelation": "oneX-oneY-manyGroups",
   "domain": {
     "family": "iv",
     "ivMode": "output",
-    "minConfidence": 0.75
+    "minConfidence": 0.3
   },
   "roles": {
     "x": {
@@ -28,7 +28,7 @@
         "voltage"
       ],
       "canonicalUnit": "V",
-      "count": "one"
+      "count": "oneOrMore"
     },
     "y": {
       "roleAny": [
@@ -36,7 +36,10 @@
         "current"
       ],
       "canonicalUnit": "A",
-      "count": "one"
+      "count": "oneOrMore"
+    },
+    "group": {
+      "count": "oneOrMore"
     }
   },
   "stopOnError": false

@@ -1,5 +1,5 @@
 ---
-description: UserTemplate service - user template catalog snapshots consumed by Template materializers and manual Review.
+description: UserTemplate service - user template catalog snapshots consumed by Review candidate builders and manual Review.
 applyTo: 'src/cs/workbench/services/userTemplate/**,src/cs/workbench/contrib/userTemplate/**'
 ---
 # UserTemplate
@@ -10,7 +10,7 @@ scope, versioning, and fingerprints. It is not the core `Template` spec and it
 is not the Template UI form state.
 
 `IUserTemplateService` owns native UserTemplate CRUD/import/export and catalog
-snapshots. Template materializers, Review manual paths, Template UI, Explorer
+snapshots. Review candidate builders, Review manual paths, Template UI, Explorer
 template pickers, and explicit Slice template lookup consume
 `UserTemplateSnapshot` or `getTemplate(id)` instead of reading a template
 catalog.
@@ -22,7 +22,7 @@ catalog.
 - user-template catalog snapshots and effective fingerprints;
 - user-template lookup by id;
 - native user-template CRUD/import/export;
-- user-template change events used by Template materialization, Review manual
+- user-template change events used by Review candidate derivation, Review manual
   paths, and Template UI projections.
 
 It does not own:
@@ -30,7 +30,7 @@ It does not own:
 - the core `Template` data structure;
 - native catalog persistence through `IUserTemplateStoreService`;
 - Template editor selected-template/form state;
-- Recipe selector/projection interpretation;
+- Recipe dataRange/blockPartition/physicalLayout/logicalRelation interpretation;
 - Review decisions or system application recommendations;
 - Slice execution, queue state, or `SliceRun` records.
 
@@ -41,9 +41,9 @@ UserTemplate create/update/delete/import
   -> IUserTemplateService
   -> IUserTemplateStoreService
   -> userTemplateChanged
-  -> Template materializer rereads table model + RecipeSnapshot + UserTemplateSnapshot
-  -> IReviewService reviews materialized candidates
-  -> RawTableReviewRecord
+  -> Review candidate builder rereads table model + RecipeSnapshot + UserTemplateSnapshot
+  -> IReviewService reviews candidates
+  -> ReviewResult / ReviewedTemplate
 ```
 
 JSON import/export:
@@ -58,16 +58,17 @@ Manual execution:
 
 ```txt
 user template picker / saved-selection compatibility picker
-  -> IReviewService.reviewManualTemplate(...)
+  -> IReviewService.reviewUri({ resource, sheetId })
+  -> IReviewService.reviewUriManualTemplate(...)
   -> IUserTemplateService.getTemplate(...)
   -> ManualTemplateReviewResult.ready
-  -> SliceRequest(trigger = userCommand)
+  -> SliceUriRequest(trigger = userCommand)
 ```
 
 ## Rules
 
-- `UserTemplateSnapshot.effectiveFingerprint` is the Template materialization
-  and Review staleness input for user-template candidates.
+- `UserTemplateSnapshot.effectiveFingerprint` is the Review candidate
+  derivation and Review staleness input for user-template candidates.
 - `UserTemplate.template` is a snapshot. Review must store the selected
   executable template snapshot in `ReviewDecision.ready.reviewedTemplate`.
 - Native UserTemplates are persisted by scope: `global` in profile storage and

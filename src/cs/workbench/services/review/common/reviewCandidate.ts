@@ -5,9 +5,9 @@
 import type { MeasurementBlockRecord } from "src/cs/workbench/services/tableModel/common/measurement";
 import type { Recipe, RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
 import type {
-	RecipeColumnProjection,
-	RecipeValueExpression,
-} from "src/cs/workbench/services/recipe/common/recipeProjection";
+	RecipeLogicalRelation,
+	RecipePhysicalLayout,
+} from "src/cs/workbench/services/recipe/common/recipeSchema";
 import type {
 	ReviewCandidate,
 	ReviewCandidateAxisBinding,
@@ -105,8 +105,7 @@ export const createRecipeReviewCandidate = ({
 		return null;
 	}
 
-	const projection = recipe.projection;
-	const matches = projection.blocks.source === "singleMatchedBlock"
+	const matches = recipe.blockPartition.select === "first"
 		? evaluation.matches.slice(0, 1)
 		: evaluation.matches;
 	const blocks: ReviewCandidateBlock[] = [];
@@ -114,13 +113,13 @@ export const createRecipeReviewCandidate = ({
 	for (const match of matches) {
 		const block = getMatchedBlock(context.evidence, match);
 		if (!block) {
-			diagnostics.add("recipeProjection.missingBlock");
+			diagnostics.add("recipeCandidate.missingBlock");
 			continue;
 		}
 
 		const candidateBlock = createCandidateBlock(recipe, match, block, context.evidence);
 		if (!candidateBlock) {
-			diagnostics.add("recipeProjection.missingCapture");
+			diagnostics.add("recipeCandidate.missingRoleBinding");
 			continue;
 		}
 		blocks.push(candidateBlock);
@@ -129,10 +128,10 @@ export const createRecipeReviewCandidate = ({
 	const tableProjection = context.evidence.tableProjection;
 	const schemaFingerprint = tableProjection?.structure.fingerprint;
 	const interpretation = createReviewCandidateInterpretation({
-		name: resolveCandidateExpressionValue(projection.name, matches[0], getMatchedBlock(context.evidence, matches[0])) || recipe.id,
+		name: recipe.label || recipe.id,
 		version: 1,
 		blocks,
-		stopOnError: projection.stopOnError ?? false,
+		stopOnError: recipe.stopOnError ?? false,
 		applicability: {
 			...(schemaFingerprint ? { schemaFingerprint } : {}),
 			columnCount: context.evidence.sourceMetadata.columnCount,
@@ -336,9 +335,8 @@ const createCandidateBlock = (
 	block: MeasurementBlockRecord,
 	evidence: ReviewContext["evidence"],
 ): ReviewCandidateBlock | null => {
-	const projection = recipe.projection;
-	const x = createAxisBinding(projection.blocks.x, match, evidence);
-	const y = createAxisBinding(projection.blocks.y, match, evidence);
+	const x = createAxisBinding(recipe, "x", match, evidence);
+	const y = createAxisBinding(recipe, "y", match, evidence);
 	if (!x || !y) {
 		return null;
 	}
@@ -347,84 +345,36 @@ const createCandidateBlock = (
 		rowRange: getBlockDataRowRange(block),
 		x,
 		y,
-		segmentation: {
-			kind: projection.blocks.segmentation.kind,
-		},
-		legend: {
-			target: projection.blocks.legend.target,
-		},
-		titles: projection.blocks.titles
-			? {
-				bottom: projection.blocks.titles.bottom
-					? resolveCandidateExpressionValue(projection.blocks.titles.bottom, match, block)
-					: undefined,
-				left: projection.blocks.titles.left
-					? resolveCandidateExpressionValue(projection.blocks.titles.left, match, block)
-					: undefined,
-			}
-			: undefined,
+		segmentation: createCandidateSegmentation(recipe.logicalRelation),
+		legend: createCandidateLegend(recipe.logicalRelation),
 	};
 };
 
 const createAxisBinding = (
-	projection: RecipeColumnProjection,
+	recipe: Recipe,
+	axis: "x" | "y",
 	match: ReviewSelectorBlockMatch,
 	evidence: ReviewContext["evidence"],
 ): ReviewCandidateAxisBinding | null => {
-	if (projection.columns.kind === "literalColumns") {
-		return {
-			columns: projection.columns.columns,
-			unit: projection.unit ? resolveCandidateExpressionValue(projection.unit, match, null) : undefined,
-		};
-	}
-	if (projection.columns.kind === "layoutBindingColumns") {
-		const columns = readLayoutBindingColumns(evidence, projection.columns.target);
+	if (usesLayoutBindingColumns(recipe.withinBlock.physicalLayout)) {
+		const columns = readLayoutBindingColumns(evidence, axis);
 		return columns.length
 			? {
 				columns,
-				unit: projection.unit ? resolveCandidateExpressionValue(projection.unit, match, null) : undefined,
+				unit: readCaptureUnit(match, axis) ?? undefined,
 			}
 			: null;
 	}
 
-	const capture = readColumnsCapture(match.captures[projection.columns.capture]);
+	const capture = readColumnsCapture(match.captures[axis]);
 	if (!capture) {
 		return null;
 	}
 
 	return {
 		columns: capture.columns,
-		unit: projection.unit
-			? resolveCandidateExpressionValue(projection.unit, match, null)
-			: capture.unit ?? undefined,
+		unit: capture.unit ?? undefined,
 	};
-};
-
-const resolveCandidateExpressionValue = (
-	expression: RecipeValueExpression,
-	match: ReviewSelectorBlockMatch | undefined,
-	block: MeasurementBlockRecord | null,
-): string => {
-	switch (expression.kind) {
-		case "literal":
-			return expression.value;
-		case "capturedCommonUnit": {
-			const capture = match ? match.captures[expression.capture] : undefined;
-			if (capture?.kind === "columns") {
-				return capture.unit ?? "";
-			}
-			if (capture?.kind === "units") {
-				return capture.units.length === 1 ? capture.units[0] ?? "" : "";
-			}
-			return "";
-		}
-		case "matchedBlockLabel":
-			return block?.label ?? "";
-		case "matchedBlockFamily":
-			return block?.family ?? "";
-		case "matchedBlockMode":
-			return block?.ivMode ?? block?.itMode ?? "";
-	}
 };
 
 const readColumnsCapture = (
@@ -433,6 +383,32 @@ const readColumnsCapture = (
 	capture?.kind === "columns" && capture.columns.length
 		? capture
 		: null;
+
+const readCaptureUnit = (
+	match: ReviewSelectorBlockMatch,
+	captureName: "x" | "y",
+): string | null => {
+	const capture = readColumnsCapture(match.captures[captureName]);
+	return capture?.unit ?? null;
+};
+
+const usesLayoutBindingColumns = (
+	layout: RecipePhysicalLayout,
+): boolean =>
+	layout === "x-y-group" ||
+	layout === "xyxyxy";
+
+const createCandidateSegmentation = (
+	_logicalRelation: RecipeLogicalRelation,
+): ReviewCandidateBlock["segmentation"] => ({
+	kind: "auto",
+});
+
+const createCandidateLegend = (
+	logicalRelation: RecipeLogicalRelation,
+): ReviewCandidateBlock["legend"] => ({
+	target: logicalRelation === "oneX-oneY-manyGroups" ? "group" : "auto",
+});
 
 const readLayoutBindingColumns = (
 	evidence: ReviewContext["evidence"],

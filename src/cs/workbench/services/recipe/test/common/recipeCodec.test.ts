@@ -7,179 +7,151 @@ import assert from "assert";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
 import {
-  createRecipeSnapshot,
-  normalizeRecipes,
+	createRecipeSnapshot,
+	normalizeRecipes,
 } from "src/cs/workbench/services/recipe/common/recipeCodec";
 
 suite("workbench/services/recipe/test/common/recipeCodec", () => {
-  ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
-  test("normalizes builtin derivation recipes into a fingerprinted snapshot", () => {
-    const snapshot = createRecipeSnapshot(builtinRecipes);
+	test("normalizes builtin derivation recipes into a fingerprinted snapshot", () => {
+		const snapshot = createRecipeSnapshot(builtinRecipes);
 
-    assert.equal(snapshot.version, 1);
-    assert.equal(snapshot.diagnostics.length, 0);
-    assert.deepEqual(snapshot.recipes.map(recipe => recipe.id), [
-      "builtin.iv.transfer",
-      "builtin.iv.output",
-      "builtin.capacitance.cf",
-      "builtin.capacitance.cv",
-      "builtin.currentTime.it",
-    ]);
-    assert.equal(snapshot.fingerprint.startsWith("recipe:"), true);
-  });
+		assert.equal(snapshot.version, 1);
+		assert.equal(snapshot.diagnostics.length, 0);
+		assert.deepEqual(snapshot.recipes.map(recipe => recipe.id), [
+			"builtin.iv.transfer.x-y-group",
+			"builtin.iv.output.x-y-group",
+			"builtin.iv.transfer",
+			"builtin.iv.output",
+			"builtin.capacitance.cf",
+			"builtin.capacitance.cv",
+			"builtin.currentTime.it",
+		]);
+		assert.equal(snapshot.fingerprint.startsWith("recipe:"), true);
+	});
 
-  test("rejects unknown predicates and capture references", () => {
-    const result = normalizeRecipes([{
-      id: "workspace.invalid",
-      version: 1,
-      priority: 1,
-      selector: {
-        all: [{
-          kind: "mystery",
-        }],
-      },
-      projection: {
-        name: {
-          kind: "literal",
-          value: "Invalid",
-        },
-        blocks: {
-          source: "eachMatchedBlock",
-          rowRange: "block.dataRange",
-          x: {
-            columns: {
-              kind: "capturedColumns",
-              capture: "missing",
-            },
-          },
-          y: {
-            columns: {
-              kind: "literalColumns",
-              columns: [1],
-            },
-          },
-          segmentation: {
-            kind: "auto",
-          },
-          legend: {
-            target: "auto",
-          },
-        },
-      },
-    }]);
+	test("rejects malformed recipe staging fields", () => {
+		const result = normalizeRecipes([{
+			...createRecipe(),
+			label: "",
+			dataRange: {
+				kind: "table",
+			},
+			blockPartition: {
+				kind: "rows",
+				select: "all",
+				minConfidence: 2,
+			},
+			withinBlock: {
+				physicalLayout: "simpleXY",
+				rowRange: "table.dataRange",
+			},
+			logicalRelation: "groupedXY",
+			stopOnError: "yes",
+		}]);
 
-    assert.deepEqual(result.recipes, []);
-    assert.deepEqual(result.diagnostics.map(diagnostic => diagnostic.code), [
-      "recipe.unknownPredicate",
-      "recipe.unknownCapture",
-    ]);
-  });
+		assert.deepEqual(result.recipes, []);
+		assert.deepEqual(result.diagnostics.map(diagnostic => diagnostic.code), [
+			"recipe.missingLabel",
+			"recipe.invalidDataRange",
+			"recipe.invalidBlockPartition",
+			"recipe.invalidPhysicalLayout",
+			"recipe.invalidWithinBlockRowRange",
+			"recipe.invalidLogicalRelation",
+			"recipe.invalidStopOnError",
+		]);
+	});
 
-  test("rejects unsupported instrument source hints", () => {
-    const result = normalizeRecipes([{
-      id: "workspace.instrument",
-      version: 1,
-      priority: 1,
-      selector: {
-        all: [{
-          kind: "sourceHint",
-          instrumentAny: ["keysight"],
-        }],
-      },
-      projection: createLiteralProjection(),
-    }]);
+	test("rejects malformed domain and role fields", () => {
+		const result = normalizeRecipes([{
+			...createRecipe(),
+			domain: {
+				family: "transistor",
+				ivMode: "sweep",
+				itMode: "hold",
+				minConfidence: -1,
+			},
+			roles: {
+				x: {
+					roleAny: ["mystery"],
+					canonicalUnit: "watts",
+					count: "maybe",
+					minConfidence: 1.5,
+				},
+				y: {
+					roleAny: [],
+					count: "one",
+				},
+				group: {
+					roleAny: ["group"],
+					canonicalUnit: "count",
+					count: "optional",
+					minConfidence: 1.5,
+				},
+			},
+		}]);
 
-    assert.deepEqual(result.recipes, []);
-    assert.deepEqual(result.diagnostics.map(diagnostic => diagnostic.code), [
-      "recipe.unsupportedSourceHintInstrument",
-    ]);
-  });
+		assert.deepEqual(result.recipes, []);
+		assert.deepEqual(result.diagnostics.map(diagnostic => diagnostic.code), [
+			"recipe.invalidDomainFamily",
+			"recipe.invalidDomainIvMode",
+			"recipe.invalidDomainItMode",
+			"recipe.invalidDomainConfidence",
+			"recipe.invalidRole",
+			"recipe.invalidRole",
+			"recipe.invalidGroupRole",
+			"recipe.invalidGroupRoleCount",
+			"recipe.invalidGroupRoleUnit",
+			"recipe.invalidGroupRoleConfidence",
+		]);
+	});
 
-  test("rejects malformed block projection details", () => {
-    const result = normalizeRecipes([{
-      id: "workspace.malformedProjection",
-      version: 1,
-      priority: 1,
-      selector: {
-        all: [{
-          kind: "sourceHint",
-          extensionAny: ["csv"],
-        }],
-      },
-      projection: {
-        name: {
-          kind: "literal",
-          value: "Malformed",
-        },
-        stopOnError: "yes",
-        blocks: {
-          source: "unknown",
-          rowRange: "table.dataRange",
-          x: {
-            columns: {
-              kind: "literalColumns",
-              columns: [0],
-            },
-          },
-          y: {
-            columns: {
-              kind: "literalColumns",
-              columns: [1],
-            },
-          },
-          segmentation: {
-            kind: "fixedPoints",
-          },
-          legend: {
-            target: "unsupported",
-          },
-          titles: {
-            bottom: {
-              kind: "unknown",
-            },
-          },
-        },
-      },
-    }]);
+	test("rejects duplicate recipe id/version pairs", () => {
+		const result = normalizeRecipes([
+			createRecipe(),
+			createRecipe(),
+		]);
 
-    assert.deepEqual(result.recipes, []);
-    assert.deepEqual(result.diagnostics.map(diagnostic => diagnostic.code), [
-      "recipe.invalidRowRangeProjection",
-      "recipe.invalidBlockSourceProjection",
-      "recipe.invalidSegmentationProjection",
-      "recipe.invalidLegendProjection",
-      "recipe.unknownValueExpression",
-      "recipe.invalidStopOnError",
-    ]);
-  });
+		assert.deepEqual(result.recipes.map(recipe => recipe.id), ["workspace.valid"]);
+		assert.deepEqual(result.diagnostics.map(diagnostic => diagnostic.code), [
+			"recipe.duplicateIdVersion",
+		]);
+	});
 });
 
-const createLiteralProjection = () => ({
-  name: {
-    kind: "literal",
-    value: "Literal",
-  },
-  blocks: {
-    source: "singleMatchedBlock",
-    rowRange: "block.dataRange",
-    x: {
-      columns: {
-        kind: "literalColumns",
-        columns: [0],
-      },
-    },
-    y: {
-      columns: {
-        kind: "literalColumns",
-        columns: [1],
-      },
-    },
-    segmentation: {
-      kind: "auto",
-    },
-    legend: {
-      target: "auto",
-    },
-  },
+const createRecipe = () => ({
+	id: "workspace.valid",
+	version: 1,
+	priority: 1,
+	label: "Workspace Valid",
+	dataRange: {
+		kind: "detectedDataRegion",
+	},
+	blockPartition: {
+		kind: "measurementBlocks",
+		select: "each",
+	},
+	withinBlock: {
+		physicalLayout: "xy",
+		rowRange: "block.dataRange",
+	},
+	logicalRelation: "oneX-oneY",
+	domain: {
+		family: "iv",
+		ivMode: "transfer",
+		minConfidence: 0.75,
+	},
+	roles: {
+		x: {
+			roleAny: ["vg", "voltage"],
+			canonicalUnit: "V",
+			count: "one",
+		},
+		y: {
+			roleAny: ["id", "current"],
+			canonicalUnit: "A",
+			count: "one",
+		},
+	},
 });

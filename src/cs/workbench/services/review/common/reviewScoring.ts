@@ -297,7 +297,7 @@ const applyConfidenceCaps = (
 	if (findings.some(finding => finding.code === "review.rangeOutOfBounds")) {
 		return Math.min(confidence, 0.39);
 	}
-	if (findings.some(finding => finding.code === "recipeProjection.missingCapture" || finding.code === "recipeProjection.missingBlock")) {
+	if (findings.some(finding => finding.code === "recipeCandidate.missingRoleBinding" || finding.code === "recipeCandidate.missingBlock")) {
 		return Math.min(confidence, 0.49);
 	}
 	if (findings.some(finding => finding.code === "review.missingProjectionBlock")) {
@@ -312,8 +312,8 @@ const applyConfidenceCaps = (
 const isRepairableProjectionFinding = (
 	finding: ReviewFinding,
 ): boolean =>
-	finding.code === "recipeProjection.missingCapture" ||
-	finding.code === "recipeProjection.missingBlock" ||
+	finding.code === "recipeCandidate.missingRoleBinding" ||
+	finding.code === "recipeCandidate.missingBlock" ||
 	finding.code === "review.missingProjectionBlock";
 
 const getDiagnosticPenalty = (

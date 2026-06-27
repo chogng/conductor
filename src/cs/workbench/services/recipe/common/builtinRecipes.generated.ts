@@ -11,385 +11,301 @@ export const builtinRecipes = [
     "id": "builtin.capacitance.cf",
     "version": 1,
     "priority": 90,
-    "selector": {
-      "all": [
-        {
-          "kind": "blockFamily",
-          "family": "cf",
-          "minConfidence": 0.75
-        },
-        {
-          "kind": "columnRole",
-          "capture": "x",
-          "within": "matchedBlock",
-          "roleAny": [
-            "frequency"
-          ],
-          "axis": "x",
-          "canonicalUnit": "Hz",
-          "minCount": 1,
-          "maxCount": 1
-        },
-        {
-          "kind": "columnRole",
-          "capture": "y",
-          "within": "matchedBlock",
-          "roleAny": [
-            "capacitance"
-          ],
-          "axis": "y",
-          "canonicalUnit": "F",
-          "minCount": 1
-        }
-      ]
+    "label": "Detected CF",
+    "dataRange": {
+      "kind": "detectedDataRegion"
     },
-    "projection": {
-      "name": {
-        "kind": "literal",
-        "value": "Detected CF"
+    "blockPartition": {
+      "kind": "measurementBlocks",
+      "select": "each",
+      "minConfidence": 0.75
+    },
+    "withinBlock": {
+      "physicalLayout": "xyyyy",
+      "rowRange": "block.dataRange"
+    },
+    "logicalRelation": "oneX-manyY",
+    "domain": {
+      "family": "cf",
+      "minConfidence": 0.75
+    },
+    "roles": {
+      "x": {
+        "roleAny": [
+          "frequency"
+        ],
+        "canonicalUnit": "Hz",
+        "count": "one"
       },
-      "blocks": {
-        "source": "eachMatchedBlock",
-        "rowRange": "block.dataRange",
-        "x": {
-          "columns": {
-            "kind": "capturedColumns",
-            "capture": "x"
-          },
-          "unit": {
-            "kind": "capturedCommonUnit",
-            "capture": "x"
-          }
-        },
-        "y": {
-          "columns": {
-            "kind": "capturedColumns",
-            "capture": "y"
-          },
-          "unit": {
-            "kind": "capturedCommonUnit",
-            "capture": "y"
-          }
-        },
-        "segmentation": {
-          "kind": "auto"
-        },
-        "legend": {
-          "target": "auto"
-        }
-      },
-      "stopOnError": false
-    }
+      "y": {
+        "roleAny": [
+          "capacitance"
+        ],
+        "canonicalUnit": "F",
+        "count": "oneOrMore"
+      }
+    },
+    "stopOnError": false
   },
   {
     "id": "builtin.capacitance.cv",
     "version": 1,
     "priority": 90,
-    "selector": {
-      "all": [
-        {
-          "kind": "blockFamily",
-          "family": "cv",
-          "minConfidence": 0.75
-        },
-        {
-          "kind": "columnRole",
-          "capture": "x",
-          "within": "matchedBlock",
-          "roleAny": [
-            "vg",
-            "vd",
-            "voltage"
-          ],
-          "axis": "x",
-          "canonicalUnit": "V",
-          "minCount": 1,
-          "maxCount": 1
-        },
-        {
-          "kind": "columnRole",
-          "capture": "y",
-          "within": "matchedBlock",
-          "roleAny": [
-            "capacitance"
-          ],
-          "axis": "y",
-          "canonicalUnit": "F",
-          "minCount": 1
-        }
-      ]
+    "label": "Detected CV",
+    "dataRange": {
+      "kind": "detectedDataRegion"
     },
-    "projection": {
-      "name": {
-        "kind": "literal",
-        "value": "Detected CV"
+    "blockPartition": {
+      "kind": "measurementBlocks",
+      "select": "each",
+      "minConfidence": 0.75
+    },
+    "withinBlock": {
+      "physicalLayout": "xyyyy",
+      "rowRange": "block.dataRange"
+    },
+    "logicalRelation": "oneX-manyY",
+    "domain": {
+      "family": "cv",
+      "minConfidence": 0.75
+    },
+    "roles": {
+      "x": {
+        "roleAny": [
+          "vg",
+          "vd",
+          "voltage"
+        ],
+        "canonicalUnit": "V",
+        "count": "one"
       },
-      "blocks": {
-        "source": "eachMatchedBlock",
-        "rowRange": "block.dataRange",
-        "x": {
-          "columns": {
-            "kind": "capturedColumns",
-            "capture": "x"
-          },
-          "unit": {
-            "kind": "capturedCommonUnit",
-            "capture": "x"
-          }
-        },
-        "y": {
-          "columns": {
-            "kind": "capturedColumns",
-            "capture": "y"
-          },
-          "unit": {
-            "kind": "capturedCommonUnit",
-            "capture": "y"
-          }
-        },
-        "segmentation": {
-          "kind": "auto"
-        },
-        "legend": {
-          "target": "auto"
-        }
-      },
-      "stopOnError": false
-    }
+      "y": {
+        "roleAny": [
+          "capacitance"
+        ],
+        "canonicalUnit": "F",
+        "count": "oneOrMore"
+      }
+    },
+    "stopOnError": false
   },
   {
     "id": "builtin.currentTime.it",
     "version": 1,
     "priority": 85,
-    "selector": {
-      "all": [
-        {
-          "kind": "blockFamily",
-          "family": "it",
-          "minConfidence": 0.75
-        },
-        {
-          "kind": "columnRole",
-          "capture": "x",
-          "within": "matchedBlock",
-          "roleAny": [
-            "time"
-          ],
-          "axis": "x",
-          "canonicalUnit": "s",
-          "minCount": 1,
-          "maxCount": 1
-        },
-        {
-          "kind": "columnRole",
-          "capture": "y",
-          "within": "matchedBlock",
-          "roleAny": [
-            "id",
-            "current"
-          ],
-          "axis": "y",
-          "canonicalUnit": "A",
-          "minCount": 1
-        }
-      ]
+    "label": "Detected IT",
+    "dataRange": {
+      "kind": "detectedDataRegion"
     },
-    "projection": {
-      "name": {
-        "kind": "literal",
-        "value": "Detected IT"
+    "blockPartition": {
+      "kind": "measurementBlocks",
+      "select": "each",
+      "minConfidence": 0.75
+    },
+    "withinBlock": {
+      "physicalLayout": "xyyyy",
+      "rowRange": "block.dataRange"
+    },
+    "logicalRelation": "oneX-manyY",
+    "domain": {
+      "family": "it",
+      "minConfidence": 0.75
+    },
+    "roles": {
+      "x": {
+        "roleAny": [
+          "time"
+        ],
+        "canonicalUnit": "s",
+        "count": "one"
       },
-      "blocks": {
-        "source": "eachMatchedBlock",
-        "rowRange": "block.dataRange",
-        "x": {
-          "columns": {
-            "kind": "capturedColumns",
-            "capture": "x"
-          },
-          "unit": {
-            "kind": "capturedCommonUnit",
-            "capture": "x"
-          }
-        },
-        "y": {
-          "columns": {
-            "kind": "capturedColumns",
-            "capture": "y"
-          },
-          "unit": {
-            "kind": "capturedCommonUnit",
-            "capture": "y"
-          }
-        },
-        "segmentation": {
-          "kind": "auto"
-        },
-        "legend": {
-          "target": "auto"
-        }
-      },
-      "stopOnError": false
-    }
+      "y": {
+        "roleAny": [
+          "id",
+          "current"
+        ],
+        "canonicalUnit": "A",
+        "count": "oneOrMore"
+      }
+    },
+    "stopOnError": false
   },
   {
     "id": "builtin.iv.output",
     "version": 1,
     "priority": 95,
-    "selector": {
-      "all": [
-        {
-          "kind": "blockFamily",
-          "family": "iv",
-          "minConfidence": 0.75
-        },
-        {
-          "kind": "blockMode",
-          "ivMode": "output",
-          "minConfidence": 0.75
-        },
-        {
-          "kind": "columnRole",
-          "capture": "x",
-          "within": "matchedBlock",
-          "roleAny": [
-            "vd"
-          ],
-          "axis": "x",
-          "canonicalUnit": "V",
-          "minCount": 1,
-          "maxCount": 1
-        },
-        {
-          "kind": "columnRole",
-          "capture": "y",
-          "within": "matchedBlock",
-          "roleAny": [
-            "id",
-            "current"
-          ],
-          "axis": "y",
-          "canonicalUnit": "A",
-          "minCount": 1
-        }
-      ]
+    "label": "Detected IV Output",
+    "dataRange": {
+      "kind": "detectedDataRegion"
     },
-    "projection": {
-      "name": {
-        "kind": "literal",
-        "value": "Detected IV Output"
+    "blockPartition": {
+      "kind": "measurementBlocks",
+      "select": "each",
+      "minConfidence": 0.75
+    },
+    "withinBlock": {
+      "physicalLayout": "xy",
+      "rowRange": "block.dataRange"
+    },
+    "logicalRelation": "oneX-oneY",
+    "domain": {
+      "family": "iv",
+      "ivMode": "output",
+      "minConfidence": 0.75
+    },
+    "roles": {
+      "x": {
+        "roleAny": [
+          "vd",
+          "voltage"
+        ],
+        "canonicalUnit": "V",
+        "count": "one"
       },
-      "blocks": {
-        "source": "eachMatchedBlock",
-        "rowRange": "block.dataRange",
-        "x": {
-          "columns": {
-            "kind": "capturedColumns",
-            "capture": "x"
-          },
-          "unit": {
-            "kind": "capturedCommonUnit",
-            "capture": "x"
-          }
-        },
-        "y": {
-          "columns": {
-            "kind": "capturedColumns",
-            "capture": "y"
-          },
-          "unit": {
-            "kind": "capturedCommonUnit",
-            "capture": "y"
-          }
-        },
-        "segmentation": {
-          "kind": "auto"
-        },
-        "legend": {
-          "target": "auto"
-        }
+      "y": {
+        "roleAny": [
+          "id",
+          "current"
+        ],
+        "canonicalUnit": "A",
+        "count": "one"
+      }
+    },
+    "stopOnError": false
+  },
+  {
+    "id": "builtin.iv.output.x-y-group",
+    "version": 1,
+    "priority": 104,
+    "label": "Detected IV Output",
+    "dataRange": {
+      "kind": "detectedDataRegion"
+    },
+    "blockPartition": {
+      "kind": "measurementBlocks",
+      "select": "first",
+      "minConfidence": 0.3
+    },
+    "withinBlock": {
+      "physicalLayout": "x-y-group",
+      "rowRange": "block.dataRange"
+    },
+    "logicalRelation": "oneX-oneY-manyGroups",
+    "domain": {
+      "family": "iv",
+      "ivMode": "output",
+      "minConfidence": 0.3
+    },
+    "roles": {
+      "x": {
+        "roleAny": [
+          "vd",
+          "voltage"
+        ],
+        "canonicalUnit": "V",
+        "count": "oneOrMore"
       },
-      "stopOnError": false
-    }
+      "y": {
+        "roleAny": [
+          "id",
+          "current"
+        ],
+        "canonicalUnit": "A",
+        "count": "oneOrMore"
+      },
+      "group": {
+        "count": "oneOrMore"
+      }
+    },
+    "stopOnError": false
   },
   {
     "id": "builtin.iv.transfer",
     "version": 1,
     "priority": 100,
-    "selector": {
-      "all": [
-        {
-          "kind": "blockFamily",
-          "family": "iv",
-          "minConfidence": 0.75
-        },
-        {
-          "kind": "blockMode",
-          "ivMode": "transfer",
-          "minConfidence": 0.75
-        },
-        {
-          "kind": "columnRole",
-          "capture": "x",
-          "within": "matchedBlock",
-          "roleAny": [
-            "vg"
-          ],
-          "axis": "x",
-          "canonicalUnit": "V",
-          "minCount": 1,
-          "maxCount": 1
-        },
-        {
-          "kind": "columnRole",
-          "capture": "y",
-          "within": "matchedBlock",
-          "roleAny": [
-            "id",
-            "current"
-          ],
-          "axis": "y",
-          "canonicalUnit": "A",
-          "minCount": 1
-        }
-      ]
+    "label": "Detected IV Transfer",
+    "dataRange": {
+      "kind": "detectedDataRegion"
     },
-    "projection": {
-      "name": {
-        "kind": "literal",
-        "value": "Detected IV Transfer"
+    "blockPartition": {
+      "kind": "measurementBlocks",
+      "select": "each",
+      "minConfidence": 0.75
+    },
+    "withinBlock": {
+      "physicalLayout": "xy",
+      "rowRange": "block.dataRange"
+    },
+    "logicalRelation": "oneX-oneY",
+    "domain": {
+      "family": "iv",
+      "ivMode": "transfer",
+      "minConfidence": 0.75
+    },
+    "roles": {
+      "x": {
+        "roleAny": [
+          "vg",
+          "voltage"
+        ],
+        "canonicalUnit": "V",
+        "count": "one"
       },
-      "blocks": {
-        "source": "eachMatchedBlock",
-        "rowRange": "block.dataRange",
-        "x": {
-          "columns": {
-            "kind": "capturedColumns",
-            "capture": "x"
-          },
-          "unit": {
-            "kind": "capturedCommonUnit",
-            "capture": "x"
-          }
-        },
-        "y": {
-          "columns": {
-            "kind": "capturedColumns",
-            "capture": "y"
-          },
-          "unit": {
-            "kind": "capturedCommonUnit",
-            "capture": "y"
-          }
-        },
-        "segmentation": {
-          "kind": "auto"
-        },
-        "legend": {
-          "target": "auto"
-        }
+      "y": {
+        "roleAny": [
+          "id",
+          "current"
+        ],
+        "canonicalUnit": "A",
+        "count": "one"
+      }
+    },
+    "stopOnError": false
+  },
+  {
+    "id": "builtin.iv.transfer.x-y-group",
+    "version": 1,
+    "priority": 105,
+    "label": "Detected IV Transfer",
+    "dataRange": {
+      "kind": "detectedDataRegion"
+    },
+    "blockPartition": {
+      "kind": "measurementBlocks",
+      "select": "first",
+      "minConfidence": 0.3
+    },
+    "withinBlock": {
+      "physicalLayout": "x-y-group",
+      "rowRange": "block.dataRange"
+    },
+    "logicalRelation": "oneX-oneY-manyGroups",
+    "domain": {
+      "family": "iv",
+      "ivMode": "transfer",
+      "minConfidence": 0.3
+    },
+    "roles": {
+      "x": {
+        "roleAny": [
+          "vg",
+          "voltage"
+        ],
+        "canonicalUnit": "V",
+        "count": "oneOrMore"
       },
-      "stopOnError": false
-    }
+      "y": {
+        "roleAny": [
+          "id",
+          "current"
+        ],
+        "canonicalUnit": "A",
+        "count": "oneOrMore"
+      },
+      "group": {
+        "count": "oneOrMore"
+      }
+    },
+    "stopOnError": false
   }
 ] as const satisfies readonly Recipe[];

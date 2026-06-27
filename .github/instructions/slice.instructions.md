@@ -62,8 +62,8 @@ services or reread Session.
 Session raw-table flow:
 
 ```txt
-Session RawTableRef + legacy TableReviewDecision.ready
-  -> explicit execution controller validates model/source versions and review signature
+Session RawTableRef + explicit reviewed/manual SliceRequest
+  -> explicit execution controller validates model/source versions and request signature
   -> ISliceService.submit(SliceRequest[])
   -> SliceService reads reviewed Template snapshot from request
   -> SlicePlanner.createSlicePlan(...)
@@ -76,10 +76,14 @@ Session RawTableRef + legacy TableReviewDecision.ready
   -> Session sliceRunChanged
 ```
 
+The legacy raw-table automatic review bridge has retired. `enqueueAuto(...)`
+does not rebuild Session review decisions; automatic system application must use
+the URI-backed Review -> Slice URI path.
+
 URI-backed flow:
 
 ```txt
-Explorer URI target + TableReviewDecision.ready / manual review result
+Explorer URI target + ReviewDecision.ready / manual review result
   -> explicit execution controller validates model/source versions and review signature
   -> ISliceService.submitUri(SliceUriRequest[])
   -> SliceService reads reviewed Template snapshot from request
@@ -119,7 +123,7 @@ Bulk command flow:
 ```txt
 slice.runWithTemplate / slice.runWithTemplateIncremental command
   -> collect URI targets from Explorer state
-  -> ReviewService.reviewUriTable({ resource, sheetId }) for each target
+  -> ReviewService.reviewUri({ resource, sheetId }) for each target
   -> URI targets review selected Template through Review
   -> ISliceService.submitUri(...) for URI targets
 ```
@@ -157,7 +161,7 @@ SliceState.fileStates + latest SliceRun + SliceService URI-target state/results
   -> WorkbenchDomainBridge / ExplorerPaneInput
   -> chartState + chartMessage
 
-ReviewService TableReviewSummary
+ReviewService ReviewSummary
   -> ExplorerDecorationsProvider / ExplorerViewPane
   -> Explorer decoration + review hover
 ```
@@ -166,7 +170,7 @@ ReviewService TableReviewSummary
 
 - Slice consumes reviewed Template snapshots; it must not detect headers, roles,
   family, or mode from raw rows.
-- Automatic execution consumes `TableReviewDecision.ready.reviewedTemplate` and
+- Automatic execution consumes `ReviewDecision.ready.reviewedTemplate` and
   executes that stored Template snapshot.
 - Manual execution must first produce a `ManualTemplateReviewResult.ready`
   value. Compatibility adapters may convert historical/manual presets into
@@ -196,10 +200,10 @@ ReviewService TableReviewSummary
 
 ## Do Not
 
-- Do not interpret raw rows/header semantics here; Recipe projection into
-  `TableReviewCandidate` happens in Review before Slice.
+- Do not interpret raw rows/header semantics here; Recipe interpretation into
+  `ReviewCandidate` happens in Review before Slice.
 - Do not re-run table-model production or Review candidate derivation in Slice.
-- Do not import RecipeService, recipe selector evaluators, or Review candidate
+- Do not import RecipeService, recipe matching helpers, or Review candidate
   builders into Slice.
 - Do not inspect Review confidence, candidate margin, or diagnostics to decide
   automatic execution.

@@ -14,7 +14,18 @@ suite("workbench/services/recipe/test/browser/recipeService", () => {
     const service = store.add(new RecipeService());
     const snapshot = service.getSnapshot();
 
-    assert.equal(snapshot.recipes.length, 5);
+    assert.deepEqual(
+      snapshot.recipes.map(recipe => recipe.id),
+      [
+        "builtin.iv.transfer.x-y-group",
+        "builtin.iv.output.x-y-group",
+        "builtin.iv.transfer",
+        "builtin.iv.output",
+        "builtin.capacitance.cf",
+        "builtin.capacitance.cv",
+        "builtin.currentTime.it",
+      ],
+    );
     assert.equal(snapshot.diagnostics.length, 0);
     assert.equal(snapshot.fingerprint.startsWith("recipe:"), true);
 

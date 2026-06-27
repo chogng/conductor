@@ -101,7 +101,7 @@ user command / UserTemplate picker / inline template editor
 | `common/review.ts` | service contract, URI manual review request/result types, and content-versioned review evidence signatures. |
 | `common/reviewModel.ts` | pure `ReviewContext`, `SegmentCandidate`/`ReviewCandidate`, `ReviewResult`, `ReviewDecision`, factors, findings, `ReviewedTemplate`, and summary types. |
 | `common/reviewEvidence.ts` | URI/content evidence shape used by Review candidate building; current table-derived fields live under optional `tableProjection` as one content projection. |
-| `common/reviewSelector.ts` | pure Recipe selector evaluation against Review evidence. |
+| `common/reviewSelector.ts` | pure Recipe dataRange/blockPartition/physicalLayout/logicalRelation matching against Review evidence. |
 | `common/reviewCandidate.ts` | pure Recipe/UserTemplate candidate derivation from Review evidence. |
 | `common/reviewScoring.ts` | pure ReviewCandidate scoring into `CandidateReview` factors/findings/status. |
 | `common/reviewResult.ts` | pure ReviewResult assembly from review context, candidates, scoring, and decision policy. |
