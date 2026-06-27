@@ -12,7 +12,7 @@ import type {
 	RecipeRoles,
 	RecipeSeriesPartition,
 	RecipeWithinBlock,
-} from "src/cs/workbench/services/recipe/common/recipeSchema";
+} from "cs/workbench/services/recipes/common/recipeSchema";
 
 export const IRecipeService =
   createDecorator<IRecipeService>("recipeService");

@@ -5,9 +5,9 @@
 import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import { RecipeService } from "src/cs/workbench/services/recipe/browser/recipeService";
+import { RecipeService } from "cs/workbench/services/recipes/browser/recipeService";
 
-suite("workbench/services/recipe/test/browser/recipeService", () => {
+suite("workbench/services/recipes/test/browser/recipeService", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
 
   test("exposes builtin recipe snapshot without evaluating raw tables", async () => {

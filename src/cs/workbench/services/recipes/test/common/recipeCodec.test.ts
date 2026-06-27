@@ -5,13 +5,13 @@
 import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
+import { builtinRecipes } from "cs/workbench/services/recipes/common/builtinRecipes.generated";
 import {
 	createRecipeSnapshot,
 	normalizeRecipes,
-} from "src/cs/workbench/services/recipe/common/recipeCodec";
+} from "cs/workbench/services/recipes/common/recipeCodec";
 
-suite("workbench/services/recipe/test/common/recipeCodec", () => {
+suite("workbench/services/recipes/test/common/recipeCodec", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test("normalizes builtin derivation recipes into a fingerprinted snapshot", () => {

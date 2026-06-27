@@ -1,6 +1,6 @@
 ---
 description: Recipe service - passive physical-layout and logical-relation recipes consumed by Review candidate builders to derive review candidates.
-applyTo: 'src/cs/workbench/services/recipe/**,resources/recipes/**,scripts/buildRecipeBundle.mjs,cli/resources/recipes.v1.json'
+applyTo: 'src/cs/workbench/services/recipes/**,resources/recipes/**,scripts/buildRecipeBundle.mjs,cli/resources/recipes.v1.json'
 ---
 # Recipe
 

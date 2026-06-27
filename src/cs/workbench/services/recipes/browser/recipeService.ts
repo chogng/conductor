@@ -5,13 +5,13 @@
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
-import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
+import { builtinRecipes } from "cs/workbench/services/recipes/common/builtinRecipes.generated";
 import {
   IRecipeService,
   type IRecipeService as IRecipeServiceType,
   type RecipeSnapshot,
-} from "src/cs/workbench/services/recipe/common/recipe";
-import { createRecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipeCodec";
+} from "cs/workbench/services/recipes/common/recipe";
+import { createRecipeSnapshot } from "cs/workbench/services/recipes/common/recipeCodec";
 
 export class RecipeService extends Disposable implements IRecipeServiceType {
   public declare readonly _serviceBrand: undefined;

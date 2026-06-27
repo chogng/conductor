@@ -6,7 +6,7 @@ import type {
 	Recipe,
 	RecipeDiagnostic,
 	RecipeSnapshot,
-} from "src/cs/workbench/services/recipe/common/recipe";
+} from "cs/workbench/services/recipes/common/recipe";
 import type {
 	RecipeBlockPartition,
 	RecipeDataRange,
@@ -16,7 +16,7 @@ import type {
 	RecipeRoles,
 	RecipeSeriesPartition,
 	RecipeWithinBlock,
-} from "src/cs/workbench/services/recipe/common/recipeSchema";
+} from "cs/workbench/services/recipes/common/recipeSchema";
 
 type NormalizeRecipeResult = {
 	readonly recipes: readonly Recipe[];
