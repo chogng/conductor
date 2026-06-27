@@ -26,8 +26,12 @@ Confirmed decoration:
 
 - comes from `IReviewService.getLatestReviewSummary({ resource, sheetId })`;
 - is the final Explorer semantic decoration display;
+- may show review-owned semantic summary fields such as curve kind, family,
+  role, confidence, message, and stale/invalid state;
 - represents reviewed template readiness, stale review, manual-adjustment needs, or final invalid review state.
 - is exposed to Explorer through `ExplorerDecorationsProvider` registered on `IDecorationsService`, not through `ExplorerFileEntry`.
+- must not read or subscribe to `ReviewEvidence`; Explorer consumes
+  `ReviewSummary` only.
 
 ## State Flow
 
@@ -50,7 +54,7 @@ ExplorerFileEntry resource + sheetId
 
 Review is the source of semantic Explorer decorations. If Review cannot provide
 a ready template, Explorer must not keep showing a semantic decoration from earlier
-table-model progress or row metadata.
+content/materialization progress or row metadata.
 Explorer rich hover reads the same review-owned `ReviewSummary`; label
 decorations own only short color/tooltip/strikethrough presentation.
 
@@ -66,8 +70,10 @@ remaining rows -> table-model priority background
 reviewChanged -> ExplorerDecorationsProvider.onDidChange -> IDecorationsService.onDidChangeDecorations -> ExplorerViewer rerender
 ```
 
-Table-model and Review work dedupe by model target identity plus source/model
-version. Drop stale queued results if the table source or model version changes.
+Review work dedupes by URI content target plus contentHash/sourceVersion,
+evidence fingerprint, and optional materialization version. Drop stale queued
+results if the content target, evidence snapshot, or materialization snapshot
+changes.
 Queue state must not be written into Explorer decoration state.
 
 ## Rendering

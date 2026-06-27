@@ -20,6 +20,7 @@ Use this file as the short coding entry point. Before editing code, read:
 - Keep model state and view state separate.
 - Keep runtime folders honest: `common`, `browser`, `electron-browser`, `electron-main`, `node`.
 - Prefer upstream VS Code shape when a responsibility has an upstream counterpart.
+- Use constructors for DI and lifecycle wiring when a class owns runtime state.
 - Conductor-specific additions must be named and justified as Conductor-specific.
 
 ## Root-Cause Fixes
@@ -109,6 +110,31 @@ view -> props, commands, owner service APIs
 Avoid `service -> view`, `service -> CommandsRegistry`, `session -> UI state`,
 `source preparation -> review/template/plot`, `plot -> chart DOM`, and
 `chart -> raw table parsing`.
+
+## Constructors And Lifecycle
+
+Match the upstream VS Code constructor shape for classes that own a runtime
+lifecycle: services, controllers, contributions, models, stores, providers,
+adapters, widgets, and view parts.
+
+Use constructors to:
+
+- inject services through DI parameters;
+- capture immutable options needed for the object's lifetime;
+- initialize owned fields and context keys;
+- register disposables, event subscriptions, providers, and lightweight
+  contribution wiring through the object's lifecycle owner.
+
+Keep constructors synchronous and lightweight. They establish invariants and
+wiring; they do not run domain workflows, execute commands, perform async
+loading, parse large inputs, fire owner events for externally visible changes,
+or mutate state owned by another service. Put those behaviors behind explicit
+owner APIs, lifecycle methods, or event callbacks.
+
+Do not introduce a class or constructor for pure data. Shared records, command
+targets, review candidates, table facts, and DTO-like values stay as interfaces,
+types, or plain objects unless the object has a real lifecycle, invariant, or
+owned disposable state.
 
 ## Imports
 

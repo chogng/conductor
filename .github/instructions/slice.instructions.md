@@ -53,7 +53,7 @@ services or reread Session.
 | `common/templateSelection.ts` | per-file `TemplateSelection` records, the automatic-selection sentinel, and normalization helpers owned by Slice state. |
 | `common/slicePlanner.ts` | pure target-aware plan/range generation and migration source / URI content signature helpers. |
 | `common/sliceExecutor.ts` | pure row execution into target-neutral Slice execution records. |
-| `browser/sliceService.ts` | injectable owner for queue, selection, progress state, row reading, Session commit, and URI result cache. |
+| `browser/sliceService.ts` | injectable owner for queue, selection, progress state, Session raw-row reading, data-resource URI content consumption, Session commit, and URI result cache. |
 | `browser/slicePriority.contribution.ts` | lifecycle subscriber from Explorer selection/hover facts to `ISliceService.prioritize(...)` for Session migration-ledger raw files and `ISliceService.prioritizeUri(...)` for URI targets. |
 | `contrib/slice/browser/sliceCommands.ts` / `sliceActions.ts` | command/action entry for user-triggered slicing; normalizes targets and delegates to `ISliceService`. |
 
@@ -88,7 +88,7 @@ Explorer URI target + ReviewDecision.ready / manual review result
   -> SlicePlanner reads measurement binding from reviewed Template snapshot
   -> SlicePlanner.createSlicePlan(...)
   -> SliceService verifies content/source version, evidence/review/request/template fingerprints, and optional materialization version
-  -> current structured-content adapter reads execution rows/ranges for the URI target
+  -> IDataResourceService resolves structured content and execution rows/ranges for the URI target
   -> SliceService verifies the same plan signatures again
   -> SliceExecutor.executeSlicePlan(...)
   -> SliceService wraps execution records as SliceUriResult
@@ -107,6 +107,7 @@ files.item.setTemplate command
 URI-backed command/action/controller
   -> ReviewService.reviewUriManualTemplate(...)
   -> ready ManualTemplateReviewResult
+  -> ReviewService.confirmReviewedTemplate(...) for explicit user-confirmed manual/saved templates
   -> ISliceService.submitUri(...)
   -> SliceService reads reviewed inline/saved Template snapshot
   -> same planner/executor path
@@ -148,7 +149,7 @@ Session filesRemoved
 Session sessionCleared
   -> SliceService clears queue, file states, selections, active file
 
-URI content/evidence/materialization changed
+URI data-resource content/evidence/materialization changed
   -> SliceService removes matching URI queue entries and URI results
 ```
 

@@ -130,6 +130,7 @@ Runtime folders:
 | `IFileService` | platform filesystem bytes/stat/watch/provider capability |
 | `IExplorerService` | Files Explorer UI state: resources, selection, expansion, layout, context |
 | files source/raw-table helpers | source/import contracts, raw table records, and row preview helpers; ordinary Explorer imports stay URI-backed |
+| `IDataResourceService` | URI-backed Conductor data-resource snapshots: structured content, sheet sub-targets, source versions, and parser diagnostics for Review/Table/Search/Slice consumers |
 | `ISessionService` | canonical imported data-file/raw-table ledger and downstream analysis records |
 | `IRecipeService` | passive built-in rules; it does not evaluate tables or build review candidates |
 | `IReviewService` | URI-grounded content-version review: builds `SegmentCandidate`/review candidates from canonical evidence plus Recipe/UserTemplate/built-in template snapshots, evaluates candidates, selects `ReviewedTemplate` for table adapters, owns manual adjustment state and system-application recommendation |
