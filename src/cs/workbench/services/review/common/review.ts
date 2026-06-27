@@ -12,7 +12,6 @@ import type {
   ReviewSuggestedAction,
   CandidateReview,
   ReviewEvidence,
-  ReviewTableProjectionEvidence,
   ReviewResult,
   ReviewSummary,
   ReviewSummaryTarget,
@@ -39,12 +38,12 @@ export type {
   ReviewSummaryState,
   ReviewSummaryTarget,
   ReviewSourceMetadata,
-  ReviewTableProjectionEvidence,
+  TableProjectionEvidence,
 } from "src/cs/workbench/services/review/common/reviewModel";
 
 export const IReviewService = createDecorator<IReviewService>("reviewService");
 
-export const REVIEW_ENGINE_VERSION = 1;
+export const REVIEW_ENGINE_VERSION = 2;
 export const REVIEW_POLICY_VERSION = 8;
 
 export type ManualTemplateSelection =
@@ -81,22 +80,6 @@ export type ManualTemplateReviewResult =
       readonly suggestedActions: readonly ReviewSuggestedAction[];
     };
 
-export type ReviewedTableMeasurementBinding = {
-  readonly curveFamily: ReviewedTableMeasurementFamily;
-  readonly ivMode?: ReviewedTableIvMode | null;
-  readonly itMode?: ReviewedTableItMode | null;
-};
-
-export type ReviewedTableMeasurementFamily = "iv" | "cv" | "cf" | "pv" | "it";
-export type ReviewedTableIvMode = "transfer" | "output";
-export type ReviewedTableItMode =
-  | "stability"
-  | "transient"
-  | "retention"
-  | "biasStress"
-  | "photoResponse"
-  | "generic";
-
 export type UriReview = {
   readonly resource: URI;
   readonly sheetId?: string;
@@ -104,7 +87,6 @@ export type UriReview = {
   readonly summary: ReviewSummary;
   readonly result?: ReviewResult;
   readonly reviewSignature?: string;
-  readonly measurement?: ReviewedTableMeasurementBinding;
   readonly sourceModelVersion?: number;
   readonly sourceVersion?: number;
   readonly rowCount?: number;
@@ -120,10 +102,7 @@ export type ReviewEvidenceSignatureContext = {
   readonly sheetId?: string | null;
 };
 
-export type ReviewEvidenceSignatureInput = {
-  readonly sourceMetadata: ReviewEvidence["sourceMetadata"];
-  readonly tableProjection?: ReviewTableProjectionEvidence;
-};
+export type ReviewEvidenceSignatureInput = ReviewEvidence;
 
 export interface IReviewService {
   readonly _serviceBrand: undefined;

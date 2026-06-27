@@ -13,15 +13,15 @@ import {
 } from "src/cs/workbench/services/review/common/reviewCandidate";
 import {
 	scoreReviewCandidate,
-} from "src/cs/workbench/services/review/common/reviewScoring";
+} from "src/cs/workbench/services/review/common/reviewDecision";
 import { evaluateReviewSelector } from "src/cs/workbench/services/review/common/reviewSelector";
 import {
 	createEmptyTableProjectionStructure,
 	type MeasurementColumnRef,
 } from "src/cs/workbench/services/table/common/tableProjection";
-import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
-import type { Recipe } from "src/cs/workbench/services/recipe/common/recipe";
-import { createRecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipeCodec";
+import { builtinRecipes } from "cs/workbench/services/recipes/common/builtinRecipes.generated";
+import type { Recipe } from "cs/workbench/services/recipes/common/recipe";
+import { createRecipeSnapshot } from "cs/workbench/services/recipes/common/recipeCodec";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import type { Template } from "src/cs/workbench/services/template/common/template";
 import type { SegmentCandidate, ReviewContext, ReviewEvidence } from "src/cs/workbench/services/review/common/reviewModel";
@@ -61,6 +61,10 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 		assert.deepEqual(candidate.interpretation.blocks[0]?.y, {
 			columns: [1],
 			unit: "A",
+		});
+		assert.deepEqual(candidate.interpretation.measurement, {
+			curveFamily: "iv",
+			ivMode: "transfer",
 		});
 		assert.equal(candidate.interpretation.blocks[0]?.segmentation.kind, "auto");
 		assert.ok(candidate.interpretationFingerprint);

@@ -73,9 +73,8 @@ candidate implementation:
 | --- | --- |
 | `review/common/reviewSelector.ts` | target home for checking Recipe authoring fields against `ReviewContext.evidence` and producing selector traces/captures. |
 | `review/common/reviewCandidate.ts` | target home for deriving `ReviewCandidate` values from Recipe/UserTemplate/built-in template snapshots and `ReviewContext`. |
-| `review/common/reviewModel.ts` | target home for context, candidate, result, factors, findings, and decision data shapes. |
-| `review/common/reviewEvidence.ts` | target home for URI/content evidence types used by ReviewContext; current tabular fields are structured/matrix evidence facts. |
-| `review/common/reviewScoring.ts` | target home for scoring candidates into explainable factors/findings/status. |
+| `review/common/reviewModel.ts` | target home for URI/content evidence, context, candidate, result, factors, findings, and decision data shapes. |
+| `review/common/reviewDecision.ts` | target home for scoring candidates into explainable factors/findings/status and assembling the final `ReviewResult` / `ReviewedTemplate` decision. |
 | `review/browser/reviewService.ts` | owner that combines Recipe, UserTemplate, built-in template snapshots, and URI/content evidence into automatic review results; current tabular materialization may supply adapter facts during migration, but Review remains URI/content-evidence based. |
 
 ## Flow

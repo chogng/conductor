@@ -11,9 +11,9 @@ import {
 	type MeasurementBlockRecord,
 	type MeasurementColumnRef,
 } from "src/cs/workbench/services/table/common/tableProjection";
-import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
-import type { Recipe } from "src/cs/workbench/services/recipe/common/recipe";
-import { createRecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipeCodec";
+import { builtinRecipes } from "cs/workbench/services/recipes/common/builtinRecipes.generated";
+import type { Recipe } from "cs/workbench/services/recipes/common/recipe";
+import { createRecipeSnapshot } from "cs/workbench/services/recipes/common/recipeCodec";
 import type { ReviewEvidence } from "src/cs/workbench/services/review/common/reviewModel";
 
 suite("workbench/services/review/test/common/reviewSelector", () => {

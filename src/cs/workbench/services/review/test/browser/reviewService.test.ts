@@ -11,13 +11,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 import { StorageScope } from "src/cs/platform/storage/common/storage";
 import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
 import { createEmptyTableProjectionStructure } from "src/cs/workbench/services/table/common/tableProjection";
-import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
-import type { IRecipeService, Recipe, RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
-import { createRecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipeCodec";
+import { builtinRecipes } from "cs/workbench/services/recipes/common/builtinRecipes.generated";
+import type { IRecipeService, Recipe, RecipeSnapshot } from "cs/workbench/services/recipes/common/recipe";
+import { createRecipeSnapshot } from "cs/workbench/services/recipes/common/recipeCodec";
 import { ReviewService } from "src/cs/workbench/services/review/browser/reviewService";
 import type { ReviewSummaryTarget } from "src/cs/workbench/services/review/common/review";
 import type { ReviewEvidence } from "src/cs/workbench/services/review/common/reviewModel";
-import { deriveReviewResult } from "src/cs/workbench/services/review/common/reviewResult";
+import { deriveReviewResult } from "src/cs/workbench/services/review/common/reviewDecision";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import {
 	TableModel as TableContentModel,
@@ -82,6 +82,10 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(result.decision.kind, "ready");
 		assert.equal(result.decision.kind === "ready" && result.decision.application.kind, "systemRecommended");
 		assert.equal(result.decision.kind === "ready" && result.decision.reviewedTemplate.source.kind, "recipe");
+		assert.deepEqual(result.reviewedTemplate?.template.measurement, {
+			curveFamily: "iv",
+			ivMode: "transfer",
+		});
 	});
 
 	test("uses the Review decision application as the system application gate", () => {
@@ -229,8 +233,8 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(uriReview.result?.modelVersion, 1);
 		assert.equal(uriReview.result?.sourceVersion, 1);
 		assert.equal(typeof uriReview.result?.evidenceFingerprint, "string");
-		assert.equal(uriReview.measurement?.curveFamily, "iv");
-		assert.equal(uriReview.measurement?.ivMode, "transfer");
+		assert.equal(uriReview.result?.reviewedTemplate?.template.measurement?.curveFamily, "iv");
+		assert.equal(uriReview.result?.reviewedTemplate?.template.measurement?.ivMode, "transfer");
 		assert.equal(service.getLatestReview(target)?.reviewSignature, uriReview.reviewSignature);
 		assert.equal(service.getLatestReview(target)?.summary.state, "ready");
 	});

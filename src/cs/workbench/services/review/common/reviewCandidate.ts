@@ -2,10 +2,10 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Recipe, RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
+import type { Recipe, RecipeSnapshot } from "cs/workbench/services/recipes/common/recipe";
 import type {
 	RecipeLogicalRelation,
-} from "src/cs/workbench/services/recipe/common/recipeSchema";
+} from "cs/workbench/services/recipes/common/recipeSchema";
 import type {
 	ReviewCandidate,
 	ReviewCandidateAxisBinding,
@@ -25,10 +25,18 @@ import type {
 	MeasurementBlockRecord,
 } from "src/cs/workbench/services/table/common/tableProjection";
 import type {
+	TemplateItMode,
+	TemplateIvMode,
+	TemplateMeasurementBinding,
+	TemplateMeasurementFamily,
+} from "src/cs/workbench/services/template/common/template";
+import type {
 	UserTemplate,
 	UserTemplateSnapshot,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
+// Candidate derivation is pure Review pipeline code: it interprets Recipe and
+// UserTemplate snapshots against evidence, but does not score or select output.
 export const deriveAutomaticReviewCandidates = ({
 	context,
 	recipeSnapshot,
@@ -110,6 +118,7 @@ export const createRecipeReviewCandidate = ({
 		? evaluation.matches.slice(0, 1)
 		: evaluation.matches;
 	const blocks: ReviewCandidateBlock[] = [];
+	const matchedBlocks: MeasurementBlockRecord[] = [];
 	const diagnostics = new Set<string>();
 	for (const match of matches) {
 		const block = getMatchedBlock(context.evidence, match);
@@ -123,14 +132,17 @@ export const createRecipeReviewCandidate = ({
 			diagnostics.add("recipeCandidate.missingRoleBinding");
 			continue;
 		}
+		matchedBlocks.push(block);
 		blocks.push(candidateBlock);
 	}
 
 	const tableProjection = context.evidence.tableProjection;
 	const schemaFingerprint = tableProjection?.structure.fingerprint;
+	const measurement = createCandidateMeasurementBinding(matchedBlocks);
 	const interpretation = createReviewCandidateInterpretation({
 		name: recipe.label || recipe.id,
 		version: 1,
+		...(measurement ? { measurement } : {}),
 		blocks,
 		stopOnError: recipe.stopOnError ?? false,
 		applicability: {
@@ -221,6 +233,14 @@ const createUserTemplateReviewCandidate = ({
 			diagnostics.add("userTemplate.yAxisOutOfBounds");
 		}
 	}
+	const interpretation = createReviewCandidateInterpretation({
+		name: template.name,
+		version: template.version,
+		...(template.measurement ? { measurement: template.measurement } : {}),
+		blocks: template.blocks,
+		stopOnError: template.stopOnError,
+		...(template.applicability ? { applicability: template.applicability } : {}),
+	});
 
 	return {
 		id: `user-template-candidate:${userTemplate.id}`,
@@ -229,20 +249,8 @@ const createUserTemplateReviewCandidate = ({
 			templateId: userTemplate.id,
 			templateVersion: userTemplate.version,
 		},
-		interpretation: {
-			name: template.name,
-			version: template.version,
-			blocks: template.blocks,
-			stopOnError: template.stopOnError,
-			...(template.applicability ? { applicability: template.applicability } : {}),
-		},
-		interpretationFingerprint: createCandidateInterpretationFingerprint({
-			name: template.name,
-			version: template.version,
-			blocks: template.blocks,
-			stopOnError: template.stopOnError,
-			...(template.applicability ? { applicability: template.applicability } : {}),
-		}),
+		interpretation,
+		interpretationFingerprint: createCandidateInterpretationFingerprint(interpretation),
 		evidenceFingerprint: context.evidenceFingerprint,
 		...(context.contentHash ? { contentHash: context.contentHash } : {}),
 		...(context.modelVersion !== undefined ? { modelVersion: context.modelVersion } : {}),
@@ -294,12 +302,14 @@ const createReviewCandidateDiagnostic = (
 const createReviewCandidateInterpretation = ({
 	applicability,
 	blocks,
+	measurement,
 	name,
 	stopOnError,
 	version,
 }: ReviewCandidateInterpretation): ReviewCandidateInterpretation => ({
 	name,
 	version,
+	...(measurement ? { measurement } : {}),
 	blocks,
 	stopOnError,
 	...(applicability ? { applicability } : {}),
@@ -311,6 +321,7 @@ const createCandidateInterpretationFingerprint = (
 	const {
 		applicability,
 		blocks,
+		measurement,
 		name,
 		stopOnError,
 		version,
@@ -319,11 +330,75 @@ const createCandidateInterpretationFingerprint = (
 		schemaVersion: 1,
 		name,
 		version,
+		...(measurement ? { measurement } : {}),
 		blocks,
 		stopOnError,
 		...(applicability ? { applicability } : {}),
 	});
 };
+
+const createCandidateMeasurementBinding = (
+	blocks: readonly MeasurementBlockRecord[],
+): TemplateMeasurementBinding | undefined => {
+	const measurements = blocks
+		.map(createTemplateMeasurementBinding)
+		.filter((measurement): measurement is TemplateMeasurementBinding => Boolean(measurement));
+	const first = measurements[0];
+	if (!first || measurements.length !== blocks.length) {
+		return undefined;
+	}
+
+	return measurements.every(measurement => areSameTemplateMeasurementBinding(first, measurement))
+		? first
+		: undefined;
+};
+
+const createTemplateMeasurementBinding = (
+	block: MeasurementBlockRecord,
+): TemplateMeasurementBinding | undefined => {
+	if (!isTemplateMeasurementFamily(block.family)) {
+		return undefined;
+	}
+
+	return {
+		curveFamily: block.family,
+		...(block.family === "iv" && isTemplateIvMode(block.ivMode) ? { ivMode: block.ivMode } : {}),
+		...(block.family === "it" && isTemplateItMode(block.itMode) ? { itMode: block.itMode } : {}),
+	};
+};
+
+const areSameTemplateMeasurementBinding = (
+	left: TemplateMeasurementBinding,
+	right: TemplateMeasurementBinding,
+): boolean =>
+	left.curveFamily === right.curveFamily &&
+	(left.ivMode ?? null) === (right.ivMode ?? null) &&
+	(left.itMode ?? null) === (right.itMode ?? null);
+
+const isTemplateMeasurementFamily = (
+	family: string,
+): family is TemplateMeasurementFamily =>
+	family === "iv" ||
+	family === "cv" ||
+	family === "cf" ||
+	family === "pv" ||
+	family === "it";
+
+const isTemplateIvMode = (
+	mode: unknown,
+): mode is TemplateIvMode =>
+	mode === "transfer" ||
+	mode === "output";
+
+const isTemplateItMode = (
+	mode: unknown,
+): mode is TemplateItMode =>
+	mode === "stability" ||
+	mode === "transient" ||
+	mode === "retention" ||
+	mode === "biasStress" ||
+	mode === "photoResponse" ||
+	mode === "generic";
 
 const createReviewInterpretationFingerprint = (
 	interpretation: unknown,

@@ -10,7 +10,7 @@ import type { BrandedService } from "src/cs/platform/instantiation/common/instan
 import {
   IRecipeService,
   type IRecipeService as IRecipeServiceType,
-} from "src/cs/workbench/services/recipe/common/recipe";
+} from "cs/workbench/services/recipes/common/recipe";
 import {
   IReviewService,
   type IReviewService as IReviewServiceType,
@@ -26,9 +26,9 @@ import {
   type UriReview,
 } from "src/cs/workbench/services/review/common/review";
 import {
-  createManualCandidateReview,
-} from "src/cs/workbench/services/review/common/reviewScoring";
-import { deriveReviewResult } from "src/cs/workbench/services/review/common/reviewResult";
+	createManualCandidateReview,
+	deriveReviewResult,
+} from "src/cs/workbench/services/review/common/reviewDecision";
 import type {
   TableSource,
 } from "src/cs/workbench/services/table/common/table";
@@ -38,6 +38,7 @@ import {
   type ITableModelService as ITableModelServiceType,
 } from "src/cs/workbench/services/table/common/resolverService";
 import {
+  readTableModelContentRows,
   type TableModelContentSnapshot,
   type TableParseDiagnostic,
   type TableModelSheetSnapshot,
@@ -45,9 +46,19 @@ import {
 } from "src/cs/workbench/services/table/common/model";
 import {
   createEmptyTableProjectionStructure,
+  type CanonicalUnit,
+  type ColumnProfile,
+  type ColumnSemanticCandidate,
+  type LayoutCandidate,
+  type MeasurementBlockRecord,
+  type MeasurementColumnRef,
+  type MeasurementColumnRole,
+  type MeasurementFamily,
   type TableProjectionDiagnostic,
+  type TableProjectionSourceRange,
+  type TableProjectionStructure,
 } from "src/cs/workbench/services/table/common/tableProjection";
-import type { ReviewEvidence } from "src/cs/workbench/services/review/common/reviewModel";
+import type { ReviewEvidence, TableProjectionEvidence } from "src/cs/workbench/services/review/common/reviewModel";
 import {
   type Template,
   type TemplateAxisBinding,
@@ -559,15 +570,479 @@ const createUriReviewEvidence = ({
     sourceVersion: snapshot.sourceVersion,
   },
   tableProjection: {
-    structure: createEmptyTableProjectionStructure(),
-    columnProfiles: [],
-    layoutCandidates: [],
-    semanticCandidates: [],
-    groups: [],
-    blocks: [],
+    ...createUriTableProjectionEvidence(content),
     diagnostics: diagnostics.map(toTableProjectionParserDiagnostic),
   },
 });
+
+type UriColumnProjection = {
+  readonly profile: ColumnProfile;
+  readonly measurementColumn: MeasurementColumnRef;
+  readonly semanticCandidate: ColumnSemanticCandidate;
+};
+
+type UriMeasurementProjection = {
+  readonly family: MeasurementFamily;
+  readonly ivMode?: MeasurementBlockRecord["ivMode"];
+  readonly xCol: number;
+  readonly yCols: readonly number[];
+};
+
+// URI review needs enough structured evidence to evaluate Recipes, but the
+// table model remains the owner of parsing and content lifecycle.
+const createUriTableProjectionEvidence = (
+  content: TableModelContentSnapshot,
+): Omit<TableProjectionEvidence, "diagnostics"> => {
+  const rows = readTableModelContentRows(content);
+  const headerRowIndex = getUriEvidenceHeaderRowIndex(rows);
+  const dataStartRow = getUriEvidenceDataStartRow(content, headerRowIndex);
+  const dataRange = createUriEvidenceDataRange(content, dataStartRow);
+  const columns = createUriColumnProjections({
+    content,
+    dataStartRow,
+    headerRowIndex,
+    rows,
+  });
+  const measurement = createUriMeasurementProjection(columns.map(column => column.measurementColumn));
+  const structure = createUriTableProjectionStructure({
+    content,
+    dataRange,
+    headerRowIndex,
+  });
+  const layoutCandidates = measurement
+    ? [createUriLayoutCandidate(measurement, dataRange)]
+    : [];
+  const blocks = measurement
+    ? [createUriMeasurementBlock({
+      columns: columns.map(column => column.measurementColumn),
+      content,
+      dataRange,
+      headerRowIndex,
+      measurement,
+    })]
+    : [];
+
+  return {
+    structure,
+    columnProfiles: columns.map(column => column.profile),
+    layoutCandidates,
+    semanticCandidates: columns.map(column => column.semanticCandidate),
+    groups: [],
+    blocks,
+  };
+};
+
+const createUriTableProjectionStructure = ({
+  content,
+  dataRange,
+  headerRowIndex,
+}: {
+  readonly content: TableModelContentSnapshot;
+  readonly dataRange: TableProjectionSourceRange | null;
+  readonly headerRowIndex: number | null;
+}): TableProjectionStructure => {
+  if (!dataRange) {
+    return createEmptyTableProjectionStructure();
+  }
+
+  const headerRange = headerRowIndex !== null
+    ? createUriEvidenceRowRange(content, headerRowIndex)
+    : null;
+  const fingerprint = `uri-review:${content.columnCount}:${headerRowIndex ?? "none"}:${dataRange.startRow}:${dataRange.endRow}`;
+  return {
+    headerRows: headerRange
+      ? [{
+        rowIndex: headerRowIndex ?? 0,
+        range: headerRange,
+        confidence: 0.8,
+        source: "fallback",
+      }]
+      : [],
+    unitRows: [],
+    dataRegions: [{
+      id: "uri-data-region",
+      range: dataRange,
+      rowCount: Math.max(0, dataRange.endRow - dataRange.startRow + 1),
+      columnCount: content.columnCount,
+    }],
+    blockRegions: [{
+      id: "uri-block-region",
+      range: createUriEvidenceFullRange(content),
+      kind: "single",
+    }],
+    fingerprint,
+  };
+};
+
+const createUriColumnProjections = ({
+  content,
+  dataStartRow,
+  headerRowIndex,
+  rows,
+}: {
+  readonly content: TableModelContentSnapshot;
+  readonly dataStartRow: number;
+  readonly headerRowIndex: number | null;
+  readonly rows: readonly (readonly string[])[];
+}): readonly UriColumnProjection[] => {
+  const projections: UriColumnProjection[] = [];
+  for (let column = 0; column < content.columnCount; column += 1) {
+    const headerText = getUriEvidenceHeaderText(rows, headerRowIndex, column);
+    const normalizedHeader = normalizeHeaderText(headerText);
+    const roleInference = inferMeasurementColumnRole(headerText);
+    const kind = getUriColumnKind(rows, dataStartRow, column);
+    const profile: ColumnProfile = {
+      rawCol: column,
+      headerText,
+      normalizedHeader,
+      explicitUnitText: roleInference.unit ?? null,
+      kind,
+    };
+    const sourceRange = createUriEvidenceColumnRange(content, headerRowIndex, column);
+    const measurementColumn: MeasurementColumnRef = {
+      rawCol: column,
+      headerText,
+      role: roleInference.role,
+      unit: roleInference.unit ?? null,
+      sourceRange,
+      confidence: roleInference.confidence,
+    };
+    projections.push({
+      profile,
+      measurementColumn,
+      semanticCandidate: {
+        rawCol: column,
+        roleCandidates: [{
+          role: roleInference.role,
+          confidence: roleInference.confidence,
+          sources: ["header"],
+        }],
+        unitCandidates: roleInference.unit
+          ? [{
+            canonicalUnit: roleInference.unit,
+            confidence: roleInference.confidence,
+            sources: ["header"],
+            confirmed: false,
+          }]
+          : [],
+      },
+    });
+  }
+  return projections;
+};
+
+const createUriMeasurementProjection = (
+  columns: readonly MeasurementColumnRef[],
+): UriMeasurementProjection | null => {
+  const xTransfer = findMeasurementColumn(columns, ["vg", "voltage"], "V");
+  const xOutput = findMeasurementColumn(columns, ["vd", "voltage"], "V");
+  const yCurrent = columns
+    .filter(column => (column.role === "id" || column.role === "current") && normalizeText(column.unit) === "A")
+    .map(column => column.rawCol);
+  if (xTransfer !== null && yCurrent.length) {
+    return {
+      family: "iv",
+      ivMode: "transfer",
+      xCol: xTransfer,
+      yCols: yCurrent,
+    };
+  }
+  if (xOutput !== null && yCurrent.length) {
+    return {
+      family: "iv",
+      ivMode: "output",
+      xCol: xOutput,
+      yCols: yCurrent,
+    };
+  }
+
+  const xFrequency = findMeasurementColumn(columns, ["frequency"], "Hz");
+  const yCapacitance = columns
+    .filter(column => column.role === "capacitance" && normalizeText(column.unit) === "F")
+    .map(column => column.rawCol);
+  if (xFrequency !== null && yCapacitance.length) {
+    return {
+      family: "cf",
+      xCol: xFrequency,
+      yCols: yCapacitance,
+    };
+  }
+
+  const xVoltage = findMeasurementColumn(columns, ["vg", "vd", "voltage"], "V");
+  if (xVoltage !== null && yCapacitance.length) {
+    return {
+      family: "cv",
+      xCol: xVoltage,
+      yCols: yCapacitance,
+    };
+  }
+
+  const xTime = findMeasurementColumn(columns, ["time"], "s");
+  if (xTime !== null && yCurrent.length) {
+    return {
+      family: "it",
+      xCol: xTime,
+      yCols: yCurrent,
+    };
+  }
+
+  return null;
+};
+
+const createUriLayoutCandidate = (
+  measurement: UriMeasurementProjection,
+  dataRange: TableProjectionSourceRange | null,
+): LayoutCandidate => ({
+  id: "uri-layout-simple-xy",
+  layoutKind: "simpleXY",
+  confidence: 0.9,
+  bindings: [{
+    ...(dataRange ? { dataRange } : {}),
+    xCol: measurement.xCol,
+    yCols: measurement.yCols,
+  }],
+  reasons: ["uriReview.headerRoles"],
+});
+
+const createUriMeasurementBlock = ({
+  columns,
+  content,
+  dataRange,
+  headerRowIndex,
+  measurement,
+}: {
+  readonly columns: readonly MeasurementColumnRef[];
+  readonly content: TableModelContentSnapshot;
+  readonly dataRange: TableProjectionSourceRange | null;
+  readonly headerRowIndex: number | null;
+  readonly measurement: UriMeasurementProjection;
+}): MeasurementBlockRecord => {
+  const fullRange = createUriEvidenceFullRange(content);
+  const headerRange = headerRowIndex !== null
+    ? createUriEvidenceRowRange(content, headerRowIndex)
+    : null;
+  return {
+    id: "uri-block-a",
+    fileId: "uri-file",
+    rawTableId: "uri-table",
+    label: getUriMeasurementLabel(measurement),
+    family: measurement.family,
+    ...(measurement.ivMode ? { ivMode: measurement.ivMode } : {}),
+    source: {
+      fullRange,
+      ...(headerRange ? { headerRange } : {}),
+      ...(dataRange ? { dataRange } : {}),
+    },
+    columns: {
+      columns,
+    },
+    rowCount: content.rowCount,
+    columnCount: content.columnCount,
+    confidence: 0.95,
+    diagnosticCodes: [],
+  };
+};
+
+const getUriEvidenceHeaderRowIndex = (
+  rows: readonly (readonly string[])[],
+): number | null => {
+  const firstNonEmpty = rows.findIndex(row => row.some(cell => normalizeText(cell)));
+  return firstNonEmpty >= 0 ? firstNonEmpty : null;
+};
+
+const getUriEvidenceDataStartRow = (
+  content: TableModelContentSnapshot,
+  headerRowIndex: number | null,
+): number => {
+  if (content.rowCount <= 0) {
+    return 0;
+  }
+  return Math.min(content.rowCount - 1, (headerRowIndex ?? -1) + 1);
+};
+
+const createUriEvidenceDataRange = (
+  content: TableModelContentSnapshot,
+  dataStartRow: number,
+): TableProjectionSourceRange | null => {
+  if (content.rowCount <= 0 || content.columnCount <= 0) {
+    return null;
+  }
+  return {
+    startRow: dataStartRow,
+    endRow: content.rowCount - 1,
+    startCol: 0,
+    endCol: content.columnCount - 1,
+  };
+};
+
+const createUriEvidenceFullRange = (
+  content: TableModelContentSnapshot,
+): TableProjectionSourceRange => ({
+  startRow: 0,
+  endRow: Math.max(0, content.rowCount - 1),
+  startCol: 0,
+  endCol: Math.max(0, content.columnCount - 1),
+});
+
+const createUriEvidenceRowRange = (
+  content: TableModelContentSnapshot,
+  rowIndex: number,
+): TableProjectionSourceRange => ({
+  startRow: rowIndex,
+  endRow: rowIndex,
+  startCol: 0,
+  endCol: Math.max(0, content.columnCount - 1),
+});
+
+const createUriEvidenceColumnRange = (
+  content: TableModelContentSnapshot,
+  headerRowIndex: number | null,
+  column: number,
+): TableProjectionSourceRange => ({
+  startRow: headerRowIndex ?? 0,
+  endRow: Math.max(headerRowIndex ?? 0, content.rowCount - 1),
+  startCol: column,
+  endCol: column,
+});
+
+const getUriEvidenceHeaderText = (
+  rows: readonly (readonly string[])[],
+  headerRowIndex: number | null,
+  column: number,
+): string => headerRowIndex !== null
+  ? normalizeText(rows[headerRowIndex]?.[column])
+  : `Column ${column + 1}`;
+
+const getUriColumnKind = (
+  rows: readonly (readonly string[])[],
+  dataStartRow: number,
+  column: number,
+): ColumnProfile["kind"] => {
+  const values = rows
+    .slice(dataStartRow)
+    .map(row => normalizeText(row[column]))
+    .filter(Boolean);
+  if (!values.length) {
+    return "empty";
+  }
+  const numericCount = values.filter(isFiniteNumberText).length;
+  if (numericCount === values.length) {
+    return "numeric";
+  }
+  return numericCount > 0 ? "mixed" : "text";
+};
+
+const inferMeasurementColumnRole = (
+  headerText: string,
+): { readonly role: MeasurementColumnRole; readonly unit?: CanonicalUnit; readonly confidence: number } => {
+  const explicitUnit = inferCanonicalUnit(headerText);
+  const normalized = normalizeHeaderText(headerText);
+  if (matchesAnyHeader(normalized, ["vg", "vgs", "gatevoltage", "gatev", "voltagegate"])) {
+    return { role: "vg", unit: explicitUnit ?? "V", confidence: 0.95 };
+  }
+  if (matchesAnyHeader(normalized, ["vd", "vds", "drainvoltage", "drainv", "voltagedrain"])) {
+    return { role: "vd", unit: explicitUnit ?? "V", confidence: 0.95 };
+  }
+  if (matchesAnyHeader(normalized, ["vs", "sourcevoltage", "sourcev"])) {
+    return { role: "vs", unit: explicitUnit ?? "V", confidence: 0.9 };
+  }
+  if (matchesAnyHeader(normalized, ["id", "ids", "draincurrent", "currentdrain"])) {
+    return { role: "id", unit: explicitUnit ?? "A", confidence: 0.95 };
+  }
+  if (matchesAnyHeader(normalized, ["ig", "igs", "gatecurrent", "currentgate"])) {
+    return { role: "ig", unit: explicitUnit ?? "A", confidence: 0.9 };
+  }
+  if (matchesAnyHeader(normalized, ["is", "sourcecurrent", "currentsource"])) {
+    return { role: "is", unit: explicitUnit ?? "A", confidence: 0.9 };
+  }
+  if (normalized.includes("capacitance") || normalized === "c" || normalized.startsWith("cap")) {
+    return { role: "capacitance", unit: explicitUnit ?? "F", confidence: 0.9 };
+  }
+  if (normalized.includes("conductance") || normalized === "g") {
+    return { role: "conductance", unit: explicitUnit ?? "S", confidence: 0.85 };
+  }
+  if (normalized.includes("frequency") || normalized === "freq" || normalized === "f") {
+    return { role: "frequency", unit: explicitUnit ?? "Hz", confidence: 0.9 };
+  }
+  if (normalized.includes("time") || normalized === "t") {
+    return { role: "time", unit: explicitUnit ?? "s", confidence: 0.9 };
+  }
+  if (normalized.includes("voltage") || normalized === "v") {
+    return { role: "voltage", unit: explicitUnit ?? "V", confidence: 0.75 };
+  }
+  if (normalized.includes("current") || normalized === "i") {
+    return { role: "current", unit: explicitUnit ?? "A", confidence: 0.75 };
+  }
+  return { role: "unknown", unit: explicitUnit, confidence: 0.2 };
+};
+
+const inferCanonicalUnit = (
+  headerText: string,
+): CanonicalUnit | undefined => {
+  const normalized = headerText.toLowerCase();
+  if (/\b(hz|khz|mhz)\b/i.test(headerText)) {
+    return "Hz";
+  }
+  if (/\b(ms|sec|second|seconds|s)\b/i.test(headerText)) {
+    return "s";
+  }
+  if (/\b(pf|nf|uf|µf|mf|f)\b/i.test(headerText)) {
+    return "F";
+  }
+  if (/\b(na|ua|µa|ma|a)\b/i.test(headerText)) {
+    return "A";
+  }
+  if (/\b(mv|v|kv)\b/i.test(headerText)) {
+    return "V";
+  }
+  if (normalized.includes("ohm") || normalized.includes("Ω")) {
+    return "ohm";
+  }
+  if (/\b(msiemens|siemens|ms|s)\b/i.test(headerText) && normalized.includes("conductance")) {
+    return "S";
+  }
+  return undefined;
+};
+
+const normalizeHeaderText = (
+  value: unknown,
+): string => normalizeText(value).toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+const matchesAnyHeader = (
+  normalizedHeader: string,
+  candidates: readonly string[],
+): boolean => candidates.some(candidate => normalizedHeader === candidate || normalizedHeader.includes(candidate));
+
+const findMeasurementColumn = (
+  columns: readonly MeasurementColumnRef[],
+  roles: readonly MeasurementColumnRole[],
+  unit: CanonicalUnit,
+): number | null => {
+  const column = columns.find(candidate =>
+    roles.includes(candidate.role) &&
+    normalizeText(candidate.unit) === unit
+  );
+  return column?.rawCol ?? null;
+};
+
+const isFiniteNumberText = (
+  value: string,
+): boolean => {
+  const normalized = value.replace(/,/g, "");
+  return normalized !== "" && Number.isFinite(Number(normalized));
+};
+
+const getUriMeasurementLabel = (
+  measurement: UriMeasurementProjection,
+): string => {
+  if (measurement.family === "iv" && measurement.ivMode === "transfer") {
+    return "Detected IV Transfer";
+  }
+  if (measurement.family === "iv" && measurement.ivMode === "output") {
+    return "Detected IV Output";
+  }
+  return `Detected ${measurement.family.toUpperCase()}`;
+};
 
 const toTableProjectionParserDiagnostic = (
   diagnostic: TableParseDiagnostic,

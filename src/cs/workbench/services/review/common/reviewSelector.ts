@@ -6,12 +6,12 @@ import type {
 	MeasurementBlockRecord,
 	MeasurementColumnRef,
 } from "src/cs/workbench/services/table/common/tableProjection";
-import type { Recipe } from "src/cs/workbench/services/recipe/common/recipe";
+import type { Recipe } from "cs/workbench/services/recipes/common/recipe";
 import type {
 	RecipePhysicalLayout,
 	RecipeRole,
 	RecipeSeriesPartition,
-} from "src/cs/workbench/services/recipe/common/recipeSchema";
+} from "cs/workbench/services/recipes/common/recipeSchema";
 import type { ReviewEvidence } from "src/cs/workbench/services/review/common/reviewModel";
 
 export type ReviewSelectorCapture =
@@ -66,6 +66,8 @@ type PredicateResult =
 		readonly diagnosticCode?: string;
 	};
 
+// The selector evaluator only matches Recipe authoring fields against evidence.
+// Candidate construction, scoring, and template materialization happen later.
 export const evaluateReviewSelector = (
 	recipe: Recipe,
 	evidence: ReviewEvidence,

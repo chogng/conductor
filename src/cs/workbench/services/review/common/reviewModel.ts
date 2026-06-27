@@ -4,17 +4,42 @@
 
 import type { URI } from "src/cs/base/common/uri";
 import type {
-	ReviewEvidence,
-} from "src/cs/workbench/services/review/common/reviewEvidence";
-import type {
-	Template,
-} from "src/cs/workbench/services/template/common/templateSpec";
+	ColumnProfile,
+	ColumnSemanticCandidate,
+	LayoutCandidate,
+	MeasurementBlockRecord,
+	MeasurementGroupRecord,
+	TableProjectionDiagnostic,
+	TableProjectionStructure,
+} from "src/cs/workbench/services/table/common/tableProjection";
+import type { Template, TemplateMeasurementBinding } from "src/cs/workbench/services/template/common/templateSpec";
 
-export type {
-	ReviewEvidence,
-	ReviewSourceMetadata,
-	ReviewTableProjectionEvidence,
-} from "src/cs/workbench/services/review/common/reviewEvidence";
+// Review owns these evidence shapes while it is their only consumer. Move them
+// to a neutral content/table owner only when another service needs the same facts.
+export type ReviewSourceMetadata = {
+	readonly columnCount?: number;
+	readonly contentHash?: string;
+	readonly fileName?: string | null;
+	readonly rowCount?: number;
+	readonly sourceModelVersion?: number;
+	readonly sourceUri?: string;
+	readonly sourceVersion?: number;
+};
+
+export type ReviewEvidence = {
+	readonly sourceMetadata: ReviewSourceMetadata;
+	readonly tableProjection?: TableProjectionEvidence;
+};
+
+export type TableProjectionEvidence = {
+	readonly structure: TableProjectionStructure;
+	readonly columnProfiles: readonly ColumnProfile[];
+	readonly layoutCandidates: readonly LayoutCandidate[];
+	readonly semanticCandidates: readonly ColumnSemanticCandidate[];
+	readonly groups: readonly MeasurementGroupRecord[];
+	readonly blocks: readonly MeasurementBlockRecord[];
+	readonly diagnostics: readonly TableProjectionDiagnostic[];
+};
 
 export type ReviewContext = {
 	readonly resource: URI;
@@ -101,6 +126,7 @@ export type ReviewCandidateBlock = {
 export type ReviewCandidateInterpretation = {
 	readonly name: string;
 	readonly version: number;
+	readonly measurement?: TemplateMeasurementBinding;
 	readonly blocks: readonly ReviewCandidateBlock[];
 	readonly stopOnError: boolean;
 	readonly applicability?: ReviewCandidateApplicability;

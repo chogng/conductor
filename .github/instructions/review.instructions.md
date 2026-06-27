@@ -124,12 +124,10 @@ user command / UserTemplate picker / inline template editor
 | File | Owns | Must not own |
 | --- | --- | --- |
 | `common/review.ts` | `IReviewService` contract, URI review/manual review request and result types, review/evidence/result signature helpers. | Evidence shape definitions, browser cache implementation, Explorer decoration mapping, Slice submission. |
-| `common/reviewModel.ts` | Pure Review domain result model: `ReviewContext`, `SegmentCandidate`, `ReviewCandidate`, `ReviewResult`, `ReviewDecision`, factors, findings, `ReviewedTemplate`, `ReviewSummary`. | Service implementation, evidence production, Recipe catalog storage, Explorer UI types. |
-| `common/reviewEvidence.ts` | Review input evidence shape while Review is the only consumer: source metadata plus `structuredEvidence` / `matrixEvidence` style content facts. | `tableProjection` public API, Table UI/model imports, Recipe DSL, Review policy/result assembly, Explorer presentation. |
+| `common/reviewModel.ts` | Pure Review domain model: Review input evidence, `ReviewContext`, `SegmentCandidate`, `ReviewCandidate`, `ReviewResult`, `ReviewDecision`, factors, findings, `ReviewedTemplate`, `ReviewSummary`. Evidence stays here while Review is its only consumer. | Service implementation, evidence production, Recipe catalog storage, Explorer UI types. |
 | `common/reviewSelector.ts` | Pure Recipe dataRange/blockPartition/physicalLayout/logicalRelation matching against URI/content evidence. | File reads, parser logic, candidate scoring, Template materialization. |
 | `common/reviewCandidate.ts` | Pure Recipe/UserTemplate/built-in template snapshot + URI/content evidence -> `SegmentCandidate` / `ReviewCandidate` derivation. | Final Review status, `ReviewedTemplate` selection, Slice execution, Explorer decoration. |
-| `common/reviewScoring.ts` | Pure candidate + `ReviewContext` -> confidence factors, findings, and candidate status. | Candidate derivation, result cache, Explorer presentation, Slice policy. |
-| `common/reviewResult.ts` | Pure assembly of context, candidates, scoring, and decision policy into `ReviewResult`, selected `ReviewedTemplate`, and summary-ready facts. | Browser scheduling/cache, file/model reads, Explorer decoration mapping. |
+| `common/reviewDecision.ts` | Pure assembly of context, candidates, scoring, and decision policy into `ReviewResult`, selected `ReviewedTemplate`, and summary-ready facts. This is one decision pipeline, not separate scoring/result owners. | Candidate derivation, browser scheduling/cache, file/model reads, Explorer decoration mapping, Slice execution. |
 | `browser/reviewService.ts` | Injectable service owner for cache, stale checks, scheduling/background review, manual review entry points, and reading/assembling structured content evidence from the current source owner. | Table UI parsing, table projection ownership, DOM/UI decoration, Explorer tree state, Slice execution. |
 
 Review candidate helpers live under `services/review/common` and produce
@@ -142,11 +140,11 @@ built-in template snapshots are candidate inputs, not pre-reviewed results.
 Decision logic and candidate derivation logic belong in Review, not Template,
 Table UI/model, Explorer, or Slice.
 
-For now, Review is the only consumer of `ReviewEvidence`, so the type may stay
-under `services/review/common`. If structured/matrix evidence later becomes a
-shared input for Table UI, Review, Search, Vector, or other features, move that
-shape to a neutral content/table evidence owner and let Review consume the
-shared snapshot.
+For now, Review is the only consumer of `ReviewEvidence`, so the type stays in
+`reviewModel.ts` instead of a separate evidence file. If structured/matrix
+evidence later becomes a shared input for Table UI, Review, Search, Vector, or
+other features, move that shape to a neutral content/table evidence owner and
+let Review consume the shared snapshot.
 
 ## Rules
 
