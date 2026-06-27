@@ -2,12 +2,8 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { URI } from "src/cs/base/common/uri";
-import type {
-	IFileContent,
-	IReadFileEncoding,
-} from "src/cs/platform/files/common/files";
-import { tableFormatService } from "src/cs/workbench/services/table/common/tableFormatService";
+import { ByteBuffer } from "src/cs/base/common/buffer";
+import type { TableFormatId } from "src/cs/workbench/services/table/common/tableFormatService";
 
 export type TableFileDecodedContent = {
 	readonly bytes: ArrayBuffer;
@@ -15,53 +11,33 @@ export type TableFileDecodedContent = {
 	readonly text: string | null;
 };
 
-export const getTableFileReadEncoding = (
-	resource: URI | string | null | undefined,
-): IReadFileEncoding =>
-	tableFormatService.isExcel(resource) ? "base64" : "utf8";
+export type TableFileReadMode = "bytes" | "text";
+
+export const getTableFileReadMode = (
+	format: TableFormatId,
+): TableFileReadMode =>
+	format === "xlsx" ? "bytes" : "text";
 
 export const decodeTableFileContent = (
-	content: IFileContent,
+	content: Uint8Array,
+	mode: TableFileReadMode,
 ): TableFileDecodedContent => {
-	const filePart = content.encoding === "base64"
-		? decodeBase64(content.value)
-		: content.value;
+	const bytes = ByteBuffer.wrap(content).toArrayBuffer();
+	const text = mode === "text" ? new TextDecoder().decode(content) : null;
+	const filePart = text ?? bytes;
 	return {
-		bytes: typeof filePart === "string" ? encodeText(filePart) : filePart,
+		bytes,
 		filePart,
-		text: content.encoding === "utf8" ? content.value : null,
+		text,
 	};
 };
 
-export const isFileContent = (value: unknown): value is IFileContent => {
-	if (!value || typeof value !== "object") {
-		return false;
-	}
-
-	const candidate = value as Partial<IFileContent>;
-	return (candidate.encoding === "base64" || candidate.encoding === "utf8") &&
-		typeof candidate.value === "string";
-};
-
-export const getTableFileMimeType = (fileName: string): string => {
-	if (tableFormatService.isExcel(fileName)) {
+export const getTableFileMimeType = (format: TableFormatId): string => {
+	if (format === "xlsx") {
 		return "application/octet-stream";
 	}
-	if (tableFormatService.isTsv(fileName)) {
+	if (format === "tsv") {
 		return "text/tab-separated-values;charset=utf-8";
 	}
 	return "text/csv;charset=utf-8";
-};
-
-const encodeText = (value: string): ArrayBuffer =>
-	new TextEncoder().encode(value).buffer as ArrayBuffer;
-
-const decodeBase64 = (value: string): ArrayBuffer => {
-	const binary = globalThis.atob(value);
-	const buffer = new ArrayBuffer(binary.length);
-	const bytes = new Uint8Array(buffer);
-	for (let index = 0; index < binary.length; index += 1) {
-		bytes[index] = binary.charCodeAt(index);
-	}
-	return buffer;
 };

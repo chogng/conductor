@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IAction } from "src/cs/base/common/actions";
+import { ByteBuffer } from "src/cs/base/common/buffer";
 import { toSlashes } from "src/cs/base/common/extpath";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { isWindows } from "src/cs/base/common/platform";
@@ -2232,19 +2233,8 @@ function getFileMimeType(fileName: string): string {
   return "text/csv;charset=utf-8";
 }
 
-function decodeBase64(value: string): ArrayBuffer {
-  const binary = atob(value);
-  const buffer = new ArrayBuffer(binary.length);
-  const bytes = new Uint8Array(buffer);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-
-  return buffer;
-}
-
-function toFilePart(content: IFileContent): string | ArrayBuffer {
-  return content.encoding === "base64" ? decodeBase64(content.value) : content.value;
+function toFilePart(content: IFileContent): ArrayBuffer {
+  return ByteBuffer.wrap(content.value).toArrayBuffer();
 }
 
 function getErrorMessage(error: unknown): string {
@@ -2634,9 +2624,7 @@ async function readFileContent(
   filesService: IFileService,
 ): Promise<IFileContent> {
   for (let attempt = 0; attempt < FILE_SOURCE_READ_ATTEMPTS; attempt += 1) {
-    const content = await filesService.readFile(resource, {
-      encoding: tableFormatService.isExcel(name) ? "base64" : "utf8",
-    });
+    const content = await filesService.readFile(resource);
     if (isFileContent(content)) {
       return content;
     }
@@ -2651,6 +2639,5 @@ function isFileContent(value: unknown): value is IFileContent {
   }
 
   const candidate = value as Partial<IFileContent>;
-  return (candidate.encoding === "base64" || candidate.encoding === "utf8") &&
-    typeof candidate.value === "string";
+  return candidate.value instanceof Uint8Array;
 }
