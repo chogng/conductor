@@ -557,7 +557,11 @@ const createWorkbenchTitlebarView = (
   center.appendChild(createQuickAccessButton(commandService));
 
   const rightControls = createElement("div", {
-    className: "titlebar-right titlebar-controls",
+    className: "titlebar-right",
+  });
+
+  const actionToolbarContainer = createElement("div", {
+    className: "action-toolbar-container",
   });
 
   const pageActionBar = createTitlebarActionBar("titlebar-controls");
@@ -590,7 +594,8 @@ const createWorkbenchTitlebarView = (
     pageActionBar.push(runtimeAction, { label: false });
     pageActionsById.set(button.id, runtimeAction);
   }
-  rightControls.appendChild(pageActionBar.domNode);
+  actionToolbarContainer.appendChild(pageActionBar.domNode);
+  rightControls.appendChild(actionToolbarContainer);
 
   if (windowControlsSide === "right") {
     const windowControlsContainer = createElement("div", {
