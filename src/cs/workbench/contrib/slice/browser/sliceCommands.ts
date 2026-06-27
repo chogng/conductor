@@ -5,37 +5,29 @@
 import { localize } from "src/cs/nls";
 import { URI } from "src/cs/base/common/uri";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
-import {
-	IExplorerService,
-} from "src/cs/workbench/contrib/files/browser/files";
+import { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
 import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import {
 	INotificationService,
 	Severity,
 } from "src/cs/workbench/services/notification/common/notificationService";
 import {
-	getRawTableRefsForFileIds,
+	TABLE_MODEL_RULE_VERSION,
 } from "src/cs/workbench/services/tableModel/common/tableModel";
-import {
-	ISessionService,
-	type SessionSnapshot,
-} from "src/cs/workbench/services/session/common/session";
-import type {
-	FileRecord,
-	RawTableRef,
-} from "src/cs/workbench/services/session/common/sessionModel";
 import {
 	ISliceService,
 	type ISliceService as ISliceServiceType,
+	type SliceMeasurementBinding,
 	type SliceUriRequest,
 	type SliceUriTarget,
 } from "src/cs/workbench/services/slice/common/slice";
 import {
 	IReviewService,
 	type IReviewService as IReviewServiceType,
-	type ReviewedTemplate,
+	type ManualTemplateSelection,
 	type UriTableReview,
 } from "src/cs/workbench/services/review/common/review";
+import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/tableReview";
 import {
 	IWorkbenchLayoutService,
 	type IWorkbenchLayoutService as IWorkbenchLayoutServiceType,
@@ -50,6 +42,9 @@ import { createTemplateFromEditorRecord } from "src/cs/workbench/services/templa
 import {
 	validateTemplateForApply,
 } from "src/cs/workbench/services/template/common/templateEditorConfig";
+import {
+	createSliceTableModelSignature,
+} from "src/cs/workbench/services/slice/common/slicePlanner";
 import {
 	createInlineTemplateSelection,
 	type TemplateSelection,
@@ -74,12 +69,9 @@ export const runSliceWithTemplateHandler = (
 		return;
 	}
 
-	const sessionService = accessor.get(ISessionService);
 	const sliceService = accessor.get(ISliceService);
 	const reviewService = accessor.get(IReviewService);
 	const layoutService = accessor.get(IWorkbenchLayoutService);
-	const snapshot = sessionService.getSnapshot();
-	const refs = getSliceCommandRawTableRefs(snapshot, Boolean(options.incremental));
 	const uriTargets = getSliceCommandUriTargets(
 		explorerService.getPaneInput()?.files ?? [],
 		sliceService,
@@ -91,42 +83,25 @@ export const runSliceWithTemplateHandler = (
 		return;
 	}
 
-	if (!refs.length && !uriTargets.length) {
+	if (!uriTargets.length) {
 		notificationService.notify({
 			id: "slice.notification",
 			message: options.incremental
-				? localize("slice.runWithTemplate.noNewFiles", "No new files to slice.")
-				: localize("slice.runWithTemplate.noRawTables", "No raw tables are available to slice."),
+				? localize("slice.runWithTemplate.noNewUriTables", "No new table resources to slice.")
+				: localize("slice.runWithTemplate.noUriTables", "No table resources are available to slice."),
 			severity: Severity.Info,
 		});
 		return;
 	}
 
-	if (refs.length) {
-		runSliceRefsWithTemplate(sliceService, refs, selection);
-		layoutService.navigateToView("chart");
-	}
-	if (uriTargets.length) {
-		void runUriTargetsWithTemplate({
-			layoutService,
-			notificationService,
-			reviewService,
-			selection,
-			sliceService,
-			targets: uriTargets,
-		});
-	}
-};
-
-export const getSliceCommandRawTableRefs = (
-	snapshot: SessionSnapshot,
-	incremental: boolean,
-): RawTableRef[] => {
-	const fileIds = snapshot.fileOrder.filter(fileId => {
-		const file = snapshot.filesById[fileId];
-		return file && (!incremental || !hasAnySliceRun(file));
+	void runUriTargetsWithTemplate({
+		layoutService,
+		notificationService,
+		reviewService,
+		selection,
+		sliceService,
+		targets: uriTargets,
 	});
-	return getRawTableRefsForFileIds(fileIds, snapshot);
 };
 
 const createSliceCommandTemplateSelection = (
@@ -165,24 +140,6 @@ const createSliceCommandTemplateSelection = (
 	return createInlineTemplateSelection(template);
 };
 
-const runSliceRefsWithTemplate = (
-	sliceService: ISliceServiceType,
-	refs: readonly RawTableRef[],
-	selection: TemplateSelection,
-): void => {
-	if (selection.kind === "auto") {
-		sliceService.enqueueAuto(refs);
-		return;
-	}
-
-	for (const ref of refs) {
-		sliceService.runWithTemplate({
-			ref,
-			selection,
-		});
-	}
-};
-
 const runUriTargetsWithTemplate = async ({
 	layoutService,
 	notificationService,
@@ -207,12 +164,13 @@ const runUriTargetsWithTemplate = async ({
 		const reviewedTemplate = selection.kind === "auto"
 			? getAutoReviewedTemplate(review)
 			: await getManualReviewedTemplate(reviewService, review, selection);
-		if (!review.tableModel || !reviewedTemplate) {
+		const runnableReview = toRunnableUriTableReview(review);
+		if (!runnableReview || !reviewedTemplate) {
 			continue;
 		}
 
 		requests.push(createSliceUriRequest({
-			review,
+			review: runnableReview,
 			reviewedTemplate,
 			selection,
 			target,
@@ -235,7 +193,8 @@ const runUriTargetsWithTemplate = async ({
 const getAutoReviewedTemplate = (
 	review: UriTableReview,
 ): ReviewedTemplate | null =>
-	review.result?.decision.kind === "ready"
+	review.result?.decision.kind === "ready" &&
+		review.result.decision.application.kind === "systemRecommended"
 		? review.result.decision.reviewedTemplate
 		: null;
 
@@ -261,7 +220,7 @@ const getManualReviewedTemplate = async (
 
 const getManualReviewSelection = (
 	selection: TemplateSelection,
-): Parameters<IReviewServiceType["reviewUriManualTemplate"]>[0]["selection"] | null => {
+): ManualTemplateSelection | null => {
 	if (selection.kind === "inline") {
 		return {
 			kind: "inline",
@@ -277,13 +236,57 @@ const getManualReviewSelection = (
 	return null;
 };
 
+type RunnableUriTableReview = UriTableReview & {
+	readonly reviewSignature: string;
+	readonly measurement: NonNullable<UriTableReview["measurement"]>;
+	readonly sourceModelVersion: number;
+	readonly sourceVersion: number;
+	readonly rowCount: number;
+	readonly columnCount: number;
+};
+
+const toRunnableUriTableReview = (
+	review: UriTableReview,
+): RunnableUriTableReview | null => {
+	const reviewSignature = normalizeText(review.reviewSignature);
+	const measurement = review.measurement;
+	const sourceModelVersion = review.sourceModelVersion;
+	const sourceVersion = review.sourceVersion;
+	const rowCount = review.rowCount;
+	const columnCount = review.columnCount;
+	if (
+		!reviewSignature ||
+		!measurement ||
+		typeof sourceModelVersion !== "number" ||
+		typeof sourceVersion !== "number" ||
+		typeof rowCount !== "number" ||
+		typeof columnCount !== "number" ||
+		!Number.isInteger(sourceModelVersion) ||
+		!Number.isInteger(sourceVersion) ||
+		!Number.isInteger(rowCount) ||
+		!Number.isInteger(columnCount)
+	) {
+		return null;
+	}
+
+	return {
+		...review,
+		reviewSignature,
+		measurement,
+		sourceModelVersion,
+		sourceVersion,
+		rowCount,
+		columnCount,
+	};
+};
+
 const createSliceUriRequest = ({
 	review,
 	reviewedTemplate,
 	selection,
 	target,
 }: {
-	readonly review: UriTableReview;
+	readonly review: RunnableUriTableReview;
 	readonly reviewedTemplate: ReviewedTemplate;
 	readonly selection: TemplateSelection;
 	readonly target: SliceUriTarget;
@@ -294,17 +297,26 @@ const createSliceUriRequest = ({
 		sourceVersion: review.sourceVersion,
 		templateFingerprint: reviewedTemplate.templateFingerprint,
 	});
+	const sourceTableModelSignature = createSliceTableModelSignature({
+		tableModelRuleVersion: TABLE_MODEL_RULE_VERSION,
+		schemaProfileVersion: 0,
+		sourceSheetId: review.sheetId ?? null,
+		sourceModelVersion: review.sourceModelVersion,
+		sourceUri: getSliceUriTargetResourceIdentity(review.resource),
+		sourceVersion: review.sourceVersion,
+	}, {
+		reviewSignature: review.reviewSignature,
+	});
 	const targetId = createSliceUriTargetId(target);
 	return {
 		id: `slice-uri-request:${targetId}:${requestSignature}`,
 		target,
-		tableModel: review.tableModel!,
 		reviewedTemplate,
 		reviewSignature: review.reviewSignature,
 		trigger: selection.kind === "auto"
 			? {
 				kind: "reviewDecision",
-				reviewSignature: review.reviewSignature ?? requestSignature,
+				reviewSignature: review.reviewSignature,
 				submittedBy: "system",
 			}
 			: {
@@ -314,12 +326,22 @@ const createSliceUriRequest = ({
 			},
 		requestSignature,
 		createdAt: Date.now(),
-		rowCount: review.rowCount ?? 0,
-		columnCount: review.columnCount ?? 0,
-		sourceModelVersion: review.sourceModelVersion ?? 0,
-		sourceVersion: review.sourceVersion ?? 0,
+		rowCount: review.rowCount,
+		columnCount: review.columnCount,
+		sourceTableModelSignature,
+		measurement: toSliceMeasurementBinding(review.measurement),
+		sourceModelVersion: review.sourceModelVersion,
+		sourceVersion: review.sourceVersion,
 	};
 };
+
+const toSliceMeasurementBinding = (
+	measurement: NonNullable<UriTableReview["measurement"]>,
+): SliceMeasurementBinding => ({
+	curveFamily: measurement.curveFamily,
+	...(measurement.ivMode ? { ivMode: measurement.ivMode } : {}),
+	...(measurement.itMode ? { itMode: measurement.itMode } : {}),
+});
 
 const getSliceCommandUriTargets = (
 	files: readonly ExplorerFileEntry[],
@@ -362,24 +384,20 @@ const createSliceUriTarget = (
 	};
 };
 
-const hasAnySliceRun = (file: FileRecord): boolean =>
-	Boolean(file.latestSliceRunId) ||
-	Object.keys(file.sliceRunsById ?? {}).length > 0;
-
 const createUriSliceRequestSignature = ({
 	reviewSignature,
 	sourceModelVersion,
 	sourceVersion,
 	templateFingerprint,
 }: {
-	readonly reviewSignature?: string;
-	readonly sourceModelVersion?: number;
-	readonly sourceVersion?: number;
+	readonly reviewSignature: string;
+	readonly sourceModelVersion: number;
+	readonly sourceVersion: number;
 	readonly templateFingerprint: string;
 }): string => JSON.stringify({
 	reviewSignature: normalizeText(reviewSignature),
-	sourceModelVersion: Math.max(0, Math.floor(Number(sourceModelVersion) || 0)),
-	sourceVersion: Math.max(0, Math.floor(Number(sourceVersion) || 0)),
+	sourceModelVersion: Math.max(0, Math.floor(sourceModelVersion)),
+	sourceVersion: Math.max(0, Math.floor(sourceVersion)),
 	templateFingerprint,
 });
 
@@ -388,7 +406,53 @@ const normalizeText = (value: unknown): string => String(value ?? "").trim();
 const createSliceUriTargetId = (
 	target: SliceUriTarget,
 ): string => {
-	const resource = normalizeText(target.resource?.toString()).replace(/\\/g, "/");
+	const resource = getSliceUriTargetResourceIdentity(target.resource);
 	const sheetId = normalizeText(target.sheetId);
 	return sheetId ? `${resource}\u0000${sheetId}` : resource;
+};
+
+const getSliceUriTargetResourceIdentity = (
+	resource: unknown,
+): string => {
+	const text = getSliceUriTargetResourceString(resource);
+	if (text) {
+		return text.replace(/\\/g, "/");
+	}
+
+	if (resource && typeof resource === "object") {
+		const candidate = resource as { readonly scheme?: unknown; readonly authority?: unknown; readonly path?: unknown; readonly query?: unknown; readonly fragment?: unknown };
+		const scheme = normalizeText(candidate.scheme);
+		const path = normalizeText(candidate.path);
+		if (scheme && path) {
+			const authority = normalizeText(candidate.authority);
+			const query = normalizeText(candidate.query);
+			const fragment = normalizeText(candidate.fragment);
+			return (scheme === "file"
+				? `file://${authority}${path}${query ? `?${query}` : ""}${fragment ? `#${fragment}` : ""}`
+				: `${scheme}://${authority}${path}${query ? `?${query}` : ""}${fragment ? `#${fragment}` : ""}`
+			).replace(/\\/g, "/");
+		}
+	}
+
+	return "";
+};
+
+const getSliceUriTargetResourceString = (
+	resource: unknown,
+): string => {
+	if (!resource) {
+		return "";
+	}
+
+	if (typeof resource === "string") {
+		return normalizeText(resource);
+	}
+
+	const toString = (resource as { readonly toString?: unknown }).toString;
+	if (typeof toString === "function" && toString !== Object.prototype.toString) {
+		const text = normalizeText(toString.call(resource));
+		return text === "[object Object]" ? "" : text;
+	}
+
+	return "";
 };

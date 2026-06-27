@@ -25,18 +25,25 @@ quality, or decide whether the system should apply a template.
   services. Private caches may use `ResourceMap` or a private index, but keyed
   lookup details must not become public API names.
 - Prefer upstream-shaped names for URI-backed Slice state: public methods such
-  as `getUriResult(target)` / `getUriState(target)`, private caches such as
-  `resultsByResource` / `statesByResource` or `mapResourceToSliceResults`, and
-  nested sheet buckets such as `resultsBySheetId`. Do not export
-  `SliceUriResourceKey`, `createSliceUriResourceKey`, or public
-  `uriResultsByResourceKey` / `uriStatesByResourceKey` fields.
+  as `getUriResult(target)` / `getUriState(target)` and target-scoped events
+  such as `onDidChangeUriSliceResult`, target actions such as
+  `prioritizeUri(target)`, private caches such as `resultsByResource` /
+  `statesByResource` or `mapResourceToSliceResults`, and nested sheet buckets
+  such as `resultsBySheetId`. Do not export `SliceUriResourceKey`,
+  `createSliceUriResourceKey`, public `uriResultsByResourceKey` /
+  `uriStatesByResourceKey` fields, or full URI result lists as `SliceState`
+  contract.
 
 `SlicePlanner` owns deterministic plan creation from immutable inputs:
-`Template`, raw table dimensions, source versions, and Template-provided
-measurement bindings. It must not read rows, start workers, or mutate Session.
+`Template`, session raw-table or URI target, table dimensions, source versions,
+and Template-provided measurement bindings. It must not read rows, start
+workers, or mutate Session.
 
 `SliceExecutor` owns execution of a `SlicePlan` against supplied rows and
-returns a `SliceCommit`. It must not call services or reread Session.
+returns target-neutral execution records. `SliceService` wraps those records as
+legacy `SliceCommit` values for Session raw-table requests or as
+`SliceUriResult` values for URI-backed requests. The executor must not call
+services or reread Session.
 
 ## Core Files
 
@@ -44,10 +51,10 @@ returns a `SliceCommit`. It must not call services or reread Session.
 | --- | --- |
 | `common/slice.ts` | service contract, `SliceRequest`, `SliceUriRequest`, `SliceRun`, `SlicePlan`, commit/state/input types. |
 | `common/templateSelection.ts` | per-file `TemplateSelection` records, the automatic-selection sentinel, and normalization helpers owned by Slice state. |
-| `common/slicePlanner.ts` | pure plan/range generation and migration source/table-model signature helpers. |
-| `common/sliceExecutor.ts` | pure row execution into `SliceCommit`. |
+| `common/slicePlanner.ts` | pure target-aware plan/range generation and migration source/table-model signature helpers. |
+| `common/sliceExecutor.ts` | pure row execution into target-neutral Slice execution records. |
 | `browser/sliceService.ts` | injectable owner for queue, selection, progress state, row reading, Session commit, and URI result cache. |
-| `browser/slicePriority.contribution.ts` | lifecycle subscriber from Explorer selection/hover facts to `ISliceService.prioritize(...)`. |
+| `browser/slicePriority.contribution.ts` | lifecycle subscriber from Explorer selection/hover facts to `ISliceService.prioritize(...)` for legacy raw files and `ISliceService.prioritizeUri(...)` for URI targets. |
 | `contrib/slice/browser/sliceCommands.ts` / `sliceActions.ts` | command/action entry for user-triggered slicing; normalizes targets and delegates to `ISliceService`. |
 
 ## Flow
@@ -55,7 +62,7 @@ returns a `SliceCommit`. It must not call services or reread Session.
 Session raw-table flow:
 
 ```txt
-Session RawTableRef + ReviewDecision.ready / manual review result
+Session RawTableRef + legacy TableReviewDecision.ready
   -> explicit execution controller validates model/source versions and review signature
   -> ISliceService.submit(SliceRequest[])
   -> SliceService reads reviewed Template snapshot from request
@@ -64,6 +71,7 @@ Session RawTableRef + ReviewDecision.ready / manual review result
   -> RawTableRowsReader reads rows
   -> SliceService verifies the same plan signatures again
   -> SliceExecutor.executeSlicePlan(...)
+  -> SliceService wraps execution records as SliceCommit
   -> ISessionService.commitSliceRuns(...)
   -> Session sliceRunChanged
 ```
@@ -71,7 +79,7 @@ Session RawTableRef + ReviewDecision.ready / manual review result
 URI-backed flow:
 
 ```txt
-Explorer URI target + ReviewDecision.ready / manual review result
+Explorer URI target + TableReviewDecision.ready / manual review result
   -> explicit execution controller validates model/source versions and review signature
   -> ISliceService.submitUri(SliceUriRequest[])
   -> SliceService reads reviewed Template snapshot from request
@@ -80,6 +88,7 @@ Explorer URI target + ReviewDecision.ready / manual review result
   -> ITableModelService model reference reads current rows
   -> SliceService verifies the same plan signatures again
   -> SliceExecutor.executeSlicePlan(...)
+  -> SliceService wraps execution records as SliceUriResult
   -> SliceService retains URI-target state and result
   -> PlotService creates calculated data for the URI result
   -> WorkbenchDomainBridge projects chart/explorer state
@@ -92,22 +101,26 @@ files.item.setTemplate command
   -> ISliceService.setTemplateSelection(fileId, selection)
   -> SliceState.templateSelectionsByFileId
 
-command/action/controller
-  -> ReviewService.reviewManualTemplate(...) or ReviewService.reviewUriManualTemplate(...)
+URI-backed command/action/controller
+  -> ReviewService.reviewUriManualTemplate(...)
   -> ready ManualTemplateReviewResult
-  -> ISliceService.submit(...) or ISliceService.submitUri(...)
+  -> ISliceService.submitUri(...)
   -> SliceService reads reviewed inline/saved Template snapshot
   -> same planner/executor path
-  -> Session commit for legacy raw tables, Slice URI result state for URI targets
+  -> Slice URI result state for URI targets
+
+legacy raw-table command/action/controller
+  -> manual slicing is disabled
+  -> no ReviewService raw-table fallback
 ```
 
 Bulk command flow:
 
 ```txt
 slice.runWithTemplate / slice.runWithTemplateIncremental command
-  -> collect RawTableRef targets from SessionSnapshot and URI targets from Explorer state
-  -> review selected Template through Review
-  -> ISliceService.submit(...) for legacy targets
+  -> collect URI targets from Explorer state
+  -> ReviewService.reviewUriTable({ resource, sheetId }) for each target
+  -> URI targets review selected Template through Review
   -> ISliceService.submitUri(...) for URI targets
 ```
 
@@ -115,6 +128,11 @@ Priority flow:
 
 ```txt
 Explorer selection / hover event
+  -> SlicePriorityContribution
+  -> Explorer resource entry resolves to URI target
+  -> ISliceService.prioritizeUri(target)
+
+Legacy raw-file selection / hover event
   -> SlicePriorityContribution
   -> ISliceService.prioritize(fileId)
 ```
@@ -148,13 +166,15 @@ ReviewService TableReviewSummary
 
 - Slice consumes reviewed Template snapshots; it must not detect headers, roles,
   family, or mode from raw rows.
-- Automatic execution consumes `ReviewDecision.ready.reviewedTemplate` and
+- Automatic execution consumes `TableReviewDecision.ready.reviewedTemplate` and
   executes that stored Template snapshot.
 - Manual execution must first produce a `ManualTemplateReviewResult.ready`
   value. Compatibility adapters may convert historical/manual presets into
   canonical `Template` snapshots before review.
-- `Template` coordinates are raw-table relative. Runtime provenance belongs to
-  `SlicePlan.inputRanges` and `SliceRun.inputRanges`.
+- `Template` coordinates are physical table relative. Runtime provenance
+  belongs to `SlicePlan.inputRanges`, then to legacy `SliceRun.inputRanges` or
+  URI-backed `SliceUriRun.inputRanges`. URI plans must carry URI range
+  provenance directly, not synthetic raw-table refs.
 - `commitSliceRuns(...)` is the legacy Session boundary. URI-backed slice
   results stay in Slice service URI-target state and must not be bridged into
   Session.
@@ -176,11 +196,11 @@ ReviewService TableReviewSummary
 
 ## Do Not
 
-- Do not interpret raw rows/header semantics here; Recipe projection and
-  Template materialization happen before Review/Slice.
-- Do not re-run table-model production or Template materialization in Slice.
-- Do not import RecipeService, recipe selector evaluators, or recipe Template
-  materializers into Slice.
+- Do not interpret raw rows/header semantics here; Recipe projection into
+  `TableReviewCandidate` happens in Review before Slice.
+- Do not re-run table-model production or Review candidate derivation in Slice.
+- Do not import RecipeService, recipe selector evaluators, or Review candidate
+  builders into Slice.
 - Do not inspect Review confidence, candidate margin, or diagnostics to decide
   automatic execution.
 - Do not store Slice queue/progress in Session.

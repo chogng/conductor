@@ -5,11 +5,11 @@
 import assert from "assert";
 
 import { Event } from "src/cs/base/common/event";
+import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { ServicesAccessor, ServiceIdentifier } from "src/cs/platform/instantiation/common/instantiation";
 import { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
 import {
-	getSliceCommandRawTableRefs,
 	runSliceWithTemplateHandler,
 } from "src/cs/workbench/contrib/slice/browser/sliceCommands";
 import type { FileImportResult, ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
@@ -22,34 +22,40 @@ import { ISessionService } from "src/cs/workbench/services/session/common/sessio
 import {
 	IReviewService,
 	type IReviewService as IReviewServiceType,
+	type UriTableReview,
 } from "src/cs/workbench/services/review/common/review";
+import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/tableReview";
 import {
 	IWorkbenchLayoutService,
 } from "src/cs/workbench/services/layout/browser/layoutService";
 import type { RawTableRef } from "src/cs/workbench/services/session/common/sessionModel";
 import {
 	ISliceService,
-	type RunSliceWithTemplateInput,
 	type SliceRequest,
 	type SliceState,
 	type SliceUriRequest,
+	type SliceUriTarget,
 } from "src/cs/workbench/services/slice/common/slice";
 import { createEmptyTemplateEditorConfig } from "src/cs/workbench/services/template/common/templateEditorConfig";
+import type { Template } from "src/cs/workbench/services/template/common/template";
 import {
 	type TemplateState,
 	ITemplateViewStateService,
 } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
 import type { TemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
+import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 
 suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test("runs auto slice for every raw table when current template selection is auto", () => {
+	test("does not enter legacy raw-table auto slicing from bulk apply", () => {
 		const sessionService = store.add(new SessionService());
 		sessionService.commitFileImport(createImportResult());
 		const sliceService = new TestSliceService();
+		const notifications: INotification[] = [];
 
 		runSliceWithTemplateHandler(createAccessor({
+			notifications,
 			sessionService,
 			sliceService,
 			templateState: createTemplateState({
@@ -57,19 +63,27 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 			}),
 		}));
 
-		assert.deepEqual(sliceService.autoRefs, [{
-			fileId: "file-a",
-			rawTableId: "table-a",
-		}]);
-		assert.deepEqual(sliceService.runs, []);
+		assert.deepEqual(sliceService.autoRefs, []);
+		assert.deepEqual(sliceService.requests, []);
+		assert.equal(notifications[0]?.id, "slice.notification");
+		assert.equal(notifications[0]?.message, "slice.runWithTemplate.noUriTables");
 	});
 
-	test("runs inline canonical template selection from the current template form", () => {
+	test("does not submit legacy raw-table manual slicing from the current template form", () => {
 		const sessionService = store.add(new SessionService());
 		sessionService.commitFileImport(createImportResult());
 		const sliceService = new TestSliceService();
+		const notifications: INotification[] = [];
+		let didCallRawTableReview = false;
 
 		runSliceWithTemplateHandler(createAccessor({
+			notifications,
+			reviewService: createReviewServiceForTest({
+				reviewRawTableManualTemplate: () => {
+					didCallRawTableReview = true;
+					assert.fail("Legacy raw-table manual review should not be called.");
+				},
+			}),
 			sessionService,
 			sliceService,
 			templateState: createTemplateState({
@@ -84,47 +98,10 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 			}),
 		}));
 
-		const selection = sliceService.runs[0]?.selection;
-		assert.equal(selection?.kind, "inline");
-		assert.equal(selection?.kind === "inline" ? selection.template.id : null, "template-a");
-		assert.equal(selection?.kind === "inline" ? selection.template.blocks[0]?.x.columns[0] : null, 0);
-		assert.equal(selection?.kind === "inline" ? selection.template.blocks[0]?.y.columns[0] : null, 1);
-	});
-
-	test("incremental refs skip files with existing slice runs", () => {
-		const sessionService = store.add(new SessionService());
-		sessionService.commitFileImport(createImportResult());
-		sessionService.commitSliceRuns([{
-			run: {
-				errors: [],
-				fileId: "file-a",
-				id: "slice-run-a",
-				inputRanges: [],
-				mode: "auto",
-				outputCurveKeys: [],
-				outputSeriesIds: [],
-				rawTableId: "table-a",
-				selection: { kind: "auto" },
-				sourceRawTableVersion: 1,
-				template: {
-					blocks: [],
-					name: "Template",
-					schemaVersion: 1,
-					stopOnError: false,
-					version: 1,
-				},
-				templateFingerprint: "template:test",
-				warnings: [],
-			},
-			curves: [],
-			series: [],
-		}]);
-
-		assert.deepEqual(getSliceCommandRawTableRefs(sessionService.getSnapshot(), true), []);
-		assert.deepEqual(getSliceCommandRawTableRefs(sessionService.getSnapshot(), false), [{
-			fileId: "file-a",
-			rawTableId: "table-a",
-		}]);
+		assert.equal(didCallRawTableReview, false);
+		assert.deepEqual(sliceService.requests, []);
+		assert.equal(notifications[0]?.id, "slice.notification");
+		assert.equal(notifications[0]?.message, "slice.runWithTemplate.noUriTables");
 	});
 
 	test("does not run while explorer has pending sources", () => {
@@ -140,7 +117,128 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 			sliceService,
 		}));
 
-		assert.deepEqual(sliceService.runs, []);
+		assert.deepEqual(sliceService.requests, []);
+		assert.equal(notifications[0]?.id, "slice.notification");
+	});
+
+	test("submits URI slice requests with a table-model source signature", async () => {
+		const sessionService = store.add(new SessionService());
+		const sliceService = new TestSliceService();
+		const resource = URI.file("/workspace/transfer.csv");
+		const reviewedTemplate = createReviewedTemplate();
+		const reviewSignature = "review:ready";
+
+		runSliceWithTemplateHandler(createAccessor({
+			explorerFiles: [{
+				fileId: "file-a",
+				id: "file-a",
+				name: "transfer.csv",
+				resource,
+				sheetId: "sheet-a",
+			}],
+			reviewService: createReviewServiceForTest({
+				reviewUriTable: async target => createReadyUriReview({
+					applicationKind: "systemRecommended",
+					reviewedTemplate,
+					reviewSignature,
+					sourceModelVersion: 7,
+					sourceVersion: 11,
+					target,
+				}),
+			}),
+			sessionService,
+			sliceService,
+			templateState: createTemplateState({
+				selectedTemplateId: null,
+			}),
+		}));
+
+		await waitForMicrotasks();
+
+		const request = sliceService.uriRequests[0];
+		assert.ok(request);
+		assert.equal(request.target.resource.toString(), resource.toString());
+		assert.equal(request.target.sheetId, "sheet-a");
+		assert.notEqual(request.sourceTableModelSignature, request.requestSignature);
+		assert.match(request.sourceTableModelSignature, /transfer\.csv/);
+		assert.match(request.sourceTableModelSignature, /"modelVersion":7/);
+		assert.match(request.sourceTableModelSignature, /"sheetId":"sheet-a"/);
+		assert.match(request.sourceTableModelSignature, /"sourceVersion":11/);
+		assert.match(request.sourceTableModelSignature, /review:ready/);
+		assert.equal(JSON.parse(request.sourceTableModelSignature).sourceRawTableVersion, undefined);
+	});
+
+	test("does not submit URI auto slice when review needs user action", async () => {
+		const sessionService = store.add(new SessionService());
+		const sliceService = new TestSliceService();
+		const resource = URI.file("/workspace/transfer.csv");
+		const reviewedTemplate = createReviewedTemplate();
+
+		runSliceWithTemplateHandler(createAccessor({
+			explorerFiles: [{
+				fileId: "file-a",
+				id: "file-a",
+				name: "transfer.csv",
+				resource,
+				sheetId: "sheet-a",
+			}],
+			reviewService: createReviewServiceForTest({
+				reviewUriTable: async target => createReadyUriReview({
+					applicationKind: "userActionRequired",
+					reviewedTemplate,
+					reviewSignature: "review:user-action",
+					target,
+				}),
+			}),
+			sessionService,
+			sliceService,
+			templateState: createTemplateState({
+				selectedTemplateId: null,
+			}),
+		}));
+
+		await waitForMicrotasks();
+
+		assert.deepEqual(sliceService.uriRequests, []);
+	});
+
+	test("does not submit URI slice requests without a review signature", async () => {
+		const sessionService = store.add(new SessionService());
+		const sliceService = new TestSliceService();
+		const resource = URI.file("/workspace/transfer.csv");
+		const reviewedTemplate = createReviewedTemplate();
+		const notifications: INotification[] = [];
+
+		runSliceWithTemplateHandler(createAccessor({
+			explorerFiles: [{
+				fileId: "file-a",
+				id: "file-a",
+				name: "transfer.csv",
+				resource,
+				sheetId: "sheet-a",
+			}],
+			notifications,
+			reviewService: createReviewServiceForTest({
+				reviewUriTable: async target => {
+					const { reviewSignature: _reviewSignature, ...review } = createReadyUriReview({
+						applicationKind: "systemRecommended",
+						reviewedTemplate,
+						reviewSignature: "review:missing",
+						target,
+					});
+					return review;
+				},
+			}),
+			sessionService,
+			sliceService,
+			templateState: createTemplateState({
+				selectedTemplateId: null,
+			}),
+		}));
+
+		await waitForMicrotasks();
+
+		assert.deepEqual(sliceService.uriRequests, []);
 		assert.equal(notifications[0]?.id, "slice.notification");
 	});
 });
@@ -148,8 +246,10 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 class TestSliceService implements ISliceService {
 	public declare readonly _serviceBrand: undefined;
 	public readonly onDidChangeSliceState = Event.None as Event<void>;
+	public readonly onDidChangeUriSliceResult = Event.None as Event<SliceUriTarget>;
 	public readonly autoRefs: RawTableRef[] = [];
-	public readonly runs: RunSliceWithTemplateInput[] = [];
+	public readonly requests: SliceRequest[] = [];
+	public readonly uriRequests: SliceUriRequest[] = [];
 
 	public getState(): SliceState {
 		return {
@@ -157,8 +257,6 @@ class TestSliceService implements ISliceService {
 			fileStates: new Map(),
 			queueLength: 0,
 			templateSelectionsByFileId: {},
-			uriStates: [],
-			uriResults: [],
 		};
 	}
 
@@ -173,25 +271,32 @@ class TestSliceService implements ISliceService {
 	public enqueueAuto(refs: readonly RawTableRef[]): void {
 		this.autoRefs.push(...refs);
 	}
-	public submit(_requests: readonly SliceRequest[]): void {}
-	public submitUri(_requests: readonly SliceUriRequest[]): void {}
-	public runWithTemplate(input: RunSliceWithTemplateInput): void {
-		this.runs.push(input);
+	public submit(requests: readonly SliceRequest[]): void {
+		this.requests.push(...requests);
+	}
+	public submitUri(requests: readonly SliceUriRequest[]): void {
+		this.uriRequests.push(...requests);
 	}
 	public prioritize(_fileId: string): void {}
+	public prioritizeUri(_target: SliceUriTarget): void {}
 	public cancel(_fileIds?: readonly string[]): void {}
+	public cancelUri(_targets: readonly SliceUriTarget[]): void {}
 	public setTemplateSelection(_fileId: string, _selection: TemplateSelection): void {}
 }
 
 const createAccessor = ({
+	explorerFiles = [],
 	hasPendingSourceFiles = false,
 	notifications = [],
+	reviewService = createReviewServiceForTest(),
 	sessionService,
 	sliceService,
 	templateState = createTemplateState(),
 }: {
+	readonly explorerFiles?: readonly unknown[];
 	readonly hasPendingSourceFiles?: boolean;
 	readonly notifications?: INotification[];
+	readonly reviewService?: IReviewServiceType;
 	readonly sessionService: SessionService;
 	readonly sliceService: ISliceService;
 	readonly templateState?: TemplateState;
@@ -199,7 +304,7 @@ const createAccessor = ({
 	const services = new Map<ServiceIdentifier<unknown>, unknown>([
 		[IExplorerService, {
 			_serviceBrand: undefined,
-			getPaneInput: () => null,
+			getPaneInput: () => ({ files: explorerFiles, quickAccessFiles: [] }),
 			hasPendingSourceFiles,
 		}],
 		[INotificationService, {
@@ -208,7 +313,7 @@ const createAccessor = ({
 				notifications.push(notification);
 			},
 		}],
-		[IReviewService, createReviewServiceForTest()],
+		[IReviewService, reviewService],
 		[ISessionService, sessionService],
 		[ISliceService, sliceService],
 		[IWorkbenchLayoutService, {
@@ -235,19 +340,19 @@ const createTemplateViewStateService = (state: TemplateState): ITemplateViewStat
 	setFormState: () => undefined,
 });
 
-const createReviewServiceForTest = (): IReviewServiceType => ({
+const createReviewServiceForTest = (
+	overrides: Partial<IReviewServiceType> = {},
+): IReviewServiceType => ({
 	_serviceBrand: undefined,
-	deriveAndReview: () => {
-		throw new Error("Unexpected deriveAndReview in slice command test.");
-	},
 	getLatestReviewSummary: target => ({
 		resource: target.resource,
 		...(target.sheetId ? { sheetId: target.sheetId } : {}),
 		state: "missing",
 		findingCodes: [],
 	}),
-	onDidChangeReviewState: Event.None,
-	reviewManualTemplate: () => ({
+	getLatestReview: () => undefined,
+	onDidChangeTableReview: Event.None as Event<void>,
+	reviewRawTableManualTemplate: () => ({
 		kind: "invalid",
 		diagnostics: [],
 		suggestedActions: [],
@@ -267,6 +372,66 @@ const createReviewServiceForTest = (): IReviewServiceType => ({
 			findingCodes: [],
 		},
 	}),
+	...overrides,
+});
+
+const createReadyUriReview = ({
+	applicationKind,
+	reviewedTemplate,
+	reviewSignature,
+	sourceModelVersion = 7,
+	sourceVersion = 11,
+	target,
+}: {
+	readonly applicationKind: "systemRecommended" | "userActionRequired";
+	readonly reviewedTemplate: ReviewedTemplate;
+	readonly reviewSignature: string;
+	readonly sourceModelVersion?: number;
+	readonly sourceVersion?: number;
+	readonly target: { readonly resource: URI; readonly sheetId?: string | null };
+}): UriTableReview => ({
+	resource: target.resource,
+	...(target.sheetId ? { sheetId: target.sheetId } : {}),
+	summary: {
+		resource: target.resource,
+		...(target.sheetId ? { sheetId: target.sheetId } : {}),
+		state: "ready",
+		findingCodes: [],
+	},
+	result: {
+		resource: target.resource,
+		...(target.sheetId ? { sheetId: target.sheetId } : {}),
+		evidenceFingerprint: "evidence:ready",
+		recipeFingerprint: "recipe:ready",
+		userTemplateCatalogVersion: 0,
+		userTemplateEffectiveFingerprint: "user-template:none",
+		reviewEngineVersion: 1,
+		reviewPolicyVersion: 3,
+		candidates: [],
+		reviews: [reviewedTemplate.review],
+		decision: {
+			kind: "ready",
+			reviewedTemplate,
+			application: {
+				kind: applicationKind,
+				reason: applicationKind === "systemRecommended"
+					? "review.ready.systemRecommended"
+					: "review.ready.lowConfidence",
+			},
+			summary: "Ready",
+			suggestedActions: [],
+		},
+		reviewedTemplate,
+	},
+	reviewSignature,
+	measurement: {
+		curveFamily: "iv",
+		ivMode: "transfer",
+	},
+	sourceModelVersion,
+	sourceVersion,
+	rowCount: 3,
+	columnCount: 2,
 });
 
 const createTemplateState = (overrides: Partial<TemplateState> = {}): TemplateState => ({
@@ -311,3 +476,68 @@ const createImportedFile = (): ImportedFileRecord => ({
 		rawTableOrder: ["table-a"],
 	},
 });
+
+const createReviewedTemplate = (): ReviewedTemplate => {
+	const template: Template = {
+		schemaVersion: 1,
+		name: "Detected IV Transfer",
+		version: 1,
+		blocks: [{
+			rowRange: {
+				startRow: 1,
+				endRow: 2,
+			},
+			x: {
+				columns: [0],
+				unit: "V",
+			},
+			y: {
+				columns: [1],
+				unit: "A",
+			},
+			segmentation: {
+				kind: "auto" as const,
+			},
+			legend: {
+				target: "auto" as const,
+			},
+		}],
+		stopOnError: false,
+	};
+	const templateFingerprint = createTemplateFingerprint(template);
+	return {
+		candidateId: "candidate:iv-transfer",
+		source: {
+			kind: "recipe",
+			recipeId: "builtin.iv.transfer",
+			recipeVersion: 1,
+		},
+		template,
+		templateFingerprint,
+		review: {
+			candidateId: "candidate:iv-transfer",
+			interpretationFingerprint: templateFingerprint,
+			status: "ready",
+			confidence: 1,
+			factors: {
+				selectorScore: 1,
+				projectionScore: 1,
+				semanticScore: 1,
+				dataQualityScore: 1,
+				parseHealthScore: 1,
+				freshnessScore: 1,
+				ambiguityPenalty: 0,
+				conflictPenalty: 0,
+				diagnosticPenalty: 0,
+			},
+			findings: [],
+			reasons: [],
+			diagnostics: [],
+		},
+	};
+};
+
+const waitForMicrotasks = async (): Promise<void> => {
+	await Promise.resolve();
+	await Promise.resolve();
+};
