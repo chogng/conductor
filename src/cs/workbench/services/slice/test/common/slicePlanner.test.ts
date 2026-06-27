@@ -16,17 +16,14 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test("creates input ranges from a block-aware template", () => {
+		const resource = URI.file("/workspace/source.csv");
 		const plan = createSlicePlan({
 			target: {
-				kind: "rawTable",
-				ref: {
-					fileId: "file-a",
-					rawTableId: "table-a",
-				},
+				kind: "uri",
+				target: { resource, sheetId: "sheet-a" },
 			},
 			mode: "auto",
 			selection: { kind: "auto" },
-			sourceRawTableVersion: 3,
 			sourceTableModelSignature: "tableModel-a",
 			template: createTemplate(),
 			rowCount: 5,
@@ -35,8 +32,8 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 
 		assert.deepEqual(plan.errors, []);
 		assert.deepEqual(plan.inputRanges, [{
-			fileId: "file-a",
-			rawTableId: "table-a",
+			resource,
+			sheetId: "sheet-a",
 			range: {
 				startRow: 1,
 				endRow: 4,
@@ -57,17 +54,14 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 	});
 
 	test("reports out-of-bounds template blocks without producing executable ranges", () => {
+		const resource = URI.file("/workspace/source.csv");
 		const plan = createSlicePlan({
 			target: {
-				kind: "rawTable",
-				ref: {
-					fileId: "file-a",
-					rawTableId: "table-a",
-				},
+				kind: "uri",
+				target: { resource, sheetId: "sheet-a" },
 			},
 			mode: "manual",
 			selection: { kind: "inline", template: createTemplate() },
-			sourceRawTableVersion: 1,
 			template: {
 				...createTemplate(),
 				blocks: [{
@@ -119,17 +113,14 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 	});
 
 	test("expands fixed template segments into executable plan blocks", () => {
+		const resource = URI.file("/workspace/source.csv");
 		const plan = createSlicePlan({
 			target: {
-				kind: "rawTable",
-				ref: {
-					fileId: "file-a",
-					rawTableId: "table-a",
-				},
+				kind: "uri",
+				target: { resource, sheetId: "sheet-a" },
 			},
 			mode: "auto",
 			selection: { kind: "auto" },
-			sourceRawTableVersion: 3,
 			sourceTableModelSignature: "tableModel-a",
 			template: {
 				...createTemplate(),
@@ -188,11 +179,11 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 
 	test("includes URI-backed source versions in source signatures", () => {
 		const baseSignature = createSliceTableModelSignature({
-			sourceRawTableVersion: 4,
+			sourceUri: "file:///workspace/data/source.csv",
+			sourceVersion: 4,
 		});
 		const uriSignature = createSliceTableModelSignature({
 			sourceModelVersion: 6,
-			sourceRawTableVersion: 4,
 			sourceUri: "file:///workspace/data/source.csv",
 			sourceVersion: 5,
 		});

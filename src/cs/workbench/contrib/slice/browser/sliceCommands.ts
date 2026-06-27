@@ -14,7 +14,6 @@ import {
 import {
 	ISliceService,
 	type ISliceService as ISliceServiceType,
-	type SliceMeasurementBinding,
 	type SliceUriRequest,
 	type SliceUriTarget,
 } from "src/cs/workbench/services/slice/common/slice";
@@ -22,6 +21,7 @@ import {
 	IReviewService,
 	type IReviewService as IReviewServiceType,
 	type ManualTemplateSelection,
+	type ReviewedTemplateConfirmationReason,
 	type UriReview,
 } from "src/cs/workbench/services/review/common/review";
 import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/reviewModel";
@@ -166,12 +166,21 @@ const runUriTargetsWithTemplate = async ({
 			continue;
 		}
 
-		requests.push(createSliceUriRequest({
+		const request = createSliceUriRequest({
 			review: runnableReview,
 			reviewedTemplate,
 			selection,
 			target,
-		}));
+		});
+		if (request) {
+			await confirmManualReviewedTemplate({
+				review: runnableReview,
+				reviewedTemplate,
+				reviewService,
+				selection,
+			});
+			requests.push(request);
+		}
 	}
 
 	if (!requests.length) {
@@ -215,6 +224,49 @@ const getManualReviewedTemplate = async (
 	return result.kind === "ready" ? result.reviewedTemplate : null;
 };
 
+const confirmManualReviewedTemplate = async ({
+	review,
+	reviewedTemplate,
+	reviewService,
+	selection,
+}: {
+	readonly review: RunnableUriReview;
+	readonly reviewedTemplate: ReviewedTemplate;
+	readonly reviewService: IReviewServiceType;
+	readonly selection: TemplateSelection;
+}): Promise<void> => {
+	const reason = getReviewedTemplateConfirmationReason(selection);
+	if (!reason) {
+		return;
+	}
+
+	try {
+		await reviewService.confirmReviewedTemplate({
+			target: {
+				resource: review.resource,
+				...(review.contentHash ? { contentHash: review.contentHash } : {}),
+				sheetId: review.sheetId ?? null,
+			},
+			reviewedTemplate,
+			reason,
+		});
+	} catch {
+		// Confirmation is a learning side effect. It must not block explicit Slice execution.
+	}
+};
+
+const getReviewedTemplateConfirmationReason = (
+	selection: TemplateSelection,
+): ReviewedTemplateConfirmationReason | null => {
+	if (selection.kind === "inline") {
+		return "manualTemplate";
+	}
+	if (selection.kind === "saved") {
+		return "userTemplate";
+	}
+	return null;
+};
+
 const getManualReviewSelection = (
 	selection: TemplateSelection,
 ): ManualTemplateSelection | null => {
@@ -235,7 +287,6 @@ const getManualReviewSelection = (
 
 type RunnableUriReview = UriReview & {
 	readonly reviewSignature: string;
-	readonly measurement: NonNullable<UriReview["measurement"]>;
 	readonly sourceModelVersion: number;
 	readonly sourceVersion: number;
 	readonly rowCount: number;
@@ -246,14 +297,12 @@ const toRunnableUriReview = (
 	review: UriReview,
 ): RunnableUriReview | null => {
 	const reviewSignature = normalizeText(review.reviewSignature);
-	const measurement = review.measurement;
 	const sourceModelVersion = review.sourceModelVersion;
 	const sourceVersion = review.sourceVersion;
 	const rowCount = review.rowCount;
 	const columnCount = review.columnCount;
 	if (
 		!reviewSignature ||
-		!measurement ||
 		typeof sourceModelVersion !== "number" ||
 		typeof sourceVersion !== "number" ||
 		typeof rowCount !== "number" ||
@@ -269,7 +318,6 @@ const toRunnableUriReview = (
 	return {
 		...review,
 		reviewSignature,
-		measurement,
 		sourceModelVersion,
 		sourceVersion,
 		rowCount,
@@ -287,7 +335,11 @@ const createSliceUriRequest = ({
 	readonly reviewedTemplate: ReviewedTemplate;
 	readonly selection: TemplateSelection;
 	readonly target: SliceUriTarget;
-}): SliceUriRequest => {
+}): SliceUriRequest | null => {
+	if (!reviewedTemplate.template.measurement) {
+		return null;
+	}
+
 	const requestSignature = createUriSliceRequestSignature({
 		reviewSignature: review.reviewSignature,
 		sourceModelVersion: review.sourceModelVersion,
@@ -324,19 +376,10 @@ const createSliceUriRequest = ({
 		rowCount: review.rowCount,
 		columnCount: review.columnCount,
 		sourceTableModelSignature,
-		measurement: toSliceMeasurementBinding(review.measurement),
 		sourceModelVersion: review.sourceModelVersion,
 		sourceVersion: review.sourceVersion,
 	};
 };
-
-const toSliceMeasurementBinding = (
-	measurement: NonNullable<UriReview["measurement"]>,
-): SliceMeasurementBinding => ({
-	curveFamily: measurement.curveFamily,
-	...(measurement.ivMode ? { ivMode: measurement.ivMode } : {}),
-	...(measurement.itMode ? { itMode: measurement.itMode } : {}),
-});
 
 const getSliceCommandUriTargets = (
 	files: readonly ExplorerFileEntry[],

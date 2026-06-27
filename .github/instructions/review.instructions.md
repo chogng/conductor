@@ -183,7 +183,7 @@ snapshot. Do not reintroduce Review-local structured-content bridges.
 - Accepted measurement semantics belong on the reviewed executable `Template`
   snapshot (`ReviewedTemplate.template.measurement`), not on `UriReview`,
   `ReviewSummary`, or Slice request bridge fields.
-- Execution trigger belongs to `SliceRequest.trigger`.
+- Execution trigger belongs to `SliceUriRequest.trigger`.
 - Non-selected candidate records store summaries only. Detail rebuilding must
   verify Recipe/UserTemplate fingerprints and return a stale result when
   snapshots no longer match.
@@ -206,7 +206,7 @@ snapshot. Do not reintroduce Review-local structured-content bridges.
 ## Do Not
 
 - Do not call Slice from `ReviewService`; use an explicit user-command or
-  URI-backed execution controller that submits `SliceRequest` values.
+  URI-backed execution controller that submits `SliceUriRequest` values.
 - Do not introduce or expose a review `result target`; review results are
   derived facts associated with a URI content version.
 - Do not read raw rows, rerun table-model detection, or delegate candidate

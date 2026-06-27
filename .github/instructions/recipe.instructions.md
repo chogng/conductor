@@ -89,7 +89,7 @@ resources/recipes/v1/index.json
   -> ReviewService builds ReviewCandidate values from recipe authoring fields
   -> ReviewService scores candidates into ReviewResult
   -> ReviewResult stores selected ReviewedTemplate snapshot when ready
-  -> explicit execution controller / Slice command submits SliceRequest only when systemRecommended
+  -> explicit execution controller / Slice command submits SliceUriRequest only when systemRecommended
 ```
 
 Recipe changes are owner-event-reread:

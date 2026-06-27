@@ -68,7 +68,10 @@ conversion after the table format has already been identified. It must not
 become the owner for supported extensions or parser dispatch. CSV/TSV/XLS/XLSX
 belong to `TableFormatService` in
 `services/table/common/tableFormatService.ts`; URI scheme describes resource
-origin, and text `languageId` is not part of table file support.
+origin, and text `languageId` is not part of table file support. It also must
+not revive desktop IPC payloads such as JSON-serialized Node `Buffer` objects;
+base IPC byte marshalling and `IFileService` own returning a real `Uint8Array`
+before tableFile reads it.
 
 ## Migration Boundary
 

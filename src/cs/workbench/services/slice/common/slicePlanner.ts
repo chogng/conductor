@@ -6,41 +6,53 @@ import type {
 	CreateSlicePlanInput,
 	SlicePlan,
 	SlicePlanBlock,
-	SliceRawTableRangeRef,
+	SlicePlanRangeRef,
+	SliceMeasurementBinding,
 } from "src/cs/workbench/services/slice/common/slice";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import type {
 	Template,
+	TemplateMeasurementBinding,
 	TemplateAxisBinding,
 	TemplateBlock,
+	TemplateSegmentation,
 } from "src/cs/workbench/services/template/common/templateSpec";
 
 export const createSlicePlan = (
 	input: CreateSlicePlanInput,
 ): SlicePlan => {
 	const templateFingerprint = input.templateFingerprint ?? createTemplateFingerprint(input.template);
+	const measurement = toSliceMeasurementBinding(input.template.measurement);
 	const blocks: SlicePlanBlock[] = [];
-	const inputRanges: SliceRawTableRangeRef[] = [];
+	const inputRanges: SlicePlanRangeRef[] = [];
 	const errors: string[] = [];
 
 	input.template.blocks.forEach((block, blockIndex) => {
-		const range = createBlockInputRange(input, block);
-		if (!range) {
-			errors.push("slicePlanner.blockRangeOutOfBounds");
-			return;
-		}
 		if (!isAxisInBounds(block.x, input.columnCount) || !isAxisInBounds(block.y, input.columnCount)) {
 			errors.push("slicePlanner.axisOutOfBounds");
 			return;
 		}
 
-		inputRanges.push(range);
-		blocks.push({
-			blockIndex,
-			inputRange: range,
-			xColumns: block.x.columns,
-			yColumns: block.y.columns,
-		});
+		const segmentedRanges = createBlockInputRanges(input, block);
+		if (!segmentedRanges) {
+			errors.push("slicePlanner.blockRangeOutOfBounds");
+			return;
+		}
+		if (!segmentedRanges.length) {
+			errors.push("slicePlanner.invalidSegmentation");
+			return;
+		}
+
+		for (const [segmentIndex, range] of segmentedRanges.entries()) {
+			inputRanges.push(range);
+			blocks.push({
+				blockIndex,
+				inputRange: range,
+				...(segmentedRanges.length > 1 ? { segmentIndex } : {}),
+				xColumns: block.x.columns,
+				yColumns: block.y.columns,
+			});
+		}
 	});
 
 	if (!blocks.length && !errors.length) {
@@ -48,12 +60,12 @@ export const createSlicePlan = (
 	}
 
 	return {
-		ref: input.ref,
+		target: input.target,
 		mode: input.mode,
 		selection: input.selection,
-		sourceRawTableVersion: input.sourceRawTableVersion,
+		...(input.sourceVersion !== undefined ? { sourceVersion: input.sourceVersion } : {}),
 		sourceTableModelSignature: input.sourceTableModelSignature,
-		measurement: input.measurement,
+		measurement,
 		template: input.template,
 		templateFingerprint,
 		blocks,
@@ -63,10 +75,10 @@ export const createSlicePlan = (
 	};
 };
 
-const createBlockInputRange = (
+const createBlockInputRanges = (
 	input: CreateSlicePlanInput,
 	block: TemplateBlock,
-): SliceRawTableRangeRef | null => {
+): readonly SlicePlanRangeRef[] | null => {
 	const columns = [...block.x.columns, ...block.y.columns];
 	const startCol = Math.min(...columns);
 	const endCol = Math.max(...columns);
@@ -90,16 +102,108 @@ const createBlockInputRange = (
 		return null;
 	}
 
+	const ranges = createSegmentedRowRanges({
+		endRow,
+		segmentation: block.segmentation,
+		startRow,
+	});
+	return ranges.map(range => createPlanRange(input, {
+		...range,
+		startCol,
+		endCol,
+	}));
+};
+
+const createPlanRange = (
+	input: CreateSlicePlanInput,
+	range: {
+		readonly startRow: number;
+		readonly endRow: number;
+		readonly startCol: number;
+		readonly endCol: number;
+	},
+): SlicePlanRangeRef => {
 	return {
-		fileId: input.ref.fileId,
-		rawTableId: input.ref.rawTableId,
-		range: {
-			startRow,
-			endRow,
-			startCol,
-			endCol,
-		},
+		resource: input.target.target.resource,
+		sheetId: input.target.target.sheetId ?? null,
+		range,
 	};
+};
+
+const createSegmentedRowRanges = ({
+	endRow,
+	segmentation,
+	startRow,
+}: {
+	readonly endRow: number;
+	readonly segmentation: TemplateSegmentation;
+	readonly startRow: number;
+}): ReadonlyArray<{ readonly startRow: number; readonly endRow: number }> => {
+	const rowCount = endRow - startRow + 1;
+	if (rowCount <= 0) {
+		return [];
+	}
+
+	switch (segmentation.kind) {
+		case "fixedPoints":
+			return createFixedPointRowRanges(startRow, endRow, segmentation.pointsPerGroup);
+		case "fixedSegments":
+			return createFixedSegmentRowRanges(startRow, endRow, segmentation.segmentCount);
+		case "auto":
+		case "none":
+			return [{
+				startRow,
+				endRow,
+			}];
+	}
+};
+
+const createFixedPointRowRanges = (
+	startRow: number,
+	endRow: number,
+	pointsPerGroup: number,
+): ReadonlyArray<{ readonly startRow: number; readonly endRow: number }> => {
+	const groupSize = Math.floor(Number(pointsPerGroup));
+	if (!Number.isInteger(groupSize) || groupSize <= 0) {
+		return [];
+	}
+
+	const ranges: Array<{ readonly startRow: number; readonly endRow: number }> = [];
+	for (let segmentStart = startRow; segmentStart <= endRow; segmentStart += groupSize) {
+		ranges.push({
+			startRow: segmentStart,
+			endRow: Math.min(endRow, segmentStart + groupSize - 1),
+		});
+	}
+	return ranges;
+};
+
+const createFixedSegmentRowRanges = (
+	startRow: number,
+	endRow: number,
+	segmentCount: number,
+): ReadonlyArray<{ readonly startRow: number; readonly endRow: number }> => {
+	const requestedSegments = Math.floor(Number(segmentCount));
+	if (!Number.isInteger(requestedSegments) || requestedSegments <= 0) {
+		return [];
+	}
+
+	const rowCount = endRow - startRow + 1;
+	const actualSegments = Math.min(requestedSegments, rowCount);
+	const baseSize = Math.floor(rowCount / actualSegments);
+	const remainder = rowCount % actualSegments;
+	const ranges: Array<{ readonly startRow: number; readonly endRow: number }> = [];
+	let segmentStart = startRow;
+	for (let segmentIndex = 0; segmentIndex < actualSegments; segmentIndex += 1) {
+		const segmentSize = baseSize + (segmentIndex < remainder ? 1 : 0);
+		const segmentEnd = segmentStart + segmentSize - 1;
+		ranges.push({
+			startRow: segmentStart,
+			endRow: segmentEnd,
+		});
+		segmentStart = segmentEnd + 1;
+	}
+	return ranges;
 };
 
 const isAxisInBounds = (
@@ -121,36 +225,42 @@ const isColumnInBounds = (
 	column < columnCount;
 
 export const createSliceTableModelSignature = ({
-	tableModelRuleVersion,
-	schemaProfileVersion,
+	sourceSheetId,
 	sourceModelVersion,
-	sourceRawTableVersion,
 	sourceUri,
 	sourceVersion,
 }: {
-	readonly tableModelRuleVersion: number;
-	readonly schemaProfileVersion: number;
+	readonly sourceSheetId?: string | null;
 	readonly sourceModelVersion?: number;
-	readonly sourceRawTableVersion: number;
 	readonly sourceUri?: string;
 	readonly sourceVersion?: number;
 }, resolution?: {
-	readonly recipeFingerprint?: string;
 	readonly reviewSignature?: string;
 	readonly templateCatalogVersion?: number;
 }): string => JSON.stringify({
-	tableModelRuleVersion,
-	schemaProfileVersion,
 	...createSourceModelSignature({
+		sourceSheetId,
 		sourceModelVersion,
 		sourceUri,
 		sourceVersion,
 	}),
-	sourceRawTableVersion,
-	recipeFingerprint: normalizeSignatureText(resolution?.recipeFingerprint),
 	reviewSignature: normalizeSignatureText(resolution?.reviewSignature),
 	templateCatalogVersion: normalizeSignatureInteger(resolution?.templateCatalogVersion),
 });
+
+const toSliceMeasurementBinding = (
+	measurement: TemplateMeasurementBinding | undefined,
+): SliceMeasurementBinding | undefined => {
+	if (!measurement) {
+		return undefined;
+	}
+
+	return {
+		curveFamily: measurement.curveFamily,
+		...(measurement.ivMode ? { ivMode: measurement.ivMode } : {}),
+		...(measurement.itMode ? { itMode: measurement.itMode } : {}),
+	};
+};
 
 const normalizeSignatureText = (
 	value: unknown,
@@ -167,21 +277,25 @@ const normalizeSignatureInteger = (
 };
 
 const createSourceModelSignature = ({
+	sourceSheetId,
 	sourceModelVersion,
 	sourceUri,
 	sourceVersion,
 }: {
+	readonly sourceSheetId?: string | null;
 	readonly sourceModelVersion?: number;
 	readonly sourceUri?: string;
 	readonly sourceVersion?: number;
-}): { readonly sourceModel?: { readonly modelVersion?: number; readonly sourceUri?: string; readonly sourceVersion?: number } } => {
+}): { readonly sourceModel?: { readonly modelVersion?: number; readonly sheetId?: string; readonly sourceUri?: string; readonly sourceVersion?: number } } => {
 	const modelVersion = normalizeSignatureInteger(sourceModelVersion);
+	const normalizedSheetId = normalizeSignatureText(sourceSheetId);
 	const normalizedSourceUri = normalizeSignatureText(sourceUri);
 	const normalizedSourceVersion = normalizeSignatureInteger(sourceVersion);
-	return modelVersion !== undefined || normalizedSourceUri || normalizedSourceVersion !== undefined
+	return modelVersion !== undefined || normalizedSheetId || normalizedSourceUri || normalizedSourceVersion !== undefined
 		? {
 				sourceModel: {
 					modelVersion,
+					sheetId: normalizedSheetId,
 					sourceUri: normalizedSourceUri,
 					sourceVersion: normalizedSourceVersion,
 				},

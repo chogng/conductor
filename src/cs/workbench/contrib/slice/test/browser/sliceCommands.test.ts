@@ -12,7 +12,7 @@ import { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
 import {
 	runSliceWithTemplateHandler,
 } from "src/cs/workbench/contrib/slice/browser/sliceCommands";
-import type { FileImportResult, ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
+import type { FileImportResult, ImportedFileRecord } from "src/cs/workbench/services/session/common/session";
 import {
 	INotificationService,
 	type INotification,
@@ -28,10 +28,8 @@ import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/r
 import {
 	IWorkbenchLayoutService,
 } from "src/cs/workbench/services/layout/browser/layoutService";
-import type { RawTableRef } from "src/cs/workbench/services/session/common/sessionModel";
 import {
 	ISliceService,
-	type SliceRequest,
 	type SliceState,
 	type SliceUriRequest,
 	type SliceUriTarget,
@@ -63,8 +61,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 			}),
 		}));
 
-		assert.deepEqual(sliceService.autoRefs, []);
-		assert.deepEqual(sliceService.requests, []);
+		assert.deepEqual(sliceService.uriRequests, []);
 		assert.equal(notifications[0]?.id, "slice.notification");
 		assert.equal(notifications[0]?.message, "slice.runWithTemplate.noUriTables");
 	});
@@ -91,7 +88,6 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 			}),
 		}));
 
-		assert.deepEqual(sliceService.requests, []);
 		assert.deepEqual(sliceService.uriRequests, []);
 		assert.equal(notifications[0]?.id, "slice.notification");
 		assert.equal(notifications[0]?.message, "slice.runWithTemplate.noUriTables");
@@ -110,7 +106,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 			sliceService,
 		}));
 
-		assert.deepEqual(sliceService.requests, []);
+		assert.deepEqual(sliceService.uriRequests, []);
 		assert.equal(notifications[0]?.id, "slice.notification");
 	});
 
@@ -120,6 +116,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 		const resource = URI.file("/workspace/transfer.csv");
 		const reviewedTemplate = createReviewedTemplate();
 		const reviewSignature = "review:ready";
+		const confirmations: Parameters<IReviewServiceType["confirmReviewedTemplate"]>[0][] = [];
 
 		runSliceWithTemplateHandler(createAccessor({
 			explorerFiles: [{
@@ -138,6 +135,10 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 					sourceVersion: 11,
 					target,
 				}),
+				confirmReviewedTemplate: async input => {
+					confirmations.push(input);
+					return null;
+				},
 			}),
 			sessionService,
 			sliceService,
@@ -159,6 +160,112 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 		assert.match(request.sourceTableModelSignature, /"sourceVersion":11/);
 		assert.match(request.sourceTableModelSignature, /review:ready/);
 		assert.equal(JSON.parse(request.sourceTableModelSignature).sourceRawTableVersion, undefined);
+		assert.deepEqual(confirmations, []);
+	});
+
+	test("confirms manual URI reviewed templates before submitting slice requests", async () => {
+		const sessionService = store.add(new SessionService());
+		const sliceService = new TestSliceService();
+		const resource = URI.file("/workspace/transfer.csv");
+		const reviewedTemplate = createReviewedTemplate();
+		const confirmations: Parameters<IReviewServiceType["confirmReviewedTemplate"]>[0][] = [];
+
+		runSliceWithTemplateHandler(createAccessor({
+			explorerFiles: [{
+				fileId: "file-a",
+				id: "file-a",
+				name: "transfer.csv",
+				resource,
+				sheetId: "sheet-a",
+			}],
+			reviewService: createReviewServiceForTest({
+				reviewUri: async target => createReadyUriReview({
+					applicationKind: "userActionRequired",
+					reviewedTemplate,
+					reviewSignature: "review:manual",
+					target,
+				}),
+				reviewUriManualTemplate: async () => ({
+					kind: "ready",
+					reviewedTemplate,
+					suggestedActions: [],
+				}),
+				confirmReviewedTemplate: async input => {
+					confirmations.push(input);
+					return null;
+				},
+			}),
+			sessionService,
+			sliceService,
+			templateState: createTemplateState({
+				selectedTemplateId: "template-a",
+				formState: createEmptyTemplateEditorConfig({
+					name: "Template A",
+					xColumns: [0],
+					xDataStart: "A2",
+					xDataEnd: "A3",
+					yColumns: [1],
+				}),
+			}),
+		}));
+
+		await waitForMicrotasks();
+
+		assert.equal(sliceService.uriRequests.length, 1);
+		assert.equal(confirmations.length, 1);
+		assert.equal(confirmations[0]?.target.resource.toString(), resource.toString());
+		assert.equal(confirmations[0]?.target.sheetId, "sheet-a");
+		assert.equal(confirmations[0]?.reviewedTemplate, reviewedTemplate);
+		assert.equal(confirmations[0]?.reason, "manualTemplate");
+	});
+
+	test("does not block manual URI slicing when schema profile confirmation fails", async () => {
+		const sessionService = store.add(new SessionService());
+		const sliceService = new TestSliceService();
+		const resource = URI.file("/workspace/transfer.csv");
+		const reviewedTemplate = createReviewedTemplate();
+
+		runSliceWithTemplateHandler(createAccessor({
+			explorerFiles: [{
+				fileId: "file-a",
+				id: "file-a",
+				name: "transfer.csv",
+				resource,
+				sheetId: "sheet-a",
+			}],
+			reviewService: createReviewServiceForTest({
+				reviewUri: async target => createReadyUriReview({
+					applicationKind: "userActionRequired",
+					reviewedTemplate,
+					reviewSignature: "review:manual",
+					target,
+				}),
+				reviewUriManualTemplate: async () => ({
+					kind: "ready",
+					reviewedTemplate,
+					suggestedActions: [],
+				}),
+				confirmReviewedTemplate: async () => {
+					throw new Error("confirmation failed");
+				},
+			}),
+			sessionService,
+			sliceService,
+			templateState: createTemplateState({
+				selectedTemplateId: "template-a",
+				formState: createEmptyTemplateEditorConfig({
+					name: "Template A",
+					xColumns: [0],
+					xDataStart: "A2",
+					xDataEnd: "A3",
+					yColumns: [1],
+				}),
+			}),
+		}));
+
+		await waitForMicrotasks();
+
+		assert.equal(sliceService.uriRequests.length, 1);
 	});
 
 	test("does not submit URI auto slice when review needs user action", async () => {
@@ -240,8 +347,6 @@ class TestSliceService implements ISliceService {
 	public declare readonly _serviceBrand: undefined;
 	public readonly onDidChangeSliceState = Event.None as Event<void>;
 	public readonly onDidChangeUriSliceResult = Event.None as Event<SliceUriTarget>;
-	public readonly autoRefs: RawTableRef[] = [];
-	public readonly requests: SliceRequest[] = [];
 	public readonly uriRequests: SliceUriRequest[] = [];
 
 	public getState(): SliceState {
@@ -261,16 +366,9 @@ class TestSliceService implements ISliceService {
 		return undefined;
 	}
 
-	public enqueueAuto(refs: readonly RawTableRef[]): void {
-		this.autoRefs.push(...refs);
-	}
-	public submit(requests: readonly SliceRequest[]): void {
-		this.requests.push(...requests);
-	}
 	public submitUri(requests: readonly SliceUriRequest[]): void {
 		this.uriRequests.push(...requests);
 	}
-	public prioritize(_fileId: string): void {}
 	public prioritizeUri(_target: SliceUriTarget): void {}
 	public cancel(_fileIds?: readonly string[]): void {}
 	public cancelUri(_targets: readonly SliceUriTarget[]): void {}
@@ -345,6 +443,7 @@ const createReviewServiceForTest = (
 	}),
 	getLatestReview: () => undefined,
 	onDidChangeReview: Event.None as Event<void>,
+	confirmReviewedTemplate: async () => null,
 	reviewUriManualTemplate: async () => ({
 		kind: "invalid",
 		diagnostics: [],
@@ -526,6 +625,9 @@ const createReviewedTemplate = (): ReviewedTemplate => {
 };
 
 const waitForMicrotasks = async (): Promise<void> => {
+	await Promise.resolve();
+	await Promise.resolve();
+	await Promise.resolve();
 	await Promise.resolve();
 	await Promise.resolve();
 };

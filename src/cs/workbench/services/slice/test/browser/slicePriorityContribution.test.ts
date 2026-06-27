@@ -6,6 +6,7 @@ import assert from "assert";
 
 import { Emitter, Event } from "src/cs/base/common/event";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
+import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type {
 	ExplorerContext,
@@ -17,18 +18,17 @@ import type {
 import { SlicePriorityContribution } from "src/cs/workbench/services/slice/browser/slicePriority.contribution";
 import type {
 	ISliceService,
-	RunSliceWithTemplateInput,
-	SliceRequest,
 	SliceState,
 	SliceUriRequest,
+	SliceUriTarget,
 } from "src/cs/workbench/services/slice/common/slice";
-import type { RawTableRef } from "src/cs/workbench/services/session/common/sessionModel";
 import type { TemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
+import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 
 suite("workbench/services/slice/test/browser/slicePriorityContribution", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test("prioritizes existing explorer selection and hover on startup", () => {
+	test("ignores existing explorer selection and hover without URI targets on startup", () => {
 		const explorer = createExplorerService({
 			hoveredFileId: " file-hover ",
 			selectedProcessedFileId: " file-selected ",
@@ -37,11 +37,11 @@ suite("workbench/services/slice/test/browser/slicePriorityContribution", () => {
 
 		store.add(new SlicePriorityContribution(explorer.service, sliceService));
 
-		assert.deepEqual(sliceService.prioritizedFileIds, ["file-selected", "file-hover"]);
+		assert.deepEqual(sliceService.prioritizedUriTargets, []);
 		explorer.dispose();
 	});
 
-	test("prioritizes explorer selection and hover events", () => {
+	test("ignores explorer selection and hover events without URI targets", () => {
 		const explorer = createExplorerService();
 		const sliceService = new TestSliceService();
 		store.add(new SlicePriorityContribution(explorer.service, sliceService));
@@ -51,7 +51,36 @@ suite("workbench/services/slice/test/browser/slicePriorityContribution", () => {
 		explorer.fireHoveredFile({ fileId: " file-b " });
 		explorer.fireHoveredFile({ fileId: null });
 
-		assert.deepEqual(sliceService.prioritizedFileIds, ["file-a", "file-b"]);
+		assert.deepEqual(sliceService.prioritizedUriTargets, []);
+		explorer.dispose();
+	});
+
+	test("prioritizes URI targets from explorer resource entries", () => {
+		const resource = URI.file("/workspace/source.xlsx");
+		const explorer = createExplorerService({
+			files: [{
+				fileId: "source-file",
+				fileName: "source.xlsx",
+				resource,
+				sheetId: "sheet-a",
+			}],
+			hoveredFileId: "source-file",
+			selectedProcessedFileId: "source-file",
+		});
+		const sliceService = new TestSliceService();
+
+		store.add(new SlicePriorityContribution(explorer.service, sliceService));
+
+		assert.deepEqual(sliceService.prioritizedUriTargets.map(target => ({
+			resource: target.resource.toString(),
+			sheetId: target.sheetId,
+		})), [{
+			resource: resource.toString(),
+			sheetId: "sheet-a",
+		}, {
+			resource: resource.toString(),
+			sheetId: "sheet-a",
+		}]);
 		explorer.dispose();
 	});
 });
@@ -59,7 +88,8 @@ suite("workbench/services/slice/test/browser/slicePriorityContribution", () => {
 class TestSliceService implements ISliceService {
 	public declare readonly _serviceBrand: undefined;
 	public readonly onDidChangeSliceState = Event.None as Event<void>;
-	public readonly prioritizedFileIds: string[] = [];
+	public readonly onDidChangeUriSliceResult = Event.None as Event<SliceUriTarget>;
+	public readonly prioritizedUriTargets: SliceUriTarget[] = [];
 
 	public getState(): SliceState {
 		return {
@@ -67,8 +97,6 @@ class TestSliceService implements ISliceService {
 			fileStates: new Map(),
 			queueLength: 0,
 			templateSelectionsByFileId: {},
-			uriStates: [],
-			uriResults: [],
 		};
 	}
 
@@ -80,24 +108,24 @@ class TestSliceService implements ISliceService {
 		return undefined;
 	}
 
-	public enqueueAuto(_refs: readonly RawTableRef[]): void {}
-	public submit(_requests: readonly SliceRequest[]): void {}
 	public submitUri(_requests: readonly SliceUriRequest[]): void {}
-	public runWithTemplate(_input: RunSliceWithTemplateInput): void {}
 
-	public prioritize(fileId: string): void {
-		this.prioritizedFileIds.push(fileId);
+	public prioritizeUri(target: SliceUriTarget): void {
+		this.prioritizedUriTargets.push(target);
 	}
 
 	public cancel(_fileIds?: readonly string[]): void {}
+	public cancelUri(_targets: readonly SliceUriTarget[]): void {}
 	public setTemplateSelection(_fileId: string, _selection: TemplateSelection): void {}
 }
 
 const createExplorerService = ({
+	files = [],
 	hoveredFileId = null,
 	selectedProcessedFileId = null,
 	selectedRawFileId = null,
 }: {
+	readonly files?: readonly ExplorerFileEntry[];
 	readonly hoveredFileId?: string | null;
 	readonly selectedProcessedFileId?: string | null;
 	readonly selectedRawFileId?: string | null;
@@ -128,7 +156,13 @@ const createExplorerService = ({
 			},
 			viewLayout: "tree",
 		}) satisfies ExplorerContext,
-		getPaneInput: () => null,
+		getPaneInput: () => ({
+			files: [...files],
+			mode: "chart",
+			selectedFileId: selectedProcessedFileId,
+			selectionKind: "chart",
+			thumbnailFiles: [],
+		}),
 		hasPendingSourceFiles: false,
 		hoveredFileId,
 		onDidChangeExpandedFolderKeys: Event.None as IExplorerService["onDidChangeExpandedFolderKeys"],

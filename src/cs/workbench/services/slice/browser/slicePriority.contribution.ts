@@ -3,11 +3,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from "src/cs/base/common/lifecycle";
+import { URI } from "src/cs/base/common/uri";
 import {
 	registerWorkbenchContribution2,
 	WorkbenchPhase,
 	type IWorkbenchContribution,
 } from "src/cs/workbench/common/contributions";
+import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import {
 	IExplorerService,
 	type IExplorerService as IExplorerServiceType,
@@ -16,6 +18,7 @@ import {
 	ISliceService,
 	SlicePriorityContributionId,
 	type ISliceService as ISliceServiceType,
+	type SliceUriTarget,
 } from "src/cs/workbench/services/slice/common/slice";
 
 export class SlicePriorityContribution extends Disposable implements IWorkbenchContribution {
@@ -47,13 +50,46 @@ export class SlicePriorityContribution extends Disposable implements IWorkbenchC
 			return;
 		}
 
-		this.sliceService.prioritize(normalizedFileId);
+		const target = this.getUriTargetForExplorerFileId(normalizedFileId);
+		if (target) {
+			this.sliceService.prioritizeUri(target);
+		}
+	}
+
+	private getUriTargetForExplorerFileId(fileId: string): SliceUriTarget | null {
+		const files = this.explorerService.getPaneInput()?.files ?? [];
+		for (const file of files) {
+			const target = getExplorerFileUriTarget(file);
+			if (!target) {
+				continue;
+			}
+			if (
+				normalizeFileId(file.fileId) === fileId
+			) {
+				return target;
+			}
+		}
+		return null;
 	}
 }
 
-const normalizeFileId = (fileId: string | null): string | null => {
+const normalizeFileId = (fileId: unknown): string | null => {
 	const normalizedFileId = String(fileId ?? "").trim();
 	return normalizedFileId || null;
+};
+
+const getExplorerFileUriTarget = (
+	file: ExplorerFileEntry,
+): SliceUriTarget | null => {
+	const resource = file.resource ? URI.revive(file.resource) : null;
+	if (!resource) {
+		return null;
+	}
+
+	return {
+		resource,
+		sheetId: normalizeFileId(file.sheetId) ?? null,
+	};
 };
 
 registerWorkbenchContribution2(

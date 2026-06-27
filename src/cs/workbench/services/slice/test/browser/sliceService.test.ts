@@ -7,12 +7,8 @@ import assert from "assert";
 import { Emitter, Event } from "src/cs/base/common/event";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import type {
-	IRawTableRowsReaderService,
-	RawTableRows,
-	RawTableRowsReadInput,
-} from "src/cs/workbench/services/files/common/rawTableRowsReader";
-import type { FileImportResult, ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
+import type { FileImportResult, ImportedFileRecord } from "src/cs/workbench/services/session/common/session";
+import { DataResourceService } from "src/cs/workbench/services/dataResource/browser/dataResourceService";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import { SliceService } from "src/cs/workbench/services/slice/browser/sliceService";
 import type { Template } from "src/cs/workbench/services/template/common/template";
@@ -30,73 +26,16 @@ import type {
 } from "src/cs/workbench/services/table/common/resolverService";
 import type { TableSource } from "src/cs/workbench/services/table/common/table";
 import type {
-	SliceRequest,
 	SliceUriRequest,
 	SliceUriTarget,
 } from "src/cs/workbench/services/slice/common/slice";
 
 suite("workbench/services/slice/test/browser/sliceService", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-
-	test("queues manual reviewed template requests and stores per-file selection", () => {
-		const sessionService = store.add(new SessionService());
-		const sliceService = store.add(new SliceService(sessionService));
-		sessionService.commitFileImport(createImportResult());
-
-		const selection = {
-			kind: "inline" as const,
-			template: createTemplate(),
-		};
-		sliceService.setTemplateSelection("file-a", selection);
-		sliceService.submit([createSliceRequest()]);
-
-		const state = sliceService.getState();
-		assert.equal(state.queueLength, 1);
-		assert.deepEqual(state.fileStates.get("file-a"), { state: "queued" });
-		assert.equal(state.templateSelectionsByFileId["file-a"]?.kind, "inline");
-	});
-
-	test("drops stale manual reviewed-template plans when the raw table changes while rows are loading", async () => {
-		const sessionService = store.add(new SessionService());
-		const rowsReaderService = new BlockingRawTableRowsReaderService([
-			["Vg", "Id"],
-			["0", "1"],
-			["1", "2"],
-		]);
-		const sliceService = store.add(new SliceService(
-			sessionService,
-			rowsReaderService,
-		));
-		sessionService.commitFileImport(createImportResult());
-
-		sliceService.submit([createSliceRequest()]);
-		await waitUntil(() => rowsReaderService.inputs.length === 1);
-
-		sessionService.commitFileImport(createImportResult());
-		rowsReaderService.resolveFirstRead();
-		await waitUntil(() => sliceService.getState().fileStates.get("file-a")?.state !== "processing");
-
-		const record = sessionService.getSnapshot().filesById["file-a"];
-		assert.equal(record.latestSliceRunId, undefined);
-		assert.equal(sliceService.getState().fileStates.has("file-a"), false);
-	});
-
-	test("marks automatic raw-table enqueue skipped when no review decision is available", () => {
-		const sessionService = store.add(new SessionService());
-		const sliceService = store.add(new SliceService(sessionService));
-		sessionService.commitFileImport(createImportResult());
-
-		sliceService.enqueueAuto([{
-			fileId: "file-a",
-			rawTableId: "table-a",
-		}]);
-
-		const state = sliceService.getState();
-		const fileState = state.fileStates.get("file-a");
-		assert.equal(state.queueLength, 0);
-		assert.equal(fileState?.state, "skipped");
-		assert.equal(fileState?.state === "skipped" ? fileState.code : undefined, "slice.reviewDecisionMissing");
-	});
+	const createDataResourceServiceForTest = (
+		tableModelService: ITableModelService,
+	): DataResourceService =>
+		store.add(new DataResourceService(tableModelService));
 
 	test("cleans local slice state when files are removed", () => {
 		const sessionService = store.add(new SessionService());
@@ -107,8 +46,6 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 			kind: "inline",
 			template: createTemplate(),
 		});
-		sliceService.submit([createSliceRequest()]);
-		sliceService.prioritize("file-a");
 
 		sessionService.removeFiles(["file-a"]);
 
@@ -124,8 +61,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		const tableModelService = store.add(new BlockingTableModelService());
 		const sliceService = store.add(new SliceService(
 			sessionService,
-			undefined,
-			tableModelService,
+			createDataResourceServiceForTest(tableModelService),
 		));
 		const resource = URI.file("/workspace/source.xlsx");
 		const processingTarget = { resource, sheetId: "sheet-a" };
@@ -148,8 +84,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		const tableModelService = store.add(new BlockingTableModelService());
 		const sliceService = store.add(new SliceService(
 			sessionService,
-			undefined,
-			tableModelService,
+			createDataResourceServiceForTest(tableModelService),
 		));
 		const resource = URI.file("/workspace/source.xlsx");
 		const processingTarget = { resource, sheetId: "sheet-a" };
@@ -172,8 +107,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		const tableModelService = store.add(new BlockingTableModelService());
 		const sliceService = store.add(new SliceService(
 			sessionService,
-			undefined,
-			tableModelService,
+			createDataResourceServiceForTest(tableModelService),
 		));
 		const resource = URI.file("/workspace/source.xlsx");
 		const processingTarget = { resource, sheetId: "sheet-a" };
@@ -234,8 +168,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		}));
 		const sliceService = store.add(new SliceService(
 			sessionService,
-			undefined,
-			tableModelService,
+			createDataResourceServiceForTest(tableModelService),
 		));
 		const target = { resource, sheetId: "sheet-a" };
 
@@ -287,8 +220,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		}));
 		const sliceService = store.add(new SliceService(
 			sessionService,
-			undefined,
-			tableModelService,
+			createDataResourceServiceForTest(tableModelService),
 		));
 		const target = { resource, sheetId: "sheet-a" };
 		const changedTargets: SliceUriTarget[] = [];
@@ -341,8 +273,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		}));
 		const sliceService = store.add(new SliceService(
 			sessionService,
-			undefined,
-			tableModelService,
+			createDataResourceServiceForTest(tableModelService),
 		));
 		const target = { resource, sheetId: "missing-sheet" };
 
@@ -401,30 +332,6 @@ const createTestReviewFactors = () => ({
 	conflictPenalty: 0,
 	diagnosticPenalty: 0,
 });
-
-const createSliceRequest = (): SliceRequest => {
-	const reviewedTemplate = createReviewedTemplate();
-	const requestSignature = JSON.stringify({
-		sourceRawTableVersion: 1,
-		templateFingerprint: reviewedTemplate.templateFingerprint,
-	});
-	return {
-		id: `slice-request:file-a:table-a:${requestSignature}`,
-		ref: {
-			fileId: "file-a",
-			rawTableId: "table-a",
-		},
-		sourceRawTableVersion: 1,
-		reviewedTemplate,
-		trigger: {
-			kind: "userCommand",
-			commandId: "workbench.slice.runWithTemplate",
-			submittedBy: "user",
-		},
-		requestSignature,
-		createdAt: 1,
-	};
-};
 
 const createUriSliceRequest = (
 	target: SliceUriTarget,
@@ -486,42 +393,6 @@ const createReviewedTemplate = (
 		},
 	};
 };
-
-class TestRawTableRowsReaderService implements IRawTableRowsReaderService {
-	public declare readonly _serviceBrand: undefined;
-	public readonly inputs: RawTableRowsReadInput[] = [];
-
-	public constructor(
-		protected readonly rows: RawTableRows,
-	) {}
-
-	public readRawTableRows(input: RawTableRowsReadInput): Promise<RawTableRows | null> {
-		this.inputs.push(input);
-		return Promise.resolve(this.rows);
-	}
-}
-
-class BlockingRawTableRowsReaderService extends TestRawTableRowsReaderService {
-	private firstRead:
-		| { readonly resolve: (rows: RawTableRows | null) => void; readonly rows: RawTableRows | null }
-		| null = null;
-
-	public override readRawTableRows(input: RawTableRowsReadInput): Promise<RawTableRows | null> {
-		if (this.inputs.length > 0) {
-			return super.readRawTableRows(input);
-		}
-
-		this.inputs.push(input);
-		return new Promise(resolve => {
-			this.firstRead = { resolve, rows: this.rows };
-		});
-	}
-
-	public resolveFirstRead(): void {
-		this.firstRead?.resolve(this.firstRead.rows);
-		this.firstRead = null;
-	}
-}
 
 class BlockingTableModelService implements ITableModelService {
 	public declare readonly _serviceBrand: undefined;

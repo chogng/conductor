@@ -101,7 +101,7 @@ args, resolve services/controllers, call owner APIs, and return.
 | `ITableFileService` / `TableFileEditorModel` | URI-backed table file open/cache/reload/save lifecycle |
 
 Do not introduce `IFileImportService` by default. Source collection stays in
-Explorer/files workflow; migration-ledger raw-table row reading stays with Slice;
+Explorer/files workflow; ordinary execution stays URI-backed through Slice;
 ordinary Explorer file-to-table imports update Explorer-local rows and open
 URI-backed table resources through `ITableService`.
 

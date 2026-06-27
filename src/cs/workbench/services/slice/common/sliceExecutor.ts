@@ -5,15 +5,14 @@
 import type {
 	BaseCurveFamily,
 	CurveKey,
-	CurveRecord,
 	ItCurveMode,
 	IvCurveMode,
-	SeriesRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import type {
-	SliceCommit,
+	SliceExecutionCurveRecord,
+	SliceExecutionResult,
+	SliceExecutionSeriesRecord,
 	SlicePlan,
-	SliceRun,
 } from "src/cs/workbench/services/slice/common/slice";
 
 export type ExecuteSlicePlanInput = {
@@ -24,9 +23,9 @@ export type ExecuteSlicePlanInput = {
 export const executeSlicePlan = ({
 	plan,
 	rows,
-}: ExecuteSlicePlanInput): SliceCommit => {
-	const series: SeriesRecord[] = [];
-	const curves: CurveRecord[] = [];
+}: ExecuteSlicePlanInput): SliceExecutionResult => {
+	const series: SliceExecutionSeriesRecord[] = [];
+	const curves: SliceExecutionCurveRecord[] = [];
 	const warnings: string[] = [];
 	const errors: string[] = [...plan.errors];
 	const measurement = plan.measurement;
@@ -48,20 +47,17 @@ export const executeSlicePlan = ({
 				continue;
 			}
 
-			const seriesId = createSliceSeriesId(block.blockIndex, yColumn);
+			const seriesId = createSliceSeriesId(block.blockIndex, yColumn, block.segmentIndex);
 			series.push({
-				fileId: plan.ref.fileId,
-				sheetId: plan.ref.rawTableId,
 				id: seriesId,
 				name: plan.template.name,
-				groupIndex: block.blockIndex,
+				groupIndex: block.segmentIndex ?? block.blockIndex,
 				yCol: yColumn,
 				y: points.map(point => point.y),
 			});
 			if (measurement) {
 				curves.push(createBaseCurve({
 					curveFamily: measurement.curveFamily,
-					fileId: plan.ref.fileId,
 					itMode: measurement.itMode,
 					ivMode: measurement.ivMode,
 					points,
@@ -81,11 +77,8 @@ export const executeSlicePlan = ({
 	return {
 		run: {
 			id: createSliceRunId(plan),
-			fileId: plan.ref.fileId,
-			rawTableId: plan.ref.rawTableId,
 			mode: plan.mode,
 			selection: plan.selection,
-			sourceRawTableVersion: plan.sourceRawTableVersion,
 			sourceTableModelSignature: plan.sourceTableModelSignature,
 			template: plan.template,
 			templateFingerprint: plan.templateFingerprint,
@@ -125,7 +118,6 @@ const readCurvePoints = (
 
 const createBaseCurve = ({
 	curveFamily,
-	fileId,
 	itMode,
 	ivMode,
 	points,
@@ -133,14 +125,12 @@ const createBaseCurve = ({
 	templateFingerprint,
 }: {
 	readonly curveFamily: BaseCurveFamily;
-	readonly fileId: string;
 	readonly itMode?: ItCurveMode | null;
 	readonly ivMode?: IvCurveMode | null;
 	readonly points: Array<{ readonly x: number; readonly y: number }>;
 	readonly seriesId: string;
 	readonly templateFingerprint: string;
-}): CurveRecord => ({
-	fileId,
+}): SliceExecutionCurveRecord => ({
 	seriesId,
 	curveGeneration: "base",
 	curveFamily,
@@ -152,7 +142,6 @@ const createBaseCurve = ({
 		...(curveFamily === "iv" ? { ivMode: ivMode ?? "transfer" } : {}),
 		...(curveFamily === "it" ? { itMode: itMode ?? "generic" } : {}),
 		baseSeries: {
-			fileId,
 			seriesId,
 		},
 	},
@@ -160,7 +149,7 @@ const createBaseCurve = ({
 	signature: `slice:${templateFingerprint}:${seriesId}:${points.length}`,
 });
 
-const createCurveRecordKey = (curve: CurveRecord): CurveKey => {
+const createCurveRecordKey = (curve: SliceExecutionCurveRecord): CurveKey => {
 	if (curve.curveGeneration !== "base") {
 		throw new Error("Slice executor only emits base curves.");
 	}
@@ -176,12 +165,63 @@ const createCurveRecordKey = (curve: CurveRecord): CurveKey => {
 const createSliceSeriesId = (
 	blockIndex: number,
 	yColumn: number,
-): string => `series-b${blockIndex}-y${yColumn}`;
+	segmentIndex: number | undefined,
+): string => segmentIndex === undefined
+	? `series-b${blockIndex}-y${yColumn}`
+	: `series-b${blockIndex}-s${segmentIndex}-y${yColumn}`;
 
 const createSliceRunId = (
 	plan: SlicePlan,
-): SliceRun["id"] =>
-	`slice:${plan.ref.fileId}:${plan.ref.rawTableId}:${plan.templateFingerprint}:${plan.sourceRawTableVersion}`;
+): string => {
+	const targetId = `${getSliceRunTargetResourceIdentity(plan.target.target.resource)}:${plan.target.target.sheetId ?? ""}`;
+	return `slice:uri:${targetId}:${plan.templateFingerprint}:${plan.sourceVersion ?? 0}`;
+};
+
+const getSliceRunTargetResourceIdentity = (
+	resource: unknown,
+): string => {
+	const text = getSliceRunTargetResourceString(resource);
+	if (text) {
+		return text.replace(/\\/g, "/");
+	}
+
+	if (resource && typeof resource === "object") {
+		const candidate = resource as { readonly scheme?: unknown; readonly authority?: unknown; readonly path?: unknown; readonly query?: unknown; readonly fragment?: unknown };
+		const scheme = String(candidate.scheme ?? "").trim();
+		const path = String(candidate.path ?? "").trim();
+		if (scheme && path) {
+			const authority = String(candidate.authority ?? "").trim();
+			const query = String(candidate.query ?? "").trim();
+			const fragment = String(candidate.fragment ?? "").trim();
+			return (scheme === "file"
+				? `file://${authority}${path}${query ? `?${query}` : ""}${fragment ? `#${fragment}` : ""}`
+				: `${scheme}://${authority}${path}${query ? `?${query}` : ""}${fragment ? `#${fragment}` : ""}`
+			).replace(/\\/g, "/");
+		}
+	}
+
+	return "";
+};
+
+const getSliceRunTargetResourceString = (
+	resource: unknown,
+): string => {
+	if (!resource) {
+		return "";
+	}
+
+	if (typeof resource === "string") {
+		return resource.trim();
+	}
+
+	const toString = (resource as { readonly toString?: unknown }).toString;
+	if (typeof toString === "function" && toString !== Object.prototype.toString) {
+		const text = String(toString.call(resource)).trim();
+		return text === "[object Object]" ? "" : text;
+	}
+
+	return "";
+};
 
 const parseNumber = (value: unknown): number | null => {
 	if (typeof value === "number") {

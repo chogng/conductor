@@ -174,20 +174,16 @@ replaces the URI identity for resource opens.
   duplicate it as `autoSliceAllowed`, `applyRecommendation`, or a separate
   selected-template field.
 - `ReviewedTemplate.source` records provenance only. Manual/system/user command
-  execution sources belong to `SliceRequest.trigger`.
+  execution sources belong to `SliceUriRequest.trigger`.
 
 ### Slice
 
 - `SliceRun` is the canonical fact for executing a concrete `Template`.
-- `SliceRequest` is the intended single raw-table execution input. `enqueueAuto`
-  may remain as the automatic review-decision adapter; manual execution must
-  enter Slice through reviewed `SliceRequest` values, not a `runWithTemplate`
-  service API.
 - `SliceUriRequest` is the URI-backed execution input. Its target is
   `resource` plus optional `sheetId`; it must not be converted into a public or
   common synthetic raw-table identity.
-- `SlicePlan` carries either a migration-ledger raw-table target or a URI target. Its
-  input ranges preserve the same target provenance.
+- `SlicePlan` carries a URI target. Its input ranges preserve the same target
+  provenance.
 - `SliceRun.template` is the executed snapshot from a reviewed automatic
   template or manual input.
 - `SliceRun.sourceTableModelSignature` is a migration-ledger raw-table

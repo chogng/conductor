@@ -61,8 +61,10 @@ download, copy, close from Explorer, or delete from disk.
 `IFileService` is filesystem capability only. It owns provider registration,
 `exists`, `readDir`, `readFile`, `writeFile`, `deleteFile`,
 `moveFileToTrash`, `realpath`, `stat`, `watch`, and provider change events.
-Desktop adapters also own reviving local filesystem IPC byte payloads so
-`IFileContent.value` leaves `platform/files` as a real `Uint8Array`.
+Desktop file IPC must rely on base IPC byte marshalling so `IFileContent.value`
+leaves `platform/files` as a real `Uint8Array`.
+The JSON marshalling helper for this belongs in `src/cs/base/common/marshalling.ts`;
+Files/TableFile code must not duplicate desktop byte revival.
 
 `IFileService` does not own Explorer tree state, selected resource, CSV/Excel
 parsing, raw table records, table model, or Session records.

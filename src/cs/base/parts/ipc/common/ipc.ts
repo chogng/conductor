@@ -230,7 +230,8 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
         }
 
         const source = new CancellationTokenSource();
-        this.activeRequests.set(request.id, toDisposable(() => source.cancel()));
+        const cancellation = toDisposable(() => source.cancel());
+        this.activeRequests.set(request.id, cancellation);
 
         Promise.resolve(channel.call(this.ctx, request.name, request.arg, source.token)).then(data => {
             this.sendResponse({ type: ResponseType.Success, id: request.id, data });
@@ -238,6 +239,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
             this.sendResponse({ type: ResponseType.Error, id: request.id, error: serializeError(error) });
         }).finally(() => {
             source.dispose();
+            cancellation.dispose();
             this.activeRequests.delete(request.id);
         });
     }

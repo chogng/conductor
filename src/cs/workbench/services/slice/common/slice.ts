@@ -13,7 +13,6 @@ import type {
   CurveLineage,
   ItCurveMode,
   IvCurveMode,
-  RawTableRef,
   SeriesRecord,
   SeriesId,
   SheetId,
@@ -26,37 +25,9 @@ import type {
 import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/reviewModel";
 
 export const ISliceService = createDecorator<ISliceService>("sliceService");
-export const IRawTableRowsReaderService =
-  createDecorator<IRawTableRowsReaderService>("rawTableRowsReaderService");
 export const SlicePriorityContributionId = "workbench.services.slice.priority";
 
 export type SliceRunId = string;
-
-export type RawTableRowsStore =
-  | {
-      readonly kind: "memory";
-      readonly rows: readonly (readonly unknown[])[];
-    }
-  | {
-      readonly kind: "external";
-      readonly normalizedCsvPath?: string | null;
-    };
-
-export type RawTableRowsReadInput = {
-  readonly fallbackFile?: unknown;
-  readonly fileName?: string | null;
-  readonly lastModified?: number | null;
-  readonly maxRows?: number;
-  readonly rowStore?: RawTableRowsStore | null;
-};
-
-export type RawTableRows = readonly (readonly string[])[];
-
-export interface IRawTableRowsReaderService {
-  readonly _serviceBrand: undefined;
-
-  readRawTableRows(input: RawTableRowsReadInput): Promise<RawTableRows | null>;
-}
 
 export type SliceRequestTrigger =
   | {
@@ -79,16 +50,6 @@ export type SliceRequestTrigger =
       readonly previousRunId: string;
       readonly submittedBy: "user" | "system";
     };
-
-export type SliceRequest = {
-  readonly id: string;
-  readonly ref: RawTableRef;
-  readonly sourceRawTableVersion: number;
-  readonly reviewedTemplate: ReviewedTemplate;
-  readonly trigger: SliceRequestTrigger;
-  readonly requestSignature: string;
-  readonly createdAt: number;
-};
 
 export type SliceUriTarget = {
   readonly resource: URI;
@@ -153,16 +114,12 @@ export type SliceUriRangeRef = {
 };
 
 export type SlicePlanTarget =
-  | {
-      readonly kind: "rawTable";
-      readonly ref: RawTableRef;
-    }
-  | {
-      readonly kind: "uri";
-      readonly target: SliceUriTarget;
-    };
+  {
+    readonly kind: "uri";
+    readonly target: SliceUriTarget;
+  };
 
-export type SlicePlanRangeRef = SliceRawTableRangeRef | SliceUriRangeRef;
+export type SlicePlanRangeRef = SliceUriRangeRef;
 
 export type SliceExecutionRun = Omit<SliceRun, "fileId" | "inputRanges" | "rawTableId" | "sourceRawTableVersion"> & {
   readonly inputRanges: readonly SlicePlanRangeRef[];
@@ -226,7 +183,6 @@ export type SlicePlan = {
   readonly target: SlicePlanTarget;
   readonly mode: SliceRun["mode"];
   readonly selection: TemplateSelection;
-  readonly sourceRawTableVersion?: number;
   readonly sourceVersion?: number;
   readonly sourceTableModelSignature?: string;
   readonly measurement?: SliceMeasurementBinding;
@@ -250,7 +206,6 @@ export type CreateSlicePlanInput = {
   readonly target: SlicePlanTarget;
   readonly mode: SliceRun["mode"];
   readonly selection: TemplateSelection;
-  readonly sourceRawTableVersion?: number;
   readonly sourceVersion?: number;
   readonly sourceTableModelSignature?: string;
   readonly template: Template;
@@ -289,10 +244,7 @@ export interface ISliceService {
   getState(): SliceState;
   getUriResult(target: SliceUriTarget): SliceUriResult | null;
   getUriState(target: SliceUriTarget): SliceFileState | undefined;
-  submit(requests: readonly SliceRequest[]): void;
   submitUri(requests: readonly SliceUriRequest[]): void;
-  enqueueAuto(refs: readonly RawTableRef[]): void;
-  prioritize(fileId: string): void;
   prioritizeUri(target: SliceUriTarget): void;
   cancel(fileIds?: readonly string[]): void;
   cancelUri(targets: readonly SliceUriTarget[]): void;

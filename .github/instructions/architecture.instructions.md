@@ -193,8 +193,8 @@ URI + contentHash/sourceVersion
   + Recipe/UserTemplate/built-in template snapshots
   -> SegmentCandidate / ReviewCandidate
   -> ReviewResult / ReviewedTemplate
-  -> SliceRequest
-  -> SliceRun
+  -> SliceUriRequest
+  -> SliceUriResult
 ```
 
 Specific flow owners:

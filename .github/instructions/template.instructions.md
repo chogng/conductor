@@ -148,9 +148,9 @@ import/export command
 - Browser export fallback may download the native `conductor.userTemplate`
   JSON payload when the platform cannot expose a save-file target. It must not
   resurrect the retired Template-editor bundle payload.
-- `activeFileId` should move the current chart/Explorer target to the front of full and incremental slice queues.
+- Active URI targets should move the current chart/Explorer target to the front of full and incremental slice queues.
 - Explorer hover/selection priority for slicing belongs to
-  `SlicePriorityContribution` -> `ISliceService.prioritize(...)`; do not route
+  `SlicePriorityContribution` -> `ISliceService.prioritizeUri(...)`; do not route
   it through WorkbenchDomainBridge or Template code.
 - New slice progress belongs to `ISliceService`; consumers subscribe and reread
   `SliceState`. WorkbenchDomainBridge and Explorer use Slice file states as the
