@@ -1,8 +1,5 @@
 import { MarshalledId } from "./marshallingIds.js";
-import {
-  reviveIncomingMarshalledValue,
-  transformOutgoingMarshalledValue,
-} from "./marshalling.js";
+import type { MarshalledObject } from "./marshalling.js";
 import { URI, type UriComponents } from "./uri.js";
 
 export interface IURITransformer {
@@ -85,7 +82,7 @@ function isMarshalledUri(value: unknown): value is UriComponents {
   return Boolean(
     value &&
       typeof value === "object" &&
-      (value as { readonly $mid?: unknown }).$mid === MarshalledId.Uri,
+      (value as MarshalledObject).$mid === MarshalledId.Uri,
   );
 }
 
@@ -94,16 +91,11 @@ function transformOutgoingValue(value: unknown, transformer: IURITransformer, de
     return undefined;
   }
 
-  const marshalled = transformOutgoingMarshalledValue(value);
-  if (typeof marshalled !== "undefined") {
-    return marshalled;
-  }
-
   if (value instanceof URI) {
     return transformer.transformOutgoing(value);
   }
 
-  if (typeof value !== "object") {
+  if (typeof value !== "object" || value instanceof Uint8Array) {
     return undefined;
   }
 
@@ -139,11 +131,6 @@ function transformIncomingValue(
 ): unknown {
   if (!value || depth > 200) {
     return undefined;
-  }
-
-  const revived = reviveIncomingMarshalledValue(value);
-  if (typeof revived !== "undefined") {
-    return revived;
   }
 
   if (isMarshalledUri(value)) {

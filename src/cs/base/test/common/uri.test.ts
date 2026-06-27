@@ -44,23 +44,6 @@ suite("base/test/common/uri", () => {
     );
   });
 
-  test("IPC transform marshals Uint8Array values through JSON", () => {
-    const payload = {
-      content: {
-        value: new Uint8Array([82, 101, 112, 101, 97, 116]),
-      },
-    };
-
-    const raw = JSON.parse(JSON.stringify(transformOutgoingURIs(payload, DefaultURITransformer)));
-
-    assert.equal(raw.content.value.$mid, MarshalledId.Uint8Array);
-    assert.deepEqual(raw.content.value.bytes, [82, 101, 112, 101, 97, 116]);
-
-    const revived = transformAndReviveIncomingURIs(raw, DefaultURITransformer);
-    assert.equal(revived.content.value instanceof Uint8Array, true);
-    assert.equal(new TextDecoder().decode(revived.content.value), "Repeat");
-  });
-
   test("remote URI transformer maps file schemes like upstream", () => {
     const transformer = createURITransformer("remote-host");
     const payload = transformOutgoingURIs({ resource: URI.file("C:\\data\\sample.csv") }, transformer);

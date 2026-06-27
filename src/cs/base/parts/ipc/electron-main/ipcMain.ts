@@ -1,6 +1,10 @@
 import electron from "electron";
 
 import {
+    reviveIncomingMarshalledValues,
+    transformOutgoingMarshalledValues,
+} from "../../../common/marshalling.js";
+import {
     DefaultURITransformer,
     transformAndReviveIncomingURIs,
     transformOutgoingURIs,
@@ -12,11 +16,11 @@ class ValidatedIpcMain {
     private readonly listenerWrappers = new WeakMap<IpcMainListener, Map<string, IpcMainListener>>();
 
     private transformOutgoingValue<T>(value: T): T {
-        return transformOutgoingURIs(value, DefaultURITransformer);
+        return transformOutgoingMarshalledValues(transformOutgoingURIs(value, DefaultURITransformer));
     }
 
     private transformIncomingArgs(args: unknown[]): unknown[] {
-        return transformAndReviveIncomingURIs(args, DefaultURITransformer);
+        return reviveIncomingMarshalledValues(transformAndReviveIncomingURIs(args, DefaultURITransformer));
     }
 
     public on(channel: string, listener: IpcMainListener): this {

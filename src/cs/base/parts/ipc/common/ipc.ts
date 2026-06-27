@@ -3,6 +3,10 @@ import { CancellationError } from "../../../common/errors.js";
 import { Emitter, Event } from "../../../common/event.js";
 import { DisposableStore, type IDisposable, toDisposable } from "../../../common/lifecycle.js";
 import {
+    reviveIncomingMarshalledValues,
+    transformOutgoingMarshalledValues,
+} from "../../../common/marshalling.js";
+import {
     DefaultURITransformer,
     transformAndReviveIncomingURIs,
     transformOutgoingURIs,
@@ -156,14 +160,14 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
 function encodeMessage(message: RequestMessage | ResponseMessage | unknown): Uint8Array {
-    return encoder.encode(JSON.stringify(transformOutgoingURIs(message, DefaultURITransformer)));
+    return encoder.encode(JSON.stringify(transformOutgoingMarshalledValues(transformOutgoingURIs(message, DefaultURITransformer))));
 }
 
 function decodeMessage<T>(message: Uint8Array): T {
-    return transformAndReviveIncomingURIs(
+    return reviveIncomingMarshalledValues(transformAndReviveIncomingURIs(
         JSON.parse(decoder.decode(message)) as T,
         DefaultURITransformer,
-    );
+    ));
 }
 
 function serializeError(error: unknown): SerializedError {

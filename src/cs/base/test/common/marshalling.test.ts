@@ -2,7 +2,9 @@ import assert from "assert";
 
 import { MarshalledId } from "../../common/marshallingIds.ts";
 import {
+  reviveIncomingMarshalledValues,
   reviveIncomingMarshalledValue,
+  transformOutgoingMarshalledValues,
   transformOutgoingMarshalledValue,
 } from "../../common/marshalling.ts";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
@@ -20,5 +22,22 @@ suite("base/test/common/marshalling", () => {
     const revived = reviveIncomingMarshalledValue(raw);
     assert.equal(revived instanceof Uint8Array, true);
     assert.equal(new TextDecoder().decode(revived as Uint8Array), "Repeat");
+  });
+
+  test("marshals nested Uint8Array values through JSON", () => {
+    const payload = {
+      content: {
+        value: new Uint8Array([82, 101, 112, 101, 97, 116]),
+      },
+    };
+
+    const raw = JSON.parse(JSON.stringify(transformOutgoingMarshalledValues(payload)));
+
+    assert.equal(raw.content.value.$mid, MarshalledId.Uint8Array);
+    assert.deepEqual(raw.content.value.bytes, [82, 101, 112, 101, 97, 116]);
+
+    const revived = reviveIncomingMarshalledValues(raw);
+    assert.equal(revived.content.value instanceof Uint8Array, true);
+    assert.equal(new TextDecoder().decode(revived.content.value), "Repeat");
   });
 });
