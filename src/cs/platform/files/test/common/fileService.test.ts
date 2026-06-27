@@ -6,6 +6,7 @@ import { URI } from "../../../../base/common/uri.ts";
 import { FileService } from "../../common/fileService.ts";
 import {
   FileChangeType,
+  FileSystemProviderCapabilities,
   FileType,
   type IFileChange,
   type IFileContent,
@@ -19,6 +20,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 suite("platform/files/test/common/fileService", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
   class TestFileSystemProvider implements IFileSystemProvider {
+    public readonly capabilities =
+      FileSystemProviderCapabilities.FileRead |
+      FileSystemProviderCapabilities.FileReadRange |
+      FileSystemProviderCapabilities.FileWrite |
+      FileSystemProviderCapabilities.FileDelete |
+      FileSystemProviderCapabilities.FileTrash |
+      FileSystemProviderCapabilities.FileWatch;
     private readonly onDidFilesChangeEmitter = new Emitter<readonly IFileChange[]>();
     public readonly onDidFilesChange = this.onDidFilesChangeEmitter.event;
     public readonly seenPaths: string[] = [];
@@ -120,5 +128,16 @@ suite("platform/files/test/common/fileService", () => {
 
     assert.equal(changes.length, 1);
     assert.deepEqual(changes[0], [{ resource, type: FileChangeType.UPDATED }]);
+  });
+
+  test("FileService exposes provider capabilities", () => {
+    const service = store.add(new FileService());
+    const provider = new TestFileSystemProvider();
+    store.add(service.registerProvider("test", provider));
+
+    const capabilities = service.getProviderCapabilities("test");
+
+    assert.equal(Boolean(capabilities & FileSystemProviderCapabilities.FileRead), true);
+    assert.equal(Boolean(capabilities & FileSystemProviderCapabilities.FileWatch), true);
   });
 });

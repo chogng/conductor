@@ -5,12 +5,14 @@ import { URI } from "src/cs/base/common/uri";
 import {
   IFileService,
   LOCAL_FILE_SYSTEM_CHANNEL_NAME,
+  FileSystemProviderCapabilities,
   type IFileContent,
   type IFileChange,
   type IFileStat,
   type IFileSystemProvider,
   type IReadFileOptions,
   type IWatchOptions,
+  type IWriteFileOptions,
   type FileType,
 } from "src/cs/platform/files/common/files";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
@@ -48,6 +50,23 @@ export class ElectronBrowserFileService extends Disposable implements IFileServi
     return undefined;
   }
 
+  public getProviderCapabilities(resourceOrScheme: URI | string): FileSystemProviderCapabilities {
+    const scheme = typeof resourceOrScheme === "string"
+      ? resourceOrScheme
+      : URI.revive(resourceOrScheme).scheme;
+    if (scheme !== "file") {
+      throw new Error(`No file system provider registered for '${scheme}'.`);
+    }
+
+    return FileSystemProviderCapabilities.FileRead |
+      FileSystemProviderCapabilities.FileReadRange |
+      FileSystemProviderCapabilities.FileWrite |
+      FileSystemProviderCapabilities.FileAtomicWrite |
+      FileSystemProviderCapabilities.FileDelete |
+      FileSystemProviderCapabilities.FileTrash |
+      FileSystemProviderCapabilities.FileWatch;
+  }
+
   public readDir(resource: URI): Promise<readonly [string, FileType][]> {
     return this.channel.call("readDir", [resource]);
   }
@@ -56,8 +75,8 @@ export class ElectronBrowserFileService extends Disposable implements IFileServi
     return this.channel.call("readFile", [resource, options ?? {}]);
   }
 
-  public writeFile(resource: URI, content: string): Promise<void> {
-    return this.channel.call("writeFile", [resource, content]);
+  public writeFile(resource: URI, content: string, options?: IWriteFileOptions): Promise<void> {
+    return this.channel.call("writeFile", [resource, content, options ?? {}]);
   }
 
   public deleteFile(resource: URI): Promise<void> {

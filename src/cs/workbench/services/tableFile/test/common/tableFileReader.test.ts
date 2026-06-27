@@ -8,6 +8,7 @@ import { Event } from "src/cs/base/common/event";
 import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
 import {
+	FileSystemProviderCapabilities,
 	FileType,
 	type IFileChange,
 	type IFileContent,
@@ -30,7 +31,7 @@ suite("workbench/services/tableFile/test/common/tableFileReader", () => {
 
 	test("rejects known unsupported formats before reading file contents", async () => {
 		const fileService = new TestFileService();
-		const resource = URI.file("/workspace/legacy.xls");
+		const resource = URI.file("/workspace/notes.txt");
 
 		await assert.rejects(
 			() => readTableFile(resource, fileService),
@@ -38,6 +39,22 @@ suite("workbench/services/tableFile/test/common/tableFileReader", () => {
 		);
 		assert.equal(fileService.statCount, 0);
 		assert.equal(fileService.readCount, 0);
+	});
+
+	test("reads legacy workbook resources as table byte buffers", async () => {
+		const fileService = new TestFileService("legacy-workbook-bytes");
+		const resource = URI.file("/workspace/legacy.xls");
+
+		const result = await readTableFile(resource, fileService);
+
+		assert.equal(result.format, "xls");
+		assert.equal(result.buffer.kind, "bytes");
+		if (result.buffer.kind !== "bytes") {
+			assert.fail("Expected a byte table buffer.");
+		}
+		assert.equal(new TextDecoder().decode(await readTableByteBuffer(result.buffer)), "legacy-workbook-bytes");
+		assert.equal(fileService.statCount, 1);
+		assert.equal(fileService.readCount, 1);
 	});
 
 	test("reads workbook resources as table byte buffers", async () => {
@@ -121,6 +138,12 @@ class TestFileService implements IFileService {
 
 	public getProvider(): undefined {
 		return undefined;
+	}
+
+	public getProviderCapabilities(): FileSystemProviderCapabilities {
+		return FileSystemProviderCapabilities.FileRead |
+			FileSystemProviderCapabilities.FileReadRange |
+			FileSystemProviderCapabilities.FileWatch;
 	}
 
 	public async exists(): Promise<boolean> {

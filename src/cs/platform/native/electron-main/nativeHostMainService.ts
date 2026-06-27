@@ -1,4 +1,7 @@
+import fs from "node:fs";
+import path from "node:path";
 import { BrowserWindow, shell } from "electron";
+import { URI } from "../../../base/common/uri.js";
 import { DialogMainService } from "../../dialogs/electron-main/dialogMainService.js";
 
 type NativeOpenDialogResult = {
@@ -58,5 +61,20 @@ export class NativeHostMainService {
     }
 
     shell.showItemInFolder(normalizedPath);
+  }
+
+  public async writeElevated(source: URI, target: URI): Promise<void> {
+    const sourcePath = this.toFilePath(source, "source");
+    const targetPath = this.toFilePath(target, "target");
+    await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
+    await fs.promises.copyFile(sourcePath, targetPath);
+  }
+
+  private toFilePath(resource: URI, name: string): string {
+    const uri = URI.revive(resource);
+    if (uri.scheme !== "file") {
+      throw new Error(`Expected ${name} to be a file URI.`);
+    }
+    return path.normalize(uri.fsPath);
   }
 }

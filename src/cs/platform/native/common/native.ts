@@ -1,4 +1,5 @@
 import { createDecorator } from "../../instantiation/common/instantiation.js";
+import type { URI } from "../../../base/common/uri.js";
 
 export const INativeHostService = createDecorator<INativeHostService>("nativeHostService");
 
@@ -83,6 +84,7 @@ export interface INativeHostService {
     showSaveDialog(options: INativeSaveDialogOptions): Promise<INativeSaveDialogResult>;
     showMessageBox(options: INativeMessageBoxOptions): Promise<INativeMessageBoxResult>;
     showItemInFolder(path: string): Promise<void>;
+    writeElevated(source: URI, target: URI): Promise<void>;
     toggleDevTools(): Promise<void>;
     reloadWindow(): Promise<void>;
     isMaximized(): Promise<boolean>;

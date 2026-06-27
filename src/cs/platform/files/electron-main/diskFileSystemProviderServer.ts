@@ -8,6 +8,7 @@ import {
   type IFileChange,
   type IReadFileOptions,
   type IWatchOptions,
+  type IWriteFileOptions,
 } from "../common/files.js";
 
 type SessionWatcher = {
@@ -39,6 +40,8 @@ export class DiskFileSystemProviderChannel implements IServerChannel<string> {
     const args = Array.isArray(arg) ? arg : [];
 
     switch (command) {
+      case "capabilities":
+        return this.provider.capabilities as T;
       case "stat":
         return this.provider.stat(URI.revive(args[0])) as Promise<T>;
       case "exists":
@@ -54,6 +57,7 @@ export class DiskFileSystemProviderChannel implements IServerChannel<string> {
         return this.provider.writeFile(
           URI.revive(args[0]),
           String(args[1] ?? ""),
+          (args[2] as IWriteFileOptions | undefined) ?? {},
         ) as Promise<T>;
       case "deleteFile":
         return this.provider.deleteFile(URI.revive(args[0])) as Promise<T>;

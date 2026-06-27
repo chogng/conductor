@@ -39,6 +39,7 @@ import "src/cs/workbench/services/configuration/electron-browser/configurationSe
 import "src/cs/workbench/services/decorations/browser/decorationsService";
 import "src/cs/workbench/services/dialogs/electron-browser/fileDialogService.ts";
 import "src/cs/workbench/services/environment/electron-browser/environmentService.ts";
+import "src/cs/workbench/services/files/electron-browser/elevatedFileService.ts";
 import "src/cs/workbench/services/storage/electron-browser/storageService.ts";
 import "src/cs/platform/files/electron-browser/fileService.ts";
 import "src/cs/workbench/services/parameters/electron-browser/rcCalculationBackendService.ts";

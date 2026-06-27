@@ -4,6 +4,7 @@ import { URI } from "src/cs/base/common/uri";
 import { isEqualOrParent, toSlashes } from "src/cs/base/common/extpath";
 import { extname } from "src/cs/base/common/resources";
 import {
+  FileSystemProviderCapabilities,
   FileType,
   type IFileContent,
   type IFileChange,
@@ -11,6 +12,7 @@ import {
   type IFileSystemProvider,
   type IReadFileOptions,
   type IWatchOptions,
+  type IWriteFileOptions,
 } from "src/cs/platform/files/common/files";
 import { sliceReadFileContent } from "src/cs/platform/files/common/io";
 import {
@@ -271,6 +273,10 @@ async function fileToContent(
 }
 
 export class HTMLFileSystemProvider extends Disposable implements IFileSystemProvider {
+  public readonly capabilities =
+    FileSystemProviderCapabilities.FileRead |
+    FileSystemProviderCapabilities.FileReadRange |
+    FileSystemProviderCapabilities.FileWrite;
   private readonly roots = new Map<string, RegisteredBrowserFileRoot>();
   private readonly files = new Map<string, RegisteredBrowserFile>();
   private readonly onDidFilesChangeEmitter = this._register(new Emitter<readonly IFileChange[]>());
@@ -346,7 +352,7 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
     return fileToContent(await resolved.handle.getFile(), options);
   }
 
-  public async writeFile(resource: URI, content: string): Promise<void> {
+  public async writeFile(resource: URI, content: string, _options?: IWriteFileOptions): Promise<void> {
     const registeredFile = this.getFile(resource);
     if (!registeredFile?.handle || typeof registeredFile.handle.createWritable !== "function") {
       return Promise.reject(new Error("Browser file handles are read-only."));

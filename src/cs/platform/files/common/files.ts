@@ -15,6 +15,17 @@ export const enum FileType {
   SymbolicLink = 64,
 }
 
+export const enum FileSystemProviderCapabilities {
+  None = 0,
+  FileRead = 1 << 0,
+  FileReadRange = 1 << 1,
+  FileWrite = 1 << 2,
+  FileAtomicWrite = 1 << 3,
+  FileDelete = 1 << 4,
+  FileTrash = 1 << 5,
+  FileWatch = 1 << 6,
+}
+
 export type IStat = {
   readonly ctime: number;
   readonly mtime: number;
@@ -26,6 +37,10 @@ export type IStat = {
 export type IFileStat = IStat;
 
 export type IReadFileOptions = IReadFileRangeOptions & {
+};
+
+export type IWriteFileOptions = {
+  readonly atomic?: boolean;
 };
 
 export type IFileContent = {
@@ -56,10 +71,11 @@ export interface IFileService {
 
   registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable;
   getProvider(scheme: string): IFileSystemProvider | undefined;
+  getProviderCapabilities(resourceOrScheme: URI | string): FileSystemProviderCapabilities;
   exists(resource: URI): Promise<boolean>;
   readDir(resource: URI): Promise<readonly [string, FileType][]>;
   readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent>;
-  writeFile(resource: URI, content: string): Promise<void>;
+  writeFile(resource: URI, content: string, options?: IWriteFileOptions): Promise<void>;
   deleteFile(resource: URI): Promise<void>;
   moveFileToTrash(resource: URI): Promise<void>;
   realpath(resource: URI): Promise<URI>;
@@ -68,12 +84,13 @@ export interface IFileService {
 }
 
 export interface IFileSystemProvider {
+  readonly capabilities: FileSystemProviderCapabilities;
   readonly onDidFilesChange: Event<readonly IFileChange[]>;
 
   exists(resource: URI): Promise<boolean>;
   readDir(resource: URI): Promise<readonly [string, FileType][]>;
   readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent>;
-  writeFile(resource: URI, content: string): Promise<void>;
+  writeFile(resource: URI, content: string, options?: IWriteFileOptions): Promise<void>;
   deleteFile(resource: URI): Promise<void>;
   moveFileToTrash?(resource: URI): Promise<void>;
   realpath(resource: URI): Promise<URI>;

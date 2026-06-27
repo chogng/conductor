@@ -5,9 +5,10 @@
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
-import type {
-	IFileService,
-	IFileStat,
+import {
+	FileSystemProviderCapabilities,
+	type IFileService,
+	type IFileStat,
 } from "src/cs/platform/files/common/files";
 import {
 	TableModel,
@@ -21,6 +22,7 @@ import {
 	type ParsedTableContent,
 	type ParsedTableSheet,
 	type ParsedTableStructure,
+	type TableXlsConverter,
 } from "src/cs/workbench/services/table/common/tableStructureParser";
 import {
 	readTableFile,
@@ -41,7 +43,9 @@ export type TableFileEditorModelSnapshot = {
 	readonly sourceVersion: number;
 };
 
-export type TableFileEditorModelResolveOptions = TableFileReadOptions;
+export type TableFileEditorModelResolveOptions = TableFileReadOptions & {
+	readonly xlsConverter?: TableXlsConverter;
+};
 
 export class TableFileEditorModel extends Disposable {
 	private readonly onDidChangeStateEmitter = this._register(new Emitter<TableFileEditorModel>());
@@ -65,7 +69,13 @@ export class TableFileEditorModel extends Disposable {
 	) {
 		super();
 		this.model = this._register(new TableModel(resource));
-		this._register(this.fileService.watch(resource, { recursive: false }));
+		if (hasFileProviderCapability(
+			this.fileService,
+			resource,
+			FileSystemProviderCapabilities.FileWatch,
+		)) {
+			this._register(this.fileService.watch(resource, { recursive: false }));
+		}
 	}
 
 	public getSourceVersion(): number {
@@ -189,9 +199,10 @@ export class TableFileEditorModel extends Disposable {
 	private async resolveContentFromDisk(
 		options: TableFileEditorModelResolveOptions,
 	): Promise<TableModelResolvedContent> {
+		const { xlsConverter, ...readOptions } = options;
 		let readResult: TableFileReadResult;
 		try {
-			readResult = await readTableFile(this.resource, this.fileService, options);
+			readResult = await readTableFile(this.resource, this.fileService, readOptions);
 		} catch (error) {
 			if (isTableFileReadDiagnosticError(error)) {
 				this.lastResolvedStat = error.stat;
@@ -205,6 +216,7 @@ export class TableFileEditorModel extends Disposable {
 		const parsedContent = await parseTableStructure({
 			buffer: readResult.buffer,
 			format: readResult.format,
+			...(readResult.format === "xls" && xlsConverter ? { xlsConverter } : {}),
 		});
 		return createResolvedContent({
 			parsedContent,
@@ -319,3 +331,15 @@ export const getErrorMessage = (error: unknown): string =>
 	error instanceof Error && error.message.trim()
 		? error.message
 		: "The file could not be read.";
+
+const hasFileProviderCapability = (
+	fileService: IFileService,
+	resource: URI,
+	capability: FileSystemProviderCapabilities,
+): boolean => {
+	try {
+		return Boolean(fileService.getProviderCapabilities(resource) & capability);
+	} catch {
+		return false;
+	}
+};

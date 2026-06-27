@@ -13,7 +13,7 @@ import {
 } from "electron";
 import { product } from "../../../bootstrap-meta.js";
 import type { IDisposable } from "../../base/common/lifecycle.js";
-import type { URI } from "../../base/common/uri.js";
+import { URI, type UriComponents } from "../../base/common/uri.js";
 import { zip as createZip } from "../../base/node/zip.js";
 import { isLanguagePreference, resolveLanguageCode } from "../../base/common/platform.js";
 import { Server as ElectronIPCServer } from "../../base/parts/ipc/electron-main/ipc.electron.js";
@@ -77,12 +77,14 @@ import {
 import { DiskFileSystemProviderChannel } from "../../platform/files/electron-main/diskFileSystemProviderServer.js";
 import {
   type FileType,
+  type FileSystemProviderCapabilities,
   type IFileContent,
   LOCAL_FILE_SYSTEM_CHANNEL_NAME,
   type IFileStat,
   type IFileSystemProvider,
   type IReadFileOptions,
   type IWatchOptions,
+  type IWriteFileOptions,
 } from "../../platform/files/common/files.js";
 import { FileService } from "../../platform/files/common/fileService.js";
 import { DiskFileSystemProvider } from "../../platform/files/node/diskFileSystemProvider.js";
@@ -271,9 +273,11 @@ const rustPriorityGate = new RustPriorityGate({
 });
 
 class MainFileSystemProvider implements IFileSystemProvider {
+  public readonly capabilities: FileSystemProviderCapabilities;
   public readonly onDidFilesChange;
 
   public constructor(private readonly provider: DiskFileSystemProvider) {
+    this.capabilities = provider.capabilities;
     this.onDidFilesChange = provider.onDidFilesChange;
   }
 
@@ -289,8 +293,8 @@ class MainFileSystemProvider implements IFileSystemProvider {
     return this.provider.readFile(resource, options);
   }
 
-  public writeFile(resource: URI, content: string): Promise<void> {
-    return this.provider.writeFile(resource, content);
+  public writeFile(resource: URI, content: string, options?: IWriteFileOptions): Promise<void> {
+    return this.provider.writeFile(resource, content, options);
   }
 
   public deleteFile(resource: URI): Promise<void> {
@@ -841,6 +845,14 @@ function getNativeHostChannelArgs(arg: unknown): readonly unknown[] {
   return typeof arg === "undefined" ? [] : [arg];
 }
 
+function reviveNativeHostUriArgument(value: unknown): URI {
+  if (value instanceof URI || typeof value === "string" || (value && typeof value === "object")) {
+    return URI.revive(value as URI | UriComponents | string);
+  }
+
+  throw new Error("Invalid URI argument for native host channel.");
+}
+
 function createNativeHostChannel(): IServerChannel<string> {
   return {
     call: async <T>(ctx: string, command: string, arg?: unknown): Promise<T> => {
@@ -881,6 +893,14 @@ function createNativeHostChannel(): IServerChannel<string> {
           return undefined as T;
         }
         nativeHostMainService.showItemInFolder(args[0]);
+        return undefined as T;
+      }
+
+      if (command === "writeElevated") {
+        await nativeHostMainService.writeElevated(
+          reviveNativeHostUriArgument(args[0]),
+          reviveNativeHostUriArgument(args[1]),
+        );
         return undefined as T;
       }
 

@@ -4,7 +4,12 @@ import os from "node:os";
 import path from "node:path";
 
 import { URI } from "../../../../base/common/uri.ts";
-import { FileType } from "../../common/files.ts";
+import {
+  FileChangeType,
+  FileSystemProviderCapabilities,
+  FileType,
+  type IFileChange,
+} from "../../common/files.ts";
 import { DiskFileSystemProvider } from "../../node/diskFileSystemProvider.ts";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -76,6 +81,55 @@ suite("platform/files/test/node/diskFileSystemProvider", () => {
     }
   });
 
+  test("DiskFileSystemProvider exposes local file capabilities", () => {
+    const provider = new DiskFileSystemProvider(async () => undefined);
+
+    assert.equal(Boolean(provider.capabilities & FileSystemProviderCapabilities.FileRead), true);
+    assert.equal(Boolean(provider.capabilities & FileSystemProviderCapabilities.FileReadRange), true);
+    assert.equal(Boolean(provider.capabilities & FileSystemProviderCapabilities.FileAtomicWrite), true);
+    assert.equal(Boolean(provider.capabilities & FileSystemProviderCapabilities.FileWatch), true);
+    assert.equal(Boolean(provider.capabilities & FileSystemProviderCapabilities.FileTrash), true);
+  });
+
+  test("DiskFileSystemProvider supports atomic writes", async () => {
+    const root = createTempDir();
+    try {
+      const filePath = path.join(root, "User", "settings.json");
+      const provider = new DiskFileSystemProvider();
+
+      await provider.writeFile(URI.file(filePath), "{\"theme\":\"dark\"}\n", { atomic: true });
+
+      assert.equal(fs.readFileSync(filePath, "utf8"), "{\"theme\":\"dark\"}\n");
+      assert.deepEqual(
+        fs.readdirSync(path.dirname(filePath)).filter(name => name.endsWith(".tmp")),
+        [],
+      );
+    } finally {
+      fs.rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  test("DiskFileSystemProvider watches parent folder for a file that does not exist yet", async () => {
+    const root = createTempDir();
+    try {
+      const filePath = path.join(root, "late.csv");
+      const provider = new DiskFileSystemProvider();
+      const change = waitForFileChange(provider, filePath);
+      store.add(provider.watch("late-file", URI.file(filePath), { recursive: false }));
+
+      await fs.promises.writeFile(filePath, "Vg,Id\n0,1", "utf8");
+
+      const event = await change;
+      assert.equal(event.resource.fsPath, filePath);
+      assert.equal(
+        event.type === FileChangeType.ADDED || event.type === FileChangeType.UPDATED,
+        true,
+      );
+    } finally {
+      fs.rmSync(root, { force: true, recursive: true });
+    }
+  });
+
   test("DiskFileSystemProvider deletes files and emits a delete change", async () => {
     const root = createTempDir();
     try {
@@ -124,3 +178,24 @@ suite("platform/files/test/node/diskFileSystemProvider", () => {
 
 const decodeFileContent = (content: { readonly value: Uint8Array }): string =>
   new TextDecoder().decode(content.value);
+
+const waitForFileChange = (
+  provider: DiskFileSystemProvider,
+  filePath: string,
+): Promise<IFileChange> =>
+  new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      disposable.dispose();
+      reject(new Error(`Timed out waiting for file change: ${filePath}`));
+    }, 2000);
+    const disposable = provider.onDidFilesChange(changes => {
+      const change = changes.find(candidate => candidate.resource.fsPath === filePath);
+      if (!change) {
+        return;
+      }
+
+      clearTimeout(timeout);
+      disposable.dispose();
+      resolve(change);
+    });
+  });

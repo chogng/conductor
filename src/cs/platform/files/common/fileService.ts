@@ -3,6 +3,7 @@ import { Disposable, toDisposable, type IDisposable } from "../../../base/common
 import { URI } from "../../../base/common/uri.js";
 import {
   IFileService,
+  FileSystemProviderCapabilities,
   type FileType,
   type IFileChange,
   type IFileContent,
@@ -10,6 +11,7 @@ import {
   type IFileSystemProvider,
   type IReadFileOptions,
   type IWatchOptions,
+  type IWriteFileOptions,
 } from "./files.js";
 import { InstantiationType, registerSingleton } from "../../instantiation/common/extensions.js";
 
@@ -44,6 +46,18 @@ export class FileService extends Disposable implements IFileService {
     return this.providers.get(scheme);
   }
 
+  public getProviderCapabilities(resourceOrScheme: URI | string): FileSystemProviderCapabilities {
+    const scheme = typeof resourceOrScheme === "string"
+      ? resourceOrScheme
+      : URI.revive(resourceOrScheme).scheme;
+    const provider = this.getProvider(scheme);
+    if (!provider) {
+      throw new Error(`No file system provider registered for '${scheme}'.`);
+    }
+
+    return provider.capabilities;
+  }
+
   public exists(resource: URI): Promise<boolean> {
     return this.withProvider(resource).exists(resource);
   }
@@ -56,8 +70,8 @@ export class FileService extends Disposable implements IFileService {
     return this.withProvider(resource).readFile(resource, options);
   }
 
-  public writeFile(resource: URI, content: string): Promise<void> {
-    return this.withProvider(resource).writeFile(resource, content);
+  public writeFile(resource: URI, content: string, options?: IWriteFileOptions): Promise<void> {
+    return this.withProvider(resource).writeFile(resource, content, options);
   }
 
   public deleteFile(resource: URI): Promise<void> {

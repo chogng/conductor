@@ -5,12 +5,14 @@ import { DisposableStore, toDisposable, type IDisposable } from "../../../base/c
 import { URI } from "../../../base/common/uri.js";
 import {
   FileChangeType,
+  FileSystemProviderCapabilities,
   FileType,
   type IFileContent,
   type IFileChange,
   type IFileStat,
   type IReadFileOptions,
   type IWatchOptions,
+  type IWriteFileOptions,
 } from "../common/files.js";
 import { sliceReadFileContent } from "../common/io.js";
 
@@ -33,11 +35,21 @@ const toFileType = (stat: fs.Stats): FileType => {
 export class DiskFileSystemProvider {
   private readonly onDidFilesChangeEmitter = new Emitter<readonly IFileChange[]>();
   public readonly onDidFilesChange = this.onDidFilesChangeEmitter.event;
+  public readonly capabilities: FileSystemProviderCapabilities;
   private readonly watchers = new Map<string, IDisposable>();
 
   public constructor(
     private readonly trashItem?: (filePath: string) => Promise<void>,
-  ) {}
+  ) {
+    this.capabilities =
+      FileSystemProviderCapabilities.FileRead |
+      FileSystemProviderCapabilities.FileReadRange |
+      FileSystemProviderCapabilities.FileWrite |
+      FileSystemProviderCapabilities.FileAtomicWrite |
+      FileSystemProviderCapabilities.FileDelete |
+      FileSystemProviderCapabilities.FileWatch |
+      (trashItem ? FileSystemProviderCapabilities.FileTrash : FileSystemProviderCapabilities.None);
+  }
 
   public async stat(resource: URI): Promise<IFileStat> {
     const target = this.toFilePath(resource);
@@ -94,12 +106,20 @@ export class DiskFileSystemProvider {
     };
   }
 
-  public async writeFile(resource: URI, content: string): Promise<void> {
+  public async writeFile(
+    resource: URI,
+    content: string,
+    options: IWriteFileOptions = {},
+  ): Promise<void> {
     const target = this.toFilePath(resource);
     const didExist = await this.exists(resource);
 
     await fs.promises.mkdir(path.dirname(target), { recursive: true });
-    await fs.promises.writeFile(target, content, "utf8");
+    if (options.atomic === true) {
+      await this.atomicWriteFile(target, content);
+    } else {
+      await fs.promises.writeFile(target, content, "utf8");
+    }
 
     this.onDidFilesChangeEmitter.fire([{
       resource,
@@ -150,17 +170,21 @@ export class DiskFileSystemProvider {
     existing?.dispose();
 
     const target = this.toFilePath(resource);
-    const targetStat = fs.statSync(target);
-    const watchRoot = targetStat.isDirectory() ? target : path.dirname(target);
+    const targetStat = this.tryStat(target);
+    const watchDirectory = targetStat?.isDirectory() === true ? target : path.dirname(target);
+    const watchedFilePath = targetStat?.isDirectory() === true ? null : target;
     const store = new DisposableStore();
     const watcher = fs.watch(
-      target,
+      watchDirectory,
       { recursive: options.recursive === true },
       (_eventType, fileName) => {
         const normalizedName = typeof fileName === "string" ? fileName.trim() : "";
         const changedPath = normalizedName
-          ? path.resolve(watchRoot, normalizedName)
-          : target;
+          ? path.resolve(watchDirectory, normalizedName)
+          : watchedFilePath ?? watchDirectory;
+        if (watchedFilePath && path.normalize(changedPath) !== watchedFilePath) {
+          return;
+        }
         void this.resolveFileChange(path.normalize(changedPath), _eventType)
           .then(change => this.onDidFilesChangeEmitter.fire([change]))
           .catch(() => {
@@ -204,6 +228,28 @@ export class DiskFileSystemProvider {
       resource: URI.file(filePath),
       type: FileChangeType.UPDATED,
     };
+  }
+
+  private async atomicWriteFile(target: string, content: string): Promise<void> {
+    const tempPath = path.join(
+      path.dirname(target),
+      `.${path.basename(target)}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`,
+    );
+    try {
+      await fs.promises.writeFile(tempPath, content, "utf8");
+      await fs.promises.rename(tempPath, target);
+    } catch (error) {
+      await fs.promises.rm(tempPath, { force: true }).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  private tryStat(target: string): fs.Stats | null {
+    try {
+      return fs.statSync(target);
+    } catch {
+      return null;
+    }
   }
 
   private toFilePath(resource: URI): string {
