@@ -47,6 +47,11 @@ suite("workbench/services/recipe/test/common/recipeCodec", () => {
 				physicalLayout: "simpleXY",
 				rowRange: "table.dataRange",
 			},
+			seriesPartition: {
+				kind: "groupColumn",
+				layoutKind: "notLayout",
+				minConfidence: 2,
+			},
 			logicalRelation: "groupedXY",
 			stopOnError: "yes",
 		}]);
@@ -58,6 +63,8 @@ suite("workbench/services/recipe/test/common/recipeCodec", () => {
 			"recipe.invalidBlockPartition",
 			"recipe.invalidPhysicalLayout",
 			"recipe.invalidWithinBlockRowRange",
+			"recipe.invalidSeriesPartitionLayout",
+			"recipe.invalidSeriesPartitionConfidence",
 			"recipe.invalidLogicalRelation",
 			"recipe.invalidStopOnError",
 		]);
@@ -163,6 +170,69 @@ suite("workbench/services/recipe/test/common/recipeCodec", () => {
 			"xy",
 			"xy",
 		]);
+		assert.deepEqual(result.recipes.map(recipe => recipe.seriesPartition.kind), [
+			"none",
+			"none",
+		]);
+	});
+
+	test("expands variant overrides for grouped XY recipes", () => {
+		const baseRecipe = createRecipe();
+		const result = normalizeRecipes([{
+			id: "workspace.iv.xy",
+			version: 1,
+			dataRange: baseRecipe.dataRange,
+			blockPartition: baseRecipe.blockPartition,
+			withinBlock: baseRecipe.withinBlock,
+			seriesPartition: baseRecipe.seriesPartition,
+			logicalRelation: baseRecipe.logicalRelation,
+			variants: [{
+				id: "workspace.iv.transfer.grouped",
+				priority: 100,
+				label: "Workspace Transfer Grouped",
+				blockPartition: {
+					kind: "measurementBlocks",
+					select: "first",
+					minConfidence: 0.3,
+				},
+				seriesPartition: {
+					kind: "groupColumn",
+					layoutKind: "groupedSweep",
+					minConfidence: 0.75,
+				},
+				logicalRelation: "oneX-oneY-manyGroups",
+				domain: baseRecipe.domain,
+				roles: {
+					...baseRecipe.roles,
+					x: {
+						...baseRecipe.roles.x,
+						count: "oneOrMore",
+					},
+					y: {
+						...baseRecipe.roles.y,
+						count: "oneOrMore",
+					},
+					group: {
+						count: "oneOrMore",
+					},
+				},
+			}],
+		}]);
+
+		assert.deepEqual(result.diagnostics, []);
+		assert.deepEqual(result.recipes.map(recipe => ({
+			id: recipe.id,
+			select: recipe.blockPartition.select,
+			physicalLayout: recipe.withinBlock.physicalLayout,
+			seriesPartition: recipe.seriesPartition.kind,
+			logicalRelation: recipe.logicalRelation,
+		})), [{
+			id: "workspace.iv.transfer.grouped",
+			select: "first",
+			physicalLayout: "xy",
+			seriesPartition: "groupColumn",
+			logicalRelation: "oneX-oneY-manyGroups",
+		}]);
 	});
 });
 
@@ -181,6 +251,9 @@ const createRecipe = () => ({
 	withinBlock: {
 		physicalLayout: "xy",
 		rowRange: "block.dataRange",
+	},
+	seriesPartition: {
+		kind: "none",
 	},
 	logicalRelation: "oneX-oneY",
 	domain: {

@@ -5,7 +5,9 @@
 export type {
 	RecipeBlockPartition,
 	RecipeDataRange,
+	RecipeLayoutEvidenceKind,
 	RecipeLogicalRelation,
 	RecipePhysicalLayout,
+	RecipeSeriesPartition,
 	RecipeWithinBlock,
 } from "src/cs/workbench/services/recipe/common/recipeSchema";

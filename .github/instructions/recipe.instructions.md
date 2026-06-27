@@ -14,6 +14,7 @@ Recipe authoring follows the developer debugging order:
 dataRange
   -> blockPartition
   -> withinBlock.physicalLayout
+  -> seriesPartition
   -> logicalRelation
   -> variants / domain / roles
 ```
@@ -41,6 +42,7 @@ Review candidate builders own recipe interpretation:
 - checking `dataRange` against `ReviewContext.evidence`;
 - checking `blockPartition` against measurement block evidence;
 - checking `withinBlock.physicalLayout` against physical layout evidence;
+- checking `seriesPartition` against block-internal curve partition evidence;
 - mapping `logicalRelation` and role captures into a candidate interpretation;
 - candidate ordering before Review scoring.
 
@@ -107,17 +109,27 @@ RecipeService reload/change
 
 - A concrete `Recipe` must stay passive JSON with `id`, `version`,
   `priority`, `label`, `dataRange`, `blockPartition`, `withinBlock`,
-  `logicalRelation`, optional `domain`, and `roles`.
-- Hand-authored source files may group semantic variants under one physical
-  layout with `variants`. The shared file fields describe `dataRange`,
-  `blockPartition`, `withinBlock.physicalLayout`, and `logicalRelation`; each
-  variant supplies the concrete recipe `id`, `priority`, `label`, `domain`, and
-  `roles`. `RecipeService` publishes only the expanded concrete `Recipe[]`.
+  `seriesPartition`, `logicalRelation`, optional `domain`, and `roles`.
+- Hand-authored source files should stay grouped by measurement language/domain
+  with flat names such as `iv.json`, `cv.json`, `cf.json`, and `it.json`.
+  Physical layout stays in `withinBlock.physicalLayout`, not in the path. Files
+  may group semantic variants under one physical layout with `variants` within
+  that domain. The shared file fields describe `dataRange`,
+  `blockPartition`, `withinBlock.physicalLayout`, `seriesPartition`, and
+  `logicalRelation`; each variant supplies the concrete recipe `id`,
+  `priority`, `label`, `domain`, and `roles`, and may override
+  `blockPartition`, `seriesPartition`, or `logicalRelation` when the same
+  physical layout has different curve partitioning. `RecipeService` publishes
+  only the expanded concrete `Recipe[]`.
 - `dataRange` describes where usable data begins; it does not read files.
 - `blockPartition` describes whether Review should use each measurement block
   or the first matching block; it does not create blocks itself.
 - `withinBlock.physicalLayout` describes physical arrangement only, such as
-  `xy`, `xyyyy`, `xyxyxy`, `x-y-group`, `blocks.xy`, or `blocks.xyyyy`.
+  `xy`, `xyyyy`, `xyxyxy`, `blocks.xy`, or `blocks.xyyyy`.
+- `seriesPartition` describes whether one physical block should be split into
+  multiple curves by additional evidence such as a group column. Grouped IV
+  sweeps remain `physicalLayout: "xy"` with
+  `seriesPartition.kind: "groupColumn"`.
 - `logicalRelation` describes the curve relation, such as `oneX-oneY`,
   `oneX-manyY`, `oneX-oneY-manyGroups`, `manyXYpairs`, or
   `manyBlocks-oneX-oneY`.

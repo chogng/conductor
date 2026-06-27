@@ -492,7 +492,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		}
 	});
 
-	test("matches x-y-group IV recipes through layout binding projection", async () => {
+	test("matches grouped XY IV recipes through layout binding projection", async () => {
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const tableModelProducerService = store.add(new TableModelProducerService());

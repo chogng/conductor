@@ -1,10 +1,9 @@
 {
   "schemaVersion": 1,
   "recipes": [
-    "iv/x-y-group.json",
-    "iv/xy.json",
-    "capacitance/cv.json",
-    "capacitance/cf.json",
-    "currentTime/it.json"
+    "iv.json",
+    "cv.json",
+    "cf.json",
+    "it.json"
   ]
 }

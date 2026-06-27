@@ -24,6 +24,9 @@ export const builtinRecipes = [
       "physicalLayout": "xyyyy",
       "rowRange": "block.dataRange"
     },
+    "seriesPartition": {
+      "kind": "none"
+    },
     "logicalRelation": "oneX-manyY",
     "domain": {
       "family": "cf",
@@ -63,6 +66,9 @@ export const builtinRecipes = [
     "withinBlock": {
       "physicalLayout": "xyyyy",
       "rowRange": "block.dataRange"
+    },
+    "seriesPartition": {
+      "kind": "none"
     },
     "logicalRelation": "oneX-manyY",
     "domain": {
@@ -106,6 +112,9 @@ export const builtinRecipes = [
       "physicalLayout": "xyyyy",
       "rowRange": "block.dataRange"
     },
+    "seriesPartition": {
+      "kind": "none"
+    },
     "logicalRelation": "oneX-manyY",
     "domain": {
       "family": "it",
@@ -131,26 +140,40 @@ export const builtinRecipes = [
     "stopOnError": false
   },
   {
-    "id": "builtin.iv.x-y-group",
+    "id": "builtin.iv.xy",
     "version": 1,
     "dataRange": {
       "kind": "detectedDataRegion"
     },
     "blockPartition": {
       "kind": "measurementBlocks",
-      "select": "first",
-      "minConfidence": 0.3
+      "select": "each",
+      "minConfidence": 0.75
     },
     "withinBlock": {
-      "physicalLayout": "x-y-group",
+      "physicalLayout": "xy",
       "rowRange": "block.dataRange"
     },
-    "logicalRelation": "oneX-oneY-manyGroups",
+    "seriesPartition": {
+      "kind": "none"
+    },
+    "logicalRelation": "oneX-oneY",
     "variants": [
       {
         "id": "builtin.iv.transfer.x-y-group",
         "priority": 105,
         "label": "Detected IV Transfer",
+        "blockPartition": {
+          "kind": "measurementBlocks",
+          "select": "first",
+          "minConfidence": 0.3
+        },
+        "seriesPartition": {
+          "kind": "groupColumn",
+          "layoutKind": "groupedSweep",
+          "minConfidence": 0.75
+        },
+        "logicalRelation": "oneX-oneY-manyGroups",
         "domain": {
           "family": "iv",
           "ivMode": "transfer",
@@ -183,6 +206,17 @@ export const builtinRecipes = [
         "id": "builtin.iv.output.x-y-group",
         "priority": 104,
         "label": "Detected IV Output",
+        "blockPartition": {
+          "kind": "measurementBlocks",
+          "select": "first",
+          "minConfidence": 0.3
+        },
+        "seriesPartition": {
+          "kind": "groupColumn",
+          "layoutKind": "groupedSweep",
+          "minConfidence": 0.75
+        },
+        "logicalRelation": "oneX-oneY-manyGroups",
         "domain": {
           "family": "iv",
           "ivMode": "output",
@@ -210,26 +244,7 @@ export const builtinRecipes = [
           }
         },
         "stopOnError": false
-      }
-    ]
-  },
-  {
-    "id": "builtin.iv.xy",
-    "version": 1,
-    "dataRange": {
-      "kind": "detectedDataRegion"
-    },
-    "blockPartition": {
-      "kind": "measurementBlocks",
-      "select": "each",
-      "minConfidence": 0.75
-    },
-    "withinBlock": {
-      "physicalLayout": "xy",
-      "rowRange": "block.dataRange"
-    },
-    "logicalRelation": "oneX-oneY",
-    "variants": [
+      },
       {
         "id": "builtin.iv.transfer",
         "priority": 100,

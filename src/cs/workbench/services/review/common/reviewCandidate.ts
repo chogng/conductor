@@ -6,7 +6,6 @@ import type { MeasurementBlockRecord } from "src/cs/workbench/services/tableMode
 import type { Recipe, RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
 import type {
 	RecipeLogicalRelation,
-	RecipePhysicalLayout,
 } from "src/cs/workbench/services/recipe/common/recipeSchema";
 import type {
 	ReviewCandidate,
@@ -356,8 +355,8 @@ const createAxisBinding = (
 	match: ReviewSelectorBlockMatch,
 	evidence: ReviewContext["evidence"],
 ): ReviewCandidateAxisBinding | null => {
-	if (usesLayoutBindingColumns(recipe.withinBlock.physicalLayout)) {
-		const columns = readLayoutBindingColumns(evidence, axis);
+	if (usesLayoutBindingColumns(recipe)) {
+		const columns = readLayoutBindingColumns(evidence, recipe, axis);
 		return columns.length
 			? {
 				columns,
@@ -393,10 +392,10 @@ const readCaptureUnit = (
 };
 
 const usesLayoutBindingColumns = (
-	layout: RecipePhysicalLayout,
+	recipe: Recipe,
 ): boolean =>
-	layout === "x-y-group" ||
-	layout === "xyxyxy";
+	recipe.seriesPartition.kind === "groupColumn" ||
+	recipe.withinBlock.physicalLayout === "xyxyxy";
 
 const createCandidateSegmentation = (
 	_logicalRelation: RecipeLogicalRelation,
@@ -412,10 +411,15 @@ const createCandidateLegend = (
 
 const readLayoutBindingColumns = (
 	evidence: ReviewContext["evidence"],
+	recipe: Recipe,
 	target: "x" | "y" | "bias",
 ): readonly number[] => {
+	const layoutKinds = getLayoutBindingEvidenceKinds(recipe);
 	const binding = evidence.tableProjection?.layoutCandidates
-		.find(candidate => candidate.bindings.length)?.bindings[0];
+		.find(candidate =>
+			(!layoutKinds.length || layoutKinds.includes(candidate.layoutKind)) &&
+			candidate.bindings.length
+		)?.bindings[0];
 	if (!binding) {
 		return [];
 	}
@@ -429,6 +433,24 @@ const readLayoutBindingColumns = (
 			return binding.yCols?.filter(isIntegerColumn) ?? [];
 		case "bias":
 			return binding.biasCols?.filter(isIntegerColumn) ?? [];
+	}
+};
+
+const getLayoutBindingEvidenceKinds = (
+	recipe: Recipe,
+): readonly string[] => {
+	if (recipe.seriesPartition.kind === "groupColumn") {
+		return [recipe.seriesPartition.layoutKind ?? "groupedSweep"];
+	}
+	switch (recipe.withinBlock.physicalLayout) {
+		case "xyxyxy":
+			return ["pairwiseXY"];
+		case "blocks.xy":
+		case "blocks.xyyyy":
+			return ["repeatedBlock"];
+		case "xy":
+		case "xyyyy":
+			return [];
 	}
 };
 

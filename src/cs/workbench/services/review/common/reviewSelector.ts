@@ -10,6 +10,7 @@ import type { Recipe } from "src/cs/workbench/services/recipe/common/recipe";
 import type {
 	RecipePhysicalLayout,
 	RecipeRole,
+	RecipeSeriesPartition,
 } from "src/cs/workbench/services/recipe/common/recipeSchema";
 import type { ReviewEvidence } from "src/cs/workbench/services/review/common/reviewModel";
 
@@ -122,6 +123,7 @@ const evaluateRecipe = (
 		() => evaluateBlockPartition(recipe, context.block),
 		() => evaluateDomain(recipe, context.block),
 		() => evaluatePhysicalLayout(recipe.withinBlock.physicalLayout, context.evidence),
+		() => evaluateSeriesPartition(recipe.seriesPartition, context.evidence),
 		() => evaluateRole("x", recipe.roles.x, context),
 		() => evaluateRole("y", recipe.roles.y, context),
 	];
@@ -219,6 +221,36 @@ const evaluatePhysicalLayout = (
 		: { matched: false, diagnosticCode: "recipeSelector.physicalLayoutMismatch" };
 };
 
+const evaluateSeriesPartition = (
+	partition: RecipeSeriesPartition,
+	evidence: ReviewEvidence,
+): PredicateResult => {
+	if (partition.kind === "none") {
+		return { matched: true };
+	}
+
+	const layoutKind = partition.layoutKind ?? "groupedSweep";
+	const matched = evidence.tableProjection?.layoutCandidates.some(candidate =>
+		candidate.layoutKind === layoutKind &&
+		meetsMinConfidence(candidate.confidence, partition.minConfidence ?? 0.75) &&
+		candidate.bindings.some(hasSeriesPartitionBinding)
+	);
+	return matched
+		? { matched: true, reason: `seriesPartition:${partition.kind}` }
+		: { matched: false, diagnosticCode: "recipeSelector.seriesPartitionMismatch" };
+};
+
+const hasSeriesPartitionBinding = (
+	binding: {
+		readonly groupByCol?: number;
+		readonly pointCol?: number;
+		readonly biasCols?: readonly number[];
+	},
+): boolean =>
+	Number.isInteger(binding.groupByCol) ||
+	Number.isInteger(binding.pointCol) ||
+	Boolean(binding.biasCols?.length);
+
 const evaluateRole = (
 	capture: "x" | "y",
 	role: RecipeRole,
@@ -251,8 +283,6 @@ const getRequiredLayoutEvidenceKinds = (
 	layout: RecipePhysicalLayout,
 ): readonly string[] => {
 	switch (layout) {
-		case "x-y-group":
-			return ["groupedSweep"];
 		case "xyxyxy":
 			return ["pairwiseXY"];
 		case "blocks.xy":

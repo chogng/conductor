@@ -14,6 +14,7 @@ import type {
 	RecipeGroupRole,
 	RecipeRole,
 	RecipeRoles,
+	RecipeSeriesPartition,
 	RecipeWithinBlock,
 } from "src/cs/workbench/services/recipe/common/recipeSchema";
 
@@ -39,7 +40,6 @@ const RECIPE_PHYSICAL_LAYOUTS = new Set([
 	"xy",
 	"xyyyy",
 	"xyxyxy",
-	"x-y-group",
 	"blocks.xy",
 	"blocks.xyyyy",
 ]);
@@ -50,6 +50,23 @@ const RECIPE_LOGICAL_RELATIONS = new Set([
 	"oneX-oneY-manyGroups",
 	"manyXYpairs",
 	"manyBlocks-oneX-oneY",
+]);
+
+const RECIPE_SERIES_PARTITION_KINDS = new Set([
+	"none",
+	"groupColumn",
+]);
+
+const RECIPE_LAYOUT_EVIDENCE_KINDS = new Set([
+	"metadataPreamble",
+	"repeatedBlock",
+	"groupedSweep",
+	"wideMatrix",
+	"timeSeries",
+	"pairwiseXY",
+	"sharedXMultiY",
+	"simpleXY",
+	"unknown",
 ]);
 
 const RECIPE_MEASUREMENT_FAMILIES = new Set([
@@ -200,6 +217,7 @@ const normalizeConcreteRecipe = (
 	const dataRange = isObjectRecord(input.dataRange) ? input.dataRange as RecipeDataRange : null;
 	const blockPartition = isObjectRecord(input.blockPartition) ? input.blockPartition as RecipeBlockPartition : null;
 	const withinBlock = isObjectRecord(input.withinBlock) ? input.withinBlock as RecipeWithinBlock : null;
+	const seriesPartition = readRecipeSeriesPartition(input.seriesPartition);
 	const logicalRelation = normalizeText(input.logicalRelation);
 	const domain = isObjectRecord(input.domain) ? input.domain as RecipeDomain : undefined;
 	const roles = isObjectRecord(input.roles) ? input.roles as RecipeRoles : null;
@@ -220,6 +238,7 @@ const normalizeConcreteRecipe = (
 	validateRecipeDataRange(dataRange, diagnostics, id);
 	validateRecipeBlockPartition(blockPartition, diagnostics, id);
 	validateRecipeWithinBlock(withinBlock, diagnostics, id);
+	validateRecipeSeriesPartition(seriesPartition, diagnostics, id);
 	validateRecipeLogicalRelation(logicalRelation, diagnostics, id);
 	if (domain) {
 		validateRecipeDomain(domain, diagnostics, id);
@@ -237,6 +256,7 @@ const normalizeConcreteRecipe = (
 		!dataRange ||
 		!blockPartition ||
 		!withinBlock ||
+		!seriesPartition ||
 		!RECIPE_LOGICAL_RELATIONS.has(logicalRelation) ||
 		!roles
 	) {
@@ -252,6 +272,7 @@ const normalizeConcreteRecipe = (
 			dataRange,
 			blockPartition,
 			withinBlock,
+			seriesPartition,
 			logicalRelation: logicalRelation as Recipe["logicalRelation"],
 			...(domain ? { domain } : {}),
 			roles,
@@ -273,6 +294,7 @@ const normalizeRecipeWithVariants = (
 	const dataRange = isObjectRecord(input.dataRange) ? input.dataRange as RecipeDataRange : null;
 	const blockPartition = isObjectRecord(input.blockPartition) ? input.blockPartition as RecipeBlockPartition : null;
 	const withinBlock = isObjectRecord(input.withinBlock) ? input.withinBlock as RecipeWithinBlock : null;
+	const seriesPartition = readRecipeSeriesPartition(input.seriesPartition);
 	const logicalRelation = normalizeText(input.logicalRelation);
 	const domain = isObjectRecord(input.domain) ? input.domain as RecipeDomain : undefined;
 	const roles = input.roles === undefined
@@ -300,6 +322,7 @@ const normalizeRecipeWithVariants = (
 	validateRecipeDataRange(dataRange, diagnostics, id);
 	validateRecipeBlockPartition(blockPartition, diagnostics, id);
 	validateRecipeWithinBlock(withinBlock, diagnostics, id);
+	validateRecipeSeriesPartition(seriesPartition, diagnostics, id);
 	validateRecipeLogicalRelation(logicalRelation, diagnostics, id);
 	if (domain) {
 		validateRecipeDomain(domain, diagnostics, id);
@@ -330,6 +353,17 @@ const normalizeRecipeWithVariants = (
 		const variantRecipeId = variantId || id;
 		const variantPriority = variantInput.priority === undefined ? priority : normalizeFiniteNumber(variantInput.priority);
 		const variantLabel = variantInput.label === undefined ? label : normalizeText(variantInput.label);
+		const variantBlockPartition = variantInput.blockPartition === undefined
+			? blockPartition
+			: isObjectRecord(variantInput.blockPartition)
+				? variantInput.blockPartition as RecipeBlockPartition
+				: null;
+		const variantSeriesPartition = variantInput.seriesPartition === undefined
+			? seriesPartition
+			: readRecipeSeriesPartition(variantInput.seriesPartition);
+		const variantLogicalRelation = variantInput.logicalRelation === undefined
+			? logicalRelation
+			: normalizeText(variantInput.logicalRelation);
 		const variantDomain = isObjectRecord(variantInput.domain) ? variantInput.domain as RecipeDomain : undefined;
 		const mergedDomain = mergeRecipeDomain(domain, variantDomain);
 		const variantRoles = variantInput.roles === undefined
@@ -352,6 +386,9 @@ const normalizeRecipeWithVariants = (
 		if (!variantLabel) {
 			diagnostics.push(createRecipeDiagnostic(variantRecipeId, "recipe.missingLabel", "Recipe label is required."));
 		}
+		validateRecipeBlockPartition(variantBlockPartition, diagnostics, variantRecipeId);
+		validateRecipeSeriesPartition(variantSeriesPartition, diagnostics, variantRecipeId);
+		validateRecipeLogicalRelation(variantLogicalRelation, diagnostics, variantRecipeId);
 		if (mergedDomain) {
 			validateRecipeDomain(mergedDomain, diagnostics, variantRecipeId);
 		}
@@ -370,9 +407,10 @@ const normalizeRecipeWithVariants = (
 			variantPriority === null ||
 			!variantLabel ||
 			!dataRange ||
-			!blockPartition ||
+			!variantBlockPartition ||
 			!withinBlock ||
-			!RECIPE_LOGICAL_RELATIONS.has(logicalRelation) ||
+			!variantSeriesPartition ||
+			!RECIPE_LOGICAL_RELATIONS.has(variantLogicalRelation) ||
 			!variantRoles
 		) {
 			continue;
@@ -384,9 +422,10 @@ const normalizeRecipeWithVariants = (
 			priority: variantPriority,
 			label: variantLabel,
 			dataRange,
-			blockPartition,
+			blockPartition: variantBlockPartition,
 			withinBlock,
-			logicalRelation: logicalRelation as Recipe["logicalRelation"],
+			seriesPartition: variantSeriesPartition,
+			logicalRelation: variantLogicalRelation as Recipe["logicalRelation"],
 			...(mergedDomain ? { domain: mergedDomain } : {}),
 			roles: variantRoles,
 			...(variantStopOnError !== undefined ? { stopOnError: variantStopOnError } : {}),
@@ -437,6 +476,39 @@ const validateRecipeWithinBlock = (
 	}
 	if (withinBlock.rowRange !== "block.dataRange") {
 		diagnostics.push(createRecipeDiagnostic(recipeId, "recipe.invalidWithinBlockRowRange", "Recipe withinBlock.rowRange must use block.dataRange."));
+	}
+};
+
+const readRecipeSeriesPartition = (
+	value: unknown,
+): RecipeSeriesPartition | null => {
+	if (value === undefined) {
+		return { kind: "none" };
+	}
+	return isObjectRecord(value) ? value as RecipeSeriesPartition : null;
+};
+
+const validateRecipeSeriesPartition = (
+	seriesPartition: RecipeSeriesPartition | null,
+	diagnostics: RecipeDiagnostic[],
+	recipeId: string,
+): void => {
+	if (!seriesPartition || !RECIPE_SERIES_PARTITION_KINDS.has(String(seriesPartition.kind))) {
+		diagnostics.push(createRecipeDiagnostic(recipeId, "recipe.invalidSeriesPartition", "Recipe seriesPartition is invalid."));
+		return;
+	}
+	if (
+		seriesPartition.kind === "groupColumn" &&
+		seriesPartition.layoutKind !== undefined &&
+		!RECIPE_LAYOUT_EVIDENCE_KINDS.has(String(seriesPartition.layoutKind))
+	) {
+		diagnostics.push(createRecipeDiagnostic(recipeId, "recipe.invalidSeriesPartitionLayout", "Recipe seriesPartition.layoutKind is invalid."));
+	}
+	if (
+		seriesPartition.kind === "groupColumn" &&
+		!isOptionalConfidence(seriesPartition.minConfidence)
+	) {
+		diagnostics.push(createRecipeDiagnostic(recipeId, "recipe.invalidSeriesPartitionConfidence", "Recipe seriesPartition.minConfidence must be between 0 and 1."));
 	}
 };
 

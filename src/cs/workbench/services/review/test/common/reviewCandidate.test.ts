@@ -93,7 +93,7 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 		});
 	});
 
-	test("builds x-y-group IV recipe from physical layout bindings", () => {
+	test("builds grouped XY IV recipe from series partition layout bindings", () => {
 		const recipe = getBuiltinRecipe("builtin.iv.transfer.x-y-group");
 
 		const evidence = createReviewEvidence({

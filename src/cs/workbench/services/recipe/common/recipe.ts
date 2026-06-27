@@ -10,6 +10,7 @@ import type {
 	RecipeDomain,
 	RecipeLogicalRelation,
 	RecipeRoles,
+	RecipeSeriesPartition,
 	RecipeWithinBlock,
 } from "src/cs/workbench/services/recipe/common/recipeSchema";
 
@@ -24,6 +25,7 @@ export type Recipe = {
 	readonly dataRange: RecipeDataRange;
 	readonly blockPartition: RecipeBlockPartition;
 	readonly withinBlock: RecipeWithinBlock;
+	readonly seriesPartition: RecipeSeriesPartition;
 	readonly logicalRelation: RecipeLogicalRelation;
 	readonly domain?: RecipeDomain;
 	readonly roles: RecipeRoles;
@@ -32,10 +34,13 @@ export type Recipe = {
 
 export type RecipeVariant = {
 	readonly id: string;
+	readonly blockPartition?: RecipeBlockPartition;
+	readonly logicalRelation?: RecipeLogicalRelation;
 	readonly priority?: number;
 	readonly label?: string;
 	readonly domain?: RecipeDomain;
 	readonly roles?: RecipeRoles;
+	readonly seriesPartition?: RecipeSeriesPartition;
 	readonly stopOnError?: boolean;
 };
 
@@ -45,6 +50,7 @@ export type RecipeAuthoring = Recipe | {
 	readonly dataRange: RecipeDataRange;
 	readonly blockPartition: RecipeBlockPartition;
 	readonly withinBlock: RecipeWithinBlock;
+	readonly seriesPartition?: RecipeSeriesPartition;
 	readonly logicalRelation: RecipeLogicalRelation;
 	readonly priority?: number;
 	readonly label?: string;

@@ -39,7 +39,6 @@ export type RecipePhysicalLayout =
 	| "xy"
 	| "xyyyy"
 	| "xyxyxy"
-	| "x-y-group"
 	| "blocks.xy"
 	| "blocks.xyyyy";
 
@@ -54,6 +53,27 @@ export type RecipeLogicalRelation =
 	| "oneX-oneY-manyGroups"
 	| "manyXYpairs"
 	| "manyBlocks-oneX-oneY";
+
+export type RecipeLayoutEvidenceKind =
+	| "metadataPreamble"
+	| "repeatedBlock"
+	| "groupedSweep"
+	| "wideMatrix"
+	| "timeSeries"
+	| "pairwiseXY"
+	| "sharedXMultiY"
+	| "simpleXY"
+	| "unknown";
+
+export type RecipeSeriesPartition =
+	| {
+		readonly kind: "none";
+	}
+	| {
+		readonly kind: "groupColumn";
+		readonly layoutKind?: RecipeLayoutEvidenceKind;
+		readonly minConfidence?: number;
+	};
 
 export type RecipeDomain = {
 	readonly family?: RecipeMeasurementFamily;
