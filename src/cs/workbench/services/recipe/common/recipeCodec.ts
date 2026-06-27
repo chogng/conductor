@@ -127,25 +127,23 @@ export const normalizeRecipes = (
 
 	for (const input of recipesInput) {
 		const normalized = normalizeRecipe(input);
-		if (!normalized.recipe) {
-			diagnostics.push(...normalized.diagnostics);
-			continue;
-		}
-
-		const duplicateKey = `${normalized.recipe.id}@${normalized.recipe.version}`;
-		if (seenIds.has(duplicateKey)) {
-			diagnostics.push({
-				recipeId: normalized.recipe.id,
-				severity: "error",
-				code: "recipe.duplicateIdVersion",
-				message: `Duplicate recipe id/version: ${duplicateKey}`,
-			});
-			continue;
-		}
-
-		seenIds.add(duplicateKey);
-		recipes.push(normalized.recipe);
 		diagnostics.push(...normalized.diagnostics);
+
+		for (const recipe of normalized.recipes) {
+			const duplicateKey = `${recipe.id}@${recipe.version}`;
+			if (seenIds.has(duplicateKey)) {
+				diagnostics.push({
+					recipeId: recipe.id,
+					severity: "error",
+					code: "recipe.duplicateIdVersion",
+					message: `Duplicate recipe id/version: ${duplicateKey}`,
+				});
+				continue;
+			}
+
+			seenIds.add(duplicateKey);
+			recipes.push(recipe);
+		}
 	}
 
 	return {
@@ -167,13 +165,12 @@ export const stableStringify = (value: unknown): string =>
 const normalizeRecipe = (
 	input: unknown,
 ): {
-	readonly recipe: Recipe | null;
+	readonly recipes: readonly Recipe[];
 	readonly diagnostics: readonly RecipeDiagnostic[];
 } => {
-	const diagnostics: RecipeDiagnostic[] = [];
 	if (!isObjectRecord(input)) {
 		return {
-			recipe: null,
+			recipes: [],
 			diagnostics: [{
 				severity: "error",
 				code: "recipe.invalidRecipe",
@@ -182,6 +179,20 @@ const normalizeRecipe = (
 		};
 	}
 
+	if (input.variants !== undefined) {
+		return normalizeRecipeWithVariants(input);
+	}
+
+	return normalizeConcreteRecipe(input);
+};
+
+const normalizeConcreteRecipe = (
+	input: Record<string, unknown>,
+): {
+	readonly recipes: readonly Recipe[];
+	readonly diagnostics: readonly RecipeDiagnostic[];
+} => {
+	const diagnostics: RecipeDiagnostic[] = [];
 	const id = normalizeText(input.id);
 	const version = normalizePositiveInteger(input.version);
 	const priority = normalizeFiniteNumber(input.priority);
@@ -229,11 +240,11 @@ const normalizeRecipe = (
 		!RECIPE_LOGICAL_RELATIONS.has(logicalRelation) ||
 		!roles
 	) {
-		return { recipe: null, diagnostics };
+		return { recipes: [], diagnostics };
 	}
 
 	return {
-		recipe: {
+		recipes: [{
 			id,
 			version,
 			priority,
@@ -245,9 +256,144 @@ const normalizeRecipe = (
 			...(domain ? { domain } : {}),
 			roles,
 			...(typeof input.stopOnError === "boolean" ? { stopOnError: input.stopOnError } : {}),
-		},
+		}],
 		diagnostics,
 	};
+};
+
+const normalizeRecipeWithVariants = (
+	input: Record<string, unknown>,
+): {
+	readonly recipes: readonly Recipe[];
+	readonly diagnostics: readonly RecipeDiagnostic[];
+} => {
+	const diagnostics: RecipeDiagnostic[] = [];
+	const id = normalizeText(input.id);
+	const version = normalizePositiveInteger(input.version);
+	const dataRange = isObjectRecord(input.dataRange) ? input.dataRange as RecipeDataRange : null;
+	const blockPartition = isObjectRecord(input.blockPartition) ? input.blockPartition as RecipeBlockPartition : null;
+	const withinBlock = isObjectRecord(input.withinBlock) ? input.withinBlock as RecipeWithinBlock : null;
+	const logicalRelation = normalizeText(input.logicalRelation);
+	const domain = isObjectRecord(input.domain) ? input.domain as RecipeDomain : undefined;
+	const roles = input.roles === undefined
+		? undefined
+		: isObjectRecord(input.roles)
+			? input.roles as RecipeRoles
+			: null;
+	const priority = input.priority === undefined ? undefined : normalizeFiniteNumber(input.priority);
+	const label = input.label === undefined ? undefined : normalizeText(input.label);
+	const variants = Array.isArray(input.variants) ? input.variants : null;
+
+	if (!id) {
+		diagnostics.push(createRecipeDiagnostic(id, "recipe.missingId", "Recipe id is required."));
+	}
+	if (!version) {
+		diagnostics.push(createRecipeDiagnostic(id, "recipe.invalidVersion", "Recipe version must be a positive integer."));
+	}
+	if (input.priority !== undefined && priority === null) {
+		diagnostics.push(createRecipeDiagnostic(id, "recipe.invalidPriority", "Recipe priority must be a finite number."));
+	}
+	if (input.label !== undefined && !label) {
+		diagnostics.push(createRecipeDiagnostic(id, "recipe.missingLabel", "Recipe label is required."));
+	}
+
+	validateRecipeDataRange(dataRange, diagnostics, id);
+	validateRecipeBlockPartition(blockPartition, diagnostics, id);
+	validateRecipeWithinBlock(withinBlock, diagnostics, id);
+	validateRecipeLogicalRelation(logicalRelation, diagnostics, id);
+	if (domain) {
+		validateRecipeDomain(domain, diagnostics, id);
+	}
+	if (roles !== undefined) {
+		validateRecipeRoles(roles, diagnostics, id);
+	}
+	validateRecipeStopOnError(input.stopOnError, diagnostics, id);
+
+	if (!variants || variants.length === 0) {
+		diagnostics.push(createRecipeDiagnostic(id, "recipe.invalidVariants", "Recipe variants must be a non-empty array."));
+	}
+
+	const baseHasErrors = diagnostics.some(diagnostic => diagnostic.severity === "error");
+	const recipes: Recipe[] = [];
+	if (!variants) {
+		return { recipes, diagnostics };
+	}
+
+	for (const variantInput of variants) {
+		if (!isObjectRecord(variantInput)) {
+			diagnostics.push(createRecipeDiagnostic(id, "recipe.invalidVariant", "Recipe variant must be an object."));
+			continue;
+		}
+
+		const variantDiagnosticsStart = diagnostics.length;
+		const variantId = normalizeText(variantInput.id);
+		const variantRecipeId = variantId || id;
+		const variantPriority = variantInput.priority === undefined ? priority : normalizeFiniteNumber(variantInput.priority);
+		const variantLabel = variantInput.label === undefined ? label : normalizeText(variantInput.label);
+		const variantDomain = isObjectRecord(variantInput.domain) ? variantInput.domain as RecipeDomain : undefined;
+		const mergedDomain = mergeRecipeDomain(domain, variantDomain);
+		const variantRoles = variantInput.roles === undefined
+			? roles
+			: isObjectRecord(variantInput.roles)
+				? variantInput.roles as RecipeRoles
+				: null;
+		const variantStopOnError = typeof variantInput.stopOnError === "boolean"
+			? variantInput.stopOnError
+			: typeof input.stopOnError === "boolean"
+				? input.stopOnError
+				: undefined;
+
+		if (!variantId) {
+			diagnostics.push(createRecipeDiagnostic(variantRecipeId, "recipe.missingVariantId", "Recipe variant id is required."));
+		}
+		if (variantPriority === undefined || variantPriority === null) {
+			diagnostics.push(createRecipeDiagnostic(variantRecipeId, "recipe.invalidPriority", "Recipe priority must be a finite number."));
+		}
+		if (!variantLabel) {
+			diagnostics.push(createRecipeDiagnostic(variantRecipeId, "recipe.missingLabel", "Recipe label is required."));
+		}
+		if (mergedDomain) {
+			validateRecipeDomain(mergedDomain, diagnostics, variantRecipeId);
+		}
+		validateRecipeRoles(variantRoles ?? null, diagnostics, variantRecipeId);
+		validateRecipeStopOnError(variantInput.stopOnError, diagnostics, variantRecipeId);
+
+		const variantHasErrors = diagnostics
+			.slice(variantDiagnosticsStart)
+			.some(diagnostic => diagnostic.severity === "error");
+		if (
+			baseHasErrors ||
+			variantHasErrors ||
+			!variantId ||
+			!version ||
+			variantPriority === undefined ||
+			variantPriority === null ||
+			!variantLabel ||
+			!dataRange ||
+			!blockPartition ||
+			!withinBlock ||
+			!RECIPE_LOGICAL_RELATIONS.has(logicalRelation) ||
+			!variantRoles
+		) {
+			continue;
+		}
+
+		recipes.push({
+			id: variantId,
+			version,
+			priority: variantPriority,
+			label: variantLabel,
+			dataRange,
+			blockPartition,
+			withinBlock,
+			logicalRelation: logicalRelation as Recipe["logicalRelation"],
+			...(mergedDomain ? { domain: mergedDomain } : {}),
+			roles: variantRoles,
+			...(variantStopOnError !== undefined ? { stopOnError: variantStopOnError } : {}),
+		});
+	}
+
+	return { recipes, diagnostics };
 };
 
 const validateRecipeDataRange = (
@@ -322,6 +468,17 @@ const validateRecipeDomain = (
 		diagnostics.push(createRecipeDiagnostic(recipeId, "recipe.invalidDomainConfidence", "Recipe domain.minConfidence must be between 0 and 1."));
 	}
 };
+
+const mergeRecipeDomain = (
+	base: RecipeDomain | undefined,
+	variant: RecipeDomain | undefined,
+): RecipeDomain | undefined =>
+	base || variant
+		? {
+			...base,
+			...variant,
+		}
+		: undefined;
 
 const validateRecipeRoles = (
 	roles: RecipeRoles | null,

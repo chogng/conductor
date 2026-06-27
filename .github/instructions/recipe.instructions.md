@@ -15,7 +15,7 @@ dataRange
   -> blockPartition
   -> withinBlock.physicalLayout
   -> logicalRelation
-  -> domain / roles
+  -> variants / domain / roles
 ```
 
 Review owns interpretation and scoring:
@@ -84,6 +84,7 @@ candidate implementation:
 resources/recipes/v1/index.json
   -> scripts/buildRecipeBundle.mjs
   -> builtinRecipes.generated.ts + cli/resources/recipes.v1.json
+  -> recipeCodec expands authoring variants into concrete Recipe[]
   -> RecipeService.getSnapshot()
   -> ReviewService observes recipe/content-evidence/UserTemplate changes
   -> ReviewService builds ReviewCandidate values from recipe authoring fields
@@ -104,9 +105,14 @@ RecipeService reload/change
 
 ## Rules
 
-- A `Recipe` must stay passive JSON with `id`, `version`, `priority`,
-  `label`, `dataRange`, `blockPartition`, `withinBlock`, `logicalRelation`,
-  optional `domain`, and `roles`.
+- A concrete `Recipe` must stay passive JSON with `id`, `version`,
+  `priority`, `label`, `dataRange`, `blockPartition`, `withinBlock`,
+  `logicalRelation`, optional `domain`, and `roles`.
+- Hand-authored source files may group semantic variants under one physical
+  layout with `variants`. The shared file fields describe `dataRange`,
+  `blockPartition`, `withinBlock.physicalLayout`, and `logicalRelation`; each
+  variant supplies the concrete recipe `id`, `priority`, `label`, `domain`, and
+  `roles`. `RecipeService` publishes only the expanded concrete `Recipe[]`.
 - `dataRange` describes where usable data begins; it does not read files.
 - `blockPartition` describes whether Review should use each measurement block
   or the first matching block; it does not create blocks itself.

@@ -1,10 +1,8 @@
 {
   "schemaVersion": 1,
   "recipes": [
-    "iv/transfer-x-y-group.json",
-    "iv/output-x-y-group.json",
-    "iv/transfer.json",
-    "iv/output.json",
+    "iv/x-y-group.json",
+    "iv/xy.json",
     "capacitance/cv.json",
     "capacitance/cf.json",
     "currentTime/it.json"

@@ -4,15 +4,26 @@
 
 import assert from "assert";
 
+import { Emitter, Event } from "src/cs/base/common/event";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
+	ExplorerDecorationsProvider,
+	createExplorerDecorationResource,
+} from "src/cs/workbench/contrib/files/browser/views/explorerDecorationsProvider";
+import {
 	createExplorerDecorationDataFromReviewSummary,
 } from "src/cs/workbench/contrib/files/browser/views/explorerDecorations";
-import type { TableReviewSummary } from "src/cs/workbench/services/review/common/review";
+import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
+import type { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
+import type {
+	IReviewService,
+	ReviewSummary,
+	ReviewSummaryTarget,
+} from "src/cs/workbench/services/review/common/review";
 
 suite("workbench/contrib/files/browser/views/explorerDecorations", () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test("maps review summaries to explorer decoration data", () => {
 		const resource = URI.file("/workspace/Transfer.csv");
@@ -52,7 +63,7 @@ suite("workbench/contrib/files/browser/views/explorerDecorations", () => {
 	});
 
 	test("does not decorate missing review summaries", () => {
-		const summary: TableReviewSummary = {
+		const summary: ReviewSummary = {
 			resource: URI.file("/workspace/Missing.csv"),
 			state: "missing",
 			findingCodes: [],
@@ -61,4 +72,188 @@ suite("workbench/contrib/files/browser/views/explorerDecorations", () => {
 		assert.equal(createExplorerDecorationDataFromReviewSummary(summary), undefined);
 		assert.equal(createExplorerDecorationDataFromReviewSummary(undefined), undefined);
 	});
+
+	test("queries review summaries with resource and sheet targets", () => {
+		const resource = URI.file("/workspace/Transfer.xlsx");
+		const calls: ReviewSummaryTarget[] = [];
+		const provider = store.add(new ExplorerDecorationsProvider(
+			createExplorerServiceForTest([{
+				fileId: "file-a",
+				fileName: "Transfer.xlsx",
+				resource,
+				sheetId: "sheet-a",
+			}]),
+			createReviewServiceForTest(calls),
+		));
+
+		const decoration = provider.provideDecorations(resource.with({
+			fragment: "conductor.sheetId=sheet-a",
+		}));
+
+		assert.equal(decoration?.letter, "transfer");
+		assert.equal(calls[0]?.resource.toString(), resource.toString());
+		assert.equal(calls[0]?.sheetId, "sheet-a");
+	});
+
+	test("does not query review summaries for entries without resources", () => {
+		const resource = URI.file("/workspace/PathOnly.xlsx");
+		const calls: ReviewSummaryTarget[] = [];
+		const provider = store.add(new ExplorerDecorationsProvider(
+			createExplorerServiceForTest([{
+				fileId: "file-a",
+				fileName: "PathOnly.xlsx",
+				sheetId: "sheet-a",
+				sourcePath: resource.fsPath,
+			}]),
+			createReviewServiceForTest(calls),
+		));
+
+		const decoration = provider.provideDecorations(
+			createExplorerDecorationResource(resource, "sheet-a"),
+		);
+
+		assert.equal(decoration, undefined);
+		assert.deepEqual(calls, []);
+	});
+
+	test("fires decoration changes for resource entries", async () => {
+		const resource = URI.file("/workspace/Transfer.xlsx");
+		const reviewChanged = new Emitter<void>();
+		const changedResources: URI[][] = [];
+		const provider = store.add(new ExplorerDecorationsProvider(
+			createExplorerServiceForTest([{
+				fileId: "file-a",
+				fileName: "Transfer.xlsx",
+				resource,
+				sheetId: "sheet-a",
+			}]),
+			createReviewServiceForTest([], reviewChanged.event),
+		));
+		store.add(provider.onDidChange(resources => changedResources.push([...resources])));
+
+		reviewChanged.fire();
+
+		assert.equal(changedResources.length, 1);
+		assert.equal(changedResources[0]?.[0]?.with({ fragment: "" }).toString(), resource.toString());
+		assert.equal(changedResources[0]?.[0]?.fragment, "conductor.sheetId=sheet-a");
+	});
+
+	test("does not infer a sheet target from a bare decoration resource", () => {
+		const resource = URI.file("/workspace/MultiSheet.xlsx");
+		const calls: ReviewSummaryTarget[] = [];
+		const provider = store.add(new ExplorerDecorationsProvider(
+			createExplorerServiceForTest([{
+				fileId: "file-a",
+				fileName: "MultiSheet.xlsx",
+				resource,
+				sheetId: "sheet-a",
+			}, {
+				fileId: "file-b",
+				fileName: "MultiSheet.xlsx",
+				resource,
+				sheetId: "sheet-b",
+			}]),
+			createReviewServiceForTest(calls),
+		));
+
+		const decoration = provider.provideDecorations(resource);
+
+		assert.equal(decoration?.letter, "transfer");
+		assert.equal(calls[0]?.resource.toString(), resource.toString());
+		assert.equal(calls[0]?.sheetId, null);
+	});
+
+	test("does not query review for resources outside the explorer input", () => {
+		const resource = URI.file("/workspace/Transfer.xlsx");
+		const calls: ReviewSummaryTarget[] = [];
+		const provider = store.add(new ExplorerDecorationsProvider(
+			createExplorerServiceForTest([{
+				fileId: "file-a",
+				fileName: "Transfer.xlsx",
+				resource,
+				sheetId: "sheet-a",
+			}]),
+			createReviewServiceForTest(calls),
+		));
+
+		assert.equal(provider.provideDecorations(URI.file("/workspace/Other.xlsx")), undefined);
+		assert.equal(
+			provider.provideDecorations(createExplorerDecorationResource(resource, "missing-sheet")),
+			undefined,
+		);
+		assert.deepEqual(calls, []);
+	});
+
+	test("does not fire decoration changes for entries without resources", async () => {
+		const resource = URI.file("/workspace/PathOnly.xlsx");
+		const reviewChanged = new Emitter<void>();
+		const changedResources: URI[][] = [];
+		const provider = store.add(new ExplorerDecorationsProvider(
+			createExplorerServiceForTest([{
+				fileId: "file-a",
+				fileName: "PathOnly.xlsx",
+				sheetId: "sheet-a",
+				sourcePath: resource.fsPath,
+			}]),
+			createReviewServiceForTest([], reviewChanged.event),
+		));
+		store.add(provider.onDidChange(resources => changedResources.push([...resources])));
+
+		reviewChanged.fire();
+
+		assert.deepEqual(changedResources, []);
+	});
+});
+
+const createExplorerServiceForTest = (
+	files: readonly ExplorerFileEntry[],
+): IExplorerService => ({
+	_serviceBrand: undefined,
+	getPaneInput: () => ({
+		files: [...files],
+		mode: "table",
+		quickAccessFiles: [],
+		selectedFileId: null,
+		selectionKind: "table",
+		thumbnailFiles: [],
+	}),
+	hasPendingSourceFiles: false,
+	onDidChangePaneInput: Event.None as Event<void>,
+	setEditable: () => undefined,
+	setHoveredFileId: () => undefined,
+} as unknown as IExplorerService);
+
+const createReviewServiceForTest = (
+	calls: ReviewSummaryTarget[],
+	onDidChangeReview: Event<void> = Event.None as Event<void>,
+): IReviewService => ({
+	_serviceBrand: undefined,
+	getLatestReview: () => undefined,
+	getLatestReviewSummary: target => {
+		calls.push(target);
+		return {
+			resource: target.resource,
+			...(target.sheetId ? { sheetId: target.sheetId } : {}),
+			state: "ready",
+			confidence: 0.95,
+			findingCodes: [],
+			reviewedSemanticLabel: "transfer",
+		};
+	},
+	onDidChangeReview,
+	reviewUriManualTemplate: async () => ({
+		kind: "invalid",
+		diagnostics: [],
+		suggestedActions: [],
+	}),
+	reviewUri: async target => ({
+		resource: target.resource,
+		...(target.sheetId ? { sheetId: target.sheetId } : {}),
+		summary: {
+			resource: target.resource,
+			...(target.sheetId ? { sheetId: target.sheetId } : {}),
+			state: "missing",
+			findingCodes: [],
+		},
+	}),
 });

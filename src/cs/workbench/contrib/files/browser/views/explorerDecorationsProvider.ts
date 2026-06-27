@@ -4,7 +4,7 @@
 
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
-import type { URI } from "src/cs/base/common/uri";
+import { URI } from "src/cs/base/common/uri";
 import type { CancellationToken } from "src/cs/base/common/async";
 import { localize } from "src/cs/nls";
 import {
@@ -38,7 +38,7 @@ export class ExplorerDecorationsProvider extends Disposable implements IDecorati
 		this._register(this.explorerService.onDidChangePaneInput(() => {
 			this.fireAllResourceDecorationsChanged();
 		}));
-		this._register(this.reviewService.onDidChangeReviewState(() => {
+		this._register(this.reviewService.onDidChangeReview(() => {
 			this.fireAllResourceDecorationsChanged();
 		}));
 	}
@@ -48,10 +48,13 @@ export class ExplorerDecorationsProvider extends Disposable implements IDecorati
 		_token?: CancellationToken,
 	): ExplorerDecorationData | undefined {
 		const target = parseExplorerDecorationResource(resource);
-		const entry = this.findExplorerEntry(target.resource);
+		if (!this.hasExplorerEntryForDecorationTarget(target)) {
+			return undefined;
+		}
+
 		const summary = this.reviewService.getLatestReviewSummary({
 			resource: target.resource,
-			sheetId: target.sheetId ?? entry?.sheetId ?? null,
+			sheetId: target.sheetId,
 		});
 		return createExplorerDecorationDataFromReviewSummary(summary);
 	}
@@ -63,26 +66,21 @@ export class ExplorerDecorationsProvider extends Disposable implements IDecorati
 		}
 	}
 
-	private findExplorerEntry(resource: URI): ExplorerFileEntry | undefined {
-		const resourceKey = normalizeResourceKey(resource);
-		return this.getExplorerEntries()
-			.find(entry => normalizeResourceKey(entry.resource) === resourceKey);
-	}
-
 	private getExplorerResources(): readonly URI[] {
 		const resources: URI[] = [];
 		const seen = new Set<string>();
 		for (const entry of this.getExplorerEntries()) {
-			if (!entry.resource) {
+			const resource = getExplorerEntryDecorationResource(entry);
+			if (!resource) {
 				continue;
 			}
-			const resource = createExplorerDecorationResource(entry.resource, entry.sheetId);
-			const key = normalizeResourceKey(resource);
-			if (!key || seen.has(key)) {
+			const decorationResource = createExplorerDecorationResource(resource, entry.sheetId);
+			const identity = normalizeResourceKey(decorationResource);
+			if (!identity || seen.has(identity)) {
 				continue;
 			}
-			seen.add(key);
-			resources.push(resource);
+			seen.add(identity);
+			resources.push(decorationResource);
 		}
 		return resources;
 	}
@@ -94,11 +92,35 @@ export class ExplorerDecorationsProvider extends Disposable implements IDecorati
 			...(input?.quickAccessFiles ?? []),
 		];
 	}
+
+	private hasExplorerEntryForDecorationTarget(target: ExplorerDecorationTarget): boolean {
+		const targetResourceKey = normalizeResourceKey(target.resource);
+		if (!targetResourceKey) {
+			return false;
+		}
+
+		return this.getExplorerEntries().some(entry => {
+			const entryResource = getExplorerEntryDecorationResource(entry);
+			if (normalizeResourceKey(entryResource) !== targetResourceKey) {
+				return false;
+			}
+			return target.sheetId
+				? String(entry.sheetId ?? "").trim() === target.sheetId
+				: true;
+		});
+	}
 }
 
 const normalizeResourceKey = (
 	resource: URI | null | undefined,
 ): string => resource?.toString().trim().replace(/\\/g, "/") ?? "";
+
+const getExplorerEntryDecorationResource = (
+	entry: ExplorerFileEntry,
+): URI | null => {
+	const resource = entry.resource ? URI.revive(entry.resource) : null;
+	return resource ?? null;
+};
 
 const SheetFragmentPrefix = "conductor.sheetId=";
 
@@ -112,12 +134,14 @@ export const createExplorerDecorationResource = (
 		: resource;
 };
 
-const parseExplorerDecorationResource = (
-	resource: URI,
-): {
+type ExplorerDecorationTarget = {
 	readonly resource: URI;
 	readonly sheetId: string | null;
-} => {
+};
+
+const parseExplorerDecorationResource = (
+	resource: URI,
+): ExplorerDecorationTarget => {
 	const fragment = String(resource.fragment ?? "");
 	if (!fragment.startsWith(SheetFragmentPrefix)) {
 		return { resource, sheetId: null };

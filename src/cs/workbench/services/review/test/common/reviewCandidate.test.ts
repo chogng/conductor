@@ -20,6 +20,8 @@ import type {
 } from "src/cs/workbench/services/tableModel/common/measurement";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
+import type { Recipe } from "src/cs/workbench/services/recipe/common/recipe";
+import { createRecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipeCodec";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import type { Template } from "src/cs/workbench/services/template/common/template";
 import type { SegmentCandidate, ReviewContext, ReviewEvidence } from "src/cs/workbench/services/review/common/reviewModel";
@@ -32,8 +34,7 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test("builds builtin IV transfer recipe into a review candidate", () => {
-		const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
-		assert.ok(recipe);
+		const recipe = getBuiltinRecipe("builtin.iv.transfer");
 
 		const evidence = createReviewEvidence();
 		const context = createReviewContext(evidence);
@@ -66,8 +67,7 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 	});
 
 	test("matches IV transfer candidates with generic instrument voltage/current headers", () => {
-		const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
-		assert.ok(recipe);
+		const recipe = getBuiltinRecipe("builtin.iv.transfer");
 
 		const evidence = createReviewEvidence({
 			columns: [
@@ -94,8 +94,7 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 	});
 
 	test("builds x-y-group IV recipe from physical layout bindings", () => {
-		const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer.x-y-group");
-		assert.ok(recipe);
+		const recipe = getBuiltinRecipe("builtin.iv.transfer.x-y-group");
 
 		const evidence = createReviewEvidence({
 			layoutKind: "groupedSweep",
@@ -154,8 +153,7 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 	});
 
 	test("treats missing URI candidate versions as stale", () => {
-		const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
-		assert.ok(recipe);
+		const recipe = getBuiltinRecipe("builtin.iv.transfer");
 
 		const evidence = createReviewEvidence();
 		const context = createReviewContext(evidence);
@@ -178,8 +176,7 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 	});
 
 	test("treats mismatched URI content hashes as stale", () => {
-		const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
-		assert.ok(recipe);
+		const recipe = getBuiltinRecipe("builtin.iv.transfer");
 
 		const evidence = createReviewEvidence();
 		const context = createReviewContext(evidence, { contentHash: "sha256:first" });
@@ -203,8 +200,7 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 	});
 
 	test("exports review candidates as segment candidates for the content-first pipeline", () => {
-		const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
-		assert.ok(recipe);
+		const recipe = getBuiltinRecipe("builtin.iv.transfer");
 
 		const evidence = createReviewEvidence();
 		const context = createReviewContext(evidence, { contentHash: "sha256:first" });
@@ -221,8 +217,7 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 	});
 
 	test("orders matching recipe candidates by recipe priority", () => {
-		const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
-		assert.ok(recipe);
+		const recipe = getBuiltinRecipe("builtin.iv.transfer");
 		const candidates = deriveRecipeReviewCandidates({
 			context: createReviewContext(createReviewEvidence()),
 			recipeSnapshot: {
@@ -265,6 +260,14 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 		assert.deepEqual(candidates, []);
 	});
 });
+
+const builtinRecipeSnapshot = createRecipeSnapshot(builtinRecipes);
+
+const getBuiltinRecipe = (id: string): Recipe => {
+	const recipe = builtinRecipeSnapshot.recipes.find(candidate => candidate.id === id);
+	assert.ok(recipe);
+	return recipe;
+};
 
 const createReviewContext = (
 	evidence: ReviewEvidence,

@@ -85,7 +85,7 @@ import {
 import {
   IReviewService,
   type IReviewService as IReviewServiceType,
-  type TableReviewSummary,
+  type ReviewSummary,
 } from "src/cs/workbench/services/review/common/review";
 
 import "src/cs/workbench/contrib/files/browser/views/media/explorerViewlet.css";
@@ -415,7 +415,7 @@ export class ExplorerViewPane extends ViewPane {
   ): Readonly<Record<string, ExplorerDecorationData>> {
     const decorationsByFileKey: Record<string, ExplorerDecorationData> = {};
     for (const file of files) {
-      const resource = getExplorerFileTableResource(file);
+      const resource = getExplorerFileDecorationResource(file);
       if (!resource) {
         continue;
       }
@@ -435,7 +435,7 @@ export class ExplorerViewPane extends ViewPane {
   ): Readonly<Record<string, URI>> {
     const resourcesByFileKey: Record<string, URI> = {};
     for (const file of files) {
-      const resource = getExplorerFileTableResource(file);
+      const resource = getExplorerFileDecorationResource(file);
       if (!resource) {
         continue;
       }
@@ -447,10 +447,10 @@ export class ExplorerViewPane extends ViewPane {
 
   private createExplorerReviewSummariesByFileKey(
     files: readonly ExplorerFileEntry[],
-  ): Readonly<Record<string, TableReviewSummary>> {
-    const summariesByFileKey: Record<string, TableReviewSummary> = {};
+  ): Readonly<Record<string, ReviewSummary>> {
+    const summariesByFileKey: Record<string, ReviewSummary> = {};
     for (const file of files) {
-      const resource = getExplorerFileTableResource(file);
+      const resource = getExplorerFileDecorationResource(file);
       if (!resource) {
         continue;
       }
@@ -467,7 +467,7 @@ export class ExplorerViewPane extends ViewPane {
 
   private hasAffectedExplorerDecoration(event: { affectsResource(resource: URI): boolean }): boolean {
     for (const file of this.files) {
-      const resource = getExplorerFileTableResource(file);
+      const resource = getExplorerFileDecorationResource(file);
       if (resource && event.affectsResource(createExplorerDecorationResource(resource, file.sheetId))) {
         return true;
       }
@@ -1345,7 +1345,7 @@ function createTableSourceFromExplorerFile(
 
   const tablePath = getExplorerFileTablePath(file);
   const normalizedCsvPath = normalizePathValue(file?.normalizedCsvPath);
-  const sheetId = tablePath !== normalizedCsvPath && tableFormatService.isExcel(resource)
+  const sheetId = tablePath !== normalizedCsvPath && tableFormatService.isMaterializableWorkbook(resource)
     ? normalizeItemKey(file?.sheetId)
     : null;
   return {
@@ -1362,6 +1362,11 @@ function getExplorerFileTableResource(file: ExplorerFileEntry | null | undefined
 
   const path = getExplorerFileTablePath(file);
   return path ? URI.file(path) : null;
+}
+
+function getExplorerFileDecorationResource(file: ExplorerFileEntry | null | undefined): URI | null {
+  const resource = file?.resource ? URI.revive(file.resource) : null;
+  return resource ?? null;
 }
 
 function getExplorerFileTablePath(file: ExplorerFileEntry | null | undefined): string | null {

@@ -118,6 +118,52 @@ suite("workbench/services/recipe/test/common/recipeCodec", () => {
 			"recipe.duplicateIdVersion",
 		]);
 	});
+
+	test("expands physical layout variants into concrete recipes", () => {
+		const baseRecipe = createRecipe();
+		const result = normalizeRecipes([{
+			id: "workspace.iv.xy",
+			version: 1,
+			dataRange: baseRecipe.dataRange,
+			blockPartition: baseRecipe.blockPartition,
+			withinBlock: baseRecipe.withinBlock,
+			logicalRelation: baseRecipe.logicalRelation,
+			variants: [{
+				id: "workspace.iv.transfer",
+				priority: 100,
+				label: "Workspace Transfer",
+				domain: baseRecipe.domain,
+				roles: baseRecipe.roles,
+			}, {
+				id: "workspace.iv.output",
+				priority: 90,
+				label: "Workspace Output",
+				domain: {
+					family: "iv",
+					ivMode: "output",
+					minConfidence: 0.75,
+				},
+				roles: {
+					...baseRecipe.roles,
+					x: {
+						roleAny: ["vd", "voltage"],
+						canonicalUnit: "V",
+						count: "one",
+					},
+				},
+			}],
+		}]);
+
+		assert.deepEqual(result.diagnostics, []);
+		assert.deepEqual(result.recipes.map(recipe => recipe.id), [
+			"workspace.iv.transfer",
+			"workspace.iv.output",
+		]);
+		assert.deepEqual(result.recipes.map(recipe => recipe.withinBlock.physicalLayout), [
+			"xy",
+			"xy",
+		]);
+	});
 });
 
 const createRecipe = () => ({

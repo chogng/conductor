@@ -41,6 +41,8 @@ export type ExplorerRawFileInput = {
 	readonly itemKey?: string | null;
 	readonly normalizedCsvPath?: string | null;
 	readonly relativePath?: string | null;
+	readonly sheetId?: string | null;
+	readonly sheetName?: string | null;
 	readonly sourcePath?: string | null;
 	readonly sourceVersion?: number;
 	readonly tableKey?: string | null;
@@ -369,16 +371,22 @@ const getExplorerFileVersion = (
 export const createRawExplorerFiles = (
 	rawFiles: readonly ExplorerRawFileInput[],
 ): ExplorerFileEntry[] =>
-	rawFiles.map(file => ({
-		file: file.file,
-		fileId: file.fileId,
-		fileName: file.fileName,
-		normalizedCsvPath: file.normalizedCsvPath,
-		relativePath: file.relativePath ?? null,
-		itemKey: getOptionalString(file.itemKey ?? file.tableKey),
-		sourcePath: file.sourcePath,
-		fileVersion: getExplorerFileVersion(file.sourceVersion),
-	}));
+	rawFiles.map(file => {
+		const sheetId = getOptionalString(file.sheetId);
+		const sheetName = getOptionalString(file.sheetName);
+		return {
+			file: file.file,
+			fileId: file.fileId,
+			fileName: file.fileName,
+			normalizedCsvPath: file.normalizedCsvPath,
+			relativePath: file.relativePath ?? null,
+			itemKey: getOptionalString(file.itemKey ?? file.tableKey ?? file.sheetId),
+			...(sheetId ? { sheetId } : {}),
+			...(sheetName ? { sheetName } : {}),
+			sourcePath: file.sourcePath,
+			fileVersion: getExplorerFileVersion(file.sourceVersion),
+		};
+	});
 
 export const mergeExplorerSourceEntries = ({
 	files,

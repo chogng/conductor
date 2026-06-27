@@ -15,6 +15,7 @@ import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableMod
 import type { FileImportResult, ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
 import type { IRecipeService, Recipe, RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
+import { createRecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipeCodec";
 import { ReviewService } from "src/cs/workbench/services/review/browser/reviewService";
 import type { ReviewSummaryTarget } from "src/cs/workbench/services/review/common/review";
 import { deriveReviewResult } from "src/cs/workbench/services/review/common/reviewResult";
@@ -111,8 +112,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("requires adjustment when Review cannot rank top candidates distinctly", () => {
-		const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
-		assert.ok(recipe);
+		const recipe = getBuiltinRecipe("builtin.iv.transfer");
 		const recipeService = store.add(new TestRecipeService("recipe:ambiguous", [{
 			...recipe,
 			id: "workspace.tie-a",
@@ -563,6 +563,14 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 
 });
 
+const builtinRecipeSnapshot = createRecipeSnapshot(builtinRecipes);
+
+const getBuiltinRecipe = (id: string): Recipe => {
+	const recipe = builtinRecipeSnapshot.recipes.find(candidate => candidate.id === id);
+	assert.ok(recipe);
+	return recipe;
+};
+
 class TestRecipeService extends Disposable implements IRecipeService {
 	public declare readonly _serviceBrand: undefined;
 
@@ -573,7 +581,7 @@ class TestRecipeService extends Disposable implements IRecipeService {
 
 	public constructor(
 		fingerprint: string,
-		private readonly recipes: readonly Recipe[] = builtinRecipes,
+		private readonly recipes: readonly Recipe[] = builtinRecipeSnapshot.recipes,
 	) {
 		super();
 		this.fingerprint = fingerprint;

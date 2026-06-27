@@ -12,14 +12,15 @@ import type {
 	MeasurementColumnRef,
 } from "src/cs/workbench/services/tableModel/common/measurement";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
+import type { Recipe } from "src/cs/workbench/services/recipe/common/recipe";
+import { createRecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipeCodec";
 import type { ReviewEvidence } from "src/cs/workbench/services/review/common/reviewModel";
 
 suite("workbench/services/review/test/common/reviewSelector", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test("matches builtin IV transfer recipe against review evidence", () => {
-		const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
-		assert.ok(recipe);
+		const recipe = getBuiltinRecipe("builtin.iv.transfer");
 
 		const evaluation = evaluateReviewSelector(recipe, createReviewEvidence({
 			family: "iv",
@@ -54,8 +55,7 @@ suite("workbench/services/review/test/common/reviewSelector", () => {
 	});
 
 	test("rejects a recipe when required canonical units are missing", () => {
-		const recipe = builtinRecipes.find(candidate => candidate.id === "builtin.iv.transfer");
-		assert.ok(recipe);
+		const recipe = getBuiltinRecipe("builtin.iv.transfer");
 
 		const evaluation = evaluateReviewSelector(recipe, createReviewEvidence({
 			family: "iv",
@@ -77,6 +77,14 @@ suite("workbench/services/review/test/common/reviewSelector", () => {
 		assert.deepEqual(evaluation.diagnosticCodes, ["recipeSelector.columnRoleMismatch"]);
 	});
 });
+
+const builtinRecipeSnapshot = createRecipeSnapshot(builtinRecipes);
+
+const getBuiltinRecipe = (id: string): Recipe => {
+	const recipe = builtinRecipeSnapshot.recipes.find(candidate => candidate.id === id);
+	assert.ok(recipe);
+	return recipe;
+};
 
 const createReviewEvidence = ({
 	columns,

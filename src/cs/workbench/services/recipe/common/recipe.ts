@@ -30,6 +30,30 @@ export type Recipe = {
 	readonly stopOnError?: boolean;
 };
 
+export type RecipeVariant = {
+	readonly id: string;
+	readonly priority?: number;
+	readonly label?: string;
+	readonly domain?: RecipeDomain;
+	readonly roles?: RecipeRoles;
+	readonly stopOnError?: boolean;
+};
+
+export type RecipeAuthoring = Recipe | {
+	readonly id: string;
+	readonly version: number;
+	readonly dataRange: RecipeDataRange;
+	readonly blockPartition: RecipeBlockPartition;
+	readonly withinBlock: RecipeWithinBlock;
+	readonly logicalRelation: RecipeLogicalRelation;
+	readonly priority?: number;
+	readonly label?: string;
+	readonly domain?: RecipeDomain;
+	readonly roles?: RecipeRoles;
+	readonly stopOnError?: boolean;
+	readonly variants: readonly RecipeVariant[];
+};
+
 export type RecipeDiagnostic = {
   readonly recipeId?: string;
   readonly severity: "error" | "warning";

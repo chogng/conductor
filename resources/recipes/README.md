@@ -11,7 +11,7 @@ dataRange
   -> blockPartition
   -> withinBlock.physicalLayout
   -> logicalRelation
-  -> domain / roles
+  -> variants / domain / roles
   -> Review scoring
 ```
 
@@ -46,6 +46,40 @@ dataRange
 | `x-y-group` | X、Y 和 group/bias/label 列在同一块内。 |
 | `blocks.xy` | 多个 block，每个 block 内是 `xy`。 |
 | `blocks.xyyyy` | 多个 block，每个 block 内是 `xyyyy`。 |
+
+### `xy` 和 `x-y-group` 的区别
+
+`xy` 表示块内只有一组可直接绑定的 X/Y 列。Review 可以从 matched block 的
+column role evidence 直接拿到 `x` 和 `y`，通常用 `blockPartition.select:
+"each"`，每个 matched block 都可以独立生成候选。
+
+`x-y-group` 表示块内除了 X/Y 外，还有 group、bias、point、label 这类列参与拆分。
+Review 不能只靠 column role 直接判断曲线边界，必须结合 layout binding 找到 X/Y
+和 group 关系，通常用 `blockPartition.select: "first"`，再由
+`logicalRelation: "oneX-oneY-manyGroups"` 推导多条曲线。
+
+`transfer` / `output` 不是物理排布差异。它们只是同一物理 layout 下的 IV 语义
+variant：transfer 的 X 通常是 `vg`，output 的 X 通常是 `vd`。因此 recipe
+文件命名应优先表达物理 layout，例如 `xy`、`x-y-group`；IV mode 和角色差异应
+放在 `domain` / `roles` 或 `variants` 中表达。
+
+### 按物理 layout 组织 variants
+
+当多个 recipe 只有语义差异、但 `dataRange`、`blockPartition`、
+`withinBlock.physicalLayout` 和 `logicalRelation` 相同时，不要拆成多份平行文件。
+文件应该先表达物理 layout，文件内再用 `variants` 表达具体语义：
+
+```txt
+iv/xy.json
+  -> variants: builtin.iv.transfer, builtin.iv.output
+
+iv/x-y-group.json
+  -> variants: builtin.iv.transfer.x-y-group, builtin.iv.output.x-y-group
+```
+
+`variants` 中的每一项会在 `recipeCodec` 中展开成 Review 实际消费的具体
+`Recipe`。因此 Review 和外部结果仍然看到稳定的具体 id，例如
+`builtin.iv.transfer`；开发者维护源文件时则先看物理 layout，再看语义 variant。
 
 `logicalRelation` 描述切出来的曲线关系：
 

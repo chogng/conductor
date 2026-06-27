@@ -148,6 +148,35 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     );
   });
 
+  test("createRawExplorerFiles projects table identity for multi-sheet rows", () => {
+    assert.deepEqual(
+      createRawExplorerFiles([
+        {
+          fileId: "workbook",
+          fileName: "Workbook.xlsx",
+          sheetId: "sheet-b",
+          sheetName: "Sweep B",
+          sourcePath: "C:/data/Workbook.xlsx",
+          tableKey: "table-key-b",
+        },
+      ]),
+      [
+        {
+          file: undefined,
+          fileId: "workbook",
+          fileName: "Workbook.xlsx",
+          itemKey: "table-key-b",
+          normalizedCsvPath: undefined,
+          relativePath: null,
+          sheetId: "sheet-b",
+          sheetName: "Sweep B",
+          sourcePath: "C:/data/Workbook.xlsx",
+          fileVersion: undefined,
+        },
+      ],
+    );
+  });
+
   test("createRawExplorerFiles omits legacy badge state", () => {
     assert.deepEqual(
       createRawExplorerFiles([
