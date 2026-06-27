@@ -1,14 +1,36 @@
 import assert from "assert";
 
 import {
+  clearMarks,
   createPerformanceStageRecorder,
   getPerformanceNow,
+  getMarks,
+  mark,
   type PerformanceStageRecord,
 } from "src/cs/base/common/performance";
 
 suite("base/common/performance", () => {
+  teardown(() => {
+    clearMarks();
+  });
+
   test("uses a monotonic performance clock when available", () => {
     assert.equal(typeof getPerformanceNow(), "number");
+  });
+
+  test("records invisible performance marks", () => {
+    mark("table/willResolve", { startTime: 42 });
+    mark("table/didResolve", { startTime: 45 });
+
+    assert.deepEqual(getMarks().map(entry => entry.name), [
+      "table/willResolve",
+      "table/didResolve",
+    ]);
+    assert.deepEqual(getMarks().map(entry => entry.startTime), [42, 45]);
+
+    clearMarks("table/willResolve");
+
+    assert.deepEqual(getMarks().map(entry => entry.name), ["table/didResolve"]);
   });
 
   test("does not read context while disabled", () => {

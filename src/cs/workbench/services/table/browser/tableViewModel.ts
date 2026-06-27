@@ -5,6 +5,7 @@
 import { localize } from "src/cs/nls";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
+import { startPerf } from "src/cs/workbench/common/perf";
 import {
   type TableDirtyRange,
   type TablePreviewHealth,
@@ -1362,6 +1363,10 @@ const createTableViewModel = ({
       if (!sheetKey) return false;
       const safeRows = sanitizeTableRowBatch(rows);
       if (!safeRows.length) return false;
+      const endSeedPerf = startPerf("table.viewModel.seedRows", {
+        rowCount: safeRows.length,
+        startRow: Math.max(0, Math.floor(Number(startRow) || 0)),
+      }, { silent: true });
 
       const { loadedChunks, rowCache } = getOrCreatePreviewSheetCaches(sheetKey);
       const safeStart = Math.max(0, Math.floor(Number(startRow) || 0));
@@ -1380,6 +1385,10 @@ const createTableViewModel = ({
           endRow: safeStart + safeRows.length,
         }]);
       }
+      endSeedPerf({
+        cacheRows: rowCache.size,
+        success: merged.complete,
+      });
       return merged.complete;
     },
     [getOrCreatePreviewSheetCaches, notifyTableRowsCacheChanged, previewCacheSheetKeyRef],
@@ -1738,8 +1747,18 @@ const createTableViewModel = ({
         return rawProfile;
       }
 
+      const endProfilePerf = startPerf("table.viewModel.columnDisplayProfile", {
+        columnIndex: normalizedColIndex,
+        mode: numericDisplayMode,
+        rowCount: currentFile?.rowCount ?? 0,
+      }, { silent: true });
       const samples = collectColumnSampleValues(normalizedColIndex);
       if (!samples.length) {
+        endProfilePerf({
+          result: "rawNoSamples",
+          sampleCount: 0,
+          success: false,
+        });
         return rawProfile;
       }
 
@@ -1749,6 +1768,13 @@ const createTableViewModel = ({
         if (shouldCacheColumnDisplayProfile(samples.length, currentFile?.rowCount)) {
           columnDisplayProfileCacheRef.current.set(cacheKey, rawProfile);
         }
+        endProfilePerf({
+          nonEmptyCount,
+          numericSampleCount: numericSamples.length,
+          result: "rawNonNumeric",
+          sampleCount: samples.length,
+          success: true,
+        });
         return rawProfile;
       }
 
@@ -1770,6 +1796,14 @@ const createTableViewModel = ({
         settingsVersion,
       };
       columnDisplayProfileCacheRef.current.set(cacheKey, profile);
+      endProfilePerf({
+        nonEmptyCount,
+        numericSampleCount: numericSamples.length,
+        result: "columnScale",
+        sampleCount: samples.length,
+        scaleExponent,
+        success: true,
+      });
       return profile;
     },
     [
@@ -1997,6 +2031,13 @@ const createTableViewModel = ({
         chunkSize: TABLE_UI_CHUNK_SIZE_ROWS,
         maxRangeRows: PREVIEW_ROWS_MAX_MERGED_REQUEST_ROWS,
       });
+      const endEnsurePerf = startPerf("table.viewModel.ensureRows", {
+        cachedRows: rowCache.size,
+        endRow: end,
+        missingRangeCount: missingRanges.length,
+        requestedRows: end - start,
+        startRow: start,
+      }, { silent: true });
 
       const dirtyRanges: TableDirtyRange[] = [];
       const requests: Array<Promise<void>> = [];
@@ -2066,12 +2107,25 @@ const createTableViewModel = ({
         requests.push(nextRequest);
       }
 
-      if (!requests.length) return;
+      if (!requests.length) {
+        endEnsurePerf({
+          cacheHit: true,
+          dirtyRangeCount: 0,
+          success: true,
+        });
+        return;
+      }
       await Promise.all(requests);
 
       if (dirtyRanges.length > 0) {
         notifyTableRowsCacheChanged(dirtyRanges);
       }
+      endEnsurePerf({
+        cacheHit: false,
+        dirtyRangeCount: dirtyRanges.length,
+        requestCount: requests.length,
+        success: true,
+      });
     },
     [
       activeSheetKeyRef,

@@ -4,8 +4,10 @@
 
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
+import { mark } from "src/cs/base/common/performance";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { IStorageService, StorageScope, StorageTarget } from "src/cs/platform/storage/common/storage";
+import { startPerf } from "src/cs/workbench/common/perf";
 import {
   areTableSourcesEqual,
   ITableService,
@@ -343,6 +345,23 @@ const createSourceDataFromModelSnapshot = (
   snapshot: TableModelSnapshot | null,
   source: TableSource,
 ): TableViewModelSourceData | null => {
+  const endProjectionPerf = startPerf("table.service.projectSourceData", {
+    loadState: snapshot?.loadState.state ?? "missing",
+    resourceScheme: source.resource?.scheme ?? "unknown",
+    sourceHasSheet: Boolean(source.sheetId),
+  }, { silent: true });
+  const result = doCreateSourceDataFromModelSnapshot(snapshot, source);
+  endProjectionPerf({
+    ...summarizeTableViewModelSourceData(result),
+    success: Boolean(result),
+  });
+  return result;
+};
+
+const doCreateSourceDataFromModelSnapshot = (
+  snapshot: TableModelSnapshot | null,
+  source: TableSource,
+): TableViewModelSourceData | null => {
   const resource = source.resource;
   if (!snapshot || !resource) {
     return null;
@@ -497,6 +516,17 @@ const getSourceSheetId = (
     ? source.sheetId
     : null;
 
+const summarizeTableViewModelSourceData = (
+  data: TableViewModelSourceData | null,
+): Record<string, unknown> => ({
+  columnCount: data?.columnCount ?? 0,
+  diagnosticsCount: data?.diagnostics?.length ?? 0,
+  hasContent: Boolean(data?.tableModelContent),
+  previewHealth: data?.previewHealth ?? "ok",
+  rowCount: data?.rowCount ?? 0,
+  sourceVersion: data?.sourceVersion ?? 0,
+});
+
 const getResourceFileName = (resource: TableSource["resource"]): string => {
   const path = String(resource?.path ?? "").replace(/\\/g, "/");
   const index = path.lastIndexOf("/");
@@ -620,8 +650,18 @@ export class TableService extends Disposable implements ITableService {
   private resolveTableModel(source: TableSource | null): void {
     const resource = source?.resource;
     const requestId = ++this.tableModelReferenceRequestId;
+    mark("code/willResolveTableSource");
+    const endResolvePerf = startPerf("table.service.resolveSource", {
+      resourceScheme: resource?.scheme ?? "none",
+      sourceHasSheet: Boolean(source?.sheetId),
+    }, { silent: true });
     if (!resource) {
       this.releaseTableModelReference();
+      endResolvePerf({
+        reason: "noResource",
+        success: false,
+      });
+      mark("code/didResolveTableSource");
       return;
     }
 
@@ -632,6 +672,11 @@ export class TableService extends Disposable implements ITableService {
           !areTableSourcesEqual(this.currentSource, source)
         ) {
           reference.dispose();
+          endResolvePerf({
+            stale: true,
+            success: false,
+          });
+          mark("code/didResolveTableSource");
           return;
         }
 
@@ -639,16 +684,39 @@ export class TableService extends Disposable implements ITableService {
         this.tableModelReference = reference;
         previousReference?.dispose();
         this.refreshActiveSource({ forceViewInput: true });
+        const snapshot = reference.object.getSnapshot();
+        endResolvePerf({
+          columnCount: snapshot.content?.columnCount ?? 0,
+          loadState: snapshot.loadState.state,
+          rowCount: snapshot.content?.rowCount ?? 0,
+          sheetCount: snapshot.sheets.length,
+          sourceVersion: snapshot.sourceVersion,
+          stale: false,
+          success: snapshot.loadState.state === "ready",
+          windowCount: snapshot.content?.rowWindows?.length ?? 0,
+        });
+        mark("code/didResolveTableSource");
       })
-      .catch(() => {
+      .catch(error => {
         if (
           requestId !== this.tableModelReferenceRequestId ||
           !areTableSourcesEqual(this.currentSource, source)
         ) {
+          endResolvePerf({
+            stale: true,
+            success: false,
+          });
+          mark("code/didResolveTableSource");
           return;
         }
         this.releaseTableModelReference();
         this.refreshActiveSource({ forceViewInput: true });
+        endResolvePerf({
+          errorName: error instanceof Error ? error.name : "unknown",
+          stale: false,
+          success: false,
+        });
+        mark("code/didResolveTableSource");
       });
   }
 

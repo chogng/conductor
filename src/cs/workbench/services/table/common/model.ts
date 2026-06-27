@@ -4,7 +4,9 @@
 
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
+import { mark } from "src/cs/base/common/performance";
 import type { URI } from "src/cs/base/common/uri";
+import { startPerf } from "src/cs/workbench/common/perf";
 import type { TableFormatId } from "src/cs/workbench/services/table/common/tableFormatService";
 
 export interface ITableModelPosition {
@@ -690,6 +692,11 @@ export class TableModel extends Disposable implements ITableModel {
 		resolveContent,
 		sourceVersion,
 	}: TableModelResolveOptions): Promise<void> {
+		mark("code/willResolveTableModel");
+		const endResolvePerf = startPerf("table.model.resolve", {
+			previousLoadState: this.loadState.state,
+			previousVersion: this.version,
+		}, { silent: true });
 		const requestId = ++this.resolveRequestId;
 		this.loadState = { state: "loading", message: "" };
 		this.fireStateChanged();
@@ -719,10 +726,23 @@ export class TableModel extends Disposable implements ITableModel {
 		}
 
 		if (requestId !== this.resolveRequestId) {
+			endResolvePerf({
+				stale: true,
+				success: false,
+			});
+			mark("code/didResolveTableModel");
 			return;
 		}
 
 		this.applyResolvedContent(resolvedContent, resolvedContent.sourceVersion ?? sourceVersion);
+		endResolvePerf({
+			...summarizeTableModelResolvedContent(resolvedContent),
+			loadState: this.loadState.state,
+			stale: false,
+			success: this.loadState.state === "ready",
+			version: this.version,
+		});
+		mark("code/didResolveTableModel");
 	}
 
 	public changeDecorations<T>(
@@ -829,6 +849,10 @@ export class TableModel extends Disposable implements ITableModel {
 		resolvedContent: TableModelResolvedContent,
 		sourceVersion: unknown,
 	): void {
+		const endApplyPerf = startPerf("table.model.applyResolvedContent", {
+			...summarizeTableModelResolvedContent(resolvedContent),
+			previousVersion: this.version,
+		}, { silent: true });
 		this.content = resolvedContent.content;
 		this.diagnostics = resolvedContent.diagnostics ?? [];
 		this.format = resolvedContent.format;
@@ -854,6 +878,9 @@ export class TableModel extends Disposable implements ITableModel {
 			viewModel.onDidChangeModelContent?.(event);
 		}
 		this.fireStateChanged();
+		endApplyPerf({
+			version: this.version,
+		});
 	}
 
 	private setError(message: string): void {
@@ -1009,6 +1036,18 @@ export class TableModel extends Disposable implements ITableModel {
 const createDecorationsChange = (): MutableDecorationsChange => ({
 	addedOrChangedDecorations: [],
 	removedDecorations: [],
+});
+
+const summarizeTableModelResolvedContent = (
+	content: TableModelResolvedContent,
+): Record<string, unknown> => ({
+	columnCount: content.content?.columnCount ?? 0,
+	diagnosticsCount: content.diagnostics?.length ?? 0,
+	format: content.format ?? "unknown",
+	hasContent: Boolean(content.content),
+	rowCount: content.content?.rowCount ?? 0,
+	sheetCount: content.sheets?.length ?? (content.content ? 1 : 0),
+	windowCount: content.content?.rowWindows?.length ?? 0,
 });
 
 const normalizeNonNegativeInteger = (value: number): number => {

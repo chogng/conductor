@@ -40,10 +40,37 @@ export type PerformanceStageRecorder = {
   readonly start: (stage: string, meta?: PerformanceMeta) => PerformanceStageEnd;
 };
 
+export type PerformanceMark = {
+  readonly name: string;
+  readonly startTime: number;
+};
+
+type PerformanceMarkStore = {
+  clearMarks(name?: string): void;
+  getMarks(): readonly PerformanceMark[];
+  mark(name: string, markOptions?: { readonly startTime?: number }): void;
+};
+
+type PerformanceMarkGlobal = typeof globalThis & {
+  __conductorPerformanceMarks?: PerformanceMarkStore;
+};
+
 export const getPerformanceNow = (): number => {
   const perf = globalThis.performance;
   return perf && typeof perf.now === "function" ? perf.now() : Date.now();
 };
+
+export const mark = (
+  name: string,
+  markOptions?: { readonly startTime?: number },
+): void => getPerformanceMarkStore().mark(name, markOptions);
+
+export const clearMarks = (
+  name?: string,
+): void => getPerformanceMarkStore().clearMarks(name);
+
+export const getMarks = (): readonly PerformanceMark[] =>
+  getPerformanceMarkStore().getMarks();
 
 export const createPerformanceStageRecorder = (
   options: PerformanceStageRecorderOptions,
@@ -114,3 +141,72 @@ const createMeasurementMeta = (
   ...endMeta,
   durationMs,
 });
+
+const getPerformanceMarkStore = (): PerformanceMarkStore => {
+  const target = globalThis as PerformanceMarkGlobal;
+  target.__conductorPerformanceMarks ??= createPerformanceMarkStore();
+  return target.__conductorPerformanceMarks;
+};
+
+const createPerformanceMarkStore = (): PerformanceMarkStore => {
+  const marks: PerformanceMark[] = [];
+  return {
+    clearMarks: (name?: string) => {
+      clearNativePerformanceMarks(name);
+      if (typeof name === "undefined") {
+        marks.length = 0;
+        return;
+      }
+
+      for (let index = marks.length - 1; index >= 0; index -= 1) {
+        if (marks[index]?.name === name) {
+          marks.splice(index, 1);
+        }
+      }
+    },
+    getMarks: () => marks.map(entry => ({ ...entry })),
+    mark: (name, markOptions) => {
+      markNativePerformance(name, markOptions);
+      marks.push({
+        name,
+        startTime: normalizeMarkStartTime(markOptions?.startTime),
+      });
+    },
+  };
+};
+
+const normalizeMarkStartTime = (startTime: number | undefined): number => {
+  const normalized = Number(startTime);
+  return Number.isFinite(normalized)
+    ? normalized
+    : getPerformanceNow();
+};
+
+const markNativePerformance = (
+  name: string,
+  markOptions?: { readonly startTime?: number },
+): void => {
+  const perf = globalThis.performance;
+  if (!perf || typeof perf.mark !== "function") {
+    return;
+  }
+
+  try {
+    perf.mark(name, markOptions);
+  } catch {
+    // Performance marks are diagnostic-only and must never affect product flow.
+  }
+};
+
+const clearNativePerformanceMarks = (name?: string): void => {
+  const perf = globalThis.performance;
+  if (!perf || typeof perf.clearMarks !== "function") {
+    return;
+  }
+
+  try {
+    perf.clearMarks(name);
+  } catch {
+    // Performance marks are diagnostic-only and must never affect product flow.
+  }
+};

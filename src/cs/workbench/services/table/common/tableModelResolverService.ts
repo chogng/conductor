@@ -4,12 +4,14 @@
 
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
+import { mark } from "src/cs/base/common/performance";
 import type { URI } from "src/cs/base/common/uri";
 import {
   InstantiationType,
   registerSingleton,
 } from "src/cs/platform/instantiation/common/extensions";
 import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
+import { startPerf } from "src/cs/workbench/common/perf";
 import {
   type TableSource,
 } from "src/cs/workbench/services/table/common/table";
@@ -73,38 +75,69 @@ export class TableModelResolverService extends Disposable implements ITableModel
     resource: URI,
     source?: TableSource | null,
   ): Promise<ITableModelReference> {
+    mark("code/willCreateTableModelReference");
     if (!this.canHandleResource(resource)) {
+      mark("code/didCreateTableModelReference");
       throw new Error(`Unsupported table file: ${resource.toString()}`);
     }
 
     const key = resource.toString();
     const reference = this.references.get(key);
+    const previousReferenceCount = reference?.count ?? 0;
     this.references.set(key, {
-      count: (reference?.count ?? 0) + 1,
+      count: previousReferenceCount + 1,
       resource,
     });
-
     const provider = this.findContentProvider(resource);
-    if (provider) {
-      const model = this.getOrCreateProviderModel(resource, source);
-      await this.resolveProviderModel(model, provider, source);
+    const endReferencePerf = startPerf("table.modelReference.resolve", {
+      branch: provider ? "provider" : "file",
+      previousReferenceCount,
+      resourceScheme: resource.scheme,
+      sourceHasSheet: Boolean(source?.sheetId),
+    }, { silent: true });
+
+    try {
+      if (provider) {
+        const model = this.getOrCreateProviderModel(resource, source);
+        await this.resolveProviderModel(model, provider, source);
+        endReferencePerf({
+          loadState: model.getSnapshot().loadState.state,
+          referenceCount: previousReferenceCount + 1,
+          success: model.getSnapshot().loadState.state === "ready",
+        });
+        mark("code/didCreateTableModelReference");
+        return {
+          object: model,
+          dispose: () => {
+            this.releaseModelReference(key);
+          },
+        };
+      }
+
+      const fileEditorModel = this.tableFileService.getOrCreateFileEditorModel(resource, source);
+      await this.tableFileService.resolveModel(fileEditorModel);
+      endReferencePerf({
+        loadState: fileEditorModel.model.getSnapshot().loadState.state,
+        referenceCount: previousReferenceCount + 1,
+        success: fileEditorModel.model.getSnapshot().loadState.state === "ready",
+      });
+      mark("code/didCreateTableModelReference");
       return {
-        object: model,
+        object: fileEditorModel.model,
         dispose: () => {
           this.releaseModelReference(key);
         },
       };
+    } catch (error) {
+      this.releaseModelReference(key);
+      endReferencePerf({
+        errorName: error instanceof Error ? error.name : "unknown",
+        referenceCount: Math.max(0, previousReferenceCount),
+        success: false,
+      });
+      mark("code/didCreateTableModelReference");
+      throw error;
     }
-
-    const fileEditorModel = this.tableFileService.getOrCreateFileEditorModel(resource, source);
-    await this.tableFileService.resolveModel(fileEditorModel);
-
-    return {
-      object: fileEditorModel.model,
-      dispose: () => {
-        this.releaseModelReference(key);
-      },
-    };
   }
 
   public get(resource: URI | null | undefined): ITableModel | undefined {

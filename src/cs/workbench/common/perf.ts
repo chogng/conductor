@@ -158,7 +158,7 @@ export const startPerf = (
         ...endMeta,
         durationMs: getPerfNow() - startedAt,
       },
-      { force: true },
+      { force: true, silent: options.silent },
     );
   };
 };

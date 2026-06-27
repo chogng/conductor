@@ -4,12 +4,14 @@
 
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
+import { mark } from "src/cs/base/common/performance";
 import type { URI } from "src/cs/base/common/uri";
 import {
 	FileSystemProviderCapabilities,
 	type IFileService,
 	type IFileStat,
 } from "src/cs/platform/files/common/files";
+import { startPerf } from "src/cs/workbench/common/perf";
 import {
 	TableModel,
 	type TableModelContentSnapshot,
@@ -108,6 +110,11 @@ export class TableFileEditorModel extends Disposable {
 	}
 
 	public async resolve(options: TableFileEditorModelResolveOptions = {}): Promise<void> {
+		mark("code/willResolveTableFileEditorModel");
+		const endResolvePerf = startPerf("table.fileEditor.resolve", {
+			resourceScheme: this.resource.scheme,
+			wasDirty: this.dirty,
+		}, { silent: true });
 		try {
 			await this.resolveFromDisk(options);
 			this.setLifecycleState({
@@ -115,12 +122,22 @@ export class TableFileEditorModel extends Disposable {
 				errorMessage: "",
 				orphaned: false,
 			});
+			endResolvePerf({
+				sourceVersion: this.sourceVersion,
+				success: true,
+			});
 		} catch (error) {
 			this.setLifecycleState({
 				errorMessage: getErrorMessage(error),
 				orphaned: true,
 			});
+			endResolvePerf({
+				errorName: error instanceof Error ? error.name : "unknown",
+				success: false,
+			});
 			throw error;
+		} finally {
+			mark("code/didResolveTableFileEditorModel");
 		}
 	}
 
@@ -199,6 +216,9 @@ export class TableFileEditorModel extends Disposable {
 	private async resolveContentFromDisk(
 		options: TableFileEditorModelResolveOptions,
 	): Promise<TableModelResolvedContent> {
+		const endResolveContentPerf = startPerf("table.fileEditor.resolveContentFromDisk", {
+			resourceScheme: this.resource.scheme,
+		}, { silent: true });
 		const { xlsReader, ...readOptions } = options;
 		let readResult: TableFileReadResult;
 		try {
@@ -207,8 +227,19 @@ export class TableFileEditorModel extends Disposable {
 			if (isTableFileReadDiagnosticError(error)) {
 				this.lastResolvedStat = error.stat;
 				this.sourceVersion = normalizeResourceSourceVersion(error.stat.mtime);
-				return createResolvedContentFromReadDiagnostic(error);
+				const resolvedContent = createResolvedContentFromReadDiagnostic(error);
+				endResolveContentPerf({
+					diagnosticsCount: resolvedContent.diagnostics?.length ?? 0,
+					fileSizeBytes: error.stat.size,
+					format: error.format,
+					success: false,
+				});
+				return resolvedContent;
 			}
+			endResolveContentPerf({
+				errorName: error instanceof Error ? error.name : "unknown",
+				success: false,
+			});
 			throw error;
 		}
 		this.lastResolvedStat = readResult.stat;
@@ -218,11 +249,18 @@ export class TableFileEditorModel extends Disposable {
 			format: readResult.format,
 			...(readResult.format === "xls" && xlsReader ? { xlsReader } : {}),
 		});
-		return createResolvedContent({
+		const resolvedContent = createResolvedContent({
 			parsedContent,
 			readResult,
 			resource: this.resource,
 		});
+		endResolveContentPerf({
+			...summarizeParsedTableStructure(parsedContent),
+			fileSizeBytes: readResult.stat.size,
+			format: readResult.format,
+			success: resolvedContent.content !== null,
+		});
+		return resolvedContent;
 	}
 
 	private setLifecycleState(update: {
@@ -323,6 +361,18 @@ const getModelDefaultSheetId = (
 		? resource.toString()
 		: sheet.sheetId;
 };
+
+const summarizeParsedTableStructure = (
+	parsedContent: ParsedTableStructure,
+): Record<string, unknown> => ({
+	columnCount: parsedContent.content?.columnCount ?? 0,
+	diagnosticsCount: parsedContent.diagnostics.length +
+		parsedContent.sheets.reduce((count, sheet) => count + sheet.diagnostics.length, 0),
+	hasContent: Boolean(parsedContent.content),
+	rowCount: parsedContent.content?.rowCount ?? 0,
+	sheetCount: parsedContent.sheets.length,
+	windowCount: parsedContent.content?.rowWindows?.length ?? 0,
+});
 
 const normalizeResourceSourceVersion = (value: unknown): number =>
 	Math.max(0, Math.floor(Number(value) || 0));

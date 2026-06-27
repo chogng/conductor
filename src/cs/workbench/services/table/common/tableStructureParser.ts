@@ -6,6 +6,7 @@ import {
 	readZipEntries,
 	readZipText,
 } from "src/cs/base/common/zip";
+import { startPerf } from "src/cs/workbench/common/perf";
 import {
 	copyBytesToArrayBuffer,
 	readTableByteBuffer,
@@ -71,6 +72,32 @@ export type ParsedTableStructure = {
 };
 
 export const parseTableStructure = async ({
+  buffer,
+  format,
+  xlsReader,
+}: TableStructureParseInput): Promise<ParsedTableStructure> => {
+  const endParsePerf = startPerf("table.parser.parse", {
+    bufferKind: buffer.kind,
+    format,
+    hasXlsReader: Boolean(xlsReader),
+  }, { silent: true });
+  let result: ParsedTableStructure | null = null;
+  try {
+    result = await doParseTableStructure({
+      buffer,
+      format,
+      xlsReader,
+    });
+    return result;
+  } finally {
+    endParsePerf({
+      ...summarizeParsedTableStructure(result),
+      success: Boolean(result?.content),
+    });
+  }
+};
+
+const doParseTableStructure = async ({
   buffer,
   format,
   xlsReader,
@@ -672,6 +699,20 @@ const createFatalParsedTableStructure = (
     severity: "fatal",
   }],
   sheets: [],
+});
+
+const summarizeParsedTableStructure = (
+  structure: ParsedTableStructure | null,
+): Record<string, unknown> => ({
+  columnCount: structure?.content?.columnCount ?? 0,
+  diagnosticsCount: structure
+    ? structure.diagnostics.length +
+      structure.sheets.reduce((count, sheet) => count + sheet.diagnostics.length, 0)
+    : 0,
+  hasContent: Boolean(structure?.content),
+  rowCount: structure?.content?.rowCount ?? 0,
+  sheetCount: structure?.sheets.length ?? 0,
+  windowCount: structure?.content?.rowWindows?.length ?? 0,
 });
 
 const getParserErrorMessage = (

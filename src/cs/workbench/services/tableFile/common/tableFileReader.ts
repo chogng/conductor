@@ -4,9 +4,11 @@
 
 import type { URI } from "src/cs/base/common/uri";
 import type {
+	IFileContent,
 	IFileService,
 	IFileStat,
 } from "src/cs/platform/files/common/files";
+import { startPerf } from "src/cs/workbench/common/perf";
 import type { TableReadBuffer } from "src/cs/workbench/services/table/common/tableReadBuffer";
 import type { TableParseDiagnostic } from "src/cs/workbench/services/table/common/model";
 import {
@@ -86,31 +88,66 @@ export const readTableFile = async (
 
 	const stat = await fileService.stat(resource);
 	const chunkSizeBytes = normalizeChunkSizeBytes(options.chunkSizeBytes);
+	const readMode = options.readMode ?? getTableFileReadMode(format);
+	const isChunked = stat.size > chunkSizeBytes;
+	const endReadPerf = startPerf("table.file.read", {
+		chunkSizeBytes,
+		fileSizeBytes: stat.size,
+		format,
+		readMode,
+		resourceScheme: resource.scheme,
+		willReadChunks: isChunked,
+	}, { silent: true });
 	if (stat.size > chunkSizeBytes) {
-		const chunks = await readTableFileByteChunks({
-			chunkSizeBytes,
-			fileService,
-			format,
-			resource,
-			stat,
-		});
-		return {
-			buffer: isDelimitedTableFormat(format)
-				? createTableTextChunkBuffer(chunks, "utf8")
-				: createTableByteChunkBuffer(chunks),
-			format,
-			mime: getTableFileMimeType(format),
-			resource,
-			stat,
-		};
+		try {
+			const chunks = await readTableFileByteChunks({
+				chunkSizeBytes,
+				fileService,
+				format,
+				resource,
+				stat,
+			});
+			endReadPerf({
+				chunkCount: chunks.length,
+				success: true,
+			});
+			return {
+				buffer: isDelimitedTableFormat(format)
+					? createTableTextChunkBuffer(chunks, "utf8")
+					: createTableByteChunkBuffer(chunks),
+				format,
+				mime: getTableFileMimeType(format),
+				resource,
+				stat,
+			};
+		} catch (error) {
+			endReadPerf({
+				errorName: error instanceof Error ? error.name : "unknown",
+				success: false,
+			});
+			throw error;
+		}
 	}
 
-	const content = await fileService.readFile(resource);
+	let content: IFileContent;
+	try {
+		content = await fileService.readFile(resource);
+	} catch (error) {
+		endReadPerf({
+			errorName: error instanceof Error ? error.name : "unknown",
+			success: false,
+		});
+		throw error;
+	}
 
 	let decodedContent: ReturnType<typeof decodeTableFileContent>;
 	try {
-		decodedContent = decodeTableFileContent(content.value, options.readMode ?? getTableFileReadMode(format));
+		decodedContent = decodeTableFileContent(content.value, readMode);
 	} catch (error) {
+		endReadPerf({
+			errorName: error instanceof Error ? error.name : "unknown",
+			success: false,
+		});
 		throw createReadDiagnosticError({
 			format,
 			message: getErrorMessage(error, "The table file content could not be decoded."),
@@ -121,6 +158,10 @@ export const readTableFile = async (
 	const buffer = decodedContent.text !== null
 		? createTableTextBuffer(decodedContent.text, "utf8")
 		: createTableByteBuffer(decodedContent.bytes);
+	endReadPerf({
+		bufferKind: buffer.kind,
+		success: true,
+	});
 	return {
 		buffer,
 		format,
