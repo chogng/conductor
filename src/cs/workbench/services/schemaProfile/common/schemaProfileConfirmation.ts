@@ -3,11 +3,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type {
-	CanonicalUnit,
-	ColumnProfile,
-	MeasurementColumnRole,
-	SchemaFingerprint,
-} from "src/cs/workbench/services/table/common/tableProjection";
+	StructuredCanonicalUnit,
+	StructuredColumnProfile,
+	StructuredMeasurementColumnRole,
+	StructuredSchemaFingerprint,
+} from "src/cs/workbench/services/dataResource/common/structuredContent";
 import {
 	normalizeCellText,
 } from "src/cs/workbench/common/cellText";
@@ -19,16 +19,16 @@ import type {
 
 export type SchemaProfileConfirmationBinding = {
 	readonly rawCol: number;
-	readonly role: MeasurementColumnRole;
+	readonly role: StructuredMeasurementColumnRole;
 	readonly axis?: "x" | "y" | null;
-	readonly canonicalUnit?: CanonicalUnit | null;
+	readonly canonicalUnit?: StructuredCanonicalUnit | null;
 };
 
 export type ConfirmSchemaProfileInput = {
 	readonly id?: string | null;
 	readonly scope?: SchemaProfileScope;
-	readonly schemaFingerprint: SchemaFingerprint;
-	readonly columnProfiles: readonly ColumnProfile[];
+	readonly schemaFingerprint: StructuredSchemaFingerprint;
+	readonly columnProfiles: readonly StructuredColumnProfile[];
 	readonly bindings: readonly SchemaProfileConfirmationBinding[];
 };
 
@@ -67,7 +67,7 @@ const createBindings = ({
 	columnProfiles,
 }: {
 	readonly bindings: readonly SchemaProfileConfirmationBinding[];
-	readonly columnProfiles: readonly ColumnProfile[];
+	readonly columnProfiles: readonly StructuredColumnProfile[];
 }): readonly SchemaProfileBinding[] => {
 	const profilesByColumn = new Map(columnProfiles.map(profile => [profile.rawCol, profile]));
 	const result: SchemaProfileBinding[] = [];
@@ -83,8 +83,13 @@ const createBindings = ({
 		}
 
 		const profile = profilesByColumn.get(columnIndex);
+		if (!profile) {
+			return [];
+		}
+		const normalizedAxis = binding.axis === "x" || binding.axis === "y" ? binding.axis : null;
+		const normalizedUnit = normalizeCanonicalUnit(binding.canonicalUnit);
 		const normalizedHeader = normalizeHeader(
-			profile?.normalizedHeader || profile?.headerText,
+			profile.normalizedHeader || profile.headerText,
 		);
 		const selector = {
 			columnIndex,
@@ -92,6 +97,17 @@ const createBindings = ({
 		};
 		const key = `${selector.columnIndex}\u0000${selector.normalizedHeader ?? ""}`;
 		if (seen.has(key)) {
+			const existing = result.find(candidate =>
+				candidate.selector.columnIndex === selector.columnIndex &&
+				candidate.selector.normalizedHeader === selector.normalizedHeader
+			);
+			if (
+				existing?.axis !== normalizedAxis ||
+				existing?.role !== binding.role ||
+				existing?.canonicalUnit !== normalizedUnit
+			) {
+				return [];
+			}
 			continue;
 		}
 
@@ -99,8 +115,8 @@ const createBindings = ({
 		result.push({
 			selector,
 			role: binding.role,
-			axis: binding.axis === "x" || binding.axis === "y" ? binding.axis : null,
-			canonicalUnit: normalizeCanonicalUnit(binding.canonicalUnit),
+			axis: normalizedAxis,
+			canonicalUnit: normalizedUnit,
 		});
 	}
 
@@ -108,7 +124,7 @@ const createBindings = ({
 };
 
 const isSupportedRole = (
-	role: MeasurementColumnRole,
+	role: StructuredMeasurementColumnRole,
 ): boolean =>
 	role !== "unknown";
 
@@ -121,7 +137,7 @@ const normalizeColumnIndex = (
 
 const normalizeCanonicalUnit = (
 	value: unknown,
-): CanonicalUnit | null =>
+): StructuredCanonicalUnit | null =>
 	value === "V" ||
 	value === "A" ||
 	value === "ohm" ||

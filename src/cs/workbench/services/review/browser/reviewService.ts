@@ -13,52 +13,49 @@ import {
 } from "cs/workbench/services/recipes/common/recipe";
 import {
   IReviewService,
-  type IReviewService as IReviewServiceType,
   type ManualTemplateReviewResult,
-  type ReviewDiagnostic,
-  type ReviewSummary,
-  type ReviewSummaryTarget,
-  type ReviewedTemplateSource,
-  type CandidateReview,
-  type ReviewResult,
   type ManualTemplateSelection,
+  type ReviewedTemplateConfirmationRequest,
   type UriManualTemplateReviewRequest,
   type UriReview,
 } from "src/cs/workbench/services/review/common/review";
+import {
+  IDataResourceService,
+  type DataResourceStructuredContentResolution,
+  type DataResourceStructuredContentSnapshot,
+  type DataResourceStructuredContentTarget,
+  type IDataResourceService as IDataResourceServiceType,
+  type IDataResourceStructuredContentReference,
+} from "src/cs/workbench/services/dataResource/common/dataResource";
+import {
+  ISchemaProfileService,
+  type SchemaProfile,
+  type ISchemaProfileService as ISchemaProfileServiceType,
+} from "src/cs/workbench/services/schemaProfile/common/schemaProfile";
+import type {
+  ConfirmSchemaProfileInput,
+  SchemaProfileConfirmationBinding,
+} from "src/cs/workbench/services/schemaProfile/common/schemaProfileConfirmation";
+import type {
+  StructuredCanonicalUnit,
+  StructuredColumnProfile,
+  StructuredMeasurementColumnRef,
+  StructuredMeasurementColumnRole,
+} from "src/cs/workbench/services/dataResource/common/structuredContent";
 import {
 	createManualCandidateReview,
 	deriveReviewResult,
 } from "src/cs/workbench/services/review/common/reviewDecision";
 import type {
-  TableSource,
-} from "src/cs/workbench/services/table/common/table";
-import {
-  ITableModelService,
-  type ITableModelReference,
-  type ITableModelService as ITableModelServiceType,
-} from "src/cs/workbench/services/table/common/resolverService";
-import {
-  readTableModelContentRows,
-  type TableModelContentSnapshot,
-  type TableParseDiagnostic,
-  type TableModelSheetSnapshot,
-  type TableModelSnapshot,
-} from "src/cs/workbench/services/table/common/model";
-import {
-  createEmptyTableProjectionStructure,
-  type CanonicalUnit,
-  type ColumnProfile,
-  type ColumnSemanticCandidate,
-  type LayoutCandidate,
-  type MeasurementBlockRecord,
-  type MeasurementColumnRef,
-  type MeasurementColumnRole,
-  type MeasurementFamily,
-  type TableProjectionDiagnostic,
-  type TableProjectionSourceRange,
-  type TableProjectionStructure,
-} from "src/cs/workbench/services/table/common/tableProjection";
-import type { ReviewEvidence, TableProjectionEvidence } from "src/cs/workbench/services/review/common/reviewModel";
+  CandidateReview,
+  ReviewEvidence,
+  ReviewDiagnostic,
+  ReviewResult,
+  ReviewSummary,
+  ReviewSummaryTarget,
+  ReviewedTemplate,
+  ReviewedTemplateSource,
+} from "src/cs/workbench/services/review/common/reviewModel";
 import {
   type Template,
   type TemplateAxisBinding,
@@ -89,7 +86,7 @@ type UriReviewCacheEntry = {
   readonly rowCount?: number;
 };
 
-export class ReviewService extends Disposable implements IReviewServiceType {
+export class ReviewService extends Disposable implements IReviewService {
   public declare readonly _serviceBrand: undefined;
 
   private readonly onDidChangeReviewEmitter = this._register(new Emitter<void>());
@@ -102,12 +99,13 @@ export class ReviewService extends Disposable implements IReviewServiceType {
   public constructor(
     @IRecipeService private readonly recipeService: IRecipeServiceType,
     @IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
-    @ITableModelService private readonly tableModelService?: ITableModelServiceType,
+    @IDataResourceService private readonly dataResourceService?: IDataResourceServiceType,
+    @ISchemaProfileService private readonly schemaProfileService?: ISchemaProfileServiceType,
   ) {
     super();
-    if (this.tableModelService) {
-      this._register(this.tableModelService.onDidChangeModel(model => {
-        this.invalidateUriReviewTargetsForResource(model.resource);
+    if (this.dataResourceService) {
+      this._register(this.dataResourceService.onDidChangeResource(resource => {
+        this.invalidateUriReviewTargetsForResource(resource);
       }));
     }
     this._register(this.recipeService.onDidChangeRecipes(() => {
@@ -116,6 +114,11 @@ export class ReviewService extends Disposable implements IReviewServiceType {
     this._register(this.userTemplateService.onDidChangeUserTemplates(() => {
       this.invalidateAllUriReviewTargets();
     }));
+    if (this.schemaProfileService) {
+      this._register(this.schemaProfileService.onDidChangeSchemaProfiles(() => {
+        this.invalidateAllUriReviewTargets();
+      }));
+    }
   }
 
   public getLatestReview(target: ReviewSummaryTarget): UriReview | undefined {
@@ -146,7 +149,7 @@ export class ReviewService extends Disposable implements IReviewServiceType {
       state: "missing",
       findingCodes: [],
     });
-    if (!reviewTarget || !this.tableModelService) {
+    if (!reviewTarget || !this.dataResourceService) {
       return fallback();
     }
 
@@ -183,7 +186,7 @@ export class ReviewService extends Disposable implements IReviewServiceType {
         findingCodes: [],
       },
     });
-    if (!reviewTarget || !this.tableModelService) {
+    if (!reviewTarget || !this.dataResourceService) {
       return fallback();
     }
 
@@ -197,6 +200,31 @@ export class ReviewService extends Disposable implements IReviewServiceType {
     }
     this.fireReviewChange();
     return entry ? createUriReviewFromCacheEntry(entry) : fallback();
+  }
+
+  public async confirmReviewedTemplate(input: ReviewedTemplateConfirmationRequest): Promise<SchemaProfile | null> {
+    const target = normalizeUriReviewTarget(input.target);
+    if (!target || !this.dataResourceService || !this.schemaProfileService) {
+      return null;
+    }
+
+    let reference: IDataResourceStructuredContentReference | null = null;
+    try {
+      reference = await this.dataResourceService.resolveStructuredContent(createDataResourceStructuredContentTarget(target));
+      if (reference.object.kind !== "ready") {
+        return null;
+      }
+
+      const confirmation = createSchemaProfileConfirmationFromReviewedTemplate({
+        snapshot: reference.object.snapshot,
+        reviewedTemplate: input.reviewedTemplate,
+      });
+      return confirmation ? this.schemaProfileService.confirmProfile(confirmation) : null;
+    } catch {
+      return null;
+    } finally {
+      reference?.dispose();
+    }
   }
 
   private reviewResolvedManualTemplate(
@@ -250,37 +278,39 @@ export class ReviewService extends Disposable implements IReviewServiceType {
 
   public async reviewUriManualTemplate(input: UriManualTemplateReviewRequest): Promise<ManualTemplateReviewResult> {
     const target = normalizeUriReviewTarget(input.target);
-    if (!target || !this.tableModelService) {
+    if (!target || !this.dataResourceService) {
       return createInvalidManualReviewResult("review.manual.invalidUriTarget", "Manual review needs a URI content target.");
     }
 
-    let reference: ITableModelReference | null = null;
+    let reference: IDataResourceStructuredContentReference | null = null;
     try {
-      reference = await this.tableModelService.createModelReference(
-        target.resource,
-        createTableSourceFromUriReviewTarget(target),
-      );
-      const snapshot = reference.object.getSnapshot();
-      if (snapshot.loadState.state !== "ready") {
-        return createInvalidManualReviewResult("review.manual.tableModelNotReady", "Manual review needs resolved table content.");
-      }
-
-      const sheetResolution = resolveUriReviewSheet(snapshot, target.sheetId);
-      if (sheetResolution.kind === "missing") {
-        return createInvalidManualReviewResult("review.manual.sheetNotFound", "Manual review needs the requested sheet.");
-      }
-
-      const content = sheetResolution.sheet?.content ?? snapshot.content;
-      if (!content) {
-        return createInvalidManualReviewResult("review.manual.noTableContent", "Manual review needs resolved table content.");
-      }
-
-      return this.reviewResolvedManualTemplate(input.selection, content.columnCount, content.rowCount);
+      reference = await this.dataResourceService.resolveStructuredContent(createDataResourceStructuredContentTarget(target));
+      return this.reviewManualTemplateWithStructuredContent(input.selection, reference.object);
     } catch (error) {
       return createInvalidManualReviewResult("review.manual.uriResolveFailed", getErrorMessage(error));
     } finally {
       reference?.dispose();
     }
+  }
+
+  private reviewManualTemplateWithStructuredContent(
+    selection: ManualTemplateSelection,
+    resolution: DataResourceStructuredContentResolution,
+  ): ManualTemplateReviewResult {
+    if (resolution.kind === "pending") {
+      return createInvalidManualReviewResult("review.manual.structuredContentNotReady", "Manual review needs resolved structured content.");
+    }
+    if (resolution.kind === "loadError") {
+      return createInvalidManualReviewResult("review.manual.structuredContentLoadFailed", resolution.loadState.message);
+    }
+    if (resolution.kind === "missingSheet") {
+      return createInvalidManualReviewResult("review.manual.sheetNotFound", "Manual review needs the requested sheet.");
+    }
+    if (resolution.kind === "missingContent") {
+      return createInvalidManualReviewResult("review.manual.noStructuredContent", "Manual review needs resolved structured content.");
+    }
+
+    return this.reviewResolvedManualTemplate(selection, resolution.snapshot.columnCount, resolution.snapshot.rowCount);
   }
 
   private fireReviewChange(): void {
@@ -309,18 +339,14 @@ export class ReviewService extends Disposable implements IReviewServiceType {
   }
 
   private async resolveUriReviewSummary(target: UriReviewTarget): Promise<UriReviewCacheEntry | null> {
-    if (!this.tableModelService) {
+    if (!this.dataResourceService) {
       return null;
     }
 
-    let reference: ITableModelReference | null = null;
+    let reference: IDataResourceStructuredContentReference | null = null;
     try {
-      reference = await this.tableModelService.createModelReference(
-        target.resource,
-        createTableSourceFromUriReviewTarget(target),
-      );
-      const snapshot = reference.object.getSnapshot();
-      return this.createUriReviewSummaryFromSnapshot(target, snapshot);
+      reference = await this.dataResourceService.resolveStructuredContent(createDataResourceStructuredContentTarget(target));
+      return this.createUriReviewSummaryFromStructuredContent(target, reference.object);
     } catch (error) {
       return {
         modelSignature: createUriReviewErrorSignature(target, error),
@@ -328,7 +354,7 @@ export class ReviewService extends Disposable implements IReviewServiceType {
           resource: target.resource,
           ...(target.sheetId ? { sheetId: target.sheetId } : {}),
           state: "invalid",
-          findingCodes: ["review.tableModelResolveFailed"],
+          findingCodes: ["review.structuredContentResolveFailed"],
           message: getErrorMessage(error),
         },
       };
@@ -337,30 +363,31 @@ export class ReviewService extends Disposable implements IReviewServiceType {
     }
   }
 
-  private async createUriReviewSummaryFromSnapshot(
+  private async createUriReviewSummaryFromStructuredContent(
     target: UriReviewTarget,
-    snapshot: TableModelSnapshot,
+    resolution: DataResourceStructuredContentResolution,
   ): Promise<UriReviewCacheEntry> {
     const modelSignature = createUriReviewModelSignature({
       recipeFingerprint: this.recipeService.getSnapshot().fingerprint,
-      snapshot,
+      resolution,
+      schemaProfileVersion: this.schemaProfileService?.getVersion() ?? 0,
       target,
       userTemplateEffectiveFingerprint: this.userTemplateService.getSnapshot().effectiveFingerprint,
       userTemplateVersion: this.userTemplateService.getSnapshot().version,
     });
-    if (snapshot.loadState.state === "error") {
+    if (resolution.kind === "loadError") {
       return {
         modelSignature,
         summary: {
           resource: target.resource,
           ...(target.sheetId ? { sheetId: target.sheetId } : {}),
           state: "invalid",
-          findingCodes: ["review.tableModelLoadFailed"],
-          message: snapshot.loadState.message,
+          findingCodes: ["review.structuredContentLoadFailed"],
+          message: resolution.loadState.message,
         },
       };
     }
-    if (snapshot.loadState.state !== "ready") {
+    if (resolution.kind === "pending") {
       return {
         modelSignature,
         summary: {
@@ -372,8 +399,7 @@ export class ReviewService extends Disposable implements IReviewServiceType {
       };
     }
 
-    const sheetResolution = resolveUriReviewSheet(snapshot, target.sheetId);
-    if (sheetResolution.kind === "missing") {
+    if (resolution.kind === "missingSheet") {
       return {
         modelSignature,
         summary: {
@@ -381,62 +407,51 @@ export class ReviewService extends Disposable implements IReviewServiceType {
           ...(target.sheetId ? { sheetId: target.sheetId } : {}),
           state: "invalid",
           findingCodes: ["review.sheetNotFound"],
-          message: "Review needs the requested table sheet.",
+          message: "Review needs the requested sheet.",
         },
       };
     }
-
-    const selectedSheet = sheetResolution.sheet;
-    const content = selectedSheet
-      ? selectedSheet.content
-      : snapshot.content;
-    if (!content) {
+    if (resolution.kind === "missingContent") {
       return {
         modelSignature,
         summary: {
           resource: target.resource,
           ...(target.sheetId ? { sheetId: target.sheetId } : {}),
           state: "invalid",
-          findingCodes: ["review.noTableContent"],
-          message: "Review needs resolved table content.",
+          findingCodes: ["review.noStructuredContent"],
+          message: "Review needs resolved structured content.",
         },
       };
     }
 
+    const structuredContent = resolution.snapshot;
     const targetSheetId = target.sheetId;
-    const fileName = getUriReviewFileName(target.resource, selectedSheet);
-    const evidence = createUriReviewEvidence({
-      content,
-      diagnostics: getUriReviewDiagnostics(snapshot, selectedSheet),
-      fileName,
-      snapshot,
-      target,
-    });
     const result = deriveReviewResult({
-      columnCount: content.columnCount,
+      columnCount: structuredContent.columnCount,
       contentHash: target.contentHash,
-      evidence,
-      fileName,
-      modelVersion: snapshot.version,
+      evidence: createReviewEvidenceFromStructuredContent(structuredContent),
+      fileName: structuredContent.fileName,
+      modelVersion: structuredContent.sourceModelVersion,
       recipeSnapshot: this.recipeService.getSnapshot(),
       resource: target.resource,
-      rowCount: content.rowCount,
+      rowCount: structuredContent.rowCount,
+      schemaProfileSnapshot: this.schemaProfileService?.getSnapshot(),
       sheetId: targetSheetId ?? undefined,
-      sourceVersion: snapshot.sourceVersion,
+      sourceVersion: structuredContent.sourceVersion,
       userTemplateSnapshot: this.userTemplateService.getSnapshot(),
     });
     const reviewSignature = createReviewResultSignature(result);
 
     return {
-      columnCount: content.columnCount,
-      fileName,
+      columnCount: structuredContent.columnCount,
+      fileName: structuredContent.fileName,
       ...(target.contentHash ? { contentHash: target.contentHash } : {}),
       modelSignature,
       result,
       reviewSignature,
-      rowCount: content.rowCount,
-      sourceModelVersion: snapshot.version,
-      sourceVersion: snapshot.sourceVersion,
+      rowCount: structuredContent.rowCount,
+      sourceModelVersion: structuredContent.sourceModelVersion,
+      sourceVersion: structuredContent.sourceVersion,
       summary: createReviewSummaryFromResult({
         resource: target.resource,
         result,
@@ -476,14 +491,15 @@ export class ReviewService extends Disposable implements IReviewServiceType {
   }
 
   private getCurrentUriReviewModelSignature(target: UriReviewTarget): string | null {
-    const snapshot = this.tableModelService?.get(target.resource)?.getSnapshot();
-    if (!snapshot) {
+    const resolution = this.dataResourceService?.getStructuredContent(createDataResourceStructuredContentTarget(target));
+    if (!resolution) {
       return null;
     }
 
     return createUriReviewModelSignature({
       recipeFingerprint: this.recipeService.getSnapshot().fingerprint,
-      snapshot,
+      resolution,
+      schemaProfileVersion: this.schemaProfileService?.getVersion() ?? 0,
       target,
       userTemplateEffectiveFingerprint: this.userTemplateService.getSnapshot().effectiveFingerprint,
       userTemplateVersion: this.userTemplateService.getSnapshot().version,
@@ -547,525 +563,146 @@ type ManualTemplateLookupResult =
       readonly message: string;
     };
 
-const createUriReviewEvidence = ({
-  content,
-  diagnostics,
-  fileName,
-  snapshot,
-  target,
-}: {
-  readonly content: TableModelContentSnapshot;
-  readonly diagnostics: readonly TableParseDiagnostic[];
-  readonly fileName: string | null;
-  readonly snapshot: TableModelSnapshot;
-  readonly target: UriReviewTarget;
-}): ReviewEvidence => ({
-  sourceMetadata: {
-    columnCount: content.columnCount,
-    ...(target.contentHash ? { contentHash: target.contentHash } : {}),
-    fileName,
-    rowCount: content.rowCount,
-    sourceModelVersion: snapshot.version,
-    sourceUri: normalizeResourceIdentity(target.resource),
-    sourceVersion: snapshot.sourceVersion,
-  },
-  tableProjection: {
-    ...createUriTableProjectionEvidence(content),
-    diagnostics: diagnostics.map(toTableProjectionParserDiagnostic),
-  },
-});
-
-type UriColumnProjection = {
-  readonly profile: ColumnProfile;
-  readonly measurementColumn: MeasurementColumnRef;
-  readonly semanticCandidate: ColumnSemanticCandidate;
-};
-
-type UriMeasurementProjection = {
-  readonly family: MeasurementFamily;
-  readonly ivMode?: MeasurementBlockRecord["ivMode"];
-  readonly xCol: number;
-  readonly yCols: readonly number[];
-};
-
-// URI review needs enough structured evidence to evaluate Recipes, but the
-// table model remains the owner of parsing and content lifecycle.
-const createUriTableProjectionEvidence = (
-  content: TableModelContentSnapshot,
-): Omit<TableProjectionEvidence, "diagnostics"> => {
-  const rows = readTableModelContentRows(content);
-  const headerRowIndex = getUriEvidenceHeaderRowIndex(rows);
-  const dataStartRow = getUriEvidenceDataStartRow(content, headerRowIndex);
-  const dataRange = createUriEvidenceDataRange(content, dataStartRow);
-  const columns = createUriColumnProjections({
-    content,
-    dataStartRow,
-    headerRowIndex,
-    rows,
-  });
-  const measurement = createUriMeasurementProjection(columns.map(column => column.measurementColumn));
-  const structure = createUriTableProjectionStructure({
-    content,
-    dataRange,
-    headerRowIndex,
-  });
-  const layoutCandidates = measurement
-    ? [createUriLayoutCandidate(measurement, dataRange)]
-    : [];
-  const blocks = measurement
-    ? [createUriMeasurementBlock({
-      columns: columns.map(column => column.measurementColumn),
-      content,
-      dataRange,
-      headerRowIndex,
-      measurement,
-    })]
-    : [];
-
-  return {
-    structure,
-    columnProfiles: columns.map(column => column.profile),
-    layoutCandidates,
-    semanticCandidates: columns.map(column => column.semanticCandidate),
-    groups: [],
-    blocks,
-  };
-};
-
-const createUriTableProjectionStructure = ({
-  content,
-  dataRange,
-  headerRowIndex,
-}: {
-  readonly content: TableModelContentSnapshot;
-  readonly dataRange: TableProjectionSourceRange | null;
-  readonly headerRowIndex: number | null;
-}): TableProjectionStructure => {
-  if (!dataRange) {
-    return createEmptyTableProjectionStructure();
-  }
-
-  const headerRange = headerRowIndex !== null
-    ? createUriEvidenceRowRange(content, headerRowIndex)
-    : null;
-  const fingerprint = `uri-review:${content.columnCount}:${headerRowIndex ?? "none"}:${dataRange.startRow}:${dataRange.endRow}`;
-  return {
-    headerRows: headerRange
-      ? [{
-        rowIndex: headerRowIndex ?? 0,
-        range: headerRange,
-        confidence: 0.8,
-        source: "fallback",
-      }]
-      : [],
-    unitRows: [],
-    dataRegions: [{
-      id: "uri-data-region",
-      range: dataRange,
-      rowCount: Math.max(0, dataRange.endRow - dataRange.startRow + 1),
-      columnCount: content.columnCount,
-    }],
-    blockRegions: [{
-      id: "uri-block-region",
-      range: createUriEvidenceFullRange(content),
-      kind: "single",
-    }],
-    fingerprint,
-  };
-};
-
-const createUriColumnProjections = ({
-  content,
-  dataStartRow,
-  headerRowIndex,
-  rows,
-}: {
-  readonly content: TableModelContentSnapshot;
-  readonly dataStartRow: number;
-  readonly headerRowIndex: number | null;
-  readonly rows: readonly (readonly string[])[];
-}): readonly UriColumnProjection[] => {
-  const projections: UriColumnProjection[] = [];
-  for (let column = 0; column < content.columnCount; column += 1) {
-    const headerText = getUriEvidenceHeaderText(rows, headerRowIndex, column);
-    const normalizedHeader = normalizeHeaderText(headerText);
-    const roleInference = inferMeasurementColumnRole(headerText);
-    const kind = getUriColumnKind(rows, dataStartRow, column);
-    const profile: ColumnProfile = {
-      rawCol: column,
-      headerText,
-      normalizedHeader,
-      explicitUnitText: roleInference.unit ?? null,
-      kind,
-    };
-    const sourceRange = createUriEvidenceColumnRange(content, headerRowIndex, column);
-    const measurementColumn: MeasurementColumnRef = {
-      rawCol: column,
-      headerText,
-      role: roleInference.role,
-      unit: roleInference.unit ?? null,
-      sourceRange,
-      confidence: roleInference.confidence,
-    };
-    projections.push({
-      profile,
-      measurementColumn,
-      semanticCandidate: {
-        rawCol: column,
-        roleCandidates: [{
-          role: roleInference.role,
-          confidence: roleInference.confidence,
-          sources: ["header"],
-        }],
-        unitCandidates: roleInference.unit
-          ? [{
-            canonicalUnit: roleInference.unit,
-            confidence: roleInference.confidence,
-            sources: ["header"],
-            confirmed: false,
-          }]
-          : [],
-      },
-    });
-  }
-  return projections;
-};
-
-const createUriMeasurementProjection = (
-  columns: readonly MeasurementColumnRef[],
-): UriMeasurementProjection | null => {
-  const xTransfer = findMeasurementColumn(columns, ["vg", "voltage"], "V");
-  const xOutput = findMeasurementColumn(columns, ["vd", "voltage"], "V");
-  const yCurrent = columns
-    .filter(column => (column.role === "id" || column.role === "current") && normalizeText(column.unit) === "A")
-    .map(column => column.rawCol);
-  if (xTransfer !== null && yCurrent.length) {
-    return {
-      family: "iv",
-      ivMode: "transfer",
-      xCol: xTransfer,
-      yCols: yCurrent,
-    };
-  }
-  if (xOutput !== null && yCurrent.length) {
-    return {
-      family: "iv",
-      ivMode: "output",
-      xCol: xOutput,
-      yCols: yCurrent,
-    };
-  }
-
-  const xFrequency = findMeasurementColumn(columns, ["frequency"], "Hz");
-  const yCapacitance = columns
-    .filter(column => column.role === "capacitance" && normalizeText(column.unit) === "F")
-    .map(column => column.rawCol);
-  if (xFrequency !== null && yCapacitance.length) {
-    return {
-      family: "cf",
-      xCol: xFrequency,
-      yCols: yCapacitance,
-    };
-  }
-
-  const xVoltage = findMeasurementColumn(columns, ["vg", "vd", "voltage"], "V");
-  if (xVoltage !== null && yCapacitance.length) {
-    return {
-      family: "cv",
-      xCol: xVoltage,
-      yCols: yCapacitance,
-    };
-  }
-
-  const xTime = findMeasurementColumn(columns, ["time"], "s");
-  if (xTime !== null && yCurrent.length) {
-    return {
-      family: "it",
-      xCol: xTime,
-      yCols: yCurrent,
-    };
-  }
-
-  return null;
-};
-
-const createUriLayoutCandidate = (
-  measurement: UriMeasurementProjection,
-  dataRange: TableProjectionSourceRange | null,
-): LayoutCandidate => ({
-  id: "uri-layout-simple-xy",
-  layoutKind: "simpleXY",
-  confidence: 0.9,
-  bindings: [{
-    ...(dataRange ? { dataRange } : {}),
-    xCol: measurement.xCol,
-    yCols: measurement.yCols,
-  }],
-  reasons: ["uriReview.headerRoles"],
-});
-
-const createUriMeasurementBlock = ({
-  columns,
-  content,
-  dataRange,
-  headerRowIndex,
-  measurement,
-}: {
-  readonly columns: readonly MeasurementColumnRef[];
-  readonly content: TableModelContentSnapshot;
-  readonly dataRange: TableProjectionSourceRange | null;
-  readonly headerRowIndex: number | null;
-  readonly measurement: UriMeasurementProjection;
-}): MeasurementBlockRecord => {
-  const fullRange = createUriEvidenceFullRange(content);
-  const headerRange = headerRowIndex !== null
-    ? createUriEvidenceRowRange(content, headerRowIndex)
-    : null;
-  return {
-    id: "uri-block-a",
-    fileId: "uri-file",
-    rawTableId: "uri-table",
-    label: getUriMeasurementLabel(measurement),
-    family: measurement.family,
-    ...(measurement.ivMode ? { ivMode: measurement.ivMode } : {}),
-    source: {
-      fullRange,
-      ...(headerRange ? { headerRange } : {}),
-      ...(dataRange ? { dataRange } : {}),
-    },
-    columns: {
-      columns,
-    },
-    rowCount: content.rowCount,
-    columnCount: content.columnCount,
-    confidence: 0.95,
-    diagnosticCodes: [],
-  };
-};
-
-const getUriEvidenceHeaderRowIndex = (
-  rows: readonly (readonly string[])[],
-): number | null => {
-  const firstNonEmpty = rows.findIndex(row => row.some(cell => normalizeText(cell)));
-  return firstNonEmpty >= 0 ? firstNonEmpty : null;
-};
-
-const getUriEvidenceDataStartRow = (
-  content: TableModelContentSnapshot,
-  headerRowIndex: number | null,
-): number => {
-  if (content.rowCount <= 0) {
-    return 0;
-  }
-  return Math.min(content.rowCount - 1, (headerRowIndex ?? -1) + 1);
-};
-
-const createUriEvidenceDataRange = (
-  content: TableModelContentSnapshot,
-  dataStartRow: number,
-): TableProjectionSourceRange | null => {
-  if (content.rowCount <= 0 || content.columnCount <= 0) {
-    return null;
-  }
-  return {
-    startRow: dataStartRow,
-    endRow: content.rowCount - 1,
-    startCol: 0,
-    endCol: content.columnCount - 1,
-  };
-};
-
-const createUriEvidenceFullRange = (
-  content: TableModelContentSnapshot,
-): TableProjectionSourceRange => ({
-  startRow: 0,
-  endRow: Math.max(0, content.rowCount - 1),
-  startCol: 0,
-  endCol: Math.max(0, content.columnCount - 1),
-});
-
-const createUriEvidenceRowRange = (
-  content: TableModelContentSnapshot,
-  rowIndex: number,
-): TableProjectionSourceRange => ({
-  startRow: rowIndex,
-  endRow: rowIndex,
-  startCol: 0,
-  endCol: Math.max(0, content.columnCount - 1),
-});
-
-const createUriEvidenceColumnRange = (
-  content: TableModelContentSnapshot,
-  headerRowIndex: number | null,
-  column: number,
-): TableProjectionSourceRange => ({
-  startRow: headerRowIndex ?? 0,
-  endRow: Math.max(headerRowIndex ?? 0, content.rowCount - 1),
-  startCol: column,
-  endCol: column,
-});
-
-const getUriEvidenceHeaderText = (
-  rows: readonly (readonly string[])[],
-  headerRowIndex: number | null,
-  column: number,
-): string => headerRowIndex !== null
-  ? normalizeText(rows[headerRowIndex]?.[column])
-  : `Column ${column + 1}`;
-
-const getUriColumnKind = (
-  rows: readonly (readonly string[])[],
-  dataStartRow: number,
-  column: number,
-): ColumnProfile["kind"] => {
-  const values = rows
-    .slice(dataStartRow)
-    .map(row => normalizeText(row[column]))
-    .filter(Boolean);
-  if (!values.length) {
-    return "empty";
-  }
-  const numericCount = values.filter(isFiniteNumberText).length;
-  if (numericCount === values.length) {
-    return "numeric";
-  }
-  return numericCount > 0 ? "mixed" : "text";
-};
-
-const inferMeasurementColumnRole = (
-  headerText: string,
-): { readonly role: MeasurementColumnRole; readonly unit?: CanonicalUnit; readonly confidence: number } => {
-  const explicitUnit = inferCanonicalUnit(headerText);
-  const normalized = normalizeHeaderText(headerText);
-  if (matchesAnyHeader(normalized, ["vg", "vgs", "gatevoltage", "gatev", "voltagegate"])) {
-    return { role: "vg", unit: explicitUnit ?? "V", confidence: 0.95 };
-  }
-  if (matchesAnyHeader(normalized, ["vd", "vds", "drainvoltage", "drainv", "voltagedrain"])) {
-    return { role: "vd", unit: explicitUnit ?? "V", confidence: 0.95 };
-  }
-  if (matchesAnyHeader(normalized, ["vs", "sourcevoltage", "sourcev"])) {
-    return { role: "vs", unit: explicitUnit ?? "V", confidence: 0.9 };
-  }
-  if (matchesAnyHeader(normalized, ["id", "ids", "draincurrent", "currentdrain"])) {
-    return { role: "id", unit: explicitUnit ?? "A", confidence: 0.95 };
-  }
-  if (matchesAnyHeader(normalized, ["ig", "igs", "gatecurrent", "currentgate"])) {
-    return { role: "ig", unit: explicitUnit ?? "A", confidence: 0.9 };
-  }
-  if (matchesAnyHeader(normalized, ["is", "sourcecurrent", "currentsource"])) {
-    return { role: "is", unit: explicitUnit ?? "A", confidence: 0.9 };
-  }
-  if (normalized.includes("capacitance") || normalized === "c" || normalized.startsWith("cap")) {
-    return { role: "capacitance", unit: explicitUnit ?? "F", confidence: 0.9 };
-  }
-  if (normalized.includes("conductance") || normalized === "g") {
-    return { role: "conductance", unit: explicitUnit ?? "S", confidence: 0.85 };
-  }
-  if (normalized.includes("frequency") || normalized === "freq" || normalized === "f") {
-    return { role: "frequency", unit: explicitUnit ?? "Hz", confidence: 0.9 };
-  }
-  if (normalized.includes("time") || normalized === "t") {
-    return { role: "time", unit: explicitUnit ?? "s", confidence: 0.9 };
-  }
-  if (normalized.includes("voltage") || normalized === "v") {
-    return { role: "voltage", unit: explicitUnit ?? "V", confidence: 0.75 };
-  }
-  if (normalized.includes("current") || normalized === "i") {
-    return { role: "current", unit: explicitUnit ?? "A", confidence: 0.75 };
-  }
-  return { role: "unknown", unit: explicitUnit, confidence: 0.2 };
-};
-
-const inferCanonicalUnit = (
-  headerText: string,
-): CanonicalUnit | undefined => {
-  const normalized = headerText.toLowerCase();
-  if (/\b(hz|khz|mhz)\b/i.test(headerText)) {
-    return "Hz";
-  }
-  if (/\b(ms|sec|second|seconds|s)\b/i.test(headerText)) {
-    return "s";
-  }
-  if (/\b(pf|nf|uf|µf|mf|f)\b/i.test(headerText)) {
-    return "F";
-  }
-  if (/\b(na|ua|µa|ma|a)\b/i.test(headerText)) {
-    return "A";
-  }
-  if (/\b(mv|v|kv)\b/i.test(headerText)) {
-    return "V";
-  }
-  if (normalized.includes("ohm") || normalized.includes("Ω")) {
-    return "ohm";
-  }
-  if (/\b(msiemens|siemens|ms|s)\b/i.test(headerText) && normalized.includes("conductance")) {
-    return "S";
-  }
-  return undefined;
-};
-
-const normalizeHeaderText = (
-  value: unknown,
-): string => normalizeText(value).toLowerCase().replace(/[^a-z0-9]+/g, "");
-
-const matchesAnyHeader = (
-  normalizedHeader: string,
-  candidates: readonly string[],
-): boolean => candidates.some(candidate => normalizedHeader === candidate || normalizedHeader.includes(candidate));
-
-const findMeasurementColumn = (
-  columns: readonly MeasurementColumnRef[],
-  roles: readonly MeasurementColumnRole[],
-  unit: CanonicalUnit,
-): number | null => {
-  const column = columns.find(candidate =>
-    roles.includes(candidate.role) &&
-    normalizeText(candidate.unit) === unit
-  );
-  return column?.rawCol ?? null;
-};
-
-const isFiniteNumberText = (
-  value: string,
-): boolean => {
-  const normalized = value.replace(/,/g, "");
-  return normalized !== "" && Number.isFinite(Number(normalized));
-};
-
-const getUriMeasurementLabel = (
-  measurement: UriMeasurementProjection,
-): string => {
-  if (measurement.family === "iv" && measurement.ivMode === "transfer") {
-    return "Detected IV Transfer";
-  }
-  if (measurement.family === "iv" && measurement.ivMode === "output") {
-    return "Detected IV Output";
-  }
-  return `Detected ${measurement.family.toUpperCase()}`;
-};
-
-const toTableProjectionParserDiagnostic = (
-  diagnostic: TableParseDiagnostic,
-): TableProjectionDiagnostic => ({
-  severity: diagnostic.severity,
-  code: diagnostic.code,
-  message: diagnostic.message,
-  ...(diagnostic.rowIndex !== undefined || diagnostic.columnIndex !== undefined ? {
-    sourceRange: {
-      startRow: diagnostic.rowIndex ?? 0,
-      endRow: diagnostic.rowIndex ?? 0,
-      startCol: diagnostic.columnIndex ?? 0,
-      endCol: diagnostic.columnIndex ?? 0,
-    },
-  } : {}),
-});
-
 type ManualTemplateReview = {
   readonly candidateId: string;
   readonly source: ReviewedTemplateSource;
   readonly template: Template;
   readonly templateFingerprint: string;
   readonly review: CandidateReview;
+};
+
+const createSchemaProfileConfirmationFromReviewedTemplate = ({
+  reviewedTemplate,
+  snapshot,
+}: {
+  readonly reviewedTemplate: ReviewedTemplate;
+  readonly snapshot: DataResourceStructuredContentSnapshot;
+}): ConfirmSchemaProfileInput | null => {
+  const schemaFingerprint = normalizeText(snapshot.structuredContent.structure.fingerprint);
+  const columnProfiles = snapshot.structuredContent.columnProfiles;
+  if (!schemaFingerprint || !columnProfiles.length) {
+    return null;
+  }
+
+  const measurementColumnsByRawCol = createMeasurementColumnsByRawCol(
+    snapshot.structuredContent.blocks.flatMap(block => block.columns.columns),
+  );
+  const columnProfilesByRawCol = createColumnProfilesByRawCol(columnProfiles);
+  const bindings: SchemaProfileConfirmationBinding[] = [];
+  const seen = new Set<string>();
+  let hasUnconfirmedAxisColumn = false;
+  for (const block of reviewedTemplate.template.blocks) {
+    hasUnconfirmedAxisColumn = !addSchemaProfileAxisBindings({
+      axis: "x",
+      axisColumns: block.x.columns,
+      axisUnit: block.x.unit,
+      bindings,
+      columnProfilesByRawCol,
+      measurementColumnsByRawCol,
+      seen,
+    }) || hasUnconfirmedAxisColumn;
+    hasUnconfirmedAxisColumn = !addSchemaProfileAxisBindings({
+      axis: "y",
+      axisColumns: block.y.columns,
+      axisUnit: block.y.unit,
+      bindings,
+      columnProfilesByRawCol,
+      measurementColumnsByRawCol,
+      seen,
+    }) || hasUnconfirmedAxisColumn;
+  }
+
+  return bindings.length && !hasUnconfirmedAxisColumn
+    ? {
+      schemaFingerprint,
+      columnProfiles,
+      bindings,
+    }
+    : null;
+};
+
+const addSchemaProfileAxisBindings = ({
+  axis,
+  axisColumns,
+  axisUnit,
+  bindings,
+  columnProfilesByRawCol,
+  measurementColumnsByRawCol,
+  seen,
+}: {
+  readonly axis: "x" | "y";
+  readonly axisColumns: readonly number[];
+  readonly axisUnit?: string;
+  readonly bindings: SchemaProfileConfirmationBinding[];
+  readonly columnProfilesByRawCol: ReadonlyMap<number, StructuredColumnProfile>;
+  readonly measurementColumnsByRawCol: ReadonlyMap<number, StructuredMeasurementColumnRef>;
+  readonly seen: Set<string>;
+}): boolean => {
+  for (const column of axisColumns) {
+    const rawCol = normalizeColumnIndex(column);
+    if (rawCol === undefined) {
+      return false;
+    }
+
+    if (!columnProfilesByRawCol.has(rawCol)) {
+      return false;
+    }
+
+    const measurementColumn = measurementColumnsByRawCol.get(rawCol);
+    const role = normalizeStructuredRole(measurementColumn?.role);
+    if (!role || role === "unknown") {
+      return false;
+    }
+
+    const canonicalUnit = normalizeStructuredCanonicalUnit(measurementColumn?.unit ?? axisUnit);
+    const key = `${rawCol}\u0000${axis}\u0000${role}\u0000${canonicalUnit ?? ""}`;
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    bindings.push({
+      rawCol,
+      role,
+      axis,
+      canonicalUnit,
+    });
+  }
+
+  return true;
+};
+
+const createColumnProfilesByRawCol = (
+  columnProfiles: readonly StructuredColumnProfile[],
+): ReadonlyMap<number, StructuredColumnProfile> => {
+  const result = new Map<number, StructuredColumnProfile>();
+  for (const profile of columnProfiles) {
+    const rawCol = normalizeColumnIndex(profile.rawCol);
+    if (rawCol === undefined) {
+      continue;
+    }
+
+    result.set(rawCol, profile);
+  }
+  return result;
+};
+
+const createMeasurementColumnsByRawCol = (
+  columns: readonly StructuredMeasurementColumnRef[],
+): ReadonlyMap<number, StructuredMeasurementColumnRef> => {
+  const result = new Map<number, StructuredMeasurementColumnRef>();
+  for (const column of columns) {
+    const rawCol = normalizeColumnIndex(column.rawCol);
+    if (rawCol === undefined) {
+      continue;
+    }
+
+    const existing = result.get(rawCol);
+    if (!existing || normalizeConfidence(column.confidence) > normalizeConfidence(existing.confidence)) {
+      result.set(rawCol, column);
+    }
+  }
+  return result;
 };
 
 const createManualTemplateReview = ({
@@ -1386,68 +1023,52 @@ const getUriReviewTargetKey = (
   target.sheetId ?? "",
 ].join("\u001f");
 
-const createTableSourceFromUriReviewTarget = (
+const createDataResourceStructuredContentTarget = (
   target: UriReviewTarget,
-): TableSource => ({
+): DataResourceStructuredContentTarget => ({
   resource: target.resource,
-  ...(target.sheetId ? { sheetId: target.sheetId } : {}),
+  contentHash: target.contentHash,
+  sheetId: target.sheetId,
 });
 
-type UriReviewSheetResolution =
-  | {
-      readonly kind: "found";
-      readonly sheet: TableModelSheetSnapshot | null;
-    }
-  | {
-      readonly kind: "missing";
-    };
-
-const resolveUriReviewSheet = (
-  snapshot: TableModelSnapshot,
-  requestedSheetId: string | null,
-): UriReviewSheetResolution => {
-  if (requestedSheetId) {
-    const sheet = snapshot.sheets.find(candidate => candidate.sheetId === requestedSheetId);
-    return sheet
-      ? { kind: "found", sheet }
-      : { kind: "missing" };
-  }
-
-  return {
-    kind: "found",
-    sheet: snapshot.sheets.find(sheet => sheet.sheetId === snapshot.defaultSheetId) ??
-      snapshot.sheets[0] ??
-      null,
-  };
-};
-
-const getUriReviewDiagnostics = (
-  snapshot: TableModelSnapshot,
-  sheet: TableModelSheetSnapshot | null,
-): readonly TableParseDiagnostic[] => [
-  ...snapshot.diagnostics,
-  ...(sheet?.diagnostics ?? []),
-];
+const createReviewEvidenceFromStructuredContent = (
+  snapshot: DataResourceStructuredContentSnapshot,
+): ReviewEvidence => ({
+  sourceMetadata: {
+    columnCount: snapshot.columnCount,
+    ...(snapshot.contentHash ? { contentHash: snapshot.contentHash } : {}),
+    fileName: snapshot.fileName,
+    rowCount: snapshot.rowCount,
+    sourceModelVersion: snapshot.sourceModelVersion,
+    sourceUri: snapshot.sourceUri,
+    sourceVersion: snapshot.sourceVersion,
+  },
+  structuredContent: snapshot.structuredContent,
+});
 
 const createUriReviewModelSignature = ({
   recipeFingerprint,
-  snapshot,
+  resolution,
+  schemaProfileVersion,
   target,
   userTemplateEffectiveFingerprint,
   userTemplateVersion,
 }: {
   readonly recipeFingerprint: string;
-  readonly snapshot: TableModelSnapshot;
+  readonly resolution: DataResourceStructuredContentResolution;
+  readonly schemaProfileVersion: number;
   readonly target: UriReviewTarget;
   readonly userTemplateEffectiveFingerprint: string;
   readonly userTemplateVersion: number;
 }): string => [
   getUriReviewTargetKey(target),
-  snapshot.version,
-  snapshot.sourceVersion,
+  resolution.kind,
+  resolution.kind === "ready" ? resolution.snapshot.sourceModelVersion : "",
+  resolution.kind === "ready" ? resolution.snapshot.sourceVersion : "",
+  resolution.kind === "loadError" ? resolution.loadState.message : "",
   target.contentHash ?? "",
-  snapshot.loadState.state,
   recipeFingerprint,
+  schemaProfileVersion,
   userTemplateEffectiveFingerprint,
   userTemplateVersion,
 ].join("\u001f");
@@ -1460,20 +1081,6 @@ const createUriReviewErrorSignature = (
   "error",
   getErrorMessage(error),
 ].join("\u001f");
-
-const getUriReviewFileName = (
-  resource: URI,
-  sheet: TableModelSheetSnapshot | null,
-): string => {
-  const sheetName = normalizeText(sheet?.sheetName);
-  if (sheetName) {
-    return sheetName;
-  }
-
-  const path = normalizeText(resource.path);
-  const name = path.split(/[\\/]/).filter(Boolean).pop();
-  return name || getResourceIdentityString(resource);
-};
 
 const getErrorMessage = (
   error: unknown,
@@ -1539,9 +1146,52 @@ const normalizeOptionalText = (
   return normalized || undefined;
 };
 
+const normalizeColumnIndex = (
+  value: unknown,
+): number | undefined => {
+  const column = Math.floor(Number(value));
+  return Number.isFinite(column) && column >= 0 ? column : undefined;
+};
+
 const normalizeText = (
   value: unknown,
 ): string => String(value ?? "").trim();
+
+const normalizeStructuredRole = (
+  value: unknown,
+): StructuredMeasurementColumnRole | null => {
+  if (
+    value === "vd" ||
+    value === "vg" ||
+    value === "vs" ||
+    value === "id" ||
+    value === "ig" ||
+    value === "is" ||
+    value === "capacitance" ||
+    value === "conductance" ||
+    value === "frequency" ||
+    value === "time" ||
+    value === "voltage" ||
+    value === "current" ||
+    value === "unknown"
+  ) {
+    return value;
+  }
+  return null;
+};
+
+const normalizeStructuredCanonicalUnit = (
+  value: unknown,
+): StructuredCanonicalUnit | null =>
+  value === "V" ||
+  value === "A" ||
+  value === "ohm" ||
+  value === "s" ||
+  value === "F" ||
+  value === "Hz" ||
+  value === "S"
+    ? value
+    : null;
 
 const normalizeConfidence = (
   value: unknown,
@@ -1572,6 +1222,6 @@ const distinctReviewFindingCodes = (
 
 registerSingleton(
   IReviewService,
-  ReviewService as unknown as new (...services: BrandedService[]) => IReviewServiceType,
+  ReviewService as unknown as new (...services: BrandedService[]) => IReviewService,
   InstantiationType.Delayed,
 );

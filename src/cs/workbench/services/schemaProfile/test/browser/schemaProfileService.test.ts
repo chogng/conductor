@@ -164,6 +164,113 @@ suite("workbench/services/schemaProfile/test/browser/schemaProfileService", () =
 		assert.equal(service.getVersion(), 3);
 	});
 
+	test("deduplicates repeated confirmed bindings from multi-block templates", () => {
+		const storageService = store.add(new TestStorageService());
+		const storeService = store.add(new SchemaProfileStoreService(storageService));
+		const service = store.add(new SchemaProfileService(storeService));
+
+		const profile = service.confirmProfile({
+			...createConfirmation({
+				yRole: "id",
+			}),
+			bindings: [
+				...createConfirmation({
+					yRole: "id",
+				}).bindings,
+				...createConfirmation({
+					yRole: "id",
+				}).bindings,
+			],
+		});
+
+		assert.ok(profile);
+		assert.equal(profile.bindings.length, 2);
+		assert.equal(service.getVersion(), 1);
+	});
+
+	test("does not persist same-column x/y confirmation conflicts", () => {
+		const storageService = store.add(new TestStorageService());
+		const storeService = store.add(new SchemaProfileStoreService(storageService));
+		const service = store.add(new SchemaProfileService(storeService));
+
+		const profile = service.confirmProfile({
+			schemaFingerprint: "dataname|shared",
+			columnProfiles: [{
+				rawCol: 1,
+				headerText: "Shared",
+				normalizedHeader: "shared",
+				kind: "numeric",
+			}],
+			bindings: [{
+				rawCol: 1,
+				role: "vg",
+				axis: "x",
+				canonicalUnit: "V",
+			}, {
+				rawCol: 1,
+				role: "id",
+				axis: "y",
+				canonicalUnit: "A",
+			}],
+		});
+
+		assert.equal(profile, null);
+		assert.equal(service.getVersion(), 0);
+		assert.deepEqual(service.getProfiles(), []);
+	});
+
+	test("does not persist confirmations for missing column profiles", () => {
+		const storageService = store.add(new TestStorageService());
+		const storeService = store.add(new SchemaProfileStoreService(storageService));
+		const service = store.add(new SchemaProfileService(storeService));
+
+		const profile = service.confirmProfile({
+			schemaFingerprint: "dataname|missing",
+			columnProfiles: [{
+				rawCol: 1,
+				headerText: "Input A",
+				normalizedHeader: "input a",
+				kind: "numeric",
+			}],
+			bindings: [{
+				rawCol: 2,
+				role: "id",
+				axis: "y",
+				canonicalUnit: "A",
+			}],
+		});
+
+		assert.equal(profile, null);
+		assert.equal(service.getVersion(), 0);
+		assert.deepEqual(service.getProfiles(), []);
+	});
+
+	test("persists role confirmations when canonical unit is unavailable", () => {
+		const storageService = store.add(new TestStorageService());
+		const storeService = store.add(new SchemaProfileStoreService(storageService));
+		const service = store.add(new SchemaProfileService(storeService));
+
+		const profile = service.confirmProfile({
+			schemaFingerprint: "dataname|unitless",
+			columnProfiles: [{
+				rawCol: 1,
+				headerText: "Input A",
+				normalizedHeader: "input a",
+				kind: "numeric",
+			}],
+			bindings: [{
+				rawCol: 1,
+				role: "vg",
+				axis: "x",
+			}],
+		});
+
+		assert.ok(profile);
+		assert.equal(profile.bindings[0]?.canonicalUnit, null);
+		assert.equal(profile.bindings[0]?.role, "vg");
+		assert.equal(service.getVersion(), 1);
+	});
+
 	test("does not persist empty or unknown-role confirmations", () => {
 		const storageService = store.add(new TestStorageService());
 		const storeService = store.add(new SchemaProfileStoreService(storageService));

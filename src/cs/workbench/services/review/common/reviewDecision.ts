@@ -20,6 +20,13 @@ import type {
 } from "src/cs/workbench/services/review/common/reviewModel";
 import { URI } from "src/cs/base/common/uri";
 import { deriveAutomaticReviewCandidates } from "src/cs/workbench/services/review/common/reviewCandidate";
+import type { SchemaProfileMatch } from "src/cs/workbench/services/schemaProfile/common/schemaProfileMatcher";
+import {
+	findExactSchemaProfileMatch,
+	findSchemaProfileBindingForColumn,
+	findSimilarSchemaProfileMatch,
+} from "src/cs/workbench/services/schemaProfile/common/schemaProfileMatcher";
+import type { SchemaProfileSnapshot } from "src/cs/workbench/services/schemaProfile/common/schemaProfile";
 import {
 	REVIEW_ENGINE_VERSION,
 	REVIEW_POLICY_VERSION,
@@ -36,6 +43,7 @@ const SYSTEM_RECOMMENDED_CONFIDENCE = 0.85;
 const READY_CONFIDENCE = 0.85;
 const INVALID_CONFIDENCE = 0.5;
 const AMBIGUITY_MARGIN = 0.05;
+const SIMILAR_SCHEMA_PROFILE_SCORE_CAP = 0.72;
 
 export type ReviewDerivationInput = {
 	readonly columnCount?: number;
@@ -46,6 +54,7 @@ export type ReviewDerivationInput = {
 	readonly recipeSnapshot: RecipeSnapshot;
 	readonly resource: ReviewSummaryTarget["resource"];
 	readonly rowCount?: number;
+	readonly schemaProfileSnapshot?: SchemaProfileSnapshot;
 	readonly sheetId?: string | null;
 	readonly sourceVersion: number;
 	readonly userTemplateSnapshot: UserTemplateSnapshot;
@@ -54,7 +63,7 @@ export type ReviewDerivationInput = {
 export const deriveReviewResult = (
 	input: ReviewDerivationInput,
 ): ReviewResult => {
-	const context = createReviewContext(input);
+	const context = createReviewDecisionContext(input);
 	const candidates = deriveAutomaticReviewCandidates({
 		context,
 		recipeSnapshot: input.recipeSnapshot,
@@ -88,6 +97,21 @@ export const deriveReviewResult = (
 	};
 };
 
+type ReviewDecisionContext = ReviewContext & {
+	readonly schemaProfileMatch?: SchemaProfileMatch;
+};
+
+const createReviewDecisionContext = (
+	input: ReviewDerivationInput,
+): ReviewDecisionContext => {
+	const context = createReviewContext(input);
+	const schemaProfileMatch = createSchemaProfileMatch(input, context);
+	return {
+		...context,
+		...(schemaProfileMatch ? { schemaProfileMatch } : {}),
+	};
+};
+
 const createReviewContext = (
 	input: ReviewDerivationInput,
 ): ReviewContext => {
@@ -110,6 +134,53 @@ const createReviewContext = (
 	};
 };
 
+const createSchemaProfileMatch = (
+	input: ReviewDerivationInput,
+	context: ReviewContext,
+): SchemaProfileMatch | null => {
+	const structuredContent = context.evidence.structuredContent;
+	const fingerprint = structuredContent?.structure.fingerprint;
+	const profiles = input.schemaProfileSnapshot?.profiles ?? [];
+	if (!structuredContent || !fingerprint || !profiles.length) {
+		return null;
+	}
+
+	const exactMatch = findExactSchemaProfileMatch({
+		fingerprint,
+		profiles,
+	});
+	if (exactMatch) {
+		return exactMatch;
+	}
+
+	if (hasConflictedExactSchemaProfile({
+		fingerprint,
+		profiles,
+	})) {
+		return null;
+	}
+
+	return findSimilarSchemaProfileMatch({
+		columnProfiles: structuredContent.columnProfiles,
+		measurementColumns: structuredContent.blocks.flatMap(block => block.columns.columns),
+		profiles,
+	});
+};
+
+const hasConflictedExactSchemaProfile = ({
+	fingerprint,
+	profiles,
+}: {
+	readonly fingerprint: string;
+	readonly profiles: SchemaProfileSnapshot["profiles"];
+}): boolean => {
+	const normalizedFingerprint = normalizeText(fingerprint);
+	return profiles.some(profile =>
+		normalizeText(profile.schemaFingerprint) === normalizedFingerprint &&
+		Math.max(0, Math.floor(Number(profile.conflictCount) || 0)) > 0
+	);
+};
+
 const createReviewDecision = ({
 	candidates,
 	reviews,
@@ -126,7 +197,7 @@ const createReviewDecision = ({
 		const { candidate: readyCandidate, review } = readySelection;
 		const template = createReviewedTemplateSnapshotFromCandidateInterpretation(readyCandidate.interpretation);
 		const templateFingerprint = createTemplateFingerprint(template);
-		const application = review.confidence >= SYSTEM_RECOMMENDED_CONFIDENCE
+		const application = isSystemRecommendedReview(review)
 			? {
 				kind: "systemRecommended" as const,
 				reason: "review.ready.systemRecommended",
@@ -236,6 +307,13 @@ const getCandidateReviewStatusRank = (
 	}
 };
 
+const isSystemRecommendedReview = (
+	review: CandidateReview,
+): boolean =>
+	review.confidence >= SYSTEM_RECOMMENDED_CONFIDENCE &&
+	!review.reasons.includes("schemaProfile.similarSchema") &&
+	!review.reasons.includes("schemaProfile.bindingIncomplete");
+
 const createReviewDiagnosticsFromFindings = (
 	findings: readonly CandidateReview["findings"][number][],
 ): readonly ReviewDiagnostic[] =>
@@ -296,7 +374,7 @@ export const scoreReviewCandidates = ({
 	context,
 }: {
 	readonly candidates: readonly ReviewCandidate[];
-	readonly context: ReviewContext;
+	readonly context: ReviewContext | ReviewDecisionContext;
 }): readonly CandidateReview[] => {
 	const baseScores = new Map<string, number>();
 	for (const candidate of candidates) {
@@ -325,7 +403,7 @@ export const scoreReviewCandidate = ({
 }: {
 	readonly ambiguityPenalty?: number;
 	readonly candidate: ReviewCandidate;
-	readonly context: ReviewContext;
+	readonly context: ReviewContext | ReviewDecisionContext;
 }): CandidateReview => {
 	const findings = createReviewFindings(candidate, context, ambiguityPenalty);
 	const baseFactors = createBaseFactors(candidate, context);
@@ -361,6 +439,7 @@ export const scoreReviewCandidate = ({
 		reasons: [
 			...candidate.selectorTrace.reasons,
 			...candidate.projectionTrace.reasons,
+			...getSchemaProfileReasons(candidate, context),
 		],
 		diagnostics: getCandidateDiagnostics(candidate),
 	};
@@ -411,15 +490,136 @@ export const createManualCandidateReview = ({
 
 const createBaseFactors = (
 	candidate: ReviewCandidate,
-	context: ReviewContext,
+	context: ReviewContext | ReviewDecisionContext,
 ): Omit<ReviewFactors, "ambiguityPenalty" | "conflictPenalty" | "diagnosticPenalty"> => ({
 	selectorScore: candidate.selectorTrace.diagnostics.length ? 0.45 : 1,
 	projectionScore: getProjectionScore(candidate, context),
-	semanticScore: clampConfidence(candidate.confidence),
+	semanticScore: getSemanticScore(candidate, context),
 	dataQualityScore: getDataQualityScore(context),
 	parseHealthScore: getParseHealthScore(context),
 	freshnessScore: getFreshnessScore(candidate, context),
 });
+
+const getSemanticScore = (
+	candidate: ReviewCandidate,
+	context: ReviewContext | ReviewDecisionContext,
+): number =>
+	Math.max(
+		clampConfidence(candidate.confidence),
+		getSchemaProfileCandidateEvaluation(candidate, context).score,
+	);
+
+const getSchemaProfileReasons = (
+	candidate: ReviewCandidate,
+	context: ReviewContext | ReviewDecisionContext,
+): readonly string[] =>
+	getSchemaProfileCandidateEvaluation(candidate, context).reasons;
+
+type SchemaProfileCandidateEvaluation = {
+	readonly score: number;
+	readonly reasons: readonly string[];
+};
+
+const getSchemaProfileCandidateEvaluation = (
+	candidate: ReviewCandidate,
+	context: ReviewContext | ReviewDecisionContext,
+): SchemaProfileCandidateEvaluation => {
+	const match = getSchemaProfileMatch(context);
+	const columnProfiles = context.evidence.structuredContent?.columnProfiles ?? [];
+	if (!match) {
+		return noSchemaProfileCandidateEvaluation;
+	}
+	if (!columnProfiles.length) {
+		return incompleteSchemaProfileCandidateEvaluation;
+	}
+
+	const axisBindings = candidate.interpretation.blocks.flatMap(block => [
+		...block.x.columns.map(column => ({
+			axis: "x" as const,
+			column,
+			unit: block.x.unit,
+		})),
+		...block.y.columns.map(column => ({
+			axis: "y" as const,
+			column,
+			unit: block.y.unit,
+		})),
+	]);
+	if (!axisBindings.length) {
+		return createIncompleteSchemaProfileCandidateEvaluation(match);
+	}
+
+	for (const axisBinding of axisBindings) {
+		const columnProfile = columnProfiles.find(profile => profile.rawCol === axisBinding.column);
+		if (!columnProfile) {
+			return createIncompleteSchemaProfileCandidateEvaluation(match);
+		}
+
+		const binding = findSchemaProfileBindingForColumn(match.profile, columnProfile);
+		if (!binding || !isSchemaProfileBindingCompatible(binding, axisBinding)) {
+			return createIncompleteSchemaProfileCandidateEvaluation(match);
+		}
+	}
+
+	if (match.kind === "similar") {
+		return {
+			score: Math.min(SIMILAR_SCHEMA_PROFILE_SCORE_CAP, clampConfidence(match.confidence)),
+			reasons: [
+				"schemaProfile.similarSchema",
+			],
+		};
+	}
+
+	return {
+		score: clampConfidence(match.confidence),
+		reasons: [
+			"schemaProfile.exactFingerprint",
+			"schemaProfile.bindingMatched",
+		],
+	};
+};
+
+const noSchemaProfileCandidateEvaluation: SchemaProfileCandidateEvaluation = {
+	score: 0,
+	reasons: [],
+};
+
+const incompleteSchemaProfileCandidateEvaluation: SchemaProfileCandidateEvaluation = {
+	score: 0,
+	reasons: [
+		"schemaProfile.exactFingerprint",
+		"schemaProfile.bindingIncomplete",
+	],
+};
+
+const createIncompleteSchemaProfileCandidateEvaluation = (
+	match: SchemaProfileMatch,
+): SchemaProfileCandidateEvaluation =>
+	match.kind === "similar"
+		? {
+			score: 0,
+			reasons: [
+				"schemaProfile.similarSchema",
+				"schemaProfile.bindingIncomplete",
+			],
+		}
+		: incompleteSchemaProfileCandidateEvaluation;
+
+const getSchemaProfileMatch = (
+	context: ReviewContext | ReviewDecisionContext,
+): SchemaProfileMatch | undefined =>
+	"schemaProfileMatch" in context ? context.schemaProfileMatch : undefined;
+
+const isSchemaProfileBindingCompatible = (
+	binding: ReturnType<typeof findSchemaProfileBindingForColumn>,
+	axisBinding: {
+		readonly axis: "x" | "y";
+		readonly unit?: string;
+	},
+): boolean =>
+	Boolean(binding) &&
+	binding?.axis === axisBinding.axis &&
+	(!binding.canonicalUnit || !axisBinding.unit || binding.canonicalUnit === axisBinding.unit);
 
 const getBaseConfidence = (
 	factors: Omit<ReviewFactors, "ambiguityPenalty" | "conflictPenalty" | "diagnosticPenalty">,
@@ -450,7 +650,7 @@ const getDataQualityScore = (
 	if (!Number.isInteger(rowCount) || rowCount <= 0 || !Number.isInteger(columnCount) || columnCount <= 0) {
 		return 0;
 	}
-	const blocks = context.evidence.tableProjection?.blocks ?? [];
+	const blocks = context.evidence.structuredContent?.blocks ?? [];
 	if (!blocks.length) {
 		return 0.4;
 	}
@@ -460,7 +660,7 @@ const getDataQualityScore = (
 const getParseHealthScore = (
 	context: ReviewContext,
 ): number => {
-	const diagnostics = context.evidence.tableProjection?.diagnostics ?? [];
+	const diagnostics = context.evidence.structuredContent?.diagnostics ?? [];
 	const fatalCount = diagnostics.filter(diagnostic => diagnostic.severity === "fatal").length;
 	const errorCount = diagnostics.filter(diagnostic => diagnostic.severity === "error").length;
 	const warningCount = diagnostics.filter(diagnostic => diagnostic.severity === "warning").length;
@@ -481,11 +681,11 @@ const createReviewFindings = (
 ): readonly ReviewFinding[] => {
 	const findings: ReviewFinding[] = [];
 	findings.push(...getFreshnessFindings(candidate, context));
-	const tableProjection = context.evidence.tableProjection;
-	if (tableProjection?.diagnostics.some(diagnostic => diagnostic.severity === "fatal")) {
+	const structuredContent = context.evidence.structuredContent;
+	if (structuredContent?.diagnostics.some(diagnostic => diagnostic.severity === "fatal")) {
 		findings.push(createFinding("error", "review.parserFatalDiagnostic", "Parser diagnostics contain a fatal error.", true));
 	}
-	if (!tableProjection?.blocks.length) {
+	if (!structuredContent?.blocks.length) {
 		findings.push(createFinding("warning", "review.noMeasurementBlocks", "No measurement block evidence is available."));
 	}
 	for (const diagnostic of getCandidateDiagnostics(candidate)) {

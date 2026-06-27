@@ -7,44 +7,21 @@ import type { URI } from "src/cs/base/common/uri";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
 import type {
-  ReviewDiagnostic,
-  ReviewedTemplate,
-  ReviewSuggestedAction,
   CandidateReview,
+  ReviewDiagnostic,
   ReviewEvidence,
   ReviewResult,
-  ReviewSummary,
-  ReviewSummaryTarget,
-} from "src/cs/workbench/services/review/common/reviewModel";
-
-export type {
-  ReviewDiagnostic,
-  ReviewedTemplate,
-  ReviewedTemplateSource,
   ReviewSuggestedAction,
-  SegmentCandidate,
-  CandidateReview,
-  CandidateReviewStatus,
-  ReviewCandidate,
-  ReviewCandidateSummary,
-  ReviewContext,
-  ReviewDecision,
-  ReviewEvidence,
-  ReviewFactors,
-  ReviewFinding,
-  ReviewFindingSeverity,
-  ReviewResult,
   ReviewSummary,
-  ReviewSummaryState,
   ReviewSummaryTarget,
-  ReviewSourceMetadata,
-  TableProjectionEvidence,
+  ReviewedTemplate,
 } from "src/cs/workbench/services/review/common/reviewModel";
+import type { SchemaProfile } from "src/cs/workbench/services/schemaProfile/common/schemaProfile";
 
 export const IReviewService = createDecorator<IReviewService>("reviewService");
 
 export const REVIEW_ENGINE_VERSION = 2;
-export const REVIEW_POLICY_VERSION = 8;
+export const REVIEW_POLICY_VERSION = 11;
 
 export type ManualTemplateSelection =
   | {
@@ -59,6 +36,16 @@ export type ManualTemplateSelection =
 export type UriManualTemplateReviewRequest = {
   readonly target: ReviewSummaryTarget;
   readonly selection: ManualTemplateSelection;
+};
+
+export type ReviewedTemplateConfirmationReason =
+  | "manualTemplate"
+  | "userTemplate";
+
+export type ReviewedTemplateConfirmationRequest = {
+  readonly target: ReviewSummaryTarget;
+  readonly reviewedTemplate: ReviewedTemplate;
+  readonly reason?: ReviewedTemplateConfirmationReason;
 };
 
 export type ManualTemplateReviewResult =
@@ -111,6 +98,7 @@ export interface IReviewService {
 
   getLatestReview(target: ReviewSummaryTarget): UriReview | undefined;
   getLatestReviewSummary(target: ReviewSummaryTarget): ReviewSummary;
+  confirmReviewedTemplate(input: ReviewedTemplateConfirmationRequest): Promise<SchemaProfile | null>;
   reviewUri(target: ReviewSummaryTarget): Promise<UriReview>;
   reviewUriManualTemplate(input: UriManualTemplateReviewRequest): Promise<ManualTemplateReviewResult>;
 }
@@ -132,15 +120,15 @@ export const createReviewEvidenceSignature = (
 
   return JSON.stringify({
     sourceMetadata,
-    tableProjection: evidence.tableProjection
+    structuredContent: evidence.structuredContent
       ? {
-          structure: evidence.tableProjection.structure,
-          columnProfiles: evidence.tableProjection.columnProfiles,
-          layoutCandidates: evidence.tableProjection.layoutCandidates,
-          semanticCandidates: evidence.tableProjection.semanticCandidates,
-          groups: evidence.tableProjection.groups,
-          blocks: evidence.tableProjection.blocks,
-          diagnostics: evidence.tableProjection.diagnostics,
+          structure: evidence.structuredContent.structure,
+          columnProfiles: evidence.structuredContent.columnProfiles,
+          layoutCandidates: evidence.structuredContent.layoutCandidates,
+          semanticCandidates: evidence.structuredContent.semanticCandidates,
+          groups: evidence.structuredContent.groups,
+          blocks: evidence.structuredContent.blocks,
+          diagnostics: evidence.structuredContent.diagnostics,
         }
       : undefined,
   });

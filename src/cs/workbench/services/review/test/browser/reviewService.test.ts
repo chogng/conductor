@@ -10,14 +10,31 @@ import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { StorageScope } from "src/cs/platform/storage/common/storage";
 import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
-import { createEmptyTableProjectionStructure } from "src/cs/workbench/services/table/common/tableProjection";
+import { DataResourceService } from "src/cs/workbench/services/dataResource/browser/dataResourceService";
+import type { IDataResourceService } from "src/cs/workbench/services/dataResource/common/dataResource";
+import {
+	createEmptyStructuredContentStructure,
+	type StructuredColumnProfile,
+} from "src/cs/workbench/services/dataResource/common/structuredContent";
 import { builtinRecipes } from "cs/workbench/services/recipes/common/builtinRecipes.generated";
 import type { IRecipeService, Recipe, RecipeSnapshot } from "cs/workbench/services/recipes/common/recipe";
 import { createRecipeSnapshot } from "cs/workbench/services/recipes/common/recipeCodec";
 import { ReviewService } from "src/cs/workbench/services/review/browser/reviewService";
-import type { ReviewSummaryTarget } from "src/cs/workbench/services/review/common/review";
-import type { ReviewEvidence } from "src/cs/workbench/services/review/common/reviewModel";
+import type {
+	ReviewEvidence,
+	ReviewSummaryTarget,
+	ReviewedTemplate,
+} from "src/cs/workbench/services/review/common/reviewModel";
 import { deriveReviewResult } from "src/cs/workbench/services/review/common/reviewDecision";
+import type {
+	ISchemaProfileService,
+	SchemaProfile,
+	SchemaProfileSnapshot,
+} from "src/cs/workbench/services/schemaProfile/common/schemaProfile";
+import {
+	createSchemaProfileFromConfirmation,
+	type ConfirmSchemaProfileInput,
+} from "src/cs/workbench/services/schemaProfile/common/schemaProfileConfirmation";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import {
 	TableModel as TableContentModel,
@@ -32,6 +49,7 @@ import type {
 	ITableModelService,
 } from "src/cs/workbench/services/table/common/resolverService";
 import type { Template } from "src/cs/workbench/services/template/common/template";
+import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import type { IUserTemplateService } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 import { UserTemplateService } from "src/cs/workbench/services/userTemplate/browser/userTemplateService";
 import { UserTemplateStoreService } from "src/cs/workbench/services/userTemplate/browser/userTemplateStoreService";
@@ -46,12 +64,20 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		_sessionService: SessionService,
 		recipeService: IRecipeService,
 		userTemplateService: IUserTemplateService,
-		tableModelService?: ITableModelService,
+		dataResourceService?: IDataResourceService,
+		schemaProfileService?: ISchemaProfileService,
 	) => store.add(new ReviewService(
 		recipeService,
 		userTemplateService,
-		tableModelService,
+		dataResourceService,
+		schemaProfileService,
 	));
+	const createDataResourceServiceForTest = (
+		resource: URI,
+		diagnostics: readonly TableParseDiagnostic[] = [],
+		fixedSheetId: string | null = null,
+	): IDataResourceService =>
+		store.add(new DataResourceService(store.add(new TestTableModelService(resource, diagnostics, fixedSheetId))));
 	const createReviewTargetForTest = (fileName = "Transfer.csv") => ({
 		resource: URI.file(`/workspace/${fileName}`),
 		modelVersion: 1,
@@ -73,7 +99,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		});
 
 		assert.equal(result.recipeFingerprint, "recipe:first");
-		assert.equal(result.reviewPolicyVersion, 8);
+		assert.equal(result.reviewPolicyVersion, 11);
 		assert.equal(typeof result.evidenceFingerprint, "string");
 		assert.equal(result.candidates[0]?.providerRank, 100);
 		assert.equal(result.reviewedTemplate, result.decision.kind === "ready" ? result.decision.reviewedTemplate : undefined);
@@ -86,6 +112,164 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			curveFamily: "iv",
 			ivMode: "transfer",
 		});
+	});
+
+	test("uses exact schema profile matches as review semantic evidence", () => {
+		const recipeService = store.add(new TestRecipeService("recipe:first"));
+		const userTemplateService = createUserTemplateServiceForTest();
+
+		const result = deriveReviewResult({
+			evidence: createReviewEvidenceWithSchemaProfileColumns(),
+			columnCount: 2,
+			fileName: "Transfer.csv",
+			...createReviewTargetForTest(),
+			recipeSnapshot: recipeService.getSnapshot(),
+			rowCount: 3,
+			schemaProfileSnapshot: createSchemaProfileSnapshot([createSchemaProfile()]),
+			userTemplateSnapshot: userTemplateService.getSnapshot(),
+		});
+
+		assert.equal(result.reviews[0]?.reasons.includes("schemaProfile.exactFingerprint"), true);
+		assert.equal(result.reviews[0]?.reasons.includes("schemaProfile.bindingMatched"), true);
+		assert.equal(result.reviews[0]?.reasons.includes("schemaProfile.bindingIncomplete"), false);
+		assert.equal(result.reviews[0]?.factors.semanticScore, 0.96);
+	});
+
+	test("prefers exact schema profile matches over similar profile matches", () => {
+		const recipeService = store.add(new TestRecipeService("recipe:first"));
+		const userTemplateService = createUserTemplateServiceForTest();
+
+		const result = deriveReviewResult({
+			evidence: createReviewEvidenceWithSchemaProfileColumns(),
+			columnCount: 2,
+			fileName: "Transfer.csv",
+			...createReviewTargetForTest(),
+			recipeSnapshot: recipeService.getSnapshot(),
+			rowCount: 3,
+			schemaProfileSnapshot: createSchemaProfileSnapshot([
+				createSchemaProfile({
+					id: "schema:older",
+					schemaFingerprint: "schema-older",
+				}),
+				createSchemaProfile(),
+			]),
+			userTemplateSnapshot: userTemplateService.getSnapshot(),
+		});
+
+		assert.equal(result.reviews[0]?.reasons.includes("schemaProfile.exactFingerprint"), true);
+		assert.equal(result.reviews[0]?.reasons.includes("schemaProfile.similarSchema"), false);
+		assert.equal(result.reviews[0]?.factors.semanticScore, 0.96);
+	});
+
+	test("uses similar schema profile matches only as manual-assist review evidence", () => {
+		const recipeService = store.add(new TestRecipeService("recipe:first", [createLowConfidenceTransferRecipeForTest()]));
+		const userTemplateService = createUserTemplateServiceForTest();
+
+		const result = deriveReviewResult({
+			evidence: createReviewEvidenceWithSchemaProfileColumns({
+				blockConfidence: 0.75,
+				fingerprint: "schema-b",
+			}),
+			columnCount: 2,
+			fileName: "Transfer.csv",
+			...createReviewTargetForTest(),
+			recipeSnapshot: recipeService.getSnapshot(),
+			rowCount: 3,
+			schemaProfileSnapshot: createSchemaProfileSnapshot([createSchemaProfile({
+				id: "schema:older",
+				schemaFingerprint: "schema-a",
+			})]),
+			userTemplateSnapshot: userTemplateService.getSnapshot(),
+		});
+
+		assert.equal(result.reviews[0]?.reasons.includes("schemaProfile.exactFingerprint"), false);
+		assert.equal(result.reviews[0]?.reasons.includes("schemaProfile.similarSchema"), true);
+		assert.equal(result.reviews[0]?.reasons.includes("schemaProfile.bindingIncomplete"), false);
+		assert.equal(result.reviews[0]?.factors.semanticScore, 0.75);
+		assert.equal(result.decision.kind, "ready");
+		assert.equal(result.decision.kind === "ready" && result.decision.application.kind, "userActionRequired");
+	});
+
+	test("does not use similar schema profile matches to bypass conflicted exact profiles", () => {
+		const recipeService = store.add(new TestRecipeService("recipe:first", [createLowConfidenceTransferRecipeForTest()]));
+		const userTemplateService = createUserTemplateServiceForTest();
+
+		const result = deriveReviewResult({
+			evidence: createReviewEvidenceWithSchemaProfileColumns({
+				blockConfidence: 0.75,
+				fingerprint: "schema-b",
+			}),
+			columnCount: 2,
+			fileName: "Transfer.csv",
+			...createReviewTargetForTest(),
+			recipeSnapshot: recipeService.getSnapshot(),
+			rowCount: 3,
+			schemaProfileSnapshot: createSchemaProfileSnapshot([
+				createSchemaProfile({
+					conflictCount: 1,
+					id: "schema:conflicted-current",
+					schemaFingerprint: "schema-b",
+				}),
+				createSchemaProfile({
+					id: "schema:older",
+					schemaFingerprint: "schema-a",
+				}),
+			]),
+			userTemplateSnapshot: userTemplateService.getSnapshot(),
+		});
+
+		assert.equal(result.reviews[0]?.reasons.includes("schemaProfile.similarSchema"), false);
+		assert.equal(result.reviews[0]?.factors.semanticScore, 0.75);
+	});
+
+	test("does not boost review scoring for incomplete exact schema profile bindings", () => {
+		const recipeService = store.add(new TestRecipeService("recipe:first"));
+		const userTemplateService = createUserTemplateServiceForTest();
+
+		const result = deriveReviewResult({
+			evidence: createReviewEvidenceWithSchemaProfileColumns(),
+			columnCount: 2,
+			fileName: "Transfer.csv",
+			...createReviewTargetForTest(),
+			recipeSnapshot: recipeService.getSnapshot(),
+			rowCount: 3,
+			schemaProfileSnapshot: createSchemaProfileSnapshot([createSchemaProfile({
+				bindings: [{
+					selector: {
+						columnIndex: 0,
+						normalizedHeader: "vg",
+					},
+					role: "vg",
+					axis: "x",
+					canonicalUnit: "V",
+				}],
+			})]),
+			userTemplateSnapshot: userTemplateService.getSnapshot(),
+		});
+
+		assert.equal(result.reviews[0]?.reasons.includes("schemaProfile.exactFingerprint"), true);
+		assert.equal(result.reviews[0]?.reasons.includes("schemaProfile.bindingMatched"), false);
+		assert.equal(result.reviews[0]?.reasons.includes("schemaProfile.bindingIncomplete"), true);
+		assert.equal(result.reviews[0]?.factors.semanticScore, 0.95);
+	});
+
+	test("ignores conflicted schema profile matches for review scoring", () => {
+		const recipeService = store.add(new TestRecipeService("recipe:first"));
+		const userTemplateService = createUserTemplateServiceForTest();
+
+		const result = deriveReviewResult({
+			evidence: createReviewEvidenceWithSchemaProfileColumns(),
+			columnCount: 2,
+			fileName: "Transfer.csv",
+			...createReviewTargetForTest(),
+			recipeSnapshot: recipeService.getSnapshot(),
+			rowCount: 3,
+			schemaProfileSnapshot: createSchemaProfileSnapshot([createSchemaProfile({ conflictCount: 1 })]),
+			userTemplateSnapshot: userTemplateService.getSnapshot(),
+		});
+
+		assert.equal(result.reviews[0]?.reasons.includes("schemaProfile.exactFingerprint"), false);
+		assert.equal(result.reviews[0]?.factors.semanticScore, 0.95);
 	});
 
 	test("uses the Review decision application as the system application gate", () => {
@@ -143,7 +327,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const template = createTemplate({
 			id: "template-a",
 			applicability: {
-				schemaFingerprint: createEmptyTableProjectionStructure().fingerprint,
+				schemaFingerprint: createEmptyStructuredContentStructure().fingerprint,
 				columnCount: 2,
 			},
 		});
@@ -197,7 +381,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(Object.hasOwn(result.reviews[0] ?? {}, "template"), false);
 	});
 
-	test("returns latest review summaries for URI-backed table models", async () => {
+	test("returns latest review summaries for URI-backed structured content", async () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
@@ -206,7 +390,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			sessionService,
 			recipeService,
 			userTemplateService,
-			store.add(new TestTableModelService(resource)),
+			createDataResourceServiceForTest(resource),
 		);
 
 		const target = {
@@ -248,7 +432,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			sessionService,
 			recipeService,
 			userTemplateService,
-			store.add(new TestTableModelService(resource)),
+			createDataResourceServiceForTest(resource),
 		);
 		const target: ReviewSummaryTarget = {
 			resource: resource.toJSON() as unknown as ReviewSummaryTarget["resource"],
@@ -278,7 +462,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			sessionService,
 			recipeService,
 			userTemplateService,
-			store.add(new TestTableModelService(resource)),
+			createDataResourceServiceForTest(resource),
 		);
 		const target = { resource };
 
@@ -304,7 +488,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			sessionService,
 			recipeService,
 			userTemplateService,
-			store.add(new TestTableModelService(resource, [], "table-a")),
+			createDataResourceServiceForTest(resource, [], "table-a"),
 		);
 		const target = {
 			resource,
@@ -340,7 +524,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			sessionService,
 			recipeService,
 			userTemplateService,
-			store.add(new TestTableModelService(resource)),
+			createDataResourceServiceForTest(resource),
 		);
 		const target = {
 			resource,
@@ -364,6 +548,182 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(service.getLatestReview(target)?.summary.state, "ready");
 	});
 
+	test("marks cached URI reviews stale when schema profiles change", async () => {
+		const sessionService = store.add(new SessionService());
+		const recipeService = store.add(new TestRecipeService("recipe:first"));
+		const userTemplateService = createUserTemplateServiceForTest();
+		const schemaProfileService = store.add(new TestSchemaProfileService());
+		const resource = URI.file("/workspace/Transfer.csv");
+		const service = createReviewServiceForTest(
+			sessionService,
+			recipeService,
+			userTemplateService,
+			createDataResourceServiceForTest(resource),
+			schemaProfileService,
+		);
+		const target = {
+			resource,
+			sheetId: "table-a",
+		};
+		await waitUntil(() => service.getLatestReviewSummary(target).state === "ready");
+
+		schemaProfileService.setSnapshot(createSchemaProfileSnapshot([createSchemaProfile()]));
+
+		const staleSummary = service.getLatestReviewSummary(target);
+		assert.equal(staleSummary.state, "stale");
+		assert.equal(staleSummary.findingCodes.includes("review.stale"), true);
+
+		await waitUntil(() => service.getLatestReviewSummary(target).state === "ready");
+		assert.equal(service.getLatestReview(target)?.summary.state, "ready");
+	});
+
+	test("confirms reviewed templates into schema profiles from structured content", async () => {
+		const sessionService = store.add(new SessionService());
+		const recipeService = store.add(new TestRecipeService("recipe:first"));
+		const userTemplateService = createUserTemplateServiceForTest();
+		const schemaProfileService = store.add(new TestSchemaProfileService());
+		const resource = URI.file("/workspace/Transfer.csv");
+		const service = createReviewServiceForTest(
+			sessionService,
+			recipeService,
+			userTemplateService,
+			createDataResourceServiceForTest(resource),
+			schemaProfileService,
+		);
+		const review = await service.reviewUri({
+			resource,
+			sheetId: "table-a",
+		});
+		const reviewedTemplate = review.result?.reviewedTemplate;
+		assert.ok(reviewedTemplate);
+		assert.equal(schemaProfileService.confirmations.length, 0);
+
+		const profile = await service.confirmReviewedTemplate({
+			target: {
+				resource,
+				sheetId: "table-a",
+			},
+			reviewedTemplate,
+			reason: "manualTemplate",
+		});
+
+		assert.ok(profile);
+		assert.equal(schemaProfileService.confirmations.length, 1);
+		assert.deepEqual(profile.bindings, [{
+			selector: {
+				columnIndex: 0,
+				normalizedHeader: "vg",
+			},
+			role: "vg",
+			axis: "x",
+			canonicalUnit: "V",
+		}, {
+			selector: {
+				columnIndex: 1,
+				normalizedHeader: "id",
+			},
+			role: "id",
+			axis: "y",
+			canonicalUnit: "A",
+		}]);
+	});
+
+	test("does not learn schema profiles from automatic URI review derivation", async () => {
+		const sessionService = store.add(new SessionService());
+		const recipeService = store.add(new TestRecipeService("recipe:first"));
+		const userTemplateService = createUserTemplateServiceForTest();
+		const schemaProfileService = store.add(new TestSchemaProfileService());
+		const resource = URI.file("/workspace/Transfer.csv");
+		const service = createReviewServiceForTest(
+			sessionService,
+			recipeService,
+			userTemplateService,
+			createDataResourceServiceForTest(resource),
+			schemaProfileService,
+		);
+
+		await service.reviewUri({
+			resource,
+			sheetId: "table-a",
+		});
+
+		assert.equal(schemaProfileService.confirmations.length, 0);
+		assert.deepEqual(schemaProfileService.getProfiles(), []);
+	});
+
+	test("returns null when reviewed template confirmation cannot resolve content", async () => {
+		const sessionService = store.add(new SessionService());
+		const recipeService = store.add(new TestRecipeService("recipe:first"));
+		const userTemplateService = createUserTemplateServiceForTest();
+		const schemaProfileService = store.add(new TestSchemaProfileService());
+		const service = createReviewServiceForTest(
+			sessionService,
+			recipeService,
+			userTemplateService,
+			createDataResourceServiceForTest(URI.file("/workspace/Transfer.csv")),
+			schemaProfileService,
+		);
+
+		const profile = await service.confirmReviewedTemplate({
+			target: {
+				resource: URI.file("/workspace/Missing.csv"),
+			},
+			reviewedTemplate: createReviewedTemplateForTest(),
+			reason: "manualTemplate",
+		});
+
+		assert.equal(profile, null);
+		assert.equal(schemaProfileService.confirmations.length, 0);
+	});
+
+	test("returns null when reviewed template columns cannot be mapped to structured roles", async () => {
+		const sessionService = store.add(new SessionService());
+		const recipeService = store.add(new TestRecipeService("recipe:first"));
+		const userTemplateService = createUserTemplateServiceForTest();
+		const schemaProfileService = store.add(new TestSchemaProfileService());
+		const resource = URI.file("/workspace/Transfer.csv");
+		const service = createReviewServiceForTest(
+			sessionService,
+			recipeService,
+			userTemplateService,
+			createDataResourceServiceForTest(resource),
+			schemaProfileService,
+		);
+
+		const profile = await service.confirmReviewedTemplate({
+			target: {
+				resource,
+				sheetId: "table-a",
+			},
+			reviewedTemplate: createReviewedTemplateForTest(createTemplate({
+				blocks: [{
+					rowRange: {
+						startRow: 1,
+						endRow: 2,
+					},
+					x: {
+						columns: [99],
+						unit: "V",
+					},
+					y: {
+						columns: [100],
+						unit: "A",
+					},
+					segmentation: {
+						kind: "none",
+					},
+					legend: {
+						target: "auto",
+					},
+				}],
+			})),
+			reason: "manualTemplate",
+		});
+
+		assert.equal(profile, null);
+		assert.equal(schemaProfileService.confirmations.length, 0);
+	});
+
 	test("carries URI parser diagnostics into review summaries", async () => {
 		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
@@ -373,12 +733,12 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			sessionService,
 			recipeService,
 			userTemplateService,
-			store.add(new TestTableModelService(resource, [{
+			createDataResourceServiceForTest(resource, [{
 				code: "table.parser.MissingQuotes",
 				message: "Quoted field unterminated.",
 				rowIndex: 1,
 				severity: "fatal",
-			}])),
+			}]),
 		);
 
 		const target = { resource };
@@ -405,12 +765,12 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			sessionService,
 			recipeService,
 			userTemplateService,
-			store.add(new TestTableModelService(resource, [{
+			createDataResourceServiceForTest(resource, [{
 				code: "table.parser.BadRow",
 				message: "A row was recovered with fewer cells.",
 				rowIndex: 2,
 				severity: "error",
-			}])),
+			}]),
 		);
 
 		const target = { resource };
@@ -434,6 +794,18 @@ const getBuiltinRecipe = (id: string): Recipe => {
 	const recipe = builtinRecipeSnapshot.recipes.find(candidate => candidate.id === id);
 	assert.ok(recipe);
 	return recipe;
+};
+
+const createLowConfidenceTransferRecipeForTest = (): Recipe => {
+	const recipe = getBuiltinRecipe("builtin.iv.transfer");
+	assert.ok(recipe.domain);
+	return {
+		...recipe,
+		domain: {
+			...recipe.domain,
+			minConfidence: 0.3,
+		},
+	};
 };
 
 class TestRecipeService extends Disposable implements IRecipeService {
@@ -469,6 +841,66 @@ class TestRecipeService extends Disposable implements IRecipeService {
 
 	public reload(): Promise<void> {
 		return Promise.resolve();
+	}
+}
+
+class TestSchemaProfileService extends Disposable implements ISchemaProfileService {
+	public declare readonly _serviceBrand: undefined;
+
+	private readonly onDidChangeSchemaProfilesEmitter = this._register(new Emitter<SchemaProfileSnapshot>());
+	public readonly onDidChangeSchemaProfiles = this.onDidChangeSchemaProfilesEmitter.event;
+	public readonly confirmations: ConfirmSchemaProfileInput[] = [];
+
+	private snapshot: SchemaProfileSnapshot = createSchemaProfileSnapshot([]);
+
+	public setSnapshot(snapshot: SchemaProfileSnapshot): void {
+		this.snapshot = snapshot;
+		this.onDidChangeSchemaProfilesEmitter.fire(snapshot);
+	}
+
+	public clearProfiles(): void {
+		this.setSnapshot(createSchemaProfileSnapshot([]));
+	}
+
+	public confirmProfile(input: Parameters<ISchemaProfileService["confirmProfile"]>[0]): SchemaProfile | null {
+		const profile = createSchemaProfileFromConfirmation(input);
+		if (!profile) {
+			return null;
+		}
+
+		this.confirmations.push(input);
+		this.upsertProfile(profile);
+		return profile;
+	}
+
+	public getProfiles(): readonly SchemaProfile[] {
+		return this.snapshot.profiles;
+	}
+
+	public getSnapshot(): SchemaProfileSnapshot {
+		return this.snapshot;
+	}
+
+	public getVersion(): number {
+		return this.snapshot.version;
+	}
+
+	public removeProfile(profileId: string): void {
+		this.setSnapshot({
+			version: this.snapshot.version + 1,
+			profiles: this.snapshot.profiles.filter(profile => profile.id !== profileId),
+		});
+	}
+
+	public upsertProfile(profile: SchemaProfile): SchemaProfile {
+		this.setSnapshot({
+			version: this.snapshot.version + 1,
+			profiles: [
+				...this.snapshot.profiles.filter(candidate => candidate.id !== profile.id),
+				profile,
+			],
+		});
+		return profile;
 	}
 }
 
@@ -604,14 +1036,99 @@ const createTestTableModelContent = (): TableModelContentSnapshot => ({
 	],
 });
 
+const createSchemaProfileSnapshot = (
+	profiles: readonly SchemaProfile[],
+	version = profiles.length,
+): SchemaProfileSnapshot => ({
+	version,
+	profiles,
+});
+
+const createSchemaProfile = ({
+	bindings = defaultSchemaProfileBindings,
+	conflictCount = 0,
+	confirmedCount = 1,
+	id = "schema:schema-a",
+	schemaFingerprint = "schema-a",
+}: {
+	readonly bindings?: SchemaProfile["bindings"];
+	readonly conflictCount?: number;
+	readonly confirmedCount?: number;
+	readonly id?: string;
+	readonly schemaFingerprint?: string;
+} = {}): SchemaProfile => ({
+	id,
+	scope: "workspace",
+	schemaFingerprint,
+	confirmedCount,
+	conflictCount,
+	bindings,
+});
+
+const defaultSchemaProfileBindings: SchemaProfile["bindings"] = [{
+	selector: {
+		columnIndex: 0,
+		normalizedHeader: "vg",
+	},
+	role: "vg",
+	axis: "x",
+	canonicalUnit: "V",
+}, {
+	selector: {
+		columnIndex: 1,
+		normalizedHeader: "id",
+	},
+	role: "id",
+	axis: "y",
+	canonicalUnit: "A",
+}];
+
+const createReviewEvidenceWithSchemaProfileColumns = ({
+	blockConfidence = 0.95,
+	fingerprint = "schema-a",
+}: {
+	readonly blockConfidence?: number;
+	readonly fingerprint?: string;
+} = {}): ReviewEvidence => {
+	const evidence = createReviewEvidence();
+	assert.ok(evidence.structuredContent);
+	return {
+		...evidence,
+		structuredContent: {
+			...evidence.structuredContent,
+			structure: {
+				...evidence.structuredContent.structure,
+				fingerprint,
+			},
+			columnProfiles: createSchemaProfileColumnProfiles(),
+			blocks: evidence.structuredContent.blocks.map(block => ({
+				...block,
+				confidence: blockConfidence,
+			})),
+		},
+	};
+};
+
+const createSchemaProfileColumnProfiles = (): readonly StructuredColumnProfile[] => [{
+	rawCol: 0,
+	headerText: "Vg",
+	normalizedHeader: "vg",
+	kind: "numeric",
+}, {
+	rawCol: 1,
+	headerText: "Id",
+	normalizedHeader: "id",
+	kind: "numeric",
+}];
+
 const createReviewEvidence = (): ReviewEvidence => ({
 	sourceMetadata: {
 		fileName: "Transfer.csv",
 		rowCount: 3,
 		columnCount: 2,
 	},
-	tableProjection: {
-		structure: createEmptyTableProjectionStructure(),
+	structuredContent: {
+		structure: createEmptyStructuredContentStructure(),
 		columnProfiles: [],
 		layoutCandidates: [],
 		semanticCandidates: [],
@@ -703,3 +1220,37 @@ const createTemplate = (
 	stopOnError: false,
 	...overrides,
 });
+
+const createReviewedTemplateForTest = (
+	template = createTemplate(),
+): ReviewedTemplate => {
+	const templateFingerprint = createTemplateFingerprint(template);
+	return {
+		candidateId: "candidate:test",
+		source: {
+			kind: "inline",
+		},
+		template,
+		templateFingerprint,
+		review: {
+			candidateId: "candidate:test",
+			interpretationFingerprint: templateFingerprint,
+			status: "ready",
+			confidence: 1,
+			factors: {
+				selectorScore: 1,
+				projectionScore: 1,
+				semanticScore: 1,
+				dataQualityScore: 1,
+				parseHealthScore: 1,
+				freshnessScore: 1,
+				ambiguityPenalty: 0,
+				conflictPenalty: 0,
+				diagnosticPenalty: 0,
+			},
+			findings: [],
+			reasons: [],
+			diagnostics: [],
+		},
+	};
+};

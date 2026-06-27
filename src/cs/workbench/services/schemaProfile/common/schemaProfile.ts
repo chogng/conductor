@@ -3,10 +3,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type {
-	CanonicalUnit,
-	MeasurementColumnRole,
-	SchemaFingerprint,
-} from "src/cs/workbench/services/table/common/tableProjection";
+	StructuredCanonicalUnit,
+	StructuredMeasurementColumnRole,
+	StructuredSchemaFingerprint,
+} from "src/cs/workbench/services/dataResource/common/structuredContent";
 import type { Event } from "src/cs/base/common/event";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type {
@@ -28,18 +28,18 @@ export type SchemaProfileSelector = {
 
 export type SchemaProfileBinding = {
 	readonly selector: SchemaProfileSelector;
-	readonly role: MeasurementColumnRole;
+	readonly role: StructuredMeasurementColumnRole;
 	readonly axis?: "x" | "y" | null;
-	readonly canonicalUnit?: CanonicalUnit | null;
+	readonly canonicalUnit?: StructuredCanonicalUnit | null;
 };
 
-// User-confirmed evidence for an exact raw-table schema fingerprint.
-// TableModel may consume matching bindings as semantic evidence, but the
-// table-models record remains the canonical owner of resulting blocks/candidates.
+// User-confirmed evidence for an exact structured-content schema fingerprint.
+// Consumers may use matching bindings as semantic evidence, but schemaProfile
+// does not own resulting review candidates, blocks, or executable templates.
 export type SchemaProfile = {
 	readonly id?: string;
 	readonly scope: SchemaProfileScope;
-	readonly schemaFingerprint: SchemaFingerprint;
+	readonly schemaFingerprint: StructuredSchemaFingerprint;
 	readonly confirmedCount: number;
 	readonly conflictCount: number;
 	readonly bindings: readonly SchemaProfileBinding[];

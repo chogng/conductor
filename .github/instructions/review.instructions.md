@@ -115,6 +115,8 @@ user command / UserTemplate picker / inline template editor
   -> IReviewService.reviewUriManualTemplate(...)
   -> ManualTemplateReviewResult
   -> ready result only
+  -> IReviewService.confirmReviewedTemplate(...) for explicit user-confirmed manual/saved templates
+  -> SchemaProfileService.confirmProfile(...) when structured-content bindings can be derived
   -> SliceUriRequest(trigger = userCommand)
   -> ISliceService.submitUri(...)
 ```
@@ -124,11 +126,11 @@ user command / UserTemplate picker / inline template editor
 | File | Owns | Must not own |
 | --- | --- | --- |
 | `common/review.ts` | `IReviewService` contract, URI review/manual review request and result types, review/evidence/result signature helpers. | Evidence shape definitions, browser cache implementation, Explorer decoration mapping, Slice submission. |
-| `common/reviewModel.ts` | Pure Review domain model: Review input evidence, `ReviewContext`, `SegmentCandidate`, `ReviewCandidate`, `ReviewResult`, `ReviewDecision`, factors, findings, `ReviewedTemplate`, `ReviewSummary`. Evidence stays here while Review is its only consumer. | Service implementation, evidence production, Recipe catalog storage, Explorer UI types. |
+| `common/reviewModel.ts` | Pure Review domain model: Review input evidence wrapper, `ReviewContext`, `SegmentCandidate`, `ReviewCandidate`, `ReviewResult`, `ReviewDecision`, factors, findings, `ReviewedTemplate`, `ReviewSummary`. | Service implementation, evidence production, Recipe catalog storage, Explorer UI types, structured-content adapter types. |
 | `common/reviewSelector.ts` | Pure Recipe dataRange/blockPartition/physicalLayout/logicalRelation matching against URI/content evidence. | File reads, parser logic, candidate scoring, Template materialization. |
 | `common/reviewCandidate.ts` | Pure Recipe/UserTemplate/built-in template snapshot + URI/content evidence -> `SegmentCandidate` / `ReviewCandidate` derivation. | Final Review status, `ReviewedTemplate` selection, Slice execution, Explorer decoration. |
 | `common/reviewDecision.ts` | Pure assembly of context, candidates, scoring, and decision policy into `ReviewResult`, selected `ReviewedTemplate`, and summary-ready facts. This is one decision pipeline, not separate scoring/result owners. | Candidate derivation, browser scheduling/cache, file/model reads, Explorer decoration mapping, Slice execution. |
-| `browser/reviewService.ts` | Injectable service owner for cache, stale checks, scheduling/background review, manual review entry points, and reading/assembling structured content evidence from the current source owner. | Table UI parsing, table projection ownership, DOM/UI decoration, Explorer tree state, Slice execution. |
+| `browser/reviewService.ts` | Injectable service owner for cache, stale checks, scheduling/background review, manual review entry points, and consuming `IDataResourceService` structured-content snapshots. | Table UI parsing, table projection ownership, data-resource resolution, DOM/UI decoration, Explorer tree state, Slice execution. |
 
 Review candidate helpers live under `services/review/common` and produce
 `SegmentCandidate` / `ReviewCandidate` values before Review status/policy
@@ -140,11 +142,10 @@ built-in template snapshots are candidate inputs, not pre-reviewed results.
 Decision logic and candidate derivation logic belong in Review, not Template,
 Table UI/model, Explorer, or Slice.
 
-For now, Review is the only consumer of `ReviewEvidence`, so the type stays in
-`reviewModel.ts` instead of a separate evidence file. If structured/matrix
-evidence later becomes a shared input for Table UI, Review, Search, Vector, or
-other features, move that shape to a neutral content/table evidence owner and
-let Review consume the shared snapshot.
+Review consumes structured-content facts from `IDataResourceService`. The
+`ReviewEvidence` wrapper stays in `reviewModel.ts` because it adds Review-owned
+source metadata and signature input around the shared structured-content
+snapshot. Do not reintroduce Review-local structured-content bridges.
 
 ## Rules
 
@@ -190,6 +191,10 @@ let Review consume the shared snapshot.
   available, `sourceVersion`, `evidenceFingerprint`, and optional
   `materializationVersion`, so reviewed facts can go stale on content,
   evidence, adapter, or policy changes.
+- Schema profile evidence may use exact fingerprint matches for automatic
+  recommendation when bindings are complete. Similar schema matches are
+  Review-only manual-assist signals and must not unlock
+  `systemRecommended`.
 - Bump `reviewPolicyVersion` whenever thresholds, conflict rules, critical
   diagnostic handling, override rules, or source priority changes.
 - Explorer reads Review summaries and Slice state as projection inputs; it does

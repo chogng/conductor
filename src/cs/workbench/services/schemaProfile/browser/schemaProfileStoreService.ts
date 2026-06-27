@@ -12,9 +12,9 @@ import {
 	type IStorageService as IStorageServiceType,
 } from "src/cs/platform/storage/common/storage";
 import type {
-	CanonicalUnit,
-	MeasurementColumnRole,
-} from "src/cs/workbench/services/table/common/tableProjection";
+	StructuredCanonicalUnit,
+	StructuredMeasurementColumnRole,
+} from "src/cs/workbench/services/dataResource/common/structuredContent";
 import {
 	ISchemaProfileStoreService,
 	type ISchemaProfileStoreService as ISchemaProfileStoreServiceType,
@@ -264,7 +264,7 @@ const normalizeScope = (
 
 const normalizeRole = (
 	value: unknown,
-): MeasurementColumnRole | null => {
+): StructuredMeasurementColumnRole | null => {
 	if (
 		value === "vd" ||
 		value === "vg" ||
@@ -286,7 +286,7 @@ const normalizeRole = (
 
 const normalizeCanonicalUnit = (
 	value: unknown,
-): CanonicalUnit | null =>
+): StructuredCanonicalUnit | null =>
 	value === "V" ||
 	value === "A" ||
 	value === "ohm" ||
