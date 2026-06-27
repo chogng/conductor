@@ -6,79 +6,99 @@ import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { createReviewEvidenceSignature } from "src/cs/workbench/services/review/common/review";
-import {
-  TABLE_MODEL_RULE_VERSION,
-  type TableModelRecord,
-} from "src/cs/workbench/services/tableModel/common/tableModel";
-import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
+import type { ReviewEvidence } from "src/cs/workbench/services/review/common/reviewModel";
 
 suite("workbench/services/review/test/common/review", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
 
-  test("includes URI-backed table model versions in evidence signatures", () => {
-    const baseSignature = createReviewEvidenceSignature(createTableModelRecord());
-    const uriSignature = createReviewEvidenceSignature({
-      ...createTableModelRecord(),
+  test("includes URI-backed source versions in evidence signatures", () => {
+    const baseSignature = createReviewEvidenceSignature(createReviewEvidence());
+    const uriSignature = createReviewEvidenceSignature(createReviewEvidence({
+      sourceModelVersion: 6,
+      sourceUri: "file:///workspace/data/source.csv",
+      sourceVersion: 5,
+    }));
+
+    assert.notEqual(baseSignature, uriSignature);
+    assert.deepEqual(JSON.parse(uriSignature).sourceMetadata, {
+      columnCount: 2,
+      fileName: "transfer.csv",
+      rowCount: 2,
       sourceModelVersion: 6,
       sourceUri: "file:///workspace/data/source.csv",
       sourceVersion: 5,
     });
-
-    assert.notEqual(baseSignature, uriSignature);
-    assert.deepEqual(JSON.parse(uriSignature).sourceModel, {
-      modelVersion: 6,
-      sourceUri: "file:///workspace/data/source.csv",
-      sourceVersion: 5,
-    });
-    assert.equal(JSON.parse(uriSignature).sourceRawTableVersion, undefined);
   });
 
   test("includes URI sheet targets in evidence signatures", () => {
-    const firstSheetSignature = createReviewEvidenceSignature({
-      ...createTableModelRecord(),
+    const firstSheetSignature = createReviewEvidenceSignature(createReviewEvidence({
       sourceModelVersion: 6,
       sourceUri: "file:///workspace/data/source.xlsx",
       sourceVersion: 5,
-    }, {
+    }), {
       sheetId: "sheet-a",
     });
-    const secondSheetSignature = createReviewEvidenceSignature({
-      ...createTableModelRecord(),
+    const secondSheetSignature = createReviewEvidenceSignature(createReviewEvidence({
       sourceModelVersion: 6,
       sourceUri: "file:///workspace/data/source.xlsx",
       sourceVersion: 5,
-    }, {
+    }), {
       sheetId: "sheet-b",
     });
 
     assert.notEqual(firstSheetSignature, secondSheetSignature);
-    assert.deepEqual(JSON.parse(firstSheetSignature).sourceModel, {
-      modelVersion: 6,
-      sheetId: "sheet-a",
-      sourceUri: "file:///workspace/data/source.xlsx",
-      sourceVersion: 5,
-    });
+    assert.equal(JSON.parse(firstSheetSignature).sourceMetadata.sheetId, "sheet-a");
   });
 
-  test("keeps legacy raw-table versions in evidence signatures without URI source identity", () => {
-    const signature = createReviewEvidenceSignature(createTableModelRecord());
+  test("includes URI content hashes in evidence signatures", () => {
+    const firstContentSignature = createReviewEvidenceSignature(createReviewEvidence({
+      sourceModelVersion: 6,
+      sourceUri: "file:///workspace/data/source.csv",
+      sourceVersion: 5,
+    }), {
+      contentHash: "sha256:first",
+    });
+    const secondContentSignature = createReviewEvidenceSignature(createReviewEvidence({
+      sourceModelVersion: 6,
+      sourceUri: "file:///workspace/data/source.csv",
+      sourceVersion: 5,
+    }), {
+      contentHash: "sha256:second",
+    });
 
-    assert.equal(JSON.parse(signature).sourceRawTableVersion, 4);
+    assert.notEqual(firstContentSignature, secondContentSignature);
+    assert.equal(JSON.parse(firstContentSignature).sourceMetadata.contentHash, "sha256:first");
+  });
+
+  test("includes table projection evidence in signatures", () => {
+    const signature = createReviewEvidenceSignature(createReviewEvidence());
+
+    assert.deepEqual(JSON.parse(signature).tableProjection.blocks, []);
   });
 });
 
-const createTableModelRecord = (): TableModelRecord => ({
-  blocks: [],
-  columnProfiles: [],
-  createdAt: 1,
-  diagnostics: [],
-  fileId: "file-a",
-  groups: [],
-  layoutCandidates: [],
-  rawTableId: "table-a",
-  schemaProfileVersion: 0,
-  semanticCandidates: [],
-  sourceRawTableVersion: 4,
-  structure: createEmptyRawTableStructure(),
-  tableModelRuleVersion: TABLE_MODEL_RULE_VERSION,
+const createReviewEvidence = (
+  sourceMetadata: Partial<ReviewEvidence["sourceMetadata"]> = {},
+): ReviewEvidence => ({
+  sourceMetadata: {
+    fileName: "transfer.csv",
+    rowCount: 2,
+    columnCount: 2,
+    ...sourceMetadata,
+  },
+  tableProjection: {
+    structure: {
+      headerRows: [],
+      unitRows: [],
+      dataRegions: [],
+      blockRegions: [],
+      fingerprint: "schema-a",
+    },
+    columnProfiles: [],
+    layoutCandidates: [],
+    semanticCandidates: [],
+    groups: [],
+    blocks: [],
+    diagnostics: [],
+  },
 });

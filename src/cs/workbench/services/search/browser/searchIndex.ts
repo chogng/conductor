@@ -2,7 +2,6 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { TableModelSourceRange } from "src/cs/workbench/services/tableModel/common/diagnostics";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import type {
   CurveKey,
@@ -13,7 +12,6 @@ import type {
   TableRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import type {
-  RawTableRangeRef,
   SearchIndex,
   SearchResult,
 } from "src/cs/workbench/services/search/common/search";
@@ -25,7 +23,6 @@ export const buildSearchIndex = (
 
   for (const file of getOrderedFiles(snapshot)) {
     pushRawTableResults(results, file);
-    pushMeasurementBlockResults(results, file);
     pushCurveResults(results, file);
     pushMetricResults(results, file);
   }
@@ -91,39 +88,6 @@ const pushRawTableResults = (
   }
 };
 
-const pushMeasurementBlockResults = (
-  results: SearchResult[],
-  file: FileRecord,
-): void => {
-  const blockIds = file.measurementBlockOrder?.length
-    ? file.measurementBlockOrder
-    : Object.keys(file.measurementBlocksById ?? {});
-  for (const blockId of blockIds) {
-    const block = file.measurementBlocksById?.[blockId];
-    if (!block) {
-      continue;
-    }
-
-    results.push({
-      fileId: file.id,
-      groupId: block.groupId,
-      id: `block:${file.id}:${block.id}`,
-      kind: "block",
-      measurementBlockId: block.id,
-      preview: [
-        block.family,
-        block.ivMode,
-        `${block.rowCount} rows`,
-        ...block.diagnosticCodes,
-      ].filter(Boolean).join(" · "),
-      rawTableId: block.rawTableId,
-      score: 70,
-      sourceRange: toRawTableRange(file.id, block.rawTableId, block.source.fullRange),
-      title: block.label || block.id,
-    });
-  }
-};
-
 const pushCurveResults = (
   results: SearchResult[],
   file: FileRecord,
@@ -140,7 +104,7 @@ const pushCurveResults = (
         curve.curveFamily,
         curve.ivMode,
         `${curve.points.length} points`,
-      ].filter(Boolean).join(" · "),
+      ].filter(Boolean).join(" | "),
       score: 90,
       title: series?.labelOverride ?? series?.legendValue ?? series?.name ?? curve.seriesId,
     });
@@ -162,7 +126,7 @@ const pushMetricResults = (
         metric.metricFamily,
         metric.contextKey,
         formatMetricValue(metric.value),
-      ].filter(Boolean).join(" · "),
+      ].filter(Boolean).join(" | "),
       score: 85,
       title: series?.labelOverride ?? series?.legendValue ?? series?.name ?? metric.seriesId,
     });
@@ -219,23 +183,7 @@ const getOrderedTableIds = (
 };
 
 const createRawTablePreview = (table: TableRecord): string =>
-  `${table.rowCount} rows · ${table.columnCount} columns`;
-
-const toRawTableRange = (
-  fileId: FileId,
-  rawTableId: SheetId,
-  range: TableModelSourceRange | undefined,
-): RawTableRangeRef | undefined =>
-  range
-    ? {
-        columnEnd: range.endCol,
-        columnStart: range.startCol,
-        fileId,
-        rawTableId,
-        rowEnd: range.endRow,
-        rowStart: range.startRow,
-      }
-    : undefined;
+  `${table.rowCount} rows | ${table.columnCount} columns`;
 
 const formatMetricValue = (value: unknown): string => {
   if (!value || typeof value !== "object") {

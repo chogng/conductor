@@ -11,8 +11,10 @@ import {
 	StorageTarget,
 	type IStorageService as IStorageServiceType,
 } from "src/cs/platform/storage/common/storage";
-import type { MeasurementColumnRole } from "src/cs/workbench/services/tableModel/common/measurement";
-import type { CanonicalUnit } from "src/cs/workbench/services/tableModel/common/semanticCandidate";
+import type {
+	CanonicalUnit,
+	MeasurementColumnRole,
+} from "src/cs/workbench/services/table/common/tableProjection";
 import {
 	ISchemaProfileStoreService,
 	type ISchemaProfileStoreService as ISchemaProfileStoreServiceType,

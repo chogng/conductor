@@ -2,9 +2,11 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { MeasurementColumnRole } from "src/cs/workbench/services/tableModel/common/measurement";
-import type { SchemaFingerprint } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
-import type { CanonicalUnit } from "src/cs/workbench/services/tableModel/common/semanticCandidate";
+import type {
+	CanonicalUnit,
+	MeasurementColumnRole,
+	SchemaFingerprint,
+} from "src/cs/workbench/services/table/common/tableProjection";
 import type { Event } from "src/cs/base/common/event";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type {

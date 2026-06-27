@@ -1,4 +1,3 @@
-import type { MeasurementBlockRecord } from "src/cs/workbench/services/tableModel/common/measurement";
 import type { FileImportSourceKind } from "src/cs/workbench/services/files/common/files";
 import type {
   RawTableHealthRecord,
@@ -6,8 +5,6 @@ import type {
 } from "src/cs/workbench/services/files/common/rawTable";
 import type { SliceRun, SliceRunId } from "src/cs/workbench/services/slice/common/slice";
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
-import type { TableModelRecord } from "src/cs/workbench/services/tableModel/common/tableModel";
-import type { RawTableReviewRecord } from "src/cs/workbench/services/review/common/review";
 
 export type FileId = string;
 export type SheetId = string;
@@ -67,10 +64,6 @@ export type FileRecord = {
   kind: FileKind;
   raw: RawRecord;
   rawTableVersionsById: Record<SheetId, number>;
-  tableModelByRawTableId: Record<SheetId, TableModelRecord>;
-  rawTableReviewsByRawTableId?: Record<SheetId, RawTableReviewRecord>;
-  measurementBlocksById: Record<string, MeasurementBlockRecord>;
-  measurementBlockOrder: string[];
   sliceRunsById?: Record<SliceRunId, SliceRun>;
   latestSliceRunId?: SliceRunId;
   seriesById: Record<SeriesId, SeriesRecord>;

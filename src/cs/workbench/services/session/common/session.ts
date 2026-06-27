@@ -20,8 +20,6 @@ import type {
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import type { FileImportResult } from "src/cs/workbench/services/files/common/files";
 import type { SliceCommit } from "src/cs/workbench/services/slice/common/slice";
-import type { ReviewCommit } from "src/cs/workbench/services/review/common/review";
-import type { TableModelRecord } from "src/cs/workbench/services/tableModel/common/tableModel";
 
 export const ISessionService = createDecorator<ISessionService>("sessionService");
 
@@ -73,9 +71,6 @@ export interface ISessionService {
 
   clearSession(): void;
   commitFileImport(result: FileImportResult): CommitFileImportResult;
-  commitTableModel(tableModel: TableModelRecord): void;
-  commitTableModelBatch(tableModel: readonly TableModelRecord[]): void;
-  commitRawTableReviews(reviews: readonly ReviewCommit[]): void;
   commitSliceRuns(inputs: readonly SliceCommit[]): void;
   commitCalculatedRecordsBatch(inputs: CommitCalculatedRecordsBatchInput): void;
   commitCurves(input: CommitCurvesInput): void;

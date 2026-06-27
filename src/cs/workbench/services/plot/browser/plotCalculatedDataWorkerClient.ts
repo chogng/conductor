@@ -108,12 +108,9 @@ const createPlotWorkerFileRecord = (file: FileRecord): FileRecord => {
   }
 
   const workerFile: FileRecord = {
-    tableModelByRawTableId: {},
     curvesByKey,
     id: file.id,
     kind: file.kind,
-    measurementBlockOrder: [],
-    measurementBlocksById: {},
     metricsByKey: {},
     name: file.name,
     raw: {

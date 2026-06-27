@@ -71,7 +71,7 @@ Subscriptions must be disposed through the owner lifecycle.
 
 | State kind | Owner | Examples |
 | --- | --- | --- |
-| Canonical model state | `ISessionService` ledger and domain commit APIs | imported table files, raw tables, table model, reviews, slice runs, curves, metrics |
+| Canonical model state | `ISessionService` ledger and domain commit APIs | imported table files, raw tables, table model, slice runs, curves, metrics |
 | Domain service state | The domain service | plot settings, chart view input, template catalog state, table source/selection snapshot |
 | View state | The view/widget/service that renders it | focus, local selection, template form draft, scroll, expansion, hover, layout mode |
 | Derived model | Producer service | plot render model, table display profile, search model, thumbnail preview |
@@ -131,10 +131,9 @@ Runtime folders:
 | `IExplorerService` | Files Explorer UI state: resources, selection, expansion, layout, context |
 | files source/raw-table helpers | source/import contracts, raw table records, and row preview helpers; ordinary Explorer imports stay URI-backed |
 | `ISessionService` | canonical imported data-file/raw-table ledger and downstream analysis records |
-| TableModel producer (`ITableModelProducerService`) | derived raw-table structure/semantics producer during migration; table URI/editor-model naming follows `.github/instructions/迁移说明.md` |
-| `IRecipeService` | passive built-in rules; it does not evaluate tables or materialize Templates |
-| `ITemplateMaterializationService` / `services/template` | canonical Template spec and target owner for `TableModel + Recipe/UserTemplate -> Template` materialization |
-| `IReviewService` | materialized Template candidate review, selected `ReviewedTemplate`, manual adjustment state, and system-application recommendation |
+| `IRecipeService` | passive built-in rules; it does not evaluate tables or build review candidates |
+| `IReviewService` | URI-grounded content-version review: builds `SegmentCandidate`/review candidates from canonical evidence plus Recipe/UserTemplate snapshots, evaluates candidates, selects `ReviewedTemplate` for table adapters, owns manual adjustment state and system-application recommendation |
+| `services/template` | canonical executable Template spec, editor adapters, and manual-template UI state; it does not own automatic Recipe/UserTemplate candidate derivation |
 | `IUserTemplateService` | native user template catalog CRUD/snapshots/import/export and explicit template lookup |
 | `ITableService` | table source, rows, selection snapshot, reveal/highlight |
 | `ITemplateViewStateService` | Template UI selected-template/form editor state |
@@ -184,14 +183,14 @@ Explorer source workflow
   -> downstream services consume URI-backed model facts or their own state
 ```
 
-Primary template flow:
+Primary review/template flow:
 
 ```txt
-TableModel
+URI + contentHash/sourceVersion
+  -> canonical content evidence
   + Recipe/UserTemplate snapshots
-  -> Template materialization
-  -> Template candidates / Template
-  -> ReviewDecision / ReviewedTemplate
+  -> SegmentCandidate / ReviewCandidate
+  -> ReviewResult / ReviewedTemplate
   -> SliceRequest
   -> SliceRun
 ```
@@ -200,13 +199,16 @@ Specific flow owners:
 
 - Import/source collection: Explorer/files workflow coordinates source preparation; Explorer owns local visible rows and table-resource open handoff.
 - Session ledger: Session backs only legacy imported raw-table storage and downstream analysis records, including TableModel commits, during migration.
-- Table model / Template materialization: TableModel is the derived raw-table
-  input, and Template is the target owner for
-  `Recipe/UserTemplate + TableModel -> Template`. Do not keep retired
-  service, record, or command names in new docs or APIs.
-- Review: consumes materialized Template candidates, reviews them, and commits
-  `RawTableReviewRecord` decisions.
-- ReviewApply: consumes `ReviewDecision.ready.application.systemRecommended`, applies idempotency guards, and submits Slice requests.
+- Table model / Review candidate building: TableModel is the current table
+  projection input. Review consumes URI/content-version evidence plus
+  Recipe/UserTemplate snapshots to build transient `SegmentCandidate` / table
+  `ReviewCandidate` values. Do not keep retired service, record, or command
+  names in new docs or APIs.
+- Review: evaluates candidates, selects a `ReviewedTemplate` for table adapter
+  execution when ready, and keeps URI-backed review results service-local.
+- Explicit execution controllers and Slice commands consume
+  `ReviewDecision.ready.application.systemRecommended`, apply idempotency
+  guards, and submit Slice requests.
 - Slice execution: Slice executes concrete reviewed/manual Template snapshots and commits SliceRun/series/base curves.
 - Calculation: calculation services derive curves/metrics and commit through Session.
 - Plot: Plot consumes canonical curves/metrics and produces render models.
@@ -218,7 +220,7 @@ Specific flow owners:
 
 `SessionModel` is the canonical in-memory ledger for the remaining imported
 data-file/raw-table lifecycle plus downstream analysis facts. It stores
-imported files, raw tables, table model, reviews, slice runs, series, curves,
+imported files, raw tables, table model, slice runs, series, curves,
 metrics, metric inputs, and rebuildable calculation cache descriptors.
 
 Keep out of Session:

@@ -5,6 +5,7 @@
 import assert from "assert";
 
 import { Emitter, Event } from "src/cs/base/common/event";
+import { URI } from "src/cs/base/common/uri";
 import { resolveInitialWorkbenchViewMode } from "src/cs/workbench/browser/workbench";
 import {
   createExplorerPaneInput,
@@ -12,10 +13,6 @@ import {
   WorkbenchDomainBridge,
 } from "src/cs/workbench/browser/workbenchDomainBridge";
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
-import {
-  TABLE_MODEL_RULE_VERSION,
-} from "src/cs/workbench/services/tableModel/common/tableModel";
-import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
 import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
 import type {
   FileImportResult,
@@ -23,7 +20,6 @@ import type {
 } from "src/cs/workbench/services/files/common/files";
 import { DEFAULT_ORIGIN_PLOT_OPTIONS } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import type { PlotDisplayModel } from "src/cs/workbench/services/plot/common/plot";
-import type { SliceState } from "src/cs/workbench/services/slice/common/slice";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import { mergeProcessedFileIntoRecords } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 import {
@@ -38,7 +34,7 @@ import type {
 import type { TableSource } from "src/cs/workbench/services/table/common/table";
 import { createTemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import type { SliceCommit, SliceState } from "src/cs/workbench/services/slice/common/slice";
+import type { SliceCommit, SliceState, SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
 
 suite("workbench/browser/workbench Explorer pane input", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -448,41 +444,6 @@ suite("workbench/browser/workbench Explorer pane input", () => {
         columnCount: 2,
       },
     ]);
-    session.commitTableModel({
-      tableModelRuleVersion: TABLE_MODEL_RULE_VERSION,
-      schemaProfileVersion: 0,
-      blocks: [{
-	        columnCount: 2,
-	        columns: { columns: [] },
-	        diagnosticCodes: [],
-	        family: "iv",
-        fileId: "ready-file",
-        id: "ready-block",
-        ivMode: "transfer",
-        label: "Transfer",
-        rawTableId: "ready-file",
-        rowCount: 2,
-        source: {
-          fullRange: {
-            endCol: 1,
-            endRow: 1,
-            startCol: 0,
-            startRow: 0,
-          },
-        },
-      }],
-      columnProfiles: [],
-      createdAt: 1,
-      diagnostics: [],
-      fileId: "ready-file",
-      groups: [],
-      rawTableId: "ready-file",
-      layoutCandidates: [],
-      semanticCandidates: [],
-      sourceRawTableVersion: 1,
-      structure: createEmptyRawTableStructure(),
-    });
-
     const snapshot = session.getSnapshot();
     const input = createExplorerPaneInput({
       activePlotType: "iv",
@@ -817,6 +778,75 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
+  test("keeps URI chart target separate from chart active file id", () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+    const resource = URI.file("/data/Transfer.csv");
+    const uriTarget: SliceUriTarget = {
+      resource,
+      sheetId: "sheet-a",
+    };
+    const chartViewInputs: Array<{
+      readonly activeFileId: string | null;
+      readonly activeTargetResource?: string | null;
+      readonly activeTargetSheetId?: string | null;
+      readonly hasChartData?: boolean;
+    }> = [];
+    const plotDisplayPrefetches: Array<{
+      readonly fileIds: readonly string[];
+      readonly priority: string;
+      readonly targetResource?: string | null;
+      readonly targetSheetId?: string | null;
+    }> = [];
+    const prioritizedCalculationFileIds: string[] = [];
+    explorerService.updatePaneInput({
+      files: [{
+        fileId: "resource-file-a",
+        fileName: "Transfer.csv",
+        resource,
+        sheetId: "sheet-a",
+      }],
+      mode: "chart",
+      selectedFileId: "resource-file-a",
+      selectedItemKey: null,
+      selectionKind: "chart",
+      thumbnailFiles: [],
+    });
+    explorerService.select({
+      candidateFileIds: ["resource-file-a"],
+      fileId: "resource-file-a",
+      kind: "chart",
+    });
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      chartViewInputs,
+      explorerService,
+      plotDisplayPrefetches,
+      prioritizedCalculationFileIds,
+      prioritizedTemplateFileIds: [],
+      session,
+      uriSliceTarget: uriTarget,
+    }));
+    try {
+      bridge.sync();
+
+      assert.deepEqual(chartViewInputs.at(-1), {
+        activeFileId: "resource-file-a",
+        activeTargetResource: "file:///data/Transfer.csv",
+        activeTargetSheetId: "sheet-a",
+        hasChartData: true,
+      });
+      assert.deepEqual(plotDisplayPrefetches.at(-1), {
+        fileIds: ["resource-file-a"],
+        priority: "active",
+        targetResource: "file:///data/Transfer.csv",
+        targetSheetId: "sheet-a",
+      });
+      assert.deepEqual(prioritizedCalculationFileIds, []);
+    } finally {
+      bridge.dispose();
+    }
+  });
+
   test("backs recently interactive chart targets with recent plot and thumbnail priority", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
@@ -1117,15 +1147,11 @@ const createSliceStateForTest = ({
   fileStates = new Map(),
   queueLength = 0,
   templateSelectionsByFileId = {},
-  uriStates = [],
-  uriResults = [],
 }: Partial<SliceState> = {}): SliceState => ({
   activeFileId,
   fileStates,
   queueLength,
   templateSelectionsByFileId,
-  uriStates,
-  uriResults,
 });
 
 const createDomainBridgeOptionsForTest = ({
@@ -1141,33 +1167,38 @@ const createDomainBridgeOptionsForTest = ({
   session,
   sliceStateEvent = Event.None,
   sliceTemplateSelectionsByFileId,
+  uriSliceTarget,
   thumbnailPrefetches,
   tableSources,
   visibleDetailPanes = [],
 }: {
   readonly chartActiveFileIds?: (string | null)[];
-  readonly chartViewInputs?: Array<{ readonly activeFileId: string | null; readonly hasChartData?: boolean }>;
+  readonly chartViewInputs?: Array<{
+    readonly activeFileId: string | null;
+    readonly activeTargetResource?: string | null;
+    readonly activeTargetSheetId?: string | null;
+    readonly hasChartData?: boolean;
+  }>;
   readonly cachedPlotDisplayFileIds?: readonly string[];
   readonly explorerService: ExplorerService;
   readonly plotCalculatedPrefetches?: Array<{ readonly fileIds: readonly string[]; readonly priority: string }>;
-  readonly plotDisplayPrefetches?: Array<{ readonly fileIds: readonly string[]; readonly priority: string }>;
+  readonly plotDisplayPrefetches?: Array<{
+    readonly fileIds: readonly string[];
+    readonly priority: string;
+    readonly targetResource?: string | null;
+    readonly targetSheetId?: string | null;
+  }>;
   readonly plotInspectorPrefetches?: Array<{ readonly fileIds: readonly string[]; readonly priority: string }>;
   readonly prioritizedCalculationFileIds: string[];
   readonly prioritizedTemplateFileIds: string[];
   readonly session: SessionService;
   readonly sliceStateEvent?: Event<unknown>;
   readonly sliceTemplateSelectionsByFileId?: SliceState["templateSelectionsByFileId"];
+  readonly uriSliceTarget?: SliceUriTarget;
   readonly thumbnailPrefetches?: Array<{ readonly fileIds: readonly string[]; readonly priority: string }>;
   readonly tableSources?: Array<TableSource | null>;
   readonly visibleDetailPanes?: readonly ["inspector"] | readonly [];
 }): ConstructorParameters<typeof WorkbenchDomainBridge>[0] => ({
-  tableModelQueueService: {
-    _serviceBrand: undefined,
-    enqueueRawTables: () => undefined,
-    getQueueSnapshot: () => ({ rawTables: [] }),
-    onDidChangeTableModelQueueState: Event.None as Event<void>,
-    prioritizeRawTables: () => undefined,
-  },
   calculationService: {
     prioritizeCalculationFile: fileId => {
       if (fileId) {
@@ -1192,6 +1223,10 @@ const createDomainBridgeOptionsForTest = ({
       chartActiveFileIds?.push(input.activeFileId ?? null);
       chartViewInputs?.push({
         activeFileId: input.activeFileId ?? null,
+        ...(input.activeTarget ? {
+          activeTargetResource: input.activeTarget.resource.toString(),
+          activeTargetSheetId: input.activeTarget.sheetId ?? null,
+        } : {}),
         hasChartData: input.hasChartData,
       });
     },
@@ -1218,6 +1253,10 @@ const createDomainBridgeOptionsForTest = ({
       plotDisplayPrefetches?.push({
         fileIds: input.fileId ? [input.fileId] : [],
         priority,
+        ...(input.target ? {
+          targetResource: input.target.resource.toString(),
+          targetSheetId: input.target.sheetId ?? null,
+        } : {}),
       });
     },
     prefetchPlotDisplayModels: (inputs, priority) => {
@@ -1239,14 +1278,19 @@ const createDomainBridgeOptionsForTest = ({
   sliceService: {
     _serviceBrand: undefined,
     cancel: () => undefined,
+    cancelUri: () => undefined,
     enqueueAuto: () => undefined,
     getState: () => createSliceStateForTest({
       templateSelectionsByFileId: sliceTemplateSelectionsByFileId,
     }),
-    getUriResult: () => null,
+    getUriResult: target => uriSliceTarget && isSameSliceUriTargetForTest(target, uriSliceTarget)
+      ? { target } as ReturnType<ConstructorParameters<typeof WorkbenchDomainBridge>[0]["sliceService"]["getUriResult"]>
+      : null,
     getUriState: () => undefined,
     onDidChangeSliceState: sliceStateEvent as Event<void>,
+    onDidChangeUriSliceResult: Event.None,
     prioritize: () => undefined,
+    prioritizeUri: () => undefined,
     runWithTemplate: () => undefined,
     setTemplateSelection: () => undefined,
     submit: () => undefined,
@@ -1271,6 +1315,13 @@ const createDomainBridgeOptionsForTest = ({
     },
   } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["thumbnailPreviewService"],
 });
+
+const isSameSliceUriTargetForTest = (
+  first: SliceUriTarget,
+  second: SliceUriTarget,
+): boolean =>
+  first.resource.toString() === second.resource.toString() &&
+  String(first.sheetId ?? "") === String(second.sheetId ?? "");
 
 const uniquePrefetches = (
   prefetches: readonly { readonly fileIds: readonly string[]; readonly priority: string }[],

@@ -47,17 +47,12 @@ import type {
 import {
   type ISliceService,
   type SliceFileState,
-  type SliceUriResult,
   type SliceUriTarget,
   type SliceState,
 } from "src/cs/workbench/services/slice/common/slice";
 import type {
   FileRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
-import {
-  getRawTableRefsForFileIds,
-  type ITableModelQueueService,
-} from "src/cs/workbench/services/tableModel/common/tableModel";
 import type { IThumbnailPreviewService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import {
   isTemplateApplyPerformanceTraceEnabled,
@@ -73,7 +68,6 @@ export type WorkbenchDomainBridgeSyncOptions = {
 
 export type WorkbenchDomainBridgeOptions = {
   readonly chartService: IChartService;
-  readonly tableModelQueueService: ITableModelQueueService;
   readonly calculationService: ICalculationService;
   readonly explorerService: IExplorerService;
   readonly layoutService: IWorkbenchLayoutService;
@@ -105,7 +99,6 @@ export class WorkbenchDomainBridge extends Disposable {
     this._register(this.options.explorerService.onDidChangeVisibleFileIds(event => {
       this.prioritizeVisibleExplorerFiles(event.visibleFileIds, event.nearbyFileIds);
     }));
-    this._register(this.options.tableModelQueueService.onDidChangeTableModelQueueState(() => this.scheduleSync()));
     this._register(this.options.plotService.onDidChangePlotState(() => this.scheduleSync()));
     this._register(this.options.sliceService.onDidChangeSliceState(() => this.scheduleInteractiveSync()));
     this._register(this.options.layoutService.onDidChangeWorkbenchNavigation(() => this.scheduleSync()));
@@ -312,6 +305,7 @@ export class WorkbenchDomainBridge extends Disposable {
     explorerSelection: ExplorerDomainSelection,
   ): void {
     const sliceState = this.options.sliceService.getState();
+    const explorerFiles = this.options.explorerService.getPaneInput()?.files ?? [];
     this.options.explorerService.updatePaneInput(this.getExplorerPaneInput(
       snapshot,
       readModel,
@@ -320,16 +314,19 @@ export class WorkbenchDomainBridge extends Disposable {
     const chartViewInput = this.getChartViewInput(
       snapshot,
       readModel,
-      sliceState,
+      explorerFiles,
       explorerSelection.selectedProcessedFileId,
     );
     if (chartViewInput.activeFileId && chartViewInput.hasChartData) {
-      this.options.calculationService.prioritizeCalculationFile(chartViewInput.activeFileId);
+      if (!chartViewInput.activeTarget) {
+        this.options.calculationService.prioritizeCalculationFile(chartViewInput.activeFileId);
+      }
       const plotType = chartViewInput.activePlotType ?? this.options.plotService.getState().activePlotType;
       const input = {
         fileId: chartViewInput.activeFileId,
         plotType,
         snapshot,
+        ...(chartViewInput.activeTarget ? { target: chartViewInput.activeTarget } : {}),
       };
       this.options.plotService.prefetchPlotDisplayModel(input, "active");
     }
@@ -351,6 +348,7 @@ export class WorkbenchDomainBridge extends Disposable {
       plotService: this.options.plotService,
       readModel,
       snapshot,
+      sliceService: this.options.sliceService,
       sliceState,
     });
   }
@@ -358,22 +356,26 @@ export class WorkbenchDomainBridge extends Disposable {
   private getChartViewInput(
     snapshot: SessionSnapshot,
     readModel: SessionReadModel,
-    sliceState: SliceState,
+    explorerFiles = this.options.explorerService.getPaneInput()?.files ?? [],
     activeFileId = resolveExplorerDomainSelection(
       this.options.explorerService,
       readModel,
     ).selectedProcessedFileId,
   ) {
-    const explorerFiles = this.options.explorerService.getPaneInput()?.files ?? [];
     const chartActiveFileId = resolveExplorerSelectedFileId(
-      resolveChartTargetId(activeFileId, explorerFiles, sliceState),
-      getChartCandidateFileIds(readModel, explorerFiles, sliceState),
+      activeFileId,
+      getChartCandidateFileIds(this.options.sliceService, readModel, explorerFiles),
+    );
+    const activeTarget = getSliceUriTargetForChartFileId(
+      this.options.sliceService,
+      explorerFiles,
+      chartActiveFileId,
     );
     const hasActiveChartData = Boolean(
       chartActiveFileId &&
         (
           readModel.processedFileIds.includes(chartActiveFileId) ||
-          sliceState.uriResults.some(result => createSliceUriTargetId(result.target) === chartActiveFileId)
+          activeTarget
         ),
     );
     const chartFileOptions = createActiveChartFileOptions(
@@ -383,6 +385,7 @@ export class WorkbenchDomainBridge extends Disposable {
     );
     return createChartViewInput({
       activeFileId: chartActiveFileId,
+      activeTarget,
       activePlotType: this.options.plotService.getState().activePlotType,
       chartFileOptions,
       hasChartData: hasActiveChartData,
@@ -401,7 +404,14 @@ export class WorkbenchDomainBridge extends Disposable {
     }
 
     const newlyRecentFileIds = this.rememberRecentInteractiveChartTarget(normalizedFileId);
-    this.options.calculationService.prioritizeCalculationFile(normalizedFileId);
+    const activeTarget = getSliceUriTargetForChartFileId(
+      this.options.sliceService,
+      this.options.explorerService.getPaneInput()?.files ?? [],
+      normalizedFileId,
+    );
+    if (!activeTarget) {
+      this.options.calculationService.prioritizeCalculationFile(normalizedFileId);
+    }
     this.prefetchPlotDisplayTargets([normalizedFileId], plotPriority, "interactiveTarget");
     this.prefetchRecentInteractiveChartTargets(newlyRecentFileIds);
   }
@@ -455,15 +465,6 @@ export class WorkbenchDomainBridge extends Disposable {
     visibleFileIds: readonly string[],
     nearbyFileIds: readonly string[],
   ): void {
-    const snapshot = this.options.sessionService.getSnapshot();
-    this.options.tableModelQueueService.prioritizeRawTables(
-      getRawTableRefsForFileIds(visibleFileIds, snapshot),
-      "visible",
-    );
-    this.options.tableModelQueueService.prioritizeRawTables(
-      getRawTableRefsForFileIds(nearbyFileIds, snapshot),
-      "nearby",
-    );
     if (this.options.layoutService.activeWorkbenchMainPart === "chart") {
       this.prefetchPlotDisplayTargets(visibleFileIds, "visible", "visibleExplorerFiles");
       this.prefetchPlotDisplayTargets(nearbyFileIds, "nearby", "nearbyExplorerFiles");
@@ -505,11 +506,16 @@ export class WorkbenchDomainBridge extends Disposable {
       priority,
       source,
     }, { silent: true });
-    const inputs = normalizedFileIds.map(fileId => ({
-      fileId,
-      plotType,
-      snapshot,
-    }));
+    const explorerFiles = this.options.explorerService.getPaneInput()?.files ?? [];
+    const inputs = normalizedFileIds.map(fileId => {
+      const target = getSliceUriTargetForChartFileId(this.options.sliceService, explorerFiles, fileId);
+      return {
+        fileId,
+        plotType,
+        snapshot,
+        ...(target ? { target } : {}),
+      };
+    });
     if (inputs.length === 1) {
       this.options.plotService.prefetchPlotDisplayModel(inputs[0]!, priority);
     } else {
@@ -625,9 +631,9 @@ const createActiveChartFileOptions = (
 };
 
 const getChartCandidateFileIds = (
+  sliceService: Pick<ISliceService, "getUriResult">,
   readModel: SessionReadModel,
   explorerFiles: readonly ExplorerFileEntry[],
-  sliceState: SliceState,
 ): readonly string[] => {
   const result: string[] = [];
   const seen = new Set<string>();
@@ -646,32 +652,12 @@ const getChartCandidateFileIds = (
   }
   for (const file of explorerFiles) {
     push(getExplorerFileChartTargetId(file));
-  }
-  for (const result of sliceState.uriResults) {
-    push(createSliceUriTargetId(result.target));
+    const target = getExplorerFileUriTarget(file);
+    if (target && sliceService.getUriResult(target)) {
+      push(file.fileId);
+    }
   }
   return result;
-};
-
-const resolveChartTargetId = (
-  fileId: string | null,
-  explorerFiles: readonly ExplorerFileEntry[],
-  sliceState: SliceState,
-): string | null => {
-  const normalizedFileId = normalizeExplorerSelectionFileId(fileId);
-  if (!normalizedFileId) {
-    return null;
-  }
-  if (sliceState.uriResults.some(result => createSliceUriTargetId(result.target) === normalizedFileId)) {
-    return normalizedFileId;
-  }
-
-  const explorerFile = explorerFiles.find(file =>
-    normalizeExplorerSelectionFileId(file.fileId) === normalizedFileId);
-  const targetId = explorerFile ? getExplorerFileUriTargetId(explorerFile) : null;
-  return targetId && sliceState.uriResults.some(result => createSliceUriTargetId(result.target) === targetId)
-    ? targetId
-    : normalizedFileId;
 };
 
 const hasTraceChartTargetState = (
@@ -735,6 +721,7 @@ type CreateExplorerPaneInputOptions = {
   readonly plotService: Pick<IPlotService, "getCalculatedData">;
   readonly readModel: SessionReadModel;
   readonly snapshot: SessionSnapshot;
+  readonly sliceService?: Pick<ISliceService, "getUriResult" | "getUriState">;
   readonly sliceState: SliceState;
 };
 
@@ -876,6 +863,7 @@ export const createExplorerPaneInput = ({
   plotAxisSettings,
   readModel,
   snapshot,
+  sliceService,
   sliceState,
 }: CreateExplorerPaneInputOptions): ExplorerPaneInput => {
   const rawFiles = readModel.rawFiles;
@@ -889,13 +877,15 @@ export const createExplorerPaneInput = ({
   );
   const chartProcessedFileIds = mergeChartProcessedFileIds(
     readModel.processedFileIds,
-    sliceState.uriResults,
+    rawExplorerFilesWithLocalImports,
+    sliceService,
   );
   const chartBaseFiles = isThumbnailLayout
     ? filterExplorerFilesByProcessedIds(rawExplorerFilesWithLocalImports, chartProcessedFileIds)
     : rawExplorerFilesWithLocalImports;
   const files = applyChartExplorerStates(chartBaseFiles, {
       isChartMode,
+      sliceService,
       sliceState,
       snapshot,
     });
@@ -927,20 +917,30 @@ export const createExplorerPaneInput = ({
 
 const mergeChartProcessedFileIds = (
   processedFileIds: readonly string[],
-  uriResults: readonly SliceUriResult[],
+  explorerFiles: readonly ExplorerFileEntry[],
+  sliceService: Pick<ISliceService, "getUriResult"> | undefined,
 ): readonly string[] => {
   const result: string[] = [];
   const seen = new Set<string>();
-  for (const fileId of [
-    ...processedFileIds,
-    ...uriResults.map(result => createSliceUriTargetId(result.target)),
-  ]) {
+  const push = (fileId: unknown): void => {
     const normalizedFileId = String(fileId ?? "").trim();
     if (!normalizedFileId || seen.has(normalizedFileId)) {
-      continue;
+      return;
     }
+
     seen.add(normalizedFileId);
     result.push(normalizedFileId);
+  };
+  for (const fileId of processedFileIds) {
+    push(fileId);
+  }
+  if (sliceService) {
+    for (const file of explorerFiles) {
+      const target = getExplorerFileUriTarget(file);
+      if (target && sliceService.getUriResult(target)) {
+        push(file.fileId);
+      }
+    }
   }
   return result;
 };
@@ -1130,7 +1130,6 @@ const getExplorerPaneFileKey = (file: ExplorerFileEntry): string => {
 const getExplorerFileChartTargetId = (
   file: ExplorerFileEntry,
 ): string | null =>
-  getExplorerFileUriTargetId(file) ??
   normalizeExplorerSelectionFileId(file.fileId);
 
 const getExplorerFileUriTarget = (
@@ -1151,39 +1150,45 @@ const getExplorerFileUriTarget = (
   };
 };
 
-const getExplorerFileUriTargetId = (
-  file: ExplorerFileEntry,
-): string | null => {
-  const target = getExplorerFileUriTarget(file);
-  return target ? createSliceUriTargetId(target) : null;
-};
-
 const getSliceUriTargetState = (
-  sliceState: SliceState,
+  sliceService: Pick<ISliceService, "getUriState"> | undefined,
   target: SliceUriTarget,
 ): SliceFileState | undefined => {
-  const targetId = createSliceUriTargetId(target);
-  return sliceState.uriStates.find(entry =>
-    createSliceUriTargetId(entry.target) === targetId
-  )?.state;
+  return sliceService?.getUriState(target);
 };
 
-const createSliceUriTargetId = (
-  target: SliceUriTarget,
-): string => {
-  const resource = String(target.resource?.toString() ?? "").trim().replace(/\\/g, "/");
-  const sheetId = normalizeExplorerSelectionItemKey(target.sheetId);
-  return sheetId ? `${resource}\u0000${sheetId}` : resource;
+const getSliceUriTargetForChartFileId = (
+  sliceService: Pick<ISliceService, "getUriResult">,
+  explorerFiles: readonly ExplorerFileEntry[],
+  chartFileId: string | null,
+): SliceUriTarget | null => {
+  const normalizedChartFileId = normalizeExplorerSelectionFileId(chartFileId);
+  if (!normalizedChartFileId) {
+    return null;
+  }
+
+  for (const file of explorerFiles) {
+    if (normalizeExplorerSelectionFileId(file.fileId) !== normalizedChartFileId) {
+      continue;
+    }
+    const target = getExplorerFileUriTarget(file);
+    if (target && sliceService.getUriResult(target)) {
+      return target;
+    }
+  }
+  return null;
 };
 
 const applyChartExplorerStates = (
   files: readonly ExplorerFileEntry[],
   {
     isChartMode,
+    sliceService,
     sliceState,
     snapshot,
   }: {
     readonly isChartMode: boolean;
+    readonly sliceService?: Pick<ISliceService, "getUriResult" | "getUriState">;
     readonly sliceState: SliceState;
     readonly snapshot: SessionSnapshot;
   },
@@ -1195,11 +1200,10 @@ const applyChartExplorerStates = (
   return files.map(file => {
     const fileId = String(file.fileId ?? "").trim();
     const target = getExplorerFileUriTarget(file);
-    const targetId = target ? createSliceUriTargetId(target) : null;
     const hasChartData = hasFileChartData(snapshot.filesById[fileId]) ||
-      Boolean(targetId && sliceState.uriResults.some(result => createSliceUriTargetId(result.target) === targetId));
+      Boolean(target && sliceService?.getUriResult(target));
     const ownerState = resolveExplorerFileProcessingState(
-      (target ? getSliceUriTargetState(sliceState, target) : undefined) ??
+      (target ? getSliceUriTargetState(sliceService, target) : undefined) ??
       (fileId ? sliceState.fileStates.get(fileId) : undefined),
     );
     const chartState = resolveChartState(ownerState, hasChartData);
@@ -1271,7 +1275,7 @@ const createRawTableSource = (
   const resource = getRawTableResource(file);
   if (resource) {
     const selectedTable = itemKey ? findFileRecordTableByItemKey(file, itemKey) : null;
-    const sheetId = selectedTable?.[1].sheetId ?? null;
+    const sheetId = selectedTable?.[1].sheetId ?? itemKey;
     return {
       resource,
       ...(sheetId ? { sheetId } : {}),

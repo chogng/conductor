@@ -59,21 +59,6 @@ import {
 import type {
   RawTableRecord,
 } from "src/cs/workbench/services/files/common/rawTable";
-import type {
-  TableModelRecord,
-} from "src/cs/workbench/services/tableModel/common/tableModel";
-import {
-  getTableModelRuleVersion,
-} from "src/cs/workbench/services/tableModel/common/tableModel";
-import type {
-  MeasurementBlockRecord,
-} from "src/cs/workbench/services/tableModel/common/measurement";
-import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
-import {
-  createReviewEvidenceSignature,
-  type RawTableReviewRecord,
-  type ReviewCommit,
-} from "src/cs/workbench/services/review/common/review";
 
 export class SessionService extends Disposable implements ISessionServiceType {
   public declare readonly _serviceBrand: undefined;
@@ -228,48 +213,6 @@ export class SessionService extends Disposable implements ISessionServiceType {
     });
     return true;
   }
-
-  public commitTableModel = (tableModel: TableModelRecord): void => {
-    this.commitTableModelBatch([tableModel]);
-  };
-
-  public commitTableModelBatch = (tableModel: readonly TableModelRecord[]): void => {
-    const tableModelCommit = commitTableModelToFiles(
-      this.snapshot.filesById,
-      tableModel,
-    );
-    if (!tableModelCommit.changed) {
-      return;
-    }
-
-    this.replaceSnapshot({
-      ...this.snapshot,
-      filesById: tableModelCommit.filesById,
-    }, "tableModelChanged", {
-      fileIds: uniqueStrings(tableModelCommit.fileIds),
-      rawTableIds: uniqueStrings(tableModelCommit.rawTableIds),
-      rawTableRefs: uniqueRawTableRefs(tableModelCommit.rawTableRefs),
-    });
-  };
-
-  public commitRawTableReviews = (reviews: readonly ReviewCommit[]): void => {
-    const reviewCommit = commitRawTableReviewsToFiles(
-      this.snapshot.filesById,
-      reviews,
-    );
-    if (!reviewCommit.changed) {
-      return;
-    }
-
-    this.replaceSnapshot({
-      ...this.snapshot,
-      filesById: reviewCommit.filesById,
-    }, "reviewChanged", {
-      fileIds: uniqueStrings(reviewCommit.fileIds),
-      rawTableIds: uniqueStrings(reviewCommit.rawTableIds),
-      rawTableRefs: uniqueRawTableRefs(reviewCommit.rawTableRefs),
-    });
-  };
 
   public commitSliceRuns = (inputs: readonly SliceCommit[]): void => {
     let nextFilesById = this.snapshot.filesById;
@@ -580,199 +523,6 @@ const EMPTY_FILE_IMPORT_COMMIT_RESULT: CommitFileImportResult = {
   skippedDuplicateFileIds: [],
 };
 
-type TableModelCommitResult = {
-  readonly changed: boolean;
-  readonly fileIds: readonly FileId[];
-  readonly filesById: Record<FileId, FileRecord>;
-  readonly rawTableIds: readonly string[];
-  readonly rawTableRefs: readonly RawTableRef[];
-};
-
-type RawTableReviewCommitResult = {
-  readonly changed: boolean;
-  readonly fileIds: readonly FileId[];
-  readonly filesById: Record<FileId, FileRecord>;
-  readonly rawTableIds: readonly string[];
-  readonly rawTableRefs: readonly RawTableRef[];
-};
-
-const commitTableModelToFiles = (
-  initialFilesById: Record<FileId, FileRecord>,
-  tableModelRecords: readonly TableModelRecord[],
-): TableModelCommitResult => {
-  let nextFilesById = initialFilesById;
-  const committedFileIds: FileId[] = [];
-  const committedRawTableIds: string[] = [];
-  const committedRawTableRefs: RawTableRef[] = [];
-
-  for (const tableModel of tableModelRecords) {
-    const fileId = normalizeId(tableModel.fileId);
-    const rawTableId = normalizeId(tableModel.rawTableId);
-    const file = fileId ? nextFilesById[fileId] : undefined;
-    if (!file || !rawTableId || !file.raw.tablesById[rawTableId]) {
-      continue;
-    }
-
-    const rawTableVersion = file.rawTableVersionsById?.[rawTableId] ?? 0;
-    if (rawTableVersion !== tableModel.sourceRawTableVersion) {
-      continue;
-    }
-
-    const measurementBlocksById = removeMeasurementBlocksForRawTable(
-      file.measurementBlocksById ?? {},
-      rawTableId,
-    );
-    const measurementBlockOrder = file.measurementBlockOrder.filter(blockId =>
-      Boolean(measurementBlocksById[blockId])
-    );
-    const committedBlocks: MeasurementBlockRecord[] = [];
-    for (const block of tableModel.blocks) {
-      const normalizedBlock = normalizeMeasurementBlock(block, fileId, rawTableId);
-      if (!normalizedBlock) {
-        continue;
-      }
-
-      measurementBlocksById[normalizedBlock.id] = normalizedBlock;
-      committedBlocks.push(normalizedBlock);
-    }
-    const committedBlockIds = getUniqueIds(committedBlocks.map(block => block.id));
-    const rawTableReviewsByRawTableId = {
-      ...(file.rawTableReviewsByRawTableId ?? {}),
-    };
-    delete rawTableReviewsByRawTableId[rawTableId];
-    const tableModelWithoutRetiredDecision = { ...tableModel } as TableModelRecord & { decision?: unknown };
-    delete tableModelWithoutRetiredDecision.decision;
-    const committedTableModel: TableModelRecord = {
-      ...tableModelWithoutRetiredDecision,
-      tableModelRuleVersion: getTableModelRuleVersion(tableModel),
-      schemaProfileVersion: normalizeSchemaProfileVersion(tableModel.schemaProfileVersion),
-      fileId,
-      rawTableId,
-      blocks: committedBlocks,
-      columnProfiles: tableModel.columnProfiles ?? [],
-      layoutCandidates: tableModel.layoutCandidates ?? [],
-      semanticCandidates: tableModel.semanticCandidates ?? [],
-      structure: tableModel.structure ?? createEmptyRawTableStructure(),
-    };
-    nextFilesById = {
-      ...nextFilesById,
-      [fileId]: {
-        ...file,
-        tableModelByRawTableId: {
-          ...(file.tableModelByRawTableId ?? {}),
-          [rawTableId]: committedTableModel,
-        },
-        rawTableReviewsByRawTableId,
-        measurementBlocksById,
-        measurementBlockOrder: [...measurementBlockOrder, ...committedBlockIds],
-      },
-    };
-    committedFileIds.push(fileId);
-    committedRawTableIds.push(rawTableId);
-    committedRawTableRefs.push({ fileId, rawTableId });
-  }
-
-  return {
-    changed: nextFilesById !== initialFilesById,
-    fileIds: committedFileIds,
-    filesById: nextFilesById,
-    rawTableIds: committedRawTableIds,
-    rawTableRefs: committedRawTableRefs,
-  };
-};
-
-const commitRawTableReviewsToFiles = (
-  initialFilesById: Record<FileId, FileRecord>,
-  reviews: readonly ReviewCommit[],
-): RawTableReviewCommitResult => {
-  let nextFilesById = initialFilesById;
-  const committedFileIds: FileId[] = [];
-  const committedRawTableIds: string[] = [];
-  const committedRawTableRefs: RawTableRef[] = [];
-
-  for (const review of reviews) {
-    const fileId = normalizeId(review.fileId);
-    const rawTableId = normalizeId(review.rawTableId);
-    const file = fileId ? nextFilesById[fileId] : undefined;
-    const table = rawTableId ? file?.raw.tablesById[rawTableId] : undefined;
-    const tableModel = rawTableId ? file?.tableModelByRawTableId?.[rawTableId] : undefined;
-    if (!file || !rawTableId || !table || !tableModel) {
-      continue;
-    }
-
-    const rawTableVersion = file.rawTableVersionsById?.[rawTableId] ?? 0;
-    const sourceRawTableVersion = normalizeNonNegativeInteger(review.sourceRawTableVersion);
-    if (rawTableVersion !== sourceRawTableVersion) {
-      continue;
-    }
-
-    const evidenceSignature = normalizeOptionalText(review.evidenceSignature);
-    if (
-      !evidenceSignature ||
-      evidenceSignature !== createReviewEvidenceSignature(tableModel, {
-        columnCount: table.columnCount,
-        fileName: file.name,
-        rowCount: table.rowCount,
-      })
-    ) {
-      continue;
-    }
-
-    const committedReview: RawTableReviewRecord = {
-      ...review,
-      fileId,
-      rawTableId,
-      sourceRawTableVersion,
-      evidenceSignature,
-      recipeFingerprint: normalizeOptionalText(review.recipeFingerprint) ?? "",
-      userTemplateCatalogVersion: normalizeNonNegativeInteger(review.userTemplateCatalogVersion),
-      userTemplateEffectiveFingerprint: normalizeOptionalText(review.userTemplateEffectiveFingerprint) ?? "",
-      reviewEngineVersion: normalizeNonNegativeInteger(review.reviewEngineVersion),
-      reviewPolicyVersion: normalizeNonNegativeInteger(review.reviewPolicyVersion),
-      candidates: review.candidates ?? [],
-      reviews: review.reviews ?? [],
-      createdAt: normalizeNonNegativeInteger(review.createdAt),
-    };
-    const current = file.rawTableReviewsByRawTableId?.[rawTableId];
-    if (isSameRawTableReviewRecord(current, committedReview)) {
-      continue;
-    }
-
-    nextFilesById = {
-      ...nextFilesById,
-      [fileId]: {
-        ...file,
-        rawTableReviewsByRawTableId: {
-          ...(file.rawTableReviewsByRawTableId ?? {}),
-          [rawTableId]: committedReview,
-        },
-      },
-    };
-    committedFileIds.push(fileId);
-    committedRawTableIds.push(rawTableId);
-    committedRawTableRefs.push({ fileId, rawTableId });
-  }
-
-  return {
-    changed: nextFilesById !== initialFilesById,
-    fileIds: committedFileIds,
-    filesById: nextFilesById,
-    rawTableIds: committedRawTableIds,
-    rawTableRefs: committedRawTableRefs,
-  };
-};
-
-const isSameRawTableReviewRecord = (
-  current: RawTableReviewRecord | undefined,
-  next: RawTableReviewRecord,
-): boolean => Boolean(current && JSON.stringify({
-  ...current,
-  createdAt: 0,
-}) === JSON.stringify({
-  ...next,
-  createdAt: 0,
-}));
-
 const createSourceFileIdsByKey = (
   filesById: Readonly<Record<FileId, FileRecord>>,
   fileOrder: readonly FileId[],
@@ -837,10 +587,6 @@ const createFileRecordFromImportedFile = (
       fileId,
     raw,
     rawTableVersionsById: createInitialRawTableVersions(raw.tableOrder),
-    tableModelByRawTableId: {},
-    rawTableReviewsByRawTableId: {},
-    measurementBlocksById: {},
-    measurementBlockOrder: [],
     seriesById: {},
     seriesOrder: [],
     curvesByKey: {},
@@ -1046,38 +792,6 @@ const getSingleNormalizedCsvPath = (
     .filter((path): path is string => Boolean(path));
 
   return paths.length === 1 ? paths[0] : null;
-};
-
-const removeMeasurementBlocksForRawTable = (
-  measurementBlocksById: Readonly<Record<string, MeasurementBlockRecord>>,
-  rawTableId: string,
-): Record<string, MeasurementBlockRecord> => {
-  const next: Record<string, MeasurementBlockRecord> = {};
-  for (const [blockId, block] of Object.entries(measurementBlocksById)) {
-    if (block.rawTableId !== rawTableId) {
-      next[blockId] = block;
-    }
-  }
-
-  return next;
-};
-
-const normalizeMeasurementBlock = (
-  block: MeasurementBlockRecord,
-  fileId: string,
-  rawTableId: string,
-): MeasurementBlockRecord | null => {
-  const blockId = normalizeId(block.id);
-  if (!blockId) {
-    return null;
-  }
-
-  return {
-    ...block,
-    id: blockId,
-    fileId,
-    rawTableId,
-  };
 };
 
 const getSnapshotFileIds = (
@@ -1504,11 +1218,6 @@ const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
 const normalizeId = (value: unknown): string => String(value ?? "").trim();
-
-const normalizeSchemaProfileVersion = (value: unknown): number => {
-  const version = Math.floor(Number(value));
-  return Number.isFinite(version) && version >= 0 ? version : 0;
-};
 
 const normalizeOptionalText = (value: unknown): string | undefined => {
   const text = String(value ?? "").trim();

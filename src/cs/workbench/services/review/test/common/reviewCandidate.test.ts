@@ -15,10 +15,10 @@ import {
 	scoreReviewCandidate,
 } from "src/cs/workbench/services/review/common/reviewScoring";
 import { evaluateReviewSelector } from "src/cs/workbench/services/review/common/reviewSelector";
-import type {
-	MeasurementColumnRef,
-} from "src/cs/workbench/services/tableModel/common/measurement";
-import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
+import {
+	createEmptyTableProjectionStructure,
+	type MeasurementColumnRef,
+} from "src/cs/workbench/services/table/common/tableProjection";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
 import type { Recipe } from "src/cs/workbench/services/recipe/common/recipe";
 import { createRecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipeCodec";
@@ -209,6 +209,7 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 			recipe,
 			evaluation: evaluateReviewSelector(recipe, evidence),
 		});
+		assert.ok(candidate);
 		const segmentCandidate: SegmentCandidate = candidate;
 
 		assert.ok(segmentCandidate);
@@ -324,7 +325,7 @@ const createReviewEvidence = (options: {
 	},
 	tableProjection: {
 		structure: {
-			...createEmptyRawTableStructure(),
+			...createEmptyTableProjectionStructure(),
 			fingerprint: "schema-a",
 		},
 		columnProfiles: [],

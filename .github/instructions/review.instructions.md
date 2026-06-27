@@ -62,7 +62,6 @@ Explorer decoration / hover
   -> IReviewService.getLatestReviewSummary({ resource, contentHash?, sheetId? })
   -> ITableModelService.createModelReference(resource, source)
   -> TableModelSnapshot content + parser diagnostics + source/model version/content hash when available
-  -> ITableModelProducerService.getOrCreate(...)
   -> ReviewEvidence.tableProjection
   -> ReviewService builds SegmentCandidate / ReviewCandidate values
   -> ReviewService scores candidates within evaluator policy
@@ -72,7 +71,7 @@ Explorer decoration / hover
 ```
 
 This summary cache is service-local. It is invalidated by source/content
-version changes, projection model changes, Recipe changes, and UserTemplate
+version changes, Recipe changes, and UserTemplate
 changes. Explorer must not fall back to Session raw-table records for
 URI-backed semantic decorations.
 

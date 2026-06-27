@@ -2,7 +2,6 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { MeasurementBlockRecord } from "src/cs/workbench/services/tableModel/common/measurement";
 import type { Recipe, RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
 import type {
 	RecipeLogicalRelation,
@@ -22,6 +21,9 @@ import {
 	type ReviewSelectorCapture,
 	type ReviewSelectorEvaluation,
 } from "src/cs/workbench/services/review/common/reviewSelector";
+import type {
+	MeasurementBlockRecord,
+} from "src/cs/workbench/services/table/common/tableProjection";
 import type {
 	UserTemplate,
 	UserTemplateSnapshot,

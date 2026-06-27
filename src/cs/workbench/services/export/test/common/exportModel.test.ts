@@ -130,7 +130,6 @@ suite("workbench/services/export/common/exportModel", () => {
 });
 
 const createFileRecord = (): FileRecord => ({
-  tableModelByRawTableId: {},
   curvesByKey: {
     "base:iv:transfer:series-a": {
       curveFamily: "iv",
@@ -165,8 +164,6 @@ const createFileRecord = (): FileRecord => ({
   },
   id: "file-a",
   kind: "unknown",
-  measurementBlockOrder: [],
-  measurementBlocksById: {},
   metricsByKey: {},
   name: "file-a.csv",
   raw: {

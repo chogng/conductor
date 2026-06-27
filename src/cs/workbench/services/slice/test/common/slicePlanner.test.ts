@@ -4,6 +4,7 @@
 
 import assert from "assert";
 
+import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
 	createSlicePlan,
@@ -16,9 +17,12 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 
 	test("creates input ranges from a block-aware template", () => {
 		const plan = createSlicePlan({
-			ref: {
-				fileId: "file-a",
-				rawTableId: "table-a",
+			target: {
+				kind: "rawTable",
+				ref: {
+					fileId: "file-a",
+					rawTableId: "table-a",
+				},
 			},
 			mode: "auto",
 			selection: { kind: "auto" },
@@ -54,9 +58,12 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 
 	test("reports out-of-bounds template blocks without producing executable ranges", () => {
 		const plan = createSlicePlan({
-			ref: {
-				fileId: "file-a",
-				rawTableId: "table-a",
+			target: {
+				kind: "rawTable",
+				ref: {
+					fileId: "file-a",
+					rawTableId: "table-a",
+				},
 			},
 			mode: "manual",
 			selection: { kind: "inline", template: createTemplate() },
@@ -77,18 +84,113 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 
 		assert.deepEqual(plan.blocks, []);
 		assert.deepEqual(plan.inputRanges, []);
-		assert.deepEqual(plan.errors, ["slicePlanner.blockRangeOutOfBounds"]);
+		assert.deepEqual(plan.errors, ["slicePlanner.axisOutOfBounds"]);
 	});
 
-	test("includes URI-backed table model versions in table model signatures", () => {
+	test("creates URI input ranges without raw-table identity", () => {
+		const resource = URI.file("/workspace/source.csv");
+		const plan = createSlicePlan({
+			target: {
+				kind: "uri",
+				target: {
+					resource,
+					sheetId: "sheet-a",
+				},
+			},
+			mode: "auto",
+			selection: { kind: "auto" },
+			sourceVersion: 3,
+			sourceTableModelSignature: "tableModel-a",
+			template: createTemplate(),
+			rowCount: 5,
+			columnCount: 3,
+		});
+
+		assert.deepEqual(plan.inputRanges, [{
+			resource,
+			sheetId: "sheet-a",
+			range: {
+				startRow: 1,
+				endRow: 4,
+				startCol: 0,
+				endCol: 2,
+			},
+		}]);
+	});
+
+	test("expands fixed template segments into executable plan blocks", () => {
+		const plan = createSlicePlan({
+			target: {
+				kind: "rawTable",
+				ref: {
+					fileId: "file-a",
+					rawTableId: "table-a",
+				},
+			},
+			mode: "auto",
+			selection: { kind: "auto" },
+			sourceRawTableVersion: 3,
+			sourceTableModelSignature: "tableModel-a",
+			template: {
+				...createTemplate(),
+				blocks: [{
+					...createTemplate().blocks[0]!,
+					rowRange: {
+						startRow: 1,
+						endRow: 5,
+					},
+					segmentation: {
+						kind: "fixedSegments",
+						segmentCount: 2,
+					},
+				}],
+			},
+			rowCount: 6,
+			columnCount: 3,
+		});
+
+		assert.deepEqual(plan.errors, []);
+		assert.deepEqual(plan.inputRanges.map(inputRange => inputRange.range), [{
+			startRow: 1,
+			endRow: 3,
+			startCol: 0,
+			endCol: 2,
+		}, {
+			startRow: 4,
+			endRow: 5,
+			startCol: 0,
+			endCol: 2,
+		}]);
+		assert.deepEqual(plan.blocks.map(block => ({
+			blockIndex: block.blockIndex,
+			segmentIndex: block.segmentIndex,
+			range: block.inputRange.range,
+		})), [{
+			blockIndex: 0,
+			segmentIndex: 0,
+			range: {
+				startRow: 1,
+				endRow: 3,
+				startCol: 0,
+				endCol: 2,
+			},
+		}, {
+			blockIndex: 0,
+			segmentIndex: 1,
+			range: {
+				startRow: 4,
+				endRow: 5,
+				startCol: 0,
+				endCol: 2,
+			},
+		}]);
+	});
+
+	test("includes URI-backed source versions in source signatures", () => {
 		const baseSignature = createSliceTableModelSignature({
-			tableModelRuleVersion: 2,
-			schemaProfileVersion: 3,
 			sourceRawTableVersion: 4,
 		});
 		const uriSignature = createSliceTableModelSignature({
-			tableModelRuleVersion: 2,
-			schemaProfileVersion: 3,
 			sourceModelVersion: 6,
 			sourceRawTableVersion: 4,
 			sourceUri: "file:///workspace/data/source.csv",
@@ -101,6 +203,39 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 			sourceUri: "file:///workspace/data/source.csv",
 			sourceVersion: 5,
 		});
+	});
+
+	test("includes URI sheet targets in source signatures", () => {
+		const firstSheetSignature = createSliceTableModelSignature({
+			sourceModelVersion: 6,
+			sourceSheetId: "sheet-a",
+			sourceUri: "file:///workspace/data/source.xlsx",
+			sourceVersion: 5,
+		});
+		const secondSheetSignature = createSliceTableModelSignature({
+			sourceModelVersion: 6,
+			sourceSheetId: "sheet-b",
+			sourceUri: "file:///workspace/data/source.xlsx",
+			sourceVersion: 5,
+		});
+
+		assert.notEqual(firstSheetSignature, secondSheetSignature);
+		assert.deepEqual(JSON.parse(firstSheetSignature).sourceModel, {
+			modelVersion: 6,
+			sheetId: "sheet-a",
+			sourceUri: "file:///workspace/data/source.xlsx",
+			sourceVersion: 5,
+		});
+	});
+
+	test("omits raw-table version from URI-only source signatures", () => {
+		const signature = createSliceTableModelSignature({
+			sourceModelVersion: 6,
+			sourceUri: "file:///workspace/data/source.csv",
+			sourceVersion: 5,
+		});
+
+		assert.equal(JSON.parse(signature).sourceRawTableVersion, undefined);
 	});
 });
 

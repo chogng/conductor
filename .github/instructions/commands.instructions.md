@@ -125,7 +125,6 @@ command APIs.
 | Explorer add/remove/select/toggle layout | `IExplorerService`, or `ExplorerViewPane` reached through `IViewsService.openView(...)` for view-local workflows |
 | low-level filesystem operations | `IFileService`, usually not user-facing workbench commands |
 | Explorer source import/open | Explorer source workflow + Explorer-local rows + `ITableService.open({ resource })` |
-| table model | table-model producer (`ITableModelProducerService`) then `ISessionService.commitTableModel(...)` |
 | table reveal/copy/select | `ITableService` |
 | template save/delete/import/apply | `IUserTemplateService` for library management; Slice command handlers for application |
 | plot type/unit/scale/visibility | `IPlotService` |

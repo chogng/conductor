@@ -183,7 +183,6 @@ const createCanonicalFileRecord = (
   };
 
   return {
-    tableModelByRawTableId: {},
     curvesByKey: {
       [curveKey]: {
         curveFamily: "iv",
@@ -210,8 +209,6 @@ const createCanonicalFileRecord = (
     },
     id: fileId,
     kind: "unknown",
-    measurementBlockOrder: [],
-    measurementBlocksById: {},
     metricsByKey,
     name: "file-a.csv",
     metricsBySeriesId: {

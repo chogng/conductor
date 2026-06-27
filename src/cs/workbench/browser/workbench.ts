@@ -38,10 +38,6 @@ import {
 } from "src/cs/workbench/services/chart/common/chart";
 import { ICalculationService } from "src/cs/workbench/services/calculation/common/calculation";
 import {
-  ITableModelQueueService,
-  type ITableModelQueueService as ITableModelQueueServiceType,
-} from "src/cs/workbench/services/tableModel/common/tableModel";
-import {
   ExplorerViewId,
   IExplorerService,
 } from "src/cs/workbench/contrib/files/browser/files";
@@ -154,7 +150,6 @@ type WorkbenchAuxiliaryRefreshReason =
   | `session:${string}`;
 
 export type WorkbenchOptions = {
-  readonly tableModelQueueService?: ITableModelQueueServiceType;
   readonly className?: string;
   readonly calculationService?: ICalculationService;
   readonly chartService?: IChartService;
@@ -195,7 +190,6 @@ type WorkbenchShellServices = {
 };
 
 type WorkbenchServices = {
-  readonly tableModelQueueService: ITableModelQueueServiceType;
   readonly calculationService: ICalculationService;
   readonly chartService: IChartService;
   readonly commandService: ICommandService;
@@ -219,7 +213,6 @@ type WorkbenchServices = {
 
 const hasExplicitWorkbenchServices = (options: WorkbenchOptions): boolean =>
   Boolean(
-    options.tableModelQueueService &&
     options.calculationService &&
     options.chartService &&
     options.commandService &&
@@ -356,10 +349,6 @@ const resolveWorkbenchServices = (
   }
 
   return {
-    tableModelQueueService: requireWorkbenchService(
-      "ITableModelQueueService",
-      options.tableModelQueueService,
-    ),
     calculationService: requireWorkbenchService("ICalculationService", options.calculationService),
     chartService: requireWorkbenchService("IChartService", options.chartService),
     commandService: requireWorkbenchService("ICommandService", options.commandService),
@@ -390,11 +379,6 @@ const createWorkbenchServicesFromAccessor = (
   shellServices: WorkbenchShellServices,
   accessor: ServicesAccessor,
 ): WorkbenchServices => ({
-  tableModelQueueService: resolveWorkbenchDependency(
-    "ITableModelQueueService",
-    options.tableModelQueueService,
-    () => accessor.get(ITableModelQueueService),
-  ),
   calculationService: resolveWorkbenchDependency(
     "ICalculationService",
     options.calculationService,
@@ -523,7 +507,6 @@ export class Workbench extends Layout {
   private activeWorkbenchViewContext: IContextKey<string> | null = null;
   private activeWorkbenchMainPartContext: IContextKey<WorkbenchMainPart | ""> | null = null;
   private activeAuxiliaryBarViewContext: IContextKey<string> | null = null;
-  private tableModelQueueService!: ITableModelQueueServiceType;
   private calculationService!: ICalculationService;
   private chartService!: IChartService;
   private explorerService!: IExplorerService;
@@ -639,7 +622,6 @@ export class Workbench extends Layout {
   private installServiceLayer(services: WorkbenchServices): void {
     measureWorkbenchBoot("workbench:service-layer:install", () => {
       measureWorkbenchBoot("workbench:service-layer:install:assign", () => {
-        this.tableModelQueueService = services.tableModelQueueService;
         this.calculationService = services.calculationService;
         this.chartService = services.chartService;
         this.commandService = services.commandService;
@@ -679,7 +661,6 @@ export class Workbench extends Layout {
 
       const domainBridge = measureWorkbenchBoot("workbench:service-layer:install:bridge-create", () =>
         this._register(new WorkbenchDomainBridge({
-          tableModelQueueService: this.tableModelQueueService,
           calculationService: this.calculationService,
           chartService: this.chartService,
           explorerService: this.explorerService,
@@ -1002,8 +983,6 @@ export class Workbench extends Layout {
 
   private shouldRefreshExportSurfacesForSessionChange(event: SessionChangeEvent): boolean {
     switch (event.reason) {
-      case "tableModelChanged":
-        return false;
       case "calculatedRecordsChanged":
       case "metricsChanged":
       case "metricInputsChanged":

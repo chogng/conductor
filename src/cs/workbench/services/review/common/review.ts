@@ -11,6 +11,7 @@ import type {
   ReviewedTemplate,
   ReviewSuggestedAction,
   CandidateReview,
+  ReviewEvidence,
   ReviewTableProjectionEvidence,
   ReviewResult,
   ReviewSummary,
@@ -120,20 +121,8 @@ export type ReviewEvidenceSignatureContext = {
 };
 
 export type ReviewEvidenceSignatureInput = {
-  readonly tableModelRuleVersion: number;
-  readonly blocks: ReviewTableProjectionEvidence["blocks"];
-  readonly columnProfiles: ReviewTableProjectionEvidence["columnProfiles"];
-  readonly diagnostics: ReviewTableProjectionEvidence["diagnostics"];
-  readonly groups: ReviewTableProjectionEvidence["groups"];
-  readonly layoutCandidates: ReviewTableProjectionEvidence["layoutCandidates"];
-  readonly schemaProfileVersion: number;
-  readonly semanticCandidates: ReviewTableProjectionEvidence["semanticCandidates"];
-  readonly sourceContentHash?: string;
-  readonly sourceModelVersion?: number;
-  readonly sourceRawTableVersion: number;
-  readonly sourceUri?: string;
-  readonly sourceVersion?: number;
-  readonly structure: ReviewTableProjectionEvidence["structure"];
+  readonly sourceMetadata: ReviewEvidence["sourceMetadata"];
+  readonly tableProjection?: ReviewTableProjectionEvidence;
 };
 
 export interface IReviewService {
@@ -147,47 +136,34 @@ export interface IReviewService {
   reviewUriManualTemplate(input: UriManualTemplateReviewRequest): Promise<ManualTemplateReviewResult>;
 }
 
-export const createReviewEvidenceSignature = ({
-  tableModelRuleVersion,
-  blocks,
-  columnProfiles,
-  diagnostics,
-  groups,
-  layoutCandidates,
-  schemaProfileVersion,
-  semanticCandidates,
-  sourceContentHash,
-  sourceModelVersion,
-  sourceRawTableVersion,
-  sourceUri,
-  sourceVersion,
-  structure,
-}: ReviewEvidenceSignatureInput, context: ReviewEvidenceSignatureContext = {}): string => {
-  const sourceModelSignature = createSourceModelSignature({
-    contentHash: context.contentHash ?? sourceContentHash,
-    sourceSheetId: context.sheetId,
-    sourceModelVersion,
-    sourceUri,
-    sourceVersion,
-  });
+export const createReviewEvidenceSignature = (
+  evidence: ReviewEvidenceSignatureInput,
+  context: ReviewEvidenceSignatureContext = {},
+): string => {
+  const sourceMetadata = {
+    columnCount: normalizeSignatureInteger(context.columnCount ?? evidence.sourceMetadata.columnCount),
+    contentHash: normalizeSignatureText(context.contentHash ?? evidence.sourceMetadata.contentHash),
+    fileName: normalizeSignatureText(context.fileName ?? evidence.sourceMetadata.fileName),
+    rowCount: normalizeSignatureInteger(context.rowCount ?? evidence.sourceMetadata.rowCount),
+    sourceModelVersion: normalizeSignatureInteger(evidence.sourceMetadata.sourceModelVersion),
+    sourceUri: normalizeSignatureText(evidence.sourceMetadata.sourceUri),
+    sourceVersion: normalizeSignatureInteger(evidence.sourceMetadata.sourceVersion),
+    sheetId: normalizeSignatureText(context.sheetId),
+  };
 
   return JSON.stringify({
-    tableModelRuleVersion,
-    schemaProfileVersion,
-    sourceMetadata: {
-      columnCount: normalizeSignatureInteger(context.columnCount),
-      fileName: normalizeSignatureText(context.fileName),
-      rowCount: normalizeSignatureInteger(context.rowCount),
-    },
-    ...sourceModelSignature,
-    ...(sourceModelSignature.sourceModel ? {} : { sourceRawTableVersion }),
-    structure,
-    columnProfiles,
-    layoutCandidates,
-    semanticCandidates,
-    groups,
-    blocks,
-    diagnostics,
+    sourceMetadata,
+    tableProjection: evidence.tableProjection
+      ? {
+          structure: evidence.tableProjection.structure,
+          columnProfiles: evidence.tableProjection.columnProfiles,
+          layoutCandidates: evidence.tableProjection.layoutCandidates,
+          semanticCandidates: evidence.tableProjection.semanticCandidates,
+          groups: evidence.tableProjection.groups,
+          blocks: evidence.tableProjection.blocks,
+          diagnostics: evidence.tableProjection.diagnostics,
+        }
+      : undefined,
   });
 };
 
@@ -203,35 +179,4 @@ const normalizeSignatureInteger = (
 ): number | undefined => {
   const normalized = Math.floor(Number(value));
   return Number.isFinite(normalized) && normalized >= 0 ? normalized : undefined;
-};
-
-const createSourceModelSignature = ({
-  contentHash,
-  sourceSheetId,
-  sourceModelVersion,
-  sourceUri,
-  sourceVersion,
-}: {
-  readonly contentHash?: string | null;
-  readonly sourceSheetId?: string | null;
-  readonly sourceModelVersion?: number;
-  readonly sourceUri?: string;
-  readonly sourceVersion?: number;
-}): { readonly sourceModel?: { readonly contentHash?: string; readonly modelVersion?: number; readonly sheetId?: string; readonly sourceUri?: string; readonly sourceVersion?: number } } => {
-  const normalizedContentHash = normalizeSignatureText(contentHash);
-  const modelVersion = normalizeSignatureInteger(sourceModelVersion);
-  const normalizedSheetId = normalizeSignatureText(sourceSheetId);
-  const normalizedSourceUri = normalizeSignatureText(sourceUri);
-  const normalizedSourceVersion = normalizeSignatureInteger(sourceVersion);
-  return normalizedContentHash || modelVersion !== undefined || normalizedSheetId || normalizedSourceUri || normalizedSourceVersion !== undefined
-    ? {
-        sourceModel: {
-          contentHash: normalizedContentHash,
-          modelVersion,
-          sheetId: normalizedSheetId,
-          sourceUri: normalizedSourceUri,
-          sourceVersion: normalizedSourceVersion,
-        },
-      }
-    : {};
 };

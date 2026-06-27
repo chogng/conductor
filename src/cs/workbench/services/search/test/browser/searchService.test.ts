@@ -167,14 +167,14 @@ suite("workbench/services/search/test/browser/searchService", () => {
 	test("indexes session snapshot records and resolves navigation targets", () => {
 		const service = store.add(createSearchServiceForTest());
 		const results = service.searchSnapshot(createSnapshot(), {
-			kinds: ["rawCell", "curve", "metric", "block"],
+			kinds: ["rawCell", "curve", "metric"],
 			scope: "all",
 			text: "Alpha",
 		});
 
 		assert.deepEqual(
 			results.map(result => result.kind),
-			["curve", "metric", "block", "rawCell"],
+			["curve", "metric", "rawCell"],
 		);
 		const rawCell = results.find(result => result.kind === "rawCell");
 		assert.deepEqual(service.resolveResultTarget(rawCell!), {
@@ -397,11 +397,11 @@ const createPlotServiceForPointLookupTest = ({
 		],
 	}),
 	getHiddenLegendKeys: (
-		fileId: string,
+		target: string | { readonly fileId?: string | null },
 		plotType: NonNullable<PlotDisplayModelInput["plotType"]>,
 		liveLegendKeys: readonly string[],
 	) =>
-		fileId === "file-a" && plotType === "iv"
+		(typeof target === "string" ? target : target.fileId) === "file-a" && plotType === "iv"
 			? liveLegendKeys.filter(legendKey => legendKey === "series-b")
 			: [],
 	getLegendLabels: () => legendLabels(),
@@ -456,30 +456,6 @@ const createFileRecord = (): FileRecord => ({
 	},
 	id: "file-a",
 	kind: "unknown",
-	measurementBlockOrder: ["block-a"],
-	measurementBlocksById: {
-		"block-a": {
-			columnCount: 2,
-			columns: { columns: [] },
-			confidence: 0.9,
-			diagnosticCodes: [],
-			family: "iv",
-			fileId: "file-a",
-			id: "block-a",
-			ivMode: "transfer",
-			label: "Alpha block",
-			rawTableId: "sheet-a",
-			rowCount: 1,
-			source: {
-				fullRange: {
-					endCol: 1,
-					endRow: 0,
-					startCol: 0,
-					startRow: 0,
-				},
-			},
-		},
-	},
 	metricsByKey: {
 		"current:series-a:auto": {
 			algorithm: { id: "test" },
@@ -525,7 +501,6 @@ const createFileRecord = (): FileRecord => ({
 		},
 	},
 	rawTableVersionsById: {},
-	tableModelByRawTableId: {},
 	seriesById: {
 		"series-a": {
 			fileId: "file-a",

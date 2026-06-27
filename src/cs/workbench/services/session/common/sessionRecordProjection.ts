@@ -6,7 +6,6 @@ import {
   type FileRecord,
   type IvCurveMode,
 } from "src/cs/workbench/services/session/common/sessionModel";
-import type { MeasurementBlockRecord } from "src/cs/workbench/services/tableModel/common/measurement";
 import type { SliceRun } from "src/cs/workbench/services/slice/common/slice";
 import type { TemplateBlock } from "src/cs/workbench/services/template/common/templateSpec";
 import type {
@@ -56,43 +55,13 @@ export const collectFileRecordBaseCurves = (
   return ordered;
 };
 
-export const collectFileRecordMeasurementBlocks = (
-  file: FileRecord,
-): MeasurementBlockRecord[] => {
-  const blocks = Object.values(file.measurementBlocksById ?? {});
-  if (!blocks.length) {
-    return [];
-  }
-
-  const used = new Set<MeasurementBlockRecord>();
-  const ordered: MeasurementBlockRecord[] = [];
-  const pushBlock = (block: MeasurementBlockRecord | undefined): void => {
-    if (!block || used.has(block)) {
-      return;
-    }
-    used.add(block);
-    ordered.push(block);
-  };
-
-  for (const blockId of file.measurementBlockOrder) {
-    pushBlock(file.measurementBlocksById[blockId]);
-  }
-  for (const block of blocks) {
-    pushBlock(block);
-  }
-
-  return ordered;
-};
-
 export const hasFileRecordBaseCurves = (file: FileRecord): boolean =>
   collectFileRecordBaseCurves(file).length > 0;
 
 export const getFileRecordCurveFamily = (
   file: FileRecord,
 ): BaseCurveFamily | null =>
-  collectFileRecordBaseCurves(file)[0]?.curveFamily ??
-  toBaseCurveFamily(collectFileRecordMeasurementBlocks(file)[0]?.family) ??
-  null;
+  collectFileRecordBaseCurves(file)[0]?.curveFamily ?? null;
 
 export const getFileRecordCurveType = (
   file: FileRecord,
@@ -107,18 +76,7 @@ export const getFileRecordCurveType = (
   if (curve) {
     return curve.curveFamily;
   }
-
-  const block = collectFileRecordMeasurementBlocks(file)[0];
-  if (!block) {
-    return undefined;
-  }
-  if (block.family === "iv" && block.ivMode) {
-    return block.ivMode;
-  }
-  if (block.family && block.family !== "unknown") {
-    return block.family;
-  }
-  return block.label || undefined;
+  return undefined;
 };
 
 export const getFileRecordAxisProjection = (
@@ -182,11 +140,7 @@ export const fileRecordSupportsSs = (file: FileRecord): boolean =>
 const getFileRecordIvMode = (file: FileRecord): IvCurveMode | null =>
   collectFileRecordBaseCurves(file).find((curve) =>
     curve.curveFamily === "iv" && curve.ivMode
-  )?.ivMode ??
-  collectFileRecordMeasurementBlocks(file).find((block) =>
-    block.family === "iv" && block.ivMode && block.ivMode !== "unknown"
-  )?.ivMode as IvCurveMode | undefined ??
-  null;
+  )?.ivMode ?? null;
 
 const getSliceTemplateBlockText = (
   sliceRun: SliceRun | undefined,
@@ -205,15 +159,6 @@ const normalizeOptionalText = (value: unknown): string | undefined => {
   const text = String(value ?? "").trim();
   return text || undefined;
 };
-
-const toBaseCurveFamily = (value: unknown): BaseCurveFamily | null =>
-  value === "iv" ||
-  value === "cv" ||
-  value === "cf" ||
-  value === "pv" ||
-  value === "it"
-    ? value
-    : null;
 
 const getXAxisRoleFromIvMode = (
   ivMode: IvCurveMode | null,

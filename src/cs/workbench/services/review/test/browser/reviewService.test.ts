@@ -10,14 +10,13 @@ import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { StorageScope } from "src/cs/platform/storage/common/storage";
 import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
-import { TABLE_MODEL_RULE_VERSION, type TableModelRecord } from "src/cs/workbench/services/tableModel/common/tableModel";
-import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
-import type { FileImportResult, ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
+import { createEmptyTableProjectionStructure } from "src/cs/workbench/services/table/common/tableProjection";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
 import type { IRecipeService, Recipe, RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
 import { createRecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipeCodec";
 import { ReviewService } from "src/cs/workbench/services/review/browser/reviewService";
 import type { ReviewSummaryTarget } from "src/cs/workbench/services/review/common/review";
+import type { ReviewEvidence } from "src/cs/workbench/services/review/common/reviewModel";
 import { deriveReviewResult } from "src/cs/workbench/services/review/common/reviewResult";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import {
@@ -32,15 +31,10 @@ import type {
 	ITableModelReference,
 	ITableModelService,
 } from "src/cs/workbench/services/table/common/resolverService";
-import { TableModelProducerService } from "src/cs/workbench/services/tableModel/browser/tableModelService";
 import type { Template } from "src/cs/workbench/services/template/common/template";
 import type { IUserTemplateService } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 import { UserTemplateService } from "src/cs/workbench/services/userTemplate/browser/userTemplateService";
 import { UserTemplateStoreService } from "src/cs/workbench/services/userTemplate/browser/userTemplateStoreService";
-
-import ivOutputRows from "../../../tableModel/test/fixtures/iv-output/rows.json";
-import ivTransferRows from "../../../tableModel/test/fixtures/iv-transfer/rows.json";
-import groupedSweepRows from "../../../tableModel/test/fixtures/ch1-ch2/grouped-sweep/rows.json";
 
 suite("workbench/services/review/test/browser/reviewService", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -53,12 +47,10 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		recipeService: IRecipeService,
 		userTemplateService: IUserTemplateService,
 		tableModelService?: ITableModelService,
-		tableModelProducerService?: TableModelProducerService,
 	) => store.add(new ReviewService(
 		recipeService,
 		userTemplateService,
 		tableModelService,
-		tableModelProducerService,
 	));
 	const createReviewTargetForTest = (fileName = "Transfer.csv") => ({
 		resource: URI.file(`/workspace/${fileName}`),
@@ -71,7 +63,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 
 		const result = deriveReviewResult({
-			tableModel: createTableModel(),
+			evidence: createReviewEvidence(),
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			...createReviewTargetForTest(),
@@ -97,7 +89,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 
 		const result = deriveReviewResult({
-			tableModel: createTableModel(),
+			evidence: createReviewEvidence(),
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			...createReviewTargetForTest(),
@@ -125,7 +117,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 
 		const result = deriveReviewResult({
-			tableModel: createTableModel(),
+			evidence: createReviewEvidence(),
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			...createReviewTargetForTest(),
@@ -147,7 +139,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const template = createTemplate({
 			id: "template-a",
 			applicability: {
-				schemaFingerprint: createEmptyRawTableStructure().fingerprint,
+				schemaFingerprint: createEmptyTableProjectionStructure().fingerprint,
 				columnCount: 2,
 			},
 		});
@@ -160,7 +152,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		});
 
 		const result = deriveReviewResult({
-			tableModel: createTableModel(),
+			evidence: createReviewEvidence(),
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			...createReviewTargetForTest(),
@@ -185,7 +177,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		});
 
 		const result = deriveReviewResult({
-			tableModel: createTableModel(),
+			evidence: createReviewEvidence(),
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			...createReviewTargetForTest(),
@@ -211,7 +203,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			recipeService,
 			userTemplateService,
 			store.add(new TestTableModelService(resource)),
-			store.add(new TableModelProducerService()),
 		);
 
 		const target = {
@@ -254,7 +245,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			recipeService,
 			userTemplateService,
 			store.add(new TestTableModelService(resource)),
-			store.add(new TableModelProducerService()),
 		);
 		const target: ReviewSummaryTarget = {
 			resource: resource.toJSON() as unknown as ReviewSummaryTarget["resource"],
@@ -285,7 +275,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			recipeService,
 			userTemplateService,
 			store.add(new TestTableModelService(resource)),
-			store.add(new TableModelProducerService()),
 		);
 		const target = { resource };
 
@@ -312,7 +301,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			recipeService,
 			userTemplateService,
 			store.add(new TestTableModelService(resource, [], "table-a")),
-			store.add(new TableModelProducerService()),
 		);
 		const target = {
 			resource,
@@ -349,7 +337,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			recipeService,
 			userTemplateService,
 			store.add(new TestTableModelService(resource)),
-			store.add(new TableModelProducerService()),
 		);
 		const target = {
 			resource,
@@ -388,7 +375,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 				rowIndex: 1,
 				severity: "fatal",
 			}])),
-			store.add(new TableModelProducerService()),
 		);
 
 		const target = { resource };
@@ -421,7 +407,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 				rowIndex: 2,
 				severity: "error",
 			}])),
-			store.add(new TableModelProducerService()),
 		);
 
 		const target = { resource };
@@ -435,130 +420,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(uriReview.result?.reviews.some(review =>
 			review.findings.some(finding => finding.code === "review.parserFatalDiagnostic")
 		), false);
-	});
-
-	test("matches builtin IV recipes against table-model fixture evidence", async () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
-		const userTemplateService = createUserTemplateServiceForTest();
-		const tableModelProducerService = store.add(new TableModelProducerService());
-
-		const fixtures = [
-			{
-				fileName: "transfer.csv",
-				id: "iv-transfer",
-				recipeId: "builtin.iv.transfer",
-				reviewedName: "Detected IV Transfer",
-				rows: ivTransferRows,
-			},
-			{
-				fileName: "Output [sample].csv",
-				id: "iv-output",
-				recipeId: "builtin.iv.output",
-				reviewedName: "Detected IV Output",
-				rows: ivOutputRows,
-			},
-		] as const;
-
-		for (const fixture of fixtures) {
-			const tableModel = await tableModelProducerService.getOrCreate({
-				fileId: `fixture:${fixture.id}`,
-				fileName: fixture.fileName,
-				rawTableId: "raw",
-				rows: fixture.rows,
-				sourceRawTableVersion: 1,
-			});
-			const result = deriveReviewResult({
-				tableModel,
-				columnCount: getFixtureColumnCount(fixture.rows),
-				fileName: fixture.fileName,
-				...createReviewTargetForTest(fixture.fileName),
-				recipeSnapshot: recipeService.getSnapshot(),
-				rowCount: fixture.rows.length,
-				userTemplateSnapshot: userTemplateService.getSnapshot(),
-			});
-
-			assert.equal(result.decision.kind, "ready", fixture.id);
-			assert.equal(result.decision.kind === "ready" && result.decision.reviewedTemplate.source.kind, "recipe", fixture.id);
-			assert.equal(
-				result.decision.kind === "ready" && result.decision.reviewedTemplate.source.kind === "recipe" && result.decision.reviewedTemplate.source.recipeId,
-				fixture.recipeId,
-				fixture.id,
-			);
-			assert.equal(
-				result.decision.kind === "ready" && result.decision.reviewedTemplate.template.name,
-				fixture.reviewedName,
-				fixture.id,
-			);
-		}
-	});
-
-	test("matches grouped XY IV recipes through layout binding projection", async () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
-		const userTemplateService = createUserTemplateServiceForTest();
-		const tableModelProducerService = store.add(new TableModelProducerService());
-		const tableModel = await tableModelProducerService.getOrCreate({
-			fileId: "fixture:grouped-sweep",
-			fileName: "Output [grouped].csv",
-			rawTableId: "raw",
-			rows: groupedSweepRows,
-			sourceRawTableVersion: 1,
-		});
-
-		const result = deriveReviewResult({
-			tableModel,
-			columnCount: getFixtureColumnCount(groupedSweepRows),
-			fileName: "Output [grouped].csv",
-			...createReviewTargetForTest("Output [grouped].csv"),
-			recipeSnapshot: recipeService.getSnapshot(),
-			rowCount: groupedSweepRows.length,
-			userTemplateSnapshot: userTemplateService.getSnapshot(),
-		});
-
-		assert.equal(result.decision.kind, "ready");
-		assert.equal(result.candidates[0]?.source.kind, "recipe");
-		assert.equal(result.candidates[0]?.source.kind === "recipe" && result.candidates[0].source.recipeId, "builtin.iv.output.grouped");
-		assert.equal(result.candidates[0]?.displayName, "Detected IV Output");
-		assert.deepEqual(result.decision.kind === "ready" && result.decision.reviewedTemplate.template.blocks[0]?.x.columns, [3]);
-		assert.deepEqual(result.decision.kind === "ready" && result.decision.reviewedTemplate.template.blocks[0]?.y.columns, [4]);
-		assert.deepEqual(result.reviews[0]?.findings.map(finding => finding.code), []);
-	});
-
-	test("matches full CH1/CH2 instrument exports without no-candidate review", async () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
-		const userTemplateService = createUserTemplateServiceForTest();
-		const tableModelProducerService = store.add(new TableModelProducerService());
-		const rows = [
-			["Repeat", "VAR2", "Point", "CH1 Voltage", "CH1 Current", "CH1 Resistance", "CH1 Time", "CH2 Voltage", "CH2 Current", "CH2 Time", "R"],
-			["1", "1", "0", "-3.00000E+000", "-3.70327E-009", "810.095", "0.125472", "-60.00000E+000", "1.34E-009", "0.009", ""],
-			["1", "1", "1", "-2.97001E+000", "-3.49041E-009", "850.906", "0.246443", "-60.00000E+000", "1.062E-009", "0.146", ""],
-			["1", "1", "2", "-2.94000E+000", "-3.05101E-009", "963.615", "0.367261", "-60.00000E+000", "0.97E-009", "0.267", ""],
-			["1", "1", "3", "-2.91000E+000", "-2.96381E-009", "981.844", "0.488055", "-60.00000E+000", "1.217E-009", "0.388", ""],
-		];
-		const tableModel = await tableModelProducerService.getOrCreate({
-			fileId: "fixture:instrument-export",
-			fileName: "3.csv",
-			rawTableId: "raw",
-			rows,
-			sourceRawTableVersion: 1,
-		});
-
-		const result = deriveReviewResult({
-			tableModel,
-			columnCount: getFixtureColumnCount(rows),
-			fileName: "3.csv",
-			...createReviewTargetForTest("3.csv"),
-			recipeSnapshot: recipeService.getSnapshot(),
-			rowCount: rows.length,
-			userTemplateSnapshot: userTemplateService.getSnapshot(),
-		});
-
-		assert.notEqual(result.decision.kind, "invalid");
-		assert.equal(result.candidates[0]?.source.kind, "recipe");
-		assert.equal(result.candidates[0]?.source.kind === "recipe" && result.candidates[0].source.recipeId, "builtin.iv.output.grouped");
-		assert.deepEqual(result.candidates[0]?.diagnosticCodes, []);
-		assert.equal(result.decision.kind, "needsManualAdjustment");
-		assert.equal(result.decision.kind === "needsManualAdjustment" && result.decision.reasons.includes("review.noCandidates"), false);
-		assert.deepEqual(result.reviews[0]?.findings.map(finding => finding.code), []);
 	});
 
 });
@@ -728,11 +589,6 @@ const waitUntil = async (
 	assert.fail("Timed out waiting for condition.");
 };
 
-const getFixtureColumnCount = (
-	rows: readonly (readonly string[])[],
-): number =>
-	rows.reduce((maxColumnCount, row) => Math.max(maxColumnCount, row.length), 0);
-
 const createTestTableModelContent = (): TableModelContentSnapshot => ({
 	columnCount: 2,
 	maxCellLengths: [2, 2],
@@ -744,111 +600,72 @@ const createTestTableModelContent = (): TableModelContentSnapshot => ({
 	],
 });
 
-const createTableModel = (
-	overrides: Partial<TableModelRecord> = {},
-): TableModelRecord => ({
-	tableModelRuleVersion: TABLE_MODEL_RULE_VERSION,
-	schemaProfileVersion: 0,
-	fileId: "file-a",
-	rawTableId: "table-a",
-	sourceRawTableVersion: 1,
-	structure: createEmptyRawTableStructure(),
-	columnProfiles: [],
-	layoutCandidates: [],
-	semanticCandidates: [],
-	groups: [],
-	blocks: [{
-		id: "block-a",
-		fileId: "file-a",
-		rawTableId: "table-a",
-		label: "Transfer",
-		family: "iv",
-		ivMode: "transfer",
-		source: {
-			fullRange: {
-				startRow: 0,
-				endRow: 2,
-				startCol: 0,
-				endCol: 1,
-			},
-			dataRange: {
-				startRow: 1,
-				endRow: 2,
-				startCol: 0,
-				endCol: 1,
-			},
-		},
-		columns: {
-			columns: [{
-				rawCol: 0,
-				role: "vg",
-				unit: "V",
-				headerText: "Vg",
-				confidence: 0.95,
-				sourceRange: {
+const createReviewEvidence = (): ReviewEvidence => ({
+	sourceMetadata: {
+		fileName: "Transfer.csv",
+		rowCount: 3,
+		columnCount: 2,
+	},
+	tableProjection: {
+		structure: createEmptyTableProjectionStructure(),
+		columnProfiles: [],
+		layoutCandidates: [],
+		semanticCandidates: [],
+		groups: [],
+		blocks: [{
+			id: "block-a",
+			fileId: "file-a",
+			rawTableId: "table-a",
+			label: "Transfer",
+			family: "iv",
+			ivMode: "transfer",
+			source: {
+				fullRange: {
 					startRow: 0,
 					endRow: 2,
 					startCol: 0,
-					endCol: 0,
-				},
-			}, {
-				rawCol: 1,
-				role: "id",
-				unit: "A",
-				headerText: "Id",
-				confidence: 0.95,
-				sourceRange: {
-					startRow: 0,
-					endRow: 2,
-					startCol: 1,
 					endCol: 1,
 				},
-			}],
-		},
-		rowCount: 3,
-		columnCount: 2,
-		confidence: 0.95,
-		diagnosticCodes: [],
-	}],
-	diagnostics: [],
-	createdAt: 1,
-	...overrides,
-});
-
-const createImportResult = (): FileImportResult => ({
-	createdAt: 1,
-	diagnostics: [],
-	files: [createImportedFile()],
-});
-
-const createImportedFile = (): ImportedFileRecord => ({
-	id: "file-a",
-	kind: "csv",
-	name: "Transfer.csv",
-	raw: {
-		fileId: "file-a",
-		fileName: "Transfer.csv",
-		rawTablesById: {
-			"table-a": {
-				fileId: "file-a",
-				rawTableId: "table-a",
-				rowCount: 3,
-				columnCount: 2,
-				maxCellLengths: [],
-				rows: {
-					kind: "inline",
-					values: [
-						["Vg", "Id"],
-						["0", "1"],
-						["1", "2"],
-					],
-				},
-				source: {
-					kind: "csv",
+				dataRange: {
+					startRow: 1,
+					endRow: 2,
+					startCol: 0,
+					endCol: 1,
 				},
 			},
-		},
-		rawTableOrder: ["table-a"],
+			columns: {
+				columns: [{
+					rawCol: 0,
+					role: "vg",
+					unit: "V",
+					headerText: "Vg",
+					confidence: 0.95,
+					sourceRange: {
+						startRow: 0,
+						endRow: 2,
+						startCol: 0,
+						endCol: 0,
+					},
+				}, {
+					rawCol: 1,
+					role: "id",
+					unit: "A",
+					headerText: "Id",
+					confidence: 0.95,
+					sourceRange: {
+						startRow: 0,
+						endRow: 2,
+						startCol: 1,
+						endCol: 1,
+					},
+				}],
+			},
+			rowCount: 3,
+			columnCount: 2,
+			confidence: 0.95,
+			diagnosticCodes: [],
+		}],
+		diagnostics: [],
 	},
 });
 

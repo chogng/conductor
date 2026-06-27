@@ -10,8 +10,8 @@ import type {
 	ReviewCandidateInterpretation,
 	ReviewCandidateSummary,
 	ReviewContext,
+	ReviewEvidence,
 	ReviewResult,
-	ReviewSourceMetadata,
 	ReviewSummaryTarget,
 } from "src/cs/workbench/services/review/common/reviewModel";
 import { URI } from "src/cs/base/common/uri";
@@ -23,7 +23,6 @@ import {
 } from "src/cs/workbench/services/review/common/review";
 import { scoreReviewCandidates } from "src/cs/workbench/services/review/common/reviewScoring";
 import type { RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
-import type { TableModelRecord } from "src/cs/workbench/services/tableModel/common/tableModel";
 import type { Template } from "src/cs/workbench/services/template/common/template";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import type { UserTemplateSnapshot } from "src/cs/workbench/services/userTemplate/common/userTemplate";
@@ -31,9 +30,9 @@ import type { UserTemplateSnapshot } from "src/cs/workbench/services/userTemplat
 const SYSTEM_RECOMMENDED_CONFIDENCE = 0.85;
 
 export type ReviewDerivationInput = {
-	readonly tableModel: TableModelRecord;
 	readonly columnCount?: number;
 	readonly contentHash?: string | null;
+	readonly evidence: ReviewEvidence;
 	readonly fileName?: string | null;
 	readonly modelVersion: number;
 	readonly recipeSnapshot: RecipeSnapshot;
@@ -84,7 +83,7 @@ export const deriveReviewResult = (
 const createReviewContext = (
 	input: ReviewDerivationInput,
 ): ReviewContext => {
-	const evidenceFingerprint = createReviewEvidenceSignature(input.tableModel, {
+	const evidenceFingerprint = createReviewEvidenceSignature(input.evidence, {
 		columnCount: input.columnCount,
 		contentHash: input.contentHash,
 		fileName: input.fileName,
@@ -99,77 +98,8 @@ const createReviewContext = (
 		...(normalizeText(input.contentHash) ? { contentHash: normalizeText(input.contentHash) } : {}),
 		...(normalizeText(input.sheetId) ? { sheetId: normalizeText(input.sheetId) } : {}),
 		evidenceFingerprint,
-		evidence: {
-			sourceMetadata: createReviewSourceMetadata(input),
-			tableProjection: {
-				structure: input.tableModel.structure,
-				columnProfiles: input.tableModel.columnProfiles,
-				layoutCandidates: input.tableModel.layoutCandidates,
-				semanticCandidates: input.tableModel.semanticCandidates,
-				groups: input.tableModel.groups,
-				blocks: input.tableModel.blocks,
-				diagnostics: input.tableModel.diagnostics,
-			},
-		},
+		evidence: input.evidence,
 	};
-};
-
-const createReviewSourceMetadata = (
-	input: ReviewDerivationInput,
-): ReviewSourceMetadata => ({
-	...(input.columnCount !== undefined ? { columnCount: input.columnCount } : {}),
-	...(normalizeText(input.contentHash) ? { contentHash: normalizeText(input.contentHash) } : {}),
-	...(input.fileName !== undefined ? { fileName: input.fileName } : {}),
-	...(input.rowCount !== undefined ? { rowCount: input.rowCount } : {}),
-	sourceModelVersion: input.modelVersion,
-	sourceUri: getResourceIdentity(input.resource),
-	sourceVersion: input.sourceVersion,
-});
-
-const getResourceIdentity = (
-	resource: unknown,
-): string => {
-	const text = getResourceString(resource);
-	if (text) {
-		return text.replace(/\\/g, "/");
-	}
-
-	if (resource && typeof resource === "object") {
-		const candidate = resource as { readonly scheme?: unknown; readonly authority?: unknown; readonly path?: unknown; readonly query?: unknown; readonly fragment?: unknown };
-		const scheme = normalizeText(candidate.scheme);
-		const path = normalizeText(candidate.path);
-		if (scheme && path) {
-			const authority = normalizeText(candidate.authority);
-			const query = normalizeText(candidate.query);
-			const fragment = normalizeText(candidate.fragment);
-			return (scheme === "file"
-				? `file://${authority}${path}${query ? `?${query}` : ""}${fragment ? `#${fragment}` : ""}`
-				: `${scheme}://${authority}${path}${query ? `?${query}` : ""}${fragment ? `#${fragment}` : ""}`
-			).replace(/\\/g, "/");
-		}
-	}
-
-	return "";
-};
-
-const getResourceString = (
-	resource: unknown,
-): string => {
-	if (!resource) {
-		return "";
-	}
-
-	if (typeof resource === "string") {
-		return normalizeText(resource);
-	}
-
-	const toString = (resource as { readonly toString?: unknown }).toString;
-	if (typeof toString === "function" && toString !== Object.prototype.toString) {
-		const text = normalizeText(toString.call(resource));
-		return text === "[object Object]" ? "" : text;
-	}
-
-	return "";
 };
 
 const createReviewDecision = ({

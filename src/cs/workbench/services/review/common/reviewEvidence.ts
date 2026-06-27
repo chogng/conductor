@@ -2,15 +2,15 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ColumnProfile } from "src/cs/workbench/services/tableModel/common/columnProfile";
-import type { TableModelDiagnostic } from "src/cs/workbench/services/tableModel/common/diagnostics";
-import type { LayoutCandidate } from "src/cs/workbench/services/tableModel/common/layoutCandidate";
 import type {
+	ColumnProfile,
+	ColumnSemanticCandidate,
+	LayoutCandidate,
 	MeasurementBlockRecord,
 	MeasurementGroupRecord,
-} from "src/cs/workbench/services/tableModel/common/measurement";
-import type { RawTableStructure } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
-import type { ColumnSemanticCandidate } from "src/cs/workbench/services/tableModel/common/semanticCandidate";
+	TableProjectionDiagnostic,
+	TableProjectionStructure,
+} from "src/cs/workbench/services/table/common/tableProjection";
 
 export type ReviewSourceMetadata = {
 	readonly columnCount?: number;
@@ -28,11 +28,11 @@ export type ReviewEvidence = {
 };
 
 export type ReviewTableProjectionEvidence = {
-	readonly structure: RawTableStructure;
+	readonly structure: TableProjectionStructure;
 	readonly columnProfiles: readonly ColumnProfile[];
 	readonly layoutCandidates: readonly LayoutCandidate[];
 	readonly semanticCandidates: readonly ColumnSemanticCandidate[];
 	readonly groups: readonly MeasurementGroupRecord[];
 	readonly blocks: readonly MeasurementBlockRecord[];
-	readonly diagnostics: readonly TableModelDiagnostic[];
+	readonly diagnostics: readonly TableProjectionDiagnostic[];
 };

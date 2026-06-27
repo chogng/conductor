@@ -36,7 +36,6 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
   test("ignores session changes that do not affect calculated curve inputs", () => {
     for (const reason of [
       "rawTablesChanged",
-      "tableModelChanged",
       "calculatedRecordsChanged",
       "metricsChanged",
     ] satisfies SessionChangeReason[]) {
@@ -473,9 +472,6 @@ const createSessionServiceStub = ({
   commitCurvesBatch,
   commitMetrics: () => undefined,
   commitMetricsBatch,
-  commitTableModel: () => undefined,
-  commitTableModelBatch: () => undefined,
-  commitRawTableReviews: () => undefined,
   commitSliceRuns: () => undefined,
   getSnapshot,
   onDidChangeSession,
@@ -500,7 +496,6 @@ const createFileRecord = (
 ): FileRecord => {
   const curveKey = `base:iv:transfer:${seriesId}` as BaseCurveKey;
   return {
-    tableModelByRawTableId: {},
     curvesByKey: {
       [curveKey]: {
         curveFamily: "iv",
@@ -524,8 +519,6 @@ const createFileRecord = (
     },
     id: fileId,
     kind: "unknown",
-    measurementBlockOrder: [],
-    measurementBlocksById: {},
     metricsByKey: {},
     name: `${fileId}.csv`,
     raw: {

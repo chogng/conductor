@@ -16,7 +16,6 @@ import {
   type IReviewService as IReviewServiceType,
   type ManualTemplateReviewResult,
   type ReviewDiagnostic,
-  type ReviewedTableMeasurementBinding,
   type ReviewSummary,
   type ReviewSummaryTarget,
   type ReviewedTemplateSource,
@@ -30,11 +29,6 @@ import {
   createManualCandidateReview,
 } from "src/cs/workbench/services/review/common/reviewScoring";
 import { deriveReviewResult } from "src/cs/workbench/services/review/common/reviewResult";
-import {
-  ITableModelProducerService,
-  type ITableModelProducerService as ITableModelProducerServiceType,
-  type TableModelRecord,
-} from "src/cs/workbench/services/tableModel/common/tableModel";
 import type {
   TableSource,
 } from "src/cs/workbench/services/table/common/table";
@@ -44,15 +38,16 @@ import {
   type ITableModelService as ITableModelServiceType,
 } from "src/cs/workbench/services/table/common/resolverService";
 import {
-  readTableModelContentRows,
   type TableModelContentSnapshot,
   type TableParseDiagnostic,
   type TableModelSheetSnapshot,
   type TableModelSnapshot,
 } from "src/cs/workbench/services/table/common/model";
-import type {
-  TableModelDiagnostic,
-} from "src/cs/workbench/services/tableModel/common/diagnostics";
+import {
+  createEmptyTableProjectionStructure,
+  type TableProjectionDiagnostic,
+} from "src/cs/workbench/services/table/common/tableProjection";
+import type { ReviewEvidence } from "src/cs/workbench/services/review/common/reviewModel";
 import {
   type Template,
   type TemplateAxisBinding,
@@ -75,7 +70,6 @@ type UriReviewCacheEntry = {
   readonly contentHash?: string;
   readonly fileName?: string | null;
   readonly modelSignature: string;
-  readonly measurement?: ReviewedTableMeasurementBinding;
   readonly result?: ReviewResult;
   readonly reviewSignature?: string;
   readonly sourceModelVersion?: number;
@@ -98,7 +92,6 @@ export class ReviewService extends Disposable implements IReviewServiceType {
     @IRecipeService private readonly recipeService: IRecipeServiceType,
     @IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
     @ITableModelService private readonly tableModelService?: ITableModelServiceType,
-    @ITableModelProducerService private readonly tableModelProducerService?: ITableModelProducerServiceType,
   ) {
     super();
     if (this.tableModelService) {
@@ -142,7 +135,7 @@ export class ReviewService extends Disposable implements IReviewServiceType {
       state: "missing",
       findingCodes: [],
     });
-    if (!reviewTarget || !this.tableModelService || !this.tableModelProducerService) {
+    if (!reviewTarget || !this.tableModelService) {
       return fallback();
     }
 
@@ -179,7 +172,7 @@ export class ReviewService extends Disposable implements IReviewServiceType {
         findingCodes: [],
       },
     });
-    if (!reviewTarget || !this.tableModelService || !this.tableModelProducerService) {
+    if (!reviewTarget || !this.tableModelService) {
       return fallback();
     }
 
@@ -305,7 +298,7 @@ export class ReviewService extends Disposable implements IReviewServiceType {
   }
 
   private async resolveUriReviewSummary(target: UriReviewTarget): Promise<UriReviewCacheEntry | null> {
-    if (!this.tableModelService || !this.tableModelProducerService) {
+    if (!this.tableModelService) {
       return null;
     }
 
@@ -399,23 +392,19 @@ export class ReviewService extends Disposable implements IReviewServiceType {
       };
     }
 
-    const selectedSheetId = selectedSheet?.sheetId ?? snapshot.defaultSheetId ?? null;
     const targetSheetId = target.sheetId;
     const fileName = getUriReviewFileName(target.resource, selectedSheet);
-    const tableModel = await this.createUriTableModelRecord({
+    const evidence = createUriReviewEvidence({
       content,
-      sheetId: selectedSheetId,
+      diagnostics: getUriReviewDiagnostics(snapshot, selectedSheet),
+      fileName,
       snapshot,
       target,
     });
-    const reviewTableModel = mergeParserDiagnosticsIntoTableModel(
-      tableModel,
-      getUriReviewDiagnostics(snapshot, selectedSheet),
-    );
     const result = deriveReviewResult({
-      tableModel: reviewTableModel,
       columnCount: content.columnCount,
       contentHash: target.contentHash,
+      evidence,
       fileName,
       modelVersion: snapshot.version,
       recipeSnapshot: this.recipeService.getSnapshot(),
@@ -431,7 +420,6 @@ export class ReviewService extends Disposable implements IReviewServiceType {
       columnCount: content.columnCount,
       fileName,
       ...(target.contentHash ? { contentHash: target.contentHash } : {}),
-      measurement: createReviewedTableMeasurementBinding(reviewTableModel),
       modelSignature,
       result,
       reviewSignature,
@@ -444,39 +432,6 @@ export class ReviewService extends Disposable implements IReviewServiceType {
         sheetId: targetSheetId,
       }),
     };
-  }
-
-  private createUriTableModelRecord({
-    content,
-    sheetId,
-    snapshot,
-    target,
-  }: {
-    readonly content: TableModelContentSnapshot;
-    readonly sheetId: string | null;
-    readonly snapshot: TableModelSnapshot;
-    readonly target: UriReviewTarget;
-  }): Promise<TableModelRecord> {
-    if (!this.tableModelProducerService) {
-      throw new Error("URI-backed review needs the table model producer service.");
-    }
-
-    const resourceText = normalizeResourceIdentity(target.resource);
-    // TODO(conductor-architecture): Migration bridge.
-    // ITableModelProducerService still requires raw-table version fields while it is the shared
-    // structure/semantics producer. Review evidence and public URI targets use sourceModel/sourceVersion.
-    return this.tableModelProducerService.getOrCreate({
-      columnCount: content.columnCount,
-      fileId: getUriReviewFileId(target.resource),
-      fileName: getUriReviewFileName(target.resource, null),
-      rawTableId: sheetId ?? resourceText,
-      rowCount: content.rowCount,
-      rows: readTableModelContentRows(content, 0, content.rowCount),
-      sourceModelVersion: snapshot.version,
-      sourceRawTableVersion: snapshot.sourceVersion,
-      sourceUri: resourceText,
-      sourceVersion: snapshot.sourceVersion,
-    });
   }
 
   private invalidateUriReviewTargetsForResource(resource: URI): void {
@@ -581,26 +536,42 @@ type ManualTemplateLookupResult =
       readonly message: string;
     };
 
-const mergeParserDiagnosticsIntoTableModel = (
-  tableModel: TableModelRecord,
-  parserDiagnostics: readonly TableParseDiagnostic[],
-): TableModelRecord => {
-  if (!parserDiagnostics.length) {
-    return tableModel;
-  }
+const createUriReviewEvidence = ({
+  content,
+  diagnostics,
+  fileName,
+  snapshot,
+  target,
+}: {
+  readonly content: TableModelContentSnapshot;
+  readonly diagnostics: readonly TableParseDiagnostic[];
+  readonly fileName: string | null;
+  readonly snapshot: TableModelSnapshot;
+  readonly target: UriReviewTarget;
+}): ReviewEvidence => ({
+  sourceMetadata: {
+    columnCount: content.columnCount,
+    ...(target.contentHash ? { contentHash: target.contentHash } : {}),
+    fileName,
+    rowCount: content.rowCount,
+    sourceModelVersion: snapshot.version,
+    sourceUri: normalizeResourceIdentity(target.resource),
+    sourceVersion: snapshot.sourceVersion,
+  },
+  tableProjection: {
+    structure: createEmptyTableProjectionStructure(),
+    columnProfiles: [],
+    layoutCandidates: [],
+    semanticCandidates: [],
+    groups: [],
+    blocks: [],
+    diagnostics: diagnostics.map(toTableProjectionParserDiagnostic),
+  },
+});
 
-  return {
-    ...tableModel,
-    diagnostics: [
-      ...tableModel.diagnostics,
-      ...parserDiagnostics.map(toTableModelParserDiagnostic),
-    ],
-  };
-};
-
-const toTableModelParserDiagnostic = (
+const toTableProjectionParserDiagnostic = (
   diagnostic: TableParseDiagnostic,
-): TableModelDiagnostic => ({
+): TableProjectionDiagnostic => ({
   severity: diagnostic.severity,
   code: diagnostic.code,
   message: diagnostic.message,
@@ -613,41 +584,6 @@ const toTableModelParserDiagnostic = (
     },
   } : {}),
 });
-
-const createReviewedTableMeasurementBinding = (
-  tableModel: TableModelRecord,
-): ReviewedTableMeasurementBinding | undefined => {
-  const block = tableModel.blocks.find(candidate => isReviewedCurveFamily(candidate.family));
-  if (!block || !isReviewedCurveFamily(block.family)) {
-    return undefined;
-  }
-
-  return {
-    curveFamily: block.family,
-    ...(block.family === "iv" ? { ivMode: block.ivMode === "output" ? "output" : "transfer" } : {}),
-    ...(block.family === "it" ? { itMode: normalizeReviewedItMode(block.itMode) } : {}),
-  };
-};
-
-const isReviewedCurveFamily = (
-  family: string,
-): family is ReviewedTableMeasurementBinding["curveFamily"] =>
-  family === "iv" ||
-  family === "cv" ||
-  family === "cf" ||
-  family === "pv" ||
-  family === "it";
-
-const normalizeReviewedItMode = (
-  mode: string | null | undefined,
-): NonNullable<ReviewedTableMeasurementBinding["itMode"]> =>
-  mode === "stability" ||
-  mode === "transient" ||
-  mode === "retention" ||
-  mode === "biasStress" ||
-  mode === "photoResponse"
-    ? mode
-    : "generic";
 
 type ManualTemplateReview = {
   readonly candidateId: string;
@@ -881,7 +817,6 @@ const createUriReviewFromCacheEntry = (
   summary: entry.summary,
   ...(entry.result ? { result: entry.result } : {}),
   ...(entry.reviewSignature ? { reviewSignature: entry.reviewSignature } : {}),
-  ...(entry.measurement ? { measurement: entry.measurement } : {}),
   ...(entry.sourceModelVersion !== undefined ? { sourceModelVersion: entry.sourceModelVersion } : {}),
   ...(entry.sourceVersion !== undefined ? { sourceVersion: entry.sourceVersion } : {}),
   ...(entry.rowCount !== undefined ? { rowCount: entry.rowCount } : {}),
@@ -897,7 +832,6 @@ const createStaleUriReviewFromCacheEntry = (
   ...(target.sheetId ? { sheetId: target.sheetId } : {}),
   ...(entry.contentHash ? { contentHash: entry.contentHash } : {}),
   summary: createStaleReviewSummaryFromCacheEntry(entry, target),
-  ...(entry.measurement ? { measurement: entry.measurement } : {}),
   ...(entry.sourceModelVersion !== undefined ? { sourceModelVersion: entry.sourceModelVersion } : {}),
   ...(entry.sourceVersion !== undefined ? { sourceVersion: entry.sourceVersion } : {}),
   ...(entry.rowCount !== undefined ? { rowCount: entry.rowCount } : {}),
@@ -1051,10 +985,6 @@ const createUriReviewErrorSignature = (
   "error",
   getErrorMessage(error),
 ].join("\u001f");
-
-const getUriReviewFileId = (
-  resource: URI,
-): string => normalizeResourceIdentity(resource) || getResourceIdentityString(resource);
 
 const getUriReviewFileName = (
   resource: URI,

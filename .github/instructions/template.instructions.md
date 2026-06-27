@@ -1,35 +1,35 @@
 ---
-description: Template domain - canonical Template specs, table+recipe materialization, editor view-model conversion, and Template UI state.
+description: Template domain - canonical Template specs, editor view-model conversion, and Template UI state.
 applyTo: 'src/cs/workbench/services/template/**,src/cs/workbench/contrib/template/**'
 ---
 # Template
 
-`Template` is the concrete extraction/slicing spec produced by applying the
-table model to Recipe or UserTemplate rules. In target architecture:
+`Template` is the concrete extraction/slicing spec executed by Slice after
+Review has accepted automatic or manual input. In target architecture:
 
 ```txt
-TableModel + Recipe/UserTemplate -> Template candidates -> Review -> Slice
+TableModel + Recipe/UserTemplate -> ReviewCandidate -> ReviewResult / ReviewedTemplate -> Slice
 ```
 
 The "Table" in this formula means canonical TableModel with derived
 structure/column/block data, not the UI `ITableService` selection model.
 Slice executes the reviewed `Template`; Review judges usability; Template owns
-materialization.
+the executable spec and editor adapters.
 
 Do not add consumer-shaped template sections such as `template.review`,
-`template.slicing`, or `template.binding`. Template consumes TableModel-owned
-TableModel and owns materialization, but it must keep TableModel
-distinct from the executable `Template` snapshot.
+`template.slicing`, or `template.binding`. Review consumes TableModel-owned
+TableModel evidence to build candidates; Template must keep TableModel distinct
+from the executable `Template` snapshot.
 
 Template editor form records are not the domain `Template`; name them
 `TemplateEditorRecord` / `TemplateEditorConfig`.
 
 ## Ownership
 
-Template owns the core `Template` spec, table+recipe materialization helpers,
-and editor-record conversion. It does not own UserTemplate
-catalog CRUD, catalog snapshots, Review decisions, per-file template
-selections, or raw-file view input.
+Template owns the core `Template` spec and editor-record conversion. It does
+not own Recipe/UserTemplate automatic candidate derivation, UserTemplate catalog
+CRUD, catalog snapshots, Review decisions, per-file template selections, or
+raw-file view input.
 
 `ITemplateViewStateService` in Template contrib owns selected-template/form
 editor state for Template UI and related view projections. Slicing selections
@@ -37,8 +37,8 @@ belong to `ISliceService`, and Template UI reads Session projections in contrib
 code.
 
 `IUserTemplateService` owns persisted user-template catalog records. Template
-UI may adapt records into `TemplateEditorConfig` while editing, but must
-materialize writes back through `IUserTemplateService`.
+UI may adapt records into `TemplateEditorConfig` while editing, but must write
+native records back through `IUserTemplateService`.
 
 Old Template-owned apply controllers, planners, processing workers, and
 run/output Session commits have been removed. New execution behavior belongs in
@@ -54,18 +54,12 @@ plot rendering, or chart state.
 | File | Responsibility |
 | --- | --- |
 | `common/templateSpec.ts` | pure block-aware `Template` spec: row ranges, axis bindings, segmentation, legends, titles, applicability, and execution defaults. |
-| `common/templateDraft.ts` | candidate draft shape produced from `TableModel + Recipe/UserTemplate` before Review status/policy projection. |
-| `common/recipeSelectorEvaluator.ts` | pure Recipe selector evaluator over canonical table model. |
-| `common/recipeTemplateMaterializer.ts` | pure Recipe + table-models materializer that creates `TemplateDraft` candidates. |
-| `common/userTemplateMaterializer.ts` | pure UserTemplate + table-models materializer that creates `TemplateDraft` candidates. |
-| `common/templateMaterialization.ts` | service contract for cross-service Template materialization. |
-| `browser/templateMaterializationService.ts` | injectable owner API that combines Recipe/UserTemplate materializers into the automatic candidate set for Review and other services. |
 | `common/template.ts` | `TemplateEditorRecord` and re-exported template spec types. |
 | `common/templateEditorAdapter.ts` | adapter between Template editor records and canonical block-aware `Template`. |
 | `common/templateEditorConfig.ts` | Template editor config normalization, cloning, and save/apply validation. |
 | `common/templateCellRange.ts` | A1-style cell and X range helpers used by Template editor records and validation. |
 | `common/templateXYBinding.ts` | Pure XY column-count checks for Template editor/save validation. |
-| `common/templateFingerprint.ts` | Stable Template fingerprint generation for materialized candidates. |
+| `common/templateFingerprint.ts` | Stable Template fingerprint generation for candidate interpretations and reviewed snapshots. |
 | `contrib/template/common/template.ts` | Template workbench view id and command ids shared by contribution, commands, and view code. |
 | `contrib/template/browser/templateCommands.ts` | Template command registration and handlers; delegates library management to `IUserTemplateService` and execution wrappers to Slice. |
 | `contrib/template/browser/templateImportExport.ts` | Template UI JSON import/export file-transfer helper; dialog, file read, save-file write, and browser download fallback plumbing only. Payload semantics stay with Template commands and `IUserTemplateService`. |
@@ -79,27 +73,27 @@ plot rendering, or chart state.
 
 ## Flow
 
-Automatic materialization:
+Automatic Review candidate derivation:
 
 ```txt
-rawTableChanged / recipeChanged / userTemplateChanged / schemaProfileChanged
-  -> ReviewService reads canonical TableModel and Recipe/UserTemplate snapshots
-  -> ITemplateMaterializationService materializes Template candidates
-  -> ReviewService reviews candidates
+review request / recipeChanged / userTemplateChanged
+  -> ReviewService reads content evidence and Recipe/UserTemplate snapshots
+  -> ReviewService derives ReviewCandidate values
+  -> ReviewService scores candidates
 ```
 
-Table-model production belongs under `services/tableModel`. Candidate derivation
-enters through `ITemplateMaterializationService`; pure materialization helpers
-stay under `services/template/common`. Do not add new materializers under
-TableModel, Review, or Slice.
+Automatic candidate derivation belongs under `services/review/common`. Do not
+add automatic Recipe/UserTemplate candidate builders under Template, Table, or
+Slice.
 
 Manual execution:
 
 ```txt
 manual saved-selection compatibility/UserTemplate/inline run
-  -> ReviewService.reviewManualTemplate(...)
+  -> ReviewService.reviewUri({ resource, sheetId })
+  -> ReviewService.reviewUriManualTemplate(...)
   -> ManualTemplateReviewResult.ready
-  -> ISliceService.submit(SliceRequest(trigger = userCommand))
+  -> ISliceService.submitUri(SliceUriRequest(trigger = userCommand))
   -> Slice executes the reviewed Template snapshot
 ```
 
@@ -117,16 +111,16 @@ import/export command
 
 ## Rules
 
-- `Template` is a concrete extraction/slicing spec. Template materializers
-  produce it from table model plus Recipe/UserTemplate sources; Slice consumes
-  reviewed or manual snapshots and must not materialize Recipes.
+- `Template` is a concrete extraction/slicing spec. Review produces reviewed
+  snapshots from automatic candidates or manual input; Slice consumes reviewed
+  or manual snapshots and must not derive Recipe/UserTemplate candidates.
 - Engines should consume `Template`, not consumer-specific sub-templates.
 - Template editor records may be bridged through `TemplateEditorConfig` and
   `templateEditorAdapter`; they are inputs to `Template` snapshots, not an
   execution workflow.
 - Raw-header auto-template inference is retired from product execution.
-  New `TableModel + Recipe/UserTemplate -> Template` derivation belongs in
-  Template materialization helpers, not Template execution.
+  New `TableModel + Recipe/UserTemplate -> ReviewCandidate` derivation
+  belongs in Review candidate helpers, not Template execution.
 - Automatic template selection ids belong to Slice `templateSelection`, not
   Template common. Template common must not own selection sentinels.
 - Template may read current table selection through injected `ITableService` public APIs only as explicit user input.
@@ -176,11 +170,11 @@ do not route execution through Template code.
 
 ```txt
 slice.runWithTemplate command
-  -> ReviewService.reviewManualTemplate
+  -> ReviewService.reviewUri({ resource, sheetId })
+  -> ReviewService.reviewUriManualTemplate
   -> ready ManualTemplateReviewResult
-  -> ISliceService.submit(SliceRequest)
-  -> SlicePlan + SliceCommit
-  -> ISessionService.commitSliceRuns
+  -> ISliceService.submitUri(SliceUriRequest)
+  -> SlicePlan + SliceUriResult
 ```
 
 Commands/controllers must not re-detect table structure.
@@ -194,7 +188,7 @@ Use `records.instructions.md` for `TemplateEditorRecord`,
 
 - Do not infer IV/CV/transfer/output inside the executable `Template` spec or
   Slice path. Such inference belongs to table-model production and
-  Template-owned materializer helpers before Review/Slice.
+  Review-owned candidate helpers before Review/Slice.
 - Do not split `Template` by review/slice/binding/apply consumers.
 - Do not store template form draft state in Session.
 - Do not let worker payload format leak into Session records.

@@ -7,9 +7,9 @@ import type {
 
 import {
   buildCsvExports,
-  buildCsvExportsFromSession,
+  buildCsvExportsFromCanonical,
   buildSsMetricsCsv,
-  buildSsMetricsCsvFromSession,
+  buildSsMetricsCsvFromCanonical,
 } from "src/cs/workbench/services/export/browser/csvExport";
 import {
   buildOriginExportPlan,
@@ -62,8 +62,8 @@ suite("workbench/services/export/browser/csvExport", () => {
     );
   });
 
-  test("buildCsvExportsFromSession writes canonical base curves", () => {
-    const exports = buildCsvExportsFromSession(
+  test("buildCsvExportsFromCanonical writes canonical base curves", () => {
+    const exports = buildCsvExportsFromCanonical(
       {
         "file-a": createFileRecord("transfer"),
       },
@@ -79,8 +79,8 @@ suite("workbench/services/export/browser/csvExport", () => {
     );
   });
 
-  test("buildSsMetricsCsvFromSession uses canonical IV mode", () => {
-    const csv = buildSsMetricsCsvFromSession({
+  test("buildSsMetricsCsvFromCanonical uses canonical IV mode", () => {
+    const csv = buildSsMetricsCsvFromCanonical({
       filesById: {
         "file-a": createFileRecord("output"),
       },
@@ -100,7 +100,7 @@ suite("workbench/services/export/browser/csvExport", () => {
     assert.equal(byHeader.ss_reason, "not_transfer_curve");
   });
 
-  test("buildSsMetricsCsvFromSession uses canonical manual SS range input", () => {
+  test("buildSsMetricsCsvFromCanonical uses canonical manual SS range input", () => {
     const file = createFileRecord("transfer");
     const metricKey = "subthreshold:series-a:ss:manual" as MetricKey;
     file.metricInputsByKey = {
@@ -116,7 +116,7 @@ suite("workbench/services/export/browser/csvExport", () => {
       },
     };
 
-    const csv = buildSsMetricsCsvFromSession({
+    const csv = buildSsMetricsCsvFromCanonical({
       filesById: {
         "file-a": file,
       },
@@ -1549,7 +1549,6 @@ const createFileRecord = (ivMode: "transfer" | "output"): FileRecord => {
   const seriesId = "series-a";
   const curveKey = `base:iv:${ivMode}:series-a` as BaseCurveKey;
   return {
-    tableModelByRawTableId: {},
     curvesByKey: {
       [curveKey]: {
         curveFamily: "iv",
@@ -1577,8 +1576,6 @@ const createFileRecord = (ivMode: "transfer" | "output"): FileRecord => {
     },
     id: fileId,
     kind: "unknown",
-    measurementBlockOrder: [],
-    measurementBlocksById: {},
     metricsByKey: {},
     name: "file_a.csv",
     raw: {

@@ -29,15 +29,12 @@ at the type name.
 | Record | Owner | Producer | Invalidation / notes |
 | --- | --- | --- | --- |
 | `SessionModel` | `ISessionService` | session commits | Canonical root: `schemaVersion`, `sessionVersion`, `filesById`, `fileOrder`. |
-| `FileRecord` | `ISessionService` | import, table-model, slice, calculation, metric commits | Owns one imported file/workbook lifecycle in the remaining raw-table ledger. |
+| `FileRecord` | `ISessionService` | import, slice, calculation, metric commits | Owns one imported file/workbook lifecycle in the remaining raw-table ledger. |
 | `RawRecord` | `ISessionService` | raw-table import commit | Raw file facts and `rawTablesById`; no table-model/template/plot semantics. |
 | `RawTableRecord` | `ISessionService` | Session import commit | Physical rows/source/health/template eligibility. Use `rawTableId`; keep failed rows unavailable. |
 | `RawTableSourceRecord` | files/session | CSV, Excel sheet, clipboard, manual, unknown | Source provenance only, not measurement semantics. |
 | `RawTableRowsRecord` | files/session | inline, normalized CSV, unavailable | Large rows should use artifact/path references. |
-| `TableModelRecord` | TableModel + Session ledger | table-model producer (`ITableModelProducerService`) | Tied to raw table version, table-model rule version, and schema profile version; stores structure, column profiles, semantic candidates, groups, blocks, and diagnostics. |
-| `MeasurementGroupRecord` | TableModel + Session ledger | table-model producer / TableModel helpers | Group/device labels and ordered block ids. |
-| `MeasurementBlockRecord` | TableModel + Session ledger | table-model producer / TableModel helpers | Measurement family/mode/source ranges/column roles. |
-| `SliceRun` | Slice + Session | slice execution | Executed template snapshot, source table-model signature, input ranges, output series ids, output curve keys, warnings, and errors. |
+| `SliceRun` | Slice + Session | slice execution | Executed template snapshot, source signature, input ranges, output series ids, output curve keys, warnings, and errors. |
 | `SeriesRecord` | Slice/calculation + Session | slice or curve commit | Series metadata and raw/block provenance. |
 | `CurveRecord` | Slice/calculation + Session | slice/calculation commit | Base/derived curve points, lineage, domain, signature. |
 | `MetricRecord` | Parameters/calculation + Session | metric commit | Scalar/structured metric value with input signatures. |
@@ -115,15 +112,14 @@ replaces the URI identity for resource opens.
 - Decode/parse failures stay as health/unavailable row records; they do not
   become normal rows.
 
-### Table Model
+### Table Projection Evidence
 
-- `TableModelRecord` is the target storage shape for table model. It contains
-  structure, column profiles, layout candidates, semantic candidates, blocks,
-  diagnostics, and source metadata only.
-- Primary consumer path is the current table projection feeding optional
-  `ReviewEvidence.tableProjection`. Review candidate derivation combines
-  Recipe/UserTemplate snapshots with URI/content evidence; TableModel is only
-  the current table-shaped evidence producer.
+- Table projection evidence is a pure content/review value, not a Session
+  ledger record. It may contain structure, column profiles, layout candidates,
+  semantic candidates, groups, blocks, diagnostics, and source metadata.
+- Primary consumer path is optional `ReviewEvidence.tableProjection`. Review
+  candidate derivation combines Recipe/UserTemplate snapshots with URI/content
+  evidence.
 - Do not call content evidence `RecipeEvidence`. Recipe is fixed rules; Review
   combines rules with URI/content evidence.
 - `MeasurementBlockRecord.family` stores measurement family (`iv`, `cv`, `cf`,
@@ -141,34 +137,24 @@ replaces the URI identity for resource opens.
 - Semantic candidates keep role/unit candidates, confidence, evidence sources,
   confirmation state, and display-scale suggestions.
 - Column refs keep raw column, header text, role, unit, source range, confidence.
-- `TableModelRecord.schemaProfileVersion` records the profile snapshot used
-  for semantic evidence; profile changes make older table model stale.
-- `TableModelRecord.sourceUri`, `sourceVersion`, and `sourceModelVersion` are
-  optional migration provenance for URI-backed table models. Review and Slice
-  signatures consume them when present; they do not make table editor runtime
-  state a Session record.
-- Table-model records do not store Recipe fingerprints, Template/UserTemplate
+- Projection evidence does not store Recipe fingerprints, Template/UserTemplate
   catalog versions, review candidates, reviewed templates, selected Template
   snapshots, decision state, confidence gates, or auto-apply flags. Review owns
   candidate building, review, and application decisions.
-- Session raw-file read entries may project table schema fingerprints,
-  column profiles, semantic candidates, blocks, layout candidates, and
-  diagnostics for Review candidate derivation or UI review; they remain derived
-  read models, not duplicate owners.
 - Diagnostics keep severity, code, message, source range, and related group/block ids.
-  Parser `fatal` diagnostics may be projected into table-model/review evidence
-  for blocking Review hard gates; recoverable parser errors remain non-fatal
-  diagnostics and should only affect parse-health scoring.
+  Parser `fatal` diagnostics may be projected into review evidence for blocking
+  Review hard gates; recoverable parser errors remain non-fatal diagnostics and
+  should only affect parse-health scoring.
 
 ### Schema profiles
 
 - `SchemaProfile` stores user-confirmed bindings for one exact raw-table schema
-  fingerprint; it is table-model input, not Session canonical output.
+  fingerprint; it is projection/review input, not Session canonical output.
 - `SchemaProfileService` owns profile-scope storage and versioned snapshots;
   Session does not store profile records.
 - User confirmation of role/unit bindings enters through
   `SchemaProfileService.confirmProfile(...)`; callers provide confirmed columns
-  and current table-model column profiles, and the schema profile owner persists a
+  and current column profiles, and the schema profile owner persists a
   service-local exact-fingerprint profile snapshot.
 - `SchemaProfileBinding.selector` may use column index, normalized header, or
   both. When both are present, both must match the profiled column.

@@ -12,9 +12,6 @@ import {
 	Severity,
 } from "src/cs/workbench/services/notification/common/notificationService";
 import {
-	TABLE_MODEL_RULE_VERSION,
-} from "src/cs/workbench/services/tableModel/common/tableModel";
-import {
 	ISliceService,
 	type ISliceService as ISliceServiceType,
 	type SliceMeasurementBinding,
@@ -25,7 +22,7 @@ import {
 	IReviewService,
 	type IReviewService as IReviewServiceType,
 	type ManualTemplateSelection,
-	type UriTableReview,
+	type UriReview,
 } from "src/cs/workbench/services/review/common/review";
 import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/reviewModel";
 import {
@@ -157,14 +154,14 @@ const runUriTargetsWithTemplate = async ({
 }): Promise<void> => {
 	const requests: SliceUriRequest[] = [];
 	for (const target of targets) {
-		const review = await reviewService.reviewUriTable({
+		const review = await reviewService.reviewUri({
 			resource: target.resource,
 			sheetId: target.sheetId ?? null,
 		});
 		const reviewedTemplate = selection.kind === "auto"
 			? getAutoReviewedTemplate(review)
 			: await getManualReviewedTemplate(reviewService, review, selection);
-		const runnableReview = toRunnableUriTableReview(review);
+		const runnableReview = toRunnableUriReview(review);
 		if (!runnableReview || !reviewedTemplate) {
 			continue;
 		}
@@ -191,7 +188,7 @@ const runUriTargetsWithTemplate = async ({
 };
 
 const getAutoReviewedTemplate = (
-	review: UriTableReview,
+	review: UriReview,
 ): ReviewedTemplate | null =>
 	review.result?.decision.kind === "ready" &&
 		review.result.decision.application.kind === "systemRecommended"
@@ -200,7 +197,7 @@ const getAutoReviewedTemplate = (
 
 const getManualReviewedTemplate = async (
 	reviewService: IReviewServiceType,
-	review: UriTableReview,
+	review: UriReview,
 	selection: TemplateSelection,
 ): Promise<ReviewedTemplate | null> => {
 	const manualSelection = getManualReviewSelection(selection);
@@ -236,18 +233,18 @@ const getManualReviewSelection = (
 	return null;
 };
 
-type RunnableUriTableReview = UriTableReview & {
+type RunnableUriReview = UriReview & {
 	readonly reviewSignature: string;
-	readonly measurement: NonNullable<UriTableReview["measurement"]>;
+	readonly measurement: NonNullable<UriReview["measurement"]>;
 	readonly sourceModelVersion: number;
 	readonly sourceVersion: number;
 	readonly rowCount: number;
 	readonly columnCount: number;
 };
 
-const toRunnableUriTableReview = (
-	review: UriTableReview,
-): RunnableUriTableReview | null => {
+const toRunnableUriReview = (
+	review: UriReview,
+): RunnableUriReview | null => {
 	const reviewSignature = normalizeText(review.reviewSignature);
 	const measurement = review.measurement;
 	const sourceModelVersion = review.sourceModelVersion;
@@ -286,7 +283,7 @@ const createSliceUriRequest = ({
 	selection,
 	target,
 }: {
-	readonly review: RunnableUriTableReview;
+	readonly review: RunnableUriReview;
 	readonly reviewedTemplate: ReviewedTemplate;
 	readonly selection: TemplateSelection;
 	readonly target: SliceUriTarget;
@@ -298,8 +295,6 @@ const createSliceUriRequest = ({
 		templateFingerprint: reviewedTemplate.templateFingerprint,
 	});
 	const sourceTableModelSignature = createSliceTableModelSignature({
-		tableModelRuleVersion: TABLE_MODEL_RULE_VERSION,
-		schemaProfileVersion: 0,
 		sourceSheetId: review.sheetId ?? null,
 		sourceModelVersion: review.sourceModelVersion,
 		sourceUri: getSliceUriTargetResourceIdentity(review.resource),
@@ -336,7 +331,7 @@ const createSliceUriRequest = ({
 };
 
 const toSliceMeasurementBinding = (
-	measurement: NonNullable<UriTableReview["measurement"]>,
+	measurement: NonNullable<UriReview["measurement"]>,
 ): SliceMeasurementBinding => ({
 	curveFamily: measurement.curveFamily,
 	...(measurement.ivMode ? { ivMode: measurement.ivMode } : {}),

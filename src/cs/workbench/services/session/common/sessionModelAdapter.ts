@@ -92,10 +92,6 @@ const createEmptyFileRecord = (fileId: string, fileName: string): FileRecord => 
     name: fileName,
     raw,
     rawTableVersionsById: createRawTableVersions(raw.tableOrder),
-    tableModelByRawTableId: {},
-    rawTableReviewsByRawTableId: {},
-    measurementBlocksById: {},
-    measurementBlockOrder: [],
     seriesById: {},
     seriesOrder: [],
     curvesByKey: {},
@@ -179,12 +175,6 @@ const mergeSourceFileRecord = (
     record.rawTableVersionsById,
     changedRawTableIds,
   );
-  const retainedTableModelRecords = retainTableModelRecords(
-    record,
-    new Set(tableOrder),
-    changedRawTableIds,
-  );
-
   return {
     ...record,
     kind: inferFileKindFromFileName(fileName),
@@ -206,7 +196,6 @@ const mergeSourceFileRecord = (
       tableOrder,
     },
     rawTableVersionsById,
-    ...retainedTableModelRecords,
   };
 };
 
@@ -255,47 +244,6 @@ const areTableRecordsEqual = (
   current.health?.message === next.health?.message &&
   current.templateEligibility === next.templateEligibility;
 
-const retainTableModelRecords = (
-  record: FileRecord,
-  liveRawTableIds: ReadonlySet<string>,
-  changedRawTableIds: ReadonlySet<string>,
-): Pick<FileRecord, "tableModelByRawTableId" | "rawTableReviewsByRawTableId" | "measurementBlocksById" | "measurementBlockOrder"> => {
-  const sourceTableModelByRawTableId = getTableModelByRawTableId(record);
-  const tableModelByRawTableId = filterRecord(
-    sourceTableModelByRawTableId,
-    rawTableId => liveRawTableIds.has(rawTableId) && !changedRawTableIds.has(rawTableId),
-  );
-  const rawTableReviewsByRawTableId = filterRecord(
-    record.rawTableReviewsByRawTableId ?? {},
-    rawTableId => liveRawTableIds.has(rawTableId) && !changedRawTableIds.has(rawTableId),
-  );
-  const measurementBlocksById = filterRecord(
-    record.measurementBlocksById ?? {},
-    (_blockId, block) =>
-      liveRawTableIds.has(block.rawTableId) &&
-      !changedRawTableIds.has(block.rawTableId),
-  );
-
-  return {
-    tableModelByRawTableId,
-    rawTableReviewsByRawTableId,
-    measurementBlocksById,
-    measurementBlockOrder: (record.measurementBlockOrder ?? []).filter(blockId =>
-      Boolean(measurementBlocksById[blockId])
-    ),
-  };
-};
-
-const getTableModelByRawTableId = (
-  record: FileRecord,
-): FileRecord["tableModelByRawTableId"] => {
-  if (record.tableModelByRawTableId) {
-    return record.tableModelByRawTableId;
-  }
-
-  return {};
-};
-
 const areNumberArraysEqual = (
   current: readonly number[],
   next: readonly number[],
@@ -311,20 +259,6 @@ const areNumberArraysEqual = (
   }
 
   return true;
-};
-
-const filterRecord = <T>(
-  record: Readonly<Record<string, T>>,
-  predicate: (key: string, value: T) => boolean,
-): Record<string, T> => {
-  const next: Record<string, T> = {};
-  for (const [key, value] of Object.entries(record)) {
-    if (predicate(key, value)) {
-      next[key] = value;
-    }
-  }
-
-  return next;
 };
 
 export const mergeRawFilesIntoRecords = (
@@ -405,7 +339,6 @@ export const createRawFilesFromRecords = (
 
       rawFiles.push({
         ...baseFile,
-        ...createRawFileTableModelSummary(file, tableId),
         sheetId: table.sheetId,
         sheetName: table.sheetName ?? null,
         tableKey: table.tableKey,
@@ -428,46 +361,11 @@ export const createRawFilesFromRecords = (
     if (!pushedTableIds.size) {
       rawFiles.push({
         ...baseFile,
-        ...createRawFileTableModelSummary(file),
       });
     }
   }
 
   return rawFiles;
-};
-
-type RawFileTableModelSummary = Pick<
-  SessionFile,
-  | "tableModelBlocks"
-  | "tableModelColumnProfiles"
-  | "tableModelLayoutCandidates"
-  | "tableModelSchemaFingerprint"
-  | "tableModelSemanticCandidates"
->;
-
-const createRawFileTableModelSummary = (
-  file: FileRecord,
-  rawTableId?: string,
-): RawFileTableModelSummary => {
-  const tableModel = rawTableId
-    ? file.tableModelByRawTableId?.[rawTableId]
-    : undefined;
-
-  return {
-    tableModelBlocks: tableModel?.blocks.length
-      ? [...tableModel.blocks]
-      : undefined,
-    tableModelColumnProfiles: tableModel?.columnProfiles.length
-      ? [...tableModel.columnProfiles]
-      : undefined,
-    tableModelLayoutCandidates: tableModel?.layoutCandidates.length
-      ? [...tableModel.layoutCandidates]
-      : undefined,
-    tableModelSchemaFingerprint: tableModel?.structure.fingerprint || undefined,
-    tableModelSemanticCandidates: tableModel?.semanticCandidates.length
-      ? [...tableModel.semanticCandidates]
-      : undefined,
-  };
 };
 
 const getFileRecordSlicedCurveType = (

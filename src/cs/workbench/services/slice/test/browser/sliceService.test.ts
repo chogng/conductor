@@ -4,10 +4,9 @@
 
 import assert from "assert";
 
-import { Event } from "src/cs/base/common/event";
+import { Emitter, Event } from "src/cs/base/common/event";
+import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import { TABLE_MODEL_RULE_VERSION, type TableModelRecord } from "src/cs/workbench/services/tableModel/common/tableModel";
-import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
 import type {
 	IRawTableRowsReaderService,
 	RawTableRows,
@@ -16,38 +15,40 @@ import type {
 import type { FileImportResult, ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import { SliceService } from "src/cs/workbench/services/slice/browser/sliceService";
-import { createSliceTableModelSignature } from "src/cs/workbench/services/slice/common/slicePlanner";
 import type { Template } from "src/cs/workbench/services/template/common/template";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
-import {
-	createReviewEvidenceSignature,
-	createReviewRecordSignature,
-	type RawTableReviewRecord,
-} from "src/cs/workbench/services/review/common/review";
+import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/reviewModel";
 import type {
-	IUserTemplateService,
-	UserTemplate,
-} from "src/cs/workbench/services/userTemplate/common/userTemplate";
+	ITableModel,
+	TableModelContentSnapshot,
+	TableModelSnapshot,
+} from "src/cs/workbench/services/table/common/model";
+import type {
+	ITableModelContentProvider,
+	ITableModelReference,
+	ITableModelService,
+} from "src/cs/workbench/services/table/common/resolverService";
+import type { TableSource } from "src/cs/workbench/services/table/common/table";
+import type {
+	SliceRequest,
+	SliceUriRequest,
+	SliceUriTarget,
+} from "src/cs/workbench/services/slice/common/slice";
 
 suite("workbench/services/slice/test/browser/sliceService", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test("queues manual inline templates and stores per-file selection", () => {
+	test("queues manual reviewed template requests and stores per-file selection", () => {
 		const sessionService = store.add(new SessionService());
 		const sliceService = store.add(new SliceService(sessionService));
 		sessionService.commitFileImport(createImportResult());
 
-		const template = createTemplate();
-		sliceService.runWithTemplate({
-			ref: {
-				fileId: "file-a",
-				rawTableId: "table-a",
-			},
-			selection: {
-				kind: "inline",
-				template,
-			},
-		});
+		const selection = {
+			kind: "inline" as const,
+			template: createTemplate(),
+		};
+		sliceService.setTemplateSelection("file-a", selection);
+		sliceService.submit([createSliceRequest()]);
 
 		const state = sliceService.getState();
 		assert.equal(state.queueLength, 1);
@@ -55,114 +56,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		assert.equal(state.templateSelectionsByFileId["file-a"]?.kind, "inline");
 	});
 
-	test("queues manual saved selections through user template lookup", () => {
-		const sessionService = store.add(new SessionService());
-		const template = {
-			...createTemplate(),
-			id: "template-a",
-		};
-		const sliceService = store.add(new SliceService(sessionService, createUserTemplateServiceForTest(template)));
-		sessionService.commitFileImport(createImportResult());
-
-		sliceService.runWithTemplate({
-			ref: {
-				fileId: "file-a",
-				rawTableId: "table-a",
-			},
-			selection: {
-				kind: "saved",
-				templateId: "template-a",
-			},
-		});
-
-		const state = sliceService.getState();
-		assert.equal(state.queueLength, 1);
-		assert.deepEqual(state.templateSelectionsByFileId["file-a"], {
-			kind: "saved",
-			templateId: "template-a",
-		});
-	});
-
-	test("queues automatic slice when a resolved template is available", () => {
-		const sessionService = store.add(new SessionService());
-		const sliceService = store.add(new SliceService(sessionService));
-		sessionService.commitFileImport(createImportResult());
-		const tableModel = createTableModel();
-		sessionService.commitTableModel(tableModel);
-		sessionService.commitRawTableReviews([createReview(tableModel)]);
-
-		sliceService.enqueueAuto([{
-			fileId: "file-a",
-			rawTableId: "table-a",
-		}]);
-
-		const state = sliceService.getState();
-		assert.equal(state.queueLength, 1);
-		assert.deepEqual(state.fileStates.get("file-a"), { state: "queued" });
-	});
-
-	test("keeps one pending automatic slice plan per raw table", () => {
-		const sessionService = store.add(new SessionService());
-		const sliceService = store.add(new SliceService(sessionService));
-		sessionService.commitFileImport(createImportResult());
-		const tableModel = createTableModel();
-		sessionService.commitTableModel(tableModel);
-		sessionService.commitRawTableReviews([createReview(tableModel, {
-			recipeFingerprint: "recipe:first",
-		})]);
-
-		sliceService.enqueueAuto([{
-			fileId: "file-a",
-			rawTableId: "table-a",
-		}]);
-		sessionService.commitRawTableReviews([createReview(tableModel, {
-			recipeFingerprint: "recipe:second",
-		})]);
-		sliceService.enqueueAuto([{
-			fileId: "file-a",
-			rawTableId: "table-a",
-		}]);
-
-		const state = sliceService.getState();
-		assert.equal(state.queueLength, 1);
-		assert.deepEqual(state.fileStates.get("file-a"), { state: "queued" });
-	});
-
-	test("executes queued automatic slices when rows are available", async () => {
-		const sessionService = store.add(new SessionService());
-		const rowsReaderService = new TestRawTableRowsReaderService([
-			["Vg", "Id"],
-			["0", "1"],
-			["1", "2"],
-		]);
-		const sliceService = store.add(new SliceService(
-			sessionService,
-			undefined,
-			rowsReaderService,
-		));
-		sessionService.commitFileImport(createImportResult());
-		const tableModel = createTableModel();
-		sessionService.commitTableModel(tableModel);
-		sessionService.commitRawTableReviews([createReview(tableModel)]);
-
-		sliceService.enqueueAuto([{
-			fileId: "file-a",
-			rawTableId: "table-a",
-		}]);
-		await waitUntil(() => sliceService.getState().fileStates.get("file-a")?.state === "ready");
-
-		const record = sessionService.getSnapshot().filesById["file-a"];
-		assert.equal(sliceService.getState().queueLength, 0);
-		assert.ok(record.latestSliceRunId);
-		assert.equal(record.sliceRunsById?.[record.latestSliceRunId!]?.errors.length, 0);
-		assert.deepEqual(record.seriesById["series-b0-y1"].y, [1, 2]);
-		assert.deepEqual(record.curvesByKey["base:iv:transfer:series-b0-y1"]?.points, [
-			{ x: 0, y: 1 },
-			{ x: 1, y: 2 },
-		]);
-	});
-
-	test("drops stale automatic slice plans when review changes while rows are loading", async () => {
+	test("drops stale manual reviewed-template plans when the raw table changes while rows are loading", async () => {
 		const sessionService = store.add(new SessionService());
 		const rowsReaderService = new BlockingRawTableRowsReaderService([
 			["Vg", "Id"],
@@ -171,80 +65,14 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		]);
 		const sliceService = store.add(new SliceService(
 			sessionService,
-			undefined,
-			rowsReaderService,
-		));
-		sessionService.commitFileImport(createImportResult());
-		const latestTableModel = createTableModel();
-		sessionService.commitTableModel(latestTableModel);
-		sessionService.commitRawTableReviews([createReview(latestTableModel, {
-			recipeFingerprint: "recipe:first",
-		})]);
-
-		sliceService.enqueueAuto([{
-			fileId: "file-a",
-			rawTableId: "table-a",
-		}]);
-		await waitUntil(() => rowsReaderService.inputs.length === 1);
-
-		const latestReview = createReview(latestTableModel, {
-			recipeFingerprint: "recipe:second",
-		});
-		sessionService.commitRawTableReviews([latestReview]);
-		sliceService.enqueueAuto([{
-			fileId: "file-a",
-			rawTableId: "table-a",
-		}]);
-		rowsReaderService.resolveFirstRead();
-		await waitUntil(() =>
-			Boolean(sessionService.getSnapshot().filesById["file-a"].latestSliceRunId)
-		);
-
-		const record = sessionService.getSnapshot().filesById["file-a"];
-		assert.equal(Object.keys(record.sliceRunsById ?? {}).length, 1);
-		assert.equal(
-			record.sliceRunsById?.[record.latestSliceRunId!]?.sourceTableModelSignature,
-			createSliceTableModelSignature(latestTableModel, {
-				reviewSignature: createReviewRecordSignature(latestReview),
-			}),
-		);
-	});
-
-	test("drops stale manual saved-template plans when the user template changes while rows are loading", async () => {
-		const sessionService = store.add(new SessionService());
-		const rowsReaderService = new BlockingRawTableRowsReaderService([
-			["Vg", "Id"],
-			["0", "1"],
-			["1", "2"],
-		]);
-		let savedTemplate: Template = {
-			...createTemplate(),
-			id: "template-a",
-		};
-		const sliceService = store.add(new SliceService(
-			sessionService,
-			createUserTemplateServiceForTest(() => savedTemplate),
 			rowsReaderService,
 		));
 		sessionService.commitFileImport(createImportResult());
 
-		sliceService.runWithTemplate({
-			ref: {
-				fileId: "file-a",
-				rawTableId: "table-a",
-			},
-			selection: {
-				kind: "saved",
-				templateId: "template-a",
-			},
-		});
+		sliceService.submit([createSliceRequest()]);
 		await waitUntil(() => rowsReaderService.inputs.length === 1);
 
-		savedTemplate = {
-			...savedTemplate,
-			name: "Updated Transfer",
-			version: 2,
-		};
+		sessionService.commitFileImport(createImportResult());
 		rowsReaderService.resolveFirstRead();
 		await waitUntil(() => sliceService.getState().fileStates.get("file-a")?.state !== "processing");
 
@@ -253,7 +81,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		assert.equal(sliceService.getState().fileStates.has("file-a"), false);
 	});
 
-	test("marks automatic slice skipped when no review decision is available", () => {
+	test("marks legacy raw-table automatic slice skipped without Session review bridge", () => {
 		const sessionService = store.add(new SessionService());
 		const sliceService = store.add(new SliceService(sessionService));
 		sessionService.commitFileImport(createImportResult());
@@ -264,8 +92,10 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		}]);
 
 		const state = sliceService.getState();
+		const fileState = state.fileStates.get("file-a");
 		assert.equal(state.queueLength, 0);
-		assert.equal(state.fileStates.get("file-a")?.state, "skipped");
+		assert.equal(fileState?.state, "skipped");
+		assert.equal(fileState?.state === "skipped" ? fileState.code : undefined, "slice.reviewDecisionMissing");
 	});
 
 	test("cleans local slice state when files are removed", () => {
@@ -273,16 +103,11 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		const sliceService = store.add(new SliceService(sessionService));
 		sessionService.commitFileImport(createImportResult());
 
-		sliceService.runWithTemplate({
-			ref: {
-				fileId: "file-a",
-				rawTableId: "table-a",
-			},
-			selection: {
-				kind: "inline",
-				template: createTemplate(),
-			},
+		sliceService.setTemplateSelection("file-a", {
+			kind: "inline",
+			template: createTemplate(),
 		});
+		sliceService.submit([createSliceRequest()]);
 		sliceService.prioritize("file-a");
 
 		sessionService.removeFiles(["file-a"]);
@@ -293,16 +118,255 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		assert.equal(state.fileStates.has("file-a"), false);
 		assert.deepEqual(state.templateSelectionsByFileId, {});
 	});
+
+	test("cleans queued URI state when the table model resource changes", async () => {
+		const sessionService = store.add(new SessionService());
+		const tableModelService = store.add(new BlockingTableModelService());
+		const sliceService = store.add(new SliceService(
+			sessionService,
+			undefined,
+			tableModelService,
+		));
+		const resource = URI.file("/workspace/source.xlsx");
+		const processingTarget = { resource, sheetId: "sheet-a" };
+		const queuedTarget = { resource, sheetId: "sheet-b" };
+
+		sliceService.submitUri([createUriSliceRequest(processingTarget)]);
+		await waitUntil(() => sliceService.getUriState(processingTarget)?.state === "processing");
+		sliceService.submitUri([createUriSliceRequest(queuedTarget)]);
+		assert.deepEqual(sliceService.getUriState(queuedTarget), { state: "queued" });
+
+		tableModelService.fireModelChanged(resource);
+
+		assert.equal(sliceService.getState().queueLength, 0);
+		assert.equal(sliceService.getUriState(queuedTarget), undefined);
+		assert.deepEqual(sliceService.getUriState(processingTarget), { state: "processing" });
+	});
+
+	test("cancels queued URI slice requests by target", async () => {
+		const sessionService = store.add(new SessionService());
+		const tableModelService = store.add(new BlockingTableModelService());
+		const sliceService = store.add(new SliceService(
+			sessionService,
+			undefined,
+			tableModelService,
+		));
+		const resource = URI.file("/workspace/source.xlsx");
+		const processingTarget = { resource, sheetId: "sheet-a" };
+		const queuedTarget = { resource, sheetId: "sheet-b" };
+
+		sliceService.submitUri([createUriSliceRequest(processingTarget)]);
+		await waitUntil(() => sliceService.getUriState(processingTarget)?.state === "processing");
+		sliceService.submitUri([createUriSliceRequest(queuedTarget)]);
+		assert.deepEqual(sliceService.getUriState(queuedTarget), { state: "queued" });
+
+		sliceService.cancelUri([queuedTarget]);
+
+		assert.equal(sliceService.getState().queueLength, 0);
+		assert.deepEqual(sliceService.getUriState(queuedTarget), { state: "none" });
+		assert.deepEqual(sliceService.getUriState(processingTarget), { state: "processing" });
+	});
+
+	test("matches queued URI slice state when request resource is structured cloned", async () => {
+		const sessionService = store.add(new SessionService());
+		const tableModelService = store.add(new BlockingTableModelService());
+		const sliceService = store.add(new SliceService(
+			sessionService,
+			undefined,
+			tableModelService,
+		));
+		const resource = URI.file("/workspace/source.xlsx");
+		const processingTarget = { resource, sheetId: "sheet-a" };
+		const queuedTarget = {
+			resource: resource.toJSON() as unknown as SliceUriTarget["resource"],
+			sheetId: "sheet-b",
+		};
+		const queryTarget = { resource, sheetId: "sheet-b" };
+
+		sliceService.submitUri([createUriSliceRequest(processingTarget)]);
+		await waitUntil(() => sliceService.getUriState(processingTarget)?.state === "processing");
+		sliceService.submitUri([createUriSliceRequest(queuedTarget)]);
+
+		assert.deepEqual(sliceService.getUriState(queryTarget), { state: "queued" });
+
+		sliceService.cancelUri([queryTarget]);
+
+		assert.deepEqual(sliceService.getUriState(queryTarget), { state: "none" });
+	});
+
+	test("reads only planned URI table row ranges from windowed content", async () => {
+		const sessionService = store.add(new SessionService());
+		const resource = URI.file("/workspace/large-source.xlsx");
+		const rowCount = 1004;
+		const template = createTemplate({
+			startRow: 1001,
+			endRow: 1003,
+		});
+		const content: TableModelContentSnapshot = {
+			columnCount: 2,
+			maxCellLengths: [4, 4],
+			rowCount,
+			rows: [],
+			rowWindows: [{
+				startRowIndex: 1001,
+				rows: [
+					["0", "1"],
+					["1", "2"],
+					["2", "3"],
+				],
+			}],
+		};
+		const tableModelService = store.add(new StaticTableModelService({
+			content,
+			defaultSheetId: "sheet-a",
+			diagnostics: [],
+			format: "xlsx",
+			loadState: { state: "ready", message: "" },
+			resource,
+			sheets: [{
+				content,
+				diagnostics: [],
+				sheetId: "sheet-a",
+				sheetName: "Sheet A",
+			}],
+			sourceVersion: 7,
+			version: 3,
+		}));
+		const sliceService = store.add(new SliceService(
+			sessionService,
+			undefined,
+			tableModelService,
+		));
+		const target = { resource, sheetId: "sheet-a" };
+
+		sliceService.submitUri([createUriSliceRequest(target, {
+			rowCount,
+			sourceModelVersion: 3,
+			sourceVersion: 7,
+			template,
+		})]);
+
+		await waitUntil(() => sliceService.getUriState(target)?.state === "ready");
+		const result = sliceService.getUriResult(target);
+		assert.equal(result?.run.errors.length, 0);
+		assert.deepEqual(result?.curves[0]?.points, [
+			{ x: 0, y: 1 },
+			{ x: 1, y: 2 },
+			{ x: 2, y: 3 },
+		]);
+	});
+
+	test("fires URI result target changes when URI results are stored and removed", async () => {
+		const sessionService = store.add(new SessionService());
+		const resource = URI.file("/workspace/source.xlsx");
+		const content: TableModelContentSnapshot = {
+			columnCount: 2,
+			maxCellLengths: [2, 2],
+			rowCount: 3,
+			rows: [
+				["Vg", "Id"],
+				["0", "1"],
+				["1", "2"],
+			],
+		};
+		const tableModelService = store.add(new StaticTableModelService({
+			content,
+			defaultSheetId: "sheet-a",
+			diagnostics: [],
+			format: "xlsx",
+			loadState: { state: "ready", message: "" },
+			resource,
+			sheets: [{
+				content,
+				diagnostics: [],
+				sheetId: "sheet-a",
+				sheetName: "Sheet A",
+			}],
+			sourceVersion: 1,
+			version: 1,
+		}));
+		const sliceService = store.add(new SliceService(
+			sessionService,
+			undefined,
+			tableModelService,
+		));
+		const target = { resource, sheetId: "sheet-a" };
+		const changedTargets: SliceUriTarget[] = [];
+		const listener = sliceService.onDidChangeUriSliceResult(changedTarget => {
+			changedTargets.push(changedTarget);
+		});
+
+		sliceService.submitUri([createUriSliceRequest(target)]);
+		await waitUntil(() => sliceService.getUriState(target)?.state === "ready");
+		tableModelService.fireModelChanged(resource);
+		listener.dispose();
+
+		assert.equal(changedTargets.length, 2);
+		assert.deepEqual(changedTargets.map(changedTarget => changedTarget.sheetId), ["sheet-a", "sheet-a"]);
+		assert.deepEqual(changedTargets.map(changedTarget => changedTarget.resource.toString()), [
+			resource.toString(),
+			resource.toString(),
+		]);
+		assert.equal(sliceService.getUriResult(target), null);
+	});
+
+	test("does not fall back to the default sheet when a URI slice sheet target is missing", async () => {
+		const sessionService = store.add(new SessionService());
+		const resource = URI.file("/workspace/source.xlsx");
+		const content: TableModelContentSnapshot = {
+			columnCount: 2,
+			maxCellLengths: [2, 2],
+			rowCount: 3,
+			rows: [
+				["Vg", "Id"],
+				["0", "1"],
+				["1", "2"],
+			],
+		};
+		const tableModelService = store.add(new StaticTableModelService({
+			content,
+			defaultSheetId: "sheet-a",
+			diagnostics: [],
+			format: "xlsx",
+			loadState: { state: "ready", message: "" },
+			resource,
+			sheets: [{
+				content,
+				diagnostics: [],
+				sheetId: "sheet-a",
+				sheetName: "Sheet A",
+			}],
+			sourceVersion: 1,
+			version: 1,
+		}));
+		const sliceService = store.add(new SliceService(
+			sessionService,
+			undefined,
+			tableModelService,
+		));
+		const target = { resource, sheetId: "missing-sheet" };
+
+		sliceService.submitUri([createUriSliceRequest(target)]);
+
+		await waitUntil(() => sliceService.getUriState(target)?.state === "failed");
+		assert.equal(sliceService.getUriState(target)?.state, "failed");
+		assert.equal(sliceService.getUriResult(target), null);
+	});
 });
 
-const createTemplate = (): Template => ({
+const createTemplate = (
+	options: {
+		readonly startRow?: number;
+		readonly endRow?: number | "end";
+	} = {},
+): Template => ({
 	schemaVersion: 1,
 	name: "Transfer",
 	version: 1,
 	blocks: [{
 		rowRange: {
-			startRow: 1,
-			endRow: "end",
+			startRow: options.startRow ?? 1,
+			endRow: options.endRow ?? "end",
 		},
 		x: {
 			columns: [0],
@@ -322,207 +386,106 @@ const createTemplate = (): Template => ({
 	stopOnError: false,
 });
 
-const createReview = (
-	tableModel: TableModelRecord,
-	options: {
-		readonly recipeFingerprint?: string;
-		readonly template?: Template;
-		readonly userTemplateCatalogVersion?: number;
-		readonly templateFingerprint?: string;
-	} = {},
-): RawTableReviewRecord => {
-	const template = options.template ?? createTemplate();
-	const templateFingerprint = options.templateFingerprint ?? "template:auto";
+const createTestReviewFactors = () => ({
+	selectorScore: 1,
+	projectionScore: 1,
+	semanticScore: 1,
+	dataQualityScore: 1,
+	parseHealthScore: 1,
+	freshnessScore: 1,
+	ambiguityPenalty: 0,
+	conflictPenalty: 0,
+	diagnosticPenalty: 0,
+});
+
+const createSliceRequest = (): SliceRequest => {
+	const reviewedTemplate = createReviewedTemplate();
+	const requestSignature = JSON.stringify({
+		sourceRawTableVersion: 1,
+		templateFingerprint: reviewedTemplate.templateFingerprint,
+	});
 	return {
-		fileId: tableModel.fileId,
-		rawTableId: tableModel.rawTableId,
-		sourceRawTableVersion: tableModel.sourceRawTableVersion,
-		evidenceSignature: createReviewEvidenceSignature(tableModel, {
-			columnCount: 2,
-			fileName: "Raw.csv",
-			rowCount: 3,
-		}),
-		recipeFingerprint: options.recipeFingerprint ?? "recipe:test",
-		userTemplateCatalogVersion: options.userTemplateCatalogVersion ?? 1,
-		userTemplateEffectiveFingerprint: "user-template:test",
-		reviewEngineVersion: 1,
-		reviewPolicyVersion: 1,
-		candidates: [{
-			id: "recipe:builtin.iv.transfer:block-a",
-			source: {
-				kind: "recipe",
-				recipeId: "builtin.iv.transfer",
-				recipeVersion: 1,
-			},
-			templateFingerprint,
-			displayName: template.name,
-			reasonCodes: [],
-			diagnosticCodes: [],
-		}],
-		reviews: [{
-			candidateId: "recipe:builtin.iv.transfer:block-a",
-			templateFingerprint,
-			status: "ready",
-			confidence: 0.95,
-			reasons: [],
-			diagnostics: [],
-		}],
-		decision: {
-			kind: "ready",
-			reviewedTemplate: {
-				candidateId: "recipe:builtin.iv.transfer:block-a",
-				source: {
-					kind: "recipe",
-					recipeId: "builtin.iv.transfer",
-					recipeVersion: 1,
-				},
-				template,
-				templateFingerprint,
-				review: {
-					candidateId: "recipe:builtin.iv.transfer:block-a",
-					templateFingerprint,
-					status: "ready",
-					confidence: 0.95,
-					reasons: [],
-					diagnostics: [],
-				},
-			},
-			application: {
-				kind: "systemRecommended",
-				reason: "review.ready.systemRecommended",
-			},
-			summary: "Template is ready.",
-			suggestedActions: [],
+		id: `slice-request:file-a:table-a:${requestSignature}`,
+		ref: {
+			fileId: "file-a",
+			rawTableId: "table-a",
 		},
+		sourceRawTableVersion: 1,
+		reviewedTemplate,
+		trigger: {
+			kind: "userCommand",
+			commandId: "workbench.slice.runWithTemplate",
+			submittedBy: "user",
+		},
+		requestSignature,
 		createdAt: 1,
 	};
 };
 
-const createUserTemplateServiceForTest = (template: Template | (() => Template)): IUserTemplateService => {
-	const getCurrentTemplate = () => typeof template === "function" ? template() : template;
-	const getCurrentUserTemplate = () => createUserTemplateForTest(getCurrentTemplate());
+const createUriSliceRequest = (
+	target: SliceUriTarget,
+	options: {
+		readonly rowCount?: number;
+		readonly sourceModelVersion?: number;
+		readonly sourceVersion?: number;
+		readonly template?: Template;
+	} = {},
+): SliceUriRequest => {
+	const reviewedTemplate = createReviewedTemplate(options.template);
+	const requestSignature = JSON.stringify({
+		resource: target.resource.toString(),
+		sheetId: target.sheetId ?? null,
+		templateFingerprint: reviewedTemplate.templateFingerprint,
+	});
 	return {
-	_serviceBrand: undefined,
-	createTemplate: async () => {
-		throw new Error("Unexpected user template create in slice test.");
-	},
-	deleteTemplate: async () => undefined,
-	duplicateTemplate: async () => {
-		throw new Error("Unexpected user template duplicate in slice test.");
-	},
-	exportTemplates: () => ({
-		version: 1,
-		source: "conductor.userTemplate",
-		templates: [getCurrentUserTemplate()],
-	}),
-	getSnapshot: () => ({
-		version: 1,
-		workspaceVersion: 0,
-		globalVersion: 1,
-		workspaceFingerprint: "workspace:test",
-		globalFingerprint: "global:test",
-		effectiveFingerprint: "effective:test",
-		templates: [getCurrentUserTemplate()],
-	}),
-	getTemplate: (id: string) => {
-		const userTemplate = getCurrentUserTemplate();
-		return String(id ?? "").trim() === userTemplate.id ? userTemplate : undefined;
-	},
-	importTemplates: async () => ({
-		imported: [],
-		skipped: [],
-	}),
-	onDidChangeUserTemplates: Event.None,
-	refreshTemplates: async () => [getCurrentUserTemplate()],
-	updateTemplate: async () => {
-		throw new Error("Unexpected user template update in slice test.");
-	},
-	} as unknown as IUserTemplateService;
-};
-
-const createUserTemplateForTest = (template: Template): UserTemplate => {
-	const id = String(template.id ?? template.name ?? "template-a").trim();
-	const name = String(template.name ?? id).trim();
-	return {
-		id,
-		name,
-		version: Math.max(1, Math.floor(Number(template.version)) || 1),
-		scope: "global",
-		source: "userCreated",
-		template,
-		templateFingerprint: createTemplateFingerprint(template),
-		createdAt: 0,
-		updatedAt: 0,
+		id: `slice-uri-request:${target.resource.toString()}:${target.sheetId ?? ""}`,
+		target,
+		reviewedTemplate,
+		reviewSignature: "review:uri",
+		trigger: {
+			kind: "reviewDecision",
+			reviewSignature: "review:uri",
+			submittedBy: "system",
+		},
+		requestSignature,
+		createdAt: 1,
+		rowCount: options.rowCount ?? 3,
+		columnCount: 2,
+		sourceTableModelSignature: "table-model:uri",
+		measurement: {
+			curveFamily: "iv",
+			ivMode: "transfer",
+		},
+		sourceModelVersion: options.sourceModelVersion ?? 1,
+		sourceVersion: options.sourceVersion ?? 1,
 	};
 };
 
-const createTableModel = (): TableModelRecord => ({
-	tableModelRuleVersion: TABLE_MODEL_RULE_VERSION,
-	schemaProfileVersion: 0,
-	fileId: "file-a",
-	rawTableId: "table-a",
-	sourceRawTableVersion: 1,
-	structure: createEmptyRawTableStructure(),
-	columnProfiles: [],
-	layoutCandidates: [],
-	semanticCandidates: [],
-	groups: [],
-	blocks: [{
-		id: "block-a",
-		fileId: "file-a",
-		rawTableId: "table-a",
-		label: "Transfer",
-		family: "iv",
-		ivMode: "transfer",
+const createReviewedTemplate = (
+	template = createTemplate(),
+): ReviewedTemplate => {
+	const templateFingerprint = createTemplateFingerprint(template);
+	return {
+		candidateId: "recipe:builtin.iv.transfer:block-a",
 		source: {
-			fullRange: {
-				startRow: 0,
-				endRow: 2,
-				startCol: 0,
-				endCol: 1,
-			},
-			dataRange: {
-				startRow: 1,
-				endRow: 2,
-				startCol: 0,
-				endCol: 1,
-			},
+			kind: "recipe",
+			recipeId: "builtin.iv.transfer",
+			recipeVersion: 1,
 		},
-		columns: {
-			columns: [{
-				rawCol: 0,
-				role: "vg",
-				unit: "V",
-				headerText: "Vg",
-				confidence: 0.95,
-				sourceRange: {
-					startRow: 0,
-					endRow: 2,
-					startCol: 0,
-					endCol: 0,
-				},
-			}, {
-				rawCol: 1,
-				role: "id",
-				unit: "A",
-				headerText: "Id",
-				confidence: 0.95,
-				sourceRange: {
-					startRow: 0,
-					endRow: 2,
-					startCol: 1,
-					endCol: 1,
-				},
-			}],
+		template,
+		templateFingerprint,
+		review: {
+			candidateId: "recipe:builtin.iv.transfer:block-a",
+			interpretationFingerprint: templateFingerprint,
+			status: "ready",
+			confidence: 0.95,
+			factors: createTestReviewFactors(),
+			findings: [],
+			reasons: [],
+			diagnostics: [],
 		},
-		rowCount: 3,
-		columnCount: 2,
-		confidence: 0.95,
-		diagnosticCodes: [],
-	}],
-	diagnostics: [],
-	createdAt: 1,
-});
+	};
+};
 
 class TestRawTableRowsReaderService implements IRawTableRowsReaderService {
 	public declare readonly _serviceBrand: undefined;
@@ -557,6 +520,80 @@ class BlockingRawTableRowsReaderService extends TestRawTableRowsReaderService {
 	public resolveFirstRead(): void {
 		this.firstRead?.resolve(this.firstRead.rows);
 		this.firstRead = null;
+	}
+}
+
+class BlockingTableModelService implements ITableModelService {
+	public declare readonly _serviceBrand: undefined;
+	private readonly onDidChangeModelEmitter = new Emitter<ITableModel>();
+	public readonly onDidChangeModel = this.onDidChangeModelEmitter.event;
+
+	public canHandleResource(): boolean {
+		return true;
+	}
+
+	public createModelReference(): Promise<ITableModelReference> {
+		return new Promise(() => undefined);
+	}
+
+	public get(): ITableModel | undefined {
+		return undefined;
+	}
+
+	public registerContentProvider(_provider: ITableModelContentProvider): { dispose(): void } {
+		return { dispose: () => undefined };
+	}
+
+	public resolve(_resource: URI, _source?: TableSource | null): void {}
+
+	public fireModelChanged(resource: URI): void {
+		this.onDidChangeModelEmitter.fire({ resource } as ITableModel);
+	}
+
+	public dispose(): void {
+		this.onDidChangeModelEmitter.dispose();
+	}
+}
+
+class StaticTableModelService implements ITableModelService {
+	public declare readonly _serviceBrand: undefined;
+	private readonly onDidChangeModelEmitter = new Emitter<ITableModel>();
+	public readonly onDidChangeModel = this.onDidChangeModelEmitter.event;
+
+	public constructor(
+		private readonly snapshot: TableModelSnapshot,
+	) {}
+
+	public canHandleResource(): boolean {
+		return true;
+	}
+
+	public createModelReference(): Promise<ITableModelReference> {
+		return Promise.resolve({
+			object: {
+				resource: this.snapshot.resource,
+				getSnapshot: () => this.snapshot,
+			} as ITableModel,
+			dispose: () => undefined,
+		});
+	}
+
+	public get(): ITableModel | undefined {
+		return undefined;
+	}
+
+	public registerContentProvider(_provider: ITableModelContentProvider): { dispose(): void } {
+		return { dispose: () => undefined };
+	}
+
+	public resolve(_resource: URI, _source?: TableSource | null): void {}
+
+	public fireModelChanged(resource: URI): void {
+		this.onDidChangeModelEmitter.fire({ resource } as ITableModel);
+	}
+
+	public dispose(): void {
+		this.onDidChangeModelEmitter.dispose();
 	}
 }
 

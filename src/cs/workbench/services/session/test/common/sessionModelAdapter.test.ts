@@ -1,7 +1,6 @@
+import assert from "assert";
+
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-
-﻿import assert from "assert";
-
 import {
   createRawFilesFromRecords,
   mergeProcessedFileIntoRecords,
@@ -14,11 +13,6 @@ import {
   getFileRecordAxisProjection,
   getFileRecordCurveType,
 } from "src/cs/workbench/services/session/common/sessionRecordProjection";
-import {
-  TABLE_MODEL_RULE_VERSION,
-  type TableModelRecord,
-} from "src/cs/workbench/services/tableModel/common/tableModel";
-import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
 import { createEmptyTemplateEditorConfig } from "src/cs/workbench/services/template/common/templateEditorConfig";
 
 suite("workbench/services/session/test/common/sessionModelAdapter", () => {
@@ -278,135 +272,6 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
     );
     assert.deepEqual(record.metricsByKey, {});
     assert.equal(record.metricsBySeriesId, undefined);
-  });
-
-  test("projects TableModel back to raw file entries", () => {
-    const records = mergeRawFilesIntoRecords({}, [], [{
-      fileId: "file-a",
-      fileName: "Review.csv",
-      rowCount: 4,
-      columnCount: 2,
-    }]);
-    const file = records.filesById["file-a"];
-    assert.ok(file);
-
-    const tableModel: TableModelRecord = {
-      tableModelRuleVersion: TABLE_MODEL_RULE_VERSION,
-      schemaProfileVersion: 0,
-      blocks: [{
-        id: "file-a:block:0",
-        fileId: "file-a",
-        rawTableId: "file-a",
-        label: "transfer",
-        family: "iv",
-        ivMode: "transfer",
-        source: {
-          fullRange: {
-            startRow: 0,
-            endRow: 3,
-            startCol: 0,
-            endCol: 1,
-          },
-        },
-        columns: {
-          columns: [],
-        },
-        confidence: 0.6,
-        rowCount: 4,
-        columnCount: 2,
-        diagnosticCodes: [],
-      }],
-      columnProfiles: [{
-        rawCol: 0,
-        headerText: "Vg",
-        normalizedHeader: "vg",
-        kind: "numeric",
-      }, {
-        rawCol: 1,
-        headerText: "Id",
-        normalizedHeader: "id",
-        kind: "numeric",
-      }],
-      createdAt: 1,
-      diagnostics: [],
-      fileId: "file-a",
-      groups: [],
-      layoutCandidates: [{
-        id: "layout:simpleXY",
-        layoutKind: "simpleXY",
-        confidence: 0.8,
-        bindings: [{
-          xCol: 0,
-          yCols: [1],
-        }],
-        reasons: ["Detected one numeric X column and one numeric Y column."],
-      }],
-      rawTableId: "file-a",
-      semanticCandidates: [{
-        rawCol: 0,
-        roleCandidates: [{
-          role: "vg",
-          confidence: 0.82,
-          sources: ["header"],
-        }],
-        unitCandidates: [{
-          canonicalUnit: "V",
-          confidence: 0.72,
-          sources: ["roleDefault"],
-          confirmed: false,
-        }],
-      }, {
-        rawCol: 1,
-        roleCandidates: [{
-          role: "id",
-          confidence: 0.82,
-          sources: ["header"],
-        }],
-        unitCandidates: [{
-          canonicalUnit: "A",
-          confidence: 0.72,
-          sources: ["roleDefault"],
-          confirmed: false,
-        }],
-      }],
-      sourceRawTableVersion: 0,
-      structure: {
-        ...createEmptyRawTableStructure(),
-        fingerprint: "dataname|vg|id",
-      },
-    };
-    const rawFiles = createRawFilesFromRecords({
-      ...records.filesById,
-      "file-a": {
-        ...file,
-        tableModelByRawTableId: {
-          "file-a": tableModel,
-        },
-        measurementBlocksById: {
-          "file-a:block:0": tableModel.blocks[0],
-        },
-        measurementBlockOrder: ["file-a:block:0"],
-      },
-    }, records.fileOrder);
-
-    assert.deepEqual(rawFiles[0]?.tableModelBlocks?.map(block => block.id), ["file-a:block:0"]);
-    assert.equal(rawFiles[0]?.tableModelSchemaFingerprint, "dataname|vg|id");
-    assert.deepEqual(rawFiles[0]?.tableModelColumnProfiles?.map(profile => ({
-      rawCol: profile.rawCol,
-      normalizedHeader: profile.normalizedHeader,
-    })), [
-      { rawCol: 0, normalizedHeader: "vg" },
-      { rawCol: 1, normalizedHeader: "id" },
-    ]);
-    assert.deepEqual(rawFiles[0]?.tableModelSemanticCandidates?.map(candidate => ({
-      rawCol: candidate.rawCol,
-      role: candidate.roleCandidates[0]?.role,
-      unit: candidate.unitCandidates[0]?.canonicalUnit,
-    })), [
-      { rawCol: 0, role: "vg", unit: "V" },
-      { rawCol: 1, role: "id", unit: "A" },
-    ]);
-    assert.deepEqual(rawFiles[0]?.tableModelLayoutCandidates?.map(candidate => candidate.id), ["layout:simpleXY"]);
   });
 
   test("materializes base curves from display curve type labels", () => {

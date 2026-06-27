@@ -882,9 +882,8 @@ review 后面的 feature result，不是 URI 自身的一部分，也不是
 `TableModelSnapshot` 核心内容。通用输出仍以 accepted `Segment` 为边界；
 Slice 只是表格分析域的执行型输出。
 
-迁移参考：当前 `services/tableModel/common/rawTableStructure.ts`、`columnProfile.ts`、
-`layoutCandidate.ts`、`semanticCandidate.ts`、`blockDetector.ts`、`measurement.ts`、
-`diagnostics.ts` 是 legacy raw-table 语义生产层。按本文目标架构，它们对应的是
+迁移参考：当前 table projection 类型收敛在
+`services/table/common/tableProjection.ts`。按本文目标架构，它们对应的是
 URI-backed `ITableModel` 之后的 `ReviewContext.evidence` / content feature owner，不是 Recipe owner。
 首版可以先把这些字段作为 `ReviewContext` 的 evidence snapshot，不必单独服务化；
 只有 recipe、review 之外的多个 feature 都要复用同一套 evidence 生成逻辑时，再拆到

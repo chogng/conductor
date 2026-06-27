@@ -1,15 +1,18 @@
 import assert from "assert";
 
+import { URI } from "src/cs/base/common/uri";
 import type {
   BaseCurveKey,
   DerivedCurveKey,
   FileRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
+import type { SliceUriResult } from "src/cs/workbench/services/slice/common/slice";
 
 import {
   createCalculatedData,
   createCalculatedDataKey,
-  createCalculatedDataRecordInputSignature,
+  createCalculatedDataForSliceUriResult,
+  createCalculatedDataInputSignature,
   createCalculatedPlotsByKey,
   createCalculatedSeries,
   createSecondCalculatedData,
@@ -192,9 +195,9 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
     );
   });
 
-  test("createCalculatedDataRecordInputSignature ignores derived curve cache writes", () => {
+  test("createCalculatedDataInputSignature ignores derived curve cache writes", () => {
     const file = createFileRecord();
-    const signature = createCalculatedDataRecordInputSignature(
+    const signature = createCalculatedDataInputSignature(
       { "file-a": file },
       ["file-a"],
     );
@@ -229,7 +232,7 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
     };
 
     assert.equal(
-      createCalculatedDataRecordInputSignature({ "file-a": withDerived }, ["file-a"]),
+      createCalculatedDataInputSignature({ "file-a": withDerived }, ["file-a"]),
       signature,
     );
   });
@@ -259,6 +262,21 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
     assert.notEqual(left.signature, right.signature);
   });
 
+  test("createCalculatedDataForSliceUriResult derives target id from URI components", () => {
+    const result = createSliceUriResult();
+    const calculated = createCalculatedDataForSliceUriResult({
+      plotType: "iv",
+      result,
+    });
+
+    assert.equal(
+      calculated.source.fileId,
+      "file:///workspace/data/transfer.csv\u0000Sheet 1",
+    );
+    assert.equal(calculated.source.fileId?.includes("[object Object]"), false);
+    assert.equal(calculated.source.target?.sheetId, "Sheet 1");
+  });
+
   test("createSecondCalculatedData derives drawable second-pass data from calculated data", () => {
     const source = createCalculatedData({
       activeFileId: "file-a",
@@ -277,6 +295,79 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
   });
 });
 
+const createSliceUriResult = (): SliceUriResult => {
+  const resource = URI.file("/workspace/data/transfer.csv").toJSON() as unknown as SliceUriResult["target"]["resource"];
+  const target = {
+    resource,
+    sheetId: "Sheet 1",
+  };
+  return {
+    completedAt: 1,
+    curves: [{
+      curveFamily: "iv",
+      curveGeneration: "base",
+      ivMode: "transfer",
+      lineage: {
+        baseFamily: "iv",
+        baseSeries: {
+          resource,
+          sheetId: "Sheet 1",
+          seriesId: "series-a",
+        },
+        curveGeneration: "base",
+        ivMode: "transfer",
+      },
+      points: [
+        { x: 0, y: 1 },
+        { x: 1, y: 2 },
+      ],
+      resource,
+      seriesId: "series-a",
+      sheetId: "Sheet 1",
+      signature: "curve-a",
+    }],
+    requestSignature: "request-a",
+    run: {
+      errors: [],
+      id: "run-a",
+      inputRanges: [],
+      mode: "auto",
+      outputCurveKeys: [],
+      outputSeriesIds: ["series-a"],
+      resource,
+      selection: { kind: "auto" },
+      sheetId: "Sheet 1",
+      sourceTableModelSignature: "source-a",
+      template: {
+        blocks: [{
+          legend: { target: "auto" },
+          rowRange: { startRow: 0, endRow: 1 },
+          segmentation: { kind: "auto" },
+          x: { columns: [0], unit: "V" },
+          y: { columns: [1], unit: "A" },
+        }],
+        name: "Transfer",
+        schemaVersion: 1,
+        stopOnError: false,
+        version: 1,
+      },
+      templateFingerprint: "template-a",
+      warnings: [],
+    },
+    series: [{
+      groupIndex: 0,
+      id: "series-a",
+      name: "Series A",
+      resource,
+      sheetId: "Sheet 1",
+      y: [1, 2],
+    }],
+    sourceModelVersion: 1,
+    sourceVersion: 1,
+    target,
+  };
+};
+
 const createFileRecord = (
   fileId = "file-a",
   seriesId = "series-a",
@@ -288,7 +379,6 @@ const createFileRecord = (
 ): FileRecord => {
   const curveKey = `base:iv:transfer:${seriesId}` as BaseCurveKey;
   return {
-    tableModelByRawTableId: {},
     curvesByKey: {
       [curveKey]: {
         curveFamily: "iv",
@@ -312,8 +402,6 @@ const createFileRecord = (
     },
     id: fileId,
     kind: "unknown",
-    measurementBlockOrder: [],
-    measurementBlocksById: {},
     metricsByKey: {},
     name: `${fileId}.csv`,
     raw: {

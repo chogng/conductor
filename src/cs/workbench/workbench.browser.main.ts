@@ -21,8 +21,6 @@ import "src/cs/workbench/workbench.common.main";
 
 //#region --- workbench services
 
-import "src/cs/workbench/services/tableModel/browser/tableModelService";
-import "src/cs/workbench/services/tableModel/browser/tableModelQueueService";
 import "src/cs/workbench/services/appearance/browser/appearanceService";
 import "src/cs/workbench/services/lifecycle/browser/lifecycleService";
 import "src/cs/workbench/services/chart/browser/chartService";
@@ -41,7 +39,6 @@ import "src/cs/workbench/services/schemaProfile/browser/schemaProfileStoreServic
 import "src/cs/workbench/services/schemaProfile/browser/schemaProfileService";
 import "src/cs/workbench/services/slice/browser/sliceService";
 import "src/cs/workbench/services/recipe/browser/recipeService";
-import "src/cs/workbench/services/template/browser/templateMaterializationService";
 import "src/cs/workbench/services/userTemplate/browser/userTemplateStoreService";
 import "src/cs/workbench/services/userTemplate/browser/userTemplateService";
 import "src/cs/workbench/services/review/browser/reviewService";
@@ -65,7 +62,6 @@ import "src/cs/workbench/contrib/template/browser/templateViewStateService";
 //#region --- workbench service contributions
 
 import "src/cs/workbench/services/calculation/browser/calculation.contribution";
-import "src/cs/workbench/services/tableModel/browser/tableModel.contribution";
 import "src/cs/workbench/services/slice/browser/slicePriority.contribution";
 
 //#endregion
@@ -106,6 +102,5 @@ import "src/cs/workbench/contrib/themes/browser/themes.contribution";
 import "src/cs/workbench/contrib/export/browser/export.contribution";
 import "src/cs/workbench/contrib/parameters/browser/parameters.contribution";
 import "src/cs/workbench/contrib/origin/browser/origin.contribution";
-import "src/cs/workbench/contrib/tableModel/browser/tableModel.contribution";
 
 //#endregion

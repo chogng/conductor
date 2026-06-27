@@ -478,7 +478,6 @@ const createProcessedFileRecord = (fileId: string): FileRecord => {
   const curveKey = `base:iv:transfer:${fileId}-series` as BaseCurveKey;
   const seriesId = `${fileId}-series`;
   return {
-    tableModelByRawTableId: {},
     curvesByKey: {
       [curveKey]: {
         curveFamily: "iv",
@@ -501,8 +500,6 @@ const createProcessedFileRecord = (fileId: string): FileRecord => {
     },
     id: fileId,
     kind: "unknown",
-    measurementBlockOrder: [],
-    measurementBlocksById: {},
     metricsByKey: {},
     name: `${fileId}.csv`,
     raw: {
@@ -559,13 +556,6 @@ const createWorkbenchOptions = ({
   };
 
   return {
-    tableModelQueueService: {
-      _serviceBrand: undefined,
-      enqueueRawTables: () => undefined,
-      getQueueSnapshot: () => ({ rawTables: [] }),
-      onDidChangeTableModelQueueState: Event.None as Event<void>,
-      prioritizeRawTables: () => undefined,
-    },
     calculationService: {
       _serviceBrand: undefined,
       prioritizeCalculationFile: () => undefined,

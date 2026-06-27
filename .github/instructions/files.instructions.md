@@ -52,7 +52,6 @@ the closest-looking name.
 | table editor/model lifecycle | service-local URI/input model for open, preview, cache, reload, watch, save, and source-version state | `services/tableFile` working-copy owner plus table model resolver; no resource record and not Session |
 | source preparation result | Explorer-local row metadata, table resource URI, and diagnostics before table resource open | `PreparedFileImport` / `PreparedFileImportEntry` |
 | Explorer local import | explicit user import that updates Explorer-visible rows and opens a table resource without Session | `ExplorerViewPane` |
-| table model | raw tables -> structure/profile/semantic/block model | table-model producer (`ITableModelProducerService`) |
 
 Use user-facing "Import" in labels if appropriate, but use precise internal
 names: collect sources, prepare imported files, open table resources, upload,
@@ -241,7 +240,7 @@ Explorer view code may:
 - call commands or `IExplorerService` for user intent.
 
 Explorer view code must not parse files, read raw table rows directly, call the
-table-model producer (`ITableModelProducerService`), mutate Session,
+review pipeline, mutate Session,
 build plot models, or clear global thumbnail bitmap cache on ordinary prop
 changes.
 

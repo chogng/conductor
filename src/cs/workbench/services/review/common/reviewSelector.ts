@@ -5,7 +5,7 @@
 import type {
 	MeasurementBlockRecord,
 	MeasurementColumnRef,
-} from "src/cs/workbench/services/tableModel/common/measurement";
+} from "src/cs/workbench/services/table/common/tableProjection";
 import type { Recipe } from "src/cs/workbench/services/recipe/common/recipe";
 import type {
 	RecipePhysicalLayout,

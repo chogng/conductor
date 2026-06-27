@@ -7,7 +7,7 @@ applyTo: 'src/cs/workbench/services/session/**'
 `SessionService` is the canonical in-memory ledger for the current analysis
 session. It is not a view-state store and not a workflow dispatcher. It now owns
 the remaining imported data-file/raw-table lifecycle APIs directly
-for the migration ledger, while URI-backed table opens stay in tablefile/editor
+for the migration ledger, while URI-backed table opens stay in tableFile/editor
 model services.
 
 ## Concepts
@@ -27,7 +27,7 @@ model services.
 | File | Responsibility |
 | --- | --- |
 | `common/session.ts` | service contract, snapshot, commit inputs, events. |
-| `common/sessionModel.ts` | canonical records: files, raw, table model, reviews, slice runs, series, curves, metrics, cache. |
+| `common/sessionModel.ts` | canonical records: files, raw, table model, slice runs, series, curves, metrics, cache. |
 | `common/sessionEvents.ts` | change reasons, affected ids, helper types. |
 | `common/sessionReadModel.ts` | read-only projections. |
 | `common/sessionModelAdapter.ts` | compatibility projections between raw/processed helper payloads and canonical records; shrink over time. |
@@ -35,7 +35,7 @@ model services.
 
 ## Canonical Data Only
 
-Session may store imported files, raw tables/versions, table model, reviews,
+Session may store imported files, raw tables/versions, table model,
 slice runs, series, curves, metrics, metric inputs, and rebuildable calculation
 cache descriptors.
 
@@ -51,7 +51,7 @@ caches, or thumbnail caches.
 - Every commit validates affected ids.
 - Import commits return committed file ids and skipped duplicate source ids for caller follow-up.
 - Table-model commits check `sourceRawTableVersion`.
-- Raw table replacement invalidates stale TableModel, reviews, slice runs, curves, and metrics for that raw table.
+- Raw table replacement invalidates stale TableModel, slice runs, curves, and metrics for that raw table.
 - Calculation output that includes derived curves and metrics should use `commitCalculatedRecordsBatch`.
 - Events include affected ids; consumers ignore unrelated changes.
 
@@ -60,9 +60,7 @@ caches, or thumbnail caches.
 Commands may call Session commit methods only after another owner
 service/controller has produced the domain result. Ordinary Explorer
 file-to-table imports stay out of Session after source preparation: Explorer owns
-local visible rows and hands off URI resources to `ITableService`. TableModel
-production commits derived `TableModelRecord` values through Session while it
-remains the migration ledger.
+local visible rows and hands off URI resources to `ITableService`.
 
 Opening or previewing a table URI follows upstream file -> editor ownership and
 is not a Session workflow. Session only receives legacy migration-ledger raw
@@ -71,8 +69,6 @@ table records and downstream analysis records.
 | Workflow | Preferred producer | Session method |
 | --- | --- | --- |
 | legacy raw import | migration owner after raw-table import preparation | `commitFileImport` |
-| table model | `ITableModelProducerService` / table-model queue | `commitTableModel` backing API |
-| review | review contribution/command after candidate review | `commitRawTableReviews` |
 | slice | slice service after planning/execution | `commitSliceRuns` |
 | calculated curves/metrics | calculation service | `commitCalculatedRecordsBatch` |
 | metric input | parameters service | `setMetricInput` / `clearMetricInput` |

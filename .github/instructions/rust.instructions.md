@@ -1,6 +1,6 @@
 ---
 description: Rust execution branch guidelines for Conductor desktop - runtime route, domain boundaries, payload shape, parity, fallback, and lifecycle.
-applyTo: 'src/cs/workbench/services/{files,tableModel,table,template,plot,parameters,export,origin,search}/**,src/cs/platform/rust/**,src/cs/code/electron-main/{rustHostChannels.ts,rustHostService.ts,app.ts},src/cs/base/parts/sandbox/electron-browser/preload.ts,cli/**,extensions/**'
+applyTo: 'src/cs/workbench/services/{files,table,template,plot,parameters,export,origin,search}/**,src/cs/platform/rust/**,src/cs/code/electron-main/{rustHostChannels.ts,rustHostService.ts,app.ts},src/cs/base/parts/sandbox/electron-browser/preload.ts,cli/**,extensions/**'
 ---
 # Rust Execution Branch
 
@@ -100,7 +100,6 @@ Return data only at stable domain boundaries:
 
 | Stage | TS owner | Rust may do | Return to TS |
 | --- | --- | --- | --- |
-| Table model | table-model producer | block/group/role inference | `TableModelRecord` |
 | Table preview | table rows reader | chunk/cell/raw metadata reads | bounded rows or selected cells |
 | Slice execution | slice service | extraction/process | `SliceRun`, series/curve descriptors, diagnostics |
 | Plot | plot service | calculation, scaling, log transform, downsampling, plot frame | `PlotRenderModel` / bounded plot frame |

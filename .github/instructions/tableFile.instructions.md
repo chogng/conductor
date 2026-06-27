@@ -84,9 +84,7 @@ That lifecycle follows the upstream file -> editor shape and stays service-local
 unless a user explicitly invokes a legacy raw-table migration path.
 
 Explorer/files code must not call `ISessionService.commitFileImport(...)` for
-ordinary file-to-table imports. TableModel production may still commit
-`TableModelRecord` values through `ISessionService` while Session remains the
-canonical migration ledger for those downstream records.
+ordinary file-to-table imports.
 
 ## Core Files
 
@@ -108,6 +106,5 @@ canonical migration ledger for those downstream records.
   `ISessionService.getSnapshot()` after relevant `onDidChangeSession` events.
 - Keep TableFile services independent of views, commands, and Table widget
   state.
-- Keep table-model inference and derived record commits in
-  `services/tableModel`; TableFile services do not derive or commit
-  TableModel records.
+- TableFile services do not derive review candidates or commit derived Session
+  records.

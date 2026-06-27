@@ -6,11 +6,11 @@ import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { evaluateReviewSelector } from "src/cs/workbench/services/review/common/reviewSelector";
-import { createEmptyRawTableStructure } from "src/cs/workbench/services/tableModel/common/rawTableStructure";
-import type {
-	MeasurementBlockRecord,
-	MeasurementColumnRef,
-} from "src/cs/workbench/services/tableModel/common/measurement";
+import {
+	createEmptyTableProjectionStructure,
+	type MeasurementBlockRecord,
+	type MeasurementColumnRef,
+} from "src/cs/workbench/services/table/common/tableProjection";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
 import type { Recipe } from "src/cs/workbench/services/recipe/common/recipe";
 import { createRecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipeCodec";
@@ -102,7 +102,7 @@ const createReviewEvidence = ({
 	},
 	tableProjection: {
 		structure: {
-			...createEmptyRawTableStructure(),
+			...createEmptyTableProjectionStructure(),
 			fingerprint: "schema-a",
 		},
 		columnProfiles: [],

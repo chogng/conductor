@@ -31,7 +31,7 @@ import type { IUserTemplateService } from "src/cs/workbench/services/userTemplat
 import type { IDecorationsService } from "src/cs/workbench/services/decorations/common/decorations";
 import type {
   IReviewService,
-  TableReviewSummaryTarget,
+  ReviewSummaryTarget,
 } from "src/cs/workbench/services/review/common/review";
 
 suite("workbench/contrib/files/browser/explorerViewlet", () => {
@@ -265,9 +265,9 @@ const createDecorationsService = (): IDecorationsService => ({
 
 const createReviewService = (): IReviewService => ({
   _serviceBrand: undefined,
-  onDidChangeTableReview: Event.None,
+  onDidChangeReview: Event.None,
   getLatestReview: () => undefined,
-  getLatestReviewSummary: (target: TableReviewSummaryTarget) => ({
+  getLatestReviewSummary: (target: ReviewSummaryTarget) => ({
     resource: target.resource,
     ...(target.sheetId ? { sheetId: target.sheetId } : {}),
     state: "missing",
@@ -276,7 +276,7 @@ const createReviewService = (): IReviewService => ({
   reviewUriManualTemplate: async () => {
     throw new Error("Unexpected URI manual review in explorer viewlet test.");
   },
-  reviewUriTable: async (target: TableReviewSummaryTarget) => ({
+  reviewUri: async (target: ReviewSummaryTarget) => ({
     resource: target.resource,
     ...(target.sheetId ? { sheetId: target.sheetId } : {}),
     summary: {
