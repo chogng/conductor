@@ -28,6 +28,11 @@ import type { ITableService } from "src/cs/workbench/services/table/common/table
 import type { IThumbnailPreviewService, IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { IUserTemplateService } from "src/cs/workbench/services/userTemplate/common/userTemplate";
+import type { IDecorationsService } from "src/cs/workbench/services/decorations/common/decorations";
+import type {
+  IReviewService,
+  TableReviewSummaryTarget,
+} from "src/cs/workbench/services/review/common/review";
 
 suite("workbench/contrib/files/browser/explorerViewlet", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
@@ -153,6 +158,8 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
       warmPlotThumbnail: () => undefined,
     } as unknown as IThumbnailService,
     createUserTemplateService(),
+    createDecorationsService(),
+    createReviewService(),
   );
 
 const createExplorerService = (
@@ -171,9 +178,7 @@ const createExplorerService = (
   onDidChangeViewLayout: Event.None,
   onDidChangeVisibleFileIds: Event.None,
   selectedProcessedFileId: null,
-  selectedProcessedSourceKey: null,
   selectedRawFileId: null,
-  selectedRawSourceKey: null,
   viewLayout: "tree",
   applyBulkEdit: async () => undefined,
   getCollapsedFolderKeys: () => [],
@@ -182,9 +187,7 @@ const createExplorerService = (
     expandedFolderKeys: [],
     hoveredFileId: null,
     selectedProcessedFileId: null,
-    selectedProcessedSourceKey: null,
     selectedRawFileId: null,
-    selectedRawSourceKey: null,
     toCopy: {
       isCut: false,
       resources: [],
@@ -251,3 +254,39 @@ const createUserTemplateService = (): IUserTemplateService => ({
     throw new Error("Unexpected user template update in explorer viewlet test.");
   },
 } as unknown as IUserTemplateService);
+
+const createDecorationsService = (): IDecorationsService => ({
+  _serviceBrand: undefined,
+  onDidChangeDecorations: Event.None,
+  getDecoration: () => undefined,
+  getDecorationData: () => [],
+  registerDecorationsProvider: () => toDisposable(() => undefined),
+} as unknown as IDecorationsService);
+
+const createReviewService = (): IReviewService => ({
+  _serviceBrand: undefined,
+  onDidChangeTableReview: Event.None,
+  getLatestReview: () => undefined,
+  getLatestReviewSummary: (target: TableReviewSummaryTarget) => ({
+    resource: target.resource,
+    ...(target.sheetId ? { sheetId: target.sheetId } : {}),
+    state: "missing",
+    findingCodes: [],
+  }),
+  reviewRawTableManualTemplate: () => {
+    throw new Error("Unexpected manual review in explorer viewlet test.");
+  },
+  reviewUriManualTemplate: async () => {
+    throw new Error("Unexpected URI manual review in explorer viewlet test.");
+  },
+  reviewUriTable: async (target: TableReviewSummaryTarget) => ({
+    resource: target.resource,
+    ...(target.sheetId ? { sheetId: target.sheetId } : {}),
+    summary: {
+      resource: target.resource,
+      ...(target.sheetId ? { sheetId: target.sheetId } : {}),
+      state: "missing",
+      findingCodes: [],
+    },
+  }),
+} as unknown as IReviewService);
