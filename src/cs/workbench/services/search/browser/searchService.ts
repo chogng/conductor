@@ -20,11 +20,8 @@ import {
 	type IPlotService as IPlotServiceType,
 	type PlotDisplayModelInput,
 } from "src/cs/workbench/services/plot/common/plot";
-import {
-	ISessionService,
-	type ISessionService as ISessionServiceType,
-	type SessionSnapshot,
-} from "src/cs/workbench/services/session/common/session";
+import type { SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
+import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import {
 	ISearchService,
 	type ISearchService as ISearchServiceType,
@@ -65,7 +62,6 @@ export class SearchService extends Disposable implements ISearchServiceType {
 	constructor(
 		@IChartService private readonly chartService: IChartServiceType,
 		@IPlotService private readonly plotService: IPlotServiceType,
-		@ISessionService private readonly sessionService: ISessionServiceType,
 	) {
 		super();
 
@@ -73,7 +69,6 @@ export class SearchService extends Disposable implements ISearchServiceType {
 		this._register(this.chartService.onDidChangeChartViewInput(() => this.refreshPointLookupModel()));
 		this._register(this.plotService.onDidChangePlotState(() => this.refreshPointLookupModel()));
 		this._register(this.plotService.onDidChangePlotDisplayModelCache(() => this.refreshPointLookupModel()));
-		this._register(this.sessionService.onDidChangeSession(() => this.refreshPointLookupModel()));
 		this.refreshPointLookupModel();
 	}
 
@@ -178,11 +173,10 @@ export class SearchService extends Disposable implements ISearchServiceType {
 			return;
 		}
 
-		const snapshot = this.sessionService.getSnapshot();
 		const plotDisplayModelInput = this.createPointLookupPlotDisplayModelInput(
 			fileId,
 			chartInput.activePlotType ?? this.plotService.getState().activePlotType,
-			snapshot,
+			chartInput.activeTarget ?? null,
 		);
 		const plotDisplayModel = this.plotService.getCachedPlotDisplayModel(plotDisplayModelInput);
 		if (!plotDisplayModel) {
@@ -240,30 +234,38 @@ export class SearchService extends Disposable implements ISearchServiceType {
 	private createPointLookupPlotDisplayModelInput(
 		fileId: string,
 		plotType: NonNullable<PlotDisplayModelInput["plotType"]>,
-		snapshot: SessionSnapshot,
+		target: SliceUriTarget | null,
 	): PlotDisplayModelInput {
 		const legendModel = this.plotService.getCachedPlotLegendModel({
 			fileId,
 			plotType,
-			snapshot,
+			target,
 		});
 		const liveLegendKeys = legendModel?.seriesList.map(series => series.id) ?? [];
+		const legendFileId = legendModel?.fileId ?? fileId;
+		const legendTarget = legendModel?.target ?? target;
 		return {
 			fileId,
 			hiddenLegendKeys: liveLegendKeys.length
-				? this.plotService.getHiddenLegendKeys(fileId, plotType, liveLegendKeys)
+				? this.plotService.getHiddenLegendKeys({
+					fileId: legendFileId,
+					target: legendTarget,
+				}, plotType, liveLegendKeys)
 				: [],
-			legendLabels: this.getPointLookupLegendLabels(fileId, liveLegendKeys),
+			legendLabels: this.getPointLookupLegendLabels({
+				fileId: legendFileId,
+				target: legendTarget,
+			}, liveLegendKeys),
 			plotType,
-			snapshot,
+			target,
 		};
 	}
 
 	private getPointLookupLegendLabels(
-		fileId: string,
+		target: PlotDisplayModelInput,
 		liveLegendKeys: readonly string[],
 	): Readonly<Record<string, string>> {
-		const labels = this.plotService.getLegendLabels(fileId);
+		const labels = this.plotService.getLegendLabels(target);
 		if (!liveLegendKeys.length) {
 			return labels;
 		}

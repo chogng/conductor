@@ -8,13 +8,15 @@ Search is a consumer and indexer. It does not produce canonical data.
 
 ## Ownership
 
-`ISearchService` owns query state, selected result, indexes from Session,
-results for raw cells/tables/groups/blocks/columns/curves/metrics/parameters,
-and navigation target generation.
+`ISearchService` owns query state, selected result, indexes from explicit
+Session snapshots, results for raw cells/tables/groups/blocks/columns/curves/
+metrics/parameters, and navigation target generation.
 
-It consumes Session, table model, review results, optional Plot display models
-for currently plotted chart/inspector series, and owner services for reveal
-requests. It does not own import, table-model production, template execution, plot
+It consumes explicit Session snapshots for text search, table model, review
+results, optional Plot display models for currently plotted chart/inspector
+series, and owner services for reveal requests. It does not inject Session for
+point lookup; Plot owns current snapshot resolution for plot display models.
+It does not own import, table-model production, template execution, plot
 calculation, or Session mutation.
 
 ## Core Files
@@ -22,7 +24,7 @@ calculation, or Session mutation.
 | File | Responsibility |
 | --- | --- |
 | `common/search.ts` | service contract, query/result types, navigation targets. |
-| `browser/searchService.ts` | query/selection state owner, session/chart/plot subscriber. |
+| `browser/searchService.ts` | query/selection state owner, chart/plot subscriber, explicit session-snapshot search helper. |
 | `browser/searchIndex.ts` | pure index builder from files/raw tables/blocks/curves/metrics. |
 | `browser/searchNavigation.ts` | result -> Explorer/Table/Plot/Parameters reveal commands. |
 | `contrib/search/browser/searchViewPane.ts` | view shell. |
@@ -31,8 +33,9 @@ calculation, or Session mutation.
 ## Flow
 
 ```txt
-SessionSnapshot + Chart state/input + optional cached PlotDisplayModel
-  -> SearchIndex / SearchPointLookupModel
+Explicit SessionSnapshot -> SearchIndex
+Chart state/input + optional cached PlotDisplayModel
+  -> SearchPointLookupModel
   -> ISearchService query
   -> SearchResult[]
   -> explicit reveal target dispatch

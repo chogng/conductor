@@ -12,7 +12,7 @@ import type { SearchPointLookupModel, SearchState } from "src/cs/workbench/servi
 import type { IChartService } from "src/cs/workbench/services/chart/common/chart";
 import type { IPlotService, PlotDisplayModel, PlotDisplayModelInput, PlotLegendModel } from "src/cs/workbench/services/plot/common/plot";
 import type { PlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotModel";
-import type { ISessionService, SessionSnapshot } from "src/cs/workbench/services/session/common/session";
+import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
 
 suite("workbench/services/search/test/browser/searchService", () => {
@@ -95,7 +95,6 @@ suite("workbench/services/search/test/browser/searchService", () => {
 				onDidChangePlotState: plotStateEmitter.event,
 				plotDisplayInputs,
 			}),
-			createSessionServiceForPointLookupTest(),
 		));
 
 		assert.deepEqual({
@@ -200,7 +199,6 @@ const createSearchServiceForTest = (): SearchService =>
 	new SearchService(
 		createIdleChartServiceForTest(),
 		createIdlePlotServiceForTest(),
-		createIdleSessionServiceForTest(),
 	);
 
 const createIdleChartServiceForTest = (): IChartService => ({
@@ -255,12 +253,6 @@ const createIdlePlotServiceForTest = (): IPlotService => ({
 	setYScale: async () => undefined,
 	toggleHiddenLegendKey: () => undefined,
 });
-
-const createIdleSessionServiceForTest = (): ISessionService => ({
-	_serviceBrand: undefined,
-	getSnapshot: () => createSnapshot(),
-	onDidChangeSession: Event.None,
-} as unknown as ISessionService);
 
 const createSearchPointLookupModel = (): SearchPointLookupModel => ({
 	panes: [
@@ -418,11 +410,6 @@ const createPlotServiceForPointLookupTest = ({
 	onDidChangePlotState,
 	prefetchPlotDisplayModel: () => undefined,
 } as unknown as IPlotService);
-
-const createSessionServiceForPointLookupTest = (): ISessionService => ({
-	getSnapshot: () => createSnapshot(),
-	onDidChangeSession: Event.None,
-} as unknown as ISessionService);
 
 const createSnapshot = (): SessionSnapshot => ({
 	fileOrder: ["file-a"],
