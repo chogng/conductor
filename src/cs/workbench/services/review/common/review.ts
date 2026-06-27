@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Event } from "src/cs/base/common/event";
+import type { URI } from "src/cs/base/common/uri";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
 import type {
@@ -96,7 +97,7 @@ export type ReviewedTableItMode =
   | "generic";
 
 export type UriReview = {
-  readonly resource: ReviewSummaryTarget["resource"];
+  readonly resource: URI;
   readonly sheetId?: string;
   readonly contentHash?: string;
   readonly summary: ReviewSummary;

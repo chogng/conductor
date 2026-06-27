@@ -91,6 +91,12 @@ ownerModel.setSelection(selection)
 
 Do not turn targets into behavior objects.
 
+Write concrete field types directly when the type is already part of the local
+contract. For example, use `readonly resource: URI` instead of
+`readonly resource: SomeTarget["resource"]`. Use indexed access types only when
+the field intentionally follows another type's changing property shape, not as
+a shortcut for a known concrete type.
+
 Dependency direction:
 
 ```txt
