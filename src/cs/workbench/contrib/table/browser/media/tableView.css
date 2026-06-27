@@ -279,7 +279,6 @@
 
 .table_view_grid td {
   color: rgb(var(--text-primary) / 1);
-  cursor: default;
 }
 
 .table_view_grid td[data-selected="true"],

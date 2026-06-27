@@ -1,0 +1,7 @@
+.ui-mouse-cursor--cell {
+  cursor: cell;
+}
+
+.ui-mouse-cursor--text {
+  cursor: text;
+}

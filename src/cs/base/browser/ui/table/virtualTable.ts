@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollableElement";
+import { MOUSE_CURSOR_CELL_CLASS_NAME } from "src/cs/base/browser/ui/mouseCursor/mouseCursor";
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 
@@ -202,7 +203,7 @@ type VirtualTableClassNames = {
 
 const VIRTUAL_TABLE_CLASS_NAMES: VirtualTableClassNames = {
 	body: "table_view_body",
-	cell: "table_view_cell",
+	cell: `table_view_cell ${MOUSE_CURSOR_CELL_CLASS_NAME}`,
 	cellContent: "table_view_cell_content",
 	columnResizeGuide: "table_view_column_resize_guide",
 	columnSpacerCell: "table_view_column_spacer_cell",
