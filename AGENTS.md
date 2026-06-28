@@ -1,8 +1,24 @@
-不管你做什么，这是最重要的第一点:严格禁止兜底，严格禁止把逻辑换个地方充当改正，严格改个声明/name就充当改正，严格禁止re-export，严格遵守前面几个'严格....'
-逻辑完善的情况下，旧兼容直接退场，空文件壳保留，不用删除
-严格禁止为了少改调用面而保留本地 facade、旧接口、兼容别名、反向依赖或临时适配层。必须让调用方一起迁移到目标接口；如果迁移范围变大，就说明真实改动范围本来就这么大，不能用局部包装掩盖。只有在用户明确要求分阶段迁移，或存在无法一次迁移的外部约束时，才允许保留迁移桥；迁移桥必须标注原因、边界和删除条件。
+# Critical Rules
 
-文档可能存在错误，请不要完全相信，只是作为参考
+These rules have the highest priority.
+
+* NEVER add fallback logic.
+* NEVER replace a real fix with renamed declarations, moved logic, wrappers, facades, adapters, aliases, re-exports, or compatibility layers.
+* NEVER keep legacy interfaces or local compatibility code just to avoid updating call sites.
+* Call sites MUST migrate directly to the target interface.
+* When the target interface requires call-site changes, migrate the affected call sites directly instead of adding wrappers, aliases, or compatibility code to shrink the diff.
+
+
+When replacement logic is complete:
+
+* Retire the old compatibility path.
+* Empty file shells may stay only if needed.
+* Empty shells MUST NOT re-export, forward, delegate, alias, wrap, or preserve old behavior.
+
+Migration bridges are allowed only when explicitly requested by the user or required by a real external constraint. Any bridge MUST state its reason, boundary, and deletion condition.
+
+Documentation may be wrong or stale. Treat it as reference only; verify against actual code, tests, runtime behavior, and current implementation.
+
 
 when you have any questions, see the [Conductor Instructions](.github/conductor-instructions.md).
 

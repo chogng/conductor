@@ -32,6 +32,16 @@ export const KeyCode = {
   Digit7: 28,
   Digit8: 29,
   Digit9: 30,
+  Numpad0: 71,
+  Numpad1: 72,
+  Numpad2: 73,
+  Numpad3: 74,
+  Numpad4: 75,
+  Numpad5: 76,
+  Numpad6: 77,
+  Numpad7: 78,
+  Numpad8: 79,
+  Numpad9: 80,
   KeyA: 31,
   KeyB: 32,
   KeyC: 33,
@@ -71,6 +81,7 @@ export const KeyCode = {
   F10: 68,
   F11: 69,
   F12: 70,
+  ContextMenu: 84,
   Semicolon: 85,
   Equal: 86,
   Comma: 87,
@@ -106,4 +117,3 @@ export function isModifierKey(keyCode: KeyCode): boolean {
     keyCode === KeyCode.Alt ||
     keyCode === KeyCode.Meta;
 }
-

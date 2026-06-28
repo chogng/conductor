@@ -28,41 +28,6 @@ import {
 
 import "src/cs/base/browser/ui/table/table.css";
 
-export {
-	TABLE_WIDGET_DEFAULT_ZOOM_PERCENT,
-	TABLE_WIDGET_MAX_ZOOM_PERCENT,
-	TABLE_WIDGET_MIN_ZOOM_PERCENT,
-	TABLE_WIDGET_ZOOM_STEP_PERCENT,
-	type ITableBodyCellDescriptor,
-	type ITableCellPosition,
-	type ITableCellRange,
-	type ITableColumn,
-	type ITableContextMenuEvent,
-	type ITableColumnHeaderDescriptor,
-	type ITableColumnRange,
-	type ITableColumnResizeEvent,
-	type ITableColumnResizeMode,
-	type ITableColumnResizeOptions,
-	type ITableColumnVirtualDelegate,
-	type ITableDirtyRange,
-	type ITableEvent,
-	type ITableGestureEvent,
-	type ITableMouseEvent,
-	type ITablePatchResult,
-	type ITableRange,
-	type ITableRenderer,
-	type ITableRenderOptions,
-	type ITableRowHeaderDescriptor,
-	type ITableScrollEvent,
-	type ITableSize,
-	type ITableState,
-	type ITableTouchEvent,
-	type ITableVirtualDelegate,
-	type ITableWidgetOptions,
-	type ITableWidgetRenderer,
-	type ITableVisibleRangeChangeEvent,
-} from "src/cs/base/browser/ui/table/table";
-
 const TABLE_WIDGET_RESIZING_COLUMN_CLASS = "table_view--resizing_column";
 const TABLE_WIDGET_COLUMN_RESIZE_HANDLE_CLASS = "table_view_column_resize_handle";
 

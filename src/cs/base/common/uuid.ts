@@ -46,7 +46,3 @@ export const generateUuid = ((): (() => string) => {
     ].join("");
   };
 })();
-
-export function prefixedUuid(namespace: string): string {
-  return `${namespace}-${generateUuid()}`;
-}

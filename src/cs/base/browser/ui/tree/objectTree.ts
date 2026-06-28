@@ -1,10 +1,9 @@
-import { ListView, type IListViewOptions } from "src/cs/base/browser/ui/list/listView";
+import { ListView, type IListViewOptions, type ListRenderRange } from "src/cs/base/browser/ui/list/listView";
 import type {
   IListRenderer,
   IListVirtualDelegate,
-  ListHandle,
-  ListRenderRange,
 } from "src/cs/base/browser/ui/list/list";
+import type { ListHandle } from "src/cs/base/browser/ui/list/listWidget";
 import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";

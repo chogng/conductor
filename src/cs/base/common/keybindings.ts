@@ -258,7 +258,7 @@ function parseSimpleKeybinding(
   };
 }
 
-function keyCodeFromKeyboardEvent(event: IKeyboardEventLike): KeyCode {
+export function keyCodeFromKeyboardEvent(event: IKeyboardEventLike): KeyCode {
   const code = event.code ?? "";
   if (code.startsWith("Key") && code.length === 4) {
     return keyCodeFromLetter(code.charAt(3));
@@ -266,6 +266,10 @@ function keyCodeFromKeyboardEvent(event: IKeyboardEventLike): KeyCode {
 
   if (code.startsWith("Digit") && code.length === 6) {
     return keyCodeFromDigit(code.charAt(5));
+  }
+
+  if (code.startsWith("Numpad") && code.length === 7) {
+    return keyCodeFromNumpadDigit(code.charAt(6));
   }
 
   if (/^F\d{1,2}$/.test(code)) {
@@ -283,6 +287,7 @@ function keyCodeFromKeyboardEvent(event: IKeyboardEventLike): KeyCode {
     case "PageDown": return KeyCode.PageDown;
     case "End": return KeyCode.End;
     case "Home": return KeyCode.Home;
+    case "ContextMenu": return KeyCode.ContextMenu;
     case "ArrowLeft": return KeyCode.LeftArrow;
     case "ArrowUp": return KeyCode.UpArrow;
     case "ArrowRight": return KeyCode.RightArrow;
@@ -320,6 +325,7 @@ function keyCodeFromKeyboardEvent(event: IKeyboardEventLike): KeyCode {
     case "ArrowUp": return KeyCode.UpArrow;
     case "ArrowRight": return KeyCode.RightArrow;
     case "ArrowDown": return KeyCode.DownArrow;
+    case "ContextMenu": return KeyCode.ContextMenu;
   }
 
   return KeyCode.Unknown;
@@ -355,6 +361,7 @@ function parseKeyCode(token: string): KeyCode {
     case "space": return KeyCode.Space;
     case "pageup": return KeyCode.PageUp;
     case "pagedown": return KeyCode.PageDown;
+    case "contextmenu": return KeyCode.ContextMenu;
     case "end": return KeyCode.End;
     case "home": return KeyCode.Home;
     case "left":
@@ -405,6 +412,10 @@ function formatKeyCode(keyCode: KeyCode): string {
     return String(keyCode - KeyCode.Digit0);
   }
 
+  if (keyCode >= KeyCode.Numpad0 && keyCode <= KeyCode.Numpad9) {
+    return `Numpad${keyCode - KeyCode.Numpad0}`;
+  }
+
   if (keyCode >= KeyCode.F1 && keyCode <= KeyCode.F12) {
     return `F${keyCode - KeyCode.F1 + 1}`;
   }
@@ -419,6 +430,7 @@ function formatKeyCode(keyCode: KeyCode): string {
     case KeyCode.PageDown: return "PageDown";
     case KeyCode.End: return "End";
     case KeyCode.Home: return "Home";
+    case KeyCode.ContextMenu: return "ContextMenu";
     case KeyCode.LeftArrow: return "Left";
     case KeyCode.UpArrow: return "Up";
     case KeyCode.RightArrow: return "Right";
@@ -455,6 +467,14 @@ function keyCodeFromDigit(digit: string): KeyCode {
   }
 
   return (KeyCode.Digit0 + Number(digit)) as KeyCode;
+}
+
+function keyCodeFromNumpadDigit(digit: string): KeyCode {
+  if (digit < "0" || digit > "9") {
+    return KeyCode.Unknown;
+  }
+
+  return (KeyCode.Numpad0 + Number(digit)) as KeyCode;
 }
 
 function keyCodeFromFunctionKey(code: string): KeyCode {

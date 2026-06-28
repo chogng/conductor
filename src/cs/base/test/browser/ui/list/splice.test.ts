@@ -1,9 +1,7 @@
 import assert from "assert";
 
-import {
-  CombinedSpliceable,
-  type ISpliceable,
-} from "../../../../browser/ui/list/splice.ts";
+import { CombinedSpliceable } from "../../../../browser/ui/list/splice.ts";
+import type { ISpliceable } from "../../../../common/sequence.ts";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/browser/ui/list/splice", () => {

@@ -133,6 +133,83 @@ export class Emitter<T> implements IDisposable {
     }
 }
 
+export class EventBufferer {
+    private readonly data: Array<{ buffers: Array<() => void> }> = [];
+
+    public wrapEvent<T>(event: Event<T>): Event<T>;
+    public wrapEvent<T>(event: Event<T>, reduce: (last: T | undefined, event: T) => T): Event<T>;
+    public wrapEvent<T, O>(event: Event<T>, reduce: (last: O | undefined, event: T) => O, initial: O): Event<O>;
+    public wrapEvent<T, O>(
+        event: Event<T>,
+        reduce?: (last: T | O | undefined, event: T) => T | O,
+        initial?: O,
+    ): Event<T | O> {
+        const hasInitial = arguments.length >= 3;
+
+        return (listener, thisArgs, disposables) => {
+            let items: T[] | undefined;
+
+            return event(value => {
+                const data = this.data[this.data.length - 1];
+
+                if (!data) {
+                    if (reduce) {
+                        listener.call(thisArgs, reduce(hasInitial ? initial : undefined, value));
+                    } else {
+                        listener.call(thisArgs, value);
+                    }
+                    return;
+                }
+
+                if (!reduce) {
+                    data.buffers.push(() => listener.call(thisArgs, value));
+                    return;
+                }
+
+                if (!items) {
+                    items = [];
+                    data.buffers.push(() => {
+                        const bufferedItems = items ?? [];
+                        items = undefined;
+
+                        if (!bufferedItems.length) {
+                            return;
+                        }
+
+                        const reduced = hasInitial
+                            ? bufferedItems.reduce(
+                                (last, item) => reduce(last, item) as O,
+                                initial as O,
+                            )
+                            : bufferedItems.reduce(
+                                (last, item) => reduce(last, item) as T,
+                                undefined as T | undefined,
+                            );
+
+                        listener.call(thisArgs, reduced);
+                    });
+                }
+
+                items.push(value);
+            }, undefined, disposables);
+        };
+    }
+
+    public bufferEvents<R = void>(callback: () => R): R {
+        const data = { buffers: [] as Array<() => void> };
+        this.data.push(data);
+
+        try {
+            return callback();
+        } finally {
+            this.data.pop();
+            for (const flush of data.buffers) {
+                flush();
+            }
+        }
+    }
+}
+
 function addToDisposables(disposable: IDisposable, disposables?: IDisposable[] | DisposableStore): void {
     if (!disposables) {
         return;

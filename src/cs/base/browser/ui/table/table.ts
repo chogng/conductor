@@ -105,6 +105,21 @@ export interface ITableWidgetRenderer {
 	readonly renderRowHeader: (cell: HTMLTableCellElement, descriptor: ITableRowHeaderDescriptor) => void;
 }
 
+export interface ITablePagedBodyCellDescriptor<TRow> extends ITableBodyCellDescriptor {
+	readonly row: TRow;
+}
+
+export interface ITablePagedWidgetRenderer<TRow> {
+	readonly clearBodyCell?: (cell: HTMLTableCellElement) => void;
+	readonly disposeBodyCell?: (cell: HTMLTableCellElement) => void;
+	readonly renderBodyCell?: (cell: HTMLTableCellElement, descriptor: ITableBodyCellDescriptor) => void;
+	readonly renderBodyCellContent: (content: HTMLElement, descriptor: ITablePagedBodyCellDescriptor<TRow>) => void;
+	readonly renderBodyCellPlaceholder?: (content: HTMLElement, descriptor: ITableBodyCellDescriptor) => void;
+	readonly renderColumnHeader: (cell: HTMLElement, descriptor: ITableColumnHeaderDescriptor) => void;
+	readonly renderCorner?: (cell: HTMLElement) => void;
+	readonly renderRowHeader: (cell: HTMLTableCellElement, descriptor: ITableRowHeaderDescriptor) => void;
+}
+
 export interface ITableWidgetOptions {
 	readonly className?: string;
 	readonly columnResize?: ITableColumnResizeOptions;

@@ -1,4 +1,4 @@
-import type { ListHandle } from "src/cs/base/browser/ui/list/list";
+import type { ListHandle } from "src/cs/base/browser/ui/list/listWidget";
 import {
   ObjectTree,
   type IObjectTreeOptions,

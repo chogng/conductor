@@ -1,21 +1,15 @@
 import type { IDragAndDropData } from "src/cs/base/browser/dnd";
+import type { IKeyboardEvent } from "src/cs/base/browser/keyboardEvent";
 import type { IMouseEvent } from "src/cs/base/browser/mouseEvent";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import { ListViewTargetSector } from "src/cs/base/browser/ui/list/listView";
 
-export type ListRenderRange = {
-  readonly renderedEnd: number;
-  readonly renderedStart: number;
-  readonly visibleEnd: number;
-  readonly visibleStart: number;
-};
-
 export interface IListVirtualDelegate<T> {
-  getHeight(item: T): number;
-  getTemplateId(item: T): string;
-  hasDynamicHeight?(item: T): boolean;
-  getDynamicHeight?(item: T): number | null;
-  setDynamicHeight?(item: T, height: number): void;
+  getHeight(element: T): number;
+  getTemplateId(element: T): string;
+  hasDynamicHeight?(element: T): boolean;
+  getDynamicHeight?(element: T): number | null;
+  setDynamicHeight?(element: T, height: number): void;
 }
 
 export interface IListElementRenderDetails {
@@ -92,12 +86,15 @@ export interface IIdentityProvider<T> {
 }
 
 export interface IKeyboardNavigationLabelProvider<T> {
+  /**
+   * Return a keyboard navigation label(s) which will be used by
+   * the list for filtering/navigating. Return `undefined` to make
+   * an element always match.
+   */
   getKeyboardNavigationLabel(
     element: T,
   ): { toString(): string | undefined } | { toString(): string | undefined }[] | undefined;
 }
-
-export type IKeyboardEvent = KeyboardEvent;
 
 export interface IKeyboardNavigationDelegate {
   mightProducePrintableCharacter(event: IKeyboardEvent): boolean;
@@ -122,6 +119,7 @@ export interface ListDragOverEffect {
 export interface IListDragOverReaction {
   accept: boolean;
   effect?: ListDragOverEffect;
+  // use -1 for entire list
   feedback?: number[];
 }
 
@@ -188,12 +186,3 @@ export abstract class CachedListVirtualDelegate<T extends object> implements ILi
     }
   }
 }
-
-export type ListHandle = {
-  focus: () => void;
-  getViewport: () => HTMLDivElement | null;
-  layout: (height?: number, width?: number) => void;
-  scrollToEnd: (behavior?: ScrollBehavior) => void;
-  scrollToIndex: (index: number, behavior?: ScrollBehavior) => void;
-  scrollToStart: (behavior?: ScrollBehavior) => void;
-};
