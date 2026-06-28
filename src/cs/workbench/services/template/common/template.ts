@@ -17,8 +17,6 @@ export type {
 	TemplateMeasurementFamily,
 	TemplateRowRange,
 	TemplateSegmentation,
-	TemplateItMode,
-	TemplateIvMode,
 	TemplateTitles,
 } from "src/cs/workbench/services/template/common/templateSpec";
 

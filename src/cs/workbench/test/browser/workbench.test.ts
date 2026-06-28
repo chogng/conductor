@@ -34,7 +34,7 @@ import type { TemplateApplyPerformanceTraceTargetApi } from "src/cs/workbench/co
 type ThumbnailPrefetchForTest = {
   readonly priority: string;
   readonly targets: readonly {
-    readonly fileId: string;
+    readonly fileId?: string;
     readonly targetResource?: string | null;
     readonly targetSheetId?: string | null;
   }[];
@@ -325,7 +325,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       assert.deepEqual(prioritizedCalculationFileIds, []);
       assert.deepEqual(plotDisplayPrefetches, [
         {
-          fileIds: ["file-b"],
+          fileIds: [],
           priority: "active",
           targetResource: "file:///data/B.csv",
           targetSheetId: null,
@@ -443,7 +443,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
           targets: [{
             fileId: "file-a",
           }, {
-            fileId: "uri-a",
             targetResource: "file:///data/UriA.csv",
             targetSheetId: null,
           }],
@@ -451,7 +450,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
         {
           priority: "nearby",
           targets: [{
-            fileId: "uri-b",
             targetResource: "file:///data/UriB.csv",
             targetSheetId: null,
           }],
@@ -1091,7 +1089,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
         hasChartData: true,
       });
       assert.deepEqual(plotDisplayPrefetches.at(-1), {
-        fileIds: ["resource-file-a"],
+        fileIds: [],
         priority: "active",
         targetResource: "file:///data/Transfer.csv",
         targetSheetId: "sheet-a",
@@ -1370,7 +1368,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       explorerService.setHoveredFileId("resource-file-b");
 
       assert.deepEqual(plotDisplayPrefetches.at(-1), {
-        fileIds: ["resource-file-a"],
+        fileIds: [],
         priority: "recent",
         targetResource: "file:///data/A.csv",
         targetSheetId: null,
@@ -1378,7 +1376,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       assert.deepEqual(thumbnailPrefetches.at(-1), {
         priority: "recent",
         targets: [{
-          fileId: "resource-file-a",
           targetResource: "file:///data/A.csv",
           targetSheetId: null,
         }],
@@ -1860,11 +1857,8 @@ const createDomainBridgeOptionsForTest = ({
             };
           }
           return {
-            fileId: String(target.fileId ?? ""),
-            ...(target.target ? {
-              targetResource: target.target.resource.toString(),
-              targetSheetId: target.target.sheetId ?? null,
-            } : {}),
+            targetResource: target.resource.toString(),
+            targetSheetId: target.sheetId ?? null,
           };
         }),
       });

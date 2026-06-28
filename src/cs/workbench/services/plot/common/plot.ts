@@ -14,6 +14,56 @@ import type {
   FileId,
   SeriesId,
 } from "src/cs/workbench/services/session/common/sessionModel";
+import type { SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
+import type {
+  PlotMainRenderModel,
+  PlotMainSeries,
+} from "src/cs/workbench/services/plot/common/plotModel";
+import type { XUnit, YUnit } from "src/cs/workbench/services/plot/common/units";
+
+export const PlotTypes = CalculationKinds;
+export const IPlotService = createDecorator<IPlotService>("plotService");
+
+export type PlotType = CalculationKind;
+
+export const isPlotType = (value: unknown): value is PlotType =>
+  typeof value === "string" && (PlotTypes as readonly string[]).includes(value);
+
+export type PlotState = {
+  readonly axisTitleOverridesByKey: Readonly<Record<string, string>>;
+  readonly activePlotType: PlotType;
+  readonly hiddenLegendKeysByPlotKey: Readonly<Record<string, readonly SeriesId[]>>;
+  readonly legendLabelsByFileId: Readonly<Record<FileId, Readonly<Record<SeriesId, string>>>>;
+};
+
+export type PlotAxisTitlePane = "chart" | "inspector";
+export type PlotAxis = "x" | "y";
+
+export type PlotFileAxisSettings = {
+  readonly xUnitByFileId: Readonly<Record<FileId, string>>;
+  readonly yScaleByFileId: Readonly<Record<FileId, "linear" | "log">>;
+  readonly yUnitByFileId: Readonly<Record<FileId, string>>;
+};
+
+export type PlotAxisTitleContext = {
+  readonly axis: PlotAxis;
+  readonly fileId: FileId;
+  readonly pane: PlotAxisTitlePane;
+  readonly plotType: PlotType;
+  readonly target?: SliceUriTarget | null;
+};
+
+export type PlotTargetInput = {
+  readonly fileId?: FileId | null;
+  readonly target?: SliceUriTarget | null;
+};
+
+export type PlotTargetReference = FileId | SliceUriTarget | PlotTargetInput;
+
+export type PlotCalculatedDataInput = {
+  readonly plotType?: PlotType;
+  readonly snapshot?: SessionSnapshot;
+} & PlotTargetInput;
 
 export type PlotCalculatedDataPrefetchPriority = "active" | "hover" | "visible" | "recent" | "nearby" | "idle";
 
@@ -33,7 +83,7 @@ export type PlotDisplayModelCacheChangeEvent = {
 export type PlotMainRenderModelInput = PlotCalculatedDataInput;
 
 export type PlotLegendModel = {
-  readonly fileId: PlotFileId;
+  readonly fileId: FileId;
   readonly plotType: PlotType;
   readonly seriesList: readonly PlotMainSeries[];
   readonly target?: SliceUriTarget | null;
@@ -63,7 +113,7 @@ export type PlotPaneDisplayModel = {
 };
 
 export type PlotUnitControlModel = {
-  readonly fileId: PlotFileId;
+  readonly fileId: FileId;
   readonly xUnit: XUnit;
   readonly xUnitOptions: readonly XUnit[];
   readonly yScale: "linear" | "log";
@@ -73,7 +123,7 @@ export type PlotUnitControlModel = {
 
 export type PlotDisplayModel = {
   readonly chart: PlotPaneDisplayModel;
-  readonly fileId: PlotFileId;
+  readonly fileId: FileId;
   readonly inspector: PlotPaneDisplayModel | null;
   readonly plotType: PlotType;
   readonly target?: SliceUriTarget | null;
@@ -99,7 +149,7 @@ export interface IPlotService {
   getPlotLegendModel(input: PlotCalculatedDataInput): PlotLegendModel | null;
   getPlotMainRenderModel(input: PlotMainRenderModelInput): PlotMainRenderModel | null;
   cancelQueuedPlotInspectorDisplayModelPrefetch(): void;
-  prefetchCalculatedData(fileIds: readonly PlotFileId[], priority: PlotCalculatedDataPrefetchPriority, plotType?: PlotType): void;
+  prefetchCalculatedData(fileIds: readonly FileId[], priority: PlotCalculatedDataPrefetchPriority, plotType?: PlotType): void;
   prefetchPlotInspectorDisplayModel(input: PlotDisplayModelInput, priority: PlotCalculatedDataPrefetchPriority): void;
   prefetchPlotDisplayModel(input: PlotDisplayModelInput, priority: PlotCalculatedDataPrefetchPriority): void;
   prefetchPlotDisplayModels(inputs: readonly PlotDisplayModelInput[], priority: PlotCalculatedDataPrefetchPriority): void;

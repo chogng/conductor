@@ -259,14 +259,15 @@ export class ChartViewPane extends ViewPane {
     const unitState = this.getUnitControlState(props);
     if (unitState) {
       this.setHeaderUnitControls(createChartUnitControls({
-        onDidChangeScale: (fileId, scale) => this.updatePlotYScale({
-          fileId,
-          target: props.activeTarget ?? null,
-        }, scale),
-        onDidChangeUnit: (fileId, axis, unit) => this.updatePlotUnit({
-          fileId,
-          target: props.activeTarget ?? null,
-        }, axis, unit),
+        onDidChangeScale: (fileId, scale) => this.updatePlotYScale(
+          createChartPlotTargetReference(fileId, props.activeTarget ?? null),
+          scale,
+        ),
+        onDidChangeUnit: (fileId, axis, unit) => this.updatePlotUnit(
+          createChartPlotTargetReference(fileId, props.activeTarget ?? null),
+          axis,
+          unit,
+        ),
         state: unitState,
         store: this.headerStore,
       }));
@@ -427,22 +428,15 @@ export class ChartViewPane extends ViewPane {
     const fileId = input.fileId;
     const plotType = this.getActivePlotType();
     const isInspectorVisible = this.chartService.getState().visibleDetailPanes.includes("inspector");
-    const model = this.plotService.getCachedPlotDisplayModel({
-      fileId,
-      plotType,
-      target: input.target,
-    });
+    const plotInput = createChartPlotDisplayInput(input, plotType);
+    const model = this.plotService.getCachedPlotDisplayModel(plotInput);
     if (!isInspectorVisible) {
       this.cancelPendingInspectorPrefetch();
       this.plotService.cancelQueuedPlotInspectorDisplayModelPrefetch();
     }
     if (!model && fileId) {
       this.cancelPendingInspectorPrefetch();
-      this.plotService.prefetchPlotDisplayModel({
-        fileId,
-        plotType,
-        target: input.target,
-      }, "active");
+      this.plotService.prefetchPlotDisplayModel(plotInput, "active");
     } else if (
       model &&
       !model.inspector &&
@@ -493,11 +487,10 @@ export class ChartViewPane extends ViewPane {
         fileId: input.fileId,
         plotType: input.plotType,
       }, { silent: true });
-      this.plotService.prefetchPlotInspectorDisplayModel({
-        fileId: input.fileId,
-        plotType: input.plotType,
-        target: input.target,
-      }, "active");
+      this.plotService.prefetchPlotInspectorDisplayModel(
+        createChartPlotDisplayInput(input, input.plotType),
+        "active",
+      );
     }, INSPECTOR_PREFETCH_STABLE_DELAY_MS);
   }
 
@@ -673,10 +666,7 @@ export class ChartViewPane extends ViewPane {
     const currentLabelOverride = this.getLegendLabels(context)[legendKey] ?? null;
     const nextLabelOverride = resolveLegendLabelOverride(nextLabel, defaultLabel);
     this.plotService.setLegendLabel(
-      {
-        fileId: context.fileId,
-        target: context.target,
-      },
+      createChartPlotTargetReference(context.fileId, context.target),
       legendKey,
       nextLabelOverride,
     );
@@ -688,10 +678,7 @@ export class ChartViewPane extends ViewPane {
 
   private toggleLegendItem(context: LegendContext, legendKey: string): void {
     this.plotService.toggleHiddenLegendKey(
-      {
-        fileId: context.fileId,
-        target: context.target,
-      },
+      createChartPlotTargetReference(context.fileId, context.target),
       context.plotType,
       legendKey,
       context.seriesList.map(series => series.id),
@@ -712,11 +699,8 @@ export class ChartViewPane extends ViewPane {
     const plotType = this.getActivePlotType();
     const input = getChartPlotTargetInput(props);
     const fileId = input.fileId;
-    const legendModel = this.plotService.getCachedPlotLegendModel({
-      fileId,
-      plotType,
-      target: input.target,
-    });
+    const plotInput = createChartPlotDisplayInput(input, plotType);
+    const legendModel = this.plotService.getCachedPlotLegendModel(plotInput);
     const legendContext = getLegendContext(
       legendModel,
       plotType,
@@ -726,24 +710,20 @@ export class ChartViewPane extends ViewPane {
     }
 
     if (!legendModel && fileId) {
-      this.plotService.prefetchPlotDisplayModel({
-        fileId,
-        plotType,
-        target: input.target,
-      }, "active");
+      this.plotService.prefetchPlotDisplayModel(plotInput, "active");
     }
-    const displayModel = this.plotService.getCachedPlotDisplayModel({
-      fileId,
-      plotType,
-      target: input.target,
-    });
+    const displayModel = this.plotService.getCachedPlotDisplayModel(plotInput);
+    const isDisplayModelForInput = input.target
+      ? isSameSliceUriTarget(displayModel?.target, input.target)
+      : displayModel?.fileId === fileId;
     if (
-      displayModel?.fileId === fileId &&
+      displayModel &&
+      isDisplayModelForInput &&
       displayModel.plotType === plotType &&
       displayModel.chart.model.seriesList.length
     ) {
       return {
-        fileId,
+        fileId: displayModel.fileId,
         plotType,
         seriesList: displayModel.chart.model.seriesList,
         target: displayModel.target ?? input.target ?? null,
@@ -759,10 +739,7 @@ export class ChartViewPane extends ViewPane {
     }
 
     return this.plotService.getHiddenLegendKeys(
-      {
-        fileId: context.fileId,
-        target: context.target,
-      },
+      createChartPlotTargetReference(context.fileId, context.target),
       context.plotType,
       context.seriesList.map(series => series.id),
     );
@@ -774,10 +751,7 @@ export class ChartViewPane extends ViewPane {
     }
 
     const liveLegendKeys = new Set(context.seriesList.map((series) => series.id));
-    const labels = this.plotService.getLegendLabels({
-      fileId: context.fileId,
-      target: context.target,
-    });
+    const labels = this.plotService.getLegendLabels(createChartPlotTargetReference(context.fileId, context.target));
     const next: Record<string, string> = {};
     for (const [legendKey, label] of Object.entries(labels)) {
       if (liveLegendKeys.has(legendKey)) {
@@ -807,6 +781,24 @@ const getChartPlotTargetInput = (
   fileId: normalizeChartFileId(props.activeFileId),
   target: props.activeTarget ?? null,
 });
+
+const createChartPlotDisplayInput = (
+  input: { readonly fileId: string | null; readonly target?: SliceUriTarget | null },
+  plotType: PlotType,
+) => input.target
+  ? {
+      plotType,
+      target: input.target,
+    }
+  : {
+      fileId: input.fileId,
+      plotType,
+    };
+
+const createChartPlotTargetReference = (
+  fileId: string,
+  target?: SliceUriTarget | null,
+): PlotTargetReference => target ?? fileId;
 
 const normalizeChartFileId = (fileId: unknown): string | null => {
   const normalized = String(fileId ?? "").trim();

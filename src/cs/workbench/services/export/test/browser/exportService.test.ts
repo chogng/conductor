@@ -15,7 +15,7 @@ import type {
 	SessionSnapshot,
 } from "src/cs/workbench/services/session/common/session";
 import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
-import type { IPlotService } from "src/cs/workbench/services/plot/common/plot";
+import type { IPlotService, PlotFileAxisSettings } from "src/cs/workbench/services/plot/common/plot";
 import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
 
 import { BrowserExportService } from "src/cs/workbench/services/export/browser/exportService";
@@ -154,6 +154,7 @@ suite("workbench/services/export/browser/exportService", () => {
 
 		const viewState = service.updateViewState({
 			activeFileId: null,
+			snapshot: createEmptySnapshot(),
 		});
 
 		assert.deepEqual(viewState, {
@@ -185,6 +186,7 @@ suite("workbench/services/export/browser/exportService", () => {
 
 		const viewState = service.updateViewState({
 			activeFileId: "file-a",
+			snapshot,
 		});
 
 		assert.deepEqual(viewState.curveOptions.map(option => option.label), ["Plot Label"]);
@@ -193,8 +195,8 @@ suite("workbench/services/export/browser/exportService", () => {
 
 	test("merges Plot axis settings with Session export files inside Export", () => {
 		const files = [
-			createFileRecord("file-a", "transfer"),
-			createFileRecord("file-b", "output"),
+			createExportFileRecord("file-a", "transfer"),
+			createExportFileRecord("file-b", "output"),
 		];
 		const snapshot = createSnapshot(files);
 		const service = createExportService(snapshot, {}, {
@@ -206,6 +208,7 @@ suite("workbench/services/export/browser/exportService", () => {
 		service.setCanvasScope("all");
 		const viewState = service.updateViewState({
 			activeFileId: "file-a",
+			snapshot,
 		});
 
 		assert.deepEqual(viewState.scopedFileIds, ["file-a", "file-b"]);
@@ -243,11 +246,7 @@ const createPlotServiceStub = (
 	axisSettings: PlotFileAxisSettings,
 ): IPlotService => ({
 	getCachedCalculatedData: () => null,
-	getAxisSettings: () => ({
-		xUnitByFileId: {},
-		yScaleByFileId: {},
-		yUnitByFileId: {},
-	}),
+	getAxisSettings: () => axisSettings,
 	getLegendLabels: (fileId: string) => legendLabelsByFileId[fileId] ?? {},
 	onDidChangeCalculatedDataCache: BaseEvent.None,
 } as unknown as IPlotService);
@@ -265,29 +264,32 @@ const createEmptySnapshot = (): SessionSnapshot => ({
 	sessionVersion: 1,
 });
 
-const createSnapshotWithFile = (file: FileRecord): SessionSnapshot => ({
-	fileOrder: [file.id],
-	filesById: {
-		[file.id]: file,
-	},
+const createSnapshot = (files: readonly FileRecord[]): SessionSnapshot => ({
+	fileOrder: files.map(file => file.id),
+	filesById: Object.fromEntries(files.map(file => [file.id, file])),
 	schemaVersion: 1,
 	sessionVersion: 1,
 });
 
-const createExportFileRecord = (): FileRecord => ({
-	id: "file-a",
+const createSnapshotWithFile = (file: FileRecord): SessionSnapshot => createSnapshot([file]);
+
+const createExportFileRecord = (
+	fileId: string = "file-a",
+	ivMode: "transfer" | "output" = "transfer",
+): FileRecord => ({
+	id: fileId,
 	kind: "unknown",
-	name: "file-a.csv",
+	name: `${fileId}.csv`,
 	raw: {
-		fileId: "file-a",
-		fileName: "file-a.csv",
+		fileId,
+		fileName: `${fileId}.csv`,
 		tableOrder: [],
 		tablesById: {},
 	},
 	rawTableVersionsById: {},
 	seriesById: {
 		"series-a": {
-			fileId: "file-a",
+			fileId,
 			groupIndex: 0,
 			id: "series-a",
 			name: "Fallback Label",
@@ -296,19 +298,19 @@ const createExportFileRecord = (): FileRecord => ({
 	},
 	seriesOrder: ["series-a"],
 	curvesByKey: {
-		"base:iv:transfer:series-a": {
+		[`base:iv:${ivMode}:series-a`]: {
 			curveFamily: "iv",
 			curveGeneration: "base",
-			fileId: "file-a",
-			ivMode: "transfer",
+			fileId,
+			ivMode,
 			lineage: {
 				baseFamily: "iv",
 				baseSeries: {
-					fileId: "file-a",
+					fileId,
 					seriesId: "series-a",
 				},
 				curveGeneration: "base",
-				ivMode: "transfer",
+				ivMode,
 			},
 			points: [{ x: 0, y: 1 }],
 			seriesId: "series-a",

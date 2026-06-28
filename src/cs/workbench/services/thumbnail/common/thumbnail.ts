@@ -27,22 +27,12 @@ export type ThumbnailPreviewState =
 	| { readonly kind: "ready"; readonly model: ThumbnailPreviewPlotModel; readonly signature: string }
 	| { readonly kind: "error"; readonly message: string };
 
-export type ThumbnailPreviewTarget = string | {
+export type ThumbnailPreviewTarget = string | SliceUriTarget;
+
+export type ThumbnailPreviewChangeEvent = {
 	readonly fileId?: string | null;
 	readonly target?: SliceUriTarget | null;
 };
-
-export type ThumbnailPreviewChangeEvent = {
-	readonly fileId: string;
-	readonly target?: SliceUriTarget | null;
-};
-
-export type ThumbnailPreviewTarget =
-	| string
-	| {
-			readonly fileId: string;
-			readonly target: SliceUriTarget;
-		};
 
 export type ThumbnailBitmapOptions = {
 	readonly model: PlotMainRenderModelSource & {

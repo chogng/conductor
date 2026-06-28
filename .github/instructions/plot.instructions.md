@@ -74,6 +74,9 @@ uses platform storage; callers should not write settings/storage directly.
 - Consumers pass file identity or URI Slice targets into Plot read/prefetch APIs;
   they should not pass `SessionSnapshot` through Plot input records. PlotService
   resolves legacy Session-backed file ids internally as the Plot owner fallback.
+- URI consumers pass the `SliceUriTarget` directly. Do not pair a URI target
+  with a legacy file id in the same Plot input; derive downstream keys from the
+  target inside Plot.
 - Consumers that need Plot-owned axis/unit/scale settings call `getAxisSettings()`
   without passing Session snapshots. Session-backed callers merge file default
   axis projections in their own owner boundary when they still consume Session

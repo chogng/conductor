@@ -796,16 +796,20 @@ export class ExplorerViewer implements IDisposable {
       addDisposableListener(this.host, "contextmenu", this.handleListContextMenu),
     );
     this.disposables.add(this.props.thumbnailPreviewService.onDidChangePreview(event => {
+      const fileId = getThumbnailPreviewEventFileId(event, this.props);
+      if (!fileId) {
+        return;
+      }
       if (
         this.hoverContent?.kind === "thumbnail" &&
-        this.hoverContent.fileId === event.fileId
+        this.hoverContent.fileId === fileId
       ) {
         this.refreshVisibleHover();
       } else {
-        this.refreshCachedHoverThumbnail(event.fileId);
+        this.refreshCachedHoverThumbnail(fileId);
       }
       if (getEffectiveViewLayout(this.props) === "thumbnail") {
-        this.refreshThumbnailGridItem(event.fileId);
+        this.refreshThumbnailGridItem(fileId);
       }
     }));
   }
@@ -2982,12 +2986,29 @@ function createThumbnailPreviewTarget(
   }
 
   return {
-    fileId: normalizedFileId,
-    target: {
-      resource: file.resource,
-      sheetId: normalizeFileItemKey(file.sheetId),
-    },
+    resource: file.resource,
+    sheetId: normalizeFileItemKey(file.sheetId),
   };
+}
+
+function getThumbnailPreviewEventFileId(
+  event: { readonly fileId?: string | null; readonly target?: ThumbnailPreviewTarget | null },
+  props: Pick<ExplorerViewerProps, "files">,
+): string | null {
+  const fileId = normalizeFileItemKey(event.fileId);
+  if (fileId) {
+    return fileId;
+  }
+  const target = typeof event.target === "object" && event.target && "resource" in event.target
+    ? event.target
+    : null;
+  const targetKey = getExplorerResourceIdentityKey(target);
+  if (!targetKey) {
+    return null;
+  }
+  const file = props.files.find(candidate =>
+    getExplorerResourceIdentityKey(getExplorerFileResourceIdentity(candidate)) === targetKey);
+  return normalizeFileItemKey(file?.fileId);
 }
 
 function createRenderSettingsSignature(value: unknown): string {

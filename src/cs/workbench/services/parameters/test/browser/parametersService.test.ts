@@ -5,10 +5,16 @@
 import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import { createCalculatedMetricRecordsByFile } from "src/cs/workbench/services/calculation/common/calculationMetricRecordBuilder";
 import { ParametersService } from "src/cs/workbench/services/parameters/browser/parametersService";
 import type { ParametersViewState } from "src/cs/workbench/services/parameters/common/parameterModel";
-import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
+import type {
+  ISessionService,
+  SessionSnapshot,
+} from "src/cs/workbench/services/session/common/session";
 import type { FileRecord, MetricKey } from "src/cs/workbench/services/session/common/sessionModel";
+
+let parametersTestStore: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>;
 
 suite("workbench/services/parameters/test/browser/parametersService", () => {
   parametersTestStore = ensureNoDisposablesAreLeakedInTestSuite();
@@ -152,7 +158,17 @@ const createEmptySnapshot = (): SessionSnapshot => ({
   sessionVersion: 1,
 });
 
-const createProcessedSnapshot = (): SessionSnapshot => {
+const createSnapshot = (
+  files: readonly FileRecord[],
+  sessionVersion = 1,
+): SessionSnapshot => ({
+  fileOrder: files.map(file => file.id),
+  filesById: Object.fromEntries(files.map(file => [file.id, file])),
+  schemaVersion: 1,
+  sessionVersion,
+});
+
+const createParametersFileRecord = (): FileRecord => {
   const file = createProcessedFileRecord();
   const filesById = { [file.id]: file };
   const fileOrder = [file.id];
@@ -161,7 +177,7 @@ const createProcessedSnapshot = (): SessionSnapshot => {
     fileOrder,
   );
   const metricsByKey = Object.fromEntries(
-    (metricRecords["file-a"] ?? []).map(metric => [metric.key, metric]),
+    (metricRecords[file.id] ?? []).map(metric => [metric.key, metric]),
   );
   const metricsBySeriesId = Object.values(metricsByKey).reduce<Record<string, MetricKey[]>>(
     (result, metric) => {
@@ -171,40 +187,10 @@ const createProcessedSnapshot = (): SessionSnapshot => {
     {},
   );
 
-const createParametersFileRecord = (): ParametersFileRecord & { readonly id: string } => {
-  const seriesId = "series-1";
-  const curveKey = "base:iv:transfer:series-1";
-  const metricKey = "current:series-1:base";
   return {
-    ...createEmptySnapshot(),
-    fileOrder,
-    filesById: {
-      "file-a": {
-        ...file,
-        metricsByKey,
-        metricsBySeriesId,
-      },
-    },
-    metricsByKey: {
-      [metricKey]: {
-        metricFamily: "current",
-        seriesId,
-        value: {
-          ion: 1e-6,
-          ioff: 1e-12,
-          ionIoff: 1e6,
-        },
-      },
-    },
-    metricsBySeriesId: {
-      [seriesId]: [metricKey],
-    },
-    seriesById: {
-      [seriesId]: {
-        legendValue: "Vg = 0.1 V",
-      },
-    },
-    seriesOrder: [seriesId],
+    ...file,
+    metricsByKey,
+    metricsBySeriesId,
   };
 };
 

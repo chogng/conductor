@@ -9,7 +9,6 @@ import {
 } from "../../../../../platform/dialogs/common/dialogs.ts";
 import {
   FileSystemProviderCapabilities,
-  FileSystemProviderCapabilities,
   FileType,
 	  IFileService,
 	  type IFileChange,

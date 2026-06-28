@@ -234,8 +234,8 @@ const createSearchState = (
   query: {
     caseSensitive: false,
     interpolationMode,
-    kinds: ["curve"],
-    scope: "curve",
+    kinds: ["column"],
+    scope: "all",
     text,
   },
   selectedResultId: null,

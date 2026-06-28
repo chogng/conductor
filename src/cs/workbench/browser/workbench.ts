@@ -1149,7 +1149,6 @@ export class Workbench extends Layout {
   private renderParametersView(activeFileId: string | null): void {
     this.parametersService.updateViewState({
       fileId: activeFileId,
-      snapshot: this.session.getSnapshot(),
     });
   }
 

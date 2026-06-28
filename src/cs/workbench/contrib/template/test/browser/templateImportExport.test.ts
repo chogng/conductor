@@ -240,15 +240,9 @@ class TestFileService implements IFileService {
     return Disposable.None;
   }
 
-	public getProvider(_scheme: string): IFileSystemProvider | undefined {
-		return undefined;
-	}
-
-	public getProviderCapabilities(): FileSystemProviderCapabilities {
-		return FileSystemProviderCapabilities.FileRead |
-			FileSystemProviderCapabilities.FileWrite |
-			FileSystemProviderCapabilities.FileWatch;
-	}
+  public getProvider(_scheme: string): IFileSystemProvider | undefined {
+    return undefined;
+  }
 
   public getProviderCapabilities(_resourceOrScheme: URI | string): FileSystemProviderCapabilities {
     return FileSystemProviderCapabilities.FileRead | FileSystemProviderCapabilities.FileWrite;

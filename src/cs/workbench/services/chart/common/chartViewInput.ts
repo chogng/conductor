@@ -20,7 +20,6 @@ export type ChartProcessingStatus = {
 };
 
 export type ChartViewInput = {
-	readonly activeTarget?: SliceUriTarget | null;
 	readonly activePlotType?: PlotType;
 	readonly hasChartData?: boolean;
 	readonly chartFileOptions?: readonly ChartFileOption[];

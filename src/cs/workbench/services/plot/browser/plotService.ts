@@ -2800,10 +2800,18 @@ const normalizePlotTargetReference = (
   target: PlotTargetReference,
 ): PlotTargetInput => typeof target === "string"
   ? { fileId: target }
-  : {
-      fileId: target.fileId ?? null,
-      target: target.target ?? null,
-    };
+  : isSliceUriTargetReference(target)
+    ? { target }
+  : target.target
+    ? { target: target.target }
+    : { fileId: target.fileId ?? null };
+
+const isSliceUriTargetReference = (
+  target: PlotTargetReference,
+): target is SliceUriTarget =>
+  typeof target === "object" &&
+  target !== null &&
+  "resource" in target;
 
 const getPlotTargetStateKey = (
   target: PlotTargetReference,

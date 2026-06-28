@@ -131,10 +131,16 @@ const createCalculationWorkerFile = (
     }
   }
 
-  const workerFile: CalculationWorkerFile = {
+  return {
     curvesByKey,
     id: file.id,
     kind: file.kind,
+    ...(latestSliceRun ? {
+      latestSliceRunId: latestSliceRun.id,
+    } : {}),
+    ...(file.metricInputsByKey ? {
+      metricInputsByKey: file.metricInputsByKey,
+    } : {}),
     metricsByKey: {},
     name: file.name,
     raw: {
@@ -146,17 +152,12 @@ const createCalculationWorkerFile = (
     rawTableVersionsById: {},
     seriesById,
     seriesOrder: file.seriesOrder.filter(seriesId => curveSeriesIds.has(seriesId)),
-  };
-  if (file.metricInputsByKey) {
-    workerFile.metricInputsByKey = file.metricInputsByKey;
-  }
-  if (latestSliceRun) {
-    workerFile.latestSliceRunId = latestSliceRun.id;
-    workerFile.sliceRunsById = {
+    ...(latestSliceRun ? {
+      sliceRunsById: {
       [latestSliceRun.id]: latestSliceRun,
-    };
-  }
-  return workerFile;
+      },
+    } : {}),
+  };
 };
 
 const getLatestCalculationWorkerSliceRun = (

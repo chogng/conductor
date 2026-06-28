@@ -323,7 +323,6 @@ export class WorkbenchDomainBridge extends Disposable {
       shouldMountCharts: false,
     });
     this.options.plotService.prefetchPlotDisplayModel({
-      fileId: selectedChartFileId,
       plotType: activePlotType,
       target,
     }, "active");
@@ -422,7 +421,6 @@ export class WorkbenchDomainBridge extends Disposable {
       const plotType = chartViewInput.activePlotType ?? this.options.plotService.getState().activePlotType;
       const input = chartViewInput.activeTarget
         ? {
-          fileId: chartViewInput.activeFileId,
           plotType,
           target: chartViewInput.activeTarget,
         }
@@ -634,7 +632,6 @@ export class WorkbenchDomainBridge extends Disposable {
 
       if (target) {
         return {
-          fileId,
           plotType,
           target,
         };
@@ -1327,12 +1324,7 @@ const createThumbnailPreviewTargets = (
       normalizeExplorerSelectionFileId(candidate.fileId) === normalizedFileId
     );
     const target = file ? getExplorerFileUriTarget(file) : null;
-    result.push(target
-      ? {
-          fileId: normalizedFileId,
-          target,
-        }
-      : normalizedFileId);
+    result.push(target ?? normalizedFileId);
   }
   return result;
 };

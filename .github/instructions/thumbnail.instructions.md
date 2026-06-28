@@ -94,7 +94,8 @@ flowchart TD
    `ThumbnailPreviewTarget` values. File-id targets stay opaque to Thumbnail and
    are resolved by Plot; URI resource rows carry the Slice URI target.
 6. Preview service reads Plot cached data, keeps loading state on miss, and retries on Plot cache events.
-7. Preview service fires `onDidChangePreview(fileId)`.
+7. Preview service fires `onDidChangePreview` with the file-id target or URI
+   target that changed.
 8. Explorer refreshes only the active hover or affected thumbnail grid item.
 
 ## DOM and Performance

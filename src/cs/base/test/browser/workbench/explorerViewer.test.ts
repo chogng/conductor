@@ -600,7 +600,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     const hoverHost = document.createElement("div");
     const labels = new ResourceLabels();
     const requestedTargets: Array<{
-      readonly fileId: string;
+      readonly fileId?: string;
       readonly targetResource?: string | null;
       readonly targetSheetId?: string | null;
     }> = [];
@@ -629,9 +629,8 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
             requestedTargets.push({ fileId: target });
           } else {
             requestedTargets.push({
-              fileId: String(target.fileId ?? ""),
-              targetResource: target.target?.resource.toString() ?? null,
-              targetSheetId: target.target?.sheetId ?? null,
+              targetResource: target.resource.toString(),
+              targetSheetId: target.sheetId ?? null,
             });
           }
           return { kind: "loading" };
@@ -647,7 +646,6 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       assert.deepEqual(requestedTargets, [{
         fileId: "file-a",
       }, {
-        fileId: "uri-a",
         targetResource: "file:///data/UriA.csv",
         targetSheetId: null,
       }]);
@@ -1270,7 +1268,7 @@ const createThumbnailService = (
 });
 
 const getThumbnailPreviewFileId = (target: ThumbnailPreviewTarget): string =>
-  typeof target === "string" ? target : target.fileId;
+  typeof target === "string" ? target : target.resource.toString();
 
 const createThumbnailPlotModel = (fileId: string): ThumbnailPreviewPlotModel => ({
   pointsCount: 0,
