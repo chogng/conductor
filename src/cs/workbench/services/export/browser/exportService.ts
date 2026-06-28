@@ -7,10 +7,9 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { localize } from "src/cs/nls";
 import {
-  createExportProcessedFilesFromSession,
+  createExportCsvFilesFromCanonical,
 } from "src/cs/workbench/services/export/browser/csvExport";
 import {
-  createOriginCurveOptions,
   createOriginCurveOptionsFromRecord,
 } from "src/cs/workbench/services/export/common/exportModel";
 import {
@@ -39,10 +38,9 @@ import {
 } from "src/cs/workbench/services/export/common/originExport";
 import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
 import { getFileRecordAxisProjection } from "src/cs/workbench/services/session/common/sessionRecordProjection";
-import type {
-  ProcessedEntry,
-  ProcessedSeries,
-} from "src/cs/workbench/services/session/common/sessionTypes";
+import {
+  getPlotFileAxisSettings,
+} from "src/cs/workbench/services/plot/common/plotAxisSettings";
 import {
   getXUnitMeta,
   getYUnitMeta,
@@ -63,9 +61,9 @@ type OriginExportFile = {
   readonly curveType?: string;
   readonly fileId?: string;
   readonly fileName?: string;
-  readonly series?: ProcessedEntry["series"];
+  readonly series?: readonly OriginExportSeries[];
   readonly xAxisRole?: string;
-  readonly xGroups?: ProcessedEntry["xGroups"];
+  readonly xGroups?: readonly OriginExportNumberArray[];
   readonly xLabel?: string;
   readonly xUnit?: string;
   readonly yLabel?: string;
@@ -73,7 +71,21 @@ type OriginExportFile = {
   readonly [key: string]: unknown;
 };
 
-type OriginExportSeries = NonNullable<OriginExportFile["series"]>[number];
+type OriginExportSourceFile = OriginExportFile;
+
+type OriginExportSeries = {
+  readonly id?: unknown;
+  readonly label?: unknown;
+  readonly legendValue?: unknown;
+  readonly name?: unknown;
+  readonly [key: string]: unknown;
+};
+
+type OriginExportNumberArray = readonly number[] | Float64Array;
+
+type ResolvedOriginExportPlanInput = OriginExportPlanInput & {
+  readonly snapshot: SessionSnapshot;
+};
 
 export class BrowserExportService extends Disposable implements IExportService {
   public declare readonly _serviceBrand: undefined;
@@ -113,23 +125,22 @@ export class BrowserExportService extends Disposable implements IExportService {
   }
 
   public updateViewState(input: ExportViewStateInput): ExportViewState {
-    const planInput = this.createOriginExportPlanInput(input);
-    this.currentOriginExportPlanInput = planInput;
-    const curveOptions = input.activeFileRecord
+    this.currentOriginExportPlanInput = {
+      activeFileId: input.activeFileId,
+      axisSettings: input.axisSettings,
+    };
+    const planInput = this.resolveOriginExportPlanInput(this.currentOriginExportPlanInput);
+    const snapshot = planInput.snapshot;
+    const activeFileRecord = this.resolveActiveOriginFileRecord(planInput);
+    const curveOptions = activeFileRecord
       ? createOriginCurveOptionsFromRecord(
-        input.activeFileRecord,
+        activeFileRecord,
         (fileId, seriesId, fallback, index) =>
-          this.resolveOriginSeriesLabel(input.snapshot, fileId, seriesId, fallback, index),
-      )
-      : input.activeFile
-      ? createOriginCurveOptions(
-        input.activeFile,
-        (file, series, index) =>
-          this.resolveProcessedSeriesLabel(input.snapshot, file, series, index),
+          this.resolveOriginSeriesLabel(snapshot, fileId, seriesId, fallback, index),
       )
       : [];
     this.syncSelectedCurveKeys(curveOptions.map(option => option.key));
-    const exportScope = this.createOriginExportScopeModel(planInput);
+    const exportScope = this.createOriginExportScopeModelForInput(planInput);
     const viewState: ExportViewState = {
       curveOptions,
       hasMixedExportYScales: exportScope.hasMixedYScales,
@@ -142,6 +153,10 @@ export class BrowserExportService extends Disposable implements IExportService {
   }
 
   public createOriginExportScopeModel(input: OriginExportPlanInput): OriginExportScopeModel {
+    return this.createOriginExportScopeModelForInput(this.resolveOriginExportPlanInput(input));
+  }
+
+  private createOriginExportScopeModelForInput(input: ResolvedOriginExportPlanInput): OriginExportScopeModel {
     const files = this.resolveOriginExportFiles(input);
     return {
       fileIds: files
@@ -154,6 +169,10 @@ export class BrowserExportService extends Disposable implements IExportService {
   }
 
   public buildOriginExportPlan(input: OriginExportPlanInput): OriginExportPlan {
+    return this.buildOriginExportPlanForInput(this.resolveOriginExportPlanInput(input));
+  }
+
+  private buildOriginExportPlanForInput(input: ResolvedOriginExportPlanInput): OriginExportPlan {
     const files = this.resolveOriginExportFiles(input);
     if (!files.length) {
       throw new Error(localize("origin.selection.canvasRequired", "Please select at least one thumbnail first."));
@@ -238,7 +257,7 @@ export class BrowserExportService extends Disposable implements IExportService {
   openInOrigin(): Promise<void> {
     return runOpenInOrigin({
       buildCsvExportRequest: buildCsvExportRequest,
-      buildPayloads: () => this.buildOriginExportPlan(this.getCurrentOriginExportPlanInput()),
+      buildPayloads: () => this.buildOriginExportPlanForInput(this.getCurrentOriginExportPlanInput()),
       originAxisSettings: this.settingsService.getConductorSettings()?.plotAxisSettings,
       originBusyRef: this.originBusyRef,
       originChartXRange: null,
@@ -251,61 +270,58 @@ export class BrowserExportService extends Disposable implements IExportService {
   exportOriginZip(): Promise<void> {
     return runExportOriginZip({
       buildCsvExportRequest: buildCsvExportRequest,
-      buildPayloads: () => this.buildOriginExportPlan(this.getCurrentOriginExportPlanInput()),
+      buildPayloads: () => this.buildOriginExportPlanForInput(this.getCurrentOriginExportPlanInput()),
       notificationService: this.notificationService,
     });
   }
 
-  private createOriginExportPlanInput(input: ExportViewStateInput): OriginExportPlanInput {
-    return {
-      activeFileId: input.activeFileId,
-      axisSettings: this.getAxisSettings(input.snapshot),
-      snapshot: input.snapshot,
-    };
-  }
-
-  private getCurrentOriginExportPlanInput(): OriginExportPlanInput {
-    if (this.currentOriginExportPlanInput) {
-      return this.currentOriginExportPlanInput;
-    }
-
+  private resolveOriginExportPlanInput(input: OriginExportPlanInput): ResolvedOriginExportPlanInput {
     const snapshot = this.sessionService.getSnapshot();
     return {
-      activeFileId: null,
-      axisSettings: this.getAxisSettings(snapshot),
+      activeFileId: input.activeFileId,
+      axisSettings: input.axisSettings ?? this.getAxisSettings(snapshot),
       snapshot,
     };
   }
 
-  private getAxisSettings(snapshot: SessionSnapshot): OriginExportAxisSettings {
-    return this.plotService.getFileAxisSettings(snapshot);
+  private getCurrentOriginExportPlanInput(): ResolvedOriginExportPlanInput {
+    return this.resolveOriginExportPlanInput(this.currentOriginExportPlanInput ?? {
+      activeFileId: null,
+    });
   }
 
-  private resolveOriginExportFiles(input: OriginExportPlanInput): OriginExportFile[] {
-    const processedFiles = createExportProcessedFilesFromSession(
+  private getAxisSettings(snapshot: SessionSnapshot): OriginExportAxisSettings {
+    return getPlotFileAxisSettings({
+      axisSettings: this.plotService.getAxisSettings(),
+      snapshot,
+    });
+  }
+
+  private resolveOriginExportFiles(input: ResolvedOriginExportPlanInput): OriginExportFile[] {
+    const csvFiles = createExportCsvFilesFromCanonical(
       input.snapshot.filesById,
       input.snapshot.fileOrder,
     ).map((file) => this.createOriginExportFile(file));
-    if (!processedFiles.length) {
+    if (!csvFiles.length) {
       return [];
     }
 
     if (this.state.canvasScope === "all") {
-      return processedFiles;
+      return csvFiles;
     }
 
     if (this.state.canvasScope === "filtered") {
-      return processedFiles.filter((file) => this.isOriginFilteredCanvas(file));
+      return csvFiles.filter((file) => this.isOriginFilteredCanvas(file));
     }
 
     const activeFileId = String(input.activeFileId ?? "").trim();
     const activeFile = activeFileId
-      ? processedFiles.find((file) => String(file.fileId ?? "") === activeFileId)
+      ? csvFiles.find((file) => String(file.fileId ?? "") === activeFileId)
       : null;
     return activeFile ? [activeFile] : [];
   }
 
-  private createOriginExportFile(file: ProcessedEntry): OriginExportFile {
+  private createOriginExportFile(file: OriginExportSourceFile): OriginExportFile {
     const xAxisRole = String(file.xAxisRole ?? "").trim();
     return {
       ...file,
@@ -336,7 +352,7 @@ export class BrowserExportService extends Disposable implements IExportService {
   }
 
   private resolveOriginCurveLabel(
-    input: OriginExportPlanInput,
+    input: ResolvedOriginExportPlanInput,
     file: OriginExportFile | null | undefined,
     series: OriginExportSeries | null | undefined,
     index: number,
@@ -345,18 +361,6 @@ export class BrowserExportService extends Disposable implements IExportService {
     const fallback = this.resolveFallbackOriginCurveLabel(series, index);
     const fileId = String(file?.fileId ?? "");
     return this.resolveOriginSeriesLabel(input.snapshot, fileId, seriesId, fallback, index);
-  }
-
-  private resolveProcessedSeriesLabel(
-    snapshot: SessionSnapshot,
-    file: ProcessedEntry,
-    series: ProcessedSeries,
-    index: number,
-  ): string {
-    const fileId = String(file?.fileId ?? "");
-    const seriesId = String(series?.id ?? "");
-    const fallback = this.resolveFallbackOriginCurveLabel(series, index);
-    return this.resolveOriginSeriesLabel(snapshot, fileId, seriesId, fallback, index);
   }
 
   private resolveOriginSeriesLabel(
@@ -437,7 +441,7 @@ export class BrowserExportService extends Disposable implements IExportService {
   }
 
   private resolveOriginAxisTitleForFile(
-    input: OriginExportPlanInput,
+    input: ResolvedOriginExportPlanInput,
     file: OriginExportFile | null | undefined,
     axis: "x" | "y",
   ): string {
@@ -458,8 +462,15 @@ export class BrowserExportService extends Disposable implements IExportService {
     );
   }
 
+  private resolveActiveOriginFileRecord(
+    input: ResolvedOriginExportPlanInput,
+  ): FileRecord | null {
+    const activeFileId = String(input.activeFileId ?? "").trim();
+    return activeFileId ? input.snapshot.filesById[activeFileId] ?? null : null;
+  }
+
   private resolveOriginFileRecord(
-    input: OriginExportPlanInput,
+    input: ResolvedOriginExportPlanInput,
     file: OriginExportFile | null | undefined,
   ): FileRecord | undefined {
     const fileId = String(file?.fileId ?? "").trim();

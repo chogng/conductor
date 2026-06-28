@@ -13,7 +13,6 @@ import type {
 
 export type SessionChangeReason =
 	| "rawTablesChanged"
-	| "reviewChanged"
 	| "sliceRunChanged"
 	| "curvesChanged"
 	| "metricsChanged"

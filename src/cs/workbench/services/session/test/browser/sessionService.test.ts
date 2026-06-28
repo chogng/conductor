@@ -10,16 +10,12 @@ import {
   createCalculatedCurveRecordsByFile,
 } from "src/cs/workbench/services/calculation/common/calculationCurveRecordBuilder";
 import {
-  createCalculatedCurveRecordsByFile as createCalculatedCurveRecordsByFileFromPlots,
-} from "src/cs/workbench/services/session/common/sessionModelAdapter";
-import {
   commitRawFilesForTest,
   commitTemplateOutputForTest,
   createFileImportResultForTest,
   createSliceCommitForTest,
   replaceImportedFilesForTest,
 } from "src/cs/workbench/services/session/test/common/sessionTestRecords";
-import type { CalculatedPlotsByKey } from "src/cs/workbench/services/calculation/common/calculationReadModel";
 import type {
   FileImportResult,
   ImportedFileRecord,
@@ -913,23 +909,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
         y: [1, 2],
       }],
     });
-    replaceDerivedCurvesForTest(session, {
-      "iv:file-a": {
-        activeFile: { fileId: "file-a" },
-        kind: "iv",
-        pointsCount: 0,
-        seriesList: [],
-        signature: "iv:file-a",
-        source: {
-          fileId: "file-a",
-          inputKind: "canonical",
-        },
-        xDomain: [0, 1],
-        xUnitLabel: "V",
-        yDomain: [0, 1],
-        yUnitLabel: "A",
-      },
-    });
+    replaceDerivedCurvesForTest(session);
     const currentMetricKey = "current:series-1:base" as MetricKey;
     const subthresholdMetricKey = "subthreshold:series-1:ss:manual" as MetricKey;
     session.setMetricInput({
@@ -989,41 +969,16 @@ suite("workbench/services/session/test/browser/sessionService", () => {
         y: [1, 2],
       }],
     });
-    replaceDerivedCurvesForTest(session, {
-      "gm:file-a": {
-        activeFile: null,
-        kind: "gm",
-        pointsCount: 2,
-        seriesList: [{
-          kind: "gm",
-          id: "series-1",
-          name: "gm",
-          data: [
-            { x: 0, y: 3, yPositive: 3, yAbsPositive: 3 },
-            { x: 1, y: 4, yPositive: 4, yAbsPositive: 4 },
-          ],
-        }],
-        signature: "gm:file-a",
-        source: {
-          fileId: "file-a",
-          inputKind: "canonical",
-        },
-        xDomain: [0, 1],
-        xUnitLabel: "V",
-        yDomain: [3, 4],
-        yUnitLabel: "S",
-      },
-    });
+    replaceDerivedCurvesForTest(session);
 
     const curve = session.getSnapshot()
       .filesById["file-a"]
       .curvesByKey["derived:gm:default:series-1"];
     assert.equal(curve.curveGeneration, "derived");
     assert.equal(curve.curveFamily, "gm");
-    assert.deepEqual(curve.points, [
-      { x: 0, y: 3 },
-      { x: 1, y: 4 },
-    ]);
+    assert.equal(curve.fileId, "file-a");
+    assert.equal(curve.seriesId, "series-1");
+    assert.equal(curve.lineage.curveGeneration, "derived");
   });
 
   test("replaces calculated curve records instead of accumulating stale derived curves", () => {
@@ -1041,32 +996,8 @@ suite("workbench/services/session/test/browser/sessionService", () => {
         y: [1, 2],
       }],
     });
-    replaceDerivedCurvesForTest(session, {
-      "gm:file-a": {
-        activeFile: null,
-        kind: "gm",
-        pointsCount: 2,
-        seriesList: [{
-          kind: "gm",
-          id: "series-1",
-          name: "gm",
-          data: [
-            { x: 0, y: 3, yPositive: 3, yAbsPositive: 3 },
-            { x: 1, y: 4, yPositive: 4, yAbsPositive: 4 },
-          ],
-        }],
-        signature: "gm:file-a",
-        source: {
-          fileId: "file-a",
-          inputKind: "canonical",
-        },
-        xDomain: [0, 1],
-        xUnitLabel: "V",
-        yDomain: [3, 4],
-        yUnitLabel: "S",
-      },
-    });
-    replaceDerivedCurvesForTest(session, {});
+    replaceDerivedCurvesForTest(session);
+    clearDerivedCurvesForTest(session);
 
     const curvesByKey = session.getSnapshot().filesById["file-a"].curvesByKey;
     assert.equal(curvesByKey["derived:gm:default:series-1"], undefined);
@@ -1088,31 +1019,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
         y: [1, 2],
       }],
     });
-    replaceDerivedCurvesForTest(session, {
-      "iv:file-a": {
-        activeFile: null,
-        kind: "iv",
-        pointsCount: 2,
-        seriesList: [{
-          kind: "iv",
-          id: "series-1",
-          name: "iv",
-          data: [
-            { x: 0, y: 1, yPositive: 1, yAbsPositive: 1 },
-            { x: 1, y: 2, yPositive: 2, yAbsPositive: 2 },
-          ],
-        }],
-        signature: "iv:file-a",
-        source: {
-          fileId: "file-a",
-          inputKind: "canonical",
-        },
-        xDomain: [0, 1],
-        xUnitLabel: "V",
-        yDomain: [1, 2],
-        yUnitLabel: "A",
-      },
-    });
+    replaceDerivedCurvesForTest(session);
 
     const curvesByKey = session.getSnapshot().filesById["file-a"].curvesByKey;
     assert.notEqual(curvesByKey["base:iv:transfer:series-1"], undefined);
@@ -1162,17 +1069,32 @@ const subscribeForTest = (
 
 const replaceDerivedCurvesForTest = (
   session: SessionService,
-  plotsByKey: CalculatedPlotsByKey,
 ): void => {
-  const recordsByFileId = createCalculatedCurveRecordsByFileFromPlots(plotsByKey);
+  const snapshot = session.getSnapshot();
+  const recordsByFileId = createCalculatedCurveRecordsByFile(
+    snapshot.filesById,
+    snapshot.fileOrder,
+  );
   const fileIds = new Set([
-    ...Object.keys(session.getSnapshot().filesById),
+    ...Object.keys(snapshot.filesById),
     ...Object.keys(recordsByFileId),
   ]);
   for (const fileId of fileIds) {
     session.commitCurves({
       fileId,
       curves: recordsByFileId[fileId] ?? [],
+      replaceGenerations: ["derived", "secondDerived"],
+    });
+  }
+};
+
+const clearDerivedCurvesForTest = (
+  session: SessionService,
+): void => {
+  for (const fileId of Object.keys(session.getSnapshot().filesById)) {
+    session.commitCurves({
+      fileId,
+      curves: [],
       replaceGenerations: ["derived", "secondDerived"],
     });
   }

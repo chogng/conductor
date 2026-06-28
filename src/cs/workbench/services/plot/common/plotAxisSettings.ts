@@ -2,34 +2,24 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type {
-	CurveYScale,
-} from "src/cs/workbench/services/session/common/fileSemantics";
+import type { PlotFileAxisSettings } from "src/cs/workbench/services/plot/common/plot";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
-import {
-	getFileRecordAxisProjection,
-} from "src/cs/workbench/services/session/common/sessionRecordProjection";
+import { getFileRecordAxisProjection } from "src/cs/workbench/services/session/common/sessionRecordProjection";
 
-export type FileAxisSettingsByFileId = {
-	readonly xUnitByFileId: Record<string, string>;
-	readonly yScaleByFileId: Record<string, CurveYScale>;
-	readonly yUnitByFileId: Record<string, string>;
-};
-
-export type FileAxisSettingsOverrides = {
+export type PlotFileAxisSettingsOverrides = {
 	readonly xUnitByFileId?: Readonly<Record<string, string>>;
-	readonly yScaleByFileId?: Readonly<Record<string, CurveYScale | string>>;
+	readonly yScaleByFileId?: Readonly<Record<string, "linear" | "log" | string>>;
 	readonly yUnitByFileId?: Readonly<Record<string, string>>;
 };
 
-export type FileAxisSettingsInput = {
-	readonly axisSettings?: FileAxisSettingsOverrides | null;
+export type PlotFileAxisSettingsInput = {
+	readonly axisSettings?: PlotFileAxisSettingsOverrides | null;
 	readonly snapshot: SessionSnapshot;
 };
 
-export const getFileAxisSettingsByFileId = (
-	input: FileAxisSettingsInput,
-): FileAxisSettingsByFileId => {
+export const getPlotFileAxisSettings = (
+	input: PlotFileAxisSettingsInput,
+): PlotFileAxisSettings => {
 	const { axisSettings, snapshot } = input;
 	const xUnitByFileId: Record<string, string> = {
 		...(axisSettings?.xUnitByFileId ?? {}),
@@ -37,7 +27,7 @@ export const getFileAxisSettingsByFileId = (
 	const yUnitByFileId: Record<string, string> = {
 		...(axisSettings?.yUnitByFileId ?? {}),
 	};
-	const yScaleByFileId: Record<string, CurveYScale> = {};
+	const yScaleByFileId: Record<string, "linear" | "log"> = {};
 	for (const [fileId, scale] of Object.entries(axisSettings?.yScaleByFileId ?? {})) {
 		if (scale === "linear" || scale === "log") {
 			yScaleByFileId[fileId] = scale;
@@ -57,13 +47,11 @@ export const getFileAxisSettingsByFileId = (
 		}
 
 		const axis = getFileRecordAxisProjection(file);
-		const xUnit = axis.xUnit;
-		const yUnit = axis.yUnit;
-		if (xUnit && !xUnitByFileId[fileId]) {
-			xUnitByFileId[fileId] = xUnit;
+		if (axis.xUnit && !xUnitByFileId[fileId]) {
+			xUnitByFileId[fileId] = axis.xUnit;
 		}
-		if (yUnit && !yUnitByFileId[fileId]) {
-			yUnitByFileId[fileId] = yUnit;
+		if (axis.yUnit && !yUnitByFileId[fileId]) {
+			yUnitByFileId[fileId] = axis.yUnit;
 		}
 	};
 

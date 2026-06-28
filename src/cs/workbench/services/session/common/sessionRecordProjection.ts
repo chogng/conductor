@@ -8,15 +8,13 @@ import {
 } from "src/cs/workbench/services/session/common/sessionModel";
 import type { SliceRun } from "src/cs/workbench/services/slice/common/slice";
 import type { TemplateBlock } from "src/cs/workbench/services/template/common/templateSpec";
-import type {
-  ProcessedEntry,
-  ProcessedSeries,
-} from "src/cs/workbench/services/session/common/sessionTypes";
+
+export type FileRecordXAxisRole = "vg" | "vd" | null;
 
 export type FileRecordAxisProjection = {
   readonly xLabel?: string;
   readonly xUnit?: string;
-  readonly xAxisRole: ProcessedEntry["xAxisRole"];
+  readonly xAxisRole: FileRecordXAxisRole;
   readonly yLabel?: string;
   readonly yUnit?: string;
 };
@@ -100,21 +98,6 @@ export const getFileRecordXGroups = (
     curve.points.map((point) => point.x)
   );
 
-export const createProcessedSeriesFromFileRecord = (
-  file: FileRecord,
-): ProcessedSeries[] =>
-  collectFileRecordBaseCurves(file).map((curve, index): ProcessedSeries => {
-    const series = file.seriesById[curve.seriesId];
-    return {
-      groupIndex: index,
-      id: curve.seriesId || `series-${index + 1}`,
-      legendValue: series?.legendValue,
-      name: series?.labelOverride ?? series?.name ?? series?.legendValue,
-      y: curve.points.map((point) => point.y),
-      yCol: Number.isInteger(Number(series?.yCol)) ? series?.yCol : index + 1,
-    };
-  });
-
 export const getFileRecordDomain = (
   file: FileRecord,
 ): DomainRecord | undefined => {
@@ -162,7 +145,7 @@ const normalizeOptionalText = (value: unknown): string | undefined => {
 
 const getXAxisRoleFromIvMode = (
   ivMode: IvCurveMode | null,
-): ProcessedEntry["xAxisRole"] => {
+): FileRecordXAxisRole => {
   if (ivMode === "transfer") {
     return "vg";
   }
