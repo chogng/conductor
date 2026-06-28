@@ -80,8 +80,9 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		resource: URI,
 		diagnostics: readonly TableParseDiagnostic[] = [],
 		fixedSheetId: string | null = null,
+		content: TableModelContentSnapshot = createTestTableModelContent(),
 	): IDataResourceService =>
-		store.add(new DataResourceService(store.add(new TestTableModelService(resource, diagnostics, fixedSheetId))));
+		store.add(new DataResourceService(store.add(new TestTableModelService(resource, diagnostics, fixedSheetId, content))));
 	const createReviewTargetForTest = (fileName = "Transfer.csv") => ({
 		resource: URI.file(`/workspace/${fileName}`),
 		modelVersion: 1,
@@ -425,6 +426,76 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(uriReview.result?.reviewedTemplate?.template.measurement?.ivMode, "transfer");
 		assert.equal(service.getLatestReview(target)?.reviewSignature, uriReview.reviewSignature);
 		assert.equal(service.getLatestReview(target)?.summary.state, "ready");
+	});
+
+	test("derives IV output review from explicit drain voltage URI content", async () => {
+		const sessionService = store.add(new SessionService());
+		const recipeService = store.add(new TestRecipeService("recipe:first"));
+		const userTemplateService = createUserTemplateServiceForTest();
+		const resource = URI.file("/workspace/Output.csv");
+		const service = createReviewServiceForTest(
+			sessionService,
+			recipeService,
+			userTemplateService,
+			createDataResourceServiceForTest(resource, [], null, createTestTableModelContent([
+				["Vd", "Id"],
+				["0", "1"],
+				["1", "2"],
+			])),
+		);
+
+		const target = {
+			resource,
+			sheetId: "table-a",
+		};
+		assert.equal(service.getLatestReviewSummary(target).state, "pending");
+		await waitUntil(() => service.getLatestReviewSummary(target).state !== "pending");
+
+		const summary = service.getLatestReviewSummary(target);
+		assert.equal(summary.state, "ready");
+		assert.equal(summary.reviewedSemanticLabel, "Detected IV Output");
+
+		const uriReview = await service.reviewUri(target);
+		assert.equal(uriReview.result?.reviewedTemplate?.template.measurement?.curveFamily, "iv");
+		assert.equal(uriReview.result?.reviewedTemplate?.template.measurement?.ivMode, "output");
+	});
+
+	test("does not auto-select IV mode from generic voltage URI content", async () => {
+		const sessionService = store.add(new SessionService());
+		const recipeService = store.add(new TestRecipeService("recipe:first"));
+		const userTemplateService = createUserTemplateServiceForTest();
+		const resource = URI.file("/workspace/Instrument.csv");
+		const service = createReviewServiceForTest(
+			sessionService,
+			recipeService,
+			userTemplateService,
+			createDataResourceServiceForTest(resource, [], null, createTestTableModelContent([
+				["Voltage", "Current"],
+				["0", "1"],
+				["1", "2"],
+			])),
+		);
+
+		const target = {
+			resource,
+			sheetId: "table-a",
+		};
+		assert.equal(service.getLatestReviewSummary(target).state, "pending");
+		await waitUntil(() => service.getLatestReviewSummary(target).state !== "pending");
+
+		const summary = service.getLatestReviewSummary(target);
+		assert.deepEqual({
+			findingCodes: summary.findingCodes,
+			reviewedSemanticLabel: summary.reviewedSemanticLabel,
+			state: summary.state,
+		}, {
+			findingCodes: ["review.noCandidates"],
+			reviewedSemanticLabel: undefined,
+			state: "invalid",
+		});
+
+		const uriReview = await service.reviewUri(target);
+		assert.equal(uriReview.result?.reviewedTemplate, undefined);
 	});
 
 	test("keeps latest review summary reads off structured-content resolution", async () => {
@@ -1044,7 +1115,7 @@ class CountingDataResourceService extends Disposable implements IDataResourceSer
 class ResolvingDataResourceService extends Disposable implements IDataResourceService {
 	public declare readonly _serviceBrand: undefined;
 
-	public readonly onDidChangeResource = Event.None;
+	public readonly onDidChangeResource = Event.None as IDataResourceService["onDidChangeResource"];
 	public resolveStructuredContentCalls = 0;
 
 	public canHandleResource(): boolean {
@@ -1145,6 +1216,7 @@ class TestTableModelService extends Disposable implements ITableModelService {
 		private readonly resource: URI,
 		private readonly diagnostics: readonly TableParseDiagnostic[] = [],
 		private readonly fixedSheetId: string | null = null,
+		private readonly content: TableModelContentSnapshot = createTestTableModelContent(),
 	) {
 		super();
 		this.model = this._register(new TableContentModel(resource));
@@ -1196,16 +1268,15 @@ class TestTableModelService extends Disposable implements ITableModelService {
 			return;
 		}
 
-		const content = createTestTableModelContent();
 		const sheetId = this.fixedSheetId ?? String(source?.sheetId ?? "table-a");
 		await this.model.resolve({
 			resolveContent: async () => ({
-				content,
+				content: this.content,
 				diagnostics: this.diagnostics,
 				format: "csv",
 				resource: this.resource,
 				sheets: [{
-					content,
+					content: this.content,
 					sheetId,
 					sheetName: null,
 				}],
@@ -1228,16 +1299,23 @@ const waitUntil = async (
 	assert.fail("Timed out waiting for condition.");
 };
 
-const createTestTableModelContent = (): TableModelContentSnapshot => ({
-	columnCount: 2,
-	maxCellLengths: [2, 2],
-	rowCount: 3,
-	rows: [
+const createTestTableModelContent = (
+	rows: readonly (readonly string[])[] = [
 		["Vg", "Id"],
 		["0", "1"],
 		["1", "2"],
 	],
-});
+): TableModelContentSnapshot => {
+	const columnCount = rows.reduce((count, row) => Math.max(count, row.length), 0);
+	return {
+		columnCount,
+		maxCellLengths: Array.from({ length: columnCount }, (_, column) =>
+			rows.reduce((length, row) => Math.max(length, String(row[column] ?? "").length), 0)
+		),
+		rowCount: rows.length,
+		rows,
+	};
+};
 
 const createSchemaProfileSnapshot = (
 	profiles: readonly SchemaProfile[],

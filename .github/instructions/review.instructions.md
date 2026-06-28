@@ -63,6 +63,7 @@ URI-backed review pipeline:
 
 ```txt
 URI + contentHash/sourceVersion
+  -> IDataResourceService.resolveStructuredContent(...)
   -> structured content snapshot / CanonicalContentMatrix
   -> ReviewEvidence(sourceMetadata + structured/matrix evidence)
   -> Recipe/UserTemplate/built-in template snapshots
@@ -75,11 +76,16 @@ Current tabular adapter:
 
 ```txt
 URI + contentHash/sourceVersion + optional sheetId
-  -> structured matrix evidence
+  -> DataResourceService infers structured evidence
      (rows/cells/blocks + diagnostics + profiles + evidence fingerprint)
+  -> measurement projection resolves explicit roles first
+     (vg -> transfer, vd -> output, generic voltage -> unknown)
+  -> ReviewService reads structured content snapshot
   -> ReviewService builds SegmentCandidate / ReviewCandidate values
   -> ReviewService scores candidates within evaluator policy
-  -> ReviewResult / ReviewSummary / ReviewedTemplate
+  -> ReviewDecision selects ReviewedTemplate when the candidate is ready
+  -> ReviewDecision returns invalid/noCandidates when the evidence is ambiguous
+  -> Slice stays on the user-template path until Review produces a usable template
 ```
 
 Explorer decoration and hover consume only Review's public summary:

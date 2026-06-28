@@ -361,8 +361,9 @@ const createStructuredColumnProjections = ({
 const createStructuredMeasurementProjection = (
 	columns: readonly MeasurementColumnRef[],
 ): StructuredMeasurementProjection | null => {
-	const xTransfer = findMeasurementColumn(columns, ["vg", "voltage"], "V");
-	const xOutput = findMeasurementColumn(columns, ["vd", "voltage"], "V");
+	const xTransfer = findMeasurementColumn(columns, ["vg"], "V");
+	const xOutput = findMeasurementColumn(columns, ["vd"], "V");
+	const xGenericVoltage = findMeasurementColumn(columns, ["voltage"], "V");
 	const yCurrent = columns
 		.filter(column => (column.role === "id" || column.role === "current") && normalizeText(column.unit) === "A")
 		.map(column => column.rawCol);
@@ -379,6 +380,14 @@ const createStructuredMeasurementProjection = (
 			family: "iv",
 			ivMode: "output",
 			xCol: xOutput,
+			yCols: yCurrent,
+		};
+	}
+	if (xGenericVoltage !== null && yCurrent.length) {
+		return {
+			family: "iv",
+			ivMode: "unknown",
+			xCol: xGenericVoltage,
 			yCols: yCurrent,
 		};
 	}
