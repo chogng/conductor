@@ -2,6 +2,22 @@ import { addDisposableListener } from "src/cs/base/browser/dom";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { Mimes } from "src/cs/base/common/mime";
 
+// Browser DOM drag/drop MIME keys. Keep these in browser because they are
+// written to native DataTransfer objects; common/dataTransfer owns
+// VSDataTransfer only.
+export const DataTransfers = {
+    RESOURCES: "ResourceURLs",
+    DOWNLOAD_URL: "DownloadURL",
+    FILES: "Files",
+    TEXT: Mimes.text,
+    INTERNAL_URI_LIST: "application/vnd.code.uri-list",
+} as const;
+
+export interface IDragAndDropData {
+    update(dataTransfer: DataTransfer): void;
+    getData(): unknown;
+}
+
 export class DelayedDragHandler extends Disposable {
     private timeout: ReturnType<typeof setTimeout> | undefined;
 
@@ -39,17 +55,4 @@ export class DelayedDragHandler extends Disposable {
         super.dispose();
         this.clearDragTimeout();
     }
-}
-
-export const DataTransfers = {
-    RESOURCES: "ResourceURLs",
-    DOWNLOAD_URL: "DownloadURL",
-    FILES: "Files",
-    TEXT: Mimes.text,
-    INTERNAL_URI_LIST: "application/vnd.code.uri-list",
-} as const;
-
-export interface IDragAndDropData {
-    update(dataTransfer: DataTransfer): void;
-    getData(): unknown;
 }
