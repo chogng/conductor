@@ -13,22 +13,24 @@ import type {
 	ITableWidgetRenderer,
 } from "src/cs/base/browser/ui/table/table";
 
-type PagedTableBodyCellTemplateData<TRow, TTemplateData> = {
+export type PagedTableBodyCellTemplateData<TRow, TTemplateData> = {
 	request: CancelablePromise<TRow> | null;
 	renderVersion: number;
 	readonly templateData: TTemplateData;
 };
+
+export type IPagedTableModel<TRow> = Pick<IPagedModel<TRow>, "get" | "isResolved" | "resolve">;
 
 export class PagedTableWidgetRenderer<TRow, TBodyTemplateData = unknown, TColumnHeaderTemplateData = unknown>
 	implements ITableWidgetRenderer<PagedTableBodyCellTemplateData<TRow, TBodyTemplateData>, TColumnHeaderTemplateData>, IDisposable {
 	private readonly pendingRequests = new Set<CancelablePromise<TRow>>();
 
 	public constructor(
-		private model: IPagedModel<TRow>,
+		private model: IPagedTableModel<TRow>,
 		private readonly renderer: ITablePagedWidgetRenderer<TRow, TBodyTemplateData, TColumnHeaderTemplateData>,
 	) {}
 
-	public setModel(model: IPagedModel<TRow>): void {
+	public setModel(model: IPagedTableModel<TRow>): void {
 		if (this.model === model) {
 			return;
 		}

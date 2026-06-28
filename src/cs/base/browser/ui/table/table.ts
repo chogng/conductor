@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IMouseEvent } from "src/cs/base/browser/mouseEvent";
+import type { IKeyboardEvent } from "src/cs/base/browser/keyboardEvent";
 import type {
 	IListContextMenuEvent,
 	IListEvent,
@@ -82,6 +83,13 @@ export interface ITableCellRange {
 	readonly startRow: number;
 }
 
+export interface ITableCellState {
+	readonly activeCell?: ITableCellPosition | null;
+	readonly highlightedColumns?: readonly number[];
+	readonly selectedColumns?: readonly number[];
+	readonly selectedRanges?: readonly ITableCellRange[];
+}
+
 export interface ITableBodyCellDescriptor {
 	readonly colIndex: number;
 	readonly columnOffset: number;
@@ -111,6 +119,14 @@ export interface ITableColumnHeaderMouseEvent<T extends MouseEvent = MouseEvent>
 	readonly browserEvent: T;
 	readonly column: ITableColumnHeaderPosition | null;
 	readonly mouseEvent: IMouseEvent;
+}
+
+export interface ITableKeyboardNavigationEvent<T extends KeyboardEvent = KeyboardEvent> {
+	readonly browserEvent: T;
+	readonly cell: ITableCellPosition;
+	readonly extendSelection: boolean;
+	readonly keyboardEvent: IKeyboardEvent;
+	readonly selection: ITableCellSelectionTarget;
 }
 
 export interface ITableCellEditCommitEvent extends ITableCellPosition {
@@ -186,10 +202,24 @@ export interface ITableWidgetOptions<TBodyTemplateData = unknown, TColumnHeaderT
 	readonly className?: string;
 	readonly columnResize?: ITableColumnResizeOptions;
 	readonly getColumnWidth: (colIndex: number) => number;
+	readonly keyboardNavigation?: ITableKeyboardNavigationOptions;
 	readonly maxRenderedColumns?: number;
 	readonly maxRenderedRows?: number;
 	readonly renderer: ITableWidgetRenderer<TBodyTemplateData, TColumnHeaderTemplateData>;
 }
+
+export interface ITableKeyboardNavigationOptions {
+	readonly enabled?: boolean;
+}
+
+export type ITableCellSelectionTarget =
+	| { readonly kind: "cell"; readonly cell: ITableCellPosition | null }
+	| {
+		readonly kind: "range";
+		readonly anchorCell: ITableCellPosition;
+		readonly focusCell: ITableCellPosition;
+		readonly range: ITableCellRange;
+	};
 
 export interface ITableColumnResizeOptions {
 	readonly enabled?: boolean;

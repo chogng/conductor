@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, EventType, getWindow } from "src/cs/base/browser/dom";
+import { addDisposableListener, EventType, getWindow, isEditableElement } from "src/cs/base/browser/dom";
 import { DomEmitter } from "src/cs/base/browser/event";
 import { StandardKeyboardEvent } from "src/cs/base/browser/keyboardEvent";
 import { StandardMouseEvent } from "src/cs/base/browser/mouseEvent";
@@ -13,12 +13,7 @@ import { Emitter, Event as EventUtil, type Event } from "src/cs/base/common/even
 import { KeyCode } from "src/cs/base/common/keyCodes";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import type * as Table from "src/cs/base/browser/ui/table/table";
-import {
-	TABLE_WIDGET_DEFAULT_ZOOM_PERCENT,
-	TABLE_WIDGET_MAX_ZOOM_PERCENT,
-	TABLE_WIDGET_MIN_ZOOM_PERCENT,
-	TABLE_WIDGET_ZOOM_STEP_PERCENT,
-} from "src/cs/base/browser/ui/table/table";
+import { TABLE_WIDGET_DEFAULT_ZOOM_PERCENT, TABLE_WIDGET_MAX_ZOOM_PERCENT, TABLE_WIDGET_MIN_ZOOM_PERCENT, TABLE_WIDGET_ZOOM_STEP_PERCENT } from "src/cs/base/browser/ui/table/table";
 
 import "src/cs/base/browser/ui/table/table.css";
 
@@ -38,6 +33,13 @@ type TableWidgetColumnResizeState = {
 type TableWidgetCellEditState = Table.ITableCellPosition & {
 	readonly cell: HTMLTableCellElement;
 	readonly input: HTMLInputElement;
+};
+
+type AppliedTableCellState = {
+	readonly activeCell: Table.ITableCellPosition | null;
+	readonly highlightedColumns: Set<number>;
+	readonly selectedColumns: Set<number>;
+	readonly selectedRanges: readonly Table.ITableCellRange[];
 };
 
 class TableBodyCellTraits {
@@ -191,6 +193,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 	public readonly onDidCommitCellEdit: Event<Table.ITableCellEditCommitEvent>;
 	public readonly onDidClickBody: Event<Table.ITableBodyMouseEvent>;
 	public readonly onDidClickHeader: Event<Table.ITableColumnHeaderMouseEvent>;
+	public readonly onDidNavigateKeyboard: Event<Table.ITableKeyboardNavigationEvent>;
 	public readonly onDidPointerDownBody: Event<Table.ITableBodyMouseEvent<PointerEvent>>;
 
 	private readonly disposables = new DisposableStore();
@@ -200,12 +203,17 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 	private readonly onDidChangeZoomEmitter = this.disposables.add(new Emitter<number>());
 	private readonly onDidResizeColumnEmitter = this.disposables.add(new Emitter<Table.ITableColumnResizeEvent>());
 	private readonly onDidCommitCellEditEmitter = this.disposables.add(new Emitter<Table.ITableCellEditCommitEvent>());
+	private readonly onDidNavigateKeyboardEmitter = this.disposables.add(new Emitter<Table.ITableKeyboardNavigationEvent>());
 	private readonly bodyCellTraits = new Map<TBodyTemplateData, TableBodyCellTraits>();
 	private readonly bodyCellTraitsByElement = new WeakMap<HTMLTableCellElement, TableBodyCellTraits>();
 	private readonly columnHeaderTraits = new Map<TColumnHeaderTemplateData, TableColumnHeaderTraits>();
 	private readonly columnHeaderTraitsByElement = new WeakMap<HTMLElement, TableColumnHeaderTraits>();
 	private columnResizeState: TableWidgetColumnResizeState | null = null;
 	private cellEditState: TableWidgetCellEditState | null = null;
+	private cellState: Table.ITableCellState = {};
+	private selectionAnchorCell: Table.ITableCellPosition | null = null;
+	private selectionFocusCell: Table.ITableCellPosition | null = null;
+	private appliedCellState: AppliedTableCellState | null = null;
 	private hoveredBodyCellTraits: TableBodyCellTraits | null = null;
 	private hoveredColumnHeaderTraits: TableColumnHeaderTraits | null = null;
 	private lastRenderOptions: Table.ITableRenderOptions | null = null;
@@ -228,9 +236,12 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		this.onDidCommitCellEdit = this.onDidCommitCellEditEmitter.event;
 		this.onDidClickBody = this.createBodyClickEvent();
 		this.onDidClickHeader = this.createColumnHeaderClickEvent();
+		this.onDidNavigateKeyboard = this.onDidNavigateKeyboardEmitter.event;
 		this.onDidPointerDownBody = this.createBodyPointerDownEvent();
 		this.disposables.add(this.virtualTable.onDidChangeVisibleRange(() => {
 			this.clearHoveredTraits();
+			this.resetAppliedCellState();
+			this.syncCellState();
 		}));
 		this.syncZoomStyle();
 		addRootClassName(this.element, className);
@@ -251,6 +262,9 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		}));
 		this.disposables.add(addDisposableListener(this.virtualTable.bodyRows, "pointerleave", () => {
 			this.setHoveredBodyCellTraits(null);
+		}));
+		this.disposables.add(addDisposableListener(this.element, EventType.KEY_DOWN, event => {
+			this.onKeyDown(event as KeyboardEvent);
 		}));
 	}
 
@@ -277,10 +291,15 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 			this.endColumnResize(false);
 		}
 		this.syncZoomStyle();
-		return this.virtualTable.render({
+		const changed = this.virtualTable.render({
 			...options,
 			zoomPercent: this.zoomPercent,
 		});
+		if (changed) {
+			this.resetAppliedCellState();
+		}
+		this.syncCellState();
+		return changed;
 	}
 
 	public getState(): Table.ITableState {
@@ -297,6 +316,67 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 
 	public getZoomScale(): number {
 		return VirtualTableGridModel.getZoomScale(this.zoomPercent);
+	}
+
+	public setCellState(state: Table.ITableCellState): void {
+		this.cellState = state;
+		this.syncNavigationStateFromCellState();
+		this.syncCellState();
+	}
+
+	public selectCell(cell: Table.ITableCellPosition | null): Table.ITableCellSelectionTarget | null {
+		if (!cell) {
+			this.selectionAnchorCell = null;
+			this.selectionFocusCell = null;
+			this.cellState = {
+				...this.cellState,
+				activeCell: null,
+				selectedRanges: [],
+			};
+			this.syncCellState();
+			return { kind: "cell", cell: null };
+		}
+
+		const normalizedCell = normalizeCellPosition(cell, this.size);
+		if (!normalizedCell) {
+			return null;
+		}
+
+		this.selectionAnchorCell = normalizedCell;
+		this.selectionFocusCell = normalizedCell;
+		this.cellState = {
+			...this.cellState,
+			activeCell: normalizedCell,
+			selectedRanges: [],
+		};
+		this.syncCellState();
+		return { kind: "cell", cell: normalizedCell };
+	}
+
+	public selectRangeToCell(cell: Table.ITableCellPosition): Table.ITableCellSelectionTarget | null {
+		const focusCell = normalizeCellPosition(cell, this.size);
+		if (!focusCell) {
+			return null;
+		}
+
+		const anchorCell = normalizeCellPosition(this.selectionAnchorCell, this.size) ??
+			this.getNavigationCell() ??
+			focusCell;
+		const range = VirtualTableGridModel.resolveCellRange(anchorCell, focusCell);
+		this.selectionAnchorCell = anchorCell;
+		this.selectionFocusCell = focusCell;
+		this.cellState = {
+			...this.cellState,
+			activeCell: focusCell,
+			selectedRanges: [range],
+		};
+		this.syncCellState();
+		return {
+			kind: "range",
+			anchorCell,
+			focusCell,
+			range,
+		};
 	}
 
 	public setBodyCellTraits(templateData: TBodyTemplateData, state: Table.ITableBodyCellTraitState): void {
@@ -316,6 +396,19 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		const traits = this.bodyCellTraits.get(templateData);
 		if (!traits) {
 			throw new Error("Unknown table body cell template data");
+		}
+
+		traits.setHoverContent(content, options);
+	}
+
+	public setBodyCellElementHoverContent(
+		cell: HTMLTableCellElement,
+		content: IManagedHoverContent,
+		options?: IManagedHoverOptions,
+	): void {
+		const traits = this.bodyCellTraitsByElement.get(cell);
+		if (!traits) {
+			throw new Error("Unknown table body cell element");
 		}
 
 		traits.setHoverContent(content, options);
@@ -454,6 +547,13 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		}
 
 		return this.getBodyCellPositionFromTarget(this.element.ownerDocument.elementFromPoint(clientX, clientY));
+	}
+
+	public getBodyCellPositionFromMouseEvent(
+		event: Pick<MouseEvent, "clientX" | "clientY" | "target">,
+	): Table.ITableCellPosition | null {
+		return this.getBodyCellPositionFromTarget(event.target) ??
+			this.getBodyCellPositionFromPoint(event.clientX, event.clientY);
 	}
 
 	public getColumnHeaderPositionFromTarget(target: EventTarget | null): Table.ITableColumnHeaderPosition | null {
@@ -769,8 +869,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 	private toBodyMouseEvent<T extends MouseEvent>(browserEvent: T): Table.ITableBodyMouseEvent<T> {
 		return {
 			browserEvent,
-			cell: this.getBodyCellPositionFromTarget(browserEvent.target) ??
-				this.getBodyCellPositionFromPoint(browserEvent.clientX, browserEvent.clientY),
+			cell: this.getBodyCellPositionFromMouseEvent(browserEvent),
 			mouseEvent: new StandardMouseEvent(getWindow(this.element), browserEvent),
 		};
 	}
@@ -882,6 +981,259 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		}
 	}
 
+	private onKeyDown(event: KeyboardEvent): void {
+		if (this.options.keyboardNavigation?.enabled === false) {
+			return;
+		}
+
+		const keyboardEvent = new StandardKeyboardEvent(event);
+		if (
+			keyboardEvent.browserEvent.defaultPrevented ||
+			keyboardEvent.altKey ||
+			keyboardEvent.metaKey ||
+			isEditableElement(keyboardEvent.target)
+		) {
+			return;
+		}
+
+		const currentCell = this.getNavigationCell();
+		if (!currentCell) {
+			return;
+		}
+
+		const target = VirtualTableGridModel.resolveKeyboardTarget({
+			keyCode: keyboardEvent.keyCode,
+			currentCell,
+			rowCount: this.size.rowCount,
+			columnCount: this.size.columnCount,
+			pageRowCount: this.getPageRowCount(),
+			toBoundary: keyboardEvent.ctrlKey,
+		});
+		if (!target) {
+			return;
+		}
+
+		const selection = keyboardEvent.shiftKey
+			? this.selectRangeToCell(target)
+			: this.selectCell(target);
+		if (!selection) {
+			return;
+		}
+
+		keyboardEvent.preventDefault();
+		keyboardEvent.stopPropagation();
+		this.onDidNavigateKeyboardEmitter.fire({
+			browserEvent: event,
+			cell: target,
+			extendSelection: keyboardEvent.shiftKey,
+			keyboardEvent,
+			selection,
+		});
+	}
+
+	private getNavigationCell(): Table.ITableCellPosition | null {
+		const focusCell = normalizeCellPosition(this.selectionFocusCell, this.size);
+		if (focusCell) {
+			return focusCell;
+		}
+
+		const activeCell = normalizeCellPosition(this.cellState.activeCell, this.size);
+		if (activeCell) {
+			return activeCell;
+		}
+
+		if (this.size.rowCount <= 0 || this.size.columnCount <= 0) {
+			return null;
+		}
+
+		const { rowRange } = this.virtualTable.getState();
+		return {
+			colIndex: 0,
+			rowIndex: Math.min(
+				Math.max(0, rowRange.startIndex),
+				this.size.rowCount - 1,
+			),
+		};
+	}
+
+	private syncNavigationStateFromCellState(): void {
+		const ranges = normalizeCellRanges(this.cellState.selectedRanges, this.size);
+		if (ranges.length > 0) {
+			const range = ranges[0]!;
+			if (
+				this.selectionAnchorCell &&
+				this.selectionFocusCell &&
+				areCellRangesEqual(
+					[VirtualTableGridModel.resolveCellRange(this.selectionAnchorCell, this.selectionFocusCell)],
+					[range],
+				)
+			) {
+				return;
+			}
+
+			const activeCell = normalizeCellPosition(this.cellState.activeCell, this.size);
+			const focusCell = activeCell && isCellInRange(activeCell, range)
+				? activeCell
+				: { rowIndex: range.endRow, colIndex: range.endCol };
+			this.selectionFocusCell = focusCell;
+			this.selectionAnchorCell = getOppositeRangeCorner(range, focusCell);
+			return;
+		}
+
+		const activeCell = normalizeCellPosition(this.cellState.activeCell, this.size);
+		this.selectionAnchorCell = activeCell;
+		this.selectionFocusCell = activeCell;
+	}
+
+	private resetAppliedCellState(): void {
+		this.appliedCellState = null;
+	}
+
+	private syncCellState(): void {
+		if (!this.isContentVisible()) {
+			return;
+		}
+
+		const { columnRange, rowRange } = this.virtualTable.getState();
+		const rowCount = rowRange.renderedCount;
+		const columnCount = columnRange.renderedCount;
+		const startRowIndex = rowRange.startIndex;
+		const startColumnIndex = columnRange.startIndex;
+		const activeCell = normalizeActiveCell(
+			this.cellState.activeCell,
+			startRowIndex,
+			rowCount,
+			startColumnIndex,
+			columnCount,
+		);
+		const selectedColumns = toColumnSet(
+			this.cellState.selectedColumns,
+			startColumnIndex,
+			columnCount,
+		);
+		const selectedRanges = toVisibleRanges(
+			this.cellState.selectedRanges,
+			startRowIndex,
+			rowCount,
+			startColumnIndex,
+			columnCount,
+		);
+		const highlightedColumns = toColumnSet(
+			this.cellState.highlightedColumns,
+			startColumnIndex,
+			columnCount,
+		);
+		const previous = this.appliedCellState;
+		const next: AppliedTableCellState = {
+			activeCell,
+			highlightedColumns,
+			selectedColumns,
+			selectedRanges,
+		};
+
+		if (!previous) {
+			this.syncHeaderCellState(VirtualTableGridModel.range(columnCount), next);
+			this.syncBodyCellStateInRanges([{
+				startRow: startRowIndex,
+				endRow: startRowIndex + rowCount - 1,
+				startCol: startColumnIndex,
+				endCol: startColumnIndex + columnCount - 1,
+			}], next);
+			this.appliedCellState = next;
+			return;
+		}
+
+		const rangesChanged = !areCellRangesEqual(previous.selectedRanges, next.selectedRanges);
+		const changedColumns = getChangedColumns(previous, next, startColumnIndex, columnCount);
+		this.syncHeaderCellState(changedColumns.map(colIndex => colIndex - startColumnIndex), next);
+		this.syncBodyCellStateInRanges(
+			getChangedCellStateRanges({
+				changedColumns,
+				columnCount,
+				next,
+				previous,
+				rangesChanged,
+				rowCount,
+				startColumnIndex,
+				startRowIndex,
+			}),
+			next,
+		);
+		this.syncActiveCellState(previous.activeCell, activeCell, next);
+		this.appliedCellState = next;
+	}
+
+	private syncHeaderCellState(
+		columnOffsets: readonly number[],
+		state: Pick<AppliedTableCellState, "highlightedColumns" | "selectedColumns">,
+	): void {
+		const { columnRange } = this.virtualTable.getState();
+		for (const columnOffset of columnOffsets) {
+			const colIndex = columnRange.startIndex + columnOffset;
+			const header = this.virtualTable.getColumnHeaderTemplateData(columnOffset);
+			if (!header) {
+				continue;
+			}
+
+			this.setColumnHeaderTraits(header, {
+				highlighted: state.highlightedColumns.has(colIndex),
+				selected: state.selectedColumns.has(colIndex),
+			});
+		}
+	}
+
+	private syncBodyCellStateInRanges(
+		ranges: readonly Table.ITableCellRange[],
+		state: AppliedTableCellState,
+	): void {
+		this.forEachBodyCellInRanges(ranges, (templateData, descriptor) => {
+			this.setBodyCellTraits(templateData, {
+				active: state.selectedRanges.length === 0 && isActiveCell(state.activeCell, descriptor.rowIndex, descriptor.colIndex),
+				highlighted: state.highlightedColumns.has(descriptor.colIndex),
+				selected: isSelectedCell(descriptor.rowIndex, descriptor.colIndex, state),
+				selectionFrame: getSelectionFrame(descriptor.rowIndex, descriptor.colIndex, state.selectedRanges),
+			});
+		});
+	}
+
+	private syncActiveCellState(
+		previous: Table.ITableCellPosition | null,
+		next: Table.ITableCellPosition | null,
+		state: AppliedTableCellState,
+	): void {
+		if (areActiveCellsEqual(previous, next)) {
+			return;
+		}
+
+		this.updateActiveCellState(previous, false, state);
+		this.updateActiveCellState(next, true, state);
+	}
+
+	private updateActiveCellState(
+		activeCell: Table.ITableCellPosition | null,
+		active: boolean,
+		state: Pick<AppliedTableCellState, "highlightedColumns" | "selectedColumns" | "selectedRanges">,
+	): void {
+		if (!activeCell) {
+			return;
+		}
+
+		const { columnRange, rowRange } = this.virtualTable.getState();
+		const rowOffset = activeCell.rowIndex - rowRange.startIndex;
+		const columnOffset = activeCell.colIndex - columnRange.startIndex;
+		const cell = this.virtualTable.getBodyCellTemplateData(rowOffset, columnOffset);
+		if (!cell) {
+			return;
+		}
+
+		this.setBodyCellTraits(cell, {
+			active: active && state.selectedRanges.length === 0,
+			highlighted: state.highlightedColumns.has(activeCell.colIndex),
+			selected: isSelectedCell(activeCell.rowIndex, activeCell.colIndex, state),
+			selectionFrame: getSelectionFrame(activeCell.rowIndex, activeCell.colIndex, state.selectedRanges),
+		});
+	}
+
 	private clearCellEditState(): void {
 		const state = this.cellEditState;
 		if (!state) {
@@ -970,6 +1322,16 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		this.syncColumnResizeGuide();
 		this.startColumnResizeTracking();
 		return true;
+	}
+
+	private getPageRowCount(): number {
+		return Math.max(
+			1,
+			Math.floor(
+				this.getViewportClientHeight() /
+					this.getRowHeight(),
+			),
+		);
 	}
 
 	private startColumnResizeTracking(): void {
@@ -1140,6 +1502,341 @@ function toSafeCount(value: unknown): number {
 function isTableWidgetSizeEqual(first: Table.ITableSize, second: Table.ITableSize): boolean {
 	return first.columnCount === second.columnCount &&
 		first.rowCount === second.rowCount;
+}
+
+function toColumnSet(
+	columnIndexes: readonly number[] | undefined,
+	startColumnIndex: number,
+	columnCount: number,
+): Set<number> {
+	const columns = new Set<number>();
+	const endColumnIndex = startColumnIndex + columnCount;
+	for (const value of columnIndexes ?? []) {
+		const columnIndex = Math.floor(Number(value));
+		if (
+			Number.isInteger(columnIndex) &&
+			columnIndex >= startColumnIndex &&
+			columnIndex < endColumnIndex
+		) {
+			columns.add(columnIndex);
+		}
+	}
+	return columns;
+}
+
+function toVisibleRanges(
+	ranges: readonly Table.ITableCellRange[] | undefined,
+	startRowIndex: number,
+	rowCount: number,
+	startColumnIndex: number,
+	columnCount: number,
+): readonly Table.ITableCellRange[] {
+	const visibleRanges: Table.ITableCellRange[] = [];
+	const endRowIndex = startRowIndex + rowCount - 1;
+	const endColumnIndex = startColumnIndex + columnCount - 1;
+
+	for (const range of ranges ?? []) {
+		const startRow = Math.max(startRowIndex, Math.floor(Number(range.startRow)));
+		const endRow = Math.min(endRowIndex, Math.floor(Number(range.endRow)));
+		const startCol = Math.max(startColumnIndex, Math.floor(Number(range.startCol)));
+		const endCol = Math.min(endColumnIndex, Math.floor(Number(range.endCol)));
+		if (
+			Number.isInteger(startRow) &&
+			Number.isInteger(endRow) &&
+			Number.isInteger(startCol) &&
+			Number.isInteger(endCol) &&
+			startRow <= endRow &&
+			startCol <= endCol
+		) {
+			visibleRanges.push({ startRow, endRow, startCol, endCol });
+		}
+	}
+
+	return visibleRanges;
+}
+
+function normalizeActiveCell(
+	cell: Table.ITableCellPosition | null | undefined,
+	startRowIndex: number,
+	rowCount: number,
+	startColumnIndex: number,
+	columnCount: number,
+): Table.ITableCellPosition | null {
+	const rowIndex = Math.floor(Number(cell?.rowIndex));
+	const colIndex = Math.floor(Number(cell?.colIndex));
+	const endColumnIndex = startColumnIndex + columnCount;
+	if (
+		!Number.isInteger(rowIndex) ||
+		rowIndex < startRowIndex ||
+		rowIndex >= startRowIndex + rowCount ||
+		!Number.isInteger(colIndex) ||
+		colIndex < startColumnIndex ||
+		colIndex >= endColumnIndex
+	) {
+		return null;
+	}
+
+	return {
+		colIndex,
+		rowIndex,
+	};
+}
+
+function normalizeCellPosition(
+	cell: Table.ITableCellPosition | null | undefined,
+	size: Table.ITableSize,
+): Table.ITableCellPosition | null {
+	const rowIndex = Math.floor(Number(cell?.rowIndex));
+	const colIndex = Math.floor(Number(cell?.colIndex));
+	if (
+		!Number.isInteger(rowIndex) ||
+		rowIndex < 0 ||
+		rowIndex >= size.rowCount ||
+		!Number.isInteger(colIndex) ||
+		colIndex < 0 ||
+		colIndex >= size.columnCount
+	) {
+		return null;
+	}
+
+	return { rowIndex, colIndex };
+}
+
+function normalizeCellRanges(
+	ranges: readonly Table.ITableCellRange[] | undefined,
+	size: Table.ITableSize,
+): readonly Table.ITableCellRange[] {
+	const maxRowIndex = size.rowCount - 1;
+	const maxColIndex = size.columnCount - 1;
+	if (maxRowIndex < 0 || maxColIndex < 0) {
+		return [];
+	}
+
+	const normalizedRanges: Table.ITableCellRange[] = [];
+	for (const range of ranges ?? []) {
+		const startRow = Math.max(0, Math.min(maxRowIndex, Math.min(
+			Math.floor(Number(range.startRow)),
+			Math.floor(Number(range.endRow)),
+		)));
+		const endRow = Math.max(0, Math.min(maxRowIndex, Math.max(
+			Math.floor(Number(range.startRow)),
+			Math.floor(Number(range.endRow)),
+		)));
+		const startCol = Math.max(0, Math.min(maxColIndex, Math.min(
+			Math.floor(Number(range.startCol)),
+			Math.floor(Number(range.endCol)),
+		)));
+		const endCol = Math.max(0, Math.min(maxColIndex, Math.max(
+			Math.floor(Number(range.startCol)),
+			Math.floor(Number(range.endCol)),
+		)));
+		if (
+			Number.isInteger(startRow) &&
+			Number.isInteger(endRow) &&
+			Number.isInteger(startCol) &&
+			Number.isInteger(endCol) &&
+			startRow <= endRow &&
+			startCol <= endCol
+		) {
+			normalizedRanges.push({ startRow, endRow, startCol, endCol });
+		}
+	}
+
+	return normalizedRanges;
+}
+
+function isCellInRange(
+	cell: Table.ITableCellPosition,
+	range: Table.ITableCellRange,
+): boolean {
+	return cell.rowIndex >= range.startRow &&
+		cell.rowIndex <= range.endRow &&
+		cell.colIndex >= range.startCol &&
+		cell.colIndex <= range.endCol;
+}
+
+function getOppositeRangeCorner(
+	range: Table.ITableCellRange,
+	focusCell: Table.ITableCellPosition,
+): Table.ITableCellPosition {
+	const rowIndex = focusCell.rowIndex === range.startRow ? range.endRow : range.startRow;
+	const colIndex = focusCell.colIndex === range.startCol ? range.endCol : range.startCol;
+	return { rowIndex, colIndex };
+}
+
+function isSelectedCell(
+	rowIndex: number,
+	colIndex: number,
+	state: Pick<AppliedTableCellState, "selectedColumns" | "selectedRanges">,
+): boolean {
+	return state.selectedColumns.has(colIndex) ||
+		state.selectedRanges.some(range =>
+			rowIndex >= range.startRow &&
+			rowIndex <= range.endRow &&
+			colIndex >= range.startCol &&
+			colIndex <= range.endCol,
+		);
+}
+
+function getSelectionFrame(
+	rowIndex: number,
+	colIndex: number,
+	ranges: readonly Table.ITableCellRange[],
+): Table.ITableSelectionFrameEdges {
+	let top = false;
+	let right = false;
+	let bottom = false;
+	let left = false;
+
+	for (const range of ranges) {
+		if (
+			rowIndex < range.startRow ||
+			rowIndex > range.endRow ||
+			colIndex < range.startCol ||
+			colIndex > range.endCol
+		) {
+			continue;
+		}
+
+		top ||= rowIndex === range.startRow;
+		right ||= colIndex === range.endCol;
+		bottom ||= rowIndex === range.endRow;
+		left ||= colIndex === range.startCol;
+	}
+
+	return { bottom, left, right, top };
+}
+
+function isActiveCell(
+	activeCell: Table.ITableCellPosition | null,
+	rowIndex: number,
+	colIndex: number,
+): boolean {
+	return activeCell?.rowIndex === rowIndex &&
+		activeCell.colIndex === colIndex;
+}
+
+function areActiveCellsEqual(
+	first: Table.ITableCellPosition | null,
+	second: Table.ITableCellPosition | null,
+): boolean {
+	if (!first || !second) {
+		return !first && !second;
+	}
+
+	return first.rowIndex === second.rowIndex &&
+		first.colIndex === second.colIndex;
+}
+
+function areCellRangesEqual(
+	first: readonly Table.ITableCellRange[],
+	second: readonly Table.ITableCellRange[],
+): boolean {
+	if (first.length !== second.length) {
+		return false;
+	}
+
+	for (let index = 0; index < first.length; index += 1) {
+		const left = first[index];
+		const right = second[index];
+		if (
+			!left ||
+			!right ||
+			left.startRow !== right.startRow ||
+			left.endRow !== right.endRow ||
+			left.startCol !== right.startCol ||
+			left.endCol !== right.endCol
+		) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+function getChangedColumns(
+	previous: Pick<AppliedTableCellState, "highlightedColumns" | "selectedColumns">,
+	next: Pick<AppliedTableCellState, "highlightedColumns" | "selectedColumns">,
+	startColumnIndex: number,
+	columnCount: number,
+): number[] {
+	const columns = new Set<number>();
+	const endColumnIndex = startColumnIndex + columnCount;
+
+	for (const colIndex of previous.selectedColumns) {
+		if (!next.selectedColumns.has(colIndex)) {
+			columns.add(colIndex);
+		}
+	}
+
+	for (const colIndex of next.selectedColumns) {
+		if (!previous.selectedColumns.has(colIndex)) {
+			columns.add(colIndex);
+		}
+	}
+
+	for (const colIndex of previous.highlightedColumns) {
+		if (!next.highlightedColumns.has(colIndex)) {
+			columns.add(colIndex);
+		}
+	}
+
+	for (const colIndex of next.highlightedColumns) {
+		if (!previous.highlightedColumns.has(colIndex)) {
+			columns.add(colIndex);
+		}
+	}
+
+	return Array.from(columns)
+		.filter((colIndex) => colIndex >= startColumnIndex && colIndex < endColumnIndex)
+		.sort((a, b) => a - b);
+}
+
+function getChangedCellStateRanges({
+	changedColumns,
+	columnCount,
+	next,
+	previous,
+	rangesChanged,
+	rowCount,
+	startColumnIndex,
+	startRowIndex,
+}: {
+	readonly changedColumns: readonly number[];
+	readonly columnCount: number;
+	readonly next: AppliedTableCellState;
+	readonly previous: AppliedTableCellState;
+	readonly rangesChanged: boolean;
+	readonly rowCount: number;
+	readonly startColumnIndex: number;
+	readonly startRowIndex: number;
+}): readonly Table.ITableCellRange[] {
+	const ranges: Table.ITableCellRange[] = [];
+	const endRow = startRowIndex + rowCount - 1;
+	const endColumn = startColumnIndex + columnCount - 1;
+	if (rowCount <= 0 || columnCount <= 0) {
+		return ranges;
+	}
+
+	for (const colIndex of changedColumns) {
+		if (colIndex < startColumnIndex || colIndex > endColumn) {
+			continue;
+		}
+		ranges.push({
+			startRow: startRowIndex,
+			endRow,
+			startCol: colIndex,
+			endCol: colIndex,
+		});
+	}
+
+	if (rangesChanged) {
+		ranges.push(
+			...VirtualTableGridModel.getChangedCellRanges(previous.selectedRanges, next.selectedRanges),
+		);
+	}
+
+	return ranges;
 }
 
 function addRootClassName(element: HTMLElement, className: string | undefined): void {

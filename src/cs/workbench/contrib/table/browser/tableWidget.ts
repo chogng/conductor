@@ -8,14 +8,19 @@ import {
   TableWidget as BaseTableWidget,
 } from "src/cs/base/browser/ui/table/tableWidget";
 import {
+  PagedTableWidgetRenderer,
+  type PagedTableBodyCellTemplateData,
+} from "src/cs/base/browser/ui/table/tablePaging";
+import type { CancellationToken } from "src/cs/base/common/cancellation";
+import {
   TABLE_WIDGET_DEFAULT_ZOOM_PERCENT,
   type ITableBodyMouseEvent,
+  type ITableCellState,
   type ITableCellPosition,
-  type ITableCellRange,
+  type ITableCellSelectionTarget,
   type ITableDirtyRange,
   type ITableColumnHeaderMouseEvent,
-  type ITableRange,
-  type ITableSelectionFrameEdges,
+  type ITableKeyboardNavigationEvent,
   type ITableSize,
 } from "src/cs/base/browser/ui/table/table";
 import { VirtualTableGridModel } from "src/cs/base/browser/ui/table/virtualTable";
@@ -119,20 +124,18 @@ type ColumnWidthStorageTarget = {
 };
 
 export type TableWidgetModel = {
-  readonly ensureRows: (
-    startRow: number,
-    endRow: number,
-  ) => Promise<void>;
   readonly getColumnDisplayProfile: (colIndex: number) => ColumnDisplayProfile;
+  readonly get: (rowIndex: number) => unknown[];
   readonly getHighlight: () => TableWidgetHighlight;
-  readonly getRow: (rowIndex: number) => unknown[] | null;
   readonly getRowsVersion: () => number;
   readonly getSelection: () => TableWidgetSelection;
   readonly getState: () => TableWidgetState;
+  readonly isResolved: (rowIndex: number) => boolean;
   readonly onDidChangeHighlight: (callback: (highlight: TableWidgetHighlight) => void) => () => void;
   readonly onDidChangeRevealCell: (callback: (cell: TableWidgetCell | null) => void) => () => void;
   readonly onDidChangeSelection: (callback: (selection: TableWidgetSelection) => void) => () => void;
   readonly onDidChangeState: (callback: () => void) => () => void;
+  readonly resolve: (rowIndex: number, cancellationToken: CancellationToken) => Promise<unknown[]>;
   readonly subscribeRowsVersion: (callback: (event: TableWidgetRowsVersionChangeEvent) => void) => () => void;
 };
 
@@ -174,18 +177,13 @@ type BodyCell = {
   appliedTitle?: string;
 };
 
+type BodyTemplateData = PagedTableBodyCellTemplateData<unknown[], BodyCell>;
+
 type HeaderCell = {
   readonly button: HTMLButtonElement;
   readonly cell: HTMLElement;
   readonly resizeHandle: HTMLElement;
   readonly scaleBadge: HTMLButtonElement;
-};
-
-type AppliedCellState = {
-  readonly activeCell: ITableCellPosition | null;
-  readonly highlightedColumns: Set<number>;
-  readonly selectedColumns: Set<number>;
-  readonly selectedRanges: readonly ITableCellRange[];
 };
 
 type BodyRangeSelectionState = {
@@ -199,7 +197,8 @@ export class TableWidget {
   public readonly onDidChangeSize: Event<ITableSize>;
   public readonly onDidChangeZoom: Event<number>;
   private readonly store = new DisposableStore();
-  private readonly grid: BaseTableWidget<BodyCell, HeaderCell>;
+  private readonly grid: BaseTableWidget<BodyTemplateData, HeaderCell>;
+  private readonly rowRenderer: PagedTableWidgetRenderer<unknown[], BodyCell, HeaderCell>;
   private readonly columnScaleControl: TableStepper;
   private readonly performance = createPerformanceStageRecorder(state => this.getPerformanceStageContext(state));
   private readonly bodyRangeSelectionStore = new DisposableStore();
@@ -208,17 +207,9 @@ export class TableWidget {
   private disposeRevealCellListener: (() => void) | null = null;
   private disposeRowsVersionListener: (() => void) | null = null;
   private disposeStateListener: (() => void) | null = null;
-  private bodyTotalRowCount = 0;
-  private bodyStartRowIndex = 0;
-  private bodyRowCount = 0;
-  private bodyTotalColumnCount = 0;
-  private bodyStartColumnIndex = 0;
-  private bodyColumnCount = 0;
   private layoutTimeoutId: number | null = null;
   private renderedInputKey: string | null = null;
   private renderedSheetKey: string | null = null;
-  private pendingEnsureRowsKey: string | null = null;
-  private appliedCellState: AppliedCellState | null = null;
   private columnWidthSheetKey: string | null = null;
   private columnWidthSource: TableSource | null = null;
   private columnWidths = new Map<number, number>();
@@ -227,8 +218,6 @@ export class TableWidget {
   private bodyRangeSelectionState: BodyRangeSelectionState | null = null;
   private suppressNextBodyClick = false;
   private bodyClickSuppressionTimeout: number | null = null;
-  private rangeAnchorCell: ITableCellPosition | null = null;
-  private rangeFocusCell: ITableCellPosition | null = null;
   private hoveredColumnScaleColIndex: number | null = null;
   private tracedBodyCellRenderCount = 0;
   private tracedHeaderCellRenderCount = 0;
@@ -236,48 +225,53 @@ export class TableWidget {
 
   constructor(props: TableWidgetProps) {
     this.props = props;
+    this.rowRenderer = this.store.add(new PagedTableWidgetRenderer(props.tableViewModel, {
+      clearBodyCell: templateData => this.updateCellDisplay(templateData, "", ""),
+      disposeBodyCellTemplate: () => undefined,
+      renderBodyCell: () => {
+        // The base table owns descriptor rebinding; workbench state is synchronized separately.
+      },
+      renderBodyCellContent: (templateData, descriptor) => {
+        this.renderBodyCellContent(templateData, descriptor.row, descriptor.colIndex);
+      },
+      renderBodyCellPlaceholder: templateData => {
+        this.updateCellDisplay(templateData, "", "");
+      },
+      renderBodyCellTemplate: (cell, content) => ({
+        content,
+        element: cell,
+      }),
+      renderColumnHeader: (templateData, descriptor) => {
+        this.syncHeaderColumnElement(templateData, descriptor.colIndex, this.props.tableViewModel);
+      },
+      renderColumnHeaderTemplate: cell => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "table_view_column_button";
+        const scaleBadge = document.createElement("button");
+        scaleBadge.type = "button";
+        scaleBadge.className = "table_view_column_scale_badge";
+        const resizeHandle = this.grid.createColumnResizeHandle();
+        cell.replaceChildren(button, scaleBadge, resizeHandle);
+        return {
+          button,
+          cell,
+          resizeHandle,
+          scaleBadge,
+        };
+      },
+      renderRowHeader: (cell, descriptor) => {
+        const label = cell.firstElementChild;
+        if (label) {
+          label.textContent = VirtualTableGridModel.getRowLabel(descriptor.rowIndex);
+        }
+      },
+    }));
     this.grid = this.store.add(new BaseTableWidget({
       columnResize: { enabled: true, mode: "commit" },
       getColumnWidth: colIndex => this.getColumnWidth(colIndex),
-      renderer: {
-        clearBodyCell: templateData => this.updateCellDisplay(templateData, "", ""),
-        disposeBodyCellTemplate: () => undefined,
-        renderBodyCell: () => {
-          // The base table owns descriptor rebinding; workbench state is synchronized separately.
-        },
-        renderBodyCellContent: (templateData, descriptor) => {
-          this.renderBodyCellContent(templateData, descriptor.rowIndex, descriptor.colIndex);
-        },
-        renderBodyCellTemplate: (cell, content) => ({
-          content,
-          element: cell,
-        }),
-        renderColumnHeader: (templateData, descriptor) => {
-          this.syncHeaderColumnElement(templateData, descriptor.colIndex, this.props.tableViewModel);
-        },
-        renderColumnHeaderTemplate: cell => {
-          const button = document.createElement("button");
-          button.type = "button";
-          button.className = "table_view_column_button";
-          const scaleBadge = document.createElement("button");
-          scaleBadge.type = "button";
-          scaleBadge.className = "table_view_column_scale_badge";
-          const resizeHandle = this.grid.createColumnResizeHandle();
-          cell.replaceChildren(button, scaleBadge, resizeHandle);
-          return {
-            button,
-            cell,
-            resizeHandle,
-            scaleBadge,
-          };
-        },
-        renderRowHeader: (cell, descriptor) => {
-          const label = cell.firstElementChild;
-          if (label) {
-            label.textContent = VirtualTableGridModel.getRowLabel(descriptor.rowIndex);
-          }
-        },
-      },
+      keyboardNavigation: { enabled: true },
+      renderer: this.rowRenderer,
     }));
     this.element = this.grid.element;
     this.onDidChangeSize = this.grid.onDidChangeSize;
@@ -291,6 +285,9 @@ export class TableWidget {
     this.store.add(this.grid.onDidScroll(() => {
       this.onTableScroll();
     }));
+    this.store.add(this.grid.onDidChangeVisibleRange(() => {
+      this.onVisibleRangeChanged();
+    }));
     this.store.add(this.grid.onDidClickHeader(event => {
       this.onHeaderClick(event);
     }));
@@ -303,8 +300,11 @@ export class TableWidget {
     this.store.add(this.grid.onDidPointerDownBody(event => {
       this.onBodyPointerDown(event);
     }));
+    this.store.add(this.grid.onDidNavigateKeyboard(event => {
+      this.onKeyboardNavigation(event);
+    }));
     this.store.add(addDisposableListener(this.element, EventType.KEY_DOWN, event => {
-      this.onKeyDown(event as KeyboardEvent);
+      this.onShortcutKeyDown(event as KeyboardEvent);
     }));
     this.store.add(addDisposableListener(this.element, EventType.WHEEL, event => {
       this.onWheel(event as WheelEvent);
@@ -322,6 +322,7 @@ export class TableWidget {
     this.bindTableState(props.tableViewModel);
     this.syncColumnWidthSheet();
     this.renderedInputKey = getTableWidgetInputKey(props);
+    this.syncCellState();
     this.render();
   }
 
@@ -331,6 +332,7 @@ export class TableWidget {
     const nextInputKey = getTableWidgetInputKey(props);
     this.props = props;
     if (previousModel !== props.tableViewModel) {
+      this.rowRenderer.setModel(props.tableViewModel);
       this.bindTableState(props.tableViewModel);
     }
     this.syncColumnWidthSheet();
@@ -434,22 +436,13 @@ export class TableWidget {
     }
 
     if (!target) {
-      this.rangeAnchorCell = null;
-      this.rangeFocusCell = null;
       return true;
     }
 
     if (target.kind === "cell") {
-      this.rangeAnchorCell = null;
-      this.rangeFocusCell = null;
       if (reveal && target.cell) {
         this.revealCell(target.cell);
       }
-    }
-
-    if (target.kind === "columns") {
-      this.rangeAnchorCell = null;
-      this.rangeFocusCell = null;
     }
 
     if (reveal && target.kind === "range") {
@@ -653,13 +646,13 @@ export class TableWidget {
     this.disposeRowsVersionListener?.();
     this.disposeStateListener?.();
     this.disposeSelectionListener = tableViewModel.onDidChangeSelection(() => {
-      this.syncSelectionState();
+      this.syncCellState();
     });
     this.disposeRowsVersionListener = tableViewModel.subscribeRowsVersion(event => {
       this.syncRows(event);
     });
     this.disposeHighlightListener = tableViewModel.onDidChangeHighlight(() => {
-      this.syncSelectionState();
+      this.syncCellState();
     });
     this.disposeRevealCellListener = tableViewModel.onDidChangeRevealCell((cell) => {
       if (cell) {
@@ -672,6 +665,7 @@ export class TableWidget {
         tableState: tableViewModel.getState(),
       };
       this.renderedInputKey = getTableWidgetInputKey(this.props);
+      this.syncCellState();
       this.render();
     });
   }
@@ -698,9 +692,7 @@ export class TableWidget {
 
       if (this.renderedSheetKey !== sheetKey && !keepRenderedTableWhilePendingSource) {
         this.renderedSheetKey = sheetKey;
-        this.pendingEnsureRowsKey = null;
-        this.rangeAnchorCell = null;
-        this.rangeFocusCell = null;
+        this.grid.selectCell(null);
         this.grid.resetScrollTop();
       }
 
@@ -787,7 +779,7 @@ export class TableWidget {
 
   private renderTable(): boolean {
     const endTrace = this.performance.start("table.renderTable");
-    const { tableViewModel, tableState } = this.props;
+    const { tableState } = this.props;
     const tableFile = tableState.file;
     const bodyCellRenderCountStart = this.tracedBodyCellRenderCount;
     const headerCellRenderCountStart = this.tracedHeaderCellRenderCount;
@@ -822,13 +814,7 @@ export class TableWidget {
         renderVersion: this.getRowsRenderVersion(),
         rowCount: tableFile.rowCount,
       });
-      this.syncCachedGridState();
-      this.syncSelectionState();
-
-      const sheetKey = getTableWidgetSheetKey(tableState);
-      if (sheetKey) {
-        this.ensureRows(tableViewModel, sheetKey, this.getBodyRowRange());
-      }
+      this.syncCellState();
 
       return gridChanged;
     } finally {
@@ -849,41 +835,6 @@ export class TableWidget {
       renderVersion: this.getRowsRenderVersion(),
       rowCount: 0,
     });
-    this.syncCachedGridState();
-  }
-
-  private ensureRows(
-    tableViewModel: TableWidgetModel,
-    sheetKey: string,
-    rowRange: ITableRange,
-  ): void {
-    const requestKey = `${sheetKey}\u001f${rowRange.startIndex}\u001f${rowRange.endIndex}`;
-    if (this.pendingEnsureRowsKey === requestKey) {
-      return;
-    }
-
-    this.pendingEnsureRowsKey = requestKey;
-    const endTrace = this.performance.start("table.rows.ensure", {
-      endRow: rowRange.endIndex,
-      requestedRows: Math.max(0, rowRange.endIndex - rowRange.startIndex),
-      startRow: rowRange.startIndex,
-    });
-    void tableViewModel.ensureRows(rowRange.startIndex, rowRange.endIndex).then(
-      () => {
-        endTrace({ status: "resolved" });
-        this.clearPendingEnsureRows(requestKey);
-      },
-      () => {
-        endTrace({ status: "rejected" });
-        this.clearPendingEnsureRows(requestKey);
-      },
-    );
-  }
-
-  private clearPendingEnsureRows(requestKey: string): void {
-    if (this.pendingEnsureRowsKey === requestKey) {
-      this.pendingEnsureRowsKey = null;
-    }
   }
 
   private syncHeaderColumnElement(
@@ -971,12 +922,12 @@ export class TableWidget {
     return changed;
   }
 
-  private syncRows(event?: TableWidgetRowsVersionChangeEvent): void {
+  private syncRows(event: TableWidgetRowsVersionChangeEvent): void {
     const endTrace = this.performance.start("table.rows.sync", {
-      dirtyRangeCount: event?.ranges.length ?? 0,
-      full: event?.full ?? true,
-      kind: event?.kind ?? "reset",
-      rowsVersion: event?.version ?? null,
+      dirtyRangeCount: event.ranges.length,
+      full: event.full,
+      kind: event.kind,
+      rowsVersion: event.version,
     });
     let patchResult: DirtyRowsPatchResult = "full";
     let tableVisible = false;
@@ -988,7 +939,7 @@ export class TableWidget {
         return;
       }
 
-      patchResult = event ? this.patchDirtyRows(event) : "full";
+      patchResult = this.patchDirtyRows(event);
       if (patchResult === "full") {
         this.renderTable();
       }
@@ -1045,15 +996,6 @@ export class TableWidget {
     }
   }
 
-  private getBodyRowRange(): ITableRange {
-    return {
-      totalCount: this.bodyTotalRowCount,
-      startIndex: this.bodyStartRowIndex,
-      endIndex: this.bodyStartRowIndex + this.bodyRowCount,
-      renderedCount: this.bodyRowCount,
-    };
-  }
-
   private getRowsRenderVersion(): string {
     const tableFile = this.props.tableState.file;
     return [
@@ -1103,47 +1045,12 @@ export class TableWidget {
     };
   }
 
-  private syncCachedGridState(): boolean {
-    const { rowRange, columnRange } = this.grid.getState();
-    const changed = this.bodyStartRowIndex !== rowRange.startIndex ||
-      this.bodyTotalRowCount !== rowRange.totalCount ||
-      this.bodyRowCount !== rowRange.renderedCount ||
-      this.bodyStartColumnIndex !== columnRange.startIndex ||
-      this.bodyTotalColumnCount !== columnRange.totalCount ||
-      this.bodyColumnCount !== columnRange.renderedCount;
-    this.bodyTotalRowCount = rowRange.totalCount;
-    this.bodyStartRowIndex = rowRange.startIndex;
-    this.bodyRowCount = rowRange.renderedCount;
-    this.bodyTotalColumnCount = columnRange.totalCount;
-    this.bodyStartColumnIndex = columnRange.startIndex;
-    this.bodyColumnCount = columnRange.renderedCount;
-    if (changed) {
-      this.appliedCellState = null;
-    }
-    return changed;
-  }
-
-  private syncVisibleGridState(): boolean {
-    if (!this.syncCachedGridState()) {
-      return false;
-    }
-
-    this.syncSelectionState();
-    const tableFile = this.props.tableState.file;
-    const sheetKey = getTableWidgetSheetKey(this.props.tableState);
-    if (sheetKey) {
-      this.ensureRows(this.props.tableViewModel, sheetKey, this.getBodyRowRange());
-    }
-    return true;
-  }
-
   private renderBodyCellContent(
     cell: BodyCell,
-    rowIndex: number,
+    row: readonly unknown[],
     colIndex: number,
   ): void {
     this.tracedBodyCellRenderCount += 1;
-    const row = this.props.tableViewModel.getRow(rowIndex) ?? [];
     const rawValue = row[colIndex];
     const profile = this.props.tableViewModel.getColumnDisplayProfile(colIndex);
     const displayText = formatCell(rawValue, profile);
@@ -1154,178 +1061,16 @@ export class TableWidget {
     );
   }
 
-  private syncSelectionState(): void {
-    const endTrace = this.performance.start("table.selection.sync");
-    let changedColumnCount = 0;
-    let fullSync = false;
-    let rangesChanged = false;
-    let tableVisible = false;
-    let touchedCellCount = 0;
-    try {
-      tableVisible = this.isTableVisible();
-      if (!tableVisible) {
-        return;
-      }
-
-      const { tableViewModel } = this.props;
-      const rowCount = this.bodyRowCount;
-      const columnCount = this.bodyColumnCount;
-      const startColumnIndex = this.bodyStartColumnIndex;
-      const selection = tableViewModel.getSelection();
-      const activeCell = normalizeActiveCell(
-        selection.activeCell,
-        this.bodyStartRowIndex,
-        rowCount,
-        startColumnIndex,
-        columnCount,
-      );
-      const selectedColumns = toColumnSet(selection.selectedColumns, startColumnIndex, columnCount);
-      const selectedRanges = toVisibleRanges(
-        selection.ranges,
-        this.bodyStartRowIndex,
-        rowCount,
-        startColumnIndex,
-        columnCount,
-      );
-      const highlightedColumns = toColumnSet(
-        tableViewModel.getHighlight().columns,
-        startColumnIndex,
-        columnCount,
-      );
-      const previous = this.appliedCellState;
-      const next: AppliedCellState = {
-        activeCell,
-        highlightedColumns,
-        selectedColumns,
-        selectedRanges,
-      };
-
-      if (!previous) {
-        fullSync = true;
-        changedColumnCount = columnCount;
-        this.syncHeaderColumns(VirtualTableGridModel.range(columnCount), next);
-        for (let rowOffset = 0; rowOffset < rowCount; rowOffset += 1) {
-          const rowIndex = this.bodyStartRowIndex + rowOffset;
-          for (let columnOffset = 0; columnOffset < columnCount; columnOffset += 1) {
-            const cell = this.getVisibleBodyCell(rowOffset, columnOffset);
-            if (!cell) {
-              continue;
-            }
-            const colIndex = startColumnIndex + columnOffset;
-            this.grid.setBodyCellTraits(cell, {
-              active: selectedRanges.length === 0 && isActiveCell(activeCell, rowIndex, colIndex),
-              highlighted: highlightedColumns.has(colIndex),
-              selected: isSelectedCell(rowIndex, colIndex, next),
-              selectionFrame: getSelectionFrame(rowIndex, colIndex, selectedRanges),
-            });
-            touchedCellCount += 1;
-          }
-        }
-        this.appliedCellState = next;
-        return;
-      }
-
-      rangesChanged = !areCellRangesEqual(previous.selectedRanges, next.selectedRanges);
-      const changedColumns = getChangedColumns(previous, next, startColumnIndex, columnCount);
-      changedColumnCount = changedColumns.length;
-      this.syncHeaderColumns(changedColumns.map(colIndex => colIndex - startColumnIndex), next);
-
-      touchedCellCount += this.syncBodyCellsInRanges(
-        getChangedSelectionCellRanges({
-          changedColumns,
-          columnCount,
-          next,
-          previous,
-          rangesChanged,
-          rowCount,
-          startColumnIndex,
-          startRowIndex: this.bodyStartRowIndex,
-        }),
-        next,
-      );
-
-      touchedCellCount += this.syncActiveCells(previous.activeCell, activeCell, next);
-      this.appliedCellState = next;
-    } finally {
-      endTrace({
-        changedColumnCount,
-        fullSync,
-        rangesChanged,
-        tableVisible,
-        touchedCellCount,
-      });
-    }
-  }
-
-  private syncActiveCells(
-    previous: ITableCellPosition | null,
-    next: ITableCellPosition | null,
-    state: Pick<AppliedCellState, "highlightedColumns" | "selectedColumns" | "selectedRanges">,
-  ): number {
-    if (areActiveCellsEqual(previous, next)) {
-      return 0;
-    }
-
-    return this.updateActiveCellState(previous, false, state) +
-      this.updateActiveCellState(next, true, state);
-  }
-
-  private updateActiveCellState(
-    activeCell: ITableCellPosition | null,
-    active: boolean,
-    state: Pick<AppliedCellState, "highlightedColumns" | "selectedColumns" | "selectedRanges">,
-  ): number {
-    if (!activeCell) {
-      return 0;
-    }
-
-    const rowOffset = activeCell.rowIndex - this.bodyStartRowIndex;
-    const columnOffset = activeCell.colIndex - this.bodyStartColumnIndex;
-    const cell = this.getVisibleBodyCell(rowOffset, columnOffset);
-    if (!cell) {
-      return 0;
-    }
-
-    this.grid.setBodyCellTraits(cell, {
-      active: active && state.selectedRanges.length === 0,
-      highlighted: state.highlightedColumns.has(activeCell.colIndex),
-      selected: isSelectedCell(activeCell.rowIndex, activeCell.colIndex, state),
-      selectionFrame: getSelectionFrame(activeCell.rowIndex, activeCell.colIndex, state.selectedRanges),
-    });
-    return 1;
-  }
-
-  private syncBodyCellsInRanges(
-    ranges: readonly ITableCellRange[],
-    state: AppliedCellState,
-  ): number {
-    return this.grid.forEachBodyCellInRanges(ranges, (cell, descriptor) => {
-      this.grid.setBodyCellTraits(cell, {
-        active: state.selectedRanges.length === 0 && isActiveCell(state.activeCell, descriptor.rowIndex, descriptor.colIndex),
-        highlighted: state.highlightedColumns.has(descriptor.colIndex),
-        selected: isSelectedCell(descriptor.rowIndex, descriptor.colIndex, state),
-        selectionFrame: getSelectionFrame(descriptor.rowIndex, descriptor.colIndex, state.selectedRanges),
-      });
-    });
-  }
-
-  private syncHeaderColumns(
-    columns: readonly number[],
-    state: Pick<AppliedCellState, "highlightedColumns" | "selectedColumns">,
-  ): void {
-    for (const columnOffset of columns) {
-      const colIndex = this.bodyStartColumnIndex + columnOffset;
-      const header = this.grid.getColumnHeaderTemplateData(columnOffset);
-      if (!header) {
-        continue;
-      }
-
-      const selected = state.selectedColumns.has(colIndex);
-      this.grid.setColumnHeaderTraits(header, {
-        highlighted: state.highlightedColumns.has(colIndex),
-        selected,
-      });
-    }
+  private syncCellState(): void {
+    const { tableViewModel } = this.props;
+    const selection = tableViewModel.getSelection();
+    const cellState: ITableCellState = {
+      activeCell: selection.activeCell ?? null,
+      highlightedColumns: tableViewModel.getHighlight().columns ?? [],
+      selectedColumns: selection.selectedColumns ?? [],
+      selectedRanges: selection.ranges ?? [],
+    };
+    this.grid.setCellState(cellState);
     this.syncSharedColumnScaleControl();
   }
 
@@ -1357,10 +1102,6 @@ export class TableWidget {
       Boolean(getTableWidgetSheetKey(tableState) && tableState.file);
   }
 
-  private getVisibleBodyCell(rowOffset: number, columnOffset: number): BodyCell | null {
-    return this.grid.getBodyCellTemplateData(rowOffset, columnOffset);
-  }
-
   private updateCellDisplay(cell: BodyCell, text: string, title: string): void {
     if (cell.appliedText !== text) {
       cell.content.textContent = text;
@@ -1369,14 +1110,14 @@ export class TableWidget {
     if (cell.appliedTitle !== title) {
       if (title) {
         cell.element.removeAttribute("title");
-        this.grid.setBodyCellHoverContent(
-          cell,
+        this.grid.setBodyCellElementHoverContent(
+          cell.element,
           createCellDisplayHoverContent(cell.element.ownerDocument, title),
           { appearance: { compact: true } },
         );
       } else {
         cell.element.removeAttribute("title");
-        this.grid.setBodyCellHoverContent(cell, undefined);
+        this.grid.setBodyCellElementHoverContent(cell.element, undefined);
       }
       cell.appliedTitle = title;
     }
@@ -1598,7 +1339,7 @@ export class TableWidget {
     return this.columnWidths.get(colIndex) ?? TableColumnLayout.defaultWidth;
   }
 
-  private onKeyDown(event: KeyboardEvent): void {
+  private onShortcutKeyDown(event: KeyboardEvent): void {
     const keyboardEvent = new StandardKeyboardEvent(event);
     if (
       keyboardEvent.browserEvent.defaultPrevented ||
@@ -1614,44 +1355,10 @@ export class TableWidget {
     if (keyboardEvent.metaKey) {
       return;
     }
+  }
 
-    const tableFile = this.props.tableState.file;
-    if (!tableFile) {
-      return;
-    }
-
-    const target = VirtualTableGridModel.resolveKeyboardTarget({
-      keyCode: keyboardEvent.keyCode,
-      currentCell: keyboardEvent.shiftKey
-        ? this.getRangeFocusCell()
-        : this.getNavigationCell(),
-      rowCount: tableFile.rowCount,
-      columnCount: tableFile.columnCount,
-      pageRowCount: this.getPageRowCount(),
-      toBoundary: keyboardEvent.ctrlKey,
-    });
-    if (!target) {
-      return;
-    }
-
-    keyboardEvent.preventDefault();
-    keyboardEvent.stopPropagation();
-
-    if (keyboardEvent.shiftKey) {
-      if (this.selectRangeToCell(target, true)) {
-        this.focus();
-      }
-      return;
-    }
-
-    const cell: TableCell = {
-      colIndex: target.colIndex,
-      rowIndex: target.rowIndex,
-      sheetId: tableFile.sheetId ?? null,
-    };
-    this.rangeAnchorCell = null;
-    this.rangeFocusCell = null;
-    if (this.select({ kind: "cell", cell }, true)) {
+  private onKeyboardNavigation(event: ITableKeyboardNavigationEvent): void {
+    if (this.selectBaseCellTarget(event.selection, true)) {
       this.focus();
     }
   }
@@ -1747,71 +1454,35 @@ export class TableWidget {
     event.stopPropagation();
   }
 
-  private getNavigationCell(): ITableCellPosition | null {
-    const tableFile = this.props.tableState.file;
-    if (!tableFile) {
-      return null;
-    }
-
-    const activeCell = this.getSelection().activeCell;
-    const rowIndex = Math.floor(Number(activeCell?.rowIndex));
-    const colIndex = Math.floor(Number(activeCell?.colIndex));
-    if (
-      Number.isInteger(rowIndex) &&
-      rowIndex >= 0 &&
-      rowIndex < tableFile.rowCount &&
-      Number.isInteger(colIndex) &&
-      colIndex >= 0 &&
-      colIndex < tableFile.columnCount
-    ) {
-      return { colIndex, rowIndex };
-    }
-
-    return {
-      colIndex: 0,
-      rowIndex: Math.min(Math.max(0, this.bodyStartRowIndex), Math.max(0, tableFile.rowCount - 1)),
-    };
-  }
-
-  private getRangeFocusCell(): ITableCellPosition | null {
-    return this.rangeFocusCell ?? this.getNavigationCell();
-  }
-
-  private selectRangeToCell(
-    target: ITableCellPosition,
-    reveal: boolean,
+  private selectBaseCellTarget(
+    target: ITableCellSelectionTarget,
+    reveal: TableWidgetRevealMode,
   ): boolean {
     const tableFile = this.props.tableState.file;
     if (!tableFile) {
       return false;
     }
 
-    const anchor = this.rangeAnchorCell ?? this.getNavigationCell() ?? target;
-    const range = VirtualTableGridModel.resolveCellRange(anchor, target);
-    const didSelect = this.select({
+    if (target.kind === "cell") {
+      return this.select({
+        kind: "cell",
+        cell: target.cell
+          ? {
+            colIndex: target.cell.colIndex,
+            rowIndex: target.cell.rowIndex,
+            sheetId: tableFile.sheetId ?? null,
+          }
+          : null,
+      }, reveal);
+    }
+
+    return this.select({
       kind: "range",
       range: {
-        ...range,
+        ...target.range,
         sheetId: tableFile.sheetId ?? null,
       },
     }, reveal);
-    if (!didSelect) {
-      return false;
-    }
-
-    this.rangeAnchorCell = anchor;
-    this.rangeFocusCell = target;
-    return true;
-  }
-
-  private getPageRowCount(): number {
-    return Math.max(
-      1,
-      Math.floor(
-        this.grid.getViewportClientHeight() /
-          this.grid.getRowHeight(),
-      ),
-    );
   }
 
   private revealCell(cell: TableCell): void {
@@ -1845,10 +1516,10 @@ export class TableWidget {
     this.clearNativeSelection();
     this.endBodyRangeSelection();
 
-    const didSelect = mouseEvent.shiftKey
-      ? this.selectRangeToCell(target, false)
-      : this.selectBodyAnchorCell(target);
-    if (!didSelect) {
+    const selection = mouseEvent.shiftKey
+      ? this.grid.selectRangeToCell(target)
+      : this.grid.selectCell(target);
+    if (!selection || !this.selectBaseCellTarget(selection, false)) {
       return;
     }
 
@@ -1901,11 +1572,12 @@ export class TableWidget {
     this.clearNativeSelection();
 
     const target = this.getBodyCellPositionFromEvent(event);
-    if (!target || areActiveCellsEqual(this.rangeFocusCell, target)) {
+    if (!target) {
       return;
     }
 
-    if (this.selectRangeToCell(target, false)) {
+    const selection = this.grid.selectRangeToCell(target);
+    if (selection && this.selectBaseCellTarget(selection, false)) {
       this.beginBodyClickSuppression();
     }
   }
@@ -1932,30 +1604,10 @@ export class TableWidget {
     this.bodyRangeSelectionStore.clear();
   }
 
-  private selectBodyAnchorCell(target: ITableCellPosition): boolean {
-    const tableFile = this.props.tableState.file;
-    const didSelect = this.select({
-      kind: "cell",
-      cell: {
-        colIndex: target.colIndex,
-        rowIndex: target.rowIndex,
-        sheetId: tableFile?.sheetId ?? null,
-      },
-    });
-    if (!didSelect) {
-      return false;
-    }
-
-    this.rangeAnchorCell = target;
-    this.rangeFocusCell = target;
-    return true;
-  }
-
   private getBodyCellPositionFromEvent(
     event: Pick<PointerEvent | MouseEvent, "clientX" | "clientY" | "target">,
   ): ITableCellPosition | null {
-    return this.grid.getBodyCellPositionFromTarget(event.target) ??
-      this.grid.getBodyCellPositionFromPoint(event.clientX, event.clientY);
+    return this.grid.getBodyCellPositionFromMouseEvent(event);
   }
 
   private clearNativeSelection(): void {
@@ -2011,24 +1663,22 @@ export class TableWidget {
       return;
     }
 
-    const { tableState } = this.props;
-    const tableFile = tableState.file;
-    if (mouseEvent.shiftKey && this.selectRangeToCell(target, true)) {
-      this.focus();
+    if (mouseEvent.shiftKey) {
+      const selection = this.grid.selectRangeToCell(target);
+      if (selection && this.selectBaseCellTarget(selection, true)) {
+        this.focus();
+      }
       return;
     }
 
-    this.rangeAnchorCell = null;
-    this.rangeFocusCell = null;
-    this.select({
-      kind: "cell",
-      cell: {
-        colIndex: target.colIndex,
-        rowIndex: target.rowIndex,
-        sheetId: tableFile?.sheetId ?? null,
-      },
-    });
-    this.focus();
+    const selection = this.grid.selectCell(target);
+    if (selection && this.selectBaseCellTarget(selection, false)) {
+      this.focus();
+    }
+  }
+
+  private onVisibleRangeChanged(): void {
+    this.syncSharedColumnScaleControl();
   }
 
   private syncHeaderScroll(): void {
@@ -2039,21 +1689,14 @@ export class TableWidget {
   private onTableScroll(): void {
     const endTrace = this.performance.start("table.scroll");
     let tableVisible = false;
-    let visibleRangeChanged = false;
     const bodyCellRenderCountStart = this.tracedBodyCellRenderCount;
     try {
       this.syncHeaderScroll();
       tableVisible = this.isTableVisible();
-      if (!tableVisible) {
-        return;
-      }
-
-      visibleRangeChanged = this.syncVisibleGridState();
     } finally {
       endTrace({
         bodyCellRenderCount: this.tracedBodyCellRenderCount - bodyCellRenderCountStart,
         tableVisible,
-        visibleRangeChanged,
       });
     }
   }
@@ -2218,99 +1861,6 @@ const createCellDisplayHoverContent = (ownerDocument: Document, title: string): 
   return container;
 };
 
-const toColumnSet = (
-  columnIndexes: readonly number[] | undefined,
-  startColumnIndex: number,
-  columnCount: number,
-): Set<number> => {
-  const columns = new Set<number>();
-  const endColumnIndex = startColumnIndex + columnCount;
-  for (const value of columnIndexes ?? []) {
-    const columnIndex = Math.floor(Number(value));
-    if (
-      Number.isInteger(columnIndex) &&
-      columnIndex >= startColumnIndex &&
-      columnIndex < endColumnIndex
-    ) {
-      columns.add(columnIndex);
-    }
-  }
-  return columns;
-};
-
-const toVisibleRanges = (
-  ranges: readonly TableRange[] | undefined,
-  startRowIndex: number,
-  rowCount: number,
-  startColumnIndex: number,
-  columnCount: number,
-): readonly ITableCellRange[] => {
-  const visibleRanges: ITableCellRange[] = [];
-  const endRowIndex = startRowIndex + rowCount - 1;
-  const endColumnIndex = startColumnIndex + columnCount - 1;
-
-  for (const range of ranges ?? []) {
-    const startRow = Math.max(startRowIndex, Math.floor(Number(range.startRow)));
-    const endRow = Math.min(endRowIndex, Math.floor(Number(range.endRow)));
-    const startCol = Math.max(startColumnIndex, Math.floor(Number(range.startCol)));
-    const endCol = Math.min(endColumnIndex, Math.floor(Number(range.endCol)));
-    if (
-      Number.isInteger(startRow) &&
-      Number.isInteger(endRow) &&
-      Number.isInteger(startCol) &&
-      Number.isInteger(endCol) &&
-      startRow <= endRow &&
-      startCol <= endCol
-    ) {
-      visibleRanges.push({ startRow, endRow, startCol, endCol });
-    }
-  }
-
-  return visibleRanges;
-};
-
-const isSelectedCell = (
-  rowIndex: number,
-  colIndex: number,
-  state: Pick<AppliedCellState, "selectedColumns" | "selectedRanges">,
-): boolean =>
-  state.selectedColumns.has(colIndex) ||
-  state.selectedRanges.some(range =>
-    rowIndex >= range.startRow &&
-    rowIndex <= range.endRow &&
-    colIndex >= range.startCol &&
-    colIndex <= range.endCol,
-  );
-
-const getSelectionFrame = (
-  rowIndex: number,
-  colIndex: number,
-  ranges: readonly ITableCellRange[],
-): ITableSelectionFrameEdges => {
-  let top = false;
-  let right = false;
-  let bottom = false;
-  let left = false;
-
-  for (const range of ranges) {
-    if (
-      rowIndex < range.startRow ||
-      rowIndex > range.endRow ||
-      colIndex < range.startCol ||
-      colIndex > range.endCol
-    ) {
-      continue;
-    }
-
-    top ||= rowIndex === range.startRow;
-    right ||= colIndex === range.endCol;
-    bottom ||= rowIndex === range.endRow;
-    left ||= colIndex === range.startCol;
-  }
-
-  return { bottom, left, right, top };
-};
-
 const getElementFromEventTarget = (target: EventTarget | null): Element | null => {
   if (target instanceof Element) {
     return target;
@@ -2321,164 +1871,6 @@ const getElementFromEventTarget = (target: EventTarget | null): Element | null =
   }
 
   return null;
-};
-
-const normalizeActiveCell = (
-  cell: TableSelection["activeCell"],
-  startRowIndex: number,
-  rowCount: number,
-  startColumnIndex: number,
-  columnCount: number,
-): ITableCellPosition | null => {
-  const rowIndex = Math.floor(Number(cell?.rowIndex));
-  const colIndex = Math.floor(Number(cell?.colIndex));
-  const endColumnIndex = startColumnIndex + columnCount;
-  if (
-    !Number.isInteger(rowIndex) ||
-    rowIndex < startRowIndex ||
-    rowIndex >= startRowIndex + rowCount ||
-    !Number.isInteger(colIndex) ||
-    colIndex < startColumnIndex ||
-    colIndex >= endColumnIndex
-  ) {
-    return null;
-  }
-
-  return {
-    colIndex,
-    rowIndex,
-  };
-};
-
-const isActiveCell = (
-  activeCell: ITableCellPosition | null,
-  rowIndex: number,
-  colIndex: number,
-): boolean =>
-  activeCell?.rowIndex === rowIndex &&
-  activeCell.colIndex === colIndex;
-
-const areActiveCellsEqual = (
-  first: ITableCellPosition | null,
-  second: ITableCellPosition | null,
-): boolean => {
-  if (!first || !second) {
-    return !first && !second;
-  }
-
-  return first.rowIndex === second.rowIndex &&
-    first.colIndex === second.colIndex;
-};
-
-const areCellRangesEqual = (
-  first: readonly ITableCellRange[],
-  second: readonly ITableCellRange[],
-): boolean => {
-  if (first.length !== second.length) {
-    return false;
-  }
-
-  for (let index = 0; index < first.length; index += 1) {
-    const left = first[index];
-    const right = second[index];
-    if (
-      !left ||
-      !right ||
-      left.startRow !== right.startRow ||
-      left.endRow !== right.endRow ||
-      left.startCol !== right.startCol ||
-      left.endCol !== right.endCol
-    ) {
-      return false;
-    }
-  }
-
-  return true;
-};
-
-const getChangedColumns = (
-  previous: Pick<AppliedCellState, "highlightedColumns" | "selectedColumns">,
-  next: Pick<AppliedCellState, "highlightedColumns" | "selectedColumns">,
-  startColumnIndex: number,
-  columnCount: number,
-): number[] => {
-  const columns = new Set<number>();
-  const endColumnIndex = startColumnIndex + columnCount;
-
-  for (const colIndex of previous.selectedColumns) {
-    if (!next.selectedColumns.has(colIndex)) {
-      columns.add(colIndex);
-    }
-  }
-
-  for (const colIndex of next.selectedColumns) {
-    if (!previous.selectedColumns.has(colIndex)) {
-      columns.add(colIndex);
-    }
-  }
-
-  for (const colIndex of previous.highlightedColumns) {
-    if (!next.highlightedColumns.has(colIndex)) {
-      columns.add(colIndex);
-    }
-  }
-
-  for (const colIndex of next.highlightedColumns) {
-    if (!previous.highlightedColumns.has(colIndex)) {
-      columns.add(colIndex);
-    }
-  }
-
-  return Array.from(columns)
-    .filter((colIndex) => colIndex >= startColumnIndex && colIndex < endColumnIndex)
-    .sort((a, b) => a - b);
-};
-
-const getChangedSelectionCellRanges = ({
-  changedColumns,
-  columnCount,
-  next,
-  previous,
-  rangesChanged,
-  rowCount,
-  startColumnIndex,
-  startRowIndex,
-}: {
-  readonly changedColumns: readonly number[];
-  readonly columnCount: number;
-  readonly next: AppliedCellState;
-  readonly previous: AppliedCellState;
-  readonly rangesChanged: boolean;
-  readonly rowCount: number;
-  readonly startColumnIndex: number;
-  readonly startRowIndex: number;
-}): readonly ITableCellRange[] => {
-  const ranges: ITableCellRange[] = [];
-  const endRow = startRowIndex + rowCount - 1;
-  const endColumn = startColumnIndex + columnCount - 1;
-  if (rowCount <= 0 || columnCount <= 0) {
-    return ranges;
-  }
-
-  for (const colIndex of changedColumns) {
-    if (colIndex < startColumnIndex || colIndex > endColumn) {
-      continue;
-    }
-    ranges.push({
-      startRow: startRowIndex,
-      endRow,
-      startCol: colIndex,
-      endCol: colIndex,
-    });
-  }
-
-  if (rangesChanged) {
-    ranges.push(
-      ...VirtualTableGridModel.getChangedCellRanges(previous.selectedRanges, next.selectedRanges),
-    );
-  }
-
-  return ranges;
 };
 
 const getWheelDelta = (event: WheelEvent): number => {

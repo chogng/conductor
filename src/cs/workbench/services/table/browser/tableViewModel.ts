@@ -3,6 +3,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from "src/cs/nls";
+import type { CancellationToken } from "src/cs/base/common/cancellation";
+import { CancellationError } from "src/cs/base/common/errors";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
 import { startPerf } from "src/cs/workbench/common/perf";
@@ -1142,6 +1144,7 @@ const createTableViewModel = ({
   const previewPendingChunksBySheetKeyRef = createTableRef<Map<string, Set<number>>>(
     new Map(),
   );
+  const pendingRowResolveRequestsRef = createTableRef(new Map<number, Promise<unknown[]>>());
   const columnDisplayProfileCacheRef = createTableRef(new Map<string, ColumnDisplayProfile>());
   const columnDisplayScaleOverridesRef = createTableRef(new Map<string, number>());
   const columnDisplayScaleOverrideVersionRef = createTableRef(0);
@@ -1396,7 +1399,8 @@ const createTableViewModel = ({
 
   const cancelPendingTableRowRequests = memoCallback(() => {
     previewPendingChunksBySheetKeyRef.current = new Map();
-  }, [previewPendingChunksBySheetKeyRef]);
+    pendingRowResolveRequestsRef.current = new Map();
+  }, [pendingRowResolveRequestsRef, previewPendingChunksBySheetKeyRef]);
 
   const assignCurrentPreviewCache = memoCallback(
     ({
@@ -1660,6 +1664,22 @@ const createTableViewModel = ({
       return tableRowsCacheRef.current.get(normalizedIndex) ?? null;
     },
     [tableRowsCacheRef],
+  );
+
+  const getResolvedTableRow = memoCallback(
+    (rowIndex: number): unknown[] => {
+      const row = getTableRow(rowIndex);
+      if (!row) {
+        throw new RangeError(`Table row is not resolved: ${rowIndex}`);
+      }
+      return row;
+    },
+    [getTableRow],
+  );
+
+  const isTableRowResolved = memoCallback(
+    (rowIndex: number): boolean => getTableRow(rowIndex) !== null,
+    [getTableRow],
   );
 
   const createRawColumnDisplayProfile = memoCallback(
@@ -2138,6 +2158,55 @@ const createTableViewModel = ({
     ],
   );
 
+  const resolveTableRow = memoCallback(
+    async (rowIndex: number, cancellationToken: CancellationToken): Promise<unknown[]> => {
+      if (cancellationToken.isCancellationRequested) {
+        throw new CancellationError();
+      }
+
+      const currentPreviewFile = previewFileRef.current;
+      const totalRows = Math.max(0, Math.floor(Number(currentPreviewFile?.rowCount) || 0));
+      const normalizedIndex = Math.floor(Number(rowIndex));
+      if (!Number.isInteger(normalizedIndex) || normalizedIndex < 0 || normalizedIndex >= totalRows) {
+        throw new RangeError(`Table row is out of range: ${rowIndex}`);
+      }
+
+      const cachedRow = getTableRow(normalizedIndex);
+      if (cachedRow) {
+        return cachedRow;
+      }
+
+      let request = pendingRowResolveRequestsRef.current.get(normalizedIndex);
+      if (!request) {
+        request = (async () => {
+          await ensureTableRows(normalizedIndex, normalizedIndex + 1);
+          const row = getTableRow(normalizedIndex);
+          if (!row) {
+            throw new Error(`Table row was not resolved: ${normalizedIndex}`);
+          }
+          return row;
+        })().finally(() => {
+          if (pendingRowResolveRequestsRef.current.get(normalizedIndex) === request) {
+            pendingRowResolveRequestsRef.current.delete(normalizedIndex);
+          }
+        });
+        pendingRowResolveRequestsRef.current.set(normalizedIndex, request);
+      }
+
+      const row = await request;
+      if (cancellationToken.isCancellationRequested) {
+        throw new CancellationError();
+      }
+      return row;
+    },
+    [
+      ensureTableRows,
+      getTableRow,
+      pendingRowResolveRequestsRef,
+      previewFileRef,
+    ],
+  );
+
   const getSelection = memoCallback(
     (): TableSelection => selectionRef.current,
     [selectionRef],
@@ -2337,6 +2406,7 @@ const createTableViewModel = ({
     clearState: clearPreviewState,
     ensureCells: ensureTableCells,
     ensureRows: ensureTableRows,
+    get: getResolvedTableRow,
     getColumnDisplayProfile,
     getHighlight,
     getRow: getTableRow,
@@ -2345,11 +2415,13 @@ const createTableViewModel = ({
     getSelection,
     getState,
     invalidateRequests: invalidatePreviewRequests,
+    isResolved: isTableRowResolved,
     onDidChangeHighlight,
     onDidChangeRevealCell,
     onDidChangeState,
     onDidChangeSelection,
     revealCell,
+    resolve: resolveTableRow,
     resetColumnDisplayScale,
     selectAllColumns,
     setSelection,

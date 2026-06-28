@@ -4,6 +4,7 @@
 
 import type { Event } from "src/cs/base/common/event";
 import type { URI } from "src/cs/base/common/uri";
+import type { CancellationToken } from "src/cs/base/common/cancellation";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { ColumnDisplayProfile } from "src/cs/workbench/services/table/common/tableDisplayProfile";
 import type { TableColumnWidth } from "src/cs/workbench/services/table/common/tableColumnLayout";
@@ -59,6 +60,40 @@ export type TableSelectionTextResult =
 		readonly kind: "ok";
 		readonly rowCount: number;
 		readonly text: string;
+	};
+
+export type TableCellValueResult =
+	| { readonly kind: "empty" }
+	| {
+		readonly cell: TableCell;
+		readonly kind: "ok";
+		readonly value: string;
+	};
+
+export type TableCellSearchQuery = {
+	readonly pattern: string;
+	readonly isCaseSensitive?: boolean;
+	readonly isRegExp?: boolean;
+	readonly matchWholeCell?: boolean;
+	readonly range?: TableRange | null;
+	readonly sheetId?: string | null;
+};
+
+export type TableCellSearchMatch = {
+	readonly cell: TableCell;
+	readonly value: string;
+};
+
+export type TableCellSearchResult =
+	| { readonly kind: "empty" }
+	| {
+		readonly kind: "invalidPattern";
+		readonly message: string;
+	}
+	| { readonly kind: "notFound" }
+	| {
+		readonly kind: "ok";
+		readonly match: TableCellSearchMatch;
 	};
 
 type TableHighlight = {
@@ -143,15 +178,18 @@ export type TableViewModel = {
 	) => Promise<void>;
 	adjustColumnDisplayScale: (colIndex: number, deltaExponent: number) => boolean;
 	getColumnDisplayProfile: (colIndex: number) => ColumnDisplayProfile;
+	get: (rowIndex: number) => unknown[];
 	getRow: (rowIndex: number) => unknown[] | null;
 	getRowsVersion: () => number;
 	getState: () => TableState;
+	isResolved: (rowIndex: number) => boolean;
 	getRevealCell: () => TableCell | null;
 	getSelection: () => TableSelection;
 	invalidateRequests: () => void;
 	onDidChangeState: (callback: () => void) => () => void;
 	onDidChangeSelection: (callback: (selection: TableSelection) => void) => () => void;
 	revealCell: (cell: TableCell | null) => void;
+	resolve: (rowIndex: number, cancellationToken: CancellationToken) => Promise<unknown[]>;
 	resetColumnDisplayScale: (colIndex: number) => boolean;
 	clearHighlight: () => void;
 	clearSelection: () => boolean;
@@ -166,11 +204,11 @@ export type TableViewModel = {
 
 export type TableWidgetViewModel = Pick<
 	TableViewModel,
-	| "ensureRows"
 	| "getColumnDisplayProfile"
+	| "get"
 	| "getHighlight"
-	| "getRow"
 	| "getRowsVersion"
+	| "isResolved"
 	| "getRevealCell"
 	| "getSelection"
 	| "getState"
@@ -178,6 +216,7 @@ export type TableWidgetViewModel = Pick<
 	| "onDidChangeRevealCell"
 	| "onDidChangeSelection"
 	| "onDidChangeState"
+	| "resolve"
 	| "subscribeRowsVersion"
 >;
 
@@ -249,6 +288,8 @@ export interface ITableService {
 	adjustColumnDisplayScale(colIndex: number, deltaExponent: number): boolean;
 	clearSelection(): boolean;
 	clearHighlight(): void;
+	findCell(query: TableCellSearchQuery): Promise<TableCellSearchResult>;
+	getCellValue(cell: TableCell): Promise<TableCellValueResult>;
 	getColumnWidths(source: TableSource | null | undefined): readonly TableColumnWidth[];
 	getPreviewRow(rowIndex: number): unknown[] | null;
 	getSelection(): TableSelection;

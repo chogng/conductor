@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from "src/cs/base/common/event";
+import { CancellationToken } from "src/cs/base/common/cancellation";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { mark } from "src/cs/base/common/performance";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
@@ -14,6 +15,9 @@ import {
   normalizeTableSource,
   TABLE_COPY_MAX_CELLS,
   toTableSheetKey,
+  type TableCellSearchQuery,
+  type TableCellSearchResult,
+  type TableCellValueResult,
   type TableViewModel,
   type TableRevealMode,
   type TableRevealOptions,
@@ -30,6 +34,7 @@ import {
   type StoredTableColumnLayout,
   type TableColumnWidth,
 } from "src/cs/workbench/services/table/common/tableColumnLayout";
+import { createTableCellMatcher } from "src/cs/workbench/services/table/common/tableSearch";
 import {
   ISettingsService,
   normalizeNumericDisplayMode,
@@ -75,6 +80,14 @@ type TableCopyPlan = {
   readonly startRow: number;
 };
 
+type TableCellSearchPlan = {
+  readonly endCol: number;
+  readonly endRow: number;
+  readonly sheetId: string | null;
+  readonly startCol: number;
+  readonly startRow: number;
+};
+
 type TableTargetContext = {
   readonly columnCount: number;
   readonly file: TableFile;
@@ -83,6 +96,7 @@ type TableTargetContext = {
 };
 
 const TABLE_COLUMN_LAYOUT_STORAGE_KEY_PREFIX = "table.columnLayout.";
+const TABLE_CELL_SEARCH_CHUNK_SIZE_ROWS = 500;
 
 const getTableTargetContext = (tableViewModel: TableViewModel): TableTargetContext | null => {
   const state = tableViewModel.getState();
@@ -117,7 +131,6 @@ const acceptsTargetSheet = (
   sheetId: string | null | undefined,
 ): boolean =>
   !sheetId ||
-  !context.sheetId ||
   sheetId === context.sheetId;
 
 const normalizeTargetCell = (
@@ -307,6 +320,53 @@ const resolveTableCopyPlan = (tableViewModel: TableViewModel): TableCopyPlan | n
 
   return null;
 };
+
+const resolveTableCellSearchPlan = (
+  tableViewModel: TableViewModel,
+  query: TableCellSearchQuery,
+): TableCellSearchPlan | null => {
+  const context = getTableTargetContext(tableViewModel);
+  if (!context || context.rowCount <= 0 || context.columnCount <= 0) {
+    return null;
+  }
+
+  const querySheetId = typeof query.sheetId === "string" && query.sheetId.trim()
+    ? query.sheetId.trim()
+    : null;
+  if (query.range) {
+    const range = normalizeTargetRange(tableViewModel, {
+      ...query.range,
+      sheetId: query.range.sheetId ?? querySheetId,
+    });
+    if (range && querySheetId && range.sheetId !== querySheetId) {
+      return null;
+    }
+    return range
+      ? {
+          endCol: range.endCol,
+          endRow: range.endRow,
+          sheetId: range.sheetId,
+          startCol: range.startCol,
+          startRow: range.startRow,
+        }
+      : null;
+  }
+
+  if (!acceptsTargetSheet(context, querySheetId)) {
+    return null;
+  }
+
+  return {
+    endCol: context.columnCount - 1,
+    endRow: context.rowCount - 1,
+    sheetId: context.sheetId,
+    startCol: 0,
+    startRow: 0,
+  };
+};
+
+const toTableCellValue = (value: unknown): string =>
+  String(value ?? "");
 
 const createTableSelectionTsv = (
   tableViewModel: TableViewModel,
@@ -781,6 +841,24 @@ export class TableService extends Disposable implements ITableService {
     return toTableColumnWidths(stored ?? {});
   }
 
+  public async getCellValue(cell: TableCell): Promise<TableCellValueResult> {
+    const tableViewModel = this.getActiveTableViewModel();
+    const normalizedCell = tableViewModel ? normalizeTargetCell(tableViewModel, cell) : null;
+    if (!tableViewModel || !normalizedCell) {
+      return { kind: "empty" };
+    }
+
+    const row = await tableViewModel.resolve(normalizedCell.rowIndex, CancellationToken.None);
+    if (!this.isActiveTableViewModel(tableViewModel)) {
+      return { kind: "empty" };
+    }
+    return {
+      cell: normalizedCell,
+      kind: "ok",
+      value: toTableCellValue(row[normalizedCell.colIndex]),
+    };
+  }
+
   public getPreviewRow(rowIndex: number): unknown[] | null {
     return this.getActiveTableViewModel()?.getRow(rowIndex) ?? null;
   }
@@ -815,12 +893,65 @@ export class TableService extends Disposable implements ITableService {
     }
 
     await tableViewModel.ensureRows(plan.startRow, plan.endRow + 1);
+    if (!this.isActiveTableViewModel(tableViewModel)) {
+      return { kind: "empty" };
+    }
     return {
       columnCount,
       kind: "ok",
       rowCount,
       text: createTableSelectionTsv(tableViewModel, plan),
     };
+  }
+
+  public async findCell(query: TableCellSearchQuery): Promise<TableCellSearchResult> {
+    const matcher = createTableCellMatcher(query);
+    if (matcher.kind !== "ok") {
+      return matcher;
+    }
+
+    const tableViewModel = this.getActiveTableViewModel();
+    const plan = tableViewModel ? resolveTableCellSearchPlan(tableViewModel, query) : null;
+    if (!tableViewModel || !plan) {
+      return { kind: "empty" };
+    }
+
+    for (
+      let chunkStart = plan.startRow;
+      chunkStart <= plan.endRow;
+      chunkStart += TABLE_CELL_SEARCH_CHUNK_SIZE_ROWS
+    ) {
+      const chunkEndExclusive = Math.min(
+        plan.endRow + 1,
+        chunkStart + TABLE_CELL_SEARCH_CHUNK_SIZE_ROWS,
+      );
+      await tableViewModel.ensureRows(chunkStart, chunkEndExclusive);
+      if (!this.isActiveTableViewModel(tableViewModel)) {
+        return { kind: "empty" };
+      }
+
+      for (let rowIndex = chunkStart; rowIndex < chunkEndExclusive; rowIndex += 1) {
+        const row = tableViewModel.get(rowIndex);
+        for (let colIndex = plan.startCol; colIndex <= plan.endCol; colIndex += 1) {
+          const value = toTableCellValue(row[colIndex]);
+          if (matcher.matches(value)) {
+            return {
+              kind: "ok",
+              match: {
+                cell: {
+                  colIndex,
+                  rowIndex,
+                  sheetId: plan.sheetId,
+                },
+                value,
+              },
+            };
+          }
+        }
+      }
+    }
+
+    return { kind: "notFound" };
   }
 
   public clearHighlight(): void {
@@ -950,6 +1081,10 @@ export class TableService extends Disposable implements ITableService {
     this.tableViewModelSelectionListener = tableViewModel.onDidChangeSelection((selection) => {
       this.onDidChangeSelectionEmitter.fire(selection);
     });
+  }
+
+  private isActiveTableViewModel(tableViewModel: TableViewModel): boolean {
+    return this.tableViewModel === tableViewModel;
   }
 
   private bindTableViewModelState(tableViewModel: TableViewModel): void {

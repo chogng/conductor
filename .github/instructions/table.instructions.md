@@ -18,6 +18,7 @@ measurement structure.
 - current `TableSource`;
 - externally visible selection snapshot for commands/copy;
 - selected text generation;
+- current cell value lookup and active-table cell search;
 - focus/reveal/highlight state;
 - column width persistence;
 - column-level display profiles for numeric presentation;
@@ -52,6 +53,7 @@ sheet-key derivation rules in service/view files.
 | `services/table/common/tableFormatAssociations.ts` | resource/name/extension association helpers for table format resolution. |
 | `services/table/common/tableFormatService.ts` | table format policy and resource/name support checks; owns CSV/TSV/XLS/XLSX classification and materialization capability, not URI scheme, read encoding, or languageId. |
 | `services/table/common/tableReadBuffer.ts` | table-owned text/byte read buffer contracts between tableFile reader and parser. |
+| `services/table/common/tableSearch.ts` | pure table cell search query matcher helpers; it does not read rows or own active table state. |
 | `services/table/common/tableStructureParser.ts` | CSV/TSV/XLS/XLSX `TableReadBuffer` -> physical table structure snapshots for `ITableModel` content and sheets. |
 | `services/tableFile/common/tablefiles.ts` | `ITableFileService` contract for the file-backed table working-copy branch. |
 | `services/tableFile/common/tableFileReader.ts` | URI-backed table file reader; consumes `TableFormatId` policy and table text/byte helpers to produce `TableReadBuffer`. |
@@ -64,9 +66,9 @@ sheet-key derivation rules in service/view files.
 | `services/tableFile/common/tableFileEditorModelManager.ts` | file-backed table model manager: cache/reuse, reload/remove, pending resolve de-duplication, and model change events. |
 | `browser/tableService.ts` | table service owner, view input, copy text, column width persistence. |
 | `browser/tableViewModel.ts` | per-table preview view model: source switching, resource row cache, selection/highlight/reveal, and row request lifecycle. |
-| `base/browser/ui/table/tableWidget.ts` / `table.css` | Conductor-specific two-dimensional table widget facade and structural CSS over the virtual table base. |
+| `base/browser/ui/table/tableWidget.ts` / `table.css` | Conductor-specific two-dimensional table widget facade, normalized mouse/keyboard table events, and structural CSS over the virtual table base. |
 | `base/browser/ui/table/virtualTable.ts` | two-dimensional virtual table engine: visible range calculation, pooled corner/header/body DOM, scroll spacers, cell descriptor rebinding, and scroll/visible-range fact events. |
-| `contrib/table/browser/tableWidget.ts` | raw table adapter/renderers over the base table widget, keyboard/mouse/wheel, local selection, zoom controls, and column width persistence callbacks. |
+| `contrib/table/browser/tableWidget.ts` | raw table adapter/renderers over base table widget events, service selection sync, keyboard shortcuts, wheel handling, zoom controls, and column width persistence callbacks. |
 | `contrib/table/browser/tableController.ts` | adapter from view input/callbacks to widget props. |
 | `contrib/table/browser/tableWidgetService.ts` | active widget controller registry for commands. |
 | `contrib/table/browser/tableDropTarget.ts` | table preview resource-drop target, following the upstream editor drop-target shape and delegating DataTransfer source collection to files helpers. |
@@ -113,11 +115,14 @@ Session/settings/command/search bridge
   -> ITableModel snapshot owns parsed CSV/TSV/XLS/XLSX content, parser diagnostics, defaultSheetId, and sheet content without storing derived sheet keys
   -> tableService/tableViewModel derives migration preview projection from TableModelSnapshot without pushing it into TableModelResolvedContent
   -> tableViewModel reads resource-backed ITableModel content without converting the source identity into a raw fileId
+  -> ITableService.getCellValue / findCell consume active tableViewModel rows through the table owner API and return current-sheet coordinates
   -> TableController consumes view input
   -> TableWidget adapts table state to base table widget renderers
-  -> TableWidget computes selection/focus/highlight state and applies it through base table widget trait APIs
+  -> TableWidget forwards selection/focus/highlight snapshots to the base table widget
+  -> base table widget intersects snapshots with visible ranges and applies cell/header trait DOM state
   -> base table widget owns pointer-derived hover trait state for pooled body/header cells
   -> base table widget owns managed hover lifecycle for pooled body cells through the base layer hover delegate
+  -> base table widget owns cell keyboard focus/range anchor state and mouse-event cell hit testing
   -> base table widget owns structural CSS, zoom state, column resize mechanics, and facade defaults
   -> base VirtualTable reuses visible cell DOM and emits scroll/visible-range facts
   -> TableWidget emits selection callbacks and exposes base size/zoom/column-resize callbacks
@@ -147,10 +152,10 @@ The base table owns UI mechanics that are independent of raw-table semantics:
 - pooled corner/header/row-header/body DOM and descriptor rebinding;
 - structural CSS hooks, header/body scroll synchronization, and reveal geometry;
 - widget-owned cell/header trait DOM hooks for hovered, selected,
-  highlighted, active, and selection-frame state; feature widgets compute
-  selection/focus/highlight states and apply them through `TableWidget` trait
-  APIs instead of writing table DOM hooks directly, while pointer-derived hover
-  state stays inside the base widget;
+  highlighted, active, and selection-frame state; feature widgets provide a
+  selection/focus/highlight snapshot through `TableWidget.setCellState(...)`
+  instead of diffing visible ranges or writing table DOM hooks directly, while
+  pointer-derived hover state stays inside the base widget;
 - managed hover setup, update, and disposal for pooled body cells through the
   base layer hover delegate; feature renderers provide hover content through
   `TableWidget` and must not store per-cell managed hover disposables;
@@ -159,6 +164,11 @@ The base table owns UI mechanics that are independent of raw-table semantics:
   column-header coordinates; feature widgets should consume those targets and
   the base mouse event instead of reparsing table DOM structure or reading raw
   mouse fields at each entry point;
+- normalized table keyboard navigation events that include the base
+  `StandardKeyboardEvent`, original browser event, extend-selection intent,
+  resolved target cell, and base-resolved cell/range selection target; feature
+  widgets should consume the emitted target instead of duplicating
+  arrow/page/home/end movement, focus-cell, or range-anchor handling;
 - fact events such as `onDidScroll`, `onDidChangeVisibleRange`,
   `onDidChangeSize`, and `onDidChangeZoom`.
 

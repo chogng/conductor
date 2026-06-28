@@ -18,8 +18,10 @@ import {
 	type ITableCellEditOptions,
 	type ITableColumnResizeEvent,
 	type ITableColumnResizeMode,
+	type ITableKeyboardNavigationOptions,
 } from "src/cs/base/browser/ui/table/table";
 import { VirtualTableGridModel } from "src/cs/base/browser/ui/table/virtualTable";
+import { KeyCode } from "src/cs/base/common/keyCodes";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/browser/ui/table/tableWidget", () => {
@@ -229,6 +231,156 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 		}
 	});
 
+	test("emits keyboard navigation and resolves body mouse event targets", () => {
+		const keyboardEvents: unknown[] = [];
+		const { listener, widget } = createResizableTableWidget();
+		const keyboardListener = widget.onDidNavigateKeyboard(event => {
+			keyboardEvents.push({
+				cell: event.cell,
+				extendSelection: event.extendSelection,
+				keyCode: event.keyboardEvent.keyCode,
+				selection: event.selection,
+			});
+		});
+		try {
+			widget.setCellState({
+				activeCell: { rowIndex: 2, colIndex: 3 },
+			});
+			const down = new KeyboardEvent("keydown", {
+				bubbles: true,
+				cancelable: true,
+				code: "ArrowDown",
+				key: "ArrowDown",
+			});
+			const leftExtend = new KeyboardEvent("keydown", {
+				bubbles: true,
+				cancelable: true,
+				code: "ArrowLeft",
+				key: "ArrowLeft",
+				shiftKey: true,
+			});
+			widget.element.dispatchEvent(down);
+			widget.element.dispatchEvent(leftExtend);
+
+			const bodyCell = widget.getBodyCellElement(2, 3);
+			const bodyContent = bodyCell?.querySelector(".table_view_cell_content");
+			assert.ok(bodyContent);
+
+			assert.equal(down.defaultPrevented, true);
+			assert.equal(leftExtend.defaultPrevented, true);
+			assert.deepEqual(widget.getBodyCellPositionFromMouseEvent({
+				clientX: Number.NaN,
+				clientY: Number.NaN,
+				target: bodyContent,
+			}), { rowIndex: 2, colIndex: 3 });
+			assert.deepEqual(keyboardEvents, [
+				{
+					cell: { rowIndex: 3, colIndex: 3 },
+					extendSelection: false,
+					keyCode: KeyCode.DownArrow,
+					selection: {
+						kind: "cell",
+						cell: { rowIndex: 3, colIndex: 3 },
+					},
+				},
+				{
+					cell: { rowIndex: 3, colIndex: 2 },
+					extendSelection: true,
+					keyCode: KeyCode.LeftArrow,
+					selection: {
+						kind: "range",
+						anchorCell: { rowIndex: 3, colIndex: 3 },
+						focusCell: { rowIndex: 3, colIndex: 2 },
+						range: {
+							startRow: 3,
+							endRow: 3,
+							startCol: 2,
+							endCol: 3,
+						},
+					},
+				},
+			]);
+		} finally {
+			keyboardListener.dispose();
+			listener.dispose();
+			widget.dispose();
+		}
+	});
+
+	test("continues extended keyboard navigation from the internal range focus cell", () => {
+		const keyboardEvents: unknown[] = [];
+		const { listener, widget } = createResizableTableWidget();
+		const keyboardListener = widget.onDidNavigateKeyboard(event => {
+			keyboardEvents.push({
+				cell: event.cell,
+				selection: event.selection,
+			});
+		});
+		try {
+			widget.setCellState({
+				activeCell: { rowIndex: 3, colIndex: 3 },
+			});
+
+			const firstLeftExtend = new KeyboardEvent("keydown", {
+				bubbles: true,
+				cancelable: true,
+				code: "ArrowLeft",
+				key: "ArrowLeft",
+				shiftKey: true,
+			});
+			widget.element.dispatchEvent(firstLeftExtend);
+
+			widget.setCellState({
+				activeCell: { rowIndex: 3, colIndex: 3 },
+				selectedRanges: [{ startRow: 3, endRow: 3, startCol: 2, endCol: 3 }],
+			});
+
+			const secondLeftExtend = new KeyboardEvent("keydown", {
+				bubbles: true,
+				cancelable: true,
+				code: "ArrowLeft",
+				key: "ArrowLeft",
+				shiftKey: true,
+			});
+			widget.element.dispatchEvent(secondLeftExtend);
+
+			assert.deepEqual(keyboardEvents, [
+				{
+					cell: { rowIndex: 3, colIndex: 2 },
+					selection: {
+						kind: "range",
+						anchorCell: { rowIndex: 3, colIndex: 3 },
+						focusCell: { rowIndex: 3, colIndex: 2 },
+						range: {
+							startRow: 3,
+							endRow: 3,
+							startCol: 2,
+							endCol: 3,
+						},
+					},
+				},
+				{
+					cell: { rowIndex: 3, colIndex: 1 },
+					selection: {
+						kind: "range",
+						anchorCell: { rowIndex: 3, colIndex: 3 },
+						focusCell: { rowIndex: 3, colIndex: 1 },
+						range: {
+							startRow: 3,
+							endRow: 3,
+							startCol: 1,
+							endCol: 3,
+						},
+					},
+				},
+			]);
+		} finally {
+			keyboardListener.dispose();
+			listener.dispose();
+			widget.dispose();
+		}
+	});
+
 	test("renders body cell traits through the widget-owned trait state", () => {
 		const { listener, widget } = createResizableTableWidget();
 		try {
@@ -332,6 +484,31 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 			assert.equal(header.dataset.highlighted, "false");
 			assert.equal(header.dataset.selected, "false");
 			assert.equal(button.getAttribute("aria-pressed"), "false");
+		} finally {
+			listener.dispose();
+			widget.dispose();
+		}
+	});
+
+	test("applies table cell state through the base widget owner", () => {
+		const { listener, widget } = createResizableTableWidget();
+		try {
+			widget.setCellState({
+				activeCell: { rowIndex: 1, colIndex: 1 },
+			});
+			assert.equal(widget.getBodyCellElement(1, 1)?.dataset.active, "true");
+
+			widget.setCellState({
+				highlightedColumns: [3],
+				selectedColumns: [2],
+				selectedRanges: [{ startRow: 0, endRow: 1, startCol: 0, endCol: 1 }],
+			});
+			assert.equal(widget.getBodyCellElement(1, 1)?.dataset.active, "false");
+			assert.equal(widget.getBodyCellElement(1, 1)?.dataset.selected, "true");
+			assert.equal(widget.getBodyCellElement(0, 2)?.dataset.selected, "true");
+			assert.equal(widget.getBodyCellElement(0, 3)?.dataset.highlighted, "true");
+			assert.equal(widget.getColumnHeaderCellElement(2)?.dataset.selected, "true");
+			assert.equal(widget.getColumnHeaderCellElement(3)?.dataset.highlighted, "true");
 		} finally {
 			listener.dispose();
 			widget.dispose();
@@ -603,6 +780,7 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 function createResizableTableWidget(
 	mode?: ITableColumnResizeMode,
 	cellEditing?: ITableCellEditOptions,
+	keyboardNavigation?: ITableKeyboardNavigationOptions,
 ): {
 	readonly events: ITableColumnResizeEvent[];
 	readonly listener: { dispose(): void };
@@ -612,6 +790,7 @@ function createResizableTableWidget(
 		cellEditing,
 		columnResize: { enabled: true, mode },
 		getColumnWidth: () => 160,
+		keyboardNavigation,
 		renderer: {
 			clearBodyCell: templateData => {
 				templateData.content.textContent = "";

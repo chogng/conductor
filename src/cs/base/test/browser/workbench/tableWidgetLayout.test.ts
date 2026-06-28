@@ -79,14 +79,13 @@ suite("base/browser/workbench tableWidget layout", () => {
   test("fills wide viewports with bounded virtual empty columns", async () => {
     const widget = new TableWidget({
       onSelect: () => true,
-      tableViewModel: {
-        ...createTableWidgetModel(),
+      tableViewModel: createTableWidgetModel(() => ({}), {
         getRow: rowIndex => [
           `A${rowIndex + 1}`,
           `B${rowIndex + 1}`,
           `C${rowIndex + 1}`,
         ],
-      },
+      }),
       tableState: createTableWidgetState({ columnCount: 3 }),
     });
     document.body.append(widget.element);
@@ -1081,33 +1080,42 @@ function createTableWidgetState(
 function createTableWidgetModel(
   getSelection: () => TableWidgetSelection = () => ({}),
   options: {
-    readonly getRow?: TableWidgetModel["getRow"];
+    readonly getRow?: (rowIndex: number) => unknown[] | null;
     readonly onDidChangeSelection?: TableWidgetModel["onDidChangeSelection"];
   } = {},
 ): TableWidgetModel {
+  const getRow = options.getRow ?? (rowIndex => [
+    `A${rowIndex + 1}`,
+    `B${rowIndex + 1}`,
+    `C${rowIndex + 1}`,
+    `D${rowIndex + 1}`,
+    `E${rowIndex + 1}`,
+    `F${rowIndex + 1}`,
+    `G${rowIndex + 1}`,
+    `H${rowIndex + 1}`,
+    `I${rowIndex + 1}`,
+    `J${rowIndex + 1}`,
+  ]);
+  const getResolvedRow = (rowIndex: number): unknown[] => {
+    const row = getRow(rowIndex);
+    if (!row) {
+      throw new RangeError(`Missing test row ${rowIndex}`);
+    }
+    return row;
+  };
   return {
-    ensureRows: async () => undefined,
+    get: getResolvedRow,
     getColumnDisplayProfile: colIndex => createRawColumnDisplayProfile(colIndex),
     getHighlight: () => ({}),
-    getRow: options.getRow ?? (rowIndex => [
-      `A${rowIndex + 1}`,
-      `B${rowIndex + 1}`,
-      `C${rowIndex + 1}`,
-      `D${rowIndex + 1}`,
-      `E${rowIndex + 1}`,
-      `F${rowIndex + 1}`,
-      `G${rowIndex + 1}`,
-      `H${rowIndex + 1}`,
-      `I${rowIndex + 1}`,
-      `J${rowIndex + 1}`,
-    ]),
     getRowsVersion: () => 1,
     getSelection,
     getState: createTableWidgetState,
+    isResolved: rowIndex => getRow(rowIndex) !== null,
     onDidChangeHighlight: () => noopDisposable,
     onDidChangeRevealCell: () => noopDisposable,
     onDidChangeSelection: options.onDidChangeSelection ?? (() => noopDisposable),
     onDidChangeState: () => noopDisposable,
+    resolve: async rowIndex => getResolvedRow(rowIndex),
     subscribeRowsVersion: () => noopDisposable,
   };
 }
@@ -1160,20 +1168,21 @@ function createSmartTableWidgetModel(): TableWidgetModel {
   };
 
   return {
-    ...createTableWidgetModel(),
+    ...createTableWidgetModel(() => ({}), {
+      getRow: () => [
+        "-3.70327E-009",
+        "B1",
+        "C1",
+        "D1",
+        "E1",
+        "F1",
+        "G1",
+        "H1",
+        "I1",
+        "J1",
+      ],
+    }),
     getColumnDisplayProfile: () => profile,
-    getRow: () => [
-      "-3.70327E-009",
-      "B1",
-      "C1",
-      "D1",
-      "E1",
-      "F1",
-      "G1",
-      "H1",
-      "I1",
-      "J1",
-    ],
   };
 }
 
@@ -1209,8 +1218,9 @@ function createContentDirtyTableWidgetModel(): {
       }
     },
     model: {
-      ...createTableWidgetModel(),
-      getRow: rowIndex => rows[rowIndex] ?? [],
+      ...createTableWidgetModel(() => ({}), {
+        getRow: rowIndex => rows[rowIndex] ?? [],
+      }),
       getRowsVersion: () => rowsVersion,
       subscribeRowsVersion: callback => {
         subscribers.add(callback);
@@ -1262,20 +1272,21 @@ function createDynamicScaleTableWidgetModel(): {
     },
     fireRowsVersion,
     model: {
-      ...createTableWidgetModel(),
+      ...createTableWidgetModel(() => ({}), {
+        getRow: () => [
+          "1.00000E-006",
+          "B1",
+          "C1",
+          "D1",
+          "E1",
+          "F1",
+          "G1",
+          "H1",
+          "I1",
+          "J1",
+        ],
+      }),
       getColumnDisplayProfile: () => createScaledColumnDisplayProfile(scaleExponent, isScaleManual),
-      getRow: () => [
-        "1.00000E-006",
-        "B1",
-        "C1",
-        "D1",
-        "E1",
-        "F1",
-        "G1",
-        "H1",
-        "I1",
-        "J1",
-      ],
       getRowsVersion: () => rowsVersion,
       subscribeRowsVersion: callback => {
         subscribers.add(callback);
