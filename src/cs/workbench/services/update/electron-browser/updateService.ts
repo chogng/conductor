@@ -9,11 +9,16 @@ import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import {
   DEFAULT_DESKTOP_UPDATE_STATUS,
   IWorkbenchUpdateService,
+  UNSUPPORTED_DESKTOP_UPDATE_STATUS,
   isDesktopUpdateStatusEqual,
   normalizeDesktopUpdateStatus,
   type DesktopUpdateStatus,
   type IWorkbenchUpdateService as IWorkbenchUpdateServiceType,
 } from "src/cs/workbench/contrib/update/common/update";
+import {
+  IWorkbenchEnvironmentService,
+  type IWorkbenchEnvironmentService as IWorkbenchEnvironmentServiceType,
+} from "src/cs/workbench/services/environment/common/environmentService";
 
 type DesktopAppBridge = {
   readonly applySpecificUpdate?: (packagePath: string) => Promise<unknown> | unknown;
@@ -51,14 +56,25 @@ export class WorkbenchUpdateService extends Disposable implements IWorkbenchUpda
 
   private status = DEFAULT_DESKTOP_UPDATE_STATUS;
 
-  public constructor() {
+  public constructor(
+    @IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentServiceType,
+  ) {
     super();
+
+    if (!this.canUseDesktopUpdaterEnvironment()) {
+      this.status = UNSUPPORTED_DESKTOP_UPDATE_STATUS;
+      return;
+    }
 
     this.status = this.readCurrentStatus();
     this.installStatusListener();
   }
 
   public canCheckForUpdates(): boolean {
+    if (!this.canUseDesktopUpdaterEnvironment()) {
+      return false;
+    }
+
     const bridge = getDesktopAppBridge();
     if (typeof bridge?.checkForUpdates === "function") {
       return true;
@@ -68,6 +84,10 @@ export class WorkbenchUpdateService extends Disposable implements IWorkbenchUpda
   }
 
   public checkForUpdates(): Promise<unknown> {
+    if (!this.canUseDesktopUpdaterEnvironment()) {
+      return Promise.resolve(undefined);
+    }
+
     const bridge = getDesktopAppBridge();
     if (typeof bridge?.checkForUpdates === "function") {
       return Promise.resolve(bridge.checkForUpdates());
@@ -77,6 +97,10 @@ export class WorkbenchUpdateService extends Disposable implements IWorkbenchUpda
   }
 
   public checkForUpdatesAndInstall(): Promise<unknown> {
+    if (!this.canUseDesktopUpdaterEnvironment()) {
+      return Promise.resolve(undefined);
+    }
+
     const bridge = getDesktopAppBridge();
     if (typeof bridge?.checkForUpdatesAndInstall === "function") {
       return Promise.resolve(bridge.checkForUpdatesAndInstall());
@@ -90,6 +114,10 @@ export class WorkbenchUpdateService extends Disposable implements IWorkbenchUpda
   }
 
   public installDownloadedUpdate(): Promise<unknown> {
+    if (!this.canUseDesktopUpdaterEnvironment()) {
+      return Promise.resolve(undefined);
+    }
+
     const bridge = getDesktopAppBridge();
     if (typeof bridge?.installDownloadedUpdate === "function") {
       return Promise.resolve(bridge.installDownloadedUpdate());
@@ -99,6 +127,10 @@ export class WorkbenchUpdateService extends Disposable implements IWorkbenchUpda
   }
 
   public applySpecificUpdate(packagePath: string): Promise<unknown> {
+    if (!this.canUseDesktopUpdaterEnvironment()) {
+      return Promise.resolve(undefined);
+    }
+
     const bridge = getDesktopAppBridge();
     if (typeof bridge?.applySpecificUpdate === "function") {
       return Promise.resolve(bridge.applySpecificUpdate(packagePath));
@@ -185,6 +217,11 @@ export class WorkbenchUpdateService extends Disposable implements IWorkbenchUpda
     }
 
     return ipcRenderer.invoke(channel, ...args);
+  }
+
+  private canUseDesktopUpdaterEnvironment(): boolean {
+    const environment = this.environmentService.environment;
+    return !environment || environment.isDesktop === true;
   }
 }
 

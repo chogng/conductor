@@ -3,7 +3,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import { isWindows } from "src/cs/base/common/platform";
 import { localize } from "src/cs/nls";
 import {
   Action2,
@@ -21,6 +20,7 @@ import {
   UpdateCommandId,
 } from "src/cs/workbench/contrib/update/common/update";
 import type { ReleaseNotesEditor } from "src/cs/workbench/contrib/update/browser/releaseNotesEditor";
+import type { IWorkbenchEnvironmentService } from "src/cs/workbench/services/environment/common/environmentService";
 
 type UpdateReleaseNotesEditor = Pick<ReleaseNotesEditor, "show">;
 
@@ -174,8 +174,10 @@ export const registerUpdateCommands = (releaseNotesEditor?: UpdateReleaseNotesEd
   return disposables;
 };
 
-export const registerDeveloperUpdateCommand = (): IDisposable => {
-  if (!isWindows) {
+export const registerDeveloperUpdateCommand = (
+  environmentService: IWorkbenchEnvironmentService,
+): IDisposable => {
+  if (!environmentService.isWindowsDesktop) {
     return Disposable.None;
   }
 

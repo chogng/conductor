@@ -63,6 +63,15 @@ export const DEFAULT_DESKTOP_UPDATE_STATUS: DesktopUpdateStatus = Object.freeze(
   progressPercent: null,
 });
 
+export const UNSUPPORTED_DESKTOP_UPDATE_STATUS: DesktopUpdateStatus = Object.freeze({
+  status: "unsupported",
+  version: null,
+  channel: "unsupported",
+  isStoreManaged: false,
+  message: null,
+  progressPercent: null,
+});
+
 export const CONTEXT_UPDATE_STATE = new RawContextKey<DesktopUpdateState>(
   "updateState",
   DEFAULT_DESKTOP_UPDATE_STATUS.status,

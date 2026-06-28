@@ -12,6 +12,7 @@ import {
   workbenchIpcChannels,
 } from "src/cs/workbench/common/ipcChannels";
 import { WorkbenchUpdateService } from "src/cs/workbench/services/update/electron-browser/updateService";
+import type { IWorkbenchEnvironmentService } from "src/cs/workbench/services/environment/common/environmentService";
 
 suite("workbench/services/update/test/electron-browser/updateService", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
@@ -55,7 +56,7 @@ suite("workbench/services/update/test/electron-browser/updateService", () => {
       },
     });
 
-    const service = new WorkbenchUpdateService();
+    const service = new WorkbenchUpdateService(createEnvironmentService({ isDesktop: true }));
     const changes: DesktopUpdateStatus[] = [];
     const listener = service.onDidChangeStatus(status => changes.push(status));
     try {
@@ -141,7 +142,7 @@ suite("workbench/services/update/test/electron-browser/updateService", () => {
       },
     });
 
-    const service = new WorkbenchUpdateService();
+    const service = new WorkbenchUpdateService(createEnvironmentService({ isDesktop: true }));
     const changes: DesktopUpdateStatus[] = [];
     const listener = service.onDidChangeStatus(status => changes.push(status));
     try {
@@ -195,7 +196,80 @@ suite("workbench/services/update/test/electron-browser/updateService", () => {
     ]);
   });
 
+  test("does not use desktop updater bridges when environment is not desktop", async () => {
+    const calls: string[] = [];
+    const restoreWindow = installDesktopWindow({
+      desktopApp: {
+        getAutoUpdateStatus: () => {
+          calls.push("status");
+          return {
+            status: "available",
+            version: "1.3.0",
+            channel: "github",
+          };
+        },
+        checkForUpdates: async () => {
+          calls.push("check");
+          return "checked";
+        },
+        applySpecificUpdate: async () => {
+          calls.push("apply");
+          return true;
+        },
+        checkForUpdatesAndInstall: async () => {
+          calls.push("checkAndInstall");
+          return true;
+        },
+        installDownloadedUpdate: async () => {
+          calls.push("install");
+          return true;
+        },
+      },
+    });
+
+    const service = new WorkbenchUpdateService(createEnvironmentService({ isDesktop: false }));
+    try {
+      assert.strictEqual(service.canCheckForUpdates(), false);
+      assert.strictEqual(await service.checkForUpdates(), undefined);
+      assert.strictEqual(await service.checkForUpdatesAndInstall(), undefined);
+      assert.strictEqual(await service.installDownloadedUpdate(), undefined);
+      assert.strictEqual(await service.applySpecificUpdate("C:\\updates\\setup.exe"), undefined);
+      assert.deepStrictEqual(service.getStatus(), {
+        status: "unsupported",
+        version: null,
+        channel: "unsupported",
+        isStoreManaged: false,
+        message: null,
+        progressPercent: null,
+      });
+      assert.deepStrictEqual(calls, []);
+    } finally {
+      service.dispose();
+      restoreWindow();
+    }
+  });
+
 });
+
+function createEnvironmentService({
+  isDesktop,
+}: {
+  readonly isDesktop: boolean;
+}): IWorkbenchEnvironmentService {
+  return {
+    _serviceBrand: undefined,
+    environment: {
+      appVersion: "test",
+      isDesktop,
+      isPackaged: false,
+      platform: isDesktop ? "win32" : "browser",
+      userDataPath: null,
+    },
+    isDesktop,
+    isPackaged: false,
+    isWindowsDesktop: isDesktop,
+  };
+}
 
 function installDesktopWindow(value: unknown): () => void {
   const globals = globalThis as unknown as { window?: unknown };

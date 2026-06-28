@@ -4,7 +4,6 @@
 
 import assert from "assert";
 
-import { isWindows } from "src/cs/base/common/platform";
 import { URI } from "src/cs/base/common/uri";
 import { Event } from "src/cs/base/common/event";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
@@ -35,6 +34,7 @@ import {
   type DesktopUpdateStatus,
   type IWorkbenchUpdateService as IWorkbenchUpdateServiceType,
 } from "src/cs/workbench/contrib/update/common/update";
+import type { IWorkbenchEnvironmentService } from "src/cs/workbench/services/environment/common/environmentService";
 
 suite("workbench/contrib/update/test/browser/update", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
@@ -158,7 +158,10 @@ suite("workbench/contrib/update/test/browser/update", () => {
   });
 
   test("registers the developer apply update command independently", async () => {
-    const registration = registerDeveloperUpdateCommand();
+    const registration = registerDeveloperUpdateCommand(createEnvironmentService({
+      isDesktop: true,
+      platform: "win32",
+    }));
     const calls: string[] = [];
     const dialogOptions: IOpenDialogOptions[] = [];
     const accessor = createAccessor([
@@ -180,29 +183,35 @@ suite("workbench/contrib/update/test/browser/update", () => {
     ]);
 
     try {
-      assert.equal(getCommandPaletteIds().has(UpdateCommandId.applyUpdate), isWindows);
+      assert.equal(getCommandPaletteIds().has(UpdateCommandId.applyUpdate), true);
 
-      if (isWindows) {
-        await CommandsRegistry.getCommand(UpdateCommandId.applyUpdate)?.handler(accessor);
-      }
+      await CommandsRegistry.getCommand(UpdateCommandId.applyUpdate)?.handler(accessor);
 
       assert.deepStrictEqual({
         calls,
         dialogOptions,
-      }, isWindows
-        ? {
-          calls: ["apply:C:\\updates\\Conductor-Studio-1.5.20-windows-x64-setup.exe"],
-          dialogOptions: [{
-            canSelectFiles: true,
-            filters: [{ name: "update.commands.applyUpdate.setupFilter", extensions: ["exe"] }],
-            openLabel: "update.commands.applyUpdate.openLabel",
-            title: "update.commands.applyUpdate.pickTitle",
-          }],
-        }
-        : {
-          calls: [],
-          dialogOptions: [],
-        });
+      }, {
+        calls: ["apply:C:\\updates\\Conductor-Studio-1.5.20-windows-x64-setup.exe"],
+        dialogOptions: [{
+          canSelectFiles: true,
+          filters: [{ name: "update.commands.applyUpdate.setupFilter", extensions: ["exe"] }],
+          openLabel: "update.commands.applyUpdate.openLabel",
+          title: "update.commands.applyUpdate.pickTitle",
+        }],
+      });
+    } finally {
+      registration.dispose();
+    }
+  });
+
+  test("does not register the developer apply update command outside Windows desktop", () => {
+    const registration = registerDeveloperUpdateCommand(createEnvironmentService({
+      isDesktop: false,
+      platform: "win32",
+    }));
+
+    try {
+      assert.equal(getCommandPaletteIds().has(UpdateCommandId.applyUpdate), false);
     } finally {
       registration.dispose();
     }
@@ -239,6 +248,28 @@ function createUpdateService(
     applySpecificUpdate: async () => undefined,
     onDidChangeStatus: Event.None as Event<DesktopUpdateStatus>,
     ...overrides,
+  };
+}
+
+function createEnvironmentService({
+  isDesktop,
+  platform,
+}: {
+  readonly isDesktop: boolean;
+  readonly platform: string;
+}): IWorkbenchEnvironmentService {
+  return {
+    _serviceBrand: undefined,
+    environment: {
+      appVersion: "test",
+      isDesktop,
+      isPackaged: false,
+      platform,
+      userDataPath: null,
+    },
+    isDesktop,
+    isPackaged: false,
+    isWindowsDesktop: isDesktop && platform === "win32",
   };
 }
 

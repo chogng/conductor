@@ -7,18 +7,10 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
   IWorkbenchUpdateService,
+  UNSUPPORTED_DESKTOP_UPDATE_STATUS,
   type DesktopUpdateStatus,
   type IWorkbenchUpdateService as IWorkbenchUpdateServiceType,
 } from "src/cs/workbench/contrib/update/common/update";
-
-const BROWSER_UPDATE_STATUS: DesktopUpdateStatus = Object.freeze({
-  status: "unsupported",
-  version: null,
-  channel: "unsupported",
-  isStoreManaged: false,
-  message: null,
-  progressPercent: null,
-});
 
 export class BrowserUpdateService extends Disposable implements IWorkbenchUpdateServiceType {
   public declare readonly _serviceBrand: undefined;
@@ -27,7 +19,7 @@ export class BrowserUpdateService extends Disposable implements IWorkbenchUpdate
     this._register(new Emitter<DesktopUpdateStatus>());
   public readonly onDidChangeStatus = this.onDidChangeStatusEmitter.event;
 
-  private status = BROWSER_UPDATE_STATUS;
+  private status = UNSUPPORTED_DESKTOP_UPDATE_STATUS;
 
   public canCheckForUpdates(): boolean {
     return false;
