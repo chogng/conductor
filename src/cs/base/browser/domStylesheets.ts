@@ -1,0 +1,130 @@
+import { getWindows, observeMutations } from "src/cs/base/browser/dom";
+import { mainWindow } from "src/cs/base/browser/window";
+import { DisposableStore, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
+import { isFirefox } from "src/cs/base/common/platform";
+
+const globalStylesheets = new Map<HTMLStyleElement, Set<HTMLStyleElement>>();
+
+export function isGlobalStylesheet(node: Node): boolean {
+    return globalStylesheets.has(node as HTMLStyleElement);
+}
+
+export function createStyleSheet(
+    container: HTMLElement = mainWindow.document.head,
+    beforeAppend?: (style: HTMLStyleElement) => void,
+    disposableStore?: DisposableStore,
+): HTMLStyleElement {
+    const style = container.ownerDocument.createElement("style");
+    style.type = "text/css";
+    style.media = "screen";
+    beforeAppend?.(style);
+    container.appendChild(style);
+
+    if (disposableStore) {
+        disposableStore.add(toDisposable(() => style.remove()));
+    }
+
+    if (container === mainWindow.document.head) {
+        const globalStylesheetClones = new Set<HTMLStyleElement>();
+        globalStylesheets.set(style, globalStylesheetClones);
+        if (disposableStore) {
+            disposableStore.add(toDisposable(() => globalStylesheets.delete(style)));
+        }
+
+        for (const { window: targetWindow, disposables } of getWindows()) {
+            if (targetWindow === mainWindow) {
+                continue;
+            }
+
+            const cloneDisposable = disposables.add(cloneGlobalStyleSheet(style, globalStylesheetClones, targetWindow));
+            disposableStore?.add(cloneDisposable);
+        }
+    }
+
+    return style;
+}
+
+export function cloneGlobalStylesheets(targetWindow: Window): IDisposable {
+    const disposables = new DisposableStore();
+
+    for (const [globalStylesheet, clonedGlobalStylesheets] of globalStylesheets) {
+        disposables.add(cloneGlobalStyleSheet(globalStylesheet, clonedGlobalStylesheets, targetWindow));
+    }
+
+    return disposables;
+}
+
+function cloneGlobalStyleSheet(
+    globalStylesheet: HTMLStyleElement,
+    globalStylesheetClones: Set<HTMLStyleElement>,
+    targetWindow: Window,
+): IDisposable {
+    const disposables = new DisposableStore();
+
+    const clone = globalStylesheet.cloneNode(true) as HTMLStyleElement;
+    targetWindow.document.head.appendChild(clone);
+    disposables.add(toDisposable(() => clone.remove()));
+
+    for (const rule of globalStylesheet.sheet?.cssRules ?? []) {
+        clone.sheet?.insertRule(rule.cssText, clone.sheet.cssRules.length);
+    }
+
+    disposables.add(observeMutations(
+        globalStylesheet,
+        () => {
+            clone.textContent = globalStylesheet.textContent;
+        },
+        { childList: true, subtree: isFirefox, characterData: isFirefox },
+    ));
+
+    globalStylesheetClones.add(clone);
+    disposables.add(toDisposable(() => globalStylesheetClones.delete(clone)));
+
+    return disposables;
+}
+
+let sharedStyleSheet: HTMLStyleElement | null = null;
+
+function getSharedStyleSheet(): HTMLStyleElement {
+    if (!sharedStyleSheet) {
+        sharedStyleSheet = createStyleSheet();
+    }
+
+    return sharedStyleSheet;
+}
+
+export function createCSSRule(selector: string, cssText: string, style = getSharedStyleSheet()): void {
+    if (!cssText) {
+        return;
+    }
+
+    style.sheet?.insertRule(`${selector} {${cssText}}`, 0);
+
+    for (const clonedGlobalStylesheet of globalStylesheets.get(style) ?? []) {
+        createCSSRule(selector, cssText, clonedGlobalStylesheet);
+    }
+}
+
+export function removeCSSRulesContainingSelector(ruleName: string, style = getSharedStyleSheet()): void {
+    const rules = style.sheet?.cssRules ?? [];
+    const toDelete: number[] = [];
+
+    for (let i = 0; i < rules.length; i++) {
+        const rule = rules[i];
+        if (isCSSStyleRule(rule) && rule.selectorText.includes(ruleName)) {
+            toDelete.push(i);
+        }
+    }
+
+    for (let i = toDelete.length - 1; i >= 0; i--) {
+        style.sheet?.deleteRule(toDelete[i]);
+    }
+
+    for (const clonedGlobalStylesheet of globalStylesheets.get(style) ?? []) {
+        removeCSSRulesContainingSelector(ruleName, clonedGlobalStylesheet);
+    }
+}
+
+function isCSSStyleRule(rule: CSSRule): rule is CSSStyleRule {
+    return typeof (rule as CSSStyleRule).selectorText === "string";
+}

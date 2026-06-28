@@ -1,6 +1,7 @@
 import { _runWhenIdle, type IdleDeadline } from "src/cs/base/common/async";
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable, DisposableStore, type IDisposable, toDisposable } from "src/cs/base/common/lifecycle";
+import { cloneGlobalStylesheets } from "src/cs/base/browser/domStylesheets";
 import { StandardMouseEvent, type IMouseEvent } from "src/cs/base/browser/mouseEvent";
 import { type CodeWindow, ensureCodeWindow, mainWindow, nextWindowId } from "src/cs/base/browser/window";
 
@@ -76,6 +77,7 @@ export function registerWindow(targetWindow: Window): IDisposable {
     };
 
     windows.set(codeWindow.conductorWindowId, registeredWindow);
+    registeredWindow.disposables.add(cloneGlobalStylesheets(codeWindow));
     disposables.add(addDisposableListener(codeWindow, EventType.BEFORE_UNLOAD, () => {
         onWillUnregisterWindowEmitter.fire(codeWindow);
     }));
