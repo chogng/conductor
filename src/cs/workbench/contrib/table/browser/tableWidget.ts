@@ -5,14 +5,16 @@ import type { IManagedHover } from "src/cs/base/browser/ui/hover/hover";
 import { NullHoverDelegate, type IHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
 import { localize } from "src/cs/nls";
 import {
-  TABLE_WIDGET_DEFAULT_ZOOM_PERCENT,
   TableWidget as BaseTableWidget,
-  type TableWidgetCellPosition,
-  type TableWidgetCellRange,
-  type TableWidgetDirtyRange,
-  type TableWidgetRange,
-  type TableWidgetSize,
 } from "src/cs/base/browser/ui/table/tableWidget";
+import {
+  TABLE_WIDGET_DEFAULT_ZOOM_PERCENT,
+  type ITableCellPosition,
+  type ITableCellRange,
+  type ITableDirtyRange,
+  type ITableRange,
+  type ITableSize,
+} from "src/cs/base/browser/ui/table/table";
 import { VirtualTableGridModel } from "src/cs/base/browser/ui/table/virtualTable";
 import { createEmptyView } from "src/cs/workbench/contrib/table/browser/emptyView";
 import {
@@ -104,7 +106,7 @@ type TableWidgetHighlight = {
 type TableWidgetRowsVersionChangeEvent = {
   readonly full: boolean;
   readonly kind: "content" | "display" | "reset";
-  readonly ranges: readonly TableWidgetDirtyRange[];
+  readonly ranges: readonly ITableDirtyRange[];
   readonly version: number;
 };
 
@@ -184,7 +186,7 @@ type AppliedCellState = {
   readonly activeCell: ActiveCell | null;
   readonly highlightedColumns: Set<number>;
   readonly selectedColumns: Set<number>;
-  readonly selectedRanges: readonly TableWidgetCellRange[];
+  readonly selectedRanges: readonly ITableCellRange[];
 };
 
 type SelectionFrameEdges = {
@@ -202,7 +204,7 @@ type DirtyRowsPatchResult = "full" | "ignored" | "patched";
 
 export class TableWidget {
   public readonly element: HTMLElement;
-  public readonly onDidChangeSize: Event<TableWidgetSize>;
+  public readonly onDidChangeSize: Event<ITableSize>;
   public readonly onDidChangeZoom: Event<number>;
   private readonly store = new DisposableStore();
   private readonly grid: BaseTableWidget;
@@ -236,8 +238,8 @@ export class TableWidget {
   private bodyRangeSelectionState: BodyRangeSelectionState | null = null;
   private suppressNextBodyClick = false;
   private bodyClickSuppressionTimeout: number | null = null;
-  private rangeAnchorCell: TableWidgetCellPosition | null = null;
-  private rangeFocusCell: TableWidgetCellPosition | null = null;
+  private rangeAnchorCell: ITableCellPosition | null = null;
+  private rangeFocusCell: ITableCellPosition | null = null;
   private hoveredColumnScaleColIndex: number | null = null;
   private tracedBodyCellRenderCount = 0;
   private tracedHeaderCellRenderCount = 0;
@@ -480,7 +482,7 @@ export class TableWidget {
     return this.grid.getZoomPercent();
   }
 
-  public getSize(): TableWidgetSize {
+  public getSize(): ITableSize {
     return this.grid.getSize();
   }
 
@@ -845,7 +847,7 @@ export class TableWidget {
   private ensureRows(
     tableViewModel: TableWidgetModel,
     sheetKey: string,
-    rowRange: TableWidgetRange,
+    rowRange: ITableRange,
   ): void {
     const requestKey = `${sheetKey}\u001f${rowRange.startIndex}\u001f${rowRange.endIndex}`;
     if (this.pendingEnsureRowsKey === requestKey) {
@@ -1030,13 +1032,13 @@ export class TableWidget {
     return "full";
   }
 
-  private patchDirtyDisplayRows(ranges: readonly TableWidgetDirtyRange[]): DirtyRowsPatchResult {
+  private patchDirtyDisplayRows(ranges: readonly ITableDirtyRange[]): DirtyRowsPatchResult {
     const headersPatched = this.syncDirtyDisplayHeaders(ranges);
     const bodyPatchResult = this.grid.rerenderDirtyBodyCells(ranges, this.getRowsRenderVersion());
     return headersPatched || bodyPatchResult === "patched" ? "patched" : "ignored";
   }
 
-  private syncDirtyDisplayHeaders(ranges: readonly TableWidgetDirtyRange[]): boolean {
+  private syncDirtyDisplayHeaders(ranges: readonly ITableDirtyRange[]): boolean {
     const { columnRange } = this.grid.getState();
     const columnOffsets = this.getDirtyVisibleColumnOffsets(ranges);
     let changed = false;
@@ -1075,7 +1077,7 @@ export class TableWidget {
     }
   }
 
-  private getDirtyVisibleColumnOffsets(ranges: readonly TableWidgetDirtyRange[]): readonly number[] {
+  private getDirtyVisibleColumnOffsets(ranges: readonly ITableDirtyRange[]): readonly number[] {
     const { columnRange } = this.grid.getState();
     const visibleStart = columnRange.startIndex;
     const visibleEnd = columnRange.endIndex;
@@ -1094,7 +1096,7 @@ export class TableWidget {
     return Array.from(columnOffsets).sort((left, right) => left - right);
   }
 
-  private getBodyRowRange(): TableWidgetRange {
+  private getBodyRowRange(): ITableRange {
     return {
       totalCount: this.bodyTotalRowCount,
       startIndex: this.bodyStartRowIndex,
@@ -1349,7 +1351,7 @@ export class TableWidget {
   }
 
   private syncBodyCellsInRanges(
-    ranges: readonly TableWidgetCellRange[],
+    ranges: readonly ITableCellRange[],
     state: AppliedCellState,
   ): number {
     return this.grid.forEachBodyCellInRanges(ranges, (element, descriptor) => {
@@ -1866,7 +1868,7 @@ export class TableWidget {
     event.stopPropagation();
   }
 
-  private getNavigationCell(): TableWidgetCellPosition | null {
+  private getNavigationCell(): ITableCellPosition | null {
     const tableFile = this.props.tableState.file;
     if (!tableFile) {
       return null;
@@ -1892,12 +1894,12 @@ export class TableWidget {
     };
   }
 
-  private getRangeFocusCell(): TableWidgetCellPosition | null {
+  private getRangeFocusCell(): ITableCellPosition | null {
     return this.rangeFocusCell ?? this.getNavigationCell();
   }
 
   private selectRangeToCell(
-    target: TableWidgetCellPosition,
+    target: ITableCellPosition,
     reveal: boolean,
   ): boolean {
     const tableFile = this.props.tableState.file;
@@ -2049,7 +2051,7 @@ export class TableWidget {
     this.bodyRangeSelectionStore.clear();
   }
 
-  private selectBodyAnchorCell(target: TableWidgetCellPosition): boolean {
+  private selectBodyAnchorCell(target: ITableCellPosition): boolean {
     const tableFile = this.props.tableState.file;
     const didSelect = this.select({
       kind: "cell",
@@ -2070,7 +2072,7 @@ export class TableWidget {
 
   private getBodyCellPositionFromEvent(
     event: Pick<PointerEvent | MouseEvent, "clientX" | "clientY" | "target">,
-  ): TableWidgetCellPosition | null {
+  ): ITableCellPosition | null {
     return this.getBodyCellPositionFromTarget(event.target) ??
       this.getBodyCellPositionFromPoint(event.clientX, event.clientY);
   }
@@ -2078,7 +2080,7 @@ export class TableWidget {
   private getBodyCellPositionFromPoint(
     clientX: number,
     clientY: number,
-  ): TableWidgetCellPosition | null {
+  ): ITableCellPosition | null {
     if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) {
       return null;
     }
@@ -2089,7 +2091,7 @@ export class TableWidget {
 
   private getBodyCellPositionFromTarget(
     target: EventTarget | null,
-  ): TableWidgetCellPosition | null {
+  ): ITableCellPosition | null {
     if (!(target instanceof Element)) {
       return null;
     }
@@ -2411,8 +2413,8 @@ const toVisibleRanges = (
   rowCount: number,
   startColumnIndex: number,
   columnCount: number,
-): readonly TableWidgetCellRange[] => {
-  const visibleRanges: TableWidgetCellRange[] = [];
+): readonly ITableCellRange[] => {
+  const visibleRanges: ITableCellRange[] = [];
   const endRowIndex = startRowIndex + rowCount - 1;
   const endColumnIndex = startColumnIndex + columnCount - 1;
 
@@ -2452,7 +2454,7 @@ const isSelectedCell = (
 const getSelectionFrame = (
   rowIndex: number,
   colIndex: number,
-  ranges: readonly TableWidgetCellRange[],
+  ranges: readonly ITableCellRange[],
 ): SelectionFrameEdges => {
   let top = false;
   let right = false;
@@ -2529,8 +2531,8 @@ const areActiveCellsEqual = (
 };
 
 const areCellRangesEqual = (
-  first: readonly TableWidgetCellRange[],
-  second: readonly TableWidgetCellRange[],
+  first: readonly ITableCellRange[],
+  second: readonly ITableCellRange[],
 ): boolean => {
   if (first.length !== second.length) {
     return false;
@@ -2610,8 +2612,8 @@ const getChangedSelectionCellRanges = ({
   readonly rowCount: number;
   readonly startColumnIndex: number;
   readonly startRowIndex: number;
-}): readonly TableWidgetCellRange[] => {
-  const ranges: TableWidgetCellRange[] = [];
+}): readonly ITableCellRange[] => {
+  const ranges: ITableCellRange[] = [];
   const endRow = startRowIndex + rowCount - 1;
   const endColumn = startColumnIndex + columnCount - 1;
   if (rowCount <= 0 || columnCount <= 0) {

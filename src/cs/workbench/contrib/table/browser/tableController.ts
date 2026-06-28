@@ -1,6 +1,6 @@
 import type { Event } from "src/cs/base/common/event";
 import type { IHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
-import type { TableWidgetSize } from "src/cs/base/browser/ui/table/tableWidget";
+import type { ITableSize } from "src/cs/base/browser/ui/table/table";
 import {
   TableWidget,
   type TableWidgetColumnHeaderSelection,
@@ -42,7 +42,7 @@ export type TableControllerProps = {
 export class TableController {
   public readonly element: HTMLElement;
   private readonly widget: TableWidget;
-  public readonly onDidChangeSize: Event<TableWidgetSize>;
+  public readonly onDidChangeSize: Event<ITableSize>;
   public readonly onDidChangeZoom: Event<number>;
 
   public constructor(props: TableControllerProps) {
@@ -91,7 +91,7 @@ export class TableController {
     return this.widget.getZoomPercent();
   }
 
-  public getSize(): TableWidgetSize {
+  public getSize(): ITableSize {
     return this.widget.getSize();
   }
 

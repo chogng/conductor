@@ -8,32 +8,49 @@ import {
   type IDisposable,
 } from "src/cs/base/common/lifecycle";
 import type {
+  IListDragAndDrop,
+  IListRenderer,
   ListProps,
   ListRenderRange,
-  ListRenderState,
 } from "src/cs/base/browser/ui/list/list";
 import { RangeMap } from "src/cs/base/browser/ui/list/rangeMap";
-import { RowCache, type RowCacheRow } from "src/cs/base/browser/ui/list/rowCache";
+import { RowCache, type IRow } from "src/cs/base/browser/ui/list/rowCache";
 import { ScrollableElement } from "src/cs/base/browser/ui/scrollbar/scrollableElement";
 
 import "src/cs/base/browser/ui/list/list.css";
 
-export type ListViewItemRenderer<T> = (
-  item: T,
-  index: number,
-  state: ListRenderState,
-  container: HTMLElement,
-) => void;
-
-export type ListViewItemDisposer<T> = (
-  item: T,
-  index: number,
-  container: HTMLElement,
-) => void;
-
 export type ListViewEmptyRenderer = (container: HTMLElement) => void;
 
-export type ListViewOptions<T> = ListProps<T>;
+export interface IListViewDragAndDrop<T> extends IListDragAndDrop<T> {
+  getDragElements(element: T): T[];
+}
+
+export const enum ListViewTargetSector {
+  TOP = 0,
+  CENTER_TOP = 1,
+  CENTER_BOTTOM = 2,
+  BOTTOM = 3,
+}
+
+export type CheckBoxAccessibleState = boolean | "mixed";
+
+export interface IListViewAccessibilityProvider<T> {
+  getSetSize?(element: T, index: number, listLength: number): number;
+  getPosInSet?(element: T, index: number): number;
+  getRole?(element: T): string | undefined;
+  isChecked?(element: T): CheckBoxAccessibleState | undefined;
+}
+
+export interface IListViewOptionsUpdate {
+  readonly paddingBottom?: number;
+  readonly paddingTop?: number;
+}
+
+export interface IListViewOptions<T> extends ListProps<T>, IListViewOptionsUpdate {
+  readonly accessibilityProvider?: IListViewAccessibilityProvider<T>;
+  readonly dnd?: IListViewDragAndDrop<T>;
+  readonly supportDynamicHeights?: boolean;
+}
 
 type RowEntry<T> = {
   appliedFocused?: boolean;
@@ -41,16 +58,16 @@ type RowEntry<T> = {
   appliedKey?: string;
   appliedRole?: string;
   appliedRowHeight?: number;
+  appliedTemplateId?: string;
   appliedRowTop?: number;
   appliedSelected?: boolean;
   index: number;
   item: T;
   key: string;
-  renderedFocused?: boolean;
   renderedIndex?: number;
   renderedItem?: T;
-  renderedSelected?: boolean;
-  row: RowCacheRow;
+  renderedTemplateId?: string;
+  row: IRow<any>;
 };
 
 type RenderRange = {
@@ -78,8 +95,10 @@ export class ListView<T> implements IDisposable {
   private readonly scrollableElement: ScrollableElement;
   private readonly rows = new Map<string, RowEntry<T>>();
   private readonly rowsByIndex = new Map<number, RowEntry<T>>();
-  private readonly rowCache = new RowCache(() => this.createRow());
-  private props: ListViewOptions<T>;
+  private readonly renderers = new Map<string, IListRenderer<T, any>>();
+  private readonly rowCache = new RowCache<T>(this.renderers);
+  private readonly rowEventListeners = new WeakSet<HTMLElement>();
+  private props: IListViewOptions<T>;
   private viewportHeight = 0;
   private scrollTop = 0;
   private scrollHeight = 0;
@@ -93,7 +112,7 @@ export class ListView<T> implements IDisposable {
   private shouldReconcileRows = true;
   private disposed = false;
 
-  constructor(host: HTMLElement, options: ListViewOptions<T>) {
+  constructor(host: HTMLElement, options: IListViewOptions<T>) {
     this.host = host;
     this.props = options;
 
@@ -136,6 +155,7 @@ export class ListView<T> implements IDisposable {
 
     this.updateClasses();
     this.measureViewport();
+    this.setRenderers(options.renderers);
 
     if (typeof ResizeObserver === "undefined") {
       const handleResize = () => this.measureViewport();
@@ -153,8 +173,14 @@ export class ListView<T> implements IDisposable {
     this.setProps(options);
   }
 
-  setProps(nextProps: ListViewOptions<T>): void {
+  setProps(nextProps: IListViewOptions<T>): void {
     if (this.props.items !== nextProps.items || this.props.getKey !== nextProps.getKey) {
+      this.shouldReconcileRows = true;
+    }
+    if (this.props.renderers !== nextProps.renderers) {
+      this.disposeAllRows();
+      this.rowCache.dispose();
+      this.setRenderers(nextProps.renderers);
       this.shouldReconcileRows = true;
     }
 
@@ -246,7 +272,7 @@ export class ListView<T> implements IDisposable {
 
     const { items } = this.props;
     const item = items[index];
-    if (!item) {
+    if (typeof item === "undefined") {
       return;
     }
 
@@ -362,10 +388,9 @@ export class ListView<T> implements IDisposable {
   }
 
   private clearRenderedState(entry: RowEntry<T>): void {
-    entry.renderedFocused = undefined;
     entry.renderedIndex = undefined;
     entry.renderedItem = undefined;
-    entry.renderedSelected = undefined;
+    entry.renderedTemplateId = undefined;
   }
 
   private scheduleScrollTop(nextScrollTop: number): void {
@@ -417,7 +442,7 @@ export class ListView<T> implements IDisposable {
     } else if (event.key === "Enter" || event.key === " ") {
       if (this.focusedIndex >= 0) {
         const item = items[this.focusedIndex];
-        if (item) {
+        if (typeof item !== "undefined") {
           event.preventDefault();
           onSelect?.(item, this.focusedIndex, event);
           return;
@@ -430,7 +455,7 @@ export class ListView<T> implements IDisposable {
 
     if (nextIndex !== this.focusedIndex) {
       event.preventDefault();
-      this.focusedIndex = nextIndex;
+      this.setFocusedIndex(nextIndex, event);
       this.scrollToIndex(nextIndex);
       this.render();
     }
@@ -449,7 +474,7 @@ export class ListView<T> implements IDisposable {
   private render(): void {
     if (this.disposed) return;
 
-    const { items, renderItem, empty, disposeEmpty, rowRole, selectedKey, getKey } =
+    const { items, empty, disposeEmpty, rowRole, selectedKey, getKey } =
       this.props;
 
     if (!items.length) {
@@ -513,10 +538,11 @@ export class ListView<T> implements IDisposable {
 
       for (let index = startIndex; index < endIndex; index += 1) {
         const item = items[index];
-        if (!item) continue;
+        if (typeof item === "undefined") continue;
 
         const key = getKey(item, index);
-        const entry = this.ensureEntry(index, item, key);
+        const templateId = this.getTemplateId(item);
+        const entry = this.ensureEntry(index, item, key, templateId);
 
         entry.index = index;
         entry.item = item;
@@ -531,14 +557,14 @@ export class ListView<T> implements IDisposable {
           rowRole: rowRole ?? "option",
           rowTop: this.getRowTop(index),
           selected,
+          templateId,
         });
 
         this.renderRowItemIfNeeded(entry, {
-          focused,
           index,
           item,
-          renderItem,
-          selected,
+          rowHeight: this.getRowHeightAt(index, item),
+          templateId,
         });
       }
 
@@ -609,8 +635,26 @@ export class ListView<T> implements IDisposable {
   }
 
   private getRowHeight(item: T): number {
-    const resolvedHeight = Number(this.props.delegate.getHeight(item));
+    const dynamicHeight = this.getDynamicHeight(item);
+    const resolvedHeight = Number(dynamicHeight ?? this.props.delegate.getHeight(item));
     return Number.isFinite(resolvedHeight) && resolvedHeight > 0 ? resolvedHeight : 32;
+  }
+
+  private getDynamicHeight(item: T): number | null {
+    if (this.props.supportDynamicHeights === false) {
+      return null;
+    }
+
+    if (this.props.delegate.hasDynamicHeight && !this.props.delegate.hasDynamicHeight(item)) {
+      return null;
+    }
+
+    const dynamicHeight = this.props.delegate.getDynamicHeight?.(item);
+    return typeof dynamicHeight === "number" && dynamicHeight > 0 ? dynamicHeight : null;
+  }
+
+  private getTemplateId(item: T): string {
+    return this.props.delegate.getTemplateId(item);
   }
 
   private getRowHeightAt(index: number, item?: T): number {
@@ -632,11 +676,11 @@ export class ListView<T> implements IDisposable {
       return 0;
     }
 
-    return Math.max(0, this.rangeMap.size - this.gap);
+    return Math.max(0, this.rangeMap.size - this.gap + (this.props.paddingBottom ?? 0));
   }
 
   private createRangeMap(): RangeMap {
-    const rangeMap = new RangeMap();
+    const rangeMap = new RangeMap(this.props.paddingTop ?? 0);
     rangeMap.splice(
       0,
       0,
@@ -676,38 +720,32 @@ export class ListView<T> implements IDisposable {
   private renderRowItemIfNeeded(
     entry: RowEntry<T>,
     options: {
-      focused: boolean;
       index: number;
       item: T;
-      renderItem: ListViewItemRenderer<T>;
-      selected: boolean;
+      rowHeight: number;
+      templateId: string;
     },
   ): void {
     const shouldRender =
-      entry.renderedFocused !== options.focused ||
       entry.renderedIndex !== options.index ||
       entry.renderedItem !== options.item ||
-      entry.renderedSelected !== options.selected;
+      entry.renderedTemplateId !== options.templateId;
 
     if (!shouldRender) {
       return;
     }
 
-    options.renderItem(
+    const renderer = this.getRenderer(options.templateId);
+    renderer.renderElement(
       options.item,
       options.index,
-      {
-        focused: options.focused,
-        index: options.index,
-        selected: options.selected,
-      },
-      entry.row.mount,
+      entry.row.templateData,
+      { height: options.rowHeight },
     );
 
-    entry.renderedFocused = options.focused;
     entry.renderedIndex = options.index;
     entry.renderedItem = options.item;
-    entry.renderedSelected = options.selected;
+    entry.renderedTemplateId = options.templateId;
   }
 
   private updateRowShellIfNeeded(
@@ -720,6 +758,7 @@ export class ListView<T> implements IDisposable {
       rowRole: string;
       rowTop: number;
       selected: boolean;
+      templateId: string;
     },
   ): void {
     const domNode = entry.row.domNode;
@@ -744,6 +783,11 @@ export class ListView<T> implements IDisposable {
       entry.appliedKey = options.key;
     }
 
+    if (entry.appliedTemplateId !== options.templateId) {
+      domNode.setAttribute("data-template-id", options.templateId);
+      entry.appliedTemplateId = options.templateId;
+    }
+
     if (entry.appliedRole !== options.rowRole) {
       domNode.setAttribute("role", options.rowRole);
       entry.appliedRole = options.rowRole;
@@ -766,35 +810,25 @@ export class ListView<T> implements IDisposable {
     }
   }
 
-  private createRow(): RowCacheRow {
-    const domNode = document.createElement("div");
-    domNode.className = "ui-list__row";
-
-    const mount = document.createElement("div");
-    mount.className = "ui-list__row-content";
-
-    domNode.appendChild(mount);
-
-    domNode.addEventListener("click", (event) => {
-      const nextIndex = Number(domNode.dataset.index);
+  private ensureRowEventListener(container: HTMLElement): void {
+    if (this.rowEventListeners.has(container)) {
+      return;
+    }
+    this.rowEventListeners.add(container);
+    container.addEventListener("click", (event) => {
+      const nextIndex = Number(container.dataset.index);
       const nextItem = this.props.items[nextIndex];
       if (Number.isNaN(nextIndex) || typeof nextItem === "undefined") return;
 
-      this.focusedIndex = nextIndex;
+      this.setFocusedIndex(nextIndex, event);
       this.props.onSelect?.(nextItem, nextIndex, event);
       this.render();
     });
-
-    return {
-      domNode,
-      mount,
-      templateId: "default",
-    };
   }
 
-  private ensureEntry(index: number, item: T, key: string): RowEntry<T> {
+  private ensureEntry(index: number, item: T, key: string, templateId: string): RowEntry<T> {
     let entry = this.rowsByIndex.get(index);
-    if (entry?.key === key) {
+    if (entry?.key === key && entry.row.templateId === templateId) {
       return entry;
     }
 
@@ -804,14 +838,19 @@ export class ListView<T> implements IDisposable {
 
     entry = this.rows.get(key);
     if (entry) {
-      this.rowsByIndex.delete(entry.index);
-      entry.index = index;
-      entry.item = item;
-      this.rowsByIndex.set(index, entry);
-      return entry;
+      if (entry.row.templateId !== templateId) {
+        this.releaseEntry(entry);
+      } else {
+        this.rowsByIndex.delete(entry.index);
+        entry.index = index;
+        entry.item = item;
+        this.rowsByIndex.set(index, entry);
+        return entry;
+      }
     }
 
-    const { row } = this.rowCache.alloc("default");
+    const { row } = this.rowCache.alloc(templateId);
+    this.ensureRowEventListener(row.domNode);
     entry = {
       index,
       item,
@@ -851,7 +890,7 @@ export class ListView<T> implements IDisposable {
 
     for (let index = renderRange.start; index < renderRange.end; index += 1) {
       const item = items[index];
-      if (item) {
+      if (typeof item !== "undefined") {
         visibleKeys.add(getKey(item, index));
       }
     }
@@ -873,8 +912,11 @@ export class ListView<T> implements IDisposable {
   }
 
   private releaseEntry(entry: RowEntry<T>): void {
-    this.props.disposeItem?.(entry.item, entry.index, entry.row.mount);
-    entry.row.mount.replaceChildren();
+    this.getRenderer(entry.row.templateId).disposeElement?.(
+      entry.item,
+      entry.index,
+      entry.row.templateData,
+    );
     this.rows.delete(entry.key);
     this.rowsByIndex.delete(entry.index);
     this.rowCache.release(entry.row);
@@ -886,5 +928,36 @@ export class ListView<T> implements IDisposable {
     }
     this.rows.clear();
     this.rowsByIndex.clear();
+  }
+
+  private setFocusedIndex(index: number, browserEvent?: UIEvent): void {
+    if (this.focusedIndex === index) {
+      return;
+    }
+
+    this.focusedIndex = index;
+    const item = this.props.items[index];
+    if (typeof item !== "undefined") {
+      this.props.onDidFocus?.({
+        browserEvent,
+        elements: [item],
+        indexes: [index],
+      });
+    }
+  }
+
+  private setRenderers(renderers: readonly IListRenderer<T, any>[]): void {
+    this.renderers.clear();
+    for (const renderer of renderers) {
+      this.renderers.set(renderer.templateId, renderer);
+    }
+  }
+
+  private getRenderer(templateId: string): IListRenderer<T, any> {
+    const renderer = this.renderers.get(templateId);
+    if (!renderer) {
+      throw new Error(`No renderer found for ${templateId}`);
+    }
+    return renderer;
   }
 }

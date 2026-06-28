@@ -2,8 +2,10 @@ import assert from "assert";
 
 import {
 	TableWidget,
-	type TableWidgetColumnResizeEvent,
-	type TableWidgetColumnResizeMode,
+} from "src/cs/base/browser/ui/table/tableWidget";
+import {
+	type ITableColumnResizeEvent,
+	type ITableColumnResizeMode,
 } from "src/cs/base/browser/ui/table/table";
 import { VirtualTableGridModel } from "src/cs/base/browser/ui/table/virtualTable";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
@@ -172,8 +174,8 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 	});
 });
 
-function createResizableTableWidget(mode?: TableWidgetColumnResizeMode): {
-	readonly events: TableWidgetColumnResizeEvent[];
+function createResizableTableWidget(mode?: ITableColumnResizeMode): {
+	readonly events: ITableColumnResizeEvent[];
 	readonly listener: { dispose(): void };
 	readonly widget: TableWidget;
 } {
@@ -205,7 +207,7 @@ function createResizableTableWidget(mode?: TableWidgetColumnResizeMode): {
 	widget.attachContent();
 	widget.render({ columnCount: 5, rowCount: 20 });
 
-	const events: TableWidgetColumnResizeEvent[] = [];
+	const events: ITableColumnResizeEvent[] = [];
 	const listener = widget.onDidResizeColumn(event => events.push(event));
 	return { events, listener, widget };
 }

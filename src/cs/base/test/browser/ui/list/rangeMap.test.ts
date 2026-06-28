@@ -50,6 +50,29 @@ suite("base/test/browser/ui/list/rangeMap", () => {
     assert.equal(map.positionAt(0), -1);
   });
 
+  test("RangeMap includes top padding in size and positions", () => {
+    const map = new RangeMap(12);
+    map.splice(0, 0, [{ size: 10 }, { size: 20 }]);
+
+    assert.equal(map.paddingTop, 12);
+    assert.equal(map.count, 2);
+    assert.equal(map.size, 42);
+    assert.equal(map.indexAt(0), 0);
+    assert.equal(map.indexAt(11), 0);
+    assert.equal(map.indexAt(12), 0);
+    assert.equal(map.indexAt(21), 0);
+    assert.equal(map.indexAt(22), 1);
+    assert.equal(map.positionAt(0), 12);
+    assert.equal(map.positionAt(1), 22);
+
+    map.paddingTop = 4;
+
+    assert.equal(map.size, 34);
+    assert.equal(map.positionAt(0), 4);
+    assert.equal(map.indexAt(3), 0);
+    assert.equal(map.indexAt(4), 0);
+  });
+
   test("RangeMap preserves following item positions after deletes and inserts", () => {
     const map = new RangeMap();
     map.splice(0, 0, [

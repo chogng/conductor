@@ -1,7 +1,9 @@
 export { ListView as default, ListView } from "src/cs/base/browser/ui/list/listView";
 export type {
+  CheckBoxAccessibleState,
+  IListViewAccessibilityProvider,
+  IListViewDragAndDrop,
+  IListViewOptions,
+  IListViewOptionsUpdate,
   ListViewEmptyRenderer,
-  ListViewItemDisposer,
-  ListViewItemRenderer,
-  ListViewOptions,
 } from "src/cs/base/browser/ui/list/listView";

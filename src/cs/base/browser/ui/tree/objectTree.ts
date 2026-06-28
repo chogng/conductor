@@ -1,10 +1,10 @@
 import { ListView } from "src/cs/base/browser/ui/list/listView";
 import type {
+  IListRenderer,
   IListVirtualDelegate,
   ListHandle,
   ListProps,
   ListRenderRange,
-  ListRenderState,
 } from "src/cs/base/browser/ui/list/list";
 import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
 import { LxIcon } from "src/cs/base/common/lxicon";
@@ -74,6 +74,14 @@ export class ObjectTree<T, TTemplateData = HTMLElement> implements ListHandle {
   private readonly model: ObjectTreeModel<T>;
   private options: IObjectTreeOptions<T, TTemplateData>;
   private readonly listGetKey = (entry: FlattenedObjectTreeNode<T>) => entry.key;
+  private readonly listRenderer: IListRenderer<FlattenedObjectTreeNode<T>, HTMLElement> = {
+    templateId: "tree",
+    renderTemplate: (container) => this.renderListTemplate(container),
+    renderElement: (entry, index, container) => this.renderTreeItem(entry, index, container),
+    disposeElement: (entry, index, container) => this.disposeTreeItem(entry, index, container),
+    disposeTemplate: (container) => this.disposeListTemplate(container),
+  };
+  private readonly listRenderers = [this.listRenderer];
 
   constructor(host: HTMLElement, options: IObjectTreeOptions<T, TTemplateData>) {
     this.options = options;
@@ -137,11 +145,8 @@ export class ObjectTree<T, TTemplateData = HTMLElement> implements ListHandle {
   }
 
   dispose(): void {
-    for (const template of this.rowTemplateSet) {
-      this.disposeRendererTemplate(template);
-    }
-    this.rowTemplateSet.clear();
     this.list.dispose();
+    this.rowTemplateSet.clear();
     this.root.remove();
   }
 
@@ -182,6 +187,10 @@ export class ObjectTree<T, TTemplateData = HTMLElement> implements ListHandle {
       gap: options.gap,
       items: flattenedItems,
       minVirtualCount: options.minVirtualCount,
+      onDidFocus: (event) => {
+        const entry = event.elements[0];
+        this.focusedKey = entry?.key ?? null;
+      },
       onDidRenderRange: (range: ListRenderRange) => options.onDidRenderRange?.(
         this.createTreeRenderRangeEvent(flattenedItems, range),
       ),
@@ -193,31 +202,7 @@ export class ObjectTree<T, TTemplateData = HTMLElement> implements ListHandle {
         event?: KeyboardEvent | MouseEvent,
       ) => this.handleSelect(entry, index, event),
       overscanRows: options.overscanRows,
-      renderItem: (
-        entry: FlattenedObjectTreeNode<T>,
-        index: number,
-        state: ListRenderState,
-        container: HTMLElement,
-      ) => this.renderTreeItem(entry, index, state, container),
-      disposeItem: (
-        entry: FlattenedObjectTreeNode<T>,
-        index: number,
-        container: HTMLElement,
-      ) => {
-        const template = this.rowTemplates.get(container);
-        if (template?.templateData) {
-          options.renderer.disposeElement?.(
-            this.toTreeNode(entry),
-            index,
-            template.templateData,
-          );
-          if (!options.renderer.renderTemplate) {
-            template.label.replaceChildren();
-          }
-          template.entry = null;
-          template.label.className = "ui-tree__label";
-        }
-      },
+      renderers: this.listRenderers,
       role: "tree",
       rowRole: "treeitem",
       selectedKey: options.selectedKey,
@@ -227,6 +212,7 @@ export class ObjectTree<T, TTemplateData = HTMLElement> implements ListHandle {
 
   private createListDelegate(): IListVirtualDelegate<FlattenedObjectTreeNode<T>> {
     return {
+      getTemplateId: () => "tree",
       getHeight: (entry) => {
         const resolvedHeight = Number(this.options.delegate.getHeight(entry.item));
         return Number.isFinite(resolvedHeight) && resolvedHeight > 0
@@ -354,7 +340,6 @@ export class ObjectTree<T, TTemplateData = HTMLElement> implements ListHandle {
   private renderTreeItem(
     entry: FlattenedObjectTreeNode<T>,
     index: number,
-    state: ListRenderState,
     container: HTMLElement,
   ): void {
     const collapsed = entry.expandable && this.model.isCollapsed(entry.key);
@@ -367,10 +352,6 @@ export class ObjectTree<T, TTemplateData = HTMLElement> implements ListHandle {
         row.removeAttribute("aria-expanded");
       }
     }
-    if (state.focused) {
-      this.focusedKey = entry.key;
-    }
-
     const template = this.getRowTemplate(container);
     template.entry = entry;
     template.collapsed = collapsed;
@@ -401,9 +382,44 @@ export class ObjectTree<T, TTemplateData = HTMLElement> implements ListHandle {
       collapsed,
       depth: entry.depth,
       expandable: entry.expandable,
-      focused: state.focused,
-      selected: state.selected,
     });
+  }
+
+  private disposeTreeItem(
+    entry: FlattenedObjectTreeNode<T>,
+    index: number,
+    container: HTMLElement,
+  ): void {
+    const template = this.rowTemplates.get(container);
+    if (template?.templateData) {
+      this.options.renderer.disposeElement?.(
+        this.toTreeNode(entry),
+        index,
+        template.templateData,
+      );
+      if (!this.options.renderer.renderTemplate) {
+        template.label.replaceChildren();
+      }
+      template.entry = null;
+      template.label.className = "ui-tree__label";
+    }
+  }
+
+  private renderListTemplate(container: HTMLElement): HTMLElement {
+    const mount = document.createElement("div");
+    mount.className = "ui-list__row-content";
+    container.appendChild(mount);
+    return mount;
+  }
+
+  private disposeListTemplate(container: HTMLElement): void {
+    const template = this.rowTemplates.get(container);
+    if (template) {
+      this.disposeRendererTemplate(template);
+      this.rowTemplateSet.delete(template);
+      this.rowTemplates.delete(container);
+    }
+    container.replaceChildren();
   }
 
   private getRowTemplate(container: HTMLElement): TreeRowTemplate<T, TTemplateData> {

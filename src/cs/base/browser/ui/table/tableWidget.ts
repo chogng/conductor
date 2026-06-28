@@ -6,96 +6,65 @@ import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { VirtualTable, VirtualTableGridModel } from "src/cs/base/browser/ui/table/virtualTable";
+import {
+	TABLE_WIDGET_DEFAULT_ZOOM_PERCENT,
+	TABLE_WIDGET_MAX_ZOOM_PERCENT,
+	TABLE_WIDGET_MIN_ZOOM_PERCENT,
+	TABLE_WIDGET_ZOOM_STEP_PERCENT,
+	type ITableBodyCellDescriptor,
+	type ITableCellRange,
+	type ITableColumnRange,
+	type ITableColumnResizeEvent,
+	type ITableColumnResizeMode,
+	type ITableDirtyRange,
+	type ITablePatchResult,
+	type ITableRenderOptions,
+	type ITableScrollEvent,
+	type ITableSize,
+	type ITableState,
+	type ITableWidgetOptions,
+	type ITableVisibleRangeChangeEvent,
+} from "src/cs/base/browser/ui/table/table";
 
 import "src/cs/base/browser/ui/table/table.css";
 
-export const TABLE_WIDGET_DEFAULT_ZOOM_PERCENT = 100;
-export const TABLE_WIDGET_MIN_ZOOM_PERCENT = 50;
-export const TABLE_WIDGET_MAX_ZOOM_PERCENT = 200;
-export const TABLE_WIDGET_ZOOM_STEP_PERCENT = 10;
+export {
+	TABLE_WIDGET_DEFAULT_ZOOM_PERCENT,
+	TABLE_WIDGET_MAX_ZOOM_PERCENT,
+	TABLE_WIDGET_MIN_ZOOM_PERCENT,
+	TABLE_WIDGET_ZOOM_STEP_PERCENT,
+	type ITableBodyCellDescriptor,
+	type ITableCellPosition,
+	type ITableCellRange,
+	type ITableColumn,
+	type ITableContextMenuEvent,
+	type ITableColumnHeaderDescriptor,
+	type ITableColumnRange,
+	type ITableColumnResizeEvent,
+	type ITableColumnResizeMode,
+	type ITableColumnResizeOptions,
+	type ITableColumnVirtualDelegate,
+	type ITableDirtyRange,
+	type ITableEvent,
+	type ITableGestureEvent,
+	type ITableMouseEvent,
+	type ITablePatchResult,
+	type ITableRange,
+	type ITableRenderer,
+	type ITableRenderOptions,
+	type ITableRowHeaderDescriptor,
+	type ITableScrollEvent,
+	type ITableSize,
+	type ITableState,
+	type ITableTouchEvent,
+	type ITableVirtualDelegate,
+	type ITableWidgetOptions,
+	type ITableWidgetRenderer,
+	type ITableVisibleRangeChangeEvent,
+} from "src/cs/base/browser/ui/table/table";
 
 const TABLE_WIDGET_RESIZING_COLUMN_CLASS = "table_view--resizing_column";
 const TABLE_WIDGET_COLUMN_RESIZE_HANDLE_CLASS = "table_view_column_resize_handle";
-
-export type TableWidgetRange = {
-	readonly totalCount: number;
-	readonly startIndex: number;
-	readonly endIndex: number;
-	readonly renderedCount: number;
-};
-
-export type TableWidgetColumnRange = TableWidgetRange & {
-	readonly leadingWidth: number;
-	readonly renderedWidth: number;
-	readonly totalWidth: number;
-	readonly trailingWidth: number;
-};
-
-export type TableWidgetCellPosition = {
-	readonly rowIndex: number;
-	readonly colIndex: number;
-};
-
-export type TableWidgetCellRange = {
-	readonly endCol: number;
-	readonly endRow: number;
-	readonly startCol: number;
-	readonly startRow: number;
-};
-
-export type TableWidgetBodyCellDescriptor = {
-	readonly colIndex: number;
-	readonly columnOffset: number;
-	readonly rowIndex: number;
-	readonly rowOffset: number;
-};
-
-export type TableWidgetColumnHeaderDescriptor = {
-	readonly colIndex: number;
-	readonly columnOffset: number;
-};
-
-export type TableWidgetRowHeaderDescriptor = {
-	readonly rowIndex: number;
-	readonly rowOffset: number;
-};
-
-/**
- * Renderer boundary for pooled cells. Implementations should be idempotent:
- * the same DOM cell will be rebound to many row/column descriptors while
- * scrolling.
- */
-export type TableWidgetRenderer = {
-	readonly clearBodyCell?: (cell: HTMLTableCellElement) => void;
-	readonly disposeBodyCell?: (cell: HTMLTableCellElement) => void;
-	readonly renderBodyCell: (cell: HTMLTableCellElement, descriptor: TableWidgetBodyCellDescriptor) => void;
-	readonly renderBodyCellContent?: (content: HTMLElement, descriptor: TableWidgetBodyCellDescriptor) => void;
-	readonly renderColumnHeader: (cell: HTMLElement, descriptor: TableWidgetColumnHeaderDescriptor) => void;
-	readonly renderCorner?: (cell: HTMLElement) => void;
-	readonly renderRowHeader: (cell: HTMLTableCellElement, descriptor: TableWidgetRowHeaderDescriptor) => void;
-};
-
-export type TableWidgetOptions = {
-	readonly className?: string;
-	readonly columnResize?: TableWidgetColumnResizeOptions;
-	readonly getColumnWidth: (colIndex: number) => number;
-	readonly maxRenderedColumns?: number;
-	readonly maxRenderedRows?: number;
-	readonly renderer: TableWidgetRenderer;
-};
-
-export type TableWidgetColumnResizeOptions = {
-	readonly enabled?: boolean;
-	readonly hitSlop?: number;
-	readonly mode?: TableWidgetColumnResizeMode;
-};
-
-export type TableWidgetColumnResizeMode = "commit" | "live";
-
-export type TableWidgetColumnResizeEvent = {
-	readonly colIndex: number;
-	readonly width: number;
-};
 
 type TableWidgetColumnResizeState = {
 	readonly colIndex: number;
@@ -107,46 +76,6 @@ type TableWidgetColumnResizeState = {
 	readonly width: number;
 };
 
-export type TableWidgetSize = {
-	readonly columnCount: number;
-	readonly rowCount: number;
-};
-
-export type TableWidgetRenderOptions = {
-	readonly columnCount: number;
-	readonly headerRenderVersion?: unknown;
-	readonly renderVersion?: unknown;
-	readonly rowCount: number;
-};
-
-export type TableWidgetScrollEvent = {
-	readonly scrollLeft: number;
-	readonly scrollTop: number;
-};
-
-export type TableWidgetState = {
-	readonly columnRange: TableWidgetColumnRange;
-	readonly rowRange: TableWidgetRange;
-};
-
-export type TableWidgetVisibleRangeChangeEvent = {
-	readonly current: TableWidgetState;
-	readonly previous: TableWidgetState;
-};
-
-/**
- * Half-open dirty range in logical table coordinates. Missing row or column
- * bounds mean the change applies to the currently visible span on that axis.
- */
-export type TableWidgetDirtyRange = {
-	readonly endCol?: number;
-	readonly endRow?: number;
-	readonly startCol?: number;
-	readonly startRow?: number;
-};
-
-export type TableWidgetPatchResult = "ignored" | "patched";
-
 /**
  * Stable base table entry point for workbench consumers, mirroring the upstream
  * shape where callers depend on one widget owner instead of structure class
@@ -157,23 +86,23 @@ export type TableWidgetPatchResult = "ignored" | "patched";
  */
 export class TableWidget implements IDisposable {
 	public readonly element: HTMLElement;
-	public readonly onDidChangeVisibleRange: Event<TableWidgetVisibleRangeChangeEvent>;
-	public readonly onDidScroll: Event<TableWidgetScrollEvent>;
-	public readonly onDidChangeSize: Event<TableWidgetSize>;
+	public readonly onDidChangeVisibleRange: Event<ITableVisibleRangeChangeEvent>;
+	public readonly onDidScroll: Event<ITableScrollEvent>;
+	public readonly onDidChangeSize: Event<ITableSize>;
 	public readonly onDidChangeZoom: Event<number>;
-	public readonly onDidResizeColumn: Event<TableWidgetColumnResizeEvent>;
+	public readonly onDidResizeColumn: Event<ITableColumnResizeEvent>;
 
 	private readonly disposables = new DisposableStore();
 	private readonly columnResizeStore = this.disposables.add(new DisposableStore());
-	private readonly onDidChangeSizeEmitter = this.disposables.add(new Emitter<TableWidgetSize>());
+	private readonly onDidChangeSizeEmitter = this.disposables.add(new Emitter<ITableSize>());
 	private readonly onDidChangeZoomEmitter = this.disposables.add(new Emitter<number>());
-	private readonly onDidResizeColumnEmitter = this.disposables.add(new Emitter<TableWidgetColumnResizeEvent>());
+	private readonly onDidResizeColumnEmitter = this.disposables.add(new Emitter<ITableColumnResizeEvent>());
 	private readonly onDidClickBodyEmitter = this.disposables.add(new Emitter<MouseEvent>());
 	private readonly onDidClickHeaderEmitter = this.disposables.add(new Emitter<MouseEvent>());
 	private readonly onDidPointerDownBodyEmitter = this.disposables.add(new Emitter<PointerEvent>());
 	private columnResizeState: TableWidgetColumnResizeState | null = null;
-	private lastRenderOptions: TableWidgetRenderOptions | null = null;
-	private size: TableWidgetSize = { columnCount: 0, rowCount: 0 };
+	private lastRenderOptions: ITableRenderOptions | null = null;
+	private size: ITableSize = { columnCount: 0, rowCount: 0 };
 	private readonly virtualTable: VirtualTable;
 	private zoomPercent = TABLE_WIDGET_DEFAULT_ZOOM_PERCENT;
 
@@ -181,7 +110,7 @@ export class TableWidget implements IDisposable {
 	public readonly onDidClickHeader = this.onDidClickHeaderEmitter.event;
 	public readonly onDidPointerDownBody = this.onDidPointerDownBodyEmitter.event;
 
-	public constructor(private readonly options: TableWidgetOptions) {
+	public constructor(private readonly options: ITableWidgetOptions) {
 		const { className, ...virtualOptions } = options;
 		this.virtualTable = this.disposables.add(new VirtualTable(virtualOptions));
 		this.element = this.virtualTable.element;
@@ -215,7 +144,7 @@ export class TableWidget implements IDisposable {
 		this.virtualTable.layout();
 	}
 
-	public render(options: TableWidgetRenderOptions): boolean {
+	public render(options: ITableRenderOptions): boolean {
 		this.lastRenderOptions = options;
 		const previousSize = this.size;
 		this.size = toTableWidgetSize(options);
@@ -232,11 +161,11 @@ export class TableWidget implements IDisposable {
 		});
 	}
 
-	public getState(): TableWidgetState {
+	public getState(): ITableState {
 		return this.virtualTable.getState();
 	}
 
-	public getSize(): TableWidgetSize {
+	public getSize(): ITableSize {
 		return this.size;
 	}
 
@@ -335,8 +264,8 @@ export class TableWidget implements IDisposable {
 	}
 
 	public forEachBodyCellInRanges(
-		ranges: readonly TableWidgetCellRange[],
-		callback: (cell: HTMLTableCellElement, descriptor: TableWidgetBodyCellDescriptor) => void,
+		ranges: readonly ITableCellRange[],
+		callback: (cell: HTMLTableCellElement, descriptor: ITableBodyCellDescriptor) => void,
 	): number {
 		const { columnRange, rowRange } = this.virtualTable.getState();
 		const visited = new Set<string>();
@@ -390,9 +319,9 @@ export class TableWidget implements IDisposable {
 	}
 
 	public rerenderDirtyBodyCells(
-		ranges: readonly TableWidgetDirtyRange[],
+		ranges: readonly ITableDirtyRange[],
 		renderVersion: unknown,
-	): TableWidgetPatchResult {
+	): ITablePatchResult {
 		const visibleRanges = this.toVisibleBodyCellRanges(ranges);
 		if (visibleRanges.length === 0) {
 			return "ignored";
@@ -565,7 +494,7 @@ export class TableWidget implements IDisposable {
 		this.columnResizeStore.clear();
 	}
 
-	private getColumnResizeMode(): TableWidgetColumnResizeMode {
+	private getColumnResizeMode(): ITableColumnResizeMode {
 		return this.options.columnResize?.mode ?? "commit";
 	}
 
@@ -573,7 +502,7 @@ export class TableWidget implements IDisposable {
 		this.virtualTable.syncColumnResizeGuide(this.columnResizeState?.guideLeft ?? null);
 	}
 
-	private getColumnRange(): TableWidgetColumnRange {
+	private getColumnRange(): ITableColumnRange {
 		return this.virtualTable.getState().columnRange;
 	}
 
@@ -592,14 +521,14 @@ export class TableWidget implements IDisposable {
 	}
 
 	private toVisibleBodyCellRanges(
-		dirtyRanges: readonly TableWidgetDirtyRange[],
-	): TableWidgetCellRange[] {
+		dirtyRanges: readonly ITableDirtyRange[],
+	): ITableCellRange[] {
 		const state = this.virtualTable.getState();
 		const visibleRowStart = state.rowRange.startIndex;
 		const visibleRowEnd = state.rowRange.endIndex;
 		const visibleColStart = state.columnRange.startIndex;
 		const visibleColEnd = state.columnRange.endIndex;
-		const ranges: TableWidgetCellRange[] = [];
+		const ranges: ITableCellRange[] = [];
 		for (const dirtyRange of dirtyRanges) {
 			const startRow = Math.max(visibleRowStart, dirtyRange.startRow ?? visibleRowStart);
 			const endRow = Math.min(visibleRowEnd, dirtyRange.endRow ?? visibleRowEnd);
@@ -628,7 +557,7 @@ function clampTableWidgetZoomPercent(zoomPercent: number): number {
 	);
 }
 
-function toTableWidgetSize(options: TableWidgetRenderOptions): TableWidgetSize {
+function toTableWidgetSize(options: ITableRenderOptions): ITableSize {
 	return {
 		columnCount: toSafeCount(options.columnCount),
 		rowCount: toSafeCount(options.rowCount),
@@ -640,7 +569,7 @@ function toSafeCount(value: unknown): number {
 	return Number.isFinite(count) && count > 0 ? count : 0;
 }
 
-function isTableWidgetSizeEqual(first: TableWidgetSize, second: TableWidgetSize): boolean {
+function isTableWidgetSizeEqual(first: ITableSize, second: ITableSize): boolean {
 	return first.columnCount === second.columnCount &&
 		first.rowCount === second.rowCount;
 }

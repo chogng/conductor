@@ -35,8 +35,8 @@ import {
   TABLE_WIDGET_DEFAULT_ZOOM_PERCENT,
   TABLE_WIDGET_MAX_ZOOM_PERCENT,
   TABLE_WIDGET_MIN_ZOOM_PERCENT,
-  type TableWidgetSize,
-} from "src/cs/base/browser/ui/table/tableWidget";
+  type ITableSize,
+} from "src/cs/base/browser/ui/table/table";
 import {
   type TableWidgetColumnHeaderSelection,
 } from "src/cs/workbench/contrib/table/browser/tableWidget";
@@ -376,7 +376,7 @@ const getHeaderState = ({ tableState }: TableViewPaneProps): HeaderState => {
   };
 };
 
-const formatTableWidgetSize = (size: TableWidgetSize | null): string => {
+const formatTableWidgetSize = (size: ITableSize | null): string => {
   if (!size || size.rowCount <= 0 || size.columnCount <= 0) {
     return "";
   }

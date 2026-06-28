@@ -17,8 +17,6 @@ export type ITreeElementRenderDetails = {
   readonly collapsed: boolean;
   readonly depth: number;
   readonly expandable: boolean;
-  readonly focused: boolean;
-  readonly selected: boolean;
 };
 
 export type ITreeRenderer<T, TTemplateData = HTMLElement> = {
