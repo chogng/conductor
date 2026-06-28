@@ -23,6 +23,9 @@ Current migration state:
 - Review and Slice consume data-resource snapshots and must not directly depend
   on Table UI/view state or table model lifecycle.
 
+See `ALGORITHM.md` / `ALGORITHM.zh-CN.md` for the target segmentation and X/Y
+range evidence algorithm.
+
 Target direction:
 
 ```txt
