@@ -64,18 +64,14 @@ suite("workbench/contrib/files/browser/views/explorerDecorations", () => {
 		);
 	});
 
-	test("decorates missing review summaries as errors", () => {
+	test("does not decorate missing review summaries", () => {
 		const summary: ReviewSummary = {
 			resource: URI.file("/workspace/Missing.csv"),
 			state: "missing",
 			findingCodes: [],
 		};
 
-		assert.deepEqual(createExplorerDecorationDataFromReviewSummary(summary), {
-			color: "charts.red",
-			letter: "!",
-			tooltip: "files.decorations.reviewMissing",
-		});
+		assert.equal(createExplorerDecorationDataFromReviewSummary(summary), undefined);
 		assert.equal(createExplorerDecorationDataFromReviewSummary(undefined), undefined);
 	});
 

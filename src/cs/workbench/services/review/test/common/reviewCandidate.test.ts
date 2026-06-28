@@ -56,10 +56,20 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 		});
 		assert.deepEqual(candidate.interpretation.blocks[0]?.x, {
 			columns: [0],
+			ranges: [{
+				column: 0,
+				startRow: 1,
+				endRow: 3,
+			}],
 			unit: "V",
 		});
 		assert.deepEqual(candidate.interpretation.blocks[0]?.y, {
 			columns: [1],
+			ranges: [{
+				column: 1,
+				startRow: 1,
+				endRow: 3,
+			}],
 			unit: "A",
 		});
 		assert.deepEqual(candidate.interpretation.measurement, {
@@ -89,12 +99,40 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 		assert.ok(candidate);
 		assert.deepEqual(candidate.interpretation.blocks[0]?.x, {
 			columns: [0],
+			ranges: [{
+				column: 0,
+				startRow: 1,
+				endRow: 3,
+			}],
 			unit: "V",
 		});
 		assert.deepEqual(candidate.interpretation.blocks[0]?.y, {
 			columns: [1],
+			ranges: [{
+				column: 1,
+				startRow: 1,
+				endRow: 3,
+			}],
 			unit: "A",
 		});
+	});
+
+	test("does not build recipe candidates from role columns without numeric data ranges", () => {
+		const recipe = getBuiltinRecipe("builtin.iv.transfer");
+		const evidence = createReviewEvidence({
+			columns: [
+				createColumnWithoutDataRange(0, "vg", "V"),
+				createColumn(1, "id", "A"),
+			],
+		});
+
+		const candidate = createRecipeReviewCandidate({
+			context: createReviewContext(evidence),
+			recipe,
+			evaluation: evaluateReviewSelector(recipe, evidence),
+		});
+
+		assert.equal(candidate, null);
 	});
 
 	test("builds grouped XY IV recipe from series partition layout bindings", () => {
@@ -124,10 +162,20 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 		assert.equal(candidate.projectionTrace.diagnostics.length, 0);
 		assert.deepEqual(candidate.interpretation.blocks[0]?.x, {
 			columns: [2],
+			ranges: [{
+				column: 2,
+				startRow: 1,
+				endRow: 3,
+			}],
 			unit: "V",
 		});
 		assert.deepEqual(candidate.interpretation.blocks[0]?.y, {
 			columns: [3],
+			ranges: [{
+				column: 3,
+				startRow: 1,
+				endRow: 3,
+			}],
 			unit: "A",
 		});
 		assert.equal(candidate.interpretation.blocks[0]?.legend.target, "group");
@@ -382,6 +430,31 @@ const createReviewEvidence = (options: {
 });
 
 const createColumn = (
+	rawCol: number,
+	role: MeasurementColumnRef["role"],
+	unit: string,
+	headerText: string = role,
+): MeasurementColumnRef => ({
+	rawCol,
+	role,
+	unit,
+	headerText,
+	confidence: 0.95,
+	sourceRange: {
+		startRow: 0,
+		endRow: 3,
+		startCol: rawCol,
+		endCol: rawCol,
+	},
+	dataRange: {
+		startRow: 1,
+		endRow: 3,
+		startCol: rawCol,
+		endCol: rawCol,
+	},
+});
+
+const createColumnWithoutDataRange = (
 	rawCol: number,
 	role: MeasurementColumnRef["role"],
 	unit: string,

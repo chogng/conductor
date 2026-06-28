@@ -2,200 +2,170 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
-import type {
-  CurveKey,
-  FileId,
-  FileRecord,
-  MetricKey,
-  SheetId,
-  TableRecord,
-} from "src/cs/workbench/services/session/common/sessionModel";
+import type { DataResourceStructuredContentSnapshot } from "src/cs/workbench/services/dataResource/common/dataResource";
+import {
+  readStructuredContentRows,
+  type StructuredContentSourceRange,
+} from "src/cs/workbench/services/dataResource/common/structuredContent";
 import type {
   SearchIndex,
   SearchResult,
 } from "src/cs/workbench/services/search/common/search";
 
-export const buildSearchIndex = (
-  snapshot: SessionSnapshot,
+export const buildStructuredContentSearchIndex = (
+  snapshot: DataResourceStructuredContentSnapshot,
 ): SearchIndex => {
   const results: SearchResult[] = [];
-
-  for (const file of getOrderedFiles(snapshot)) {
-    pushRawTableResults(results, file);
-    pushCurveResults(results, file);
-    pushMetricResults(results, file);
-  }
+  pushStructuredTableResults(results, snapshot);
+  pushStructuredColumnResults(results, snapshot);
+  pushStructuredGroupResults(results, snapshot);
+  pushStructuredBlockResults(results, snapshot);
 
   return {
     results,
     signature: [
-      snapshot.schemaVersion,
-      snapshot.sessionVersion,
-      snapshot.fileOrder.join(","),
+      snapshot.sourceUri,
+      snapshot.sourceVersion,
+      snapshot.sourceModelVersion,
+      snapshot.contentHash ?? "",
+      snapshot.sheetId ?? "",
       results.length,
     ].join(":"),
   };
 };
 
-const pushRawTableResults = (
+const pushStructuredTableResults = (
   results: SearchResult[],
-  file: FileRecord,
+  snapshot: DataResourceStructuredContentSnapshot,
 ): void => {
-  for (const tableId of getOrderedTableIds(file)) {
-    const table = file.raw.tablesById[tableId];
-    if (!table) {
-      continue;
-    }
+  const sheetTitle = snapshot.sheetId || snapshot.fileName || snapshot.resource.toString();
+  const tableRange = createResourceRange(snapshot, {
+    startRow: 0,
+    endRow: Math.max(0, snapshot.rowCount - 1),
+    startCol: 0,
+    endCol: Math.max(0, snapshot.columnCount - 1),
+  });
+  results.push({
+    id: `resourceTable:${snapshot.resource.toString()}:${snapshot.sheetId ?? ""}`,
+    kind: "rawTable",
+    preview: `${snapshot.rowCount} rows | ${snapshot.columnCount} columns`,
+    resource: snapshot.resource,
+    resourceRange: tableRange,
+    score: 80,
+    sheetId: snapshot.sheetId ?? null,
+    title: sheetTitle,
+  });
 
-    results.push({
-      fileId: file.id,
-      id: `rawTable:${file.id}:${table.sheetId}`,
-      kind: "rawTable",
-      preview: createRawTablePreview(table),
-      rawTableId: table.sheetId,
-      score: 80,
-      title: table.sheetName || table.sheetId || file.raw.fileName,
-    });
+  const rows = readStructuredContentRows(snapshot.content);
+  rows.forEach((row, rowIndex) => {
+    row.forEach((cell, columnIndex) => {
+      const text = String(cell ?? "").trim();
+      if (!text) {
+        return;
+      }
 
-    const rows = table.rowStore?.kind === "memory" ? table.rowStore.rows : [];
-    rows.forEach((row, rowIndex) => {
-      row.forEach((cell, columnIndex) => {
-        const text = String(cell ?? "").trim();
-        if (!text) {
-          return;
-        }
-
-        results.push({
-          fileId: file.id,
-          id: `rawCell:${file.id}:${table.sheetId}:${rowIndex}:${columnIndex}`,
-          kind: "rawCell",
-          preview: text,
-          rawTableId: table.sheetId,
-          score: 50,
-          sourceRange: {
-            columnEnd: columnIndex,
-            columnStart: columnIndex,
-            fileId: file.id,
-            rawTableId: table.sheetId,
-            rowEnd: rowIndex,
-            rowStart: rowIndex,
-          },
-          title: `${table.sheetName || table.sheetId} R${rowIndex + 1}C${columnIndex + 1}`,
-        });
+      results.push({
+        id: `resourceCell:${snapshot.resource.toString()}:${snapshot.sheetId ?? ""}:${rowIndex}:${columnIndex}`,
+        kind: "rawCell",
+        preview: text,
+        resource: snapshot.resource,
+        resourceRange: createResourceRange(snapshot, {
+          startRow: rowIndex,
+          endRow: rowIndex,
+          startCol: columnIndex,
+          endCol: columnIndex,
+        }),
+        score: 50,
+        sheetId: snapshot.sheetId ?? null,
+        title: `${sheetTitle} R${rowIndex + 1}C${columnIndex + 1}`,
       });
     });
-  }
+  });
 };
 
-const pushCurveResults = (
+const pushStructuredColumnResults = (
   results: SearchResult[],
-  file: FileRecord,
+  snapshot: DataResourceStructuredContentSnapshot,
 ): void => {
-  for (const [curveKey, curve] of Object.entries(file.curvesByKey) as Array<[CurveKey, FileRecord["curvesByKey"][CurveKey]]>) {
-    const series = file.seriesById[curve.seriesId];
+  for (const column of snapshot.structuredContent.columnProfiles) {
+    const title = column.headerText || `Column ${column.rawCol + 1}`;
     results.push({
-      curveKey,
-      fileId: file.id,
-      id: `curve:${file.id}:${curveKey}`,
-      kind: "curve",
+      id: `resourceColumn:${snapshot.resource.toString()}:${snapshot.sheetId ?? ""}:${column.rawCol}`,
+      kind: "column",
       preview: [
-        curve.curveGeneration,
-        curve.curveFamily,
-        curve.ivMode,
-        `${curve.points.length} points`,
+        column.kind,
+        column.explicitUnitText,
+        column.normalizedHeader && column.normalizedHeader !== column.headerText
+          ? column.normalizedHeader
+          : "",
       ].filter(Boolean).join(" | "),
-      score: 90,
-      title: series?.labelOverride ?? series?.legendValue ?? series?.name ?? curve.seriesId,
+      resource: snapshot.resource,
+      resourceRange: createResourceRange(snapshot, {
+        startRow: 0,
+        endRow: Math.max(0, snapshot.rowCount - 1),
+        startCol: column.rawCol,
+        endCol: column.rawCol,
+      }),
+      score: 65,
+      sheetId: snapshot.sheetId ?? null,
+      title,
     });
   }
 };
 
-const pushMetricResults = (
+const pushStructuredGroupResults = (
   results: SearchResult[],
-  file: FileRecord,
+  snapshot: DataResourceStructuredContentSnapshot,
 ): void => {
-  for (const [metricKey, metric] of Object.entries(file.metricsByKey) as Array<[MetricKey, FileRecord["metricsByKey"][MetricKey]]>) {
-    const series = file.seriesById[metric.seriesId];
+  for (const group of snapshot.structuredContent.groups) {
     results.push({
-      fileId: file.id,
-      id: `metric:${file.id}:${metricKey}`,
-      kind: "metric",
-      metricKey,
-      preview: [
-        metric.metricFamily,
-        metric.contextKey,
-        formatMetricValue(metric.value),
-      ].filter(Boolean).join(" | "),
-      score: 85,
-      title: series?.labelOverride ?? series?.legendValue ?? series?.name ?? metric.seriesId,
+      groupId: group.id,
+      id: `resourceGroup:${snapshot.resource.toString()}:${snapshot.sheetId ?? ""}:${group.id}`,
+      kind: "group",
+      preview: `${group.blockIds.length} blocks`,
+      resource: snapshot.resource,
+      resourceRange: group.titleRange ? createResourceRange(snapshot, group.titleRange) : undefined,
+      score: 70,
+      sheetId: snapshot.sheetId ?? null,
+      title: group.label,
     });
   }
 };
 
-const getOrderedFiles = (
-  snapshot: SessionSnapshot,
-): FileRecord[] => {
-  const files: FileRecord[] = [];
-  const seen = new Set<FileId>();
-  const pushFile = (fileId: FileId): void => {
-    if (seen.has(fileId)) {
-      return;
-    }
-    seen.add(fileId);
-    const file = snapshot.filesById[fileId];
-    if (file) {
-      files.push(file);
-    }
-  };
-
-  for (const fileId of snapshot.fileOrder) {
-    pushFile(fileId);
+const pushStructuredBlockResults = (
+  results: SearchResult[],
+  snapshot: DataResourceStructuredContentSnapshot,
+): void => {
+  for (const block of snapshot.structuredContent.blocks) {
+    const sourceRange = block.source.dataRange ?? block.source.fullRange;
+    results.push({
+      groupId: block.groupId,
+      id: `resourceBlock:${snapshot.resource.toString()}:${snapshot.sheetId ?? ""}:${block.id}`,
+      kind: "block",
+      measurementBlockId: block.id,
+      preview: [
+        block.family,
+        block.ivMode,
+        `${block.rowCount} rows`,
+        `${block.columnCount} columns`,
+      ].filter(Boolean).join(" | "),
+      resource: snapshot.resource,
+      resourceRange: createResourceRange(snapshot, sourceRange),
+      score: 75,
+      sheetId: snapshot.sheetId ?? null,
+      title: block.label,
+    });
   }
-  for (const fileId of Object.keys(snapshot.filesById)) {
-    pushFile(fileId);
-  }
-  return files;
 };
 
-const getOrderedTableIds = (
-  file: FileRecord,
-): SheetId[] => {
-  const tableIds: SheetId[] = [];
-  const seen = new Set<SheetId>();
-  const pushTable = (tableId: SheetId): void => {
-    if (seen.has(tableId)) {
-      return;
-    }
-    seen.add(tableId);
-    if (file.raw.tablesById[tableId]) {
-      tableIds.push(tableId);
-    }
-  };
-
-  for (const tableId of file.raw.tableOrder) {
-    pushTable(tableId);
-  }
-  for (const tableId of Object.keys(file.raw.tablesById)) {
-    pushTable(tableId);
-  }
-  return tableIds;
-};
-
-const createRawTablePreview = (table: TableRecord): string =>
-  `${table.rowCount} rows | ${table.columnCount} columns`;
-
-const formatMetricValue = (value: unknown): string => {
-  if (!value || typeof value !== "object") {
-    return "";
-  }
-
-  const record = value as Record<string, unknown>;
-  for (const key of ["ion", "ioff", "ionIoff", "maxAbs", "vth", "ss"]) {
-    const metricValue = record[key];
-    if (typeof metricValue === "number" && Number.isFinite(metricValue)) {
-      return `${key}: ${metricValue}`;
-    }
-  }
-  return "";
-};
+const createResourceRange = (
+  snapshot: DataResourceStructuredContentSnapshot,
+  range: StructuredContentSourceRange,
+) => ({
+  resource: snapshot.resource,
+  sheetId: snapshot.sheetId ?? null,
+  columnEnd: Math.max(0, Math.floor(range.endCol)),
+  columnStart: Math.max(0, Math.floor(range.startCol)),
+  rowEnd: Math.max(0, Math.floor(range.endRow)),
+  rowStart: Math.max(0, Math.floor(range.startRow)),
+});

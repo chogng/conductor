@@ -5,13 +5,9 @@
 import assert from "assert";
 
 import { Emitter, Event } from "src/cs/base/common/event";
+import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { IPlotService } from "src/cs/workbench/services/plot/common/plot";
-import type { ISessionService } from "src/cs/workbench/services/session/common/session";
-import {
-	createSessionChangeEvent,
-	type SessionChangeEvent,
-} from "src/cs/workbench/services/session/common/sessionEvents";
 import {
 	BrowserThumbnailPreviewService,
 	BrowserThumbnailService,
@@ -77,25 +73,12 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				onDidChangePlotState: Event.None,
 				prefetchCalculatedData: () => undefined,
 			} as unknown as IPlotService,
-			{
-				getSnapshot: () => ({
-					fileOrder: ["file-a"],
-					filesById: {
-						"file-a": {
-							curvesByKey: {},
-							id: "file-a",
-							raw: {},
-						},
-					},
-					schemaVersion: 1,
-					sessionVersion: 1,
-				}),
-				onDidChangeSession: Event.None,
-			} as unknown as ISessionService,
 		));
 		const changedFileIds: string[] = [];
 		store.add(service.onDidChangePreview(event => {
-			changedFileIds.push(event.fileId);
+			if (event.fileId) {
+				changedFileIds.push(event.fileId);
+			}
 		}));
 
 		assert.equal(service.get("file-a").kind, "idle");
@@ -167,7 +150,6 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				prefetchCalculatedData: () => undefined,
 				prefetchPlotDisplayModel: () => undefined,
 			} as unknown as IPlotService,
-			createSessionService(["file-a"]) as unknown as ISessionService,
 		));
 
 		const state = service.request("file-a", "hover");
@@ -175,6 +157,100 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		assert.equal(state.kind, "fastReady");
 		assert.equal(state.kind === "fastReady" ? state.signature : "", "calculated:file-a");
 		assert.equal(state.kind === "fastReady" ? state.model.seriesList.length : 0, 1);
+	});
+
+	test("URI target previews do not require Session file records", () => {
+		const target = {
+			resource: URI.file("/data/Uri.csv"),
+			sheetId: "sheet-a",
+		};
+		const calculatedTargets: Array<{ readonly fileId?: string | null; readonly targetResource?: string | null }> = [];
+		const calculatedPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
+		const displayPrefetches: Array<{ readonly fileId?: string | null; readonly targetResource?: string | null }> = [];
+		const service = store.add(new BrowserThumbnailPreviewService(
+			{
+				getCachedCalculatedData: () => null,
+				getCalculatedData: input => {
+					calculatedTargets.push({
+						fileId: input.fileId,
+						targetResource: input.target?.resource.toString() ?? null,
+					});
+					return {
+						fileId: input.fileId,
+						signature: "plot:uri-a",
+					};
+				},
+				getState: () => ({ activePlotType: "iv" }),
+				onDidChangeCalculatedDataCache: Event.None,
+				onDidChangePlotState: Event.None,
+				prefetchCalculatedData: (fileIds: readonly string[], priority: string) => {
+					calculatedPrefetches.push({ fileIds, priority });
+				},
+				prefetchPlotDisplayModel: input => {
+					displayPrefetches.push({
+						fileId: input.fileId,
+						targetResource: input.target?.resource.toString() ?? null,
+					});
+				},
+			} as unknown as IPlotService,
+		));
+
+		service.prefetch([{ fileId: "uri-a", target }], "visible");
+
+		assert.deepEqual(calculatedPrefetches, []);
+		assert.deepEqual(displayPrefetches, [{
+			fileId: "uri-a",
+			targetResource: "file:///data/Uri.csv",
+		}]);
+		assert.equal(service.request({ fileId: "uri-a", target }, "hover").kind, "ready");
+		assert.deepEqual(calculatedTargets, [{
+			fileId: "uri-a",
+			targetResource: "file:///data/Uri.csv",
+		}]);
+	});
+
+	test("plot cache changes refresh matching previews without clearing URI target previews", () => {
+		const cacheEmitter = store.add(new Emitter<{ readonly fileId: string; readonly plotType: "iv" }>());
+		const target = {
+			resource: URI.file("/data/Uri.csv"),
+			sheetId: "sheet-a",
+		};
+		let sessionBackedSignature = "plot:file-a:initial";
+		const changedTargets: Array<{ readonly fileId?: string; readonly targetResource?: string | null }> = [];
+		const service = store.add(new BrowserThumbnailPreviewService(
+			{
+				getCachedCalculatedData: input => ({
+					fileId: input.fileId,
+					signature: input.target ? "plot:uri-a" : sessionBackedSignature,
+				}),
+				getCalculatedData: () => {
+					throw new Error("thumbnail previews must not synchronously calculate cached plot data");
+				},
+				getState: () => ({ activePlotType: "iv" }),
+				onDidChangeCalculatedDataCache: cacheEmitter.event,
+				onDidChangePlotState: Event.None,
+				prefetchCalculatedData: () => undefined,
+				prefetchPlotDisplayModel: () => undefined,
+			} as unknown as IPlotService,
+		));
+		store.add(service.onDidChangePreview(event => {
+			changedTargets.push({
+				fileId: event.fileId,
+				targetResource: event.target?.resource.toString() ?? null,
+			});
+		}));
+
+		assert.equal(service.request("file-a", "hover").kind, "ready");
+		assert.equal(service.request({ fileId: "uri-a", target }, "hover").kind, "ready");
+		changedTargets.length = 0;
+
+		sessionBackedSignature = "plot:file-a:next";
+		cacheEmitter.fire({ fileId: "file-a", plotType: "iv" });
+
+		assert.equal(service.get({ fileId: "uri-a", target }).kind, "ready");
+		assert.deepEqual(changedTargets, [
+			{ fileId: "file-a", targetResource: null },
+		]);
 	});
 
 	test("fast thumbnails stay stable when full calculated data has the same signature", () => {
@@ -237,11 +313,12 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				prefetchCalculatedData: () => undefined,
 				prefetchPlotDisplayModel: () => undefined,
 			} as unknown as IPlotService,
-			createSessionService(["file-a"]) as unknown as ISessionService,
 		));
 		const changedFileIds: string[] = [];
 		store.add(service.onDidChangePreview(event => {
-			changedFileIds.push(event.fileId);
+			if (event.fileId) {
+				changedFileIds.push(event.fileId);
+			}
 		}));
 
 		assert.equal(service.request("file-a", "hover").kind, "fastReady");
@@ -313,11 +390,12 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				prefetchCalculatedData: () => undefined,
 				prefetchPlotDisplayModel: () => undefined,
 			} as unknown as IPlotService,
-			createSessionService(["file-a"]) as unknown as ISessionService,
 		));
 		const changedFileIds: string[] = [];
 		store.add(service.onDidChangePreview(event => {
-			changedFileIds.push(event.fileId);
+			if (event.fileId) {
+				changedFileIds.push(event.fileId);
+			}
 		}));
 
 		assert.equal(service.request("file-a", "hover").kind, "ready");
@@ -351,11 +429,12 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				onDidChangePlotState: Event.None,
 				prefetchCalculatedData: () => undefined,
 			} as unknown as IPlotService,
-			createSessionService(["file-a"]) as unknown as ISessionService,
 		));
 		const changedFileIds: string[] = [];
 		store.add(service.onDidChangePreview(event => {
-			changedFileIds.push(event.fileId);
+			if (event.fileId) {
+				changedFileIds.push(event.fileId);
+			}
 		}));
 
 		assert.equal(service.request("file-a", "nearby").kind, "loading");
@@ -388,7 +467,6 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				onDidChangePlotState: Event.None,
 				prefetchCalculatedData: () => undefined,
 			} as unknown as IPlotService,
-			createSessionService(["file-a"]) as unknown as ISessionService,
 		));
 
 		assert.equal(service.request("file-a", "nearby").kind, "loading");
@@ -425,7 +503,6 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 					plotPrefetches.push({ fileIds, priority });
 				},
 			} as unknown as IPlotService,
-			createSessionService(["hover-a", "visible-a"]) as unknown as ISessionService,
 		));
 
 		service.request("hover-a", "hover");
@@ -462,7 +539,6 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				onDidChangePlotState: Event.None,
 				prefetchCalculatedData: () => undefined,
 			} as unknown as IPlotService,
-			createSessionService(["file-a", "file-b"]) as unknown as ISessionService,
 		));
 
 		service.prefetch(["file-a", "file-b"], "nearby");
@@ -494,14 +570,6 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				onDidChangePlotState: Event.None,
 				prefetchCalculatedData: () => undefined,
 			} as unknown as IPlotService,
-			createSessionService([
-				"nearby-a",
-				"nearby-b",
-				"nearby-c",
-				"nearby-d",
-				"recent-a",
-				"visible-a",
-			]) as unknown as ISessionService,
 		));
 
 		service.prefetch(["nearby-a", "nearby-b", "nearby-c", "nearby-d"], "nearby");
@@ -537,7 +605,6 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				onDidChangePlotState: Event.None,
 				prefetchCalculatedData: () => undefined,
 			} as unknown as IPlotService,
-			createSessionService(["file-a"]) as unknown as ISessionService,
 		));
 
 		service.prefetch(["file-a"], "visible");
@@ -554,15 +621,14 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		assert.equal(service.get("file-a").kind, "ready");
 	});
 
-	test("targeted session changes retry loading hover previews", () => {
-		const sessionEmitter = store.add(new Emitter<SessionChangeEvent>());
+	test("targeted plot cache changes retry loading hover previews", () => {
+		const cacheEmitter = store.add(new Emitter<{ readonly fileId: string; readonly plotType: "iv" }>());
 		let modelReady = false;
-		let calculatedCalls = 0;
+		let cachedCalls = 0;
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: () => null,
-				getCalculatedData: ({ fileId }: { readonly fileId: string }) => {
-					calculatedCalls += 1;
+				getCachedCalculatedData: ({ fileId }: { readonly fileId: string }) => {
+					cachedCalls += 1;
 					return modelReady
 						? {
 							fileId,
@@ -570,70 +636,51 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 						}
 						: null;
 				},
+				getCalculatedData: () => null,
 				getState: () => ({ activePlotType: "iv" }),
-				onDidChangeCalculatedDataCache: Event.None,
+				onDidChangeCalculatedDataCache: cacheEmitter.event,
 				onDidChangePlotState: Event.None,
 				prefetchCalculatedData: () => undefined,
 			} as unknown as IPlotService,
-			{
-				...createSessionService(["file-a"]),
-				onDidChangeSession: sessionEmitter.event,
-			} as unknown as ISessionService,
 		));
 		const changedFileIds: string[] = [];
 		store.add(service.onDidChangePreview(event => {
-			changedFileIds.push(event.fileId);
+			if (event.fileId) {
+				changedFileIds.push(event.fileId);
+			}
 		}));
 
 		assert.equal(service.request("file-a", "hover").kind, "loading");
-		assert.equal(calculatedCalls, 1);
+		assert.equal(cachedCalls, 1);
 
 		modelReady = true;
-		sessionEmitter.fire(createSessionChangeEvent("sliceRunChanged", 2, {
-			fileIds: ["file-a"],
-		}));
+		cacheEmitter.fire({ fileId: "file-a", plotType: "iv" });
 
 		assert.equal(service.get("file-a").kind, "ready");
-		assert.equal(calculatedCalls, 2);
+		assert.equal(cachedCalls, 2);
 		assert.deepEqual(changedFileIds, ["file-a", "file-a"]);
 	});
 
-	test("session changes invalidate only affected thumbnail previews", async () => {
-		const sessionEmitter = store.add(new Emitter<SessionChangeEvent>());
+	test("plot cache changes invalidate only affected thumbnail previews", async () => {
+		const cacheEmitter = store.add(new Emitter<{ readonly fileId: string; readonly plotType: "iv" }>());
+		const cachedFileIds: string[] = [];
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: ({ fileId }: { readonly fileId: string }) => ({
-					fileId,
-					signature: `plot:${fileId}`,
-				}),
+				getCachedCalculatedData: ({ fileId }: { readonly fileId: string }) => {
+					cachedFileIds.push(fileId);
+					return {
+						fileId,
+						signature: `plot:${fileId}`,
+					};
+				},
 				getCalculatedData: () => {
 					throw new Error("thumbnail previews must not synchronously calculate plot data");
 				},
 				getState: () => ({ activePlotType: "iv" }),
-				onDidChangeCalculatedDataCache: Event.None,
+				onDidChangeCalculatedDataCache: cacheEmitter.event,
 				onDidChangePlotState: Event.None,
 				prefetchCalculatedData: () => undefined,
 			} as unknown as IPlotService,
-			{
-				getSnapshot: () => ({
-					fileOrder: ["file-a", "file-b"],
-					filesById: {
-						"file-a": {
-							curvesByKey: {},
-							id: "file-a",
-							raw: {},
-						},
-						"file-b": {
-							curvesByKey: {},
-							id: "file-b",
-							raw: {},
-						},
-					},
-					schemaVersion: 1,
-					sessionVersion: 1,
-				}),
-				onDidChangeSession: sessionEmitter.event,
-			} as unknown as ISessionService,
 		));
 
 		service.request("file-a", "hover");
@@ -642,13 +689,13 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 
 		assert.equal(service.get("file-a").kind, "ready");
 		assert.equal(service.get("file-b").kind, "ready");
+		cachedFileIds.length = 0;
 
-		sessionEmitter.fire(createSessionChangeEvent("sliceRunChanged", 2, {
-			fileIds: ["file-b"],
-		}));
+		cacheEmitter.fire({ fileId: "file-b", plotType: "iv" });
 
 		assert.equal(service.get("file-a").kind, "ready");
 		assert.equal(service.get("file-b").kind, "ready");
+		assert.deepEqual(cachedFileIds, ["file-b"]);
 	});
 
 	test("bitmap drawing skips detached canvases instead of using fallback dimensions", () => {
@@ -677,20 +724,6 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		assert.equal(canvas.width, 300);
 		assert.equal(canvas.height, 150);
 	});
-});
-
-const createSessionService = (fileIds: readonly string[]) => ({
-	getSnapshot: () => ({
-		fileOrder: [...fileIds],
-		filesById: Object.fromEntries(fileIds.map(fileId => [fileId, {
-			curvesByKey: {},
-			id: fileId,
-			raw: {},
-		}])),
-		schemaVersion: 1,
-		sessionVersion: 1,
-	}),
-	onDidChangeSession: Event.None,
 });
 
 const timeout = async (): Promise<void> =>

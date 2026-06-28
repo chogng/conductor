@@ -5,10 +5,12 @@
 import type {
 	PlotType,
 } from "src/cs/workbench/services/plot/common/plot";
-import type { SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
-import type { ChartProcessingStatus } from "src/cs/workbench/services/chart/common/chartViewInput";
 import type { ChartFileOption } from "src/cs/workbench/services/chart/common/chartFileOptions";
-import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
+import type {
+	ChartProcessingStatus,
+	ChartViewInput,
+} from "src/cs/workbench/services/chart/common/chartViewInput";
+import type { SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
 
 export type CreateChartViewInputOptions = {
 	readonly activeFileId: string | null;

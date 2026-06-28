@@ -520,7 +520,7 @@ const getReviewStateLabel = (
       return localize("files.reviewState.invalid", "Invalid");
     case "missing":
     default:
-      return localize("files.reviewState.error", "Error");
+      return localize("files.reviewState.missing", "Not reviewed");
   }
 };
 
@@ -547,23 +547,17 @@ const getReviewSummaryMessage = (
     return message;
   }
 
-  return summary.state === "missing"
-    ? localize("files.reviewMissing.message", "Review result is unavailable.")
-    : "";
+  return "";
 };
 
 const getReviewSummaryReason = (
-  summary: ReviewSummary,
-): string =>
-  summary.state === "missing"
-    ? localize("files.reviewMissing.reason", "No Review result is cached for this file.")
-    : "";
+  _summary: ReviewSummary,
+): string => "";
 
 
 const isReviewSummaryWarning = (
   summary: ReviewSummary,
 ): boolean =>
-  summary.state === "missing" ||
   summary.state === "stale" ||
   summary.state === "needsAdjustment" ||
   summary.state === "invalid";

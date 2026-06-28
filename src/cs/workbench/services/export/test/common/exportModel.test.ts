@@ -4,13 +4,14 @@
 
 import assert from "assert";
 
-import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
-
 import {
   createExportPaneState,
+  createOriginCurveOptions,
   createOriginCurveOptionsFromRecord,
   getCanvasScopeSummary,
   getExportSelectionSummary,
+  type OriginCurveOptionFile,
+  type OriginCurveOptionRecord,
 } from "src/cs/workbench/services/export/common/exportModel";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -104,10 +105,34 @@ suite("workbench/services/export/common/exportModel", () => {
     );
   });
 
+  test("createOriginCurveOptions uses file series without Session processed-entry types", () => {
+    assert.deepEqual(
+      createOriginCurveOptions(
+        createOriginCurveOptionFile(),
+        (_file, series, index) =>
+          series.id === "series-b" ? `Edited ${index + 1}` : String(series.name),
+      ),
+      [
+        {
+          key: "series-a",
+          label: "Series A",
+          sourceFileId: "file-a",
+          sourceSeriesId: "series-a",
+        },
+        {
+          key: "series-b",
+          label: "Edited 2",
+          sourceFileId: "file-a",
+          sourceSeriesId: "series-b",
+        },
+      ],
+    );
+  });
+
   test("createOriginCurveOptionsFromRecord uses canonical series order", () => {
     assert.deepEqual(
       createOriginCurveOptionsFromRecord(
-        createFileRecord(),
+        createOriginCurveOptionRecord(),
         (_fileId, seriesId, fallback) =>
           seriesId === "series-b" ? "Edited B" : fallback,
       ),
@@ -129,64 +154,25 @@ suite("workbench/services/export/common/exportModel", () => {
   });
 });
 
-const createFileRecord = (): FileRecord => ({
-  curvesByKey: {
-    "base:iv:transfer:series-a": {
-      curveFamily: "iv",
-      curveGeneration: "base",
-      fileId: "file-a",
-      ivMode: "transfer",
-      lineage: {
-        baseFamily: "iv",
-        baseSeries: { fileId: "file-a", seriesId: "series-a" },
-        curveGeneration: "base",
-        ivMode: "transfer",
-      },
-      points: [{ x: 0, y: 1 }],
-      seriesId: "series-a",
-      signature: "base-a",
-    },
-    "base:iv:transfer:series-b": {
-      curveFamily: "iv",
-      curveGeneration: "base",
-      fileId: "file-a",
-      ivMode: "transfer",
-      lineage: {
-        baseFamily: "iv",
-        baseSeries: { fileId: "file-a", seriesId: "series-b" },
-        curveGeneration: "base",
-        ivMode: "transfer",
-      },
-      points: [{ x: 1, y: 2 }],
-      seriesId: "series-b",
-      signature: "base-b",
-    },
-  },
+const createOriginCurveOptionFile = (): OriginCurveOptionFile => ({
+  fileId: "file-a",
+  series: [{
+    id: "series-a",
+    name: "Series A",
+  }, {
+    id: "series-b",
+    name: "Series B",
+  }],
+});
+
+const createOriginCurveOptionRecord = (): OriginCurveOptionRecord => ({
   id: "file-a",
-  kind: "unknown",
-  metricsByKey: {},
-  name: "file-a.csv",
-  raw: {
-    fileId: "file-a",
-    fileName: "file-a.csv",
-    tableOrder: [],
-    tablesById: {},
-  },
-  rawTableVersionsById: {},
   seriesById: {
     "series-a": {
-      fileId: "file-a",
-      groupIndex: 0,
-      id: "series-a",
       legendValue: "Vd=0.1",
-      y: [1],
     },
     "series-b": {
-      fileId: "file-a",
-      groupIndex: 1,
-      id: "series-b",
       name: "Source B",
-      y: [2],
     },
   },
   seriesOrder: ["series-a", "series-b"],

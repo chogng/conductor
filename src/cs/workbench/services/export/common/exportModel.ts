@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -12,36 +12,8 @@ import type {
 import type {
   FileRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
-
-export type OriginExportContentOption = {
-  group: "basic" | "derived";
-  key: OriginExportContentKey;
-  label: string;
-};
-
-export type OriginCurveExportSeriesOption = {
-  key: string;
-  label: string;
-  sourceFileId: string;
-  sourceSeriesId: string;
-};
-
-export type ExportPaneState = {
-  isExportListCanvasSelectionMode: boolean;
-  isExportPaneActive: boolean;
-  isManualCanvasScope: boolean;
-  showFilteredCanvasKindSelect: boolean;
-};
-
-export const ORIGIN_EXPORT_CONTENT_OPTIONS: OriginExportContentOption[] = [
-  { group: "basic", key: "iv", label: "IV" },
-  { group: "derived", key: "gm", label: "gm" },
-  { group: "derived", key: "ss", label: "SS" },
-  { group: "derived", key: "vth", label: "Vth" },
-];
-
 export const createOriginCurveOptionsFromRecord = (
-  file: FileRecord,
+  file: OriginCurveOptionRecord,
   resolveSeriesLabel: (fileId: string, seriesId: string, fallback: string, index: number) => string =
     (_fileId, _seriesId, fallback, index) => fallback || `Series ${index + 1}`,
 ): OriginCurveExportSeriesOption[] =>

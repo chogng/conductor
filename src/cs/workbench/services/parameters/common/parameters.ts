@@ -4,9 +4,9 @@
 
 import type { Event } from "src/cs/base/common/event";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
-import type { FileId } from "src/cs/workbench/services/session/common/sessionModel";
-import type { ParametersViewState } from "src/cs/workbench/services/parameters/common/parameterModel";
+import type {
+  ParametersViewState,
+} from "src/cs/workbench/services/parameters/common/parameterModel";
 
 export const IParametersService = createDecorator<IParametersService>("parametersService");
 export const ParametersContributionId = "workbench.contrib.parameters";
@@ -19,8 +19,7 @@ export const ParametersCommandId = {
 export type ParametersCommandId = typeof ParametersCommandId[keyof typeof ParametersCommandId];
 
 export type ParametersViewStateInput = {
-  readonly fileId?: FileId | null;
-  readonly snapshot: SessionSnapshot;
+  readonly fileId?: string | null;
 };
 
 export interface IParametersService {

@@ -144,6 +144,7 @@ export type StructuredMeasurementColumnRef = {
 	readonly headerText: string;
 	readonly role: StructuredMeasurementColumnRole;
 	readonly unit?: string | null;
+	readonly dataRange?: StructuredContentSourceRange;
 	readonly sourceRange?: StructuredContentSourceRange;
 	readonly confidence?: number;
 };

@@ -7,6 +7,7 @@ import type {
   PlotDisplayModel,
   PlotCalculatedDataPrefetchPriority,
   PlotFileAxisSettings,
+  PlotFileId,
   PlotType,
 } from "src/cs/workbench/services/plot/common/plot";
 import type {
@@ -14,11 +15,12 @@ import type {
   PlotCalculatedDataWorkerRequest,
   PlotWorkerRequest,
   PlotDisplayModelWorkerRequest,
+  PlotWorkerFile,
 } from "src/cs/workbench/services/plot/browser/plotCalculatedDataWorker";
 import {
-  getLatestSliceRunRecord,
-  type FileId,
-  type FileRecord,
+  type CurveRecord,
+  type MetricRecord,
+  type SeriesRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import { getPerfNow, logPerf } from "src/cs/workbench/common/perf";
 
@@ -28,8 +30,24 @@ type PlotWorkerLane = "background" | "detail" | "interactive";
 type PlotWorkerRequestKind = "calculateData" | "calculateDisplayModel";
 export type PlotDisplayModelWorkerLane = PlotWorkerLane;
 
+type PlotWorkerSourceFile = {
+  readonly curvesByKey: Readonly<Record<string, CurveRecord>>;
+  readonly id: PlotFileId;
+  readonly kind: PlotWorkerFile["kind"];
+  readonly latestSliceRunId?: string;
+  readonly metricsByKey?: Readonly<Record<string, MetricRecord>>;
+  readonly name: string;
+  readonly raw: {
+    readonly fileId: PlotFileId;
+    readonly fileName: string;
+  };
+  readonly seriesById: Readonly<Record<string, SeriesRecord>>;
+  readonly seriesOrder: readonly string[];
+  readonly sliceRunsById?: Readonly<Record<string, SliceRun>>;
+};
+
 export type PlotCalculatedDataWorkerInput = {
-  readonly file: FileRecord;
+  readonly file: PlotWorkerSourceFile;
   readonly plotType: PlotType;
   readonly priority?: PlotCalculatedDataPrefetchPriority;
   readonly requestId: number;
@@ -38,7 +56,7 @@ export type PlotCalculatedDataWorkerInput = {
 
 export type PlotCalculatedDataWorkerOutput = {
   readonly calculatedData: CalculatedData | null;
-  readonly fileId: FileId;
+  readonly fileId: PlotFileId;
   readonly plotType: PlotType;
   readonly requestId: number;
   readonly sessionVersion: number;
@@ -48,7 +66,7 @@ export type PlotDisplayModelWorkerInput = {
   readonly axisSettings?: PlotFileAxisSettings;
   readonly axisTitleOverridesByKey?: Readonly<Record<string, string>>;
   readonly calculatedData: CalculatedData;
-  readonly fileId: FileId;
+  readonly fileId: PlotFileId;
   readonly hiddenLegendKeys?: readonly string[];
   readonly includeInspector?: boolean;
   readonly legendLabels?: Readonly<Record<string, string>>;
@@ -61,7 +79,7 @@ export type PlotDisplayModelWorkerInput = {
 
 export type PlotDisplayModelWorkerOutput = {
   readonly displayModel: PlotDisplayModel | null;
-  readonly fileId: FileId;
+  readonly fileId: PlotFileId;
   readonly plotType: PlotType;
   readonly requestId: number;
   readonly sessionVersion: number;
@@ -76,7 +94,7 @@ export const calculatePlotDataInWorker = (
     lane: getPlotWorkerLane(input.priority),
     message: {
       payload: {
-        file: createPlotWorkerFileRecord(input.file),
+        file: createPlotWorkerFile(input.file),
         fileId: input.file.id,
         plotType: input.plotType,
         requestId: input.requestId,
@@ -89,9 +107,9 @@ export const calculatePlotDataInWorker = (
   });
 };
 
-const createPlotWorkerFileRecord = (file: FileRecord): FileRecord => {
-  const latestSliceRun = getLatestSliceRunRecord(file);
-  const curvesByKey: FileRecord["curvesByKey"] = {};
+const createPlotWorkerFile = (file: PlotWorkerSourceFile): PlotWorkerFile => {
+  const latestSliceRun = getLatestPlotWorkerSliceRun(file);
+  const curvesByKey: Record<string, CurveRecord> = {};
   for (const [key, curve] of Object.entries(file.curvesByKey)) {
     if (curve.curveGeneration === "base") {
       curvesByKey[key] = curve;
@@ -100,14 +118,14 @@ const createPlotWorkerFileRecord = (file: FileRecord): FileRecord => {
   const curveSeriesIds = new Set(
     Object.values(curvesByKey).map(curve => curve.seriesId),
   );
-  const seriesById: FileRecord["seriesById"] = {};
+  const seriesById: Record<string, SeriesRecord> = {};
   for (const [seriesId, series] of Object.entries(file.seriesById)) {
     if (curveSeriesIds.has(seriesId)) {
       seriesById[seriesId] = series;
     }
   }
 
-  const workerFile: FileRecord = {
+  const workerFile: PlotWorkerFile = {
     curvesByKey,
     id: file.id,
     kind: file.kind,
@@ -130,6 +148,13 @@ const createPlotWorkerFileRecord = (file: FileRecord): FileRecord => {
     };
   }
   return workerFile;
+};
+
+const getLatestPlotWorkerSliceRun = (
+  file: Pick<PlotWorkerSourceFile, "latestSliceRunId" | "sliceRunsById">,
+): SliceRun | undefined => {
+  const sliceRunId = file.latestSliceRunId;
+  return sliceRunId ? file.sliceRunsById?.[sliceRunId] : undefined;
 };
 
 export const calculatePlotDisplayModelInWorker = (

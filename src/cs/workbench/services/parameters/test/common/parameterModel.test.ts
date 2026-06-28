@@ -6,12 +6,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 
 import assert from "assert";
 
-import type {
-  BaseCurveKey,
-  FileRecord,
-  MetricKey,
-} from "src/cs/workbench/services/session/common/sessionModel";
-
 import {
   createParametersViewState,
   formatMetricValue,
@@ -19,6 +13,7 @@ import {
   getSsMetricText,
   getSsTooltip,
   getThresholdVoltageTooltip,
+  type ParametersFileRecord,
 } from "src/cs/workbench/services/parameters/common/parameterModel";
 
 suite("workbench/services/parameters/common/parameterModel", () => {
@@ -107,32 +102,17 @@ suite("workbench/services/parameters/common/parameterModel", () => {
 
 const createCanonicalFileRecord = (
   ivMode: "transfer" | "output",
-): FileRecord => {
-  const fileId = "file-a";
+): ParametersFileRecord => {
   const seriesId = "series-1";
-  const curveKey = `base:iv:${ivMode}:series-1` as BaseCurveKey;
-  const currentKey = "current:series-1:base" as MetricKey;
-  const derivativeKey = `derivative:series-1:${ivMode === "transfer" ? "gm" : "gds"}` as MetricKey;
-  const thresholdKey = "threshold:series-1:vth" as MetricKey;
-  const subthresholdKey = "subthreshold:series-1:ss:auto" as MetricKey;
-  const inputCurve = {
-    curveKey,
-    fileId,
-    seriesId,
-    signature: "base-signature",
-  };
-  const metricBase = {
-    fileId,
-    inputCurves: [inputCurve],
-    inputSignatures: ["base-signature"],
-    seriesId,
-  };
-  const metricsByKey: FileRecord["metricsByKey"] = {
+  const curveKey = `base:iv:${ivMode}:series-1`;
+  const currentKey = "current:series-1:base";
+  const derivativeKey = `derivative:series-1:${ivMode === "transfer" ? "gm" : "gds"}`;
+  const thresholdKey = "threshold:series-1:vth";
+  const subthresholdKey = "subthreshold:series-1:ss:auto";
+  const metricsByKey: ParametersFileRecord["metricsByKey"] = {
     [currentKey]: {
-      ...metricBase,
-      contextKey: "base",
-      key: currentKey,
       metricFamily: "current",
+      seriesId,
       value: {
         candidateWindows: [],
         ion: 10,
@@ -146,33 +126,25 @@ const createCanonicalFileRecord = (
       },
     },
     [derivativeKey]: {
-      ...metricBase,
-      contextKey: ivMode === "transfer" ? "gm" : "gds",
-      key: derivativeKey,
       metricFamily: "derivative",
+      seriesId,
       value: {
-        kind: ivMode === "transfer" ? "gm" : "gds",
         maxAbs: 11,
         xAtMaxAbs: 0.7,
       },
     },
     [thresholdKey]: {
-      ...metricBase,
-      contextKey: "vth",
-      key: thresholdKey,
       metricFamily: "threshold",
+      seriesId,
       value: {
         electron: 0.43,
-        fitQuality: "good",
         hole: -0.41,
         vth: 0.42,
       },
     },
     [subthresholdKey]: {
-      ...metricBase,
-      contextKey: "ss:auto",
-      key: subthresholdKey,
       metricFamily: "subthreshold",
+      seriesId,
       value: {
         confidence: "high",
         method: "auto",
@@ -187,79 +159,18 @@ const createCanonicalFileRecord = (
       [curveKey]: {
         curveFamily: "iv",
         curveGeneration: "base",
-        fileId,
         ivMode,
-        lineage: {
-          baseFamily: "iv",
-          baseSeries: { fileId, seriesId },
-          curveGeneration: "base",
-          ivMode,
-        },
-        points: [
-          { x: 0, y: 1 },
-          { x: 1, y: 10 },
-        ],
-        domain: {
-          x: [0, 1],
-          y: [1, 10],
-        },
-        seriesId,
-        signature: "base-signature",
       },
     },
-    id: fileId,
-    kind: "unknown",
     metricsByKey,
-    name: "file-a.csv",
     metricsBySeriesId: {
       [seriesId]: [currentKey, derivativeKey, thresholdKey, subthresholdKey],
     },
-    raw: {
-      fileId,
-      fileName: "file-a.csv",
-      tableOrder: [],
-      tablesById: {},
-    },
-    rawTableVersionsById: {},
     seriesById: {
       [seriesId]: {
-        fileId,
-        groupIndex: 0,
-        id: seriesId,
         legendValue: "Vg = 10 V",
-        y: [1, 10],
       },
     },
     seriesOrder: [seriesId],
-    latestSliceRunId: "run-a",
-    sliceRunsById: {
-      "run-a": {
-        fileId,
-        id: "run-a",
-        mode: "auto",
-        rawTableId: fileId,
-        selection: { kind: "auto" },
-        sourceRawTableVersion: 0,
-        template: {
-          schemaVersion: 1,
-          name: "Template",
-          version: 1,
-          stopOnError: false,
-          blocks: [{
-            rowRange: { startRow: 0, endRow: 1 },
-            x: { columns: [0], unit: "V" },
-            y: { columns: [1], unit: "A" },
-            segmentation: { kind: "auto" },
-            legend: { target: "auto" },
-          }],
-        },
-        templateFingerprint: "config-a",
-        inputRanges: [],
-        outputCurveKeys: [curveKey],
-        outputSeriesIds: [seriesId],
-        warnings: [],
-        errors: [],
-      },
-    },
   };
 };

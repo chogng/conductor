@@ -17,11 +17,7 @@ export const createExplorerDecorationDataFromReviewSummary = (
 
 	switch (summary.state) {
 		case "missing":
-			return {
-				color: "charts.red",
-				letter: "!",
-				tooltip: summary.message ?? localize("files.decorations.reviewMissing", "Review result is unavailable."),
-			};
+			return undefined;
 		case "pending":
 			return {
 				letter: "...",

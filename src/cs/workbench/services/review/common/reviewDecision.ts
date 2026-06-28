@@ -752,10 +752,10 @@ const validateCandidateInterpretationRanges = (
 		if (!isRowRangeInBounds(block.rowRange, rowCount)) {
 			findings.push(createFinding("error", "review.rangeOutOfBounds", "Candidate row range is out of bounds.", true));
 		}
-		if (!isAxisInBounds(block.x, columnCount)) {
+		if (!isAxisInBounds(block.x, columnCount, rowCount)) {
 			findings.push(createFinding("warning", "review.xAxisOutOfBounds", "Candidate X axis is out of bounds."));
 		}
-		if (!isAxisInBounds(block.y, columnCount)) {
+		if (!isAxisInBounds(block.y, columnCount, rowCount)) {
 			findings.push(createFinding("warning", "review.yAxisOutOfBounds", "Candidate Y axis is out of bounds."));
 		}
 	}
@@ -832,9 +832,19 @@ const isRowRangeInBounds = (
 const isAxisInBounds = (
 	axis: ReviewCandidateAxisBinding,
 	columnCount: number,
+	rowCount: number,
 ): boolean =>
 	axis.columns.length > 0 &&
-	axis.columns.every(column => Number.isInteger(column) && column >= 0 && column < columnCount);
+	axis.columns.every(column => Number.isInteger(column) && column >= 0 && column < columnCount) &&
+	(axis.ranges ?? []).every(range =>
+		Number.isInteger(range.column) &&
+		range.column >= 0 &&
+		range.column < columnCount &&
+		isRowRangeInBounds({
+			startRow: range.startRow,
+			endRow: range.endRow,
+		}, rowCount)
+	);
 
 const clampConfidence = (
 	value: unknown,

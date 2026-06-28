@@ -7,7 +7,7 @@ mod infer;
 mod legend;
 mod rc;
 mod rules;
-mod table_facts;
+mod table_model_seed;
 mod utils;
 
 use analysis::AnalysisSeriesRequest;
@@ -23,8 +23,8 @@ use converter::write_csv_cell;
 use dataset::EngineDataset;
 use dataset::load_dataset;
 use dataset::load_import_dataset;
-use import::IMPORT_TABLE_FACTS_PREVIEW_ROWS;
-use import::build_import_table_facts_seed;
+use import::IMPORT_TABLE_MODEL_SEED_PREVIEW_ROWS;
+use import::build_import_table_model_seed;
 use infer::infer_auto_segmentation_from_x_values;
 use infer::infer_metadata_group_shape;
 use legend::LegendMode;
@@ -54,8 +54,8 @@ use std::thread;
 use std::time::Instant;
 use utils::*;
 
-const IMPORT_TABLE_FACTS_BATCH_PARALLEL_MIN_ENTRIES: usize = 8;
-const IMPORT_TABLE_FACTS_BATCH_MAX_THREADS: usize = 4;
+const IMPORT_TABLE_MODEL_SEED_BATCH_PARALLEL_MIN_ENTRIES: usize = 8;
+const IMPORT_TABLE_MODEL_SEED_BATCH_MAX_THREADS: usize = 4;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -69,7 +69,7 @@ struct EngineRequest {
     curve_filter_field: Option<String>,
     curve_filter_key: Option<String>,
     end_row: Option<usize>,
-    entries: Option<Vec<ImportTableFactsBatchEntry>>,
+    entries: Option<Vec<ImportTableModelSeedBatchEntry>>,
     file_id: Option<String>,
     file_name: Option<String>,
     id: u64,
@@ -95,7 +95,7 @@ struct EngineRequest {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ImportTableFactsBatchEntry {
+struct ImportTableModelSeedBatchEntry {
     file_name: Option<String>,
     path: String,
 }
@@ -1599,7 +1599,7 @@ fn resolve_import_file_name(path: &Path, file_name: Option<&str>) -> String {
 }
 
 fn build_import_prepare_result(path: &Path, file_name: String) -> Result<Value, String> {
-    let import_result = load_import_dataset(path, IMPORT_TABLE_FACTS_PREVIEW_ROWS)?;
+    let import_result = load_import_dataset(path, IMPORT_TABLE_MODEL_SEED_PREVIEW_ROWS)?;
     let Some(summary) = import_result.summary else {
         return Ok(json!({
             "columnCount": 0,
@@ -1613,7 +1613,7 @@ fn build_import_prepare_result(path: &Path, file_name: String) -> Result<Value, 
 
     let preview_rows = summary.preview_rows;
     Ok(json!({
-        "tableFactsSeed": build_import_table_facts_seed(
+        "tableModelSeed": build_import_table_model_seed(
             &file_name,
             preview_rows.clone(),
         ),
@@ -1639,7 +1639,7 @@ fn build_import_batch_failure(code: &str, message: String, started: Instant) -> 
     })
 }
 
-fn prepare_import_table_facts_batch_entry(entry: &ImportTableFactsBatchEntry) -> Value {
+fn prepare_import_table_model_seed_batch_entry(entry: &ImportTableModelSeedBatchEntry) -> Value {
     let started = Instant::now();
     let path_text = entry.path.trim();
     if path_text.is_empty() {
@@ -1673,11 +1673,11 @@ fn prepare_import_table_facts_batch_entry(entry: &ImportTableFactsBatchEntry) ->
     }
 }
 
-fn resolve_import_table_facts_batch_threads(
+fn resolve_import_table_model_seed_batch_threads(
     entry_count: usize,
     requested_threads: Option<usize>,
 ) -> usize {
-    if entry_count < IMPORT_TABLE_FACTS_BATCH_PARALLEL_MIN_ENTRIES {
+    if entry_count < IMPORT_TABLE_MODEL_SEED_BATCH_PARALLEL_MIN_ENTRIES {
         return 1;
     }
 
@@ -1688,25 +1688,25 @@ fn resolve_import_table_facts_batch_threads(
     let default_threads = available_threads
         .saturating_sub(1)
         .max(1)
-        .min(IMPORT_TABLE_FACTS_BATCH_MAX_THREADS);
+        .min(IMPORT_TABLE_MODEL_SEED_BATCH_MAX_THREADS);
     requested_threads
         .unwrap_or(default_threads)
         .max(1)
         .min(available_threads)
-        .min(IMPORT_TABLE_FACTS_BATCH_MAX_THREADS)
+        .min(IMPORT_TABLE_MODEL_SEED_BATCH_MAX_THREADS)
         .min(entry_count)
 }
 
-fn prepare_import_table_facts_batch_entries(
-    entries: &[ImportTableFactsBatchEntry],
+fn prepare_import_table_model_seed_batch_entries(
+    entries: &[ImportTableModelSeedBatchEntry],
     requested_threads: Option<usize>,
 ) -> (Vec<Value>, usize) {
-    let worker_count = resolve_import_table_facts_batch_threads(entries.len(), requested_threads);
+    let worker_count = resolve_import_table_model_seed_batch_threads(entries.len(), requested_threads);
     if worker_count <= 1 {
         return (
             entries
                 .iter()
-                .map(prepare_import_table_facts_batch_entry)
+                .map(prepare_import_table_model_seed_batch_entry)
                 .collect::<Vec<_>>(),
             1,
         );
@@ -1726,7 +1726,7 @@ fn prepare_import_table_facts_batch_entries(
                     let Some(entry) = entries.get(index) else {
                         break;
                     };
-                    let result = prepare_import_table_facts_batch_entry(entry);
+                    let result = prepare_import_table_model_seed_batch_entry(entry);
                     results.lock().expect("batch result lock poisoned")[index] = Some(result);
                 }
             });
@@ -1803,7 +1803,7 @@ fn handle_request(
                 .filter(|entries| !entries.is_empty())
                 .ok_or_else(|| "missing entries".to_string())?;
             let (results, parallelism) =
-                prepare_import_table_facts_batch_entries(entries, request.threads);
+                prepare_import_table_model_seed_batch_entries(entries, request.threads);
             Ok(json!({
                 "durationMs": import_batch_duration_ms(started),
                 "parallelism": parallelism,
@@ -2155,7 +2155,7 @@ fn helper_doctor_json() -> Value {
         "helper": helper_version_json(),
         "capabilities": [
             "stdio-worker",
-            "import-table-facts",
+            "import-table-model-seed",
             "csv-preview",
             "excel-conversion",
             "origin-export",
@@ -2244,16 +2244,16 @@ fn main() {
                             std::process::exit(1);
                         }
                     }
-                    let table_facts = build_import_table_facts_seed(
+                    let table_model_seed = build_import_table_model_seed(
                         result
                             .path
                             .file_name()
                             .and_then(|value| value.to_str())
                             .unwrap_or(""),
-                        result.table_facts_rows.clone(),
+                        result.table_model_seed_rows.clone(),
                     );
                     let manifest = json!({
-                        "tableFactsSeed": table_facts,
+                        "tableModelSeed": table_model_seed,
                         "cells": result.stats.cells,
                         "columnCount": result.stats.column_count,
                         "convertMs": result.stats.convert_ms,

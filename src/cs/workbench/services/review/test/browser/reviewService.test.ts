@@ -457,6 +457,77 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate?.template.measurement?.ivMode, "output");
 	});
 
+	test("derives IV transfer review from Origin DataName metadata rows", async () => {
+		const recipeService = store.add(new TestRecipeService("recipe:first"));
+		const userTemplateService = createUserTemplateServiceForTest();
+		const resource = URI.file("/workspace/TransferMetadata.csv");
+		const service = createReviewServiceForTest(
+			recipeService,
+			userTemplateService,
+			createDataResourceServiceForTest(resource, [], null, createTestTableModelContent([
+				["SetupTitle", "Transfer_DB"],
+				["TestParameter", "Channel.VName", "Vg", "Vd", "Vs"],
+				["TestParameter", "Channel.Func", "VAR1", "VAR2", "CONST"],
+				["TestParameter", "Output.Graph.XAxis.Data", "Vg"],
+				["AnalysisSetup", "Analysis.Setup.Vector.Graph.Notes", "[VAR1] Unit=SMU3:MP, Name=Vg, Start=-1 V"],
+				["DataName", "Vg", "Id", "Ig"],
+				["DataValue", "-1", "-2.63E-12", "-2.05E-12"],
+				["DataValue", "0", "-1.24E-11", "-4.12E-12"],
+			])),
+		);
+
+		const target = {
+			resource,
+			sheetId: "table-a",
+		};
+		const reviewExecution = await service.reviewUriForExecution(target);
+
+		assert.equal(reviewExecution?.summary.state, "ready");
+		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate?.template.measurement?.curveFamily, "iv");
+		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate?.template.measurement?.ivMode, "transfer");
+		assert.deepEqual(reviewExecution?.systemRecommendedReviewedTemplate?.template.blocks[0]?.rowRange, {
+			startRow: 6,
+			endRow: 7,
+		});
+		assert.deepEqual(reviewExecution?.systemRecommendedReviewedTemplate?.template.blocks[0]?.x.columns, [1]);
+		assert.deepEqual(reviewExecution?.systemRecommendedReviewedTemplate?.template.blocks[0]?.x.ranges, [{
+			column: 1,
+			startRow: 6,
+			endRow: 7,
+		}]);
+		assert.deepEqual(reviewExecution?.systemRecommendedReviewedTemplate?.template.blocks[0]?.y.columns, [2]);
+		assert.deepEqual(reviewExecution?.systemRecommendedReviewedTemplate?.template.blocks[0]?.y.ranges, [{
+			column: 2,
+			startRow: 6,
+			endRow: 7,
+		}]);
+	});
+
+	test("does not derive review candidates from DataName columns without numeric values", async () => {
+		const recipeService = store.add(new TestRecipeService("recipe:first"));
+		const userTemplateService = createUserTemplateServiceForTest();
+		const resource = URI.file("/workspace/TransferHeadersOnly.csv");
+		const service = createReviewServiceForTest(
+			recipeService,
+			userTemplateService,
+			createDataResourceServiceForTest(resource, [], null, createTestTableModelContent([
+				["SetupTitle", "Transfer_DB"],
+				["DataName", "Vg", "Id"],
+				["DataValue", "", ""],
+				["DataValue", "not ready", "not measured"],
+			])),
+		);
+
+		const reviewExecution = await service.reviewUriForExecution({
+			resource,
+			sheetId: "table-a",
+		});
+
+		assert.equal(reviewExecution?.summary.state, "invalid");
+		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate, undefined);
+		assert.deepEqual(reviewExecution?.summary.findingCodes, ["review.noCandidates"]);
+	});
+
 	test("does not auto-select IV mode from generic voltage URI content", async () => {
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
@@ -1444,6 +1515,12 @@ const createReviewEvidence = (): ReviewEvidence => ({
 						startCol: 0,
 						endCol: 0,
 					},
+					dataRange: {
+						startRow: 1,
+						endRow: 2,
+						startCol: 0,
+						endCol: 0,
+					},
 				}, {
 					rawCol: 1,
 					role: "id",
@@ -1452,6 +1529,12 @@ const createReviewEvidence = (): ReviewEvidence => ({
 					confidence: 0.95,
 					sourceRange: {
 						startRow: 0,
+						endRow: 2,
+						startCol: 1,
+						endCol: 1,
+					},
+					dataRange: {
+						startRow: 1,
 						endRow: 2,
 						startCol: 1,
 						endCol: 1,

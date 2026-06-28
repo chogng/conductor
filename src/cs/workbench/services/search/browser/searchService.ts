@@ -14,14 +14,16 @@ import {
 	createSearchPointLookupModelFromPlotDisplay,
 	searchSeriesAtX,
 } from "src/cs/workbench/services/search/browser/searchModel";
-import { buildSearchIndex } from "src/cs/workbench/services/search/browser/searchIndex";
+import {
+	buildStructuredContentSearchIndex,
+} from "src/cs/workbench/services/search/browser/searchIndex";
 import {
 	IPlotService,
 	type IPlotService as IPlotServiceType,
 	type PlotDisplayModelInput,
 } from "src/cs/workbench/services/plot/common/plot";
 import type { SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
-import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
+import type { DataResourceStructuredContentSnapshot } from "src/cs/workbench/services/dataResource/common/dataResource";
 import {
 	ISearchService,
 	type ISearchService as ISearchServiceType,
@@ -39,8 +41,8 @@ import {
 
 const defaultSearchQuery: SearchQuery = {
 	text: "",
-	scope: "curve",
-	kinds: ["curve"],
+	scope: "all",
+	kinds: ["rawCell", "rawTable", "column", "group", "block"],
 	caseSensitive: false,
 	interpolationMode: "linear",
 };
@@ -76,17 +78,24 @@ export class SearchService extends Disposable implements ISearchServiceType {
 		return this.state;
 	}
 
-	public buildIndex(snapshot: SessionSnapshot): SearchIndex {
-		return buildSearchIndex(snapshot);
+	public buildStructuredContentIndex(snapshot: DataResourceStructuredContentSnapshot): SearchIndex {
+		return buildStructuredContentSearchIndex(snapshot);
 	}
 
 	public getPointLookupModel(): SearchPointLookupModel | null {
 		return this.pointLookupModel;
 	}
 
-	public searchSnapshot(
-		snapshot: SessionSnapshot,
+	public searchStructuredContent(
+		snapshot: DataResourceStructuredContentSnapshot,
 		query: Partial<SearchQuery> = {},
+	): readonly SearchResult[] {
+		return this.searchIndex(this.buildStructuredContentIndex(snapshot), query);
+	}
+
+	private searchIndex(
+		index: SearchIndex,
+		query: Partial<SearchQuery>,
 	): readonly SearchResult[] {
 		const normalizedQuery = normalizeSearchQuery({
 			...this.state.query,
@@ -96,7 +105,7 @@ export class SearchService extends Disposable implements ISearchServiceType {
 			? normalizedQuery.text.trim()
 			: normalizedQuery.text.trim().toLowerCase();
 		const kinds = new Set(normalizedQuery.kinds);
-		return this.buildIndex(snapshot).results
+		return index.results
 			.filter(result => matchesScope(result, normalizedQuery.scope))
 			.filter(result => kinds.has(result.kind))
 			.filter(result => !text || matchesText(result, text, normalizedQuery.caseSensitive))
@@ -104,37 +113,10 @@ export class SearchService extends Disposable implements ISearchServiceType {
 	}
 
 	public resolveResultTarget(result: SearchResult): SearchNavigationTarget | null {
-		if (result.sourceRange) {
+		if (result.resourceRange) {
 			return {
-				kind: "rawTableRange",
-				range: result.sourceRange,
-			};
-		}
-		if (result.curveKey && result.fileId) {
-			return {
-				curveKey: result.curveKey,
-				fileId: result.fileId,
-				kind: "curve",
-			};
-		}
-		if (result.metricKey && result.fileId) {
-			return {
-				fileId: result.fileId,
-				kind: "metric",
-				metricKey: result.metricKey,
-			};
-		}
-		if (result.measurementBlockId && result.fileId) {
-			return {
-				fileId: result.fileId,
-				kind: "block",
-				measurementBlockId: result.measurementBlockId,
-			};
-		}
-		if (result.fileId) {
-			return {
-				fileId: result.fileId,
-				kind: "file",
+				kind: "tableResourceRange",
+				range: result.resourceRange,
 			};
 		}
 		return null;
@@ -298,10 +280,9 @@ const normalizeSearchInterpolationMode = (value: unknown): SearchInterpolationMo
 const normalizeSearchScope = (scope: SearchScope): SearchScope =>
 	scope === "all" ||
 	scope === "table" ||
-	scope === "block" ||
-	scope === "metric"
+	scope === "block"
 		? scope
-		: "curve";
+		: defaultSearchQuery.scope;
 
 const normalizeSearchResultKinds = (
 	kinds: readonly SearchResultKind[],
@@ -312,9 +293,6 @@ const normalizeSearchResultKinds = (
 		"group",
 		"block",
 		"column",
-		"curve",
-		"metric",
-		"parameter",
 	]);
 	const result: SearchResultKind[] = [];
 	const seen = new Set<SearchResultKind>();
@@ -345,10 +323,7 @@ const matchesScope = (
 	if (scope === "block") {
 		return result.kind === "block" || result.kind === "group";
 	}
-	if (scope === "metric") {
-		return result.kind === "metric" || result.kind === "parameter";
-	}
-	return result.kind === "curve";
+	return true;
 };
 
 const matchesText = (
@@ -359,11 +334,11 @@ const matchesText = (
 	const haystack = [
 		result.title,
 		result.preview,
-		result.fileId,
-		result.rawTableId,
+		result.resource?.toString(),
+		result.sheetId,
+		result.resourceRange?.resource.toString(),
+		result.resourceRange?.sheetId,
 		result.measurementBlockId,
-		result.curveKey,
-		result.metricKey,
 		result.groupId,
 	].join("\n");
 	const candidate = caseSensitive ? haystack : haystack.toLowerCase();

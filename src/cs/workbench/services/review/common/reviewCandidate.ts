@@ -9,6 +9,7 @@ import type {
 	ReviewCandidate,
 	ReviewCandidateAxisBinding,
 	ReviewCandidateBlock,
+	ReviewCandidateColumnRange,
 	ReviewCandidateDiagnostic,
 	ReviewCandidateInterpretation,
 	ReviewCandidateRowRange,
@@ -225,10 +226,10 @@ const createUserTemplateReviewCandidate = ({
 		if (!isRowRangeInBounds(block.rowRange, rowCount)) {
 			diagnostics.add("userTemplate.rowRangeOutOfBounds");
 		}
-		if (!isAxisInBounds(block.x, columnCount)) {
+		if (!isAxisInBounds(block.x, columnCount, rowCount)) {
 			diagnostics.add("userTemplate.xAxisOutOfBounds");
 		}
-		if (!isAxisInBounds(block.y, columnCount)) {
+		if (!isAxisInBounds(block.y, columnCount, rowCount)) {
 			diagnostics.add("userTemplate.yAxisOutOfBounds");
 		}
 	}
@@ -410,14 +411,18 @@ const createCandidateBlock = (
 	block: MeasurementBlockRecord,
 	evidence: ReviewContext["evidence"],
 ): ReviewCandidateBlock | null => {
-	const x = createAxisBinding(recipe, "x", match, evidence);
-	const y = createAxisBinding(recipe, "y", match, evidence);
+	const x = createAxisBinding(recipe, "x", match, block, evidence);
+	const y = createAxisBinding(recipe, "y", match, block, evidence);
 	if (!x || !y) {
+		return null;
+	}
+	const rowRange = getCandidateBlockDataRowRange([x, y]);
+	if (!rowRange) {
 		return null;
 	}
 
 	return {
-		rowRange: getBlockDataRowRange(block),
+		rowRange,
 		x,
 		y,
 		segmentation: createCandidateSegmentation(recipe.logicalRelation),
@@ -429,16 +434,12 @@ const createAxisBinding = (
 	recipe: Recipe,
 	axis: "x" | "y",
 	match: ReviewSelectorBlockMatch,
+	block: MeasurementBlockRecord,
 	evidence: ReviewContext["evidence"],
 ): ReviewCandidateAxisBinding | null => {
 	if (usesLayoutBindingColumns(recipe)) {
 		const columns = readLayoutBindingColumns(evidence, recipe, axis);
-		return columns.length
-			? {
-				columns,
-				unit: readCaptureUnit(match, axis) ?? undefined,
-			}
-			: null;
+		return createAxisBindingFromColumns(columns, readCaptureUnit(match, axis), block);
 	}
 
 	const capture = readColumnsCapture(match.captures[axis]);
@@ -446,9 +447,27 @@ const createAxisBinding = (
 		return null;
 	}
 
+	return createAxisBindingFromColumns(capture.columns, capture.unit, block);
+};
+
+const createAxisBindingFromColumns = (
+	columns: readonly number[],
+	unit: string | null | undefined,
+	block: MeasurementBlockRecord,
+): ReviewCandidateAxisBinding | null => {
+	if (!columns.length) {
+		return null;
+	}
+
+	const ranges = getColumnDataRanges(block, columns);
+	if (ranges.length !== columns.length) {
+		return null;
+	}
+
 	return {
-		columns: capture.columns,
-		unit: capture.unit ?? undefined,
+		columns,
+		ranges,
+		...(unit ? { unit } : {}),
 	};
 };
 
@@ -543,14 +562,48 @@ const getMatchedBlock = (
 		? evidence.structuredContent?.blocks.find(block => block.id === match.blockId) ?? null
 		: evidence.structuredContent?.blocks[0] ?? null;
 
-const getBlockDataRowRange = (
-	block: MeasurementBlockRecord,
-): ReviewCandidateRowRange => {
-	const sourceRange = block.source.dataRange ?? block.source.fullRange;
+const getCandidateBlockDataRowRange = (
+	axes: readonly ReviewCandidateAxisBinding[],
+): ReviewCandidateRowRange | null => {
+	const ranges = axes.flatMap(axis => axis.ranges ?? []);
+	if (!ranges.length) {
+		return null;
+	}
+
 	return {
-		startRow: sourceRange.startRow,
-		endRow: sourceRange.endRow,
+		startRow: Math.min(...ranges.map(range => range.startRow)),
+		endRow: getMaxColumnRangeEndRow(ranges),
 	};
+};
+
+const getColumnDataRanges = (
+	block: MeasurementBlockRecord,
+	columns: readonly number[],
+): readonly ReviewCandidateColumnRange[] => {
+	const ranges: ReviewCandidateColumnRange[] = [];
+	for (const column of columns) {
+		const range = block.columns.columns.find(candidate => candidate.rawCol === column)?.dataRange;
+		if (!range) {
+			continue;
+		}
+		ranges.push({
+			column,
+			startRow: range.startRow,
+			endRow: range.endRow,
+		});
+	}
+	return ranges;
+};
+
+const getMaxColumnRangeEndRow = (
+	ranges: readonly ReviewCandidateColumnRange[],
+): ReviewCandidateRowRange["endRow"] => {
+	const finiteRows = ranges
+		.map(range => range.endRow)
+		.filter((endRow): endRow is number => typeof endRow === "number");
+	return finiteRows.length === ranges.length
+		? Math.max(...finiteRows)
+		: "end";
 };
 
 const getRecipeCandidateConfidence = (
@@ -599,11 +652,16 @@ const isRowRangeInBounds = (
 const isAxisInBounds = (
 	axis: ReviewCandidateAxisBinding,
 	columnCount: number,
+	rowCount: number,
 ): boolean =>
 	axis.columns.length > 0 &&
 	axis.columns.every(column => isColumnInBounds(column, columnCount)) &&
 	(axis.ranges ?? []).every(range =>
-		isColumnInBounds(range.column, columnCount)
+		isColumnInBounds(range.column, columnCount) &&
+		isRowRangeInBounds({
+			startRow: range.startRow,
+			endRow: range.endRow,
+		}, rowCount)
 	);
 
 const isColumnInBounds = (

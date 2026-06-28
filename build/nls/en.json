@@ -165,6 +165,7 @@
   "files.reviewMissing.reason": "No Review result is cached for this file.",
   "files.reviewState.error": "Error",
   "files.reviewState.invalid": "Invalid",
+  "files.reviewState.missing": "Not reviewed",
   "files.reviewState.needsAdjustment": "Needs adjustment",
   "files.reviewState.pending": "Pending",
   "files.reviewState.ready": "Ready",

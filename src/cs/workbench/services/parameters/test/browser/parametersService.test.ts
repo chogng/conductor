@@ -5,25 +5,23 @@
 import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import { createCalculatedMetricRecordsByFile } from "src/cs/workbench/services/calculation/common/calculationMetricRecordBuilder";
 import { ParametersService } from "src/cs/workbench/services/parameters/browser/parametersService";
 import type { ParametersViewState } from "src/cs/workbench/services/parameters/common/parameterModel";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import type { FileRecord, MetricKey } from "src/cs/workbench/services/session/common/sessionModel";
 
 suite("workbench/services/parameters/test/browser/parametersService", () => {
-  const store = ensureNoDisposablesAreLeakedInTestSuite();
+  parametersTestStore = ensureNoDisposablesAreLeakedInTestSuite();
 
   test("publishes parameter view state from the service", () => {
-    const service = store.add(new ParametersService());
+    const service = createParametersService();
     const viewStates: ParametersViewState[] = [];
-    const disposable = store.add(service.onDidChangeParametersViewState(state => {
+    const disposable = parametersTestStore.add(service.onDidChangeParametersViewState(state => {
       viewStates.push(state);
     }));
 
     const viewState = service.updateViewState({
       fileId: null,
-      snapshot: createEmptySnapshot(),
     });
 
     assert.deepEqual(viewState, {
@@ -38,20 +36,18 @@ suite("workbench/services/parameters/test/browser/parametersService", () => {
   });
 
   test("does not publish unchanged parameter view state input", () => {
-    const service = store.add(new ParametersService());
+    const fileRecord = createParametersFileRecord();
+    const service = createParametersService(createSnapshot([fileRecord]));
     const viewStates: ParametersViewState[] = [];
-    const snapshot = createProcessedSnapshot();
-    const disposable = store.add(service.onDidChangeParametersViewState(state => {
+    const disposable = parametersTestStore.add(service.onDidChangeParametersViewState(state => {
       viewStates.push(state);
     }));
 
     const firstViewState = service.updateViewState({
       fileId: "file-a",
-      snapshot,
     });
     const secondViewState = service.updateViewState({
       fileId: "file-a",
-      snapshot,
     });
 
     assert.equal(secondViewState, firstViewState);
@@ -61,17 +57,65 @@ suite("workbench/services/parameters/test/browser/parametersService", () => {
     service.dispose();
   });
 
-  test("requires caller-owned file selection for parameter view state", () => {
-    const service = store.add(new ParametersService());
-    const snapshot = createProcessedSnapshot();
+  test("publishes selected file again when Session version changes", () => {
+    const fileRecord = createParametersFileRecord();
+    let snapshot = createSnapshot([fileRecord], 1);
+    const service = createParametersService(() => snapshot);
+    const viewStates: ParametersViewState[] = [];
+    const disposable = parametersTestStore.add(service.onDidChangeParametersViewState(state => {
+      viewStates.push(state);
+    }));
+
+    const firstViewState = service.updateViewState({
+      fileId: "file-a",
+    });
+    snapshot = createSnapshot([fileRecord], 2);
+    const secondViewState = service.updateViewState({
+      fileId: "file-a",
+    });
+
+    assert.notEqual(secondViewState, firstViewState);
+    assert.deepEqual(viewStates, [firstViewState, secondViewState]);
+
+    disposable.dispose();
+    service.dispose();
+  });
+
+  test("does not publish empty selection again when only Session version changes", () => {
+    let snapshot = createEmptySnapshot();
+    const service = createParametersService(() => snapshot);
+    const viewStates: ParametersViewState[] = [];
+    const disposable = parametersTestStore.add(service.onDidChangeParametersViewState(state => {
+      viewStates.push(state);
+    }));
+
+    const firstViewState = service.updateViewState({
+      fileId: null,
+    });
+    snapshot = {
+      ...snapshot,
+      sessionVersion: snapshot.sessionVersion + 1,
+    };
+    const secondViewState = service.updateViewState({
+      fileId: null,
+    });
+
+    assert.equal(secondViewState, firstViewState);
+    assert.deepEqual(viewStates, [firstViewState]);
+
+    disposable.dispose();
+    service.dispose();
+  });
+
+  test("resolves selected file record from Session for parameter view state", () => {
+    const fileRecord = createParametersFileRecord();
+    const service = createParametersService(createSnapshot([fileRecord]));
 
     const missingSelection = service.createViewState({
       fileId: null,
-      snapshot,
     });
     const selectedFile = service.createViewState({
       fileId: "file-a",
-      snapshot,
     });
 
     assert.deepEqual(missingSelection, {
@@ -85,6 +129,21 @@ suite("workbench/services/parameters/test/browser/parametersService", () => {
     }
   });
 });
+
+const createParametersService = (
+  snapshotOrFactory: SessionSnapshot | (() => SessionSnapshot) = createEmptySnapshot(),
+): ParametersService => {
+  const getSnapshot = typeof snapshotOrFactory === "function"
+    ? snapshotOrFactory
+    : () => snapshotOrFactory;
+  const service = new ParametersService(createSessionServiceStub(getSnapshot));
+  parametersTestStore.add(service);
+  return service;
+};
+
+const createSessionServiceStub = (getSnapshot: () => SessionSnapshot): ISessionService => ({
+  getSnapshot,
+} as ISessionService);
 
 const createEmptySnapshot = (): SessionSnapshot => ({
   fileOrder: [],
@@ -112,6 +171,10 @@ const createProcessedSnapshot = (): SessionSnapshot => {
     {},
   );
 
+const createParametersFileRecord = (): ParametersFileRecord & { readonly id: string } => {
+  const seriesId = "series-1";
+  const curveKey = "base:iv:transfer:series-1";
+  const metricKey = "current:series-1:base";
   return {
     ...createEmptySnapshot(),
     fileOrder,
@@ -122,6 +185,26 @@ const createProcessedSnapshot = (): SessionSnapshot => {
         metricsBySeriesId,
       },
     },
+    metricsByKey: {
+      [metricKey]: {
+        metricFamily: "current",
+        seriesId,
+        value: {
+          ion: 1e-6,
+          ioff: 1e-12,
+          ionIoff: 1e6,
+        },
+      },
+    },
+    metricsBySeriesId: {
+      [seriesId]: [metricKey],
+    },
+    seriesById: {
+      [seriesId]: {
+        legendValue: "Vg = 0.1 V",
+      },
+    },
+    seriesOrder: [seriesId],
   };
 };
 

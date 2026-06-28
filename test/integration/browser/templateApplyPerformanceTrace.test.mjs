@@ -276,7 +276,7 @@ const main = async () => {
     console.log(`[template-apply-performance-trace] fixture=${fixtureRoot}`);
     console.log(`[template-apply-performance-trace] profile=${fixture.profile} composition=${JSON.stringify(fixture.composition)}`);
     console.log("[template-apply-performance-trace] Click Open Folder in the app and select the fixture directory.");
-    console.log("[template-apply-performance-trace] Waiting for all tableFacts badges...");
+    console.log("[template-apply-performance-trace] Waiting for all review decorations...");
     if (options.autoFolder) {
       assert.equal(options.runtime, "desktop", "--auto-folder is currently supported for desktop runtime");
       await phaseRecorder.mark("import.dispatch.start", {
@@ -308,13 +308,13 @@ const main = async () => {
       });
     }
     const finalState = await waitForTraceCompletion({
-      expectedTableFactsBadgeCount: fixture.expectedTableFactsBadgeCount,
+      expectedReviewDecorationCount: fixture.expectedReviewDecorationCount,
       expectedPrepareCompletionCount: fixture.expectedPrepareCompletionCount,
       page: runtime.page,
       timeoutMs: options.timeoutMs,
     });
     await phaseRecorder.mark("import.ready", {
-      tableFactsBadgeCount: finalState.dom?.tableFacts ?? null,
+      reviewDecorationCount: finalState.dom?.reviewDecorationCount ?? null,
       prepareCompletionCount: fixture.expectedPrepareCompletionCount,
     });
     let modeSwitch = null;
@@ -613,7 +613,7 @@ const main = async () => {
     const performanceTraceReport = await readPerformanceTraceReport(runtime.page);
     const reportTraceState = await readTraceState(runtime.page).catch(() => finalState);
     const milestones = summarizeMilestones(finalState.events, {
-      expectedTableFactsBadgeCount: fixture.expectedTableFactsBadgeCount,
+      expectedReviewDecorationCount: fixture.expectedReviewDecorationCount,
       expectedPrepareCompletionCount: fixture.expectedPrepareCompletionCount,
     });
     const thumbnailHoverSummary = summarizeThumbnailHoverStress(thumbnailHover, analysisPerfReport);

@@ -260,6 +260,7 @@ const evaluateRole = (
 ): PredicateResult => {
 	const matchedColumns = getColumnsForBlock(context.block)
 		.filter(column =>
+			column.dataRange &&
 			role.roleAny.includes(column.role) &&
 			(!role.canonicalUnit || normalizeUnit(column.unit) === role.canonicalUnit) &&
 			meetsMinConfidence(column.confidence, role.minConfidence)

@@ -5,15 +5,15 @@
 import assert from "assert";
 
 import { Emitter, Event } from "src/cs/base/common/event";
+import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import type { DataResourceStructuredContentSnapshot } from "src/cs/workbench/services/dataResource/common/dataResource";
 import { createSearchPointLookupModelFromPlotDisplay } from "src/cs/workbench/services/search/browser/searchModel";
 import { SearchService } from "src/cs/workbench/services/search/browser/searchService";
 import type { SearchPointLookupModel, SearchState } from "src/cs/workbench/services/search/common/search";
 import type { IChartService } from "src/cs/workbench/services/chart/common/chart";
 import type { IPlotService, PlotDisplayModel, PlotDisplayModelInput, PlotLegendModel } from "src/cs/workbench/services/plot/common/plot";
 import type { PlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotModel";
-import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
-import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
 
 suite("workbench/services/search/test/browser/searchService", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -27,8 +27,8 @@ suite("workbench/services/search/test/browser/searchService", () => {
 
 		service.setQueryText("1.25");
 		service.updateQuery({
-			scope: "metric",
-			kinds: ["metric", "curve", "metric"],
+			scope: "block",
+			kinds: ["block", "column", "block"],
 			caseSensitive: true,
 		});
 		service.setSelectedResultId(" result-a ");
@@ -36,8 +36,8 @@ suite("workbench/services/search/test/browser/searchService", () => {
 		assert.deepEqual(service.getState(), {
 			query: {
 				text: "1.25",
-				scope: "metric",
-				kinds: ["metric", "curve"],
+				scope: "block",
+				kinds: ["block", "column"],
 				caseSensitive: true,
 				interpolationMode: "linear",
 			},
@@ -55,8 +55,8 @@ suite("workbench/services/search/test/browser/searchService", () => {
 
 		service.setQuery({
 			text: "",
-			scope: "curve",
-			kinds: ["curve"],
+			scope: "all",
+			kinds: ["rawCell", "rawTable", "column", "group", "block"],
 			caseSensitive: false,
 			interpolationMode: "linear",
 		});
@@ -163,34 +163,35 @@ suite("workbench/services/search/test/browser/searchService", () => {
 		assert.equal(service.searchPointsAtText(model, "not-a-number"), null);
 	});
 
-	test("indexes session snapshot records and resolves navigation targets", () => {
+	test("indexes URI structured content records and resolves resource navigation targets", () => {
 		const service = store.add(createSearchServiceForTest());
-		const results = service.searchSnapshot(createSnapshot(), {
-			kinds: ["rawCell", "curve", "metric"],
+		const resource = URI.file("/workspace/data/data.csv");
+		const results = service.searchStructuredContent(createStructuredContentSnapshot(resource), {
+			kinds: ["rawCell", "column", "group", "block"],
 			scope: "all",
 			text: "Alpha",
 		});
 
 		assert.deepEqual(
 			results.map(result => result.kind),
-			["curve", "metric", "rawCell"],
+			["block", "group", "column", "rawCell"],
 		);
 		const rawCell = results.find(result => result.kind === "rawCell");
-		assert.deepEqual(service.resolveResultTarget(rawCell!), {
-			kind: "rawTableRange",
-			range: {
-				columnEnd: 0,
-				columnStart: 0,
-				fileId: "file-a",
-				rawTableId: "sheet-a",
-				rowEnd: 0,
-				rowStart: 0,
-			},
-		});
-		assert.deepEqual(service.resolveResultTarget(results[0]), {
-			curveKey: "base:iv:transfer:series-a",
-			fileId: "file-a",
-			kind: "curve",
+		const target = service.resolveResultTarget(rawCell!);
+		assert.equal(target?.kind, "tableResourceRange");
+		assert.equal(target?.kind === "tableResourceRange" ? target.range.resource.toString() : "", "file:///workspace/data/data.csv");
+		assert.deepEqual(target?.kind === "tableResourceRange" ? {
+			columnEnd: target.range.columnEnd,
+			columnStart: target.range.columnStart,
+			rowEnd: target.range.rowEnd,
+			rowStart: target.range.rowStart,
+			sheetId: target.range.sheetId,
+		} : null, {
+			columnEnd: 0,
+			columnStart: 0,
+			rowEnd: 0,
+			rowStart: 0,
+			sheetId: "Sheet 1",
 		});
 	});
 });
@@ -411,91 +412,80 @@ const createPlotServiceForPointLookupTest = ({
 	prefetchPlotDisplayModel: () => undefined,
 } as unknown as IPlotService);
 
-const createSnapshot = (): SessionSnapshot => ({
-	fileOrder: ["file-a"],
-	filesById: {
-		"file-a": createFileRecord(),
+const createStructuredContentSnapshot = (
+	resource: URI,
+): DataResourceStructuredContentSnapshot => ({
+	columnCount: 2,
+	content: {
+		columnCount: 2,
+		maxCellLengths: [10, 4],
+		rowCount: 2,
+		rows: [
+			["Alpha cell", "1"],
+			["Beta", "2"],
+		],
 	},
-	schemaVersion: 1,
-	sessionVersion: 1,
-});
-
-const createFileRecord = (): FileRecord => ({
-	curvesByKey: {
-		"base:iv:transfer:series-a": {
-			curveFamily: "iv",
-			curveGeneration: "base",
-			fileId: "file-a",
+	contentHash: "content-alpha",
+	fileName: "alpha.csv",
+	resource,
+	rowCount: 2,
+	sheetId: "Sheet 1",
+	sourceModelVersion: 3,
+	sourceUri: resource.toString(),
+	sourceVersion: 2,
+	structuredContent: {
+		blocks: [{
+			columnCount: 2,
+			columns: {
+				columns: [],
+			},
+			confidence: 0.9,
+			diagnosticCodes: [],
+			family: "iv",
+			fileId: resource.toString(),
+			groupId: "group-a",
+			id: "block-a",
 			ivMode: "transfer",
-			lineage: {
-				baseFamily: "iv",
-				baseSeries: {
-					fileId: "file-a",
-					seriesId: "series-a",
+			label: "Alpha block",
+			rawTableId: "Sheet 1",
+			rowCount: 2,
+			source: {
+				dataRange: {
+					endCol: 1,
+					endRow: 1,
+					startCol: 0,
+					startRow: 0,
 				},
-				curveGeneration: "base",
-				ivMode: "transfer",
-			},
-			points: [{ x: 0, y: 1 }],
-			seriesId: "series-a",
-			signature: "curve-a",
-		},
-	},
-	id: "file-a",
-	kind: "unknown",
-	metricsByKey: {
-		"current:series-a:auto": {
-			algorithm: { id: "test" },
-			contextKey: "auto",
-			fileId: "file-a",
-			inputCurves: [],
-			inputSignatures: [],
-			key: "current:series-a:auto",
-			metricFamily: "current",
-			seriesId: "series-a",
-			value: {
-				candidateWindows: [],
-				ioff: null,
-				ioffWindow: null,
-				ion: 1,
-				ionIoff: null,
-				ionWindow: null,
-				method: "auto",
-				xAtIoff: null,
-				xAtIon: 0,
-			},
-		},
-	},
-	name: "alpha.csv",
-	raw: {
-		fileId: "file-a",
-		fileName: "alpha.csv",
-		tableOrder: ["sheet-a"],
-		tablesById: {
-			"sheet-a": {
-				columnCount: 2,
-				fileId: "file-a",
-				maxCellLengths: [5, 1],
-				rowCount: 1,
-				rowStore: {
-					kind: "memory",
-					rows: [["Alpha cell", 1]],
+				fullRange: {
+					endCol: 1,
+					endRow: 1,
+					startCol: 0,
+					startRow: 0,
 				},
-				sheetId: "sheet-a",
-				sheetName: "Data",
-				tableKey: "sheet-a",
 			},
+		}],
+		columnProfiles: [{
+			headerText: "Alpha voltage",
+			kind: "numeric",
+			normalizedHeader: "alpha voltage",
+			rawCol: 0,
+		}],
+		diagnostics: [],
+		groups: [{
+			blockIds: ["block-a"],
+			fileId: resource.toString(),
+			id: "group-a",
+			label: "Alpha group",
+			rawTableId: "Sheet 1",
+		}],
+		layoutCandidates: [],
+		semanticCandidates: [],
+		structure: {
+			blockRegions: [],
+			dataRegions: [],
+			fingerprint: "structured-alpha",
+			headerRows: [],
+			unitRows: [],
 		},
 	},
-	rawTableVersionsById: {},
-	seriesById: {
-		"series-a": {
-			fileId: "file-a",
-			groupIndex: 0,
-			id: "series-a",
-			name: "Alpha series",
-			y: [1],
-		},
-	},
-	seriesOrder: ["series-a"],
 });

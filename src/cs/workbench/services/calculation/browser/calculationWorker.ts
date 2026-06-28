@@ -5,17 +5,41 @@
 import {
   createCalculatedRecordsByFile,
 } from "src/cs/workbench/services/calculation/common/calculationRecordBuilder";
+import type { CalculationFileId } from "src/cs/workbench/services/calculation/common/calculation";
+import type { SliceRun } from "src/cs/workbench/services/slice/common/slice";
 import type {
   CurveRecord,
-  FileId,
-  FileRecord,
+  MetricInputRecord,
   MetricRecord,
+  SeriesRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
+
+type CalculationWorkerFileKind = "csv" | "excel" | "unknown";
+
+export type CalculationWorkerFile = {
+  readonly curvesByKey: Record<string, CurveRecord>;
+  readonly id: CalculationFileId;
+  readonly kind: CalculationWorkerFileKind;
+  readonly latestSliceRunId?: string;
+  readonly metricInputsByKey?: Record<string, MetricInputRecord>;
+  readonly metricsByKey: Record<string, MetricRecord>;
+  readonly name: string;
+  readonly raw: {
+    readonly fileId: CalculationFileId;
+    readonly fileName: string;
+    readonly tableOrder: string[];
+    readonly tablesById: Record<string, never>;
+  };
+  readonly rawTableVersionsById: Record<string, number>;
+  readonly seriesById: Record<string, SeriesRecord>;
+  readonly seriesOrder: string[];
+  readonly sliceRunsById?: Record<string, SliceRun>;
+};
 
 export type CalculationRecordsWorkerRequest = {
   readonly payload?: {
-    readonly file?: FileRecord;
-    readonly fileId?: FileId;
+    readonly file?: CalculationWorkerFile;
+    readonly fileId?: CalculationFileId;
     readonly requestId?: number;
     readonly sessionVersion?: number;
   };
@@ -25,7 +49,7 @@ export type CalculationRecordsWorkerRequest = {
 export type CalculationRecordsWorkerResult = {
   readonly payload: {
     readonly curves: readonly CurveRecord[];
-    readonly fileId: FileId;
+    readonly fileId: CalculationFileId;
     readonly metrics: readonly MetricRecord[];
     readonly requestId: number;
     readonly sessionVersion: number;
@@ -35,7 +59,7 @@ export type CalculationRecordsWorkerResult = {
 
 export type CalculationRecordsWorkerError = {
   readonly payload: {
-    readonly fileId: FileId | null;
+    readonly fileId: CalculationFileId | null;
     readonly message: string;
     readonly requestId: number;
     readonly sessionVersion: number;
@@ -80,7 +104,7 @@ self.onmessage = (event: MessageEvent<CalculationRecordsWorkerRequest>): void =>
   const payload = message.payload;
   try {
     const file = payload?.file;
-    const fileId = String(payload?.fileId ?? file?.id ?? "").trim() as FileId;
+    const fileId = String(payload?.fileId ?? file?.id ?? "").trim();
     if (!file || !fileId) {
       throw new Error("Calculation worker request is missing file.");
     }

@@ -13,15 +13,16 @@ import {
 } from "src/cs/workbench/services/plot/common/plot";
 import { createPlotDisplayModelFromCalculatedData } from "src/cs/workbench/services/plot/browser/plotDisplayModel";
 import type {
-  FileId,
-  FileRecord,
+  CurveRecord,
+  MetricRecord,
+  SeriesRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import { hasFileRecordBaseCurves } from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
 
 export type PlotCalculatedDataWorkerRequest = {
   readonly payload?: {
-    readonly file?: FileRecord;
-    readonly fileId?: FileId;
+    readonly file?: PlotWorkerFile;
+    readonly fileId?: PlotFileId;
     readonly plotType?: PlotType;
     readonly requestId?: number;
     readonly sessionVersion?: number;
@@ -34,7 +35,7 @@ export type PlotDisplayModelWorkerRequest = {
     readonly axisSettings?: PlotFileAxisSettings;
     readonly axisTitleOverridesByKey?: Readonly<Record<string, string>>;
     readonly calculatedData?: CalculatedData | null;
-    readonly fileId?: FileId;
+    readonly fileId?: PlotFileId;
     readonly hiddenLegendKeys?: readonly string[];
     readonly includeInspector?: boolean;
     readonly legendLabels?: Readonly<Record<string, string>>;
@@ -52,7 +53,7 @@ export type PlotWorkerRequest =
 export type PlotCalculatedDataWorkerResult = {
   readonly payload: {
     readonly calculatedData: CalculatedData | null;
-    readonly fileId: FileId;
+    readonly fileId: PlotFileId;
     readonly plotType: PlotType;
     readonly requestId: number;
     readonly sessionVersion: number;
@@ -63,7 +64,7 @@ export type PlotCalculatedDataWorkerResult = {
 export type PlotDisplayModelWorkerResult = {
   readonly payload: {
     readonly displayModel: PlotDisplayModel | null;
-    readonly fileId: FileId;
+    readonly fileId: PlotFileId;
     readonly plotType: PlotType;
     readonly requestId: number;
     readonly sessionVersion: number;
@@ -73,7 +74,7 @@ export type PlotDisplayModelWorkerResult = {
 
 export type PlotCalculatedDataWorkerError = {
   readonly payload: {
-    readonly fileId: FileId | null;
+    readonly fileId: PlotFileId | null;
     readonly message: string;
     readonly plotType: PlotType | null;
     readonly requestId: number;
@@ -175,3 +176,6 @@ self.onmessage = (event: MessageEvent<PlotWorkerRequest>): void => {
     postError(payload, error);
   }
 };
+
+const hasPlotWorkerBaseCurves = (file: PlotWorkerFile): boolean =>
+  Object.values(file.curvesByKey).some(curve => curve.curveGeneration === "base");

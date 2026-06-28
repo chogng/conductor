@@ -154,7 +154,6 @@ suite("workbench/services/export/browser/exportService", () => {
 
 		const viewState = service.updateViewState({
 			activeFileId: null,
-			snapshot: createEmptySnapshot(),
 		});
 
 		assert.deepEqual(viewState, {
@@ -186,10 +185,31 @@ suite("workbench/services/export/browser/exportService", () => {
 
 		const viewState = service.updateViewState({
 			activeFileId: "file-a",
-			snapshot,
 		});
 
 		assert.deepEqual(viewState.curveOptions.map(option => option.label), ["Plot Label"]);
+		service.dispose();
+	});
+
+	test("merges Plot axis settings with Session export files inside Export", () => {
+		const files = [
+			createFileRecord("file-a", "transfer"),
+			createFileRecord("file-b", "output"),
+		];
+		const snapshot = createSnapshot(files);
+		const service = createExportService(snapshot, {}, {
+			xUnitByFileId: {},
+			yScaleByFileId: { "file-b": "log" },
+			yUnitByFileId: {},
+		});
+
+		service.setCanvasScope("all");
+		const viewState = service.updateViewState({
+			activeFileId: "file-a",
+		});
+
+		assert.deepEqual(viewState.scopedFileIds, ["file-a", "file-b"]);
+		assert.equal(viewState.hasMixedExportYScales, true);
 		service.dispose();
 	});
 });
@@ -197,12 +217,13 @@ suite("workbench/services/export/browser/exportService", () => {
 const createExportService = (
 	snapshot: SessionSnapshot = createEmptySnapshot(),
 	legendLabelsByFileId: Readonly<Record<string, Readonly<Record<string, string>>>> = {},
+	axisSettings: PlotFileAxisSettings = createEmptyAxisSettings(),
 ): BrowserExportService => {
 	const notificationService = exportTestStore.add(new NotificationService());
 	const service = new BrowserExportService(
 		createSessionServiceStub(snapshot),
 		createSettingsServiceStub(),
-		createPlotServiceStub(legendLabelsByFileId),
+		createPlotServiceStub(legendLabelsByFileId, axisSettings),
 		notificationService,
 	);
 	exportTestStore.add(service);
@@ -219,6 +240,7 @@ const createSettingsServiceStub = (): ISettingsService => ({
 
 const createPlotServiceStub = (
 	legendLabelsByFileId: Readonly<Record<string, Readonly<Record<string, string>>>>,
+	axisSettings: PlotFileAxisSettings,
 ): IPlotService => ({
 	getCachedCalculatedData: () => null,
 	getAxisSettings: () => ({
@@ -227,8 +249,14 @@ const createPlotServiceStub = (
 		yUnitByFileId: {},
 	}),
 	getLegendLabels: (fileId: string) => legendLabelsByFileId[fileId] ?? {},
-		onDidChangeCalculatedDataCache: BaseEvent.None,
+	onDidChangeCalculatedDataCache: BaseEvent.None,
 } as unknown as IPlotService);
+
+const createEmptyAxisSettings = (): PlotFileAxisSettings => ({
+	xUnitByFileId: {},
+	yScaleByFileId: {},
+	yUnitByFileId: {},
+});
 
 const createEmptySnapshot = (): SessionSnapshot => ({
 	fileOrder: [],

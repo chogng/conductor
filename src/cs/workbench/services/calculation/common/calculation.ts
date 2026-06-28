@@ -3,16 +3,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type { FileId } from "src/cs/workbench/services/session/common/sessionModel";
 
 export const ICalculationService = createDecorator<ICalculationService>("calculationService");
 export const CalculationContributionId = "workbench.services.calculation";
 
+export type CalculationFileId = string;
+
 export interface ICalculationService {
 	readonly _serviceBrand: undefined;
 
-	prioritizeCalculationFile(fileId: FileId | null | undefined): void;
-	prioritizeCalculationFiles(fileIds: readonly (FileId | null | undefined)[]): void;
+	prioritizeCalculationFile(fileId: CalculationFileId | null | undefined): void;
+	prioritizeCalculationFiles(fileIds: readonly (CalculationFileId | null | undefined)[]): void;
 }
 
 export type {

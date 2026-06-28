@@ -201,14 +201,21 @@ const createStructuredContentEvidence = (
 	try {
 		const rows = getStructuredContentRows(content);
 		const headerRowIndex = getStructuredContentHeaderRowIndex(rows);
-		const dataStartRow = getStructuredContentDataStartRow(content, headerRowIndex);
+		const dataStartRow = getStructuredContentDataStartRow(content, rows, headerRowIndex);
 		const dataRange = createStructuredContentDataRange(content, dataStartRow);
+		const columnDataRanges = createStructuredColumnDataRanges({
+			columnCount: content.columnCount,
+			content,
+			dataStartRow,
+			rows,
+		});
 		const columnKinds = getStructuredColumnKinds({
 			columnCount: content.columnCount,
 			dataStartRow,
 			rows,
 		});
 		const columns = createStructuredColumnProjections({
+			columnDataRanges,
 			columnKinds,
 			content,
 			headerRowIndex,
@@ -302,11 +309,13 @@ const createStructuredContentStructure = ({
 };
 
 const createStructuredColumnProjections = ({
+	columnDataRanges,
 	columnKinds,
 	content,
 	headerRowIndex,
 	rows,
 }: {
+	readonly columnDataRanges: readonly (StructuredContentSourceRange | null)[];
 	readonly columnKinds: readonly ColumnProfile["kind"][];
 	readonly content: TableModelContentSnapshot;
 	readonly headerRowIndex: number | null;
@@ -318,6 +327,7 @@ const createStructuredColumnProjections = ({
 		const normalizedHeader = normalizeHeaderText(headerText);
 		const roleInference = inferMeasurementColumnRole(headerText);
 		const kind = columnKinds[column] ?? "empty";
+		const columnDataRange = columnDataRanges[column] ?? null;
 		const profile: ColumnProfile = {
 			rawCol: column,
 			headerText,
@@ -331,6 +341,7 @@ const createStructuredColumnProjections = ({
 			headerText,
 			role: roleInference.role,
 			unit: roleInference.unit ?? null,
+			...(columnDataRange ? { dataRange: columnDataRange } : {}),
 			sourceRange,
 			confidence: roleInference.confidence,
 		};
@@ -482,17 +493,38 @@ const createStructuredMeasurementBlock = ({
 const getStructuredContentHeaderRowIndex = (
 	rows: readonly (readonly string[])[],
 ): number | null => {
+	const dataNameRow = rows.findIndex(isStructuredDataNameHeaderRow);
+	if (dataNameRow >= 0) {
+		return dataNameRow;
+	}
+
+	const measuredHeaderRow = rows.findIndex((row, rowIndex) =>
+		hasStructuredHeaderText(row) &&
+		getRowNumericCount(rows[rowIndex + 1] ?? []) >= 2
+	);
+	if (measuredHeaderRow >= 0) {
+		return measuredHeaderRow;
+	}
+
 	const firstNonEmpty = rows.findIndex(row => row.some(cell => normalizeText(cell)));
 	return firstNonEmpty >= 0 ? firstNonEmpty : null;
 };
 
 const getStructuredContentDataStartRow = (
 	content: TableModelContentSnapshot,
+	rows: readonly (readonly string[])[],
 	headerRowIndex: number | null,
 ): number => {
 	if (content.rowCount <= 0) {
 		return 0;
 	}
+
+	for (let rowIndex = Math.max(0, (headerRowIndex ?? -1) + 1); rowIndex < rows.length; rowIndex += 1) {
+		if (getRowNumericCount(rows[rowIndex] ?? []) >= 2) {
+			return Math.min(content.rowCount - 1, rowIndex);
+		}
+	}
+
 	return Math.min(content.rowCount - 1, (headerRowIndex ?? -1) + 1);
 };
 
@@ -548,6 +580,39 @@ const getStructuredContentHeaderText = (
 ): string => headerRowIndex !== null
 	? normalizeText(rows[headerRowIndex]?.[column])
 	: `Column ${column + 1}`;
+
+const createStructuredColumnDataRanges = ({
+	columnCount,
+	content,
+	dataStartRow,
+	rows,
+}: {
+	readonly columnCount: number;
+	readonly content: TableModelContentSnapshot;
+	readonly dataStartRow: number;
+	readonly rows: readonly (readonly string[])[];
+}): readonly (StructuredContentSourceRange | null)[] => {
+	const rowLimit = Math.min(content.rowCount, rows.length);
+	return Array.from({ length: columnCount }, (_, column): StructuredContentSourceRange | null => {
+		let startRow: number | null = null;
+		let endRow: number | null = null;
+		for (let rowIndex = dataStartRow; rowIndex < rowLimit; rowIndex += 1) {
+			if (!isFiniteNumberText(normalizeText(rows[rowIndex]?.[column]))) {
+				continue;
+			}
+			startRow ??= rowIndex;
+			endRow = rowIndex;
+		}
+		return startRow !== null && endRow !== null
+			? {
+				startRow,
+				endRow,
+				startCol: column,
+				endCol: column,
+			}
+			: null;
+	});
+};
 
 const getStructuredColumnKinds = ({
 	columnCount,
@@ -690,6 +755,23 @@ const isFiniteNumberText = (
 	const normalized = value.replace(/,/g, "");
 	return normalized !== "" && Number.isFinite(Number(normalized));
 };
+
+const isStructuredDataNameHeaderRow = (
+	row: readonly string[],
+): boolean =>
+	normalizeHeaderText(row[0]) === "dataname" &&
+	hasStructuredHeaderText(row);
+
+const hasStructuredHeaderText = (
+	row: readonly string[],
+): boolean =>
+	row.filter(cell => normalizeText(cell)).length >= 2 &&
+	row.some(cell => inferMeasurementColumnRole(cell).role !== "unknown");
+
+const getRowNumericCount = (
+	row: readonly string[],
+): number =>
+	row.reduce((count, cell) => count + (isFiniteNumberText(normalizeText(cell)) ? 1 : 0), 0);
 
 const getStructuredMeasurementLabel = (
 	measurement: StructuredMeasurementProjection,

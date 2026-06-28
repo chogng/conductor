@@ -1,10 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
-import type {
-  CacheKey,
-  CalculationCacheEntry,
-} from "src/cs/workbench/services/session/common/sessionModel";
 
 import {
   canUseCachedBaseCurrent,
@@ -12,13 +8,22 @@ import {
 } from "./calculationCachePolicy.ts";
 
 // TODO(conductor-architecture): Migration bridge.
-// Prefer canonical FileRecord.calculationCache; keep analysisCache reads only for
-// retired payload compatibility until old session snapshots are removed.
+// Prefer canonical calculationCache; keep analysisCache reads only for retired
+// payload compatibility until old session snapshots are removed.
 export type CachedCalculationSeriesResult = {
   baseCurrent?: unknown;
   gm?: unknown;
   ss?: unknown;
   ssFitAuto?: unknown;
+};
+
+type CalculationCacheKind = "baseCurrent" | "gm" | "localSs" | "ssFitAuto";
+
+type CalculationCacheKey = `${CalculationCacheKind}:${string}`;
+
+type CalculationCacheEntryLike = {
+  kind?: unknown;
+  value?: unknown;
 };
 
 type SeriesLike = {
@@ -34,13 +39,13 @@ const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
 const cacheKey = (
-  kind: CalculationCacheEntry["kind"],
+  kind: CalculationCacheKind,
   seriesId: string,
-): CacheKey => `${kind}:${seriesId}` as CacheKey;
+): CalculationCacheKey => `${kind}:${seriesId}`;
 
 const getCanonicalCacheEntryValue = (
   file: FileLike | null | undefined,
-  kind: CalculationCacheEntry["kind"],
+  kind: CalculationCacheKind,
   seriesId: string,
 ): unknown => {
   const cache = file?.calculationCache;
@@ -49,8 +54,11 @@ const getCanonicalCacheEntryValue = (
   }
 
   const entry = cache.entriesByKey[cacheKey(kind, seriesId)];
-  return isObjectRecord(entry) && entry.kind === kind ? entry.value : undefined;
+  return isCalculationCacheEntryLike(entry) && entry.kind === kind ? entry.value : undefined;
 };
+
+const isCalculationCacheEntryLike = (entry: unknown): entry is CalculationCacheEntryLike =>
+  isObjectRecord(entry);
 
 const getRetiredPayloadCalculationSeriesResult = (
   file: FileLike | null | undefined,

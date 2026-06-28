@@ -4,12 +4,6 @@
 
 import { formatNumber } from "src/cs/workbench/services/calculation/common/numberFormat";
 import { localize } from "src/cs/nls";
-import type {
-  BaseCurveRecord,
-  FileRecord,
-  MetricRecord,
-  SeriesRecord,
-} from "src/cs/workbench/services/session/common/sessionModel";
 
 export type SsConfidence = "high" | "low" | "fail" | string;
 
@@ -34,6 +28,59 @@ export type CalculatedParameterRowData = {
   ssConfidence: SsConfidence;
   xAtSs: number | null;
   jon: number | null;
+};
+
+export type ParametersFileRecord = {
+  readonly id?: string;
+  readonly curvesByKey: Readonly<Record<string, ParametersCurveRecord>>;
+  readonly metricsByKey: Readonly<Record<string, ParametersMetricRecord>>;
+  readonly metricsBySeriesId?: Readonly<Record<string, readonly string[]>>;
+  readonly seriesById: Readonly<Record<string, ParametersSeriesRecord>>;
+  readonly seriesOrder: readonly string[];
+};
+
+export type ParametersCurveRecord = {
+  readonly curveFamily?: string;
+  readonly curveGeneration?: string;
+  readonly ivMode?: string | null;
+};
+
+export type ParametersMetricFamily =
+  | "current"
+  | "derivative"
+  | "threshold"
+  | "subthreshold";
+
+export type ParametersMetricRecord = {
+  readonly metricFamily: ParametersMetricFamily | string;
+  readonly seriesId: string;
+  readonly value: ParametersMetricValue;
+};
+
+export type ParametersMetricValue = {
+  readonly candidateWindows?: unknown[];
+  readonly confidence?: SsConfidence | null;
+  readonly electron?: number | null;
+  readonly hole?: number | null;
+  readonly ion?: number | null;
+  readonly ionIoff?: number | null;
+  readonly ionWindow?: unknown;
+  readonly ioff?: number | null;
+  readonly ioffWindow?: unknown;
+  readonly maxAbs?: number | null;
+  readonly method?: string | null;
+  readonly ss?: number | null;
+  readonly vth?: number | null;
+  readonly xAtIon?: number | null;
+  readonly xAtIoff?: number | null;
+  readonly xAtMaxAbs?: number | null;
+  readonly xAtSs?: number | null;
+};
+
+export type ParametersSeriesRecord = {
+  readonly labelOverride?: string | null;
+  readonly legendValue?: string | null;
+  readonly name?: string | null;
 };
 
 export type ParametersViewState =
@@ -95,7 +142,7 @@ export const getThresholdVoltageTooltip = (
 
 export const createParametersViewState = (
   _activeFile: unknown | null,
-  activeFileRecord?: FileRecord | null,
+  activeFileRecord?: ParametersFileRecord | null,
 ): ParametersViewState => {
   const canonicalState = activeFileRecord
     ? createParametersViewStateFromFileRecord(activeFileRecord)
@@ -114,7 +161,7 @@ export const createParametersViewState = (
 };
 
 const createParametersViewStateFromFileRecord = (
-  file: FileRecord,
+  file: ParametersFileRecord,
 ): ParametersViewState | null => {
   const ivMode = resolveRecordIvMode(file);
   if (ivMode !== "transfer" && ivMode !== "output") {
@@ -135,14 +182,10 @@ const createParametersViewStateFromFileRecord = (
   };
 };
 
-type CurrentMetricRecord = Extract<MetricRecord, { metricFamily: "current" }>;
-type DerivativeMetricRecord = Extract<MetricRecord, { metricFamily: "derivative" }>;
-type ThresholdMetricRecord = Extract<MetricRecord, { metricFamily: "threshold" }>;
-type SubthresholdMetricRecord = Extract<MetricRecord, { metricFamily: "subthreshold" }>;
 type ParameterRow = CalculatedParameterRowData & { id?: unknown };
 
 const createParameterRowsFromMetrics = (
-  file: FileRecord,
+  file: ParametersFileRecord,
 ): ParameterRow[] => {
   const seriesIds = file.seriesOrder.length
     ? file.seriesOrder
@@ -156,10 +199,10 @@ const createParameterRowsFromMetrics = (
         return null;
       }
 
-      const current = findMetric<CurrentMetricRecord>(metrics, "current");
-      const derivative = findMetric<DerivativeMetricRecord>(metrics, "derivative");
-      const threshold = findMetric<ThresholdMetricRecord>(metrics, "threshold");
-      const subthreshold = findMetric<SubthresholdMetricRecord>(metrics, "subthreshold");
+      const current = findMetric(metrics, "current");
+      const derivative = findMetric(metrics, "derivative");
+      const threshold = findMetric(metrics, "threshold");
+      const subthreshold = findMetric(metrics, "subthreshold");
       const name = resolveSeriesName(series, index);
 
       return {
@@ -190,14 +233,14 @@ const createParameterRowsFromMetrics = (
 };
 
 const resolveMetricsForSeries = (
-  file: FileRecord,
+  file: ParametersFileRecord,
   seriesId: string,
-): MetricRecord[] => {
+): ParametersMetricRecord[] => {
   const keys = file.metricsBySeriesId?.[seriesId];
   if (keys?.length) {
     return keys
       .map((key) => file.metricsByKey[key])
-      .filter((metric): metric is MetricRecord => Boolean(metric));
+      .filter((metric): metric is ParametersMetricRecord => Boolean(metric));
   }
 
   return Object.values(file.metricsByKey).filter(
@@ -205,13 +248,13 @@ const resolveMetricsForSeries = (
   );
 };
 
-const findMetric = <T extends MetricRecord>(
-  metrics: readonly MetricRecord[],
-  family: T["metricFamily"],
-): T | undefined =>
-  metrics.find((metric): metric is T => metric.metricFamily === family);
+const findMetric = (
+  metrics: readonly ParametersMetricRecord[],
+  family: ParametersMetricFamily,
+): ParametersMetricRecord | undefined =>
+  metrics.find((metric) => metric.metricFamily === family);
 
-const resolveRecordIvMode = (file: FileRecord): "transfer" | "output" | null => {
+const resolveRecordIvMode = (file: ParametersFileRecord): "transfer" | "output" | null => {
   for (const curve of Object.values(file.curvesByKey)) {
     if (curve.curveGeneration === "base" && curve.curveFamily === "iv") {
       return normalizeBaseIvMode(curve);
@@ -222,14 +265,14 @@ const resolveRecordIvMode = (file: FileRecord): "transfer" | "output" | null => 
 };
 
 const normalizeBaseIvMode = (
-  curve: BaseCurveRecord,
+  curve: ParametersCurveRecord,
 ): "transfer" | "output" | null =>
   curve.ivMode === "transfer" || curve.ivMode === "output"
     ? curve.ivMode
     : null;
 
 const resolveSeriesName = (
-  series: SeriesRecord | undefined,
+  series: ParametersSeriesRecord | undefined,
   index: number,
 ): { header: string | null; value: string } => {
   for (const candidate of [series?.labelOverride, series?.legendValue, series?.name]) {

@@ -56,7 +56,7 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
 
     assert.equal(model.activeFile?.fileId, "file-b");
     assert.equal(model.kind, "iv");
-    assert.deepEqual(model.source, { fileId: "file-b", inputKind: "processed" });
+    assert.deepEqual(model.source, { fileId: "file-b", inputKind: "source" });
     assert.equal(model.seriesList.length, 1);
     assert.equal(model.seriesList[0].kind, "iv");
     assert.equal(model.pointsCount, 3);

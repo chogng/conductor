@@ -25,9 +25,8 @@ import {
 } from "src/cs/workbench/contrib/template/common/template";
 import type { TemplateEditorRecord } from "src/cs/workbench/services/template/common/template";
 import {
+  IUserTemplateImportExportService,
   IUserTemplateService,
-  type IUserTemplateService as IUserTemplateServiceType,
-  type UserTemplateImportInput,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 import {
   createTemplateEditorRecordFromUserTemplate,
@@ -272,7 +271,7 @@ async function deleteTemplate(accessor: ServicesAccessor, template: unknown): Pr
 }
 
 async function importTemplate(accessor: ServicesAccessor): Promise<void> {
-  const userTemplateService = accessor.get(IUserTemplateService);
+  const userTemplateImportExportService = accessor.get(IUserTemplateImportExportService);
   const templateViewStateService = accessor.get(ITemplateViewStateService);
   const notificationService = accessor.get(INotificationService);
   const controller = new TemplateImportController(
@@ -283,7 +282,7 @@ async function importTemplate(accessor: ServicesAccessor): Promise<void> {
 
   try {
     await controller.importTemplateFromDialog(async (payload) => {
-      await importTemplatePayload(payload, userTemplateService, templateViewStateService, notificationService);
+      await importTemplatePayload(payload, userTemplateImportExportService, templateViewStateService, notificationService);
     });
   } catch (err) {
     notificationService.notify({
@@ -295,7 +294,7 @@ async function importTemplate(accessor: ServicesAccessor): Promise<void> {
 }
 
 async function exportTemplate(accessor: ServicesAccessor, template: unknown): Promise<void> {
-  const userTemplateService = accessor.get(IUserTemplateService);
+  const userTemplateImportExportService = accessor.get(IUserTemplateImportExportService);
   const templateViewStateService = accessor.get(ITemplateViewStateService);
   const notificationService = accessor.get(INotificationService);
   const target = normalizeTemplateActionTarget(template)
@@ -310,7 +309,7 @@ async function exportTemplate(accessor: ServicesAccessor, template: unknown): Pr
     return;
   }
 
-  const payload = userTemplateService.exportTemplates([templateId]);
+  const payload = userTemplateImportExportService.exportTemplates([templateId]);
   const userTemplate = payload.templates[0];
   if (!userTemplate) {
     notificationService.notify({
@@ -352,12 +351,12 @@ async function exportTemplate(accessor: ServicesAccessor, template: unknown): Pr
 
 async function importTemplatePayload(
   payload: unknown,
-  userTemplateService: IUserTemplateServiceType,
+  userTemplateImportExportService: IUserTemplateImportExportService,
   templateViewStateService: ITemplateViewStateServiceType,
   notificationService: INotificationService,
 ): Promise<void> {
-  const importInput = toUserTemplateImportInput(payload);
-  if (!importInput) {
+  const result = await userTemplateImportExportService.importTemplatesFromPayload(payload);
+  if (!result) {
     notificationService.notify({
       id: "template.notification",
       message: localize("template.import.invalidFormat", "Invalid template file format."),
@@ -366,7 +365,6 @@ async function importTemplatePayload(
     return;
   }
 
-  const result = await userTemplateService.importTemplates(importInput);
   const savedUserTemplate = result.imported[0];
   if (!savedUserTemplate) {
     notificationService.notify({
@@ -387,24 +385,6 @@ async function importTemplatePayload(
     presentation: { type: "success" },
     severity: Severity.Info,
   });
-}
-
-function toUserTemplateImportInput(payload: unknown): UserTemplateImportInput | null {
-  const entry = payload && typeof payload === "object" && !Array.isArray(payload)
-    ? payload as Record<string, unknown>
-    : null;
-  if (
-    !entry ||
-    entry.source !== "conductor.userTemplate" ||
-    entry.version !== 1 ||
-    !Array.isArray(entry.templates)
-  ) {
-    return null;
-  }
-
-  return {
-    templates: entry.templates as UserTemplateImportInput["templates"],
-  };
 }
 
 function createCurrentTemplateActionTarget(templateViewStateService: ITemplateViewStateServiceType): TemplateEditorRecord | null {

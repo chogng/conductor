@@ -2,6 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import { isObjectRecord } from "src/cs/base/common/json";
 import type {
 	Template,
 	TemplateApplicability,
@@ -121,7 +122,7 @@ const readCanonicalTemplate = (
 };
 
 const isTemplate = (value: unknown): value is Template => {
-	if (!value || typeof value !== "object") {
+	if (!isObjectRecord(value)) {
 		return false;
 	}
 
@@ -255,13 +256,12 @@ const readTemplateApplicability = (
 	record: TemplateEditorRecord,
 ): TemplateApplicability | undefined => {
 	const value = record.applicability;
-	if (!value || typeof value !== "object" || Array.isArray(value)) {
+	if (!isObjectRecord(value)) {
 		return undefined;
 	}
 
-	const source = value as Record<string, unknown>;
-	const schemaFingerprint = normalizeOptionalText(source.schemaFingerprint);
-	const columnCount = normalizePositiveInteger(source.columnCount);
+	const schemaFingerprint = normalizeOptionalText(value.schemaFingerprint);
+	const columnCount = normalizePositiveInteger(value.columnCount);
 	return schemaFingerprint || columnCount
 		? {
 			...(schemaFingerprint ? { schemaFingerprint } : {}),

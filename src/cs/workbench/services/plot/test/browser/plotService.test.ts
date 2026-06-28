@@ -69,7 +69,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     const ivModel = service.getPlotDisplayModel({
       fileId: "file-a",
       plotType: "iv",
-      snapshot,
     });
     assert.ok(ivModel?.chart);
     assert.ok(ivModel?.inspector);
@@ -79,7 +78,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     const cachedIvModel = service.getCachedPlotDisplayModel({
       fileId: "file-a",
       plotType: "iv",
-      snapshot,
     });
     assert.strictEqual(cachedIvModel?.chart, ivModel?.chart);
     assert.strictEqual(cachedIvModel?.inspector, ivModel?.inspector);
@@ -87,7 +85,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     const vthModel = service.getPlotDisplayModel({
       fileId: "file-a",
       plotType: "vth",
-      snapshot,
     });
     assert.ok(vthModel?.chart);
     assert.ok(vthModel?.inspector);
@@ -97,7 +94,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     const cachedVthModel = service.getCachedPlotDisplayModel({
       fileId: "file-a",
       plotType: "vth",
-      snapshot,
     });
     assert.strictEqual(cachedVthModel?.chart, vthModel?.chart);
     assert.strictEqual(cachedVthModel?.inspector, vthModel?.inspector);
@@ -144,12 +140,10 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       const ivModel = service.getPlotDisplayModel({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       });
       const vthModel = service.getPlotDisplayModel({
         fileId: "file-a",
         plotType: "vth",
-        snapshot,
       });
       assert.ok(ivModel?.inspector);
       assert.ok(vthModel?.inspector);
@@ -159,13 +153,11 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       service.prefetchPlotInspectorDisplayModel({
         fileId: "file-a",
         plotType: "vth",
-        snapshot,
       }, "active");
       service.setActivePlotType("iv");
       service.prefetchPlotInspectorDisplayModel({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       }, "active");
 
       assert.deepEqual(cacheEvents, []);
@@ -174,12 +166,10 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       assert.strictEqual(service.getCachedPlotDisplayModel({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       })?.inspector, ivModel.inspector);
       assert.strictEqual(service.getCachedPlotDisplayModel({
         fileId: "file-a",
         plotType: "vth",
-        snapshot,
       })?.inspector, vthModel.inspector);
     } finally {
       globalThis.requestAnimationFrame = originalRequestAnimationFrame;
@@ -200,8 +190,8 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       store.add(new TestStorageService()),
     ));
 
-    assert.equal(service.getCalculatedData({ fileId: "file-a", plotType: "iv", snapshot }), null);
-    assert.equal(service.getCachedCalculatedData({ fileId: "file-a", plotType: "iv", snapshot }), null);
+    assert.equal(service.getCalculatedData({ fileId: "file-a", plotType: "iv" }), null);
+    assert.equal(service.getCachedCalculatedData({ fileId: "file-a", plotType: "iv" }), null);
   });
 
   test("creates display models with legend visibility, labels, units, and scale", () => {
@@ -217,7 +207,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     const displayModel = service.getPlotDisplayModel({
       hiddenLegendKeys: ["series-b"],
       legendLabels: { "series-a": "Edited A" },
-      snapshot: createSnapshot(),
     });
 
     assert.equal(displayModel?.fileId, "file-a");
@@ -254,12 +243,10 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     const displayModel = service.getPlotDisplayModel({
       fileId: "file-a",
       plotType: "iv",
-      snapshot,
     });
     const cachedDisplayModel = service.getCachedPlotDisplayModel({
       fileId: "file-a",
       plotType: "iv",
-      snapshot,
     });
 
     assert.deepEqual(displayModel?.chart.model.seriesList.map(series => series.id), ["series-a"]);
@@ -282,7 +269,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     const prefetchedDisplayModel = prefetchService.getCachedPlotDisplayModel({
       fileId: "file-a",
       plotType: "iv",
-      snapshot,
     });
     assert.deepEqual(prefetchedDisplayModel?.chart.model.seriesList.map(series => series.id), ["series-a"]);
     assert.equal(prefetchedDisplayModel?.chart.model.seriesList[0]?.name, "Edited A");
@@ -299,7 +285,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     const initial = service.getPlotDisplayModel({
       fileId: "file-a",
       plotType: "iv",
-      snapshot,
     });
     assert.ok(initial?.inspector);
 
@@ -313,7 +298,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     const cached = service.getCachedPlotDisplayModel({
       fileId: "file-a",
       plotType: "iv",
-      snapshot,
     });
 
     assert.deepEqual(cached?.chart.model.seriesList.map(series => series.id), ["series-a"]);
@@ -336,18 +320,15 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     service.getCalculatedData({
       fileId: "file-a",
       plotType: "iv",
-      snapshot,
     });
     service.prefetchPlotDisplayModel({
       fileId: "file-a",
       plotType: "iv",
-      snapshot,
     }, "active");
 
     const chartOnly = service.getCachedPlotDisplayModel({
       fileId: "file-a",
       plotType: "iv",
-      snapshot,
     });
     assert.equal(chartOnly?.inspector, null);
 
@@ -361,7 +342,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     const cached = service.getCachedPlotDisplayModel({
       fileId: "file-a",
       plotType: "iv",
-      snapshot,
     });
 
     assert.deepEqual(cached?.chart.model.seriesList.map(series => series.id), ["series-a"]);
@@ -372,8 +352,11 @@ suite("workbench/services/plot/test/browser/plotService", () => {
   });
 
   test("limits y unit controls to the current plot output family", () => {
+    const currentSnapshot = createSnapshot({
+      "file-a": createFileRecord("file-a", "series-a", "A", "A"),
+    });
     const currentService = store.add(new PlotService(
-      createSessionServiceStub(),
+      createSessionServiceStub(currentSnapshot),
       createSettingsServiceStub({
         xUnitByFileId: {},
         yScaleByFileId: {},
@@ -381,11 +364,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       }),
       store.add(new TestStorageService()),
     ));
-    const currentDisplayModel = currentService.getPlotDisplayModel({
-      snapshot: createSnapshot({
-        "file-a": createFileRecord("file-a", "series-a", "A", "A"),
-      }),
-    });
+    const currentDisplayModel = currentService.getPlotDisplayModel({});
 
     assert.equal(currentDisplayModel?.chart.plotYUnitLabel, "A");
     assert.deepEqual(currentDisplayModel?.unitControl?.yUnitOptions, [
@@ -396,8 +375,11 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       "pA",
     ]);
 
+    const capacitanceSnapshot = createSnapshot({
+      "file-a": createFileRecord("file-a", "series-a", "A", "F"),
+    });
     const capacitanceService = store.add(new PlotService(
-      createSessionServiceStub(),
+      createSessionServiceStub(capacitanceSnapshot),
       createSettingsServiceStub({
         xUnitByFileId: {},
         yScaleByFileId: {},
@@ -405,11 +387,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       }),
       store.add(new TestStorageService()),
     ));
-    const capacitanceDisplayModel = capacitanceService.getPlotDisplayModel({
-      snapshot: createSnapshot({
-        "file-a": createFileRecord("file-a", "series-a", "A", "F"),
-      }),
-    });
+    const capacitanceDisplayModel = capacitanceService.getPlotDisplayModel({});
 
     assert.equal(capacitanceDisplayModel?.chart.plotYUnitLabel, "pF");
     assert.deepEqual(capacitanceDisplayModel?.unitControl?.yUnitOptions, [
@@ -420,8 +398,11 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       "pF",
     ]);
 
+    const frequencySnapshot = createSnapshot({
+      "file-a": createFileRecord("file-a", "series-a", "A", "F", "Hz"),
+    });
     const frequencyService = store.add(new PlotService(
-      createSessionServiceStub(),
+      createSessionServiceStub(frequencySnapshot),
       createSettingsServiceStub({
         xUnitByFileId: { "file-a": "kHz" },
         yScaleByFileId: {},
@@ -429,11 +410,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       }),
       store.add(new TestStorageService()),
     ));
-    const frequencyDisplayModel = frequencyService.getPlotDisplayModel({
-      snapshot: createSnapshot({
-        "file-a": createFileRecord("file-a", "series-a", "A", "F", "Hz"),
-      }),
-    });
+    const frequencyDisplayModel = frequencyService.getPlotDisplayModel({});
 
     assert.equal(frequencyDisplayModel?.chart.plotXFactor, 1e-3);
     assert.equal(frequencyDisplayModel?.chart.plotXUnitLabel, "kHz");
@@ -445,11 +422,18 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       "GHz",
     ]);
 
-    const invalidFrequencyDisplayModel = frequencyService.getPlotDisplayModel({
-      snapshot: createSnapshot({
+    const invalidFrequencyService = store.add(new PlotService(
+      createSessionServiceStub(createSnapshot({
         "file-a": createFileRecord("file-a", "series-a", "A", "F", "V"),
+      })),
+      createSettingsServiceStub({
+        xUnitByFileId: { "file-a": "kHz" },
+        yScaleByFileId: {},
+        yUnitByFileId: { "file-a": "pF" },
       }),
-    });
+      store.add(new TestStorageService()),
+    ));
+    const invalidFrequencyDisplayModel = invalidFrequencyService.getPlotDisplayModel({});
     assert.equal(invalidFrequencyDisplayModel?.chart.plotXUnitLabel, "V");
     assert.deepEqual(invalidFrequencyDisplayModel?.unitControl?.xUnitOptions, [
       "V",
@@ -460,9 +444,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
 
     const gmDisplayModel = currentService.getPlotDisplayModel({
       plotType: "gm",
-      snapshot: createSnapshot({
-        "file-a": createFileRecord("file-a", "series-a", "A", "A"),
-      }),
     });
 
     assert.equal(gmDisplayModel?.chart.plotYUnitLabel, undefined);
@@ -471,17 +452,17 @@ suite("workbench/services/plot/test/browser/plotService", () => {
   });
 
   test("creates display models for the requested file", () => {
+    const snapshot = createSnapshot({
+      "file-a": createFileRecord(),
+      "file-b": createFileRecord("file-b", "series-c", "C"),
+    }, ["file-a", "file-b"]);
     const service = store.add(new PlotService(
-      createSessionServiceStub(),
+      createSessionServiceStub(snapshot),
       createSettingsServiceStub(),
       store.add(new TestStorageService()),
     ));
     const displayModel = service.getPlotDisplayModel({
       fileId: "file-b",
-      snapshot: createSnapshot({
-        "file-a": createFileRecord(),
-        "file-b": createFileRecord("file-b", "series-c", "C"),
-      }, ["file-a", "file-b"]),
     });
 
     assert.equal(displayModel?.fileId, "file-b");
@@ -490,27 +471,24 @@ suite("workbench/services/plot/test/browser/plotService", () => {
   });
 
   test("caches calculated data per file record and plot type", () => {
+    const snapshot = createSnapshot();
     const service = store.add(new PlotService(
-      createSessionServiceStub(),
+      createSessionServiceStub(snapshot),
       createSettingsServiceStub(),
       store.add(new TestStorageService()),
     ));
-    const snapshot = createSnapshot();
 
     const first = service.getCalculatedData({
       fileId: "file-a",
       plotType: "iv",
-      snapshot,
     });
     const second = service.getCalculatedData({
       fileId: "file-a",
       plotType: "iv",
-      snapshot,
     });
     const differentPlot = service.getCalculatedData({
       fileId: "file-a",
       plotType: "gm",
-      snapshot,
     });
 
     assert.equal(first, second);
@@ -555,8 +533,8 @@ suite("workbench/services/plot/test/browser/plotService", () => {
 
       assert.ok(curveReads > 0);
       assert.equal(
-        service.getCalculatedData({ fileId: "file-a", plotType: "iv", snapshot }),
-        service.getCalculatedData({ fileId: "file-a", plotType: "iv", snapshot }),
+        service.getCalculatedData({ fileId: "file-a", plotType: "iv" }),
+        service.getCalculatedData({ fileId: "file-a", plotType: "iv" }),
       );
     } finally {
       globalThis.requestAnimationFrame = originalRequestAnimationFrame;
@@ -658,7 +636,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       assert.deepEqual(workerFile.raw.tableOrder, []);
       assert.deepEqual(Object.keys(workerFile.curvesByKey), Object.keys(file.curvesByKey));
       assert.equal(
-        service.getCachedCalculatedData({ fileId: "file-a", plotType: "iv", snapshot })?.signature,
+        service.getCachedCalculatedData({ fileId: "file-a", plotType: "iv" })?.signature,
         "worker-result",
       );
     } finally {
@@ -825,7 +803,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         store.add(new TestStorageService()),
       ));
 
-      service.prefetchPlotDisplayModel({ fileId: "file-a", plotType: "iv", snapshot }, "active");
+      service.prefetchPlotDisplayModel({ fileId: "file-a", plotType: "iv" }, "active");
       scheduledFrames.shift()?.(0);
       assert.equal(workerRecords.length, 1);
       assert.equal(workerRecords[0]?.message.type, "calculateData");
@@ -848,15 +826,15 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       while (scheduledFrames.length) {
         scheduledFrames.shift()?.(0);
       }
-      service.prefetchPlotDisplayModel({ fileId: "file-a", plotType: "iv", snapshot }, "active");
+      service.prefetchPlotDisplayModel({ fileId: "file-a", plotType: "iv" }, "active");
       service.prefetchCalculatedData(["file-a"], "active", "iv");
       while (scheduledFrames.length) {
         scheduledFrames.shift()?.(0);
       }
 
       assert.equal(workerRecords.length, 1);
-      assert.equal(service.getCachedCalculatedData({ fileId: "file-a", plotType: "iv", snapshot }), null);
-      assert.equal(service.getCachedPlotDisplayModel({ fileId: "file-a", plotType: "iv", snapshot }), null);
+      assert.equal(service.getCachedCalculatedData({ fileId: "file-a", plotType: "iv" }), null);
+      assert.equal(service.getCachedPlotDisplayModel({ fileId: "file-a", plotType: "iv" }), null);
     } finally {
       globalThis.requestAnimationFrame = originalRequestAnimationFrame;
       globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
@@ -885,7 +863,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       service.getCalculatedData({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       });
       service.prefetchCalculatedData(["file-a"], "visible", "iv");
 
@@ -1127,13 +1104,12 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         store.add(new TestStorageService()),
       ));
 
-      service.getCalculatedData({ fileId: "file-visible", plotType: "iv", snapshot });
-      service.getCalculatedData({ fileId: "file-active", plotType: "iv", snapshot });
+      service.getCalculatedData({ fileId: "file-visible", plotType: "iv" });
+      service.getCalculatedData({ fileId: "file-active", plotType: "iv" });
 
       service.prefetchPlotDisplayModel({
         fileId: "file-visible",
         plotType: "iv",
-        snapshot,
       }, "visible");
       scheduledFrames.shift()?.(0);
 
@@ -1145,14 +1121,12 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       service.prefetchPlotDisplayModel({
         fileId: "file-active",
         plotType: "iv",
-        snapshot,
       }, "active");
       scheduledFrames.shift()?.(0);
 
       const activeCached = service.getCachedPlotDisplayModel({
         fileId: "file-active",
         plotType: "iv",
-        snapshot,
       });
       assert.equal(activeCached?.fileId, "file-active");
       assert.equal(activeCached?.inspector, null);
@@ -1197,17 +1171,15 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         events.push(`${event.plotType}:${event.fileId ?? ""}`);
       }));
 
-      service.getCalculatedData({ fileId: "file-hover", plotType: "iv", snapshot });
+      service.getCalculatedData({ fileId: "file-hover", plotType: "iv" });
       service.prefetchPlotDisplayModel({
         fileId: "file-hover",
         plotType: "iv",
-        snapshot,
       }, "hover");
 
       const cached = service.getCachedPlotDisplayModel({
         fileId: "file-hover",
         plotType: "iv",
-        snapshot,
       });
       assert.equal(cached?.fileId, "file-hover");
       assert.equal(cached?.inspector, null);
@@ -1217,12 +1189,10 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       service.prefetchPlotDisplayModel({
         fileId: "file-hover",
         plotType: "iv",
-        snapshot,
       }, "hover");
       assert.equal(service.getCachedPlotDisplayModel({
         fileId: "file-hover",
         plotType: "iv",
-        snapshot,
       })?.inspector, null);
       assert.equal(scheduledFrameCount, 0);
     } finally {
@@ -1297,17 +1267,16 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         store.add(new TestStorageService()),
       ));
 
-      service.getCalculatedData({ fileId: "file-a", plotType: "iv", snapshot });
-      service.getCalculatedData({ fileId: "file-b", plotType: "iv", snapshot });
+      service.getCalculatedData({ fileId: "file-a", plotType: "iv" });
+      service.getCalculatedData({ fileId: "file-b", plotType: "iv" });
       service.prefetchPlotDisplayModel({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       }, "active");
       service.prefetchPlotDisplayModels([
-        { fileId: "file-a", plotType: "iv", snapshot },
-        { fileId: "file-b", plotType: "iv", snapshot },
-        { fileId: "file-b", plotType: "iv", snapshot },
+        { fileId: "file-a", plotType: "iv" },
+        { fileId: "file-b", plotType: "iv" },
+        { fileId: "file-b", plotType: "iv" },
       ], "visible");
 
       scheduledFrames.shift()?.(0);
@@ -1324,7 +1293,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       assert.equal(service.getCachedPlotDisplayModel({
         fileId: "file-b",
         plotType: "iv",
-        snapshot,
       })?.fileId, "file-b");
     } finally {
       globalThis.requestAnimationFrame = originalRequestAnimationFrame;
@@ -1364,18 +1332,15 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       service.prefetchPlotDisplayModel({
         fileId: "file-active",
         plotType: "iv",
-        snapshot,
       }, "active");
 
       const calculated = service.getCachedCalculatedData({
         fileId: "file-active",
         plotType: "iv",
-        snapshot,
       });
       const cached = service.getCachedPlotDisplayModel({
         fileId: "file-active",
         plotType: "iv",
-        snapshot,
       });
       assert.equal(calculated?.source.fileId, "file-active");
       assert.equal(cached?.fileId, "file-active");
@@ -1486,27 +1451,23 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         store.add(new TestStorageService()),
       ));
 
-      service.getCalculatedData({ fileId: "file-a", plotType: "iv", snapshot });
-      service.getCalculatedData({ fileId: "file-b", plotType: "iv", snapshot });
+      service.getCalculatedData({ fileId: "file-a", plotType: "iv" });
+      service.getCalculatedData({ fileId: "file-b", plotType: "iv" });
       service.prefetchPlotDisplayModel({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       }, "active");
       service.prefetchPlotDisplayModel({
         fileId: "file-b",
         plotType: "iv",
-        snapshot,
       }, "active");
       service.prefetchPlotInspectorDisplayModel({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       }, "active");
       service.prefetchPlotInspectorDisplayModel({
         fileId: "file-b",
         plotType: "iv",
-        snapshot,
       }, "active");
 
       scheduledFrames.shift()?.(0);
@@ -1607,12 +1568,11 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         store.add(new TestStorageService()),
       ));
 
-      service.getCalculatedData({ fileId: "file-visible", plotType: "iv", snapshot });
-      service.getCalculatedData({ fileId: "file-active", plotType: "iv", snapshot });
+      service.getCalculatedData({ fileId: "file-visible", plotType: "iv" });
+      service.getCalculatedData({ fileId: "file-active", plotType: "iv" });
       service.prefetchPlotDisplayModel({
         fileId: "file-visible",
         plotType: "iv",
-        snapshot,
       }, "visible");
 
       scheduledFrames.shift()?.(0);
@@ -1626,12 +1586,10 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       service.prefetchPlotDisplayModel({
         fileId: "file-active",
         plotType: "iv",
-        snapshot,
       }, "active");
       service.prefetchPlotInspectorDisplayModel({
         fileId: "file-active",
         plotType: "iv",
-        snapshot,
       }, "active");
       scheduledFrames.shift()?.(0);
 
@@ -1650,7 +1608,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       assert.ok(service.getCachedPlotDisplayModel({
         fileId: "file-active",
         plotType: "iv",
-        snapshot,
       })?.inspector);
 
       completeDisplayWorker(workerRecords[0]);
@@ -1707,11 +1664,10 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         store.add(new TestStorageService()),
       ));
 
-      service.getCalculatedData({ fileId: "file-active", plotType: "iv", snapshot });
+      service.getCalculatedData({ fileId: "file-active", plotType: "iv" });
       service.prefetchPlotInspectorDisplayModel({
         fileId: "file-active",
         plotType: "iv",
-        snapshot,
       }, "active");
       service.cancelQueuedPlotInspectorDisplayModelPrefetch();
       scheduledFrames.shift()?.(0);
@@ -1801,17 +1757,14 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       service.getCalculatedData({
         fileId: "file-active",
         plotType: "iv",
-        snapshot,
       });
       service.prefetchPlotDisplayModel({
         fileId: "file-active",
         plotType: "iv",
-        snapshot,
       }, "active");
       service.prefetchPlotInspectorDisplayModel({
         fileId: "file-active",
         plotType: "iv",
-        snapshot,
       }, "active");
       scheduledFrames.shift()?.(0);
 
@@ -1842,7 +1795,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       assert.ok(service.getCachedPlotDisplayModel({
         fileId: "file-active",
         plotType: "iv",
-        snapshot,
       }));
     } finally {
       globalThis.requestAnimationFrame = originalRequestAnimationFrame;
@@ -1964,7 +1916,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       completeCalculatedWorker(workerRecords[1]);
       await Promise.resolve();
       assert.equal(
-        service.getCachedCalculatedData({ fileId: "file-a", plotType: "iv", snapshot })?.signature,
+        service.getCachedCalculatedData({ fileId: "file-a", plotType: "iv" })?.signature,
         "worker-result:file-a:2",
       );
     } finally {
@@ -2043,11 +1995,10 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         store.add(new TestStorageService()),
       ));
 
-      service.getCalculatedData({ fileId: "file-a", plotType: "iv", snapshot });
+      service.getCalculatedData({ fileId: "file-a", plotType: "iv" });
       service.prefetchPlotDisplayModel({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       }, "visible");
       scheduledFrames.shift()?.(0);
       assert.deepEqual(
@@ -2067,11 +2018,10 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         { fileIds: ["file-a"] },
       ));
 
-      service.getCalculatedData({ fileId: "file-a", plotType: "iv", snapshot });
+      service.getCalculatedData({ fileId: "file-a", plotType: "iv" });
       service.prefetchPlotDisplayModel({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       }, "visible");
       scheduledFrames.shift()?.(0);
       assert.deepEqual(
@@ -2093,7 +2043,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       service.prefetchPlotDisplayModel({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       }, "visible");
       scheduledFrames.shift()?.(0);
       assert.equal(workerRecords.length, 2);
@@ -2103,7 +2052,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       assert.ok(service.getCachedPlotDisplayModel({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       }));
     } finally {
       globalThis.requestAnimationFrame = originalRequestAnimationFrame;
@@ -2195,7 +2143,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       service.prefetchPlotDisplayModel({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       }, "visible");
 
       scheduledFrames.shift()?.(0);
@@ -2222,7 +2169,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       assert.ok(service.getCachedPlotDisplayModel({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       }));
       assert.equal(workerRecords.filter(record => record.message.type === "calculateData").length, 1);
     } finally {
@@ -2258,7 +2204,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       service.getPlotDisplayModel({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       });
       calculatedEvents.length = 0;
       displayEvents.length = 0;
@@ -2279,7 +2224,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       assert.equal(service.getCachedPlotDisplayModel({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       }), null);
     } finally {
       onDidChangeSessionEmitter.dispose();
@@ -2297,20 +2241,17 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     assert.equal(service.getCachedCalculatedData({
       fileId: "file-a",
       plotType: "iv",
-      snapshot,
     }), null);
 
     const calculated = service.getCalculatedData({
       fileId: "file-a",
       plotType: "iv",
-      snapshot,
     });
 
     assert.ok(calculated);
     assert.equal(service.getCachedCalculatedData({
       fileId: "file-a",
       plotType: "iv",
-      snapshot,
     }), calculated);
   });
 
@@ -2339,6 +2280,51 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       plotType: "iv",
       target,
     }), calculated);
+  });
+
+  test("reads and prefetches URI slice targets without a session snapshot", () => {
+    const target: SliceUriTarget = {
+      resource: URI.file("/workspace/data/transfer.csv"),
+      sheetId: "Sheet 1",
+    };
+    let snapshotReads = 0;
+    const service = store.add(new PlotService(
+      {
+        ...createSessionServiceStub(createSnapshot({}, [])),
+        getSnapshot: () => {
+          snapshotReads += 1;
+          throw new Error("URI plot target should not read Session.");
+        },
+      },
+      createSettingsServiceStub(),
+      store.add(new TestStorageService()),
+      createSliceServiceStub([createSliceUriResult(target)]),
+    ));
+
+    const calculated = service.getCalculatedData({
+      plotType: "iv",
+      target,
+    });
+    const model = service.getPlotDisplayModel({
+      plotType: "iv",
+      target,
+    });
+    service.prefetchPlotDisplayModel({
+      plotType: "iv",
+      target,
+    }, "active");
+    service.prefetchPlotDisplayModels([{
+      plotType: "iv",
+      target,
+    }], "visible");
+
+    assert.ok(calculated);
+    assert.ok(model);
+    assert.ok(service.getCachedPlotDisplayModel({
+      plotType: "iv",
+      target,
+    }));
+    assert.equal(snapshotReads, 0);
   });
 
   test("preserves URI target on plot display contexts and state writes", async () => {
@@ -2387,6 +2373,63 @@ suite("workbench/services/plot/test/browser/plotService", () => {
 
     service.toggleHiddenLegendKey({ target }, "iv", "series-a", ["series-a"]);
     assert.deepEqual(service.getHiddenLegendKeys({ target }, "iv", ["series-a"]), ["series-a"]);
+  });
+
+  test("session clears preserve URI target plot caches", () => {
+    const sessionEvents = store.add(new Emitter<SessionChangeEvent>());
+    const snapshot = createSnapshot();
+    const target: SliceUriTarget = {
+      resource: URI.file("/workspace/data/transfer.csv"),
+      sheetId: "Sheet 1",
+    };
+    const service = store.add(new PlotService(
+      createSessionServiceStub(snapshot, sessionEvents.event),
+      createSettingsServiceStub(),
+      store.add(new TestStorageService()),
+      createSliceServiceStub([createSliceUriResult(target)]),
+    ));
+    let plotStateChanges = 0;
+    const calculatedEvents: Array<{ readonly fileId?: string; readonly plotType: string }> = [];
+    const displayEvents: Array<{ readonly fileId?: string; readonly plotType: string }> = [];
+    store.add(service.onDidChangePlotState(() => {
+      plotStateChanges += 1;
+    }));
+    store.add(service.onDidChangeCalculatedDataCache(event => {
+      calculatedEvents.push(event);
+    }));
+    store.add(service.onDidChangePlotDisplayModelCache(event => {
+      displayEvents.push(event);
+    }));
+
+    service.getPlotDisplayModel({
+      fileId: "file-a",
+      plotType: "iv",
+    });
+    const uriModel = service.getPlotDisplayModel({
+      plotType: "iv",
+      target,
+    });
+    assert.ok(uriModel);
+    calculatedEvents.length = 0;
+    displayEvents.length = 0;
+
+    sessionEvents.fire(createSessionChangeEvent("sessionCleared", 2));
+
+    assert.equal(plotStateChanges, 0);
+    assert.deepEqual(calculatedEvents, [
+      { fileId: "file-a", plotType: "iv" },
+    ]);
+    assert.deepEqual(displayEvents, [
+      { fileId: "file-a", plotType: "iv" },
+    ]);
+    assert.equal(service.getCachedPlotDisplayModel({
+      fileId: "file-a",
+      plotType: "iv",
+    }), null);
+    assert.strictEqual(service.getCachedPlotDisplayModel({
+      plotType: "iv",
+      target,
+    })?.chart, uriModel.chart);
   });
 
   test("does not fall back to the first URI slice result without a target", () => {
@@ -2442,31 +2485,26 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       assert.equal(service.getCachedPlotDisplayModel({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       }), null);
       assert.equal(curveReads, 0);
 
       service.getCalculatedData({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       });
 
       assert.equal(service.getCachedPlotDisplayModel({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       }), null);
 
       service.prefetchPlotDisplayModel({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       }, "active");
       const immediatelyCached = service.getCachedPlotDisplayModel({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       });
       if (!immediatelyCached) {
         runScheduledFrame(scheduledFrame);
@@ -2476,7 +2514,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       assert.ok(immediatelyCached ?? service.getCachedPlotDisplayModel({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       }));
     } finally {
       globalThis.requestAnimationFrame = originalRequestAnimationFrame;
@@ -2505,38 +2542,32 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       assert.ok(service.getPlotDisplayModel({
         fileId: `file-${index}`,
         plotType: "iv",
-        snapshot,
       }));
     }
 
     assert.ok(service.getCachedPlotDisplayModel({
       fileId: "file-0",
       plotType: "iv",
-      snapshot,
     }));
 
     for (let index = 320; index < 340; index += 1) {
       assert.ok(service.getPlotDisplayModel({
         fileId: `file-${index}`,
         plotType: "iv",
-        snapshot,
       }));
     }
 
     assert.ok(service.getCachedPlotDisplayModel({
       fileId: "file-0",
       plotType: "iv",
-      snapshot,
     }));
     assert.equal(service.getCachedPlotDisplayModel({
       fileId: "file-1",
       plotType: "iv",
-      snapshot,
     }), null);
     assert.ok(service.getCachedPlotDisplayModel({
       fileId: "file-339",
       plotType: "iv",
-      snapshot,
     }));
   });
 
@@ -2581,36 +2612,35 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         assert.ok(service.getPlotDisplayModel({
           fileId: `file-${index}`,
           plotType: "iv",
-          snapshot,
         }));
       }
 
-      service.getCalculatedData({ fileId: "file-236", plotType: "iv", snapshot });
-      service.prefetchPlotDisplayModel({ fileId: "file-236", plotType: "iv", snapshot }, "visible");
+      service.getCalculatedData({ fileId: "file-236", plotType: "iv" });
+      service.prefetchPlotDisplayModel({ fileId: "file-236", plotType: "iv" }, "visible");
       await flushFrames();
 
-      service.getCalculatedData({ fileId: "file-237", plotType: "iv", snapshot });
-      service.prefetchPlotDisplayModel({ fileId: "file-237", plotType: "iv", snapshot }, "recent");
+      service.getCalculatedData({ fileId: "file-237", plotType: "iv" });
+      service.prefetchPlotDisplayModel({ fileId: "file-237", plotType: "iv" }, "recent");
       await flushFrames();
 
       for (const fileId of ["file-238", "file-239"]) {
-        service.getCalculatedData({ fileId, plotType: "iv", snapshot });
-        service.prefetchPlotDisplayModel({ fileId, plotType: "iv", snapshot }, "idle");
+        service.getCalculatedData({ fileId, plotType: "iv" });
+        service.prefetchPlotDisplayModel({ fileId, plotType: "iv" }, "idle");
       }
       await flushFrames();
 
-      service.prefetchPlotDisplayModel({ fileId: "file-240", plotType: "iv", snapshot }, "hover");
+      service.prefetchPlotDisplayModel({ fileId: "file-240", plotType: "iv" }, "hover");
 
-      service.getCalculatedData({ fileId: "file-241", plotType: "iv", snapshot });
-      service.prefetchPlotDisplayModel({ fileId: "file-241", plotType: "iv", snapshot }, "idle");
+      service.getCalculatedData({ fileId: "file-241", plotType: "iv" });
+      service.prefetchPlotDisplayModel({ fileId: "file-241", plotType: "iv" }, "idle");
       await flushFrames();
 
-      assert.ok(service.getCachedPlotDisplayModel({ fileId: "file-0", plotType: "iv", snapshot }));
-      assert.ok(service.getCachedPlotDisplayModel({ fileId: "file-236", plotType: "iv", snapshot }));
-      assert.ok(service.getCachedPlotDisplayModel({ fileId: "file-237", plotType: "iv", snapshot }));
-      assert.ok(service.getCachedPlotDisplayModel({ fileId: "file-240", plotType: "iv", snapshot }));
-      assert.equal(service.getCachedPlotDisplayModel({ fileId: "file-238", plotType: "iv", snapshot }), null);
-      assert.equal(service.getCachedPlotDisplayModel({ fileId: "file-239", plotType: "iv", snapshot }), null);
+      assert.ok(service.getCachedPlotDisplayModel({ fileId: "file-0", plotType: "iv" }));
+      assert.ok(service.getCachedPlotDisplayModel({ fileId: "file-236", plotType: "iv" }));
+      assert.ok(service.getCachedPlotDisplayModel({ fileId: "file-237", plotType: "iv" }));
+      assert.ok(service.getCachedPlotDisplayModel({ fileId: "file-240", plotType: "iv" }));
+      assert.equal(service.getCachedPlotDisplayModel({ fileId: "file-238", plotType: "iv" }), null);
+      assert.equal(service.getCachedPlotDisplayModel({ fileId: "file-239", plotType: "iv" }), null);
     } finally {
       globalThis.requestAnimationFrame = originalRequestAnimationFrame;
       globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
@@ -2645,18 +2675,15 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       service.getCalculatedData({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       });
       service.prefetchPlotDisplayModel({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       }, "active");
 
       const chartOnly = service.getCachedPlotDisplayModel({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       });
       assert.ok(chartOnly?.chart.model);
       assert.equal(chartOnly?.inspector, null);
@@ -2667,7 +2694,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       service.prefetchPlotInspectorDisplayModel({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       }, "active");
       scheduledFrames.shift()?.(0);
       await Promise.resolve();
@@ -2675,13 +2701,11 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       const full = service.getCachedPlotDisplayModel({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       });
       assert.ok(full?.inspector?.model);
       assert.ok(service.getCachedPlotInspectorDisplayModel({
         fileId: "file-a",
         plotType: "iv",
-        snapshot,
       }));
       assert.deepEqual(events, [
         { fileId: "file-a", pane: "chart", plotType: "iv" },
@@ -2709,12 +2733,10 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     service.getCalculatedData({
       fileId: "file-a",
       plotType: "iv",
-      snapshot,
     });
     service.getCalculatedData({
       fileId: "file-a",
       plotType: "iv",
-      snapshot,
     });
 
     assert.deepEqual(events, [
@@ -2820,8 +2842,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       createSettingsServiceStub(),
       store.add(new TestStorageService()),
     ));
-    const snapshot = createSnapshot();
-    const initial = service.getPlotDisplayModel({ snapshot });
+    const initial = service.getPlotDisplayModel({});
     assert.equal(initial?.chart.xAxisTitle, "Gate");
 
     service.setAxisTitleOverride(
@@ -2829,17 +2850,17 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       "Custom X",
       initial!.chart.defaultXAxisTitle,
     );
-	    const edited = service.getPlotDisplayModel({ snapshot });
-	    assert.equal(edited?.chart.xAxisTitle, "Custom X");
-	    assert.ok(edited?.inspector);
-	    assert.equal(edited.inspector.xAxisTitle, "Gate");
+    const edited = service.getPlotDisplayModel({});
+    assert.equal(edited?.chart.xAxisTitle, "Custom X");
+    assert.ok(edited?.inspector);
+    assert.equal(edited.inspector.xAxisTitle, "Gate");
 
     service.setAxisTitleOverride(
       initial!.chart.xAxisTitleContext,
       initial!.chart.defaultXAxisTitle,
       initial!.chart.defaultXAxisTitle,
     );
-    const restored = service.getPlotDisplayModel({ snapshot });
+    const restored = service.getPlotDisplayModel({});
     assert.equal(restored?.chart.xAxisTitle, "Gate");
   });
 

@@ -2,6 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import { isObjectRecord } from "src/cs/base/common/json";
 import { normalizeColumnIndexes } from "src/cs/workbench/services/template/common/templateXYBinding";
 
 const CELL_REF_RE = /^([A-Z]+)([1-9]\d*)$/i;
@@ -73,14 +74,13 @@ export function normalizeTemplateXRange(value: unknown): TemplateXRange | null {
   if (typeof value === "string") {
     return normalizeTemplateXRangeParts(parseTemplateXRangeText(value));
   }
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
+  if (!isObjectRecord(value)) {
     return null;
   }
 
-  const record = value as { readonly start?: unknown; readonly end?: unknown };
   return normalizeTemplateXRangeParts({
-    start: record.start,
-    end: record.end,
+    start: value.start,
+    end: value.end,
   });
 }
 

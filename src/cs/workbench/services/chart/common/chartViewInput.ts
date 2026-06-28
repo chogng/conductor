@@ -8,6 +8,7 @@ import type {
 import type { SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
 import type { ChartFileOption } from "src/cs/workbench/services/chart/common/chartFileOptions";
 
+
 export type ChartPane = "chart" | "inspector";
 
 export type ChartProcessingStatus = {
@@ -25,6 +26,7 @@ export type ChartViewInput = {
 	readonly chartFileOptions?: readonly ChartFileOption[];
 	readonly processingStatus?: Partial<ChartProcessingStatus>;
 	readonly activeFileId?: string | null;
+	readonly activeTarget?: SliceUriTarget | null;
 	readonly showFileSelect?: boolean;
 	readonly shouldMountCharts?: boolean;
 };

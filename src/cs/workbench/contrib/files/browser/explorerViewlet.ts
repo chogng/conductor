@@ -480,6 +480,9 @@ export class ExplorerViewPane extends ViewPane {
         resource,
         sheetId: file.sheetId ?? null,
       });
+      if (summary.state === "missing") {
+        continue;
+      }
       summariesByFileKey[getExplorerTreeFileKey(file)] = summary;
     }
     return summariesByFileKey;

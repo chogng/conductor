@@ -3,28 +3,46 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type {
+  CalculationWorkerFile,
   CalculationRecordsWorkerMessage,
   CalculationRecordsWorkerRequest,
 } from "src/cs/workbench/services/calculation/browser/calculationWorker";
+import type { CalculationFileId } from "src/cs/workbench/services/calculation/common/calculation";
+import type { SliceRun } from "src/cs/workbench/services/slice/common/slice";
 import {
-  getLatestSliceRunRecord,
   type CurveRecord,
-  type FileId,
-  type FileRecord,
+  type MetricInputRecord,
   type MetricRecord,
+  type SeriesRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
 
 const CALCULATION_WORKER_TIMEOUT_MS = 30_000;
 
+type CalculationWorkerSourceFile = {
+  readonly curvesByKey: Readonly<Record<string, CurveRecord>>;
+  readonly id: CalculationFileId;
+  readonly kind: CalculationWorkerFile["kind"];
+  readonly latestSliceRunId?: string;
+  readonly metricInputsByKey?: Readonly<Record<string, MetricInputRecord>>;
+  readonly name: string;
+  readonly raw: {
+    readonly fileId: CalculationFileId;
+    readonly fileName: string;
+  };
+  readonly seriesById: Readonly<Record<string, SeriesRecord>>;
+  readonly seriesOrder: readonly string[];
+  readonly sliceRunsById?: Readonly<Record<string, SliceRun>>;
+};
+
 export type CalculationRecordsWorkerInput = {
-  readonly file: FileRecord;
+  readonly file: CalculationWorkerSourceFile;
   readonly requestId: number;
   readonly sessionVersion: number;
 };
 
 export type CalculationRecordsWorkerOutput = {
   readonly curves: readonly CurveRecord[];
-  readonly fileId: FileId;
+  readonly fileId: CalculationFileId;
   readonly metrics: readonly MetricRecord[];
   readonly requestId: number;
   readonly sessionVersion: number;
@@ -83,7 +101,7 @@ export const calculateRecordsInWorker = (
     worker.onerror = () => finish(null);
     worker.postMessage({
       payload: {
-        file: createCalculationWorkerFileRecord(input.file),
+        file: createCalculationWorkerFile(input.file),
         fileId: input.file.id,
         requestId: input.requestId,
         sessionVersion: input.sessionVersion,
@@ -93,9 +111,11 @@ export const calculateRecordsInWorker = (
   });
 };
 
-const createCalculationWorkerFileRecord = (file: FileRecord): FileRecord => {
-  const latestSliceRun = getLatestSliceRunRecord(file);
-  const curvesByKey: FileRecord["curvesByKey"] = {};
+const createCalculationWorkerFile = (
+  file: CalculationWorkerSourceFile,
+): CalculationWorkerFile => {
+  const latestSliceRun = getLatestCalculationWorkerSliceRun(file);
+  const curvesByKey: Record<string, CurveRecord> = {};
   for (const [key, curve] of Object.entries(file.curvesByKey)) {
     if (curve.curveGeneration === "base") {
       curvesByKey[key] = curve;
@@ -104,14 +124,14 @@ const createCalculationWorkerFileRecord = (file: FileRecord): FileRecord => {
   const curveSeriesIds = new Set(
     Object.values(curvesByKey).map(curve => curve.seriesId),
   );
-  const seriesById: FileRecord["seriesById"] = {};
+  const seriesById: Record<string, SeriesRecord> = {};
   for (const [seriesId, series] of Object.entries(file.seriesById)) {
     if (curveSeriesIds.has(seriesId)) {
       seriesById[seriesId] = series;
     }
   }
 
-  const workerFile: FileRecord = {
+  const workerFile: CalculationWorkerFile = {
     curvesByKey,
     id: file.id,
     kind: file.kind,
@@ -137,4 +157,11 @@ const createCalculationWorkerFileRecord = (file: FileRecord): FileRecord => {
     };
   }
   return workerFile;
+};
+
+const getLatestCalculationWorkerSliceRun = (
+  file: Pick<CalculationWorkerSourceFile, "latestSliceRunId" | "sliceRunsById">,
+): SliceRun | undefined => {
+  const sliceRunId = file.latestSliceRunId;
+  return sliceRunId ? file.sliceRunsById?.[sliceRunId] : undefined;
 };

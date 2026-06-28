@@ -5,13 +5,8 @@
 import type { Event } from "src/cs/base/common/event";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { PlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotModel";
-import type {
-	CurveKey,
-	FileId,
-	MetricKey,
-	SheetId,
-} from "src/cs/workbench/services/session/common/sessionModel";
-import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
+import type { URI } from "src/cs/base/common/uri";
+import type { DataResourceStructuredContentSnapshot } from "src/cs/workbench/services/dataResource/common/dataResource";
 
 export const ISearchService = createDecorator<ISearchService>("searchService");
 export const SearchContributionId = "workbench.contrib.search";
@@ -26,19 +21,14 @@ export type SearchCommandId = typeof SearchCommandId[keyof typeof SearchCommandI
 export type SearchScope =
 	| "all"
 	| "table"
-	| "block"
-	| "curve"
-	| "metric";
+	| "block";
 
 export type SearchResultKind =
 	| "rawCell"
 	| "rawTable"
 	| "group"
 	| "block"
-	| "column"
-	| "curve"
-	| "metric"
-	| "parameter";
+	| "column";
 
 export type SearchInterpolationMode =
 	| "linear"
@@ -57,9 +47,9 @@ export type SearchState = {
 	readonly selectedResultId: string | null;
 };
 
-export type RawTableRangeRef = {
-	readonly fileId: FileId;
-	readonly rawTableId: SheetId;
+export type ResourceTableRangeRef = {
+	readonly resource: URI;
+	readonly sheetId?: string | null;
 	readonly columnEnd: number;
 	readonly columnStart: number;
 	readonly rowEnd: number;
@@ -72,12 +62,10 @@ export type SearchResult = {
 	readonly title: string;
 	readonly preview?: string;
 	readonly score: number;
-	readonly fileId?: FileId;
-	readonly rawTableId?: SheetId;
-	readonly sourceRange?: RawTableRangeRef;
+	readonly resource?: URI;
+	readonly resourceRange?: ResourceTableRangeRef;
+	readonly sheetId?: string | null;
 	readonly measurementBlockId?: string;
-	readonly curveKey?: CurveKey;
-	readonly metricKey?: MetricKey;
 	readonly groupId?: string;
 };
 
@@ -87,11 +75,7 @@ export type SearchIndex = {
 };
 
 export type SearchNavigationTarget =
-	| { readonly kind: "file"; readonly fileId: FileId }
-	| { readonly kind: "rawTableRange"; readonly range: RawTableRangeRef }
-	| { readonly kind: "curve"; readonly curveKey: CurveKey; readonly fileId: FileId }
-	| { readonly kind: "metric"; readonly metricKey: MetricKey; readonly fileId: FileId }
-	| { readonly kind: "block"; readonly fileId: FileId; readonly measurementBlockId: string };
+	{ readonly kind: "tableResourceRange"; readonly range: ResourceTableRangeRef };
 
 export type SearchPointStatus = "empty" | "noExactMatch" | "outOfRange" | "ready";
 
@@ -121,11 +105,11 @@ export interface ISearchService {
 	readonly onDidChangeSearchState: Event<SearchState>;
 	readonly onDidChangeSearchPointLookupModel: Event<SearchPointLookupModel | null>;
 
-	buildIndex(snapshot: SessionSnapshot): SearchIndex;
+	buildStructuredContentIndex(snapshot: DataResourceStructuredContentSnapshot): SearchIndex;
 	getPointLookupModel(): SearchPointLookupModel | null;
 	getState(): SearchState;
 	resolveResultTarget(result: SearchResult): SearchNavigationTarget | null;
-	searchSnapshot(snapshot: SessionSnapshot, query?: Partial<SearchQuery>): readonly SearchResult[];
+	searchStructuredContent(snapshot: DataResourceStructuredContentSnapshot, query?: Partial<SearchQuery>): readonly SearchResult[];
 	searchPointsAtText(model: PlotMainRenderModel | null, text: string): readonly SearchPoint[] | null;
 	setQuery(query: SearchQuery): void;
 	updateQuery(updates: Partial<SearchQuery>): void;

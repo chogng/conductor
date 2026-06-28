@@ -24,7 +24,7 @@ import { resolveOriginLogPositiveMinForRange } from "src/cs/workbench/services/e
 
 type ProcessedNumberArrayLike = readonly number[] | Float64Array;
 
-type ProcessedSeriesLike = {
+type OriginExportSeriesLike = {
   groupIndex?: number;
   id?: string;
   label?: string;
@@ -34,7 +34,7 @@ type ProcessedSeriesLike = {
   yCol?: number;
 };
 
-type ProcessedEntryLike = {
+type OriginExportFileLike = {
   calculationCache?: unknown;
   curveType?: string;
   fileId?: string;
@@ -45,7 +45,7 @@ type ProcessedEntryLike = {
   xUnit?: string;
   xAxisRole?: string;
   xGroups?: readonly ProcessedNumberArrayLike[];
-  series?: readonly ProcessedSeriesLike[];
+  series?: readonly OriginExportSeriesLike[];
   yLabel?: string;
   yUnit?: string;
   originExportPlotCommand?: string;
@@ -67,25 +67,25 @@ export type OriginExportContentKey =
   | "vth";
 
 type ResolveYScaleFactorForFile = (
-  file: ProcessedEntryLike | null | undefined,
+  file: OriginExportFileLike | null | undefined,
 ) => number;
 type ResolveXScaleFactorForFile = (
-  file: ProcessedEntryLike | null | undefined,
+  file: OriginExportFileLike | null | undefined,
 ) => number;
 type ResolveYUnitLabelForFile = (
-  file: ProcessedEntryLike | null | undefined,
+  file: OriginExportFileLike | null | undefined,
 ) => string;
 type ResolveCurveLabelForSeries = (
-  file: ProcessedEntryLike | null | undefined,
-  series: ProcessedSeriesLike | null | undefined,
+  file: OriginExportFileLike | null | undefined,
+  series: OriginExportSeriesLike | null | undefined,
   index: number,
 ) => string;
 type ResolveAxisTitleForFile = (
-  file: ProcessedEntryLike | null | undefined,
+  file: OriginExportFileLike | null | undefined,
   axis: "x" | "y",
 ) => string | null | undefined;
 type ResolveYValueForOriginFile = (
-  file: ProcessedEntryLike | null | undefined,
+  file: OriginExportFileLike | null | undefined,
   y: number,
 ) => number;
 
@@ -331,7 +331,7 @@ const resolveCanvasDisplayName = (
   sanitizeOriginDisplayName(String(value ?? "").replace(/\.csv$/i, ""), { max });
 
 export const resolveSeriesLabel = (
-  series: ProcessedSeriesLike | null | undefined,
+  series: OriginExportSeriesLike | null | undefined,
   index: number,
 ): string => {
   const name = String(series?.name ?? "").trim();
@@ -480,12 +480,12 @@ export const isOriginExportMode = (
   value === "separate";
 
 const resolveSelectedSeriesForOriginCanvas = (
-  file: ProcessedEntryLike | null | undefined,
+  file: OriginExportFileLike | null | undefined,
   selectedSeriesIdsByFile:
     | Record<string, string[] | undefined>
     | null
     | undefined,
-): ProcessedSeriesLike[] => {
+): OriginExportSeriesLike[] => {
   const allSeries = Array.isArray(file?.series) ? file.series : [];
   if (!allSeries.length) return [];
 
@@ -516,7 +516,7 @@ const resolveSelectedSeriesForOriginCanvas = (
 };
 
 const buildOriginCurveEntriesForCanvas = (
-  file: ProcessedEntryLike | null | undefined,
+  file: OriginExportFileLike | null | undefined,
   selectedSeriesIdsByFile:
     | Record<string, string[] | undefined>
     | null
@@ -560,7 +560,7 @@ const buildOriginCurveEntriesForCanvas = (
   ).trim();
   const useCurveLabelAsYLongName =
     selectedSeries.length > 1 || Boolean(file?.originExportUseCurveYLongNames);
-  const resolveCurveLabel = (series: ProcessedSeriesLike, index: number): string =>
+  const resolveCurveLabel = (series: OriginExportSeriesLike, index: number): string =>
     resolveCurveLabelForSeries(file, series, index);
 
   return selectedSeries
@@ -608,7 +608,7 @@ const buildWorksheetExport = ({
   xAxisTitle,
   yAxisTitle,
 }: {
-  canvases: ProcessedEntryLike[];
+  canvases: OriginExportFileLike[];
   curveEntries: OriginCurveEntry[];
   csvBase: string;
   importMode?: OriginImportMode;
@@ -789,7 +789,7 @@ const buildWorksheetExport = ({
 };
 
 export const buildOriginCanvasExport = (
-  canvas: ProcessedEntryLike | null | undefined,
+  canvas: OriginExportFileLike | null | undefined,
   selectedSeriesIdsByFile:
     | Record<string, string[] | undefined>
     | null
@@ -846,7 +846,7 @@ export const buildOriginCanvasExport = (
 };
 
 export const buildOriginSelectionExport = (
-  selectedCanvases: ProcessedEntryLike[] = [],
+  selectedCanvases: OriginExportFileLike[] = [],
   selectedSeriesIdsByFile:
     | Record<string, string[] | undefined>
     | null
@@ -861,7 +861,7 @@ export const buildOriginSelectionExport = (
   resolveYValueForOriginFile: ResolveYValueForOriginFile = (_file, y) => y,
 ): OriginSelectionExport | null => {
   const liveCanvases = (Array.isArray(selectedCanvases) ? selectedCanvases : []).filter(
-    (file): file is ProcessedEntryLike => Boolean(file),
+    (file): file is OriginExportFileLike => Boolean(file),
   );
   if (!liveCanvases.length) return null;
 
@@ -921,7 +921,7 @@ export const buildOriginSelectionExport = (
 };
 
 const buildOriginWorkbookSheetsExports = (
-  selectedCanvases: ProcessedEntryLike[] = [],
+  selectedCanvases: OriginExportFileLike[] = [],
   selectedSeriesIdsByFile:
     | Record<string, string[] | undefined>
     | null
@@ -936,7 +936,7 @@ const buildOriginWorkbookSheetsExports = (
   resolveYValueForOriginFile: ResolveYValueForOriginFile = (_file, y) => y,
 ): OriginSelectionExport[] => {
   const liveCanvases = (Array.isArray(selectedCanvases) ? selectedCanvases : []).filter(
-    (file): file is ProcessedEntryLike => Boolean(file),
+    (file): file is OriginExportFileLike => Boolean(file),
   );
   if (!liveCanvases.length) return [];
 
@@ -977,24 +977,24 @@ const buildOriginWorkbookSheetsExports = (
 };
 
 const cloneSeriesWithDerivedY = (
-  series: ProcessedSeriesLike,
+  series: OriginExportSeriesLike,
   y: number[],
-): ProcessedSeriesLike => ({
+): OriginExportSeriesLike => ({
   ...series,
   y,
 });
 
 const buildDerivedSeriesList = (
-  file: ProcessedEntryLike,
+  file: OriginExportFileLike,
   xGroups: readonly ProcessedNumberArrayLike[],
-  seriesList: readonly ProcessedSeriesLike[],
+  seriesList: readonly OriginExportSeriesLike[],
   resolveCurveLabelForSeries: ResolveCurveLabelForSeries,
   deriveY: (
-    series: ProcessedSeriesLike,
+    series: OriginExportSeriesLike,
     points: Array<{ x: number; y: number }>,
   ) => number[],
   hasUsableY: (values: number[]) => boolean,
-): ProcessedSeriesLike[] =>
+): OriginExportSeriesLike[] =>
   seriesList
     .map((series) => {
       const points = buildPoints(xGroups[Number(series?.groupIndex)], series?.y);
@@ -1008,7 +1008,7 @@ const buildDerivedSeriesList = (
         derivedY,
       );
     })
-    .filter((series): series is ProcessedSeriesLike => series !== null);
+    .filter((series): series is OriginExportSeriesLike => series !== null);
 
 const hasFiniteValue = (values: number[]): boolean =>
   values.some((value) => Number.isFinite(value));
@@ -1017,7 +1017,7 @@ const hasPositiveFiniteValue = (values: number[]): boolean =>
   values.some((value) => Number.isFinite(value) && value > 0);
 
 const withDerivedOriginFileSemantics = (
-  file: ProcessedEntryLike,
+  file: OriginExportFileLike,
   {
     baseName,
     fileSuffix,
@@ -1031,11 +1031,11 @@ const withDerivedOriginFileSemantics = (
     fileSuffix: string;
     originExportYUnitLabel: string;
     omitCsvText?: boolean;
-    series: ProcessedSeriesLike[];
+    series: OriginExportSeriesLike[];
     yLabel: string;
     yUnit: string;
   },
-): ProcessedEntryLike => ({
+): OriginExportFileLike => ({
   ...file,
   fileName: `${baseName}__${fileSuffix}.csv`,
   series,
@@ -1049,10 +1049,10 @@ const withDerivedOriginFileSemantics = (
 });
 
 const buildDerivedCurveFile = (
-  file: ProcessedEntryLike,
+  file: OriginExportFileLike,
   contentKey: Exclude<OriginExportContentKey, "iv" | "metrics">,
   resolveCurveLabelForSeries: ResolveCurveLabelForSeries,
-): ProcessedEntryLike | null => {
+): OriginExportFileLike | null => {
   const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
   const seriesList = Array.isArray(file?.series) ? file.series : [];
   if (!xGroups.length || !seriesList.length) return null;
@@ -1144,7 +1144,7 @@ const buildDerivedCurveFile = (
 };
 
 const buildMetricsWorksheetExports = (
-  selectedCanvases: ProcessedEntryLike[],
+  selectedCanvases: OriginExportFileLike[],
   selectedSeriesIdsByFile: Record<string, string[] | undefined> | null | undefined,
   resolveCurveLabelForSeries: ResolveCurveLabelForSeries,
 ): OriginSelectionExport[] => {
@@ -1279,9 +1279,9 @@ const normalizeOriginExportContentKeys = (
 };
 
 const buildIvOriginExportGroups = (
-  canvases: ProcessedEntryLike[],
+  canvases: OriginExportFileLike[],
 ): Array<{
-  canvases: ProcessedEntryLike[];
+  canvases: OriginExportFileLike[];
   sheetName: string;
   sheetShortName: string;
 }> => {
@@ -1296,7 +1296,7 @@ const buildIvOriginExportGroups = (
   );
   const otherCanvases = canvases.filter((canvas) => !groupedIds.has(canvas));
   const groups: Array<{
-    canvases: ProcessedEntryLike[];
+    canvases: OriginExportFileLike[];
     sheetName: string;
     sheetShortName: string;
   }> = [];
@@ -1325,7 +1325,7 @@ const buildIvOriginExportGroups = (
 };
 
 export const buildOriginExportsByMode = (
-  selectedCanvases: ProcessedEntryLike[] = [],
+  selectedCanvases: OriginExportFileLike[] = [],
   selectedSeriesIdsByFile:
     | Record<string, string[] | undefined>
     | null
@@ -1341,7 +1341,7 @@ export const buildOriginExportsByMode = (
   resolveYValueForOriginFile: ResolveYValueForOriginFile = (_file, y) => y,
 ): OriginSelectionExport[] => {
   const liveCanvases = (Array.isArray(selectedCanvases) ? selectedCanvases : []).filter(
-    (file): file is ProcessedEntryLike => Boolean(file),
+    (file): file is OriginExportFileLike => Boolean(file),
   );
   if (!liveCanvases.length) return [];
 
@@ -1405,14 +1405,14 @@ const appendOriginScaleSuffix = (
 };
 
 export const buildOriginExportPlan = (
-  selectedCanvases: ProcessedEntryLike[] = [],
+  selectedCanvases: OriginExportFileLike[] = [],
   selectedSeriesIdsByFile:
     | Record<string, string[] | undefined>
     | null
     | undefined = {},
   exportMode: OriginExportMode = "merged",
   resolveYScaleForFile: (
-    file: ProcessedEntryLike | null | undefined,
+    file: OriginExportFileLike | null | undefined,
   ) => OriginYAxisScaleMode = () => "linear",
   resolveXScaleFactorForFile: ResolveXScaleFactorForFile = () => 1,
   resolveYScaleFactorForFile: ResolveYScaleFactorForFile = () => 1,
@@ -1426,7 +1426,7 @@ export const buildOriginExportPlan = (
   buildingIvGroup = false,
 ): OriginExportPlan => {
   const liveCanvases = (Array.isArray(selectedCanvases) ? selectedCanvases : []).filter(
-    (file): file is ProcessedEntryLike => Boolean(file),
+    (file): file is OriginExportFileLike => Boolean(file),
   );
   if (!liveCanvases.length) {
     return {
@@ -1496,7 +1496,7 @@ export const buildOriginExportPlan = (
         .map((canvas) =>
           buildDerivedCurveFile(canvas, contentKey, resolveCurveLabelForSeries),
         )
-        .filter((canvas): canvas is ProcessedEntryLike => canvas !== null);
+        .filter((canvas): canvas is OriginExportFileLike => canvas !== null);
       if (!derivedCanvases.length) continue;
       const nextPayloads = buildOriginExportPlan(
           derivedCanvases,
@@ -1591,7 +1591,7 @@ export const buildOriginExportPlan = (
 
   const groupedCanvases = new Map<
     OriginYAxisScaleMode,
-    ProcessedEntryLike[]
+    OriginExportFileLike[]
   >();
   for (const canvas of liveCanvases) {
     const scaleMode = resolveNormalizedOriginYScale(resolveYScaleForFile(canvas));

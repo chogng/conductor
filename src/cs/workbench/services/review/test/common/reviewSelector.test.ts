@@ -30,11 +30,23 @@ suite("workbench/services/review/test/common/reviewSelector", () => {
 				headerText: "Vg",
 				role: "vg",
 				unit: "V",
+				dataRange: {
+					startRow: 1,
+					endRow: 1,
+					startCol: 0,
+					endCol: 0,
+				},
 			}, {
 				rawCol: 1,
 				headerText: "Id",
 				role: "id",
 				unit: "A",
+				dataRange: {
+					startRow: 1,
+					endRow: 1,
+					startCol: 1,
+					endCol: 1,
+				},
 			}],
 		}));
 
@@ -65,11 +77,23 @@ suite("workbench/services/review/test/common/reviewSelector", () => {
 				headerText: "Vg",
 				role: "vg",
 				unit: "V",
+				dataRange: {
+					startRow: 1,
+					endRow: 1,
+					startCol: 0,
+					endCol: 0,
+				},
 			}, {
 				rawCol: 1,
 				headerText: "Id",
 				role: "id",
 				unit: "mA",
+				dataRange: {
+					startRow: 1,
+					endRow: 1,
+					startCol: 1,
+					endCol: 1,
+				},
 			}],
 		}));
 
