@@ -2,6 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import { RunOnceScheduler } from "src/cs/base/common/async";
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
@@ -24,11 +25,17 @@ import type {
 	IDecorationsProvider,
 } from "src/cs/workbench/services/decorations/common/decorations";
 
+const ExplorerDecorationReviewChangeDelayMs = 250;
+
 export class ExplorerDecorationsProvider extends Disposable implements IDecorationsProvider {
 	public readonly label = localize("files.decorations.providerLabel", "Explorer");
 
 	private readonly onDidChangeEmitter = this._register(new Emitter<readonly URI[]>());
 	public readonly onDidChange: Event<readonly URI[]> = this.onDidChangeEmitter.event;
+	private readonly reviewChangeScheduler = this._register(new RunOnceScheduler(
+		() => this.fireAllResourceDecorationsChanged(),
+		ExplorerDecorationReviewChangeDelayMs,
+	));
 
 	public constructor(
 		@IExplorerService private readonly explorerService: IExplorerServiceType,
@@ -39,7 +46,7 @@ export class ExplorerDecorationsProvider extends Disposable implements IDecorati
 			this.fireAllResourceDecorationsChanged();
 		}));
 		this._register(this.reviewService.onDidChangeReview(() => {
-			this.fireAllResourceDecorationsChanged();
+			this.reviewChangeScheduler.schedule();
 		}));
 	}
 

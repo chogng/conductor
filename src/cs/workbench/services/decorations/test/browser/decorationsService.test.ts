@@ -99,7 +99,7 @@ suite("workbench/services/decorations/test/browser/decorationsService", () => {
 		assert.equal(service.getDecorationData(folder, true).length, 0);
 	});
 
-	test("reports decoration changes for the changed resource and its parents", () => {
+	test("reports decoration changes for the changed resource and its parents", async () => {
 		const service = store.add(new DecorationsService());
 		const folder = URI.file("/workspace");
 		const child = URI.file("/workspace/data.csv");
@@ -111,6 +111,7 @@ suite("workbench/services/decorations/test/browser/decorationsService", () => {
 		});
 		store.add(provider);
 		store.add(service.registerDecorationsProvider(provider));
+		await timeout(0);
 
 		let affected: IResourceDecorationChangeEvent | undefined;
 		store.add(service.onDidChangeDecorations(event => {
@@ -119,6 +120,7 @@ suite("workbench/services/decorations/test/browser/decorationsService", () => {
 
 		service.getDecorationData(child, false);
 		provider.fire([child]);
+		await timeout(0);
 
 		const event = affected;
 		assert.ok(event);
@@ -128,7 +130,7 @@ suite("workbench/services/decorations/test/browser/decorationsService", () => {
 		assert.equal(event.affectsResource(grandchild), false);
 	});
 
-	test("keeps decoration change events scoped by URI identity", () => {
+	test("keeps decoration change events scoped by URI identity", async () => {
 		const service = store.add(new DecorationsService());
 		const changed = URI.from({ authority: "one", path: "/workspace/data.csv", scheme: "memfs" });
 		const changedParent = URI.from({ authority: "one", path: "/workspace", scheme: "memfs" });
@@ -139,6 +141,7 @@ suite("workbench/services/decorations/test/browser/decorationsService", () => {
 		});
 		store.add(provider);
 		store.add(service.registerDecorationsProvider(provider));
+		await timeout(0);
 
 		let affected: IResourceDecorationChangeEvent | undefined;
 		store.add(service.onDidChangeDecorations(event => {
@@ -147,12 +150,45 @@ suite("workbench/services/decorations/test/browser/decorationsService", () => {
 
 		service.getDecorationData(changed, false);
 		provider.fire([changed]);
+		await timeout(0);
 
 		const event = affected;
 		assert.ok(event);
 		assert.equal(event.affectsResource(changed), true);
 		assert.equal(event.affectsResource(changedParent), true);
 		assert.equal(event.affectsResource(otherAuthorityParent), false);
+	});
+
+	test("coalesces synchronous provider refreshes into one decoration change", async () => {
+		const service = store.add(new DecorationsService());
+		const first = URI.file("/workspace/first.csv");
+		const second = URI.file("/workspace/second.csv");
+		const provider = new ResourceDecorationsProvider(new Map([
+			[first.toString(), { letter: "1", tooltip: "First" }],
+			[second.toString(), { letter: "2", tooltip: "Second" }],
+		]));
+		store.add(provider);
+		store.add(service.registerDecorationsProvider(provider));
+		service.getDecorationData(first, false);
+		service.getDecorationData(second, false);
+		await timeout(0);
+
+		let eventCount = 0;
+		let affected: IResourceDecorationChangeEvent | undefined;
+		store.add(service.onDidChangeDecorations(event => {
+			eventCount += 1;
+			affected = event;
+		}));
+
+		provider.fire([first, second]);
+		await timeout(0);
+
+		assert.equal(eventCount, 1);
+		const event = affected;
+		assert.ok(event);
+		assert.equal(event.affectsResource(first), true);
+		assert.equal(event.affectsResource(second), true);
+		assert.equal(event.affectsResource(URI.file("/workspace/other.csv")), false);
 	});
 });
 
@@ -175,6 +211,9 @@ class TestDecorationsProvider extends Disposable implements IDecorationsProvider
 		this.onDidChangeEmitter.fire(resources);
 	}
 }
+
+const timeout = (ms: number): Promise<void> =>
+	new Promise(resolve => setTimeout(resolve, ms));
 
 class ResourceDecorationsProvider extends Disposable implements IDecorationsProvider {
 	public readonly label = "resource";

@@ -138,10 +138,35 @@ suite("workbench/contrib/files/browser/views/explorerDecorations", () => {
 		store.add(provider.onDidChange(resources => changedResources.push([...resources])));
 
 		reviewChanged.fire();
+		await timeout(300);
 
 		assert.equal(changedResources.length, 1);
 		assert.equal(changedResources[0]?.[0]?.with({ fragment: "" }).toString(), resource.toString());
 		assert.equal(changedResources[0]?.[0]?.fragment, "conductor.sheetId=sheet-a");
+	});
+
+	test("coalesces repeated review changes before publishing decoration resources", async () => {
+		const resource = URI.file("/workspace/Transfer.xlsx");
+		const reviewChanged = new Emitter<void>();
+		const changedResources: URI[][] = [];
+		const provider = store.add(new ExplorerDecorationsProvider(
+			createExplorerServiceForTest([{
+				fileId: "file-a",
+				fileName: "Transfer.xlsx",
+				resource,
+				sheetId: "sheet-a",
+			}]),
+			createReviewServiceForTest([], reviewChanged.event),
+		));
+		store.add(provider.onDidChange(resources => changedResources.push([...resources])));
+
+		reviewChanged.fire();
+		reviewChanged.fire();
+		reviewChanged.fire();
+		await timeout(300);
+
+		assert.equal(changedResources.length, 1);
+		assert.equal(changedResources[0]?.[0]?.with({ fragment: "" }).toString(), resource.toString());
 	});
 
 	test("does not infer a sheet target from a bare decoration resource", () => {
@@ -206,10 +231,14 @@ suite("workbench/contrib/files/browser/views/explorerDecorations", () => {
 		store.add(provider.onDidChange(resources => changedResources.push([...resources])));
 
 		reviewChanged.fire();
+		await timeout(300);
 
 		assert.deepEqual(changedResources, []);
 	});
 });
+
+const timeout = (ms: number): Promise<void> =>
+	new Promise(resolve => setTimeout(resolve, ms));
 
 const createExplorerServiceForTest = (
 	files: readonly ExplorerFileEntry[],

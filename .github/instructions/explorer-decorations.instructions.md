@@ -67,7 +67,8 @@ Explorer reports actual rendered range from ObjectTree/List. Do not calculate
 visible rows   -> table-model priority visible
 overscan rows  -> table-model priority nearby
 remaining rows -> table-model priority background
-reviewChanged -> ExplorerDecorationsProvider.onDidChange -> IDecorationsService.onDidChangeDecorations -> ExplorerViewer rerender
+reviewChanged -> ExplorerDecorationsProvider review scheduler -> provider.onDidChange(resources)
+  -> IDecorationsService change scheduler -> onDidChangeDecorations -> ExplorerViewer rerender
 ```
 
 Review summary reads from Explorer must not start structured-content resolution

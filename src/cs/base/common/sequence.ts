@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, type Event } from "src/cs/base/common/event";
+import { Emitter, type Event } from "./event.js";
 
 export interface ISplice<T> {
   readonly deleteCount: number;
