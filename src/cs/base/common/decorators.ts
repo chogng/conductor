@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource, type CancellationToken } from "./async.js";
+import { CancellationTokenSource, type CancellationToken } from "./cancellation.js";
 import { Disposable, type IDisposable } from "./lifecycle.js";
 
 type DecoratedFunction = (...args: any[]) => unknown;

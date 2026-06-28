@@ -4,7 +4,7 @@
 
 import { localize } from "src/cs/nls";
 import { DragAndDropObserver } from "src/cs/base/browser/dom";
-import type { ListHandle } from "src/cs/base/browser/ui/list/list";
+import type { ListHandle } from "src/cs/base/browser/ui/list/listWidget";
 import { DisposableStore, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import type { IDecorationsService } from "src/cs/workbench/services/decorations/common/decorations";
 import { ResourceLabels } from "src/cs/workbench/browser/labels";

@@ -1,6 +1,6 @@
 import assert from "assert";
 
-import { Emitter, Event } from "../../common/event.ts";
+import { Emitter, Event, EventBufferer } from "../../common/event.ts";
 import { DisposableStore } from "../../common/lifecycle.ts";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -83,5 +83,42 @@ suite("base/test/common/event", () => {
     emitter.fire(2);
 
     assert.deepEqual(values, [1]);
+  });
+
+  test("EventBufferer delays events until buffered work completes", () => {
+    const emitter = new Emitter<number>();
+    const bufferer = new EventBufferer();
+    const values: number[] = [];
+
+    store.add(bufferer.wrapEvent(emitter.event)(value => values.push(value)));
+
+    bufferer.bufferEvents(() => {
+      emitter.fire(1);
+      emitter.fire(2);
+      assert.deepEqual(values, []);
+    });
+
+    assert.deepEqual(values, [1, 2]);
+  });
+
+  test("EventBufferer can reduce buffered events", () => {
+    const emitter = new Emitter<number>();
+    const bufferer = new EventBufferer();
+    const values: number[] = [];
+
+    store.add(bufferer.wrapEvent(
+      emitter.event,
+      (last, value) => (last ?? 0) + value,
+      0,
+    )(value => values.push(value)));
+
+    bufferer.bufferEvents(() => {
+      emitter.fire(1);
+      emitter.fire(2);
+      emitter.fire(3);
+      assert.deepEqual(values, []);
+    });
+
+    assert.deepEqual(values, [6]);
   });
 });

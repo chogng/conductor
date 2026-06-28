@@ -3,7 +3,7 @@ import { promises as fsPromises } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { CancellationToken } from "../../common/async.ts";
+import { CancellationToken } from "../../common/cancellation.ts";
 import { buffer, extract, zip } from "../../node/zip.ts";
 
 suite("base/test/node/zip", () => {

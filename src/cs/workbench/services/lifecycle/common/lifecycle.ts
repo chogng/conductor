@@ -1,6 +1,6 @@
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { Event } from "src/cs/base/common/event";
-import type { CancellationToken } from "src/cs/base/common/async";
+import type { CancellationToken } from "src/cs/base/common/cancellation";
 
 export const enum LifecyclePhase {
   Starting = 1,

@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CancellationToken } from "./async.js";
+import type { CancellationToken } from "./cancellation.js";
 import { DisposableStore, toDisposable } from "./lifecycle.js";
 
 export interface Readable<T> {

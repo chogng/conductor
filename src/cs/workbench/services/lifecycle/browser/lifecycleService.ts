@@ -1,4 +1,5 @@
-import { CancellationToken, CancellationTokenSource, DeferredPromise } from "src/cs/base/common/async";
+import { DeferredPromise } from "src/cs/base/common/async";
+import { CancellationTokenSource, type CancellationToken } from "src/cs/base/common/cancellation";
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable, DisposableStore } from "src/cs/base/common/lifecycle";
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";

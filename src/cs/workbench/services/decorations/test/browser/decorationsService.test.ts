@@ -4,7 +4,7 @@
 
 import assert from "assert";
 
-import type { CancellationToken } from "src/cs/base/common/async";
+import type { CancellationToken } from "src/cs/base/common/cancellation";
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";

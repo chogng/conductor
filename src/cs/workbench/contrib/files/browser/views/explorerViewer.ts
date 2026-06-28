@@ -11,7 +11,7 @@ import {
   createMenuItemLabel,
   renderMenuItems,
 } from "src/cs/base/browser/ui/menu/menu";
-import type { ListHandle } from "src/cs/base/browser/ui/list/list";
+import type { ListHandle } from "src/cs/base/browser/ui/list/listWidget";
 import {
   ObjectTree,
   type IObjectTreeOptions,

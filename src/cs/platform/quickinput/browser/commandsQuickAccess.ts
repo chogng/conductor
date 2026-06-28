@@ -1,4 +1,4 @@
-import { CancellationToken } from "src/cs/base/common/async";
+import type { CancellationToken } from "src/cs/base/common/cancellation";
 import { isCancellationError } from "src/cs/base/common/errors";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";

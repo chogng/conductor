@@ -5,7 +5,7 @@
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
-import type { CancellationToken } from "src/cs/base/common/async";
+import type { CancellationToken } from "src/cs/base/common/cancellation";
 import { localize } from "src/cs/nls";
 import {
 	IExplorerService,

@@ -1,95 +1,9 @@
 import { CancellationError } from "./errors.js";
-import { Disposable, DisposableStore, type IDisposable, isDisposable, toDisposable } from "./lifecycle.js";
+import { CancellationTokenSource, type CancellationToken } from "./cancellation.js";
+import { DisposableStore, type IDisposable, isDisposable, toDisposable } from "./lifecycle.js";
 
 export function isThenable<T>(value: unknown): value is PromiseLike<T> {
     return !!value && typeof (value as PromiseLike<T>).then === "function";
-}
-
-export interface CancellationToken {
-    readonly isCancellationRequested: boolean;
-    readonly onCancellationRequested: (listener: () => void) => IDisposable;
-}
-
-class MutableCancellationToken implements CancellationToken {
-    private readonly listeners = new Set<() => void>();
-    private cancelled = false;
-
-    public get isCancellationRequested(): boolean {
-        return this.cancelled;
-    }
-
-    public readonly onCancellationRequested = (listener: () => void): IDisposable => {
-        if (this.cancelled) {
-            listener();
-            return Disposable.None;
-        }
-
-        this.listeners.add(listener);
-        return toDisposable(() => this.listeners.delete(listener));
-    };
-
-    public cancel(): void {
-        if (this.cancelled) {
-            return;
-        }
-
-        this.cancelled = true;
-        const listeners = Array.from(this.listeners);
-        this.listeners.clear();
-
-        for (const listener of listeners) {
-            listener();
-        }
-    }
-
-    public dispose(): void {
-        this.listeners.clear();
-    }
-}
-
-export namespace CancellationToken {
-    export const None: CancellationToken = Object.freeze({
-        isCancellationRequested: false,
-        onCancellationRequested: () => Disposable.None,
-    });
-
-    export const Cancelled: CancellationToken = Object.freeze({
-        isCancellationRequested: true,
-        onCancellationRequested: (listener: () => void) => {
-            listener();
-            return Disposable.None;
-        },
-    });
-}
-
-export class CancellationTokenSource implements IDisposable {
-    private tokenValue: MutableCancellationToken | undefined;
-    private disposed = false;
-
-    public get token(): CancellationToken {
-        if (!this.tokenValue) {
-            this.tokenValue = new MutableCancellationToken();
-        }
-
-        return this.tokenValue;
-    }
-
-    public cancel(): void {
-        if (this.disposed) {
-            return;
-        }
-
-        if (!this.tokenValue) {
-            this.tokenValue = new MutableCancellationToken();
-        }
-
-        this.tokenValue.cancel();
-    }
-
-    public dispose(): void {
-        this.disposed = true;
-        this.tokenValue?.dispose();
-    }
 }
 
 export interface CancelablePromise<T> extends Promise<T> {

@@ -5,7 +5,7 @@
 import { localize } from "src/cs/nls";
 import { URI } from "src/cs/base/common/uri";
 import { createMenuAction } from "src/cs/base/browser/ui/menu/menu";
-import type { ListHandle } from "src/cs/base/browser/ui/list/list";
+import type { ListHandle } from "src/cs/base/browser/ui/list/listWidget";
 import { toAction } from "src/cs/base/common/actions";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { isWindows } from "src/cs/base/common/platform";

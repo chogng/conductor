@@ -1,4 +1,4 @@
-import { CancellationToken } from "src/cs/base/common/async";
+import type { CancellationToken } from "src/cs/base/common/cancellation";
 import { localize } from "src/cs/nls";
 import { isLocalizedString, type ICommandActionTitle } from "src/cs/platform/action/common/action";
 import {

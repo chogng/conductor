@@ -1,6 +1,7 @@
 import assert from "assert";
 
-import { CancellationTokenSource, timeout, type CancellationToken } from "../../common/async.ts";
+import { timeout } from "../../common/async.ts";
+import { CancellationTokenSource, type CancellationToken } from "../../common/cancellation.ts";
 import { cancelPreviousCalls, debounce, memoize, throttle } from "../../common/decorators.ts";
 import { Disposable } from "../../common/lifecycle.ts";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";

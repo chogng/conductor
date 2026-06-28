@@ -1,4 +1,4 @@
-import { CancellationToken } from "src/cs/base/common/async";
+import type { CancellationToken } from "src/cs/base/common/cancellation";
 import { toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import type { ContextKeyExpression, IContextKeyService } from "src/cs/platform/contextkey/common/contextkey";
 import { Registry } from "src/cs/platform/registry/common/platform";

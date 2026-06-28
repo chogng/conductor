@@ -1,4 +1,4 @@
-import { CancellationToken, CancellationTokenSource } from "./async.js";
+import { CancellationTokenSource, type CancellationToken } from "./cancellation.js";
 import type { IDisposable } from "./lifecycle.js";
 
 export interface CacheResult<T> extends IDisposable {

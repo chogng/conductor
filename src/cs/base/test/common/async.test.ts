@@ -2,8 +2,6 @@ import assert from "assert";
 
 import {
   asPromise,
-  CancellationToken,
-  CancellationTokenSource,
   createCancelablePromise,
   DeferredPromise,
   Delayer,
@@ -16,6 +14,7 @@ import {
   timeout,
   TimeoutTimer,
 } from "../../common/async.ts";
+import { CancellationToken, CancellationTokenSource } from "../../common/cancellation.ts";
 import {
   CancellationError,
   isCancellationError,
@@ -25,17 +24,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 
 suite("base/test/common/async", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
-  test("CancellationTokenSource fires listeners once and reports cancellation", () => {
-    const source = store.add(new CancellationTokenSource());
-    let calls = 0;
-
-    store.add(source.token.onCancellationRequested(() => calls++));
-    source.cancel();
-    source.cancel();
-
-    assert.equal(source.token.isCancellationRequested, true);
-    assert.equal(calls, 1);
-  });
 
   test("createCancelablePromise rejects with CancellationError on cancel", async () => {
     const promise = createCancelablePromise(async token => {

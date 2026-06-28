@@ -9,7 +9,7 @@ import {
   type IMessagePassingProtocol,
   type IServerChannel,
 } from "src/cs/base/parts/ipc/common/ipc";
-import type { CancellationToken } from "src/cs/base/common/async";
+import type { CancellationToken } from "src/cs/base/common/cancellation";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";

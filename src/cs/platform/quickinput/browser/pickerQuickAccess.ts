@@ -1,4 +1,5 @@
-import { CancellationToken, CancellationTokenSource, isThenable } from "src/cs/base/common/async";
+import { isThenable } from "src/cs/base/common/async";
+import { CancellationToken, CancellationTokenSource } from "src/cs/base/common/cancellation";
 import { Disposable, DisposableStore, MutableDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import type {
   IKeyMods,

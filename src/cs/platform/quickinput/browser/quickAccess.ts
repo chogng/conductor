@@ -1,4 +1,5 @@
-import { CancellationTokenSource, DeferredPromise } from "src/cs/base/common/async";
+import { DeferredPromise } from "src/cs/base/common/async";
+import { CancellationTokenSource } from "src/cs/base/common/cancellation";
 import { Event } from "src/cs/base/common/event";
 import { Disposable, DisposableStore, isDisposable, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { IContextKeyService, type IContextKeyService as IContextKeyServiceType } from "src/cs/platform/contextkey/common/contextkey";

@@ -1,4 +1,4 @@
-import type { CancellationToken } from "src/cs/base/common/async";
+import type { CancellationToken } from "src/cs/base/common/cancellation";
 import type { Event } from "src/cs/base/common/event";
 import type { URI } from "src/cs/base/common/uri";
 import { localize } from "src/cs/nls";
