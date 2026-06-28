@@ -2,10 +2,10 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler, isThenable } from "src/cs/base/common/async";
+import { isThenable } from "src/cs/base/common/async";
 import { CancellationTokenSource } from "src/cs/base/common/cancellation";
 import { isCancellationError } from "src/cs/base/common/errors";
-import { Emitter, type Event } from "src/cs/base/common/event";
+import { DebounceEmitter, Emitter, type Event } from "src/cs/base/common/event";
 import { DisposableStore, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { ResourceTree } from "src/cs/base/common/resourceTree";
 import { extUri } from "src/cs/base/common/resources";
@@ -25,7 +25,7 @@ class ResourceDecorationChangeEvent implements IResourceDecorationChangeEvent {
 	private readonly rootResourceKeys = new Set<string>();
 
 	public constructor(
-		resources: readonly URI[] | null,
+		resources: readonly URI[] | undefined,
 	) {
 		if (!resources) {
 			this.treesByRootKey = null;
@@ -84,16 +84,19 @@ export class DecorationsService implements IDecorationsService {
 
 	private readonly providers = new LinkedList<IDecorationsProvider>();
 	private readonly data = new Map<string, { readonly uri: URI; readonly entry: DecorationEntry }>();
-	private readonly pendingChangedResources = new Map<string, URI>();
-	private pendingFullChange = false;
-	private readonly changeScheduler = this.store.add(new RunOnceScheduler(
-		() => this.flushPendingDecorationChanges(),
-		0,
-	));
+	private readonly onDidChangeDecorationsDelayed = this.store.add(new DebounceEmitter<readonly URI[] | undefined>({
+		delay: 0,
+		merge: mergeDecorationChangeEvents,
+	}));
+
+	public constructor() {
+		this.store.add(this.onDidChangeDecorationsDelayed.event(resources => {
+			this.onDidChangeDecorationsEmitter.fire(new ResourceDecorationChangeEvent(resources));
+		}));
+	}
 
 	public dispose(): void {
 		this.store.dispose();
-		this.pendingChangedResources.clear();
 		for (const { entry } of this.data.values()) {
 			for (const value of entry.values()) {
 				if (value instanceof DecorationDataRequest) {
@@ -108,7 +111,7 @@ export class DecorationsService implements IDecorationsService {
 
 	public registerDecorationsProvider(provider: IDecorationsProvider): IDisposable {
 		const removeProvider = this.providers.unshift(provider);
-		this.scheduleDecorationsChanged(null);
+		this.onDidChangeDecorationsEmitter.fire(new ResourceDecorationChangeEvent(undefined));
 
 		const removeAll = (): void => {
 			const changedResources: URI[] = [];
@@ -126,14 +129,14 @@ export class DecorationsService implements IDecorationsService {
 				}
 			}
 			if (changedResources.length > 0) {
-				this.scheduleDecorationsChanged(changedResources);
+				this.onDidChangeDecorationsDelayed.fire(changedResources);
 			}
 		};
 
 		const listener = provider.onDidChange(resources => {
 			if (!resources) {
 				removeAll();
-				this.scheduleDecorationsChanged(null);
+				this.onDidChangeDecorationsDelayed.fire(undefined);
 				return;
 			}
 
@@ -265,37 +268,9 @@ export class DecorationsService implements IDecorationsService {
 		const previous = entry.get(provider);
 		entry.set(provider, decoration);
 		if (decoration || previous) {
-			this.scheduleDecorationsChanged([uri]);
+			this.onDidChangeDecorationsDelayed.fire([uri]);
 		}
 		return decoration;
-	}
-
-	private scheduleDecorationsChanged(resources: readonly URI[] | null): void {
-		if (!resources) {
-			this.pendingFullChange = true;
-			this.pendingChangedResources.clear();
-			this.changeScheduler.schedule();
-			return;
-		}
-
-		if (!this.pendingFullChange) {
-			for (const resource of resources) {
-				this.pendingChangedResources.set(getResourceKey(resource), resource);
-			}
-		}
-		this.changeScheduler.schedule();
-	}
-
-	private flushPendingDecorationChanges(): void {
-		const resources = this.pendingFullChange
-			? null
-			: Array.from(this.pendingChangedResources.values());
-		this.pendingFullChange = false;
-		this.pendingChangedResources.clear();
-		if (resources && resources.length === 0) {
-			return;
-		}
-		this.onDidChangeDecorationsEmitter.fire(new ResourceDecorationChangeEvent(resources));
 	}
 }
 
@@ -320,6 +295,19 @@ const distinctStrings = (
 		result.push(value);
 	}
 	return result;
+};
+
+const mergeDecorationChangeEvents = (
+	events: readonly (readonly URI[] | undefined)[],
+): readonly URI[] | undefined => {
+	const resources: URI[] = [];
+	for (const event of events) {
+		if (!event) {
+			return undefined;
+		}
+		resources.push(...event);
+	}
+	return resources;
 };
 
 const createDecorationClassKey = (

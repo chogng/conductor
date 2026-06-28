@@ -68,7 +68,7 @@ visible rows   -> table-model priority visible
 overscan rows  -> table-model priority nearby
 remaining rows -> table-model priority background
 reviewChanged -> ExplorerDecorationsProvider review scheduler -> provider.onDidChange(resources)
-  -> IDecorationsService change scheduler -> onDidChangeDecorations -> ExplorerViewer rerender
+  -> IDecorationsService DebounceEmitter -> onDidChangeDecorations -> ExplorerViewer rerender
 ```
 
 Review summary reads from Explorer must not start structured-content resolution

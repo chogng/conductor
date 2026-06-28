@@ -1,6 +1,6 @@
 import assert from "assert";
 
-import { Emitter, Event, EventBufferer } from "../../common/event.ts";
+import { DebounceEmitter, Emitter, Event, EventBufferer } from "../../common/event.ts";
 import { DisposableStore } from "../../common/lifecycle.ts";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -121,4 +121,25 @@ suite("base/test/common/event", () => {
 
     assert.deepEqual(values, [6]);
   });
+
+  test("DebounceEmitter merges events after the delay", async () => {
+    const emitter = store.add(new DebounceEmitter<number>({
+      delay: 0,
+      merge: events => events.reduce((sum, event) => sum + event, 0),
+    }));
+    const values: number[] = [];
+
+    store.add(emitter.event(value => values.push(value)));
+
+    emitter.fire(1);
+    emitter.fire(2);
+    assert.deepEqual(values, []);
+
+    await timeout(0);
+
+    assert.deepEqual(values, [3]);
+  });
 });
+
+const timeout = (ms: number): Promise<void> =>
+  new Promise(resolve => setTimeout(resolve, ms));

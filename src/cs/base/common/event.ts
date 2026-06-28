@@ -72,8 +72,8 @@ export type EmitterOptions = {
 };
 
 export class Emitter<T> implements IDisposable {
-    private readonly listeners = new Set<(event: T) => unknown>();
-    private disposed = false;
+    protected readonly listeners = new Set<(event: T) => unknown>();
+    protected disposed = false;
 
     public readonly event: Event<T> = (listener, thisArgs, disposables) => {
         if (this.disposed) {
@@ -130,6 +130,98 @@ export class Emitter<T> implements IDisposable {
 
         this.disposed = true;
         this.listeners.clear();
+    }
+
+    public hasListeners(): boolean {
+        return this.listeners.size > 0;
+    }
+}
+
+export class PauseableEmitter<T> extends Emitter<T> {
+    private pauseCount = 0;
+    private readonly eventQueue: T[] = [];
+    private readonly merge: ((input: T[]) => T) | undefined;
+
+    public constructor(options?: EmitterOptions & { merge?: (input: T[]) => T }) {
+        super(options);
+        this.merge = options?.merge;
+    }
+
+    public pause(): void {
+        this.pauseCount += 1;
+    }
+
+    public resume(): void {
+        if (this.pauseCount === 0 || --this.pauseCount !== 0) {
+            return;
+        }
+
+        if (this.merge) {
+            if (this.eventQueue.length === 0) {
+                return;
+            }
+
+            const events = this.eventQueue.splice(0);
+            super.fire(this.merge(events));
+            return;
+        }
+
+        while (this.pauseCount === 0 && this.eventQueue.length > 0) {
+            super.fire(this.eventQueue.shift() as T);
+        }
+    }
+
+    public override fire(event: T): void {
+        if (this.disposed || !this.hasListeners()) {
+            return;
+        }
+
+        if (this.pauseCount !== 0) {
+            this.eventQueue.push(event);
+            return;
+        }
+
+        super.fire(event);
+    }
+
+    public override dispose(): void {
+        this.eventQueue.length = 0;
+        super.dispose();
+    }
+}
+
+export class DebounceEmitter<T> extends PauseableEmitter<T> {
+    private readonly delay: number;
+    private handle: ReturnType<typeof setTimeout> | undefined;
+
+    public constructor(options: EmitterOptions & { merge: (input: T[]) => T; delay?: number }) {
+        super(options);
+        this.delay = options.delay ?? 100;
+    }
+
+    public override fire(event: T): void {
+        if (this.disposed) {
+            return;
+        }
+
+        if (!this.handle) {
+            this.pause();
+            this.handle = setTimeout(() => {
+                this.handle = undefined;
+                this.resume();
+            }, this.delay);
+        }
+
+        super.fire(event);
+    }
+
+    public override dispose(): void {
+        if (this.handle !== undefined) {
+            clearTimeout(this.handle);
+            this.handle = undefined;
+        }
+
+        super.dispose();
     }
 }
 

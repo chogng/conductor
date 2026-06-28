@@ -190,6 +190,30 @@ suite("workbench/services/decorations/test/browser/decorationsService", () => {
 		assert.equal(event.affectsResource(second), true);
 		assert.equal(event.affectsResource(URI.file("/workspace/other.csv")), false);
 	});
+
+	test("reports a full decoration change when the provider invalidates all resources", async () => {
+		const service = store.add(new DecorationsService());
+		const resource = URI.file("/workspace/data.csv");
+		const provider = new TestDecorationsProvider("review", {
+			letter: "R",
+			tooltip: "Ready",
+		});
+		store.add(provider);
+		store.add(service.registerDecorationsProvider(provider));
+
+		let affected: IResourceDecorationChangeEvent | undefined;
+		store.add(service.onDidChangeDecorations(event => {
+			affected = event;
+		}));
+
+		provider.fire(undefined);
+		await timeout(0);
+
+		const event = affected;
+		assert.ok(event);
+		assert.equal(event.affectsResource(resource), true);
+		assert.equal(event.affectsResource(URI.file("/other/file.csv")), true);
+	});
 });
 
 class TestDecorationsProvider extends Disposable implements IDecorationsProvider {
