@@ -56,6 +56,7 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
   test("moves a confirmed file delete to trash before removing the imported file", async () => {
     const movedPaths: string[] = [];
     const paneInputUpdates: ExplorerPaneInput[] = [];
+    const resource = URI.file("/tmp/source.csv");
     const pane = createExplorerViewPane({
       confirm: async () => ({ confirmed: true }),
       moveFileToTrash: async resource => {
@@ -68,12 +69,13 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
         fileId: "file-a",
         fileName: "source.csv",
         relativePath: "source.csv",
+        resource,
         sourcePath: "/tmp/source.csv",
       }]),
     });
 
     try {
-      await pane.deleteFile("file-a");
+      await pane.deleteFile({ resource });
 
       assert.deepEqual(movedPaths, ["/tmp/source.csv"]);
       assert.deepEqual(paneInputUpdates.at(-1)?.files, []);
@@ -85,6 +87,7 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
   test("does not move or remove a file when delete confirmation is canceled", async () => {
     const movedPaths: string[] = [];
     const paneInputUpdates: ExplorerPaneInput[] = [];
+    const resource = URI.file("/tmp/source.csv");
     const pane = createExplorerViewPane({
       confirm: async () => ({ confirmed: false }),
       moveFileToTrash: async resource => {
@@ -97,12 +100,13 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
         fileId: "file-a",
         fileName: "source.csv",
         relativePath: "source.csv",
+        resource,
         sourcePath: "/tmp/source.csv",
       }]),
     });
 
     try {
-      await pane.deleteFile("file-a");
+      await pane.deleteFile({ resource });
 
       assert.deepEqual(movedPaths, []);
       assert.deepEqual(paneInputUpdates, []);
@@ -128,7 +132,6 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
       resource,
     });
     const preparedFile = createPreparedImport({
-      fileId: "file-output",
       fileName: "Output_.csv",
       itemKey: "source-output",
       relativePath: "293K/output/Output_.csv",
@@ -142,9 +145,9 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
       (pane as unknown as {
         replacePreparedImportFiles(
           preparedFiles: readonly PreparedFileImport[],
-          selectedFileId: string | null,
+          selectedItemKey: string | null,
         ): void;
-      }).replacePreparedImportFiles([preparedFile], "file-output");
+      }).replacePreparedImportFiles([preparedFile], "source-output");
 
       assert.deepEqual(openedResources, []);
 
@@ -299,13 +302,11 @@ const createPendingImportFile = ({
 });
 
 const createPreparedImport = ({
-  fileId,
   fileName,
   itemKey,
   relativePath,
   resource,
 }: {
-  readonly fileId: string;
   readonly fileName: string;
   readonly itemKey: string;
   readonly relativePath: string;
@@ -319,7 +320,6 @@ const createPreparedImport = ({
   return {
     fileEntry: {
       file,
-      fileId,
       itemKey,
       relativePath,
       resource,
@@ -327,7 +327,6 @@ const createPreparedImport = ({
     },
     fileInfo: {
       file,
-      fileId,
       fileName,
       itemKey,
       lastModified: 1,

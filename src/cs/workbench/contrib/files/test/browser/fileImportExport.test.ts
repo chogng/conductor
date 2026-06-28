@@ -722,7 +722,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
         appendedFileNames.push(...preparedFiles.map(file => file.fileInfo.fileName));
       },
       onDraggingChange: () => undefined,
-      onRemoveFiles: () => undefined,
+      onRemoveSourceItems: () => undefined,
       onReplacePreparedFiles: preparedFiles => {
         replacedFileNames.push(...preparedFiles.map(file => file.fileInfo.fileName));
       },
@@ -756,7 +756,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
         appendedFileNames.push(...preparedFiles.map(file => file.fileInfo.fileName));
       },
       onDraggingChange: () => undefined,
-      onRemoveFiles: () => undefined,
+      onRemoveSourceItems: () => undefined,
       onReplacePreparedFiles: preparedFiles => {
         appendedFileNames.push(...preparedFiles.map(file => file.fileInfo.fileName));
       },
@@ -806,7 +806,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       notificationService,
       onAppendPreparedFiles: () => undefined,
       onDraggingChange: () => undefined,
-      onRemoveFiles: () => undefined,
+      onRemoveSourceItems: () => undefined,
       onReplacePreparedFiles: () => undefined,
       syncView: () => undefined,
     });

@@ -1,6 +1,7 @@
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
+import { generateUuid } from "src/cs/base/common/uuid";
 import type { IChannel } from "src/cs/base/parts/ipc/common/ipc";
 import {
   FileChangeType,
@@ -15,7 +16,7 @@ type RawFileChange = {
 };
 
 export class WatcherClient extends Disposable {
-  private readonly sessionId = this.createId("session");
+  private readonly sessionId = generateUuid();
   private readonly onDidFilesChangeEmitter = this._register(new Emitter<readonly IFileChange[]>());
   public readonly onDidFilesChange = this.onDidFilesChangeEmitter.event;
 
@@ -36,23 +37,12 @@ export class WatcherClient extends Disposable {
   }
 
   public watch(resource: URI, options?: IWatchOptions): IDisposable {
-    const watchId = this.createId("watch");
+    const watchId = generateUuid();
     void this.channel.call("watch", [this.sessionId, watchId, resource, options ?? {}]);
 
     return toDisposable(() => {
       void this.channel.call("unwatch", [this.sessionId, watchId]);
     });
-  }
-
-  private createId(prefix: string): string {
-    if (
-      typeof crypto !== "undefined" &&
-      typeof crypto.randomUUID === "function"
-    ) {
-      return crypto.randomUUID();
-    }
-
-    return `${prefix}_${Math.random().toString(36).slice(2)}_${Date.now().toString(36)}`;
   }
 
   private reviveChanges(payload: unknown): readonly IFileChange[] {

@@ -3,6 +3,7 @@ import { Disposable, toDisposable, type IDisposable } from "src/cs/base/common/l
 import { URI } from "src/cs/base/common/uri";
 import { isEqualOrParent, toSlashes } from "src/cs/base/common/extpath";
 import { extname } from "src/cs/base/common/resources";
+import { generateUuid } from "src/cs/base/common/uuid";
 import {
   FileSystemProviderCapabilities,
   FileType,
@@ -70,17 +71,6 @@ function normalizePath(path: string): string {
   }
 
   return normalized;
-}
-
-function createRandomId(prefix: string): string {
-  if (
-    typeof crypto !== "undefined" &&
-    typeof crypto.randomUUID === "function"
-  ) {
-    return crypto.randomUUID();
-  }
-
-  return `${prefix}_${Math.random().toString(36).slice(2)}_${Date.now().toString(36)}`;
 }
 
 function isTreeDirectory(entry: BrowserFileTreeEntry): entry is BrowserFileTreeDirectory {
@@ -292,14 +282,14 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
   }
 
   public registerFile(file: File): URI {
-    const id = createRandomId("browserfile");
+    const id = generateUuid();
     const path = normalizePath(`/${id}/${file.name || "file"}`);
     this.files.set(path, { file, path });
     return URI.from({ path, scheme: "file" });
   }
 
   public registerWritableFileHandle(handle: FileSystemFileHandle): URI {
-    const id = createRandomId("browserfile");
+    const id = generateUuid();
     const path = normalizePath(`/${id}/${handle.name || "file"}`);
     this.files.set(path, { handle, path });
     return URI.from({ path, scheme: "file" });

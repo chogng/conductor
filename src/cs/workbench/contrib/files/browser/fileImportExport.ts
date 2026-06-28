@@ -59,16 +59,6 @@ import {
   type WorkspaceExternalChanges,
 } from "src/cs/workbench/services/workspaces/common/workspaces";
 
-const fnv1a32 = (input: unknown): string => {
-  const str = String(input ?? "");
-  let hash = 0x811c9dc5;
-  for (let index = 0; index < str.length; index += 1) {
-    hash ^= str.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return (hash >>> 0).toString(16).padStart(8, "0");
-};
-
 export type ImportFileData = {
   readonly lastModified: number;
   readonly name: string;
@@ -123,18 +113,6 @@ export type FolderImportFiles = {
   readonly readFailures: FolderFileReadFailure[];
 };
 
-export const buildFileIdentityKey = (
-  file: ImportFileData | null | undefined,
-  relativePath?: string | null,
-): string => {
-  if (!file) {
-    return "";
-  }
-
-  const path = relativePath?.trim();
-  return `${path || file.name}::${file.size}::${file.lastModified}`;
-};
-
 export const buildFileSourceIdentityKey = (
   fileName: unknown,
   size: unknown,
@@ -148,18 +126,6 @@ export const buildFileSourceIdentityKey = (
 
   const path = relativePath?.trim();
   return `${path || name}::${Number(size) || 0}::${Number(lastModified) || 0}`;
-};
-
-export const buildItemKey = (
-  file: ImportFileData | null | undefined,
-  relativePath?: string | null,
-): string => {
-  const raw = buildFileIdentityKey(file, relativePath);
-  if (!raw) {
-    return "";
-  }
-
-  return `csv-${fnv1a32(raw)}`;
 };
 
 const PENDING_IMPORT_APPEND_BATCH_SIZE = 50;
@@ -221,7 +187,6 @@ export function getPendingImportAppendBatchSize(
 }
 
 export type PreparedFileImportEntry = {
-  readonly fileId: string;
   readonly file: File;
   readonly itemKey: string;
   readonly normalizedCsvPath?: string | null;
@@ -231,7 +196,6 @@ export type PreparedFileImportEntry = {
 };
 
 export type PreparedFileImportInfo = {
-  readonly fileId: string;
   readonly fileName: string;
   readonly file: File;
   readonly lastModified: number;
@@ -302,10 +266,10 @@ export type FileSourceWorkflowOptions = {
   readonly onAppendPendingSourceFiles?: (pendingFiles: readonly PendingImportFile[]) => void;
   readonly onClearPendingSourceFiles?: () => void;
   readonly onDraggingChange: (isDragging: boolean) => void;
-  readonly onRemoveFiles: (fileIds: readonly string[]) => void;
+  readonly onRemoveSourceItems: (itemKeys: readonly string[]) => void;
   readonly onReplacePreparedFiles: (
     preparedFiles: readonly PreparedFileImport[],
-    selectedImportFileId: string | null,
+    selectedImportItemKey: string | null,
   ) => void;
   readonly onReplacePendingSourceFiles?: (pendingFiles: readonly PendingImportFile[]) => void;
   readonly onFinishPendingSourceReplace?: () => void;
@@ -414,10 +378,10 @@ export class FileSourceWorkflow implements IDisposable {
     this.clearImportedFolderWatch();
   }
 
-  public rememberRemovedFiles(fileIds: readonly string[]): void {
-    const removedFileIds = new Set(fileIds);
+  public rememberRemovedSourceItems(itemKeys: readonly string[]): void {
+    const removedItemKeys = new Set(itemKeys);
     for (const file of this.options.getFiles()) {
-      if (!removedFileIds.has(file.fileId ?? "")) {
+      if (!removedItemKeys.has(file.itemKey ?? "")) {
         continue;
       }
 
@@ -635,8 +599,8 @@ export class FileSourceWorkflow implements IDisposable {
                 return;
               }
 
-              const selectedImportFileId = preparedFiles[0]?.fileInfo.fileId ?? null;
-              this.options.onReplacePreparedFiles(preparedFiles, selectedImportFileId);
+              const selectedImportItemKey = preparedFiles[0]?.fileInfo.itemKey ?? null;
+              this.options.onReplacePreparedFiles(preparedFiles, selectedImportItemKey);
               hasReplacedPreparedFiles = true;
             },
             pendingImportFiles,
@@ -886,16 +850,16 @@ export class FileSourceWorkflow implements IDisposable {
       return;
     }
 
-    const removedFileIds = this.options.getFiles()
+    const removedItemKeys = this.options.getFiles()
       .filter(file => {
         const sourcePath = createWorkspaceSourcePathKey(file.relativePath);
         return Boolean(sourcePath && removedPaths.has(sourcePath));
       })
-      .map(file => file.fileId)
-      .filter((fileId): fileId is string => typeof fileId === "string");
+      .map(file => file.itemKey)
+      .filter((itemKey): itemKey is string => typeof itemKey === "string");
 
-    if (removedFileIds.length > 0) {
-      this.options.onRemoveFiles(removedFileIds);
+    if (removedItemKeys.length > 0) {
+      this.options.onRemoveSourceItems(removedItemKeys);
     }
   }
 
@@ -1132,7 +1096,6 @@ export const preparePendingImportFile = async (
   let resource: URI;
   let sourcePath: string | null;
   let file: File;
-  let fileId = "";
 
   try {
     markTemplateApplyPerformanceTrace("import.prepare.file.start", {
@@ -1141,7 +1104,6 @@ export const preparePendingImportFile = async (
       sourceKind: pendingImportFile.kind,
       sourceSizeBytes: pendingImportFile.sourceSize,
     });
-    fileId = createFileId();
     const preparedResource = await resolvePendingImportResource(filesService, pendingImportFile);
     resource = preparedResource.resource;
     sourcePath = preparedResource.sourcePath;
@@ -1170,34 +1132,16 @@ export const preparePendingImportFile = async (
     };
   }
 
-  const fileEntry: PreparedFileImportEntry = {
-    fileId,
-    file,
-    relativePath,
-    resource,
-    itemKey,
-    sourcePath,
-  };
-  const fileInfo: PreparedFileImportInfo = {
-    fileId,
-    fileName: pendingImportFile.sourceName,
-    file,
-    lastModified: pendingImportFile.lastModified,
-    relativePath,
-    resource,
-    size: pendingImportFile.sourceSize,
-    itemKey,
-    sourcePath,
-  };
+  const prepared = toPreparedFileImport(pendingImportFile, file, resource, sourcePath);
 
   finishFilePerf({
     accepted: true,
-    fileId,
+    itemKey,
     resource: sourcePath ?? resource.toString(),
   });
   markTemplateApplyPerformanceTrace("import.prepare.file.complete", {
-    fileId,
     fileName: pendingImportFile.sourceName,
+    itemKey,
     relativePath,
     resource: sourcePath ?? resource.toString(),
     sourceKind: pendingImportFile.kind,
@@ -1206,9 +1150,40 @@ export const preparePendingImportFile = async (
 
   return {
     ok: true,
-    prepared: { fileEntry, fileInfo },
+    prepared,
   };
 };
+
+function toPreparedFileImport(
+  pendingImportFile: PendingImportFile,
+  file: File,
+  resource: URI,
+  sourcePath: string | null,
+): PreparedFileImport {
+  const {
+    itemKey,
+    relativePath,
+  } = pendingImportFile;
+  return {
+    fileEntry: {
+      file,
+      relativePath,
+      resource,
+      itemKey,
+      sourcePath,
+    },
+    fileInfo: {
+      fileName: pendingImportFile.sourceName,
+      file,
+      lastModified: pendingImportFile.lastModified,
+      relativePath,
+      resource,
+      size: pendingImportFile.sourceSize,
+      itemKey,
+      sourcePath,
+    },
+  };
+}
 
 class ImportPrepareError extends Error {
   public readonly code: string;
@@ -1683,17 +1658,6 @@ export const prepareFileSourcesForImport = async ({
     }),
     preparedFiles,
   };
-};
-
-const createFileId = (): string => {
-  if (
-    typeof crypto !== "undefined" &&
-    typeof crypto.randomUUID === "function"
-  ) {
-    return crypto.randomUUID();
-  }
-
-  return `file_${Math.random().toString(36).slice(2)}_${Date.now().toString(36)}`;
 };
 
 const toPrepareFailure = (

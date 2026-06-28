@@ -169,9 +169,9 @@ export class ExplorerViewPane extends ViewPane {
       onDraggingChange: isDragging => {
         this.isDragging = isDragging;
       },
-      onRemoveFiles: fileIds => this.removeImportedFilesFromExplorer(fileIds),
-      onReplacePreparedFiles: (preparedFiles, selectedImportFileId) => {
-        this.replacePreparedImportFiles(preparedFiles, selectedImportFileId);
+      onRemoveSourceItems: itemKeys => this.removeImportedSourceItemsFromExplorer(itemKeys),
+      onReplacePreparedFiles: (preparedFiles, selectedImportItemKey) => {
+        this.replacePreparedImportFiles(preparedFiles, selectedImportItemKey);
       },
       onReplacePendingSourceFiles: pendingFiles => this.replacePendingSourceFiles(pendingFiles),
       onFinishPendingSourceReplace: () => this.finishPendingSourceReplace(),
@@ -772,7 +772,7 @@ export class ExplorerViewPane extends ViewPane {
       return;
     }
 
-    this.sourceWorkflow.rememberRemovedFiles([normalizedFileId]);
+    this.sourceWorkflow.rememberRemovedSourceItems(getExplorerSourceItemKeys([file]));
     this.notifyExplorerFilesRemoved([normalizedFileId]);
     this.removeFiles([normalizedFileId]);
     this.syncView();
@@ -832,7 +832,7 @@ export class ExplorerViewPane extends ViewPane {
       return;
     }
 
-    this.sourceWorkflow.rememberRemovedFiles([normalizedFileId]);
+    this.sourceWorkflow.rememberRemovedSourceItems(getExplorerSourceItemKeys([file]));
     this.notifyExplorerFilesRemoved([normalizedFileId]);
     this.removeFiles([normalizedFileId]);
     this.syncView();
@@ -844,9 +844,10 @@ export class ExplorerViewPane extends ViewPane {
       return;
     }
 
+    const removedFiles = this.files
+      .filter((entry) => isExplorerPathInFolder(entry.relativePath, folderPath));
     const removedFileIds = new Set(
-      this.files
-        .filter((entry) => isExplorerPathInFolder(entry.relativePath, folderPath))
+      removedFiles
         .map((entry) => entry.fileId)
         .filter((fileId): fileId is string => typeof fileId === "string"),
     );
@@ -857,7 +858,7 @@ export class ExplorerViewPane extends ViewPane {
 
     const fileIds = [...removedFileIds];
     if (fileIds.length > 0) {
-      this.sourceWorkflow.rememberRemovedFiles(fileIds);
+      this.sourceWorkflow.rememberRemovedSourceItems(getExplorerSourceItemKeys(removedFiles));
       this.notifyExplorerFilesRemoved(fileIds);
       this.removeFiles(fileIds);
     }
@@ -1000,7 +1001,7 @@ export class ExplorerViewPane extends ViewPane {
   private replaceImportedFiles(
     fileEntries: PreparedFileImportEntry[],
     importedFiles: PreparedFileImportInfo[],
-    selectedImportFileId: string | null = importedFiles[0]?.fileId ?? null,
+    selectedImportItemKey: string | null = importedFiles[0]?.itemKey ?? null,
   ): void {
     const localEntries = createLocalExplorerImportEntries(fileEntries, importedFiles);
     assertSupportedExplorerImportEntries(localEntries, importedFiles);
@@ -1018,7 +1019,7 @@ export class ExplorerViewPane extends ViewPane {
     this.publishExplorerPaneInput();
 
     this.removePendingSourceFiles(getImportItemKeys(importedFiles));
-    const selectedEntry = resolveSelectedExplorerImportEntry(localEntries, selectedImportFileId);
+    const selectedEntry = resolveSelectedExplorerImportEntry(localEntries, selectedImportItemKey);
     if (!selectedEntry) {
       this.syncView();
       return;
@@ -1089,16 +1090,29 @@ export class ExplorerViewPane extends ViewPane {
 
   private replacePreparedImportFiles(
     preparedFiles: readonly PreparedFileImport[],
-    selectedImportFileId: string | null,
+    selectedImportItemKey: string | null,
   ): void {
     this.replaceImportedFiles(
       preparedFiles.map(prepared => prepared.fileEntry),
       preparedFiles.map(prepared => prepared.fileInfo),
-      selectedImportFileId,
+      selectedImportItemKey,
     );
   }
 
-  private removeImportedFilesFromExplorer(fileIds: readonly string[]): void {
+  private removeImportedSourceItemsFromExplorer(itemKeys: readonly string[]): void {
+    const removedItemKeys = new Set(
+      itemKeys
+        .map(itemKey => normalizeItemKey(itemKey))
+        .filter((itemKey): itemKey is string => Boolean(itemKey)),
+    );
+    if (!removedItemKeys.size) {
+      return;
+    }
+
+    const fileIds = this.files
+      .filter(file => removedItemKeys.has(normalizeItemKey(file.itemKey) ?? ""))
+      .map(file => normalizeFileId(file.fileId))
+      .filter((fileId): fileId is string => Boolean(fileId));
     this.notifyExplorerFilesRemoved(fileIds);
     this.removeFiles(fileIds);
     this.syncView();
@@ -1316,12 +1330,9 @@ function createLocalExplorerImportEntry(
   const sourcePath = normalizePathValue(fileEntry?.sourcePath) ??
     normalizePathValue(importedFile.sourcePath);
   const itemKey = normalizeItemKey(fileEntry?.itemKey) ??
-    normalizeItemKey(importedFile.itemKey) ??
-    normalizeFileId(importedFile.fileId) ?? "";
-
-  return {
+    normalizeItemKey(importedFile.itemKey) ?? "";
+  const entry = {
     file: fileEntry?.file ?? importedFile.file,
-    fileId: importedFile.fileId,
     fileName: importedFile.fileName,
     itemKey,
     localImport: true,
@@ -1329,6 +1340,16 @@ function createLocalExplorerImportEntry(
     relativePath: fileEntry?.relativePath ?? importedFile.relativePath ?? null,
     resource: fileEntry?.resource ?? importedFile.resource ?? null,
     sourcePath,
+  };
+  const fileId = getExplorerFileSourceIdentityKey(entry) ||
+    itemKey ||
+    normalizePathValue(sourcePath) ||
+    normalizePathValue(importedFile.resource?.toString()) ||
+    importedFile.fileName;
+
+  return {
+    ...entry,
+    fileId,
   };
 }
 
@@ -1388,9 +1409,9 @@ function mergeExplorerCommittedFiles(
 
 function resolveSelectedExplorerImportEntry(
   entries: readonly ExplorerFileEntry[],
-  selectedImportFileId: string | null,
+  selectedImportItemKey: string | null,
 ): ExplorerFileEntry | null {
-  const selectedEntry = findExplorerImportEntryByFileId(entries, selectedImportFileId);
+  const selectedEntry = findExplorerImportEntryByItemKey(entries, selectedImportItemKey);
   return selectedEntry
     ? selectedEntry
     : entries[0] ?? null;
@@ -1453,16 +1474,16 @@ export function resolveExplorerSourceReplaceRemovedFileIds({
   );
 }
 
-function findExplorerImportEntryByFileId(
+function findExplorerImportEntryByItemKey(
   files: readonly ExplorerFileEntry[],
-  fileId: string | null | undefined,
+  itemKey: string | null | undefined,
 ): ExplorerFileEntry | null {
-  const normalizedFileId = normalizeFileId(fileId);
-  if (!normalizedFileId) {
+  const normalizedItemKey = normalizeItemKey(itemKey);
+  if (!normalizedItemKey) {
     return null;
   }
 
-  return files.find(file => normalizeFileId(file.fileId) === normalizedFileId) ?? null;
+  return files.find(file => normalizeItemKey(file.itemKey) === normalizedItemKey) ?? null;
 }
 
 function findExplorerFileEntryByResource(
@@ -1595,13 +1616,13 @@ function assertSupportedExplorerImportEntries(
 ): void {
   const entryPaths = new Map(
     entries
-      .map(entry => [normalizeFileId(entry.fileId), getExplorerFileTablePath(entry)] as const)
+      .map(entry => [normalizeItemKey(entry.itemKey), getExplorerFileTablePath(entry)] as const)
       .filter((entry): entry is readonly [string, string] => Boolean(entry[0] && entry[1])),
   );
   for (const file of importedFiles) {
     const candidates = [
       ...getImportedTableFileNameCandidates(file),
-      entryPaths.get(normalizeFileId(file.fileId) ?? "") ?? "",
+      entryPaths.get(normalizeItemKey(file.itemKey) ?? "") ?? "",
     ];
     if (!candidates.some(candidate => tableFormatService.canHandle(candidate))) {
       throw new Error(`Unsupported table file: ${candidates[0] || "Unknown file"}`);
@@ -1616,7 +1637,7 @@ function getImportedTableFileNameCandidates(
     file.fileName,
     file.sourcePath,
     file.resource?.path,
-    file.fileId,
+    file.itemKey,
   ]
     .map(value => String(value ?? "").trim())
     .filter((value): value is string => Boolean(value));
@@ -1716,6 +1737,21 @@ function getNormalizedFileIds(values: readonly string[]): readonly string[] {
       .map(value => normalizeFileId(value))
       .filter((fileId): fileId is string => Boolean(fileId)),
   );
+}
+
+function getExplorerSourceItemKeys(files: readonly ExplorerFileEntry[]): readonly string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const file of files) {
+    const itemKey = normalizeItemKey(file.itemKey);
+    if (!itemKey || seen.has(itemKey)) {
+      continue;
+    }
+
+    seen.add(itemKey);
+    result.push(itemKey);
+  }
+  return result;
 }
 
 function uniqueFileIds(values: readonly string[]): readonly string[] {
