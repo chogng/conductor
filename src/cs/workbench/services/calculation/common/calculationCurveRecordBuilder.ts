@@ -8,7 +8,7 @@ import {
 } from "src/cs/workbench/services/calculation/common/calculationExecutor";
 import type { CalculationKind } from "src/cs/workbench/services/calculation/common/calculationTypes";
 import { calculateSecondDerivativePoints } from "src/cs/workbench/services/calculation/common/gm";
-import { createCalculatedDataRecordInputSignature } from "src/cs/workbench/services/calculation/common/calculationReadModel";
+import { createCalculatedDataInputSignature } from "src/cs/workbench/services/calculation/common/calculationReadModel";
 import type {
 	BaseCurveKey,
 	BaseCurveRecord,
@@ -26,7 +26,7 @@ import type {
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
 	collectFileRecordBaseCurves,
-} from "src/cs/workbench/services/session/common/sessionRecordProjection";
+} from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
 
 type DerivedCalculationKind = Exclude<CalculationKind, "iv">;
 
@@ -51,7 +51,7 @@ const DerivedCalculationKinds: readonly DerivedCalculationKind[] = ["gm", "ss", 
 export const createCalculatedCurveRecordsInputSignature = (
 	filesById: Record<FileId, FileRecord>,
 	fileOrder: readonly FileId[],
-): string => createCalculatedDataRecordInputSignature(filesById, fileOrder);
+): string => createCalculatedDataInputSignature(filesById, fileOrder);
 
 export const createCalculatedCurveRecordsByFile = (
 	filesById: Record<FileId, FileRecord>,

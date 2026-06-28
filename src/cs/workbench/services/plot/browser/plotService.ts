@@ -78,7 +78,7 @@ import {
   getPlotFileAxisSettings,
   type PlotFileAxisSettingsOverrides,
 } from "src/cs/workbench/services/plot/common/plotAxisSettings";
-import { hasFileRecordBaseCurves } from "src/cs/workbench/services/session/common/sessionRecordProjection";
+import { hasFileRecordBaseCurves } from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
 
 const PLOT_AXIS_STORAGE_KEYS = {
   xUnitByFileId: "plot.xUnitByFileId",

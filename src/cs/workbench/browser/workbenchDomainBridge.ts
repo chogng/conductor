@@ -45,7 +45,7 @@ import {
   getFileRecordCurveType,
   getFileRecordDomain,
   getFileRecordXGroups,
-} from "src/cs/workbench/services/session/common/sessionRecordProjection";
+} from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
 import type {
   ITableService,
   TableSource,

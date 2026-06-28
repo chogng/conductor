@@ -28,7 +28,6 @@ model services.
 | `common/session.ts` | service contract, snapshot, commit inputs, events. |
 | `common/sessionModel.ts` | canonical records: files, raw, table model, slice runs, series, curves, metrics, cache. |
 | `common/sessionEvents.ts` | change reasons, affected ids, helper types. |
-| `common/sessionModelAdapter.ts` | remaining canonical curve/semantics projection helpers. |
 | `browser/sessionService.ts` | mutable model owner, validation, versioning, events. |
 
 ## Canonical Data Only

@@ -18,15 +18,12 @@ import type {
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
   collectFileRecordBaseCurves,
-  createProcessedSeriesFromFileRecord,
   fileRecordSupportsSs,
   getFileRecordAxisProjection,
   getFileRecordCurveType,
   getFileRecordXGroups,
-} from "src/cs/workbench/services/session/common/sessionRecordProjection";
-import type { ProcessedEntry, ProcessedSeries } from "src/cs/workbench/services/session/common/sessionTypes";
+} from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
 
-type ProcessedFileEntry = ProcessedEntry;
 export type {
   OriginExportMode,
   OriginSelectionExport,
@@ -61,6 +58,33 @@ type SsClassification = Partial<{
   ss_ok: boolean;
   ss_reason: string;
 }>;
+
+type ExportCsvNumberArray = readonly number[];
+
+export type ExportCsvSeries = {
+  readonly groupIndex?: number;
+  readonly id?: string;
+  readonly label?: string;
+  readonly legendValue?: unknown;
+  readonly name?: string;
+  readonly y?: ExportCsvNumberArray;
+  readonly yCol?: number;
+};
+
+export type ExportCsvFile = {
+  readonly calculationCache?: unknown;
+  readonly curveType?: string | null;
+  readonly fileId?: string;
+  readonly fileName?: string;
+  readonly series?: readonly ExportCsvSeries[];
+  readonly supportsSs?: boolean;
+  readonly xAxisRole?: string;
+  readonly xGroups?: readonly ExportCsvNumberArray[];
+  readonly xLabel?: string;
+  readonly xUnit?: string;
+  readonly yLabel?: string;
+  readonly yUnit?: string;
+};
 
 export const sanitizeExportFilename = (name: unknown): string =>
   String(name || "export")
@@ -106,24 +130,24 @@ export const createUniqueFileNameResolver = (): ((
 };
 
 export type ResolveCsvCurveLabelForSeries = (
-  file: ProcessedFileEntry,
-  series: ProcessedSeries,
+  file: ExportCsvFile,
+  series: ExportCsvSeries,
   index: number,
 ) => string;
 
 type CsvSeriesGroup = {
   groupIndex: number;
   label: string | undefined;
-  xArr: number[];
-  yArr: number[];
+  xArr: ExportCsvNumberArray;
+  yArr: ExportCsvNumberArray;
 };
 
-export const createExportProcessedFilesFromSession = (
+export const createExportCsvFilesFromCanonical = (
   filesById: Record<FileId, FileRecord>,
   fileOrder: readonly FileId[],
-): ProcessedFileEntry[] => {
+): ExportCsvFile[] => {
   const seen = new Set<FileId>();
-  const entries: ProcessedFileEntry[] = [];
+  const entries: ExportCsvFile[] = [];
   const pushFile = (fileId: FileId): void => {
     if (seen.has(fileId)) {
       return;
@@ -135,7 +159,7 @@ export const createExportProcessedFilesFromSession = (
       return;
     }
 
-    entries.push(createExportProcessedFileFromRecord(file));
+    entries.push(createExportCsvFileFromRecord(file));
   };
 
   for (const fileId of fileOrder) {
@@ -148,7 +172,7 @@ export const createExportProcessedFilesFromSession = (
   return entries;
 };
 
-export const buildCsvExportsFromSession = (
+export const buildCsvExportsFromCanonical = (
   filesById: Record<FileId, FileRecord>,
   fileOrder: readonly FileId[],
   resolveCurveLabelForSeries?: ResolveCsvCurveLabelForSeries,
@@ -158,11 +182,11 @@ export const buildCsvExportsFromSession = (
   xyPairCount: number;
 }> =>
   buildCsvExports(
-    createExportProcessedFilesFromSession(filesById, fileOrder),
+    createExportCsvFilesFromCanonical(filesById, fileOrder),
     resolveCurveLabelForSeries,
   );
 
-export const buildSsMetricsCsvFromSession = ({
+export const buildSsMetricsCsvFromCanonical = ({
   filesById,
   fileOrder,
   manualSsRangesByFileId,
@@ -174,14 +198,14 @@ export const buildSsMetricsCsvFromSession = ({
   ssMethod?: unknown;
 }): string =>
   buildSsMetricsCsv({
-    processedFiles: createExportProcessedFilesFromSession(filesById, fileOrder),
+    csvFiles: createExportCsvFilesFromCanonical(filesById, fileOrder),
     manualSsRangesByFileId: manualSsRangesByFileId ??
-      createManualSsRangesFromSession(filesById, fileOrder),
+      createManualSsRangesFromCanonical(filesById, fileOrder),
     ssMethod,
   });
 
 export const buildCsvExports = (
-  processedFiles: ProcessedFileEntry[] = [],
+  csvFiles: ExportCsvFile[] = [],
   resolveCurveLabelForSeries?: ResolveCsvCurveLabelForSeries,
 ): Array<{
   csvText: string;
@@ -192,12 +216,12 @@ export const buildCsvExports = (
   const exports: Array<{ csvText: string; filename: string; xyPairCount: number }> =
     [];
 
-  for (const file of processedFiles) {
+  for (const file of csvFiles) {
     const originalFileName = file?.fileName ?? "export";
     const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
     const seriesList = Array.isArray(file?.series) ? file.series : [];
 
-    const seriesByYCol = new Map<number, ProcessedSeries[]>();
+    const seriesByYCol = new Map<number, ExportCsvSeries[]>();
     for (const series of seriesList) {
       const yCol = Number(series?.yCol);
       if (!Number.isInteger(yCol)) continue;
@@ -285,7 +309,10 @@ export const buildCsvExports = (
   return exports;
 };
 
-const buildPoints = (xArr?: number[], yArr?: number[]): Array<{ x: number; y: number }> => {
+const buildPoints = (
+  xArr?: ExportCsvNumberArray,
+  yArr?: ExportCsvNumberArray,
+): Array<{ x: number; y: number }> => {
   if (!xArr || !yArr) return [];
 
   const count = Math.min(xArr.length ?? 0, yArr.length ?? 0);
@@ -300,8 +327,8 @@ const buildPoints = (xArr?: number[], yArr?: number[]): Array<{ x: number; y: nu
 };
 
 const getOrComputeSsFitAuto = (
-  file: ProcessedFileEntry,
-  series: ProcessedSeries,
+  file: ExportCsvFile,
+  series: ExportCsvSeries,
   points: Array<{ x: number; y: number }>,
 ): Partial<{ strict: SsFit; suggested: SsFit }> | null | undefined => {
   const cached = getCachedSsFitAuto(file, series) as
@@ -314,7 +341,7 @@ const getOrComputeSsFitAuto = (
     | undefined);
 };
 
-const createManualSsRangesFromSession = (
+const createManualSsRangesFromCanonical = (
   filesById: Record<FileId, FileRecord>,
   fileOrder: readonly FileId[],
 ): ManualSsRangesByFileId => {
@@ -357,14 +384,14 @@ const createManualSsRangesFromSession = (
   return ranges;
 };
 
-const createExportProcessedFileFromRecord = (file: FileRecord): ProcessedFileEntry => {
+const createExportCsvFileFromRecord = (file: FileRecord): ExportCsvFile => {
   const axis = getFileRecordAxisProjection(file);
   return {
     curveType: getFileRecordCurveType(file),
     calculationCache: file.calculationCache,
     fileId: file.id,
     fileName: file.raw.fileName,
-    series: createProcessedSeriesFromFileRecord(file),
+    series: createExportCsvSeriesFromRecord(file),
     supportsSs: fileRecordSupportsSs(file),
     xAxisRole: axis.xAxisRole,
     xGroups: getFileRecordXGroups(file),
@@ -375,16 +402,29 @@ const createExportProcessedFileFromRecord = (file: FileRecord): ProcessedFileEnt
   };
 };
 
+const createExportCsvSeriesFromRecord = (file: FileRecord): ExportCsvSeries[] =>
+  collectFileRecordBaseCurves(file).map((curve, index): ExportCsvSeries => {
+    const series = file.seriesById[curve.seriesId];
+    return {
+      groupIndex: index,
+      id: curve.seriesId || `series-${index + 1}`,
+      legendValue: series?.legendValue,
+      name: series?.labelOverride ?? series?.name ?? series?.legendValue,
+      y: curve.points.map((point) => point.y),
+      yCol: Number.isInteger(Number(series?.yCol)) ? series?.yCol : index + 1,
+    };
+  });
+
 export const buildSsMetricsCsv = ({
-  processedFiles,
+  csvFiles,
   manualSsRangesByFileId,
   ssMethod,
 }: {
-  processedFiles?: ProcessedFileEntry[];
+  csvFiles?: ExportCsvFile[];
   manualSsRangesByFileId?: unknown;
   ssMethod?: unknown;
 }): string => {
-  const files = processedFiles ?? [];
+  const files = csvFiles ?? [];
   const fields = [
     "ss_conf_version",
     "file_id",

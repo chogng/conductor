@@ -27,11 +27,6 @@ import type {
 } from "src/cs/workbench/services/session/common/sessionModel";
 import { getLatestSliceRunRecord } from "src/cs/workbench/services/session/common/sessionModel";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
-import {
-  getFileRecordAxisProjection,
-  getFileRecordCurveType,
-  getFileRecordXGroups,
-} from "src/cs/workbench/services/session/common/sessionRecordProjection";
 
 suite("workbench/services/session/test/browser/sessionService", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -264,12 +259,11 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     assert.deepEqual(snapshot.fileOrder, ["file-a"]);
     assert.equal(record.raw.tablesById["sheet-1"].sheetName, "Sweep");
     assert.equal(record.raw.tablesById["sheet-1"].rowCount, 4);
-    assert.equal(getFileRecordCurveType(record), "transfer");
-    assert.equal(getLatestSliceRunRecord(record)?.selection.kind, "saved");
+    const sliceRun = getLatestSliceRunRecord(record);
+    assert.equal(sliceRun?.selection.kind, "saved");
+    assert.equal(sliceRun?.template.blocks[0]?.x.unit, "V");
+    assert.equal(sliceRun?.template.blocks[0]?.y.unit, "A");
     assert.equal(record.seriesById["series-1"].legendValue, "Vd=1");
-    const axis = getFileRecordAxisProjection(record);
-    assert.equal(axis.xUnit, "V");
-    assert.equal(axis.yUnit, "A");
     assert.equal(curve.curveGeneration, "base");
     assert.equal(curve.curveFamily, "iv");
     assert.equal(curve.ivMode, "transfer");

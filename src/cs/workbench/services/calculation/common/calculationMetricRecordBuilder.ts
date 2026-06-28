@@ -32,7 +32,7 @@ import {
   fileRecordSupportsSs,
   getFileRecordAxisProjection,
   getFileRecordCurveType,
-} from "src/cs/workbench/services/session/common/sessionRecordProjection";
+} from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
 
 type CurrentMetricValue = Extract<MetricRecord, { metricFamily: "current" }>["value"];
 type SubthresholdMetricRecord = Extract<MetricRecord, { metricFamily: "subthreshold" }>;

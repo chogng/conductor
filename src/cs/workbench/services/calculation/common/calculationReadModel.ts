@@ -17,19 +17,47 @@ import type {
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
   collectFileRecordBaseCurves,
-  createProcessedSeriesFromFileRecord,
+  fileRecordSupportsSs,
   getFileRecordAxisProjection,
   getFileRecordCurveType,
   getFileRecordDomain,
   getFileRecordXGroups,
-} from "src/cs/workbench/services/session/common/sessionRecordProjection";
-import type {
-  ProcessedEntry,
-  ProcessedSeries,
-} from "src/cs/workbench/services/session/common/sessionTypes";
+} from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
 import type { SliceUriResult, SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
 
-type ProcessedFileEntry = ProcessedEntry;
+type CalculationSourceNumberArray = readonly number[] | Float64Array;
+
+type CalculationSourceDomain = {
+  x?: [number, number];
+  y?: [number, number];
+};
+
+export type CalculationSourceSeries = {
+  id?: string;
+  name?: string;
+  groupIndex?: number;
+  yCol?: number;
+  y?: CalculationSourceNumberArray;
+  legendValue?: unknown;
+  [key: string]: unknown;
+};
+
+export type CalculationSourceFile = {
+  fileId?: string;
+  fileName?: string;
+  curveType?: string;
+  xAxisRole?: "vg" | "vd" | null;
+  supportsSs?: boolean;
+  calculationCache?: unknown;
+  xUnit?: string;
+  yUnit?: string;
+  xLabel?: string;
+  yLabel?: string;
+  xGroups?: readonly CalculationSourceNumberArray[];
+  series?: readonly CalculationSourceSeries[];
+  domain?: CalculationSourceDomain;
+  [key: string]: unknown;
+};
 
 export type SourcePoint = {
   readonly x: number;
@@ -52,11 +80,12 @@ export type CalculatedSeries = {
 
 export type CalculatedDataSource = {
   readonly fileId: string | null;
-  readonly inputKind: "processed" | "record" | "sliceUri" | CalculationKind;
+  readonly inputKind: "source" | "canonical" | "sliceUri" | CalculationKind;
+  readonly target?: SliceUriTarget | null;
 };
 
 export type CalculatedData = {
-  readonly activeFile: ProcessedFileEntry | null;
+  readonly activeFile: CalculationSourceFile | null;
   readonly kind: CalculatedDataKind;
   readonly pointsCount: number;
   readonly seriesList: CalculatedSeries[];
@@ -79,10 +108,10 @@ export const createCalculatedDataKey = ({
 }): string => `${plotType}:${fileId}`;
 
 export const createCalculatedPlotsByKey = (
-  processedFiles: readonly ProcessedFileEntry[],
+  sourceFiles: readonly CalculationSourceFile[],
 ): CalculatedPlotsByKey => {
   const next: CalculatedPlotsByKey = {};
-  for (const [index, file] of processedFiles.entries()) {
+  for (const [index, file] of sourceFiles.entries()) {
     const fileId = getCalculatedFileId(file, index);
     for (const plotType of CalculationKinds) {
       next[createCalculatedDataKey({ fileId, plotType })] = createCalculatedDataForFile({
@@ -95,7 +124,7 @@ export const createCalculatedPlotsByKey = (
   return next;
 };
 
-export const createCalculatedDataRecordInputSignature = (
+export const createCalculatedDataInputSignature = (
   filesById: Record<FileId, FileRecord>,
   fileOrder: readonly FileId[],
 ): string => {
@@ -124,19 +153,19 @@ export const createCalculatedDataRecordInputSignature = (
   return parts.join("\u001f");
 };
 
-export const createCalculatedDataForFileRecord = ({
+export const createCalculatedDataForCanonicalFile = ({
   file,
   plotType,
 }: {
   readonly file: FileRecord;
   readonly plotType: CalculationKind;
 }): CalculatedData => {
-  const activeFile = createProcessedFileEntryFromRecord(file);
-  const seriesList = createCalculatedSeriesFromFileRecord(file, plotType);
+  const activeFile = createCalculationSourceFileFromCanonicalFile(file);
+  const seriesList = createCalculatedSeriesFromCanonicalFile(file, plotType);
   const points = seriesList.flatMap((series) => series.data);
   const source = {
     fileId: file.id,
-    inputKind: "record" as const,
+    inputKind: "canonical" as const,
   };
   const xDomain = getFiniteDomain(points.map((point) => Number(point.x)), [0, 1]);
   const xUnitLabel = String(getFileRecordAxisProjection(file).xUnit ?? "");
@@ -175,7 +204,7 @@ export const createCalculatedDataForSliceUriResult = ({
   readonly result: SliceUriResult;
 }): CalculatedData => {
   const curves = result.curves;
-  const activeFile = createProcessedFileEntryFromSliceUriResult(result, curves);
+  const activeFile = createCalculationSourceFileFromSliceUriResult(result, curves);
   const seriesById = new Map(result.series.map(series => [series.id, series]));
   const usedIds = new Set<string>();
   const seriesList = curves
@@ -199,6 +228,7 @@ export const createCalculatedDataForSliceUriResult = ({
   const source = {
     fileId: createSliceUriTargetId(result.target),
     inputKind: "sliceUri" as const,
+    target: result.target,
   };
   const xDomain = getFiniteDomain(points.map(point => Number(point.x)), [0, 1]);
   const xUnitLabel = String(activeFile?.xUnit ?? "");
@@ -251,13 +281,13 @@ export const getCalculatedData = (
 export const createCalculatedData = ({
   activeFileId,
   plotType,
-  processedFiles,
+  sourceFiles,
 }: {
   readonly activeFileId?: string | null;
   readonly plotType: CalculationKind;
-  readonly processedFiles?: readonly ProcessedFileEntry[];
+  readonly sourceFiles?: readonly CalculationSourceFile[];
 }): CalculatedData => {
-  const activeFile = resolveCalculatedFile(processedFiles ?? [], activeFileId);
+  const activeFile = resolveCalculatedFile(sourceFiles ?? [], activeFileId);
   return createCalculatedDataForFile({
     file: activeFile,
     plotType,
@@ -269,7 +299,7 @@ export const createCalculatedDataForFile = ({
   fileId,
   plotType,
 }: {
-  readonly file: ProcessedFileEntry | null;
+  readonly file: CalculationSourceFile | null;
   readonly fileId?: string | null;
   readonly plotType: CalculationKind;
 }): CalculatedData => {
@@ -278,7 +308,7 @@ export const createCalculatedDataForFile = ({
   const points = seriesList.flatMap((series) => series.data);
   const source = {
     fileId: fileId ?? resolveSourceFileId(activeFile),
-    inputKind: "processed" as const,
+    inputKind: "source" as const,
   };
   const xDomain = getFiniteDomain(points.map((point) => Number(point.x)), [0, 1]);
   const xUnitLabel = String(activeFile?.xUnit ?? "");
@@ -339,13 +369,13 @@ const getOrderedFileRecords = (
 const hasFileRecordChartData = (file: FileRecord): boolean =>
   collectFileRecordBaseCurves(file).length > 0;
 
-const createCalculatedSeriesFromFileRecord = (
+const createCalculatedSeriesFromCanonicalFile = (
   file: FileRecord,
   plotType: CalculationKind,
 ): CalculatedSeries[] => {
   const curves = collectFileRecordBaseCurves(file);
   if (!curves.length) {
-    return createCalculatedSeries(createProcessedFileEntryFromRecord(file), plotType);
+    return createCalculatedSeries(createCalculationSourceFileFromCanonicalFile(file), plotType);
   }
 
   const usedIds = new Set<string>();
@@ -361,13 +391,13 @@ const createCalculatedSeriesFromFileRecord = (
         data,
         id,
         kind: plotType,
-        name: resolveFileRecordSeriesName(file, curve.seriesId, index),
+        name: resolveCanonicalFileSeriesName(file, curve.seriesId, index),
       };
     })
     .filter((series): series is CalculatedSeries => Boolean(series));
 };
 
-const createProcessedFileEntryFromRecord = (file: FileRecord): ProcessedFileEntry => {
+const createCalculationSourceFileFromCanonicalFile = (file: FileRecord): CalculationSourceFile => {
   const axis = getFileRecordAxisProjection(file);
   const domain = getFileRecordDomain(file);
   return {
@@ -380,7 +410,8 @@ const createProcessedFileEntryFromRecord = (file: FileRecord): ProcessedFileEntr
       : undefined,
     fileId: file.id,
     fileName: file.raw.fileName,
-    series: createProcessedSeriesFromFileRecord(file),
+    series: createCalculationSourceSeriesFromFileRecord(file),
+    supportsSs: fileRecordSupportsSs(file),
     xAxisRole: axis.xAxisRole,
     xGroups: getFileRecordXGroups(file),
     xUnit: axis.xUnit,
@@ -390,10 +421,10 @@ const createProcessedFileEntryFromRecord = (file: FileRecord): ProcessedFileEntr
   };
 };
 
-const createProcessedFileEntryFromSliceUriResult = (
+const createCalculationSourceFileFromSliceUriResult = (
   result: SliceUriResult,
   curves: SliceUriResult["curves"],
-): ProcessedFileEntry => {
+): CalculationSourceFile => {
   const xValues = curves.flatMap(curve => curve.points.map(point => point.x));
   const yValues = curves.flatMap(curve => curve.points.map(point => point.y));
   return {
@@ -406,7 +437,7 @@ const createProcessedFileEntryFromSliceUriResult = (
       : undefined,
     fileId: createSliceUriTargetId(result.target),
     fileName: result.target.resource.path.split(/[\\/]/).filter(Boolean).pop() ?? createSliceUriTargetId(result.target),
-    series: createProcessedSeriesFromSliceUriResult(result, curves),
+    series: createCalculationSourceSeriesFromSliceUriResult(result, curves),
     supportsSs: curves.some(curve => curve.curveFamily === "iv" && curve.ivMode === "transfer"),
     xAxisRole: getSliceUriXAxisRole(curves[0]),
     xGroups: curves.map(curve => curve.points.map(point => point.x)),
@@ -417,12 +448,12 @@ const createProcessedFileEntryFromSliceUriResult = (
   };
 };
 
-const createProcessedSeriesFromSliceUriResult = (
+const createCalculationSourceSeriesFromSliceUriResult = (
   result: SliceUriResult,
   curves: SliceUriResult["curves"],
-): ProcessedSeries[] => {
+): CalculationSourceSeries[] => {
   const seriesById = new Map(result.series.map(series => [series.id, series]));
-  return curves.map((curve, index): ProcessedSeries => {
+  return curves.map((curve, index): CalculationSourceSeries => {
     const series = seriesById.get(curve.seriesId);
     return {
       groupIndex: index,
@@ -434,6 +465,21 @@ const createProcessedSeriesFromSliceUriResult = (
     };
   });
 };
+
+const createCalculationSourceSeriesFromFileRecord = (
+  file: FileRecord,
+): CalculationSourceSeries[] =>
+  collectFileRecordBaseCurves(file).map((curve, index): CalculationSourceSeries => {
+    const series = file.seriesById[curve.seriesId];
+    return {
+      groupIndex: index,
+      id: curve.seriesId || `series-${index + 1}`,
+      legendValue: series?.legendValue,
+      name: series?.labelOverride ?? series?.name ?? series?.legendValue,
+      y: curve.points.map((point) => point.y),
+      yCol: Number.isInteger(Number(series?.yCol)) ? series?.yCol : index + 1,
+    };
+  });
 
 const getSliceUriCurveType = (
   curve: SliceUriResult["curves"][number] | undefined,
@@ -452,7 +498,7 @@ const getSliceUriCurveType = (
 
 const getSliceUriXAxisRole = (
   curve: SliceUriResult["curves"][number] | undefined,
-): ProcessedEntry["xAxisRole"] => {
+): CalculationSourceFile["xAxisRole"] => {
   if (curve?.curveFamily === "iv" && curve.ivMode === "transfer") {
     return "vg";
   }
@@ -478,12 +524,63 @@ const getSliceTemplateBlockText = (
 const createSliceUriTargetId = (
   target: SliceUriTarget,
 ): string => {
-  const resource = String(target.resource?.toString() ?? "").trim().replace(/\\/g, "/");
+  const resource = getTargetResourceKey(target.resource);
   const sheetId = String(target.sheetId ?? "").trim();
   return sheetId ? `${resource}\u0000${sheetId}` : resource;
 };
 
-const resolveFileRecordSeriesName = (
+const getTargetResourceKey = (resource: unknown): string => {
+  const text = getTargetResourceString(resource);
+  if (text) {
+    return text.replace(/\\/g, "/");
+  }
+
+  const components = resource as {
+    readonly authority?: unknown;
+    readonly fragment?: unknown;
+    readonly path?: unknown;
+    readonly query?: unknown;
+    readonly scheme?: unknown;
+  } | null | undefined;
+  const path = String(components?.path ?? "").trim();
+  if (!path) {
+    return "";
+  }
+
+  const scheme = String(components?.scheme ?? "").trim();
+  const authority = String(components?.authority ?? "").trim();
+  const query = String(components?.query ?? "").trim();
+  const fragment = String(components?.fragment ?? "").trim();
+  if (scheme === "file") {
+    return [
+      "file://",
+      authority,
+      path,
+      query ? `?${query}` : "",
+      fragment ? `#${fragment}` : "",
+    ].join("").replace(/\\/g, "/");
+  }
+
+  return [
+    scheme ? `${scheme}:` : "",
+    authority ? `//${authority}` : "",
+    path,
+    query ? `?${query}` : "",
+    fragment ? `#${fragment}` : "",
+  ].join("").replace(/\\/g, "/");
+};
+
+const getTargetResourceString = (resource: unknown): string => {
+  const toString = (resource as { readonly toString?: unknown } | null | undefined)?.toString;
+  if (typeof toString !== "function") {
+    return "";
+  }
+
+  const text = String(toString.call(resource) ?? "").trim();
+  return text === "[object Object]" ? "" : text;
+};
+
+const resolveCanonicalFileSeriesName = (
   file: FileRecord,
   seriesId: string,
   index: number,
@@ -497,36 +594,36 @@ const resolveFileRecordSeriesName = (
   );
 };
 
-const getCalculatedFileId = (file: ProcessedFileEntry, index: number): string => {
+const getCalculatedFileId = (file: CalculationSourceFile, index: number): string => {
   const fileId = String(file?.fileId ?? "").trim();
   return fileId || `file-${index}`;
 };
 
-const resolveSourceFileId = (file: ProcessedFileEntry | null): string | null => {
+const resolveSourceFileId = (file: CalculationSourceFile | null): string | null => {
   const fileId = String(file?.fileId ?? "").trim();
   return fileId || null;
 };
 
 export const resolveCalculatedFile = (
-  processedFiles: readonly ProcessedFileEntry[],
+  sourceFiles: readonly CalculationSourceFile[],
   activeFileId?: string | null,
-): ProcessedFileEntry | null => {
+): CalculationSourceFile | null => {
   const normalizedActiveFileId = String(activeFileId ?? "").trim();
   return (
-    processedFiles.find((file) => String(file?.fileId ?? "") === normalizedActiveFileId) ??
-    processedFiles[0] ??
+    sourceFiles.find((file) => String(file?.fileId ?? "") === normalizedActiveFileId) ??
+    sourceFiles[0] ??
     null
   );
 };
 
 export const createCalculatedSeries = (
-  file: ProcessedFileEntry | null,
+  file: CalculationSourceFile | null,
   plotType: CalculationKind,
 ): CalculatedSeries[] => {
   const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
   const usedIds = new Set<string>();
   return (Array.isArray(file?.series) ? file.series : [])
-    .map((series: ProcessedSeries, index: number): CalculatedSeries | null => {
+    .map((series: CalculationSourceSeries, index: number): CalculatedSeries | null => {
       if (!isArrayLike(xGroups[Number(series?.groupIndex)])) {
         return null;
       }
@@ -549,7 +646,7 @@ export const createCalculatedSeries = (
 
 export const getCalculatedYUnitLabel = (
   plotType: CalculationKind,
-  activeFile: ProcessedFileEntry | null,
+  activeFile: CalculationSourceFile | null,
 ): string => {
   switch (plotType) {
     case "gm":
@@ -632,7 +729,7 @@ export const createCalculatedDataSignature = ({
   yDomain,
   yUnitLabel,
 }: {
-  readonly activeFile: ProcessedFileEntry | null;
+  readonly activeFile: CalculationSourceFile | null;
   readonly kind: CalculatedDataKind;
   readonly pointsCount: number;
   readonly seriesList: readonly CalculatedSeries[];
@@ -683,8 +780,8 @@ export const createCalculatedDataSignature = ({
 };
 
 const resolveSeriesId = (
-  file: ProcessedFileEntry | null,
-  series: ProcessedSeries,
+  file: CalculationSourceFile | null,
+  series: CalculationSourceSeries,
   index: number,
 ): string => {
   const explicitId = String(series?.id ?? "").trim();
@@ -731,8 +828,8 @@ const getSecondCalculatedYUnitLabel = (sourceData: CalculatedData): string => {
 };
 
 const createSourcePoints = (
-  file: ProcessedFileEntry | null,
-  series: ProcessedSeries,
+  file: CalculationSourceFile | null,
+  series: CalculationSourceSeries,
 ): SourcePoint[] => {
   const xValues = Array.isArray(file?.xGroups)
     ? file.xGroups[Number(series?.groupIndex)] ?? []
