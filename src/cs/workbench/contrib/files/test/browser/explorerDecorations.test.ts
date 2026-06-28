@@ -18,9 +18,11 @@ import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/ex
 import type { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
 import type {
 	IReviewService,
+} from "src/cs/workbench/services/review/common/review";
+import type {
 	ReviewSummary,
 	ReviewSummaryTarget,
-} from "src/cs/workbench/services/review/common/review";
+} from "src/cs/workbench/services/review/common/reviewModel";
 
 suite("workbench/contrib/files/browser/views/explorerDecorations", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -62,14 +64,18 @@ suite("workbench/contrib/files/browser/views/explorerDecorations", () => {
 		);
 	});
 
-	test("does not decorate missing review summaries", () => {
+	test("decorates missing review summaries as errors", () => {
 		const summary: ReviewSummary = {
 			resource: URI.file("/workspace/Missing.csv"),
 			state: "missing",
 			findingCodes: [],
 		};
 
-		assert.equal(createExplorerDecorationDataFromReviewSummary(summary), undefined);
+		assert.deepEqual(createExplorerDecorationDataFromReviewSummary(summary), {
+			color: "charts.red",
+			letter: "!",
+			tooltip: "files.decorations.reviewMissing",
+		});
 		assert.equal(createExplorerDecorationDataFromReviewSummary(undefined), undefined);
 	});
 
@@ -228,7 +234,6 @@ const createReviewServiceForTest = (
 	onDidChangeReview: Event<void> = Event.None as Event<void>,
 ): IReviewService => ({
 	_serviceBrand: undefined,
-	getLatestReview: () => undefined,
 	getLatestReviewSummary: target => {
 		calls.push(target);
 		return {
@@ -241,19 +246,11 @@ const createReviewServiceForTest = (
 		};
 	},
 	onDidChangeReview,
+	confirmReviewedTemplate: async () => null,
 	reviewUriManualTemplate: async () => ({
 		kind: "invalid",
 		diagnostics: [],
 		suggestedActions: [],
 	}),
-	reviewUri: async target => ({
-		resource: target.resource,
-		...(target.sheetId ? { sheetId: target.sheetId } : {}),
-		summary: {
-			resource: target.resource,
-			...(target.sheetId ? { sheetId: target.sheetId } : {}),
-			state: "missing",
-			findingCodes: [],
-		},
-	}),
+	reviewUriForExecution: async () => null,
 });

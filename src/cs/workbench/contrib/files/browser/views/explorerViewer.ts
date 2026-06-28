@@ -48,6 +48,7 @@ import {
 import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
 import type {
   ExplorerEditableData,
+  ExplorerResourceTarget,
   ExplorerThumbnailPlotModel,
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
@@ -68,6 +69,8 @@ import {
   collectExplorerFolderKeys,
   createExplorerFilePresentationSignature,
   createExplorerTreeStructureSignature,
+  getExplorerFileResourceIdentity,
+  getExplorerResourceIdentityKey,
   getExplorerTreeFileKey,
   getExplorerTreeFileName,
   type ExplorerFileEntry,
@@ -88,11 +91,12 @@ import {
 import type {
   ExplorerDecorationData,
 } from "src/cs/workbench/contrib/files/browser/views/explorerDecorations";
-import type { TableReviewSummary } from "src/cs/workbench/services/review/common/review";
+import type { ReviewSummary } from "src/cs/workbench/services/review/common/reviewModel";
 import type {
   IThumbnailPreviewService,
   IThumbnailService,
   ThumbnailPreviewState,
+  type ThumbnailPreviewTarget,
 } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
@@ -108,8 +112,8 @@ import type { TemplateEditorRecord } from "src/cs/workbench/services/template/co
 import { isAutoTemplateId } from "src/cs/workbench/services/slice/common/templateSelection";
 
 export type ExplorerViewerProps = {
-  readonly selectedFileId?: string | null;
-  readonly selectedItemKey?: string | null;
+  readonly selectedResource?: URI | null;
+  readonly selectedSheetId?: string | null;
   readonly expandedFolderKeys?: readonly string[];
   readonly explorerAppearance?: ExplorerAppearance;
   readonly activePlotType?: PlotType;
@@ -126,7 +130,7 @@ export type ExplorerViewerProps = {
   readonly files: ExplorerFileEntry[];
   readonly decorationResourcesByFileKey?: Readonly<Record<string, URI>>;
   readonly decorationsByFileKey?: Readonly<Record<string, ExplorerDecorationData>>;
-  readonly reviewSummariesByFileKey?: Readonly<Record<string, TableReviewSummary>>;
+  readonly reviewSummariesByFileKey?: Readonly<Record<string, ReviewSummary>>;
   readonly mode?: WorkbenchMainPart;
   readonly viewLayout?: FilesViewLayout;
   readonly folderImportSupport?: FolderImportSupport;
@@ -142,8 +146,8 @@ export type ExplorerViewerProps = {
   readonly onRequestTemplates?: () => void;
   readonly onHoverFileChange?: (fileId: string | null) => void;
   readonly onCancelRenameFile?: () => void;
-  readonly onRenameFile?: (fileId: string, nextName: string) => void;
-  readonly onSelectFile: (fileId: string | null, itemKey?: string | null) => void;
+  readonly onRenameFile?: (file: ExplorerFileEntry, nextName: string) => void;
+  readonly onSelectFile: (file: ExplorerFileEntry | null) => void;
   readonly thumbnailFiles?: ExplorerThumbnailFile[];
   readonly thumbnailPlotModelsByFileId?: Readonly<Record<string, ExplorerThumbnailPlotModel>>;
 };
@@ -184,6 +188,7 @@ type FileItemTemplate = {
   fileId: string | null;
   filePresentationSignature: string;
   fileRenderKey: string | null;
+  fileTarget: ExplorerResourceTarget | null;
   readonly host: HTMLElement;
   readonly label: IResourceLabel;
   readonly removeButton: HTMLButtonElement;
@@ -218,8 +223,9 @@ type HoverContent =
     readonly findingCodes: readonly string[];
     readonly isWarning: boolean;
     readonly message: string;
+    readonly reason: string;
     readonly semanticLabel: string;
-    readonly state: TableReviewSummary["state"];
+    readonly state: ReviewSummary["state"];
   }
   | {
     readonly kind: "file";
@@ -292,31 +298,41 @@ const getFileRenderKey = (
       "",
   );
 
-const normalizeFileItemKey = (itemKey: unknown): string | null => {
-  const normalized = String(itemKey ?? "").trim();
-  return normalized || null;
-};
-
 const isExplorerFileEntrySelected = (
-  fileEntry: ExplorerFileEntry,
-  props: Pick<ExplorerViewerProps, "selectedFileId" | "selectedItemKey">,
+  fileEntry: ExplorerFileEntry | null | undefined,
+  props: Pick<ExplorerViewerProps, "selectedResource" | "selectedSheetId">,
 ): boolean => {
-  const selectedFileId = String(props.selectedFileId ?? "").trim();
-  if (!selectedFileId || selectedFileId !== String(fileEntry.fileId ?? "").trim()) {
+  if (!fileEntry) {
     return false;
   }
 
-  const selectedItemKey = normalizeFileItemKey(props.selectedItemKey);
-  return selectedItemKey
-    ? selectedItemKey === normalizeFileItemKey(fileEntry.itemKey)
-    : true;
+  const selectedKey = getExplorerResourceIdentityKey({
+    resource: props.selectedResource ?? null,
+    sheetId: props.selectedSheetId ?? null,
+  });
+  if (!selectedKey) {
+    return false;
+  }
+
+  return selectedKey === getExplorerResourceIdentityKey(getExplorerFileResourceIdentity(fileEntry));
 };
 
+const areExplorerFileResourceTargetsEqual = (
+  first: ExplorerResourceTarget | null | undefined,
+  second: ExplorerResourceTarget | null | undefined,
+): boolean =>
+  getExplorerResourceIdentityKey(first) === getExplorerResourceIdentityKey(second);
+
 const getSelectedTreeKey = (
-  props: Pick<ExplorerViewerProps, "files" | "selectedFileId" | "selectedItemKey">,
+  props: Pick<ExplorerViewerProps, "files" | "selectedResource" | "selectedSheetId">,
 ): string | null => {
   const selectedFile = props.files.find(file => isExplorerFileEntrySelected(file, props));
   return selectedFile ? getExplorerTreeFileKey(selectedFile) : null;
+};
+
+const normalizeFileItemKey = (itemKey: unknown): string | null => {
+  const normalized = String(itemKey ?? "").trim();
+  return normalized || null;
 };
 
 const createFileHoverContext = (
@@ -420,10 +436,21 @@ const createBadgePresentation = (
     fileKey,
     isWarning: "isWarning" in badge ? badge.isWarning : false,
     label: "label" in badge ? badge.label : badge.letter ?? "",
-    source: "source" in badge ? badge.source : null,
+    source: getBadgePresentationSource(badge),
     state: "state" in badge ? badge.state : "decoration",
     title: "title" in badge ? badge.title : badge.tooltip ?? null,
   };
+};
+
+const getBadgePresentationSource = (
+  badge: ExplorerDecorationData | FileSourceStatusBadge,
+): string | null => {
+  if (!("source" in badge)) {
+    return null;
+  }
+
+  const source = String(badge.source ?? "").trim();
+  return source || null;
 };
 
 const resolveBadgePresentationColor = (
@@ -465,8 +492,8 @@ const createExplorerDecorationSignature = (
   decoration?.tooltip ?? "",
 ].join("\u001d");
 
-const createTableReviewSummarySignature = (
-  summary: TableReviewSummary | undefined,
+const createReviewSummarySignature = (
+  summary: ReviewSummary | undefined,
 ): string => [
   summary?.state ?? "",
   summary?.confidence ?? "",
@@ -478,7 +505,7 @@ const createTableReviewSummarySignature = (
 ].join("\u001f");
 
 const getReviewStateLabel = (
-  state: TableReviewSummary["state"],
+  state: ReviewSummary["state"],
 ): string => {
   switch (state) {
     case "ready":
@@ -493,7 +520,7 @@ const getReviewStateLabel = (
       return localize("files.reviewState.invalid", "Invalid");
     case "missing":
     default:
-      return localize("files.reviewState.missing", "Missing");
+      return localize("files.reviewState.error", "Error");
   }
 };
 
@@ -509,12 +536,34 @@ const formatReviewConfidence = (
 };
 
 const getReviewSummarySemanticLabel = (
-  summary: TableReviewSummary,
+  summary: ReviewSummary,
 ): string => String(summary.reviewedSemanticLabel ?? "").trim();
 
+const getReviewSummaryMessage = (
+  summary: ReviewSummary,
+): string => {
+  const message = String(summary.message ?? "").trim();
+  if (message) {
+    return message;
+  }
+
+  return summary.state === "missing"
+    ? localize("files.reviewMissing.message", "Review result is unavailable.")
+    : "";
+};
+
+const getReviewSummaryReason = (
+  summary: ReviewSummary,
+): string =>
+  summary.state === "missing"
+    ? localize("files.reviewMissing.reason", "No Review result is cached for this file.")
+    : "";
+
+
 const isReviewSummaryWarning = (
-  summary: TableReviewSummary,
+  summary: ReviewSummary,
 ): boolean =>
+  summary.state === "missing" ||
   summary.state === "stale" ||
   summary.state === "needsAdjustment" ||
   summary.state === "invalid";
@@ -604,22 +653,22 @@ const createTableModelRow = (
   value: string | readonly string[],
 ): HTMLElement => {
   const row = document.createElement("div");
-  row.className = "file-list-hover-table-facts-row";
+  row.className = "file-list-hover-review-decoration-row";
 
   const term = document.createElement("dt");
-  term.className = "file-list-hover-table-facts-label";
+  term.className = "file-list-hover-review-decoration-label";
   term.textContent = label;
 
   const description = document.createElement("dd");
-  description.className = "file-list-hover-table-facts-value";
+  description.className = "file-list-hover-review-decoration-value";
   if (typeof value === "string") {
     description.textContent = value;
   } else {
     const list = document.createElement("div");
-    list.className = "file-list-hover-table-facts-list";
+    list.className = "file-list-hover-review-decoration-list";
     for (const item of value) {
       const entry = document.createElement("div");
-      entry.className = "file-list-hover-table-facts-list-item";
+      entry.className = "file-list-hover-review-decoration-list-item";
       entry.textContent = item;
       list.appendChild(entry);
     }
@@ -772,10 +821,14 @@ export class ExplorerViewer implements IDisposable {
   }
 
   setProps(nextProps: ExplorerViewerProps): void {
-    const previousSelectedFileId = this.props.selectedFileId ?? null;
-    const previousSelectedItemKey = this.props.selectedItemKey ?? null;
-    const nextSelectedFileId = nextProps.selectedFileId ?? null;
-    const nextSelectedItemKey = nextProps.selectedItemKey ?? null;
+    const previousSelectedResourceKey = getExplorerResourceIdentityKey({
+      resource: this.props.selectedResource ?? null,
+      sheetId: this.props.selectedSheetId ?? null,
+    });
+    const nextSelectedResourceKey = getExplorerResourceIdentityKey({
+      resource: nextProps.selectedResource ?? null,
+      sheetId: nextProps.selectedSheetId ?? null,
+    });
     const previousExpandedFolderKeys = this.props.expandedFolderKeys ?? [];
     const nextExpandedFolderKeys = nextProps.expandedFolderKeys ?? [];
     const nextTreeStructureSignature = this.createTreeStructureSignature(nextProps.files);
@@ -790,8 +843,7 @@ export class ExplorerViewer implements IDisposable {
       ? []
       : this.getChangedPresentationKeys(nextFilePresentationSignatures);
     const shouldUpdateOptions =
-      previousSelectedFileId !== nextSelectedFileId ||
-      previousSelectedItemKey !== nextSelectedItemKey;
+      previousSelectedResourceKey !== nextSelectedResourceKey;
     const shouldUpdateFolderExpansion = !areStringArraysEqual(
       previousExpandedFolderKeys,
       nextExpandedFolderKeys,
@@ -801,9 +853,9 @@ export class ExplorerViewer implements IDisposable {
     const shouldRefreshVisibleHover = this.shouldRefreshVisibleHoverForPropsChange({
       changedPresentationKeys,
       nextProps,
-      nextSelectedFileId,
+      nextSelectedFileId: nextSelectedResourceKey,
       previousProps: this.props,
-      previousSelectedFileId,
+      previousSelectedFileId: previousSelectedResourceKey,
       shouldClearPlotCache,
       shouldUpdateTree,
     });
@@ -819,12 +871,10 @@ export class ExplorerViewer implements IDisposable {
         changedPresentationKeyCount: changedPresentationKeys.length,
         fileCount: nextProps.files.length,
         nextMode: nextProps.mode,
-        nextSelectedFileId,
-        nextSelectedItemKey,
+        nextSelectedResourceKey,
         nextViewLayout,
         previousMode: this.props.mode,
-        previousSelectedFileId,
-        previousSelectedItemKey,
+        previousSelectedResourceKey,
         previousViewLayout: getEffectiveViewLayout(this.props),
         shouldClearPlotCache,
         shouldUpdateExplorerAppearance,
@@ -853,8 +903,7 @@ export class ExplorerViewer implements IDisposable {
           fileCount: nextProps.files.length,
           folderCount: this.treeModel.folderKeys.length,
           mode: nextProps.mode,
-          selectedFileId: nextSelectedFileId,
-          selectedItemKey: nextSelectedItemKey,
+          selectedResourceKey: nextSelectedResourceKey,
           viewLayout: nextViewLayout,
         });
       }
@@ -1095,7 +1144,7 @@ export class ExplorerViewer implements IDisposable {
       createExplorerFilePresentationSignature(entry, {
         badgeColorSignature: this.getBadgeColorSignature(props.explorerAppearance?.badgeColors),
         isEditing: props.editable?.isEditing === true &&
-          props.editable.resource.fileId === entry.fileId,
+          areExplorerFileResourceTargetsEqual(props.editable.resource, getExplorerFileResourceIdentity(entry)),
         templateLabel: this.resolveFileTemplateLabel(entry, props),
         templateSelectionId: getTemplateSelectionId(
           this.resolveFileTemplateSelection(entry.fileId, props),
@@ -1103,7 +1152,7 @@ export class ExplorerViewer implements IDisposable {
       }),
       createFileHoverContextSignature(entry),
       createExplorerDecorationSignature(props.decorationsByFileKey?.[fileKey]),
-      createTableReviewSummarySignature(props.reviewSummariesByFileKey?.[fileKey]),
+      createReviewSummarySignature(props.reviewSummariesByFileKey?.[fileKey]),
       props.mode ?? "",
     ].join("\u001f");
   }
@@ -1198,7 +1247,7 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
-    this.props.onSelectFile(fileEntry.fileId, fileEntry.itemKey ?? null);
+    this.props.onSelectFile(fileEntry);
   };
 
   private readonly handleListContextMenu = (event: MouseEvent): void => {
@@ -1207,8 +1256,8 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
-    const fileId = item.dataset.fileId ?? "";
-    if (!fileId) {
+    const file = this.getExplorerFileEntryFromItem(item);
+    if (!file) {
       return;
     }
 
@@ -1224,13 +1273,15 @@ export class ExplorerViewer implements IDisposable {
         width: 2,
         height: 2,
       }),
-      getActions: () => this.createFileContextActions(fileId),
+      getActions: () => this.createFileContextActions(file),
       getCheckedActionsRepresentation: () => "radio",
     });
   };
 
-  private createFileContextActions(fileId: string): IAction[] {
-    const revealActions: IAction[] = this.canRevealFileInOS(fileId)
+  private createFileContextActions(file: ExplorerFileEntry): IAction[] {
+    const target = getExplorerFileResourceIdentity(file);
+    const fileId = String(file.fileId ?? "").trim();
+    const revealActions: IAction[] = target && this.canRevealFileInOS(file)
       ? [
           createMenuAction({
             id: REVEAL_IN_OS_COMMAND_ID,
@@ -1238,7 +1289,7 @@ export class ExplorerViewer implements IDisposable {
             run: () => {
               void this.props.commandService.executeCommand(
                 REVEAL_IN_OS_COMMAND_ID,
-                fileId,
+                target,
               );
             },
           }),
@@ -1256,20 +1307,22 @@ export class ExplorerViewer implements IDisposable {
       createMenuAction({
         id: RENAME_FILE_ITEM_COMMAND_ID,
         label: localize("files.item.rename", "Rename"),
+        enabled: Boolean(target),
         run: () => {
           void this.props.commandService.executeCommand(
             RENAME_FILE_ITEM_COMMAND_ID,
-            fileId,
+            target,
           );
         },
       }),
       createMenuAction({
         id: DELETE_FILE_ITEM_COMMAND_ID,
         label: localize("files.item.delete", "Delete"),
+        enabled: Boolean(target),
         run: () => {
           void this.props.commandService.executeCommand(
             DELETE_FILE_ITEM_COMMAND_ID,
-            fileId,
+            target,
           );
         },
       }),
@@ -1278,12 +1331,11 @@ export class ExplorerViewer implements IDisposable {
     return Separator.join(revealActions, templateActions, editActions);
   }
 
-  private canRevealFileInOS(fileId: string): boolean {
+  private canRevealFileInOS(file: ExplorerFileEntry): boolean {
     if (!CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND_ID)) {
       return false;
     }
 
-    const file = this.props.files.find(candidate => candidate.fileId === fileId);
     return Boolean(
       String(file?.sourcePath ?? "").trim() ||
       String(file?.normalizedCsvPath ?? "").trim(),
@@ -1431,6 +1483,7 @@ export class ExplorerViewer implements IDisposable {
       this.hideFileItemHover(template.file.host);
     }
     template.file.fileId = null;
+    template.file.fileTarget = null;
     template.file.editorStore.clear();
     template.folder.currentNode = null;
   };
@@ -1485,10 +1538,11 @@ export class ExplorerViewer implements IDisposable {
   ): void {
     const fileName = getFileName(fileEntry);
     const fileId = fileEntry.fileId ?? null;
+    const fileTarget = getExplorerFileResourceIdentity(fileEntry);
     const isEditing = Boolean(
-      fileId &&
+      fileTarget &&
         this.props.editable?.isEditing === true &&
-        this.props.editable.resource.fileId === fileId,
+        areExplorerFileResourceTargetsEqual(this.props.editable.resource, fileTarget),
     );
     const sourceStatus = createFileSourceStatusBadge(fileEntry);
     const { host } = template;
@@ -1515,6 +1569,7 @@ export class ExplorerViewer implements IDisposable {
       template.content.parentElement === host &&
       template.actions.parentElement === host;
     template.fileId = fileId;
+    template.fileTarget = fileTarget;
     if (canReuseRenderedPresentation) {
       if (isTemplateApplyPerformanceTraceEnabled()) {
         markTemplateApplyPerformanceTrace("explorer.fileItem.reuse", {
@@ -1570,7 +1625,7 @@ export class ExplorerViewer implements IDisposable {
         fileKind: FileKind.FILE,
       },
     );
-    if (isEditing && fileId) {
+    if (isEditing && fileTarget) {
       let draftName = fileName;
       const editLabel = localize("files.rename.ariaLabel", "Rename {fileName}", { fileName });
       const editor = new InlineEditableTextWidget({
@@ -1582,7 +1637,7 @@ export class ExplorerViewer implements IDisposable {
         onChange: (nextValue) => {
           draftName = nextValue;
         },
-        onCommit: () => this.props.onRenameFile?.(fileId, draftName),
+        onCommit: () => this.props.onRenameFile?.(fileEntry, draftName),
         onStartEdit: () => undefined,
         title: editLabel,
         value: fileName,
@@ -1689,10 +1744,11 @@ export class ExplorerViewer implements IDisposable {
     item.className = "file-list-thumbnail-item";
     item.dataset.thumbnailKey = key;
     item.addEventListener("click", () => {
-      this.props.onSelectFile(
-        String(item.dataset.fileId ?? "").trim() || null,
-        String(item.dataset.itemKey ?? "").trim() || null,
-      );
+      const fileId = String(item.dataset.fileId ?? "").trim();
+      const file = fileId
+        ? this.props.files.find(candidate => String(candidate.fileId ?? "").trim() === fileId) ?? null
+        : null;
+      this.props.onSelectFile(file);
     });
     return {
       node: item,
@@ -1709,7 +1765,7 @@ export class ExplorerViewer implements IDisposable {
     const fileId = String(file.fileId ?? "").trim();
     const previewState = previewReadMode === "request"
       ? this.getThumbnailPreviewState(fileId, "visible")
-      : this.props.thumbnailPreviewService.get(fileId);
+      : this.getThumbnailPreviewState(fileId, null);
     const previewPlotModel = getPreviewPlotModel(previewState);
     const plotModel = previewPlotModel ??
       this.getThumbnailPlotModel(fileId) ??
@@ -1728,8 +1784,10 @@ export class ExplorerViewer implements IDisposable {
     const thumbnailProps = {
       file,
       isLoading,
-      isActive: fileId === (this.props.selectedFileId ?? null) &&
-        !this.props.selectedItemKey,
+      isActive: isExplorerFileEntrySelected(
+        this.props.files.find(candidate => String(candidate.fileId ?? "").trim() === fileId),
+        this.props,
+      ),
       originOpenPlotOptions: this.props.originOpenPlotOptions,
       plotAxisSettings: this.props.plotAxisSettings,
       plotModel,
@@ -1802,7 +1860,7 @@ export class ExplorerViewer implements IDisposable {
     const actions = document.createElement("div");
     actions.className = "file-list-item-actions";
     const badgeHost = document.createElement("span");
-    badgeHost.className = "file-list-item-table-facts";
+    badgeHost.className = "file-list-item-review-decoration";
     badgeHost.hidden = true;
     const badge = new ExplorerBadgeNode(badgeHost);
 
@@ -1817,6 +1875,7 @@ export class ExplorerViewer implements IDisposable {
       fileId: null,
       filePresentationSignature: "",
       fileRenderKey: null,
+      fileTarget: null,
       host,
       label,
       removeButton,
@@ -1825,7 +1884,7 @@ export class ExplorerViewer implements IDisposable {
       event.stopPropagation();
       void this.props.commandService.executeCommand(
         CLOSE_FILE_ITEM_COMMAND_ID,
-        template.fileId,
+        template.fileTarget,
       );
     });
     appendIcon(removeButton, LxIcon.close);
@@ -2172,7 +2231,7 @@ export class ExplorerViewer implements IDisposable {
     }
     const classNames = isThumbnailHover
       ? ["file-list-hover", "file-list-hover--thumbnail"]
-      : ["file-list-hover", "file-list-hover--table-facts"];
+      : ["file-list-hover", "file-list-hover--review-decoration"];
 
     this.hoverView = this.props.contextViewService.showContextView({
       anchorAxisAlignment: AnchorAxisAlignment.HORIZONTAL,
@@ -2207,7 +2266,7 @@ export class ExplorerViewer implements IDisposable {
         }
         container.classList.remove(
           "file-list-hover",
-          "file-list-hover--table-facts",
+          "file-list-hover--review-decoration",
           "file-list-hover--thumbnail",
         );
         container.removeAttribute("role");
@@ -2267,13 +2326,26 @@ export class ExplorerViewer implements IDisposable {
     ) ?? null;
   }
 
+  private getExplorerFileEntryFromItem(item: HTMLElement): ExplorerFileEntry | null {
+    const treeFileKey = String(item.dataset.treeFileKey ?? "").trim();
+    if (treeFileKey) {
+      const entry = this.fileEntriesByTreeKey.get(treeFileKey);
+      if (entry) {
+        return entry;
+      }
+    }
+
+    const fileId = String(item.dataset.fileId ?? "").trim();
+    return fileId ? this.getExplorerFileEntryByFileId(fileId) : null;
+  }
+
   private resolveReviewHoverContent(item: HTMLElement): HoverContent | null {
     const fileContext = this.resolveFileHoverContext(item);
     const treeFileKey = String(item.dataset.treeFileKey ?? "").trim();
     const summary = treeFileKey
       ? this.props.reviewSummariesByFileKey?.[treeFileKey]
       : undefined;
-    if (!summary || summary.state === "missing") {
+    if (!summary) {
       return fileContext
         ? {
             kind: "file",
@@ -2288,19 +2360,15 @@ export class ExplorerViewer implements IDisposable {
       fileContext,
       findingCodes: summary.findingCodes,
       isWarning: isReviewSummaryWarning(summary),
-      message: String(summary.message ?? "").trim(),
+      message: getReviewSummaryMessage(summary),
+      reason: getReviewSummaryReason(summary),
       semanticLabel: getReviewSummarySemanticLabel(summary),
       state: summary.state,
     };
   }
 
   private resolveFileHoverContext(item: HTMLElement): FileHoverContext | null {
-    const fileId = String(item.dataset.fileId ?? "").trim();
-    if (!fileId) {
-      return null;
-    }
-
-    const fileEntry = this.getExplorerFileEntryByFileId(fileId);
+    const fileEntry = this.getExplorerFileEntryFromItem(item);
     return fileEntry ? createFileHoverContext(fileEntry) : null;
   }
 
@@ -2343,7 +2411,7 @@ export class ExplorerViewer implements IDisposable {
     container.dataset.hoverKind = content.kind;
     container.replaceChildren();
     const details = document.createElement("dl");
-    details.className = "file-list-hover-table-facts";
+    details.className = "file-list-hover-review-decoration";
     details.dataset.warning = content.kind === "review" && content.isWarning ? "true" : "false";
     appendFileHoverContextRows(details, content.fileContext, {
       includeType: content.kind === "file",
@@ -2375,6 +2443,10 @@ export class ExplorerViewer implements IDisposable {
       details.append(
         createTableModelRow(localize("files.reviewFindingsLabel", "Findings:"), content.findingCodes),
       );
+    } else if (content.reason) {
+      details.append(
+        createTableModelRow(localize("files.reviewFindingsLabel", "Findings:"), content.reason),
+      );
     }
     container.appendChild(details);
   }
@@ -2382,9 +2454,7 @@ export class ExplorerViewer implements IDisposable {
   private getHoverThumbnail(fileId: string, file: ThumbnailFileLike, isActive: boolean): HTMLElement {
     const normalizedFileId = String(fileId || file.fileId || file.fileName || "").trim();
     const cacheKey = normalizedFileId || "__unknown__";
-    const previewState = normalizedFileId
-      ? this.props.thumbnailPreviewService.request(normalizedFileId, "hover")
-      : { kind: "idle" } satisfies ThumbnailPreviewState;
+    const previewState = this.getThumbnailPreviewState(normalizedFileId, "hover");
     const previewPlotModel = getPreviewPlotModel(previewState);
     const fallbackPlotModel = previewPlotModel ? null : this.getThumbnailPlotModel(fileId);
     const cached = this.hoverThumbnailCache.get(cacheKey);
@@ -2579,17 +2649,20 @@ export class ExplorerViewer implements IDisposable {
 
   private getThumbnailPreviewState(
     fileId: string,
-    priority: "hover" | "visible",
+    priority: "hover" | "visible" | null,
   ): ThumbnailPreviewState {
     const normalizedFileId = String(fileId ?? "").trim();
     if (!normalizedFileId) {
       return { kind: "idle" };
     }
 
-    return this.props.thumbnailPreviewService.request(
-      normalizedFileId,
-      priority,
-    );
+    const target = createThumbnailPreviewTarget(normalizedFileId, this.props);
+    return priority
+      ? this.props.thumbnailPreviewService.request(
+          target,
+          priority,
+        )
+      : this.props.thumbnailPreviewService.get(target);
   }
 
   private refreshCachedHoverThumbnail(fileId: string): void {
@@ -2608,7 +2681,7 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
-    const previewState = this.props.thumbnailPreviewService.get(normalizedFileId);
+    const previewState = this.getThumbnailPreviewState(normalizedFileId, null);
     const previewPlotModel = getPreviewPlotModel(previewState);
     const fallbackPlotModel = previewPlotModel ? null : this.getThumbnailPlotModel(normalizedFileId);
     const plotModel = previewPlotModel ?? fallbackPlotModel ?? cached.plotModel;
@@ -2619,7 +2692,10 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
-    const isActive = (this.props.selectedFileId ?? null) === normalizedFileId;
+    const isActive = isExplorerFileEntrySelected(
+      this.props.files.find(candidate => String(candidate.fileId ?? "").trim() === normalizedFileId),
+      this.props,
+    );
     this.warmDetachedHoverThumbnail(
       cached,
       plotModel,
@@ -2890,6 +2966,30 @@ function getThumbnailFileLikeFromProps(
     curveFilterKey: null,
     fileId: file.fileId,
     fileName: file.fileName,
+  };
+}
+
+function createThumbnailPreviewTarget(
+  fileId: string,
+  props: Pick<ExplorerViewerProps, "files">,
+): ThumbnailPreviewTarget {
+  const normalizedFileId = String(fileId ?? "").trim();
+  if (!normalizedFileId) {
+    return "";
+  }
+
+  const file = props.files.find((entry) =>
+    String(entry.fileId ?? "").trim() === normalizedFileId);
+  if (!file?.resource) {
+    return normalizedFileId;
+  }
+
+  return {
+    fileId: normalizedFileId,
+    target: {
+      resource: file.resource,
+      sheetId: normalizeFileItemKey(file.sheetId),
+    },
   };
 }
 

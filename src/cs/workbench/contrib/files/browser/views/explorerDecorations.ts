@@ -4,18 +4,24 @@
 
 import { localize } from "src/cs/nls";
 import type { IDecorationData } from "src/cs/workbench/services/decorations/common/decorations";
-import type { TableReviewSummary } from "src/cs/workbench/services/review/common/review";
+import type { ReviewSummary } from "src/cs/workbench/services/review/common/reviewModel";
 
 export type ExplorerDecorationData = IDecorationData;
 
 export const createExplorerDecorationDataFromReviewSummary = (
-	summary: TableReviewSummary | undefined,
+	summary: ReviewSummary | undefined,
 ): ExplorerDecorationData | undefined => {
-	if (!summary || summary.state === "missing") {
+	if (!summary) {
 		return undefined;
 	}
 
 	switch (summary.state) {
+		case "missing":
+			return {
+				color: "charts.red",
+				letter: "!",
+				tooltip: summary.message ?? localize("files.decorations.reviewMissing", "Review result is unavailable."),
+			};
 		case "pending":
 			return {
 				letter: "...",
@@ -48,7 +54,7 @@ export const createExplorerDecorationDataFromReviewSummary = (
 };
 
 const getReviewSummaryBadgeLetter = (
-	summary: TableReviewSummary,
+	summary: ReviewSummary,
 ): string => {
 	const label = String(summary.reviewedSemanticLabel ?? "").trim();
 	return label || localize("files.decorations.reviewBadge", "Review");

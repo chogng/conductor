@@ -34,7 +34,6 @@ import type {
   ThumbnailPreviewChangeEvent,
   ThumbnailPreviewPlotModel,
 } from "src/cs/workbench/services/thumbnail/common/thumbnail";
-import { DEFAULT_EXPLORER_APPEARANCE } from "src/cs/workbench/services/appearance/common/appearance";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/files/browser/explorerViewer", () => {
@@ -120,11 +119,11 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         relatedTarget: null,
       }));
 
-      assert.ok(contextViewService.renderedElement?.classList.contains("file-list-hover--table-facts"));
-      const rows = [...(contextViewService.renderedElement?.querySelectorAll<HTMLElement>(".file-list-hover-table-facts-row") ?? [])]
+      assert.ok(contextViewService.renderedElement?.classList.contains("file-list-hover--review-decoration"));
+      const rows = [...(contextViewService.renderedElement?.querySelectorAll<HTMLElement>(".file-list-hover-review-decoration-row") ?? [])]
         .map(row => [
-          row.querySelector(".file-list-hover-table-facts-label")?.textContent ?? "",
-          row.querySelector(".file-list-hover-table-facts-value")?.textContent ?? "",
+          row.querySelector(".file-list-hover-review-decoration-label")?.textContent ?? "",
+          row.querySelector(".file-list-hover-review-decoration-value")?.textContent ?? "",
         ]);
       assert.deepEqual(rows, [
         ["File:", "Output_.csv"],
@@ -142,6 +141,65 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       });
 
       assert.equal(content.hasAttribute("title"), false);
+    } finally {
+      viewer.dispose();
+      labels.dispose();
+      hoverHost.remove();
+    }
+  });
+
+  test("shows missing review result as error in file item hover", () => {
+    const host = document.createElement("div");
+    const hoverHost = document.createElement("div");
+    const labels = new ResourceLabels();
+    const contextViewService = new TestContextViewService();
+    document.body.append(hoverHost);
+    hoverHost.append(host);
+
+    const file = {
+      fileId: "file-a",
+      fileName: "Output_.csv",
+      itemKey: "file-a",
+      relativePath: "293K/output/Output_.csv",
+      resource: URI.file("/workspace/Output_.csv"),
+    };
+    const props: ExplorerViewerProps = {
+      ...createViewerProps(),
+      contextViewService,
+      expandedFolderKeys: ["folder:293K", "folder:293K/output"],
+      files: [file],
+      mode: "table",
+      reviewSummariesByFileKey: {
+        [getExplorerTreeFileKey(file)]: {
+          findingCodes: [],
+          resource: URI.file("/workspace/Output_.csv"),
+          state: "missing",
+        },
+      },
+    };
+    const viewer = new ExplorerViewer(host, hoverHost, props, labels);
+
+    try {
+      const item = host.querySelector<HTMLElement>(".file-list-item");
+      assert.ok(item);
+      item.dispatchEvent(new MouseEvent("mouseover", {
+        bubbles: true,
+        relatedTarget: null,
+      }));
+
+      assert.ok(contextViewService.renderedElement?.classList.contains("file-list-hover--review-decoration"));
+      const rows = [...(contextViewService.renderedElement?.querySelectorAll<HTMLElement>(".file-list-hover-review-decoration-row") ?? [])]
+        .map(row => [
+          row.querySelector(".file-list-hover-review-decoration-label")?.textContent ?? "",
+          row.querySelector(".file-list-hover-review-decoration-value")?.textContent ?? "",
+        ]);
+      assert.deepEqual(rows, [
+        ["File:", "Output_.csv"],
+        ["Path:", "293K/output"],
+        ["Review:", "Error"],
+        ["Message:", "Review result is unavailable."],
+        ["Findings:", "No Review result is cached for this file."],
+      ]);
     } finally {
       viewer.dispose();
       labels.dispose();
@@ -417,20 +475,34 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     };
     const props: ExplorerViewerProps = {
       ...createViewerProps(),
+      decorationsByFileKey: {
+        [getExplorerTreeFileKey(initialFile)]: {
+          letter: "...",
+          color: "purple",
+          tooltip: "Review pending",
+        },
+      },
       files: [initialFile],
     };
     const viewer = new ExplorerViewer(host, hoverHost, props, labels);
 
     try {
-      const badge = host.querySelector<HTMLElement>(".file-list-item-table-facts");
+      const badge = host.querySelector<HTMLElement>(".file-list-item-review-decoration");
       assert.ok(badge);
       assert.equal(badge.textContent, "...");
 
       viewer.setProps({
         ...props,
-	        files: [{
-	          ...initialFile,
-	        }],
+        decorationsByFileKey: {
+          [getExplorerTreeFileKey(initialFile)]: {
+            letter: "cv",
+            color: "purple",
+            tooltip: "Review ready",
+          },
+        },
+        files: [{
+          ...initialFile,
+        }],
       });
 
       assert.equal(setChildrenCount, 0);
@@ -440,16 +512,16 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
 
       viewer.setProps({
         ...props,
-        explorerAppearance: {
-          ...DEFAULT_EXPLORER_APPEARANCE,
-          badgeColors: {
-            ...DEFAULT_EXPLORER_APPEARANCE.badgeColors,
-            cv: "green",
+        decorationsByFileKey: {
+          [getExplorerTreeFileKey(initialFile)]: {
+            letter: "cv",
+            color: "green",
+            tooltip: "Review ready",
           },
         },
-	        files: [{
-	          ...initialFile,
-	        }],
+        files: [{
+          ...initialFile,
+        }],
       });
 
       assert.deepEqual(rerenderedKeys, [["file-a"], ["file-a"]]);
@@ -517,6 +589,69 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     } finally {
       viewer.dispose();
       previewEmitter.dispose();
+      labels.dispose();
+      hoverHost.remove();
+    }
+  });
+
+  test("requests URI resource row thumbnails with preview targets", () => {
+    const host = document.createElement("div");
+    const hoverHost = document.createElement("div");
+    const labels = new ResourceLabels();
+    const requestedTargets: Array<{
+      readonly fileId: string;
+      readonly targetResource?: string | null;
+      readonly targetSheetId?: string | null;
+    }> = [];
+    document.body.append(hoverHost);
+    hoverHost.append(host);
+
+    const props: ExplorerViewerProps = {
+      ...createViewerProps(),
+      files: [{
+        fileId: "file-a",
+        fileName: "A.csv",
+      }, {
+        fileId: "uri-a",
+        fileName: "Uri A.csv",
+        resource: URI.file("/data/UriA.csv"),
+      }],
+      mode: "chart",
+      thumbnailPreviewService: {
+        _serviceBrand: undefined,
+        get: () => ({ kind: "idle" }),
+        invalidate: () => undefined,
+        onDidChangePreview: NoThumbnailPreviewEvent,
+        prefetch: () => undefined,
+        request: target => {
+          if (typeof target === "string") {
+            requestedTargets.push({ fileId: target });
+          } else {
+            requestedTargets.push({
+              fileId: String(target.fileId ?? ""),
+              targetResource: target.target?.resource.toString() ?? null,
+              targetSheetId: target.target?.sheetId ?? null,
+            });
+          }
+          return { kind: "loading" };
+        },
+      },
+      viewLayout: "thumbnail",
+    };
+    const viewer = new ExplorerViewer(host, hoverHost, props, labels);
+
+    try {
+      viewer.setProps(props);
+
+      assert.deepEqual(requestedTargets, [{
+        fileId: "file-a",
+      }, {
+        fileId: "uri-a",
+        targetResource: "file:///data/UriA.csv",
+        targetSheetId: null,
+      }]);
+    } finally {
+      viewer.dispose();
       labels.dispose();
       hoverHost.remove();
     }
