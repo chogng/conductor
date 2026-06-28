@@ -9,8 +9,9 @@ import {
 } from "src/cs/base/common/lifecycle";
 import type {
   IListDragAndDrop,
+  IListEvent,
   IListRenderer,
-  ListProps,
+  IListVirtualDelegate,
   ListRenderRange,
 } from "src/cs/base/browser/ui/list/list";
 import { RangeMap } from "src/cs/base/browser/ui/list/rangeMap";
@@ -46,10 +47,33 @@ export interface IListViewOptionsUpdate {
   readonly paddingTop?: number;
 }
 
-export interface IListViewOptions<T> extends ListProps<T>, IListViewOptionsUpdate {
+export interface IListViewOptions<T> extends IListViewOptionsUpdate {
   readonly accessibilityProvider?: IListViewAccessibilityProvider<T>;
+  readonly className?: string;
+  readonly delegate: IListVirtualDelegate<T>;
   readonly dnd?: IListViewDragAndDrop<T>;
+  readonly empty?: (container: HTMLElement) => void;
+  readonly disposeEmpty?: (container: HTMLElement) => void;
+  readonly getKey: (item: T, index: number) => string;
+  readonly gap?: number;
+  readonly items: T[];
+  readonly minVirtualCount?: number;
+  readonly onKeyDown?: (event: KeyboardEvent) => void;
+  readonly onDidFocus?: (event: IListEvent<T>) => void;
+  readonly onDidRenderRange?: (range: ListRenderRange) => void;
+  readonly onScroll?: (event: Event) => void;
+  readonly onSelect?: (
+    item: T,
+    index: number,
+    event?: KeyboardEvent | MouseEvent,
+  ) => void;
+  readonly overscanRows?: number;
+  readonly role?: string;
+  readonly renderers: readonly IListRenderer<T, any>[];
+  readonly rowRole?: string;
+  readonly selectedKey?: string | null;
   readonly supportDynamicHeights?: boolean;
+  readonly viewportClassName?: string;
 }
 
 type RowEntry<T> = {

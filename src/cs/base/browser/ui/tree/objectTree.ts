@@ -1,9 +1,8 @@
-import { ListView } from "src/cs/base/browser/ui/list/listView";
+import { ListView, type IListViewOptions } from "src/cs/base/browser/ui/list/listView";
 import type {
   IListRenderer,
   IListVirtualDelegate,
   ListHandle,
-  ListProps,
   ListRenderRange,
 } from "src/cs/base/browser/ui/list/list";
 import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
@@ -174,7 +173,7 @@ export class ObjectTree<T, TTemplateData = HTMLElement> implements ListHandle {
     this.list.scrollToStart(behavior);
   }
 
-  private createListOptions(): ListProps<FlattenedObjectTreeNode<T>> {
+  private createListOptions(): IListViewOptions<FlattenedObjectTreeNode<T>> {
     const flattenedItems = this.getFlattenedItems();
     const options = this.options;
 
