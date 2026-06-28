@@ -8,10 +8,6 @@ import type { URI } from "src/cs/base/common/uri";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
 import {
-	ISessionService,
-	type ISessionService as ISessionServiceType,
-} from "src/cs/workbench/services/session/common/session";
-import {
 	ISliceService,
 	type ISliceService as ISliceServiceType,
 	type SliceExecutionResult,
@@ -76,19 +72,9 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	private isSliceQueueRunning = false;
 
 	public constructor(
-		@ISessionService private readonly sessionService: ISessionServiceType,
 		@IDataResourceService private readonly dataResourceService?: IDataResourceServiceType,
 	) {
 		super();
-		this._register(this.sessionService.onDidChangeSession(event => {
-			if (event.reason === "sessionCleared") {
-				this.clearState();
-				return;
-			}
-			if (event.reason === "filesRemoved" && event.fileIds?.length) {
-				this.removeFiles(event.fileIds);
-			}
-		}));
 		if (this.dataResourceService) {
 			this._register(this.dataResourceService.onDidChangeResource(resource => {
 				this.removeUriResultsForResource(resource);
@@ -248,7 +234,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 				? { kind: "auto" }
 				: { kind: "inline", template: request.reviewedTemplate.template },
 			sourceVersion: request.sourceVersion,
-			sourceTableModelSignature: request.sourceTableModelSignature,
+			sourceContentSignature: request.sourceContentSignature,
 			template: request.reviewedTemplate.template,
 			templateFingerprint: request.reviewedTemplate.templateFingerprint,
 			rowCount: request.rowCount,
@@ -361,7 +347,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			entry.request.sourceVersion === resolved.sourceVersion &&
 			entry.request.rowCount === resolved.content.rowCount &&
 			entry.request.columnCount === resolved.content.columnCount &&
-			entry.plan.sourceTableModelSignature === this.createUriRequestPlan(entry.request)?.sourceTableModelSignature &&
+			entry.plan.sourceContentSignature === this.createUriRequestPlan(entry.request)?.sourceContentSignature &&
 			entry.plan.templateFingerprint === entry.request.reviewedTemplate.templateFingerprint;
 	}
 
@@ -412,22 +398,12 @@ export class SliceService extends Disposable implements ISliceServiceType {
 
 		const run = result.run;
 		return run.mode === "auto" &&
-			run.sourceTableModelSignature === plan.sourceTableModelSignature &&
+			run.sourceContentSignature === plan.sourceContentSignature &&
 			run.templateFingerprint === plan.templateFingerprint &&
 			result.sourceModelVersion === request.sourceModelVersion &&
 			result.sourceVersion === request.sourceVersion &&
 			result.requestSignature === request.requestSignature &&
 			run.errors.length === 0;
-	}
-
-	private setFileState(fileId: string, state: SliceFileState): boolean {
-		const current = this.fileStates.get(fileId);
-		if (isSameSliceFileState(current, state)) {
-			return false;
-		}
-
-		this.fileStates.set(fileId, state);
-		return true;
 	}
 
 	private setUriState(cacheKey: string, state: SliceFileState): boolean {
@@ -466,68 +442,6 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		}
 
 		return this.uriTargetsByCacheKey.delete(cacheKey);
-	}
-
-	private clearState(): void {
-		const uriResultTargets = [...this.uriResultsByCacheKey.values()].map(result => result.target);
-		const didChange = this.queue.length > 0 ||
-			this.fileStates.size > 0 ||
-			this.uriStatesByCacheKey.size > 0 ||
-			this.uriTargetsByCacheKey.size > 0 ||
-			this.uriResultsByCacheKey.size > 0 ||
-			Object.keys(this.templateSelectionsByFileId).length > 0 ||
-			this.activeFileId !== null ||
-			this.activeQueueKey !== null;
-		this.queue.length = 0;
-		this.fileStates.clear();
-		this.uriStatesByCacheKey.clear();
-		this.uriTargetsByCacheKey.clear();
-		this.uriResultsByCacheKey.clear();
-		this.templateSelectionsByFileId = {};
-		this.activeFileId = null;
-		this.activeQueueKey = null;
-		if (didChange) {
-			for (const target of uriResultTargets) {
-				this.fireUriSliceResultChange(target);
-			}
-			this.fireSliceStateChange();
-		}
-	}
-
-	private removeFiles(fileIds: readonly string[]): void {
-		const normalizedFileIds = new Set(fileIds.map(normalizeText).filter(Boolean));
-		if (!normalizedFileIds.size) {
-			return;
-		}
-
-		let didChange = false;
-		for (let index = this.queue.length - 1; index >= 0; index -= 1) {
-			const entry = this.queue[index];
-			const fileId = entry ? getSliceQueueEntryStateKey(entry) : null;
-			if (fileId && normalizedFileIds.has(fileId)) {
-				this.queue.splice(index, 1);
-				didChange = true;
-			}
-		}
-		for (const fileId of normalizedFileIds) {
-			didChange = this.fileStates.delete(fileId) || didChange;
-			if (this.templateSelectionsByFileId[fileId]) {
-				const { [fileId]: _removed, ...remainingSelections } = this.templateSelectionsByFileId;
-				this.templateSelectionsByFileId = remainingSelections;
-				didChange = true;
-			}
-			if (this.activeFileId === fileId) {
-				this.activeFileId = null;
-				didChange = true;
-			}
-			if (this.activeQueueKey === fileId) {
-				this.activeQueueKey = null;
-				didChange = true;
-			}
-		}
-		if (didChange) {
-			this.fireSliceStateChange();
-		}
 	}
 
 	private removeUriResultsForResource(resource: URI): void {

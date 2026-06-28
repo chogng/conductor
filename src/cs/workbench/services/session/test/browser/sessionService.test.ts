@@ -18,7 +18,7 @@ import type { CalculatedPlotsByKey } from "src/cs/workbench/services/calculation
 import type {
   FileImportResult,
   ImportedFileRecord,
-} from "src/cs/workbench/services/files/common/files";
+} from "src/cs/workbench/services/session/common/session";
 import type {
   CurveRecord,
   MetricRecord,
@@ -472,7 +472,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
         mode: "auto",
         selection: { kind: "auto" },
         sourceRawTableVersion: 1,
-        sourceTableModelSignature: "tableModel-a",
+        sourceContentSignature: "source-content-a",
         template: {
           schemaVersion: 1,
           name: "Detected IV Transfer",

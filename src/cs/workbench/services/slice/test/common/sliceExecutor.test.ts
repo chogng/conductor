@@ -30,7 +30,7 @@ suite("workbench/services/slice/test/common/sliceExecutor", () => {
 			mode: "auto",
 			selection: { kind: "auto" },
 			sourceVersion: 3,
-			sourceTableModelSignature: "tableModel-a",
+			sourceContentSignature: "source-content-a",
 			template,
 			templateFingerprint: "template-a",
 			rowCount: 5,
@@ -111,7 +111,7 @@ suite("workbench/services/slice/test/common/sliceExecutor", () => {
 			mode: "manual",
 			selection: { kind: "auto" },
 			sourceVersion: 7,
-			sourceTableModelSignature: "tableModel-a",
+			sourceContentSignature: "source-content-a",
 			template: createTemplate({
 				segmentation: {
 					kind: "none",

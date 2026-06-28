@@ -250,8 +250,6 @@ URI/resource
 Those editor/input models are not Session records. Only migration-ledger
 raw-table imports and downstream analysis facts flow through the Session ledger.
 
-Use `records.instructions.md` for record/state field ownership and invalidation.
-
 ## File Layout
 
 - Registration: `*.contribution.ts`, action registration files, service registration entry points.
@@ -281,5 +279,4 @@ Before approving a change, verify:
 4. Are events facts, with subscribers rereading public state?
 5. Are imported table-file and analysis facts in the Session ledger, while view/service state stays outside Session?
 6. Does the dependency direction stay within the layer rules?
-7. Are record fields documented in `records.instructions.md` when shared?
-8. Are subscriptions disposed?
+7. Are subscriptions disposed?

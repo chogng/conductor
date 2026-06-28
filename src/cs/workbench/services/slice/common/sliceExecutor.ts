@@ -79,7 +79,7 @@ export const executeSlicePlan = ({
 			id: createSliceRunId(plan),
 			mode: plan.mode,
 			selection: plan.selection,
-			sourceTableModelSignature: plan.sourceTableModelSignature,
+			sourceContentSignature: plan.sourceContentSignature,
 			template: plan.template,
 			templateFingerprint: plan.templateFingerprint,
 			inputRanges: plan.inputRanges,

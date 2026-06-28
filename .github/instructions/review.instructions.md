@@ -89,28 +89,28 @@ URI + contentHash/sourceVersion + optional sheetId
 ```
 ```mermaid
 sequenceDiagram
-  participant Table as TableModelService
+  participant Caller as URI-backed caller / Slice Command
   participant Data as DataResourceService
   participant Review as ReviewService
   participant Recipe as RecipeSnapshot
   participant Selector as reviewSelector
   participant Candidate as reviewCandidate
   participant Decision as reviewDecision
-  participant Slice as Slice Command
 
-  Table->>Data: URI content snapshot
+  Caller->>Review: reviewUri(resource, sheetId?)
+  Review->>Data: resolveStructuredContent(resource, sheetId)
+  Note over Data: Current implementation may materialize through TableModelService as a private bridge
   Data->>Data: header/data range/column role inference
   Data->>Data: measurement projection
   Note over Data: Vg=>transfer, Vd=>output, generic Voltage=>unknown
-  Review->>Data: resolveStructuredContent(resource, sheetId)
   Review->>Recipe: read passive recipes
   Review->>Selector: match recipe domain/layout/roles
   Selector->>Candidate: matched blocks/captures
   Candidate->>Decision: candidate templates
   Decision->>Decision: score + ambiguity + freshness + diagnostics
   Decision-->>Review: ready reviewedTemplate OR invalid/noCandidates
-  Slice->>Review: reviewUri()
-  Slice->>Slice: use reviewedTemplate, or require user template
+  Review-->>Caller: ready reviewedTemplate OR invalid/noCandidates
+  Caller->>Caller: use reviewedTemplate, or require user template
 ```
 
 
@@ -185,7 +185,7 @@ snapshot. Do not reintroduce Review-local structured-content bridges.
   sub-targets. Do not expose `result target`, synthetic cache keys, or keyed map
   fields as public contracts.
 - `ReviewEvidence` names content facts as structured/matrix evidence. Do not
-  introduce `tableProjection` as target API or import Table UI/model types into
+  introduce table UI projection target APIs or import Table UI/model types into
   evidence definitions.
 - `ReviewDecision` is the only source for template usability and system
   application recommendations.

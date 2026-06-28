@@ -74,12 +74,6 @@ SessionChangeEvent / SessionSnapshot
 - Second-derived curves are calculated from first-pass derived curves in memory during the same pass; do not commit/read-back just to compute the second pass.
 - Calculation never calls Plot, Parameters, Export, Search, Chart, or Table directly.
 
-## Field Catalog
-
-Use `records.instructions.md` for `CurveRecord`, `MetricRecord`,
-`CalculationCacheRecord`, `CalculatedData`, `CalculatedSeries`, and
-`CalculatedPoint`.
-
 ## Do Not
 
 - Do not put DOM, services, or command registration in pure helpers.

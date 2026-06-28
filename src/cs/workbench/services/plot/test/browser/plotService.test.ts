@@ -4,6 +4,7 @@
 
 import assert from "assert";
 import { Emitter, Event } from "src/cs/base/common/event";
+import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
   StorageScope,
@@ -30,6 +31,11 @@ import type {
   ConductorSettings,
   ISettingsService,
 } from "src/cs/workbench/services/settings/common/settings";
+import type {
+  ISliceService,
+  SliceUriResult,
+  SliceUriTarget,
+} from "src/cs/workbench/services/slice/common/slice";
 
 suite("workbench/services/plot/test/browser/plotService", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -132,7 +138,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       ));
       const cacheEvents: string[] = [];
       store.add(service.onDidChangePlotDisplayModelCache(event => {
-        cacheEvents.push(`${event.plotType}:${event.pane ?? "all"}:${event.fileId}`);
+        cacheEvents.push(`${event.plotType}:${event.pane ?? "all"}:${event.fileId ?? ""}`);
       }));
 
       const ivModel = service.getPlotDisplayModel({
@@ -297,7 +303,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     });
     assert.ok(initial?.inspector);
 
-    const events: Array<{ fileId: string; pane?: string; plotType: string }> = [];
+    const events: Array<{ fileId?: string; pane?: string; plotType: string }> = [];
     store.add(service.onDidChangePlotDisplayModelCache(event => {
       events.push(event);
     }));
@@ -345,7 +351,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     });
     assert.equal(chartOnly?.inspector, null);
 
-    const events: Array<{ fileId: string; pane?: string; plotType: string }> = [];
+    const events: Array<{ fileId?: string; pane?: string; plotType: string }> = [];
     store.add(service.onDidChangePlotDisplayModelCache(event => {
       events.push(event);
     }));
@@ -913,7 +919,9 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       ));
       const events: string[] = [];
       store.add(service.onDidChangeCalculatedDataCache(event => {
-        events.push(event.fileId);
+        if (event.fileId) {
+          events.push(event.fileId);
+        }
       }));
 
       service.prefetchCalculatedData(["file-idle"], "idle", "iv");
@@ -1186,7 +1194,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       ));
       const events: string[] = [];
       store.add(service.onDidChangePlotDisplayModelCache(event => {
-        events.push(`${event.plotType}:${event.fileId}`);
+        events.push(`${event.plotType}:${event.fileId ?? ""}`);
       }));
 
       service.getCalculatedData({ fileId: "file-hover", plotType: "iv", snapshot });
@@ -1347,10 +1355,10 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       const calculatedEvents: string[] = [];
       const displayEvents: string[] = [];
       store.add(service.onDidChangeCalculatedDataCache(event => {
-        calculatedEvents.push(`${event.plotType}:${event.fileId}`);
+        calculatedEvents.push(`${event.plotType}:${event.fileId ?? ""}`);
       }));
       store.add(service.onDidChangePlotDisplayModelCache(event => {
-        displayEvents.push(`${event.plotType}:${event.fileId}`);
+        displayEvents.push(`${event.plotType}:${event.fileId ?? ""}`);
       }));
 
       service.prefetchPlotDisplayModel({
@@ -2235,8 +2243,8 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         store.add(new TestStorageService()),
       ));
       let plotStateChanges = 0;
-      const calculatedEvents: Array<{ fileId: string; plotType: string }> = [];
-      const displayEvents: Array<{ fileId: string; plotType: string }> = [];
+      const calculatedEvents: Array<{ fileId?: string; plotType: string }> = [];
+      const displayEvents: Array<{ fileId?: string; plotType: string }> = [];
       store.add(service.onDidChangePlotState(() => {
         plotStateChanges += 1;
       }));
@@ -2304,6 +2312,101 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       plotType: "iv",
       snapshot,
     }), calculated);
+  });
+
+  test("reads URI slice calculated data by target without a synthetic file id", () => {
+    const target: SliceUriTarget = {
+      resource: URI.file("/workspace/data/transfer.csv"),
+      sheetId: "Sheet 1",
+    };
+    const result = createSliceUriResult(target);
+    const service = store.add(new PlotService(
+      createSessionServiceStub(createSnapshot({}, [])),
+      createSettingsServiceStub(),
+      store.add(new TestStorageService()),
+      createSliceServiceStub([result]),
+    ));
+
+    const calculated = service.getCalculatedData({
+      plotType: "iv",
+      target,
+    });
+
+    assert.ok(calculated);
+    assert.equal(calculated.source.inputKind, "sliceUri");
+    assert.equal(calculated.seriesList[0]?.name, "A");
+    assert.equal(service.getCachedCalculatedData({
+      plotType: "iv",
+      target,
+    }), calculated);
+  });
+
+  test("preserves URI target on plot display contexts and state writes", async () => {
+    const target: SliceUriTarget = {
+      resource: URI.file("/workspace/data/transfer.csv"),
+      sheetId: "Sheet 1",
+    };
+    const service = store.add(new PlotService(
+      createSessionServiceStub(createSnapshot({}, [])),
+      createSettingsServiceStub(),
+      store.add(new TestStorageService()),
+      createSliceServiceStub([createSliceUriResult(target)]),
+    ));
+
+    const model = service.getPlotDisplayModel({
+      plotType: "iv",
+      target,
+    });
+    const legend = service.getPlotLegendModel({
+      plotType: "iv",
+      target,
+    });
+
+    assert.ok(model);
+    assert.ok(legend);
+    assert.equal(model.target?.resource.toString(), target.resource.toString());
+    assert.equal(model.target?.sheetId, target.sheetId);
+    assert.equal(model.chart.xAxisTitleContext.target?.resource.toString(), target.resource.toString());
+    assert.equal(model.chart.xAxisTitleContext.target?.sheetId, target.sheetId);
+    assert.equal(legend.target?.resource.toString(), target.resource.toString());
+    assert.equal(legend.target?.sheetId, target.sheetId);
+
+    service.setAxisTitleOverride(model.chart.xAxisTitleContext, "Gate Bias", model.chart.defaultXAxisTitle);
+    service.setLegendLabel({ target }, "series-a", "Renamed Series");
+    await service.setAxisUnit({ target }, "x", "mV");
+    await service.setYScale({ target }, "log");
+    const updated = service.getPlotDisplayModel({
+      plotType: "iv",
+      target,
+    });
+
+    assert.equal(updated?.chart.xAxisTitle, "Gate Bias");
+    assert.equal(updated?.chart.model.seriesList[0]?.name, "Renamed Series");
+    assert.equal(updated?.unitControl?.xUnit, "mV");
+    assert.equal(updated?.chart.yScaleMode, "log");
+
+    service.toggleHiddenLegendKey({ target }, "iv", "series-a", ["series-a"]);
+    assert.deepEqual(service.getHiddenLegendKeys({ target }, "iv", ["series-a"]), ["series-a"]);
+  });
+
+  test("does not fall back to the first URI slice result without a target", () => {
+    const target: SliceUriTarget = {
+      resource: URI.file("/workspace/data/transfer.csv"),
+      sheetId: "Sheet 1",
+    };
+    const service = store.add(new PlotService(
+      createSessionServiceStub(createSnapshot({}, [])),
+      createSettingsServiceStub(),
+      store.add(new TestStorageService()),
+      createSliceServiceStub([createSliceUriResult(target)]),
+    ));
+
+    assert.equal(service.getCalculatedData({ plotType: "iv" }), null);
+    assert.equal(service.getCachedCalculatedData({ plotType: "iv" }), null);
+    assert.equal(service.getCalculatedData({
+      fileId: "/workspace/data/other.csv",
+      plotType: "iv",
+    }), null);
   });
 
   test("reads cached plot display models without creating display data", async () => {
@@ -2534,7 +2637,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         createSettingsServiceStub(),
         store.add(new TestStorageService()),
       ));
-      const events: Array<{ fileId: string; pane?: string; plotType: string }> = [];
+      const events: Array<{ fileId?: string; pane?: string; plotType: string }> = [];
       store.add(service.onDidChangePlotDisplayModelCache(event => {
         events.push(event);
       }));
@@ -2598,7 +2701,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       store.add(new TestStorageService()),
     ));
     const snapshot = createSnapshot();
-    const events: Array<{ fileId: string; plotType: string }> = [];
+    const events: Array<{ fileId?: string; plotType: string }> = [];
     store.add(service.onDidChangeCalculatedDataCache(event => {
       events.push(event);
     }));
@@ -2795,7 +2898,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
 
     for (const reason of [
       "rawTablesChanged",
-      "tableModelChanged",
       "calculatedRecordsChanged",
       "metricsChanged",
       "metricInputsChanged",
@@ -2906,14 +3008,35 @@ const createSessionServiceStub = (
   }),
   commitMetrics: () => undefined,
   commitMetricsBatch: () => undefined,
-  commitTableModel: () => undefined,
-  commitTableModelBatch: () => undefined,
-  commitRawTableReviews: () => undefined,
   commitSliceRuns: () => undefined,
   getSnapshot: () => snapshot,
   renameFile: () => false,
   removeFiles: () => undefined,
   setMetricInput: () => undefined,
+});
+
+const createSliceServiceStub = (
+  results: readonly SliceUriResult[] = [],
+): ISliceService => ({
+  _serviceBrand: undefined,
+  cancel: () => undefined,
+  cancelUri: () => undefined,
+  getState: () => ({
+    activeFileId: null,
+    fileStates: new Map(),
+    queueLength: 0,
+    templateSelectionsByFileId: {},
+  }),
+  getUriResult: target => results.find(result =>
+    result.target.resource.toString() === target.resource.toString() &&
+    String(result.target.sheetId ?? "") === String(target.sheetId ?? "")
+  ) ?? null,
+  getUriState: () => undefined,
+  onDidChangeSliceState: Event.None as Event<void>,
+  onDidChangeUriSliceResult: Event.None as Event<SliceUriTarget>,
+  prioritizeUri: () => undefined,
+  setTemplateSelection: () => undefined,
+  submitUri: () => undefined,
 });
 
 const createSettingsServiceStub = (
@@ -2954,6 +3077,93 @@ const createSnapshot = (
   sessionVersion: 1,
 });
 
+const createSliceUriResult = (
+  target: SliceUriTarget,
+): SliceUriResult => ({
+  completedAt: 1,
+  curves: [{
+    curveFamily: "iv",
+    curveGeneration: "base",
+    ivMode: "transfer",
+    lineage: {
+      baseFamily: "iv",
+      baseSeries: {
+        resource: target.resource,
+        sheetId: target.sheetId,
+        seriesId: "series-a",
+      },
+      curveGeneration: "base",
+      ivMode: "transfer",
+    },
+    points: [
+      { x: 0, y: 0.001 },
+      { x: 1, y: 0.002 },
+    ],
+    resource: target.resource,
+    seriesId: "series-a",
+    sheetId: target.sheetId,
+    signature: "slice-curve-a",
+  }],
+  requestSignature: "request-a",
+  run: {
+    errors: [],
+    id: "slice-uri-run-a",
+    inputRanges: [{
+      resource: target.resource,
+      sheetId: target.sheetId,
+      range: {
+        endCol: 1,
+        endRow: 1,
+        startCol: 0,
+        startRow: 0,
+      },
+    }],
+    mode: "auto",
+    outputCurveKeys: [],
+    outputSeriesIds: ["series-a"],
+    resource: target.resource,
+    selection: { kind: "auto" },
+    sheetId: target.sheetId,
+    sourceContentSignature: "source-a",
+    template: {
+      blocks: [{
+        legend: { target: "yColumn" },
+        rowRange: { endRow: 1, startRow: 0 },
+        segmentation: { kind: "none" },
+        titles: {
+          bottom: "Voltage",
+          left: "Current",
+        },
+        x: {
+          columns: [0],
+          unit: "V",
+        },
+        y: {
+          columns: [1],
+          unit: "A",
+        },
+      }],
+      name: "transfer",
+      schemaVersion: 1,
+      stopOnError: false,
+      version: 1,
+    },
+    templateFingerprint: "template-a",
+    warnings: [],
+  },
+  series: [{
+    groupIndex: 0,
+    id: "series-a",
+    name: "A",
+    resource: target.resource,
+    sheetId: target.sheetId,
+    y: [0.001, 0.002],
+  }],
+  sourceModelVersion: 1,
+  sourceVersion: 1,
+  target,
+});
+
 const createFileRecord = (
   fileId = "file-a",
   seriesA = "series-a",
@@ -2965,7 +3175,6 @@ const createFileRecord = (
   const curveBKey = "base:iv:transfer:series-b" as BaseCurveKey;
 
   return {
-    tableModelByRawTableId: {},
     curvesByKey: {
       [curveAKey]: {
         curveFamily: "iv",
@@ -3006,8 +3215,6 @@ const createFileRecord = (
     },
     id: fileId,
     kind: "unknown",
-    measurementBlockOrder: [],
-    measurementBlocksById: {},
     metricsByKey: {},
     name: `${fileId}.csv`,
     raw: {

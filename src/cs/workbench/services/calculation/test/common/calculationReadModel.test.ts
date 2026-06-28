@@ -337,7 +337,7 @@ const createSliceUriResult = (): SliceUriResult => {
       resource,
       selection: { kind: "auto" },
       sheetId: "Sheet 1",
-      sourceTableModelSignature: "source-a",
+      sourceContentSignature: "source-a",
       template: {
         blocks: [{
           legend: { target: "auto" },

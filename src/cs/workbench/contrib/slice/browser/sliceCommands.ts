@@ -40,7 +40,7 @@ import {
 	validateTemplateForApply,
 } from "src/cs/workbench/services/template/common/templateEditorConfig";
 import {
-	createSliceTableModelSignature,
+	createSliceSourceContentSignature,
 } from "src/cs/workbench/services/slice/common/slicePlanner";
 import {
 	createInlineTemplateSelection,
@@ -346,7 +346,7 @@ const createSliceUriRequest = ({
 		sourceVersion: review.sourceVersion,
 		templateFingerprint: reviewedTemplate.templateFingerprint,
 	});
-	const sourceTableModelSignature = createSliceTableModelSignature({
+	const sourceContentSignature = createSliceSourceContentSignature({
 		sourceSheetId: review.sheetId ?? null,
 		sourceModelVersion: review.sourceModelVersion,
 		sourceUri: getSliceUriTargetResourceIdentity(review.resource),
@@ -375,7 +375,7 @@ const createSliceUriRequest = ({
 		createdAt: Date.now(),
 		rowCount: review.rowCount,
 		columnCount: review.columnCount,
-		sourceTableModelSignature,
+		sourceContentSignature,
 		sourceModelVersion: review.sourceModelVersion,
 		sourceVersion: review.sourceVersion,
 	};

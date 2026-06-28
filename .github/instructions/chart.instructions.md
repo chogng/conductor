@@ -120,9 +120,6 @@ shell refreshes just to update Chart-adjacent auxiliary views. Use scoped
 auxiliary-surface refreshes when possible; keep layout/navigation and active
 auxiliary-view changes on the full shell path.
 
-## Field Catalog
-
-Use `records.instructions.md` for `ChartState` and `ChartViewInput`.
 `ChartViewInput` may project Plot, Explorer, Settings, or processing facts for
 rendering, but must not become a callback bag or Plot model data path.
 

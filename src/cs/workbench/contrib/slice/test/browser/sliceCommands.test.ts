@@ -12,13 +12,10 @@ import { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
 import {
 	runSliceWithTemplateHandler,
 } from "src/cs/workbench/contrib/slice/browser/sliceCommands";
-import type { FileImportResult, ImportedFileRecord } from "src/cs/workbench/services/session/common/session";
 import {
 	INotificationService,
 	type INotification,
 } from "src/cs/workbench/services/notification/common/notificationService";
-import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
-import { ISessionService } from "src/cs/workbench/services/session/common/session";
 import {
 	IReviewService,
 	type IReviewService as IReviewServiceType,
@@ -47,14 +44,11 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test("does not enter raw-table auto slicing from bulk apply", () => {
-		const sessionService = store.add(new SessionService());
-		sessionService.commitFileImport(createImportResult());
 		const sliceService = new TestSliceService();
 		const notifications: INotification[] = [];
 
 		runSliceWithTemplateHandler(createAccessor({
 			notifications,
-			sessionService,
 			sliceService,
 			templateState: createTemplateState({
 				selectedTemplateId: null,
@@ -67,14 +61,11 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 	});
 
 	test("does not submit manual slicing without URI content targets from the current template form", () => {
-		const sessionService = store.add(new SessionService());
-		sessionService.commitFileImport(createImportResult());
 		const sliceService = new TestSliceService();
 		const notifications: INotification[] = [];
 
 		runSliceWithTemplateHandler(createAccessor({
 			notifications,
-			sessionService,
 			sliceService,
 			templateState: createTemplateState({
 				selectedTemplateId: "template-a",
@@ -94,15 +85,12 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 	});
 
 	test("does not run while explorer has pending sources", () => {
-		const sessionService = store.add(new SessionService());
-		sessionService.commitFileImport(createImportResult());
 		const sliceService = new TestSliceService();
 		const notifications: INotification[] = [];
 
 		runSliceWithTemplateHandler(createAccessor({
 			hasPendingSourceFiles: true,
 			notifications,
-			sessionService,
 			sliceService,
 		}));
 
@@ -110,8 +98,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 		assert.equal(notifications[0]?.id, "slice.notification");
 	});
 
-	test("submits URI slice requests with a table-model source signature", async () => {
-		const sessionService = store.add(new SessionService());
+	test("submits URI slice requests with a source content signature", async () => {
 		const sliceService = new TestSliceService();
 		const resource = URI.file("/workspace/transfer.csv");
 		const reviewedTemplate = createReviewedTemplate();
@@ -140,7 +127,6 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 					return null;
 				},
 			}),
-			sessionService,
 			sliceService,
 			templateState: createTemplateState({
 				selectedTemplateId: null,
@@ -153,18 +139,17 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 		assert.ok(request);
 		assert.equal(request.target.resource.toString(), resource.toString());
 		assert.equal(request.target.sheetId, "sheet-a");
-		assert.notEqual(request.sourceTableModelSignature, request.requestSignature);
-		assert.match(request.sourceTableModelSignature, /transfer\.csv/);
-		assert.match(request.sourceTableModelSignature, /"modelVersion":7/);
-		assert.match(request.sourceTableModelSignature, /"sheetId":"sheet-a"/);
-		assert.match(request.sourceTableModelSignature, /"sourceVersion":11/);
-		assert.match(request.sourceTableModelSignature, /review:ready/);
-		assert.equal(JSON.parse(request.sourceTableModelSignature).sourceRawTableVersion, undefined);
+		assert.notEqual(request.sourceContentSignature, request.requestSignature);
+		assert.match(request.sourceContentSignature, /transfer\.csv/);
+		assert.match(request.sourceContentSignature, /"sourceModelVersion":7/);
+		assert.match(request.sourceContentSignature, /"sheetId":"sheet-a"/);
+		assert.match(request.sourceContentSignature, /"sourceVersion":11/);
+		assert.match(request.sourceContentSignature, /review:ready/);
+		assert.equal(JSON.parse(request.sourceContentSignature).sourceRawTableVersion, undefined);
 		assert.deepEqual(confirmations, []);
 	});
 
 	test("confirms manual URI reviewed templates before submitting slice requests", async () => {
-		const sessionService = store.add(new SessionService());
 		const sliceService = new TestSliceService();
 		const resource = URI.file("/workspace/transfer.csv");
 		const reviewedTemplate = createReviewedTemplate();
@@ -195,7 +180,6 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 					return null;
 				},
 			}),
-			sessionService,
 			sliceService,
 			templateState: createTemplateState({
 				selectedTemplateId: "template-a",
@@ -220,7 +204,6 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 	});
 
 	test("does not block manual URI slicing when schema profile confirmation fails", async () => {
-		const sessionService = store.add(new SessionService());
 		const sliceService = new TestSliceService();
 		const resource = URI.file("/workspace/transfer.csv");
 		const reviewedTemplate = createReviewedTemplate();
@@ -249,7 +232,6 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 					throw new Error("confirmation failed");
 				},
 			}),
-			sessionService,
 			sliceService,
 			templateState: createTemplateState({
 				selectedTemplateId: "template-a",
@@ -269,7 +251,6 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 	});
 
 	test("does not submit URI auto slice when review needs user action", async () => {
-		const sessionService = store.add(new SessionService());
 		const sliceService = new TestSliceService();
 		const resource = URI.file("/workspace/transfer.csv");
 		const reviewedTemplate = createReviewedTemplate();
@@ -290,7 +271,6 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 					target,
 				}),
 			}),
-			sessionService,
 			sliceService,
 			templateState: createTemplateState({
 				selectedTemplateId: null,
@@ -303,7 +283,6 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 	});
 
 	test("does not submit URI slice requests without a review signature", async () => {
-		const sessionService = store.add(new SessionService());
 		const sliceService = new TestSliceService();
 		const resource = URI.file("/workspace/transfer.csv");
 		const reviewedTemplate = createReviewedTemplate();
@@ -329,7 +308,6 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 					return review;
 				},
 			}),
-			sessionService,
 			sliceService,
 			templateState: createTemplateState({
 				selectedTemplateId: null,
@@ -380,7 +358,6 @@ const createAccessor = ({
 	hasPendingSourceFiles = false,
 	notifications = [],
 	reviewService = createReviewServiceForTest(),
-	sessionService,
 	sliceService,
 	templateState = createTemplateState(),
 }: {
@@ -388,7 +365,6 @@ const createAccessor = ({
 	readonly hasPendingSourceFiles?: boolean;
 	readonly notifications?: INotification[];
 	readonly reviewService?: IReviewServiceType;
-	readonly sessionService: SessionService;
 	readonly sliceService: ISliceService;
 	readonly templateState?: TemplateState;
 }): ServicesAccessor => {
@@ -405,7 +381,6 @@ const createAccessor = ({
 			},
 		}],
 		[IReviewService, reviewService],
-		[ISessionService, sessionService],
 		[ISliceService, sliceService],
 		[IWorkbenchLayoutService, {
 			_serviceBrand: undefined,
@@ -522,42 +497,6 @@ const createTemplateState = (overrides: Partial<TemplateState> = {}): TemplateSt
 	mode: "management",
 	selectedTemplateId: null,
 	...overrides,
-});
-
-const createImportResult = (): FileImportResult => ({
-	createdAt: 1,
-	diagnostics: [],
-	files: [createImportedFile()],
-});
-
-const createImportedFile = (): ImportedFileRecord => ({
-	id: "file-a",
-	kind: "csv",
-	name: "Raw.csv",
-	raw: {
-		fileId: "file-a",
-		fileName: "Raw.csv",
-		rawTablesById: {
-			"table-a": {
-				columnCount: 2,
-				fileId: "file-a",
-				maxCellLengths: [],
-				rawTableId: "table-a",
-				rowCount: 2,
-				rows: {
-					kind: "inline",
-					values: [
-						["Vg", "Id"],
-						["0", "1"],
-					],
-				},
-				source: {
-					kind: "csv",
-				},
-			},
-		},
-		rawTableOrder: ["table-a"],
-	},
 });
 
 const createReviewedTemplate = (): ReviewedTemplate => {

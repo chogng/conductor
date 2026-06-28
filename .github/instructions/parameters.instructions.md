@@ -53,10 +53,6 @@ manual metric input -> IParametersService -> ISessionService.setMetricInput
 - `updateViewState` should suppress duplicate publishes when effective input is unchanged.
 - Showing/hiding Parameters belongs to layout/view commands, not `IParametersService`.
 
-## Field Catalog
-
-Use `records.instructions.md` for `ParametersState` and `ParameterRowModel`.
-
 ## Do Not
 
 - Do not store selected parameter row in Session.

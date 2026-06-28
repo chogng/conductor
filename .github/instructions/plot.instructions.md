@@ -127,11 +127,6 @@ Recommended files:
 | `contrib/plot/browser/plotActions.ts` | toolbar/menu/keybinding entries |
 | `services/plot/browser/plotService.ts` | state and render-model owner; no command registration |
 
-## Field Catalog
-
-Use `records.instructions.md` for `PlotState`, `PlotRenderModel`,
-`PlotSeriesModel`, and `PlotAxisModel`.
-
 ## Do Not
 
 - Do not put canvas/SVG DOM code in `PlotService`.

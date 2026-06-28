@@ -8,7 +8,7 @@ import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
 	createSlicePlan,
-	createSliceTableModelSignature,
+	createSliceSourceContentSignature,
 } from "src/cs/workbench/services/slice/common/slicePlanner";
 import type { Template } from "src/cs/workbench/services/template/common/template";
 
@@ -24,7 +24,7 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 			},
 			mode: "auto",
 			selection: { kind: "auto" },
-			sourceTableModelSignature: "tableModel-a",
+			sourceContentSignature: "source-content-a",
 			template: createTemplate(),
 			rowCount: 5,
 			columnCount: 3,
@@ -94,7 +94,7 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 			mode: "auto",
 			selection: { kind: "auto" },
 			sourceVersion: 3,
-			sourceTableModelSignature: "tableModel-a",
+			sourceContentSignature: "source-content-a",
 			template: createTemplate(),
 			rowCount: 5,
 			columnCount: 3,
@@ -121,7 +121,7 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 			},
 			mode: "auto",
 			selection: { kind: "auto" },
-			sourceTableModelSignature: "tableModel-a",
+			sourceContentSignature: "source-content-a",
 			template: {
 				...createTemplate(),
 				blocks: [{
@@ -178,32 +178,32 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 	});
 
 	test("includes URI-backed source versions in source signatures", () => {
-		const baseSignature = createSliceTableModelSignature({
+		const baseSignature = createSliceSourceContentSignature({
 			sourceUri: "file:///workspace/data/source.csv",
 			sourceVersion: 4,
 		});
-		const uriSignature = createSliceTableModelSignature({
+		const uriSignature = createSliceSourceContentSignature({
 			sourceModelVersion: 6,
 			sourceUri: "file:///workspace/data/source.csv",
 			sourceVersion: 5,
 		});
 
 		assert.notEqual(baseSignature, uriSignature);
-		assert.deepEqual(JSON.parse(uriSignature).sourceModel, {
-			modelVersion: 6,
+		assert.deepEqual(JSON.parse(uriSignature).sourceContent, {
+			sourceModelVersion: 6,
 			sourceUri: "file:///workspace/data/source.csv",
 			sourceVersion: 5,
 		});
 	});
 
 	test("includes URI sheet targets in source signatures", () => {
-		const firstSheetSignature = createSliceTableModelSignature({
+		const firstSheetSignature = createSliceSourceContentSignature({
 			sourceModelVersion: 6,
 			sourceSheetId: "sheet-a",
 			sourceUri: "file:///workspace/data/source.xlsx",
 			sourceVersion: 5,
 		});
-		const secondSheetSignature = createSliceTableModelSignature({
+		const secondSheetSignature = createSliceSourceContentSignature({
 			sourceModelVersion: 6,
 			sourceSheetId: "sheet-b",
 			sourceUri: "file:///workspace/data/source.xlsx",
@@ -211,8 +211,8 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 		});
 
 		assert.notEqual(firstSheetSignature, secondSheetSignature);
-		assert.deepEqual(JSON.parse(firstSheetSignature).sourceModel, {
-			modelVersion: 6,
+		assert.deepEqual(JSON.parse(firstSheetSignature).sourceContent, {
+			sourceModelVersion: 6,
 			sheetId: "sheet-a",
 			sourceUri: "file:///workspace/data/source.xlsx",
 			sourceVersion: 5,
@@ -220,7 +220,7 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 	});
 
 	test("omits raw-table version from URI-only source signatures", () => {
-		const signature = createSliceTableModelSignature({
+		const signature = createSliceSourceContentSignature({
 			sourceModelVersion: 6,
 			sourceUri: "file:///workspace/data/source.csv",
 			sourceVersion: 5,

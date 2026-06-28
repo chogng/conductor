@@ -66,7 +66,7 @@ export type SliceUriRequest = {
   readonly createdAt: number;
   readonly rowCount: number;
   readonly columnCount: number;
-  readonly sourceTableModelSignature: string;
+  readonly sourceContentSignature: string;
   readonly sourceModelVersion: number;
   readonly sourceVersion: number;
 };
@@ -78,7 +78,7 @@ export type SliceRun = {
   readonly mode: "auto" | "manual";
   readonly selection: TemplateSelection;
   readonly sourceRawTableVersion: number;
-  readonly sourceTableModelSignature?: string;
+  readonly sourceContentSignature?: string;
   readonly template: Template;
   readonly templateFingerprint: string;
   readonly inputRanges: readonly SliceRawTableRangeRef[];
@@ -184,7 +184,7 @@ export type SlicePlan = {
   readonly mode: SliceRun["mode"];
   readonly selection: TemplateSelection;
   readonly sourceVersion?: number;
-  readonly sourceTableModelSignature?: string;
+  readonly sourceContentSignature?: string;
   readonly measurement?: SliceMeasurementBinding;
   readonly template: Template;
   readonly templateFingerprint: string;
@@ -207,7 +207,7 @@ export type CreateSlicePlanInput = {
   readonly mode: SliceRun["mode"];
   readonly selection: TemplateSelection;
   readonly sourceVersion?: number;
-  readonly sourceTableModelSignature?: string;
+  readonly sourceContentSignature?: string;
   readonly template: Template;
   readonly templateFingerprint?: string;
   readonly rowCount: number;

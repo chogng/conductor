@@ -37,8 +37,9 @@ raw-file view input.
 
 `ITemplateViewStateService` in Template contrib owns selected-template/form
 editor state for Template UI and related view projections. Slicing selections
-belong to `ISliceService`, and Template UI reads Session projections in contrib
-code.
+belong to `ISliceService`. Template UI does not own raw-file view input and
+does not read Session projections; it may read current table selection through
+`ITableService` only as explicit editor input.
 
 `IUserTemplateService` owns persisted user-template catalog records. Template
 UI may adapt records into `TemplateEditorConfig` while editing, but must write
@@ -165,7 +166,8 @@ import/export command
   applied by the system. Keep skipped/blocked files visible through Explorer
   badges driven by Review and Slice projections.
 - Full/incremental apply must not start while another extraction job is running or while Explorer has pending/preparing sources.
-- Session cleanup: `filesRemoved` removes affected queued files; `sessionCleared` terminates and resets active processing.
+- URI cleanup belongs to `ISliceService` and URI/model resource owners; do not
+  reintroduce Session cleanup subscriptions under Template.
 
 ## Commands
 
@@ -184,11 +186,6 @@ slice.runWithTemplate command
 ```
 
 Commands/controllers must not re-detect table structure.
-
-## Field Catalog
-
-Use `records.instructions.md` for `TemplateEditorRecord`,
-`TemplateEditorConfig`, `Template`, `TemplateState`, and `SliceRun`.
 
 ## Do Not
 

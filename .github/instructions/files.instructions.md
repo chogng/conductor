@@ -178,6 +178,11 @@ Explorer drop/dialog/clipboard/folder
   -> TableFileEditorModel / ITableModel own URI-backed model lifecycle
 ```
 
+For folder source replacement, Explorer may publish pending/prepared rows in
+batches, but it defers the table-resource open until the replacement completes.
+That keeps the Explorer tree update ahead of table model resolution, matching
+the upstream Explorer-then-editor ordering.
+
 This workflow does not create Session raw-table records. Passing a URI through a
 support check, preparing it for Explorer display, selecting it, or opening it
 for preview is not a Session commit. Session raw-table commits remain a
@@ -289,15 +294,6 @@ Rules:
 - Slice file progress/readiness comes from `SliceState.fileStates`; Explorer must use it as the sole progress/readiness source.
 - Do not reach `ExplorerViewPane` through `IViewsService.getViewWithId(...)`.
 - Do not publish `onDidRequest*` events from `IExplorerService` as hidden commands.
-
-## Field Catalog
-
-Use `records.instructions.md` for:
-
-- `FileImportResult`, `ImportedFileRecord`, `RawRecord`;
-- `RawTableRecord`, `RawTableSourceRecord`, `RawTableRowsRecord`;
-- `ExplorerState`, `ExplorerResource`, `ExplorerFileEntry`;
-- `SliceFileState`.
 
 `ExplorerSourceState` is the preferred target name for source workflow state.
 Existing migration code may still call it `ExplorerImportState`.

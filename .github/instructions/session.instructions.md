@@ -86,11 +86,6 @@ lifecycle through Session.
 Do not add Template-owned run/output commit or cleanup APIs. Template execution
 results enter Session only through Slice commits.
 
-## Field Catalog
-
-Use `records.instructions.md` for `SessionModel`, `FileRecord`,
-`SeriesRecord`, `CurveRecord`, `MetricRecord`, and related canonical fields.
-
 ## Do Not
 
 - Do not expose mutable `SessionModel`.

@@ -49,10 +49,6 @@ Export UI / command
 - Workbench may sync current selection/snapshot into Export state, but export execution rereads owner APIs.
 - Notification/toast side effects belong to export/origin execution, not Workbench callback bags.
 
-## Field Catalog
-
-Use `records.instructions.md` for `ExportState` and `ExportPlan`.
-
 ## Do Not
 
 - Do not read `ChartViewPane` state to export data.

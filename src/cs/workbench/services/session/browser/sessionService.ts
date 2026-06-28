@@ -26,9 +26,6 @@ import {
   type TableRowStoreRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
-  logSessionSnapshotTrace,
-} from "src/cs/workbench/services/session/common/sessionTrace";
-import {
   ISessionService,
   type CommitCalculatedRecordsBatchInput,
   type CommitFileImportResult,
@@ -490,15 +487,6 @@ export class SessionService extends Disposable implements ISessionServiceType {
       sessionVersion: this.snapshot.sessionVersion + 1,
     };
     this.snapshot = nextSnapshot;
-    logSessionSnapshotTrace("sessionService.replaceSnapshot", nextSnapshot, {
-      affectedCurveCount: affected.curveKeys?.length ?? 0,
-      affectedFileCount: affected.fileIds?.length ?? 0,
-      affectedMetricCount: affected.metricKeys?.length ?? 0,
-      affectedSeriesCount: affected.seriesIds?.length ?? 0,
-      reason,
-    }, {
-      fileIds: affected.fileIds,
-    });
     this.queueChange(createSessionChangeEvent(
       reason,
       nextSnapshot.sessionVersion,
@@ -891,8 +879,8 @@ const normalizeSliceRunRecord = (
     rawTableId,
     selection: normalizeTemplateSelection(input.selection),
     sourceRawTableVersion: normalizeNonNegativeInteger(input.sourceRawTableVersion),
-    sourceTableModelSignature: normalizeOptionalText(
-      input.sourceTableModelSignature,
+    sourceContentSignature: normalizeOptionalText(
+      input.sourceContentSignature,
     ),
     inputRanges: normalizeSliceInputRanges(input.inputRanges, fileId, rawTableId),
     outputSeriesIds: uniqueStrings(

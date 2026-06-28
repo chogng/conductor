@@ -7,9 +7,7 @@ import assert from "assert";
 import { Emitter, Event } from "src/cs/base/common/event";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import type { FileImportResult, ImportedFileRecord } from "src/cs/workbench/services/session/common/session";
 import { DataResourceService } from "src/cs/workbench/services/dataResource/browser/dataResourceService";
-import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import { SliceService } from "src/cs/workbench/services/slice/browser/sliceService";
 import type { Template } from "src/cs/workbench/services/template/common/template";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
@@ -37,30 +35,26 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 	): DataResourceService =>
 		store.add(new DataResourceService(tableModelService));
 
-	test("cleans local slice state when files are removed", () => {
-		const sessionService = store.add(new SessionService());
-		const sliceService = store.add(new SliceService(sessionService));
-		sessionService.commitFileImport(createImportResult());
+	test("stores per-file template selections in Slice state", () => {
+		const sliceService = store.add(new SliceService());
 
 		sliceService.setTemplateSelection("file-a", {
 			kind: "inline",
 			template: createTemplate(),
 		});
 
-		sessionService.removeFiles(["file-a"]);
-
 		const state = sliceService.getState();
-		assert.equal(state.activeFileId, null);
-		assert.equal(state.queueLength, 0);
-		assert.equal(state.fileStates.has("file-a"), false);
-		assert.deepEqual(state.templateSelectionsByFileId, {});
+		assert.deepEqual(state.templateSelectionsByFileId, {
+			"file-a": {
+				kind: "inline",
+				template: createTemplate(),
+			},
+		});
 	});
 
 	test("cleans queued URI state when the table model resource changes", async () => {
-		const sessionService = store.add(new SessionService());
 		const tableModelService = store.add(new BlockingTableModelService());
 		const sliceService = store.add(new SliceService(
-			sessionService,
 			createDataResourceServiceForTest(tableModelService),
 		));
 		const resource = URI.file("/workspace/source.xlsx");
@@ -80,10 +74,8 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 	});
 
 	test("cancels queued URI slice requests by target", async () => {
-		const sessionService = store.add(new SessionService());
 		const tableModelService = store.add(new BlockingTableModelService());
 		const sliceService = store.add(new SliceService(
-			sessionService,
 			createDataResourceServiceForTest(tableModelService),
 		));
 		const resource = URI.file("/workspace/source.xlsx");
@@ -103,10 +95,8 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 	});
 
 	test("matches queued URI slice state when request resource is structured cloned", async () => {
-		const sessionService = store.add(new SessionService());
 		const tableModelService = store.add(new BlockingTableModelService());
 		const sliceService = store.add(new SliceService(
-			sessionService,
 			createDataResourceServiceForTest(tableModelService),
 		));
 		const resource = URI.file("/workspace/source.xlsx");
@@ -129,7 +119,6 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 	});
 
 	test("reads only planned URI table row ranges from windowed content", async () => {
-		const sessionService = store.add(new SessionService());
 		const resource = URI.file("/workspace/large-source.xlsx");
 		const rowCount = 1004;
 		const template = createTemplate({
@@ -167,7 +156,6 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 			version: 3,
 		}));
 		const sliceService = store.add(new SliceService(
-			sessionService,
 			createDataResourceServiceForTest(tableModelService),
 		));
 		const target = { resource, sheetId: "sheet-a" };
@@ -190,7 +178,6 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 	});
 
 	test("fires URI result target changes when URI results are stored and removed", async () => {
-		const sessionService = store.add(new SessionService());
 		const resource = URI.file("/workspace/source.xlsx");
 		const content: TableModelContentSnapshot = {
 			columnCount: 2,
@@ -219,7 +206,6 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 			version: 1,
 		}));
 		const sliceService = store.add(new SliceService(
-			sessionService,
 			createDataResourceServiceForTest(tableModelService),
 		));
 		const target = { resource, sheetId: "sheet-a" };
@@ -243,7 +229,6 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 	});
 
 	test("does not fall back to the default sheet when a URI slice sheet target is missing", async () => {
-		const sessionService = store.add(new SessionService());
 		const resource = URI.file("/workspace/source.xlsx");
 		const content: TableModelContentSnapshot = {
 			columnCount: 2,
@@ -272,7 +257,6 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 			version: 1,
 		}));
 		const sliceService = store.add(new SliceService(
-			sessionService,
 			createDataResourceServiceForTest(tableModelService),
 		));
 		const target = { resource, sheetId: "missing-sheet" };
@@ -362,7 +346,7 @@ const createUriSliceRequest = (
 		createdAt: 1,
 		rowCount: options.rowCount ?? 3,
 		columnCount: 2,
-		sourceTableModelSignature: "table-model:uri",
+		sourceContentSignature: "source-content:uri",
 		sourceModelVersion: options.sourceModelVersion ?? 1,
 		sourceVersion: options.sourceVersion ?? 1,
 	};
@@ -480,40 +464,3 @@ const waitUntil = async (
 
 	assert.ok(predicate());
 };
-
-const createImportResult = (): FileImportResult => ({
-	createdAt: 1,
-	diagnostics: [],
-	files: [createImportedFile()],
-});
-
-const createImportedFile = (): ImportedFileRecord => ({
-	id: "file-a",
-	kind: "csv",
-	name: "Raw.csv",
-	raw: {
-		fileId: "file-a",
-		fileName: "Raw.csv",
-		rawTablesById: {
-			"table-a": {
-				fileId: "file-a",
-				rawTableId: "table-a",
-				rowCount: 3,
-				columnCount: 2,
-				maxCellLengths: [],
-				rows: {
-					kind: "inline",
-					values: [
-						["Vg", "Id"],
-						["0", "1"],
-						["1", "2"],
-					],
-				},
-				source: {
-					kind: "csv",
-				},
-			},
-		},
-		rawTableOrder: ["table-a"],
-	},
-});

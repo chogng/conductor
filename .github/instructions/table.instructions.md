@@ -232,11 +232,6 @@ files, table models, or widget lifecycle callbacks.
 Table panes subscribe to `ITableService.onDidChangeTableViewInput` and reread
 `ITableService.getViewInput()`. Do not use event payloads as the data path.
 
-## Field Catalog
-
-Use `records.instructions.md` for `TableState`, `TableSource`,
-`TableSelection`, and `TableColumnWidth`.
-
 ## Do Not
 
 - Do not detect headers or block boundaries in table code.

@@ -78,11 +78,6 @@ in search model code.
 - X input is text with `inputMode = "decimal"`, not `type = "number"`.
 - Do not rebuild the full Search view for every `SearchQuery` change; update current result table in place so input focus survives.
 
-## Field Catalog
-
-Use `records.instructions.md` for `SearchQuery`, `SearchResult`,
-`SearchPointLookupModel`, and `SearchPointLookupPaneModel`.
-
 ## Do Not
 
 - Do not re-detect block structure.

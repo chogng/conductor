@@ -64,7 +64,7 @@ export const createSlicePlan = (
 		mode: input.mode,
 		selection: input.selection,
 		...(input.sourceVersion !== undefined ? { sourceVersion: input.sourceVersion } : {}),
-		sourceTableModelSignature: input.sourceTableModelSignature,
+		sourceContentSignature: input.sourceContentSignature,
 		measurement,
 		template: input.template,
 		templateFingerprint,
@@ -224,7 +224,7 @@ const isColumnInBounds = (
 	column >= 0 &&
 	column < columnCount;
 
-export const createSliceTableModelSignature = ({
+export const createSliceSourceContentSignature = ({
 	sourceSheetId,
 	sourceModelVersion,
 	sourceUri,
@@ -238,7 +238,7 @@ export const createSliceTableModelSignature = ({
 	readonly reviewSignature?: string;
 	readonly templateCatalogVersion?: number;
 }): string => JSON.stringify({
-	...createSourceModelSignature({
+	...createSourceContentSignature({
 		sourceSheetId,
 		sourceModelVersion,
 		sourceUri,
@@ -276,7 +276,7 @@ const normalizeSignatureInteger = (
 	return Number.isFinite(normalized) && normalized >= 0 ? normalized : undefined;
 };
 
-const createSourceModelSignature = ({
+const createSourceContentSignature = ({
 	sourceSheetId,
 	sourceModelVersion,
 	sourceUri,
@@ -286,15 +286,15 @@ const createSourceModelSignature = ({
 	readonly sourceModelVersion?: number;
 	readonly sourceUri?: string;
 	readonly sourceVersion?: number;
-}): { readonly sourceModel?: { readonly modelVersion?: number; readonly sheetId?: string; readonly sourceUri?: string; readonly sourceVersion?: number } } => {
-	const modelVersion = normalizeSignatureInteger(sourceModelVersion);
+}): { readonly sourceContent?: { readonly sourceModelVersion?: number; readonly sheetId?: string; readonly sourceUri?: string; readonly sourceVersion?: number } } => {
+	const normalizedSourceModelVersion = normalizeSignatureInteger(sourceModelVersion);
 	const normalizedSheetId = normalizeSignatureText(sourceSheetId);
 	const normalizedSourceUri = normalizeSignatureText(sourceUri);
 	const normalizedSourceVersion = normalizeSignatureInteger(sourceVersion);
-	return modelVersion !== undefined || normalizedSheetId || normalizedSourceUri || normalizedSourceVersion !== undefined
+	return normalizedSourceModelVersion !== undefined || normalizedSheetId || normalizedSourceUri || normalizedSourceVersion !== undefined
 		? {
-				sourceModel: {
-					modelVersion,
+				sourceContent: {
+					sourceModelVersion: normalizedSourceModelVersion,
 					sheetId: normalizedSheetId,
 					sourceUri: normalizedSourceUri,
 					sourceVersion: normalizedSourceVersion,

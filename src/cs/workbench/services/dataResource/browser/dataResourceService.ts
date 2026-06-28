@@ -18,6 +18,7 @@ import {
 } from "src/cs/workbench/services/dataResource/common/dataResource";
 import {
 	createEmptyStructuredContentStructure,
+	readStructuredContentRows,
 	type StructuredCanonicalUnit as CanonicalUnit,
 	type StructuredColumnProfile as ColumnProfile,
 	type StructuredColumnSemanticCandidate as ColumnSemanticCandidate,
@@ -32,7 +33,6 @@ import {
 	type StructuredMeasurementFamily as MeasurementFamily,
 } from "src/cs/workbench/services/dataResource/common/structuredContent";
 import {
-	readTableModelContentRows,
 	type TableModelContentSnapshot,
 	type TableModelLoadState,
 	type TableModelSheetSnapshot,
@@ -256,7 +256,7 @@ const getStructuredContentRows = (
 	content: TableModelContentSnapshot,
 ): readonly (readonly string[])[] =>
 	content.rowWindows?.length
-		? readTableModelContentRows(content)
+		? readStructuredContentRows(content)
 		: content.rows;
 
 const createStructuredContentStructure = ({

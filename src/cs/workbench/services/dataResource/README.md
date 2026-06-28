@@ -14,6 +14,8 @@ Current migration state:
 
 - public callers depend on `IDataResourceService` and structured-content
   snapshots;
+- structured-content evidence, projection, and grid snapshot contracts are
+  owned by `services/dataResource/common/structuredContent.ts`;
 - the first browser implementation still materializes snapshots through
   `ITableModelService`;
 - that table-model dependency is an implementation bridge, not the target

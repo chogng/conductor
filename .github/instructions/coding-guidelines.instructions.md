@@ -9,9 +9,8 @@ Use this file as the short coding entry point. Before editing code, read:
 1. `architecture.instructions.md` for ownership, layers, events, selection, and domain flow.
 2. The matching module instruction file for the path you are editing.
 3. `commands.instructions.md` when changing command/action ids, handlers, menus, keybindings, controllers, or contribution wiring.
-4. `records.instructions.md` when changing canonical records, service state, view models, command targets, or field names.
-5. `settings.instructions.md` when changing settings persistence, settings UI, or settings-driven side effects.
-6. `service-components.instructions.md` when introducing service helpers, controllers, stores, models, providers, adapters, planners, readers, registries, or caches.
+4. `settings.instructions.md` when changing settings persistence, settings UI, or settings-driven side effects.
+5. `service-components.instructions.md` when introducing service helpers, controllers, stores, models, providers, adapters, planners, readers, registries, or caches.
 
 ## Core Rules
 
