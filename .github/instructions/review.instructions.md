@@ -72,7 +72,7 @@ URI + contentHash/sourceVersion
   -> ReviewResult / ReviewSummary / accepted Segment
 ```
 
-Current tabular adapter:
+Review Algorithm Sequence:
 
 ```txt
 URI + contentHash/sourceVersion + optional sheetId
@@ -87,6 +87,32 @@ URI + contentHash/sourceVersion + optional sheetId
   -> ReviewDecision returns invalid/noCandidates when the evidence is ambiguous
   -> Slice stays on the user-template path until Review produces a usable template
 ```
+```mermaid
+sequenceDiagram
+  participant Table as TableModelService
+  participant Data as DataResourceService
+  participant Review as ReviewService
+  participant Recipe as RecipeSnapshot
+  participant Selector as reviewSelector
+  participant Candidate as reviewCandidate
+  participant Decision as reviewDecision
+  participant Slice as Slice Command
+
+  Table->>Data: URI content snapshot
+  Data->>Data: header/data range/column role inference
+  Data->>Data: measurement projection
+  Note over Data: Vg=>transfer, Vd=>output, generic Voltage=>unknown
+  Review->>Data: resolveStructuredContent(resource, sheetId)
+  Review->>Recipe: read passive recipes
+  Review->>Selector: match recipe domain/layout/roles
+  Selector->>Candidate: matched blocks/captures
+  Candidate->>Decision: candidate templates
+  Decision->>Decision: score + ambiguity + freshness + diagnostics
+  Decision-->>Review: ready reviewedTemplate OR invalid/noCandidates
+  Slice->>Review: reviewUri()
+  Slice->>Slice: use reviewedTemplate, or require user template
+```
+
 
 Explorer decoration and hover consume only Review's public summary:
 
