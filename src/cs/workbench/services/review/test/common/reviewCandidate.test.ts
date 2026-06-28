@@ -46,8 +46,8 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 		});
 
 		assert.ok(candidate);
-		assert.equal(candidate.source.kind, "recipe");
-		assert.equal(candidate.source.kind === "recipe" && candidate.source.recipeId, "builtin.iv.transfer");
+		assert.equal(candidate.source.kind, "builtin");
+		assert.equal(candidate.source.kind === "builtin" && candidate.source.recipeId, "builtin.iv.transfer");
 		assert.equal(candidate.projectionTrace.diagnostics.length, 0);
 		assert.equal(candidate.interpretation.blocks.length, 1);
 		assert.deepEqual(candidate.interpretation.blocks[0]?.rowRange, {
@@ -148,8 +148,8 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 		});
 
 		assert.equal(candidates.length, 1);
-		assert.equal(candidates[0]?.source.kind, "userTemplate");
-		assert.equal(candidates[0]?.source.kind === "userTemplate" && candidates[0].source.templateId, "template-a");
+		assert.equal(candidates[0]?.source.kind, "user");
+		assert.equal(candidates[0]?.source.kind === "user" && candidates[0].source.templateId, "template-a");
 		assert.equal(candidates[0]?.projectionTrace.diagnostics.length, 0);
 		assert.equal(candidates[0]?.confidence, 0.95);
 		assert.notEqual(candidates[0]?.interpretationFingerprint, createTemplateFingerprint(candidates[0]?.interpretation as Template));
@@ -245,9 +245,9 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 		});
 
 		assert.equal(candidates.length, 2);
-		assert.equal(candidates[0]?.source.kind === "recipe" && candidates[0].source.recipeId, "workspace.high");
+		assert.equal(candidates[0]?.source.kind === "builtin" && candidates[0].source.recipeId, "workspace.high");
 		assert.equal(candidates[0]?.providerRank, 200);
-		assert.equal(candidates[1]?.source.kind === "recipe" && candidates[1].source.recipeId, "workspace.low");
+		assert.equal(candidates[1]?.source.kind === "builtin" && candidates[1].source.recipeId, "workspace.low");
 	});
 
 	test("rejects user templates with mismatched applicability", () => {

@@ -46,8 +46,8 @@ system application.
 - selecting the `ReviewedTemplate` snapshot when a candidate is ready for Slice;
 - deciding `systemRecommended` versus `userActionRequired`;
 - returning structured manual-template review results;
-- exposing cache-only latest full review results for Review/Slice-level
-  consumers through `getLatestReview({ resource, contentHash?, sheetId? })`;
+- exposing URI execution projections for Slice-level consumers through
+  `reviewUriForExecution({ resource, contentHash?, sheetId? })`;
 - maintaining URI-backed latest review summaries associated with
   `resource + contentHash/sourceVersion + optional sheetId` for Explorer
   decorations and hover.
@@ -97,7 +97,7 @@ sequenceDiagram
   participant Candidate as reviewCandidate
   participant Decision as reviewDecision
 
-  Caller->>Review: reviewUri(resource, sheetId?)
+  Caller->>Review: reviewUriForExecution(resource, sheetId?)
   Review->>Data: resolveStructuredContent(resource, sheetId)
   Note over Data: Current implementation may materialize through TableModelService as a private bridge
   Data->>Data: header/data range/column role inference
@@ -120,6 +120,8 @@ Explorer decoration and hover consume only Review's public summary:
 ReviewService onDidChangeReview
   -> ExplorerDecorationsProvider.provideDecorations(resource)
   -> IReviewService.getLatestReviewSummary({ resource, contentHash?, sheetId? })
+  -> ReviewService returns cached/pending summary and queues missing URI review
+  -> ReviewService drains URI review queue with bounded background concurrency
   -> ReviewSummary(state, confidence, reviewedSemanticLabel, message, signatures)
   -> IDecorationsService / Explorer hover presentation
 ```
@@ -134,20 +136,25 @@ review policy changes, and optional materialization-version changes. Explorer
 must not fall back to Session raw-table records for URI-backed semantic
 decorations.
 
+Missing or stale URI summaries are refreshed by Review's bounded background
+queue. Explorer may receive a pending summary first; it must let Review publish
+the later `onDidChangeReview` update instead of forcing synchronous
+structured-content resolution while rendering the tree.
+
 User commands or explicit URI-backed execution controllers read the current URI
-review result and submit URI-backed Slice requests, with idempotency and
+review execution projection and submit URI-backed Slice requests, with idempotency and
 staleness guards based on contentHash/sourceVersion, evidence fingerprint,
 optional materialization version, review signature, and template fingerprint.
 
 Manual execution:
 
 ```txt
-user command / UserTemplate picker / inline template editor
-  -> IReviewService.reviewUri({ resource, contentHash?, sheetId? })
-  -> IReviewService.reviewUriManualTemplate(...)
+user command / UserTemplate picker
+  -> IReviewService.reviewUriForExecution({ resource, contentHash?, sheetId? })
+  -> IReviewService.reviewUriManualTemplate(user template id)
   -> ManualTemplateReviewResult
   -> ready result only
-  -> IReviewService.confirmReviewedTemplate(...) for explicit user-confirmed manual/saved templates
+  -> IReviewService.confirmReviewedTemplate(...) for explicit user-confirmed templates
   -> SchemaProfileService.confirmProfile(...) when structured-content bindings can be derived
   -> SliceUriRequest(trigger = userCommand)
   -> ISliceService.submitUri(...)
@@ -157,7 +164,7 @@ user command / UserTemplate picker / inline template editor
 
 | File | Owns | Must not own |
 | --- | --- | --- |
-| `common/review.ts` | `IReviewService` contract, URI review/manual review request and result types, review/evidence/result signature helpers. | Evidence shape definitions, browser cache implementation, Explorer decoration mapping, Slice submission. |
+| `common/review.ts` | `IReviewService` contract, URI execution/manual review request and result types, review/evidence/result signature helpers. | Evidence shape definitions, browser cache implementation, Explorer decoration mapping, Slice submission. |
 | `common/reviewModel.ts` | Pure Review domain model: Review input evidence wrapper, `ReviewContext`, `SegmentCandidate`, `ReviewCandidate`, `ReviewResult`, `ReviewDecision`, factors, findings, `ReviewedTemplate`, `ReviewSummary`. | Service implementation, evidence production, Recipe catalog storage, Explorer UI types, structured-content adapter types. |
 | `common/reviewSelector.ts` | Pure Recipe dataRange/blockPartition/physicalLayout/logicalRelation matching against URI/content evidence. | File reads, parser logic, candidate scoring, Template materialization. |
 | `common/reviewCandidate.ts` | Pure Recipe/UserTemplate/built-in template snapshot + URI/content evidence -> `SegmentCandidate` / `ReviewCandidate` derivation. | Final Review status, `ReviewedTemplate` selection, Slice execution, Explorer decoration. |
@@ -209,12 +216,12 @@ snapshot. Do not reintroduce Review-local structured-content bridges.
 - Blocking Review findings, including parser-diagnostic hard gates projected
   from structured content evidence, must produce an `invalid` `ReviewDecision`
   rather than a manual-adjustment state.
-- `ReviewedTemplate.source` describes template provenance only: Recipe,
-  UserTemplate, or inline. It must not encode manual, auto, saved-selection
-  compatibility, user command, or system trigger.
+- `ReviewedTemplate.source` describes template provenance only: `builtin` or
+  `user`. It must not encode manual, auto, saved-selection compatibility,
+  force-review override, user command, or system trigger.
 - Accepted measurement semantics belong on the reviewed executable `Template`
-  snapshot (`ReviewedTemplate.template.measurement`), not on `UriReview`,
-  `ReviewSummary`, or Slice request bridge fields.
+  snapshot (`ReviewedTemplate.template.measurement`), not as standalone fields
+  on `UriReviewExecution`, `ReviewSummary`, or Slice request bridge fields.
 - Execution trigger belongs to `SliceUriRequest.trigger`.
 - Non-selected candidate records store summaries only. Detail rebuilding must
   verify Recipe/UserTemplate fingerprints and return a stale result when
@@ -231,9 +238,9 @@ snapshot. Do not reintroduce Review-local structured-content bridges.
   diagnostic handling, override rules, or source priority changes.
 - Explorer reads Review summaries and Slice state as projection inputs; it does
   not read evidence or perform Review policy checks.
-- Manual Review requests may accept `userTemplate` selections; lookup must go
-  through `IUserTemplateService` and the resulting `ReviewedTemplate.source`
-  must be `userTemplate`.
+- Manual Review requests accept saved user-template selections only; lookup
+  must go through `IUserTemplateService` and the resulting
+  `ReviewedTemplate.source` must be `user`.
 
 ## Do Not
 

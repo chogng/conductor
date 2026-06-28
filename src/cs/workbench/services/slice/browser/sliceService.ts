@@ -232,7 +232,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			mode: request.trigger.kind === "reviewDecision" ? "auto" : "manual",
 			selection: request.trigger.kind === "reviewDecision"
 				? { kind: "auto" }
-				: { kind: "inline", template: request.reviewedTemplate.template },
+				: createTemplateSelectionFromReviewedTemplate(request.reviewedTemplate),
 			sourceVersion: request.sourceVersion,
 			sourceContentSignature: request.sourceContentSignature,
 			template: request.reviewedTemplate.template,
@@ -574,13 +574,25 @@ const createSliceUriCurveRecord = (
 const normalizeTemplateSelection = (
 	selection: TemplateSelection,
 ): TemplateSelection => {
-	if (selection.kind === "inline" || selection.kind === "auto") {
+	if (selection.kind === "auto") {
 		return selection;
 	}
 
 	return selection.templateId.trim()
 		? { kind: "saved", templateId: selection.templateId.trim() }
 		: { kind: "auto" };
+};
+
+const createTemplateSelectionFromReviewedTemplate = (
+	reviewedTemplate: ReviewedTemplate,
+): TemplateSelection => {
+	const source = reviewedTemplate.source;
+	if (source.kind === "user") {
+		const templateId = normalizeText(source.templateId);
+		return templateId ? { kind: "saved", templateId } : { kind: "auto" };
+	}
+
+	return { kind: "auto" };
 };
 
 const getSliceQueueEntryStateKey = (

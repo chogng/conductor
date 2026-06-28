@@ -39,7 +39,6 @@ import {
 	createSchemaProfileFromConfirmation,
 	type ConfirmSchemaProfileInput,
 } from "src/cs/workbench/services/schemaProfile/common/schemaProfileConfirmation";
-import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import {
 	TableModel as TableContentModel,
 	type ITableModel,
@@ -65,7 +64,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	const createUserTemplateServiceForTest = () =>
 		store.add(new UserTemplateService(createUserTemplateStoreServiceForTest()));
 	const createReviewServiceForTest = (
-		_sessionService: SessionService,
 		recipeService: IRecipeService,
 		userTemplateService: IUserTemplateService,
 		dataResourceService?: IDataResourceService,
@@ -112,7 +110,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.deepEqual(result.reviews[0]?.findings, []);
 		assert.equal(result.decision.kind, "ready");
 		assert.equal(result.decision.kind === "ready" && result.decision.application.kind, "systemRecommended");
-		assert.equal(result.decision.kind === "ready" && result.decision.reviewedTemplate.source.kind, "recipe");
+		assert.equal(result.decision.kind === "ready" && result.decision.reviewedTemplate.source.kind, "builtin");
 		assert.deepEqual(result.reviewedTemplate?.template.measurement, {
 			curveFamily: "iv",
 			ivMode: "transfer",
@@ -355,9 +353,9 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		});
 
 		assert.equal(result.userTemplateCatalogVersion, 1);
-		assert.equal(result.candidates[0]?.source.kind, "userTemplate");
+		assert.equal(result.candidates[0]?.source.kind, "user");
 		assert.equal(result.decision.kind, "ready");
-		assert.equal(result.decision.kind === "ready" && result.decision.reviewedTemplate.source.kind, "userTemplate");
+		assert.equal(result.decision.kind === "ready" && result.decision.reviewedTemplate.source.kind, "user");
 	});
 
 	test("requires adjustment when Review confidence is below the ready threshold", async () => {
@@ -387,12 +385,10 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("returns latest review summaries for URI-backed structured content", async () => {
-		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Transfer.csv");
 		const service = createReviewServiceForTest(
-			sessionService,
 			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource),
@@ -416,25 +412,23 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(Boolean(summary.reviewSignature), true);
 		assert.equal(Boolean(summary.templateFingerprint), true);
 
-		const uriReview = await service.reviewUri(target);
-		assert.equal(uriReview.result?.resource?.toString(), resource.toString());
-		assert.equal(uriReview.result?.sheetId, "table-a");
-		assert.equal(uriReview.result?.modelVersion, 1);
-		assert.equal(uriReview.result?.sourceVersion, 1);
-		assert.equal(typeof uriReview.result?.evidenceFingerprint, "string");
-		assert.equal(uriReview.result?.reviewedTemplate?.template.measurement?.curveFamily, "iv");
-		assert.equal(uriReview.result?.reviewedTemplate?.template.measurement?.ivMode, "transfer");
-		assert.equal(service.getLatestReview(target)?.reviewSignature, uriReview.reviewSignature);
-		assert.equal(service.getLatestReview(target)?.summary.state, "ready");
+		const reviewExecution = await service.reviewUriForExecution(target);
+		assert.ok(reviewExecution);
+		assert.equal(reviewExecution.resource.toString(), resource.toString());
+		assert.equal(reviewExecution.sheetId, "table-a");
+		assert.equal(reviewExecution.sourceModelVersion, 1);
+		assert.equal(reviewExecution.sourceVersion, 1);
+		assert.equal(reviewExecution.systemRecommendedReviewedTemplate?.template.measurement?.curveFamily, "iv");
+		assert.equal(reviewExecution.systemRecommendedReviewedTemplate?.template.measurement?.ivMode, "transfer");
+		assert.equal(service.getLatestReviewSummary(target).reviewSignature, reviewExecution.reviewSignature);
+		assert.equal(service.getLatestReviewSummary(target).state, "ready");
 	});
 
 	test("derives IV output review from explicit drain voltage URI content", async () => {
-		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Output.csv");
 		const service = createReviewServiceForTest(
-			sessionService,
 			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource, [], null, createTestTableModelContent([
@@ -455,18 +449,16 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(summary.state, "ready");
 		assert.equal(summary.reviewedSemanticLabel, "Detected IV Output");
 
-		const uriReview = await service.reviewUri(target);
-		assert.equal(uriReview.result?.reviewedTemplate?.template.measurement?.curveFamily, "iv");
-		assert.equal(uriReview.result?.reviewedTemplate?.template.measurement?.ivMode, "output");
+		const reviewExecution = await service.reviewUriForExecution(target);
+		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate?.template.measurement?.curveFamily, "iv");
+		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate?.template.measurement?.ivMode, "output");
 	});
 
 	test("does not auto-select IV mode from generic voltage URI content", async () => {
-		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Instrument.csv");
 		const service = createReviewServiceForTest(
-			sessionService,
 			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource, [], null, createTestTableModelContent([
@@ -494,12 +486,11 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			state: "invalid",
 		});
 
-		const uriReview = await service.reviewUri(target);
-		assert.equal(uriReview.result?.reviewedTemplate, undefined);
+		const reviewExecution = await service.reviewUriForExecution(target);
+		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate, undefined);
 	});
 
 	test("keeps latest review summary reads off structured-content resolution", async () => {
-		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Transfer.csv");
@@ -507,7 +498,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			createDataResourceServiceForTest(resource),
 		));
 		const service = createReviewServiceForTest(
-			sessionService,
 			recipeService,
 			userTemplateService,
 			dataResourceService,
@@ -531,13 +521,13 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(dataResourceService.resolveStructuredContentCalls, resolveStructuredContentCalls);
 	});
 
-	test("bounds background URI review targets retained for cache refresh", async () => {
-		const sessionService = store.add(new SessionService());
+	test("bounds background URI review targets retained for cache refresh", async function () {
+		this.timeout(10_000);
+
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const dataResourceService = store.add(new ResolvingDataResourceService());
 		const service = createReviewServiceForTest(
-			sessionService,
 			recipeService,
 			userTemplateService,
 			dataResourceService,
@@ -549,19 +539,41 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			});
 		}
 
-		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 512);
+		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 512, 600);
 		recipeService.setFingerprint("recipe:changed");
-		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 1024);
+		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 1024, 600);
+	});
+
+	test("limits background URI review concurrency", async () => {
+		const recipeService = store.add(new TestRecipeService("recipe:first"));
+		const userTemplateService = createUserTemplateServiceForTest();
+		const dataResourceService = store.add(new ControlledDataResourceService());
+		const service = createReviewServiceForTest(
+			recipeService,
+			userTemplateService,
+			dataResourceService,
+		);
+
+		for (let index = 0; index < 5; index += 1) {
+			assert.equal(service.getLatestReviewSummary({
+				resource: URI.file(`/workspace/table-${index}.csv`),
+			}).state, "pending");
+		}
+
+		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 2);
+		await new Promise(resolve => setTimeout(resolve, 0));
+		assert.equal(dataResourceService.resolveStructuredContentCalls, 2);
+
+		dataResourceService.resolveNext({ kind: "missingContent" });
+		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 3);
 	});
 
 	test("reruns URI review when a resource changes while background review is pending", async () => {
-		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Transfer.csv");
 		const dataResourceService = store.add(new ControlledDataResourceService());
 		const service = createReviewServiceForTest(
-			sessionService,
 			recipeService,
 			userTemplateService,
 			dataResourceService,
@@ -589,12 +601,10 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("normalizes structured-cloned URI review targets before resolving models", async () => {
-		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Transfer.csv");
 		const service = createReviewServiceForTest(
-			sessionService,
 			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource),
@@ -612,19 +622,16 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(summary.resource.toString(), resource.toString());
 		assert.equal(summary.reviewSignature?.includes("[object Object]"), false);
 
-		const review = await service.reviewUri(target);
-		assert.equal(review.resource.toString(), resource.toString());
-		assert.equal(review.result?.resource?.toString(), resource.toString());
-		assert.equal(review.reviewSignature?.includes("[object Object]"), false);
+		const reviewExecution = await service.reviewUriForExecution(target);
+		assert.equal(reviewExecution?.resource.toString(), resource.toString());
+		assert.equal(reviewExecution?.reviewSignature.includes("[object Object]"), false);
 	});
 
 	test("does not expose the default sheet id when the URI review target has no sheet", async () => {
-		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Transfer.csv");
 		const service = createReviewServiceForTest(
-			sessionService,
 			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource),
@@ -638,19 +645,16 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(summary.state, "ready");
 		assert.equal(summary.sheetId, undefined);
 
-		const uriReview = await service.reviewUri(target);
-		assert.equal(uriReview.sheetId, undefined);
-		assert.equal(uriReview.summary.sheetId, undefined);
-		assert.equal(uriReview.result?.sheetId, undefined);
+		const reviewExecution = await service.reviewUriForExecution(target);
+		assert.equal(reviewExecution?.sheetId, undefined);
+		assert.equal(reviewExecution?.summary.sheetId, undefined);
 	});
 
 	test("does not fall back to another sheet when a URI review sheet target is missing", async () => {
-		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Transfer.csv");
 		const service = createReviewServiceForTest(
-			sessionService,
 			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource, [], "table-a"),
@@ -670,8 +674,8 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const manualResult = await service.reviewUriManualTemplate({
 			target,
 			selection: {
-				kind: "inline",
-				template: createTemplate(),
+				kind: "user",
+				templateId: "template-a",
 			},
 		});
 		assert.equal(manualResult.kind, "invalid");
@@ -681,12 +685,10 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("marks cached URI reviews stale when review inputs change", async () => {
-		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Transfer.csv");
 		const service = createReviewServiceForTest(
-			sessionService,
 			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource),
@@ -704,23 +706,16 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(staleSummary.findingCodes.includes("review.stale"), true);
 		assert.equal(staleSummary.templateFingerprint, undefined);
 
-		const staleReview = service.getLatestReview(target);
-		assert.equal(staleReview?.summary.state, "stale");
-		assert.equal(staleReview?.result, undefined);
-		assert.equal(staleReview?.reviewSignature, undefined);
-
 		await waitUntil(() => service.getLatestReviewSummary(target).state === "ready");
-		assert.equal(service.getLatestReview(target)?.summary.state, "ready");
+		assert.equal(service.getLatestReviewSummary(target).state, "ready");
 	});
 
 	test("marks cached URI reviews stale when schema profiles change", async () => {
-		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const schemaProfileService = store.add(new TestSchemaProfileService());
 		const resource = URI.file("/workspace/Transfer.csv");
 		const service = createReviewServiceForTest(
-			sessionService,
 			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource),
@@ -739,27 +734,25 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(staleSummary.findingCodes.includes("review.stale"), true);
 
 		await waitUntil(() => service.getLatestReviewSummary(target).state === "ready");
-		assert.equal(service.getLatestReview(target)?.summary.state, "ready");
+		assert.equal(service.getLatestReviewSummary(target).state, "ready");
 	});
 
 	test("confirms reviewed templates into schema profiles from structured content", async () => {
-		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const schemaProfileService = store.add(new TestSchemaProfileService());
 		const resource = URI.file("/workspace/Transfer.csv");
 		const service = createReviewServiceForTest(
-			sessionService,
 			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource),
 			schemaProfileService,
 		);
-		const review = await service.reviewUri({
+		const reviewExecution = await service.reviewUriForExecution({
 			resource,
 			sheetId: "table-a",
 		});
-		const reviewedTemplate = review.result?.reviewedTemplate;
+		const reviewedTemplate = reviewExecution?.systemRecommendedReviewedTemplate;
 		assert.ok(reviewedTemplate);
 		assert.equal(schemaProfileService.confirmations.length, 0);
 
@@ -769,7 +762,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 				sheetId: "table-a",
 			},
 			reviewedTemplate,
-			reason: "manualTemplate",
+			reason: "user",
 		});
 
 		assert.ok(profile);
@@ -794,20 +787,18 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("does not learn schema profiles from automatic URI review derivation", async () => {
-		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const schemaProfileService = store.add(new TestSchemaProfileService());
 		const resource = URI.file("/workspace/Transfer.csv");
 		const service = createReviewServiceForTest(
-			sessionService,
 			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource),
 			schemaProfileService,
 		);
 
-		await service.reviewUri({
+		await service.reviewUriForExecution({
 			resource,
 			sheetId: "table-a",
 		});
@@ -817,12 +808,10 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("returns null when reviewed template confirmation cannot resolve content", async () => {
-		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const schemaProfileService = store.add(new TestSchemaProfileService());
 		const service = createReviewServiceForTest(
-			sessionService,
 			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(URI.file("/workspace/Transfer.csv")),
@@ -834,7 +823,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 				resource: URI.file("/workspace/Missing.csv"),
 			},
 			reviewedTemplate: createReviewedTemplateForTest(),
-			reason: "manualTemplate",
+			reason: "user",
 		});
 
 		assert.equal(profile, null);
@@ -842,13 +831,11 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("returns null when reviewed template columns cannot be mapped to structured roles", async () => {
-		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const schemaProfileService = store.add(new TestSchemaProfileService());
 		const resource = URI.file("/workspace/Transfer.csv");
 		const service = createReviewServiceForTest(
-			sessionService,
 			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource),
@@ -882,7 +869,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 					},
 				}],
 			})),
-			reason: "manualTemplate",
+			reason: "user",
 		});
 
 		assert.equal(profile, null);
@@ -890,12 +877,10 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("carries URI parser diagnostics into review summaries", async () => {
-		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Malformed.csv");
 		const service = createReviewServiceForTest(
-			sessionService,
 			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource, [{
@@ -915,19 +900,15 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.deepEqual(summary.findingCodes, ["review.parserFatalDiagnostic"]);
 		assert.equal(summary.message, "Review candidates are invalid.");
 
-		const uriReview = await service.reviewUri(target);
-		assert.equal(uriReview.result?.reviews.some(review =>
-			review.findings.some(finding => finding.code === "review.parserFatalDiagnostic")
-		), true);
+		const reviewExecution = await service.reviewUriForExecution(target);
+		assert.equal(reviewExecution?.summary.findingCodes.includes("review.parserFatalDiagnostic"), true);
 	});
 
 	test("does not treat recoverable URI parser errors as fatal review findings", async () => {
-		const sessionService = store.add(new SessionService());
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Recoverable.csv");
 		const service = createReviewServiceForTest(
-			sessionService,
 			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource, [{
@@ -945,10 +926,8 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.notEqual(summary.state, "invalid");
 		assert.equal(summary.findingCodes.includes("review.parserFatalDiagnostic"), false);
 
-		const uriReview = await service.reviewUri(target);
-		assert.equal(uriReview.result?.reviews.some(review =>
-			review.findings.some(finding => finding.code === "review.parserFatalDiagnostic")
-		), false);
+		const reviewExecution = await service.reviewUriForExecution(target);
+		assert.equal(reviewExecution?.summary.findingCodes.includes("review.parserFatalDiagnostic"), false);
 	});
 
 });
@@ -1289,12 +1268,14 @@ class TestTableModelService extends Disposable implements ITableModelService {
 
 const waitUntil = async (
 	condition: () => boolean,
+	attempts = 20,
+	delayMs = 0,
 ): Promise<void> => {
-	for (let attempt = 0; attempt < 20; attempt += 1) {
+	for (let attempt = 0; attempt < attempts; attempt += 1) {
 		if (condition()) {
 			return;
 		}
-		await new Promise(resolve => setTimeout(resolve, 0));
+		await new Promise(resolve => setTimeout(resolve, delayMs));
 	}
 	assert.fail("Timed out waiting for condition.");
 };
@@ -1475,7 +1456,7 @@ const createTemplate = (
 	overrides: Partial<Template> = {},
 ): Template => ({
 	schemaVersion: 1,
-	id: "template-inline",
+	id: "template-a",
 	name: "Transfer",
 	version: 1,
 	blocks: [{
@@ -1509,7 +1490,9 @@ const createReviewedTemplateForTest = (
 	return {
 		candidateId: "candidate:test",
 		source: {
-			kind: "inline",
+			kind: "user",
+			templateId: "template-a",
+			templateVersion: 1,
 		},
 		template,
 		templateFingerprint,

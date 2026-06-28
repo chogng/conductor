@@ -153,7 +153,7 @@ export const createRecipeReviewCandidate = ({
 	return {
 		id: `recipe-candidate:${recipe.id}:${recipe.version}`,
 		source: {
-			kind: "recipe",
+			kind: "builtin",
 			recipeId: recipe.id,
 			recipeVersion: recipe.version,
 		},
@@ -244,7 +244,7 @@ const createUserTemplateReviewCandidate = ({
 	return {
 		id: `user-template-candidate:${userTemplate.id}`,
 		source: {
-			kind: "userTemplate",
+			kind: "user",
 			templateId: userTemplate.id,
 			templateVersion: userTemplate.version,
 		},

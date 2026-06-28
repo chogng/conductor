@@ -1,5 +1,4 @@
 import type { SliceRun, SliceRunId } from "src/cs/workbench/services/slice/common/slice";
-import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
 
 export type FileId = string;
 export type SheetId = string;
@@ -43,8 +42,7 @@ export type MetricKey = `${MetricFamily}:${SeriesId}:${string}`;
 
 export type TemplateSelectionRecord =
   | { kind: "auto" }
-  | { kind: "saved"; templateId: string }
-  | { kind: "inline"; template: Template };
+  | { kind: "saved"; templateId: string };
 
 export type SessionModel = {
   schemaVersion: 1;

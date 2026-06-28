@@ -61,7 +61,7 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 				target: { resource, sheetId: "sheet-a" },
 			},
 			mode: "manual",
-			selection: { kind: "inline", template: createTemplate() },
+			selection: { kind: "saved", templateId: "template-a" },
 			template: {
 				...createTemplate(),
 				blocks: [{

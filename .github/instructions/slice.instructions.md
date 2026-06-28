@@ -40,7 +40,8 @@ workers, or mutate Session.
 `SliceExecutor` owns execution of a `SlicePlan` against supplied rows and
 returns target-neutral execution records. `SliceService` wraps those records as
 `SliceUriResult` values for URI-backed requests. The executor must not call
-services or reread Session.
+services or reread Session. Slice common/executor record types are owned by
+Slice; do not import Session model record types just to describe Slice outputs.
 
 ## Core Files
 
@@ -85,9 +86,9 @@ files.item.setTemplate command
 URI-backed command/action/controller
   -> ReviewService.reviewUriManualTemplate(...)
   -> ready ManualTemplateReviewResult
-  -> ReviewService.confirmReviewedTemplate(...) for explicit user-confirmed manual/saved templates
+  -> ReviewService.confirmReviewedTemplate(...) for explicit user-confirmed saved templates
   -> ISliceService.submitUri(...)
-  -> SliceService reads reviewed inline/saved Template snapshot
+  -> SliceService reads reviewed Template snapshot
   -> same planner/executor path
   -> Slice URI result state for URI targets
 
@@ -100,8 +101,8 @@ Bulk command flow:
 ```txt
 slice.runWithTemplate / slice.runWithTemplateIncremental command
   -> collect URI targets from Explorer state
-  -> ReviewService.reviewUri({ resource, sheetId }) for each target
-  -> URI targets review selected Template through Review
+  -> ReviewService.reviewUriForExecution({ resource, sheetId }) for each target
+  -> URI targets use Review's execution projection and manual Template review
   -> ISliceService.submitUri(...) for URI targets
 ```
 
@@ -120,14 +121,12 @@ Explorer selection / hover without URI resource
 Cleanup flow:
 
 ```txt
-Session filesRemoved
-  -> SliceService removes matching queue entries, file states, selections, active file
-
-Session sessionCleared
-  -> SliceService clears queue, file states, selections, active file
-
 URI data-resource content/evidence/materialization changed
   -> SliceService removes matching URI queue entries and URI results
+
+User cancel target/all
+  -> ISliceService.cancelUri(...) / cancel(...)
+  -> SliceService removes matching local queue/state entries
 ```
 
 Explorer chart state:

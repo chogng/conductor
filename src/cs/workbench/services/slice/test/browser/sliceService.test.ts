@@ -39,15 +39,15 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		const sliceService = store.add(new SliceService());
 
 		sliceService.setTemplateSelection("file-a", {
-			kind: "inline",
-			template: createTemplate(),
+			kind: "saved",
+			templateId: "template-a",
 		});
 
 		const state = sliceService.getState();
 		assert.deepEqual(state.templateSelectionsByFileId, {
 			"file-a": {
-				kind: "inline",
-				template: createTemplate(),
+				kind: "saved",
+				templateId: "template-a",
 			},
 		});
 	});
@@ -359,7 +359,7 @@ const createReviewedTemplate = (
 	return {
 		candidateId: "recipe:builtin.iv.transfer:block-a",
 		source: {
-			kind: "recipe",
+			kind: "builtin",
 			recipeId: "builtin.iv.transfer",
 			recipeVersion: 1,
 		},

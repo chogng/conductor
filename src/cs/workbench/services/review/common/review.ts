@@ -5,12 +5,10 @@
 import type { Event } from "src/cs/base/common/event";
 import type { URI } from "src/cs/base/common/uri";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
 import type {
   CandidateReview,
   ReviewDiagnostic,
   ReviewEvidence,
-  ReviewResult,
   ReviewSuggestedAction,
   ReviewSummary,
   ReviewSummaryTarget,
@@ -24,14 +22,10 @@ export const REVIEW_ENGINE_VERSION = 2;
 export const REVIEW_POLICY_VERSION = 11;
 
 export type ManualTemplateSelection =
-  | {
-      readonly kind: "userTemplate";
-      readonly templateId: string;
-    }
-  | {
-      readonly kind: "inline";
-      readonly template: Template;
-    };
+  {
+    readonly kind: "user";
+    readonly templateId: string;
+  };
 
 export type UriManualTemplateReviewRequest = {
   readonly target: ReviewSummaryTarget;
@@ -39,8 +33,7 @@ export type UriManualTemplateReviewRequest = {
 };
 
 export type ReviewedTemplateConfirmationReason =
-  | "manualTemplate"
-  | "userTemplate";
+  | "user";
 
 export type ReviewedTemplateConfirmationRequest = {
   readonly target: ReviewSummaryTarget;
@@ -67,18 +60,18 @@ export type ManualTemplateReviewResult =
       readonly suggestedActions: readonly ReviewSuggestedAction[];
     };
 
-export type UriReview = {
+export type UriReviewExecution = {
   readonly resource: URI;
   readonly sheetId?: string;
   readonly contentHash?: string;
   readonly summary: ReviewSummary;
-  readonly result?: ReviewResult;
-  readonly reviewSignature?: string;
-  readonly sourceModelVersion?: number;
-  readonly sourceVersion?: number;
-  readonly rowCount?: number;
-  readonly columnCount?: number;
+  readonly reviewSignature: string;
+  readonly sourceModelVersion: number;
+  readonly sourceVersion: number;
+  readonly rowCount: number;
+  readonly columnCount: number;
   readonly fileName?: string | null;
+  readonly systemRecommendedReviewedTemplate?: ReviewedTemplate;
 };
 
 export type ReviewEvidenceSignatureContext = {
@@ -96,10 +89,9 @@ export interface IReviewService {
 
   readonly onDidChangeReview: Event<void>;
 
-  getLatestReview(target: ReviewSummaryTarget): UriReview | undefined;
   getLatestReviewSummary(target: ReviewSummaryTarget): ReviewSummary;
   confirmReviewedTemplate(input: ReviewedTemplateConfirmationRequest): Promise<SchemaProfile | null>;
-  reviewUri(target: ReviewSummaryTarget): Promise<UriReview>;
+  reviewUriForExecution(target: ReviewSummaryTarget): Promise<UriReviewExecution | null>;
   reviewUriManualTemplate(input: UriManualTemplateReviewRequest): Promise<ManualTemplateReviewResult>;
 }
 

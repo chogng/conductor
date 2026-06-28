@@ -2,14 +2,11 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
-
 const AUTO_TEMPLATE_SELECTION_ID = "auto";
 
 export type TemplateSelection =
 	| { readonly kind: "auto" }
-	| { readonly kind: "saved"; readonly templateId: string }
-	| { readonly kind: "inline"; readonly template: Template };
+	| { readonly kind: "saved"; readonly templateId: string };
 
 export type TemplateSelectionsByFileId = Record<string, TemplateSelection>;
 
@@ -32,11 +29,6 @@ export const isAutoTemplateId = (templateId: unknown): boolean => {
 	return normalizedTemplateId === AUTO_TEMPLATE_SELECTION_ID;
 };
 
-export const createInlineTemplateSelection = (template: Template): TemplateSelection => ({
-	kind: "inline",
-	template,
-});
-
 export const isSavedTemplateSelection = (
 	selection: TemplateSelection | null | undefined,
 ): selection is Extract<TemplateSelection, { readonly kind: "saved" }> =>
@@ -52,9 +44,6 @@ export const getTemplateSelectionTemplateId = (
 export const getTemplateSelectionId = (selection: TemplateSelection): string => {
 	if (selection.kind === "auto") {
 		return AUTO_TEMPLATE_SELECTION_ID;
-	}
-	if (selection.kind === "inline") {
-		return `inline:${selection.template.id}`;
 	}
 	return selection.templateId;
 };

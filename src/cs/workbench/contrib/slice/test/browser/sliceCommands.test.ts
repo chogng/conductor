@@ -19,7 +19,7 @@ import {
 import {
 	IReviewService,
 	type IReviewService as IReviewServiceType,
-	type UriReview,
+	type UriReviewExecution,
 } from "src/cs/workbench/services/review/common/review";
 import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/reviewModel";
 import {
@@ -39,6 +39,11 @@ import {
 } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
 import type { TemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
+import {
+	IUserTemplateService,
+	type IUserTemplateService as IUserTemplateServiceType,
+	type UserTemplate,
+} from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
 suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -60,7 +65,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 		assert.equal(notifications[0]?.message, "slice.runWithTemplate.noUriTables");
 	});
 
-	test("does not submit manual slicing without URI content targets from the current template form", () => {
+	test("does not submit manual slicing without URI content targets from the selected saved template", () => {
 		const sliceService = new TestSliceService();
 		const notifications: INotification[] = [];
 
@@ -114,7 +119,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 				sheetId: "sheet-a",
 			}],
 			reviewService: createReviewServiceForTest({
-				reviewUri: async target => createReadyUriReview({
+				reviewUriForExecution: async target => createReadyUriExecution({
 					applicationKind: "systemRecommended",
 					reviewedTemplate,
 					reviewSignature,
@@ -164,7 +169,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 				sheetId: "sheet-a",
 			}],
 			reviewService: createReviewServiceForTest({
-				reviewUri: async target => createReadyUriReview({
+				reviewUriForExecution: async target => createReadyUriExecution({
 					applicationKind: "userActionRequired",
 					reviewedTemplate,
 					reviewSignature: "review:manual",
@@ -200,7 +205,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 		assert.equal(confirmations[0]?.target.resource.toString(), resource.toString());
 		assert.equal(confirmations[0]?.target.sheetId, "sheet-a");
 		assert.equal(confirmations[0]?.reviewedTemplate, reviewedTemplate);
-		assert.equal(confirmations[0]?.reason, "manualTemplate");
+		assert.equal(confirmations[0]?.reason, "user");
 	});
 
 	test("does not block manual URI slicing when schema profile confirmation fails", async () => {
@@ -217,7 +222,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 				sheetId: "sheet-a",
 			}],
 			reviewService: createReviewServiceForTest({
-				reviewUri: async target => createReadyUriReview({
+				reviewUriForExecution: async target => createReadyUriExecution({
 					applicationKind: "userActionRequired",
 					reviewedTemplate,
 					reviewSignature: "review:manual",
@@ -264,7 +269,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 				sheetId: "sheet-a",
 			}],
 			reviewService: createReviewServiceForTest({
-				reviewUri: async target => createReadyUriReview({
+				reviewUriForExecution: async target => createReadyUriExecution({
 					applicationKind: "userActionRequired",
 					reviewedTemplate,
 					reviewSignature: "review:user-action",
@@ -298,15 +303,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 			}],
 			notifications,
 			reviewService: createReviewServiceForTest({
-				reviewUri: async target => {
-					const { reviewSignature: _reviewSignature, ...review } = createReadyUriReview({
-						applicationKind: "systemRecommended",
-						reviewedTemplate,
-						reviewSignature: "review:missing",
-						target,
-					});
-					return review;
-				},
+				reviewUriForExecution: async () => null,
 			}),
 			sliceService,
 			templateState: createTemplateState({
@@ -360,6 +357,7 @@ const createAccessor = ({
 	reviewService = createReviewServiceForTest(),
 	sliceService,
 	templateState = createTemplateState(),
+	userTemplateService = createUserTemplateServiceForTest(),
 }: {
 	readonly explorerFiles?: readonly unknown[];
 	readonly hasPendingSourceFiles?: boolean;
@@ -367,6 +365,7 @@ const createAccessor = ({
 	readonly reviewService?: IReviewServiceType;
 	readonly sliceService: ISliceService;
 	readonly templateState?: TemplateState;
+	readonly userTemplateService?: IUserTemplateServiceType;
 }): ServicesAccessor => {
 	const services = new Map<ServiceIdentifier<unknown>, unknown>([
 		[IExplorerService, {
@@ -387,6 +386,7 @@ const createAccessor = ({
 			navigateToView: () => undefined,
 		}],
 		[ITemplateViewStateService, createTemplateViewStateService(templateState)],
+		[IUserTemplateService, userTemplateService],
 	]);
 	return {
 		get: <T>(id: ServiceIdentifier<T>): T =>
@@ -406,6 +406,43 @@ const createTemplateViewStateService = (state: TemplateState): ITemplateViewStat
 	setFormState: () => undefined,
 });
 
+const createUserTemplateServiceForTest = (
+	templates: readonly UserTemplate[] = [createUserTemplate("template-a")],
+): IUserTemplateServiceType => ({
+	_serviceBrand: undefined,
+	createTemplate: async () => {
+		throw new Error("Unexpected user template create in slice command test.");
+	},
+	deleteTemplate: async () => undefined,
+	duplicateTemplate: async () => {
+		throw new Error("Unexpected user template duplicate in slice command test.");
+	},
+	exportTemplates: () => ({
+		version: 1,
+		source: "conductor.userTemplate",
+		templates,
+	}),
+	getSnapshot: () => ({
+		version: 1,
+		workspaceVersion: 1,
+		globalVersion: 0,
+		workspaceFingerprint: "workspace",
+		globalFingerprint: "",
+		effectiveFingerprint: "workspace",
+		templates,
+	}),
+	getTemplate: id => templates.find(template => template.id === id),
+	importTemplates: async () => ({
+		imported: [],
+		skipped: [],
+	}),
+	onDidChangeUserTemplates: Event.None,
+	refreshTemplates: async () => templates,
+	updateTemplate: async () => {
+		throw new Error("Unexpected user template update in slice command test.");
+	},
+});
+
 const createReviewServiceForTest = (
 	overrides: Partial<IReviewServiceType> = {},
 ): IReviewServiceType => ({
@@ -416,7 +453,6 @@ const createReviewServiceForTest = (
 		state: "missing",
 		findingCodes: [],
 	}),
-	getLatestReview: () => undefined,
 	onDidChangeReview: Event.None as Event<void>,
 	confirmReviewedTemplate: async () => null,
 	reviewUriManualTemplate: async () => ({
@@ -424,20 +460,11 @@ const createReviewServiceForTest = (
 		diagnostics: [],
 		suggestedActions: [],
 	}),
-	reviewUri: async target => ({
-		resource: target.resource,
-		...(target.sheetId ? { sheetId: target.sheetId } : {}),
-		summary: {
-			resource: target.resource,
-			...(target.sheetId ? { sheetId: target.sheetId } : {}),
-			state: "missing",
-			findingCodes: [],
-		},
-	}),
+	reviewUriForExecution: async () => null,
 	...overrides,
 });
 
-const createReadyUriReview = ({
+const createReadyUriExecution = ({
 	applicationKind,
 	reviewedTemplate,
 	reviewSignature,
@@ -451,7 +478,7 @@ const createReadyUriReview = ({
 	readonly sourceModelVersion?: number;
 	readonly sourceVersion?: number;
 	readonly target: { readonly resource: URI; readonly sheetId?: string | null };
-}): UriReview => ({
+}): UriReviewExecution => ({
 	resource: target.resource,
 	...(target.sheetId ? { sheetId: target.sheetId } : {}),
 	summary: {
@@ -460,36 +487,12 @@ const createReadyUriReview = ({
 		state: "ready",
 		findingCodes: [],
 	},
-	result: {
-		resource: target.resource,
-		...(target.sheetId ? { sheetId: target.sheetId } : {}),
-		evidenceFingerprint: "evidence:ready",
-		recipeFingerprint: "recipe:ready",
-		userTemplateCatalogVersion: 0,
-		userTemplateEffectiveFingerprint: "user-template:none",
-		reviewEngineVersion: 1,
-		reviewPolicyVersion: 3,
-		candidates: [],
-		reviews: [reviewedTemplate.review],
-		decision: {
-			kind: "ready",
-			reviewedTemplate,
-			application: {
-				kind: applicationKind,
-				reason: applicationKind === "systemRecommended"
-					? "review.ready.systemRecommended"
-					: "review.ready.lowConfidence",
-			},
-			summary: "Ready",
-			suggestedActions: [],
-		},
-		reviewedTemplate,
-	},
 	reviewSignature,
 	sourceModelVersion,
 	sourceVersion,
 	rowCount: 3,
 	columnCount: 2,
+	...(applicationKind === "systemRecommended" ? { systemRecommendedReviewedTemplate: reviewedTemplate } : {}),
 });
 
 const createTemplateState = (overrides: Partial<TemplateState> = {}): TemplateState => ({
@@ -534,7 +537,7 @@ const createReviewedTemplate = (): ReviewedTemplate => {
 	return {
 		candidateId: "candidate:iv-transfer",
 		source: {
-			kind: "recipe",
+			kind: "builtin",
 			recipeId: "builtin.iv.transfer",
 			recipeVersion: 1,
 		},
@@ -560,6 +563,23 @@ const createReviewedTemplate = (): ReviewedTemplate => {
 			reasons: [],
 			diagnostics: [],
 		},
+	};
+};
+
+const createUserTemplate = (
+	id: string,
+): UserTemplate => {
+	const template = createReviewedTemplate().template;
+	return {
+		id,
+		name: "Template A",
+		version: 1,
+		scope: "workspace",
+		source: "userCreated",
+		template,
+		templateFingerprint: createTemplateFingerprint(template),
+		createdAt: 1,
+		updatedAt: 1,
 	};
 };
 

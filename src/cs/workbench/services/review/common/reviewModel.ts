@@ -34,12 +34,12 @@ export type ReviewContext = {
 
 export type ReviewCandidateSource =
 	| {
-		readonly kind: "recipe";
+		readonly kind: "builtin";
 		readonly recipeId: string;
 		readonly recipeVersion: number;
 	}
 	| {
-		readonly kind: "userTemplate";
+		readonly kind: "user";
 		readonly templateId: string;
 		readonly templateVersion: number;
 	};
@@ -183,17 +183,14 @@ export type CandidateReview = {
 
 export type ReviewedTemplateSource =
 	| {
-		readonly kind: "recipe";
+		readonly kind: "builtin";
 		readonly recipeId: string;
 		readonly recipeVersion: number;
 	}
 	| {
-		readonly kind: "userTemplate";
+		readonly kind: "user";
 		readonly templateId: string;
 		readonly templateVersion: number;
-	}
-	| {
-		readonly kind: "inline";
 	};
 
 export type ReviewedTemplate = {

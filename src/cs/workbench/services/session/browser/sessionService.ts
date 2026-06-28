@@ -962,9 +962,6 @@ const normalizeNonNegativeInteger = (value: unknown): number => {
 const normalizeTemplateSelection = (
   selection: TemplateSelection,
 ): TemplateSelection => {
-  if (selection?.kind === "inline" && selection.template) {
-    return selection;
-  }
   if (selection?.kind === "saved") {
     const templateId = normalizeId(selection.templateId);
     return templateId ? { kind: "saved", templateId } : { kind: "auto" };

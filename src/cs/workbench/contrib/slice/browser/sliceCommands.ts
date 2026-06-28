@@ -22,7 +22,7 @@ import {
 	type IReviewService as IReviewServiceType,
 	type ManualTemplateSelection,
 	type ReviewedTemplateConfirmationReason,
-	type UriReview,
+	type UriReviewExecution,
 } from "src/cs/workbench/services/review/common/review";
 import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/reviewModel";
 import {
@@ -33,19 +33,16 @@ import {
 	ITemplateViewStateService,
 } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
 import {
+	createTemplateSelection,
 	isAutoTemplateId,
+	type TemplateSelection,
 } from "src/cs/workbench/services/slice/common/templateSelection";
-import { createTemplateFromEditorRecord } from "src/cs/workbench/services/template/common/templateEditorAdapter";
 import {
-	validateTemplateForApply,
-} from "src/cs/workbench/services/template/common/templateEditorConfig";
+	IUserTemplateService,
+} from "src/cs/workbench/services/userTemplate/common/userTemplate";
 import {
 	createSliceSourceContentSignature,
 } from "src/cs/workbench/services/slice/common/slicePlanner";
-import {
-	createInlineTemplateSelection,
-	type TemplateSelection,
-} from "src/cs/workbench/services/slice/common/templateSelection";
 
 export type RunSliceWithTemplateCommandOptions = {
 	readonly incremental?: boolean;
@@ -106,35 +103,32 @@ const createSliceCommandTemplateSelection = (
 ): TemplateSelection | null => {
 	const templateViewStateService = accessor.get(ITemplateViewStateService);
 	const notificationService = accessor.get(INotificationService);
+	const userTemplateService = accessor.get(IUserTemplateService);
 	const state = templateViewStateService.getState();
 	if (!state.selectedTemplateId || isAutoTemplateId(state.selectedTemplateId)) {
 		return { kind: "auto" };
 	}
 
-	const validation = validateTemplateForApply(state.formState);
-	if (!validation.ok || !validation.normalized) {
+	const templateId = String(state.selectedTemplateId).trim();
+	if (state.mode === "editor") {
 		notificationService.notify({
 			id: "slice.notification",
-			message: validation.message || localize("slice.runWithTemplate.invalidTemplate", "Invalid template configuration."),
+			message: localize("slice.runWithTemplate.saveTemplateBeforeRun", "Save the selected template before slicing."),
 			severity: Severity.Warning,
 		});
 		return null;
 	}
 
-	const template = createTemplateFromEditorRecord({
-		...validation.normalized,
-		id: state.selectedTemplateId,
-	});
-	if (!template) {
+	if (!userTemplateService.getTemplate(templateId)) {
 		notificationService.notify({
 			id: "slice.notification",
-			message: localize("slice.runWithTemplate.invalidTemplate", "Invalid template configuration."),
+			message: localize("slice.runWithTemplate.templateNotFound", "The selected template could not be found."),
 			severity: Severity.Warning,
 		});
 		return null;
 	}
 
-	return createInlineTemplateSelection(template);
+	return createTemplateSelection(templateId);
 };
 
 const runUriTargetsWithTemplate = async ({
@@ -154,27 +148,30 @@ const runUriTargetsWithTemplate = async ({
 }): Promise<void> => {
 	const requests: SliceUriRequest[] = [];
 	for (const target of targets) {
-		const review = await reviewService.reviewUri({
+		const reviewExecution = await reviewService.reviewUriForExecution({
 			resource: target.resource,
 			sheetId: target.sheetId ?? null,
 		});
+		if (!reviewExecution) {
+			continue;
+		}
+
 		const reviewedTemplate = selection.kind === "auto"
-			? getAutoReviewedTemplate(review)
-			: await getManualReviewedTemplate(reviewService, review, selection);
-		const runnableReview = toRunnableUriReview(review);
-		if (!runnableReview || !reviewedTemplate) {
+			? reviewExecution.systemRecommendedReviewedTemplate ?? null
+			: await getManualReviewedTemplate(reviewService, reviewExecution, selection);
+		if (!reviewedTemplate) {
 			continue;
 		}
 
 		const request = createSliceUriRequest({
-			review: runnableReview,
+			review: reviewExecution,
 			reviewedTemplate,
 			selection,
 			target,
 		});
 		if (request) {
 			await confirmManualReviewedTemplate({
-				review: runnableReview,
+				review: reviewExecution,
 				reviewedTemplate,
 				reviewService,
 				selection,
@@ -196,17 +193,9 @@ const runUriTargetsWithTemplate = async ({
 	layoutService.navigateToView("chart");
 };
 
-const getAutoReviewedTemplate = (
-	review: UriReview,
-): ReviewedTemplate | null =>
-	review.result?.decision.kind === "ready" &&
-		review.result.decision.application.kind === "systemRecommended"
-		? review.result.decision.reviewedTemplate
-		: null;
-
 const getManualReviewedTemplate = async (
 	reviewService: IReviewServiceType,
-	review: UriReview,
+	review: UriReviewExecution,
 	selection: TemplateSelection,
 ): Promise<ReviewedTemplate | null> => {
 	const manualSelection = getManualReviewSelection(selection);
@@ -217,6 +206,7 @@ const getManualReviewedTemplate = async (
 	const result = await reviewService.reviewUriManualTemplate({
 		target: {
 			resource: review.resource,
+			...(review.contentHash ? { contentHash: review.contentHash } : {}),
 			sheetId: review.sheetId ?? null,
 		},
 		selection: manualSelection,
@@ -230,7 +220,7 @@ const confirmManualReviewedTemplate = async ({
 	reviewService,
 	selection,
 }: {
-	readonly review: RunnableUriReview;
+	readonly review: UriReviewExecution;
 	readonly reviewedTemplate: ReviewedTemplate;
 	readonly reviewService: IReviewServiceType;
 	readonly selection: TemplateSelection;
@@ -258,11 +248,8 @@ const confirmManualReviewedTemplate = async ({
 const getReviewedTemplateConfirmationReason = (
 	selection: TemplateSelection,
 ): ReviewedTemplateConfirmationReason | null => {
-	if (selection.kind === "inline") {
-		return "manualTemplate";
-	}
 	if (selection.kind === "saved") {
-		return "userTemplate";
+		return "user";
 	}
 	return null;
 };
@@ -270,59 +257,13 @@ const getReviewedTemplateConfirmationReason = (
 const getManualReviewSelection = (
 	selection: TemplateSelection,
 ): ManualTemplateSelection | null => {
-	if (selection.kind === "inline") {
-		return {
-			kind: "inline",
-			template: selection.template,
-		};
-	}
 	if (selection.kind === "saved") {
 		return {
-			kind: "userTemplate",
+			kind: "user",
 			templateId: selection.templateId,
 		};
 	}
 	return null;
-};
-
-type RunnableUriReview = UriReview & {
-	readonly reviewSignature: string;
-	readonly sourceModelVersion: number;
-	readonly sourceVersion: number;
-	readonly rowCount: number;
-	readonly columnCount: number;
-};
-
-const toRunnableUriReview = (
-	review: UriReview,
-): RunnableUriReview | null => {
-	const reviewSignature = normalizeText(review.reviewSignature);
-	const sourceModelVersion = review.sourceModelVersion;
-	const sourceVersion = review.sourceVersion;
-	const rowCount = review.rowCount;
-	const columnCount = review.columnCount;
-	if (
-		!reviewSignature ||
-		typeof sourceModelVersion !== "number" ||
-		typeof sourceVersion !== "number" ||
-		typeof rowCount !== "number" ||
-		typeof columnCount !== "number" ||
-		!Number.isInteger(sourceModelVersion) ||
-		!Number.isInteger(sourceVersion) ||
-		!Number.isInteger(rowCount) ||
-		!Number.isInteger(columnCount)
-	) {
-		return null;
-	}
-
-	return {
-		...review,
-		reviewSignature,
-		sourceModelVersion,
-		sourceVersion,
-		rowCount,
-		columnCount,
-	};
 };
 
 const createSliceUriRequest = ({
@@ -331,7 +272,7 @@ const createSliceUriRequest = ({
 	selection,
 	target,
 }: {
-	readonly review: RunnableUriReview;
+	readonly review: UriReviewExecution;
 	readonly reviewedTemplate: ReviewedTemplate;
 	readonly selection: TemplateSelection;
 	readonly target: SliceUriTarget;

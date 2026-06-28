@@ -94,16 +94,17 @@ Template, Table, or Slice.
 Manual execution:
 
 ```txt
-manual saved-selection compatibility/UserTemplate/inline run
-  -> ReviewService.reviewUri({ resource, sheetId })
-  -> ReviewService.reviewUriManualTemplate(...)
+manual saved-selection compatibility/UserTemplate run
+  -> ReviewService.reviewUriForExecution({ resource, sheetId })
+  -> ReviewService.reviewUriManualTemplate(saved user template id)
   -> ManualTemplateReviewResult.ready
   -> ISliceService.submitUri(SliceUriRequest(trigger = userCommand))
   -> Slice executes the reviewed Template snapshot
 ```
 
-Template execution enters through Slice. Saved/manual editor records are adapted
-into canonical `Template` snapshots before Slice runs.
+Template execution enters through Slice. User-selected execution uses saved
+UserTemplate records; editor form drafts must be saved before they can be
+reviewed or sliced.
 
 JSON import/export:
 
@@ -178,7 +179,7 @@ do not route execution through Template code.
 
 ```txt
 slice.runWithTemplate command
-  -> ReviewService.reviewUri({ resource, sheetId })
+  -> ReviewService.reviewUriForExecution({ resource, sheetId })
   -> ReviewService.reviewUriManualTemplate
   -> ready ManualTemplateReviewResult
   -> ISliceService.submitUri(SliceUriRequest)
