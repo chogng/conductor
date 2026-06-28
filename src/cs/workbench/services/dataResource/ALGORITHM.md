@@ -137,9 +137,39 @@ type XRangeCandidate = {
   readonly startRow: number;
   readonly endRow: number;
   readonly direction: "ascending" | "descending" | "mixed";
-  readonly stepKind: "constant" | "nearlyConstant" | "pointsDerived" | "segmentedConstant";
+  readonly stepKind: "constant" | "nearlyConstant" | "pointsDerived" | "segmentedConstant" | "ratioConstant";
   readonly step?: number;
   readonly pointCount: number;
+  readonly confidence: number;
+  readonly reasons: readonly string[];
+};
+```
+
+```ts
+type XGroupCandidate = {
+  readonly xRangeCandidateId: string;
+  readonly startRow: number;
+  readonly endRow: number;
+  readonly direction: "ascending" | "descending";
+  readonly groupKind: "singleMonotonicRun" | "directionBreak" | "reset" | "repeatedPattern";
+  readonly lineIndex: number;
+  readonly confidence: number;
+  readonly reasons: readonly string[];
+};
+```
+
+```ts
+type DataBlockCandidate = {
+  readonly xRangeCandidateId: string;
+  readonly xGroupCandidateIds: readonly string[];
+  readonly startRow: number;
+  readonly endRow: number;
+  readonly startCol: number;
+  readonly endCol: number;
+  readonly xColumn: number;
+  readonly dependentColumns: readonly number[];
+  readonly separatorColumns: readonly number[];
+  readonly columnDirection: "rightPreferred" | "leftObserved" | "mixed";
   readonly confidence: number;
   readonly reasons: readonly string[];
 };
@@ -149,6 +179,7 @@ type XRangeCandidate = {
 type DependentValueCandidate = {
   readonly column: number;
   readonly xRangeCandidateIds: readonly string[];
+  readonly dataBlockCandidateIds: readonly string[];
   readonly numericCoverage: number;
   readonly confidence: number;
   readonly reasons: readonly string[];
@@ -199,19 +230,71 @@ algorithm tries to classify.
 ```txt
 raw table rows
   -> normalize cells
-  -> find continuous numeric runs
+  -> classify cell kinds: empty / text / number
+  -> find continuous numeric runs by column
+  -> segment column blocks first
+  -> use row markers and text rows as boundary context
   -> match nearby column title spans through the title library
   -> group compatible runs into data regions
   -> score XRangeCandidate values
-  -> collect DependentValueCandidate values inside X ranges
+  -> derive XGroupCandidate / line candidates from monotonic X segments
+  -> derive DataBlockCandidate values around high-confidence X ranges
+  -> collect DependentValueCandidate values inside data blocks
   -> generate BindingCandidate values
   -> expose structured evidence
   -> Review evaluates evidence and materializes Template
 ```
 
+### Column-first Segmentation
+
+Rows and columns are not the same kind of signal in this algorithm.
+
+Columns are better for identifying data type and continuous data runs: whether
+a column is X, dependent value, marker column, or metadata column. Rows are
+better for identifying block transitions: where an info block enters a data
+block, where a title/info row appears, or where a new repeated block starts.
+
+The segmentation rule should be:
+
+```txt
+Column-first, row-boundary-assisted segmentation.
+```
+
+In other words, find numeric runs and column blocks by column first, then use
+row text/info markers as boundary context. A single text cell must not
+invalidate a whole row. For example:
+
+```txt
+DataValue, 0,   1e-12, 2e-12
+DataValue, 0.1, 2e-12, 3e-12
+```
+
+The first column is a row-level marker column, not a data column. It must not
+invalidate the numeric runs in columns 2, 3, and 4. The algorithm should see
+the continuous numeric runs by column, then treat the first-column text as row
+boundary or row-marker evidence.
+
+A mixed text/numeric row is not automatically outside the data region. The
+algorithm should inspect the numeric core: if most target columns are numeric
+and those columns form continuous runs vertically, the row can still belong to
+the data region.
+
+A high-confidence data boundary usually has at least one of these signals:
+
+- the first info cell or row marker at the data boundary is meaningful, such as
+  `DataName`, `DataValue`, `Vg`, or `Id`;
+- the data columns contain an identifiable X pattern, such as fixed step,
+  monotonicity, segmented sweep, or repeated pattern.
+
+If either signal exists, candidate generation can continue. If neither exists,
+especially when text/numeric cells are mixed, column blocks are discontinuous,
+the X pattern is absent, and no title/info marker exists, `DataResource` should
+emit dirty / ambiguous evidence. Review should not automatically recommend the
+data as ready.
+
 ### Numeric Runs
 
-The first pass should scan by column and row to find continuous numeric runs.
+The first pass should scan primarily by column to find continuous numeric runs.
 Each run should record:
 
 - start row and end row;
@@ -309,6 +392,82 @@ Negative evidence:
 Important boundary: a Y column can also be monotonic or nearly linear. Fixed
 step alone should not force a final X decision.
 
+### X Groups / Lines
+
+If X has clear monotonicity, slicing has a reliable anchor. XRangeCandidate
+should determine more than the row range; it should also derive segmentation,
+group, and line candidates.
+
+```txt
+one monotonic X run
+  -> one slice row range
+  -> one group
+  -> one line
+
+multiple monotonic X runs
+  -> multiple groups
+  -> multiple lines
+```
+
+Group boundaries should come from X, not Y:
+
+- X direction reverses, such as ascending to descending;
+- X resets to the start or near the start;
+- X pattern repeats;
+- a repeated block introduces a new X run;
+- pairwise X/Y data binds each X run to its own dependent value column.
+
+Therefore X groups become lines. Dependent values follow the selected X group
+for reading and do not decide group boundaries.
+
+Implementations must tolerate floating-point error and points-derived steps,
+such as approximate `0.3333333` spacing. Hysteresis / forward-backward sweeps
+must not be treated as bad data; they should be split into multiple monotonic X
+groups.
+
+### DataBlock / DataRegion Candidates
+
+After a high-confidence X is found, the algorithm should build data block /
+data region candidates around that X. The key rule is that X determines the row
+span, and only neighboring data columns within the same row span are eligible
+to become dependent values.
+
+The common pattern is that dependent values are in neighboring columns to the
+right of X. Left-side dependent values are not impossible, but they are rare;
+they should receive lower priority or be left for Review to decide whether user
+confirmation is needed.
+
+Basic flow:
+
+```txt
+high-confidence X range
+  -> use X row span as block row range
+  -> scan adjacent numeric columns, right side first
+  -> collect dependent value columns
+  -> treat blank / non-data columns as block separators
+  -> emit DataBlockCandidate
+```
+
+These shapes should all be unified as data blocks instead of being classified
+by layout name first:
+
+```txt
+X Y
+X Y Y Y Y
+X Y Y | X Y Y | X Y Y
+X Y _ _ X Y _ _ X Y
+X Y Y Y Y _ X Y Y Y
+```
+
+Blank columns are usually strong separators and can split `X Y _ _ X Y` into
+multiple blocks. They should not always be hard breaks: malformed exports may
+include missing columns. Treat blanks as strong boundary evidence and preserve
+diagnostics / reasons.
+
+DataBlockCandidate describes the readable column block around X, not the final
+layout taxonomy. Review can later interpret it as `oneX-oneY`, `oneX-manyY`,
+`manyXYpairs`, or repeated blocks.
+
 ### Dependent Value Candidates
 
 The slice row range, row start / row end, and segmentation should be determined
@@ -334,6 +493,7 @@ within an X range. It does not mean the column can help decide the slice range.
 Positive evidence:
 
 - row span is determined by the bound X range;
+- column is inside a DataBlockCandidate;
 - numeric coverage is high;
 - column is adjacent to an X range or follows a shared X;
 - header or unit hints match measurement values such as current or capacitance;
@@ -414,8 +574,18 @@ the slice range independently.
 - A row index or sample-number column may look like fixed-step X.
 - A file may contain multiple segmented sweeps in one column.
 - Pairwise files may contain many independent X columns.
+- X may be a log / ratio sweep where adjacent deltas are unstable but adjacent
+  ratios are stable.
 - Wide matrix data may encode X in metadata or column labels, not in a physical
   data column.
+- Horizontal or transposed data may put X in a row rather than a column. This is
+  mostly an axis-flipped version of the vertical rules and should be handled as
+  matrix / transposed evidence.
+- Numeric values may include units as text, such as `1 V` or `2mA`, and require
+  numeric-with-unit normalization. This is usually uncommon and should remain a
+  marked risk until that normalization exists.
+- One sheet may contain multiple separated data table blocks, each of which
+  should produce candidates independently.
 - First-row-header files may have no metadata block at all.
 - Headerless numeric files may start directly at row 0 with no names, units, or
   metadata references.
@@ -423,8 +593,34 @@ the slice range independently.
   `DataValue` rows.
 - Title/info rows may use a row marker plus per-column titles, such as
   `DataName,Vg,Id,...`, rather than a simple one-cell header.
+- Files with mixed text/numeric cells, no meaningful row marker, no title/info
+  evidence, and no X pattern should be marked dirty / ambiguous instead of
+  being automatically recommended.
 - A file extension may be wrong, for example binary XLSX content saved with a
   `.csv` suffix. That is a parser/input problem, not a Review scoring problem.
+
+## Additional Shapes
+
+The primary path covers column-oriented curve data. These shapes need extra
+evidence or a downgrade strategy:
+
+- **Transposed / horizontal sweep**: X is laid out across a row and Y may appear
+  in rows below it. This is mostly an axis-flipped version of vertical curve
+  detection. It should use matrix/transposed evidence rather than mixing into
+  the column-first primary path.
+- **Log sweep / ratio sweep**: X is not constant-delta, but adjacent ratios are
+  stable. This should be another high-confidence X pattern.
+- **Multi-level title / unit rows**: title, unit, and condition rows may be
+  separate. Title-span matching may combine them, while data start still comes
+  from the numeric run.
+- **Embedded unit numeric text**: cells may look textual but be numeric in
+  meaning, such as `-1 V` or `10 kHz`. This is usually uncommon; keep it marked
+  as a risk until numeric-with-unit normalization is implemented.
+- **Multiple tables in one sheet**: separated data blocks in the same sheet
+  should not be merged under the first X block.
+- **Left-side dependent values**: rare but possible. Right-side preference is a
+  strong prior, not an absolute ban; left-side hits should lower confidence or
+  let Review handle ambiguity.
 
 ## Test Strategy
 
@@ -439,9 +635,20 @@ The algorithm should be tested against at least these shapes:
   rows;
 - segmented sweeps where each segment has fixed step but the full column is not
   globally fixed step;
+- X direction reversals that create multiple monotonic groups / lines;
+- X resets that create a new group / line;
+- hysteresis / forward-backward sweeps split into multiple X groups;
+- log / ratio sweep X patterns;
 - irregular X steps where the title/info row matches `Vg`, `Vd`, `time`, or
   `frequency`;
 - row-marker plus per-column title forms such as `DataName,Vg,Id,...`;
+- column-first segmentation where the first column is a `DataValue` marker and
+  later columns are numeric data;
+- block separators such as `X Y Y | X Y Y`, `X Y _ _ X Y`, and
+  `X Y Y Y _ X Y Y`;
+- rare left-side dependent values;
+- transposed / horizontal sweeps that require matrix evidence;
+- dirty data where both marker evidence and X pattern are missing;
 - columns that look like row indexes;
 - monotonic Y values that should not outrank a stronger X candidate;
 - Y curve shape must not move the slice row start or row end;
