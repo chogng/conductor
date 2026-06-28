@@ -368,8 +368,7 @@ const getHeaderLabel = (mode: HeaderMode): string => {
 };
 
 const getHeaderState = ({ tableState }: TableViewPaneProps): HeaderState => {
-  const selectedSheetKey = tableState.file?.sheetKey ?? tableState.sheetKey;
-  const hasSelectedFile = Boolean(selectedSheetKey && tableState.fileName);
+  const hasSelectedFile = Boolean(tableState.source?.resource && tableState.fileName);
 
   return {
     fileName: tableState.fileName,
@@ -405,13 +404,13 @@ const toControllerProps = (
   ...props,
   canAdjustColumnScale: getCanAdjustColumnScale(templateMode),
   columnHeaderSelection: getTableColumnHeaderSelection(templateMode),
-  getColumnWidths: sheetKey => tableService.getColumnWidths(sheetKey),
+  getColumnWidths: source => tableService.getColumnWidths(source),
   hoverDelegate: hoverService,
   onCopySelection: () => {
     void commandService.executeCommand(TableCommandId.copySelection);
   },
   onSelect: (target, reveal) => tableService.select(target, reveal),
-  storeColumnWidths: (sheetKey, widths) => tableService.storeColumnWidths(sheetKey, widths),
+  storeColumnWidths: (source, widths) => tableService.storeColumnWidths(source, widths),
   tableService,
 });
 

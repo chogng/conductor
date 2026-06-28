@@ -5,6 +5,7 @@
 import assert from "assert";
 
 import { Event } from "src/cs/base/common/event";
+import { URI } from "src/cs/base/common/uri";
 import {
 	TableController,
 	type TableControllerViewModel,
@@ -16,11 +17,20 @@ import type {
 import type {
 	ITableService,
 	TableSelection,
+	TableSource,
 	TableState,
 } from "src/cs/workbench/services/table/common/table";
+import type { TableColumnWidth } from "src/cs/workbench/services/table/common/tableColumnLayout";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 type TableHighlight = ReturnType<TableControllerViewModel["getHighlight"]>;
+
+type TableControllerTestOptions = {
+	readonly getColumnWidths?: TableControllerProps["getColumnWidths"];
+	readonly storeColumnWidths?: TableControllerProps["storeColumnWidths"];
+	readonly tableState?: TableState;
+	readonly tableViewModel?: TableControllerViewModel;
+};
 
 suite("workbench/contrib/table/browser/tableController", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
@@ -56,21 +66,79 @@ suite("workbench/contrib/table/browser/tableController", () => {
 			controller.dispose();
 		}
 	});
+
+	test("stores pending column widths against the source that owned the resize", async () => {
+		const sourceA = { resource: URI.file("/workspace/file-a.csv") };
+		const sourceB = { resource: URI.file("/workspace/file-b.csv") };
+		const stored: Array<{
+			readonly owner: string;
+			readonly source: string | null;
+			readonly widths: readonly TableColumnWidth[];
+		}> = [];
+		const restoredSources: Array<string | null> = [];
+		let tableState = createTableState(sourceA, 1);
+		const tableViewModel = createTableViewModel(() => tableState);
+		const createProps = (owner: string): TableControllerProps => createTableControllerProps({
+			getColumnWidths: source => {
+				restoredSources.push(source?.resource.toString() ?? null);
+				return source?.resource.toString() === sourceA.resource.toString()
+					? [{ colIndex: 0, width: 111 }]
+					: [];
+			},
+			storeColumnWidths: (source, widths) => {
+				stored.push({
+					owner,
+					source: source?.resource.toString() ?? null,
+					widths,
+				});
+			},
+			tableState,
+			tableViewModel,
+		});
+		const controller = new TableController(createProps("source-a"));
+		document.body.append(controller.element);
+
+		try {
+			await timeout(120);
+			assert.deepEqual(restoredSources, [sourceA.resource.toString()]);
+			assert.equal(controller.setColumnWidth({ colIndex: 0, width: 222 }), true);
+
+			tableState = createTableState(sourceB, 2);
+			controller.update(createProps("source-b"));
+
+			assert.deepEqual(stored, [{
+				owner: "source-a",
+				source: sourceA.resource.toString(),
+				widths: [{ colIndex: 0, width: 222 }],
+			}]);
+			assert.deepEqual(restoredSources, [
+				sourceA.resource.toString(),
+				sourceB.resource.toString(),
+			]);
+		} finally {
+			controller.dispose();
+		}
+	});
 });
 
-function createTableControllerProps(): TableControllerProps {
-	const tableViewModel = createTableViewModel();
-	const tableState = createTableState();
+function createTableControllerProps(options: TableControllerTestOptions = {}): TableControllerProps {
+	const tableState = options.tableState ?? createTableState();
+	const tableViewModel = options.tableViewModel ?? createTableViewModel(() => tableState);
 
 	return {
+		getColumnWidths: options.getColumnWidths,
 		onSelect: () => true,
+		storeColumnWidths: options.storeColumnWidths,
 		tableViewModel,
 		tableService: createTableService(),
 		tableState,
 	};
 }
 
-function createTableState(): TableState {
+function createTableState(
+	source: TableSource = { resource: URI.file("/workspace/file-a.csv") },
+	sourceVersion = 0,
+): TableState {
 	return {
 		dimensions: "3 x 3",
 		file: {
@@ -78,18 +146,21 @@ function createTableState(): TableState {
 			fileName: "sample.csv",
 			maxCellLengths: [1, 1, 1],
 			rowCount: 3,
-			sheetKey: "file-a:1",
+			source,
+			sourceVersion,
 		},
 		fileName: "sample.csv",
 		loadState: {
 			message: "",
 			state: "ready",
 		},
-		sheetKey: "file-a:1",
+		source,
 	};
 }
 
-function createTableViewModel(): TableControllerViewModel {
+function createTableViewModel(
+	getState: () => TableState = () => createTableState(),
+): TableControllerViewModel {
 	return {
 		ensureRows: async () => undefined,
 		getColumnDisplayProfile: colIndex => createRawColumnDisplayProfile(colIndex),
@@ -101,7 +172,7 @@ function createTableViewModel(): TableControllerViewModel {
 		],
 		getRowsVersion: () => 1,
 		getSelection: (): TableSelection => ({}),
-		getState: createTableState,
+		getState,
 		onDidChangeHighlight: () => noopDisposable,
 		onDidChangeRevealCell: () => noopDisposable,
 		onDidChangeSelection: () => noopDisposable,
@@ -135,7 +206,6 @@ function createTableService(): ITableService {
 
 function createRawColumnDisplayProfile(colIndex: number): ColumnDisplayProfile {
 	return {
-		rawTableId: "file-a",
 		columnId: String(colIndex),
 		mode: "raw",
 		isNumericColumn: false,

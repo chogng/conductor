@@ -38,6 +38,10 @@ import {
   TableColumnLayout,
   type TableColumnWidth,
 } from "src/cs/workbench/services/table/common/tableColumnLayout";
+import {
+  toTableSheetKey,
+  type TableSource,
+} from "src/cs/workbench/services/table/common/table";
 
 const TABLE_WIDGET_COLUMN_LAYOUT_STORAGE_DEBOUNCE_MS = 120;
 const TABLE_WIDGET_COLUMN_SCALE_RESIZE_GUTTER_PX = 8;
@@ -49,14 +53,12 @@ export type TableWidgetColumnWidthTarget = TableColumnWidth;
 export type TableWidgetRevealMode = boolean | "force";
 
 export type TableWidgetCell = {
-  readonly fileId?: string | null;
   readonly sheetId?: string | null;
   readonly rowIndex: number;
   readonly colIndex: number;
 };
 
 export type TableWidgetSelectionRange = {
-  readonly fileId?: string | null;
   readonly sheetId?: string | null;
   readonly startRow: number;
   readonly endRow: number;
@@ -73,7 +75,8 @@ export type TableWidgetSelection = {
 export type TableWidgetFile = {
   readonly fileName: string;
   readonly sheetId?: string | null;
-  readonly sheetKey?: string | null;
+  readonly source?: TableSource | null;
+  readonly sourceVersion?: number;
   readonly rowCount: number;
   readonly columnCount: number;
 };
@@ -85,7 +88,7 @@ export type TableWidgetLoadState = {
 
 export type TableWidgetState = {
   readonly selectedSheetId?: string | null;
-  readonly sheetKey?: string | null;
+  readonly source?: TableSource | null;
   readonly fileName: string;
   readonly file: TableWidgetFile | null;
   readonly loadState: TableWidgetLoadState;
@@ -105,9 +108,13 @@ type TableWidgetRowsVersionChangeEvent = {
   readonly version: number;
 };
 
+type ColumnWidthStorageTarget = {
+  readonly source: TableSource;
+  readonly storeColumnWidths: NonNullable<TableWidgetProps["storeColumnWidths"]>;
+};
+
 export type TableWidgetModel = {
   readonly ensureRows: (
-    sheetKey: string,
     startRow: number,
     endRow: number,
   ) => Promise<void>;
@@ -139,7 +146,7 @@ export type TableWidgetColumnHeaderSelection = "disabled" | "single" | "multi";
 export type TableWidgetProps = {
   readonly canAdjustColumnScale?: boolean;
   readonly columnHeaderSelection?: TableWidgetColumnHeaderSelection;
-  readonly getColumnWidths?: (sheetKey: string | null | undefined) => readonly TableColumnWidth[];
+  readonly getColumnWidths?: (source: TableSource | null | undefined) => readonly TableColumnWidth[];
   readonly hoverDelegate?: IHoverDelegate;
   readonly onCopySelection?: () => void;
   readonly onAdjustColumnDisplayScale?: (colIndex: number, deltaExponent: number) => boolean;
@@ -149,7 +156,7 @@ export type TableWidgetProps = {
     reveal?: TableWidgetRevealMode,
   ) => boolean;
   readonly storeColumnWidths?: (
-    sheetKey: string | null | undefined,
+    source: TableSource | null | undefined,
     widths: readonly TableColumnWidth[],
   ) => void;
   readonly tableViewModel: TableWidgetModel;
@@ -222,8 +229,10 @@ export class TableWidget {
   private pendingEnsureRowsKey: string | null = null;
   private appliedCellState: AppliedCellState | null = null;
   private columnWidthSheetKey: string | null = null;
+  private columnWidthSource: TableSource | null = null;
   private columnWidths = new Map<number, number>();
   private pendingColumnWidthStorageTimeout: number | null = null;
+  private pendingColumnWidthStorageTarget: ColumnWidthStorageTarget | null = null;
   private bodyRangeSelectionState: BodyRangeSelectionState | null = null;
   private suppressNextBodyClick = false;
   private bodyClickSuppressionTimeout: number | null = null;
@@ -436,7 +445,6 @@ export class TableWidget {
     if (reveal && target.kind === "range") {
       this.revealCell({
         colIndex: target.range.endCol,
-        fileId: target.range.fileId ?? null,
         rowIndex: target.range.endRow,
         sheetId: target.range.sheetId ?? null,
       });
@@ -551,25 +559,25 @@ export class TableWidget {
   }
 
   private syncColumnWidthSheet(): void {
-    const sheetKey = getTableWidgetColumnWidthSheetKey(
-      this.props.tableState.file?.sheetKey ?? this.props.tableState.sheetKey,
-    );
+    const source = getTableWidgetSource(this.props.tableState);
+    const sheetKey = getTableWidgetColumnWidthSheetKey(source);
     if (this.columnWidthSheetKey === sheetKey) {
       return;
     }
 
     this.flushPendingColumnWidthStorage();
     this.columnWidthSheetKey = sheetKey;
-    this.columnWidths = this.restoreColumnWidths(sheetKey);
+    this.columnWidthSource = source;
+    this.columnWidths = this.restoreColumnWidths(source);
   }
 
-  private restoreColumnWidths(sheetKey: string | null): Map<number, number> {
-    if (!sheetKey || !this.props.getColumnWidths) {
+  private restoreColumnWidths(source: TableSource | null): Map<number, number> {
+    if (!source || !this.props.getColumnWidths) {
       return new Map();
     }
 
     return new Map(
-      this.props.getColumnWidths(sheetKey).map(width => [width.colIndex, width.width]),
+      this.props.getColumnWidths(source).map(width => [width.colIndex, width.width]),
     );
   }
 
@@ -580,13 +588,16 @@ export class TableWidget {
   }
 
   private scheduleStoreColumnWidths(): void {
-    if (!this.props.storeColumnWidths || !this.columnWidthSheetKey) {
+    const storeColumnWidths = this.props.storeColumnWidths;
+    const source = this.columnWidthSource;
+    if (!storeColumnWidths || !source) {
       return;
     }
 
+    this.pendingColumnWidthStorageTarget = { source, storeColumnWidths };
     const targetWindow = this.element.ownerDocument.defaultView;
     if (!targetWindow) {
-      this.storeColumnWidths();
+      this.storePendingColumnWidths();
       return;
     }
 
@@ -596,7 +607,7 @@ export class TableWidget {
 
     this.pendingColumnWidthStorageTimeout = targetWindow.setTimeout(() => {
       this.pendingColumnWidthStorageTimeout = null;
-      this.storeColumnWidths();
+      this.storePendingColumnWidths();
     }, TABLE_WIDGET_COLUMN_LAYOUT_STORAGE_DEBOUNCE_MS);
   }
 
@@ -608,15 +619,17 @@ export class TableWidget {
     const targetWindow = this.element.ownerDocument.defaultView;
     targetWindow?.clearTimeout(this.pendingColumnWidthStorageTimeout);
     this.pendingColumnWidthStorageTimeout = null;
-    this.storeColumnWidths();
+    this.storePendingColumnWidths();
   }
 
-  private storeColumnWidths(): void {
-    if (!this.props.storeColumnWidths || !this.columnWidthSheetKey) {
+  private storePendingColumnWidths(): void {
+    const target = this.pendingColumnWidthStorageTarget;
+    this.pendingColumnWidthStorageTarget = null;
+    if (!target) {
       return;
     }
 
-    this.props.storeColumnWidths(this.columnWidthSheetKey, this.getColumnWidths());
+    target.storeColumnWidths(target.source, this.getColumnWidths());
   }
 
   public scrollHorizontally(delta: number): boolean {
@@ -661,7 +674,7 @@ export class TableWidget {
     try {
       const { tableState } = this.props;
       const tableFile = tableState.file;
-      const sheetKey = tableFile?.sheetKey ?? tableState.sheetKey ?? null;
+      const sheetKey = getTableWidgetSheetKey(tableState);
       const keepRenderedTableWhilePendingSource = this.shouldKeepRenderedTableWhilePendingSource(
         tableFile,
         sheetKey,
@@ -775,7 +788,7 @@ export class TableWidget {
       if (!tableFile || tableFile.rowCount <= 0 || tableFile.columnCount <= 0) {
         if (this.shouldKeepRenderedTableWhilePendingSource(
           tableFile,
-          tableFile?.sheetKey ?? tableState.sheetKey ?? null,
+          getTableWidgetSheetKey(tableState),
         )) {
           outcome = "pendingSource";
           this.grid.attachContent();
@@ -802,7 +815,7 @@ export class TableWidget {
       this.syncCachedGridState();
       this.syncSelectionState();
 
-      const sheetKey = tableFile.sheetKey ?? tableState.sheetKey ?? null;
+      const sheetKey = getTableWidgetSheetKey(tableState);
       if (sheetKey) {
         this.ensureRows(tableViewModel, sheetKey, this.getBodyRowRange());
       }
@@ -845,7 +858,7 @@ export class TableWidget {
       requestedRows: Math.max(0, rowRange.endIndex - rowRange.startIndex),
       startRow: rowRange.startIndex,
     });
-    void tableViewModel.ensureRows(sheetKey, rowRange.startIndex, rowRange.endIndex).then(
+    void tableViewModel.ensureRows(rowRange.startIndex, rowRange.endIndex).then(
       () => {
         endTrace({ status: "resolved" });
         this.clearPendingEnsureRows(requestKey);
@@ -1091,15 +1104,20 @@ export class TableWidget {
   }
 
   private getRowsRenderVersion(): string {
+    const tableFile = this.props.tableState.file;
     return [
       this.renderedSheetKey ?? "",
+      tableFile?.sourceVersion ?? "",
       this.props.tableViewModel.getRowsVersion(),
       this.props.tableState.displayVersion ?? 0,
     ].join("\u001f");
   }
 
   private getHeaderRenderVersion(): string {
+    const tableFile = this.props.tableState.file;
     return [
+      getTableWidgetSheetKey(this.props.tableState) ?? "",
+      tableFile?.sourceVersion ?? "",
       this.props.tableViewModel.getRowsVersion(),
       this.props.tableState.displayVersion ?? 0,
     ].join("\u001f");
@@ -1124,7 +1142,7 @@ export class TableWidget {
         displayVersion: tableState.displayVersion ?? null,
         loadState: tableState.loadState.state,
         rowCount: tableFile?.rowCount ?? 0,
-        sheetKey: tableFile?.sheetKey ?? tableState.sheetKey ?? null,
+        sheetKey: getTableWidgetSheetKey(tableState),
         visibleColumnStart: columnRange.startIndex,
         visibleColumns: columnRange.renderedCount,
         visibleRowStart: rowRange.startIndex,
@@ -1161,7 +1179,7 @@ export class TableWidget {
 
     this.syncSelectionState();
     const tableFile = this.props.tableState.file;
-    const sheetKey = tableFile?.sheetKey ?? this.props.tableState.sheetKey ?? null;
+    const sheetKey = getTableWidgetSheetKey(this.props.tableState);
     if (sheetKey) {
       this.ensureRows(this.props.tableViewModel, sheetKey, this.getBodyRowRange());
     }
@@ -1390,7 +1408,7 @@ export class TableWidget {
     const { tableState } = this.props;
     return this.grid.isContentAttached() &&
       tableState.loadState.state !== "loading" &&
-      Boolean((tableState.file?.sheetKey ?? tableState.sheetKey) && tableState.file);
+      Boolean(getTableWidgetSheetKey(tableState) && tableState.file);
   }
 
   private getVisibleBodyCell(rowOffset: number, columnOffset: number): BodyCell | null {
@@ -1746,7 +1764,6 @@ export class TableWidget {
 
     const cell: TableCell = {
       colIndex: target.colIndex,
-      fileId: null,
       rowIndex: target.rowIndex,
       sheetId: tableFile.sheetId ?? null,
     };
@@ -1894,7 +1911,6 @@ export class TableWidget {
       kind: "range",
       range: {
         ...range,
-        fileId: null,
         sheetId: tableFile.sheetId ?? null,
       },
     }, reveal);
@@ -2039,7 +2055,6 @@ export class TableWidget {
       kind: "cell",
       cell: {
         colIndex: target.colIndex,
-        fileId: null,
         rowIndex: target.rowIndex,
         sheetId: tableFile?.sheetId ?? null,
       },
@@ -2163,7 +2178,6 @@ export class TableWidget {
       kind: "cell",
       cell: {
         colIndex: target.colIndex,
-        fileId: null,
         rowIndex: target.rowIndex,
         sheetId: tableFile?.sheetId ?? null,
       },
@@ -2239,10 +2253,25 @@ const normalizeWidgetColumnIndex = (value: unknown): number | null => {
 const getColumnScaleValueText = (profile: ColumnDisplayProfile): string =>
   `×10${toSuperscriptExponent(profile.scaleExponent)}`;
 
+const getTableWidgetSheetKey = (
+  tableState: TableWidgetState,
+): string | null => {
+  const source = getTableWidgetSource(tableState);
+  const key = source ? toTableSheetKey(source) : "";
+  return key || null;
+};
+
+const getTableWidgetSource = (
+  tableState: TableWidgetState,
+): TableSource | null =>
+  tableState.file?.source ?? tableState.source ?? null;
+
 const getTableWidgetColumnWidthSheetKey = (
-  sheetKey: string | null | undefined,
-): string | null =>
-  typeof sheetKey === "string" && sheetKey.trim() ? sheetKey.trim() : null;
+  source: TableSource | null | undefined,
+): string | null => {
+  const key = source ? toTableSheetKey(source).trim() : "";
+  return key || null;
+};
 
 const setHidden = (element: HTMLElement, hidden: boolean): boolean => {
   if (element.hidden === hidden) {
@@ -2316,11 +2345,11 @@ const getTableWidgetInputKey = ({
   const file = tableState.file;
   return [
     tableState.selectedSheetId ?? "",
-    tableState.sheetKey ?? "",
+    getTableWidgetSheetKey(tableState) ?? "",
     tableState.loadState.state,
     tableState.loadState.message,
     file?.sheetId ?? "",
-    file?.sheetKey ?? "",
+    file?.sourceVersion ?? "",
     file?.rowCount ?? "",
     file?.columnCount ?? "",
     tableState.displayVersion ?? "",
