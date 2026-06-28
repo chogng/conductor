@@ -19,7 +19,7 @@ data from Session when Plot can provide a render model.
 `IThumbnailPreviewService` owns per-file preview state:
 
 - preview request priorities: `hover`, `visible`, `recent`, `nearby`, `idle`;
-- preview cache invalidation from Session and Plot changes;
+- preview cache invalidation from Plot cache/state facts;
 - Plot cache lookup and retry when calculated/display data becomes available;
 - `onDidChangePreview` so Explorer refreshes only the active hover or affected grid item.
 
@@ -75,7 +75,10 @@ hover content.
 ```mermaid
 flowchart TD
     ExplorerService[IExplorerService layout/selection/visibility] --> ExplorerViewer[ExplorerViewer]
-    Plot[IPlotService cached render data] --> ThumbnailPreviewService[IThumbnailPreviewService]
+    ExplorerViewer --> PreviewTarget{Preview target}
+    PreviewTarget -->|Session file id| ThumbnailPreviewService[IThumbnailPreviewService]
+    PreviewTarget -->|URI resource target| ThumbnailPreviewService
+    Plot[IPlotService cached render data] --> ThumbnailPreviewService
     ThumbnailPreviewService --> ThumbnailView[createThumbnailView]
     ThumbnailView --> ThumbnailService[IThumbnailService]
     ThumbnailService --> Cache[bitmap cache]
@@ -87,7 +90,9 @@ flowchart TD
 2. Thumbnail view creates or updates the canvas and asks the thumbnail renderer to draw from the Plot model.
 3. Thumbnail service reads or updates its bitmap cache by render input signature.
 4. Explorer publishes visible/nearby file ids while thumbnail layout is active.
-5. Domain bridge prefetches recent, visible, and nearby thumbnail previews.
+5. Domain bridge prefetches recent, visible, and nearby thumbnail previews with
+   `ThumbnailPreviewTarget` values. Session-backed rows use file ids; URI
+   resource rows carry the Slice URI target.
 6. Preview service reads Plot cached data, keeps loading state on miss, and retries on Plot cache events.
 7. Preview service fires `onDidChangePreview(fileId)`.
 8. Explorer refreshes only the active hover or affected thumbnail grid item.
@@ -106,7 +111,7 @@ flowchart TD
 
 ## Rules
 
-- Thumbnail render code accepts `PlotRenderModel`, not `ProcessedEntry` or raw Session records.
+- Thumbnail render code accepts `PlotRenderModel`, not imported table payloads or raw Session records.
 - Thumbnail view components may receive file id, file name, active state, and plot settings, but must not rebuild plot/session data.
 - Thumbnail cache keys must include file id, plot type, unit/scale settings, and relevant curve/model signatures.
 - Loading previews should render a nonblank thumbnail-owned placeholder unless an older plot model is available.
@@ -117,7 +122,7 @@ flowchart TD
 - Do not downgrade `fastReady`, `rawReady`, or `ready` to `loading` while replacement data with the same signature is pending.
 - Preview queues must consume `IPlotService.getCachedCalculatedData`; they must not call `getCalculatedData` inside the thumbnail frame budget.
 - If Plot cache is not warm, keep the preview in `loading` and retry on `onDidChangeCalculatedDataCache`.
-- Targeted Session invalidation must preserve pending preview priority for affected loading previews.
+- Targeted Plot cache invalidation must preserve pending preview priority for affected loading previews.
 - Recent preview prefetch is limited to files that were actually active or hovered recently.
 - Tree layout hover previews are on-demand through hover priority; ordinary tree scrolling must not warm every visible thumbnail.
 

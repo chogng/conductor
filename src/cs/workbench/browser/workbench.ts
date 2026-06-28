@@ -83,7 +83,9 @@ import {
 } from "src/cs/workbench/browser/window";
 import {
   WorkbenchDomainBridge,
+  createSessionExplorerFacts,
   resolveExplorerDomainSelection,
+  type SessionExplorerFacts,
 } from "src/cs/workbench/browser/workbenchDomainBridge";
 import { ITableService } from "src/cs/workbench/services/table/common/table";
 import { TableViewId } from "src/cs/workbench/contrib/table/common/table";
@@ -96,14 +98,6 @@ import type {
   SessionChangeEvent,
 } from "src/cs/workbench/services/session/common/sessionEvents";
 import {
-  type FileRecord,
-} from "src/cs/workbench/services/session/common/sessionModel";
-import {
-  createProcessedEntryFromFileRecord,
-  createSessionReadModel,
-  type SessionReadModel,
-} from "src/cs/workbench/services/session/common/sessionReadModel";
-import {
   ITemplateViewStateService,
   type ITemplateViewStateService as ITemplateViewStateServiceType,
 } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
@@ -115,9 +109,6 @@ import {
   IExportService,
   type ExportState,
 } from "src/cs/workbench/services/export/common/export";
-import type {
-  ProcessedEntry,
-} from "src/cs/workbench/services/session/common/sessionTypes";
 import {
   INotificationService,
   NotificationService,
@@ -484,9 +475,7 @@ const getInitialLanguagePreference = (): LanguagePreference => {
     : "system";
 };
 
-export const resolveInitialWorkbenchViewMode = (
-  _snapshot: WorkbenchSessionSnapshot,
-): WorkbenchMainPart => "table";
+export const resolveInitialWorkbenchViewMode = (): WorkbenchMainPart => "table";
 
 //#endregion
 
@@ -652,7 +641,7 @@ export class Workbench extends Layout {
       const initialViewMode = measureWorkbenchBoot("workbench:service-layer:install:initial-state", () => {
         this.lastObservedExportState = this.exportService.getState();
         this.titleService.updateTitlebarState(this.titlebarState);
-        const viewMode = resolveInitialWorkbenchViewMode(this.session.getSnapshot());
+        const viewMode = resolveInitialWorkbenchViewMode();
         this._register(this.createNotificationsHandlers());
         this.settingsService.update(this.getSettingsServiceOptions());
         return viewMode;
@@ -679,9 +668,15 @@ export class Workbench extends Layout {
           this.scheduleWorkbenchAuxiliarySurfacesRefresh("settings", true);
         }));
         this._register(this.explorerService.onDidChangeSelection(() => {
+          if (!this.shouldRefreshActiveAuxiliaryViewFromWorkbenchState()) {
+            return;
+          }
           this.scheduleWorkbenchAuxiliarySurfacesRefresh("explorerSelection", false);
         }));
         this._register(this.chartService.onDidChangeChartState(() => {
+          if (!this.shouldRefreshActiveAuxiliaryViewFromWorkbenchState()) {
+            return;
+          }
           this.scheduleWorkbenchAuxiliarySurfacesRefresh("chartState", false);
         }));
         this._register({
@@ -692,9 +687,15 @@ export class Workbench extends Layout {
           },
         });
         this._register(this.plotService.onDidChangePlotState(() => {
+          if (!this.shouldRefreshActiveAuxiliaryViewFromWorkbenchState()) {
+            return;
+          }
           this.scheduleWorkbenchAuxiliarySurfacesRefresh("plotState", true);
         }));
         this._register(this.plotService.onDidChangePlotDisplayModelCache(() => {
+          if (!this.shouldRefreshActiveAuxiliaryViewFromWorkbenchState()) {
+            return;
+          }
           this.scheduleWorkbenchAuxiliarySurfacesRefresh("plotDisplayModelCache", false);
         }));
         this._register(this.exportService.onDidChangeExportState(state => {
@@ -775,12 +776,6 @@ export class Workbench extends Layout {
       mode: this.activeWorkbenchMainPart,
       reason,
     }, { silent: true });
-    const snapshot = measureWorkbenchBoot(`workbench:refresh:${reason}:snapshot`, () =>
-      this.session.getSnapshot(),
-    );
-    const readModel = measureWorkbenchBoot(`workbench:refresh:${reason}:read-model`, () =>
-      createSessionReadModel(snapshot),
-    );
     measureWorkbenchBoot(`workbench:refresh:${reason}:mode-context`, () => {
       this.updateWorkbenchModeContextKeys();
     });
@@ -790,16 +785,30 @@ export class Workbench extends Layout {
     measureWorkbenchBoot(`workbench:refresh:${reason}:context`, () => {
       this.updateContextKeys();
     });
-    measureWorkbenchBoot(`workbench:refresh:${reason}:auxiliary-view`, () => {
-      this.renderAuxiliaryBarView(snapshot, readModel);
-    });
+    let snapshot: WorkbenchSessionSnapshot | null = null;
+    let sessionFacts: SessionExplorerFacts | null = null;
+    if (this.shouldRefreshActiveAuxiliaryViewFromWorkbenchState()) {
+      snapshot = measureWorkbenchBoot(`workbench:refresh:${reason}:snapshot`, () =>
+        this.session.getSnapshot(),
+      );
+      sessionFacts = measureWorkbenchBoot(`workbench:refresh:${reason}:session-facts`, () =>
+        createSessionExplorerFacts(snapshot),
+      );
+      measureWorkbenchBoot(`workbench:refresh:${reason}:auxiliary-view`, () => {
+        this.renderAuxiliaryBarView(sessionFacts);
+      });
+    }
     measureWorkbenchBoot(`workbench:refresh:${reason}:render`, () => {
       this.renderWorkbench();
     });
     endPerf({
-      fileCount: Object.keys(snapshot.filesById).length,
-      processedFileCount: readModel.processedFileIds.length,
-      rawFileCount: readModel.rawFiles.length,
+      ...(snapshot ? {
+        fileCount: Object.keys(snapshot.filesById).length,
+      } : {}),
+      ...(sessionFacts ? {
+        chartDataFileCount: sessionFacts.chartDataFileIds.length,
+        explorerFileCount: sessionFacts.rawExplorerFiles.length,
+      } : {}),
     });
   }
 
@@ -853,8 +862,6 @@ export class Workbench extends Layout {
       reason: reasons[0] ?? "unknown",
       reasons: reasons.join(","),
     }, { silent: true });
-    const snapshot = this.session.getSnapshot();
-    const readModel = createSessionReadModel(snapshot);
     if (needsChromeRefresh) {
       const isWorkbenchActive = this.activeView !== "settings";
       const isAuxiliaryBarVisible = this.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
@@ -862,12 +869,21 @@ export class Workbench extends Layout {
       this.updateAuxiliaryBar(isWorkbenchActive && isAuxiliaryBarVisible);
       this.updateContextKeys();
     }
-    this.renderAuxiliaryBarView(snapshot, readModel);
+    if (!this.shouldRefreshActiveAuxiliaryViewFromWorkbenchState()) {
+      endPerf({
+        needsChromeRefresh,
+      });
+      return;
+    }
+
+    const snapshot = this.session.getSnapshot();
+    const sessionFacts = createSessionExplorerFacts(snapshot);
+    this.renderAuxiliaryBarView(sessionFacts);
     endPerf({
+      chartDataFileCount: sessionFacts.chartDataFileIds.length,
+      explorerFileCount: sessionFacts.rawExplorerFiles.length,
       fileCount: Object.keys(snapshot.filesById).length,
       needsChromeRefresh,
-      processedFileCount: readModel.processedFileIds.length,
-      rawFileCount: readModel.rawFiles.length,
     });
   }
 
@@ -881,16 +897,29 @@ export class Workbench extends Layout {
       previous.filteredKind !== state.filteredKind;
   }
 
+  private shouldRefreshActiveAuxiliaryViewFromWorkbenchState(): boolean {
+    switch (this.auxiliaryBarModel.getActiveView(this.activeWorkbenchMainPart)) {
+      case "search":
+      case "template":
+      case "settings":
+        return false;
+      case "parameters":
+      case "export":
+      default:
+        return true;
+    }
+  }
+
   private shouldRefreshAuxiliarySurfacesForSessionChange(event: SessionChangeEvent): boolean {
     const activeAuxiliaryView = this.auxiliaryBarModel.getActiveView(this.activeWorkbenchMainPart);
     switch (activeAuxiliaryView) {
       case "export":
         return this.shouldRefreshExportSurfacesForSessionChange(event);
+      case "search":
       case "template":
       case "settings":
         return false;
       case "parameters":
-      case "search":
       default:
         return true;
     }
@@ -1109,22 +1138,16 @@ export class Workbench extends Layout {
     }
   }
 
-  private renderAuxiliaryBarView(
-    snapshot = this.session.getSnapshot(),
-    readModel = createSessionReadModel(snapshot),
-  ): void {
+  private renderAuxiliaryBarView(sessionFacts: SessionExplorerFacts): void {
     if (this.activeView === "settings") {
       return;
     }
-
-    const activeFile = this.getSelectedProcessedFile(snapshot, readModel);
-    const activeFileRecord = this.getSelectedProcessedFileRecord(snapshot, readModel);
 
     switch (this.auxiliaryBarModel.getActiveView(this.activeWorkbenchMainPart)) {
       case "template":
         break;
       case "parameters":
-        this.renderParametersView(snapshot, this.getSelectedProcessedFileId(readModel));
+        this.renderParametersView(this.getSelectedProcessedFileId(sessionFacts));
         break;
       case "search":
         break;
@@ -1132,32 +1155,22 @@ export class Workbench extends Layout {
         break;
       case "export":
       default:
-        this.renderExportView(activeFile, activeFileRecord, snapshot, readModel);
+        this.renderExportView(sessionFacts);
         break;
     }
   }
 
   private renderExportView(
-    activeFile: ProcessedEntry | null,
-    activeFileRecord: FileRecord | null,
-    snapshot = this.session.getSnapshot(),
-    readModel = createSessionReadModel(snapshot),
+    sessionFacts: SessionExplorerFacts,
   ): void {
     this.exportService.updateViewState({
-      activeFile,
-      activeFileId: this.getSelectedProcessedFileId(readModel),
-      activeFileRecord,
-      snapshot,
+      activeFileId: this.getSelectedProcessedFileId(sessionFacts),
     });
   }
 
-  private renderParametersView(
-    snapshot: WorkbenchSessionSnapshot,
-    activeFileId: string | null,
-  ): void {
+  private renderParametersView(activeFileId: string | null): void {
     this.parametersService.updateViewState({
       fileId: activeFileId,
-      snapshot,
     });
   }
 
@@ -1203,24 +1216,8 @@ export class Workbench extends Layout {
 
   //#region view inputs and selection
 
-  private getSelectedProcessedFileId(readModel: SessionReadModel): string | null {
-    return resolveExplorerDomainSelection(this.explorerService, readModel).selectedProcessedFileId;
-  }
-
-  private getSelectedProcessedFileRecord(
-    snapshot: WorkbenchSessionSnapshot,
-    readModel = createSessionReadModel(snapshot),
-  ): FileRecord | null {
-    const activeFileId = this.getSelectedProcessedFileId(readModel);
-    return activeFileId ? snapshot.filesById[activeFileId] ?? null : null;
-  }
-
-  private getSelectedProcessedFile(
-    snapshot: WorkbenchSessionSnapshot,
-    readModel = createSessionReadModel(snapshot),
-  ): ProcessedEntry | null {
-    const fileRecord = this.getSelectedProcessedFileRecord(snapshot, readModel);
-    return fileRecord ? createProcessedEntryFromFileRecord(fileRecord) : null;
+  private getSelectedProcessedFileId(sessionFacts: SessionExplorerFacts): string | null {
+    return resolveExplorerDomainSelection(this.explorerService, sessionFacts).selectedProcessedFileId;
   }
 
   //#endregion

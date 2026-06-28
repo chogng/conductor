@@ -107,6 +107,9 @@ Do not pass Plot-owned behavior or Explorer selection callbacks through
 - Keep chart-mode content mounted across active file switches when structural state remains chart data with cached display model.
 - Rebuild only on structural mode changes: empty, processing, module-loading, or no cached display model.
 - `ChartViewInput.processingStatus` is only for no-chart-data loading/empty state.
+- Chart processing/loading status is a Chart view-input type, not a Session
+  contract. Do not import Session-owned record types into Chart service or
+  Chart UI files just to describe pending/processing display.
 - When file selector is hidden and active chart has data, `chartFileOptions` should contain only the active option needed by the view.
 - `onDidChangeChartViewInput` announces snapshot changes; panes must reread `IChartService.getViewInput()`.
 

@@ -11,9 +11,14 @@ import {
 } from "src/cs/workbench/services/calculation/common/calculationCurveRecordBuilder";
 import {
   createCalculatedCurveRecordsByFile as createCalculatedCurveRecordsByFileFromPlots,
-  mergeProcessedFileIntoRecords,
-  createRawFilesFromRecords,
 } from "src/cs/workbench/services/session/common/sessionModelAdapter";
+import {
+  commitRawFilesForTest,
+  commitTemplateOutputForTest,
+  createFileImportResultForTest,
+  createSliceCommitForTest,
+  replaceImportedFilesForTest,
+} from "src/cs/workbench/services/session/test/common/sessionTestRecords";
 import type { CalculatedPlotsByKey } from "src/cs/workbench/services/calculation/common/calculationReadModel";
 import type {
   FileImportResult,
@@ -26,11 +31,6 @@ import type {
 } from "src/cs/workbench/services/session/common/sessionModel";
 import { getLatestSliceRunRecord } from "src/cs/workbench/services/session/common/sessionModel";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
-import type { SliceCommit } from "src/cs/workbench/services/slice/common/slice";
-import type {
-  ProcessedEntry,
-  SessionFile,
-} from "src/cs/workbench/services/session/common/sessionTypes";
 import {
   getFileRecordAxisProjection,
   getFileRecordCurveType,
@@ -224,7 +224,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     );
   });
 
-  test("projects raw and processed fields into canonical file records", () => {
+  test("projects canonical raw and slice fields into file records", () => {
     const session = store.add(new SessionService());
 
     commitRawFilesForTest(session, [{
@@ -422,7 +422,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     dispose.dispose();
   });
 
-  test("commits processed slice output through one session event", () => {
+  test("commits slice output through one session event", () => {
     const session = store.add(new SessionService());
     const events: SessionChangeEvent[] = [];
     const dispose = session.onDidChangeSession(event => {
@@ -433,7 +433,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
 
     commitTemplateOutputForTest(session, {
       fileId: "file-a",
-      fileName: "Processed.csv",
+      fileName: "Slice Output.csv",
       curveType: "transfer",
       xGroups: [[0, 1]],
       series: [{
@@ -554,16 +554,16 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     ]);
     events.length = 0;
 
-    const first = createProcessedSliceCommitForTest(session, {
+    const first = createSliceCommitForTest(session.getSnapshot(), {
       fileId: "file-a",
-      fileName: "Processed A.csv",
+      fileName: "Slice Output A.csv",
       curveType: "transfer",
       xGroups: [[0]],
       series: [{ id: "series-a", groupIndex: 0, y: [1] }],
     });
-    const second = createProcessedSliceCommitForTest(session, {
+    const second = createSliceCommitForTest(session.getSnapshot(), {
       fileId: "file-b",
-      fileName: "Processed B.csv",
+      fileName: "Slice Output B.csv",
       curveType: "transfer",
       xGroups: [[0]],
       series: [{ id: "series-b", groupIndex: 0, y: [2] }],
@@ -591,7 +591,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     commitTemplateOutputForTest(session, {
       curveType: "transfer",
       fileId: "file-a",
-      fileName: "Processed.csv",
+      fileName: "Slice Output.csv",
       series: [{
         groupIndex: 0,
         id: "series-1",
@@ -677,7 +677,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
 
     commitTemplateOutputForTest(session, {
       fileId: "file-a",
-      fileName: "Processed A.csv",
+      fileName: "Slice Output A.csv",
       curveType: "transfer",
       xGroups: [[0, 1]],
       series: [{
@@ -768,12 +768,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     session.commitFileImport(createSingleRawTableImportResult());
 
     const file = session.getSnapshot().filesById["file-a"];
-    const rawFiles = createRawFilesFromRecords(
-      session.getSnapshot().filesById,
-      session.getSnapshot().fileOrder,
-    );
     assert.deepEqual(file.rawTableVersionsById, { "table-a": 2 });
-    assert.equal(rawFiles[0]?.sourceVersion, 2);
   });
 
   test("skips imported files that duplicate an existing raw source identity", () => {
@@ -858,16 +853,16 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     }]);
 
     const snapshot = session.getSnapshot();
-    const rawFiles = createRawFilesFromRecords(snapshot.filesById, snapshot.fileOrder);
+    const file = snapshot.filesById["file-a"];
+    const table = file.raw.tablesById["transfer.csv::24::123"];
 
-    assert.equal(rawFiles.length, 1);
-    assert.equal(rawFiles[0].file, sourceFile);
-    assert.equal(rawFiles[0].tableKey, "transfer.csv::24::123");
-    assert.equal(rawFiles[0].normalizedCsvPath, "C:/tmp/transfer.csv");
-    assert.equal(rawFiles[0].sourcePath, "C:/data/Transfer.csv");
-    assert.equal(rawFiles[0].rowCount, 2);
-    assert.equal(rawFiles[0].columnCount, 2);
-    assert.deepEqual(rawFiles[0].maxCellLengths, [2, 4]);
+    assert.equal(file.raw.file, sourceFile);
+    assert.equal(file.raw.rawKey, "transfer.csv::24::123");
+    assert.equal(file.raw.normalizedCsvPath, "C:/tmp/transfer.csv");
+    assert.equal(file.raw.filePath, "C:/data/Transfer.csv");
+    assert.equal(table.rowCount, 2);
+    assert.equal(table.columnCount, 2);
+    assert.deepEqual(table.maxCellLengths, [2, 4]);
   });
 
   test("renames imported file display metadata without changing raw provenance", () => {
@@ -885,11 +880,9 @@ suite("workbench/services/session/test/browser/sessionService", () => {
 
     const snapshot = session.getSnapshot();
     const file = snapshot.filesById["file-a"];
-    const rawFiles = createRawFilesFromRecords(snapshot.filesById, snapshot.fileOrder);
 
     assert.equal(file.name, "Display A.csv");
     assert.equal(file.raw.fileName, "Raw A.csv");
-    assert.equal(rawFiles[0]?.fileName, "Display A.csv");
     assert.deepEqual(events.map(event => event.reason), [
       "rawTablesChanged",
       "fileMetadataChanged",
@@ -911,7 +904,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     ]);
     commitTemplateOutputForTest(session, {
       fileId: "file-a",
-      fileName: "Processed A.csv",
+      fileName: "Slice Output A.csv",
       curveType: "transfer",
       xGroups: [[0, 1]],
       series: [{
@@ -919,14 +912,6 @@ suite("workbench/services/session/test/browser/sessionService", () => {
         groupIndex: 0,
         y: [1, 2],
       }],
-      analysisCache: {
-        version: 2,
-        series: {
-          "series-1": {
-            gm: [{ x: 0, y: 1 }],
-          },
-        },
-      },
     });
     replaceDerivedCurvesForTest(session, {
       "iv:file-a": {
@@ -994,7 +979,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
 
     commitTemplateOutputForTest(session, {
       fileId: "file-a",
-      fileName: "Processed A.csv",
+      fileName: "Slice Output A.csv",
       curveType: "transfer",
       xAxisRole: "vg",
       xGroups: [[0, 1]],
@@ -1046,7 +1031,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
 
     commitTemplateOutputForTest(session, {
       fileId: "file-a",
-      fileName: "Processed A.csv",
+      fileName: "Slice Output A.csv",
       curveType: "transfer",
       xAxisRole: "vg",
       xGroups: [[0, 1]],
@@ -1088,12 +1073,12 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     assert.notEqual(curvesByKey["base:iv:transfer:series-1"], undefined);
   });
 
-  test("keeps calculated iv read models out of canonical base curves", () => {
+  test("keeps calculated iv projections out of canonical base curves", () => {
     const session = store.add(new SessionService());
 
     commitTemplateOutputForTest(session, {
       fileId: "file-a",
-      fileName: "Processed A.csv",
+      fileName: "Slice Output A.csv",
       curveType: "transfer",
       xAxisRole: "vg",
       xGroups: [[0, 1]],
@@ -1173,157 +1158,6 @@ const subscribeForTest = (
 ): (() => void) => {
   const disposable = session.onDidChangeSession(listener);
   return () => disposable.dispose();
-};
-
-const commitRawFilesForTest = (
-  session: SessionService,
-  files: readonly SessionFile[],
-): void => {
-  session.commitFileImport(createFileImportResultForTest(files));
-};
-
-const replaceImportedFilesForTest = (
-  session: SessionService,
-  files: readonly SessionFile[],
-): void => {
-  session.clearSession();
-  commitRawFilesForTest(session, files);
-};
-
-const createFileImportResultForTest = (
-  files: readonly SessionFile[],
-): FileImportResult => ({
-  createdAt: 1,
-  diagnostics: [],
-  files: files
-    .map(createImportedFileRecordForTest)
-    .filter((file): file is ImportedFileRecord => Boolean(file)),
-});
-
-const createImportedFileRecordForTest = (
-  file: SessionFile,
-): ImportedFileRecord | null => {
-  const fileId = String(file.fileId ?? "").trim();
-  if (!fileId) {
-    return null;
-  }
-
-  const fileName = String(file.fileName ?? fileId).trim() || fileId;
-  const rawTableId = normalizeOptionalTestText(file.sheetId) ??
-    normalizeOptionalTestText(file.tableKey) ??
-    fileId;
-  const sheetName = normalizeOptionalTestText(file.sheetName) ??
-    normalizeOptionalTestText(file.worksheetName);
-  const rowCount = Math.max(0, Math.floor(Number(file.rowCount) || 0));
-  const columnCount = Math.max(0, Math.floor(Number(file.columnCount) || 0));
-  const lastModified = readRecordNumber(file.file, "lastModified");
-  const rawKey = normalizeOptionalTestText(file.rawKey) ??
-    normalizeOptionalTestText(file.tableKey) ??
-    undefined;
-  const size = readRecordNumber(file.file, "size");
-  return {
-    id: fileId,
-    kind: /\.xlsx?$/i.test(fileName) ? "excel" : "csv",
-    name: fileName,
-    raw: {
-      fileId,
-      fileName,
-      filePath: typeof file.sourcePath === "string" ? file.sourcePath : null,
-      ...(lastModified !== undefined ? { lastModified } : {}),
-      ...(rawKey !== undefined ? { rawKey } : {}),
-      rawFile: file.file,
-      rawTablesById: {
-        [rawTableId]: {
-          columnCount,
-          fileId,
-          maxCellLengths: Array.isArray(file.maxCellLengths) ? file.maxCellLengths : [],
-          rawTableId,
-          rowCount,
-          rows: file.normalizedCsvPath
-            ? {
-                formatVersion: 1,
-                kind: "normalizedCsv",
-                normalizedCsvPath: file.normalizedCsvPath,
-              }
-            : {
-                kind: "inline",
-                values: [],
-              },
-          source: sheetName || /\.xlsx?$/i.test(fileName)
-            ? {
-                kind: "excelSheet",
-                sheetIndex: 0,
-                sheetName,
-              }
-            : {
-                kind: "csv",
-              },
-        },
-      },
-      rawTableOrder: [rawTableId],
-      relativePath: file.relativePath ?? null,
-      ...(size !== undefined ? { size } : {}),
-    },
-  };
-};
-
-const commitTemplateOutputForTest = (
-  session: SessionService,
-  file: ProcessedEntry | null | undefined,
-  options: ProcessedOutputForTestOptions = {},
-): void => {
-  const commit = createProcessedSliceCommitForTest(session, file, options);
-  if (commit) {
-    session.commitSliceRuns([commit]);
-  }
-};
-
-type ProcessedOutputForTestOptions = NonNullable<Parameters<typeof mergeProcessedFileIntoRecords>[4]>;
-
-const createProcessedSliceCommitForTest = (
-  session: SessionService,
-  file: ProcessedEntry | null | undefined,
-  options: ProcessedOutputForTestOptions = {},
-): SliceCommit | null => {
-  if (!file || typeof file !== "object") {
-    return null;
-  }
-
-  const fileId = String(file.fileId ?? "").trim();
-  if (!fileId) {
-    return null;
-  }
-
-  if (!session.getSnapshot().filesById[fileId]) {
-    commitRawFilesForTest(session, [{
-      fileId,
-      fileName: String(file.fileName ?? fileId),
-    }]);
-  }
-
-  const snapshot = session.getSnapshot();
-  const records = mergeProcessedFileIntoRecords(
-    snapshot.filesById,
-    snapshot.fileOrder,
-    file,
-    snapshot,
-    options,
-  );
-  const record = records.filesById[fileId];
-  const run = record ? getLatestSliceRunRecord(record) : undefined;
-  if (!record || !run) {
-    return null;
-  }
-
-  return {
-    run,
-    series: run.outputSeriesIds
-      .map(seriesId => record.seriesById[seriesId])
-      .filter((series): series is SliceCommit["series"][number] => Boolean(series)),
-    curves: run.outputCurveKeys
-      .map(curveKey => record.curvesByKey[curveKey])
-      .filter((curve): curve is CurveRecord => Boolean(curve)),
-  };
 };
 
 const replaceDerivedCurvesForTest = (
@@ -1461,20 +1295,3 @@ const createRawIdentityKeyedImportedFileRecord = (
     size: 24,
   },
 });
-
-const readRecordNumber = (
-  record: unknown,
-  key: string,
-): number | undefined => {
-  if (!record || typeof record !== "object") {
-    return undefined;
-  }
-
-  const value = (record as Record<string, unknown>)[key];
-  return Number.isFinite(Number(value)) ? Number(value) : undefined;
-};
-
-const normalizeOptionalTestText = (value: unknown): string | null => {
-  const text = String(value ?? "").trim();
-  return text || null;
-};

@@ -5,42 +5,21 @@
 import assert from "assert";
 
 import { createCalculatedMetricRecordsByFile } from "src/cs/workbench/services/calculation/common/calculationMetricRecordBuilder";
-import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import type { MetricKey } from "src/cs/workbench/services/session/common/sessionModel";
 import {
-  mergeProcessedFileIntoRecords,
-  mergeRawFilesIntoRecords,
-} from "src/cs/workbench/services/session/common/sessionModelAdapter";
+  addSliceOutputToRecordsForTest,
+  createFileRecordsForTest,
+} from "src/cs/workbench/services/session/test/common/sessionTestRecords";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/calculation/test/common/calculationMetricRecordBuilder", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
   test("creates canonical metric records from session base curves", () => {
-    const rawRecords = mergeRawFilesIntoRecords({}, [], [{
-      fileId: "file-a",
-      fileName: "Transfer.csv",
-    }]);
-    const processedRecords = mergeProcessedFileIntoRecords(
-      rawRecords.filesById,
-      rawRecords.fileOrder,
-      {
-        fileId: "file-a",
-        fileName: "Transfer.csv",
-        curveType: "transfer",
-        xAxisRole: "vg",
-        xGroups: [[0, 1]],
-        series: [{
-          id: "series-1",
-          groupIndex: 0,
-          y: [1e-9, 1e-6],
-        }],
-      },
-      createSnapshot(rawRecords),
-    );
+    const recordsWithBaseCurves = createTransferRecordsForTest([0, 1], [1e-9, 1e-6]);
 
     const recordsByFileId = createCalculatedMetricRecordsByFile(
-      processedRecords.filesById,
-      processedRecords.fileOrder,
+      recordsWithBaseCurves.filesById,
+      recordsWithBaseCurves.fileOrder,
     );
     const records = recordsByFileId["file-a"] ?? [];
 
@@ -64,31 +43,11 @@ suite("workbench/services/calculation/test/common/calculationMetricRecordBuilder
   });
 
   test("uses precomputed derivative points for derivative metrics", () => {
-    const rawRecords = mergeRawFilesIntoRecords({}, [], [{
-      fileId: "file-a",
-      fileName: "Transfer.csv",
-    }]);
-    const processedRecords = mergeProcessedFileIntoRecords(
-      rawRecords.filesById,
-      rawRecords.fileOrder,
-      {
-        fileId: "file-a",
-        fileName: "Transfer.csv",
-        curveType: "transfer",
-        xAxisRole: "vg",
-        xGroups: [[0, 1, 2]],
-        series: [{
-          id: "series-1",
-          groupIndex: 0,
-          y: [1, 2, 4],
-        }],
-      },
-      createSnapshot(rawRecords),
-    );
+    const recordsWithBaseCurves = createTransferRecordsForTest([0, 1, 2], [1, 2, 4]);
 
     const records = createCalculatedMetricRecordsByFile(
-      processedRecords.filesById,
-      processedRecords.fileOrder,
+      recordsWithBaseCurves.filesById,
+      recordsWithBaseCurves.fileOrder,
       {
         "file-a": {
           derivativePointsBySeriesId: {
@@ -110,34 +69,17 @@ suite("workbench/services/calculation/test/common/calculationMetricRecordBuilder
   });
 
   test("applies canonical manual metric inputs during metric generation", () => {
-    const rawRecords = mergeRawFilesIntoRecords({}, [], [{
-      fileId: "file-a",
-      fileName: "Transfer.csv",
-    }]);
     const xValues = Array.from({ length: 21 }, (_value, index) => index / 20);
-    const processedRecords = mergeProcessedFileIntoRecords(
-      rawRecords.filesById,
-      rawRecords.fileOrder,
-      {
-        fileId: "file-a",
-        fileName: "Transfer.csv",
-        curveType: "transfer",
-        xAxisRole: "vg",
-        xGroups: [xValues],
-        series: [{
-          id: "series-1",
-          groupIndex: 0,
-          y: xValues.map((x) => 10 ** (-12 + x * 2)),
-        }],
-      },
-      createSnapshot(rawRecords),
+    const recordsWithBaseCurves = createTransferRecordsForTest(
+      xValues,
+      xValues.map((x) => 10 ** (-12 + x * 2)),
     );
     const currentKey = "current:series-1:base" as MetricKey;
     const manualSsKey = "subthreshold:series-1:ss:manual" as MetricKey;
     const filesById = {
-      ...processedRecords.filesById,
+      ...recordsWithBaseCurves.filesById,
       "file-a": {
-        ...processedRecords.filesById["file-a"],
+        ...recordsWithBaseCurves.filesById["file-a"],
         metricInputsByKey: {
           [currentKey]: {
             fileId: "file-a",
@@ -165,7 +107,7 @@ suite("workbench/services/calculation/test/common/calculationMetricRecordBuilder
 
     const records = createCalculatedMetricRecordsByFile(
       filesById,
-      processedRecords.fileOrder,
+      recordsWithBaseCurves.fileOrder,
     )["file-a"] ?? [];
     const current = records.find(record => record.metricFamily === "current");
     const subthreshold = records.find(record => record.metricFamily === "subthreshold");
@@ -192,12 +134,24 @@ suite("workbench/services/calculation/test/common/calculationMetricRecordBuilder
   });
 });
 
-const createSnapshot = (
-  overrides: Partial<SessionSnapshot> = {},
-): SessionSnapshot => ({
-  schemaVersion: 1,
-  sessionVersion: 0,
-  filesById: {},
-  fileOrder: [],
-  ...overrides,
-});
+const createTransferRecordsForTest = (
+  x: readonly number[],
+  y: readonly number[],
+) => addSliceOutputToRecordsForTest(
+  createFileRecordsForTest([{
+    fileId: "file-a",
+    fileName: "Transfer.csv",
+  }]),
+  {
+    fileId: "file-a",
+    fileName: "Transfer.csv",
+    curveType: "transfer",
+    xAxisRole: "vg",
+    xGroups: [x],
+    series: [{
+      id: "series-1",
+      groupIndex: 0,
+      y,
+    }],
+  },
+);

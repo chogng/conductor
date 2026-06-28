@@ -8,6 +8,7 @@ import { Emitter, Event } from "src/cs/base/common/event";
 import { URI } from "src/cs/base/common/uri";
 import { resolveInitialWorkbenchViewMode } from "src/cs/workbench/browser/workbench";
 import {
+  createSessionExplorerFacts,
   createExplorerPaneInput,
   shouldPrefetchExplorerThumbnails,
   WorkbenchDomainBridge,
@@ -17,24 +18,27 @@ import type { ChartViewInput } from "src/cs/workbench/services/chart/common/char
 import type {
   FileImportResult,
   ImportedFileRecord,
-} from "src/cs/workbench/services/files/common/files";
+} from "src/cs/workbench/services/session/common/session";
 import { DEFAULT_ORIGIN_PLOT_OPTIONS } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import type { PlotDisplayModel } from "src/cs/workbench/services/plot/common/plot";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
-import { mergeProcessedFileIntoRecords } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 import {
-  getLatestSliceRunRecord,
-  type CurveRecord,
-} from "src/cs/workbench/services/session/common/sessionModel";
-import { createSessionReadModel } from "src/cs/workbench/services/session/common/sessionReadModel";
-import type {
-  ProcessedEntry,
-  SessionFile,
-} from "src/cs/workbench/services/session/common/sessionTypes";
+  commitRawFilesForTest,
+  commitTemplateOutputForTest,
+} from "src/cs/workbench/services/session/test/common/sessionTestRecords";
 import type { TableSource } from "src/cs/workbench/services/table/common/table";
 import { createTemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import type { SliceCommit, SliceState, SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
+import type { SliceState, SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
+
+type ThumbnailPrefetchForTest = {
+  readonly priority: string;
+  readonly targets: readonly {
+    readonly fileId: string;
+    readonly targetResource?: string | null;
+    readonly targetSheetId?: string | null;
+  }[];
+};
 
 suite("workbench/browser/workbench Explorer pane input", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -47,8 +51,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       explorerService,
       mode: "table",
       plotService: createPlotService(),
-      readModel: createSessionReadModel(session.getSnapshot()),
-      snapshot: session.getSnapshot(),
+      sessionFacts: createSessionExplorerFacts(session.getSnapshot()),
       sliceState: createSliceStateForTest({
         templateSelectionsByFileId: {
           "file-a": createTemplateSelection("template-file"),
@@ -94,7 +97,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       xGroups: [[0, 1]],
     });
     const snapshot = session.getSnapshot();
-    const readModel = createSessionReadModel(snapshot);
+    const sessionFacts = createSessionExplorerFacts(snapshot);
     const explorerService = store.add(new ExplorerService());
 
     const input = createExplorerPaneInput({
@@ -104,8 +107,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       originOpenPlotOptions: DEFAULT_ORIGIN_PLOT_OPTIONS,
       plotService: createPlotService(),
       plotAxisSettings: { x: { show: true } },
-      readModel,
-      snapshot,
+      sessionFacts,
       sliceState: createSliceStateForTest(),
     });
 
@@ -138,8 +140,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       originOpenPlotOptions: DEFAULT_ORIGIN_PLOT_OPTIONS,
       plotService: createPlotService(),
       plotAxisSettings: { x: { show: true } },
-      readModel: createSessionReadModel(nextSnapshot),
-      snapshot: nextSnapshot,
+      sessionFacts: createSessionExplorerFacts(nextSnapshot),
       sliceState: createSliceStateForTest(),
     });
     const afterNextTemplateOutput = nextInput.files
@@ -177,7 +178,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       xGroups: [[0, 1]],
     });
     const snapshot = session.getSnapshot();
-    const readModel = createSessionReadModel(snapshot);
+    const sessionFacts = createSessionExplorerFacts(snapshot);
     const explorerService = store.add(new ExplorerService());
     explorerService.select({
       candidateFileIds: ["file-a", "raw-only"],
@@ -190,8 +191,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       explorerService,
       mode: "chart",
       plotService: createPlotService(),
-      readModel,
-      snapshot,
+      sessionFacts,
       sliceState: createSliceStateForTest(),
     });
 
@@ -203,18 +203,14 @@ suite("workbench/browser/workbench Explorer pane input", () => {
   });
 
   test("uses chart slice states without Explorer badge fields", () => {
-    const snapshot = store.add(new SessionService()).getSnapshot();
     const input = createExplorerPaneInput({
       activePlotType: "iv",
       explorerService: store.add(new ExplorerService()),
       mode: "chart",
       plotService: createPlotService(),
-      readModel: {
-        hasChartData: false,
-        hasSessionData: true,
-        processedFileIds: [],
-        processedFiles: [],
-        rawFiles: [
+      sessionFacts: {
+        chartDataFileIds: [],
+        rawExplorerFiles: [
           {
             fileId: "unknown-file",
             fileName: "Unknown.csv",
@@ -228,8 +224,9 @@ suite("workbench/browser/workbench Explorer pane input", () => {
             fileName: "Queued.csv",
           },
         ],
+        sessionFileIds: ["unknown-file", "failed-file", "queued-file"],
+        thumbnailFiles: [],
       },
-      snapshot,
       sliceState: createSliceStateForTest({
         fileStates: new Map([
           ["unknown-file", {
@@ -276,23 +273,20 @@ suite("workbench/browser/workbench Explorer pane input", () => {
   });
 
   test("uses slice file states for chart state", () => {
-    const snapshot = store.add(new SessionService()).getSnapshot();
     const input = createExplorerPaneInput({
       activePlotType: "iv",
       explorerService: store.add(new ExplorerService()),
       mode: "chart",
       plotService: createPlotService(),
-      readModel: {
-        hasChartData: false,
-        hasSessionData: true,
-        processedFileIds: [],
-        processedFiles: [],
-        rawFiles: [{
+      sessionFacts: {
+        chartDataFileIds: [],
+        rawExplorerFiles: [{
           fileId: "file-a",
           fileName: "A.csv",
         }],
+        sessionFileIds: ["file-a"],
+        thumbnailFiles: [],
       },
-      snapshot,
       sliceState: createSliceStateForTest({
         fileStates: new Map([
           ["file-a", {
@@ -335,7 +329,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       xGroups: [[0, 1]],
     });
     const snapshot = session.getSnapshot();
-    const readModel = createSessionReadModel(snapshot);
+    const sessionFacts = createSessionExplorerFacts(snapshot);
     const explorerService = store.add(new ExplorerService());
     explorerService.setViewLayout("thumbnail");
     explorerService.select({
@@ -351,8 +345,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       originOpenPlotOptions: DEFAULT_ORIGIN_PLOT_OPTIONS,
       plotService: createPlotService(),
       plotAxisSettings: { x: { show: true } },
-      readModel,
-      snapshot,
+      sessionFacts,
       sliceState: createSliceStateForTest(),
     });
 
@@ -395,7 +388,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       xGroups: [[0, 1]],
     });
     const snapshot = session.getSnapshot();
-    const readModel = createSessionReadModel(snapshot);
+    const sessionFacts = createSessionExplorerFacts(snapshot);
     const explorerService = store.add(new ExplorerService());
     explorerService.setViewLayout("thumbnail");
     explorerService.select({
@@ -409,8 +402,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       explorerService,
       mode: "chart",
       plotService: createPlotService(),
-      readModel,
-      snapshot,
+      sessionFacts,
       sliceState: createSliceStateForTest(),
     });
 
@@ -450,8 +442,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       explorerService: store.add(new ExplorerService()),
       mode: "table",
       plotService: createPlotService(),
-      readModel: createSessionReadModel(snapshot),
-      snapshot,
+      sessionFacts: createSessionExplorerFacts(snapshot),
       sliceState: createSliceStateForTest(),
     });
 
@@ -476,28 +467,8 @@ suite("workbench/browser/workbench Explorer pane input", () => {
 });
 
 suite("workbench/browser/workbench initial mode", () => {
-  const store = ensureNoDisposablesAreLeakedInTestSuite();
-  test("starts in table mode even when the session already has chart data", () => {
-    const session = store.add(new SessionService());
-    commitRawFilesForTest(session, [{
-      fileId: "file-a",
-      fileName: "Processed A.csv",
-      rowCount: 2,
-      columnCount: 2,
-    }]);
-    commitTemplateOutputForTest(session, {
-      fileId: "file-a",
-      fileName: "Processed A.csv",
-      series: [{
-        groupIndex: 0,
-        id: "series-a",
-        y: [1, 2],
-      }],
-      xGroups: [[0, 1]],
-    });
-
-    assert.equal(createSessionReadModel(session.getSnapshot()).hasChartData, true);
-    assert.equal(resolveInitialWorkbenchViewMode(session.getSnapshot()), "table");
+  test("starts in table mode without reading Session state", () => {
+    assert.equal(resolveInitialWorkbenchViewMode(), "table");
   });
 });
 
@@ -577,6 +548,315 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       assert.deepEqual(plotInspectorPrefetches, []);
     } finally {
       bridge.dispose();
+    }
+  });
+
+  test("delegates legacy chart prewarm without reading Session in bridge", () => {
+    const session = store.add(new SessionService());
+    let snapshotReads = 0;
+    (session as unknown as { getSnapshot: () => never }).getSnapshot = () => {
+      snapshotReads += 1;
+      throw new Error("Bridge plot prewarm should not read Session.");
+    };
+    const explorerService = store.add(new ExplorerService());
+    const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      explorerService,
+      plotDisplayPrefetches,
+      prioritizedCalculationFileIds: [],
+      prioritizedTemplateFileIds: [],
+      session,
+    }));
+    try {
+      explorerService.setVisibleFileIds(["file-a"], []);
+
+      assert.equal(snapshotReads, 0);
+      assert.deepEqual(plotDisplayPrefetches, [
+        { fileIds: ["file-a"], priority: "visible" },
+      ]);
+    } finally {
+      bridge.dispose();
+    }
+  });
+
+  test("routes URI rows through target-aware thumbnail prefetch inputs", () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+    const prioritizedCalculationFileIds: string[] = [];
+    const plotDisplayPrefetches: Array<{
+      readonly fileIds: readonly string[];
+      readonly priority: string;
+      readonly targetResource?: string | null;
+    }> = [];
+    const thumbnailPrefetches: ThumbnailPrefetchForTest[] = [];
+    commitChartFilesForTest(session, ["file-a"]);
+    explorerService.setViewLayout("thumbnail");
+    explorerService.updatePaneInput({
+      files: [{
+        fileId: "file-a",
+        fileName: "Session.csv",
+      }, {
+        fileId: "uri-a",
+        fileName: "Uri A.csv",
+        resource: URI.file("/data/UriA.csv"),
+      }, {
+        fileId: "uri-b",
+        fileName: "Uri B.csv",
+        resource: URI.file("/data/UriB.csv"),
+      }],
+      mode: "chart",
+      selectedFileId: "file-a",
+      selectionKind: "chart",
+      thumbnailFiles: [],
+    });
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      explorerService,
+      plotDisplayPrefetches,
+      prioritizedCalculationFileIds,
+      prioritizedTemplateFileIds: [],
+      session,
+      thumbnailPrefetches,
+    }));
+    try {
+      explorerService.setVisibleFileIds(["file-a", "uri-a"], ["uri-b"]);
+
+      assert.deepEqual(plotDisplayPrefetches, [
+        { fileIds: ["file-a"], priority: "visible" },
+      ]);
+      assert.deepEqual(prioritizedCalculationFileIds, ["file-a"]);
+      assert.deepEqual(thumbnailPrefetches, [
+        {
+          priority: "visible",
+          targets: [{
+            fileId: "file-a",
+          }, {
+            fileId: "uri-a",
+            targetResource: "file:///data/UriA.csv",
+            targetSheetId: null,
+          }],
+        },
+        {
+          priority: "nearby",
+          targets: [{
+            fileId: "uri-b",
+            targetResource: "file:///data/UriB.csv",
+            targetSheetId: null,
+          }],
+        },
+      ]);
+    } finally {
+      bridge.dispose();
+    }
+  });
+
+  test("reads performance trace URI chart targets from Explorer pane input without Session", () => {
+    const traceGlobal = globalThis as typeof globalThis & {
+      __conductorTemplateApplyPerformanceTrace?: {
+        targetApi?: {
+          getChartTargets?: () => readonly {
+            readonly chartState?: string;
+            readonly fileId?: string;
+            readonly hasChartData?: boolean;
+            readonly selected?: boolean;
+          }[];
+        };
+      };
+    };
+    const localStorageDescriptor = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: {
+        clear: () => undefined,
+        getItem: (key: string) => key === "conductor.templateApplyPerformanceTrace" ? "1" : null,
+        key: () => null,
+        length: 0,
+        removeItem: () => undefined,
+        setItem: () => undefined,
+      } satisfies Storage,
+    });
+    delete traceGlobal.__conductorTemplateApplyPerformanceTrace;
+
+    const session = store.add(new SessionService());
+    let snapshotReads = 0;
+    (session as unknown as { getSnapshot: () => never }).getSnapshot = () => {
+      snapshotReads += 1;
+      throw new Error("Trace URI target enumeration should not read Session.");
+    };
+    const explorerService = store.add(new ExplorerService());
+    const uriSliceTarget: SliceUriTarget = {
+      resource: URI.file("/data/UriA.csv"),
+    };
+    explorerService.updatePaneInput({
+      files: [{
+        fileId: "uri-a",
+        fileName: "Uri A.csv",
+        resource: uriSliceTarget.resource,
+      }],
+      mode: "chart",
+      selectedFileId: "uri-a",
+      selectionKind: "chart",
+      thumbnailFiles: [],
+    });
+
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      explorerService,
+      prioritizedCalculationFileIds: [],
+      prioritizedTemplateFileIds: [],
+      session,
+      uriSliceTarget,
+    }));
+    try {
+      const targets = traceGlobal.__conductorTemplateApplyPerformanceTrace?.targetApi?.getChartTargets?.() ?? [];
+
+      assert.equal(snapshotReads, 0);
+      assert.deepEqual(targets.map(target => ({
+        chartState: target.chartState,
+        fileId: target.fileId,
+        hasChartData: target.hasChartData,
+        selected: target.selected,
+      })), [{
+        chartState: "ready",
+        fileId: "uri-a",
+        hasChartData: true,
+        selected: true,
+      }]);
+    } finally {
+      bridge.dispose();
+      delete traceGlobal.__conductorTemplateApplyPerformanceTrace;
+      if (localStorageDescriptor) {
+        Object.defineProperty(globalThis, "localStorage", localStorageDescriptor);
+      } else {
+        delete (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage;
+      }
+    }
+  });
+
+  test("reads performance trace legacy chart targets from Explorer pane input projection", () => {
+    const traceGlobal = globalThis as typeof globalThis & {
+      __conductorTemplateApplyPerformanceTrace?: {
+        targetApi?: {
+          getChartTargets?: () => readonly {
+            readonly chartState?: string;
+            readonly fileId?: string;
+            readonly hasChartData?: boolean;
+            readonly label?: string;
+          }[];
+        };
+      };
+    };
+    const localStorageDescriptor = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: {
+        clear: () => undefined,
+        getItem: (key: string) => key === "conductor.templateApplyPerformanceTrace" ? "1" : null,
+        key: () => null,
+        length: 0,
+        removeItem: () => undefined,
+        setItem: () => undefined,
+      } satisfies Storage,
+    });
+    delete traceGlobal.__conductorTemplateApplyPerformanceTrace;
+
+    const session = store.add(new SessionService());
+    let snapshotReads = 0;
+    (session as unknown as { getSnapshot: () => never }).getSnapshot = () => {
+      snapshotReads += 1;
+      throw new Error("Trace legacy target enumeration should not read Session.");
+    };
+    const explorerService = store.add(new ExplorerService());
+    explorerService.updatePaneInput({
+      files: [{
+        chartState: "ready",
+        fileId: "file-a",
+        fileName: "File A.csv",
+        hasChartData: true,
+      }],
+      mode: "chart",
+      selectedFileId: "file-a",
+      selectionKind: "chart",
+      thumbnailFiles: [],
+    });
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      explorerService,
+      prioritizedCalculationFileIds: [],
+      prioritizedTemplateFileIds: [],
+      session,
+    }));
+    try {
+      const targets = traceGlobal.__conductorTemplateApplyPerformanceTrace?.targetApi?.getChartTargets?.() ?? [];
+
+      assert.equal(snapshotReads, 0);
+      assert.deepEqual(targets.map(target => ({
+        chartState: target.chartState,
+        fileId: target.fileId,
+        hasChartData: target.hasChartData,
+        label: target.label,
+      })), [{
+        chartState: "ready",
+        fileId: "file-a",
+        hasChartData: true,
+        label: "File A.csv",
+      }]);
+    } finally {
+      bridge.dispose();
+      delete traceGlobal.__conductorTemplateApplyPerformanceTrace;
+      if (localStorageDescriptor) {
+        Object.defineProperty(globalThis, "localStorage", localStorageDescriptor);
+      } else {
+        delete (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage;
+      }
+    }
+  });
+
+  test("does not synthesize performance trace chart targets from Session", () => {
+    const traceGlobal = globalThis as typeof globalThis & {
+      __conductorTemplateApplyPerformanceTrace?: {
+        targetApi?: {
+          getChartTargets?: () => readonly unknown[];
+        };
+      };
+    };
+    const localStorageDescriptor = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: {
+        clear: () => undefined,
+        getItem: (key: string) => key === "conductor.templateApplyPerformanceTrace" ? "1" : null,
+        key: () => null,
+        length: 0,
+        removeItem: () => undefined,
+        setItem: () => undefined,
+      } satisfies Storage,
+    });
+    delete traceGlobal.__conductorTemplateApplyPerformanceTrace;
+
+    const session = store.add(new SessionService());
+    let snapshotReads = 0;
+    (session as unknown as { getSnapshot: () => never }).getSnapshot = () => {
+      snapshotReads += 1;
+      throw new Error("Trace target enumeration without pane input should not read Session.");
+    };
+    const explorerService = store.add(new ExplorerService());
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      explorerService,
+      prioritizedCalculationFileIds: [],
+      prioritizedTemplateFileIds: [],
+      session,
+    }));
+    try {
+      const targets = traceGlobal.__conductorTemplateApplyPerformanceTrace?.targetApi?.getChartTargets?.() ?? [];
+
+      assert.equal(snapshotReads, 0);
+      assert.deepEqual(targets, []);
+    } finally {
+      bridge.dispose();
+      delete traceGlobal.__conductorTemplateApplyPerformanceTrace;
+      if (localStorageDescriptor) {
+        Object.defineProperty(globalThis, "localStorage", localStorageDescriptor);
+      } else {
+        delete (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage;
+      }
     }
   });
 
@@ -662,6 +942,37 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
+  test("delegates active legacy chart prewarm without snapshot input", () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+    const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
+    const plotDisplayPrefetchSnapshotFields: boolean[] = [];
+    commitChartFilesForTest(session, ["file-a"]);
+    explorerService.select({
+      fileId: "file-a",
+      kind: "chart",
+    });
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      explorerService,
+      plotDisplayPrefetches,
+      plotDisplayPrefetchSnapshotFields,
+      prioritizedCalculationFileIds: [],
+      prioritizedTemplateFileIds: [],
+      session,
+    }));
+    try {
+      bridge.sync();
+
+      assert.deepEqual(uniquePrefetches(plotDisplayPrefetches), [
+        { fileIds: ["file-a"], priority: "active" },
+      ]);
+      assert.equal(plotDisplayPrefetchSnapshotFields.length > 0, true);
+      assert.equal(plotDisplayPrefetchSnapshotFields.every(hasSnapshot => !hasSnapshot), true);
+    } finally {
+      bridge.dispose();
+    }
+  });
+
   test("defers startup secondary state while opening table source immediately", async () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
@@ -703,7 +1014,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
-  test("opens selected table sheet from explorer item selection", () => {
+  test("opens selected table sheet from projected Explorer resource row", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const tableSources: Array<TableSource | null> = [];
@@ -733,17 +1044,18 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
-  test("keeps Explorer-local table imports out of Session reconciliation", () => {
+  test("opens Explorer URI pane rows without Session reconciliation", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
+    const resource = URI.file("/data/Local.csv");
     const tableSources: Array<TableSource | null> = [];
     explorerService.updatePaneInput({
       files: [{
         fileId: "local-a",
         fileName: "Local.csv",
-        localImport: true,
         normalizedCsvPath: "/data/Local.csv",
         itemKey: "local-source",
+        resource,
       }],
       mode: "table",
       selectedFileId: "local-a",
@@ -768,11 +1080,104 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     try {
       bridge.sync();
 
-      assert.deepEqual(tableSources, []);
+      assert.equal(Object.prototype.hasOwnProperty.call(tableSources.at(-1) ?? {}, "fileId"), false);
+      assert.equal(tableSources.at(-1)?.resource?.toString(), "file:///data/Local.csv");
+      assert.equal(tableSources.at(-1)?.sheetId, undefined);
+      assert.deepEqual(session.getSnapshot().fileOrder, []);
       assert.equal(explorerService.selectedRawFileId, "local-a");
       assert.equal(explorerService.selectedRawItemKey, "local-source");
       assert.equal(explorerService.getPaneInput()?.selectedFileId, "local-a");
-      assert.equal(explorerService.getPaneInput()?.files.some(file => file.localImport), true);
+      assert.equal(explorerService.getPaneInput()?.files.at(-1)?.resource?.toString(), "file:///data/Local.csv");
+    } finally {
+      bridge.dispose();
+    }
+  });
+
+  test("syncs selected table URI pane rows without reading Session", () => {
+    const session = store.add(new SessionService());
+    let snapshotReads = 0;
+    (session as unknown as { getSnapshot: () => never }).getSnapshot = () => {
+      snapshotReads += 1;
+      throw new Error("Table URI pane sync should not read Session.");
+    };
+    const explorerService = store.add(new ExplorerService());
+    const resource = URI.file("/data/Local.csv");
+    const tableSources: Array<TableSource | null> = [];
+    explorerService.updatePaneInput({
+      files: [{
+        fileId: "local-a",
+        fileName: "Local.csv",
+        itemKey: "local-source",
+        resource,
+      }],
+      mode: "table",
+      selectedFileId: "local-a",
+      selectedItemKey: "local-source",
+      selectionKind: "table",
+      thumbnailFiles: [],
+    });
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      activeWorkbenchMainPart: "table",
+      explorerService,
+      prioritizedCalculationFileIds: [],
+      prioritizedTemplateFileIds: [],
+      session,
+      tableSources,
+    }));
+    try {
+      bridge.sync();
+
+      assert.equal(snapshotReads, 0);
+      assert.equal(tableSources.at(-1)?.resource?.toString(), "file:///data/Local.csv");
+      assert.equal(tableSources.at(-1)?.sheetId, undefined);
+      assert.equal(explorerService.selectedRawFileId, "local-a");
+      assert.equal(explorerService.selectedRawItemKey, "local-source");
+    } finally {
+      bridge.dispose();
+    }
+  });
+
+  test("prefers Explorer URI pane rows over Session raw table paths", () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+    const tableSources: Array<TableSource | null> = [];
+    commitRawFilesForTest(session, [{
+      columnCount: 2,
+      fileId: "file-a",
+      fileName: "Session.csv",
+      rowCount: 2,
+      rows: [],
+      sourcePath: "/data/Session.csv",
+    }]);
+    explorerService.updatePaneInput({
+      files: [{
+        fileId: "file-a",
+        fileName: "Uri.csv",
+        resource: URI.file("/data/Uri.csv"),
+      }],
+      mode: "table",
+      selectedFileId: "file-a",
+      selectionKind: "table",
+      thumbnailFiles: [],
+    });
+    explorerService.select({
+      candidateFileIds: ["file-a"],
+      fileId: "file-a",
+      kind: "table",
+    });
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      explorerService,
+      prioritizedCalculationFileIds: [],
+      prioritizedTemplateFileIds: [],
+      session,
+      tableSources,
+    }));
+    try {
+      bridge.sync();
+
+      assert.equal(tableSources.at(-1)?.resource?.toString(), "file:///data/Uri.csv");
+      assert.equal(explorerService.getPaneInput()?.files[0]?.fileName, "Uri.csv");
+      assert.equal(explorerService.getPaneInput()?.files[0]?.resource?.toString(), "file:///data/Uri.csv");
     } finally {
       bridge.dispose();
     }
@@ -847,13 +1252,300 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
+  test("uses Explorer URI row label for active chart file options", () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+    const resource = URI.file("/data/Uri.csv");
+    const chartFileOptionInputs: Array<NonNullable<ChartViewInput["chartFileOptions"]>> = [];
+    commitRawFilesForTest(session, [{
+      columnCount: 2,
+      fileId: "file-a",
+      fileName: "Session.csv",
+      rowCount: 2,
+      rows: [],
+      sourcePath: "/data/Session.csv",
+    }]);
+    explorerService.updatePaneInput({
+      files: [{
+        fileId: "file-a",
+        fileName: "Uri.csv",
+        resource,
+      }],
+      mode: "chart",
+      selectedFileId: "file-a",
+      selectionKind: "chart",
+      thumbnailFiles: [],
+    });
+    explorerService.select({
+      candidateFileIds: ["file-a"],
+      fileId: "file-a",
+      kind: "chart",
+    });
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      chartFileOptionInputs,
+      explorerService,
+      prioritizedCalculationFileIds: [],
+      prioritizedTemplateFileIds: [],
+      session,
+      uriSliceTarget: { resource },
+    }));
+    try {
+      bridge.sync();
+
+      assert.deepEqual(chartFileOptionInputs.at(-1), [{
+        fileId: "file-a",
+        fileName: "Uri.csv",
+      }]);
+    } finally {
+      bridge.dispose();
+    }
+  });
+
+  test("does not use Session chart data for a selected URI row with the same file id", () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+    const chartViewInputs: Array<{ readonly activeFileId: string | null; readonly hasChartData?: boolean }> = [];
+    const prioritizedCalculationFileIds: string[] = [];
+    const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
+    commitRawFilesForTest(session, [{
+      columnCount: 2,
+      fileId: "file-a",
+      fileName: "Session.csv",
+      rowCount: 2,
+      rows: [],
+    }]);
+    commitTemplateOutputForTest(session, {
+      fileId: "file-a",
+      fileName: "Session.csv",
+      series: [{
+        groupIndex: 0,
+        id: "series-a",
+        y: [1, 2],
+      }],
+      xGroups: [[0, 1]],
+    });
+    explorerService.updatePaneInput({
+      files: [{
+        fileId: "file-a",
+        fileName: "Uri.csv",
+        resource: URI.file("/data/Uri.csv"),
+      }],
+      mode: "chart",
+      selectedFileId: "file-a",
+      selectionKind: "chart",
+      thumbnailFiles: [],
+    });
+    explorerService.select({
+      candidateFileIds: ["file-a"],
+      fileId: "file-a",
+      kind: "chart",
+    });
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      chartViewInputs,
+      explorerService,
+      plotDisplayPrefetches,
+      prioritizedCalculationFileIds,
+      prioritizedTemplateFileIds: [],
+      session,
+    }));
+    try {
+      bridge.sync();
+
+      assert.deepEqual(chartViewInputs.at(-1), {
+        activeFileId: "file-a",
+        hasChartData: false,
+      });
+      assert.deepEqual(prioritizedCalculationFileIds, []);
+      assert.deepEqual(plotDisplayPrefetches, []);
+      assert.equal(explorerService.getPaneInput()?.files[0]?.hasChartData, false);
+      assert.equal(explorerService.getPaneInput()?.files[0]?.chartState, "none");
+    } finally {
+      bridge.dispose();
+    }
+  });
+
+  test("keeps deferred secondary sync on selected URI chart target", async () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+    const resource = URI.file("/data/Deferred.csv");
+    const uriTarget: SliceUriTarget = {
+      resource,
+      sheetId: "sheet-a",
+    };
+    const chartViewInputs: Array<{
+      readonly activeFileId: string | null;
+      readonly activeTargetResource?: string | null;
+      readonly activeTargetSheetId?: string | null;
+      readonly hasChartData?: boolean;
+    }> = [];
+    explorerService.updatePaneInput({
+      files: [{
+        fileId: "resource-file-a",
+        fileName: "Deferred.csv",
+        resource,
+        sheetId: "sheet-a",
+      }],
+      mode: "chart",
+      selectedFileId: "resource-file-a",
+      selectionKind: "chart",
+      thumbnailFiles: [],
+    });
+    explorerService.select({
+      candidateFileIds: ["resource-file-a"],
+      fileId: "resource-file-a",
+      kind: "chart",
+    });
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      chartViewInputs,
+      explorerService,
+      prioritizedCalculationFileIds: [],
+      prioritizedTemplateFileIds: [],
+      session,
+      uriSliceTarget: uriTarget,
+    }));
+    try {
+      bridge.sync({ deferSecondaryWork: true });
+
+      assert.deepEqual(chartViewInputs, []);
+
+      await new Promise(resolve => globalThis.setTimeout(resolve, 0));
+
+      assert.deepEqual(chartViewInputs.at(-1), {
+        activeFileId: "resource-file-a",
+        activeTargetResource: "file:///data/Deferred.csv",
+        activeTargetSheetId: "sheet-a",
+        hasChartData: true,
+      });
+    } finally {
+      bridge.dispose();
+    }
+  });
+
+  test("deferred selected URI chart sync does not read Session", async () => {
+    const session = store.add(new SessionService());
+    let snapshotReads = 0;
+    (session as unknown as { getSnapshot: () => never }).getSnapshot = () => {
+      snapshotReads += 1;
+      throw new Error("Deferred URI chart sync should not read Session.");
+    };
+    const explorerService = store.add(new ExplorerService());
+    const resource = URI.file("/data/Deferred.csv");
+    const uriTarget: SliceUriTarget = {
+      resource,
+      sheetId: "sheet-a",
+    };
+    const chartViewInputs: Array<{
+      readonly activeFileId: string | null;
+      readonly activeTargetResource?: string | null;
+      readonly activeTargetSheetId?: string | null;
+      readonly hasChartData?: boolean;
+    }> = [];
+    explorerService.updatePaneInput({
+      files: [{
+        fileId: "resource-file-a",
+        fileName: "Deferred.csv",
+        resource,
+        sheetId: "sheet-a",
+      }],
+      mode: "chart",
+      selectedFileId: "resource-file-a",
+      selectionKind: "chart",
+      thumbnailFiles: [],
+    });
+    explorerService.select({
+      candidateFileIds: ["resource-file-a"],
+      fileId: "resource-file-a",
+      kind: "chart",
+    });
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      chartViewInputs,
+      explorerService,
+      prioritizedCalculationFileIds: [],
+      prioritizedTemplateFileIds: [],
+      session,
+      uriSliceTarget: uriTarget,
+    }));
+    try {
+      bridge.sync({ deferSecondaryWork: true });
+
+      assert.equal(snapshotReads, 0);
+      assert.deepEqual(chartViewInputs, []);
+
+      await new Promise(resolve => globalThis.setTimeout(resolve, 0));
+
+      assert.equal(snapshotReads, 0);
+      assert.deepEqual(chartViewInputs.at(-1), {
+        activeFileId: "resource-file-a",
+        activeTargetResource: "file:///data/Deferred.csv",
+        activeTargetSheetId: "sheet-a",
+        hasChartData: true,
+      });
+    } finally {
+      bridge.dispose();
+    }
+  });
+
+  test("keeps URI recent chart targets across bridge sync pruning", () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+    const resourceA = URI.file("/data/A.csv");
+    const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
+    const thumbnailPrefetches: ThumbnailPrefetchForTest[] = [];
+    explorerService.updatePaneInput({
+      files: [{
+        fileId: "resource-file-a",
+        fileName: "A.csv",
+        resource: resourceA,
+      }, {
+        fileId: "resource-file-b",
+        fileName: "B.csv",
+        resource: URI.file("/data/B.csv"),
+      }],
+      mode: "chart",
+      selectedFileId: "resource-file-a",
+      selectionKind: "chart",
+      thumbnailFiles: [],
+    });
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      explorerService,
+      plotDisplayPrefetches,
+      prioritizedCalculationFileIds: [],
+      prioritizedTemplateFileIds: [],
+      session,
+      thumbnailPrefetches,
+      uriSliceTarget: { resource: resourceA },
+    }));
+    try {
+      explorerService.setHoveredFileId("resource-file-a");
+      bridge.sync();
+      explorerService.setHoveredFileId("resource-file-b");
+
+      assert.deepEqual(plotDisplayPrefetches.at(-1), {
+        fileIds: ["resource-file-a"],
+        priority: "recent",
+        targetResource: "file:///data/A.csv",
+        targetSheetId: null,
+      });
+      assert.deepEqual(thumbnailPrefetches.at(-1), {
+        priority: "recent",
+        targets: [{
+          fileId: "resource-file-a",
+          targetResource: "file:///data/A.csv",
+          targetSheetId: null,
+        }],
+      });
+    } finally {
+      bridge.dispose();
+    }
+  });
+
   test("backs recently interactive chart targets with recent plot and thumbnail priority", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
     const prioritizedTemplateFileIds: string[] = [];
     const prioritizedCalculationFileIds: string[] = [];
-    const thumbnailPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
+    const thumbnailPrefetches: ThumbnailPrefetchForTest[] = [];
     commitChartFilesForTest(session, ["file-a", "file-b"]);
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
@@ -875,7 +1567,12 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
         { fileIds: ["file-a"], priority: "recent" },
       ]);
       assert.deepEqual(thumbnailPrefetches, [
-        { fileIds: ["file-a"], priority: "recent" },
+        {
+          priority: "recent",
+          targets: [{
+            fileId: "file-a",
+          }],
+        },
       ]);
     } finally {
       bridge.dispose();
@@ -1155,12 +1852,15 @@ const createSliceStateForTest = ({
 });
 
 const createDomainBridgeOptionsForTest = ({
+  activeWorkbenchMainPart = "chart",
   chartActiveFileIds,
+  chartFileOptionInputs,
   chartViewInputs,
   cachedPlotDisplayFileIds,
   explorerService,
   plotCalculatedPrefetches,
   plotDisplayPrefetches,
+  plotDisplayPrefetchSnapshotFields,
   plotInspectorPrefetches,
   prioritizedCalculationFileIds,
   prioritizedTemplateFileIds,
@@ -1172,7 +1872,9 @@ const createDomainBridgeOptionsForTest = ({
   tableSources,
   visibleDetailPanes = [],
 }: {
+  readonly activeWorkbenchMainPart?: "chart" | "table";
   readonly chartActiveFileIds?: (string | null)[];
+  readonly chartFileOptionInputs?: Array<NonNullable<ChartViewInput["chartFileOptions"]>>;
   readonly chartViewInputs?: Array<{
     readonly activeFileId: string | null;
     readonly activeTargetResource?: string | null;
@@ -1188,6 +1890,7 @@ const createDomainBridgeOptionsForTest = ({
     readonly targetResource?: string | null;
     readonly targetSheetId?: string | null;
   }>;
+  readonly plotDisplayPrefetchSnapshotFields?: boolean[];
   readonly plotInspectorPrefetches?: Array<{ readonly fileIds: readonly string[]; readonly priority: string }>;
   readonly prioritizedCalculationFileIds: string[];
   readonly prioritizedTemplateFileIds: string[];
@@ -1195,7 +1898,7 @@ const createDomainBridgeOptionsForTest = ({
   readonly sliceStateEvent?: Event<unknown>;
   readonly sliceTemplateSelectionsByFileId?: SliceState["templateSelectionsByFileId"];
   readonly uriSliceTarget?: SliceUriTarget;
-  readonly thumbnailPrefetches?: Array<{ readonly fileIds: readonly string[]; readonly priority: string }>;
+  readonly thumbnailPrefetches?: ThumbnailPrefetchForTest[];
   readonly tableSources?: Array<TableSource | null>;
   readonly visibleDetailPanes?: readonly ["inspector"] | readonly [];
 }): ConstructorParameters<typeof WorkbenchDomainBridge>[0] => ({
@@ -1221,6 +1924,7 @@ const createDomainBridgeOptionsForTest = ({
     }),
     updateViewInput: (input: ChartViewInput) => {
       chartActiveFileIds?.push(input.activeFileId ?? null);
+      chartFileOptionInputs?.push([...(input.chartFileOptions ?? [])]);
       chartViewInputs?.push({
         activeFileId: input.activeFileId ?? null,
         ...(input.activeTarget ? {
@@ -1233,7 +1937,7 @@ const createDomainBridgeOptionsForTest = ({
   } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["chartService"],
   explorerService,
   layoutService: {
-    activeWorkbenchMainPart: "chart",
+    activeWorkbenchMainPart,
     onDidChangeWorkbenchNavigation: Event.None,
   } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["layoutService"],
   plotService: {
@@ -1250,6 +1954,7 @@ const createDomainBridgeOptionsForTest = ({
       });
     },
     prefetchPlotDisplayModel: (input, priority) => {
+      plotDisplayPrefetchSnapshotFields?.push(Object.prototype.hasOwnProperty.call(input, "snapshot"));
       plotDisplayPrefetches?.push({
         fileIds: input.fileId ? [input.fileId] : [],
         priority,
@@ -1260,6 +1965,9 @@ const createDomainBridgeOptionsForTest = ({
       });
     },
     prefetchPlotDisplayModels: (inputs, priority) => {
+      plotDisplayPrefetchSnapshotFields?.push(
+        ...inputs.map(input => Object.prototype.hasOwnProperty.call(input, "snapshot")),
+      );
       plotDisplayPrefetches?.push({
         fileIds: inputs
           .map(input => String(input.fileId ?? "").trim())
@@ -1307,10 +2015,23 @@ const createDomainBridgeOptionsForTest = ({
       },
   } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["tableService"],
   thumbnailPreviewService: {
-    prefetch: (fileIds, priority) => {
+    prefetch: (targets, priority) => {
       thumbnailPrefetches?.push({
-        fileIds: [...fileIds],
         priority,
+        targets: targets.map(target => {
+          if (typeof target === "string") {
+            return {
+              fileId: target,
+            };
+          }
+          return {
+            fileId: String(target.fileId ?? ""),
+            ...(target.target ? {
+              targetResource: target.target.resource.toString(),
+              targetSheetId: target.target.sheetId ?? null,
+            } : {}),
+          };
+        }),
       });
     },
   } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["thumbnailPreviewService"],
@@ -1369,60 +2090,6 @@ const commitChartFilesForTest = (
   }
 };
 
-const commitTemplateOutputForTest = (
-  session: SessionService,
-  file: ProcessedEntry,
-): void => {
-  const snapshot = session.getSnapshot();
-  const processedFile: ProcessedEntry = {
-    curveFilterKey: "transfer",
-    xAxisRole: "vg",
-    ...file,
-  };
-  const records = mergeProcessedFileIntoRecords(
-    snapshot.filesById,
-    snapshot.fileOrder,
-    processedFile,
-    snapshot,
-  );
-  const fileId = String(processedFile.fileId ?? "").trim();
-  const record = fileId ? records.filesById[fileId] : undefined;
-  const run = record ? getLatestSliceRunRecord(record) : undefined;
-  const commit: SliceCommit | null = record && run
-    ? {
-      run,
-      series: run.outputSeriesIds
-        .map(seriesId => record.seriesById[seriesId])
-        .filter((series): series is SliceCommit["series"][number] => Boolean(series)),
-      curves: run.outputCurveKeys
-        .map(curveKey => record.curvesByKey[curveKey])
-        .filter((curve): curve is CurveRecord => Boolean(curve)),
-    }
-    : null;
-  if (!commit) {
-    return;
-  }
-
-  session.commitSliceRuns([commit]);
-};
-
-const commitRawFilesForTest = (
-  session: SessionService,
-  files: readonly SessionFile[],
-): void => {
-  session.commitFileImport(createFileImportResultForTest(files));
-};
-
-const createFileImportResultForTest = (
-  files: readonly SessionFile[],
-): FileImportResult => ({
-  createdAt: 1,
-  diagnostics: [],
-  files: files
-    .map(createImportedFileRecordForTest)
-    .filter((file): file is ImportedFileRecord => Boolean(file)),
-});
-
 const createMultiRawTableImportResultForTest = (): FileImportResult => ({
   createdAt: 1,
   diagnostics: [],
@@ -1442,62 +2109,6 @@ const createMultiRawTableImportResultForTest = (): FileImportResult => ({
     },
   }],
 });
-
-const createImportedFileRecordForTest = (
-  file: SessionFile,
-): ImportedFileRecord | null => {
-  const fileId = String(file.fileId ?? "").trim();
-  if (!fileId) {
-    return null;
-  }
-
-  const fileName = String(file.fileName ?? fileId).trim() || fileId;
-  const rows = Array.isArray(file.rows)
-    ? file.rows as readonly (readonly string[])[]
-    : [];
-  return {
-    id: fileId,
-    kind: "csv",
-    name: fileName,
-    raw: {
-      fileId,
-      fileName,
-      filePath: typeof file.sourcePath === "string" ? file.sourcePath : null,
-      relativePath: file.relativePath,
-      rawTableOrder: [fileId],
-      rawTablesById: {
-        [fileId]: {
-          columnCount: Math.max(0, Math.floor(Number(file.columnCount) || 0)),
-          fileId,
-          health: file.rawTableHealth
-            ? {
-                state: file.rawTableHealth,
-                message: file.rawTableHealthMessage ?? "",
-              }
-            : undefined,
-          maxCellLengths: Array.isArray(file.maxCellLengths) ? file.maxCellLengths : [],
-          rawTableId: fileId,
-          rowCount: Math.max(0, Math.floor(Number(file.rowCount) || 0)),
-          rows: file.rawTableHealth === "decodeFailed" ||
-            file.rawTableHealth === "parseFailed" ||
-            file.rawTableHealth === "unsupported"
-            ? {
-                kind: "unavailable",
-                reason: file.rawTableHealthMessage ?? "",
-              }
-            : {
-                kind: "inline",
-                values: rows,
-              },
-          source: {
-            kind: "csv",
-          },
-          templateEligibility: file.templateEligibility,
-        },
-      },
-    },
-  };
-};
 
 const createRawTableRecordForTest = (
   fileId: string,

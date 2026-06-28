@@ -1,5 +1,5 @@
 ---
-description: Session service - canonical records, commit APIs, snapshots, read models, and change events.
+description: Session service - canonical records, commit APIs, snapshots, and change events.
 applyTo: 'src/cs/workbench/services/session/**'
 ---
 # Session
@@ -18,7 +18,6 @@ model services.
 | `SessionService` | only mutator of `SessionModel` |
 | `SessionModel` | internal canonical data state |
 | `SessionSnapshot` | read-only consumer data |
-| `SessionReadModel` | derived read projection |
 | `SessionChangeEvent` | specific invalidation event |
 | migration-ledger explicit import APIs | `ISessionService.commitFileImport`, rename, remove, and clear for migration-ledger raw tables; not the Explorer ordinary file-to-table path |
 
@@ -29,8 +28,7 @@ model services.
 | `common/session.ts` | service contract, snapshot, commit inputs, events. |
 | `common/sessionModel.ts` | canonical records: files, raw, table model, slice runs, series, curves, metrics, cache. |
 | `common/sessionEvents.ts` | change reasons, affected ids, helper types. |
-| `common/sessionReadModel.ts` | read-only projections. |
-| `common/sessionModelAdapter.ts` | compatibility projections between raw/processed helper payloads and canonical records; shrink over time. |
+| `common/sessionModelAdapter.ts` | remaining canonical curve/semantics projection helpers. |
 | `browser/sessionService.ts` | mutable model owner, validation, versioning, events. |
 
 ## Canonical Data Only
