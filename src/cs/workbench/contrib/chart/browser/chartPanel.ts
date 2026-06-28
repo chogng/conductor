@@ -15,7 +15,6 @@ import {
   type LxIconStyle,
 } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { LxIcon } from "src/cs/base/common/lxicon";
-import type { ProcessingStatus } from "src/cs/workbench/services/session/common/sessionTypes";
 import { createChartView, type ChartPane, type ChartViewProps } from "src/cs/workbench/contrib/chart/browser/views/chartView";
 
 export class ChartPanel {
@@ -141,7 +140,7 @@ const isPendingChartTarget = (props: ChartViewProps): boolean =>
   props.processingStatus?.state === "processing";
 
 const createProcessingCard = (
-  processingStatus: Partial<ProcessingStatus>,
+  processingStatus: NonNullable<ChartViewProps["processingStatus"]>,
 ): HTMLElement => {
   const processed = processingStatus.processed ?? 0;
   const total = Math.max(1, processingStatus.total ?? 0);

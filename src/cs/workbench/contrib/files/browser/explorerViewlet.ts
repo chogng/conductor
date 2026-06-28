@@ -257,7 +257,7 @@ export class ExplorerViewPane extends ViewPane {
     this.openFileDialog();
   }
 
-  public closeFile(target: unknown): void {
+  public closeFile(target: ExplorerResourceTarget | URI): void {
     const file = this.resolveExplorerFileTarget(target);
     if (!file) {
       return;
@@ -266,7 +266,7 @@ export class ExplorerViewPane extends ViewPane {
     this.handleCloseFile(file);
   }
 
-  public deleteFile(target: unknown): Promise<void> {
+  public deleteFile(target: ExplorerResourceTarget | URI): Promise<void> {
     const file = this.resolveExplorerFileTarget(target);
     if (!file) {
       return Promise.resolve();
@@ -275,18 +275,15 @@ export class ExplorerViewPane extends ViewPane {
     return this.handleDeleteFile(file);
   }
 
-  private resolveExplorerFileTarget(target: unknown): ExplorerFileEntry | null {
+  private resolveExplorerFileTarget(target: ExplorerResourceTarget | URI): ExplorerFileEntry | null {
     if (target instanceof URI) {
       return findExplorerFileEntryByResource(this.files, { resource: target });
     }
 
     const resourceTarget = normalizeExplorerResourceTarget(target);
-    if (resourceTarget) {
-      return findExplorerFileEntryByResource(this.files, resourceTarget);
-    }
-
-    const fileId = normalizeFileId(target);
-    return fileId ? findExplorerImportEntryByFileId(this.files, fileId) : null;
+    return resourceTarget
+      ? findExplorerFileEntryByResource(this.files, resourceTarget)
+      : null;
   }
 
   protected override layoutBody(height: number, width: number): void {

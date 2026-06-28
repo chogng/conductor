@@ -305,7 +305,7 @@ export type FileSourceWorkflowOptions = {
   readonly onRemoveFiles: (fileIds: readonly string[]) => void;
   readonly onReplacePreparedFiles: (
     preparedFiles: readonly PreparedFileImport[],
-    selectedFileId: string | null,
+    selectedImportFileId: string | null,
   ) => void;
   readonly onReplacePendingSourceFiles?: (pendingFiles: readonly PendingImportFile[]) => void;
   readonly onFinishPendingSourceReplace?: () => void;
@@ -635,8 +635,8 @@ export class FileSourceWorkflow implements IDisposable {
                 return;
               }
 
-              const selectedFileId = preparedFiles[0]?.fileInfo.fileId ?? null;
-              this.options.onReplacePreparedFiles(preparedFiles, selectedFileId);
+              const selectedImportFileId = preparedFiles[0]?.fileInfo.fileId ?? null;
+              this.options.onReplacePreparedFiles(preparedFiles, selectedImportFileId);
               hasReplacedPreparedFiles = true;
             },
             pendingImportFiles,

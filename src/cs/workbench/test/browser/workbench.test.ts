@@ -60,7 +60,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     });
 
     assert.equal(input.selectionKind, "table");
-    assert.equal(input.selectedFileId, null);
+    assert.equal(input.selectedResource, null);
     assert.deepEqual(input.files, []);
     assert.deepEqual(input.quickAccessFiles, []);
     assert.deepEqual(input.thumbnailFiles, []);
@@ -70,7 +70,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     });
   });
 
-  test("keeps chart tree input on the stable raw file rows", () => {
+  test("does not project Session raw rows into chart tree input", () => {
     const session = store.add(new SessionService());
     commitRawFilesForTest(session, [
       {
@@ -112,8 +112,8 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     });
 
     assert.equal(input.selectionKind, "chart");
-    assert.equal(input.selectedFileId, null);
-    assert.deepEqual(input.files.map(file => file.fileId), ["file-a", "raw-only"]);
+    assert.equal(input.selectedResource, null);
+    assert.deepEqual(input.files.map(file => file.fileId), []);
     assert.deepEqual(input.thumbnailFiles.map(file => file.fileId), ["file-a"]);
     assert.equal(input.thumbnailPlotModelsByFileId, undefined);
     assert.equal(input.originOpenPlotOptions, DEFAULT_ORIGIN_PLOT_OPTIONS);
@@ -148,10 +148,10 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       .join("|");
     assert.equal(afterNextTemplateOutput, beforeNextTemplateOutput);
 
-    assert.equal(explorerService.selectedProcessedFileId, null);
+    assert.equal(explorerService.selectedResource, null);
   });
 
-  test("keeps chart selection on raw file ids before chart data is ready", () => {
+  test("does not keep chart selection from Session raw ids without Explorer URI rows", () => {
     const session = store.add(new SessionService());
     commitRawFilesForTest(session, [
       {
@@ -180,12 +180,6 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     const snapshot = session.getSnapshot();
     const sessionFacts = createSessionExplorerFacts(snapshot);
     const explorerService = store.add(new ExplorerService());
-    explorerService.select({
-      candidateFileIds: ["file-a", "raw-only"],
-      fileId: "raw-only",
-      kind: "chart",
-    });
-
     const input = createExplorerPaneInput({
       activePlotType: "iv",
       explorerService,
@@ -196,13 +190,13 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     });
 
     assert.equal(input.selectionKind, "chart");
-    assert.equal(input.selectedFileId, "raw-only");
-    assert.deepEqual(input.files.map(file => file.fileId), ["file-a", "raw-only"]);
-    assert.deepEqual(input.files.map(file => file.hasChartData), [true, false]);
-    assert.deepEqual(input.files.map(file => file.chartState), ["ready", "none"]);
+    assert.equal(input.selectedResource, null);
+    assert.deepEqual(input.files.map(file => file.fileId), []);
+    assert.deepEqual(input.files.map(file => file.hasChartData), []);
+    assert.deepEqual(input.files.map(file => file.chartState), []);
   });
 
-  test("uses chart slice states without Explorer badge fields", () => {
+  test("does not project slice states without Explorer URI rows", () => {
     const input = createExplorerPaneInput({
       activePlotType: "iv",
       explorerService: store.add(new ExplorerService()),
@@ -210,20 +204,6 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       plotService: createPlotService(),
       sessionFacts: {
         chartDataFileIds: [],
-        rawExplorerFiles: [
-          {
-            fileId: "unknown-file",
-            fileName: "Unknown.csv",
-          },
-          {
-            fileId: "failed-file",
-            fileName: "Failed.csv",
-          },
-          {
-            fileId: "queued-file",
-            fileName: "Queued.csv",
-          },
-        ],
         sessionFileIds: ["unknown-file", "failed-file", "queued-file"],
         thumbnailFiles: [],
       },
@@ -246,33 +226,10 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       }),
     });
 
-    assert.deepEqual(
-      input.files.map(file => ({
-        chartMessage: file.chartMessage,
-        chartState: file.chartState,
-        fileId: file.fileId,
-      })),
-      [
-        {
-          chartMessage: "Unknown.csv was skipped.",
-          chartState: "skipped",
-          fileId: "unknown-file",
-        },
-        {
-          chartMessage: "Failed.csv could not be sliced.",
-          chartState: "failed",
-          fileId: "failed-file",
-        },
-        {
-          chartMessage: null,
-          chartState: "queued",
-          fileId: "queued-file",
-        },
-      ],
-    );
+    assert.deepEqual(input.files, []);
   });
 
-  test("uses slice file states for chart state", () => {
+  test("does not project file-state-only Session rows into chart state", () => {
     const input = createExplorerPaneInput({
       activePlotType: "iv",
       explorerService: store.add(new ExplorerService()),
@@ -280,10 +237,6 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       plotService: createPlotService(),
       sessionFacts: {
         chartDataFileIds: [],
-        rawExplorerFiles: [{
-          fileId: "file-a",
-          fileName: "A.csv",
-        }],
         sessionFileIds: ["file-a"],
         thumbnailFiles: [],
       },
@@ -298,8 +251,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       }),
     });
 
-    assert.equal(input.files[0]?.chartState, "failed");
-    assert.equal(input.files[0]?.chartMessage, "Slice failed.");
+    assert.deepEqual(input.files, []);
   });
 
   test("creates chart thumbnail input from processed files", () => {
@@ -332,12 +284,6 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     const sessionFacts = createSessionExplorerFacts(snapshot);
     const explorerService = store.add(new ExplorerService());
     explorerService.setViewLayout("thumbnail");
-    explorerService.select({
-      candidateFileIds: ["file-a", "raw-only"],
-      fileId: "file-a",
-      kind: "table",
-    });
-
     const input = createExplorerPaneInput({
       activePlotType: "iv",
       explorerService,
@@ -350,15 +296,15 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     });
 
     assert.equal(input.selectionKind, "chart");
-    assert.equal(input.selectedFileId, "file-a");
-    assert.deepEqual(input.files.map(file => file.fileId), ["file-a"]);
-    assert.deepEqual(input.quickAccessFiles?.map(file => file.fileId), ["file-a", "raw-only"]);
+    assert.equal(input.selectedResource, null);
+    assert.deepEqual(input.files.map(file => file.fileId), []);
+    assert.deepEqual(input.quickAccessFiles?.map(file => file.fileId), []);
     assert.deepEqual(input.thumbnailFiles.map(file => file.fileId), ["file-a"]);
     assert.equal(input.thumbnailPlotModelsByFileId, undefined);
     assert.equal(input.originOpenPlotOptions, DEFAULT_ORIGIN_PLOT_OPTIONS);
     assert.deepEqual(input.plotAxisSettings, { x: { show: true } });
 
-    assert.equal(explorerService.selectedProcessedFileId, "file-a");
+    assert.equal(explorerService.selectedResource, null);
   });
 
   test("does not invent thumbnail selection outside the shared explorer selection", () => {
@@ -391,12 +337,6 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     const sessionFacts = createSessionExplorerFacts(snapshot);
     const explorerService = store.add(new ExplorerService());
     explorerService.setViewLayout("thumbnail");
-    explorerService.select({
-      candidateFileIds: ["file-a", "raw-only"],
-      fileId: "raw-only",
-      kind: "table",
-    });
-
     const input = createExplorerPaneInput({
       activePlotType: "iv",
       explorerService,
@@ -406,13 +346,12 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       sliceState: createSliceStateForTest(),
     });
 
-    assert.equal(input.selectedFileId, null);
-    assert.deepEqual(input.files.map(file => file.fileId), ["file-a"]);
-    assert.equal(explorerService.selectedRawFileId, "raw-only");
-    assert.equal(explorerService.selectedProcessedFileId, "raw-only");
+    assert.equal(input.selectedResource, null);
+    assert.deepEqual(input.files.map(file => file.fileId), []);
+    assert.equal(explorerService.selectedResource, null);
   });
 
-  test("keeps raw explorer rows free of review decoration fields", () => {
+  test("does not project Session raw rows into Explorer rows", () => {
     const session = store.add(new SessionService());
     commitRawFilesForTest(session, [
       {
@@ -446,22 +385,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       sliceState: createSliceStateForTest(),
     });
 
-    assert.deepEqual(
-      input.files.map(file => ({
-        fileId: file.fileId,
-      })),
-      [
-        {
-          fileId: "output-file",
-        },
-        {
-          fileId: "header-file",
-        },
-        {
-          fileId: "ready-file",
-        },
-      ],
-    );
+    assert.deepEqual(input.files, []);
   });
 
 });
@@ -492,29 +416,54 @@ suite("workbench/browser/workbench thumbnail prefetch gating", () => {
 suite("workbench/browser/WorkbenchDomainBridge", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-  test("prioritizes selected explorer files immediately for calculation and plot prefetch", () => {
+  test("prioritizes selected explorer URI files immediately for plot prefetch", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
+    const resource = URI.file("/data/B.csv");
     const prioritizedTemplateFileIds: string[] = [];
     const prioritizedCalculationFileIds: string[] = [];
-    const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
+    const plotDisplayPrefetches: Array<{
+      readonly fileIds: readonly string[];
+      readonly priority: string;
+      readonly targetResource?: string | null;
+      readonly targetSheetId?: string | null;
+    }> = [];
+    explorerService.updatePaneInput({
+      files: [{
+        fileId: "file-b",
+        fileName: "B.csv",
+        resource,
+      }],
+      mode: "chart",
+      selectedResource: null,
+      selectedSheetId: null,
+      selectionKind: "chart",
+      thumbnailFiles: [],
+    });
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
       plotDisplayPrefetches,
       prioritizedCalculationFileIds,
       prioritizedTemplateFileIds,
       session,
+      uriSliceTarget: { resource },
     }));
     try {
       explorerService.select({
-        fileId: "file-b",
+        candidateResources: [{ resource }],
         kind: "chart",
+        resource,
       });
 
       assert.deepEqual(prioritizedTemplateFileIds, []);
-      assert.deepEqual(prioritizedCalculationFileIds, ["file-b"]);
+      assert.deepEqual(prioritizedCalculationFileIds, []);
       assert.deepEqual(plotDisplayPrefetches, [
-        { fileIds: ["file-b"], priority: "active" },
+        {
+          fileIds: ["file-b"],
+          priority: "active",
+          targetResource: "file:///data/B.csv",
+          targetSheetId: null,
+        },
       ]);
     } finally {
       bridge.dispose();
@@ -551,12 +500,12 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
-  test("delegates legacy chart prewarm without reading Session in bridge", () => {
+  test("delegates visible chart prewarm without reading Session in bridge", () => {
     const session = store.add(new SessionService());
     let snapshotReads = 0;
     (session as unknown as { getSnapshot: () => never }).getSnapshot = () => {
       snapshotReads += 1;
-      throw new Error("Bridge plot prewarm should not read Session.");
+      throw new Error("Visible chart prewarm should not read Session.");
     };
     const explorerService = store.add(new ExplorerService());
     const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
@@ -605,7 +554,8 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
         resource: URI.file("/data/UriB.csv"),
       }],
       mode: "chart",
-      selectedFileId: "file-a",
+      selectedResource: null,
+      selectedSheetId: null,
       selectionKind: "chart",
       thumbnailFiles: [],
     });
@@ -693,7 +643,8 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
         resource: uriSliceTarget.resource,
       }],
       mode: "chart",
-      selectedFileId: "uri-a",
+      selectedResource: uriSliceTarget.resource,
+      selectedSheetId: null,
       selectionKind: "chart",
       thumbnailFiles: [],
     });
@@ -731,7 +682,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
-  test("reads performance trace legacy chart targets from Explorer pane input projection", () => {
+  test("reads performance trace chart targets from Explorer pane input projection", () => {
     const traceGlobal = globalThis as typeof globalThis & {
       __conductorTemplateApplyPerformanceTrace?: {
         targetApi?: {
@@ -762,7 +713,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     let snapshotReads = 0;
     (session as unknown as { getSnapshot: () => never }).getSnapshot = () => {
       snapshotReads += 1;
-      throw new Error("Trace legacy target enumeration should not read Session.");
+      throw new Error("Trace target enumeration should not read Session.");
     };
     const explorerService = store.add(new ExplorerService());
     explorerService.updatePaneInput({
@@ -773,7 +724,8 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
         hasChartData: true,
       }],
       mode: "chart",
-      selectedFileId: "file-a",
+      selectedResource: null,
+      selectedSheetId: null,
       selectionKind: "chart",
       thumbnailFiles: [],
     });
@@ -915,7 +867,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
-  test("keeps startup chart prewarm chart-main only when inspector pane is visible", () => {
+  test("does not startup prewarm chart-main from Session chart data", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
@@ -933,16 +885,14 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     try {
       bridge.sync();
 
-      assert.deepEqual(uniquePrefetches(plotDisplayPrefetches), [
-        { fileIds: ["file-a"], priority: "active" },
-      ]);
+      assert.deepEqual(uniquePrefetches(plotDisplayPrefetches), []);
       assert.deepEqual(uniquePrefetches(plotInspectorPrefetches), []);
     } finally {
       bridge.dispose();
     }
   });
 
-  test("delegates active legacy chart prewarm without snapshot input", () => {
+  test("does not delegate active chart prewarm without Explorer URI rows", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
@@ -963,17 +913,15 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     try {
       bridge.sync();
 
-      assert.deepEqual(uniquePrefetches(plotDisplayPrefetches), [
-        { fileIds: ["file-a"], priority: "active" },
-      ]);
-      assert.equal(plotDisplayPrefetchSnapshotFields.length > 0, true);
+      assert.deepEqual(uniquePrefetches(plotDisplayPrefetches), []);
+      assert.equal(plotDisplayPrefetchSnapshotFields.length > 0, false);
       assert.equal(plotDisplayPrefetchSnapshotFields.every(hasSnapshot => !hasSnapshot), true);
     } finally {
       bridge.dispose();
     }
   });
 
-  test("defers startup secondary state while opening table source immediately", async () => {
+  test("defers startup secondary state without opening Session table sources", async () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const chartViewInputs: Array<{ readonly activeFileId: string | null; readonly hasChartData?: boolean }> = [];
@@ -999,30 +947,45 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     try {
       bridge.sync({ deferSecondaryWork: true });
 
-      assert.deepEqual(tableSources.map(source => source?.resource?.toString() ?? null), ["file:///data/A.csv"]);
+      assert.deepEqual(tableSources.map(source => source?.resource?.toString() ?? null), [null]);
       assert.deepEqual(chartViewInputs, []);
 
       await new Promise(resolve => globalThis.setTimeout(resolve, 0));
 
       assert.deepEqual(chartViewInputs.at(-1), {
-        activeFileId: "file-a",
+        activeFileId: null,
         hasChartData: false,
       });
-      assert.equal(explorerService.getPaneInput()?.selectedFileId, "file-a");
+      assert.equal(explorerService.getPaneInput()?.selectedResource, null);
     } finally {
       bridge.dispose();
     }
   });
 
-  test("opens selected table sheet from projected Explorer resource row", () => {
+  test("opens selected table sheet from explicit Explorer resource row", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const tableSources: Array<TableSource | null> = [];
-    session.commitFileImport(createMultiRawTableImportResultForTest());
+    const resource = URI.file("/data/Workbook.xlsx");
+    explorerService.updatePaneInput({
+      files: [{
+        fileId: "file-a",
+        fileName: "Workbook.xlsx",
+        itemKey: "table-key-b",
+        resource,
+        sheetId: "table-key-b",
+      }],
+      mode: "table",
+      selectedResource: resource,
+      selectedSheetId: "table-key-b",
+      selectionKind: "table",
+      thumbnailFiles: [],
+    });
     explorerService.select({
-      fileId: "file-a",
+      candidateResources: [{ resource, sheetId: "table-key-b" }],
       kind: "table",
-      itemKey: "table-key-b",
+      resource,
+      sheetId: "table-key-b",
     });
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
@@ -1037,8 +1000,8 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       assert.equal(Object.prototype.hasOwnProperty.call(tableSources.at(-1) ?? {}, "fileId"), false);
       assert.equal(tableSources.at(-1)?.sheetId, "table-key-b");
       assert.equal(tableSources.at(-1)?.resource?.toString(), "file:///data/Workbook.xlsx");
-      assert.equal(explorerService.getPaneInput()?.selectedFileId, "file-a");
-      assert.equal(explorerService.getPaneInput()?.selectedItemKey, "table-key-b");
+      assert.equal(explorerService.getPaneInput()?.selectedResource?.toString(), "file:///data/Workbook.xlsx");
+      assert.equal(explorerService.getPaneInput()?.selectedSheetId, "table-key-b");
     } finally {
       bridge.dispose();
     }
@@ -1058,17 +1021,14 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
         resource,
       }],
       mode: "table",
-      selectedFileId: "local-a",
-      selectedItemKey: "local-source",
+      selectedResource: resource,
+      selectedSheetId: null,
       selectionKind: "table",
       thumbnailFiles: [],
     });
     explorerService.select({
-      candidateFileIds: ["local-a"],
-      candidateItemKeys: ["local-source"],
-      fileId: "local-a",
       kind: "table",
-      itemKey: "local-source",
+      resource,
     });
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
@@ -1084,9 +1044,8 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       assert.equal(tableSources.at(-1)?.resource?.toString(), "file:///data/Local.csv");
       assert.equal(tableSources.at(-1)?.sheetId, undefined);
       assert.deepEqual(session.getSnapshot().fileOrder, []);
-      assert.equal(explorerService.selectedRawFileId, "local-a");
-      assert.equal(explorerService.selectedRawItemKey, "local-source");
-      assert.equal(explorerService.getPaneInput()?.selectedFileId, "local-a");
+      assert.equal(explorerService.selectedResource?.toString(), "file:///data/Local.csv");
+      assert.equal(explorerService.getPaneInput()?.selectedResource?.toString(), "file:///data/Local.csv");
       assert.equal(explorerService.getPaneInput()?.files.at(-1)?.resource?.toString(), "file:///data/Local.csv");
     } finally {
       bridge.dispose();
@@ -1111,8 +1070,8 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
         resource,
       }],
       mode: "table",
-      selectedFileId: "local-a",
-      selectedItemKey: "local-source",
+      selectedResource: resource,
+      selectedSheetId: null,
       selectionKind: "table",
       thumbnailFiles: [],
     });
@@ -1130,14 +1089,13 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       assert.equal(snapshotReads, 0);
       assert.equal(tableSources.at(-1)?.resource?.toString(), "file:///data/Local.csv");
       assert.equal(tableSources.at(-1)?.sheetId, undefined);
-      assert.equal(explorerService.selectedRawFileId, "local-a");
-      assert.equal(explorerService.selectedRawItemKey, "local-source");
+      assert.equal(explorerService.selectedResource?.toString(), "file:///data/Local.csv");
     } finally {
       bridge.dispose();
     }
   });
 
-  test("prefers Explorer URI pane rows over Session raw table paths", () => {
+  test("opens Explorer URI pane rows regardless of Session raw table paths", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const tableSources: Array<TableSource | null> = [];
@@ -1149,21 +1107,22 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       rows: [],
       sourcePath: "/data/Session.csv",
     }]);
+    const resource = URI.file("/data/Uri.csv");
     explorerService.updatePaneInput({
       files: [{
         fileId: "file-a",
         fileName: "Uri.csv",
-        resource: URI.file("/data/Uri.csv"),
+        resource,
       }],
       mode: "table",
-      selectedFileId: "file-a",
+      selectedResource: resource,
+      selectedSheetId: null,
       selectionKind: "table",
       thumbnailFiles: [],
     });
     explorerService.select({
-      candidateFileIds: ["file-a"],
-      fileId: "file-a",
       kind: "table",
+      resource,
     });
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
@@ -1178,6 +1137,48 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       assert.equal(tableSources.at(-1)?.resource?.toString(), "file:///data/Uri.csv");
       assert.equal(explorerService.getPaneInput()?.files[0]?.fileName, "Uri.csv");
       assert.equal(explorerService.getPaneInput()?.files[0]?.resource?.toString(), "file:///data/Uri.csv");
+    } finally {
+      bridge.dispose();
+    }
+  });
+
+  test("keeps Explorer URI pane rows keyed by resource", () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+    const tableSources: Array<TableSource | null> = [];
+    const resource = URI.file("/data/Uri.csv");
+    explorerService.updatePaneInput({
+      files: [{
+        fileId: "local-file-a",
+        fileName: "Uri.csv",
+        resource,
+      }],
+      mode: "table",
+      selectedResource: resource,
+      selectedSheetId: null,
+      selectionKind: "table",
+      thumbnailFiles: [],
+    });
+    explorerService.select({
+      kind: "table",
+      resource,
+    });
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      explorerService,
+      prioritizedCalculationFileIds: [],
+      prioritizedTemplateFileIds: [],
+      session,
+      tableSources,
+    }));
+    try {
+      bridge.sync();
+
+      const files = explorerService.getPaneInput()?.files ?? [];
+      assert.equal(files.length, 1);
+      assert.equal(files[0]?.fileId, "local-file-a");
+      assert.equal(files[0]?.resource?.toString(), "file:///data/Uri.csv");
+      assert.equal(explorerService.getPaneInput()?.selectedResource?.toString(), "file:///data/Uri.csv");
+      assert.equal(tableSources.at(-1)?.resource?.toString(), "file:///data/Uri.csv");
     } finally {
       bridge.dispose();
     }
@@ -1212,15 +1213,15 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
         sheetId: "sheet-a",
       }],
       mode: "chart",
-      selectedFileId: "resource-file-a",
-      selectedItemKey: null,
+      selectedResource: resource,
+      selectedSheetId: "sheet-a",
       selectionKind: "chart",
       thumbnailFiles: [],
     });
     explorerService.select({
-      candidateFileIds: ["resource-file-a"],
-      fileId: "resource-file-a",
       kind: "chart",
+      resource,
+      sheetId: "sheet-a",
     });
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       chartViewInputs,
@@ -1272,14 +1273,14 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
         resource,
       }],
       mode: "chart",
-      selectedFileId: "file-a",
+      selectedResource: resource,
+      selectedSheetId: null,
       selectionKind: "chart",
       thumbnailFiles: [],
     });
     explorerService.select({
-      candidateFileIds: ["file-a"],
-      fileId: "file-a",
       kind: "chart",
+      resource,
     });
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       chartFileOptionInputs,
@@ -1324,21 +1325,22 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       }],
       xGroups: [[0, 1]],
     });
+    const resource = URI.file("/data/Uri.csv");
     explorerService.updatePaneInput({
       files: [{
         fileId: "file-a",
         fileName: "Uri.csv",
-        resource: URI.file("/data/Uri.csv"),
+        resource,
       }],
       mode: "chart",
-      selectedFileId: "file-a",
+      selectedResource: resource,
+      selectedSheetId: null,
       selectionKind: "chart",
       thumbnailFiles: [],
     });
     explorerService.select({
-      candidateFileIds: ["file-a"],
-      fileId: "file-a",
       kind: "chart",
+      resource,
     });
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       chartViewInputs,
@@ -1386,14 +1388,15 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
         sheetId: "sheet-a",
       }],
       mode: "chart",
-      selectedFileId: "resource-file-a",
+      selectedResource: resource,
+      selectedSheetId: "sheet-a",
       selectionKind: "chart",
       thumbnailFiles: [],
     });
     explorerService.select({
-      candidateFileIds: ["resource-file-a"],
-      fileId: "resource-file-a",
       kind: "chart",
+      resource,
+      sheetId: "sheet-a",
     });
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       chartViewInputs,
@@ -1448,14 +1451,15 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
         sheetId: "sheet-a",
       }],
       mode: "chart",
-      selectedFileId: "resource-file-a",
+      selectedResource: resource,
+      selectedSheetId: "sheet-a",
       selectionKind: "chart",
       thumbnailFiles: [],
     });
     explorerService.select({
-      candidateFileIds: ["resource-file-a"],
-      fileId: "resource-file-a",
       kind: "chart",
+      resource,
+      sheetId: "sheet-a",
     });
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       chartViewInputs,
@@ -1502,7 +1506,8 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
         resource: URI.file("/data/B.csv"),
       }],
       mode: "chart",
-      selectedFileId: "resource-file-a",
+      selectedResource: resourceA,
+      selectedSheetId: null,
       selectionKind: "chart",
       thumbnailFiles: [],
     });
@@ -1623,6 +1628,8 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const chartActiveFileIds: (string | null)[] = [];
+    const resourceA = URI.file("/data/A.csv");
+    const resourceB = URI.file("/data/B.csv");
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       chartActiveFileIds,
       explorerService,
@@ -1631,48 +1638,32 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       session,
     }));
     try {
-      commitRawFilesForTest(session, [
-        {
-          columnCount: 2,
-          fileId: "file-a",
-          fileName: "A.csv",
-          rowCount: 2,
-          rows: [],
-        },
-        {
-          columnCount: 2,
-          fileId: "file-b",
-          fileName: "B.csv",
-          rowCount: 2,
-          rows: [],
-        },
-      ]);
-      commitTemplateOutputForTest(session, {
-        fileId: "file-a",
-        fileName: "A.csv",
-        series: [{
-          groupIndex: 0,
-          id: "series-a",
-          y: [1, 2],
-        }],
-        xGroups: [[0, 1]],
-      });
-      commitTemplateOutputForTest(session, {
-        fileId: "file-b",
-        fileName: "B.csv",
-        series: [{
-          groupIndex: 0,
-          id: "series-b",
-          y: [1, 2],
-        }],
-        xGroups: [[0, 1]],
+      explorerService.updatePaneInput({
+        files: [
+          {
+            fileId: "file-a",
+            fileName: "A.csv",
+            resource: resourceA,
+          },
+          {
+            fileId: "file-b",
+            fileName: "B.csv",
+            resource: resourceB,
+          },
+        ],
+        mode: "chart",
+        selectedResource: resourceA,
+        selectedSheetId: null,
+        selectionKind: "chart",
+        thumbnailFiles: [],
       });
       explorerService.setPendingSourceFiles(true);
       assert.equal(scheduledFrames.length, 1);
 
       explorerService.select({
-        fileId: "file-b",
+        candidateResources: [{ resource: resourceA }, { resource: resourceB }],
         kind: "chart",
+        resource: resourceB,
       });
       await Promise.resolve();
 
@@ -1689,31 +1680,26 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const chartViewInputs: Array<{ readonly activeFileId: string | null; readonly hasChartData?: boolean }> = [];
-    commitRawFilesForTest(session, [
-      {
-        columnCount: 2,
-        fileId: "file-a",
-        fileName: "A.csv",
-        rowCount: 2,
-        rows: [],
-      },
-      {
-        columnCount: 2,
-        fileId: "file-b",
-        fileName: "B.csv",
-        rowCount: 2,
-        rows: [],
-      },
-    ]);
-    commitTemplateOutputForTest(session, {
-      fileId: "file-a",
-      fileName: "A.csv",
-      series: [{
-        groupIndex: 0,
-        id: "series-a",
-        y: [1, 2],
-      }],
-      xGroups: [[0, 1]],
+    const resourceA = URI.file("/data/A.csv");
+    const resourceB = URI.file("/data/B.csv");
+    explorerService.updatePaneInput({
+      files: [
+        {
+          fileId: "file-a",
+          fileName: "A.csv",
+          resource: resourceA,
+        },
+        {
+          fileId: "file-b",
+          fileName: "B.csv",
+          resource: resourceB,
+        },
+      ],
+      mode: "chart",
+      selectedResource: resourceA,
+      selectedSheetId: null,
+      selectionKind: "chart",
+      thumbnailFiles: [],
     });
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       chartViewInputs,
@@ -1724,8 +1710,9 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }));
     try {
       explorerService.select({
-        fileId: "file-b",
+        candidateResources: [{ resource: resourceA }, { resource: resourceB }],
         kind: "chart",
+        resource: resourceB,
       });
       await Promise.resolve();
 

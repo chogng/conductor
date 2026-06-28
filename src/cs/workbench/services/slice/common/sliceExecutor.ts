@@ -3,15 +3,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type {
-	BaseCurveFamily,
-	CurveKey,
-	ItCurveMode,
-	IvCurveMode,
-} from "src/cs/workbench/services/session/common/sessionModel";
-import type {
 	SliceExecutionCurveRecord,
 	SliceExecutionResult,
 	SliceExecutionSeriesRecord,
+	SliceBaseCurveFamily,
+	SliceCurveKey,
+	SliceItCurveMode,
+	SliceIvCurveMode,
 	SlicePlan,
 } from "src/cs/workbench/services/slice/common/slice";
 
@@ -124,9 +122,9 @@ const createBaseCurve = ({
 	seriesId,
 	templateFingerprint,
 }: {
-	readonly curveFamily: BaseCurveFamily;
-	readonly itMode?: ItCurveMode | null;
-	readonly ivMode?: IvCurveMode | null;
+	readonly curveFamily: SliceBaseCurveFamily;
+	readonly itMode?: SliceItCurveMode | null;
+	readonly ivMode?: SliceIvCurveMode | null;
 	readonly points: Array<{ readonly x: number; readonly y: number }>;
 	readonly seriesId: string;
 	readonly templateFingerprint: string;
@@ -149,7 +147,7 @@ const createBaseCurve = ({
 	signature: `slice:${templateFingerprint}:${seriesId}:${points.length}`,
 });
 
-const createCurveRecordKey = (curve: SliceExecutionCurveRecord): CurveKey => {
+const createCurveRecordKey = (curve: SliceExecutionCurveRecord): SliceCurveKey => {
 	if (curve.curveGeneration !== "base") {
 		throw new Error("Slice executor only emits base curves.");
 	}
@@ -159,7 +157,7 @@ const createCurveRecordKey = (curve: SliceExecutionCurveRecord): CurveKey => {
 		: curve.curveFamily === "it"
 			? curve.itMode ?? "default"
 			: "default";
-	return `base:${curve.curveFamily}:${mode}:${curve.seriesId}` as CurveKey;
+	return `base:${curve.curveFamily}:${mode}:${curve.seriesId}` as SliceCurveKey;
 };
 
 const createSliceSeriesId = (

@@ -1,6 +1,7 @@
 import assert from "assert";
 
 import { isWindows } from "../../../../../base/common/platform.ts";
+import { URI } from "../../../../../base/common/uri.ts";
 import { CommandsRegistry } from "../../../../../platform/commands/common/commands.ts";
 import type { ServicesAccessor, ServiceIdentifier } from "../../../../../platform/instantiation/common/instantiation.ts";
 import { INativeHostService } from "../../../../../platform/native/common/native.ts";
@@ -16,32 +17,37 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
   test("reveal in OS command resolves Explorer file paths", () => {
     const explorerService = store.add(new ExplorerService());
+    const sourceResource = URI.file("C:/data/source.csv");
+    const normalizedResource = URI.file("C:/tmp/normalized.csv");
     explorerService.updatePaneInput({
       files: [
         {
           fileId: "source-file",
           fileName: "source.csv",
+          resource: sourceResource,
           sourcePath: "C:/data/source.csv",
         },
         {
           fileId: "normalized-file",
           fileName: "normalized.csv",
+          resource: normalizedResource,
           normalizedCsvPath: "C:/tmp/normalized.csv",
         },
       ],
       mode: "table",
-      selectedFileId: "source-file",
+      selectedResource: sourceResource,
+      selectedSheetId: null,
       selectionKind: "table",
       thumbnailFiles: [],
     });
 
     const sourceResources = resolveRevealResources(
       createAccessor([[IExplorerService, explorerService]]),
-      "source-file",
+      { resource: sourceResource },
     );
     const normalizedResources = resolveRevealResources(
       createAccessor([[IExplorerService, explorerService]]),
-      "normalized-file",
+      { resource: normalizedResource },
     );
 
     assert.equal(sourceResources.length, 1);
@@ -52,14 +58,17 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
 
   test("registered reveal in OS command delegates to native host", () => {
     const explorerService = store.add(new ExplorerService());
+    const resource = URI.file("C:/data/file.csv");
     explorerService.updatePaneInput({
       files: [{
         fileId: "file-1",
         fileName: "file.csv",
+        resource,
         sourcePath: "C:/data/file.csv",
       }],
       mode: "table",
-      selectedFileId: "file-1",
+      selectedResource: resource,
+      selectedSheetId: null,
       selectionKind: "table",
       thumbnailFiles: [],
     });
@@ -76,7 +85,7 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
       [INativeHostService, nativeHostService],
     ]);
 
-    CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND_ID)?.handler(accessor, "file-1");
+    CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND_ID)?.handler(accessor, { resource });
 
     assert.equal(revealedPath, toExpectedFsPath("C:/data/file.csv"));
     assert.ok(CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND_ID));
@@ -84,25 +93,29 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
 
   test("registered rename command enters Explorer editable state", () => {
     const explorerService = store.add(new ExplorerService());
+    const resource = URI.file("C:/data/file.csv");
     explorerService.updatePaneInput({
       files: [{
         fileId: "file-1",
         fileName: "file.csv",
+        resource,
       }],
       mode: "table",
-      selectedFileId: "file-1",
+      selectedResource: resource,
+      selectedSheetId: null,
       selectionKind: "table",
       thumbnailFiles: [],
     });
     const accessor = createAccessor([[IExplorerService, explorerService]]);
 
-    CommandsRegistry.getCommand(RENAME_FILE_ITEM_COMMAND_ID)?.handler(accessor, "file-1");
+    CommandsRegistry.getCommand(RENAME_FILE_ITEM_COMMAND_ID)?.handler(accessor, { resource });
 
     assert.deepEqual(explorerService.getContext().editable, {
       isEditing: true,
       resource: {
-        fileId: "file-1",
         kind: "table",
+        resource,
+        sheetId: null,
       },
     });
   });

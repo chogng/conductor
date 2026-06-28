@@ -17,12 +17,12 @@ import {
   collectFolderImportFiles,
   collectPendingImportFiles,
   FileSourceWorkflow,
+  FolderImportSourceCollector,
   getPendingImportAppendBatchSize,
   getPendingImportPrepareConcurrency,
   getFolderImportSupportForFileService,
   prepareFirstPendingImportFile,
   prepareRemainingPendingImportFiles,
-  TableResourceImporter,
   type FileImportPrepareFailure,
   type FileSource,
   type PendingImportFile,
@@ -260,6 +260,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       children: [
         createFileHandle("transfer.csv", "Vg,Id\n0,1"),
         createFileHandle("notes.txt", "not a table"),
+        createFileHandle("legacy.xls", "legacy workbook"),
       ],
       name: "selected-folder",
     });
@@ -280,12 +281,15 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
 
     const result = await collectFolderImportFiles(folder, filesService);
 
-    assert.deepEqual(result.files.map(file => file.relativePath), ["selected-folder/transfer.csv"]);
+    assert.deepEqual(result.files.map(file => file.relativePath), [
+      "selected-folder/transfer.csv",
+      "selected-folder/legacy.xls",
+    ]);
     assert.equal(result.readFailures.length, 0);
     assert.equal(unsupportedStatCount, 0);
   });
 
-  test("TableResourceImporter delegates table support checks to format service", async () => {
+  test("FolderImportSourceCollector delegates table support checks to format service", async () => {
     const root = createDirectoryHandle({
       children: [
         createFileHandle("transfer.csv", "Vg,Id\n0,1"),
@@ -298,10 +302,10 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     store.add(filesService.registerProvider("file", provider));
     const folder = await provider.registerDirectoryHandle(root);
     const formatService = new RecordingTableFormatService();
-    const result = await new TableResourceImporter(
+    const result = await new FolderImportSourceCollector(
       filesService,
       formatService,
-    ).importFolder(folder);
+    ).collect(folder);
 
     assert.deepEqual(result.files.map(file => file.relativePath), ["selected-folder/transfer.csv"]);
     assert.deepEqual([...formatService.checkedNames].sort(), ["notes.txt", "transfer.csv"]);
@@ -575,10 +579,12 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
   test("collectPendingImportFiles keeps unsupported source guard", () => {
     const result = collectPendingImportFiles([
       createDataFileSource("notes.txt"),
+      createDataFileSource("legacy.xls"),
     ]);
 
     assert.equal(result.hasAnyUnsupportedFiles, true);
-    assert.equal(result.pendingImportFiles.length, 0);
+    assert.equal(result.pendingImportFiles.length, 1);
+    assert.equal(result.pendingImportFiles[0]?.sourceName, "legacy.xls");
     assert.equal(result.unsupportedCount, 1);
   });
 

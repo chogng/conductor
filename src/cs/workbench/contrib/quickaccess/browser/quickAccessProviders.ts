@@ -6,6 +6,9 @@ import {
   IExplorerService,
   type ExplorerPaneInput,
 } from "src/cs/workbench/contrib/files/browser/files";
+import {
+  getExplorerFileResourceIdentity,
+} from "src/cs/workbench/contrib/files/common/explorerModel";
 import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import { COMMANDS_QUICK_ACCESS_PREFIX } from "src/cs/workbench/contrib/quickaccess/browser/commandsQuickAccess";
 
@@ -52,12 +55,15 @@ export class FilesQuickAccessProvider extends PickerQuickAccessProvider<QuickAcc
     }
 
     const files = getQuickAccessFiles(paneInput);
-    const candidateFileIds = getCandidateFileIds(files);
+    const candidateResources = files
+      .map(getExplorerFileResourceIdentity)
+      .filter((target): target is NonNullable<typeof target> => Boolean(target));
     const normalizedFilter = filter.trim().toLowerCase();
     return files
       .map(file => {
         const fileId = normalizeFileId(file.fileId);
-        if (!fileId) {
+        const target = getExplorerFileResourceIdentity(file);
+        if (!fileId || !target) {
           return null;
         }
 
@@ -65,9 +71,10 @@ export class FilesQuickAccessProvider extends PickerQuickAccessProvider<QuickAcc
         const item: QuickAccessItem = {
           accept: () => {
             this.explorerService.select({
-              candidateFileIds,
-              fileId,
+              candidateResources,
               kind: selectionKind,
+              resource: target.resource,
+              sheetId: target.sheetId ?? null,
             }, "force");
           },
           description: getFileDescription(file),
@@ -85,13 +92,6 @@ const getQuickAccessFiles = (
   paneInput: ExplorerPaneInput,
 ): ExplorerPaneInput["files"] =>
   paneInput.quickAccessFiles?.length ? paneInput.quickAccessFiles : paneInput.files;
-
-const getCandidateFileIds = (
-  files: ExplorerPaneInput["files"],
-): readonly string[] =>
-  files
-    .map(file => normalizeFileId(file.fileId))
-    .filter((fileId): fileId is string => Boolean(fileId));
 
 const normalizeFileId = (fileId: unknown): string | null => {
   const normalized = String(fileId ?? "").trim();

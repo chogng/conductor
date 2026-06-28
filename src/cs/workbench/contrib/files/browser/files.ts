@@ -4,6 +4,7 @@
 
 import type { Event } from "src/cs/base/common/event";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
+import type { URI } from "src/cs/base/common/uri";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
 import type {
@@ -39,8 +40,8 @@ export type ExplorerPaneInput = {
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly quickAccessFiles?: ExplorerFileEntry[];
-  readonly selectedFileId: string | null;
-  readonly selectedItemKey?: string | null;
+  readonly selectedResource: URI | null;
+  readonly selectedSheetId?: string | null;
   readonly selectionKind: ExplorerSelectionKind;
   readonly thumbnailFiles: ExplorerThumbnailFile[];
   readonly thumbnailPlotModelsByFileId?: Readonly<Record<string, ExplorerThumbnailPlotModel>>;
@@ -48,8 +49,8 @@ export type ExplorerPaneInput = {
 
 export type ExplorerSelectionChangeEvent = {
   readonly kind: ExplorerSelectionKind;
-  readonly selectedFileId: string | null;
-  readonly selectedItemKey?: string | null;
+  readonly selectedResource: URI | null;
+  readonly selectedSheetId?: string | null;
 };
 
 export type ExplorerFolderExpansionChangeEvent = {
@@ -67,19 +68,16 @@ export type ExplorerHoveredFileChangeEvent = {
 
 export type ExplorerSelectionTarget = {
   readonly kind: ExplorerSelectionKind;
-  readonly fileId: string | null;
-  readonly candidateFileIds?: readonly string[];
-  readonly candidateItemKeys?: readonly string[];
-  readonly itemKey?: string | null;
+  readonly resource: URI | null;
+  readonly candidateResources?: readonly ExplorerResourceTarget[];
+  readonly sheetId?: string | null;
 };
 
 export type ExplorerRevealMode = boolean | "force";
 
 export type ExplorerContext = {
-  readonly selectedRawFileId: string | null;
-  readonly selectedRawItemKey: string | null;
-  readonly selectedProcessedFileId: string | null;
-  readonly selectedProcessedItemKey: string | null;
+  readonly selectedResource: URI | null;
+  readonly selectedSheetId: string | null;
   readonly hoveredFileId: string | null;
   readonly expandedFolderKeys: readonly string[];
   readonly viewLayout: ExplorerViewLayout;
@@ -97,6 +95,11 @@ export type ExplorerCopyState = {
   readonly isCut: boolean;
 };
 
+export type ExplorerResourceTarget = {
+  readonly resource: URI | null;
+  readonly sheetId?: string | null;
+};
+
 export interface IExplorerView {
   selectResource?(target: ExplorerSelectionTarget, reveal?: ExplorerRevealMode): void;
   refresh?(): void;
@@ -106,10 +109,8 @@ export interface IExplorerService {
   readonly _serviceBrand: undefined;
 
   readonly hasPendingSourceFiles: boolean;
-  readonly selectedRawFileId: string | null;
-  readonly selectedRawItemKey: string | null;
-  readonly selectedProcessedFileId: string | null;
-  readonly selectedProcessedItemKey: string | null;
+  readonly selectedResource: URI | null;
+  readonly selectedSheetId: string | null;
   readonly hoveredFileId: string | null;
   readonly expandedFolderKeys: readonly string[];
   readonly viewLayout: ExplorerViewLayout;
@@ -123,7 +124,7 @@ export interface IExplorerService {
 
   getContext(): ExplorerContext;
   registerView(view: IExplorerView): IDisposable;
-  select(target: ExplorerSelectionTarget, reveal?: ExplorerRevealMode): string | null;
+  select(target: ExplorerSelectionTarget, reveal?: ExplorerRevealMode): ExplorerResourceTarget | null;
   setEditable(data: ExplorerEditableData | null): void;
   setToCopy(resources: readonly ExplorerSelectionTarget[], isCut: boolean): void;
   applyBulkEdit(): Promise<void>;

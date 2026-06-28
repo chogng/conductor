@@ -4,6 +4,7 @@
 
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable, toDisposable } from "src/cs/base/common/lifecycle";
+import { URI } from "src/cs/base/common/uri";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
   IExplorerService,
@@ -15,6 +16,7 @@ import {
   type ExplorerCopyState,
   type ExplorerEditableData,
   type ExplorerRevealMode,
+  type ExplorerResourceTarget,
   type ExplorerSelectionKind,
   type ExplorerSelectionTarget,
   type IExplorerView,
@@ -24,6 +26,7 @@ import {
   getTemplateSelectionTemplateId,
   type TemplateSelection,
 } from "src/cs/workbench/services/slice/common/templateSelection";
+import { getExplorerResourceIdentityKey } from "src/cs/workbench/contrib/files/common/explorerModel";
 
 export class ExplorerService extends Disposable implements IExplorerService {
   public declare readonly _serviceBrand: undefined;
@@ -43,8 +46,8 @@ export class ExplorerService extends Disposable implements IExplorerService {
   private readonly onDidChangePaneInputEmitter = this._register(new Emitter<void>());
   public readonly onDidChangePaneInput = this.onDidChangePaneInputEmitter.event;
 
-  private currentSelectedFileId: string | null = null;
-  private currentSelectedItemKey: string | null = null;
+  private currentSelectedResource: URI | null = null;
+  private currentSelectedSheetId: string | null = null;
   private currentHoveredFileId: string | null = null;
   private currentExpandedFolderKeys: readonly string[] = [];
   private knownFolderKeys: readonly string[] = [];
@@ -60,24 +63,16 @@ export class ExplorerService extends Disposable implements IExplorerService {
     resources: [],
   };
 
-  public get selectedRawFileId(): string | null {
-    return this.currentSelectedFileId;
+  public get selectedResource(): URI | null {
+    return this.currentSelectedResource;
   }
 
-  public get selectedRawItemKey(): string | null {
-    return this.currentSelectedItemKey;
+  public get selectedSheetId(): string | null {
+    return this.currentSelectedSheetId;
   }
 
   public get hasPendingSourceFiles(): boolean {
     return this.currentHasPendingSourceFiles;
-  }
-
-  public get selectedProcessedFileId(): string | null {
-    return this.currentSelectedFileId;
-  }
-
-  public get selectedProcessedItemKey(): string | null {
-    return this.currentSelectedItemKey;
   }
 
   public get hoveredFileId(): string | null {
@@ -97,10 +92,8 @@ export class ExplorerService extends Disposable implements IExplorerService {
       editable: this.editable,
       expandedFolderKeys: this.currentExpandedFolderKeys,
       hoveredFileId: this.currentHoveredFileId,
-      selectedProcessedFileId: this.selectedProcessedFileId,
-      selectedProcessedItemKey: this.selectedProcessedItemKey,
-      selectedRawFileId: this.selectedRawFileId,
-      selectedRawItemKey: this.selectedRawItemKey,
+      selectedResource: this.selectedResource,
+      selectedSheetId: this.selectedSheetId,
       toCopy: this.toCopy,
       viewLayout: this.currentViewLayout,
     };
@@ -113,20 +106,25 @@ export class ExplorerService extends Disposable implements IExplorerService {
     });
   }
 
-  public select(target: ExplorerSelectionTarget, reveal?: ExplorerRevealMode): string | null {
+  public select(target: ExplorerSelectionTarget, reveal?: ExplorerRevealMode): ExplorerResourceTarget | null {
     const result = this.applySelection(target);
     if (result.accepted && (result.changed || reveal !== undefined)) {
-      const { itemKey: _itemKey, ...targetWithoutItemKey } = target;
+      const { sheetId: _sheetId, ...targetWithoutSheetId } = target;
       const acceptedTarget: ExplorerSelectionTarget = {
-        ...targetWithoutItemKey,
-        fileId: result.selectedFileId,
-        ...(result.selectedItemKey ? { itemKey: result.selectedItemKey } : {}),
+        ...targetWithoutSheetId,
+        resource: result.selectedResource,
+        ...(result.selectedSheetId ? { sheetId: result.selectedSheetId } : {}),
       };
       for (const view of this.views) {
         view.selectResource?.(acceptedTarget, reveal);
       }
     }
-    return result.selectedFileId;
+    return result.selectedResource
+      ? {
+          resource: result.selectedResource,
+          ...(result.selectedSheetId ? { sheetId: result.selectedSheetId } : {}),
+        }
+      : null;
   }
 
   public setEditable(data: ExplorerEditableData | null): void {
@@ -254,72 +252,64 @@ export class ExplorerService extends Disposable implements IExplorerService {
   private applySelection(target: ExplorerSelectionTarget): {
     readonly accepted: boolean;
     readonly changed: boolean;
-    readonly selectedFileId: string | null;
-    readonly selectedItemKey: string | null;
+    readonly selectedResource: URI | null;
+    readonly selectedSheetId: string | null;
   } {
-    const nextFileId = normalizeExplorerFileId(target.fileId);
-    const nextItemKey = normalizeExplorerItemKey(target.itemKey);
-    if (nextFileId && target.candidateFileIds) {
-      const candidates = getNormalizedExplorerFileIds(target.candidateFileIds);
-      if (!candidates.includes(nextFileId)) {
+    const nextResource = normalizeExplorerResource(target.resource);
+    const nextSheetId = normalizeExplorerSheetId(target.sheetId);
+    if (nextResource && target.candidateResources) {
+      const candidates = new Set(target.candidateResources.map(getExplorerResourceIdentityKey).filter(Boolean));
+      if (!candidates.has(getExplorerResourceIdentityKey({ resource: nextResource, sheetId: nextSheetId }))) {
         return {
           accepted: false,
           changed: false,
-          selectedFileId: this.getSelectedFileId(),
-          selectedItemKey: this.currentSelectedItemKey,
-        };
-      }
-    }
-    if (nextItemKey && target.candidateItemKeys) {
-      const candidates = getNormalizedExplorerItemKeys(target.candidateItemKeys);
-      if (!candidates.includes(nextItemKey)) {
-        return {
-          accepted: false,
-          changed: false,
-          selectedFileId: this.getSelectedFileId(),
-          selectedItemKey: this.currentSelectedItemKey,
+          selectedResource: this.getSelectedResource(),
+          selectedSheetId: this.currentSelectedSheetId,
         };
       }
     }
 
-    const result = this.setSelectedTarget(nextFileId, nextItemKey);
+    const result = this.setSelectedTarget(nextResource, nextSheetId);
     this.fireSelectionChange(target.kind, result);
     return {
       accepted: true,
       changed: result.changed,
-      selectedFileId: result.selectedFileId,
-      selectedItemKey: result.selectedItemKey,
+      selectedResource: result.selectedResource,
+      selectedSheetId: result.selectedSheetId,
     };
   }
 
-  private getSelectedFileId(): string | null {
-    return this.currentSelectedFileId;
+  private getSelectedResource(): URI | null {
+    return this.currentSelectedResource;
   }
 
-  private setSelectedTarget(fileId: string | null, itemKey: string | null): {
+  private setSelectedTarget(resource: URI | null, sheetId: string | null): {
     readonly changed: boolean;
-    readonly selectedFileId: string | null;
-    readonly selectedItemKey: string | null;
+    readonly selectedResource: URI | null;
+    readonly selectedSheetId: string | null;
   } {
-    const nextFileId = normalizeExplorerFileId(fileId);
-    const nextItemKey = normalizeExplorerItemKey(itemKey);
-    const currentFileId = this.getSelectedFileId();
-    const currentItemKey = this.currentSelectedItemKey;
-    if (currentFileId === nextFileId && currentItemKey === nextItemKey) {
+    const nextResource = normalizeExplorerResource(resource);
+    const nextSheetId = normalizeExplorerSheetId(sheetId);
+    const currentResource = this.getSelectedResource();
+    const currentSheetId = this.currentSelectedSheetId;
+    if (
+      areExplorerResourcesEqual(currentResource, nextResource) &&
+      currentSheetId === nextSheetId
+    ) {
       return {
         changed: false,
-        selectedFileId: nextFileId,
-        selectedItemKey: nextItemKey,
+        selectedResource: nextResource,
+        selectedSheetId: nextSheetId,
       };
     }
 
-    this.currentSelectedFileId = nextFileId;
-    this.currentSelectedItemKey = nextItemKey;
+    this.currentSelectedResource = nextResource;
+    this.currentSelectedSheetId = nextSheetId;
 
     return {
       changed: true,
-      selectedFileId: nextFileId,
-      selectedItemKey: nextItemKey,
+      selectedResource: nextResource,
+      selectedSheetId: nextSheetId,
     };
   }
 
@@ -327,8 +317,8 @@ export class ExplorerService extends Disposable implements IExplorerService {
     kind: ExplorerSelectionKind,
     result: {
       readonly changed: boolean;
-      readonly selectedFileId: string | null;
-      readonly selectedItemKey: string | null;
+      readonly selectedResource: URI | null;
+      readonly selectedSheetId: string | null;
     },
   ): void {
     if (!result.changed) {
@@ -337,8 +327,8 @@ export class ExplorerService extends Disposable implements IExplorerService {
 
     this.onDidChangeSelectionEmitter.fire({
       kind,
-      selectedFileId: result.selectedFileId,
-      ...(result.selectedItemKey ? { selectedItemKey: result.selectedItemKey } : {}),
+      selectedResource: result.selectedResource,
+      ...(result.selectedSheetId ? { selectedSheetId: result.selectedSheetId } : {}),
     });
   }
 
@@ -407,31 +397,16 @@ const getNormalizedExplorerFileIds = (
   return result;
 };
 
-const getNormalizedExplorerItemKeys = (
-  itemKeys: readonly string[],
-): readonly string[] => {
-  const result: string[] = [];
-  const seen = new Set<string>();
-  for (const itemKey of itemKeys) {
-    const normalized = normalizeExplorerItemKey(itemKey);
-    if (!normalized || seen.has(normalized)) {
-      continue;
-    }
-
-    seen.add(normalized);
-    result.push(normalized);
-  }
-
-  return result;
-};
-
 const normalizeExplorerFileId = (fileId: unknown): string | null => {
   const normalized = String(fileId ?? "").trim();
   return normalized || null;
 };
 
-const normalizeExplorerItemKey = (itemKey: unknown): string | null => {
-  const normalized = String(itemKey ?? "").trim();
+const normalizeExplorerResource = (resource: URI | null | undefined): URI | null =>
+  resource ? URI.revive(resource) ?? null : null;
+
+const normalizeExplorerSheetId = (sheetId: unknown): string | null => {
+  const normalized = String(sheetId ?? "").trim();
   return normalized || null;
 };
 
@@ -441,8 +416,8 @@ const isSameExplorerPaneInput = (
 ): boolean =>
   current.activePlotType === next.activePlotType &&
   current.mode === next.mode &&
-  current.selectedFileId === next.selectedFileId &&
-  current.selectedItemKey === next.selectedItemKey &&
+  areExplorerResourcesEqual(current.selectedResource, next.selectedResource) &&
+  current.selectedSheetId === next.selectedSheetId &&
   current.selectionKind === next.selectionKind &&
   areTemplateSelectionsEqual(
     current.fileTemplateSelectionsByFileId ?? {},
@@ -491,8 +466,8 @@ const isSameExplorerEditableData = (
 ): boolean =>
   current?.isEditing === next?.isEditing &&
   current?.resource.kind === next?.resource.kind &&
-  current?.resource.fileId === next?.resource.fileId &&
-  current?.resource.itemKey === next?.resource.itemKey;
+  areExplorerResourcesEqual(current?.resource.resource, next?.resource.resource) &&
+  current?.resource.sheetId === next?.resource.sheetId;
 
 const areExplorerFilesEqual = (
   current: ExplorerPaneInput["files"],
@@ -507,14 +482,31 @@ const areExplorerFilesEqual = (
       file.fileName === nextFile.fileName &&
       file.hasChartData === nextFile.hasChartData &&
       file.itemKey === nextFile.itemKey &&
+      file.localImport === nextFile.localImport &&
       file.normalizedCsvPath === nextFile.normalizedCsvPath &&
       file.relativePath === nextFile.relativePath &&
-      file.itemKey === nextFile.itemKey &&
+      areExplorerResourcesEqual(file.resource, nextFile.resource) &&
+      file.sheetId === nextFile.sheetId &&
+      file.sheetName === nextFile.sheetName &&
       file.sourcePath === nextFile.sourcePath &&
       file.sourceStatus === nextFile.sourceStatus &&
       file.sourceStatusMessage === nextFile.sourceStatusMessage &&
       file.fileVersion === nextFile.fileVersion;
   });
+
+const areExplorerResourcesEqual = (
+  current: ExplorerPaneInput["files"][number]["resource"],
+  next: ExplorerPaneInput["files"][number]["resource"],
+): boolean => {
+  if (current === next) {
+    return true;
+  }
+  if (!current || !next) {
+    return false;
+  }
+
+  return URI.revive(current)?.toString() === URI.revive(next)?.toString();
+};
 
 const areOriginPlotOptionsEqual = (
   current: ExplorerPaneInput["originOpenPlotOptions"],

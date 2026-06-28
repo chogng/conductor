@@ -80,7 +80,7 @@ platform/files -> workbench/**
 Explorer owns:
 
 - Files container Explorer view host;
-- resource tree, selection, optional visible-row `itemKey`, expansion, layout (`tree` / `thumbnail`), focus/edit state;
+- resource tree, URI/sheet selection, visible-row source identity, expansion, layout (`tree` / `thumbnail`), focus/edit state;
 - file/folder commands, actions, context menus, drag/drop UI;
 - hover triggers, timing, anchors, context-view containers, positioning, dismissal;
 - thumbnail candidate filtering before thumbnail UI renders;
@@ -219,13 +219,13 @@ separate:
 Explorer item close button
   -> files.item.close command
   -> IViewsService.openView(ExplorerViewId)
-  -> ExplorerViewPane.closeFile(fileId)
+  -> ExplorerViewPane.closeFile({ resource, sheetId })
   -> ExplorerViewPane removes the row from Explorer-owned visible state
 
 Explorer item context menu Delete
   -> files.item.delete command
   -> IViewsService.openView(ExplorerViewId)
-  -> ExplorerViewPane.deleteFile(fileId)
+  -> ExplorerViewPane.deleteFile({ resource, sheetId })
   -> IDialogService confirms move to trash
   -> IFileService.moveFileToTrash(...)
   -> ExplorerViewPane removes the row from Explorer-owned visible state after success
@@ -254,12 +254,15 @@ changes.
 Tree and thumbnail are two presentations over the same Explorer resource model.
 They must share selection, file item actions, context menus, and source
 workflow wiring. Thumbnail rendering details live in `thumbnail.instructions.md`.
-When a table file has multiple table entries, Explorer selection keeps `fileId`
-for file actions and may carry `itemKey` to identify the exact visible table
-row. Explorer-local imports open table resources directly through
-`ITableService.open({ resource })`; `WorkbenchDomainBridge` may still project
-Session-backed rows to table resources when a Session raw record has a
-`raw.filePath`. File close/delete/template actions still operate on `fileId`.
+When a table file has multiple table entries, Explorer selection uses the table
+resource plus `sheetId` for the exact visible row. Explorer-local imports open
+table resources directly through `ITableService.open({ resource })`.
+Migration-ledger raw rows that still carry `sourcePath` are projected into
+Explorer resource rows before Table opens them; `WorkbenchDomainBridge` must
+not derive table resources directly from Session raw records. File
+close/delete/reveal commands operate on `{ resource, sheetId }`; the template
+command may resolve that target to the current downstream Slice `fileId` only
+when delegating to `ISliceService.setTemplateSelection(...)`.
 
 Explorer decoration details live in `explorer-decorations.instructions.md`.
 

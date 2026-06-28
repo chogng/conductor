@@ -2,6 +2,7 @@ import assert from "assert";
 
 import { Event } from "src/cs/base/common/event";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
+import { URI } from "src/cs/base/common/uri";
 import {
   MenuId,
   MenuRegistry,
@@ -59,14 +60,15 @@ suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
     const paneInput: ExplorerPaneInput = {
       activePlotType: "iv",
       files: [
-        { fileId: "file-a", fileName: "Alpha.csv" },
+        { fileId: "file-a", fileName: "Alpha.csv", resource: URI.file("/workspace/Alpha.csv") },
       ],
       quickAccessFiles: [
-        { fileId: "file-a", fileName: "Alpha.csv", relativePath: "293K/input/Alpha.csv" },
-        { fileId: "file-b", fileName: "Beta.csv", relativePath: "293K/output/Beta.csv" },
+        { fileId: "file-a", fileName: "Alpha.csv", relativePath: "293K/input/Alpha.csv", resource: URI.file("/workspace/Alpha.csv") },
+        { fileId: "file-b", fileName: "Beta.csv", relativePath: "293K/output/Beta.csv", resource: URI.file("/workspace/Beta.csv") },
       ],
       mode: "chart",
-      selectedFileId: "file-a",
+      selectedResource: URI.file("/workspace/Alpha.csv"),
+      selectedSheetId: null,
       selectionKind: "chart",
       thumbnailFiles: [],
     };
@@ -87,9 +89,13 @@ suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
     assert.deepEqual(selections, [{
       reveal: "force",
       target: {
-        candidateFileIds: ["file-a", "file-b"],
-        fileId: "file-b",
+        candidateResources: [
+          { resource: URI.file("/workspace/Alpha.csv") },
+          { resource: URI.file("/workspace/Beta.csv") },
+        ],
         kind: "chart",
+        resource: URI.file("/workspace/Beta.csv"),
+        sheetId: null,
       },
     }]);
   });
@@ -102,11 +108,12 @@ suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
     const paneInput: ExplorerPaneInput = {
       activePlotType: "iv",
       files: [
-        { fileId: "file-a", fileName: "Alpha.csv" },
-        { fileId: "file-b", fileName: "Beta.csv" },
+        { fileId: "file-a", fileName: "Alpha.csv", resource: URI.file("/workspace/Alpha.csv") },
+        { fileId: "file-b", fileName: "Beta.csv", resource: URI.file("/workspace/Beta.csv") },
       ],
       mode: "chart",
-      selectedFileId: "file-a",
+      selectedResource: URI.file("/workspace/Alpha.csv"),
+      selectedSheetId: null,
       selectionKind: "chart",
       thumbnailFiles: [],
     };
@@ -121,9 +128,13 @@ suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
     assert.deepEqual(selections, [{
       reveal: "force",
       target: {
-        candidateFileIds: ["file-a", "file-b"],
-        fileId: "file-b",
+        candidateResources: [
+          { resource: URI.file("/workspace/Alpha.csv") },
+          { resource: URI.file("/workspace/Beta.csv") },
+        ],
         kind: "chart",
+        resource: URI.file("/workspace/Beta.csv"),
+        sheetId: null,
       },
     }]);
   });
@@ -183,10 +194,8 @@ function createExplorerService(
 	    _serviceBrand: undefined,
 	    hasPendingSourceFiles: false,
 	    hoveredFileId: null,
-	    selectedRawFileId: null,
-	    selectedRawItemKey: null,
-    selectedProcessedFileId: null,
-    selectedProcessedItemKey: null,
+	    selectedResource: null,
+	    selectedSheetId: null,
     expandedFolderKeys: [],
     viewLayout: "tree",
 	    onDidChangePendingSourceFiles: Event.None as IExplorerService["onDidChangePendingSourceFiles"],
@@ -200,10 +209,8 @@ function createExplorerService(
 	      editable: null,
 	      expandedFolderKeys: [],
 	      hoveredFileId: null,
-	      selectedProcessedFileId: null,
-      selectedProcessedItemKey: null,
-      selectedRawFileId: null,
-      selectedRawItemKey: null,
+	      selectedResource: null,
+	      selectedSheetId: null,
       toCopy: {
         isCut: false,
         resources: [],
@@ -213,7 +220,7 @@ function createExplorerService(
     registerView: () => ({ dispose: () => undefined }),
     select: (target, reveal) => {
       selections.push({ reveal, target });
-      return target.fileId;
+      return target.resource ? { resource: target.resource, sheetId: target.sheetId } : null;
     },
 	    setEditable: () => undefined,
 	    setToCopy: () => undefined,

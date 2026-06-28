@@ -5,18 +5,6 @@
 import type { Event } from "src/cs/base/common/event";
 import type { URI } from "src/cs/base/common/uri";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type {
-  CurveRecord,
-  CurveKey,
-  BaseCurveRecord,
-  BaseCurveFamily,
-  CurveLineage,
-  ItCurveMode,
-  IvCurveMode,
-  SeriesRecord,
-  SeriesId,
-  SheetId,
-} from "src/cs/workbench/services/session/common/sessionModel";
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
 import type {
   TemplateSelection,
@@ -28,6 +16,132 @@ export const ISliceService = createDecorator<ISliceService>("sliceService");
 export const SlicePriorityContributionId = "workbench.services.slice.priority";
 
 export type SliceRunId = string;
+export type SliceFileId = string;
+export type SliceSheetId = string;
+export type SliceSeriesId = string;
+export type SliceBaseCurveFamily = "iv" | "cv" | "cf" | "pv" | "it";
+export type SliceIvCurveMode = "transfer" | "output";
+export type SliceItCurveMode =
+  | "stability"
+  | "transient"
+  | "retention"
+  | "biasStress"
+  | "photoResponse"
+  | "generic";
+export type SliceDerivedCurveFamily =
+  | "gm"
+  | "localSs"
+  | "thresholdFit"
+  | "subthresholdFit";
+export type SliceSecondDerivedCurveFamily = "secondDerivative";
+export type SliceCurveKey =
+  | `base:${SliceBaseCurveFamily}:${SliceIvCurveMode | SliceItCurveMode | "default"}:${SliceSeriesId}`
+  | `derived:${SliceDerivedCurveFamily}:default:${SliceSeriesId}`
+  | `secondDerived:${SliceSecondDerivedCurveFamily}:default:${SliceSeriesId}`;
+
+export type SliceCurvePoint = {
+  readonly x: number;
+  readonly y: number;
+};
+
+export type SliceCurveChannelsRecord = {
+  readonly yPositive?: readonly number[];
+  readonly yAbsPositive?: readonly number[];
+  readonly yLog10Abs?: readonly number[];
+};
+
+export type SliceDomainRecord = {
+  readonly x?: readonly [number, number];
+  readonly y?: readonly [number, number];
+  readonly yPositive?: readonly [number, number];
+  readonly yAbsPositive?: readonly [number, number];
+  readonly yLog10Abs?: readonly [number, number];
+};
+
+export type SliceSeriesRecord = {
+  readonly fileId: SliceFileId;
+  readonly sheetId?: SliceSheetId;
+  readonly id: SliceSeriesId;
+  readonly name?: string;
+  readonly legendValue?: string;
+  readonly groupIndex: number;
+  readonly yCol?: number;
+  readonly y: readonly number[];
+  readonly labelOverride?: string;
+};
+
+export type SliceCurveLineage =
+  | {
+      readonly curveGeneration: "base";
+      readonly baseFamily: SliceBaseCurveFamily;
+      readonly ivMode?: SliceIvCurveMode | null;
+      readonly itMode?: SliceItCurveMode | null;
+      readonly baseSeries: { readonly fileId: SliceFileId; readonly seriesId: SliceSeriesId };
+    }
+  | {
+      readonly curveGeneration: "derived";
+      readonly derivedFamily: SliceDerivedCurveFamily;
+      readonly inputCurve: SliceCurveRef;
+    }
+  | {
+      readonly curveGeneration: "secondDerived";
+      readonly secondDerivedFamily: SliceSecondDerivedCurveFamily;
+      readonly inputCurve: SliceCurveRef;
+    };
+
+export type SliceCurveRef = {
+  readonly fileId: SliceFileId;
+  readonly seriesId: SliceSeriesId;
+  readonly curveKey: SliceCurveKey;
+  readonly signature: string;
+};
+
+export type SliceBaseCurveRecord = {
+  readonly fileId: SliceFileId;
+  readonly seriesId: SliceSeriesId;
+  readonly curveGeneration: "base";
+  readonly curveFamily: SliceBaseCurveFamily;
+  readonly ivMode?: SliceIvCurveMode | null;
+  readonly itMode?: SliceItCurveMode | null;
+  readonly lineage: Extract<SliceCurveLineage, { readonly curveGeneration: "base" }>;
+  readonly points: readonly SliceCurvePoint[];
+  readonly channels?: SliceCurveChannelsRecord;
+  readonly domain?: SliceDomainRecord;
+  readonly signature: string;
+};
+
+export type SliceDerivedCurveRecord = {
+  readonly fileId: SliceFileId;
+  readonly seriesId: SliceSeriesId;
+  readonly curveGeneration: "derived";
+  readonly curveFamily: SliceDerivedCurveFamily;
+  readonly ivMode?: never;
+  readonly itMode?: never;
+  readonly lineage: Extract<SliceCurveLineage, { readonly curveGeneration: "derived" }>;
+  readonly points: readonly SliceCurvePoint[];
+  readonly channels?: SliceCurveChannelsRecord;
+  readonly domain?: SliceDomainRecord;
+  readonly signature: string;
+};
+
+export type SliceSecondDerivedCurveRecord = {
+  readonly fileId: SliceFileId;
+  readonly seriesId: SliceSeriesId;
+  readonly curveGeneration: "secondDerived";
+  readonly curveFamily: SliceSecondDerivedCurveFamily;
+  readonly ivMode?: never;
+  readonly itMode?: never;
+  readonly lineage: Extract<SliceCurveLineage, { readonly curveGeneration: "secondDerived" }>;
+  readonly points: readonly SliceCurvePoint[];
+  readonly channels?: SliceCurveChannelsRecord;
+  readonly domain?: SliceDomainRecord;
+  readonly signature: string;
+};
+
+export type SliceCurveRecord =
+  | SliceBaseCurveRecord
+  | SliceDerivedCurveRecord
+  | SliceSecondDerivedCurveRecord;
 
 export type SliceRequestTrigger =
   | {
@@ -53,7 +167,7 @@ export type SliceRequestTrigger =
 
 export type SliceUriTarget = {
   readonly resource: URI;
-  readonly sheetId?: SheetId | null;
+  readonly sheetId?: SliceSheetId | null;
 };
 
 export type SliceUriRequest = {
@@ -74,7 +188,7 @@ export type SliceUriRequest = {
 export type SliceRun = {
   readonly id: SliceRunId;
   readonly fileId: string;
-  readonly rawTableId: SheetId;
+  readonly rawTableId: SliceSheetId;
   readonly mode: "auto" | "manual";
   readonly selection: TemplateSelection;
   readonly sourceRawTableVersion: number;
@@ -83,14 +197,14 @@ export type SliceRun = {
   readonly templateFingerprint: string;
   readonly inputRanges: readonly SliceRawTableRangeRef[];
   readonly outputSeriesIds: readonly string[];
-  readonly outputCurveKeys: readonly CurveKey[];
+  readonly outputCurveKeys: readonly SliceCurveKey[];
   readonly warnings: readonly string[];
   readonly errors: readonly string[];
 };
 
 export type SliceRawTableRangeRef = {
   readonly fileId: string;
-  readonly rawTableId: SheetId;
+  readonly rawTableId: SliceSheetId;
   readonly range: SliceRangeRef;
 };
 
@@ -103,13 +217,13 @@ export type SliceRangeRef = {
 
 export type SliceCommit = {
   readonly run: SliceRun;
-  readonly series: readonly SeriesRecord[];
-  readonly curves: readonly CurveRecord[];
+  readonly series: readonly SliceSeriesRecord[];
+  readonly curves: readonly SliceCurveRecord[];
 };
 
 export type SliceUriRangeRef = {
   readonly resource: URI;
-  readonly sheetId?: SheetId | null;
+  readonly sheetId?: SliceSheetId | null;
   readonly range: SliceRangeRef;
 };
 
@@ -125,12 +239,12 @@ export type SliceExecutionRun = Omit<SliceRun, "fileId" | "inputRanges" | "rawTa
   readonly inputRanges: readonly SlicePlanRangeRef[];
 };
 
-export type SliceExecutionSeriesRecord = Omit<SeriesRecord, "fileId" | "sheetId">;
+export type SliceExecutionSeriesRecord = Omit<SliceSeriesRecord, "fileId" | "sheetId">;
 
-export type SliceExecutionBaseCurveRecord = Omit<BaseCurveRecord, "fileId" | "lineage"> & {
-  readonly lineage: Omit<Extract<CurveLineage, { readonly curveGeneration: "base" }>, "baseSeries"> & {
+export type SliceExecutionBaseCurveRecord = Omit<SliceBaseCurveRecord, "fileId" | "lineage"> & {
+  readonly lineage: Omit<Extract<SliceCurveLineage, { readonly curveGeneration: "base" }>, "baseSeries"> & {
     readonly baseSeries: {
-      readonly seriesId: SeriesId;
+      readonly seriesId: SliceSeriesId;
     };
   };
 };
@@ -145,23 +259,23 @@ export type SliceExecutionResult = {
 
 export type SliceUriRun = Omit<SliceExecutionRun, "inputRanges"> & {
   readonly resource: URI;
-  readonly sheetId?: SheetId | null;
+  readonly sheetId?: SliceSheetId | null;
   readonly inputRanges: readonly SliceUriRangeRef[];
 };
 
-export type SliceUriSeriesRecord = Omit<SeriesRecord, "fileId" | "sheetId"> & {
+export type SliceUriSeriesRecord = Omit<SliceSeriesRecord, "fileId" | "sheetId"> & {
   readonly resource: URI;
-  readonly sheetId?: SheetId | null;
+  readonly sheetId?: SliceSheetId | null;
 };
 
-export type SliceUriBaseCurveRecord = Omit<BaseCurveRecord, "fileId" | "lineage"> & {
+export type SliceUriBaseCurveRecord = Omit<SliceBaseCurveRecord, "fileId" | "lineage"> & {
   readonly resource: URI;
-  readonly sheetId?: SheetId | null;
-  readonly lineage: Omit<Extract<CurveLineage, { curveGeneration: "base" }>, "baseSeries"> & {
+  readonly sheetId?: SliceSheetId | null;
+  readonly lineage: Omit<Extract<SliceCurveLineage, { curveGeneration: "base" }>, "baseSeries"> & {
     readonly baseSeries: {
       readonly resource: URI;
-      readonly sheetId?: SheetId | null;
-      readonly seriesId: SeriesId;
+      readonly sheetId?: SliceSheetId | null;
+      readonly seriesId: SliceSeriesId;
     };
   };
 };
@@ -215,9 +329,9 @@ export type CreateSlicePlanInput = {
 };
 
 export type SliceMeasurementBinding = {
-  readonly curveFamily: BaseCurveFamily;
-  readonly ivMode?: IvCurveMode | null;
-  readonly itMode?: ItCurveMode | null;
+  readonly curveFamily: SliceBaseCurveFamily;
+  readonly ivMode?: SliceIvCurveMode | null;
+  readonly itMode?: SliceItCurveMode | null;
 };
 
 export type SliceFileState =

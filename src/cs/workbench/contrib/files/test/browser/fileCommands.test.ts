@@ -1,6 +1,7 @@
 import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import { URI } from "src/cs/base/common/uri";
 import { CommandsRegistry } from "../../../../../platform/commands/common/commands.ts";
 import type { ServicesAccessor, ServiceIdentifier } from "../../../../../platform/instantiation/common/instantiation.ts";
 import { IExplorerService } from "../../../../../workbench/contrib/files/browser/files.ts";
@@ -25,13 +26,16 @@ import {
   renameFileItemHandler,
   setFileTemplateHandler,
 } from "../../browser/fileCommands.ts";
+import type { ExplorerFileEntry } from "../../common/explorerModel.ts";
 
 suite("workbench/contrib/files/test/browser/fileCommands", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
 
   test("file item commands delegate to owning services", async () => {
-    let closedFileId: string | null = null;
-    let deletedFileId: string | null = null;
+    const resource1 = URI.file("/workspace/file-1.csv");
+    const resource2 = URI.file("/workspace/file-2.csv");
+    let closedTarget: unknown = null;
+    let deletedTarget: unknown = null;
     let renameSelection: unknown = null;
     let editableState: unknown = null;
     let templateSelection:
@@ -44,6 +48,10 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
       },
     } as unknown as ISliceService;
     const explorerService = createExplorerServiceStub({
+      files: [
+        { fileId: "file-1", fileName: "file-1.csv", resource: resource1 },
+        { fileId: "file-2", fileName: "file-2.csv", resource: resource2 },
+      ],
       onSelect: (target, reveal) => {
         renameSelection = { reveal, target };
       },
@@ -52,11 +60,11 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
       },
     });
     const explorerView = createExplorerViewStub({
-      closeFile: fileId => {
-        closedFileId = fileId;
+      closeFile: target => {
+        closedTarget = target;
       },
-      deleteFile: fileId => {
-        deletedFileId = fileId;
+      deleteFile: target => {
+        deletedTarget = target;
         return Promise.resolve();
       },
     });
@@ -66,33 +74,35 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
       [ISliceService, sliceService],
     ]);
 
-    closeFileItemHandler(accessor, " file-1 ");
-    deleteFileItemHandler(accessor, " file-2 ");
+    closeFileItemHandler(accessor, { resource: resource1 });
+    deleteFileItemHandler(accessor, { resource: resource2 });
     await flushPromises();
-    renameFileItemHandler(accessor, "file-1");
-    setFileTemplateHandler(accessor, "file-1", {
+    renameFileItemHandler(accessor, { resource: resource1 });
+    setFileTemplateHandler(accessor, { resource: resource1 }, {
       kind: "saved",
       templateId: "template-1",
     });
-    setFileTemplateHandler(accessor, "file-2", {
+    setFileTemplateHandler(accessor, { resource: resource2 }, {
       kind: "saved",
       templateId: " ",
     });
 
-    assert.equal(closedFileId, "file-1");
-    assert.equal(deletedFileId, "file-2");
+    assert.deepEqual(closedTarget, { resource: resource1 });
+    assert.deepEqual(deletedTarget, { resource: resource2 });
     assert.deepEqual(renameSelection, {
       reveal: "force",
       target: {
-        fileId: "file-1",
         kind: "table",
+        resource: resource1,
+        sheetId: null,
       },
     });
     assert.deepEqual(editableState, {
       isEditing: true,
       resource: {
-        fileId: "file-1",
         kind: "table",
+        resource: resource1,
+        sheetId: null,
       },
     });
     assert.deepEqual(templateSelection, {
@@ -130,8 +140,10 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
   test("registered Action2 command entries delegate to files handlers", async () => {
     let importRequests = 0;
     let closeRequests = 0;
-    let closedFileId: string | null = null;
-    let deletedFileId: string | null = null;
+    const resource1 = URI.file("/workspace/file-1.csv");
+    const resource2 = URI.file("/workspace/file-2.csv");
+    let closedTarget: unknown = null;
+    let deletedTarget: unknown = null;
     let renameSelection: unknown = null;
     let editableState: unknown = null;
     let templateSelection:
@@ -144,15 +156,19 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
       closeFolder: () => {
         closeRequests += 1;
       },
-      closeFile: fileId => {
-        closedFileId = fileId;
+      closeFile: target => {
+        closedTarget = target;
       },
-      deleteFile: fileId => {
-        deletedFileId = fileId;
+      deleteFile: target => {
+        deletedTarget = target;
         return Promise.resolve();
       },
     });
     const explorerService = createExplorerServiceStub({
+      files: [
+        { fileId: "file-1", fileName: "file-1.csv", resource: resource1 },
+        { fileId: "file-2", fileName: "file-2.csv", resource: resource2 },
+      ],
       onSelect: (target, reveal) => {
         renameSelection = { reveal, target };
       },
@@ -174,30 +190,32 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
 
     CommandsRegistry.getCommand(ADD_FOLDER_ACTION_ID)?.handler(accessor);
     CommandsRegistry.getCommand(CLOSE_FOLDER_ACTION_ID)?.handler(accessor);
-    CommandsRegistry.getCommand(CLOSE_FILE_ITEM_COMMAND_ID)?.handler(accessor, "file-1");
-    CommandsRegistry.getCommand(DELETE_FILE_ITEM_COMMAND_ID)?.handler(accessor, "file-2");
+    CommandsRegistry.getCommand(CLOSE_FILE_ITEM_COMMAND_ID)?.handler(accessor, { resource: resource1 });
+    CommandsRegistry.getCommand(DELETE_FILE_ITEM_COMMAND_ID)?.handler(accessor, { resource: resource2 });
     await flushPromises();
-    CommandsRegistry.getCommand(RENAME_FILE_ITEM_COMMAND_ID)?.handler(accessor, "file-1");
-    CommandsRegistry.getCommand(SET_FILE_TEMPLATE_COMMAND_ID)?.handler(accessor, "file-2", {
+    CommandsRegistry.getCommand(RENAME_FILE_ITEM_COMMAND_ID)?.handler(accessor, { resource: resource1 });
+    CommandsRegistry.getCommand(SET_FILE_TEMPLATE_COMMAND_ID)?.handler(accessor, { resource: resource2 }, {
       kind: "auto",
     });
 
     assert.equal(importRequests, 1);
     assert.equal(closeRequests, 1);
-    assert.equal(closedFileId, "file-1");
-    assert.equal(deletedFileId, "file-2");
+    assert.deepEqual(closedTarget, { resource: resource1 });
+    assert.deepEqual(deletedTarget, { resource: resource2 });
     assert.deepEqual(renameSelection, {
       reveal: "force",
       target: {
-        fileId: "file-1",
         kind: "table",
+        resource: resource1,
+        sheetId: null,
       },
     });
     assert.deepEqual(editableState, {
       isEditing: true,
       resource: {
-        fileId: "file-1",
         kind: "table",
+        resource: resource1,
+        sheetId: null,
       },
     });
     assert.deepEqual(templateSelection, {
@@ -224,24 +242,29 @@ function createAccessor(
 }
 
 function createExplorerServiceStub({
+  files = [],
   onSelect,
   onSetEditable,
 }: {
+  readonly files?: ExplorerFileEntry[];
   readonly onSelect: (target: unknown, reveal: unknown) => void;
   readonly onSetEditable: (state: unknown) => void;
 }): IExplorerService {
   return {
     _serviceBrand: undefined,
     getPaneInput: () => ({
-      files: [],
+      files,
       mode: "table",
-      selectedFileId: null,
+      selectedResource: null,
+      selectedSheetId: null,
       selectionKind: "table",
       thumbnailFiles: [],
     }),
     select: (target: unknown, reveal: unknown) => {
       onSelect(target, reveal);
-      return "file-1";
+      return target && typeof target === "object" && "resource" in target
+        ? { resource: target.resource, sheetId: target.sheetId }
+        : null;
     },
     setEditable: (state: unknown) => {
       onSetEditable(state);

@@ -6,6 +6,7 @@ import { localize } from "src/cs/nls";
 import type { PlotMainSeries } from "src/cs/workbench/services/plot/common/plotModel";
 import { getPlotColor, resolveSeriesPlotColor } from "src/cs/workbench/services/plot/common/plotColors";
 import type { PlotLegendModel, PlotType } from "src/cs/workbench/services/plot/common/plot";
+import type { SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
 
 const DEFAULT_LEGEND_FONT_SIZE = 12;
 
@@ -13,6 +14,7 @@ export type LegendContext = {
   readonly fileId: string;
   readonly plotType: PlotType;
   readonly seriesList: readonly PlotMainSeries[];
+  readonly target?: SliceUriTarget | null;
 };
 
 export type LegendPopover = HTMLElement & {
@@ -32,6 +34,7 @@ export const getLegendContext = (
     fileId: legendModel.fileId,
     plotType,
     seriesList: legendModel.seriesList,
+    target: legendModel.target ?? null,
   };
 };
 
@@ -40,8 +43,67 @@ export const isSameLegendContext = (
   right: LegendContext,
 ): boolean =>
   left.fileId === right.fileId &&
+  isSameLegendTarget(left.target, right.target) &&
   left.plotType === right.plotType &&
   left.seriesList === right.seriesList;
+
+const isSameLegendTarget = (
+  left: SliceUriTarget | null | undefined,
+  right: SliceUriTarget | null | undefined,
+): boolean =>
+  getLegendTargetResourceKey(left?.resource) === getLegendTargetResourceKey(right?.resource) &&
+  String(left?.sheetId ?? "") === String(right?.sheetId ?? "");
+
+const getLegendTargetResourceKey = (resource: unknown): string => {
+  const text = getLegendTargetResourceString(resource);
+  if (text) {
+    return text.replace(/\\/g, "/");
+  }
+
+  const components = resource as {
+    readonly authority?: unknown;
+    readonly fragment?: unknown;
+    readonly path?: unknown;
+    readonly query?: unknown;
+    readonly scheme?: unknown;
+  } | null | undefined;
+  const path = String(components?.path ?? "").trim();
+  if (!path) {
+    return "";
+  }
+
+  const scheme = String(components?.scheme ?? "").trim();
+  const authority = String(components?.authority ?? "").trim();
+  const query = String(components?.query ?? "").trim();
+  const fragment = String(components?.fragment ?? "").trim();
+  if (scheme === "file") {
+    return [
+      "file://",
+      authority,
+      path,
+      query ? `?${query}` : "",
+      fragment ? `#${fragment}` : "",
+    ].join("").replace(/\\/g, "/");
+  }
+
+  return [
+    scheme ? `${scheme}:` : "",
+    authority ? `//${authority}` : "",
+    path,
+    query ? `?${query}` : "",
+    fragment ? `#${fragment}` : "",
+  ].join("").replace(/\\/g, "/");
+};
+
+const getLegendTargetResourceString = (resource: unknown): string => {
+  const toString = (resource as { readonly toString?: unknown } | null | undefined)?.toString;
+  if (typeof toString !== "function") {
+    return "";
+  }
+
+  const text = String(toString.call(resource) ?? "").trim();
+  return text === "[object Object]" ? "" : text;
+};
 
 export const getLegendDefaultLabel = (
   series: PlotMainSeries,

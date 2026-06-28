@@ -29,19 +29,14 @@ export class SlicePriorityContribution extends Disposable implements IWorkbenchC
 		super();
 
 		this._register(this.explorerService.onDidChangeSelection(event => {
-			this.prioritizeFile(event.selectedFileId);
+			this.prioritizeResource(event.selectedResource, event.selectedSheetId ?? null);
 		}));
 		this._register(this.explorerService.onDidChangeHoveredFile(event => {
 			this.prioritizeFile(event.fileId);
 		}));
 
-		this.prioritizeFile(this.getCurrentSelectedFileId());
+		this.prioritizeResource(this.explorerService.selectedResource, this.explorerService.selectedSheetId);
 		this.prioritizeFile(this.explorerService.hoveredFileId);
-	}
-
-	private getCurrentSelectedFileId(): string | null {
-		return normalizeFileId(this.explorerService.selectedRawFileId) ??
-			normalizeFileId(this.explorerService.selectedProcessedFileId);
 	}
 
 	private prioritizeFile(fileId: string | null): void {
@@ -54,6 +49,17 @@ export class SlicePriorityContribution extends Disposable implements IWorkbenchC
 		if (target) {
 			this.sliceService.prioritizeUri(target);
 		}
+	}
+
+	private prioritizeResource(resource: URI | null, sheetId: string | null | undefined): void {
+		if (!resource) {
+			return;
+		}
+
+		this.sliceService.prioritizeUri({
+			resource,
+			sheetId: normalizeFileId(sheetId) ?? null,
+		});
 	}
 
 	private getUriTargetForExplorerFileId(fileId: string): SliceUriTarget | null {

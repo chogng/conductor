@@ -31,7 +31,6 @@ suite("workbench/services/slice/test/browser/slicePriorityContribution", () => {
 	test("ignores existing explorer selection and hover without URI targets on startup", () => {
 		const explorer = createExplorerService({
 			hoveredFileId: " file-hover ",
-			selectedProcessedFileId: " file-selected ",
 		});
 		const sliceService = new TestSliceService();
 
@@ -46,8 +45,7 @@ suite("workbench/services/slice/test/browser/slicePriorityContribution", () => {
 		const sliceService = new TestSliceService();
 		store.add(new SlicePriorityContribution(explorer.service, sliceService));
 
-		explorer.fireSelection({ kind: "chart", selectedFileId: " file-a " });
-		explorer.fireSelection({ kind: "chart", selectedFileId: " " });
+		explorer.fireSelection({ kind: "chart", selectedResource: null });
 		explorer.fireHoveredFile({ fileId: " file-b " });
 		explorer.fireHoveredFile({ fileId: null });
 
@@ -65,7 +63,8 @@ suite("workbench/services/slice/test/browser/slicePriorityContribution", () => {
 				sheetId: "sheet-a",
 			}],
 			hoveredFileId: "source-file",
-			selectedProcessedFileId: "source-file",
+			selectedResource: resource,
+			selectedSheetId: "sheet-a",
 		});
 		const sliceService = new TestSliceService();
 
@@ -122,13 +121,13 @@ class TestSliceService implements ISliceService {
 const createExplorerService = ({
 	files = [],
 	hoveredFileId = null,
-	selectedProcessedFileId = null,
-	selectedRawFileId = null,
+	selectedResource = null,
+	selectedSheetId = null,
 }: {
 	readonly files?: readonly ExplorerFileEntry[];
 	readonly hoveredFileId?: string | null;
-	readonly selectedProcessedFileId?: string | null;
-	readonly selectedRawFileId?: string | null;
+	readonly selectedResource?: URI | null;
+	readonly selectedSheetId?: string | null;
 } = {}): {
 	readonly dispose: () => void;
 	readonly fireHoveredFile: (event: ExplorerHoveredFileChangeEvent) => void;
@@ -146,10 +145,8 @@ const createExplorerService = ({
 			editable: null,
 			expandedFolderKeys: [],
 			hoveredFileId,
-			selectedProcessedFileId,
-			selectedProcessedItemKey: null,
-			selectedRawFileId,
-			selectedRawItemKey: null,
+			selectedResource,
+			selectedSheetId,
 			toCopy: {
 				isCut: false,
 				resources: [],
@@ -159,7 +156,8 @@ const createExplorerService = ({
 		getPaneInput: () => ({
 			files: [...files],
 			mode: "chart",
-			selectedFileId: selectedProcessedFileId,
+			selectedResource,
+			selectedSheetId,
 			selectionKind: "chart",
 			thumbnailFiles: [],
 		}),
@@ -176,10 +174,8 @@ const createExplorerService = ({
 		refresh: () => Promise.resolve(),
 		registerView: (_view: IExplorerView): IDisposable => ({ dispose: () => undefined }),
 		select: () => null,
-		selectedProcessedFileId,
-		selectedProcessedItemKey: null,
-		selectedRawFileId,
-		selectedRawItemKey: null,
+		selectedResource,
+		selectedSheetId,
 		setEditable: () => undefined,
 		setExpandedFolderKeys: () => undefined,
 		setHoveredFileId: () => undefined,

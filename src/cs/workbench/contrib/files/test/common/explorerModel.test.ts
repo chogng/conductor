@@ -8,11 +8,12 @@ import {
   buildExplorerTree,
   createExplorerFilePresentationSignature,
   createExplorerTreeStructureSignature,
-  createRawExplorerFiles,
+  getExplorerFileSourceIdentityKey,
   getExplorerTreeFileKey,
   mergeExplorerSourceEntries,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import { URI } from "src/cs/base/common/uri";
 
 suite("workbench/contrib/files/common/explorerModel", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
@@ -121,85 +122,40 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     );
   });
 
-  test("createRawExplorerFiles projects source identity fields", () => {
-    assert.deepEqual(
-      createRawExplorerFiles([
-        {
-          fileId: "raw-1",
-          fileName: "raw.csv",
-          itemKey: "raw-key",
-          relativePath: "batch/raw.csv",
-          tableKey: "item-key",
-          sourcePath: "C:/data/raw.csv",
-        },
-      ]),
-      [
-        {
-          file: undefined,
-          fileId: "raw-1",
-          fileName: "raw.csv",
-          itemKey: "raw-key",
-          normalizedCsvPath: undefined,
-          relativePath: "batch/raw.csv",
-          sourcePath: "C:/data/raw.csv",
-          fileVersion: undefined,
-        },
-      ],
+  test("getExplorerFileSourceIdentityKey scopes resource identity by sheet id", () => {
+    const resource = URI.file("C:/data/raw.csv");
+
+    assert.notEqual(
+      getExplorerFileSourceIdentityKey({
+        fileId: "file-a",
+        fileName: "raw.csv",
+        resource,
+        sheetId: "file-a",
+      }),
+      getExplorerFileSourceIdentityKey({
+        fileId: "file-b",
+        fileName: "raw.csv",
+        resource,
+      }),
     );
   });
 
-  test("createRawExplorerFiles projects table identity for multi-sheet rows", () => {
-    assert.deepEqual(
-      createRawExplorerFiles([
-        {
-          fileId: "workbook",
-          fileName: "Workbook.xlsx",
-          sheetId: "sheet-b",
-          sheetName: "Sweep B",
-          sourcePath: "C:/data/Workbook.xlsx",
-          tableKey: "table-key-b",
-        },
-      ]),
-      [
-        {
-          file: undefined,
-          fileId: "workbook",
-          fileName: "Workbook.xlsx",
-          itemKey: "table-key-b",
-          normalizedCsvPath: undefined,
-          relativePath: null,
-          sheetId: "sheet-b",
-          sheetName: "Sweep B",
-          sourcePath: "C:/data/Workbook.xlsx",
-          fileVersion: undefined,
-        },
-      ],
-    );
-  });
+  test("getExplorerFileSourceIdentityKey keeps real sheet targets separate", () => {
+    const resource = URI.file("C:/data/workbook.xlsx");
 
-  test("createRawExplorerFiles omits legacy badge state", () => {
-    assert.deepEqual(
-      createRawExplorerFiles([
-        {
-          fileId: "raw-1",
-          fileName: "raw.csv",
-          relativePath: "batch/raw.csv",
-          itemKey: "item-key",
-          sourceVersion: 1,
-        },
-      ]),
-      [
-        {
-          file: undefined,
-          fileId: "raw-1",
-          fileName: "raw.csv",
-          normalizedCsvPath: undefined,
-          relativePath: "batch/raw.csv",
-          itemKey: "item-key",
-          sourcePath: undefined,
-          fileVersion: 1,
-        },
-      ],
+    assert.notEqual(
+      getExplorerFileSourceIdentityKey({
+        fileId: "workbook",
+        fileName: "workbook.xlsx",
+        resource,
+        sheetId: "sheet-a",
+      }),
+      getExplorerFileSourceIdentityKey({
+        fileId: "workbook",
+        fileName: "workbook.xlsx",
+        resource,
+        sheetId: "sheet-b",
+      }),
     );
   });
 

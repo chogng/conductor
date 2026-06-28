@@ -6,7 +6,7 @@ import {
 	isEqualOrParent as isPathEqualOrParent,
 	toSlashes,
 } from "src/cs/base/common/extpath";
-import type { URI } from "src/cs/base/common/uri";
+import { URI } from "src/cs/base/common/uri";
 import {
 	ExplorerFileNestingTrie,
 	type ExplorerFileNestingPattern,
@@ -34,18 +34,9 @@ export type ExplorerFileEntry = {
 	readonly fileVersion?: number;
 };
 
-export type ExplorerRawFileInput = {
-	readonly file?: unknown;
-	readonly fileId?: string;
-	readonly fileName?: string;
-	readonly itemKey?: string | null;
-	readonly normalizedCsvPath?: string | null;
-	readonly relativePath?: string | null;
+export type ExplorerResourceIdentity = {
+	readonly resource: URI | null;
 	readonly sheetId?: string | null;
-	readonly sheetName?: string | null;
-	readonly sourcePath?: string | null;
-	readonly sourceVersion?: number;
-	readonly tableKey?: string | null;
 };
 
 export type ExplorerThumbnailFile = {
@@ -173,6 +164,62 @@ export const createExplorerTreeStructureSignature = (
 			getExplorerFileName(entry),
 		].join("\u001f"))
 		.join("\u001e");
+
+export const getExplorerFileSourceIdentityKey = (
+	entry: ExplorerFileEntry | null | undefined,
+): string | null => {
+	if (!entry) {
+		return null;
+	}
+
+	const resource = entry.resource ? URI.revive(entry.resource) : null;
+	const resourceIdentity = resource?.toString();
+	if (resourceIdentity) {
+		return `resource:${resourceIdentity}\u001f${getExplorerFileResourceSheetKey(entry.sheetId) ?? ""}`;
+	}
+
+	const sourcePath = getOptionalString(entry.sourcePath) ??
+		getOptionalString(entry.normalizedCsvPath);
+	if (sourcePath) {
+		return `path:${sourcePath}`;
+	}
+
+	const relativePath = getOptionalString(entry.relativePath);
+	const fileName = getExplorerFileName(entry).trim();
+	if (relativePath || fileName) {
+		return `name:${relativePath ?? ""}\u001f${fileName}`;
+	}
+
+	const itemKey = normalizeExplorerItemKey(entry.itemKey);
+	return itemKey ? `item:${itemKey}` : null;
+};
+
+export const getExplorerFileResourceIdentity = (
+	entry: ExplorerFileEntry | null | undefined,
+): ExplorerResourceIdentity | null => {
+	const resource = entry?.resource ? URI.revive(entry.resource) : null;
+	if (!resource) {
+		return null;
+	}
+
+	const sheetId = normalizeExplorerItemKey(entry.sheetId);
+	return {
+		resource,
+		...(sheetId ? { sheetId } : {}),
+	};
+};
+
+export const getExplorerResourceIdentityKey = (
+	target: ExplorerResourceIdentity | null | undefined,
+): string | null => {
+	const resource = target?.resource ? URI.revive(target.resource) : null;
+	const resourceIdentity = resource?.toString();
+	if (!resourceIdentity) {
+		return null;
+	}
+
+	return `resource:${resourceIdentity}\u001f${normalizeExplorerItemKey(target?.sheetId) ?? ""}`;
+};
 
 export const buildExplorerTree = <TEntry extends ExplorerFileEntry>(
 	entries: readonly TEntry[],
@@ -361,32 +408,8 @@ const getOptionalString = (value: unknown): string | undefined => {
 	return text || undefined;
 };
 
-const getExplorerFileVersion = (
-	value: unknown,
-): number | undefined => {
-	const version = Math.floor(Number(value));
-	return Number.isFinite(version) && version >= 0 ? version : undefined;
-};
-
-export const createRawExplorerFiles = (
-	rawFiles: readonly ExplorerRawFileInput[],
-): ExplorerFileEntry[] =>
-	rawFiles.map(file => {
-		const sheetId = getOptionalString(file.sheetId);
-		const sheetName = getOptionalString(file.sheetName);
-		return {
-			file: file.file,
-			fileId: file.fileId,
-			fileName: file.fileName,
-			normalizedCsvPath: file.normalizedCsvPath,
-			relativePath: file.relativePath ?? null,
-			itemKey: getOptionalString(file.itemKey ?? file.tableKey ?? file.sheetId),
-			...(sheetId ? { sheetId } : {}),
-			...(sheetName ? { sheetName } : {}),
-			sourcePath: file.sourcePath,
-			fileVersion: getExplorerFileVersion(file.sourceVersion),
-		};
-	});
+const getExplorerFileResourceSheetKey = (sheetId: unknown): string | null =>
+	normalizeExplorerItemKey(sheetId);
 
 export const mergeExplorerSourceEntries = ({
 	files,
@@ -431,64 +454,6 @@ export const mergeExplorerSourceEntries = ({
 			return !itemKey || !committedItemKeys.has(itemKey);
 		}),
 	];
-};
-
-export const resolveExplorerSelectedFileId = (
-	selectedFileId: string | null,
-	fileIds: readonly string[],
-): string | null => {
-	const candidates = getNormalizedExplorerFileIds(fileIds);
-	const normalizedSelectedFileId = normalizeExplorerFileId(selectedFileId);
-	if (normalizedSelectedFileId && candidates.includes(normalizedSelectedFileId)) {
-		return normalizedSelectedFileId;
-	}
-
-	return candidates[0] ?? null;
-};
-
-export const resolveExplorerSelectionAfterRemoval = ({
-	currentFileId,
-	remainingFileIds,
-	removedFileIds,
-}: {
-	readonly currentFileId: string | null;
-	readonly remainingFileIds: readonly string[];
-	readonly removedFileIds: readonly string[];
-}): string | null => {
-	const removed = new Set(getNormalizedExplorerFileIds(removedFileIds));
-	const remaining = getNormalizedExplorerFileIds(remainingFileIds)
-		.filter(fileId => !removed.has(fileId));
-	const current = normalizeExplorerFileId(currentFileId);
-	if (!current) {
-		return null;
-	}
-
-	return removed.has(current)
-		? remaining[0] ?? null
-		: resolveExplorerSelectedFileId(current, remaining);
-};
-
-export const getNormalizedExplorerFileIds = (
-	fileIds: readonly string[],
-): readonly string[] => {
-	const result: string[] = [];
-	const seen = new Set<string>();
-	for (const fileId of fileIds) {
-		const normalized = normalizeExplorerFileId(fileId);
-		if (!normalized || seen.has(normalized)) {
-			continue;
-		}
-
-		seen.add(normalized);
-		result.push(normalized);
-	}
-
-	return result;
-};
-
-const normalizeExplorerFileId = (fileId: unknown): string | null => {
-	const normalized = String(fileId ?? "").trim();
-	return normalized || null;
 };
 
 const normalizeExplorerItemKey = (itemKey: unknown): string | null => {

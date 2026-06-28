@@ -1301,6 +1301,7 @@ export class ExplorerViewer implements IDisposable {
         commandId: SET_FILE_TEMPLATE_COMMAND_ID,
         fileId,
         label: localize("files.item.setTemplate", "Set with Template"),
+        target,
       }),
     ];
     const editActions: IAction[] = [
@@ -1347,13 +1348,15 @@ export class ExplorerViewer implements IDisposable {
     commandId,
     fileId,
     label,
+    target,
   }: {
     readonly actionPrefix: string;
     readonly commandId: string;
     readonly fileId: string;
     readonly label: string;
+    readonly target: ExplorerResourceTarget | null;
   }): IAction {
-    if (!this.hasUserTemplates()) {
+    if (!target || !this.hasUserTemplates()) {
       return createMenuAction({
         enabled: false,
         id: commandId,
@@ -1369,6 +1372,7 @@ export class ExplorerViewer implements IDisposable {
         actionPrefix,
         commandId,
         fileId,
+        target,
       }),
     );
   }
@@ -1383,10 +1387,12 @@ export class ExplorerViewer implements IDisposable {
     actionPrefix,
     commandId,
     fileId,
+    target,
   }: {
     readonly actionPrefix: string;
     readonly commandId: string;
     readonly fileId: string;
+    readonly target: ExplorerResourceTarget;
   }): IAction[] {
     const currentSelection = this.resolveFileTemplateSelection(fileId);
     const currentSelectionId = getTemplateSelectionId(currentSelection);
@@ -1398,7 +1404,7 @@ export class ExplorerViewer implements IDisposable {
         run: () => {
           void this.props.commandService.executeCommand(
             commandId,
-            fileId,
+            target,
             { kind: "auto" },
           );
         },
@@ -1420,7 +1426,7 @@ export class ExplorerViewer implements IDisposable {
         run: () => {
           void this.props.commandService.executeCommand(
             commandId,
-            fileId,
+            target,
             createTemplateSelection(templateId),
           );
         },

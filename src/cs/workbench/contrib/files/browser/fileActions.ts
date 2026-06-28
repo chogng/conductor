@@ -65,8 +65,8 @@ export class CloseFileItemAction extends Action2 {
     });
   }
 
-  public run(accessor: ServicesAccessor, fileId: unknown): void {
-    closeFileItemHandler(accessor, fileId);
+  public run(accessor: ServicesAccessor, target: unknown): void {
+    closeFileItemHandler(accessor, target);
   }
 }
 
@@ -81,8 +81,8 @@ export class DeleteFileItemAction extends Action2 {
     });
   }
 
-  public run(accessor: ServicesAccessor, fileId: unknown): void {
-    deleteFileItemHandler(accessor, fileId);
+  public run(accessor: ServicesAccessor, target: unknown): void {
+    deleteFileItemHandler(accessor, target);
   }
 }
 
@@ -97,8 +97,8 @@ export class RenameFileItemAction extends Action2 {
     });
   }
 
-  public run(accessor: ServicesAccessor, fileId: unknown): void {
-    renameFileItemHandler(accessor, fileId);
+  public run(accessor: ServicesAccessor, target: unknown): void {
+    renameFileItemHandler(accessor, target);
   }
 }
 
@@ -113,7 +113,7 @@ export class SetFileTemplateAction extends Action2 {
     });
   }
 
-  public run(accessor: ServicesAccessor, fileId: unknown, selection: unknown): void {
-    setFileTemplateHandler(accessor, fileId, selection);
+  public run(accessor: ServicesAccessor, target: unknown, selection: unknown): void {
+    setFileTemplateHandler(accessor, target, selection);
   }
 }

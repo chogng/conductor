@@ -17,9 +17,6 @@ import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/
 import type { PlotDisplayModel } from "src/cs/workbench/services/plot/common/plot";
 import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
 import { createEmptyView } from "src/cs/workbench/contrib/chart/browser/views/emptyView";
-import type {
-  ProcessingStatus,
-} from "src/cs/workbench/services/session/common/sessionTypes";
 
 import "src/cs/workbench/contrib/chart/browser/views/media/chartView.css";
 

@@ -807,7 +807,7 @@ export class Workbench extends Layout {
       } : {}),
       ...(sessionFacts ? {
         chartDataFileCount: sessionFacts.chartDataFileIds.length,
-        explorerFileCount: sessionFacts.rawExplorerFiles.length,
+        explorerFileCount: this.explorerService.getPaneInput()?.files.length ?? 0,
       } : {}),
     });
   }
@@ -881,7 +881,7 @@ export class Workbench extends Layout {
     this.renderAuxiliaryBarView(sessionFacts);
     endPerf({
       chartDataFileCount: sessionFacts.chartDataFileIds.length,
-      explorerFileCount: sessionFacts.rawExplorerFiles.length,
+      explorerFileCount: this.explorerService.getPaneInput()?.files.length ?? 0,
       fileCount: Object.keys(snapshot.filesById).length,
       needsChromeRefresh,
     });
@@ -1147,7 +1147,7 @@ export class Workbench extends Layout {
       case "template":
         break;
       case "parameters":
-        this.renderParametersView(this.getSelectedProcessedFileId(sessionFacts));
+        this.renderParametersView(this.getSelectedChartFileId());
         break;
       case "search":
         break;
@@ -1155,16 +1155,14 @@ export class Workbench extends Layout {
         break;
       case "export":
       default:
-        this.renderExportView(sessionFacts);
+        this.renderExportView();
         break;
     }
   }
 
-  private renderExportView(
-    sessionFacts: SessionExplorerFacts,
-  ): void {
+  private renderExportView(): void {
     this.exportService.updateViewState({
-      activeFileId: this.getSelectedProcessedFileId(sessionFacts),
+      activeFileId: this.getSelectedChartFileId(),
     });
   }
 
@@ -1216,8 +1214,11 @@ export class Workbench extends Layout {
 
   //#region view inputs and selection
 
-  private getSelectedProcessedFileId(sessionFacts: SessionExplorerFacts): string | null {
-    return resolveExplorerDomainSelection(this.explorerService, sessionFacts).selectedProcessedFileId;
+  private getSelectedChartFileId(): string | null {
+    return resolveExplorerDomainSelection(
+      this.explorerService,
+      this.explorerService.getPaneInput()?.files ?? [],
+    ).chartFileId;
   }
 
   //#endregion
