@@ -115,6 +115,9 @@ Session/settings/command/search bridge
   -> tableViewModel reads resource-backed ITableModel content without converting the source identity into a raw fileId
   -> TableController consumes view input
   -> TableWidget adapts table state to base table widget renderers
+  -> TableWidget computes selection/focus/highlight state and applies it through base table widget trait APIs
+  -> base table widget owns pointer-derived hover trait state for pooled body/header cells
+  -> base table widget owns managed hover lifecycle for pooled body cells through the base layer hover delegate
   -> base table widget owns structural CSS, zoom state, column resize mechanics, and facade defaults
   -> base VirtualTable reuses visible cell DOM and emits scroll/visible-range facts
   -> TableWidget emits selection callbacks and exposes base size/zoom/column-resize callbacks
@@ -143,6 +146,19 @@ The base table owns UI mechanics that are independent of raw-table semantics:
   `onDidResizeColumn` fact event;
 - pooled corner/header/row-header/body DOM and descriptor rebinding;
 - structural CSS hooks, header/body scroll synchronization, and reveal geometry;
+- widget-owned cell/header trait DOM hooks for hovered, selected,
+  highlighted, active, and selection-frame state; feature widgets compute
+  selection/focus/highlight states and apply them through `TableWidget` trait
+  APIs instead of writing table DOM hooks directly, while pointer-derived hover
+  state stays inside the base widget;
+- managed hover setup, update, and disposal for pooled body cells through the
+  base layer hover delegate; feature renderers provide hover content through
+  `TableWidget` and must not store per-cell managed hover disposables;
+- normalized table mouse events that include the base `StandardMouseEvent`,
+  keep the original browser event, and add base-resolved body-cell or
+  column-header coordinates; feature widgets should consume those targets and
+  the base mouse event instead of reparsing table DOM structure or reading raw
+  mouse fields at each entry point;
 - fact events such as `onDidScroll`, `onDidChangeVisibleRange`,
   `onDidChangeSize`, and `onDidChangeZoom`.
 
@@ -192,8 +208,10 @@ Keep domain behavior out of the base table:
 - column width persistence and sheet-key scoping stay in `ITableService` /
   the table feature owner; feature widgets should subscribe to base resize
   facts and call their own width owner APIs;
-- selection/focus/highlight can use base geometry helpers, but persistence and
-  command-visible snapshots remain owned by the active table widget/service.
+- selection/focus/highlight can use base geometry helpers and `TableWidget`
+  trait APIs, but persistence and command-visible snapshots remain owned by
+  the active table widget/service; hover stays local to the base widget and is
+  not part of the command-visible table selection snapshot.
 
 ## Selection
 

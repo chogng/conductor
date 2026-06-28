@@ -1,9 +1,21 @@
 import assert from "assert";
 
+import type {
+	IManagedHover,
+	IManagedHoverContent,
+	IManagedHoverContentOrFactory,
+	IManagedHoverOptions,
+} from "src/cs/base/browser/ui/hover/hover";
+import {
+	getBaseLayerHoverDelegate,
+	setBaseLayerHoverDelegate,
+	type IHoverDelegate,
+} from "src/cs/base/browser/ui/hover/hoverDelegate";
 import {
 	TableWidget,
 } from "src/cs/base/browser/ui/table/tableWidget";
 import {
+	type ITableCellEditOptions,
 	type ITableColumnResizeEvent,
 	type ITableColumnResizeMode,
 } from "src/cs/base/browser/ui/table/table";
@@ -71,6 +83,307 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 		}
 	});
 
+	test("keeps cell editing disabled unless enabled by options", () => {
+		const { listener, widget } = createResizableTableWidget();
+		try {
+			const cell = widget.getBodyCellElement(0, 0);
+			assert.ok(cell);
+			assert.equal(widget.startCellEdit(0, 0), false);
+			cell.dispatchEvent(new MouseEvent("dblclick", {
+				bubbles: true,
+				cancelable: true,
+			}));
+
+			assert.equal(cell.querySelector(".table_view_cell_editor"), null);
+		} finally {
+			listener.dispose();
+			widget.dispose();
+		}
+	});
+
+	test("commits editable cell text as a raw base table event when enabled", () => {
+		const commits: unknown[] = [];
+		const { listener, widget } = createResizableTableWidget(undefined, {
+			enabled: true,
+			getInitialValue: cell => `raw:${cell.rowIndex}:${cell.colIndex}`,
+		});
+		const editListener = widget.onDidCommitCellEdit(event => commits.push(event));
+		try {
+			assert.equal(widget.startCellEdit(0, 0), true);
+			const input = widget.getBodyCellElement(0, 0)?.querySelector<HTMLInputElement>(".table_view_cell_editor");
+			assert.ok(input);
+			assert.equal(input.value, "raw:0:0");
+
+			input.value = "42";
+			input.dispatchEvent(new KeyboardEvent("keydown", {
+				bubbles: true,
+				cancelable: true,
+				key: "Enter",
+			}));
+
+			assert.deepEqual(commits, [{ rowIndex: 0, colIndex: 0, value: "42" }]);
+			assert.equal(widget.getBodyCellElement(0, 0)?.querySelector(".table_view_cell_editor"), null);
+		} finally {
+			editListener.dispose();
+			listener.dispose();
+			widget.dispose();
+		}
+	});
+
+	test("resolves body cell position from target and point", () => {
+		const { listener, widget } = createResizableTableWidget();
+		const originalElementFromPoint = document.elementFromPoint;
+		try {
+			const cell = widget.getBodyCellElement(2, 3);
+			assert.ok(cell);
+			const content = cell.querySelector(".table_view_cell_content");
+			assert.ok(content);
+
+			assert.deepEqual(widget.getBodyCellPositionFromTarget(content), { rowIndex: 2, colIndex: 3 });
+			assert.equal(widget.getBodyCellPositionFromTarget(widget.element), null);
+
+			Object.defineProperty(document, "elementFromPoint", {
+				configurable: true,
+				value: () => content,
+			});
+
+			assert.deepEqual(widget.getBodyCellPositionFromPoint(12, 34), { rowIndex: 2, colIndex: 3 });
+			assert.equal(widget.getBodyCellPositionFromPoint(Number.NaN, 34), null);
+		} finally {
+			Object.defineProperty(document, "elementFromPoint", {
+				configurable: true,
+				value: originalElementFromPoint,
+			});
+			listener.dispose();
+			widget.dispose();
+		}
+	});
+
+	test("emits normalized table mouse events with body and header targets", () => {
+		const bodyEvents: unknown[] = [];
+		const headerEvents: unknown[] = [];
+		const pointerEvents: unknown[] = [];
+		const { listener, widget } = createResizableTableWidget();
+		const bodyListener = widget.onDidClickBody(event => {
+			bodyEvents.push({
+				cell: event.cell,
+				leftButton: event.mouseEvent.leftButton,
+				posx: event.mouseEvent.posx,
+				type: event.browserEvent.type,
+			});
+		});
+		const headerListener = widget.onDidClickHeader(event => {
+			headerEvents.push({
+				column: event.column,
+				leftButton: event.mouseEvent.leftButton,
+				type: event.browserEvent.type,
+			});
+		});
+		const pointerListener = widget.onDidPointerDownBody(event => {
+			pointerEvents.push({
+				cell: event.cell,
+				leftButton: event.mouseEvent.leftButton,
+				pointerId: event.browserEvent.pointerId,
+			});
+		});
+		try {
+			const bodyCell = widget.getBodyCellElement(2, 3);
+			const bodyContent = bodyCell?.querySelector(".table_view_cell_content");
+			const headerCell = widget.getColumnHeaderCellElement(3);
+			assert.ok(bodyCell);
+			assert.ok(bodyContent);
+			assert.ok(headerCell);
+
+			bodyContent.dispatchEvent(new MouseEvent("click", {
+				bubbles: true,
+				cancelable: true,
+			}));
+			headerCell.dispatchEvent(new MouseEvent("click", {
+				bubbles: true,
+				cancelable: true,
+			}));
+			bodyContent.dispatchEvent(createPointerEvent(widget, "pointerdown", 16, 1));
+
+			assert.deepEqual(bodyEvents, [{
+				cell: { rowIndex: 2, colIndex: 3 },
+				leftButton: true,
+				posx: 0,
+				type: "click",
+			}]);
+			assert.deepEqual(headerEvents, [{
+				column: { colIndex: 3 },
+				leftButton: true,
+				type: "click",
+			}]);
+			assert.deepEqual(pointerEvents, [{
+				cell: { rowIndex: 2, colIndex: 3 },
+				leftButton: true,
+				pointerId: 1,
+			}]);
+		} finally {
+			pointerListener.dispose();
+			headerListener.dispose();
+			bodyListener.dispose();
+			listener.dispose();
+			widget.dispose();
+		}
+	});
+
+	test("renders body cell traits through the widget-owned trait state", () => {
+		const { listener, widget } = createResizableTableWidget();
+		try {
+			const templateData = widget.getBodyCellTemplateData(0, 0);
+			const cell = widget.getBodyCellElement(0, 0);
+			assert.ok(templateData);
+			assert.ok(cell);
+
+			widget.setBodyCellTraits(templateData, {
+				active: true,
+				highlighted: false,
+				selected: true,
+				selectionFrame: {
+					bottom: false,
+					left: true,
+					right: false,
+					top: true,
+				},
+			});
+
+			assert.equal(cell.dataset.active, "true");
+			assert.equal(cell.dataset.highlighted, "false");
+			assert.equal(cell.dataset.selected, "true");
+			assert.equal(cell.dataset.selectionFrame, "true");
+			assert.equal(cell.style.getPropertyValue("--table-view-selection-frame-top"), "2px");
+			assert.equal(cell.style.getPropertyValue("--table-view-selection-frame-right"), "0");
+			assert.equal(cell.style.getPropertyValue("--table-view-selection-frame-bottom"), "0");
+			assert.equal(cell.style.getPropertyValue("--table-view-selection-frame-left"), "2px");
+
+			widget.setBodyCellTraits(templateData, {
+				active: false,
+				highlighted: false,
+				selected: false,
+				selectionFrame: {
+					bottom: false,
+					left: false,
+					right: false,
+					top: false,
+				},
+			});
+
+			assert.equal(cell.dataset.active, "false");
+			assert.equal(cell.dataset.selected, "false");
+			assert.equal(cell.dataset.selectionFrame, "false");
+		} finally {
+			listener.dispose();
+			widget.dispose();
+		}
+	});
+
+	test("manages body cell hover content through the base hover delegate", () => {
+		const hoverDelegate = new TestHoverDelegate();
+		const previousHoverDelegate = getBaseLayerHoverDelegate();
+		setBaseLayerHoverDelegate(hoverDelegate);
+		const { listener, widget } = createResizableTableWidget();
+		try {
+			const templateData = widget.getBodyCellTemplateData(0, 0);
+			assert.ok(templateData);
+
+			widget.setBodyCellHoverContent(templateData, "Before");
+			assert.equal(hoverDelegate.hovers.length, 1);
+			assert.equal(hoverDelegate.hovers[0]?.content, "Before");
+
+			widget.setBodyCellHoverContent(templateData, "After");
+			assert.equal(hoverDelegate.hovers.length, 1);
+			assert.equal(hoverDelegate.hovers[0]?.content, "After");
+
+			widget.setBodyCellHoverContent(templateData, undefined);
+			assert.equal(hoverDelegate.hovers[0]?.disposed, true);
+		} finally {
+			setBaseLayerHoverDelegate(previousHoverDelegate);
+			listener.dispose();
+			widget.dispose();
+		}
+	});
+
+	test("renders column header traits through the widget-owned trait state", () => {
+		const { listener, widget } = createResizableTableWidget();
+		try {
+			const templateData = widget.getColumnHeaderTemplateData(0);
+			const header = widget.getColumnHeaderCellElement(0);
+			const button = header?.querySelector("button");
+			assert.ok(templateData);
+			assert.ok(header);
+			assert.ok(button);
+
+			widget.setColumnHeaderTraits(templateData, {
+				highlighted: true,
+				selected: true,
+			});
+
+			assert.equal(header.dataset.highlighted, "true");
+			assert.equal(header.dataset.selected, "true");
+			assert.equal(button.getAttribute("aria-pressed"), "true");
+
+			widget.setColumnHeaderTraits(templateData, {
+				highlighted: false,
+				selected: false,
+			});
+
+			assert.equal(header.dataset.highlighted, "false");
+			assert.equal(header.dataset.selected, "false");
+			assert.equal(button.getAttribute("aria-pressed"), "false");
+		} finally {
+			listener.dispose();
+			widget.dispose();
+		}
+	});
+
+	test("tracks hovered body cell as widget-owned trait state", () => {
+		const { listener, widget } = createResizableTableWidget();
+		try {
+			const first = widget.getBodyCellElement(0, 0);
+			const second = widget.getBodyCellElement(0, 1);
+			assert.ok(first);
+			assert.ok(second);
+
+			first.dispatchEvent(createPointerEvent(widget, "pointermove", 16, 0));
+			assert.equal(first.dataset.hovered, "true");
+
+			second.dispatchEvent(createPointerEvent(widget, "pointermove", 176, 0));
+			assert.equal(first.dataset.hovered, "false");
+			assert.equal(second.dataset.hovered, "true");
+
+			widget.render({ columnCount: 5, rowCount: 20, renderVersion: "hover-reset" });
+			assert.equal(second.dataset.hovered, "false");
+		} finally {
+			listener.dispose();
+			widget.dispose();
+		}
+	});
+
+	test("tracks hovered column header as widget-owned trait state", () => {
+		const { listener, widget } = createResizableTableWidget();
+		try {
+			const first = widget.getColumnHeaderCellElement(0);
+			const second = widget.getColumnHeaderCellElement(1);
+			assert.ok(first);
+			assert.ok(second);
+
+			first.dispatchEvent(createPointerEvent(widget, "pointermove", 64, 0));
+			assert.equal(first.dataset.hovered, "true");
+
+			second.dispatchEvent(createPointerEvent(widget, "pointermove", 224, 0));
+			assert.equal(first.dataset.hovered, "false");
+			assert.equal(second.dataset.hovered, "true");
+
+			widget.render({ columnCount: 5, rowCount: 20, headerRenderVersion: "hover-reset" });
+			assert.equal(second.dataset.hovered, "false");
+		} finally {
+			listener.dispose();
+			widget.dispose();
+		}
+	});
+
 	test("deduplicates body cells visited through logical ranges", () => {
 		const { listener, widget } = createResizableTableWidget();
 		try {
@@ -108,18 +421,24 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 		const widget = new TableWidget({
 			getColumnWidth: () => 160,
 			renderer: {
-				renderBodyCell: (cell, descriptor) => {
+				clearBodyCell: templateData => {
+					templateData.content.textContent = "";
+				},
+				disposeBodyCellTemplate: () => undefined,
+				renderBodyCell: (templateData, descriptor) => {
 					bodyRenders.push(`${descriptor.rowIndex}:${descriptor.colIndex}`);
-					cell.dataset.boundCell = `${descriptor.rowIndex}:${descriptor.colIndex}`;
+					templateData.cell.dataset.boundCell = `${descriptor.rowIndex}:${descriptor.colIndex}`;
 				},
-				renderBodyCellContent: (content, descriptor) => {
+				renderBodyCellContent: (templateData, descriptor) => {
 					contentRenders.push(`${descriptor.rowIndex}:${descriptor.colIndex}`);
-					content.textContent = `v:${descriptor.rowIndex}:${descriptor.colIndex}`;
+					templateData.content.textContent = `v:${descriptor.rowIndex}:${descriptor.colIndex}`;
 				},
+				renderBodyCellTemplate: (cell, content) => ({ cell, content }),
 				renderColumnHeader: (cell, descriptor) => {
 					headerRenders.push(String(descriptor.colIndex));
 					cell.textContent = String(descriptor.colIndex);
 				},
+				renderColumnHeaderTemplate: cell => cell,
 				renderRowHeader: (cell, descriptor) => {
 					cell.textContent = String(descriptor.rowIndex);
 				},
@@ -153,6 +472,54 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 		}
 	});
 
+	test("rerenders dirty column headers through the base table patch path", () => {
+		const bodyRenders: string[] = [];
+		const headerRenders: string[] = [];
+		const widget = new TableWidget({
+			getColumnWidth: () => 160,
+			renderer: {
+				clearBodyCell: templateData => {
+					templateData.content.textContent = "";
+				},
+				disposeBodyCellTemplate: () => undefined,
+				renderBodyCell: (_templateData, descriptor) => {
+					bodyRenders.push(`${descriptor.rowIndex}:${descriptor.colIndex}`);
+				},
+				renderBodyCellContent: () => undefined,
+				renderBodyCellTemplate: (cell, content) => ({ cell, content }),
+				renderColumnHeader: (cell, descriptor) => {
+					headerRenders.push(String(descriptor.colIndex));
+					cell.textContent = String(descriptor.colIndex);
+				},
+				renderColumnHeaderTemplate: cell => cell,
+				renderRowHeader: (cell, descriptor) => {
+					cell.textContent = String(descriptor.rowIndex);
+				},
+			},
+		});
+		document.body.append(widget.element);
+		try {
+			const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+			assert.ok(viewport);
+			setElementClientSize(viewport, 500, 280);
+			widget.attachContent();
+			widget.render({ columnCount: 5, rowCount: 20, headerRenderVersion: "a" });
+			const bodyRenderCount = bodyRenders.length;
+			const headerRenderCount = headerRenders.length;
+
+			assert.equal(widget.rerenderDirtyColumnHeaders([
+				{ startCol: 1, endCol: 3 },
+				{ startCol: 2, endCol: 4 },
+			], "b"), "patched");
+
+			assert.deepEqual(headerRenders.slice(headerRenderCount), ["1", "2", "3"]);
+			assert.equal(bodyRenders.length, bodyRenderCount);
+			assert.equal(widget.rerenderDirtyColumnHeaders([{ startCol: 20, endCol: 21 }], "c"), "ignored");
+		} finally {
+			widget.dispose();
+		}
+	});
+
 	test("resolves changed selection ranges without repainting unchanged interiors", () => {
 		assert.deepEqual(VirtualTableGridModel.getChangedCellRanges([
 			{ startRow: 0, endRow: 4, startCol: 0, endCol: 4 },
@@ -174,24 +541,35 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 	});
 });
 
-function createResizableTableWidget(mode?: ITableColumnResizeMode): {
+function createResizableTableWidget(
+	mode?: ITableColumnResizeMode,
+	cellEditing?: ITableCellEditOptions,
+): {
 	readonly events: ITableColumnResizeEvent[];
 	readonly listener: { dispose(): void };
 	readonly widget: TableWidget;
 } {
 	const widget = new TableWidget({
+		cellEditing,
 		columnResize: { enabled: true, mode },
 		getColumnWidth: () => 160,
 		renderer: {
-			renderBodyCell: (cell, descriptor) => {
-				cell.textContent = `${descriptor.colIndex}:${descriptor.rowIndex}`;
+			clearBodyCell: templateData => {
+				templateData.content.textContent = "";
 			},
+			disposeBodyCellTemplate: () => undefined,
+			renderBodyCell: () => undefined,
+			renderBodyCellContent: (templateData, descriptor) => {
+				templateData.content.textContent = `${descriptor.colIndex}:${descriptor.rowIndex}`;
+			},
+			renderBodyCellTemplate: (cell, content) => ({ cell, content }),
 			renderColumnHeader: (cell, descriptor) => {
 				const button = document.createElement("button");
 				button.type = "button";
 				button.textContent = String(descriptor.colIndex);
 				cell.replaceChildren(button);
 			},
+			renderColumnHeaderTemplate: cell => cell,
 			renderRowHeader: (cell, descriptor) => {
 				cell.textContent = String(descriptor.rowIndex);
 			},
@@ -266,4 +644,39 @@ function expandCells(ranges: readonly { readonly startRow: number; readonly endR
 		}
 	}
 	return cells;
+}
+
+class TestHoverDelegate implements IHoverDelegate {
+	public readonly hovers: TestManagedHover[] = [];
+
+	public setupManagedHover(
+		target: HTMLElement,
+		content: IManagedHoverContentOrFactory,
+		_options?: IManagedHoverOptions,
+	): IManagedHover {
+		const hover = new TestManagedHover(target, content);
+		this.hovers.push(hover);
+		return hover;
+	}
+}
+
+class TestManagedHover implements IManagedHover {
+	public disposed = false;
+
+	public constructor(
+		public readonly target: HTMLElement,
+		public content: IManagedHoverContentOrFactory,
+	) {}
+
+	public show(): void {}
+
+	public hide(): void {}
+
+	public update(content: IManagedHoverContent): void {
+		this.content = content;
+	}
+
+	public dispose(): void {
+		this.disposed = true;
+	}
 }

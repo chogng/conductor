@@ -3,6 +3,7 @@ import assert from "assert";
 import {
   VirtualTableGridModel,
 } from "src/cs/base/browser/ui/table/virtualTable";
+import { KeyCode } from "src/cs/base/common/keyCodes";
 import {
   TableColumnLayout,
   toStoredTableColumnLayout,
@@ -227,14 +228,14 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
       rowCount: 10,
       columnCount: 5,
       currentCell: { rowIndex: 3, colIndex: 2 },
-      key: "ArrowDown",
+      keyCode: KeyCode.DownArrow,
     }), { rowIndex: 4, colIndex: 2 });
 
     assert.deepEqual(VirtualTableGridModel.resolveKeyboardTarget({
       rowCount: 10,
       columnCount: 5,
       currentCell: { rowIndex: 0, colIndex: 0 },
-      key: "ArrowLeft",
+      keyCode: KeyCode.LeftArrow,
     }), { rowIndex: 0, colIndex: 0 });
   });
 
@@ -243,7 +244,7 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
       rowCount: 100,
       columnCount: 5,
       currentCell: { rowIndex: 20, colIndex: 2 },
-      key: "PageDown",
+      keyCode: KeyCode.PageDown,
       pageRowCount: 12,
     }), { rowIndex: 32, colIndex: 2 });
 
@@ -251,14 +252,14 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
       rowCount: 100,
       columnCount: 5,
       currentCell: { rowIndex: 20, colIndex: 2 },
-      key: "Home",
+      keyCode: KeyCode.Home,
     }), { rowIndex: 20, colIndex: 0 });
 
     assert.deepEqual(VirtualTableGridModel.resolveKeyboardTarget({
       rowCount: 100,
       columnCount: 5,
       currentCell: { rowIndex: 20, colIndex: 2 },
-      key: "End",
+      keyCode: KeyCode.End,
       toBoundary: true,
     }), { rowIndex: 99, colIndex: 4 });
   });
@@ -267,13 +268,13 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
     assert.equal(VirtualTableGridModel.resolveKeyboardTarget({
       rowCount: 0,
       columnCount: 5,
-      key: "ArrowDown",
+      keyCode: KeyCode.DownArrow,
     }), null);
 
     assert.equal(VirtualTableGridModel.resolveKeyboardTarget({
       rowCount: 10,
       columnCount: 5,
-      key: "Escape",
+      keyCode: KeyCode.Escape,
     }), null);
   });
 

@@ -117,7 +117,7 @@ suite("workbench/services/keybinding/browser/keybindingService", () => {
     }));
 
     await keybindingService.updateUserKeybindings([{
-      key: "ctrlcmd+p",
+      key: createCtrlCmdUserKeybinding("p"),
       command: "test.userOverride",
       args: { source: "user" },
     }]);
@@ -146,7 +146,7 @@ suite("workbench/services/keybinding/browser/keybindingService", () => {
     }));
 
     await keybindingService.updateUserKeybindings([{
-      key: "ctrlcmd+p",
+      key: createCtrlCmdUserKeybinding("p"),
       command: "-test.removeDefault",
     }]);
 
@@ -170,7 +170,7 @@ suite("workbench/services/keybinding/browser/keybindingService", () => {
       weight: KeybindingWeight.WorkbenchContrib,
     }));
     await keybindingService.updateUserKeybindings([{
-      key: "ctrlcmd+p",
+      key: createCtrlCmdUserKeybinding("p"),
       command: "test.conflictUser",
     }]);
 
@@ -189,7 +189,7 @@ type TestKeyboardDispatchEvent = IKeyboardDispatchEvent & {
 };
 
 function createCtrlCmdEvent(code: string, key: string): TestKeyboardDispatchEvent {
-  const isMac = getCurrentKeybindingPlatform() === "mac";
+	const isMac = getCurrentKeybindingPlatform() === "mac";
   return {
     altKey: false,
     code,
@@ -206,6 +206,10 @@ function createCtrlCmdEvent(code: string, key: string): TestKeyboardDispatchEven
       this.stopped = true;
     },
   };
+}
+
+function createCtrlCmdUserKeybinding(key: string): string {
+  return `${getCurrentKeybindingPlatform() === "mac" ? "cmd" : "ctrl"}+${key}`;
 }
 
 function createCommandService(

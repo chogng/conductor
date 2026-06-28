@@ -16,7 +16,6 @@ import { localize } from "src/cs/nls";
 import {
   ICommandService,
 } from "src/cs/platform/commands/common/commands";
-import { IHoverService } from "src/cs/platform/hover/browser/hoverService";
 import { IInstantiationService } from "src/cs/platform/instantiation/common/instantiation";
 import { createCenterAreaShell } from "src/cs/workbench/browser/parts/centerArea/centerArea";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
@@ -86,7 +85,6 @@ export class TableViewPane extends ViewPane {
     @ITableService private readonly tableService: ITableService,
     @ITableWidgetService private readonly tableWidgetService: ITableWidgetService,
     @ICommandService private readonly commandService: ICommandService,
-    @IHoverService private readonly hoverService: IHoverService,
     @IInstantiationService private readonly instantiationService: IInstantiationService,
     @ITemplateViewStateService private readonly templateViewStateService: ITemplateViewStateService,
   ) {
@@ -183,7 +181,6 @@ export class TableViewPane extends ViewPane {
       this.props,
       this.tableService,
       this.commandService,
-      this.hoverService,
       this.templateViewStateService.getState().mode,
     ));
     this.store.add(this.tableWidgetService.registerController(this.controller));
@@ -199,7 +196,6 @@ export class TableViewPane extends ViewPane {
       props,
       this.tableService,
       this.commandService,
-      this.hoverService,
       this.templateViewStateService.getState().mode,
     ));
     this.updateHeaderRight();
@@ -398,14 +394,12 @@ const toControllerProps = (
   props: TableViewPaneProps,
   tableService: ITableService,
   commandService: Pick<ICommandService, "executeCommand">,
-  hoverService: IHoverService,
   templateMode: TemplateMode,
 ): TableControllerProps => ({
   ...props,
   canAdjustColumnScale: getCanAdjustColumnScale(templateMode),
   columnHeaderSelection: getTableColumnHeaderSelection(templateMode),
   getColumnWidths: source => tableService.getColumnWidths(source),
-  hoverDelegate: hoverService,
   onCopySelection: () => {
     void commandService.executeCommand(TableCommandId.copySelection);
   },

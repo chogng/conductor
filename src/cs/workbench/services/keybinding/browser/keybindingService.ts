@@ -11,11 +11,11 @@ import {
   formatKeybinding,
   keybindingEquals,
   keybindingStartsWith,
-  parseKeybinding,
   type IKeyboardEventLike,
   type Keybinding,
   type SimpleKeybinding,
 } from "src/cs/base/common/keybindings";
+import { KeybindingParser } from "src/cs/base/common/keybindingParser";
 import { KeyCode } from "src/cs/base/common/keyCodes";
 import { ICommandService, type ICommandService as ICommandServiceType } from "src/cs/platform/commands/common/commands";
 import {
@@ -271,7 +271,7 @@ function parseUserKeybindingRules(value: unknown): {
       continue;
     }
 
-    const keybinding = parseKeybinding(rule.key);
+    const keybinding = KeybindingParser.parseKeybinding(rule.key);
     if (!keybinding) {
       continue;
     }

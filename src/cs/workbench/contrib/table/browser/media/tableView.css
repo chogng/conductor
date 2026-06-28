@@ -170,6 +170,10 @@
   background: rgb(var(--accent) / 0.08);
 }
 
+.table_view_grid_header_cell[data-hovered="true"]:not([data-selected="true"]):not([data-highlighted="true"]) {
+  background: rgb(var(--accent) / 0.04);
+}
+
 .table_view_grid th[data-selected="true"],
 .table_view_grid th[data-highlighted="true"] {
   color: rgb(var(--accent) / 1);
@@ -284,6 +288,10 @@
 .table_view_grid td[data-selected="true"],
 .table_view_grid td[data-highlighted="true"] {
   background: rgb(var(--accent) / 0.06);
+}
+
+.table_view_grid td[data-hovered="true"]:not([data-selected="true"]):not([data-highlighted="true"]) {
+  background: rgb(var(--accent) / 0.04);
 }
 
 .table_view_grid td[data-selection-frame="true"] {

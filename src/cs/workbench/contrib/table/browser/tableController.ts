@@ -1,5 +1,4 @@
 import type { Event } from "src/cs/base/common/event";
-import type { IHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
 import type { ITableSize } from "src/cs/base/browser/ui/table/table";
 import {
   TableWidget,
@@ -22,7 +21,6 @@ export type TableControllerProps = {
   readonly canAdjustColumnScale?: boolean;
   readonly columnHeaderSelection?: TableWidgetColumnHeaderSelection;
   readonly getColumnWidths?: (source: TableSource | null | undefined) => readonly TableColumnWidth[];
-  readonly hoverDelegate?: IHoverDelegate;
   readonly onCopySelection?: () => void;
   readonly onSelect: (
     target: TableWidgetSelectionTarget | null,
@@ -118,7 +116,6 @@ const toWidgetProps = ({
   tableViewModel,
   tableState,
   getColumnWidths,
-  hoverDelegate,
   onCopySelection,
   onSelect,
   storeColumnWidths,
@@ -127,7 +124,6 @@ const toWidgetProps = ({
   canAdjustColumnScale,
   columnHeaderSelection,
   getColumnWidths,
-  hoverDelegate,
   onCopySelection,
   onAdjustColumnDisplayScale: (colIndex, deltaExponent) =>
     tableService.adjustColumnDisplayScale(colIndex, deltaExponent),

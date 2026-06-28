@@ -28,7 +28,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
         properties: {
           key: {
             type: "string",
-            description: "Keybinding label, for example 'ctrlcmd+p' or 'ctrlcmd+k ctrlcmd+s'.",
+            description: "Keybinding label with concrete modifiers, for example 'ctrl+p', 'cmd+p', or 'ctrl+k ctrl+s'.",
           },
           command: {
             type: "string",

@@ -2,28 +2,21 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
-import { Emitter, type Event } from "src/cs/base/common/event";
-import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
+import { addDisposableListener, EventType, getWindow } from "src/cs/base/browser/dom";
+import { StandardKeyboardEvent } from "src/cs/base/browser/keyboardEvent";
+import { StandardMouseEvent } from "src/cs/base/browser/mouseEvent";
+import type { IManagedHover, IManagedHoverContent, IManagedHoverOptions } from "src/cs/base/browser/ui/hover/hover";
+import { getBaseLayerHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
 import { VirtualTable, VirtualTableGridModel } from "src/cs/base/browser/ui/table/virtualTable";
+import { Emitter, type Event } from "src/cs/base/common/event";
+import { KeyCode } from "src/cs/base/common/keyCodes";
+import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
+import type * as Table from "src/cs/base/browser/ui/table/table";
 import {
 	TABLE_WIDGET_DEFAULT_ZOOM_PERCENT,
 	TABLE_WIDGET_MAX_ZOOM_PERCENT,
 	TABLE_WIDGET_MIN_ZOOM_PERCENT,
 	TABLE_WIDGET_ZOOM_STEP_PERCENT,
-	type ITableBodyCellDescriptor,
-	type ITableCellRange,
-	type ITableColumnRange,
-	type ITableColumnResizeEvent,
-	type ITableColumnResizeMode,
-	type ITableDirtyRange,
-	type ITablePatchResult,
-	type ITableRenderOptions,
-	type ITableScrollEvent,
-	type ITableSize,
-	type ITableState,
-	type ITableWidgetOptions,
-	type ITableVisibleRangeChangeEvent,
 } from "src/cs/base/browser/ui/table/table";
 
 import "src/cs/base/browser/ui/table/table.css";
@@ -41,6 +34,144 @@ type TableWidgetColumnResizeState = {
 	readonly width: number;
 };
 
+type TableWidgetCellEditState = Table.ITableCellPosition & {
+	readonly cell: HTMLTableCellElement;
+	readonly input: HTMLInputElement;
+};
+
+class TableBodyCellTraits {
+	private appliedActive?: boolean;
+	private appliedHighlighted?: boolean;
+	private appliedHoverContent?: IManagedHoverContent;
+	private appliedHovered?: boolean;
+	private appliedSelected?: boolean;
+	private appliedSelectionFrame?: string;
+	private hover: IManagedHover | null = null;
+
+	public constructor(private readonly element: HTMLElement) {}
+
+	public set(state: Table.ITableBodyCellTraitState): void {
+		this.setActive(state.active);
+		this.setSelected(state.selected);
+		this.setHighlighted(state.highlighted);
+		this.setSelectionFrame(state.selectionFrame);
+	}
+
+	public setHovered(hovered: boolean): void {
+		if (this.appliedHovered === hovered) {
+			return;
+		}
+
+		this.element.dataset.hovered = hovered ? "true" : "false";
+		this.appliedHovered = hovered;
+	}
+
+	public setHoverContent(content: IManagedHoverContent, options?: IManagedHoverOptions): void {
+		if (this.appliedHoverContent === content) {
+			return;
+		}
+
+		if (content) {
+			if (this.hover) {
+				this.hover.update(content, options);
+			} else {
+				this.hover = getBaseLayerHoverDelegate().setupManagedHover(this.element, content, options);
+			}
+		} else {
+			this.hover?.dispose();
+			this.hover = null;
+		}
+		this.appliedHoverContent = content;
+	}
+
+	public dispose(): void {
+		this.hover?.dispose();
+		this.hover = null;
+	}
+
+	private setActive(active: boolean): void {
+		if (this.appliedActive === active) {
+			return;
+		}
+
+		this.element.dataset.active = active ? "true" : "false";
+		this.appliedActive = active;
+	}
+
+	private setSelected(selected: boolean): void {
+		if (this.appliedSelected === selected) {
+			return;
+		}
+
+		this.element.dataset.selected = selected ? "true" : "false";
+		this.appliedSelected = selected;
+	}
+
+	private setHighlighted(highlighted: boolean): void {
+		if (this.appliedHighlighted === highlighted) {
+			return;
+		}
+
+		this.element.dataset.highlighted = highlighted ? "true" : "false";
+		this.appliedHighlighted = highlighted;
+	}
+
+	private setSelectionFrame(selectionFrame: Table.ITableBodyCellTraitState["selectionFrame"]): void {
+		const serialized = serializeTableSelectionFrame(selectionFrame);
+		if (this.appliedSelectionFrame === serialized) {
+			return;
+		}
+
+		this.element.dataset.selectionFrame = serialized === "" ? "false" : "true";
+		this.element.style.setProperty("--table-view-selection-frame-top", selectionFrame.top ? "2px" : "0");
+		this.element.style.setProperty("--table-view-selection-frame-right", selectionFrame.right ? "2px" : "0");
+		this.element.style.setProperty("--table-view-selection-frame-bottom", selectionFrame.bottom ? "2px" : "0");
+		this.element.style.setProperty("--table-view-selection-frame-left", selectionFrame.left ? "2px" : "0");
+		this.appliedSelectionFrame = serialized;
+	}
+}
+
+class TableColumnHeaderTraits {
+	private appliedHighlighted?: boolean;
+	private appliedHovered?: boolean;
+	private appliedSelected?: boolean;
+
+	public constructor(private readonly element: HTMLElement) {}
+
+	public set(state: Table.ITableColumnHeaderTraitState): void {
+		this.setSelected(state.selected);
+		this.setHighlighted(state.highlighted);
+	}
+
+	public setHovered(hovered: boolean): void {
+		if (this.appliedHovered === hovered) {
+			return;
+		}
+
+		this.element.dataset.hovered = hovered ? "true" : "false";
+		this.appliedHovered = hovered;
+	}
+
+	private setSelected(selected: boolean): void {
+		if (this.appliedSelected === selected) {
+			return;
+		}
+
+		this.element.dataset.selected = selected ? "true" : "false";
+		this.element.querySelector<HTMLButtonElement>("button")?.setAttribute("aria-pressed", selected ? "true" : "false");
+		this.appliedSelected = selected;
+	}
+
+	private setHighlighted(highlighted: boolean): void {
+		if (this.appliedHighlighted === highlighted) {
+			return;
+		}
+
+		this.element.dataset.highlighted = highlighted ? "true" : "false";
+		this.appliedHighlighted = highlighted;
+	}
+}
+
 /**
  * Stable base table entry point for workbench consumers, mirroring the upstream
  * shape where callers depend on one widget owner instead of structure class
@@ -49,58 +180,93 @@ type TableWidgetColumnResizeState = {
  *
  * The pooled DOM skeleton and its CSS hooks are owned by the base table.
  */
-export class TableWidget implements IDisposable {
+export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData = unknown> implements IDisposable {
 	public readonly element: HTMLElement;
-	public readonly onDidChangeVisibleRange: Event<ITableVisibleRangeChangeEvent>;
-	public readonly onDidScroll: Event<ITableScrollEvent>;
-	public readonly onDidChangeSize: Event<ITableSize>;
+	public readonly onDidChangeVisibleRange: Event<Table.ITableVisibleRangeChangeEvent>;
+	public readonly onDidScroll: Event<Table.ITableScrollEvent>;
+	public readonly onDidChangeSize: Event<Table.ITableSize>;
 	public readonly onDidChangeZoom: Event<number>;
-	public readonly onDidResizeColumn: Event<ITableColumnResizeEvent>;
+	public readonly onDidResizeColumn: Event<Table.ITableColumnResizeEvent>;
+	public readonly onDidCommitCellEdit: Event<Table.ITableCellEditCommitEvent>;
+	public readonly onDidClickBody: Event<Table.ITableBodyMouseEvent>;
+	public readonly onDidClickHeader: Event<Table.ITableColumnHeaderMouseEvent>;
+	public readonly onDidPointerDownBody: Event<Table.ITableBodyMouseEvent<PointerEvent>>;
 
 	private readonly disposables = new DisposableStore();
+	private readonly cellEditStore = this.disposables.add(new DisposableStore());
 	private readonly columnResizeStore = this.disposables.add(new DisposableStore());
-	private readonly onDidChangeSizeEmitter = this.disposables.add(new Emitter<ITableSize>());
+	private readonly onDidChangeSizeEmitter = this.disposables.add(new Emitter<Table.ITableSize>());
 	private readonly onDidChangeZoomEmitter = this.disposables.add(new Emitter<number>());
-	private readonly onDidResizeColumnEmitter = this.disposables.add(new Emitter<ITableColumnResizeEvent>());
-	private readonly onDidClickBodyEmitter = this.disposables.add(new Emitter<MouseEvent>());
-	private readonly onDidClickHeaderEmitter = this.disposables.add(new Emitter<MouseEvent>());
-	private readonly onDidPointerDownBodyEmitter = this.disposables.add(new Emitter<PointerEvent>());
+	private readonly onDidResizeColumnEmitter = this.disposables.add(new Emitter<Table.ITableColumnResizeEvent>());
+	private readonly onDidCommitCellEditEmitter = this.disposables.add(new Emitter<Table.ITableCellEditCommitEvent>());
+	private readonly onDidClickBodyEmitter = this.disposables.add(new Emitter<Table.ITableBodyMouseEvent>());
+	private readonly onDidClickHeaderEmitter = this.disposables.add(new Emitter<Table.ITableColumnHeaderMouseEvent>());
+	private readonly onDidPointerDownBodyEmitter = this.disposables.add(new Emitter<Table.ITableBodyMouseEvent<PointerEvent>>());
+	private readonly bodyCellTraits = new Map<TBodyTemplateData, TableBodyCellTraits>();
+	private readonly bodyCellTraitsByElement = new WeakMap<HTMLTableCellElement, TableBodyCellTraits>();
+	private readonly columnHeaderTraits = new Map<TColumnHeaderTemplateData, TableColumnHeaderTraits>();
+	private readonly columnHeaderTraitsByElement = new WeakMap<HTMLElement, TableColumnHeaderTraits>();
 	private columnResizeState: TableWidgetColumnResizeState | null = null;
-	private lastRenderOptions: ITableRenderOptions | null = null;
-	private size: ITableSize = { columnCount: 0, rowCount: 0 };
-	private readonly virtualTable: VirtualTable;
+	private cellEditState: TableWidgetCellEditState | null = null;
+	private hoveredBodyCellTraits: TableBodyCellTraits | null = null;
+	private hoveredColumnHeaderTraits: TableColumnHeaderTraits | null = null;
+	private lastRenderOptions: Table.ITableRenderOptions | null = null;
+	private size: Table.ITableSize = { columnCount: 0, rowCount: 0 };
+	private readonly virtualTable: VirtualTable<TBodyTemplateData, TColumnHeaderTemplateData>;
 	private zoomPercent = TABLE_WIDGET_DEFAULT_ZOOM_PERCENT;
 
-	public readonly onDidClickBody = this.onDidClickBodyEmitter.event;
-	public readonly onDidClickHeader = this.onDidClickHeaderEmitter.event;
-	public readonly onDidPointerDownBody = this.onDidPointerDownBodyEmitter.event;
-
-	public constructor(private readonly options: ITableWidgetOptions) {
+	public constructor(private readonly options: Table.ITableWidgetOptions<TBodyTemplateData, TColumnHeaderTemplateData>) {
 		const { className, ...virtualOptions } = options;
-		this.virtualTable = this.disposables.add(new VirtualTable(virtualOptions));
+		this.virtualTable = this.disposables.add(new VirtualTable<TBodyTemplateData, TColumnHeaderTemplateData>({
+			...virtualOptions,
+			renderer: this.createRenderer(options.renderer),
+		}));
 		this.element = this.virtualTable.element;
 		this.onDidChangeVisibleRange = this.virtualTable.onDidChangeVisibleRange;
 		this.onDidScroll = this.virtualTable.onDidScroll;
 		this.onDidChangeSize = this.onDidChangeSizeEmitter.event;
 		this.onDidChangeZoom = this.onDidChangeZoomEmitter.event;
 		this.onDidResizeColumn = this.onDidResizeColumnEmitter.event;
+		this.onDidCommitCellEdit = this.onDidCommitCellEditEmitter.event;
+		this.onDidClickBody = this.onDidClickBodyEmitter.event;
+		this.onDidClickHeader = this.onDidClickHeaderEmitter.event;
+		this.onDidPointerDownBody = this.onDidPointerDownBodyEmitter.event;
+		this.disposables.add(this.virtualTable.onDidChangeVisibleRange(() => {
+			this.clearHoveredTraits();
+		}));
 		this.syncZoomStyle();
 		addRootClassName(this.element, className);
 		this.disposables.add(addDisposableListener(this.virtualTable.headerContent, EventType.CLICK, event => {
-			this.onDidClickHeaderEmitter.fire(event as MouseEvent);
+			this.onDidClickHeaderEmitter.fire(this.toColumnHeaderMouseEvent(event as MouseEvent));
 		}));
 		this.disposables.add(addDisposableListener(this.virtualTable.headerContent, EventType.POINTER_DOWN, event => {
 			this.onColumnResizeStart(event as PointerEvent);
 		}));
+		this.disposables.add(addDisposableListener(this.virtualTable.headerContent, EventType.POINTER_MOVE, event => {
+			this.onHeaderPointerMove(event as PointerEvent);
+		}));
+		this.disposables.add(addDisposableListener(this.virtualTable.headerContent, "pointerleave", () => {
+			this.setHoveredColumnHeaderTraits(null);
+		}));
 		this.disposables.add(addDisposableListener(this.virtualTable.bodyRows, EventType.CLICK, event => {
-			this.onDidClickBodyEmitter.fire(event as MouseEvent);
+			this.onDidClickBodyEmitter.fire(this.toBodyMouseEvent(event as MouseEvent));
+		}));
+		this.disposables.add(addDisposableListener(this.virtualTable.bodyRows, EventType.DBLCLICK, event => {
+			this.onBodyDoubleClick(event as MouseEvent);
 		}));
 		this.disposables.add(addDisposableListener(this.virtualTable.bodyRows, EventType.POINTER_DOWN, event => {
-			this.onDidPointerDownBodyEmitter.fire(event as PointerEvent);
+			this.onDidPointerDownBodyEmitter.fire(this.toBodyMouseEvent(event as PointerEvent));
 		}, { passive: false }));
+		this.disposables.add(addDisposableListener(this.virtualTable.bodyRows, EventType.POINTER_MOVE, event => {
+			this.onBodyPointerMove(event as PointerEvent);
+		}));
+		this.disposables.add(addDisposableListener(this.virtualTable.bodyRows, "pointerleave", () => {
+			this.setHoveredBodyCellTraits(null);
+		}));
 	}
 
 	public dispose(): void {
+		this.cancelCellEdit();
 		this.endColumnResize(false);
 		this.disposables.dispose();
 	}
@@ -109,7 +275,9 @@ export class TableWidget implements IDisposable {
 		this.virtualTable.layout();
 	}
 
-	public render(options: ITableRenderOptions): boolean {
+	public render(options: Table.ITableRenderOptions): boolean {
+		this.cancelCellEdit();
+		this.clearHoveredTraits();
 		this.lastRenderOptions = options;
 		const previousSize = this.size;
 		this.size = toTableWidgetSize(options);
@@ -126,11 +294,11 @@ export class TableWidget implements IDisposable {
 		});
 	}
 
-	public getState(): ITableState {
+	public getState(): Table.ITableState {
 		return this.virtualTable.getState();
 	}
 
-	public getSize(): ITableSize {
+	public getSize(): Table.ITableSize {
 		return this.size;
 	}
 
@@ -140,6 +308,37 @@ export class TableWidget implements IDisposable {
 
 	public getZoomScale(): number {
 		return VirtualTableGridModel.getZoomScale(this.zoomPercent);
+	}
+
+	public setBodyCellTraits(templateData: TBodyTemplateData, state: Table.ITableBodyCellTraitState): void {
+		const traits = this.bodyCellTraits.get(templateData);
+		if (!traits) {
+			throw new Error("Unknown table body cell template data");
+		}
+
+		traits.set(state);
+	}
+
+	public setBodyCellHoverContent(
+		templateData: TBodyTemplateData,
+		content: IManagedHoverContent,
+		options?: IManagedHoverOptions,
+	): void {
+		const traits = this.bodyCellTraits.get(templateData);
+		if (!traits) {
+			throw new Error("Unknown table body cell template data");
+		}
+
+		traits.setHoverContent(content, options);
+	}
+
+	public setColumnHeaderTraits(templateData: TColumnHeaderTemplateData, state: Table.ITableColumnHeaderTraitState): void {
+		const traits = this.columnHeaderTraits.get(templateData);
+		if (!traits) {
+			throw new Error("Unknown table column header template data");
+		}
+
+		traits.set(state);
 	}
 
 	public getRowHeight(): number {
@@ -198,10 +397,13 @@ export class TableWidget implements IDisposable {
 	}
 
 	public replaceViewportContent(element?: HTMLElement): void {
+		this.cancelCellEdit();
+		this.clearHoveredTraits();
 		this.virtualTable.replaceViewportContent(element);
 	}
 
 	public resetScrollTop(): void {
+		this.cancelCellEdit();
 		this.virtualTable.resetScrollTop();
 	}
 
@@ -224,13 +426,77 @@ export class TableWidget implements IDisposable {
 		return this.virtualTable.getColumnHeaderCell(columnOffset);
 	}
 
+	public getBodyCellTemplateData(rowOffset: number, columnOffset: number): TBodyTemplateData | null {
+		return this.virtualTable.getBodyCellTemplateData(rowOffset, columnOffset);
+	}
+
+	public getColumnHeaderTemplateData(columnOffset: number): TColumnHeaderTemplateData | null {
+		return this.virtualTable.getColumnHeaderTemplateData(columnOffset);
+	}
+
+	public getBodyCellPositionFromTarget(target: EventTarget | null): Table.ITableCellPosition | null {
+		const targetElement = this.getElementFromEventTarget(target);
+		if (!targetElement) {
+			return null;
+		}
+
+		const cell = targetElement.closest<HTMLTableCellElement>(".table_view_cell");
+		if (!cell || cell.hidden || !this.virtualTable.bodyRows.contains(cell)) {
+			return null;
+		}
+
+		const rowIndex = Number(cell.dataset.rowIndex);
+		const colIndex = Number(cell.dataset.colIndex);
+		if (
+			!Number.isInteger(rowIndex) ||
+			rowIndex < 0 ||
+			!Number.isInteger(colIndex) ||
+			colIndex < 0
+		) {
+			return null;
+		}
+
+		return { rowIndex, colIndex };
+	}
+
+	public getBodyCellPositionFromPoint(clientX: number, clientY: number): Table.ITableCellPosition | null {
+		if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) {
+			return null;
+		}
+
+		return this.getBodyCellPositionFromTarget(this.element.ownerDocument.elementFromPoint(clientX, clientY));
+	}
+
+	public getColumnHeaderPositionFromTarget(target: EventTarget | null): Table.ITableColumnHeaderPosition | null {
+		const targetElement = this.getElementFromEventTarget(target);
+		if (!targetElement) {
+			return null;
+		}
+
+		const cell = targetElement.closest<HTMLElement>(".table_view_grid_header_cell");
+		if (!cell || cell.hidden || !this.virtualTable.headerContent.contains(cell)) {
+			return null;
+		}
+
+		const ariaColIndex = Number(cell.getAttribute("aria-colindex"));
+		if (!Number.isInteger(ariaColIndex) || ariaColIndex <= 0) {
+			return null;
+		}
+
+		return { colIndex: ariaColIndex - 1 };
+	}
+
 	public forEachBodyCellElement(callback: (cell: HTMLTableCellElement) => void): void {
 		this.virtualTable.forEachBodyCell(cell => callback(cell.element));
 	}
 
+	public forEachBodyCellTemplateData(callback: (templateData: TBodyTemplateData) => void): void {
+		this.virtualTable.forEachBodyCell(cell => callback(cell.templateData));
+	}
+
 	public forEachBodyCellInRanges(
-		ranges: readonly ITableCellRange[],
-		callback: (cell: HTMLTableCellElement, descriptor: ITableBodyCellDescriptor) => void,
+		ranges: readonly Table.ITableCellRange[],
+		callback: (templateData: TBodyTemplateData, descriptor: Table.ITableBodyCellDescriptor) => void,
 	): number {
 		const { columnRange, rowRange } = this.virtualTable.getState();
 		const visited = new Set<string>();
@@ -263,10 +529,14 @@ export class TableWidget implements IDisposable {
 					if (!cell || cell.hidden) {
 						continue;
 					}
+					const templateData = this.virtualTable.getBodyCellTemplateData(rowOffset, columnOffset);
+					if (templateData === null) {
+						continue;
+					}
 
 					visited.add(key);
 					count += 1;
-					callback(cell, {
+					callback(templateData, {
 						rowIndex,
 						rowOffset,
 						colIndex,
@@ -280,13 +550,15 @@ export class TableWidget implements IDisposable {
 	}
 
 	public clearBodyCells(): void {
+		this.cancelCellEdit();
 		this.virtualTable.clearBodyCells();
 	}
 
 	public rerenderDirtyBodyCells(
-		ranges: readonly ITableDirtyRange[],
+		ranges: readonly Table.ITableDirtyRange[],
 		renderVersion: unknown,
-	): ITablePatchResult {
+	): Table.ITablePatchResult {
+		this.cancelCellEditInDirtyRanges(ranges);
 		const visibleRanges = this.toVisibleBodyCellRanges(ranges);
 		if (visibleRanges.length === 0) {
 			return "ignored";
@@ -296,9 +568,21 @@ export class TableWidget implements IDisposable {
 		return "patched";
 	}
 
-	public containsBodyTarget(target: EventTarget | null): boolean {
-		const targetWindow = this.element.ownerDocument.defaultView;
-		return Boolean(targetWindow && target instanceof targetWindow.Node && this.virtualTable.bodyRows.contains(target));
+	public rerenderDirtyColumnHeaders(
+		ranges: readonly Table.ITableDirtyRange[],
+		renderVersion: unknown,
+	): Table.ITablePatchResult {
+		if (!this.isHeaderVisible()) {
+			return "ignored";
+		}
+
+		const columnOffsets = this.toVisibleColumnOffsets(ranges);
+		if (columnOffsets.length === 0) {
+			return "ignored";
+		}
+
+		this.virtualTable.rerenderColumnHeaders(columnOffsets, renderVersion);
+		return "patched";
 	}
 
 	public containsHeaderTarget(target: EventTarget | null): boolean {
@@ -316,6 +600,7 @@ export class TableWidget implements IDisposable {
 			this.virtualTable.header.hidden = hidden;
 		}
 		if (!visible) {
+			this.cancelCellEdit();
 			this.endColumnResize(false);
 		}
 	}
@@ -329,11 +614,303 @@ export class TableWidget implements IDisposable {
 		this.syncColumnResizeGuide();
 	}
 
+	public startCellEdit(rowIndex: number, colIndex: number): boolean {
+		const cellEditing = this.options.cellEditing;
+		if (cellEditing?.enabled !== true) {
+			return false;
+		}
+
+		const normalizedRowIndex = Math.floor(Number(rowIndex));
+		const normalizedColIndex = Math.floor(Number(colIndex));
+		if (!Number.isInteger(normalizedRowIndex) || !Number.isInteger(normalizedColIndex)) {
+			return false;
+		}
+
+		const { columnRange, rowRange } = this.virtualTable.getState();
+		if (
+			normalizedRowIndex < rowRange.startIndex ||
+			normalizedRowIndex >= rowRange.endIndex ||
+			normalizedColIndex < columnRange.startIndex ||
+			normalizedColIndex >= columnRange.endIndex
+		) {
+			return false;
+		}
+
+		const rowOffset = normalizedRowIndex - rowRange.startIndex;
+		const columnOffset = normalizedColIndex - columnRange.startIndex;
+		const cell = this.virtualTable.getBodyCell(rowOffset, columnOffset);
+		if (!cell || cell.hidden) {
+			return false;
+		}
+
+		this.cancelCellEdit();
+		const input = cell.ownerDocument.createElement("input");
+		input.className = "table_view_cell_editor";
+		input.type = "text";
+		input.value = cellEditing.getInitialValue({
+			rowIndex: normalizedRowIndex,
+			colIndex: normalizedColIndex,
+		});
+		input.setAttribute("aria-label", "Edit cell");
+		cell.dataset.editing = "true";
+		cell.append(input);
+		this.cellEditState = {
+			cell,
+			input,
+			rowIndex: normalizedRowIndex,
+			colIndex: normalizedColIndex,
+		};
+		this.cellEditStore.add(addDisposableListener(input, EventType.KEY_DOWN, event => {
+			this.onCellEditKeyDown(event as KeyboardEvent);
+		}));
+		this.cellEditStore.add(addDisposableListener(input, EventType.BLUR, () => {
+			this.commitCellEdit();
+		}));
+		input.focus();
+		input.select();
+		return true;
+	}
+
+	public commitCellEdit(): boolean {
+		const state = this.cellEditState;
+		if (!state) {
+			return false;
+		}
+
+		const value = state.input.value;
+		this.clearCellEditState();
+		this.onDidCommitCellEditEmitter.fire({
+			rowIndex: state.rowIndex,
+			colIndex: state.colIndex,
+			value,
+		});
+		return true;
+	}
+
+	public cancelCellEdit(): boolean {
+		const state = this.cellEditState;
+		if (!state) {
+			return false;
+		}
+
+		this.clearCellEditState();
+		return true;
+	}
+
+	private createRenderer(
+		renderer: Table.ITableWidgetRenderer<TBodyTemplateData, TColumnHeaderTemplateData>,
+	): Table.ITableWidgetRenderer<TBodyTemplateData, TColumnHeaderTemplateData> {
+		return {
+			clearBodyCell: templateData => {
+				this.bodyCellTraits.get(templateData)?.setHoverContent(undefined);
+				renderer.clearBodyCell(templateData);
+			},
+			disposeBodyCellTemplate: templateData => {
+				const traits = this.bodyCellTraits.get(templateData);
+				if (this.hoveredBodyCellTraits === traits) {
+					this.setHoveredBodyCellTraits(null);
+				}
+				traits?.dispose();
+				this.bodyCellTraits.delete(templateData);
+				renderer.disposeBodyCellTemplate(templateData);
+			},
+			disposeColumnHeaderTemplate: templateData => {
+				const traits = this.columnHeaderTraits.get(templateData);
+				if (this.hoveredColumnHeaderTraits === traits) {
+					this.setHoveredColumnHeaderTraits(null);
+				}
+				this.columnHeaderTraits.delete(templateData);
+				renderer.disposeColumnHeaderTemplate?.(templateData);
+			},
+			renderBodyCell: (templateData, descriptor) => {
+				renderer.renderBodyCell(templateData, descriptor);
+			},
+			renderBodyCellContent: (templateData, descriptor) => {
+				renderer.renderBodyCellContent(templateData, descriptor);
+			},
+			renderBodyCellTemplate: (cell, content) => {
+				const templateData = renderer.renderBodyCellTemplate(cell, content);
+				const traits = new TableBodyCellTraits(cell);
+				this.bodyCellTraits.set(templateData, traits);
+				this.bodyCellTraitsByElement.set(cell, traits);
+				return templateData;
+			},
+			renderColumnHeader: (templateData, descriptor) => {
+				renderer.renderColumnHeader(templateData, descriptor);
+			},
+			renderColumnHeaderTemplate: cell => {
+				const templateData = renderer.renderColumnHeaderTemplate(cell);
+				const traits = new TableColumnHeaderTraits(cell);
+				this.columnHeaderTraits.set(templateData, traits);
+				this.columnHeaderTraitsByElement.set(cell, traits);
+				return templateData;
+			},
+			renderCorner: cell => {
+				renderer.renderCorner?.(cell);
+			},
+			renderRowHeader: (cell, descriptor) => {
+				renderer.renderRowHeader(cell, descriptor);
+			},
+		};
+	}
+
+	private onBodyPointerMove(event: PointerEvent): void {
+		this.setHoveredBodyCellTraits(this.getBodyCellTraitsFromTarget(event.target));
+	}
+
+	private onHeaderPointerMove(event: PointerEvent): void {
+		this.setHoveredColumnHeaderTraits(this.getColumnHeaderTraitsFromTarget(event.target));
+	}
+
+	private toBodyMouseEvent<T extends MouseEvent>(browserEvent: T): Table.ITableBodyMouseEvent<T> {
+		return {
+			browserEvent,
+			cell: this.getBodyCellPositionFromTarget(browserEvent.target) ??
+				this.getBodyCellPositionFromPoint(browserEvent.clientX, browserEvent.clientY),
+			mouseEvent: new StandardMouseEvent(getWindow(this.element), browserEvent),
+		};
+	}
+
+	private toColumnHeaderMouseEvent<T extends MouseEvent>(browserEvent: T): Table.ITableColumnHeaderMouseEvent<T> {
+		return {
+			browserEvent,
+			column: this.getColumnHeaderPositionFromTarget(browserEvent.target),
+			mouseEvent: new StandardMouseEvent(getWindow(this.element), browserEvent),
+		};
+	}
+
+	private clearHoveredTraits(): void {
+		this.setHoveredBodyCellTraits(null);
+		this.setHoveredColumnHeaderTraits(null);
+	}
+
+	private setHoveredBodyCellTraits(traits: TableBodyCellTraits | null): void {
+		if (this.hoveredBodyCellTraits === traits) {
+			return;
+		}
+
+		this.hoveredBodyCellTraits?.setHovered(false);
+		this.hoveredBodyCellTraits = traits;
+		this.hoveredBodyCellTraits?.setHovered(true);
+	}
+
+	private setHoveredColumnHeaderTraits(traits: TableColumnHeaderTraits | null): void {
+		if (this.hoveredColumnHeaderTraits === traits) {
+			return;
+		}
+
+		this.hoveredColumnHeaderTraits?.setHovered(false);
+		this.hoveredColumnHeaderTraits = traits;
+		this.hoveredColumnHeaderTraits?.setHovered(true);
+	}
+
+	private getBodyCellTraitsFromTarget(target: EventTarget | null): TableBodyCellTraits | null {
+		const targetElement = this.getElementFromEventTarget(target);
+		if (!targetElement) {
+			return null;
+		}
+
+		const cell = targetElement.closest<HTMLTableCellElement>(".table_view_cell");
+		if (!cell || cell.hidden || !this.virtualTable.bodyRows.contains(cell)) {
+			return null;
+		}
+
+		return this.bodyCellTraitsByElement.get(cell) ?? null;
+	}
+
+	private getColumnHeaderTraitsFromTarget(target: EventTarget | null): TableColumnHeaderTraits | null {
+		const targetElement = this.getElementFromEventTarget(target);
+		if (!targetElement) {
+			return null;
+		}
+
+		const cell = targetElement.closest<HTMLElement>(".table_view_grid_header_cell");
+		if (!cell || cell.hidden || !this.virtualTable.headerContent.contains(cell)) {
+			return null;
+		}
+
+		return this.columnHeaderTraitsByElement.get(cell) ?? null;
+	}
+
+	private getElementFromEventTarget(target: EventTarget | null): Element | null {
+		const targetWindow = this.element.ownerDocument.defaultView;
+		if (!targetWindow || !(target instanceof targetWindow.Node)) {
+			return null;
+		}
+
+		return target instanceof targetWindow.Element ? target : target.parentElement;
+	}
+
 	private syncZoomStyle(): void {
 		this.virtualTable.body.style.setProperty(
 			"--table-view-zoom",
 			String(this.getZoomScale()),
 		);
+	}
+
+	private onBodyDoubleClick(event: MouseEvent): void {
+		const target = this.getBodyCellPositionFromTarget(event.target);
+		if (!target) {
+			return;
+		}
+
+		if (!this.startCellEdit(target.rowIndex, target.colIndex)) {
+			return;
+		}
+
+		event.preventDefault();
+		event.stopPropagation();
+	}
+
+	private onCellEditKeyDown(event: KeyboardEvent): void {
+		const keyboardEvent = new StandardKeyboardEvent(event);
+		if (keyboardEvent.keyCode === KeyCode.Enter) {
+			keyboardEvent.preventDefault();
+			keyboardEvent.stopPropagation();
+			this.commitCellEdit();
+			return;
+		}
+
+		if (keyboardEvent.keyCode === KeyCode.Escape) {
+			keyboardEvent.preventDefault();
+			keyboardEvent.stopPropagation();
+			this.cancelCellEdit();
+		}
+	}
+
+	private clearCellEditState(): void {
+		const state = this.cellEditState;
+		if (!state) {
+			return;
+		}
+
+		this.cellEditState = null;
+		this.cellEditStore.clear();
+		state.input.remove();
+		delete state.cell.dataset.editing;
+	}
+
+	private cancelCellEditInDirtyRanges(ranges: readonly Table.ITableDirtyRange[]): void {
+		const state = this.cellEditState;
+		if (!state) {
+			return;
+		}
+
+		for (const range of ranges) {
+			const startRow = range.startRow ?? state.rowIndex;
+			const endRow = range.endRow ?? state.rowIndex + 1;
+			const startCol = range.startCol ?? state.colIndex;
+			const endCol = range.endCol ?? state.colIndex + 1;
+			if (
+				state.rowIndex >= startRow &&
+				state.rowIndex < endRow &&
+				state.colIndex >= startCol &&
+				state.colIndex < endCol
+			) {
+				this.cancelCellEdit();
+				return;
+			}
+		}
 	}
 
 	private onColumnResizeStart(event: PointerEvent): boolean {
@@ -459,7 +1036,7 @@ export class TableWidget implements IDisposable {
 		this.columnResizeStore.clear();
 	}
 
-	private getColumnResizeMode(): ITableColumnResizeMode {
+	private getColumnResizeMode(): Table.ITableColumnResizeMode {
 		return this.options.columnResize?.mode ?? "commit";
 	}
 
@@ -467,7 +1044,7 @@ export class TableWidget implements IDisposable {
 		this.virtualTable.syncColumnResizeGuide(this.columnResizeState?.guideLeft ?? null);
 	}
 
-	private getColumnRange(): ITableColumnRange {
+	private getColumnRange(): Table.ITableColumnRange {
 		return this.virtualTable.getState().columnRange;
 	}
 
@@ -486,14 +1063,14 @@ export class TableWidget implements IDisposable {
 	}
 
 	private toVisibleBodyCellRanges(
-		dirtyRanges: readonly ITableDirtyRange[],
-	): ITableCellRange[] {
+		dirtyRanges: readonly Table.ITableDirtyRange[],
+	): Table.ITableCellRange[] {
 		const state = this.virtualTable.getState();
 		const visibleRowStart = state.rowRange.startIndex;
 		const visibleRowEnd = state.rowRange.endIndex;
 		const visibleColStart = state.columnRange.startIndex;
 		const visibleColEnd = state.columnRange.endIndex;
-		const ranges: ITableCellRange[] = [];
+		const ranges: Table.ITableCellRange[] = [];
 		for (const dirtyRange of dirtyRanges) {
 			const startRow = Math.max(visibleRowStart, dirtyRange.startRow ?? visibleRowStart);
 			const endRow = Math.min(visibleRowEnd, dirtyRange.endRow ?? visibleRowEnd);
@@ -513,6 +1090,28 @@ export class TableWidget implements IDisposable {
 
 		return ranges;
 	}
+
+	private toVisibleColumnOffsets(
+		dirtyRanges: readonly Table.ITableDirtyRange[],
+	): number[] {
+		const { columnRange } = this.virtualTable.getState();
+		const visibleColStart = columnRange.startIndex;
+		const visibleColEnd = columnRange.endIndex;
+		const columnOffsets = new Set<number>();
+		for (const dirtyRange of dirtyRanges) {
+			const startCol = Math.max(visibleColStart, dirtyRange.startCol ?? visibleColStart);
+			const endCol = Math.min(visibleColEnd, dirtyRange.endCol ?? visibleColEnd);
+			if (startCol >= endCol) {
+				continue;
+			}
+
+			for (let colIndex = startCol; colIndex < endCol; colIndex += 1) {
+				columnOffsets.add(colIndex - visibleColStart);
+			}
+		}
+
+		return Array.from(columnOffsets).sort((left, right) => left - right);
+	}
 }
 
 function clampTableWidgetZoomPercent(zoomPercent: number): number {
@@ -522,7 +1121,7 @@ function clampTableWidgetZoomPercent(zoomPercent: number): number {
 	);
 }
 
-function toTableWidgetSize(options: ITableRenderOptions): ITableSize {
+function toTableWidgetSize(options: Table.ITableRenderOptions): Table.ITableSize {
 	return {
 		columnCount: toSafeCount(options.columnCount),
 		rowCount: toSafeCount(options.rowCount),
@@ -534,7 +1133,7 @@ function toSafeCount(value: unknown): number {
 	return Number.isFinite(count) && count > 0 ? count : 0;
 }
 
-function isTableWidgetSizeEqual(first: ITableSize, second: ITableSize): boolean {
+function isTableWidgetSizeEqual(first: Table.ITableSize, second: Table.ITableSize): boolean {
 	return first.columnCount === second.columnCount &&
 		first.rowCount === second.rowCount;
 }
@@ -550,3 +1149,6 @@ function addRootClassName(element: HTMLElement, className: string | undefined): 
 		}
 	}
 }
+
+const serializeTableSelectionFrame = (frame: Table.ITableBodyCellTraitState["selectionFrame"]): string =>
+	`${frame.top ? "t" : ""}${frame.right ? "r" : ""}${frame.bottom ? "b" : ""}${frame.left ? "l" : ""}`;

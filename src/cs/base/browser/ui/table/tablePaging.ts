@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from "src/cs/base/common/cancellation";
+import { asPromise, type CancelablePromise, createCancelablePromise } from "src/cs/base/common/async";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { IPagedModel } from "src/cs/base/common/paging";
 import type {
@@ -13,23 +13,19 @@ import type {
 	ITableWidgetRenderer,
 } from "src/cs/base/browser/ui/table/table";
 
-type PagedTableBodyCellState = {
-	cts: CancellationTokenSource | null;
+type PagedTableBodyCellTemplateData<TRow, TTemplateData> = {
+	request: CancelablePromise<TRow> | null;
 	renderVersion: number;
+	readonly templateData: TTemplateData;
 };
 
-const createBodyCellState = (): PagedTableBodyCellState => ({
-	cts: null,
-	renderVersion: 0,
-});
-
-export class PagedTableWidgetRenderer<TRow> implements ITableWidgetRenderer, IDisposable {
-	private readonly cellStates = new WeakMap<HTMLTableCellElement, PagedTableBodyCellState>();
-	private readonly pendingRequests = new Set<CancellationTokenSource>();
+export class PagedTableWidgetRenderer<TRow, TBodyTemplateData = unknown, TColumnHeaderTemplateData = unknown>
+	implements ITableWidgetRenderer<PagedTableBodyCellTemplateData<TRow, TBodyTemplateData>, TColumnHeaderTemplateData>, IDisposable {
+	private readonly pendingRequests = new Set<CancelablePromise<TRow>>();
 
 	public constructor(
 		private model: IPagedModel<TRow>,
-		private readonly renderer: ITablePagedWidgetRenderer<TRow>,
+		private readonly renderer: ITablePagedWidgetRenderer<TRow, TBodyTemplateData, TColumnHeaderTemplateData>,
 	) {}
 
 	public setModel(model: IPagedModel<TRow>): void {
@@ -41,90 +37,79 @@ export class PagedTableWidgetRenderer<TRow> implements ITableWidgetRenderer, IDi
 		this.model = model;
 	}
 
-	public clearBodyCell(cell: HTMLTableCellElement): void {
-		this.cancelCellRequest(cell);
-		this.renderer.clearBodyCell?.(cell);
+	public renderBodyCellTemplate(cell: HTMLTableCellElement, content: HTMLElement): PagedTableBodyCellTemplateData<TRow, TBodyTemplateData> {
+		return {
+			request: null,
+			renderVersion: 0,
+			templateData: this.renderer.renderBodyCellTemplate(cell, content),
+		};
 	}
 
-	public disposeBodyCell(cell: HTMLTableCellElement): void {
-		this.cancelCellRequest(cell);
-		this.renderer.disposeBodyCell?.(cell);
-		this.cellStates.delete(cell);
+	public clearBodyCell(templateData: PagedTableBodyCellTemplateData<TRow, TBodyTemplateData>): void {
+		this.cancelStateRequest(templateData);
+		this.renderer.clearBodyCell(templateData.templateData);
 	}
 
-	public renderBodyCell(cell: HTMLTableCellElement, descriptor: ITableBodyCellDescriptor): void {
-		this.getCellState(cell);
-		this.renderer.renderBodyCell?.(cell, descriptor);
+	public disposeBodyCellTemplate(templateData: PagedTableBodyCellTemplateData<TRow, TBodyTemplateData>): void {
+		this.cancelStateRequest(templateData);
+		this.renderer.disposeBodyCellTemplate(templateData.templateData);
 	}
 
-	public renderBodyCellContent(content: HTMLElement, descriptor: ITableBodyCellDescriptor): void {
-		const cell = content.closest("td");
-		if (!(cell instanceof HTMLTableCellElement)) {
-			return;
-		}
+	public renderBodyCell(templateData: PagedTableBodyCellTemplateData<TRow, TBodyTemplateData>, descriptor: ITableBodyCellDescriptor): void {
+		this.renderer.renderBodyCell?.(templateData.templateData, descriptor);
+	}
 
-		const state = this.getCellState(cell);
-		this.cancelStateRequest(state);
-		state.renderVersion += 1;
-		const renderVersion = state.renderVersion;
+	public renderBodyCellContent(templateData: PagedTableBodyCellTemplateData<TRow, TBodyTemplateData>, descriptor: ITableBodyCellDescriptor): void {
+		this.cancelStateRequest(templateData);
+		templateData.renderVersion += 1;
+		const renderVersion = templateData.renderVersion;
 		const rowIndex = descriptor.rowIndex;
 
 		if (this.model.isResolved(rowIndex)) {
-			this.renderer.renderBodyCellContent(content, {
+			this.renderer.renderBodyCellContent(templateData.templateData, {
 				...descriptor,
 				row: this.model.get(rowIndex),
 			});
 			return;
 		}
 
-		if (this.renderer.renderBodyCellPlaceholder) {
-			this.renderer.renderBodyCellPlaceholder(content, descriptor);
-		} else {
-			content.replaceChildren();
-		}
-		const cts = new CancellationTokenSource();
-		state.cts = cts;
-		this.pendingRequests.add(cts);
+		this.renderer.renderBodyCellPlaceholder(templateData.templateData, descriptor);
+		const request = createCancelablePromise(token => asPromise(() => this.model.resolve(rowIndex, token)));
+		templateData.request = request;
+		this.pendingRequests.add(request);
 
-		let rowPromise: Promise<TRow>;
-		try {
-			rowPromise = this.model.resolve(rowIndex, cts.token);
-		} catch {
-			if (state.cts === cts) {
-				state.cts = null;
-			}
-			this.pendingRequests.delete(cts);
-			cts.dispose();
-			return;
-		}
-
-		rowPromise.then(row => {
+		request.then(row => {
 			if (
-				cts.token.isCancellationRequested ||
-				state.cts !== cts ||
-				state.renderVersion !== renderVersion
+				templateData.request !== request ||
+				templateData.renderVersion !== renderVersion
 			) {
 				return;
 			}
 
-			state.cts = null;
-			this.pendingRequests.delete(cts);
-			cts.dispose();
-			this.renderer.renderBodyCellContent(content, {
+			templateData.request = null;
+			this.pendingRequests.delete(request);
+			this.renderer.renderBodyCellContent(templateData.templateData, {
 				...descriptor,
 				row,
 			});
 		}, () => {
-			if (state.cts === cts) {
-				state.cts = null;
+			if (templateData.request === request) {
+				templateData.request = null;
 			}
-			this.pendingRequests.delete(cts);
-			cts.dispose();
+			this.pendingRequests.delete(request);
 		});
 	}
 
-	public renderColumnHeader(cell: HTMLElement, descriptor: ITableColumnHeaderDescriptor): void {
-		this.renderer.renderColumnHeader(cell, descriptor);
+	public renderColumnHeaderTemplate(cell: HTMLElement): TColumnHeaderTemplateData {
+		return this.renderer.renderColumnHeaderTemplate(cell);
+	}
+
+	public disposeColumnHeaderTemplate(templateData: TColumnHeaderTemplateData): void {
+		this.renderer.disposeColumnHeaderTemplate?.(templateData);
+	}
+
+	public renderColumnHeader(templateData: TColumnHeaderTemplateData, descriptor: ITableColumnHeaderDescriptor): void {
+		this.renderer.renderColumnHeader(templateData, descriptor);
 	}
 
 	public renderCorner(cell: HTMLElement): void {
@@ -139,39 +124,20 @@ export class PagedTableWidgetRenderer<TRow> implements ITableWidgetRenderer, IDi
 		this.cancelPendingRequests();
 	}
 
-	private getCellState(cell: HTMLTableCellElement): PagedTableBodyCellState {
-		let state = this.cellStates.get(cell);
-		if (!state) {
-			state = createBodyCellState();
-			this.cellStates.set(cell, state);
-		}
-
-		return state;
-	}
-
-	private cancelCellRequest(cell: HTMLTableCellElement): void {
-		const state = this.cellStates.get(cell);
-		if (state) {
-			this.cancelStateRequest(state);
-		}
-	}
-
-	private cancelStateRequest(state: PagedTableBodyCellState): void {
-		const cts = state.cts;
-		if (!cts) {
+	private cancelStateRequest(state: PagedTableBodyCellTemplateData<TRow, TBodyTemplateData>): void {
+		const request = state.request;
+		if (!request) {
 			return;
 		}
 
-		state.cts = null;
-		this.pendingRequests.delete(cts);
-		cts.cancel();
-		cts.dispose();
+		state.request = null;
+		this.pendingRequests.delete(request);
+		request.cancel();
 	}
 
 	private cancelPendingRequests(): void {
-		for (const cts of this.pendingRequests) {
-			cts.cancel();
-			cts.dispose();
+		for (const request of this.pendingRequests) {
+			request.cancel();
 		}
 		this.pendingRequests.clear();
 	}

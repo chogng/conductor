@@ -174,18 +174,96 @@ suite("base/test/browser/ui/list/listView", () => {
       host.remove();
     }
   });
+
+  test("keeps drag feedback briefly after drag leave", async () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+
+    const dnd: IListViewDragAndDrop<string> = {
+      dispose: () => undefined,
+      getDragElements: element => [element],
+      getDragURI: element => `test:${element}`,
+      onDragOver: (): IListDragOverReaction => ({
+        accept: true,
+        effect: {
+          position: ListDragOverEffectPosition.Before,
+          type: ListDragOverEffectType.Move,
+        },
+      }),
+      drop: () => undefined,
+    };
+
+    const list = createStringListView(host, ["alpha", "beta"], { dnd });
+
+    try {
+      const rows = host.querySelectorAll<HTMLElement>(".ui-list__row");
+      dispatchDragEvent(rows[0], "dragstart", createDataTransfer());
+      dispatchDragEvent(rows[1], "dragover", createDataTransfer(), { clientY: 0 });
+
+      assert.equal(rows[1].classList.contains(ListDragOverEffectPosition.Before), true);
+
+      dispatchDragEvent(rows[1], "dragleave", createDataTransfer(), { clientY: 0 });
+
+      assert.equal(rows[1].classList.contains(ListDragOverEffectPosition.Before), true);
+
+      await timeout(120);
+
+      assert.equal(rows[1].classList.contains(ListDragOverEffectPosition.Before), false);
+    } finally {
+      list.dispose();
+      host.remove();
+    }
+  });
+
+  test("normalizes after feedback to before feedback on the next row", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+
+    const dnd: IListViewDragAndDrop<string> = {
+      dispose: () => undefined,
+      getDragElements: element => [element],
+      getDragURI: element => `test:${element}`,
+      onDragOver: (): IListDragOverReaction => ({
+        accept: true,
+        effect: {
+          position: ListDragOverEffectPosition.After,
+          type: ListDragOverEffectType.Move,
+        },
+        feedback: [0],
+      }),
+      drop: () => undefined,
+    };
+
+    const list = createStringListView(host, ["alpha", "beta"], { dnd });
+
+    try {
+      const rows = host.querySelectorAll<HTMLElement>(".ui-list__row");
+      dispatchDragEvent(rows[0], "dragstart", createDataTransfer());
+      dispatchDragEvent(rows[0], "dragover", createDataTransfer(), { clientY: 20 });
+
+      assert.equal(rows[0].classList.contains(ListDragOverEffectPosition.After), false);
+      assert.equal(rows[1].classList.contains(ListDragOverEffectPosition.Before), true);
+    } finally {
+      list.dispose();
+      host.remove();
+    }
+  });
 });
 
 function createStringListView(
   host: HTMLElement,
   items: readonly string[],
-  options: { readonly minVirtualCount?: number } = {},
+  options: {
+    readonly dnd?: IListViewDragAndDrop<string>;
+    readonly minVirtualCount?: number;
+  } = {},
 ): ListView<string> {
   return new ListView(host, {
     delegate: {
       getHeight: () => 24,
       getTemplateId: () => "row",
     },
+    dnd: options.dnd,
     getKey: item => item,
     items: [...items],
     minVirtualCount: options.minVirtualCount,
@@ -204,6 +282,10 @@ function animationFrame(): Promise<void> {
   return new Promise(resolve => {
     requestAnimationFrame(() => resolve());
   });
+}
+
+function timeout(millis: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, millis));
 }
 
 function dispatchDragEvent(

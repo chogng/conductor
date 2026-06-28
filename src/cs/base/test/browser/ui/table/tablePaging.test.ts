@@ -23,15 +23,21 @@ suite("base/test/browser/ui/table/tablePaging", () => {
 			total: 2,
 		};
 		const renderer = new PagedTableWidgetRenderer(new PagedModel(pager), {
-			renderBodyCellContent: (content, descriptor) => {
-				content.textContent = `${descriptor.row}:${descriptor.colIndex}`;
+			clearBodyCell: templateData => {
+				templateData.content.textContent = "";
 			},
-			renderBodyCellPlaceholder: (content, descriptor) => {
-				content.textContent = `loading:${descriptor.rowIndex}:${descriptor.colIndex}`;
+			disposeBodyCellTemplate: () => undefined,
+			renderBodyCellContent: (templateData, descriptor) => {
+				templateData.content.textContent = `${descriptor.row}:${descriptor.colIndex}`;
 			},
+			renderBodyCellPlaceholder: (templateData, descriptor) => {
+				templateData.content.textContent = `loading:${descriptor.rowIndex}:${descriptor.colIndex}`;
+			},
+			renderBodyCellTemplate: (cell, content) => ({ cell, content }),
 			renderColumnHeader: (cell, descriptor) => {
 				cell.textContent = String(descriptor.colIndex);
 			},
+			renderColumnHeaderTemplate: cell => cell,
 			renderRowHeader: (cell, descriptor) => {
 				cell.textContent = String(descriptor.rowIndex);
 			},

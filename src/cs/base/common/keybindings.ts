@@ -133,30 +133,6 @@ export function createKeybindingFromKeyboardEvent(
   };
 }
 
-export function parseKeybinding(
-  value: string,
-  platform: KeybindingPlatform = getCurrentKeybindingPlatform(),
-): Keybinding | null {
-  const chords = value
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  if (chords.length === 0) {
-    return null;
-  }
-
-  const result: SimpleKeybinding[] = [];
-  for (const chord of chords) {
-    const keybinding = parseSimpleKeybinding(chord, platform);
-    if (!keybinding) {
-      return null;
-    }
-    result.push(keybinding);
-  }
-
-  return result;
-}
-
 export function formatKeybinding(keybinding: Keybinding): string {
   return keybinding.map(formatSimpleKeybinding).join(" ");
 }
@@ -177,85 +153,6 @@ export function formatSimpleKeybinding(keybinding: SimpleKeybinding): string {
   }
   parts.push(formatKeyCode(keybinding.keyCode));
   return parts.join("+");
-}
-
-function parseSimpleKeybinding(
-  value: string,
-  platform: KeybindingPlatform,
-): SimpleKeybinding | null {
-  const parts = value
-    .split("+")
-    .map(part => part.trim())
-    .filter(Boolean);
-  if (parts.length === 0) {
-    return null;
-  }
-
-  let ctrlKey = false;
-  let shiftKey = false;
-  let altKey = false;
-  let metaKey = false;
-  let keyCode: KeyCode = KeyCode.Unknown;
-
-  for (const part of parts) {
-    const token = normalizeKeybindingToken(part);
-    switch (token) {
-      case "ctrl":
-      case "control":
-        ctrlKey = true;
-        continue;
-      case "shift":
-        shiftKey = true;
-        continue;
-      case "alt":
-      case "option":
-      case "opt":
-        altKey = true;
-        continue;
-      case "cmd":
-      case "command":
-      case "meta":
-      case "win":
-      case "windows":
-      case "super":
-        metaKey = true;
-        continue;
-      case "ctrlcmd":
-      case "cmdctrl":
-      case "cmdorctrl":
-        if (platform === "mac") {
-          metaKey = true;
-        } else {
-          ctrlKey = true;
-        }
-        continue;
-      case "winctrl":
-        if (platform === "mac") {
-          ctrlKey = true;
-        } else {
-          metaKey = true;
-        }
-        continue;
-    }
-
-    if (keyCode !== KeyCode.Unknown) {
-      return null;
-    }
-
-    keyCode = parseKeyCode(token);
-  }
-
-  if (keyCode === KeyCode.Unknown || isModifierKey(keyCode)) {
-    return null;
-  }
-
-  return {
-    ctrlKey,
-    shiftKey,
-    altKey,
-    metaKey,
-    keyCode,
-  };
 }
 
 export function keyCodeFromKeyboardEvent(event: IKeyboardEventLike): KeyCode {
@@ -326,78 +223,6 @@ export function keyCodeFromKeyboardEvent(event: IKeyboardEventLike): KeyCode {
     case "ArrowRight": return KeyCode.RightArrow;
     case "ArrowDown": return KeyCode.DownArrow;
     case "ContextMenu": return KeyCode.ContextMenu;
-  }
-
-  return KeyCode.Unknown;
-}
-
-function normalizeKeybindingToken(value: string): string {
-  return value.toLowerCase().replace(/[-_]/g, "");
-}
-
-function parseKeyCode(token: string): KeyCode {
-  if (token.length === 1) {
-    const upper = token.toUpperCase();
-    if (upper >= "A" && upper <= "Z") {
-      return keyCodeFromLetter(upper);
-    }
-
-    if (token >= "0" && token <= "9") {
-      return keyCodeFromDigit(token);
-    }
-  }
-
-  if (/^f\d{1,2}$/.test(token)) {
-    return keyCodeFromFunctionKey(token.toUpperCase());
-  }
-
-  switch (token) {
-    case "backspace": return KeyCode.Backspace;
-    case "tab": return KeyCode.Tab;
-    case "enter":
-    case "return": return KeyCode.Enter;
-    case "escape":
-    case "esc": return KeyCode.Escape;
-    case "space": return KeyCode.Space;
-    case "pageup": return KeyCode.PageUp;
-    case "pagedown": return KeyCode.PageDown;
-    case "contextmenu": return KeyCode.ContextMenu;
-    case "end": return KeyCode.End;
-    case "home": return KeyCode.Home;
-    case "left":
-    case "arrowleft": return KeyCode.LeftArrow;
-    case "up":
-    case "arrowup": return KeyCode.UpArrow;
-    case "right":
-    case "arrowright": return KeyCode.RightArrow;
-    case "down":
-    case "arrowdown": return KeyCode.DownArrow;
-    case "insert":
-    case "ins": return KeyCode.Insert;
-    case "delete":
-    case "del": return KeyCode.Delete;
-    case "semicolon":
-    case ";": return KeyCode.Semicolon;
-    case "equal":
-    case "=": return KeyCode.Equal;
-    case "comma":
-    case ",": return KeyCode.Comma;
-    case "minus":
-    case "-": return KeyCode.Minus;
-    case "period":
-    case ".": return KeyCode.Period;
-    case "slash":
-    case "/": return KeyCode.Slash;
-    case "backquote":
-    case "`": return KeyCode.Backquote;
-    case "bracketleft":
-    case "[": return KeyCode.BracketLeft;
-    case "backslash":
-    case "\\": return KeyCode.Backslash;
-    case "bracketright":
-    case "]": return KeyCode.BracketRight;
-    case "quote":
-    case "'": return KeyCode.Quote;
   }
 
   return KeyCode.Unknown;

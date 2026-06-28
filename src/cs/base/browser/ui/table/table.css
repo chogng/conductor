@@ -209,6 +209,7 @@
 }
 
 .table_view_cell {
+	position: relative;
 	text-indent: 0;
 }
 
@@ -218,6 +219,22 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.table_view_cell_editor {
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	box-sizing: border-box;
+	width: 100%;
+	height: 100%;
+	border: 1px solid rgb(var(--accent) / 0.9);
+	padding: 0 var(--table-view-cell-padding-x);
+	background: #fff;
+	color: rgb(var(--text-primary) / 1);
+	font: inherit;
+	line-height: var(--table-view-row-height);
+	outline: none;
 }
 
 .table_view_column_resize_guide {

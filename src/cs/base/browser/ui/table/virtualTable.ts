@@ -5,7 +5,9 @@
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollableElement";
 import { MOUSE_CURSOR_CELL_CLASS_NAME } from "src/cs/base/browser/ui/mouseCursor/mouseCursor";
 import { Emitter, type Event } from "src/cs/base/common/event";
+import { KeyCode } from "src/cs/base/common/keyCodes";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
+import { RangeMap } from "src/cs/base/common/rangeMap";
 
 export type VirtualTableRange = {
 	readonly totalCount: number;
@@ -103,7 +105,7 @@ export type VirtualTableSpacerHeights = {
 export type ResolveVirtualTableKeyboardTargetOptions = {
 	readonly columnCount: unknown;
 	readonly currentCell?: VirtualTableCellPosition | null;
-	readonly key: string;
+	readonly keyCode: KeyCode;
 	readonly pageRowCount?: number;
 	readonly rowCount: unknown;
 	readonly toBoundary?: boolean;
@@ -116,9 +118,10 @@ export type VirtualTableCellDescriptor = {
 	readonly rowOffset?: number;
 };
 
-export type VirtualTableBodyCell = {
+export type VirtualTableBodyCell<TTemplateData = unknown> = {
 	readonly content: HTMLSpanElement;
 	readonly element: HTMLTableCellElement;
+	readonly templateData: TTemplateData;
 	appliedColIndex?: number;
 	appliedHidden?: boolean;
 	appliedRenderVersion?: unknown;
@@ -127,15 +130,16 @@ export type VirtualTableBodyCell = {
 	renderedRowIndex?: number;
 };
 
-type VirtualTableHeaderCell = {
+type VirtualTableHeaderCell<TTemplateData = unknown> = {
 	readonly element: HTMLElement;
+	readonly templateData: TTemplateData;
 	appliedColIndex?: number;
 	appliedHidden?: boolean;
 	appliedRenderVersion?: unknown;
 };
 
-type VirtualTableBodyRow = {
-	readonly cells: VirtualTableBodyCell[];
+type VirtualTableBodyRow<TTemplateData = unknown> = {
+	readonly cells: VirtualTableBodyCell<TTemplateData>[];
 	readonly element: HTMLTableRowElement;
 	readonly leadingSpacer: HTMLTableCellElement;
 	readonly rowHeader: HTMLTableCellElement;
@@ -166,12 +170,15 @@ export type VirtualTableVisibleRangeChangeEvent = {
  * Renderer boundary for pooled cells. Implementations should be idempotent: the
  * same DOM cell will be rebound to many row/column descriptors while scrolling.
  */
-export type VirtualTableRenderer = {
-	readonly clearBodyCell?: (cell: HTMLTableCellElement) => void;
-	readonly disposeBodyCell?: (cell: HTMLTableCellElement) => void;
-	readonly renderBodyCell: (cell: HTMLTableCellElement, descriptor: Required<Pick<VirtualTableCellDescriptor, "colIndex" | "columnOffset" | "rowIndex" | "rowOffset">>) => void;
-	readonly renderBodyCellContent?: (content: HTMLElement, descriptor: Required<Pick<VirtualTableCellDescriptor, "colIndex" | "columnOffset" | "rowIndex" | "rowOffset">>) => void;
-	readonly renderColumnHeader: (cell: HTMLElement, descriptor: Required<Pick<VirtualTableCellDescriptor, "colIndex" | "columnOffset">>) => void;
+export type VirtualTableRenderer<TBodyTemplateData = unknown, TColumnHeaderTemplateData = unknown> = {
+	readonly clearBodyCell: (templateData: TBodyTemplateData) => void;
+	readonly disposeBodyCellTemplate: (templateData: TBodyTemplateData) => void;
+	readonly disposeColumnHeaderTemplate?: (templateData: TColumnHeaderTemplateData) => void;
+	readonly renderBodyCell: (templateData: TBodyTemplateData, descriptor: Required<Pick<VirtualTableCellDescriptor, "colIndex" | "columnOffset" | "rowIndex" | "rowOffset">>) => void;
+	readonly renderBodyCellContent: (templateData: TBodyTemplateData, descriptor: Required<Pick<VirtualTableCellDescriptor, "colIndex" | "columnOffset" | "rowIndex" | "rowOffset">>) => void;
+	readonly renderBodyCellTemplate: (cell: HTMLTableCellElement, content: HTMLElement) => TBodyTemplateData;
+	readonly renderColumnHeader: (templateData: TColumnHeaderTemplateData, descriptor: Required<Pick<VirtualTableCellDescriptor, "colIndex" | "columnOffset">>) => void;
+	readonly renderColumnHeaderTemplate: (cell: HTMLElement) => TColumnHeaderTemplateData;
 	readonly renderCorner?: (cell: HTMLElement) => void;
 	readonly renderRowHeader: (cell: HTMLTableCellElement, descriptor: Required<Pick<VirtualTableCellDescriptor, "rowIndex" | "rowOffset">>) => void;
 };
@@ -226,11 +233,11 @@ const VIRTUAL_TABLE_CLASS_NAMES: VirtualTableClassNames = {
 	viewport: "table_view_preview",
 };
 
-export type VirtualTableOptions = {
+export type VirtualTableOptions<TBodyTemplateData = unknown, TColumnHeaderTemplateData = unknown> = {
 	readonly getColumnWidth: (colIndex: number) => number;
 	readonly maxRenderedColumns?: number;
 	readonly maxRenderedRows?: number;
-	readonly renderer: VirtualTableRenderer;
+	readonly renderer: VirtualTableRenderer<TBodyTemplateData, TColumnHeaderTemplateData>;
 };
 
 export type VirtualTableState = {
@@ -340,16 +347,18 @@ export namespace VirtualTableGridModel {
 			}), 0, 0, 0);
 		}
 
-		const scale = getZoomScale(zoomPercent);
-		const widths = getScaledColumnWidths(safeTotalCount, getColumnWidth, scale);
-		const offsets = getPrefixSums(widths);
-		const totalWidth = offsets[offsets.length - 1] ?? 0;
+		const columnMap = createColumnWidthRangeMap(safeTotalCount, getColumnWidth, getZoomScale(zoomPercent));
+		const totalWidth = columnMap.size;
 		const safeScrollLeft = Math.max(0, Number(scrollLeft) || 0);
 		const safeViewportWidth = Math.max(0, Number(viewportWidth) || 0);
-		const firstVisibleIndex = findColumnIndexAtOffset(widths, offsets, safeScrollLeft);
-		const visibleEndIndex = findColumnEndIndexAtOffset(
-			offsets,
+		const firstVisibleIndex = Math.max(
+			0,
+			Math.min(columnMap.indexAt(safeScrollLeft), safeTotalCount - 1),
+		);
+		const visibleEndIndex = findRangeEndIndexAtOffset(
+			columnMap,
 			safeScrollLeft + safeViewportWidth,
+			safeTotalCount,
 		);
 		const safeOverscanCount = Math.max(0, toSafeCount(overscanCount));
 		const startIndex = Math.max(0, firstVisibleIndex - safeOverscanCount);
@@ -366,8 +375,8 @@ export namespace VirtualTableGridModel {
 			startIndex: clampedStartIndex,
 			maxRenderedCount: renderedCount,
 		});
-		const leadingWidth = offsets[range.startIndex] ?? 0;
-		const renderedWidth = sumWidths(widths, range.startIndex, range.endIndex);
+		const leadingWidth = getRangeMapPosition(columnMap, range.startIndex, safeTotalCount);
+		const renderedWidth = getRangeMapSpanSize(columnMap, range.startIndex, range.endIndex, safeTotalCount);
 		const trailingWidth = Math.max(0, totalWidth - leadingWidth - renderedWidth);
 		return toColumnRange(range, leadingWidth, renderedWidth, trailingWidth);
 	};
@@ -429,7 +438,7 @@ export namespace VirtualTableGridModel {
 	export const resolveKeyboardTarget = ({
 		columnCount,
 		currentCell,
-		key,
+		keyCode,
 		pageRowCount = 10,
 		rowCount,
 		toBoundary = false,
@@ -449,25 +458,25 @@ export namespace VirtualTableGridModel {
 			Math.max(0, toSafeIndex(currentCell?.colIndex)),
 		);
 
-		switch (key) {
-			case "ArrowUp":
+		switch (keyCode) {
+			case KeyCode.UpArrow:
 				return { rowIndex: toBoundary ? 0 : Math.max(0, currentRowIndex - 1), colIndex: currentColIndex };
-			case "ArrowDown":
+			case KeyCode.DownArrow:
 				return { rowIndex: toBoundary ? maxRowIndex : Math.min(maxRowIndex, currentRowIndex + 1), colIndex: currentColIndex };
-			case "ArrowLeft":
+			case KeyCode.LeftArrow:
 				return { rowIndex: currentRowIndex, colIndex: toBoundary ? 0 : Math.max(0, currentColIndex - 1) };
-			case "ArrowRight":
+			case KeyCode.RightArrow:
 				return { rowIndex: currentRowIndex, colIndex: toBoundary ? maxColIndex : Math.min(maxColIndex, currentColIndex + 1) };
-			case "Home":
+			case KeyCode.Home:
 				return { rowIndex: toBoundary ? 0 : currentRowIndex, colIndex: 0 };
-			case "End":
+			case KeyCode.End:
 				return { rowIndex: toBoundary ? maxRowIndex : currentRowIndex, colIndex: maxColIndex };
-			case "PageUp":
+			case KeyCode.PageUp:
 				return {
 					rowIndex: Math.max(0, currentRowIndex - Math.max(1, toSafeCount(pageRowCount))),
 					colIndex: currentColIndex,
 				};
-			case "PageDown":
+			case KeyCode.PageDown:
 				return {
 					rowIndex: Math.min(maxRowIndex, currentRowIndex + Math.max(1, toSafeCount(pageRowCount))),
 					colIndex: currentColIndex,
@@ -678,7 +687,7 @@ export namespace VirtualTableGridModel {
  * persistence. Consumers subscribe to the emitted facts and re-render by passing
  * total row/column counts plus a renderer-owned version token.
  */
-export class VirtualTable implements IDisposable {
+export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData = unknown> implements IDisposable {
 	public readonly element: HTMLElement;
 	public readonly body: HTMLDivElement;
 	public readonly bodyRows: HTMLTableSectionElement;
@@ -691,7 +700,7 @@ export class VirtualTable implements IDisposable {
 	public readonly onDidScroll: Event<VirtualTableScrollEvent>;
 
 	private readonly bodyDataColumns: HTMLTableColElement[] = [];
-	private readonly bodyGrid: VirtualTableBodyRow[] = [];
+	private readonly bodyGrid: VirtualTableBodyRow<TBodyTemplateData>[] = [];
 	private readonly bodyLeadingSpacerColumn = document.createElement("col");
 	private readonly bodyTrailingSpacerColumn = document.createElement("col");
 	private readonly bottomSpacerCell = document.createElement("td");
@@ -701,7 +710,7 @@ export class VirtualTable implements IDisposable {
 	private readonly disposables = new DisposableStore();
 	private readonly onDidChangeVisibleRangeEmitter = this.disposables.add(new Emitter<VirtualTableVisibleRangeChangeEvent>());
 	private readonly onDidScrollEmitter = this.disposables.add(new Emitter<VirtualTableScrollEvent>());
-	private readonly headerCells: VirtualTableHeaderCell[] = [];
+	private readonly headerCells: VirtualTableHeaderCell<TColumnHeaderTemplateData>[] = [];
 	private readonly headerCorner: HTMLDivElement;
 	private readonly headerLeadingSpacer: HTMLDivElement;
 	private readonly headerScroll: HTMLDivElement;
@@ -735,7 +744,7 @@ export class VirtualTable implements IDisposable {
 		},
 	};
 
-	public constructor(private readonly options: VirtualTableOptions) {
+	public constructor(private readonly options: VirtualTableOptions<TBodyTemplateData, TColumnHeaderTemplateData>) {
 		this.maxRenderedColumns = options.maxRenderedColumns ?? VirtualTableGridModel.DEFAULT_MAX_RENDERED_COLUMNS;
 		this.maxRenderedRows = options.maxRenderedRows ?? VirtualTableGridModel.DEFAULT_MAX_RENDERED_ROWS;
 		this.onDidChangeVisibleRange = this.onDidChangeVisibleRangeEmitter.event;
@@ -798,15 +807,18 @@ export class VirtualTable implements IDisposable {
 		this.element.append(this.body);
 
 		this.options.renderer.renderCorner?.(this.headerCorner);
-		this.ensureHeaderGrid();
-		this.ensureBodyColumns();
-		this.ensureBodyCells();
-		this.syncBodyGridVisibility(this.state.rowRange, this.state.columnRange, this.state);
 	}
 
 	public dispose(): void {
-		this.options.renderer.clearBodyCell && this.forEachBodyCell(cell => this.options.renderer.clearBodyCell?.(cell.element));
-		this.options.renderer.disposeBodyCell && this.forEachBodyCell(cell => this.options.renderer.disposeBodyCell?.(cell.element));
+		this.forEachBodyCell(cell => {
+			this.options.renderer.clearBodyCell(cell.templateData);
+			this.options.renderer.disposeBodyCellTemplate(cell.templateData);
+		});
+		if (this.options.renderer.disposeColumnHeaderTemplate) {
+			for (const cell of this.headerCells) {
+				this.options.renderer.disposeColumnHeaderTemplate(cell.templateData);
+			}
+		}
 		this.disposables.dispose();
 		this.element.replaceChildren();
 		this.element.remove();
@@ -865,12 +877,8 @@ export class VirtualTable implements IDisposable {
 	}
 
 	public clearBodyCells(): void {
-		if (!this.options.renderer.clearBodyCell) {
-			return;
-		}
-
 		this.forEachBodyCell(cell => {
-			this.options.renderer.clearBodyCell?.(cell.element);
+			this.options.renderer.clearBodyCell(cell.templateData);
 			cell.appliedRenderVersion = undefined;
 			cell.renderedColIndex = undefined;
 			cell.renderedRowIndex = undefined;
@@ -910,11 +918,7 @@ export class VirtualTable implements IDisposable {
 						colIndex,
 						columnOffset,
 					};
-					if (this.options.renderer.renderBodyCellContent) {
-						this.options.renderer.renderBodyCellContent(cell.content, descriptor);
-					} else {
-						this.options.renderer.renderBodyCell(cell.element, descriptor);
-					}
+					this.options.renderer.renderBodyCellContent(cell.templateData, descriptor);
 					cell.appliedRenderVersion = renderVersion;
 					cell.renderedRowIndex = rowIndex;
 					cell.renderedColIndex = colIndex;
@@ -923,7 +927,39 @@ export class VirtualTable implements IDisposable {
 		}
 	}
 
-	public forEachBodyCell(callback: (cell: VirtualTableBodyCell) => void): void {
+	public rerenderColumnHeaders(
+		columnOffsets: readonly number[],
+		renderVersion: unknown,
+	): void {
+		const visited = new Set<number>();
+		for (const rawColumnOffset of columnOffsets) {
+			const columnOffset = toSafeIndex(rawColumnOffset);
+			if (
+				columnOffset < 0 ||
+				columnOffset >= this.state.columnRange.renderedCount ||
+				visited.has(columnOffset)
+			) {
+				continue;
+			}
+
+			visited.add(columnOffset);
+			const cell = this.headerCells[columnOffset];
+			if (!cell || cell.element.hidden) {
+				continue;
+			}
+
+			const colIndex = this.state.columnRange.startIndex + columnOffset;
+			this.options.renderer.renderColumnHeader(cell.templateData, {
+				colIndex,
+				columnOffset,
+			});
+			setElementAttribute(cell.element, "aria-colindex", String(colIndex + 1));
+			cell.appliedColIndex = colIndex;
+			cell.appliedRenderVersion = renderVersion;
+		}
+	}
+
+	public forEachBodyCell(callback: (cell: VirtualTableBodyCell<TBodyTemplateData>) => void): void {
 		for (const row of this.bodyGrid) {
 			for (const cell of row.cells) {
 				callback(cell);
@@ -937,6 +973,14 @@ export class VirtualTable implements IDisposable {
 
 	public getColumnHeaderCell(columnOffset: number): HTMLElement | null {
 		return this.headerCells[columnOffset]?.element ?? null;
+	}
+
+	public getBodyCellTemplateData(rowOffset: number, columnOffset: number): TBodyTemplateData | null {
+		return this.bodyGrid[rowOffset]?.cells[columnOffset]?.templateData ?? null;
+	}
+
+	public getColumnHeaderTemplateData(columnOffset: number): TColumnHeaderTemplateData | null {
+		return this.headerCells[columnOffset]?.templateData ?? null;
 	}
 
 	public isContentVisible(): boolean {
@@ -1107,7 +1151,10 @@ export class VirtualTable implements IDisposable {
 				const cell = document.createElement("div");
 				cell.className = this.classNames.headerCell;
 				cell.setAttribute("role", "columnheader");
-				this.headerCells.push({ element: cell });
+				this.headerCells.push({
+					element: cell,
+					templateData: this.options.renderer.renderColumnHeaderTemplate(cell),
+				});
 				this.headerContent.insertBefore(cell, this.headerTrailingSpacer);
 			}
 
@@ -1167,7 +1214,11 @@ export class VirtualTable implements IDisposable {
 				cell.dataset.colIndex = String(colIndex);
 				cell.append(content);
 				row.append(cell);
-				cells.push({ content, element: cell });
+				cells.push({
+					content,
+					element: cell,
+					templateData: this.options.renderer.renderBodyCellTemplate(cell, content),
+				});
 			}
 
 			trailingSpacer.className = this.classNames.columnSpacerCell;
@@ -1349,7 +1400,7 @@ export class VirtualTable implements IDisposable {
 				continue;
 			}
 
-			this.options.renderer.renderColumnHeader(cell.element, {
+			this.options.renderer.renderColumnHeader(cell.templateData, {
 				colIndex,
 				columnOffset,
 			});
@@ -1383,12 +1434,10 @@ export class VirtualTable implements IDisposable {
 					colIndex,
 					columnOffset,
 				};
-				if (!hasRenderedDescriptor || !this.options.renderer.renderBodyCellContent) {
-					this.options.renderer.renderBodyCell(cell.element, descriptor);
+				if (!hasRenderedDescriptor) {
+					this.options.renderer.renderBodyCell(cell.templateData, descriptor);
 				}
-				if (this.options.renderer.renderBodyCellContent) {
-					this.options.renderer.renderBodyCellContent(cell.content, descriptor);
-				}
+				this.options.renderer.renderBodyCellContent(cell.templateData, descriptor);
 				cell.appliedRenderVersion = renderVersion;
 				cell.renderedRowIndex = rowIndex;
 				cell.renderedColIndex = colIndex;
@@ -1446,11 +1495,8 @@ export class VirtualTable implements IDisposable {
 		getColumnWidth: (colIndex: number) => number,
 	): number {
 		const scale = VirtualTableGridModel.getZoomScale(zoomPercent);
-		let offset = VirtualTableGridModel.getRowHeaderWidth(zoomPercent);
-		for (let index = 0; index < colIndex; index += 1) {
-			offset += getColumnWidth(index) * scale;
-		}
-		return offset;
+		const columnMap = createColumnWidthRangeMap(Math.max(0, toSafeIndex(colIndex)), getColumnWidth, scale);
+		return VirtualTableGridModel.getRowHeaderWidth(zoomPercent) + columnMap.size;
 	}
 
 	private getColumnCssWidth(colIndex: number, zoomPercent: number): string {
@@ -1681,58 +1727,56 @@ const clampColumnWidth = (value: unknown): number => {
 	);
 };
 
-const getScaledColumnWidths = (
+const createColumnWidthRangeMap = (
 	count: number,
 	getColumnWidth: (colIndex: number) => number,
 	scale: number,
-): number[] =>
-	VirtualTableGridModel.range(count).map(colIndex => getScaledColumnWidth(colIndex, getColumnWidth, scale));
-
-const getPrefixSums = (widths: readonly number[]): number[] => {
-	const offsets = [0];
-	for (const width of widths) {
-		offsets.push(offsets[offsets.length - 1] + width);
-	}
-	return offsets;
+): RangeMap => {
+	const columnMap = new RangeMap();
+	columnMap.splice(
+		0,
+		0,
+		VirtualTableGridModel.range(count).map(colIndex => ({
+			size: getScaledColumnWidth(colIndex, getColumnWidth, scale),
+		})),
+	);
+	return columnMap;
 };
 
-const sumWidths = (
-	widths: readonly number[],
+const getRangeMapPosition = (
+	rangeMap: RangeMap,
+	index: number,
+	count: number,
+): number => {
+	if (index >= count) {
+		return rangeMap.size;
+	}
+	return Math.max(0, rangeMap.positionAt(index));
+};
+
+const getRangeMapSpanSize = (
+	rangeMap: RangeMap,
 	startIndex: number,
 	endIndex: number,
-): number => {
-	let total = 0;
-	for (let index = startIndex; index < endIndex; index += 1) {
-		total += widths[index] ?? 0;
-	}
-	return total;
-};
+	count: number,
+): number =>
+	Math.max(
+		0,
+		getRangeMapPosition(rangeMap, endIndex, count) -
+			getRangeMapPosition(rangeMap, startIndex, count),
+	);
 
-const findColumnIndexAtOffset = (
-	widths: readonly number[],
-	offsets: readonly number[],
+const findRangeEndIndexAtOffset = (
+	rangeMap: RangeMap,
 	targetOffset: number,
+	count: number,
 ): number => {
-	for (let index = 0; index < widths.length; index += 1) {
-		const start = offsets[index] ?? 0;
-		const end = start + (widths[index] ?? 0);
-		if (targetOffset < end) {
+	for (let index = 1; index <= count; index += 1) {
+		if (getRangeMapPosition(rangeMap, index, count) >= targetOffset) {
 			return index;
 		}
 	}
-	return Math.max(0, widths.length - 1);
-};
-
-const findColumnEndIndexAtOffset = (
-	offsets: readonly number[],
-	targetOffset: number,
-): number => {
-	for (let index = 1; index < offsets.length; index += 1) {
-		if ((offsets[index] ?? 0) >= targetOffset) {
-			return index;
-		}
-	}
-	return Math.max(1, offsets.length - 1);
+	return Math.max(1, count);
 };
 
 const setHidden = (element: HTMLElement, hidden: boolean): boolean => {

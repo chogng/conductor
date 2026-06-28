@@ -1,6 +1,6 @@
 import { isActiveElement } from '../../dom.js';
 import { range } from "src/cs/base/common/arrays";
-import { CancellationTokenSource } from "src/cs/base/common/cancellation";
+import { asPromise, type CancelablePromise, createCancelablePromise } from "src/cs/base/common/async";
 import { Event, type Event as EventType } from "src/cs/base/common/event";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { ScrollbarVisibility } from "src/cs/base/common/scrollable";
@@ -21,7 +21,7 @@ export interface IPagedRenderer<TElement, TTemplateData> extends IListRenderer<T
 
 export interface ITemplateData<T> {
   data?: T;
-  disposable?: IDisposable;
+  request?: CancelablePromise<unknown>;
   renderVersion: number;
 }
 
@@ -48,8 +48,8 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
     templateData: ITemplateData<TTemplateData>,
     details?: IListElementRenderDetails,
   ): void {
-    templateData.disposable?.dispose();
-    templateData.disposable = undefined;
+    templateData.request?.cancel();
+    templateData.request = undefined;
     templateData.renderVersion += 1;
 
     if (!templateData.data) {
@@ -64,31 +64,14 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
       return;
     }
 
-    const cts = new CancellationTokenSource();
-    const disposable = {
-      dispose: () => {
-        cts.cancel();
-        cts.dispose();
-      },
-    };
-    templateData.disposable = disposable;
-
     this.renderer.renderPlaceholder(index, templateData.data);
 
-    let elementPromise: Promise<TElement>;
-    try {
-      elementPromise = model.resolve(index, cts.token);
-    } catch {
-      if (templateData.disposable === disposable) {
-        templateData.disposable = undefined;
-      }
-      cts.dispose();
-      return;
-    }
+    const request = createCancelablePromise(token => asPromise(() => model.resolve(index, token)));
+    templateData.request = request;
 
-    elementPromise.then(element => {
+    request.then(element => {
       if (
-        cts.token.isCancellationRequested ||
+        templateData.request !== request ||
         templateData.renderVersion !== renderVersion ||
         !templateData.data
       ) {
@@ -99,10 +82,9 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
     }, () => {
       // Ignore failed or cancelled resolution for this render pass.
     }).finally(() => {
-      if (templateData.disposable === disposable) {
-        templateData.disposable = undefined;
+      if (templateData.request === request) {
+        templateData.request = undefined;
       }
-      cts.dispose();
     });
   }
 
@@ -112,8 +94,8 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
     templateData: ITemplateData<TTemplateData>,
     details?: IListElementRenderDetails,
   ): void {
-    templateData.disposable?.dispose();
-    templateData.disposable = undefined;
+    templateData.request?.cancel();
+    templateData.request = undefined;
 
     const model = this.modelProvider();
     if (templateData.data && model.isResolved(element)) {
@@ -127,8 +109,8 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
   }
 
   public disposeTemplate(templateData: ITemplateData<TTemplateData>): void {
-    templateData.disposable?.dispose();
-    templateData.disposable = undefined;
+    templateData.request?.cancel();
+    templateData.request = undefined;
 
     if (templateData.data) {
       this.renderer.disposeTemplate(templateData.data);

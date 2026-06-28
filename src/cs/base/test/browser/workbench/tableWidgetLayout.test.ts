@@ -10,7 +10,12 @@ import type {
   IManagedHoverContentOrFactory,
   IManagedHoverOptions,
 } from "src/cs/base/browser/ui/hover/hover";
-import type { IHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
+import {
+  getBaseLayerHoverDelegate,
+  setBaseLayerHoverDelegate,
+  type IHoverDelegate,
+} from "src/cs/base/browser/ui/hover/hoverDelegate";
+import { URI } from "src/cs/base/common/uri";
 import { VirtualTableGridModel } from "src/cs/base/browser/ui/table/virtualTable";
 import {
   TableWidget,
@@ -26,6 +31,7 @@ import {
 import { toScaleHeaderSuffix } from "src/cs/workbench/services/table/common/numericFormat";
 import type { ColumnDisplayProfile } from "src/cs/workbench/services/table/common/tableDisplayProfile";
 import { TableColumnLayout } from "src/cs/workbench/services/table/common/tableColumnLayout";
+import type { TableSource } from "src/cs/workbench/services/table/common/table";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 import "src/cs/workbench/contrib/table/browser/media/tableView.css";
@@ -137,8 +143,7 @@ suite("base/browser/workbench tableWidget layout", () => {
         tableViewModel: createTableWidgetModel(),
         tableState: createTableWidgetState({
           file: null,
-          fileId: "file-b",
-          sheetKey: "file-b",
+          sourceId: "file-b",
         }),
       });
 
@@ -153,12 +158,11 @@ suite("base/browser/workbench tableWidget layout", () => {
         tableViewModel: createTableWidgetModel(),
         tableState: createTableWidgetState({
           file: null,
-          fileId: "file-b",
           loadState: {
             message: "Loading preview...",
             state: "loading",
           },
-          sheetKey: "file-b",
+          sourceId: "file-b",
         }),
       });
 
@@ -177,8 +181,7 @@ suite("base/browser/workbench tableWidget layout", () => {
           ],
         }),
         tableState: createTableWidgetState({
-          fileId: "file-b",
-          sheetKey: "file-b",
+          sourceId: "file-b",
         }),
       });
 
@@ -221,12 +224,11 @@ suite("base/browser/workbench tableWidget layout", () => {
         tableViewModel: createTableWidgetModel(),
         tableState: createTableWidgetState({
           file: null,
-          fileId: "file-b",
           loadState: {
             message: "Loading preview...",
             state: "loading",
           },
-          sheetKey: "file-b",
+          sourceId: "file-b",
         }),
       });
 
@@ -264,12 +266,11 @@ suite("base/browser/workbench tableWidget layout", () => {
         tableViewModel: dynamicModel.model,
         tableState: createTableWidgetState({
           file: null,
-          fileId: "file-b",
           loadState: {
             message: "Loading preview...",
             state: "loading",
           },
-          sheetKey: "file-b",
+          sourceId: "file-b",
         }),
       });
       dynamicModel.fireRowsVersion({
@@ -329,8 +330,7 @@ suite("base/browser/workbench tableWidget layout", () => {
           ],
         }),
         tableState: createTableWidgetState({
-          fileId: "file-b",
-          sheetKey: "file-b",
+          sourceId: "file-b",
         }),
       });
 
@@ -411,7 +411,7 @@ suite("base/browser/workbench tableWidget layout", () => {
     const storedWidths: unknown[] = [];
     const widget = new TableWidget({
       onSelect: () => true,
-      storeColumnWidths: (_sheetKey, widths) => {
+      storeColumnWidths: (_source, widths) => {
         storedWidths.push(widths);
       },
       tableViewModel: createTableWidgetModel(),
@@ -479,8 +479,9 @@ suite("base/browser/workbench tableWidget layout", () => {
 
   test("renders scaled numeric cells from column display profiles", async () => {
     const hoverDelegate = new TestHoverDelegate();
+    const previousHoverDelegate = getBaseLayerHoverDelegate();
+    setBaseLayerHoverDelegate(hoverDelegate);
     const widget = new TableWidget({
-      hoverDelegate,
       onSelect: () => true,
       tableViewModel: createSmartTableWidgetModel(),
       tableState: createTableWidgetState(),
@@ -509,6 +510,7 @@ suite("base/browser/workbench tableWidget layout", () => {
         "-3.70327E-009",
       );
     } finally {
+      setBaseLayerHoverDelegate(previousHoverDelegate);
       widget.dispose();
     }
   });
@@ -1009,7 +1011,6 @@ suite("base/browser/workbench tableWidget layout", () => {
       assert.deepEqual(selectedTargets.map(target => target?.kind), ["cell", "range"]);
       assert.deepEqual(selection.activeCell, {
         colIndex: 2,
-        fileId: "file-a",
         rowIndex: 2,
         sheetId: null,
       });
@@ -1018,7 +1019,6 @@ suite("base/browser/workbench tableWidget layout", () => {
         endRow: 2,
         startCol: 0,
         endCol: 2,
-        fileId: "file-a",
         sheetId: null,
       }]);
       assert.equal(startCell.dataset.selectionFrame, "true");
@@ -1041,23 +1041,28 @@ function createTableWidgetState(
   options: {
     readonly columnCount?: number;
     readonly file?: TableWidgetState["file"] | null;
-    readonly fileId?: string;
     readonly loadState?: TableWidgetState["loadState"];
     readonly rowCount?: number;
-    readonly sheetKey?: string;
+    readonly sheetId?: string | null;
+    readonly sourceId?: string;
   } = {},
 ): TableWidgetState {
-  const fileId = options.fileId ?? "file-a";
-  const sheetKey = options.sheetKey ?? fileId;
+  const sourceId = options.sourceId ?? "file-a";
+  const sheetId = options.sheetId ?? null;
   const rowCount = options.rowCount ?? 20;
   const columnCount = options.columnCount ?? 10;
+  const source: TableSource = {
+    resource: URI.parse(`table-test:///${sourceId}`),
+    sheetId,
+  };
   const file = options.file === undefined
     ? {
         columnCount,
         fileName: "sample.csv",
-        maxCellLengths: Array.from({ length: columnCount }, () => 2),
         rowCount,
-        sheetKey,
+        sheetId,
+        source,
+        sourceVersion: 1,
       }
     : options.file;
   return {
@@ -1068,7 +1073,8 @@ function createTableWidgetState(
       message: "",
       state: "ready",
     },
-    sheetKey,
+    selectedSheetId: sheetId,
+    source,
   };
 }
 
@@ -1133,7 +1139,6 @@ function applySelectionTarget(
   return {
     activeCell: {
       colIndex: target.range.endCol,
-      fileId: target.range.fileId ?? null,
       rowIndex: target.range.endRow,
       sheetId: target.range.sheetId ?? null,
     },

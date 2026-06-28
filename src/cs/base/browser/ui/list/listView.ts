@@ -1,5 +1,8 @@
 import { addDisposableListener, DisposableResizeObserver, getClientArea } from "src/cs/base/browser/dom";
 import { DataTransfers, type IDragAndDropData } from "src/cs/base/browser/dnd";
+import { distinct, equals } from "src/cs/base/common/arrays";
+import { disposableTimeout } from "src/cs/base/common/async";
+import { BugIndicatingError } from "src/cs/base/common/errors";
 import { Emitter, type Event as BaseEvent } from "src/cs/base/common/event";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { ScrollbarVisibility } from "src/cs/base/common/scrollable";
@@ -17,7 +20,7 @@ import {
   ListDragOverEffectPosition,
   ListDragOverEffectType,
 } from "src/cs/base/browser/ui/list/list";
-import { RangeMap } from "src/cs/base/browser/ui/list/rangeMap";
+import { RangeMap } from "src/cs/base/common/rangeMap";
 import { RowCache, type IRow } from "src/cs/base/browser/ui/list/rowCache";
 import { ScrollableElement } from "src/cs/base/browser/ui/scrollbar/scrollableElement";
 import type { ScrollbarVisibilityPolicy } from "src/cs/base/browser/ui/scrollbar/scrollbarVisibilityController";
@@ -227,6 +230,7 @@ export class ListView<T> implements IListView<T> {
   private currentDragData: IDragAndDropData | undefined;
   private currentDragFeedback: number[] | undefined;
   private currentDragFeedbackPosition: ListDragOverEffectPosition | undefined;
+  private onDragLeaveTimeout: IDisposable | undefined;
   private canDrop = false;
 
   public readonly onContextMenu: BaseEvent<IListMouseEvent<T>> = this.onContextMenuEmitter.event;
@@ -358,9 +362,9 @@ export class ListView<T> implements IListView<T> {
     this.render();
   }
 
-  splice(start: number, deleteCount: number, elements: readonly T[] = []): void {
+  splice(start: number, deleteCount: number, elements: readonly T[] = []): T[] {
     const items = this.props.items.slice();
-    items.splice(start, deleteCount, ...elements);
+    const deleted = items.splice(start, deleteCount, ...elements);
     this.props = { ...this.props, items };
     this.rangeMap.splice(
       start,
@@ -372,6 +376,7 @@ export class ListView<T> implements IListView<T> {
     this.updateFocusedIndexAfterSplice(start, deleteCount, elements.length);
     this.shouldReconcileRows = true;
     this.render();
+    return deleted;
   }
 
   rerender(index?: number): void {
@@ -512,6 +517,8 @@ export class ListView<T> implements IListView<T> {
     this.disposeAllRows();
     this.rowCache.dispose();
     this.props.dnd?.dispose();
+    this.onDragLeaveTimeout?.dispose();
+    this.onDragLeaveTimeout = undefined;
     this.disposables.dispose();
     this.root.remove();
   }
@@ -1088,6 +1095,8 @@ export class ListView<T> implements IListView<T> {
 
   private readonly onDragOver = (event: DragEvent): void => {
     event.preventDefault();
+    this.onDragLeaveTimeout?.dispose();
+    this.onDragLeaveTimeout = undefined;
 
     const { dnd } = this.props;
     const { dataTransfer } = event;
@@ -1124,6 +1133,13 @@ export class ListView<T> implements IListView<T> {
 
   private readonly onDragLeave = (event: DragEvent): void => {
     const target = this.getDragTarget(event);
+    this.onDragLeaveTimeout?.dispose();
+    this.onDragLeaveTimeout = disposableTimeout(() => {
+      this.onDragLeaveTimeout?.dispose();
+      this.onDragLeaveTimeout = undefined;
+      this.clearDragOverFeedback();
+    }, 100);
+
     if (this.currentDragData) {
       this.props.dnd?.onDragLeave?.(
         this.currentDragData,
@@ -1132,8 +1148,6 @@ export class ListView<T> implements IListView<T> {
         event,
       );
     }
-
-    this.clearDragOverFeedback();
   };
 
   private readonly onDrop = (event: DragEvent): void => {
@@ -1177,6 +1191,8 @@ export class ListView<T> implements IListView<T> {
     this.clearDragOverFeedback();
     this.currentDragData = undefined;
     StaticDND.currentData = undefined;
+    this.onDragLeaveTimeout?.dispose();
+    this.onDragLeaveTimeout = undefined;
     this.canDrop = false;
   }
 
@@ -1184,14 +1200,28 @@ export class ListView<T> implements IListView<T> {
     reaction: IListDragOverReaction,
     targetIndex: number | undefined,
   ): void {
-    const position = reaction.effect?.position ?? ListDragOverEffectPosition.Over;
+    let position = reaction.effect?.position ?? ListDragOverEffectPosition.Over;
     const feedback = this.sanitizeDragFeedback(reaction.feedback ?? [
       typeof targetIndex === "number" ? targetIndex : -1,
     ]);
 
+    if (feedback[0] !== -1) {
+      if (feedback.length > 1 && position !== ListDragOverEffectPosition.Over) {
+        throw new BugIndicatingError("Can't use multiple drag feedback items with before/after positioning.");
+      }
+
+      if (
+        position === ListDragOverEffectPosition.After &&
+        feedback[0] < this.props.items.length - 1
+      ) {
+        feedback[0] += 1;
+        position = ListDragOverEffectPosition.Before;
+      }
+    }
+
     if (
       this.currentDragFeedbackPosition === position &&
-      this.areDragFeedbackEqual(this.currentDragFeedback, feedback)
+      equals(this.currentDragFeedback, feedback)
     ) {
       return;
     }
@@ -1229,28 +1259,11 @@ export class ListView<T> implements IListView<T> {
   }
 
   private sanitizeDragFeedback(feedback: readonly number[]): number[] {
-    const seen = new Set<number>();
-    const sanitized = feedback
+    const sanitized = distinct(feedback)
       .filter(index => index >= -1 && index < this.props.items.length)
-      .filter(index => {
-        if (seen.has(index)) {
-          return false;
-        }
-        seen.add(index);
-        return true;
-      })
       .sort((first, second) => first - second);
 
     return sanitized[0] === -1 ? [-1] : sanitized;
-  }
-
-  private areDragFeedbackEqual(
-    previous: readonly number[] | undefined,
-    next: readonly number[],
-  ): boolean {
-    return !!previous &&
-      previous.length === next.length &&
-      previous.every((value, index) => value === next[index]);
   }
 
   private toDragOverReaction(result: boolean | IListDragOverReaction): IListDragOverReaction {
@@ -1431,7 +1444,7 @@ export class ListView<T> implements IListView<T> {
   private getRenderer(templateId: string): IListRenderer<T, any> {
     const renderer = this.renderers.get(templateId);
     if (!renderer) {
-      throw new Error(`No renderer found for ${templateId}`);
+      throw new BugIndicatingError(`No renderer found for template id ${templateId}`);
     }
     return renderer;
   }

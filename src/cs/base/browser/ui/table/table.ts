@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Event } from "src/cs/base/common/event";
+import type { IMouseEvent } from "src/cs/base/browser/mouseEvent";
 import type {
 	IListContextMenuEvent,
 	IListEvent,
@@ -12,11 +12,14 @@ import type {
 	IListTouchEvent,
 	IListVirtualDelegate,
 } from "src/cs/base/browser/ui/list/list";
+import type { Event } from "src/cs/base/common/event";
 
 export const TABLE_WIDGET_DEFAULT_ZOOM_PERCENT = 100;
 export const TABLE_WIDGET_MIN_ZOOM_PERCENT = 50;
 export const TABLE_WIDGET_MAX_ZOOM_PERCENT = 200;
 export const TABLE_WIDGET_ZOOM_STEP_PERCENT = 10;
+
+// Upstream-compatible table/list contracts.
 
 export interface ITableColumn<TRow, TCell> {
 	readonly label: string;
@@ -34,6 +37,16 @@ export interface ITableColumn<TRow, TCell> {
 export interface ITableVirtualDelegate<TRow> extends Pick<IListVirtualDelegate<TRow>, "getHeight"> {
 	readonly headerRowHeight: number;
 }
+
+export interface ITableRenderer<TCell, TTemplateData> extends IListRenderer<TCell, TTemplateData> { }
+
+export interface ITableEvent<TRow> extends IListEvent<TRow> { }
+export interface ITableMouseEvent<TRow> extends IListMouseEvent<TRow> { }
+export interface ITableTouchEvent<TRow> extends IListTouchEvent<TRow> { }
+export interface ITableGestureEvent<TRow> extends IListGestureEvent<TRow> { }
+export interface ITableContextMenuEvent<TRow> extends IListContextMenuEvent<TRow> { }
+
+// Two-dimensional virtual table geometry.
 
 export interface ITableColumnVirtualDelegate<TColumn = number> {
 	getWidth(column: TColumn): number;
@@ -55,6 +68,10 @@ export interface ITableColumnRange extends ITableRange {
 
 export interface ITableCellPosition {
 	readonly rowIndex: number;
+	readonly colIndex: number;
+}
+
+export interface ITableColumnHeaderPosition {
 	readonly colIndex: number;
 }
 
@@ -82,25 +99,64 @@ export interface ITableRowHeaderDescriptor {
 	readonly rowOffset: number;
 }
 
-export interface ITableRenderer<TCell, TTemplateData> extends IListRenderer<TCell, TTemplateData> { }
+// Widget interaction state and events.
 
-export interface ITableEvent<TRow> extends IListEvent<TRow> { }
-export interface ITableMouseEvent<TRow> extends IListMouseEvent<TRow> { }
-export interface ITableTouchEvent<TRow> extends IListTouchEvent<TRow> { }
-export interface ITableGestureEvent<TRow> extends IListGestureEvent<TRow> { }
-export interface ITableContextMenuEvent<TRow> extends IListContextMenuEvent<TRow> { }
+export interface ITableBodyMouseEvent<T extends MouseEvent = MouseEvent> {
+	readonly browserEvent: T;
+	readonly cell: ITableCellPosition | null;
+	readonly mouseEvent: IMouseEvent;
+}
+
+export interface ITableColumnHeaderMouseEvent<T extends MouseEvent = MouseEvent> {
+	readonly browserEvent: T;
+	readonly column: ITableColumnHeaderPosition | null;
+	readonly mouseEvent: IMouseEvent;
+}
+
+export interface ITableCellEditCommitEvent extends ITableCellPosition {
+	readonly value: string;
+}
+
+export interface ITableCellEditOptions {
+	readonly enabled: boolean;
+	readonly getInitialValue: (cell: ITableCellPosition) => string;
+}
+
+export interface ITableSelectionFrameEdges {
+	readonly bottom: boolean;
+	readonly left: boolean;
+	readonly right: boolean;
+	readonly top: boolean;
+}
+
+export interface ITableBodyCellTraitState {
+	readonly active: boolean;
+	readonly highlighted: boolean;
+	readonly selected: boolean;
+	readonly selectionFrame: ITableSelectionFrameEdges;
+}
+
+export interface ITableColumnHeaderTraitState {
+	readonly highlighted: boolean;
+	readonly selected: boolean;
+}
+
+// Renderer contracts for pooled table DOM.
 
 /**
  * Renderer boundary for pooled cells. Implementations should be idempotent:
  * the same DOM cell will be rebound to many row/column descriptors while
  * scrolling.
  */
-export interface ITableWidgetRenderer {
-	readonly clearBodyCell?: (cell: HTMLTableCellElement) => void;
-	readonly disposeBodyCell?: (cell: HTMLTableCellElement) => void;
-	readonly renderBodyCell: (cell: HTMLTableCellElement, descriptor: ITableBodyCellDescriptor) => void;
-	readonly renderBodyCellContent?: (content: HTMLElement, descriptor: ITableBodyCellDescriptor) => void;
-	readonly renderColumnHeader: (cell: HTMLElement, descriptor: ITableColumnHeaderDescriptor) => void;
+export interface ITableWidgetRenderer<TBodyTemplateData = unknown, TColumnHeaderTemplateData = unknown> {
+	readonly clearBodyCell: (templateData: TBodyTemplateData) => void;
+	readonly disposeBodyCellTemplate: (templateData: TBodyTemplateData) => void;
+	readonly disposeColumnHeaderTemplate?: (templateData: TColumnHeaderTemplateData) => void;
+	readonly renderBodyCell: (templateData: TBodyTemplateData, descriptor: ITableBodyCellDescriptor) => void;
+	readonly renderBodyCellContent: (templateData: TBodyTemplateData, descriptor: ITableBodyCellDescriptor) => void;
+	readonly renderBodyCellTemplate: (cell: HTMLTableCellElement, content: HTMLElement) => TBodyTemplateData;
+	readonly renderColumnHeader: (templateData: TColumnHeaderTemplateData, descriptor: ITableColumnHeaderDescriptor) => void;
+	readonly renderColumnHeaderTemplate: (cell: HTMLElement) => TColumnHeaderTemplateData;
 	readonly renderCorner?: (cell: HTMLElement) => void;
 	readonly renderRowHeader: (cell: HTMLTableCellElement, descriptor: ITableRowHeaderDescriptor) => void;
 }
@@ -109,24 +165,30 @@ export interface ITablePagedBodyCellDescriptor<TRow> extends ITableBodyCellDescr
 	readonly row: TRow;
 }
 
-export interface ITablePagedWidgetRenderer<TRow> {
-	readonly clearBodyCell?: (cell: HTMLTableCellElement) => void;
-	readonly disposeBodyCell?: (cell: HTMLTableCellElement) => void;
-	readonly renderBodyCell?: (cell: HTMLTableCellElement, descriptor: ITableBodyCellDescriptor) => void;
-	readonly renderBodyCellContent: (content: HTMLElement, descriptor: ITablePagedBodyCellDescriptor<TRow>) => void;
-	readonly renderBodyCellPlaceholder?: (content: HTMLElement, descriptor: ITableBodyCellDescriptor) => void;
-	readonly renderColumnHeader: (cell: HTMLElement, descriptor: ITableColumnHeaderDescriptor) => void;
+export interface ITablePagedWidgetRenderer<TRow, TBodyTemplateData = unknown, TColumnHeaderTemplateData = unknown> {
+	readonly clearBodyCell: (templateData: TBodyTemplateData) => void;
+	readonly disposeBodyCellTemplate: (templateData: TBodyTemplateData) => void;
+	readonly disposeColumnHeaderTemplate?: (templateData: TColumnHeaderTemplateData) => void;
+	readonly renderBodyCell?: (templateData: TBodyTemplateData, descriptor: ITableBodyCellDescriptor) => void;
+	readonly renderBodyCellContent: (templateData: TBodyTemplateData, descriptor: ITablePagedBodyCellDescriptor<TRow>) => void;
+	readonly renderBodyCellPlaceholder: (templateData: TBodyTemplateData, descriptor: ITableBodyCellDescriptor) => void;
+	readonly renderBodyCellTemplate: (cell: HTMLTableCellElement, content: HTMLElement) => TBodyTemplateData;
+	readonly renderColumnHeader: (templateData: TColumnHeaderTemplateData, descriptor: ITableColumnHeaderDescriptor) => void;
+	readonly renderColumnHeaderTemplate: (cell: HTMLElement) => TColumnHeaderTemplateData;
 	readonly renderCorner?: (cell: HTMLElement) => void;
 	readonly renderRowHeader: (cell: HTMLTableCellElement, descriptor: ITableRowHeaderDescriptor) => void;
 }
 
-export interface ITableWidgetOptions {
+// Widget options, facts, and patching.
+
+export interface ITableWidgetOptions<TBodyTemplateData = unknown, TColumnHeaderTemplateData = unknown> {
+	readonly cellEditing?: ITableCellEditOptions;
 	readonly className?: string;
 	readonly columnResize?: ITableColumnResizeOptions;
 	readonly getColumnWidth: (colIndex: number) => number;
 	readonly maxRenderedColumns?: number;
 	readonly maxRenderedRows?: number;
-	readonly renderer: ITableWidgetRenderer;
+	readonly renderer: ITableWidgetRenderer<TBodyTemplateData, TColumnHeaderTemplateData>;
 }
 
 export interface ITableColumnResizeOptions {
