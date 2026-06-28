@@ -35,21 +35,28 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 	): DataResourceService =>
 		store.add(new DataResourceService(tableModelService));
 
-	test("stores per-file template selections in Slice state", () => {
+	test("stores template selections by URI target in Slice state", () => {
 		const sliceService = store.add(new SliceService());
+		const target = { resource: URI.file("/workspace/file-a.csv"), sheetId: "sheet-a" };
 
-		sliceService.setTemplateSelection("file-a", {
+		sliceService.setTemplateSelection(target, {
 			kind: "saved",
 			templateId: "template-a",
 		});
 
 		const state = sliceService.getState();
-		assert.deepEqual(state.templateSelectionsByFileId, {
-			"file-a": {
+		assert.deepEqual(state.templateSelections.map(selection => ({
+			resource: selection.target.resource.toString(),
+			sheetId: selection.target.sheetId,
+			selection: selection.selection,
+		})), [{
+			resource: target.resource.toString(),
+			sheetId: "sheet-a",
+			selection: {
 				kind: "saved",
 				templateId: "template-a",
 			},
-		});
+		}]);
 	});
 
 	test("cleans queued URI state when the table model resource changes", async () => {

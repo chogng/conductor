@@ -104,9 +104,9 @@ import {
   createTemplateSelection,
   getTemplateSelectionId,
   getTemplateSelectionTemplateId,
-  resolveTemplateSelectionForFile,
+  resolveTemplateSelectionForTarget,
   type TemplateSelection,
-  type TemplateSelectionsByFileId,
+  type TemplateTargetSelection,
 } from "src/cs/workbench/services/slice/common/templateSelection";
 import type { TemplateEditorRecord } from "src/cs/workbench/services/template/common/template";
 import { isAutoTemplateId } from "src/cs/workbench/services/slice/common/templateSelection";
@@ -124,7 +124,6 @@ export type ExplorerViewerProps = {
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly thumbnailPreviewService: IThumbnailPreviewService;
   readonly thumbnailService: IThumbnailService;
-  readonly fileTemplateSelectionsByFileId?: TemplateSelectionsByFileId;
   readonly editable?: ExplorerEditableData | null;
   readonly templateRecords?: readonly TemplateEditorRecord[];
   readonly files: ExplorerFileEntry[];
@@ -144,10 +143,11 @@ export type ExplorerViewerProps = {
   readonly onOpenFileDialog: () => void;
   readonly onRemoveFolder: (folderKey: string) => void;
   readonly onRequestTemplates?: () => void;
-  readonly onHoverFileChange?: (fileId: string | null) => void;
+  readonly onHoverFileChange?: (target: ExplorerResourceTarget | null) => void;
   readonly onCancelRenameFile?: () => void;
   readonly onRenameFile?: (file: ExplorerFileEntry, nextName: string) => void;
   readonly onSelectFile: (file: ExplorerFileEntry | null) => void;
+  readonly templateSelections?: readonly TemplateTargetSelection[];
   readonly thumbnailFiles?: readonly ExplorerThumbnailFile[];
   readonly thumbnailPlotModelsByFileId?: Readonly<Record<string, ExplorerThumbnailPlotModel>>;
 };
@@ -236,6 +236,7 @@ type HoverContent =
     readonly file: ThumbnailFileLike;
     readonly fileId: string;
     readonly isSelected: boolean;
+    readonly target: ExplorerResourceTarget | null;
   };
 
 type HoverThumbnailCacheEntry = {
@@ -1145,7 +1146,7 @@ export class ExplorerViewer implements IDisposable {
           areExplorerFileResourceTargetsEqual(props.editable.resource, getExplorerFileResourceIdentity(entry)),
         templateLabel: this.resolveFileTemplateLabel(entry, props),
         templateSelectionId: getTemplateSelectionId(
-          this.resolveFileTemplateSelection(entry.fileId, props),
+          this.resolveFileTemplateSelection(getExplorerFileResourceIdentity(entry), props),
         ),
       }),
       createFileHoverContextSignature(entry),
@@ -1278,7 +1279,6 @@ export class ExplorerViewer implements IDisposable {
 
   private createFileContextActions(file: ExplorerFileEntry): IAction[] {
     const target = getExplorerFileResourceIdentity(file);
-    const fileId = String(file.fileId ?? "").trim();
     const revealActions: IAction[] = target && this.canRevealFileInOS(file)
       ? [
           createMenuAction({
@@ -1297,7 +1297,6 @@ export class ExplorerViewer implements IDisposable {
       this.createTemplateMenuAction({
         actionPrefix: SET_FILE_TEMPLATE_COMMAND_ID,
         commandId: SET_FILE_TEMPLATE_COMMAND_ID,
-        fileId,
         label: localize("files.item.setTemplate", "Set with Template"),
         target,
       }),
@@ -1344,13 +1343,11 @@ export class ExplorerViewer implements IDisposable {
   private createTemplateMenuAction({
     actionPrefix,
     commandId,
-    fileId,
     label,
     target,
   }: {
     readonly actionPrefix: string;
     readonly commandId: string;
-    readonly fileId: string;
     readonly label: string;
     readonly target: ExplorerResourceTarget | null;
   }): IAction {
@@ -1369,7 +1366,6 @@ export class ExplorerViewer implements IDisposable {
       this.createTemplateContextActions({
         actionPrefix,
         commandId,
-        fileId,
         target,
       }),
     );
@@ -1384,15 +1380,13 @@ export class ExplorerViewer implements IDisposable {
   private createTemplateContextActions({
     actionPrefix,
     commandId,
-    fileId,
     target,
   }: {
     readonly actionPrefix: string;
     readonly commandId: string;
-    readonly fileId: string;
     readonly target: ExplorerResourceTarget;
   }): IAction[] {
-    const currentSelection = this.resolveFileTemplateSelection(fileId);
+    const currentSelection = this.resolveFileTemplateSelection(target);
     const currentSelectionId = getTemplateSelectionId(currentSelection);
     const actions: IAction[] = [
       createMenuAction({
@@ -1509,7 +1503,10 @@ export class ExplorerViewer implements IDisposable {
     fileEntry: ExplorerFileEntry,
     props: ExplorerViewerProps = this.props,
   ): string {
-    const selection = this.resolveFileTemplateSelection(fileEntry.fileId, props);
+    const selection = this.resolveFileTemplateSelection(
+      getExplorerFileResourceIdentity(fileEntry),
+      props,
+    );
 
     if (selection.kind === "auto") {
       return localize("template.recommendedTemplate", "Recommended template");
@@ -1522,12 +1519,12 @@ export class ExplorerViewer implements IDisposable {
   }
 
   private resolveFileTemplateSelection(
-    fileId: string | null | undefined,
+    target: ExplorerResourceTarget | null | undefined,
     props: ExplorerViewerProps = this.props,
   ): TemplateSelection {
-    return resolveTemplateSelectionForFile(
-      fileId,
-      props.fileTemplateSelectionsByFileId ?? {},
+    return resolveTemplateSelectionForTarget(
+      target,
+      props.templateSelections ?? [],
       { kind: "auto" },
     );
   }
@@ -2140,7 +2137,7 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
-    this.props.onHoverFileChange?.(content.kind === "thumbnail" ? content.fileId : null);
+    this.props.onHoverFileChange?.(content.kind === "thumbnail" ? content.target : null);
     this.cancelFileItemHoverHide();
     if (
       this.hoverAnchor === item &&
@@ -2313,6 +2310,7 @@ export class ExplorerViewer implements IDisposable {
       file,
       fileId,
       isSelected: item.dataset.selected === "true",
+      target: getExplorerFileResourceIdentity(fileEntry),
     };
   }
 
@@ -3194,7 +3192,8 @@ function isSameHoverContent(
   if (left.kind === "thumbnail" && right.kind === "thumbnail") {
     return (
       left.fileId === right.fileId &&
-      left.isSelected === right.isSelected
+      left.isSelected === right.isSelected &&
+      getExplorerResourceIdentityKey(left.target) === getExplorerResourceIdentityKey(right.target)
     );
   }
 

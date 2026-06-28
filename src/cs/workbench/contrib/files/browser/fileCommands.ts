@@ -81,13 +81,18 @@ export const setFileTemplateHandler: ICommandHandler<[unknown, unknown]> = (
   target,
   selection,
 ) => {
-  const normalizedFileId = resolveCommandExplorerFileId(accessor, target);
-  if (!normalizedFileId || !isTemplateSelection(selection)) {
+  const resourceTarget = target instanceof URI
+    ? { resource: target }
+    : normalizeCommandResourceTarget(target);
+  if (!resourceTarget?.resource || !isTemplateSelection(selection)) {
     return;
   }
 
   const sliceService = accessor.get(ISliceService);
-  sliceService.setTemplateSelection(normalizedFileId, selection);
+  sliceService.setTemplateSelection({
+    resource: resourceTarget.resource,
+    sheetId: resourceTarget.sheetId ?? null,
+  }, selection);
 };
 
 const normalizeCommandString = (value: unknown): string | null => {
@@ -122,24 +127,6 @@ const resolveCommandExplorerResourceTarget = (
     sheetId: paneInput.selectedSheetId ?? null,
   });
   return getExplorerFileResourceIdentity(file);
-};
-
-const resolveCommandExplorerFileId = (
-  accessor: Parameters<ICommandHandler>[0],
-  target: unknown,
-): string | null => {
-  const resourceTarget = target instanceof URI
-    ? { resource: target }
-    : normalizeCommandResourceTarget(target);
-  if (!resourceTarget) {
-    return null;
-  }
-
-  const paneInput = accessor.get(IExplorerService).getPaneInput();
-  const file = paneInput
-    ? findExplorerFileEntryByResource(paneInput.files, resourceTarget)
-    : null;
-  return normalizeCommandString(file?.fileId);
 };
 
 const normalizeCommandResourceTarget = (target: unknown): ExplorerResourceTarget | null => {

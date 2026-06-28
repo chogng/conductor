@@ -17,8 +17,7 @@ import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
 import type { PlotMainRenderModelSource } from "src/cs/workbench/services/plot/common/plotModel";
 import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
 import type {
-  TemplateSelection,
-  TemplateSelectionsByFileId,
+  TemplateTargetSelection,
 } from "src/cs/workbench/services/slice/common/templateSelection";
 
 export const IExplorerService = createDecorator<IExplorerService>("explorerService");
@@ -34,7 +33,6 @@ export type ExplorerThumbnailPlotModel = PlotMainRenderModelSource & {
 
 export type ExplorerPaneInput = {
   readonly activePlotType?: PlotType;
-  readonly fileTemplateSelectionsByFileId?: TemplateSelectionsByFileId;
   readonly files: ExplorerFileEntry[];
   readonly mode: WorkbenchMainPart;
   readonly originOpenPlotOptions?: OriginPlotOptions;
@@ -43,6 +41,7 @@ export type ExplorerPaneInput = {
   readonly selectedResource: URI | null;
   readonly selectedSheetId?: string | null;
   readonly selectionKind: ExplorerSelectionKind;
+  readonly templateSelections?: readonly TemplateTargetSelection[];
   readonly thumbnailFiles: readonly ExplorerThumbnailFile[];
   readonly thumbnailPlotModelsByFileId?: Readonly<Record<string, ExplorerThumbnailPlotModel>>;
 };
@@ -62,8 +61,8 @@ export type ExplorerVisibleFileIdsChangeEvent = {
   readonly visibleFileIds: readonly string[];
 };
 
-export type ExplorerHoveredFileChangeEvent = {
-  readonly fileId: string | null;
+export type ExplorerHoveredResourceChangeEvent = {
+  readonly target: ExplorerResourceTarget | null;
 };
 
 export type ExplorerSelectionTarget = {
@@ -78,7 +77,7 @@ export type ExplorerRevealMode = boolean | "force";
 export type ExplorerContext = {
   readonly selectedResource: URI | null;
   readonly selectedSheetId: string | null;
-  readonly hoveredFileId: string | null;
+  readonly hoveredResource: ExplorerResourceTarget | null;
   readonly expandedFolderKeys: readonly string[];
   readonly viewLayout: ExplorerViewLayout;
   readonly editable: ExplorerEditableData | null;
@@ -111,12 +110,12 @@ export interface IExplorerService {
   readonly hasPendingSourceFiles: boolean;
   readonly selectedResource: URI | null;
   readonly selectedSheetId: string | null;
-  readonly hoveredFileId: string | null;
+  readonly hoveredResource: ExplorerResourceTarget | null;
   readonly expandedFolderKeys: readonly string[];
   readonly viewLayout: ExplorerViewLayout;
   readonly onDidChangePendingSourceFiles: Event<boolean>;
   readonly onDidChangeSelection: Event<ExplorerSelectionChangeEvent>;
-  readonly onDidChangeHoveredFile: Event<ExplorerHoveredFileChangeEvent>;
+  readonly onDidChangeHoveredResource: Event<ExplorerHoveredResourceChangeEvent>;
   readonly onDidChangeExpandedFolderKeys: Event<ExplorerFolderExpansionChangeEvent>;
   readonly onDidChangeViewLayout: Event<ExplorerViewLayout>;
   readonly onDidChangeVisibleFileIds: Event<ExplorerVisibleFileIdsChangeEvent>;
@@ -129,7 +128,7 @@ export interface IExplorerService {
   setToCopy(resources: readonly ExplorerSelectionTarget[], isCut: boolean): void;
   applyBulkEdit(): Promise<void>;
   refresh(): Promise<void>;
-  setHoveredFileId(fileId: string | null): void;
+  setHoveredResource(target: ExplorerResourceTarget | null): void;
   setExpandedFolderKeys(folderKeys: readonly string[]): void;
   reconcileExpandedFolderKeys(folderKeys: readonly string[]): readonly string[];
   getCollapsedFolderKeys(folderKeys: readonly string[]): readonly string[];

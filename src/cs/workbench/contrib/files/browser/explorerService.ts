@@ -10,6 +10,7 @@ import {
   IExplorerService,
   type ExplorerPaneInput,
   type ExplorerFolderExpansionChangeEvent,
+  type ExplorerHoveredResourceChangeEvent,
   type ExplorerSelectionChangeEvent,
   type ExplorerVisibleFileIdsChangeEvent,
   type ExplorerContext,
@@ -23,8 +24,7 @@ import {
   type ExplorerViewLayout,
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
-  getTemplateSelectionTemplateId,
-  type TemplateSelection,
+  areTemplateTargetSelectionsEqual,
 } from "src/cs/workbench/services/slice/common/templateSelection";
 import { getExplorerResourceIdentityKey } from "src/cs/workbench/contrib/files/common/explorerModel";
 
@@ -35,8 +35,8 @@ export class ExplorerService extends Disposable implements IExplorerService {
   public readonly onDidChangePendingSourceFiles = this.onDidChangePendingSourceFilesEmitter.event;
   private readonly onDidChangeSelectionEmitter = this._register(new Emitter<ExplorerSelectionChangeEvent>());
   public readonly onDidChangeSelection = this.onDidChangeSelectionEmitter.event;
-  private readonly onDidChangeHoveredFileEmitter = this._register(new Emitter<{ readonly fileId: string | null }>());
-  public readonly onDidChangeHoveredFile = this.onDidChangeHoveredFileEmitter.event;
+  private readonly onDidChangeHoveredResourceEmitter = this._register(new Emitter<ExplorerHoveredResourceChangeEvent>());
+  public readonly onDidChangeHoveredResource = this.onDidChangeHoveredResourceEmitter.event;
   private readonly onDidChangeExpandedFolderKeysEmitter = this._register(new Emitter<ExplorerFolderExpansionChangeEvent>());
   public readonly onDidChangeExpandedFolderKeys = this.onDidChangeExpandedFolderKeysEmitter.event;
   private readonly onDidChangeViewLayoutEmitter = this._register(new Emitter<ExplorerViewLayout>());
@@ -48,7 +48,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
 
   private currentSelectedResource: URI | null = null;
   private currentSelectedSheetId: string | null = null;
-  private currentHoveredFileId: string | null = null;
+  private currentHoveredResource: ExplorerResourceTarget | null = null;
   private currentExpandedFolderKeys: readonly string[] = [];
   private knownFolderKeys: readonly string[] = [];
   private currentNearbyFileIds: readonly string[] = [];
@@ -75,8 +75,8 @@ export class ExplorerService extends Disposable implements IExplorerService {
     return this.currentHasPendingSourceFiles;
   }
 
-  public get hoveredFileId(): string | null {
-    return this.currentHoveredFileId;
+  public get hoveredResource(): ExplorerResourceTarget | null {
+    return this.currentHoveredResource;
   }
 
   public get expandedFolderKeys(): readonly string[] {
@@ -91,7 +91,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
     return {
       editable: this.editable,
       expandedFolderKeys: this.currentExpandedFolderKeys,
-      hoveredFileId: this.currentHoveredFileId,
+      hoveredResource: this.currentHoveredResource,
       selectedResource: this.selectedResource,
       selectedSheetId: this.selectedSheetId,
       toCopy: this.toCopy,
@@ -154,14 +154,14 @@ export class ExplorerService extends Disposable implements IExplorerService {
     }
   }
 
-  public setHoveredFileId(fileId: string | null): void {
-    const nextFileId = normalizeExplorerFileId(fileId);
-    if (this.currentHoveredFileId === nextFileId) {
+  public setHoveredResource(target: ExplorerResourceTarget | null): void {
+    const nextTarget = normalizeExplorerResourceTarget(target);
+    if (areExplorerResourceTargetsEqual(this.currentHoveredResource, nextTarget)) {
       return;
     }
 
-    this.currentHoveredFileId = nextFileId;
-    this.onDidChangeHoveredFileEmitter.fire({ fileId: nextFileId });
+    this.currentHoveredResource = nextTarget;
+    this.onDidChangeHoveredResourceEmitter.fire({ target: nextTarget });
   }
 
   public setExpandedFolderKeys(folderKeys: readonly string[]): void {
@@ -405,6 +405,21 @@ const normalizeExplorerFileId = (fileId: unknown): string | null => {
 const normalizeExplorerResource = (resource: URI | null | undefined): URI | null =>
   resource ? URI.revive(resource) ?? null : null;
 
+const normalizeExplorerResourceTarget = (
+  target: ExplorerResourceTarget | null | undefined,
+): ExplorerResourceTarget | null => {
+  const resource = normalizeExplorerResource(target?.resource);
+  if (!resource) {
+    return null;
+  }
+
+  const sheetId = normalizeExplorerSheetId(target?.sheetId);
+  return {
+    resource,
+    ...(sheetId ? { sheetId } : {}),
+  };
+};
+
 const normalizeExplorerSheetId = (sheetId: unknown): string | null => {
   const normalized = String(sheetId ?? "").trim();
   return normalized || null;
@@ -419,9 +434,9 @@ const isSameExplorerPaneInput = (
   areExplorerResourcesEqual(current.selectedResource, next.selectedResource) &&
   current.selectedSheetId === next.selectedSheetId &&
   current.selectionKind === next.selectionKind &&
-  areTemplateSelectionsEqual(
-    current.fileTemplateSelectionsByFileId ?? {},
-    next.fileTemplateSelectionsByFileId ?? {},
+  areTemplateTargetSelectionsEqual(
+    current.templateSelections ?? [],
+    next.templateSelections ?? [],
   ) &&
   areExplorerFilesEqual(current.files, next.files) &&
   areExplorerFilesEqual(current.quickAccessFiles ?? [], next.quickAccessFiles ?? []) &&
@@ -432,27 +447,6 @@ const isSameExplorerPaneInput = (
     current.thumbnailPlotModelsByFileId ?? {},
     next.thumbnailPlotModelsByFileId ?? {},
   );
-
-const isSameTemplateSelection = (
-  current: TemplateSelection | undefined,
-  next: TemplateSelection | undefined,
-): boolean => {
-  if (current?.kind === "auto" || next?.kind === "auto") {
-    return current?.kind === next?.kind;
-  }
-
-  return getTemplateSelectionTemplateId(current) === getTemplateSelectionTemplateId(next);
-};
-
-const areTemplateSelectionsEqual = (
-  current: NonNullable<ExplorerPaneInput["fileTemplateSelectionsByFileId"]>,
-  next: NonNullable<ExplorerPaneInput["fileTemplateSelectionsByFileId"]>,
-): boolean => {
-  const currentKeys = Object.keys(current).sort();
-  const nextKeys = Object.keys(next).sort();
-  return areStringArraysEqual(currentKeys, nextKeys) &&
-    currentKeys.every(key => isSameTemplateSelection(current[key], next[key]));
-};
 
 const isSameExplorerEditableData = (
   current: ExplorerEditableData | null,
@@ -501,6 +495,13 @@ const areExplorerResourcesEqual = (
 
   return URI.revive(current)?.toString() === URI.revive(next)?.toString();
 };
+
+const areExplorerResourceTargetsEqual = (
+  current: ExplorerResourceTarget | null,
+  next: ExplorerResourceTarget | null,
+): boolean =>
+  areExplorerResourcesEqual(current?.resource, next?.resource) &&
+  normalizeExplorerSheetId(current?.sheetId) === normalizeExplorerSheetId(next?.sheetId);
 
 const areOriginPlotOptionsEqual = (
   current: ExplorerPaneInput["originOpenPlotOptions"],

@@ -3040,13 +3040,10 @@ const createSliceServiceStub = (
   results: readonly SliceUriResult[] = [],
 ): ISliceService => ({
   _serviceBrand: undefined,
-  cancel: () => undefined,
   cancelUri: () => undefined,
   getState: () => ({
-    activeFileId: null,
-    fileStates: new Map(),
     queueLength: 0,
-    templateSelectionsByFileId: {},
+    templateSelections: [],
   }),
   getUriResult: target => results.find(result =>
     result.target.resource.toString() === target.resource.toString() &&

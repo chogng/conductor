@@ -350,8 +350,8 @@ suite("workbench/browser/workbench layout integration", () => {
       },
       explorerService: {
         hasPendingSourceFiles: false,
-        hoveredFileId: null,
-        onDidChangeHoveredFile: Event.None,
+        hoveredResource: null,
+        onDidChangeHoveredResource: Event.None,
         onDidChangePendingSourceFiles: Event.None,
         onDidChangeSelection: Event.None,
         onDidChangeVisibleFileIds: visibleFileIdsEmitter.event,
@@ -439,8 +439,8 @@ suite("workbench/browser/workbench layout integration", () => {
       },
       explorerService: {
         hasPendingSourceFiles: false,
-        hoveredFileId: null,
-        onDidChangeHoveredFile: Event.None,
+        hoveredResource: null,
+        onDidChangeHoveredResource: Event.None,
         onDidChangePendingSourceFiles: Event.None,
         onDidChangeSelection: Event.None,
         onDidChangeVisibleFileIds: Event.None,
@@ -626,8 +626,8 @@ const createWorkbenchOptions = ({
     dialogsService: {} as WorkbenchService<"dialogsService">,
     explorerService: {
       hasPendingSourceFiles: false,
-      hoveredFileId: null,
-      onDidChangeHoveredFile: Event.None,
+      hoveredResource: null,
+      onDidChangeHoveredResource: Event.None,
       onDidChangeVisibleFileIds: Event.None,
       onDidChangePendingSourceFiles: Event.None,
       onDidChangeSelection: Event.None,

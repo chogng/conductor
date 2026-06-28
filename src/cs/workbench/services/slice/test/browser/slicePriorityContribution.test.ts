@@ -10,7 +10,8 @@ import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type {
 	ExplorerContext,
-	ExplorerHoveredFileChangeEvent,
+	ExplorerHoveredResourceChangeEvent,
+	ExplorerResourceTarget,
 	ExplorerSelectionChangeEvent,
 	IExplorerService,
 	IExplorerView,
@@ -23,15 +24,12 @@ import type {
 	SliceUriTarget,
 } from "src/cs/workbench/services/slice/common/slice";
 import type { TemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
-import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 
 suite("workbench/services/slice/test/browser/slicePriorityContribution", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test("ignores existing explorer selection and hover without URI targets on startup", () => {
-		const explorer = createExplorerService({
-			hoveredFileId: " file-hover ",
-		});
+		const explorer = createExplorerService();
 		const sliceService = new TestSliceService();
 
 		store.add(new SlicePriorityContribution(explorer.service, sliceService));
@@ -46,23 +44,16 @@ suite("workbench/services/slice/test/browser/slicePriorityContribution", () => {
 		store.add(new SlicePriorityContribution(explorer.service, sliceService));
 
 		explorer.fireSelection({ kind: "chart", selectedResource: null });
-		explorer.fireHoveredFile({ fileId: " file-b " });
-		explorer.fireHoveredFile({ fileId: null });
+		explorer.fireHoveredResource({ target: null });
 
 		assert.deepEqual(sliceService.prioritizedUriTargets, []);
 		explorer.dispose();
 	});
 
-	test("prioritizes URI targets from explorer resource entries", () => {
+	test("prioritizes URI targets from explorer selection and hover targets", () => {
 		const resource = URI.file("/workspace/source.xlsx");
 		const explorer = createExplorerService({
-			files: [{
-				fileId: "source-file",
-				fileName: "source.xlsx",
-				resource,
-				sheetId: "sheet-a",
-			}],
-			hoveredFileId: "source-file",
+			hoveredResource: { resource, sheetId: "sheet-a" },
 			selectedResource: resource,
 			selectedSheetId: "sheet-a",
 		});
@@ -92,10 +83,8 @@ class TestSliceService implements ISliceService {
 
 	public getState(): SliceState {
 		return {
-			activeFileId: null,
-			fileStates: new Map(),
 			queueLength: 0,
-			templateSelectionsByFileId: {},
+			templateSelections: [],
 		};
 	}
 
@@ -113,28 +102,25 @@ class TestSliceService implements ISliceService {
 		this.prioritizedUriTargets.push(target);
 	}
 
-	public cancel(_fileIds?: readonly string[]): void {}
 	public cancelUri(_targets: readonly SliceUriTarget[]): void {}
-	public setTemplateSelection(_fileId: string, _selection: TemplateSelection): void {}
+	public setTemplateSelection(_target: SliceUriTarget, _selection: TemplateSelection): void {}
 }
 
 const createExplorerService = ({
-	files = [],
-	hoveredFileId = null,
+	hoveredResource = null,
 	selectedResource = null,
 	selectedSheetId = null,
 }: {
-	readonly files?: readonly ExplorerFileEntry[];
-	readonly hoveredFileId?: string | null;
+	readonly hoveredResource?: ExplorerResourceTarget | null;
 	readonly selectedResource?: URI | null;
 	readonly selectedSheetId?: string | null;
 } = {}): {
 	readonly dispose: () => void;
-	readonly fireHoveredFile: (event: ExplorerHoveredFileChangeEvent) => void;
+	readonly fireHoveredResource: (event: ExplorerHoveredResourceChangeEvent) => void;
 	readonly fireSelection: (event: ExplorerSelectionChangeEvent) => void;
 	readonly service: IExplorerService;
 } => {
-	const onDidChangeHoveredFileEmitter = new Emitter<ExplorerHoveredFileChangeEvent>();
+	const onDidChangeHoveredResourceEmitter = new Emitter<ExplorerHoveredResourceChangeEvent>();
 	const onDidChangeSelectionEmitter = new Emitter<ExplorerSelectionChangeEvent>();
 	const service: IExplorerService = {
 		_serviceBrand: undefined,
@@ -144,7 +130,7 @@ const createExplorerService = ({
 		getContext: () => ({
 			editable: null,
 			expandedFolderKeys: [],
-			hoveredFileId,
+			hoveredResource,
 			selectedResource,
 			selectedSheetId,
 			toCopy: {
@@ -154,7 +140,7 @@ const createExplorerService = ({
 			viewLayout: "tree",
 		}) satisfies ExplorerContext,
 		getPaneInput: () => ({
-			files: [...files],
+			files: [],
 			mode: "chart",
 			selectedResource,
 			selectedSheetId,
@@ -162,9 +148,9 @@ const createExplorerService = ({
 			thumbnailFiles: [],
 		}),
 		hasPendingSourceFiles: false,
-		hoveredFileId,
+		hoveredResource,
 		onDidChangeExpandedFolderKeys: Event.None as IExplorerService["onDidChangeExpandedFolderKeys"],
-		onDidChangeHoveredFile: onDidChangeHoveredFileEmitter.event,
+		onDidChangeHoveredResource: onDidChangeHoveredResourceEmitter.event,
 		onDidChangePaneInput: Event.None as Event<void>,
 		onDidChangePendingSourceFiles: Event.None as IExplorerService["onDidChangePendingSourceFiles"],
 		onDidChangeSelection: onDidChangeSelectionEmitter.event,
@@ -178,7 +164,7 @@ const createExplorerService = ({
 		selectedSheetId,
 		setEditable: () => undefined,
 		setExpandedFolderKeys: () => undefined,
-		setHoveredFileId: () => undefined,
+		setHoveredResource: () => undefined,
 		setPendingSourceFiles: () => undefined,
 		setToCopy: () => undefined,
 		setViewLayout: () => undefined,
@@ -190,10 +176,10 @@ const createExplorerService = ({
 
 	return {
 		dispose: () => {
-			onDidChangeHoveredFileEmitter.dispose();
+			onDidChangeHoveredResourceEmitter.dispose();
 			onDidChangeSelectionEmitter.dispose();
 		},
-		fireHoveredFile: event => onDidChangeHoveredFileEmitter.fire(event),
+		fireHoveredResource: event => onDidChangeHoveredResourceEmitter.fire(event),
 		fireSelection: event => onDidChangeSelectionEmitter.fire(event),
 		service,
 	};

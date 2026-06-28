@@ -8,7 +8,7 @@ import { createDecorator } from "src/cs/platform/instantiation/common/instantiat
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
 import type {
   TemplateSelection,
-  TemplateSelectionsByFileId,
+  TemplateTargetSelection,
 } from "src/cs/workbench/services/slice/common/templateSelection";
 import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/reviewModel";
 
@@ -343,10 +343,8 @@ export type SliceFileState =
   | { readonly state: "failed"; readonly code: string; readonly message: string };
 
 export type SliceState = {
-  readonly fileStates: ReadonlyMap<string, SliceFileState>;
   readonly queueLength: number;
-  readonly activeFileId: string | null;
-  readonly templateSelectionsByFileId: TemplateSelectionsByFileId;
+  readonly templateSelections: readonly TemplateTargetSelection[];
 };
 
 export interface ISliceService {
@@ -360,7 +358,6 @@ export interface ISliceService {
   getUriState(target: SliceUriTarget): SliceFileState | undefined;
   submitUri(requests: readonly SliceUriRequest[]): void;
   prioritizeUri(target: SliceUriTarget): void;
-  cancel(fileIds?: readonly string[]): void;
   cancelUri(targets: readonly SliceUriTarget[]): void;
-  setTemplateSelection(fileId: string, selection: TemplateSelection): void;
+  setTemplateSelection(target: SliceUriTarget, selection: TemplateSelection): void;
 }

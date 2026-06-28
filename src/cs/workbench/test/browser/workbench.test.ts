@@ -53,15 +53,17 @@ suite("workbench/browser/workbench Explorer pane input", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
   test("creates table mode input from explorer and slice state", () => {
     const explorerService = store.add(new ExplorerService());
+    const resource = URI.file("/workspace/file-a.csv");
 
     const input = createExplorerPaneInput({
       activePlotType: "iv",
       explorerService,
       mode: "table",
       sliceState: createSliceStateForTest({
-        templateSelectionsByFileId: {
-          "file-a": createTemplateSelection("template-file"),
-        },
+        templateSelections: [{
+          target: { resource },
+          selection: createTemplateSelection("template-file"),
+        }],
       }),
     });
 
@@ -70,10 +72,16 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.deepEqual(input.files, []);
     assert.deepEqual(input.quickAccessFiles, []);
     assert.deepEqual(input.thumbnailFiles, []);
-    assert.deepEqual(input.fileTemplateSelectionsByFileId?.["file-a"], {
-      kind: "saved",
-      templateId: "template-file",
-    });
+    assert.deepEqual(input.templateSelections?.map(selection => ({
+      resource: selection.target.resource.toString(),
+      selection: selection.selection,
+    })), [{
+      resource: resource.toString(),
+      selection: {
+        kind: "saved",
+        templateId: "template-file",
+      },
+    }]);
   });
 
   test("does not project rows without Explorer URI input into chart tree input", () => {
@@ -129,52 +137,6 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.deepEqual(input.files.map(file => file.fileId), []);
     assert.deepEqual(input.files.map(file => file.hasChartData), []);
     assert.deepEqual(input.files.map(file => file.chartState), []);
-  });
-
-  test("does not project slice states without Explorer URI rows", () => {
-    const input = createExplorerPaneInput({
-      activePlotType: "iv",
-      explorerService: store.add(new ExplorerService()),
-      mode: "chart",
-      sliceState: createSliceStateForTest({
-        fileStates: new Map([
-          ["unknown-file", {
-            code: "slice.skipped",
-            message: "Unknown.csv was skipped.",
-            state: "skipped",
-          }],
-          ["failed-file", {
-            code: "slice.failed",
-            message: "Failed.csv could not be sliced.",
-            state: "failed",
-          }],
-          ["queued-file", {
-            state: "queued",
-          }],
-        ]),
-      }),
-    });
-
-    assert.deepEqual(input.files, []);
-  });
-
-  test("does not project file-state-only Session rows into chart state", () => {
-    const input = createExplorerPaneInput({
-      activePlotType: "iv",
-      explorerService: store.add(new ExplorerService()),
-      mode: "chart",
-      sliceState: createSliceStateForTest({
-        fileStates: new Map([
-          ["file-a", {
-            code: "slice.failed",
-            message: "Slice failed.",
-            state: "failed",
-          }],
-        ]),
-      }),
-    });
-
-    assert.deepEqual(input.files, []);
   });
 
   test("creates chart thumbnail input from URI slice results", () => {
@@ -373,7 +335,12 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       throw new Error("Visible chart prewarm should not read Session.");
     };
     const explorerService = store.add(new ExplorerService());
-    const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
+    const plotDisplayPrefetches: Array<{
+      readonly fileIds: readonly string[];
+      readonly priority: string;
+      readonly targetResource?: string | null;
+      readonly targetSheetId?: string | null;
+    }> = [];
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
       plotDisplayPrefetches,
@@ -1363,9 +1330,9 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       uriSliceTarget: { resource: resourceA },
     }));
     try {
-      explorerService.setHoveredFileId("resource-file-a");
+      explorerService.setHoveredResource({ resource: resourceA });
       bridge.sync();
-      explorerService.setHoveredFileId("resource-file-b");
+      explorerService.setHoveredResource({ resource: URI.file("/data/B.csv") });
 
       assert.deepEqual(plotDisplayPrefetches.at(-1), {
         fileIds: [],
@@ -1386,36 +1353,63 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
   });
 
   test("backs recently interactive chart targets with recent plot and thumbnail priority", () => {
-    const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
     const prioritizedTemplateFileIds: string[] = [];
     const prioritizedCalculationFileIds: string[] = [];
     const thumbnailPrefetches: ThumbnailPrefetchForTest[] = [];
-    commitChartFilesForTest(session, ["file-a", "file-b"]);
+    const resourceA = URI.file("/data/A.csv");
+    const resourceB = URI.file("/data/B.csv");
+    explorerService.updatePaneInput({
+      files: [{
+        fileId: "file-a",
+        fileName: "A.csv",
+        resource: resourceA,
+      }, {
+        fileId: "file-b",
+        fileName: "B.csv",
+        resource: resourceB,
+      }],
+      mode: "chart",
+      selectedResource: resourceA,
+      selectedSheetId: null,
+      selectionKind: "chart",
+      thumbnailFiles: [],
+    });
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
       plotDisplayPrefetches,
       prioritizedCalculationFileIds,
       prioritizedTemplateFileIds,
       thumbnailPrefetches,
+      uriSliceTarget: { resource: resourceA },
     }));
     try {
-      explorerService.setHoveredFileId("file-a");
-      explorerService.setHoveredFileId("file-b");
+      explorerService.setHoveredResource({ resource: resourceA });
+      explorerService.setHoveredResource({ resource: resourceB });
 
       assert.deepEqual(prioritizedTemplateFileIds, []);
-      assert.deepEqual(prioritizedCalculationFileIds, ["file-a", "file-b"]);
+      assert.deepEqual(prioritizedCalculationFileIds, []);
       assert.deepEqual(plotDisplayPrefetches, [
-        { fileIds: ["file-a"], priority: "hover" },
-        { fileIds: ["file-b"], priority: "hover" },
-        { fileIds: ["file-a"], priority: "recent" },
+        {
+          fileIds: [],
+          priority: "hover",
+          targetResource: "file:///data/A.csv",
+          targetSheetId: null,
+        },
+        {
+          fileIds: [],
+          priority: "recent",
+          targetResource: "file:///data/A.csv",
+          targetSheetId: null,
+        },
       ]);
       assert.deepEqual(thumbnailPrefetches, [
         {
           priority: "recent",
           targets: [{
-            fileId: "file-a",
+            targetResource: "file:///data/A.csv",
+            targetSheetId: null,
           }],
         },
       ]);
@@ -1563,26 +1557,33 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
   });
 
   test("syncs slice template selections into explorer pane input", async () => {
-    const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const sliceStateEmitter = new Emitter<unknown>();
+    const resource = URI.file("/workspace/file-a.csv");
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
       sliceStateEvent: sliceStateEmitter.event,
-      sliceTemplateSelectionsByFileId: {
-        "file-a": createTemplateSelection("template-custom"),
-      },
+      sliceTemplateSelections: [{
+        target: { resource },
+        selection: createTemplateSelection("template-custom"),
+      }],
     }));
     try {
       sliceStateEmitter.fire(undefined);
       await Promise.resolve();
 
-      assert.deepEqual(explorerService.getPaneInput()?.fileTemplateSelectionsByFileId?.["file-a"], {
-        kind: "saved",
-        templateId: "template-custom",
-      });
+      assert.deepEqual(explorerService.getPaneInput()?.templateSelections?.map(selection => ({
+        resource: selection.target.resource.toString(),
+        selection: selection.selection,
+      })), [{
+        resource: resource.toString(),
+        selection: {
+          kind: "saved",
+          templateId: "template-custom",
+        },
+      }]);
     } finally {
       bridge.dispose();
       sliceStateEmitter.dispose();
@@ -1666,15 +1667,11 @@ const createPlotService = (): Pick<
 });
 
 const createSliceStateForTest = ({
-  activeFileId = null,
-  fileStates = new Map(),
   queueLength = 0,
-  templateSelectionsByFileId = {},
+  templateSelections = [],
 }: Partial<SliceState> = {}): SliceState => ({
-  activeFileId,
-  fileStates,
   queueLength,
-  templateSelectionsByFileId,
+  templateSelections,
 });
 
 const createSliceServiceForUriTargetTest = (
@@ -1700,7 +1697,7 @@ const createDomainBridgeOptionsForTest = ({
   prioritizedCalculationFileIds,
   prioritizedTemplateFileIds,
   sliceStateEvent = Event.None,
-  sliceTemplateSelectionsByFileId,
+  sliceTemplateSelections,
   uriSliceTarget,
   thumbnailPrefetches,
   tableSources,
@@ -1729,7 +1726,7 @@ const createDomainBridgeOptionsForTest = ({
   readonly prioritizedCalculationFileIds: string[];
   readonly prioritizedTemplateFileIds: string[];
   readonly sliceStateEvent?: Event<unknown>;
-  readonly sliceTemplateSelectionsByFileId?: SliceState["templateSelectionsByFileId"];
+  readonly sliceTemplateSelections?: SliceState["templateSelections"];
   readonly uriSliceTarget?: SliceUriTarget;
   readonly thumbnailPrefetches?: ThumbnailPrefetchForTest[];
   readonly tableSources?: Array<TableSource | null>;
@@ -1817,11 +1814,10 @@ const createDomainBridgeOptionsForTest = ({
   } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["plotService"],
   sliceService: {
     _serviceBrand: undefined,
-    cancel: () => undefined,
     cancelUri: () => undefined,
     enqueueAuto: () => undefined,
     getState: () => createSliceStateForTest({
-      templateSelectionsByFileId: sliceTemplateSelectionsByFileId,
+      templateSelections: sliceTemplateSelections,
     }),
     getUriResult: target => uriSliceTarget && isSameSliceUriTargetForTest(target, uriSliceTarget)
       ? { target } as ReturnType<ConstructorParameters<typeof WorkbenchDomainBridge>[0]["sliceService"]["getUriResult"]>

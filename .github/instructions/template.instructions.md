@@ -32,7 +32,7 @@ Template editor form records are not the domain `Template`; name them
 
 Template owns the core `Template` spec and editor-record conversion. It does
 not own Recipe/UserTemplate automatic candidate derivation, UserTemplate catalog
-CRUD, catalog snapshots, Review decisions, per-file template selections, or
+CRUD, catalog snapshots, Review decisions, per-target template selections, or
 raw-file view input.
 
 `ITemplateViewStateService` in Template contrib owns selected-template/form
@@ -138,8 +138,8 @@ import/export command
 - WorkbenchDomainBridge must not construct or push Template-owned execution
   workflow inputs, and must not read `TemplateState` for Explorer current-template display.
   Explorer current-template display is a view projection in ExplorerViewPane;
-  per-file slicing selections come from `ISliceService`.
-- Per-file template selections for slicing belong to `ISliceService`; do not
+  per-target slicing selections come from `ISliceService`.
+- Per-target template selections for slicing belong to `ISliceService`; do not
   store them in `TemplateState` or `IUserTemplateService`.
 - Do not reintroduce Template-owned workflow inputs or
   `TemplateState.selectionsByFileId`; slicing selections come from
@@ -154,11 +154,10 @@ import/export command
 - Explorer hover/selection priority for slicing belongs to
   `SlicePriorityContribution` -> `ISliceService.prioritizeUri(...)`; do not route
   it through WorkbenchDomainBridge or Template code.
-- New slice progress belongs to `ISliceService`; consumers subscribe and reread
-  `SliceState`. WorkbenchDomainBridge and Explorer use Slice file states as the
-  only progress source.
-- Per-file readiness belongs to Slice; Explorer projects it into badges/chart-state without adding/removing file tree items.
-- Mark files `processing` when a single-file task starts, then `ready`, `failed`, or remove through the same owner state.
+- New URI slice progress belongs to `ISliceService`; consumers subscribe and
+  reread target state through `getUriState(target)`.
+- Per-target readiness belongs to Slice; Explorer projects it into badges/chart-state without adding/removing file tree items.
+- Mark URI targets `processing` when a single-target task starts, then `ready`, `failed`, or remove through the same owner state.
 - `SliceRun` records include template fingerprint and source block ids.
 - Execution commits through `commitSliceRuns(...)`; do not add Template-owned
   run/output commit or cleanup APIs.

@@ -327,10 +327,8 @@ class TestSliceService implements ISliceService {
 
 	public getState(): SliceState {
 		return {
-			activeFileId: null,
-			fileStates: new Map(),
 			queueLength: 0,
-			templateSelectionsByFileId: {},
+			templateSelections: [],
 		};
 	}
 
@@ -346,9 +344,8 @@ class TestSliceService implements ISliceService {
 		this.uriRequests.push(...requests);
 	}
 	public prioritizeUri(_target: SliceUriTarget): void {}
-	public cancel(_fileIds?: readonly string[]): void {}
 	public cancelUri(_targets: readonly SliceUriTarget[]): void {}
-	public setTemplateSelection(_fileId: string, _selection: TemplateSelection): void {}
+	public setTemplateSelection(_target: SliceUriTarget, _selection: TemplateSelection): void {}
 }
 
 const createAccessor = ({

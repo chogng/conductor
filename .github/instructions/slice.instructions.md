@@ -12,7 +12,7 @@ quality, or decide whether the system should apply a template.
 
 `ISliceService` owns:
 
-- per-file `TemplateSelection` state;
+- per-target `TemplateSelection` state;
 - `SliceUriRequest` queue entries from URI-backed review execution controllers
   or user commands;
 - URI slice target state, priority, cancellation, and queue draining;
@@ -48,7 +48,7 @@ Slice; do not import Session model record types just to describe Slice outputs.
 | File | Responsibility |
 | --- | --- |
 | `common/slice.ts` | service contract, `SliceUriRequest`, `SliceRun`, `SlicePlan`, commit/state/input types. |
-| `common/templateSelection.ts` | per-file `TemplateSelection` records, the automatic-selection sentinel, and normalization helpers owned by Slice state. |
+| `common/templateSelection.ts` | per-target `TemplateSelection` records, the automatic-selection sentinel, and normalization helpers owned by Slice state. |
 | `common/slicePlanner.ts` | pure target-aware plan/range generation and migration source / URI content signature helpers. |
 | `common/sliceExecutor.ts` | pure row execution into target-neutral Slice execution records. |
 | `browser/sliceService.ts` | injectable owner for queue, selection, progress state, data-resource URI content consumption, and URI result cache. |
@@ -80,8 +80,8 @@ Manual selection flow:
 
 ```txt
 files.item.setTemplate command
-  -> ISliceService.setTemplateSelection(fileId, selection)
-  -> SliceState.templateSelectionsByFileId
+  -> ISliceService.setTemplateSelection({ resource, sheetId }, selection)
+  -> SliceState.templateSelections
 
 URI-backed command/action/controller
   -> ReviewService.reviewUriManualTemplate(...)
@@ -125,14 +125,14 @@ URI data-resource content/evidence/materialization changed
   -> SliceService removes matching URI queue entries and URI results
 
 User cancel target/all
-  -> ISliceService.cancelUri(...) / cancel(...)
+  -> ISliceService.cancelUri(...)
   -> SliceService removes matching local queue/state entries
 ```
 
 Explorer chart state:
 
 ```txt
-SliceState.fileStates + latest SliceRun + SliceService URI-target state/results
+SliceService URI-target state/results
   -> WorkbenchDomainBridge / ExplorerPaneInput
   -> chartState + chartMessage
 

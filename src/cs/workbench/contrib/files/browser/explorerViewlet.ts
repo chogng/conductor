@@ -403,7 +403,7 @@ export class ExplorerViewPane extends ViewPane {
       plotAxisSettings: input.plotAxisSettings,
       thumbnailPreviewService: this.thumbnailPreviewService,
       thumbnailService: this.thumbnailService,
-      fileTemplateSelectionsByFileId: input.fileTemplateSelectionsByFileId,
+      templateSelections: input.templateSelections,
       editable: this.explorerService.getContext().editable,
       templateRecords: this.createTemplateRecords(),
       files,
@@ -502,8 +502,8 @@ export class ExplorerViewPane extends ViewPane {
     this.explorerService.setEditable(null);
   };
 
-  private readonly handleHoverFileChange = (fileId: string | null): void => {
-    this.explorerService.setHoveredFileId(fileId);
+  private readonly handleHoverFileChange = (target: ExplorerResourceTarget | null): void => {
+    this.explorerService.setHoveredResource(target);
   };
 
   private readonly handleRenameFile = (file: ExplorerFileEntry, nextName: string): void => {

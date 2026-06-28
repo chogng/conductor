@@ -4,15 +4,16 @@
 
 import assert from "assert";
 
+import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
+	areTemplateTargetSelectionsEqual,
 	createTemplateSelection,
 	getTemplateSelectionId,
-	getTemplateSelectionTemplateId,
 	isAutoTemplateId,
-	removeTemplateSelectionsForFiles,
+	removeTemplateSelectionsForTargets,
 	removeTemplateSelectionsForTemplate,
-	resolveTemplateSelectionForFile,
+	resolveTemplateSelectionForTarget,
 } from "src/cs/workbench/services/slice/common/templateSelection";
 
 suite("workbench/services/slice/test/common/templateSelection", () => {
@@ -37,49 +38,75 @@ suite("workbench/services/slice/test/common/templateSelection", () => {
 		assert.equal(isAutoTemplateId(null), false);
 	});
 
-	test("resolves file selection before current selection", () => {
+	test("resolves target selection before current selection", () => {
 		const current = createTemplateSelection("template-current");
+		const resource = URI.file("/workspace/file-a.csv");
+		const target = { resource, sheetId: "sheet-a" };
 
 		assert.deepEqual(
-			resolveTemplateSelectionForFile(
-				"file-a",
-				{ "file-a": createTemplateSelection("template-file") },
+			resolveTemplateSelectionForTarget(
+				target,
+				[{ target, selection: createTemplateSelection("template-file") }],
 				current,
 			),
 			{ kind: "saved", templateId: "template-file" },
 		);
-		assert.equal(resolveTemplateSelectionForFile("file-b", {}, current), current);
+		assert.equal(
+			resolveTemplateSelectionForTarget({ resource: URI.file("/workspace/file-b.csv") }, [], current),
+			current,
+		);
 	});
 
-	test("removes selections for deleted files", () => {
+	test("removes selections for deleted targets", () => {
+		const targetA = { resource: URI.file("/workspace/file-a.csv") };
+		const targetB = { resource: URI.file("/workspace/file-b.csv"), sheetId: "sheet-b" };
 		assert.deepEqual(
-			removeTemplateSelectionsForFiles(
-				{
-					"file-a": createTemplateSelection("template-a"),
-					"file-b": createTemplateSelection("template-b"),
-				},
-				["file-a"],
+			removeTemplateSelectionsForTargets(
+				[
+					{ target: targetA, selection: createTemplateSelection("template-a") },
+					{ target: targetB, selection: createTemplateSelection("template-b") },
+				],
+				[targetA],
 			),
-			{
-				"file-b": createTemplateSelection("template-b"),
-			},
+			[
+				{ target: targetB, selection: createTemplateSelection("template-b") },
+			],
 		);
 	});
 
 	test("removes selections for deleted templates", () => {
+		const targetA = { resource: URI.file("/workspace/file-a.csv") };
+		const targetB = { resource: URI.file("/workspace/file-b.csv") };
+		const targetC = { resource: URI.file("/workspace/file-c.csv") };
 		assert.deepEqual(
 			removeTemplateSelectionsForTemplate(
-				{
-					"file-a": createTemplateSelection("template-a"),
-					"file-b": createTemplateSelection("template-b"),
-					"file-c": { kind: "auto" },
-				},
+				[
+					{ target: targetA, selection: createTemplateSelection("template-a") },
+					{ target: targetB, selection: createTemplateSelection("template-b") },
+					{ target: targetC, selection: { kind: "auto" } },
+				],
 				"template-a",
 			),
-			{
-				"file-b": createTemplateSelection("template-b"),
-				"file-c": { kind: "auto" },
-			},
+			[
+				{ target: targetB, selection: createTemplateSelection("template-b") },
+				{ target: targetC, selection: { kind: "auto" } },
+			],
 		);
+	});
+
+	test("compares target selections without depending on insertion order", () => {
+		const targetA = { resource: URI.file("/workspace/file-a.csv") };
+		const targetB = { resource: URI.file("/workspace/file-b.csv") };
+
+		assert.equal(areTemplateTargetSelectionsEqual(
+			[
+				{ target: targetA, selection: createTemplateSelection("template-a") },
+				{ target: targetB, selection: { kind: "auto" } },
+			],
+			[
+				{ target: targetB, selection: { kind: "auto" } },
+				{ target: targetA, selection: createTemplateSelection("template-a") },
+			],
+		), true);
 	});
 });

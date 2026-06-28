@@ -95,8 +95,14 @@ export class WorkbenchDomainBridge extends Disposable {
       );
       this.scheduleInteractiveSync();
     }));
-    this._register(this.options.explorerService.onDidChangeHoveredFile(event => {
-      this.prioritizeProcessingFile(event.fileId, "hover");
+    this._register(this.options.explorerService.onDidChangeHoveredResource(event => {
+      this.prioritizeProcessingFile(
+        getExplorerFileIdForResourceTarget(
+          this.options.explorerService.getPaneInput()?.files ?? [],
+          event.target,
+        ),
+        "hover",
+      );
     }));
     this._register(this.options.explorerService.onDidChangeVisibleFileIds(event => {
       this.prioritizeVisibleExplorerFiles(event.visibleFileIds, event.nearbyFileIds);
@@ -713,12 +719,17 @@ export class WorkbenchDomainBridge extends Disposable {
   private setPerformanceTraceHoveredChartTarget(fileId: string | null): string | null {
     const normalizedFileId = String(fileId ?? "").trim();
     if (!normalizedFileId) {
-      this.options.explorerService.setHoveredFileId(null);
+      this.options.explorerService.setHoveredResource(null);
       return null;
     }
 
-    this.options.explorerService.setHoveredFileId(normalizedFileId);
-    return normalizedFileId;
+    const paneInput = this.options.explorerService.getPaneInput();
+    const file = paneInput?.files.find(candidate =>
+      normalizeExplorerSelectionFileId(candidate.fileId) === normalizedFileId
+    ) ?? null;
+    const target = getExplorerFileResourceIdentity(file);
+    this.options.explorerService.setHoveredResource(target);
+    return target ? normalizedFileId : null;
   }
 }
 
@@ -1011,7 +1022,6 @@ export const createExplorerPaneInput = ({
     chartDataFileIds,
     isChartMode,
     sliceService,
-    sliceState,
   });
   const selectedTarget = resolveVisibleExplorerSelectedResourceTarget(
     getExplorerSelectedResourceTarget(explorerService),
@@ -1019,7 +1029,6 @@ export const createExplorerPaneInput = ({
   );
   return {
     activePlotType,
-    fileTemplateSelectionsByFileId: sliceState.templateSelectionsByFileId,
     files,
     mode,
     originOpenPlotOptions,
@@ -1028,6 +1037,7 @@ export const createExplorerPaneInput = ({
     selectedResource: selectedTarget?.resource ?? null,
     selectedSheetId: selectedTarget?.sheetId ?? null,
     selectionKind,
+    templateSelections: sliceState.templateSelections,
     thumbnailFiles: createExplorerThumbnailFiles(files),
   };
 };
@@ -1335,12 +1345,10 @@ const applyChartExplorerStates = (
     isChartMode,
     chartDataFileIds,
     sliceService,
-    sliceState,
   }: {
     readonly chartDataFileIds: readonly string[];
     readonly isChartMode: boolean;
     readonly sliceService?: Pick<ISliceService, "getUriResult" | "getUriState">;
-    readonly sliceState: SliceState;
   },
 ): ExplorerFileEntry[] => {
   if (!isChartMode) {
@@ -1359,8 +1367,7 @@ const applyChartExplorerStates = (
       ? Boolean(sliceService?.getUriResult(target))
       : chartDataFileIdSet.has(fileId);
     const ownerState = resolveExplorerFileProcessingState(
-      (target ? getSliceUriTargetState(sliceService, target) : undefined) ??
-      (fileId ? sliceState.fileStates.get(fileId) : undefined),
+      target ? getSliceUriTargetState(sliceService, target) : undefined,
     );
     const chartState = resolveChartState(ownerState, hasChartData);
     const chartMessage = getChartStateMessage(ownerState);

@@ -9,16 +9,15 @@ import {
 	WorkbenchPhase,
 	type IWorkbenchContribution,
 } from "src/cs/workbench/common/contributions";
-import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import {
 	IExplorerService,
+	type ExplorerResourceTarget,
 	type IExplorerService as IExplorerServiceType,
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
 	ISliceService,
 	SlicePriorityContributionId,
 	type ISliceService as ISliceServiceType,
-	type SliceUriTarget,
 } from "src/cs/workbench/services/slice/common/slice";
 
 export class SlicePriorityContribution extends Disposable implements IWorkbenchContribution {
@@ -31,24 +30,16 @@ export class SlicePriorityContribution extends Disposable implements IWorkbenchC
 		this._register(this.explorerService.onDidChangeSelection(event => {
 			this.prioritizeResource(event.selectedResource, event.selectedSheetId ?? null);
 		}));
-		this._register(this.explorerService.onDidChangeHoveredFile(event => {
-			this.prioritizeFile(event.fileId);
+		this._register(this.explorerService.onDidChangeHoveredResource(event => {
+			this.prioritizeTarget(event.target);
 		}));
 
 		this.prioritizeResource(this.explorerService.selectedResource, this.explorerService.selectedSheetId);
-		this.prioritizeFile(this.explorerService.hoveredFileId);
+		this.prioritizeTarget(this.explorerService.hoveredResource);
 	}
 
-	private prioritizeFile(fileId: string | null): void {
-		const normalizedFileId = normalizeFileId(fileId);
-		if (!normalizedFileId) {
-			return;
-		}
-
-		const target = this.getUriTargetForExplorerFileId(normalizedFileId);
-		if (target) {
-			this.sliceService.prioritizeUri(target);
-		}
+	private prioritizeTarget(target: ExplorerResourceTarget | null): void {
+		this.prioritizeResource(target?.resource ?? null, target?.sheetId ?? null);
 	}
 
 	private prioritizeResource(resource: URI | null, sheetId: string | null | undefined): void {
@@ -58,44 +49,14 @@ export class SlicePriorityContribution extends Disposable implements IWorkbenchC
 
 		this.sliceService.prioritizeUri({
 			resource,
-			sheetId: normalizeFileId(sheetId) ?? null,
+			sheetId: normalizeText(sheetId) ?? null,
 		});
-	}
-
-	private getUriTargetForExplorerFileId(fileId: string): SliceUriTarget | null {
-		const files = this.explorerService.getPaneInput()?.files ?? [];
-		for (const file of files) {
-			const target = getExplorerFileUriTarget(file);
-			if (!target) {
-				continue;
-			}
-			if (
-				normalizeFileId(file.fileId) === fileId
-			) {
-				return target;
-			}
-		}
-		return null;
 	}
 }
 
-const normalizeFileId = (fileId: unknown): string | null => {
-	const normalizedFileId = String(fileId ?? "").trim();
-	return normalizedFileId || null;
-};
-
-const getExplorerFileUriTarget = (
-	file: ExplorerFileEntry,
-): SliceUriTarget | null => {
-	const resource = file.resource ? URI.revive(file.resource) : null;
-	if (!resource) {
-		return null;
-	}
-
-	return {
-		resource,
-		sheetId: normalizeFileId(file.sheetId) ?? null,
-	};
+const normalizeText = (value: unknown): string | null => {
+	const normalizedValue = String(value ?? "").trim();
+	return normalizedValue || null;
 };
 
 registerWorkbenchContribution2(

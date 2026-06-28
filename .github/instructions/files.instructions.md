@@ -189,13 +189,13 @@ for preview is not a Session commit. Session raw-table commits remain a
 migration ledger for domains that still explicitly own Session records; they are
 not the ordinary Explorer file-to-table path.
 
-Per-file template selection is a Files command surface but not Files state:
+Per-target template selection is a Files command surface but not Files state:
 
 ```txt
 Explorer context menu / template picker
   -> files.item.setTemplate command
-  -> ISliceService.setTemplateSelection(fileId, selection)
-  -> SliceState.templateSelectionsByFileId
+  -> ISliceService.setTemplateSelection({ resource, sheetId }, selection)
+  -> SliceState.templateSelections
   -> WorkbenchDomainBridge projects selection into Explorer pane input
 ```
 
@@ -294,7 +294,7 @@ Rules:
 - Selection/reveal uses `IExplorerService.select(...)` and `IExplorerView.selectResource(...)`.
 - Rename starts editable state through `IExplorerService.setEditable(...)`; Explorer view state owns display-name overrides for visible rows.
 - File-template selection delegates to `ISliceService.setTemplateSelection(...)`; Explorer owns the command surface, Slice owns the selection state and execution.
-- Slice file progress/readiness comes from `SliceState.fileStates`; Explorer must use it as the sole progress/readiness source.
+- Slice progress/readiness comes from `ISliceService.getUriState(target)`; Explorer must use it as the sole progress/readiness source.
 - Do not reach `ExplorerViewPane` through `IViewsService.getViewWithId(...)`.
 - Do not publish `onDidRequest*` events from `IExplorerService` as hidden commands.
 

@@ -252,7 +252,7 @@ const createExplorerServiceForTest = (
 	hasPendingSourceFiles: false,
 	onDidChangePaneInput: Event.None as Event<void>,
 	setEditable: () => undefined,
-	setHoveredFileId: () => undefined,
+	setHoveredResource: () => undefined,
 } as unknown as IExplorerService);
 
 const createReviewServiceForTest = (

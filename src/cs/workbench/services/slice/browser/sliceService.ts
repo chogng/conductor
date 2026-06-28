@@ -38,7 +38,11 @@ import {
 } from "src/cs/workbench/services/slice/common/slicePlanner";
 import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/reviewModel";
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
-import type { TemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
+import {
+	normalizeTemplateSelectionTarget,
+	type TemplateSelection,
+	type TemplateTargetSelection,
+} from "src/cs/workbench/services/slice/common/templateSelection";
 
 type UriSliceQueueEntry = {
 	readonly kind: "uri";
@@ -62,13 +66,11 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	private readonly onDidChangeUriSliceResultEmitter = this._register(new Emitter<SliceUriTarget>());
 	public readonly onDidChangeUriSliceResult = this.onDidChangeUriSliceResultEmitter.event;
 
-	private readonly fileStates = new Map<string, SliceFileState>();
 	private readonly uriStatesByCacheKey = new Map<string, SliceFileState>();
 	private readonly uriTargetsByCacheKey = new Map<string, SliceUriTarget>();
 	private readonly queue: SliceQueueEntry[] = [];
 	private readonly uriResultsByCacheKey = new Map<string, SliceUriResult>();
-	private templateSelectionsByFileId: Record<string, TemplateSelection> = {};
-	private activeFileId: string | null = null;
+	private readonly templateSelectionsByTarget = new Map<string, TemplateTargetSelection>();
 	private activeQueueKey: string | null = null;
 	private isSliceQueueRunning = false;
 
@@ -85,10 +87,8 @@ export class SliceService extends Disposable implements ISliceServiceType {
 
 	public getState(): SliceState {
 		return {
-			fileStates: new Map(this.fileStates),
 			queueLength: this.queue.length,
-			activeFileId: this.activeFileId,
-			templateSelectionsByFileId: { ...this.templateSelectionsByFileId },
+			templateSelections: [...this.templateSelectionsByTarget.values()],
 		};
 	}
 
@@ -151,35 +151,6 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		this.fireSliceStateChange();
 	}
 
-	public cancel(fileIds?: readonly string[]): void {
-		const normalizedFileIds = new Set((fileIds ?? []).map(normalizeText).filter(Boolean));
-		const cancelAll = !normalizedFileIds.size;
-		let didChange = false;
-		for (let index = this.queue.length - 1; index >= 0; index -= 1) {
-			const entry = this.queue[index];
-			const fileId = entry ? getSliceQueueEntryStateKey(entry) : null;
-			if (!entry || !fileId || (!cancelAll && !normalizedFileIds.has(fileId))) {
-				continue;
-			}
-			this.queue.splice(index, 1);
-			if (this.activeQueueKey === fileId) {
-				this.activeQueueKey = null;
-			}
-			didChange = this.setQueueEntryState(entry, { state: "none" }) || didChange;
-		}
-		if (cancelAll) {
-			didChange = this.fileStates.size > 0 || this.uriStatesByCacheKey.size > 0 || didChange;
-			this.fileStates.clear();
-			this.uriStatesByCacheKey.clear();
-			this.uriTargetsByCacheKey.clear();
-			this.activeFileId = null;
-			this.activeQueueKey = null;
-		}
-		if (didChange) {
-			this.fireSliceStateChange();
-		}
-	}
-
 	public cancelUri(targets: readonly SliceUriTarget[]): void {
 		const cacheKeys = new Set(
 			targets
@@ -211,16 +182,16 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		}
 	}
 
-	public setTemplateSelection(fileId: string, selection: TemplateSelection): void {
-		const normalizedFileId = normalizeText(fileId);
-		if (!normalizedFileId) {
+	public setTemplateSelection(target: SliceUriTarget, selection: TemplateSelection): void {
+		const normalizedTarget = normalizeTemplateSelectionTarget(target);
+		if (!normalizedTarget) {
 			return;
 		}
 
-		this.templateSelectionsByFileId = {
-			...this.templateSelectionsByFileId,
-			[normalizedFileId]: normalizeTemplateSelection(selection),
-		};
+		this.templateSelectionsByTarget.set(createSliceUriCacheKey(normalizedTarget), {
+			target: normalizedTarget,
+			selection: normalizeTemplateSelection(selection),
+		});
 		this.fireSliceStateChange();
 	}
 
@@ -276,8 +247,8 @@ export class SliceService extends Disposable implements ISliceServiceType {
 					continue;
 				}
 
-				const fileId = getSliceQueueEntryStateKey(entry);
-				if (!fileId) {
+				const queueKey = getSliceQueueEntryStateKey(entry);
+				if (!queueKey) {
 					continue;
 				}
 
