@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { equalsIgnoreCase } from "./strings";
+import { equalsIgnoreCase } from './strings.js';
 
 enum Severity {
 	Ignore = 0,
