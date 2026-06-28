@@ -16,7 +16,7 @@ import type {
 } from "src/cs/workbench/services/session/common/session";
 import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 import type { IPlotService } from "src/cs/workbench/services/plot/common/plot";
-import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
+import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
 
 import { BrowserExportService } from "src/cs/workbench/services/export/browser/exportService";
 import { NotificationService } from "src/cs/workbench/services/notification/common/notificationService";
@@ -177,7 +177,7 @@ suite("workbench/services/export/browser/exportService", () => {
 	});
 
 	test("resolves curve labels from plot owner state", () => {
-		const snapshot = createEmptySnapshot();
+		const snapshot = createSnapshotWithFile(createExportFileRecord());
 		const service = createExportService(snapshot, {
 			"file-a": {
 				"series-a": "Plot Label",
@@ -185,17 +185,6 @@ suite("workbench/services/export/browser/exportService", () => {
 		});
 
 		const viewState = service.updateViewState({
-			activeFile: {
-				fileId: "file-a",
-				fileName: "file-a.csv",
-				series: [{
-					groupIndex: 0,
-					id: "series-a",
-					name: "Fallback Label",
-					y: [1],
-				}],
-				xGroups: [[0]],
-			} as ProcessedEntry,
 			activeFileId: "file-a",
 			snapshot,
 		});
@@ -232,7 +221,7 @@ const createPlotServiceStub = (
 	legendLabelsByFileId: Readonly<Record<string, Readonly<Record<string, string>>>>,
 ): IPlotService => ({
 	getCachedCalculatedData: () => null,
-	getFileAxisSettings: () => ({
+	getAxisSettings: () => ({
 		xUnitByFileId: {},
 		yScaleByFileId: {},
 		yUnitByFileId: {},
@@ -246,4 +235,57 @@ const createEmptySnapshot = (): SessionSnapshot => ({
 	filesById: {},
 	schemaVersion: 1,
 	sessionVersion: 1,
+});
+
+const createSnapshotWithFile = (file: FileRecord): SessionSnapshot => ({
+	fileOrder: [file.id],
+	filesById: {
+		[file.id]: file,
+	},
+	schemaVersion: 1,
+	sessionVersion: 1,
+});
+
+const createExportFileRecord = (): FileRecord => ({
+	id: "file-a",
+	kind: "unknown",
+	name: "file-a.csv",
+	raw: {
+		fileId: "file-a",
+		fileName: "file-a.csv",
+		tableOrder: [],
+		tablesById: {},
+	},
+	rawTableVersionsById: {},
+	seriesById: {
+		"series-a": {
+			fileId: "file-a",
+			groupIndex: 0,
+			id: "series-a",
+			name: "Fallback Label",
+			y: [1],
+		},
+	},
+	seriesOrder: ["series-a"],
+	curvesByKey: {
+		"base:iv:transfer:series-a": {
+			curveFamily: "iv",
+			curveGeneration: "base",
+			fileId: "file-a",
+			ivMode: "transfer",
+			lineage: {
+				baseFamily: "iv",
+				baseSeries: {
+					fileId: "file-a",
+					seriesId: "series-a",
+				},
+				curveGeneration: "base",
+				ivMode: "transfer",
+			},
+			points: [{ x: 0, y: 1 }],
+			seriesId: "series-a",
+			signature: "series-a",
+		},
+	},
+	metricsByKey: {},
 });

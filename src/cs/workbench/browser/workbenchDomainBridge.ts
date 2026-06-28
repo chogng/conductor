@@ -843,7 +843,6 @@ const createSessionThumbnailFile = (
   const domain = getFileRecordDomain(file);
   return {
     calculationCache: file.calculationCache,
-    curveType: getFileRecordCurveType(file),
     domain: domain
       ? {
         x: domain.x,

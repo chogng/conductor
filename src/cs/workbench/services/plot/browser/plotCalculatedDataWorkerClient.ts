@@ -6,6 +6,7 @@ import type { CalculatedData } from "src/cs/workbench/services/calculation/commo
 import type {
   PlotDisplayModel,
   PlotCalculatedDataPrefetchPriority,
+  PlotFileAxisSettings,
   PlotType,
 } from "src/cs/workbench/services/plot/common/plot";
 import type {
@@ -14,7 +15,6 @@ import type {
   PlotWorkerRequest,
   PlotDisplayModelWorkerRequest,
 } from "src/cs/workbench/services/plot/browser/plotCalculatedDataWorker";
-import type { FileAxisSettingsByFileId } from "src/cs/workbench/services/session/browser/fileSemanticsSync";
 import {
   getLatestSliceRunRecord,
   type FileId,
@@ -45,7 +45,7 @@ export type PlotCalculatedDataWorkerOutput = {
 };
 
 export type PlotDisplayModelWorkerInput = {
-  readonly axisSettings?: FileAxisSettingsByFileId;
+  readonly axisSettings?: PlotFileAxisSettings;
   readonly axisTitleOverridesByKey?: Readonly<Record<string, string>>;
   readonly calculatedData: CalculatedData;
   readonly fileId: FileId;

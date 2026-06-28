@@ -7,7 +7,7 @@ import { StandardMouseEvent } from "../../mouseEvent.js";
 import { alert as ariaAlert, type AriaRole } from "../aria/aria.js";
 import { distinct, equals, range } from "../../../common/arrays.js";
 import { memoize } from "../../../common/decorators.js";
-import { Event, Emitter, EventBufferer, type Event as BaseEvent } from "../../../common/event.js";
+import { Event, Emitter, EventBufferer } from "../../../common/event.js";
 import { matchesFuzzy2, matchesPrefix } from "../../../common/filters.js";
 import { KeyCode } from "../../../common/keyCodes.js";
 import { Disposable, DisposableStore, type IDisposable } from "../../../common/lifecycle.js";
@@ -206,7 +206,7 @@ export interface IListAccessibilityProvider<T> extends IListViewAccessibilityPro
   getAriaLabel?(element: T): string | null | undefined;
   getWidgetAriaLabel?(): string | undefined;
   getWidgetRole?(): AriaRole;
-  readonly onDidChangeActiveDescendant?: BaseEvent<void>;
+  readonly onDidChangeActiveDescendant?: Event<void>;
 }
 
 export interface IListOptions<T> extends Omit<
@@ -344,7 +344,7 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
   private sortedIndexes: number[];
   private readonly onChangeEmitter = new Emitter<ITraitChangeEvent>();
 
-  public readonly onChange: BaseEvent<ITraitChangeEvent> = this.onChangeEmitter.event;
+  public readonly onChange: Event<ITraitChangeEvent> = this.onChangeEmitter.event;
 
   public constructor(private readonly trait: string, indexes: readonly number[] = []) {
     this.indexes = sanitizeIndexes(indexes);
@@ -1199,7 +1199,7 @@ export class List<T> extends Disposable implements ListHandle {
   }
 
   @memoize
-  public get onDidChangeFocus(): BaseEvent<IListEvent<T>> {
+  public get onDidChangeFocus(): Event<IListEvent<T>> {
     return Event.map<ITraitChangeEvent, IListEvent<T>>(
       this.eventBufferer.wrapEvent<ITraitChangeEvent>(this.focusTrait.onChange),
       event => this.toListEvent(event),
@@ -1207,30 +1207,30 @@ export class List<T> extends Disposable implements ListHandle {
   }
 
   @memoize
-  public get onDidChangeSelection(): BaseEvent<IListEvent<T>> {
+  public get onDidChangeSelection(): Event<IListEvent<T>> {
     return Event.map<ITraitChangeEvent, IListEvent<T>>(
       this.eventBufferer.wrapEvent<ITraitChangeEvent>(this.selectionTrait.onChange),
       event => this.toListEvent(event),
     );
   }
 
-  public readonly onDidFocus: BaseEvent<void> = this.onDidFocusEmitter.event;
-  public readonly onDidBlur: BaseEvent<void> = this.onDidBlurEmitter.event;
-  public readonly onDidDispose: BaseEvent<void> = this.onDidDisposeEmitter.event;
-  public readonly onKeyDown: BaseEvent<KeyboardEvent> = this.onKeyDownEmitter.event;
-  public readonly onKeyUp: BaseEvent<KeyboardEvent> = this.onKeyUpEmitter.event;
-  public readonly onKeyPress: BaseEvent<KeyboardEvent> = this.onKeyPressEmitter.event;
-  public readonly onMouseClick: BaseEvent<IListMouseEvent<T>> = this.onMouseClickEmitter.event;
-  public readonly onMouseDblClick: BaseEvent<IListMouseEvent<T>> = this.onMouseDblClickEmitter.event;
-  public readonly onMouseMiddleClick: BaseEvent<IListMouseEvent<T>> = this.onMouseMiddleClickEmitter.event;
-  public readonly onMouseDown: BaseEvent<IListMouseEvent<T>> = this.onMouseDownEmitter.event;
-  public readonly onMouseUp: BaseEvent<IListMouseEvent<T>> = this.onMouseUpEmitter.event;
-  public readonly onMouseOver: BaseEvent<IListMouseEvent<T>> = this.onMouseOverEmitter.event;
-  public readonly onMouseMove: BaseEvent<IListMouseEvent<T>> = this.onMouseMoveEmitter.event;
-  public readonly onMouseOut: BaseEvent<IListMouseEvent<T>> = this.onMouseOutEmitter.event;
-  public readonly onContextMenu: BaseEvent<IListContextMenuEvent<T>> = this.onContextMenuEmitter.event;
+  public readonly onDidFocus: Event<void> = this.onDidFocusEmitter.event;
+  public readonly onDidBlur: Event<void> = this.onDidBlurEmitter.event;
+  public readonly onDidDispose: Event<void> = this.onDidDisposeEmitter.event;
+  public readonly onKeyDown: Event<KeyboardEvent> = this.onKeyDownEmitter.event;
+  public readonly onKeyUp: Event<KeyboardEvent> = this.onKeyUpEmitter.event;
+  public readonly onKeyPress: Event<KeyboardEvent> = this.onKeyPressEmitter.event;
+  public readonly onMouseClick: Event<IListMouseEvent<T>> = this.onMouseClickEmitter.event;
+  public readonly onMouseDblClick: Event<IListMouseEvent<T>> = this.onMouseDblClickEmitter.event;
+  public readonly onMouseMiddleClick: Event<IListMouseEvent<T>> = this.onMouseMiddleClickEmitter.event;
+  public readonly onMouseDown: Event<IListMouseEvent<T>> = this.onMouseDownEmitter.event;
+  public readonly onMouseUp: Event<IListMouseEvent<T>> = this.onMouseUpEmitter.event;
+  public readonly onMouseOver: Event<IListMouseEvent<T>> = this.onMouseOverEmitter.event;
+  public readonly onMouseMove: Event<IListMouseEvent<T>> = this.onMouseMoveEmitter.event;
+  public readonly onMouseOut: Event<IListMouseEvent<T>> = this.onMouseOutEmitter.event;
+  public readonly onContextMenu: Event<IListContextMenuEvent<T>> = this.onContextMenuEmitter.event;
 
-  public get onPointer(): BaseEvent<IListMouseEvent<T>> {
+  public get onPointer(): Event<IListMouseEvent<T>> {
     return this.mouseController.onPointer;
   }
 

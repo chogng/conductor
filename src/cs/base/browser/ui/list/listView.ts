@@ -4,7 +4,7 @@ import { DomEmitter } from "../../event.js";
 import { distinct, equals } from "../../../common/arrays.js";
 import { disposableTimeout } from "../../../common/async.js";
 import { BugIndicatingError } from "../../../common/errors.js";
-import { Emitter, Event as BaseEventUtil, type Event as BaseEvent } from "../../../common/event.js";
+import { Emitter, Event } from "../../../common/event.js";
 import { Disposable, DisposableStore, type IDisposable } from "../../../common/lifecycle.js";
 import { ScrollbarVisibility } from "../../../common/scrollable.js";
 import type { ISpliceable } from "../../../common/sequence.js";
@@ -86,16 +86,16 @@ export interface IListView<T> extends ISpliceable<T>, IDisposable {
   readonly contentHeight: number;
   readonly domNode: HTMLElement;
   readonly length: number;
-  readonly onContextMenu: BaseEvent<IListMouseEvent<T>>;
-  readonly onDidScroll: BaseEvent<globalThis.Event>;
-  readonly onMouseClick: BaseEvent<IListMouseEvent<T>>;
-  readonly onMouseDblClick: BaseEvent<IListMouseEvent<T>>;
-  readonly onMouseMiddleClick: BaseEvent<IListMouseEvent<T>>;
-  readonly onMouseDown: BaseEvent<IListMouseEvent<T>>;
-  readonly onMouseMove: BaseEvent<IListMouseEvent<T>>;
-  readonly onMouseOut: BaseEvent<IListMouseEvent<T>>;
-  readonly onMouseOver: BaseEvent<IListMouseEvent<T>>;
-  readonly onMouseUp: BaseEvent<IListMouseEvent<T>>;
+  readonly onContextMenu: Event<IListMouseEvent<T>>;
+  readonly onDidScroll: Event<globalThis.Event>;
+  readonly onMouseClick: Event<IListMouseEvent<T>>;
+  readonly onMouseDblClick: Event<IListMouseEvent<T>>;
+  readonly onMouseMiddleClick: Event<IListMouseEvent<T>>;
+  readonly onMouseDown: Event<IListMouseEvent<T>>;
+  readonly onMouseMove: Event<IListMouseEvent<T>>;
+  readonly onMouseOut: Event<IListMouseEvent<T>>;
+  readonly onMouseOver: Event<IListMouseEvent<T>>;
+  readonly onMouseUp: Event<IListMouseEvent<T>>;
   scrollTop: number;
   domElement(index: number): HTMLElement | null;
   element(index: number): T;
@@ -226,16 +226,16 @@ export class ListView<T> implements IListView<T> {
   private onDragLeaveTimeout: IDisposable = Disposable.None;
   private canDrop = false;
 
-  public readonly onContextMenu!: BaseEvent<IListMouseEvent<T>>;
-  public readonly onDidScroll: BaseEvent<globalThis.Event> = this.onDidScrollEmitter.event;
-  public readonly onMouseClick!: BaseEvent<IListMouseEvent<T>>;
-  public readonly onMouseDblClick!: BaseEvent<IListMouseEvent<T>>;
-  public readonly onMouseMiddleClick!: BaseEvent<IListMouseEvent<T>>;
-  public readonly onMouseDown!: BaseEvent<IListMouseEvent<T>>;
-  public readonly onMouseMove!: BaseEvent<IListMouseEvent<T>>;
-  public readonly onMouseOut!: BaseEvent<IListMouseEvent<T>>;
-  public readonly onMouseOver!: BaseEvent<IListMouseEvent<T>>;
-  public readonly onMouseUp!: BaseEvent<IListMouseEvent<T>>;
+  public readonly onContextMenu!: Event<IListMouseEvent<T>>;
+  public readonly onDidScroll: Event<globalThis.Event> = this.onDidScrollEmitter.event;
+  public readonly onMouseClick!: Event<IListMouseEvent<T>>;
+  public readonly onMouseDblClick!: Event<IListMouseEvent<T>>;
+  public readonly onMouseMiddleClick!: Event<IListMouseEvent<T>>;
+  public readonly onMouseDown!: Event<IListMouseEvent<T>>;
+  public readonly onMouseMove!: Event<IListMouseEvent<T>>;
+  public readonly onMouseOut!: Event<IListMouseEvent<T>>;
+  public readonly onMouseOver!: Event<IListMouseEvent<T>>;
+  public readonly onMouseUp!: Event<IListMouseEvent<T>>;
 
   constructor(host: HTMLElement, options: IListViewOptions<T>) {
     this.host = host;
@@ -261,7 +261,7 @@ export class ListView<T> implements IListView<T> {
 
     this.onMouseClick = this.createMouseEvent("click");
     this.onMouseDblClick = this.createMouseEvent("dblclick");
-    this.onMouseMiddleClick = BaseEventUtil.filter(
+    this.onMouseMiddleClick = Event.filter(
       this.createMouseEvent("auxclick"),
       event => event.browserEvent.button === 1,
     );
@@ -1157,9 +1157,9 @@ export class ListView<T> implements IListView<T> {
 
   private createMouseEvent(
     type: "auxclick" | "click" | "contextmenu" | "dblclick" | "mousedown" | "mousemove" | "mouseout" | "mouseover" | "mouseup",
-  ): BaseEvent<IListMouseEvent<T>> {
+  ): Event<IListMouseEvent<T>> {
     const emitter = this.disposables.add(new DomEmitter(this.root, type));
-    return BaseEventUtil.map(emitter.event, event => this.toMouseEvent(event));
+    return Event.map(emitter.event, event => this.toMouseEvent(event));
   }
 
   private toMouseEvent(browserEvent: MouseEvent): IListMouseEvent<T> {

@@ -8,8 +8,8 @@ import { URI } from "../../../../../base/common/uri.ts";
 import {
   buildFileSourceIdentityKey,
   type FileEntry,
-} from "../../../../../workbench/services/files/common/files.ts";
-import type { FolderImportFileSource } from "../../../../../workbench/services/files/common/files.ts";
+  type FolderImportFileSource,
+} from "../../../../../workbench/services/workspaces/common/externalChanges.ts";
 import { resolveWorkspaceExternalChanges } from "../../../../../workbench/services/workspaces/common/externalChanges.ts";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 

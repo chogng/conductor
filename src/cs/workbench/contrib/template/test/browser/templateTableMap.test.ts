@@ -27,15 +27,15 @@ suite("workbench/contrib/template/test/browser/templateTableMap", () => {
     assert.equal(areTableCellsEqual(null, undefined), true);
     assert.equal(
       areTableCellsEqual(
-        { fileId: "file", sheetId: "sheet", rowIndex: 1, colIndex: 2 },
-        { fileId: "file", sheetId: "sheet", rowIndex: 1, colIndex: 2 },
+        { sheetId: "sheet", rowIndex: 1, colIndex: 2 },
+        { sheetId: "sheet", rowIndex: 1, colIndex: 2 },
       ),
       true,
     );
     assert.equal(
       areTableCellsEqual(
-        { fileId: "file", sheetId: "sheet", rowIndex: 1, colIndex: 2 },
-        { fileId: "file", sheetId: "sheet", rowIndex: 1, colIndex: 3 },
+        { sheetId: "sheet", rowIndex: 1, colIndex: 2 },
+        { sheetId: "sheet", rowIndex: 1, colIndex: 3 },
       ),
       false,
     );
@@ -151,9 +151,9 @@ suite("workbench/contrib/template/test/browser/templateTableMap", () => {
       resolveTemplateCellSelection(
         config,
         "xDataStart",
-        { fileId: "file", sheetId: "sheet", rowIndex: 0, colIndex: 0 },
+        { sheetId: "sheet", rowIndex: 0, colIndex: 0 },
       ),
-      { fileId: "file", sheetId: "sheet", rowIndex: 2, colIndex: 1 },
+      { sheetId: "sheet", rowIndex: 2, colIndex: 1 },
     );
 
     assert.deepEqual(
@@ -163,9 +163,9 @@ suite("workbench/contrib/template/test/browser/templateTableMap", () => {
           xSegmentCount: "C1",
         },
         "xSegmentCount",
-        { fileId: "file", sheetId: "sheet", rowIndex: 0, colIndex: 0 },
+        { sheetId: "sheet", rowIndex: 0, colIndex: 0 },
       ),
-      { fileId: "file", sheetId: "sheet", rowIndex: 0, colIndex: 2 },
+      { sheetId: "sheet", rowIndex: 0, colIndex: 2 },
     );
 
     assert.equal(

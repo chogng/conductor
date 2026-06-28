@@ -13,6 +13,7 @@ import {
   type ISaveDialogOptions,
 } from "src/cs/platform/dialogs/common/dialogs";
 import {
+  FileSystemProviderCapabilities,
   FileType,
   type IFileChange,
   type IFileContent,
@@ -241,6 +242,10 @@ class TestFileService implements IFileService {
 
   public getProvider(_scheme: string): IFileSystemProvider | undefined {
     return undefined;
+  }
+
+  public getProviderCapabilities(_resourceOrScheme: URI | string): FileSystemProviderCapabilities {
+    return FileSystemProviderCapabilities.FileRead | FileSystemProviderCapabilities.FileWrite;
   }
 
   public exists(_resource: URI): Promise<boolean> {

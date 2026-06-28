@@ -8,6 +8,7 @@ import { InstantiationType, registerSingleton } from "src/cs/platform/instantiat
 import { localize } from "src/cs/nls";
 import {
   createExportCsvFilesFromCanonical,
+  type ExportCsvFile,
 } from "src/cs/workbench/services/export/browser/csvExport";
 import {
   createOriginCurveOptionsFromRecord,
@@ -71,13 +72,13 @@ type OriginExportFile = {
   readonly [key: string]: unknown;
 };
 
-type OriginExportSourceFile = OriginExportFile;
+type OriginExportSourceFile = ExportCsvFile;
 
 type OriginExportSeries = {
-  readonly id?: unknown;
-  readonly label?: unknown;
+  readonly id?: string;
+  readonly label?: string;
   readonly legendValue?: unknown;
-  readonly name?: unknown;
+  readonly name?: string;
   readonly [key: string]: unknown;
 };
 
@@ -125,10 +126,7 @@ export class BrowserExportService extends Disposable implements IExportService {
   }
 
   public updateViewState(input: ExportViewStateInput): ExportViewState {
-    this.currentOriginExportPlanInput = {
-      activeFileId: input.activeFileId,
-      axisSettings: input.axisSettings,
-    };
+    this.currentOriginExportPlanInput = input;
     const planInput = this.resolveOriginExportPlanInput(this.currentOriginExportPlanInput);
     const snapshot = planInput.snapshot;
     const activeFileRecord = this.resolveActiveOriginFileRecord(planInput);
@@ -287,6 +285,7 @@ export class BrowserExportService extends Disposable implements IExportService {
   private getCurrentOriginExportPlanInput(): ResolvedOriginExportPlanInput {
     return this.resolveOriginExportPlanInput(this.currentOriginExportPlanInput ?? {
       activeFileId: null,
+      snapshot: this.sessionService.getSnapshot(),
     });
   }
 

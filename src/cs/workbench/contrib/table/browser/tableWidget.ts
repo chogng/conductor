@@ -13,7 +13,7 @@ import {
 } from "src/cs/base/browser/ui/table/tablePaging";
 import type { CancellationToken } from "src/cs/base/common/cancellation";
 import {
-  TABLE_WIDGET_DEFAULT_ZOOM_PERCENT,
+  TABLE_WIDGET_ZOOM_OPTIONS,
   type ITableBodyMouseEvent,
   type ITableCellState,
   type ITableCellPosition,
@@ -488,7 +488,7 @@ export class TableWidget {
   }
 
   public resetZoom(): boolean {
-    return this.setZoomPercent(TABLE_WIDGET_DEFAULT_ZOOM_PERCENT);
+    return this.setZoomPercent(TABLE_WIDGET_ZOOM_OPTIONS.defaultPercent);
   }
 
   public zoomIn(): boolean {

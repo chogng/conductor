@@ -28,8 +28,8 @@ import type { SliceUriResult, SliceUriTarget } from "src/cs/workbench/services/s
 type CalculationSourceNumberArray = readonly number[] | Float64Array;
 
 type CalculationSourceDomain = {
-  x?: [number, number];
-  y?: [number, number];
+  x?: readonly [number, number];
+  y?: readonly [number, number];
 };
 
 export type CalculationSourceSeries = {

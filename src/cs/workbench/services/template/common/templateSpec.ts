@@ -7,9 +7,28 @@ export type Template = {
   readonly id?: string;
   readonly name: string;
   readonly version: number;
+  readonly measurement?: TemplateMeasurementBinding;
   readonly blocks: readonly TemplateBlock[];
   readonly stopOnError: boolean;
   readonly applicability?: TemplateApplicability;
+};
+
+export type TemplateMeasurementFamily = "iv" | "cv" | "cf" | "pv" | "it";
+
+export type TemplateIvMode = "transfer" | "output";
+
+export type TemplateItMode =
+  | "stability"
+  | "transient"
+  | "retention"
+  | "biasStress"
+  | "photoResponse"
+  | "generic";
+
+export type TemplateMeasurementBinding = {
+  readonly curveFamily: TemplateMeasurementFamily;
+  readonly ivMode?: TemplateIvMode | null;
+  readonly itMode?: TemplateItMode | null;
 };
 
 export type TemplateApplicability = {

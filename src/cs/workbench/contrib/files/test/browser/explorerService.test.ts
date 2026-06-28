@@ -71,8 +71,8 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
       resource: resourceC,
     }, "force");
 
-    assert.equal(acceptedTarget?.resource.toString(), resourceB.toString());
-    assert.equal(rejectedTarget?.resource.toString(), resourceB.toString());
+    assert.equal(acceptedTarget?.resource?.toString(), resourceB.toString());
+    assert.equal(rejectedTarget?.resource?.toString(), resourceB.toString());
     assert.equal(service.selectedResource?.toString(), resourceB.toString());
   });
 

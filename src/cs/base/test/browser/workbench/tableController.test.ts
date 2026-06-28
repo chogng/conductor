@@ -162,21 +162,26 @@ function createTableViewModel(
 	getState: () => TableState = () => createTableState(),
 ): TableControllerViewModel {
 	return {
-		ensureRows: async () => undefined,
-		getColumnDisplayProfile: colIndex => createRawColumnDisplayProfile(colIndex),
-		getHighlight: (): TableHighlight => ({}),
-		getRow: rowIndex => [
+		get: rowIndex => [
 			`A${rowIndex + 1}`,
 			`B${rowIndex + 1}`,
 			`C${rowIndex + 1}`,
 		],
+		getColumnDisplayProfile: colIndex => createRawColumnDisplayProfile(colIndex),
+		getHighlight: (): TableHighlight => ({}),
 		getRowsVersion: () => 1,
 		getSelection: (): TableSelection => ({}),
 		getState,
+		isResolved: () => true,
 		onDidChangeHighlight: () => noopDisposable,
 		onDidChangeRevealCell: () => noopDisposable,
 		onDidChangeSelection: () => noopDisposable,
 		onDidChangeState: () => noopDisposable,
+		resolve: async rowIndex => [
+			`A${rowIndex + 1}`,
+			`B${rowIndex + 1}`,
+			`C${rowIndex + 1}`,
+		],
 		subscribeRowsVersion: () => noopDisposable,
 	};
 }
@@ -189,6 +194,8 @@ function createTableService(): ITableService {
 		adjustColumnDisplayScale: () => false,
 		clearHighlight: () => undefined,
 		clearSelection: () => false,
+		findCell: async () => ({ kind: "empty" }),
+		getCellValue: async () => ({ kind: "empty" }),
 		getColumnWidths: () => [],
 		getPreviewRow: () => null,
 		getSelection: (): TableSelection => ({}),

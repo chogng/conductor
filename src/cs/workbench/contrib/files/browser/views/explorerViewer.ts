@@ -96,7 +96,7 @@ import type {
   IThumbnailPreviewService,
   IThumbnailService,
   ThumbnailPreviewState,
-  type ThumbnailPreviewTarget,
+  ThumbnailPreviewTarget,
 } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
@@ -148,7 +148,7 @@ export type ExplorerViewerProps = {
   readonly onCancelRenameFile?: () => void;
   readonly onRenameFile?: (file: ExplorerFileEntry, nextName: string) => void;
   readonly onSelectFile: (file: ExplorerFileEntry | null) => void;
-  readonly thumbnailFiles?: ExplorerThumbnailFile[];
+  readonly thumbnailFiles?: readonly ExplorerThumbnailFile[];
   readonly thumbnailPlotModelsByFileId?: Readonly<Record<string, ExplorerThumbnailPlotModel>>;
 };
 
@@ -1515,9 +1515,6 @@ export class ExplorerViewer implements IDisposable {
 
     if (selection.kind === "auto") {
       return localize("template.recommendedTemplate", "Recommended template");
-    }
-    if (selection.kind === "inline") {
-      return selection.template.name;
     }
 
     const selectionTemplateId = getTemplateSelectionTemplateId(selection);

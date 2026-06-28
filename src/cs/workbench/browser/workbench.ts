@@ -788,14 +788,16 @@ export class Workbench extends Layout {
     let snapshot: WorkbenchSessionSnapshot | null = null;
     let sessionFacts: SessionExplorerFacts | null = null;
     if (this.shouldRefreshActiveAuxiliaryViewFromWorkbenchState()) {
-      snapshot = measureWorkbenchBoot(`workbench:refresh:${reason}:snapshot`, () =>
+      const refreshedSnapshot = measureWorkbenchBoot(`workbench:refresh:${reason}:snapshot`, () =>
         this.session.getSnapshot(),
       );
-      sessionFacts = measureWorkbenchBoot(`workbench:refresh:${reason}:session-facts`, () =>
-        createSessionExplorerFacts(snapshot),
+      const refreshedSessionFacts = measureWorkbenchBoot(`workbench:refresh:${reason}:session-facts`, () =>
+        createSessionExplorerFacts(refreshedSnapshot),
       );
+      snapshot = refreshedSnapshot;
+      sessionFacts = refreshedSessionFacts;
       measureWorkbenchBoot(`workbench:refresh:${reason}:auxiliary-view`, () => {
-        this.renderAuxiliaryBarView(sessionFacts);
+        this.renderAuxiliaryBarView(refreshedSessionFacts);
       });
     }
     measureWorkbenchBoot(`workbench:refresh:${reason}:render`, () => {
@@ -1163,12 +1165,14 @@ export class Workbench extends Layout {
   private renderExportView(): void {
     this.exportService.updateViewState({
       activeFileId: this.getSelectedChartFileId(),
+      snapshot: this.session.getSnapshot(),
     });
   }
 
   private renderParametersView(activeFileId: string | null): void {
     this.parametersService.updateViewState({
       fileId: activeFileId,
+      snapshot: this.session.getSnapshot(),
     });
   }
 

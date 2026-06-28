@@ -223,7 +223,7 @@ const createIdlePlotServiceForTest = (): IPlotService => ({
 	getCachedPlotInspectorDisplayModel: () => null,
 	getCachedPlotLegendModel: () => null,
 	getCalculatedData: () => null,
-	getFileAxisSettings: () => ({
+	getAxisSettings: () => ({
 		xUnitByFileId: {},
 		yScaleByFileId: {},
 		yUnitByFileId: {},

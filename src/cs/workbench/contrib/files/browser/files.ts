@@ -43,7 +43,7 @@ export type ExplorerPaneInput = {
   readonly selectedResource: URI | null;
   readonly selectedSheetId?: string | null;
   readonly selectionKind: ExplorerSelectionKind;
-  readonly thumbnailFiles: ExplorerThumbnailFile[];
+  readonly thumbnailFiles: readonly ExplorerThumbnailFile[];
   readonly thumbnailPlotModelsByFileId?: Readonly<Record<string, ExplorerThumbnailPlotModel>>;
 };
 

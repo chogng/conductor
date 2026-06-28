@@ -31,9 +31,7 @@ import {
 import { ITableWidgetService } from "src/cs/workbench/contrib/table/browser/tableWidgetService";
 import { TableCommandId, TableViewId } from "src/cs/workbench/contrib/table/common/table";
 import {
-  TABLE_WIDGET_DEFAULT_ZOOM_PERCENT,
-  TABLE_WIDGET_MAX_ZOOM_PERCENT,
-  TABLE_WIDGET_MIN_ZOOM_PERCENT,
+  TABLE_WIDGET_ZOOM_OPTIONS,
   type ITableSize,
 } from "src/cs/base/browser/ui/table/table";
 import {
@@ -271,11 +269,11 @@ export class TableViewPane extends ViewPane {
   }
 
   private updateZoomControl(): void {
-    const zoomPercent = this.controller?.getZoomPercent() ?? TABLE_WIDGET_DEFAULT_ZOOM_PERCENT;
+    const zoomPercent = this.controller?.getZoomPercent() ?? TABLE_WIDGET_ZOOM_OPTIONS.defaultPercent;
     this.zoomControl.setValue(`${zoomPercent}%`);
     this.zoomControl.setDisabled({
-      decrease: zoomPercent <= TABLE_WIDGET_MIN_ZOOM_PERCENT,
-      increase: zoomPercent >= TABLE_WIDGET_MAX_ZOOM_PERCENT,
+      decrease: zoomPercent <= TABLE_WIDGET_ZOOM_OPTIONS.minPercent,
+      increase: zoomPercent >= TABLE_WIDGET_ZOOM_OPTIONS.maxPercent,
     });
   }
 

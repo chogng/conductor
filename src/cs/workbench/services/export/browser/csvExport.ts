@@ -393,7 +393,7 @@ const createExportCsvFileFromRecord = (file: FileRecord): ExportCsvFile => {
     fileName: file.raw.fileName,
     series: createExportCsvSeriesFromRecord(file),
     supportsSs: fileRecordSupportsSs(file),
-    xAxisRole: axis.xAxisRole,
+    xAxisRole: axis.xAxisRole ?? undefined,
     xGroups: getFileRecordXGroups(file),
     xUnit: axis.xUnit,
     yUnit: axis.yUnit,

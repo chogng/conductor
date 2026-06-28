@@ -3,20 +3,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {
-  createCalculatedDataForFileRecord,
+  createCalculatedDataForFile,
   type CalculatedData,
 } from "src/cs/workbench/services/calculation/common/calculationReadModel";
 import {
   type PlotDisplayModel,
+  type PlotFileAxisSettings,
   type PlotType,
 } from "src/cs/workbench/services/plot/common/plot";
 import { createPlotDisplayModelFromCalculatedData } from "src/cs/workbench/services/plot/browser/plotDisplayModel";
-import type { FileAxisSettingsByFileId } from "src/cs/workbench/services/session/browser/fileSemanticsSync";
 import type {
   FileId,
   FileRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
-import { hasFileRecordBaseCurves } from "src/cs/workbench/services/session/common/sessionRecordProjection";
+import { hasFileRecordBaseCurves } from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
 
 export type PlotCalculatedDataWorkerRequest = {
   readonly payload?: {
@@ -31,7 +31,7 @@ export type PlotCalculatedDataWorkerRequest = {
 
 export type PlotDisplayModelWorkerRequest = {
   readonly payload?: {
-    readonly axisSettings?: FileAxisSettingsByFileId;
+    readonly axisSettings?: PlotFileAxisSettings;
     readonly axisTitleOverridesByKey?: Readonly<Record<string, string>>;
     readonly calculatedData?: CalculatedData | null;
     readonly fileId?: FileId;
@@ -158,7 +158,7 @@ self.onmessage = (event: MessageEvent<PlotWorkerRequest>): void => {
     }
 
     const calculatedData = hasFileRecordBaseCurves(file)
-      ? createCalculatedDataForFileRecord({ file, plotType })
+      ? createCalculatedDataForFile({ file, plotType })
       : null;
 
     self.postMessage({

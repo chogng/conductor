@@ -13,7 +13,7 @@ import { Emitter, Event as EventUtil, type Event } from "src/cs/base/common/even
 import { KeyCode } from "src/cs/base/common/keyCodes";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import type * as Table from "src/cs/base/browser/ui/table/table";
-import { TABLE_WIDGET_DEFAULT_ZOOM_PERCENT, TABLE_WIDGET_MAX_ZOOM_PERCENT, TABLE_WIDGET_MIN_ZOOM_PERCENT, TABLE_WIDGET_ZOOM_STEP_PERCENT } from "src/cs/base/browser/ui/table/table";
+import { TABLE_WIDGET_ZOOM_OPTIONS } from "src/cs/base/browser/ui/table/table";
 
 import "src/cs/base/browser/ui/table/table.css";
 
@@ -219,7 +219,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 	private lastRenderOptions: Table.ITableRenderOptions | null = null;
 	private size: Table.ITableSize = { columnCount: 0, rowCount: 0 };
 	private readonly virtualTable: VirtualTable<TBodyTemplateData, TColumnHeaderTemplateData>;
-	private zoomPercent = TABLE_WIDGET_DEFAULT_ZOOM_PERCENT;
+	private zoomPercent: number = TABLE_WIDGET_ZOOM_OPTIONS.defaultPercent;
 
 	public constructor(private readonly options: Table.ITableWidgetOptions<TBodyTemplateData, TColumnHeaderTemplateData>) {
 		const { className, ...virtualOptions } = options;
@@ -443,15 +443,15 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 	}
 
 	public resetZoom(): boolean {
-		return this.setZoomPercent(TABLE_WIDGET_DEFAULT_ZOOM_PERCENT);
+		return this.setZoomPercent(TABLE_WIDGET_ZOOM_OPTIONS.defaultPercent);
 	}
 
 	public zoomIn(): boolean {
-		return this.setZoomPercent(this.zoomPercent + TABLE_WIDGET_ZOOM_STEP_PERCENT);
+		return this.setZoomPercent(this.zoomPercent + TABLE_WIDGET_ZOOM_OPTIONS.stepPercent);
 	}
 
 	public zoomOut(): boolean {
-		return this.setZoomPercent(this.zoomPercent - TABLE_WIDGET_ZOOM_STEP_PERCENT);
+		return this.setZoomPercent(this.zoomPercent - TABLE_WIDGET_ZOOM_OPTIONS.stepPercent);
 	}
 
 	public isColumnResizeActive(): boolean {
@@ -1482,8 +1482,8 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 
 function clampTableWidgetZoomPercent(zoomPercent: number): number {
 	return Math.min(
-		TABLE_WIDGET_MAX_ZOOM_PERCENT,
-		Math.max(TABLE_WIDGET_MIN_ZOOM_PERCENT, Math.floor(Number(zoomPercent) || 0)),
+		TABLE_WIDGET_ZOOM_OPTIONS.maxPercent,
+		Math.max(TABLE_WIDGET_ZOOM_OPTIONS.minPercent, Math.floor(Number(zoomPercent) || 0)),
 	);
 }
 

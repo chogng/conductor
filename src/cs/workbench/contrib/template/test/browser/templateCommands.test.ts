@@ -58,6 +58,7 @@ import { UserTemplateImportExportService } from "src/cs/workbench/services/userT
 import {
   IUserDataProfileResourceService,
   type IUserDataProfileResourceHandler,
+  type UserDataProfileResourceChangeEvent,
   type UserDataProfileResourceId,
 } from "src/cs/workbench/services/userDataProfile/common/userDataProfile";
 
@@ -220,7 +221,7 @@ function createFileDialogService(resource: URI): IFileDialogService {
 function createUserDataProfileResourceService(): IUserDataProfileResourceService {
   return {
     _serviceBrand: undefined,
-    onDidChangeResource: Event.None,
+    onDidChangeResource: Event.None as Event<UserDataProfileResourceChangeEvent>,
     registerResourceHandler: (
       _resource: UserDataProfileResourceId,
       _handler: IUserDataProfileResourceHandler,

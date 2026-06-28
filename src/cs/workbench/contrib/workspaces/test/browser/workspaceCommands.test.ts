@@ -8,6 +8,7 @@ import {
   type IOpenDialogOptions,
 } from "../../../../../platform/dialogs/common/dialogs.ts";
 import {
+  FileSystemProviderCapabilities,
   FileType,
 	  IFileService,
 	  type IFileChange,
@@ -273,6 +274,10 @@ class TestFileService implements IFileServiceType {
 
   public getProvider(_scheme: string): IFileSystemProvider | undefined {
     return undefined;
+  }
+
+  public getProviderCapabilities(_resourceOrScheme: URI | string): FileSystemProviderCapabilities {
+    return FileSystemProviderCapabilities.FileRead | FileSystemProviderCapabilities.FileWrite;
   }
 
   public exists(resource: URI): Promise<boolean> {

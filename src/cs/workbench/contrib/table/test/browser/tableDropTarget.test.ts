@@ -119,6 +119,8 @@ function createTableService(): ITableServiceType {
 		adjustColumnDisplayScale: () => false,
 		clearHighlight: () => undefined,
 		clearSelection: () => false,
+		findCell: async () => ({ kind: "empty" }),
+		getCellValue: async () => ({ kind: "empty" }),
 		getColumnWidths: () => [],
 		getPreviewRow: () => null,
 		getSelection: () => ({}),

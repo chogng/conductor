@@ -15,10 +15,12 @@ import type {
 } from "src/cs/base/browser/ui/list/list";
 import type { Event } from "src/cs/base/common/event";
 
-export const TABLE_WIDGET_DEFAULT_ZOOM_PERCENT = 100;
-export const TABLE_WIDGET_MIN_ZOOM_PERCENT = 50;
-export const TABLE_WIDGET_MAX_ZOOM_PERCENT = 200;
-export const TABLE_WIDGET_ZOOM_STEP_PERCENT = 10;
+export const TABLE_WIDGET_ZOOM_OPTIONS = {
+	defaultPercent: 100,
+	minPercent: 50,
+	maxPercent: 200,
+	stepPercent: 10,
+} as const;
 
 // Upstream-compatible table/list contracts.
 

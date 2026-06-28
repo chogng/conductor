@@ -45,8 +45,7 @@ export const areTableCellsEqual = (
     return !first && !second;
   }
 
-  return first.fileId === second.fileId &&
-    first.sheetId === second.sheetId &&
+  return first.sheetId === second.sheetId &&
     first.rowIndex === second.rowIndex &&
     first.colIndex === second.colIndex;
 };
@@ -66,7 +65,8 @@ export const areTableRangesEqual = (
     return range.startRow === other?.startRow &&
       range.endRow === other.endRow &&
       range.startCol === other.startCol &&
-      range.endCol === other.endCol;
+      range.endCol === other.endCol &&
+      range.sheetId === other.sheetId;
   });
 };
 
@@ -160,7 +160,6 @@ function normalizeTableRanges(ranges: readonly TableRange[] | undefined): TableR
       }
 
       return {
-        fileId: range.fileId,
         sheetId: range.sheetId,
         startRow: Math.min(startRow, endRow),
         endRow: Math.max(startRow, endRow),
@@ -206,7 +205,6 @@ export const resolveTemplateCellSelection = (
 
   return {
     colIndex: parsedCell.colIndex,
-    fileId: currentCell?.fileId ?? null,
     rowIndex: parsedCell.rowIndex,
     sheetId: currentCell?.sheetId ?? null,
   };

@@ -1,7 +1,7 @@
 import { isActiveElement } from "../../dom.js";
 import { range } from "../../../common/arrays.js";
 import { asPromise, type CancelablePromise, createCancelablePromise } from "../../../common/async.js";
-import { Event, type Event as EventType } from "../../../common/event.js";
+import { Event } from "../../../common/event.js";
 import { DisposableStore, type IDisposable } from "../../../common/lifecycle.js";
 import type { IPagedModel } from "../../../common/paging.js";
 import { ScrollbarVisibility } from "../../../common/scrollable.js";
@@ -116,7 +116,7 @@ class PagedAccessibilityProvider<T> implements IListAccessibilityProvider<number
   public readonly getSetSize?: (index: number, listIndex: number, listLength: number) => number;
   public readonly getPosInSet?: (index: number, listIndex: number) => number;
   public readonly getWidgetRole?: IListAccessibilityProvider<number>["getWidgetRole"];
-  public readonly onDidChangeActiveDescendant?: EventType<void>;
+  public readonly onDidChangeActiveDescendant?: Event<void>;
 
   public constructor(
     private readonly modelProvider: () => IPagedModel<T>,
@@ -208,16 +208,16 @@ export class PagedList<T> implements IDisposable {
   private _model: IPagedModel<T> | undefined;
   private options: IPagedListOptions<T>;
 
-  public readonly onDidFocus: EventType<void>;
-  public readonly onDidBlur: EventType<void>;
-  public readonly onDidDispose: EventType<void>;
-  public readonly onMouseClick: EventType<IListMouseEvent<T>>;
-  public readonly onMouseDblClick: EventType<IListMouseEvent<T>>;
-  public readonly onMouseMiddleClick: EventType<IListMouseEvent<T>>;
-  public readonly onPointer: EventType<IListMouseEvent<T>>;
-  public readonly onDidChangeFocus: EventType<IListEvent<T>>;
-  public readonly onDidChangeSelection: EventType<IListEvent<T>>;
-  public readonly onContextMenu: EventType<IListContextMenuEvent<T>>;
+  public readonly onDidFocus: Event<void>;
+  public readonly onDidBlur: Event<void>;
+  public readonly onDidDispose: Event<void>;
+  public readonly onMouseClick: Event<IListMouseEvent<T>>;
+  public readonly onMouseDblClick: Event<IListMouseEvent<T>>;
+  public readonly onMouseMiddleClick: Event<IListMouseEvent<T>>;
+  public readonly onPointer: Event<IListMouseEvent<T>>;
+  public readonly onDidChangeFocus: Event<IListEvent<T>>;
+  public readonly onDidChangeSelection: Event<IListEvent<T>>;
+  public readonly onContextMenu: Event<IListContextMenuEvent<T>>;
 
   public constructor(
     container: HTMLElement,

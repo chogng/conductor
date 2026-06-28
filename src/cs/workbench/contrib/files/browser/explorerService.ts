@@ -440,12 +440,6 @@ const isSameTemplateSelection = (
   if (current?.kind === "auto" || next?.kind === "auto") {
     return current?.kind === next?.kind;
   }
-  if (current?.kind === "inline" || next?.kind === "inline") {
-    return current?.kind === "inline" &&
-      next?.kind === "inline" &&
-      current.template.id === next.template.id &&
-      current.template.version === next.template.version;
-  }
 
   return getTemplateSelectionTemplateId(current) === getTemplateSelectionTemplateId(next);
 };

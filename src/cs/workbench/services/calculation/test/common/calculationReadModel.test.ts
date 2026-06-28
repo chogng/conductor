@@ -44,7 +44,7 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
     const model = createCalculatedData({
       activeFileId: "file-b",
       plotType: "iv",
-      processedFiles: [
+      sourceFiles: [
         createFile(),
         createFile({
           fileId: "file-b",
@@ -162,7 +162,7 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
     const model = createCalculatedData({
       activeFileId: "missing",
       plotType: "iv",
-      processedFiles: [
+      sourceFiles: [
         createFile({
           xGroups: [[]],
           series: [{ id: "series-a", groupIndex: 0, y: [] }],
@@ -250,12 +250,12 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
     const left = createCalculatedData({
       activeFileId: "file-a",
       plotType: "iv",
-      processedFiles: [createFile({ series: [{ id: "series-a", groupIndex: 0, y: [1, 2, 4] }] })],
+      sourceFiles: [createFile({ series: [{ id: "series-a", groupIndex: 0, y: [1, 2, 4] }] })],
     });
     const right = createCalculatedData({
       activeFileId: "file-a",
       plotType: "iv",
-      processedFiles: [createFile({ series: [{ id: "series-a", groupIndex: 0, y: [1, 3, 4] }] })],
+      sourceFiles: [createFile({ series: [{ id: "series-a", groupIndex: 0, y: [1, 3, 4] }] })],
     });
 
     assert.deepEqual(left.yDomain, right.yDomain);
@@ -281,7 +281,7 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
     const source = createCalculatedData({
       activeFileId: "file-a",
       plotType: "gm",
-      processedFiles: [createFile()],
+      sourceFiles: [createFile()],
     });
     const second = createSecondCalculatedData(source);
 

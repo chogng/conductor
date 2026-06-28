@@ -92,7 +92,7 @@ export const findSimilarSchemaProfileMatch = ({
 			profile,
 		}))
 		.filter((match): match is SimilarSchemaProfileMatch =>
-			Boolean(match) && match.confidence >= minConfidence
+			match !== null && match.confidence >= minConfidence
 		)
 		.sort(compareSimilarSchemaProfileMatches);
 

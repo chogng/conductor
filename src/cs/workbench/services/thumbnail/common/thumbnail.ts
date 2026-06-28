@@ -7,6 +7,7 @@ import type { Event } from "src/cs/base/common/event";
 import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
 import type { PlotMainRenderModelSource } from "src/cs/workbench/services/plot/common/plotModel";
 import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
+import type { SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
 
 export const IThumbnailService = createDecorator<IThumbnailService>("thumbnailService");
 export const IThumbnailPreviewService = createDecorator<IThumbnailPreviewService>("thumbnailPreviewService");
@@ -29,6 +30,13 @@ export type ThumbnailPreviewState =
 export type ThumbnailPreviewChangeEvent = {
 	readonly fileId: string;
 };
+
+export type ThumbnailPreviewTarget =
+	| string
+	| {
+			readonly fileId: string;
+			readonly target: SliceUriTarget;
+		};
 
 export type ThumbnailBitmapOptions = {
 	readonly model: PlotMainRenderModelSource & {
@@ -56,8 +64,8 @@ export interface IThumbnailPreviewService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangePreview: Event<ThumbnailPreviewChangeEvent>;
 
-	get(fileId: string): ThumbnailPreviewState;
-	request(fileId: string, priority: ThumbnailPreviewPriority): ThumbnailPreviewState;
-	prefetch(fileIds: readonly string[], priority: "visible" | "recent" | "nearby" | "idle"): void;
-	invalidate(fileIds?: readonly string[]): void;
+	get(target: ThumbnailPreviewTarget): ThumbnailPreviewState;
+	request(target: ThumbnailPreviewTarget, priority: ThumbnailPreviewPriority): ThumbnailPreviewState;
+	prefetch(targets: readonly ThumbnailPreviewTarget[], priority: "visible" | "recent" | "nearby" | "idle"): void;
+	invalidate(targets?: readonly ThumbnailPreviewTarget[]): void;
 }

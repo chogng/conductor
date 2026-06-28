@@ -259,7 +259,10 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
 
     const result = await collectFolderImportFilesIncrementally(folder, filesService, {
       onBatch: ({ files }) => {
-        batchPaths.push(files.map(file => file.relativePath));
+        batchPaths.push(files.map(file => {
+          assert.ok(typeof file.relativePath === "string");
+          return file.relativePath;
+        }));
       },
     });
 

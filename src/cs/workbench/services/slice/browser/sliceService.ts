@@ -36,6 +36,7 @@ import { executeSlicePlan } from "src/cs/workbench/services/slice/common/sliceEx
 import {
 	createSlicePlan,
 } from "src/cs/workbench/services/slice/common/slicePlanner";
+import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/reviewModel";
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
 import type { TemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
 

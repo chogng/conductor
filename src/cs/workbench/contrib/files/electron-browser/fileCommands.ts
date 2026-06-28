@@ -54,7 +54,7 @@ export const resolveRevealResources = (
   }
 
   const file = findExplorerFileEntryByResource(paneInput.files, resourceTarget);
-  const path = getRevealPath(file);
+  const path = getRevealPath(file ?? undefined);
   return path ? [URI.file(path)] : [];
 };
 

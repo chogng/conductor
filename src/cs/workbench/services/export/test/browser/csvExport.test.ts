@@ -136,7 +136,7 @@ suite("workbench/services/export/browser/csvExport", () => {
 
   test("buildSsMetricsCsv does not compute SS for output curves", () => {
     const csv = buildSsMetricsCsv({
-      processedFiles: [
+      csvFiles: [
         {
           fileId: "output-file",
           fileName: "output.csv",
@@ -169,7 +169,7 @@ suite("workbench/services/export/browser/csvExport", () => {
 
   test("buildSsMetricsCsv reuses cached Rust SS auto fits", () => {
     const csv = buildSsMetricsCsv({
-      processedFiles: [
+      csvFiles: [
         {
           fileId: "transfer-file",
           fileName: "transfer.csv",

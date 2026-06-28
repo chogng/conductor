@@ -188,11 +188,11 @@ export type RawTableRef = {
 };
 
 export type DomainRecord = {
-  x?: [number, number];
-  y?: [number, number];
-  yPositive?: [number, number];
-  yAbsPositive?: [number, number];
-  yLog10Abs?: [number, number];
+  x?: readonly [number, number];
+  y?: readonly [number, number];
+  yPositive?: readonly [number, number];
+  yAbsPositive?: readonly [number, number];
+  yLog10Abs?: readonly [number, number];
 };
 
 export type SeriesRecord = {
@@ -203,7 +203,7 @@ export type SeriesRecord = {
   legendValue?: string;
   groupIndex: number;
   yCol?: number;
-  y: number[];
+  y: readonly number[];
   labelOverride?: string;
 };
 
@@ -215,7 +215,7 @@ export type BaseCurveRecord = {
   ivMode?: IvCurveMode | null;
   itMode?: ItCurveMode | null;
   lineage: Extract<CurveLineage, { curveGeneration: "base" }>;
-  points: CurvePoint[];
+  points: readonly CurvePoint[];
   channels?: CurveChannelsRecord;
   domain?: DomainRecord;
   signature: string;
@@ -229,7 +229,7 @@ export type DerivedCurveRecord = {
   ivMode?: never;
   itMode?: never;
   lineage: Extract<CurveLineage, { curveGeneration: "derived" }>;
-  points: CurvePoint[];
+  points: readonly CurvePoint[];
   channels?: CurveChannelsRecord;
   domain?: DomainRecord;
   signature: string;
@@ -243,7 +243,7 @@ export type SecondDerivedCurveRecord = {
   ivMode?: never;
   itMode?: never;
   lineage: Extract<CurveLineage, { curveGeneration: "secondDerived" }>;
-  points: CurvePoint[];
+  points: readonly CurvePoint[];
   channels?: CurveChannelsRecord;
   domain?: DomainRecord;
   signature: string;
@@ -286,9 +286,9 @@ export type CurvePoint = {
 };
 
 export type CurveChannelsRecord = {
-  yPositive?: number[];
-  yAbsPositive?: number[];
-  yLog10Abs?: number[];
+  yPositive?: readonly number[];
+  yAbsPositive?: readonly number[];
+  yLog10Abs?: readonly number[];
 };
 
 export type MetricInputRecord = {

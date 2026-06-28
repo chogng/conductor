@@ -10,10 +10,8 @@ import type {
   OriginExportMode,
 } from "src/cs/workbench/services/export/common/originExport";
 import type {
-  ProcessedEntry,
-  ProcessedSeries,
-} from "src/cs/workbench/services/session/common/sessionTypes";
-import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
+  FileRecord,
+} from "src/cs/workbench/services/session/common/sessionModel";
 
 export type OriginExportContentOption = {
   group: "basic" | "derived";
@@ -41,28 +39,6 @@ export const ORIGIN_EXPORT_CONTENT_OPTIONS: OriginExportContentOption[] = [
   { group: "derived", key: "ss", label: "SS" },
   { group: "derived", key: "vth", label: "Vth" },
 ];
-
-export const createOriginCurveOptions = (
-  file: ProcessedEntry,
-  resolveCurveLabelForSeries: (
-    file: ProcessedEntry,
-    series: ProcessedSeries,
-    index: number,
-  ) => string = (_file, series, index) =>
-    String(series?.name ?? `Series ${index + 1}`),
-): OriginCurveExportSeriesOption[] =>
-  (Array.isArray(file?.series) ? file.series : [])
-    .map((series, index) => {
-      const seriesId = String(series?.id ?? "");
-      if (!seriesId) return null;
-      return {
-        key: seriesId,
-        label: resolveCurveLabelForSeries(file, series, index),
-        sourceFileId: String(file?.fileId ?? ""),
-        sourceSeriesId: seriesId,
-      };
-    })
-    .filter((option): option is OriginCurveExportSeriesOption => Boolean(option));
 
 export const createOriginCurveOptionsFromRecord = (
   file: FileRecord,
@@ -162,4 +138,3 @@ export const getExportSelectionSummary = ({
         files: selectedCanvasCount,
       })
     : separateCanvasScopeSummary;
-

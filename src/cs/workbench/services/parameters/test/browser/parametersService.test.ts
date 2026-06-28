@@ -9,11 +9,7 @@ import { createCalculatedMetricRecordsByFile } from "src/cs/workbench/services/c
 import { ParametersService } from "src/cs/workbench/services/parameters/browser/parametersService";
 import type { ParametersViewState } from "src/cs/workbench/services/parameters/common/parameterModel";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
-import type { MetricKey } from "src/cs/workbench/services/session/common/sessionModel";
-import {
-  mergeProcessedFileIntoRecords,
-  mergeRawFilesIntoRecords,
-} from "src/cs/workbench/services/session/common/sessionModelAdapter";
+import type { FileRecord, MetricKey } from "src/cs/workbench/services/session/common/sessionModel";
 
 suite("workbench/services/parameters/test/browser/parametersService", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -98,38 +94,12 @@ const createEmptySnapshot = (): SessionSnapshot => ({
 });
 
 const createProcessedSnapshot = (): SessionSnapshot => {
-  const rawRecords = mergeRawFilesIntoRecords({}, [], [{
-    fileId: "file-a",
-    fileName: "Transfer.csv",
-  }]);
-  const rawSnapshot = {
-    ...createEmptySnapshot(),
-    ...rawRecords,
-  };
-  const processedRecords = mergeProcessedFileIntoRecords(
-    rawRecords.filesById,
-    rawRecords.fileOrder,
-    {
-      curveType: "transfer",
-      fileId: "file-a",
-      fileName: "Transfer.csv",
-      series: [{
-        groupIndex: 0,
-        id: "series-1",
-        legendValue: "0.1",
-        y: [1e-12, 1e-9, 1e-6],
-        yCol: 2,
-      }],
-      xAxisRole: "vg",
-      xGroups: [[0, 1, 2]],
-      xUnit: "V",
-      yUnit: "A",
-    },
-    rawSnapshot,
-  );
+  const file = createProcessedFileRecord();
+  const filesById = { [file.id]: file };
+  const fileOrder = [file.id];
   const metricRecords = createCalculatedMetricRecordsByFile(
-    processedRecords.filesById,
-    processedRecords.fileOrder,
+    filesById,
+    fileOrder,
   );
   const metricsByKey = Object.fromEntries(
     (metricRecords["file-a"] ?? []).map(metric => [metric.key, metric]),
@@ -143,15 +113,67 @@ const createProcessedSnapshot = (): SessionSnapshot => {
   );
 
   return {
-    ...rawSnapshot,
-    ...processedRecords,
+    ...createEmptySnapshot(),
+    fileOrder,
     filesById: {
-      ...processedRecords.filesById,
       "file-a": {
-        ...processedRecords.filesById["file-a"],
+        ...file,
         metricsByKey,
         metricsBySeriesId,
       },
     },
   };
 };
+
+const createProcessedFileRecord = (): FileRecord => ({
+  id: "file-a",
+  kind: "unknown",
+  name: "Transfer.csv",
+  raw: {
+    fileId: "file-a",
+    fileName: "Transfer.csv",
+    tableOrder: [],
+    tablesById: {},
+  },
+  rawTableVersionsById: {},
+  seriesById: {
+    "series-1": {
+      fileId: "file-a",
+      groupIndex: 0,
+      id: "series-1",
+      legendValue: "0.1",
+      y: [1e-12, 1e-9, 1e-6],
+      yCol: 2,
+    },
+  },
+  seriesOrder: ["series-1"],
+  curvesByKey: {
+    "base:iv:transfer:series-1": {
+      curveFamily: "iv",
+      curveGeneration: "base",
+      domain: {
+        x: [0, 2],
+        y: [1e-12, 1e-6],
+      },
+      fileId: "file-a",
+      ivMode: "transfer",
+      lineage: {
+        baseFamily: "iv",
+        baseSeries: {
+          fileId: "file-a",
+          seriesId: "series-1",
+        },
+        curveGeneration: "base",
+        ivMode: "transfer",
+      },
+      points: [
+        { x: 0, y: 1e-12 },
+        { x: 1, y: 1e-9 },
+        { x: 2, y: 1e-6 },
+      ],
+      seriesId: "series-1",
+      signature: "series-1",
+    },
+  },
+  metricsByKey: {},
+});

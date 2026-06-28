@@ -24,6 +24,13 @@ import { VirtualTableGridModel } from "src/cs/base/browser/ui/table/virtualTable
 import { KeyCode } from "src/cs/base/common/keyCodes";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
+type TestBodyTemplateData = {
+	readonly cell: HTMLTableCellElement;
+	readonly content: HTMLElement;
+};
+
+type TestTableWidget = TableWidget<TestBodyTemplateData, HTMLElement>;
+
 suite("base/test/browser/ui/table/tableWidget", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -595,7 +602,7 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 		const bodyRenders: string[] = [];
 		const contentRenders: string[] = [];
 		const headerRenders: string[] = [];
-		const widget = new TableWidget({
+			const widget = new TableWidget<TestBodyTemplateData, HTMLElement>({
 			getColumnWidth: () => 160,
 			renderer: {
 				clearBodyCell: templateData => {
@@ -711,7 +718,7 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 	test("rerenders dirty column headers through the base table patch path", () => {
 		const bodyRenders: string[] = [];
 		const headerRenders: string[] = [];
-		const widget = new TableWidget({
+			const widget = new TableWidget<TestBodyTemplateData, HTMLElement>({
 			getColumnWidth: () => 160,
 			renderer: {
 				clearBodyCell: templateData => {
@@ -781,12 +788,12 @@ function createResizableTableWidget(
 	mode?: ITableColumnResizeMode,
 	cellEditing?: ITableCellEditOptions,
 	keyboardNavigation?: ITableKeyboardNavigationOptions,
-): {
-	readonly events: ITableColumnResizeEvent[];
-	readonly listener: { dispose(): void };
-	readonly widget: TableWidget;
-} {
-	const widget = new TableWidget({
+	): {
+		readonly events: ITableColumnResizeEvent[];
+		readonly listener: { dispose(): void };
+		readonly widget: TestTableWidget;
+	} {
+	const widget = new TableWidget<TestBodyTemplateData, HTMLElement>({
 		cellEditing,
 		columnResize: { enabled: true, mode },
 		getColumnWidth: () => 160,
@@ -833,26 +840,26 @@ function setElementClientSize(element: HTMLElement, width: number, height: numbe
 	Object.defineProperty(element, "clientHeight", { configurable: true, value: height });
 }
 
-function dispatchColumnResizeStart(widget: TableWidget, clientX: number): void {
+function dispatchColumnResizeStart(widget: TestTableWidget, clientX: number): void {
 	const header = widget.element.querySelector<HTMLElement>(".table_view_grid_header_content");
 	assert.ok(header);
 	header.dispatchEvent(createPointerEvent(widget, "pointerdown", clientX, 1));
 }
 
-function dispatchColumnResizeMove(widget: TableWidget, clientX: number): void {
+function dispatchColumnResizeMove(widget: TestTableWidget, clientX: number): void {
 	const targetWindow = widget.element.ownerDocument.defaultView;
 	assert.ok(targetWindow);
 	targetWindow.dispatchEvent(createPointerEvent(widget, "pointermove", clientX, 1));
 }
 
-function dispatchColumnResizeEnd(widget: TableWidget, clientX: number): void {
+function dispatchColumnResizeEnd(widget: TestTableWidget, clientX: number): void {
 	const targetWindow = widget.element.ownerDocument.defaultView;
 	assert.ok(targetWindow);
 	targetWindow.dispatchEvent(createPointerEvent(widget, "pointerup", clientX, 0));
 }
 
 function createPointerEvent(
-	widget: TableWidget,
+	widget: TestTableWidget,
 	type: string,
 	clientX: number,
 	buttons: number,

@@ -10,9 +10,6 @@ import type {
   FileRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import type {
-  ProcessedEntry,
-} from "src/cs/workbench/services/session/common/sessionTypes";
-import type {
   OriginCurveExportSeriesOption,
 } from "src/cs/workbench/services/export/common/exportModel";
 import type {
@@ -81,7 +78,6 @@ export type ExportViewState = {
 };
 
 export type ExportViewStateInput = OriginExportPlanInput & {
-  readonly activeFile?: ProcessedEntry | null;
   readonly activeFileRecord?: FileRecord | null;
 };
 

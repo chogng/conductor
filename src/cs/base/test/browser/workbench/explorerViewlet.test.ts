@@ -198,7 +198,7 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
       notify: () => undefined,
     } as unknown as INotificationService,
     {
-      open: source => options.onOpenTable?.(source),
+      open: (source: TableSource | null) => options.onOpenTable?.(source),
     } as unknown as ITableService,
     {
       onDidChangePreview: Event.None,
@@ -253,7 +253,10 @@ const createExplorerService = (
   reconcileExpandedFolderKeys: () => [],
   refresh: async () => undefined,
   registerView: () => toDisposable(() => undefined),
-  select: (target: ExplorerSelectionTarget) => target.fileId,
+  select: (target: ExplorerSelectionTarget) => ({
+    resource: target.resource,
+    ...(target.sheetId ? { sheetId: target.sheetId } : {}),
+  }),
   setEditable: () => undefined,
   setExpandedFolderKeys: () => undefined,
   setHoveredFileId: () => undefined,
@@ -270,7 +273,7 @@ const createExplorerService = (
 const createPaneInput = (files: ExplorerFileEntry[]): ExplorerPaneInput => ({
   files,
   mode: "table",
-  selectedFileId: null,
+  selectedResource: null,
   selectionKind: "table",
   thumbnailFiles: [],
 });

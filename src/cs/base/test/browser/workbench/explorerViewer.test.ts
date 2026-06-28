@@ -33,6 +33,7 @@ import type {
   IThumbnailService,
   ThumbnailPreviewChangeEvent,
   ThumbnailPreviewPlotModel,
+  ThumbnailPreviewTarget,
 } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -838,23 +839,29 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       mode: "chart",
       thumbnailPreviewService: {
         _serviceBrand: undefined,
-        get: (fileId) => readyFiles.has(fileId)
-          ? {
-              kind: "ready",
-              model: createThumbnailPlotModel(fileId),
-              signature: `plot:${fileId}`,
-            }
-          : { kind: "loading" },
+        get: (target) => {
+          const fileId = getThumbnailPreviewFileId(target);
+          return readyFiles.has(fileId)
+            ? {
+                kind: "ready",
+                model: createThumbnailPlotModel(fileId),
+                signature: `plot:${fileId}`,
+              }
+            : { kind: "loading" };
+        },
         invalidate: () => undefined,
         onDidChangePreview: previewEmitter.event,
         prefetch: () => undefined,
-        request: (fileId) => readyFiles.has(fileId)
-          ? {
-              kind: "ready",
-              model: createThumbnailPlotModel(fileId),
-              signature: `plot:${fileId}`,
-            }
-          : { kind: "loading" },
+        request: (target) => {
+          const fileId = getThumbnailPreviewFileId(target);
+          return readyFiles.has(fileId)
+            ? {
+                kind: "ready",
+                model: createThumbnailPlotModel(fileId),
+                signature: `plot:${fileId}`,
+              }
+            : { kind: "loading" };
+        },
       },
       thumbnailService: createThumbnailService({
         warmPlotThumbnail: (options) => {
@@ -929,19 +936,25 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       mode: "chart",
       thumbnailPreviewService: {
         _serviceBrand: undefined,
-        get: (fileId) => ({
-          kind: "ready",
-          model: createThumbnailPlotModel(fileId),
-          signature: `plot:${fileId}`,
-        }),
+        get: (target) => {
+          const fileId = getThumbnailPreviewFileId(target);
+          return {
+            kind: "ready",
+            model: createThumbnailPlotModel(fileId),
+            signature: `plot:${fileId}`,
+          };
+        },
         invalidate: () => undefined,
         onDidChangePreview: previewEmitter.event,
         prefetch: () => undefined,
-        request: (fileId) => ({
-          kind: "ready",
-          model: createThumbnailPlotModel(fileId),
-          signature: `plot:${fileId}`,
-        }),
+        request: (target) => {
+          const fileId = getThumbnailPreviewFileId(target);
+          return {
+            kind: "ready",
+            model: createThumbnailPlotModel(fileId),
+            signature: `plot:${fileId}`,
+          };
+        },
       },
       thumbnailService: createThumbnailService(),
       viewLayout: "tree",
@@ -1024,19 +1037,25 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       mode: "chart",
       thumbnailPreviewService: {
         _serviceBrand: undefined,
-        get: (fileId) => ({
-          kind: "ready",
-          model: createThumbnailPlotModel(fileId),
-          signature: `plot:${fileId}`,
-        }),
+        get: (target) => {
+          const fileId = getThumbnailPreviewFileId(target);
+          return {
+            kind: "ready",
+            model: createThumbnailPlotModel(fileId),
+            signature: `plot:${fileId}`,
+          };
+        },
         invalidate: () => undefined,
         onDidChangePreview: NoThumbnailPreviewEvent,
         prefetch: () => undefined,
-        request: (fileId) => ({
-          kind: "ready",
-          model: createThumbnailPlotModel(fileId),
-          signature: `plot:${fileId}`,
-        }),
+        request: (target) => {
+          const fileId = getThumbnailPreviewFileId(target);
+          return {
+            kind: "ready",
+            model: createThumbnailPlotModel(fileId),
+            signature: `plot:${fileId}`,
+          };
+        },
       },
       thumbnailService: createThumbnailService({
         warmPlotThumbnail: (options) => {
@@ -1105,11 +1124,14 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         invalidate: () => undefined,
         onDidChangePreview: previewEmitter.event,
         prefetch: () => undefined,
-        request: (fileId) => ({
-          kind: "ready",
-          model: createThumbnailPlotModel(fileId),
-          signature: `plot:${fileId}`,
-        }),
+        request: (target) => {
+          const fileId = getThumbnailPreviewFileId(target);
+          return {
+            kind: "ready",
+            model: createThumbnailPlotModel(fileId),
+            signature: `plot:${fileId}`,
+          };
+        },
       },
       thumbnailService: createThumbnailService(),
       viewLayout: "tree",
@@ -1246,6 +1268,9 @@ const createThumbnailService = (
   warmPlotThumbnail: () => undefined,
   ...overrides,
 });
+
+const getThumbnailPreviewFileId = (target: ThumbnailPreviewTarget): string =>
+  typeof target === "string" ? target : target.fileId;
 
 const createThumbnailPlotModel = (fileId: string): ThumbnailPreviewPlotModel => ({
   pointsCount: 0,

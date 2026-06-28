@@ -13,12 +13,14 @@ import {
 	type ThumbnailPreviewChangeEvent,
 	type ThumbnailPreviewPriority,
 	type ThumbnailPreviewState,
+	type ThumbnailPreviewTarget,
 	type IThumbnailService as IThumbnailServiceType,
 	type ThumbnailBitmapOptions,
 	type ThumbnailBitmapTarget,
 } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import { IPlotService } from "src/cs/workbench/services/plot/common/plot";
 import { ISessionService } from "src/cs/workbench/services/session/common/session";
+import type { SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
 import { logPerf, startPerf } from "src/cs/workbench/common/perf";
 import {
 	createThumbnailBitmapCache,
@@ -72,6 +74,7 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 	private readonly statesByFileId = new Map<string, ThumbnailPreviewState>();
 	private readonly requestedPreviewPrioritiesByFileId = new Map<string, ThumbnailPreviewPriority>();
 	private readonly queuedPreviewPrioritiesByFileId = new Map<string, ThumbnailPreviewPriority>();
+	private readonly targetsByFileId = new Map<string, SliceUriTarget>();
 	private cancelQueuedPreviewFlush: (() => void) | null = null;
 
 	constructor(
@@ -81,10 +84,10 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 		super();
 
 		this._register(this.plotService.onDidChangeCalculatedDataCache(event => {
-			this.updatePreviewStateFromPlotCacheEvent(event.fileId, event.plotType);
+			this.updatePreviewStateFromPlotCacheEvent(event);
 		}));
 		this._register((this.plotService.onDidChangePlotDisplayModelCache ?? Event.None)(event => {
-			this.updatePreviewStateFromPlotCacheEvent(event.fileId, event.plotType);
+			this.updatePreviewStateFromPlotCacheEvent(event);
 		}));
 		this._register(this.plotService.onDidChangePlotState(() => this.invalidate()));
 		this._register(this.sessionService.onDidChangeSession(event => {
@@ -98,21 +101,24 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 		this._register({ dispose: () => this.cancelScheduledPreviewFlush() });
 	}
 
-	public get(fileId: string): ThumbnailPreviewState {
-		const normalizedFileId = normalizePreviewFileId(fileId);
-		if (!normalizedFileId) {
+	public get(target: ThumbnailPreviewTarget): ThumbnailPreviewState {
+		const resolvedTarget = normalizePreviewTarget(target);
+		if (!resolvedTarget) {
 			return { kind: "idle" };
 		}
 
-		return this.statesByFileId.get(normalizedFileId) ?? { kind: "idle" };
+		this.rememberPreviewTarget(resolvedTarget);
+		return this.statesByFileId.get(resolvedTarget.fileId) ?? { kind: "idle" };
 	}
 
-	public request(fileId: string, priority: ThumbnailPreviewPriority): ThumbnailPreviewState {
-		const normalizedFileId = normalizePreviewFileId(fileId);
-		if (!normalizedFileId) {
+	public request(target: ThumbnailPreviewTarget, priority: ThumbnailPreviewPriority): ThumbnailPreviewState {
+		const resolvedTarget = normalizePreviewTarget(target);
+		if (!resolvedTarget) {
 			return { kind: "idle" };
 		}
 
+		this.rememberPreviewTarget(resolvedTarget);
+		const normalizedFileId = resolvedTarget.fileId;
 		const endPerf = startPerf("thumbnailPreview.request", {
 			fileId: normalizedFileId,
 			priority,
@@ -120,11 +126,12 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 		const previous = this.statesByFileId.get(normalizedFileId);
 		this.rememberRequestedPriority(normalizedFileId, priority);
 		if (previous && previous.kind !== "idle") {
-			this.prefetchPlotPreview(normalizedFileId, priority);
+			this.prefetchPlotPreview(normalizedFileId, priority, resolvedTarget.target);
 			if (previous.kind === "loading") {
 				if (priority === "hover") {
 					const next = this.updatePreviewState(normalizedFileId, {
 						allowSynchronousCalculation: true,
+						target: resolvedTarget.target,
 						reason: "hoverRetry",
 					});
 					endPerf({
@@ -150,6 +157,7 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 			this.rememberRequestedPriority(normalizedFileId, priority);
 			const next = this.createPreviewState(normalizedFileId, {
 				allowSynchronousCalculation: true,
+				target: resolvedTarget.target,
 			});
 			this.statesByFileId.set(normalizedFileId, next);
 			this.syncRequestedPriorityForState(normalizedFileId, next);
@@ -169,8 +177,8 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 			return next;
 		}
 
-		this.prefetchPlotPreview(normalizedFileId, priority);
-		const next = this.createPreviewState(normalizedFileId);
+		this.prefetchPlotPreview(normalizedFileId, priority, resolvedTarget.target);
+		const next = this.createPreviewState(normalizedFileId, { target: resolvedTarget.target });
 		this.statesByFileId.set(normalizedFileId, next);
 		this.syncRequestedPriorityForState(normalizedFileId, next);
 		this.queuedPreviewPrioritiesByFileId.delete(normalizedFileId);
@@ -186,26 +194,28 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 		return next;
 	}
 
-	public prefetch(fileIds: readonly string[], priority: "visible" | "recent" | "nearby" | "idle"): void {
+	public prefetch(targets: readonly ThumbnailPreviewTarget[], priority: "visible" | "recent" | "nearby" | "idle"): void {
 		const endPerf = startPerf(`thumbnailPreview.prefetch.${priority}`, {
-			fileCount: fileIds.length,
+			fileCount: targets.length,
 		});
-		for (const fileId of fileIds) {
-			this.queuePreview(fileId, priority);
+		for (const target of targets) {
+			this.queuePreview(target, priority);
 		}
 		endPerf();
 	}
 
-	public invalidate(fileIds?: readonly string[]): void {
-		const normalizedFileIds = fileIds
-			?.map(normalizePreviewFileId)
-			.filter((fileId): fileId is string => Boolean(fileId));
+	public invalidate(targets?: readonly ThumbnailPreviewTarget[]): void {
+		const normalizedFileIds = targets
+			?.map(normalizePreviewTarget)
+			.filter((target): target is ResolvedThumbnailPreviewTarget => Boolean(target))
+			.map(target => target.fileId);
 		const changedFileIds: string[] = [];
 		if (!normalizedFileIds?.length) {
 			changedFileIds.push(...this.statesByFileId.keys());
 			this.statesByFileId.clear();
 			this.requestedPreviewPrioritiesByFileId.clear();
 			this.queuedPreviewPrioritiesByFileId.clear();
+			this.targetsByFileId.clear();
 			this.cancelScheduledPreviewFlush();
 		} else {
 			for (const fileId of normalizedFileIds) {
@@ -225,6 +235,7 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 		this.queuedPreviewPrioritiesByFileId.delete(fileId);
 		if (!previous) {
 			this.requestedPreviewPrioritiesByFileId.delete(fileId);
+			this.targetsByFileId.delete(fileId);
 			return false;
 		}
 
@@ -236,11 +247,13 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 		if (previous?.kind !== "loading" || !requestedPriority) {
 			this.statesByFileId.delete(fileId);
 			this.requestedPreviewPrioritiesByFileId.delete(fileId);
+			this.targetsByFileId.delete(fileId);
 			return true;
 		}
 
 		const next = this.createPreviewState(fileId, {
 			allowSynchronousCalculation: requestedPriority === "hover",
+			target: this.targetsByFileId.get(fileId),
 		});
 		if (next.kind === "loading") {
 			this.statesByFileId.set(fileId, next);
@@ -254,21 +267,23 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 	}
 
 	private queuePreview(
-		fileId: string,
+		target: ThumbnailPreviewTarget,
 		priority: ThumbnailPreviewPriority,
 		options: { readonly force?: boolean } = {},
 	): void {
-		const normalizedFileId = normalizePreviewFileId(fileId);
-		if (!normalizedFileId) {
+		const resolvedTarget = normalizePreviewTarget(target);
+		if (!resolvedTarget) {
 			return;
 		}
 
+		this.rememberPreviewTarget(resolvedTarget);
+		const normalizedFileId = resolvedTarget.fileId;
 		this.rememberRequestedPriority(normalizedFileId, priority);
 		const previous = this.statesByFileId.get(normalizedFileId);
 		if (!options.force && previous && previous.kind !== "idle" && previous.kind !== "loading") {
 			return;
 		}
-		this.prefetchPlotPreview(normalizedFileId, priority);
+		this.prefetchPlotPreview(normalizedFileId, priority, resolvedTarget.target);
 
 		const queuedPriority = this.queuedPreviewPrioritiesByFileId.get(normalizedFileId);
 		if (
@@ -317,7 +332,7 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 				break;
 			}
 
-			this.updatePreviewState(nextFileId);
+			this.updatePreviewState(nextFileId, { target: this.targetsByFileId.get(nextFileId) });
 			processed += 1;
 			if (Date.now() - startedAt >= PREVIEW_FRAME_BUDGET_MS) {
 				break;
@@ -348,6 +363,7 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 		options: {
 			readonly allowSynchronousCalculation?: boolean;
 			readonly reason?: string;
+			readonly target?: SliceUriTarget | null;
 		} = {},
 	): ThumbnailPreviewState {
 		this.queuedPreviewPrioritiesByFileId.delete(fileId);
@@ -374,29 +390,76 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 		return resolved;
 	}
 
-	private updatePreviewStateFromPlotCacheEvent(fileId: string, plotType: string): void {
-		const normalizedFileId = normalizePreviewFileId(fileId);
-		if (!normalizedFileId) {
+	private updatePreviewStateFromPlotCacheEvent(event: { readonly fileId?: string; readonly plotType: string; readonly target?: SliceUriTarget | null }): void {
+		const fileIds = this.getFileIdsForPlotCacheEvent(event);
+		if (!fileIds.length) {
 			return;
 		}
 
-		const previous = this.statesByFileId.get(normalizedFileId);
-		if (
-			(!previous || previous.kind === "idle" || previous.kind === "error") ||
-			this.plotService.getState().activePlotType !== plotType
-		) {
-			return;
-		}
+		for (const fileId of fileIds) {
+			const previous = this.statesByFileId.get(fileId);
+			if (
+				(!previous || previous.kind === "idle" || previous.kind === "error") ||
+				this.plotService.getState().activePlotType !== event.plotType
+			) {
+				continue;
+			}
 
-		this.updatePreviewState(normalizedFileId, {
-			reason: "plotCacheChanged",
-		});
+			this.updatePreviewState(fileId, {
+				reason: "plotCacheChanged",
+				target: this.targetsByFileId.get(fileId),
+			});
+		}
 	}
 
 	private createPreviewState(
 		fileId: string,
-		options: { readonly allowSynchronousCalculation?: boolean } = {},
+		options: { readonly allowSynchronousCalculation?: boolean; readonly target?: SliceUriTarget | null } = {},
 	): ThumbnailPreviewState {
+		const target = options.target ?? this.targetsByFileId.get(fileId) ?? null;
+		const plotType = this.plotService.getState().activePlotType;
+		if (target) {
+			const cachedCalculatedData = this.plotService.getCachedCalculatedData({
+				fileId,
+				plotType,
+				target,
+			});
+			const displayModel = cachedCalculatedData
+				? this.plotService.getCachedPlotDisplayModel?.({
+					fileId,
+					plotType,
+					target,
+				})
+				: null;
+			if (cachedCalculatedData && displayModel) {
+				return {
+					kind: "fastReady",
+					model: {
+						...displayModel.chart.model,
+						signature: cachedCalculatedData.signature,
+					},
+					signature: cachedCalculatedData.signature,
+				};
+			}
+
+			const model = cachedCalculatedData ?? (options.allowSynchronousCalculation
+				? this.plotService.getCalculatedData({
+					fileId,
+					plotType,
+					target,
+				})
+				: null);
+			if (!model) {
+				return { kind: "loading" };
+			}
+
+			return {
+				kind: "ready",
+				model,
+				signature: model.signature,
+			};
+		}
+
 		const snapshot = this.sessionService.getSnapshot();
 		if (!snapshot.filesById[fileId]) {
 			return {
@@ -405,7 +468,6 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 			};
 		}
 
-		const plotType = this.plotService.getState().activePlotType;
 		const cachedCalculatedData = this.plotService.getCachedCalculatedData({
 			fileId,
 			plotType,
@@ -460,16 +522,45 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 	private syncRequestedPriorityForState(fileId: string, state: ThumbnailPreviewState): void {
 		if (state.kind === "error" || state.kind === "idle") {
 			this.requestedPreviewPrioritiesByFileId.delete(fileId);
+			this.targetsByFileId.delete(fileId);
 		}
 	}
 
-	private prefetchPlotPreview(fileId: string, priority: ThumbnailPreviewPriority): void {
+	private prefetchPlotPreview(fileId: string, priority: ThumbnailPreviewPriority, target?: SliceUriTarget | null): void {
 		const plotType = this.plotService.getState().activePlotType;
-		this.plotService.prefetchCalculatedData([fileId], priority, plotType);
+		if (!target) {
+			this.plotService.prefetchCalculatedData([fileId], priority, plotType);
+		}
 		this.plotService.prefetchPlotDisplayModel?.({
 			fileId,
 			plotType,
+			target,
 		}, priority);
+	}
+
+	private rememberPreviewTarget(target: ResolvedThumbnailPreviewTarget): void {
+		if (target.target) {
+			this.targetsByFileId.set(target.fileId, target.target);
+		} else {
+			this.targetsByFileId.delete(target.fileId);
+		}
+	}
+
+	private getFileIdsForPlotCacheEvent(event: { readonly fileId?: string; readonly target?: SliceUriTarget | null }): string[] {
+		const fileId = normalizePreviewFileId(event.fileId);
+		if (fileId) {
+			return [fileId];
+		}
+		if (!event.target) {
+			return [];
+		}
+		const result: string[] = [];
+		for (const [candidateFileId, target] of this.targetsByFileId) {
+			if (isSameSliceUriTarget(target, event.target)) {
+				result.push(candidateFileId);
+			}
+		}
+		return result;
 	}
 }
 
@@ -487,6 +578,34 @@ const normalizePreviewFileId = (fileId: unknown): string | null => {
 	const normalized = String(fileId ?? "").trim();
 	return normalized || null;
 };
+
+type ResolvedThumbnailPreviewTarget = {
+	readonly fileId: string;
+	readonly target?: SliceUriTarget | null;
+};
+
+const normalizePreviewTarget = (
+	target: ThumbnailPreviewTarget,
+): ResolvedThumbnailPreviewTarget | null => {
+	if (typeof target === "string") {
+		const fileId = normalizePreviewFileId(target);
+		return fileId ? { fileId } : null;
+	}
+
+	const fileId = normalizePreviewFileId(target.fileId);
+	return fileId
+		? { fileId, target: target.target }
+		: null;
+};
+
+const isSameSliceUriTarget = (
+	first: SliceUriTarget,
+	second: SliceUriTarget,
+): boolean =>
+	getSliceUriTargetKey(first) === getSliceUriTargetKey(second);
+
+const getSliceUriTargetKey = (target: SliceUriTarget): string =>
+	`${String(target.resource)}::${String(target.sheetId ?? "")}`;
 
 const isSamePreviewState = (
 	previous: ThumbnailPreviewState,

@@ -30,6 +30,7 @@ import type { TableSource } from "src/cs/workbench/services/table/common/table";
 import { createTemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { SliceState, SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
+import type { TemplateApplyPerformanceTraceTargetApi } from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
 
 type ThumbnailPrefetchForTest = {
   readonly priority: string;
@@ -39,6 +40,15 @@ type ThumbnailPrefetchForTest = {
     readonly targetSheetId?: string | null;
   }[];
 };
+
+type TemplateApplyPerformanceTraceGlobalForTest = typeof globalThis & {
+  __conductorTemplateApplyPerformanceTrace?: {
+    readonly targetApi?: TemplateApplyPerformanceTraceTargetApi;
+  };
+};
+
+const getTemplateApplyPerformanceTraceTargetApiForTest = (): TemplateApplyPerformanceTraceTargetApi | undefined =>
+  (globalThis as TemplateApplyPerformanceTraceGlobalForTest).__conductorTemplateApplyPerformanceTrace?.targetApi;
 
 suite("workbench/browser/workbench Explorer pane input", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -657,7 +667,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       uriSliceTarget,
     }));
     try {
-      const targets = traceGlobal.__conductorTemplateApplyPerformanceTrace?.targetApi?.getChartTargets?.() ?? [];
+      const targets = getTemplateApplyPerformanceTraceTargetApiForTest()?.getChartTargets() ?? [];
 
       assert.equal(snapshotReads, 0);
       assert.deepEqual(targets.map(target => ({
@@ -677,7 +687,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       if (localStorageDescriptor) {
         Object.defineProperty(globalThis, "localStorage", localStorageDescriptor);
       } else {
-        delete (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage;
+        Reflect.deleteProperty(globalThis, "localStorage");
       }
     }
   });
@@ -736,7 +746,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       session,
     }));
     try {
-      const targets = traceGlobal.__conductorTemplateApplyPerformanceTrace?.targetApi?.getChartTargets?.() ?? [];
+      const targets = getTemplateApplyPerformanceTraceTargetApiForTest()?.getChartTargets() ?? [];
 
       assert.equal(snapshotReads, 0);
       assert.deepEqual(targets.map(target => ({
@@ -756,7 +766,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       if (localStorageDescriptor) {
         Object.defineProperty(globalThis, "localStorage", localStorageDescriptor);
       } else {
-        delete (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage;
+        Reflect.deleteProperty(globalThis, "localStorage");
       }
     }
   });
@@ -797,7 +807,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       session,
     }));
     try {
-      const targets = traceGlobal.__conductorTemplateApplyPerformanceTrace?.targetApi?.getChartTargets?.() ?? [];
+      const targets = getTemplateApplyPerformanceTraceTargetApiForTest()?.getChartTargets() ?? [];
 
       assert.equal(snapshotReads, 0);
       assert.deepEqual(targets, []);
@@ -807,7 +817,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       if (localStorageDescriptor) {
         Object.defineProperty(globalThis, "localStorage", localStorageDescriptor);
       } else {
-        delete (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage;
+        Reflect.deleteProperty(globalThis, "localStorage");
       }
     }
   });
@@ -856,8 +866,8 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     try {
       bridge.sync();
       explorerService.select({
-        fileId: "file-b",
         kind: "chart",
+        resource: null,
       });
       await Promise.resolve();
 
@@ -899,8 +909,8 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     const plotDisplayPrefetchSnapshotFields: boolean[] = [];
     commitChartFilesForTest(session, ["file-a"]);
     explorerService.select({
-      fileId: "file-a",
       kind: "chart",
+      resource: null,
     });
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,

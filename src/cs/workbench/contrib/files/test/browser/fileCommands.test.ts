@@ -262,9 +262,18 @@ function createExplorerServiceStub({
     }),
     select: (target: unknown, reveal: unknown) => {
       onSelect(target, reveal);
-      return target && typeof target === "object" && "resource" in target
-        ? { resource: target.resource, sheetId: target.sheetId }
-        : null;
+      if (!target || typeof target !== "object" || !("resource" in target)) {
+        return null;
+      }
+
+      const resourceTarget = target as {
+        readonly resource?: URI | null;
+        readonly sheetId?: string | null;
+      };
+      return {
+        resource: resourceTarget.resource ?? null,
+        ...(resourceTarget.sheetId ? { sheetId: resourceTarget.sheetId } : {}),
+      };
     },
     setEditable: (state: unknown) => {
       onSetEditable(state);

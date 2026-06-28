@@ -360,7 +360,7 @@ export const computeBaseCurrentMetrics = ({
 }: {
   manualTargets?: IonIoffManualTargets | null;
   method?: IonIoffMethod;
-  points: PointLike[];
+  points: readonly PointLike[];
   sourceFile?: MetricSourceFileLike | null;
 }): BaseCurrentMetrics => {
   if (!isTransferLikeFile(sourceFile)) {

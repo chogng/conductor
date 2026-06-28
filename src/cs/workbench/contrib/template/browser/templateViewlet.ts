@@ -10,8 +10,6 @@ import {
 import { ICommandService } from "src/cs/platform/commands/common/commands";
 import { replaceChildrenIfChanged } from "src/cs/base/browser/dom";
 import { ITableService } from "src/cs/workbench/services/table/common/table";
-import { ISessionService } from "src/cs/workbench/services/session/common/session";
-import { createSessionReadModel } from "src/cs/workbench/services/session/common/sessionReadModel";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import { TemplateViewId } from "src/cs/workbench/contrib/template/common/template";
@@ -41,7 +39,6 @@ export class TemplateViewPane extends ViewPane {
     @ICommandService private readonly commandService: ICommandService,
     @IContextMenuService private readonly contextMenuService: IContextMenuServiceType,
     @INotificationService private readonly notificationService: INotificationService,
-    @ISessionService private readonly sessionService: ISessionService,
     @ITableService private readonly tableService: ITableService,
     @IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
     @ITemplateViewStateService private readonly templateViewStateService: ITemplateViewStateServiceType,
@@ -57,9 +54,6 @@ export class TemplateViewPane extends ViewPane {
     this.templateView = new TemplateView(this.createViewOptions());
     this.content.append(this.templateView.configElement);
     this.body.append(this.content);
-    this._register(this.sessionService.onDidChangeSession(() => {
-      this.update();
-    }));
     this._register(this.templateViewStateService.onDidChangeTemplateState(() => {
       this.updateTitle();
       this.update();
@@ -97,7 +91,6 @@ export class TemplateViewPane extends ViewPane {
       commandService: this.commandService,
       contextMenuService: this.contextMenuService,
       notificationService: this.notificationService,
-      rawFiles: createSessionReadModel(this.sessionService.getSnapshot()).rawFiles,
       tableService: this.tableService,
       templateViewStateService: this.templateViewStateService,
       userTemplateService: this.userTemplateService,

@@ -2910,7 +2910,7 @@ const createPlotDisplayModelCacheChangeEvent = (
 const createStoredAxisSettingsByFileId = (
   axisSettings: PlotFileAxisSettingsOverrides,
 ): PlotFileAxisSettings => {
-  const yScaleByFileId: PlotFileAxisSettings["yScaleByFileId"] = {};
+  const yScaleByFileId: Record<string, "linear" | "log"> = {};
   for (const [fileId, scale] of Object.entries(axisSettings.yScaleByFileId ?? {})) {
     if (scale === "linear" || scale === "log") {
       yScaleByFileId[fileId] = scale;

@@ -186,7 +186,7 @@ export class EventBufferer {
                                 undefined as T | undefined,
                             );
 
-                        listener.call(thisArgs, reduced);
+                        listener.call(thisArgs, reduced as T | O);
                     });
                 }
 

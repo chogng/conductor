@@ -202,7 +202,7 @@ export const getExplorerFileResourceIdentity = (
 		return null;
 	}
 
-	const sheetId = normalizeExplorerItemKey(entry.sheetId);
+	const sheetId = normalizeExplorerItemKey(entry?.sheetId);
 	return {
 		resource,
 		...(sheetId ? { sheetId } : {}),

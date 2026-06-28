@@ -5,8 +5,13 @@ import { PagedModel, type IPager } from "src/cs/base/common/paging";
 import {
 	TableWidget,
 } from "src/cs/base/browser/ui/table/tableWidget";
-import { PagedTableWidgetRenderer } from "src/cs/base/browser/ui/table/tablePaging";
+import { PagedTableWidgetRenderer, type PagedTableBodyCellTemplateData } from "src/cs/base/browser/ui/table/tablePaging";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+
+type TestBodyTemplateData = {
+	readonly cell: HTMLTableCellElement;
+	readonly content: HTMLElement;
+};
 
 suite("base/test/browser/ui/table/tablePaging", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -22,7 +27,7 @@ suite("base/test/browser/ui/table/tablePaging", () => {
 			pageSize: 1,
 			total: 2,
 		};
-		const renderer = new PagedTableWidgetRenderer(new PagedModel(pager), {
+			const renderer = new PagedTableWidgetRenderer<string, TestBodyTemplateData, HTMLElement>(new PagedModel(pager), {
 			clearBodyCell: templateData => {
 				templateData.content.textContent = "";
 			},
@@ -42,7 +47,7 @@ suite("base/test/browser/ui/table/tablePaging", () => {
 				cell.textContent = String(descriptor.rowIndex);
 			},
 		});
-		const widget = new TableWidget({
+			const widget = new TableWidget<PagedTableBodyCellTemplateData<string, TestBodyTemplateData>, HTMLElement>({
 			getColumnWidth: () => 120,
 			renderer,
 		});

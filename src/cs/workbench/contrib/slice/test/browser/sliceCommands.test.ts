@@ -43,6 +43,7 @@ import {
 	IUserTemplateService,
 	type IUserTemplateService as IUserTemplateServiceType,
 	type UserTemplate,
+	type UserTemplateChangeEvent,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
 suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
@@ -436,7 +437,7 @@ const createUserTemplateServiceForTest = (
 		imported: [],
 		skipped: [],
 	}),
-	onDidChangeUserTemplates: Event.None,
+	onDidChangeUserTemplates: Event.None as Event<UserTemplateChangeEvent>,
 	refreshTemplates: async () => templates,
 	updateTemplate: async () => {
 		throw new Error("Unexpected user template update in slice command test.");

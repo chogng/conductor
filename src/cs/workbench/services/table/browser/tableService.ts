@@ -345,7 +345,7 @@ const resolveTableCellSearchPlan = (
       ? {
           endCol: range.endCol,
           endRow: range.endRow,
-          sheetId: range.sheetId,
+          sheetId: range.sheetId ?? null,
           startCol: range.startCol,
           startRow: range.startRow,
         }

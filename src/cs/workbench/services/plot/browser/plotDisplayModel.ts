@@ -9,6 +9,7 @@ import {
 import {
   type PlotAxisTitleContext,
   type PlotDisplayModel,
+  type PlotFileAxisSettings,
   type PlotPaneDisplayModel,
   type PlotType,
 } from "src/cs/workbench/services/plot/common/plot";
@@ -25,10 +26,9 @@ import {
   normalizeYUnit,
   normalizeYUnitForFamily,
 } from "src/cs/workbench/services/plot/common/units";
-import type { FileAxisSettingsByFileId } from "src/cs/workbench/services/session/browser/fileSemanticsSync";
 
 export type CreatePlotDisplayModelInput = {
-  readonly axisSettings?: FileAxisSettingsByFileId;
+  readonly axisSettings?: PlotFileAxisSettings;
   readonly axisTitleOverridesByKey?: Readonly<Record<string, string>>;
   readonly calculatedData: CalculatedData | null;
   readonly hiddenLegendKeys?: readonly string[];
@@ -233,7 +233,7 @@ const createInspectorDisplayModel = ({
 
 const resolveDisplayUnits = (
   data: CalculatedData,
-  axisSettings: FileAxisSettingsByFileId | undefined,
+  axisSettings: PlotFileAxisSettings | undefined,
 ): {
   readonly xFactor: number;
   readonly xUnit: string | undefined;
@@ -264,7 +264,7 @@ const resolveDisplayUnits = (
 
 const createUnitControlModel = (
   data: CalculatedData,
-  axisSettings: FileAxisSettingsByFileId | undefined,
+  axisSettings: PlotFileAxisSettings | undefined,
 ): PlotDisplayModel["unitControl"] => {
   const fileId = String(data.source.fileId ?? "").trim();
   if (!fileId) {
@@ -287,7 +287,7 @@ const createUnitControlModel = (
 
 const resolveYScale = (
   data: CalculatedData,
-  axisSettings: FileAxisSettingsByFileId | undefined,
+  axisSettings: PlotFileAxisSettings | undefined,
 ): "linear" | "log" => {
   const fileId = String(data.source.fileId ?? "").trim();
   return fileId && axisSettings?.yScaleByFileId?.[fileId] === "log" ? "log" : "linear";

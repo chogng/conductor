@@ -5,16 +5,18 @@
 import type {
 	PlotType,
 } from "src/cs/workbench/services/plot/common/plot";
-import type { ProcessingStatus } from "src/cs/workbench/services/session/common/sessionTypes";
+import type { SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
+import type { ChartProcessingStatus } from "src/cs/workbench/services/chart/common/chartViewInput";
 import type { ChartFileOption } from "src/cs/workbench/services/chart/common/chartFileOptions";
 import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
 
 export type CreateChartViewInputOptions = {
 	readonly activeFileId: string | null;
+	readonly activeTarget?: SliceUriTarget | null;
 	readonly activePlotType: PlotType;
 	readonly chartFileOptions: readonly ChartFileOption[];
 	readonly hasChartData?: boolean;
-	readonly processingStatus?: Partial<ProcessingStatus>;
+	readonly processingStatus?: Partial<ChartProcessingStatus>;
 	readonly showFileSelect?: boolean;
 	readonly shouldMountCharts?: boolean;
 };
@@ -34,6 +36,7 @@ export const createChartViewInput = (
 
 	return {
 		activeFileId,
+		activeTarget: options.activeTarget ?? null,
 		activePlotType: options.activePlotType,
 		chartFileOptions,
 		hasChartData,

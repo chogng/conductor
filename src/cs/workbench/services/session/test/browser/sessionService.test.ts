@@ -226,9 +226,6 @@ suite("workbench/services/session/test/browser/sessionService", () => {
       rowCount: 4,
 	      columnCount: 2,
 	      maxCellLengths: [3, 4],
-	      curveType: "transfer",
-	      curveTypeConfidence: "high",
-	      curveTypeReasons: ["metadata"],
 	    }]);
     commitTemplateOutputForTest(session, {
       fileId: "file-a",
@@ -244,10 +241,6 @@ suite("workbench/services/session/test/browser/sessionService", () => {
         groupIndex: 0,
         y: [1e-9, 1e-6],
       }],
-      domain: {
-        x: [0, 1],
-        y: [1e-9, 1e-6],
-      },
     }, {
       appliedTemplateSelection: { kind: "saved", templateId: "template-a" },
     });
