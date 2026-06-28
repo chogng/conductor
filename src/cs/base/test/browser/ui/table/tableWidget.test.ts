@@ -472,6 +472,65 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 		}
 	});
 
+	test("reuses cached body row templates when rendered row count grows again", () => {
+		let createdTemplateCount = 0;
+		const widget = new TableWidget<{
+			readonly cell: HTMLTableCellElement;
+			readonly content: HTMLElement;
+			readonly id: number;
+		}, HTMLElement>({
+			getColumnWidth: () => 160,
+			maxRenderedColumns: 2,
+			maxRenderedRows: 8,
+			renderer: {
+				clearBodyCell: templateData => {
+					templateData.content.textContent = "";
+				},
+				disposeBodyCellTemplate: () => undefined,
+				renderBodyCell: () => undefined,
+				renderBodyCellContent: (templateData, descriptor) => {
+					templateData.content.textContent = `${descriptor.rowIndex}:${descriptor.colIndex}`;
+				},
+				renderBodyCellTemplate: (cell, content) => {
+					createdTemplateCount += 1;
+					return { cell, content, id: createdTemplateCount };
+				},
+				renderColumnHeader: (cell, descriptor) => {
+					cell.textContent = String(descriptor.colIndex);
+				},
+				renderColumnHeaderTemplate: cell => cell,
+				renderRowHeader: (cell, descriptor) => {
+					cell.textContent = String(descriptor.rowIndex);
+				},
+			},
+		});
+		document.body.append(widget.element);
+		try {
+			const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+			assert.ok(viewport);
+			setElementClientSize(viewport, 500, 280);
+			widget.attachContent();
+			widget.render({ columnCount: 2, rowCount: 8, renderVersion: "a" });
+			const firstVisibleTemplate = widget.getBodyCellTemplateData(0, 0);
+			const initialTemplates = new Set(
+				Array.from({ length: 8 }, (_, rowOffset) => widget.getBodyCellTemplateData(rowOffset, 0)),
+			);
+			assert.equal(createdTemplateCount, 16);
+			assert.equal(initialTemplates.size, 8);
+
+			widget.render({ columnCount: 2, rowCount: 2, renderVersion: "b" });
+			widget.render({ columnCount: 2, rowCount: 8, renderVersion: "c" });
+
+			const returnedTemplate = widget.getBodyCellTemplateData(2, 0);
+			assert.equal(widget.getBodyCellTemplateData(0, 0), firstVisibleTemplate);
+			assert.ok(returnedTemplate);
+			assert.equal(initialTemplates.has(returnedTemplate), true);
+			assert.equal(createdTemplateCount, 16);
+		} finally {
+			widget.dispose();
+		}
+	});
+
 	test("rerenders dirty column headers through the base table patch path", () => {
 		const bodyRenders: string[] = [];
 		const headerRenders: string[] = [];

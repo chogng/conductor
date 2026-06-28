@@ -89,9 +89,21 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
     return createCancelablePromise<void>((cancelToken) => timeout(millis, cancelToken));
 }
 
-export function disposableTimeout(handler: () => void, timeoutMs = 0): IDisposable {
-    const handle = setTimeout(handler, timeoutMs);
-    return toDisposable(() => clearTimeout(handle));
+export function disposableTimeout(handler: () => void, timeoutMs = 0, store?: DisposableStore): IDisposable {
+    const handle = setTimeout(() => {
+        try {
+            handler();
+        }
+        finally {
+            disposable.dispose();
+        }
+    }, timeoutMs);
+    const disposable = toDisposable(() => {
+        clearTimeout(handle);
+        store?.delete(disposable);
+    });
+    store?.add(disposable);
+    return disposable;
 }
 
 export class TimeoutTimer implements IDisposable {

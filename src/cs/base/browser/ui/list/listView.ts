@@ -1,27 +1,26 @@
 import { addDisposableListener, DisposableResizeObserver, getClientArea } from "src/cs/base/browser/dom";
 import { DataTransfers, type IDragAndDropData } from "src/cs/base/browser/dnd";
+import { DomEmitter } from "src/cs/base/browser/event";
 import { distinct, equals } from "src/cs/base/common/arrays";
 import { disposableTimeout } from "src/cs/base/common/async";
 import { BugIndicatingError } from "src/cs/base/common/errors";
-import { Emitter, type Event as BaseEvent } from "src/cs/base/common/event";
-import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
+import { Emitter, Event as BaseEventUtil, type Event as BaseEvent } from "src/cs/base/common/event";
+import { Disposable, DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { ScrollbarVisibility } from "src/cs/base/common/scrollable";
 import type { ISpliceable } from "src/cs/base/common/sequence";
-import type {
-  IListBrowserMouseEvent,
-  IListDragAndDrop,
-  IListDragOverReaction,
-  IListEvent,
-  IListMouseEvent,
-  IListRenderer,
-  IListVirtualDelegate,
-} from "src/cs/base/browser/ui/list/list";
 import {
+  type IListBrowserMouseEvent,
+  type IListDragAndDrop,
+  type IListDragOverReaction,
+  type IListEvent,
+  type IListMouseEvent,
+  type IListRenderer,
+  type IListVirtualDelegate,
   ListDragOverEffectPosition,
   ListDragOverEffectType,
 } from "src/cs/base/browser/ui/list/list";
 import { RangeMap } from "src/cs/base/common/rangeMap";
-import { RowCache, type IRow } from "src/cs/base/browser/ui/list/rowCache";
+import { RowCache, type IRow } from "src/cs/base/browser/rowCache";
 import { ScrollableElement } from "src/cs/base/browser/ui/scrollbar/scrollableElement";
 import type { ScrollbarVisibilityPolicy } from "src/cs/base/browser/ui/scrollbar/scrollbarVisibilityController";
 
@@ -77,7 +76,7 @@ export interface IListViewOptions<T> extends IListViewOptionsUpdate {
   readonly onKeyDown?: (event: KeyboardEvent) => void;
   readonly onDidFocus?: (event: IListEvent<T>) => void;
   readonly onDidRenderRange?: (range: ListRenderRange) => void;
-  readonly onScroll?: (event: Event) => void;
+  readonly onScroll?: (event: globalThis.Event) => void;
   readonly onSelect?: (
     item: T,
     index: number,
@@ -98,9 +97,10 @@ export interface IListView<T> extends ISpliceable<T>, IDisposable {
   readonly domNode: HTMLElement;
   readonly length: number;
   readonly onContextMenu: BaseEvent<IListMouseEvent<T>>;
-  readonly onDidScroll: BaseEvent<Event>;
+  readonly onDidScroll: BaseEvent<globalThis.Event>;
   readonly onMouseClick: BaseEvent<IListMouseEvent<T>>;
   readonly onMouseDblClick: BaseEvent<IListMouseEvent<T>>;
+  readonly onMouseMiddleClick: BaseEvent<IListMouseEvent<T>>;
   readonly onMouseDown: BaseEvent<IListMouseEvent<T>>;
   readonly onMouseMove: BaseEvent<IListMouseEvent<T>>;
   readonly onMouseOut: BaseEvent<IListMouseEvent<T>>;
@@ -129,7 +129,7 @@ type RowEntry<T> = {
   renderedIndex?: number;
   renderedItem?: T;
   renderedTemplateId?: string;
-  row: IRow<any>;
+  row: IRow<any, HTMLDivElement>;
 };
 
 type RenderRange = {
@@ -194,15 +194,7 @@ const toScrollbarVisibilityPolicy = (
 
 export class ListView<T> implements IListView<T> {
   private readonly disposables = new DisposableStore();
-  private readonly onContextMenuEmitter = this.disposables.add(new Emitter<IListMouseEvent<T>>());
-  private readonly onDidScrollEmitter = this.disposables.add(new Emitter<Event>());
-  private readonly onMouseClickEmitter = this.disposables.add(new Emitter<IListMouseEvent<T>>());
-  private readonly onMouseDblClickEmitter = this.disposables.add(new Emitter<IListMouseEvent<T>>());
-  private readonly onMouseDownEmitter = this.disposables.add(new Emitter<IListMouseEvent<T>>());
-  private readonly onMouseMoveEmitter = this.disposables.add(new Emitter<IListMouseEvent<T>>());
-  private readonly onMouseOutEmitter = this.disposables.add(new Emitter<IListMouseEvent<T>>());
-  private readonly onMouseOverEmitter = this.disposables.add(new Emitter<IListMouseEvent<T>>());
-  private readonly onMouseUpEmitter = this.disposables.add(new Emitter<IListMouseEvent<T>>());
+  private readonly onDidScrollEmitter = this.disposables.add(new Emitter<globalThis.Event>());
   private readonly host: HTMLElement;
   private readonly root: HTMLDivElement;
   private readonly viewport: HTMLDivElement;
@@ -212,7 +204,18 @@ export class ListView<T> implements IListView<T> {
   private readonly rows = new Map<string, RowEntry<T>>();
   private readonly rowsByIndex = new Map<number, RowEntry<T>>();
   private readonly renderers = new Map<string, IListRenderer<T, any>>();
-  private readonly rowCache = new RowCache<T>(this.renderers);
+  private readonly rowCache = new RowCache<any, HTMLDivElement>(this.renderers, {
+    createDomNode: templateId => {
+      const domNode = document.createElement("div");
+      domNode.className = "ui-list__row";
+      domNode.setAttribute("data-template-id", templateId);
+      return domNode;
+    },
+    removeDomNode: domNode => {
+      domNode.classList.remove("scrolling");
+      domNode.remove();
+    },
+  });
   private readonly rowEventListeners = new WeakSet<HTMLElement>();
   private props: IListViewOptions<T>;
   private viewportHeight = 0;
@@ -230,18 +233,19 @@ export class ListView<T> implements IListView<T> {
   private currentDragData: IDragAndDropData | undefined;
   private currentDragFeedback: number[] | undefined;
   private currentDragFeedbackPosition: ListDragOverEffectPosition | undefined;
-  private onDragLeaveTimeout: IDisposable | undefined;
+  private onDragLeaveTimeout: IDisposable = Disposable.None;
   private canDrop = false;
 
-  public readonly onContextMenu: BaseEvent<IListMouseEvent<T>> = this.onContextMenuEmitter.event;
-  public readonly onDidScroll: BaseEvent<Event> = this.onDidScrollEmitter.event;
-  public readonly onMouseClick: BaseEvent<IListMouseEvent<T>> = this.onMouseClickEmitter.event;
-  public readonly onMouseDblClick: BaseEvent<IListMouseEvent<T>> = this.onMouseDblClickEmitter.event;
-  public readonly onMouseDown: BaseEvent<IListMouseEvent<T>> = this.onMouseDownEmitter.event;
-  public readonly onMouseMove: BaseEvent<IListMouseEvent<T>> = this.onMouseMoveEmitter.event;
-  public readonly onMouseOut: BaseEvent<IListMouseEvent<T>> = this.onMouseOutEmitter.event;
-  public readonly onMouseOver: BaseEvent<IListMouseEvent<T>> = this.onMouseOverEmitter.event;
-  public readonly onMouseUp: BaseEvent<IListMouseEvent<T>> = this.onMouseUpEmitter.event;
+  public readonly onContextMenu!: BaseEvent<IListMouseEvent<T>>;
+  public readonly onDidScroll: BaseEvent<globalThis.Event> = this.onDidScrollEmitter.event;
+  public readonly onMouseClick!: BaseEvent<IListMouseEvent<T>>;
+  public readonly onMouseDblClick!: BaseEvent<IListMouseEvent<T>>;
+  public readonly onMouseMiddleClick!: BaseEvent<IListMouseEvent<T>>;
+  public readonly onMouseDown!: BaseEvent<IListMouseEvent<T>>;
+  public readonly onMouseMove!: BaseEvent<IListMouseEvent<T>>;
+  public readonly onMouseOut!: BaseEvent<IListMouseEvent<T>>;
+  public readonly onMouseOver!: BaseEvent<IListMouseEvent<T>>;
+  public readonly onMouseUp!: BaseEvent<IListMouseEvent<T>>;
 
   constructor(host: HTMLElement, options: IListViewOptions<T>) {
     this.host = host;
@@ -264,6 +268,19 @@ export class ListView<T> implements IListView<T> {
 
     this.root.append(this.emptyContainer, this.viewport);
     this.host.appendChild(this.root);
+
+    this.onMouseClick = this.createMouseEvent("click");
+    this.onMouseDblClick = this.createMouseEvent("dblclick");
+    this.onMouseMiddleClick = BaseEventUtil.filter(
+      this.createMouseEvent("auxclick"),
+      event => event.browserEvent.button === 1,
+    );
+    this.onMouseDown = this.createMouseEvent("mousedown");
+    this.onMouseUp = this.createMouseEvent("mouseup");
+    this.onMouseOver = this.createMouseEvent("mouseover");
+    this.onMouseMove = this.createMouseEvent("mousemove");
+    this.onMouseOut = this.createMouseEvent("mouseout");
+    this.onContextMenu = this.createMouseEvent("contextmenu");
 
     this.scrollableElement = this.disposables.add(new ScrollableElement({
       axis: "y",
@@ -288,30 +305,6 @@ export class ListView<T> implements IListView<T> {
     this.disposables.add(addDisposableListener(this.viewport, "dragleave", this.onDragLeave));
     this.disposables.add(addDisposableListener(this.viewport, "drop", this.onDrop));
     this.disposables.add(addDisposableListener(this.viewport, "dragend", this.onDragEnd));
-    this.disposables.add(addDisposableListener(this.root, "click", event => {
-      this.onMouseClickEmitter.fire(this.toMouseEvent(event));
-    }));
-    this.disposables.add(addDisposableListener(this.root, "dblclick", event => {
-      this.onMouseDblClickEmitter.fire(this.toMouseEvent(event));
-    }));
-    this.disposables.add(addDisposableListener(this.root, "mousedown", event => {
-      this.onMouseDownEmitter.fire(this.toMouseEvent(event));
-    }));
-    this.disposables.add(addDisposableListener(this.root, "mouseup", event => {
-      this.onMouseUpEmitter.fire(this.toMouseEvent(event));
-    }));
-    this.disposables.add(addDisposableListener(this.root, "mouseover", event => {
-      this.onMouseOverEmitter.fire(this.toMouseEvent(event));
-    }));
-    this.disposables.add(addDisposableListener(this.root, "mousemove", event => {
-      this.onMouseMoveEmitter.fire(this.toMouseEvent(event));
-    }));
-    this.disposables.add(addDisposableListener(this.root, "mouseout", event => {
-      this.onMouseOutEmitter.fire(this.toMouseEvent(event));
-    }));
-    this.disposables.add(addDisposableListener(this.root, "contextmenu", event => {
-      this.onContextMenuEmitter.fire(this.toMouseEvent(event));
-    }));
 
     this.setRenderers(options.renderers);
     this.updateClasses();
@@ -517,8 +510,8 @@ export class ListView<T> implements IListView<T> {
     this.disposeAllRows();
     this.rowCache.dispose();
     this.props.dnd?.dispose();
-    this.onDragLeaveTimeout?.dispose();
-    this.onDragLeaveTimeout = undefined;
+    this.onDragLeaveTimeout.dispose();
+    this.onDragLeaveTimeout = Disposable.None;
     this.disposables.dispose();
     this.root.remove();
   }
@@ -1095,8 +1088,8 @@ export class ListView<T> implements IListView<T> {
 
   private readonly onDragOver = (event: DragEvent): void => {
     event.preventDefault();
-    this.onDragLeaveTimeout?.dispose();
-    this.onDragLeaveTimeout = undefined;
+    this.onDragLeaveTimeout.dispose();
+    this.onDragLeaveTimeout = Disposable.None;
 
     const { dnd } = this.props;
     const { dataTransfer } = event;
@@ -1133,12 +1126,11 @@ export class ListView<T> implements IListView<T> {
 
   private readonly onDragLeave = (event: DragEvent): void => {
     const target = this.getDragTarget(event);
-    this.onDragLeaveTimeout?.dispose();
+    this.onDragLeaveTimeout.dispose();
     this.onDragLeaveTimeout = disposableTimeout(() => {
-      this.onDragLeaveTimeout?.dispose();
-      this.onDragLeaveTimeout = undefined;
+      this.onDragLeaveTimeout = Disposable.None;
       this.clearDragOverFeedback();
-    }, 100);
+    }, 100, this.disposables);
 
     if (this.currentDragData) {
       this.props.dnd?.onDragLeave?.(
@@ -1173,6 +1165,13 @@ export class ListView<T> implements IListView<T> {
     this.clearDragState();
   };
 
+  private createMouseEvent(
+    type: "auxclick" | "click" | "contextmenu" | "dblclick" | "mousedown" | "mousemove" | "mouseout" | "mouseover" | "mouseup",
+  ): BaseEvent<IListMouseEvent<T>> {
+    const emitter = this.disposables.add(new DomEmitter(this.root, type));
+    return BaseEventUtil.map(emitter.event, event => this.toMouseEvent(event));
+  }
+
   private toMouseEvent(browserEvent: MouseEvent): IListMouseEvent<T> {
     const row = this.getRowElement(browserEvent.target);
     const index = row ? Number(row.dataset.index) : undefined;
@@ -1191,8 +1190,8 @@ export class ListView<T> implements IListView<T> {
     this.clearDragOverFeedback();
     this.currentDragData = undefined;
     StaticDND.currentData = undefined;
-    this.onDragLeaveTimeout?.dispose();
-    this.onDragLeaveTimeout = undefined;
+    this.onDragLeaveTimeout.dispose();
+    this.onDragLeaveTimeout = Disposable.None;
     this.canDrop = false;
   }
 

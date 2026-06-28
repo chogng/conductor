@@ -2,7 +2,7 @@ import assert from "assert";
 
 import { DataTransfers } from "src/cs/base/browser/dnd";
 import { type IListDragAndDrop, type IListRenderer } from "src/cs/base/browser/ui/list/list";
-import { List, TypeNavigationMode } from "src/cs/base/browser/ui/list/listWidget";
+import { List, TypeNavigationMode, unthemedListStyles } from "src/cs/base/browser/ui/list/listWidget";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/browser/ui/list/listWidget", () => {
@@ -57,6 +57,41 @@ suite("base/test/browser/ui/list/listWidget", () => {
 
       assert.equal(list.onDidChangeFocus, onDidChangeFocus);
       assert.equal(list.onDidChangeSelection, onDidChangeSelection);
+    } finally {
+      list.dispose();
+      container.remove();
+    }
+  });
+
+  test("styles rows through the default style controller", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const list = new List(container, {
+      delegate: {
+        getHeight: () => 24,
+        getTemplateId: () => "row",
+      },
+      getKey: item => item,
+      items: ["alpha"],
+      renderers: [textRenderer],
+    });
+
+    try {
+      list.style({
+        ...unthemedListStyles,
+        listActiveSelectionBackground: "rgb(1, 2, 3)",
+        listFocusAndSelectionOutline: "var(--list-focus-selection-border)",
+        listFocusOutline: "rgb(4, 5, 6)",
+      });
+
+      const root = container.querySelector<HTMLElement>(".ui-list");
+      const style = container.querySelector("style");
+
+      assert.ok(root);
+      assert.ok(Array.from(root.classList).some(className => className.startsWith("ui-list-style-")));
+      assert.ok(style?.textContent?.includes("rgb(1, 2, 3)"));
+      assert.ok(style?.textContent?.includes("var(--list-focus-selection-border, rgb(4, 5, 6))"));
+      assert.ok(style?.textContent?.includes(".ui-list.ui-list-style-"));
     } finally {
       list.dispose();
       container.remove();
@@ -206,10 +241,12 @@ suite("base/test/browser/ui/list/listWidget", () => {
     });
     const keys: string[] = [];
     const clicks: Array<string | undefined> = [];
+    const middleClicks: Array<string | undefined> = [];
     const contextIndexes: Array<number | undefined> = [];
     const disposables = [
       list.onKeyDown(event => keys.push(event.key)),
       list.onMouseClick(event => clicks.push(event.element)),
+      list.onMouseMiddleClick(event => middleClicks.push(event.element)),
       list.onContextMenu(event => contextIndexes.push(event.index)),
     ];
 
@@ -224,12 +261,21 @@ suite("base/test/browser/ui/list/listWidget", () => {
       row.dispatchEvent(new MouseEvent("click", {
         bubbles: true,
       }));
+      row.dispatchEvent(new MouseEvent("auxclick", {
+        bubbles: true,
+        button: 1,
+      }));
+      row.dispatchEvent(new MouseEvent("auxclick", {
+        bubbles: true,
+        button: 2,
+      }));
       row.dispatchEvent(new MouseEvent("contextmenu", {
         bubbles: true,
       }));
 
       assert.deepEqual(keys, ["x"]);
       assert.deepEqual(clicks, ["beta"]);
+      assert.deepEqual(middleClicks, ["beta"]);
       assert.deepEqual(contextIndexes, [1]);
     } finally {
       for (const disposable of disposables) {

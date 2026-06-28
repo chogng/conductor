@@ -21,9 +21,11 @@ suite("base/test/browser/ui/list/listView", () => {
     document.body.append(host);
     const list = createStringListView(host, ["alpha", "beta"]);
     const clicks: Array<string | undefined> = [];
+    const middleClicks: Array<string | undefined> = [];
     const contextIndexes: Array<number | undefined> = [];
     const disposables = [
       list.onMouseClick(event => clicks.push(event.element)),
+      list.onMouseMiddleClick(event => middleClicks.push(event.element)),
       list.onContextMenu(event => contextIndexes.push(event.index)),
     ];
 
@@ -38,9 +40,12 @@ suite("base/test/browser/ui/list/listView", () => {
       assert.equal(row.textContent, "beta");
 
       row.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      row.dispatchEvent(new MouseEvent("auxclick", { bubbles: true, button: 1 }));
+      row.dispatchEvent(new MouseEvent("auxclick", { bubbles: true, button: 2 }));
       row.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true }));
 
       assert.deepEqual(clicks, ["beta"]);
+      assert.deepEqual(middleClicks, ["beta"]);
       assert.deepEqual(contextIndexes, [1]);
     } finally {
       for (const disposable of disposables) {

@@ -1,5 +1,7 @@
 import { addDisposableListener, EventType, getWindow, isEditableElement, isHTMLElement } from "src/cs/base/browser/dom";
+import { createStyleSheet } from "src/cs/base/browser/domStylesheets";
 import type { IDragAndDropData } from "src/cs/base/browser/dnd";
+import { asCssValueWithDefault } from "src/cs/base/browser/cssValue";
 import { alert as ariaAlert, type AriaRole } from "src/cs/base/browser/ui/aria/aria";
 import { StandardKeyboardEvent, type IKeyboardEvent } from "src/cs/base/browser/keyboardEvent";
 import { StandardMouseEvent } from "src/cs/base/browser/mouseEvent";
@@ -56,6 +58,171 @@ export interface IMultipleSelectionController<T> {
   isSelectionSingleChangeEvent(event: IListMouseEvent<T> | IListTouchEvent<T>): boolean;
   isSelectionRangeChangeEvent(event: IListMouseEvent<T> | IListTouchEvent<T>): boolean;
 }
+
+export interface IListStyles {
+  readonly listBackground: string | undefined;
+  readonly listFocusBackground: string | undefined;
+  readonly listFocusForeground: string | undefined;
+  readonly listActiveSelectionBackground: string | undefined;
+  readonly listActiveSelectionForeground: string | undefined;
+  readonly listActiveSelectionIconForeground: string | undefined;
+  readonly listFocusAndSelectionOutline: string | undefined;
+  readonly listFocusAndSelectionBackground: string | undefined;
+  readonly listFocusAndSelectionForeground: string | undefined;
+  readonly listInactiveSelectionBackground: string | undefined;
+  readonly listInactiveSelectionIconForeground: string | undefined;
+  readonly listInactiveSelectionForeground: string | undefined;
+  readonly listInactiveFocusForeground: string | undefined;
+  readonly listInactiveFocusBackground: string | undefined;
+  readonly listHoverBackground: string | undefined;
+  readonly listHoverForeground: string | undefined;
+  readonly listDropOverBackground: string | undefined;
+  readonly listDropBetweenBackground: string | undefined;
+  readonly listFocusOutline: string | undefined;
+  readonly listInactiveFocusOutline: string | undefined;
+  readonly listSelectionOutline: string | undefined;
+  readonly listHoverOutline: string | undefined;
+  readonly treeIndentGuidesStroke: string | undefined;
+  readonly treeInactiveIndentGuidesStroke: string | undefined;
+  readonly treeStickyScrollBackground: string | undefined;
+  readonly treeStickyScrollBorder: string | undefined;
+  readonly treeStickyScrollShadow: string | undefined;
+  readonly tableColumnsBorder: string | undefined;
+  readonly tableOddRowsBackgroundColor: string | undefined;
+}
+
+class DefaultStyleController {
+  public constructor(
+    private readonly styleElement: HTMLStyleElement,
+    private readonly selectorSuffix: string,
+  ) {}
+
+  public style(styles: IListStyles): void {
+    const suffix = this.selectorSuffix ? `.${this.selectorSuffix}` : "";
+    const list = `.ui-list${suffix}`;
+    const row = `${list} .ui-list__row`;
+    const content: string[] = [];
+
+    if (styles.listBackground) {
+      content.push(`${list} .ui-list__stage { background: ${styles.listBackground}; }`);
+    }
+    if (styles.listFocusBackground) {
+      content.push(`${list}:focus-within ${row}.ui-list__row--focused { background-color: ${styles.listFocusBackground}; }`);
+      content.push(`${list}:focus-within ${row}.ui-list__row--focused:hover { background-color: ${styles.listFocusBackground}; }`);
+    }
+    if (styles.listFocusForeground) {
+      content.push(`${list}:focus-within ${row}.ui-list__row--focused { color: ${styles.listFocusForeground}; }`);
+    }
+    if (styles.listActiveSelectionBackground) {
+      content.push(`${list}:focus-within ${row}.ui-list__row--selected { background-color: ${styles.listActiveSelectionBackground}; }`);
+      content.push(`${list}:focus-within ${row}.ui-list__row--selected:hover { background-color: ${styles.listActiveSelectionBackground}; }`);
+    }
+    if (styles.listActiveSelectionForeground) {
+      content.push(`${list}:focus-within ${row}.ui-list__row--selected { color: ${styles.listActiveSelectionForeground}; }`);
+    }
+    if (styles.listActiveSelectionIconForeground) {
+      content.push(`${list}:focus-within ${row}.ui-list__row--selected .codicon { color: ${styles.listActiveSelectionIconForeground}; }`);
+    }
+    if (styles.listFocusAndSelectionBackground) {
+      content.push(`${list}:focus-within ${row}.ui-list__row--selected.ui-list__row--focused { background-color: ${styles.listFocusAndSelectionBackground}; }`);
+    }
+    if (styles.listFocusAndSelectionForeground) {
+      content.push(`${list}:focus-within ${row}.ui-list__row--selected.ui-list__row--focused { color: ${styles.listFocusAndSelectionForeground}; }`);
+    }
+    if (styles.listInactiveFocusForeground) {
+      content.push(`${row}.ui-list__row--focused { color: ${styles.listInactiveFocusForeground}; }`);
+      content.push(`${row}.ui-list__row--focused:hover { color: ${styles.listInactiveFocusForeground}; }`);
+    }
+    if (styles.listInactiveSelectionIconForeground) {
+      content.push(`${row}.ui-list__row--focused .codicon { color: ${styles.listInactiveSelectionIconForeground}; }`);
+    }
+    if (styles.listInactiveFocusBackground) {
+      content.push(`${row}.ui-list__row--focused { background-color: ${styles.listInactiveFocusBackground}; }`);
+      content.push(`${row}.ui-list__row--focused:hover { background-color: ${styles.listInactiveFocusBackground}; }`);
+    }
+    if (styles.listInactiveSelectionBackground) {
+      content.push(`${row}.ui-list__row--selected { background-color: ${styles.listInactiveSelectionBackground}; }`);
+      content.push(`${row}.ui-list__row--selected:hover { background-color: ${styles.listInactiveSelectionBackground}; }`);
+    }
+    if (styles.listInactiveSelectionForeground) {
+      content.push(`${row}.ui-list__row--selected { color: ${styles.listInactiveSelectionForeground}; }`);
+    }
+    if (styles.listHoverBackground) {
+      content.push(`${list}:not(.drop-target):not(.dragging) ${row}:hover:not(.ui-list__row--selected):not(.ui-list__row--focused) { background-color: ${styles.listHoverBackground}; }`);
+    }
+    if (styles.listHoverForeground) {
+      content.push(`${list}:not(.drop-target):not(.dragging) ${row}:hover:not(.ui-list__row--selected):not(.ui-list__row--focused) { color: ${styles.listHoverForeground}; }`);
+    }
+
+    const focusAndSelectionOutline = asCssValueWithDefault(styles.listFocusAndSelectionOutline, asCssValueWithDefault(styles.listSelectionOutline, styles.listFocusOutline ?? ""));
+    if (focusAndSelectionOutline) {
+      content.push(`${list}:focus-within ${row}.ui-list__row--focused.ui-list__row--selected { outline: 1px solid ${focusAndSelectionOutline}; outline-offset: -1px; }`);
+    }
+    if (styles.listFocusOutline) {
+      content.push(`${list}:focus-within ${row}.ui-list__row--focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }`);
+    }
+    const inactiveFocusAndSelectionOutline = asCssValueWithDefault(styles.listSelectionOutline, styles.listInactiveFocusOutline ?? "");
+    if (inactiveFocusAndSelectionOutline) {
+      content.push(`${row}.ui-list__row--focused.ui-list__row--selected { outline: 1px dotted ${inactiveFocusAndSelectionOutline}; outline-offset: -1px; }`);
+    }
+    if (styles.listSelectionOutline) {
+      content.push(`${row}.ui-list__row--selected { outline: 1px dotted ${styles.listSelectionOutline}; outline-offset: -1px; }`);
+    }
+    if (styles.listInactiveFocusOutline) {
+      content.push(`${row}.ui-list__row--focused { outline: 1px dotted ${styles.listInactiveFocusOutline}; outline-offset: -1px; }`);
+    }
+    if (styles.listHoverOutline) {
+      content.push(`${row}:hover { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`);
+    }
+    if (styles.listDropOverBackground) {
+      content.push(`${list}.drop-target, ${list} .ui-list__stage.drop-target, ${row}.drop-target { background-color: ${styles.listDropOverBackground} !important; color: inherit !important; }`);
+    }
+    if (styles.listDropBetweenBackground) {
+      content.push(`${list} .ui-list__stage.drop-target-before .ui-list__row:first-child::before, ${row}.drop-target-before::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 1px; background-color: ${styles.listDropBetweenBackground}; }`);
+      content.push(`${list} .ui-list__stage.drop-target-after .ui-list__row:last-child::after, ${row}.drop-target-after::after { content: ""; position: absolute; bottom: 0; left: 0; width: 100%; height: 1px; background-color: ${styles.listDropBetweenBackground}; }`);
+    }
+    if (styles.tableColumnsBorder) {
+      content.push(`${list} .ui-table-columns { border-color: ${styles.tableColumnsBorder}; }`);
+    }
+    if (styles.tableOddRowsBackgroundColor) {
+      content.push(`${row}[data-parity=odd]:not(.ui-list__row--focused):not(.ui-list__row--selected):not(:hover) { background-color: ${styles.tableOddRowsBackgroundColor}; }`);
+    }
+
+    this.styleElement.textContent = content.join("\n");
+  }
+}
+
+export const unthemedListStyles: IListStyles = {
+  listActiveSelectionBackground: "#0E639C",
+  listActiveSelectionForeground: "#FFFFFF",
+  listActiveSelectionIconForeground: "#FFFFFF",
+  listBackground: undefined,
+  listDropBetweenBackground: "#EEEEEE",
+  listDropOverBackground: "#383B3D",
+  listFocusAndSelectionBackground: "#094771",
+  listFocusAndSelectionForeground: "#FFFFFF",
+  listFocusAndSelectionOutline: "#90C2F9",
+  listFocusBackground: "#7FB0D0",
+  listFocusForeground: undefined,
+  listFocusOutline: undefined,
+  listHoverBackground: "#2A2D2E",
+  listHoverForeground: undefined,
+  listHoverOutline: undefined,
+  listInactiveFocusBackground: undefined,
+  listInactiveFocusForeground: undefined,
+  listInactiveFocusOutline: undefined,
+  listInactiveSelectionBackground: "#3F3F46",
+  listInactiveSelectionForeground: undefined,
+  listInactiveSelectionIconForeground: "#FFFFFF",
+  listSelectionOutline: undefined,
+  tableColumnsBorder: "rgba(204, 204, 204, 0.2)",
+  tableOddRowsBackgroundColor: "rgba(204, 204, 204, 0.04)",
+  treeInactiveIndentGuidesStroke: "rgba(169, 169, 169, 0.4)",
+  treeIndentGuidesStroke: "#a9a9a9",
+  treeStickyScrollBackground: undefined,
+  treeStickyScrollBorder: undefined,
+  treeStickyScrollShadow: undefined,
+};
 
 export interface IListAccessibilityProvider<T> extends IListViewAccessibilityProvider<T> {
   getActiveDescendantId?(element: T): string | undefined;
@@ -119,6 +286,13 @@ const sanitizeIndexes = (indexes: readonly number[]): number[] => {
 
 const equals = (first: readonly number[], second: readonly number[]): boolean =>
   first.length === second.length && first.every((value, index) => value === second[index]);
+
+const classNames = (...classes: Array<string | undefined>): string | undefined => {
+  const result = classes.filter((className): className is string => !!className).join(" ");
+  return result || undefined;
+};
+
+let listStyleControllerId = 0;
 
 function getContiguousRangeContaining(sortedRange: readonly number[], value: number): number[] {
   const index = sortedRange.indexOf(value);
@@ -716,7 +890,10 @@ export class MouseController<T> implements IDisposable {
       list.onMouseDblClick(this.onDoubleClick, this, this.disposables);
     }
 
-    Event.any<IListMouseEvent<T> | IListGestureEvent<T>>(list.onMouseClick)(
+    Event.any<IListMouseEvent<T> | IListGestureEvent<T>>(
+      list.onMouseClick,
+      list.onMouseMiddleClick,
+    )(
       event => this.onViewPointer(event as IListMouseEvent<T>),
       undefined,
       this.disposables,
@@ -975,6 +1152,7 @@ export class List<T> extends Disposable implements ListHandle {
   private readonly onKeyPressEmitter = this._register(new Emitter<KeyboardEvent>());
   private readonly onMouseClickEmitter = this._register(new Emitter<IListMouseEvent<T>>());
   private readonly onMouseDblClickEmitter = this._register(new Emitter<IListMouseEvent<T>>());
+  private readonly onMouseMiddleClickEmitter = this._register(new Emitter<IListMouseEvent<T>>());
   private readonly onMouseDownEmitter = this._register(new Emitter<IListMouseEvent<T>>());
   private readonly onMouseUpEmitter = this._register(new Emitter<IListMouseEvent<T>>());
   private readonly onMouseOverEmitter = this._register(new Emitter<IListMouseEvent<T>>());
@@ -985,6 +1163,8 @@ export class List<T> extends Disposable implements ListHandle {
   private readonly view: ListView<T>;
   private readonly spliceable: ISpliceable<T>;
   private readonly mouseController: MouseController<T>;
+  private readonly styleClassName = `ui-list-style-${++listStyleControllerId}`;
+  private readonly styleController: DefaultStyleController;
   private keyboardController: KeyboardController<T> | undefined;
   private typeNavigationController: TypeNavigationController<T> | undefined;
   private viewDragAndDrop: ListViewDragAndDrop<T> | undefined;
@@ -1004,6 +1184,7 @@ export class List<T> extends Disposable implements ListHandle {
     this.selectionTrait = this._register(new SelectionTrait<T>());
     this.anchorTrait = this._register(new Trait<T>("anchor"));
     this.view = this._register(new ListView(container, this.createViewOptions()));
+    this.styleController = new DefaultStyleController(createStyleSheet(this.view.domNode), this.styleClassName);
     this.spliceable = new CombinedSpliceable([
       new ListItemsSpliceable(
         () => this.items,
@@ -1078,6 +1259,7 @@ export class List<T> extends Disposable implements ListHandle {
   public readonly onKeyPress: BaseEvent<KeyboardEvent> = this.onKeyPressEmitter.event;
   public readonly onMouseClick: BaseEvent<IListMouseEvent<T>> = this.onMouseClickEmitter.event;
   public readonly onMouseDblClick: BaseEvent<IListMouseEvent<T>> = this.onMouseDblClickEmitter.event;
+  public readonly onMouseMiddleClick: BaseEvent<IListMouseEvent<T>> = this.onMouseMiddleClickEmitter.event;
   public readonly onMouseDown: BaseEvent<IListMouseEvent<T>> = this.onMouseDownEmitter.event;
   public readonly onMouseUp: BaseEvent<IListMouseEvent<T>> = this.onMouseUpEmitter.event;
   public readonly onMouseOver: BaseEvent<IListMouseEvent<T>> = this.onMouseOverEmitter.event;
@@ -1359,6 +1541,10 @@ export class List<T> extends Disposable implements ListHandle {
     this.typeNavigationController?.trigger();
   }
 
+  public style(styles: IListStyles): void {
+    this.styleController.style(styles);
+  }
+
   public override dispose(): void {
     if (this.disposed) {
       return;
@@ -1372,6 +1558,7 @@ export class List<T> extends Disposable implements ListHandle {
   private createViewOptions(): IListViewOptions<T> {
     return {
       ...this.options,
+      className: classNames(this.options.className, this.styleClassName),
       dnd: this.getViewDragAndDrop(),
       focusedKey: this.getKeyForIndex(this.focusTrait.get()[0]),
       items: this.items,
@@ -1418,6 +1605,7 @@ export class List<T> extends Disposable implements ListHandle {
 
     this._register(this.view.onMouseClick(event => this.onMouseClickEmitter.fire(event)));
     this._register(this.view.onMouseDblClick(event => this.onMouseDblClickEmitter.fire(event)));
+    this._register(this.view.onMouseMiddleClick(event => this.onMouseMiddleClickEmitter.fire(event)));
     this._register(this.view.onMouseDown(event => this.onMouseDownEmitter.fire(event)));
     this._register(this.view.onMouseUp(event => this.onMouseUpEmitter.fire(event)));
     this._register(this.view.onMouseOver(event => this.onMouseOverEmitter.fire(event)));

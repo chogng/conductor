@@ -4,8 +4,12 @@ import {
   addDisposableListener,
   clearNode,
   EventType,
+  registerWindow,
   replaceChildrenIfChanged,
 } from "../../browser/dom.ts";
+import { asCssValueWithDefault } from "../../browser/cssValue.ts";
+import { createStyleSheet } from "../../browser/domStylesheets.ts";
+import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/browser/dom", () => {
@@ -72,5 +76,42 @@ suite("base/test/browser/dom", () => {
 
     assert.equal(replaceCalls, 1);
     assert.equal(parent.firstChild, nextChild);
+  });
+
+  test("asCssValueWithDefault fills missing variable fallbacks", () => {
+    assert.equal(asCssValueWithDefault("red", "blue"), "red");
+    assert.equal(asCssValueWithDefault(undefined, "blue"), "blue");
+    assert.equal(asCssValueWithDefault("var(--my-var)", "blue"), "var(--my-var, blue)");
+    assert.equal(asCssValueWithDefault("var(--my-var, red)", "blue"), "var(--my-var, red)");
+    assert.equal(
+      asCssValueWithDefault("var(--my-var, var(--my-var2))", "blue"),
+      "var(--my-var, var(--my-var2, blue))",
+    );
+  });
+
+  test("registerWindow clones global stylesheets", () => {
+    const iframe = document.createElement("iframe");
+    const styleStore = new DisposableStore();
+    let registration = { dispose() {} };
+
+    document.body.append(iframe);
+
+    try {
+      const stylesheet = createStyleSheet(undefined, style => {
+        style.textContent = ".global-style-test { color: red; }";
+      }, styleStore);
+      assert.equal(stylesheet.textContent, ".global-style-test { color: red; }");
+
+      const targetWindow = iframe.contentWindow;
+      assert.ok(targetWindow);
+      registration = registerWindow(targetWindow);
+
+      const clonedStylesheet = targetWindow.document.head.querySelector("style");
+      assert.equal(clonedStylesheet?.textContent, ".global-style-test { color: red; }");
+    } finally {
+      registration.dispose();
+      styleStore.dispose();
+      iframe.remove();
+    }
   });
 });
