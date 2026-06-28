@@ -4,6 +4,7 @@
 
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollableElement";
 import { MOUSE_CURSOR_CELL_CLASS_NAME } from "src/cs/base/browser/ui/mouseCursor/mouseCursor";
+import { RowCache, type IRow, type IRowCacheRenderer } from "src/cs/base/browser/rowCache";
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { KeyCode } from "src/cs/base/common/keyCodes";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
@@ -148,6 +149,11 @@ type VirtualTableBodyRow<TTemplateData = unknown> = {
 	appliedRowIndex?: number;
 };
 
+type VirtualTableBodyRowEntry<TTemplateData = unknown> = IRow<
+	VirtualTableBodyRow<TTemplateData>,
+	HTMLTableRowElement
+>;
+
 export type VirtualTableRenderOptions = {
 	readonly columnCount: unknown;
 	readonly headerRenderVersion?: unknown;
@@ -232,6 +238,8 @@ const VIRTUAL_TABLE_CLASS_NAMES: VirtualTableClassNames = {
 	virtualSpacerCell: "table_view_virtual_spacer_cell",
 	viewport: "table_view_preview",
 };
+
+const VIRTUAL_TABLE_BODY_ROW_TEMPLATE_ID = "body-row";
 
 export type VirtualTableOptions<TBodyTemplateData = unknown, TColumnHeaderTemplateData = unknown> = {
 	readonly getColumnWidth: (colIndex: number) => number;
@@ -700,8 +708,10 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 	public readonly onDidScroll: Event<VirtualTableScrollEvent>;
 
 	private readonly bodyDataColumns: HTMLTableColElement[] = [];
-	private readonly bodyGrid: VirtualTableBodyRow<TBodyTemplateData>[] = [];
+	private readonly bodyGrid: VirtualTableBodyRowEntry<TBodyTemplateData>[] = [];
 	private readonly bodyLeadingSpacerColumn = document.createElement("col");
+	private readonly bodyRowCache: RowCache<VirtualTableBodyRow<TBodyTemplateData>, HTMLTableRowElement>;
+	private readonly bodyRowRenderers: ReadonlyMap<string, IRowCacheRenderer<VirtualTableBodyRow<TBodyTemplateData>, HTMLTableRowElement>>;
 	private readonly bodyTrailingSpacerColumn = document.createElement("col");
 	private readonly bottomSpacerCell = document.createElement("td");
 	private readonly bottomSpacerRow = document.createElement("tr");
@@ -749,6 +759,17 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 		this.maxRenderedRows = options.maxRenderedRows ?? VirtualTableGridModel.DEFAULT_MAX_RENDERED_ROWS;
 		this.onDidChangeVisibleRange = this.onDidChangeVisibleRangeEmitter.event;
 		this.onDidScroll = this.onDidScrollEmitter.event;
+		this.bodyRowRenderers = new Map([[
+			VIRTUAL_TABLE_BODY_ROW_TEMPLATE_ID,
+			{
+				renderTemplate: row => this.renderBodyRowTemplate(row),
+				disposeTemplate: row => this.disposeBodyRowTemplate(row),
+			},
+		]]);
+		this.bodyRowCache = new RowCache(this.bodyRowRenderers, {
+			createDomNode: () => document.createElement("tr"),
+			removeDomNode: row => row.remove(),
+		});
 
 		this.element = document.createElement("div");
 		this.body = document.createElement("div");
@@ -810,10 +831,8 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 	}
 
 	public dispose(): void {
-		this.forEachBodyCell(cell => {
-			this.options.renderer.clearBodyCell(cell.templateData);
-			this.options.renderer.disposeBodyCellTemplate(cell.templateData);
-		});
+		this.releaseBodyRows(0);
+		this.bodyRowCache.dispose();
 		if (this.options.renderer.disposeColumnHeaderTemplate) {
 			for (const cell of this.headerCells) {
 				this.options.renderer.disposeColumnHeaderTemplate(cell.templateData);
@@ -848,6 +867,7 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 		const visibleRangeChanged = !isVirtualTableStateEqual(previousState, nextState);
 		this.state = nextState;
 		if (rowCount === 0 || columnCount === 0) {
+			const rowsChanged = this.syncBodyRows(0);
 			const bodyVisibilityChanged = this.syncBodyGridVisibility(rowRange, columnRange, previousState);
 			const columnLayoutChanged = this.syncColumnLayout(columnRange);
 			this.renderVisibleHeaders(columnRange, options.headerRenderVersion);
@@ -856,13 +876,13 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 			if (visibleRangeChanged) {
 				this.onDidChangeVisibleRangeEmitter.fire({ previous: previousState, current: nextState });
 			}
-			return bodyVisibilityChanged || columnLayoutChanged || visibleRangeChanged || zoomChanged;
+			return rowsChanged || bodyVisibilityChanged || columnLayoutChanged || visibleRangeChanged || zoomChanged;
 		}
 
 		setHidden(this.header, false);
 		const headerChanged = this.ensureHeaderGrid();
 		const columnsChanged = this.ensureBodyColumns();
-		const cellsChanged = this.ensureBodyCells();
+		const rowsChanged = this.syncBodyRows(rowCount);
 		const bodyVisibilityChanged = this.syncBodyGridVisibility(rowRange, columnRange, previousState);
 		const columnLayoutChanged = this.syncColumnLayout(columnRange);
 		this.renderVisibleHeaders(columnRange, options.headerRenderVersion);
@@ -873,7 +893,7 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 		if (visibleRangeChanged) {
 			this.onDidChangeVisibleRangeEmitter.fire({ previous: previousState, current: nextState });
 		}
-		return headerChanged || columnsChanged || cellsChanged || bodyVisibilityChanged || columnLayoutChanged || zoomChanged;
+		return headerChanged || columnsChanged || rowsChanged || bodyVisibilityChanged || columnLayoutChanged || zoomChanged;
 	}
 
 	public clearBodyCells(): void {
@@ -900,7 +920,7 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 
 			for (let rowIndex = startRow; rowIndex <= endRow; rowIndex += 1) {
 				const rowOffset = rowIndex - this.state.rowRange.startIndex;
-				const row = this.bodyGrid[rowOffset];
+				const row = this.bodyGrid[rowOffset]?.templateData;
 				if (!row || row.element.hidden) {
 					continue;
 				}
@@ -960,7 +980,7 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 	}
 
 	public forEachBodyCell(callback: (cell: VirtualTableBodyCell<TBodyTemplateData>) => void): void {
-		for (const row of this.bodyGrid) {
+		for (const { templateData: row } of this.bodyGrid) {
 			for (const cell of row.cells) {
 				callback(cell);
 			}
@@ -968,7 +988,7 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 	}
 
 	public getBodyCell(rowOffset: number, columnOffset: number): HTMLTableCellElement | null {
-		return this.bodyGrid[rowOffset]?.cells[columnOffset]?.element ?? null;
+		return this.bodyGrid[rowOffset]?.templateData.cells[columnOffset]?.element ?? null;
 	}
 
 	public getColumnHeaderCell(columnOffset: number): HTMLElement | null {
@@ -976,7 +996,7 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 	}
 
 	public getBodyCellTemplateData(rowOffset: number, columnOffset: number): TBodyTemplateData | null {
-		return this.bodyGrid[rowOffset]?.cells[columnOffset]?.templateData ?? null;
+		return this.bodyGrid[rowOffset]?.templateData.cells[columnOffset]?.templateData ?? null;
 	}
 
 	public getColumnHeaderTemplateData(columnOffset: number): TColumnHeaderTemplateData | null {
@@ -1182,61 +1202,125 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 		return true;
 	}
 
-	private ensureBodyCells(): boolean {
-		if (this.bodyGrid.length > 0) {
-			return false;
-		}
-
-		this.bodyRows.append(this.topSpacerRow);
-
-		for (let rowIndex = 0; rowIndex < this.maxRenderedRows; rowIndex += 1) {
-			const row = document.createElement("tr");
-			const rowHeader = document.createElement("th");
-			const rowHeaderLabel = document.createElement("span");
-			const leadingSpacer = document.createElement("td");
-			const trailingSpacer = document.createElement("td");
-			const cells: VirtualTableBodyCell[] = [];
-
-			rowHeader.scope = "row";
-			rowHeaderLabel.className = this.classNames.rowHeaderLabel;
-			rowHeader.append(rowHeaderLabel);
-			row.append(rowHeader);
-			leadingSpacer.className = this.classNames.columnSpacerCell;
-			leadingSpacer.setAttribute("aria-hidden", "true");
-			row.append(leadingSpacer);
-
-			for (let colIndex = 0; colIndex < this.maxRenderedColumns; colIndex += 1) {
-				const cell = document.createElement("td");
-				const content = document.createElement("span");
-				cell.className = this.classNames.cell;
-				content.className = this.classNames.cellContent;
-				cell.dataset.rowIndex = String(rowIndex);
-				cell.dataset.colIndex = String(colIndex);
-				cell.append(content);
-				row.append(cell);
-				cells.push({
-					content,
-					element: cell,
-					templateData: this.options.renderer.renderBodyCellTemplate(cell, content),
-				});
+	private syncBodyRows(rowCount: number): boolean {
+		const safeRowCount = Math.min(this.maxRenderedRows, toSafeCount(rowCount));
+		let changed = this.ensureBodyRowsShell();
+		this.bodyRowCache.transact(() => {
+			if (this.releaseBodyRowsFrom(safeRowCount)) {
+				changed = true;
 			}
+			while (this.bodyGrid.length < safeRowCount) {
+				const { row } = this.bodyRowCache.alloc(VIRTUAL_TABLE_BODY_ROW_TEMPLATE_ID);
+				this.bodyGrid.push(row);
+				this.bodyRows.insertBefore(row.domNode, this.bottomSpacerRow);
+				changed = true;
+			}
+		});
+		return changed;
+	}
 
-			trailingSpacer.className = this.classNames.columnSpacerCell;
-			trailingSpacer.setAttribute("aria-hidden", "true");
-			row.append(trailingSpacer);
+	private ensureBodyRowsShell(): boolean {
+		let changed = false;
+		if (this.topSpacerRow.parentElement !== this.bodyRows) {
+			this.bodyRows.prepend(this.topSpacerRow);
+			changed = true;
+		}
+		if (this.bottomSpacerRow.parentElement !== this.bodyRows) {
+			this.bodyRows.append(this.bottomSpacerRow);
+			changed = true;
+		}
+		return changed;
+	}
 
-			this.bodyGrid.push({
-				element: row,
-				rowHeader,
-				leadingSpacer,
-				cells,
-				trailingSpacer,
+	private releaseBodyRows(rowCount: number): boolean {
+		let changed = false;
+		this.bodyRowCache.transact(() => {
+			changed = this.releaseBodyRowsFrom(rowCount);
+		});
+		return changed;
+	}
+
+	private releaseBodyRowsFrom(rowCount: number): boolean {
+		let changed = false;
+		while (this.bodyGrid.length > rowCount) {
+			const row = this.bodyGrid.pop();
+			if (!row) {
+				break;
+			}
+			this.resetBodyRow(row.templateData);
+			this.bodyRowCache.release(row);
+			changed = true;
+		}
+		return changed;
+	}
+
+	private renderBodyRowTemplate(row: HTMLTableRowElement): VirtualTableBodyRow<TBodyTemplateData> {
+		const rowHeader = document.createElement("th");
+		const rowHeaderLabel = document.createElement("span");
+		const leadingSpacer = document.createElement("td");
+		const trailingSpacer = document.createElement("td");
+		const cells: VirtualTableBodyCell<TBodyTemplateData>[] = [];
+
+		rowHeader.scope = "row";
+		rowHeaderLabel.className = this.classNames.rowHeaderLabel;
+		rowHeader.append(rowHeaderLabel);
+		row.append(rowHeader);
+		leadingSpacer.className = this.classNames.columnSpacerCell;
+		leadingSpacer.setAttribute("aria-hidden", "true");
+		row.append(leadingSpacer);
+
+		for (let colIndex = 0; colIndex < this.maxRenderedColumns; colIndex += 1) {
+			const cell = document.createElement("td");
+			const content = document.createElement("span");
+			cell.className = this.classNames.cell;
+			content.className = this.classNames.cellContent;
+			cell.append(content);
+			row.append(cell);
+			cells.push({
+				content,
+				element: cell,
+				templateData: this.options.renderer.renderBodyCellTemplate(cell, content),
 			});
-			this.bodyRows.append(row);
 		}
 
-		this.bodyRows.append(this.bottomSpacerRow);
-		return true;
+		trailingSpacer.className = this.classNames.columnSpacerCell;
+		trailingSpacer.setAttribute("aria-hidden", "true");
+		row.append(trailingSpacer);
+
+		return {
+			element: row,
+			rowHeader,
+			leadingSpacer,
+			cells,
+			trailingSpacer,
+		};
+	}
+
+	private resetBodyRow(row: VirtualTableBodyRow<TBodyTemplateData>): void {
+		row.element.hidden = false;
+		row.element.removeAttribute("aria-rowindex");
+		row.appliedHidden = undefined;
+		row.appliedRowIndex = undefined;
+		for (const cell of row.cells) {
+			this.options.renderer.clearBodyCell(cell.templateData);
+			cell.element.hidden = false;
+			cell.element.removeAttribute("aria-colindex");
+			delete cell.element.dataset.colIndex;
+			delete cell.element.dataset.rowIndex;
+			cell.appliedColIndex = undefined;
+			cell.appliedHidden = undefined;
+			cell.appliedRenderVersion = undefined;
+			cell.appliedRowIndex = undefined;
+			cell.renderedColIndex = undefined;
+			cell.renderedRowIndex = undefined;
+		}
+	}
+
+	private disposeBodyRowTemplate(row: VirtualTableBodyRow<TBodyTemplateData>): void {
+		for (const cell of row.cells) {
+			this.options.renderer.clearBodyCell(cell.templateData);
+			this.options.renderer.disposeBodyCellTemplate(cell.templateData);
+		}
 	}
 
 	private syncColumnLayout(columnRange: VirtualTableColumnRange): boolean {
@@ -1271,7 +1355,7 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 		if (setColumnWidth(this.bodyTrailingSpacerColumn, trailingWidth)) {
 			changed = true;
 		}
-		for (const row of this.bodyGrid) {
+		for (const { templateData: row } of this.bodyGrid) {
 			if (setElementWidth(row.leadingSpacer, leadingWidth)) {
 				changed = true;
 			}
@@ -1294,7 +1378,7 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 			changed = true;
 		}
 
-		for (const row of this.bodyGrid) {
+		for (const { templateData: row } of this.bodyGrid) {
 			const cell = row.cells[columnOffset];
 			if (cell && setElementWidth(cell.element, width)) {
 				changed = true;
@@ -1314,7 +1398,7 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 		const spacerChanged = this.syncVirtualSpacers(rowRange, columnCount);
 
 		for (let rowIndex = 0; rowIndex < this.bodyGrid.length; rowIndex += 1) {
-			const row = this.bodyGrid[rowIndex];
+			const row = this.bodyGrid[rowIndex].templateData;
 			const actualRowIndex = rowRange.startIndex + rowIndex;
 			const rowHidden = rowIndex >= rowCount;
 			if (row.appliedHidden !== rowHidden) {
@@ -1416,7 +1500,10 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 		renderVersion: unknown,
 	): void {
 		for (let rowOffset = 0; rowOffset < rowRange.renderedCount; rowOffset += 1) {
-			const row = this.bodyGrid[rowOffset];
+			const row = this.bodyGrid[rowOffset]?.templateData;
+			if (!row) {
+				continue;
+			}
 			const rowIndex = rowRange.startIndex + rowOffset;
 			for (let columnOffset = 0; columnOffset < columnRange.renderedCount; columnOffset += 1) {
 				const colIndex = columnRange.startIndex + columnOffset;
