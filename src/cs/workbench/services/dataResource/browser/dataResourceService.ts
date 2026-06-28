@@ -7,6 +7,7 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
+import { startPerf } from "src/cs/workbench/common/perf";
 import {
 	IDataResourceService,
 	type DataResourceLoadState,
@@ -190,44 +191,73 @@ const toDataResourceLoadState = (
 const createStructuredContentEvidence = (
 	content: TableModelContentSnapshot,
 ): Omit<StructuredContentEvidence, "diagnostics"> => {
-	const rows = readTableModelContentRows(content);
-	const headerRowIndex = getStructuredContentHeaderRowIndex(rows);
-	const dataStartRow = getStructuredContentDataStartRow(content, headerRowIndex);
-	const dataRange = createStructuredContentDataRange(content, dataStartRow);
-	const columns = createStructuredColumnProjections({
-		content,
-		dataStartRow,
-		headerRowIndex,
-		rows,
-	});
-	const measurement = createStructuredMeasurementProjection(columns.map(column => column.measurementColumn));
-	const structure = createStructuredContentStructure({
-		content,
-		dataRange,
-		headerRowIndex,
-	});
-	const layoutCandidates = measurement
-		? [createStructuredLayoutCandidate(measurement, dataRange)]
-		: [];
-	const blocks = measurement
-		? [createStructuredMeasurementBlock({
-			columns: columns.map(column => column.measurementColumn),
+	const endPerf = startPerf("dataResource.structuredContent.evidence", {
+		columnCount: content.columnCount,
+		rowCount: content.rowCount,
+	}, { silent: true });
+	let blockCount = 0;
+	let columnProfileCount = 0;
+	let layoutCandidateCount = 0;
+	try {
+		const rows = getStructuredContentRows(content);
+		const headerRowIndex = getStructuredContentHeaderRowIndex(rows);
+		const dataStartRow = getStructuredContentDataStartRow(content, headerRowIndex);
+		const dataRange = createStructuredContentDataRange(content, dataStartRow);
+		const columnKinds = getStructuredColumnKinds({
+			columnCount: content.columnCount,
+			dataStartRow,
+			rows,
+		});
+		const columns = createStructuredColumnProjections({
+			columnKinds,
+			content,
+			headerRowIndex,
+			rows,
+		});
+		const measurement = createStructuredMeasurementProjection(columns.map(column => column.measurementColumn));
+		const structure = createStructuredContentStructure({
 			content,
 			dataRange,
 			headerRowIndex,
-			measurement,
-		})]
-		: [];
-
-	return {
-		structure,
-		columnProfiles: columns.map(column => column.profile),
-		layoutCandidates,
-		semanticCandidates: columns.map(column => column.semanticCandidate),
-		groups: [],
-		blocks,
-	};
+		});
+		const layoutCandidates = measurement
+			? [createStructuredLayoutCandidate(measurement, dataRange)]
+			: [];
+		const blocks = measurement
+			? [createStructuredMeasurementBlock({
+				columns: columns.map(column => column.measurementColumn),
+				content,
+				dataRange,
+				headerRowIndex,
+				measurement,
+			})]
+			: [];
+		blockCount = blocks.length;
+		columnProfileCount = columns.length;
+		layoutCandidateCount = layoutCandidates.length;
+		return {
+			structure,
+			columnProfiles: columns.map(column => column.profile),
+			layoutCandidates,
+			semanticCandidates: columns.map(column => column.semanticCandidate),
+			groups: [],
+			blocks,
+		};
+	} finally {
+		endPerf({
+			blockCount,
+			columnProfileCount,
+			layoutCandidateCount,
+		});
+	}
 };
+
+const getStructuredContentRows = (
+	content: TableModelContentSnapshot,
+): readonly (readonly string[])[] =>
+	content.rowWindows?.length
+		? readTableModelContentRows(content)
+		: content.rows;
 
 const createStructuredContentStructure = ({
 	content,
@@ -272,13 +302,13 @@ const createStructuredContentStructure = ({
 };
 
 const createStructuredColumnProjections = ({
+	columnKinds,
 	content,
-	dataStartRow,
 	headerRowIndex,
 	rows,
 }: {
+	readonly columnKinds: readonly ColumnProfile["kind"][];
 	readonly content: TableModelContentSnapshot;
-	readonly dataStartRow: number;
 	readonly headerRowIndex: number | null;
 	readonly rows: readonly (readonly string[])[];
 }): readonly StructuredColumnProjection[] => {
@@ -287,7 +317,7 @@ const createStructuredColumnProjections = ({
 		const headerText = getStructuredContentHeaderText(rows, headerRowIndex, column);
 		const normalizedHeader = normalizeHeaderText(headerText);
 		const roleInference = inferMeasurementColumnRole(headerText);
-		const kind = getStructuredColumnKind(rows, dataStartRow, column);
+		const kind = columnKinds[column] ?? "empty";
 		const profile: ColumnProfile = {
 			rawCol: column,
 			headerText,
@@ -510,23 +540,43 @@ const getStructuredContentHeaderText = (
 	? normalizeText(rows[headerRowIndex]?.[column])
 	: `Column ${column + 1}`;
 
-const getStructuredColumnKind = (
-	rows: readonly (readonly string[])[],
-	dataStartRow: number,
-	column: number,
-): ColumnProfile["kind"] => {
-	const values = rows
-		.slice(dataStartRow)
-		.map(row => normalizeText(row[column]))
-		.filter(Boolean);
-	if (!values.length) {
-		return "empty";
+const getStructuredColumnKinds = ({
+	columnCount,
+	dataStartRow,
+	rows,
+}: {
+	readonly columnCount: number;
+	readonly dataStartRow: number;
+	readonly rows: readonly (readonly string[])[];
+}): readonly ColumnProfile["kind"][] => {
+	const hasNumericValue = Array.from({ length: columnCount }, () => false);
+	const hasTextValue = Array.from({ length: columnCount }, () => false);
+	const hasValue = Array.from({ length: columnCount }, () => false);
+	for (let rowIndex = dataStartRow; rowIndex < rows.length; rowIndex += 1) {
+		const row = rows[rowIndex] ?? [];
+		for (let column = 0; column < columnCount; column += 1) {
+			const value = normalizeText(row[column]);
+			if (!value) {
+				continue;
+			}
+			hasValue[column] = true;
+			if (isFiniteNumberText(value)) {
+				hasNumericValue[column] = true;
+			} else {
+				hasTextValue[column] = true;
+			}
+		}
 	}
-	const numericCount = values.filter(isFiniteNumberText).length;
-	if (numericCount === values.length) {
-		return "numeric";
-	}
-	return numericCount > 0 ? "mixed" : "text";
+
+	return Array.from({ length: columnCount }, (_, column): ColumnProfile["kind"] => {
+		if (!hasValue[column]) {
+			return "empty";
+		}
+		if (!hasTextValue[column]) {
+			return "numeric";
+		}
+		return hasNumericValue[column] ? "mixed" : "text";
+	});
 };
 
 const inferMeasurementColumnRole = (

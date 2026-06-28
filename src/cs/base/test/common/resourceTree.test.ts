@@ -85,6 +85,31 @@ suite("base/test/common/resourceTree", () => {
 		assert.equal(sample.element, "sample");
 	});
 
+	test("uses the configured URI casing policy for child lookup", () => {
+		const root = URI.file("/workspace");
+		const tree = new ResourceTree("context", root, extUriIgnorePathCase);
+
+		tree.add(URI.file("/workspace/Folder/Sample.csv"), "first");
+		tree.add(URI.file("/workspace/folder/sample.csv"), "second");
+
+		assert.equal(tree.root.childrenCount, 1);
+		assert.equal(tree.root.get("Folder")?.get("Sample.csv")?.element, "second");
+		assert.equal(tree.root.get("folder")?.get("sample.csv")?.element, "second");
+		assert.equal(tree.getNode(URI.file("/workspace/FOLDER/SAMPLE.csv"))?.element, "second");
+	});
+
+	test("keeps case-sensitive child lookup by default", () => {
+		const root = URI.file("/workspace");
+		const tree = new ResourceTree("context", root);
+
+		tree.add(URI.file("/workspace/Folder/Sample.csv"), "first");
+		tree.add(URI.file("/workspace/folder/sample.csv"), "second");
+
+		assert.equal(tree.root.childrenCount, 2);
+		assert.equal(tree.root.get("Folder")?.get("Sample.csv")?.element, "first");
+		assert.equal(tree.root.get("folder")?.get("sample.csv")?.element, "second");
+	});
+
 	test("clears all child nodes", () => {
 		const tree = new ResourceTree<string, null>(null);
 

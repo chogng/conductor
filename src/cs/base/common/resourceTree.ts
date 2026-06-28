@@ -39,20 +39,21 @@ class ResourceNode<T, C> implements IResourceNode<T, C> {
 		public readonly uri: URI,
 		public readonly relativePath: string,
 		public readonly context: C,
+		private readonly normalizeChildName: (childName: string) => string,
 		public element: T | undefined = undefined,
 		public readonly parent: IResourceNode<T, C> | undefined = undefined,
 	) {}
 
 	public get(path: string): ResourceNode<T, C> | undefined {
-		return this.childrenByName.get(path);
+		return this.childrenByName.get(this.normalizeChildName(path));
 	}
 
 	public set(path: string, child: ResourceNode<T, C>): void {
-		this.childrenByName.set(path, child);
+		this.childrenByName.set(this.normalizeChildName(path), child);
 	}
 
 	public delete(path: string): void {
-		this.childrenByName.delete(path);
+		this.childrenByName.delete(this.normalizeChildName(path));
 	}
 
 	public clear(): void {
@@ -103,7 +104,7 @@ export class ResourceTree<T extends NonNullable<unknown>, C = void> {
 		rootURI: URI = URI.file("/"),
 		private readonly extUri: IExtUri = defaultExtUri,
 	) {
-		this.root = new ResourceNode(rootURI, "", context);
+		this.root = new ResourceNode(rootURI, "", context, childName => this.normalizeChildName(childName));
 	}
 
 	public add(uri: URI, element: T): void {
@@ -121,6 +122,7 @@ export class ResourceTree<T extends NonNullable<unknown>, C = void> {
 					this.extUri.joinPath(this.root.uri, path),
 					path,
 					this.root.context,
+					childName => this.normalizeChildName(childName),
 					index === segments.length - 1 ? element : undefined,
 					node,
 				);
@@ -186,5 +188,9 @@ export class ResourceTree<T extends NonNullable<unknown>, C = void> {
 	private getSegments(uri: URI): string[] {
 		const key = this.extUri.relativePath(this.root.uri, uri) || uri.path;
 		return splitPath(key);
+	}
+
+	private normalizeChildName(childName: string): string {
+		return this.extUri.ignorePathCasing(this.root.uri) ? childName.toLowerCase() : childName;
 	}
 }

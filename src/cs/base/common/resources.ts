@@ -10,6 +10,12 @@ export interface IExtUri {
   compare(uri1: URI, uri2: URI, ignoreFragment?: boolean): number;
   isEqual(uri1: URI | undefined, uri2: URI | undefined, ignoreFragment?: boolean): boolean;
   isEqualOrParent(base: URI, parentCandidate: URI, ignoreFragment?: boolean): boolean;
+  /**
+   * Creates a stable URI identity key for resource maps and sets.
+   *
+   * Pass this function to ResourceMap or ResourceSet when the container must use
+   * the same URI casing and fragment semantics as this IExtUri instance.
+   */
   getComparisonKey(uri: URI, ignoreFragment?: boolean): string;
   ignorePathCasing(uri: URI): boolean;
   basenameOrAuthority(resource: URI): string;

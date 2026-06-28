@@ -4,14 +4,18 @@
 
 import assert from "assert";
 
-import { Emitter } from "src/cs/base/common/event";
+import { Emitter, Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { StorageScope } from "src/cs/platform/storage/common/storage";
 import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
 import { DataResourceService } from "src/cs/workbench/services/dataResource/browser/dataResourceService";
-import type { IDataResourceService } from "src/cs/workbench/services/dataResource/common/dataResource";
+import type {
+	DataResourceStructuredContentResolution,
+	IDataResourceService,
+	IDataResourceStructuredContentReference,
+} from "src/cs/workbench/services/dataResource/common/dataResource";
 import {
 	createEmptyStructuredContentStructure,
 	type StructuredColumnProfile,
@@ -421,6 +425,96 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(uriReview.result?.reviewedTemplate?.template.measurement?.ivMode, "transfer");
 		assert.equal(service.getLatestReview(target)?.reviewSignature, uriReview.reviewSignature);
 		assert.equal(service.getLatestReview(target)?.summary.state, "ready");
+	});
+
+	test("keeps latest review summary reads off structured-content resolution", async () => {
+		const sessionService = store.add(new SessionService());
+		const recipeService = store.add(new TestRecipeService("recipe:first"));
+		const userTemplateService = createUserTemplateServiceForTest();
+		const resource = URI.file("/workspace/Transfer.csv");
+		const dataResourceService = store.add(new CountingDataResourceService(
+			createDataResourceServiceForTest(resource),
+		));
+		const service = createReviewServiceForTest(
+			sessionService,
+			recipeService,
+			userTemplateService,
+			dataResourceService,
+		);
+		const target = {
+			resource,
+			sheetId: "table-a",
+		};
+
+		assert.equal(service.getLatestReviewSummary(target).state, "pending");
+		assert.equal(dataResourceService.getStructuredContentCalls, 0);
+		assert.equal(dataResourceService.resolveStructuredContentCalls, 0);
+
+		await waitUntil(() => service.getLatestReviewSummary(target).state === "ready");
+		const getStructuredContentCalls = dataResourceService.getStructuredContentCalls;
+		const resolveStructuredContentCalls = dataResourceService.resolveStructuredContentCalls;
+
+		assert.equal(service.getLatestReviewSummary(target).state, "ready");
+		assert.equal(service.getLatestReviewSummary(target).state, "ready");
+		assert.equal(dataResourceService.getStructuredContentCalls, getStructuredContentCalls);
+		assert.equal(dataResourceService.resolveStructuredContentCalls, resolveStructuredContentCalls);
+	});
+
+	test("bounds background URI review targets retained for cache refresh", async () => {
+		const sessionService = store.add(new SessionService());
+		const recipeService = store.add(new TestRecipeService("recipe:first"));
+		const userTemplateService = createUserTemplateServiceForTest();
+		const dataResourceService = store.add(new ResolvingDataResourceService());
+		const service = createReviewServiceForTest(
+			sessionService,
+			recipeService,
+			userTemplateService,
+			dataResourceService,
+		);
+
+		for (let index = 0; index < 520; index += 1) {
+			service.getLatestReviewSummary({
+				resource: URI.file(`/workspace/table-${index}.csv`),
+			});
+		}
+
+		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 512);
+		recipeService.setFingerprint("recipe:changed");
+		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 1024);
+	});
+
+	test("reruns URI review when a resource changes while background review is pending", async () => {
+		const sessionService = store.add(new SessionService());
+		const recipeService = store.add(new TestRecipeService("recipe:first"));
+		const userTemplateService = createUserTemplateServiceForTest();
+		const resource = URI.file("/workspace/Transfer.csv");
+		const dataResourceService = store.add(new ControlledDataResourceService());
+		const service = createReviewServiceForTest(
+			sessionService,
+			recipeService,
+			userTemplateService,
+			dataResourceService,
+		);
+		const target = {
+			resource,
+			sheetId: "table-a",
+		};
+
+		assert.equal(service.getLatestReviewSummary(target).state, "pending");
+		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 1);
+		dataResourceService.fireDidChangeResource(resource);
+		dataResourceService.resolveNext({
+			kind: "missingContent",
+		});
+
+		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 2);
+		assert.equal(service.getLatestReviewSummary(target).state, "pending");
+		dataResourceService.resolveNext({
+			kind: "missingContent",
+		});
+
+		await waitUntil(() => service.getLatestReviewSummary(target).state === "invalid");
+		assert.equal(dataResourceService.resolveStructuredContentCalls, 2);
 	});
 
 	test("normalizes structured-cloned URI review targets before resolving models", async () => {
@@ -901,6 +995,115 @@ class TestSchemaProfileService extends Disposable implements ISchemaProfileServi
 			],
 		});
 		return profile;
+	}
+}
+
+class CountingDataResourceService extends Disposable implements IDataResourceService {
+	public declare readonly _serviceBrand: undefined;
+
+	public readonly onDidChangeResource: IDataResourceService["onDidChangeResource"];
+	public getStructuredContentCalls = 0;
+	public resolveStructuredContentCalls = 0;
+	private readonly delegate: IDataResourceService;
+
+	public constructor(
+		delegate: IDataResourceService,
+	) {
+		super();
+		this.delegate = delegate;
+		this.onDidChangeResource = delegate.onDidChangeResource;
+	}
+
+	public canHandleResource(
+		resource: Parameters<IDataResourceService["canHandleResource"]>[0],
+	): ReturnType<IDataResourceService["canHandleResource"]> {
+		return this.delegate.canHandleResource(resource);
+	}
+
+	public resolveStructuredContent(
+		target: Parameters<IDataResourceService["resolveStructuredContent"]>[0],
+	): ReturnType<IDataResourceService["resolveStructuredContent"]> {
+		this.resolveStructuredContentCalls += 1;
+		return this.delegate.resolveStructuredContent(target);
+	}
+
+	public getStructuredContent(
+		target: Parameters<IDataResourceService["getStructuredContent"]>[0],
+	): ReturnType<IDataResourceService["getStructuredContent"]> {
+		this.getStructuredContentCalls += 1;
+		return this.delegate.getStructuredContent(target);
+	}
+
+	public resolve(
+		target: Parameters<IDataResourceService["resolve"]>[0],
+	): ReturnType<IDataResourceService["resolve"]> {
+		return this.delegate.resolve(target);
+	}
+}
+
+class ResolvingDataResourceService extends Disposable implements IDataResourceService {
+	public declare readonly _serviceBrand: undefined;
+
+	public readonly onDidChangeResource = Event.None;
+	public resolveStructuredContentCalls = 0;
+
+	public canHandleResource(): boolean {
+		return true;
+	}
+
+	public async resolveStructuredContent(): Promise<IDataResourceStructuredContentReference> {
+		this.resolveStructuredContentCalls += 1;
+		return {
+			object: {
+				kind: "missingContent",
+			},
+			dispose: () => undefined,
+		};
+	}
+
+	public getStructuredContent(): ReturnType<IDataResourceService["getStructuredContent"]> {
+		return undefined;
+	}
+
+	public resolve(): void {}
+}
+
+class ControlledDataResourceService extends Disposable implements IDataResourceService {
+	public declare readonly _serviceBrand: undefined;
+
+	private readonly onDidChangeResourceEmitter = this._register(new Emitter<URI>());
+	public readonly onDidChangeResource = this.onDidChangeResourceEmitter.event;
+	public resolveStructuredContentCalls = 0;
+	private readonly pendingResolvers: Array<(reference: IDataResourceStructuredContentReference) => void> = [];
+
+	public canHandleResource(): boolean {
+		return true;
+	}
+
+	public resolveStructuredContent(): Promise<IDataResourceStructuredContentReference> {
+		this.resolveStructuredContentCalls += 1;
+		return new Promise(resolve => {
+			this.pendingResolvers.push(resolve);
+		});
+	}
+
+	public getStructuredContent(): ReturnType<IDataResourceService["getStructuredContent"]> {
+		return undefined;
+	}
+
+	public resolve(): void {}
+
+	public fireDidChangeResource(resource: URI): void {
+		this.onDidChangeResourceEmitter.fire(resource);
+	}
+
+	public resolveNext(resolution: DataResourceStructuredContentResolution): void {
+		const resolve = this.pendingResolvers.shift();
+		assert.ok(resolve, "Expected a pending structured-content resolution.");
+		resolve({
+			object: resolution,
+			dispose: () => undefined,
+		});
 	}
 }
 
