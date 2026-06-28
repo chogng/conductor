@@ -43,7 +43,7 @@ production, template execution, or thumbnail bitmap cache.
 ## Flow
 
 ```txt
-SessionSnapshot or SliceState URI target results + PlotState
+SessionSnapshot-backed file ids or SliceUriTarget results + PlotState
   -> PlotService
   -> calculated-data cache / display-model cache / worker queues
   -> PlotRenderModel / PlotDisplayModel
@@ -57,6 +57,7 @@ Plot owner APIs include:
 - `getState()`;
 - cached non-creating reads: `getCachedCalculatedData`, `getCachedPlotDisplayModel`, `getCachedPlotInspectorDisplayModel`, `getCachedPlotLegendModel`;
 - creating reads where appropriate: `getCalculatedData`, `getPlotDisplayModel`, `getPlotLegendModel`, `getPlotMainRenderModel`;
+- Plot-owned settings reads: `getAxisSettings`;
 - legend state reads: `getHiddenLegendKeys`, `getLegendLabels`;
 - prefetch APIs: calculated data, chart display model, inspector display model, batch display models;
 - state mutations: `setActivePlotType`, `setAxisUnit`, `setYScale`, `setAxisTitleOverride`, `setLegendLabel`, `toggleHiddenLegendKey`.
@@ -70,6 +71,20 @@ uses platform storage; callers should not write settings/storage directly.
 - Consumers request prefetch on cache miss instead of synchronously creating expensive data in render.
 - Calculated-data and display-model prefetch are separate cache warmups.
 - PlotService owns dedupe, cache-hit skip, queue promotion, stale-result checks, and perf counters.
+- Consumers pass file identity or URI Slice targets into Plot read/prefetch APIs;
+  they should not pass `SessionSnapshot` through Plot input records. PlotService
+  resolves legacy Session-backed file ids internally as the Plot owner fallback.
+- Consumers that need Plot-owned axis/unit/scale settings call `getAxisSettings()`
+  without passing Session snapshots. Session-backed callers merge file default
+  axis projections in their own owner boundary when they still consume Session
+  data.
+- URI target calculated/display reads resolve the current Slice URI result through
+  `ISliceService` and must not resolve `ISessionService.getSnapshot()` just to
+  satisfy Plot input shape. Session snapshots are required only for
+  Session-backed file ids.
+- Display-model creation uses Plot-owned storage settings when a URI target has
+  no Session snapshot; do not couple URI target axis/unit/scale state back to
+  Session records.
 - Worker requests send only fields needed for plot calculation: base curves,
   matching series, latest `SliceRun` template metadata, and minimal raw file
   identity. Do not post full raw table stores.
@@ -83,6 +98,8 @@ uses platform storage; callers should not write settings/storage directly.
 ## Invalidation And Retention
 
 - Session changes should invalidate only affected file ids when possible.
+- Full Session clears/removals clear Session-backed file-record caches; URI Slice
+  target caches are invalidated by Slice target changes, not by Session events.
 - Slice URI result changes should invalidate only affected URI targets when
   possible.
 - Plot-relevant data changes publish targeted calculated/display cache events.

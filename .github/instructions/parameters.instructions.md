@@ -1,12 +1,11 @@
 ---
-description: Parameters service - parameter display model, metric selection, metric input state, and parameter view coordination.
+description: Parameters service - parameter display model, selected row/display state, and parameter view coordination.
 applyTo: 'src/cs/workbench/services/parameters/**,src/cs/workbench/contrib/parameters/**'
 ---
 # Parameters
 
 Parameters consumes metrics and curves and provides a parameter display model.
-It may commit metric inputs that affect calculation; pure view state stays in
-Parameters.
+Pure view state stays in Parameters.
 
 ## Ownership
 
@@ -14,14 +13,13 @@ Parameters.
 
 - parameter view state and selected row;
 - rows grouped by file/series/metric;
-- manual metric input draft state;
-- metric input commands that commit to Session;
 - display filters and sorting.
 
-It consumes Session metrics/metric inputs, Plot context when needed, and
-Session commit APIs for real metric inputs. It does not own metric algorithms
-unless explicitly split here later, raw parsing, plot rendering, chart shell,
-or table selection.
+It resolves the selected metric-bearing file record from the service model /
+legacy Session ledger using caller-provided file identity, consumes Plot context
+when needed, and uses the owner model version for duplicate suppression. It does
+not own metric algorithms unless explicitly split here later, raw parsing, plot
+rendering, chart shell, Session mutation, or table selection.
 
 ## Core Files
 
@@ -38,18 +36,17 @@ or table selection.
 
 ```txt
 show parameters command -> IWorkbenchLayoutService
-SessionSnapshot/current file -> IParametersService.updateViewState
+current file id -> IParametersService.updateViewState
+IParametersService resolves metric-bearing file record + model version
 onDidChangeParametersViewState -> ParametersViewPane render
-manual metric input -> IParametersService -> ISessionService.setMetricInput
 ```
 
 ## Rules
 
-- Calculation-affecting manual inputs are canonical and may be committed to Session.
 - Selected rows, filters, method choices, and panel state are service-local.
 - Parameter rows link to curves/metrics by ids, not copied data.
 - `onDidChangeParametersViewState` is a leaf view event for Parameters views.
-- Workbench may provide current file id and Session snapshot while rendering the active Parameters auxiliary view.
+- Workbench provides the current file id while rendering the active Parameters auxiliary view; Parameters resolves the backing record/version through its own service boundary.
 - `updateViewState` should suppress duplicate publishes when effective input is unchanged.
 - Showing/hiding Parameters belongs to layout/view commands, not `IParametersService`.
 

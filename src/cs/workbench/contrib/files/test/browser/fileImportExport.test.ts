@@ -15,6 +15,7 @@ import {
   canImportFolderWithFileService,
   collectDroppedFiles,
   collectFolderImportFiles,
+  collectFolderImportFilesIncrementally,
   collectPendingImportFiles,
   FileSourceWorkflow,
   FolderImportSourceCollector,
@@ -198,7 +199,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.equal(await (await result.files[1].loadFile()).text(), "Vg,Id\n1,2");
   });
 
-  test("collectFolderImportFiles follows Explorer tree order for nested folders", async () => {
+  test("collectFolderImportFiles publishes current folder files before nested folders", async () => {
     const root = createDirectoryHandle({
       children: [
         createFileHandle("2.csv", "Vg,Id\n0,2"),
@@ -226,14 +227,49 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.deepEqual(
       result.files.map(file => file.relativePath),
       [
-        "293K/OUTPUT/1.csv",
-        "293K/TRANSFER/3.csv",
-        "293K/TRANSFER/10.csv",
         "293K/2.csv",
         "293K/4.tsv",
         "293K/1.xlsx",
+        "293K/OUTPUT/1.csv",
+        "293K/TRANSFER/3.csv",
+        "293K/TRANSFER/10.csv",
       ],
     );
+  });
+
+  test("collectFolderImportFiles does not let child folder reads block root file batches", async () => {
+    const root = createDirectoryHandle({
+      children: [
+        createFileHandle("2.csv", "Vg,Id\n0,2"),
+        createFileHandle("4.csv", "Vg,Id\n0,4"),
+        createDirectoryHandle({
+          children: [
+            createFileHandle("3.csv", "Vg,Id\n0,3"),
+          ],
+          name: "transfer",
+        }),
+      ],
+      name: "293K",
+    });
+    const provider = store.add(new HTMLFileSystemProvider());
+    const filesService = store.add(new FileService());
+    store.add(filesService.registerProvider("file", provider));
+    const folder = await provider.registerDirectoryHandle(root);
+    const batchPaths: string[][] = [];
+
+    const result = await collectFolderImportFilesIncrementally(folder, filesService, {
+      onBatch: ({ files }) => {
+        batchPaths.push(files.map(file => file.relativePath));
+      },
+    });
+
+    assert.deepEqual(batchPaths[0], ["293K/2.csv", "293K/4.csv"]);
+    assert.deepEqual(batchPaths[1], ["293K/transfer/3.csv"]);
+    assert.deepEqual(result.files.map(file => file.relativePath), [
+      "293K/2.csv",
+      "293K/4.csv",
+      "293K/transfer/3.csv",
+    ]);
   });
 
   test("collectFolderImportFiles keeps readable files when a child folder cannot be read", async () => {

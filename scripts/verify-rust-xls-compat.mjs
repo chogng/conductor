@@ -3,10 +3,6 @@ import fs from "node:fs";
 import path from "node:path";
 import Papa from "papaparse";
 import * as xlsx from "xlsx";
-import {
-  createImportTableFactsSeedHeuristic,
-  extractImportTableFactsSeedMetadata,
-} from "../src/cs/workbench/services/tableFacts/common/importTableFactsSeedHeuristics.ts";
 
 const ROOT = process.cwd();
 const WORKER_FILE_NAME = process.platform === "win32" ? "conductor-rs.exe" : "conductor-rs";
@@ -26,6 +22,7 @@ const CARGO_TARGET_RUST_EXE = path.join(
 );
 const OUTPUT_DIR = path.join(ROOT, ".build", "verify", "rust-xls");
 const RUST_CSV_DIR = path.join(OUTPUT_DIR, "rust-csv");
+const JS_CSV_DIR = path.join(OUTPUT_DIR, "js-csv");
 const REPORT_PATH = path.join(OUTPUT_DIR, "report.json");
 
 const NUMERIC_TOLERANCE_ABS = 1e-12;
@@ -152,20 +149,33 @@ const compareRows = (jsRows, rustRows) => {
   };
 };
 
-const buildTableFactsSeedFromCsvText = (csvText, fileName) => {
-  const rows = parseCsvRows(csvText).map(row =>
-    Array.isArray(row) ? row.map(value => String(value ?? "")) : []
-  );
-  const seed = createImportTableFactsSeedHeuristic({
+const readRustTableModelSeed = (rsWorkerExe, filePath, fileName) => {
+  const request = `${JSON.stringify({
+    command: "prepareImport",
     fileName,
-    metadata: extractImportTableFactsSeedMetadata(rows),
+    id: 1,
+    path: filePath,
+  })}\n`;
+  const run = spawnSync(rsWorkerExe, ["--stdio-worker"], {
+    cwd: ROOT,
+    encoding: "utf8",
+    input: request,
+    stdio: ["pipe", "pipe", "pipe"],
+    windowsHide: true,
   });
-  return {
-    curveType: seed.curveTypeLabel,
-    curveTypeConfidence: seed.confidence,
-    xAxisRole: seed.xAxisRole,
-    xAxisRoleSource: seed.xAxisRoleSource,
-  };
+  if (run.status !== 0) {
+    throw new Error(`conductor-rs prepareImport failed for ${fileName}: ${run.stderr || run.stdout}`);
+  }
+  const line = String(run.stdout ?? "")
+    .split(/\r?\n/)
+    .map(value => value.trim())
+    .filter(Boolean)
+    .pop();
+  const response = line ? JSON.parse(line) : null;
+  if (!response?.ok) {
+    throw new Error(response?.error?.message || `conductor-rs prepareImport failed for ${fileName}`);
+  }
+  return response.result?.tableModelSeed ?? null;
 };
 
 const main = async () => {
@@ -177,6 +187,7 @@ const main = async () => {
 
   fs.rmSync(OUTPUT_DIR, { force: true, recursive: true });
   fs.mkdirSync(RUST_CSV_DIR, { recursive: true });
+  fs.mkdirSync(JS_CSV_DIR, { recursive: true });
 
   const rustRun = spawnSync(rsWorkerExe, ["--threads", "2", "--write-dir", RUST_CSV_DIR], {
     cwd: path.dirname(rsWorkerExe),
@@ -221,17 +232,20 @@ const main = async () => {
 
   for (const [entryIndex, entry] of entries.entries()) {
     const jsCsv = toJsCsv(entry.sourcePath);
+    const jsCsvPath = path.join(JS_CSV_DIR, `${String(entryIndex).padStart(6, "0")}.csv`);
+    fs.writeFileSync(jsCsvPath, jsCsv, "utf8");
     const rustCsv = fs.readFileSync(entry.csvPath, "utf8");
     const jsRows = parseCsvRows(jsCsv);
     const rustRows = parseCsvRows(rustCsv);
     const comparison = compareRows(jsRows, rustRows);
-    const jsTableFactsSeed = buildTableFactsSeedFromCsvText(jsCsv, path.basename(entry.sourcePath));
-    const rustTableFactsSeed = buildTableFactsSeedFromCsvText(rustCsv, path.basename(entry.sourcePath));
+    const fileName = path.basename(entry.sourcePath);
+    const jsTableModelSeed = readRustTableModelSeed(rsWorkerExe, jsCsvPath, fileName);
+    const rustTableModelSeed = readRustTableModelSeed(rsWorkerExe, entry.csvPath, fileName);
     const classificationMatches =
-      jsTableFactsSeed.curveType === rustTableFactsSeed.curveType &&
-      jsTableFactsSeed.curveTypeConfidence === rustTableFactsSeed.curveTypeConfidence &&
-      jsTableFactsSeed.xAxisRole === rustTableFactsSeed.xAxisRole &&
-      jsTableFactsSeed.xAxisRoleSource === rustTableFactsSeed.xAxisRoleSource;
+      jsTableModelSeed?.curveType === rustTableModelSeed?.curveType &&
+      jsTableModelSeed?.curveTypeConfidence === rustTableModelSeed?.curveTypeConfidence &&
+      jsTableModelSeed?.xAxisRole === rustTableModelSeed?.xAxisRole &&
+      jsTableModelSeed?.xAxisRoleSource === rustTableModelSeed?.xAxisRoleSource;
     const passed =
       comparison.rowCountMatches &&
       comparison.jsCells === comparison.rustCells &&
@@ -242,10 +256,10 @@ const main = async () => {
       classificationMatches,
       comparison,
       file: entry.sourcePath,
-      jsTableFactsSeed,
+      jsTableModelSeed,
       jsBytes: Buffer.byteLength(jsCsv),
       passed,
-      rustTableFactsSeed,
+      rustTableModelSeed,
       rustBytes: Buffer.byteLength(rustCsv),
     };
     summaries.push(summary);
@@ -310,8 +324,8 @@ const main = async () => {
       console.log(`\n[compat failure] ${failure.file}`);
       console.log(JSON.stringify({
         comparison: failure.comparison,
-        jsTableFactsSeed: failure.jsTableFactsSeed,
-        rustTableFactsSeed: failure.rustTableFactsSeed,
+        jsTableModelSeed: failure.jsTableModelSeed,
+        rustTableModelSeed: failure.rustTableModelSeed,
       }, null, 2));
     }
     process.exitCode = 1;

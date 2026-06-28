@@ -241,11 +241,13 @@ Data/selection/copy commands delegate to `ITableService`. Zoom commands resolve
 `ITableWidgetService.activeController` and call the widget/controller API.
 
 Search result navigation may dispatch to table commands when a result points to
-`RawTableRangeRef`.
+URI `ResourceTableRangeRef`; `RawTableRangeRef` is legacy Session navigation.
 
-`WorkbenchDomainBridge` may derive a `TableSource` from Explorer/session state,
-but external callers pass only the source target. They do not pass raw rows,
-files, table models, or widget lifecycle callbacks.
+`WorkbenchDomainBridge` may derive a `TableSource` from Explorer resource rows,
+including migration-ledger rows already projected with a URI. It must not read
+Session raw file paths to manufacture table sources. External callers pass only
+the source target; they do not pass raw rows, files, table models, or widget
+lifecycle callbacks.
 
 Table panes subscribe to `ITableService.onDidChangeTableViewInput` and reread
 `ITableService.getViewInput()`. Do not use event payloads as the data path.

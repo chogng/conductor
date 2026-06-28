@@ -7,6 +7,11 @@ import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { mark } from "src/cs/base/common/performance";
 import type { URI } from "src/cs/base/common/uri";
 import { startPerf } from "src/cs/workbench/common/perf";
+import {
+	readStructuredContentRows,
+	type StructuredContentGridSnapshot,
+	type StructuredContentRowWindow,
+} from "src/cs/workbench/services/dataResource/common/structuredContent";
 import type { TableFormatId } from "src/cs/workbench/services/table/common/tableFormatService";
 
 export interface ITableModelPosition {
@@ -272,18 +277,9 @@ export type TableModelLoadState = {
 	readonly message: string;
 };
 
-export type TableModelContentSnapshot = {
-	readonly columnCount: number;
-	readonly maxCellLengths: readonly number[];
-	readonly rowCount: number;
-	readonly rows: readonly (readonly string[])[];
-	readonly rowWindows?: readonly TableModelRowWindow[];
-};
+export type TableModelContentSnapshot = StructuredContentGridSnapshot;
 
-export type TableModelRowWindow = {
-	readonly startRowIndex: number;
-	readonly rows: readonly (readonly string[])[];
-};
+export type TableModelRowWindow = StructuredContentRowWindow;
 
 export const getTableModelContentCellValue = (
 	content: TableModelContentSnapshot | null | undefined,
@@ -311,31 +307,8 @@ export const readTableModelContentRows = (
 	content: TableModelContentSnapshot | null | undefined,
 	startRowIndex = 0,
 	endRowIndexExclusive = content?.rowCount ?? 0,
-): readonly (readonly string[])[] => {
-	if (!content) {
-		return [];
-	}
-
-	const start = clampInteger(startRowIndex, 0, content.rowCount);
-	const end = clampInteger(endRowIndexExclusive, start, content.rowCount);
-	if (start >= end) {
-		return [];
-	}
-
-	if (!content.rowWindows?.length) {
-		return content.rows.slice(start, end);
-	}
-
-	const rows: (readonly string[])[] = [];
-	for (let rowIndex = start; rowIndex < end; rowIndex += 1) {
-		const row = getTableModelContentRow(content, rowIndex);
-		if (!row) {
-			break;
-		}
-		rows.push(row);
-	}
-	return rows;
-};
+): readonly (readonly string[])[] =>
+	readStructuredContentRows(content, startRowIndex, endRowIndexExclusive);
 
 const getTableModelContentRow = (
 	content: TableModelContentSnapshot,

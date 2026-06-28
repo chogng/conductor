@@ -10,6 +10,7 @@ import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
 	FileChangeType,
+	FileSystemProviderCapabilities,
 	FileType,
 	type IFileChange,
 	type IFileService,
@@ -811,6 +812,39 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		assert.deepStrictEqual(readOptions, undefined);
 	});
 
+	test("opens legacy HTML xls resources through the table model snapshot", async () => {
+		const resource = URI.file("/workspace/data/legacy.xls");
+		const service = createResolverService(createFileServiceStub({
+			readFile: async () => textFileContent([
+				'<html><head><meta charset="utf-8"></head><body><table>',
+				"<tr><th>Label</th><th>Value</th></tr>",
+				"<tr><td>Forward</td><td>1.23E-7</td></tr>",
+				"<tr><td>Reverse</td><td>-7</td></tr>",
+				"</table></body></html>",
+			].join("")),
+			stat: async () => ({
+				ctime: 1,
+				mtime: 42,
+				path: resource.path,
+				size: 10,
+				type: FileType.File,
+			}),
+		}));
+
+		const reference = await service.createModelReference(resource);
+		store.add(reference);
+
+		const snapshot = reference.object.getSnapshot();
+		assert.equal(snapshot.format, "xls");
+		assert.equal(snapshot.defaultSheetId, resource.toString());
+		assert.deepStrictEqual(snapshot.content?.rows, [
+			["Label", "Value"],
+			["Forward", "1.23E-7"],
+			["Reverse", "-7"],
+		]);
+		assert.deepStrictEqual(snapshot.diagnostics, []);
+	});
+
 	test("keeps large xlsx sheet content in row windows", async () => {
 		const resource = URI.file("/workspace/data/large-workbook.xlsx");
 		const rowCount = PARSED_TABLE_ROW_WINDOW_SIZE + 2;
@@ -977,6 +1011,9 @@ const createFileServiceStub = (
 	deleteFile: async () => undefined,
 	exists: async () => true,
 	getProvider: () => undefined,
+	getProviderCapabilities: () => FileSystemProviderCapabilities.FileRead |
+		FileSystemProviderCapabilities.FileReadRange |
+		FileSystemProviderCapabilities.FileWatch,
 	moveFileToTrash: async () => undefined,
 	onDidFilesChange: Event.None,
 	readDir: async () => [],

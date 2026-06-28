@@ -5,7 +5,7 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 import {
   createProcessRequestFromPrepareResult,
-} from "./lib/recipe-template-process.mjs";
+} from "./lib/review-process.mjs";
 
 const ROOT = process.cwd();
 const WORKER_FILE_NAME = process.platform === "win32" ? "conductor-rs.exe" : "conductor-rs";

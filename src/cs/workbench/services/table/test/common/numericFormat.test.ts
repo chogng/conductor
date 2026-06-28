@@ -105,7 +105,6 @@ suite("workbench/services/table/common/numericFormat", () => {
 
   test("formats scaled cells with a column profile and leaves invalid tokens raw", () => {
     const profile: ColumnDisplayProfile = {
-      rawTableId: "table-a",
       columnId: "1",
       mode: "columnScale",
       isNumericColumn: true,

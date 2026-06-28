@@ -5,6 +5,7 @@ import { createZipBuffer, type ZipEntry } from "src/cs/base/common/zip";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
+  FileSystemProviderCapabilities,
   FileType,
   type IFileService,
 } from "src/cs/platform/files/common/files";
@@ -51,6 +52,23 @@ suite("workbench/services/table/browser/tableService", () => {
     }
 
     assert.equal(service.getViewInput()?.tableState.source?.resource?.toString(), resource.toString());
+    assert.equal(service.getViewInput()?.tableState.file?.source?.resource?.toString(), resource.toString());
+    assert.deepStrictEqual(service.getPreviewRow(0), ["A", "B"]);
+    assert.deepStrictEqual(service.getPreviewRow(1), ["1", "2"]);
+  });
+
+  test("keeps active table model while transient model references are disposed", async () => {
+    const resource = URI.file("/workspace/data/review-transient.csv");
+    const { service, tableModelService } = createTableServiceFixture();
+
+    service.open({ resource });
+    await waitForReadyTableService(service);
+
+    const transientReference = await tableModelService.createModelReference(resource);
+    transientReference.dispose();
+    await waitForTableService();
+
+    assert.equal(tableModelService.get(resource)?.getSnapshot().loadState.state, "ready");
     assert.equal(service.getViewInput()?.tableState.file?.source?.resource?.toString(), resource.toString());
     assert.deepStrictEqual(service.getPreviewRow(0), ["A", "B"]);
     assert.deepStrictEqual(service.getPreviewRow(1), ["1", "2"]);
@@ -691,6 +709,7 @@ suite("workbench/services/table/browser/tableService", () => {
 type TableServiceFixture = {
   readonly service: TableService;
   readonly storageService: TestStorageService;
+  readonly tableModelService: TableModelResolverService;
 };
 
 const createTableServiceFixture = ({
@@ -717,6 +736,7 @@ const createTableServiceFixture = ({
   return {
     service,
     storageService,
+    tableModelService,
   };
 };
 
@@ -739,6 +759,9 @@ const createFileServiceStub = (
   deleteFile: async () => undefined,
   exists: async () => true,
   getProvider: () => undefined,
+  getProviderCapabilities: () => FileSystemProviderCapabilities.FileRead |
+    FileSystemProviderCapabilities.FileReadRange |
+    FileSystemProviderCapabilities.FileWatch,
   moveFileToTrash: async () => undefined,
   onDidFilesChange: Event.None,
   readDir: async () => [],

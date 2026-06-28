@@ -1,4 +1,4 @@
-﻿import fs from "node:fs/promises";
+import fs from "node:fs/promises";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import {
@@ -19,7 +19,7 @@ import {
 import {
   createPrepareImportBatchRequests,
   createProcessRequestsFromPrepareResponses,
-} from "./lib/recipe-template-process.mjs";
+} from "./lib/review-process.mjs";
 
 const ROOT = process.cwd();
 const OUTPUT_DIR = path.join(ROOT, ".build", "bench", "device-analysis-phase3");

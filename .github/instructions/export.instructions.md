@@ -45,8 +45,11 @@ Export UI / command
 
 - Use Plot models for display-oriented export.
 - Use Session records for canonical data-oriented export.
+- Read Plot-owned axis/unit/scale settings through `IPlotService.getAxisSettings()`;
+  when exporting remaining Session-backed data, Export owns merging those
+  settings with Session file axis projections.
 - Export option state is service-local unless saved project export settings are intentionally introduced.
-- Workbench may sync current selection/snapshot into Export state, but export execution rereads owner APIs.
+- Workbench syncs current selection into Export state; Export reads Session snapshots through its own service boundary, and export execution rereads owner APIs.
 - Notification/toast side effects belong to export/origin execution, not Workbench callback bags.
 
 ## Do Not

@@ -720,7 +720,7 @@ factors、findings、decision 应由 review service / cache 持有，并以
 这和上游 markers / decorations / language feature result 的关系类似：它们都以
 `ITextModel.uri` 为锚点关联到模型，但不是 URI 字符串本身的一部分，也不是文本模型
 的文件内容。Conductor 这里也一样：`ReviewResult` 是 URI-backed content feature
-结果，订阅和查询应走 review service，例如 `getLatestReview(resource, sheetId?)`
+结果，订阅和查询应走 review service，例如 `reviewUriForExecution(resource, sheetId?)`
 和 `onDidChangeReview` 这一类接口。
 
 Explorer decoration 也必须走这条新架构链路。Explorer decoration 不是独立的语义评估器，
@@ -797,7 +797,7 @@ Explorer decoration 相关文件目标落点：
 | --- | --- | --- |
 | `services/review/common/reviewModel.ts` | 定义 `ReviewResult`、`ReviewDecision`、confidence、findings、`ReviewedTemplate`，以及 `ReviewSummary` 这类 review-owned 公开摘要。 | Explorer decoration UI 类型、颜色、文案、tree presentation signature。 |
 | `services/review/common/reviewModel.ts` | 定义 URI/content 进入 Review 的 evidence shape；当前 tabular 派生字段应表达为 structured/matrix evidence，只是 content evidence 的一种来源，不暴露 Table UI projection。 | Recipe DSL、review result/policy、Explorer decoration presentation。 |
-| `services/review/common/review.ts` | 暴露 `getLatestReview(resource, sheetId?)` 给 review/Slice 级消费者，暴露 `getLatestReviewSummary(resource, sheetId?)` 给 Explorer decoration 这类摘要消费者，并提供 `onDidChangeReview`。 | decoration 映射、Explorer entry mutation。 |
+| `services/review/common/review.ts` | 暴露 `reviewUriForExecution(resource, sheetId?)` 给 Slice 级执行消费者，暴露 `getLatestReviewSummary(resource, sheetId?)` 给 Explorer decoration 这类摘要消费者，并提供 `onDidChangeReview`。 | decoration 映射、Explorer entry mutation。 |
 | `services/review/browser/reviewService.ts` | 维护 URI-backed review cache、invalidation、后台 review 生命周期。 | DOM/UI decoration、Explorer tree state。 |
 | `services/decorations/common/decorations.ts` / `browser/decorationsService.ts` | 对齐上游 decorations service。注册 `IDecorationsProvider`，缓存 provider 输出，合并 `onDidChangeDecorations`，并按 URI 提供 `IDecoration` / `IDecorationData`。 | Explorer 业务映射、review summary 查询、DOM badge 渲染。 |
 | `workbench/browser/labels.ts` | 对齐上游 ResourceLabels。`setResource(..., { fileDecorations })` 按 resource 向 `IDecorationsService` 读取 label color、tooltip、strikethrough，并响应 `onDidChangeDecorations`。 | review 查询、Explorer entry 查询、badge 文案映射。 |
@@ -881,7 +881,7 @@ Segment pipeline:
     -> renderer / vector index / JSON / markdown / cards
 
 Tabular analysis adapter:
-  IReviewService.reviewUri({ resource, sheetId, contentHash? })
+  IReviewService.reviewUriForExecution({ resource, sheetId, contentHash? })
     -> decision.ready.reviewedTemplate
     -> ISliceService.submitUri(SliceUriRequest[])
     -> SliceService retains state/result for the URI target + content version

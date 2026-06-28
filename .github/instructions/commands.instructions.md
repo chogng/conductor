@@ -108,7 +108,7 @@ Use explicit target records when a command acts on a domain object:
 | `explorerResource` | `resourceId` |
 | `file` | `fileId` |
 | `rawTable` | `fileId`, `rawTableId` |
-| `rawTableRange` | `fileId`, `rawTableId`, `range` |
+| `tableResourceRange` | `resource`, optional `sheetId`, `range` |
 | `measurementBlock` | `fileId`, `blockId` |
 | `series` | `fileId`, `seriesId` |
 | `curve` | `fileId`, `curveKey` |
@@ -132,7 +132,7 @@ command APIs.
 | thumbnail cache/layout | `IThumbnailService` for cache, `IExplorerService` for layout |
 | search query/open result | `ISearchService`, then target owner for reveal |
 | export | `IExportService` |
-| parameters pane navigation | workbench layout; metric input belongs to `IParametersService` |
+| parameters pane navigation | workbench layout and `IParametersService` view state |
 
 ## Controllers
 

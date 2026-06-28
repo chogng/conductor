@@ -1,5 +1,5 @@
 ---
-description: Search service - query state, search index, raw table/block/curve/metric results, source range navigation, and chart point lookup.
+description: Search service - query state, URI structured-content index/results, resource navigation, and chart point lookup.
 applyTo: 'src/cs/workbench/services/search/**,src/cs/workbench/contrib/search/**'
 ---
 # Search
@@ -9,13 +9,17 @@ Search is a consumer and indexer. It does not produce canonical data.
 ## Ownership
 
 `ISearchService` owns query state, selected result, indexes from explicit
-Session snapshots, results for raw cells/tables/groups/blocks/columns/curves/
-metrics/parameters, and navigation target generation.
+URI structured-content snapshots, results for resource-backed
+cells/tables/groups/blocks/columns, and navigation target generation.
 
-It consumes explicit Session snapshots for text search, table model, review
-results, optional Plot display models for currently plotted chart/inspector
-series, and owner services for reveal requests. It does not inject Session for
-point lookup; Plot owns current snapshot resolution for plot display models.
+It consumes URI-backed `DataResourceStructuredContentSnapshot` values for
+resource table/search results. Search also consumes optional Plot display models
+for currently plotted chart/inspector series and owner services for reveal
+requests. It does not inject Session for point lookup; Plot owns current
+snapshot resolution for plot display models.
+Workbench auxiliary refresh scheduling must not refresh Search from Session,
+Explorer, Chart, or Plot owner events; Search updates from explicit URI/search
+inputs and Plot/Chart owner events.
 It does not own import, table-model production, template execution, plot
 calculation, or Session mutation.
 
@@ -24,16 +28,15 @@ calculation, or Session mutation.
 | File | Responsibility |
 | --- | --- |
 | `common/search.ts` | service contract, query/result types, navigation targets. |
-| `browser/searchService.ts` | query/selection state owner, chart/plot subscriber, explicit session-snapshot search helper. |
-| `browser/searchIndex.ts` | pure index builder from files/raw tables/blocks/curves/metrics. |
-| `browser/searchNavigation.ts` | result -> Explorer/Table/Plot/Parameters reveal commands. |
+| `browser/searchService.ts` | query/selection state owner, chart/plot subscriber, explicit URI structured-content search helpers. |
+| `browser/searchIndex.ts` | pure index builder from URI structured content. |
 | `contrib/search/browser/searchViewPane.ts` | view shell. |
 | `contrib/search/browser/searchView.ts` | DOM/UI renderer; no Session reads. |
 
 ## Flow
 
 ```txt
-Explicit SessionSnapshot -> SearchIndex
+DataResourceStructuredContentSnapshot -> SearchIndex
 Chart state/input + optional cached PlotDisplayModel
   -> SearchPointLookupModel
   -> ISearchService query
@@ -41,9 +44,8 @@ Chart state/input + optional cached PlotDisplayModel
   -> explicit reveal target dispatch
 ```
 
-Search result navigation uses refs such as `RawTableRangeRef`, block id, curve
-key, metric key, file id, or resource id. It must not depend on global Session
-active state.
+Search result navigation uses URI refs such as `ResourceTableRangeRef`, block
+id, group id, or resource id. It must not depend on global Session active state.
 
 ## Chart Point Lookup
 

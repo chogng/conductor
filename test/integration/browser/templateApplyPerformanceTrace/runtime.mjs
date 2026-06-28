@@ -14,6 +14,7 @@ export const startViteServer = async () => {
     configLoader: "runner",
     root: workspace,
     server: {
+      hmr: false,
       host: "127.0.0.1",
       port: 0,
     },
@@ -37,7 +38,11 @@ export const openRuntime = async ({
   runtime,
 }) => {
   if (runtime === "desktop") {
-    const build = spawnSync("npm", ["run", "build:desktop:core"], {
+    const buildCommand = process.platform === "win32" ? "cmd.exe" : "npm";
+    const buildArgs = process.platform === "win32"
+      ? ["/d", "/s", "/c", "npm", "run", "build:desktop:core"]
+      : ["run", "build:desktop:core"];
+    const build = spawnSync(buildCommand, buildArgs, {
       cwd: workspace,
       encoding: "utf8",
       stdio: "inherit",
@@ -250,7 +255,7 @@ export const readTraceState = async (page) => page.evaluate(() => {
     .find(button => /^(应用到所有|Apply to All)$/.test((button.textContent || "").trim()));
   return {
     dom: {
-      tableFacts: hosts.filter(host => host.dataset.badgeSource === "tableFacts").length,
+      reviewDecorationCount: hosts.filter(host => host.dataset.badgeSource === "review").length,
       fast: hosts.filter(host => host.dataset.badgeSource === "fast").length,
       hosts: hosts.length,
       loading: [...document.querySelectorAll("[data-source-status]")]
@@ -280,7 +285,7 @@ export const installPageTraceObservers = async (page) => page.evaluate(() => {
     const hosts = [...document.querySelectorAll("[data-badge-state]")];
     const sourceHosts = [...document.querySelectorAll("[data-source-status]")];
     return {
-      tableFactsBadgeCount: hosts.filter(host => host.dataset.badgeSource === "tableFacts").length,
+      reviewDecorationCount: hosts.filter(host => host.dataset.badgeSource === "review").length,
       fastBadgeCount: hosts.filter(host => host.dataset.badgeSource === "fast").length,
       hostCount: hosts.length,
       loadingSourceCount: sourceHosts.filter(host =>
@@ -294,7 +299,7 @@ export const installPageTraceObservers = async (page) => page.evaluate(() => {
   const emitBadgeDom = () => {
     const dom = readBadgeDom();
     const signature = [
-      dom.tableFactsBadgeCount,
+      dom.reviewDecorationCount,
       dom.fastBadgeCount,
       dom.hostCount,
       dom.loadingSourceCount,
@@ -435,7 +440,7 @@ export const createPhaseRecorder = (page, runtime) => {
 
 
 export const waitForTraceCompletion = async ({
-  expectedTableFactsBadgeCount,
+  expectedReviewDecorationCount,
   expectedPrepareCompletionCount,
   page,
   timeoutMs,
@@ -450,9 +455,9 @@ export const waitForTraceCompletion = async ({
       event.stage === "import.prepare.file.complete" ||
       event.stage === "import.prepare.file.failed"
     ).length;
-    const tableFactsBadgeCount = Math.max(
-      Number(projection?.meta?.tableFactsBadgeCount ?? 0),
-      Number(latest.dom?.tableFacts ?? 0),
+    const reviewDecorationCount = Math.max(
+      Number(projection?.meta?.reviewDecorationCount ?? 0),
+      Number(latest.dom?.reviewDecorationCount ?? 0),
     );
     const loadingSourceCount = Math.max(
       Number(projection?.meta?.loadingSourceCount ?? 0),
@@ -461,7 +466,7 @@ export const waitForTraceCompletion = async ({
     const applyReady = latest.dom?.applyVisible === true && latest.dom?.applyDisabled === false;
     if (
       prepareCompletionCount >= expectedPrepareCompletionCount &&
-      tableFactsBadgeCount >= expectedTableFactsBadgeCount &&
+      reviewDecorationCount >= expectedReviewDecorationCount &&
       (loadingSourceCount === 0 || applyReady)
     ) {
       return latest;
@@ -470,6 +475,6 @@ export const waitForTraceCompletion = async ({
   }
   throw new Error(
     `Timed out waiting for ${expectedPrepareCompletionCount} prepare completions and ` +
-      `${expectedTableFactsBadgeCount} tableFacts badges. Last state: ${JSON.stringify(latest?.dom)}`,
+      `${expectedReviewDecorationCount} review decorations. Last state: ${JSON.stringify(latest?.dom)}`,
   );
 };

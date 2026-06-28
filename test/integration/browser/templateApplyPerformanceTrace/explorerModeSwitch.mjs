@@ -1,4 +1,4 @@
-const titlebarButtonSelector = {
+﻿const titlebarButtonSelector = {
   chart: "#workbench-titlebar-chart-button",
   table: "#workbench-titlebar-table-button",
 };
@@ -56,7 +56,7 @@ const startExplorerModeSwitchDomProbe = async (page) => page.evaluate(() => {
   ];
   const rowSelector = ".ui-list__row";
   const fileItemSelector = ".file-list-item";
-  const badgeSelector = ".file-list-item-table-facts";
+  const badgeSelector = ".file-list-item-review-decoration";
   const trackedSelector = [
     ...rootSelectors.map(([, selector]) => selector),
     rowSelector,

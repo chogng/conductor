@@ -66,8 +66,8 @@ plot rendering, or chart state.
 | `common/templateXYBinding.ts` | Pure XY column-count checks for Template editor/save validation. |
 | `common/templateFingerprint.ts` | Stable Template fingerprint generation for candidate interpretations and reviewed snapshots. |
 | `contrib/template/common/template.ts` | Template workbench view id and command ids shared by contribution, commands, and view code. |
-| `contrib/template/browser/templateCommands.ts` | Template command registration and handlers; delegates library management to `IUserTemplateService` and execution wrappers to Slice. |
-| `contrib/template/browser/templateImportExport.ts` | Template UI JSON import/export file-transfer helper; dialog, file read, save-file write, and browser download fallback plumbing only. Payload semantics stay with Template commands and `IUserTemplateService`. |
+| `contrib/template/browser/templateCommands.ts` | Template command registration and handlers; delegates library management to UserTemplate services and execution wrappers to Slice. |
+| `contrib/template/browser/templateImportExport.ts` | Template UI JSON import/export file-transfer helper; dialog, file read, save-file write, and browser download fallback plumbing only. Payload semantics stay with `IUserTemplateImportExportService`. |
 | `contrib/template/browser/templateTableMap.ts` | Bidirectional UI-only mapper between `ITableService` selection/cell/range state and Template editor `TemplateEditorConfig` fields. |
 | `contrib/template/browser/templateUserTemplateAdapter.ts` | View-model adapter from UserTemplate snapshots into editable Template editor records. |
 | `contrib/template/browser/templateViewStateService.ts` | Template UI selected-template/form editor state. |
@@ -111,8 +111,8 @@ JSON import/export:
 ```txt
 import/export command
   -> templateImportExport reads JSON or exports the native payload through save-file/write or browser download
-  -> templateCommands validates the native UserTemplate catalog payload
-  -> IUserTemplateService imports/exports native UserTemplate catalog payloads
+  -> IUserTemplateImportExportService validates the native UserTemplate catalog payload
+  -> IUserTemplateService imports/exports native UserTemplate catalog records
 ```
 
 ## Rules
@@ -144,7 +144,7 @@ import/export command
 - Do not reintroduce Template-owned workflow inputs or
   `TemplateState.selectionsByFileId`; slicing selections come from
   `ISliceService`.
-- Template UI library management must read/write `IUserTemplateService`;
+- Template UI library management must read/write through UserTemplate services;
   `TemplateEditorConfig` is only an editor view model and must not be used as
   the JSON import/export payload format.
 - Browser export fallback may download the native `conductor.userTemplate`

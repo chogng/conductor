@@ -81,6 +81,7 @@ const testNativeHostService: INativeHostService = {
   }),
   showMessageBox: async () => ({ response: 0 }),
   showItemInFolder: async () => undefined,
+  writeElevated: async () => undefined,
   toggleDevTools: async () => undefined,
   reloadWindow: async () => undefined,
   isMaximized: async () => false,

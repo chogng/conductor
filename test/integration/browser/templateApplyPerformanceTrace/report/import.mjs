@@ -10,7 +10,7 @@ import { summarizeResourceSamples } from "./resources.mjs";
 export const summarizeMilestones = (
   events,
   {
-    expectedTableFactsBadgeCount,
+    expectedReviewDecorationCount,
     expectedPrepareCompletionCount,
   },
 ) => {
@@ -18,7 +18,7 @@ export const summarizeMilestones = (
   const relative = event => event ? event.timestamp - baseline : null;
   const findBadge = (stage, threshold) => events.find(event =>
     event.stage === stage &&
-    Number(event.meta?.tableFactsBadgeCount) >= threshold
+    Number(event.meta?.reviewDecorationCount) >= threshold
   );
   const findProjection = threshold => findBadge("import.badge.projection", threshold);
   const findDom = threshold => findBadge("import.badge.dom", threshold);
@@ -28,23 +28,23 @@ export const summarizeMilestones = (
   );
   const findPrepare = threshold => prepareCompletions[threshold - 1];
   const prepareHalf = Math.max(1, Math.ceil(expectedPrepareCompletionCount / 2));
-  const badgeHalf = Math.max(1, Math.ceil(expectedTableFactsBadgeCount / 2));
-  const firstDom = expectedTableFactsBadgeCount > 0 ? findDom(1) : null;
-  const halfDom = expectedTableFactsBadgeCount > 0 ? findDom(badgeHalf) : null;
-  const allDom = expectedTableFactsBadgeCount > 0 ? findDom(expectedTableFactsBadgeCount) : null;
-  const firstProjection = expectedTableFactsBadgeCount > 0 ? findProjection(1) : null;
-  const halfProjection = expectedTableFactsBadgeCount > 0 ? findProjection(badgeHalf) : null;
-  const allProjection = expectedTableFactsBadgeCount > 0 ? findProjection(expectedTableFactsBadgeCount) : null;
+  const badgeHalf = Math.max(1, Math.ceil(expectedReviewDecorationCount / 2));
+  const firstDom = expectedReviewDecorationCount > 0 ? findDom(1) : null;
+  const halfDom = expectedReviewDecorationCount > 0 ? findDom(badgeHalf) : null;
+  const allDom = expectedReviewDecorationCount > 0 ? findDom(expectedReviewDecorationCount) : null;
+  const firstProjection = expectedReviewDecorationCount > 0 ? findProjection(1) : null;
+  const halfProjection = expectedReviewDecorationCount > 0 ? findProjection(badgeHalf) : null;
+  const allProjection = expectedReviewDecorationCount > 0 ? findProjection(expectedReviewDecorationCount) : null;
   return {
-    firstTableFactsBadgeMs: relative(firstDom ?? firstProjection),
-    halfTableFactsBadgeMs: relative(halfDom ?? halfProjection),
-    allTableFactsBadgeMs: relative(allDom ?? allProjection),
-    firstTableFactsBadgeDomMs: relative(firstDom),
-    halfTableFactsBadgeDomMs: relative(halfDom),
-    allTableFactsBadgeDomMs: relative(allDom),
-    firstTableFactsBadgeProjectionMs: relative(firstProjection),
-    halfTableFactsBadgeProjectionMs: relative(halfProjection),
-    allTableFactsBadgeProjectionMs: relative(allProjection),
+    firstReviewDecorationMs: relative(firstDom ?? firstProjection),
+    halfReviewDecorationMs: relative(halfDom ?? halfProjection),
+    allReviewDecorationMs: relative(allDom ?? allProjection),
+    firstReviewDecorationDomMs: relative(firstDom),
+    halfReviewDecorationDomMs: relative(halfDom),
+    allReviewDecorationDomMs: relative(allDom),
+    firstReviewDecorationProjectionMs: relative(firstProjection),
+    halfReviewDecorationProjectionMs: relative(halfProjection),
+    allReviewDecorationProjectionMs: relative(allProjection),
     firstPrepareCompleteMs: expectedPrepareCompletionCount > 0 ? relative(findPrepare(1)) : null,
     halfPrepareCompleteMs: expectedPrepareCompletionCount > 0 ? relative(findPrepare(prepareHalf)) : null,
     allPrepareCompleteMs: expectedPrepareCompletionCount > 0
@@ -74,9 +74,6 @@ export const summarizePrepareOutcomes = (events) => {
     files: {
       completeCount: fileCompletes.length,
       failedCount: fileFailures.length,
-      preparedTableFactsCount: fileCompletes.filter(event =>
-        event.meta?.hasPreparedTableFacts === true
-      ).length,
       failureCodes: countBy(fileFailures.map(event => event.meta?.code ?? "unknown")),
       sourceKinds: countBy([
         ...fileCompletes.map(event => event.meta?.sourceKind ?? "unknown"),
@@ -89,7 +86,7 @@ export const summarizePrepareOutcomes = (events) => {
 export const buildBottleneckHints = ({ milestones, stages, resources }) => {
   const hints = [];
   const allPrepareMs = readNumber(milestones.allPrepareCompleteMs);
-  const allBadgeDomMs = readNumber(milestones.allTableFactsBadgeDomMs);
+  const allBadgeDomMs = readNumber(milestones.allReviewDecorationDomMs);
   const backendWallMs = readNumber(stages.backendInvokeMs.maxMs);
   const folderReadDirMs = readNumber(stages.folderReadDirMs.totalMs) ?? 0;
   const folderStatMs = readNumber(stages.folderStatBatchMs.totalMs) ?? 0;
@@ -152,7 +149,7 @@ export const summarizeTraceAnalysis = ({ events, fixture, milestones, resourceSa
     bottleneckHints: buildBottleneckHints({ milestones, resources, stages }),
     fixture: {
       composition: fixture.composition,
-      expectedTableFactsBadgeCount: fixture.expectedTableFactsBadgeCount,
+      expectedReviewDecorationCount: fixture.expectedReviewDecorationCount,
       expectedPrepareCompletionCount: fixture.expectedPrepareCompletionCount,
       expectedPrepareFailureCount: fixture.expectedPrepareFailureCount,
       profile: fixture.profile,

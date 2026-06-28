@@ -4,6 +4,7 @@
 
 import assert from "assert";
 
+import { URI } from "src/cs/base/common/uri";
 import type {
   IManagedHover,
   IManagedHoverContent,
@@ -15,7 +16,6 @@ import {
   setBaseLayerHoverDelegate,
   type IHoverDelegate,
 } from "src/cs/base/browser/ui/hover/hoverDelegate";
-import { URI } from "src/cs/base/common/uri";
 import { VirtualTableGridModel } from "src/cs/base/browser/ui/table/virtualTable";
 import {
   TableWidget,
@@ -1149,7 +1149,6 @@ function applySelectionTarget(
 
 function createSmartTableWidgetModel(): TableWidgetModel {
   const profile: ColumnDisplayProfile = {
-    rawTableId: "file-a",
     columnId: "0",
     mode: "columnScale",
     isNumericColumn: true,
@@ -1299,7 +1298,6 @@ function createDynamicScaleTableWidgetModel(): {
 
 function createScaledColumnDisplayProfile(scaleExponent: number, isScaleManual = false): ColumnDisplayProfile {
   return {
-    rawTableId: "file-a",
     columnId: "0",
     mode: "columnScale",
     isNumericColumn: true,
@@ -1368,7 +1366,6 @@ function getColumnResizeHandle(element: HTMLElement, colIndex: number): HTMLElem
 
 function createRawColumnDisplayProfile(colIndex: number): ColumnDisplayProfile {
   return {
-    rawTableId: "file-a",
     columnId: String(colIndex),
     mode: "raw",
     isNumericColumn: false,

@@ -266,7 +266,7 @@ const main = async () => {
   const supportedFiles = await walkSupportedFiles(folder);
   const fullScanMs = performance.now() - fullScanStartedAt;
 
-  const tableFactsPayload = {
+  const tableModelSeedPayload = {
     fileName: firstCsv.name,
     path: firstCsv.resource,
   };
@@ -277,15 +277,15 @@ const main = async () => {
     seedRows: PREVIEW_SEED_ROWS,
   };
 
-  const coldTableFacts = await timeColdCommand(exePath, "prepareImport", tableFactsPayload);
+  const coldTableModelSeed = await timeColdCommand(exePath, "prepareImport", tableModelSeedPayload);
   const coldOpen = await timeColdCommand(exePath, "open", openPayload);
 
   const processWorker = createWorker(exePath);
   const previewWorker = createWorker(exePath);
   try {
-    await processWorker.send("prepareImport", tableFactsPayload);
+    await processWorker.send("prepareImport", tableModelSeedPayload);
     await previewWorker.send("open", openPayload);
-    const warmTableFacts = await timeWarmCommand(processWorker, "prepareImport", tableFactsPayload);
+    const warmTableModelSeed = await timeWarmCommand(processWorker, "prepareImport", tableModelSeedPayload);
     const warmOpen = await timeWarmCommand(previewWorker, "open", {
       ...openPayload,
       fileId: "bench-preview-warm",
@@ -298,8 +298,8 @@ const main = async () => {
     console.log(`firstFile=${firstCsv.resource}`);
     console.log(`firstBatchFiles=${firstBatch.files.length} firstBatchReadDirs=${firstBatch.readDirs} firstBatchScan=${formatMs(scanMs)}`);
     console.log(`supportedFiles=${supportedFiles.length} fullWalk=${formatMs(fullScanMs)}`);
-    console.log(`coldTableFacts=${formatMs(coldTableFacts.durationMs)} coldOpen=${formatMs(coldOpen.durationMs)} coldTotalToPreview=${formatMs(scanMs + coldTableFacts.durationMs + coldOpen.durationMs)}`);
-    console.log(`warmTableFacts=${formatMs(warmTableFacts.durationMs)} warmOpen=${formatMs(warmOpen.durationMs)} warmTotalToPreview=${formatMs(scanMs + warmTableFacts.durationMs + warmOpen.durationMs)}`);
+    console.log(`coldTableModelSeed=${formatMs(coldTableModelSeed.durationMs)} coldOpen=${formatMs(coldOpen.durationMs)} coldTotalToPreview=${formatMs(scanMs + coldTableModelSeed.durationMs + coldOpen.durationMs)}`);
+    console.log(`warmTableModelSeed=${formatMs(warmTableModelSeed.durationMs)} warmOpen=${formatMs(warmOpen.durationMs)} warmTotalToPreview=${formatMs(scanMs + warmTableModelSeed.durationMs + warmOpen.durationMs)}`);
     console.log(`previewRows=${Array.isArray(openResult.seedRows) ? openResult.seedRows.length : 0} rows=${Number(openResult.rowCount) || 0} columns=${Number(openResult.columnCount) || 0}`);
   } finally {
     processWorker.close();

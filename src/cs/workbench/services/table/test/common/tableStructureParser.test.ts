@@ -5,6 +5,10 @@
 import assert from "assert";
 
 import {
+	createZipBuffer,
+	type ZipEntry,
+} from "src/cs/base/common/zip";
+import {
 	createTableByteBuffer,
 	createTableTextBuffer,
 	type TableTextBuffer,
@@ -85,6 +89,43 @@ suite("workbench/services/table/test/common/tableStructureParser", () => {
 		assert.equal(result.sheets[0]?.sheetName, "Native Sheet");
 	});
 
+	test("parses xlsx self-closing cells and date styles without shifting columns", async () => {
+		const result = await parseTableStructure({
+			buffer: createTableByteBuffer(createXlsxBuffer([{
+				name: "Sparse",
+				rowsXml: [
+					'<x:row r="1">',
+					'<x:c r="A1" t="str"><x:v>Id</x:v></x:c>',
+					'<x:c r="B1" t="str"><x:v>Empty Column</x:v></x:c>',
+					'<x:c r="C1" t="str"><x:v>Value</x:v></x:c>',
+					'<x:c r="D1" t="str"><x:v>Comment</x:v></x:c>',
+					"</x:row>",
+					'<x:row r="2">',
+					'<x:c r="A2" t="str"><x:v>row-1</x:v></x:c>',
+					'<x:c r="B2" />',
+					'<x:c r="C2" t="n"><x:v>1</x:v></x:c>',
+					'<x:c r="D2" t="str"><x:v>first</x:v></x:c>',
+					"</x:row>",
+					'<x:row r="3">',
+					'<x:c r="A3" t="str"><x:v>date</x:v></x:c>',
+					'<x:c r="B3" s="1" t="n"><x:v>45322</x:v></x:c>',
+					'<x:c r="C3" />',
+					'<x:c r="D3" t="str"><x:v>after empty</x:v></x:c>',
+					"</x:row>",
+				].join(""),
+			}])),
+			format: "xlsx",
+		});
+
+		assert.deepEqual(result.diagnostics, []);
+		assert.deepEqual(result.content?.rows, [
+			["Id", "Empty Column", "Value", "Comment"],
+			["row-1", "", "1", "first"],
+			["date", "2024-01-31", "", "after empty"],
+		]);
+		assert.equal(result.sheets[0]?.sheetName, "Sparse");
+	});
+
 	test("parses delimited text chunks without first materializing a full string", async () => {
 		const result = await parseTableStructure({
 			buffer: createChunkOnlyTextBuffer([
@@ -160,6 +201,65 @@ suite("workbench/services/table/test/common/tableStructureParser", () => {
 		});
 	});
 });
+
+const createXlsxBuffer = (
+	sheets: readonly { readonly name: string; readonly rowsXml: string }[],
+): Uint8Array => {
+	const entries: ZipEntry[] = [{
+		path: "xl/workbook.xml",
+		contents: [
+			'<x:workbook xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">',
+			"<x:sheets>",
+			...sheets.map((sheet, index) =>
+				`<x:sheet name="${escapeXml(sheet.name)}" sheetId="${index + 1}" r:id="rId${index + 1}" />`
+			),
+			"</x:sheets>",
+			"</x:workbook>",
+		].join(""),
+	}, {
+		path: "xl/_rels/workbook.xml.rels",
+		contents: [
+			'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">',
+			...sheets.map((_, index) =>
+				`<Relationship Id="rId${index + 1}" Target="worksheets/sheet${index + 1}.xml" />`
+			),
+			"</Relationships>",
+		].join(""),
+	}, {
+		path: "xl/styles.xml",
+		contents: [
+			'<x:styleSheet xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main">',
+			'<x:numFmts count="1"><x:numFmt numFmtId="200" formatCode="yyyy-mm-dd" /></x:numFmts>',
+			'<x:cellXfs count="2">',
+			'<x:xf numFmtId="0" />',
+			'<x:xf numFmtId="200" applyNumberFormat="1" />',
+			"</x:cellXfs>",
+			"</x:styleSheet>",
+		].join(""),
+	}];
+
+	for (let index = 0; index < sheets.length; index += 1) {
+		entries.push({
+			path: `xl/worksheets/sheet${index + 1}.xml`,
+			contents: [
+				'<x:worksheet xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main">',
+				"<x:sheetData>",
+				sheets[index]!.rowsXml,
+				"</x:sheetData>",
+				"</x:worksheet>",
+			].join(""),
+		});
+	}
+
+	return createZipBuffer(entries);
+};
+
+const escapeXml = (value: string): string =>
+	value
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;");
 
 const createChunkOnlyTextBuffer = (
 	chunks: readonly string[],

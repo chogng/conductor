@@ -427,10 +427,9 @@ suite("workbench/services/table/browser/tableViewModel display profiles", () => 
     });
     store.add({ dispose: () => model.clearState() });
 
-    const sheetKey = resource.toString();
-    assert.equal(model.getRow(0), null);
-    await model.ensureRows(sheetKey, 0, 1);
-    assert.deepEqual(model.getRow(0), ["CH1 Current"]);
+    assert.equal(model.getRow(5050), null);
+    await model.ensureRows(5050, 5051);
+    assert.deepEqual(model.getRow(5050), ["-53.50000E-009"]);
   });
 
   test("keeps raw profiles when numeric display mode is raw", () => {

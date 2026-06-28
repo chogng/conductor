@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 import fs from "node:fs/promises";
 import path from "node:path";
 import Papa from "papaparse";
@@ -11,7 +11,7 @@ import {
 import {
   createPrepareImportBatchRequests,
   createProcessRequestsFromPrepareResponses,
-} from "./lib/recipe-template-process.mjs";
+} from "./lib/review-process.mjs";
 
 const ROOT = process.cwd();
 const OUTPUT_DIR = path.join(ROOT, ".build", "verify", "rust-origin-export");

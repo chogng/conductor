@@ -7,10 +7,15 @@ import path from "node:path";
 const helperFileName = process.platform === "win32" ? "conductor-rs.exe" : "conductor-rs";
 const helperPath = process.env.CONDUCTOR_RS_CLI_PATH
   ? path.resolve(process.env.CONDUCTOR_RS_CLI_PATH)
-  : path.join(process.cwd(), "resources", "bin", helperFileName);
+  : null;
+const helperCommand = helperPath ?? "cargo";
+const helperBaseArgs = helperPath
+  ? []
+  : ["run", "--quiet", "--manifest-path", "cli/Cargo.toml", "--"];
 
 const runJson = (args) => {
-  const result = spawnSync(helperPath, args, {
+  const result = spawnSync(helperCommand, [...helperBaseArgs, ...args], {
+    cwd: process.cwd(),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
     timeout: 10000,
@@ -35,7 +40,8 @@ const runJson = (args) => {
 };
 
 const runWorkerJson = (payload) => {
-  const result = spawnSync(helperPath, ["--stdio-worker"], {
+  const result = spawnSync(helperCommand, [...helperBaseArgs, "--stdio-worker"], {
+    cwd: process.cwd(),
     encoding: "utf8",
     input: `${JSON.stringify(payload)}\n`,
     stdio: ["pipe", "pipe", "pipe"],
@@ -65,29 +71,26 @@ const runWorkerJson = (payload) => {
   }
 };
 
-const verifyTableFactsImportBatch = () => {
+const verifyTableModelSeedImport = () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-rs-smoke-"));
   const csvPath = path.join(tempDir, "batch.csv");
   try {
     fs.writeFileSync(csvPath, "x,y\n1,2\n", "utf8");
     const response = runWorkerJson({
       id: 1,
-      command: "prepareImportBatch",
-      entries: [{
-        fileName: "batch.csv",
-        path: csvPath,
-      }],
-      threads: 1,
+      command: "prepareImport",
+      fileName: "batch.csv",
+      path: csvPath,
     });
-    if (response?.ok !== true || response?.result?.results?.[0]?.ok !== true) {
-      throw new Error(`Unexpected prepareImportBatch response: ${JSON.stringify(response)}`);
+    if (response?.ok !== true || response?.result?.fileName !== "batch.csv") {
+      throw new Error(`Unexpected prepareImport response: ${JSON.stringify(response)}`);
     }
   } finally {
     fs.rmSync(tempDir, { force: true, recursive: true });
   }
 };
 
-if (!fs.existsSync(helperPath)) {
+if (helperPath && !fs.existsSync(helperPath)) {
   console.error(`[verify-conductor-rs-smoke] conductor-rs was not found: ${helperPath}`);
   console.error("[verify-conductor-rs-smoke] Run `npm run build:conductor-rs` first.");
   process.exit(1);
@@ -104,10 +107,10 @@ try {
     throw new Error(`Unexpected doctor payload: ${JSON.stringify(doctor)}`);
   }
 
-  verifyTableFactsImportBatch();
+  verifyTableModelSeedImport();
 
   console.log(
-    `[verify-conductor-rs-smoke] OK: ${helperPath} version=${version.version} platform=${version.platform}/${version.arch}`,
+    `[verify-conductor-rs-smoke] OK: ${helperPath ?? "cargo run cli/Cargo.toml"} version=${version.version} platform=${version.platform}/${version.arch}`,
   );
 } catch (error) {
   console.error(`[verify-conductor-rs-smoke] ${error.message}`);
