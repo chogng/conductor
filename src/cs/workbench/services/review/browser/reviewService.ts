@@ -81,7 +81,6 @@ type UriReviewCacheEntry = {
 };
 
 const MaxUriReviewCacheEntries = 512;
-const MaxBackgroundUriReviewConcurrency = 2;
 const ReviewChangeBatchDelayMs = 16;
 
 export class ReviewService extends Disposable implements IReviewService {
@@ -90,17 +89,13 @@ export class ReviewService extends Disposable implements IReviewService {
   private readonly onDidChangeReviewEmitter = this._register(new Emitter<void>());
   public readonly onDidChangeReview = this.onDidChangeReviewEmitter.event;
 
-  private readonly pendingUriReviewKeys = new Set<string>();
-  private readonly queuedUriReviewKeys: string[] = [];
-  private readonly queuedUriReviewKeySet = new Set<string>();
   private readonly staleUriReviewKeys = new Set<string>();
+  private readonly activeUriReviewPromisesByKey = new Map<string, Promise<UriReviewCacheEntry | null>>();
   private readonly uriReviewCacheByKey = new Map<string, UriReviewCacheEntry>();
   private readonly uriReviewGenerationByKey = new Map<string, number>();
   private readonly uriReviewTargetsByKey = new LinkedMap<string, NormalizedUriReviewTarget>();
-  private activeUriReviewCount = 0;
   private disposed = false;
   private scheduledReviewChange: { dispose(): void } | null = null;
-  private scheduledUriReviewPump: { dispose(): void } | null = null;
 
   public constructor(
     @IRecipeService private readonly recipeService: IRecipeService,
@@ -114,16 +109,11 @@ export class ReviewService extends Disposable implements IReviewService {
         this.disposed = true;
         this.scheduledReviewChange?.dispose();
         this.scheduledReviewChange = null;
-        this.scheduledUriReviewPump?.dispose();
-        this.scheduledUriReviewPump = null;
-        this.queuedUriReviewKeys.splice(0, this.queuedUriReviewKeys.length);
-        this.queuedUriReviewKeySet.clear();
-        this.pendingUriReviewKeys.clear();
         this.staleUriReviewKeys.clear();
+        this.activeUriReviewPromisesByKey.clear();
         this.uriReviewCacheByKey.clear();
         this.uriReviewGenerationByKey.clear();
         this.uriReviewTargetsByKey.clear();
-        this.activeUriReviewCount = 0;
       },
     });
     if (this.dataResourceService) {
@@ -157,23 +147,24 @@ export class ReviewService extends Disposable implements IReviewService {
     }
 
     const key = getUriReviewTargetKey(reviewTarget);
-    this.trackUriReviewTarget(key, reviewTarget);
     const cached = this.uriReviewCacheByKey.get(key);
     if (cached && !this.staleUriReviewKeys.has(key)) {
       return cached.summary;
     }
 
-    this.scheduleUriReview(reviewTarget);
     if (cached) {
       return createStaleReviewSummaryFromCacheEntry(cached, reviewTarget);
     }
+    if (this.activeUriReviewPromisesByKey.has(key)) {
+      return {
+        resource: reviewTarget.resource,
+        ...(reviewTarget.sheetId ? { sheetId: reviewTarget.sheetId } : {}),
+        state: "pending",
+        findingCodes: [],
+      };
+    }
 
-    return {
-      resource: reviewTarget.resource,
-      ...(reviewTarget.sheetId ? { sheetId: reviewTarget.sheetId } : {}),
-      state: "pending",
-      findingCodes: [],
-    };
+    return fallback();
   }
 
   public async reviewUriForExecution(target: ReviewSummaryTarget): Promise<UriReviewExecution | null> {
@@ -184,15 +175,35 @@ export class ReviewService extends Disposable implements IReviewService {
 
     const key = getUriReviewTargetKey(reviewTarget);
     this.trackUriReviewTarget(key, reviewTarget);
-    this.cancelScheduledUriReview(key);
+    const cached = this.uriReviewCacheByKey.get(key);
+    if (cached && !this.staleUriReviewKeys.has(key)) {
+      return createUriReviewExecutionFromCacheEntry(cached);
+    }
+
+    const activeReview = this.activeUriReviewPromisesByKey.get(key);
+    if (activeReview) {
+      const generation = this.getUriReviewGeneration(key);
+      const entry = await activeReview;
+      this.trackUriReviewTarget(key, reviewTarget);
+      if (this.getUriReviewGeneration(key) !== generation) {
+        this.fireReviewChange();
+        return null;
+      }
+      if (entry) {
+        this.storeUriReviewCacheEntry(key, entry);
+      } else {
+        this.deleteUriReviewCacheEntry(key);
+      }
+      this.fireReviewChange();
+      return entry ? createUriReviewExecutionFromCacheEntry(entry) : null;
+    }
+
     const generation = this.getUriReviewGeneration(key);
-    const entry = await this.resolveUriReviewSummary(reviewTarget);
+    const entry = await this.resolveUriReviewSummaryForKey(key, reviewTarget);
     this.trackUriReviewTarget(key, reviewTarget);
-    if (this.getUriReviewGeneration(key) !== generation) {
-      this.scheduleUriReview(reviewTarget);
-    } else if (entry) {
+    if (this.getUriReviewGeneration(key) === generation && entry) {
       this.storeUriReviewCacheEntry(key, entry);
-    } else {
+    } else if (this.getUriReviewGeneration(key) === generation) {
       this.deleteUriReviewCacheEntry(key);
     }
     this.fireReviewChange();
@@ -322,82 +333,6 @@ export class ReviewService extends Disposable implements IReviewService {
     }, ReviewChangeBatchDelayMs);
   }
 
-  private scheduleUriReview(target: NormalizedUriReviewTarget): void {
-    if (this.disposed) {
-      return;
-    }
-
-    const key = getUriReviewTargetKey(target);
-    if (this.pendingUriReviewKeys.has(key) || this.queuedUriReviewKeySet.has(key)) {
-      return;
-    }
-
-    this.queuedUriReviewKeys.push(key);
-    this.queuedUriReviewKeySet.add(key);
-    this.scheduleUriReviewPump();
-  }
-
-  private scheduleUriReviewPump(): void {
-    if (this.disposed || this.scheduledUriReviewPump || this.activeUriReviewCount >= MaxBackgroundUriReviewConcurrency || !this.queuedUriReviewKeySet.size) {
-      return;
-    }
-
-    this.scheduledUriReviewPump = disposableTimeout(() => {
-      this.scheduledUriReviewPump?.dispose();
-      this.scheduledUriReviewPump = null;
-      this.runUriReviewQueue();
-    }, 0);
-  }
-
-  private runUriReviewQueue(): void {
-    if (this.disposed) {
-      return;
-    }
-
-    while (this.activeUriReviewCount < MaxBackgroundUriReviewConcurrency && this.queuedUriReviewKeys.length) {
-      const key = this.queuedUriReviewKeys.shift();
-      if (typeof key !== "string" || !this.queuedUriReviewKeySet.delete(key) || this.pendingUriReviewKeys.has(key)) {
-        continue;
-      }
-
-      const target = this.uriReviewTargetsByKey.get(key);
-      if (!target) {
-        continue;
-      }
-
-      this.pendingUriReviewKeys.add(key);
-      this.activeUriReviewCount += 1;
-      const generation = this.getUriReviewGeneration(key);
-      void this.resolveUriReviewSummary(target)
-        .then(entry => {
-          if (this.getUriReviewGeneration(key) !== generation) {
-            return;
-          }
-          if (entry) {
-            this.storeUriReviewCacheEntry(key, entry);
-          } else {
-            this.deleteUriReviewCacheEntry(key);
-          }
-        })
-        .finally(() => {
-          this.activeUriReviewCount = Math.max(0, this.activeUriReviewCount - 1);
-          this.pendingUriReviewKeys.delete(key);
-          if (this.disposed) {
-            return;
-          }
-
-          const trackedTarget = this.uriReviewTargetsByKey.get(key);
-          if (trackedTarget && this.staleUriReviewKeys.has(key)) {
-            this.scheduleUriReview(trackedTarget);
-          }
-          this.fireReviewChange();
-          this.scheduleUriReviewPump();
-        });
-    }
-
-    this.scheduleUriReviewPump();
-  }
-
   private trackUriReviewTarget(key: string, target: NormalizedUriReviewTarget): void {
     this.uriReviewTargetsByKey.set(key, target, Touch.AsNew);
     this.trimUriReviewCaches();
@@ -425,7 +360,6 @@ export class ReviewService extends Disposable implements IReviewService {
     this.uriReviewCacheByKey.delete(key);
     this.staleUriReviewKeys.delete(key);
     this.uriReviewGenerationByKey.delete(key);
-    this.cancelScheduledUriReview(key);
   }
 
   private trimUriReviewCaches(): void {
@@ -447,8 +381,22 @@ export class ReviewService extends Disposable implements IReviewService {
     return this.uriReviewGenerationByKey.get(key) ?? 0;
   }
 
-  private cancelScheduledUriReview(key: string): void {
-    this.queuedUriReviewKeySet.delete(key);
+  private resolveUriReviewSummaryForKey(
+    key: string,
+    target: NormalizedUriReviewTarget,
+  ): Promise<UriReviewCacheEntry | null> {
+    const activeReview = this.activeUriReviewPromisesByKey.get(key);
+    if (activeReview) {
+      return activeReview;
+    }
+
+    const review = this.resolveUriReviewSummary(target).finally(() => {
+      if (this.activeUriReviewPromisesByKey.get(key) === review) {
+        this.activeUriReviewPromisesByKey.delete(key);
+      }
+    });
+    this.activeUriReviewPromisesByKey.set(key, review);
+    return review;
   }
 
   private async resolveUriReviewSummary(target: NormalizedUriReviewTarget): Promise<UriReviewCacheEntry | null> {
@@ -584,8 +532,10 @@ export class ReviewService extends Disposable implements IReviewService {
       if (normalizeResourceIdentity(target.resource) !== resourceIdentity) {
         continue;
       }
+      if (!this.uriReviewCacheByKey.has(key)) {
+        continue;
+      }
       this.markUriReviewTargetStale(key);
-      this.scheduleUriReview(target);
       didChange = true;
     }
     if (didChange) {
@@ -598,11 +548,17 @@ export class ReviewService extends Disposable implements IReviewService {
       return;
     }
 
+    let didChange = false;
     for (const target of this.uriReviewTargetsByKey.values()) {
-      this.markUriReviewTargetStale(getUriReviewTargetKey(target));
-      this.scheduleUriReview(target);
+      const key = getUriReviewTargetKey(target);
+      if (this.uriReviewCacheByKey.has(key)) {
+        this.markUriReviewTargetStale(key);
+        didChange = true;
+      }
     }
-    this.fireReviewChange();
+    if (didChange) {
+      this.fireReviewChange();
+    }
   }
 
   private resolveManualTemplate(

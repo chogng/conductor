@@ -402,8 +402,9 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			resource,
 			sheetId: "table-a",
 		};
-		assert.equal(service.getLatestReviewSummary(target).state, "pending");
-		await waitUntil(() => service.getLatestReviewSummary(target).state !== "pending");
+		assert.equal(service.getLatestReviewSummary(target).state, "missing");
+		const reviewExecution = await service.reviewUriForExecution(target);
+		assert.ok(reviewExecution);
 
 		const summary = service.getLatestReviewSummary(target);
 		assert.equal(summary.state, "ready");
@@ -416,8 +417,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(Boolean(summary.reviewSignature), true);
 		assert.equal(Boolean(summary.templateFingerprint), true);
 
-		const reviewExecution = await service.reviewUriForExecution(target);
-		assert.ok(reviewExecution);
 		assert.equal(reviewExecution.resource.toString(), resource.toString());
 		assert.equal(reviewExecution.sheetId, "table-a");
 		assert.equal(reviewExecution.sourceModelVersion, 1);
@@ -446,14 +445,14 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			resource,
 			sheetId: "table-a",
 		};
-		assert.equal(service.getLatestReviewSummary(target).state, "pending");
-		await waitUntil(() => service.getLatestReviewSummary(target).state !== "pending");
+		assert.equal(service.getLatestReviewSummary(target).state, "missing");
+		const reviewExecution = await service.reviewUriForExecution(target);
+		assert.ok(reviewExecution);
 
 		const summary = service.getLatestReviewSummary(target);
 		assert.equal(summary.state, "ready");
 		assert.equal(summary.reviewedSemanticLabel, "Detected IV Output");
 
-		const reviewExecution = await service.reviewUriForExecution(target);
 		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate?.template.measurement?.curveFamily, "iv");
 		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate?.template.measurement?.ivMode, "output");
 	});
@@ -462,22 +461,29 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Instrument.csv");
-		const service = createReviewServiceForTest(
-			recipeService,
-			userTemplateService,
+		const dataResourceService = store.add(new CountingDataResourceService(
 			createDataResourceServiceForTest(resource, [], null, createTestTableModelContent([
 				["Voltage", "Current"],
 				["0", "1"],
 				["1", "2"],
 			])),
+		));
+		const service = createReviewServiceForTest(
+			recipeService,
+			userTemplateService,
+			dataResourceService,
 		);
 
 		const target = {
 			resource,
 			sheetId: "table-a",
 		};
-		assert.equal(service.getLatestReviewSummary(target).state, "pending");
-		await waitUntil(() => service.getLatestReviewSummary(target).state !== "pending");
+		assert.equal(service.getLatestReviewSummary(target).state, "missing");
+		assert.equal(dataResourceService.resolveStructuredContentCalls, 0);
+		const reviewExecution = await service.reviewUriForExecution(target);
+		assert.ok(reviewExecution);
+		assert.equal(reviewExecution.systemRecommendedReviewedTemplate, undefined);
+		assert.equal(reviewExecution.summary.state, "invalid");
 
 		const summary = service.getLatestReviewSummary(target);
 		assert.deepEqual({
@@ -490,8 +496,10 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			state: "invalid",
 		});
 
-		const reviewExecution = await service.reviewUriForExecution(target);
-		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate, undefined);
+		const resolveStructuredContentCalls = dataResourceService.resolveStructuredContentCalls;
+		const secondReviewExecution = await service.reviewUriForExecution(target);
+		assert.equal(secondReviewExecution?.systemRecommendedReviewedTemplate, undefined);
+		assert.equal(dataResourceService.resolveStructuredContentCalls, resolveStructuredContentCalls);
 	});
 
 	test("keeps latest review summary reads off structured-content resolution", async () => {
@@ -511,11 +519,12 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			sheetId: "table-a",
 		};
 
-		assert.equal(service.getLatestReviewSummary(target).state, "pending");
+		assert.equal(service.getLatestReviewSummary(target).state, "missing");
+		assert.equal(service.getLatestReviewSummary(target).state, "missing");
 		assert.equal(dataResourceService.getStructuredContentCalls, 0);
 		assert.equal(dataResourceService.resolveStructuredContentCalls, 0);
 
-		await waitUntil(() => service.getLatestReviewSummary(target).state === "ready");
+		await service.reviewUriForExecution(target);
 		const getStructuredContentCalls = dataResourceService.getStructuredContentCalls;
 		const resolveStructuredContentCalls = dataResourceService.resolveStructuredContentCalls;
 
@@ -525,9 +534,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(dataResourceService.resolveStructuredContentCalls, resolveStructuredContentCalls);
 	});
 
-	test("bounds background URI review targets retained for cache refresh", async function () {
-		this.timeout(10_000);
-
+	test("does not start URI review work from summary reads", async () => {
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const dataResourceService = store.add(new ResolvingDataResourceService());
@@ -538,17 +545,20 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		);
 
 		for (let index = 0; index < 520; index += 1) {
-			service.getLatestReviewSummary({
+			assert.equal(service.getLatestReviewSummary({
 				resource: URI.file(`/workspace/table-${index}.csv`),
-			});
+			}).state, "missing");
 		}
 
-		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 512, 600);
+		await new Promise(resolve => setTimeout(resolve, 0));
+		assert.equal(dataResourceService.resolveStructuredContentCalls, 0);
+
 		recipeService.setFingerprint("recipe:changed");
-		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 1024, 600);
+		await new Promise(resolve => setTimeout(resolve, 0));
+		assert.equal(dataResourceService.resolveStructuredContentCalls, 0);
 	});
 
-	test("limits background URI review concurrency", async () => {
+	test("reuses an active explicit URI review for execution", async () => {
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const dataResourceService = store.add(new ControlledDataResourceService());
@@ -557,22 +567,27 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			userTemplateService,
 			dataResourceService,
 		);
+		const target = {
+			resource: URI.file("/workspace/Transfer.csv"),
+			sheetId: "table-a",
+		};
 
-		for (let index = 0; index < 5; index += 1) {
-			assert.equal(service.getLatestReviewSummary({
-				resource: URI.file(`/workspace/table-${index}.csv`),
-			}).state, "pending");
-		}
-
-		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 2);
+		const firstReviewExecution = service.reviewUriForExecution(target);
+		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 1);
+		assert.equal(service.getLatestReviewSummary(target).state, "pending");
+		const secondReviewExecution = service.reviewUriForExecution(target);
 		await new Promise(resolve => setTimeout(resolve, 0));
-		assert.equal(dataResourceService.resolveStructuredContentCalls, 2);
+		assert.equal(dataResourceService.resolveStructuredContentCalls, 1);
 
-		dataResourceService.resolveNext({ kind: "missingContent" });
-		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 3);
+		dataResourceService.resolveNext({
+			kind: "missingContent",
+		});
+		assert.equal(await firstReviewExecution, null);
+		assert.equal(await secondReviewExecution, null);
+		assert.equal(dataResourceService.resolveStructuredContentCalls, 1);
 	});
 
-	test("reruns URI review when a resource changes while background review is pending", async () => {
+	test("keeps uncached active URI review isolated from resource-change reruns", async () => {
 		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Transfer.csv");
@@ -587,21 +602,18 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			sheetId: "table-a",
 		};
 
-		assert.equal(service.getLatestReviewSummary(target).state, "pending");
+		const reviewExecution = service.reviewUriForExecution(target);
 		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 1);
+		assert.equal(service.getLatestReviewSummary(target).state, "pending");
 		dataResourceService.fireDidChangeResource(resource);
 		dataResourceService.resolveNext({
 			kind: "missingContent",
 		});
 
-		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 2);
-		assert.equal(service.getLatestReviewSummary(target).state, "pending");
-		dataResourceService.resolveNext({
-			kind: "missingContent",
-		});
-
-		await waitUntil(() => service.getLatestReviewSummary(target).state === "invalid");
-		assert.equal(dataResourceService.resolveStructuredContentCalls, 2);
+		assert.equal(await reviewExecution, null);
+		await new Promise(resolve => setTimeout(resolve, 0));
+		assert.equal(dataResourceService.resolveStructuredContentCalls, 1);
+		assert.equal(service.getLatestReviewSummary(target).state, "invalid");
 	});
 
 	test("normalizes structured-cloned URI review targets before resolving models", async () => {
@@ -618,15 +630,14 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			sheetId: "table-a",
 		};
 
-		assert.equal(service.getLatestReviewSummary(target).state, "pending");
-		await waitUntil(() => service.getLatestReviewSummary(target).state !== "pending");
+		assert.equal(service.getLatestReviewSummary(target).state, "missing");
+		const reviewExecution = await service.reviewUriForExecution(target);
 
 		const summary = service.getLatestReviewSummary(target);
 		assert.equal(summary.state, "ready");
 		assert.equal(summary.resource.toString(), resource.toString());
 		assert.equal(summary.reviewSignature?.includes("[object Object]"), false);
 
-		const reviewExecution = await service.reviewUriForExecution(target);
 		assert.equal(reviewExecution?.resource.toString(), resource.toString());
 		assert.equal(reviewExecution?.reviewSignature.includes("[object Object]"), false);
 	});
@@ -642,14 +653,13 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		);
 		const target = { resource };
 
-		assert.equal(service.getLatestReviewSummary(target).state, "pending");
-		await waitUntil(() => service.getLatestReviewSummary(target).state !== "pending");
+		assert.equal(service.getLatestReviewSummary(target).state, "missing");
+		const reviewExecution = await service.reviewUriForExecution(target);
 
 		const summary = service.getLatestReviewSummary(target);
 		assert.equal(summary.state, "ready");
 		assert.equal(summary.sheetId, undefined);
 
-		const reviewExecution = await service.reviewUriForExecution(target);
 		assert.equal(reviewExecution?.sheetId, undefined);
 		assert.equal(reviewExecution?.summary.sheetId, undefined);
 	});
@@ -668,8 +678,8 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			sheetId: "missing-sheet",
 		};
 
-		assert.equal(service.getLatestReviewSummary(target).state, "pending");
-		await waitUntil(() => service.getLatestReviewSummary(target).state !== "pending");
+		assert.equal(service.getLatestReviewSummary(target).state, "missing");
+		await service.reviewUriForExecution(target);
 
 		const summary = service.getLatestReviewSummary(target);
 		assert.equal(summary.state, "invalid");
@@ -701,7 +711,8 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			resource,
 			sheetId: "table-a",
 		};
-		await waitUntil(() => service.getLatestReviewSummary(target).state === "ready");
+		await service.reviewUriForExecution(target);
+		assert.equal(service.getLatestReviewSummary(target).state, "ready");
 
 		recipeService.setFingerprint("recipe:changed");
 
@@ -710,8 +721,8 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(staleSummary.findingCodes.includes("review.stale"), true);
 		assert.equal(staleSummary.templateFingerprint, undefined);
 
-		await waitUntil(() => service.getLatestReviewSummary(target).state === "ready");
-		assert.equal(service.getLatestReviewSummary(target).state, "ready");
+		await new Promise(resolve => setTimeout(resolve, 0));
+		assert.equal(service.getLatestReviewSummary(target).state, "stale");
 	});
 
 	test("marks cached URI reviews stale when schema profiles change", async () => {
@@ -729,7 +740,8 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			resource,
 			sheetId: "table-a",
 		};
-		await waitUntil(() => service.getLatestReviewSummary(target).state === "ready");
+		await service.reviewUriForExecution(target);
+		assert.equal(service.getLatestReviewSummary(target).state, "ready");
 
 		schemaProfileService.setSnapshot(createSchemaProfileSnapshot([createSchemaProfile()]));
 
@@ -737,8 +749,8 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(staleSummary.state, "stale");
 		assert.equal(staleSummary.findingCodes.includes("review.stale"), true);
 
-		await waitUntil(() => service.getLatestReviewSummary(target).state === "ready");
-		assert.equal(service.getLatestReviewSummary(target).state, "ready");
+		await new Promise(resolve => setTimeout(resolve, 0));
+		assert.equal(service.getLatestReviewSummary(target).state, "stale");
 	});
 
 	test("confirms reviewed templates into schema profiles from structured content", async () => {
@@ -896,15 +908,14 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		);
 
 		const target = { resource };
-		assert.equal(service.getLatestReviewSummary(target).state, "pending");
-		await waitUntil(() => service.getLatestReviewSummary(target).state !== "pending");
+		assert.equal(service.getLatestReviewSummary(target).state, "missing");
+		const reviewExecution = await service.reviewUriForExecution(target);
 
 		const summary = service.getLatestReviewSummary(target);
 		assert.equal(summary.state, "invalid");
 		assert.deepEqual(summary.findingCodes, ["review.parserFatalDiagnostic"]);
 		assert.equal(summary.message, "Review candidates are invalid.");
 
-		const reviewExecution = await service.reviewUriForExecution(target);
 		assert.equal(reviewExecution?.summary.findingCodes.includes("review.parserFatalDiagnostic"), true);
 	});
 
@@ -924,13 +935,13 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		);
 
 		const target = { resource };
-		await waitUntil(() => service.getLatestReviewSummary(target).state !== "pending");
+		assert.equal(service.getLatestReviewSummary(target).state, "missing");
+		const reviewExecution = await service.reviewUriForExecution(target);
 
 		const summary = service.getLatestReviewSummary(target);
 		assert.notEqual(summary.state, "invalid");
 		assert.equal(summary.findingCodes.includes("review.parserFatalDiagnostic"), false);
 
-		const reviewExecution = await service.reviewUriForExecution(target);
 		assert.equal(reviewExecution?.summary.findingCodes.includes("review.parserFatalDiagnostic"), false);
 	});
 

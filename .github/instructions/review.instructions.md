@@ -98,18 +98,25 @@ sequenceDiagram
   participant Decision as reviewDecision
 
   Caller->>Review: reviewUriForExecution(resource, sheetId?)
-  Review->>Data: resolveStructuredContent(resource, sheetId)
-  Note over Data: Current implementation may materialize through TableModelService as a private bridge
-  Data->>Data: header/data range/column role inference
-  Data->>Data: measurement projection
-  Note over Data: Vg=>transfer, Vd=>output, generic Voltage=>unknown
-  Review->>Recipe: read passive recipes
-  Review->>Selector: match recipe domain/layout/roles
-  Selector->>Candidate: matched blocks/captures
-  Candidate->>Decision: candidate templates
-  Decision->>Decision: score + ambiguity + freshness + diagnostics
-  Decision-->>Review: ready reviewedTemplate OR invalid/noCandidates
-  Review-->>Caller: ready reviewedTemplate OR invalid/noCandidates
+  alt current cached review
+    Review-->>Caller: cached ready OR invalid/noCandidates OR null pending/error
+  else active URI review is resolving
+    Review->>Review: await existing URI review promise
+    Review-->>Caller: ready reviewedTemplate OR invalid/noCandidates OR null
+  else missing or stale review
+    Review->>Data: resolveStructuredContent(resource, sheetId)
+    Note over Data: Current implementation may materialize through TableModelService as a private bridge
+    Data->>Data: header/data range/column role inference
+    Data->>Data: measurement projection
+    Note over Data: Vg=>transfer, Vd=>output, generic Voltage=>unknown
+    Review->>Recipe: read passive recipes
+    Review->>Selector: match recipe domain/layout/roles
+    Selector->>Candidate: matched blocks/captures
+    Candidate->>Decision: candidate templates
+    Decision->>Decision: score + ambiguity + freshness + diagnostics
+    Decision-->>Review: ready reviewedTemplate OR invalid/noCandidates
+    Review-->>Caller: ready reviewedTemplate OR invalid/noCandidates
+  end
   Caller->>Caller: use reviewedTemplate, or require user template
 ```
 
@@ -120,8 +127,7 @@ Explorer decoration and hover consume only Review's public summary:
 ReviewService onDidChangeReview
   -> ExplorerDecorationsProvider.provideDecorations(resource)
   -> IReviewService.getLatestReviewSummary({ resource, contentHash?, sheetId? })
-  -> ReviewService returns cached/pending summary and queues missing URI review
-  -> ReviewService drains URI review queue with bounded background concurrency
+  -> ReviewService returns cached/stale/active-pending/missing summary without resolving content
   -> ReviewSummary(state, confidence, reviewedSemanticLabel, message, signatures)
   -> IDecorationsService / Explorer hover presentation
 ```
@@ -136,10 +142,12 @@ review policy changes, and optional materialization-version changes. Explorer
 must not fall back to Session raw-table records for URI-backed semantic
 decorations.
 
-Missing or stale URI summaries are refreshed by Review's bounded background
-queue. Explorer may receive a pending summary first; it must let Review publish
-the later `onDidChangeReview` update instead of forcing synchronous
-structured-content resolution while rendering the tree.
+Missing or stale URI summaries are not refreshed by Explorer decoration reads.
+Explorer may receive a missing, stale, or active-pending summary and must keep
+rendering without forcing synchronous or background structured-content
+resolution. Explicit execution paths such as `reviewUriForExecution(...)` may
+resolve structured content, cache the resulting summary, and publish the later
+`onDidChangeReview` update.
 
 User commands or explicit URI-backed execution controllers read the current URI
 review execution projection and submit URI-backed Slice requests, with idempotency and

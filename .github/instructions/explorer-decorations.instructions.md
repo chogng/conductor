@@ -38,7 +38,7 @@ Confirmed decoration:
 ```txt
 ExplorerFileEntry resource + sheetId
   -> ExplorerDecorationsProvider.provideDecorations(resource)
-  -> IReviewService.getLatestReviewSummary({ resource, sheetId })
+  -> IReviewService.getLatestReviewSummary({ resource, sheetId }) side-effect-free cache read
   -> Explorer decoration data
   -> IDecorationsService cache / onDidChangeDecorations
   -> ResourceLabels fileDecorations for label color / tooltip
@@ -48,7 +48,7 @@ ExplorerFileEntry resource + sheetId
 
 ExplorerFileEntry resource + sheetId
   -> ExplorerViewPane reviewSummariesByFileKey
-  -> IReviewService.getLatestReviewSummary({ resource, sheetId })
+  -> IReviewService.getLatestReviewSummary({ resource, sheetId }) side-effect-free cache read
   -> ExplorerViewer review hover content
 ```
 
@@ -70,11 +70,12 @@ remaining rows -> table-model priority background
 reviewChanged -> ExplorerDecorationsProvider.onDidChange -> IDecorationsService.onDidChangeDecorations -> ExplorerViewer rerender
 ```
 
-Review work dedupes by URI content target plus contentHash/sourceVersion,
-evidence fingerprint, and optional materialization version. Drop stale queued
-results if the content target, evidence snapshot, or materialization snapshot
-changes.
-Queue state must not be written into Explorer decoration state.
+Review summary reads from Explorer must not start structured-content resolution
+or enqueue Review work. Explicit Review execution work dedupes by URI content
+target plus contentHash/sourceVersion, evidence fingerprint, and optional
+materialization version. Drop stale active results if the content target,
+evidence snapshot, or materialization snapshot changes. Active Review state must
+not be written into Explorer decoration state.
 
 ## Rendering
 
