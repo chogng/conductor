@@ -1,17 +1,17 @@
 import assert from "assert";
 
-import { DataTransfers } from "src/cs/base/browser/dnd";
+import { DataTransfers } from "../../../../browser/dnd.js";
 import {
   ListDragOverEffectPosition,
   ListDragOverEffectType,
   type IListDragOverReaction,
-} from "src/cs/base/browser/ui/list/list";
+} from "../../../../browser/ui/list/list.js";
 import {
   ListView,
   ListViewTargetSector,
   type IListViewDragAndDrop,
-} from "src/cs/base/browser/ui/list/listView";
-import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+} from "../../../../browser/ui/list/listView.js";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "../../../common/lifecycleTestUtils.js";
 
 suite("base/test/browser/ui/list/listView", () => {
   ensureNoDisposablesAreLeakedInTestSuite();

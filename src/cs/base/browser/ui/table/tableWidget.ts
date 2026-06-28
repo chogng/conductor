@@ -3,12 +3,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addDisposableListener, EventType, getWindow } from "src/cs/base/browser/dom";
+import { DomEmitter } from "src/cs/base/browser/event";
 import { StandardKeyboardEvent } from "src/cs/base/browser/keyboardEvent";
 import { StandardMouseEvent } from "src/cs/base/browser/mouseEvent";
 import type { IManagedHover, IManagedHoverContent, IManagedHoverOptions } from "src/cs/base/browser/ui/hover/hover";
 import { getBaseLayerHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
 import { VirtualTable, VirtualTableGridModel } from "src/cs/base/browser/ui/table/virtualTable";
-import { Emitter, type Event } from "src/cs/base/common/event";
+import { Emitter, Event as EventUtil, type Event } from "src/cs/base/common/event";
 import { KeyCode } from "src/cs/base/common/keyCodes";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import type * as Table from "src/cs/base/browser/ui/table/table";
@@ -199,9 +200,6 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 	private readonly onDidChangeZoomEmitter = this.disposables.add(new Emitter<number>());
 	private readonly onDidResizeColumnEmitter = this.disposables.add(new Emitter<Table.ITableColumnResizeEvent>());
 	private readonly onDidCommitCellEditEmitter = this.disposables.add(new Emitter<Table.ITableCellEditCommitEvent>());
-	private readonly onDidClickBodyEmitter = this.disposables.add(new Emitter<Table.ITableBodyMouseEvent>());
-	private readonly onDidClickHeaderEmitter = this.disposables.add(new Emitter<Table.ITableColumnHeaderMouseEvent>());
-	private readonly onDidPointerDownBodyEmitter = this.disposables.add(new Emitter<Table.ITableBodyMouseEvent<PointerEvent>>());
 	private readonly bodyCellTraits = new Map<TBodyTemplateData, TableBodyCellTraits>();
 	private readonly bodyCellTraitsByElement = new WeakMap<HTMLTableCellElement, TableBodyCellTraits>();
 	private readonly columnHeaderTraits = new Map<TColumnHeaderTemplateData, TableColumnHeaderTraits>();
@@ -228,17 +226,14 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		this.onDidChangeZoom = this.onDidChangeZoomEmitter.event;
 		this.onDidResizeColumn = this.onDidResizeColumnEmitter.event;
 		this.onDidCommitCellEdit = this.onDidCommitCellEditEmitter.event;
-		this.onDidClickBody = this.onDidClickBodyEmitter.event;
-		this.onDidClickHeader = this.onDidClickHeaderEmitter.event;
-		this.onDidPointerDownBody = this.onDidPointerDownBodyEmitter.event;
+		this.onDidClickBody = this.createBodyClickEvent();
+		this.onDidClickHeader = this.createColumnHeaderClickEvent();
+		this.onDidPointerDownBody = this.createBodyPointerDownEvent();
 		this.disposables.add(this.virtualTable.onDidChangeVisibleRange(() => {
 			this.clearHoveredTraits();
 		}));
 		this.syncZoomStyle();
 		addRootClassName(this.element, className);
-		this.disposables.add(addDisposableListener(this.virtualTable.headerContent, EventType.CLICK, event => {
-			this.onDidClickHeaderEmitter.fire(this.toColumnHeaderMouseEvent(event as MouseEvent));
-		}));
 		this.disposables.add(addDisposableListener(this.virtualTable.headerContent, EventType.POINTER_DOWN, event => {
 			this.onColumnResizeStart(event as PointerEvent);
 		}));
@@ -248,15 +243,9 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		this.disposables.add(addDisposableListener(this.virtualTable.headerContent, "pointerleave", () => {
 			this.setHoveredColumnHeaderTraits(null);
 		}));
-		this.disposables.add(addDisposableListener(this.virtualTable.bodyRows, EventType.CLICK, event => {
-			this.onDidClickBodyEmitter.fire(this.toBodyMouseEvent(event as MouseEvent));
-		}));
 		this.disposables.add(addDisposableListener(this.virtualTable.bodyRows, EventType.DBLCLICK, event => {
 			this.onBodyDoubleClick(event as MouseEvent);
 		}));
-		this.disposables.add(addDisposableListener(this.virtualTable.bodyRows, EventType.POINTER_DOWN, event => {
-			this.onDidPointerDownBodyEmitter.fire(this.toBodyMouseEvent(event as PointerEvent));
-		}, { passive: false }));
 		this.disposables.add(addDisposableListener(this.virtualTable.bodyRows, EventType.POINTER_MOVE, event => {
 			this.onBodyPointerMove(event as PointerEvent);
 		}));
@@ -752,6 +741,21 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 				renderer.renderRowHeader(cell, descriptor);
 			},
 		};
+	}
+
+	private createBodyClickEvent(): Event<Table.ITableBodyMouseEvent> {
+		const emitter = this.disposables.add(new DomEmitter(this.virtualTable.bodyRows, "click"));
+		return EventUtil.map(emitter.event, event => this.toBodyMouseEvent(event));
+	}
+
+	private createBodyPointerDownEvent(): Event<Table.ITableBodyMouseEvent<PointerEvent>> {
+		const emitter = this.disposables.add(new DomEmitter(this.virtualTable.bodyRows, "pointerdown"));
+		return EventUtil.map(emitter.event, event => this.toBodyMouseEvent(event));
+	}
+
+	private createColumnHeaderClickEvent(): Event<Table.ITableColumnHeaderMouseEvent> {
+		const emitter = this.disposables.add(new DomEmitter(this.virtualTable.headerContent, "click"));
+		return EventUtil.map(emitter.event, event => this.toColumnHeaderMouseEvent(event));
 	}
 
 	private onBodyPointerMove(event: PointerEvent): void {

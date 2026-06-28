@@ -1,13 +1,13 @@
-import { addDisposableListener, DisposableResizeObserver, getClientArea } from "src/cs/base/browser/dom";
-import { DataTransfers, type IDragAndDropData } from "src/cs/base/browser/dnd";
-import { DomEmitter } from "src/cs/base/browser/event";
-import { distinct, equals } from "src/cs/base/common/arrays";
-import { disposableTimeout } from "src/cs/base/common/async";
-import { BugIndicatingError } from "src/cs/base/common/errors";
-import { Emitter, Event as BaseEventUtil, type Event as BaseEvent } from "src/cs/base/common/event";
-import { Disposable, DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import { ScrollbarVisibility } from "src/cs/base/common/scrollable";
-import type { ISpliceable } from "src/cs/base/common/sequence";
+import { addDisposableListener, DisposableResizeObserver, getClientArea } from "../../dom.js";
+import { DataTransfers, type IDragAndDropData } from "../../dnd.js";
+import { DomEmitter } from "../../event.js";
+import { distinct, equals } from "../../../common/arrays.js";
+import { disposableTimeout } from "../../../common/async.js";
+import { BugIndicatingError } from "../../../common/errors.js";
+import { Emitter, Event as BaseEventUtil, type Event as BaseEvent } from "../../../common/event.js";
+import { Disposable, DisposableStore, type IDisposable } from "../../../common/lifecycle.js";
+import { ScrollbarVisibility } from "../../../common/scrollable.js";
+import type { ISpliceable } from "../../../common/sequence.js";
 import {
   type IListBrowserMouseEvent,
   type IListDragAndDrop,
@@ -18,13 +18,13 @@ import {
   type IListVirtualDelegate,
   ListDragOverEffectPosition,
   ListDragOverEffectType,
-} from "src/cs/base/browser/ui/list/list";
-import { RangeMap } from "src/cs/base/common/rangeMap";
-import { RowCache, type IRow } from "src/cs/base/browser/rowCache";
-import { ScrollableElement } from "src/cs/base/browser/ui/scrollbar/scrollableElement";
-import type { ScrollbarVisibilityPolicy } from "src/cs/base/browser/ui/scrollbar/scrollbarVisibilityController";
+} from "./list.js";
+import { RangeMap } from "../../../common/rangeMap.js";
+import { RowCache, type IRow } from "../../rowCache.js";
+import { ScrollableElement } from "../scrollbar/scrollableElement.js";
+import type { ScrollbarVisibilityPolicy } from "../scrollbar/scrollbarVisibilityController.js";
 
-import "src/cs/base/browser/ui/list/list.css";
+import "./list.css";
 
 export const enum ListViewTargetSector {
   TOP = 0,

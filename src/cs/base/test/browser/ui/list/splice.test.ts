@@ -1,13 +1,13 @@
 import assert from "assert";
 
-import { CombinedSpliceable } from "../../../../browser/ui/list/splice.ts";
-import type { ISpliceable } from "../../../../common/sequence.ts";
-import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import type { ISpliceable } from "../../../../common/sequence.js";
+import { CombinedSpliceable } from "../../../../browser/ui/list/splice.js";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "../../../common/lifecycleTestUtils.js";
 
 suite("base/test/browser/ui/list/splice", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
   test("CombinedSpliceable forwards splice operations to every target", () => {
-    const calls: Array<{ start: number; deleteCount: number; elements: string[] }> = [];
+    const calls: Array<{ start: number; deleteCount: number; elements: readonly string[] }> = [];
     const first: ISpliceable<string> = {
       splice: (start, deleteCount, elements) => {
         calls.push({ start, deleteCount, elements });

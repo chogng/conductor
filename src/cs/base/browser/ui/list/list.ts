@@ -1,8 +1,8 @@
-import type { IDragAndDropData } from "src/cs/base/browser/dnd";
-import type { IKeyboardEvent } from "src/cs/base/browser/keyboardEvent";
-import type { IMouseEvent } from "src/cs/base/browser/mouseEvent";
-import type { IDisposable } from "src/cs/base/common/lifecycle";
-import { ListViewTargetSector } from "src/cs/base/browser/ui/list/listView";
+import type { IDragAndDropData } from "../../dnd.js";
+import type { IKeyboardEvent } from "../../keyboardEvent.js";
+import type { IMouseEvent } from "../../mouseEvent.js";
+import type { IDisposable } from "../../../common/lifecycle.js";
+import { ListViewTargetSector } from "./listView.js";
 
 export interface IListVirtualDelegate<T> {
   getHeight(element: T): number;

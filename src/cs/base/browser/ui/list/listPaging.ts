@@ -1,9 +1,10 @@
-import { isActiveElement } from '../../dom.js';
-import { range } from "src/cs/base/common/arrays";
-import { asPromise, type CancelablePromise, createCancelablePromise } from "src/cs/base/common/async";
-import { Event, type Event as EventType } from "src/cs/base/common/event";
-import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import { ScrollbarVisibility } from "src/cs/base/common/scrollable";
+import { isActiveElement } from "../../dom.js";
+import { range } from "../../../common/arrays.js";
+import { asPromise, type CancelablePromise, createCancelablePromise } from "../../../common/async.js";
+import { Event, type Event as EventType } from "../../../common/event.js";
+import { DisposableStore, type IDisposable } from "../../../common/lifecycle.js";
+import type { IPagedModel } from "../../../common/paging.js";
+import { ScrollbarVisibility } from "../../../common/scrollable.js";
 import type {
   IListContextMenuEvent,
   IListElementRenderDetails,
@@ -11,9 +12,8 @@ import type {
   IListMouseEvent,
   IListRenderer,
   IListVirtualDelegate,
-} from "src/cs/base/browser/ui/list/list";
-import { List, type IListAccessibilityProvider, type IListOptions } from "src/cs/base/browser/ui/list/listWidget";
-import type { IPagedModel } from "src/cs/base/common/paging";
+} from "./list.js";
+import { List, type IListAccessibilityProvider, type IListOptions } from "./listWidget.js";
 
 export interface IPagedRenderer<TElement, TTemplateData> extends IListRenderer<TElement, TTemplateData> {
   renderPlaceholder(index: number, templateData: TTemplateData): void;
@@ -220,6 +220,7 @@ export class PagedList<T> implements IDisposable {
   public readonly onDidDispose: EventType<void>;
   public readonly onMouseClick: EventType<IListMouseEvent<T>>;
   public readonly onMouseDblClick: EventType<IListMouseEvent<T>>;
+  public readonly onMouseMiddleClick: EventType<IListMouseEvent<T>>;
   public readonly onPointer: EventType<IListMouseEvent<T>>;
   public readonly onDidChangeFocus: EventType<IListEvent<T>>;
   public readonly onDidChangeSelection: EventType<IListEvent<T>>;
@@ -249,6 +250,10 @@ export class PagedList<T> implements IDisposable {
     );
     this.onMouseDblClick = Event.map<IListMouseEvent<number>, IListMouseEvent<T>>(
       this.list.onMouseDblClick,
+      event => this.mapMouseEvent(event),
+    );
+    this.onMouseMiddleClick = Event.map<IListMouseEvent<number>, IListMouseEvent<T>>(
+      this.list.onMouseMiddleClick,
       event => this.mapMouseEvent(event),
     );
     this.onPointer = Event.map<IListMouseEvent<number>, IListMouseEvent<T>>(

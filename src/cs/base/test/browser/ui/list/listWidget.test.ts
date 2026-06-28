@@ -1,9 +1,9 @@
 import assert from "assert";
 
-import { DataTransfers } from "src/cs/base/browser/dnd";
-import { type IListDragAndDrop, type IListRenderer } from "src/cs/base/browser/ui/list/list";
-import { List, TypeNavigationMode, unthemedListStyles } from "src/cs/base/browser/ui/list/listWidget";
-import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import { DataTransfers } from "../../../../browser/dnd.js";
+import { type IListDragAndDrop, type IListRenderer } from "../../../../browser/ui/list/list.js";
+import { List, TypeNavigationMode, unthemedListStyles } from "../../../../browser/ui/list/listWidget.js";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "../../../common/lifecycleTestUtils.js";
 
 suite("base/test/browser/ui/list/listWidget", () => {
   ensureNoDisposablesAreLeakedInTestSuite();

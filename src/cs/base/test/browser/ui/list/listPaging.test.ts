@@ -1,11 +1,11 @@
 import assert from "assert";
 
-import type { IPagedListOptions, IPagedRenderer } from "src/cs/base/browser/ui/list/listPaging";
-import { PagedList } from "src/cs/base/browser/ui/list/listPaging";
-import type { CancellationToken } from "src/cs/base/common/cancellation";
-import { PagedModel, type IPager } from "src/cs/base/common/paging";
-import { ScrollbarVisibility } from "src/cs/base/common/scrollable";
-import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import type { IPagedListOptions, IPagedRenderer } from "../../../../browser/ui/list/listPaging.js";
+import { PagedList } from "../../../../browser/ui/list/listPaging.js";
+import type { CancellationToken } from "../../../../common/cancellation.js";
+import { PagedModel, type IPager } from "../../../../common/paging.js";
+import { ScrollbarVisibility } from "../../../../common/scrollable.js";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "../../../common/lifecycleTestUtils.js";
 
 suite("base/test/browser/ui/list/listPaging", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
@@ -61,6 +61,7 @@ suite("base/test/browser/ui/list/listPaging", () => {
     document.body.append(container);
     const list = createPagedList(container);
     const clicks: Array<string | undefined> = [];
+    const middleClicks: Array<string | undefined> = [];
     const pointers: Array<string | undefined> = [];
     const context: Array<string | undefined> = [];
     let focusCount = 0;
@@ -71,6 +72,7 @@ suite("base/test/browser/ui/list/listPaging", () => {
       list.onDidBlur(() => { blurCount += 1; }),
       list.onDidDispose(() => { disposeCount += 1; }),
       list.onMouseClick(event => clicks.push(event.element)),
+      list.onMouseMiddleClick(event => middleClicks.push(event.element)),
       list.onPointer(event => pointers.push(event.element)),
       list.onContextMenu(event => context.push(event.element)),
     ];
@@ -89,6 +91,8 @@ suite("base/test/browser/ui/list/listPaging", () => {
       const row = container.querySelector<HTMLElement>(".ui-list__row[data-index='1']");
       assert.ok(row);
       row.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      row.dispatchEvent(new MouseEvent("auxclick", { bubbles: true, button: 1 }));
+      row.dispatchEvent(new MouseEvent("auxclick", { bubbles: true, button: 2 }));
       row.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true }));
 
       list.setAnchor(2);
@@ -99,7 +103,8 @@ suite("base/test/browser/ui/list/listPaging", () => {
 
       assert.equal(focusCount, 1);
       assert.deepEqual(clicks, ["beta"]);
-      assert.deepEqual(pointers, ["beta"]);
+      assert.deepEqual(middleClicks, ["beta"]);
+      assert.deepEqual(pointers, ["beta", "beta"]);
       assert.deepEqual(context, ["beta"]);
       assert.equal(list.scrollTop, 24);
 

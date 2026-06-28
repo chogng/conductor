@@ -1,18 +1,18 @@
-import { addDisposableListener, EventType, getWindow, isEditableElement, isHTMLElement } from "src/cs/base/browser/dom";
-import { createStyleSheet } from "src/cs/base/browser/domStylesheets";
-import type { IDragAndDropData } from "src/cs/base/browser/dnd";
-import { asCssValueWithDefault } from "src/cs/base/browser/cssValue";
-import { alert as ariaAlert, type AriaRole } from "src/cs/base/browser/ui/aria/aria";
-import { StandardKeyboardEvent, type IKeyboardEvent } from "src/cs/base/browser/keyboardEvent";
-import { StandardMouseEvent } from "src/cs/base/browser/mouseEvent";
-import { range } from "src/cs/base/common/arrays";
-import { memoize } from "src/cs/base/common/decorators";
-import { Event, Emitter, EventBufferer, type Event as BaseEvent } from "src/cs/base/common/event";
-import { matchesFuzzy2, matchesPrefix } from "src/cs/base/common/filters";
-import { KeyCode } from "src/cs/base/common/keyCodes";
-import { Disposable, DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import { isMacintosh } from "src/cs/base/common/platform";
-import type { ISpliceable } from "src/cs/base/common/sequence";
+import { asCssValueWithDefault } from "../../cssValue.js";
+import type { IDragAndDropData } from "../../dnd.js";
+import { addDisposableListener, EventType, getWindow, isEditableElement, isHTMLElement } from "../../dom.js";
+import { createStyleSheet } from "../../domStylesheets.js";
+import { StandardKeyboardEvent, type IKeyboardEvent } from "../../keyboardEvent.js";
+import { StandardMouseEvent } from "../../mouseEvent.js";
+import { alert as ariaAlert, type AriaRole } from "../aria/aria.js";
+import { range } from "../../../common/arrays.js";
+import { memoize } from "../../../common/decorators.js";
+import { Event, Emitter, EventBufferer, type Event as BaseEvent } from "../../../common/event.js";
+import { matchesFuzzy2, matchesPrefix } from "../../../common/filters.js";
+import { KeyCode } from "../../../common/keyCodes.js";
+import { Disposable, DisposableStore, type IDisposable } from "../../../common/lifecycle.js";
+import { isMacintosh } from "../../../common/platform.js";
+import type { ISpliceable } from "../../../common/sequence.js";
 import {
   type IIdentityProvider,
   type IListDragAndDrop,
@@ -29,7 +29,7 @@ import {
   ListError,
   NotSelectableGroupId,
   type NotSelectableGroupIdType,
-} from "src/cs/base/browser/ui/list/list";
+} from "./list.js";
 import {
   ListView,
   type IListViewAccessibilityProvider,
@@ -37,8 +37,8 @@ import {
   type IListViewOptions,
   type IListViewOptionsUpdate,
   ListViewTargetSector,
-} from "src/cs/base/browser/ui/list/listView";
-import { CombinedSpliceable } from './splice.js';
+} from "./listView.js";
+import { CombinedSpliceable } from "./splice.js";
 
 export enum TypeNavigationMode {
   Automatic,
