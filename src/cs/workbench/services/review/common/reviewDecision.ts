@@ -16,7 +16,6 @@ import type {
 	ReviewFactors,
 	ReviewFinding,
 	ReviewResult,
-	ReviewSummaryTarget,
 } from "src/cs/workbench/services/review/common/reviewModel";
 import { URI } from "src/cs/base/common/uri";
 import { deriveAutomaticReviewCandidates } from "src/cs/workbench/services/review/common/reviewCandidate";
@@ -52,7 +51,7 @@ export type ReviewDerivationInput = {
 	readonly fileName?: string | null;
 	readonly modelVersion: number;
 	readonly recipeSnapshot: RecipeSnapshot;
-	readonly resource: ReviewSummaryTarget["resource"];
+	readonly resource: URI;
 	readonly rowCount?: number;
 	readonly schemaProfileSnapshot?: SchemaProfileSnapshot;
 	readonly sheetId?: string | null;

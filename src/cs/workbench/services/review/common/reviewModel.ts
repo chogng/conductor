@@ -268,11 +268,11 @@ export type ReviewSummaryState =
 	| "needsAdjustment"
 	| "invalid";
 
-export type ReviewSummaryTarget = {
+export interface ReviewSummaryTarget {
 	readonly resource: URI;
 	readonly contentHash?: string | null;
 	readonly sheetId?: string | null;
-};
+}
 
 export type ReviewSummary = {
 	readonly resource: URI;

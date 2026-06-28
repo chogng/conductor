@@ -191,6 +191,10 @@ snapshot. Do not reintroduce Review-local structured-content bridges.
 - Review API targets use URI plus optional content version and content
   sub-targets. Do not expose `result target`, synthetic cache keys, or keyed map
   fields as public contracts.
+- Public Review target interfaces may accept nullable optional fields at the
+  service boundary. `ReviewService` must normalize them once into a private
+  target interface with optional concrete fields before cache, scheduling,
+  data-resource, or execution helper code consumes them.
 - `ReviewEvidence` names content facts as structured/matrix evidence. Do not
   introduce table UI projection target APIs or import Table UI/model types into
   evidence definitions.

@@ -53,14 +53,18 @@ import type {
 } from "src/cs/workbench/services/table/common/resolverService";
 import type { Template } from "src/cs/workbench/services/template/common/template";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
+import { UserDataProfileResourceService } from "src/cs/workbench/services/userDataProfile/browser/userDataProfileResourceService";
 import type { IUserTemplateService } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 import { UserTemplateService } from "src/cs/workbench/services/userTemplate/browser/userTemplateService";
 import { UserTemplateStoreService } from "src/cs/workbench/services/userTemplate/browser/userTemplateStoreService";
 
 suite("workbench/services/review/test/browser/reviewService", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const createUserTemplateStoreServiceForTest = () =>
-		store.add(new UserTemplateStoreService(store.add(new TestStorageService())));
+	const createUserTemplateStoreServiceForTest = () => {
+		const storageService = store.add(new TestStorageService());
+		const userDataProfileResourceService = store.add(new UserDataProfileResourceService(storageService));
+		return store.add(new UserTemplateStoreService(userDataProfileResourceService, storageService));
+	};
 	const createUserTemplateServiceForTest = () =>
 		store.add(new UserTemplateService(createUserTemplateStoreServiceForTest()));
 	const createReviewServiceForTest = (
@@ -610,7 +614,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			createDataResourceServiceForTest(resource),
 		);
 		const target: ReviewSummaryTarget = {
-			resource: resource.toJSON() as unknown as ReviewSummaryTarget["resource"],
+			resource: resource.toJSON() as unknown as URI,
 			sheetId: "table-a",
 		};
 

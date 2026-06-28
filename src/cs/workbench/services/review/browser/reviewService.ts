@@ -9,10 +9,7 @@ import { disposableTimeout } from "src/cs/base/common/async";
 import { URI } from "src/cs/base/common/uri";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
-import {
-  IRecipeService,
-  type IRecipeService as IRecipeServiceType,
-} from "cs/workbench/services/recipes/common/recipe";
+import { IRecipeService } from "cs/workbench/services/recipes/common/recipe";
 import {
   IReviewService,
   type ManualTemplateReviewResult,
@@ -26,13 +23,11 @@ import {
   type DataResourceStructuredContentResolution,
   type DataResourceStructuredContentSnapshot,
   type DataResourceStructuredContentTarget,
-  type IDataResourceService as IDataResourceServiceType,
   type IDataResourceStructuredContentReference,
 } from "src/cs/workbench/services/dataResource/common/dataResource";
 import {
   ISchemaProfileService,
   type SchemaProfile,
-  type ISchemaProfileService as ISchemaProfileServiceType,
 } from "src/cs/workbench/services/schemaProfile/common/schemaProfile";
 import type {
   ConfirmSchemaProfileInput,
@@ -64,16 +59,13 @@ import {
   type TemplateRowRange,
 } from "src/cs/workbench/services/template/common/template";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
-import {
-  IUserTemplateService,
-  type IUserTemplateService as IUserTemplateServiceType,
-} from "src/cs/workbench/services/userTemplate/common/userTemplate";
+import { IUserTemplateService } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
-type UriReviewTarget = {
+interface NormalizedUriReviewTarget {
   readonly resource: URI;
-  readonly contentHash: string | null;
-  readonly sheetId: string | null;
-};
+  readonly contentHash?: string;
+  readonly sheetId?: string;
+}
 
 type UriReviewCacheEntry = {
   readonly columnCount?: number;
@@ -104,17 +96,17 @@ export class ReviewService extends Disposable implements IReviewService {
   private readonly staleUriReviewKeys = new Set<string>();
   private readonly uriReviewCacheByKey = new Map<string, UriReviewCacheEntry>();
   private readonly uriReviewGenerationByKey = new Map<string, number>();
-  private readonly uriReviewTargetsByKey = new LinkedMap<string, UriReviewTarget>();
+  private readonly uriReviewTargetsByKey = new LinkedMap<string, NormalizedUriReviewTarget>();
   private activeUriReviewCount = 0;
   private disposed = false;
   private scheduledReviewChange: { dispose(): void } | null = null;
   private scheduledUriReviewPump: { dispose(): void } | null = null;
 
   public constructor(
-    @IRecipeService private readonly recipeService: IRecipeServiceType,
-    @IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
-    @IDataResourceService private readonly dataResourceService?: IDataResourceServiceType,
-    @ISchemaProfileService private readonly schemaProfileService?: ISchemaProfileServiceType,
+    @IRecipeService private readonly recipeService: IRecipeService,
+    @IUserTemplateService private readonly userTemplateService: IUserTemplateService,
+    @IDataResourceService private readonly dataResourceService?: IDataResourceService,
+    @ISchemaProfileService private readonly schemaProfileService?: ISchemaProfileService,
   ) {
     super();
     this._register({
@@ -330,7 +322,7 @@ export class ReviewService extends Disposable implements IReviewService {
     }, ReviewChangeBatchDelayMs);
   }
 
-  private scheduleUriReview(target: UriReviewTarget): void {
+  private scheduleUriReview(target: NormalizedUriReviewTarget): void {
     if (this.disposed) {
       return;
     }
@@ -406,7 +398,7 @@ export class ReviewService extends Disposable implements IReviewService {
     this.scheduleUriReviewPump();
   }
 
-  private trackUriReviewTarget(key: string, target: UriReviewTarget): void {
+  private trackUriReviewTarget(key: string, target: NormalizedUriReviewTarget): void {
     this.uriReviewTargetsByKey.set(key, target, Touch.AsNew);
     this.trimUriReviewCaches();
   }
@@ -459,7 +451,7 @@ export class ReviewService extends Disposable implements IReviewService {
     this.queuedUriReviewKeySet.delete(key);
   }
 
-  private async resolveUriReviewSummary(target: UriReviewTarget): Promise<UriReviewCacheEntry | null> {
+  private async resolveUriReviewSummary(target: NormalizedUriReviewTarget): Promise<UriReviewCacheEntry | null> {
     if (!this.dataResourceService) {
       return null;
     }
@@ -485,7 +477,7 @@ export class ReviewService extends Disposable implements IReviewService {
   }
 
   private async createUriReviewSummaryFromStructuredContent(
-    target: UriReviewTarget,
+    target: NormalizedUriReviewTarget,
     resolution: DataResourceStructuredContentResolution,
   ): Promise<UriReviewCacheEntry> {
     const modelSignature = createUriReviewModelSignature({
@@ -1061,7 +1053,7 @@ const isNonNegativeInteger = (
 
 const createStaleReviewSummaryFromCacheEntry = (
   entry: UriReviewCacheEntry,
-  target: UriReviewTarget,
+  target: NormalizedUriReviewTarget,
 ): ReviewSummary => ({
   resource: target.resource,
   ...(target.sheetId ? { sheetId: target.sheetId } : {}),
@@ -1103,22 +1095,24 @@ const createReviewResultSignature = (
 
 const normalizeUriReviewTarget = (
   target: ReviewSummaryTarget,
-): UriReviewTarget | null => {
+): NormalizedUriReviewTarget | null => {
   const resource = URI.revive(target.resource);
   const resourceIdentity = normalizeResourceIdentity(resource);
   if (!resourceIdentity) {
     return null;
   }
+  const contentHash = normalizeText(target.contentHash);
+  const sheetId = normalizeText(target.sheetId);
 
   return {
     resource,
-    contentHash: normalizeText(target.contentHash) || null,
-    sheetId: normalizeText(target.sheetId) || null,
+    ...(contentHash ? { contentHash } : {}),
+    ...(sheetId ? { sheetId } : {}),
   };
 };
 
 const getUriReviewTargetKey = (
-  target: UriReviewTarget,
+  target: NormalizedUriReviewTarget,
 ): string => [
   normalizeResourceIdentity(target.resource),
   target.contentHash ?? "",
@@ -1126,11 +1120,11 @@ const getUriReviewTargetKey = (
 ].join("\u001f");
 
 const createDataResourceStructuredContentTarget = (
-  target: UriReviewTarget,
+  target: NormalizedUriReviewTarget,
 ): DataResourceStructuredContentTarget => ({
   resource: target.resource,
-  contentHash: target.contentHash,
-  sheetId: target.sheetId,
+  ...(target.contentHash ? { contentHash: target.contentHash } : {}),
+  ...(target.sheetId ? { sheetId: target.sheetId } : {}),
 });
 
 const createReviewEvidenceFromStructuredContent = (
@@ -1159,7 +1153,7 @@ const createUriReviewModelSignature = ({
   readonly recipeFingerprint: string;
   readonly resolution: DataResourceStructuredContentResolution;
   readonly schemaProfileVersion: number;
-  readonly target: UriReviewTarget;
+  readonly target: NormalizedUriReviewTarget;
   readonly userTemplateEffectiveFingerprint: string;
   readonly userTemplateVersion: number;
 }): string => [
@@ -1176,7 +1170,7 @@ const createUriReviewModelSignature = ({
 ].join("\u001f");
 
 const createUriReviewErrorSignature = (
-  target: UriReviewTarget,
+  target: NormalizedUriReviewTarget,
   error: unknown,
 ): string => [
   getUriReviewTargetKey(target),
