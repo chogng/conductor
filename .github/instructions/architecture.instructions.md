@@ -133,6 +133,7 @@ Runtime folders:
 | `IDataResourceService` | URI-backed Conductor data-resource snapshots: structured content, sheet sub-targets, source versions, and parser diagnostics for Review/Table/Search/Slice consumers |
 | `ISessionService` | canonical imported data-file/raw-table ledger and downstream analysis records |
 | `IRecipeService` | passive built-in rules; it does not evaluate tables or build review candidates |
+| `IUserDataProfileResourceService` | profile-scoped user-data resources such as UserTemplate payloads; it owns profile resource persistence and import/export aggregation boundaries, not individual domain semantics |
 | `IReviewService` | URI-grounded content-version review: builds `SegmentCandidate`/review candidates from canonical evidence plus Recipe/UserTemplate/built-in template snapshots, evaluates candidates, selects `ReviewedTemplate` for table adapters, owns manual adjustment state and system-application recommendation |
 | `services/template` | canonical executable Template spec, editor adapters, and manual-template UI state; it does not own automatic Recipe/UserTemplate/built-in template candidate derivation |
 | `IUserTemplateService` | native user template catalog CRUD/snapshots/import/export and explicit template lookup |
@@ -144,7 +145,7 @@ Runtime folders:
 | `IThumbnailService` / preview service | thumbnail bitmap cache/rendering and per-file preview lifecycle |
 | `ISearchService` | search query/results/provenance |
 | `IExportService` | export plan, options, artifacts |
-| `IParametersService` | parameter rows, metric inputs, parameter display state |
+| `IParametersService` | parameter rows and parameter display state |
 
 ## Command Dispatch
 
@@ -217,7 +218,9 @@ Specific flow owners:
 - Plot: Plot consumes canonical curves/metrics and produces render models.
 - Chart: Chart hosts plot UI; it does not interpret raw session facts.
 - Thumbnail: Thumbnail consumes Plot render models; it does not derive curves.
-- Export/Search/Parameters: consume Session/Plot/metric state through their own services.
+- Export: consumes remaining Session/Plot/metric state through its own service.
+- Parameters: consumes explicit metric-bearing file records through its own service.
+- Search: consumes explicit URI structured-content snapshots plus Plot/Chart owner state.
 
 ## Canonical Session
 

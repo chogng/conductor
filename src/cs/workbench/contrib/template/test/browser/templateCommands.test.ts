@@ -19,6 +19,7 @@ import {
   type ISaveDialogOptions,
 } from "src/cs/platform/dialogs/common/dialogs";
 import {
+  FileSystemProviderCapabilities,
   FileType,
   IFileService,
   type IFileChange,
@@ -47,12 +48,18 @@ import {
 } from "src/cs/workbench/services/path/common/pathService";
 import type { Template } from "src/cs/workbench/services/template/common/template";
 import {
+  IUserTemplateImportExportService,
   IUserTemplateService,
-  type IUserTemplateService as IUserTemplateServiceType,
   type UserTemplate,
   type UserTemplateChangeEvent,
   type UserTemplateImportInput,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
+import { UserTemplateImportExportService } from "src/cs/workbench/services/userTemplate/browser/userTemplateImportExportService";
+import {
+  IUserDataProfileResourceService,
+  type IUserDataProfileResourceHandler,
+  type UserDataProfileResourceId,
+} from "src/cs/workbench/services/userDataProfile/common/userDataProfile";
 
 suite("workbench/contrib/template/test/browser/templateCommands", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -91,6 +98,15 @@ suite("workbench/contrib/template/test/browser/templateCommands", () => {
     const importState: { input?: UserTemplateImportInput } = {};
     const templateViewStateService = store.add(new TemplateViewStateService());
     const notifications: INotification[] = [];
+    const userTemplateService = createUserTemplateService({
+      importTemplates: async input => {
+        importState.input = input;
+        return {
+          imported: [userTemplate],
+          skipped: [],
+        };
+      },
+    });
     const accessor = createAccessor([
       [IFileDialogService, createFileDialogService(templateResource)],
       [IFileService, new TestFileService(JSON.stringify({
@@ -101,15 +117,11 @@ suite("workbench/contrib/template/test/browser/templateCommands", () => {
       [INotificationService, createNotificationService(notifications)],
       [IPathService, createPathService(URI.file("/imports"))],
       [ITemplateViewStateService, templateViewStateService],
-      [IUserTemplateService, createUserTemplateService({
-        importTemplates: async input => {
-          importState.input = input;
-          return {
-            imported: [userTemplate],
-            skipped: [],
-          };
-        },
-      })],
+      [IUserTemplateService, userTemplateService],
+      [
+        IUserTemplateImportExportService,
+        store.add(new UserTemplateImportExportService(userTemplateService, createUserDataProfileResourceService())),
+      ],
     ]);
 
     try {
@@ -137,6 +149,15 @@ suite("workbench/contrib/template/test/browser/templateCommands", () => {
     const templateResource = URI.file("/imports/template.json");
     let didImport = false;
     const notifications: INotification[] = [];
+    const userTemplateService = createUserTemplateService({
+      importTemplates: async () => {
+        didImport = true;
+        return {
+          imported: [],
+          skipped: [],
+        };
+      },
+    });
     const accessor = createAccessor([
       [IFileDialogService, createFileDialogService(templateResource)],
       [IFileService, new TestFileService(JSON.stringify({
@@ -147,15 +168,11 @@ suite("workbench/contrib/template/test/browser/templateCommands", () => {
       [INotificationService, createNotificationService(notifications)],
       [IPathService, createPathService(URI.file("/imports"))],
       [ITemplateViewStateService, store.add(new TemplateViewStateService())],
-      [IUserTemplateService, createUserTemplateService({
-        importTemplates: async () => {
-          didImport = true;
-          return {
-            imported: [],
-            skipped: [],
-          };
-        },
-      })],
+      [IUserTemplateService, userTemplateService],
+      [
+        IUserTemplateImportExportService,
+        store.add(new UserTemplateImportExportService(userTemplateService, createUserDataProfileResourceService())),
+      ],
     ]);
 
     try {
@@ -200,6 +217,25 @@ function createFileDialogService(resource: URI): IFileDialogService {
   };
 }
 
+function createUserDataProfileResourceService(): IUserDataProfileResourceService {
+  return {
+    _serviceBrand: undefined,
+    onDidChangeResource: Event.None,
+    registerResourceHandler: (
+      _resource: UserDataProfileResourceId,
+      _handler: IUserDataProfileResourceHandler,
+    ) => Disposable.None,
+    exportProfile: async () => ({
+      source: "conductor.userDataProfile",
+      version: 1,
+      resources: [],
+    }),
+    importProfileFromPayload: async () => null,
+    readResource: <T extends object>(_resource: UserDataProfileResourceId): T | undefined => undefined,
+    writeResource: (_resource: UserDataProfileResourceId, _value: object) => undefined,
+  };
+}
+
 function createNotificationService(notifications: INotification[]): INotificationService {
   return {
     _serviceBrand: undefined,
@@ -241,8 +277,8 @@ function createPathService(userHome: URI): IPathServiceType {
 }
 
 function createUserTemplateService(options: {
-  readonly importTemplates: IUserTemplateServiceType["importTemplates"];
-}): IUserTemplateServiceType {
+  readonly importTemplates: IUserTemplateService["importTemplates"];
+}): IUserTemplateService {
   return {
     _serviceBrand: undefined,
     onDidChangeUserTemplates: Event.None as Event<UserTemplateChangeEvent>,
@@ -260,8 +296,8 @@ function createUserTemplateService(options: {
     }),
     getSnapshot: () => ({
       effectiveFingerprint: "",
-      globalFingerprint: "",
-      globalVersion: 0,
+      profileFingerprint: "",
+      profileVersion: 0,
       templates: [],
       version: 0,
       workspaceFingerprint: "",
@@ -282,7 +318,7 @@ function createUserTemplate(id: string, name: string): UserTemplate {
     createdAt: 1,
     id,
     name,
-    scope: "global",
+    scope: "profile",
     source: "imported",
     template,
     templateFingerprint: `fingerprint:${id}`,
@@ -330,9 +366,15 @@ class TestFileService implements IFileService {
     return Disposable.None;
   }
 
-  public getProvider(_scheme: string): IFileSystemProvider | undefined {
-    return undefined;
-  }
+	public getProvider(_scheme: string): IFileSystemProvider | undefined {
+		return undefined;
+	}
+
+	public getProviderCapabilities(): FileSystemProviderCapabilities {
+		return FileSystemProviderCapabilities.FileRead |
+			FileSystemProviderCapabilities.FileWrite |
+			FileSystemProviderCapabilities.FileWatch;
+	}
 
   public exists(_resource: URI): Promise<boolean> {
     return Promise.resolve(true);

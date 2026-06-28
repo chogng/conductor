@@ -12,9 +12,12 @@ export const IUserTemplateService =
 export const IUserTemplateStoreService =
   createDecorator<IUserTemplateStoreService>("userTemplateStoreService");
 
+export const IUserTemplateImportExportService =
+  createDecorator<IUserTemplateImportExportService>("userTemplateImportExportService");
+
 export type UserTemplateScope =
   | "workspace"
-  | "global";
+  | "profile";
 
 export type UserTemplateSource =
   | "userCreated"
@@ -40,9 +43,9 @@ export type UserTemplate = {
 export type UserTemplateSnapshot = {
   readonly version: number;
   readonly workspaceVersion: number;
-  readonly globalVersion: number;
+  readonly profileVersion: number;
   readonly workspaceFingerprint: string;
-  readonly globalFingerprint: string;
+  readonly profileFingerprint: string;
   readonly effectiveFingerprint: string;
   readonly templates: readonly UserTemplate[];
 };
@@ -55,7 +58,7 @@ export type UserTemplateChangeEvent = {
 export type UserTemplateStoreSnapshot = {
   readonly version: number;
   readonly workspaceVersion: number;
-  readonly globalVersion: number;
+  readonly profileVersion: number;
   readonly templates: readonly UserTemplate[];
 };
 
@@ -127,4 +130,13 @@ export interface IUserTemplateService {
   importTemplates(input: UserTemplateImportInput): Promise<UserTemplateImportResult>;
   refreshTemplates(): Promise<readonly UserTemplate[]>;
   updateTemplate(id: string, update: UserTemplateUpdate): Promise<UserTemplate>;
+}
+
+export interface IUserTemplateImportExportService {
+  readonly _serviceBrand: undefined;
+
+  exportTemplates(ids?: readonly string[]): UserTemplateExportPayload;
+  getProfileResourceContent(): string;
+  applyProfileResourceContent(content: string): Promise<UserTemplateImportResult | null>;
+  importTemplatesFromPayload(payload: unknown): Promise<UserTemplateImportResult | null>;
 }

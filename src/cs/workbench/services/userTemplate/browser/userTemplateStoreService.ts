@@ -9,20 +9,21 @@ import {
   IStorageService,
   StorageScope,
   StorageTarget,
-  type IStorageService as IStorageServiceType,
 } from "src/cs/platform/storage/common/storage";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
 import {
+  IUserDataProfileResourceService,
+  UserDataProfileResourceId,
+} from "src/cs/workbench/services/userDataProfile/common/userDataProfile";
+import {
   IUserTemplateStoreService,
-  type IUserTemplateStoreService as IUserTemplateStoreServiceType,
   type NativeUserTemplateSource,
   type UserTemplate,
   type UserTemplateScope,
   type UserTemplateStoreSnapshot,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
-export const USER_TEMPLATE_GLOBAL_STORAGE_KEY = "userTemplate.globalTemplates";
 export const USER_TEMPLATE_WORKSPACE_STORAGE_KEY = "userTemplate.workspaceTemplates";
 
 type StoredUserTemplateState = {
@@ -35,7 +36,7 @@ type ScopeSnapshot = {
   readonly templates: readonly UserTemplate[];
 };
 
-export class UserTemplateStoreService extends Disposable implements IUserTemplateStoreServiceType {
+export class UserTemplateStoreService extends Disposable implements IUserTemplateStoreService {
   public declare readonly _serviceBrand: undefined;
 
   private readonly onDidChangeUserTemplatesEmitter =
@@ -43,15 +44,17 @@ export class UserTemplateStoreService extends Disposable implements IUserTemplat
   public readonly onDidChangeUserTemplates =
     this.onDidChangeUserTemplatesEmitter.event;
 
-  private globalSnapshot: ScopeSnapshot;
+  private profileSnapshot: ScopeSnapshot;
   private workspaceSnapshot: ScopeSnapshot;
   private snapshot: UserTemplateStoreSnapshot;
 
   public constructor(
-    @IStorageService private readonly storageService: IStorageServiceType,
+    @IUserDataProfileResourceService
+    private readonly userDataProfileResourceService: IUserDataProfileResourceService,
+    @IStorageService private readonly storageService: IStorageService,
   ) {
     super();
-    this.globalSnapshot = this.readScopeSnapshot("global");
+    this.profileSnapshot = this.readScopeSnapshot("profile");
     this.workspaceSnapshot = this.readScopeSnapshot("workspace");
     this.snapshot = this.createSnapshot();
     this.registerStorageListeners();
@@ -67,15 +70,15 @@ export class UserTemplateStoreService extends Disposable implements IUserTemplat
       return template;
     }
 
-    const nextGlobalTemplates = normalizedTemplate.scope === "global"
-      ? upsertTemplate(this.globalSnapshot.templates, normalizedTemplate)
-      : removeTemplate(this.globalSnapshot.templates, normalizedTemplate.id);
+    const nextProfileTemplates = normalizedTemplate.scope === "profile"
+      ? upsertTemplate(this.profileSnapshot.templates, normalizedTemplate)
+      : removeTemplate(this.profileSnapshot.templates, normalizedTemplate.id);
     const nextWorkspaceTemplates = normalizedTemplate.scope === "workspace"
       ? upsertTemplate(this.workspaceSnapshot.templates, normalizedTemplate)
       : removeTemplate(this.workspaceSnapshot.templates, normalizedTemplate.id);
 
     this.storeScopes({
-      globalTemplates: nextGlobalTemplates,
+      profileTemplates: nextProfileTemplates,
       workspaceTemplates: nextWorkspaceTemplates,
     });
     return normalizedTemplate;
@@ -88,28 +91,27 @@ export class UserTemplateStoreService extends Disposable implements IUserTemplat
     }
 
     this.storeScopes({
-      globalTemplates: removeTemplate(this.globalSnapshot.templates, templateId),
+      profileTemplates: removeTemplate(this.profileSnapshot.templates, templateId),
       workspaceTemplates: removeTemplate(this.workspaceSnapshot.templates, templateId),
     });
   }
 
   public clearTemplates(): void {
     this.storeScopes({
-      globalTemplates: [],
+      profileTemplates: [],
       workspaceTemplates: [],
     });
   }
 
   private registerStorageListeners(): void {
-    const profileDisposables = this._register(new DisposableStore());
-    this.storageService.onDidChangeValue(
-      StorageScope.PROFILE,
-      USER_TEMPLATE_GLOBAL_STORAGE_KEY,
-      profileDisposables,
-    )(() => {
-      this.globalSnapshot = this.readScopeSnapshot("global");
+    this._register(this.userDataProfileResourceService.onDidChangeResource(event => {
+      if (event.resource !== UserDataProfileResourceId.UserTemplates) {
+        return;
+      }
+
+      this.profileSnapshot = this.readScopeSnapshot("profile");
       this.setSnapshot(this.createSnapshot());
-    });
+    }));
 
     const workspaceDisposables = this._register(new DisposableStore());
     this.storageService.onDidChangeValue(
@@ -123,10 +125,12 @@ export class UserTemplateStoreService extends Disposable implements IUserTemplat
   }
 
   private readScopeSnapshot(scope: UserTemplateScope): ScopeSnapshot {
-    const stored = this.storageService.getObject<StoredUserTemplateState>(
-      getStorageKeyForScope(scope),
-      getStorageScope(scope),
-    );
+    const stored = scope === "profile"
+      ? this.userDataProfileResourceService.readResource<StoredUserTemplateState>(UserDataProfileResourceId.UserTemplates)
+      : this.storageService.getObject<StoredUserTemplateState>(
+        USER_TEMPLATE_WORKSPACE_STORAGE_KEY,
+        StorageScope.WORKSPACE,
+      );
     return {
       version: normalizeVersion(stored?.version),
       templates: normalizeUserTemplates(stored?.templates ?? [], scope),
@@ -134,22 +138,22 @@ export class UserTemplateStoreService extends Disposable implements IUserTemplat
   }
 
   private storeScopes({
-    globalTemplates,
+    profileTemplates,
     workspaceTemplates,
   }: {
-    readonly globalTemplates: readonly UserTemplate[];
+    readonly profileTemplates: readonly UserTemplate[];
     readonly workspaceTemplates: readonly UserTemplate[];
   }): void {
-    const globalChanged = !areTemplatesEqual(this.globalSnapshot.templates, globalTemplates);
+    const profileChanged = !areTemplatesEqual(this.profileSnapshot.templates, profileTemplates);
     const workspaceChanged = !areTemplatesEqual(this.workspaceSnapshot.templates, workspaceTemplates);
-    if (!globalChanged && !workspaceChanged) {
+    if (!profileChanged && !workspaceChanged) {
       return;
     }
 
-    if (globalChanged) {
-      this.globalSnapshot = {
-        version: this.globalSnapshot.version + 1,
-        templates: globalTemplates,
+    if (profileChanged) {
+      this.profileSnapshot = {
+        version: this.profileSnapshot.version + 1,
+        templates: profileTemplates,
       };
     }
     if (workspaceChanged) {
@@ -161,8 +165,8 @@ export class UserTemplateStoreService extends Disposable implements IUserTemplat
 
     this.setSnapshot(this.createSnapshot());
 
-    if (globalChanged) {
-      this.writeScopeSnapshot("global", this.globalSnapshot);
+    if (profileChanged) {
+      this.writeScopeSnapshot("profile", this.profileSnapshot);
     }
     if (workspaceChanged) {
       this.writeScopeSnapshot("workspace", this.workspaceSnapshot);
@@ -170,22 +174,30 @@ export class UserTemplateStoreService extends Disposable implements IUserTemplat
   }
 
   private writeScopeSnapshot(scope: UserTemplateScope, snapshot: ScopeSnapshot): void {
+    if (scope === "profile") {
+      this.userDataProfileResourceService.writeResource(
+        UserDataProfileResourceId.UserTemplates,
+        snapshot,
+      );
+      return;
+    }
+
     this.storageService.store(
-      getStorageKeyForScope(scope),
+      USER_TEMPLATE_WORKSPACE_STORAGE_KEY,
       snapshot,
-      getStorageScope(scope),
+      StorageScope.WORKSPACE,
       StorageTarget.USER,
     );
   }
 
   private createSnapshot(): UserTemplateStoreSnapshot {
     return {
-      version: this.workspaceSnapshot.version + this.globalSnapshot.version,
+      version: this.workspaceSnapshot.version + this.profileSnapshot.version,
       workspaceVersion: this.workspaceSnapshot.version,
-      globalVersion: this.globalSnapshot.version,
+      profileVersion: this.profileSnapshot.version,
       templates: [
         ...this.workspaceSnapshot.templates,
-        ...this.globalSnapshot.templates,
+        ...this.profileSnapshot.templates,
       ].sort(compareTemplates),
     };
   }
@@ -194,7 +206,7 @@ export class UserTemplateStoreService extends Disposable implements IUserTemplat
     if (
       this.snapshot.version === snapshot.version &&
       this.snapshot.workspaceVersion === snapshot.workspaceVersion &&
-      this.snapshot.globalVersion === snapshot.globalVersion &&
+      this.snapshot.profileVersion === snapshot.profileVersion &&
       areTemplatesEqual(this.snapshot.templates, snapshot.templates)
     ) {
       return;
@@ -204,18 +216,6 @@ export class UserTemplateStoreService extends Disposable implements IUserTemplat
     this.onDidChangeUserTemplatesEmitter.fire(snapshot);
   }
 }
-
-const getStorageScope = (
-  scope: UserTemplateScope,
-): StorageScope =>
-  scope === "workspace" ? StorageScope.WORKSPACE : StorageScope.PROFILE;
-
-const getStorageKeyForScope = (
-  scope: UserTemplateScope,
-): string =>
-  scope === "workspace"
-    ? USER_TEMPLATE_WORKSPACE_STORAGE_KEY
-    : USER_TEMPLATE_GLOBAL_STORAGE_KEY;
 
 const upsertTemplate = (
   templates: readonly UserTemplate[],
@@ -327,7 +327,7 @@ const normalizeTemplate = (
 const normalizeScope = (
   value: unknown,
 ): UserTemplateScope =>
-  value === "workspace" ? "workspace" : "global";
+  value === "workspace" ? "workspace" : "profile";
 
 const normalizeSource = (
   value: unknown,

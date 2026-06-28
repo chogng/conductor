@@ -425,9 +425,9 @@ const createUserTemplateServiceForTest = (
 	getSnapshot: () => ({
 		version: 1,
 		workspaceVersion: 1,
-		globalVersion: 0,
+		profileVersion: 0,
 		workspaceFingerprint: "workspace",
-		globalFingerprint: "",
+		profileFingerprint: "",
 		effectiveFingerprint: "workspace",
 		templates,
 	}),

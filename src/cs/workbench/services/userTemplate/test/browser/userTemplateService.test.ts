@@ -12,9 +12,11 @@ import {
 } from "src/cs/platform/storage/common/storage";
 import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
 import type { Template } from "src/cs/workbench/services/template/common/template";
+import { UserDataProfileResourceService } from "src/cs/workbench/services/userDataProfile/browser/userDataProfileResourceService";
+import { UserDataProfileResourceId } from "src/cs/workbench/services/userDataProfile/common/userDataProfile";
+import { UserTemplateImportExportService } from "src/cs/workbench/services/userTemplate/browser/userTemplateImportExportService";
 import { UserTemplateService } from "src/cs/workbench/services/userTemplate/browser/userTemplateService";
 import {
-  USER_TEMPLATE_GLOBAL_STORAGE_KEY,
   USER_TEMPLATE_WORKSPACE_STORAGE_KEY,
   UserTemplateStoreService,
 } from "src/cs/workbench/services/userTemplate/browser/userTemplateStoreService";
@@ -23,7 +25,7 @@ suite("workbench/services/userTemplate/test/browser/userTemplateService", () => 
   const store = ensureNoDisposablesAreLeakedInTestSuite();
 
   test("persists native templates by scope and exposes CRUD operations", async () => {
-    const { service, storageService } = createUserTemplateServiceForTest(store);
+    const { service, storageService, userDataProfileResourceService } = createUserTemplateServiceForTest(store);
     const events: number[] = [];
     store.add(service.onDidChangeUserTemplates(event => {
       events.push(event.version);
@@ -32,7 +34,7 @@ suite("workbench/services/userTemplate/test/browser/userTemplateService", () => 
     const created = await service.createTemplate({
       id: "template-a",
       name: "Transfer",
-      scope: "global",
+      scope: "profile",
       template: createTemplate({ name: "Transfer" }),
       tags: ["iv", "transfer", "iv"],
     });
@@ -53,7 +55,7 @@ suite("workbench/services/userTemplate/test/browser/userTemplateService", () => 
     assert.equal(service.getSnapshot().templates.length, 2);
     assert.equal(events.length, 3);
     assert.deepEqual(
-      storageService.getObject(USER_TEMPLATE_GLOBAL_STORAGE_KEY, StorageScope.PROFILE),
+      userDataProfileResourceService.readResource(UserDataProfileResourceId.UserTemplates),
       {
         version: 2,
         templates: [],
@@ -103,6 +105,81 @@ suite("workbench/services/userTemplate/test/browser/userTemplateService", () => 
     assert.equal(service.getTemplate("template-a")?.name, "Transfer Overwritten");
   });
 
+  test("import/export service owns native payload validation", async () => {
+    const { importExportService } = createUserTemplateServiceForTest(store);
+
+    const invalid = await importExportService.importTemplatesFromPayload({
+      source: "conductor",
+      version: 1,
+      templates: [createTemplate({ id: "legacy-template" })],
+    });
+    const imported = await importExportService.importTemplatesFromPayload({
+      source: "conductor.userTemplate",
+      version: 1,
+      templates: [createTemplate({ id: "template-a", name: "Transfer" })],
+    });
+    const exported = importExportService.exportTemplates(["template-a"]);
+
+    assert.deepEqual({
+      invalid,
+      importedCount: imported?.imported.length,
+      exportedSource: exported.source,
+      exportedTemplateIds: exported.templates.map(template => template.id),
+    }, {
+      invalid: null,
+      importedCount: 1,
+      exportedSource: "conductor.userTemplate",
+      exportedTemplateIds: ["template-a"],
+    });
+  });
+
+  test("profile resource export/import replaces profile user templates", async () => {
+    const first = createUserTemplateServiceForTest(store);
+    await first.service.createTemplate({
+      id: "template-a",
+      name: "Transfer",
+      scope: "profile",
+      template: createTemplate({ id: "template-a", name: "Transfer" }),
+    });
+    await first.service.createTemplate({
+      id: "workspace-template",
+      name: "Workspace Template",
+      scope: "workspace",
+      template: createTemplate({ id: "workspace-template", name: "Workspace Template" }),
+    });
+
+    const payload = await first.userDataProfileResourceService.exportProfile();
+    const resource = payload.resources.find(candidate => candidate.id === UserDataProfileResourceId.UserTemplates);
+    assert.ok(resource);
+    assert.equal(resource.content.includes("workspace-template"), false);
+
+    const second = createUserTemplateServiceForTest(store);
+    await second.service.createTemplate({
+      id: "stale-profile-template",
+      name: "Stale Profile Template",
+      scope: "profile",
+      template: createTemplate({ id: "stale-profile-template", name: "Stale Profile Template" }),
+    });
+    await second.service.createTemplate({
+      id: "workspace-template",
+      name: "Workspace Template",
+      scope: "workspace",
+      template: createTemplate({ id: "workspace-template", name: "Workspace Template" }),
+    });
+
+    const imported = await second.userDataProfileResourceService.importProfileFromPayload(payload);
+
+    assert.deepEqual({
+      imported: imported?.imported,
+      skipped: imported?.skipped,
+      templateIds: second.service.getSnapshot().templates.map(template => template.id),
+    }, {
+      imported: [UserDataProfileResourceId.UserTemplates],
+      skipped: [],
+      templateIds: ["template-a", "workspace-template"],
+    });
+  });
+
 });
 
 type TestDisposableStore = ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>;
@@ -111,12 +188,19 @@ const createUserTemplateServiceForTest = (
   store: TestDisposableStore,
 ) => {
   const storageService = store.add(new TestStorageService());
-  const storeService = store.add(new UserTemplateStoreService(storageService));
+  const userDataProfileResourceService = store.add(new UserDataProfileResourceService(storageService));
+  const storeService = store.add(new UserTemplateStoreService(userDataProfileResourceService, storageService));
   const service = store.add(new UserTemplateService(storeService));
+  const importExportService = store.add(new UserTemplateImportExportService(
+    service,
+    userDataProfileResourceService,
+  ));
   return {
+    importExportService,
     service,
     storageService,
     storeService,
+    userDataProfileResourceService,
   };
 };
 

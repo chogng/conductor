@@ -6,7 +6,7 @@ import assert from "assert";
 
 import { Event } from "src/cs/base/common/event";
 import { toDisposable } from "src/cs/base/common/lifecycle";
-import type { URI } from "src/cs/base/common/uri";
+import { URI } from "src/cs/base/common/uri";
 import type {
   IContextMenuService,
   IContextViewService,
@@ -15,6 +15,10 @@ import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import type { IDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import type { IFileService } from "src/cs/platform/files/common/files";
 import { ExplorerViewPane } from "src/cs/workbench/contrib/files/browser/explorerViewlet";
+import type {
+  PendingImportFile,
+  PreparedFileImport,
+} from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import {
   type ExplorerPaneInput,
@@ -24,15 +28,15 @@ import {
 import { DEFAULT_EXPLORER_APPEARANCE, type IAppearanceService } from "src/cs/workbench/services/appearance/common/appearance";
 import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import type { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
-import type { ITableService } from "src/cs/workbench/services/table/common/table";
+import type { ITableService, TableSource } from "src/cs/workbench/services/table/common/table";
 import type { IThumbnailPreviewService, IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { IUserTemplateService } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 import type { IDecorationsService } from "src/cs/workbench/services/decorations/common/decorations";
 import type {
   IReviewService,
-  ReviewSummaryTarget,
 } from "src/cs/workbench/services/review/common/review";
+import type { ReviewSummaryTarget } from "src/cs/workbench/services/review/common/reviewModel";
 
 suite("workbench/contrib/files/browser/explorerViewlet", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
@@ -106,11 +110,59 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
       pane.dispose();
     }
   });
+
+  test("defers table open until folder source replacement finishes", () => {
+    const openedResources: string[] = [];
+    const pane = createExplorerViewPane({
+      onOpenTable: source => {
+        if (source?.resource) {
+          openedResources.push(source.resource.toString());
+        }
+      },
+    });
+    const resource = URI.file("/workspace/293K/output/Output_.csv");
+    const pendingFile = createPendingImportFile({
+      fileName: "Output_.csv",
+      itemKey: "source-output",
+      relativePath: "293K/output/Output_.csv",
+      resource,
+    });
+    const preparedFile = createPreparedImport({
+      fileId: "file-output",
+      fileName: "Output_.csv",
+      itemKey: "source-output",
+      relativePath: "293K/output/Output_.csv",
+      resource,
+    });
+
+    try {
+      (pane as unknown as {
+        replacePendingSourceFiles(pendingFiles: readonly PendingImportFile[]): void;
+      }).replacePendingSourceFiles([pendingFile]);
+      (pane as unknown as {
+        replacePreparedImportFiles(
+          preparedFiles: readonly PreparedFileImport[],
+          selectedFileId: string | null,
+        ): void;
+      }).replacePreparedImportFiles([preparedFile], "file-output");
+
+      assert.deepEqual(openedResources, []);
+
+      (pane as unknown as {
+        finishPendingSourceReplace(): void;
+      }).finishPendingSourceReplace();
+
+      assert.deepEqual(openedResources, [resource.toString()]);
+    } finally {
+      pane.dispose();
+    }
+  });
 });
 
 type CreateExplorerViewPaneOptions = {
   readonly confirm?: IDialogService["confirm"];
   readonly moveFileToTrash?: (resource: URI) => Promise<void>;
+  readonly onOpenTable?: (source: TableSource | null) => void;
   readonly onUpdatePaneInput?: (input: ExplorerPaneInput) => void;
   readonly paneInput?: ExplorerPaneInput | null;
 };
@@ -143,7 +195,7 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
       notify: () => undefined,
     } as unknown as INotificationService,
     {
-      open: () => undefined,
+      open: source => options.onOpenTable?.(source),
     } as unknown as ITableService,
     {
       onDidChangePreview: Event.None,
@@ -220,6 +272,73 @@ const createPaneInput = (files: ExplorerFileEntry[]): ExplorerPaneInput => ({
   thumbnailFiles: [],
 });
 
+const createPendingImportFile = ({
+  fileName,
+  itemKey,
+  relativePath,
+  resource,
+}: {
+  readonly fileName: string;
+  readonly itemKey: string;
+  readonly relativePath: string;
+  readonly resource: URI;
+}): PendingImportFile => ({
+  canUseNativePath: true,
+  finishFilePerf: () => undefined,
+  itemKey,
+  kind: "path",
+  lastModified: 1,
+  loadFile: async () => new File(["A,B\n1,2"], fileName, {
+    lastModified: 1,
+    type: "text/csv",
+  }),
+  relativePath,
+  resource,
+  sourceName: fileName,
+  sourceSize: 7,
+});
+
+const createPreparedImport = ({
+  fileId,
+  fileName,
+  itemKey,
+  relativePath,
+  resource,
+}: {
+  readonly fileId: string;
+  readonly fileName: string;
+  readonly itemKey: string;
+  readonly relativePath: string;
+  readonly resource: URI;
+}): PreparedFileImport => {
+  const file = new File(["A,B\n1,2"], fileName, {
+    lastModified: 1,
+    type: "text/csv",
+  });
+  const sourcePath = resource.fsPath;
+  return {
+    fileEntry: {
+      file,
+      fileId,
+      itemKey,
+      relativePath,
+      resource,
+      sourcePath,
+    },
+    fileInfo: {
+      file,
+      fileId,
+      fileName,
+      itemKey,
+      lastModified: 1,
+      relativePath,
+      resource,
+      size: 7,
+      sourcePath,
+    },
+  };
+};
+
 const createUserTemplateService = (): IUserTemplateService => ({
   _serviceBrand: undefined,
   onDidChangeUserTemplates: Event.None,
@@ -238,9 +357,9 @@ const createUserTemplateService = (): IUserTemplateService => ({
   getSnapshot: () => ({
     version: 0,
     workspaceVersion: 0,
-    globalVersion: 0,
+    profileVersion: 0,
     workspaceFingerprint: "",
-    globalFingerprint: "",
+    profileFingerprint: "",
     effectiveFingerprint: "",
     templates: [],
   }),
@@ -266,7 +385,6 @@ const createDecorationsService = (): IDecorationsService => ({
 const createReviewService = (): IReviewService => ({
   _serviceBrand: undefined,
   onDidChangeReview: Event.None,
-  getLatestReview: () => undefined,
   getLatestReviewSummary: (target: ReviewSummaryTarget) => ({
     resource: target.resource,
     ...(target.sheetId ? { sheetId: target.sheetId } : {}),
@@ -276,14 +394,5 @@ const createReviewService = (): IReviewService => ({
   reviewUriManualTemplate: async () => {
     throw new Error("Unexpected URI manual review in explorer viewlet test.");
   },
-  reviewUri: async (target: ReviewSummaryTarget) => ({
-    resource: target.resource,
-    ...(target.sheetId ? { sheetId: target.sheetId } : {}),
-    summary: {
-      resource: target.resource,
-      ...(target.sheetId ? { sheetId: target.sheetId } : {}),
-      state: "missing",
-      findingCodes: [],
-    },
-  }),
+  reviewUriForExecution: async () => null,
 } as unknown as IReviewService);
