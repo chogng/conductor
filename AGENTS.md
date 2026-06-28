@@ -1,10 +1,12 @@
-# Conductor Studio Instructions
+不管你做什么，这是最重要的第一点:严格禁止兜底，严格禁止把逻辑换个地方充当改正，严格改个声明/name就充当改正，严格遵守前面几个'严格....'
+
+文档可能存在错误，请不要完全相信，只是作为参考
 
 when you have any questions, see the [Conductor Instructions](.github/conductor-instructions.md).
 
 when you coding, see the upstream architechture [`C:\Users\lanxi\Desktop\vscode` or `/Users/lance/Desktop/vscode`].
 
-when migrates the responsibility, see the [Migration Rules](.github/migration-rules.md).
+
 
 before you write or edit any code, you MUST first read the [Architecture Instructions](.github/instructions/architecture.instructions.md) and the [Coding Guidelines](.github/instructions/coding-guidelines.instructions.md).
 
