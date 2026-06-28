@@ -8,17 +8,7 @@ import { Emitter, Event as BaseEventUtil, type Event as BaseEvent } from "../../
 import { Disposable, DisposableStore, type IDisposable } from "../../../common/lifecycle.js";
 import { ScrollbarVisibility } from "../../../common/scrollable.js";
 import type { ISpliceable } from "../../../common/sequence.js";
-import {
-  type IListBrowserMouseEvent,
-  type IListDragAndDrop,
-  type IListDragOverReaction,
-  type IListEvent,
-  type IListMouseEvent,
-  type IListRenderer,
-  type IListVirtualDelegate,
-  ListDragOverEffectPosition,
-  ListDragOverEffectType,
-} from "./list.js";
+import { type IListBrowserMouseEvent, type IListDragAndDrop, type IListDragOverReaction, type IListEvent, type IListMouseEvent, type IListRenderer, type IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from "./list.js";
 import { RangeMap } from "../../../common/rangeMap.js";
 import { RowCache, type IRow } from "../../rowCache.js";
 import { ScrollableElement } from "../scrollbar/scrollableElement.js";

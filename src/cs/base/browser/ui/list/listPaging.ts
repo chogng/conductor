@@ -5,14 +5,7 @@ import { Event, type Event as EventType } from "../../../common/event.js";
 import { DisposableStore, type IDisposable } from "../../../common/lifecycle.js";
 import type { IPagedModel } from "../../../common/paging.js";
 import { ScrollbarVisibility } from "../../../common/scrollable.js";
-import type {
-  IListContextMenuEvent,
-  IListElementRenderDetails,
-  IListEvent,
-  IListMouseEvent,
-  IListRenderer,
-  IListVirtualDelegate,
-} from "./list.js";
+import type { IListContextMenuEvent, IListElementRenderDetails, IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from "./list.js";
 import { List, type IListAccessibilityProvider, type IListOptions } from "./listWidget.js";
 
 export interface IPagedRenderer<TElement, TTemplateData> extends IListRenderer<TElement, TTemplateData> {

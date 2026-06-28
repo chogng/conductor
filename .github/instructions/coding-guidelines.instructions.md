@@ -165,12 +165,11 @@ owned disposable state.
 ## Imports
 
 - Use relative imports within the same capability/module.
-- Use `src/cs/...` imports when crossing capability or architecture boundaries.
 - Keep nearby files consistent.
 - Import DI service symbols once and use the same name for value/type positions:
 
 ```ts
-import { IFileService } from "src/cs/platform/files/common/files";
+import { xxx } from "../../xxx/xxx";
 ```
 
 Use `type` imports for pure type-only symbols. Do not alias a service interface

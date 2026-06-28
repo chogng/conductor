@@ -5,7 +5,7 @@ import { createStyleSheet } from "../../domStylesheets.js";
 import { StandardKeyboardEvent, type IKeyboardEvent } from "../../keyboardEvent.js";
 import { StandardMouseEvent } from "../../mouseEvent.js";
 import { alert as ariaAlert, type AriaRole } from "../aria/aria.js";
-import { range } from "../../../common/arrays.js";
+import { distinct, equals, range } from "../../../common/arrays.js";
 import { memoize } from "../../../common/decorators.js";
 import { Event, Emitter, EventBufferer, type Event as BaseEvent } from "../../../common/event.js";
 import { matchesFuzzy2, matchesPrefix } from "../../../common/filters.js";
@@ -13,31 +13,8 @@ import { KeyCode } from "../../../common/keyCodes.js";
 import { Disposable, DisposableStore, type IDisposable } from "../../../common/lifecycle.js";
 import { isMacintosh } from "../../../common/platform.js";
 import type { ISpliceable } from "../../../common/sequence.js";
-import {
-  type IIdentityProvider,
-  type IListDragAndDrop,
-  type IListDragOverReaction,
-  type IKeyboardNavigationDelegate,
-  type IKeyboardNavigationLabelProvider,
-  type IListContextMenuEvent,
-  type IListEvent,
-  type IListGestureEvent,
-  type IListMouseEvent,
-  type IListRenderer,
-  type IListTouchEvent,
-  type IListVirtualDelegate,
-  ListError,
-  NotSelectableGroupId,
-  type NotSelectableGroupIdType,
-} from "./list.js";
-import {
-  ListView,
-  type IListViewAccessibilityProvider,
-  type IListViewDragAndDrop,
-  type IListViewOptions,
-  type IListViewOptionsUpdate,
-  ListViewTargetSector,
-} from "./listView.js";
+import { type IIdentityProvider, type IListDragAndDrop, type IListDragOverReaction, type IKeyboardNavigationDelegate, type IKeyboardNavigationLabelProvider, type IListContextMenuEvent, type IListEvent, type IListGestureEvent, type IListMouseEvent, type IListRenderer, type IListTouchEvent, type IListVirtualDelegate, ListError, NotSelectableGroupId, type NotSelectableGroupIdType } from "./list.js";
+import { ListView, type IListViewAccessibilityProvider, type IListViewDragAndDrop, type IListViewOptions, type IListViewOptionsUpdate, ListViewTargetSector } from "./listView.js";
 import { CombinedSpliceable } from "./splice.js";
 
 export enum TypeNavigationMode {
@@ -270,22 +247,8 @@ interface ITraitChangeEvent {
 
 const numericSort = (first: number, second: number): number => first - second;
 
-const sanitizeIndexes = (indexes: readonly number[]): number[] => {
-  const seen = new Set<number>();
-  return indexes
-    .filter(index => Number.isInteger(index) && index >= 0)
-    .filter(index => {
-      if (seen.has(index)) {
-        return false;
-      }
-
-      seen.add(index);
-      return true;
-    });
-};
-
-const equals = (first: readonly number[], second: readonly number[]): boolean =>
-  first.length === second.length && first.every((value, index) => value === second[index]);
+const sanitizeIndexes = (indexes: readonly number[]): number[] =>
+  distinct(indexes.filter(index => Number.isInteger(index) && index >= 0));
 
 const classNames = (...classes: Array<string | undefined>): string | undefined => {
   const result = classes.filter((className): className is string => !!className).join(" ");
