@@ -962,7 +962,7 @@ const createReviewSummaryFromResult = ({
 }: {
   readonly resource: ReviewSummary["resource"];
   readonly result: ReviewResult;
-  readonly sheetId: string | null;
+  readonly sheetId?: string;
 }): ReviewSummary => {
   const reviewSignature = createReviewResultSignature(result);
   const decision = result.decision;

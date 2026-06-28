@@ -293,9 +293,9 @@ const createUserTemplateSnapshot = (
 ): UserTemplateSnapshot => ({
 	version: 7,
 	workspaceVersion: 0,
-	globalVersion: 7,
+	profileVersion: 7,
 	workspaceFingerprint: "workspace:test",
-	globalFingerprint: "global:test",
+	profileFingerprint: "profile:test",
 	effectiveFingerprint: "effective:test",
 	templates,
 });
@@ -304,7 +304,7 @@ const createUserTemplate = (template: Template): UserTemplate => ({
 	id: String(template.id ?? "template-a"),
 	name: template.name,
 	version: template.version,
-	scope: "global",
+	scope: "profile",
 	source: "userCreated",
 	template,
 	templateFingerprint: createTemplateFingerprint(template),
