@@ -657,7 +657,6 @@
   "themes.commands.setWorkbenchBackground.description": "Set the workbench page background color.",
   "themes.commands.toggleTransparentChrome": "Toggle Translucent Sidebar",
   "themes.commands.toggleTransparentChrome.description": "Toggle translucent sidebar chrome.",
-  "thumbnail.preview.fileUnavailable": "File is no longer available.",
   "titlebar.mode.chart": "Chart",
   "titlebar.mode.settings": "Settings",
   "titlebar.mode.table": "Table",

@@ -8,7 +8,6 @@ import { Emitter, Event } from "src/cs/base/common/event";
 import { URI } from "src/cs/base/common/uri";
 import { resolveInitialWorkbenchViewMode } from "src/cs/workbench/browser/workbench";
 import {
-  createSessionExplorerFacts,
   createExplorerPaneInput,
   shouldPrefetchExplorerThumbnails,
   WorkbenchDomainBridge,
@@ -52,16 +51,13 @@ const getTemplateApplyPerformanceTraceTargetApiForTest = (): TemplateApplyPerfor
 
 suite("workbench/browser/workbench Explorer pane input", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
-  test("creates table mode input from session and explorer state", () => {
-    const session = store.add(new SessionService());
+  test("creates table mode input from explorer and slice state", () => {
     const explorerService = store.add(new ExplorerService());
 
     const input = createExplorerPaneInput({
       activePlotType: "iv",
       explorerService,
       mode: "table",
-      plotService: createPlotService(),
-      sessionFacts: createSessionExplorerFacts(session.getSnapshot()),
       sliceState: createSliceStateForTest({
         templateSelectionsByFileId: {
           "file-a": createTemplateSelection("template-file"),
@@ -80,34 +76,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     });
   });
 
-  test("does not project Session raw rows into chart tree input", () => {
-    const session = store.add(new SessionService());
-    commitRawFilesForTest(session, [
-      {
-        fileId: "file-a",
-        fileName: "Processed A.csv",
-        rowCount: 2,
-        columnCount: 2,
-      },
-      {
-        fileId: "raw-only",
-        fileName: "Raw Only.csv",
-        rowCount: 2,
-        columnCount: 2,
-      },
-    ]);
-    commitTemplateOutputForTest(session, {
-      fileId: "file-a",
-      fileName: "Processed A.csv",
-      series: [{
-        groupIndex: 0,
-        id: "series-a",
-        y: [1, 2],
-      }],
-      xGroups: [[0, 1]],
-    });
-    const snapshot = session.getSnapshot();
-    const sessionFacts = createSessionExplorerFacts(snapshot);
+  test("does not project rows without Explorer URI input into chart tree input", () => {
     const explorerService = store.add(new ExplorerService());
 
     const input = createExplorerPaneInput({
@@ -115,16 +84,14 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       explorerService,
       mode: "chart",
       originOpenPlotOptions: DEFAULT_ORIGIN_PLOT_OPTIONS,
-      plotService: createPlotService(),
       plotAxisSettings: { x: { show: true } },
-      sessionFacts,
       sliceState: createSliceStateForTest(),
     });
 
     assert.equal(input.selectionKind, "chart");
     assert.equal(input.selectedResource, null);
     assert.deepEqual(input.files.map(file => file.fileId), []);
-    assert.deepEqual(input.thumbnailFiles.map(file => file.fileId), ["file-a"]);
+    assert.deepEqual(input.thumbnailFiles.map(file => file.fileId), []);
     assert.equal(input.thumbnailPlotModelsByFileId, undefined);
     assert.equal(input.originOpenPlotOptions, DEFAULT_ORIGIN_PLOT_OPTIONS);
     assert.deepEqual(input.plotAxisSettings, { x: { show: true } });
@@ -132,25 +99,12 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     const beforeNextTemplateOutput = input.files
       .map(file => `${file.itemKey ?? file.fileId}:${file.fileId}`)
       .join("|");
-    commitTemplateOutputForTest(session, {
-      fileId: "raw-only",
-      fileName: "Raw Only.csv",
-      series: [{
-        groupIndex: 0,
-        id: "series-raw-only",
-        y: [1, 2],
-      }],
-      xGroups: [[0, 1]],
-    });
-    const nextSnapshot = session.getSnapshot();
     const nextInput = createExplorerPaneInput({
       activePlotType: "iv",
       explorerService,
       mode: "chart",
       originOpenPlotOptions: DEFAULT_ORIGIN_PLOT_OPTIONS,
-      plotService: createPlotService(),
       plotAxisSettings: { x: { show: true } },
-      sessionFacts: createSessionExplorerFacts(nextSnapshot),
       sliceState: createSliceStateForTest(),
     });
     const afterNextTemplateOutput = nextInput.files
@@ -161,41 +115,12 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.equal(explorerService.selectedResource, null);
   });
 
-  test("does not keep chart selection from Session raw ids without Explorer URI rows", () => {
-    const session = store.add(new SessionService());
-    commitRawFilesForTest(session, [
-      {
-        fileId: "file-a",
-        fileName: "Processed A.csv",
-        rowCount: 2,
-        columnCount: 2,
-      },
-      {
-        fileId: "raw-only",
-        fileName: "Raw Only.csv",
-        rowCount: 2,
-        columnCount: 2,
-      },
-    ]);
-    commitTemplateOutputForTest(session, {
-      fileId: "file-a",
-      fileName: "Processed A.csv",
-      series: [{
-        groupIndex: 0,
-        id: "series-a",
-        y: [1, 2],
-      }],
-      xGroups: [[0, 1]],
-    });
-    const snapshot = session.getSnapshot();
-    const sessionFacts = createSessionExplorerFacts(snapshot);
+  test("does not keep chart selection without Explorer URI rows", () => {
     const explorerService = store.add(new ExplorerService());
     const input = createExplorerPaneInput({
       activePlotType: "iv",
       explorerService,
       mode: "chart",
-      plotService: createPlotService(),
-      sessionFacts,
       sliceState: createSliceStateForTest(),
     });
 
@@ -211,12 +136,6 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       activePlotType: "iv",
       explorerService: store.add(new ExplorerService()),
       mode: "chart",
-      plotService: createPlotService(),
-      sessionFacts: {
-        chartDataFileIds: [],
-        sessionFileIds: ["unknown-file", "failed-file", "queued-file"],
-        thumbnailFiles: [],
-      },
       sliceState: createSliceStateForTest({
         fileStates: new Map([
           ["unknown-file", {
@@ -244,12 +163,6 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       activePlotType: "iv",
       explorerService: store.add(new ExplorerService()),
       mode: "chart",
-      plotService: createPlotService(),
-      sessionFacts: {
-        chartDataFileIds: [],
-        sessionFileIds: ["file-a"],
-        thumbnailFiles: [],
-      },
       sliceState: createSliceStateForTest({
         fileStates: new Map([
           ["file-a", {
@@ -264,51 +177,36 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.deepEqual(input.files, []);
   });
 
-  test("creates chart thumbnail input from processed files", () => {
-    const session = store.add(new SessionService());
-    commitRawFilesForTest(session, [
-      {
+  test("creates chart thumbnail input from URI slice results", () => {
+    const explorerService = store.add(new ExplorerService());
+    const resource = URI.file("/data/ProcessedA.csv");
+    explorerService.updatePaneInput({
+      files: [{
         fileId: "file-a",
         fileName: "Processed A.csv",
-        rowCount: 2,
-        columnCount: 2,
-      },
-      {
-        fileId: "raw-only",
-        fileName: "Raw Only.csv",
-        rowCount: 2,
-        columnCount: 2,
-      },
-    ]);
-    commitTemplateOutputForTest(session, {
-      fileId: "file-a",
-      fileName: "Processed A.csv",
-      series: [{
-        groupIndex: 0,
-        id: "series-a",
-        y: [1, 2],
+        resource,
       }],
-      xGroups: [[0, 1]],
+      mode: "chart",
+      selectedResource: null,
+      selectedSheetId: null,
+      selectionKind: "chart",
+      thumbnailFiles: [],
     });
-    const snapshot = session.getSnapshot();
-    const sessionFacts = createSessionExplorerFacts(snapshot);
-    const explorerService = store.add(new ExplorerService());
     explorerService.setViewLayout("thumbnail");
     const input = createExplorerPaneInput({
       activePlotType: "iv",
       explorerService,
       mode: "chart",
       originOpenPlotOptions: DEFAULT_ORIGIN_PLOT_OPTIONS,
-      plotService: createPlotService(),
       plotAxisSettings: { x: { show: true } },
-      sessionFacts,
+      sliceService: createSliceServiceForUriTargetTest({ resource }),
       sliceState: createSliceStateForTest(),
     });
 
     assert.equal(input.selectionKind, "chart");
     assert.equal(input.selectedResource, null);
-    assert.deepEqual(input.files.map(file => file.fileId), []);
-    assert.deepEqual(input.quickAccessFiles?.map(file => file.fileId), []);
+    assert.deepEqual(input.files.map(file => file.fileId), ["file-a"]);
+    assert.deepEqual(input.quickAccessFiles?.map(file => file.fileId), ["file-a"]);
     assert.deepEqual(input.thumbnailFiles.map(file => file.fileId), ["file-a"]);
     assert.equal(input.thumbnailPlotModelsByFileId, undefined);
     assert.equal(input.originOpenPlotOptions, DEFAULT_ORIGIN_PLOT_OPTIONS);
@@ -318,80 +216,39 @@ suite("workbench/browser/workbench Explorer pane input", () => {
   });
 
   test("does not invent thumbnail selection outside the shared explorer selection", () => {
-    const session = store.add(new SessionService());
-    commitRawFilesForTest(session, [
-      {
+    const explorerService = store.add(new ExplorerService());
+    const resource = URI.file("/data/ProcessedA.csv");
+    explorerService.updatePaneInput({
+      files: [{
         fileId: "file-a",
         fileName: "Processed A.csv",
-        rowCount: 2,
-        columnCount: 2,
-      },
-      {
-        fileId: "raw-only",
-        fileName: "Raw Only.csv",
-        rowCount: 2,
-        columnCount: 2,
-      },
-    ]);
-    commitTemplateOutputForTest(session, {
-      fileId: "file-a",
-      fileName: "Processed A.csv",
-      series: [{
-        groupIndex: 0,
-        id: "series-a",
-        y: [1, 2],
+        resource,
       }],
-      xGroups: [[0, 1]],
+      mode: "chart",
+      selectedResource: null,
+      selectedSheetId: null,
+      selectionKind: "chart",
+      thumbnailFiles: [],
     });
-    const snapshot = session.getSnapshot();
-    const sessionFacts = createSessionExplorerFacts(snapshot);
-    const explorerService = store.add(new ExplorerService());
     explorerService.setViewLayout("thumbnail");
     const input = createExplorerPaneInput({
       activePlotType: "iv",
       explorerService,
       mode: "chart",
-      plotService: createPlotService(),
-      sessionFacts,
+      sliceService: createSliceServiceForUriTargetTest({ resource }),
       sliceState: createSliceStateForTest(),
     });
 
     assert.equal(input.selectedResource, null);
-    assert.deepEqual(input.files.map(file => file.fileId), []);
+    assert.deepEqual(input.files.map(file => file.fileId), ["file-a"]);
     assert.equal(explorerService.selectedResource, null);
   });
 
-  test("does not project Session raw rows into Explorer rows", () => {
-    const session = store.add(new SessionService());
-    commitRawFilesForTest(session, [
-      {
-        fileId: "output-file",
-        fileName: "Output_001.csv",
-        relativePath: "293K/output/Output_001.csv",
-        rowCount: 2,
-        columnCount: 2,
-      },
-      {
-        fileId: "header-file",
-        fileName: "sample.csv",
-        rowCount: 2,
-        columnCount: 2,
-        rows: [["Vg", "Id"], ["0", "1e-9"]],
-      },
-      {
-        fileId: "ready-file",
-        fileName: "ready.csv",
-        rowCount: 2,
-        columnCount: 2,
-      },
-    ]);
-    const snapshot = session.getSnapshot();
+  test("does not project rows without Explorer resource entries", () => {
     const input = createExplorerPaneInput({
       activePlotType: "iv",
       explorerService: store.add(new ExplorerService()),
       mode: "table",
-      plotService: createPlotService(),
-      sessionFacts: createSessionExplorerFacts(snapshot),
       sliceState: createSliceStateForTest(),
     });
 
@@ -455,7 +312,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       plotDisplayPrefetches,
       prioritizedCalculationFileIds,
       prioritizedTemplateFileIds,
-      session,
       uriSliceTarget: { resource },
     }));
     try {
@@ -494,7 +350,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       plotInspectorPrefetches,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
-      session,
     }));
     try {
       explorerService.setVisibleFileIds(["file-a", "file-b"], ["file-c"]);
@@ -524,7 +379,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       plotDisplayPrefetches,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
-      session,
     }));
     try {
       explorerService.setVisibleFileIds(["file-a"], []);
@@ -574,7 +428,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       plotDisplayPrefetches,
       prioritizedCalculationFileIds,
       prioritizedTemplateFileIds: [],
-      session,
       thumbnailPrefetches,
     }));
     try {
@@ -663,7 +516,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       explorerService,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
-      session,
       uriSliceTarget,
     }));
     try {
@@ -743,7 +595,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       explorerService,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
-      session,
     }));
     try {
       const targets = getTemplateApplyPerformanceTraceTargetApiForTest()?.getChartTargets() ?? [];
@@ -804,7 +655,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       explorerService,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
-      session,
     }));
     try {
       const targets = getTemplateApplyPerformanceTraceTargetApiForTest()?.getChartTargets() ?? [];
@@ -834,7 +684,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       plotInspectorPrefetches,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
-      session,
       visibleDetailPanes: [],
     }));
     try {
@@ -860,7 +709,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       plotInspectorPrefetches,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
-      session,
       visibleDetailPanes: ["inspector"],
     }));
     try {
@@ -889,7 +737,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       plotInspectorPrefetches,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
-      session,
       visibleDetailPanes: ["inspector"],
     }));
     try {
@@ -918,7 +765,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       plotDisplayPrefetchSnapshotFields,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
-      session,
     }));
     try {
       bridge.sync();
@@ -951,7 +797,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       explorerService,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
-      session,
       tableSources,
     }));
     try {
@@ -1001,7 +846,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       explorerService,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
-      session,
       tableSources,
     }));
     try {
@@ -1044,7 +888,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       explorerService,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
-      session,
       tableSources,
     }));
     try {
@@ -1090,7 +933,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       explorerService,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
-      session,
       tableSources,
     }));
     try {
@@ -1138,7 +980,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       explorerService,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
-      session,
       tableSources,
     }));
     try {
@@ -1177,7 +1018,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       explorerService,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
-      session,
       tableSources,
     }));
     try {
@@ -1239,7 +1079,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       plotDisplayPrefetches,
       prioritizedCalculationFileIds,
       prioritizedTemplateFileIds: [],
-      session,
       uriSliceTarget: uriTarget,
     }));
     try {
@@ -1297,7 +1136,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       explorerService,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
-      session,
       uriSliceTarget: { resource },
     }));
     try {
@@ -1358,7 +1196,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       plotDisplayPrefetches,
       prioritizedCalculationFileIds,
       prioritizedTemplateFileIds: [],
-      session,
     }));
     try {
       bridge.sync();
@@ -1413,7 +1250,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       explorerService,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
-      session,
       uriSliceTarget: uriTarget,
     }));
     try {
@@ -1476,7 +1312,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       explorerService,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
-      session,
       uriSliceTarget: uriTarget,
     }));
     try {
@@ -1526,7 +1361,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       plotDisplayPrefetches,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
-      session,
       thumbnailPrefetches,
       uriSliceTarget: { resource: resourceA },
     }));
@@ -1567,7 +1401,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       plotDisplayPrefetches,
       prioritizedCalculationFileIds,
       prioritizedTemplateFileIds,
-      session,
       thumbnailPrefetches,
     }));
     try {
@@ -1607,7 +1440,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       plotDisplayPrefetches,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
-      session,
     }));
     try {
       explorerService.setVisibleFileIds(["file-a", "file-b"], ["file-c"]);
@@ -1645,7 +1477,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       explorerService,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
-      session,
     }));
     try {
       explorerService.updatePaneInput({
@@ -1716,7 +1547,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       explorerService,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
-      session,
     }));
     try {
       explorerService.select({
@@ -1743,7 +1573,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       explorerService,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
-      session,
       sliceStateEvent: sliceStateEmitter.event,
       sliceTemplateSelectionsByFileId: {
         "file-a": createTemplateSelection("template-custom"),
@@ -1802,7 +1631,10 @@ const createPlotDisplayModelForTest = (fileId: string): PlotDisplayModel => ({
   unitControl: null,
 });
 
-const createPlotService = (): Parameters<typeof createExplorerPaneInput>[0]["plotService"] => ({
+const createPlotService = (): Pick<
+  ConstructorParameters<typeof WorkbenchDomainBridge>[0]["plotService"],
+  "getCalculatedData"
+> => ({
   getCalculatedData: ({ fileId }) => {
     const normalizedFileId = String(fileId ?? "").trim();
     return normalizedFileId === "file-a"
@@ -1848,6 +1680,15 @@ const createSliceStateForTest = ({
   templateSelectionsByFileId,
 });
 
+const createSliceServiceForUriTargetTest = (
+  target: SliceUriTarget,
+): Pick<ConstructorParameters<typeof WorkbenchDomainBridge>[0]["sliceService"], "getUriResult" | "getUriState"> => ({
+  getUriResult: candidate => isSameSliceUriTargetForTest(candidate, target)
+    ? { target } as ReturnType<ConstructorParameters<typeof WorkbenchDomainBridge>[0]["sliceService"]["getUriResult"]>
+    : null,
+  getUriState: () => undefined,
+});
+
 const createDomainBridgeOptionsForTest = ({
   activeWorkbenchMainPart = "chart",
   chartActiveFileIds,
@@ -1861,7 +1702,6 @@ const createDomainBridgeOptionsForTest = ({
   plotInspectorPrefetches,
   prioritizedCalculationFileIds,
   prioritizedTemplateFileIds,
-  session,
   sliceStateEvent = Event.None,
   sliceTemplateSelectionsByFileId,
   uriSliceTarget,
@@ -1891,7 +1731,6 @@ const createDomainBridgeOptionsForTest = ({
   readonly plotInspectorPrefetches?: Array<{ readonly fileIds: readonly string[]; readonly priority: string }>;
   readonly prioritizedCalculationFileIds: string[];
   readonly prioritizedTemplateFileIds: string[];
-  readonly session: SessionService;
   readonly sliceStateEvent?: Event<unknown>;
   readonly sliceTemplateSelectionsByFileId?: SliceState["templateSelectionsByFileId"];
   readonly uriSliceTarget?: SliceUriTarget;
@@ -1979,7 +1818,6 @@ const createDomainBridgeOptionsForTest = ({
       });
     },
   } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["plotService"],
-  sessionService: session,
   sliceService: {
     _serviceBrand: undefined,
     cancel: () => undefined,

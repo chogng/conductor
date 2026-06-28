@@ -83,16 +83,13 @@ import {
 } from "src/cs/workbench/browser/window";
 import {
   WorkbenchDomainBridge,
-  createSessionExplorerFacts,
   resolveExplorerDomainSelection,
-  type SessionExplorerFacts,
 } from "src/cs/workbench/browser/workbenchDomainBridge";
 import { ITableService } from "src/cs/workbench/services/table/common/table";
 import { TableViewId } from "src/cs/workbench/contrib/table/common/table";
 import {
   ISessionService,
   type ISessionService as ISessionServiceType,
-  type SessionSnapshot,
 } from "src/cs/workbench/services/session/common/session";
 import type {
   SessionChangeEvent,
@@ -119,8 +116,6 @@ import { registerNotificationCommands } from "src/cs/workbench/browser/parts/not
 //#endregion
 
 //#region types and startup helpers
-
-type WorkbenchSessionSnapshot = SessionSnapshot;
 
 type WorkbenchFullRefreshReason =
   | "initial"
@@ -654,7 +649,6 @@ export class Workbench extends Layout {
           explorerService: this.explorerService,
           layoutService: this.layoutService,
           plotService: this.plotService,
-          sessionService: this.session,
           settingsService: this.settingsService,
           sliceService: this.sliceService,
           tableService: this.tableService,
@@ -785,30 +779,17 @@ export class Workbench extends Layout {
     measureWorkbenchBoot(`workbench:refresh:${reason}:context`, () => {
       this.updateContextKeys();
     });
-    let snapshot: WorkbenchSessionSnapshot | null = null;
-    let sessionFacts: SessionExplorerFacts | null = null;
-    if (this.shouldRefreshActiveAuxiliaryViewFromWorkbenchState()) {
-      const refreshedSnapshot = measureWorkbenchBoot(`workbench:refresh:${reason}:snapshot`, () =>
-        this.session.getSnapshot(),
-      );
-      const refreshedSessionFacts = measureWorkbenchBoot(`workbench:refresh:${reason}:session-facts`, () =>
-        createSessionExplorerFacts(refreshedSnapshot),
-      );
-      snapshot = refreshedSnapshot;
-      sessionFacts = refreshedSessionFacts;
+    const shouldRefreshActiveAuxiliaryView = this.shouldRefreshActiveAuxiliaryViewFromWorkbenchState();
+    if (shouldRefreshActiveAuxiliaryView) {
       measureWorkbenchBoot(`workbench:refresh:${reason}:auxiliary-view`, () => {
-        this.renderAuxiliaryBarView(refreshedSessionFacts);
+        this.renderAuxiliaryBarView();
       });
     }
     measureWorkbenchBoot(`workbench:refresh:${reason}:render`, () => {
       this.renderWorkbench();
     });
     endPerf({
-      ...(snapshot ? {
-        fileCount: Object.keys(snapshot.filesById).length,
-      } : {}),
-      ...(sessionFacts ? {
-        chartDataFileCount: sessionFacts.chartDataFileIds.length,
+      ...(shouldRefreshActiveAuxiliaryView ? {
         explorerFileCount: this.explorerService.getPaneInput()?.files.length ?? 0,
       } : {}),
     });
@@ -878,13 +859,9 @@ export class Workbench extends Layout {
       return;
     }
 
-    const snapshot = this.session.getSnapshot();
-    const sessionFacts = createSessionExplorerFacts(snapshot);
-    this.renderAuxiliaryBarView(sessionFacts);
+    this.renderAuxiliaryBarView();
     endPerf({
-      chartDataFileCount: sessionFacts.chartDataFileIds.length,
       explorerFileCount: this.explorerService.getPaneInput()?.files.length ?? 0,
-      fileCount: Object.keys(snapshot.filesById).length,
       needsChromeRefresh,
     });
   }
@@ -1140,7 +1117,7 @@ export class Workbench extends Layout {
     }
   }
 
-  private renderAuxiliaryBarView(sessionFacts: SessionExplorerFacts): void {
+  private renderAuxiliaryBarView(): void {
     if (this.activeView === "settings") {
       return;
     }

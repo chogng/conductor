@@ -164,19 +164,25 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 			resource: URI.file("/data/Uri.csv"),
 			sheetId: "sheet-a",
 		};
-		const calculatedTargets: Array<{ readonly fileId?: string | null; readonly targetResource?: string | null }> = [];
+		const calculatedTargets: Array<{
+			readonly hasFileId: boolean;
+			readonly targetResource?: string | null;
+		}> = [];
 		const calculatedPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
-		const displayPrefetches: Array<{ readonly fileId?: string | null; readonly targetResource?: string | null }> = [];
+		const displayPrefetches: Array<{
+			readonly hasFileId: boolean;
+			readonly targetResource?: string | null;
+		}> = [];
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
 				getCachedCalculatedData: () => null,
-				getCalculatedData: input => {
+				getCalculatedData: (input: Parameters<IPlotService["getCalculatedData"]>[0]) => {
 					calculatedTargets.push({
-						fileId: input.fileId,
+						hasFileId: Object.prototype.hasOwnProperty.call(input, "fileId"),
 						targetResource: input.target?.resource.toString() ?? null,
 					});
 					return {
-						fileId: input.fileId,
+						fileId: null,
 						signature: "plot:uri-a",
 					};
 				},
@@ -186,25 +192,25 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				prefetchCalculatedData: (fileIds: readonly string[], priority: string) => {
 					calculatedPrefetches.push({ fileIds, priority });
 				},
-				prefetchPlotDisplayModel: input => {
+				prefetchPlotDisplayModel: (input: Parameters<IPlotService["prefetchPlotDisplayModel"]>[0]) => {
 					displayPrefetches.push({
-						fileId: input.fileId,
+						hasFileId: Object.prototype.hasOwnProperty.call(input, "fileId"),
 						targetResource: input.target?.resource.toString() ?? null,
 					});
 				},
 			} as unknown as IPlotService,
 		));
 
-		service.prefetch([{ fileId: "uri-a", target }], "visible");
+		service.prefetch([target], "visible");
 
 		assert.deepEqual(calculatedPrefetches, []);
 		assert.deepEqual(displayPrefetches, [{
-			fileId: "uri-a",
+			hasFileId: false,
 			targetResource: "file:///data/Uri.csv",
 		}]);
-		assert.equal(service.request({ fileId: "uri-a", target }, "hover").kind, "ready");
+		assert.equal(service.request(target, "hover").kind, "ready");
 		assert.deepEqual(calculatedTargets, [{
-			fileId: "uri-a",
+			hasFileId: false,
 			targetResource: "file:///data/Uri.csv",
 		}]);
 	});
@@ -216,11 +222,11 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 			sheetId: "sheet-a",
 		};
 		let sessionBackedSignature = "plot:file-a:initial";
-		const changedTargets: Array<{ readonly fileId?: string; readonly targetResource?: string | null }> = [];
+		const changedTargets: Array<{ readonly fileId?: string | null; readonly targetResource?: string | null }> = [];
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: input => ({
-					fileId: input.fileId,
+				getCachedCalculatedData: (input: Parameters<IPlotService["getCachedCalculatedData"]>[0]) => ({
+					fileId: input.fileId ?? null,
 					signature: input.target ? "plot:uri-a" : sessionBackedSignature,
 				}),
 				getCalculatedData: () => {
@@ -241,13 +247,13 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		}));
 
 		assert.equal(service.request("file-a", "hover").kind, "ready");
-		assert.equal(service.request({ fileId: "uri-a", target }, "hover").kind, "ready");
+		assert.equal(service.request(target, "hover").kind, "ready");
 		changedTargets.length = 0;
 
 		sessionBackedSignature = "plot:file-a:next";
 		cacheEmitter.fire({ fileId: "file-a", plotType: "iv" });
 
-		assert.equal(service.get({ fileId: "uri-a", target }).kind, "ready");
+		assert.equal(service.get(target).kind, "ready");
 		assert.deepEqual(changedTargets, [
 			{ fileId: "file-a", targetResource: null },
 		]);
@@ -661,18 +667,18 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		assert.deepEqual(changedFileIds, ["file-a", "file-a"]);
 	});
 
-	test("plot cache changes invalidate only affected thumbnail previews", async () => {
+	test("plot cache changes update only affected thumbnail previews", async () => {
 		const cacheEmitter = store.add(new Emitter<{ readonly fileId: string; readonly plotType: "iv" }>());
-		const cachedFileIds: string[] = [];
+		const signaturesByFileId: Record<string, string> = {
+			"file-a": "plot:file-a",
+			"file-b": "plot:file-b",
+		};
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: ({ fileId }: { readonly fileId: string }) => {
-					cachedFileIds.push(fileId);
-					return {
-						fileId,
-						signature: `plot:${fileId}`,
-					};
-				},
+				getCachedCalculatedData: ({ fileId }: { readonly fileId: string }) => ({
+					fileId,
+					signature: signaturesByFileId[fileId] ?? `plot:${fileId}`,
+				}),
 				getCalculatedData: () => {
 					throw new Error("thumbnail previews must not synchronously calculate plot data");
 				},
@@ -682,20 +688,27 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				prefetchCalculatedData: () => undefined,
 			} as unknown as IPlotService,
 		));
+		const changedFileIds: string[] = [];
+		store.add(service.onDidChangePreview(event => {
+			if (event.fileId) {
+				changedFileIds.push(event.fileId);
+			}
+		}));
 
 		service.request("file-a", "hover");
 		service.request("file-b", "hover");
 		await timeout();
+		changedFileIds.length = 0;
 
 		assert.equal(service.get("file-a").kind, "ready");
 		assert.equal(service.get("file-b").kind, "ready");
-		cachedFileIds.length = 0;
 
+		signaturesByFileId["file-b"] = "plot:file-b:next";
 		cacheEmitter.fire({ fileId: "file-b", plotType: "iv" });
 
 		assert.equal(service.get("file-a").kind, "ready");
 		assert.equal(service.get("file-b").kind, "ready");
-		assert.deepEqual(cachedFileIds, ["file-b"]);
+		assert.deepEqual(changedFileIds, ["file-b"]);
 	});
 
 	test("bitmap drawing skips detached canvases instead of using fallback dimensions", () => {

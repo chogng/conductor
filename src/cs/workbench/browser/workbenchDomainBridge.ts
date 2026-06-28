@@ -34,18 +34,6 @@ import type {
 } from "src/cs/workbench/services/plot/common/plot";
 import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
 import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
-import {
-  type ISessionService,
-  type SessionSnapshot,
-} from "src/cs/workbench/services/session/common/session";
-import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
-import {
-  collectFileRecordBaseCurves,
-  fileRecordSupportsSs,
-  getFileRecordCurveType,
-  getFileRecordDomain,
-  getFileRecordXGroups,
-} from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
 import type {
   ITableService,
   TableSource,
@@ -78,17 +66,10 @@ export type WorkbenchDomainBridgeOptions = {
   readonly explorerService: IExplorerService;
   readonly layoutService: IWorkbenchLayoutService;
   readonly plotService: IPlotService;
-  readonly sessionService: ISessionService;
   readonly settingsService: ISettingsService;
   readonly sliceService: ISliceService;
   readonly tableService: ITableService;
   readonly thumbnailPreviewService: IThumbnailPreviewService;
-};
-
-export type SessionExplorerFacts = {
-  readonly chartDataFileIds: readonly string[];
-  readonly sessionFileIds: readonly string[];
-  readonly thumbnailFiles: readonly ExplorerThumbnailFile[];
 };
 
 export class WorkbenchDomainBridge extends Disposable {
@@ -123,7 +104,6 @@ export class WorkbenchDomainBridge extends Disposable {
     this._register(this.options.plotService.onDidChangePlotState(() => this.scheduleSync()));
     this._register(this.options.sliceService.onDidChangeSliceState(() => this.scheduleInteractiveSync()));
     this._register(this.options.layoutService.onDidChangeWorkbenchNavigation(() => this.scheduleSync()));
-    this._register(this.options.sessionService.onDidChangeSession(() => this.scheduleSync()));
     this._register({
       dispose: () => {
         this.cancelScheduledSync?.();
@@ -218,17 +198,14 @@ export class WorkbenchDomainBridge extends Disposable {
       return;
     }
 
-    const snapshot = this.options.sessionService.getSnapshot();
-    const endPerf = startPerf("workbenchDomainBridge.sync", {
-      deferSecondaryWork,
-      fileCount: Object.keys(snapshot.filesById).length,
-      sessionVersion: snapshot.sessionVersion,
-    });
-    const sessionFacts = createSessionExplorerFacts(snapshot);
-    this.pruneRecentInteractiveChartTargets();
     const explorerResourceFiles = getExplorerResourceFiles(
       this.options.explorerService.getPaneInput()?.files ?? [],
     );
+    const endPerf = startPerf("workbenchDomainBridge.sync", {
+      deferSecondaryWork,
+      explorerFileCount: explorerResourceFiles.length,
+    });
+    this.pruneRecentInteractiveChartTargets();
     const explorerSelection = reconcileExplorerDomainSelection(
       this.options.explorerService,
       this.options.layoutService.activeWorkbenchMainPart,
@@ -244,16 +221,14 @@ export class WorkbenchDomainBridge extends Disposable {
     if (deferSecondaryWork) {
       this.scheduleDeferredSecondarySync();
       endPerf({
-        chartDataFileCount: sessionFacts.chartDataFileIds.length,
         deferredSecondaryWork: true,
         explorerFileCount: explorerResourceFiles.length,
       });
       return;
     }
 
-    this.syncSecondaryState(sessionFacts, explorerSelection);
+    this.syncSecondaryState(explorerSelection);
     endPerf({
-      chartDataFileCount: sessionFacts.chartDataFileIds.length,
       deferredSecondaryWork: false,
       explorerFileCount: explorerResourceFiles.length,
     });
@@ -412,34 +387,28 @@ export class WorkbenchDomainBridge extends Disposable {
       return;
     }
 
-    const snapshot = this.options.sessionService.getSnapshot();
-    const endPerf = startPerf("workbenchDomainBridge.deferredSync", {
-      fileCount: Object.keys(snapshot.filesById).length,
-      sessionVersion: snapshot.sessionVersion,
-    });
-    const sessionFacts = createSessionExplorerFacts(snapshot);
     const explorerResourceFiles = getExplorerResourceFiles(
       this.options.explorerService.getPaneInput()?.files ?? [],
     );
+    const endPerf = startPerf("workbenchDomainBridge.deferredSync", {
+      explorerFileCount: explorerResourceFiles.length,
+    });
     const explorerSelection = resolveExplorerDomainSelection(
       this.options.explorerService,
       this.options.explorerService.getPaneInput()?.files ?? [],
     );
-    this.syncSecondaryState(sessionFacts, explorerSelection);
+    this.syncSecondaryState(explorerSelection);
     endPerf({
-      chartDataFileCount: sessionFacts.chartDataFileIds.length,
       explorerFileCount: explorerResourceFiles.length,
     });
   }
 
   private syncSecondaryState(
-    sessionFacts: SessionExplorerFacts,
     explorerSelection: ExplorerDomainSelection,
   ): void {
     const sliceState = this.options.sliceService.getState();
     const explorerFiles = this.options.explorerService.getPaneInput()?.files ?? [];
     this.options.explorerService.updatePaneInput(this.getExplorerPaneInput(
-      sessionFacts,
       sliceState,
     ));
     const chartViewInput = this.getChartViewInput(
@@ -467,7 +436,6 @@ export class WorkbenchDomainBridge extends Disposable {
   }
 
   private getExplorerPaneInput(
-    sessionFacts: SessionExplorerFacts,
     sliceState: SliceState = this.options.sliceService.getState(),
   ): ExplorerPaneInput {
     const conductorSettings = this.options.settingsService.getConductorSettings();
@@ -477,8 +445,6 @@ export class WorkbenchDomainBridge extends Disposable {
       mode: this.options.layoutService.activeWorkbenchMainPart,
       originOpenPlotOptions: getOriginOpenPlotOptions(conductorSettings),
       plotAxisSettings: conductorSettings?.plotAxisSettings,
-      plotService: this.options.plotService,
-      sessionFacts,
       sliceService: this.options.sliceService,
       sliceState,
     });
@@ -791,72 +757,6 @@ const createActiveChartFileOptions = (
   }];
 };
 
-export const createSessionExplorerFacts = (
-  snapshot: SessionSnapshot,
-): SessionExplorerFacts => {
-  const files = getOrderedSessionFiles(snapshot);
-  return {
-    chartDataFileIds: files
-      .filter(hasFileRecordChartData)
-      .map(file => file.id),
-    sessionFileIds: files.map(file => file.id),
-    thumbnailFiles: files
-      .filter(hasFileRecordChartData)
-      .map(createSessionThumbnailFile),
-  };
-};
-
-const getOrderedSessionFiles = (
-  snapshot: SessionSnapshot,
-): FileRecord[] => {
-  const files: FileRecord[] = [];
-  const seen = new Set<string>();
-  const pushFile = (fileId: unknown): void => {
-    const normalizedFileId = String(fileId ?? "").trim();
-    if (!normalizedFileId || seen.has(normalizedFileId)) {
-      return;
-    }
-    seen.add(normalizedFileId);
-
-    const file = snapshot.filesById[normalizedFileId];
-    if (file) {
-      files.push(file);
-    }
-  };
-
-  for (const fileId of snapshot.fileOrder) {
-    pushFile(fileId);
-  }
-  for (const fileId of Object.keys(snapshot.filesById)) {
-    pushFile(fileId);
-  }
-
-  return files;
-};
-
-const hasFileRecordChartData = (file: FileRecord): boolean =>
-  collectFileRecordBaseCurves(file).length > 0;
-
-const createSessionThumbnailFile = (
-  file: FileRecord,
-): ExplorerThumbnailFile => {
-  const domain = getFileRecordDomain(file);
-  return {
-    calculationCache: file.calculationCache,
-    domain: domain
-      ? {
-        x: domain.x,
-        y: domain.y,
-      }
-      : undefined,
-    fileId: file.id,
-    fileName: file.name || file.raw.fileName,
-    series: file.seriesOrder.map(seriesId => file.seriesById[seriesId]).filter(Boolean),
-    supportsSs: fileRecordSupportsSs(file),
-    xGroups: getFileRecordXGroups(file),
-  };
-};
-
 const createExplorerChartFileOptions = (
   activeFileId: string | null,
   explorerFiles: readonly ExplorerFileEntry[],
@@ -1016,8 +916,6 @@ type CreateExplorerPaneInputOptions = {
   readonly mode: WorkbenchMainPart;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
-  readonly plotService: Pick<IPlotService, "getCalculatedData">;
-  readonly sessionFacts: SessionExplorerFacts;
   readonly sliceService?: Pick<ISliceService, "getUriResult" | "getUriState">;
   readonly sliceState: SliceState;
 };
@@ -1096,7 +994,6 @@ export const createExplorerPaneInput = ({
   mode,
   originOpenPlotOptions,
   plotAxisSettings,
-  sessionFacts,
   sliceService,
   sliceState,
 }: CreateExplorerPaneInputOptions): ExplorerPaneInput => {
@@ -1134,9 +1031,21 @@ export const createExplorerPaneInput = ({
     selectedResource: selectedTarget?.resource ?? null,
     selectedSheetId: selectedTarget?.sheetId ?? null,
     selectionKind,
-    thumbnailFiles: sessionFacts.thumbnailFiles,
+    thumbnailFiles: createExplorerThumbnailFiles(files),
   };
 };
+
+const createExplorerThumbnailFiles = (
+  files: readonly ExplorerFileEntry[],
+): readonly ExplorerThumbnailFile[] =>
+  files
+    .filter(file => file.hasChartData === true)
+    .map(file => ({
+      curveFilterField: null,
+      curveFilterKey: null,
+      fileId: file.fileId,
+      fileName: file.fileName,
+    }));
 
 const mergeChartDataFileIds = (
   explorerFiles: readonly ExplorerFileEntry[],

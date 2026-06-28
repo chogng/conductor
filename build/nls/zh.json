@@ -656,7 +656,6 @@
   "themes.commands.setWorkbenchBackground.description": "设置工作台页面背景颜色。",
   "themes.commands.toggleTransparentChrome": "切换半透明侧边栏",
   "themes.commands.toggleTransparentChrome.description": "切换半透明侧边栏。",
-  "thumbnail.preview.fileUnavailable": "File preview is unavailable.",
   "titlebar.mode.chart": "图表",
   "titlebar.mode.settings": "设置",
   "titlebar.mode.table": "表格",
