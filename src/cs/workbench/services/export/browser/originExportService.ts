@@ -51,15 +51,12 @@ const showOriginNotification = (
     type === "error" || type === "warning" || type === "info" || type === "success"
       ? type
       : "success";
+  const severity = Severity.fromValue(notificationType);
   notificationService.notify({
     id: "workbench.originExport",
     message,
     presentation: { type: notificationType },
-    severity: notificationType === "error"
-      ? Severity.Error
-      : notificationType === "warning"
-        ? Severity.Warning
-        : Severity.Info,
+    severity: severity === Severity.Ignore ? Severity.Info : severity,
   });
 };
 

@@ -13,7 +13,6 @@ import { Separator, type IAction } from "src/cs/base/common/actions";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
-import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
 import {
   type TemplateEditorConfig,
   validateTemplateForSave,
@@ -78,7 +77,6 @@ export type TemplateViewOptions = {
   readonly notificationService: Pick<INotificationService, "notify">;
   readonly templateViewStateService: ITemplateViewStateService;
   readonly userTemplateService: IUserTemplateService;
-  readonly rawFiles?: SessionFile[];
   readonly tableService?: Pick<
     ITableService,
     | "clearHighlight"
@@ -682,15 +680,12 @@ export class TemplateView {
   }
 
   private showNotification(message: string, type: NotificationPresentationType = "success"): void {
+    const severity = Severity.fromValue(type);
     this.props.notificationService.notify({
       id: TEMPLATE_NOTIFICATION_ID,
       message,
       presentation: { type },
-      severity: type === "error"
-        ? Severity.Error
-        : type === "warning"
-          ? Severity.Warning
-          : Severity.Info,
+      severity: severity === Severity.Ignore ? Severity.Info : severity,
     });
   }
 

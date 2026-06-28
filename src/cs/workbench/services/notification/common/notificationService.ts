@@ -291,9 +291,8 @@ const getToastType = (
   presentation?: INotificationPresentationOptions,
 ): NotificationToastType => {
   if (presentation?.type) return presentation.type;
-  if (severity === Severity.Error) return "error";
-  if (severity === Severity.Warning) return "warning";
-  if (severity === Severity.Info) return "info";
+  const type = Severity.toString(severity);
+  if (type === "error" || type === "warning" || type === "info") return type;
   return "info";
 };
 

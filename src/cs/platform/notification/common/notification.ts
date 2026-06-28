@@ -1,16 +1,12 @@
 import type { IAction } from "src/cs/base/common/actions";
 import { Event } from "src/cs/base/common/event";
+import BaseSeverity from "src/cs/base/common/severity";
 import { localize } from "src/cs/nls";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 
 export const INotificationService = createDecorator<INotificationService>("notificationService");
 
-export const enum Severity {
-  Ignore = 0,
-  Info = 1,
-  Warning = 2,
-  Error = 3,
-}
+export import Severity = BaseSeverity;
 
 export type NotificationMessage = string | Error;
 
