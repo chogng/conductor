@@ -228,8 +228,7 @@ export class BrowserQuickInputService extends Disposable implements IQuickInputS
       return;
     }
 
-    activeQuickPick.activeIndex = nextIndex;
-    this.render(activeQuickPick, true);
+    this.setActiveItem(activeQuickPick, nextIndex, true);
   }
 
   private render(
@@ -293,6 +292,7 @@ export class BrowserQuickInputService extends Disposable implements IQuickInputS
     const element = document.createElement("div");
     element.className = "quick-input-item";
     element.dataset.quickPickItemId = item.id;
+    element.dataset.quickPickItemIndex = String(index);
     element.setAttribute("role", "option");
     element.setAttribute("aria-label", item.ariaLabel ?? item.label);
     element.setAttribute("aria-selected", index === activeQuickPick.activeIndex ? "true" : "false");
@@ -313,15 +313,47 @@ export class BrowserQuickInputService extends Disposable implements IQuickInputS
       picker.triggerItemButton(item, buttonItem, buttonIndex, getKeyMods(event));
     });
     element.addEventListener("mouseenter", () => {
-      activeQuickPick.activeIndex = index;
-      picker.setActiveItemsFromService([item]);
-      this.render(activeQuickPick, true);
+      this.setActiveItem(activeQuickPick, index);
     });
     element.addEventListener("click", event => {
       picker.setSelectedItems([item]);
       picker.accept(getKeyMods(event));
     });
     return element;
+  }
+
+  private setActiveItem(
+    activeQuickPick: ActiveQuickPick,
+    index: number,
+    reveal = false,
+  ): void {
+    const item = getItem(activeQuickPick.visibleItems[index]);
+    if (!item) {
+      return;
+    }
+
+    activeQuickPick.activeIndex = index;
+    activeQuickPick.picker.setActiveItemsFromService([item]);
+    this.updateActiveItem(activeQuickPick, reveal);
+  }
+
+  private updateActiveItem(
+    activeQuickPick: ActiveQuickPick,
+    reveal: boolean,
+  ): void {
+    let activeElement: HTMLElement | undefined;
+    for (const element of activeQuickPick.list.querySelectorAll<HTMLElement>(".quick-input-item")) {
+      const isActive = Number(element.dataset.quickPickItemIndex) === activeQuickPick.activeIndex;
+      element.classList.toggle("quick-input-item-active", isActive);
+      element.setAttribute("aria-selected", isActive ? "true" : "false");
+      if (isActive) {
+        activeElement = element;
+      }
+    }
+
+    if (reveal) {
+      activeElement?.scrollIntoView({ block: "nearest" });
+    }
   }
 }
 

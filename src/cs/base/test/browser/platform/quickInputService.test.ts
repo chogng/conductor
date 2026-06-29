@@ -101,6 +101,85 @@ suite("base/test/browser/platform/quickInputService", () => {
       store.dispose();
     }
   });
+
+  test("keeps provider opened by accepted quick access item", async () => {
+    const store = new DisposableStore();
+    const registry = Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.QuickAccess);
+
+    class DefaultTestQuickAccessProvider extends PickerQuickAccessProvider<QuickAccessItem> {
+      public constructor(
+        @IQuickInputService private readonly quickInputService: IQuickInputService,
+      ) {
+        super();
+      }
+
+      protected getPicks(): readonly QuickAccessItem[] {
+        return [{
+          accept: () => this.quickInputService.quickAccess.show("command-test "),
+          id: "test.gotoCommands",
+          label: "Go to Commands",
+        }];
+      }
+    }
+
+    class CommandTestQuickAccessProvider extends PickerQuickAccessProvider<QuickAccessItem> {
+      public constructor() {
+        super("command-test ");
+      }
+
+      protected getPicks(): readonly QuickAccessItem[] {
+        return [{
+          id: "test.command",
+          label: "Command",
+        }];
+      }
+    }
+
+    const serviceCollection = new ServiceCollection();
+    const controllerInstantiationService = store.add(new InstantiationService(serviceCollection));
+    const quickInputService = store.add(new BrowserQuickInputService(controllerInstantiationService));
+    const contextKeyService = store.add(new ContextKeyService());
+    serviceCollection.set(IQuickInputService, quickInputService);
+    serviceCollection.set(IContextKeyService, contextKeyService);
+
+    store.add(registry.registerQuickAccessProvider({
+      ctor: DefaultTestQuickAccessProvider,
+      prefix: "",
+      placeholder: "Search",
+    }));
+    store.add(registry.registerQuickAccessProvider({
+      ctor: CommandTestQuickAccessProvider,
+      prefix: "command-test ",
+      placeholder: "Search commands",
+    }));
+
+    try {
+      const controller = store.add(controllerInstantiationService.createInstance(QuickAccessController));
+
+      controller.show("");
+      await microtasks(2);
+      const commandItem = document.querySelector<HTMLElement>("[data-quick-pick-item-id='test.gotoCommands']");
+      commandItem?.dispatchEvent(new MouseEvent("mouseenter"));
+      assert.equal(
+        document.querySelector<HTMLElement>("[data-quick-pick-item-id='test.gotoCommands']"),
+        commandItem,
+      );
+
+      commandItem?.click();
+      await microtasks(2);
+
+      assert.equal(
+        document.querySelector<HTMLInputElement>(".quick-input-input")?.value,
+        "command-test ",
+      );
+      assert.equal(
+        document.querySelector<HTMLElement>(".quick-input-item")?.dataset.quickPickItemId,
+        "test.command",
+      );
+    } finally {
+      store.dispose();
+    }
+  });
 });
 
 const animationFrames = async (count: number): Promise<void> => {
