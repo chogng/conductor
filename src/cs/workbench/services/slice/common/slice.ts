@@ -351,9 +351,11 @@ export interface ISliceService {
   readonly _serviceBrand: undefined;
 
   readonly onDidChangeSliceState: Event<void>;
+  readonly onDidChangeTemplateSelection: Event<SliceUriTarget>;
   readonly onDidChangeUriSliceResult: Event<SliceUriTarget>;
 
   getState(): SliceState;
+  getTemplateSelection(target: SliceUriTarget): TemplateSelection;
   getUriResult(target: SliceUriTarget): SliceUriResult | null;
   getUriState(target: SliceUriTarget): SliceFileState | undefined;
   submitUri(requests: readonly SliceUriRequest[]): void;

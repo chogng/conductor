@@ -161,7 +161,7 @@ export const areTemplateTargetSelectionsEqual = (
 	return true;
 };
 
-const isSameTemplateSelection = (
+export const areTemplateSelectionsEqual = (
 	current: TemplateSelection | undefined,
 	next: TemplateSelection | undefined,
 ): boolean => {
@@ -171,6 +171,8 @@ const isSameTemplateSelection = (
 
 	return getTemplateSelectionTemplateId(current) === getTemplateSelectionTemplateId(next);
 };
+
+const isSameTemplateSelection = areTemplateSelectionsEqual;
 
 const createTemplateSelectionTargetCacheKey = (
 	target: TemplateSelectionTargetLike | null | undefined,

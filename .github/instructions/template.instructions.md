@@ -67,7 +67,7 @@ plot rendering, or chart state.
 | `contrib/template/common/template.ts` | Template workbench view id and command ids shared by contribution, commands, and view code. |
 | `contrib/template/browser/templateCommands.ts` | Template command registration and handlers; delegates library management to UserTemplate services and execution wrappers to Slice. |
 | `contrib/template/browser/templateImportExport.ts` | Template UI JSON import/export file-transfer helper; dialog, file read, save-file write, and browser download fallback plumbing only. Payload semantics stay with `IUserTemplateImportExportService`. |
-| `contrib/template/browser/templateTableMap.ts` | Bidirectional UI-only mapper between `ITableService` selection/cell/range state and Template editor `TemplateEditorConfig` fields. |
+| `contrib/template/browser/templateTableMap.ts` | UI-only mapper between `ITableService` selection/cell/range state and Template editor `TemplateEditorConfig` fields, plus pure Template spec -> table decoration projection. |
 | `contrib/template/browser/templateUserTemplateAdapter.ts` | View-model adapter from UserTemplate snapshots into editable Template editor records. |
 | `contrib/template/browser/templateViewStateService.ts` | Template UI selected-template/form editor state. |
 | `contrib/template/browser/templateViewlet.ts` | Workbench `ViewPane` entry; owns Template pane DI, lifecycle, service subscriptions, and title updates. |

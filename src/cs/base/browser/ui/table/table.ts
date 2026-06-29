@@ -85,8 +85,13 @@ export interface ITableCellRange {
 	readonly startRow: number;
 }
 
+export interface ITableCellDecorationRange extends ITableCellRange {
+	readonly token: string;
+}
+
 export interface ITableCellState {
 	readonly activeCell?: ITableCellPosition | null;
+	readonly decorationRanges?: readonly ITableCellDecorationRange[];
 	readonly highlightedColumns?: readonly number[];
 	readonly selectedColumns?: readonly number[];
 	readonly selectedRanges?: readonly ITableCellRange[];
@@ -149,6 +154,7 @@ export interface ITableSelectionFrameEdges {
 
 export interface ITableBodyCellTraitState {
 	readonly active: boolean;
+	readonly decoration: string;
 	readonly highlighted: boolean;
 	readonly selected: boolean;
 	readonly selectionFrame: ITableSelectionFrameEdges;

@@ -2511,13 +2511,6 @@ const createTableViewModel = ({
     [highlightRef, notifyHighlightChanged],
   );
 
-  const clearRangeDecorations = memoCallback(
-    (): void => {
-      setRangeDecorations([]);
-    },
-    [setRangeDecorations],
-  );
-
   const revealCell = memoCallback(
     (cell: TableCell | null): void => {
       revealCellRef.current = normalizeTableCell(cell);
@@ -2576,7 +2569,6 @@ const createTableViewModel = ({
     adjustColumnDisplayScale,
     cancelPendingRowRequests: cancelPendingTableRowRequests,
     clearHighlight,
-    clearRangeDecorations,
     clearSelection,
     clearState: clearPreviewState,
     ensureCells: ensureTableCells,

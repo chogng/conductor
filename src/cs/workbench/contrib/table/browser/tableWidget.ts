@@ -15,6 +15,7 @@ import type { CancellationToken } from "src/cs/base/common/cancellation";
 import {
   TABLE_WIDGET_ZOOM_OPTIONS,
   type ITableBodyMouseEvent,
+  type ITableCellDecorationRange,
   type ITableCellState,
   type ITableCellPosition,
   type ITableCellSelectionTarget,
@@ -50,6 +51,7 @@ import {
 } from "src/cs/workbench/services/table/common/tableColumnLayout";
 import {
   toTableSheetKey,
+  type TableRangeDecoration,
   type TableSource,
 } from "src/cs/workbench/services/table/common/table";
 
@@ -127,11 +129,13 @@ export type TableWidgetModel = {
   readonly getColumnDisplayProfile: (colIndex: number) => ColumnDisplayProfile;
   readonly get: (rowIndex: number) => unknown[];
   readonly getHighlight: () => TableWidgetHighlight;
+  readonly getRangeDecorations: () => readonly TableRangeDecoration[];
   readonly getRowsVersion: () => number;
   readonly getSelection: () => TableWidgetSelection;
   readonly getState: () => TableWidgetState;
   readonly isResolved: (rowIndex: number) => boolean;
   readonly onDidChangeHighlight: (callback: (highlight: TableWidgetHighlight) => void) => () => void;
+  readonly onDidChangeRangeDecorations: (callback: (decorations: readonly TableRangeDecoration[]) => void) => () => void;
   readonly onDidChangeRevealCell: (callback: (cell: TableWidgetCell | null) => void) => () => void;
   readonly onDidChangeSelection: (callback: (selection: TableWidgetSelection) => void) => () => void;
   readonly onDidChangeState: (callback: () => void) => () => void;
@@ -204,6 +208,7 @@ export class TableWidget {
   private readonly bodyRangeSelectionStore = new DisposableStore();
   private disposeSelectionListener: (() => void) | null = null;
   private disposeHighlightListener: (() => void) | null = null;
+  private disposeRangeDecorationListener: (() => void) | null = null;
   private disposeRevealCellListener: (() => void) | null = null;
   private disposeRowsVersionListener: (() => void) | null = null;
   private disposeStateListener: (() => void) | null = null;
@@ -355,6 +360,8 @@ export class TableWidget {
     this.disposeSelectionListener = null;
     this.disposeHighlightListener?.();
     this.disposeHighlightListener = null;
+    this.disposeRangeDecorationListener?.();
+    this.disposeRangeDecorationListener = null;
     this.disposeRevealCellListener?.();
     this.disposeRevealCellListener = null;
     this.disposeRowsVersionListener?.();
@@ -642,6 +649,7 @@ export class TableWidget {
   private bindTableState(tableViewModel: TableWidgetModel): void {
     this.disposeSelectionListener?.();
     this.disposeHighlightListener?.();
+    this.disposeRangeDecorationListener?.();
     this.disposeRevealCellListener?.();
     this.disposeRowsVersionListener?.();
     this.disposeStateListener?.();
@@ -652,6 +660,9 @@ export class TableWidget {
       this.syncRows(event);
     });
     this.disposeHighlightListener = tableViewModel.onDidChangeHighlight(() => {
+      this.syncCellState();
+    });
+    this.disposeRangeDecorationListener = tableViewModel.onDidChangeRangeDecorations(() => {
       this.syncCellState();
     });
     this.disposeRevealCellListener = tableViewModel.onDidChangeRevealCell((cell) => {
@@ -1066,6 +1077,7 @@ export class TableWidget {
     const selection = tableViewModel.getSelection();
     const cellState: ITableCellState = {
       activeCell: selection.activeCell ?? null,
+      decorationRanges: tableViewModel.getRangeDecorations().map(toTableCellDecorationRange),
       highlightedColumns: tableViewModel.getHighlight().columns ?? [],
       selectedColumns: selection.selectedColumns ?? [],
       selectedRanges: selection.ranges ?? [],
@@ -1715,6 +1727,16 @@ const toggleSelectedColumn = (
 
   return Array.from(columns).sort((a, b) => a - b);
 };
+
+const toTableCellDecorationRange = (
+  decoration: TableRangeDecoration,
+): ITableCellDecorationRange => ({
+  startRow: decoration.startRow,
+  endRow: decoration.endRow,
+  startCol: decoration.startCol,
+  endCol: decoration.endCol,
+  token: decoration.kind,
+});
 
 const resolveHeaderSelectedColumns = (
   selection: TableSelection,

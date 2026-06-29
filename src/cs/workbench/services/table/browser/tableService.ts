@@ -11,6 +11,8 @@ import { IStorageService, StorageScope, StorageTarget } from "src/cs/platform/st
 import { startPerf } from "src/cs/workbench/common/perf";
 import {
   areTableSourcesEqual,
+  createTableDecorationResource,
+  getTableRangeDecorationsFromDecorationData,
   ITableService,
   normalizeTableSource,
   TABLE_COPY_MAX_CELLS,
@@ -18,7 +20,6 @@ import {
   type TableCellSearchQuery,
   type TableCellSearchResult,
   type TableCellValueResult,
-  type TableRangeDecoration,
   type TableViewModel,
   type TableRevealMode,
   type TableRevealOptions,
@@ -29,6 +30,7 @@ import {
   type TableSource,
   type TableViewInput,
 } from "src/cs/workbench/services/table/common/table";
+import { IDecorationsService } from "src/cs/workbench/services/decorations/common/decorations";
 import type { NumericDisplayMode } from "src/cs/workbench/services/table/common/tableDisplayProfile";
 import {
   toStoredTableColumnLayout,
@@ -90,11 +92,37 @@ type TableCellSearchPlan = {
   readonly startRow: number;
 };
 
+type TableDecorationContext = {
+  readonly decorationResource: NonNullable<ReturnType<typeof createTableDecorationResource>>;
+};
+
 type TableTargetContext = {
   readonly columnCount: number;
   readonly file: TableFile;
   readonly rowCount: number;
   readonly sheetId: string | null;
+};
+
+const createTableDecorationContext = (
+  state: TableState,
+): TableDecorationContext | null => {
+  const source = state.source;
+  const file = state.file;
+  if (!source || !file) {
+    return null;
+  }
+
+  const rowCount = Math.max(0, Math.floor(Number(file.rowCount) || 0));
+  const columnCount = Math.max(0, Math.floor(Number(file.columnCount) || 0));
+  if (rowCount <= 0 || columnCount <= 0) {
+    return null;
+  }
+
+  const decorationResource = createTableDecorationResource(
+    source,
+    firstString(file.sheetId, state.selectedSheetId, source.sheetId),
+  );
+  return decorationResource ? { decorationResource } : null;
 };
 
 const TABLE_COLUMN_LAYOUT_STORAGE_KEY_PREFIX = "table.columnLayout.";
@@ -694,6 +722,7 @@ export class TableService extends Disposable implements ITableService {
     @IStorageService private readonly storageService: IStorageService,
     @ISettingsService private readonly settingsService: ISettingsService,
     @ITableModelService private readonly tableModelService: ITableModelService,
+    @IDecorationsService private readonly decorationsService: IDecorationsService,
   ) {
     super();
     this.numericDisplayMode = normalizeNumericDisplayMode(
@@ -709,6 +738,12 @@ export class TableService extends Disposable implements ITableService {
       this.numericDisplayMode = mode;
       this.displayVersion += 1;
       this.refreshActiveSource({ forceViewInput: true });
+    }));
+    this._register(this.decorationsService.onDidChangeDecorations(event => {
+      const context = this.createActiveTableDecorationContext();
+      if (context && event.affectsResource(context.decorationResource)) {
+        this.refreshActiveDecorations();
+      }
     }));
     this.refreshActiveSource();
   }
@@ -1010,16 +1045,8 @@ export class TableService extends Disposable implements ITableService {
     this.getActiveTableViewModel()?.clearHighlight();
   }
 
-  public clearRangeDecorations(): void {
-    this.getActiveTableViewModel()?.clearRangeDecorations();
-  }
-
   public highlightColumns(columnIndexes: readonly number[]): void {
     this.getActiveTableViewModel()?.highlightColumns(columnIndexes);
-  }
-
-  public setRangeDecorations(decorations: readonly TableRangeDecoration[]): void {
-    this.getActiveTableViewModel()?.setRangeDecorations(decorations);
   }
 
   public clearSelection(): boolean {
@@ -1111,6 +1138,25 @@ export class TableService extends Disposable implements ITableService {
     this.viewInput = input;
     this.bindActiveTableViewModel(input.tableViewModel);
     this.onDidChangeTableViewInputEmitter.fire(undefined);
+    this.refreshActiveDecorations();
+  }
+
+  private refreshActiveDecorations(): void {
+    const tableViewModel = this.tableViewModel;
+    const context = this.createActiveTableDecorationContext();
+    if (!tableViewModel || !context) {
+      tableViewModel?.setRangeDecorations([]);
+      return;
+    }
+
+    tableViewModel.setRangeDecorations(getTableRangeDecorationsFromDecorationData(
+      this.decorationsService.getDecorationData(context.decorationResource, false),
+    ));
+  }
+
+  private createActiveTableDecorationContext(): TableDecorationContext | null {
+    const state = this.tableViewModel?.getState();
+    return state ? createTableDecorationContext(state) : null;
   }
 
   private getActiveTableViewModel(): TableViewModel | null {

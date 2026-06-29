@@ -20,6 +20,7 @@ measurement structure.
 - selected text generation;
 - current cell value lookup and active-table cell search;
 - focus/reveal/highlight state;
+- non-interactive range decoration state for display-only overlays;
 - column width persistence;
 - column-level display profiles for numeric presentation;
 - paged resource rows cache, loading state, and row request lifecycle;
@@ -64,11 +65,12 @@ sheet-key derivation rules in service/view files.
 | `common/tableColumnLayout.ts` | width policy and storage serialization. |
 | `common/tableDisplayProfile.ts` / `numericFormat.ts` | display profile and numeric formatting helpers. |
 | `services/tableFile/common/tableFileEditorModelManager.ts` | file-backed table model manager: cache/reuse, reload/remove, pending resolve de-duplication, and model change events. |
-| `browser/tableService.ts` | table service owner, view input, copy text, column width persistence. |
+| `browser/tableService.ts` | table service owner, view input, copy text, column width persistence, and active-view consumption of table range data from `IDecorationsService`. |
 | `browser/tableViewModel.ts` | per-table preview view model: source switching, resource row cache, selection/highlight/reveal, and row request lifecycle. |
 | `base/browser/ui/table/tableWidget.ts` / `table.css` | Conductor-specific two-dimensional table widget facade, normalized mouse/keyboard table events, and structural CSS over the virtual table base. |
 | `base/browser/ui/table/virtualTable.ts` | two-dimensional virtual table engine: visible range calculation, pooled corner/header/body DOM, scroll spacers, cell descriptor rebinding, and scroll/visible-range fact events. |
-| `contrib/table/browser/tableWidget.ts` | raw table adapter/renderers over base table widget events, service selection sync, keyboard shortcuts, wheel handling, zoom controls, and column width persistence callbacks. |
+| `contrib/table/browser/tableWidget.ts` | raw table adapter/renderers over base table widget events, service selection sync, keyboard shortcuts, wheel handling, zoom controls, column width persistence callbacks, and final decoration snapshots. |
+| `contrib/table/browser/tableTemplateDecorationsProvider.ts` | provider from the current Slice-owned template slot to Template-derived table range decorations. |
 | `contrib/table/browser/tableController.ts` | adapter from view input/callbacks to widget props. |
 | `contrib/table/browser/tableWidgetService.ts` | active widget controller registry for commands. |
 | `contrib/table/browser/tableDropTarget.ts` | table preview resource-drop target, following the upstream editor drop-target shape and delegating DataTransfer source collection to files helpers. |
@@ -118,7 +120,7 @@ Session/settings/command/search bridge
   -> ITableService.getCellValue / findCell consume active tableViewModel rows through the table owner API and return current-sheet coordinates
   -> TableController consumes view input
   -> TableWidget adapts table state to base table widget renderers
-  -> TableWidget forwards selection/focus/highlight snapshots to the base table widget
+  -> TableWidget forwards selection/focus/highlight/decoration snapshots to the base table widget
   -> base table widget intersects snapshots with visible ranges and applies cell/header trait DOM state
   -> base table widget owns pointer-derived hover trait state for pooled body/header cells
   -> base table widget owns managed hover lifecycle for pooled body cells through the base layer hover delegate
@@ -136,6 +138,15 @@ TableWidget header scale badge / shared stepper
   -> TableService delegates to its active tableViewModel
   -> tableViewModel emits display rows-version dirty ranges
   -> TableWidget rerenders affected visible cells and header scale controls
+
+Template visualization
+  -> ISliceService owns the current template slot for each TableSource/sheet target
+  -> TableTemplateDecorationsProvider implements the workbench `IDecorationsProvider` contract and listens to the slot and related template materialization changes
+  -> auto slot reads the current Review-owned system recommended ReviewedTemplate.template
+  -> saved user slot reads the selected IUserTemplateService UserTemplate.template snapshot directly
+  -> templateTableMap projects Template blocks/axis ranges into TableRangeDecoration values
+  -> provider returns `IDecorationData` carrying table range decorations for the active table decoration resource
+  -> TableService listens to `IDecorationsService.onDidChangeDecorations`, rereads `getDecorationData(...)`, and updates display-only table view-model state
 ```
 
 ## Base Table Boundary
@@ -152,7 +163,7 @@ The base table owns UI mechanics that are independent of raw-table semantics:
 - pooled corner/header/row-header/body DOM and descriptor rebinding;
 - structural CSS hooks, header/body scroll synchronization, and reveal geometry;
 - widget-owned cell/header trait DOM hooks for hovered, selected,
-  highlighted, active, and selection-frame state; feature widgets provide a
+  highlighted, decorated, active, and selection-frame state; feature widgets provide a
   selection/focus/highlight snapshot through `TableWidget.setCellState(...)`
   instead of diffing visible ranges or writing table DOM hooks directly, while
   pointer-derived hover state stays inside the base widget;

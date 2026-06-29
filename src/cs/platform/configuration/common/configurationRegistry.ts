@@ -114,6 +114,7 @@ type NumericDisplayMode = "raw" | "smart";
 export type ConductorSettings = JsonRecord & {
   language: string;
   numericDisplayMode: NumericDisplayMode;
+  tableTemplateVisualizationEnabled: boolean;
   theme: string;
   backgroundColor: string;
   filesExplorerBadgeColors: Record<string, string>;
@@ -325,6 +326,7 @@ const BACKGROUND_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
 export const DEFAULT_CONDUCTOR_CONFIGURATION: ConductorSettings = {
   language: "system",
   numericDisplayMode: "raw",
+  tableTemplateVisualizationEnabled: false,
   theme: "system",
   backgroundColor: DEFAULT_BACKGROUND_COLOR,
   filesExplorerBadgeColors: DEFAULT_FILES_EXPLORER_BADGE_COLORS,
@@ -578,6 +580,10 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
   const numericDisplayMode = isSetValue(NUMERIC_DISPLAY_MODES, next.numericDisplayMode)
     ? next.numericDisplayMode as NumericDisplayMode
     : DEFAULT_CONDUCTOR_CONFIGURATION.numericDisplayMode;
+  const tableTemplateVisualizationEnabled = normalizeBoolean(
+    next.tableTemplateVisualizationEnabled,
+    DEFAULT_CONDUCTOR_CONFIGURATION.tableTemplateVisualizationEnabled,
+  );
   const filesExplorerDensity = isSetValue(
     FILES_EXPLORER_DENSITIES,
     next.filesExplorerDensity,
@@ -674,6 +680,7 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
     fileNameFieldSeparators: normalizeFileNameFieldSeparators(next.fileNameFieldSeparators),
     stopOnErrorDefault,
     numericDisplayMode,
+    tableTemplateVisualizationEnabled,
     theme,
     filesExplorerBadgeColors,
     filesExplorerDensity,

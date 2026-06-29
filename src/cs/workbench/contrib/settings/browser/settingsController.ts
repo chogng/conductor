@@ -29,6 +29,7 @@ import {
   normalizeFilesExplorerBadgeColors,
   normalizeFilesExplorerShowBadges,
   normalizeNumericDisplayMode,
+  normalizeTableTemplateVisualizationEnabled,
   type ConductorSettings,
   type FilesExplorerBadgeColor,
   type ISettingsService,
@@ -99,9 +100,11 @@ export class SettingsController {
   private pendingExplorerBadgeColors: Record<string, FilesExplorerBadgeColor> | null = null;
   private pendingExplorerBadgeVisibility: boolean | null = null;
   private pendingNumericDisplayMode: "raw" | "smart" | null = null;
+  private pendingTableTemplateVisualizationEnabled: boolean | null = null;
   private pendingTransparentChrome: boolean | null = null;
   private transparentChromeSaving = false;
   private numericDisplaySaving = false;
+  private tableTemplateVisualizationSaving = false;
   private windowCloseSaving = false;
   private cleanupNotificationSignature: string | null = null;
   private originHealthNotificationSignature: string | null = null;
@@ -364,6 +367,7 @@ export class SettingsController {
       },
       language: this.options.language,
       numericDisplaySettings: this.numericDisplaySettings,
+      tableTemplateVisualizationSettings: this.tableTemplateVisualizationSettings,
       originLegendFontSizeDraft: this.drafts.originLegendFontSizeDraft,
       onLanguageChange: language => {
         void this.commandService.executeCommand(WorkbenchCommandId.setLanguage, language);
@@ -508,6 +512,14 @@ export class SettingsController {
       optimized: mode === "smart",
       isSaving: this.numericDisplaySaving,
       onOptimizedChange: value => this.setNumericDisplayOptimized(value),
+    };
+  }
+
+  private get tableTemplateVisualizationSettings(): SettingsViewOptions["tableTemplateVisualizationSettings"] {
+    return {
+      enabled: this.pendingTableTemplateVisualizationEnabled ?? normalizeTableTemplateVisualizationEnabled(this.settings.tableTemplateVisualizationEnabled),
+      isSaving: this.tableTemplateVisualizationSaving,
+      onEnabledChange: value => this.setTableTemplateVisualizationEnabled(value),
     };
   }
 
@@ -802,6 +814,46 @@ export class SettingsController {
       }
     } finally {
       this.numericDisplaySaving = false;
+      this.render();
+    }
+  }
+
+  private async setTableTemplateVisualizationEnabled(enabled: boolean): Promise<void> {
+    const normalized = Boolean(enabled);
+    const current = this.pendingTableTemplateVisualizationEnabled ?? normalizeTableTemplateVisualizationEnabled(this.settings.tableTemplateVisualizationEnabled);
+    if (normalized === current) {
+      return;
+    }
+
+    this.pendingTableTemplateVisualizationEnabled = normalized;
+    this.render();
+    if (!this.tableTemplateVisualizationSaving) {
+      await this.flushTableTemplateVisualizationEnabled();
+    }
+  }
+
+  private async flushTableTemplateVisualizationEnabled(): Promise<void> {
+    this.tableTemplateVisualizationSaving = true;
+    this.render();
+    try {
+      while (this.pendingTableTemplateVisualizationEnabled !== null) {
+        const enabled = this.pendingTableTemplateVisualizationEnabled;
+        try {
+          await this.service.updateSettings({ tableTemplateVisualizationEnabled: enabled });
+        }
+        catch {
+          if (this.pendingTableTemplateVisualizationEnabled === enabled) {
+            this.pendingTableTemplateVisualizationEnabled = null;
+          }
+          break;
+        }
+        if (this.pendingTableTemplateVisualizationEnabled === enabled) {
+          this.pendingTableTemplateVisualizationEnabled = null;
+        }
+        this.render();
+      }
+    } finally {
+      this.tableTemplateVisualizationSaving = false;
       this.render();
     }
   }

@@ -111,6 +111,12 @@ type NumericDisplaySettings = {
   onOptimizedChange: (optimized: boolean) => Promise<void> | void;
 };
 
+type TableTemplateVisualizationSettings = {
+  enabled: boolean;
+  isSaving: boolean;
+  onEnabledChange: (enabled: boolean) => Promise<void> | void;
+};
+
 type AppearanceSettings = {
   backgroundColor: string;
   backgroundColorDefault: string;
@@ -167,6 +173,7 @@ type SettingsViewProps = {
   fileNameMatchingSettings: FileNameMatchingSettings;
   language: LanguagePreference;
   numericDisplaySettings: NumericDisplaySettings;
+  tableTemplateVisualizationSettings: TableTemplateVisualizationSettings;
   onLanguageChange: (language: LanguagePreference) => Promise<void> | void;
   onNavigateBack: () => Promise<void> | void;
   onResetLayoutState: () => Promise<void> | void;
@@ -601,6 +608,19 @@ export class SettingsView {
             id: "settings-numeric-display-card",
             description: localize("settings.numericDisplay.description", "优化科学计数法以合适小数位显示以更好的预览"),
             title: localize("settings.numericDisplay.title", "优化表格数值显示"),
+          },
+          {
+            control: this.createSwitchWidget({
+              ariaLabel: localize("settings.tableTemplateVisualization.title", "Template Visualization"),
+              checked: this.options.tableTemplateVisualizationSettings.enabled,
+              id: "settings-table-template-visualization-toggle",
+              onChange: checked => {
+                void this.options.tableTemplateVisualizationSettings.onEnabledChange(checked);
+              },
+            }, this.generalControlDisposables).domNode,
+            id: "settings-table-template-visualization-card",
+            description: localize("settings.tableTemplateVisualization.description", "Show the current template ranges on the table preview."),
+            title: localize("settings.tableTemplateVisualization.title", "Template Visualization"),
           },
         ],
       },

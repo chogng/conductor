@@ -39,6 +39,7 @@ import {
 import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/reviewModel";
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
 import {
+	areTemplateSelectionsEqual,
 	normalizeTemplateSelectionTarget,
 	type TemplateSelection,
 	type TemplateTargetSelection,
@@ -65,6 +66,8 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	public readonly onDidChangeSliceState = this.onDidChangeSliceStateEmitter.event;
 	private readonly onDidChangeUriSliceResultEmitter = this._register(new Emitter<SliceUriTarget>());
 	public readonly onDidChangeUriSliceResult = this.onDidChangeUriSliceResultEmitter.event;
+	private readonly onDidChangeTemplateSelectionEmitter = this._register(new Emitter<SliceUriTarget>());
+	public readonly onDidChangeTemplateSelection = this.onDidChangeTemplateSelectionEmitter.event;
 
 	private readonly uriStatesByCacheKey = new Map<string, SliceFileState>();
 	private readonly uriTargetsByCacheKey = new Map<string, SliceUriTarget>();
@@ -98,6 +101,14 @@ export class SliceService extends Disposable implements ISliceServiceType {
 
 	public getUriState(target: SliceUriTarget): SliceFileState | undefined {
 		return this.uriStatesByCacheKey.get(createSliceUriCacheKey(target));
+	}
+
+	public getTemplateSelection(target: SliceUriTarget): TemplateSelection {
+		const normalizedTarget = normalizeTemplateSelectionTarget(target);
+		if (!normalizedTarget) {
+			return { kind: "auto" };
+		}
+		return this.templateSelectionsByTarget.get(createSliceUriCacheKey(normalizedTarget))?.selection ?? { kind: "auto" };
 	}
 
 	public submitUri(requests: readonly SliceUriRequest[]): void {
@@ -188,10 +199,20 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			return;
 		}
 
-		this.templateSelectionsByTarget.set(createSliceUriCacheKey(normalizedTarget), {
+		const nextSelection = normalizeTemplateSelection(selection);
+		const cacheKey = createSliceUriCacheKey(normalizedTarget);
+		if (areTemplateSelectionsEqual(
+			this.templateSelectionsByTarget.get(cacheKey)?.selection,
+			nextSelection,
+		)) {
+			return;
+		}
+
+		this.templateSelectionsByTarget.set(cacheKey, {
 			target: normalizedTarget,
-			selection: normalizeTemplateSelection(selection),
+			selection: nextSelection,
 		});
+		this.onDidChangeTemplateSelectionEmitter.fire(normalizedTarget);
 		this.fireSliceStateChange();
 	}
 

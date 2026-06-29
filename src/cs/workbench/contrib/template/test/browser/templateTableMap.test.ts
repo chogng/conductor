@@ -2,9 +2,11 @@ import assert from "assert";
 
 import { toColumnLabel } from "src/cs/workbench/services/template/common/templateCellRange";
 import type { TemplateEditorConfig } from "src/cs/workbench/services/template/common/templateEditorConfig";
+import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
 import {
   areTableCellsEqual,
   areColumnIndexesEqual,
+  createTemplateTableDecorations,
   normalizeColumnIndexes,
   resolveTemplateCellSelection,
   resolveTemplateCellSelectionUpdate,
@@ -81,6 +83,99 @@ suite("workbench/contrib/template/test/browser/templateTableMap", () => {
           { start: "C2", end: "End" },
         ],
       },
+    );
+  });
+
+  test("template table map projects block, X, Y, and end ranges", () => {
+    const template = createTemplate({
+      blocks: [{
+        rowRange: { startRow: 1, endRow: "end" },
+        x: {
+          columns: [1],
+          ranges: [
+            { column: 1, startRow: 2, endRow: "end" },
+            { column: 9, startRow: 2, endRow: 8 },
+          ],
+        },
+        y: { columns: [3, 4] },
+        segmentation: { kind: "auto" },
+        legend: { target: "auto" },
+      }],
+    });
+
+    assert.deepEqual(
+      createTemplateTableDecorations({
+        columnCount: 6,
+        rowCount: 5,
+        sheetId: "sheet-a",
+        template,
+      }),
+      [
+        {
+          kind: "templateBlock",
+          sheetId: "sheet-a",
+          startRow: 1,
+          endRow: 4,
+          startCol: 1,
+          endCol: 4,
+        },
+        {
+          kind: "templateX",
+          sheetId: "sheet-a",
+          startRow: 2,
+          endRow: 4,
+          startCol: 1,
+          endCol: 1,
+        },
+        {
+          kind: "templateY",
+          sheetId: "sheet-a",
+          startRow: 1,
+          endRow: 4,
+          startCol: 3,
+          endCol: 3,
+        },
+        {
+          kind: "templateY",
+          sheetId: "sheet-a",
+          startRow: 1,
+          endRow: 4,
+          startCol: 4,
+          endCol: 4,
+        },
+      ],
+    );
+  });
+
+  test("template table map ignores empty table and out-of-bounds ranges", () => {
+    const template = createTemplate({
+      blocks: [{
+        rowRange: { startRow: 50, endRow: "end" },
+        x: { columns: [1] },
+        y: {
+          columns: [],
+          ranges: [{ column: 8, startRow: 1, endRow: 4 }],
+        },
+        segmentation: { kind: "auto" },
+        legend: { target: "auto" },
+      }],
+    });
+
+    assert.deepEqual(
+      createTemplateTableDecorations({
+        columnCount: 4,
+        rowCount: 0,
+        template,
+      }),
+      [],
+    );
+    assert.deepEqual(
+      createTemplateTableDecorations({
+        columnCount: 4,
+        rowCount: 5,
+        template,
+      }),
+      [],
     );
   });
 
@@ -180,4 +275,14 @@ suite("workbench/contrib/template/test/browser/templateTableMap", () => {
       null,
     );
   });
+});
+
+const createTemplate = (
+  template: Pick<Template, "blocks">,
+): Template => ({
+  schemaVersion: 1,
+  name: "Template",
+  version: 1,
+  blocks: template.blocks,
+  stopOnError: false,
 });

@@ -12,7 +12,7 @@ review template quality, or decide whether the system should apply a template.
 
 `ISliceService` owns:
 
-- per-target `TemplateSelection` state;
+- per-target `TemplateSelection` state as the current template slot for a URI/sheet target;
 - `SliceUriRequest` queue entries from URI-backed review execution controllers
   or user commands;
 - URI slice target state, priority, cancellation, and queue draining;
@@ -48,7 +48,7 @@ Slice; do not import Session model record types just to describe Slice outputs.
 | File | Responsibility |
 | --- | --- |
 | `common/slice.ts` | service contract, `SliceUriRequest`, `SliceRun`, `SlicePlan`, commit/state/input types. |
-| `common/templateSelection.ts` | per-target `TemplateSelection` records, the automatic-selection sentinel, and normalization helpers owned by Slice state. |
+| `common/templateSelection.ts` | per-target `TemplateSelection` records, the automatic-selection sentinel, current-template-slot ids, equality, and normalization helpers owned by Slice state. |
 | `common/slicePlanner.ts` | pure target-aware plan/range generation and migration source / URI content signature helpers. |
 | `common/sliceExecutor.ts` | pure row execution into target-neutral Slice execution records. |
 | `browser/sliceService.ts` | injectable owner for queue, selection, progress state, data-resource URI content consumption, and URI result cache. |
@@ -81,9 +81,16 @@ Manual selection flow:
 ```txt
 files.item.setTemplate command
   -> ISliceService.setTemplateSelection({ resource, sheetId }, selection)
-  -> SliceState.templateSelections
+  -> SliceState.templateSelections / current template slot
+
+Table template visualization:
+  -> TableTemplateDecorationsProvider reads ISliceService.getTemplateSelection({ resource, sheetId })
+  -> auto slot materializes through Review's current system recommended ReviewedTemplate.template
+  -> saved slot materializes through IUserTemplateService.getTemplate(...).template
+  -> table decoration provider projects the materialized Template for display only
 
 URI-backed command/action/controller
+  -> read the same per-target TemplateSelection slot
   -> ReviewService.reviewUriManualTemplate(...)
   -> ready ManualTemplateReviewResult
   -> ReviewService.confirmReviewedTemplate(...) for explicit user-confirmed saved templates

@@ -37,6 +37,7 @@ type TableWidgetCellEditState = Table.ITableCellPosition & {
 
 type AppliedTableCellState = {
 	readonly activeCell: Table.ITableCellPosition | null;
+	readonly decorationRanges: readonly Table.ITableCellDecorationRange[];
 	readonly highlightedColumns: Set<number>;
 	readonly selectedColumns: Set<number>;
 	readonly selectedRanges: readonly Table.ITableCellRange[];
@@ -44,6 +45,7 @@ type AppliedTableCellState = {
 
 class TableBodyCellTraits {
 	private appliedActive?: boolean;
+	private appliedDecoration?: string;
 	private appliedHighlighted?: boolean;
 	private appliedHoverContent?: IManagedHoverContent;
 	private appliedHovered?: boolean;
@@ -55,6 +57,7 @@ class TableBodyCellTraits {
 
 	public set(state: Table.ITableBodyCellTraitState): void {
 		this.setActive(state.active);
+		this.setDecoration(state.decoration);
 		this.setSelected(state.selected);
 		this.setHighlighted(state.highlighted);
 		this.setSelectionFrame(state.selectionFrame);
@@ -99,6 +102,19 @@ class TableBodyCellTraits {
 
 		this.element.dataset.active = active ? "true" : "false";
 		this.appliedActive = active;
+	}
+
+	private setDecoration(decoration: string): void {
+		if (this.appliedDecoration === decoration) {
+			return;
+		}
+
+		if (decoration) {
+			this.element.dataset.decoration = decoration;
+		} else {
+			delete this.element.dataset.decoration;
+		}
+		this.appliedDecoration = decoration;
 	}
 
 	private setSelected(selected: boolean): void {
@@ -1118,6 +1134,13 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 			startColumnIndex,
 			columnCount,
 		);
+		const decorationRanges = toVisibleDecorationRanges(
+			this.cellState.decorationRanges,
+			startRowIndex,
+			rowCount,
+			startColumnIndex,
+			columnCount,
+		);
 		const highlightedColumns = toColumnSet(
 			this.cellState.highlightedColumns,
 			startColumnIndex,
@@ -1126,6 +1149,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		const previous = this.appliedCellState;
 		const next: AppliedTableCellState = {
 			activeCell,
+			decorationRanges,
 			highlightedColumns,
 			selectedColumns,
 			selectedRanges,
@@ -1144,6 +1168,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		}
 
 		const rangesChanged = !areCellRangesEqual(previous.selectedRanges, next.selectedRanges);
+		const decorationsChanged = !areDecorationRangesEqual(previous.decorationRanges, next.decorationRanges);
 		const changedColumns = getChangedColumns(previous, next, startColumnIndex, columnCount);
 		this.syncHeaderCellState(changedColumns.map(colIndex => colIndex - startColumnIndex), next);
 		this.syncBodyCellStateInRanges(
@@ -1152,6 +1177,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 				columnCount,
 				next,
 				previous,
+				decorationsChanged,
 				rangesChanged,
 				rowCount,
 				startColumnIndex,
@@ -1189,6 +1215,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		this.forEachBodyCellInRanges(ranges, (templateData, descriptor) => {
 			this.setBodyCellTraits(templateData, {
 				active: state.selectedRanges.length === 0 && isActiveCell(state.activeCell, descriptor.rowIndex, descriptor.colIndex),
+				decoration: getCellDecoration(descriptor.rowIndex, descriptor.colIndex, state.decorationRanges),
 				highlighted: state.highlightedColumns.has(descriptor.colIndex),
 				selected: isSelectedCell(descriptor.rowIndex, descriptor.colIndex, state),
 				selectionFrame: getSelectionFrame(descriptor.rowIndex, descriptor.colIndex, state.selectedRanges),
@@ -1212,7 +1239,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 	private updateActiveCellState(
 		activeCell: Table.ITableCellPosition | null,
 		active: boolean,
-		state: Pick<AppliedTableCellState, "highlightedColumns" | "selectedColumns" | "selectedRanges">,
+		state: Pick<AppliedTableCellState, "decorationRanges" | "highlightedColumns" | "selectedColumns" | "selectedRanges">,
 	): void {
 		if (!activeCell) {
 			return;
@@ -1228,6 +1255,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 
 		this.setBodyCellTraits(cell, {
 			active: active && state.selectedRanges.length === 0,
+			decoration: getCellDecoration(activeCell.rowIndex, activeCell.colIndex, state.decorationRanges),
 			highlighted: state.highlightedColumns.has(activeCell.colIndex),
 			selected: isSelectedCell(activeCell.rowIndex, activeCell.colIndex, state),
 			selectionFrame: getSelectionFrame(activeCell.rowIndex, activeCell.colIndex, state.selectedRanges),
@@ -1555,6 +1583,39 @@ function toVisibleRanges(
 	return visibleRanges;
 }
 
+function toVisibleDecorationRanges(
+	ranges: readonly Table.ITableCellDecorationRange[] | undefined,
+	startRowIndex: number,
+	rowCount: number,
+	startColumnIndex: number,
+	columnCount: number,
+): readonly Table.ITableCellDecorationRange[] {
+	const visibleRanges: Table.ITableCellDecorationRange[] = [];
+	const endRowIndex = startRowIndex + rowCount - 1;
+	const endColumnIndex = startColumnIndex + columnCount - 1;
+
+	for (const range of ranges ?? []) {
+		const token = String(range.token ?? "").trim();
+		const startRow = Math.max(startRowIndex, Math.floor(Number(range.startRow)));
+		const endRow = Math.min(endRowIndex, Math.floor(Number(range.endRow)));
+		const startCol = Math.max(startColumnIndex, Math.floor(Number(range.startCol)));
+		const endCol = Math.min(endColumnIndex, Math.floor(Number(range.endCol)));
+		if (
+			token &&
+			Number.isInteger(startRow) &&
+			Number.isInteger(endRow) &&
+			Number.isInteger(startCol) &&
+			Number.isInteger(endCol) &&
+			startRow <= endRow &&
+			startCol <= endCol
+		) {
+			visibleRanges.push({ startRow, endRow, startCol, endCol, token });
+		}
+	}
+
+	return visibleRanges;
+}
+
 function normalizeActiveCell(
 	cell: Table.ITableCellPosition | null | undefined,
 	startRowIndex: number,
@@ -1707,6 +1768,25 @@ function getSelectionFrame(
 	return { bottom, left, right, top };
 }
 
+function getCellDecoration(
+	rowIndex: number,
+	colIndex: number,
+	ranges: readonly Table.ITableCellDecorationRange[],
+): string {
+	let decoration = "";
+	for (const range of ranges) {
+		if (
+			rowIndex >= range.startRow &&
+			rowIndex <= range.endRow &&
+			colIndex >= range.startCol &&
+			colIndex <= range.endCol
+		) {
+			decoration = decoration ? `${decoration} ${range.token}` : range.token;
+		}
+	}
+	return decoration;
+}
+
 function isActiveCell(
 	activeCell: Table.ITableCellPosition | null,
 	rowIndex: number,
@@ -1746,6 +1826,33 @@ function areCellRangesEqual(
 			left.endRow !== right.endRow ||
 			left.startCol !== right.startCol ||
 			left.endCol !== right.endCol
+		) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+function areDecorationRangesEqual(
+	first: readonly Table.ITableCellDecorationRange[],
+	second: readonly Table.ITableCellDecorationRange[],
+): boolean {
+	if (first.length !== second.length) {
+		return false;
+	}
+
+	for (let index = 0; index < first.length; index += 1) {
+		const left = first[index];
+		const right = second[index];
+		if (
+			!left ||
+			!right ||
+			left.startRow !== right.startRow ||
+			left.endRow !== right.endRow ||
+			left.startCol !== right.startCol ||
+			left.endCol !== right.endCol ||
+			left.token !== right.token
 		) {
 			return false;
 		}
@@ -1795,6 +1902,7 @@ function getChangedColumns(
 function getChangedCellStateRanges({
 	changedColumns,
 	columnCount,
+	decorationsChanged,
 	next,
 	previous,
 	rangesChanged,
@@ -1804,6 +1912,7 @@ function getChangedCellStateRanges({
 }: {
 	readonly changedColumns: readonly number[];
 	readonly columnCount: number;
+	readonly decorationsChanged: boolean;
 	readonly next: AppliedTableCellState;
 	readonly previous: AppliedTableCellState;
 	readonly rangesChanged: boolean;
@@ -1833,6 +1942,12 @@ function getChangedCellStateRanges({
 	if (rangesChanged) {
 		ranges.push(
 			...VirtualTableGridModel.getChangedCellRanges(previous.selectedRanges, next.selectedRanges),
+		);
+	}
+
+	if (decorationsChanged) {
+		ranges.push(
+			...VirtualTableGridModel.getChangedCellRanges(previous.decorationRanges, next.decorationRanges),
 		);
 	}
 

@@ -6,6 +6,7 @@ import type { Event } from "src/cs/base/common/event";
 import type { URI } from "src/cs/base/common/uri";
 import type { CancellationToken } from "src/cs/base/common/cancellation";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
+import type { IDecorationData } from "src/cs/workbench/services/decorations/common/decorations";
 import type { ColumnDisplayProfile } from "src/cs/workbench/services/table/common/tableDisplayProfile";
 import type { TableColumnWidth } from "src/cs/workbench/services/table/common/tableColumnLayout";
 import type { TableParseDiagnostic } from "src/cs/workbench/services/table/common/model";
@@ -40,6 +41,10 @@ export type TableTemplateDecorationKind =
 
 export type TableRangeDecoration = TableRange & {
 	readonly kind: TableTemplateDecorationKind;
+};
+
+export type TableDecorationData = IDecorationData & {
+	readonly tableRangeDecorations: readonly TableRangeDecoration[];
 };
 
 export type TableSelectionTarget =
@@ -294,12 +299,69 @@ export const toTableSheetKey = (source: TableSource): string => {
 	return "";
 };
 
+const TableDecorationFragment = "conductor.tableDecoration";
+const TableDecorationSheetFragmentPrefix = `${TableDecorationFragment}.sheetId=`;
+
+export const createTableDecorationResource = (
+	source: TableSourceInput | null | undefined,
+	sheetId?: string | null,
+): URI | null => {
+	const normalizedSource = normalizeTableSource(source);
+	if (!normalizedSource) {
+		return null;
+	}
+
+	const normalizedSheetId = normalizeTableText(sheetId) || normalizeTableText(normalizedSource.sheetId);
+	return normalizedSource.resource.with({
+		fragment: normalizedSheetId
+			? `${TableDecorationSheetFragmentPrefix}${encodeURIComponent(normalizedSheetId)}`
+			: TableDecorationFragment,
+	});
+};
+
+export const parseTableDecorationResource = (
+	resource: URI,
+): TableSource | null => {
+	const fragment = normalizeTableText(resource.fragment);
+	if (fragment === TableDecorationFragment) {
+		return {
+			resource: resource.with({ fragment: "" }),
+		};
+	}
+	if (fragment.startsWith(TableDecorationSheetFragmentPrefix)) {
+		const sheetId = decodeURIComponent(fragment.slice(TableDecorationSheetFragmentPrefix.length));
+		return {
+			resource: resource.with({ fragment: "" }),
+			...(sheetId ? { sheetId } : {}),
+		};
+	}
+	return null;
+};
+
+export const createTableDecorationData = (
+	tableRangeDecorations: readonly TableRangeDecoration[],
+): TableDecorationData | undefined =>
+	tableRangeDecorations.length
+		? { tableRangeDecorations }
+		: undefined;
+
+export const getTableRangeDecorationsFromDecorationData = (
+	decorationData: readonly IDecorationData[],
+): readonly TableRangeDecoration[] =>
+	decorationData.flatMap(data =>
+		Array.isArray((data as Partial<TableDecorationData>).tableRangeDecorations)
+			? (data as TableDecorationData).tableRangeDecorations
+			: [],
+	);
+
 const getTableSourceResourceIdentity = (
 	source: TableSourceInput | null | undefined,
 ): string | null => {
 	const resourceIdentity = source?.resource?.toString()?.trim() ?? "";
 	return resourceIdentity || null;
 };
+
+const normalizeTableText = (value: unknown): string => String(value ?? "").trim();
 
 export const TABLE_COPY_MAX_CELLS = 100_000;
 
@@ -312,7 +374,6 @@ export interface ITableService {
 	adjustColumnDisplayScale(colIndex: number, deltaExponent: number): boolean;
 	clearSelection(): boolean;
 	clearHighlight(): void;
-	clearRangeDecorations(): void;
 	findCell(query: TableCellSearchQuery): Promise<TableCellSearchResult>;
 	getCellValue(cell: TableCell): Promise<TableCellValueResult>;
 	getColumnWidths(source: TableSource | null | undefined): readonly TableColumnWidth[];
@@ -326,7 +387,6 @@ export interface ITableService {
 	resetColumnDisplayScale(colIndex: number): boolean;
 	select(target: TableSelectionTarget | null, reveal?: TableRevealMode): boolean;
 	selectAllColumns(): boolean;
-	setRangeDecorations(decorations: readonly TableRangeDecoration[]): void;
 	storeColumnWidths(
 		source: TableSource | null | undefined,
 		widths: readonly TableColumnWidth[],

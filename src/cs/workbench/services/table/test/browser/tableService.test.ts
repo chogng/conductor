@@ -1,6 +1,8 @@
 import assert from "assert";
 
+import { CancellationToken } from "src/cs/base/common/cancellation";
 import { Emitter, Event } from "src/cs/base/common/event";
+import { Disposable } from "src/cs/base/common/lifecycle";
 import { createZipBuffer, type ZipEntry } from "src/cs/base/common/zip";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
@@ -11,9 +13,17 @@ import {
 } from "src/cs/platform/files/common/files";
 import { StorageScope } from "src/cs/platform/storage/common/storage";
 import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
+import { DecorationsService } from "src/cs/workbench/services/decorations/browser/decorationsService";
 import type {
-  TableState,
-  TableWidgetViewModel,
+  IDecorationData,
+  IDecorationsProvider,
+} from "src/cs/workbench/services/decorations/common/decorations";
+import {
+  createTableDecorationData,
+  createTableDecorationResource,
+  type TableRangeDecoration,
+  type TableState,
+  type TableWidgetViewModel,
 } from "src/cs/workbench/services/table/common/table";
 import {
   TableService,
@@ -814,6 +824,48 @@ suite("workbench/services/table/browser/tableService", () => {
     service.dispose();
   });
 
+  test("updates active table decorations from the decorations provider", async () => {
+    const resource = URI.file("/workspace/data/decorations.csv");
+    const { service, decorationsService } = createTableServiceFixture({
+      fileService: createCsvFileService([
+        ["A1", "B1"],
+        ["A2", "B2"],
+      ]),
+    });
+    const provider = tableTestStore?.add(new TestTableDecorationsProvider())
+      ?? new TestTableDecorationsProvider();
+    tableTestStore?.add(decorationsService.registerDecorationsProvider(provider));
+    service.open({ resource });
+    await waitForReadyTableService(service);
+    const model = getRequiredTableViewModel(service);
+    const decorationResource = createTableDecorationResource({ resource });
+    assert.ok(decorationResource);
+
+    provider.setDecorations(decorationResource, [{
+      kind: "templateX",
+      startRow: 0,
+      endRow: 1,
+      startCol: 1,
+      endCol: 1,
+    }]);
+
+    await waitForTableService();
+    assert.deepEqual(model.getRangeDecorations(), [{
+      kind: "templateX",
+      sheetId: null,
+      startRow: 0,
+      endRow: 1,
+      startCol: 1,
+      endCol: 1,
+    }]);
+
+    provider.setDecorations(decorationResource, []);
+
+    await waitForTableService();
+    assert.deepEqual(model.getRangeDecorations(), []);
+    service.dispose();
+  });
+
   test("reveals table targets through the service owner API", async () => {
     const resource = URI.file("/workspace/data/reveal.csv");
     const { service } = createTableServiceFixture({
@@ -887,6 +939,7 @@ suite("workbench/services/table/browser/tableService", () => {
 });
 
 type TableServiceFixture = {
+  readonly decorationsService: DecorationsService;
   readonly service: TableService;
   readonly storageService: TestStorageService;
   readonly tableModelService: TableModelResolverService;
@@ -907,18 +960,44 @@ const createTableServiceFixture = ({
   const tableModelService = tableTestStore?.add(new TableModelResolverService(
     tableFileService,
   )) ?? new TableModelResolverService(tableFileService);
+  const decorationsService = tableTestStore?.add(new DecorationsService())
+    ?? new DecorationsService();
   const service = new TableService(
     storageService as never,
     settingsService as never,
     tableModelService as never,
+    decorationsService as never,
   );
   tableTestStore?.add(service);
   return {
+    decorationsService,
     service,
     storageService,
     tableModelService,
   };
 };
+
+class TestTableDecorationsProvider extends Disposable implements IDecorationsProvider {
+  public readonly label = "test.table";
+  private readonly onDidChangeEmitter = this._register(new Emitter<readonly URI[] | undefined>());
+  public readonly onDidChange = this.onDidChangeEmitter.event;
+  private readonly decorationsByResource = new Map<string, readonly TableRangeDecoration[]>();
+
+  public provideDecorations(
+    uri: URI,
+    _token: CancellationToken,
+  ): IDecorationData | undefined {
+    return createTableDecorationData(this.decorationsByResource.get(uri.toString()) ?? []);
+  }
+
+  public setDecorations(
+    resource: URI,
+    decorations: readonly TableRangeDecoration[],
+  ): void {
+    this.decorationsByResource.set(resource.toString(), decorations);
+    this.onDidChangeEmitter.fire([resource]);
+  }
+}
 
 const createSettingsServiceStub = (
   overrides: Partial<ISettingsService> = {},

@@ -57,6 +57,7 @@ const NUMERIC_DISPLAY_MODES = new Set<NumericDisplayMode>(["raw", "smart"]);
 
 export const DEFAULT_FILES_EXPLORER_DENSITY: FilesExplorerDensity = "compact";
 export const DEFAULT_FILES_EXPLORER_SHOW_BADGES = true;
+export const DEFAULT_TABLE_TEMPLATE_VISUALIZATION_ENABLED = false;
 export const DEFAULT_FILES_EXPLORER_BADGE_COLORS: FilesExplorerBadgeColors = Object.freeze({
   cf: "cyan",
   cv: "purple",
@@ -80,6 +81,13 @@ export const normalizeFilesExplorerShowBadges = (
   typeof value === "boolean"
     ? value
     : DEFAULT_FILES_EXPLORER_SHOW_BADGES;
+
+export const normalizeTableTemplateVisualizationEnabled = (
+  value: unknown,
+): boolean =>
+  typeof value === "boolean"
+    ? value
+    : DEFAULT_TABLE_TEMPLATE_VISUALIZATION_ENABLED;
 
 export const normalizeFilesExplorerBadgeColor = (
   value: unknown,
@@ -123,6 +131,7 @@ export type ConductorSettings = {
   fileNameFieldSeparators?: string;
   language?: LanguagePreference;
   numericDisplayMode?: NumericDisplayMode;
+  tableTemplateVisualizationEnabled?: boolean;
   theme?: ThemeMode;
   transparentChrome?: boolean;
   windowCloseBehavior?: "minimizeToTray" | "quit";

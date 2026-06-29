@@ -78,6 +78,7 @@ suite("workbench/services/slice/test/browser/slicePriorityContribution", () => {
 class TestSliceService implements ISliceService {
 	public declare readonly _serviceBrand: undefined;
 	public readonly onDidChangeSliceState = Event.None as Event<void>;
+	public readonly onDidChangeTemplateSelection = Event.None as Event<SliceUriTarget>;
 	public readonly onDidChangeUriSliceResult = Event.None as Event<SliceUriTarget>;
 	public readonly prioritizedUriTargets: SliceUriTarget[] = [];
 
@@ -94,6 +95,10 @@ class TestSliceService implements ISliceService {
 
 	public getUriState(): undefined {
 		return undefined;
+	}
+
+	public getTemplateSelection(): TemplateSelection {
+		return { kind: "auto" };
 	}
 
 	public submitUri(_requests: readonly SliceUriRequest[]): void {}

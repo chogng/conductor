@@ -38,13 +38,27 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 	test("stores template selections by URI target in Slice state", () => {
 		const sliceService = store.add(new SliceService());
 		const target = { resource: URI.file("/workspace/file-a.csv"), sheetId: "sheet-a" };
+		const changedTargets: SliceUriTarget[] = [];
+		store.add(sliceService.onDidChangeTemplateSelection(changedTarget => {
+			changedTargets.push(changedTarget);
+		}));
 
+		assert.deepEqual(sliceService.getTemplateSelection(target), { kind: "auto" });
+
+		sliceService.setTemplateSelection(target, {
+			kind: "saved",
+			templateId: "template-a",
+		});
 		sliceService.setTemplateSelection(target, {
 			kind: "saved",
 			templateId: "template-a",
 		});
 
 		const state = sliceService.getState();
+		assert.deepEqual(sliceService.getTemplateSelection(target), {
+			kind: "saved",
+			templateId: "template-a",
+		});
 		assert.deepEqual(state.templateSelections.map(selection => ({
 			resource: selection.target.resource.toString(),
 			sheetId: selection.target.sheetId,
@@ -56,6 +70,13 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 				kind: "saved",
 				templateId: "template-a",
 			},
+		}]);
+		assert.deepEqual(changedTargets.map(changedTarget => ({
+			resource: changedTarget.resource.toString(),
+			sheetId: changedTarget.sheetId,
+		})), [{
+			resource: target.resource.toString(),
+			sheetId: "sheet-a",
 		}]);
 	});
 

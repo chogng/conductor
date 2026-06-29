@@ -170,6 +170,69 @@ suite("workbench/services/table/browser/tableViewModel row cache", () => {
 	});
 });
 
+suite("workbench/services/table/browser/tableViewModel range decorations", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+  test("normalizes decorations without changing selection and clears them on source switch", () => {
+    const scope = store.add(new TableStateScope());
+    const resource = URI.file("/workspace/decorated.csv");
+    let model = createTableViewModelInScope(scope, {
+      previewSources: [createResourceSourceInput(resource, {
+        rows: [
+          ["A", "B", "C"],
+          ["1", "2", "3"],
+          ["4", "5", "6"],
+        ],
+        sheetId: "sheet-a",
+      })],
+      source: { resource, sheetId: "sheet-a" },
+    });
+    store.add({ dispose: () => model.clearState() });
+
+    const changes: unknown[][] = [];
+    model.onDidChangeRangeDecorations(decorations => {
+      changes.push(decorations);
+    });
+    model.setSelection({
+      activeCell: { sheetId: "sheet-a", rowIndex: 1, colIndex: 1 },
+      selectedColumns: [2],
+      ranges: [{ sheetId: "sheet-a", startRow: 1, endRow: 1, startCol: 1, endCol: 1 }],
+    });
+    const selection = model.getSelection();
+
+    model.setRangeDecorations([
+      { kind: "templateX", sheetId: "sheet-a", startRow: 0, endRow: 9, startCol: 0, endCol: 1 },
+      { kind: "templateY", sheetId: "other", startRow: 0, endRow: 1, startCol: 2, endCol: 2 },
+      { kind: "unknown", startRow: 0, endRow: 1, startCol: 0, endCol: 0 } as never,
+      { kind: "templateBlock", startRow: 2, endRow: 1, startCol: 2, endCol: 9 },
+    ]);
+
+    assert.deepEqual(model.getSelection(), selection);
+    assert.deepEqual(model.getRangeDecorations(), [
+      { kind: "templateX", sheetId: "sheet-a", startRow: 0, endRow: 2, startCol: 0, endCol: 1 },
+      { kind: "templateBlock", sheetId: "sheet-a", startRow: 1, endRow: 2, startCol: 2, endCol: 2 },
+    ]);
+
+    const nextResource = URI.file("/workspace/next.csv");
+    model = createTableViewModelInScope(scope, {
+      previewSources: [createResourceSourceInput(nextResource, {
+        rows: [["Next"]],
+        sheetId: "sheet-b",
+      })],
+      source: { resource: nextResource, sheetId: "sheet-b" },
+    });
+
+    assert.deepEqual(model.getRangeDecorations(), []);
+    assert.deepEqual(changes, [
+      [
+        { kind: "templateX", sheetId: "sheet-a", startRow: 0, endRow: 2, startCol: 0, endCol: 1 },
+        { kind: "templateBlock", sheetId: "sheet-a", startRow: 1, endRow: 2, startCol: 2, endCol: 2 },
+      ],
+      [],
+    ]);
+  });
+});
+
 suite("workbench/services/table/browser/tableViewModel display profiles", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -455,10 +518,12 @@ const createResourceSourceInput = (
   {
     fileName = "Raw.csv",
     rows,
+    sheetId = null,
     sourceVersion = 0,
   }: {
     readonly fileName?: string;
     readonly rows: readonly (readonly unknown[])[];
+    readonly sheetId?: string | null;
     readonly sourceVersion?: number;
   },
 ) => {
@@ -470,10 +535,11 @@ const createResourceSourceInput = (
       maxCellLengths: content.maxCellLengths,
       resource,
       rowCount: content.rowCount,
+      ...(sheetId ? { sheetId } : {}),
       sourceVersion,
       tableModelContent: content,
     },
-    source: { resource },
+    source: { resource, ...(sheetId ? { sheetId } : {}) },
   };
 };
 

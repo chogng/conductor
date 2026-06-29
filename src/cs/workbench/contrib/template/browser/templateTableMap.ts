@@ -1,4 +1,9 @@
-import type { TableCell, TableRange, TableSelection } from "src/cs/workbench/services/table/common/table";
+import type {
+  TableCell,
+  TableRange,
+  TableRangeDecoration,
+  TableSelection,
+} from "src/cs/workbench/services/table/common/table";
 import type {
   TemplateColumnPickTarget,
   TemplatePickFieldName,
@@ -8,6 +13,13 @@ import {
   toCellLabel,
 } from "src/cs/workbench/services/template/common/templateCellRange";
 import type { TemplateEditorConfig } from "src/cs/workbench/services/template/common/templateEditorConfig";
+import type {
+  Template,
+  TemplateAxisBinding,
+  TemplateBlock,
+  TemplateColumnRange,
+  TemplateRowRange,
+} from "src/cs/workbench/services/template/common/templateSpec";
 import {
   normalizeColumnIndexes,
 } from "src/cs/workbench/services/template/common/templateXYBinding";
@@ -143,6 +155,50 @@ export const resolveTemplateCellSelectionUpdate = (
   return updates;
 };
 
+export const createTemplateTableDecorations = ({
+  columnCount,
+  rowCount,
+  sheetId,
+  template,
+}: {
+  readonly columnCount: number;
+  readonly rowCount: number;
+  readonly sheetId?: string | null;
+  readonly template: Template;
+}): readonly TableRangeDecoration[] => {
+  const normalizedRowCount = Math.max(0, Math.floor(Number(rowCount) || 0));
+  const normalizedColumnCount = Math.max(0, Math.floor(Number(columnCount) || 0));
+  if (normalizedRowCount <= 0 || normalizedColumnCount <= 0) {
+    return [];
+  }
+
+  const decorations: TableRangeDecoration[] = [];
+  for (const block of template.blocks) {
+    const blockRange = createTemplateBlockDecoration(block, normalizedRowCount, normalizedColumnCount, sheetId ?? null);
+    if (blockRange) {
+      decorations.push(blockRange);
+    }
+    decorations.push(...createTemplateAxisDecorations({
+      axis: block.x,
+      columnCount: normalizedColumnCount,
+      kind: "templateX",
+      rowCount: normalizedRowCount,
+      rowRange: block.rowRange,
+      sheetId: sheetId ?? null,
+    }));
+    decorations.push(...createTemplateAxisDecorations({
+      axis: block.y,
+      columnCount: normalizedColumnCount,
+      kind: "templateY",
+      rowCount: normalizedRowCount,
+      rowRange: block.rowRange,
+      sheetId: sheetId ?? null,
+    }));
+  }
+
+  return decorations;
+};
+
 function normalizeTableRanges(ranges: readonly TableRange[] | undefined): TableRange[] {
   return (Array.isArray(ranges) ? ranges : [])
     .map((range): TableRange | null => {
@@ -168,6 +224,121 @@ function normalizeTableRanges(ranges: readonly TableRange[] | undefined): TableR
       };
     })
     .filter((range): range is TableRange => Boolean(range));
+}
+
+function createTemplateBlockDecoration(
+  block: TemplateBlock,
+  rowCount: number,
+  columnCount: number,
+  sheetId: string | null,
+): TableRangeDecoration | null {
+  const columns = [
+    ...block.x.columns,
+    ...block.y.columns,
+    ...(block.x.ranges ?? []).map(range => range.column),
+    ...(block.y.ranges ?? []).map(range => range.column),
+  ]
+    .map(column => Math.floor(Number(column)))
+    .filter(column => Number.isInteger(column) && column >= 0 && column < columnCount);
+  if (!columns.length) {
+    return null;
+  }
+
+  return normalizeTemplateDecorationRange({
+    kind: "templateBlock",
+    sheetId,
+    startRow: block.rowRange.startRow,
+    endRow: resolveTemplateEndRow(block.rowRange.endRow, rowCount),
+    startCol: Math.min(...columns),
+    endCol: Math.max(...columns),
+  }, rowCount, columnCount);
+}
+
+function createTemplateAxisDecorations({
+  axis,
+  columnCount,
+  kind,
+  rowCount,
+  rowRange,
+  sheetId,
+}: {
+  readonly axis: TemplateAxisBinding;
+  readonly columnCount: number;
+  readonly kind: TableRangeDecoration["kind"];
+  readonly rowCount: number;
+  readonly rowRange: TemplateRowRange;
+  readonly sheetId: string | null;
+}): readonly TableRangeDecoration[] {
+  const explicitRanges = axis.ranges?.length
+    ? axis.ranges
+    : axis.columns.map((column): TemplateColumnRange => ({
+      column,
+      startRow: rowRange.startRow,
+      endRow: rowRange.endRow,
+    }));
+
+  return explicitRanges
+    .map(range => normalizeTemplateDecorationRange({
+      kind,
+      sheetId,
+      startRow: range.startRow,
+      endRow: resolveTemplateEndRow(range.endRow, rowCount),
+      startCol: range.column,
+      endCol: range.column,
+    }, rowCount, columnCount))
+    .filter((range): range is TableRangeDecoration => Boolean(range));
+}
+
+function normalizeTemplateDecorationRange(
+  range: TableRangeDecoration,
+  rowCount: number,
+  columnCount: number,
+): TableRangeDecoration | null {
+  const startRow = Math.floor(Number(range.startRow));
+  const endRow = Math.floor(Number(range.endRow));
+  const startCol = Math.floor(Number(range.startCol));
+  const endCol = Math.floor(Number(range.endCol));
+  if (
+    !Number.isInteger(startRow) ||
+    !Number.isInteger(endRow) ||
+    !Number.isInteger(startCol) ||
+    !Number.isInteger(endCol)
+  ) {
+    return null;
+  }
+
+  if (startRow > endRow || startCol > endCol) {
+    return null;
+  }
+
+  const normalizedStartRow = Math.max(0, startRow);
+  const normalizedEndRow = Math.min(rowCount - 1, endRow);
+  const normalizedStartCol = Math.max(0, startCol);
+  const normalizedEndCol = Math.min(columnCount - 1, endCol);
+  if (
+    normalizedStartRow > normalizedEndRow ||
+    normalizedStartCol > normalizedEndCol ||
+    normalizedStartRow >= rowCount ||
+    normalizedStartCol >= columnCount
+  ) {
+    return null;
+  }
+
+  return {
+    kind: range.kind,
+    sheetId: range.sheetId,
+    startRow: normalizedStartRow,
+    endRow: normalizedEndRow,
+    startCol: normalizedStartCol,
+    endCol: normalizedEndCol,
+  };
+}
+
+function resolveTemplateEndRow(
+  endRow: TemplateRowRange["endRow"],
+  rowCount: number,
+): number {
+  return endRow === "end" ? rowCount - 1 : endRow;
 }
 
 function createTemplateXRangesFromTableRange(

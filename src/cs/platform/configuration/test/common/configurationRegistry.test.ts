@@ -34,7 +34,10 @@ suite("platform/configuration/common/configurationRegistry", () => {
     assert.equal(properties["fileNameFieldSeparators"].default, "_- .()[]{}");
     assert.equal(properties["numericDisplayMode"].default, "raw");
     assert.deepEqual(properties["numericDisplayMode"].enum, ["raw", "smart"]);
+    assert.equal(properties["tableTemplateVisualizationEnabled"].default, false);
+    assert.equal(properties["tableTemplateVisualizationEnabled"].type, "boolean");
     assert.equal(properties["plotAxisSettings"].type, "object");
+    assert.equal(CONDUCTOR_CONFIGURATION_KEYS.includes("tableTemplateVisualizationEnabled"), true);
     assert.equal(CONDUCTOR_CONFIGURATION_KEYS.includes("originRuntimeCleanupEnabled"), true);
   });
 
@@ -51,6 +54,18 @@ suite("platform/configuration/common/configurationRegistry", () => {
   test("normalizes numeric display mode", () => {
     assert.equal(normalizeConductorSettings({ numericDisplayMode: "smart" }).numericDisplayMode, "smart");
     assert.equal(normalizeConductorSettings({ numericDisplayMode: "cell" }).numericDisplayMode, "raw");
+  });
+
+  test("normalizes table template visualization", () => {
+    assert.equal(normalizeConductorSettings({}).tableTemplateVisualizationEnabled, false);
+    assert.equal(
+      normalizeConductorSettings({ tableTemplateVisualizationEnabled: true }).tableTemplateVisualizationEnabled,
+      true,
+    );
+    assert.equal(
+      normalizeConductorSettings({ tableTemplateVisualizationEnabled: "true" }).tableTemplateVisualizationEnabled,
+      false,
+    );
   });
 
   test("normalizes Explorer badge colors", () => {
