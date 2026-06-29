@@ -883,7 +883,10 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 
 	private createColumnHeaderClickEvent(): Event<Table.ITableColumnHeaderMouseEvent> {
 		const emitter = this.disposables.add(new DomEmitter(this.virtualTable.headerContent, "click"));
-		return EventUtil.map(emitter.event, event => this.toColumnHeaderMouseEvent(event));
+		return EventUtil.map(
+			EventUtil.filter(emitter.event, event => !this.isColumnResizeHandleTarget(event.target)),
+			event => this.toColumnHeaderMouseEvent(event),
+		);
 	}
 
 	private onBodyPointerMove(event: PointerEvent): void {
@@ -970,6 +973,11 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		}
 
 		return target instanceof targetWindow.Element ? target : target.parentElement;
+	}
+
+	private isColumnResizeHandleTarget(target: EventTarget | null): boolean {
+		const targetElement = this.getElementFromEventTarget(target);
+		return Boolean(targetElement?.closest(`.${TABLE_WIDGET_COLUMN_RESIZE_HANDLE_CLASS}`));
 	}
 
 	private syncZoomStyle(): void {

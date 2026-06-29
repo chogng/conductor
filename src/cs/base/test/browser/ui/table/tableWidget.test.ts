@@ -238,6 +238,29 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 		}
 	});
 
+	test("does not emit header click events from column resize handles", () => {
+		const headerEvents: unknown[] = [];
+		const { listener, widget } = createResizableTableWidget();
+		const headerListener = widget.onDidClickHeader(event => {
+			headerEvents.push(event.column);
+		});
+		try {
+			const handle = widget.getColumnHeaderCellElement(0)?.querySelector(".table_view_column_resize_handle");
+			assert.ok(handle);
+
+			handle.dispatchEvent(new MouseEvent("click", {
+				bubbles: true,
+				cancelable: true,
+			}));
+
+			assert.deepEqual(headerEvents, []);
+		} finally {
+			headerListener.dispose();
+			listener.dispose();
+			widget.dispose();
+		}
+	});
+
 	test("emits keyboard navigation and resolves body mouse event targets", () => {
 		const keyboardEvents: unknown[] = [];
 		const { listener, widget } = createResizableTableWidget();
@@ -812,7 +835,7 @@ function createResizableTableWidget(
 				const button = document.createElement("button");
 				button.type = "button";
 				button.textContent = String(descriptor.colIndex);
-				cell.replaceChildren(button);
+				cell.replaceChildren(button, widget.createColumnResizeHandle());
 			},
 			renderColumnHeaderTemplate: cell => cell,
 			renderRowHeader: (cell, descriptor) => {

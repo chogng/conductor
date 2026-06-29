@@ -1168,10 +1168,6 @@ export class TableWidget {
       return;
     }
 
-    if (target.closest(".table_view_column_resize_handle")) {
-      return;
-    }
-
     const scaleBadge = target.closest<HTMLButtonElement>(".table_view_column_scale_badge");
     if (scaleBadge && this.canAdjustColumnScale() && this.grid.containsHeaderTarget(scaleBadge)) {
       const colIndex = normalizeWidgetColumnIndex(scaleBadge.dataset.colIndex);

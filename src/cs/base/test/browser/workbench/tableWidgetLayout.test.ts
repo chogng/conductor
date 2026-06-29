@@ -885,6 +885,36 @@ suite("base/browser/workbench tableWidget layout", () => {
     }
   });
 
+  test("does not treat column resize handle clicks as header selection", async () => {
+    const selectedColumns: number[][] = [];
+    const widget = new TableWidget({
+      onSelect: target => {
+        selectedColumns.push([...(target?.kind === "columns" ? target.columns : [])]);
+        return true;
+      },
+      tableViewModel: createTableWidgetModel(),
+      tableState: createTableWidgetState(),
+    });
+    document.body.append(widget.element);
+
+    try {
+      const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+      assert.ok(viewport);
+      setElementClientSize(viewport, 500, 280);
+      widget.layout();
+      await timeout(120);
+
+      getColumnResizeHandle(widget.element, 0).dispatchEvent(new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+      }));
+
+      assert.deepEqual(selectedColumns, []);
+    } finally {
+      widget.dispose();
+    }
+  });
+
   test("ignores column header selection when disabled", async () => {
     const selectedColumns: number[][] = [];
     const widget = new TableWidget({
@@ -1107,11 +1137,13 @@ function createTableWidgetModel(
     get: getResolvedRow,
     getColumnDisplayProfile: colIndex => createRawColumnDisplayProfile(colIndex),
     getHighlight: () => ({}),
+    getRangeDecorations: () => [],
     getRowsVersion: () => 1,
     getSelection,
     getState: createTableWidgetState,
     isResolved: rowIndex => getRow(rowIndex) !== null,
     onDidChangeHighlight: () => noopDisposable,
+    onDidChangeRangeDecorations: () => noopDisposable,
     onDidChangeRevealCell: () => noopDisposable,
     onDidChangeSelection: options.onDidChangeSelection ?? (() => noopDisposable),
     onDidChangeState: () => noopDisposable,
