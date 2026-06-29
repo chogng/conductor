@@ -525,6 +525,84 @@ const getReviewStateLabel = (
   }
 };
 
+const getReviewSummaryMessageLabel = (
+  message: string,
+): string => {
+  switch (message) {
+    case "Review is ready and recommended for system application.":
+      return localize("files.reviewMessage.readySystemRecommended", "Review is ready and recommended for system application.");
+    case "Review is ready but requires user action before application.":
+      return localize("files.reviewMessage.readyUserActionRequired", "Review is ready but requires user action before application.");
+    case "Review candidates are invalid.":
+      return localize("files.reviewMessage.invalidCandidates", "Review candidates are invalid.");
+    case "Review candidates need manual adjustment before application.":
+      return localize("files.reviewMessage.needsManualAdjustment", "Review candidates need manual adjustment before application.");
+    case "No usable review candidates were found.":
+      return localize("files.reviewMessage.noUsableCandidates", "No usable review candidates were found.");
+    case "Review needs the requested sheet.":
+      return localize("files.reviewMessage.missingSheet", "Review needs the requested sheet.");
+    case "Review needs resolved structured content.":
+      return localize("files.reviewMessage.noStructuredContent", "Review needs resolved structured content.");
+    case "Review is stale. Waiting for updated review.":
+      return localize("files.reviewMessage.stale", "Review is stale. Waiting for updated review.");
+    default:
+      return message;
+  }
+};
+
+const getReviewFindingLabel = (
+  code: string,
+): string => {
+  switch (code) {
+    case "dataResourceCandidate.missingAxisBinding":
+      return localize("files.reviewFinding.missingAxisBinding", "Candidate has no axis binding.");
+    case "dataResourceCandidate.missingDataBlock":
+      return localize("files.reviewFinding.missingDataBlock", "Candidate has no data block.");
+    case "review.ambiguousCandidates":
+      return localize("files.reviewFinding.ambiguousCandidates", "Top review candidates are too close to auto-apply.");
+    case "review.invalidColumnCount":
+      return localize("files.reviewFinding.invalidColumnCount", "Review evidence has no valid column count.");
+    case "review.invalidRowCount":
+      return localize("files.reviewFinding.invalidRowCount", "Review evidence has no valid row count.");
+    case "review.missingProjectionBlock":
+      return localize("files.reviewFinding.missingProjectionBlock", "Candidate has no projected blocks.");
+    case "review.noCandidates":
+      return localize("files.reviewFinding.noCandidates", "No usable review candidates were found.");
+    case "review.noMeasurementBlocks":
+      return localize("files.reviewFinding.noMeasurementBlocks", "No measurement block evidence is available.");
+    case "review.noReadyCandidate":
+      return localize("files.reviewFinding.noReadyCandidate", "No review candidate is ready to apply.");
+    case "review.noStructuredContent":
+      return localize("files.reviewFinding.noStructuredContent", "Structured content is not ready.");
+    case "review.parserFatalDiagnostic":
+      return localize("files.reviewFinding.parserFatalDiagnostic", "Parser diagnostics contain a fatal error.");
+    case "review.rangeOutOfBounds":
+      return localize("files.reviewFinding.rangeOutOfBounds", "Candidate row range is out of bounds.");
+    case "review.sheetNotFound":
+      return localize("files.reviewFinding.sheetNotFound", "The requested sheet was not found.");
+    case "review.stale":
+      return localize("files.reviewFinding.stale", "Review is stale.");
+    case "review.staleContentHash":
+      return localize("files.reviewFinding.staleContentHash", "Candidate content hash is stale.");
+    case "review.staleEvidence":
+      return localize("files.reviewFinding.staleEvidence", "Candidate evidence is stale.");
+    case "review.staleModelVersion":
+      return localize("files.reviewFinding.staleModelVersion", "Candidate model version is stale.");
+    case "review.staleSourceVersion":
+      return localize("files.reviewFinding.staleSourceVersion", "Candidate source version is stale.");
+    case "review.structuredContentLoadFailed":
+      return localize("files.reviewFinding.structuredContentLoadFailed", "Structured content failed to load.");
+    case "review.structuredContentResolveFailed":
+      return localize("files.reviewFinding.structuredContentResolveFailed", "Structured content could not be resolved.");
+    case "review.xAxisOutOfBounds":
+      return localize("files.reviewFinding.xAxisOutOfBounds", "Candidate X axis is out of bounds.");
+    case "review.yAxisOutOfBounds":
+      return localize("files.reviewFinding.yAxisOutOfBounds", "Candidate Y axis is out of bounds.");
+    default:
+      return code;
+  }
+};
+
 const formatReviewConfidence = (
   confidence: number | undefined,
 ): string => {
@@ -545,7 +623,7 @@ const getReviewSummaryMessage = (
 ): string => {
   const message = String(summary.message ?? "").trim();
   if (message) {
-    return message;
+    return getReviewSummaryMessageLabel(message);
   }
 
   return "";
@@ -2357,7 +2435,7 @@ export class ExplorerViewer implements IDisposable {
       kind: "review",
       confidence: formatReviewConfidence(summary.confidence),
       fileContext,
-      findingCodes: summary.findingCodes,
+      findingCodes: summary.findingCodes.map(getReviewFindingLabel),
       isWarning: isReviewSummaryWarning(summary),
       message: getReviewSummaryMessage(summary),
       reason: getReviewSummaryReason(summary),
