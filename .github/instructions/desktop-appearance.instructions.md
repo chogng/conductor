@@ -101,6 +101,39 @@ getComputedStyle(document.documentElement).getPropertyValue("--desktop-opaque-su
 If a light renderer becomes dark when unfocused, inspect `nativeTheme.themeSource`
 and opaque-surface class before tuning opacity.
 
+## Theme Common Layer
+
+`src/cs/platform/theme/common` currently owns the shared token contracts and
+registries that other layers may depend on:
+
+- `colorRegistry.ts` / `colorUtils.ts` own `ColorIdentifier`, color defaults,
+  transforms, registry lookup, and Conductor CSS variable helpers.
+- `sizeRegistry.ts` / `sizeUtils.ts` own size identifiers, defaults, registry
+  lookup, and Conductor CSS variable helpers.
+- `colors/*` and `sizes/*` register built-in token ids. Add new token ids in
+  the owning token file rather than hard-coding stringly color/size knowledge in
+  consumers.
+- `base/common/color.ts` is the concrete color value type (`Color`, `RGBA`,
+  `HSLA`, `HSVA`). Do not use it for token ids. Decoration and theme contracts
+  should carry `ColorIdentifier` when they mean a registered theme token.
+
+This layer is not yet the full runtime theme service. Until the workbench theme
+service is migrated onto the common registry, avoid assuming that registered
+tokens are automatically emitted as live CSS variables. Components may consume
+token ids as contracts, but runtime resolution/application still belongs to the
+current workbench theme/appearance owners.
+
+Use Conductor names for new schema and CSS variable surfaces:
+
+```txt
+ColorIdentifier / SizeIdentifier token id -> --conductor-<token-id-with-dashes>
+schema ids -> conductor://schemas/...
+```
+
+Do not introduce new `--vscode-*` CSS variables or `vscode://schemas/...`
+schema ids in Conductor-owned theme code. Existing upstream-derived variables
+outside this theme layer may remain until their owning component is migrated.
+
 ## Tests
 
 Appearance changes need owner-layer tests:

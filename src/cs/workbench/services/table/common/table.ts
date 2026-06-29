@@ -43,9 +43,9 @@ export type TableRangeDecoration = TableRange & {
 	readonly kind: TableTemplateDecorationKind;
 };
 
-export type TableDecorationData = IDecorationData & {
+export type TableDecorationData = IDecorationData<{
 	readonly tableRangeDecorations: readonly TableRangeDecoration[];
-};
+}>;
 
 export type TableSelectionTarget =
 	| { readonly kind: "cell"; readonly cell: TableCell | null }

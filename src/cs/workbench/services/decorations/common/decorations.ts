@@ -7,19 +7,18 @@ import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { CancellationToken } from "src/cs/base/common/cancellation";
 import type { URI } from "src/cs/base/common/uri";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
+import type { ColorIdentifier } from "src/cs/platform/theme/common/colorRegistry";
 
 export const IDecorationsService = createDecorator<IDecorationsService>("decorationsService");
 
-export type DecorationColorIdentifier = string;
-
-export type IDecorationData = {
+export type IDecorationData<TExtension extends object = object> = {
 	readonly weight?: number;
-	readonly color?: DecorationColorIdentifier;
+	readonly color?: ColorIdentifier;
 	readonly letter?: string;
 	readonly tooltip?: string;
 	readonly strikethrough?: boolean;
 	readonly bubble?: boolean;
-};
+} & TExtension;
 
 export type IDecoration = IDisposable & {
 	readonly tooltip: string;

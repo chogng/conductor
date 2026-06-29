@@ -63,6 +63,10 @@ a ready template, Explorer must not keep showing a semantic decoration from earl
 content/materialization progress or row metadata.
 Explorer rich hover reads the same review-owned `ReviewSummary`; label
 decorations own only short color/tooltip/strikethrough presentation.
+`IDecorationData.color` carries a theme `ColorIdentifier` token, not a concrete
+`Color` object or raw CSS color. Register shared tokens under
+`platform/theme/common/colors/*` when the color is reusable; do not invent local
+string aliases in Explorer rendering code.
 
 ## Scheduling
 

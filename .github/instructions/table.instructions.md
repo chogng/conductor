@@ -145,9 +145,15 @@ Template visualization
   -> auto slot reads the current Review-owned system recommended ReviewedTemplate.template
   -> saved user slot reads the selected IUserTemplateService UserTemplate.template snapshot directly
   -> templateTableMap projects Template blocks/axis ranges into TableRangeDecoration values
-  -> provider returns `IDecorationData` carrying table range decorations for the active table decoration resource
+  -> provider returns `IDecorationData<{ tableRangeDecorations }>` for the active table decoration resource
   -> TableService listens to `IDecorationsService.onDidChangeDecorations`, rereads `getDecorationData(...)`, and updates display-only table view-model state
 ```
+
+Table range decoration payloads intentionally use the shared decorations bus as
+a typed extension on `IDecorationData`. The extension field is table-owned
+payload; generic decoration consumers must ignore unknown extension fields and
+must not normalize decoration data in a way that drops provider-owned extension
+payloads.
 
 ## Base Table Boundary
 
