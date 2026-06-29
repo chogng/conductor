@@ -59,11 +59,9 @@ import {
   ExplorerDecorationsProvider,
   createExplorerDecorationResource,
 } from "src/cs/workbench/contrib/files/browser/views/explorerDecorationsProvider";
-import type {
-  ExplorerDecorationData,
-} from "src/cs/workbench/contrib/files/browser/views/explorerDecorations";
 import {
   IDecorationsService,
+  type IDecorationData,
   type IDecorationsService as IDecorationsServiceType,
 } from "src/cs/workbench/services/decorations/common/decorations";
 import {
@@ -433,8 +431,8 @@ export class ExplorerViewPane extends ViewPane {
 
   private createExplorerDecorationsByFileKey(
     files: readonly ExplorerFileEntry[],
-  ): Readonly<Record<string, ExplorerDecorationData>> {
-    const decorationsByFileKey: Record<string, ExplorerDecorationData> = {};
+  ): Readonly<Record<string, IDecorationData>> {
+    const decorationsByFileKey: Record<string, IDecorationData> = {};
     for (const file of files) {
       const resource = getExplorerFileDecorationResource(file);
       if (!resource) {

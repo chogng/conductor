@@ -14,14 +14,11 @@ import {
 } from "src/cs/workbench/contrib/files/browser/files";
 import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import {
-	createExplorerDecorationDataFromReviewSummary,
-	type ExplorerDecorationData,
-} from "src/cs/workbench/contrib/files/browser/views/explorerDecorations";
-import {
 	IReviewService,
 	type IReviewService as IReviewServiceType,
 } from "src/cs/workbench/services/review/common/review";
-import type { IDecorationsProvider } from "src/cs/workbench/services/decorations/common/decorations";
+import type { ReviewSummary } from "src/cs/workbench/services/review/common/reviewModel";
+import type { IDecorationData, IDecorationsProvider } from "src/cs/workbench/services/decorations/common/decorations";
 
 const ExplorerDecorationReviewChangeDelayMs = 250;
 
@@ -51,7 +48,7 @@ export class ExplorerDecorationsProvider extends Disposable implements IDecorati
 	public provideDecorations(
 		resource: URI,
 		_token?: CancellationToken,
-	): ExplorerDecorationData | undefined {
+	): IDecorationData | undefined {
 		const target = parseExplorerDecorationResource(resource);
 		if (!this.hasExplorerEntryForDecorationTarget(target)) {
 			return undefined;
@@ -157,4 +154,52 @@ const parseExplorerDecorationResource = (
 		resource: resource.with({ fragment: "" }),
 		sheetId: decodeURIComponent(encodedSheetId),
 	};
+};
+
+export const createExplorerDecorationDataFromReviewSummary = (
+	summary: ReviewSummary | undefined,
+): IDecorationData | undefined => {
+	if (!summary) {
+		return undefined;
+	}
+
+	switch (summary.state) {
+		case "missing":
+			return undefined;
+		case "pending":
+			return {
+				letter: "...",
+				tooltip: localize("files.decorations.reviewPending", "Review pending."),
+			};
+		case "stale":
+			return {
+				color: "charts.orange",
+				letter: "!",
+				tooltip: summary.message ?? localize("files.decorations.reviewStale", "Review is stale."),
+			};
+		case "ready":
+			return {
+				letter: getReviewSummaryBadgeLetter(summary),
+				tooltip: summary.message ?? localize("files.decorations.reviewReady", "Review ready."),
+			};
+		case "needsAdjustment":
+			return {
+				color: "charts.orange",
+				letter: "?",
+				tooltip: summary.message ?? localize("files.decorations.reviewNeedsAdjustment", "Review needs adjustment."),
+			};
+		case "invalid":
+			return {
+				color: "charts.red",
+				letter: "!",
+				tooltip: summary.message ?? localize("files.decorations.reviewInvalid", "Review invalid."),
+			};
+	}
+};
+
+const getReviewSummaryBadgeLetter = (
+	summary: ReviewSummary,
+): string => {
+	const label = String(summary.reviewedSemanticLabel ?? "").trim();
+	return label || localize("files.decorations.reviewBadge", "Review");
 };

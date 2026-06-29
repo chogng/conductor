@@ -85,9 +85,7 @@ import {
   ExplorerBadgeNode,
   type ExplorerBadgePresentation,
 } from "src/cs/workbench/contrib/files/browser/views/explorerBadgeNode";
-import type {
-  ExplorerDecorationData,
-} from "src/cs/workbench/contrib/files/browser/views/explorerDecorations";
+import type { IDecorationData } from "src/cs/workbench/services/decorations/common/decorations";
 import type { ReviewSummary } from "src/cs/workbench/services/review/common/reviewModel";
 import type {
   IThumbnailPreviewService,
@@ -123,7 +121,7 @@ export type ExplorerViewerProps = {
   readonly templateRecords?: readonly TemplateEditorRecord[];
   readonly files: ExplorerFileEntry[];
   readonly decorationResourcesByFileKey?: Readonly<Record<string, URI>>;
-  readonly decorationsByFileKey?: Readonly<Record<string, ExplorerDecorationData>>;
+  readonly decorationsByFileKey?: Readonly<Record<string, IDecorationData>>;
   readonly reviewSummariesByFileKey?: Readonly<Record<string, ReviewSummary>>;
   readonly mode?: WorkbenchMainPart;
   readonly viewLayout?: FilesViewLayout;
@@ -423,7 +421,7 @@ const normalizeFileHoverText = (
 
 const createBadgePresentation = (
   fileKey: string,
-  badge: ExplorerDecorationData | FileSourceStatusBadge | null,
+  badge: IDecorationData | FileSourceStatusBadge | null,
   badgeColors: FilesExplorerBadgeColors,
 ): ExplorerBadgePresentation => {
   if (!badge) {
@@ -442,7 +440,7 @@ const createBadgePresentation = (
 };
 
 const getBadgePresentationSource = (
-  badge: ExplorerDecorationData | FileSourceStatusBadge,
+  badge: IDecorationData | FileSourceStatusBadge,
 ): string | null => {
   if (!("source" in badge)) {
     return null;
@@ -453,7 +451,7 @@ const getBadgePresentationSource = (
 };
 
 const resolveBadgePresentationColor = (
-  badge: ExplorerDecorationData | FileSourceStatusBadge,
+  badge: IDecorationData | FileSourceStatusBadge,
   badgeColors: FilesExplorerBadgeColors,
 ): string | null => {
   if (!("state" in badge)) {
@@ -484,7 +482,7 @@ const normalizeDecorationColor = (
 };
 
 const createExplorerDecorationSignature = (
-  decoration: ExplorerDecorationData | undefined,
+  decoration: IDecorationData | undefined,
 ): string => [
   decoration?.color ?? "",
   decoration?.letter ?? "",

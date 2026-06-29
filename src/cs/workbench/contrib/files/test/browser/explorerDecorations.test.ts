@@ -9,11 +9,9 @@ import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
 	ExplorerDecorationsProvider,
+	createExplorerDecorationDataFromReviewSummary,
 	createExplorerDecorationResource,
 } from "src/cs/workbench/contrib/files/browser/views/explorerDecorationsProvider";
-import {
-	createExplorerDecorationDataFromReviewSummary,
-} from "src/cs/workbench/contrib/files/browser/views/explorerDecorations";
 import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import type { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
 import type {
@@ -24,7 +22,7 @@ import type {
 	ReviewSummaryTarget,
 } from "src/cs/workbench/services/review/common/reviewModel";
 
-suite("workbench/contrib/files/browser/views/explorerDecorations", () => {
+suite("workbench/contrib/files/browser/views/explorerDecorationsProvider", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test("maps review summaries to explorer decoration data", () => {
