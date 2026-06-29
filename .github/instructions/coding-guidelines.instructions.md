@@ -185,6 +185,41 @@ only to split type/value imports.
 
 When unsure, prefer an owner API over exporting shared mutable knowledge.
 
+## DOM And CSS Ownership
+
+Follow the upstream VS Code class ownership shape: the component, renderer, or
+widget that creates a DOM node owns that node's slot and state classes.
+
+- Feature renderers/widgets declare classes for DOM they create.
+- The behavior owner toggles state classes.
+- Feature roots provide CSS scope and layout context.
+- Base/platform primitives must not know feature-specific class names.
+- Do not add wrapper elements, alias classes, or compatibility DOM hooks just
+  to preserve old selectors. Migrate the affected CSS and call sites directly.
+
+Prefer:
+
+```ts
+const row = append(container, $('.settings-row'));
+row.classList.toggle('is-expanded', expanded);
+```
+
+```css
+.settings-view .settings-row.is-expanded {
+  min-height: 48px;
+}
+```
+
+Avoid:
+
+```ts
+inputBox.element.classList.add('settings-row');
+```
+
+Internal DOM classes are private styling contracts for the owning module.
+Cross-module behavior should use TypeScript APIs, events, options, services, or
+explicit owner-provided elements instead of querying another feature's DOM.
+
 ## Components
 
 Avoid vague manager hierarchies. Prefer names that state the role:

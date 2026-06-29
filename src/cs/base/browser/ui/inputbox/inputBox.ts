@@ -78,10 +78,8 @@ export class InputBox<TInput extends InputBoxInputElement = HTMLInputElement> ex
     this.field = document.createElement("div");
     this.input = document.createElement(options.flexibleHeight ? "textarea" : "input") as TInput;
 
-    this.element.dataset.style = "inputbox";
-    this.element.className = "inputbox_wrap idle";
-    this.field.className = "inputbox_field";
-    this.field.dataset.icon = options.left || options.right || options.actions?.length ? "with" : "without";
+    this.element.classList.add("inputbox_wrap", "idle");
+    this.field.classList.add("inputbox_field");
 
     this.update(options, true);
     if (options.left) {
@@ -187,7 +185,6 @@ export class InputBox<TInput extends InputBoxInputElement = HTMLInputElement> ex
       this.actionBar.clear();
       this.actionSlot?.remove();
       this.actionSlot = undefined;
-      this.syncIconState();
       return;
     }
 
@@ -209,7 +206,6 @@ export class InputBox<TInput extends InputBoxInputElement = HTMLInputElement> ex
 
     actionBar.clear();
     actionBar.push([...actions], { icon: true, label: false });
-    this.syncIconState();
   }
 
   public showMessage(message: IMessage): void {
@@ -251,7 +247,6 @@ export class InputBox<TInput extends InputBoxInputElement = HTMLInputElement> ex
 
   private registerListeners(): void {
     this._register(addDisposableListener(this.input, EventType.INPUT, () => {
-      this.input.classList?.toggle("empty", this.input.value.length === 0);
       this.onDidChangeEmitter.fire(this.input.value);
       this.scrollableElement.current?.update();
     }));
@@ -283,15 +278,6 @@ export class InputBox<TInput extends InputBoxInputElement = HTMLInputElement> ex
       root: this.element,
       viewport: this.input,
     });
-  }
-
-  private syncIconState(): void {
-    this.field.dataset.icon = Array.from(this.field.children).some(child =>
-      typeof (child as HTMLElement).className === "string" &&
-      /\binputbox_(?:left|right)\b/.test((child as HTMLElement).className)
-    )
-      ? "with"
-      : "without";
   }
 
   private classForType(type: MessageType | undefined): string {

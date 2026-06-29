@@ -111,8 +111,3 @@ textarea.inputbox_native {
   appearance: textfield;
   -moz-appearance: textfield;
 }
-
-.inputbox_native.no-focus-outline:focus,
-.inputbox_native.no-focus-outline:focus-visible {
-  outline: none;
-}

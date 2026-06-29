@@ -34,23 +34,28 @@ Follow the upstream Settings editor shape at a Conductor scale:
 SettingsViewOptions
   -> SettingsView builds SettingsTreeSection records
   -> SettingsTree.update(sections)
-  -> section id reuses the section widget
-  -> item id reuses the setting row
-  -> fixed title/description/control slots are patched
+  -> SettingsTree flattens section/item records into List entries
+  -> base List reuses rows by stable entry id
+  -> control items patch fixed title/description/control slots
+  -> element items patch caller-owned item roots
   -> SettingsView-owned controls emit typed intent callbacks
   -> changed control nodes replace only the item control slot
 ```
 
-`SettingsTree` owns the fixed DOM slots for setting rows:
+`SettingsTree` owns two item shapes:
 
-- title and optional description on the left;
-- a control container slot on the right.
+- `SettingsTreeControlItem` for ordinary left title/description plus right
+  control-slot settings;
+- `SettingsTreeElementItem` for caller-owned card content that still belongs to
+  the section item order.
 
-Controls are interchangeable slot content. `SettingsTree` receives an
-`HTMLElement` for the right-side control slot and does not inspect whether it is
-a select, switch, color swatch, reset button, path picker, action bar, toolbar,
-or grouped action container. `SettingsView` owns each control's layout,
-interaction callbacks, and disposable lifecycle.
+Controls are interchangeable slot content. For control items, `SettingsTree`
+receives an `HTMLElement` for the right-side control slot and does not inspect
+whether it is a select, switch, color swatch, reset button, path picker, action
+bar, toolbar, or grouped action container. For element items, `SettingsTree`
+receives the caller-owned item root and owns only the section ordering, item id,
+base card class, and optional item search metadata. `SettingsView` owns each
+control's layout, interaction callbacks, and disposable lifecycle.
 
 Sections are rendering groups, not state owners. User edits flow from the
 control's typed intent callback to `SettingsController`, then to

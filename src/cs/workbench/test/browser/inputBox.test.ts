@@ -27,9 +27,7 @@ suite("workbench/test/browser/inputBox", () => {
     });
 
     assert.equal(inputBox.element.className, "inputbox_wrap idle");
-    assert.equal(inputBox.element.dataset.style, "inputbox");
     assert.equal(inputBox.field.className, "inputbox_field");
-    assert.equal(inputBox.field.dataset.icon, "without");
     assert.equal(inputBox.input.type, "text");
     assert.equal(inputBox.input.value, "1");
     assert.equal(inputBox.input.placeholder, "0");
@@ -47,7 +45,6 @@ suite("workbench/test/browser/inputBox", () => {
     const right = document.createElement("button");
     const inputBox = createInputBox({ left, right });
 
-    assert.equal(inputBox.field.dataset.icon, "with");
     assert.equal(inputBox.field.children.length, 3);
     assert.equal(inputBox.field.children[0].className, "inputbox_left");
     assert.equal(inputBox.field.children[1], inputBox.input);
