@@ -179,8 +179,9 @@ npm run test:unit:target -- \
   src/cs/workbench/services/table/test/common/tableFormatService.test.ts \
   src/cs/workbench/services/tableFile/test/common/tableFileReader.test.ts
 npm run test:unit:target -- \
+  src/cs/workbench/services/dataResource/test/browser/dataResourceService.test.ts \
+  src/cs/workbench/services/dataResource/test/browser/dataResourceEvaluation.test.ts \
   src/cs/workbench/services/review/test/common/reviewCandidate.test.ts \
-  src/cs/workbench/services/review/test/common/reviewSelector.test.ts \
   src/cs/workbench/services/review/test/browser/reviewService.test.ts
 npm run test:unit:target -- src/cs/workbench/services/table/test/browser
 ```

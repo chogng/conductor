@@ -535,9 +535,9 @@ const createReviewedTemplate = (): ReviewedTemplate => {
 	return {
 		candidateId: "candidate:iv-transfer",
 		source: {
-			kind: "builtin",
-			recipeId: "builtin.iv.transfer",
-			recipeVersion: 1,
+			kind: "dataResource",
+			bindingCandidateId: "binding-a",
+			semanticLibraryFingerprint: "semantic:test",
 		},
 		template,
 		templateFingerprint,

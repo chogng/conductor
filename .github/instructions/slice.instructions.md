@@ -5,8 +5,8 @@ applyTo: 'src/cs/workbench/services/slice/**,src/cs/workbench/contrib/slice/**'
 # Slice
 
 Slice is the execution owner for concrete reviewed or manual `Template`
-snapshots. It does not classify raw data, interpret Recipes, review template
-quality, or decide whether the system should apply a template.
+snapshots. It does not classify raw data, interpret DataResource evidence,
+review template quality, or decide whether the system should apply a template.
 
 ## Ownership
 
@@ -174,11 +174,11 @@ ReviewService ReviewSummary
 
 ## Do Not
 
-- Do not interpret raw rows/header semantics here; Recipe interpretation into
-  `ReviewCandidate` happens in Review before Slice.
+- Do not interpret raw rows/header semantics here; DataResource evidence
+  production and ReviewCandidate projection happen before Slice.
 - Do not rebuild structured evidence or Review candidate derivation in Slice.
-- Do not import RecipeService, recipe matching helpers, or Review candidate
-  builders into Slice.
+- Do not import DataResource semantic matchers or Review candidate builders
+  into Slice.
 - Do not inspect Review confidence, candidate margin, or diagnostics to decide
   automatic execution.
 - Do not store Slice queue/progress in Session.

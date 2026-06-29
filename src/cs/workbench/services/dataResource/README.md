@@ -5,10 +5,10 @@ resource snapshots. It sits below Review, Table UI, Search, Slice, and similar
 domain consumers, but above `base` / `platform` resource bytes.
 
 This is intentionally not a `base` or `platform` service. Structured content
-contains Conductor domain facts such as columns, layout candidates, measurement
-blocks, semantic roles, parser diagnostics, source versions, and sheet
-sub-targets. Those facts are shared workbench domain data, not generic
-filesystem or URI infrastructure.
+contains Conductor domain facts such as columns, semantic title matches,
+X ranges/groups, data blocks, binding candidates, measurement blocks, parser
+diagnostics, source versions, and sheet sub-targets. Those facts are shared
+workbench domain data, not generic filesystem or URI infrastructure.
 
 Current migration state:
 

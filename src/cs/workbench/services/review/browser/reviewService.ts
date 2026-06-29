@@ -9,7 +9,6 @@ import { disposableTimeout } from "src/cs/base/common/async";
 import { URI } from "src/cs/base/common/uri";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
-import { IRecipeService } from "cs/workbench/services/recipes/common/recipe";
 import {
   IReviewService,
   type ManualTemplateReviewResult,
@@ -98,7 +97,6 @@ export class ReviewService extends Disposable implements IReviewService {
   private scheduledReviewChange: { dispose(): void } | null = null;
 
   public constructor(
-    @IRecipeService private readonly recipeService: IRecipeService,
     @IUserTemplateService private readonly userTemplateService: IUserTemplateService,
     @IDataResourceService private readonly dataResourceService?: IDataResourceService,
     @ISchemaProfileService private readonly schemaProfileService?: ISchemaProfileService,
@@ -121,9 +119,6 @@ export class ReviewService extends Disposable implements IReviewService {
         this.invalidateUriReviewTargetsForResource(resource);
       }));
     }
-    this._register(this.recipeService.onDidChangeRecipes(() => {
-      this.invalidateAllUriReviewTargets();
-    }));
     this._register(this.userTemplateService.onDidChangeUserTemplates(() => {
       this.invalidateAllUriReviewTargets();
     }));
@@ -429,7 +424,6 @@ export class ReviewService extends Disposable implements IReviewService {
     resolution: DataResourceStructuredContentResolution,
   ): Promise<UriReviewCacheEntry> {
     const modelSignature = createUriReviewModelSignature({
-      recipeFingerprint: this.recipeService.getSnapshot().fingerprint,
       resolution,
       schemaProfileVersion: this.schemaProfileService?.getVersion() ?? 0,
       target,
@@ -493,7 +487,6 @@ export class ReviewService extends Disposable implements IReviewService {
       evidence: createReviewEvidenceFromStructuredContent(structuredContent),
       fileName: structuredContent.fileName,
       modelVersion: structuredContent.sourceModelVersion,
-      recipeSnapshot: this.recipeService.getSnapshot(),
       resource: target.resource,
       rowCount: structuredContent.rowCount,
       schemaProfileSnapshot: this.schemaProfileService?.getSnapshot(),
@@ -846,8 +839,8 @@ const getManualTemplateReason = (
   switch (source.kind) {
     case "user":
       return "review.manual.userTemplate";
-    case "builtin":
-      return "review.manual.recipeReviewedTemplate";
+    case "dataResource":
+      return "review.manual.dataResourceReviewedTemplate";
   }
 };
 
@@ -1032,7 +1025,7 @@ const createReviewResultSignature = (
   result.modelVersion ?? "",
   result.sourceVersion ?? "",
   result.evidenceFingerprint,
-  result.recipeFingerprint,
+  result.semanticLibraryFingerprint,
   result.userTemplateCatalogVersion,
   result.userTemplateEffectiveFingerprint,
   result.reviewEngineVersion,
@@ -1099,14 +1092,12 @@ const createReviewEvidenceFromStructuredContent = (
 });
 
 const createUriReviewModelSignature = ({
-  recipeFingerprint,
   resolution,
   schemaProfileVersion,
   target,
   userTemplateEffectiveFingerprint,
   userTemplateVersion,
 }: {
-  readonly recipeFingerprint: string;
   readonly resolution: DataResourceStructuredContentResolution;
   readonly schemaProfileVersion: number;
   readonly target: NormalizedUriReviewTarget;
@@ -1119,7 +1110,7 @@ const createUriReviewModelSignature = ({
   resolution.kind === "ready" ? resolution.snapshot.sourceVersion : "",
   resolution.kind === "loadError" ? resolution.loadState.message : "",
   target.contentHash ?? "",
-  recipeFingerprint,
+  resolution.kind === "ready" ? resolution.snapshot.structuredContent.semanticLibraryFingerprint : "",
   schemaProfileVersion,
   userTemplateEffectiveFingerprint,
   userTemplateVersion,

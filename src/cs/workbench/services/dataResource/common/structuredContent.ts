@@ -88,33 +88,101 @@ export type StructuredColumnProfile = {
 	readonly numericStats?: StructuredColumnNumericStats;
 };
 
-export type StructuredLayoutKind =
-	| "metadataPreamble"
-	| "repeatedBlock"
-	| "groupedSweep"
-	| "wideMatrix"
-	| "timeSeries"
-	| "pairwiseXY"
-	| "sharedXMultiY"
-	| "simpleXY"
-	| "unknown";
+export type StructuredAxisTendency = "x" | "dependent" | "unknown";
 
-export type StructuredLayoutBindingDraft = {
-	readonly blockRegionId?: string;
-	readonly dataRange?: StructuredContentSourceRange;
-	readonly headerRange?: StructuredContentSourceRange;
-	readonly xCol?: number;
-	readonly yCols?: readonly number[];
-	readonly groupByCol?: number;
-	readonly pointCol?: number;
-	readonly biasCols?: readonly number[];
+export type StructuredXRangeDirection = "ascending" | "descending" | "mixed";
+
+export type StructuredXRangeStepKind =
+	| "constant"
+	| "nearlyConstant"
+	| "pointsDerived"
+	| "segmentedConstant"
+	| "ratioConstant";
+
+export type StructuredXRangeCandidate = {
+	readonly id: string;
+	readonly column: number;
+	readonly startRow: number;
+	readonly endRow: number;
+	readonly direction: StructuredXRangeDirection;
+	readonly stepKind: StructuredXRangeStepKind;
+	readonly step?: number;
+	readonly pointCount: number;
+	readonly confidence: number;
+	readonly reasons: readonly string[];
 };
 
-export type StructuredLayoutCandidate = {
+export type StructuredXGroupCandidate = {
 	readonly id: string;
-	readonly layoutKind: StructuredLayoutKind;
+	readonly xRangeCandidateId: string;
+	readonly startRow: number;
+	readonly endRow: number;
+	readonly direction: Exclude<StructuredXRangeDirection, "mixed">;
+	readonly groupKind: "singleMonotonicRun" | "directionBreak" | "reset" | "repeatedPattern";
+	readonly lineIndex: number;
 	readonly confidence: number;
-	readonly bindings: readonly StructuredLayoutBindingDraft[];
+	readonly reasons: readonly string[];
+};
+
+export type StructuredDataBlockCandidate = {
+	readonly id: string;
+	readonly xRangeCandidateId: string;
+	readonly xGroupCandidateIds: readonly string[];
+	readonly startRow: number;
+	readonly endRow: number;
+	readonly startCol: number;
+	readonly endCol: number;
+	readonly xColumn: number;
+	readonly dependentColumns: readonly number[];
+	readonly separatorColumns: readonly number[];
+	readonly columnDirection: "rightPreferred" | "leftObserved" | "mixed";
+	readonly confidence: number;
+	readonly reasons: readonly string[];
+};
+
+export type StructuredDependentValueCandidate = {
+	readonly id: string;
+	readonly column: number;
+	readonly xRangeCandidateIds: readonly string[];
+	readonly dataBlockCandidateIds: readonly string[];
+	readonly numericCoverage: number;
+	readonly confidence: number;
+	readonly reasons: readonly string[];
+};
+
+export type StructuredColumnTitleSpanEvidence = {
+	readonly id: string;
+	readonly titleCell: {
+		readonly row: number;
+		readonly column: number;
+		readonly text: string;
+	};
+	readonly targetColumn: number;
+	readonly startRow: number;
+	readonly endRow: number;
+	readonly normalizedTitle: string;
+	readonly canonicalRole: StructuredMeasurementColumnRole;
+	readonly canonicalUnit?: StructuredCanonicalUnit;
+	readonly axisTendency: StructuredAxisTendency;
+	readonly confidence: number;
+	readonly reasons: readonly string[];
+};
+
+export type StructuredBindingRelation =
+	| "oneX-oneY"
+	| "oneX-manyY"
+	| "manyXYpairs"
+	| "segmentedSweep"
+	| "matrixEncoded";
+
+export type StructuredBindingCandidate = {
+	readonly id: string;
+	readonly xRangeCandidateIds: readonly string[];
+	readonly dependentValueCandidateIds: readonly string[];
+	readonly dataBlockCandidateIds: readonly string[];
+	readonly relation: StructuredBindingRelation;
+	readonly confidence: number;
+	readonly ambiguityCodes: readonly string[];
 	readonly reasons: readonly string[];
 };
 
@@ -231,7 +299,13 @@ export type StructuredContentGridSnapshot = {
 export type StructuredContentEvidence = {
 	readonly structure: StructuredContentStructure;
 	readonly columnProfiles: readonly StructuredColumnProfile[];
-	readonly layoutCandidates: readonly StructuredLayoutCandidate[];
+	readonly xRangeCandidates: readonly StructuredXRangeCandidate[];
+	readonly xGroupCandidates: readonly StructuredXGroupCandidate[];
+	readonly dataBlockCandidates: readonly StructuredDataBlockCandidate[];
+	readonly dependentValueCandidates: readonly StructuredDependentValueCandidate[];
+	readonly columnTitleSpans: readonly StructuredColumnTitleSpanEvidence[];
+	readonly bindingCandidates: readonly StructuredBindingCandidate[];
+	readonly semanticLibraryFingerprint: string;
 	readonly semanticCandidates: readonly StructuredColumnSemanticCandidate[];
 	readonly groups: readonly StructuredMeasurementGroupRecord[];
 	readonly blocks: readonly StructuredMeasurementBlockRecord[];

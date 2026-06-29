@@ -34,9 +34,9 @@ export type ReviewContext = {
 
 export type ReviewCandidateSource =
 	| {
-		readonly kind: "builtin";
-		readonly recipeId: string;
-		readonly recipeVersion: number;
+		readonly kind: "dataResource";
+		readonly bindingCandidateId: string;
+		readonly semanticLibraryFingerprint: string;
 	}
 	| {
 		readonly kind: "user";
@@ -183,9 +183,9 @@ export type CandidateReview = {
 
 export type ReviewedTemplateSource =
 	| {
-		readonly kind: "builtin";
-		readonly recipeId: string;
-		readonly recipeVersion: number;
+		readonly kind: "dataResource";
+		readonly bindingCandidateId: string;
+		readonly semanticLibraryFingerprint: string;
 	}
 	| {
 		readonly kind: "user";
@@ -249,7 +249,7 @@ export type ReviewResult = {
 	readonly modelVersion?: number;
 	readonly sourceVersion?: number;
 	readonly evidenceFingerprint: string;
-	readonly recipeFingerprint: string;
+	readonly semanticLibraryFingerprint: string;
 	readonly userTemplateCatalogVersion: number;
 	readonly userTemplateEffectiveFingerprint: string;
 	readonly reviewEngineVersion: number;

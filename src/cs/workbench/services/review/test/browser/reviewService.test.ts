@@ -20,9 +20,6 @@ import {
 	createEmptyStructuredContentStructure,
 	type StructuredColumnProfile,
 } from "src/cs/workbench/services/dataResource/common/structuredContent";
-import { builtinRecipes } from "cs/workbench/services/recipes/common/builtinRecipes.generated";
-import type { IRecipeService, Recipe, RecipeSnapshot } from "cs/workbench/services/recipes/common/recipe";
-import { createRecipeSnapshot } from "cs/workbench/services/recipes/common/recipeCodec";
 import { ReviewService } from "src/cs/workbench/services/review/browser/reviewService";
 import type {
 	ReviewEvidence,
@@ -68,12 +65,10 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	const createUserTemplateServiceForTest = () =>
 		store.add(new UserTemplateService(createUserTemplateStoreServiceForTest()));
 	const createReviewServiceForTest = (
-		recipeService: IRecipeService,
 		userTemplateService: IUserTemplateService,
 		dataResourceService?: IDataResourceService,
 		schemaProfileService?: ISchemaProfileService,
 	) => store.add(new ReviewService(
-		recipeService,
 		userTemplateService,
 		dataResourceService,
 		schemaProfileService,
@@ -91,8 +86,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		sourceVersion: 1,
 	});
 
-	test("derives recipe review candidates into a system-recommended review decision", () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
+	test("derives DataResource review candidates into a system-recommended review decision", () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 
 		const result = deriveReviewResult({
@@ -100,21 +94,20 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			...createReviewTargetForTest(),
-			recipeSnapshot: recipeService.getSnapshot(),
 			rowCount: 3,
 			userTemplateSnapshot: userTemplateService.getSnapshot(),
 		});
 
-		assert.equal(result.recipeFingerprint, "recipe:first");
+		assert.equal(result.semanticLibraryFingerprint, "semantic:test");
 		assert.equal(result.reviewPolicyVersion, 11);
 		assert.equal(typeof result.evidenceFingerprint, "string");
-		assert.equal(result.candidates[0]?.providerRank, 100);
+		assert.equal(typeof result.candidates[0]?.providerRank, "number");
 		assert.equal(result.reviewedTemplate, result.decision.kind === "ready" ? result.decision.reviewedTemplate : undefined);
 		assert.equal(typeof result.reviews[0]?.factors.selectorScore, "number");
 		assert.deepEqual(result.reviews[0]?.findings, []);
 		assert.equal(result.decision.kind, "ready");
 		assert.equal(result.decision.kind === "ready" && result.decision.application.kind, "systemRecommended");
-		assert.equal(result.decision.kind === "ready" && result.decision.reviewedTemplate.source.kind, "builtin");
+		assert.equal(result.decision.kind === "ready" && result.decision.reviewedTemplate.source.kind, "dataResource");
 		assert.deepEqual(result.reviewedTemplate?.template.measurement, {
 			curveFamily: "iv",
 			ivMode: "transfer",
@@ -122,7 +115,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("uses exact schema profile matches as review semantic evidence", () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 
 		const result = deriveReviewResult({
@@ -130,7 +122,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			...createReviewTargetForTest(),
-			recipeSnapshot: recipeService.getSnapshot(),
 			rowCount: 3,
 			schemaProfileSnapshot: createSchemaProfileSnapshot([createSchemaProfile()]),
 			userTemplateSnapshot: userTemplateService.getSnapshot(),
@@ -143,7 +134,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("prefers exact schema profile matches over similar profile matches", () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 
 		const result = deriveReviewResult({
@@ -151,7 +141,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			...createReviewTargetForTest(),
-			recipeSnapshot: recipeService.getSnapshot(),
 			rowCount: 3,
 			schemaProfileSnapshot: createSchemaProfileSnapshot([
 				createSchemaProfile({
@@ -169,7 +158,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("uses similar schema profile matches only as manual-assist review evidence", () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first", [createLowConfidenceTransferRecipeForTest()]));
 		const userTemplateService = createUserTemplateServiceForTest();
 
 		const result = deriveReviewResult({
@@ -180,7 +168,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			...createReviewTargetForTest(),
-			recipeSnapshot: recipeService.getSnapshot(),
 			rowCount: 3,
 			schemaProfileSnapshot: createSchemaProfileSnapshot([createSchemaProfile({
 				id: "schema:older",
@@ -198,7 +185,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("does not use similar schema profile matches to bypass conflicted exact profiles", () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first", [createLowConfidenceTransferRecipeForTest()]));
 		const userTemplateService = createUserTemplateServiceForTest();
 
 		const result = deriveReviewResult({
@@ -209,7 +195,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			...createReviewTargetForTest(),
-			recipeSnapshot: recipeService.getSnapshot(),
 			rowCount: 3,
 			schemaProfileSnapshot: createSchemaProfileSnapshot([
 				createSchemaProfile({
@@ -230,7 +215,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("does not boost review scoring for incomplete exact schema profile bindings", () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 
 		const result = deriveReviewResult({
@@ -238,7 +222,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			...createReviewTargetForTest(),
-			recipeSnapshot: recipeService.getSnapshot(),
 			rowCount: 3,
 			schemaProfileSnapshot: createSchemaProfileSnapshot([createSchemaProfile({
 				bindings: [{
@@ -261,7 +244,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("ignores conflicted schema profile matches for review scoring", () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 
 		const result = deriveReviewResult({
@@ -269,7 +251,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			...createReviewTargetForTest(),
-			recipeSnapshot: recipeService.getSnapshot(),
 			rowCount: 3,
 			schemaProfileSnapshot: createSchemaProfileSnapshot([createSchemaProfile({ conflictCount: 1 })]),
 			userTemplateSnapshot: userTemplateService.getSnapshot(),
@@ -280,7 +261,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("uses the Review decision application as the system application gate", () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 
 		const result = deriveReviewResult({
@@ -288,7 +268,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			...createReviewTargetForTest(),
-			recipeSnapshot: recipeService.getSnapshot(),
 			rowCount: 3,
 			userTemplateSnapshot: userTemplateService.getSnapshot(),
 		});
@@ -299,24 +278,13 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("requires adjustment when Review cannot rank top candidates distinctly", () => {
-		const recipe = getBuiltinRecipe("builtin.iv.transfer");
-		const recipeService = store.add(new TestRecipeService("recipe:ambiguous", [{
-			...recipe,
-			id: "workspace.tie-a",
-			priority: 100,
-		}, {
-			...recipe,
-			id: "workspace.tie-b",
-			priority: 90,
-		}]));
 		const userTemplateService = createUserTemplateServiceForTest();
 
 		const result = deriveReviewResult({
-			evidence: createReviewEvidence(),
+			evidence: createReviewEvidence({ ambiguousBindings: true }),
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			...createReviewTargetForTest(),
-			recipeSnapshot: recipeService.getSnapshot(),
 			rowCount: 3,
 			userTemplateSnapshot: userTemplateService.getSnapshot(),
 		});
@@ -330,6 +298,27 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		);
 	});
 
+	test("does not require adjustment when top candidate confidence is distinct", () => {
+		const userTemplateService = createUserTemplateServiceForTest();
+
+		const result = deriveReviewResult({
+			evidence: createReviewEvidence({
+				ambiguousBindingConfidence: 0.86,
+				ambiguousBindings: true,
+				bindingConfidence: 1,
+			}),
+			columnCount: 2,
+			fileName: "Transfer.csv",
+			...createReviewTargetForTest(),
+			rowCount: 3,
+			userTemplateSnapshot: userTemplateService.getSnapshot(),
+		});
+
+		assert.equal(result.decision.kind, "ready");
+		assert.equal(result.reviewedTemplate?.candidateId, result.candidates[0]?.id);
+		assert.equal(result.reviews[0]?.findings.some(finding => finding.code === "review.ambiguousCandidates"), false);
+	});
+
 	test("derives user template candidates from the user template snapshot", async () => {
 		const template = createTemplate({
 			id: "template-a",
@@ -338,7 +327,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 				columnCount: 2,
 			},
 		});
-		const recipeService = store.add(new TestRecipeService("recipe:none", []));
 		const userTemplateService = createUserTemplateServiceForTest();
 		await userTemplateService.createTemplate({
 			id: "template-a",
@@ -347,11 +335,10 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		});
 
 		const result = deriveReviewResult({
-			evidence: createReviewEvidence(),
+			evidence: createReviewEvidence({ includeDataResourceBinding: false }),
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			...createReviewTargetForTest(),
-			recipeSnapshot: recipeService.getSnapshot(),
 			rowCount: 3,
 			userTemplateSnapshot: userTemplateService.getSnapshot(),
 		});
@@ -363,20 +350,13 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("requires adjustment when Review confidence is below the ready threshold", async () => {
-		const recipeService = store.add(new TestRecipeService("recipe:none", []));
 		const userTemplateService = createUserTemplateServiceForTest();
-		await userTemplateService.createTemplate({
-			id: "template-a",
-			name: "Transfer",
-			template: createTemplate({ id: "template-a" }),
-		});
 
 		const result = deriveReviewResult({
-			evidence: createReviewEvidence(),
+			evidence: createReviewEvidence({ bindingConfidence: 0.2 }),
 			columnCount: 2,
 			fileName: "Transfer.csv",
 			...createReviewTargetForTest(),
-			recipeSnapshot: recipeService.getSnapshot(),
 			rowCount: 3,
 			userTemplateSnapshot: userTemplateService.getSnapshot(),
 		});
@@ -389,11 +369,9 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("returns latest review summaries for URI-backed structured content", async () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Transfer.csv");
 		const service = createReviewServiceForTest(
-			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource),
 		);
@@ -428,11 +406,9 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("derives IV output review from explicit drain voltage URI content", async () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Output.csv");
 		const service = createReviewServiceForTest(
-			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource, [], null, createTestTableModelContent([
 				["Vd", "Id"],
@@ -458,11 +434,9 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("derives IV transfer review from Origin DataName metadata rows", async () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/TransferMetadata.csv");
 		const service = createReviewServiceForTest(
-			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource, [], null, createTestTableModelContent([
 				["SetupTitle", "Transfer_DB"],
@@ -495,20 +469,22 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			startRow: 6,
 			endRow: 7,
 		}]);
-		assert.deepEqual(reviewExecution?.systemRecommendedReviewedTemplate?.template.blocks[0]?.y.columns, [2]);
+		assert.deepEqual(reviewExecution?.systemRecommendedReviewedTemplate?.template.blocks[0]?.y.columns, [2, 3]);
 		assert.deepEqual(reviewExecution?.systemRecommendedReviewedTemplate?.template.blocks[0]?.y.ranges, [{
 			column: 2,
+			startRow: 6,
+			endRow: 7,
+		}, {
+			column: 3,
 			startRow: 6,
 			endRow: 7,
 		}]);
 	});
 
 	test("does not derive review candidates from DataName columns without numeric values", async () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/TransferHeadersOnly.csv");
 		const service = createReviewServiceForTest(
-			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource, [], null, createTestTableModelContent([
 				["SetupTitle", "Transfer_DB"],
@@ -529,7 +505,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("does not auto-select IV mode from generic voltage URI content", async () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Instrument.csv");
 		const dataResourceService = store.add(new CountingDataResourceService(
@@ -540,7 +515,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			])),
 		));
 		const service = createReviewServiceForTest(
-			recipeService,
 			userTemplateService,
 			dataResourceService,
 		);
@@ -553,8 +527,9 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(dataResourceService.resolveStructuredContentCalls, 0);
 		const reviewExecution = await service.reviewUriForExecution(target);
 		assert.ok(reviewExecution);
-		assert.equal(reviewExecution.systemRecommendedReviewedTemplate, undefined);
-		assert.equal(reviewExecution.summary.state, "invalid");
+		assert.equal(reviewExecution.systemRecommendedReviewedTemplate?.template.measurement?.curveFamily, undefined);
+		assert.equal(reviewExecution.systemRecommendedReviewedTemplate?.template.measurement?.ivMode, undefined);
+		assert.equal(reviewExecution.summary.state, "ready");
 
 		const summary = service.getLatestReviewSummary(target);
 		assert.deepEqual({
@@ -562,26 +537,24 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			reviewedSemanticLabel: summary.reviewedSemanticLabel,
 			state: summary.state,
 		}, {
-			findingCodes: ["review.noCandidates"],
-			reviewedSemanticLabel: undefined,
-			state: "invalid",
+			findingCodes: [],
+			reviewedSemanticLabel: "Detected Data Block",
+			state: "ready",
 		});
 
 		const resolveStructuredContentCalls = dataResourceService.resolveStructuredContentCalls;
 		const secondReviewExecution = await service.reviewUriForExecution(target);
-		assert.equal(secondReviewExecution?.systemRecommendedReviewedTemplate, undefined);
+		assert.equal(secondReviewExecution?.systemRecommendedReviewedTemplate?.template.measurement?.ivMode, undefined);
 		assert.equal(dataResourceService.resolveStructuredContentCalls, resolveStructuredContentCalls);
 	});
 
 	test("keeps latest review summary reads off structured-content resolution", async () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Transfer.csv");
 		const dataResourceService = store.add(new CountingDataResourceService(
 			createDataResourceServiceForTest(resource),
 		));
 		const service = createReviewServiceForTest(
-			recipeService,
 			userTemplateService,
 			dataResourceService,
 		);
@@ -606,11 +579,9 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("does not start URI review work from summary reads", async () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const dataResourceService = store.add(new ResolvingDataResourceService());
 		const service = createReviewServiceForTest(
-			recipeService,
 			userTemplateService,
 			dataResourceService,
 		);
@@ -623,18 +594,12 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 
 		await new Promise(resolve => setTimeout(resolve, 0));
 		assert.equal(dataResourceService.resolveStructuredContentCalls, 0);
-
-		recipeService.setFingerprint("recipe:changed");
-		await new Promise(resolve => setTimeout(resolve, 0));
-		assert.equal(dataResourceService.resolveStructuredContentCalls, 0);
 	});
 
 	test("reuses an active explicit URI review for execution", async () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const dataResourceService = store.add(new ControlledDataResourceService());
 		const service = createReviewServiceForTest(
-			recipeService,
 			userTemplateService,
 			dataResourceService,
 		);
@@ -659,12 +624,10 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("keeps uncached active URI review isolated from resource-change reruns", async () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Transfer.csv");
 		const dataResourceService = store.add(new ControlledDataResourceService());
 		const service = createReviewServiceForTest(
-			recipeService,
 			userTemplateService,
 			dataResourceService,
 		);
@@ -688,11 +651,9 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("normalizes structured-cloned URI review targets before resolving models", async () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Transfer.csv");
 		const service = createReviewServiceForTest(
-			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource),
 		);
@@ -714,11 +675,9 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("does not expose the default sheet id when the URI review target has no sheet", async () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Transfer.csv");
 		const service = createReviewServiceForTest(
-			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource),
 		);
@@ -736,11 +695,9 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("does not fall back to another sheet when a URI review sheet target is missing", async () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Transfer.csv");
 		const service = createReviewServiceForTest(
-			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource, [], "table-a"),
 		);
@@ -770,11 +727,9 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("marks cached URI reviews stale when review inputs change", async () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Transfer.csv");
 		const service = createReviewServiceForTest(
-			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource),
 		);
@@ -785,7 +740,11 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		await service.reviewUriForExecution(target);
 		assert.equal(service.getLatestReviewSummary(target).state, "ready");
 
-		recipeService.setFingerprint("recipe:changed");
+		await userTemplateService.createTemplate({
+			id: "template-a",
+			name: "Transfer",
+			template: createTemplate({ id: "template-a" }),
+		});
 
 		const staleSummary = service.getLatestReviewSummary(target);
 		assert.equal(staleSummary.state, "stale");
@@ -797,12 +756,10 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("marks cached URI reviews stale when schema profiles change", async () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const schemaProfileService = store.add(new TestSchemaProfileService());
 		const resource = URI.file("/workspace/Transfer.csv");
 		const service = createReviewServiceForTest(
-			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource),
 			schemaProfileService,
@@ -825,12 +782,10 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("confirms reviewed templates into schema profiles from structured content", async () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const schemaProfileService = store.add(new TestSchemaProfileService());
 		const resource = URI.file("/workspace/Transfer.csv");
 		const service = createReviewServiceForTest(
-			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource),
 			schemaProfileService,
@@ -874,12 +829,10 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("does not learn schema profiles from automatic URI review derivation", async () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const schemaProfileService = store.add(new TestSchemaProfileService());
 		const resource = URI.file("/workspace/Transfer.csv");
 		const service = createReviewServiceForTest(
-			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource),
 			schemaProfileService,
@@ -895,11 +848,9 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("returns null when reviewed template confirmation cannot resolve content", async () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const schemaProfileService = store.add(new TestSchemaProfileService());
 		const service = createReviewServiceForTest(
-			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(URI.file("/workspace/Transfer.csv")),
 			schemaProfileService,
@@ -918,12 +869,10 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("returns null when reviewed template columns cannot be mapped to structured roles", async () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const schemaProfileService = store.add(new TestSchemaProfileService());
 		const resource = URI.file("/workspace/Transfer.csv");
 		const service = createReviewServiceForTest(
-			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource),
 			schemaProfileService,
@@ -964,11 +913,9 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("carries URI parser diagnostics into review summaries", async () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Malformed.csv");
 		const service = createReviewServiceForTest(
-			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource, [{
 				code: "table.parser.MissingQuotes",
@@ -991,11 +938,9 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 	test("does not treat recoverable URI parser errors as fatal review findings", async () => {
-		const recipeService = store.add(new TestRecipeService("recipe:first"));
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Recoverable.csv");
 		const service = createReviewServiceForTest(
-			recipeService,
 			userTemplateService,
 			createDataResourceServiceForTest(resource, [{
 				code: "table.parser.BadRow",
@@ -1017,62 +962,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	});
 
 });
-
-const builtinRecipeSnapshot = createRecipeSnapshot(builtinRecipes);
-
-const getBuiltinRecipe = (id: string): Recipe => {
-	const recipe = builtinRecipeSnapshot.recipes.find(candidate => candidate.id === id);
-	assert.ok(recipe);
-	return recipe;
-};
-
-const createLowConfidenceTransferRecipeForTest = (): Recipe => {
-	const recipe = getBuiltinRecipe("builtin.iv.transfer");
-	assert.ok(recipe.domain);
-	return {
-		...recipe,
-		domain: {
-			...recipe.domain,
-			minConfidence: 0.3,
-		},
-	};
-};
-
-class TestRecipeService extends Disposable implements IRecipeService {
-	public declare readonly _serviceBrand: undefined;
-
-	private readonly onDidChangeRecipesEmitter = this._register(new Emitter<void>());
-	public readonly onDidChangeRecipes = this.onDidChangeRecipesEmitter.event;
-	private fingerprint: string;
-	private version = 1;
-
-	public constructor(
-		fingerprint: string,
-		private readonly recipes: readonly Recipe[] = builtinRecipeSnapshot.recipes,
-	) {
-		super();
-		this.fingerprint = fingerprint;
-	}
-
-	public setFingerprint(fingerprint: string): void {
-		this.fingerprint = fingerprint;
-		this.version += 1;
-		this.onDidChangeRecipesEmitter.fire(undefined);
-	}
-
-	public getSnapshot(): RecipeSnapshot {
-		return {
-			version: this.version,
-			fingerprint: this.fingerprint,
-			recipes: this.recipes,
-			diagnostics: [],
-		};
-	}
-
-	public reload(): Promise<void> {
-		return Promise.resolve();
-	}
-}
 
 class TestSchemaProfileService extends Disposable implements ISchemaProfileService {
 	public declare readonly _serviceBrand: undefined;
@@ -1453,6 +1342,10 @@ const createReviewEvidenceWithSchemaProfileColumns = ({
 				...block,
 				confidence: blockConfidence,
 			})),
+			bindingCandidates: evidence.structuredContent.bindingCandidates.map(binding => ({
+				...binding,
+				confidence: blockConfidence,
+			})),
 		},
 	};
 };
@@ -1469,7 +1362,17 @@ const createSchemaProfileColumnProfiles = (): readonly StructuredColumnProfile[]
 	kind: "numeric",
 }];
 
-const createReviewEvidence = (): ReviewEvidence => ({
+const createReviewEvidence = ({
+	ambiguousBindings = false,
+	bindingConfidence = 0.95,
+	ambiguousBindingConfidence = bindingConfidence,
+	includeDataResourceBinding = true,
+}: {
+	readonly ambiguousBindingConfidence?: number;
+	readonly ambiguousBindings?: boolean;
+	readonly bindingConfidence?: number;
+	readonly includeDataResourceBinding?: boolean;
+} = {}): ReviewEvidence => ({
 	sourceMetadata: {
 		fileName: "Transfer.csv",
 		rowCount: 3,
@@ -1478,7 +1381,67 @@ const createReviewEvidence = (): ReviewEvidence => ({
 	structuredContent: {
 		structure: createEmptyStructuredContentStructure(),
 		columnProfiles: [],
-		layoutCandidates: [],
+		xRangeCandidates: [{
+			id: "x-range-a",
+			column: 0,
+			startRow: 1,
+			endRow: 2,
+			direction: "ascending",
+			stepKind: "constant",
+			step: 1,
+			pointCount: 2,
+			confidence: bindingConfidence,
+			reasons: ["xRange.test"],
+		}],
+		xGroupCandidates: [],
+		dataBlockCandidates: [{
+			id: "block-a",
+			xRangeCandidateId: "x-range-a",
+			xGroupCandidateIds: [],
+			startRow: 1,
+			endRow: 2,
+			startCol: 0,
+			endCol: 1,
+			xColumn: 0,
+			dependentColumns: [1],
+			separatorColumns: [],
+			columnDirection: "rightPreferred",
+			confidence: bindingConfidence,
+			reasons: ["dataBlock.test"],
+		}],
+		dependentValueCandidates: [{
+			id: "dependent-a",
+			column: 1,
+			xRangeCandidateIds: ["x-range-a"],
+			dataBlockCandidateIds: ["block-a"],
+			numericCoverage: 1,
+			confidence: bindingConfidence,
+			reasons: ["dependent.test"],
+		}],
+		columnTitleSpans: [],
+		bindingCandidates: includeDataResourceBinding ? [
+			{
+				id: "binding-a",
+				xRangeCandidateIds: ["x-range-a"],
+				dependentValueCandidateIds: ["dependent-a"],
+				dataBlockCandidateIds: ["block-a"],
+				relation: "oneX-oneY",
+				confidence: bindingConfidence,
+				ambiguityCodes: [],
+				reasons: ["binding.test"],
+			},
+			...(ambiguousBindings ? [{
+				id: "binding-b",
+				xRangeCandidateIds: ["x-range-a"],
+				dependentValueCandidateIds: ["dependent-a"],
+				dataBlockCandidateIds: ["block-a"],
+				relation: "oneX-oneY" as const,
+				confidence: ambiguousBindingConfidence,
+				ambiguityCodes: [],
+				reasons: ["binding.test"],
+			}] : []),
+		] : [],
+		semanticLibraryFingerprint: "semantic:test",
 		semanticCandidates: [],
 		groups: [],
 		blocks: [{
@@ -1543,7 +1506,7 @@ const createReviewEvidence = (): ReviewEvidence => ({
 			},
 			rowCount: 3,
 			columnCount: 2,
-			confidence: 0.95,
+			confidence: bindingConfidence,
 			diagnosticCodes: [],
 		}],
 		diagnostics: [],

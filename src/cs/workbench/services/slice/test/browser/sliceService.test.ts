@@ -364,16 +364,16 @@ const createReviewedTemplate = (
 ): ReviewedTemplate => {
 	const templateFingerprint = createTemplateFingerprint(template);
 	return {
-		candidateId: "recipe:builtin.iv.transfer:block-a",
+		candidateId: "data-resource-candidate:binding-a",
 		source: {
-			kind: "builtin",
-			recipeId: "builtin.iv.transfer",
-			recipeVersion: 1,
+			kind: "dataResource",
+			bindingCandidateId: "binding-a",
+			semanticLibraryFingerprint: "semantic:test",
 		},
 		template,
 		templateFingerprint,
 		review: {
-			candidateId: "recipe:builtin.iv.transfer:block-a",
+			candidateId: "data-resource-candidate:binding-a",
 			interpretationFingerprint: templateFingerprint,
 			status: "ready",
 			confidence: 0.95,

@@ -1,9 +1,0 @@
-{
-  "schemaVersion": 1,
-  "recipes": [
-    "iv.json",
-    "cv.json",
-    "cf.json",
-    "it.json"
-  ]
-}

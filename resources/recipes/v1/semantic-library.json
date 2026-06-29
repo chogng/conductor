@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "rowMarkers": [
+    {
+      "kind": "titleRow",
+      "aliases": ["DataName", "Data Name", "Name"]
+    },
+    {
+      "kind": "dataRow",
+      "aliases": ["DataValue", "Data Value", "Value"]
+    }
+  ],
+  "titles": [
+    {
+      "canonicalRole": "vg",
+      "canonicalUnit": "V",
+      "axisTendency": "x",
+      "family": "iv",
+      "ivMode": "transfer",
+      "aliases": ["Vg", "Vgs", "Gate Voltage", "GateVoltage", "Gate V", "idvg"]
+    },
+    {
+      "canonicalRole": "vd",
+      "canonicalUnit": "V",
+      "axisTendency": "x",
+      "family": "iv",
+      "ivMode": "output",
+      "aliases": ["Vd", "Vds", "Drain Voltage", "DrainVoltage", "Drain V", "idvd"]
+    },
+    {
+      "canonicalRole": "vs",
+      "canonicalUnit": "V",
+      "axisTendency": "x",
+      "family": "iv",
+      "aliases": ["Vs", "Source Voltage", "SourceVoltage", "Source V"]
+    },
+    {
+      "canonicalRole": "id",
+      "canonicalUnit": "A",
+      "axisTendency": "dependent",
+      "family": "iv",
+      "aliases": ["Id", "Ids", "Drain Current", "DrainCurrent", "TotalCurrent", "CurrentDrain"]
+    },
+    {
+      "canonicalRole": "ig",
+      "canonicalUnit": "A",
+      "axisTendency": "dependent",
+      "family": "iv",
+      "aliases": ["Ig", "Igs", "Gate Current", "GateCurrent", "CurrentGate"]
+    },
+    {
+      "canonicalRole": "is",
+      "canonicalUnit": "A",
+      "axisTendency": "dependent",
+      "family": "iv",
+      "aliases": ["Is", "Source Current", "SourceCurrent", "CurrentSource"]
+    },
+    {
+      "canonicalRole": "capacitance",
+      "canonicalUnit": "F",
+      "axisTendency": "dependent",
+      "family": "cv",
+      "aliases": ["C", "Cap", "Capacitance", "Cp", "Cgg", "Cgd", "Cgs", "Cgb"]
+    },
+    {
+      "canonicalRole": "conductance",
+      "canonicalUnit": "S",
+      "axisTendency": "dependent",
+      "aliases": ["G", "Conductance", "Transconductance", "gm"]
+    },
+    {
+      "canonicalRole": "frequency",
+      "canonicalUnit": "Hz",
+      "axisTendency": "x",
+      "family": "cf",
+      "aliases": ["Frequency", "Freq", "f", "Hz"]
+    },
+    {
+      "canonicalRole": "time",
+      "canonicalUnit": "s",
+      "axisTendency": "x",
+      "family": "it",
+      "aliases": ["Time", "t", "Seconds", "Second", "Sec"]
+    },
+    {
+      "canonicalRole": "voltage",
+      "canonicalUnit": "V",
+      "axisTendency": "x",
+      "aliases": ["Voltage", "V", "Vp", "Vpn", "Bias", "Bias Voltage"]
+    },
+    {
+      "canonicalRole": "current",
+      "canonicalUnit": "A",
+      "axisTendency": "dependent",
+      "aliases": ["Current", "I", "Ipt"]
+    }
+  ]
+}

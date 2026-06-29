@@ -3,8 +3,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { stableStringify } from "src/cs/base/common/objects";
-import type { Recipe, RecipeSnapshot } from "src/cs/workbench/services/recipes/common/recipe";
-import type { RecipeLogicalRelation } from "src/cs/workbench/services/recipes/common/recipeSchema";
+import type {
+	StructuredBindingCandidate,
+	StructuredContentEvidence,
+	StructuredDataBlockCandidate,
+	StructuredMeasurementBlockRecord,
+	StructuredMeasurementColumnRef,
+	StructuredXGroupCandidate,
+} from "src/cs/workbench/services/dataResource/common/structuredContent";
 import type {
 	ReviewCandidate,
 	ReviewCandidateAxisBinding,
@@ -14,16 +20,7 @@ import type {
 	ReviewCandidateInterpretation,
 	ReviewCandidateRowRange,
 	ReviewContext,
-} from "./reviewModel";
-import {
-	evaluateReviewSelector,
-	type ReviewSelectorBlockMatch,
-	type ReviewSelectorCapture,
-	type ReviewSelectorEvaluation,
-} from "./reviewSelector";
-import type {
-	StructuredMeasurementBlockRecord as MeasurementBlockRecord,
-} from "src/cs/workbench/services/dataResource/common/structuredContent";
+} from "src/cs/workbench/services/review/common/reviewModel";
 import type {
 	TemplateItMode,
 	TemplateIvMode,
@@ -35,21 +32,19 @@ import type {
 	UserTemplateSnapshot,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
-// Candidate derivation is pure Review pipeline code: it interprets Recipe and
-// UserTemplate snapshots against evidence, but does not score or select output.
+// Candidate derivation is pure Review pipeline code: it projects DataResource
+// evidence and UserTemplate snapshots into review candidates, but does not
+// score or select output.
 export const deriveAutomaticReviewCandidates = ({
 	context,
-	recipeSnapshot,
 	userTemplateSnapshot,
 }: {
 	readonly context: ReviewContext;
-	readonly recipeSnapshot?: RecipeSnapshot;
 	readonly userTemplateSnapshot: UserTemplateSnapshot;
 }): readonly ReviewCandidate[] =>
 	sortReviewCandidates([
-		...deriveRecipeReviewCandidates({
+		...deriveDataResourceReviewCandidates({
 			context,
-			recipeSnapshot,
 		}),
 		...deriveUserTemplateReviewCandidates({
 			context,
@@ -57,26 +52,27 @@ export const deriveAutomaticReviewCandidates = ({
 		}),
 	]);
 
-export const deriveRecipeReviewCandidates = ({
+export const deriveDataResourceReviewCandidates = ({
 	context,
-	recipeSnapshot,
 }: {
 	readonly context: ReviewContext;
-	readonly recipeSnapshot?: RecipeSnapshot;
 }): readonly ReviewCandidate[] => {
+	const structuredContent = context.evidence.structuredContent;
+	if (!structuredContent) {
+		return [];
+	}
+
 	const candidates: ReviewCandidate[] = [];
-	for (const recipe of recipeSnapshot?.recipes ?? []) {
-		const evaluation = evaluateReviewSelector(recipe, context.evidence);
-		const candidate = createRecipeReviewCandidate({
+	for (const binding of structuredContent.bindingCandidates) {
+		const candidate = createDataResourceReviewCandidate({
+			binding,
 			context,
-			recipe,
-			evaluation,
+			structuredContent,
 		});
 		if (candidate) {
 			candidates.push(candidate);
 		}
 	}
-
 	return sortReviewCandidates(candidates);
 };
 
@@ -101,62 +97,43 @@ export const deriveUserTemplateReviewCandidates = ({
 	return sortReviewCandidates(candidates);
 };
 
-export const createRecipeReviewCandidate = ({
+const createDataResourceReviewCandidate = ({
+	binding,
 	context,
-	recipe,
-	evaluation,
+	structuredContent,
 }: {
+	readonly binding: StructuredBindingCandidate;
 	readonly context: ReviewContext;
-	readonly recipe: Recipe;
-	readonly evaluation: ReviewSelectorEvaluation;
+	readonly structuredContent: StructuredContentEvidence;
 }): ReviewCandidate | null => {
-	if (!evaluation.matched || !evaluation.matches.length) {
+	const projection = createDataResourceCandidateProjection({
+		binding,
+		structuredContent,
+	});
+	if (!projection.blocks.length) {
 		return null;
 	}
 
-	const matches = recipe.blockPartition.select === "first"
-		? evaluation.matches.slice(0, 1)
-		: evaluation.matches;
-	const blocks: ReviewCandidateBlock[] = [];
-	const matchedBlocks: MeasurementBlockRecord[] = [];
-	const diagnostics = new Set<string>();
-	for (const match of matches) {
-		const block = getMatchedBlock(context.evidence, match);
-		if (!block) {
-			diagnostics.add("recipeCandidate.missingBlock");
-			continue;
-		}
-
-		const candidateBlock = createCandidateBlock(recipe, match, block, context.evidence);
-		if (!candidateBlock) {
-			diagnostics.add("recipeCandidate.missingRoleBinding");
-			continue;
-		}
-		matchedBlocks.push(block);
-		blocks.push(candidateBlock);
-	}
-
-	const structuredContent = context.evidence.structuredContent;
-	const schemaFingerprint = structuredContent?.structure.fingerprint;
-	const measurement = createCandidateMeasurementBinding(matchedBlocks);
+	const measurement = createCandidateMeasurementBinding(projection.measurementBlocks);
+	const name = getDataResourceCandidateName(projection.measurementBlocks, binding);
 	const interpretation = createReviewCandidateInterpretation({
-		name: recipe.label || recipe.id,
+		name,
 		version: 1,
 		...(measurement ? { measurement } : {}),
-		blocks,
-		stopOnError: recipe.stopOnError ?? false,
+		blocks: projection.blocks,
+		stopOnError: false,
 		applicability: {
-			...(schemaFingerprint ? { schemaFingerprint } : {}),
+			...(structuredContent.structure.fingerprint ? { schemaFingerprint: structuredContent.structure.fingerprint } : {}),
 			columnCount: context.evidence.sourceMetadata.columnCount,
 		},
 	});
 
 	return {
-		id: `recipe-candidate:${recipe.id}:${recipe.version}`,
+		id: `data-resource-candidate:${binding.id}`,
 		source: {
-			kind: "builtin",
-			recipeId: recipe.id,
-			recipeVersion: recipe.version,
+			kind: "dataResource",
+			bindingCandidateId: binding.id,
+			semanticLibraryFingerprint: structuredContent.semanticLibraryFingerprint,
 		},
 		interpretation,
 		interpretationFingerprint: createCandidateInterpretationFingerprint(interpretation),
@@ -164,17 +141,174 @@ export const createRecipeReviewCandidate = ({
 		...(context.contentHash ? { contentHash: context.contentHash } : {}),
 		...(context.modelVersion !== undefined ? { modelVersion: context.modelVersion } : {}),
 		...(context.sourceVersion !== undefined ? { sourceVersion: context.sourceVersion } : {}),
-		confidence: getRecipeCandidateConfidence(matches, context.evidence),
-		providerRank: recipe.priority,
+		confidence: binding.confidence,
+		providerRank: getDataResourceProviderRank(binding),
 		selectorTrace: {
-			reasons: matches.flatMap(match => match.reasons),
-			diagnostics: evaluation.diagnosticCodes.map(createReviewCandidateDiagnostic),
+			reasons: binding.reasons,
+			diagnostics: binding.ambiguityCodes.map(createReviewCandidateDiagnostic),
 		},
 		projectionTrace: {
-			reasons: [],
-			diagnostics: [...diagnostics].map(createReviewCandidateDiagnostic),
+			reasons: projection.reasons,
+			diagnostics: projection.diagnostics,
+		},
+		captures: {
+			relation: binding.relation,
+			dataBlockCandidateIds: binding.dataBlockCandidateIds,
 		},
 	};
+};
+
+const createDataResourceCandidateProjection = ({
+	binding,
+	structuredContent,
+}: {
+	readonly binding: StructuredBindingCandidate;
+	readonly structuredContent: StructuredContentEvidence;
+}): {
+	readonly blocks: readonly ReviewCandidateBlock[];
+	readonly diagnostics: readonly ReviewCandidateDiagnostic[];
+	readonly measurementBlocks: readonly StructuredMeasurementBlockRecord[];
+	readonly reasons: readonly string[];
+} => {
+	const blocks: ReviewCandidateBlock[] = [];
+	const diagnostics: ReviewCandidateDiagnostic[] = [];
+	const measurementBlocks: StructuredMeasurementBlockRecord[] = [];
+	const reasons: string[] = [];
+	for (const blockId of binding.dataBlockCandidateIds) {
+		const dataBlock = structuredContent.dataBlockCandidates.find(candidate => candidate.id === blockId);
+		if (!dataBlock) {
+			diagnostics.push(createReviewCandidateDiagnostic("dataResourceCandidate.missingDataBlock"));
+			continue;
+		}
+
+		const measurementBlock = structuredContent.blocks.find(candidate => candidate.id === dataBlock.id);
+		if (measurementBlock) {
+			measurementBlocks.push(measurementBlock);
+		}
+
+		const groupBlocks = createReviewBlocksForDataBlock({
+			dataBlock,
+			measurementBlock,
+			structuredContent,
+		});
+		if (!groupBlocks.length) {
+			diagnostics.push(createReviewCandidateDiagnostic("dataResourceCandidate.missingAxisBinding"));
+			continue;
+		}
+		blocks.push(...groupBlocks);
+		reasons.push("dataResourceCandidate.projectedBinding");
+	}
+	return {
+		blocks,
+		diagnostics,
+		measurementBlocks,
+		reasons,
+	};
+};
+
+const createReviewBlocksForDataBlock = ({
+	dataBlock,
+	measurementBlock,
+	structuredContent,
+}: {
+	readonly dataBlock: StructuredDataBlockCandidate;
+	readonly measurementBlock?: StructuredMeasurementBlockRecord;
+	readonly structuredContent: StructuredContentEvidence;
+}): readonly ReviewCandidateBlock[] => {
+	const xGroups = dataBlock.xGroupCandidateIds
+		.map(groupId => structuredContent.xGroupCandidates.find(candidate => candidate.id === groupId))
+		.filter((candidate): candidate is StructuredXGroupCandidate => Boolean(candidate));
+	const rowRanges = xGroups.length
+		? xGroups.map(group => ({
+			startRow: group.startRow,
+			endRow: group.endRow,
+			lineIndex: group.lineIndex,
+		}))
+		: [{
+			startRow: dataBlock.startRow,
+			endRow: dataBlock.endRow,
+			lineIndex: undefined,
+		}];
+	const xUnit = getMeasurementColumnUnit(measurementBlock, dataBlock.xColumn);
+	const yUnit = getCommonMeasurementColumnUnit(measurementBlock, dataBlock.dependentColumns);
+	return rowRanges.map(rowRange => ({
+		rowRange: {
+			startRow: rowRange.startRow,
+			endRow: rowRange.endRow,
+		},
+		x: createAxisBinding(dataBlock.xColumn, rowRange.startRow, rowRange.endRow, xUnit),
+		y: createAxisBinding(dataBlock.dependentColumns, rowRange.startRow, rowRange.endRow, yUnit),
+		segmentation: {
+			kind: "none",
+		},
+		legend: {
+			target: xGroups.length > 1 ? "group" : "auto",
+			...(rowRange.lineIndex !== undefined ? { prefix: `Line ${rowRange.lineIndex + 1}` } : {}),
+		},
+	}));
+};
+
+const createAxisBinding = (
+	columns: number | readonly number[],
+	startRow: number,
+	endRow: number,
+	unit: string | null,
+): ReviewCandidateAxisBinding => {
+	const normalizedColumns = Array.isArray(columns) ? columns : [columns];
+	return {
+		columns: normalizedColumns,
+		ranges: normalizedColumns.map((column): ReviewCandidateColumnRange => ({
+			column,
+			startRow,
+			endRow,
+		})),
+		...(unit ? { unit } : {}),
+	};
+};
+
+const getMeasurementColumnUnit = (
+	block: StructuredMeasurementBlockRecord | undefined,
+	column: number,
+): string | null =>
+	normalizeOptionalText(block?.columns.columns.find(candidate => candidate.rawCol === column)?.unit);
+
+const getCommonMeasurementColumnUnit = (
+	block: StructuredMeasurementBlockRecord | undefined,
+	columns: readonly number[],
+): string | null => {
+	const units = columns
+		.map(column => getMeasurementColumnUnit(block, column))
+		.filter((unit): unit is string => Boolean(unit));
+	const uniqueUnits = [...new Set(units)];
+	return uniqueUnits.length === 1 ? uniqueUnits[0] ?? null : null;
+};
+
+const getDataResourceCandidateName = (
+	blocks: readonly StructuredMeasurementBlockRecord[],
+	binding: StructuredBindingCandidate,
+): string => {
+	const labels = [...new Set(blocks.map(block => normalizeOptionalText(block.label)).filter(Boolean))];
+	if (labels.length === 1) {
+		return labels[0] ?? "Detected Data";
+	}
+	if (binding.relation === "manyXYpairs") {
+		return "Detected XY Pairs";
+	}
+	if (binding.relation === "oneX-manyY") {
+		return "Detected Shared X Data";
+	}
+	return "Detected Data";
+};
+
+const getDataResourceProviderRank = (
+	binding: StructuredBindingCandidate,
+): number => {
+	const relationRank = binding.relation === "manyXYpairs"
+		? 20
+		: binding.relation === "oneX-manyY"
+			? 10
+			: 0;
+	return Math.round(binding.confidence * 100) + relationRank;
 };
 
 const createUserTemplateReviewCandidate = ({
@@ -338,7 +472,7 @@ const createCandidateInterpretationFingerprint = (
 };
 
 const createCandidateMeasurementBinding = (
-	blocks: readonly MeasurementBlockRecord[],
+	blocks: readonly StructuredMeasurementBlockRecord[],
 ): TemplateMeasurementBinding | undefined => {
 	const measurements = blocks
 		.map(createTemplateMeasurementBinding)
@@ -354,7 +488,7 @@ const createCandidateMeasurementBinding = (
 };
 
 const createTemplateMeasurementBinding = (
-	block: MeasurementBlockRecord,
+	block: StructuredMeasurementBlockRecord,
 ): TemplateMeasurementBinding | undefined => {
 	if (!isTemplateMeasurementFamily(block.family)) {
 		return undefined;
@@ -404,221 +538,6 @@ const createReviewInterpretationFingerprint = (
 	interpretation: unknown,
 ): string =>
 	`review-interpretation:${hashString(stableStringify(interpretation))}`;
-
-const createCandidateBlock = (
-	recipe: Recipe,
-	match: ReviewSelectorBlockMatch,
-	block: MeasurementBlockRecord,
-	evidence: ReviewContext["evidence"],
-): ReviewCandidateBlock | null => {
-	const x = createAxisBinding(recipe, "x", match, block, evidence);
-	const y = createAxisBinding(recipe, "y", match, block, evidence);
-	if (!x || !y) {
-		return null;
-	}
-	const rowRange = getCandidateBlockDataRowRange([x, y]);
-	if (!rowRange) {
-		return null;
-	}
-
-	return {
-		rowRange,
-		x,
-		y,
-		segmentation: createCandidateSegmentation(recipe.logicalRelation),
-		legend: createCandidateLegend(recipe.logicalRelation),
-	};
-};
-
-const createAxisBinding = (
-	recipe: Recipe,
-	axis: "x" | "y",
-	match: ReviewSelectorBlockMatch,
-	block: MeasurementBlockRecord,
-	evidence: ReviewContext["evidence"],
-): ReviewCandidateAxisBinding | null => {
-	if (usesLayoutBindingColumns(recipe)) {
-		const columns = readLayoutBindingColumns(evidence, recipe, axis);
-		return createAxisBindingFromColumns(columns, readCaptureUnit(match, axis), block);
-	}
-
-	const capture = readColumnsCapture(match.captures[axis]);
-	if (!capture) {
-		return null;
-	}
-
-	return createAxisBindingFromColumns(capture.columns, capture.unit, block);
-};
-
-const createAxisBindingFromColumns = (
-	columns: readonly number[],
-	unit: string | null | undefined,
-	block: MeasurementBlockRecord,
-): ReviewCandidateAxisBinding | null => {
-	if (!columns.length) {
-		return null;
-	}
-
-	const ranges = getColumnDataRanges(block, columns);
-	if (ranges.length !== columns.length) {
-		return null;
-	}
-
-	return {
-		columns,
-		ranges,
-		...(unit ? { unit } : {}),
-	};
-};
-
-const readColumnsCapture = (
-	capture: ReviewSelectorCapture | undefined,
-): Extract<ReviewSelectorCapture, { readonly kind: "columns" }> | null =>
-	capture?.kind === "columns" && capture.columns.length
-		? capture
-		: null;
-
-const readCaptureUnit = (
-	match: ReviewSelectorBlockMatch,
-	captureName: "x" | "y",
-): string | null => {
-	const capture = readColumnsCapture(match.captures[captureName]);
-	return capture?.unit ?? null;
-};
-
-const usesLayoutBindingColumns = (
-	recipe: Recipe,
-): boolean =>
-	recipe.seriesPartition.kind === "groupColumn" ||
-	recipe.withinBlock.physicalLayout === "xyxyxy";
-
-const createCandidateSegmentation = (
-	_logicalRelation: RecipeLogicalRelation,
-): ReviewCandidateBlock["segmentation"] => ({
-	kind: "auto",
-});
-
-const createCandidateLegend = (
-	logicalRelation: RecipeLogicalRelation,
-): ReviewCandidateBlock["legend"] => ({
-	target: logicalRelation === "oneX-oneY-manyGroups" ? "group" : "auto",
-});
-
-const readLayoutBindingColumns = (
-	evidence: ReviewContext["evidence"],
-	recipe: Recipe,
-	target: "x" | "y" | "bias",
-): readonly number[] => {
-	const layoutKinds = getLayoutBindingEvidenceKinds(recipe);
-	const binding = evidence.structuredContent?.layoutCandidates
-		.find(candidate =>
-			(!layoutKinds.length || layoutKinds.includes(candidate.layoutKind)) &&
-			candidate.bindings.length
-		)?.bindings[0];
-	if (!binding) {
-		return [];
-	}
-
-	switch (target) {
-		case "x": {
-			const xCol = binding.xCol;
-			return isIntegerColumn(xCol) ? [xCol] : [];
-		}
-		case "y":
-			return binding.yCols?.filter(isIntegerColumn) ?? [];
-		case "bias":
-			return binding.biasCols?.filter(isIntegerColumn) ?? [];
-	}
-};
-
-const getLayoutBindingEvidenceKinds = (
-	recipe: Recipe,
-): readonly string[] => {
-	if (recipe.seriesPartition.kind === "groupColumn") {
-		return [recipe.seriesPartition.layoutKind ?? "groupedSweep"];
-	}
-	switch (recipe.withinBlock.physicalLayout) {
-		case "xyxyxy":
-			return ["pairwiseXY"];
-		case "blocks.xy":
-		case "blocks.xyyyy":
-			return ["repeatedBlock"];
-		case "xy":
-		case "xyyyy":
-			return [];
-	}
-};
-
-const isIntegerColumn = (
-	value: unknown,
-): value is number =>
-	Number.isInteger(value);
-
-const getMatchedBlock = (
-	evidence: ReviewContext["evidence"],
-	match: ReviewSelectorBlockMatch | undefined,
-): MeasurementBlockRecord | null =>
-	match?.blockId
-		? evidence.structuredContent?.blocks.find(block => block.id === match.blockId) ?? null
-		: evidence.structuredContent?.blocks[0] ?? null;
-
-const getCandidateBlockDataRowRange = (
-	axes: readonly ReviewCandidateAxisBinding[],
-): ReviewCandidateRowRange | null => {
-	const ranges = axes.flatMap(axis => axis.ranges ?? []);
-	if (!ranges.length) {
-		return null;
-	}
-
-	return {
-		startRow: Math.min(...ranges.map(range => range.startRow)),
-		endRow: getMaxColumnRangeEndRow(ranges),
-	};
-};
-
-const getColumnDataRanges = (
-	block: MeasurementBlockRecord,
-	columns: readonly number[],
-): readonly ReviewCandidateColumnRange[] => {
-	const ranges: ReviewCandidateColumnRange[] = [];
-	for (const column of columns) {
-		const range = block.columns.columns.find(candidate => candidate.rawCol === column)?.dataRange;
-		if (!range) {
-			continue;
-		}
-		ranges.push({
-			column,
-			startRow: range.startRow,
-			endRow: range.endRow,
-		});
-	}
-	return ranges;
-};
-
-const getMaxColumnRangeEndRow = (
-	ranges: readonly ReviewCandidateColumnRange[],
-): ReviewCandidateRowRange["endRow"] => {
-	const finiteRows = ranges
-		.map(range => range.endRow)
-		.filter((endRow): endRow is number => typeof endRow === "number");
-	return finiteRows.length === ranges.length
-		? Math.max(...finiteRows)
-		: "end";
-};
-
-const getRecipeCandidateConfidence = (
-	matches: readonly ReviewSelectorBlockMatch[],
-	evidence: ReviewContext["evidence"],
-): number => {
-	const confidences = matches
-		.map(match => getMatchedBlock(evidence, match)?.confidence)
-		.filter((value): value is number => typeof value === "number" && Number.isFinite(value));
-	if (!confidences.length) {
-		return 0.5;
-	}
-
-	return Math.max(0, Math.min(1, Math.min(...confidences)));
-};
 
 const getUserTemplateConfidence = (
 	userTemplate: UserTemplate,
@@ -671,6 +590,13 @@ const isColumnInBounds = (
 	Number.isInteger(column) &&
 	column >= 0 &&
 	column < columnCount;
+
+const normalizeOptionalText = (
+	value: unknown,
+): string | null => {
+	const normalized = String(value ?? "").trim();
+	return normalized || null;
+};
 
 const hashString = (
 	value: string,

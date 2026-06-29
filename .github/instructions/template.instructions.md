@@ -8,17 +8,16 @@ applyTo: 'src/cs/workbench/services/template/**,src/cs/workbench/contrib/templat
 Review has accepted automatic or manual input. In target architecture:
 
 ```txt
-URI/content structured evidence + Recipe/UserTemplate/built-in template snapshot
+URI/content structured evidence + DataResource binding evidence/UserTemplate snapshot
   -> ReviewCandidate
   -> ReviewResult / ReviewedTemplate
   -> Slice
 ```
 
 Automatic Review consumes structured content evidence for a URI-backed content
-version. Built-in recipes, built-in template snapshots, and user templates are
-candidate sources, but they do not bypass Review. Slice executes the reviewed
-`Template`; Review judges usability; Template owns the executable spec and
-editor adapters.
+version. DataResource binding candidates and user templates are candidate
+sources, but they do not bypass Review. Slice executes the reviewed `Template`;
+Review judges usability; Template owns the executable spec and editor adapters.
 
 Do not add consumer-shaped template sections such as `template.review`,
 `template.slicing`, or `template.binding`. Review consumes URI/content
@@ -31,9 +30,9 @@ Template editor form records are not the domain `Template`; name them
 ## Ownership
 
 Template owns the core `Template` spec and editor-record conversion. It does
-not own Recipe/UserTemplate automatic candidate derivation, UserTemplate catalog
-CRUD, catalog snapshots, Review decisions, per-target template selections, or
-raw-file view input.
+not own DataResource/UserTemplate automatic candidate derivation, UserTemplate
+catalog CRUD, catalog snapshots, Review decisions, per-target template
+selections, or raw-file view input.
 
 `ITemplateViewStateService` in Template contrib owns selected-template/form
 editor state for Template UI and related view projections. Slicing selections
@@ -81,15 +80,15 @@ plot rendering, or chart state.
 Automatic Review candidate derivation:
 
 ```txt
-review request / recipeChanged / userTemplateChanged
-  -> ReviewService reads content evidence and Recipe/UserTemplate/built-in template snapshots
+review request / dataResourceEvidenceChanged / userTemplateChanged
+  -> ReviewService reads DataResource content evidence and UserTemplate snapshots
   -> ReviewService derives ReviewCandidate values
   -> ReviewService scores candidates
 ```
 
 Automatic candidate derivation belongs under `services/review/common`. Do not
-add automatic Recipe/UserTemplate/built-in template candidate builders under
-Template, Table, or Slice.
+add automatic DataResource/UserTemplate candidate builders under Template,
+Table, or Slice.
 
 Manual execution:
 
@@ -119,16 +118,15 @@ import/export command
 
 - `Template` is a concrete extraction/slicing spec. Review produces reviewed
   snapshots from automatic candidates or manual input; Slice consumes reviewed
-  or manual snapshots and must not derive Recipe/UserTemplate/built-in template
-  candidates.
+  or manual snapshots and must not derive DataResource/UserTemplate candidates.
 - Engines should consume `Template`, not consumer-specific sub-templates.
 - Template editor records may be bridged through `TemplateEditorConfig` and
   `templateEditorAdapter`; they are inputs to `Template` snapshots, not an
   execution workflow.
 - Raw-header auto-template inference is retired from product execution.
-  New `URI/content structured evidence + Recipe/UserTemplate/built-in template
-  snapshot -> ReviewCandidate` derivation belongs in Review candidate helpers,
-  not Template execution.
+  New `URI/content structured evidence + DataResource binding evidence/
+  UserTemplate snapshot -> ReviewCandidate` derivation belongs in Review
+  candidate helpers, not Template execution.
 - Automatic template selection ids belong to Slice `templateSelection`, not
   Template common. Template common must not own selection sentinels.
 - Template may read current table selection through injected `ITableService` public APIs only as explicit user input.

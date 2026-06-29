@@ -40,12 +40,11 @@ Table
 DataResource
   -> segment numeric regions
   -> detect XRangeCandidate values
+  -> detect XGroupCandidate / line values
+  -> generate DataBlockCandidate values
   -> detect DependentValueCandidate values
   -> generate BindingCandidate values
   -> expose structured evidence with confidence and reasons
-
-Recipe
-  -> describe passive expectations over structured evidence
 
 Review
   -> evaluate candidates
@@ -540,7 +539,7 @@ Review can use:
 
 - binding confidence from `DataResource`;
 - role / unit / axis tendency from ColumnTitleSpanEvidence;
-- recipe expectations;
+- semantic library fingerprint / evidence fingerprint;
 - semantic roles and units;
 - parser diagnostics;
 - ambiguity codes;
@@ -563,10 +562,10 @@ The important output facts are:
 - measurement binding;
 - applicability fingerprint.
 
-`xy`, `xyyyy`, and `xyxyxy` can remain useful as Review or Recipe vocabulary,
-but the template execution path should be driven by explicit X ranges and axis
-bindings. The read range for Y comes from the bound X range; Y should not decide
-the slice range independently.
+`xy`, `xyyyy`, and `xyxyxy` can remain useful only as debug labels or
+post-hoc explanations, but the template execution path should be driven by
+explicit X ranges, data blocks, and axis bindings. The read range for Y comes
+from the bound X range; Y should not decide the slice range independently.
 
 ## Edge Cases
 

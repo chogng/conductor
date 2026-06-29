@@ -23,7 +23,7 @@ The primary content path is:
 URI + contentHash/sourceVersion
   -> structured content snapshot / CanonicalContentMatrix
   -> ReviewEvidence(sourceMetadata + structured/matrix evidence)
-  -> Recipe/UserTemplate/built-in template snapshots
+  -> DataResource binding candidates + UserTemplate snapshots
   -> SegmentCandidate / ReviewCandidate values
   -> evaluator policy
   -> ReviewResult / ReviewSummary / accepted Segment
@@ -39,7 +39,7 @@ system application.
 `IReviewService` owns:
 
 - building `SegmentCandidate` / `ReviewCandidate` values from URI content
-  evidence and Recipe/UserTemplate/built-in template snapshots;
+  evidence and UserTemplate snapshots;
 - evaluating candidates into `accepted`, `needsAdjustment`, or `invalid`
   decisions, with current adapter states expressed as `ready`,
   `needsAdjustment`, or `invalid`;
@@ -52,10 +52,10 @@ system application.
   `resource + contentHash/sourceVersion + optional sheetId` for Explorer
   decorations and hover.
 
-It does not own source fetch, parser implementation, raw row profiling, Table UI
-state, table model lifecycle, Recipe catalog storage, UserTemplate catalog CRUD,
-canonical Template spec/editor state, Slice planning/execution, Explorer
-decoration mapping, or Template editor view state.
+It does not own source fetch, parser implementation, raw row profiling,
+DataResource semantic matching, Table UI state, table model lifecycle,
+UserTemplate catalog CRUD, canonical Template spec/editor state, Slice
+planning/execution, Explorer decoration mapping, or Template editor view state.
 
 ## Flow
 
@@ -66,7 +66,7 @@ URI + contentHash/sourceVersion
   -> IDataResourceService.resolveStructuredContent(...)
   -> structured content snapshot / CanonicalContentMatrix
   -> ReviewEvidence(sourceMetadata + structured/matrix evidence)
-  -> Recipe/UserTemplate/built-in template snapshots
+  -> DataResource binding candidates + UserTemplate snapshots
   -> SegmentCandidate / ReviewCandidate values
   -> evaluator policy
   -> ReviewResult / ReviewSummary / accepted Segment
@@ -77,11 +77,11 @@ Review Algorithm Sequence:
 ```txt
 URI + contentHash/sourceVersion + optional sheetId
   -> DataResourceService infers structured evidence
-     (rows/cells/blocks + diagnostics + profiles + evidence fingerprint)
-  -> measurement projection resolves explicit roles first
-     (vg -> transfer, vd -> output, generic voltage -> unknown)
+     (cell kinds, numeric runs, title spans, X ranges/groups, blocks, bindings,
+      diagnostics, profiles, semantic library fingerprint)
   -> ReviewService reads structured content snapshot
   -> ReviewService builds SegmentCandidate / ReviewCandidate values
+     directly from DataResource binding candidates and UserTemplateSnapshot
   -> ReviewService scores candidates within evaluator policy
   -> ReviewDecision selects ReviewedTemplate when the candidate is ready
   -> ReviewDecision returns invalid/noCandidates when the evidence is ambiguous
@@ -92,8 +92,6 @@ sequenceDiagram
   participant Caller as URI-backed caller / Slice Command
   participant Data as DataResourceService
   participant Review as ReviewService
-  participant Recipe as RecipeSnapshot
-  participant Selector as reviewSelector
   participant Candidate as reviewCandidate
   participant Decision as reviewDecision
 
@@ -105,13 +103,10 @@ sequenceDiagram
     Review-->>Caller: ready reviewedTemplate OR invalid/noCandidates OR null
   else missing or stale review
     Review->>Data: resolveStructuredContent(resource, sheetId)
-    Note over Data: Current implementation may materialize through TableModelService as a private bridge
-    Data->>Data: header/data range/column role inference
-    Data->>Data: measurement projection
+    Data->>Data: cell kind -> numeric runs -> title spans
+    Data->>Data: X ranges/groups -> data blocks -> dependents -> bindings
     Note over Data: Vg=>transfer, Vd=>output, generic Voltage=>unknown
-    Review->>Recipe: read passive recipes
-    Review->>Selector: match recipe domain/layout/roles
-    Selector->>Candidate: matched blocks/captures
+    Review->>Candidate: project DataResource bindings + UserTemplate snapshot
     Candidate->>Decision: candidate templates
     Decision->>Decision: score + ambiguity + freshness + diagnostics
     Decision-->>Review: ready reviewedTemplate OR invalid/noCandidates
@@ -137,10 +132,10 @@ label such as a curve kind, family, or role comes from `ReviewSummary` /
 `ReviewedTemplate` metadata after Review has made a decision.
 
 This summary cache is service-local. It is invalidated by content version
-changes, evidence fingerprint changes, Recipe changes, UserTemplate changes,
-review policy changes, and optional materialization-version changes. Explorer
-must not fall back to Session raw-table records for URI-backed semantic
-decorations.
+changes, evidence fingerprint changes, DataResource semantic-library/evidence
+fingerprint changes, UserTemplate changes, review policy changes, and optional
+materialization-version changes. Explorer must not fall back to Session
+raw-table records for URI-backed semantic decorations.
 
 Missing or stale URI summaries are not refreshed by Explorer decoration reads.
 Explorer may receive a missing, stale, or active-pending summary and must keep
@@ -173,9 +168,8 @@ user command / UserTemplate picker
 | File | Owns | Must not own |
 | --- | --- | --- |
 | `common/review.ts` | `IReviewService` contract, URI execution/manual review request and result types, review/evidence/result signature helpers. | Evidence shape definitions, browser cache implementation, Explorer decoration mapping, Slice submission. |
-| `common/reviewModel.ts` | Pure Review domain model: Review input evidence wrapper, `ReviewContext`, `SegmentCandidate`, `ReviewCandidate`, `ReviewResult`, `ReviewDecision`, factors, findings, `ReviewedTemplate`, `ReviewSummary`. | Service implementation, evidence production, Recipe catalog storage, Explorer UI types, structured-content adapter types. |
-| `common/reviewSelector.ts` | Pure Recipe dataRange/blockPartition/physicalLayout/logicalRelation matching against URI/content evidence. | File reads, parser logic, candidate scoring, Template materialization. |
-| `common/reviewCandidate.ts` | Pure Recipe/UserTemplate/built-in template snapshot + URI/content evidence -> `SegmentCandidate` / `ReviewCandidate` derivation. | Final Review status, `ReviewedTemplate` selection, Slice execution, Explorer decoration. |
+| `common/reviewModel.ts` | Pure Review domain model: Review input evidence wrapper, `ReviewContext`, `SegmentCandidate`, `ReviewCandidate`, `ReviewResult`, `ReviewDecision`, factors, findings, `ReviewedTemplate`, `ReviewSummary`. | Service implementation, evidence production, DataResource semantic-library storage, Explorer UI types, structured-content adapter types. |
+| `common/reviewCandidate.ts` | Pure DataResource binding evidence + UserTemplate snapshot + URI/content context -> `SegmentCandidate` / `ReviewCandidate` derivation. | Final Review status, `ReviewedTemplate` selection, Slice execution, Explorer decoration, semantic title matching. |
 | `common/reviewDecision.ts` | Pure assembly of context, candidates, scoring, and decision policy into `ReviewResult`, selected `ReviewedTemplate`, and summary-ready facts. This is one decision pipeline, not separate scoring/result owners. | Candidate derivation, browser scheduling/cache, file/model reads, Explorer decoration mapping, Slice execution. |
 | `browser/reviewService.ts` | Injectable service owner for cache, stale checks, scheduling/background review, manual review entry points, and consuming `IDataResourceService` structured-content snapshots. | Table UI parsing, table projection ownership, data-resource resolution, DOM/UI decoration, Explorer tree state, Slice execution. |
 
@@ -184,8 +178,8 @@ Review candidate helpers live under `services/review/common` and produce
 projection. These helpers are pure review pipeline modules, not independent
 services; `browser/reviewService.ts` remains the single service owner that
 orchestrates the complete Review workflow. User-template candidates come
-through `IUserTemplateService` and `UserTemplateSnapshot`. Built-in recipes or
-built-in template snapshots are candidate inputs, not pre-reviewed results.
+through `IUserTemplateService` and `UserTemplateSnapshot`. DataResource binding
+candidates are automatic candidate inputs, not pre-reviewed results.
 Decision logic and candidate derivation logic belong in Review, not Template,
 Table UI/model, Explorer, or Slice.
 
@@ -228,16 +222,17 @@ snapshot. Do not reintroduce Review-local structured-content bridges.
 - Blocking Review findings, including parser-diagnostic hard gates projected
   from structured content evidence, must produce an `invalid` `ReviewDecision`
   rather than a manual-adjustment state.
-- `ReviewedTemplate.source` describes template provenance only: `builtin` or
-  `user`. It must not encode manual, auto, saved-selection compatibility,
-  force-review override, user command, or system trigger.
+- `ReviewedTemplate.source` describes template provenance only:
+  `dataResource` or `user`. It must not encode manual, auto,
+  saved-selection compatibility, force-review override, user command, or system
+  trigger.
 - Accepted measurement semantics belong on the reviewed executable `Template`
   snapshot (`ReviewedTemplate.template.measurement`), not as standalone fields
   on `UriReviewExecution`, `ReviewSummary`, or Slice request bridge fields.
 - Execution trigger belongs to `SliceUriRequest.trigger`.
 - Non-selected candidate records store summaries only. Detail rebuilding must
-  verify Recipe/UserTemplate fingerprints and return a stale result when
-  snapshots no longer match.
+  verify DataResource semantic/evidence fingerprints and UserTemplate versions,
+  and return a stale result when snapshots no longer match.
 - Review signatures include URI-backed source identity, `contentHash` when
   available, `sourceVersion`, `evidenceFingerprint`, and optional
   `materializationVersion`, so reviewed facts can go stale on content,

@@ -9,7 +9,7 @@ The files domain has four layers that must stay separate:
 | Layer | Owns | Must not own |
 | --- | --- | --- |
 | `platform/files` | URI filesystem providers, read/write/stat/watch, provider registration, browser/desktop adapters | Explorer state, raw table records, source preparation, Session records |
-| `workbench/services/tableFile` | URI-backed table file working-copy lifecycle, reader, and table text/byte helpers for file-backed models | Explorer UI, Table view state, preview projection, table-model inference, Recipe/Review/Slice decisions, explicit import ledger commits |
+| `workbench/services/tableFile` | URI-backed table file working-copy lifecycle, reader, and table text/byte helpers for file-backed models | Explorer UI, Table view state, preview projection, table-model inference, DataResource/Review/Slice decisions, explicit import ledger commits |
 | `workbench/contrib/files` | Files feature UI: `IExplorerService`, Explorer model/view, source workflow, commands/actions/context menus | CSV/TSV/XLS/XLSX parsing internals, platform provider contracts, canonical Session ownership |
 
 `Explorer` is the UI-state layer inside Files. Its service contract belongs

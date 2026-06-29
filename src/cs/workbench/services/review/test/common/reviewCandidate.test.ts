@@ -7,21 +7,16 @@ import assert from "assert";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
-	createRecipeReviewCandidate,
-	deriveRecipeReviewCandidates,
+	deriveDataResourceReviewCandidates,
 	deriveUserTemplateReviewCandidates,
 } from "src/cs/workbench/services/review/common/reviewCandidate";
 import {
 	scoreReviewCandidate,
 } from "src/cs/workbench/services/review/common/reviewDecision";
-import { evaluateReviewSelector } from "src/cs/workbench/services/review/common/reviewSelector";
 import {
 	createEmptyStructuredContentStructure,
-	type StructuredMeasurementColumnRef as MeasurementColumnRef,
+	type StructuredContentEvidence,
 } from "src/cs/workbench/services/dataResource/common/structuredContent";
-import { builtinRecipes } from "cs/workbench/services/recipes/common/builtinRecipes.generated";
-import type { Recipe } from "cs/workbench/services/recipes/common/recipe";
-import { createRecipeSnapshot } from "cs/workbench/services/recipes/common/recipeCodec";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import type { Template } from "src/cs/workbench/services/template/common/template";
 import type { SegmentCandidate, ReviewContext, ReviewEvidence } from "src/cs/workbench/services/review/common/reviewModel";
@@ -33,21 +28,15 @@ import type {
 suite("workbench/services/review/test/common/reviewCandidate", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test("builds builtin IV transfer recipe into a review candidate", () => {
-		const recipe = getBuiltinRecipe("builtin.iv.transfer");
+	test("builds DataResource binding into a review candidate", () => {
+		const context = createReviewContext(createReviewEvidence());
+		const candidates = deriveDataResourceReviewCandidates({ context });
 
-		const evidence = createReviewEvidence();
-		const context = createReviewContext(evidence);
-		const evaluation = evaluateReviewSelector(recipe, evidence);
-		const candidate = createRecipeReviewCandidate({
-			context,
-			recipe,
-			evaluation,
-		});
-
+		assert.equal(candidates.length, 1);
+		const candidate = candidates[0];
 		assert.ok(candidate);
-		assert.equal(candidate.source.kind, "builtin");
-		assert.equal(candidate.source.kind === "builtin" && candidate.source.recipeId, "builtin.iv.transfer");
+		assert.equal(candidate.source.kind, "dataResource");
+		assert.equal(candidate.source.kind === "dataResource" && candidate.source.bindingCandidateId, "binding-a");
 		assert.equal(candidate.projectionTrace.diagnostics.length, 0);
 		assert.equal(candidate.interpretation.blocks.length, 1);
 		assert.deepEqual(candidate.interpretation.blocks[0]?.rowRange, {
@@ -76,108 +65,21 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 			curveFamily: "iv",
 			ivMode: "transfer",
 		});
-		assert.equal(candidate.interpretation.blocks[0]?.segmentation.kind, "auto");
-		assert.ok(candidate.interpretationFingerprint);
+		assert.ok(candidate.interpretationFingerprint.startsWith("review-interpretation:"));
 	});
 
-	test("matches IV transfer candidates with generic instrument voltage/current headers", () => {
-		const recipe = getBuiltinRecipe("builtin.iv.transfer");
-
-		const evidence = createReviewEvidence({
-			columns: [
-				createColumn(0, "voltage", "V", "CH1 Voltage"),
-				createColumn(1, "current", "A", "CH1 Current"),
-			],
-		});
-		const context = createReviewContext(evidence);
-		const candidate = createRecipeReviewCandidate({
-			context,
-			recipe,
-			evaluation: evaluateReviewSelector(recipe, evidence),
-		});
+	test("splits X groups into line blocks", () => {
+		const context = createReviewContext(createReviewEvidence({
+			xGroups: true,
+		}));
+		const candidate = deriveDataResourceReviewCandidates({ context })[0];
 
 		assert.ok(candidate);
-		assert.deepEqual(candidate.interpretation.blocks[0]?.x, {
-			columns: [0],
-			ranges: [{
-				column: 0,
-				startRow: 1,
-				endRow: 3,
-			}],
-			unit: "V",
-		});
-		assert.deepEqual(candidate.interpretation.blocks[0]?.y, {
-			columns: [1],
-			ranges: [{
-				column: 1,
-				startRow: 1,
-				endRow: 3,
-			}],
-			unit: "A",
-		});
-	});
-
-	test("does not build recipe candidates from role columns without numeric data ranges", () => {
-		const recipe = getBuiltinRecipe("builtin.iv.transfer");
-		const evidence = createReviewEvidence({
-			columns: [
-				createColumnWithoutDataRange(0, "vg", "V"),
-				createColumn(1, "id", "A"),
-			],
-		});
-
-		const candidate = createRecipeReviewCandidate({
-			context: createReviewContext(evidence),
-			recipe,
-			evaluation: evaluateReviewSelector(recipe, evidence),
-		});
-
-		assert.equal(candidate, null);
-	});
-
-	test("builds grouped XY IV recipe from series partition layout bindings", () => {
-		const recipe = getBuiltinRecipe("builtin.iv.transfer.grouped");
-
-		const evidence = createReviewEvidence({
-			layoutKind: "groupedSweep",
-			layoutBinding: {
-				xCol: 2,
-				yCols: [3],
-				groupByCol: 0,
-				pointCol: 1,
-			},
-			columns: [
-				createColumn(2, "vg", "V"),
-				createColumn(3, "id", "A"),
-			],
-		});
-		const context = createReviewContext(evidence);
-		const candidate = createRecipeReviewCandidate({
-			context,
-			recipe,
-			evaluation: evaluateReviewSelector(recipe, evidence),
-		});
-
-		assert.ok(candidate);
-		assert.equal(candidate.projectionTrace.diagnostics.length, 0);
-		assert.deepEqual(candidate.interpretation.blocks[0]?.x, {
-			columns: [2],
-			ranges: [{
-				column: 2,
-				startRow: 1,
-				endRow: 3,
-			}],
-			unit: "V",
-		});
-		assert.deepEqual(candidate.interpretation.blocks[0]?.y, {
-			columns: [3],
-			ranges: [{
-				column: 3,
-				startRow: 1,
-				endRow: 3,
-			}],
-			unit: "A",
-		});
+		assert.equal(candidate.interpretation.blocks.length, 2);
+		assert.deepEqual(candidate.interpretation.blocks.map(block => block.rowRange), [
+			{ startRow: 1, endRow: 2 },
+			{ startRow: 3, endRow: 4 },
+		]);
 		assert.equal(candidate.interpretation.blocks[0]?.legend.target, "group");
 	});
 
@@ -205,15 +107,8 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 	});
 
 	test("treats missing URI candidate versions as stale", () => {
-		const recipe = getBuiltinRecipe("builtin.iv.transfer");
-
-		const evidence = createReviewEvidence();
-		const context = createReviewContext(evidence);
-		const candidate = createRecipeReviewCandidate({
-			context,
-			recipe,
-			evaluation: evaluateReviewSelector(recipe, evidence),
-		});
+		const context = createReviewContext(createReviewEvidence());
+		const candidate = deriveDataResourceReviewCandidates({ context })[0];
 		assert.ok(candidate);
 		const { modelVersion, ...candidateWithoutModelVersion } = candidate;
 		assert.equal(modelVersion, 3);
@@ -228,15 +123,8 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 	});
 
 	test("treats mismatched URI content hashes as stale", () => {
-		const recipe = getBuiltinRecipe("builtin.iv.transfer");
-
-		const evidence = createReviewEvidence();
-		const context = createReviewContext(evidence, { contentHash: "sha256:first" });
-		const candidate = createRecipeReviewCandidate({
-			context,
-			recipe,
-			evaluation: evaluateReviewSelector(recipe, evidence),
-		});
+		const context = createReviewContext(createReviewEvidence(), { contentHash: "sha256:first" });
+		const candidate = deriveDataResourceReviewCandidates({ context })[0];
 		assert.ok(candidate);
 
 		const staleReview = scoreReviewCandidate({
@@ -252,50 +140,14 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 	});
 
 	test("exports review candidates as segment candidates for the content-first pipeline", () => {
-		const recipe = getBuiltinRecipe("builtin.iv.transfer");
-
-		const evidence = createReviewEvidence();
-		const context = createReviewContext(evidence, { contentHash: "sha256:first" });
-		const candidate = createRecipeReviewCandidate({
-			context,
-			recipe,
-			evaluation: evaluateReviewSelector(recipe, evidence),
-		});
+		const context = createReviewContext(createReviewEvidence(), { contentHash: "sha256:first" });
+		const candidate = deriveDataResourceReviewCandidates({ context })[0];
 		assert.ok(candidate);
 		const segmentCandidate: SegmentCandidate = candidate;
 
 		assert.ok(segmentCandidate);
 		assert.equal(segmentCandidate.contentHash, "sha256:first");
 		assert.equal(segmentCandidate.evidenceFingerprint, "evidence:test");
-	});
-
-	test("orders matching recipe candidates by recipe priority", () => {
-		const recipe = getBuiltinRecipe("builtin.iv.transfer");
-		const candidates = deriveRecipeReviewCandidates({
-			context: createReviewContext(createReviewEvidence()),
-			recipeSnapshot: {
-				version: 1,
-				fingerprint: "recipe:test",
-				diagnostics: [],
-				recipes: [
-					{
-						...recipe,
-						id: "workspace.low",
-						priority: 1,
-					},
-					{
-						...recipe,
-						id: "workspace.high",
-						priority: 200,
-					},
-				],
-			},
-		});
-
-		assert.equal(candidates.length, 2);
-		assert.equal(candidates[0]?.source.kind === "builtin" && candidates[0].source.recipeId, "workspace.high");
-		assert.equal(candidates[0]?.providerRank, 200);
-		assert.equal(candidates[1]?.source.kind === "builtin" && candidates[1].source.recipeId, "workspace.low");
 	});
 
 	test("rejects user templates with mismatched applicability", () => {
@@ -313,14 +165,6 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 		assert.deepEqual(candidates, []);
 	});
 });
-
-const builtinRecipeSnapshot = createRecipeSnapshot(builtinRecipes);
-
-const getBuiltinRecipe = (id: string): Recipe => {
-	const recipe = builtinRecipeSnapshot.recipes.find(candidate => candidate.id === id);
-	assert.ok(recipe);
-	return recipe;
-};
 
 const createReviewContext = (
 	evidence: ReviewEvidence,
@@ -361,116 +205,163 @@ const createUserTemplate = (template: Template): UserTemplate => ({
 });
 
 const createReviewEvidence = (options: {
-	readonly columns?: readonly MeasurementColumnRef[];
-	readonly layoutBinding?: {
-		readonly xCol?: number;
-		readonly yCols?: readonly number[];
-		readonly groupByCol?: number;
-		readonly pointCol?: number;
-	};
-	readonly layoutKind?: "groupedSweep" | "simpleXY";
+	readonly xGroups?: boolean;
 } = {}): ReviewEvidence => ({
 	sourceMetadata: {
 		fileName: "Transfer.csv",
-		rowCount: 4,
+		rowCount: options.xGroups ? 5 : 4,
 		columnCount: 2,
 	},
-	structuredContent: {
-		structure: {
-			...createEmptyStructuredContentStructure(),
-			fingerprint: "schema-a",
-		},
-		columnProfiles: [],
-		layoutCandidates: [{
-			id: "layout-a",
-			layoutKind: options.layoutKind ?? "simpleXY",
-			confidence: 0.9,
-			bindings: [options.layoutBinding ?? {
-				xCol: 0,
-				yCols: [1],
-			}],
+	structuredContent: createStructuredContentEvidence(options),
+});
+
+const createStructuredContentEvidence = ({
+	xGroups = false,
+}: {
+	readonly xGroups?: boolean;
+} = {}): StructuredContentEvidence => ({
+	structure: {
+		...createEmptyStructuredContentStructure(),
+		fingerprint: "schema-a",
+	},
+	columnProfiles: [{
+		rawCol: 0,
+		headerText: "Vg",
+		normalizedHeader: "vg",
+		kind: "numeric",
+	}, {
+		rawCol: 1,
+		headerText: "Id",
+		normalizedHeader: "id",
+		kind: "numeric",
+	}],
+	xRangeCandidates: [{
+		id: "x-range-a",
+		column: 0,
+		startRow: 1,
+		endRow: xGroups ? 4 : 3,
+		direction: xGroups ? "mixed" : "ascending",
+		stepKind: xGroups ? "segmentedConstant" : "constant",
+		step: 1,
+		pointCount: xGroups ? 4 : 3,
+		confidence: 0.95,
+		reasons: ["xRange.test"],
+	}],
+	xGroupCandidates: xGroups
+		? [{
+			id: "x-group-a",
+			xRangeCandidateId: "x-range-a",
+			startRow: 1,
+			endRow: 2,
+			direction: "ascending",
+			groupKind: "singleMonotonicRun",
+			lineIndex: 0,
+			confidence: 0.95,
 			reasons: [],
-		}],
-		semanticCandidates: [],
-		groups: [],
-		blocks: [{
-			id: "block-a",
-			fileId: "file-a",
-			rawTableId: "table-a",
-			label: "Transfer",
-			family: "iv",
-			ivMode: "transfer",
-			source: {
-				fullRange: {
-					startRow: 0,
-					endRow: 3,
-					startCol: 0,
-					endCol: 1,
-				},
+		}, {
+			id: "x-group-b",
+			xRangeCandidateId: "x-range-a",
+			startRow: 3,
+			endRow: 4,
+			direction: "descending",
+			groupKind: "directionBreak",
+			lineIndex: 1,
+			confidence: 0.95,
+			reasons: [],
+		}]
+		: [],
+	dataBlockCandidates: [{
+		id: "data-block-a",
+		xRangeCandidateId: "x-range-a",
+		xGroupCandidateIds: xGroups ? ["x-group-a", "x-group-b"] : [],
+		startRow: 1,
+		endRow: xGroups ? 4 : 3,
+		startCol: 0,
+		endCol: 1,
+		xColumn: 0,
+		dependentColumns: [1],
+		separatorColumns: [],
+		columnDirection: "rightPreferred",
+		confidence: 0.95,
+		reasons: ["dataBlock.test"],
+	}],
+	dependentValueCandidates: [{
+		id: "dependent-a",
+		column: 1,
+		xRangeCandidateIds: ["x-range-a"],
+		dataBlockCandidateIds: ["data-block-a"],
+		numericCoverage: 1,
+		confidence: 0.95,
+		reasons: ["dependent.test"],
+	}],
+	columnTitleSpans: [],
+	bindingCandidates: [{
+		id: "binding-a",
+		xRangeCandidateIds: ["x-range-a"],
+		dependentValueCandidateIds: ["dependent-a"],
+		dataBlockCandidateIds: ["data-block-a"],
+		relation: "oneX-oneY",
+		confidence: 0.95,
+		ambiguityCodes: [],
+		reasons: ["binding.test"],
+	}],
+	semanticLibraryFingerprint: "semantic:test",
+	semanticCandidates: [],
+	groups: [],
+	blocks: [{
+		id: "data-block-a",
+		fileId: "file-a",
+		rawTableId: "table-a",
+		label: "Detected IV Transfer",
+		family: "iv",
+		ivMode: "transfer",
+		source: {
+			fullRange: {
+				startRow: 0,
+				endRow: xGroups ? 4 : 3,
+				startCol: 0,
+				endCol: 1,
+			},
+			dataRange: {
+				startRow: 1,
+				endRow: xGroups ? 4 : 3,
+				startCol: 0,
+				endCol: 1,
+			},
+		},
+		columns: {
+			columns: [{
+				rawCol: 0,
+				role: "vg",
+				unit: "V",
+				headerText: "Vg",
+				confidence: 0.95,
 				dataRange: {
 					startRow: 1,
-					endRow: 3,
+					endRow: xGroups ? 4 : 3,
 					startCol: 0,
+					endCol: 0,
+				},
+			}, {
+				rawCol: 1,
+				role: "id",
+				unit: "A",
+				headerText: "Id",
+				confidence: 0.95,
+				dataRange: {
+					startRow: 1,
+					endRow: xGroups ? 4 : 3,
+					startCol: 1,
 					endCol: 1,
 				},
-			},
-			columns: {
-				columns: options.columns ?? [
-					createColumn(0, "vg", "V"),
-					createColumn(1, "id", "A"),
-				],
-			},
-			rowCount: 4,
-			columnCount: 2,
-			confidence: 0.95,
-			diagnosticCodes: [],
-		}],
-		diagnostics: [],
-	},
-});
-
-const createColumn = (
-	rawCol: number,
-	role: MeasurementColumnRef["role"],
-	unit: string,
-	headerText: string = role,
-): MeasurementColumnRef => ({
-	rawCol,
-	role,
-	unit,
-	headerText,
-	confidence: 0.95,
-	sourceRange: {
-		startRow: 0,
-		endRow: 3,
-		startCol: rawCol,
-		endCol: rawCol,
-	},
-	dataRange: {
-		startRow: 1,
-		endRow: 3,
-		startCol: rawCol,
-		endCol: rawCol,
-	},
-});
-
-const createColumnWithoutDataRange = (
-	rawCol: number,
-	role: MeasurementColumnRef["role"],
-	unit: string,
-	headerText: string = role,
-): MeasurementColumnRef => ({
-	rawCol,
-	role,
-	unit,
-	headerText,
-	confidence: 0.95,
-	sourceRange: {
-		startRow: 0,
-		endRow: 3,
-		startCol: rawCol,
-		endCol: rawCol,
-	},
+			}],
+		},
+		rowCount: xGroups ? 4 : 3,
+		columnCount: 2,
+		confidence: 0.95,
+		diagnosticCodes: [],
+	}],
+	diagnostics: [],
 });
 
 const createTemplate = (): Template => ({

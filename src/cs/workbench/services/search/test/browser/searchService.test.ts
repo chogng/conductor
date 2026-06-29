@@ -471,6 +471,13 @@ const createStructuredContentSnapshot = (
 			rawCol: 0,
 		}],
 		diagnostics: [],
+		xRangeCandidates: [],
+		xGroupCandidates: [],
+		dataBlockCandidates: [],
+		dependentValueCandidates: [],
+		columnTitleSpans: [],
+		bindingCandidates: [],
+		semanticLibraryFingerprint: "semantic:test",
 		groups: [{
 			blockIds: ["block-a"],
 			fileId: resource.toString(),
@@ -478,7 +485,6 @@ const createStructuredContentSnapshot = (
 			label: "Alpha group",
 			rawTableId: "Sheet 1",
 		}],
-		layoutCandidates: [],
 		semanticCandidates: [],
 		structure: {
 			blockRegions: [],

@@ -130,12 +130,11 @@ Runtime folders:
 | `IFileService` | platform filesystem bytes/stat/watch/provider capability |
 | `IExplorerService` | Files Explorer UI state: resources, selection, expansion, layout, context |
 | Explorer source helpers | source collection/import contracts for ordinary Explorer URI-backed imports |
-| `IDataResourceService` | URI-backed Conductor data-resource snapshots: structured content, sheet sub-targets, source versions, and parser diagnostics for Review/Table/Search/Slice consumers |
+| `IDataResourceService` | URI-backed Conductor data-resource snapshots: structured content, semantic title matching, X/data-block/binding evidence, sheet sub-targets, source versions, and parser diagnostics for Review/Table/Search/Slice consumers |
 | `ISessionService` | canonical imported data-file/raw-table ledger and downstream analysis records |
-| `IRecipeService` | passive built-in rules; it does not evaluate tables or build review candidates |
 | `IUserDataProfileResourceService` | profile-scoped user-data resources such as UserTemplate payloads; it owns profile resource persistence and import/export aggregation boundaries, not individual domain semantics |
-| `IReviewService` | URI-grounded content-version review: builds `SegmentCandidate`/review candidates from canonical evidence plus Recipe/UserTemplate/built-in template snapshots, evaluates candidates, selects `ReviewedTemplate` for table adapters, owns manual adjustment state and system-application recommendation |
-| `services/template` | canonical executable Template spec, editor adapters, and manual-template UI state; it does not own automatic Recipe/UserTemplate/built-in template candidate derivation |
+| `IReviewService` | URI-grounded content-version review: builds `SegmentCandidate`/review candidates from DataResource binding evidence plus UserTemplate snapshots, evaluates candidates, selects `ReviewedTemplate` for table adapters, owns manual adjustment state and system-application recommendation |
+| `services/template` | canonical executable Template spec, editor adapters, and manual-template UI state; it does not own automatic DataResource/UserTemplate candidate derivation |
 | `IUserTemplateService` | native user template catalog CRUD/snapshots/import/export and explicit template lookup |
 | `ITableService` | table source, rows, selection snapshot, reveal/highlight |
 | `ITemplateViewStateService` | Template UI selected-template/form editor state |
@@ -191,7 +190,7 @@ Primary review/template flow:
 ```txt
 URI + contentHash/sourceVersion
   -> canonical content evidence
-  + Recipe/UserTemplate/built-in template snapshots
+  + DataResource binding evidence/UserTemplate snapshots
   -> SegmentCandidate / ReviewCandidate
   -> ReviewResult / ReviewedTemplate
   -> SliceUriRequest
@@ -202,12 +201,13 @@ Specific flow owners:
 
 - Import/source collection: Explorer/files workflow coordinates source preparation; Explorer owns local visible rows and table-resource open handoff.
 - Session ledger: Session backs only migration-ledger imported raw-table storage and downstream analysis records, including TableModel commits, during migration.
-- Structured evidence / Review candidate building: Review consumes
-  URI/content-version structured evidence plus Recipe/UserTemplate/built-in
-  template snapshots to build transient `SegmentCandidate` / `ReviewCandidate`
-  values. Table UI/materialization is a branch on the same URI content chain,
-  not the public Review identity. Do not keep retired service, record, or
-  command names in new docs or APIs.
+- Structured evidence / Review candidate building: DataResource produces
+  URI/content-version structured evidence, semantic-library fingerprints,
+  X ranges/groups, data blocks, dependent values, and binding candidates.
+  Review consumes that evidence plus UserTemplate snapshots to build transient
+  `SegmentCandidate` / `ReviewCandidate` values. Table UI/materialization is a
+  branch on the same URI content chain, not the public Review identity. Do not
+  keep retired service, record, or command names in new docs or APIs.
 - Review: evaluates candidates, selects a `ReviewedTemplate` for table adapter
   execution when ready, and keeps URI-backed review results service-local.
 - Explicit execution controllers and Slice commands consume

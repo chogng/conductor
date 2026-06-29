@@ -31,7 +31,6 @@ import {
 	REVIEW_POLICY_VERSION,
 	createReviewEvidenceSignature,
 } from "src/cs/workbench/services/review/common/review";
-import type { RecipeSnapshot } from "cs/workbench/services/recipes/common/recipe";
 import type { Template } from "src/cs/workbench/services/template/common/template";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import type { UserTemplateSnapshot } from "src/cs/workbench/services/userTemplate/common/userTemplate";
@@ -42,6 +41,7 @@ const SYSTEM_RECOMMENDED_CONFIDENCE = 0.85;
 const READY_CONFIDENCE = 0.85;
 const INVALID_CONFIDENCE = 0.5;
 const AMBIGUITY_MARGIN = 0.05;
+const AMBIGUITY_CANDIDATE_CONFIDENCE_MARGIN = 0.08;
 const SIMILAR_SCHEMA_PROFILE_SCORE_CAP = 0.72;
 
 export type ReviewDerivationInput = {
@@ -50,7 +50,6 @@ export type ReviewDerivationInput = {
 	readonly evidence: ReviewEvidence;
 	readonly fileName?: string | null;
 	readonly modelVersion: number;
-	readonly recipeSnapshot: RecipeSnapshot;
 	readonly resource: URI;
 	readonly rowCount?: number;
 	readonly schemaProfileSnapshot?: SchemaProfileSnapshot;
@@ -65,7 +64,6 @@ export const deriveReviewResult = (
 	const context = createReviewDecisionContext(input);
 	const candidates = deriveAutomaticReviewCandidates({
 		context,
-		recipeSnapshot: input.recipeSnapshot,
 		userTemplateSnapshot: input.userTemplateSnapshot,
 	});
 	const reviews = scoreReviewCandidates({
@@ -84,7 +82,7 @@ export const deriveReviewResult = (
 		...(context.contentHash ? { contentHash: context.contentHash } : {}),
 		...(context.sheetId ? { sheetId: context.sheetId } : {}),
 		evidenceFingerprint: context.evidenceFingerprint,
-		recipeFingerprint: input.recipeSnapshot.fingerprint,
+		semanticLibraryFingerprint: input.evidence.structuredContent?.semanticLibraryFingerprint ?? "",
 		userTemplateCatalogVersion: input.userTemplateSnapshot.version,
 		userTemplateEffectiveFingerprint: input.userTemplateSnapshot.effectiveFingerprint,
 		reviewEngineVersion: REVIEW_ENGINE_VERSION,
@@ -258,7 +256,7 @@ const createReviewDecision = ({
 		diagnostics: [{
 			severity: "warning",
 			code: "review.noCandidates",
-			message: "No Recipe or UserTemplate candidates matched this content evidence.",
+			message: "No DataResource or UserTemplate candidates matched this content evidence.",
 		}],
 		suggestedActions: [{ id: "review.createTemplate", label: "Create template" }],
 	};
@@ -384,7 +382,16 @@ export const scoreReviewCandidates = ({
 		.sort((left, right) => right[1] - left[1]);
 	const topScore = orderedBaseScores[0]?.[1] ?? 0;
 	const secondScore = orderedBaseScores[1]?.[1] ?? 0;
-	const isAmbiguous = candidates.length > 1 && topScore - secondScore < AMBIGUITY_MARGIN;
+	const candidateById = new Map(candidates.map(candidate => [candidate.id, candidate]));
+	const topCandidate = candidateById.get(orderedBaseScores[0]?.[0] ?? "");
+	const secondCandidate = candidateById.get(orderedBaseScores[1]?.[0] ?? "");
+	const candidateConfidenceMargin = topCandidate && secondCandidate
+		? Math.abs(topCandidate.confidence - secondCandidate.confidence)
+		: Number.POSITIVE_INFINITY;
+	const isAmbiguous =
+		candidates.length > 1 &&
+		topScore - secondScore < AMBIGUITY_MARGIN &&
+		candidateConfidenceMargin < AMBIGUITY_CANDIDATE_CONFIDENCE_MARGIN;
 
 	return candidates.map(candidate =>
 		scoreReviewCandidate({
@@ -769,7 +776,7 @@ const applyConfidenceCaps = (
 	if (findings.some(finding => finding.code === "review.rangeOutOfBounds")) {
 		return Math.min(confidence, 0.39);
 	}
-	if (findings.some(finding => finding.code === "recipeCandidate.missingRoleBinding" || finding.code === "recipeCandidate.missingBlock")) {
+	if (findings.some(finding => finding.code === "dataResourceCandidate.missingAxisBinding" || finding.code === "dataResourceCandidate.missingDataBlock")) {
 		return Math.min(confidence, 0.49);
 	}
 	if (findings.some(finding => finding.code === "review.missingProjectionBlock")) {
@@ -784,8 +791,8 @@ const applyConfidenceCaps = (
 const isRepairableProjectionFinding = (
 	finding: ReviewFinding,
 ): boolean =>
-	finding.code === "recipeCandidate.missingRoleBinding" ||
-	finding.code === "recipeCandidate.missingBlock" ||
+	finding.code === "dataResourceCandidate.missingAxisBinding" ||
+	finding.code === "dataResourceCandidate.missingDataBlock" ||
 	finding.code === "review.missingProjectionBlock";
 
 const getDiagnosticPenalty = (

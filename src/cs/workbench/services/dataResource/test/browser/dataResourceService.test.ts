@@ -1,0 +1,315 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from "assert";
+
+import { Emitter } from "src/cs/base/common/event";
+import { Disposable } from "src/cs/base/common/lifecycle";
+import { URI } from "src/cs/base/common/uri";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import { DataResourceService } from "src/cs/workbench/services/dataResource/browser/dataResourceService";
+import {
+	matchDataResourceRowMarker,
+	matchDataResourceSemanticTitle,
+} from "src/cs/workbench/services/dataResource/common/semanticLibrary";
+import type { StructuredContentEvidence } from "src/cs/workbench/services/dataResource/common/structuredContent";
+import {
+	TableModel as TableContentModel,
+	type ITableModel,
+	type TableModelContentSnapshot,
+} from "src/cs/workbench/services/table/common/model";
+import type { TableSource } from "src/cs/workbench/services/table/common/table";
+import type {
+	ITableModelContentProvider,
+	ITableModelReference,
+	ITableModelService,
+} from "src/cs/workbench/services/table/common/resolverService";
+
+suite("workbench/services/dataResource/test/browser/dataResourceService", () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	let resourceCounter = 0;
+
+	const resolveEvidence = async (
+		rows: readonly (readonly string[])[],
+	): Promise<StructuredContentEvidence> => {
+		resourceCounter += 1;
+		const resource = URI.file(`/workspace/data-resource-${resourceCounter}.csv`);
+		const tableModelService = store.add(new TestTableModelService(resource, createTableContent(rows)));
+		const service = store.add(new DataResourceService(tableModelService));
+		const reference = await service.resolveStructuredContent({ resource });
+		const resolution = reference.object;
+		if (resolution.kind !== "ready") {
+			assert.fail(`Expected ready DataResource resolution, got ${resolution.kind}.`);
+		}
+		const evidence = resolution.snapshot.structuredContent;
+		reference.dispose();
+		return evidence;
+	};
+
+	test("matches semantic title and row marker aliases", () => {
+		const xMatch = matchDataResourceSemanticTitle("drain TotalCurrent(IdVg_n938_des) X");
+		const yMatch = matchDataResourceSemanticTitle("drain TotalCurrent(IdVg_n938_des) Y");
+
+		assert.equal(xMatch?.axisTendency, "x");
+		assert.equal(xMatch?.canonicalRole, "vg");
+		assert.equal(yMatch?.axisTendency, "dependent");
+		assert.equal(yMatch?.canonicalRole, "id");
+		assert.equal(matchDataResourceSemanticTitle("vpn")?.canonicalRole, "voltage");
+		assert.equal(matchDataResourceSemanticTitle("vpn")?.axisTendency, "x");
+		assert.equal(matchDataResourceSemanticTitle("Cp")?.canonicalRole, "capacitance");
+		assert.equal(matchDataResourceSemanticTitle("Cp")?.axisTendency, "dependent");
+		assert.equal(matchDataResourceSemanticTitle("Cp(vp=0.00000)")?.canonicalRole, "capacitance");
+		assert.equal(matchDataResourceSemanticTitle("Cp(vp=0.00000)")?.axisTendency, "dependent");
+		assert.equal(matchDataResourceSemanticTitle("ipt")?.canonicalRole, "current");
+		assert.equal(matchDataResourceSemanticTitle("ipt")?.axisTendency, "dependent");
+		assert.equal(matchDataResourceRowMarker("DataName"), "titleRow");
+		assert.equal(matchDataResourceRowMarker("DataValue"), "dataRow");
+	});
+
+	test("detects first-row X/Y data blocks and bindings", async () => {
+		const evidence = await resolveEvidence([
+			["Vg", "Id"],
+			["0", "1e-12"],
+			["0.5", "2e-12"],
+			["1", "4e-12"],
+		]);
+
+		const xRange = evidence.xRangeCandidates.find(candidate => candidate.column === 0);
+		assert.ok(xRange);
+		assert.equal(xRange.startRow, 1);
+		assert.equal(xRange.endRow, 3);
+
+		const block = evidence.dataBlockCandidates.find(candidate =>
+			candidate.xColumn === 0 && candidate.dependentColumns.includes(1)
+		);
+		assert.ok(block);
+		assert.equal(block.columnDirection, "rightPreferred");
+
+		const binding = evidence.bindingCandidates.find(candidate =>
+			candidate.dataBlockCandidateIds.includes(block.id)
+		);
+		assert.ok(binding);
+		assert.equal(binding.relation, "oneX-oneY");
+	});
+
+	test("uses X evidence for headerless numeric data", async () => {
+		const evidence = await resolveEvidence([
+			["0", "1e-12"],
+			["0.5", "2e-12"],
+			["1", "4e-12"],
+			["1.5", "8e-12"],
+		]);
+
+		assert.ok(evidence.xRangeCandidates.some(candidate =>
+			candidate.column === 0 && candidate.startRow === 0 && candidate.endRow === 3
+		));
+		assert.ok(evidence.dataBlockCandidates.some(candidate =>
+			candidate.xColumn === 0 &&
+			candidate.dependentColumns.includes(1) &&
+			candidate.columnDirection === "rightPreferred"
+		));
+		assert.ok(evidence.bindingCandidates.length > 0);
+	});
+
+	test("uses DataName/DataValue title rows as column evidence", async () => {
+		const evidence = await resolveEvidence([
+			["Device", "N1", "N1"],
+			["DataName", "Vg", "Id"],
+			["DataValue", "0", "1e-12"],
+			["DataValue", "0.5", "2e-12"],
+			["DataValue", "1", "4e-12"],
+		]);
+
+		assert.ok(evidence.columnTitleSpans.some(span =>
+			span.targetColumn === 1 &&
+			span.titleCell.row === 1 &&
+			span.canonicalRole === "vg" &&
+			span.axisTendency === "x"
+		));
+		assert.ok(evidence.dataBlockCandidates.some(candidate =>
+			candidate.xColumn === 1 && candidate.dependentColumns.includes(2)
+		));
+	});
+
+	test("detects pairwise XY blocks and many-pair bindings", async () => {
+		const evidence = await resolveEvidence([
+			[
+				"drain TotalCurrent(IdVg_n938_des) X",
+				"drain TotalCurrent(IdVg_n938_des) Y",
+				"drain TotalCurrent(IdVd_n938_des) X",
+				"drain TotalCurrent(IdVd_n938_des) Y",
+			],
+			["0", "1e-12", "0", "1e-11"],
+			["0.5", "2e-12", "0.5", "2e-11"],
+			["1", "4e-12", "1", "4e-11"],
+		]);
+
+		assert.ok(evidence.dataBlockCandidates.some(candidate =>
+			candidate.xColumn === 0 && candidate.dependentColumns.length === 1
+		));
+		assert.ok(evidence.dataBlockCandidates.some(candidate =>
+			candidate.xColumn === 2 && candidate.dependentColumns.length === 1
+		));
+		assert.ok(evidence.bindingCandidates.some(candidate => candidate.relation === "manyXYpairs"));
+	});
+
+	test("splits monotonic X groups for reset and hysteresis sweeps", async () => {
+		const evidence = await resolveEvidence([
+			["Vg", "Id"],
+			["0", "1"],
+			["0.5", "2"],
+			["1", "3"],
+			["0", "4"],
+			["0.5", "5"],
+			["1", "6"],
+		]);
+
+		const xRange = evidence.xRangeCandidates.find(candidate => candidate.column === 0);
+		assert.ok(xRange);
+		const groups = evidence.xGroupCandidates.filter(group => group.xRangeCandidateId === xRange.id);
+		assert.equal(groups.length, 2);
+		assert.ok(groups.every(group => group.groupKind === "reset"));
+	});
+
+	test("treats blank columns as data block separators", async () => {
+		const evidence = await resolveEvidence([
+			["Vg", "Id", "", "Vd", "Id"],
+			["0", "1", "", "0", "10"],
+			["0.5", "2", "", "0.5", "20"],
+			["1", "3", "", "1", "30"],
+		]);
+
+		assert.ok(evidence.dataBlockCandidates.some(candidate =>
+			candidate.xColumn === 0 &&
+			candidate.dependentColumns.includes(1) &&
+			candidate.separatorColumns.includes(2)
+		));
+		assert.ok(evidence.dataBlockCandidates.some(candidate =>
+			candidate.xColumn === 3 && candidate.dependentColumns.includes(4)
+		));
+	});
+
+	test("keeps left-side dependent values lower confidence but available", async () => {
+		const evidence = await resolveEvidence([
+			["Id", "Vg"],
+			["1", "0"],
+			["2", "0.5"],
+			["3", "1"],
+		]);
+
+		assert.ok(evidence.dataBlockCandidates.some(candidate =>
+			candidate.xColumn === 1 &&
+			candidate.dependentColumns.includes(0) &&
+			candidate.columnDirection === "leftObserved"
+		));
+	});
+
+	test("does not auto-bind dirty mixed data without titles or X evidence", async () => {
+		const evidence = await resolveEvidence([
+			["marker", "alpha", "beta"],
+			["A", "0", "bad"],
+			["B", "missing", "1"],
+			["C", "2", "also-bad"],
+		]);
+
+		assert.equal(evidence.xRangeCandidates.length, 0);
+		assert.equal(evidence.dataBlockCandidates.length, 0);
+		assert.equal(evidence.bindingCandidates.length, 0);
+		assert.ok(evidence.diagnostics.some(diagnostic => diagnostic.code === "dataResource.noNumericRuns"));
+	});
+});
+
+class TestTableModelService extends Disposable implements ITableModelService {
+	public declare readonly _serviceBrand: undefined;
+
+	private readonly onDidChangeModelEmitter = this._register(new Emitter<ITableModel>());
+	public readonly onDidChangeModel = this.onDidChangeModelEmitter.event;
+	private readonly model: TableContentModel;
+
+	public constructor(
+		private readonly resource: URI,
+		private readonly content: TableModelContentSnapshot,
+	) {
+		super();
+		this.model = this._register(new TableContentModel(resource));
+	}
+
+	public canHandleResource(resource: URI): boolean {
+		return resource.toString() === this.resource.toString();
+	}
+
+	public async createModelReference(
+		resource: URI,
+		source?: TableSource | null,
+	): Promise<ITableModelReference> {
+		if (!this.canHandleResource(resource)) {
+			throw new Error(`Unsupported test table resource: ${resource.toString()}`);
+		}
+
+		await this.resolveModel(source);
+		return {
+			object: this.model,
+			dispose: () => undefined,
+		};
+	}
+
+	public get(resource: URI | null | undefined): ITableModel | undefined {
+		return resource && this.canHandleResource(resource)
+			? this.model
+			: undefined;
+	}
+
+	public registerContentProvider(provider: ITableModelContentProvider): { dispose(): void } {
+		return {
+			dispose: () => {
+				provider.dispose();
+			},
+		};
+	}
+
+	public resolve(resource: URI, source?: TableSource | null): void {
+		if (!this.canHandleResource(resource)) {
+			return;
+		}
+
+		void this.resolveModel(source);
+	}
+
+	private async resolveModel(source?: TableSource | null): Promise<void> {
+		if (this.model.getSnapshot().loadState.state === "ready") {
+			return;
+		}
+
+		const sheetId = String(source?.sheetId ?? "table-a");
+		await this.model.resolve({
+			resolveContent: async () => ({
+				content: this.content,
+				diagnostics: [],
+				format: "csv",
+				resource: this.resource,
+				sheets: [{
+					content: this.content,
+					sheetId,
+					sheetName: null,
+				}],
+				sourceVersion: 1,
+			}),
+		});
+		this.onDidChangeModelEmitter.fire(this.model);
+	}
+}
+
+const createTableContent = (
+	rows: readonly (readonly string[])[],
+): TableModelContentSnapshot => {
+	const columnCount = rows.reduce((count, row) => Math.max(count, row.length), 0);
+	return {
+		columnCount,
+		maxCellLengths: Array.from({ length: columnCount }, (_, column) =>
+			rows.reduce((length, row) => Math.max(length, String(row[column] ?? "").length), 0)
+		),
+		rowCount: rows.length,
+		rows,
+	};
+};

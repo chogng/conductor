@@ -36,7 +36,7 @@ It does not own:
 - the core `Template` data structure;
 - native catalog persistence through `IUserTemplateStoreService`;
 - Template editor selected-template/form state;
-- Recipe dataRange/blockPartition/physicalLayout/logicalRelation interpretation;
+- DataResource evidence production or semantic title matching;
 - Review decisions or system application recommendations;
 - Slice execution, queue state, or `SliceRun` records.
 
@@ -49,7 +49,7 @@ UserTemplate create/update/delete/import
   -> IUserDataProfileResourceService for profile-scoped templates
   -> IStorageService workspace storage for workspace-scoped templates
   -> userTemplateChanged
-  -> Review candidate builder rereads table model + RecipeSnapshot + UserTemplateSnapshot
+  -> Review candidate builder rereads DataResource evidence + UserTemplateSnapshot
   -> IReviewService reviews candidates
   -> ReviewResult / ReviewedTemplate
 ```

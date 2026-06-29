@@ -37,7 +37,6 @@ import "src/cs/workbench/services/session/browser/sessionService";
 import "src/cs/workbench/services/schemaProfile/browser/schemaProfileStoreService";
 import "src/cs/workbench/services/schemaProfile/browser/schemaProfileService";
 import "src/cs/workbench/services/slice/browser/sliceService";
-import "cs/workbench/services/recipes/browser/recipeService";
 import "src/cs/workbench/services/userDataProfile/browser/userDataProfileResourceService";
 import "src/cs/workbench/services/userTemplate/browser/userTemplateStoreService";
 import "src/cs/workbench/services/userTemplate/browser/userTemplateService";
