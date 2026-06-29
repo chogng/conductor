@@ -229,7 +229,6 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
       selectedResource: null,
       selectedSheetId: null,
       selectionKind: "table",
-      thumbnailFiles: [],
     };
 
     service.updatePaneInput(input);
@@ -239,7 +238,6 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
       selectedResource: null,
       selectedSheetId: null,
       selectionKind: "table",
-      thumbnailFiles: [],
     });
 
     assert.equal(service.getPaneInput(), input);
@@ -268,7 +266,6 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
       selectedResource: URI.file("/data/A.csv"),
       selectedSheetId: "sheet-a",
       selectionKind: "table",
-      thumbnailFiles: [],
     });
     service.updatePaneInput({
       files: [{ ...file }],
@@ -276,7 +273,6 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
       selectedResource: URI.file("/data/A.csv"),
       selectedSheetId: "sheet-a",
       selectionKind: "table",
-      thumbnailFiles: [],
     });
     service.updatePaneInput({
       files: [{ ...file, resource: URI.file("/data/B.csv") }],
@@ -284,7 +280,6 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
       selectedResource: URI.file("/data/A.csv"),
       selectedSheetId: "sheet-a",
       selectionKind: "table",
-      thumbnailFiles: [],
     });
     service.updatePaneInput({
       files: [{ ...file, resource: URI.file("/data/B.csv"), sheetId: "sheet-b" }],
@@ -292,7 +287,6 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
       selectedResource: URI.file("/data/A.csv"),
       selectedSheetId: "sheet-a",
       selectionKind: "table",
-      thumbnailFiles: [],
     });
 
     assert.equal(changeCount, 3);

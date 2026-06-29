@@ -442,7 +442,6 @@ const isSameExplorerPaneInput = (
   areExplorerFilesEqual(current.quickAccessFiles ?? [], next.quickAccessFiles ?? []) &&
   areOriginPlotOptionsEqual(current.originOpenPlotOptions, next.originOpenPlotOptions) &&
   areShallowRecordsEqual(current.plotAxisSettings, next.plotAxisSettings) &&
-  areProcessedEntriesEqual(current.thumbnailFiles, next.thumbnailFiles) &&
   areThumbnailPlotModelsEqual(
     current.thumbnailPlotModelsByFileId ?? {},
     next.thumbnailPlotModelsByFileId ?? {},
@@ -532,21 +531,6 @@ const areShallowRecordsEqual = (
   return areStringArraysEqual(currentKeys, nextKeys) &&
     currentKeys.every(key => Object.is(currentRecord[key], nextRecord[key]));
 };
-
-const areProcessedEntriesEqual = (
-  current: ExplorerPaneInput["thumbnailFiles"],
-  next: ExplorerPaneInput["thumbnailFiles"],
-): boolean =>
-  current.length === next.length &&
-  current.every((file, index) => {
-    const nextFile = next[index];
-    return file.fileId === nextFile?.fileId &&
-      file.fileName === nextFile.fileName &&
-      file.curveFilterKey === nextFile.curveFilterKey &&
-      file.curveFilterField === nextFile.curveFilterField &&
-      file.supportsSs === nextFile.supportsSs &&
-      file.xUnit === nextFile.xUnit;
-  });
 
 const areThumbnailPlotModelsEqual = (
   current: NonNullable<ExplorerPaneInput["thumbnailPlotModelsByFileId"]>,

@@ -117,7 +117,6 @@ export class ExplorerView implements IDisposable {
       onCancelRenameFile: this.props.onCancelRenameFile,
       onRenameFile: this.props.onRenameFile,
       onSelectFile: this.props.onSelectFile,
-      thumbnailFiles: this.props.thumbnailFiles,
       thumbnailPlotModelsByFileId: this.props.thumbnailPlotModelsByFileId,
     };
   }

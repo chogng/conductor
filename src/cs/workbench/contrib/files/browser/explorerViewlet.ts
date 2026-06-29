@@ -427,7 +427,6 @@ export class ExplorerViewPane extends ViewPane {
       onOpenFolderDialog: this.handleOpenFolderDialog,
       onRenameFile: this.handleRenameFile,
       onSelectFile: this.handleSelectFile,
-      thumbnailFiles: input.thumbnailFiles,
       thumbnailPlotModelsByFileId: input.thumbnailPlotModelsByFileId,
     };
   }
@@ -1677,7 +1676,6 @@ const EMPTY_EXPLORER_PANE_INPUT: ExplorerPaneInput = {
   selectedResource: null,
   selectedSheetId: null,
   selectionKind: "table",
-  thumbnailFiles: [],
 };
 
 function getActionAnchor(event: unknown): HTMLElement {

@@ -145,7 +145,6 @@ const createExplorerService = ({
 			selectedResource,
 			selectedSheetId,
 			selectionKind: "chart",
-			thumbnailFiles: [],
 		}),
 		hasPendingSourceFiles: false,
 		hoveredResource,

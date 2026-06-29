@@ -8,15 +8,8 @@ import type { PlotMainRenderModelSource } from "src/cs/workbench/services/plot/c
 import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
 import type { IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 
-export type ThumbnailFileLike = {
-  fileId?: string;
-  fileName?: string;
-  yUnit?: string;
-  curveFilterKey?: string | null;
-  curveFilterField?: string | null;
-  x?: {
-    sampledPoints?: number | null;
-  };
+export type ThumbnailViewFile = {
+  readonly title?: string;
 };
 
 export type ThumbnailPlotModel = PlotMainRenderModelSource & {
@@ -24,7 +17,7 @@ export type ThumbnailPlotModel = PlotMainRenderModelSource & {
 };
 
 export type ThumbnailViewProps = {
-  file: ThumbnailFileLike;
+  file: ThumbnailViewFile;
   drawStrategy?: ThumbnailDrawStrategy;
   originOpenPlotOptions?: OriginPlotOptions;
   plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
@@ -62,7 +55,7 @@ export const createThumbnailView = ({
   showOriginSelectionBadge = false,
 }: ThumbnailViewProps): HTMLElement => {
   const root = document.createElement("div");
-  const title = file.fileName ?? file.fileId ?? "";
+  const title = file.title ?? "";
   const classes = [
     "thumbnail_view",
     isActive ? "thumbnail_view--active" : "",
@@ -96,7 +89,7 @@ export const updateThumbnailView = (
     return false;
   }
 
-  const title = props.file.fileName ?? props.file.fileId ?? "";
+  const title = props.file.title ?? "";
   root.classList.toggle("thumbnail_view--active", props.isActive === true);
   if (title) {
     root.title = title;
@@ -130,7 +123,7 @@ export const updateThumbnailView = (
   return true;
 };
 
-const createHeader = (file: ThumbnailFileLike): HTMLElement => {
+const createHeader = (file: ThumbnailViewFile): HTMLElement => {
   const root = document.createElement("div");
   root.className = "thumbnail_view_header";
 
@@ -141,7 +134,7 @@ const createHeader = (file: ThumbnailFileLike): HTMLElement => {
 
   const title = document.createElement("div");
   title.className = "thumbnail_view_title";
-  title.textContent = file.fileName ?? file.fileId ?? "";
+  title.textContent = file.title ?? "";
 
   main.append(title);
   row.append(main);
@@ -162,7 +155,7 @@ const createChartThumbnail = ({
   originSelectedBadgeLabel,
   showOriginSelectionBadge,
 }: {
-  readonly file: ThumbnailFileLike;
+  readonly file: ThumbnailViewFile;
   readonly drawStrategy: ThumbnailDrawStrategy;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
@@ -203,7 +196,7 @@ const createChartThumbnail = ({
 const updateChartThumbnail = (
   root: HTMLElement,
   props: {
-    readonly file: ThumbnailFileLike;
+    readonly file: ThumbnailViewFile;
     readonly drawStrategy: ThumbnailDrawStrategy;
     readonly originOpenPlotOptions?: OriginPlotOptions;
     readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
@@ -225,7 +218,7 @@ const updateChartThumbnail = (
     const canvas = root.querySelector<HTMLCanvasElement>("canvas.thumbnail_view_chart_canvas");
     if (canvas) {
       canvas.classList.remove("thumbnail_view_chart_loading_canvas");
-      canvas.title = props.file.fileName ?? props.file.fileId ?? "";
+      canvas.title = props.file.title ?? "";
       drawOrScheduleThumbnailDraw(canvas, props.drawStrategy, () => {
         thumbnailService.drawPlotThumbnail(canvas, {
           model: plotModel,
@@ -313,7 +306,7 @@ const createPlotMainThumbnailCanvas = ({
   plotType,
   thumbnailService,
 }: {
-  readonly file: ThumbnailFileLike;
+  readonly file: ThumbnailViewFile;
   readonly drawStrategy: ThumbnailDrawStrategy;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
@@ -323,7 +316,7 @@ const createPlotMainThumbnailCanvas = ({
 }): HTMLCanvasElement => {
   const canvas = document.createElement("canvas");
   canvas.className = "thumbnail_view_chart_canvas";
-  canvas.title = file.fileName ?? file.fileId ?? "";
+  canvas.title = file.title ?? "";
   drawOrScheduleThumbnailDraw(canvas, drawStrategy, () => {
     thumbnailService.drawPlotThumbnail(canvas, {
       model: plotModel,

@@ -308,7 +308,6 @@ const createPaneInput = (files: ExplorerFileEntry[]): ExplorerPaneInput => ({
   mode: "table",
   selectedResource: null,
   selectionKind: "table",
-  thumbnailFiles: [],
 });
 
 const createPendingImportFile = ({

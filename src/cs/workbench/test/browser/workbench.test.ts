@@ -71,7 +71,6 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.equal(input.selectedResource, null);
     assert.deepEqual(input.files, []);
     assert.deepEqual(input.quickAccessFiles, []);
-    assert.deepEqual(input.thumbnailFiles, []);
     assert.deepEqual(input.templateSelections?.map(selection => ({
       resource: selection.target.resource.toString(),
       selection: selection.selection,
@@ -99,7 +98,6 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.equal(input.selectionKind, "chart");
     assert.equal(input.selectedResource, null);
     assert.deepEqual(input.files.map(file => file.fileId), []);
-    assert.deepEqual(input.thumbnailFiles.map(file => file.fileId), []);
     assert.equal(input.thumbnailPlotModelsByFileId, undefined);
     assert.equal(input.originOpenPlotOptions, DEFAULT_ORIGIN_PLOT_OPTIONS);
     assert.deepEqual(input.plotAxisSettings, { x: { show: true } });
@@ -152,7 +150,6 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       selectedResource: null,
       selectedSheetId: null,
       selectionKind: "chart",
-      thumbnailFiles: [],
     });
     explorerService.setViewLayout("thumbnail");
     const input = createExplorerPaneInput({
@@ -169,7 +166,6 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.equal(input.selectedResource, null);
     assert.deepEqual(input.files.map(file => file.fileId), ["file-a"]);
     assert.deepEqual(input.quickAccessFiles?.map(file => file.fileId), ["file-a"]);
-    assert.deepEqual(input.thumbnailFiles.map(file => file.fileId), ["file-a"]);
     assert.equal(input.thumbnailPlotModelsByFileId, undefined);
     assert.equal(input.originOpenPlotOptions, DEFAULT_ORIGIN_PLOT_OPTIONS);
     assert.deepEqual(input.plotAxisSettings, { x: { show: true } });
@@ -190,7 +186,6 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       selectedResource: null,
       selectedSheetId: null,
       selectionKind: "chart",
-      thumbnailFiles: [],
     });
     explorerService.setViewLayout("thumbnail");
     const input = createExplorerPaneInput({
@@ -267,7 +262,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedResource: null,
       selectedSheetId: null,
       selectionKind: "chart",
-      thumbnailFiles: [],
     });
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
@@ -388,7 +382,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedResource: null,
       selectedSheetId: null,
       selectionKind: "chart",
-      thumbnailFiles: [],
     });
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
@@ -474,7 +467,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedResource: uriSliceTarget.resource,
       selectedSheetId: null,
       selectionKind: "chart",
-      thumbnailFiles: [],
     });
 
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
@@ -554,7 +546,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedResource: null,
       selectedSheetId: null,
       selectionKind: "chart",
-      thumbnailFiles: [],
     });
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
@@ -799,7 +790,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedResource: resource,
       selectedSheetId: "table-key-b",
       selectionKind: "table",
-      thumbnailFiles: [],
     });
     explorerService.select({
       candidateResources: [{ resource, sheetId: "table-key-b" }],
@@ -843,7 +833,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedResource: resource,
       selectedSheetId: null,
       selectionKind: "table",
-      thumbnailFiles: [],
     });
     explorerService.select({
       kind: "table",
@@ -891,7 +880,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedResource: resource,
       selectedSheetId: null,
       selectionKind: "table",
-      thumbnailFiles: [],
     });
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       activeWorkbenchMainPart: "table",
@@ -935,7 +923,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedResource: resource,
       selectedSheetId: null,
       selectionKind: "table",
-      thumbnailFiles: [],
     });
     explorerService.select({
       kind: "table",
@@ -973,7 +960,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedResource: resource,
       selectedSheetId: null,
       selectionKind: "table",
-      thumbnailFiles: [],
     });
     explorerService.select({
       kind: "table",
@@ -1031,7 +1017,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedResource: resource,
       selectedSheetId: "sheet-a",
       selectionKind: "chart",
-      thumbnailFiles: [],
     });
     explorerService.select({
       kind: "chart",
@@ -1090,7 +1075,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedResource: resource,
       selectedSheetId: null,
       selectionKind: "chart",
-      thumbnailFiles: [],
     });
     explorerService.select({
       kind: "chart",
@@ -1149,7 +1133,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedResource: resource,
       selectedSheetId: null,
       selectionKind: "chart",
-      thumbnailFiles: [],
     });
     explorerService.select({
       kind: "chart",
@@ -1203,7 +1186,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedResource: resource,
       selectedSheetId: "sheet-a",
       selectionKind: "chart",
-      thumbnailFiles: [],
     });
     explorerService.select({
       kind: "chart",
@@ -1265,7 +1247,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedResource: resource,
       selectedSheetId: "sheet-a",
       selectionKind: "chart",
-      thumbnailFiles: [],
     });
     explorerService.select({
       kind: "chart",
@@ -1319,7 +1300,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedResource: resourceA,
       selectedSheetId: null,
       selectionKind: "chart",
-      thumbnailFiles: [],
     });
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
@@ -1374,7 +1354,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedResource: resourceA,
       selectedSheetId: null,
       selectionKind: "chart",
-      thumbnailFiles: [],
     });
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
@@ -1487,7 +1466,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
         selectedResource: resourceA,
         selectedSheetId: null,
         selectionKind: "chart",
-        thumbnailFiles: [],
       });
       explorerService.setPendingSourceFiles(true);
       assert.equal(scheduledFrames.length, 1);
@@ -1531,7 +1509,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedResource: resourceA,
       selectedSheetId: null,
       selectionKind: "chart",
-      thumbnailFiles: [],
     });
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       chartViewInputs,

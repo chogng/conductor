@@ -18,7 +18,6 @@ import {
   getExplorerFileResourceIdentity,
   getExplorerResourceIdentityKey,
   type ExplorerFileEntry,
-  type ExplorerThumbnailFile,
   buildExplorerTree,
   type ExplorerTreeNode,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
@@ -1038,21 +1037,8 @@ export const createExplorerPaneInput = ({
     selectedSheetId: selectedTarget?.sheetId ?? null,
     selectionKind,
     templateSelections: sliceState.templateSelections,
-    thumbnailFiles: createExplorerThumbnailFiles(files),
   };
 };
-
-const createExplorerThumbnailFiles = (
-  files: readonly ExplorerFileEntry[],
-): readonly ExplorerThumbnailFile[] =>
-  files
-    .filter(file => file.hasChartData === true)
-    .map(file => ({
-      curveFilterField: null,
-      curveFilterKey: null,
-      fileId: file.fileId,
-      fileName: file.fileName,
-    }));
 
 const mergeChartDataFileIds = (
   explorerFiles: readonly ExplorerFileEntry[],

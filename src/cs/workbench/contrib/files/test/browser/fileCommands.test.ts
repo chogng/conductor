@@ -258,7 +258,6 @@ function createExplorerServiceStub({
       selectedResource: null,
       selectedSheetId: null,
       selectionKind: "table",
-      thumbnailFiles: [],
     }),
     select: (target: unknown, reveal: unknown) => {
       onSelect(target, reveal);

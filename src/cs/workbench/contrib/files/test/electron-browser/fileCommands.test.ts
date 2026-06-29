@@ -38,7 +38,6 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
       selectedResource: sourceResource,
       selectedSheetId: null,
       selectionKind: "table",
-      thumbnailFiles: [],
     });
 
     const sourceResources = resolveRevealResources(
@@ -70,7 +69,6 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
       selectedResource: resource,
       selectedSheetId: null,
       selectionKind: "table",
-      thumbnailFiles: [],
     });
 
     let revealedPath: string | null = null;
@@ -104,7 +102,6 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
       selectedResource: resource,
       selectedSheetId: null,
       selectionKind: "table",
-      thumbnailFiles: [],
     });
     const accessor = createAccessor([[IExplorerService, explorerService]]);
 

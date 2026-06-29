@@ -20,10 +20,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
 
     let drawCalls = 0;
     const node = createThumbnailView({
-      file: {
-        fileId: "file-a",
-        fileName: "File A",
-      },
+      file: { title: "File A" },
       plotModel: {
         pointsCount: 0,
         seriesList: [],
@@ -69,9 +66,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
 
     let drawCalls = 0;
     const node = createThumbnailView({
-      file: {
-        fileId: "file-a",
-      },
+      file: { title: "file-a" },
       plotModel: {
         pointsCount: 0,
         seriesList: [],
@@ -119,9 +114,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
     let drawCalls = 0;
     const node = createThumbnailView({
       drawStrategy: "eager",
-      file: {
-        fileId: "file-a",
-      },
+      file: { title: "file-a" },
       plotModel: {
         pointsCount: 0,
         seriesList: [],
@@ -168,10 +161,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
     }
 
     const node = createThumbnailView({
-      file: {
-        fileId: "file-a",
-        fileName: "File A",
-      },
+      file: { title: "File A" },
       isLoading: true,
       plotModel: null,
       thumbnailService: {
@@ -203,10 +193,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
     const drawnSignatures: string[] = [];
     const node = createThumbnailView({
       drawStrategy: "eager",
-      file: {
-        fileId: "file-a",
-        fileName: "File A",
-      },
+      file: { title: "File A" },
       plotModel: {
         pointsCount: 0,
         seriesList: [],
@@ -240,10 +227,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
 
       assert.equal(updateThumbnailView(node, {
         drawStrategy: "eager",
-        file: {
-          fileId: "file-a",
-          fileName: "File A",
-        },
+        file: { title: "File A" },
         plotModel: {
           pointsCount: 0,
           seriesList: [],
@@ -283,10 +267,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
     };
     const node = createThumbnailView({
       drawStrategy: "eager",
-      file: {
-        fileId: "file-a",
-        fileName: "File A",
-      },
+      file: { title: "File A" },
       plotModel: {
         pointsCount: 0,
         seriesList: [],
@@ -317,10 +298,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
 
       assert.equal(updateThumbnailView(node, {
         drawStrategy: "eager",
-        file: {
-          fileId: "file-a",
-          fileName: "File A",
-        },
+        file: { title: "File A" },
         plotModel: {
           pointsCount: 0,
           seriesList: [],
@@ -351,9 +329,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
 
     const node = createThumbnailView({
       drawStrategy: "eager",
-      file: {
-        fileId: "file-a",
-      },
+      file: { title: "file-a" },
       plotModel: {
         pointsCount: 0,
         seriesList: [],
@@ -384,9 +360,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
       assert.ok(canvas);
 
       updateThumbnailView(node, {
-        file: {
-          fileId: "file-a",
-        },
+        file: { title: "file-a" },
         isLoading: true,
         plotModel: null,
         thumbnailService: {
@@ -409,9 +383,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
 
     const node = createThumbnailView({
       drawStrategy: "eager",
-      file: {
-        fileId: "file-a",
-      },
+      file: { title: "file-a" },
       isActive: false,
       plotModel: {
         pointsCount: 0,
@@ -445,9 +417,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
 
       updateThumbnailView(node, {
         drawStrategy: "eager",
-        file: {
-          fileId: "file-a",
-        },
+        file: { title: "file-a" },
         isActive: true,
         plotModel: {
           pointsCount: 0,

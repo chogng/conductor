@@ -70,7 +70,6 @@ suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
       selectedResource: URI.file("/workspace/Alpha.csv"),
       selectedSheetId: null,
       selectionKind: "chart",
-      thumbnailFiles: [],
     };
     const provider = store.add(new FilesQuickAccessProvider(
       createExplorerService(paneInput, selections),
@@ -115,7 +114,6 @@ suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
       selectedResource: URI.file("/workspace/Alpha.csv"),
       selectedSheetId: null,
       selectionKind: "chart",
-      thumbnailFiles: [],
     };
     const provider = store.add(new FilesQuickAccessProvider(
       createExplorerService(paneInput, selections),

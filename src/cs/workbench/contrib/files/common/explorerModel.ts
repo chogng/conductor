@@ -39,26 +39,6 @@ export type ExplorerResourceIdentity = {
 	readonly sheetId?: string | null;
 };
 
-export type ExplorerThumbnailFile = {
-	readonly calculationCache?: unknown;
-	readonly curveFilterField?: string | null;
-	readonly curveFilterKey?: string | null;
-	readonly domain?: {
-		readonly x?: readonly [number, number];
-		readonly y?: readonly [number, number];
-	};
-	readonly fileId?: string;
-	readonly fileName?: string;
-	readonly series?: readonly unknown[];
-	readonly supportsSs?: boolean;
-	readonly x?: {
-		readonly sampledPoints?: number | null;
-	};
-	readonly xGroups?: readonly unknown[];
-	readonly xUnit?: string;
-	readonly yUnit?: string;
-};
-
 export type ExplorerFilePresentationSignatureOptions = {
 	readonly badgeColorSignature: string;
 	readonly isEditing: boolean;

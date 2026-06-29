@@ -247,7 +247,6 @@ const createExplorerServiceForTest = (
 		selectedResource: null,
 		selectedSheetId: null,
 		selectionKind: "table",
-		thumbnailFiles: [],
 	}),
 	hasPendingSourceFiles: false,
 	onDidChangePaneInput: Event.None as Event<void>,
