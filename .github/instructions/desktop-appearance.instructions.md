@@ -117,11 +117,11 @@ registries that other layers may depend on:
   `HSLA`, `HSVA`). Do not use it for token ids. Decoration and theme contracts
   should carry `ColorIdentifier` when they mean a registered theme token.
 
-This layer is not yet the full runtime theme service. Until the workbench theme
-service is migrated onto the common registry, avoid assuming that registered
-tokens are automatically emitted as live CSS variables. Components may consume
-token ids as contracts, but runtime resolution/application still belongs to the
-current workbench theme/appearance owners.
+The browser workbench theme service resolves registered default color tokens for
+the active light/dark mode and emits them as `--conductor-*` CSS variables. Full
+external color-theme override loading still belongs to future theme-service work;
+components should consume registered token variables rather than hard-coding
+component colors in CSS.
 
 Use Conductor names for new schema and CSS variable surfaces:
 

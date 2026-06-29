@@ -36,6 +36,7 @@ import './colors/listColors.js';
 import './colors/menuColors.js';
 import './colors/minimapColors.js';
 import './colors/miscColors.js';
+import './colors/notificationColors.js';
 import './colors/quickpickColors.js';
 import './colors/searchColors.js';
 import './colors/tableColors.js';

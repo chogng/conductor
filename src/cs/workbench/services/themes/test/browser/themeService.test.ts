@@ -187,6 +187,30 @@ suite("workbench/services/themes/browser/themeService", () => {
 		]);
 	});
 
+	test("applies registered color tokens when theme starts", () => {
+		const calls: TestCall[] = [];
+		installAppearanceEnvironment(calls, async () => ({ ok: true }));
+		const service = store.add(new BrowserWorkbenchThemeService());
+
+		service.start();
+
+		assert.ok(calls.some(call => isSetPropertyCall(
+			call,
+			"--conductor-notificationsInfoIcon-foreground",
+			"#0063d3",
+		)));
+		assert.ok(calls.some(call => isSetPropertyCall(
+			call,
+			"--conductor-notifications-background",
+			"#f3f3f3",
+		)));
+		assert.ok(calls.some(call => isSetPropertyCall(
+			call,
+			"--conductor-notificationsSuccessIcon-foreground",
+			"#10b981",
+		)));
+	});
+
 	test("restores opaque workbench chrome before disabling native transparent appearance", async () => {
 		const calls: TestCall[] = [];
 		installAppearanceEnvironment(calls, async () => ({ ok: true }));
@@ -306,6 +330,9 @@ const installAppearanceEnvironment = (
 					setProperty: (name: string, value: string) => {
 						calls.push(["setProperty", [name, value]]);
 					},
+					removeProperty: (name: string) => {
+						calls.push(["removeProperty", name]);
+					},
 				},
 			},
 		},
@@ -332,3 +359,13 @@ const installAppearanceEnvironment = (
 		},
 	};
 };
+
+const isSetPropertyCall = (
+	call: TestCall,
+	name: string,
+	value: string,
+): boolean =>
+	call[0] === "setProperty" &&
+	Array.isArray(call[1]) &&
+	call[1][0] === name &&
+	call[1][1] === value;

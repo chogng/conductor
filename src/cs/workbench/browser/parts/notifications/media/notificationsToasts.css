@@ -19,9 +19,9 @@
   max-width: min(450px, calc(100vw - 64px));
   padding: 12px 14px;
   gap: 10px;
-  border: 1px solid rgb(var(--border));
+  border: 1px solid var(--conductor-notificationToast-border);
   border-radius: 8px;
-  background-color: rgb(var(--bg-surface));
+  background-color: var(--conductor-notifications-background);
   box-shadow: 0 12px 28px rgb(0 0 0 / 14%);
   pointer-events: auto;
 }
@@ -41,19 +41,23 @@
   justify-content: center;
   width: 28px;
   height: 28px;
-  color: rgb(var(--text-secondary));
+  color: var(--conductor-notificationsInfoIcon-foreground);
 }
 
 .conductor-toast--error .conductor-toast-icon {
-  color: rgb(var(--text-danger));
+  color: var(--conductor-notificationsErrorIcon-foreground);
 }
 
 .conductor-toast--warning .conductor-toast-icon {
-  color: var(--color-warning);
+  color: var(--conductor-notificationsWarningIcon-foreground);
+}
+
+.conductor-toast--info .conductor-toast-icon {
+  color: var(--conductor-notificationsInfoIcon-foreground);
 }
 
 .conductor-toast--success .conductor-toast-icon {
-  color: var(--color-success);
+  color: var(--conductor-notificationsSuccessIcon-foreground);
 }
 
 .conductor-toast-message-scroll {
@@ -67,7 +71,7 @@
 
 .conductor-toast-message {
   display: block;
-  color: rgb(var(--text-primary));
+  color: var(--conductor-notifications-foreground);
   font-size: 14px;
   line-height: 20px;
   overflow-wrap: anywhere;
@@ -81,7 +85,7 @@
 }
 
 .conductor-toast-action {
-  color: rgb(var(--accent));
+  color: var(--conductor-notificationLink-foreground);
   font-size: 14px;
   font-weight: 500;
   line-height: 20px;
@@ -110,7 +114,7 @@
 .conductor-toast-close:focus-visible,
 .conductor-toast-action:focus-visible,
 .conductor-toast-message-viewport:focus-visible {
-  outline: 1px solid rgb(var(--accent));
+  outline: 1px solid var(--conductor-notificationLink-foreground);
   outline-offset: 2px;
 }
 

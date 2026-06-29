@@ -5,6 +5,9 @@
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
+import { asCssVariableName, getColorRegistry } from "src/cs/platform/theme/common/colorRegistry";
+import { ColorScheme } from "src/cs/platform/theme/common/theme";
+import type { IColorTheme, ITokenStyle } from "src/cs/platform/theme/common/themeService";
 import { isThemeMode, type ThemeMode } from "src/cs/workbench/common/theme";
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import {
@@ -131,6 +134,7 @@ export class BrowserWorkbenchThemeService extends Disposable implements IWorkben
 		document.documentElement.classList.remove("light", "dark");
 		document.documentElement.classList.add(resolvedTheme);
 		document.documentElement.style.colorScheme = resolvedTheme;
+		applyWorkbenchColorTokens(resolvedTheme);
 		window.__CONDUCTOR_INITIAL_THEME__ = theme;
 	}
 
@@ -301,6 +305,35 @@ const applyWorkbenchOpaqueSurface = (enabled: boolean): void => {
 		WORKBENCH_OPAQUE_SURFACE_CLASS,
 		enabled,
 	);
+};
+
+const applyWorkbenchColorTokens = (theme: "light" | "dark"): void => {
+	const colorTheme = createWorkbenchDefaultColorTheme(theme);
+	const style = document.documentElement.style;
+	for (const color of getColorRegistry().getColors()) {
+		const value = colorTheme.getColor(color.id, true);
+		const property = asCssVariableName(color.id);
+		if (value) {
+			style.setProperty(property, value.toString());
+			continue;
+		}
+		style.removeProperty(property);
+	}
+};
+
+const createWorkbenchDefaultColorTheme = (theme: "light" | "dark"): IColorTheme => {
+	let colorTheme: IColorTheme;
+	colorTheme = {
+		type: theme === "dark" ? ColorScheme.DARK : ColorScheme.LIGHT,
+		label: theme,
+		tokenColorMap: [],
+		tokenFontMap: [],
+		semanticHighlighting: false,
+		getColor: color => getColorRegistry().resolveDefaultColor(color, colorTheme),
+		defines: () => false,
+		getTokenStyleMetadata: (): ITokenStyle | undefined => undefined,
+	};
+	return colorTheme;
 };
 
 const readDesktopOpaqueSurfaceState = (
