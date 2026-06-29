@@ -1,9 +1,9 @@
-import { getNLSLanguage, resolveNLSLanguage } from "../../nls.js";
+import { getNLSLanguage, resolveNLSLanguage, SUPPORTED_NLS_LANGUAGES, type NLSLanguage } from "../../nls.js";
 
-export const LANGUAGE_DEFAULT = "en";
-export const SUPPORTED_LANGUAGES = [LANGUAGE_DEFAULT, "zh"] as const;
+export const LANGUAGE_DEFAULT: NLSLanguage = SUPPORTED_NLS_LANGUAGES[0];
+export const SUPPORTED_LANGUAGES = SUPPORTED_NLS_LANGUAGES;
 
-export type LanguageCode = (typeof SUPPORTED_LANGUAGES)[number];
+export type LanguageCode = NLSLanguage;
 export type LanguagePreference = "system" | LanguageCode;
 
 let _isWindows = false;
@@ -13,7 +13,6 @@ let _isNative = false;
 let _isWeb = false;
 let _isElectron = false;
 let _isCI = false;
-let _isMobile = false;
 let _locale: string | undefined;
 let _language: string = LANGUAGE_DEFAULT;
 let _platformLocale: string = LANGUAGE_DEFAULT;
@@ -104,46 +103,15 @@ if (typeof nodeProcess === "object") {
     // OS here: deriving isWindows/isLinux from the user agent would make
     // URI.fsPath / extpath / resources apply Windows (backslash, drive-letter)
     // rules to virtual "/folder/file" paths and corrupt folder imports. Only
-    // isMacintosh is kept, since it drives keyboard-modifier UI, not paths.
+    // isMacintosh is kept for browser input modifier semantics such as
+    // Cmd-vs-Ctrl UI and mouse-wheel zoom, not for path rules.
     _isMacintosh = _userAgent.includes("Macintosh");
-    _isMobile = _userAgent.includes("Mobi");
     _isWeb = true;
     _language = getNLSLanguage();
     _locale = navigator.language.toLowerCase();
     _platformLocale = _locale;
 } else {
     console.error("Unable to resolve platform.");
-}
-
-export const enum Platform {
-    Web,
-    Windows,
-    Mac,
-    Linux,
-}
-
-export type PlatformName = "Web" | "Windows" | "Mac" | "Linux";
-
-export function PlatformToString(platform: Platform): PlatformName {
-    switch (platform) {
-        case Platform.Web:
-            return "Web";
-        case Platform.Windows:
-            return "Windows";
-        case Platform.Mac:
-            return "Mac";
-        case Platform.Linux:
-            return "Linux";
-    }
-}
-
-let _platform: Platform = Platform.Web;
-if (_isNative && _isWindows) {
-    _platform = Platform.Windows;
-} else if (_isNative && _isMacintosh) {
-    _platform = Platform.Mac;
-} else if (_isNative && _isLinux) {
-    _platform = Platform.Linux;
 }
 
 export const isWindows = _isWindows;
@@ -154,9 +122,7 @@ export const isElectron = _isElectron;
 export const isWeb = _isWeb;
 export const isWebWorker = _isWeb && typeof $globalThis.importScripts === "function";
 export const webWorkerOrigin = isWebWorker ? $globalThis.origin : undefined;
-export const isMobile = _isMobile;
 export const isCI = _isCI;
-export const platform = _platform;
 export const userAgent = _userAgent;
 export const language = _language;
 
@@ -183,7 +149,7 @@ export namespace Language {
 }
 
 export const isLanguageCode = (value: unknown): value is LanguageCode =>
-    value === LANGUAGE_DEFAULT || value === "zh";
+    SUPPORTED_LANGUAGES.includes(value as LanguageCode);
 
 export const isLanguagePreference = (
     value: unknown,
@@ -195,12 +161,7 @@ export const resolveLanguageCode = (
     systemLanguage: unknown,
 ): LanguageCode => {
     if (isLanguageCode(preference)) return preference;
-
-    const source = typeof systemLanguage === "string" ? systemLanguage.toLowerCase() : "";
-    if (source.startsWith("zh")) return "zh";
-    if (source.startsWith("en")) return LANGUAGE_DEFAULT;
-
-    return LANGUAGE_DEFAULT;
+    return resolveNLSLanguage(systemLanguage);
 };
 
 export const locale = _locale;
@@ -269,7 +230,6 @@ export const isChrome = !!(userAgent && userAgent.includes("Chrome"));
 export const isFirefox = !!(userAgent && userAgent.includes("Firefox"));
 export const isSafari = !!(!isChrome && userAgent && userAgent.includes("Safari"));
 export const isEdge = !!(userAgent && userAgent.includes("Edg/"));
-export const isAndroid = !!(userAgent && userAgent.includes("Android"));
 
 export function isTahoeOrNewer(osVersion: string): boolean {
     return parseFloat(osVersion) >= 25;

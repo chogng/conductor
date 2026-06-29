@@ -7,9 +7,6 @@ import {
   isLanguagePreference,
   isNative,
   isWindows,
-  platform,
-  Platform,
-  PlatformToString,
   resolveLanguageCode,
 } from "../../common/platform.ts";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
@@ -22,8 +19,6 @@ suite("base/test/common/platform", () => {
       assert.equal(isLinux, false);
       assert.equal(isWindows, false);
       assert.equal(isNative, true);
-      assert.equal(platform, Platform.Mac);
-      assert.equal(PlatformToString(platform), "Mac");
       return;
     }
 
@@ -32,8 +27,6 @@ suite("base/test/common/platform", () => {
       assert.equal(isLinux, false);
       assert.equal(isWindows, true);
       assert.equal(isNative, true);
-      assert.equal(platform, Platform.Windows);
-      assert.equal(PlatformToString(platform), "Windows");
       return;
     }
 
@@ -42,8 +35,6 @@ suite("base/test/common/platform", () => {
       assert.equal(isLinux, true);
       assert.equal(isWindows, false);
       assert.equal(isNative, true);
-      assert.equal(platform, Platform.Linux);
-      assert.equal(PlatformToString(platform), "Linux");
       return;
     }
 
