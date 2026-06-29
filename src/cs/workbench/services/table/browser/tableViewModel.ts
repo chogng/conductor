@@ -11,6 +11,8 @@ import { startPerf } from "src/cs/workbench/common/perf";
 import {
   type TableDirtyRange,
   type TablePreviewHealth,
+  type TableRangeDecoration,
+  type TableSheetTab,
   type TableViewModel,
   type TableRowsVersionChangeEvent,
   type TableSource,
@@ -206,6 +208,83 @@ export const areTableSelectionsEqual = (
   areTableCellsEqual(first.activeCell, second.activeCell) &&
   areColumnIndexesEqual(first.selectedColumns, second.selectedColumns) &&
   areTableRangesEqual(first.ranges, second.ranges);
+
+const normalizeTableRangeDecorations = (
+  decorations: readonly TableRangeDecoration[] | null | undefined,
+  context: { readonly columnCount: number; readonly rowCount: number; readonly sheetId: string | null } | null,
+): readonly TableRangeDecoration[] => {
+  const rowCount = Math.max(0, Math.floor(Number(context?.rowCount) || 0));
+  const columnCount = Math.max(0, Math.floor(Number(context?.columnCount) || 0));
+  const sheetId = context?.sheetId ?? null;
+  if (rowCount <= 0 || columnCount <= 0) {
+    return [];
+  }
+
+  return (Array.isArray(decorations) ? decorations : [])
+    .map((decoration): TableRangeDecoration | null => {
+      const startRow = Math.floor(Number(decoration.startRow));
+      const endRow = Math.floor(Number(decoration.endRow));
+      const startCol = Math.floor(Number(decoration.startCol));
+      const endCol = Math.floor(Number(decoration.endCol));
+      if (
+        !Number.isInteger(startRow) ||
+        !Number.isInteger(endRow) ||
+        !Number.isInteger(startCol) ||
+        !Number.isInteger(endCol) ||
+        !isTableRangeDecorationKind(decoration.kind) ||
+        (decoration.sheetId && decoration.sheetId !== sheetId)
+      ) {
+        return null;
+      }
+
+      const normalizedStartRow = Math.max(0, Math.min(startRow, endRow));
+      const normalizedEndRow = Math.min(rowCount - 1, Math.max(startRow, endRow));
+      const normalizedStartCol = Math.max(0, Math.min(startCol, endCol));
+      const normalizedEndCol = Math.min(columnCount - 1, Math.max(startCol, endCol));
+      if (normalizedStartRow > normalizedEndRow || normalizedStartCol > normalizedEndCol) {
+        return null;
+      }
+
+      return {
+        kind: decoration.kind,
+        sheetId,
+        startRow: normalizedStartRow,
+        endRow: normalizedEndRow,
+        startCol: normalizedStartCol,
+        endCol: normalizedEndCol,
+      };
+    })
+    .filter((decoration): decoration is TableRangeDecoration => Boolean(decoration));
+};
+
+const areTableRangeDecorationsEqual = (
+  first: readonly TableRangeDecoration[],
+  second: readonly TableRangeDecoration[],
+): boolean =>
+  first.length === second.length &&
+  first.every((decoration, index) => {
+    const other = second[index];
+    return decoration.kind === other?.kind &&
+      decoration.sheetId === other.sheetId &&
+      decoration.startRow === other.startRow &&
+      decoration.endRow === other.endRow &&
+      decoration.startCol === other.startCol &&
+      decoration.endCol === other.endCol;
+  });
+
+const isTableRangeDecorationKind = (
+  kind: unknown,
+): kind is TableRangeDecoration["kind"] =>
+  kind === "templateBlock" || kind === "templateX" || kind === "templateY";
+
+const firstString = (...values: readonly unknown[]): string | null => {
+  for (const value of values) {
+    if (typeof value === "string" && value) {
+      return value;
+    }
+  }
+  return null;
+};
 
 export const sanitizeTableRowBatch = (rows: unknown): unknown[][] => {
   if (!Array.isArray(rows)) return [];
@@ -974,6 +1053,34 @@ const createTableFileFromSourceEntry = (
     : [],
 });
 
+const createTableSheetTabFromSourceEntry = (
+  sourceEntry: TableSourceEntry,
+): TableSheetTab => ({
+  columnCount: Math.max(0, Math.floor(Number(sourceEntry.data.columnCount) || 0)),
+  label: getTableSheetTabLabel(sourceEntry),
+  rowCount: Math.max(0, Math.floor(Number(sourceEntry.data.rowCount) || 0)),
+  sheetId: sourceEntry.source.sheetId ?? null,
+  sheetName: sourceEntry.sheetName,
+  source: sourceEntry.source,
+});
+
+const getTableSheetTabLabel = (
+  sourceEntry: TableSourceEntry,
+): string => {
+  const sheetName = sourceEntry.sheetName?.trim();
+  if (sheetName) {
+    return sheetName;
+  }
+
+  const fileName = formatTableFileName(String(sourceEntry.data.fileName ?? ""));
+  if (fileName) {
+    return fileName;
+  }
+
+  const sheetId = sourceEntry.source.sheetId?.trim();
+  return sheetId || localize("table.sheet.untitled", "Sheet");
+};
+
 const isTableFileForSource = (
   file: TableFile | null | undefined,
   source: TableSource | null | undefined,
@@ -1133,9 +1240,11 @@ const createTableViewModel = ({
     normalizeTableSelection(null),
   );
   const highlightRef = createTableRef<TableHighlight>({});
+  const rangeDecorationsRef = createTableRef<readonly TableRangeDecoration[]>([]);
   const revealCellRef = createTableRef<TableCell | null>(null);
   const selectionSubscribersRef = createTableRef(new Set<(selection: TableSelection) => void>());
   const highlightSubscribersRef = createTableRef(new Set<(highlight: TableHighlight) => void>());
+  const rangeDecorationSubscribersRef = createTableRef(new Set<(decorations: readonly TableRangeDecoration[]) => void>());
   const revealCellSubscribersRef = createTableRef(new Set<(cell: TableCell | null) => void>());
   const stateSubscribersRef = createTableRef(new Set<() => void>());
 
@@ -1282,7 +1391,15 @@ const createTableViewModel = ({
     const clearedSelection = normalizeTableSelection(null);
     selectionRef.current = clearedSelection;
     highlightRef.current = {};
+    rangeDecorationsRef.current = [];
     revealCellRef.current = null;
+    for (const callback of Array.from(rangeDecorationSubscribersRef.current)) {
+      try {
+        callback([]);
+      } catch {
+        // A broken consumer must not prevent table decorations from following the file.
+      }
+    }
     for (const callback of Array.from(selectionSubscribersRef.current)) {
       try {
         callback(clearedSelection);
@@ -2220,6 +2337,54 @@ const createTableViewModel = ({
     [selectionSubscribersRef],
   );
 
+  const getRangeDecorationContext = memoCallback(
+    (): { readonly columnCount: number; readonly rowCount: number; readonly sheetId: string | null } | null => {
+      const currentFile = previewFileRef.current;
+      if (!isTableFileForSourceEntry(currentFile, selectedSource)) {
+        return null;
+      }
+
+      return {
+        columnCount: Math.max(0, Math.floor(Number(currentFile.columnCount) || 0)),
+        rowCount: Math.max(0, Math.floor(Number(currentFile.rowCount) || 0)),
+        sheetId: firstString(currentFile.sheetId, selectedSource?.source.sheetId),
+      };
+    },
+    [previewFileRef, selectedSource],
+  );
+
+  const getRangeDecorations = memoCallback(
+    (): readonly TableRangeDecoration[] => rangeDecorationsRef.current,
+    [rangeDecorationsRef],
+  );
+
+  const onDidChangeRangeDecorations = memoCallback(
+    (callback: (decorations: readonly TableRangeDecoration[]) => void): (() => void) => {
+      rangeDecorationSubscribersRef.current.add(callback);
+      return () => rangeDecorationSubscribersRef.current.delete(callback);
+    },
+    [rangeDecorationSubscribersRef],
+  );
+
+  const setRangeDecorations = memoCallback(
+    (decorations: readonly TableRangeDecoration[]): void => {
+      const normalizedDecorations = normalizeTableRangeDecorations(decorations, getRangeDecorationContext());
+      if (areTableRangeDecorationsEqual(rangeDecorationsRef.current, normalizedDecorations)) {
+        return;
+      }
+
+      rangeDecorationsRef.current = normalizedDecorations;
+      for (const callback of Array.from(rangeDecorationSubscribersRef.current)) {
+        try {
+          callback(normalizedDecorations);
+        } catch {
+          // A broken consumer must not prevent table decorations from updating.
+        }
+      }
+    },
+    [getRangeDecorationContext, rangeDecorationSubscribersRef, rangeDecorationsRef],
+  );
+
   const onDidChangeState = memoCallback(
     (callback: () => void): (() => void) => {
       stateSubscribersRef.current.add(callback);
@@ -2346,6 +2511,13 @@ const createTableViewModel = ({
     [highlightRef, notifyHighlightChanged],
   );
 
+  const clearRangeDecorations = memoCallback(
+    (): void => {
+      setRangeDecorations([]);
+    },
+    [setRangeDecorations],
+  );
+
   const revealCell = memoCallback(
     (cell: TableCell | null): void => {
       revealCellRef.current = normalizeTableCell(cell);
@@ -2375,7 +2547,7 @@ const createTableViewModel = ({
         hasCurrentSource ? currentFileName : selectedDisplayName,
       );
       const dimensions = hasCurrentSource && currentFile
-        ? `${Math.max(0, Number(currentFile.rowCount) || 0)} × ${Math.max(0, Number(currentFile.columnCount) || 0)}`
+        ? `${Math.max(0, Number(currentFile.rowCount) || 0)} \u00d7 ${Math.max(0, Number(currentFile.columnCount) || 0)}`
         : undefined;
 
       return {
@@ -2383,6 +2555,7 @@ const createTableViewModel = ({
         file: hasCurrentSource ? currentFile : null,
         fileName,
         loadState: previewStatusRef.current,
+        sheets: sourceEntries.map(createTableSheetTabFromSourceEntry),
         selectedSheetId: selectedSource?.source.sheetId ?? activeSheetId ?? null,
         source: selectedSource?.source ?? null,
         displayVersion: settingsVersion,
@@ -2395,6 +2568,7 @@ const createTableViewModel = ({
       activeSheetKey,
       settingsVersion,
       selectedSource,
+      sourceEntries,
     ],
   );
 
@@ -2402,6 +2576,7 @@ const createTableViewModel = ({
     adjustColumnDisplayScale,
     cancelPendingRowRequests: cancelPendingTableRowRequests,
     clearHighlight,
+    clearRangeDecorations,
     clearSelection,
     clearState: clearPreviewState,
     ensureCells: ensureTableCells,
@@ -2409,6 +2584,7 @@ const createTableViewModel = ({
     get: getResolvedTableRow,
     getColumnDisplayProfile,
     getHighlight,
+    getRangeDecorations,
     getRow: getTableRow,
     getRowsVersion,
     getRevealCell,
@@ -2417,6 +2593,7 @@ const createTableViewModel = ({
     invalidateRequests: invalidatePreviewRequests,
     isResolved: isTableRowResolved,
     onDidChangeHighlight,
+    onDidChangeRangeDecorations,
     onDidChangeRevealCell,
     onDidChangeState,
     onDidChangeSelection,
@@ -2424,6 +2601,7 @@ const createTableViewModel = ({
     resolve: resolveTableRow,
     resetColumnDisplayScale,
     selectAllColumns,
+    setRangeDecorations,
     setSelection,
     highlightColumns,
     subscribeRowsVersion,

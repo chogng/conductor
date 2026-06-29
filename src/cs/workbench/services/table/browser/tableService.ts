@@ -18,12 +18,14 @@ import {
   type TableCellSearchQuery,
   type TableCellSearchResult,
   type TableCellValueResult,
+  type TableRangeDecoration,
   type TableViewModel,
   type TableRevealMode,
   type TableRevealOptions,
   type TableRevealTarget,
   type TableSelectionTarget,
   type TableSelectionTextResult,
+  type TableSheetTab,
   type TableSource,
   type TableViewInput,
 } from "src/cs/workbench/services/table/common/table";
@@ -401,51 +403,54 @@ const formatTableCopyCell = (value: unknown): string => {
     : text;
 };
 
-const createSourceDataFromModelSnapshot = (
+const createSourceInputsFromModelSnapshot = (
   snapshot: TableModelSnapshot | null,
   source: TableSource,
-): TableViewModelSourceData | null => {
+): readonly TableViewModelSourceInput[] => {
   const endProjectionPerf = startPerf("table.service.projectSourceData", {
     loadState: snapshot?.loadState.state ?? "missing",
     resourceScheme: source.resource?.scheme ?? "unknown",
     sourceHasSheet: Boolean(source.sheetId),
   }, { silent: true });
-  const result = doCreateSourceDataFromModelSnapshot(snapshot, source);
+  const result = doCreateSourceInputsFromModelSnapshot(snapshot, source);
   endProjectionPerf({
-    ...summarizeTableViewModelSourceData(result),
-    success: Boolean(result),
+    ...summarizeTableViewModelSourceInputs(result),
+    success: result.length > 0,
   });
   return result;
 };
 
-const doCreateSourceDataFromModelSnapshot = (
+const doCreateSourceInputsFromModelSnapshot = (
   snapshot: TableModelSnapshot | null,
   source: TableSource,
-): TableViewModelSourceData | null => {
+): readonly TableViewModelSourceInput[] => {
   const resource = source.resource;
   if (!snapshot || !resource) {
-    return null;
+    return [];
   }
 
   if (snapshot.loadState.state === "error") {
-    return {
-      fileName: getResourceFileName(resource),
-      previewHealth: "decodeFailed",
-      previewHealthMessage: snapshot.loadState.message,
-      relativePath: getResourceFileName(resource),
-      resource,
-      sourcePath: getResourcePath(resource),
-      sourceVersion: snapshot.sourceVersion,
-    };
+    const fileName = getResourceFileName(resource);
+    return [{
+      data: {
+        fileName,
+        previewHealth: "decodeFailed",
+        previewHealthMessage: snapshot.loadState.message,
+        relativePath: fileName,
+        resource,
+        sourcePath: getResourcePath(resource),
+        sourceVersion: snapshot.sourceVersion,
+      },
+      source,
+    }];
   }
 
   if (snapshot.loadState.state !== "ready") {
-    return null;
+    return [];
   }
 
   const requestedSheetId = getSourceSheetId(source);
-  const sheet = getSnapshotSheetForSource(snapshot, requestedSheetId);
-  if (requestedSheetId && !sheet) {
+  if (requestedSheetId && !snapshot.sheets.some(sheet => sheet.sheetId === requestedSheetId)) {
     const fileName = getResourceFileName(resource);
     const diagnostic: TableParseDiagnostic = {
       code: "table.sheetNotFound",
@@ -453,30 +458,57 @@ const doCreateSourceDataFromModelSnapshot = (
       severity: "error",
       sheetId: requestedSheetId,
     };
-    return {
-      columnCount: 0,
-      diagnostics: [
-        ...snapshot.diagnostics,
-        diagnostic,
-      ],
-      fileName,
-      maxCellLengths: [],
-      previewHealth: "parseFailed",
-      previewHealthMessage: diagnostic.message,
-      relativePath: fileName,
-      resource,
-      rowCount: 0,
-      sheetId: requestedSheetId,
-      sourcePath: getResourcePath(resource),
-      sourceVersion: snapshot.sourceVersion,
-    };
+    return [{
+      data: {
+        columnCount: 0,
+        diagnostics: [
+          ...snapshot.diagnostics,
+          diagnostic,
+        ],
+        fileName,
+        maxCellLengths: [],
+        previewHealth: "parseFailed",
+        previewHealthMessage: diagnostic.message,
+        relativePath: fileName,
+        resource,
+        rowCount: 0,
+        sheetId: requestedSheetId,
+        sourcePath: getResourcePath(resource),
+        sourceVersion: snapshot.sourceVersion,
+      },
+      source: {
+        resource,
+        sheetId: requestedSheetId,
+      },
+    }];
   }
-  const content = sheet
-    ? sheet.content
-    : snapshot.content;
+
+  return snapshot.sheets
+    .map((sheet): TableViewModelSourceInput | null => {
+      const data = createSourceDataFromSnapshotSheet(snapshot, source, sheet);
+      if (!data) {
+        return null;
+      }
+
+      return {
+        data,
+        source: createSheetSource(snapshot, source, sheet),
+      };
+    })
+    .filter((input): input is TableViewModelSourceInput => Boolean(input));
+};
+
+const createSourceDataFromSnapshotSheet = (
+  snapshot: TableModelSnapshot,
+  source: TableSource,
+  sheet: TableModelSheetSnapshot,
+): TableViewModelSourceData | null => {
+  const resource = source.resource;
+  const content = sheet.content;
   const fileName = getResourceFileName(resource);
   const diagnostics = getSourceDataDiagnostics(snapshot, sheet);
   const diagnosticHealth = summarizeTableParseDiagnostics(diagnostics);
+  const sheetIdentity = getSnapshotSheetIdentity(snapshot, source, sheet);
   if (!content) {
     if (diagnosticHealth) {
       return {
@@ -486,8 +518,7 @@ const doCreateSourceDataFromModelSnapshot = (
         previewHealthMessage: diagnosticHealth.previewHealthMessage,
         relativePath: fileName,
         resource,
-        ...(sheet?.sheetId && (requestedSheetId || sheet.sheetName) ? { sheetId: sheet.sheetId } : {}),
-        ...(sheet?.sheetName ? { sheetName: sheet.sheetName } : {}),
+        ...sheetIdentity,
         sourcePath: getResourcePath(resource),
         sourceVersion: snapshot.sourceVersion,
       };
@@ -503,8 +534,7 @@ const doCreateSourceDataFromModelSnapshot = (
     relativePath: fileName,
     resource,
     rowCount: content.rowCount,
-    ...(sheet?.sheetId && (requestedSheetId || sheet.sheetName) ? { sheetId: sheet.sheetId } : {}),
-    ...(sheet?.sheetName ? { sheetName: sheet.sheetName } : {}),
+    ...sheetIdentity,
     ...(diagnosticHealth ? {
       previewHealth: diagnosticHealth.previewHealth,
       previewHealthMessage: diagnosticHealth.previewHealthMessage,
@@ -514,6 +544,39 @@ const doCreateSourceDataFromModelSnapshot = (
     tableModelContent: content,
   };
 };
+
+const createSheetSource = (
+  snapshot: TableModelSnapshot,
+  source: TableSource,
+  sheet: TableModelSheetSnapshot,
+): TableSource => {
+  const resource = source.resource;
+  return shouldExposeSnapshotSheetIdentity(snapshot, source, sheet)
+    ? {
+        resource,
+        sheetId: sheet.sheetId,
+      }
+    : { resource };
+};
+
+const getSnapshotSheetIdentity = (
+  snapshot: TableModelSnapshot,
+  source: TableSource,
+  sheet: TableModelSheetSnapshot,
+): Pick<TableViewModelSourceData, "sheetId" | "sheetName"> =>
+  shouldExposeSnapshotSheetIdentity(snapshot, source, sheet)
+    ? {
+        sheetId: sheet.sheetId,
+        ...(sheet.sheetName ? { sheetName: sheet.sheetName } : {}),
+      }
+    : {};
+
+const shouldExposeSnapshotSheetIdentity = (
+  snapshot: TableModelSnapshot,
+  source: TableSource,
+  sheet: TableModelSheetSnapshot,
+): boolean =>
+  Boolean(getSourceSheetId(source) || sheet.sheetName || snapshot.sheets.length > 1);
 
 const summarizeTableParseDiagnostics = (
   diagnostics: readonly TableParseDiagnostic[],
@@ -556,25 +619,22 @@ const getSourceDataDiagnostics = (
   ...(sheet?.diagnostics ?? []),
 ];
 
-const getSnapshotSheetForSource = (
-  snapshot: TableModelSnapshot,
-  sheetId: string | null,
-): TableModelSheetSnapshot | null => {
-  if (sheetId) {
-    return snapshot.sheets.find(sheet => sheet.sheetId === sheetId) ?? null;
-  }
-
-  return snapshot.sheets.find(sheet => sheet.sheetId === snapshot.defaultSheetId) ??
-    snapshot.sheets[0] ??
-    null;
-};
-
 const getSourceSheetId = (
   source: TableSource,
 ): string | null =>
   typeof source.sheetId === "string" && source.sheetId
     ? source.sheetId
     : null;
+
+const summarizeTableViewModelSourceInputs = (
+  inputs: readonly TableViewModelSourceInput[],
+): Record<string, unknown> => {
+  const data = inputs[0]?.data ?? null;
+  return {
+    ...summarizeTableViewModelSourceData(data),
+    sheetCount: inputs.length,
+  };
+};
 
 const summarizeTableViewModelSourceData = (
   data: TableViewModelSourceData | null,
@@ -691,20 +751,12 @@ export class TableService extends Disposable implements ITableService {
       return [];
     }
 
-    const sourceData = createSourceDataFromModelSnapshot(
-      this.tableModelService.get(this.currentSource.resource)?.getSnapshot() ?? null,
-      this.currentSource,
-    );
-    if (sourceData) {
-      return sourceData
-        ? [{
-            data: sourceData,
-            source: this.currentSource,
-          }]
-        : [];
-    }
-
-    return [];
+    return [
+      ...createSourceInputsFromModelSnapshot(
+        this.tableModelService.get(this.currentSource.resource)?.getSnapshot() ?? null,
+        this.currentSource,
+      ),
+    ];
   }
 
   private resolveTableModel(source: TableSource | null): void {
@@ -958,8 +1010,16 @@ export class TableService extends Disposable implements ITableService {
     this.getActiveTableViewModel()?.clearHighlight();
   }
 
+  public clearRangeDecorations(): void {
+    this.getActiveTableViewModel()?.clearRangeDecorations();
+  }
+
   public highlightColumns(columnIndexes: readonly number[]): void {
     this.getActiveTableViewModel()?.highlightColumns(columnIndexes);
+  }
+
+  public setRangeDecorations(decorations: readonly TableRangeDecoration[]): void {
+    this.getActiveTableViewModel()?.setRangeDecorations(decorations);
   }
 
   public clearSelection(): boolean {
@@ -1124,8 +1184,25 @@ const isSameTableState = (
   current.dimensions === next.dimensions &&
   current.displayVersion === next.displayVersion &&
   areTableSourcesEqual(current.source, next.source) &&
+  areTableSheetTabsEqual(current.sheets, next.sheets) &&
   areNullableTableFilesEqual(current.file, next.file) &&
   areTableLoadStatesEqual(current.loadState, next.loadState);
+
+const areTableSheetTabsEqual = (
+  current: readonly TableSheetTab[],
+  next: readonly TableSheetTab[],
+): boolean =>
+  current.length === next.length &&
+  current.every((sheet, index) => {
+    const other = next[index];
+    return Boolean(other) &&
+      sheet.label === other.label &&
+      sheet.rowCount === other.rowCount &&
+      sheet.columnCount === other.columnCount &&
+      sheet.sheetId === other.sheetId &&
+      sheet.sheetName === other.sheetName &&
+      areTableSourcesEqual(sheet.source, other.source);
+  });
 
 const areNullableTableFilesEqual = (
   current: TableFile | null | undefined,

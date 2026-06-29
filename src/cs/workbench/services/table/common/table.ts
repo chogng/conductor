@@ -33,6 +33,15 @@ export type TableSelection = {
 	readonly ranges?: readonly TableRange[];
 };
 
+export type TableTemplateDecorationKind =
+	| "templateBlock"
+	| "templateX"
+	| "templateY";
+
+export type TableRangeDecoration = TableRange & {
+	readonly kind: TableTemplateDecorationKind;
+};
+
 export type TableSelectionTarget =
 	| { readonly kind: "cell"; readonly cell: TableCell | null }
 	| { readonly kind: "range"; readonly range: TableRange }
@@ -113,6 +122,15 @@ export type TableSourceInput = {
 
 export type TablePreviewHealth = "ok" | "suspect" | "decodeFailed" | "parseFailed" | "unsupported" | "empty";
 
+export type TableSheetTab = {
+	readonly columnCount: number;
+	readonly label: string;
+	readonly rowCount: number;
+	readonly sheetId?: string | null;
+	readonly sheetName?: string | null;
+	readonly source: TableSource;
+};
+
 type TableFile = {
 	fileName: string;
 	sheetId?: string | null;
@@ -161,6 +179,7 @@ export type TableState = {
 	readonly source?: TableSource | null;
 	readonly fileName: string;
 	readonly file: TableFile | null;
+	readonly sheets: readonly TableSheetTab[];
 	readonly loadState: TableLoadState;
 	readonly dimensions?: string;
 	readonly displayVersion?: number;
@@ -182,11 +201,13 @@ export type TableViewModel = {
 	getRow: (rowIndex: number) => unknown[] | null;
 	getRowsVersion: () => number;
 	getState: () => TableState;
+	getRangeDecorations: () => readonly TableRangeDecoration[];
 	isResolved: (rowIndex: number) => boolean;
 	getRevealCell: () => TableCell | null;
 	getSelection: () => TableSelection;
 	invalidateRequests: () => void;
 	onDidChangeState: (callback: () => void) => () => void;
+	onDidChangeRangeDecorations: (callback: (decorations: readonly TableRangeDecoration[]) => void) => () => void;
 	onDidChangeSelection: (callback: (selection: TableSelection) => void) => () => void;
 	revealCell: (cell: TableCell | null) => void;
 	resolve: (rowIndex: number, cancellationToken: CancellationToken) => Promise<unknown[]>;
@@ -198,6 +219,7 @@ export type TableViewModel = {
 	onDidChangeHighlight: (callback: (highlight: TableHighlight) => void) => () => void;
 	onDidChangeRevealCell: (callback: (cell: TableCell | null) => void) => () => void;
 	selectAllColumns: () => boolean;
+	setRangeDecorations: (decorations: readonly TableRangeDecoration[]) => void;
 	setSelection: (selection: TableSelection | null) => void;
 	subscribeRowsVersion: (callback: (event: TableRowsVersionChangeEvent) => void) => () => void;
 };
@@ -207,12 +229,14 @@ export type TableWidgetViewModel = Pick<
 	| "getColumnDisplayProfile"
 	| "get"
 	| "getHighlight"
+	| "getRangeDecorations"
 	| "getRowsVersion"
 	| "isResolved"
 	| "getRevealCell"
 	| "getSelection"
 	| "getState"
 	| "onDidChangeHighlight"
+	| "onDidChangeRangeDecorations"
 	| "onDidChangeRevealCell"
 	| "onDidChangeSelection"
 	| "onDidChangeState"
@@ -288,6 +312,7 @@ export interface ITableService {
 	adjustColumnDisplayScale(colIndex: number, deltaExponent: number): boolean;
 	clearSelection(): boolean;
 	clearHighlight(): void;
+	clearRangeDecorations(): void;
 	findCell(query: TableCellSearchQuery): Promise<TableCellSearchResult>;
 	getCellValue(cell: TableCell): Promise<TableCellValueResult>;
 	getColumnWidths(source: TableSource | null | undefined): readonly TableColumnWidth[];
@@ -301,6 +326,7 @@ export interface ITableService {
 	resetColumnDisplayScale(colIndex: number): boolean;
 	select(target: TableSelectionTarget | null, reveal?: TableRevealMode): boolean;
 	selectAllColumns(): boolean;
+	setRangeDecorations(decorations: readonly TableRangeDecoration[]): void;
 	storeColumnWidths(
 		source: TableSource | null | undefined,
 		widths: readonly TableColumnWidth[],

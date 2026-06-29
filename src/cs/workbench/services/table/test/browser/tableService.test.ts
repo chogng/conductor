@@ -131,10 +131,33 @@ suite("workbench/services/table/browser/tableService", () => {
       await waitForTableService();
     }
 
-    assert.equal(service.getViewInput()?.tableState.selectedSheetId, "2:Reverse");
-    assert.equal(service.getViewInput()?.tableState.file?.source?.resource?.toString(), resource.toString());
-    assert.equal(service.getViewInput()?.tableState.file?.source?.sheetId, "2:Reverse");
-    assert.equal(service.getViewInput()?.tableState.file?.sheetName, "Reverse");
+    const state = service.getViewInput()?.tableState;
+    assert.equal(state?.selectedSheetId, "2:Reverse");
+    assert.equal(state?.file?.source?.resource?.toString(), resource.toString());
+    assert.equal(state?.file?.source?.sheetId, "2:Reverse");
+    assert.equal(state?.file?.sheetName, "Reverse");
+    assert.deepStrictEqual(state?.sheets.map(sheet => ({
+      columnCount: sheet.columnCount,
+      label: sheet.label,
+      rowCount: sheet.rowCount,
+      sheetId: sheet.sheetId,
+      source: sheet.source.resource.toString(),
+      sourceSheetId: sheet.source.sheetId,
+    })), [{
+      columnCount: 2,
+      label: "Forward",
+      rowCount: 2,
+      sheetId: "1:Forward",
+      source: resource.toString(),
+      sourceSheetId: "1:Forward",
+    }, {
+      columnCount: 2,
+      label: "Reverse",
+      rowCount: 2,
+      sheetId: "2:Reverse",
+      source: resource.toString(),
+      sourceSheetId: "2:Reverse",
+    }]);
     assert.deepStrictEqual(service.getPreviewRow(0), ["Vd", "Id"]);
     assert.deepStrictEqual(service.getPreviewRow(1), ["1", "2"]);
   });

@@ -38,7 +38,10 @@ import {
   type TableWidgetColumnHeaderSelection,
 } from "src/cs/workbench/contrib/table/browser/tableWidget";
 import {
+  areTableSourcesEqual,
   ITableService,
+  type TableSheetTab,
+  type TableSource,
   type TableViewInput,
 } from "src/cs/workbench/services/table/common/table";
 import {
@@ -48,13 +51,6 @@ import {
 
 export type TableViewPaneProps = TableViewInput;
 
-type HeaderMode = "empty" | "file";
-
-type HeaderState = {
-  readonly fileName: string;
-  readonly mode: HeaderMode;
-};
-
 const ZOOM_CONTROL_ACTION_ID = "table.header.zoom";
 
 export class TableViewPane extends ViewPane {
@@ -62,8 +58,7 @@ export class TableViewPane extends ViewPane {
   private readonly store = new DisposableStore();
   private readonly content = document.createElement("div");
   private readonly headerTitle = document.createElement("div");
-  private readonly headerLeft = document.createElement("span");
-  private readonly headerCenter = document.createElement("span");
+  private readonly sheetTabList = document.createElement("div");
   private readonly headerRight = document.createElement("div");
   private readonly dimensions = document.createElement("span");
   private readonly actionBar: ActionBar;
@@ -76,8 +71,8 @@ export class TableViewPane extends ViewPane {
   private controller: TableController | null = null;
   private pendingControllerRender: IDisposable | null = null;
   private props: TableViewPaneProps | null = null;
+  private headerSheets: readonly TableSheetTab[] = [];
   private disposed = false;
-  private headerMode: HeaderMode | null = null;
 
   constructor(
     @ITableService private readonly tableService: ITableService,
@@ -102,14 +97,23 @@ export class TableViewPane extends ViewPane {
     });
     this.store.add(this.actionBar);
     this.headerTitle.className = "table_view_header_title";
-    this.headerLeft.className = "table_view_header_left";
-    this.headerCenter.className = "table_view_header_center";
-    this.headerRight.className = "table_view_header_right";
+    this.sheetTabList.className = "table_view_sheet_tablist";
+    this.sheetTabList.setAttribute("role", "tablist");
+    this.sheetTabList.setAttribute("aria-label", localize("table.header.sheetTabs", "Sheets"));
+    this.headerRight.className = "table_view_toolbar";
+    this.headerRight.setAttribute("role", "toolbar");
+    this.headerRight.setAttribute("aria-label", localize("table.header.toolbar", "Table toolbar"));
     this.dimensions.className = "table_view_dimensions";
     this.content.className = "table_view_pane_content";
     this.renderHeaderActions();
-    this.headerTitle.append(this.headerLeft, this.headerCenter);
+    this.headerTitle.append(this.sheetTabList);
     this.headerRight.append(this.dimensions, this.actionBar.domNode);
+    this.store.add(addDisposableListener(this.sheetTabList, EventType.CLICK, event => {
+      this.onSheetTabListClick(event as MouseEvent);
+    }));
+    this.store.add(addDisposableListener(this.sheetTabList, EventType.KEY_DOWN, event => {
+      this.onSheetTabListKeyDown(event as KeyboardEvent);
+    }));
     this.centerArea = createCenterAreaShell({
       id: TableViewId,
       ariaLabel: localize("table.ariaLabel", "Table"),
@@ -200,9 +204,10 @@ export class TableViewPane extends ViewPane {
   }
 
   private updateHeader(props: TableViewPaneProps): void {
-    const { fileName, mode } = getHeaderState(props);
-    this.updateHeaderMode(mode);
-    this.updateHeaderCenter(fileName, mode === "file");
+    this.updateSheetTabs(
+      props.tableState.sheets,
+      props.tableState.source ?? props.tableState.file?.source ?? null,
+    );
     this.updateHeaderRight();
   }
 
@@ -241,18 +246,93 @@ export class TableViewPane extends ViewPane {
     this.controller?.layout();
   }
 
-  private updateHeaderMode(mode: HeaderMode): void {
-    if (this.headerMode === mode) {
+  private updateSheetTabs(
+    sheets: readonly TableSheetTab[],
+    activeSource: TableSource | null,
+  ): void {
+    this.headerSheets = sheets;
+    setHidden(this.sheetTabList, sheets.length === 0);
+    if (!sheets.length) {
+      this.sheetTabList.replaceChildren();
       return;
     }
 
-    this.headerMode = mode;
-    setText(this.headerLeft, getHeaderLabel(mode));
+    const fragment = document.createDocumentFragment();
+    for (let index = 0; index < sheets.length; index += 1) {
+      const sheet = sheets[index]!;
+      const isSelected = areTableSourcesEqual(activeSource, sheet.source);
+      const tab = document.createElement("button");
+      tab.type = "button";
+      tab.className = "table_view_sheet_tab";
+      tab.dataset.tableViewSheetTabIndex = String(index);
+      tab.setAttribute("role", "tab");
+      tab.setAttribute("aria-selected", isSelected ? "true" : "false");
+      tab.tabIndex = isSelected ? 0 : -1;
+      tab.title = getSheetTabTitle(sheet);
+      tab.textContent = sheet.label;
+      fragment.append(tab);
+    }
+    this.sheetTabList.replaceChildren(fragment);
   }
 
-  private updateHeaderCenter(fileName: string, isVisible: boolean): void {
-    setText(this.headerCenter, fileName);
-    setHidden(this.headerCenter, !isVisible);
+  private onSheetTabListClick(event: MouseEvent): void {
+    const index = getSheetTabButtonIndex(getSheetTabButtonFromEventTarget(event.target));
+    if (index === null) {
+      return;
+    }
+
+    this.openSheetTab(index);
+  }
+
+  private onSheetTabListKeyDown(event: KeyboardEvent): void {
+    const tabButtons = this.getSheetTabButtons();
+    if (!tabButtons.length) {
+      return;
+    }
+
+    const currentIndex = getSheetTabButtonIndex(getSheetTabButtonFromEventTarget(event.target));
+    const selectedIndex = tabButtons.findIndex(tab => tab.getAttribute("aria-selected") === "true");
+    const anchorIndex = currentIndex ?? Math.max(0, selectedIndex);
+    let nextIndex: number | null = null;
+
+    switch (event.key) {
+      case "ArrowLeft":
+        nextIndex = (anchorIndex + tabButtons.length - 1) % tabButtons.length;
+        break;
+      case "ArrowRight":
+        nextIndex = (anchorIndex + 1) % tabButtons.length;
+        break;
+      case "Home":
+        nextIndex = 0;
+        break;
+      case "End":
+        nextIndex = tabButtons.length - 1;
+        break;
+      default:
+        return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    this.openSheetTab(nextIndex);
+    this.focusSheetTab(nextIndex);
+  }
+
+  private openSheetTab(index: number): void {
+    const sheet = this.headerSheets[index];
+    if (!sheet || areTableSourcesEqual(this.props?.tableState.source, sheet.source)) {
+      return;
+    }
+
+    this.tableService.open(sheet.source);
+  }
+
+  private focusSheetTab(index: number): void {
+    this.getSheetTabButtons()[index]?.focus();
+  }
+
+  private getSheetTabButtons(): HTMLButtonElement[] {
+    return Array.from(this.sheetTabList.querySelectorAll<HTMLButtonElement>(".table_view_sheet_tab"));
   }
 
   private updateHeaderRight(): void {
@@ -351,31 +431,36 @@ const setHidden = (element: HTMLElement, hidden: boolean): void => {
   }
 };
 
-const getHeaderLabel = (mode: HeaderMode): string => {
-  switch (mode) {
-    case "file":
-      return localize("table.header.filename", "File name");
-    case "empty":
-    default:
-      return localize("table.header.empty", "No preview");
-  }
-};
-
-const getHeaderState = ({ tableState }: TableViewPaneProps): HeaderState => {
-  const hasSelectedFile = Boolean(tableState.source?.resource && tableState.fileName);
-
-  return {
-    fileName: tableState.fileName,
-    mode: hasSelectedFile ? "file" : "empty",
-  };
-};
-
 const formatTableWidgetSize = (size: ITableSize | null): string => {
   if (!size || size.rowCount <= 0 || size.columnCount <= 0) {
     return "";
   }
 
-  return `${size.rowCount} × ${size.columnCount}`;
+  return `${size.rowCount} \u00d7 ${size.columnCount}`;
+};
+
+const getSheetTabTitle = (sheet: TableSheetTab): string => {
+  const dimensions = sheet.rowCount > 0 && sheet.columnCount > 0
+    ? ` (${sheet.rowCount} \u00d7 ${sheet.columnCount})`
+    : "";
+  return `${sheet.label}${dimensions}`;
+};
+
+const getSheetTabButtonFromEventTarget = (
+  target: EventTarget | null,
+): HTMLButtonElement | null => {
+  if (target instanceof Element) {
+    return target.closest<HTMLButtonElement>(".table_view_sheet_tab");
+  }
+
+  return null;
+};
+
+const getSheetTabButtonIndex = (
+  tab: HTMLButtonElement | null,
+): number | null => {
+  const index = Math.floor(Number(tab?.dataset.tableViewSheetTabIndex));
+  return Number.isInteger(index) && index >= 0 ? index : null;
 };
 
 export const getTableColumnHeaderSelection = (
