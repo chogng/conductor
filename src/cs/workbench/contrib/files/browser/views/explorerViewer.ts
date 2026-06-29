@@ -30,10 +30,9 @@ import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { isMacintosh, isWindows } from "src/cs/base/common/platform";
 import { Separator, SubmenuAction, type IAction } from "src/cs/base/common/actions";
 import { CommandsRegistry, type ICommandService } from "src/cs/platform/commands/common/commands";
-import type {
+import {
   IContextMenuService,
   IContextViewService,
-  IOpenContextView,
 } from "src/cs/platform/contextview/browser/contextView";
 import { localize } from "src/cs/nls";
 import { logPerf } from "src/cs/workbench/common/perf";
@@ -116,8 +115,6 @@ export type ExplorerViewerProps = {
   readonly explorerAppearance?: ExplorerAppearance;
   readonly activePlotType?: PlotType;
   readonly commandService: Pick<ICommandService, "executeCommand">;
-  readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
-  readonly contextViewService: IContextViewService;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly thumbnailPreviewService: IThumbnailPreviewService;
@@ -251,6 +248,10 @@ type HoverThumbnailCacheEntry = {
 type ThumbnailGridItemCacheEntry = {
   readonly node: HTMLButtonElement;
   thumbnail: HTMLElement;
+};
+
+type FileItemHoverView = {
+  close(): void;
 };
 
 const createFileSourceStatusBadge = (
@@ -803,7 +804,7 @@ export class ExplorerViewer implements IDisposable {
   private readonly thumbnailHost: HTMLDivElement;
   private readonly hoverThumbnailCache = new Map<string, HoverThumbnailCacheEntry>();
   private readonly thumbnailGridItemCache = new Map<string, ThumbnailGridItemCacheEntry>();
-  private hoverView: IOpenContextView | null = null;
+  private hoverView: FileItemHoverView | null = null;
   private hoverContainer: HTMLElement | null = null;
   private hoverAnchor: HTMLElement | null = null;
   private hoverContent: HoverContent | null = null;
@@ -834,6 +835,8 @@ export class ExplorerViewer implements IDisposable {
     private readonly hoverHost: HTMLElement,
     props: ExplorerViewerProps,
     private readonly labels: ResourceLabels,
+    @IContextMenuService private readonly contextMenuService: IContextMenuService,
+    @IContextViewService private readonly contextViewService: IContextViewService,
   ) {
     this.props = props;
     this.explorerAppearance = props.explorerAppearance ?? DEFAULT_EXPLORER_APPEARANCE;
@@ -1342,7 +1345,7 @@ export class ExplorerViewer implements IDisposable {
     this.hideFileItemHover();
     this.props.onRequestTemplates?.();
 
-    this.props.contextMenuService.showContextMenu({
+    this.contextMenuService.showContextMenu({
       getAnchor: () => ({
         x: event.clientX,
         y: event.clientY,
@@ -1886,7 +1889,7 @@ export class ExplorerViewer implements IDisposable {
 
     const visibleTargets = files
       .map(file => getExplorerFileResourceIdentity(file))
-      .filter((target): target is ExplorerResourceTarget => Boolean(target?.resource));
+      .filter((target): target is NonNullable<ReturnType<typeof getExplorerFileResourceIdentity>> => Boolean(target));
     const visibleTargetKeys = visibleTargets
       .map(target => getExplorerResourceIdentityKey(target) ?? "")
       .filter(Boolean);
@@ -2293,7 +2296,7 @@ export class ExplorerViewer implements IDisposable {
       ? ["file-list-hover", "file-list-hover--thumbnail"]
       : ["file-list-hover", "file-list-hover--review-decoration"];
 
-    this.hoverView = this.props.contextViewService.showContextView({
+    this.hoverView = this.contextViewService.showContextView({
       anchorAxisAlignment: AnchorAxisAlignment.HORIZONTAL,
       anchorPosition: AnchorPosition.RIGHT,
       canRelayout: true,
@@ -2742,6 +2745,7 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
+    const thumbnailFile = { title: String(file.fileName ?? file.fileId ?? "") };
     const previewState = this.getThumbnailPreviewState(file, null);
     const previewPlotModel = getPreviewPlotModel(previewState);
     const fallbackPlotModel = previewPlotModel ? null : this.getThumbnailPlotModel(normalizedFileId);
@@ -2927,7 +2931,7 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
-    this.props.contextViewService.layout();
+    this.contextViewService.layout();
   }
 
   private hideFileItemHover(item?: HTMLElement): void {

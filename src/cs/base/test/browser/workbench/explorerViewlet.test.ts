@@ -14,7 +14,10 @@ import type {
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import type { IDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import type { IFileService } from "src/cs/platform/files/common/files";
+import type { IInstantiationService } from "src/cs/platform/instantiation/common/instantiation";
 import { ExplorerViewPane } from "src/cs/workbench/contrib/files/browser/explorerViewlet";
+import { ExplorerView } from "src/cs/workbench/contrib/files/browser/views/explorerView";
+import { ExplorerViewer } from "src/cs/workbench/contrib/files/browser/views/explorerViewer";
 import type {
   PendingImportFile,
   PreparedFileImport,
@@ -208,10 +211,7 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
     {
       executeCommand: async () => undefined,
     } as unknown as ICommandService,
-    {
-      showContextMenu: () => undefined,
-    } as unknown as IContextMenuService,
-    {} as unknown as IContextViewService,
+    createContextMenuService(),
     {
       confirm: options.confirm ?? (async () => ({ confirmed: false })),
       onDidShowDialog: Event.None,
@@ -222,6 +222,7 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
       getProvider: () => undefined,
       moveFileToTrash: options.moveFileToTrash ?? (async () => undefined),
     } as unknown as IFileService,
+    createInstantiationService(createContextMenuService()),
     {
       getAppearance: () => ({ explorer: DEFAULT_EXPLORER_APPEARANCE }),
       onDidChangeAppearance: Event.None,
@@ -249,6 +250,65 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
     createDecorationsService(),
     createReviewService(options.onResolveReviewSummary),
   );
+
+const createContextMenuService = (): IContextMenuService => ({
+  showContextMenu: () => undefined,
+} as unknown as IContextMenuService);
+
+const createContextViewService = (): IContextViewService => ({
+  getContextViewElement: () => document.createElement("div"),
+  hideContextView: () => undefined,
+  layout: () => undefined,
+  showContextView: () => ({
+    close: () => undefined,
+  }),
+} as unknown as IContextViewService);
+
+const createInstantiationService = (
+  contextMenuService: IContextMenuService,
+): IInstantiationService => {
+  const contextViewService = createContextViewService();
+  let instantiationService: IInstantiationService;
+  const createInstance = (
+    ctor: new (...args: never[]) => unknown,
+    ...args: unknown[]
+  ): unknown => {
+    if (ctor === ExplorerView) {
+      return new ExplorerView(
+        args[0] as HTMLElement,
+        args[1] as ConstructorParameters<typeof ExplorerView>[1],
+        instantiationService,
+      );
+    }
+
+    if (ctor === ExplorerViewer) {
+      return new ExplorerViewer(
+        args[0] as HTMLElement,
+        args[1] as HTMLElement,
+        args[2] as ConstructorParameters<typeof ExplorerViewer>[2],
+        args[3] as ConstructorParameters<typeof ExplorerViewer>[3],
+        contextMenuService,
+        contextViewService,
+      );
+    }
+
+    throw new Error("Unexpected constructor in ExplorerViewPane test instantiation service.");
+  };
+
+  instantiationService = {
+    _serviceBrand: undefined,
+    createChild: () => {
+      throw new Error("Unexpected child instantiation service request.");
+    },
+    createInstance,
+    dispose: () => undefined,
+    invokeFunction: () => {
+      throw new Error("Unexpected function invocation in ExplorerViewPane test instantiation service.");
+    },
+  } as unknown as IInstantiationService;
+
+  return instantiationService;
+};
 
 const createExplorerService = (
   paneInput: ExplorerPaneInput | null,

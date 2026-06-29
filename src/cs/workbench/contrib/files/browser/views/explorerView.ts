@@ -6,6 +6,7 @@ import { localize } from "src/cs/nls";
 import { DragAndDropObserver } from "src/cs/base/browser/dom";
 import type { ListHandle } from "src/cs/base/browser/ui/list/listWidget";
 import { DisposableStore, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
+import { IInstantiationService } from "src/cs/platform/instantiation/common/instantiation";
 import type { IDecorationsService } from "src/cs/workbench/services/decorations/common/decorations";
 import { ResourceLabels } from "src/cs/workbench/browser/labels";
 import {
@@ -32,7 +33,11 @@ export class ExplorerView implements IDisposable {
   private props: ExplorerViewProps;
   private disposed = false;
 
-  constructor(host: HTMLElement, props: ExplorerViewProps) {
+  constructor(
+    host: HTMLElement,
+    props: ExplorerViewProps,
+    @IInstantiationService private readonly instantiationService: IInstantiationService,
+  ) {
     this.host = host;
     this.props = props;
     const dom = this.createDom();
@@ -40,7 +45,13 @@ export class ExplorerView implements IDisposable {
     this.viewport = dom.viewport;
     const labels = new ResourceLabels(this.props.decorationsService);
     this.explorerViewer = this.disposables.add(
-      new ExplorerViewer(dom.filledRoot, this.root, this.createViewerProps(), labels),
+      this.instantiationService.createInstance(
+        ExplorerViewer,
+        dom.filledRoot,
+        this.root,
+        this.createViewerProps(),
+        labels,
+      ),
     );
     this.disposables.add(labels);
     this.disposables.add(createFileIconThemableTreeContainerScope(this.root));
@@ -90,8 +101,6 @@ export class ExplorerView implements IDisposable {
       explorerAppearance: this.props.explorerAppearance,
       activePlotType: this.props.activePlotType,
       commandService: this.props.commandService,
-      contextMenuService: this.props.contextMenuService,
-      contextViewService: this.props.contextViewService,
       originOpenPlotOptions: this.props.originOpenPlotOptions,
       plotAxisSettings: this.props.plotAxisSettings,
       thumbnailPreviewService: this.props.thumbnailPreviewService,

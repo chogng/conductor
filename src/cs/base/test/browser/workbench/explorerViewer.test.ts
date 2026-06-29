@@ -49,10 +49,9 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     document.body.append(hoverHost);
     hoverHost.append(host);
 
-    const viewer = new ExplorerViewer(host, hoverHost, {
+    const viewer = createViewer(host, hoverHost, {
       ...createViewerProps(),
-      contextViewService,
-    }, labels);
+    }, labels, contextViewService);
 
     try {
       const item = host.querySelector<HTMLElement>(".file-list-item");
@@ -89,7 +88,6 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     };
     const props: ExplorerViewerProps = {
       ...createViewerProps(),
-      contextViewService,
       expandedFolderKeys: ["folder:293K", "folder:293K/output"],
       files: [file],
       mode: "table",
@@ -106,7 +104,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         },
       },
     };
-    const viewer = new ExplorerViewer(host, hoverHost, props, labels);
+    const viewer = createViewer(host, hoverHost, props, labels, contextViewService);
 
     try {
       const content = host.querySelector<HTMLElement>(".file-list-item-content");
@@ -166,7 +164,6 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     };
     const props: ExplorerViewerProps = {
       ...createViewerProps(),
-      contextViewService,
       expandedFolderKeys: ["folder:293K", "folder:293K/output"],
       files: [file],
       mode: "table",
@@ -178,7 +175,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         },
       },
     };
-    const viewer = new ExplorerViewer(host, hoverHost, props, labels);
+    const viewer = createViewer(host, hoverHost, props, labels, contextViewService);
 
     try {
       const item = host.querySelector<HTMLElement>(".file-list-item");
@@ -216,10 +213,9 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     document.body.append(hoverHost);
     hoverHost.append(host);
 
-    const viewer = new ExplorerViewer(host, hoverHost, {
+    const viewer = createViewer(host, hoverHost, {
       ...createViewerProps(),
-      contextViewService,
-    }, labels);
+    }, labels, contextViewService);
 
     try {
       const item = host.querySelector<HTMLElement>(".file-list-item");
@@ -257,9 +253,8 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     document.body.append(hoverHost);
     hoverHost.append(host);
 
-    const viewer = new ExplorerViewer(host, hoverHost, {
+    const viewer = createViewer(host, hoverHost, {
       ...createViewerProps(),
-      contextViewService,
       expandedFolderKeys: ["folder:Folder"],
       files: [{
         fileId: "file-a",
@@ -267,7 +262,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         itemKey: "file-a",
         relativePath: "Folder/A.csv",
       }],
-    }, labels);
+    }, labels, contextViewService);
 
     try {
       const item = host.querySelector<HTMLElement>(".file-list-item");
@@ -309,7 +304,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     document.body.append(hoverHost);
     hoverHost.append(host);
 
-    const viewer = new ExplorerViewer(host, hoverHost, {
+    const viewer = createViewer(host, hoverHost, {
       ...createViewerProps(),
       templateRecords: [{
         id: autoTemplateSelectionId,
@@ -338,7 +333,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     document.body.append(hoverHost);
     hoverHost.append(host);
 
-    const viewer = new ExplorerViewer(host, hoverHost, {
+    const viewer = createViewer(host, hoverHost, {
       ...createViewerProps(),
       templateRecords: [{
         id: "template-a",
@@ -373,7 +368,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     document.body.append(hoverHost);
     hoverHost.append(host);
 
-    const viewer = new ExplorerViewer(host, hoverHost, {
+    const viewer = createViewer(host, hoverHost, {
       ...baseProps,
       files: [{
         ...baseProps.files[0],
@@ -415,7 +410,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     document.body.append(hoverHost);
     hoverHost.append(host);
 
-    const viewer = new ExplorerViewer(host, hoverHost, {
+    const viewer = createViewer(host, hoverHost, {
       ...createViewerProps(),
       commandService: {
         executeCommand: async (id: string, ...args: unknown[]) => {
@@ -485,7 +480,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       },
       files: [initialFile],
     };
-    const viewer = new ExplorerViewer(host, hoverHost, props, labels);
+    const viewer = createViewer(host, hoverHost, props, labels);
 
     try {
       const badge = host.querySelector<HTMLElement>(".file-list-item-review-decoration");
@@ -571,7 +566,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       thumbnailService: createThumbnailService(),
       viewLayout: "thumbnail",
     };
-    const viewer = new ExplorerViewer(host, hoverHost, props, labels);
+    const viewer = createViewer(host, hoverHost, props, labels);
 
     try {
       viewer.setProps(props);
@@ -638,7 +633,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       },
       viewLayout: "thumbnail",
     };
-    const viewer = new ExplorerViewer(host, hoverHost, props, labels);
+    const viewer = createViewer(host, hoverHost, props, labels);
 
     try {
       viewer.setProps(props);
@@ -666,9 +661,8 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     document.body.append(hoverHost);
     hoverHost.append(host);
 
-    const viewer = new ExplorerViewer(host, hoverHost, {
+    const viewer = createViewer(host, hoverHost, {
       ...createViewerProps(),
-      contextViewService,
       mode: "chart",
       thumbnailPreviewService: {
         _serviceBrand: undefined,
@@ -692,7 +686,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       },
       thumbnailService: createThumbnailService(),
       viewLayout: "tree",
-    }, labels);
+    }, labels, contextViewService);
 
     try {
       const item = host.querySelector<HTMLElement>(".file-list-item");
@@ -759,9 +753,8 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     document.body.append(hoverHost);
     hoverHost.append(host);
 
-    const viewer = new ExplorerViewer(host, hoverHost, {
+    const viewer = createViewer(host, hoverHost, {
       ...createViewerProps(),
-      contextViewService,
       files: [{
         chartState: "ready",
         fileId: "file-a",
@@ -783,7 +776,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       },
       thumbnailService: createThumbnailService(),
       viewLayout: "tree",
-    }, labels);
+    }, labels, contextViewService);
 
     try {
       const item = host.querySelector<HTMLElement>(".file-list-item");
@@ -817,9 +810,8 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     document.body.append(hoverHost);
     hoverHost.append(host);
 
-    const viewer = new ExplorerViewer(host, hoverHost, {
+    const viewer = createViewer(host, hoverHost, {
       ...createViewerProps(),
-      contextViewService,
       files: [
         {
           chartState: "processing",
@@ -867,7 +859,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         },
       }),
       viewLayout: "tree",
-    }, labels);
+    }, labels, contextViewService);
 
     try {
       const items = host.querySelectorAll<HTMLElement>(".file-list-item");
@@ -912,9 +904,8 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     document.body.append(hoverHost);
     hoverHost.append(host);
 
-    const viewer = new ExplorerViewer(host, hoverHost, {
+    const viewer = createViewer(host, hoverHost, {
       ...createViewerProps(),
-      contextViewService,
       files: [
         {
           chartState: "ready",
@@ -956,7 +947,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       },
       thumbnailService: createThumbnailService(),
       viewLayout: "tree",
-    }, labels);
+    }, labels, contextViewService);
 
     try {
       const items = host.querySelectorAll<HTMLElement>(".file-list-item");
@@ -1013,9 +1004,8 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     document.body.append(hoverHost);
     hoverHost.append(host);
 
-    const viewer = new ExplorerViewer(host, hoverHost, {
+    const viewer = createViewer(host, hoverHost, {
       ...createViewerProps(),
-      contextViewService,
       files: [
         {
           chartState: "ready",
@@ -1061,7 +1051,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         },
       }),
       viewLayout: "tree",
-    }, labels);
+    }, labels, contextViewService);
 
     try {
       const items = host.querySelectorAll<HTMLElement>(".file-list-item");
@@ -1100,9 +1090,8 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     document.body.append(hoverHost);
     hoverHost.append(host);
 
-    const viewer = new ExplorerViewer(host, hoverHost, {
+    const viewer = createViewer(host, hoverHost, {
       ...createViewerProps(),
-      contextViewService,
       files: [
         {
           fileId: "file-a",
@@ -1133,7 +1122,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       },
       thumbnailService: createThumbnailService(),
       viewLayout: "tree",
-    }, labels);
+    }, labels, contextViewService);
 
     try {
       const item = host.querySelector<HTMLElement>(".file-list-item");
@@ -1217,14 +1206,29 @@ class TestContextViewService implements IContextViewService {
   public layout(): void {}
 }
 
+const createViewer = (
+  host: HTMLElement,
+  hoverHost: HTMLElement,
+  props: ExplorerViewerProps,
+  labels: ResourceLabels,
+  contextViewService = new TestContextViewService(),
+  contextMenuService: IContextMenuService = {
+    showContextMenu: () => undefined,
+  } as unknown as IContextMenuService,
+): ExplorerViewer =>
+  new ExplorerViewer(
+    host,
+    hoverHost,
+    props,
+    labels,
+    contextMenuService,
+    contextViewService,
+  );
+
 const createViewerProps = (): ExplorerViewerProps => ({
   commandService: {
     executeCommand: async () => undefined,
   },
-  contextMenuService: {
-    showContextMenu: () => undefined,
-  } as unknown as IContextMenuService,
-  contextViewService: new TestContextViewService(),
   files: [{
     fileId: "file-a",
     fileName: "A.csv",

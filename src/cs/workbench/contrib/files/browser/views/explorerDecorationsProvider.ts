@@ -21,9 +21,7 @@ import {
 	IReviewService,
 	type IReviewService as IReviewServiceType,
 } from "src/cs/workbench/services/review/common/review";
-import type {
-	IDecorationsProvider,
-} from "src/cs/workbench/services/decorations/common/decorations";
+import type { IDecorationsProvider } from "src/cs/workbench/services/decorations/common/decorations";
 
 const ExplorerDecorationReviewChangeDelayMs = 250;
 

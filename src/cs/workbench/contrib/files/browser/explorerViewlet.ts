@@ -10,12 +10,10 @@ import { toAction } from "src/cs/base/common/actions";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { isWindows } from "src/cs/base/common/platform";
 import { ICommandService } from "src/cs/platform/commands/common/commands";
-import {
-  IContextMenuService,
-  IContextViewService,
-} from "src/cs/platform/contextview/browser/contextView";
+import { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import { IDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import { IFileService } from "src/cs/platform/files/common/files";
+import { IInstantiationService } from "src/cs/platform/instantiation/common/instantiation";
 import type { WorkbenchSidebarAction } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
@@ -122,10 +120,10 @@ export class ExplorerViewPane extends ViewPane {
   constructor(
     @ICommandService private readonly commandService: ICommandService,
     @IContextMenuService private readonly contextMenuService: IContextMenuService,
-    @IContextViewService private readonly contextViewService: IContextViewService,
     @IDialogService private readonly dialogService: IDialogService,
     @IExplorerService private readonly explorerService: IExplorerService,
     @IFileService private readonly filesService: IFileService,
+    @IInstantiationService private readonly instantiationService: IInstantiationService,
     @IAppearanceService private readonly appearanceService: IAppearanceService,
     @IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
     @INotificationService private readonly notificationService: INotificationService,
@@ -222,7 +220,11 @@ export class ExplorerViewPane extends ViewPane {
     this.input = input;
 
     if (!this.explorerView) {
-      this.explorerView = new ExplorerView(this.explorerHost, this.createExplorerViewProps());
+      this.explorerView = this.instantiationService.createInstance(
+        ExplorerView,
+        this.explorerHost,
+        this.createExplorerViewProps(),
+      );
       this.listRef.current = this.explorerView.getListHandle();
     } else {
       this.explorerView.setProps(this.createExplorerViewProps());
@@ -397,8 +399,6 @@ export class ExplorerViewPane extends ViewPane {
       explorerAppearance: this.appearanceService.getAppearance().explorer,
       activePlotType: input.activePlotType,
       commandService: this.commandService,
-      contextViewService: this.contextViewService,
-      contextMenuService: this.contextMenuService,
       originOpenPlotOptions: input.originOpenPlotOptions,
       plotAxisSettings: input.plotAxisSettings,
       thumbnailPreviewService: this.thumbnailPreviewService,
