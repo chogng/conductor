@@ -36,11 +36,11 @@
 
 .conductor-toast-icon {
   display: flex;
-  flex: 0 0 auto;
+  flex: 0 0 28px;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 28px;
+  height: 28px;
   color: rgb(var(--text-secondary));
 }
 
