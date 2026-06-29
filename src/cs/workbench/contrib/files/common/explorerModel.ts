@@ -35,7 +35,7 @@ export type ExplorerFileEntry = {
 };
 
 export type ExplorerResourceIdentity = {
-	readonly resource: URI | null;
+	readonly resource: URI;
 	readonly sheetId?: string | null;
 };
 
@@ -210,7 +210,10 @@ export const getExplorerFileResourceIdentity = (
 };
 
 export const getExplorerResourceIdentityKey = (
-	target: ExplorerResourceIdentity | null | undefined,
+	target:
+		| { readonly resource?: URI | null; readonly sheetId?: string | null }
+		| null
+		| undefined,
 ): string | null => {
 	const resource = target?.resource ? URI.revive(target.resource) : null;
 	const resourceIdentity = resource?.toString();
