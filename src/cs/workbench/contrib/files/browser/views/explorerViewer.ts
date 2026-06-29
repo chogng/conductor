@@ -132,9 +132,9 @@ export type ExplorerViewerProps = {
   readonly viewLayout?: FilesViewLayout;
   readonly folderImportSupport?: FolderImportSupport;
   readonly onListScroll?: (event: Event) => void;
-  readonly onVisibleFileIdsChange?: (
-    visibleFileIds: readonly string[],
-    nearbyFileIds: readonly string[],
+  readonly onVisibleTargetsChange?: (
+    visibleTargets: readonly ExplorerResourceTarget[],
+    nearbyTargets: readonly ExplorerResourceTarget[],
   ) => void;
   readonly onFolderExpansionChange?: (expandedFolderKeys: readonly string[]) => void;
   readonly onFolderKeysChange?: (folderKeys: readonly string[]) => readonly string[] | void;
@@ -638,23 +638,24 @@ const isReviewSummaryWarning = (
   summary.state === "needsAdjustment" ||
   summary.state === "invalid";
 
-const getFileIdsFromTreeNodes = (
+const getResourceTargetsFromTreeNodes = (
   nodes: readonly ITreeNode<FileTreeNode>[],
-): string[] => {
-  const result: string[] = [];
+): ExplorerResourceTarget[] => {
+  const result: ExplorerResourceTarget[] = [];
   const seen = new Set<string>();
   for (const node of nodes) {
     if (node.element.kind !== "file") {
       continue;
     }
 
-    const fileId = String(node.element.entry?.fileId ?? "").trim();
-    if (!fileId || seen.has(fileId)) {
+    const target = getExplorerFileResourceIdentity(node.element.entry);
+    const key = getExplorerResourceIdentityKey(target);
+    if (!target?.resource || !key || seen.has(key)) {
       continue;
     }
 
-    seen.add(fileId);
-    result.push(fileId);
+    seen.add(key);
+    result.push(target);
   }
 
   return result;
@@ -808,7 +809,7 @@ export class ExplorerViewer implements IDisposable {
   private hoverContent: HoverContent | null = null;
   private hoverHideTimeout: ReturnType<typeof setTimeout> | null = null;
   private hoverLayoutFrame: number | null = null;
-  private thumbnailVisibleFileIds: readonly string[] = [];
+  private thumbnailVisibleTargetKeys: readonly string[] = [];
   private hoverViewToken = 0;
   private hoverCacheUse = 0;
   private explorerAppearance: ExplorerAppearance = DEFAULT_EXPLORER_APPEARANCE;
@@ -1300,15 +1301,16 @@ export class ExplorerViewer implements IDisposable {
   private readonly handleTreeRenderRange = (
     event: ITreeRenderRangeEvent<FileTreeNode>,
   ): void => {
-    if (!this.props.onVisibleFileIdsChange) {
+    if (!this.props.onVisibleTargetsChange) {
       return;
     }
 
-    const visibleFileIds = getFileIdsFromTreeNodes(event.visible);
-    const visibleFileIdSet = new Set(visibleFileIds);
-    const nearbyFileIds = getFileIdsFromTreeNodes(event.rendered)
-      .filter(fileId => !visibleFileIdSet.has(fileId));
-    this.props.onVisibleFileIdsChange(visibleFileIds, nearbyFileIds);
+    const visibleTargets = getResourceTargetsFromTreeNodes(event.visible);
+    const visibleTargetKeys = new Set(visibleTargets.map(target =>
+      getExplorerResourceIdentityKey(target) ?? ""));
+    const nearbyTargets = getResourceTargetsFromTreeNodes(event.rendered)
+      .filter(target => !visibleTargetKeys.has(getExplorerResourceIdentityKey(target) ?? ""));
+    this.props.onVisibleTargetsChange(visibleTargets, nearbyTargets);
   };
 
   private readonly handleTreeSelect = ({ element }: ITreeSelectionEvent<FileTreeNode>): void => {
@@ -1751,12 +1753,12 @@ export class ExplorerViewer implements IDisposable {
   private renderThumbnailGrid(): void {
     const files = this.getThumbnailFiles();
     if (getEffectiveViewLayout(this.props) !== "thumbnail") {
-      this.thumbnailVisibleFileIds = [];
+      this.thumbnailVisibleTargetKeys = [];
       this.pruneThumbnailGridCache(files);
       return;
     }
 
-    this.publishThumbnailVisibleFileIds(files);
+    this.publishThumbnailVisibleTargets(files);
 
     const nextKeys = new Set<string>();
     const nodes: HTMLButtonElement[] = [];
@@ -1819,8 +1821,8 @@ export class ExplorerViewer implements IDisposable {
     const fileId = String(file.fileId ?? "").trim();
     const thumbnailFile = { title: fileName };
     const previewState = previewReadMode === "request"
-      ? this.getThumbnailPreviewState(fileId, "visible")
-      : this.getThumbnailPreviewState(fileId, null);
+      ? this.getThumbnailPreviewState(file, "visible")
+      : this.getThumbnailPreviewState(file, null);
     const previewPlotModel = getPreviewPlotModel(previewState);
     const plotModel = previewPlotModel ??
       this.getThumbnailPlotModel(fileId) ??
@@ -1877,20 +1879,23 @@ export class ExplorerViewer implements IDisposable {
     this.updateThumbnailItem(entry, file, "get");
   }
 
-  private publishThumbnailVisibleFileIds(files: readonly ExplorerFileEntry[]): void {
-    if (!this.props.onVisibleFileIdsChange) {
+  private publishThumbnailVisibleTargets(files: readonly ExplorerFileEntry[]): void {
+    if (!this.props.onVisibleTargetsChange) {
       return;
     }
 
-    const visibleFileIds = files
-      .map(file => String(file.fileId ?? "").trim())
-      .filter(fileId => fileId.length > 0);
-    if (areStringArraysEqual(this.thumbnailVisibleFileIds, visibleFileIds)) {
+    const visibleTargets = files
+      .map(file => getExplorerFileResourceIdentity(file))
+      .filter((target): target is ExplorerResourceTarget => Boolean(target?.resource));
+    const visibleTargetKeys = visibleTargets
+      .map(target => getExplorerResourceIdentityKey(target) ?? "")
+      .filter(Boolean);
+    if (areStringArraysEqual(this.thumbnailVisibleTargetKeys, visibleTargetKeys)) {
       return;
     }
 
-    this.thumbnailVisibleFileIds = visibleFileIds;
-    this.props.onVisibleFileIdsChange(visibleFileIds, []);
+    this.thumbnailVisibleTargetKeys = visibleTargetKeys;
+    this.props.onVisibleTargetsChange(visibleTargets, []);
   }
 
   private pruneThumbnailGridCache(files: readonly ExplorerFileEntry[]): void {
@@ -2511,7 +2516,7 @@ export class ExplorerViewer implements IDisposable {
     const normalizedFileId = String(fileId || file.fileId || file.fileName || "").trim();
     const thumbnailFile = { title: String(file.fileName ?? file.fileId ?? "") };
     const cacheKey = normalizedFileId || "__unknown__";
-    const previewState = this.getThumbnailPreviewState(normalizedFileId, "hover");
+    const previewState = this.getThumbnailPreviewState(file, "hover");
     const previewPlotModel = getPreviewPlotModel(previewState);
     const fallbackPlotModel = previewPlotModel ? null : this.getThumbnailPlotModel(fileId);
     const cached = this.hoverThumbnailCache.get(cacheKey);
@@ -2705,15 +2710,14 @@ export class ExplorerViewer implements IDisposable {
   }
 
   private getThumbnailPreviewState(
-    fileId: string,
+    file: ExplorerFileEntry,
     priority: "hover" | "visible" | null,
   ): ThumbnailPreviewState {
-    const normalizedFileId = String(fileId ?? "").trim();
-    if (!normalizedFileId) {
+    const target = getExplorerFileResourceIdentity(file);
+    if (!target?.resource) {
       return { kind: "idle" };
     }
 
-    const target = createThumbnailPreviewTarget(normalizedFileId, this.props);
     return priority
       ? this.props.thumbnailPreviewService.request(
           target,
@@ -2738,7 +2742,7 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
-    const previewState = this.getThumbnailPreviewState(normalizedFileId, null);
+    const previewState = this.getThumbnailPreviewState(file, null);
     const previewPlotModel = getPreviewPlotModel(previewState);
     const fallbackPlotModel = previewPlotModel ? null : this.getThumbnailPlotModel(normalizedFileId);
     const plotModel = previewPlotModel ?? fallbackPlotModel ?? cached.plotModel;
@@ -3010,35 +3014,10 @@ function getThumbnailFileEntryFromProps(
     String(entry.fileId ?? "").trim() === normalizedFileId) ?? null;
 }
 
-function createThumbnailPreviewTarget(
-  fileId: string,
-  props: Pick<ExplorerViewerProps, "files">,
-): ThumbnailPreviewTarget {
-  const normalizedFileId = String(fileId ?? "").trim();
-  if (!normalizedFileId) {
-    return "";
-  }
-
-  const file = props.files.find((entry) =>
-    String(entry.fileId ?? "").trim() === normalizedFileId);
-  if (!file?.resource) {
-    return normalizedFileId;
-  }
-
-  return {
-    resource: file.resource,
-    sheetId: normalizeFileItemKey(file.sheetId),
-  };
-}
-
 function getThumbnailPreviewEventFileId(
   event: { readonly fileId?: string | null; readonly target?: ThumbnailPreviewTarget | null },
   props: Pick<ExplorerViewerProps, "files">,
 ): string | null {
-  const fileId = normalizeFileItemKey(event.fileId);
-  if (fileId) {
-    return fileId;
-  }
   const target = typeof event.target === "object" && event.target && "resource" in event.target
     ? event.target
     : null;

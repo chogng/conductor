@@ -308,12 +308,18 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       prioritizedTemplateFileIds: [],
     }));
     try {
-      explorerService.setVisibleFileIds(["file-a", "file-b"], ["file-c"]);
+      explorerService.setVisibleTargets([
+        { resource: URI.file("/data/A.csv") },
+        { resource: URI.file("/data/B.csv") },
+      ], [
+        { resource: URI.file("/data/C.csv") },
+      ]);
 
       assert.deepEqual(plotCalculatedPrefetches, []);
       assert.deepEqual(plotDisplayPrefetches, [
-        { fileIds: ["file-a", "file-b"], priority: "visible" },
-        { fileIds: ["file-c"], priority: "nearby" },
+        { fileIds: [], priority: "visible", targetResource: "file:///data/A.csv", targetSheetId: null },
+        { fileIds: [], priority: "visible", targetResource: "file:///data/B.csv", targetSheetId: null },
+        { fileIds: [], priority: "nearby", targetResource: "file:///data/C.csv", targetSheetId: null },
       ]);
       assert.deepEqual(plotInspectorPrefetches, []);
     } finally {
@@ -342,11 +348,11 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       prioritizedTemplateFileIds: [],
     }));
     try {
-      explorerService.setVisibleFileIds(["file-a"], []);
+      explorerService.setVisibleTargets([{ resource: URI.file("/data/A.csv") }], []);
 
       assert.equal(snapshotReads, 0);
       assert.deepEqual(plotDisplayPrefetches, [
-        { fileIds: ["file-a"], priority: "visible" },
+        { fileIds: [], priority: "visible", targetResource: "file:///data/A.csv", targetSheetId: null },
       ]);
     } finally {
       bridge.dispose();
@@ -391,18 +397,21 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       thumbnailPrefetches,
     }));
     try {
-      explorerService.setVisibleFileIds(["file-a", "uri-a"], ["uri-b"]);
+      explorerService.setVisibleTargets([
+        { resource: URI.file("/data/UriA.csv") },
+      ], [
+        { resource: URI.file("/data/UriB.csv") },
+      ]);
 
       assert.deepEqual(plotDisplayPrefetches, [
-        { fileIds: ["file-a"], priority: "visible" },
+        { fileIds: [], priority: "visible", targetResource: "file:///data/UriA.csv", targetSheetId: null },
+        { fileIds: [], priority: "nearby", targetResource: "file:///data/UriB.csv", targetSheetId: null },
       ]);
-      assert.deepEqual(prioritizedCalculationFileIds, ["file-a"]);
+      assert.deepEqual(prioritizedCalculationFileIds, []);
       assert.deepEqual(thumbnailPrefetches, [
         {
           priority: "visible",
           targets: [{
-            fileId: "file-a",
-          }, {
             targetResource: "file:///data/UriA.csv",
             targetSheetId: null,
           }],
@@ -643,11 +652,15 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       visibleDetailPanes: [],
     }));
     try {
-      explorerService.setVisibleFileIds(["file-a"], ["file-b"]);
+      explorerService.setVisibleTargets([
+        { resource: URI.file("/data/A.csv") },
+      ], [
+        { resource: URI.file("/data/B.csv") },
+      ]);
 
       assert.deepEqual(plotDisplayPrefetches, [
-        { fileIds: ["file-a"], priority: "visible" },
-        { fileIds: ["file-b"], priority: "nearby" },
+        { fileIds: [], priority: "visible", targetResource: "file:///data/A.csv", targetSheetId: null },
+        { fileIds: [], priority: "nearby", targetResource: "file:///data/B.csv", targetSheetId: null },
       ]);
       assert.deepEqual(plotInspectorPrefetches, []);
     } finally {
@@ -1412,12 +1425,18 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       prioritizedTemplateFileIds: [],
     }));
     try {
-      explorerService.setVisibleFileIds(["file-a", "file-b"], ["file-c"]);
+      explorerService.setVisibleTargets([
+        { resource: URI.file("/data/A.csv") },
+        { resource: URI.file("/data/B.csv") },
+      ], [
+        { resource: URI.file("/data/C.csv") },
+      ]);
 
       assert.deepEqual(plotCalculatedPrefetches, []);
       assert.deepEqual(plotDisplayPrefetches, [
-        { fileIds: ["file-a", "file-b"], priority: "visible" },
-        { fileIds: ["file-c"], priority: "nearby" },
+        { fileIds: [], priority: "visible", targetResource: "file:///data/A.csv", targetSheetId: null },
+        { fileIds: [], priority: "visible", targetResource: "file:///data/B.csv", targetSheetId: null },
+        { fileIds: [], priority: "nearby", targetResource: "file:///data/C.csv", targetSheetId: null },
       ]);
     } finally {
       bridge.dispose();
@@ -1775,12 +1794,16 @@ const createDomainBridgeOptionsForTest = ({
       plotDisplayPrefetchSnapshotFields?.push(
         ...inputs.map(input => Object.prototype.hasOwnProperty.call(input, "snapshot")),
       );
-      plotDisplayPrefetches?.push({
-        fileIds: inputs
-          .map(input => String(input.fileId ?? "").trim())
-          .filter(Boolean),
-        priority,
-      });
+      for (const input of inputs) {
+        plotDisplayPrefetches?.push({
+          fileIds: input.fileId ? [input.fileId] : [],
+          priority,
+          ...(input.target ? {
+            targetResource: input.target.resource.toString(),
+            targetSheetId: input.target.sheetId ?? null,
+          } : {}),
+        });
+      }
     },
     prefetchPlotInspectorDisplayModel: (input, priority) => {
       plotInspectorPrefetches?.push({

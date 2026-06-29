@@ -52,9 +52,9 @@ export type ExplorerFolderExpansionChangeEvent = {
   readonly expandedFolderKeys: readonly string[];
 };
 
-export type ExplorerVisibleFileIdsChangeEvent = {
-  readonly nearbyFileIds: readonly string[];
-  readonly visibleFileIds: readonly string[];
+export type ExplorerVisibleTargetsChangeEvent = {
+  readonly nearbyTargets: readonly ExplorerResourceTarget[];
+  readonly visibleTargets: readonly ExplorerResourceTarget[];
 };
 
 export type ExplorerHoveredResourceChangeEvent = {
@@ -114,7 +114,7 @@ export interface IExplorerService {
   readonly onDidChangeHoveredResource: Event<ExplorerHoveredResourceChangeEvent>;
   readonly onDidChangeExpandedFolderKeys: Event<ExplorerFolderExpansionChangeEvent>;
   readonly onDidChangeViewLayout: Event<ExplorerViewLayout>;
-  readonly onDidChangeVisibleFileIds: Event<ExplorerVisibleFileIdsChangeEvent>;
+  readonly onDidChangeVisibleTargets: Event<ExplorerVisibleTargetsChangeEvent>;
   readonly onDidChangePaneInput: Event<void>;
 
   getContext(): ExplorerContext;
@@ -129,7 +129,7 @@ export interface IExplorerService {
   reconcileExpandedFolderKeys(folderKeys: readonly string[]): readonly string[];
   getCollapsedFolderKeys(folderKeys: readonly string[]): readonly string[];
   setPendingSourceFiles(hasPendingSourceFiles: boolean): void;
-  setVisibleFileIds(visibleFileIds: readonly string[], nearbyFileIds?: readonly string[]): void;
+  setVisibleTargets(visibleTargets: readonly ExplorerResourceTarget[], nearbyTargets?: readonly ExplorerResourceTarget[]): void;
   setViewLayout(viewLayout: ExplorerViewLayout): void;
   toggleViewLayout(): void;
   getPaneInput(): ExplorerPaneInput | null;

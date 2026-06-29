@@ -103,8 +103,8 @@ export class WorkbenchDomainBridge extends Disposable {
         "hover",
       );
     }));
-    this._register(this.options.explorerService.onDidChangeVisibleFileIds(event => {
-      this.prioritizeVisibleExplorerFiles(event.visibleFileIds, event.nearbyFileIds);
+    this._register(this.options.explorerService.onDidChangeVisibleTargets(event => {
+      this.prioritizeVisibleExplorerTargets(event.visibleTargets, event.nearbyTargets);
     }));
     this._register(this.options.plotService.onDidChangePlotState(() => this.scheduleSync()));
     this._register(this.options.sliceService.onDidChangeSliceState(() => this.scheduleInteractiveSync()));
@@ -549,7 +549,7 @@ export class WorkbenchDomainBridge extends Disposable {
       "recent",
       "recentInteractiveTargets",
     );
-    const thumbnailTargets = createThumbnailPreviewTargets(recentFileIds, explorerFiles);
+    const thumbnailTargets = createThumbnailPreviewTargetsForExplorerFileIds(recentFileIds, explorerFiles);
     if (thumbnailTargets.length) {
       this.options.thumbnailPreviewService.prefetch(thumbnailTargets, "recent");
     }
@@ -570,13 +570,13 @@ export class WorkbenchDomainBridge extends Disposable {
     }
   }
 
-  private prioritizeVisibleExplorerFiles(
-    visibleFileIds: readonly string[],
-    nearbyFileIds: readonly string[],
+  private prioritizeVisibleExplorerTargets(
+    visibleTargets: readonly ExplorerResourceTarget[],
+    nearbyTargets: readonly ExplorerResourceTarget[],
   ): void {
     if (this.options.layoutService.activeWorkbenchMainPart === "chart") {
-      this.prefetchPlotDisplayTargets(visibleFileIds, "visible", "visibleExplorerFiles");
-      this.prefetchPlotDisplayTargets(nearbyFileIds, "nearby", "nearbyExplorerFiles");
+      this.prefetchPlotDisplayResourceTargets(visibleTargets, "visible", "visibleExplorerTargets");
+      this.prefetchPlotDisplayResourceTargets(nearbyTargets, "nearby", "nearbyExplorerTargets");
     }
     if (!shouldPrefetchExplorerThumbnails({
       activeWorkbenchMainPart: this.options.layoutService.activeWorkbenchMainPart,
@@ -585,23 +585,44 @@ export class WorkbenchDomainBridge extends Disposable {
       return;
     }
 
-    const explorerFiles = this.options.explorerService.getPaneInput()?.files ?? [];
-    const visibleCalculationFileIds = filterFileIdsWithoutUriTargets(visibleFileIds, explorerFiles);
-    const nearbyCalculationFileIds = filterFileIdsWithoutUriTargets(nearbyFileIds, explorerFiles);
-    const visibleThumbnailTargets = createThumbnailPreviewTargets(visibleFileIds, explorerFiles);
-    const nearbyThumbnailTargets = createThumbnailPreviewTargets(nearbyFileIds, explorerFiles);
-    if (visibleCalculationFileIds.length) {
-      this.options.calculationService.prioritizeCalculationFiles(visibleCalculationFileIds);
-    }
-    if (nearbyCalculationFileIds.length) {
-      this.options.calculationService.prioritizeCalculationFiles(nearbyCalculationFileIds);
-    }
+    const visibleThumbnailTargets = createThumbnailPreviewTargets(visibleTargets);
+    const nearbyThumbnailTargets = createThumbnailPreviewTargets(nearbyTargets);
     if (visibleThumbnailTargets.length) {
       this.options.thumbnailPreviewService.prefetch(visibleThumbnailTargets, "visible");
     }
     if (nearbyThumbnailTargets.length) {
       this.options.thumbnailPreviewService.prefetch(nearbyThumbnailTargets, "nearby");
     }
+  }
+
+  private prefetchPlotDisplayResourceTargets(
+    targets: readonly ExplorerResourceTarget[],
+    priority: PlotCalculatedDataPrefetchPriority,
+    source: string,
+  ): void {
+    if (this.options.layoutService.activeWorkbenchMainPart !== "chart") {
+      return;
+    }
+
+    const inputs = createThumbnailPreviewTargets(targets).map(target => ({
+      plotType: this.options.plotService.getState().activePlotType,
+      target,
+    }));
+    if (!inputs.length) {
+      return;
+    }
+
+    const endPerf = startPerf("workbenchDomainBridge.prefetchPlotDisplayTargets", {
+      inputCount: inputs.length,
+      priority,
+      source,
+    });
+    this.options.plotService.prefetchPlotDisplayModels?.(inputs, priority);
+    endPerf({
+      inputCount: inputs.length,
+      priority,
+      source,
+    });
   }
 
   private prefetchPlotDisplayTargets(
@@ -1294,22 +1315,19 @@ const hasExplorerUriTargetForChartFileId = (
   );
 };
 
-const filterFileIdsWithoutUriTargets = (
-  fileIds: readonly string[],
-  explorerFiles: readonly ExplorerFileEntry[],
-): readonly string[] => {
-  if (!explorerFiles.length) {
-    return fileIds;
-  }
-
-  return fileIds.filter(fileId => !hasExplorerUriTargetForChartFileId(explorerFiles, fileId));
-};
-
 const createThumbnailPreviewTargets = (
+  targets: readonly ExplorerResourceTarget[],
+): readonly ThumbnailPreviewTarget[] =>
+  targets
+    .map(target => normalizeExplorerResourceTarget(target))
+    .filter((target): target is SliceUriTarget => Boolean(target?.resource));
+
+const createThumbnailPreviewTargetsForExplorerFileIds = (
   fileIds: readonly string[],
   explorerFiles: readonly ExplorerFileEntry[],
 ): readonly ThumbnailPreviewTarget[] => {
-  const result: ThumbnailPreviewTarget[] = [];
+  const result: SliceUriTarget[] = [];
+  const seen = new Set<string>();
   for (const fileId of fileIds) {
     const normalizedFileId = normalizeExplorerSelectionFileId(fileId);
     if (!normalizedFileId) {
@@ -1317,12 +1335,31 @@ const createThumbnailPreviewTargets = (
     }
 
     const file = explorerFiles.find(candidate =>
-      normalizeExplorerSelectionFileId(candidate.fileId) === normalizedFileId
-    );
+      normalizeExplorerSelectionFileId(candidate.fileId) === normalizedFileId);
     const target = file ? getExplorerFileUriTarget(file) : null;
-    result.push(target ?? normalizedFileId);
+    const key = getExplorerResourceIdentityKey(target);
+    if (!target || !key || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    result.push(target);
   }
   return result;
+};
+
+const normalizeExplorerResourceTarget = (
+  target: ExplorerResourceTarget | null | undefined,
+): SliceUriTarget | null => {
+  const resource = target?.resource ? URI.revive(target.resource) : null;
+  if (!resource) {
+    return null;
+  }
+
+  return {
+    resource,
+    sheetId: normalizeExplorerSelectionItemKey(target?.sheetId),
+  };
 };
 
 const applyChartExplorerStates = (

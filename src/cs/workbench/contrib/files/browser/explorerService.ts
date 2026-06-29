@@ -12,7 +12,7 @@ import {
   type ExplorerFolderExpansionChangeEvent,
   type ExplorerHoveredResourceChangeEvent,
   type ExplorerSelectionChangeEvent,
-  type ExplorerVisibleFileIdsChangeEvent,
+  type ExplorerVisibleTargetsChangeEvent,
   type ExplorerContext,
   type ExplorerCopyState,
   type ExplorerEditableData,
@@ -41,8 +41,8 @@ export class ExplorerService extends Disposable implements IExplorerService {
   public readonly onDidChangeExpandedFolderKeys = this.onDidChangeExpandedFolderKeysEmitter.event;
   private readonly onDidChangeViewLayoutEmitter = this._register(new Emitter<ExplorerViewLayout>());
   public readonly onDidChangeViewLayout = this.onDidChangeViewLayoutEmitter.event;
-  private readonly onDidChangeVisibleFileIdsEmitter = this._register(new Emitter<ExplorerVisibleFileIdsChangeEvent>());
-  public readonly onDidChangeVisibleFileIds = this.onDidChangeVisibleFileIdsEmitter.event;
+  private readonly onDidChangeVisibleTargetsEmitter = this._register(new Emitter<ExplorerVisibleTargetsChangeEvent>());
+  public readonly onDidChangeVisibleTargets = this.onDidChangeVisibleTargetsEmitter.event;
   private readonly onDidChangePaneInputEmitter = this._register(new Emitter<void>());
   public readonly onDidChangePaneInput = this.onDidChangePaneInputEmitter.event;
 
@@ -51,8 +51,8 @@ export class ExplorerService extends Disposable implements IExplorerService {
   private currentHoveredResource: ExplorerResourceTarget | null = null;
   private currentExpandedFolderKeys: readonly string[] = [];
   private knownFolderKeys: readonly string[] = [];
-  private currentNearbyFileIds: readonly string[] = [];
-  private currentVisibleFileIds: readonly string[] = [];
+  private currentNearbyTargets: readonly ExplorerResourceTarget[] = [];
+  private currentVisibleTargets: readonly ExplorerResourceTarget[] = [];
   private currentViewLayout: ExplorerViewLayout = "tree";
   private currentHasPendingSourceFiles = false;
   private paneInput: ExplorerPaneInput | null = null;
@@ -201,25 +201,26 @@ export class ExplorerService extends Disposable implements IExplorerService {
     this.onDidChangePendingSourceFilesEmitter.fire(next);
   }
 
-  public setVisibleFileIds(
-    visibleFileIds: readonly string[],
-    nearbyFileIds: readonly string[] = [],
+  public setVisibleTargets(
+    visibleTargets: readonly ExplorerResourceTarget[],
+    nearbyTargets: readonly ExplorerResourceTarget[] = [],
   ): void {
-    const nextVisibleFileIds = getNormalizedExplorerFileIds(visibleFileIds);
-    const nextNearbyFileIds = getNormalizedExplorerFileIds(nearbyFileIds)
-      .filter(fileId => !nextVisibleFileIds.includes(fileId));
+    const nextVisibleTargets = normalizeExplorerResourceTargets(visibleTargets);
+    const visibleTargetKeys = new Set(nextVisibleTargets.map(getRequiredExplorerResourceIdentityKey));
+    const nextNearbyTargets = normalizeExplorerResourceTargets(nearbyTargets)
+      .filter(target => !visibleTargetKeys.has(getRequiredExplorerResourceIdentityKey(target)));
     if (
-      areStringArraysEqual(this.currentVisibleFileIds, nextVisibleFileIds) &&
-      areStringArraysEqual(this.currentNearbyFileIds, nextNearbyFileIds)
+      areExplorerResourceTargetArraysEqual(this.currentVisibleTargets, nextVisibleTargets) &&
+      areExplorerResourceTargetArraysEqual(this.currentNearbyTargets, nextNearbyTargets)
     ) {
       return;
     }
 
-    this.currentVisibleFileIds = nextVisibleFileIds;
-    this.currentNearbyFileIds = nextNearbyFileIds;
-    this.onDidChangeVisibleFileIdsEmitter.fire({
-      nearbyFileIds: nextNearbyFileIds,
-      visibleFileIds: nextVisibleFileIds,
+    this.currentVisibleTargets = nextVisibleTargets;
+    this.currentNearbyTargets = nextNearbyTargets;
+    this.onDidChangeVisibleTargetsEmitter.fire({
+      nearbyTargets: nextNearbyTargets,
+      visibleTargets: nextVisibleTargets,
     });
   }
 
@@ -379,28 +380,35 @@ function areStringArraysEqual(
   return true;
 }
 
-const getNormalizedExplorerFileIds = (
-  fileIds: readonly string[],
-): readonly string[] => {
-  const result: string[] = [];
+const normalizeExplorerResourceTargets = (
+  targets: readonly ExplorerResourceTarget[],
+): readonly ExplorerResourceTarget[] => {
+  const result: ExplorerResourceTarget[] = [];
   const seen = new Set<string>();
-  for (const fileId of fileIds) {
-    const normalized = normalizeExplorerFileId(fileId);
-    if (!normalized || seen.has(normalized)) {
+  for (const target of targets) {
+    const normalized = normalizeExplorerResourceTarget(target);
+    const key = getExplorerResourceIdentityKey(normalized);
+    if (!normalized || !key || seen.has(key)) {
       continue;
     }
 
-    seen.add(normalized);
+    seen.add(key);
     result.push(normalized);
   }
 
   return result;
 };
 
-const normalizeExplorerFileId = (fileId: unknown): string | null => {
-  const normalized = String(fileId ?? "").trim();
-  return normalized || null;
-};
+const getRequiredExplorerResourceIdentityKey = (target: ExplorerResourceTarget): string =>
+  getExplorerResourceIdentityKey(target) ?? "";
+
+const areExplorerResourceTargetArraysEqual = (
+  current: readonly ExplorerResourceTarget[],
+  next: readonly ExplorerResourceTarget[],
+): boolean =>
+  current.length === next.length &&
+  current.every((target, index) =>
+    areExplorerResourceTargetsEqual(target, next[index] ?? null));
 
 const normalizeExplorerResource = (resource: URI | null | undefined): URI | null =>
   resource ? URI.revive(resource) ?? null : null;

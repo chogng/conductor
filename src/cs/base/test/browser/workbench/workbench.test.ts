@@ -2,6 +2,7 @@ import assert from "assert";
 
 import { Emitter, Event } from "src/cs/base/common/event";
 import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
+import { URI } from "src/cs/base/common/uri";
 import type { IAction } from "src/cs/base/common/actions";
 import type {
   IMenuService,
@@ -324,9 +325,9 @@ suite("workbench/browser/workbench layout integration", () => {
   });
 
   test("visible explorer range does not prefetch tree thumbnails", () => {
-    const visibleFileIdsEmitter = new Emitter<{
-      readonly nearbyFileIds: readonly string[];
-      readonly visibleFileIds: readonly string[];
+    const visibleTargetsEmitter = new Emitter<{
+      readonly nearbyTargets: readonly { readonly resource: URI }[];
+      readonly visibleTargets: readonly { readonly resource: URI }[];
     }>();
     const plotPrefetches: Array<{ fileIds: readonly string[]; priority: string }> = [];
     const thumbnailPrefetches: Array<{ fileIds: readonly string[]; priority: string }> = [];
@@ -354,7 +355,7 @@ suite("workbench/browser/workbench layout integration", () => {
         onDidChangeHoveredResource: Event.None,
         onDidChangePendingSourceFiles: Event.None,
         onDidChangeSelection: Event.None,
-        onDidChangeVisibleFileIds: visibleFileIdsEmitter.event,
+        onDidChangeVisibleTargets: visibleTargetsEmitter.event,
         selectedProcessedFileId: null,
         selectedRawFileId: null,
         updatePaneInput: () => undefined,
@@ -391,9 +392,9 @@ suite("workbench/browser/workbench layout integration", () => {
     } as unknown as WorkbenchDomainBridgeOptions);
 
     try {
-      visibleFileIdsEmitter.fire({
-        nearbyFileIds: ["file-b"],
-        visibleFileIds: ["file-a"],
+      visibleTargetsEmitter.fire({
+        nearbyTargets: [{ resource: URI.file("/data/B.csv") }],
+        visibleTargets: [{ resource: URI.file("/data/A.csv") }],
       });
 
       assert.deepEqual(tableModelPriorities, ["visible", "nearby"]);
@@ -401,7 +402,7 @@ suite("workbench/browser/workbench layout integration", () => {
       assert.deepEqual(thumbnailPrefetches, []);
     } finally {
       bridge.dispose();
-      visibleFileIdsEmitter.dispose();
+      visibleTargetsEmitter.dispose();
     }
   });
 
@@ -443,7 +444,7 @@ suite("workbench/browser/workbench layout integration", () => {
         onDidChangeHoveredResource: Event.None,
         onDidChangePendingSourceFiles: Event.None,
         onDidChangeSelection: Event.None,
-        onDidChangeVisibleFileIds: Event.None,
+        onDidChangeVisibleTargets: Event.None,
         select: () => undefined,
         selectedProcessedFileId: null,
         selectedRawFileId: null,
@@ -628,7 +629,7 @@ const createWorkbenchOptions = ({
       hasPendingSourceFiles: false,
       hoveredResource: null,
       onDidChangeHoveredResource: Event.None,
-      onDidChangeVisibleFileIds: Event.None,
+      onDidChangeVisibleTargets: Event.None,
       onDidChangePendingSourceFiles: Event.None,
       onDidChangeSelection: Event.None,
       selectedProcessedFileId: null,

@@ -201,7 +201,7 @@ function createExplorerService(
 	    onDidChangeExpandedFolderKeys: Event.None as IExplorerService["onDidChangeExpandedFolderKeys"],
 	    onDidChangeHoveredResource: Event.None as IExplorerService["onDidChangeHoveredResource"],
 	    onDidChangeViewLayout: Event.None as IExplorerService["onDidChangeViewLayout"],
-	    onDidChangeVisibleFileIds: Event.None as IExplorerService["onDidChangeVisibleFileIds"],
+	    onDidChangeVisibleTargets: Event.None as IExplorerService["onDidChangeVisibleTargets"],
 	    onDidChangePaneInput: Event.None as IExplorerService["onDidChangePaneInput"],
 	    getContext: () => ({
 	      editable: null,
@@ -229,7 +229,7 @@ function createExplorerService(
 	    reconcileExpandedFolderKeys: folderKeys => folderKeys,
 	    getCollapsedFolderKeys: () => [],
 	    setPendingSourceFiles: () => undefined,
-	    setVisibleFileIds: () => undefined,
+	    setVisibleTargets: () => undefined,
 	    setViewLayout: () => undefined,
     toggleViewLayout: () => undefined,
     getPaneInput: () => paneInput,

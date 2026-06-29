@@ -419,7 +419,7 @@ export class ExplorerViewPane extends ViewPane {
       onFolderExpansionChange: this.handleFolderExpansionChange,
       onFolderKeysChange: this.handleFolderKeysChange,
       onHoverFileChange: this.handleHoverFileChange,
-      onVisibleFileIdsChange: this.handleVisibleFileIdsChange,
+      onVisibleTargetsChange: this.handleVisibleTargetsChange,
       onRemoveFolder: this.handleRemoveFolder,
       onRequestTemplates: this.loadTemplates,
       onCancelRenameFile: this.handleCancelRenameFile,
@@ -895,11 +895,11 @@ export class ExplorerViewPane extends ViewPane {
     return this.explorerService.reconcileExpandedFolderKeys(folderKeys);
   };
 
-  private readonly handleVisibleFileIdsChange = (
-    visibleFileIds: readonly string[],
-    nearbyFileIds: readonly string[],
+  private readonly handleVisibleTargetsChange = (
+    visibleTargets: readonly ExplorerResourceTarget[],
+    nearbyTargets: readonly ExplorerResourceTarget[],
   ): void => {
-    this.explorerService.setVisibleFileIds(visibleFileIds, nearbyFileIds);
+    this.explorerService.setVisibleTargets(visibleTargets, nearbyTargets);
   };
 
   private consumeLocalExpandedFolderKeys(expandedFolderKeys: readonly string[]): boolean {

@@ -264,7 +264,7 @@ const createExplorerService = (
   onDidChangePendingSourceFiles: Event.None,
   onDidChangeSelection: Event.None,
   onDidChangeViewLayout: Event.None,
-  onDidChangeVisibleFileIds: Event.None,
+  onDidChangeVisibleTargets: Event.None,
   selectedProcessedFileId: null,
   selectedRawFileId: null,
   viewLayout: "tree",
@@ -296,7 +296,7 @@ const createExplorerService = (
   setPendingSourceFiles: () => undefined,
   setToCopy: () => undefined,
   setViewLayout: () => undefined,
-  setVisibleFileIds: () => undefined,
+  setVisibleTargets: () => undefined,
   toggleViewLayout: () => undefined,
   updatePaneInput: (input: ExplorerPaneInput) => {
     onUpdatePaneInput?.(input);
