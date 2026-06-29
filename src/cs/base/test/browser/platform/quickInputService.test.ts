@@ -169,7 +169,7 @@ suite("base/test/browser/platform/quickInputService", () => {
       await microtasks(2);
 
       assert.equal(
-        document.querySelector<HTMLInputElement>(".quick-input-input")?.value,
+        document.querySelector<HTMLInputElement>(".quick-input-panel .inputbox_native")?.value,
         "command-test ",
       );
       assert.equal(

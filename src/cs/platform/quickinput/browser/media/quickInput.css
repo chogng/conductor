@@ -21,18 +21,25 @@
   width: min(40rem, calc(100vw - 32px));
 }
 
-.quick-input-input {
-  background: transparent;
-  border: none;
+.quick-input-panel > .inputbox_wrap {
   border-bottom: 1px solid rgb(var(--border-subtle));
-  color: rgb(var(--text-primary));
-  font-size: 15px;
-  height: 44px;
-  outline: none;
-  padding: 0 14px;
 }
 
-.quick-input-input::placeholder {
+.quick-input-panel .inputbox_field {
+  height: 44px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0 14px;
+  font-size: 15px;
+}
+
+.quick-input-panel .inputbox_native {
+  color: rgb(var(--text-primary));
+  font-size: 15px;
+}
+
+.quick-input-panel .inputbox_native::placeholder {
   color: rgb(var(--text-tertiary));
 }
 

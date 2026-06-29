@@ -5,7 +5,6 @@
 import { localize } from "src/cs/nls";
 
 import { createInputBox } from "src/cs/base/browser/ui/inputbox/inputBox";
-import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBoxField";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { createSelectBox } from "src/cs/base/browser/ui/selectBox/selectBox";
 import Scrollbar from "src/cs/base/browser/ui/scrollbar/scrollableElement";
@@ -748,20 +747,15 @@ const createLineWidthInput = (
   onChange: OriginSettingsChangeHandler | undefined,
   store: DisposableStore,
 ): HTMLElement => {
-  const input = createInputBox({
+  const inputBox = store.add(createInputBox({
     id: "export-settings-line-width",
-    inputClassName: "export_settings_view_input",
     type: "number",
     value: options.lineWidth,
-  });
+  }));
+  const input = inputBox.input;
   input.min = "0.5";
   input.max = "20";
   input.step = "0.5";
-  const wrapper = createInputBoxField({
-    className: "export_settings_view_control",
-    fieldClassName: "export_settings_view_input_field",
-    input,
-  }).element;
   const listener = () => {
     const normalized = normalizeOriginPlotOptions(
       { lineWidth: input.value },
@@ -772,7 +766,7 @@ const createLineWidthInput = (
   };
   input.addEventListener("change", listener);
   store.add(toDisposable(() => input.removeEventListener("change", listener)));
-  return wrapper;
+  return inputBox.element;
 };
 
 const createAxisTextInput = ({
@@ -790,19 +784,14 @@ const createAxisTextInput = ({
   readonly store: DisposableStore;
   readonly value: string | number;
 }): HTMLElement => {
-  const input = createInputBox({
+  const inputBox = store.add(createInputBox({
     disabled,
     id,
-    inputClassName: "export_settings_view_input",
     placeholder,
     type: "text",
     value: String(value ?? ""),
-  });
-  const wrapper = createInputBoxField({
-    className: "export_settings_view_control",
-    fieldClassName: "export_settings_view_input_field",
-    input,
-  }).element;
+  }));
+  const input = inputBox.input;
   let lastValue = input.value.trim();
   const commit = () => {
     const nextValue = input.value.trim();
@@ -824,7 +813,7 @@ const createAxisTextInput = ({
   input.addEventListener("keydown", keydownListener);
   store.add(toDisposable(() => input.removeEventListener("blur", blurListener)));
   store.add(toDisposable(() => input.removeEventListener("keydown", keydownListener)));
-  return wrapper;
+  return inputBox.element;
 };
 
 const createBooleanSwitch = ({
@@ -857,17 +846,12 @@ const createTextInput = ({
   readonly store: DisposableStore;
   readonly value: string;
 }): HTMLElement => {
-  const input = createInputBox({
+  const inputBox = store.add(createInputBox({
     id,
-    inputClassName: "export_settings_view_input",
     type: "text",
     value,
-  });
-  const wrapper = createInputBoxField({
-    className: "export_settings_view_control",
-    fieldClassName: "export_settings_view_input_field",
-    input,
-  }).element;
+  }));
+  const input = inputBox.input;
   let lastValue = value;
   const commit = () => {
     const nextValue = input.value.trim();
@@ -889,7 +873,7 @@ const createTextInput = ({
   input.addEventListener("keydown", keydownListener);
   store.add(toDisposable(() => input.removeEventListener("blur", blurListener)));
   store.add(toDisposable(() => input.removeEventListener("keydown", keydownListener)));
-  return wrapper;
+  return inputBox.element;
 };
 
 const createPostCommandsInput = (

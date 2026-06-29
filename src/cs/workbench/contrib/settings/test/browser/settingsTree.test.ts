@@ -26,6 +26,7 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
         title: "Section",
         items: [
           {
+            kind: "control",
             control,
             id: "settings-custom-card",
             title: "Custom",
@@ -41,6 +42,7 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
         title: "Section",
         items: [
           {
+            kind: "control",
             control,
             description: "Updated description",
             id: "settings-custom-card",
@@ -76,6 +78,7 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
         title: "Section",
         items: [
           {
+            kind: "control",
             control,
             id: "settings-layout-card",
             title: "Layout",
@@ -106,6 +109,7 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
         title: "Section",
         items: [
           {
+            kind: "control",
             control: firstControl,
             description: "Description",
             id: "settings-switch-card",
@@ -122,6 +126,7 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
         title: "Section",
         items: [
           {
+            kind: "control",
             control: secondControl,
             id: "settings-switch-card",
             title: "Control",
@@ -151,6 +156,7 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
         title: "Section",
         items: [
           {
+            kind: "control",
             control,
             description: "Search Description",
             id: "settings-search-card",
@@ -165,5 +171,57 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
       tree.element.querySelector<HTMLElement>("#settings-search-card")?.dataset.search,
       "search title search description option label",
     );
+  });
+
+  test("mounts caller-owned element items as settings cards", () => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const tree = store.add(new SettingsTree());
+    const firstElement = document.createElement("div");
+    firstElement.className = "settings-card-block";
+    firstElement.dataset.search = "first element";
+    const secondElement = document.createElement("div");
+    secondElement.className = "settings-card-block";
+    secondElement.dataset.search = "second element";
+
+    tree.update([
+      {
+        id: "settings-test-section",
+        title: "Section",
+        items: [
+          {
+            kind: "element",
+            element: firstElement,
+            id: "settings-element-card",
+          },
+        ],
+      },
+    ]);
+
+    assert.equal(tree.element.querySelector("#settings-element-card"), firstElement);
+    assert.equal(firstElement.classList.contains("settings-card"), true);
+    assert.equal(firstElement.classList.contains("settings-card-block"), true);
+    assert.equal(firstElement.dataset.search, "first element");
+
+    tree.update([
+      {
+        id: "settings-test-section",
+        title: "Section",
+        items: [
+          {
+            kind: "element",
+            element: secondElement,
+            id: "settings-element-card",
+          },
+        ],
+      },
+    ]);
+
+    assert.equal(tree.element.querySelector("#settings-element-card"), secondElement);
+    assert.equal(tree.element.contains(firstElement), false);
+    assert.equal(secondElement.classList.contains("settings-card"), true);
+    assert.equal(secondElement.dataset.search, "second element");
   });
 });

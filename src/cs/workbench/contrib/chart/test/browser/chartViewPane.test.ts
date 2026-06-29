@@ -136,7 +136,7 @@ suite("workbench/contrib/chart/test/browser/chartViewPane", () => {
 			editButton.click();
 			await Promise.resolve();
 
-			const inputElement = pane.element.querySelector<HTMLInputElement>(".chart_legend_inline_input");
+			const inputElement = pane.element.querySelector<HTMLInputElement>(".chart_legend_inline_editor .inputbox_native");
 			assert.ok(inputElement);
 			inputElement.focus();
 			inputElement.value = "Edited";

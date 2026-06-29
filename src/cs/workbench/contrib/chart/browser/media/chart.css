@@ -240,7 +240,7 @@
   border-radius: 4px;
 }
 
-.chart_legend_inline_input {
+.chart_legend_inline_editor .inputbox_native {
   height: 20px;
   min-width: 0;
   padding: 0;

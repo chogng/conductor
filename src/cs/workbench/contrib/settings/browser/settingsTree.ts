@@ -1,8 +1,12 @@
 import { append } from "src/cs/base/browser/dom";
 import { Disposable } from "src/cs/base/common/lifecycle";
+import type { IListRenderer, IListVirtualDelegate } from "src/cs/base/browser/ui/list/list";
+import { List } from "src/cs/base/browser/ui/list/listWidget";
 import { normalizeSettingsSearchText } from "src/cs/workbench/contrib/settings/browser/settingsSearch";
+import "src/cs/base/browser/ui/list/list.css";
 
-export type SettingsTreeItem = {
+export type SettingsTreeControlItem = {
+  readonly kind: "control";
   readonly control: HTMLElement;
   readonly description?: string;
   readonly id: string;
@@ -10,119 +14,211 @@ export type SettingsTreeItem = {
   readonly title: string;
 };
 
+export type SettingsTreeElementItem = {
+  readonly kind: "element";
+  readonly element: HTMLElement;
+  readonly id: string;
+  readonly searchText?: string;
+};
+
+export type SettingsTreeItem = SettingsTreeControlItem | SettingsTreeElementItem;
+
 export type SettingsTreeSection = {
   readonly id: string;
   readonly items: readonly SettingsTreeItem[];
   readonly title: string;
 };
 
-// Small settings tree: section and item ids are stable keys, while controls are
-// caller-owned slot content. SettingsView owns control behavior and lifecycle.
+type SettingsTreeListEntry = SettingsTreeSectionEntry | SettingsTreeItemEntry;
+
+type SettingsTreeSectionEntry = {
+  readonly kind: "section";
+  readonly id: string;
+  readonly title: string;
+};
+
+type SettingsTreeItemEntry = {
+  readonly first: boolean;
+  readonly id: string;
+  readonly item: SettingsTreeItem;
+  readonly kind: "item";
+  readonly last: boolean;
+};
+
+// Small settings tree: section and item ids are stable keys. Control items use
+// fixed label/control slots; element items use caller-owned item content.
+// SettingsView owns control behavior and lifecycle.
 export class SettingsTree extends Disposable {
   public readonly element = div("settings-tree");
-  private readonly sections = new Map<string, SettingsTreeSectionWidget>();
+  private readonly list: List<SettingsTreeListEntry>;
+
+  constructor() {
+    super();
+    this.list = this._register(new List(this.element, {
+      delegate: new SettingsTreeListDelegate(),
+      getKey: entry => entry.id,
+      identityProvider: {
+        getId: entry => entry.id,
+      },
+      items: [],
+      keyboardSupport: false,
+      minVirtualCount: Number.MAX_SAFE_INTEGER,
+      mouseSupport: false,
+      multipleSelectionSupport: false,
+      renderers: [
+        new SettingsTreeSectionRenderer(),
+        new SettingsTreeItemRenderer(),
+      ],
+      rowRole: "presentation",
+    }));
+  }
 
   public update(sections: readonly SettingsTreeSection[]): void {
-    // Patch by id so unchanged sections and caller-owned controls can keep
-    // focus, DOM state, and widget instances across settings snapshot updates.
-    const nextSectionIds = new Set(sections.map(section => section.id));
-    for (const [id, section] of this.sections) {
-      if (!nextSectionIds.has(id)) {
-        section.dispose();
-        this.sections.delete(id);
-      }
-    }
-
-    for (let index = 0; index < sections.length; index++) {
-      const section = sections[index];
-      let instance = this.sections.get(section.id);
-      if (!instance) {
-        instance = this._register(new SettingsTreeSectionWidget(section));
-        this.sections.set(section.id, instance);
-      }
-      else {
-        instance.update(section);
-      }
-      ensureChildAt(this.element, instance.element, index);
-    }
+    this.list.setItems(flattenSettingsTree(sections));
   }
 
   public override dispose(): void {
     super.dispose();
-    this.sections.clear();
     this.element.remove();
   }
 }
 
-class SettingsTreeSectionWidget extends Disposable {
-  public readonly element = div("settings-section");
-  private readonly titleElement = title("");
-  private readonly listElement = div("settings-list");
-  private readonly items = new Map<string, SettingsTreeItemWidget>();
-
-  constructor(section: SettingsTreeSection) {
-    super();
-    this.element.id = section.id;
-    this.element.append(this.titleElement, this.listElement);
-    this.update(section);
-  }
-
-  public update(section: SettingsTreeSection): void {
-    this.titleElement.textContent = section.title;
-
-    // Item ids are the row-level reuse boundary. Control structure belongs to
-    // the supplied control node and is patched within the fixed right slot.
-    const nextItemIds = new Set(section.items.map(item => item.id));
-    for (const [id, item] of this.items) {
-      if (!nextItemIds.has(id)) {
-        item.dispose();
-        this.items.delete(id);
-      }
+class SettingsTreeListDelegate implements IListVirtualDelegate<SettingsTreeListEntry> {
+  public getHeight(entry: SettingsTreeListEntry): number {
+    if (entry.kind === "section") {
+      return 52;
     }
 
-    for (let index = 0; index < section.items.length; index++) {
-      const item = section.items[index];
-      let instance = this.items.get(item.id);
+    if (entry.item.kind === "control") {
+      return entry.item.description ? 92 : 72;
+    }
 
-      if (!instance) {
-        instance = this._register(new SettingsTreeItemWidget(item));
-        this.items.set(item.id, instance);
-      }
-      else {
-        instance.update(item);
-      }
-      ensureChildAt(this.listElement, instance.element, index);
+    return 160;
+  }
+
+  public getTemplateId(entry: SettingsTreeListEntry): string {
+    return entry.kind;
+  }
+}
+
+class SettingsTreeSectionRenderer implements IListRenderer<SettingsTreeListEntry, HTMLElement> {
+  public readonly templateId = "section";
+
+  public renderTemplate(container: HTMLElement): HTMLElement {
+    const element = div("settings-section", title(""));
+    container.appendChild(element);
+    return element;
+  }
+
+  public renderElement(entry: SettingsTreeListEntry, _index: number, element: HTMLElement): void {
+    if (entry.kind !== "section") {
+      throw new Error(`Cannot render settings tree ${entry.kind} entry with section renderer`);
+    }
+
+    element.id = entry.id;
+    const titleElement = element.querySelector<HTMLElement>(".settings-title");
+    if (titleElement) {
+      titleElement.textContent = entry.title;
     }
   }
 
-  public override dispose(): void {
-    super.dispose();
-    this.items.clear();
-    this.element.remove();
+  public disposeTemplate(element: HTMLElement): void {
+    element.remove();
+  }
+}
+
+type SettingsTreeItemTemplate = {
+  readonly container: HTMLElement;
+  widget: SettingsTreeItemWidget | null;
+};
+
+class SettingsTreeItemRenderer implements IListRenderer<SettingsTreeListEntry, SettingsTreeItemTemplate> {
+  public readonly templateId = "item";
+
+  public renderTemplate(container: HTMLElement): SettingsTreeItemTemplate {
+    const itemContainer = div("settings-tree-item");
+    container.appendChild(itemContainer);
+    return { container: itemContainer, widget: null };
+  }
+
+  public renderElement(entry: SettingsTreeListEntry, _index: number, template: SettingsTreeItemTemplate): void {
+    if (entry.kind !== "item") {
+      throw new Error(`Cannot render settings tree ${entry.kind} entry with item renderer`);
+    }
+
+    template.container.className = getSettingsTreeItemClassName(entry);
+    if (template.widget && template.widget.kind !== entry.item.kind) {
+      template.widget.dispose();
+      template.widget = null;
+    }
+    if (!template.widget) {
+      template.widget = new SettingsTreeItemWidget(entry.item);
+    }
+    else {
+      template.widget.update(entry.item);
+    }
+    if (template.container.firstChild !== template.widget.element) {
+      template.container.replaceChildren(template.widget.element);
+    }
+  }
+
+  public disposeElement(_entry: SettingsTreeListEntry, _index: number, template: SettingsTreeItemTemplate): void {
+    template.widget?.dispose();
+    template.widget = null;
+    template.container.replaceChildren();
+  }
+
+  public disposeTemplate(template: SettingsTreeItemTemplate): void {
+    template.widget?.dispose();
+    template.container.remove();
   }
 }
 
 export class SettingsTreeItemWidget extends Disposable {
-  public readonly element = card("");
-  private readonly rowElement = div("settings-row settings-split-row");
-  private readonly labelElement = div("settings-row-title");
-  private readonly titleElement = title("");
-  private readonly descriptionElement = text("p", "settings-description", "");
-  private readonly controlElement = div("settings-row-control");
+  public element: HTMLElement;
+  public readonly kind: SettingsTreeItem["kind"];
+  private readonly rowElement: HTMLElement | null = null;
+  private readonly labelElement: HTMLElement | null = null;
+  private readonly titleElement: HTMLElement | null = null;
+  private readonly descriptionElement: HTMLElement | null = null;
+  private readonly controlElement: HTMLElement | null = null;
 
   constructor(item: SettingsTreeItem) {
     super();
-    this.labelElement.append(this.titleElement, this.descriptionElement);
-    this.rowElement.append(this.labelElement, this.controlElement);
-    this.element.appendChild(this.rowElement);
+    this.kind = item.kind;
+
+    if (item.kind === "control") {
+      this.element = card("");
+      this.rowElement = div("settings-row settings-split-row");
+      this.labelElement = div("settings-row-title");
+      this.titleElement = title("");
+      this.descriptionElement = text("p", "settings-description", "");
+      this.controlElement = div("settings-row-control");
+      this.labelElement.append(this.titleElement, this.descriptionElement);
+      this.rowElement.append(this.labelElement, this.controlElement);
+      this.element.appendChild(this.rowElement);
+    }
+    else {
+      this.element = item.element;
+    }
+
     this.update(item);
   }
 
   public update(item: SettingsTreeItem): void {
+    if (item.kind !== this.kind) {
+      throw new Error(`Cannot update settings tree ${this.kind} item with ${item.kind} item`);
+    }
+
+    if (item.kind === "element") {
+      this.updateElementItem(item);
+      return;
+    }
+
     this.element.id = item.id;
     this.updateSearchText(item);
     this.updateLabel(item);
-    this.controlElement.className = "settings-row-control";
+    this.controlElement!.className = "settings-row-control";
     this.updateControl(item.control);
   }
 
@@ -131,26 +227,33 @@ export class SettingsTreeItemWidget extends Disposable {
     this.element.remove();
   }
 
-  private updateLabel(item: SettingsTreeItem): void {
-    this.labelElement.className = item.description ? "settings-heading" : "settings-row-title";
-    this.titleElement.textContent = item.title;
-    this.descriptionElement.hidden = !item.description;
-    this.descriptionElement.textContent = item.description ?? "";
+  private updateLabel(item: SettingsTreeControlItem): void {
+    this.labelElement!.className = item.description ? "settings-heading" : "settings-row-title";
+    this.titleElement!.textContent = item.title;
+    this.descriptionElement!.hidden = !item.description;
+    this.descriptionElement!.textContent = item.description ?? "";
   }
 
-  private updateSearchText(item: SettingsTreeItem): void {
+  private updateSearchText(item: SettingsTreeControlItem): void {
     const searchText = normalizeSettingsSearchText(item.title, item.description, item.searchText);
-    if (searchText) {
-      this.element.dataset.search = searchText;
-    }
-    else {
-      delete this.element.dataset.search;
-    }
+    updateItemSearchText(this.element, searchText);
   }
 
   private updateControl(control: HTMLElement): void {
-    if (this.controlElement.childNodes.length !== 1 || this.controlElement.firstChild !== control) {
-      this.controlElement.replaceChildren(control);
+    if (this.controlElement!.childNodes.length !== 1 || this.controlElement!.firstChild !== control) {
+      this.controlElement!.replaceChildren(control);
+    }
+  }
+
+  private updateElementItem(item: SettingsTreeElementItem): void {
+    if (this.element !== item.element) {
+      this.element.replaceWith(item.element);
+      this.element = item.element;
+    }
+    this.element.id = item.id;
+    this.element.classList.add("settings-card");
+    if (item.searchText !== undefined) {
+      updateItemSearchText(this.element, normalizeSettingsSearchText(item.searchText));
     }
   }
 }
@@ -168,12 +271,44 @@ function div(className: string, ...children: Array<Node | string>): HTMLDivEleme
   return element;
 }
 
-function ensureChildAt(parent: HTMLElement, child: HTMLElement, index: number): void {
-  if (parent.children.item(index) === child) {
-    return;
+function updateItemSearchText(element: HTMLElement, searchText: string): void {
+  if (searchText) {
+    element.dataset.search = searchText;
   }
+  else {
+    delete element.dataset.search;
+  }
+}
 
-  parent.insertBefore(child, parent.children.item(index));
+function flattenSettingsTree(sections: readonly SettingsTreeSection[]): SettingsTreeListEntry[] {
+  const entries: SettingsTreeListEntry[] = [];
+  for (const section of sections) {
+    entries.push({
+      kind: "section",
+      id: section.id,
+      title: section.title,
+    });
+
+    for (let index = 0; index < section.items.length; index++) {
+      const item = section.items[index];
+      entries.push({
+        first: index === 0,
+        id: item.id,
+        item,
+        kind: "item",
+        last: index === section.items.length - 1,
+      });
+    }
+  }
+  return entries;
+}
+
+function getSettingsTreeItemClassName(entry: SettingsTreeItemEntry): string {
+  return [
+    "settings-tree-item",
+    entry.first ? "settings-tree-item--first" : undefined,
+    entry.last ? "settings-tree-item--last" : undefined,
+  ].filter(Boolean).join(" ");
 }
 
 function title(value: string): HTMLElement {

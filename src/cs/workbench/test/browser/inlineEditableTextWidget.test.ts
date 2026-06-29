@@ -25,7 +25,7 @@ suite("workbench/test/browser/inlineEditableTextWidget", () => {
 
     assert.equal(input.value, "Draft");
     assert.equal(input.readOnly, false);
-    assert.ok(input.className.includes("inline-editable-text__input--editing"));
+    assert.ok(input.className.includes("inputbox_native"));
 
     await Promise.resolve();
 
@@ -176,6 +176,7 @@ const createKeyboardEvent = (type: string, key: string): FakeKeyboardEvent => ({
 class FakeElement {
   readonly attributes = new Map<string, string>();
   readonly children: FakeElement[] = [];
+  readonly dataset: Record<string, string> = {};
   readonly listeners = new Map<string, Set<(event: unknown) => void>>();
   readonly style = {
     removeAttribute: (_name: string) => undefined,
@@ -204,6 +205,12 @@ class FakeElement {
     node.isConnected = this.isConnected;
     this.children.push(node);
     return node;
+  }
+
+  append(...nodes: FakeElement[]): void {
+    for (const node of nodes) {
+      this.appendChild(node);
+    }
   }
 
   remove(): void {

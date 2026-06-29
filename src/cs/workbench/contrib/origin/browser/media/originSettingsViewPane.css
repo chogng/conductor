@@ -131,15 +131,16 @@
   justify-self: end;
 }
 
-.export_settings_view_control {
+.export_settings_view_control,
+.export_settings_view_row > .inputbox_wrap {
   width: 100%;
 }
 
-.export_settings_view_input_field {
+.export_settings_view_row .inputbox_field {
   min-height: 30px;
 }
 
-.export_settings_view_input {
+.export_settings_view_row .inputbox_native {
   min-width: 0;
   font-size: 12px;
 }

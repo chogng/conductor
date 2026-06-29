@@ -303,7 +303,7 @@ type FieldOptions = {
 type TextInputOptions = {
   disabled?: boolean;
   id: string;
-  inputClassName?: string;
+  monospace?: boolean;
   onBlur?: () => void;
   onChange: (value: string) => void;
   placeholder?: string;
@@ -432,24 +432,23 @@ export class SettingsView {
       text("span", "settings-view-nav-back-label", localize("settings.nav.back", "Back")),
     );
 
-    const search = document.createElement("div");
-    search.className = "settings-view-search inputbox_field";
-    search.dataset.state = "enable";
-    search.appendChild(createLxIcon({ className: "settings-view-search-icon", icon: LxIcon.search, size: 14 }));
-    const searchInput = createInputBox({
-      ariaLabel: localize("settings.nav.searchPlaceholder", "Search settings..."),
-      inputClassName: "inputbox_native settings-view-search-input",
-      placeholder: localize("settings.nav.searchPlaceholder", "Search settings..."),
-      type: "text",
-      value: this.searchQuery,
-    });
     const clearSearchButton = document.createElement("button");
     clearSearchButton.type = "button";
     clearSearchButton.className = "settings-view-search-clear";
     clearSearchButton.hidden = true;
     clearSearchButton.setAttribute("aria-label", localize("settings.nav.clearSearch", "Clear search"));
     clearSearchButton.appendChild(createLxIcon({ className: "settings-view-search-clear-icon", icon: LxIcon.close, size: 14 }));
-    search.append(searchInput, clearSearchButton);
+    const searchInputBox = this.renderDisposables.add(createInputBox({
+      ariaLabel: localize("settings.nav.searchPlaceholder", "Search settings..."),
+      left: createLxIcon({ className: "settings-view-search-icon", icon: LxIcon.search, size: 14 }),
+      placeholder: localize("settings.nav.searchPlaceholder", "Search settings..."),
+      right: clearSearchButton,
+      type: "text",
+      value: this.searchQuery,
+    }));
+    const searchInput = searchInputBox.input;
+    const clearSearchSlot = clearSearchButton.parentElement as HTMLElement | null;
+    const search = div("settings-view-search", searchInputBox.element);
 
     const nav = document.createElement("nav");
     nav.className = "settings-view-nav-list";
@@ -486,20 +485,23 @@ export class SettingsView {
     const updateSearchState = () => {
       const queryWords = getSettingsSearchWords(searchInput.value);
       clearSearchButton.hidden = queryWords.length === 0;
+      if (clearSearchSlot) {
+        clearSearchSlot.hidden = clearSearchButton.hidden;
+      }
     };
 
-    searchInput.addEventListener("input", () => {
+    this.renderDisposables.add(addDisposableListener(searchInput, "input", () => {
       this.searchQuery = searchInput.value;
       updateSearchState();
       this.refreshContent();
-    });
-    clearSearchButton.addEventListener("click", () => {
+    }));
+    this.renderDisposables.add(addDisposableListener(clearSearchButton, "click", () => {
       searchInput.value = "";
       this.searchQuery = "";
       updateSearchState();
       this.refreshContent();
       searchInput.focus();
-    });
+    }));
     updateSearchState();
 
     aside.append(div("settings-view-nav-header", backButton), search, nav);
@@ -596,14 +598,6 @@ export class SettingsView {
   private createChartSettingsSection(settings: ChartDefaultSettings): HTMLElement {
     const chartTree = this.renderDisposables.add(new SettingsTree());
     chartTree.update(this.createChartSettingsTree(settings));
-
-    const chartList = getSettingsList(chartTree.element);
-    if (settings.feedback.message) {
-      const feedbackCard = card("settings-chart-scale-feedback-card", "settings-card-block");
-      appendFeedback(feedbackCard, settings.feedback);
-      chartList.appendChild(feedbackCard);
-    }
-    chartList.appendChild(this.createChartDefaults(settings));
     return chartTree.element;
   }
 
@@ -619,6 +613,7 @@ export class SettingsView {
         title: localize("settings.nav.general", "General"),
         items: [
           {
+            kind: "control",
             control: this.createSelect({
               id: "settings-language-dropdown",
               value: this.options.language,
@@ -635,6 +630,7 @@ export class SettingsView {
             title: localize("settings.language.title", "Language"),
           },
           {
+            kind: "control",
             control: this.createSelect({
               id: "settings-close-behavior-dropdown",
               value: this.options.windowCloseSettings.behavior,
@@ -652,6 +648,7 @@ export class SettingsView {
             title: localize("settings.closeBehavior.title", "Close Window"),
           },
           {
+            kind: "control",
             control: this.createSwitchWidget({
               ariaLabel: localize("settings.numericDisplay.title", "优化表格数值显示"),
               checked: this.options.numericDisplaySettings.optimized,
@@ -697,6 +694,7 @@ export class SettingsView {
         title: localize("settings.nav.template", "Template"),
         items: [
           {
+            kind: "control",
             control: this.createSwitchWidget({
               ariaLabel: localize("settings.tableTemplateVisualization.title", "Template Visualization"),
               checked: this.options.tableTemplateVisualizationSettings.enabled,
@@ -921,7 +919,7 @@ export class SettingsView {
     const enabledTerms = settings.builtinAliases.filter(term => !disabledIds.has(term.id));
     const section = div("settings-template-library-group");
     section.appendChild(text("p", "settings-template-subtitle", localize("settings.template.semantic.builtinTitle", "Built-in match terms")));
-    const list = div("settings-template-term-field");
+    const list = this.createTemplateSemanticTermField(settings);
     for (const term of enabledTerms) {
       list.appendChild(this.createBuiltinSemanticTermToken(settings, term, "enabled"));
     }
@@ -934,7 +932,7 @@ export class SettingsView {
     const disabledTerms = settings.builtinAliases.filter(term => disabledIds.has(term.id));
     const section = div("settings-template-library-group");
     section.appendChild(text("p", "settings-template-subtitle", localize("settings.template.semantic.disabledBuiltinTitle", "Disabled match terms")));
-    const list = div("settings-template-term-field");
+    const list = this.createTemplateSemanticTermField(settings);
     if (!disabledTerms.length) {
       list.appendChild(text("span", "settings-template-empty", localize("settings.template.semantic.noDisabledBuiltin", "No disabled match terms.")));
     }
@@ -943,6 +941,14 @@ export class SettingsView {
     }
     section.appendChild(list);
     return section;
+  }
+
+  private createTemplateSemanticTermField(settings: TemplateSettings): HTMLElement {
+    const field = document.createElement("div");
+    field.className = "inputbox_field settings-template-term-field";
+    field.dataset.icon = "without";
+    field.setAttribute("aria-disabled", String(settings.isSaving));
+    return field;
   }
 
   private createBuiltinSemanticTermToken(
@@ -966,7 +972,6 @@ export class SettingsView {
       : LxIcon.add;
     term.append(
       text("span", "settings-template-term-token-label", semanticTerm.alias),
-      text("span", "settings-template-term-token-meta", formatBuiltinSemanticTerm(semanticTerm)),
       createLxIcon({ className: "settings-template-term-token-icon", icon, size: 14 }),
     );
     term.addEventListener("click", () => {
@@ -1210,6 +1215,7 @@ export class SettingsView {
         title: localize("settings.nav.appearance", "Appearance"),
         items: [
           {
+            kind: "control",
             control: themeSelect.domNode,
             description: localize("settings.theme.description", "Choose the workbench color theme."),
             id: "settings-theme-card",
@@ -1217,6 +1223,7 @@ export class SettingsView {
             title: localize("settings.theme.title", "Theme"),
           },
           {
+            kind: "control",
             control: explorerDensitySelect.domNode,
             description: localize("settings.explorerDensity.description", "Choose how compact file rows appear in Explorer."),
             id: "settings-explorer-density-card",
@@ -1224,12 +1231,14 @@ export class SettingsView {
             title: localize("settings.explorerDensity.title", "Explorer Density"),
           },
           {
+            kind: "control",
             control: explorerBadgesSwitch.domNode,
             description: localize("settings.explorerBadges.description", "Show measurement badges beside files in Explorer."),
             id: "settings-explorer-badges-card",
             title: localize("settings.explorerBadges.title", "Explorer Badges"),
           },
           {
+            kind: "control",
             control: badgeColorSwatches,
             description: localize("settings.explorerBadgeColors.description", "Choose Explorer badge colors by measurement label."),
             id: "settings-explorer-badge-colors-card",
@@ -1240,12 +1249,14 @@ export class SettingsView {
             title: localize("settings.explorerBadgeColors.title", "Badge Colors"),
           },
           {
+            kind: "control",
             control: layoutResetActionContainer,
             description: localize("settings.layout.description", "Reset sidebar width and hidden workbench parts."),
             id: "settings-layout-card",
             title: localize("settings.layout.title", "Layout"),
           },
           {
+            kind: "control",
             control: div(
               "settings-color-controls",
               colorInput,
@@ -1257,6 +1268,7 @@ export class SettingsView {
             title: localize("settings.background.title", "Background"),
           },
           {
+            kind: "control",
             control: transparentChromeSwitch.domNode,
             description: localize("settings.transparentChrome.description", "Let the sidebar blend with the desktop window surface."),
             id: "settings-transparent-chrome-card",
@@ -1345,12 +1357,14 @@ export class SettingsView {
         title: localize("settings.nav.about", "About"),
         items: [
           {
+            kind: "control",
             control: text("p", "settings-code-value", appUpdateSettings.currentVersion || localize("settings.about.versionUnknown", "Unknown")),
             description: localize("settings.about.versionDescription", "The installed Conductor Studio version."),
             id: "settings-about-version-card",
             title: localize("settings.about.versionTitle", "Current Version"),
           },
           {
+            kind: "control",
             control: this.createButton({
               id: "settings-release-notes-show-btn",
               label: localize("settings.releaseNotes.showButton", "Show Release Notes"),
@@ -1363,6 +1377,7 @@ export class SettingsView {
             title: localize("settings.releaseNotes.title", "Release Notes"),
           },
           {
+            kind: "control",
             control: this.createButton({
               id: "settings-user-guide-show-btn",
               label: localize("settings.userGuide.showButton", "Show User Guide"),
@@ -1375,6 +1390,7 @@ export class SettingsView {
             title: localize("settings.userGuide.title", "User Guide"),
           },
           {
+            kind: "control",
             control: this.createButton({
               id: "settings-app-update-check-btn",
               label: this.options.appUpdateChecking ? localize("settings.appUpdate.checking", "Checking...") : localize("settings.appUpdate.checkButton", "Check for Updates"),
@@ -1485,6 +1501,7 @@ export class SettingsView {
         title: localize("settings.chartDefaults.sectionTitle", "Chart"),
         items: [
           {
+            kind: "control",
             control: this.createSelect({
               id: "settings-default-transfer-y-scale-select",
               value: settings.defaultYScaleForTransfer,
@@ -1498,6 +1515,7 @@ export class SettingsView {
             title: localize("settings.chartScaleDefaults.transferCurve", "Transfer"),
           },
           {
+            kind: "control",
             control: this.createSelect({
               id: "settings-default-output-y-scale-select",
               value: settings.defaultYScaleForOutput,
@@ -1513,6 +1531,7 @@ export class SettingsView {
             title: localize("settings.chartScaleDefaults.outputCurve", "Output"),
           },
           {
+            kind: "control",
             control: this.createSelect({
               id: "settings-default-cv-y-scale-select",
               value: settings.defaultYScaleForCv,
@@ -1528,6 +1547,7 @@ export class SettingsView {
             title: localize("settings.chartScaleDefaults.cvCurve", "C-V"),
           },
           {
+            kind: "control",
             control: this.createSelect({
               id: "settings-default-cf-y-scale-select",
               value: settings.defaultYScaleForCf,
@@ -1543,6 +1563,7 @@ export class SettingsView {
             title: localize("settings.chartScaleDefaults.cfCurve", "C-f"),
           },
           {
+            kind: "control",
             control: this.createSelect({
               id: "settings-default-pv-y-scale-select",
               value: settings.defaultYScaleForPv,
@@ -1557,9 +1578,25 @@ export class SettingsView {
             ),
             title: localize("settings.chartScaleDefaults.pvCurve", "P-V"),
           },
+          ...(settings.feedback.message ? [{
+            kind: "element" as const,
+            element: this.createChartScaleFeedback(settings.feedback),
+            id: "settings-chart-scale-feedback-card",
+          }] : []),
+          {
+            kind: "element",
+            element: this.createChartDefaults(settings),
+            id: "settings-chart-defaults-card",
+          },
         ],
       },
     ];
+  }
+
+  private createChartScaleFeedback(feedback: Feedback): HTMLElement {
+    const feedbackCard = card("settings-chart-scale-feedback-card", "settings-card-block");
+    appendFeedback(feedbackCard, feedback);
+    return feedbackCard;
   }
 
   private createChartDefaults(settings: ChartDefaultSettings): HTMLElement {
@@ -1629,7 +1666,7 @@ export class SettingsView {
           }
         },
         disabled: settings.isSaving,
-        inputClassName: "font-mono",
+        monospace: true,
       }),
       text("p", "settings-hint", hint),
     );
@@ -1643,14 +1680,14 @@ export class SettingsView {
     const pathValue = settings.currentPath || (settings.isLoading
       ? localize("settings.origin.loading", "Loading...")
       : localize("settings.origin.notConfigurableHint", "Origin path configuration is available in Windows desktop app only."));
+    const pathInputBox = this.renderDisposables.add(createInputBox({
+      ariaLabel: localize("settings.origin.title", "Origin Executable Path"),
+      id: "settings-origin-path-value-input",
+      readOnly: true,
+      value: pathValue,
+    }));
     controls.append(
-      createInputBox({
-        ariaLabel: localize("settings.origin.title", "Origin Executable Path"),
-        id: "settings-origin-path-value-input",
-        inputClassName: "inputbox_native inputbox_field settings-path-input",
-        readOnly: true,
-        value: pathValue,
-      }),
+      div("settings-path-input", pathInputBox.element),
       this.createButton({
         id: "settings-origin-path-choose-btn",
         label: localize("settings.origin.choosePathButton", "Choose Origin.exe"),
@@ -1808,21 +1845,22 @@ export class SettingsView {
     });
   }
 
-  private createInput(options: TextInputOptions): HTMLInputElement {
-    const input = createInputBox({
+  private createInput(options: TextInputOptions): HTMLElement {
+    const inputBox = this.renderDisposables.add(createInputBox({
       disabled: options.disabled,
       id: options.id,
-      inputClassName: options.inputClassName
-        ? `inputbox_native inputbox_field ${options.inputClassName}`
-        : "inputbox_native inputbox_field",
       placeholder: options.placeholder,
       value: options.value,
-    });
-    input.addEventListener("input", () => options.onChange(input.value));
+    }));
+    const input = inputBox.input;
+    this.renderDisposables.add(addDisposableListener(input, "input", () => options.onChange(input.value)));
     if (options.onBlur) {
-      input.addEventListener("blur", options.onBlur);
+      this.renderDisposables.add(addDisposableListener(input, "blur", options.onBlur));
     }
-    return input;
+    if (!options.monospace) {
+      return inputBox.element;
+    }
+    return div("settings-input settings-input--mono", inputBox.element);
   }
 
   private createSwitchWidget(options: {
@@ -2199,17 +2237,6 @@ function formatSemanticTermRule(rule: TemplateSemanticAliasRule): string {
     rule.canonicalUnit,
     rule.family,
     rule.ivMode,
-  ].filter(Boolean).join(" / ");
-}
-
-function formatBuiltinSemanticTerm(semanticTerm: DataResourceBuiltinSemanticAlias): string {
-  return [
-    semanticTerm.canonicalRole,
-    semanticTerm.axisTendency,
-    semanticTerm.canonicalUnit,
-    semanticTerm.family,
-    semanticTerm.ivMode,
-    semanticTerm.domainPackIds.join("+"),
   ].filter(Boolean).join(" / ");
 }
 

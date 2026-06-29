@@ -1708,7 +1708,6 @@ export class ExplorerViewer implements IDisposable {
         className: "file-list-item-inline-editor",
         draftValue: draftName,
         editing: true,
-        inputClassName: "file-list-item-inline-input",
         onCancel: () => this.props.onCancelRenameFile?.(),
         onChange: (nextValue) => {
           draftName = nextValue;

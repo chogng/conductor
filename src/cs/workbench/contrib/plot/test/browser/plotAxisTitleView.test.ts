@@ -30,8 +30,8 @@ suite("workbench/contrib/plot/test/browser/plotAxisTitleView", () => {
 
     assert.ok(input);
     assert.equal(input.value, "Vd (V)");
-    assert.ok(input.className.includes("plot_main_chart_axis_title_editor_input"));
-    assert.equal(findClass(view.element as unknown as FakeElement, "inputbox_native"), null);
+    assert.ok(input.className.includes("inputbox_native"));
+    assert.ok(findClass(view.element as unknown as FakeElement, "plot_main_chart_axis_title_editor"));
 
     await Promise.resolve();
     assert.equal(input.focusCount, 1);
@@ -109,6 +109,7 @@ class FakeStyle {
 class FakeElement {
   readonly attributes = new Map<string, string>();
   readonly children: FakeElement[] = [];
+  readonly dataset: Record<string, string> = {};
   readonly listeners = new Map<string, Set<(event: unknown) => void>>();
   readonly style = new FakeStyle();
   className = "";

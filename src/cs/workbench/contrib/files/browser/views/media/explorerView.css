@@ -204,7 +204,7 @@
   border-radius: 4px;
 }
 
-.file-list-item-inline-input {
+.file-list-item-inline-editor .inputbox_native {
   height: 20px;
   min-width: 0;
   padding: 0;

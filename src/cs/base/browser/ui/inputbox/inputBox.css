@@ -20,21 +20,31 @@
     opacity 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.inputbox_field[data-state="enable"]:focus-within {
+.inputbox_wrap.idle:not(:has(.inputbox_native:disabled)) .inputbox_field:focus-within {
   border-color: rgb(var(--accent) / 1);
 }
 
-.inputbox_field[data-state="error"] {
+.inputbox_wrap.info .inputbox_field {
+  border-color: rgb(var(--accent) / 1);
+  box-shadow: 0 0 0 1px rgb(var(--accent) / 0.1);
+}
+
+.inputbox_wrap.warning .inputbox_field {
+  border-color: rgb(245 158 11 / 1);
+  box-shadow: 0 0 0 1px rgb(245 158 11 / 0.12);
+}
+
+.inputbox_wrap.error .inputbox_field {
   border-color: rgb(239 68 68 / 1);
   box-shadow: 0 0 0 1px rgb(239 68 68 / 0.1);
 }
 
-.inputbox_field[data-state="disabled"] {
+.inputbox_wrap:has(.inputbox_native:disabled) .inputbox_field {
   cursor: not-allowed;
   opacity: 0.6;
 }
 
-html[data-nav="keyboard"] .inputbox_field[data-state="enable"]::after {
+html[data-nav="keyboard"] .inputbox_wrap.idle:not(:has(.inputbox_native:disabled)) .inputbox_field::after {
   content: "";
   position: absolute;
   inset: -6px;
@@ -47,14 +57,24 @@ html[data-nav="keyboard"] .inputbox_field[data-state="enable"]::after {
     opacity 120ms ease;
 }
 
-html[data-nav="keyboard"] .inputbox_field[data-state="enable"]:focus-within::after {
+html[data-nav="keyboard"] .inputbox_wrap.idle:not(:has(.inputbox_native:disabled)) .inputbox_field:focus-within::after {
   border-color: rgb(var(--accent-terracotta) / 1);
   opacity: 0.5;
 }
 
+.inputbox_left,
 .inputbox_right {
   display: inline-flex;
   align-items: center;
+}
+
+.inputbox_action_slot .ui-actionbar__items {
+  gap: 2px;
+}
+
+.inputbox_action_slot .ui-actionbar__label {
+  width: 20px;
+  height: 20px;
 }
 
 .inputbox_native {
@@ -64,6 +84,15 @@ html[data-nav="keyboard"] .inputbox_field[data-state="enable"]:focus-within::aft
   outline: none;
   background-color: transparent;
   color: rgb(var(--text-primary) / 1);
+}
+
+textarea.inputbox_native {
+  min-height: 0;
+  resize: none;
+}
+
+.inputbox_scrollable {
+  min-height: 0;
 }
 
 .inputbox_native::placeholder {
@@ -81,19 +110,6 @@ html[data-nav="keyboard"] .inputbox_field[data-state="enable"]:focus-within::aft
 .inputbox_native[type="number"] {
   appearance: textfield;
   -moz-appearance: textfield;
-}
-
-.inputbox_native.inputbox_field {
-  display: block;
-  width: 100%;
-  flex: none;
-  border-color: rgb(var(--border) / 1);
-  background-color: rgb(var(--bg-page) / 1);
-  padding: 0 10px;
-}
-
-.inputbox_native.inputbox_field:focus {
-  border-color: rgb(var(--accent) / 1);
 }
 
 .inputbox_native.no-focus-outline:focus,

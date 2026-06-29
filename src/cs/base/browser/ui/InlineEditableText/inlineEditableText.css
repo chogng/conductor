@@ -20,7 +20,22 @@
   background-color: transparent;
 }
 
-.inline-editable-text__input {
+.inline-editable-text > .inputbox_wrap {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  flex: 1 1 0%;
+}
+
+.inline-editable-text .inputbox_field {
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.inline-editable-text .inputbox_native {
   width: 100%;
   min-width: 0;
   height: 100%;
@@ -33,12 +48,12 @@
   outline: none;
 }
 
-.inline-editable-text__input--editing {
+.inline-editable-text--editing .inputbox_native {
   cursor: text;
   color: rgb(var(--text-primary) / 1);
 }
 
-.inline-editable-text__input--display {
+.inline-editable-text--display .inputbox_native {
   cursor: text;
   color: rgb(var(--text-secondary) / 1);
   user-select: text;

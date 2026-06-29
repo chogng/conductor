@@ -35,7 +35,7 @@ suite("workbench/contrib/chart/test/browser/chartLegend", () => {
     const input = findElement(legend as unknown as FakeElement, element => element.tagName === "INPUT");
 
     assert.ok(input);
-    assert.ok(input.className.includes("chart_legend_inline_input"));
+    assert.ok(input.className.includes("inputbox_native"));
     assert.equal(input.value, "Original");
 
     await Promise.resolve();

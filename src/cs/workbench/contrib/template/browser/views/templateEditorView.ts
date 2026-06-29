@@ -1,5 +1,5 @@
 import { createButton } from "src/cs/base/browser/ui/button/button";
-import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBoxField";
+import { createInputBox } from "src/cs/base/browser/ui/inputbox/inputBox";
 import { addDisposableListener } from "src/cs/base/browser/dom";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { createSelectBox, type SelectBox } from "src/cs/base/browser/ui/selectBox/selectBox";
@@ -29,13 +29,6 @@ export type TemplatePickFieldName =
   | "yLegendCount";
 
 export type TemplateColumnPickTarget = "xRanges" | "yColumns";
-
-type TemplateStringFieldName = Exclude<
-  {
-    [K in keyof TemplateEditorConfig]: TemplateEditorConfig[K] extends string ? K : never;
-  }[keyof TemplateEditorConfig],
-  "xSegmentationMode" | "xUnit" | "yLegendTarget" | "yUnit"
->;
 
 type TemplateEditorInputName =
   | "name"
@@ -368,15 +361,23 @@ export class TemplateEditorView {
     } = {},
   ): HTMLInputElement {
     const inputId = getTemplateFieldId(name);
-    const field = createField({
+    const field = document.createElement("div");
+    field.className = "template_field";
+    const labelElement = document.createElement("span");
+    const labelId = `${inputId}_label`;
+    labelElement.id = labelId;
+    labelElement.className = "template_field_label";
+    labelElement.textContent = label;
+    const inputBox = this.disposables.add(createInputBox({
+      ariaLabelledBy: labelId,
       id: inputId,
-      label,
-      name,
+      name: String(name),
       placeholder: options.placeholder,
       value: "",
-    });
+    }));
+    field.append(labelElement, inputBox.element);
     const isPickableField = PICKABLE_TEMPLATE_FIELDS.has(name);
-    const input = field.querySelector("input") as HTMLInputElement;
+    const input = inputBox.input;
     this.disposables.add(addDisposableListener(input, "input", () => {
       const shouldRestoreFocus = document.activeElement === input;
       const selectionStart = input.selectionStart;
@@ -835,40 +836,6 @@ class TemplateChipInput {
     this.element.remove();
   }
 }
-
-const createField = ({
-  id,
-  label,
-  name,
-  placeholder,
-  value,
-}: {
-  id: string;
-  label: string;
-  name: TemplateStringFieldName;
-  placeholder?: string;
-  value: string;
-}): HTMLElement => {
-  const wrapper = document.createElement("div");
-  wrapper.className = "template_field";
-
-  const labelElement = document.createElement("span");
-  const labelId = `${id}_label`;
-  labelElement.id = labelId;
-  labelElement.className = "template_field_label";
-  labelElement.textContent = label;
-
-  const inputField = createInputBoxField({
-    ariaLabelledBy: labelId,
-    id,
-    name: String(name),
-    placeholder,
-    value,
-  });
-
-  wrapper.append(labelElement, inputField.element);
-  return wrapper;
-};
 
 const getTemplateFieldId = (name: string): string => `template_editor_${name}`;
 

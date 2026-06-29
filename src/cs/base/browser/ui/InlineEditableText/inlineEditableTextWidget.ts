@@ -1,5 +1,5 @@
 import { DisposableStore, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
-import { createInputBox, updateInputBox } from "src/cs/base/browser/ui/inputbox/inputBox";
+import { createInputBox } from "src/cs/base/browser/ui/inputbox/inputBox";
 
 import "src/cs/base/browser/ui/InlineEditableText/inlineEditableText.css";
 
@@ -7,11 +7,8 @@ export type InlineEditableTextWidgetStyle = Partial<CSSStyleDeclaration>;
 
 export type InlineEditableTextWidgetOptions = {
   className?: string;
-  displayClassName?: string;
   draftValue: string;
   editing: boolean;
-  inputClassName?: string;
-  inputFieldClassName?: string;
   onCancel: () => void;
   onChange: (nextValue: string) => void;
   onCommit: () => void;
@@ -24,16 +21,18 @@ export type InlineEditableTextWidgetOptions = {
 export class InlineEditableTextWidget implements IDisposable {
   private readonly disposables = new DisposableStore();
   private readonly root = document.createElement("div");
-  private readonly input = createInputBox({
+  private readonly inputBox = createInputBox({
     autoComplete: "off",
     type: "text",
   });
+  private readonly input = this.inputBox.input;
   private pendingExitAction: "commit" | "common.cancel" | null = null;
   private options: InlineEditableTextWidgetOptions;
 
   public constructor(options: InlineEditableTextWidgetOptions) {
     this.options = { ...options, editing: false };
-    this.root.appendChild(this.input);
+    this.disposables.add(this.inputBox);
+    this.root.appendChild(this.inputBox.element);
 
     this.input.addEventListener("change", this.handleInputChange);
     this.input.addEventListener("input", this.handleInputChange);
@@ -71,26 +70,10 @@ export class InlineEditableTextWidget implements IDisposable {
     if (options.className) {
       rootClassNames.push(options.className);
     }
-    if (options.inputFieldClassName) {
-      rootClassNames.push(options.inputFieldClassName);
-    }
     this.root.className = rootClassNames.join(" ");
     this.root.title = options.title ?? "";
 
-    const inputClassNames = [
-      "inline-editable-text__input",
-      options.editing
-        ? "inline-editable-text__input--editing"
-        : "inline-editable-text__input--display",
-    ];
-    if (options.displayClassName) {
-      inputClassNames.push(options.displayClassName);
-    }
-    if (options.inputClassName) {
-      inputClassNames.push(options.inputClassName);
-    }
-    updateInputBox(this.input, {
-      inputClassName: inputClassNames.join(" "),
+    this.inputBox.update({
       readOnly: !options.editing,
       value: options.editing ? options.draftValue : options.value,
     });

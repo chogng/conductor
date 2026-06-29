@@ -103,7 +103,8 @@
     transform: rotate(-90deg);
 }
 
-.plot_main_chart_axis_title_editor_input {
+.plot_main_chart_axis_title_editor .inputbox_native,
+.plot_main_chart_axis_title_editor_measure {
     box-sizing: border-box;
     height: 18px;
     padding: 0px 6px;

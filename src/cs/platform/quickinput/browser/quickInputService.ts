@@ -1,6 +1,6 @@
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable, DisposableStore } from "src/cs/base/common/lifecycle";
-import { createInputBox } from "src/cs/base/browser/ui/inputbox/inputBox";
+import { createInputBox, type InputBox } from "src/cs/base/browser/ui/inputbox/inputBox";
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollableElement";
 import { localize } from "src/cs/nls";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
@@ -32,6 +32,7 @@ type QuickPickElement = QuickPickInput<IQuickPickItem>;
 
 type ActiveQuickPick = {
   readonly controller: AbortController;
+  readonly inputBox: InputBox;
   readonly input: HTMLInputElement;
   readonly list: HTMLElement;
   readonly overlay: HTMLElement;
@@ -115,13 +116,13 @@ export class BrowserQuickInputService extends Disposable implements IQuickInputS
     panel.setAttribute("role", "dialog");
     panel.setAttribute("aria-label", picker.ariaLabel ?? localize("quickInput.ariaLabel", "Quick input"));
 
-    const input = createInputBox({
+    const inputBox = createInputBox({
       ariaLabel: picker.ariaLabel ?? localize("quickInput.inputAriaLabel", "Quick input"),
-      inputClassName: "quick-input-input",
       placeholder: picker.placeholder,
       type: "text",
       value: picker.value,
     });
+    const input = inputBox.input;
 
     const scrollbar = new Scrollbar({
       className: "quick-input-scroll-area",
@@ -130,13 +131,14 @@ export class BrowserQuickInputService extends Disposable implements IQuickInputS
     const list = scrollbar.viewport;
     list.setAttribute("role", "listbox");
 
-    panel.append(input, scrollbar.element);
+    panel.append(inputBox.element, scrollbar.element);
     overlay.appendChild(panel);
     document.body.appendChild(overlay);
 
     const activeQuickPick: ActiveQuickPick = {
       activeIndex: 0,
       controller,
+      inputBox,
       input,
       list,
       overlay,
@@ -198,6 +200,7 @@ export class BrowserQuickInputService extends Disposable implements IQuickInputS
 
     this.activeQuickPick = null;
     activeQuickPick.controller.abort();
+    activeQuickPick.inputBox.dispose();
     activeQuickPick.scrollbar.dispose();
     activeQuickPick.overlay.remove();
     picker.fireDidHide();
@@ -210,7 +213,7 @@ export class BrowserQuickInputService extends Disposable implements IQuickInputS
     }
 
     activeQuickPick.input.placeholder = picker.placeholder ?? "";
-    activeQuickPick.input.style.display = picker.hideInput ? "none" : "";
+    activeQuickPick.inputBox.element.style.display = picker.hideInput ? "none" : "";
     if (activeQuickPick.input.value !== picker.value) {
       activeQuickPick.input.value = picker.value;
       applyValueSelection(activeQuickPick.input, picker.valueSelection);

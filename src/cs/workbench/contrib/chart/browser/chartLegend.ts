@@ -164,10 +164,8 @@ const renderLegend = (
       });
       const inlineEditor = new InlineEditableTextWidget({
         className: "chart_legend_inline_editor",
-        displayClassName: "chart_legend_inline_input",
         draftValue: draftLabel,
         editing: true,
-        inputClassName: "chart_legend_inline_input",
         onCancel: () => onCancelLegendItemEdit?.(),
         onChange: (nextValue) => {
           draftLabel = nextValue;

@@ -3,10 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
-import {
-  createInputBoxField,
-  getInputBoxFieldState,
-} from "src/cs/base/browser/ui/inputbox/inputBoxField";
+import { createInputBox } from "src/cs/base/browser/ui/inputbox/inputBox";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import {
   createSelectBox,
@@ -50,15 +47,13 @@ export const createSearchView = (input: SearchViewInput): SearchViewElement =>
 class SearchViewController {
   private readonly store = new DisposableStore();
   private readonly section = document.createElement("section") as SearchViewElement;
-  private readonly inputField = createInputBoxField({
+  private readonly inputBox = this.store.add(createInputBox({
     ariaLabel: localize("search.xInput", "X value"),
-    className: "search_input",
     disabled: true,
-    inputClassName: "search_input_native",
     type: "text",
     value: "",
-  });
-  private readonly input = this.inputField.input;
+  }));
+  private readonly input = this.inputBox.input;
   private readonly algorithmSelect: SelectBox<SearchInterpolationMode>;
   private readonly summary = document.createElement("span");
   private readonly body = document.createElement("div");
@@ -98,7 +93,10 @@ class SearchViewController {
 
     this.summary.className = "search_summary";
     this.body.className = "search_results";
-    control.append(label, this.inputField.element, algorithmLabel, this.algorithmSelect.domNode, this.summary);
+    const inputHost = document.createElement("div");
+    inputHost.className = "search_input";
+    inputHost.append(this.inputBox.element);
+    control.append(label, inputHost, algorithmLabel, this.algorithmSelect.domNode, this.summary);
     this.section.append(control, this.body);
 
     this.store.add(addDisposableListener(this.input, EventType.INPUT, () => {
@@ -127,8 +125,7 @@ class SearchViewController {
     searchState: SearchState,
   ): void {
     const disabled = !primaryModel;
-    this.input.disabled = disabled;
-    this.inputField.field.dataset.state = getInputBoxFieldState({ disabled });
+    this.inputBox.update({ disabled });
     const nextValue = primaryModel ? getSearchInputValue(searchState, primaryModel) : "";
     if (this.input.value !== nextValue) {
       this.input.value = nextValue;

@@ -155,7 +155,6 @@ export class PlotAxisTitleView {
       className: `plot_main_chart_axis_title_editor plot_main_chart_axis_title_editor--${axis}`,
       draftValue: draftTitle,
       editing: true,
-      inputClassName: "plot_main_chart_axis_title_editor_input",
       onCancel: () => done(false),
       onChange: (nextValue) => {
         draftTitle = nextValue;
@@ -178,7 +177,7 @@ export class PlotAxisTitleView {
 
   private getEditorWidth(title: string): number {
     const measure = document.createElement("span");
-    measure.className = "plot_main_chart_axis_title_editor_measure plot_main_chart_axis_title_editor_input";
+    measure.className = "plot_main_chart_axis_title_editor_measure";
     measure.textContent = title || " ";
     this.element.append(measure);
     const width = Math.ceil(measure.getBoundingClientRect().width);
