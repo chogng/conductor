@@ -273,6 +273,14 @@ const createReviewServiceForTest = (
 	},
 	onDidChangeReview,
 	confirmReviewedTemplate: async () => null,
+	resolveReviewSummary: async target => ({
+		resource: target.resource,
+		...(target.sheetId ? { sheetId: target.sheetId } : {}),
+		state: "ready",
+		confidence: 0.95,
+		findingCodes: [],
+		reviewedSemanticLabel: "transfer",
+	}),
 	reviewUriManualTemplate: async () => ({
 		kind: "invalid",
 		diagnostics: [],

@@ -174,6 +174,7 @@ Explorer drop/dialog/clipboard/folder
   -> assign table resource URI / register browser File with file provider when needed
   -> PreparedFileImport resource rows
   -> ExplorerViewPane updates Explorer-local visible state
+  -> IReviewService.resolveReviewSummary({ resource, sheetId? }) starts URI-backed Review for the prepared row
   -> ITableService.open({ resource })
   -> TableFileEditorModel / ITableModel own URI-backed model lifecycle
 ```
@@ -233,8 +234,10 @@ Explorer item context menu Delete
 
 Pending source entries are display-only Explorer rows. They must not be
 committed to Session, selected as real files, used for duplicate detection, or
-participate in file actions. When source preparation resolves the real file, Explorer
-replaces the pending projection.
+participate in file actions. When source preparation resolves the real file,
+Explorer replaces the pending projection and explicitly asks Review to evaluate
+the prepared URI target; Explorer still does not infer semantic badges during
+source collection or preparation.
 
 ## Explorer View Rules
 

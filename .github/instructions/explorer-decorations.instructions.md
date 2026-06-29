@@ -37,6 +37,12 @@ Confirmed decoration:
 
 ```txt
 ExplorerFileEntry resource + sheetId
+  -> ExplorerViewPane prepared-import workflow
+  -> IReviewService.resolveReviewSummary({ resource, sheetId }) explicit Review scheduling
+  -> ReviewService onDidChangeReview
+  -> ExplorerDecorationsProvider.onDidChange(resources)
+
+ExplorerFileEntry resource + sheetId
   -> ExplorerDecorationsProvider.provideDecorations(resource)
   -> IReviewService.getLatestReviewSummary({ resource, sheetId }) side-effect-free cache read
   -> Explorer decoration data
@@ -67,6 +73,7 @@ Explorer reports actual rendered range from ObjectTree/List. Do not calculate
 visible rows   -> table-model priority visible
 overscan rows  -> table-model priority nearby
 remaining rows -> table-model priority background
+prepared import -> ExplorerViewPane review scheduler -> IReviewService.resolveReviewSummary(target)
 reviewChanged -> ExplorerDecorationsProvider review scheduler -> provider.onDidChange(resources)
   -> IDecorationsService DebounceEmitter -> onDidChangeDecorations -> ExplorerViewer rerender
 ```

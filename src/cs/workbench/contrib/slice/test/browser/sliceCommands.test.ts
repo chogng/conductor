@@ -453,6 +453,12 @@ const createReviewServiceForTest = (
 	}),
 	onDidChangeReview: Event.None as Event<void>,
 	confirmReviewedTemplate: async () => null,
+	resolveReviewSummary: async target => ({
+		resource: target.resource,
+		...(target.sheetId ? { sheetId: target.sheetId } : {}),
+		state: "missing",
+		findingCodes: [],
+	}),
 	reviewUriManualTemplate: async () => ({
 		kind: "invalid",
 		diagnostics: [],

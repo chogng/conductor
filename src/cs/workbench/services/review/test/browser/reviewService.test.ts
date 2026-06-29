@@ -405,6 +405,28 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(service.getLatestReviewSummary(target).state, "ready");
 	});
 
+	test("resolves URI review summaries for import scheduling", async () => {
+		const userTemplateService = createUserTemplateServiceForTest();
+		const resource = URI.file("/workspace/Transfer.csv");
+		const service = createReviewServiceForTest(
+			userTemplateService,
+			createDataResourceServiceForTest(resource),
+		);
+
+		const target = {
+			resource,
+			sheetId: "table-a",
+		};
+		assert.equal(service.getLatestReviewSummary(target).state, "missing");
+
+		const summary = await service.resolveReviewSummary(target);
+
+		assert.equal(summary?.state, "ready");
+		assert.equal(summary?.reviewedSemanticLabel, "Detected IV Transfer");
+		assert.equal(service.getLatestReviewSummary(target).state, "ready");
+		assert.equal(service.getLatestReviewSummary(target).reviewSignature, summary?.reviewSignature);
+	});
+
 	test("derives IV output review from explicit drain voltage URI content", async () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Output.csv");

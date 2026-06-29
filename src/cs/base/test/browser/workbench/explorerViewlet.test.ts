@@ -117,11 +117,15 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
 
   test("defers table open until folder source replacement finishes", () => {
     const openedResources: string[] = [];
+    const reviewedResources: string[] = [];
     const pane = createExplorerViewPane({
       onOpenTable: source => {
         if (source?.resource) {
           openedResources.push(source.resource.toString());
         }
+      },
+      onResolveReviewSummary: target => {
+        reviewedResources.push(target.resource.toString());
       },
     });
     const resource = URI.file("/workspace/293K/output/Output_.csv");
@@ -150,12 +154,40 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
       }).replacePreparedImportFiles([preparedFile], "source-output");
 
       assert.deepEqual(openedResources, []);
+      assert.deepEqual(reviewedResources, [resource.toString()]);
 
       (pane as unknown as {
         finishPendingSourceReplace(): void;
       }).finishPendingSourceReplace();
 
       assert.deepEqual(openedResources, [resource.toString()]);
+      assert.deepEqual(reviewedResources, [resource.toString()]);
+    } finally {
+      pane.dispose();
+    }
+  });
+
+  test("reviews appended prepared URI imports before hover summary reads", () => {
+    const reviewedResources: string[] = [];
+    const resource = URI.file("/workspace/transfer/3.csv");
+    const pane = createExplorerViewPane({
+      onResolveReviewSummary: target => {
+        reviewedResources.push(target.resource.toString());
+      },
+    });
+    const preparedFile = createPreparedImport({
+      fileName: "3.csv",
+      itemKey: "source-transfer",
+      relativePath: "transfer/3.csv",
+      resource,
+    });
+
+    try {
+      (pane as unknown as {
+        appendPreparedImportFiles(preparedFiles: readonly PreparedFileImport[]): void;
+      }).appendPreparedImportFiles([preparedFile]);
+
+      assert.deepEqual(reviewedResources, [resource.toString()]);
     } finally {
       pane.dispose();
     }
@@ -166,6 +198,7 @@ type CreateExplorerViewPaneOptions = {
   readonly confirm?: IDialogService["confirm"];
   readonly moveFileToTrash?: (resource: URI) => Promise<void>;
   readonly onOpenTable?: (source: TableSource | null) => void;
+  readonly onResolveReviewSummary?: (target: ReviewSummaryTarget) => void;
   readonly onUpdatePaneInput?: (input: ExplorerPaneInput) => void;
   readonly paneInput?: ExplorerPaneInput | null;
 };
@@ -214,7 +247,7 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
     } as unknown as IThumbnailService,
     createUserTemplateService(),
     createDecorationsService(),
-    createReviewService(),
+    createReviewService(options.onResolveReviewSummary),
   );
 
 const createExplorerService = (
@@ -384,7 +417,9 @@ const createDecorationsService = (): IDecorationsService => ({
   registerDecorationsProvider: () => toDisposable(() => undefined),
 } as unknown as IDecorationsService);
 
-const createReviewService = (): IReviewService => ({
+const createReviewService = (
+  onResolveReviewSummary?: (target: ReviewSummaryTarget) => void,
+): IReviewService => ({
   _serviceBrand: undefined,
   onDidChangeReview: Event.None,
   getLatestReviewSummary: (target: ReviewSummaryTarget) => ({
@@ -393,6 +428,15 @@ const createReviewService = (): IReviewService => ({
     state: "missing",
     findingCodes: [],
   }),
+  resolveReviewSummary: async (target: ReviewSummaryTarget) => {
+    onResolveReviewSummary?.(target);
+    return {
+      resource: target.resource,
+      ...(target.sheetId ? { sheetId: target.sheetId } : {}),
+      state: "ready",
+      findingCodes: [],
+    };
+  },
   reviewUriManualTemplate: async () => {
     throw new Error("Unexpected URI manual review in explorer viewlet test.");
   },

@@ -46,6 +46,8 @@ system application.
 - selecting the `ReviewedTemplate` snapshot when a candidate is ready for Slice;
 - deciding `systemRecommended` versus `userActionRequired`;
 - returning structured manual-template review results;
+- exposing `resolveReviewSummary({ resource, contentHash?, sheetId? })` for explicit
+  non-execution scheduling/summary production by URI-backed import workflows;
 - exposing URI execution projections for Slice-level consumers through
   `reviewUriForExecution({ resource, contentHash?, sheetId? })`;
 - maintaining URI-backed latest review summaries associated with
@@ -89,13 +91,13 @@ URI + contentHash/sourceVersion + optional sheetId
 ```
 ```mermaid
 sequenceDiagram
-  participant Caller as URI-backed caller / Slice Command
+  participant Caller as URI-backed caller / import workflow / Slice Command
   participant Data as DataResourceService
   participant Review as ReviewService
   participant Candidate as reviewCandidate
   participant Decision as reviewDecision
 
-  Caller->>Review: reviewUriForExecution(resource, sheetId?)
+  Caller->>Review: resolveReviewSummary(resource, sheetId?) or reviewUriForExecution(resource, sheetId?)
   alt current cached review
     Review-->>Caller: cached ready OR invalid/noCandidates OR null pending/error
   else active URI review is resolving
@@ -112,7 +114,7 @@ sequenceDiagram
     Decision-->>Review: ready reviewedTemplate OR invalid/noCandidates
     Review-->>Caller: ready reviewedTemplate OR invalid/noCandidates
   end
-  Caller->>Caller: use reviewedTemplate, or require user template
+  Caller->>Caller: use ReviewSummary, reviewedTemplate, or require user template
 ```
 
 
@@ -140,9 +142,10 @@ raw-table records for URI-backed semantic decorations.
 Missing or stale URI summaries are not refreshed by Explorer decoration reads.
 Explorer may receive a missing, stale, or active-pending summary and must keep
 rendering without forcing synchronous or background structured-content
-resolution. Explicit execution paths such as `reviewUriForExecution(...)` may
-resolve structured content, cache the resulting summary, and publish the later
-`onDidChangeReview` update.
+resolution. Explicit import/source workflow scheduling through `resolveReviewSummary(...)`
+and execution paths through `reviewUriForExecution(...)` may resolve structured
+content, cache the resulting summary, and publish the later `onDidChangeReview`
+update.
 
 User commands or explicit URI-backed execution controllers read the current URI
 review execution projection and submit URI-backed Slice requests, with idempotency and

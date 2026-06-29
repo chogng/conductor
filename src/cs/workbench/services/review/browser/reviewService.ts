@@ -162,17 +162,32 @@ export class ReviewService extends Disposable implements IReviewService {
     return fallback();
   }
 
+  public async resolveReviewSummary(target: ReviewSummaryTarget): Promise<ReviewSummary | null> {
+    const reviewTarget = normalizeUriReviewTarget(target);
+    if (!reviewTarget || !this.dataResourceService) {
+      return null;
+    }
+
+    const entry = await this.resolveCurrentUriReviewCacheEntry(reviewTarget);
+    return entry?.summary ?? null;
+  }
+
   public async reviewUriForExecution(target: ReviewSummaryTarget): Promise<UriReviewExecution | null> {
     const reviewTarget = normalizeUriReviewTarget(target);
     if (!reviewTarget || !this.dataResourceService) {
       return null;
     }
 
+    const entry = await this.resolveCurrentUriReviewCacheEntry(reviewTarget);
+    return entry ? createUriReviewExecutionFromCacheEntry(entry) : null;
+  }
+
+  private async resolveCurrentUriReviewCacheEntry(reviewTarget: NormalizedUriReviewTarget): Promise<UriReviewCacheEntry | null> {
     const key = getUriReviewTargetKey(reviewTarget);
     this.trackUriReviewTarget(key, reviewTarget);
     const cached = this.uriReviewCacheByKey.get(key);
     if (cached && !this.staleUriReviewKeys.has(key)) {
-      return createUriReviewExecutionFromCacheEntry(cached);
+      return cached;
     }
 
     const activeReview = this.activeUriReviewPromisesByKey.get(key);
@@ -190,7 +205,7 @@ export class ReviewService extends Disposable implements IReviewService {
         this.deleteUriReviewCacheEntry(key);
       }
       this.fireReviewChange();
-      return entry ? createUriReviewExecutionFromCacheEntry(entry) : null;
+      return entry;
     }
 
     const generation = this.getUriReviewGeneration(key);
@@ -202,7 +217,7 @@ export class ReviewService extends Disposable implements IReviewService {
       this.deleteUriReviewCacheEntry(key);
     }
     this.fireReviewChange();
-    return entry ? createUriReviewExecutionFromCacheEntry(entry) : null;
+    return entry;
   }
 
   public async confirmReviewedTemplate(input: ReviewedTemplateConfirmationRequest): Promise<SchemaProfile | null> {

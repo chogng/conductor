@@ -91,6 +91,7 @@ export interface IReviewService {
 
   getLatestReviewSummary(target: ReviewSummaryTarget): ReviewSummary;
   confirmReviewedTemplate(input: ReviewedTemplateConfirmationRequest): Promise<SchemaProfile | null>;
+  resolveReviewSummary(target: ReviewSummaryTarget): Promise<ReviewSummary | null>;
   reviewUriForExecution(target: ReviewSummaryTarget): Promise<UriReviewExecution | null>;
   reviewUriManualTemplate(input: UriManualTemplateReviewRequest): Promise<ManualTemplateReviewResult>;
 }

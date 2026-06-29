@@ -1020,6 +1020,7 @@ export class ExplorerViewPane extends ViewPane {
     this.internalFiles = localEntries;
     this.mergedFilesCache = null;
     this.publishExplorerPaneInput();
+    this.reviewExplorerEntries(localEntries);
 
     this.removePendingSourceFiles(getImportItemKeys(importedFiles));
     const selectedEntry = resolveSelectedExplorerImportEntry(localEntries, selectedImportItemKey);
@@ -1062,6 +1063,7 @@ export class ExplorerViewPane extends ViewPane {
     this.internalFiles = mergeExplorerCommittedFiles(this.internalFiles, importedEntries);
     this.mergedFilesCache = null;
     this.publishExplorerPaneInput();
+    this.reviewExplorerEntries(importedEntries);
 
     const openTarget = resolveExplorerImportOpenEntry({
       files: this.files,
@@ -1186,6 +1188,20 @@ export class ExplorerViewPane extends ViewPane {
     const source = createTableSourceFromExplorerFile(file);
     if (source) {
       this.tableService.open(source);
+    }
+  }
+
+  private reviewExplorerEntries(entries: readonly ExplorerFileEntry[]): void {
+    for (const entry of entries) {
+      const target = getExplorerFileResourceIdentity(entry);
+      if (!target) {
+        continue;
+      }
+
+      void this.reviewService.resolveReviewSummary({
+        resource: target.resource,
+        sheetId: target.sheetId ?? null,
+      });
     }
   }
 
