@@ -222,6 +222,7 @@ export type StructuredBindingRelation =
 	| "oneX-oneY"
 	| "oneX-manyY"
 	| "manyXYpairs"
+	| "repeatedBlocks"
 	| "segmentedSweep"
 	| "matrixEncoded";
 

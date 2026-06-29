@@ -104,7 +104,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		});
 
 		assert.equal(result.semanticLibraryFingerprint, "semantic:test");
-		assert.equal(result.reviewPolicyVersion, 11);
+		assert.equal(result.reviewPolicyVersion, 12);
 		assert.equal(typeof result.evidenceFingerprint, "string");
 		assert.equal(typeof result.candidates[0]?.providerRank, "number");
 		assert.equal(result.reviewedTemplate, result.decision.kind === "ready" ? result.decision.reviewedTemplate : undefined);
@@ -322,6 +322,32 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(result.decision.kind, "ready");
 		assert.equal(result.reviewedTemplate?.candidateId, result.candidates[0]?.id);
 		assert.equal(result.reviews[0]?.findings.some(finding => finding.code === "review.ambiguousCandidates"), false);
+	});
+
+	test("does not require adjustment when a repeated-block candidate covers child block candidates", async () => {
+		const userTemplateService = createUserTemplateServiceForTest();
+		const resource = URI.file("/workspace/RepeatedBlocks.csv");
+		const service = createReviewServiceForTest(
+			userTemplateService,
+			createDataResourceServiceForTest(resource, [], null, createTestTableModelContent([
+				["CH1 Voltage", "CH1 Current", "CH1 Resistance", "", "CH2 Voltage", "CH2 Current", "CH2 Resistance"],
+				["0", "1e-12", "100", "", "0", "1e-11", "200"],
+				["0.5", "2e-12", "110", "", "0.5", "2e-11", "210"],
+				["1", "4e-12", "120", "", "1", "4e-11", "220"],
+			])),
+		);
+
+		const reviewExecution = await service.reviewUriForExecution({ resource });
+
+		assert.equal(reviewExecution?.summary.state, "ready");
+		assert.equal(reviewExecution?.summary.findingCodes.includes("review.ambiguousCandidates"), false);
+		assert.equal(
+			reviewExecution?.systemRecommendedReviewedTemplate?.source.kind === "dataResource"
+				? reviewExecution.systemRecommendedReviewedTemplate.source.bindingCandidateId
+				: null,
+			"binding:repeated-blocks",
+		);
+		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate?.template.blocks.length, 2);
 	});
 
 	test("derives user template candidates from the user template snapshot", async () => {

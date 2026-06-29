@@ -305,6 +305,20 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.ok(evidence.bindingCandidates.some(candidate => candidate.relation === "manyXYpairs"));
 	});
 
+	test("detects aligned repeated data blocks", async () => {
+		const evidence = await resolveEvidence([
+			["CH1 Voltage", "CH1 Current", "CH1 Resistance", "", "CH2 Voltage", "CH2 Current", "CH2 Resistance"],
+			["0", "1e-12", "100", "", "0", "1e-11", "200"],
+			["0.5", "2e-12", "110", "", "0.5", "2e-11", "210"],
+			["1", "4e-12", "120", "", "1", "4e-11", "220"],
+		]);
+
+		const repeated = evidence.bindingCandidates.find(candidate => candidate.relation === "repeatedBlocks");
+		assert.ok(repeated);
+		assert.equal(repeated.dataBlockCandidateIds.length, 2);
+		assert.ok(repeated.reasons.includes("binding.repeatedBlocks"));
+	});
+
 	test("splits monotonic X groups for reset and hysteresis sweeps", async () => {
 		const evidence = await resolveEvidence([
 			["Vg", "Id"],

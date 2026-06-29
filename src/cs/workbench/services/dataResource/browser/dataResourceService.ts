@@ -1339,6 +1339,26 @@ const createBindingCandidates = ({
 		});
 	}
 
+	const repeatedBlocks = dataBlockCandidates.filter(block =>
+		block.columnDirection === "rightPreferred" &&
+		block.dependentColumns.length > 1
+	);
+	if (repeatedBlocks.length > 1 && haveAlignedRepeatedBlocks(repeatedBlocks)) {
+		const blockIds = repeatedBlocks.map(block => block.id);
+		candidates.push({
+			id: "binding:repeated-blocks",
+			xRangeCandidateIds: repeatedBlocks.map(block => block.xRangeCandidateId),
+			dependentValueCandidateIds: repeatedBlocks.flatMap(block =>
+				dependentByBlockId.get(block.id)?.map(candidate => candidate.id) ?? []
+			),
+			dataBlockCandidateIds: blockIds,
+			relation: "repeatedBlocks",
+			confidence: clampConfidence(Math.min(...repeatedBlocks.map(block => block.confidence)) + 0.06),
+			ambiguityCodes: [],
+			reasons: ["binding.repeatedBlocks"],
+		});
+	}
+
 	return candidates.sort((left, right) =>
 		right.confidence - left.confidence ||
 		right.dataBlockCandidateIds.length - left.dataBlockCandidateIds.length ||
@@ -1354,6 +1374,18 @@ const haveAlignedPairwiseBlocks = (
 		block.startRow === first.startRow &&
 		block.endRow === first.endRow &&
 		block.endCol === block.xColumn + 1
+	);
+};
+
+const haveAlignedRepeatedBlocks = (
+	blocks: readonly StructuredDataBlockCandidate[],
+): boolean => {
+	const first = blocks[0];
+	return Boolean(first) && blocks.every(block =>
+		block.startRow === first.startRow &&
+		block.endRow === first.endRow &&
+		block.dependentColumns.length === first.dependentColumns.length &&
+		block.dependentColumns.length > 0
 	);
 };
 

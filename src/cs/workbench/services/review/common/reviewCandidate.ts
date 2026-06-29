@@ -294,6 +294,9 @@ const getDataResourceCandidateName = (
 	if (binding.relation === "manyXYpairs") {
 		return "Detected XY Pairs";
 	}
+	if (binding.relation === "repeatedBlocks") {
+		return "Detected Repeated Blocks";
+	}
 	if (binding.relation === "oneX-manyY") {
 		return "Detected Shared X Data";
 	}
@@ -305,8 +308,10 @@ const getDataResourceProviderRank = (
 ): number => {
 	const relationRank = binding.relation === "manyXYpairs"
 		? 20
-		: binding.relation === "oneX-manyY"
-			? 10
+		: binding.relation === "repeatedBlocks"
+			? 30
+			: binding.relation === "oneX-manyY"
+				? 10
 			: 0;
 	return Math.round(binding.confidence * 100) + relationRank;
 };

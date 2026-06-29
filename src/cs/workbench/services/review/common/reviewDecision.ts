@@ -381,15 +381,20 @@ export const scoreReviewCandidates = ({
 	const orderedBaseScores = [...baseScores.entries()]
 		.sort((left, right) => right[1] - left[1]);
 	const topScore = orderedBaseScores[0]?.[1] ?? 0;
-	const secondScore = orderedBaseScores[1]?.[1] ?? 0;
 	const candidateById = new Map(candidates.map(candidate => [candidate.id, candidate]));
 	const topCandidate = candidateById.get(orderedBaseScores[0]?.[0] ?? "");
-	const secondCandidate = candidateById.get(orderedBaseScores[1]?.[0] ?? "");
+	const competitor = topCandidate
+		? orderedBaseScores
+			.map(([candidateId, score]) => ({ candidate: candidateById.get(candidateId), score }))
+			.find(entry => entry.candidate && entry.candidate.id !== topCandidate.id && !isReviewCandidateCoveredBy(topCandidate, entry.candidate))
+		: undefined;
+	const secondScore = competitor?.score ?? 0;
+	const secondCandidate = competitor?.candidate;
 	const candidateConfidenceMargin = topCandidate && secondCandidate
 		? Math.abs(topCandidate.confidence - secondCandidate.confidence)
 		: Number.POSITIVE_INFINITY;
 	const isAmbiguous =
-		candidates.length > 1 &&
+		Boolean(topCandidate && secondCandidate) &&
 		topScore - secondScore < AMBIGUITY_MARGIN &&
 		candidateConfidenceMargin < AMBIGUITY_CANDIDATE_CONFIDENCE_MARGIN;
 
@@ -400,6 +405,21 @@ export const scoreReviewCandidates = ({
 			context,
 		})
 	);
+};
+
+const isReviewCandidateCoveredBy = (
+	topCandidate: ReviewCandidate,
+	candidate: ReviewCandidate | undefined,
+): boolean => {
+	if (!candidate) {
+		return false;
+	}
+
+	const topBlockIds = topCandidate.captures?.dataBlockCandidateIds ?? [];
+	const candidateBlockIds = candidate.captures?.dataBlockCandidateIds ?? [];
+	return topBlockIds.length > candidateBlockIds.length &&
+		candidateBlockIds.length > 0 &&
+		candidateBlockIds.every(blockId => topBlockIds.includes(blockId));
 };
 
 export const scoreReviewCandidate = ({
