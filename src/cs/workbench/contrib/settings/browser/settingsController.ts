@@ -30,11 +30,27 @@ import {
   normalizeFilesExplorerShowBadges,
   normalizeNumericDisplayMode,
   normalizeTableTemplateVisualizationEnabled,
+  normalizeTemplateDisabledBuiltinDomainPackIds,
+  normalizeTemplateDisabledBuiltinSemanticIds,
+  normalizeTemplateSemanticAllowlist,
+  normalizeTemplateXAxisIntentPriority,
   type ConductorSettings,
   type FilesExplorerBadgeColor,
   type ISettingsService,
   type SettingsViewInput,
+  type TemplateSemanticAliasRule,
+  type TemplateSemanticAxisTendency,
+  type TemplateSemanticColumnRole,
+  type TemplateSemanticFamily,
+  type TemplateSemanticIvMode,
+  type TemplateSemanticMatchPolicy,
+  type TemplateSemanticUnit,
+  type TemplateXAxisIntent,
 } from "src/cs/workbench/services/settings/common/settings";
+import {
+  dataResourceBuiltinSemanticAliases,
+  dataResourceBuiltinSemanticDomainPacks,
+} from "src/cs/workbench/services/dataResource/common/semanticLibrary";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import { WorkbenchCommandId } from "src/cs/workbench/browser/actions/workbenchCommands";
 import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layoutCommands";
@@ -67,6 +83,14 @@ type SettingsDraftState = {
   originHealthNotification: NotificationFeedbackState;
   plotCommandDraft: string;
   postCommandsDraft: string;
+  templateSemanticAliasDraft: string;
+  templateSemanticAxisDraft: TemplateSemanticAxisTendency;
+  templateSemanticFamilyDraft: TemplateSemanticFamily | "";
+  templateSemanticIntentDraft: TemplateXAxisIntent | "";
+  templateSemanticIvModeDraft: TemplateSemanticIvMode | "";
+  templateSemanticMatchPolicyDraft: TemplateSemanticMatchPolicy;
+  templateSemanticRoleDraft: TemplateSemanticColumnRole;
+  templateSemanticUnitDraft: TemplateSemanticUnit | "";
   tickLabelFontSizeDraft: string;
   xyPairsDraft: string;
 };
@@ -91,6 +115,8 @@ export class SettingsController {
   private originPlotFeedback: Feedback = IDLE_FEEDBACK;
   private fileNameMatchingSaving = false;
   private fileNameMatchingFeedback: Feedback = IDLE_FEEDBACK;
+  private templateSettingsSaving = false;
+  private templateSettingsFeedback: Feedback = IDLE_FEEDBACK;
   private defaultsSaving = false;
   private defaultsFeedback: Feedback = IDLE_FEEDBACK;
   private appearanceSaving = false;
@@ -156,6 +182,14 @@ export class SettingsController {
       originHealthNotification: { isVisible: false, message: "", type: "success" },
       plotCommandDraft: this.originPlotConfig.command ?? "",
       postCommandsDraft: originPostCommandsToMultiline(this.originPlotConfig.postCommands),
+      templateSemanticAliasDraft: "",
+      templateSemanticAxisDraft: "x",
+      templateSemanticFamilyDraft: "",
+      templateSemanticIntentDraft: "",
+      templateSemanticIvModeDraft: "",
+      templateSemanticMatchPolicyDraft: "exact",
+      templateSemanticRoleDraft: "voltage",
+      templateSemanticUnitDraft: "",
       tickLabelFontSizeDraft: String(axisSettings.tickLabelFontSize ?? ""),
       xyPairsDraft: this.originPlotConfig.xyPairs ?? "",
     };
@@ -368,6 +402,7 @@ export class SettingsController {
       language: this.options.language,
       numericDisplaySettings: this.numericDisplaySettings,
       tableTemplateVisualizationSettings: this.tableTemplateVisualizationSettings,
+      templateSettings: this.templateSettings,
       originLegendFontSizeDraft: this.drafts.originLegendFontSizeDraft,
       onLanguageChange: language => {
         void this.commandService.executeCommand(WorkbenchCommandId.setLanguage, language);
@@ -403,6 +438,44 @@ export class SettingsController {
       setPostCommandsDraft: value => {
         this.drafts.postCommandsDraft = value;
       },
+      setTemplateSemanticAliasDraft: value => {
+        this.drafts.templateSemanticAliasDraft = value;
+      },
+      setTemplateSemanticAxisDraft: value => {
+        if (value === "x" || value === "dependent" || value === "unknown") {
+          this.drafts.templateSemanticAxisDraft = value;
+        }
+      },
+      setTemplateSemanticFamilyDraft: value => {
+        if (value === "" || value === "iv" || value === "cv" || value === "cf" || value === "pv" || value === "it" || value === "unknown") {
+          this.drafts.templateSemanticFamilyDraft = value;
+        }
+      },
+      setTemplateSemanticIntentDraft: value => {
+        if (value === "" || value === "rawTransient" || value === "ivCurve" || value === "pvCurve" || value === "cvCurve" || value === "frequencySweep" || value === "genericXY") {
+          this.drafts.templateSemanticIntentDraft = value;
+        }
+      },
+      setTemplateSemanticIvModeDraft: value => {
+        if (value === "" || value === "transfer" || value === "output" || value === "unknown") {
+          this.drafts.templateSemanticIvModeDraft = value;
+        }
+      },
+      setTemplateSemanticMatchPolicyDraft: value => {
+        if (value === "exact" || value === "token" || value === "contains") {
+          this.drafts.templateSemanticMatchPolicyDraft = value;
+        }
+      },
+      setTemplateSemanticRoleDraft: value => {
+        if (this.templateSemanticRoleOptions.some(option => option.value === value)) {
+          this.drafts.templateSemanticRoleDraft = value as TemplateSemanticColumnRole;
+        }
+      },
+      setTemplateSemanticUnitDraft: value => {
+        if (value === "" || value === "V" || value === "A" || value === "ohm" || value === "s" || value === "F" || value === "Hz" || value === "S") {
+          this.drafts.templateSemanticUnitDraft = value;
+        }
+      },
       setTickLabelFontSizeDraft: value => {
         this.drafts.tickLabelFontSizeDraft = value;
       },
@@ -412,6 +485,14 @@ export class SettingsController {
       settingsSections: this.settingsSections,
       theme: this.options.theme,
       themeModeOptions: this.themeModeOptions,
+      templateSemanticAliasDraft: this.drafts.templateSemanticAliasDraft,
+      templateSemanticAxisDraft: this.drafts.templateSemanticAxisDraft,
+      templateSemanticFamilyDraft: this.drafts.templateSemanticFamilyDraft,
+      templateSemanticIntentDraft: this.drafts.templateSemanticIntentDraft,
+      templateSemanticIvModeDraft: this.drafts.templateSemanticIvModeDraft,
+      templateSemanticMatchPolicyDraft: this.drafts.templateSemanticMatchPolicyDraft,
+      templateSemanticRoleDraft: this.drafts.templateSemanticRoleDraft,
+      templateSemanticUnitDraft: this.drafts.templateSemanticUnitDraft,
       tickLabelFontSizeDraft: this.drafts.tickLabelFontSizeDraft,
       windowCloseBehaviorOptions: this.windowCloseBehaviorOptions,
       windowCloseSettings: this.windowCloseSettings,
@@ -520,6 +601,34 @@ export class SettingsController {
       enabled: this.pendingTableTemplateVisualizationEnabled ?? normalizeTableTemplateVisualizationEnabled(this.settings.tableTemplateVisualizationEnabled),
       isSaving: this.tableTemplateVisualizationSaving,
       onEnabledChange: value => this.setTableTemplateVisualizationEnabled(value),
+    };
+  }
+
+  private get templateSettings(): SettingsViewOptions["templateSettings"] {
+    return {
+      allowlist: normalizeTemplateSemanticAllowlist(this.settings.templateSemanticAllowlist),
+      axisOptions: this.templateSemanticAxisOptions,
+      builtinAliases: dataResourceBuiltinSemanticAliases,
+      builtinDomainPacks: dataResourceBuiltinSemanticDomainPacks,
+      disabledDomainPackIds: normalizeTemplateDisabledBuiltinDomainPackIds(this.settings.templateDisabledBuiltinDomainPackIds),
+      disabledBuiltinIds: normalizeTemplateDisabledBuiltinSemanticIds(this.settings.templateDisabledBuiltinSemanticIds),
+      familyOptions: this.templateSemanticFamilyOptions,
+      feedback: this.templateSettingsFeedback,
+      intentOptions: this.templateSemanticIntentOptions,
+      isSaving: this.templateSettingsSaving,
+      ivModeOptions: this.templateSemanticIvModeOptions,
+      matchPolicyOptions: this.templateSemanticMatchPolicyOptions,
+      onAddSemanticAlias: () => this.addTemplateSemanticAlias(),
+      onDisableBuiltinAlias: id => this.disableTemplateBuiltinAlias(id),
+      onDisableDomainPack: id => this.disableTemplateDomainPack(id),
+      onEnableBuiltinAlias: id => this.enableTemplateBuiltinAlias(id),
+      onEnableDomainPack: id => this.enableTemplateDomainPack(id),
+      onMoveSemanticAlias: (sourceId, targetId) => this.moveTemplateSemanticAlias(sourceId, targetId),
+      onMoveXAxisIntent: (sourceIntent, targetIntent) => this.moveTemplateXAxisIntent(sourceIntent, targetIntent),
+      onRemoveSemanticAlias: id => this.removeTemplateSemanticAlias(id),
+      roleOptions: this.templateSemanticRoleOptions,
+      unitOptions: this.templateSemanticUnitOptions,
+      xAxisIntentPriority: normalizeTemplateXAxisIntentPriority(this.settings.templateXAxisIntentPriority),
     };
   }
 
@@ -676,9 +785,90 @@ export class SettingsController {
     ];
   }
 
+  private get templateSemanticRoleOptions(): SelectOption[] {
+    return [
+      { value: "voltage", label: localize("settings.template.role.voltage", "voltage") },
+      { value: "current", label: localize("settings.template.role.current", "current") },
+      { value: "time", label: localize("settings.template.role.time", "time") },
+      { value: "frequency", label: localize("settings.template.role.frequency", "frequency") },
+      { value: "capacitance", label: localize("settings.template.role.capacitance", "capacitance") },
+      { value: "conductance", label: localize("settings.template.role.conductance", "conductance") },
+      { value: "vg", label: localize("settings.template.role.vg", "vg") },
+      { value: "vd", label: localize("settings.template.role.vd", "vd") },
+      { value: "vs", label: localize("settings.template.role.vs", "vs") },
+      { value: "id", label: localize("settings.template.role.id", "id") },
+      { value: "ig", label: localize("settings.template.role.ig", "ig") },
+      { value: "is", label: localize("settings.template.role.is", "is") },
+      { value: "unknown", label: localize("settings.template.role.unknown", "unknown") },
+    ];
+  }
+
+  private get templateSemanticAxisOptions(): SelectOption[] {
+    return [
+      { value: "x", label: "X" },
+      { value: "dependent", label: localize("settings.template.axis.dependent", "Y/dependent") },
+      { value: "unknown", label: localize("settings.template.axis.unknown", "unknown") },
+    ];
+  }
+
+  private get templateSemanticMatchPolicyOptions(): SelectOption[] {
+    return [
+      { value: "exact", label: localize("settings.template.matchPolicy.exact", "exact") },
+      { value: "token", label: localize("settings.template.matchPolicy.token", "token") },
+      { value: "contains", label: localize("settings.template.matchPolicy.contains", "contains") },
+    ];
+  }
+
+  private get templateSemanticIntentOptions(): SelectOption[] {
+    return [
+      { value: "", label: localize("settings.template.intent.none", "none") },
+      { value: "pvCurve", label: localize("settings.template.intent.pvCurve", "PV curve") },
+      { value: "ivCurve", label: localize("settings.template.intent.ivCurve", "IV curve") },
+      { value: "cvCurve", label: localize("settings.template.intent.cvCurve", "CV curve") },
+      { value: "frequencySweep", label: localize("settings.template.intent.frequencySweep", "Frequency sweep") },
+      { value: "rawTransient", label: localize("settings.template.intent.rawTransient", "Raw transient") },
+      { value: "genericXY", label: localize("settings.template.intent.genericXY", "Generic XY") },
+    ];
+  }
+
+  private get templateSemanticUnitOptions(): SelectOption[] {
+    return [
+      { value: "", label: localize("settings.template.unit.none", "none") },
+      { value: "V", label: "V" },
+      { value: "A", label: "A" },
+      { value: "s", label: "s" },
+      { value: "F", label: "F" },
+      { value: "Hz", label: "Hz" },
+      { value: "S", label: "S" },
+      { value: "ohm", label: "ohm" },
+    ];
+  }
+
+  private get templateSemanticFamilyOptions(): SelectOption[] {
+    return [
+      { value: "", label: localize("settings.template.family.none", "none") },
+      { value: "iv", label: "iv" },
+      { value: "cv", label: "cv" },
+      { value: "cf", label: "cf" },
+      { value: "pv", label: "pv" },
+      { value: "it", label: "it" },
+      { value: "unknown", label: localize("settings.template.family.unknown", "unknown") },
+    ];
+  }
+
+  private get templateSemanticIvModeOptions(): SelectOption[] {
+    return [
+      { value: "", label: localize("settings.template.ivMode.none", "none") },
+      { value: "transfer", label: localize("settings.template.ivMode.transfer", "transfer") },
+      { value: "output", label: localize("settings.template.ivMode.output", "output") },
+      { value: "unknown", label: localize("settings.template.ivMode.unknown", "unknown") },
+    ];
+  }
+
   private get settingsSections() {
     return [
       { id: "general" as const, label: localize("settings.nav.general", "General") },
+      { id: "template" as const, label: localize("settings.nav.template", "Template") },
       { id: "appearance" as const, label: localize("settings.nav.appearance", "Appearance") },
       { id: "origin" as const, label: localize("settings.nav.origin", "Origin") },
       { id: "about" as const, label: localize("settings.nav.about", "About") },
@@ -932,6 +1122,140 @@ export class SettingsController {
     }
   }
 
+  private async addTemplateSemanticAlias(): Promise<void> {
+    const alias = this.drafts.templateSemanticAliasDraft.trim();
+    if (!alias) {
+      this.templateSettingsFeedback = {
+        type: "error",
+        message: localize("settings.template.semantic.emptyAlias", "Enter a match term before adding it."),
+      };
+      this.render();
+      return;
+    }
+
+    const nextRule: TemplateSemanticAliasRule = {
+      id: `template-semantic-${Date.now().toString(36)}`,
+      alias,
+      canonicalRole: this.drafts.templateSemanticRoleDraft,
+      ...(this.drafts.templateSemanticUnitDraft ? { canonicalUnit: this.drafts.templateSemanticUnitDraft } : {}),
+      axisTendency: this.drafts.templateSemanticAxisDraft,
+      ...(this.drafts.templateSemanticFamilyDraft ? { family: this.drafts.templateSemanticFamilyDraft } : {}),
+      ...(this.drafts.templateSemanticIvModeDraft ? { ivMode: this.drafts.templateSemanticIvModeDraft } : {}),
+      ...(this.drafts.templateSemanticIntentDraft ? { intent: this.drafts.templateSemanticIntentDraft } : {}),
+      matchPolicy: this.drafts.templateSemanticMatchPolicyDraft,
+      enabled: true,
+    };
+    const allowlist = [
+      ...normalizeTemplateSemanticAllowlist(this.settings.templateSemanticAllowlist),
+      nextRule,
+    ];
+    await this.saveTemplateSettings({
+      templateSemanticAllowlist: allowlist,
+    }, localize("settings.template.semantic.saved", "Template semantic library updated."));
+    if (this.templateSettingsFeedback.type !== "error") {
+      this.drafts.templateSemanticAliasDraft = "";
+    }
+  }
+
+  private async removeTemplateSemanticAlias(id: string): Promise<void> {
+    const allowlist = normalizeTemplateSemanticAllowlist(this.settings.templateSemanticAllowlist)
+      .filter(rule => rule.id !== id);
+    await this.saveTemplateSettings({
+      templateSemanticAllowlist: allowlist,
+    }, localize("settings.template.semantic.saved", "Template semantic library updated."));
+  }
+
+  private async disableTemplateBuiltinAlias(id: string): Promise<void> {
+    const disabledIds = normalizeTemplateDisabledBuiltinSemanticIds(this.settings.templateDisabledBuiltinSemanticIds);
+    if (disabledIds.includes(id)) {
+      return;
+    }
+    await this.saveTemplateSettings({
+      templateDisabledBuiltinSemanticIds: [...disabledIds, id],
+    }, localize("settings.template.builtin.disabled", "Built-in semantic match term disabled for review."));
+  }
+
+  private async enableTemplateBuiltinAlias(id: string): Promise<void> {
+    const disabledIds = normalizeTemplateDisabledBuiltinSemanticIds(this.settings.templateDisabledBuiltinSemanticIds)
+      .filter(disabledId => disabledId !== id);
+    await this.saveTemplateSettings({
+      templateDisabledBuiltinSemanticIds: disabledIds,
+    }, localize("settings.template.builtin.enabled", "Built-in semantic match term enabled for review."));
+  }
+
+  private async disableTemplateDomainPack(id: string): Promise<void> {
+    const disabledIds = normalizeTemplateDisabledBuiltinDomainPackIds(this.settings.templateDisabledBuiltinDomainPackIds);
+    if (disabledIds.includes(id)) {
+      return;
+    }
+    await this.saveTemplateSettings({
+      templateDisabledBuiltinDomainPackIds: [...disabledIds, id],
+    }, localize("settings.template.domainPack.disabled", "Domain pack disabled for review."));
+  }
+
+  private async enableTemplateDomainPack(id: string): Promise<void> {
+    const disabledIds = normalizeTemplateDisabledBuiltinDomainPackIds(this.settings.templateDisabledBuiltinDomainPackIds)
+      .filter(disabledId => disabledId !== id);
+    await this.saveTemplateSettings({
+      templateDisabledBuiltinDomainPackIds: disabledIds,
+    }, localize("settings.template.domainPack.enabled", "Domain pack enabled for review."));
+  }
+
+  private async moveTemplateSemanticAlias(sourceId: string, targetId: string): Promise<void> {
+    if (sourceId === targetId) {
+      return;
+    }
+    const allowlist = moveItemBefore(
+      normalizeTemplateSemanticAllowlist(this.settings.templateSemanticAllowlist),
+      rule => rule.id,
+      sourceId,
+      targetId,
+    );
+    await this.saveTemplateSettings({
+      templateSemanticAllowlist: allowlist,
+    }, localize("settings.template.semantic.saved", "Template semantic library updated."));
+  }
+
+  private async moveTemplateXAxisIntent(sourceIntent: TemplateXAxisIntent, targetIntent: TemplateXAxisIntent): Promise<void> {
+    if (sourceIntent === targetIntent) {
+      return;
+    }
+    const priority = moveItemBefore(
+      normalizeTemplateXAxisIntentPriority(this.settings.templateXAxisIntentPriority),
+      intent => intent,
+      sourceIntent,
+      targetIntent,
+    );
+    await this.saveTemplateSettings({
+      templateXAxisIntentPriority: priority,
+    }, localize("settings.template.xAxisPriority.saved", "X axis intent priority updated."));
+  }
+
+  private async saveTemplateSettings(updates: Record<string, unknown>, successMessage: string): Promise<void> {
+    this.templateSettingsSaving = true;
+    this.templateSettingsFeedback = IDLE_FEEDBACK;
+    this.render();
+    try {
+      await this.service.updateSettings(updates);
+      this.templateSettingsFeedback = {
+        type: "success",
+        message: successMessage,
+      };
+    }
+    catch (error) {
+      this.templateSettingsFeedback = {
+        type: "error",
+        message: localize("settings.template.saveFailed", "Failed to update template settings: {error}", {
+          error: this.service.errorMessage(error),
+        }),
+      };
+    }
+    finally {
+      this.templateSettingsSaving = false;
+      this.render();
+    }
+  }
+
   private async updateDefault(updates: Record<string, unknown>): Promise<void> {
     await this.saveDefaults(() => this.service.updateSettings(updates));
   }
@@ -1156,4 +1480,22 @@ export class SettingsController {
       this.render();
     }
   }
+}
+
+function moveItemBefore<T>(
+  values: readonly T[],
+  getId: (value: T) => string,
+  sourceId: string,
+  targetId: string,
+): T[] {
+  const result = values.slice();
+  const sourceIndex = result.findIndex(value => getId(value) === sourceId);
+  const targetIndex = result.findIndex(value => getId(value) === targetId);
+  if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) {
+    return result;
+  }
+  const [source] = result.splice(sourceIndex, 1);
+  const nextTargetIndex = result.findIndex(value => getId(value) === targetId);
+  result.splice(nextTargetIndex === -1 ? result.length : nextTargetIndex, 0, source);
+  return result;
 }

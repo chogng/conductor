@@ -1,12 +1,91 @@
 {
   "schemaVersion": 1,
+  "domainPacks": [
+    {
+      "id": "core-test-measurement",
+      "label": "Core Test Measurement",
+      "kind": "core",
+      "description": "Common measurement titles that stay useful when no test-specific domain is known.",
+      "rolePriors": ["voltage", "current", "time", "frequency"],
+      "intentPriors": ["genericXY"],
+      "xRolePriorityByIntent": {
+        "genericXY": ["voltage", "time", "frequency", "index"]
+      },
+      "patterns": ["numeric sweep columns", "title above numeric data"]
+    },
+    {
+      "id": "origin-like-export",
+      "label": "Origin-like Export",
+      "kind": "format",
+      "description": "Marker rows and nearby title cells produced by Origin-like data exports.",
+      "rolePriors": ["voltage", "current", "time", "frequency"],
+      "intentPriors": ["genericXY"],
+      "xRolePriorityByIntent": {
+        "genericXY": ["voltage", "time", "frequency", "index"]
+      },
+      "patterns": ["DataName title rows", "DataValue data rows", "title cell attached to the column below"]
+    },
+    {
+      "id": "semiconductor-ivcv",
+      "label": "Semiconductor IV/CV",
+      "kind": "domain",
+      "description": "Gate/drain/source voltage and current roles used by IV, CV, and CF device tests.",
+      "rolePriors": ["vg", "vd", "id", "ig", "capacitance", "conductance", "frequency"],
+      "intentPriors": ["ivCurve", "cvCurve", "frequencySweep"],
+      "xRolePriorityByIntent": {
+        "ivCurve": ["voltage", "vg", "vd", "time", "index"],
+        "cvCurve": ["voltage", "vg", "frequency", "time", "index"],
+        "frequencySweep": ["frequency", "voltage", "time", "index"]
+      },
+      "patterns": ["Vg/Vd sweep columns", "Id/Ig dependent columns", "CV/CF measurement columns"]
+    },
+    {
+      "id": "ferroelectric-pv",
+      "label": "Ferroelectric PV",
+      "kind": "domain",
+      "description": "Voltage, time, and current roles used by PV loop and raw transient exports.",
+      "rolePriors": ["voltage", "time", "current"],
+      "intentPriors": ["pvCurve", "rawTransient"],
+      "xRolePriorityByIntent": {
+        "pvCurve": ["voltage", "time", "index"],
+        "rawTransient": ["time", "voltage", "index"]
+      },
+      "patterns": ["voltage loop X", "time transient X", "current dependent traces"]
+    },
+    {
+      "id": "frequency-sweep",
+      "label": "Frequency Sweep",
+      "kind": "test",
+      "description": "Frequency-first sweeps for capacitance, conductance, and impedance-like data.",
+      "rolePriors": ["frequency", "capacitance", "conductance"],
+      "intentPriors": ["frequencySweep"],
+      "xRolePriorityByIntent": {
+        "frequencySweep": ["frequency", "voltage", "time", "index"]
+      },
+      "patterns": ["frequency X columns", "capacitance or conductance dependent columns"]
+    },
+    {
+      "id": "raw-transient",
+      "label": "Raw Transient",
+      "kind": "test",
+      "description": "Time-first acquisition traces before projection into IV, PV, or other curve views.",
+      "rolePriors": ["time", "voltage", "current"],
+      "intentPriors": ["rawTransient"],
+      "xRolePriorityByIntent": {
+        "rawTransient": ["time", "voltage", "index"]
+      },
+      "patterns": ["Time X columns", "voltage/current waveform columns"]
+    }
+  ],
   "rowMarkers": [
     {
       "kind": "titleRow",
+      "domainPackIds": ["origin-like-export"],
       "aliases": ["DataName", "Data Name", "Name"]
     },
     {
       "kind": "dataRow",
+      "domainPackIds": ["origin-like-export"],
       "aliases": ["DataValue", "Data Value", "Value"]
     }
   ],
@@ -17,6 +96,7 @@
       "axisTendency": "x",
       "family": "iv",
       "ivMode": "transfer",
+      "domainPackIds": ["semiconductor-ivcv"],
       "aliases": ["Vg", "Vgs", "Gate Voltage", "GateVoltage", "Gate V", "idvg"]
     },
     {
@@ -25,6 +105,7 @@
       "axisTendency": "x",
       "family": "iv",
       "ivMode": "output",
+      "domainPackIds": ["semiconductor-ivcv"],
       "aliases": ["Vd", "Vds", "Drain Voltage", "DrainVoltage", "Drain V", "idvd"]
     },
     {
@@ -32,6 +113,7 @@
       "canonicalUnit": "V",
       "axisTendency": "x",
       "family": "iv",
+      "domainPackIds": ["semiconductor-ivcv"],
       "aliases": ["Vs", "Source Voltage", "SourceVoltage", "Source V"]
     },
     {
@@ -39,6 +121,7 @@
       "canonicalUnit": "A",
       "axisTendency": "dependent",
       "family": "iv",
+      "domainPackIds": ["semiconductor-ivcv"],
       "aliases": ["Id", "Ids", "Drain Current", "DrainCurrent", "TotalCurrent", "CurrentDrain"]
     },
     {
@@ -46,6 +129,7 @@
       "canonicalUnit": "A",
       "axisTendency": "dependent",
       "family": "iv",
+      "domainPackIds": ["semiconductor-ivcv"],
       "aliases": ["Ig", "Igs", "Gate Current", "GateCurrent", "CurrentGate"]
     },
     {
@@ -53,6 +137,7 @@
       "canonicalUnit": "A",
       "axisTendency": "dependent",
       "family": "iv",
+      "domainPackIds": ["semiconductor-ivcv"],
       "aliases": ["Is", "Source Current", "SourceCurrent", "CurrentSource"]
     },
     {
@@ -60,12 +145,14 @@
       "canonicalUnit": "F",
       "axisTendency": "dependent",
       "family": "cv",
+      "domainPackIds": ["semiconductor-ivcv", "frequency-sweep"],
       "aliases": ["C", "Cap", "Capacitance", "Cp", "Cgg", "Cgd", "Cgs", "Cgb"]
     },
     {
       "canonicalRole": "conductance",
       "canonicalUnit": "S",
       "axisTendency": "dependent",
+      "domainPackIds": ["semiconductor-ivcv", "frequency-sweep"],
       "aliases": ["G", "Conductance", "Transconductance", "gm"]
     },
     {
@@ -73,6 +160,7 @@
       "canonicalUnit": "Hz",
       "axisTendency": "x",
       "family": "cf",
+      "domainPackIds": ["core-test-measurement", "frequency-sweep"],
       "aliases": ["Frequency", "Freq", "f", "Hz"]
     },
     {
@@ -80,18 +168,21 @@
       "canonicalUnit": "s",
       "axisTendency": "x",
       "family": "it",
+      "domainPackIds": ["core-test-measurement", "raw-transient", "ferroelectric-pv"],
       "aliases": ["Time", "t", "Seconds", "Second", "Sec"]
     },
     {
       "canonicalRole": "voltage",
       "canonicalUnit": "V",
       "axisTendency": "x",
+      "domainPackIds": ["core-test-measurement", "raw-transient", "ferroelectric-pv"],
       "aliases": ["Voltage", "V", "Vp", "Vpn", "Bias", "Bias Voltage"]
     },
     {
       "canonicalRole": "current",
       "canonicalUnit": "A",
       "axisTendency": "dependent",
+      "domainPackIds": ["core-test-measurement", "raw-transient", "ferroelectric-pv"],
       "aliases": ["Current", "I", "Ipt"]
     }
   ]

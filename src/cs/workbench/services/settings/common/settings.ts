@@ -38,6 +38,46 @@ export type FilesExplorerBadgeColor =
   | "cyan";
 
 export type FilesExplorerBadgeColors = Readonly<Record<string, FilesExplorerBadgeColor>>;
+export type TemplateXAxisIntent =
+  | "rawTransient"
+  | "ivCurve"
+  | "pvCurve"
+  | "cvCurve"
+  | "frequencySweep"
+  | "genericXY";
+
+export type TemplateSemanticMatchPolicy = "exact" | "token" | "contains";
+export type TemplateSemanticAxisTendency = "x" | "dependent" | "unknown";
+export type TemplateSemanticColumnRole =
+  | "vd"
+  | "vg"
+  | "vs"
+  | "id"
+  | "ig"
+  | "is"
+  | "capacitance"
+  | "conductance"
+  | "frequency"
+  | "time"
+  | "voltage"
+  | "current"
+  | "unknown";
+export type TemplateSemanticUnit = "V" | "A" | "ohm" | "s" | "F" | "Hz" | "S";
+export type TemplateSemanticFamily = "iv" | "cv" | "cf" | "pv" | "it" | "unknown";
+export type TemplateSemanticIvMode = "transfer" | "output" | "unknown";
+
+export type TemplateSemanticAliasRule = {
+  readonly id: string;
+  readonly alias: string;
+  readonly canonicalRole: TemplateSemanticColumnRole;
+  readonly canonicalUnit?: TemplateSemanticUnit;
+  readonly axisTendency: TemplateSemanticAxisTendency;
+  readonly family?: TemplateSemanticFamily;
+  readonly ivMode?: TemplateSemanticIvMode;
+  readonly intent?: TemplateXAxisIntent;
+  readonly matchPolicy: TemplateSemanticMatchPolicy;
+  readonly enabled: boolean;
+};
 
 const FILES_EXPLORER_DENSITIES = new Set<FilesExplorerDensity>([
   "compact",
@@ -54,6 +94,61 @@ const FILES_EXPLORER_BADGE_COLORS = new Set<FilesExplorerBadgeColor>([
   "cyan",
 ]);
 const NUMERIC_DISPLAY_MODES = new Set<NumericDisplayMode>(["raw", "smart"]);
+const TEMPLATE_X_AXIS_INTENTS = new Set<TemplateXAxisIntent>([
+  "pvCurve",
+  "ivCurve",
+  "cvCurve",
+  "frequencySweep",
+  "rawTransient",
+  "genericXY",
+]);
+const TEMPLATE_SEMANTIC_MATCH_POLICIES = new Set<TemplateSemanticMatchPolicy>([
+  "exact",
+  "token",
+  "contains",
+]);
+const TEMPLATE_SEMANTIC_AXIS_TENDENCIES = new Set<TemplateSemanticAxisTendency>([
+  "x",
+  "dependent",
+  "unknown",
+]);
+const TEMPLATE_SEMANTIC_COLUMN_ROLES = new Set<TemplateSemanticColumnRole>([
+  "vd",
+  "vg",
+  "vs",
+  "id",
+  "ig",
+  "is",
+  "capacitance",
+  "conductance",
+  "frequency",
+  "time",
+  "voltage",
+  "current",
+  "unknown",
+]);
+const TEMPLATE_SEMANTIC_UNITS = new Set<TemplateSemanticUnit>([
+  "V",
+  "A",
+  "ohm",
+  "s",
+  "F",
+  "Hz",
+  "S",
+]);
+const TEMPLATE_SEMANTIC_FAMILIES = new Set<TemplateSemanticFamily>([
+  "iv",
+  "cv",
+  "cf",
+  "pv",
+  "it",
+  "unknown",
+]);
+const TEMPLATE_SEMANTIC_IV_MODES = new Set<TemplateSemanticIvMode>([
+  "transfer",
+  "output",
+  "unknown",
+]);
 
 export const DEFAULT_FILES_EXPLORER_DENSITY: FilesExplorerDensity = "compact";
 export const DEFAULT_FILES_EXPLORER_SHOW_BADGES = true;
@@ -67,6 +162,17 @@ export const DEFAULT_FILES_EXPLORER_BADGE_COLORS: FilesExplorerBadgeColors = Obj
   transfer: "blue",
   unknown: "orange",
 });
+export const DEFAULT_TEMPLATE_X_AXIS_INTENT_PRIORITY: readonly TemplateXAxisIntent[] = Object.freeze([
+  "pvCurve",
+  "ivCurve",
+  "cvCurve",
+  "frequencySweep",
+  "rawTransient",
+  "genericXY",
+]);
+export const DEFAULT_TEMPLATE_SEMANTIC_ALLOWLIST: readonly TemplateSemanticAliasRule[] = Object.freeze([]);
+export const DEFAULT_TEMPLATE_DISABLED_BUILTIN_SEMANTIC_IDS: readonly string[] = Object.freeze([]);
+export const DEFAULT_TEMPLATE_DISABLED_BUILTIN_DOMAIN_PACK_IDS: readonly string[] = Object.freeze([]);
 
 export const normalizeFilesExplorerDensity = (
   value: unknown,
@@ -123,6 +229,128 @@ export const normalizeNumericDisplayMode = (
     ? value as NumericDisplayMode
     : DEFAULT_NUMERIC_DISPLAY_MODE;
 
+export const normalizeTemplateXAxisIntentPriority = (
+  value: unknown,
+): readonly TemplateXAxisIntent[] => {
+  const seen = new Set<TemplateXAxisIntent>();
+  const result: TemplateXAxisIntent[] = [];
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (typeof item !== "string" || !TEMPLATE_X_AXIS_INTENTS.has(item as TemplateXAxisIntent)) {
+        continue;
+      }
+      const intent = item as TemplateXAxisIntent;
+      if (!seen.has(intent)) {
+        seen.add(intent);
+        result.push(intent);
+      }
+    }
+  }
+
+  for (const intent of DEFAULT_TEMPLATE_X_AXIS_INTENT_PRIORITY) {
+    if (!seen.has(intent)) {
+      result.push(intent);
+    }
+  }
+  return result;
+};
+
+export const normalizeTemplateSemanticAllowlist = (
+  value: unknown,
+): readonly TemplateSemanticAliasRule[] => {
+  if (!Array.isArray(value)) {
+    return DEFAULT_TEMPLATE_SEMANTIC_ALLOWLIST;
+  }
+
+  const rules: TemplateSemanticAliasRule[] = [];
+  for (let index = 0; index < value.length; index += 1) {
+    const raw = value[index];
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      continue;
+    }
+    const record = raw as Record<string, unknown>;
+    const alias = typeof record.alias === "string" ? record.alias.trim() : "";
+    if (!alias) {
+      continue;
+    }
+    const canonicalRole = typeof record.canonicalRole === "string" && TEMPLATE_SEMANTIC_COLUMN_ROLES.has(record.canonicalRole as TemplateSemanticColumnRole)
+      ? record.canonicalRole as TemplateSemanticColumnRole
+      : "unknown";
+    const axisTendency = typeof record.axisTendency === "string" && TEMPLATE_SEMANTIC_AXIS_TENDENCIES.has(record.axisTendency as TemplateSemanticAxisTendency)
+      ? record.axisTendency as TemplateSemanticAxisTendency
+      : "unknown";
+    const matchPolicy = typeof record.matchPolicy === "string" && TEMPLATE_SEMANTIC_MATCH_POLICIES.has(record.matchPolicy as TemplateSemanticMatchPolicy)
+      ? record.matchPolicy as TemplateSemanticMatchPolicy
+      : "exact";
+    const id = typeof record.id === "string" && record.id.trim()
+      ? record.id.trim()
+      : `template-semantic-${index}`;
+    const canonicalUnit = typeof record.canonicalUnit === "string" && TEMPLATE_SEMANTIC_UNITS.has(record.canonicalUnit as TemplateSemanticUnit)
+      ? record.canonicalUnit as TemplateSemanticUnit
+      : undefined;
+    const family = typeof record.family === "string" && TEMPLATE_SEMANTIC_FAMILIES.has(record.family as TemplateSemanticFamily)
+      ? record.family as TemplateSemanticFamily
+      : undefined;
+    const ivMode = typeof record.ivMode === "string" && TEMPLATE_SEMANTIC_IV_MODES.has(record.ivMode as TemplateSemanticIvMode)
+      ? record.ivMode as TemplateSemanticIvMode
+      : undefined;
+    const intent = typeof record.intent === "string" && TEMPLATE_X_AXIS_INTENTS.has(record.intent as TemplateXAxisIntent)
+      ? record.intent as TemplateXAxisIntent
+      : undefined;
+    rules.push({
+      id,
+      alias,
+      canonicalRole,
+      ...(canonicalUnit ? { canonicalUnit } : {}),
+      axisTendency,
+      ...(family ? { family } : {}),
+      ...(ivMode ? { ivMode } : {}),
+      ...(intent ? { intent } : {}),
+      matchPolicy,
+      enabled: record.enabled !== false,
+    });
+  }
+  return rules;
+};
+
+export const normalizeTemplateDisabledBuiltinSemanticIds = (
+  value: unknown,
+): readonly string[] => {
+  if (!Array.isArray(value)) {
+    return DEFAULT_TEMPLATE_DISABLED_BUILTIN_SEMANTIC_IDS;
+  }
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const item of value) {
+    const id = typeof item === "string" ? item.trim() : "";
+    if (!id || seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+};
+
+export const normalizeTemplateDisabledBuiltinDomainPackIds = (
+  value: unknown,
+): readonly string[] => {
+  if (!Array.isArray(value)) {
+    return DEFAULT_TEMPLATE_DISABLED_BUILTIN_DOMAIN_PACK_IDS;
+  }
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const item of value) {
+    const id = typeof item === "string" ? item.trim() : "";
+    if (!id || seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+};
+
 export type ConductorSettings = {
   backgroundColor?: string;
   filesExplorerBadgeColors?: FilesExplorerBadgeColors;
@@ -132,6 +360,10 @@ export type ConductorSettings = {
   language?: LanguagePreference;
   numericDisplayMode?: NumericDisplayMode;
   tableTemplateVisualizationEnabled?: boolean;
+  templateDisabledBuiltinDomainPackIds?: readonly string[];
+  templateDisabledBuiltinSemanticIds?: readonly string[];
+  templateSemanticAllowlist?: readonly TemplateSemanticAliasRule[];
+  templateXAxisIntentPriority?: readonly TemplateXAxisIntent[];
   theme?: ThemeMode;
   transparentChrome?: boolean;
   windowCloseBehavior?: "minimizeToTray" | "quit";

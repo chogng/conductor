@@ -4,8 +4,9 @@ import { renderWorkbenchMarkdown } from "src/cs/workbench/browser/markdownRender
 import { SettingsView, type SettingsViewOptions } from "src/cs/workbench/contrib/settings/browser/settingsView";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
-type SettingsViewOptionOverrides = Partial<Omit<SettingsViewOptions, "appearanceSettings">> & {
+type SettingsViewOptionOverrides = Partial<Omit<SettingsViewOptions, "appearanceSettings" | "templateSettings">> & {
   appearanceSettings?: Partial<SettingsViewOptions["appearanceSettings"]>;
+  templateSettings?: Partial<SettingsViewOptions["templateSettings"]>;
 };
 
 const idleFeedback = {
@@ -222,6 +223,57 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
 
       assert.equal(showReleaseNotesCount, 1);
       assert.equal(document.querySelector(".settings-document-modal"), null);
+    }
+    finally {
+      view.dispose();
+      container.remove();
+    }
+  });
+
+  test("renders semantic library as its own template card group", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const view = new SettingsView(container, createSettingsViewOptions({
+      activeSettingsSection: "template",
+      templateSettings: {
+        builtinAliases: [
+          {
+            id: "builtin-vgs",
+            alias: "Vgs",
+            canonicalRole: "vg",
+            canonicalUnit: "V",
+            axisTendency: "x",
+            family: "iv",
+            ivMode: "transfer",
+            domainPackIds: ["semiconductor-ivcv"],
+          },
+          {
+            id: "builtin-id",
+            alias: "Drain Current",
+            canonicalRole: "id",
+            canonicalUnit: "A",
+            axisTendency: "dependent",
+            family: "iv",
+            ivMode: "transfer",
+            domainPackIds: ["semiconductor-ivcv"],
+          },
+        ],
+      },
+    }));
+
+    try {
+      const templateLibrarySection = getElement(container, "#settings-template-domain-packs-card").closest(".settings-section");
+      const semanticCard = getElement(container, "#settings-template-semantic-library-card");
+      const semanticSection = semanticCard.closest(".settings-section");
+      const customTermsCard = getElement(container, "#settings-template-semantic-allowlist-card");
+      const termField = getElement(semanticCard, ".settings-template-term-field");
+
+      assert.ok(templateLibrarySection);
+      assert.ok(semanticSection);
+      assert.ok(semanticSection !== templateLibrarySection);
+      assert.equal(templateLibrarySection.querySelector("#settings-template-semantic-library-card"), null);
+      assert.equal(customTermsCard.closest(".settings-section"), semanticSection);
+      assert.equal(termField.querySelectorAll(".settings-template-term-token").length, 2);
     }
     finally {
       view.dispose();
@@ -472,14 +524,61 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
     setOriginLegendFontSizeDraft: noop,
     setPlotCommandDraft: noop,
     setPostCommandsDraft: noop,
+    setTemplateSemanticAliasDraft: noop,
+    setTemplateSemanticAxisDraft: noop,
+    setTemplateSemanticFamilyDraft: noop,
+    setTemplateSemanticIntentDraft: noop,
+    setTemplateSemanticIvModeDraft: noop,
+    setTemplateSemanticMatchPolicyDraft: noop,
+    setTemplateSemanticRoleDraft: noop,
+    setTemplateSemanticUnitDraft: noop,
     setTickLabelFontSizeDraft: noop,
     setXyPairsDraft: noop,
     settingsSections: [
       { id: "general", label: "General" },
+      { id: "template", label: "Template" },
       { id: "appearance", label: "Appearance" },
       { id: "origin", label: "Origin" },
       { id: "about", label: "About" },
     ],
+    tableTemplateVisualizationSettings: {
+      enabled: false,
+      isSaving: false,
+      onEnabledChange: noop,
+    },
+    templateSemanticAliasDraft: "",
+    templateSemanticAxisDraft: "x",
+    templateSemanticFamilyDraft: "",
+    templateSemanticIntentDraft: "",
+    templateSemanticIvModeDraft: "",
+    templateSemanticMatchPolicyDraft: "exact",
+    templateSemanticRoleDraft: "voltage",
+    templateSemanticUnitDraft: "",
+    templateSettings: {
+      allowlist: [],
+      axisOptions: [{ label: "X", value: "x" }],
+      builtinAliases: [],
+      builtinDomainPacks: [],
+      disabledBuiltinIds: [],
+      disabledDomainPackIds: [],
+      familyOptions: [{ label: "none", value: "" }],
+      feedback: idleFeedback,
+      intentOptions: [{ label: "Generic XY", value: "genericXY" }],
+      isSaving: false,
+      ivModeOptions: [{ label: "none", value: "" }],
+      matchPolicyOptions: [{ label: "exact", value: "exact" }],
+      onAddSemanticAlias: noop,
+      onDisableBuiltinAlias: noop,
+      onDisableDomainPack: noop,
+      onEnableBuiltinAlias: noop,
+      onEnableDomainPack: noop,
+      onMoveSemanticAlias: noop,
+      onMoveXAxisIntent: noop,
+      onRemoveSemanticAlias: noop,
+      roleOptions: [{ label: "voltage", value: "voltage" }],
+      unitOptions: [{ label: "none", value: "" }],
+      xAxisIntentPriority: ["genericXY"],
+    },
     theme: "system",
     themeModeOptions: [{ label: "System", value: "system" }],
     tickLabelFontSizeDraft: "18",
@@ -502,6 +601,10 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
     appearanceSettings: {
       ...base.appearanceSettings,
       ...overrides.appearanceSettings,
+    },
+    templateSettings: {
+      ...base.templateSettings,
+      ...overrides.templateSettings,
     },
   };
 }

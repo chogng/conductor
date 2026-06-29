@@ -168,6 +168,56 @@ export type StructuredColumnTitleSpanEvidence = {
 	readonly reasons: readonly string[];
 };
 
+export type StructuredXAxisRole =
+	| "time"
+	| "voltage"
+	| "current"
+	| "frequency"
+	| "temperature"
+	| "position"
+	| "index"
+	| "unknown";
+
+export type StructuredXAxisIntent =
+	| "rawTransient"
+	| "ivCurve"
+	| "pvCurve"
+	| "cvCurve"
+	| "frequencySweep"
+	| "genericXY";
+
+export type StructuredInfoCellNeighborDirection = "up" | "down" | "left" | "right";
+
+export type StructuredInfoCellNeighborhoodEvidence = {
+	readonly id: string;
+	readonly infoCell: {
+		readonly row: number;
+		readonly column: number;
+		readonly text: string;
+	};
+	readonly targetColumn: number;
+	readonly startRow: number;
+	readonly endRow: number;
+	readonly neighbors: readonly {
+		readonly direction: StructuredInfoCellNeighborDirection;
+		readonly row: number;
+		readonly column: number;
+		readonly text: string;
+	}[];
+	readonly xRoleCandidates: readonly {
+		readonly role: StructuredXAxisRole;
+		readonly confidence: number;
+		readonly reasons: readonly string[];
+	}[];
+	readonly intentCandidates: readonly {
+		readonly intent: StructuredXAxisIntent;
+		readonly confidence: number;
+		readonly reasons: readonly string[];
+	}[];
+	readonly confidence: number;
+	readonly reasons: readonly string[];
+};
+
 export type StructuredBindingRelation =
 	| "oneX-oneY"
 	| "oneX-manyY"
@@ -304,6 +354,7 @@ export type StructuredContentEvidence = {
 	readonly dataBlockCandidates: readonly StructuredDataBlockCandidate[];
 	readonly dependentValueCandidates: readonly StructuredDependentValueCandidate[];
 	readonly columnTitleSpans: readonly StructuredColumnTitleSpanEvidence[];
+	readonly infoCellNeighborhoods: readonly StructuredInfoCellNeighborhoodEvidence[];
 	readonly bindingCandidates: readonly StructuredBindingCandidate[];
 	readonly semanticLibraryFingerprint: string;
 	readonly semanticCandidates: readonly StructuredColumnSemanticCandidate[];

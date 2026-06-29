@@ -20,6 +20,20 @@ import { Action, type IAction } from "src/cs/base/common/actions";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/services/settings/common/fileNameMatching";
+import type {
+  TemplateSemanticAliasRule,
+  TemplateSemanticAxisTendency,
+  TemplateSemanticColumnRole,
+  TemplateSemanticFamily,
+  TemplateSemanticIvMode,
+  TemplateSemanticMatchPolicy,
+  TemplateSemanticUnit,
+  TemplateXAxisIntent,
+} from "src/cs/workbench/services/settings/common/settings";
+import type {
+  DataResourceBuiltinSemanticAlias,
+  DataResourceBuiltinSemanticDomainPack,
+} from "src/cs/workbench/services/dataResource/common/semanticLibrary";
 import {
   createSettingsNavGroups,
   getSettingsSectionIcon,
@@ -166,6 +180,32 @@ type ChartDefaultSettings = {
   onAxisTitleFontSizeChange: (value: string | number) => Promise<void> | void;
 };
 
+type TemplateSettings = {
+  allowlist: readonly TemplateSemanticAliasRule[];
+  axisOptions: readonly SelectOption[];
+  builtinAliases: readonly DataResourceBuiltinSemanticAlias[];
+  builtinDomainPacks: readonly DataResourceBuiltinSemanticDomainPack[];
+  disabledDomainPackIds: readonly string[];
+  disabledBuiltinIds: readonly string[];
+  familyOptions: readonly SelectOption[];
+  feedback: Feedback;
+  intentOptions: readonly SelectOption[];
+  isSaving: boolean;
+  ivModeOptions: readonly SelectOption[];
+  matchPolicyOptions: readonly SelectOption[];
+  onAddSemanticAlias: () => Promise<void> | void;
+  onDisableBuiltinAlias: (id: string) => Promise<void> | void;
+  onDisableDomainPack: (id: string) => Promise<void> | void;
+  onEnableBuiltinAlias: (id: string) => Promise<void> | void;
+  onEnableDomainPack: (id: string) => Promise<void> | void;
+  onMoveSemanticAlias: (sourceId: string, targetId: string) => Promise<void> | void;
+  onMoveXAxisIntent: (sourceIntent: TemplateXAxisIntent, targetIntent: TemplateXAxisIntent) => Promise<void> | void;
+  onRemoveSemanticAlias: (id: string) => Promise<void> | void;
+  roleOptions: readonly SelectOption[];
+  unitOptions: readonly SelectOption[];
+  xAxisIntentPriority: readonly TemplateXAxisIntent[];
+};
+
 type SettingsViewProps = {
   appearanceSettings: AppearanceSettings;
   appUpdateSettings: AppUpdateSettings;
@@ -174,6 +214,7 @@ type SettingsViewProps = {
   language: LanguagePreference;
   numericDisplaySettings: NumericDisplaySettings;
   tableTemplateVisualizationSettings: TableTemplateVisualizationSettings;
+  templateSettings: TemplateSettings;
   onLanguageChange: (language: LanguagePreference) => Promise<void> | void;
   onNavigateBack: () => Promise<void> | void;
   onResetLayoutState: () => Promise<void> | void;
@@ -225,10 +266,26 @@ export type SettingsViewOptions = SettingsViewProps & {
   setOriginLegendFontSizeDraft: (value: string) => void;
   setPlotCommandDraft: (value: string) => void;
   setPostCommandsDraft: (value: string) => void;
+  setTemplateSemanticAliasDraft: (value: string) => void;
+  setTemplateSemanticAxisDraft: (value: string) => void;
+  setTemplateSemanticFamilyDraft: (value: string) => void;
+  setTemplateSemanticIntentDraft: (value: string) => void;
+  setTemplateSemanticIvModeDraft: (value: string) => void;
+  setTemplateSemanticMatchPolicyDraft: (value: string) => void;
+  setTemplateSemanticRoleDraft: (value: string) => void;
+  setTemplateSemanticUnitDraft: (value: string) => void;
   setTickLabelFontSizeDraft: (value: string) => void;
   setXyPairsDraft: (value: string) => void;
   settingsSections: SettingsSectionEntry[];
   themeModeOptions: SelectOption[];
+  templateSemanticAliasDraft: string;
+  templateSemanticAxisDraft: TemplateSemanticAxisTendency;
+  templateSemanticFamilyDraft: TemplateSemanticFamily | "";
+  templateSemanticIntentDraft: TemplateXAxisIntent | "";
+  templateSemanticIvModeDraft: TemplateSemanticIvMode | "";
+  templateSemanticMatchPolicyDraft: TemplateSemanticMatchPolicy;
+  templateSemanticRoleDraft: TemplateSemanticColumnRole;
+  templateSemanticUnitDraft: TemplateSemanticUnit | "";
   tickLabelFontSizeDraft: string;
   windowCloseBehaviorOptions: SelectOption[];
   xyPairsDraft: string;
@@ -460,6 +517,9 @@ export class SettingsView {
     if (this.options.activeSettingsSection === "origin") {
       this.renderOrigin(content);
     }
+    else if (this.options.activeSettingsSection === "template") {
+      this.renderTemplate(content);
+    }
     else if (this.options.activeSettingsSection === "appearance") {
       this.renderAppearance(content);
     }
@@ -475,6 +535,7 @@ export class SettingsView {
   private renderSearchResults(container: HTMLElement, queryWords: readonly string[]): void {
     container.classList.add("settings-view-content--search");
     this.renderGeneral(container);
+    this.renderTemplate(container);
     this.renderAppearance(container);
     this.renderOrigin(container);
     this.renderAbout(container);
@@ -518,13 +579,7 @@ export class SettingsView {
     this.generalTree = generalTree;
     container.appendChild(generalTree.element);
 
-    container.append(
-      this.createChartSettingsSection(this.options.chartDefaultSettings),
-      settingsSection(
-        localize("settings.filenameMatching.sectionTitle", "Template"),
-        this.createFileNameMatching(this.options.fileNameMatchingSettings),
-      ),
-    );
+    container.append(this.createChartSettingsSection(this.options.chartDefaultSettings));
   }
 
   private updateGeneralSection(): void {
@@ -609,6 +664,38 @@ export class SettingsView {
             description: localize("settings.numericDisplay.description", "优化科学计数法以合适小数位显示以更好的预览"),
             title: localize("settings.numericDisplay.title", "优化表格数值显示"),
           },
+        ],
+      },
+    ];
+  }
+
+  private renderTemplate(container: HTMLElement): void {
+    const templateTree = this.renderDisposables.add(new SettingsTree());
+    templateTree.update(this.createTemplateSettingsTree());
+    container.append(
+      templateTree.element,
+      settingsSection(
+        localize("settings.template.matching.sectionTitle", "Template Matching"),
+        this.createFileNameMatching(this.options.fileNameMatchingSettings),
+      ),
+      settingsSection(
+        localize("settings.template.library.sectionTitle", "Template Library"),
+        this.createTemplateDomainPacks(this.options.templateSettings),
+        this.createXAxisIntentPriority(this.options.templateSettings),
+      ),
+      settingsCardGroup(
+        this.createTemplateSemanticLibrary(this.options.templateSettings),
+        this.createTemplateSemanticAllowlist(this.options.templateSettings),
+      ),
+    );
+  }
+
+  private createTemplateSettingsTree(): readonly SettingsTreeSection[] {
+    return [
+      {
+        id: "settings-template-section",
+        title: localize("settings.nav.template", "Template"),
+        items: [
           {
             control: this.createSwitchWidget({
               ariaLabel: localize("settings.tableTemplateVisualization.title", "Template Visualization"),
@@ -617,7 +704,8 @@ export class SettingsView {
               onChange: checked => {
                 void this.options.tableTemplateVisualizationSettings.onEnabledChange(checked);
               },
-            }, this.generalControlDisposables).domNode,
+              disabled: this.options.tableTemplateVisualizationSettings.isSaving,
+            }).domNode,
             id: "settings-table-template-visualization-card",
             description: localize("settings.tableTemplateVisualization.description", "Show the current template ranges on the table preview."),
             title: localize("settings.tableTemplateVisualization.title", "Template Visualization"),
@@ -625,6 +713,386 @@ export class SettingsView {
         ],
       },
     ];
+  }
+
+  private createTemplateDomainPacks(settings: TemplateSettings): HTMLElement {
+    const container = card("settings-template-domain-packs-card", "settings-card-block");
+    const titleText = localize("settings.template.domainPacks.title", "Domain Packs");
+    const description = localize("settings.template.domainPacks.description", "Built-in domain packs scope title and marker evidence before Review builds binding candidates.");
+    setSettingsSearchText(
+      container,
+      titleText,
+      description,
+      settings.builtinDomainPacks.map(formatDomainPackSearchText).join(" "),
+    );
+    container.appendChild(headingBlock(titleText, description));
+
+    const disabledIds = new Set(settings.disabledDomainPackIds);
+    const activePacks = settings.builtinDomainPacks.filter(pack => !disabledIds.has(pack.id));
+    const disabledPacks = settings.builtinDomainPacks.filter(pack => disabledIds.has(pack.id));
+
+    const activeGroup = div("settings-template-library-group");
+    activeGroup.appendChild(text("p", "settings-template-subtitle", localize("settings.template.domainPacks.activeTitle", "Active packs")));
+    const activeList = div("settings-template-domain-pack-list");
+    for (const pack of activePacks) {
+      activeList.appendChild(this.createTemplateDomainPackBlock(settings, pack, "enabled"));
+    }
+    activeGroup.appendChild(activeList);
+
+    const disabledGroup = div("settings-template-library-group");
+    disabledGroup.appendChild(text("p", "settings-template-subtitle", localize("settings.template.domainPacks.disabledTitle", "Disabled packs")));
+    const disabledList = div("settings-template-domain-pack-list");
+    if (!disabledPacks.length) {
+      disabledList.appendChild(text("p", "settings-template-empty", localize("settings.template.domainPacks.noDisabled", "No disabled packs.")));
+    }
+    for (const pack of disabledPacks) {
+      disabledList.appendChild(this.createTemplateDomainPackBlock(settings, pack, "disabled"));
+    }
+    disabledGroup.appendChild(disabledList);
+
+    container.append(activeGroup, disabledGroup);
+    return container;
+  }
+
+  private createTemplateDomainPackBlock(
+    settings: TemplateSettings,
+    pack: DataResourceBuiltinSemanticDomainPack,
+    state: "enabled" | "disabled",
+  ): HTMLElement {
+    const block = div("settings-template-domain-pack");
+    block.dataset.state = state;
+    const body = div("settings-template-domain-pack-body");
+    const header = div(
+      "settings-template-domain-pack-header",
+      text("span", "settings-template-block-title", pack.label),
+      text("span", "settings-template-domain-pack-kind", formatDomainPackKind(pack.kind)),
+    );
+    const meta = text(
+      "p",
+      "settings-template-block-meta settings-template-domain-pack-description",
+      pack.description,
+    );
+    const details = div("settings-template-domain-pack-details");
+    details.append(
+      this.createTemplateDomainPackDetail(
+        localize("settings.template.domainPacks.intentPriors", "Intent"),
+        pack.intentPriors.map(formatXAxisIntent),
+      ),
+      this.createTemplateDomainPackDetail(
+        localize("settings.template.domainPacks.rolePriors", "Roles"),
+        pack.rolePriors,
+      ),
+      this.createTemplateDomainPackDetail(
+        localize("settings.template.domainPacks.patterns", "Patterns"),
+        pack.patterns,
+      ),
+    );
+    body.append(header, meta, details);
+
+    const toggleButton = document.createElement("button");
+    toggleButton.type = "button";
+    toggleButton.className = "settings-template-icon-button";
+    toggleButton.disabled = settings.isSaving;
+    toggleButton.title = state === "enabled"
+      ? localize("settings.template.domainPacks.disableTitle", "Disable this domain pack for Review")
+      : localize("settings.template.domainPacks.enableTitle", "Enable this domain pack for Review");
+    toggleButton.setAttribute("aria-label", state === "enabled"
+      ? localize("settings.template.domainPacks.disable", "Disable domain pack {label}", { label: pack.label })
+      : localize("settings.template.domainPacks.enable", "Enable domain pack {label}", { label: pack.label }));
+    toggleButton.appendChild(createLxIcon({
+      className: "settings-template-icon",
+      icon: state === "enabled" ? LxIcon.close : LxIcon.add,
+      size: 14,
+    }));
+    toggleButton.addEventListener("click", () => {
+      if (state === "enabled") {
+        void settings.onDisableDomainPack(pack.id);
+        return;
+      }
+      void settings.onEnableDomainPack(pack.id);
+    });
+
+    block.append(
+      createLxIcon({ className: "settings-template-domain-pack-icon", icon: LxIcon.summary, size: 16 }),
+      body,
+      toggleButton,
+    );
+    return block;
+  }
+
+  private createTemplateDomainPackDetail(labelText: string, values: readonly string[]): HTMLElement {
+    const row = div("settings-template-domain-pack-detail");
+    row.appendChild(text("span", "settings-template-domain-pack-detail-label", labelText));
+    const chips = div("settings-template-domain-pack-detail-values");
+    for (const value of values) {
+      chips.appendChild(text("span", "settings-template-domain-pack-detail-chip", value));
+    }
+    row.appendChild(chips);
+    return row;
+  }
+
+  private createXAxisIntentPriority(settings: TemplateSettings): HTMLElement {
+    const container = card("settings-template-x-axis-priority-card", "settings-card-block");
+    const titleText = localize("settings.template.xAxisPriority.title", "X Axis Intent Priority");
+    const description = localize("settings.template.xAxisPriority.description", "Drag intent blocks to decide which X role wins when one table exposes several legal X sequences.");
+    setSettingsSearchText(
+      container,
+      titleText,
+      description,
+      settings.xAxisIntentPriority.map(formatXAxisIntent).join(" "),
+    );
+    container.appendChild(headingBlock(titleText, description));
+
+    const list = div("settings-template-block-list");
+    for (const intent of settings.xAxisIntentPriority) {
+      const block = div("settings-template-block settings-template-block--intent");
+      block.draggable = !settings.isSaving;
+      block.dataset.intent = intent;
+      block.tabIndex = 0;
+      block.append(
+        createLxIcon({ className: "settings-template-block-handle", icon: LxIcon.listUnordered, size: 14 }),
+        text("span", "settings-template-block-title", formatXAxisIntent(intent)),
+        text("span", "settings-template-block-meta", intent),
+      );
+      block.addEventListener("dragstart", event => {
+        event.dataTransfer?.setData("application/x-conductor-template-intent", intent);
+      });
+      block.addEventListener("dragover", event => {
+        event.preventDefault();
+      });
+      block.addEventListener("drop", event => {
+        event.preventDefault();
+        const source = event.dataTransfer?.getData("application/x-conductor-template-intent");
+        if (isTemplateXAxisIntent(source)) {
+          void settings.onMoveXAxisIntent(source, intent);
+        }
+      });
+      list.appendChild(block);
+    }
+
+    container.appendChild(list);
+    return container;
+  }
+
+  private createTemplateSemanticLibrary(settings: TemplateSettings): HTMLElement {
+    const container = card("settings-template-semantic-library-card", "settings-card-block settings-template-semantic-library-card");
+    const titleText = localize("settings.template.semantic.title", "Semantic Library");
+    const description = localize("settings.template.semantic.description", "Built-in match terms can be disabled for Review, and custom terms join the DataResource matcher.");
+    setSettingsSearchText(
+      container,
+      titleText,
+      description,
+      settings.builtinAliases.map(rule => `${rule.alias} ${rule.canonicalRole} ${rule.axisTendency}`).join(" "),
+    );
+    container.appendChild(headingBlock(titleText, description));
+
+    container.appendChild(this.createBuiltinSemanticTermList(settings));
+    container.appendChild(this.createDisabledBuiltinSemanticTermList(settings));
+    return container;
+  }
+
+  private createTemplateSemanticAllowlist(settings: TemplateSettings): HTMLElement {
+    const container = card("settings-template-semantic-allowlist-card", "settings-card-block");
+    const titleText = localize("settings.template.semantic.customTitle", "Custom Match Terms");
+    const description = localize("settings.template.semantic.customDescription", "Add match terms that should join the DataResource matcher alongside the built-in semantic library.");
+    setSettingsSearchText(
+      container,
+      titleText,
+      description,
+      settings.allowlist.map(rule => `${rule.alias} ${rule.canonicalRole} ${rule.axisTendency}`).join(" "),
+    );
+    container.appendChild(headingBlock(titleText, description));
+
+    const userTitle = text("p", "settings-template-subtitle", localize("settings.template.semantic.userTitle", "Custom terms"));
+    const list = div("settings-template-block-list");
+    if (!settings.allowlist.length) {
+      list.appendChild(text("p", "settings-template-empty", localize("settings.template.semantic.empty", "No custom terms.")));
+    }
+    for (const rule of settings.allowlist) {
+      list.appendChild(this.createTemplateSemanticTermBlock(settings, rule));
+    }
+    container.append(userTitle, list, this.createTemplateSemanticTermForm(settings));
+    appendFeedback(container, settings.feedback);
+    return container;
+  }
+
+  private createBuiltinSemanticTermList(settings: TemplateSettings): HTMLElement {
+    const disabledIds = new Set(settings.disabledBuiltinIds);
+    const enabledTerms = settings.builtinAliases.filter(term => !disabledIds.has(term.id));
+    const section = div("settings-template-library-group");
+    section.appendChild(text("p", "settings-template-subtitle", localize("settings.template.semantic.builtinTitle", "Built-in match terms")));
+    const list = div("settings-template-term-field");
+    for (const term of enabledTerms) {
+      list.appendChild(this.createBuiltinSemanticTermToken(settings, term, "enabled"));
+    }
+    section.appendChild(list);
+    return section;
+  }
+
+  private createDisabledBuiltinSemanticTermList(settings: TemplateSettings): HTMLElement {
+    const disabledIds = new Set(settings.disabledBuiltinIds);
+    const disabledTerms = settings.builtinAliases.filter(term => disabledIds.has(term.id));
+    const section = div("settings-template-library-group");
+    section.appendChild(text("p", "settings-template-subtitle", localize("settings.template.semantic.disabledBuiltinTitle", "Disabled match terms")));
+    const list = div("settings-template-term-field");
+    if (!disabledTerms.length) {
+      list.appendChild(text("span", "settings-template-empty", localize("settings.template.semantic.noDisabledBuiltin", "No disabled match terms.")));
+    }
+    for (const term of disabledTerms) {
+      list.appendChild(this.createBuiltinSemanticTermToken(settings, term, "disabled"));
+    }
+    section.appendChild(list);
+    return section;
+  }
+
+  private createBuiltinSemanticTermToken(
+    settings: TemplateSettings,
+    semanticTerm: DataResourceBuiltinSemanticAlias,
+    state: "enabled" | "disabled",
+  ): HTMLElement {
+    const term = document.createElement("button");
+    term.type = "button";
+    term.className = "settings-template-term-token";
+    term.dataset.state = state;
+    term.disabled = settings.isSaving;
+    term.title = state === "enabled"
+      ? localize("settings.template.semantic.disableBuiltinTitle", "Disable this built-in match term for Review")
+      : localize("settings.template.semantic.enableBuiltinTitle", "Enable this built-in match term for Review");
+    term.setAttribute("aria-label", state === "enabled"
+      ? localize("settings.template.semantic.disableBuiltin", "Disable built-in match term {term}", { term: semanticTerm.alias })
+      : localize("settings.template.semantic.enableBuiltin", "Enable built-in match term {term}", { term: semanticTerm.alias }));
+    const icon = state === "enabled"
+      ? LxIcon.close
+      : LxIcon.add;
+    term.append(
+      text("span", "settings-template-term-token-label", semanticTerm.alias),
+      text("span", "settings-template-term-token-meta", formatBuiltinSemanticTerm(semanticTerm)),
+      createLxIcon({ className: "settings-template-term-token-icon", icon, size: 14 }),
+    );
+    term.addEventListener("click", () => {
+      if (state === "enabled") {
+        void settings.onDisableBuiltinAlias(semanticTerm.id);
+        return;
+      }
+      void settings.onEnableBuiltinAlias(semanticTerm.id);
+    });
+    return term;
+  }
+
+  private createTemplateSemanticTermBlock(settings: TemplateSettings, rule: TemplateSemanticAliasRule): HTMLElement {
+    const block = div("settings-template-block settings-template-block--term");
+    block.draggable = !settings.isSaving;
+    block.dataset.termId = rule.id;
+    block.tabIndex = 0;
+    block.addEventListener("dragstart", event => {
+      event.dataTransfer?.setData("application/x-conductor-template-term", rule.id);
+    });
+    block.addEventListener("dragover", event => {
+      event.preventDefault();
+    });
+    block.addEventListener("drop", event => {
+      event.preventDefault();
+      const sourceId = event.dataTransfer?.getData("application/x-conductor-template-term");
+      if (sourceId) {
+        void settings.onMoveSemanticAlias(sourceId, rule.id);
+      }
+    });
+
+    const body = div(
+      "settings-template-block-body",
+      text("span", "settings-template-block-title", rule.alias),
+      text("span", "settings-template-block-meta", formatSemanticTermRule(rule)),
+    );
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "settings-template-icon-button";
+    removeButton.disabled = settings.isSaving;
+    removeButton.title = localize("settings.template.semantic.remove", "Remove term");
+    removeButton.setAttribute("aria-label", localize("settings.template.semantic.removeAlias", "Remove match term {term}", { term: rule.alias }));
+    removeButton.appendChild(createLxIcon({ className: "settings-template-icon", icon: LxIcon.trashFlat, size: 14 }));
+    removeButton.addEventListener("click", () => {
+      void settings.onRemoveSemanticAlias(rule.id);
+    });
+
+    block.append(
+      createLxIcon({ className: "settings-template-block-handle", icon: LxIcon.listUnordered, size: 14 }),
+      body,
+      removeButton,
+    );
+    return block;
+  }
+
+  private createTemplateSemanticTermForm(settings: TemplateSettings): HTMLElement {
+    const form = div("settings-template-semantic-form");
+    const grid = div("settings-grid settings-grid--three");
+    grid.append(
+      field(localize("settings.template.semantic.aliasLabel", "Match term"), this.createInput({
+        id: "settings-template-semantic-alias-input",
+        value: this.options.templateSemanticAliasDraft,
+        onChange: this.options.setTemplateSemanticAliasDraft,
+        disabled: settings.isSaving,
+      })),
+      field(localize("settings.template.semantic.roleLabel", "Role"), this.createSelect({
+        id: "settings-template-semantic-role-select",
+        value: this.options.templateSemanticRoleDraft,
+        onChange: this.options.setTemplateSemanticRoleDraft,
+        options: settings.roleOptions,
+        disabled: settings.isSaving,
+      })),
+      field(localize("settings.template.semantic.axisLabel", "Axis"), this.createSelect({
+        id: "settings-template-semantic-axis-select",
+        value: this.options.templateSemanticAxisDraft,
+        onChange: this.options.setTemplateSemanticAxisDraft,
+        options: settings.axisOptions,
+        disabled: settings.isSaving,
+      })),
+      field(localize("settings.template.semantic.policyLabel", "Match"), this.createSelect({
+        id: "settings-template-semantic-policy-select",
+        value: this.options.templateSemanticMatchPolicyDraft,
+        onChange: this.options.setTemplateSemanticMatchPolicyDraft,
+        options: settings.matchPolicyOptions,
+        disabled: settings.isSaving,
+      })),
+      field(localize("settings.template.semantic.intentLabel", "Intent"), this.createSelect({
+        id: "settings-template-semantic-intent-select",
+        value: this.options.templateSemanticIntentDraft,
+        onChange: this.options.setTemplateSemanticIntentDraft,
+        options: settings.intentOptions,
+        disabled: settings.isSaving,
+      })),
+      field(localize("settings.template.semantic.unitLabel", "Unit"), this.createSelect({
+        id: "settings-template-semantic-unit-select",
+        value: this.options.templateSemanticUnitDraft,
+        onChange: this.options.setTemplateSemanticUnitDraft,
+        options: settings.unitOptions,
+        disabled: settings.isSaving,
+      })),
+      field(localize("settings.template.semantic.familyLabel", "Family"), this.createSelect({
+        id: "settings-template-semantic-family-select",
+        value: this.options.templateSemanticFamilyDraft,
+        onChange: this.options.setTemplateSemanticFamilyDraft,
+        options: settings.familyOptions,
+        disabled: settings.isSaving,
+      })),
+      field(localize("settings.template.semantic.ivModeLabel", "IV mode"), this.createSelect({
+        id: "settings-template-semantic-iv-mode-select",
+        value: this.options.templateSemanticIvModeDraft,
+        onChange: this.options.setTemplateSemanticIvModeDraft,
+        options: settings.ivModeOptions,
+        disabled: settings.isSaving,
+      })),
+    );
+    form.append(
+      grid,
+      div("settings-actions-end", this.createButton({
+        id: "settings-template-semantic-add-button",
+        label: localize("settings.template.semantic.add", "Add Term"),
+        onClick: () => void settings.onAddSemanticAlias(),
+        disabled: settings.isSaving || !this.options.templateSemanticAliasDraft.trim(),
+        variant: "primary",
+      })),
+    );
+    return form;
   }
 
   private renderAppearance(container: HTMLElement): void {
@@ -1654,6 +2122,10 @@ function settingsSection(titleText: string, ...rows: HTMLElement[]): HTMLElement
   return div("settings-section", title(titleText), div("settings-list", ...rows));
 }
 
+function settingsCardGroup(...rows: HTMLElement[]): HTMLElement {
+  return div("settings-section", div("settings-list", ...rows));
+}
+
 function getSettingsList(section: HTMLElement): HTMLElement {
   const list = section.querySelector<HTMLElement>(".settings-list");
   if (!list) {
@@ -1688,6 +2160,82 @@ function text<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, 
   element.className = className;
   element.textContent = value;
   return element;
+}
+
+function isTemplateXAxisIntent(value: unknown): value is TemplateXAxisIntent {
+  return value === "rawTransient" ||
+    value === "ivCurve" ||
+    value === "pvCurve" ||
+    value === "cvCurve" ||
+    value === "frequencySweep" ||
+    value === "genericXY";
+}
+
+function formatXAxisIntent(intent: TemplateXAxisIntent): string {
+  if (intent === "rawTransient") {
+    return localize("settings.template.intent.rawTransient", "Raw transient");
+  }
+  if (intent === "ivCurve") {
+    return localize("settings.template.intent.ivCurve", "IV curve");
+  }
+  if (intent === "pvCurve") {
+    return localize("settings.template.intent.pvCurve", "PV curve");
+  }
+  if (intent === "cvCurve") {
+    return localize("settings.template.intent.cvCurve", "CV curve");
+  }
+  if (intent === "frequencySweep") {
+    return localize("settings.template.intent.frequencySweep", "Frequency sweep");
+  }
+  return localize("settings.template.intent.genericXY", "Generic XY");
+}
+
+function formatSemanticTermRule(rule: TemplateSemanticAliasRule): string {
+  return [
+    rule.canonicalRole,
+    rule.axisTendency,
+    rule.matchPolicy,
+    rule.intent,
+    rule.canonicalUnit,
+    rule.family,
+    rule.ivMode,
+  ].filter(Boolean).join(" / ");
+}
+
+function formatBuiltinSemanticTerm(semanticTerm: DataResourceBuiltinSemanticAlias): string {
+  return [
+    semanticTerm.canonicalRole,
+    semanticTerm.axisTendency,
+    semanticTerm.canonicalUnit,
+    semanticTerm.family,
+    semanticTerm.ivMode,
+    semanticTerm.domainPackIds.join("+"),
+  ].filter(Boolean).join(" / ");
+}
+
+function formatDomainPackKind(kind: DataResourceBuiltinSemanticDomainPack["kind"]): string {
+  if (kind === "core") {
+    return localize("settings.template.domainPacks.kind.core", "core");
+  }
+  if (kind === "domain") {
+    return localize("settings.template.domainPacks.kind.domain", "domain");
+  }
+  if (kind === "format") {
+    return localize("settings.template.domainPacks.kind.format", "format");
+  }
+  return localize("settings.template.domainPacks.kind.test", "test");
+}
+
+function formatDomainPackSearchText(pack: DataResourceBuiltinSemanticDomainPack): string {
+  return [
+    pack.id,
+    pack.label,
+    pack.kind,
+    pack.description,
+    pack.rolePriors.join(" "),
+    pack.intentPriors.join(" "),
+    pack.patterns.join(" "),
+  ].join(" ");
 }
 
 function appendFeedback(container: HTMLElement, feedback: { type: "idle" | "success" | "error"; message: string } | undefined): void {
@@ -1725,7 +2273,7 @@ const canReuseGeneralSectionTemplate = (
     return false;
   }
 
-  return chartDefaultSettingsEqual(current, next) && fileNameMatchingSettingsEqual(current, next);
+  return chartDefaultSettingsEqual(current, next);
 };
 
 function chartDefaultSettingsEqual(current: SettingsViewOptions, next: SettingsViewOptions): boolean {
@@ -1742,15 +2290,6 @@ function chartDefaultSettingsEqual(current: SettingsViewOptions, next: SettingsV
     currentSettings.defaultYScaleForTransfer === nextSettings.defaultYScaleForTransfer &&
     currentSettings.isSaving === nextSettings.isSaving &&
     currentSettings.tickLabelFontSize === nextSettings.tickLabelFontSize &&
-    feedbackEqual(currentSettings.feedback, nextSettings.feedback);
-}
-
-function fileNameMatchingSettingsEqual(current: SettingsViewOptions, next: SettingsViewOptions): boolean {
-  const currentSettings = current.fileNameMatchingSettings;
-  const nextSettings = next.fileNameMatchingSettings;
-  return current.fileNameFieldSeparatorsDraft === next.fileNameFieldSeparatorsDraft &&
-    currentSettings.fieldSeparators === nextSettings.fieldSeparators &&
-    currentSettings.isSaving === nextSettings.isSaving &&
     feedbackEqual(currentSettings.feedback, nextSettings.feedback);
 }
 

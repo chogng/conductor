@@ -295,6 +295,7 @@ const createStructuredContentEvidence = ({
 		reasons: ["dependent.test"],
 	}],
 	columnTitleSpans: [],
+	infoCellNeighborhoods: [],
 	bindingCandidates: [{
 		id: "binding-a",
 		xRangeCandidateIds: ["x-range-a"],

@@ -476,6 +476,7 @@ const createStructuredContentSnapshot = (
 		dataBlockCandidates: [],
 		dependentValueCandidates: [],
 		columnTitleSpans: [],
+		infoCellNeighborhoods: [],
 		bindingCandidates: [],
 		semanticLibraryFingerprint: "semantic:test",
 		groups: [{

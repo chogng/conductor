@@ -4,15 +4,19 @@
 
 import assert from "assert";
 
-import { Emitter } from "src/cs/base/common/event";
+import { Emitter, Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { DataResourceService } from "src/cs/workbench/services/dataResource/browser/dataResourceService";
 import {
+	createDataResourceSemanticMatcher,
+	dataResourceBuiltinSemanticAliases,
+	dataResourceBuiltinSemanticDomainPacks,
 	matchDataResourceRowMarker,
 	matchDataResourceSemanticTitle,
 } from "src/cs/workbench/services/dataResource/common/semanticLibrary";
+import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 import type { StructuredContentEvidence } from "src/cs/workbench/services/dataResource/common/structuredContent";
 import {
 	TableModel as TableContentModel,
@@ -32,11 +36,16 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 
 	const resolveEvidence = async (
 		rows: readonly (readonly string[])[],
+		conductorSettings: Record<string, unknown> | null = null,
 	): Promise<StructuredContentEvidence> => {
 		resourceCounter += 1;
 		const resource = URI.file(`/workspace/data-resource-${resourceCounter}.csv`);
 		const tableModelService = store.add(new TestTableModelService(resource, createTableContent(rows)));
-		const service = store.add(new DataResourceService(tableModelService));
+		const settingsService = {
+			onDidChangeConductorSettings: Event.None,
+			getConductorSettings: () => conductorSettings,
+		} as unknown as ISettingsService;
+		const service = store.add(new DataResourceService(tableModelService, settingsService));
 		const reference = await service.resolveStructuredContent({ resource });
 		const resolution = reference.object;
 		if (resolution.kind !== "ready") {
@@ -65,6 +74,110 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.equal(matchDataResourceSemanticTitle("ipt")?.axisTendency, "dependent");
 		assert.equal(matchDataResourceRowMarker("DataName"), "titleRow");
 		assert.equal(matchDataResourceRowMarker("DataValue"), "dataRow");
+	});
+
+	test("uses template semantic allowlist entries in DataResource matcher", async () => {
+		const evidence = await resolveEvidence([
+			["DriveBias", "SenseCurrent"],
+			["0", "1e-12"],
+			["0.5", "2e-12"],
+			["1", "4e-12"],
+		], {
+			templateSemanticAllowlist: [{
+				id: "drive-bias",
+				alias: "DriveBias",
+				canonicalRole: "voltage",
+				axisTendency: "x",
+				matchPolicy: "exact",
+				enabled: true,
+			}, {
+				id: "sense-current",
+				alias: "SenseCurrent",
+				canonicalRole: "current",
+				axisTendency: "dependent",
+				matchPolicy: "exact",
+				enabled: true,
+			}],
+		});
+
+		assert.ok(evidence.semanticLibraryFingerprint.includes("data-resource-semantic:"));
+		assert.ok(evidence.columnTitleSpans.some(span =>
+			span.targetColumn === 0 &&
+			span.canonicalRole === "voltage" &&
+			span.axisTendency === "x" &&
+			span.reasons.includes("semanticAllowlist.alias")
+		));
+		assert.ok(evidence.columnTitleSpans.some(span =>
+			span.targetColumn === 1 &&
+			span.canonicalRole === "current" &&
+			span.axisTendency === "dependent"
+		));
+	});
+
+	test("can disable built-in semantic aliases without deleting user aliases", async () => {
+		const vgAlias = dataResourceBuiltinSemanticAliases.find(alias => alias.alias === "Vg");
+		assert.ok(vgAlias);
+		const evidence = await resolveEvidence([
+			["Vg", "SenseCurrent"],
+			["0", "1e-12"],
+			["0.5", "2e-12"],
+			["1", "4e-12"],
+		], {
+			templateDisabledBuiltinSemanticIds: [vgAlias.id],
+			templateSemanticAllowlist: [{
+				id: "sense-current",
+				alias: "SenseCurrent",
+				canonicalRole: "current",
+				axisTendency: "dependent",
+				matchPolicy: "exact",
+				enabled: true,
+			}],
+		});
+
+		assert.ok(!evidence.columnTitleSpans.some(span =>
+			span.targetColumn === 0 &&
+			span.canonicalRole === "vg"
+		));
+		assert.ok(evidence.columnTitleSpans.some(span =>
+			span.targetColumn === 1 &&
+			span.canonicalRole === "current" &&
+			span.reasons.includes("semanticAllowlist.alias")
+		));
+	});
+
+	test("can disable built-in domain packs without deleting user aliases", async () => {
+		assert.ok(dataResourceBuiltinSemanticDomainPacks.some(pack => pack.id === "origin-like-export"));
+		const matcher = createDataResourceSemanticMatcher({
+			disabledDomainPackIds: ["origin-like-export"],
+		});
+		assert.equal(matcher.matchRowMarker("DataName"), null);
+
+		const evidence = await resolveEvidence([
+			["Vg", "SenseCurrent"],
+			["0", "1e-12"],
+			["0.5", "2e-12"],
+			["1", "4e-12"],
+		], {
+			templateDisabledBuiltinDomainPackIds: ["semiconductor-ivcv"],
+			templateSemanticAllowlist: [{
+				id: "sense-current",
+				alias: "SenseCurrent",
+				canonicalRole: "current",
+				axisTendency: "dependent",
+				matchPolicy: "exact",
+				enabled: true,
+			}],
+		});
+
+		assert.ok(!evidence.columnTitleSpans.some(span =>
+			span.targetColumn === 0 &&
+			span.canonicalRole === "vg"
+		));
+		assert.ok(evidence.columnTitleSpans.some(span =>
+			span.targetColumn === 1 &&
+			span.canonicalRole === "current" &&
+			span.reasons.includes("semanticAllowlist.alias")
+		));
 	});
 
 	test("detects first-row X/Y data blocks and bindings", async () => {
@@ -130,6 +243,44 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.ok(evidence.dataBlockCandidates.some(candidate =>
 			candidate.xColumn === 1 && candidate.dependentColumns.includes(2)
 		));
+	});
+
+	test("records four-neighbor info cell evidence as auxiliary title context", async () => {
+		const evidence = await resolveEvidence([
+			["FastIV", "point", "interval"],
+			["DataName", "Time", "Vp"],
+			["DataValue", "0", "0"],
+			["DataValue", "1", "0.5"],
+			["DataValue", "2", "1"],
+		]);
+
+		const timeNeighborhood = evidence.infoCellNeighborhoods.find(neighborhood =>
+			neighborhood.targetColumn === 1 &&
+			neighborhood.intentCandidates.some(candidate => candidate.intent === "rawTransient")
+		);
+		assert.ok(timeNeighborhood);
+		assert.ok(timeNeighborhood.neighbors.some(neighbor => neighbor.direction === "up" && neighbor.text === "point"));
+		assert.ok(evidence.columnTitleSpans.some(span =>
+			span.targetColumn === 1 &&
+			span.reasons.some(reason => reason === "infoNeighborhood.intent:rawTransient")
+		));
+	});
+
+	test("uses configured X intent priority when several X ranges are legal", async () => {
+		const rows = [
+			["FastIV", "interval", ""],
+			["DataName", "Time", "Vp", "Ipt"],
+			["DataValue", "0", "0", "1e-12"],
+			["DataValue", "1", "0.5", "2e-12"],
+			["DataValue", "2", "1", "3e-12"],
+		];
+		const pvFirst = await resolveEvidence(rows);
+		const rawFirst = await resolveEvidence(rows, {
+			templateXAxisIntentPriority: ["rawTransient", "pvCurve", "ivCurve", "cvCurve", "frequencySweep", "genericXY"],
+		});
+
+		assert.equal(pvFirst.xRangeCandidates[0]?.column, 2);
+		assert.equal(rawFirst.xRangeCandidates[0]?.column, 1);
 	});
 
 	test("detects pairwise XY blocks and many-pair bindings", async () => {

@@ -17,10 +17,8 @@ import {
 	type IDataResourceStructuredContentReference,
 } from "src/cs/workbench/services/dataResource/common/dataResource";
 import {
-	dataResourceSemanticLibraryFingerprint,
-	matchDataResourceRowMarker,
-	matchDataResourceSemanticTitle,
-	normalizeDataResourceSemanticText,
+	createDataResourceSemanticMatcher,
+	type DataResourceSemanticMatcher,
 } from "src/cs/workbench/services/dataResource/common/semanticLibrary";
 import {
 	createEmptyStructuredContentStructure,
@@ -35,14 +33,24 @@ import {
 	type StructuredContentStructure,
 	type StructuredDataBlockCandidate,
 	type StructuredDependentValueCandidate,
+	type StructuredInfoCellNeighborhoodEvidence,
 	type StructuredMeasurementBlockRecord,
 	type StructuredMeasurementColumnRef,
 	type StructuredMeasurementFamily,
+	type StructuredXAxisIntent,
+	type StructuredXAxisRole,
 	type StructuredXGroupCandidate,
 	type StructuredXRangeCandidate,
 	type StructuredXRangeDirection,
 	type StructuredXRangeStepKind,
 } from "src/cs/workbench/services/dataResource/common/structuredContent";
+import {
+	ISettingsService,
+	normalizeTemplateDisabledBuiltinSemanticIds,
+	normalizeTemplateDisabledBuiltinDomainPackIds,
+	normalizeTemplateSemanticAllowlist,
+	normalizeTemplateXAxisIntentPriority,
+} from "src/cs/workbench/services/settings/common/settings";
 import {
 	type TableModelContentSnapshot,
 	type TableModelLoadState,
@@ -77,6 +85,7 @@ type NumericRun = {
 
 type XRangeAnalysis = {
 	readonly candidate: StructuredXRangeCandidate;
+	readonly intentPriorityRank: number;
 	readonly run: NumericRun;
 };
 
@@ -105,14 +114,29 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 
 	private readonly onDidChangeResourceEmitter = this._register(new Emitter<URI>());
 	public readonly onDidChangeResource: Event<URI> = this.onDidChangeResourceEmitter.event;
+	private readonly trackedResources = new Map<string, URI>();
+	private semanticSettingsFingerprint = "";
 
 	public constructor(
 		@ITableModelService private readonly tableModelService: ITableModelServiceType,
+		@ISettingsService private readonly settingsService: ISettingsService,
 	) {
 		super();
 
+		this.semanticSettingsFingerprint = this.createSemanticMatcher().fingerprint;
 		this._register(this.tableModelService.onDidChangeModel(model => {
+			this.trackResource(model.resource);
 			this.onDidChangeResourceEmitter.fire(model.resource);
+		}));
+		this._register(this.settingsService.onDidChangeConductorSettings(() => {
+			const nextFingerprint = this.createSemanticMatcher().fingerprint;
+			if (nextFingerprint === this.semanticSettingsFingerprint) {
+				return;
+			}
+			this.semanticSettingsFingerprint = nextFingerprint;
+			for (const resource of this.trackedResources.values()) {
+				this.onDidChangeResourceEmitter.fire(resource);
+			}
 		}));
 	}
 
@@ -123,11 +147,12 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 	public async resolveStructuredContent(
 		target: DataResourceStructuredContentTarget,
 	): Promise<IDataResourceStructuredContentReference> {
+		this.trackResource(target.resource);
 		const reference = await this.tableModelService.createModelReference(
 			target.resource,
 			createStructuredContentSource(target),
 		);
-		const resolution = createStructuredContentResolution(reference.object.getSnapshot(), target);
+		const resolution = createStructuredContentResolution(reference.object.getSnapshot(), target, this.createSemanticMatcher());
 		return {
 			object: resolution,
 			dispose: () => {
@@ -139,20 +164,37 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 	public getStructuredContent(
 		target: DataResourceStructuredContentTarget,
 	): DataResourceStructuredContentResolution | undefined {
+		this.trackResource(target.resource);
 		const model = this.tableModelService.get(target.resource);
 		return model
-			? createStructuredContentResolution(model.getSnapshot(), target)
+			? createStructuredContentResolution(model.getSnapshot(), target, this.createSemanticMatcher())
 			: undefined;
 	}
 
 	public resolve(target: DataResourceStructuredContentTarget): void {
+		this.trackResource(target.resource);
 		this.tableModelService.resolve(target.resource, createStructuredContentSource(target));
+	}
+
+	private createSemanticMatcher(): DataResourceSemanticMatcher {
+		const settings = this.settingsService.getConductorSettings();
+		return createDataResourceSemanticMatcher({
+			allowlist: normalizeTemplateSemanticAllowlist(settings?.templateSemanticAllowlist),
+			disabledBuiltinIds: normalizeTemplateDisabledBuiltinSemanticIds(settings?.templateDisabledBuiltinSemanticIds),
+			disabledDomainPackIds: normalizeTemplateDisabledBuiltinDomainPackIds(settings?.templateDisabledBuiltinDomainPackIds),
+			xAxisIntentPriority: normalizeTemplateXAxisIntentPriority(settings?.templateXAxisIntentPriority),
+		});
+	}
+
+	private trackResource(resource: URI): void {
+		this.trackedResources.set(normalizeResourceIdentity(resource), resource);
 	}
 }
 
 const createStructuredContentResolution = (
 	snapshot: TableModelSnapshot,
 	target: DataResourceStructuredContentTarget,
+	semanticMatcher: DataResourceSemanticMatcher,
 ): DataResourceStructuredContentResolution => {
 	if (snapshot.loadState.state === "error") {
 		return {
@@ -184,7 +226,7 @@ const createStructuredContentResolution = (
 	}
 
 	const fileName = getStructuredContentFileName(target.resource, selectedSheet);
-	const evidence = createStructuredContentEvidence(content);
+	const evidence = createStructuredContentEvidence(content, semanticMatcher);
 	return {
 		kind: "ready",
 		snapshot: {
@@ -227,6 +269,7 @@ const toDataResourceLoadState = (
 
 const createStructuredContentEvidence = (
 	content: TableModelContentSnapshot,
+	semanticMatcher: DataResourceSemanticMatcher,
 ): StructuredContentEvidence => {
 	const endPerf = startPerf("dataResource.structuredContent.evidence", {
 		columnCount: content.columnCount,
@@ -241,24 +284,37 @@ const createStructuredContentEvidence = (
 			columnCount: content.columnCount,
 			rows,
 		});
-		const columnTitleSpans = createColumnTitleSpanEvidence({
+		const baseColumnTitleSpans = createColumnTitleSpanEvidence({
 			numericRuns,
 			rows,
+			semanticMatcher,
+		});
+		const infoCellNeighborhoods = createInfoCellNeighborhoodEvidence({
+			rows,
+			semanticMatcher,
+			titleSpans: baseColumnTitleSpans,
+		});
+		const columnTitleSpans = applyInfoCellNeighborhoodEvidenceToTitleSpans({
+			neighborhoods: infoCellNeighborhoods,
+			titleSpans: baseColumnTitleSpans,
 		});
 		const columnProfiles = createColumnProfiles({
 			columnCount: content.columnCount,
 			numericRuns,
 			rows,
+			semanticMatcher,
 			titleSpans: columnTitleSpans,
 		});
 		const semanticCandidates = createColumnSemanticCandidates({
 			columnProfiles,
+			semanticMatcher,
 			titleSpans: columnTitleSpans,
 		});
 		const xRangeAnalyses = createXRangeAnalyses({
 			columnCount: content.columnCount,
 			numericRuns,
 			rows,
+			xAxisIntentPriority: semanticMatcher.xAxisIntentPriority as readonly StructuredXAxisIntent[],
 			titleSpans: columnTitleSpans,
 		});
 		const xRangeCandidates = xRangeAnalyses.map(analysis => analysis.candidate);
@@ -283,6 +339,7 @@ const createStructuredContentEvidence = (
 			dataBlockCandidates,
 			numericRuns,
 			rowCount: content.rowCount,
+			semanticLibraryFingerprint: semanticMatcher.fingerprint,
 			titleSpans: columnTitleSpans,
 		});
 		const blocks = createStructuredMeasurementBlocks({
@@ -309,8 +366,9 @@ const createStructuredContentEvidence = (
 			dataBlockCandidates,
 			dependentValueCandidates,
 			columnTitleSpans,
+			infoCellNeighborhoods,
 			bindingCandidates,
-			semanticLibraryFingerprint: dataResourceSemanticLibraryFingerprint,
+			semanticLibraryFingerprint: semanticMatcher.fingerprint,
 			semanticCandidates,
 			groups: [],
 			blocks,
@@ -375,18 +433,20 @@ const createNumericRuns = ({
 const createColumnTitleSpanEvidence = ({
 	numericRuns,
 	rows,
+	semanticMatcher,
 }: {
 	readonly numericRuns: readonly NumericRun[];
 	readonly rows: readonly (readonly string[])[];
+	readonly semanticMatcher: DataResourceSemanticMatcher;
 }): readonly StructuredColumnTitleSpanEvidence[] => {
 	const spans: StructuredColumnTitleSpanEvidence[] = [];
 	for (const run of numericRuns) {
-		const titleCell = findTitleCellForNumericRun(rows, run);
+		const titleCell = findTitleCellForNumericRun(rows, run, semanticMatcher);
 		if (!titleCell) {
 			continue;
 		}
 
-		const match = matchDataResourceSemanticTitle(titleCell.text);
+		const match = semanticMatcher.matchTitle(titleCell.text);
 		if (!match) {
 			continue;
 		}
@@ -411,10 +471,11 @@ const createColumnTitleSpanEvidence = ({
 const findTitleCellForNumericRun = (
 	rows: readonly (readonly string[])[],
 	run: NumericRun,
+	semanticMatcher: DataResourceSemanticMatcher,
 ): StructuredColumnTitleSpanEvidence["titleCell"] | null => {
 	const immediateRow = run.startRow - 1;
 	if (immediateRow >= 0) {
-		const immediate = readTitleCellFromRow(rows[immediateRow] ?? [], immediateRow, run.column);
+		const immediate = readTitleCellFromRow(rows[immediateRow] ?? [], immediateRow, run.column, semanticMatcher);
 		if (immediate) {
 			return immediate;
 		}
@@ -426,7 +487,7 @@ const findTitleCellForNumericRun = (
 		if (getRowNumericCount(row) >= 2) {
 			break;
 		}
-		const titleCell = readTitleCellFromRow(row, rowIndex, run.column);
+		const titleCell = readTitleCellFromRow(row, rowIndex, run.column, semanticMatcher);
 		if (titleCell) {
 			return titleCell;
 		}
@@ -438,8 +499,9 @@ const readTitleCellFromRow = (
 	row: readonly string[],
 	rowIndex: number,
 	targetColumn: number,
+	semanticMatcher: DataResourceSemanticMatcher,
 ): StructuredColumnTitleSpanEvidence["titleCell"] | null => {
-	const firstCellMarker = matchDataResourceRowMarker(row[0]);
+	const firstCellMarker = semanticMatcher.matchRowMarker(row[0]);
 	const targetText = normalizeText(row[targetColumn]);
 	if (firstCellMarker === "titleRow") {
 		return targetText
@@ -463,15 +525,304 @@ const readTitleCellFromRow = (
 	return null;
 };
 
+const createInfoCellNeighborhoodEvidence = ({
+	rows,
+	semanticMatcher,
+	titleSpans,
+}: {
+	readonly rows: readonly (readonly string[])[];
+	readonly semanticMatcher: DataResourceSemanticMatcher;
+	readonly titleSpans: readonly StructuredColumnTitleSpanEvidence[];
+}): readonly StructuredInfoCellNeighborhoodEvidence[] => {
+	const neighborhoods: StructuredInfoCellNeighborhoodEvidence[] = [];
+	for (const span of titleSpans) {
+		const neighbors = readInfoCellNeighbors(rows, span.titleCell.row, span.titleCell.column);
+		if (!neighbors.length) {
+			continue;
+		}
+		const roleCandidates = createNeighborhoodRoleCandidates(span, neighbors, semanticMatcher);
+		const intentCandidates = createNeighborhoodIntentCandidates(span, neighbors, roleCandidates);
+		const reasons = createNeighborhoodReasons(neighbors, roleCandidates, intentCandidates, semanticMatcher);
+		const confidence = clampConfidence(
+			0.18 +
+			(roleCandidates[0]?.confidence ?? 0) * 0.42 +
+			(intentCandidates[0]?.confidence ?? 0) * 0.28 +
+			Math.min(0.12, neighbors.length * 0.03),
+		);
+		neighborhoods.push({
+			id: `info-neighborhood:c${span.targetColumn}:r${span.titleCell.row}`,
+			infoCell: span.titleCell,
+			targetColumn: span.targetColumn,
+			startRow: span.startRow,
+			endRow: span.endRow,
+			neighbors,
+			xRoleCandidates: roleCandidates,
+			intentCandidates,
+			confidence,
+			reasons,
+		});
+	}
+	return neighborhoods;
+};
+
+const applyInfoCellNeighborhoodEvidenceToTitleSpans = ({
+	neighborhoods,
+	titleSpans,
+}: {
+	readonly neighborhoods: readonly StructuredInfoCellNeighborhoodEvidence[];
+	readonly titleSpans: readonly StructuredColumnTitleSpanEvidence[];
+}): readonly StructuredColumnTitleSpanEvidence[] => {
+	const neighborhoodsBySpan = new Map<string, StructuredInfoCellNeighborhoodEvidence>();
+	for (const neighborhood of neighborhoods) {
+		neighborhoodsBySpan.set(
+			`${neighborhood.targetColumn}:${neighborhood.startRow}:${neighborhood.endRow}:${neighborhood.infoCell.row}`,
+			neighborhood,
+		);
+	}
+
+	return titleSpans.map(span => {
+		const neighborhood = neighborhoodsBySpan.get(`${span.targetColumn}:${span.startRow}:${span.endRow}:${span.titleCell.row}`);
+		if (!neighborhood) {
+			return span;
+		}
+		const roleBoost = span.axisTendency === "x"
+			? (neighborhood.xRoleCandidates[0]?.confidence ?? 0) * 0.04
+			: 0;
+		const intentBoost = (neighborhood.intentCandidates[0]?.confidence ?? 0) * 0.03;
+		return {
+			...span,
+			confidence: clampConfidence(span.confidence + roleBoost + intentBoost),
+			reasons: uniqueStrings([
+				...span.reasons,
+				...neighborhood.reasons,
+			]),
+		};
+	});
+};
+
+const readInfoCellNeighbors = (
+	rows: readonly (readonly string[])[],
+	row: number,
+	column: number,
+): StructuredInfoCellNeighborhoodEvidence["neighbors"] => {
+	const neighbors: StructuredInfoCellNeighborhoodEvidence["neighbors"][number][] = [];
+	const offsets: Array<{
+		readonly direction: StructuredInfoCellNeighborhoodEvidence["neighbors"][number]["direction"];
+		readonly rowOffset: number;
+		readonly columnOffset: number;
+	}> = [
+		{ direction: "up", rowOffset: -1, columnOffset: 0 },
+		{ direction: "down", rowOffset: 1, columnOffset: 0 },
+		{ direction: "left", rowOffset: 0, columnOffset: -1 },
+		{ direction: "right", rowOffset: 0, columnOffset: 1 },
+	];
+	for (const offset of offsets) {
+		const neighborRow = row + offset.rowOffset;
+		const neighborColumn = column + offset.columnOffset;
+		if (neighborRow < 0 || neighborColumn < 0) {
+			continue;
+		}
+		const value = normalizeText(rows[neighborRow]?.[neighborColumn]);
+		if (!value) {
+			continue;
+		}
+		neighbors.push({
+			direction: offset.direction,
+			row: neighborRow,
+			column: neighborColumn,
+			text: value,
+		});
+	}
+	return neighbors;
+};
+
+const createNeighborhoodRoleCandidates = (
+	span: StructuredColumnTitleSpanEvidence,
+	neighbors: StructuredInfoCellNeighborhoodEvidence["neighbors"],
+	semanticMatcher: DataResourceSemanticMatcher,
+): StructuredInfoCellNeighborhoodEvidence["xRoleCandidates"] => {
+	const candidates = new Map<StructuredXAxisRole, { confidence: number; reasons: string[] }>();
+	const addCandidate = (
+		role: StructuredXAxisRole,
+		confidence: number,
+		reason: string,
+	): void => {
+		if (role === "unknown") {
+			return;
+		}
+		const current = candidates.get(role);
+		if (!current) {
+			candidates.set(role, { confidence, reasons: [reason] });
+			return;
+		}
+		current.confidence = Math.max(current.confidence, confidence);
+		current.reasons.push(reason);
+	};
+
+	addCandidate(
+		toXAxisRole(span.canonicalRole),
+		span.axisTendency === "x" ? 0.88 : 0.42,
+		`infoNeighborhood.titleRole:${span.canonicalRole}`,
+	);
+
+	for (const neighbor of neighbors) {
+		const match = semanticMatcher.matchTitle(neighbor.text);
+		if (match) {
+			addCandidate(
+				toXAxisRole(match.canonicalRole),
+				match.axisTendency === "x" ? 0.82 : 0.46,
+				`infoNeighborhood.neighborRole:${neighbor.direction}:${match.canonicalRole}`,
+			);
+		}
+		for (const role of readTextRoleSignals(neighbor.text)) {
+			addCandidate(role, 0.72, `infoNeighborhood.textRole:${neighbor.direction}:${role}`);
+		}
+	}
+
+	return Array.from(candidates, ([role, value]) => ({
+		role,
+		confidence: clampConfidence(value.confidence),
+		reasons: uniqueStrings(value.reasons),
+	})).sort((left, right) => right.confidence - left.confidence);
+};
+
+const createNeighborhoodIntentCandidates = (
+	span: StructuredColumnTitleSpanEvidence,
+	neighbors: StructuredInfoCellNeighborhoodEvidence["neighbors"],
+	roleCandidates: StructuredInfoCellNeighborhoodEvidence["xRoleCandidates"],
+): StructuredInfoCellNeighborhoodEvidence["intentCandidates"] => {
+	const context = [
+		span.titleCell.text,
+		...neighbors.map(neighbor => neighbor.text),
+	].join(" ");
+	const normalized = normalizeNeighborhoodText(context);
+	const primaryRole = toXAxisRole(span.canonicalRole);
+	const roles = new Set(roleCandidates.map(candidate => candidate.role));
+	const candidates = new Map<StructuredXAxisIntent, { confidence: number; reasons: string[] }>();
+	const addCandidate = (
+		intent: StructuredXAxisIntent,
+		confidence: number,
+		reason: string,
+	): void => {
+		const current = candidates.get(intent);
+		if (!current) {
+			candidates.set(intent, { confidence, reasons: [reason] });
+			return;
+		}
+		current.confidence = Math.max(current.confidence, confidence);
+		current.reasons.push(reason);
+	};
+
+	if (/(^|[^a-z0-9])(pv|p-v|polar|polarization|wake|vp|vpn)([^a-z0-9]|$)|dc\s*=/.test(normalized)) {
+		addCandidate("pvCurve", primaryRole === "voltage" ? 0.86 : roles.has("voltage") ? 0.62 : 0.5, "infoNeighborhood.intent:pvCurve");
+	}
+	if (/(^|[^a-z0-9])(fastiv|ivt|transient|waveform|interval|point|time)([^a-z0-9]|$)/.test(normalized)) {
+		addCandidate("rawTransient", primaryRole === "time" ? 0.88 : roles.has("time") ? 0.62 : 0.5, "infoNeighborhood.intent:rawTransient");
+	}
+	if (/(^|[^a-z0-9])(cv|c-v|cap|capacitance|cp|cgg)([^a-z0-9]|$)/.test(normalized)) {
+		addCandidate("cvCurve", 0.78, "infoNeighborhood.intent:cvCurve");
+	}
+	if (/(^|[^a-z0-9])(cf|c-f|freq|frequency)([^a-z0-9]|$)/.test(normalized)) {
+		addCandidate("frequencySweep", primaryRole === "frequency" ? 0.86 : roles.has("frequency") ? 0.68 : 0.56, "infoNeighborhood.intent:frequencySweep");
+	}
+	if (/(^|[^a-z0-9])(iv|i-v|idvg|idvd|vg|vd)([^a-z0-9]|$)/.test(normalized)) {
+		addCandidate("ivCurve", primaryRole === "voltage" ? 0.82 : roles.has("voltage") ? 0.62 : 0.5, "infoNeighborhood.intent:ivCurve");
+	}
+
+	return Array.from(candidates, ([intent, value]) => ({
+		intent,
+		confidence: clampConfidence(value.confidence),
+		reasons: uniqueStrings(value.reasons),
+	})).sort((left, right) => right.confidence - left.confidence);
+};
+
+const createNeighborhoodReasons = (
+	neighbors: StructuredInfoCellNeighborhoodEvidence["neighbors"],
+	roleCandidates: StructuredInfoCellNeighborhoodEvidence["xRoleCandidates"],
+	intentCandidates: StructuredInfoCellNeighborhoodEvidence["intentCandidates"],
+	semanticMatcher: DataResourceSemanticMatcher,
+): readonly string[] => {
+	const reasons = neighbors.map(neighbor => `infoNeighborhood.neighbor:${neighbor.direction}`);
+	for (const neighbor of neighbors) {
+		const match = semanticMatcher.matchTitle(neighbor.text);
+		if (match) {
+			reasons.push(`infoNeighborhood.semantic:${neighbor.direction}:${match.canonicalRole}:${match.axisTendency}`);
+		}
+	}
+	if (roleCandidates[0]) {
+		reasons.push(`infoNeighborhood.xRole:${roleCandidates[0].role}`);
+	}
+	if (intentCandidates[0]) {
+		reasons.push(`infoNeighborhood.intent:${intentCandidates[0].intent}`);
+	}
+	return uniqueStrings(reasons);
+};
+
+const toXAxisRole = (
+	role: StructuredColumnTitleSpanEvidence["canonicalRole"],
+): StructuredXAxisRole => {
+	if (role === "time") {
+		return "time";
+	}
+	if (role === "frequency") {
+		return "frequency";
+	}
+	if (role === "current" || role === "id" || role === "ig" || role === "is") {
+		return "current";
+	}
+	if (role === "voltage" || role === "vd" || role === "vg" || role === "vs") {
+		return "voltage";
+	}
+	return "unknown";
+};
+
+const readTextRoleSignals = (
+	value: string,
+): readonly StructuredXAxisRole[] => {
+	const normalized = normalizeNeighborhoodText(value);
+	const roles: StructuredXAxisRole[] = [];
+	if (/(^|[^a-z0-9])(time|timestamp|interval|sec|second|ms)([^a-z0-9]|$)/.test(normalized)) {
+		roles.push("time");
+	}
+	if (/(^|[^a-z0-9])(v|vg|vd|vp|vpn|voltage|bias)([^a-z0-9]|$)|dc\s*=/.test(normalized)) {
+		roles.push("voltage");
+	}
+	if (/(^|[^a-z0-9])(i|id|ig|current)([^a-z0-9]|$)/.test(normalized)) {
+		roles.push("current");
+	}
+	if (/(^|[^a-z0-9])(freq|frequency|hz|khz|mhz)([^a-z0-9]|$)/.test(normalized)) {
+		roles.push("frequency");
+	}
+	if (/(^|[^a-z0-9])(temp|temperature|degc|celsius)([^a-z0-9]|$)/.test(normalized)) {
+		roles.push("temperature");
+	}
+	if (/(^|[^a-z0-9])(position|distance|xpos|ypos)([^a-z0-9]|$)/.test(normalized)) {
+		roles.push("position");
+	}
+	if (/(^|[^a-z0-9])(index|step|point|sample)([^a-z0-9]|$)/.test(normalized)) {
+		roles.push("index");
+	}
+	return uniqueStrings(roles);
+};
+
+const normalizeNeighborhoodText = (
+	value: string,
+): string => value
+	.toLowerCase()
+	.replace(/\u00b5|\u03bc/g, "u")
+	.replace(/\u03a9|\u03c9|\u2126/g, "ohm");
+
 const createColumnProfiles = ({
 	columnCount,
 	numericRuns,
 	rows,
+	semanticMatcher,
 	titleSpans,
 }: {
 	readonly columnCount: number;
 	readonly numericRuns: readonly NumericRun[];
 	readonly rows: readonly (readonly string[])[];
+	readonly semanticMatcher: DataResourceSemanticMatcher;
 	readonly titleSpans: readonly StructuredColumnTitleSpanEvidence[];
 }): readonly StructuredColumnProfile[] => {
 	const longestRunsByColumn = createLongestRunsByColumn(numericRuns);
@@ -479,7 +830,7 @@ const createColumnProfiles = ({
 	return Array.from({ length: columnCount }, (_, column): StructuredColumnProfile => {
 		const titleSpan = titleSpansByColumn.get(column);
 		const headerText = titleSpan?.titleCell.text ?? getFallbackColumnHeaderText(column);
-		const normalizedHeader = titleSpan?.normalizedTitle ?? normalizeDataResourceSemanticText(headerText);
+		const normalizedHeader = titleSpan?.normalizedTitle ?? semanticMatcher.normalizeText(headerText);
 		const numericRun = longestRunsByColumn.get(column);
 		const explicitUnitText = titleSpan?.canonicalUnit ?? null;
 		return {
@@ -495,9 +846,11 @@ const createColumnProfiles = ({
 
 const createColumnSemanticCandidates = ({
 	columnProfiles,
+	semanticMatcher,
 	titleSpans,
 }: {
 	readonly columnProfiles: readonly StructuredColumnProfile[];
+	readonly semanticMatcher: DataResourceSemanticMatcher;
 	readonly titleSpans: readonly StructuredColumnTitleSpanEvidence[];
 }): readonly StructuredColumnSemanticCandidate[] => {
 	const titleSpansByColumn = createBestTitleSpanByColumn(titleSpans);
@@ -505,7 +858,7 @@ const createColumnSemanticCandidates = ({
 		const titleSpan = titleSpansByColumn.get(profile.rawCol);
 		const match = titleSpan
 			? null
-			: matchDataResourceSemanticTitle(profile.headerText);
+			: semanticMatcher.matchTitle(profile.headerText);
 		const role = titleSpan?.canonicalRole ?? match?.canonicalRole ?? "unknown";
 		const unit = titleSpan?.canonicalUnit ?? match?.canonicalUnit;
 		const confidence = titleSpan?.confidence ?? match?.confidence ?? 0.2;
@@ -532,11 +885,13 @@ const createXRangeAnalyses = ({
 	columnCount,
 	numericRuns,
 	rows,
+	xAxisIntentPriority,
 	titleSpans,
 }: {
 	readonly columnCount: number;
 	readonly numericRuns: readonly NumericRun[];
 	readonly rows: readonly (readonly string[])[];
+	readonly xAxisIntentPriority: readonly StructuredXAxisIntent[];
 	readonly titleSpans: readonly StructuredColumnTitleSpanEvidence[];
 }): readonly XRangeAnalysis[] => {
 	const titleSpansByRun = createTitleSpanByRun(titleSpans);
@@ -555,9 +910,10 @@ const createXRangeAnalyses = ({
 			continue;
 		}
 
-		const reasons = createXRangeReasons(pattern, titleSpan, rows, run);
+		const reasons = createXRangeReasons(pattern, titleSpan, rows, run, xAxisIntentPriority);
 		analyses.push({
 			run,
+			intentPriorityRank: getXIntentPriorityRank(titleSpan, xAxisIntentPriority),
 			candidate: {
 				id: `x-range:c${run.column}:r${run.startRow}-${run.endRow}`,
 				column: run.column,
@@ -574,17 +930,18 @@ const createXRangeAnalyses = ({
 	}
 	return analyses.sort((left, right) =>
 		right.candidate.confidence - left.candidate.confidence ||
+		right.intentPriorityRank - left.intentPriorityRank ||
 		left.candidate.column - right.candidate.column ||
 		left.candidate.startRow - right.candidate.startRow
 	);
 };
 
 const scoreXRangeCandidate = ({
-	columnCount,
-	pattern,
-	rows,
-	run,
-	titleSpan,
+columnCount,
+pattern,
+rows,
+run,
+titleSpan,
 }: {
 	readonly columnCount: number;
 	readonly pattern: NumericPatternAnalysis;
@@ -629,6 +986,7 @@ const createXRangeReasons = (
 	titleSpan: StructuredColumnTitleSpanEvidence | undefined,
 	rows: readonly (readonly string[])[],
 	run: NumericRun,
+	xAxisIntentPriority: readonly StructuredXAxisIntent[],
 ): readonly string[] => {
 	const reasons: string[] = ["xRange.numericRun"];
 	if (pattern.direction !== "mixed") {
@@ -643,10 +1001,67 @@ const createXRangeReasons = (
 	if (titleSpan?.axisTendency === "x") {
 		reasons.push(`xRange.title:${titleSpan.canonicalRole}`);
 	}
+	const intent = titleSpan?.axisTendency === "x"
+		? readTitleSpanIntent(titleSpan)
+		: null;
+	if (intent) {
+		reasons.push(`xRange.intent:${intent}`);
+		const priorityIndex = xAxisIntentPriority.indexOf(intent);
+		if (priorityIndex !== -1) {
+			reasons.push(`xRange.intentPriority:${priorityIndex}`);
+		}
+	}
 	if (hasAlignedNumericNeighbor(rows, run, Number.MAX_SAFE_INTEGER)) {
 		reasons.push("xRange.alignedDependentNeighbor");
 	}
 	return reasons;
+};
+
+const getXIntentPriorityRank = (
+	titleSpan: StructuredColumnTitleSpanEvidence | undefined,
+	xAxisIntentPriority: readonly StructuredXAxisIntent[],
+): number => {
+	if (titleSpan?.axisTendency !== "x") {
+		return 0;
+	}
+	const intent = readTitleSpanIntent(titleSpan);
+	if (!intent) {
+		return 0;
+	}
+	const priorityIndex = xAxisIntentPriority.indexOf(intent);
+	if (priorityIndex === -1) {
+		return 0;
+	}
+	return xAxisIntentPriority.length - priorityIndex;
+};
+
+const readTitleSpanIntent = (
+	titleSpan: StructuredColumnTitleSpanEvidence | undefined,
+): StructuredXAxisIntent | null => {
+	if (!titleSpan) {
+		return null;
+	}
+	for (const reason of titleSpan.reasons) {
+		if (reason === "infoNeighborhood.intent:rawTransient" || reason === "semanticAllowlist.intent:rawTransient") {
+			return "rawTransient";
+		}
+		if (reason === "infoNeighborhood.intent:ivCurve" || reason === "semanticAllowlist.intent:ivCurve") {
+			return "ivCurve";
+		}
+		if (reason === "infoNeighborhood.intent:pvCurve" || reason === "semanticAllowlist.intent:pvCurve") {
+			return "pvCurve";
+		}
+		if (reason === "infoNeighborhood.intent:cvCurve" || reason === "semanticAllowlist.intent:cvCurve") {
+			return "cvCurve";
+		}
+		if (reason === "infoNeighborhood.intent:frequencySweep" || reason === "semanticAllowlist.intent:frequencySweep") {
+			return "frequencySweep";
+		}
+		if (reason === "infoNeighborhood.intent:genericXY" || reason === "semanticAllowlist.intent:genericXY") {
+			return "genericXY";
+		}
+	}
+	return null;
 };
 
 const createXGroupCandidates = (
@@ -947,12 +1362,14 @@ const createStructuredContentStructure = ({
 	dataBlockCandidates,
 	numericRuns,
 	rowCount,
+	semanticLibraryFingerprint,
 	titleSpans,
 }: {
 	readonly columnCount: number;
 	readonly dataBlockCandidates: readonly StructuredDataBlockCandidate[];
 	readonly numericRuns: readonly NumericRun[];
 	readonly rowCount: number;
+	readonly semanticLibraryFingerprint: string;
 	readonly titleSpans: readonly StructuredColumnTitleSpanEvidence[];
 }): StructuredContentStructure => {
 	if (!numericRuns.length || rowCount <= 0 || columnCount <= 0) {
@@ -1005,6 +1422,7 @@ const createStructuredContentStructure = ({
 			columnCount,
 			dataBlockCandidates,
 			rowCount,
+			semanticLibraryFingerprint,
 			titleSpans,
 		}),
 	};
@@ -1034,17 +1452,19 @@ const createStructureFingerprint = ({
 	columnCount,
 	dataBlockCandidates,
 	rowCount,
+	semanticLibraryFingerprint,
 	titleSpans,
 }: {
 	readonly columnCount: number;
 	readonly dataBlockCandidates: readonly StructuredDataBlockCandidate[];
 	readonly rowCount: number;
+	readonly semanticLibraryFingerprint: string;
 	readonly titleSpans: readonly StructuredColumnTitleSpanEvidence[];
 }): string => [
 	"data-resource-structure",
 	rowCount,
 	columnCount,
-	dataResourceSemanticLibraryFingerprint,
+	semanticLibraryFingerprint,
 	dataBlockCandidates.map(block => [
 		block.startRow,
 		block.endRow,
@@ -1834,6 +2254,21 @@ const normalizeResourceText = (
 const normalizeText = (
 	value: unknown,
 ): string => String(value ?? "").trim();
+
+const uniqueStrings = <T extends string>(
+	values: readonly T[],
+): T[] => {
+	const seen = new Set<T>();
+	const result: T[] = [];
+	for (const value of values) {
+		if (seen.has(value)) {
+			continue;
+		}
+		seen.add(value);
+		result.push(value);
+	}
+	return result;
+};
 
 registerSingleton(
 	IDataResourceService,

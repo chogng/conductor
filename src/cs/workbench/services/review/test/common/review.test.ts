@@ -100,6 +100,7 @@ const createReviewEvidence = (
     dataBlockCandidates: [],
     dependentValueCandidates: [],
     columnTitleSpans: [],
+    infoCellNeighborhoods: [],
     bindingCandidates: [],
     semanticLibraryFingerprint: "semantic:test",
     semanticCandidates: [],

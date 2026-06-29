@@ -4,7 +4,7 @@
 
 import assert from "assert";
 
-import { Emitter } from "src/cs/base/common/event";
+import { Emitter, Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
@@ -23,6 +23,7 @@ import type {
 	ITableModelReference,
 	ITableModelService,
 } from "src/cs/workbench/services/table/common/resolverService";
+import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 import type { UserTemplateSnapshot } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
 type EvaluationExpectation = {
@@ -57,9 +58,13 @@ const evaluateSample = async (
 	resourceCounter: number,
 	sample: EvaluationSample,
 ): Promise<EvaluationSummary> => {
+	const settingsService = {
+		onDidChangeConductorSettings: Event.None,
+		getConductorSettings: () => null,
+	} as unknown as ISettingsService;
 	const resource = URI.file(`/workspace/eval-${resourceCounter}.csv`);
 	const tableModelService = store.add(new TestTableModelService(resource, createTableContent(sample.rows)));
-	const service = store.add(new DataResourceService(tableModelService));
+	const service = store.add(new DataResourceService(tableModelService, settingsService));
 	const reference = await service.resolveStructuredContent({ resource, sheetId: "table-a" });
 	const resolution = reference.object;
 	if (resolution.kind !== "ready") {

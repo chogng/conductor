@@ -1,7 +1,7 @@
 import { localize } from "src/cs/nls";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 
-export type SettingsSectionId = "general" | "appearance" | "origin" | "about";
+export type SettingsSectionId = "general" | "template" | "appearance" | "origin" | "about";
 
 export type SettingsSectionEntry = {
   id: SettingsSectionId;
@@ -16,7 +16,7 @@ export type SettingsNavGroup = {
 export const createSettingsNavGroups = (): readonly SettingsNavGroup[] => [
   {
     label: localize("settings.nav.group.personal", "Personal"),
-    sectionIds: ["general", "appearance"],
+    sectionIds: ["general", "template", "appearance"],
   },
   {
     label: localize("settings.nav.group.integrations", "Integrations"),
@@ -35,6 +35,10 @@ export function getSettingsSectionIcon(sectionId: SettingsSectionId): LxIconDefi
 
   if (sectionId === "origin") {
     return LxIcon.origin;
+  }
+
+  if (sectionId === "template") {
+    return LxIcon.listUnordered;
   }
 
   if (sectionId === "about") {

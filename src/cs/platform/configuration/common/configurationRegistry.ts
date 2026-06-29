@@ -110,11 +110,27 @@ type PlotAxisSettings = {
 };
 
 type NumericDisplayMode = "raw" | "smart";
+type TemplateSemanticAliasRule = {
+  id: string;
+  alias: string;
+  canonicalRole: string;
+  canonicalUnit?: string;
+  axisTendency: string;
+  family?: string;
+  ivMode?: string;
+  intent?: string;
+  matchPolicy: string;
+  enabled: boolean;
+};
 
 export type ConductorSettings = JsonRecord & {
   language: string;
   numericDisplayMode: NumericDisplayMode;
   tableTemplateVisualizationEnabled: boolean;
+  templateDisabledBuiltinDomainPackIds: string[];
+  templateDisabledBuiltinSemanticIds: string[];
+  templateSemanticAllowlist: TemplateSemanticAliasRule[];
+  templateXAxisIntentPriority: string[];
   theme: string;
   backgroundColor: string;
   filesExplorerBadgeColors: Record<string, string>;
@@ -309,6 +325,61 @@ const DEFAULT_FILES_EXPLORER_BADGE_COLORS = Object.freeze<Record<string, string>
 });
 const LANGUAGES = new Set(["system", "en", "zh"]);
 const NUMERIC_DISPLAY_MODES = new Set(["raw", "smart"]);
+const TEMPLATE_X_AXIS_INTENTS = new Set([
+  "pvCurve",
+  "ivCurve",
+  "cvCurve",
+  "frequencySweep",
+  "rawTransient",
+  "genericXY",
+]);
+const TEMPLATE_SEMANTIC_MATCH_POLICIES = new Set([
+  "exact",
+  "token",
+  "contains",
+]);
+const TEMPLATE_SEMANTIC_AXIS_TENDENCIES = new Set([
+  "x",
+  "dependent",
+  "unknown",
+]);
+const TEMPLATE_SEMANTIC_COLUMN_ROLES = new Set([
+  "vd",
+  "vg",
+  "vs",
+  "id",
+  "ig",
+  "is",
+  "capacitance",
+  "conductance",
+  "frequency",
+  "time",
+  "voltage",
+  "current",
+  "unknown",
+]);
+const TEMPLATE_SEMANTIC_UNITS = new Set([
+  "V",
+  "A",
+  "ohm",
+  "s",
+  "F",
+  "Hz",
+  "S",
+]);
+const TEMPLATE_SEMANTIC_FAMILIES = new Set([
+  "iv",
+  "cv",
+  "cf",
+  "pv",
+  "it",
+  "unknown",
+]);
+const TEMPLATE_SEMANTIC_IV_MODES = new Set([
+  "transfer",
+  "output",
+  "unknown",
+]);
 const ORIGIN_EXPORT_MODES = new Set([
   "merged",
   "workbookBooks",
@@ -322,11 +393,23 @@ const WINDOW_CLOSE_BEHAVIORS = new Set([
 ]);
 const DEFAULT_BACKGROUND_COLOR = "#f3f4f6";
 const BACKGROUND_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
+const DEFAULT_TEMPLATE_X_AXIS_INTENT_PRIORITY = Object.freeze([
+  "pvCurve",
+  "ivCurve",
+  "cvCurve",
+  "frequencySweep",
+  "rawTransient",
+  "genericXY",
+]);
 
 export const DEFAULT_CONDUCTOR_CONFIGURATION: ConductorSettings = {
   language: "system",
   numericDisplayMode: "raw",
   tableTemplateVisualizationEnabled: false,
+  templateDisabledBuiltinDomainPackIds: [],
+  templateDisabledBuiltinSemanticIds: [],
+  templateSemanticAllowlist: [],
+  templateXAxisIntentPriority: DEFAULT_TEMPLATE_X_AXIS_INTENT_PRIORITY.slice(),
   theme: "system",
   backgroundColor: DEFAULT_BACKGROUND_COLOR,
   filesExplorerBadgeColors: DEFAULT_FILES_EXPLORER_BADGE_COLORS,
@@ -499,6 +582,118 @@ function normalizeFilesExplorerBadgeColors(value: unknown): Record<string, strin
   return colors;
 }
 
+function normalizeTemplateXAxisIntentPriority(value: unknown): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (typeof item !== "string" || !TEMPLATE_X_AXIS_INTENTS.has(item)) {
+        continue;
+      }
+      if (!seen.has(item)) {
+        seen.add(item);
+        result.push(item);
+      }
+    }
+  }
+
+  for (const intent of DEFAULT_TEMPLATE_X_AXIS_INTENT_PRIORITY) {
+    if (!seen.has(intent)) {
+      result.push(intent);
+    }
+  }
+  return result;
+}
+
+function normalizeTemplateSemanticAllowlist(value: unknown): TemplateSemanticAliasRule[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const rules: TemplateSemanticAliasRule[] = [];
+  for (let index = 0; index < value.length; index += 1) {
+    const raw = value[index];
+    if (!isRecord(raw)) {
+      continue;
+    }
+    const alias = typeof raw.alias === "string" ? raw.alias.trim() : "";
+    if (!alias) {
+      continue;
+    }
+    const canonicalRole = isSetValue(TEMPLATE_SEMANTIC_COLUMN_ROLES, raw.canonicalRole)
+      ? raw.canonicalRole
+      : "unknown";
+    const axisTendency = isSetValue(TEMPLATE_SEMANTIC_AXIS_TENDENCIES, raw.axisTendency)
+      ? raw.axisTendency
+      : "unknown";
+    const matchPolicy = isSetValue(TEMPLATE_SEMANTIC_MATCH_POLICIES, raw.matchPolicy)
+      ? raw.matchPolicy
+      : "exact";
+    const id = typeof raw.id === "string" && raw.id.trim()
+      ? raw.id.trim()
+      : `template-semantic-${index}`;
+    const canonicalUnit = isSetValue(TEMPLATE_SEMANTIC_UNITS, raw.canonicalUnit)
+      ? raw.canonicalUnit
+      : undefined;
+    const family = isSetValue(TEMPLATE_SEMANTIC_FAMILIES, raw.family)
+      ? raw.family
+      : undefined;
+    const ivMode = isSetValue(TEMPLATE_SEMANTIC_IV_MODES, raw.ivMode)
+      ? raw.ivMode
+      : undefined;
+    const intent = isSetValue(TEMPLATE_X_AXIS_INTENTS, raw.intent)
+      ? raw.intent
+      : undefined;
+    rules.push({
+      id,
+      alias,
+      canonicalRole,
+      ...(canonicalUnit ? { canonicalUnit } : {}),
+      axisTendency,
+      ...(family ? { family } : {}),
+      ...(ivMode ? { ivMode } : {}),
+      ...(intent ? { intent } : {}),
+      matchPolicy,
+      enabled: raw.enabled !== false,
+    });
+  }
+  return rules;
+}
+
+function normalizeTemplateDisabledBuiltinSemanticIds(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const item of value) {
+    const id = typeof item === "string" ? item.trim() : "";
+    if (!id || seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+function normalizeTemplateDisabledBuiltinDomainPackIds(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const item of value) {
+    const id = typeof item === "string" ? item.trim() : "";
+    if (!id || seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
 function normalizePlotAxisSettings(
   value: unknown,
   fallback: PlotAxisSettings = DEFAULT_CONDUCTOR_CONFIGURATION.plotAxisSettings,
@@ -583,6 +778,18 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
   const tableTemplateVisualizationEnabled = normalizeBoolean(
     next.tableTemplateVisualizationEnabled,
     DEFAULT_CONDUCTOR_CONFIGURATION.tableTemplateVisualizationEnabled,
+  );
+  const templateSemanticAllowlist = normalizeTemplateSemanticAllowlist(
+    next.templateSemanticAllowlist,
+  );
+  const templateDisabledBuiltinDomainPackIds = normalizeTemplateDisabledBuiltinDomainPackIds(
+    next.templateDisabledBuiltinDomainPackIds,
+  );
+  const templateDisabledBuiltinSemanticIds = normalizeTemplateDisabledBuiltinSemanticIds(
+    next.templateDisabledBuiltinSemanticIds,
+  );
+  const templateXAxisIntentPriority = normalizeTemplateXAxisIntentPriority(
+    next.templateXAxisIntentPriority,
   );
   const filesExplorerDensity = isSetValue(
     FILES_EXPLORER_DENSITIES,
@@ -681,6 +888,10 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
     stopOnErrorDefault,
     numericDisplayMode,
     tableTemplateVisualizationEnabled,
+    templateDisabledBuiltinDomainPackIds,
+    templateDisabledBuiltinSemanticIds,
+    templateSemanticAllowlist,
+    templateXAxisIntentPriority,
     theme,
     filesExplorerBadgeColors,
     filesExplorerDensity,
@@ -746,6 +957,48 @@ function createConductorConfigurationProperties(): Record<string, IConfiguration
     ...properties.numericDisplayMode,
     enum: ["raw", "smart"],
     enumItemLabels: ["raw", "smart"],
+  };
+
+  properties.templateXAxisIntentPriority = {
+    ...properties.templateXAxisIntentPriority,
+    items: {
+      enum: Array.from(TEMPLATE_X_AXIS_INTENTS),
+      type: "string",
+    },
+  };
+
+  properties.templateDisabledBuiltinSemanticIds = {
+    ...properties.templateDisabledBuiltinSemanticIds,
+    items: {
+      type: "string",
+    },
+  };
+
+  properties.templateDisabledBuiltinDomainPackIds = {
+    ...properties.templateDisabledBuiltinDomainPackIds,
+    items: {
+      type: "string",
+    },
+  };
+
+  properties.templateSemanticAllowlist = {
+    ...properties.templateSemanticAllowlist,
+    items: {
+      properties: {
+        alias: { type: "string" },
+        axisTendency: { enum: Array.from(TEMPLATE_SEMANTIC_AXIS_TENDENCIES), type: "string" },
+        canonicalRole: { enum: Array.from(TEMPLATE_SEMANTIC_COLUMN_ROLES), type: "string" },
+        canonicalUnit: { enum: Array.from(TEMPLATE_SEMANTIC_UNITS), type: "string" },
+        enabled: { type: "boolean" },
+        family: { enum: Array.from(TEMPLATE_SEMANTIC_FAMILIES), type: "string" },
+        id: { type: "string" },
+        intent: { enum: Array.from(TEMPLATE_X_AXIS_INTENTS), type: "string" },
+        ivMode: { enum: Array.from(TEMPLATE_SEMANTIC_IV_MODES), type: "string" },
+        matchPolicy: { enum: Array.from(TEMPLATE_SEMANTIC_MATCH_POLICIES), type: "string" },
+      },
+      required: ["alias", "canonicalRole", "axisTendency"],
+      type: "object",
+    },
   };
 
   return properties;

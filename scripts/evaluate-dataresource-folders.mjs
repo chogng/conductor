@@ -14,7 +14,7 @@ const supportedExtensions = new Set([".csv", ".tsv", ".xls", ".xlsx"]);
 await prepareCompiledUnitTests();
 
 const [
-  { Emitter },
+  { Emitter, Event },
   { Disposable },
   { URI },
   { DataResourceService },
@@ -38,6 +38,10 @@ const [
   importCompiled("cs/workbench/services/tableFile/electron-browser/nativeTableFileService.js"),
   importCompiled("cs/workbench/services/review/common/reviewDecision.js"),
 ]);
+const settingsService = {
+  onDidChangeConductorSettings: Event.None,
+  getConductorSettings: () => null,
+};
 
 const unmatchedTitleCounts = new Map();
 const parseErrorCounts = new Map();
@@ -177,7 +181,7 @@ async function evaluateContent({
 }) {
   const resource = URI.file(filePath);
   const tableModelService = new TestTableModelService(resource, content, diagnostics, sheetId, sheetName);
-  const dataResourceService = new DataResourceService(tableModelService);
+  const dataResourceService = new DataResourceService(tableModelService, settingsService);
   try {
     const reference = await dataResourceService.resolveStructuredContent({ resource, sheetId });
     const resolution = reference.object;

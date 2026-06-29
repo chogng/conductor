@@ -54,6 +54,7 @@ import { UserDataProfileResourceService } from "src/cs/workbench/services/userDa
 import type { IUserTemplateService } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 import { UserTemplateService } from "src/cs/workbench/services/userTemplate/browser/userTemplateService";
 import { UserTemplateStoreService } from "src/cs/workbench/services/userTemplate/browser/userTemplateStoreService";
+import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 
 suite("workbench/services/review/test/browser/reviewService", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -64,6 +65,10 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	};
 	const createUserTemplateServiceForTest = () =>
 		store.add(new UserTemplateService(createUserTemplateStoreServiceForTest()));
+	const settingsService = {
+		onDidChangeConductorSettings: Event.None,
+		getConductorSettings: () => null,
+	} as unknown as ISettingsService;
 	const createReviewServiceForTest = (
 		userTemplateService: IUserTemplateService,
 		dataResourceService?: IDataResourceService,
@@ -79,7 +84,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		fixedSheetId: string | null = null,
 		content: TableModelContentSnapshot = createTestTableModelContent(),
 	): IDataResourceService =>
-		store.add(new DataResourceService(store.add(new TestTableModelService(resource, diagnostics, fixedSheetId, content))));
+		store.add(new DataResourceService(store.add(new TestTableModelService(resource, diagnostics, fixedSheetId, content)), settingsService));
 	const createReviewTargetForTest = (fileName = "Transfer.csv") => ({
 		resource: URI.file(`/workspace/${fileName}`),
 		modelVersion: 1,
@@ -1441,6 +1446,7 @@ const createReviewEvidence = ({
 			reasons: ["dependent.test"],
 		}],
 		columnTitleSpans: [],
+		infoCellNeighborhoods: [],
 		bindingCandidates: includeDataResourceBinding ? [
 			{
 				id: "binding-a",

@@ -27,13 +27,18 @@ import type {
 	SliceUriRequest,
 	SliceUriTarget,
 } from "src/cs/workbench/services/slice/common/slice";
+import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 
 suite("workbench/services/slice/test/browser/sliceService", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const settingsService = {
+		onDidChangeConductorSettings: Event.None,
+		getConductorSettings: () => null,
+	} as unknown as ISettingsService;
 	const createDataResourceServiceForTest = (
 		tableModelService: ITableModelService,
 	): DataResourceService =>
-		store.add(new DataResourceService(tableModelService));
+		store.add(new DataResourceService(tableModelService, settingsService));
 
 	test("stores template selections by URI target in Slice state", () => {
 		const sliceService = store.add(new SliceService());

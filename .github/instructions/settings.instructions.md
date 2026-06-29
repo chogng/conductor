@@ -72,8 +72,25 @@ SettingsView search input
 ```
 
 `SettingsTreeItem.searchText` is rendering metadata for a row card. It may
-include option labels, field labels, or aliases that help the view filter rows,
-but it must not encode control behavior or persistence details.
+include option labels, field labels, or semantic match terms that help the view
+filter rows, but it must not encode control behavior or persistence details.
+
+## Template Semantic Library UI
+
+The Template settings semantic-library card shows **match terms**. A match term
+is the user-facing token for text that DataResource/Review can match, plus the
+canonical semantic mapping that match should produce.
+
+Use "match term" / "term" in Settings UI labels, aria labels, tests, and local
+CSS for this surface. Do not call these blocks "aliases" in product text: the
+persisted settings and DataResource records may still carry `alias` field names,
+but that is storage/schema terminology, not the UI concept.
+
+The semantic-library card should render built-in and disabled terms as a dense
+token field: one input-like container with wrapped term blocks inside it. Each
+term block is a concrete matching token, not a separate settings row or state
+owner. User gestures still flow through `SettingsController` callbacks and then
+to `ISettingsService`.
 
 ## Configuration vs Storage
 
