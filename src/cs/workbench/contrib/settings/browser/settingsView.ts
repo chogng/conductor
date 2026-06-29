@@ -13,6 +13,7 @@ import {
   MODAL_OVERLAY_CLASS,
 } from "src/cs/base/browser/ui/modal/modal";
 import { createInputBox } from "src/cs/base/browser/ui/inputbox/inputBox";
+import { InputBoxWidget, type IInputBoxWidgetItem } from "src/cs/base/browser/ui/inputbox/inputBoxWidget";
 import { createSelectBox, type SelectBox, type SelectBoxOption } from "src/cs/base/browser/ui/selectBox/selectBox";
 import Scrollbar from "src/cs/base/browser/ui/scrollbar/scrollableElement";
 import { SwitchWidget } from "src/cs/base/browser/ui/switch/switchWidget";
@@ -196,7 +197,6 @@ type TemplateSettings = {
   onDisableDomainPack: (id: string) => Promise<void> | void;
   onEnableBuiltinTerm: (id: string) => Promise<void> | void;
   onEnableDomainPack: (id: string) => Promise<void> | void;
-  onMoveSemanticTerm: (sourceId: string, targetId: string) => Promise<void> | void;
   onMoveXAxisIntent: (sourceIntent: TemplateXAxisIntent, targetIntent: TemplateXAxisIntent) => Promise<void> | void;
   onRemoveSemanticTerm: (id: string) => Promise<void> | void;
   roleOptions: readonly SelectOption[];
@@ -697,7 +697,6 @@ export class SettingsView {
       ),
       settingsCardGroup(
         this.createTemplateSemanticLibrary(this.options.templateSettings),
-        this.createTemplateSemanticAllowlist(this.options.templateSettings),
       ),
     );
   }
@@ -896,35 +895,16 @@ export class SettingsView {
       titleText,
       description,
       settings.builtinTerms.map(rule => `${rule.term} ${rule.canonicalRole} ${rule.axisTendency}`).join(" "),
+      settings.customTerms.map(rule => `${rule.term} ${rule.canonicalRole} ${rule.axisTendency}`).join(" "),
     );
     container.appendChild(headingBlock(titleText, description));
 
     container.appendChild(this.createBuiltinSemanticTermList(settings));
     container.appendChild(this.createDisabledBuiltinSemanticTermList(settings));
-    return container;
-  }
-
-  private createTemplateSemanticAllowlist(settings: TemplateSettings): HTMLElement {
-    const container = card("settings-template-semantic-custom-terms-card", "settings-card-block");
-    const titleText = localize("settings.template.semantic.customTitle", "Custom Match Terms");
-    const description = localize("settings.template.semantic.customDescription", "Add match terms that should join the DataResource matcher alongside the built-in semantic library.");
-    setSettingsSearchText(
-      container,
-      titleText,
-      description,
-      settings.customTerms.map(rule => `${rule.term} ${rule.canonicalRole} ${rule.axisTendency}`).join(" "),
+    container.append(
+      text("p", "settings-template-subtitle", localize("settings.template.semantic.customMappingTitle", "Custom term mapping")),
+      this.createTemplateSemanticTermForm(settings),
     );
-    container.appendChild(headingBlock(titleText, description));
-
-    const userTitle = text("p", "settings-template-subtitle", localize("settings.template.semantic.userTitle", "Custom terms"));
-    const list = div("settings-template-block-list");
-    if (!settings.customTerms.length) {
-      list.appendChild(text("p", "settings-template-empty", localize("settings.template.semantic.empty", "No custom terms.")));
-    }
-    for (const rule of settings.customTerms) {
-      list.appendChild(this.createTemplateSemanticTermBlock(settings, rule));
-    }
-    container.append(userTitle, list, this.createTemplateSemanticTermForm(settings));
     appendFeedback(container, settings.feedback);
     return container;
   }
@@ -933,12 +913,16 @@ export class SettingsView {
     const disabledTermIds = new Set(settings.disabledBuiltinTermIds);
     const enabledTerms = settings.builtinTerms.filter(term => !disabledTermIds.has(term.id));
     const section = div("settings-template-library-group");
-    const title = localize("settings.template.semantic.builtinTitle", "Built-in match terms");
+    const title = localize("settings.template.semantic.activeTitle", "Active match terms");
     section.appendChild(text("p", "settings-template-subtitle", title));
     section.appendChild(this.createTemplateSemanticTermField(
       settings,
-      enabledTerms.map(term => this.createBuiltinSemanticTermToken(settings, term, "enabled")),
+      [
+        ...enabledTerms.map(term => this.createBuiltinSemanticTermItem(settings, term, "enabled")),
+        ...settings.customTerms.map(term => this.createCustomSemanticTermItem(settings, term)),
+      ],
       title,
+      true,
     ));
     return section;
   }
@@ -947,132 +931,101 @@ export class SettingsView {
     const disabledTermIds = new Set(settings.disabledBuiltinTermIds);
     const disabledTerms = settings.builtinTerms.filter(term => disabledTermIds.has(term.id));
     const section = div("settings-template-library-group");
-    const title = localize("settings.template.semantic.disabledBuiltinTitle", "Disabled match terms");
+    const title = localize("settings.template.semantic.recommendedBuiltinTitle", "Recommended built-in match terms");
     section.appendChild(text("p", "settings-template-subtitle", title));
-    const content = disabledTerms.length
-      ? disabledTerms.map(term => this.createBuiltinSemanticTermToken(settings, term, "disabled"))
-      : [text("span", "settings-template-empty", localize("settings.template.semantic.noDisabledBuiltin", "No disabled match terms."))];
-    section.appendChild(this.createTemplateSemanticTermField(settings, content, title));
+    section.appendChild(this.createTemplateSemanticTermField(
+      settings,
+      disabledTerms.map(term => this.createBuiltinSemanticTermItem(settings, term, "disabled")),
+      title,
+      false,
+      localize("settings.template.semantic.noDisabledBuiltin", "No recommended built-in match terms."),
+    ));
     return section;
   }
 
   private createTemplateSemanticTermField(
     settings: TemplateSettings,
-    content: readonly Node[],
+    items: readonly IInputBoxWidgetItem[],
     ariaLabel: string,
+    inputVisible: boolean,
+    emptyLabel?: string,
   ): HTMLElement {
-    const tokenFragment = document.createDocumentFragment();
-    tokenFragment.append(...content);
-    const inputBox = this.renderDisposables.add(createInputBox({
+    const inputBox = this.renderDisposables.add(new InputBoxWidget({
       ariaLabel,
       disabled: settings.isSaving,
-      left: tokenFragment,
+      emptyLabel,
+      inputVisible,
+      items,
       placeholder: localize("settings.template.semantic.termInputPlaceholder", "Add match term"),
       value: this.options.templateSemanticTermDraft,
     }));
     inputBox.element.classList.add("settings-template-term-inputbox");
-    inputBox.field.classList.add("settings-template-term-field");
-    inputBox.field.setAttribute("aria-disabled", String(settings.isSaving));
-    this.renderDisposables.add(inputBox.onDidChange(value => {
-      this.options.setTemplateSemanticTermDraft(value);
-    }));
-    this.renderDisposables.add(addDisposableListener(inputBox.input, EventType.KEY_DOWN, event => {
-      if (event.key !== "Enter" || !inputBox.value.trim()) {
+    if (inputVisible) {
+      this.renderDisposables.add(inputBox.onDidChange(value => {
+        this.options.setTemplateSemanticTermDraft(value);
+      }));
+      this.renderDisposables.add(inputBox.onDidAccept(() => {
+        void settings.onAddSemanticTerm();
+      }));
+    }
+    this.renderDisposables.add(inputBox.onDidTriggerItemAction(({ item }) => {
+      if (item.kind === "builtin-enabled") {
+        void settings.onDisableBuiltinTerm(item.id);
         return;
       }
-
-      event.preventDefault();
-      void settings.onAddSemanticTerm();
+      if (item.kind === "builtin-disabled") {
+        void settings.onEnableBuiltinTerm(item.id);
+        return;
+      }
+      if (item.kind === "custom") {
+        void settings.onRemoveSemanticTerm(item.id);
+      }
     }));
     return inputBox.element;
   }
 
-  private createBuiltinSemanticTermToken(
+  private createBuiltinSemanticTermItem(
     settings: TemplateSettings,
     semanticTerm: TemplateBuiltinSemanticTerm,
     state: "enabled" | "disabled",
-  ): HTMLElement {
-    const term = document.createElement("button");
-    term.type = "button";
-    term.className = "settings-template-term-token";
-    term.dataset.state = state;
-    term.disabled = settings.isSaving;
-    term.title = state === "enabled"
-      ? localize("settings.template.semantic.disableBuiltinTitle", "Disable this built-in match term for Review")
-      : localize("settings.template.semantic.enableBuiltinTitle", "Enable this built-in match term for Review");
-    term.setAttribute("aria-label", state === "enabled"
-      ? localize("settings.template.semantic.disableBuiltin", "Disable built-in match term {term}", { term: semanticTerm.term })
-      : localize("settings.template.semantic.enableBuiltin", "Enable built-in match term {term}", { term: semanticTerm.term }));
-    const icon = state === "enabled"
-      ? LxIcon.close
-      : LxIcon.add;
-    term.append(
-      text("span", "settings-template-term-token-label", semanticTerm.term),
-      createLxIcon({ className: "settings-template-term-token-icon", icon, size: 14 }),
-    );
-    term.addEventListener("click", () => {
-      if (state === "enabled") {
-        void settings.onDisableBuiltinTerm(semanticTerm.id);
-        return;
-      }
-      void settings.onEnableBuiltinTerm(semanticTerm.id);
-    });
-    return term;
+  ): IInputBoxWidgetItem {
+    const isEnabled = state === "enabled";
+    return {
+      id: semanticTerm.id,
+      label: semanticTerm.term,
+      kind: isEnabled ? "builtin-enabled" : "builtin-disabled",
+      action: {
+        ariaLabel: isEnabled
+          ? localize("settings.template.semantic.disableBuiltin", "Disable built-in match term {term}", { term: semanticTerm.term })
+          : localize("settings.template.semantic.enableBuiltin", "Enable built-in match term {term}", { term: semanticTerm.term }),
+        icon: isEnabled ? LxIcon.close : LxIcon.add,
+        title: isEnabled
+          ? localize("settings.template.semantic.disableBuiltinTitle", "Disable this built-in match term for Review")
+          : localize("settings.template.semantic.enableBuiltinTitle", "Enable this built-in match term for Review"),
+      },
+      disabled: settings.isSaving,
+    };
   }
 
-  private createTemplateSemanticTermBlock(settings: TemplateSettings, rule: TemplateSemanticTerm): HTMLElement {
-    const block = div("settings-template-block settings-template-block--term");
-    block.draggable = !settings.isSaving;
-    block.dataset.termId = rule.id;
-    block.tabIndex = 0;
-    block.addEventListener("dragstart", event => {
-      event.dataTransfer?.setData("application/x-conductor-template-term", rule.id);
-    });
-    block.addEventListener("dragover", event => {
-      event.preventDefault();
-    });
-    block.addEventListener("drop", event => {
-      event.preventDefault();
-      const sourceId = event.dataTransfer?.getData("application/x-conductor-template-term");
-      if (sourceId) {
-        void settings.onMoveSemanticTerm(sourceId, rule.id);
-      }
-    });
-
-    const body = div(
-      "settings-template-block-body",
-      text("span", "settings-template-block-title", rule.term),
-      text("span", "settings-template-block-meta", formatSemanticTermRule(rule)),
-    );
-    const removeButton = document.createElement("button");
-    removeButton.type = "button";
-    removeButton.className = "settings-template-icon-button";
-    removeButton.disabled = settings.isSaving;
-    removeButton.title = localize("settings.template.semantic.remove", "Remove term");
-    removeButton.setAttribute("aria-label", localize("settings.template.semantic.removeTerm", "Remove match term {term}", { term: rule.term }));
-    removeButton.appendChild(createLxIcon({ className: "settings-template-icon", icon: LxIcon.trashFlat, size: 14 }));
-    removeButton.addEventListener("click", () => {
-      void settings.onRemoveSemanticTerm(rule.id);
-    });
-
-    block.append(
-      createLxIcon({ className: "settings-template-block-handle", icon: LxIcon.listUnordered, size: 14 }),
-      body,
-      removeButton,
-    );
-    return block;
+  private createCustomSemanticTermItem(settings: TemplateSettings, semanticTerm: TemplateSemanticTerm): IInputBoxWidgetItem {
+    return {
+      id: semanticTerm.id,
+      label: semanticTerm.term,
+      kind: "custom",
+      title: formatSemanticTermRule(semanticTerm),
+      action: {
+        ariaLabel: localize("settings.template.semantic.removeTerm", "Remove match term {term}", { term: semanticTerm.term }),
+        icon: LxIcon.close,
+        title: localize("settings.template.semantic.remove", "Remove term"),
+      },
+      disabled: settings.isSaving,
+    };
   }
 
   private createTemplateSemanticTermForm(settings: TemplateSettings): HTMLElement {
     const form = div("settings-template-semantic-form");
     const grid = div("settings-grid settings-grid--three");
     grid.append(
-      field(localize("settings.template.semantic.termLabel", "Match term"), this.createInput({
-        id: "settings-template-semantic-term-input",
-        value: this.options.templateSemanticTermDraft,
-        onChange: this.options.setTemplateSemanticTermDraft,
-        disabled: settings.isSaving,
-      })),
       field(localize("settings.template.semantic.roleLabel", "Role"), this.createSelect({
         id: "settings-template-semantic-role-select",
         value: this.options.templateSemanticRoleDraft,

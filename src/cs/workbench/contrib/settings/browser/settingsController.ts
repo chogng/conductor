@@ -624,7 +624,6 @@ export class SettingsController {
       onDisableDomainPack: id => this.disableTemplateDomainPack(id),
       onEnableBuiltinTerm: id => this.enableTemplateBuiltinTerm(id),
       onEnableDomainPack: id => this.enableTemplateDomainPack(id),
-      onMoveSemanticTerm: (sourceId, targetId) => this.moveTemplateSemanticTerm(sourceId, targetId),
       onMoveXAxisIntent: (sourceIntent, targetIntent) => this.moveTemplateXAxisIntent(sourceIntent, targetIntent),
       onRemoveSemanticTerm: id => this.removeTemplateSemanticTerm(id),
       roleOptions: this.templateSemanticRoleOptions,
@@ -1134,6 +1133,35 @@ export class SettingsController {
       return;
     }
 
+    const customTerms = normalizeTemplateSemanticAllowlist(this.settings.templateSemanticAllowlist);
+    const disabledBuiltinTermIds = normalizeTemplateDisabledBuiltinSemanticIds(this.settings.templateDisabledBuiltinSemanticIds);
+    const disabledBuiltinTermIdSet = new Set(disabledBuiltinTermIds);
+    const disabledBuiltinTerm = dataResourceBuiltinSemanticTerms.find(candidate =>
+      disabledBuiltinTermIdSet.has(candidate.id) && candidate.alias === term
+    );
+    const duplicatesEnabledTerm = customTerms.some(candidate => candidate.alias === term) ||
+      dataResourceBuiltinSemanticTerms.some(candidate =>
+        !disabledBuiltinTermIdSet.has(candidate.id) && candidate.alias === term
+      );
+    if (duplicatesEnabledTerm) {
+      this.templateSettingsFeedback = {
+        type: "error",
+        message: localize("settings.template.semantic.duplicateTerm", "Match term already exists."),
+      };
+      this.render();
+      return;
+    }
+
+    if (disabledBuiltinTerm) {
+      await this.saveTemplateSettings({
+        templateDisabledBuiltinSemanticIds: disabledBuiltinTermIds.filter(id => id !== disabledBuiltinTerm.id),
+      }, localize("settings.template.builtin.enabled", "Built-in semantic match term enabled for review."));
+      if (this.templateSettingsFeedback.type !== "error") {
+        this.drafts.templateSemanticTermDraft = "";
+      }
+      return;
+    }
+
     const nextRule: TemplateSemanticTermRule = {
       id: `template-semantic-${Date.now().toString(36)}`,
       alias: term,
@@ -1146,12 +1174,12 @@ export class SettingsController {
       matchPolicy: this.drafts.templateSemanticMatchPolicyDraft,
       enabled: true,
     };
-    const customTerms = [
-      ...normalizeTemplateSemanticAllowlist(this.settings.templateSemanticAllowlist),
+    const nextCustomTerms = [
+      ...customTerms,
       nextRule,
     ];
     await this.saveTemplateSettings({
-      templateSemanticAllowlist: customTerms,
+      templateSemanticAllowlist: nextCustomTerms,
     }, localize("settings.template.semantic.saved", "Template semantic library updated."));
     if (this.templateSettingsFeedback.type !== "error") {
       this.drafts.templateSemanticTermDraft = "";
@@ -1200,21 +1228,6 @@ export class SettingsController {
     await this.saveTemplateSettings({
       templateDisabledBuiltinDomainPackIds: disabledIds,
     }, localize("settings.template.domainPack.enabled", "Domain pack enabled for review."));
-  }
-
-  private async moveTemplateSemanticTerm(sourceId: string, targetId: string): Promise<void> {
-    if (sourceId === targetId) {
-      return;
-    }
-    const customTerms = moveItemBefore(
-      normalizeTemplateSemanticAllowlist(this.settings.templateSemanticAllowlist),
-      rule => rule.id,
-      sourceId,
-      targetId,
-    );
-    await this.saveTemplateSettings({
-      templateSemanticAllowlist: customTerms,
-    }, localize("settings.template.semantic.saved", "Template semantic library updated."));
   }
 
   private async moveTemplateXAxisIntent(sourceIntent: TemplateXAxisIntent, targetIntent: TemplateXAxisIntent): Promise<void> {

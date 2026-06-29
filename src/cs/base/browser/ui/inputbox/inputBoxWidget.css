@@ -1,0 +1,78 @@
+.inputbox_widget_field {
+  align-content: flex-start;
+  align-items: center;
+  flex-wrap: wrap;
+  height: auto;
+  min-width: 0;
+  min-height: 30px;
+  gap: 6px;
+  padding: 6px;
+}
+
+.inputbox_widget_field > .inputbox_native {
+  flex: 1 0 12rem;
+  min-width: 10rem;
+  min-height: 28px;
+}
+
+.inputbox_widget_field--input-hidden > .inputbox_native {
+  display: none;
+}
+
+.inputbox_widget_item {
+  display: inline-flex;
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 30px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  border: 1px solid rgb(var(--border) / 0.78);
+  border-radius: 6px;
+  background: rgb(var(--bg-surface) / 0.72);
+  color: rgb(var(--text-secondary) / 1);
+  padding: 3px 4px 3px 10px;
+}
+
+.inputbox_widget_item_label {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inputbox_widget_item_action {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  color: rgb(var(--text-tertiary) / 1);
+}
+
+.inputbox_widget_item_action:hover:not(:disabled) {
+  background: rgb(var(--bg-surface-hover) / 0.82);
+  color: rgb(var(--text-primary) / 1);
+}
+
+.inputbox_widget_item_action:disabled {
+  cursor: default;
+  opacity: 0.58;
+}
+
+.inputbox_widget_item_action_icon {
+  display: inline-flex;
+  color: currentColor;
+}
+
+.inputbox_widget_empty {
+  margin: 0;
+  color: rgb(var(--text-secondary) / 1);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}

@@ -236,6 +236,18 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     const view = new SettingsView(container, createSettingsViewOptions({
       activeSettingsSection: "template",
       templateSettings: {
+        customTerms: [
+          {
+            id: "custom-gate",
+            term: "Custom Gate",
+            canonicalRole: "vg",
+            canonicalUnit: "V",
+            axisTendency: "x",
+            matchPolicy: "exact",
+            enabled: true,
+          },
+        ],
+        disabledBuiltinTermIds: ["builtin-id"],
         builtinTerms: [
           {
             id: "builtin-vgs",
@@ -265,16 +277,26 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       const templateLibrarySection = getElement(container, "#settings-template-domain-packs-card").closest(".settings-section");
       const semanticCard = getElement(container, "#settings-template-semantic-library-card");
       const semanticSection = semanticCard.closest(".settings-section");
-      const customTermsCard = getElement(container, "#settings-template-semantic-custom-terms-card");
-      const termField = getElement(semanticCard, ".settings-template-term-field");
+      const widgets = semanticCard.querySelectorAll<HTMLElement>(".inputbox_widget");
+      const activeWidget = widgets[0];
+      const recommendedWidget = widgets[1];
 
       assert.ok(templateLibrarySection);
       assert.ok(semanticSection);
+      assert.ok(activeWidget);
+      assert.ok(recommendedWidget);
       assert.ok(semanticSection !== templateLibrarySection);
       assert.equal(templateLibrarySection.querySelector("#settings-template-semantic-library-card"), null);
-      assert.equal(customTermsCard.closest(".settings-section"), semanticSection);
-      assert.equal(termField.querySelectorAll(".settings-template-term-token").length, 2);
-      assert.ok(termField.querySelector("input.inputbox_native"));
+      assert.equal(container.querySelector("#settings-template-semantic-custom-terms-card"), null);
+      assert.equal(activeWidget.querySelectorAll(".inputbox_widget_item").length, 2);
+      assert.equal(activeWidget.querySelector<HTMLElement>('.inputbox_widget_item[data-kind="builtin-enabled"] .inputbox_widget_item_label')?.textContent, "Vgs");
+      assert.equal(activeWidget.querySelector<HTMLElement>('.inputbox_widget_item[data-kind="custom"] .inputbox_widget_item_label')?.textContent, "Custom Gate");
+      assert.ok(activeWidget.querySelector("input.inputbox_native"));
+      assert.equal(recommendedWidget.querySelectorAll('.inputbox_widget_item[data-kind="builtin-disabled"]').length, 1);
+      assert.equal(recommendedWidget.querySelector<HTMLElement>(".inputbox_widget_item_label")?.textContent, "Drain Current");
+      assert.equal(recommendedWidget.querySelector<HTMLInputElement>("input.inputbox_native")?.hidden, true);
+      assert.ok(semanticCard.querySelector("#settings-template-semantic-role-select"));
+      assert.equal(semanticCard.querySelector("#settings-template-semantic-term-input"), null);
     }
     finally {
       view.dispose();
@@ -573,7 +595,6 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
       onDisableDomainPack: noop,
       onEnableBuiltinTerm: noop,
       onEnableDomainPack: noop,
-      onMoveSemanticTerm: noop,
       onMoveXAxisIntent: noop,
       onRemoveSemanticTerm: noop,
       roleOptions: [{ label: "voltage", value: "voltage" }],

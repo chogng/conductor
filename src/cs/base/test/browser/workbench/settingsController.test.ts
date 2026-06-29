@@ -14,6 +14,7 @@ import type {
   NumericDisplayMode,
   SettingsViewInput,
 } from "src/cs/workbench/services/settings/common/settings";
+import { dataResourceBuiltinSemanticTerms } from "src/cs/workbench/services/dataResource/common/semanticLibrary";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/settings/browser/settingsController", () => {
@@ -161,6 +162,86 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       container.remove();
     }
   });
+
+  test("re-enables a disabled built-in semantic term from the token input", async () => {
+    const builtinTerm = dataResourceBuiltinSemanticTerms[0];
+    assert.ok(builtinTerm);
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const service = createSettingsService({
+      templateDisabledBuiltinSemanticIds: [builtinTerm.id],
+    });
+    let updateSettings: Record<string, unknown> | null = null;
+    service.updateSettings = async updates => {
+      updateSettings = updates;
+      service.settings = {
+        ...service.settings,
+        ...updates,
+      };
+      return service.settings;
+    };
+    const controller = new SettingsController(
+      container,
+      createSettingsViewInput(service.settings),
+      service,
+      createCommandService(),
+      createNotificationService(),
+    );
+
+    try {
+      openTemplateSection(container);
+      submitSemanticTerm(container, builtinTerm.alias);
+      await settled();
+
+      assert.deepEqual(updateSettings, {
+        templateDisabledBuiltinSemanticIds: [],
+      });
+      assert.deepEqual(service.settings.templateDisabledBuiltinSemanticIds, []);
+    }
+    finally {
+      controller.dispose();
+      container.remove();
+    }
+  });
+
+  test("rejects duplicate active semantic terms without updating settings", async () => {
+    const builtinTerm = dataResourceBuiltinSemanticTerms[0];
+    assert.ok(builtinTerm);
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const service = createSettingsService({});
+    let updateCount = 0;
+    service.updateSettings = async updates => {
+      updateCount++;
+      service.settings = {
+        ...service.settings,
+        ...updates,
+      };
+      return service.settings;
+    };
+    const controller = new SettingsController(
+      container,
+      createSettingsViewInput(service.settings),
+      service,
+      createCommandService(),
+      createNotificationService(),
+    );
+
+    try {
+      openTemplateSection(container);
+      submitSemanticTerm(container, builtinTerm.alias);
+      await settled();
+
+      assert.equal(updateCount, 0);
+      assert.ok(container.textContent?.includes("Match term already exists."));
+    }
+    finally {
+      controller.dispose();
+      container.remove();
+    }
+  });
 });
 
 class Deferred<T> {
@@ -261,6 +342,21 @@ function openAppearanceSection(container: HTMLElement): void {
     .find(button => button.textContent?.trim() === "Appearance");
   assert.ok(button);
   button.click();
+}
+
+function openTemplateSection(container: HTMLElement): void {
+  const button = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+    .find(button => button.textContent?.trim() === "Template");
+  assert.ok(button);
+  button.click();
+}
+
+function submitSemanticTerm(container: HTMLElement, value: string): void {
+  const input = container.querySelector<HTMLInputElement>("#settings-template-semantic-library-card .inputbox_widget input.inputbox_native:not([hidden])");
+  assert.ok(input);
+  input.value = value;
+  input.dispatchEvent(new globalThis.Event("input", { bubbles: true }));
+  input.dispatchEvent(new globalThis.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
 }
 
 function getButton(container: HTMLElement, id: string): HTMLButtonElement {
