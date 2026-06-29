@@ -236,6 +236,29 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     const view = new SettingsView(container, createSettingsViewOptions({
       activeSettingsSection: "template",
       templateSettings: {
+        activeTerms: [
+          {
+            id: "builtin-vgs",
+            term: "Vgs",
+            canonicalRole: "vg",
+            canonicalUnit: "V",
+            axisTendency: "x",
+            family: "iv",
+            ivMode: "transfer",
+            domainPackIds: ["semiconductor-ivcv"],
+            source: "builtin",
+          },
+          {
+            id: "custom-gate",
+            term: "Custom Gate",
+            canonicalRole: "vg",
+            canonicalUnit: "V",
+            axisTendency: "x",
+            matchPolicy: "exact",
+            enabled: true,
+            source: "custom",
+          },
+        ],
         customTerms: [
           {
             id: "custom-gate",
@@ -578,6 +601,7 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
     templateSemanticRoleDraft: "voltage",
     templateSemanticUnitDraft: "",
     templateSettings: {
+      activeTerms: [],
       customTerms: [],
       axisOptions: [{ label: "X", value: "x" }],
       builtinTerms: [],

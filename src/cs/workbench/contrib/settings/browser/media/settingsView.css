@@ -335,9 +335,9 @@
 }
 
 .settings-template-term-inputbox .inputbox_widget_field {
-  min-height: 7rem;
-  gap: 0.5rem;
-  padding: 0.625rem;
+  min-height: 112px;
+  gap: 4px;
+  padding: 6px;
 }
 
 .settings-template-term-inputbox .inputbox_widget_item:hover {
@@ -1170,10 +1170,6 @@
   .settings-template-domain-pack-detail {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.25rem;
-  }
-
-  .settings-template-term-inputbox .inputbox_widget_field {
-    min-height: 5.5rem;
   }
 
   .settings-color-controls {

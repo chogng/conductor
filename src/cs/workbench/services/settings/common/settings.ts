@@ -173,6 +173,7 @@ export const DEFAULT_TEMPLATE_X_AXIS_INTENT_PRIORITY: readonly TemplateXAxisInte
 export const DEFAULT_TEMPLATE_SEMANTIC_ALLOWLIST: readonly TemplateSemanticTermRule[] = Object.freeze([]);
 export const DEFAULT_TEMPLATE_DISABLED_BUILTIN_SEMANTIC_IDS: readonly string[] = Object.freeze([]);
 export const DEFAULT_TEMPLATE_DISABLED_BUILTIN_DOMAIN_PACK_IDS: readonly string[] = Object.freeze([]);
+export const DEFAULT_TEMPLATE_SEMANTIC_TERM_ORDER: readonly string[] = Object.freeze([]);
 
 export const normalizeFilesExplorerDensity = (
   value: unknown,
@@ -351,6 +352,25 @@ export const normalizeTemplateDisabledBuiltinDomainPackIds = (
   return ids;
 };
 
+export const normalizeTemplateSemanticTermOrder = (
+  value: unknown,
+): readonly string[] => {
+  if (!Array.isArray(value)) {
+    return DEFAULT_TEMPLATE_SEMANTIC_TERM_ORDER;
+  }
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const item of value) {
+    const id = typeof item === "string" ? item.trim() : "";
+    if (!id || seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+};
+
 export type ConductorSettings = {
   backgroundColor?: string;
   filesExplorerBadgeColors?: FilesExplorerBadgeColors;
@@ -363,6 +383,7 @@ export type ConductorSettings = {
   templateDisabledBuiltinDomainPackIds?: readonly string[];
   templateDisabledBuiltinSemanticIds?: readonly string[];
   templateSemanticAllowlist?: readonly TemplateSemanticTermRule[];
+  templateSemanticTermOrder?: readonly string[];
   templateXAxisIntentPriority?: readonly TemplateXAxisIntent[];
   theme?: ThemeMode;
   transparentChrome?: boolean;

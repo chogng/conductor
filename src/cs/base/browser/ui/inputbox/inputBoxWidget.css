@@ -5,13 +5,14 @@
   height: auto;
   min-width: 0;
   min-height: 30px;
-  gap: 6px;
+  gap: 4px;
+  background-color: rgb(255 255 255 / 1);
   padding: 6px;
 }
 
 .inputbox_widget_field > .inputbox_native {
-  flex: 1 0 12rem;
-  min-width: 10rem;
+  flex: 1 0 192px;
+  min-width: 160px;
   min-height: 28px;
 }
 
@@ -24,35 +25,37 @@
   flex: 0 1 auto;
   max-width: 100%;
   min-width: 0;
-  min-height: 30px;
+
   align-items: center;
   justify-content: flex-start;
   gap: 4px;
   border: 1px solid rgb(var(--border) / 0.78);
   border-radius: 6px;
-  background: rgb(var(--bg-surface) / 0.72);
+  background: rgb(255 255 255 / 1);
   color: rgb(var(--text-secondary) / 1);
-  padding: 3px 4px 3px 10px;
+  cursor: default;
+  padding: 3px 4px 3px 8px;
 }
 
 .inputbox_widget_item_label {
   min-width: 0;
   overflow: hidden;
-  font-size: 0.875rem;
-  line-height: 1.125rem;
+  font-size: 12px;
+  line-height: 16px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .inputbox_widget_item_action {
   display: inline-flex;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   border-radius: 5px;
   color: rgb(var(--text-tertiary) / 1);
+  cursor: pointer;
 }
 
 .inputbox_widget_item_action:hover:not(:disabled) {
@@ -73,6 +76,6 @@
 .inputbox_widget_empty {
   margin: 0;
   color: rgb(var(--text-secondary) / 1);
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: 12px;
+  line-height: 16px;
 }

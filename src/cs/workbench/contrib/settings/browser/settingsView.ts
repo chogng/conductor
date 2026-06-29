@@ -180,6 +180,7 @@ type ChartDefaultSettings = {
 };
 
 type TemplateSettings = {
+  activeTerms: readonly TemplateActiveSemanticTerm[];
   customTerms: readonly TemplateSemanticTerm[];
   axisOptions: readonly SelectOption[];
   builtinTerms: readonly TemplateBuiltinSemanticTerm[];
@@ -203,6 +204,10 @@ type TemplateSettings = {
   unitOptions: readonly SelectOption[];
   xAxisIntentPriority: readonly TemplateXAxisIntent[];
 };
+
+type TemplateActiveSemanticTerm =
+  | (TemplateSemanticTerm & { readonly source: "custom" })
+  | (TemplateBuiltinSemanticTerm & { readonly source: "builtin" });
 
 type TemplateSemanticTerm = {
   readonly id: string;
@@ -910,17 +915,14 @@ export class SettingsView {
   }
 
   private createBuiltinSemanticTermList(settings: TemplateSettings): HTMLElement {
-    const disabledTermIds = new Set(settings.disabledBuiltinTermIds);
-    const enabledTerms = settings.builtinTerms.filter(term => !disabledTermIds.has(term.id));
     const section = div("settings-template-library-group");
     const title = localize("settings.template.semantic.activeTitle", "Active match terms");
     section.appendChild(text("p", "settings-template-subtitle", title));
     section.appendChild(this.createTemplateSemanticTermField(
       settings,
-      [
-        ...enabledTerms.map(term => this.createBuiltinSemanticTermItem(settings, term, "enabled")),
-        ...settings.customTerms.map(term => this.createCustomSemanticTermItem(settings, term)),
-      ],
+      settings.activeTerms.map(term => term.source === "builtin"
+        ? this.createBuiltinSemanticTermItem(settings, term, "enabled")
+        : this.createCustomSemanticTermItem(settings, term)),
       title,
       true,
     ));

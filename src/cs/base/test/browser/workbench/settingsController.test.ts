@@ -194,9 +194,14 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       submitSemanticTerm(container, builtinTerm.alias);
       await settled();
 
-      assert.deepEqual(updateSettings, {
-        templateDisabledBuiltinSemanticIds: [],
-      });
+      assert.ok(updateSettings);
+      assert.deepEqual(updateSettings.templateDisabledBuiltinSemanticIds, []);
+      assert.ok(Array.isArray(updateSettings.templateSemanticTermOrder));
+      assert.equal(updateSettings.templateSemanticTermOrder.at(-1), builtinTerm.id);
+      assert.equal(
+        new Set(updateSettings.templateSemanticTermOrder).size,
+        updateSettings.templateSemanticTermOrder.length,
+      );
       assert.deepEqual(service.settings.templateDisabledBuiltinSemanticIds, []);
     }
     finally {

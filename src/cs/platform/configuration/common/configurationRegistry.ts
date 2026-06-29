@@ -130,6 +130,7 @@ export type ConductorSettings = JsonRecord & {
   templateDisabledBuiltinDomainPackIds: string[];
   templateDisabledBuiltinSemanticIds: string[];
   templateSemanticAllowlist: TemplateSemanticTermRule[];
+  templateSemanticTermOrder: string[];
   templateXAxisIntentPriority: string[];
   theme: string;
   backgroundColor: string;
@@ -409,6 +410,7 @@ export const DEFAULT_CONDUCTOR_CONFIGURATION: ConductorSettings = {
   templateDisabledBuiltinDomainPackIds: [],
   templateDisabledBuiltinSemanticIds: [],
   templateSemanticAllowlist: [],
+  templateSemanticTermOrder: [],
   templateXAxisIntentPriority: DEFAULT_TEMPLATE_X_AXIS_INTENT_PRIORITY.slice(),
   theme: "system",
   backgroundColor: DEFAULT_BACKGROUND_COLOR,
@@ -677,6 +679,23 @@ function normalizeTemplateDisabledBuiltinSemanticIds(value: unknown): string[] {
   return ids;
 }
 
+function normalizeTemplateSemanticTermOrder(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const item of value) {
+    const id = typeof item === "string" ? item.trim() : "";
+    if (!id || seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
 function normalizeTemplateDisabledBuiltinDomainPackIds(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
@@ -781,6 +800,9 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
   );
   const templateSemanticAllowlist = normalizeTemplateSemanticAllowlist(
     next.templateSemanticAllowlist,
+  );
+  const templateSemanticTermOrder = normalizeTemplateSemanticTermOrder(
+    next.templateSemanticTermOrder,
   );
   const templateDisabledBuiltinDomainPackIds = normalizeTemplateDisabledBuiltinDomainPackIds(
     next.templateDisabledBuiltinDomainPackIds,
@@ -891,6 +913,7 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
     templateDisabledBuiltinDomainPackIds,
     templateDisabledBuiltinSemanticIds,
     templateSemanticAllowlist,
+    templateSemanticTermOrder,
     templateXAxisIntentPriority,
     theme,
     filesExplorerBadgeColors,
@@ -969,6 +992,13 @@ function createConductorConfigurationProperties(): Record<string, IConfiguration
 
   properties.templateDisabledBuiltinSemanticIds = {
     ...properties.templateDisabledBuiltinSemanticIds,
+    items: {
+      type: "string",
+    },
+  };
+
+  properties.templateSemanticTermOrder = {
+    ...properties.templateSemanticTermOrder,
     items: {
       type: "string",
     },
