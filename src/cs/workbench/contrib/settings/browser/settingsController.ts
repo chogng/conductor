@@ -17,7 +17,10 @@ import {
   SettingsView,
   type SettingsViewOptions,
 } from "src/cs/workbench/contrib/settings/browser/settingsView";
-import type { SettingsSectionId } from "src/cs/workbench/contrib/settings/browser/settingsLayout";
+import {
+  createSettingsSections,
+  type SettingsSectionId,
+} from "src/cs/workbench/contrib/settings/browser/settingsLayout";
 import {
   normalizeBoundedInt,
   normalizeTrimmedString,
@@ -876,13 +879,7 @@ export class SettingsController {
   }
 
   private get settingsSections() {
-    return [
-      { id: "general" as const, label: localize("settings.nav.general", "General") },
-      { id: "template" as const, label: localize("settings.nav.template", "Template") },
-      { id: "appearance" as const, label: localize("settings.nav.appearance", "Appearance") },
-      { id: "origin" as const, label: localize("settings.nav.origin", "Origin") },
-      { id: "about" as const, label: localize("settings.nav.about", "About") },
-    ];
+    return createSettingsSections();
   }
 
   private async chooseOriginExePath(): Promise<void> {

@@ -35,8 +35,7 @@ import type {
 } from "src/cs/workbench/services/dataResource/common/semanticLibrary";
 import {
   createSettingsNavGroups,
-  getSettingsSectionIcon,
-  type SettingsSectionEntry,
+  type SettingsSectionDefinition,
   type SettingsSectionId,
 } from "src/cs/workbench/contrib/settings/browser/settingsLayout";
 import { renderWorkbenchMarkdown } from "src/cs/workbench/browser/markdownRenderer";
@@ -296,7 +295,7 @@ export type SettingsViewOptions = SettingsViewProps & {
   setTemplateSemanticUnitDraft: (value: string) => void;
   setTickLabelFontSizeDraft: (value: string) => void;
   setXyPairsDraft: (value: string) => void;
-  settingsSections: SettingsSectionEntry[];
+  settingsSections: readonly SettingsSectionDefinition[];
   themeModeOptions: SelectOption[];
   templateSemanticTermDraft: string;
   templateSemanticAxisDraft: TemplateSemanticAxisTendency;
@@ -310,6 +309,13 @@ export type SettingsViewOptions = SettingsViewProps & {
   windowCloseBehaviorOptions: SelectOption[];
   xyPairsDraft: string;
   yScaleOptions: SelectOption[];
+};
+
+type SettingsContentDescriptor = {
+  readonly id: string;
+  readonly order: number;
+  readonly render: (container: HTMLElement) => void;
+  readonly sectionId: SettingsSectionId;
 };
 
 type FieldOptions = {
@@ -492,7 +498,7 @@ export class SettingsView {
           button.setAttribute("aria-current", "page");
         }
         button.append(
-          createLxIcon({ className: "settings-view-nav-item-icon", icon: getSettingsSectionIcon(section.id), size: 16 }),
+          createLxIcon({ className: "settings-view-nav-item-icon", icon: section.icon, size: 16 }),
           text("span", "settings-view-nav-item-label", section.label),
         );
         button.addEventListener("click", () => this.options.setActiveSettingsSection(section.id));
@@ -536,31 +542,13 @@ export class SettingsView {
       return content;
     }
 
-    if (this.options.activeSettingsSection === "origin") {
-      this.renderOrigin(content);
-    }
-    else if (this.options.activeSettingsSection === "template") {
-      this.renderTemplate(content);
-    }
-    else if (this.options.activeSettingsSection === "appearance") {
-      this.renderAppearance(content);
-    }
-    else if (this.options.activeSettingsSection === "about") {
-      this.renderAbout(content);
-    }
-    else {
-      this.renderGeneral(content);
-    }
+    this.renderSettingsContent(content, [this.options.activeSettingsSection]);
     return content;
   }
 
   private renderSearchResults(container: HTMLElement, queryWords: readonly string[]): void {
     container.classList.add("settings-view-content--search");
-    this.renderGeneral(container);
-    this.renderTemplate(container);
-    this.renderAppearance(container);
-    this.renderOrigin(container);
-    this.renderAbout(container);
+    this.renderSettingsContent(container, this.options.settingsSections.map(section => section.id));
 
     const resultCount = this.filterSearchResults(container, queryWords);
     if (resultCount === 0) {
@@ -594,14 +582,90 @@ export class SettingsView {
     );
   }
 
-  private renderGeneral(container: HTMLElement): void {
+  private renderSettingsContent(container: HTMLElement, sectionIds: readonly SettingsSectionId[]): void {
+    const descriptors = this.createContentDescriptors();
+    for (const sectionId of sectionIds) {
+      for (const descriptor of descriptors
+        .filter(candidate => candidate.sectionId === sectionId)
+        .sort((first, second) => first.order - second.order)) {
+        descriptor.render(container);
+      }
+    }
+  }
+
+  private createContentDescriptors(): readonly SettingsContentDescriptor[] {
+    return [
+      {
+        id: "general-preferences",
+        order: 0,
+        render: container => this.renderGeneralPreferences(container),
+        sectionId: "general",
+      },
+      {
+        id: "chart-defaults",
+        order: 10,
+        render: container => container.appendChild(this.createChartSettingsSection(this.options.chartDefaultSettings)),
+        sectionId: "general",
+      },
+      {
+        id: "template-preferences",
+        order: 0,
+        render: container => this.renderTemplatePreferences(container),
+        sectionId: "template",
+      },
+      {
+        id: "template-matching",
+        order: 10,
+        render: container => this.renderTemplateMatching(container),
+        sectionId: "template",
+      },
+      {
+        id: "template-library",
+        order: 20,
+        render: container => this.renderTemplateLibrary(container),
+        sectionId: "template",
+      },
+      {
+        id: "template-semantic-library",
+        order: 30,
+        render: container => this.renderTemplateSemanticLibrary(container),
+        sectionId: "template",
+      },
+      {
+        id: "appearance-preferences",
+        order: 0,
+        render: container => this.renderAppearance(container),
+        sectionId: "appearance",
+      },
+      {
+        id: "origin-integration",
+        order: 0,
+        render: container => this.renderOrigin(container),
+        sectionId: "origin",
+      },
+      {
+        id: "about",
+        order: 0,
+        render: container => this.renderAbout(container),
+        sectionId: "about",
+      },
+    ];
+  }
+
+  private getSectionLabel(sectionId: SettingsSectionId): string {
+    const section = this.options.settingsSections.find(candidate => candidate.id === sectionId);
+    if (!section) {
+      throw new Error(`Settings section ${sectionId} is not registered.`);
+    }
+    return section.label;
+  }
+
+  private renderGeneralPreferences(container: HTMLElement): void {
     this.generalControlDisposables.clear();
     const generalTree = this.renderDisposables.add(new SettingsTree());
     generalTree.update(this.createGeneralSettingsTree());
     this.generalTree = generalTree;
     container.appendChild(generalTree.element);
-
-    container.append(this.createChartSettingsSection(this.options.chartDefaultSettings));
   }
 
   private updateGeneralSection(): void {
@@ -630,7 +694,7 @@ export class SettingsView {
     return [
       {
         id: "settings-general-section",
-        title: localize("settings.nav.general", "General"),
+        title: this.getSectionLabel("general"),
         items: [
           {
             kind: "control",
@@ -686,31 +750,38 @@ export class SettingsView {
     ];
   }
 
-  private renderTemplate(container: HTMLElement): void {
+  private renderTemplatePreferences(container: HTMLElement): void {
     const templateTree = this.renderDisposables.add(new SettingsTree());
     templateTree.update(this.createTemplateSettingsTree());
-    container.append(
-      templateTree.element,
-      settingsSection(
-        localize("settings.template.matching.sectionTitle", "Template Matching"),
-        this.createFileNameMatching(this.options.fileNameMatchingSettings),
-      ),
-      settingsSection(
-        localize("settings.template.library.sectionTitle", "Template Library"),
-        this.createTemplateDomainPacks(this.options.templateSettings),
-        this.createXAxisIntentPriority(this.options.templateSettings),
-      ),
-      settingsCardGroup(
-        this.createTemplateSemanticLibrary(this.options.templateSettings),
-      ),
-    );
+    container.appendChild(templateTree.element);
+  }
+
+  private renderTemplateMatching(container: HTMLElement): void {
+    container.appendChild(settingsSection(
+      localize("settings.template.matching.sectionTitle", "Template Matching"),
+      this.createFileNameMatching(this.options.fileNameMatchingSettings),
+    ));
+  }
+
+  private renderTemplateLibrary(container: HTMLElement): void {
+    container.appendChild(settingsSection(
+      localize("settings.template.library.sectionTitle", "Template Library"),
+      this.createTemplateDomainPacks(this.options.templateSettings),
+      this.createXAxisIntentPriority(this.options.templateSettings),
+    ));
+  }
+
+  private renderTemplateSemanticLibrary(container: HTMLElement): void {
+    container.appendChild(settingsCardGroup(
+      this.createTemplateSemanticLibrary(this.options.templateSettings),
+    ));
   }
 
   private createTemplateSettingsTree(): readonly SettingsTreeSection[] {
     return [
       {
         id: "settings-template-section",
-        title: localize("settings.nav.template", "Template"),
+        title: this.getSectionLabel("template"),
         items: [
           {
             kind: "control",
@@ -1203,7 +1274,7 @@ export class SettingsView {
     appearanceTree.update([
       {
         id: "settings-appearance-section",
-        title: localize("settings.nav.appearance", "Appearance"),
+        title: this.getSectionLabel("appearance"),
         items: [
           {
             kind: "control",
@@ -1304,7 +1375,7 @@ export class SettingsView {
       headingBlock(originPathTitle, originPathDescription),
       this.createPathControls(originSettings),
     );
-    const originSection = settingsSection(localize("settings.nav.origin", "Origin"), pathCard);
+    const originSection = settingsSection(this.getSectionLabel("origin"), pathCard);
     const originList = getSettingsList(originSection);
 
     const cleanupTitle = localize("settings.origin.cleanup.title", "Runtime Cleanup");
@@ -1345,7 +1416,7 @@ export class SettingsView {
     aboutTree.update([
       {
         id: "settings-about-section",
-        title: localize("settings.nav.about", "About"),
+        title: this.getSectionLabel("about"),
         items: [
           {
             kind: "control",
@@ -2319,8 +2390,8 @@ function feedbackEqual(
 }
 
 function settingsSectionsEqual(
-  current: readonly SettingsSectionEntry[],
-  next: readonly SettingsSectionEntry[],
+  current: readonly SettingsSectionDefinition[],
+  next: readonly SettingsSectionDefinition[],
 ): boolean {
   if (current.length !== next.length) {
     return false;
@@ -2328,7 +2399,14 @@ function settingsSectionsEqual(
 
   return current.every((option, index) => {
     const nextOption = next[index];
-    return option.id === nextOption?.id && option.label === nextOption.label;
+    if (!nextOption) {
+      return false;
+    }
+    return option.groupId === nextOption.groupId &&
+      option.icon === nextOption.icon &&
+      option.id === nextOption.id &&
+      option.label === nextOption.label &&
+      option.order === nextOption.order;
   });
 }
 

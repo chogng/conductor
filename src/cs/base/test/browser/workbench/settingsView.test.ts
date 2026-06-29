@@ -2,6 +2,7 @@ import assert from "assert";
 
 import { renderWorkbenchMarkdown } from "src/cs/workbench/browser/markdownRenderer";
 import { SettingsView, type SettingsViewOptions } from "src/cs/workbench/contrib/settings/browser/settingsView";
+import { createSettingsSections } from "src/cs/workbench/contrib/settings/browser/settingsLayout";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 type SettingsViewOptionOverrides = Partial<Omit<SettingsViewOptions, "appearanceSettings" | "templateSettings">> & {
@@ -580,13 +581,7 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
     setTemplateSemanticUnitDraft: noop,
     setTickLabelFontSizeDraft: noop,
     setXyPairsDraft: noop,
-    settingsSections: [
-      { id: "general", label: "General" },
-      { id: "template", label: "Template" },
-      { id: "appearance", label: "Appearance" },
-      { id: "origin", label: "Origin" },
-      { id: "about", label: "About" },
-    ],
+    settingsSections: createSettingsSections(),
     tableTemplateVisualizationSettings: {
       enabled: false,
       isSaving: false,

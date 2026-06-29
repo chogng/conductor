@@ -32,7 +32,10 @@ Follow the upstream Settings editor shape at a Conductor scale:
 
 ```txt
 SettingsViewOptions
-  -> SettingsView builds SettingsTreeSection records
+  -> SettingsLayout creates SettingsSectionDefinition records
+  -> SettingsView creates SettingsContentDescriptor placement records
+  -> active section renders matching descriptors / search renders all descriptors
+  -> descriptors build SettingsTreeSection records or caller-owned cards
   -> SettingsTree.update(sections)
   -> SettingsTree flattens section/item records into List entries
   -> base List reuses rows by stable entry id
@@ -57,11 +60,13 @@ receives the caller-owned item root and owns only the section ordering, item id,
 base card class, and optional item search metadata. `SettingsView` owns each
 control's layout, interaction callbacks, and disposable lifecycle.
 
-Sections are rendering groups, not state owners. User edits flow from the
-control's typed intent callback to `SettingsController`, then to
-`ISettingsService` or an owner command. After the owner publishes a changed
-snapshot, `SettingsView.update` rebuilds section records and `SettingsTree`
-patches by stable ids.
+Sections are rendering groups, not state owners. Settings content placement is
+declared by descriptor `sectionId` and `order`; moving a settings item or card
+between pages changes that placement declaration and removes the old placement.
+User edits flow from the control's typed intent callback to
+`SettingsController`, then to `ISettingsService` or an owner command. After the
+owner publishes a changed snapshot, `SettingsView.update` rebuilds descriptor
+content and `SettingsTree` patches by stable ids.
 
 ## Settings Search
 
