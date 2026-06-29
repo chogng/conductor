@@ -10,6 +10,10 @@
   color: rgb(var(--text-secondary) / 1);
 }
 
+.ui-stepper[hidden] {
+  display: none;
+}
+
 .ui-stepper__button {
   display: inline-flex;
   width: 1.5rem;

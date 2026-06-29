@@ -17,10 +17,8 @@ export const createTableColumnScaleStepper = ({
 }: TableColumnScaleStepperActions): Stepper => {
   const stepper = new Stepper({
     ariaLabel: localize("table.preview.columnScaleControl", "Column scale"),
-    className: "table_view_column_scale_control",
     decrease: {
       action: decrease,
-      className: "table_view_column_scale_button table_view_column_scale_button_minus",
       dataset: {
         scaleAction: "decrease",
       },
@@ -28,7 +26,6 @@ export const createTableColumnScaleStepper = ({
     },
     increase: {
       action: increase,
-      className: "table_view_column_scale_button table_view_column_scale_button_plus",
       dataset: {
         scaleAction: "increase",
       },
@@ -36,7 +33,6 @@ export const createTableColumnScaleStepper = ({
     },
     value: {
       action: reset,
-      className: "table_view_column_scale_value table_view_column_scale_button",
       dataset: {
         scaleAction: "reset",
       },

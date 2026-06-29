@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
-import type { IActionViewItem } from "src/cs/base/browser/ui/actionbar/actionViewItem";
+import { BaseActionViewItem, type IActionViewItemOptions } from "src/cs/base/browser/ui/actionbar/actionViewItem";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { Action, ActionRunner, type IAction, type IActionChangeEvent, type IActionRunner } from "src/cs/base/common/actions";
 import { Disposable } from "src/cs/base/common/lifecycle";
@@ -13,24 +13,21 @@ import "src/cs/base/browser/ui/stepper/stepper.css";
 
 type StepperDataset = Readonly<Record<string, string>>;
 
-export type StepperActionSlotOptions = {
+export type StepperActionOptions = {
     readonly action: IAction;
-    readonly className?: string;
     readonly dataset?: StepperDataset;
     readonly icon?: LxIconDefinition;
     readonly keyShortcuts?: string;
 };
 
-export type StepperValueSlotOptions =
+export type StepperValueOptions =
     | {
         readonly action: IAction;
-        readonly className?: string;
         readonly dataset?: StepperDataset;
         readonly kind: "button";
         readonly live?: "polite";
     }
     | {
-        readonly className?: string;
         readonly dataset?: StepperDataset;
         readonly kind: "text";
         readonly label?: string;
@@ -39,10 +36,9 @@ export type StepperValueSlotOptions =
 
 export type StepperOptions = {
     readonly ariaLabel: string;
-    readonly className?: string;
-    readonly decrease: StepperActionSlotOptions;
-    readonly increase: StepperActionSlotOptions;
-    readonly value: StepperValueSlotOptions;
+    readonly decrease: StepperActionOptions;
+    readonly increase: StepperActionOptions;
+    readonly value: StepperValueOptions;
     readonly valueText?: string;
 };
 
@@ -52,15 +48,14 @@ export class Stepper extends Disposable {
     public readonly increaseButton: HTMLButtonElement;
     public readonly valueElement: HTMLElement;
 
-    private readonly decreaseSlot: StepperActionSlot;
-    private readonly increaseSlot: StepperActionSlot;
-    private readonly valueSlot: StepperValueSlot;
+    private readonly decreaseAction: StepperActionButton;
+    private readonly increaseAction: StepperActionButton;
+    private readonly valueControl: StepperValueControl;
     private readonly runner = this._register(new ActionRunner());
     private actionRunnerValue: IActionRunner = this.runner;
 
     public constructor({
         ariaLabel,
-        className,
         decrease,
         increase,
         value,
@@ -69,17 +64,17 @@ export class Stepper extends Disposable {
         super();
 
         this.element = document.createElement("div");
-        this.element.className = className ? `ui-stepper ${className}` : "ui-stepper";
+        this.element.className = "ui-stepper";
         this.element.setAttribute("role", "group");
         this.element.setAttribute("aria-label", ariaLabel);
 
-        this.decreaseSlot = this._register(new StepperActionSlot(decrease, (action, context) => this.runAction(action, context)));
-        this.valueSlot = this._register(new StepperValueSlot(value, (action, context) => this.runAction(action, context)));
-        this.increaseSlot = this._register(new StepperActionSlot(increase, (action, context) => this.runAction(action, context)));
+        this.decreaseAction = this._register(new StepperActionButton(decrease, "decrease", (action, context) => this.runAction(action, context)));
+        this.valueControl = this._register(new StepperValueControl(value, (action, context) => this.runAction(action, context)));
+        this.increaseAction = this._register(new StepperActionButton(increase, "increase", (action, context) => this.runAction(action, context)));
 
-        this.decreaseButton = this.decreaseSlot.element;
-        this.valueElement = this.valueSlot.element;
-        this.increaseButton = this.increaseSlot.element;
+        this.decreaseButton = this.decreaseAction.element;
+        this.valueElement = this.valueControl.element;
+        this.increaseButton = this.increaseAction.element;
         this.setValue(valueText);
         this.element.append(this.decreaseButton, this.valueElement, this.increaseButton);
     }
@@ -101,9 +96,9 @@ export class Stepper extends Disposable {
     }
 
     public syncActions(): void {
-        this.decreaseSlot.sync();
-        this.valueSlot.sync();
-        this.increaseSlot.sync();
+        this.decreaseAction.sync();
+        this.valueControl.sync();
+        this.increaseAction.sync();
     }
 
     public focus(): void {
@@ -134,63 +129,49 @@ export class Stepper extends Disposable {
     }
 }
 
-export class StepperActionViewItem extends Disposable implements IActionViewItem {
-    private runner: IActionRunner | undefined;
+export class StepperActionViewItem extends BaseActionViewItem {
+    public readonly stepper: Stepper;
 
     public constructor(
-        public readonly action: IAction,
-        private readonly stepper: Stepper,
-        private readonly className?: string,
+        action: IAction,
+        stepperOptions: StepperOptions,
+        options: IActionViewItemOptions = {},
     ) {
-        super();
+        super(undefined, action, options);
+        this.stepper = this._register(new Stepper(stepperOptions));
     }
 
-    public get actionRunner(): IActionRunner {
-        if (!this.runner) {
-            this.runner = this._register(new ActionRunner());
-        }
-        return this.runner;
+    public override get actionRunner(): IActionRunner {
+        return super.actionRunner;
     }
 
-    public set actionRunner(actionRunner: IActionRunner) {
-        this.runner = actionRunner;
+    public override set actionRunner(actionRunner: IActionRunner) {
+        super.actionRunner = actionRunner;
         this.stepper.actionRunner = actionRunner;
     }
 
-    public setActionContext(_context: unknown): void {}
-
-    public render(container: HTMLElement): void {
+    public override render(container: HTMLElement): void {
+        this.element = container;
         container.classList.add("ui-actionbar__item");
-        if (this.className) {
-            container.classList.add(...this.className.split(/\s+/g).filter(Boolean));
-        }
         container.setAttribute("role", "presentation");
         container.append(this.stepper.element);
     }
 
-    public isEnabled(): boolean {
-        return this.action.enabled;
-    }
-
-    public focus(): void {
+    public override focus(): void {
         this.stepper.focus();
     }
 
-    public blur(): void {
+    public override blur(): void {
         this.stepper.blur();
-    }
-
-    public override dispose(): void {
-        this.stepper.element.remove();
-        super.dispose();
     }
 }
 
-class StepperActionSlot extends Disposable {
+class StepperActionButton extends Disposable {
     public readonly element: HTMLButtonElement;
 
     public constructor(
-        private readonly options: StepperActionSlotOptions,
+        private readonly options: StepperActionOptions,
+        private readonly kind: "decrease" | "increase",
         private readonly run: (action: IAction, context: unknown) => void,
     ) {
         super();
@@ -211,8 +192,7 @@ class StepperActionSlot extends Disposable {
 
     public sync(): void {
         syncButtonAction(this.element, this.options.action, {
-            baseClassName: "ui-stepper__button",
-            className: this.options.className,
+            classNames: ["ui-stepper__button", `ui-stepper__button--${this.kind}`],
             icon: this.options.action.icon ?? this.options.icon,
         });
     }
@@ -228,11 +208,11 @@ class StepperActionSlot extends Disposable {
     }
 }
 
-class StepperValueSlot extends Disposable {
+class StepperValueControl extends Disposable {
     public readonly element: HTMLElement;
 
     public constructor(
-        private readonly options: StepperValueSlotOptions,
+        private readonly options: StepperValueOptions,
         private readonly run: (action: IAction, context: unknown) => void,
     ) {
         super();
@@ -261,15 +241,12 @@ class StepperValueSlot extends Disposable {
     public sync(): void {
         if (this.options.kind === "button") {
             syncButtonAction(this.element as HTMLButtonElement, this.options.action, {
-                baseClassName: "ui-stepper__value",
-                className: this.options.className,
+                classNames: ["ui-stepper__value"],
             });
             return;
         }
 
-        this.element.className = this.options.className
-            ? `ui-stepper__value ${this.options.className}`
-            : "ui-stepper__value";
+        this.element.className = "ui-stepper__value";
         if (this.options.label) {
             this.element.setAttribute("aria-label", this.options.label);
         }
@@ -290,14 +267,11 @@ const syncButtonAction = (
     button: HTMLButtonElement,
     action: IAction,
     options: {
-        readonly baseClassName: string;
-        readonly className?: string;
+        readonly classNames: readonly string[];
         readonly icon?: LxIconDefinition;
     },
 ): void => {
-    button.className = options.className
-        ? `${options.baseClassName} ${options.className}`
-        : options.baseClassName;
+    button.className = options.classNames.join(" ");
     if (action.class) {
         button.classList.add(...action.class.split(/\s+/g).filter(Boolean));
     }

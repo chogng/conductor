@@ -107,11 +107,11 @@
   gap: 0;
 }
 
-.table_view_zoom_control {
+.table_view_actions .ui-stepper {
   background: rgb(var(--bg-surface) / 0.65);
 }
 
-.table_view_zoom_value {
+.table_view_actions .ui-stepper__value {
   border-top: 0;
   border-bottom: 0;
   background: transparent;
@@ -122,7 +122,7 @@
   line-height: 1rem;
 }
 
-.table_view_zoom_value:disabled {
+.table_view_actions .ui-stepper__value:disabled {
   color: inherit;
   cursor: default;
   opacity: 1;
@@ -225,7 +225,7 @@
   display: none;
 }
 
-.table_view_column_scale_control {
+.table_view > .ui-stepper {
   position: absolute;
   box-sizing: border-box;
   z-index: 6;
@@ -237,21 +237,18 @@
   pointer-events: none;
 }
 
-.table_view_column_scale_control[hidden] {
-  display: none;
-}
-
-.table_view_column_scale_control .ui-stepper__button {
+.table_view > .ui-stepper .ui-stepper__button {
   flex: 0 0 1.25rem;
   width: 1.25rem;
   height: 100%;
 }
 
-.table_view_column_scale_control .table_view_column_scale_button {
+.table_view > .ui-stepper .ui-stepper__button,
+.table_view > .ui-stepper .ui-stepper__value {
   pointer-events: auto;
 }
 
-.table_view_column_scale_value {
+.table_view > .ui-stepper .ui-stepper__value {
   appearance: none;
   flex: 1 1 auto;
   width: auto;
@@ -265,7 +262,7 @@
   font: inherit;
 }
 
-.table_view_column_scale_value:disabled {
+.table_view > .ui-stepper .ui-stepper__value:disabled {
   color: inherit;
   cursor: default;
   opacity: 1;
