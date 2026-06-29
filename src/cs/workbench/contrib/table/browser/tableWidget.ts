@@ -3,6 +3,8 @@ import { StandardKeyboardEvent, type IKeyboardEvent } from "src/cs/base/browser/
 import type { Event } from "src/cs/base/common/event";
 import { KeyCode } from "src/cs/base/common/keyCodes";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
+import { Action } from "src/cs/base/common/actions";
+import { Stepper } from "src/cs/base/browser/ui/stepper/stepper";
 import { localize } from "src/cs/nls";
 import {
   TableWidget as BaseTableWidget,
@@ -28,11 +30,8 @@ import { VirtualTableGridModel } from "src/cs/base/browser/ui/table/virtualTable
 import { createEmptyView } from "src/cs/workbench/contrib/table/browser/emptyView";
 import {
   createTableColumnScaleStepper,
-  getTableColumnScaleStepperTarget,
   isTableColumnScaleStepperVisible,
   syncTableColumnScaleStepper,
-  type TableColumnScaleStepperTarget,
-  type TableStepper,
 } from "src/cs/workbench/contrib/table/browser/tableStepper";
 import {
   createPerformanceStageRecorder,
@@ -203,7 +202,10 @@ export class TableWidget {
   private readonly store = new DisposableStore();
   private readonly grid: BaseTableWidget<BodyTemplateData, HeaderCell>;
   private readonly rowRenderer: PagedTableWidgetRenderer<unknown[], BodyCell, HeaderCell>;
-  private readonly columnScaleControl: TableStepper;
+  private readonly columnScaleDecreaseAction: Action;
+  private readonly columnScaleIncreaseAction: Action;
+  private readonly columnScaleResetAction: Action;
+  private readonly columnScaleControl: Stepper;
   private readonly performance = createPerformanceStageRecorder(state => this.getPerformanceStageContext(state));
   private readonly bodyRangeSelectionStore = new DisposableStore();
   private disposeSelectionListener: (() => void) | null = null;
@@ -277,6 +279,7 @@ export class TableWidget {
       getColumnWidth: colIndex => this.getColumnWidth(colIndex),
       keyboardNavigation: { enabled: true },
       renderer: this.rowRenderer,
+      zoom: { wheel: true },
     }));
     this.element = this.grid.element;
     this.onDidChangeSize = this.grid.onDidChangeSize;
@@ -284,7 +287,32 @@ export class TableWidget {
     this.element.tabIndex = 0;
     this.element.setAttribute("role", "region");
     this.element.setAttribute("aria-label", localize("table.view.ariaLabel", "Table"));
-    this.columnScaleControl = createTableColumnScaleStepper();
+    this.columnScaleDecreaseAction = this.store.add(new Action(
+      "table.columnScale.decrease",
+      localize("table.preview.decreaseColumnScale", "Decrease column scale exponent"),
+      "",
+      true,
+      () => this.onColumnScaleControlAction("decrease"),
+    ));
+    this.columnScaleIncreaseAction = this.store.add(new Action(
+      "table.columnScale.increase",
+      localize("table.preview.increaseColumnScale", "Increase column scale exponent"),
+      "",
+      true,
+      () => this.onColumnScaleControlAction("increase"),
+    ));
+    this.columnScaleResetAction = this.store.add(new Action(
+      "table.columnScale.reset",
+      localize("table.preview.resetColumnScale", "Reset column scale to automatic"),
+      "",
+      true,
+      () => this.onColumnScaleControlAction("reset"),
+    ));
+    this.columnScaleControl = this.store.add(createTableColumnScaleStepper({
+      decrease: this.columnScaleDecreaseAction,
+      increase: this.columnScaleIncreaseAction,
+      reset: this.columnScaleResetAction,
+    }));
     this.element.append(this.columnScaleControl.element);
     // Base table events describe viewport facts; this widget keeps data and selection ownership.
     this.store.add(this.grid.onDidScroll(() => {
@@ -319,9 +347,6 @@ export class TableWidget {
     }));
     this.store.add(addDisposableListener(this.element, "pointerleave", () => {
       this.setHoveredColumnScaleTarget(null);
-    }));
-    this.store.add(addDisposableListener(this.columnScaleControl.element, EventType.CLICK, event => {
-      this.onColumnScaleControlClick(event as MouseEvent);
     }));
     this.store.add(this.bodyRangeSelectionStore);
     this.bindTableState(props.tableViewModel);
@@ -1181,12 +1206,16 @@ export class TableWidget {
     this.focus();
   }
 
-  private onColumnScaleControlAction(event: MouseEvent, target: TableColumnScaleStepperTarget): void {
+  private onColumnScaleControlAction(action: "decrease" | "increase" | "reset"): void {
     if (!this.canAdjustColumnScale()) {
       return;
     }
 
-    const { action, colIndex } = target;
+    const colIndex = normalizeWidgetColumnIndex(this.columnScaleControl.element.dataset.colIndex);
+    if (colIndex === null) {
+      return;
+    }
+
     let changed = false;
     if (action === "decrease") {
       changed = this.props.onAdjustColumnDisplayScale?.(colIndex, -1) ?? false;
@@ -1200,19 +1229,8 @@ export class TableWidget {
       return;
     }
 
-    event.preventDefault();
-    event.stopPropagation();
     this.focus();
     this.syncSharedColumnScaleControl();
-  }
-
-  private onColumnScaleControlClick(event: MouseEvent): void {
-    const target = getTableColumnScaleStepperTarget(this.columnScaleControl, event.target);
-    if (!target) {
-      return;
-    }
-
-    this.onColumnScaleControlAction(event, target);
   }
 
   private onColumnScalePointerMove(event: PointerEvent): void {
@@ -1292,6 +1310,7 @@ export class TableWidget {
       return;
     }
 
+    this.columnScaleResetAction.enabled = Boolean(profile.isScaleManual);
     syncTableColumnScaleStepper(this.columnScaleControl, colIndex, profile);
     this.positionColumnScaleControl(colIndex);
   }
@@ -1431,28 +1450,8 @@ export class TableWidget {
       return;
     }
 
-    if (event.ctrlKey) {
-      this.onZoomWheel(event);
-      return;
-    }
-
     if (event.shiftKey) {
       this.onHorizontalWheel(event);
-    }
-  }
-
-  private onZoomWheel(event: WheelEvent): void {
-    const delta = getWheelDelta(event);
-    if (delta === 0) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    if (delta < 0) {
-      this.zoomIn();
-    } else {
-      this.zoomOut();
     }
   }
 
@@ -1893,12 +1892,4 @@ const getElementFromEventTarget = (target: EventTarget | null): Element | null =
   }
 
   return null;
-};
-
-const getWheelDelta = (event: WheelEvent): number => {
-  if (event.deltaY !== 0) {
-    return event.deltaY;
-  }
-
-  return event.deltaX;
 };

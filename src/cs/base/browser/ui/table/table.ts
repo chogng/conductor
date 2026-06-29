@@ -22,7 +22,7 @@ export const TABLE_WIDGET_ZOOM_OPTIONS = {
 	stepPercent: 10,
 } as const;
 
-// Upstream-compatible table/list contracts.
+// table/list contracts.
 
 export interface ITableColumn<TRow, TCell> {
 	readonly label: string;
@@ -214,10 +214,15 @@ export interface ITableWidgetOptions<TBodyTemplateData = unknown, TColumnHeaderT
 	readonly maxRenderedColumns?: number;
 	readonly maxRenderedRows?: number;
 	readonly renderer: ITableWidgetRenderer<TBodyTemplateData, TColumnHeaderTemplateData>;
+	readonly zoom?: ITableZoomOptions;
 }
 
 export interface ITableKeyboardNavigationOptions {
 	readonly enabled?: boolean;
+}
+
+export interface ITableZoomOptions {
+	readonly wheel?: boolean;
 }
 
 export type ITableCellSelectionTarget =

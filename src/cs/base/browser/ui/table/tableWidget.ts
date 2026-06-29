@@ -5,13 +5,14 @@
 import { addDisposableListener, EventType, getWindow, isEditableElement } from "src/cs/base/browser/dom";
 import { DomEmitter } from "src/cs/base/browser/event";
 import { StandardKeyboardEvent } from "src/cs/base/browser/keyboardEvent";
-import { StandardMouseEvent } from "src/cs/base/browser/mouseEvent";
+import { StandardMouseEvent, StandardWheelEvent } from "src/cs/base/browser/mouseEvent";
 import type { IManagedHover, IManagedHoverContent, IManagedHoverOptions } from "src/cs/base/browser/ui/hover/hover";
 import { getBaseLayerHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
 import { VirtualTable, VirtualTableGridModel } from "src/cs/base/browser/ui/table/virtualTable";
 import { Emitter, Event as EventUtil, type Event } from "src/cs/base/common/event";
 import { KeyCode } from "src/cs/base/common/keyCodes";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
+import { isMacintosh } from "src/cs/base/common/platform";
 import type * as Table from "src/cs/base/browser/ui/table/table";
 import { TABLE_WIDGET_ZOOM_OPTIONS } from "src/cs/base/browser/ui/table/table";
 
@@ -19,6 +20,12 @@ import "src/cs/base/browser/ui/table/table.css";
 
 const TABLE_WIDGET_RESIZING_COLUMN_CLASS = "table_view--resizing_column";
 const TABLE_WIDGET_COLUMN_RESIZE_HANDLE_CLASS = "table_view_column_resize_handle";
+// Wheel events separated by more than this start a new zoom gesture, so
+// trackpad inertia or a later scroll does not reuse stale accumulated delta.
+const TABLE_WIDGET_ZOOM_WHEEL_GESTURE_RESET_MS = 200;
+// Normalized wheel delta consumed by one zoom step. Lower values make
+// Ctrl/Cmd+wheel zoom more sensitive; remaining delta is kept for the gesture.
+const TABLE_WIDGET_ZOOM_WHEEL_STEP_DELTA = 90;
 
 type TableWidgetColumnResizeState = {
 	readonly colIndex: number;
@@ -236,6 +243,8 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 	private size: Table.ITableSize = { columnCount: 0, rowCount: 0 };
 	private readonly virtualTable: VirtualTable<TBodyTemplateData, TColumnHeaderTemplateData>;
 	private zoomPercent: number = TABLE_WIDGET_ZOOM_OPTIONS.defaultPercent;
+	private zoomWheelAccumulatedDelta = 0;
+	private zoomWheelLastEventTime = 0;
 
 	public constructor(private readonly options: Table.ITableWidgetOptions<TBodyTemplateData, TColumnHeaderTemplateData>) {
 		const { className, ...virtualOptions } = options;
@@ -282,6 +291,9 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		this.disposables.add(addDisposableListener(this.element, EventType.KEY_DOWN, event => {
 			this.onKeyDown(event as KeyboardEvent);
 		}));
+		this.disposables.add(addDisposableListener(this.element, EventType.WHEEL, event => {
+			this.onWheel(event as WheelEvent);
+		}, { passive: false }));
 	}
 
 	public dispose(): void {
@@ -1047,6 +1059,54 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		});
 	}
 
+	private onWheel(event: WheelEvent): void {
+		if (event.defaultPrevented || !this.options.zoom?.wheel || !hasTableZoomWheelModifier(event)) {
+			this.resetZoomWheelGesture();
+			return;
+		}
+
+		const wheelEvent = new StandardWheelEvent(event);
+		const delta = wheelEvent.deltaY !== 0 ? wheelEvent.deltaY : wheelEvent.deltaX;
+		if (delta === 0) {
+			return;
+		}
+
+		event.preventDefault();
+		event.stopPropagation();
+
+		const now = Date.now();
+		if (
+			now - this.zoomWheelLastEventTime > TABLE_WIDGET_ZOOM_WHEEL_GESTURE_RESET_MS ||
+			Math.sign(this.zoomWheelAccumulatedDelta) !== 0 && Math.sign(this.zoomWheelAccumulatedDelta) !== Math.sign(delta)
+		) {
+			this.zoomWheelAccumulatedDelta = 0;
+		}
+		this.zoomWheelLastEventTime = now;
+		this.zoomWheelAccumulatedDelta += delta;
+		if (Math.abs(this.zoomWheelAccumulatedDelta) < TABLE_WIDGET_ZOOM_WHEEL_STEP_DELTA) {
+			return;
+		}
+
+		const direction = Math.sign(this.zoomWheelAccumulatedDelta);
+		const changed = direction < 0
+			? this.zoomIn()
+			: this.zoomOut();
+		if (!changed) {
+			this.resetZoomWheelGesture();
+			return;
+		}
+
+		this.zoomWheelAccumulatedDelta -= direction * TABLE_WIDGET_ZOOM_WHEEL_STEP_DELTA;
+		if (Math.sign(this.zoomWheelAccumulatedDelta) !== direction) {
+			this.zoomWheelAccumulatedDelta = 0;
+		}
+	}
+
+	private resetZoomWheelGesture(): void {
+		this.zoomWheelAccumulatedDelta = 0;
+		this.zoomWheelLastEventTime = 0;
+	}
+
 	private getNavigationCell(): Table.ITableCellPosition | null {
 		const focusCell = normalizeCellPosition(this.selectionFocusCell, this.size);
 		if (focusCell) {
@@ -1614,6 +1674,22 @@ function toVisibleDecorationRanges(
 	}
 
 	return visibleRanges;
+}
+
+function hasTableZoomWheelModifier(event: WheelEvent): boolean {
+	if (event.altKey || event.shiftKey) {
+		return false;
+	}
+
+	if (isMacintosh) {
+		// Match VS Code editor/terminal mouse wheel zoom: Cmd+wheel sets metaKey,
+		// while macOS trackpad pinch gestures are surfaced by browsers with ctrlKey.
+		return event.metaKey || event.ctrlKey;
+	}
+
+	// Wheel zoom is not dispatched through the keybinding service, so keep this
+	// browser-event check explicit instead of using the keyboard CtrlCmd mapping.
+	return event.ctrlKey && !event.metaKey;
 }
 
 function normalizeActiveCell(

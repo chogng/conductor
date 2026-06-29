@@ -4,14 +4,13 @@
 
 import { addDisposableListener, EventType, scheduleAtNextAnimationFrame } from "src/cs/base/browser/dom";
 import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
-import type { IActionViewItem } from "src/cs/base/browser/ui/actionbar/actionViewItem";
+import { Stepper, StepperActionViewItem } from "src/cs/base/browser/ui/stepper/stepper";
 import {
-  ActionRunner,
+  Action,
   toAction,
-  type IAction,
-  type IActionRunner,
 } from "src/cs/base/common/actions";
-import { Disposable, DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
+import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import {
   ICommandService,
@@ -24,10 +23,6 @@ import {
   type TableControllerProps,
 } from "src/cs/workbench/contrib/table/browser/tableController";
 import { TableDropTarget } from "src/cs/workbench/contrib/table/browser/tableDropTarget";
-import {
-  createTableStepper,
-  type TableStepper,
-} from "src/cs/workbench/contrib/table/browser/tableStepper";
 import { ITableWidgetService } from "src/cs/workbench/contrib/table/browser/tableWidgetService";
 import { TableCommandId, TableViewId } from "src/cs/workbench/contrib/table/common/table";
 import {
@@ -62,12 +57,15 @@ export class TableViewPane extends ViewPane {
   private readonly headerRight = document.createElement("div");
   private readonly dimensions = document.createElement("span");
   private readonly actionBar: ActionBar;
-  private readonly zoomAction = toAction({
+  private readonly zoomControlAction = toAction({
     id: ZOOM_CONTROL_ACTION_ID,
     label: localize("table.zoomControl", "Table zoom"),
     run: () => undefined,
   });
-  private readonly zoomControl: TableStepper;
+  private readonly zoomInAction: Action;
+  private readonly zoomOutAction: Action;
+  private readonly resetZoomAction: Action;
+  private readonly zoomControl: Stepper;
   private controller: TableController | null = null;
   private pendingControllerRender: IDisposable | null = null;
   private props: TableViewPaneProps | null = null;
@@ -87,12 +85,35 @@ export class TableViewPane extends ViewPane {
       className: "table-view-pane-root",
       bodyClassName: "workbench-part-view-pane__body",
     });
+    this.zoomOutAction = this.store.add(new Action(
+      TableCommandId.zoomOut,
+      localize("table.zoomOut", "Zoom out"),
+      "",
+      true,
+      () => this.commandService.executeCommand(TableCommandId.zoomOut),
+    ));
+    this.zoomOutAction.icon = LxIcon.remove;
+    this.resetZoomAction = this.store.add(new Action(
+      TableCommandId.resetZoom,
+      localize("table.resetZoom", "Reset table zoom"),
+      "",
+      true,
+      () => this.commandService.executeCommand(TableCommandId.resetZoom),
+    ));
+    this.zoomInAction = this.store.add(new Action(
+      TableCommandId.zoomIn,
+      localize("table.zoomIn", "Zoom in"),
+      "",
+      true,
+      () => this.commandService.executeCommand(TableCommandId.zoomIn),
+    ));
+    this.zoomInAction.icon = LxIcon.add;
     this.zoomControl = this.createZoomControl();
     this.actionBar = new ActionBar({
       ariaLabel: localize("table.header.actions", "Table actions"),
       className: "table_view_actions",
       actionViewItemProvider: action => action.id === ZOOM_CONTROL_ACTION_ID
-        ? new ZoomControlViewItem(action, this.zoomControl.element)
+        ? new StepperActionViewItem(action, this.zoomControl, "table_view_zoom_action")
         : undefined,
     });
     this.store.add(this.actionBar);
@@ -211,35 +232,27 @@ export class TableViewPane extends ViewPane {
     this.updateHeaderRight();
   }
 
-  private createZoomControl(): TableStepper {
-    const control = createTableStepper({
+  private createZoomControl(): Stepper {
+    return this.store.add(new Stepper({
       ariaLabel: localize("table.zoomControl", "Table zoom"),
       className: "table_view_zoom_control",
       decrease: {
+        action: this.zoomOutAction,
         className: "table_view_zoom_button table_view_zoom_button_minus",
-        label: localize("table.zoomOut", "Zoom out"),
         keyShortcuts: "Control+-",
       },
       increase: {
+        action: this.zoomInAction,
         className: "table_view_zoom_button table_view_zoom_button_plus",
-        label: localize("table.zoomIn", "Zoom in"),
         keyShortcuts: "Control+=",
       },
       value: {
+        action: this.resetZoomAction,
         className: "table_view_zoom_value",
-        kind: "text",
+        kind: "button",
         live: "polite",
       },
-    });
-
-    this.store.add(addDisposableListener(control.decreaseButton, EventType.CLICK, () => {
-      void this.commandService.executeCommand(TableCommandId.zoomOut);
     }));
-    this.store.add(addDisposableListener(control.increaseButton, EventType.CLICK, () => {
-      void this.commandService.executeCommand(TableCommandId.zoomIn);
-    }));
-
-    return control;
   }
 
   protected override layoutBody(_height: number, _width: number): void {
@@ -342,7 +355,7 @@ export class TableViewPane extends ViewPane {
 
   private renderHeaderActions(): void {
     this.actionBar.clear();
-    this.actionBar.push(this.zoomAction, {
+    this.actionBar.push(this.zoomControlAction, {
       label: false,
       role: "presentation",
     });
@@ -350,72 +363,17 @@ export class TableViewPane extends ViewPane {
 
   private updateZoomControl(): void {
     const zoomPercent = this.controller?.getZoomPercent() ?? TABLE_WIDGET_ZOOM_OPTIONS.defaultPercent;
+    this.zoomOutAction.enabled = zoomPercent > TABLE_WIDGET_ZOOM_OPTIONS.minPercent;
+    this.zoomInAction.enabled = zoomPercent < TABLE_WIDGET_ZOOM_OPTIONS.maxPercent;
+    this.resetZoomAction.enabled = zoomPercent !== TABLE_WIDGET_ZOOM_OPTIONS.defaultPercent;
     this.zoomControl.setValue(`${zoomPercent}%`);
-    this.zoomControl.setDisabled({
-      decrease: zoomPercent <= TABLE_WIDGET_ZOOM_OPTIONS.minPercent,
-      increase: zoomPercent >= TABLE_WIDGET_ZOOM_OPTIONS.maxPercent,
-    });
+    this.zoomControl.syncActions();
   }
 
   private updateDimensions(): void {
     const dimensions = formatTableWidgetSize(this.controller?.getSize() ?? null);
     setText(this.dimensions, dimensions);
     setHidden(this.dimensions, !dimensions);
-  }
-}
-
-class ZoomControlViewItem extends Disposable implements IActionViewItem {
-  private container: HTMLElement | null = null;
-  private runner: IActionRunner | null = null;
-
-  constructor(
-    public readonly action: IAction,
-    private readonly control: HTMLElement,
-  ) {
-    super();
-  }
-
-  public get actionRunner(): IActionRunner {
-    if (!this.runner) {
-      this.runner = this._register(new ActionRunner());
-    }
-
-    return this.runner;
-  }
-
-  public set actionRunner(actionRunner: IActionRunner) {
-    this.runner = actionRunner;
-  }
-
-  public setActionContext(_context: unknown): void {}
-
-  public render(container: HTMLElement): void {
-    this.container = container;
-    container.classList.add("ui-actionbar__item", "table_view_zoom_action");
-    container.setAttribute("role", "presentation");
-    container.append(this.control);
-  }
-
-  public isEnabled(): boolean {
-    return this.action.enabled;
-  }
-
-  public focus(): void {
-    this.control.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
-  }
-
-  public blur(): void {
-    const activeElement = document.activeElement;
-    if (activeElement instanceof HTMLElement && this.control.contains(activeElement)) {
-      activeElement.blur();
-    }
-  }
-
-  public override dispose(): void {
-    this.control.remove();
-    this.container?.remove();
-    this.container = null;
-    super.dispose();
   }
 }
 
