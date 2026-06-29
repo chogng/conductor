@@ -180,7 +180,7 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 		const settings = this.settingsService.getConductorSettings();
 		return createDataResourceSemanticMatcher({
 			allowlist: normalizeTemplateSemanticAllowlist(settings?.templateSemanticAllowlist),
-			disabledBuiltinIds: normalizeTemplateDisabledBuiltinSemanticIds(settings?.templateDisabledBuiltinSemanticIds),
+			disabledBuiltinTermIds: normalizeTemplateDisabledBuiltinSemanticIds(settings?.templateDisabledBuiltinSemanticIds),
 			disabledDomainPackIds: normalizeTemplateDisabledBuiltinDomainPackIds(settings?.templateDisabledBuiltinDomainPackIds),
 			xAxisIntentPriority: normalizeTemplateXAxisIntentPriority(settings?.templateXAxisIntentPriority),
 		});

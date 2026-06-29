@@ -38,7 +38,7 @@ import {
   type FilesExplorerBadgeColor,
   type ISettingsService,
   type SettingsViewInput,
-  type TemplateSemanticAliasRule,
+  type TemplateSemanticTermRule,
   type TemplateSemanticAxisTendency,
   type TemplateSemanticColumnRole,
   type TemplateSemanticFamily,
@@ -48,8 +48,9 @@ import {
   type TemplateXAxisIntent,
 } from "src/cs/workbench/services/settings/common/settings";
 import {
-  dataResourceBuiltinSemanticAliases,
+  dataResourceBuiltinSemanticTerms,
   dataResourceBuiltinSemanticDomainPacks,
+  type DataResourceBuiltinSemanticTerm,
 } from "src/cs/workbench/services/dataResource/common/semanticLibrary";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import { WorkbenchCommandId } from "src/cs/workbench/browser/actions/workbenchCommands";
@@ -83,7 +84,7 @@ type SettingsDraftState = {
   originHealthNotification: NotificationFeedbackState;
   plotCommandDraft: string;
   postCommandsDraft: string;
-  templateSemanticAliasDraft: string;
+  templateSemanticTermDraft: string;
   templateSemanticAxisDraft: TemplateSemanticAxisTendency;
   templateSemanticFamilyDraft: TemplateSemanticFamily | "";
   templateSemanticIntentDraft: TemplateXAxisIntent | "";
@@ -182,7 +183,7 @@ export class SettingsController {
       originHealthNotification: { isVisible: false, message: "", type: "success" },
       plotCommandDraft: this.originPlotConfig.command ?? "",
       postCommandsDraft: originPostCommandsToMultiline(this.originPlotConfig.postCommands),
-      templateSemanticAliasDraft: "",
+      templateSemanticTermDraft: "",
       templateSemanticAxisDraft: "x",
       templateSemanticFamilyDraft: "",
       templateSemanticIntentDraft: "",
@@ -438,8 +439,8 @@ export class SettingsController {
       setPostCommandsDraft: value => {
         this.drafts.postCommandsDraft = value;
       },
-      setTemplateSemanticAliasDraft: value => {
-        this.drafts.templateSemanticAliasDraft = value;
+      setTemplateSemanticTermDraft: value => {
+        this.drafts.templateSemanticTermDraft = value;
       },
       setTemplateSemanticAxisDraft: value => {
         if (value === "x" || value === "dependent" || value === "unknown") {
@@ -485,7 +486,7 @@ export class SettingsController {
       settingsSections: this.settingsSections,
       theme: this.options.theme,
       themeModeOptions: this.themeModeOptions,
-      templateSemanticAliasDraft: this.drafts.templateSemanticAliasDraft,
+      templateSemanticTermDraft: this.drafts.templateSemanticTermDraft,
       templateSemanticAxisDraft: this.drafts.templateSemanticAxisDraft,
       templateSemanticFamilyDraft: this.drafts.templateSemanticFamilyDraft,
       templateSemanticIntentDraft: this.drafts.templateSemanticIntentDraft,
@@ -606,26 +607,26 @@ export class SettingsController {
 
   private get templateSettings(): SettingsViewOptions["templateSettings"] {
     return {
-      allowlist: normalizeTemplateSemanticAllowlist(this.settings.templateSemanticAllowlist),
+      customTerms: normalizeTemplateSemanticAllowlist(this.settings.templateSemanticAllowlist).map(toTemplateSemanticTermView),
       axisOptions: this.templateSemanticAxisOptions,
-      builtinAliases: dataResourceBuiltinSemanticAliases,
+      builtinTerms: dataResourceBuiltinSemanticTerms.map(toBuiltinTemplateSemanticTermView),
       builtinDomainPacks: dataResourceBuiltinSemanticDomainPacks,
       disabledDomainPackIds: normalizeTemplateDisabledBuiltinDomainPackIds(this.settings.templateDisabledBuiltinDomainPackIds),
-      disabledBuiltinIds: normalizeTemplateDisabledBuiltinSemanticIds(this.settings.templateDisabledBuiltinSemanticIds),
+      disabledBuiltinTermIds: normalizeTemplateDisabledBuiltinSemanticIds(this.settings.templateDisabledBuiltinSemanticIds),
       familyOptions: this.templateSemanticFamilyOptions,
       feedback: this.templateSettingsFeedback,
       intentOptions: this.templateSemanticIntentOptions,
       isSaving: this.templateSettingsSaving,
       ivModeOptions: this.templateSemanticIvModeOptions,
       matchPolicyOptions: this.templateSemanticMatchPolicyOptions,
-      onAddSemanticAlias: () => this.addTemplateSemanticAlias(),
-      onDisableBuiltinAlias: id => this.disableTemplateBuiltinAlias(id),
+      onAddSemanticTerm: () => this.addTemplateSemanticTerm(),
+      onDisableBuiltinTerm: id => this.disableTemplateBuiltinTerm(id),
       onDisableDomainPack: id => this.disableTemplateDomainPack(id),
-      onEnableBuiltinAlias: id => this.enableTemplateBuiltinAlias(id),
+      onEnableBuiltinTerm: id => this.enableTemplateBuiltinTerm(id),
       onEnableDomainPack: id => this.enableTemplateDomainPack(id),
-      onMoveSemanticAlias: (sourceId, targetId) => this.moveTemplateSemanticAlias(sourceId, targetId),
+      onMoveSemanticTerm: (sourceId, targetId) => this.moveTemplateSemanticTerm(sourceId, targetId),
       onMoveXAxisIntent: (sourceIntent, targetIntent) => this.moveTemplateXAxisIntent(sourceIntent, targetIntent),
-      onRemoveSemanticAlias: id => this.removeTemplateSemanticAlias(id),
+      onRemoveSemanticTerm: id => this.removeTemplateSemanticTerm(id),
       roleOptions: this.templateSemanticRoleOptions,
       unitOptions: this.templateSemanticUnitOptions,
       xAxisIntentPriority: normalizeTemplateXAxisIntentPriority(this.settings.templateXAxisIntentPriority),
@@ -1122,20 +1123,20 @@ export class SettingsController {
     }
   }
 
-  private async addTemplateSemanticAlias(): Promise<void> {
-    const alias = this.drafts.templateSemanticAliasDraft.trim();
-    if (!alias) {
+  private async addTemplateSemanticTerm(): Promise<void> {
+    const term = this.drafts.templateSemanticTermDraft.trim();
+    if (!term) {
       this.templateSettingsFeedback = {
         type: "error",
-        message: localize("settings.template.semantic.emptyAlias", "Enter a match term before adding it."),
+        message: localize("settings.template.semantic.emptyTerm", "Enter a match term before adding it."),
       };
       this.render();
       return;
     }
 
-    const nextRule: TemplateSemanticAliasRule = {
+    const nextRule: TemplateSemanticTermRule = {
       id: `template-semantic-${Date.now().toString(36)}`,
-      alias,
+      alias: term,
       canonicalRole: this.drafts.templateSemanticRoleDraft,
       ...(this.drafts.templateSemanticUnitDraft ? { canonicalUnit: this.drafts.templateSemanticUnitDraft } : {}),
       axisTendency: this.drafts.templateSemanticAxisDraft,
@@ -1145,41 +1146,41 @@ export class SettingsController {
       matchPolicy: this.drafts.templateSemanticMatchPolicyDraft,
       enabled: true,
     };
-    const allowlist = [
+    const customTerms = [
       ...normalizeTemplateSemanticAllowlist(this.settings.templateSemanticAllowlist),
       nextRule,
     ];
     await this.saveTemplateSettings({
-      templateSemanticAllowlist: allowlist,
+      templateSemanticAllowlist: customTerms,
     }, localize("settings.template.semantic.saved", "Template semantic library updated."));
     if (this.templateSettingsFeedback.type !== "error") {
-      this.drafts.templateSemanticAliasDraft = "";
+      this.drafts.templateSemanticTermDraft = "";
     }
   }
 
-  private async removeTemplateSemanticAlias(id: string): Promise<void> {
-    const allowlist = normalizeTemplateSemanticAllowlist(this.settings.templateSemanticAllowlist)
+  private async removeTemplateSemanticTerm(id: string): Promise<void> {
+    const customTerms = normalizeTemplateSemanticAllowlist(this.settings.templateSemanticAllowlist)
       .filter(rule => rule.id !== id);
     await this.saveTemplateSettings({
-      templateSemanticAllowlist: allowlist,
+      templateSemanticAllowlist: customTerms,
     }, localize("settings.template.semantic.saved", "Template semantic library updated."));
   }
 
-  private async disableTemplateBuiltinAlias(id: string): Promise<void> {
-    const disabledIds = normalizeTemplateDisabledBuiltinSemanticIds(this.settings.templateDisabledBuiltinSemanticIds);
-    if (disabledIds.includes(id)) {
+  private async disableTemplateBuiltinTerm(id: string): Promise<void> {
+    const disabledTermIds = normalizeTemplateDisabledBuiltinSemanticIds(this.settings.templateDisabledBuiltinSemanticIds);
+    if (disabledTermIds.includes(id)) {
       return;
     }
     await this.saveTemplateSettings({
-      templateDisabledBuiltinSemanticIds: [...disabledIds, id],
+      templateDisabledBuiltinSemanticIds: [...disabledTermIds, id],
     }, localize("settings.template.builtin.disabled", "Built-in semantic match term disabled for review."));
   }
 
-  private async enableTemplateBuiltinAlias(id: string): Promise<void> {
-    const disabledIds = normalizeTemplateDisabledBuiltinSemanticIds(this.settings.templateDisabledBuiltinSemanticIds)
+  private async enableTemplateBuiltinTerm(id: string): Promise<void> {
+    const disabledTermIds = normalizeTemplateDisabledBuiltinSemanticIds(this.settings.templateDisabledBuiltinSemanticIds)
       .filter(disabledId => disabledId !== id);
     await this.saveTemplateSettings({
-      templateDisabledBuiltinSemanticIds: disabledIds,
+      templateDisabledBuiltinSemanticIds: disabledTermIds,
     }, localize("settings.template.builtin.enabled", "Built-in semantic match term enabled for review."));
   }
 
@@ -1201,18 +1202,18 @@ export class SettingsController {
     }, localize("settings.template.domainPack.enabled", "Domain pack enabled for review."));
   }
 
-  private async moveTemplateSemanticAlias(sourceId: string, targetId: string): Promise<void> {
+  private async moveTemplateSemanticTerm(sourceId: string, targetId: string): Promise<void> {
     if (sourceId === targetId) {
       return;
     }
-    const allowlist = moveItemBefore(
+    const customTerms = moveItemBefore(
       normalizeTemplateSemanticAllowlist(this.settings.templateSemanticAllowlist),
       rule => rule.id,
       sourceId,
       targetId,
     );
     await this.saveTemplateSettings({
-      templateSemanticAllowlist: allowlist,
+      templateSemanticAllowlist: customTerms,
     }, localize("settings.template.semantic.saved", "Template semantic library updated."));
   }
 
@@ -1499,3 +1500,31 @@ function moveItemBefore<T>(
   result.splice(nextTargetIndex === -1 ? result.length : nextTargetIndex, 0, source);
   return result;
 }
+
+const toTemplateSemanticTermView = (
+  rule: TemplateSemanticTermRule,
+): SettingsViewOptions["templateSettings"]["customTerms"][number] => ({
+  id: rule.id,
+  term: rule.alias,
+  canonicalRole: rule.canonicalRole,
+  ...(rule.canonicalUnit ? { canonicalUnit: rule.canonicalUnit } : {}),
+  axisTendency: rule.axisTendency,
+  ...(rule.family ? { family: rule.family } : {}),
+  ...(rule.ivMode ? { ivMode: rule.ivMode } : {}),
+  ...(rule.intent ? { intent: rule.intent } : {}),
+  matchPolicy: rule.matchPolicy,
+  enabled: rule.enabled,
+});
+
+const toBuiltinTemplateSemanticTermView = (
+  term: DataResourceBuiltinSemanticTerm,
+): SettingsViewOptions["templateSettings"]["builtinTerms"][number] => ({
+  id: term.id,
+  term: term.alias,
+  canonicalRole: term.canonicalRole,
+  ...(term.canonicalUnit ? { canonicalUnit: term.canonicalUnit } : {}),
+  axisTendency: term.axisTendency,
+  ...(term.family ? { family: term.family } : {}),
+  ...(term.ivMode ? { ivMode: term.ivMode } : {}),
+  domainPackIds: term.domainPackIds,
+});

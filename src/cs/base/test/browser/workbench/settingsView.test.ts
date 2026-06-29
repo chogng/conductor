@@ -236,10 +236,10 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     const view = new SettingsView(container, createSettingsViewOptions({
       activeSettingsSection: "template",
       templateSettings: {
-        builtinAliases: [
+        builtinTerms: [
           {
             id: "builtin-vgs",
-            alias: "Vgs",
+            term: "Vgs",
             canonicalRole: "vg",
             canonicalUnit: "V",
             axisTendency: "x",
@@ -249,7 +249,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
           },
           {
             id: "builtin-id",
-            alias: "Drain Current",
+            term: "Drain Current",
             canonicalRole: "id",
             canonicalUnit: "A",
             axisTendency: "dependent",
@@ -265,7 +265,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       const templateLibrarySection = getElement(container, "#settings-template-domain-packs-card").closest(".settings-section");
       const semanticCard = getElement(container, "#settings-template-semantic-library-card");
       const semanticSection = semanticCard.closest(".settings-section");
-      const customTermsCard = getElement(container, "#settings-template-semantic-allowlist-card");
+      const customTermsCard = getElement(container, "#settings-template-semantic-custom-terms-card");
       const termField = getElement(semanticCard, ".settings-template-term-field");
 
       assert.ok(templateLibrarySection);
@@ -274,6 +274,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(templateLibrarySection.querySelector("#settings-template-semantic-library-card"), null);
       assert.equal(customTermsCard.closest(".settings-section"), semanticSection);
       assert.equal(termField.querySelectorAll(".settings-template-term-token").length, 2);
+      assert.ok(termField.querySelector("input.inputbox_native"));
     }
     finally {
       view.dispose();
@@ -524,7 +525,7 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
     setOriginLegendFontSizeDraft: noop,
     setPlotCommandDraft: noop,
     setPostCommandsDraft: noop,
-    setTemplateSemanticAliasDraft: noop,
+    setTemplateSemanticTermDraft: noop,
     setTemplateSemanticAxisDraft: noop,
     setTemplateSemanticFamilyDraft: noop,
     setTemplateSemanticIntentDraft: noop,
@@ -546,7 +547,7 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
       isSaving: false,
       onEnabledChange: noop,
     },
-    templateSemanticAliasDraft: "",
+    templateSemanticTermDraft: "",
     templateSemanticAxisDraft: "x",
     templateSemanticFamilyDraft: "",
     templateSemanticIntentDraft: "",
@@ -555,11 +556,11 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
     templateSemanticRoleDraft: "voltage",
     templateSemanticUnitDraft: "",
     templateSettings: {
-      allowlist: [],
+      customTerms: [],
       axisOptions: [{ label: "X", value: "x" }],
-      builtinAliases: [],
+      builtinTerms: [],
       builtinDomainPacks: [],
-      disabledBuiltinIds: [],
+      disabledBuiltinTermIds: [],
       disabledDomainPackIds: [],
       familyOptions: [{ label: "none", value: "" }],
       feedback: idleFeedback,
@@ -567,14 +568,14 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
       isSaving: false,
       ivModeOptions: [{ label: "none", value: "" }],
       matchPolicyOptions: [{ label: "exact", value: "exact" }],
-      onAddSemanticAlias: noop,
-      onDisableBuiltinAlias: noop,
+      onAddSemanticTerm: noop,
+      onDisableBuiltinTerm: noop,
       onDisableDomainPack: noop,
-      onEnableBuiltinAlias: noop,
+      onEnableBuiltinTerm: noop,
       onEnableDomainPack: noop,
-      onMoveSemanticAlias: noop,
+      onMoveSemanticTerm: noop,
       onMoveXAxisIntent: noop,
-      onRemoveSemanticAlias: noop,
+      onRemoveSemanticTerm: noop,
       roleOptions: [{ label: "voltage", value: "voltage" }],
       unitOptions: [{ label: "none", value: "" }],
       xAxisIntentPriority: ["genericXY"],

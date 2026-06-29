@@ -66,7 +66,7 @@ export type TemplateSemanticUnit = "V" | "A" | "ohm" | "s" | "F" | "Hz" | "S";
 export type TemplateSemanticFamily = "iv" | "cv" | "cf" | "pv" | "it" | "unknown";
 export type TemplateSemanticIvMode = "transfer" | "output" | "unknown";
 
-export type TemplateSemanticAliasRule = {
+export type TemplateSemanticTermRule = {
   readonly id: string;
   readonly alias: string;
   readonly canonicalRole: TemplateSemanticColumnRole;
@@ -170,7 +170,7 @@ export const DEFAULT_TEMPLATE_X_AXIS_INTENT_PRIORITY: readonly TemplateXAxisInte
   "rawTransient",
   "genericXY",
 ]);
-export const DEFAULT_TEMPLATE_SEMANTIC_ALLOWLIST: readonly TemplateSemanticAliasRule[] = Object.freeze([]);
+export const DEFAULT_TEMPLATE_SEMANTIC_ALLOWLIST: readonly TemplateSemanticTermRule[] = Object.freeze([]);
 export const DEFAULT_TEMPLATE_DISABLED_BUILTIN_SEMANTIC_IDS: readonly string[] = Object.freeze([]);
 export const DEFAULT_TEMPLATE_DISABLED_BUILTIN_DOMAIN_PACK_IDS: readonly string[] = Object.freeze([]);
 
@@ -257,12 +257,12 @@ export const normalizeTemplateXAxisIntentPriority = (
 
 export const normalizeTemplateSemanticAllowlist = (
   value: unknown,
-): readonly TemplateSemanticAliasRule[] => {
+): readonly TemplateSemanticTermRule[] => {
   if (!Array.isArray(value)) {
     return DEFAULT_TEMPLATE_SEMANTIC_ALLOWLIST;
   }
 
-  const rules: TemplateSemanticAliasRule[] = [];
+  const rules: TemplateSemanticTermRule[] = [];
   for (let index = 0; index < value.length; index += 1) {
     const raw = value[index];
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
@@ -362,7 +362,7 @@ export type ConductorSettings = {
   tableTemplateVisualizationEnabled?: boolean;
   templateDisabledBuiltinDomainPackIds?: readonly string[];
   templateDisabledBuiltinSemanticIds?: readonly string[];
-  templateSemanticAllowlist?: readonly TemplateSemanticAliasRule[];
+  templateSemanticAllowlist?: readonly TemplateSemanticTermRule[];
   templateXAxisIntentPriority?: readonly TemplateXAxisIntent[];
   theme?: ThemeMode;
   transparentChrome?: boolean;

@@ -91,11 +91,11 @@ CSS for this surface. Do not call these blocks "aliases" in product text: the
 persisted settings and DataResource records may still carry `alias` field names,
 but that is storage/schema terminology, not the UI concept.
 
-The semantic-library card should render built-in and disabled terms as a dense
-token field: one input-like container with wrapped term blocks inside it. Each
-term block is a concrete matching token, not a separate settings row or state
-owner. User gestures still flow through `SettingsController` callbacks and then
-to `ISettingsService`.
+The semantic-library card should render built-in and disabled terms in a dense
+`InputBox`: wrapped term blocks followed by the editable native input. Each term
+block is a concrete matching token, not a separate settings row or state owner.
+Typing in the input updates the semantic term draft, and user gestures still
+flow through `SettingsController` callbacks and then to `ISettingsService`.
 
 ## Configuration vs Storage
 

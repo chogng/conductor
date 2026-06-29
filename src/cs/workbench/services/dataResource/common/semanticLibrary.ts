@@ -12,7 +12,7 @@ import type {
 	StructuredMeasurementFamily,
 } from "./structuredContent";
 import type {
-	TemplateSemanticAliasRule,
+	TemplateSemanticTermRule,
 	TemplateSemanticMatchPolicy,
 	TemplateXAxisIntent,
 } from "src/cs/workbench/services/settings/common/settings";
@@ -30,7 +30,7 @@ export type DataResourceSemanticTitleMatch = {
 
 export type DataResourceRowMarkerKind = "titleRow" | "dataRow";
 
-export type DataResourceBuiltinSemanticAlias = {
+export type DataResourceBuiltinSemanticTerm = {
 	readonly id: string;
 	readonly alias: string;
 	readonly canonicalRole: StructuredMeasurementColumnRole;
@@ -104,8 +104,8 @@ type SemanticTitleMatchCandidate = {
 };
 
 export type DataResourceSemanticMatcherOptions = {
-	readonly allowlist?: readonly TemplateSemanticAliasRule[];
-	readonly disabledBuiltinIds?: readonly string[];
+	readonly allowlist?: readonly TemplateSemanticTermRule[];
+	readonly disabledBuiltinTermIds?: readonly string[];
 	readonly disabledDomainPackIds?: readonly string[];
 	readonly xAxisIntentPriority?: readonly TemplateXAxisIntent[];
 };
@@ -119,12 +119,12 @@ export type DataResourceSemanticMatcher = {
 };
 
 const builtinTitleEntries: SemanticTitleLookupEntry[] = [];
-const builtinSemanticAliases: DataResourceBuiltinSemanticAlias[] = [];
+const builtinSemanticTerms: DataResourceBuiltinSemanticTerm[] = [];
 const builtinRowMarkerEntries: SemanticRowMarkerLookupEntry[] = [];
 
 for (const title of semanticLibrary.titles) {
 	for (const alias of title.aliases) {
-		const id = createBuiltinAliasId(title, alias);
+		const id = createBuiltinTermId(title, alias);
 		builtinTitleEntries.push({
 			id,
 			alias: normalizeSemanticLookupText(alias),
@@ -133,7 +133,7 @@ for (const title of semanticLibrary.titles) {
 			matchPolicy: "library",
 			domainPackIds: title.domainPackIds ?? [],
 		});
-		builtinSemanticAliases.push({
+		builtinSemanticTerms.push({
 			id,
 			alias,
 			canonicalRole: title.canonicalRole,
@@ -159,21 +159,21 @@ for (const marker of semanticLibrary.rowMarkers) {
 const defaultSemanticMatcher = createDataResourceSemanticMatcher();
 
 export const dataResourceSemanticLibraryFingerprint = defaultSemanticMatcher.fingerprint;
-export const dataResourceBuiltinSemanticAliases: readonly DataResourceBuiltinSemanticAlias[] = Object.freeze(builtinSemanticAliases.slice());
+export const dataResourceBuiltinSemanticTerms: readonly DataResourceBuiltinSemanticTerm[] = Object.freeze(builtinSemanticTerms.slice());
 export const dataResourceBuiltinSemanticDomainPacks: readonly DataResourceBuiltinSemanticDomainPack[] = Object.freeze(semanticLibrary.domainPacks.slice());
 
 export function createDataResourceSemanticMatcher(
 	options: DataResourceSemanticMatcherOptions = {},
 ): DataResourceSemanticMatcher {
 	const allowlist = normalizeAllowlistEntries(options.allowlist ?? []);
-	const disabledBuiltinIds = new Set((options.disabledBuiltinIds ?? []).filter(Boolean));
+	const disabledBuiltinTermIds = new Set((options.disabledBuiltinTermIds ?? []).filter(Boolean));
 	const disabledDomainPackIds = new Set((options.disabledDomainPackIds ?? []).filter(Boolean));
 	const xAxisIntentPriority = Array.isArray(options.xAxisIntentPriority)
 		? options.xAxisIntentPriority.slice()
 		: [];
 	const titleEntries = [
 		...builtinTitleEntries.filter(entry =>
-			(!entry.id || !disabledBuiltinIds.has(entry.id)) &&
+			(!entry.id || !disabledBuiltinTermIds.has(entry.id)) &&
 			hasActiveDomainPack(entry.domainPackIds, disabledDomainPackIds)
 		),
 		...allowlist,
@@ -188,7 +188,7 @@ export function createDataResourceSemanticMatcher(
 			intent: entry.intent,
 			matchPolicy: entry.matchPolicy,
 		})),
-		disabledBuiltinIds: Array.from(disabledBuiltinIds).sort(),
+		disabledBuiltinTermIds: Array.from(disabledBuiltinTermIds).sort(),
 		disabledDomainPackIds: Array.from(disabledDomainPackIds).sort(),
 		library: semanticLibrary,
 		xAxisIntentPriority,
@@ -237,7 +237,7 @@ const matchSemanticTitle = (
 			matches.push({
 				aliasLength: entry.alias.length,
 				matchRank: 3,
-				reason: entry.source === "allowlist" ? "semanticAllowlist.alias" : "semanticLibrary.alias",
+				reason: entry.source === "allowlist" ? "semanticAllowlist.term" : "semanticLibrary.term",
 				sourceRank: entry.source === "allowlist" ? 1 : 0,
 				entry,
 			});
@@ -252,7 +252,7 @@ const matchSemanticTitle = (
 			matches.push({
 				aliasLength: entry.alias.length,
 				matchRank: 2,
-				reason: entry.source === "allowlist" ? "semanticAllowlist.tokenAlias" : "semanticLibrary.tokenAlias",
+				reason: entry.source === "allowlist" ? "semanticAllowlist.tokenTerm" : "semanticLibrary.tokenTerm",
 				sourceRank: entry.source === "allowlist" ? 1 : 0,
 				entry,
 			});
@@ -264,7 +264,7 @@ const matchSemanticTitle = (
 			matches.push({
 				aliasLength: entry.alias.length,
 				matchRank: 1,
-				reason: entry.source === "allowlist" ? "semanticAllowlist.containsAlias" : "semanticLibrary.containsAlias",
+				reason: entry.source === "allowlist" ? "semanticAllowlist.containsTerm" : "semanticLibrary.containsTerm",
 				sourceRank: entry.source === "allowlist" ? 1 : 0,
 				entry,
 			});
@@ -323,7 +323,7 @@ const createSemanticTitleMatch = (
 };
 
 function normalizeAllowlistEntries(
-	allowlist: readonly TemplateSemanticAliasRule[],
+	allowlist: readonly TemplateSemanticTermRule[],
 ): readonly SemanticTitleLookupEntry[] {
 	return allowlist
 		.filter(rule => rule.enabled !== false && rule.alias.trim())
@@ -352,7 +352,7 @@ function hasActiveDomainPack(
 	return domainPackIds.length === 0 || domainPackIds.some(id => !disabledDomainPackIds.has(id));
 }
 
-function createBuiltinAliasId(
+function createBuiltinTermId(
 	title: SemanticTitleRecord,
 	alias: string,
 ): string {

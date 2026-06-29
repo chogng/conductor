@@ -21,7 +21,6 @@ import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/services/settings/common/fileNameMatching";
 import type {
-  TemplateSemanticAliasRule,
   TemplateSemanticAxisTendency,
   TemplateSemanticColumnRole,
   TemplateSemanticFamily,
@@ -31,7 +30,6 @@ import type {
   TemplateXAxisIntent,
 } from "src/cs/workbench/services/settings/common/settings";
 import type {
-  DataResourceBuiltinSemanticAlias,
   DataResourceBuiltinSemanticDomainPack,
 } from "src/cs/workbench/services/dataResource/common/semanticLibrary";
 import {
@@ -181,29 +179,46 @@ type ChartDefaultSettings = {
 };
 
 type TemplateSettings = {
-  allowlist: readonly TemplateSemanticAliasRule[];
+  customTerms: readonly TemplateSemanticTerm[];
   axisOptions: readonly SelectOption[];
-  builtinAliases: readonly DataResourceBuiltinSemanticAlias[];
+  builtinTerms: readonly TemplateBuiltinSemanticTerm[];
   builtinDomainPacks: readonly DataResourceBuiltinSemanticDomainPack[];
   disabledDomainPackIds: readonly string[];
-  disabledBuiltinIds: readonly string[];
+  disabledBuiltinTermIds: readonly string[];
   familyOptions: readonly SelectOption[];
   feedback: Feedback;
   intentOptions: readonly SelectOption[];
   isSaving: boolean;
   ivModeOptions: readonly SelectOption[];
   matchPolicyOptions: readonly SelectOption[];
-  onAddSemanticAlias: () => Promise<void> | void;
-  onDisableBuiltinAlias: (id: string) => Promise<void> | void;
+  onAddSemanticTerm: () => Promise<void> | void;
+  onDisableBuiltinTerm: (id: string) => Promise<void> | void;
   onDisableDomainPack: (id: string) => Promise<void> | void;
-  onEnableBuiltinAlias: (id: string) => Promise<void> | void;
+  onEnableBuiltinTerm: (id: string) => Promise<void> | void;
   onEnableDomainPack: (id: string) => Promise<void> | void;
-  onMoveSemanticAlias: (sourceId: string, targetId: string) => Promise<void> | void;
+  onMoveSemanticTerm: (sourceId: string, targetId: string) => Promise<void> | void;
   onMoveXAxisIntent: (sourceIntent: TemplateXAxisIntent, targetIntent: TemplateXAxisIntent) => Promise<void> | void;
-  onRemoveSemanticAlias: (id: string) => Promise<void> | void;
+  onRemoveSemanticTerm: (id: string) => Promise<void> | void;
   roleOptions: readonly SelectOption[];
   unitOptions: readonly SelectOption[];
   xAxisIntentPriority: readonly TemplateXAxisIntent[];
+};
+
+type TemplateSemanticTerm = {
+  readonly id: string;
+  readonly term: string;
+  readonly canonicalRole: TemplateSemanticColumnRole;
+  readonly canonicalUnit?: TemplateSemanticUnit;
+  readonly axisTendency: TemplateSemanticAxisTendency;
+  readonly family?: TemplateSemanticFamily;
+  readonly ivMode?: TemplateSemanticIvMode;
+  readonly intent?: TemplateXAxisIntent;
+  readonly matchPolicy: TemplateSemanticMatchPolicy;
+  readonly enabled: boolean;
+};
+
+type TemplateBuiltinSemanticTerm = Omit<TemplateSemanticTerm, "enabled" | "intent" | "matchPolicy"> & {
+  readonly domainPackIds: readonly string[];
 };
 
 type SettingsViewProps = {
@@ -266,7 +281,7 @@ export type SettingsViewOptions = SettingsViewProps & {
   setOriginLegendFontSizeDraft: (value: string) => void;
   setPlotCommandDraft: (value: string) => void;
   setPostCommandsDraft: (value: string) => void;
-  setTemplateSemanticAliasDraft: (value: string) => void;
+  setTemplateSemanticTermDraft: (value: string) => void;
   setTemplateSemanticAxisDraft: (value: string) => void;
   setTemplateSemanticFamilyDraft: (value: string) => void;
   setTemplateSemanticIntentDraft: (value: string) => void;
@@ -278,7 +293,7 @@ export type SettingsViewOptions = SettingsViewProps & {
   setXyPairsDraft: (value: string) => void;
   settingsSections: SettingsSectionEntry[];
   themeModeOptions: SelectOption[];
-  templateSemanticAliasDraft: string;
+  templateSemanticTermDraft: string;
   templateSemanticAxisDraft: TemplateSemanticAxisTendency;
   templateSemanticFamilyDraft: TemplateSemanticFamily | "";
   templateSemanticIntentDraft: TemplateXAxisIntent | "";
@@ -880,7 +895,7 @@ export class SettingsView {
       container,
       titleText,
       description,
-      settings.builtinAliases.map(rule => `${rule.alias} ${rule.canonicalRole} ${rule.axisTendency}`).join(" "),
+      settings.builtinTerms.map(rule => `${rule.term} ${rule.canonicalRole} ${rule.axisTendency}`).join(" "),
     );
     container.appendChild(headingBlock(titleText, description));
 
@@ -890,23 +905,23 @@ export class SettingsView {
   }
 
   private createTemplateSemanticAllowlist(settings: TemplateSettings): HTMLElement {
-    const container = card("settings-template-semantic-allowlist-card", "settings-card-block");
+    const container = card("settings-template-semantic-custom-terms-card", "settings-card-block");
     const titleText = localize("settings.template.semantic.customTitle", "Custom Match Terms");
     const description = localize("settings.template.semantic.customDescription", "Add match terms that should join the DataResource matcher alongside the built-in semantic library.");
     setSettingsSearchText(
       container,
       titleText,
       description,
-      settings.allowlist.map(rule => `${rule.alias} ${rule.canonicalRole} ${rule.axisTendency}`).join(" "),
+      settings.customTerms.map(rule => `${rule.term} ${rule.canonicalRole} ${rule.axisTendency}`).join(" "),
     );
     container.appendChild(headingBlock(titleText, description));
 
     const userTitle = text("p", "settings-template-subtitle", localize("settings.template.semantic.userTitle", "Custom terms"));
     const list = div("settings-template-block-list");
-    if (!settings.allowlist.length) {
+    if (!settings.customTerms.length) {
       list.appendChild(text("p", "settings-template-empty", localize("settings.template.semantic.empty", "No custom terms.")));
     }
-    for (const rule of settings.allowlist) {
+    for (const rule of settings.customTerms) {
       list.appendChild(this.createTemplateSemanticTermBlock(settings, rule));
     }
     container.append(userTitle, list, this.createTemplateSemanticTermForm(settings));
@@ -915,45 +930,66 @@ export class SettingsView {
   }
 
   private createBuiltinSemanticTermList(settings: TemplateSettings): HTMLElement {
-    const disabledIds = new Set(settings.disabledBuiltinIds);
-    const enabledTerms = settings.builtinAliases.filter(term => !disabledIds.has(term.id));
+    const disabledTermIds = new Set(settings.disabledBuiltinTermIds);
+    const enabledTerms = settings.builtinTerms.filter(term => !disabledTermIds.has(term.id));
     const section = div("settings-template-library-group");
-    section.appendChild(text("p", "settings-template-subtitle", localize("settings.template.semantic.builtinTitle", "Built-in match terms")));
-    const list = this.createTemplateSemanticTermField(settings);
-    for (const term of enabledTerms) {
-      list.appendChild(this.createBuiltinSemanticTermToken(settings, term, "enabled"));
-    }
-    section.appendChild(list);
+    const title = localize("settings.template.semantic.builtinTitle", "Built-in match terms");
+    section.appendChild(text("p", "settings-template-subtitle", title));
+    section.appendChild(this.createTemplateSemanticTermField(
+      settings,
+      enabledTerms.map(term => this.createBuiltinSemanticTermToken(settings, term, "enabled")),
+      title,
+    ));
     return section;
   }
 
   private createDisabledBuiltinSemanticTermList(settings: TemplateSettings): HTMLElement {
-    const disabledIds = new Set(settings.disabledBuiltinIds);
-    const disabledTerms = settings.builtinAliases.filter(term => disabledIds.has(term.id));
+    const disabledTermIds = new Set(settings.disabledBuiltinTermIds);
+    const disabledTerms = settings.builtinTerms.filter(term => disabledTermIds.has(term.id));
     const section = div("settings-template-library-group");
-    section.appendChild(text("p", "settings-template-subtitle", localize("settings.template.semantic.disabledBuiltinTitle", "Disabled match terms")));
-    const list = this.createTemplateSemanticTermField(settings);
-    if (!disabledTerms.length) {
-      list.appendChild(text("span", "settings-template-empty", localize("settings.template.semantic.noDisabledBuiltin", "No disabled match terms.")));
-    }
-    for (const term of disabledTerms) {
-      list.appendChild(this.createBuiltinSemanticTermToken(settings, term, "disabled"));
-    }
-    section.appendChild(list);
+    const title = localize("settings.template.semantic.disabledBuiltinTitle", "Disabled match terms");
+    section.appendChild(text("p", "settings-template-subtitle", title));
+    const content = disabledTerms.length
+      ? disabledTerms.map(term => this.createBuiltinSemanticTermToken(settings, term, "disabled"))
+      : [text("span", "settings-template-empty", localize("settings.template.semantic.noDisabledBuiltin", "No disabled match terms."))];
+    section.appendChild(this.createTemplateSemanticTermField(settings, content, title));
     return section;
   }
 
-  private createTemplateSemanticTermField(settings: TemplateSettings): HTMLElement {
-    const field = document.createElement("div");
-    field.className = "inputbox_field settings-template-term-field";
-    field.dataset.icon = "without";
-    field.setAttribute("aria-disabled", String(settings.isSaving));
-    return field;
+  private createTemplateSemanticTermField(
+    settings: TemplateSettings,
+    content: readonly Node[],
+    ariaLabel: string,
+  ): HTMLElement {
+    const tokenFragment = document.createDocumentFragment();
+    tokenFragment.append(...content);
+    const inputBox = this.renderDisposables.add(createInputBox({
+      ariaLabel,
+      disabled: settings.isSaving,
+      left: tokenFragment,
+      placeholder: localize("settings.template.semantic.termInputPlaceholder", "Add match term"),
+      value: this.options.templateSemanticTermDraft,
+    }));
+    inputBox.element.classList.add("settings-template-term-inputbox");
+    inputBox.field.classList.add("settings-template-term-field");
+    inputBox.field.setAttribute("aria-disabled", String(settings.isSaving));
+    this.renderDisposables.add(inputBox.onDidChange(value => {
+      this.options.setTemplateSemanticTermDraft(value);
+    }));
+    this.renderDisposables.add(addDisposableListener(inputBox.input, EventType.KEY_DOWN, event => {
+      if (event.key !== "Enter" || !inputBox.value.trim()) {
+        return;
+      }
+
+      event.preventDefault();
+      void settings.onAddSemanticTerm();
+    }));
+    return inputBox.element;
   }
 
   private createBuiltinSemanticTermToken(
     settings: TemplateSettings,
-    semanticTerm: DataResourceBuiltinSemanticAlias,
+    semanticTerm: TemplateBuiltinSemanticTerm,
     state: "enabled" | "disabled",
   ): HTMLElement {
     const term = document.createElement("button");
@@ -965,26 +1001,26 @@ export class SettingsView {
       ? localize("settings.template.semantic.disableBuiltinTitle", "Disable this built-in match term for Review")
       : localize("settings.template.semantic.enableBuiltinTitle", "Enable this built-in match term for Review");
     term.setAttribute("aria-label", state === "enabled"
-      ? localize("settings.template.semantic.disableBuiltin", "Disable built-in match term {term}", { term: semanticTerm.alias })
-      : localize("settings.template.semantic.enableBuiltin", "Enable built-in match term {term}", { term: semanticTerm.alias }));
+      ? localize("settings.template.semantic.disableBuiltin", "Disable built-in match term {term}", { term: semanticTerm.term })
+      : localize("settings.template.semantic.enableBuiltin", "Enable built-in match term {term}", { term: semanticTerm.term }));
     const icon = state === "enabled"
       ? LxIcon.close
       : LxIcon.add;
     term.append(
-      text("span", "settings-template-term-token-label", semanticTerm.alias),
+      text("span", "settings-template-term-token-label", semanticTerm.term),
       createLxIcon({ className: "settings-template-term-token-icon", icon, size: 14 }),
     );
     term.addEventListener("click", () => {
       if (state === "enabled") {
-        void settings.onDisableBuiltinAlias(semanticTerm.id);
+        void settings.onDisableBuiltinTerm(semanticTerm.id);
         return;
       }
-      void settings.onEnableBuiltinAlias(semanticTerm.id);
+      void settings.onEnableBuiltinTerm(semanticTerm.id);
     });
     return term;
   }
 
-  private createTemplateSemanticTermBlock(settings: TemplateSettings, rule: TemplateSemanticAliasRule): HTMLElement {
+  private createTemplateSemanticTermBlock(settings: TemplateSettings, rule: TemplateSemanticTerm): HTMLElement {
     const block = div("settings-template-block settings-template-block--term");
     block.draggable = !settings.isSaving;
     block.dataset.termId = rule.id;
@@ -999,13 +1035,13 @@ export class SettingsView {
       event.preventDefault();
       const sourceId = event.dataTransfer?.getData("application/x-conductor-template-term");
       if (sourceId) {
-        void settings.onMoveSemanticAlias(sourceId, rule.id);
+        void settings.onMoveSemanticTerm(sourceId, rule.id);
       }
     });
 
     const body = div(
       "settings-template-block-body",
-      text("span", "settings-template-block-title", rule.alias),
+      text("span", "settings-template-block-title", rule.term),
       text("span", "settings-template-block-meta", formatSemanticTermRule(rule)),
     );
     const removeButton = document.createElement("button");
@@ -1013,10 +1049,10 @@ export class SettingsView {
     removeButton.className = "settings-template-icon-button";
     removeButton.disabled = settings.isSaving;
     removeButton.title = localize("settings.template.semantic.remove", "Remove term");
-    removeButton.setAttribute("aria-label", localize("settings.template.semantic.removeAlias", "Remove match term {term}", { term: rule.alias }));
+    removeButton.setAttribute("aria-label", localize("settings.template.semantic.removeTerm", "Remove match term {term}", { term: rule.term }));
     removeButton.appendChild(createLxIcon({ className: "settings-template-icon", icon: LxIcon.trashFlat, size: 14 }));
     removeButton.addEventListener("click", () => {
-      void settings.onRemoveSemanticAlias(rule.id);
+      void settings.onRemoveSemanticTerm(rule.id);
     });
 
     block.append(
@@ -1031,10 +1067,10 @@ export class SettingsView {
     const form = div("settings-template-semantic-form");
     const grid = div("settings-grid settings-grid--three");
     grid.append(
-      field(localize("settings.template.semantic.aliasLabel", "Match term"), this.createInput({
-        id: "settings-template-semantic-alias-input",
-        value: this.options.templateSemanticAliasDraft,
-        onChange: this.options.setTemplateSemanticAliasDraft,
+      field(localize("settings.template.semantic.termLabel", "Match term"), this.createInput({
+        id: "settings-template-semantic-term-input",
+        value: this.options.templateSemanticTermDraft,
+        onChange: this.options.setTemplateSemanticTermDraft,
         disabled: settings.isSaving,
       })),
       field(localize("settings.template.semantic.roleLabel", "Role"), this.createSelect({
@@ -1092,8 +1128,8 @@ export class SettingsView {
       div("settings-actions-end", this.createButton({
         id: "settings-template-semantic-add-button",
         label: localize("settings.template.semantic.add", "Add Term"),
-        onClick: () => void settings.onAddSemanticAlias(),
-        disabled: settings.isSaving || !this.options.templateSemanticAliasDraft.trim(),
+        onClick: () => void settings.onAddSemanticTerm(),
+        disabled: settings.isSaving || !this.options.templateSemanticTermDraft.trim(),
         variant: "primary",
       })),
     );
@@ -2228,7 +2264,7 @@ function formatXAxisIntent(intent: TemplateXAxisIntent): string {
   return localize("settings.template.intent.genericXY", "Generic XY");
 }
 
-function formatSemanticTermRule(rule: TemplateSemanticAliasRule): string {
+function formatSemanticTermRule(rule: TemplateSemanticTerm): string {
   return [
     rule.canonicalRole,
     rule.axisTendency,

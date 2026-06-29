@@ -351,6 +351,16 @@
   opacity: 0.6;
 }
 
+.settings-template-term-field > .inputbox_left {
+  display: contents;
+}
+
+.settings-template-term-field > .inputbox_native {
+  flex: 1 0 12rem;
+  min-width: 10rem;
+  min-height: 32px;
+}
+
 .settings-template-term-token {
   display: inline-flex;
   flex: 0 1 auto;

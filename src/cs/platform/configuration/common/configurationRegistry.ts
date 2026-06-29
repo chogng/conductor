@@ -110,7 +110,7 @@ type PlotAxisSettings = {
 };
 
 type NumericDisplayMode = "raw" | "smart";
-type TemplateSemanticAliasRule = {
+type TemplateSemanticTermRule = {
   id: string;
   alias: string;
   canonicalRole: string;
@@ -129,7 +129,7 @@ export type ConductorSettings = JsonRecord & {
   tableTemplateVisualizationEnabled: boolean;
   templateDisabledBuiltinDomainPackIds: string[];
   templateDisabledBuiltinSemanticIds: string[];
-  templateSemanticAllowlist: TemplateSemanticAliasRule[];
+  templateSemanticAllowlist: TemplateSemanticTermRule[];
   templateXAxisIntentPriority: string[];
   theme: string;
   backgroundColor: string;
@@ -605,12 +605,12 @@ function normalizeTemplateXAxisIntentPriority(value: unknown): string[] {
   return result;
 }
 
-function normalizeTemplateSemanticAllowlist(value: unknown): TemplateSemanticAliasRule[] {
+function normalizeTemplateSemanticAllowlist(value: unknown): TemplateSemanticTermRule[] {
   if (!Array.isArray(value)) {
     return [];
   }
 
-  const rules: TemplateSemanticAliasRule[] = [];
+  const rules: TemplateSemanticTermRule[] = [];
   for (let index = 0; index < value.length; index += 1) {
     const raw = value[index];
     if (!isRecord(raw)) {

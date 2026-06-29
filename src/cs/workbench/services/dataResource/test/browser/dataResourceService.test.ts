@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 import { DataResourceService } from "src/cs/workbench/services/dataResource/browser/dataResourceService";
 import {
 	createDataResourceSemanticMatcher,
-	dataResourceBuiltinSemanticAliases,
+	dataResourceBuiltinSemanticTerms,
 	dataResourceBuiltinSemanticDomainPacks,
 	matchDataResourceRowMarker,
 	matchDataResourceSemanticTitle,
@@ -56,7 +56,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		return evidence;
 	};
 
-	test("matches semantic title and row marker aliases", () => {
+	test("matches semantic title and row marker terms", () => {
 		const xMatch = matchDataResourceSemanticTitle("drain TotalCurrent(IdVg_n938_des) X");
 		const yMatch = matchDataResourceSemanticTitle("drain TotalCurrent(IdVg_n938_des) Y");
 
@@ -76,7 +76,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.equal(matchDataResourceRowMarker("DataValue"), "dataRow");
 	});
 
-	test("uses template semantic allowlist entries in DataResource matcher", async () => {
+	test("uses template semantic term entries in DataResource matcher", async () => {
 		const evidence = await resolveEvidence([
 			["DriveBias", "SenseCurrent"],
 			["0", "1e-12"],
@@ -105,7 +105,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			span.targetColumn === 0 &&
 			span.canonicalRole === "voltage" &&
 			span.axisTendency === "x" &&
-			span.reasons.includes("semanticAllowlist.alias")
+			span.reasons.includes("semanticAllowlist.term")
 		));
 		assert.ok(evidence.columnTitleSpans.some(span =>
 			span.targetColumn === 1 &&
@@ -114,16 +114,16 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		));
 	});
 
-	test("can disable built-in semantic aliases without deleting user aliases", async () => {
-		const vgAlias = dataResourceBuiltinSemanticAliases.find(alias => alias.alias === "Vg");
-		assert.ok(vgAlias);
+	test("can disable built-in semantic terms without deleting user terms", async () => {
+		const vgTerm = dataResourceBuiltinSemanticTerms.find(term => term.alias === "Vg");
+		assert.ok(vgTerm);
 		const evidence = await resolveEvidence([
 			["Vg", "SenseCurrent"],
 			["0", "1e-12"],
 			["0.5", "2e-12"],
 			["1", "4e-12"],
 		], {
-			templateDisabledBuiltinSemanticIds: [vgAlias.id],
+			templateDisabledBuiltinSemanticIds: [vgTerm.id],
 			templateSemanticAllowlist: [{
 				id: "sense-current",
 				alias: "SenseCurrent",
@@ -141,11 +141,11 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.ok(evidence.columnTitleSpans.some(span =>
 			span.targetColumn === 1 &&
 			span.canonicalRole === "current" &&
-			span.reasons.includes("semanticAllowlist.alias")
+			span.reasons.includes("semanticAllowlist.term")
 		));
 	});
 
-	test("can disable built-in domain packs without deleting user aliases", async () => {
+	test("can disable built-in domain packs without deleting user terms", async () => {
 		assert.ok(dataResourceBuiltinSemanticDomainPacks.some(pack => pack.id === "origin-like-export"));
 		const matcher = createDataResourceSemanticMatcher({
 			disabledDomainPackIds: ["origin-like-export"],
@@ -176,7 +176,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.ok(evidence.columnTitleSpans.some(span =>
 			span.targetColumn === 1 &&
 			span.canonicalRole === "current" &&
-			span.reasons.includes("semanticAllowlist.alias")
+			span.reasons.includes("semanticAllowlist.term")
 		));
 	});
 
