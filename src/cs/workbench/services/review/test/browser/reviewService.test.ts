@@ -65,10 +65,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 	};
 	const createUserTemplateServiceForTest = () =>
 		store.add(new UserTemplateService(createUserTemplateStoreServiceForTest()));
-	const settingsService = {
-		onDidChangeConductorSettings: Event.None,
-		getConductorSettings: () => null,
-	} as unknown as ISettingsService;
 	const createReviewServiceForTest = (
 		userTemplateService: IUserTemplateService,
 		dataResourceService?: IDataResourceService,
@@ -83,8 +79,12 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		diagnostics: readonly TableParseDiagnostic[] = [],
 		fixedSheetId: string | null = null,
 		content: TableModelContentSnapshot = createTestTableModelContent(),
+		conductorSettings: Record<string, unknown> | null = null,
 	): IDataResourceService =>
-		store.add(new DataResourceService(store.add(new TestTableModelService(resource, diagnostics, fixedSheetId, content)), settingsService));
+		store.add(new DataResourceService(store.add(new TestTableModelService(resource, diagnostics, fixedSheetId, content)), {
+			onDidChangeConductorSettings: Event.None,
+			getConductorSettings: () => conductorSettings,
+		} as unknown as ISettingsService));
 	const createReviewTargetForTest = (fileName = "Transfer.csv") => ({
 		resource: URI.file(`/workspace/${fileName}`),
 		modelVersion: 1,
@@ -104,7 +104,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		});
 
 		assert.equal(result.semanticLibraryFingerprint, "semantic:test");
-		assert.equal(result.reviewPolicyVersion, 12);
+		assert.equal(result.reviewPolicyVersion, 13);
 		assert.equal(typeof result.evidenceFingerprint, "string");
 		assert.equal(typeof result.candidates[0]?.providerRank, "number");
 		assert.equal(result.reviewedTemplate, result.decision.kind === "ready" ? result.decision.reviewedTemplate : undefined);
@@ -322,6 +322,34 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(result.decision.kind, "ready");
 		assert.equal(result.reviewedTemplate?.candidateId, result.candidates[0]?.id);
 		assert.equal(result.reviews[0]?.findings.some(finding => finding.code === "review.ambiguousCandidates"), false);
+	});
+
+	test("uses X intent priority to resolve time and voltage X candidates before Review", async () => {
+		const userTemplateService = createUserTemplateServiceForTest();
+		const resource = URI.file("/workspace/FastIvTransfer.csv");
+		const service = createReviewServiceForTest(
+			userTemplateService,
+			createDataResourceServiceForTest(resource, [], null, createTestTableModelContent([
+				["FastIV", "interval", ""],
+				["DataName", "Time", "Vg", "Id"],
+				["DataValue", "0", "0", "1e-12"],
+				["DataValue", "1", "0.5", "2e-12"],
+				["DataValue", "2", "1", "3e-12"],
+				["DataValue", "3", "1.5", "4e-12"],
+			]), {
+				templateXAxisIntentPriority: ["ivCurve", "pvCurve", "cvCurve", "frequencySweep", "rawTransient", "genericXY"],
+			}),
+		);
+
+		const reviewExecution = await service.reviewUriForExecution({ resource });
+
+		assert.equal(reviewExecution?.summary.state, "ready");
+		assert.equal(reviewExecution?.summary.findingCodes.includes("review.ambiguousCandidates"), false);
+		assert.deepEqual(reviewExecution?.systemRecommendedReviewedTemplate?.template.blocks[0]?.x.columns, [2]);
+		assert.deepEqual(reviewExecution?.systemRecommendedReviewedTemplate?.template.measurement, {
+			curveFamily: "iv",
+			ivMode: "transfer",
+		});
 	});
 
 	test("does not require adjustment when a repeated-block candidate covers child block candidates", async () => {
@@ -779,7 +807,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		}
 	});
 
-	test("marks cached URI reviews stale when review inputs change", async () => {
+	test("refreshes cached URI reviews when review inputs change", async () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Transfer.csv");
 		const service = createReviewServiceForTest(
@@ -804,11 +832,11 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(staleSummary.findingCodes.includes("review.stale"), true);
 		assert.equal(staleSummary.templateFingerprint, undefined);
 
-		await new Promise(resolve => setTimeout(resolve, 0));
-		assert.equal(service.getLatestReviewSummary(target).state, "stale");
+		await waitUntil(() => service.getLatestReviewSummary(target).state === "ready", 40, 5);
+		assert.equal(service.getLatestReviewSummary(target).state, "ready");
 	});
 
-	test("marks cached URI reviews stale when schema profiles change", async () => {
+	test("refreshes cached URI reviews when schema profiles change", async () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 		const schemaProfileService = store.add(new TestSchemaProfileService());
 		const resource = URI.file("/workspace/Transfer.csv");
@@ -830,8 +858,8 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(staleSummary.state, "stale");
 		assert.equal(staleSummary.findingCodes.includes("review.stale"), true);
 
-		await new Promise(resolve => setTimeout(resolve, 0));
-		assert.equal(service.getLatestReviewSummary(target).state, "stale");
+		await waitUntil(() => service.getLatestReviewSummary(target).state === "ready", 40, 5);
+		assert.equal(service.getLatestReviewSummary(target).state, "ready");
 	});
 
 	test("confirms reviewed templates into schema profiles from structured content", async () => {

@@ -89,6 +89,20 @@ type XRangeAnalysis = {
 	readonly run: NumericRun;
 };
 
+type XRangeIntentSelection = {
+	readonly intent: StructuredXAxisIntent;
+	readonly priorityIndex: number;
+	readonly priorityRank: number;
+};
+
+type XRangeDraft = {
+	readonly baseConfidence: number;
+	readonly intentSelection: XRangeIntentSelection | null;
+	readonly pattern: NumericPatternAnalysis;
+	readonly run: NumericRun;
+	readonly titleSpan?: StructuredColumnTitleSpanEvidence;
+};
+
 type NumericPatternAnalysis = {
 	readonly direction: StructuredXRangeDirection;
 	readonly monotonicity: number;
@@ -107,6 +121,8 @@ type GroupRange = {
 
 const MinimumNumericRunPoints = 2;
 const BlockXConfidenceThreshold = 0.55;
+const XIntentPriorityPenalty = 0.04;
+const UntypedXIntentPenalty = 0.06;
 const NumberTolerance = 1e-9;
 
 export class DataResourceService extends Disposable implements IDataResourceService {
@@ -895,34 +911,58 @@ const createXRangeAnalyses = ({
 	readonly titleSpans: readonly StructuredColumnTitleSpanEvidence[];
 }): readonly XRangeAnalysis[] => {
 	const titleSpansByRun = createTitleSpanByRun(titleSpans);
-	const analyses: XRangeAnalysis[] = [];
+	const drafts: XRangeDraft[] = [];
 	for (const run of numericRuns) {
 		const titleSpan = titleSpansByRun.get(getRunKey(run));
 		const pattern = analyzeNumericPattern(run.values);
-		const confidence = scoreXRangeCandidate({
+		const baseConfidence = scoreXRangeCandidate({
 			columnCount,
 			pattern,
 			rows,
 			run,
 			titleSpan,
 		});
+		if (baseConfidence < 0.45) {
+			continue;
+		}
+
+		drafts.push({
+			baseConfidence,
+			intentSelection: selectXRangeIntent(titleSpan, xAxisIntentPriority),
+			pattern,
+			run,
+			...(titleSpan ? { titleSpan } : {}),
+		});
+	}
+
+	const bestPriorityIndex = Math.min(
+		...drafts
+			.map(draft => draft.intentSelection?.priorityIndex)
+			.filter((priorityIndex): priorityIndex is number => priorityIndex !== undefined)
+	);
+	const hasIntentSelection = Number.isFinite(bestPriorityIndex);
+	const analyses: XRangeAnalysis[] = [];
+	for (const draft of drafts) {
+		const confidence = clampConfidence(
+			draft.baseConfidence - getXIntentPriorityPenalty(draft.intentSelection, hasIntentSelection ? bestPriorityIndex : 0, hasIntentSelection),
+		);
 		if (confidence < 0.45) {
 			continue;
 		}
 
-		const reasons = createXRangeReasons(pattern, titleSpan, rows, run, xAxisIntentPriority);
+		const reasons = createXRangeReasons(draft.pattern, draft.titleSpan, rows, draft.run, draft.intentSelection);
 		analyses.push({
-			run,
-			intentPriorityRank: getXIntentPriorityRank(titleSpan, xAxisIntentPriority),
+			run: draft.run,
+			intentPriorityRank: draft.intentSelection?.priorityRank ?? 0,
 			candidate: {
-				id: `x-range:c${run.column}:r${run.startRow}-${run.endRow}`,
-				column: run.column,
-				startRow: run.startRow,
-				endRow: run.endRow,
-				direction: pattern.direction,
-				stepKind: pattern.stepKind,
-				...(pattern.step !== undefined ? { step: pattern.step } : {}),
-				pointCount: run.pointCount,
+				id: `x-range:c${draft.run.column}:r${draft.run.startRow}-${draft.run.endRow}`,
+				column: draft.run.column,
+				startRow: draft.run.startRow,
+				endRow: draft.run.endRow,
+				direction: draft.pattern.direction,
+				stepKind: draft.pattern.stepKind,
+				...(draft.pattern.step !== undefined ? { step: draft.pattern.step } : {}),
+				pointCount: draft.run.pointCount,
 				confidence,
 				reasons,
 			},
@@ -986,7 +1026,7 @@ const createXRangeReasons = (
 	titleSpan: StructuredColumnTitleSpanEvidence | undefined,
 	rows: readonly (readonly string[])[],
 	run: NumericRun,
-	xAxisIntentPriority: readonly StructuredXAxisIntent[],
+	intentSelection: XRangeIntentSelection | null,
 ): readonly string[] => {
 	const reasons: string[] = ["xRange.numericRun"];
 	if (pattern.direction !== "mixed") {
@@ -1001,15 +1041,9 @@ const createXRangeReasons = (
 	if (titleSpan?.axisTendency === "x") {
 		reasons.push(`xRange.title:${titleSpan.canonicalRole}`);
 	}
-	const intent = titleSpan?.axisTendency === "x"
-		? readTitleSpanIntent(titleSpan)
-		: null;
-	if (intent) {
-		reasons.push(`xRange.intent:${intent}`);
-		const priorityIndex = xAxisIntentPriority.indexOf(intent);
-		if (priorityIndex !== -1) {
-			reasons.push(`xRange.intentPriority:${priorityIndex}`);
-		}
+	if (intentSelection) {
+		reasons.push(`xRange.intent:${intentSelection.intent}`);
+		reasons.push(`xRange.intentPriority:${intentSelection.priorityIndex}`);
 	}
 	if (hasAlignedNumericNeighbor(rows, run, Number.MAX_SAFE_INTEGER)) {
 		reasons.push("xRange.alignedDependentNeighbor");
@@ -1017,51 +1051,97 @@ const createXRangeReasons = (
 	return reasons;
 };
 
-const getXIntentPriorityRank = (
+const selectXRangeIntent = (
 	titleSpan: StructuredColumnTitleSpanEvidence | undefined,
 	xAxisIntentPriority: readonly StructuredXAxisIntent[],
-): number => {
+): XRangeIntentSelection | null => {
 	if (titleSpan?.axisTendency !== "x") {
-		return 0;
-	}
-	const intent = readTitleSpanIntent(titleSpan);
-	if (!intent) {
-		return 0;
-	}
-	const priorityIndex = xAxisIntentPriority.indexOf(intent);
-	if (priorityIndex === -1) {
-		return 0;
-	}
-	return xAxisIntentPriority.length - priorityIndex;
-};
-
-const readTitleSpanIntent = (
-	titleSpan: StructuredColumnTitleSpanEvidence | undefined,
-): StructuredXAxisIntent | null => {
-	if (!titleSpan) {
 		return null;
 	}
+	const intents = readTitleSpanIntents(titleSpan);
+	if (!intents.length) {
+		return null;
+	}
+	const selected = intents
+		.map(intent => ({
+			intent,
+			priorityIndex: xAxisIntentPriority.indexOf(intent),
+		}))
+		.filter((candidate): candidate is { readonly intent: StructuredXAxisIntent; readonly priorityIndex: number } =>
+			candidate.priorityIndex !== -1
+		)
+		.sort((left, right) => left.priorityIndex - right.priorityIndex)[0];
+	if (!selected) {
+		return null;
+	}
+	return {
+		intent: selected.intent,
+		priorityIndex: selected.priorityIndex,
+		priorityRank: xAxisIntentPriority.length - selected.priorityIndex,
+	};
+};
+
+const getXIntentPriorityPenalty = (
+	intentSelection: XRangeIntentSelection | null,
+	bestPriorityIndex: number,
+	hasIntentSelection: boolean,
+): number => {
+	if (!hasIntentSelection) {
+		return 0;
+	}
+	if (!intentSelection) {
+		return UntypedXIntentPenalty;
+	}
+	return Math.max(0, intentSelection.priorityIndex - bestPriorityIndex) * XIntentPriorityPenalty;
+};
+
+const readTitleSpanIntents = (
+	titleSpan: StructuredColumnTitleSpanEvidence | undefined,
+): readonly StructuredXAxisIntent[] => {
+	if (!titleSpan) {
+		return [];
+	}
+	const intents: StructuredXAxisIntent[] = [];
 	for (const reason of titleSpan.reasons) {
 		if (reason === "infoNeighborhood.intent:rawTransient" || reason === "semanticAllowlist.intent:rawTransient") {
-			return "rawTransient";
+			intents.push("rawTransient");
 		}
 		if (reason === "infoNeighborhood.intent:ivCurve" || reason === "semanticAllowlist.intent:ivCurve") {
-			return "ivCurve";
+			intents.push("ivCurve");
 		}
 		if (reason === "infoNeighborhood.intent:pvCurve" || reason === "semanticAllowlist.intent:pvCurve") {
-			return "pvCurve";
+			intents.push("pvCurve");
 		}
 		if (reason === "infoNeighborhood.intent:cvCurve" || reason === "semanticAllowlist.intent:cvCurve") {
-			return "cvCurve";
+			intents.push("cvCurve");
 		}
 		if (reason === "infoNeighborhood.intent:frequencySweep" || reason === "semanticAllowlist.intent:frequencySweep") {
-			return "frequencySweep";
+			intents.push("frequencySweep");
 		}
 		if (reason === "infoNeighborhood.intent:genericXY" || reason === "semanticAllowlist.intent:genericXY") {
-			return "genericXY";
+			intents.push("genericXY");
 		}
 	}
-	return null;
+	intents.push(...getXRoleIntents(titleSpan.canonicalRole));
+	return uniqueStrings(intents);
+};
+
+const getXRoleIntents = (
+	role: StructuredMeasurementColumnRef["role"],
+): readonly StructuredXAxisIntent[] => {
+	if (role === "time") {
+		return ["rawTransient", "genericXY"];
+	}
+	if (role === "frequency") {
+		return ["frequencySweep", "genericXY"];
+	}
+	if (role === "vg" || role === "vd" || role === "vs") {
+		return ["ivCurve", "cvCurve", "genericXY"];
+	}
+	if (role === "voltage") {
+		return ["ivCurve", "pvCurve", "cvCurve", "frequencySweep", "rawTransient", "genericXY"];
+	}
+	return [];
 };
 
 const createXGroupCandidates = (

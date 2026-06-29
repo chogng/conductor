@@ -239,6 +239,17 @@ Explorer replaces the pending projection and explicitly asks Review to evaluate
 the prepared URI target; Explorer still does not infer semantic badges during
 source collection or preparation.
 
+Review input changes for already-visible Explorer rows are likewise projected
+through Review, not inferred in Files:
+
+```txt
+IUserTemplateService.onDidChangeUserTemplates / ISettingsService.onDidChangeConductorSettings
+  -> ExplorerViewPane.reviewExplorerEntries(current files)
+  -> IReviewService.resolveReviewSummary({ resource, sheetId? })
+  -> IReviewService.onDidChangeReview
+  -> ExplorerViewPane syncs ReviewSummary and decoration props
+```
+
 ## Explorer View Rules
 
 Explorer view code may:

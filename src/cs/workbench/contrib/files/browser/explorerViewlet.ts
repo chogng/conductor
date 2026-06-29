@@ -85,6 +85,10 @@ import {
   IReviewService,
   type IReviewService as IReviewServiceType,
 } from "src/cs/workbench/services/review/common/review";
+import {
+  ISettingsService,
+  type ISettingsService as ISettingsServiceType,
+} from "src/cs/workbench/services/settings/common/settings";
 import type { ReviewSummary } from "src/cs/workbench/services/review/common/reviewModel";
 
 import "src/cs/workbench/contrib/files/browser/views/media/explorerViewlet.css";
@@ -114,6 +118,7 @@ export class ExplorerViewPane extends ViewPane {
   private disposed = false;
   private pendingLocalExpandedFolderKeys: readonly string[] | null = null;
   private cancelPendingSourceSyncView: (() => void) | null = null;
+  private reviewedExplorerTargetsSignature = "";
 
   constructor(
     @ICommandService private readonly commandService: ICommandService,
@@ -131,6 +136,7 @@ export class ExplorerViewPane extends ViewPane {
     @IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
     @IDecorationsService private readonly decorationsService: IDecorationsServiceType,
     @IReviewService private readonly reviewService: IReviewServiceType,
+    @ISettingsService private readonly settingsService: ISettingsServiceType,
   ) {
     super({
       id: ExplorerViewId,
@@ -201,6 +207,14 @@ export class ExplorerViewPane extends ViewPane {
       this.syncView();
     }));
     this._register(this.userTemplateService.onDidChangeUserTemplates(() => {
+      this.reviewCurrentExplorerEntries(true);
+      this.syncView();
+    }));
+    this._register(this.settingsService.onDidChangeConductorSettings(() => {
+      this.reviewCurrentExplorerEntries(true);
+      this.syncView();
+    }));
+    this._register(this.reviewService.onDidChangeReview(() => {
       this.syncView();
     }));
     this._register(this.decorationsService.onDidChangeDecorations(event => {
@@ -216,6 +230,7 @@ export class ExplorerViewPane extends ViewPane {
 
   public update(input: ExplorerPaneInput | null): void {
     this.input = input;
+    this.reviewCurrentExplorerEntries(false);
 
     if (!this.explorerView) {
       this.explorerView = this.instantiationService.createInstance(
@@ -1017,7 +1032,6 @@ export class ExplorerViewPane extends ViewPane {
     this.internalFiles = localEntries;
     this.mergedFilesCache = null;
     this.publishExplorerPaneInput();
-    this.reviewExplorerEntries(localEntries);
 
     this.removePendingSourceFiles(getImportItemKeys(importedFiles));
     const selectedEntry = resolveSelectedExplorerImportEntry(localEntries, selectedImportItemKey);
@@ -1060,7 +1074,6 @@ export class ExplorerViewPane extends ViewPane {
     this.internalFiles = mergeExplorerCommittedFiles(this.internalFiles, importedEntries);
     this.mergedFilesCache = null;
     this.publishExplorerPaneInput();
-    this.reviewExplorerEntries(importedEntries);
 
     const openTarget = resolveExplorerImportOpenEntry({
       files: this.files,
@@ -1188,13 +1201,17 @@ export class ExplorerViewPane extends ViewPane {
     }
   }
 
-  private reviewExplorerEntries(entries: readonly ExplorerFileEntry[]): void {
-    for (const entry of entries) {
-      const target = getExplorerFileResourceIdentity(entry);
-      if (!target) {
-        continue;
-      }
+  private reviewCurrentExplorerEntries(force: boolean): void {
+    const targets = getExplorerResourceTargets(this.files);
+    const signature = targets
+      .map(target => getExplorerResourceIdentityKey(target) ?? "")
+      .join("\u001f");
+    if (!force && signature === this.reviewedExplorerTargetsSignature) {
+      return;
+    }
 
+    this.reviewedExplorerTargetsSignature = signature;
+    for (const target of targets) {
       void this.reviewService.resolveReviewSummary({
         resource: target.resource,
         sheetId: target.sheetId ?? null,

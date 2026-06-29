@@ -142,8 +142,11 @@ raw-table records for URI-backed semantic decorations.
 Missing or stale URI summaries are not refreshed by Explorer decoration reads.
 Explorer may receive a missing, stale, or active-pending summary and must keep
 rendering without forcing synchronous or background structured-content
-resolution. Explicit import/source workflow scheduling through `resolveReviewSummary(...)`
-and execution paths through `reviewUriForExecution(...)` may resolve structured
+resolution. When ReviewService receives a DataResource, UserTemplate, or
+SchemaProfile invalidation for a tracked cached URI target, it marks the summary
+stale and queues a Review-owned background refresh for that same target. Explicit
+import/source workflow scheduling through `resolveReviewSummary(...)` and
+execution paths through `reviewUriForExecution(...)` may also resolve structured
 content, cache the resulting summary, and publish the later `onDidChangeReview`
 update.
 

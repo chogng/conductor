@@ -278,9 +278,14 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		const rawFirst = await resolveEvidence(rows, {
 			templateXAxisIntentPriority: ["rawTransient", "pvCurve", "ivCurve", "cvCurve", "frequencySweep", "genericXY"],
 		});
+		const ivFirst = await resolveEvidence(rows, {
+			templateXAxisIntentPriority: ["ivCurve", "pvCurve", "cvCurve", "frequencySweep", "rawTransient", "genericXY"],
+		});
 
 		assert.equal(pvFirst.xRangeCandidates[0]?.column, 2);
 		assert.equal(rawFirst.xRangeCandidates[0]?.column, 1);
+		assert.equal(ivFirst.xRangeCandidates[0]?.column, 2);
+		assert.ok(ivFirst.xRangeCandidates[0]?.reasons.includes("xRange.intent:ivCurve"));
 	});
 
 	test("detects pairwise XY blocks and many-pair bindings", async () => {
