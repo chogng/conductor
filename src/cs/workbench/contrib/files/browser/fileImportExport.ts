@@ -52,7 +52,7 @@ import {
   type INotificationHandle,
 } from "src/cs/workbench/services/notification/common/notificationService";
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
-import { WorkspaceWatcher } from "src/cs/workbench/services/workspaces/browser/workspaceWatcher";
+import { WorkspaceWatcher } from "src/cs/workbench/contrib/files/browser/workspaceWatcher";
 import { resolveWorkspaceExternalChanges } from "src/cs/workbench/services/workspaces/common/externalChanges";
 import {
   ADD_WORKSPACE_FOLDER_COMMAND_ID,
@@ -776,14 +776,13 @@ export class FileSourceWorkflow implements IDisposable {
 
     const runId = this.folderRefreshRunId + 1;
     this.folderRefreshRunId = runId;
-    const folderKey = folder.toString();
 
     try {
       const result = await collectFolderImportFiles(folder, this.options.filesService);
       if (
         this.options.isDisposed() ||
         runId !== this.folderRefreshRunId ||
-        this.folderWatcher.currentFolderKey !== folderKey
+        !this.folderWatcher.isWatching(folder)
       ) {
         return;
       }
@@ -802,7 +801,7 @@ export class FileSourceWorkflow implements IDisposable {
       await this.appendExternalFiles(result.files, nextChanges, result.readFailures, () =>
         !this.options.isDisposed() &&
         runId === this.folderRefreshRunId &&
-        this.folderWatcher.currentFolderKey === folderKey
+        this.folderWatcher.isWatching(folder)
       );
       this.clearExternalChanges();
     } catch {

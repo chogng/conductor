@@ -116,6 +116,7 @@ state arrives through their owning services.
 | `contrib/files/browser/fileActions.ts` / `fileCommands.ts` | Files/Explorer action and command handlers. |
 | `contrib/files/browser/fileActions.contribution.ts` | Command/action/menu/keybinding registration. |
 | `contrib/files/browser/fileImportExport.ts` | File transfer and source collection helpers. |
+| `contrib/files/browser/workspaceWatcher.ts` | Explorer folder import watcher for detecting external changes to the currently imported folder. |
 | `services/tableFile/common/tablefiles.ts` | `ITableFileService` contract for URI-backed table file working-copy lifecycle; not a raw-table import ledger. |
 | `services/table/common/tableFormatRegistry.ts` | Known table format IDs, materialization capability, and default extension metadata. |
 | `services/table/common/tableFormatAssociations.ts` | Resource/name/extension association helpers for table format resolution. |
