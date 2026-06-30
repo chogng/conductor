@@ -104,7 +104,28 @@
 }
 
 .table_view_actions .ui-actionbar__items {
-  gap: 0;
+  gap: 0.25rem;
+}
+
+.table_view_actions .ui-actionbar__label {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.375rem;
+  cursor: pointer;
+}
+
+.table_view_actions .ui-actionbar__label:not(:disabled):hover,
+.table_view_actions .ui-actionbar__label.checked {
+  background: rgb(var(--accent) / 0.08);
+}
+
+.table_view_actions .ui-actionbar__label.checked:not(:disabled):hover {
+  background: rgb(var(--accent) / 0.12);
+}
+
+.table_view_actions .ui-actionbar__label svg {
+  width: 1rem;
+  height: 1rem;
 }
 
 .table_view_actions .ui-stepper {
@@ -225,7 +246,7 @@
   display: none;
 }
 
-.table_view > .ui-stepper {
+.table_view_column_scale_control {
   position: absolute;
   box-sizing: border-box;
   z-index: 6;
@@ -237,18 +258,18 @@
   pointer-events: none;
 }
 
-.table_view > .ui-stepper .ui-stepper__button {
+.table_view_column_scale_control .ui-stepper__button {
   flex: 0 0 1.25rem;
   width: 1.25rem;
   height: 100%;
 }
 
-.table_view > .ui-stepper .ui-stepper__button,
-.table_view > .ui-stepper .ui-stepper__value {
+.table_view_column_scale_control .ui-stepper__button,
+.table_view_column_scale_control .ui-stepper__value {
   pointer-events: auto;
 }
 
-.table_view > .ui-stepper .ui-stepper__value {
+.table_view_column_scale_control .ui-stepper__value {
   appearance: none;
   flex: 1 1 auto;
   width: auto;
@@ -262,7 +283,7 @@
   font: inherit;
 }
 
-.table_view > .ui-stepper .ui-stepper__value:disabled {
+.table_view_column_scale_control .ui-stepper__value:disabled {
   color: inherit;
   cursor: default;
   opacity: 1;

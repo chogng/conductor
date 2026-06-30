@@ -46,6 +46,11 @@ const tableCommandRegistrations: readonly TableCommandRegistration[] = [
     title: localize("table.commands.selectAllColumns", "Select all table columns"),
   },
   {
+    id: TableCommandId.toggleColumnAutoFit,
+    run: accessor => toggleTableColumnAutoFit(accessor.get(ITableService)),
+    title: localize("table.commands.toggleColumnAutoFit", "Toggle table auto-fit columns"),
+  },
+  {
     id: TableCommandId.zoomIn,
     run: accessor => accessor.get(ITableWidgetService).activeController?.zoomIn() ?? false,
     title: localize("table.commands.zoomIn", "Zoom in table"),
@@ -105,6 +110,12 @@ const copyTableSelection = async (
     });
     return false;
   }
+};
+
+const toggleTableColumnAutoFit = (tableService: ITableService): boolean => {
+  const input = tableService.getViewInput();
+  const source = input?.tableState.file?.source ?? input?.tableState.source ?? null;
+  return tableService.toggleColumnSizingMode(source);
 };
 
 const writeClipboardText = async (text: string): Promise<void> => {

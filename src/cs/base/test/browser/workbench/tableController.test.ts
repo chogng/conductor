@@ -126,6 +126,7 @@ function createTableControllerProps(options: TableControllerTestOptions = {}): T
 	const tableViewModel = options.tableViewModel ?? createTableViewModel(() => tableState);
 
 	return {
+		columnSizingMode: "fixed",
 		getColumnWidths: options.getColumnWidths,
 		onSelect: () => true,
 		storeColumnWidths: options.storeColumnWidths,
@@ -169,11 +170,13 @@ function createTableViewModel(
 		],
 		getColumnDisplayProfile: colIndex => createRawColumnDisplayProfile(colIndex),
 		getHighlight: (): TableHighlight => ({}),
+		getRangeDecorations: () => [],
 		getRowsVersion: () => 1,
 		getSelection: (): TableSelection => ({}),
 		getState,
 		isResolved: () => true,
 		onDidChangeHighlight: () => noopDisposable,
+		onDidChangeRangeDecorations: () => noopDisposable,
 		onDidChangeRevealCell: () => noopDisposable,
 		onDidChangeSelection: () => noopDisposable,
 		onDidChangeState: () => noopDisposable,
@@ -196,6 +199,7 @@ function createTableService(): ITableService {
 		clearSelection: () => false,
 		findCell: async () => ({ kind: "empty" }),
 		getCellValue: async () => ({ kind: "empty" }),
+		getColumnSizingMode: () => "fixed",
 		getColumnWidths: () => [],
 		getPreviewRow: () => null,
 		getSelection: (): TableSelection => ({}),
@@ -207,7 +211,9 @@ function createTableService(): ITableService {
 		resetColumnDisplayScale: () => false,
 		select: () => false,
 		selectAllColumns: () => false,
+		setColumnSizingMode: () => false,
 		storeColumnWidths: () => undefined,
+		toggleColumnSizingMode: () => false,
 	};
 }
 

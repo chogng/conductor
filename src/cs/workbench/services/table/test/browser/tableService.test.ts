@@ -705,6 +705,7 @@ suite("workbench/services/table/browser/tableService", () => {
     });
 
     assert.deepEqual(service.getColumnWidths(source), []);
+    assert.equal(service.getColumnSizingMode(source), "fixed");
 
     service.storeColumnWidths(source, [
       { colIndex: 2, width: 243.6 },
@@ -715,12 +716,43 @@ suite("workbench/services/table/browser/tableService", () => {
       { colIndex: 1, width: 0 },
       { colIndex: 2, width: 244 },
     ]);
+    assert.equal(service.setColumnSizingMode(source, "autoFit"), true);
+    assert.equal(service.getColumnSizingMode(source), "autoFit");
+    assert.deepEqual(service.getColumnWidths(source), [
+      { colIndex: 1, width: 0 },
+      { colIndex: 2, width: 244 },
+    ]);
+    assert.equal(service.toggleColumnSizingMode(source), true);
+    assert.equal(service.getColumnSizingMode(source), "fixed");
 
     service.storeColumnWidths(source, []);
 
     assert.deepEqual(service.getColumnWidths(source), []);
+    assert.equal(service.getColumnSizingMode(source), "fixed");
     service.dispose();
     storageService.dispose();
+  });
+
+  test("publishes table view input when active column sizing mode changes", async () => {
+    const resource = URI.file("/workspace/data/column-sizing.csv");
+    const { service } = createTableServiceFixture();
+    let changeCount = 0;
+    const disposable = store.add(service.onDidChangeTableViewInput(() => {
+      changeCount += 1;
+    }));
+
+    service.open({ resource });
+    await waitForReadyTableService(service);
+    const initialChangeCount = changeCount;
+    const input = service.getViewInput();
+
+    assert.equal(input?.columnSizingMode, "fixed");
+    assert.equal(service.toggleColumnSizingMode(input?.tableState.file?.source), true);
+    assert.equal(service.getViewInput()?.columnSizingMode, "autoFit");
+    assert.equal(changeCount, initialChangeCount + 1);
+
+    disposable.dispose();
+    service.dispose();
   });
 
   test("selects table targets through the service owner API", async () => {

@@ -9,7 +9,7 @@ import {
   type TableWidgetRevealMode,
   type TableWidgetSelectionTarget,
 } from "src/cs/workbench/contrib/table/browser/tableWidget";
-import type { TableColumnWidth } from "src/cs/workbench/services/table/common/tableColumnLayout";
+import type { TableColumnSizingMode, TableColumnWidth } from "src/cs/workbench/services/table/common/tableColumnLayout";
 import type { ITableService, TableSource } from "src/cs/workbench/services/table/common/table";
 
 export type TableControllerViewModel = TableWidgetModel;
@@ -20,6 +20,7 @@ type TableSelection = ReturnType<TableControllerViewModel["getSelection"]>;
 export type TableControllerProps = {
   readonly canAdjustColumnScale?: boolean;
   readonly columnHeaderSelection?: TableWidgetColumnHeaderSelection;
+  readonly columnSizingMode: TableColumnSizingMode;
   readonly getColumnWidths?: (source: TableSource | null | undefined) => readonly TableColumnWidth[];
   readonly onCopySelection?: () => void;
   readonly onSelect: (
@@ -113,6 +114,7 @@ export class TableController {
 const toWidgetProps = ({
   canAdjustColumnScale,
   columnHeaderSelection,
+  columnSizingMode,
   tableViewModel,
   tableState,
   getColumnWidths,
@@ -123,6 +125,7 @@ const toWidgetProps = ({
 }: TableControllerProps): TableWidgetProps => ({
   canAdjustColumnScale,
   columnHeaderSelection,
+  columnSizingMode,
   getColumnWidths,
   onCopySelection,
   onAdjustColumnDisplayScale: (colIndex, deltaExponent) =>

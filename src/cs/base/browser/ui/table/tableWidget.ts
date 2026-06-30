@@ -242,6 +242,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 	private lastRenderOptions: Table.ITableRenderOptions | null = null;
 	private size: Table.ITableSize = { columnCount: 0, rowCount: 0 };
 	private readonly virtualTable: VirtualTable<TBodyTemplateData, TColumnHeaderTemplateData>;
+	private columnResizeEnabled: boolean;
 	private zoomPercent: number = TABLE_WIDGET_ZOOM_OPTIONS.defaultPercent;
 	private zoomWheelAccumulatedDelta = 0;
 	private zoomWheelLastEventTime = 0;
@@ -263,6 +264,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		this.onDidClickHeader = this.createColumnHeaderClickEvent();
 		this.onDidNavigateKeyboard = this.onDidNavigateKeyboardEmitter.event;
 		this.onDidPointerDownBody = this.createBodyPointerDownEvent();
+		this.columnResizeEnabled = options.columnResize?.enabled === true;
 		this.disposables.add(this.virtualTable.onDidChangeVisibleRange(() => {
 			this.clearHoveredTraits();
 			this.resetAppliedCellState();
@@ -484,6 +486,13 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 
 	public isColumnResizeActive(): boolean {
 		return this.columnResizeState !== null;
+	}
+
+	public setColumnResizeEnabled(enabled: boolean): void {
+		this.columnResizeEnabled = enabled;
+		if (!enabled) {
+			this.endColumnResize(false);
+		}
 	}
 
 	public createColumnResizeHandle(): HTMLElement {
@@ -1368,7 +1377,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 	private onColumnResizeStart(event: PointerEvent): boolean {
 		if (
 			event.defaultPrevented ||
-			this.options.columnResize?.enabled !== true ||
+			!this.columnResizeEnabled ||
 			!this.canStartColumnResizeFromTarget(event.target)
 		) {
 			return false;

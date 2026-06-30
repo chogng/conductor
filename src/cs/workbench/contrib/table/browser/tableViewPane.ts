@@ -62,6 +62,7 @@ export class TableViewPane extends ViewPane {
     label: localize("table.zoomControl", "Table zoom"),
     run: () => undefined,
   });
+  private readonly columnAutoFitAction: Action;
   private readonly zoomInAction: Action;
   private readonly zoomOutAction: Action;
   private readonly resetZoomAction: Action;
@@ -85,6 +86,14 @@ export class TableViewPane extends ViewPane {
       className: "table-view-pane-root",
       bodyClassName: "workbench-part-view-pane__body",
     });
+    this.columnAutoFitAction = this.store.add(new Action(
+      TableCommandId.toggleColumnAutoFit,
+      localize("table.autoFitColumns", "Auto-fit columns"),
+      "",
+      false,
+      () => this.commandService.executeCommand(TableCommandId.toggleColumnAutoFit),
+    ));
+    this.columnAutoFitAction.icon = LxIcon.table;
     this.zoomOutAction = this.store.add(new Action(
       TableCommandId.zoomOut,
       localize("table.zoomOut", "Zoom out"),
@@ -352,16 +361,32 @@ export class TableViewPane extends ViewPane {
 
   private updateHeaderRight(): void {
     this.updateDimensions();
+    this.updateColumnAutoFitAction();
     this.updateZoomControl();
   }
 
   private renderHeaderActions(): void {
     this.actionBar.clear();
     this.zoomControl = null;
+    this.actionBar.push(this.columnAutoFitAction, {
+      icon: true,
+      label: false,
+    });
     this.actionBar.push(this.zoomControlAction, {
       label: false,
       role: "presentation",
     });
+  }
+
+  private updateColumnAutoFitAction(): void {
+    const props = this.props;
+    const hasTable = Boolean(props?.tableState.file);
+    const autoFit = props?.columnSizingMode === "autoFit";
+    this.columnAutoFitAction.enabled = hasTable;
+    this.columnAutoFitAction.checked = autoFit;
+    this.columnAutoFitAction.tooltip = autoFit
+      ? localize("table.autoFitColumns.disable", "Use fixed column widths")
+      : localize("table.autoFitColumns.enable", "Auto-fit column widths");
   }
 
   private updateZoomControl(): void {

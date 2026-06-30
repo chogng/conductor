@@ -46,6 +46,7 @@ import {
 import type { ColumnDisplayProfile } from "src/cs/workbench/services/table/common/tableDisplayProfile";
 import {
   TableColumnLayout,
+  type TableColumnSizingMode,
   type TableColumnWidth,
 } from "src/cs/workbench/services/table/common/tableColumnLayout";
 import {
@@ -90,6 +91,7 @@ export type TableWidgetFile = {
   readonly sourceVersion?: number;
   readonly rowCount: number;
   readonly columnCount: number;
+  readonly maxCellLengths: readonly number[];
 };
 
 export type TableWidgetLoadState = {
@@ -157,6 +159,7 @@ export type TableWidgetColumnHeaderSelection = "disabled" | "single" | "multi";
 export type TableWidgetProps = {
   readonly canAdjustColumnScale?: boolean;
   readonly columnHeaderSelection?: TableWidgetColumnHeaderSelection;
+  readonly columnSizingMode: TableColumnSizingMode;
   readonly getColumnWidths?: (source: TableSource | null | undefined) => readonly TableColumnWidth[];
   readonly onCopySelection?: () => void;
   readonly onAdjustColumnDisplayScale?: (colIndex: number, deltaExponent: number) => boolean;
@@ -220,6 +223,8 @@ export class TableWidget {
   private columnWidthSheetKey: string | null = null;
   private columnWidthSource: TableSource | null = null;
   private columnWidths = new Map<number, number>();
+  private autoFitColumnWidths = new Map<number, number>();
+  private autoFitColumnWidthSignature: string | null = null;
   private pendingColumnWidthStorageTimeout: number | null = null;
   private pendingColumnWidthStorageTarget: ColumnWidthStorageTarget | null = null;
   private bodyRangeSelectionState: BodyRangeSelectionState | null = null;
@@ -275,7 +280,7 @@ export class TableWidget {
       },
     }));
     this.grid = this.store.add(new BaseTableWidget({
-      columnResize: { enabled: true, mode: "commit" },
+      columnResize: { enabled: this.isFixedColumnSizingMode(), mode: "commit" },
       getColumnWidth: colIndex => this.getColumnWidth(colIndex),
       keyboardNavigation: { enabled: true },
       renderer: this.rowRenderer,
@@ -359,8 +364,13 @@ export class TableWidget {
   public update(props: TableWidgetProps): void {
     const previousModel = this.props.tableViewModel;
     const previousCanAdjustColumnScale = this.canAdjustColumnScale();
+    const previousColumnSizingMode = this.props.columnSizingMode;
     const nextInputKey = getTableWidgetInputKey(props);
     this.props = props;
+    if (previousColumnSizingMode !== props.columnSizingMode) {
+      this.grid.setColumnResizeEnabled(this.isFixedColumnSizingMode());
+      this.autoFitColumnWidthSignature = null;
+    }
     if (previousModel !== props.tableViewModel) {
       this.rowRenderer.setModel(props.tableViewModel);
       this.bindTableState(props.tableViewModel);
@@ -434,6 +444,7 @@ export class TableWidget {
       this.clearScheduledLayout();
       this.grid.layout();
       if (this.shouldRenderTableOnLayout()) {
+        this.invalidateAutoFitColumnWidthsForLayout();
         renderedTable = true;
         const needsLayout = this.renderTable();
         if (needsLayout) {
@@ -545,6 +556,10 @@ export class TableWidget {
   }
 
   public setColumnWidth(target: TableWidgetColumnWidthTarget): boolean {
+    if (!this.isFixedColumnSizingMode()) {
+      return false;
+    }
+
     const colIndex = normalizeWidgetColumnIndex(target?.colIndex);
     if (colIndex === null) {
       return false;
@@ -604,6 +619,7 @@ export class TableWidget {
     this.columnWidthSheetKey = sheetKey;
     this.columnWidthSource = source;
     this.columnWidths = this.restoreColumnWidths(source);
+    this.autoFitColumnWidthSignature = null;
   }
 
   private restoreColumnWidths(source: TableSource | null): Map<number, number> {
@@ -614,6 +630,43 @@ export class TableWidget {
     return new Map(
       this.props.getColumnWidths(source).map(width => [width.colIndex, width.width]),
     );
+  }
+
+  private syncAutoFitColumnWidths(tableFile: TableWidgetFile): boolean {
+    if (this.isFixedColumnSizingMode()) {
+      if (this.autoFitColumnWidths.size === 0 && this.autoFitColumnWidthSignature === null) {
+        return false;
+      }
+
+      this.autoFitColumnWidths = new Map();
+      this.autoFitColumnWidthSignature = null;
+      return true;
+    }
+
+    const signature = getAutoFitColumnWidthSignature(this.props.tableState, tableFile);
+    if (this.autoFitColumnWidthSignature === signature) {
+      return false;
+    }
+
+    const nextWidths = new Map<number, number>();
+    const columnCount = Math.max(0, Math.floor(Number(tableFile.columnCount) || 0));
+    for (let colIndex = 0; colIndex < columnCount; colIndex += 1) {
+      nextWidths.set(colIndex, TableColumnLayout.resolveAutoFitWidth({
+        headerText: VirtualTableGridModel.getColumnLabel(colIndex),
+        maxCellLength: tableFile.maxCellLengths[colIndex],
+      }));
+    }
+
+    const changed = !areColumnWidthMapsEqual(this.autoFitColumnWidths, nextWidths);
+    this.autoFitColumnWidths = nextWidths;
+    this.autoFitColumnWidthSignature = signature;
+    return changed;
+  }
+
+  private invalidateAutoFitColumnWidthsForLayout(): void {
+    if (!this.isFixedColumnSizingMode()) {
+      this.autoFitColumnWidthSignature = null;
+    }
   }
 
   private getColumnWidths(): readonly TableWidgetColumnWidth[] {
@@ -820,6 +873,7 @@ export class TableWidget {
     const bodyCellRenderCountStart = this.tracedBodyCellRenderCount;
     const headerCellRenderCountStart = this.tracedHeaderCellRenderCount;
     let gridChanged = false;
+    let autoFitColumnsChanged = false;
     let outcome = "table";
 
     try {
@@ -844,6 +898,7 @@ export class TableWidget {
       }
 
       this.grid.setHeaderVisible(true);
+      autoFitColumnsChanged = this.syncAutoFitColumnWidths(tableFile);
       gridChanged = this.grid.render({
         columnCount: tableFile.columnCount,
         headerRenderVersion: this.getHeaderRenderVersion(),
@@ -856,6 +911,7 @@ export class TableWidget {
     } finally {
       endTrace({
         bodyCellRenderCount: this.tracedBodyCellRenderCount - bodyCellRenderCountStart,
+        autoFitColumnsChanged,
         gridChanged,
         headerCellRenderCount: this.tracedHeaderCellRenderCount - headerCellRenderCountStart,
         outcome,
@@ -865,6 +921,8 @@ export class TableWidget {
 
   private resetGridSize(): void {
     this.hideColumnScaleControl();
+    this.autoFitColumnWidths = new Map();
+    this.autoFitColumnWidthSignature = null;
     this.grid.render({
       columnCount: 0,
       headerRenderVersion: this.getHeaderRenderVersion(),
@@ -1362,7 +1420,15 @@ export class TableWidget {
     return this.props.canAdjustColumnScale !== false;
   }
 
+  private isFixedColumnSizingMode(): boolean {
+    return this.props.columnSizingMode === "fixed";
+  }
+
   private getColumnWidth(colIndex: number): number {
+    if (!this.isFixedColumnSizingMode()) {
+      return this.autoFitColumnWidths.get(colIndex) ?? TableColumnLayout.defaultWidth;
+    }
+
     return this.columnWidths.get(colIndex) ?? TableColumnLayout.defaultWidth;
   }
 
@@ -1833,10 +1899,12 @@ const isPointInsideRect = (
   clientY <= rect.bottom;
 
 const getTableWidgetInputKey = ({
+  columnSizingMode,
   tableState,
 }: TableWidgetProps): string => {
   const file = tableState.file;
   return [
+    columnSizingMode,
     tableState.selectedSheetId ?? "",
     getTableWidgetSheetKey(tableState) ?? "",
     tableState.loadState.state,
@@ -1845,8 +1913,36 @@ const getTableWidgetInputKey = ({
     file?.sourceVersion ?? "",
     file?.rowCount ?? "",
     file?.columnCount ?? "",
+    file?.maxCellLengths.join(",") ?? "",
     tableState.displayVersion ?? "",
   ].join("\u001f");
+};
+
+const getAutoFitColumnWidthSignature = (
+  tableState: TableWidgetState,
+  file: TableWidgetFile,
+): string => [
+  getTableWidgetSheetKey(tableState) ?? "",
+  file.sourceVersion ?? "",
+  file.columnCount,
+  file.maxCellLengths.join(","),
+].join("\u001f");
+
+const areColumnWidthMapsEqual = (
+  current: ReadonlyMap<number, number>,
+  next: ReadonlyMap<number, number>,
+): boolean => {
+  if (current.size !== next.size) {
+    return false;
+  }
+
+  for (const [colIndex, width] of current) {
+    if (next.get(colIndex) !== width) {
+      return false;
+    }
+  }
+
+  return true;
 };
 
 const getCellDisplayTitle = (

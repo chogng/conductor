@@ -8,7 +8,7 @@ import type { CancellationToken } from "src/cs/base/common/cancellation";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { IDecorationData } from "src/cs/workbench/services/decorations/common/decorations";
 import type { ColumnDisplayProfile } from "src/cs/workbench/services/table/common/tableDisplayProfile";
-import type { TableColumnWidth } from "src/cs/workbench/services/table/common/tableColumnLayout";
+import type { TableColumnSizingMode, TableColumnWidth } from "src/cs/workbench/services/table/common/tableColumnLayout";
 import type { TableParseDiagnostic } from "src/cs/workbench/services/table/common/model";
 
 // Pure data types for the table feature. This module is the common contract
@@ -250,6 +250,7 @@ export type TableWidgetViewModel = Pick<
 >;
 
 export type TableViewInput = {
+	readonly columnSizingMode: TableColumnSizingMode;
 	readonly tableViewModel: TableWidgetViewModel;
 	readonly tableState: TableState;
 };
@@ -376,6 +377,7 @@ export interface ITableService {
 	clearHighlight(): void;
 	findCell(query: TableCellSearchQuery): Promise<TableCellSearchResult>;
 	getCellValue(cell: TableCell): Promise<TableCellValueResult>;
+	getColumnSizingMode(source: TableSource | null | undefined): TableColumnSizingMode;
 	getColumnWidths(source: TableSource | null | undefined): readonly TableColumnWidth[];
 	getPreviewRow(rowIndex: number): unknown[] | null;
 	getSelection(): TableSelection;
@@ -387,8 +389,13 @@ export interface ITableService {
 	resetColumnDisplayScale(colIndex: number): boolean;
 	select(target: TableSelectionTarget | null, reveal?: TableRevealMode): boolean;
 	selectAllColumns(): boolean;
+	setColumnSizingMode(
+		source: TableSource | null | undefined,
+		mode: TableColumnSizingMode,
+	): boolean;
 	storeColumnWidths(
 		source: TableSource | null | undefined,
 		widths: readonly TableColumnWidth[],
 	): void;
+	toggleColumnSizingMode(source: TableSource | null | undefined): boolean;
 }

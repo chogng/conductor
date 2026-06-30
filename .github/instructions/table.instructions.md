@@ -21,7 +21,7 @@ measurement structure.
 - current cell value lookup and active-table cell search;
 - focus/reveal/highlight state;
 - non-interactive range decoration state for display-only overlays;
-- column width persistence;
+- column sizing mode and column width persistence;
 - column-level display profiles for numeric presentation;
 - paged resource rows cache, loading state, and row request lifecycle;
 - block table preview model and invalidation when source changes.
@@ -62,7 +62,7 @@ sheet-key derivation rules in service/view files.
 | `services/tableFile/browser/tableFileService.ts` | file-backed table resolve service: validates table file support, chooses table read mode, and delegates cached file editor models to the manager. |
 | `services/tableFile/common/encoding.ts` | table file text/byte mode, byte conversion, and mime helpers. |
 | `services/tableFile/common/tableFileEditorModel.ts` | URI-backed `TableFileEditorModel`: file working-copy lifecycle, file-backed read/sourceVersion flow, and updates to the associated `ITableModel`. |
-| `common/tableColumnLayout.ts` | width policy and storage serialization. |
+| `common/tableColumnLayout.ts` | column sizing mode, width policy, auto-fit width policy, and storage serialization. |
 | `common/tableDisplayProfile.ts` / `numericFormat.ts` | display profile and numeric formatting helpers. |
 | `services/tableFile/common/tableFileEditorModelManager.ts` | file-backed table model manager: cache/reuse, reload/remove, pending resolve de-duplication, and model change events. |
 | `browser/tableService.ts` | table service owner, view input, copy text, column width persistence, and active-view consumption of table range data from `IDecorationsService`. |
@@ -128,7 +128,18 @@ Session/settings/command/search bridge
   -> base table widget owns structural CSS, zoom state, column resize mechanics, and facade defaults
   -> base VirtualTable reuses visible cell DOM and emits scroll/visible-range facts
   -> TableWidget emits selection callbacks and exposes base size/zoom/column-resize callbacks
-  -> TableService stores external selection and width state
+  -> TableService stores external selection, column sizing mode, and width state
+
+Table auto-fit column width toggle
+  -> TableViewPane toolbar action / TableCommandId.toggleColumnAutoFit
+  -> command handler reads ITableService.getViewInput() for the active source
+  -> ITableService.toggleColumnSizingMode(active source)
+  -> TableService stores the sheet-scoped layout mode and fires onDidChangeTableViewInput
+  -> TableViewPane rereads ITableService.getViewInput(), updates the checked toolbar action, and passes columnSizingMode to TableController
+  -> TableWidget switches getColumnWidth between persisted fixed widths and auto-fit widths
+  -> TableWidget disables base column resize while auto-fit is active
+  -> TableWidget derives auto-fit widths from TableState.file.maxCellLengths plus header labels during render/layout, with min/max bounds
+  -> base TableWidget/VirtualTable consumes getColumnWidth through the existing layout path
 
 TableWidget header scale badge / shared stepper
   -> TableViewPane derives header selection and scale-adjustment policy from template mode

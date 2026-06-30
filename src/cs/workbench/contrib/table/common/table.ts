@@ -11,6 +11,7 @@ export const TableCommandId = {
 	copySelection: "workbench.table.copySelection",
 	resetZoom: "workbench.table.resetZoom",
 	selectAllColumns: "workbench.table.selectAllColumns",
+	toggleColumnAutoFit: "workbench.table.toggleColumnAutoFit",
 	zoomIn: "workbench.table.zoomIn",
 	zoomOut: "workbench.table.zoomOut",
 } as const;

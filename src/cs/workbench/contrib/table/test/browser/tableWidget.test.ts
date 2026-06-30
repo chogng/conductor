@@ -7,7 +7,7 @@ import { KeyCode } from "src/cs/base/common/keyCodes";
 import {
   TableColumnLayout,
   toStoredTableColumnLayout,
-  toTableColumnWidths,
+  toTableColumnLayoutState,
 } from "src/cs/workbench/services/table/common/tableColumnLayout";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -17,6 +17,8 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
     assert.equal(TableColumnLayout.defaultWidth, 90);
     assert.equal(TableColumnLayout.minWidth, 0);
     assert.equal(TableColumnLayout.maxWidth, 640);
+    assert.equal(TableColumnLayout.autoFitMinWidth, 48);
+    assert.equal(TableColumnLayout.defaultSizingMode, "fixed");
   });
 
   test("clamps and rounds widget column widths", () => {
@@ -34,11 +36,15 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
   });
 
   test("serializes table column width storage", () => {
-    assert.deepEqual(toStoredTableColumnLayout([
-      { colIndex: 2, width: 243.6 },
-      { colIndex: 1, width: -12 },
-    ]), {
-      version: 1,
+    assert.deepEqual(toStoredTableColumnLayout({
+      sizingMode: "autoFit",
+      widths: [
+        { colIndex: 2, width: 243.6 },
+        { colIndex: 1, width: -12 },
+      ],
+    }), {
+      version: 2,
+      sizingMode: "autoFit",
       widths: {
         "1": 0,
         "2": 244,
@@ -46,18 +52,37 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
     });
   });
 
-  test("restores table column widths from storage", () => {
-    assert.deepEqual(toTableColumnWidths({
-      version: 1,
+  test("restores table column layout state from storage", () => {
+    assert.deepEqual(toTableColumnLayoutState({
+      version: 2,
+      sizingMode: "autoFit",
       widths: {
         "2": 243.6,
         invalid: 120,
         "1": -12,
       },
-    }), [
-      { colIndex: 1, width: 0 },
-      { colIndex: 2, width: 244 },
-    ]);
+    }), {
+      sizingMode: "autoFit",
+      widths: [
+        { colIndex: 1, width: 0 },
+        { colIndex: 2, width: 244 },
+      ],
+    });
+  });
+
+  test("resolves auto-fit widths with minimum and maximum bounds", () => {
+    assert.equal(
+      TableColumnLayout.resolveAutoFitWidth({ headerText: "A", maxCellLength: 1 }),
+      TableColumnLayout.autoFitMinWidth,
+    );
+    assert.equal(
+      TableColumnLayout.resolveAutoFitWidth({ headerText: "AA", maxCellLength: 20 }),
+      164,
+    );
+    assert.equal(
+      TableColumnLayout.resolveAutoFitWidth({ headerText: "A", maxCellLength: 500 }),
+      TableColumnLayout.maxWidth,
+    );
   });
 
   test("resolves bounded render ranges", () => {

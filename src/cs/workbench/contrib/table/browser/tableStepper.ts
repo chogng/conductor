@@ -39,6 +39,7 @@ export const createTableColumnScaleStepper = ({
       kind: "button",
     },
   });
+  stepper.element.classList.add("table_view_column_scale_control");
   stepper.element.hidden = true;
   return stepper;
 };

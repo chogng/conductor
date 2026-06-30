@@ -33,9 +33,12 @@ import {
 import { IDecorationsService } from "src/cs/workbench/services/decorations/common/decorations";
 import type { NumericDisplayMode } from "src/cs/workbench/services/table/common/tableDisplayProfile";
 import {
+  TableColumnLayout,
   toStoredTableColumnLayout,
-  toTableColumnWidths,
+  toTableColumnLayoutState,
   type StoredTableColumnLayout,
+  type TableColumnLayoutState,
+  type TableColumnSizingMode,
   type TableColumnWidth,
 } from "src/cs/workbench/services/table/common/tableColumnLayout";
 import { createTableCellMatcher } from "src/cs/workbench/services/table/common/tableSearch";
@@ -915,17 +918,12 @@ export class TableService extends Disposable implements ITableService {
     return this.getActiveTableViewModel()?.getSelection() ?? normalizeTableSelection(null);
   }
 
-  public getColumnWidths(source: TableSource | null | undefined): readonly TableColumnWidth[] {
-    const storageKey = getTableColumnLayoutStorageKey(source);
-    if (!storageKey) {
-      return [];
-    }
+  public getColumnSizingMode(source: TableSource | null | undefined): TableColumnSizingMode {
+    return this.getColumnLayoutState(source).sizingMode;
+  }
 
-    const stored = this.storageService.getObject<StoredTableColumnLayout>(
-      storageKey,
-      StorageScope.WORKSPACE,
-    );
-    return toTableColumnWidths(stored ?? {});
+  public getColumnWidths(source: TableSource | null | undefined): readonly TableColumnWidth[] {
+    return this.getColumnLayoutState(source).widths;
   }
 
   public async getCellValue(cell: TableCell): Promise<TableCellValueResult> {
@@ -1108,15 +1106,74 @@ export class TableService extends Disposable implements ITableService {
     source: TableSource | null | undefined,
     widths: readonly TableColumnWidth[],
   ): void {
+    const current = this.getColumnLayoutState(source);
+    this.storeColumnLayoutState(source, {
+      ...current,
+      widths,
+    });
+  }
+
+  public setColumnSizingMode(
+    source: TableSource | null | undefined,
+    mode: TableColumnSizingMode,
+  ): boolean {
+    if (!getTableColumnLayoutStorageKey(source)) {
+      return false;
+    }
+
+    const current = this.getColumnLayoutState(source);
+    if (current.sizingMode === mode) {
+      return false;
+    }
+
+    this.storeColumnLayoutState(source, {
+      ...current,
+      sizingMode: mode,
+    });
+    if (areTableSourcesEqual(source, getTableStateColumnLayoutSource(this.viewInput?.tableState))) {
+      this.refreshActiveTableViewInput();
+    }
+    return true;
+  }
+
+  public toggleColumnSizingMode(source: TableSource | null | undefined): boolean {
+    const current = this.getColumnSizingMode(source);
+    return this.setColumnSizingMode(source, current === "autoFit" ? "fixed" : "autoFit");
+  }
+
+  private getColumnLayoutState(
+    source: TableSource | null | undefined,
+  ): TableColumnLayoutState {
+    const storageKey = getTableColumnLayoutStorageKey(source);
+    if (!storageKey) {
+      return {
+        sizingMode: TableColumnLayout.defaultSizingMode,
+        widths: [],
+      };
+    }
+
+    const stored = this.storageService.getObject<StoredTableColumnLayout>(
+      storageKey,
+      StorageScope.WORKSPACE,
+    );
+    return toTableColumnLayoutState(stored ?? {});
+  }
+
+  private storeColumnLayoutState(
+    source: TableSource | null | undefined,
+    layout: TableColumnLayoutState,
+  ): void {
     const storageKey = getTableColumnLayoutStorageKey(source);
     if (!storageKey) {
       return;
     }
 
-    const stored = toStoredTableColumnLayout(widths);
+    const stored = toStoredTableColumnLayout(layout);
     if (!Object.keys(stored.widths ?? {}).length) {
-      this.storageService.remove(storageKey, StorageScope.WORKSPACE);
-      return;
+      if (stored.sizingMode === TableColumnLayout.defaultSizingMode) {
+        this.storageService.remove(storageKey, StorageScope.WORKSPACE);
+        return;
+      }
     }
 
     this.storageService.store(
@@ -1127,18 +1184,38 @@ export class TableService extends Disposable implements ITableService {
     );
   }
 
+  private refreshActiveTableViewInput(): void {
+    const tableViewModel = this.tableViewModel;
+    if (!tableViewModel) {
+      return;
+    }
+
+    this.updateViewInput({
+      tableViewModel,
+      tableState: tableViewModel.getState(),
+    }, { forceViewInput: true });
+  }
+
   private updateViewInput(
     input: TableServiceViewInput,
     options: { forceViewInput?: boolean } = {},
   ): void {
-    if (!options.forceViewInput && this.viewInput && isSameTableViewInput(this.viewInput, input)) {
+    const nextInput = this.toViewInput(input);
+    if (!options.forceViewInput && this.viewInput && isSameTableViewInput(this.viewInput, nextInput)) {
       return;
     }
 
-    this.viewInput = input;
+    this.viewInput = nextInput;
     this.bindActiveTableViewModel(input.tableViewModel);
     this.onDidChangeTableViewInputEmitter.fire(undefined);
     this.refreshActiveDecorations();
+  }
+
+  private toViewInput(input: TableServiceViewInput): TableViewInput {
+    return {
+      ...input,
+      columnSizingMode: this.getColumnSizingMode(getTableStateColumnLayoutSource(input.tableState)),
+    };
   }
 
   private refreshActiveDecorations(): void {
@@ -1219,6 +1296,7 @@ const isSameTableViewInput = (
   current: TableViewInput,
   next: TableViewInput,
 ): boolean =>
+  current.columnSizingMode === next.columnSizingMode &&
   isSameTableState(current.tableState, next.tableState);
 
 const isSameTableState = (
@@ -1260,6 +1338,11 @@ const areNullableTableFilesEqual = (
 
   return areTableFilesEqual(current, next);
 };
+
+const getTableStateColumnLayoutSource = (
+  tableState: TableState | null | undefined,
+): TableSource | null =>
+  tableState?.file?.source ?? tableState?.source ?? null;
 
 const getTableColumnLayoutStorageKey = (
   source: TableSource | null | undefined,

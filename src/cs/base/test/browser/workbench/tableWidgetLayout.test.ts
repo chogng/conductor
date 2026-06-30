@@ -51,6 +51,7 @@ suite("base/browser/workbench tableWidget layout", () => {
 
   test("rerenders visible cells when layout changes the viewport width", async () => {
     const widget = new TableWidget({
+      columnSizingMode: "fixed",
       onSelect: () => true,
       tableViewModel: createTableWidgetModel(),
       tableState: createTableWidgetState(),
@@ -78,6 +79,7 @@ suite("base/browser/workbench tableWidget layout", () => {
 
   test("fills wide viewports with bounded virtual empty columns", async () => {
     const widget = new TableWidget({
+      columnSizingMode: "fixed",
       onSelect: () => true,
       tableViewModel: createTableWidgetModel(() => ({}), {
         getRow: rowIndex => [
@@ -107,6 +109,7 @@ suite("base/browser/workbench tableWidget layout", () => {
 
   test("keeps rendered table DOM while selected source is loading", async () => {
     const widget = new TableWidget({
+      columnSizingMode: "fixed",
       onSelect: () => true,
       tableViewModel: createTableWidgetModel(),
       tableState: createTableWidgetState(),
@@ -138,6 +141,7 @@ suite("base/browser/workbench tableWidget layout", () => {
       });
 
       widget.update({
+        columnSizingMode: "fixed",
         onSelect: () => true,
         tableViewModel: createTableWidgetModel(),
         tableState: createTableWidgetState({
@@ -153,6 +157,7 @@ suite("base/browser/workbench tableWidget layout", () => {
       assert.equal(widget.element.querySelector(".table_view_empty"), null);
 
       widget.update({
+        columnSizingMode: "fixed",
         onSelect: () => true,
         tableViewModel: createTableWidgetModel(),
         tableState: createTableWidgetState({
@@ -172,6 +177,7 @@ suite("base/browser/workbench tableWidget layout", () => {
       assert.equal(widget.element.querySelector(".table_view_empty"), null);
 
       widget.update({
+        columnSizingMode: "fixed",
         onSelect: () => true,
         tableViewModel: createTableWidgetModel(() => ({}), {
           getRow: rowIndex => [
@@ -208,6 +214,7 @@ suite("base/browser/workbench tableWidget layout", () => {
 
   test("keeps rendered table shell while loading before visible ranges are cached", () => {
     const widget = new TableWidget({
+      columnSizingMode: "fixed",
       onSelect: () => true,
       tableViewModel: createTableWidgetModel(),
       tableState: createTableWidgetState(),
@@ -219,6 +226,7 @@ suite("base/browser/workbench tableWidget layout", () => {
       assert.ok(content);
 
       widget.update({
+        columnSizingMode: "fixed",
         onSelect: () => true,
         tableViewModel: createTableWidgetModel(),
         tableState: createTableWidgetState({
@@ -242,6 +250,7 @@ suite("base/browser/workbench tableWidget layout", () => {
   test("keeps rendered table DOM when loading source emits a full rows reset", async () => {
     const dynamicModel = createContentDirtyTableWidgetModel();
     const widget = new TableWidget({
+      columnSizingMode: "fixed",
       onSelect: () => true,
       tableViewModel: dynamicModel.model,
       tableState: createTableWidgetState(),
@@ -261,6 +270,7 @@ suite("base/browser/workbench tableWidget layout", () => {
       assert.equal(content.textContent, "A1");
 
       widget.update({
+        columnSizingMode: "fixed",
         onSelect: () => true,
         tableViewModel: dynamicModel.model,
         tableState: createTableWidgetState({
@@ -291,6 +301,7 @@ suite("base/browser/workbench tableWidget layout", () => {
 
   test("switches ready sources by patching body content without mutating body cells", async () => {
     const widget = new TableWidget({
+      columnSizingMode: "fixed",
       onSelect: () => true,
       tableViewModel: createTableWidgetModel(),
       tableState: createTableWidgetState(),
@@ -321,6 +332,7 @@ suite("base/browser/workbench tableWidget layout", () => {
       });
 
       widget.update({
+        columnSizingMode: "fixed",
         onSelect: () => true,
         tableViewModel: createTableWidgetModel(() => ({}), {
           getRow: rowIndex => [
@@ -357,6 +369,7 @@ suite("base/browser/workbench tableWidget layout", () => {
 
   test("exposes rendered size and base zoom state", async () => {
     const widget = new TableWidget({
+      columnSizingMode: "fixed",
       onSelect: () => true,
       tableViewModel: createTableWidgetModel(),
       tableState: createTableWidgetState(),
@@ -381,6 +394,7 @@ suite("base/browser/workbench tableWidget layout", () => {
       assert.deepEqual(widget.getSize(), { columnCount: 10, rowCount: 20 });
       assert.deepEqual(sizeEvents, []);
       widget.update({
+        columnSizingMode: "fixed",
         onSelect: () => true,
         tableViewModel: createTableWidgetModel(),
         tableState: createTableWidgetState({ columnCount: 4 }),
@@ -409,6 +423,7 @@ suite("base/browser/workbench tableWidget layout", () => {
   test("resizes columns through the base table resize event", async () => {
     const storedWidths: unknown[] = [];
     const widget = new TableWidget({
+      columnSizingMode: "fixed",
       onSelect: () => true,
       storeColumnWidths: (_source, widths) => {
         storedWidths.push(widths);
@@ -476,11 +491,113 @@ suite("base/browser/workbench tableWidget layout", () => {
     }
   });
 
+  test("auto-fits column widths from table content length summaries", async () => {
+    const widget = new TableWidget({
+      columnSizingMode: "autoFit",
+      onSelect: () => true,
+      tableViewModel: createTableWidgetModel(),
+      tableState: createTableWidgetState({
+        columnCount: 3,
+        maxCellLengths: [1, 20, 200],
+      }),
+    });
+    document.body.append(widget.element);
+
+    try {
+      const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+      assert.ok(viewport);
+      setElementClientSize(viewport, 900, 280);
+      widget.layout();
+      await timeout(120);
+
+      assert.equal(
+        getColumnHeaderWidth(widget.element, 0),
+        TableColumnLayout.resolveAutoFitWidth({ headerText: "A", maxCellLength: 1 }),
+      );
+      assert.equal(
+        getColumnHeaderWidth(widget.element, 1),
+        TableColumnLayout.resolveAutoFitWidth({ headerText: "B", maxCellLength: 20 }),
+      );
+      assert.equal(getColumnHeaderWidth(widget.element, 2), TableColumnLayout.maxWidth);
+    } finally {
+      widget.dispose();
+    }
+  });
+
+  test("does not start manual column resize while auto-fit is enabled", async () => {
+    const storedWidths: unknown[] = [];
+    const widget = new TableWidget({
+      columnSizingMode: "autoFit",
+      onSelect: () => true,
+      storeColumnWidths: (_source, widths) => {
+        storedWidths.push(widths);
+      },
+      tableViewModel: createTableWidgetModel(),
+      tableState: createTableWidgetState({
+        maxCellLengths: [12, 2],
+      }),
+    });
+    document.body.append(widget.element);
+
+    try {
+      const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+      assert.ok(viewport);
+      setElementClientSize(viewport, 500, 280);
+      widget.layout();
+      await timeout(120);
+
+      const body = widget.element.querySelector<HTMLElement>(".table_view_body");
+      assert.ok(body);
+      body.getBoundingClientRect = () => new DOMRect(0, 0, 800, 320);
+      const handle = getColumnResizeHandle(widget.element, 0);
+      const targetWindow = widget.element.ownerDocument.defaultView;
+      assert.ok(targetWindow);
+      const startClientX =
+        VirtualTableGridModel.getRowHeaderWidth(widget.getZoomPercent()) +
+        getColumnHeaderWidth(widget.element, 0);
+      const clientY = VirtualTableGridModel.getRowHeight(widget.getZoomPercent()) / 2;
+
+      dispatchPointerEvent(handle, "pointerdown", {
+        buttons: 1,
+        clientX: startClientX,
+        clientY,
+        pointerId: 10,
+      });
+      assert.equal(widget.element.classList.contains("table_view--resizing_column"), false);
+
+      targetWindow.dispatchEvent(new PointerEvent("pointermove", {
+        bubbles: true,
+        buttons: 1,
+        cancelable: true,
+        clientX: startClientX + 40,
+        clientY,
+        pointerId: 10,
+        pointerType: "mouse",
+      }));
+      targetWindow.dispatchEvent(new PointerEvent("pointerup", {
+        bubbles: true,
+        button: 0,
+        buttons: 0,
+        cancelable: true,
+        clientX: startClientX + 40,
+        clientY,
+        pointerId: 10,
+        pointerType: "mouse",
+      }));
+      await timeout(160);
+
+      assert.deepEqual(storedWidths, []);
+    } finally {
+      widget.dispose();
+    }
+  });
+
   test("renders scaled numeric cells from column display profiles", async () => {
     const hoverDelegate = new TestHoverDelegate();
     const previousHoverDelegate = getBaseLayerHoverDelegate();
     setBaseLayerHoverDelegate(hoverDelegate);
     const widget = new TableWidget({
+      columnSizingMode: "fixed",
       onSelect: () => true,
       tableViewModel: createSmartTableWidgetModel(),
       tableState: createTableWidgetState(),
@@ -517,6 +634,7 @@ suite("base/browser/workbench tableWidget layout", () => {
   test("refreshes column scale headers when rows version changes", async () => {
     const dynamicModel = createDynamicScaleTableWidgetModel();
     const widget = new TableWidget({
+      columnSizingMode: "fixed",
       onSelect: () => true,
       tableViewModel: dynamicModel.model,
       tableState: createTableWidgetState(),
@@ -554,6 +672,7 @@ suite("base/browser/workbench tableWidget layout", () => {
   test("patches visible display dirty cells from column scale changes", async () => {
     const dynamicModel = createDynamicScaleTableWidgetModel();
     const widget = new TableWidget({
+      columnSizingMode: "fixed",
       onAdjustColumnDisplayScale: dynamicModel.adjustColumnDisplayScale,
       onResetColumnDisplayScale: dynamicModel.resetColumnDisplayScale,
       onSelect: () => true,
@@ -589,6 +708,7 @@ suite("base/browser/workbench tableWidget layout", () => {
   test("patches only visible content dirty cells", async () => {
     const dynamicModel = createContentDirtyTableWidgetModel();
     const widget = new TableWidget({
+      columnSizingMode: "fixed",
       onSelect: () => true,
       tableViewModel: dynamicModel.model,
       tableState: createTableWidgetState(),
@@ -634,6 +754,7 @@ suite("base/browser/workbench tableWidget layout", () => {
   test("adjusts column scale from the header stepper", async () => {
     const dynamicModel = createDynamicScaleTableWidgetModel();
     const widget = new TableWidget({
+      columnSizingMode: "fixed",
       onAdjustColumnDisplayScale: dynamicModel.adjustColumnDisplayScale,
       onResetColumnDisplayScale: dynamicModel.resetColumnDisplayScale,
       onSelect: () => true,
@@ -675,6 +796,7 @@ suite("base/browser/workbench tableWidget layout", () => {
   test("positions the column scale stepper inside the hovered column header", async () => {
     const dynamicModel = createDynamicScaleTableWidgetModel();
     const widget = new TableWidget({
+      columnSizingMode: "fixed",
       onAdjustColumnDisplayScale: dynamicModel.adjustColumnDisplayScale,
       onResetColumnDisplayScale: dynamicModel.resetColumnDisplayScale,
       onSelect: () => true,
@@ -754,6 +876,7 @@ suite("base/browser/workbench tableWidget layout", () => {
   test("hits column scale controls through pointer coordinates", async () => {
     const dynamicModel = createDynamicScaleTableWidgetModel();
     const widget = new TableWidget({
+      columnSizingMode: "fixed",
       onAdjustColumnDisplayScale: dynamicModel.adjustColumnDisplayScale,
       onResetColumnDisplayScale: dynamicModel.resetColumnDisplayScale,
       onSelect: () => true,
@@ -784,6 +907,7 @@ suite("base/browser/workbench tableWidget layout", () => {
   test("keeps the column resize handle hittable while the scale stepper is visible", async () => {
     const dynamicModel = createDynamicScaleTableWidgetModel();
     const widget = new TableWidget({
+      columnSizingMode: "fixed",
       onAdjustColumnDisplayScale: dynamicModel.adjustColumnDisplayScale,
       onResetColumnDisplayScale: dynamicModel.resetColumnDisplayScale,
       onSelect: () => true,
@@ -815,6 +939,7 @@ suite("base/browser/workbench tableWidget layout", () => {
     let selection: TableWidgetSelection = {};
     const selectedColumns: number[][] = [];
     const widget = new TableWidget({
+      columnSizingMode: "fixed",
       canAdjustColumnScale: false,
       columnHeaderSelection: "multi",
       onAdjustColumnDisplayScale: dynamicModel.adjustColumnDisplayScale,
@@ -858,6 +983,7 @@ suite("base/browser/workbench tableWidget layout", () => {
     let selection: TableWidgetSelection = {};
     const selectedColumns: number[][] = [];
     const widget = new TableWidget({
+      columnSizingMode: "fixed",
       onSelect: target => {
         selection = applySelectionTarget(selection, target);
         selectedColumns.push([...(selection.selectedColumns ?? [])]);
@@ -888,6 +1014,7 @@ suite("base/browser/workbench tableWidget layout", () => {
   test("does not treat column resize handle clicks as header selection", async () => {
     const selectedColumns: number[][] = [];
     const widget = new TableWidget({
+      columnSizingMode: "fixed",
       onSelect: target => {
         selectedColumns.push([...(target?.kind === "columns" ? target.columns : [])]);
         return true;
@@ -918,6 +1045,7 @@ suite("base/browser/workbench tableWidget layout", () => {
   test("ignores column header selection when disabled", async () => {
     const selectedColumns: number[][] = [];
     const widget = new TableWidget({
+      columnSizingMode: "fixed",
       columnHeaderSelection: "disabled",
       onSelect: target => {
         selectedColumns.push([...(target?.kind === "columns" ? target.columns : [])]);
@@ -948,6 +1076,7 @@ suite("base/browser/workbench tableWidget layout", () => {
     let selection: TableWidgetSelection = {};
     const selectedColumns: number[][] = [];
     const widget = new TableWidget({
+      columnSizingMode: "fixed",
       columnHeaderSelection: "multi",
       onSelect: target => {
         selection = applySelectionTarget(selection, target);
@@ -981,6 +1110,7 @@ suite("base/browser/workbench tableWidget layout", () => {
     const selectionListeners = new Set<(selection: TableWidgetSelection) => void>();
     const selectedTargets: (TableWidgetSelectionTarget | null)[] = [];
     const widget = new TableWidget({
+      columnSizingMode: "fixed",
       onSelect: target => {
         selectedTargets.push(target);
         selection = applySelectionTarget(selection, target);
@@ -1071,6 +1201,7 @@ function createTableWidgetState(
     readonly columnCount?: number;
     readonly file?: TableWidgetState["file"] | null;
     readonly loadState?: TableWidgetState["loadState"];
+    readonly maxCellLengths?: readonly number[];
     readonly rowCount?: number;
     readonly sheetId?: string | null;
     readonly sourceId?: string;
@@ -1088,6 +1219,7 @@ function createTableWidgetState(
     ? {
         columnCount,
         fileName: "sample.csv",
+        maxCellLengths: options.maxCellLengths ?? Array.from({ length: columnCount }, () => 2),
         rowCount,
         sheetId,
         source,
@@ -1375,9 +1507,12 @@ function getVisibleColumnScaleControlButton(
   element: HTMLElement,
   kind: "minus" | "plus" | "value",
 ): HTMLButtonElement {
-  const selector = kind === "value"
-    ? ".table_view_column_scale_control:not([hidden]) .table_view_column_scale_value"
-    : `.table_view_column_scale_control:not([hidden]) .table_view_column_scale_button_${kind}`;
+  const action = kind === "value"
+    ? "reset"
+    : kind === "plus"
+      ? "increase"
+      : "decrease";
+  const selector = `.table_view_column_scale_control:not([hidden]) [data-scale-action="${action}"]`;
   const button = element.querySelector<HTMLButtonElement>(selector);
   assert.ok(button);
   return button;
@@ -1397,6 +1532,12 @@ function getColumnHeaderCell(element: HTMLElement, colIndex: number): HTMLElemen
   );
   assert.ok(cell);
   return cell;
+}
+
+function getColumnHeaderWidth(element: HTMLElement, colIndex: number): number {
+  const width = Number.parseFloat(getColumnHeaderCell(element, colIndex).style.width);
+  assert.equal(Number.isFinite(width), true);
+  return width;
 }
 
 function getColumnResizeHandle(element: HTMLElement, colIndex: number): HTMLElement {
@@ -1482,6 +1623,7 @@ function getElementCenterHitTarget(element: HTMLElement): {
   readonly clientY: number;
   readonly hitTarget: Element;
 } {
+  element.scrollIntoView({ block: "center", inline: "center" });
   const rect = element.getBoundingClientRect();
   const clientX = rect.left + (rect.width / 2);
   const clientY = rect.top + (rect.height / 2);
