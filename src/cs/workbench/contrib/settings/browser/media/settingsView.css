@@ -355,6 +355,7 @@
 
 .settings-template-term-suggestions {
   display: flex;
+  min-height: 1.5rem;
   min-width: 0;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -506,8 +507,18 @@
   min-width: 0;
 }
 
+.settings-template-feedback-slot {
+  min-height: 1.25rem;
+  margin: 0;
+}
+
 .settings-card-row {
   padding: 1rem;
+}
+
+.settings-tree {
+  display: block;
+  height: auto;
 }
 
 .settings-tree .ui-list {

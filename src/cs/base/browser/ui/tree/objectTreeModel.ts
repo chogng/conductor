@@ -1,4 +1,14 @@
-import type { ITreeElement } from "src/cs/base/browser/ui/tree/tree";
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+import {
+  IndexTreeModel,
+  type FlattenedTreeNode,
+  type IndexTreeElement,
+  type IndexTreeModelChange,
+} from "src/cs/base/browser/ui/tree/indexTreeModel";
+import type { ITreeElement, ITreeNode } from "src/cs/base/browser/ui/tree/tree";
 
 export type ObjectTreeModelNode<T> = {
   readonly children: ObjectTreeModelNode<T>[];
@@ -16,45 +26,48 @@ export type ObjectTreeModelOptions<T> = {
   readonly items: T[];
 };
 
-export type FlattenedObjectTreeNode<T> = {
-  readonly depth: number;
-  readonly expandable: boolean;
-  readonly item: T;
-  readonly key: string;
-};
-
 export class ObjectTreeModel<T> {
-  private collapsedKeys: Set<string>;
+  private readonly model: IndexTreeModel<T>;
   private options: ObjectTreeModelOptions<T>;
 
   constructor(options: ObjectTreeModelOptions<T>) {
     this.options = options;
-    this.collapsedKeys = new Set(options.collapsedKeys ?? []);
+    const collapsedKeys = new Set(options.collapsedKeys ?? []);
+    this.model = new IndexTreeModel(
+      this.createIndexTreeElements(options.items, 0, collapsedKeys),
+      options.collapsedKeys,
+    );
   }
 
-  update(options: ObjectTreeModelOptions<T>): void {
+  update(options: ObjectTreeModelOptions<T>): IndexTreeModelChange<T> {
     this.options = options;
-    if (options.collapsedKeys) {
-      this.collapsedKeys = new Set(options.collapsedKeys);
-    }
+    const collapsedKeys = options.collapsedKeys ?? this.model.getCollapsedKeys();
+    return this.model.update(
+      this.createIndexTreeElements(options.items, 0, new Set(collapsedKeys)),
+      collapsedKeys,
+    );
   }
 
   getCollapsedKeys(): string[] {
-    return [...this.collapsedKeys];
+    return this.model.getCollapsedKeys();
   }
 
-  setCollapsed(key: string, collapsed: boolean): string[] {
+  setCollapsed(key: string, collapsed: boolean): IndexTreeModelChange<T> {
+    const collapsedKeys = new Set(this.model.getCollapsedKeys());
     if (collapsed) {
-      this.collapsedKeys.add(key);
+      collapsedKeys.add(key);
     } else {
-      this.collapsedKeys.delete(key);
+      collapsedKeys.delete(key);
     }
 
-    return this.getCollapsedKeys();
+    return this.model.update(
+      this.createIndexTreeElements(this.options.items, 0, collapsedKeys),
+      [...collapsedKeys],
+    );
   }
 
   isCollapsed(key: string): boolean {
-    return this.collapsedKeys.has(key);
+    return this.model.isCollapsed(key);
   }
 
   getChildren(element: T): T[] {
@@ -73,41 +86,25 @@ export class ObjectTreeModel<T> {
     );
   }
 
-  flatten(): FlattenedObjectTreeNode<T>[] {
-    const result: FlattenedObjectTreeNode<T>[] = [];
+  flatten(): FlattenedTreeNode<T>[] {
+    return this.model.flatten();
+  }
 
-    const visit = (element: T, index: number, depth: number) => {
-      const entry = this.createFlattenedNode(element, index, depth);
-      result.push(entry);
-
-      if (entry.expandable && this.collapsedKeys.has(entry.key)) {
-        return;
-      }
-
-      const children = this.getChildren(element);
-      for (let childIndex = 0; childIndex < children.length; childIndex += 1) {
-        const child = children[childIndex];
-        if (child) {
-          visit(child, childIndex, depth + 1);
-        }
-      }
+  getTreeNode(entry: FlattenedTreeNode<T>): ITreeNode<T> {
+    return {
+      children: this.getChildren(entry.item),
+      collapsible: entry.expandable,
+      collapsed: entry.expandable && this.model.isCollapsed(entry.key),
+      depth: entry.depth,
+      element: entry.item,
     };
-
-    for (let index = 0; index < this.options.items.length; index += 1) {
-      const item = this.options.items[index];
-      if (item) {
-        visit(item, index, 0);
-      }
-    }
-
-    return result;
   }
 
   getVisibleDescendants(
     element: T,
     depth: number,
-  ): FlattenedObjectTreeNode<T>[] {
-    const result: FlattenedObjectTreeNode<T>[] = [];
+  ): FlattenedTreeNode<T>[] {
+    const result: FlattenedTreeNode<T>[] = [];
 
     const visitChildren = (parent: T, parentDepth: number) => {
       const children = this.getChildren(parent);
@@ -120,7 +117,7 @@ export class ObjectTreeModel<T> {
         const entry = this.createFlattenedNode(child, index, parentDepth + 1);
         result.push(entry);
 
-        if (entry.expandable && !this.collapsedKeys.has(entry.key)) {
+        if (entry.expandable && !this.model.isCollapsed(entry.key)) {
           visitChildren(child, entry.depth);
         }
       }
@@ -130,11 +127,49 @@ export class ObjectTreeModel<T> {
     return result;
   }
 
+  private createIndexTreeElements(
+    items: readonly T[],
+    depth: number,
+    collapsedKeys: ReadonlySet<string>,
+  ): IndexTreeElement<T>[] {
+    const elements: IndexTreeElement<T>[] = [];
+
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      if (!item) {
+        continue;
+      }
+
+      const key = this.options.getKey(item, index, depth);
+      const children = this.getChildren(item);
+      elements.push({
+        children: collapsedKeys.has(key)
+          ? this.createCollapsedChildIndexTreeElements(children, depth + 1)
+          : this.createIndexTreeElements(children, depth + 1, collapsedKeys),
+        element: item,
+        key,
+      });
+    }
+
+    return elements;
+  }
+
+  private createCollapsedChildIndexTreeElements(
+    items: readonly T[],
+    depth: number,
+  ): IndexTreeElement<T>[] {
+    return items.map((item, index) => ({
+      children: [],
+      element: item,
+      key: this.options.getKey(item, index, depth),
+    }));
+  }
+
   private createFlattenedNode(
     element: T,
     index: number,
     depth: number,
-  ): FlattenedObjectTreeNode<T> {
+  ): FlattenedTreeNode<T> {
     const key = this.options.getKey(element, index, depth);
     const children = this.getChildren(element);
 
@@ -159,7 +194,7 @@ export class ObjectTreeModel<T> {
     return {
       children,
       collapsible: children.length > 0,
-      collapsed: this.collapsedKeys.has(key),
+      collapsed: this.model.isCollapsed(key),
       depth,
       element,
       key,

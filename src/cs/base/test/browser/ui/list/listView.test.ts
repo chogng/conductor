@@ -83,6 +83,51 @@ suite("base/test/browser/ui/list/listView", () => {
     }
   });
 
+  test("preserves keyed rows shifted by insertion", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const alpha = { id: "alpha", label: "Alpha" };
+    const beta = { id: "beta", label: "Beta" };
+    const inserted = { id: "inserted", label: "Inserted" };
+    const disposed: string[] = [];
+    const rendered: string[] = [];
+    const list = new ListView(host, {
+      delegate: {
+        getHeight: () => 24,
+        getTemplateId: () => "row",
+      },
+      getKey: item => item.id,
+      items: [alpha, beta],
+      renderers: [{
+        templateId: "row",
+        renderTemplate: container => container,
+        renderElement: (element, index, container) => {
+          rendered.push(`${element.id}:${index}`);
+          container.textContent = element.label;
+        },
+        disposeElement: element => {
+          disposed.push(element.id);
+        },
+        disposeTemplate: () => undefined,
+      }],
+    });
+
+    try {
+      const betaRow = list.domElement(1);
+      assert.ok(betaRow);
+
+      rendered.length = 0;
+      list.splice(1, 0, [inserted]);
+
+      assert.equal(list.domElement(2), betaRow);
+      assert.deepEqual(disposed, []);
+      assert.deepEqual(rendered, ["inserted:1", "beta:2"]);
+    } finally {
+      list.dispose();
+      host.remove();
+    }
+  });
+
   test("delegates row drag and drop through list dnd", () => {
     const host = document.createElement("div");
     document.body.append(host);

@@ -40,9 +40,11 @@ SettingsViewOptions
   -> SettingsTree.update(sections)
   -> SettingsTree flattens section/item records into List entries
   -> base List reuses rows by stable entry id
+  -> SettingsTree.updateItems updates keyed List entries and patches already-rendered item widgets without replacing row nodes
   -> control items patch fixed title/description/control slots
   -> element items patch caller-owned item roots
   -> composite items keep one caller-owned card root with stable child slot nodes and patch slot content by stable child ids
+  -> SettingsView-owned controls and composite child content can register a local patch for component-internal updates
   -> SettingsView-owned controls emit typed intent callbacks
   -> changed control nodes replace only the item control slot
 ```
@@ -67,9 +69,11 @@ items are for settings that are one user-facing card but need independent
 patching of internal regions. The composite renderer owns the stable slot
 nodes, while the feature supplies slot content; do not split those regions into
 sibling rows and hide the model mismatch with CSS.
-All settings content must enter the page through `SettingsTreeSection` and
-`SettingsTreeItem`; `SettingsView` must not patch standalone section/card DOM
-outside `SettingsTree`.
+Each rendered settings content area owns one `SettingsTree` root. Descriptors
+contribute `SettingsTreeSection` records to that tree; they do not create
+separate tree roots. All settings content must enter the page through
+`SettingsTreeSection` and `SettingsTreeItem`; `SettingsView` must not patch
+standalone section/card DOM outside `SettingsTree`.
 
 Sections are rendering groups, not state owners. Settings content placement is
 declared by descriptor `sectionId` and `order`; moving a settings item or card
@@ -78,9 +82,16 @@ User edits flow from the control's typed intent callback to
 `SettingsController`, then to `ISettingsService` or an owner command.
 `SettingsController` sends affected descriptor id(s) for structural changes or
 affected item id(s) for ordinary settings changes with the next view options.
-After the owner publishes a changed snapshot, `SettingsView.update` patches the
-affected item roots where available, and `SettingsTree` patches rows by stable
-ids.
+After the owner publishes a changed snapshot, `SettingsView.update` applies
+registered local component patches owned by `SettingsView` and updates the
+containing card's search metadata in place. These local patch callbacks must
+not be stored on `SettingsTreeItem` records. If one update target mixes local
+and non-local item ids, `SettingsView` applies the local patches first and sends
+only the remaining item ids through `SettingsTree` widget patching by stable
+ids. `SettingsTree.updateItems` may use `List.splice` to update the base List
+model, but stable item keys must keep the existing List row, settings card, and
+control nodes alive. A targeted composite child id patches only that child slot;
+it must not replace the parent composite card or sibling child slots.
 
 ## Settings Search
 

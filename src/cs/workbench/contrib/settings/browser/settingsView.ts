@@ -1,6 +1,6 @@
 import { localize } from "src/cs/nls";
 import { addDisposableListener, append, EventType, reset } from "src/cs/base/browser/dom";
-import { createButton as createActionButton } from "src/cs/base/browser/ui/button/button";
+import { createButton as createActionButton, updateButton as updateActionButton } from "src/cs/base/browser/ui/button/button";
 import { ActionViewItem } from "src/cs/base/browser/ui/actionbar/actionViewItem";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import {
@@ -12,7 +12,7 @@ import {
   MODAL_BACKDROP_CLASS,
   MODAL_OVERLAY_CLASS,
 } from "src/cs/base/browser/ui/modal/modal";
-import { createInputBox } from "src/cs/base/browser/ui/inputbox/inputBox";
+import { createInputBox, type InputBox } from "src/cs/base/browser/ui/inputbox/inputBox";
 import { InputBoxWidget, type IInputBoxWidgetItem } from "src/cs/base/browser/ui/inputbox/inputBoxWidget";
 import { createSelectBox, type SelectBox, type SelectBoxOption } from "src/cs/base/browser/ui/selectBox/selectBox";
 import Scrollbar from "src/cs/base/browser/ui/scrollbar/scrollableElement";
@@ -381,7 +381,6 @@ export type SettingsViewUpdateTarget =
 type SettingsContentDescriptor = {
   readonly id: SettingsContentDescriptorId;
   readonly order: number;
-  readonly create: () => HTMLElement;
   readonly sectionId: SettingsSectionId;
 };
 
@@ -396,7 +395,6 @@ type FieldOptions = {
 type TextInputOptions = {
   disabled?: boolean;
   id: string;
-  monospace?: boolean;
   onBlur?: () => void;
   onChange: (value: string) => void;
   placeholder?: string;
@@ -414,21 +412,44 @@ type SettingsDocumentDialogOptions = {
   readonly markdown: string;
 };
 
+type TemplateSemanticCustomFormWidgets = {
+  readonly addButton: HTMLButtonElement;
+  readonly axisSelect: SelectBox<string>;
+  readonly familySelect: SelectBox<string>;
+  readonly feedback: HTMLElement;
+  readonly intentSelect: SelectBox<string>;
+  readonly ivModeSelect: SelectBox<string>;
+  readonly matchPolicySelect: SelectBox<string>;
+  readonly roleSelect: SelectBox<string>;
+  readonly unitSelect: SelectBox<string>;
+};
+
+type LocalContentPatch = {
+  readonly element: HTMLElement;
+  readonly getSearchText: () => string | undefined;
+  readonly update: () => void;
+};
+
 export class SettingsView {
   private readonly layoutDisposables = new DisposableStore();
   private readonly descriptorDisposables = new Map<SettingsContentDescriptorId, DisposableStore>();
-  private readonly descriptorElements = new Map<SettingsContentDescriptorId, HTMLElement>();
   private readonly descriptorItemIds = new Map<SettingsContentDescriptorId, Set<SettingsContentItemId>>();
-  private readonly descriptorTrees = new Map<SettingsContentDescriptorId, SettingsTree>();
+  private readonly renderedDescriptorIds = new Set<SettingsContentDescriptorId>();
   private readonly contentDisposables = new DisposableStore();
   private readonly itemDisposables = new Map<SettingsContentItemId, DisposableStore>();
+  private readonly localContentPatches = new Map<SettingsContentItemId, LocalContentPatch>();
   private readonly treeItems = new Map<SettingsContentItemId, SettingsTreeItem | SettingsTreeCompositeChildItem>();
+  private readonly templateSemanticActiveTermFields = new WeakMap<HTMLElement, InputBoxWidget>();
+  private readonly templateSemanticCustomForms = new WeakMap<HTMLElement, TemplateSemanticCustomFormWidgets>();
+  private readonly templateSemanticRecommendedTermButtons = new WeakMap<HTMLElement, Map<string, HTMLButtonElement>>();
+  private readonly templateSemanticRecommendedTermEmptyMessages = new WeakMap<HTMLElement, HTMLElement>();
   private readonly root: HTMLElement;
   private readonly contentScroll = new Scrollbar({
     className: "settings-view-content-scroll",
     viewportClassName: "settings-view-content-scroll-viewport",
   });
   private contentElement: HTMLElement | null = null;
+  private contentTree: SettingsTree | null = null;
   private activeDescriptorId: SettingsContentDescriptorId | null = null;
   private activeDescriptorDisposables: DisposableStore | null = null;
   private activeItemDisposables: DisposableStore | null = null;
@@ -526,41 +547,108 @@ export class SettingsView {
   }
 
   private updateContentDescriptor(descriptorId: SettingsContentDescriptorId): void {
-    const currentElement = this.descriptorElements.get(descriptorId);
-    if (!currentElement) {
+    const tree = this.contentTree;
+    if (!tree || !this.renderedDescriptorIds.has(descriptorId)) {
       return;
     }
 
-    const descriptor = this.createContentDescriptors().find(candidate => candidate.id === descriptorId);
-    if (!descriptor) {
-      return;
-    }
-
+    const itemIds = new Set(this.descriptorItemIds.get(descriptorId) ?? []);
     const currentDisposables = this.collectDescriptorDisposables(descriptorId);
-    const nextElement = this.createContentDescriptorElement(descriptor);
-    currentElement.replaceWith(nextElement);
-    currentDisposables.dispose();
+    const previousPatchIds = this.activeTreeItemPatchIds;
+    this.activeTreeItemPatchIds = itemIds;
+    try {
+      tree.update(this.createVisibleContentTreeSections(false));
+    }
+    finally {
+      this.activeTreeItemPatchIds = previousPatchIds;
+      currentDisposables.dispose();
+    }
   }
 
   private updateContentItems(target: SettingsContentItemTarget): void {
-    this.updateSettingsTreeItems(target);
+    const treeItemIds = this.updateLocalContentItems(target);
+    if (treeItemIds.length === 0) {
+      return;
+    }
+
+    this.updateSettingsTreeItems({
+      descriptorId: target.descriptorId,
+      itemIds: treeItemIds,
+    });
+  }
+
+  private updateLocalContentItems(target: SettingsContentItemTarget): readonly SettingsContentItemId[] {
+    if (target.itemIds.length === 0) {
+      return [];
+    }
+
+    const patches: LocalContentPatch[] = [];
+    const treeItemIds: SettingsContentItemId[] = [];
+    for (const itemId of target.itemIds) {
+      const patch = this.localContentPatches.get(itemId);
+      if (!patch || !patch.element.isConnected) {
+        treeItemIds.push(itemId);
+        continue;
+      }
+      patches.push(patch);
+    }
+
+    const cards = new Set<HTMLElement>();
+    for (const patch of patches) {
+      patch.update();
+      const card = patch.element.closest<HTMLElement>(".settings-card");
+      if (card) {
+        cards.add(card);
+      }
+    }
+
+    for (const card of cards) {
+      this.updateLocalContentSearchText(card);
+    }
+    return treeItemIds;
+  }
+
+  private updateLocalContentSearchText(card: HTMLElement): void {
+    const item = this.treeItems.get(card.id as SettingsContentItemId);
+    if (!item || !("kind" in item)) {
+      return;
+    }
+
+    if (item.kind === "composite") {
+      updateElementSearchText(
+        card,
+        normalizeSettingsSearchText(
+          item.searchText,
+          item.items.map(child => this.localContentPatches.get(child.id as SettingsContentItemId)?.getSearchText() ?? child.searchText),
+        ),
+      );
+      return;
+    }
+
+    const patch = this.localContentPatches.get(item.id as SettingsContentItemId);
+    if (item.kind === "control") {
+      updateElementSearchText(
+        card,
+        normalizeSettingsSearchText(item.title, item.description, patch?.getSearchText() ?? item.searchText),
+      );
+      return;
+    }
+
+    updateElementSearchText(card, normalizeSettingsSearchText(patch?.getSearchText() ?? item.searchText));
   }
 
   private updateSettingsTreeItems(target: SettingsContentItemTarget): void {
-    const tree = this.descriptorTrees.get(target.descriptorId);
-    if (!tree) {
+    const tree = this.contentTree;
+    if (!tree || !this.renderedDescriptorIds.has(target.descriptorId)) {
       return;
     }
 
     const itemIds = new Set(target.itemIds);
-    const currentDisposables = target.itemIds
-      .map(itemId => this.collectContentItemDisposables(itemId));
+    const currentDisposables = target.itemIds.map(itemId => this.collectContentItemDisposables(itemId));
     const previousPatchIds = this.activeTreeItemPatchIds;
     this.activeTreeItemPatchIds = itemIds;
     try {
-      this.withActiveDescriptor(target.descriptorId, () => {
-        tree.updateItems(this.createDescriptorTreeSections(target.descriptorId), target.itemIds);
-      });
+      tree.updateItems(this.createVisibleContentTreeSections(false), target.itemIds);
     }
     finally {
       this.activeTreeItemPatchIds = previousPatchIds;
@@ -585,17 +673,17 @@ export class SettingsView {
     }
   }
 
-  private createContentDescriptorElement(descriptor: SettingsContentDescriptor): HTMLElement {
+  private createContentDescriptorSections(descriptor: SettingsContentDescriptor): readonly SettingsTreeSection[] {
     const disposables = new DisposableStore();
     const previousDisposables = this.activeDescriptorDisposables;
     const previousDescriptorId = this.activeDescriptorId;
     this.activeDescriptorDisposables = disposables;
     this.activeDescriptorId = descriptor.id;
     try {
-      const element = descriptor.create();
+      const sections = this.createDescriptorTreeSections(descriptor.id);
       this.descriptorDisposables.set(descriptor.id, disposables);
-      this.descriptorElements.set(descriptor.id, element);
-      return element;
+      this.renderedDescriptorIds.add(descriptor.id);
+      return sections;
     }
     finally {
       this.activeDescriptorDisposables = previousDisposables;
@@ -607,15 +695,29 @@ export class SettingsView {
     const descriptorIds = new Set<SettingsContentDescriptorId>([
       ...this.descriptorDisposables.keys(),
       ...this.descriptorItemIds.keys(),
+      ...this.renderedDescriptorIds,
     ]);
     for (const descriptorId of descriptorIds) {
       this.collectDescriptorDisposables(descriptorId).dispose();
     }
+    this.renderedDescriptorIds.clear();
+    this.contentTree = null;
   }
 
   private registerContentDisposable<T extends IDisposable>(disposable: T): T {
     const disposables = this.activeItemDisposables ?? this.activeDescriptorDisposables ?? this.contentDisposables;
     return disposables.add(disposable);
+  }
+
+  private registerLocalContentPatch(itemId: SettingsContentItemId, patch: LocalContentPatch): void {
+    this.localContentPatches.set(itemId, patch);
+    this.registerContentDisposable({
+      dispose: () => {
+        if (this.localContentPatches.get(itemId)?.element === patch.element) {
+          this.localContentPatches.delete(itemId);
+        }
+      },
+    });
   }
 
   private collectDescriptorDisposables(descriptorId: SettingsContentDescriptorId): DisposableStore {
@@ -627,8 +729,6 @@ export class SettingsView {
       }
     }
     this.descriptorItemIds.delete(descriptorId);
-    this.descriptorTrees.delete(descriptorId);
-    this.descriptorElements.delete(descriptorId);
     const descriptorDisposables = this.descriptorDisposables.get(descriptorId);
     if (descriptorDisposables) {
       disposables.add(descriptorDisposables);
@@ -644,6 +744,7 @@ export class SettingsView {
       disposables.add(itemDisposables);
       this.itemDisposables.delete(itemId);
     }
+    this.localContentPatches.delete(itemId);
     this.treeItems.delete(itemId);
     return disposables;
   }
@@ -803,6 +904,10 @@ export class SettingsView {
       return null;
     }
 
+    return this.getCurrentCompositeChildItem(itemId);
+  }
+
+  private getCurrentCompositeChildItem(itemId: SettingsContentItemId): SettingsTreeCompositeChildItem | null {
     const item = this.treeItems.get(itemId);
     if (!item || "kind" in item) {
       return null;
@@ -975,69 +1080,91 @@ export class SettingsView {
   }
 
   private renderSettingsContent(container: HTMLElement, sectionIds: readonly SettingsSectionId[]): void {
+    const tree = this.registerContentDisposable(new SettingsTree());
+    tree.update(this.createContentTreeSections(this.getContentDescriptorsForSections(sectionIds), true));
+    this.contentTree = tree;
+    container.appendChild(tree.element);
+  }
+
+  private createVisibleContentTreeSections(initializeDescriptors: boolean): readonly SettingsTreeSection[] {
+    const sectionIds = hasSettingsSearchQuery(this.searchQuery)
+      ? this.options.settingsSections.map(section => section.id)
+      : [this.options.activeSettingsSection];
+    return this.createContentTreeSections(this.getContentDescriptorsForSections(sectionIds), initializeDescriptors);
+  }
+
+  private getContentDescriptorsForSections(sectionIds: readonly SettingsSectionId[]): readonly SettingsContentDescriptor[] {
     const descriptors = this.createContentDescriptors();
+    const result: SettingsContentDescriptor[] = [];
     for (const sectionId of sectionIds) {
-      for (const descriptor of descriptors
+      result.push(...descriptors
         .filter(candidate => candidate.sectionId === sectionId)
-        .sort((first, second) => first.order - second.order)) {
-        container.appendChild(this.createContentDescriptorElement(descriptor));
-      }
+        .sort((first, second) => first.order - second.order));
     }
+    return result;
+  }
+
+  private createContentTreeSections(
+    descriptors: readonly SettingsContentDescriptor[],
+    initializeDescriptors: boolean,
+  ): readonly SettingsTreeSection[] {
+    const sections: SettingsTreeSection[] = [];
+    for (const descriptor of descriptors) {
+      const descriptorSections = initializeDescriptors
+        ? this.createContentDescriptorSections(descriptor)
+        : this.withActiveDescriptor(descriptor.id, () => {
+          this.renderedDescriptorIds.add(descriptor.id);
+          return this.createDescriptorTreeSections(descriptor.id);
+        });
+      sections.push(...descriptorSections);
+    }
+    return sections;
   }
 
   private createContentDescriptors(): readonly SettingsContentDescriptor[] {
     return [
       {
         id: "general-preferences",
-        create: () => this.createSettingsTreeDescriptorElement("general-preferences"),
         order: 0,
         sectionId: "general",
       },
       {
         id: "chart-defaults",
-        create: () => this.createSettingsTreeDescriptorElement("chart-defaults"),
         order: 10,
         sectionId: "general",
       },
       {
         id: "template-preferences",
-        create: () => this.createSettingsTreeDescriptorElement("template-preferences"),
         order: 0,
         sectionId: "template",
       },
       {
         id: "template-matching",
-        create: () => this.createSettingsTreeDescriptorElement("template-matching"),
         order: 10,
         sectionId: "template",
       },
       {
         id: "template-library",
-        create: () => this.createSettingsTreeDescriptorElement("template-library"),
         order: 20,
         sectionId: "template",
       },
       {
         id: "template-semantic-library",
-        create: () => this.createSettingsTreeDescriptorElement("template-semantic-library"),
         order: 30,
         sectionId: "template",
       },
       {
         id: "appearance-preferences",
-        create: () => this.createSettingsTreeDescriptorElement("appearance-preferences"),
         order: 0,
         sectionId: "appearance",
       },
       {
         id: "origin-integration",
-        create: () => this.createSettingsTreeDescriptorElement("origin-integration"),
         order: 0,
         sectionId: "origin",
       },
       {
         id: "about",
-        create: () => this.createSettingsTreeDescriptorElement("about"),
         order: 0,
         sectionId: "about",
       },
@@ -1050,13 +1177,6 @@ export class SettingsView {
       throw new Error(`Settings section ${sectionId} is not registered.`);
     }
     return section.label;
-  }
-
-  private createSettingsTreeDescriptorElement(descriptorId: SettingsContentDescriptorId): HTMLElement {
-    const tree = this.registerContentDisposable(new SettingsTree());
-    tree.update(this.createDescriptorTreeSections(descriptorId));
-    this.descriptorTrees.set(descriptorId, tree);
-    return tree.element;
   }
 
   private createDescriptorTreeSections(descriptorId: SettingsContentDescriptorId): readonly SettingsTreeSection[] {
@@ -1097,7 +1217,7 @@ export class SettingsView {
         items: [
           this.createSettingsTreeControlItem({
             id: "settings-language-card",
-            createControl: () => this.createSelect({
+            createControl: () => this.createLocalSelectControl("settings-language-card", () => ({
               id: "settings-language-dropdown",
               value: this.options.language,
               onChange: value => {
@@ -1106,14 +1226,14 @@ export class SettingsView {
                 }
               },
               options: languageOptions,
-            }),
+            })),
             description: localize("settings.language.description", "Choose the display language used by the app."),
             searchText: normalizeSettingsSearchText(optionLabels(languageOptions)),
             title: localize("settings.language.title", "Language"),
           }),
           this.createSettingsTreeControlItem({
             id: "settings-close-behavior-card",
-            createControl: () => this.createSelect({
+            createControl: () => this.createLocalSelectControl("settings-close-behavior-card", () => ({
               id: "settings-close-behavior-dropdown",
               value: this.options.windowCloseSettings.behavior,
               onChange: value => {
@@ -1123,21 +1243,22 @@ export class SettingsView {
               },
               options: this.options.windowCloseBehaviorOptions,
               disabled: this.options.windowCloseSettings.isSaving,
-            }),
+            })),
             description: localize("settings.closeBehavior.description", "Choose what happens when the main window is closed."),
             searchText: normalizeSettingsSearchText(optionLabels(this.options.windowCloseBehaviorOptions)),
             title: localize("settings.closeBehavior.title", "Close Window"),
           }),
           this.createSettingsTreeControlItem({
             id: "settings-numeric-display-card",
-            createControl: () => this.createSwitchWidget({
+            createControl: () => this.createLocalSwitchControl({
+              itemId: "settings-numeric-display-card",
               ariaLabel: localize("settings.numericDisplay.title", "优化表格数值显示"),
-              checked: this.options.numericDisplaySettings.optimized,
+              getChecked: () => this.options.numericDisplaySettings.optimized,
               id: "settings-numeric-display-toggle",
               onChange: checked => {
                 void this.options.numericDisplaySettings.onOptimizedChange(checked);
               },
-            }).domNode,
+            }),
             description: localize("settings.numericDisplay.description", "优化科学计数法以合适小数位显示以更好的预览"),
             title: localize("settings.numericDisplay.title", "优化表格数值显示"),
           }),
@@ -1154,15 +1275,16 @@ export class SettingsView {
         items: [
           this.createSettingsTreeControlItem({
             id: "settings-table-template-visualization-card",
-            createControl: () => this.createSwitchWidget({
+            createControl: () => this.createLocalSwitchControl({
+              itemId: "settings-table-template-visualization-card",
               ariaLabel: localize("settings.tableTemplateVisualization.title", "Template Visualization"),
-              checked: this.options.tableTemplateVisualizationSettings.enabled,
+              getChecked: () => this.options.tableTemplateVisualizationSettings.enabled,
+              getDisabled: () => this.options.tableTemplateVisualizationSettings.isSaving,
               id: "settings-table-template-visualization-toggle",
               onChange: checked => {
                 void this.options.tableTemplateVisualizationSettings.onEnabledChange(checked);
               },
-              disabled: this.options.tableTemplateVisualizationSettings.isSaving,
-            }).domNode,
+            }),
             description: localize("settings.tableTemplateVisualization.description", "Show the current template ranges on the table preview."),
             title: localize("settings.tableTemplateVisualization.title", "Template Visualization"),
           }),
@@ -1225,34 +1347,17 @@ export class SettingsView {
               this.createSettingsTreeCompositeChildItem({
                 id: "settings-template-semantic-active-terms-card",
                 createElement: () => this.createTemplateSemanticActiveTerms(settings),
-                searchText: normalizeSettingsSearchText(
-                  localize("settings.template.semantic.activeTitle", "Active match terms"),
-                  settings.activeTerms.map(rule => `${rule.term} ${rule.canonicalRole} ${rule.axisTendency}`).join(" "),
-                ),
+                searchText: this.getTemplateSemanticActiveTermsSearchText(settings),
               }),
               this.createSettingsTreeCompositeChildItem({
                 id: "settings-template-semantic-recommended-terms-card",
                 createElement: () => this.createTemplateSemanticRecommendedTerms(settings),
-                searchText: normalizeSettingsSearchText(
-                  localize("settings.template.semantic.recommendedBuiltinTitle", "Recommended built-in match terms"),
-                  settings.builtinTerms
-                    .filter(term => settings.disabledBuiltinTermIds.includes(term.id))
-                    .map(rule => `${rule.term} ${rule.canonicalRole} ${rule.axisTendency}`).join(" "),
-                ),
+                searchText: this.getTemplateSemanticRecommendedTermsSearchText(settings),
               }),
               this.createSettingsTreeCompositeChildItem({
                 id: "settings-template-semantic-custom-form-card",
                 createElement: () => this.createTemplateSemanticCustomForm(settings),
-                searchText: normalizeSettingsSearchText(
-                  localize("settings.template.semantic.customMappingTitle", "Custom term mapping"),
-                  optionLabels(settings.roleOptions),
-                  optionLabels(settings.axisOptions),
-                  optionLabels(settings.matchPolicyOptions),
-                  optionLabels(settings.intentOptions),
-                  optionLabels(settings.unitOptions),
-                  optionLabels(settings.familyOptions),
-                  optionLabels(settings.ivModeOptions),
-                ),
+                searchText: this.getTemplateSemanticCustomFormSearchText(settings),
               }),
             ],
           }),
@@ -1430,62 +1535,328 @@ export class SettingsView {
 
   private createTemplateSemanticActiveTerms(settings: TemplateSettings): HTMLElement {
     const container = div("settings-template-semantic-library-part");
-    container.appendChild(this.createBuiltinSemanticTermList(settings));
+    this.updateTemplateSemanticActiveTerms(container, settings);
+    this.registerLocalContentPatch("settings-template-semantic-active-terms-card", {
+      element: container,
+      getSearchText: () => this.getTemplateSemanticActiveTermsSearchText(this.options.templateSettings),
+      update: () => this.updateTemplateSemanticActiveTerms(container, this.options.templateSettings),
+    });
     return container;
   }
 
   private createTemplateSemanticRecommendedTerms(settings: TemplateSettings): HTMLElement {
     const container = div("settings-template-semantic-library-part");
-    container.appendChild(this.createDisabledBuiltinSemanticTermList(settings));
+    this.updateTemplateSemanticRecommendedTerms(container, settings);
+    this.registerLocalContentPatch("settings-template-semantic-recommended-terms-card", {
+      element: container,
+      getSearchText: () => this.getTemplateSemanticRecommendedTermsSearchText(this.options.templateSettings),
+      update: () => this.updateTemplateSemanticRecommendedTerms(container, this.options.templateSettings),
+    });
     return container;
   }
 
   private createTemplateSemanticCustomForm(settings: TemplateSettings): HTMLElement {
     const container = div("settings-template-semantic-library-part");
-    const titleText = localize("settings.template.semantic.customMappingTitle", "Custom term mapping");
-    container.append(
-      text("p", "settings-template-subtitle", titleText),
-      this.createTemplateSemanticTermForm(settings),
-    );
-    appendFeedback(container, settings.feedback);
+    this.updateTemplateSemanticCustomForm(container, settings);
+    this.registerLocalContentPatch("settings-template-semantic-custom-form-card", {
+      element: container,
+      getSearchText: () => this.getTemplateSemanticCustomFormSearchText(this.options.templateSettings),
+      update: () => this.updateTemplateSemanticCustomForm(container, this.options.templateSettings),
+    });
     return container;
   }
 
-  private createBuiltinSemanticTermList(settings: TemplateSettings): HTMLElement {
-    const section = div("settings-template-library-group");
-    const title = localize("settings.template.semantic.activeTitle", "Active match terms");
-    section.appendChild(text("p", "settings-template-subtitle", title));
-    section.appendChild(this.createTemplateSemanticTermField(
-      settings,
-      settings.activeTerms.map(term => term.source === "builtin"
-        ? this.createBuiltinSemanticTermItem(settings, term)
-        : this.createCustomSemanticTermItem(settings, term)),
-      title,
-      true,
-    ));
-    return section;
+  private getTemplateSemanticActiveTermsSearchText(settings: TemplateSettings): string {
+    return normalizeSettingsSearchText(
+      localize("settings.template.semantic.activeTitle", "Active match terms"),
+      settings.activeTerms.map(rule => `${rule.term} ${rule.canonicalRole} ${rule.axisTendency}`).join(" "),
+    );
   }
 
-  private createDisabledBuiltinSemanticTermList(settings: TemplateSettings): HTMLElement {
+  private getTemplateSemanticRecommendedTermsSearchText(settings: TemplateSettings): string {
+    return normalizeSettingsSearchText(
+      localize("settings.template.semantic.recommendedBuiltinTitle", "Recommended built-in match terms"),
+      settings.builtinTerms
+        .filter(term => settings.disabledBuiltinTermIds.includes(term.id))
+        .map(rule => `${rule.term} ${rule.canonicalRole} ${rule.axisTendency}`).join(" "),
+    );
+  }
+
+  private getTemplateSemanticCustomFormSearchText(settings: TemplateSettings): string {
+    return normalizeSettingsSearchText(
+      localize("settings.template.semantic.customMappingTitle", "Custom term mapping"),
+      optionLabels(settings.roleOptions),
+      optionLabels(settings.axisOptions),
+      optionLabels(settings.matchPolicyOptions),
+      optionLabels(settings.intentOptions),
+      optionLabels(settings.unitOptions),
+      optionLabels(settings.familyOptions),
+      optionLabels(settings.ivModeOptions),
+    );
+  }
+
+  private updateTemplateSemanticCustomForm(container: HTMLElement, settings: TemplateSettings): void {
+    let widgets = this.templateSemanticCustomForms.get(container);
+    if (!widgets) {
+      reset(container);
+      const titleText = localize("settings.template.semantic.customMappingTitle", "Custom term mapping");
+      const form = div("settings-template-semantic-form");
+      const grid = div("settings-grid settings-grid--three");
+      const roleSelect = this.createSelectWidget(this.getTemplateSemanticRoleSelectOptions(settings));
+      const axisSelect = this.createSelectWidget(this.getTemplateSemanticAxisSelectOptions(settings));
+      const matchPolicySelect = this.createSelectWidget(this.getTemplateSemanticMatchPolicySelectOptions(settings));
+      const intentSelect = this.createSelectWidget(this.getTemplateSemanticIntentSelectOptions(settings));
+      const unitSelect = this.createSelectWidget(this.getTemplateSemanticUnitSelectOptions(settings));
+      const familySelect = this.createSelectWidget(this.getTemplateSemanticFamilySelectOptions(settings));
+      const ivModeSelect = this.createSelectWidget(this.getTemplateSemanticIvModeSelectOptions(settings));
+      grid.append(
+        field(localize("settings.template.semantic.roleLabel", "Role"), roleSelect.domNode),
+        field(localize("settings.template.semantic.axisLabel", "Axis"), axisSelect.domNode),
+        field(localize("settings.template.semantic.policyLabel", "Match"), matchPolicySelect.domNode),
+        field(localize("settings.template.semantic.intentLabel", "Intent"), intentSelect.domNode),
+        field(localize("settings.template.semantic.unitLabel", "Unit"), unitSelect.domNode),
+        field(localize("settings.template.semantic.familyLabel", "Family"), familySelect.domNode),
+        field(localize("settings.template.semantic.ivModeLabel", "IV mode"), ivModeSelect.domNode),
+      );
+      const addButton = this.createButton({
+        id: "settings-template-semantic-add-button",
+        label: localize("settings.template.semantic.add", "Add Term"),
+        onClick: () => void this.options.templateSettings.onAddSemanticTerm(),
+        disabled: settings.isSaving || !this.options.templateSemanticTermDraft.trim(),
+        variant: "primary",
+      });
+      const feedback = text("p", "settings-feedback settings-template-feedback-slot", "");
+      feedback.setAttribute("aria-live", "polite");
+      form.append(
+        grid,
+        div("settings-actions-end", addButton),
+        feedback,
+      );
+      container.append(
+        text("p", "settings-template-subtitle", titleText),
+        form,
+      );
+      widgets = {
+        addButton,
+        axisSelect,
+        familySelect,
+        feedback,
+        intentSelect,
+        ivModeSelect,
+        matchPolicySelect,
+        roleSelect,
+        unitSelect,
+      };
+      this.templateSemanticCustomForms.set(container, widgets);
+    }
+
+    this.updateSelectWidget(widgets.roleSelect, this.getTemplateSemanticRoleSelectOptions(settings));
+    this.updateSelectWidget(widgets.axisSelect, this.getTemplateSemanticAxisSelectOptions(settings));
+    this.updateSelectWidget(widgets.matchPolicySelect, this.getTemplateSemanticMatchPolicySelectOptions(settings));
+    this.updateSelectWidget(widgets.intentSelect, this.getTemplateSemanticIntentSelectOptions(settings));
+    this.updateSelectWidget(widgets.unitSelect, this.getTemplateSemanticUnitSelectOptions(settings));
+    this.updateSelectWidget(widgets.familySelect, this.getTemplateSemanticFamilySelectOptions(settings));
+    this.updateSelectWidget(widgets.ivModeSelect, this.getTemplateSemanticIvModeSelectOptions(settings));
+    widgets.addButton.disabled = settings.isSaving || !this.options.templateSemanticTermDraft.trim();
+    this.updateTemplateSemanticFeedback(widgets.feedback, settings.feedback);
+  }
+
+  private updateTemplateSemanticFeedback(element: HTMLElement, feedback: Feedback): void {
+    element.className = feedback.type === "error"
+      ? "settings-feedback settings-template-feedback-slot settings-feedback--error"
+      : feedback.type === "success"
+        ? "settings-feedback settings-template-feedback-slot settings-feedback--success"
+        : "settings-feedback settings-template-feedback-slot";
+    element.textContent = feedback.message;
+  }
+
+  private getTemplateSemanticRoleSelectOptions(settings: TemplateSettings): FieldOptions {
+    return {
+      id: "settings-template-semantic-role-select",
+      value: this.options.templateSemanticRoleDraft,
+      onChange: this.options.setTemplateSemanticRoleDraft,
+      options: settings.roleOptions,
+      disabled: settings.isSaving,
+    };
+  }
+
+  private getTemplateSemanticAxisSelectOptions(settings: TemplateSettings): FieldOptions {
+    return {
+      id: "settings-template-semantic-axis-select",
+      value: this.options.templateSemanticAxisDraft,
+      onChange: this.options.setTemplateSemanticAxisDraft,
+      options: settings.axisOptions,
+      disabled: settings.isSaving,
+    };
+  }
+
+  private getTemplateSemanticMatchPolicySelectOptions(settings: TemplateSettings): FieldOptions {
+    return {
+      id: "settings-template-semantic-policy-select",
+      value: this.options.templateSemanticMatchPolicyDraft,
+      onChange: this.options.setTemplateSemanticMatchPolicyDraft,
+      options: settings.matchPolicyOptions,
+      disabled: settings.isSaving,
+    };
+  }
+
+  private getTemplateSemanticIntentSelectOptions(settings: TemplateSettings): FieldOptions {
+    return {
+      id: "settings-template-semantic-intent-select",
+      value: this.options.templateSemanticIntentDraft,
+      onChange: this.options.setTemplateSemanticIntentDraft,
+      options: settings.intentOptions,
+      disabled: settings.isSaving,
+    };
+  }
+
+  private getTemplateSemanticUnitSelectOptions(settings: TemplateSettings): FieldOptions {
+    return {
+      id: "settings-template-semantic-unit-select",
+      value: this.options.templateSemanticUnitDraft,
+      onChange: this.options.setTemplateSemanticUnitDraft,
+      options: settings.unitOptions,
+      disabled: settings.isSaving,
+    };
+  }
+
+  private getTemplateSemanticFamilySelectOptions(settings: TemplateSettings): FieldOptions {
+    return {
+      id: "settings-template-semantic-family-select",
+      value: this.options.templateSemanticFamilyDraft,
+      onChange: this.options.setTemplateSemanticFamilyDraft,
+      options: settings.familyOptions,
+      disabled: settings.isSaving,
+    };
+  }
+
+  private getTemplateSemanticIvModeSelectOptions(settings: TemplateSettings): FieldOptions {
+    return {
+      id: "settings-template-semantic-iv-mode-select",
+      value: this.options.templateSemanticIvModeDraft,
+      onChange: this.options.setTemplateSemanticIvModeDraft,
+      options: settings.ivModeOptions,
+      disabled: settings.isSaving,
+    };
+  }
+
+  private updateTemplateSemanticActiveTerms(container: HTMLElement, settings: TemplateSettings): void {
+    const title = localize("settings.template.semantic.activeTitle", "Active match terms");
+    const items = settings.activeTerms.map(term => term.source === "builtin"
+      ? this.createBuiltinSemanticTermItem(settings, term)
+      : this.createCustomSemanticTermItem(settings, term));
+    let inputBox = this.templateSemanticActiveTermFields.get(container);
+    if (!inputBox) {
+      reset(container);
+      const section = div("settings-template-library-group");
+      section.appendChild(text("p", "settings-template-subtitle", title));
+      inputBox = this.registerContentDisposable(new InputBoxWidget({
+        ariaLabel: title,
+        disabled: settings.isSaving,
+        inputVisible: true,
+        items,
+        placeholder: localize("settings.template.semantic.termInputPlaceholder", "Add match term"),
+        value: this.options.templateSemanticTermDraft,
+      }));
+      inputBox.element.classList.add("settings-template-term-inputbox");
+      this.registerContentDisposable(inputBox.onDidChange(value => {
+        this.options.setTemplateSemanticTermDraft(value);
+      }));
+      this.registerContentDisposable(inputBox.onDidAccept(() => {
+        void this.options.templateSettings.onAddSemanticTerm();
+      }));
+      this.registerContentDisposable(inputBox.onDidTriggerItemAction(({ item }) => {
+        if (item.kind === "builtin-enabled") {
+          void this.options.templateSettings.onDisableBuiltinTerm(item.id);
+          return;
+        }
+        if (item.kind === "custom") {
+          void this.options.templateSettings.onRemoveSemanticTerm(item.id);
+        }
+      }));
+      section.appendChild(inputBox.element);
+      container.appendChild(section);
+      this.templateSemanticActiveTermFields.set(container, inputBox);
+      return;
+    }
+
+    inputBox.update({
+      ariaLabel: title,
+      disabled: settings.isSaving,
+      inputVisible: true,
+      items,
+      placeholder: localize("settings.template.semantic.termInputPlaceholder", "Add match term"),
+      value: this.options.templateSemanticTermDraft,
+    });
+  }
+
+  private updateTemplateSemanticRecommendedTerms(container: HTMLElement, settings: TemplateSettings): void {
+    const title = localize("settings.template.semantic.recommendedBuiltinTitle", "Recommended built-in match terms");
+    let list = container.querySelector<HTMLElement>(".settings-template-term-suggestions");
+    if (!list) {
+      reset(container);
+      const section = div("settings-template-library-group");
+      section.appendChild(text("p", "settings-template-subtitle", title));
+      list = div("settings-template-term-suggestions");
+      section.appendChild(list);
+      container.appendChild(section);
+    }
+
+    let buttons = this.templateSemanticRecommendedTermButtons.get(list);
+    if (!buttons) {
+      buttons = new Map();
+      this.templateSemanticRecommendedTermButtons.set(list, buttons);
+    }
+
     const disabledTermIds = new Set(settings.disabledBuiltinTermIds);
     const disabledTerms = settings.builtinTerms.filter(term => disabledTermIds.has(term.id));
-    const section = div("settings-template-library-group");
-    const title = localize("settings.template.semantic.recommendedBuiltinTitle", "Recommended built-in match terms");
-    section.appendChild(text("p", "settings-template-subtitle", title));
-    const list = div("settings-template-term-suggestions");
     if (disabledTerms.length === 0) {
-      list.appendChild(text(
-        "p",
-        "settings-template-empty",
-        localize("settings.template.semantic.noDisabledBuiltin", "No recommended built-in match terms."),
-      ));
-    } else {
-      for (const term of disabledTerms) {
-        list.appendChild(this.createBuiltinSemanticTermSuggestion(settings, term));
+      for (const button of buttons.values()) {
+        button.remove();
       }
+      buttons.clear();
+      let empty = this.templateSemanticRecommendedTermEmptyMessages.get(list);
+      if (!empty) {
+        empty = text(
+          "p",
+          "settings-template-empty",
+          localize("settings.template.semantic.noDisabledBuiltin", "No recommended built-in match terms."),
+        );
+        this.templateSemanticRecommendedTermEmptyMessages.set(list, empty);
+        list.appendChild(empty);
+      }
+      return;
     }
-    section.appendChild(list);
-    return section;
+
+    this.templateSemanticRecommendedTermEmptyMessages.get(list)?.remove();
+    this.templateSemanticRecommendedTermEmptyMessages.delete(list);
+    const nextIds = new Set<string>();
+    for (const term of disabledTerms) {
+      nextIds.add(term.id);
+      let button = buttons.get(term.id);
+      if (!button) {
+        button = this.createBuiltinSemanticTermSuggestion(settings, term);
+        buttons.set(term.id, button);
+      }
+      this.updateBuiltinSemanticTermSuggestion(button, settings, term);
+    }
+    for (const [id, button] of Array.from(buttons)) {
+      if (nextIds.has(id)) {
+        continue;
+      }
+      button.remove();
+      buttons.delete(id);
+    }
+
+    let referenceNode: ChildNode | null = null;
+    for (let index = disabledTerms.length - 1; index >= 0; index--) {
+      const term = disabledTerms[index]!;
+      const button = buttons.get(term.id)!;
+      if (button.parentElement !== list || button.nextSibling !== referenceNode) {
+        list.insertBefore(button, referenceNode);
+      }
+      referenceNode = button;
+    }
   }
 
   private createBuiltinSemanticTermSuggestion(
@@ -1506,46 +1877,26 @@ export class SettingsView {
       text("span", "settings-template-term-suggestion-label", semanticTerm.term),
     );
     button.addEventListener("click", () => {
-      void settings.onEnableBuiltinTerm(semanticTerm.id);
+      void this.options.templateSettings.onEnableBuiltinTerm(semanticTerm.id);
     });
     return button;
   }
 
-  private createTemplateSemanticTermField(
+  private updateBuiltinSemanticTermSuggestion(
+    button: HTMLButtonElement,
     settings: TemplateSettings,
-    items: readonly IInputBoxWidgetItem[],
-    ariaLabel: string,
-    inputVisible: boolean,
-    emptyLabel?: string,
-  ): HTMLElement {
-    const inputBox = this.registerContentDisposable(new InputBoxWidget({
-      ariaLabel,
-      disabled: settings.isSaving,
-      emptyLabel,
-      inputVisible,
-      items,
-      placeholder: localize("settings.template.semantic.termInputPlaceholder", "Add match term"),
-      value: this.options.templateSemanticTermDraft,
-    }));
-    inputBox.element.classList.add("settings-template-term-inputbox");
-    if (inputVisible) {
-      this.registerContentDisposable(inputBox.onDidChange(value => {
-        this.options.setTemplateSemanticTermDraft(value);
-      }));
-      this.registerContentDisposable(inputBox.onDidAccept(() => {
-        void settings.onAddSemanticTerm();
-      }));
+    semanticTerm: TemplateBuiltinSemanticTerm,
+  ): void {
+    button.disabled = settings.isSaving;
+    button.title = localize("settings.template.semantic.enableBuiltinTitle", "Enable this built-in match term for Review");
+    button.setAttribute(
+      "aria-label",
+      localize("settings.template.semantic.enableBuiltin", "Enable built-in match term {term}", { term: semanticTerm.term }),
+    );
+    const label = button.querySelector<HTMLElement>(".settings-template-term-suggestion-label");
+    if (label && label.textContent !== semanticTerm.term) {
+      label.textContent = semanticTerm.term;
     }
-    this.registerContentDisposable(inputBox.onDidTriggerItemAction(({ item }) => {
-      if (item.kind === "builtin-enabled") {
-        void settings.onDisableBuiltinTerm(item.id);
-        return;
-      }
-      if (item.kind === "custom") {
-        void settings.onRemoveSemanticTerm(item.id);
-      }
-    }));
-    return inputBox.element;
   }
 
   private createBuiltinSemanticTermItem(
@@ -1577,73 +1928,6 @@ export class SettingsView {
     };
   }
 
-  private createTemplateSemanticTermForm(settings: TemplateSettings): HTMLElement {
-    const form = div("settings-template-semantic-form");
-    const grid = div("settings-grid settings-grid--three");
-    grid.append(
-      field(localize("settings.template.semantic.roleLabel", "Role"), this.createSelect({
-        id: "settings-template-semantic-role-select",
-        value: this.options.templateSemanticRoleDraft,
-        onChange: this.options.setTemplateSemanticRoleDraft,
-        options: settings.roleOptions,
-        disabled: settings.isSaving,
-      })),
-      field(localize("settings.template.semantic.axisLabel", "Axis"), this.createSelect({
-        id: "settings-template-semantic-axis-select",
-        value: this.options.templateSemanticAxisDraft,
-        onChange: this.options.setTemplateSemanticAxisDraft,
-        options: settings.axisOptions,
-        disabled: settings.isSaving,
-      })),
-      field(localize("settings.template.semantic.policyLabel", "Match"), this.createSelect({
-        id: "settings-template-semantic-policy-select",
-        value: this.options.templateSemanticMatchPolicyDraft,
-        onChange: this.options.setTemplateSemanticMatchPolicyDraft,
-        options: settings.matchPolicyOptions,
-        disabled: settings.isSaving,
-      })),
-      field(localize("settings.template.semantic.intentLabel", "Intent"), this.createSelect({
-        id: "settings-template-semantic-intent-select",
-        value: this.options.templateSemanticIntentDraft,
-        onChange: this.options.setTemplateSemanticIntentDraft,
-        options: settings.intentOptions,
-        disabled: settings.isSaving,
-      })),
-      field(localize("settings.template.semantic.unitLabel", "Unit"), this.createSelect({
-        id: "settings-template-semantic-unit-select",
-        value: this.options.templateSemanticUnitDraft,
-        onChange: this.options.setTemplateSemanticUnitDraft,
-        options: settings.unitOptions,
-        disabled: settings.isSaving,
-      })),
-      field(localize("settings.template.semantic.familyLabel", "Family"), this.createSelect({
-        id: "settings-template-semantic-family-select",
-        value: this.options.templateSemanticFamilyDraft,
-        onChange: this.options.setTemplateSemanticFamilyDraft,
-        options: settings.familyOptions,
-        disabled: settings.isSaving,
-      })),
-      field(localize("settings.template.semantic.ivModeLabel", "IV mode"), this.createSelect({
-        id: "settings-template-semantic-iv-mode-select",
-        value: this.options.templateSemanticIvModeDraft,
-        onChange: this.options.setTemplateSemanticIvModeDraft,
-        options: settings.ivModeOptions,
-        disabled: settings.isSaving,
-      })),
-    );
-    form.append(
-      grid,
-      div("settings-actions-end", this.createButton({
-        id: "settings-template-semantic-add-button",
-        label: localize("settings.template.semantic.add", "Add Term"),
-        onClick: () => void settings.onAddSemanticTerm(),
-        disabled: settings.isSaving || !this.options.templateSemanticTermDraft.trim(),
-        variant: "primary",
-      })),
-    );
-    return form;
-  }
-
   private createAppearanceSettingsTree(): readonly SettingsTreeSection[] {
     const { appearanceSettings } = this.options;
     return [
@@ -1653,7 +1937,7 @@ export class SettingsView {
         items: [
           this.createSettingsTreeControlItem({
             id: "settings-theme-card",
-            createControl: () => this.createSelect({
+            createControl: () => this.createLocalSelectControl("settings-theme-card", () => ({
               id: "settings-theme-dropdown",
               value: this.options.theme,
               onChange: value => {
@@ -1662,38 +1946,39 @@ export class SettingsView {
                 }
               },
               options: this.options.themeModeOptions,
-            }),
+            })),
             description: localize("settings.theme.description", "Choose the workbench color theme."),
             searchText: normalizeSettingsSearchText(optionLabels(this.options.themeModeOptions)),
             title: localize("settings.theme.title", "Theme"),
           }),
           this.createSettingsTreeControlItem({
             id: "settings-explorer-density-card",
-            createControl: () => this.createSelect({
+            createControl: () => this.createLocalSelectControl("settings-explorer-density-card", () => ({
               id: "settings-explorer-density-dropdown",
-              value: appearanceSettings.explorerDensity,
+              value: this.options.appearanceSettings.explorerDensity,
               onChange: value => {
                 if (value === "compact" || value === "default" || value === "comfortable") {
                   void this.options.appearanceSettings.onExplorerDensityChange(value);
                 }
               },
-              options: appearanceSettings.explorerDensityOptions,
-              disabled: appearanceSettings.isExplorerDensitySaving,
-            }),
+              options: this.options.appearanceSettings.explorerDensityOptions,
+              disabled: this.options.appearanceSettings.isExplorerDensitySaving,
+            })),
             description: localize("settings.explorerDensity.description", "Choose how compact file rows appear in Explorer."),
             searchText: normalizeSettingsSearchText(optionLabels(appearanceSettings.explorerDensityOptions)),
             title: localize("settings.explorerDensity.title", "Explorer Density"),
           }),
           this.createSettingsTreeControlItem({
             id: "settings-explorer-badges-card",
-            createControl: () => this.createSwitchWidget({
+            createControl: () => this.createLocalSwitchControl({
+              itemId: "settings-explorer-badges-card",
               ariaLabel: localize("settings.explorerBadges.title", "Explorer Badges"),
-              checked: appearanceSettings.showExplorerBadges,
+              getChecked: () => this.options.appearanceSettings.showExplorerBadges,
               id: "settings-explorer-badges-toggle",
               onChange: checked => {
                 void this.options.appearanceSettings.onExplorerBadgeVisibilityChange(checked);
               },
-            }).domNode,
+            }),
             description: localize("settings.explorerBadges.description", "Show measurement badges beside files in Explorer."),
             title: localize("settings.explorerBadges.title", "Explorer Badges"),
           }),
@@ -1721,14 +2006,15 @@ export class SettingsView {
           }),
           this.createSettingsTreeControlItem({
             id: "settings-transparent-chrome-card",
-            createControl: () => this.createSwitchWidget({
+            createControl: () => this.createLocalSwitchControl({
+              itemId: "settings-transparent-chrome-card",
               ariaLabel: localize("settings.transparentChrome.title", "Translucent sidebar"),
-              checked: appearanceSettings.transparentChrome,
+              getChecked: () => this.options.appearanceSettings.transparentChrome,
               id: "settings-transparent-chrome-toggle",
               onChange: checked => {
                 void this.options.appearanceSettings.onTransparentChromeChange(checked);
               },
-            }).domNode,
+            }),
             description: localize("settings.transparentChrome.description", "Let the sidebar blend with the desktop window surface."),
             title: localize("settings.transparentChrome.title", "Translucent sidebar"),
           }),
@@ -1754,7 +2040,6 @@ export class SettingsView {
       options: appearanceSettings.explorerBadgeColorLabels,
       disabled: appearanceSettings.isExplorerBadgeColorSaving,
     });
-
     const badgePreview = document.createElement("span");
     badgePreview.className = "settings-badge-preview";
 
@@ -1764,6 +2049,30 @@ export class SettingsView {
       badgeLabelSelect.domNode,
     );
     this.renderBadgeColorSwatches(badgeColorSwatches, badgeColorButtons, appearanceSettings);
+    this.registerLocalContentPatch("settings-explorer-badge-colors-card", {
+      element: badgeColorSwatches,
+      getSearchText: () => normalizeSettingsSearchText(
+        optionLabels(this.options.appearanceSettings.explorerBadgeColorLabels),
+        optionLabels(this.options.appearanceSettings.explorerBadgeColorOptions),
+      ),
+      update: () => {
+        const settings = this.options.appearanceSettings;
+        if (!settings.explorerBadgeColorLabels.some(label => label.value === this.activeBadgeLabelValue)) {
+          this.activeBadgeLabelValue = settings.explorerBadgeColorLabels[0]?.value ?? "transfer";
+        }
+        this.updateSelectWidget(badgeLabelSelect, {
+          id: "settings-explorer-badge-label-dropdown",
+          value: this.activeBadgeLabelValue,
+          onChange: value => {
+            this.activeBadgeLabelValue = value;
+            this.renderBadgeColorSwatches(badgeColorSwatches, badgeColorButtons, this.options.appearanceSettings);
+          },
+          options: settings.explorerBadgeColorLabels,
+          disabled: settings.isExplorerBadgeColorSaving,
+        });
+        this.renderBadgeColorSwatches(badgeColorSwatches, badgeColorButtons, settings);
+      },
+    });
     return badgeColorSwatches;
   }
 
@@ -1811,12 +2120,24 @@ export class SettingsView {
     const backgroundResetActionItem = this.registerContentDisposable(new SettingsResetActionViewItem(backgroundResetAction));
     backgroundResetActionItem.render(backgroundResetActionContainer);
 
-    return div(
+    const controls = div(
       "settings-color-controls",
       colorInput,
       backgroundResetActionContainer,
       swatches,
     );
+    this.registerLocalContentPatch("settings-background-card", {
+      element: controls,
+      getSearchText: () => normalizeSettingsSearchText(this.options.appearanceSettings.backgroundColorOptions),
+      update: () => {
+        const settings = this.options.appearanceSettings;
+        colorInput.value = settings.backgroundColor;
+        colorInput.disabled = settings.isSaving;
+        backgroundResetAction.enabled = !settings.isSaving && settings.backgroundColor !== settings.backgroundColorDefault;
+        this.renderBackgroundSwatches(swatches, swatchButtons, settings);
+      },
+    });
+    return controls;
   }
 
   private createOriginSettingsTree(): readonly SettingsTreeSection[] {
@@ -1878,17 +2199,89 @@ export class SettingsView {
       optionLabels(this.options.cleanupFailedDaysOptions),
       localize("settings.origin.cleanup.runButton", "Run Cleanup Now"),
     );
+    const enabledSelect = this.createSelectWidget({
+      id: "settings-origin-cleanup-enabled-select",
+      value: String(Boolean(originSettings.cleanupEnabled)),
+      onChange: value => void this.options.originSettings.onCleanupEnabledChange(value === "true"),
+      options: this.options.cleanupEnabledOptions,
+      disabled: originSettings.cleanupSaving,
+    });
+    const keepSuccessSelect = this.createSelectWidget({
+      id: "settings-origin-cleanup-keep-success-select",
+      value: String(originSettings.cleanupKeepSuccessJobs ?? 0),
+      onChange: value => void this.options.originSettings.onCleanupKeepSuccessJobsChange(value),
+      options: this.options.cleanupKeepSuccessOptions,
+      disabled: originSettings.cleanupSaving,
+    });
+    const failedDaysSelect = this.createSelectWidget({
+      id: "settings-origin-cleanup-failed-days-select",
+      value: String(originSettings.cleanupFailedRetentionDays ?? 7),
+      onChange: value => void this.options.originSettings.onCleanupFailedRetentionDaysChange(value),
+      options: this.options.cleanupFailedDaysOptions,
+      disabled: originSettings.cleanupSaving,
+    });
+    const grid = div("settings-grid settings-grid--three");
+    grid.append(
+      field(localize("settings.origin.cleanup.enableLabel", "Auto cleanup"), enabledSelect.domNode),
+      field(localize("settings.origin.cleanup.keepSuccessLabel", "Keep successful jobs"), keepSuccessSelect.domNode),
+      field(localize("settings.origin.cleanup.failedDaysLabel", "Keep failed jobs (days)"), failedDaysSelect.domNode),
+    );
+    const runButton = this.createButton({
+      id: "settings-origin-cleanup-run-btn",
+      label: originSettings.cleanupRunning ? localize("settings.origin.cleanup.running", "Cleaning...") : localize("settings.origin.cleanup.runButton", "Run Cleanup Now"),
+      onClick: () => void this.options.originSettings.onRunCleanupNow(),
+      disabled: !originSettings.isCleanupAvailable || originSettings.cleanupRunning || originSettings.cleanupSaving,
+      variant: "secondary",
+    });
     cleanupCard.append(
       headingBlock(cleanupTitle, cleanupDescription),
-      this.createOriginCleanupGrid(originSettings),
-      div("settings-actions-end", this.createButton({
-        id: "settings-origin-cleanup-run-btn",
-        label: originSettings.cleanupRunning ? localize("settings.origin.cleanup.running", "Cleaning...") : localize("settings.origin.cleanup.runButton", "Run Cleanup Now"),
-        onClick: () => void originSettings.onRunCleanupNow(),
-        disabled: !originSettings.isCleanupAvailable || originSettings.cleanupRunning || originSettings.cleanupSaving,
-        variant: "secondary",
-      })),
+      grid,
+      div("settings-actions-end", runButton),
     );
+    this.registerLocalContentPatch("settings-origin-cleanup-card", {
+      element: cleanupCard,
+      getSearchText: () => normalizeSettingsSearchText(
+        cleanupTitle,
+        cleanupDescription,
+        localize("settings.origin.cleanup.enableLabel", "Auto cleanup"),
+        optionLabels(this.options.cleanupEnabledOptions),
+        localize("settings.origin.cleanup.keepSuccessLabel", "Keep successful jobs"),
+        optionLabels(this.options.cleanupKeepSuccessOptions),
+        localize("settings.origin.cleanup.failedDaysLabel", "Keep failed jobs (days)"),
+        optionLabels(this.options.cleanupFailedDaysOptions),
+        localize("settings.origin.cleanup.runButton", "Run Cleanup Now"),
+      ),
+      update: () => {
+        const settings = this.options.originSettings;
+        this.updateSelectWidget(enabledSelect, {
+          id: "settings-origin-cleanup-enabled-select",
+          value: String(Boolean(settings.cleanupEnabled)),
+          onChange: value => void this.options.originSettings.onCleanupEnabledChange(value === "true"),
+          options: this.options.cleanupEnabledOptions,
+          disabled: settings.cleanupSaving,
+        });
+        this.updateSelectWidget(keepSuccessSelect, {
+          id: "settings-origin-cleanup-keep-success-select",
+          value: String(settings.cleanupKeepSuccessJobs ?? 0),
+          onChange: value => void this.options.originSettings.onCleanupKeepSuccessJobsChange(value),
+          options: this.options.cleanupKeepSuccessOptions,
+          disabled: settings.cleanupSaving,
+        });
+        this.updateSelectWidget(failedDaysSelect, {
+          id: "settings-origin-cleanup-failed-days-select",
+          value: String(settings.cleanupFailedRetentionDays ?? 7),
+          onChange: value => void this.options.originSettings.onCleanupFailedRetentionDaysChange(value),
+          options: this.options.cleanupFailedDaysOptions,
+          disabled: settings.cleanupSaving,
+        });
+        this.updateButton(runButton, {
+          id: "settings-origin-cleanup-run-btn",
+          label: settings.cleanupRunning ? localize("settings.origin.cleanup.running", "Cleaning...") : localize("settings.origin.cleanup.runButton", "Run Cleanup Now"),
+          disabled: !settings.isCleanupAvailable || settings.cleanupRunning || settings.cleanupSaving,
+          variant: "secondary",
+        });
+      },
+    });
     return cleanupCard;
   }
 
@@ -1931,13 +2324,13 @@ export class SettingsView {
           }),
           this.createSettingsTreeControlItem({
             id: "settings-app-update-card",
-            createControl: () => this.createButton({
+            createControl: () => this.createLocalButtonControl("settings-app-update-card", () => ({
               id: "settings-app-update-check-btn",
               label: this.options.appUpdateChecking ? localize("settings.appUpdate.checking", "Checking...") : localize("settings.appUpdate.checkButton", "Check for Updates"),
               onClick: this.options.handleCheckForUpdates,
-              disabled: !appUpdateSettings.isAvailable || this.options.appUpdateChecking,
+              disabled: !this.options.appUpdateSettings.isAvailable || this.options.appUpdateChecking,
               variant: "secondary",
-            }),
+            })),
             description: localize("settings.appUpdate.description", "Check whether a newer version is available."),
             searchText: localize("settings.appUpdate.checkButton", "Check for Updates"),
             title: localize("settings.appUpdate.title", "App Updates"),
@@ -2040,26 +2433,26 @@ export class SettingsView {
         items: [
           this.createSettingsTreeControlItem({
             id: "settings-default-transfer-y-scale-card",
-            createControl: () => this.createSelect({
+            createControl: () => this.createLocalSelectControl("settings-default-transfer-y-scale-card", () => ({
               id: "settings-default-transfer-y-scale-select",
-              value: settings.defaultYScaleForTransfer,
-              onChange: value => void settings.onDefaultYScaleForTransferChange(value),
+              value: this.options.chartDefaultSettings.defaultYScaleForTransfer,
+              onChange: value => void this.options.chartDefaultSettings.onDefaultYScaleForTransferChange(value),
               options: this.options.yScaleOptions,
-              disabled: settings.isSaving,
-            }),
+              disabled: this.options.chartDefaultSettings.isSaving,
+            })),
             description: localize("settings.chartScaleDefaults.description", "Choose the default Y-axis scale for each curve family."),
             searchText: normalizeSettingsSearchText(optionLabels(this.options.yScaleOptions)),
             title: localize("settings.chartScaleDefaults.transferCurve", "Transfer"),
           }),
           this.createSettingsTreeControlItem({
             id: "settings-default-output-y-scale-card",
-            createControl: () => this.createSelect({
+            createControl: () => this.createLocalSelectControl("settings-default-output-y-scale-card", () => ({
               id: "settings-default-output-y-scale-select",
-              value: settings.defaultYScaleForOutput,
-              onChange: value => void settings.onDefaultYScaleForOutputChange(value),
+              value: this.options.chartDefaultSettings.defaultYScaleForOutput,
+              onChange: value => void this.options.chartDefaultSettings.onDefaultYScaleForOutputChange(value),
               options: this.options.yScaleOptions,
-              disabled: settings.isSaving,
-            }),
+              disabled: this.options.chartDefaultSettings.isSaving,
+            })),
             searchText: normalizeSettingsSearchText(
               localize("settings.chartScaleDefaults.description", "Choose the default Y-axis scale for each curve family."),
               optionLabels(this.options.yScaleOptions),
@@ -2068,13 +2461,13 @@ export class SettingsView {
           }),
           this.createSettingsTreeControlItem({
             id: "settings-default-cv-y-scale-card",
-            createControl: () => this.createSelect({
+            createControl: () => this.createLocalSelectControl("settings-default-cv-y-scale-card", () => ({
               id: "settings-default-cv-y-scale-select",
-              value: settings.defaultYScaleForCv,
-              onChange: value => void settings.onDefaultYScaleForCvChange(value),
+              value: this.options.chartDefaultSettings.defaultYScaleForCv,
+              onChange: value => void this.options.chartDefaultSettings.onDefaultYScaleForCvChange(value),
               options: this.options.yScaleOptions,
-              disabled: settings.isSaving,
-            }),
+              disabled: this.options.chartDefaultSettings.isSaving,
+            })),
             searchText: normalizeSettingsSearchText(
               localize("settings.chartScaleDefaults.description", "Choose the default Y-axis scale for each curve family."),
               optionLabels(this.options.yScaleOptions),
@@ -2083,13 +2476,13 @@ export class SettingsView {
           }),
           this.createSettingsTreeControlItem({
             id: "settings-default-cf-y-scale-card",
-            createControl: () => this.createSelect({
+            createControl: () => this.createLocalSelectControl("settings-default-cf-y-scale-card", () => ({
               id: "settings-default-cf-y-scale-select",
-              value: settings.defaultYScaleForCf,
-              onChange: value => void settings.onDefaultYScaleForCfChange(value),
+              value: this.options.chartDefaultSettings.defaultYScaleForCf,
+              onChange: value => void this.options.chartDefaultSettings.onDefaultYScaleForCfChange(value),
               options: this.options.yScaleOptions,
-              disabled: settings.isSaving,
-            }),
+              disabled: this.options.chartDefaultSettings.isSaving,
+            })),
             searchText: normalizeSettingsSearchText(
               localize("settings.chartScaleDefaults.description", "Choose the default Y-axis scale for each curve family."),
               optionLabels(this.options.yScaleOptions),
@@ -2098,13 +2491,13 @@ export class SettingsView {
           }),
           this.createSettingsTreeControlItem({
             id: "settings-default-pv-y-scale-card",
-            createControl: () => this.createSelect({
+            createControl: () => this.createLocalSelectControl("settings-default-pv-y-scale-card", () => ({
               id: "settings-default-pv-y-scale-select",
-              value: settings.defaultYScaleForPv,
-              onChange: value => void settings.onDefaultYScaleForPvChange(value),
+              value: this.options.chartDefaultSettings.defaultYScaleForPv,
+              onChange: value => void this.options.chartDefaultSettings.onDefaultYScaleForPvChange(value),
               options: this.options.yScaleOptions,
-              disabled: settings.isSaving,
-            }),
+              disabled: this.options.chartDefaultSettings.isSaving,
+            })),
             searchText: normalizeSettingsSearchText(
               localize("settings.chartScaleDefaults.description", "Choose the default Y-axis scale for each curve family."),
               optionLabels(this.options.yScaleOptions),
@@ -2148,33 +2541,63 @@ export class SettingsView {
       description,
     ));
     const grid = div("settings-grid settings-grid--three");
+    const titleInput = this.createInputWidget({
+      id: "settings-default-title-font-size-input",
+      value: this.options.axisTitleFontSizeDraft,
+      onChange: this.options.setAxisTitleFontSizeDraft,
+      onBlur: () => {
+        const settings = this.options.chartDefaultSettings;
+        if (this.options.axisTitleFontSizeDraft !== String(settings.axisTitleFontSize ?? "")) {
+          void settings.onAxisTitleFontSizeChange(this.options.axisTitleFontSizeDraft.trim());
+        }
+      },
+      placeholder: "22",
+      disabled: settings.isSaving,
+    });
+    const tickInput = this.createInputWidget({
+      id: "settings-default-tick-label-font-size-input",
+      value: this.options.tickLabelFontSizeDraft,
+      onChange: this.options.setTickLabelFontSizeDraft,
+      onBlur: () => {
+        const settings = this.options.chartDefaultSettings;
+        if (this.options.tickLabelFontSizeDraft !== String(settings.tickLabelFontSize ?? "")) {
+          void settings.onTickLabelFontSizeChange(this.options.tickLabelFontSizeDraft.trim());
+        }
+      },
+      placeholder: "18",
+      disabled: settings.isSaving,
+    });
     grid.append(
-      field(localize("settings.chartTypographyDefaults.titleSize", "Title"), this.createInput({
-        id: "settings-default-title-font-size-input",
-        value: this.options.axisTitleFontSizeDraft,
-        onChange: this.options.setAxisTitleFontSizeDraft,
-        onBlur: () => {
-          if (this.options.axisTitleFontSizeDraft !== String(settings.axisTitleFontSize ?? "")) {
-            void settings.onAxisTitleFontSizeChange(this.options.axisTitleFontSizeDraft.trim());
-          }
-        },
-        placeholder: "22",
-        disabled: settings.isSaving,
-      })),
-      field(localize("settings.chartTypographyDefaults.tickLabel", "Tick label"), this.createInput({
-        id: "settings-default-tick-label-font-size-input",
-        value: this.options.tickLabelFontSizeDraft,
-        onChange: this.options.setTickLabelFontSizeDraft,
-        onBlur: () => {
-          if (this.options.tickLabelFontSizeDraft !== String(settings.tickLabelFontSize ?? "")) {
-            void settings.onTickLabelFontSizeChange(this.options.tickLabelFontSizeDraft.trim());
-          }
-        },
-        placeholder: "18",
-        disabled: settings.isSaving,
-      })),
+      field(localize("settings.chartTypographyDefaults.titleSize", "Title"), titleInput.element),
+      field(localize("settings.chartTypographyDefaults.tickLabel", "Tick label"), tickInput.element),
     );
     container.appendChild(grid);
+    this.registerLocalContentPatch("settings-chart-defaults-card", {
+      element: container,
+      getSearchText: () => normalizeSettingsSearchText(
+        titleText,
+        description,
+        localize("settings.chartTypographyDefaults.titleSize", "Title"),
+        localize("settings.chartTypographyDefaults.tickLabel", "Tick label"),
+      ),
+      update: () => {
+        const settings = this.options.chartDefaultSettings;
+        this.updateInputWidget(titleInput, {
+          id: "settings-default-title-font-size-input",
+          value: this.options.axisTitleFontSizeDraft,
+          onChange: this.options.setAxisTitleFontSizeDraft,
+          placeholder: "22",
+          disabled: settings.isSaving,
+        });
+        this.updateInputWidget(tickInput, {
+          id: "settings-default-tick-label-font-size-input",
+          value: this.options.tickLabelFontSizeDraft,
+          onChange: this.options.setTickLabelFontSizeDraft,
+          placeholder: "18",
+          disabled: settings.isSaving,
+        });
+      },
+    });
     return container;
   }
 
@@ -2187,24 +2610,41 @@ export class SettingsView {
     setSettingsSearchText(container, titleText, description, separatorsLabel, hint);
     container.appendChild(headingBlock(titleText, description));
     const body = div("settings-field");
+    const separatorsInput = this.createInputWidget({
+      id: "settings-filename-separators-input",
+      value: this.options.fileNameFieldSeparatorsDraft,
+      onChange: this.options.setFileNameFieldSeparatorsDraft,
+      onBlur: () => {
+        const settings = this.options.fileNameMatchingSettings;
+        if (this.options.fileNameFieldSeparatorsDraft !== settings.fieldSeparators) {
+          void settings.onFieldSeparatorsChange(this.options.fileNameFieldSeparatorsDraft);
+        }
+      },
+      disabled: settings.isSaving,
+    });
+    const feedback = text("p", "settings-feedback", "");
+    updateFeedbackElement(feedback, settings.feedback);
     body.append(
       label(separatorsLabel),
-      this.createInput({
-        id: "settings-filename-separators-input",
-        value: this.options.fileNameFieldSeparatorsDraft,
-        onChange: this.options.setFileNameFieldSeparatorsDraft,
-        onBlur: () => {
-          if (this.options.fileNameFieldSeparatorsDraft !== settings.fieldSeparators) {
-            void settings.onFieldSeparatorsChange(this.options.fileNameFieldSeparatorsDraft);
-          }
-        },
-        disabled: settings.isSaving,
-        monospace: true,
-      }),
+      div("settings-input settings-input--mono", separatorsInput.element),
       text("p", "settings-hint", hint),
     );
     container.appendChild(body);
-    appendFeedback(container, settings.feedback);
+    container.appendChild(feedback);
+    this.registerLocalContentPatch("settings-filename-matching-card", {
+      element: container,
+      getSearchText: () => normalizeSettingsSearchText(titleText, description, separatorsLabel, hint),
+      update: () => {
+        const settings = this.options.fileNameMatchingSettings;
+        this.updateInputWidget(separatorsInput, {
+          id: "settings-filename-separators-input",
+          value: this.options.fileNameFieldSeparatorsDraft,
+          onChange: this.options.setFileNameFieldSeparatorsDraft,
+          disabled: settings.isSaving,
+        });
+        updateFeedbackElement(feedback, settings.feedback);
+      },
+    });
     return container;
   }
 
@@ -2219,52 +2659,54 @@ export class SettingsView {
       readOnly: true,
       value: pathValue,
     }));
+    const chooseButton = this.createButton({
+      id: "settings-origin-path-choose-btn",
+      label: localize("settings.origin.choosePathButton", "Choose Origin.exe"),
+      onClick: () => void this.options.originSettings.onChoosePath(),
+      disabled: !settings.isConfigurable || settings.isLoading || settings.isSaving || settings.isHealthChecking,
+      variant: "primary",
+    });
+    const healthButton = this.createButton({
+      id: "settings-origin-health-check-btn",
+      label: settings.isHealthChecking ? localize("settings.origin.checking", "Checking...") : localize("settings.origin.checkButton", "Check Connection"),
+      onClick: () => void this.options.originSettings.onCheckHealth(),
+      disabled: !settings.isHealthCheckAvailable || settings.isLoading || settings.isSaving || settings.isHealthChecking,
+      variant: "secondary",
+    });
     controls.append(
       div("settings-path-input", pathInputBox.element),
-      this.createButton({
-        id: "settings-origin-path-choose-btn",
-        label: localize("settings.origin.choosePathButton", "Choose Origin.exe"),
-        onClick: () => void settings.onChoosePath(),
-        disabled: !settings.isConfigurable || settings.isLoading || settings.isSaving || settings.isHealthChecking,
-        variant: "primary",
-      }),
-      this.createButton({
-        id: "settings-origin-health-check-btn",
-        label: settings.isHealthChecking ? localize("settings.origin.checking", "Checking...") : localize("settings.origin.checkButton", "Check Connection"),
-        onClick: () => void settings.onCheckHealth(),
-        disabled: !settings.isHealthCheckAvailable || settings.isLoading || settings.isSaving || settings.isHealthChecking,
-        variant: "secondary",
-      }),
+      chooseButton,
+      healthButton,
     );
+    this.registerLocalContentPatch("settings-origin-path-card", {
+      element: controls,
+      getSearchText: () => undefined,
+      update: () => {
+        const settings = this.options.originSettings;
+        const pathValue = settings.currentPath || (settings.isLoading
+          ? localize("settings.origin.loading", "Loading...")
+          : localize("settings.origin.notConfigurableHint", "Origin path configuration is available in Windows desktop app only."));
+        pathInputBox.update({
+          ariaLabel: localize("settings.origin.title", "Origin Executable Path"),
+          id: "settings-origin-path-value-input",
+          readOnly: true,
+          value: pathValue,
+        });
+        this.updateButton(chooseButton, {
+          id: "settings-origin-path-choose-btn",
+          label: localize("settings.origin.choosePathButton", "Choose Origin.exe"),
+          disabled: !settings.isConfigurable || settings.isLoading || settings.isSaving || settings.isHealthChecking,
+          variant: "primary",
+        });
+        this.updateButton(healthButton, {
+          id: "settings-origin-health-check-btn",
+          label: settings.isHealthChecking ? localize("settings.origin.checking", "Checking...") : localize("settings.origin.checkButton", "Check Connection"),
+          disabled: !settings.isHealthCheckAvailable || settings.isLoading || settings.isSaving || settings.isHealthChecking,
+          variant: "secondary",
+        });
+      },
+    });
     return controls;
-  }
-
-  private createOriginCleanupGrid(settings: OriginSettingsSectionProps): HTMLElement {
-    const grid = div("settings-grid settings-grid--three");
-    grid.append(
-      field(localize("settings.origin.cleanup.enableLabel", "Auto cleanup"), this.createSelect({
-        id: "settings-origin-cleanup-enabled-select",
-        value: String(Boolean(settings.cleanupEnabled)),
-        onChange: value => void settings.onCleanupEnabledChange(value === "true"),
-        options: this.options.cleanupEnabledOptions,
-        disabled: settings.cleanupSaving,
-      })),
-      field(localize("settings.origin.cleanup.keepSuccessLabel", "Keep successful jobs"), this.createSelect({
-        id: "settings-origin-cleanup-keep-success-select",
-        value: String(settings.cleanupKeepSuccessJobs ?? 0),
-        onChange: value => void settings.onCleanupKeepSuccessJobsChange(value),
-        options: this.options.cleanupKeepSuccessOptions,
-        disabled: settings.cleanupSaving,
-      })),
-      field(localize("settings.origin.cleanup.failedDaysLabel", "Keep failed jobs (days)"), this.createSelect({
-        id: "settings-origin-cleanup-failed-days-select",
-        value: String(settings.cleanupFailedRetentionDays ?? 7),
-        onChange: value => void settings.onCleanupFailedRetentionDaysChange(value),
-        options: this.options.cleanupFailedDaysOptions,
-        disabled: settings.cleanupSaving,
-      })),
-    );
-    return grid;
   }
 
   private createOriginPlot(settings: OriginSettingsSectionProps): HTMLElement {
@@ -2284,69 +2726,116 @@ export class SettingsView {
       localize("settings.origin.plot.postCommandsHint", "One LabTalk command per line, executed after plotting."),
     );
     container.appendChild(headingBlock(titleText, description));
-    container.append(
-      field(localize("settings.origin.plot.xyPairsLabel", "XY pairs"), this.createInput({
-        id: "settings-origin-plot-xy-pairs-input",
-        value: this.options.xyPairsDraft,
-        onChange: this.options.setXyPairsDraft,
-        onBlur: () => {
-          const nextValue = this.options.xyPairsDraft.trim();
-          if (nextValue !== (settings.plotXyPairs ?? "")) {
-            void settings.onPlotXyPairsChange(nextValue);
-          }
-        },
-        disabled: settings.plotSaving || !settings.isConfigurable,
-      }), localize("settings.origin.plot.xyPairsHint", "LabTalk expression, for example ((1,2)) or ((1,2),(3,4)).")),
-      field(localize("settings.origin.plot.commandLabel", "Plot command override"), this.createInput({
-        id: "settings-origin-plot-command-input",
-        value: this.options.plotCommandDraft,
-        onChange: this.options.setPlotCommandDraft,
-        onBlur: () => {
-          const nextValue = this.options.plotCommandDraft.trim();
-          if (nextValue !== (settings.plotCommand ?? "")) {
-            void settings.onPlotCommandChange(nextValue);
-          }
-        },
-        disabled: settings.plotSaving || !settings.isConfigurable,
-      }), localize("settings.origin.plot.commandHint", "Optional full LabTalk command. If set, it overrides plot type and XY pairs.")),
-      field(localize("chart.legend.fontSize", "Legend size"), this.createInput({
-        id: "settings-origin-legend-font-size-input",
-        value: this.options.originLegendFontSizeDraft,
-        onChange: this.options.setOriginLegendFontSizeDraft,
-        onBlur: () => {
-          if (this.options.originLegendFontSizeDraft !== String(settings.plotLegendFontSize ?? "")) {
-            void settings.onPlotLegendFontSizeChange(this.options.originLegendFontSizeDraft.trim());
-          }
-        },
-        placeholder: localize("chart.axis.auto", "auto"),
-        disabled: settings.plotSaving || !settings.isConfigurable,
-      })),
-      this.createPostCommandsField(settings),
-    );
-    appendFeedback(container, settings.plotFeedback);
-    return container;
-  }
-
-  private createPostCommandsField(settings: OriginSettingsSectionProps): HTMLElement {
-    const container = div("settings-field");
-    const textarea = document.createElement("textarea");
-    textarea.id = "settings-origin-plot-post-commands-input";
-    textarea.className = "settings-textarea";
-    textarea.value = this.options.postCommandsDraft;
-    textarea.disabled = settings.plotSaving || !settings.isConfigurable;
-    textarea.addEventListener("input", () => this.options.setPostCommandsDraft(textarea.value));
-    textarea.addEventListener("blur", () => {
+    const xyPairsInput = this.createInputWidget({
+      id: "settings-origin-plot-xy-pairs-input",
+      value: this.options.xyPairsDraft,
+      onChange: this.options.setXyPairsDraft,
+      onBlur: () => {
+        const settings = this.options.originSettings;
+        const nextValue = this.options.xyPairsDraft.trim();
+        if (nextValue !== (settings.plotXyPairs ?? "")) {
+          void settings.onPlotXyPairsChange(nextValue);
+        }
+      },
+      disabled: settings.plotSaving || !settings.isConfigurable,
+    });
+    const commandInput = this.createInputWidget({
+      id: "settings-origin-plot-command-input",
+      value: this.options.plotCommandDraft,
+      onChange: this.options.setPlotCommandDraft,
+      onBlur: () => {
+        const settings = this.options.originSettings;
+        const nextValue = this.options.plotCommandDraft.trim();
+        if (nextValue !== (settings.plotCommand ?? "")) {
+          void settings.onPlotCommandChange(nextValue);
+        }
+      },
+      disabled: settings.plotSaving || !settings.isConfigurable,
+    });
+    const legendInput = this.createInputWidget({
+      id: "settings-origin-legend-font-size-input",
+      value: this.options.originLegendFontSizeDraft,
+      onChange: this.options.setOriginLegendFontSizeDraft,
+      onBlur: () => {
+        const settings = this.options.originSettings;
+        if (this.options.originLegendFontSizeDraft !== String(settings.plotLegendFontSize ?? "")) {
+          void settings.onPlotLegendFontSizeChange(this.options.originLegendFontSizeDraft.trim());
+        }
+      },
+      placeholder: localize("chart.axis.auto", "auto"),
+      disabled: settings.plotSaving || !settings.isConfigurable,
+    });
+    const postCommandsContainer = div("settings-field");
+    const postCommandsTextarea = document.createElement("textarea");
+    postCommandsTextarea.id = "settings-origin-plot-post-commands-input";
+    postCommandsTextarea.className = "settings-textarea";
+    postCommandsTextarea.value = this.options.postCommandsDraft;
+    postCommandsTextarea.disabled = settings.plotSaving || !settings.isConfigurable;
+    postCommandsTextarea.addEventListener("input", () => this.options.setPostCommandsDraft(postCommandsTextarea.value));
+    postCommandsTextarea.addEventListener("blur", () => {
+      const settings = this.options.originSettings;
       const nextValue = this.options.postCommandsDraft.trim();
       const currentValue = String(settings.plotPostCommandsText ?? "").trim();
       if (nextValue !== currentValue) {
         void settings.onPlotPostCommandsChange(nextValue);
       }
     });
-    container.append(
+    postCommandsContainer.append(
       label(localize("settings.origin.plot.postCommandsLabel", "Post-plot commands")),
-      textarea,
+      postCommandsTextarea,
       text("p", "settings-hint", localize("settings.origin.plot.postCommandsHint", "One LabTalk command per line, executed after plotting.")),
     );
+    const feedback = text("p", "settings-feedback", "");
+    updateFeedbackElement(feedback, settings.plotFeedback);
+    container.append(
+      field(localize("settings.origin.plot.xyPairsLabel", "XY pairs"), xyPairsInput.element, localize("settings.origin.plot.xyPairsHint", "LabTalk expression, for example ((1,2)) or ((1,2),(3,4)).")),
+      field(localize("settings.origin.plot.commandLabel", "Plot command override"), commandInput.element, localize("settings.origin.plot.commandHint", "Optional full LabTalk command. If set, it overrides plot type and XY pairs.")),
+      field(localize("chart.legend.fontSize", "Legend size"), legendInput.element),
+      postCommandsContainer,
+      feedback,
+    );
+    this.registerLocalContentPatch("settings-origin-plot-card", {
+      element: container,
+      getSearchText: () => normalizeSettingsSearchText(
+        titleText,
+        description,
+        localize("settings.origin.plot.xyPairsLabel", "XY pairs"),
+        localize("settings.origin.plot.xyPairsHint", "LabTalk expression, for example ((1,2)) or ((1,2),(3,4))."),
+        localize("settings.origin.plot.commandLabel", "Plot command override"),
+        localize("settings.origin.plot.commandHint", "Optional full LabTalk command. If set, it overrides plot type and XY pairs."),
+        localize("chart.legend.fontSize", "Legend size"),
+        localize("settings.origin.plot.postCommandsLabel", "Post-plot commands"),
+        localize("settings.origin.plot.postCommandsHint", "One LabTalk command per line, executed after plotting."),
+      ),
+      update: () => {
+        const settings = this.options.originSettings;
+        const disabled = settings.plotSaving || !settings.isConfigurable;
+        this.updateInputWidget(xyPairsInput, {
+          id: "settings-origin-plot-xy-pairs-input",
+          value: this.options.xyPairsDraft,
+          onChange: this.options.setXyPairsDraft,
+          disabled,
+        });
+        this.updateInputWidget(commandInput, {
+          id: "settings-origin-plot-command-input",
+          value: this.options.plotCommandDraft,
+          onChange: this.options.setPlotCommandDraft,
+          disabled,
+        });
+        this.updateInputWidget(legendInput, {
+          id: "settings-origin-legend-font-size-input",
+          value: this.options.originLegendFontSizeDraft,
+          onChange: this.options.setOriginLegendFontSizeDraft,
+          placeholder: localize("chart.axis.auto", "auto"),
+          disabled,
+        });
+        if (postCommandsTextarea.value !== this.options.postCommandsDraft) {
+          postCommandsTextarea.value = this.options.postCommandsDraft;
+        }
+        postCommandsTextarea.disabled = disabled;
+        updateFeedbackElement(feedback, settings.plotFeedback);
+      },
+    });
     return container;
   }
 
@@ -2368,11 +2857,54 @@ export class SettingsView {
     return select;
   }
 
-  private createSelect(options: FieldOptions, disposables?: DisposableStore): HTMLButtonElement {
-    return this.createSelectWidget(options, disposables).domNode;
+  private updateSelectWidget(select: SelectBox<string>, options: FieldOptions): void {
+    select.update({
+      id: options.id,
+      className: "settings-select",
+      disabled: options.disabled,
+      value: options.value,
+      options: options.options as readonly SelectBoxOption<string>[],
+      onDidSelect: options.onChange,
+    });
   }
 
-  private createInput(options: TextInputOptions): HTMLElement {
+  private createLocalSelectControl(
+    itemId: SettingsContentItemId,
+    getOptions: () => FieldOptions,
+  ): HTMLButtonElement {
+    const select = this.createSelectWidget(getOptions());
+    this.registerLocalContentPatch(itemId, {
+      element: select.domNode,
+      getSearchText: () => normalizeSettingsSearchText(optionLabels(getOptions().options)),
+      update: () => this.updateSelectWidget(select, getOptions()),
+    });
+    return select.domNode;
+  }
+
+  private createLocalButtonControl(
+    itemId: SettingsContentItemId,
+    getOptions: () => {
+      readonly disabled?: boolean;
+      readonly id: string;
+      readonly label: string;
+      readonly onClick: () => void;
+      readonly variant: "primary" | "secondary";
+    },
+  ): HTMLButtonElement {
+    const options = getOptions();
+    const button = this.createButton({
+      ...options,
+      onClick: () => getOptions().onClick(),
+    });
+    this.registerLocalContentPatch(itemId, {
+      element: button,
+      getSearchText: () => getOptions().label,
+      update: () => this.updateButton(button, getOptions()),
+    });
+    return button;
+  }
+
+  private createInputWidget(options: TextInputOptions): InputBox<HTMLInputElement> {
     const inputBox = this.registerContentDisposable(createInputBox({
       disabled: options.disabled,
       id: options.id,
@@ -2384,10 +2916,59 @@ export class SettingsView {
     if (options.onBlur) {
       this.registerContentDisposable(addDisposableListener(input, "blur", options.onBlur));
     }
-    if (!options.monospace) {
-      return inputBox.element;
-    }
-    return div("settings-input settings-input--mono", inputBox.element);
+    return inputBox;
+  }
+
+  private updateInputWidget(inputBox: InputBox<HTMLInputElement>, options: TextInputOptions): void {
+    inputBox.update({
+      disabled: options.disabled,
+      id: options.id,
+      placeholder: options.placeholder,
+      value: options.value,
+    });
+  }
+
+  private createLocalSwitchControl(options: {
+    readonly ariaLabel: string;
+    readonly getChecked: () => boolean;
+    readonly getDisabled?: () => boolean | undefined;
+    readonly id: string;
+    readonly itemId: SettingsContentItemId;
+    readonly onChange: (checked: boolean) => void;
+  }): HTMLButtonElement {
+    const widget = this.createSwitchWidget({
+      ariaLabel: options.ariaLabel,
+      checked: options.getChecked(),
+      disabled: options.getDisabled?.(),
+      id: options.id,
+      onChange: options.onChange,
+    });
+    this.registerLocalContentPatch(options.itemId, {
+      element: widget.domNode,
+      getSearchText: () => undefined,
+      update: () => this.updateSwitchWidget(widget, {
+        ariaLabel: options.ariaLabel,
+        checked: options.getChecked(),
+        disabled: options.getDisabled?.(),
+        id: options.id,
+      }),
+    });
+    return widget.domNode;
+  }
+
+  private updateSwitchWidget(widget: SwitchWidget, options: {
+    readonly ariaLabel: string;
+    readonly checked: boolean;
+    readonly disabled?: boolean;
+    readonly id: string;
+  }): void {
+    widget.update({
+      checked: options.checked,
+      className: "settings-switch",
+      disabled: options.disabled,
+      id: options.id,
+    });
+    widget.domNode.setAttribute("aria-label", options.ariaLabel);
   }
 
   private createSwitchWidget(options: {
@@ -2419,15 +3000,11 @@ export class SettingsView {
     buttons: Map<string, HTMLButtonElement>,
     settings: AppearanceSettings,
   ): void {
-    buttons.clear();
-
     const swatchesContainer = container.querySelector<HTMLElement>(".settings-badge-color-options");
     const preview = container.querySelector<HTMLElement>(".settings-badge-preview");
     if (!swatchesContainer || !preview) {
       return;
     }
-
-    reset(swatchesContainer);
 
     const activeBadge = settings.explorerBadgeColorLabels.find(l => l.value === this.activeBadgeLabelValue) || settings.explorerBadgeColorLabels[0];
     const selectedColor = settings.explorerBadgeColors[this.activeBadgeLabelValue] ?? "neutral";
@@ -2435,9 +3012,18 @@ export class SettingsView {
     preview.textContent = activeBadge ? activeBadge.label : this.activeBadgeLabelValue;
     preview.dataset.color = selectedColor;
 
+    const nextColors = new Set<string>();
     for (const option of settings.explorerBadgeColorOptions) {
-      const button = document.createElement("button");
-      button.type = "button";
+      nextColors.add(option.value);
+      let button = buttons.get(option.value);
+      if (!button) {
+        button = document.createElement("button");
+        button.type = "button";
+        button.addEventListener("click", () => {
+          void this.options.appearanceSettings.onExplorerBadgeColorChange(this.activeBadgeLabelValue, option.value);
+        });
+        buttons.set(option.value, button);
+      }
       button.className = "settings-badge-color-swatch";
       button.dataset.color = option.value;
       button.title = option.label;
@@ -2448,11 +3034,16 @@ export class SettingsView {
           color: option.label,
         }),
       );
-      button.addEventListener("click", () => {
-        void this.options.appearanceSettings.onExplorerBadgeColorChange(this.activeBadgeLabelValue, option.value);
-      });
-      buttons.set(badgeColorButtonKey(this.activeBadgeLabelValue, option.value), button);
-      swatchesContainer.appendChild(button);
+      if (button.parentElement !== swatchesContainer) {
+        swatchesContainer.appendChild(button);
+      }
+    }
+
+    for (const [color, button] of Array.from(buttons)) {
+      if (!nextColors.has(color)) {
+        button.remove();
+        buttons.delete(color);
+      }
     }
 
     this.updateBadgeColorSwatches(preview, buttons, settings);
@@ -2468,7 +3059,7 @@ export class SettingsView {
       preview.dataset.color = selectedColor;
     }
     for (const option of settings.explorerBadgeColorOptions) {
-      const button = buttons.get(badgeColorButtonKey(this.activeBadgeLabelValue, option.value));
+      const button = buttons.get(option.value);
       if (!button) {
         continue;
       }
@@ -2482,21 +3073,32 @@ export class SettingsView {
     swatchButtons: Map<string, HTMLButtonElement>,
     settings: AppearanceSettings,
   ): void {
-    swatchButtons.clear();
-    reset(container);
-
+    const nextColors = new Set<string>();
     for (const color of settings.backgroundColorOptions) {
-      const button = document.createElement("button");
-      button.type = "button";
+      nextColors.add(color);
+      let button = swatchButtons.get(color);
+      if (!button) {
+        button = document.createElement("button");
+        button.type = "button";
+        button.addEventListener("click", () => {
+          void this.options.appearanceSettings.onBackgroundColorChange(color);
+        });
+        swatchButtons.set(color, button);
+      }
       button.className = "settings-color-swatch";
       button.style.setProperty("--settings-swatch-color", color);
       button.setAttribute("aria-label", color);
       button.title = color;
-      button.addEventListener("click", () => {
-        void this.options.appearanceSettings.onBackgroundColorChange(color);
-      });
-      swatchButtons.set(color, button);
-      container.append(button);
+      if (button.parentElement !== container) {
+        container.append(button);
+      }
+    }
+
+    for (const [color, button] of Array.from(swatchButtons)) {
+      if (!nextColors.has(color)) {
+        button.remove();
+        swatchButtons.delete(color);
+      }
     }
 
     this.updateBackgroundSwatches(swatchButtons, settings);
@@ -2529,6 +3131,22 @@ export class SettingsView {
     });
     button.addEventListener("click", options.onClick);
     return button;
+  }
+
+  private updateButton(button: HTMLButtonElement, options: {
+    disabled?: boolean;
+    id: string;
+    label: string;
+    variant: "primary" | "secondary";
+  }): void {
+    updateActionButton(button, {
+      className: "settings-button",
+      disabled: options.disabled === true,
+      id: options.id,
+      label: options.label,
+      size: "sm",
+      variant: options.variant,
+    });
   }
 
 }
@@ -2635,6 +3253,25 @@ function appendFeedback(container: HTMLElement, feedback: { type: "idle" | "succ
   container.appendChild(text("p", feedback.type === "error" ? "settings-feedback settings-feedback--error" : "settings-feedback settings-feedback--success", feedback.message));
 }
 
+function updateFeedbackElement(element: HTMLElement, feedback: { type: "idle" | "success" | "error"; message: string } | undefined): void {
+  element.hidden = !feedback?.message;
+  element.className = feedback?.type === "error"
+    ? "settings-feedback settings-feedback--error"
+    : feedback?.type === "success"
+      ? "settings-feedback settings-feedback--success"
+      : "settings-feedback";
+  element.textContent = feedback?.message ?? "";
+}
+
+function updateElementSearchText(element: HTMLElement, searchText: string): void {
+  if (searchText) {
+    element.dataset.search = searchText;
+  }
+  else {
+    delete element.dataset.search;
+  }
+}
+
 function settingsSectionsEqual(
   current: readonly SettingsSectionDefinition[],
   next: readonly SettingsSectionDefinition[],
@@ -2658,8 +3295,4 @@ function settingsSectionsEqual(
 
 function optionLabels(options: readonly SelectOption[]): readonly string[] {
   return options.map(option => option.label);
-}
-
-function badgeColorButtonKey(badge: string, color: string): string {
-  return `${badge}\u001f${color}`;
 }

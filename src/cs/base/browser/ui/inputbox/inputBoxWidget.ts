@@ -49,7 +49,11 @@ export class InputBoxWidget extends Disposable {
   public readonly input: HTMLInputElement;
 
   private readonly inputBox: InputBox<HTMLInputElement>;
-  private readonly itemNodes: HTMLElement[] = [];
+  private readonly itemActionButtons = new Map<string, HTMLButtonElement>();
+  private readonly itemActionIcons = new Map<string, LxIconDefinition>();
+  private readonly itemById = new Map<string, IInputBoxWidgetItem>();
+  private readonly itemLabels = new Map<string, HTMLElement>();
+  private readonly itemNodes = new Map<string, HTMLElement>();
   private emptyElement: HTMLElement | undefined;
   private items: readonly IInputBoxWidgetItem[] = [];
   private emptyLabel = "";
@@ -86,22 +90,30 @@ export class InputBoxWidget extends Disposable {
   }
 
   public update(options: InputBoxWidgetOptions = {}): void {
+    let shouldRenderItems = false;
+    let shouldUpdateEmptyElement = false;
     if (options.items !== undefined) {
       this.items = options.items;
-      this.renderItems();
+      shouldRenderItems = true;
     }
     if (options.emptyLabel !== undefined) {
       this.emptyLabel = options.emptyLabel;
-      this.updateEmptyElement();
+      shouldUpdateEmptyElement = true;
     }
     if (options.inputVisible !== undefined) {
       this.inputVisible = options.inputVisible;
       this.updateInputVisibility();
-      this.updateEmptyElement();
+      shouldUpdateEmptyElement = true;
     }
     if (options.disabled !== undefined) {
       this.disabled = options.disabled === true;
+      shouldRenderItems = true;
+    }
+    if (shouldRenderItems) {
       this.renderItems();
+    }
+    else if (shouldUpdateEmptyElement) {
+      this.updateEmptyElement();
     }
     this.inputBox.update(getInputBoxOptions(options));
   }
@@ -160,14 +172,39 @@ export class InputBoxWidget extends Disposable {
   }
 
   private renderItems(): void {
-    for (const node of this.itemNodes.splice(0)) {
-      node.remove();
-    }
+    const nextIds = new Set<string>();
+    this.itemById.clear();
 
     for (const item of this.items) {
-      const node = this.createItemElement(item);
-      this.itemNodes.push(node);
-      this.field.insertBefore(node, this.input);
+      nextIds.add(item.id);
+      this.itemById.set(item.id, item);
+      let node = this.itemNodes.get(item.id);
+      if (!node) {
+        node = this.createItemElement(item);
+        this.itemNodes.set(item.id, node);
+      }
+      this.updateItemElement(node, item);
+    }
+
+    for (const [id, node] of Array.from(this.itemNodes)) {
+      if (nextIds.has(id)) {
+        continue;
+      }
+      node.remove();
+      this.itemNodes.delete(id);
+      this.itemLabels.delete(id);
+      this.itemActionButtons.delete(id);
+      this.itemActionIcons.delete(id);
+    }
+
+    let referenceNode: ChildNode = this.input;
+    for (let index = this.items.length - 1; index >= 0; index--) {
+      const item = this.items[index]!;
+      const node = this.itemNodes.get(item.id)!;
+      if (node.parentElement !== this.field || node.nextSibling !== referenceNode) {
+        this.field.insertBefore(node, referenceNode);
+      }
+      referenceNode = node;
     }
 
     this.updateEmptyElement();
@@ -175,42 +212,78 @@ export class InputBoxWidget extends Disposable {
 
   private createItemElement(item: IInputBoxWidgetItem): HTMLElement {
     const element = document.createElement("span");
-    element.className = "inputbox_widget_item";
-    element.dataset.itemId = item.id;
-    if (item.kind) {
-      element.dataset.kind = item.kind;
-    }
-    if (item.ariaLabel) {
-      element.setAttribute("aria-label", item.ariaLabel);
-    }
 
     const label = document.createElement("span");
     label.className = "inputbox_widget_item_label";
-    label.textContent = item.label;
     element.appendChild(label);
-
-    if (item.action) {
-      const actionButton = document.createElement("button");
-      actionButton.type = "button";
-      actionButton.className = "inputbox_widget_item_action";
-      actionButton.disabled = this.disabled || item.disabled === true;
-      actionButton.setAttribute("aria-label", item.action.ariaLabel);
-      actionButton.appendChild(createLxIcon({
-        className: "inputbox_widget_item_action_icon",
-        icon: item.action.icon,
-        size: 14,
-      }));
-      actionButton.addEventListener("click", event => {
-        this.onDidTriggerItemActionEmitter.fire({ browserEvent: event, item });
-      });
-      element.appendChild(actionButton);
-    }
-
+    this.itemLabels.set(item.id, label);
     return element;
   }
 
+  private updateItemElement(element: HTMLElement, item: IInputBoxWidgetItem): void {
+    setClassName(element, "inputbox_widget_item");
+    if (element.dataset.itemId !== item.id) {
+      element.dataset.itemId = item.id;
+    }
+    if (item.kind) {
+      if (element.dataset.kind !== item.kind) {
+        element.dataset.kind = item.kind;
+      }
+    }
+    else if (element.dataset.kind !== undefined) {
+      delete element.dataset.kind;
+    }
+    setOptionalAttribute(element, "aria-label", item.ariaLabel);
+
+    const label = this.itemLabels.get(item.id)!;
+    if (label.textContent !== item.label) {
+      label.textContent = item.label;
+    }
+    if (item.action) {
+      this.updateItemActionButton(element, item);
+      return;
+    }
+
+    this.itemActionButtons.get(item.id)?.remove();
+    this.itemActionButtons.delete(item.id);
+    this.itemActionIcons.delete(item.id);
+  }
+
+  private updateItemActionButton(element: HTMLElement, item: IInputBoxWidgetItem): void {
+    let actionButton = this.itemActionButtons.get(item.id);
+    if (!actionButton) {
+      actionButton = document.createElement("button");
+      actionButton.type = "button";
+      actionButton.addEventListener("click", event => {
+        const currentItem = this.itemById.get(item.id);
+        if (currentItem) {
+          this.onDidTriggerItemActionEmitter.fire({ browserEvent: event, item: currentItem });
+        }
+      });
+      element.appendChild(actionButton);
+      this.itemActionButtons.set(item.id, actionButton);
+    }
+
+    setClassName(actionButton, "inputbox_widget_item_action");
+    const disabled = this.disabled || item.disabled === true;
+    if (actionButton.disabled !== disabled) {
+      actionButton.disabled = disabled;
+    }
+    setOptionalAttribute(actionButton, "aria-label", item.action!.ariaLabel);
+    if (this.itemActionIcons.get(item.id) !== item.action!.icon) {
+      actionButton.replaceChildren(createLxIcon({
+        className: "inputbox_widget_item_action_icon",
+        icon: item.action!.icon,
+        size: 14,
+      }));
+      this.itemActionIcons.set(item.id, item.action!.icon);
+    }
+  }
+
   private updateInputVisibility(): void {
-    this.input.hidden = !this.inputVisible;
+    if (this.input.hidden === this.inputVisible) {
+      this.input.hidden = !this.inputVisible;
+    }
     this.field.classList.toggle("inputbox_widget_field--input-hidden", !this.inputVisible);
   }
 
@@ -227,7 +300,9 @@ export class InputBoxWidget extends Disposable {
       this.emptyElement.className = "inputbox_widget_empty";
       this.field.insertBefore(this.emptyElement, this.input);
     }
-    this.emptyElement.textContent = this.emptyLabel;
+    if (this.emptyElement.textContent !== this.emptyLabel) {
+      this.emptyElement.textContent = this.emptyLabel;
+    }
   }
 }
 
@@ -247,3 +322,22 @@ const getInputBoxOptions = (options: InputBoxWidgetOptions): InputBoxOptions => 
   type: options.type,
   value: options.value,
 });
+
+const setClassName = (element: HTMLElement, className: string): void => {
+  if (element.className !== className) {
+    element.className = className;
+  }
+};
+
+const setOptionalAttribute = (element: HTMLElement, name: string, value: string | undefined): void => {
+  if (value) {
+    if (element.getAttribute(name) !== value) {
+      element.setAttribute(name, value);
+    }
+    return;
+  }
+
+  if (element.hasAttribute(name)) {
+    element.removeAttribute(name);
+  }
+};

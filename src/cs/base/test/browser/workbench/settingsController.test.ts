@@ -2,6 +2,7 @@ import assert from "assert";
 
 import { Event } from "src/cs/base/common/event";
 import { SettingsController } from "src/cs/workbench/contrib/settings/browser/settingsController";
+import { SettingsView, type SettingsContentItemTarget } from "src/cs/workbench/contrib/settings/browser/settingsView";
 import {
   NoOpNotification,
   NotificationsFilter,
@@ -135,24 +136,34 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
 
     try {
       const switchButton = getButton(container, "settings-numeric-display-toggle");
+      const content = getElement(container, ".settings-view-content");
+      const tree = getElement(container, ".settings-view-content > .settings-tree");
       assert.equal(switchButton.getAttribute("aria-checked"), "false");
 
       switchButton.click();
 
+      assert.equal(getElement(container, ".settings-view-content"), content);
+      assert.equal(getElement(container, ".settings-view-content > .settings-tree"), tree);
       assert.equal(getButton(container, "settings-numeric-display-toggle"), switchButton);
       assert.equal(switchButton.getAttribute("aria-checked"), "true");
       assert.equal(switchButton.disabled, false);
 
       controller.update(createSettingsViewInput(service.settings));
+      assert.equal(getElement(container, ".settings-view-content"), content);
+      assert.equal(getElement(container, ".settings-view-content > .settings-tree"), tree);
       assert.equal(getButton(container, "settings-numeric-display-toggle"), switchButton);
       assert.equal(switchButton.getAttribute("aria-checked"), "true");
       assert.equal(switchButton.disabled, false);
 
       service.settings = { numericDisplayMode: "smart" };
       controller.update(createSettingsViewInput(service.settings));
+      assert.equal(getElement(container, ".settings-view-content"), content);
+      assert.equal(getElement(container, ".settings-view-content > .settings-tree"), tree);
       updateDeferred.resolve(service.settings);
       await settled();
 
+      assert.equal(getElement(container, ".settings-view-content"), content);
+      assert.equal(getElement(container, ".settings-view-content > .settings-tree"), tree);
       assert.equal(getButton(container, "settings-numeric-display-toggle"), switchButton);
       assert.equal(switchButton.getAttribute("aria-checked"), "true");
       assert.equal(switchButton.disabled, false);
@@ -249,6 +260,72 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
     }
     finally {
       controller.dispose();
+      container.remove();
+    }
+  });
+
+  test("patches only active terms and custom form when adding a custom semantic term", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const patchedTargets: SettingsContentItemTarget[] = [];
+    const prototype = SettingsView.prototype as unknown as {
+      updateContentItems: (target: SettingsContentItemTarget) => void;
+    };
+    const originalUpdateContentItems = prototype.updateContentItems;
+    prototype.updateContentItems = function (target: SettingsContentItemTarget): void {
+      patchedTargets.push(target);
+      return originalUpdateContentItems.call(this, target);
+    };
+
+    let controller: SettingsController | undefined;
+    const service = createSettingsService({});
+    service.updateSettings = async updates => {
+      const nextSettings = updates as Partial<ConductorSettings>;
+      service.settings = {
+        ...service.settings,
+        ...nextSettings,
+      };
+      controller?.update(createSettingsViewInput(service.settings));
+      return service.settings;
+    };
+    controller = new SettingsController(
+      container,
+      createSettingsViewInput(service.settings),
+      service,
+      createCommandService(),
+      createNotificationService(),
+    );
+
+    try {
+      openTemplateSection(container);
+      patchedTargets.length = 0;
+
+      submitSemanticTerm(container, "Codex Custom Term");
+      await settled();
+
+      assert.deepEqual(
+        patchedTargets
+          .filter(target => target.descriptorId === "template-semantic-library")
+          .map(target => target.itemIds),
+        [
+          [
+            "settings-template-semantic-active-terms-card",
+            "settings-template-semantic-custom-form-card",
+          ],
+          [
+            "settings-template-semantic-active-terms-card",
+          ],
+          [
+            "settings-template-semantic-active-terms-card",
+            "settings-template-semantic-custom-form-card",
+          ],
+        ],
+      );
+    }
+    finally {
+      prototype.updateContentItems = originalUpdateContentItems;
+      controller?.dispose();
       container.remove();
     }
   });
@@ -378,6 +455,12 @@ function getButton(container: HTMLElement, id: string): HTMLButtonElement {
   const button = container.querySelector<HTMLButtonElement>(`#${id}`);
   assert.ok(button);
   return button;
+}
+
+function getElement(container: ParentNode, selector: string): HTMLElement {
+  const element = container.querySelector<HTMLElement>(selector);
+  assert.ok(element);
+  return element;
 }
 
 async function settled(): Promise<void> {

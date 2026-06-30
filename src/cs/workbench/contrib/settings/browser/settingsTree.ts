@@ -63,6 +63,7 @@ type SettingsTreeItemEntry = {
 // SettingsView owns control behavior and lifecycle.
 export class SettingsTree extends Disposable {
   public readonly element = div("settings-tree");
+  private readonly compositeChildTargets = new Map<string, ReadonlySet<string>>();
   private entries: readonly SettingsTreeListEntry[] = [];
   private readonly list: List<SettingsTreeListEntry>;
 
@@ -81,7 +82,7 @@ export class SettingsTree extends Disposable {
       multipleSelectionSupport: false,
       renderers: [
         new SettingsTreeSectionRenderer(),
-        new SettingsTreeItemRenderer(),
+        new SettingsTreeItemRenderer(this.compositeChildTargets),
       ],
       rowRole: "presentation",
     }));
@@ -104,11 +105,28 @@ export class SettingsTree extends Disposable {
     const entries = this.entries.slice();
     for (let index = 0; index < nextEntries.length; index++) {
       const nextEntry = nextEntries[index];
-      if (!settingsTreeEntryContainsTarget(nextEntry, targetIds)) {
+      if (nextEntry.kind === "section") {
         continue;
       }
+
+      if (targetIds.has(nextEntry.id)) {
+        entries[index] = nextEntry;
+        this.list.splice(index, 1, [nextEntry]);
+        continue;
+      }
+
+      if (nextEntry.item.kind !== "composite" || !settingsTreeCompositeItemContainsTarget(nextEntry.item, targetIds)) {
+        continue;
+      }
+
       entries[index] = nextEntry;
-      this.list.splice(index, 1, [nextEntry]);
+      this.compositeChildTargets.set(nextEntry.id, targetIds);
+      try {
+        this.list.splice(index, 1, [nextEntry]);
+      }
+      finally {
+        this.compositeChildTargets.delete(nextEntry.id);
+      }
     }
     this.entries = entries;
   }
@@ -151,9 +169,9 @@ class SettingsTreeSectionRenderer implements IListRenderer<SettingsTreeListEntry
       throw new Error(`Cannot render settings tree ${entry.kind} entry with section renderer`);
     }
 
-    element.id = entry.id;
+    updateElementId(element, entry.id);
     const titleElement = element.querySelector<HTMLElement>(".settings-title");
-    if (titleElement) {
+    if (titleElement && titleElement.textContent !== entry.title) {
       titleElement.textContent = entry.title;
     }
   }
@@ -171,6 +189,8 @@ type SettingsTreeItemTemplate = {
 class SettingsTreeItemRenderer implements IListRenderer<SettingsTreeListEntry, SettingsTreeItemTemplate> {
   public readonly templateId = "item";
 
+  constructor(private readonly compositeChildTargets: ReadonlyMap<string, ReadonlySet<string>>) {}
+
   public renderTemplate(container: HTMLElement): SettingsTreeItemTemplate {
     const itemContainer = div("settings-tree-item");
     container.appendChild(itemContainer);
@@ -182,13 +202,22 @@ class SettingsTreeItemRenderer implements IListRenderer<SettingsTreeListEntry, S
       throw new Error(`Cannot render settings tree ${entry.kind} entry with item renderer`);
     }
 
-    template.container.className = getSettingsTreeItemClassName(entry);
+    updateElementClassName(template.container, getSettingsTreeItemClassName(entry));
     if (template.widget && template.widget.kind !== entry.item.kind) {
       template.widget.dispose();
       template.widget = null;
     }
     if (!template.widget) {
       template.widget = new SettingsTreeItemWidget(entry.item);
+    }
+    else if (entry.item.kind === "composite") {
+      const childTargets = this.compositeChildTargets.get(entry.id);
+      if (childTargets) {
+        template.widget.updateCompositeChildren(entry.item, childTargets);
+      }
+      else {
+        template.widget.update(entry.item);
+      }
     }
     else {
       template.widget.update(entry.item);
@@ -260,11 +289,33 @@ export class SettingsTreeItemWidget extends Disposable {
       return;
     }
 
-    this.element.id = item.id;
+    updateElementId(this.element, item.id);
     this.updateSearchText(item);
     this.updateLabel(item);
-    this.controlElement!.className = "settings-row-control";
+    updateElementClassName(this.controlElement!, "settings-row-control");
     this.updateControl(item.control);
+  }
+
+  public updateCompositeChildren(item: SettingsTreeCompositeItem, childIds: ReadonlySet<string>): void {
+    if (this.kind !== "composite") {
+      throw new Error(`Cannot update settings tree ${this.kind} item with composite children`);
+    }
+
+    updateElementId(this.element, item.id);
+    updateElementClassName(this.element, "settings-card settings-card-composite");
+    updateItemSearchText(
+      this.element,
+      normalizeSettingsSearchText(item.searchText, item.items.map(child => child.searchText)),
+    );
+
+    for (let index = 0; index < item.items.length; index++) {
+      const child = item.items[index]!;
+      if (!childIds.has(child.id)) {
+        continue;
+      }
+
+      this.updateCompositeChild(child, index);
+    }
   }
 
   public override dispose(): void {
@@ -273,10 +324,18 @@ export class SettingsTreeItemWidget extends Disposable {
   }
 
   private updateLabel(item: SettingsTreeControlItem): void {
-    this.labelElement!.className = item.description ? "settings-heading" : "settings-row-title";
-    this.titleElement!.textContent = item.title;
-    this.descriptionElement!.hidden = !item.description;
-    this.descriptionElement!.textContent = item.description ?? "";
+    updateElementClassName(this.labelElement!, item.description ? "settings-heading" : "settings-row-title");
+    if (this.titleElement!.textContent !== item.title) {
+      this.titleElement!.textContent = item.title;
+    }
+    const descriptionHidden = !item.description;
+    if (this.descriptionElement!.hidden !== descriptionHidden) {
+      this.descriptionElement!.hidden = descriptionHidden;
+    }
+    const description = item.description ?? "";
+    if (this.descriptionElement!.textContent !== description) {
+      this.descriptionElement!.textContent = description;
+    }
   }
 
   private updateSearchText(item: SettingsTreeControlItem): void {
@@ -295,7 +354,7 @@ export class SettingsTreeItemWidget extends Disposable {
       this.element.replaceWith(item.element);
       this.element = item.element;
     }
-    this.element.id = item.id;
+    updateElementId(this.element, item.id);
     this.element.classList.add("settings-card");
     if (item.searchText !== undefined) {
       updateItemSearchText(this.element, normalizeSettingsSearchText(item.searchText));
@@ -303,8 +362,8 @@ export class SettingsTreeItemWidget extends Disposable {
   }
 
   private updateCompositeItem(item: SettingsTreeCompositeItem): void {
-    this.element.id = item.id;
-    this.element.className = "settings-card settings-card-composite";
+    updateElementId(this.element, item.id);
+    updateElementClassName(this.element, "settings-card settings-card-composite");
     updateItemSearchText(
       this.element,
       normalizeSettingsSearchText(item.searchText, item.items.map(child => child.searchText)),
@@ -315,22 +374,7 @@ export class SettingsTreeItemWidget extends Disposable {
       const child = item.items[index]!;
       nextIds.add(child.id);
 
-      let childSlot = this.compositeChildren.get(child.id);
-      if (!childSlot) {
-        childSlot = div("settings-tree-composite-child");
-        childSlot.id = child.id;
-        this.compositeChildren.set(child.id, childSlot);
-      }
-
-      childSlot.className = "settings-tree-composite-child";
-      if (childSlot.childNodes.length !== 1 || childSlot.firstChild !== child.element) {
-        childSlot.replaceChildren(child.element);
-      }
-
-      const expectedNextSibling = this.element.children[index] ?? null;
-      if (expectedNextSibling !== childSlot) {
-        this.element.insertBefore(childSlot, expectedNextSibling);
-      }
+      this.updateCompositeChild(child, index);
     }
 
     for (const [id, childSlot] of Array.from(this.compositeChildren)) {
@@ -339,6 +383,29 @@ export class SettingsTreeItemWidget extends Disposable {
         this.compositeChildren.delete(id);
       }
     }
+  }
+
+  private updateCompositeChild(
+    child: SettingsTreeCompositeChildItem,
+    index: number,
+    childSlot = this.compositeChildren.get(child.id),
+  ): HTMLElement {
+    if (!childSlot) {
+      childSlot = div("settings-tree-composite-child");
+      updateElementId(childSlot, child.id);
+      this.compositeChildren.set(child.id, childSlot);
+    }
+
+    updateElementClassName(childSlot, "settings-tree-composite-child");
+    if (childSlot.childNodes.length !== 1 || childSlot.firstChild !== child.element) {
+      childSlot.replaceChildren(child.element);
+    }
+
+    const expectedNextSibling = this.element.children[index] ?? null;
+    if (expectedNextSibling !== childSlot) {
+      this.element.insertBefore(childSlot, expectedNextSibling);
+    }
+    return childSlot;
   }
 }
 
@@ -357,10 +424,24 @@ function div(className: string, ...children: Array<Node | string>): HTMLDivEleme
 
 function updateItemSearchText(element: HTMLElement, searchText: string): void {
   if (searchText) {
-    element.dataset.search = searchText;
+    if (element.dataset.search !== searchText) {
+      element.dataset.search = searchText;
+    }
   }
-  else {
+  else if (element.dataset.search !== undefined) {
     delete element.dataset.search;
+  }
+}
+
+function updateElementClassName(element: HTMLElement, className: string): void {
+  if (element.className !== className) {
+    element.className = className;
+  }
+}
+
+function updateElementId(element: HTMLElement, id: string): void {
+  if (element.id !== id) {
+    element.id = id;
   }
 }
 
@@ -391,16 +472,21 @@ function flattenSettingsTree(sections: readonly SettingsTreeSection[]): Settings
 
 function haveSameEntryIds(current: readonly SettingsTreeListEntry[], next: readonly SettingsTreeListEntry[]): boolean {
   return current.length === next.length &&
-    current.every((entry, index) => entry.id === next[index]?.id);
+    current.every((entry, index) => settingsTreeEntriesHaveSameIdentity(entry, next[index]));
 }
 
-function settingsTreeEntryContainsTarget(entry: SettingsTreeListEntry, targetIds: ReadonlySet<string>): boolean {
-  if (targetIds.has(entry.id)) {
+function settingsTreeEntriesHaveSameIdentity(entry: SettingsTreeListEntry, next: SettingsTreeListEntry | undefined): boolean {
+  if (!next || entry.id !== next.id || entry.kind !== next.kind) {
+    return false;
+  }
+  if (entry.kind === "section" || next.kind === "section") {
     return true;
   }
-  return entry.kind === "item" &&
-    entry.item.kind === "composite" &&
-    entry.item.items.some(item => targetIds.has(item.id));
+  return entry.item.kind === next.item.kind;
+}
+
+function settingsTreeCompositeItemContainsTarget(item: SettingsTreeCompositeItem, targetIds: ReadonlySet<string>): boolean {
+  return item.items.some(item => targetIds.has(item.id));
 }
 
 function getSettingsTreeItemClassName(entry: SettingsTreeItemEntry): string {

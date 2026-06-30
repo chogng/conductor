@@ -1304,21 +1304,23 @@ export class ListView<T> implements IListView<T> {
   }
 
   private ensureEntry(index: number, item: T, key: string, templateId: string): RowEntry<T> {
-    let entry = this.rowsByIndex.get(index);
-    if (entry?.key === key && entry.row.templateId === templateId) {
-      return entry;
+    const entryAtIndex = this.rowsByIndex.get(index);
+    if (entryAtIndex?.key === key && entryAtIndex.row.templateId === templateId) {
+      return entryAtIndex;
     }
 
-    if (entry) {
-      this.releaseEntry(entry);
+    if (entryAtIndex) {
+      this.rowsByIndex.delete(index);
     }
 
-    entry = this.rows.get(key);
+    let entry = this.rows.get(key);
     if (entry) {
       if (entry.row.templateId !== templateId) {
         this.releaseEntry(entry);
       } else {
-        this.rowsByIndex.delete(entry.index);
+        if (this.rowsByIndex.get(entry.index) === entry) {
+          this.rowsByIndex.delete(entry.index);
+        }
         entry.index = index;
         entry.item = item;
         this.rowsByIndex.set(index, entry);
@@ -1395,7 +1397,9 @@ export class ListView<T> implements IListView<T> {
       entry.row.templateData,
     );
     this.rows.delete(entry.key);
-    this.rowsByIndex.delete(entry.index);
+    if (this.rowsByIndex.get(entry.index) === entry) {
+      this.rowsByIndex.delete(entry.index);
+    }
     this.rowCache.release(entry.row);
   }
 
