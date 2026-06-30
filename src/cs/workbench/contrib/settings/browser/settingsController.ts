@@ -15,7 +15,9 @@ import {
 } from "src/cs/workbench/contrib/settings/common/feedback";
 import {
   SettingsView,
+  type SettingsContentDescriptorId,
   type SettingsViewOptions,
+  type SettingsViewUpdateTarget,
 } from "src/cs/workbench/contrib/settings/browser/settingsView";
 import {
   createSettingsSections,
@@ -72,6 +74,8 @@ import {
 } from "src/cs/workbench/services/notification/common/notificationService";
 
 type SettingsControllerOptions = SettingsViewInput;
+
+const settingsContentUpdateTarget: SettingsViewUpdateTarget = { type: "content" };
 
 type SelectOption = {
   label: string;
@@ -165,7 +169,7 @@ export class SettingsController {
     this.syncDrafts(previous);
     this.syncOriginFeedback();
     this.syncOriginPath();
-    this.render();
+    this.render(getSettingsViewUpdateTarget(previous, options));
   }
 
   dispose(): void {
@@ -264,7 +268,7 @@ export class SettingsController {
 
   private async loadOriginPath(loadRequest: string): Promise<void> {
     this.originPathLoading = true;
-    this.render();
+    this.render(descriptorsUpdateTarget("origin-integration"));
     try {
       const configuredPath = await this.service.getOriginExePath();
       if (configuredPath) {
@@ -283,16 +287,16 @@ export class SettingsController {
     }
     finally {
       this.originPathLoading = false;
-      this.render();
+      this.render(descriptorsUpdateTarget("origin-integration"));
     }
   }
 
-  private render(): void {
+  private render(target: SettingsViewUpdateTarget): void {
     if (this.disposed) {
       return;
     }
     this.updateNotifications();
-    this.view.update(this.createViewOptions());
+    this.view.update(this.createViewOptions(), target);
   }
 
   private updateNotifications(): void {
@@ -375,13 +379,13 @@ export class SettingsController {
   private closeCleanupNotification(): void {
     this.originCleanupFeedback = IDLE_FEEDBACK;
     this.drafts.cleanupNotification = { ...this.drafts.cleanupNotification, isVisible: false };
-    this.render();
+    this.render(descriptorsUpdateTarget("origin-integration"));
   }
 
   private closeOriginHealthNotification(): void {
     this.originPathFeedback = IDLE_FEEDBACK;
     this.drafts.originHealthNotification = { ...this.drafts.originHealthNotification, isVisible: false };
-    this.render();
+    this.render(descriptorsUpdateTarget("origin-integration"));
   }
 
   private createViewOptions(): SettingsViewOptions {
@@ -426,7 +430,7 @@ export class SettingsController {
       postCommandsDraft: this.drafts.postCommandsDraft,
       setActiveSettingsSection: section => {
         this.drafts.activeSettingsSection = section;
-        this.render();
+        this.render(settingsContentUpdateTarget);
       },
       setAxisTitleFontSizeDraft: value => {
         this.drafts.axisTitleFontSizeDraft = value;
@@ -890,7 +894,7 @@ export class SettingsController {
     this.originPathSaving = true;
     this.originPathFeedback = IDLE_FEEDBACK;
     this.syncOriginFeedback();
-    this.render();
+    this.render(descriptorsUpdateTarget("origin-integration"));
     try {
       const nextPath = await this.service.chooseOriginExePath();
       if (nextPath) {
@@ -912,7 +916,7 @@ export class SettingsController {
     finally {
       this.originPathSaving = false;
       this.syncOriginFeedback();
-      this.render();
+      this.render(descriptorsUpdateTarget("origin-integration"));
     }
   }
 
@@ -924,7 +928,7 @@ export class SettingsController {
     this.originHealthChecking = true;
     this.originPathFeedback = IDLE_FEEDBACK;
     this.syncOriginFeedback();
-    this.render();
+    this.render(descriptorsUpdateTarget("origin-integration"));
     try {
       const health = await this.service.checkOriginHealth(this.originExePath);
       const nextPath = normalizeTrimmedString(health?.originExePath);
@@ -946,7 +950,7 @@ export class SettingsController {
     finally {
       this.originHealthChecking = false;
       this.syncOriginFeedback();
-      this.render();
+      this.render(descriptorsUpdateTarget("origin-integration"));
     }
   }
 
@@ -954,7 +958,7 @@ export class SettingsController {
     this.originCleanupSaving = true;
     this.originCleanupFeedback = IDLE_FEEDBACK;
     this.syncOriginFeedback();
-    this.render();
+    this.render(descriptorsUpdateTarget("origin-integration"));
     try {
       await this.service.updateSettings(updates);
       this.originCleanupFeedback = {
@@ -971,7 +975,7 @@ export class SettingsController {
     finally {
       this.originCleanupSaving = false;
       this.syncOriginFeedback();
-      this.render();
+      this.render(descriptorsUpdateTarget("origin-integration"));
     }
   }
 
@@ -983,7 +987,7 @@ export class SettingsController {
     }
 
     this.pendingNumericDisplayMode = normalizedMode;
-    this.render();
+    this.render(descriptorsUpdateTarget("general-preferences"));
     if (!this.numericDisplaySaving) {
       await this.flushNumericDisplayMode();
     }
@@ -991,7 +995,7 @@ export class SettingsController {
 
   private async flushNumericDisplayMode(): Promise<void> {
     this.numericDisplaySaving = true;
-    this.render();
+    this.render(descriptorsUpdateTarget("general-preferences"));
     try {
       while (this.pendingNumericDisplayMode !== null) {
         const mode = this.pendingNumericDisplayMode;
@@ -1007,11 +1011,11 @@ export class SettingsController {
         if (this.pendingNumericDisplayMode === mode) {
           this.pendingNumericDisplayMode = null;
         }
-        this.render();
+        this.render(descriptorsUpdateTarget("general-preferences"));
       }
     } finally {
       this.numericDisplaySaving = false;
-      this.render();
+      this.render(descriptorsUpdateTarget("general-preferences"));
     }
   }
 
@@ -1023,7 +1027,7 @@ export class SettingsController {
     }
 
     this.pendingTableTemplateVisualizationEnabled = normalized;
-    this.render();
+    this.render(descriptorsUpdateTarget("template-preferences"));
     if (!this.tableTemplateVisualizationSaving) {
       await this.flushTableTemplateVisualizationEnabled();
     }
@@ -1031,7 +1035,7 @@ export class SettingsController {
 
   private async flushTableTemplateVisualizationEnabled(): Promise<void> {
     this.tableTemplateVisualizationSaving = true;
-    this.render();
+    this.render(descriptorsUpdateTarget("template-preferences"));
     try {
       while (this.pendingTableTemplateVisualizationEnabled !== null) {
         const enabled = this.pendingTableTemplateVisualizationEnabled;
@@ -1047,18 +1051,18 @@ export class SettingsController {
         if (this.pendingTableTemplateVisualizationEnabled === enabled) {
           this.pendingTableTemplateVisualizationEnabled = null;
         }
-        this.render();
+        this.render(descriptorsUpdateTarget("template-preferences"));
       }
     } finally {
       this.tableTemplateVisualizationSaving = false;
-      this.render();
+      this.render(descriptorsUpdateTarget("template-preferences"));
     }
   }
 
   private async updateOriginPlot(updates: Partial<OriginPlotOptions>): Promise<void> {
     this.originPlotSaving = true;
     this.originPlotFeedback = IDLE_FEEDBACK;
-    this.render();
+    this.render(descriptorsUpdateTarget("origin-integration"));
     try {
       await this.service.updateOriginPlotOptions(updates);
       this.originPlotFeedback = {
@@ -1074,7 +1078,7 @@ export class SettingsController {
     }
     finally {
       this.originPlotSaving = false;
-      this.render();
+      this.render(descriptorsUpdateTarget("origin-integration"));
     }
   }
 
@@ -1082,7 +1086,7 @@ export class SettingsController {
     this.originCleanupRunning = true;
     this.originCleanupFeedback = IDLE_FEEDBACK;
     this.syncOriginFeedback();
-    this.render();
+    this.render(descriptorsUpdateTarget("origin-integration"));
     try {
       const result = await this.service.runOriginCleanup();
       const removedTotal = Number(result?.removedTotal);
@@ -1102,14 +1106,14 @@ export class SettingsController {
     finally {
       this.originCleanupRunning = false;
       this.syncOriginFeedback();
-      this.render();
+      this.render(descriptorsUpdateTarget("origin-integration"));
     }
   }
 
   private async setFileNameFieldSeparators(value: string): Promise<void> {
     this.fileNameMatchingSaving = true;
     this.fileNameMatchingFeedback = IDLE_FEEDBACK;
-    this.render();
+    this.render(descriptorsUpdateTarget("template-matching"));
     try {
       await this.service.updateSettings({ fileNameFieldSeparators: normalizeFileNameFieldSeparators(value) });
       this.fileNameMatchingFeedback = {
@@ -1125,7 +1129,7 @@ export class SettingsController {
     }
     finally {
       this.fileNameMatchingSaving = false;
-      this.render();
+      this.render(descriptorsUpdateTarget("template-matching"));
     }
   }
 
@@ -1136,7 +1140,7 @@ export class SettingsController {
         type: "error",
         message: localize("settings.template.semantic.emptyTerm", "Enter a match term before adding it."),
       };
-      this.render();
+      this.render(descriptorsUpdateTarget("template-semantic-library"));
       return;
     }
 
@@ -1161,7 +1165,7 @@ export class SettingsController {
         type: "error",
         message: localize("settings.template.semantic.duplicateTerm", "Match term already exists."),
       };
-      this.render();
+      this.render(descriptorsUpdateTarget("template-semantic-library"));
       return;
     }
 
@@ -1169,7 +1173,7 @@ export class SettingsController {
       await this.saveTemplateSettings({
         templateDisabledBuiltinSemanticIds: disabledBuiltinTermIds.filter(id => id !== disabledBuiltinTerm.id),
         templateSemanticTermOrder: [...activeTermOrder, disabledBuiltinTerm.id],
-      }, localize("settings.template.builtin.enabled", "Built-in semantic match term enabled for review."));
+      }, localize("settings.template.builtin.enabled", "Built-in semantic match term enabled for review."), "template-semantic-library");
       if (this.templateSettingsFeedback.type !== "error") {
         this.drafts.templateSemanticTermDraft = "";
       }
@@ -1195,7 +1199,7 @@ export class SettingsController {
     await this.saveTemplateSettings({
       templateSemanticAllowlist: nextCustomTerms,
       templateSemanticTermOrder: [...activeTermOrder, nextRule.id],
-    }, localize("settings.template.semantic.saved", "Template semantic library updated."));
+    }, localize("settings.template.semantic.saved", "Template semantic library updated."), "template-semantic-library");
     if (this.templateSettingsFeedback.type !== "error") {
       this.drafts.templateSemanticTermDraft = "";
     }
@@ -1208,7 +1212,7 @@ export class SettingsController {
       templateSemanticAllowlist: customTerms,
       templateSemanticTermOrder: normalizeTemplateSemanticTermOrder(this.settings.templateSemanticTermOrder)
         .filter(termId => termId !== id),
-    }, localize("settings.template.semantic.saved", "Template semantic library updated."));
+    }, localize("settings.template.semantic.saved", "Template semantic library updated."), "template-semantic-library");
   }
 
   private async disableTemplateBuiltinTerm(id: string): Promise<void> {
@@ -1220,7 +1224,7 @@ export class SettingsController {
       templateDisabledBuiltinSemanticIds: [...disabledTermIds, id],
       templateSemanticTermOrder: normalizeTemplateSemanticTermOrder(this.settings.templateSemanticTermOrder)
         .filter(termId => termId !== id),
-    }, localize("settings.template.builtin.disabled", "Built-in semantic match term disabled for review."));
+    }, localize("settings.template.builtin.disabled", "Built-in semantic match term disabled for review."), "template-semantic-library");
   }
 
   private async enableTemplateBuiltinTerm(id: string): Promise<void> {
@@ -1235,7 +1239,7 @@ export class SettingsController {
     await this.saveTemplateSettings({
       templateDisabledBuiltinSemanticIds: nextDisabledTermIds,
       templateSemanticTermOrder: [...activeTermOrder, id],
-    }, localize("settings.template.builtin.enabled", "Built-in semantic match term enabled for review."));
+    }, localize("settings.template.builtin.enabled", "Built-in semantic match term enabled for review."), "template-semantic-library");
   }
 
   private async disableTemplateDomainPack(id: string): Promise<void> {
@@ -1245,7 +1249,7 @@ export class SettingsController {
     }
     await this.saveTemplateSettings({
       templateDisabledBuiltinDomainPackIds: [...disabledIds, id],
-    }, localize("settings.template.domainPack.disabled", "Domain pack disabled for review."));
+    }, localize("settings.template.domainPack.disabled", "Domain pack disabled for review."), "template-library");
   }
 
   private async enableTemplateDomainPack(id: string): Promise<void> {
@@ -1253,7 +1257,7 @@ export class SettingsController {
       .filter(disabledId => disabledId !== id);
     await this.saveTemplateSettings({
       templateDisabledBuiltinDomainPackIds: disabledIds,
-    }, localize("settings.template.domainPack.enabled", "Domain pack enabled for review."));
+    }, localize("settings.template.domainPack.enabled", "Domain pack enabled for review."), "template-library");
   }
 
   private async moveTemplateXAxisIntent(sourceIntent: TemplateXAxisIntent, targetIntent: TemplateXAxisIntent): Promise<void> {
@@ -1268,13 +1272,17 @@ export class SettingsController {
     );
     await this.saveTemplateSettings({
       templateXAxisIntentPriority: priority,
-    }, localize("settings.template.xAxisPriority.saved", "X axis intent priority updated."));
+    }, localize("settings.template.xAxisPriority.saved", "X axis intent priority updated."), "template-library");
   }
 
-  private async saveTemplateSettings(updates: Record<string, unknown>, successMessage: string): Promise<void> {
+  private async saveTemplateSettings(
+    updates: Record<string, unknown>,
+    successMessage: string,
+    descriptorId: SettingsContentDescriptorId,
+  ): Promise<void> {
     this.templateSettingsSaving = true;
     this.templateSettingsFeedback = IDLE_FEEDBACK;
-    this.render();
+    this.render(descriptorsUpdateTarget(descriptorId));
     try {
       await this.service.updateSettings(updates);
       this.templateSettingsFeedback = {
@@ -1292,7 +1300,7 @@ export class SettingsController {
     }
     finally {
       this.templateSettingsSaving = false;
-      this.render();
+      this.render(descriptorsUpdateTarget(descriptorId));
     }
   }
 
@@ -1303,7 +1311,7 @@ export class SettingsController {
   private async saveDefaults(operation: () => Promise<unknown>): Promise<void> {
     this.defaultsSaving = true;
     this.defaultsFeedback = IDLE_FEEDBACK;
-    this.render();
+    this.render(descriptorsUpdateTarget("chart-defaults"));
     try {
       await operation();
       this.defaultsFeedback = {
@@ -1321,7 +1329,7 @@ export class SettingsController {
     }
     finally {
       this.defaultsSaving = false;
-      this.render();
+      this.render(descriptorsUpdateTarget("chart-defaults"));
     }
   }
 
@@ -1348,7 +1356,7 @@ export class SettingsController {
     }
 
     this.pendingTransparentChrome = transparentChrome;
-    this.render();
+    this.render(descriptorsUpdateTarget("appearance-preferences"));
     if (!this.transparentChromeSaving) {
       await this.flushTransparentChrome();
     }
@@ -1356,7 +1364,7 @@ export class SettingsController {
 
   private async flushTransparentChrome(): Promise<void> {
     this.transparentChromeSaving = true;
-    this.render();
+    this.render(descriptorsUpdateTarget("appearance-preferences"));
     try {
       while (this.pendingTransparentChrome !== null) {
         const transparentChrome = this.pendingTransparentChrome;
@@ -1372,12 +1380,12 @@ export class SettingsController {
         if (this.pendingTransparentChrome === transparentChrome) {
           this.pendingTransparentChrome = null;
         }
-        this.render();
+        this.render(descriptorsUpdateTarget("appearance-preferences"));
       }
     }
     finally {
       this.transparentChromeSaving = false;
-      this.render();
+      this.render(descriptorsUpdateTarget("appearance-preferences"));
     }
   }
 
@@ -1388,7 +1396,7 @@ export class SettingsController {
     }
 
     this.explorerAppearanceSaving = true;
-    this.render();
+    this.render(descriptorsUpdateTarget("appearance-preferences"));
     try {
       await this.service.updateSettings({
         filesExplorerDensity: density,
@@ -1396,7 +1404,7 @@ export class SettingsController {
     }
     finally {
       this.explorerAppearanceSaving = false;
-      this.render();
+      this.render(descriptorsUpdateTarget("appearance-preferences"));
     }
   }
 
@@ -1408,7 +1416,7 @@ export class SettingsController {
     }
 
     this.pendingExplorerBadgeVisibility = showBadges;
-    this.render();
+    this.render(descriptorsUpdateTarget("appearance-preferences"));
     if (!this.explorerBadgeSaving) {
       await this.flushFilesExplorerShowBadges();
     }
@@ -1416,7 +1424,7 @@ export class SettingsController {
 
   private async flushFilesExplorerShowBadges(): Promise<void> {
     this.explorerBadgeSaving = true;
-    this.render();
+    this.render(descriptorsUpdateTarget("appearance-preferences"));
     try {
       while (this.pendingExplorerBadgeVisibility !== null) {
         const showBadges = this.pendingExplorerBadgeVisibility;
@@ -1434,12 +1442,12 @@ export class SettingsController {
         if (this.pendingExplorerBadgeVisibility === showBadges) {
           this.pendingExplorerBadgeVisibility = null;
         }
-        this.render();
+        this.render(descriptorsUpdateTarget("appearance-preferences"));
       }
     }
     finally {
       this.explorerBadgeSaving = false;
-      this.render();
+      this.render(descriptorsUpdateTarget("appearance-preferences"));
     }
   }
 
@@ -1467,7 +1475,7 @@ export class SettingsController {
     };
     this.pendingExplorerBadgeColors = nextColors;
     this.explorerBadgeColorSaving = true;
-    this.render();
+    this.render(descriptorsUpdateTarget("appearance-preferences"));
     try {
       await this.service.updateSettings({
         filesExplorerBadgeColors: nextColors,
@@ -1476,25 +1484,25 @@ export class SettingsController {
     finally {
       this.explorerBadgeColorSaving = false;
       this.pendingExplorerBadgeColors = null;
-      this.render();
+      this.render(descriptorsUpdateTarget("appearance-preferences"));
     }
   }
 
   private async saveAppearance(operation: () => Promise<unknown>): Promise<void> {
     this.appearanceSaving = true;
-    this.render();
+    this.render(descriptorsUpdateTarget("appearance-preferences"));
     try {
       await operation();
     }
     finally {
       this.appearanceSaving = false;
-      this.render();
+      this.render(descriptorsUpdateTarget("appearance-preferences"));
     }
   }
 
   private async setWindowCloseBehavior(behavior: "minimizeToTray" | "quit"): Promise<void> {
     this.windowCloseSaving = true;
-    this.render();
+    this.render(descriptorsUpdateTarget("general-preferences"));
     try {
       await this.service.updateSettings({
         windowCloseBehavior: behavior === "quit" ? "quit" : "minimizeToTray",
@@ -1502,13 +1510,13 @@ export class SettingsController {
     }
     finally {
       this.windowCloseSaving = false;
-      this.render();
+      this.render(descriptorsUpdateTarget("general-preferences"));
     }
   }
 
   private async checkForUpdates(): Promise<void> {
     this.drafts.appUpdateChecking = true;
-    this.render();
+    this.render(descriptorsUpdateTarget("about"));
     try {
       await this.commandService.executeCommand(UpdateCommandId.check);
     }
@@ -1517,9 +1525,115 @@ export class SettingsController {
     }
     finally {
       this.drafts.appUpdateChecking = false;
-      this.render();
+      this.render(descriptorsUpdateTarget("about"));
     }
   }
+}
+
+function descriptorsUpdateTarget(
+  ...descriptorIds: readonly SettingsContentDescriptorId[]
+): SettingsViewUpdateTarget {
+  return {
+    type: "descriptors",
+    descriptorIds,
+  };
+}
+
+function getSettingsViewUpdateTarget(
+  current: SettingsControllerOptions,
+  next: SettingsControllerOptions,
+): SettingsViewUpdateTarget {
+  if (current.conductorSettingsLoaded !== next.conductorSettingsLoaded) {
+    return settingsContentUpdateTarget;
+  }
+
+  const descriptorIds = new Set<SettingsContentDescriptorId>();
+  if (
+    current.appUpdateSettings.currentVersion !== next.appUpdateSettings.currentVersion ||
+    current.appUpdateSettings.isAvailable !== next.appUpdateSettings.isAvailable
+  ) {
+    descriptorIds.add("about");
+  }
+  if (current.isWindowsDesktopShell !== next.isWindowsDesktopShell) {
+    descriptorIds.add("origin-integration");
+  }
+  if (current.theme !== next.theme) {
+    descriptorIds.add("appearance-preferences");
+  }
+
+  for (const key of getChangedConductorSettingsKeys(current.conductorSettings, next.conductorSettings)) {
+    for (const descriptorId of getConductorSettingDescriptorIds(key)) {
+      descriptorIds.add(descriptorId);
+    }
+  }
+
+  return descriptorsUpdateTarget(...descriptorIds);
+}
+
+function getChangedConductorSettingsKeys(
+  current: ConductorSettings | null,
+  next: ConductorSettings | null,
+): readonly string[] {
+  const keys = new Set<string>([
+    ...Object.keys(current ?? {}),
+    ...Object.keys(next ?? {}),
+  ]);
+  const changedKeys: string[] = [];
+  for (const key of keys) {
+    if (!Object.is(current?.[key], next?.[key])) {
+      changedKeys.push(key);
+    }
+  }
+  return changedKeys;
+}
+
+function getConductorSettingDescriptorIds(key: string): readonly SettingsContentDescriptorId[] {
+  switch (key) {
+    case "windowCloseBehavior":
+    case "numericDisplayMode":
+      return ["general-preferences"];
+    case "tableTemplateVisualizationEnabled":
+      return ["template-preferences"];
+    case "fileNameFieldSeparators":
+      return ["template-matching"];
+    case "templateDisabledBuiltinDomainPackIds":
+    case "templateXAxisIntentPriority":
+      return ["template-library"];
+    case "templateDisabledBuiltinSemanticIds":
+    case "templateSemanticAllowlist":
+    case "templateSemanticTermOrder":
+      return ["template-semantic-library"];
+    case "defaultYScaleForCf":
+    case "defaultYScaleForCv":
+    case "defaultYScaleForOutput":
+    case "defaultYScaleForPv":
+    case "defaultYScaleForSpecial":
+    case "defaultYScaleForTransfer":
+    case "plotAxisSettings":
+      return ["chart-defaults"];
+    case "backgroundColor":
+    case "filesExplorerBadgeColors":
+    case "filesExplorerDensity":
+    case "filesExplorerShowBadges":
+    case "theme":
+    case "transparentChrome":
+      return ["appearance-preferences"];
+    case "originExePath":
+    case "originExportModeDefault":
+    case "originPlotCommandDefault":
+    case "originPlotPostCommandsDefault":
+    case "originPlotTypeDefault":
+    case "originPlotXyPairsDefault":
+    case "originPlotLineWidthDefault":
+    case "originPlotSymbolShapeDefault":
+    case "originPlotLegendFontSizeDefault":
+    case "originRuntimeCleanupEnabled":
+    case "originRuntimeFailedRetentionDays":
+    case "originRuntimeKeepSuccessJobs":
+      return ["origin-integration"];
+  }
+
+  return [];
 }
 
 function moveItemBefore<T>(

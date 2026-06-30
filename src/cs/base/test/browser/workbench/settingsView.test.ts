@@ -5,8 +5,9 @@ import { SettingsView, type SettingsViewOptions } from "src/cs/workbench/contrib
 import { createSettingsSections } from "src/cs/workbench/contrib/settings/browser/settingsLayout";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
-type SettingsViewOptionOverrides = Partial<Omit<SettingsViewOptions, "appearanceSettings" | "templateSettings">> & {
+type SettingsViewOptionOverrides = Partial<Omit<SettingsViewOptions, "appearanceSettings" | "chartDefaultSettings" | "templateSettings">> & {
   appearanceSettings?: Partial<SettingsViewOptions["appearanceSettings"]>;
+  chartDefaultSettings?: Partial<SettingsViewOptions["chartDefaultSettings"]>;
   templateSettings?: Partial<SettingsViewOptions["templateSettings"]>;
 };
 
@@ -80,7 +81,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
           optimized: true,
           onOptimizedChange: noop,
         },
-      }));
+      }), { type: "descriptors", descriptorIds: ["general-preferences"] });
       await settled();
 
       assert.equal(getButton(container, "settings-language-dropdown"), languageSelect);
@@ -99,6 +100,37 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     finally {
       observer?.disconnect();
       labelObserver?.disconnect();
+      view.dispose();
+      container.remove();
+    }
+  });
+
+  test("patches a targeted descriptor without replacing sibling content", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const view = new SettingsView(container, createSettingsViewOptions({ activeSettingsSection: "general" }));
+
+    try {
+      const languageSelect = getButton(container, "settings-language-dropdown");
+      const numericDisplaySwitch = getButton(container, "settings-numeric-display-toggle");
+      const transferScaleSelect = getButton(container, "settings-default-transfer-y-scale-select");
+
+      view.update(createSettingsViewOptions({
+        activeSettingsSection: "general",
+        chartDefaultSettings: {
+          defaultYScaleForTransfer: "linear",
+          isSaving: true,
+        },
+      }), { type: "descriptors", descriptorIds: ["chart-defaults"] });
+
+      const nextTransferScaleSelect = getButton(container, "settings-default-transfer-y-scale-select");
+      assert.equal(getButton(container, "settings-language-dropdown"), languageSelect);
+      assert.equal(getButton(container, "settings-numeric-display-toggle"), numericDisplaySwitch);
+      assert.notEqual(nextTransferScaleSelect, transferScaleSelect);
+      assert.equal(getSelectLabel(nextTransferScaleSelect), "Linear");
+      assert.equal(nextTransferScaleSelect.disabled, true);
+    }
+    finally {
       view.dispose();
       container.remove();
     }
@@ -155,7 +187,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
           showExplorerBadges: false,
           transparentChrome: false,
         },
-      }));
+      }), { type: "descriptors", descriptorIds: ["appearance-preferences"] });
 
       assert.equal(getButton(container, "settings-theme-dropdown"), themeSelect);
       assert.equal(getButton(container, "settings-explorer-density-dropdown"), explorerDensitySelect);
@@ -193,7 +225,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
           showExplorerBadges: false,
           transparentChrome: false,
         },
-      }));
+      }), { type: "descriptors", descriptorIds: ["appearance-preferences"] });
 
       assert.equal(getButton(container, "settings-explorer-badges-toggle"), explorerBadgesSwitch);
       assert.equal(getButton(container, "settings-transparent-chrome-toggle"), transparentChromeSwitch);
@@ -642,6 +674,10 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
     appearanceSettings: {
       ...base.appearanceSettings,
       ...overrides.appearanceSettings,
+    },
+    chartDefaultSettings: {
+      ...base.chartDefaultSettings,
+      ...overrides.chartDefaultSettings,
     },
     templateSettings: {
       ...base.templateSettings,

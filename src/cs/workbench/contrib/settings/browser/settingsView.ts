@@ -18,7 +18,7 @@ import { createSelectBox, type SelectBox, type SelectBoxOption } from "src/cs/ba
 import Scrollbar from "src/cs/base/browser/ui/scrollbar/scrollableElement";
 import { SwitchWidget } from "src/cs/base/browser/ui/switch/switchWidget";
 import { Action, type IAction } from "src/cs/base/common/actions";
-import { DisposableStore } from "src/cs/base/common/lifecycle";
+import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/services/settings/common/fileNameMatching";
 import type {
@@ -311,10 +311,28 @@ export type SettingsViewOptions = SettingsViewProps & {
   yScaleOptions: SelectOption[];
 };
 
+export type SettingsContentDescriptorId =
+  | "general-preferences"
+  | "chart-defaults"
+  | "template-preferences"
+  | "template-matching"
+  | "template-library"
+  | "template-semantic-library"
+  | "appearance-preferences"
+  | "origin-integration"
+  | "about";
+
+export type SettingsViewUpdateTarget =
+  | { readonly type: "content" }
+  | {
+    readonly type: "descriptors";
+    readonly descriptorIds: readonly SettingsContentDescriptorId[];
+  };
+
 type SettingsContentDescriptor = {
-  readonly id: string;
+  readonly id: SettingsContentDescriptorId;
   readonly order: number;
-  readonly render: (container: HTMLElement) => void;
+  readonly create: () => HTMLElement;
   readonly sectionId: SettingsSectionId;
 };
 
@@ -364,7 +382,10 @@ type SettingsDocumentDialogOptions = {
 };
 
 export class SettingsView {
-  private readonly renderDisposables = new DisposableStore();
+  private readonly layoutDisposables = new DisposableStore();
+  private readonly descriptorDisposables = new Map<SettingsContentDescriptorId, DisposableStore>();
+  private readonly descriptorElements = new Map<SettingsContentDescriptorId, HTMLElement>();
+  private readonly contentDisposables = new DisposableStore();
   private readonly generalControlDisposables = new DisposableStore();
   private readonly root: HTMLElement;
   private readonly contentScroll = new Scrollbar({
@@ -372,7 +393,9 @@ export class SettingsView {
     viewportClassName: "settings-view-content-scroll-viewport",
   });
   private appearanceSection: AppearanceSectionTemplate | null = null;
+  private contentElement: HTMLElement | null = null;
   private generalTree: SettingsTree | null = null;
+  private activeDescriptorDisposables: DisposableStore | null = null;
   private options: SettingsViewOptions;
   private activeBadgeLabelValue = "transfer";
   private searchQuery = "";
@@ -387,37 +410,70 @@ export class SettingsView {
     this.render();
   }
 
-  update(options: SettingsViewOptions): void {
-    if (!hasSettingsSearchQuery(this.searchQuery) && canReuseAppearanceSectionTemplate(this.options, options)) {
-      const current = this.options;
-      this.options = options;
+  update(options: SettingsViewOptions, target: SettingsViewUpdateTarget): void {
+    const current = this.options;
+    const layoutChanged = current.language !== options.language ||
+      !settingsSectionsEqual(current.settingsSections, options.settingsSections);
+    this.options = options;
+    this.root.setAttribute("aria-label", localize("settings.section.ariaLabel", "Settings"));
+
+    if (layoutChanged) {
+      this.render();
+      return;
+    }
+
+    this.updateNavSelection();
+
+    if (current.activeSettingsSection !== options.activeSettingsSection) {
+      this.refreshContent();
+      return;
+    }
+
+    if (hasSettingsSearchQuery(this.searchQuery)) {
+      if (target.type === "descriptors") {
+        this.updateContentDescriptors(target.descriptorIds);
+        return;
+      }
+
+      this.refreshContent();
+      return;
+    }
+
+    if (canReuseAppearanceSectionTemplate(current, options)) {
       this.updateAppearanceSection(current, options);
       return;
     }
 
-    if (!hasSettingsSearchQuery(this.searchQuery) && canReuseGeneralSectionTemplate(this.options, options)) {
-      this.options = options;
+    if (canReuseGeneralSectionTemplate(current, options)) {
       this.updateGeneralSection();
       return;
     }
 
-    this.options = options;
-    this.root.setAttribute("aria-label", localize("settings.section.ariaLabel", "Settings"));
-    this.render();
+    if (target.type === "descriptors") {
+      this.updateContentDescriptors(target.descriptorIds);
+      return;
+    }
+
+    this.refreshContent();
   }
 
   dispose(): void {
     this.closeSettingsDocumentDialog();
     this.generalControlDisposables.dispose();
-    this.renderDisposables.dispose();
+    this.layoutDisposables.dispose();
+    this.clearDescriptorTemplates();
+    this.contentDisposables.dispose();
     this.contentScroll.dispose();
     this.root.remove();
   }
 
   private render(): void {
     this.generalControlDisposables.clear();
-    this.renderDisposables.clear();
+    this.layoutDisposables.clear();
+    this.clearDescriptorTemplates();
+    this.contentDisposables.clear();
     this.appearanceSection = null;
+    this.contentElement = null;
     this.generalTree = null;
     reset(this.root);
     this.root.appendChild(this.createLayout());
@@ -426,11 +482,91 @@ export class SettingsView {
 
   private refreshContent(): void {
     this.generalControlDisposables.clear();
-    this.renderDisposables.clear();
+    this.clearDescriptorTemplates();
+    this.contentDisposables.clear();
     this.appearanceSection = null;
     this.generalTree = null;
-    this.contentScroll.viewport.replaceChildren(this.createContent());
+    const nextContent = this.createContent();
+    if (!this.contentElement) {
+      this.contentElement = nextContent;
+      this.contentScroll.viewport.replaceChildren(nextContent);
+    }
+    else {
+      this.contentElement.className = nextContent.className;
+      this.contentElement.replaceChildren(...Array.from(nextContent.childNodes));
+    }
     queueMicrotask(() => this.contentScroll.layout());
+  }
+
+  private updateContentDescriptors(descriptorIds: readonly SettingsContentDescriptorId[]): void {
+    for (const descriptorId of descriptorIds) {
+      this.updateContentDescriptor(descriptorId);
+    }
+
+    this.updateSearchResults();
+    queueMicrotask(() => this.contentScroll.layout());
+  }
+
+  private updateContentDescriptor(descriptorId: SettingsContentDescriptorId): void {
+    const currentElement = this.descriptorElements.get(descriptorId);
+    if (!currentElement) {
+      return;
+    }
+
+    const descriptor = this.createContentDescriptors().find(candidate => candidate.id === descriptorId);
+    if (!descriptor) {
+      return;
+    }
+
+    const currentDisposables = this.descriptorDisposables.get(descriptorId);
+    this.descriptorDisposables.delete(descriptorId);
+    this.descriptorElements.delete(descriptorId);
+    const nextElement = this.createContentDescriptorElement(descriptor);
+    currentElement.replaceWith(nextElement);
+    currentDisposables?.dispose();
+  }
+
+  private updateSearchResults(): void {
+    if (!this.contentElement || !hasSettingsSearchQuery(this.searchQuery)) {
+      return;
+    }
+
+    for (const empty of Array.from(this.contentElement.querySelectorAll<HTMLElement>(".settings-search-empty"))) {
+      empty.remove();
+    }
+
+    const resultCount = this.filterSearchResults(this.contentElement, getSettingsSearchWords(this.searchQuery));
+    if (resultCount === 0) {
+      this.contentElement.appendChild(this.createEmptySearchResults());
+    }
+  }
+
+  private createContentDescriptorElement(descriptor: SettingsContentDescriptor): HTMLElement {
+    const disposables = new DisposableStore();
+    const previousDisposables = this.activeDescriptorDisposables;
+    this.activeDescriptorDisposables = disposables;
+    try {
+      const element = descriptor.create();
+      this.descriptorDisposables.set(descriptor.id, disposables);
+      this.descriptorElements.set(descriptor.id, element);
+      return element;
+    }
+    finally {
+      this.activeDescriptorDisposables = previousDisposables;
+    }
+  }
+
+  private clearDescriptorTemplates(): void {
+    for (const disposables of this.descriptorDisposables.values()) {
+      disposables.dispose();
+    }
+    this.descriptorDisposables.clear();
+    this.descriptorElements.clear();
+  }
+
+  private registerContentDisposable<T extends IDisposable>(disposable: T): T {
+    const disposables = this.activeDescriptorDisposables ?? this.contentDisposables;
+    return disposables.add(disposable);
   }
 
   private createLayout(): HTMLElement {
@@ -440,7 +576,8 @@ export class SettingsView {
   }
 
   private createContentScroll(): HTMLElement {
-    this.contentScroll.viewport.replaceChildren(this.createContent());
+    this.contentElement = this.createContent();
+    this.contentScroll.viewport.replaceChildren(this.contentElement);
     return this.contentScroll.element;
   }
 
@@ -464,7 +601,7 @@ export class SettingsView {
     clearSearchButton.hidden = true;
     clearSearchButton.setAttribute("aria-label", localize("settings.nav.clearSearch", "Clear search"));
     clearSearchButton.appendChild(createLxIcon({ className: "settings-view-search-clear-icon", icon: LxIcon.close, size: 14 }));
-    const searchInputBox = this.renderDisposables.add(createInputBox({
+    const searchInputBox = this.layoutDisposables.add(createInputBox({
       ariaLabel: localize("settings.nav.searchPlaceholder", "Search settings..."),
       left: createLxIcon({ className: "settings-view-search-icon", icon: LxIcon.search, size: 14 }),
       placeholder: localize("settings.nav.searchPlaceholder", "Search settings..."),
@@ -493,6 +630,7 @@ export class SettingsView {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "settings-view-nav-item";
+        button.dataset.sectionId = section.id;
         button.dataset.selected = String(isActive);
         if (isActive) {
           button.setAttribute("aria-current", "page");
@@ -516,12 +654,12 @@ export class SettingsView {
       }
     };
 
-    this.renderDisposables.add(addDisposableListener(searchInput, "input", () => {
+    this.layoutDisposables.add(addDisposableListener(searchInput, "input", () => {
       this.searchQuery = searchInput.value;
       updateSearchState();
       this.refreshContent();
     }));
-    this.renderDisposables.add(addDisposableListener(clearSearchButton, "click", () => {
+    this.layoutDisposables.add(addDisposableListener(clearSearchButton, "click", () => {
       searchInput.value = "";
       this.searchQuery = "";
       updateSearchState();
@@ -532,6 +670,19 @@ export class SettingsView {
 
     aside.append(div("settings-view-nav-header", backButton), search, nav);
     return aside;
+  }
+
+  private updateNavSelection(): void {
+    for (const button of Array.from(this.root.querySelectorAll<HTMLButtonElement>(".settings-view-nav-item"))) {
+      const isActive = button.dataset.sectionId === this.options.activeSettingsSection;
+      button.dataset.selected = String(isActive);
+      if (isActive) {
+        button.setAttribute("aria-current", "page");
+      }
+      else {
+        button.removeAttribute("aria-current");
+      }
+    }
   }
 
   private createContent(): HTMLElement {
@@ -588,7 +739,7 @@ export class SettingsView {
       for (const descriptor of descriptors
         .filter(candidate => candidate.sectionId === sectionId)
         .sort((first, second) => first.order - second.order)) {
-        descriptor.render(container);
+        container.appendChild(this.createContentDescriptorElement(descriptor));
       }
     }
   }
@@ -597,56 +748,65 @@ export class SettingsView {
     return [
       {
         id: "general-preferences",
+        create: () => this.createGeneralPreferences(),
         order: 0,
-        render: container => this.renderGeneralPreferences(container),
         sectionId: "general",
       },
       {
         id: "chart-defaults",
+        create: () => this.createChartSettingsSection(this.options.chartDefaultSettings),
         order: 10,
-        render: container => container.appendChild(this.createChartSettingsSection(this.options.chartDefaultSettings)),
         sectionId: "general",
       },
       {
         id: "template-preferences",
+        create: () => this.createTemplatePreferences(),
         order: 0,
-        render: container => this.renderTemplatePreferences(container),
         sectionId: "template",
       },
       {
         id: "template-matching",
+        create: () => settingsSection(
+          localize("settings.template.matching.sectionTitle", "Template Matching"),
+          this.createFileNameMatching(this.options.fileNameMatchingSettings),
+        ),
         order: 10,
-        render: container => this.renderTemplateMatching(container),
         sectionId: "template",
       },
       {
         id: "template-library",
+        create: () => settingsSection(
+          localize("settings.template.library.sectionTitle", "Template Library"),
+          this.createTemplateDomainPacks(this.options.templateSettings),
+          this.createXAxisIntentPriority(this.options.templateSettings),
+        ),
         order: 20,
-        render: container => this.renderTemplateLibrary(container),
         sectionId: "template",
       },
       {
         id: "template-semantic-library",
+        create: () => settingsCardGroup(
+          this.createTemplateSemanticLibrary(this.options.templateSettings),
+        ),
         order: 30,
-        render: container => this.renderTemplateSemanticLibrary(container),
         sectionId: "template",
       },
       {
         id: "appearance-preferences",
+        create: () => this.createAppearanceSectionElement(),
         order: 0,
-        render: container => this.renderAppearance(container),
         sectionId: "appearance",
       },
       {
         id: "origin-integration",
+        create: () => this.createOriginSection(),
         order: 0,
-        render: container => this.renderOrigin(container),
         sectionId: "origin",
       },
       {
         id: "about",
+        create: () => this.createAboutSection(),
         order: 0,
-        render: container => this.renderAbout(container),
         sectionId: "about",
       },
     ];
@@ -660,17 +820,17 @@ export class SettingsView {
     return section.label;
   }
 
-  private renderGeneralPreferences(container: HTMLElement): void {
+  private createGeneralPreferences(): HTMLElement {
     this.generalControlDisposables.clear();
-    const generalTree = this.renderDisposables.add(new SettingsTree());
+    const generalTree = this.registerContentDisposable(new SettingsTree());
     generalTree.update(this.createGeneralSettingsTree());
     this.generalTree = generalTree;
-    container.appendChild(generalTree.element);
+    return generalTree.element;
   }
 
   private updateGeneralSection(): void {
     if (!this.generalTree) {
-      this.render();
+      this.updateContentDescriptor("general-preferences");
       return;
     }
 
@@ -680,7 +840,7 @@ export class SettingsView {
   }
 
   private createChartSettingsSection(settings: ChartDefaultSettings): HTMLElement {
-    const chartTree = this.renderDisposables.add(new SettingsTree());
+    const chartTree = this.registerContentDisposable(new SettingsTree());
     chartTree.update(this.createChartSettingsTree(settings));
     return chartTree.element;
   }
@@ -750,31 +910,10 @@ export class SettingsView {
     ];
   }
 
-  private renderTemplatePreferences(container: HTMLElement): void {
-    const templateTree = this.renderDisposables.add(new SettingsTree());
+  private createTemplatePreferences(): HTMLElement {
+    const templateTree = this.registerContentDisposable(new SettingsTree());
     templateTree.update(this.createTemplateSettingsTree());
-    container.appendChild(templateTree.element);
-  }
-
-  private renderTemplateMatching(container: HTMLElement): void {
-    container.appendChild(settingsSection(
-      localize("settings.template.matching.sectionTitle", "Template Matching"),
-      this.createFileNameMatching(this.options.fileNameMatchingSettings),
-    ));
-  }
-
-  private renderTemplateLibrary(container: HTMLElement): void {
-    container.appendChild(settingsSection(
-      localize("settings.template.library.sectionTitle", "Template Library"),
-      this.createTemplateDomainPacks(this.options.templateSettings),
-      this.createXAxisIntentPriority(this.options.templateSettings),
-    ));
-  }
-
-  private renderTemplateSemanticLibrary(container: HTMLElement): void {
-    container.appendChild(settingsCardGroup(
-      this.createTemplateSemanticLibrary(this.options.templateSettings),
-    ));
+    return templateTree.element;
   }
 
   private createTemplateSettingsTree(): readonly SettingsTreeSection[] {
@@ -1023,7 +1162,7 @@ export class SettingsView {
     inputVisible: boolean,
     emptyLabel?: string,
   ): HTMLElement {
-    const inputBox = this.renderDisposables.add(new InputBoxWidget({
+    const inputBox = this.registerContentDisposable(new InputBoxWidget({
       ariaLabel,
       disabled: settings.isSaving,
       emptyLabel,
@@ -1034,14 +1173,14 @@ export class SettingsView {
     }));
     inputBox.element.classList.add("settings-template-term-inputbox");
     if (inputVisible) {
-      this.renderDisposables.add(inputBox.onDidChange(value => {
+      this.registerContentDisposable(inputBox.onDidChange(value => {
         this.options.setTemplateSemanticTermDraft(value);
       }));
-      this.renderDisposables.add(inputBox.onDidAccept(() => {
+      this.registerContentDisposable(inputBox.onDidAccept(() => {
         void settings.onAddSemanticTerm();
       }));
     }
-    this.renderDisposables.add(inputBox.onDidTriggerItemAction(({ item }) => {
+    this.registerContentDisposable(inputBox.onDidTriggerItemAction(({ item }) => {
       if (item.kind === "builtin-enabled") {
         void settings.onDisableBuiltinTerm(item.id);
         return;
@@ -1162,10 +1301,10 @@ export class SettingsView {
     return form;
   }
 
-  private renderAppearance(container: HTMLElement): void {
+  private createAppearanceSectionElement(): HTMLElement {
     const appearanceSection = this.createAppearanceSection();
     this.appearanceSection = appearanceSection;
-    container.appendChild(appearanceSection.element);
+    return appearanceSection.element;
   }
 
   private createAppearanceSection(): AppearanceSectionTemplate {
@@ -1222,7 +1361,7 @@ export class SettingsView {
 
     this.renderBadgeColorSwatches(badgeColorSwatches, badgeColorButtons, appearanceSettings);
 
-    const layoutResetAction = this.renderDisposables.add(new Action(
+    const layoutResetAction = this.registerContentDisposable(new Action(
       "settings.layout.reset",
       localize("settings.layout.resetButton", "Reset Layout"),
       "",
@@ -1232,7 +1371,7 @@ export class SettingsView {
     layoutResetAction.tooltip = localize("settings.layout.resetButton", "Reset Layout");
     layoutResetAction.icon = LxIcon.refresh;
     const layoutResetActionContainer = div("settings-reset-action");
-    const layoutResetActionItem = this.renderDisposables.add(new SettingsResetActionViewItem(layoutResetAction));
+    const layoutResetActionItem = this.registerContentDisposable(new SettingsResetActionViewItem(layoutResetAction));
     layoutResetActionItem.render(layoutResetActionContainer);
 
     const colorInput = document.createElement("input");
@@ -1249,7 +1388,7 @@ export class SettingsView {
     const swatchButtons = new Map<string, HTMLButtonElement>();
     this.renderBackgroundSwatches(swatches, swatchButtons, appearanceSettings);
 
-    const backgroundResetAction = this.renderDisposables.add(new Action(
+    const backgroundResetAction = this.registerContentDisposable(new Action(
       "settings.background.reset",
       localize("settings.background.reset", "Reset"),
       "",
@@ -1259,7 +1398,7 @@ export class SettingsView {
     backgroundResetAction.tooltip = localize("settings.background.reset", "Reset");
     backgroundResetAction.icon = LxIcon.refresh;
     const backgroundResetActionContainer = div("settings-reset-action");
-    const backgroundResetActionItem = this.renderDisposables.add(new SettingsResetActionViewItem(backgroundResetAction));
+    const backgroundResetActionItem = this.registerContentDisposable(new SettingsResetActionViewItem(backgroundResetAction));
     backgroundResetActionItem.render(backgroundResetActionContainer);
 
     const transparentChromeSwitch = this.createSwitchWidget({
@@ -1270,7 +1409,7 @@ export class SettingsView {
         void this.options.appearanceSettings.onTransparentChromeChange(checked);
       },
     });
-    const appearanceTree = this.renderDisposables.add(new SettingsTree());
+    const appearanceTree = this.registerContentDisposable(new SettingsTree());
     appearanceTree.update([
       {
         id: "settings-appearance-section",
@@ -1357,7 +1496,7 @@ export class SettingsView {
     };
   }
 
-  private renderOrigin(container: HTMLElement): void {
+  private createOriginSection(): HTMLElement {
     const { originSettings } = this.options;
     const originPathTitle = localize("settings.origin.title", "Origin Executable Path");
     const originPathDescription = localize("settings.origin.description", "Choose the Origin app used to open files.");
@@ -1407,12 +1546,12 @@ export class SettingsView {
     originList.appendChild(cleanupCard);
 
     originList.appendChild(this.createOriginPlot(originSettings));
-    container.appendChild(originSection);
+    return originSection;
   }
 
-  private renderAbout(container: HTMLElement): void {
+  private createAboutSection(): HTMLElement {
     const { appUpdateSettings } = this.options;
-    const aboutTree = this.renderDisposables.add(new SettingsTree());
+    const aboutTree = this.registerContentDisposable(new SettingsTree());
     aboutTree.update([
       {
         id: "settings-about-section",
@@ -1468,7 +1607,7 @@ export class SettingsView {
         ],
       },
     ]);
-    container.appendChild(aboutTree.element);
+    return aboutTree.element;
   }
 
   private showUserGuideDialog(): void {
@@ -1742,7 +1881,7 @@ export class SettingsView {
     const pathValue = settings.currentPath || (settings.isLoading
       ? localize("settings.origin.loading", "Loading...")
       : localize("settings.origin.notConfigurableHint", "Origin path configuration is available in Windows desktop app only."));
-    const pathInputBox = this.renderDisposables.add(createInputBox({
+    const pathInputBox = this.registerContentDisposable(createInputBox({
       ariaLabel: localize("settings.origin.title", "Origin Executable Path"),
       id: "settings-origin-path-value-input",
       readOnly: true,
@@ -1888,7 +2027,12 @@ export class SettingsView {
       options: options.options as readonly SelectBoxOption<string>[],
       onDidSelect: options.onChange,
     });
-    (disposables ?? this.renderDisposables).add(select);
+    if (disposables) {
+      disposables.add(select);
+    }
+    else {
+      this.registerContentDisposable(select);
+    }
     return select;
   }
 
@@ -1908,16 +2052,16 @@ export class SettingsView {
   }
 
   private createInput(options: TextInputOptions): HTMLElement {
-    const inputBox = this.renderDisposables.add(createInputBox({
+    const inputBox = this.registerContentDisposable(createInputBox({
       disabled: options.disabled,
       id: options.id,
       placeholder: options.placeholder,
       value: options.value,
     }));
     const input = inputBox.input;
-    this.renderDisposables.add(addDisposableListener(input, "input", () => options.onChange(input.value)));
+    this.registerContentDisposable(addDisposableListener(input, "input", () => options.onChange(input.value)));
     if (options.onBlur) {
-      this.renderDisposables.add(addDisposableListener(input, "blur", options.onBlur));
+      this.registerContentDisposable(addDisposableListener(input, "blur", options.onBlur));
     }
     if (!options.monospace) {
       return inputBox.element;
@@ -1932,13 +2076,19 @@ export class SettingsView {
     id: string;
     onChange: (checked: boolean) => void;
   }, disposables?: DisposableStore): SwitchWidget {
-    const widget = (disposables ?? this.renderDisposables).add(new SwitchWidget({
+    const widget = new SwitchWidget({
       checked: options.checked,
       className: "settings-switch",
       disabled: options.disabled,
       id: options.id,
       onDidChangeChecked: options.onChange,
-    }));
+    });
+    if (disposables) {
+      disposables.add(widget);
+    }
+    else {
+      this.registerContentDisposable(widget);
+    }
     widget.domNode.setAttribute("aria-label", options.ariaLabel);
     return widget;
   }
@@ -1946,7 +2096,7 @@ export class SettingsView {
   private updateAppearanceSection(current: SettingsViewOptions, next: SettingsViewOptions): void {
     const template = this.appearanceSection;
     if (!template) {
-      this.render();
+      this.updateContentDescriptor("appearance-preferences");
       return;
     }
 
