@@ -462,6 +462,10 @@ function resolveDesktopWindowIconPath() {
   return resolveFirstExistingPath(candidates) ?? undefined;
 }
 
+function resolveDarwinDockIconPath() {
+  return path.join(getResourcesPath(), "resources", "darwin", "icon.png");
+}
+
 function resolveTrayIconPath() {
   const platformResourceDir =
     process.platform === "win32"
@@ -1248,6 +1252,9 @@ async function ensureMainWindowVisible() {
 function createMainWindow() {
   logDesktopBoot("create-window:start");
   const windowIcon = resolveDesktopWindowIconPath();
+  if (isDev && process.platform === "darwin") {
+    app.dock.setIcon(resolveDarwinDockIconPath());
+  }
   mainWindowBootShown = false;
   const theme = syncBootWindowTheme();
   const preloadPath = desktopPreloadPath;

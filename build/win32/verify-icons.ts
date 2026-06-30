@@ -11,6 +11,14 @@ const packageJsonPath = path.join(rootDir, "package.json");
 
 const requiredPngSizes = [16, 20, 24, 32, 40, 48, 64, 70, 71, 128, 150, 256, 300, 512, 1024, 1080, 2160];
 const requiredIcoSizes = [16, 20, 24, 32, 40, 48, 64, 128, 256];
+const requiredIcnsTypes = ["icp4", "icp5", "icp6", "ic07", "ic08", "ic09", "ic10"];
+const requiredDarwinDockAssets = {
+  "icon.png": [1024, 1024],
+};
+const requiredDarwinTrayAssets = {
+  "trayTemplate.png": [16, 16],
+  "trayTemplate@2x.png": [32, 32],
+};
 const requiredAppxAssets = {
   "StoreLogo.png": [50, 50],
   "Square44x44Logo.png": [44, 44],
@@ -71,6 +79,37 @@ const readIcoSizes = (filePath) => {
   return sizes;
 };
 
+const readIcnsTypes = (filePath) => {
+  const buffer = fs.readFileSync(filePath);
+  if (buffer.length < 8 || buffer.toString("ascii", 0, 4) !== "icns") {
+    fail(`Not a valid ICNS file: ${path.relative(rootDir, filePath)}`);
+  }
+
+  const declaredSize = buffer.readUInt32BE(4);
+  if (declaredSize !== buffer.length) {
+    fail(`Wrong ICNS length for ${path.relative(rootDir, filePath)}: declared ${declaredSize}, actual ${buffer.length}`);
+  }
+
+  const types = new Set();
+  let offset = 8;
+  while (offset < buffer.length) {
+    if (offset + 8 > buffer.length) {
+      fail(`Truncated ICNS entry: ${path.relative(rootDir, filePath)}`);
+    }
+
+    const type = buffer.toString("ascii", offset, offset + 4);
+    const length = buffer.readUInt32BE(offset + 4);
+    if (length < 8 || offset + length > buffer.length) {
+      fail(`Invalid ICNS entry ${type}: ${path.relative(rootDir, filePath)}`);
+    }
+
+    types.add(type);
+    offset += length;
+  }
+
+  return types;
+};
+
 const readBmpSize = (filePath) => {
   const buffer = fs.readFileSync(filePath);
   if (buffer.length < 26 || buffer.toString("ascii", 0, 2) !== "BM") {
@@ -120,7 +159,34 @@ for (const size of requiredIcoSizes) {
 newestIconMtime = Math.max(newestIconMtime, iconIcoStat.mtimeMs);
 
 const iconIcnsPath = path.join(darwinResourceDir, "icon.icns");
-ensureFile(iconIcnsPath);
+const iconIcnsStat = ensureFile(iconIcnsPath);
+const icnsTypes = readIcnsTypes(iconIcnsPath);
+for (const type of requiredIcnsTypes) {
+  if (!icnsTypes.has(type)) {
+    fail(`icon.icns is missing ${type}`);
+  }
+}
+newestIconMtime = Math.max(newestIconMtime, iconIcnsStat.mtimeMs);
+
+for (const [name, [width, height]] of Object.entries(requiredDarwinDockAssets)) {
+  const filePath = path.join(darwinResourceDir, name);
+  const stat = ensureFile(filePath);
+  const dimensions = readPngSize(filePath);
+  if (dimensions.width !== width || dimensions.height !== height) {
+    fail(`Wrong macOS dock asset dimensions for resources/darwin/${name}: ${dimensions.width}x${dimensions.height}`);
+  }
+  newestIconMtime = Math.max(newestIconMtime, stat.mtimeMs);
+}
+
+for (const [name, [width, height]] of Object.entries(requiredDarwinTrayAssets)) {
+  const filePath = path.join(darwinResourceDir, name);
+  const stat = ensureFile(filePath);
+  const dimensions = readPngSize(filePath);
+  if (dimensions.width !== width || dimensions.height !== height) {
+    fail(`Wrong macOS tray asset dimensions for resources/darwin/${name}: ${dimensions.width}x${dimensions.height}`);
+  }
+  newestIconMtime = Math.max(newestIconMtime, stat.mtimeMs);
+}
 
 for (const [name, [width, height]] of Object.entries(requiredAppxAssets)) {
   const filePath = path.join(appxDir, name);
@@ -183,6 +249,6 @@ if (!extraResourceHasIcons) {
 }
 
 console.log(
-  `[verify-icons] OK: ${requiredPngSizes.length} PNG sizes, ${icoSizes.size} ICO sizes, AppX assets, installer bitmaps and package icon config are aligned.`,
+  `[verify-icons] OK: ${requiredPngSizes.length} PNG sizes, ${icoSizes.size} ICO sizes, ${requiredIcnsTypes.length} ICNS entries, macOS dock/tray assets, AppX assets, installer bitmaps and package icon config are aligned.`,
 );
 console.log(`[verify-icons] Newest icon file: ${new Date(newestIconMtime).toISOString()}`);
