@@ -15,6 +15,7 @@ import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import type { IDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import type { IFileService } from "src/cs/platform/files/common/files";
 import type { IInstantiationService } from "src/cs/platform/instantiation/common/instantiation";
+import { UriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentityService";
 import { ExplorerViewPane } from "src/cs/workbench/contrib/files/browser/explorerViewlet";
 import { ExplorerView } from "src/cs/workbench/contrib/files/browser/views/explorerView";
 import { ExplorerViewer } from "src/cs/workbench/contrib/files/browser/views/explorerViewer";
@@ -37,6 +38,7 @@ import type {
   IReviewService,
 } from "src/cs/workbench/services/review/common/review";
 import type { ReviewSummaryTarget } from "src/cs/workbench/services/review/common/reviewModel";
+import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 
 suite("workbench/contrib/files/browser/explorerViewlet", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
@@ -246,6 +248,8 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
     createUserTemplateService(),
     createDecorationsService(),
     createReviewService(options.onResolveReviewSummary),
+    createSettingsService(),
+    new UriIdentityService(),
   );
 
 const createContextMenuService = (): IContextMenuService => ({
@@ -489,3 +493,11 @@ const createReviewService = (
   },
   reviewResourceForExecution: async () => null,
 } as unknown as IReviewService);
+
+const createSettingsService = (): ISettingsService => ({
+  _serviceBrand: undefined,
+  onDidChangeConductorSettings: Event.None,
+  onDidChangeNumericDisplayMode: Event.None,
+  onDidChangeOriginSettingsViewInput: Event.None,
+  onDidChangeSettingsViewInput: Event.None,
+} as unknown as ISettingsService);

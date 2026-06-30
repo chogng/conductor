@@ -9,6 +9,7 @@ import type {
   FileSystemHandle,
 } from "../../../../../platform/files/browser/webFileSystemAccess.ts";
 import { FileService } from "../../../../../platform/files/common/fileService.ts";
+import { UriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentityService";
 import { IMPORT_ERROR_NOTIFICATION_ID } from "../../browser/fileConstants.ts";
 import { NotificationService } from "../../../../services/notification/common/notificationService.ts";
 import {
@@ -757,6 +758,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       getSelectedRelativePath: () => null,
       isDisposed: () => false,
       notificationService,
+      uriIdentityService: store.add(new UriIdentityService()),
       onAppendExplorerFiles: entries => {
         appendedFileNames.push(...entries.map(file => file.fileName ?? ""));
       },
@@ -791,6 +793,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       getSelectedRelativePath: () => null,
       isDisposed: () => false,
       notificationService,
+      uriIdentityService: store.add(new UriIdentityService()),
       onAppendExplorerFiles: entries => {
         appendedFileNames.push(...entries.map(file => file.fileName ?? ""));
       },
@@ -843,6 +846,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       getSelectedRelativePath: () => null,
       isDisposed: () => false,
       notificationService,
+      uriIdentityService: store.add(new UriIdentityService()),
       onAppendExplorerFiles: () => undefined,
       onDraggingChange: () => undefined,
       onRemoveSourceItems: () => undefined,

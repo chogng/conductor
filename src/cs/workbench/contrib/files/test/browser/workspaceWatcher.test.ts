@@ -6,6 +6,7 @@ import { toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { FileChangeType, type IFileChange, type IFileService } from "src/cs/platform/files/common/files";
+import { UriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentityService";
 import { WorkspaceWatcher } from "src/cs/workbench/contrib/files/browser/workspaceWatcher";
 
 suite("workbench/contrib/files/browser/workspaceWatcher", () => {
@@ -16,6 +17,7 @@ suite("workbench/contrib/files/browser/workspaceWatcher", () => {
     const changedFolders: URI[] = [];
     const watcher = store.add(new WorkspaceWatcher(
       filesService,
+      store.add(new UriIdentityService()),
       folder => changedFolders.push(folder),
       { changeReactDelay: 0 },
     ));
@@ -39,6 +41,7 @@ suite("workbench/contrib/files/browser/workspaceWatcher", () => {
     let changeCount = 0;
     const watcher = store.add(new WorkspaceWatcher(
       filesService,
+      store.add(new UriIdentityService()),
       () => changeCount += 1,
       { changeReactDelay: 0 },
     ));

@@ -4,9 +4,9 @@
 
 import { RunOnceScheduler } from "src/cs/base/common/async";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import { extUriBiasedIgnorePathCase } from "src/cs/base/common/resources";
 import { URI } from "src/cs/base/common/uri";
 import type { IFileChange, IFileService } from "src/cs/platform/files/common/files";
+import type { IUriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentity";
 
 const FOLDER_CHANGE_REACT_DELAY = 500;
 
@@ -19,6 +19,7 @@ export class WorkspaceWatcher implements IDisposable {
 
   constructor(
     private readonly filesService: WorkspaceWatchFileService,
+    private readonly uriIdentityService: IUriIdentityService,
     private readonly onDidChangeFolder: (folder: URI) => void,
     options: { readonly changeReactDelay?: number } = {},
   ) {
@@ -31,7 +32,7 @@ export class WorkspaceWatcher implements IDisposable {
   }
 
   public isWatching(folder: URI): boolean {
-    return Boolean(this.folder && extUriBiasedIgnorePathCase.isEqual(this.folder, folder));
+    return Boolean(this.folder && this.uriIdentityService.extUri.isEqual(this.folder, folder));
   }
 
   public watch(folder: URI): void {
@@ -63,6 +64,6 @@ export class WorkspaceWatcher implements IDisposable {
       return false;
     }
 
-    return changes.some(change => extUriBiasedIgnorePathCase.isEqualOrParent(change.resource, folder));
+    return changes.some(change => this.uriIdentityService.extUri.isEqualOrParent(change.resource, folder));
   }
 }

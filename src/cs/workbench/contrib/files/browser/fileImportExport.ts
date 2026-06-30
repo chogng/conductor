@@ -53,6 +53,7 @@ import {
 } from "src/cs/workbench/services/notification/common/notificationService";
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
 import { WorkspaceWatcher } from "src/cs/workbench/contrib/files/browser/workspaceWatcher";
+import type { IUriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentity";
 import { resolveWorkspaceExternalChanges } from "src/cs/workbench/services/workspaces/common/externalChanges";
 import {
   ADD_WORKSPACE_FOLDER_COMMAND_ID,
@@ -239,6 +240,7 @@ export type FileSourceWorkflowOptions = {
   readonly getSelectedRelativePath: () => string | null;
   readonly isDisposed: () => boolean;
   readonly notificationService: INotificationService;
+  readonly uriIdentityService: IUriIdentityService;
   readonly onAppendExplorerFiles: (entries: readonly ExplorerFileEntry[]) => void;
   readonly onAppendPendingSourceFiles?: (pendingFiles: readonly PendingImportFile[]) => void;
   readonly onClearPendingSourceFiles?: () => void;
@@ -334,9 +336,13 @@ export class FileSourceWorkflow implements IDisposable {
   constructor(
     private readonly options: FileSourceWorkflowOptions,
   ) {
-    this.folderWatcher = new WorkspaceWatcher(options.filesService, folderPath => {
-      void this.refreshImportedFolder(folderPath);
-    });
+    this.folderWatcher = new WorkspaceWatcher(
+      options.filesService,
+      options.uriIdentityService,
+      folderPath => {
+        void this.refreshImportedFolder(folderPath);
+      },
+    );
   }
 
   public dispose(): void {

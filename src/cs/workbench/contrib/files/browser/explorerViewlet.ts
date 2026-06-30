@@ -14,6 +14,7 @@ import { IContextMenuService } from "src/cs/platform/contextview/browser/context
 import { IDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import { IFileService } from "src/cs/platform/files/common/files";
 import { IInstantiationService } from "src/cs/platform/instantiation/common/instantiation";
+import { IUriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentity";
 import type { WorkbenchSidebarAction } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
@@ -126,6 +127,7 @@ export class ExplorerViewPane extends ViewPane {
     @IDecorationsService private readonly decorationsService: IDecorationsServiceType,
     @IReviewService private readonly reviewService: IReviewServiceType,
     @ISettingsService private readonly settingsService: ISettingsServiceType,
+    @IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
   ) {
     super({
       id: ExplorerViewId,
@@ -154,6 +156,7 @@ export class ExplorerViewPane extends ViewPane {
       getSelectedRelativePath: () => this.getSelectedRelativePath(),
       isDisposed: () => this.disposed,
       notificationService: this.notificationService,
+      uriIdentityService: this.uriIdentityService,
       onAppendExplorerFiles: entries => this.appendExplorerFiles(entries),
       onAppendPendingSourceFiles: pendingFiles => this.appendPendingSourceFiles(pendingFiles),
       onClearPendingSourceFiles: () => this.clearPendingSourceFiles(),
