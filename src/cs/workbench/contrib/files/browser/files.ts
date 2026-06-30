@@ -7,7 +7,6 @@ import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
-import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import type { FilesViewLayout } from "src/cs/workbench/contrib/files/common/files";
 import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
@@ -28,18 +27,11 @@ export type ExplorerThumbnailPlotModel = PlotMainRenderModelSource & {
   readonly signature: string;
 };
 
-export type ExplorerResourceState = ExplorerResourceTarget & {
-  readonly chartMessage?: string | null;
-  readonly chartState?: ExplorerFileEntry["chartState"];
-  readonly hasChartData?: boolean;
-};
-
 export type ExplorerPaneInput = {
   readonly activePlotType?: PlotType;
   readonly mode: WorkbenchMainPart;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
-  readonly resourceStates?: readonly ExplorerResourceState[];
   readonly selectedResource: URI | null;
   readonly selectedSheetId?: string | null;
   readonly selectionKind: ExplorerSelectionKind;

@@ -11,7 +11,6 @@ import {
   type ExplorerPaneInput,
   type ExplorerFolderExpansionChangeEvent,
   type ExplorerHoveredResourceChangeEvent,
-  type ExplorerResourceState,
   type ExplorerSelectionChangeEvent,
   type ExplorerVisibleTargetsChangeEvent,
   type ExplorerContext,
@@ -559,7 +558,6 @@ const isSameExplorerPaneInput = (
     current.templateSelections ?? [],
     next.templateSelections ?? [],
   ) &&
-  areExplorerResourceStatesEqual(current.resourceStates ?? [], next.resourceStates ?? []) &&
   areOriginPlotOptionsEqual(current.originOpenPlotOptions, next.originOpenPlotOptions) &&
   areShallowRecordsEqual(current.plotAxisSettings, next.plotAxisSettings) &&
   areThumbnailPlotModelsEqual(
@@ -621,19 +619,6 @@ const areExplorerResourceTargetsEqual = (
 ): boolean =>
   areExplorerResourcesEqual(current?.resource, next?.resource) &&
   normalizeExplorerSheetId(current?.sheetId) === normalizeExplorerSheetId(next?.sheetId);
-
-const areExplorerResourceStatesEqual = (
-  current: readonly ExplorerResourceState[],
-  next: readonly ExplorerResourceState[],
-): boolean =>
-  current.length === next.length &&
-  current.every((state, index) => {
-    const nextState = next[index];
-    return state.chartMessage === nextState?.chartMessage &&
-      state.chartState === nextState?.chartState &&
-      state.hasChartData === nextState?.hasChartData &&
-      areExplorerResourceTargetsEqual(state, nextState ?? null);
-  });
 
 const areOriginPlotOptionsEqual = (
   current: ExplorerPaneInput["originOpenPlotOptions"],

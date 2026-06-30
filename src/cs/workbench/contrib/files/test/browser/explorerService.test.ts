@@ -243,46 +243,7 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
     disposable.dispose();
   });
 
-  test("publishes Explorer pane input when resource state targets change", () => {
-    const service = store.add(new ExplorerService());
-    let changeCount = 0;
-    const disposable = store.add(service.onDidChangePaneInput(() => {
-      changeCount += 1;
-    }));
-    service.updatePaneInput({
-      mode: "table",
-      resourceStates: [{ resource: URI.file("/data/A.csv"), sheetId: "sheet-a", chartState: "ready", hasChartData: true }],
-      selectedResource: URI.file("/data/A.csv"),
-      selectedSheetId: "sheet-a",
-      selectionKind: "table",
-    });
-    service.updatePaneInput({
-      mode: "table",
-      resourceStates: [{ resource: URI.file("/data/A.csv"), sheetId: "sheet-a", chartState: "ready", hasChartData: true }],
-      selectedResource: URI.file("/data/A.csv"),
-      selectedSheetId: "sheet-a",
-      selectionKind: "table",
-    });
-    service.updatePaneInput({
-      mode: "table",
-      resourceStates: [{ resource: URI.file("/data/B.csv"), sheetId: "sheet-a", chartState: "ready", hasChartData: true }],
-      selectedResource: URI.file("/data/A.csv"),
-      selectedSheetId: "sheet-a",
-      selectionKind: "table",
-    });
-    service.updatePaneInput({
-      mode: "table",
-      resourceStates: [{ resource: URI.file("/data/B.csv"), sheetId: "sheet-b", chartState: "ready", hasChartData: true }],
-      selectedResource: URI.file("/data/A.csv"),
-      selectedSheetId: "sheet-a",
-      selectionKind: "table",
-    });
-
-    assert.equal(changeCount, 3);
-    disposable.dispose();
-  });
-
-  test("keeps committed files separate from resource state projection", () => {
+  test("keeps committed files separate from pane input", () => {
     const service = store.add(new ExplorerService());
     const fileA = {
       fileId: "file-a",
@@ -304,14 +265,13 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
     });
     service.updatePaneInput({
       mode: "chart",
-      resourceStates: [{ resource: fileA.resource, chartState: "ready", hasChartData: true }],
       selectedResource: null,
       selectedSheetId: null,
       selectionKind: "chart",
     });
 
     assert.deepEqual(service.files.map(file => file.fileId), ["file-a", "file-b"]);
-    assert.deepEqual(service.getPaneInput()?.resourceStates?.map(state => state.resource.toString()), [fileA.resource.toString()]);
+    assert.equal(service.getPaneInput()?.mode, "chart");
   });
 
 });

@@ -74,7 +74,6 @@ suite("workbench/browser/workbench Explorer pane input", () => {
 
     assert.equal(input.selectionKind, "table");
     assert.equal(input.selectedResource, null);
-    assert.deepEqual(input.resourceStates, []);
     assert.deepEqual(input.templateSelections?.map(selection => ({
       resource: selection.resource.toString(),
       selection: selection.selection,
@@ -87,7 +86,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     }]);
   });
 
-  test("does not project rows without Explorer resource input into chart tree input", () => {
+  test("does not select rows without Explorer resource input in chart input", () => {
     const explorerService = store.add(new ExplorerService());
 
     const input = createExplorerPaneInput({
@@ -101,14 +100,10 @@ suite("workbench/browser/workbench Explorer pane input", () => {
 
     assert.equal(input.selectionKind, "chart");
     assert.equal(input.selectedResource, null);
-    assert.deepEqual(input.resourceStates?.map(state => state.resource.toString()), []);
     assert.equal(input.thumbnailPlotModelsByFileId, undefined);
     assert.equal(input.originOpenPlotOptions, DEFAULT_ORIGIN_PLOT_OPTIONS);
     assert.deepEqual(input.plotAxisSettings, { x: { show: true } });
 
-    const beforeNextResourceStates = input.resourceStates
-      ?.map(state => `${state.resource.toString()}:${state.sheetId ?? ""}:${state.chartState ?? ""}`)
-      .join("|");
     const nextInput = createExplorerPaneInput({
       activePlotType: "iv",
       explorerService,
@@ -117,10 +112,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       plotAxisSettings: { x: { show: true } },
       sliceState: createSliceStateForTest(),
     });
-    const afterNextResourceStates = nextInput.resourceStates
-      ?.map(state => `${state.resource.toString()}:${state.sheetId ?? ""}:${state.chartState ?? ""}`)
-      .join("|");
-    assert.equal(afterNextResourceStates, beforeNextResourceStates);
+    assert.equal(nextInput.selectedResource, null);
 
     assert.equal(explorerService.selectedResource, null);
   });
@@ -136,10 +128,9 @@ suite("workbench/browser/workbench Explorer pane input", () => {
 
     assert.equal(input.selectionKind, "chart");
     assert.equal(input.selectedResource, null);
-    assert.deepEqual(input.resourceStates?.map(state => state.resource.toString()), []);
   });
 
-  test("creates chart thumbnail input from Slice results for resource targets", () => {
+  test("creates chart thumbnail input from Explorer resource targets", () => {
     const explorerService = store.add(new ExplorerService());
     const resource = URI.file("/data/ProcessedA.csv");
     const files = [{
@@ -161,23 +152,11 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       mode: "chart",
       originOpenPlotOptions: DEFAULT_ORIGIN_PLOT_OPTIONS,
       plotAxisSettings: { x: { show: true } },
-      sliceService: createSliceServiceForResourceTest({ resource }),
       sliceState: createSliceStateForTest(),
     });
 
     assert.equal(input.selectionKind, "chart");
     assert.equal(input.selectedResource, null);
-    assert.deepEqual(input.resourceStates?.map(state => ({
-      chartState: state.chartState,
-      hasChartData: state.hasChartData,
-      resource: state.resource.toString(),
-      sheetId: state.sheetId ?? null,
-    })), [{
-      chartState: "ready",
-      hasChartData: true,
-      resource: resource.toString(),
-      sheetId: null,
-    }]);
     assert.equal(input.thumbnailPlotModelsByFileId, undefined);
     assert.equal(input.originOpenPlotOptions, DEFAULT_ORIGIN_PLOT_OPTIONS);
     assert.deepEqual(input.plotAxisSettings, { x: { show: true } });
@@ -205,12 +184,10 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       activePlotType: "iv",
       explorerService,
       mode: "chart",
-      sliceService: createSliceServiceForResourceTest({ resource }),
       sliceState: createSliceStateForTest(),
     });
 
     assert.equal(input.selectedResource, null);
-    assert.deepEqual(input.resourceStates?.map(state => state.resource.toString()), [resource.toString()]);
     assert.equal(explorerService.selectedResource, null);
   });
 
@@ -222,7 +199,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       sliceState: createSliceStateForTest(),
     });
 
-    assert.deepEqual(input.resourceStates, []);
+    assert.equal(input.selectedResource, null);
   });
 
 });
@@ -526,7 +503,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
-  test("reads performance trace chart targets from Explorer pane input projection", () => {
+  test("reads performance trace chart targets from Explorer files", () => {
     const traceGlobal = globalThis as typeof globalThis & {
       __conductorTemplateApplyPerformanceTrace?: {
         targetApi?: {
@@ -1192,8 +1169,8 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       });
       assert.deepEqual(prioritizedCalculationFileIds, []);
       assert.deepEqual(plotDisplayPrefetches, []);
-      assert.equal(explorerService.getPaneInput()?.resourceStates?.[0]?.hasChartData, false);
-      assert.equal(explorerService.getPaneInput()?.resourceStates?.[0]?.chartState, "none");
+      assert.equal(explorerService.getPaneInput()?.selectedResource?.toString(), resource.toString());
+      assert.equal(explorerService.getPaneInput()?.selectedSheetId, null);
     } finally {
       bridge.dispose();
     }
@@ -1699,18 +1676,6 @@ const createSliceStateForTest = ({
 }: Partial<SliceState> = {}): SliceState => ({
   queueLength,
   templateSelections,
-});
-
-const createSliceServiceForResourceTest = (
-  resourceInput: ResourceSheetIdentity,
-): Pick<ConstructorParameters<typeof WorkbenchDomainBridge>[0]["sliceService"], "getResourceResult" | "getResourceState"> => ({
-  getResourceResult: (resource, sheetId) => isSameResourceSheetForTest({ resource, sheetId }, resourceInput)
-    ? {
-      resource: resourceInput.resource,
-      sheetId: resourceInput.sheetId ?? null,
-    } as ReturnType<ConstructorParameters<typeof WorkbenchDomainBridge>[0]["sliceService"]["getResourceResult"]>
-    : null,
-  getResourceState: () => undefined,
 });
 
 const createDomainBridgeOptionsForTest = ({

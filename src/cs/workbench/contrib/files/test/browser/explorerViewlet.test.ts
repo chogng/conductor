@@ -165,10 +165,76 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
 			sheetId: null,
 		}]);
 	});
+
+	test("reads Slice owner state when rendering chart thumbnails", () => {
+		const queuedResource = URI.file("/workspace/queued.csv");
+		const readyResource = URI.file("/workspace/ready.csv");
+		const noneResource = URI.file("/workspace/none.csv");
+		const files: ExplorerFileEntry[] = [
+			createExplorerFileEntry({
+				fileId: "queued",
+				itemKey: "queued",
+				resource: queuedResource,
+			}),
+			createExplorerFileEntry({
+				fileId: "ready",
+				itemKey: "ready",
+				resource: readyResource,
+			}),
+			createExplorerFileEntry({
+				fileId: "none",
+				itemKey: "none",
+				resource: noneResource,
+			}),
+		];
+		const pane = Object.create(ExplorerViewPane.prototype) as ExplorerViewPaneVisibleEntriesHarness & Record<string, unknown>;
+		Object.assign(pane, {
+			explorerService: {
+				files,
+				viewLayout: "thumbnail",
+			},
+			input: {
+				mode: "chart",
+				selectedResource: null,
+				selectedSheetId: null,
+				selectionKind: "chart",
+			},
+			pendingSourceEntries: [],
+			replaceItemKeys: null,
+			sliceService: {
+				getResourceResult: (resource: URI) => resource.toString() === readyResource.toString()
+					? { resource: readyResource, sheetId: null }
+					: null,
+				getResourceState: (resource: URI) => resource.toString() === queuedResource.toString()
+					? { state: "queued" }
+					: undefined,
+			},
+		});
+
+		const visibleEntries = pane.visibleEntries;
+
+		assert.deepStrictEqual(visibleEntries.map(entry => ({
+			fileId: entry.fileId,
+			chartState: entry.chartState,
+			hasChartData: entry.hasChartData,
+		})), [{
+			fileId: "queued",
+			chartState: "queued",
+			hasChartData: false,
+		}, {
+			fileId: "ready",
+			chartState: "ready",
+			hasChartData: true,
+		}]);
+	});
 });
 
 type ExplorerViewPaneImportHarness = {
 	appendExplorerFiles(entries: readonly ExplorerFileEntry[]): void;
+};
+
+type ExplorerViewPaneVisibleEntriesHarness = {
+	readonly visibleEntries: readonly ExplorerFileEntry[];
 };
 
 function createExplorerFileEntry({

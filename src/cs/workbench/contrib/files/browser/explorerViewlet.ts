@@ -39,7 +39,6 @@ import {
   IExplorerService,
   type ExplorerPaneInput,
   type ExplorerResourceTarget,
-  type ExplorerResourceState,
   type ExplorerSelectionKind,
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
@@ -89,6 +88,10 @@ import {
   type ISettingsService as ISettingsServiceType,
 } from "src/cs/workbench/services/settings/common/settings";
 import type { ReviewSummary } from "src/cs/workbench/services/review/common/reviewModel";
+import {
+  ISliceService,
+  type SliceFileState,
+} from "src/cs/workbench/services/slice/common/slice";
 
 import "src/cs/workbench/contrib/files/browser/views/media/explorerViewlet.css";
 
@@ -121,6 +124,7 @@ export class ExplorerViewPane extends ViewPane {
     @IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
     @INotificationService private readonly notificationService: INotificationService,
     @ITableService private readonly tableService: ITableService,
+    @ISliceService private readonly sliceService: ISliceService,
     @IThumbnailPreviewService private readonly thumbnailPreviewService: IThumbnailPreviewService,
     @IThumbnailService private readonly thumbnailService: IThumbnailService,
     @IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
@@ -210,6 +214,12 @@ export class ExplorerViewPane extends ViewPane {
       this.syncView();
     }));
     this._register(this.reviewService.onDidChangeReview(() => {
+      this.syncView();
+    }));
+    this._register(this.sliceService.onDidChangeResourceSliceResult(() => {
+      this.syncView();
+    }));
+    this._register(this.sliceService.onDidChangeSliceState(() => {
       this.syncView();
     }));
     this._register(this.decorationsService.onDidChangeDecorations(event => {
@@ -327,12 +337,11 @@ export class ExplorerViewPane extends ViewPane {
     return this.input ?? EMPTY_EXPLORER_PANE_INPUT;
   }
 
-  private get files(): ExplorerFileEntry[] {
-    const resourceStates = this.createResourceStateMap();
-    const resourceStateFiles = this.createResourceStateFiles(this.committedFiles, resourceStates);
+  private get visibleEntries(): ExplorerFileEntry[] {
+    const renderFiles = this.createExplorerRenderEntries(this.committedFiles);
     const visibleFiles = this.shouldFilterChartThumbnailFiles()
-      ? resourceStateFiles.filter(file => getExplorerResourceStateForFile(resourceStates, file)?.hasChartData === true)
-      : resourceStateFiles;
+      ? renderFiles.filter(isChartThumbnailVisibleFile)
+      : renderFiles;
     if (!this.pendingSourceEntries.length && !this.replaceItemKeys?.length) {
       return visibleFiles;
     }
@@ -370,43 +379,37 @@ export class ExplorerViewPane extends ViewPane {
     return this.paneInput.selectionKind === "chart" && this.viewLayout === "thumbnail";
   }
 
-  private createResourceStateFiles(
+  private createExplorerRenderEntries(
     files: readonly ExplorerFileEntry[],
-    resourceStates: ReadonlyMap<string, ExplorerResourceState>,
   ): ExplorerFileEntry[] {
-    if (!resourceStates.size) {
+    if (this.paneInput.selectionKind !== "chart") {
       return [...files];
     }
 
-    return files.map(file => {
-      const state = getExplorerResourceStateForFile(resourceStates, file);
-      if (!state) {
-        return file;
-      }
-
-      return {
-        ...file,
-        chartMessage: state.chartMessage,
-        chartState: state.chartState,
-        hasChartData: state.hasChartData,
-      };
-    });
+    return files.map(file => this.createExplorerChartRenderEntry(file));
   }
 
-  private createResourceStateMap(): ReadonlyMap<string, ExplorerResourceState> {
-    const resourceStates = new Map<string, ExplorerResourceState>();
-    for (const state of this.paneInput.resourceStates ?? []) {
-      const key = getExplorerResourceIdentityKey(state);
-      if (key) {
-        resourceStates.set(key, state);
-      }
+  private createExplorerChartRenderEntry(file: ExplorerFileEntry): ExplorerFileEntry {
+    const target = getExplorerFileResourceIdentity(file);
+    if (!target) {
+      return file;
     }
-    return resourceStates;
+
+    const hasChartData = Boolean(this.sliceService.getResourceResult(target.resource, target.sheetId));
+    const state = resolveExplorerChartFileState(
+      this.sliceService.getResourceState(target.resource, target.sheetId),
+    );
+    return {
+      ...file,
+      chartMessage: getExplorerChartStateMessage(state),
+      chartState: resolveExplorerChartState(state, hasChartData),
+      hasChartData,
+    };
   }
 
   private createExplorerViewProps(): ExplorerViewProps {
     const input = this.paneInput;
-    const files = this.files;
+    const files = this.visibleEntries;
     return {
       selectedResource: this.selectedResource,
       selectedSheetId: this.selectedSheetId,
@@ -503,7 +506,7 @@ export class ExplorerViewPane extends ViewPane {
   }
 
   private hasAffectedExplorerDecoration(event: { affectsResource(resource: URI): boolean }): boolean {
-    for (const file of this.files) {
+    for (const file of this.visibleEntries) {
       const resource = getExplorerFileDecorationResource(file);
       if (resource && event.affectsResource(createExplorerDecorationResource(resource, file.sheetId))) {
         return true;
@@ -713,7 +716,7 @@ export class ExplorerViewPane extends ViewPane {
   }
 
   private showMoreActions(anchor: HTMLElement): void {
-    const canCloseFolder = this.files.length > 0;
+    const canCloseFolder = this.visibleEntries.length > 0;
     const isChartMode = this.paneInput.mode === "chart";
     const isThumbnailView = isChartMode && this.viewLayout === "thumbnail";
     this.contextMenuService.showContextMenu({
@@ -771,7 +774,7 @@ export class ExplorerViewPane extends ViewPane {
     file: ExplorerFileEntry | null,
   ): void => {
     const selectedTarget = this.selectFile(file, "force");
-    const selectedEntry = findExplorerFileEntryByResource(this.files, selectedTarget);
+    const selectedEntry = findExplorerFileEntryByResource(this.visibleEntries, selectedTarget);
     if (this.deferTableOpenUntilSourceReplace) {
       this.deferSourceReplaceTableOpen(selectedEntry);
       this.syncView();
@@ -1083,7 +1086,7 @@ export class ExplorerViewPane extends ViewPane {
   ): ExplorerResourceTarget | null {
     const target = getExplorerFileResourceIdentity(file);
     return this.explorerService.select({
-      candidateResources: getExplorerResourceTargets(this.files),
+      candidateResources: getExplorerResourceTargets(this.visibleEntries),
       kind: this.paneInput.selectionKind,
       resource: target?.resource ?? null,
       sheetId: target?.sheetId ?? null,
@@ -1109,7 +1112,7 @@ export class ExplorerViewPane extends ViewPane {
       return;
     }
 
-    this.openExplorerTableFile(findExplorerFileEntryByResource(this.files, target));
+    this.openExplorerTableFile(findExplorerFileEntryByResource(this.visibleEntries, target));
   }
 
   private openExplorerTableFile(file: ExplorerFileEntry | null | undefined): void {
@@ -1515,12 +1518,63 @@ const EMPTY_EXPLORER_PANE_INPUT: ExplorerPaneInput = {
   selectionKind: "table",
 };
 
-function getExplorerResourceStateForFile(
-  resourceStates: ReadonlyMap<string, ExplorerResourceState>,
-  file: ExplorerFileEntry,
-): ExplorerResourceState | null {
-  const key = getExplorerResourceIdentityKey(getExplorerFileResourceIdentity(file));
-  return key ? resourceStates.get(key) ?? null : null;
+type ExplorerChartFileState = SliceFileState;
+
+function resolveExplorerChartFileState(
+  sliceState: SliceFileState | undefined,
+): ExplorerChartFileState | undefined {
+  if (sliceState && sliceState.state !== "none") {
+    return sliceState;
+  }
+
+  return undefined;
+}
+
+function resolveExplorerChartState(
+  sliceState: ExplorerChartFileState | undefined,
+  hasChartData: boolean,
+): NonNullable<ExplorerFileEntry["chartState"]> {
+  if (hasChartData) {
+    return "ready";
+  }
+  if (sliceState?.state === "ready") {
+    return "ready";
+  }
+  if (sliceState?.state === "queued" || sliceState?.state === "processing") {
+    return sliceState.state;
+  }
+  if (sliceState?.state === "failed" || sliceState?.state === "skipped") {
+    return sliceState.state;
+  }
+
+  return "none";
+}
+
+function getExplorerChartStateMessage(
+  sliceState: ExplorerChartFileState | undefined,
+): string | null {
+  if (sliceState?.state === "failed" || sliceState?.state === "skipped") {
+    return sliceState.message;
+  }
+
+  return null;
+}
+
+function isChartThumbnailVisibleFile(
+  file: Pick<ExplorerFileEntry, "chartState" | "hasChartData">,
+): boolean {
+  if (file.hasChartData === true) {
+    return true;
+  }
+
+  switch (file.chartState) {
+    case "queued":
+    case "processing":
+    case "ready":
+      return true;
+    default:
+      return false;
+  }
 }
 
 function getActionAnchor(event: unknown): HTMLElement {

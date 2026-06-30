@@ -176,7 +176,6 @@ Explorer drop/dialog/clipboard/folder
   -> resource-backed ExplorerFileEntry rows
   -> ExplorerViewPane commits rows through IExplorerService file-model APIs
   -> ExplorerViewPane ensures IReviewService.resolveReviewSummary({ resource, sheetId? }) runs for resolved resource/sheet rows, even when no Explorer row is added
-  -> WorkbenchDomainBridge projects ExplorerPaneInput.resourceStates keyed by { resource, sheetId? }
   -> ITableService.open({ resource })
   -> TableFileEditorModel / ITableModel own URI-backed model lifecycle
 ```
@@ -206,22 +205,29 @@ Explorer template-menu labels are view projection, not Bridge state. Explorer
 reads `IUserTemplateService` snapshots for labels and `ISliceService` selection
 projection from pane input; it does not read Template editor draft state.
 
-Slice progress/readiness is likewise projected for display, not owned, by Explorer:
+Slice progress/readiness is likewise read from the Slice owner, not owned, by Explorer:
 
 ```txt
-ISliceService.onDidChangeSliceState
-  -> WorkbenchDomainBridge rereads SliceState
-  -> ExplorerPaneInput.resourceStates chartState/chartMessage
-  -> Explorer view renders status
+ISliceService.onDidChangeSliceState / onDidChangeResourceSliceResult({ resource, sheetId? })
+  -> Slice subscribers reread the Slice owner for the affected { resource, sheetId? }
+  -> ExplorerViewPane / PlotService / Thumbnail paths update their own render state/cache
 ```
 
-`ExplorerPaneInput.resourceStates` is a resource/sheet keyed view projection.
-It may carry chart/review tags for rendering, but it must not feed back into the
-committed Explorer file model. Commands, Quick Access, decorations, and
-cross-domain bridges read `IExplorerService.files` when they need the
-authoritative Explorer row set. Explorer view code derives the current visible
-rows from `IExplorerService.files` plus `resourceStates`; pane input must not
-carry a second file list.
+`ExplorerPaneInput` must not carry Slice resource state, chart data flags, or a
+second resource list. Commands, Quick Access, decorations, and cross-domain
+bridges read `IExplorerService.files` when they need the authoritative Explorer
+row set. Slice state/result belongs to `ISliceService`; subscribers receive
+Slice events and reread `getResourceState(resource, sheetId)` or
+`getResourceResult(resource, sheetId)` when their own UI or cache needs it.
+
+Chart thumbnail membership follows Slice-owned URI/sheet state, not Explorer
+row state and not plot result materialization. A resource/sheet row is visible
+in chart thumbnail mode when Slice reports `queued`, `processing`, or `ready`,
+or when `ISliceService.getResourceResult(resource, sheetId)` returns a result.
+`hasChartData` only means downstream Slice/Plot data is already materialized and
+can render as ready; it must not be the only gate because that would hide valid
+Slice work while it is still queued or processing. Files/Explorer must not add a
+separate `hasSliceCandidate` field or candidate list to preserve this.
 
 Explorer item close/delete keeps row lifecycle and filesystem lifecycle
 separate:
@@ -267,7 +273,7 @@ Explorer view code may:
 - render tree/list/thumbnail resources;
 - own DOM container, drag/drop handlers, row templates, context menus, and hover shell;
 - receive Explorer pane input as props;
-- narrow thumbnail files from Explorer view-model input;
+- narrow thumbnail files by reading Slice owner state/result for each resource row;
 - call commands or `IExplorerService` for user intent.
 
 Explorer view code must not parse files, read raw table rows directly, call the
