@@ -7,7 +7,6 @@ import { URI } from "src/cs/base/common/uri";
 import {
   IExplorerService,
   ExplorerViewId,
-  type ExplorerSelectionKind,
 } from "src/cs/workbench/contrib/files/browser/files";
 import type { ExplorerViewPane } from "src/cs/workbench/contrib/files/browser/explorerViewlet";
 import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
@@ -62,16 +61,9 @@ export const renameFileItemHandler: ICommandHandler<[unknown]> = (
   }
 
   const explorerService = accessor.get(IExplorerService);
-  const paneInput = explorerService.getPaneInput();
-  const kind: ExplorerSelectionKind = paneInput?.selectionKind ?? "table";
-  const resource = {
-    kind,
-    resource: resourceIdentity.resource,
-    sheetId: resourceIdentity.sheetId ?? null,
-  };
-  explorerService.select(resource, "force");
+  explorerService.select(resourceIdentity.resource, "force", resourceIdentity.sheetId ?? null);
   explorerService.setEditable({
-    resource,
+    resource: resourceIdentity,
     isEditing: true,
   });
 };
@@ -81,9 +73,7 @@ export const setFileTemplateHandler: ICommandHandler<[unknown, unknown]> = (
   target,
   selection,
 ) => {
-  const resourceIdentity = URI.isUri(target)
-    ? { resource: target }
-    : normalizeCommandResourceIdentity(target);
+  const resourceIdentity = normalizeCommandResourceIdentity(target);
   if (!resourceIdentity || !isTemplateSelection(selection)) {
     return;
   }
@@ -105,13 +95,8 @@ const resolveCommandExplorerResourceIdentity = (
   accessor: Parameters<ICommandHandler>[0],
   target: unknown,
 ): ExplorerResourceIdentity | null => {
-  if (URI.isUri(target)) {
-    return { resource: target };
-  }
-
-  const directIdentity = normalizeCommandResourceIdentity(target);
-  if (directIdentity) {
-    return directIdentity;
+  if (target !== undefined) {
+    return normalizeCommandResourceIdentity(target);
   }
 
   const explorerService = accessor.get(IExplorerService);
@@ -176,7 +161,10 @@ const reviveOptionalUri = (value: unknown): URI | null => {
 
 const findExplorerFileEntryByResource = (
   files: readonly ExplorerFileEntry[],
-  resourceIdentity: ExplorerResourceIdentity | null,
+  resourceIdentity:
+    | { readonly resource?: URI | null; readonly sheetId?: string | null }
+    | null
+    | undefined,
 ): ExplorerFileEntry | null => {
   const resourceKey = getExplorerResourceIdentityKey(resourceIdentity);
   if (!resourceKey) {

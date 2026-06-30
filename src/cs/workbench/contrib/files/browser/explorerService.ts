@@ -17,11 +17,10 @@ import {
   type ExplorerCopyState,
   type ExplorerEditableData,
   type ExplorerRevealMode,
-  type ExplorerSelectionKind,
-  type ExplorerSelectionTarget,
   type IExplorerView,
   type ExplorerViewLayout,
 } from "src/cs/workbench/contrib/files/browser/files";
+import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
 import {
   areTemplateResourceSelectionsEqual,
 } from "src/cs/workbench/services/slice/common/templateSelection";
@@ -118,17 +117,11 @@ export class ExplorerService extends Disposable implements IExplorerService {
     });
   }
 
-  public select(target: ExplorerSelectionTarget, reveal?: ExplorerRevealMode): ExplorerResourceIdentity | null {
-    const result = this.applySelection(target);
-    if (result.accepted && (result.changed || reveal !== undefined)) {
-      const { sheetId: _sheetId, ...targetWithoutSheetId } = target;
-      const acceptedTarget: ExplorerSelectionTarget = {
-        ...targetWithoutSheetId,
-        resource: result.selectedResource,
-        ...(result.selectedSheetId ? { sheetId: result.selectedSheetId } : {}),
-      };
+  public select(resource: URI | null, reveal?: ExplorerRevealMode, sheetId?: string | null): ExplorerResourceIdentity | null {
+    const result = this.applySelection(resource, sheetId);
+    if (result.changed || reveal !== undefined) {
       for (const view of this.views) {
-        view.selectResource?.(acceptedTarget, reveal);
+        view.selectResource?.(result.selectedResource, reveal, result.selectedSheetId);
       }
     }
     return result.selectedResource
@@ -148,7 +141,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
     this.onDidChangePaneInputEmitter.fire(undefined);
   }
 
-  public setToCopy(resources: readonly ExplorerSelectionTarget[], isCut: boolean): void {
+  public setToCopy(resources: readonly ExplorerResourceIdentity[], isCut: boolean): void {
     this.toCopy = {
       isCut,
       resources: [...resources],
@@ -327,30 +320,17 @@ export class ExplorerService extends Disposable implements IExplorerService {
     this.onDidChangePaneInputEmitter.fire(undefined);
   }
 
-  private applySelection(target: ExplorerSelectionTarget): {
-    readonly accepted: boolean;
+  private applySelection(resource: URI | null | undefined, sheetId: string | null | undefined): {
     readonly changed: boolean;
     readonly selectedResource: URI | null;
     readonly selectedSheetId: string | null;
   } {
-    const nextResource = normalizeExplorerResource(target.resource);
-    const nextSheetId = normalizeExplorerSheetId(target.sheetId);
-    if (nextResource && target.candidateResources) {
-      const candidates = new Set(target.candidateResources.map(getExplorerResourceIdentityKey).filter(Boolean));
-      if (!candidates.has(getExplorerResourceIdentityKey({ resource: nextResource, sheetId: nextSheetId }))) {
-        return {
-          accepted: false,
-          changed: false,
-          selectedResource: this.getSelectedResource(),
-          selectedSheetId: this.currentSelectedSheetId,
-        };
-      }
-    }
-
-    const result = this.setSelectedTarget(nextResource, nextSheetId);
-    this.fireSelectionChange(target.kind, result);
+    const result = this.setSelectedTarget(
+      normalizeExplorerResource(resource),
+      normalizeExplorerSheetId(sheetId),
+    );
+    this.fireSelectionChange(this.getSelectionKind(), result);
     return {
-      accepted: true,
       changed: result.changed,
       selectedResource: result.selectedResource,
       selectedSheetId: result.selectedSheetId,
@@ -359,6 +339,10 @@ export class ExplorerService extends Disposable implements IExplorerService {
 
   private getSelectedResource(): URI | null {
     return this.currentSelectedResource;
+  }
+
+  private getSelectionKind(): WorkbenchMainPart {
+    return this.paneInput?.selectionKind ?? "table";
   }
 
   private setSelectedTarget(resource: URI | null, sheetId: string | null): {
@@ -393,7 +377,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
   }
 
   private fireSelectionChange(
-    kind: ExplorerSelectionKind,
+    kind: WorkbenchMainPart,
     result: {
       readonly changed: boolean;
       readonly selectedResource: URI | null;
@@ -570,9 +554,7 @@ const isSameExplorerEditableData = (
   next: ExplorerEditableData | null,
 ): boolean =>
   current?.isEditing === next?.isEditing &&
-  current?.resource.kind === next?.resource.kind &&
-  areExplorerResourcesEqual(current?.resource.resource, next?.resource.resource) &&
-  current?.resource.sheetId === next?.resource.sheetId;
+  areExplorerResourceIdentitiesEqual(current?.resource ?? null, next?.resource ?? null);
 
 const areExplorerFilesEqual = (
   current: readonly ExplorerFileEntry[],

@@ -155,6 +155,12 @@ function createTableState(
 			message: "",
 			state: "ready",
 		},
+		sheets: [{
+			columnCount: 3,
+			label: "sample.csv",
+			rowCount: 3,
+			source,
+		}],
 		source,
 	};
 }

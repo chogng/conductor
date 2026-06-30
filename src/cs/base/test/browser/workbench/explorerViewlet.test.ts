@@ -25,7 +25,6 @@ import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/ex
 import {
   type ExplorerPaneInput,
   type IExplorerService,
-  type ExplorerSelectionTarget,
 } from "src/cs/workbench/contrib/files/browser/files";
 import { DEFAULT_EXPLORER_APPEARANCE, type IAppearanceService } from "src/cs/workbench/services/appearance/common/appearance";
 import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
@@ -35,6 +34,7 @@ import type { IThumbnailPreviewService, IThumbnailService } from "src/cs/workben
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { IUserTemplateService } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 import type { IDecorationsService } from "src/cs/workbench/services/decorations/common/decorations";
+import type { ISliceService } from "src/cs/workbench/services/slice/common/slice";
 import type {
   IReviewService,
 } from "src/cs/workbench/services/review/common/review";
@@ -58,30 +58,30 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
 
   test("moves a confirmed file delete to trash before removing the imported file", async () => {
     const movedPaths: string[] = [];
-    const paneInputUpdates: ExplorerPaneInput[] = [];
+    const fileUpdates: (readonly ExplorerFileEntry[])[] = [];
     const resource = URI.file("/tmp/source.csv");
     const pane = createExplorerViewPane({
       confirm: async () => ({ confirmed: true }),
-      moveFileToTrash: async resource => {
-        movedPaths.push(resource.fsPath);
-      },
-      onUpdatePaneInput: input => {
-        paneInputUpdates.push(input);
-      },
-      paneInput: createPaneInput([{
+      files: [{
         fileId: "file-a",
         fileName: "source.csv",
         relativePath: "source.csv",
         resource,
         sourcePath: "/tmp/source.csv",
-      }]),
+      }],
+      moveFileToTrash: async resource => {
+        movedPaths.push(resource.fsPath);
+      },
+      onFilesChange: files => {
+        fileUpdates.push([...files]);
+      },
     });
 
     try {
       await pane.deleteFile({ resource });
 
       assert.deepEqual(movedPaths, ["/tmp/source.csv"]);
-      assert.deepEqual(paneInputUpdates.at(-1)?.files, []);
+      assert.deepEqual(fileUpdates.at(-1), []);
     } finally {
       pane.dispose();
     }
@@ -89,30 +89,30 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
 
   test("does not move or remove a file when delete confirmation is canceled", async () => {
     const movedPaths: string[] = [];
-    const paneInputUpdates: ExplorerPaneInput[] = [];
+    const fileUpdates: (readonly ExplorerFileEntry[])[] = [];
     const resource = URI.file("/tmp/source.csv");
     const pane = createExplorerViewPane({
       confirm: async () => ({ confirmed: false }),
-      moveFileToTrash: async resource => {
-        movedPaths.push(resource.fsPath);
-      },
-      onUpdatePaneInput: input => {
-        paneInputUpdates.push(input);
-      },
-      paneInput: createPaneInput([{
+      files: [{
         fileId: "file-a",
         fileName: "source.csv",
         relativePath: "source.csv",
         resource,
         sourcePath: "/tmp/source.csv",
-      }]),
+      }],
+      moveFileToTrash: async resource => {
+        movedPaths.push(resource.fsPath);
+      },
+      onFilesChange: files => {
+        fileUpdates.push([...files]);
+      },
     });
 
     try {
       await pane.deleteFile({ resource });
 
       assert.deepEqual(movedPaths, []);
-      assert.deepEqual(paneInputUpdates, []);
+      assert.deepEqual(fileUpdates, []);
     } finally {
       pane.dispose();
     }
@@ -199,7 +199,9 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
 
 type CreateExplorerViewPaneOptions = {
   readonly confirm?: IDialogService["confirm"];
+  readonly files?: readonly ExplorerFileEntry[];
   readonly moveFileToTrash?: (resource: URI) => Promise<void>;
+  readonly onFilesChange?: (files: readonly ExplorerFileEntry[]) => void;
   readonly onOpenTable?: (source: TableSource | null) => void;
   readonly onResolveReviewSummary?: (target: ReviewSummaryTarget) => void;
   readonly onUpdatePaneInput?: (input: ExplorerPaneInput) => void;
@@ -217,7 +219,12 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
       onDidShowDialog: Event.None,
       onWillShowDialog: Event.None,
     } as unknown as IDialogService,
-    createExplorerService(options.paneInput ?? null, options.onUpdatePaneInput),
+    createExplorerService(
+      options.paneInput ?? null,
+      options.onUpdatePaneInput,
+      options.files ?? [],
+      options.onFilesChange,
+    ),
     {
       getProvider: () => undefined,
       moveFileToTrash: options.moveFileToTrash ?? (async () => undefined),
@@ -234,6 +241,7 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
     {
       open: (source: TableSource | null) => options.onOpenTable?.(source),
     } as unknown as ITableService,
+    createSliceService(),
     {
       onDidChangePreview: Event.None,
       get: () => ({ kind: "idle" }),
@@ -315,62 +323,85 @@ const createInstantiationService = (
 const createExplorerService = (
   paneInput: ExplorerPaneInput | null,
   onUpdatePaneInput?: (input: ExplorerPaneInput) => void,
-): IExplorerService => ({
-  _serviceBrand: undefined,
-  expandedFolderKeys: [],
-  hasPendingSourceFiles: false,
-  hoveredResource: null,
-  onDidChangeExpandedFolderKeys: Event.None,
-  onDidChangeHoveredResource: Event.None,
-  onDidChangePaneInput: Event.None,
-  onDidChangePendingSourceFiles: Event.None,
-  onDidChangeSelection: Event.None,
-  onDidChangeViewLayout: Event.None,
-  onDidChangeVisibleTargets: Event.None,
-  selectedProcessedFileId: null,
-  selectedRawFileId: null,
-  viewLayout: "tree",
-  applyBulkEdit: async () => undefined,
-  getCollapsedFolderKeys: () => [],
-  getContext: () => ({
-    editable: null,
-    expandedFolderKeys: [],
-    hoveredResource: null,
-    selectedProcessedFileId: null,
-    selectedRawFileId: null,
-    toCopy: {
-      isCut: false,
-      resources: [],
-    },
-    viewLayout: "tree",
-  }),
-  getPaneInput: () => paneInput,
-  reconcileExpandedFolderKeys: () => [],
-  refresh: async () => undefined,
-  registerView: () => toDisposable(() => undefined),
-  select: (target: ExplorerSelectionTarget) => ({
-    resource: target.resource,
-    ...(target.sheetId ? { sheetId: target.sheetId } : {}),
-  }),
-  setEditable: () => undefined,
-  setExpandedFolderKeys: () => undefined,
-  setHoveredResource: () => undefined,
-  setPendingSourceFiles: () => undefined,
-  setToCopy: () => undefined,
-  setViewLayout: () => undefined,
-  setVisibleTargets: () => undefined,
-  toggleViewLayout: () => undefined,
-  updatePaneInput: (input: ExplorerPaneInput) => {
-    onUpdatePaneInput?.(input);
-  },
-} as unknown as IExplorerService);
+  initialFiles: readonly ExplorerFileEntry[] = [],
+  onFilesChange?: (files: readonly ExplorerFileEntry[]) => void,
+): IExplorerService => {
+  let files = [...initialFiles];
+  const updateFiles = (nextFiles: readonly ExplorerFileEntry[]): void => {
+    files = [...nextFiles];
+    onFilesChange?.(files);
+  };
 
-const createPaneInput = (files: ExplorerFileEntry[]): ExplorerPaneInput => ({
-  files,
-  mode: "table",
-  selectedResource: null,
-  selectionKind: "table",
-});
+  return {
+    _serviceBrand: undefined,
+    expandedFolderKeys: [],
+    get files() {
+      return files;
+    },
+    hasPendingSourceFiles: false,
+    hoveredResource: null,
+    onDidChangeExpandedFolderKeys: Event.None,
+    onDidChangeFiles: Event.None,
+    onDidChangeHoveredResource: Event.None,
+    onDidChangePaneInput: Event.None,
+    onDidChangePendingSourceFiles: Event.None,
+    onDidChangeSelection: Event.None,
+    onDidChangeViewLayout: Event.None,
+    onDidChangeVisibleTargets: Event.None,
+    selectedResource: null,
+    selectedSheetId: null,
+    viewLayout: "tree",
+    appendFiles: (entries: readonly ExplorerFileEntry[]) => {
+      updateFiles([...files, ...entries]);
+      return entries;
+    },
+    applyBulkEdit: async () => undefined,
+    getCollapsedFolderKeys: () => [],
+    getContext: () => ({
+      editable: null,
+      expandedFolderKeys: [],
+      hoveredResource: null,
+      selectedResource: null,
+      selectedSheetId: null,
+      toCopy: {
+        isCut: false,
+        resources: [],
+      },
+      viewLayout: "tree",
+    }),
+    getPaneInput: () => paneInput,
+    reconcileExpandedFolderKeys: () => [],
+    refresh: async () => undefined,
+    registerView: () => toDisposable(() => undefined),
+    removeFiles: (fileIds: readonly string[]) => {
+      const fileIdSet = new Set(fileIds);
+      const removedFiles = files.filter(file => file.fileId && fileIdSet.has(file.fileId));
+      updateFiles(files.filter(file => !file.fileId || !fileIdSet.has(file.fileId)));
+      return removedFiles;
+    },
+    renameFile: () => undefined,
+    replaceFiles: (entries: readonly ExplorerFileEntry[]) => {
+      updateFiles(entries);
+    },
+    select: (resource: URI | null, _reveal?: unknown, sheetId?: string | null) => resource
+      ? {
+          resource,
+          ...(sheetId ? { sheetId } : {}),
+        }
+      : null,
+    setEditable: () => undefined,
+    setExpandedFolderKeys: () => undefined,
+    setHoveredResource: () => undefined,
+    setPendingSourceFiles: () => undefined,
+    setToCopy: () => undefined,
+    setViewLayout: () => undefined,
+    setVisibleTargets: () => undefined,
+    toggleViewLayout: () => undefined,
+    updatePaneInput: (input: ExplorerPaneInput) => {
+      onUpdatePaneInput?.(input);
+    },
+  } as unknown as IExplorerService;
+};
 
 const createPendingImportFile = ({
   fileName,
@@ -425,6 +456,24 @@ const createExplorerImportEntry = ({
     sourcePath,
   };
 };
+
+const createSliceService = (): ISliceService => ({
+  _serviceBrand: undefined,
+  onDidChangeResourceSliceResult: Event.None as ISliceService["onDidChangeResourceSliceResult"],
+  onDidChangeSliceState: Event.None as ISliceService["onDidChangeSliceState"],
+  onDidChangeTemplateSelection: Event.None as ISliceService["onDidChangeTemplateSelection"],
+  cancelResource: () => undefined,
+  getResourceResult: () => null,
+  getResourceState: () => ({ state: "none" }),
+  getState: () => ({
+    queueLength: 0,
+    templateSelections: [],
+  }),
+  getTemplateSelection: () => ({ kind: "auto" }),
+  prioritizeResource: () => undefined,
+  setTemplateSelection: () => undefined,
+  submitResource: () => undefined,
+});
 
 const createUserTemplateService = (): IUserTemplateService => ({
   _serviceBrand: undefined,

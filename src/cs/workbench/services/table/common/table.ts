@@ -303,6 +303,9 @@ export const toTableSheetKey = (source: TableSource): string => {
 const TableDecorationFragment = "conductor.tableDecoration";
 const TableDecorationSheetFragmentPrefix = `${TableDecorationFragment}.sheetId=`;
 
+// Decoration adapter boundary: IDecorationsProvider is URI-only, while table
+// range decorations are sheet scoped. Keep this fragment private to decoration
+// resources and delete it when decorations support resource/sheet keys.
 export const createTableDecorationResource = (
 	source: TableSourceInput | null | undefined,
 	sheetId?: string | null,

@@ -273,7 +273,7 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
   private readonly files = new Map<string, RegisteredBrowserFile>();
   private readonly onDidFilesChangeEmitter = this._register(new Emitter<readonly IFileChange[]>());
   public readonly onDidFilesChange = this.onDidFilesChangeEmitter.event;
-  public readonly onDidChangeCapabilities = Event.None;
+  public readonly onDidChangeCapabilities: Event<void> = Event.None as Event<void>;
 
   public async registerDirectoryHandle(handle: FileSystemDirectoryHandle): Promise<URI> {
     const path = await this.registerHandle(handle);

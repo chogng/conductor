@@ -40,12 +40,27 @@ Keep these mechanisms separate:
 - Public APIs expose behavior and snapshots, not mutable internals.
 - Target records are values; behavior lives on the owner service/model.
 - URI-backed model/service identity uses `resource: URI` as the core identity.
+  This matches the upstream VS Code file/editor shape and remains the identity
+  for filesystem, editor/model, table-open, and `IUriIdentityService` flows.
   When sheet-level identity is needed, carry `sheetId` as an adjacent optional
-  field. Do not introduce or preserve public `*ResourceTarget`,
-  `*SourceTarget`, or nested `{ target: { resource, sheetId } }` wrappers for
-  resource identity; migrate call sites to direct `resource` / `sheetId`
-  parameters or fields. Use `target` only for actual command/UI/operation
-  targets.
+  field. Do not encode `sheetId` into the URI for model, command, service, file
+  operation, editor, or Explorer row identity.
+- Explorer row identity is the direct Conductor value
+  `{ resource: URI, sheetId?: string | null }`. `ExplorerResourceIdentity` is a
+  Files/Explorer row identity for selection, hover, visible rows, review/slice
+  handoff, and exact file-item commands; it is not an upstream VS Code API and
+  must not replace global URI semantics.
+- Do not introduce or preserve public `*ResourceTarget`, `*SourceTarget`, or
+  nested `{ target: { resource, sheetId } }` wrappers for resource identity;
+  migrate call sites to direct `resource` / `sheetId` parameters or fields. Use
+  `target` only for actual command/UI/operation targets. Row-level operations
+  that can distinguish multiple sheet rows for one URI must accept the exact
+  `{ resource, sheetId? }` identity; file-level side effects extract `resource`
+  only at the owner boundary.
+- The only allowed sheet-in-URI form is an adapter key for URI-only platform
+  APIs such as decorations providers. That boundary must parse immediately back
+  to `{ resource, sheetId? }`, must not be accepted by resource identity call
+  sites, and must state its deletion condition.
 - Views read state and translate user gestures into commands or service calls.
 - Command handlers validate arguments and delegate; they do not mutate DOM or `SessionModel`.
 - Contributions register things; they are not business orchestrators.
@@ -53,8 +68,8 @@ Keep these mechanisms separate:
 Use owner APIs like:
 
 ```ts
-ownerService.select(target, reveal?);
-ownerService.update(target, update);
+explorerService.select(resource, reveal?, sheetId?);
+ownerService.update(resourceIdentity, update);
 ownerModel.setSelection(selection);
 service.getState();
 ```

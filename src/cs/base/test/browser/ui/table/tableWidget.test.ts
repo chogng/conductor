@@ -439,6 +439,7 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 
 			widget.setBodyCellTraits(templateData, {
 				active: true,
+				decoration: "",
 				highlighted: false,
 				selected: true,
 				selectionFrame: {
@@ -460,6 +461,7 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 
 			widget.setBodyCellTraits(templateData, {
 				active: false,
+				decoration: "",
 				highlighted: false,
 				selected: false,
 				selectionFrame: {

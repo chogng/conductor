@@ -30,13 +30,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 
 class TestFileSystemProvider implements IFileSystemProvider {
   public readonly capabilities: FileSystemProviderCapabilities;
-  public readonly onDidFilesChange;
-  public readonly onDidChangeCapabilities;
+  public readonly onDidFilesChange: IFileSystemProvider["onDidFilesChange"];
+  public readonly onDidChangeCapabilities: IFileSystemProvider["onDidChangeCapabilities"];
 
   public constructor(private readonly provider: DiskFileSystemProvider) {
     this.capabilities = provider.capabilities;
     this.onDidFilesChange = provider.onDidFilesChange;
-    this.onDidChangeCapabilities = provider.onDidChangeCapabilities;
+    this.onDidChangeCapabilities = provider.onDidChangeCapabilities as IFileSystemProvider["onDidChangeCapabilities"];
   }
 
   public exists(resource: URI): Promise<boolean> {

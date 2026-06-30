@@ -21,9 +21,11 @@ import {
   IExplorerService,
   type ExplorerPaneInput,
   type ExplorerRevealMode,
-  type ExplorerSelectionTarget,
 } from "src/cs/workbench/contrib/files/browser/files";
-import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
+import type {
+  ExplorerFileEntry,
+  ExplorerResourceIdentity,
+} from "src/cs/workbench/contrib/files/common/explorerModel";
 import {
   COMMANDS_QUICK_ACCESS_PREFIX,
   CommandsQuickAccessProvider,
@@ -56,7 +58,7 @@ suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
   test("files provider reads Explorer service files and selects through Explorer", async () => {
     const selections: Array<{
       readonly reveal: ExplorerRevealMode | undefined;
-      readonly target: ExplorerSelectionTarget;
+      readonly target: ExplorerResourceIdentity;
     }> = [];
     const explorerFiles = [
       { fileId: "file-a", fileName: "Alpha.csv", relativePath: "293K/input/Alpha.csv", resource: URI.file("/workspace/Alpha.csv") },
@@ -86,11 +88,6 @@ suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
     assert.deepEqual(selections, [{
       reveal: "force",
       target: {
-        candidateResources: [
-          { resource: URI.file("/workspace/Alpha.csv") },
-          { resource: URI.file("/workspace/Beta.csv") },
-        ],
-        kind: "chart",
         resource: URI.file("/workspace/Beta.csv"),
         sheetId: null,
       },
@@ -100,7 +97,7 @@ suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
   test("files provider returns no picks when pane input is for another mode", async () => {
     const selections: Array<{
       readonly reveal: ExplorerRevealMode | undefined;
-      readonly target: ExplorerSelectionTarget;
+      readonly target: ExplorerResourceIdentity;
     }> = [];
     const explorerFiles = [
       { fileId: "file-a", fileName: "Alpha.csv", resource: URI.file("/workspace/Alpha.csv") },
@@ -172,7 +169,7 @@ function createExplorerService(
   explorerFiles: readonly ExplorerFileEntry[],
   selections: Array<{
     readonly reveal: ExplorerRevealMode | undefined;
-    readonly target: ExplorerSelectionTarget;
+    readonly target: ExplorerResourceIdentity;
   }>,
 ): IExplorerService {
 	  return {
@@ -205,9 +202,17 @@ function createExplorerService(
       viewLayout: "tree",
     }),
     registerView: () => ({ dispose: () => undefined }),
-    select: (target, reveal) => {
+    select: (resource, reveal, sheetId) => {
+      if (!resource) {
+        return null;
+      }
+
+      const target = {
+        resource,
+        sheetId: sheetId ?? null,
+      };
       selections.push({ reveal, target });
-      return target.resource ? { resource: target.resource, sheetId: target.sheetId } : null;
+      return target;
     },
 	    setEditable: () => undefined,
 	    setToCopy: () => undefined,

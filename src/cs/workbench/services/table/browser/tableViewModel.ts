@@ -1084,7 +1084,7 @@ const getTableSheetTabLabel = (
 const isTableFileForSource = (
   file: TableFile | null | undefined,
   source: TableSource | null | undefined,
-): boolean => Boolean(
+): file is TableFile => Boolean(
   source &&
   areTableSourcesEqual(file?.source, source),
 );
@@ -1092,7 +1092,7 @@ const isTableFileForSource = (
 const isTableFileForSourceEntry = (
   file: TableFile | null | undefined,
   source: TableSourceEntry | null | undefined,
-): boolean =>
+): file is TableFile =>
   source !== null &&
   source !== undefined &&
   isTableFileForSource(file, source.source) &&

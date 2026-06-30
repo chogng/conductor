@@ -122,6 +122,9 @@ const getExplorerEntryDecorationResource = (
 
 const SheetFragmentPrefix = "conductor.sheetId=";
 
+// Decoration adapter boundary: IDecorationsProvider is URI-only, while Explorer
+// review decorations are sheet-row scoped. Keep this fragment private to the
+// decoration provider and delete it when decorations support resource/sheet keys.
 export const createExplorerDecorationResource = (
 	resource: URI,
 	sheetId?: ExplorerFileEntry["sheetId"],

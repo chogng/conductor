@@ -325,14 +325,7 @@ export class ChartViewPane extends ViewPane {
       normalizeChartFileId(file.fileId) === normalizeChartFileId(fileId)
     ) ?? null;
     const target = getExplorerFileResourceIdentity(targetFile);
-    this.explorerService.select({
-      candidateResources: paneFiles
-        .map(getExplorerFileResourceIdentity)
-        .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate)),
-      kind: "chart",
-      resource: target?.resource ?? null,
-      sheetId: target?.sheetId ?? null,
-    }, "force");
+    this.explorerService.select(target?.resource ?? null, "force", target?.sheetId ?? null);
   }
 
   private setActivePlotType(plotType: PlotType): void {

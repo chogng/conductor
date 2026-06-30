@@ -91,6 +91,28 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
     assert.ok(CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND_ID));
   });
 
+  test("reveal in OS rejects URI-only Explorer row targets", () => {
+    const explorerService = store.add(new ExplorerService());
+    const resource = URI.file("C:/data/file.csv");
+    explorerService.replaceFiles([{
+      fileId: "file-1",
+      fileName: "file.csv",
+      resource,
+      sourcePath: "C:/data/file.csv",
+    }]);
+    explorerService.updatePaneInput({
+      mode: "table",
+      selectedResource: resource,
+      selectedSheetId: null,
+      selectionKind: "table",
+    });
+
+    assert.deepEqual(
+      resolveRevealResources(createAccessor([[IExplorerService, explorerService]]), resource),
+      [],
+    );
+  });
+
   test("registered rename command enters Explorer editable state", () => {
     const explorerService = store.add(new ExplorerService());
     const resource = URI.file("C:/data/file.csv");
@@ -113,11 +135,30 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
     assert.deepEqual(explorerService.getContext().editable, {
       isEditing: true,
       resource: {
-        kind: "table",
         resource,
-        sheetId: null,
       },
     });
+  });
+
+  test("registered rename command rejects URI-only Explorer row targets", () => {
+    const explorerService = store.add(new ExplorerService());
+    const resource = URI.file("C:/data/file.csv");
+    explorerService.replaceFiles([{
+      fileId: "file-1",
+      fileName: "file.csv",
+      resource,
+    }]);
+    explorerService.updatePaneInput({
+      mode: "table",
+      selectedResource: resource,
+      selectedSheetId: null,
+      selectionKind: "table",
+    });
+    const accessor = createAccessor([[IExplorerService, explorerService]]);
+
+    CommandsRegistry.getCommand(RENAME_FILE_ITEM_COMMAND_ID)?.handler(accessor, resource);
+
+    assert.equal(explorerService.getContext().editable, null);
   });
 });
 

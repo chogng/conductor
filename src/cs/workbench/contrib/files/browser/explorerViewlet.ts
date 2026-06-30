@@ -17,7 +17,7 @@ import { IInstantiationService } from "src/cs/platform/instantiation/common/inst
 import { IUriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentity";
 import type { WorkbenchSidebarAction } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
-import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
+import { IWorkbenchLayoutService, type WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
 import {
   FileSourceWorkflow,
   getFolderImportSupportForFileService,
@@ -38,7 +38,6 @@ import {
   ExplorerViewId,
   IExplorerService,
   type ExplorerPaneInput,
-  type ExplorerSelectionKind,
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
   getExplorerFileResourceIdentity,
@@ -277,7 +276,7 @@ export class ExplorerViewPane extends ViewPane {
     this.openFileDialog();
   }
 
-  public closeFile(target: ExplorerResourceIdentity | URI): void {
+  public closeFile(target: ExplorerResourceIdentity): void {
     const file = this.resolveExplorerFileTarget(target);
     if (!file) {
       return;
@@ -286,7 +285,7 @@ export class ExplorerViewPane extends ViewPane {
     this.handleCloseFile(file);
   }
 
-  public deleteFile(target: ExplorerResourceIdentity | URI): Promise<void> {
+  public deleteFile(target: ExplorerResourceIdentity): Promise<void> {
     const file = this.resolveExplorerFileTarget(target);
     if (!file) {
       return Promise.resolve();
@@ -295,11 +294,7 @@ export class ExplorerViewPane extends ViewPane {
     return this.handleDeleteFile(file);
   }
 
-  private resolveExplorerFileTarget(target: ExplorerResourceIdentity | URI): ExplorerFileEntry | null {
-    if (URI.isUri(target)) {
-      return findExplorerFileEntryByResource(this.committedFiles, { resource: target });
-    }
-
+  private resolveExplorerFileTarget(target: ExplorerResourceIdentity): ExplorerFileEntry | null {
     const resourceIdentity = normalizeExplorerResourceIdentity(target);
     return resourceIdentity
       ? findExplorerFileEntryByResource(this.committedFiles, resourceIdentity)
@@ -945,12 +940,7 @@ export class ExplorerViewPane extends ViewPane {
     const remainingFiles = this.committedFiles.filter(file =>
       !removedFileIds.includes(normalizeFileId(file.fileId) ?? ""));
     const nextIdentity = getFirstExplorerResourceIdentity(remainingFiles);
-    this.explorerService.select({
-      candidateResources: getExplorerResourceIdentities(remainingFiles),
-      kind: this.paneInput.selectionKind,
-      resource: nextIdentity?.resource ?? null,
-      sheetId: nextIdentity?.sheetId ?? null,
-    }, "force");
+    this.explorerService.select(nextIdentity?.resource ?? null, "force", nextIdentity?.sheetId ?? null);
   }
 
   private readonly loadTemplates = (): void => {
@@ -1085,24 +1075,14 @@ export class ExplorerViewPane extends ViewPane {
     reveal?: "force",
   ): ExplorerResourceIdentity | null {
     const resourceIdentity = getExplorerFileResourceIdentity(file);
-    return this.explorerService.select({
-      candidateResources: getExplorerResourceIdentities(this.visibleEntries),
-      kind: this.paneInput.selectionKind,
-      resource: resourceIdentity?.resource ?? null,
-      sheetId: resourceIdentity?.sheetId ?? null,
-    }, reveal);
+    return this.explorerService.select(resourceIdentity?.resource ?? null, reveal, resourceIdentity?.sheetId ?? null);
   }
 
   private selectImportedTableFile(
     file: ExplorerFileEntry | null,
   ): ExplorerResourceIdentity | null {
     const resourceIdentity = getExplorerFileResourceIdentity(file);
-    return this.explorerService.select({
-      candidateResources: getExplorerResourceIdentities(this.committedFiles),
-      kind: "table",
-      resource: resourceIdentity?.resource ?? null,
-      sheetId: resourceIdentity?.sheetId ?? null,
-    }, "force");
+    return this.explorerService.select(resourceIdentity?.resource ?? null, "force", resourceIdentity?.sheetId ?? null);
   }
 
   private openSelectedTableFile(
@@ -1196,24 +1176,12 @@ export class ExplorerViewPane extends ViewPane {
     const nextIdentity = currentFileId && removedFileIdSet.has(currentFileId)
       ? getFirstExplorerResourceIdentity(remainingFiles)
       : getExplorerFileResourceIdentity(currentEntry);
-    this.explorerService.select({
-      candidateResources: getExplorerResourceIdentities(remainingFiles),
-      kind: "table",
-      resource: nextIdentity?.resource ?? null,
-      sheetId: nextIdentity?.sheetId ?? null,
-    }, "force");
+    this.explorerService.select(nextIdentity?.resource ?? null, "force", nextIdentity?.sheetId ?? null);
     this.openSelectedTableFile(nextIdentity);
   }
 
   private clearExplorerSelections(): void {
-    this.explorerService.select({
-      kind: "table",
-      resource: null,
-    }, "force");
-    this.explorerService.select({
-      kind: "chart",
-      resource: null,
-    }, "force");
+    this.explorerService.select(null, "force");
   }
 
   private navigateToTableAfterImport(): void {
@@ -1300,7 +1268,7 @@ export function resolveExplorerImportOpenEntry({
 
 export function shouldSelectExplorerImportTableTarget(
   openTarget: { readonly entry: ExplorerFileEntry | null; readonly shouldSelect: boolean },
-  selectionKind: ExplorerSelectionKind,
+  selectionKind: WorkbenchMainPart,
 ): openTarget is { readonly entry: ExplorerFileEntry; readonly shouldSelect: boolean } {
   return Boolean(openTarget.entry && (openTarget.shouldSelect || selectionKind !== "table"));
 }
@@ -1341,7 +1309,10 @@ function findExplorerImportEntryByItemKey(
 
 function findExplorerFileEntryByResource(
   files: readonly ExplorerFileEntry[],
-  resourceIdentity: ExplorerResourceIdentity | null | undefined,
+  resourceIdentity:
+    | { readonly resource?: URI | null; readonly sheetId?: string | null }
+    | null
+    | undefined,
 ): ExplorerFileEntry | null {
   const resourceKey = getExplorerResourceIdentityKey(resourceIdentity);
   if (!resourceKey) {

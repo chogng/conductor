@@ -3049,12 +3049,14 @@ const createSliceServiceStub = (
     queueLength: 0,
     templateSelections: [],
   }),
+  getTemplateSelection: () => ({ kind: "auto" }),
   getResourceResult: (resource, sheetId) => results.find(result =>
     result.resource.toString() === resource.toString() &&
     String(result.sheetId ?? "") === String(sheetId ?? "")
   ) ?? null,
   getResourceState: () => undefined,
   onDidChangeSliceState: Event.None as Event<void>,
+  onDidChangeTemplateSelection: Event.None as Event<ResourceSheetIdentity>,
   onDidChangeResourceSliceResult: Event.None as Event<ResourceSheetIdentity>,
   prioritizeResource: () => undefined,
   setTemplateSelection: () => undefined,

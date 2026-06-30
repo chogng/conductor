@@ -229,7 +229,7 @@ suite("workbench/services/table/browser/tableViewModel range decorations", () =>
     });
     store.add({ dispose: () => model.clearState() });
 
-    const changes: unknown[][] = [];
+    const changes: (readonly unknown[])[] = [];
     model.onDidChangeRangeDecorations(decorations => {
       changes.push(decorations);
     });

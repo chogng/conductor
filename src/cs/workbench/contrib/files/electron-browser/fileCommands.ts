@@ -30,27 +30,14 @@ export const resolveRevealResources = (
   accessor: ServicesAccessor,
   target?: unknown,
 ): readonly URI[] => {
-  if (URI.isUri(target)) {
-    return [target];
-  }
-
-  if (Array.isArray(target)) {
-    return target.flatMap(candidate => URI.isUri(candidate) ? [candidate] : []);
-  }
-
   const explorerService = accessor.get(IExplorerService);
-  const paneInput = explorerService.getPaneInput();
-  if (!paneInput) {
-    return [];
-  }
-
-  const resourceIdentity = URI.isUri(target)
-    ? { resource: target }
-    : normalizeRevealResourceIdentity(target) ?? {
+  const resourceIdentity = target === undefined
+    ? {
         resource: explorerService.getContext().selectedResource,
         sheetId: explorerService.getContext().selectedSheetId,
-      };
-  if (!resourceIdentity.resource) {
+      }
+    : normalizeRevealResourceIdentity(target);
+  if (!resourceIdentity?.resource) {
     return [];
   }
 
@@ -108,7 +95,10 @@ const reviveOptionalUri = (value: unknown): URI | null => {
 
 const findExplorerFileEntryByResource = (
   files: readonly ExplorerFileEntry[],
-  resourceIdentity: ExplorerResourceIdentity | null,
+  resourceIdentity:
+    | { readonly resource?: URI | null; readonly sheetId?: string | null }
+    | null
+    | undefined,
 ): ExplorerFileEntry | null => {
   const resourceKey = getExplorerResourceIdentityKey(resourceIdentity);
   if (!resourceKey) {

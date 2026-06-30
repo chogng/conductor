@@ -87,7 +87,7 @@ export class UriIdentityService implements IUriIdentityService {
     }
 
     this.schemeIgnoresPathCasing.delete(scheme);
-    const nextIgnorePathCasing = this.ignorePathCasing(URI.from({ scheme }));
+    const nextIgnorePathCasing = this.ignorePathCasing(URI.from({ path: "", scheme }));
     if (oldIgnorePathCasing === nextIgnorePathCasing) {
       return;
     }

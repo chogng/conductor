@@ -76,7 +76,7 @@ Chart commands own chart chrome, not plot data.
 | plot type / unit / scale / series visibility / legend label / axis title value | `IPlotService` |
 | legend popover / inspector pane / chart focus | `IChartService` |
 | axis-title edit focus | `IChartTitleEditService` -> registered `ChartViewPane` handler |
-| chart file selection | `IExplorerService.select({ kind: "chart", resource, sheetId? }, "force")` |
+| chart file selection | `IExplorerService.select(resource, "force", sheetId?)` |
 
 If a chart header button changes plot data presentation, it should execute a
 Plot command, not a Chart command.

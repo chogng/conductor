@@ -53,7 +53,7 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
         { fileId: "file-2", fileName: "file-2.csv", resource: resource2 },
       ],
       onSelect: (target, reveal) => {
-        renameSelection = { reveal, target };
+        renameSelection = { ...(target as object), reveal };
       },
       onSetEditable: (state) => {
         editableState = state;
@@ -91,18 +91,13 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
     assert.deepEqual(deletedTarget, { resource: resource2 });
     assert.deepEqual(renameSelection, {
       reveal: "force",
-      target: {
-        kind: "table",
-        resource: resource1,
-        sheetId: null,
-      },
+      resource: resource1,
+      sheetId: null,
     });
     assert.deepEqual(editableState, {
       isEditing: true,
       resource: {
-        kind: "table",
         resource: resource1,
-        sheetId: null,
       },
     });
     assert.deepEqual(templateSelection, {
@@ -171,7 +166,7 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
         { fileId: "file-2", fileName: "file-2.csv", resource: resource2 },
       ],
       onSelect: (target, reveal) => {
-        renameSelection = { reveal, target };
+        renameSelection = { ...(target as object), reveal };
       },
       onSetEditable: (state) => {
         editableState = state;
@@ -205,18 +200,13 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
     assert.deepEqual(deletedTarget, { resource: resource2 });
     assert.deepEqual(renameSelection, {
       reveal: "force",
-      target: {
-        kind: "table",
-        resource: resource1,
-        sheetId: null,
-      },
+      resource: resource1,
+      sheetId: null,
     });
     assert.deepEqual(editableState, {
       isEditing: true,
       resource: {
-        kind: "table",
         resource: resource1,
-        sheetId: null,
       },
     });
     assert.deepEqual(templateSelection, {
@@ -262,19 +252,11 @@ function createExplorerServiceStub({
       selectedSheetId: null,
       selectionKind: "table",
     }),
-    select: (target: unknown, reveal: unknown) => {
-      onSelect(target, reveal);
-      if (!target || typeof target !== "object" || !("resource" in target)) {
-        return null;
-      }
-
-      const resourceTarget = target as {
-        readonly resource?: URI | null;
-        readonly sheetId?: string | null;
-      };
+    select: (resource: URI | null, reveal: unknown, sheetId?: string | null) => {
+      onSelect({ resource, sheetId: sheetId ?? null }, reveal);
       return {
-        resource: resourceTarget.resource ?? null,
-        ...(resourceTarget.sheetId ? { sheetId: resourceTarget.sheetId } : {}),
+        resource,
+        ...(sheetId ? { sheetId } : {}),
       };
     },
     setEditable: (state: unknown) => {

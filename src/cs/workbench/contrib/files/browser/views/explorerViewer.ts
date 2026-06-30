@@ -315,8 +315,14 @@ const isExplorerFileEntrySelected = (
 };
 
 const areExplorerFileResourceIdentitiesEqual = (
-  first: ExplorerResourceIdentity | null | undefined,
-  second: ExplorerResourceIdentity | null | undefined,
+  first:
+    | { readonly resource?: URI | null; readonly sheetId?: string | null }
+    | null
+    | undefined,
+  second:
+    | { readonly resource?: URI | null; readonly sheetId?: string | null }
+    | null
+    | undefined,
 ): boolean =>
   getExplorerResourceIdentityKey(first) === getExplorerResourceIdentityKey(second);
 

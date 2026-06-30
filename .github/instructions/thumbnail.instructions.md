@@ -61,7 +61,7 @@ is thumbnail-specific UI, but the command delegates to
 
 Selection is still Explorer selection. A thumbnail click is equivalent to a
 tree item selection and must flow through the existing Explorer selection
-surface, currently `IExplorerService.select(target, reveal?)`.
+surface, currently `IExplorerService.select(resource, reveal?, sheetId?)`.
 
 Tree hover previews also stay Explorer-owned. Explorer owns the hover trigger,
 delay, anchor, context-view container, placement, layout, and dismissal.

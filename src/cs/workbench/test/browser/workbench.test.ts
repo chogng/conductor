@@ -13,6 +13,7 @@ import {
   WorkbenchDomainBridge,
 } from "src/cs/workbench/browser/workbenchDomainBridge";
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
+import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
 import type {
   FileImportResult,
@@ -133,7 +134,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
   test("creates chart thumbnail input from Explorer resource rows", () => {
     const explorerService = store.add(new ExplorerService());
     const resource = URI.file("/data/ProcessedA.csv");
-    const files = [{
+    const files: ExplorerFileEntry[] = [{
       fileId: "file-a",
       fileName: "Processed A.csv",
       resource,
@@ -167,7 +168,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
   test("does not invent thumbnail selection outside the shared explorer selection", () => {
     const explorerService = store.add(new ExplorerService());
     const resource = URI.file("/data/ProcessedA.csv");
-    const files = [{
+    const files: ExplorerFileEntry[] = [{
       fileId: "file-a",
       fileName: "Processed A.csv",
       resource,
@@ -262,11 +263,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       resourceSlice: { resource },
     }));
     try {
-      explorerService.select({
-        candidateResources: [{ resource }],
-        kind: "chart",
-        resource,
-      });
+      explorerService.select(resource);
 
       assert.deepEqual(prioritizedTemplateFileIds, []);
       assert.deepEqual(prioritizedCalculationFileIds, []);
@@ -537,7 +534,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       throw new Error("Trace target enumeration should not read Session.");
     };
     const explorerService = store.add(new ExplorerService());
-    const files = [{
+    const files: ExplorerFileEntry[] = [{
       chartState: "ready",
       fileId: "file-a",
       fileName: "File A.csv",
@@ -676,10 +673,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }));
     try {
       bridge.sync();
-      explorerService.select({
-        kind: "chart",
-        resource: null,
-      });
+      explorerService.select(null);
       await Promise.resolve();
 
       assert.deepEqual(uniquePrefetches(plotInspectorPrefetches), []);
@@ -718,10 +712,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
     const plotDisplayPrefetchSnapshotFields: boolean[] = [];
     commitChartFilesForTest(session, ["file-a"]);
-    explorerService.select({
-      kind: "chart",
-      resource: null,
-    });
+    explorerService.select(null);
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
       plotDisplayPrefetches,
@@ -799,12 +790,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedSheetId: "table-key-b",
       selectionKind: "table",
     });
-    explorerService.select({
-      candidateResources: [{ resource, sheetId: "table-key-b" }],
-      kind: "table",
-      resource,
-      sheetId: "table-key-b",
-    });
+    explorerService.select(resource, undefined, "table-key-b");
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
       prioritizedCalculationFileIds: [],
@@ -843,10 +829,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedSheetId: null,
       selectionKind: "table",
     });
-    explorerService.select({
-      kind: "table",
-      resource,
-    });
+    explorerService.select(resource);
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
       prioritizedCalculationFileIds: [],
@@ -935,10 +918,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedSheetId: null,
       selectionKind: "table",
     });
-    explorerService.select({
-      kind: "table",
-      resource,
-    });
+    explorerService.select(resource);
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
       prioritizedCalculationFileIds: [],
@@ -973,10 +953,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedSheetId: null,
       selectionKind: "table",
     });
-    explorerService.select({
-      kind: "table",
-      resource,
-    });
+    explorerService.select(resource);
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
       prioritizedCalculationFileIds: [],
@@ -1031,11 +1008,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedSheetId: "sheet-a",
       selectionKind: "chart",
     });
-    explorerService.select({
-      kind: "chart",
-      resource,
-      sheetId: "sheet-a",
-    });
+    explorerService.select(resource, undefined, "sheet-a");
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       chartViewInputs,
       explorerService,
@@ -1090,10 +1063,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedSheetId: null,
       selectionKind: "chart",
     });
-    explorerService.select({
-      kind: "chart",
-      resource,
-    });
+    explorerService.select(resource);
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       chartFileOptionInputs,
       explorerService,
@@ -1149,10 +1119,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedSheetId: null,
       selectionKind: "chart",
     });
-    explorerService.select({
-      kind: "chart",
-      resource,
-    });
+    explorerService.select(resource);
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       chartViewInputs,
       explorerService,
@@ -1203,11 +1170,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedSheetId: "sheet-a",
       selectionKind: "chart",
     });
-    explorerService.select({
-      kind: "chart",
-      resource,
-      sheetId: "sheet-a",
-    });
+    explorerService.select(resource, undefined, "sheet-a");
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       chartViewInputs,
       explorerService,
@@ -1265,11 +1228,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectedSheetId: "sheet-a",
       selectionKind: "chart",
     });
-    explorerService.select({
-      kind: "chart",
-      resource,
-      sheetId: "sheet-a",
-    });
+    explorerService.select(resource, undefined, "sheet-a");
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       chartViewInputs,
       explorerService,
@@ -1496,11 +1455,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       explorerService.setPendingSourceFiles(true);
       assert.equal(scheduledFrames.length, 1);
 
-      explorerService.select({
-        candidateResources: [{ resource: resourceA }, { resource: resourceB }],
-        kind: "chart",
-        resource: resourceB,
-      });
+      explorerService.select(resourceB);
       await Promise.resolve();
 
       assert.equal(canceledFrames.has(1), true);
@@ -1544,11 +1499,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       prioritizedTemplateFileIds: [],
     }));
     try {
-      explorerService.select({
-        candidateResources: [{ resource: resourceA }, { resource: resourceB }],
-        kind: "chart",
-        resource: resourceB,
-      });
+      explorerService.select(resourceB);
       await Promise.resolve();
 
       assert.deepEqual(chartViewInputs.at(-1), {
@@ -1818,6 +1769,7 @@ const createDomainBridgeOptionsForTest = ({
     getState: () => createSliceStateForTest({
       templateSelections: sliceTemplateSelections,
     }),
+    getTemplateSelection: () => ({ kind: "auto" }),
     getResourceResult: (resource, sheetId) => resourceSlice && isSameResourceSheetForTest({ resource, sheetId }, resourceSlice)
       ? {
         resource: resourceSlice.resource,
@@ -1826,6 +1778,7 @@ const createDomainBridgeOptionsForTest = ({
       : null,
     getResourceState: () => undefined,
     onDidChangeSliceState: sliceStateEvent as Event<void>,
+    onDidChangeTemplateSelection: Event.None,
     onDidChangeResourceSliceResult: Event.None,
     prioritize: () => undefined,
     prioritizeResource: () => undefined,

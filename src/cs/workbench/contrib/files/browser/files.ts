@@ -23,8 +23,6 @@ import type {
 export const IExplorerService = createDecorator<IExplorerService>("explorerService");
 export const ExplorerViewId = "workbench.files";
 
-export type ExplorerSelectionKind = WorkbenchMainPart;
-
 export type ExplorerViewLayout = FilesViewLayout;
 
 export type ExplorerThumbnailPlotModel = PlotMainRenderModelSource & {
@@ -38,13 +36,13 @@ export type ExplorerPaneInput = {
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly selectedResource: URI | null;
   readonly selectedSheetId?: string | null;
-  readonly selectionKind: ExplorerSelectionKind;
+  readonly selectionKind: WorkbenchMainPart;
   readonly templateSelections?: readonly TemplateResourceSelection[];
   readonly thumbnailPlotModelsByFileId?: Readonly<Record<string, ExplorerThumbnailPlotModel>>;
 };
 
 export type ExplorerSelectionChangeEvent = {
-  readonly kind: ExplorerSelectionKind;
+  readonly kind: WorkbenchMainPart;
   readonly selectedResource: URI | null;
   readonly selectedSheetId?: string | null;
 };
@@ -62,13 +60,6 @@ export type ExplorerHoveredResourceChangeEvent = {
   readonly resource: ExplorerResourceIdentity | null;
 };
 
-export type ExplorerSelectionTarget = {
-  readonly kind: ExplorerSelectionKind;
-  readonly resource: URI | null;
-  readonly candidateResources?: readonly ExplorerResourceIdentity[];
-  readonly sheetId?: string | null;
-};
-
 export type ExplorerRevealMode = boolean | "force";
 
 export type ExplorerContext = {
@@ -82,17 +73,17 @@ export type ExplorerContext = {
 };
 
 export type ExplorerEditableData = {
-  readonly resource: ExplorerSelectionTarget;
+  readonly resource: ExplorerResourceIdentity;
   readonly isEditing: boolean;
 };
 
 export type ExplorerCopyState = {
-  readonly resources: readonly ExplorerSelectionTarget[];
+  readonly resources: readonly ExplorerResourceIdentity[];
   readonly isCut: boolean;
 };
 
 export interface IExplorerView {
-  selectResource?(target: ExplorerSelectionTarget, reveal?: ExplorerRevealMode): void;
+  selectResource?(resource: URI | null, reveal?: ExplorerRevealMode, sheetId?: string | null): void;
   refresh?(): void;
 }
 
@@ -117,9 +108,9 @@ export interface IExplorerService {
 
   getContext(): ExplorerContext;
   registerView(view: IExplorerView): IDisposable;
-  select(target: ExplorerSelectionTarget, reveal?: ExplorerRevealMode): ExplorerResourceIdentity | null;
+  select(resource: URI | null, reveal?: ExplorerRevealMode, sheetId?: string | null): ExplorerResourceIdentity | null;
   setEditable(data: ExplorerEditableData | null): void;
-  setToCopy(resources: readonly ExplorerSelectionTarget[], isCut: boolean): void;
+  setToCopy(resources: readonly ExplorerResourceIdentity[], isCut: boolean): void;
   applyBulkEdit(): Promise<void>;
   refresh(): Promise<void>;
   replaceFiles(files: readonly ExplorerFileEntry[]): void;

@@ -86,6 +86,41 @@ Explorer owns:
 - thumbnail candidate filtering before thumbnail UI renders;
 - source workflow orchestration, `IExplorerService.files` imported rows, resource/sheet state projection, and optional UI follow-up after table resource opens.
 
+## Resource / Sheet Identity
+
+Upstream VS Code Explorer identity is URI-based. Conductor keeps that boundary:
+filesystem, editor/model, `ITableService.open({ resource })`, and URI identity
+services use `resource: URI` only.
+
+Explorer row identity is the direct value
+`{ resource: URI, sheetId?: string | null }`. Use it only where a visible
+Explorer row, Review/Slice resource, hover, selection, visible target, or
+file-item command needs sheet precision. `ExplorerResourceIdentity` is a
+Conductor Files/Explorer value, not an upstream VS Code interface, and must not
+be used to replace global URI semantics.
+
+Do not encode `sheetId` into a URI for Explorer row identity, commands, service
+calls, table open, file operations, or editor/model identity. Do not add
+`ExplorerResourceTarget`, `ExplorerSourceTarget`, nested
+`{ target: { resource, sheetId } }`, aliases, or compatibility wrappers around
+this shape. Migrate call sites to direct `resource` and optional `sheetId`
+fields.
+
+The only permitted sheet-in-URI boundary is for URI-only decoration APIs. Files
+or Table decoration providers may derive a private decoration resource URI so
+the decorations service can address a sheet row, but they must parse that URI
+back to `{ resource, sheetId? }` immediately inside the provider. This adapter
+must not be used as a command, service, Explorer row, file operation, or editor
+identity, and should be deleted when the decorations service supports structured
+resource/sheet decoration keys.
+
+Row-level Explorer operations that can distinguish two sheet rows for the same
+URI, such as select, hover, close, delete, rename, template selection, visible
+targets, Review, Slice, Plot, and Chart resource handoff, carry
+`{ resource, sheetId? }`. File-level side effects such as open-table-resource,
+trash/delete-on-disk, and reveal-in-OS first resolve the exact Explorer row when
+needed, then pass only `identity.resource` to the file/editor owner.
+
 Explorer source workflow owns:
 
 - source metadata and bytes/path inputs from dialog/drop/folder/clipboard/manual entry points;

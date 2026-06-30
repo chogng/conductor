@@ -55,9 +55,6 @@ export class FilesQuickAccessProvider extends PickerQuickAccessProvider<QuickAcc
     }
 
     const files = this.explorerService.files;
-    const candidateResources = files
-      .map(getExplorerFileResourceIdentity)
-      .filter((target): target is NonNullable<typeof target> => Boolean(target));
     const normalizedFilter = filter.trim().toLowerCase();
     return files
       .map(file => {
@@ -70,12 +67,7 @@ export class FilesQuickAccessProvider extends PickerQuickAccessProvider<QuickAcc
         const label = String(file.fileName ?? fileId).trim() || fileId;
         const item: QuickAccessItem = {
           accept: () => {
-            this.explorerService.select({
-              candidateResources,
-              kind: selectionKind,
-              resource: target.resource,
-              sheetId: target.sheetId ?? null,
-            }, "force");
+            this.explorerService.select(target.resource, "force", target.sheetId ?? null);
           },
           description: getFileDescription(file),
           id: fileId,

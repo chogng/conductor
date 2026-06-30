@@ -105,7 +105,7 @@ Use explicit target records when a command acts on a domain object:
 
 | Kind | Core fields |
 | --- | --- |
-| `explorerResource` | `resourceId` |
+| `explorerResource` | `resource`, optional `sheetId` |
 | `file` | `fileId` |
 | `rawTable` | `fileId`, `rawTableId` |
 | `tableResourceRange` | `resource`, optional `sheetId`, `range` |
@@ -116,6 +116,12 @@ Use explicit target records when a command acts on a domain object:
 
 Do not pass DOM nodes, view instances, or partial ad-hoc objects through
 command APIs.
+
+Explorer row commands use the direct Conductor row identity
+`{ resource: URI, sheetId?: string | null }`. Command handlers may use
+`IExplorerService` current selection when a command is explicitly invoked without
+a target, but Explorer row-level commands must not accept a URI-only target when
+the operation needs the exact visible row.
 
 ## Dispatch Owners
 

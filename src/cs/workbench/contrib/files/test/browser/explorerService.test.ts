@@ -10,7 +10,6 @@ import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorer
 import type {
   ExplorerPaneInput,
   ExplorerSelectionChangeEvent,
-  ExplorerSelectionTarget,
 } from "src/cs/workbench/contrib/files/browser/files";
 
 suite("workbench/contrib/files/test/browser/explorerService", () => {
@@ -25,8 +24,10 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
       events.push(event);
     }));
 
-    service.select({ kind: "table", resource: tableResource });
-    service.select({ kind: "chart", resource: chartResource });
+    service.updatePaneInput(createPaneInput("table"));
+    service.select(tableResource);
+    service.updatePaneInput(createPaneInput("chart", tableResource));
+    service.select(chartResource);
 
     assert.equal(service.selectedResource?.toString(), chartResource.toString());
     assert.deepEqual(events.map(event => ({
@@ -47,33 +48,24 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
     }));
 
     const resource = URI.file("/workspace/file-a.csv");
-    service.select({ kind: "table", resource });
-    service.select({ kind: "table", resource });
+    service.select(resource);
+    service.select(resource);
 
     assert.equal(changeCount, 1);
     disposable.dispose();
   });
 
-  test("selects resources through explorer-owned candidate validation", () => {
+  test("returns selected resource identity", () => {
     const service = store.add(new ExplorerService());
-    const resourceA = URI.file("/workspace/file-a.csv");
     const resourceB = URI.file("/workspace/file-b.csv");
     const resourceC = URI.file("/workspace/file-c.csv");
 
-    const acceptedTarget = service.select({
-      candidateResources: [{ resource: resourceA }, { resource: resourceB }],
-      kind: "table",
-      resource: resourceB,
-    }, "force");
-    const rejectedTarget = service.select({
-      candidateResources: [{ resource: resourceA }],
-      kind: "table",
-      resource: resourceC,
-    }, "force");
+    const selectedTarget = service.select(resourceB, "force");
+    const nextTarget = service.select(resourceC, "force");
 
-    assert.equal(acceptedTarget?.resource?.toString(), resourceB.toString());
-    assert.equal(rejectedTarget?.resource?.toString(), resourceB.toString());
-    assert.equal(service.selectedResource?.toString(), resourceB.toString());
+    assert.equal(selectedTarget?.resource?.toString(), resourceB.toString());
+    assert.equal(nextTarget?.resource?.toString(), resourceC.toString());
+    assert.equal(service.selectedResource?.toString(), resourceC.toString());
   });
 
   test("tracks sheet id as part of explorer selection", () => {
@@ -84,27 +76,12 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
       events.push(event);
     }));
 
-    service.select({
-      candidateResources: [{ resource, sheetId: "source-a" }, { resource, sheetId: "source-b" }],
-      kind: "table",
-      resource,
-      sheetId: "source-a",
-    });
-    service.select({
-      candidateResources: [{ resource, sheetId: "source-a" }, { resource, sheetId: "source-b" }],
-      kind: "table",
-      resource,
-      sheetId: "source-b",
-    });
-    service.select({
-      candidateResources: [{ resource, sheetId: "source-a" }, { resource, sheetId: "source-b" }],
-      kind: "table",
-      resource,
-      sheetId: "source-c",
-    });
+    service.select(resource, undefined, "source-a");
+    service.select(resource, undefined, "source-b");
+    service.select(resource, undefined, "source-c");
 
     assert.equal(service.selectedResource?.toString(), resource.toString());
-    assert.equal(service.selectedSheetId, "source-b");
+    assert.equal(service.selectedSheetId, "source-c");
     assert.deepEqual(events.map(event => ({
       kind: event.kind,
       selectedResource: event.selectedResource?.toString(),
@@ -112,59 +89,43 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
     })), [
       { kind: "table", selectedResource: resource.toString(), selectedSheetId: "source-a" },
       { kind: "table", selectedResource: resource.toString(), selectedSheetId: "source-b" },
+      { kind: "table", selectedResource: resource.toString(), selectedSheetId: "source-c" },
     ]);
     disposable.dispose();
   });
 
-  test("notifies views only with accepted selection targets", () => {
+  test("notifies views with selected resource and sheet id", () => {
     const service = store.add(new ExplorerService());
-    const resourceA = URI.file("/workspace/file-a.csv");
     const resourceB = URI.file("/workspace/file-b.csv");
     const resourceC = URI.file("/workspace/file-c.csv");
     const viewSelections: Array<{
       readonly reveal: unknown;
-      readonly target: ExplorerSelectionTarget;
+      readonly resource: URI | null;
+      readonly sheetId: string | null | undefined;
     }> = [];
     const disposable = store.add(service.registerView({
-      selectResource: (target, reveal) => {
-        viewSelections.push({ reveal, target });
+      selectResource: (resource, reveal, sheetId) => {
+        viewSelections.push({ resource, reveal, sheetId });
       },
     }));
 
-    service.select({
-      candidateResources: [{ resource: resourceB }],
-      kind: "table",
-      resource: resourceB,
-    }, "force");
-    service.select({
-      candidateResources: [{ resource: resourceB }],
-      kind: "table",
-      resource: resourceB,
-    });
-    service.select({
-      candidateResources: [{ resource: resourceA }],
-      kind: "table",
-      resource: resourceC,
-    }, "force");
+    service.select(resourceB, "force", "source-b");
+    service.select(resourceB, undefined, "source-b");
+    service.select(resourceC, "force");
 
-    assert.equal(service.selectedResource?.toString(), resourceB.toString());
+    assert.equal(service.selectedResource?.toString(), resourceC.toString());
     assert.deepEqual(viewSelections.map(selection => ({
       reveal: selection.reveal,
-      target: {
-        ...selection.target,
-        candidateResources: selection.target.candidateResources?.map(target => ({
-          resource: target.resource?.toString() ?? null,
-          sheetId: target.sheetId,
-        })),
-        resource: selection.target.resource?.toString() ?? null,
-      },
+      resource: selection.resource?.toString() ?? null,
+      sheetId: selection.sheetId,
     })), [{
       reveal: "force",
-      target: {
-        candidateResources: [{ resource: resourceB.toString(), sheetId: undefined }],
-        kind: "table",
-        resource: resourceB.toString(),
-      },
+      resource: resourceB.toString(),
+      sheetId: "source-b",
+    }, {
+      reveal: "force",
+      resource: resourceC.toString(),
+      sheetId: null,
     }]);
     disposable.dispose();
   });
@@ -274,4 +235,14 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
     assert.equal(service.getPaneInput()?.mode, "chart");
   });
 
+});
+
+const createPaneInput = (
+  selectionKind: ExplorerPaneInput["selectionKind"],
+  selectedResource: URI | null = null,
+): ExplorerPaneInput => ({
+  mode: selectionKind === "chart" ? "chart" : "table",
+  selectedResource,
+  selectedSheetId: null,
+  selectionKind,
 });

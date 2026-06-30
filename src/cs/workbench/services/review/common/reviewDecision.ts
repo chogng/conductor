@@ -415,12 +415,17 @@ const isReviewCandidateCoveredBy = (
 		return false;
 	}
 
-	const topBlockIds = topCandidate.captures?.dataBlockCandidateIds ?? [];
-	const candidateBlockIds = candidate.captures?.dataBlockCandidateIds ?? [];
+	const topBlockIds = getReviewCaptureStringArray(topCandidate.captures?.dataBlockCandidateIds);
+	const candidateBlockIds = getReviewCaptureStringArray(candidate.captures?.dataBlockCandidateIds);
 	return topBlockIds.length > candidateBlockIds.length &&
 		candidateBlockIds.length > 0 &&
 		candidateBlockIds.every(blockId => topBlockIds.includes(blockId));
 };
+
+const getReviewCaptureStringArray = (value: unknown): readonly string[] =>
+	Array.isArray(value)
+		? value.filter((item): item is string => typeof item === "string")
+		: [];
 
 export const scoreReviewCandidate = ({
 	ambiguityPenalty = 0,
