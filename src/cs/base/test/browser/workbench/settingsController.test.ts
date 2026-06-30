@@ -172,12 +172,13 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
     const service = createSettingsService({
       templateDisabledBuiltinSemanticIds: [builtinTerm.id],
     });
-    let updateSettings: Record<string, unknown> | null = null;
+    const updateSettings = { value: null as Partial<ConductorSettings> | null };
     service.updateSettings = async updates => {
-      updateSettings = updates;
+      const nextSettings = updates as Partial<ConductorSettings>;
+      updateSettings.value = nextSettings;
       service.settings = {
         ...service.settings,
-        ...updates,
+        ...nextSettings,
       };
       return service.settings;
     };
@@ -194,15 +195,18 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       submitSemanticTerm(container, builtinTerm.alias);
       await settled();
 
-      assert.ok(updateSettings);
-      assert.deepEqual(updateSettings.templateDisabledBuiltinSemanticIds, []);
-      assert.ok(Array.isArray(updateSettings.templateSemanticTermOrder));
-      assert.equal(updateSettings.templateSemanticTermOrder.at(-1), builtinTerm.id);
+      const savedSettings = updateSettings.value;
+      assert.ok(savedSettings);
+      assert.deepEqual(savedSettings.templateDisabledBuiltinSemanticIds, []);
+      const termOrder = savedSettings.templateSemanticTermOrder;
+      assert.ok(Array.isArray(termOrder));
+      assert.equal(termOrder.at(-1), builtinTerm.id);
       assert.equal(
-        new Set(updateSettings.templateSemanticTermOrder).size,
-        updateSettings.templateSemanticTermOrder.length,
+        new Set(termOrder).size,
+        termOrder.length,
       );
       assert.deepEqual(service.settings.templateDisabledBuiltinSemanticIds, []);
+      assert.equal(getSemanticTermInput(container).value, "");
     }
     finally {
       controller.dispose();
@@ -219,10 +223,11 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
     const service = createSettingsService({});
     let updateCount = 0;
     service.updateSettings = async updates => {
+      const nextSettings = updates as Partial<ConductorSettings>;
       updateCount++;
       service.settings = {
         ...service.settings,
-        ...updates,
+        ...nextSettings,
       };
       return service.settings;
     };
@@ -357,11 +362,16 @@ function openTemplateSection(container: HTMLElement): void {
 }
 
 function submitSemanticTerm(container: HTMLElement, value: string): void {
-  const input = container.querySelector<HTMLInputElement>("#settings-template-semantic-library-card .inputbox_widget input.inputbox_native:not([hidden])");
-  assert.ok(input);
+  const input = getSemanticTermInput(container);
   input.value = value;
   input.dispatchEvent(new globalThis.Event("input", { bubbles: true }));
   input.dispatchEvent(new globalThis.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+}
+
+function getSemanticTermInput(container: HTMLElement): HTMLInputElement {
+  const input = container.querySelector<HTMLInputElement>("#settings-template-semantic-library-card .inputbox_widget input.inputbox_native:not([hidden])");
+  assert.ok(input);
+  return input;
 }
 
 function getButton(container: HTMLElement, id: string): HTMLButtonElement {

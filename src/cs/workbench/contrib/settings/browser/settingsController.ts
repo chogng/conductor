@@ -1152,13 +1152,15 @@ export class SettingsController {
   }
 
   private async addTemplateSemanticTerm(): Promise<void> {
-    const term = this.drafts.templateSemanticTermDraft.trim();
+    const termDraft = this.drafts.templateSemanticTermDraft;
+    const term = termDraft.trim();
+    const target = itemsUpdateTarget("template-semantic-library", "settings-template-semantic-library-card");
     if (!term) {
       this.templateSettingsFeedback = {
         type: "error",
         message: localize("settings.template.semantic.emptyTerm", "Enter a match term before adding it."),
       };
-      this.render(itemsUpdateTarget("template-semantic-library", "settings-template-semantic-library-card"));
+      this.render(target);
       return;
     }
 
@@ -1183,17 +1185,19 @@ export class SettingsController {
         type: "error",
         message: localize("settings.template.semantic.duplicateTerm", "Match term already exists."),
       };
-      this.render(itemsUpdateTarget("template-semantic-library", "settings-template-semantic-library-card"));
+      this.render(target);
       return;
     }
 
     if (disabledBuiltinTerm) {
+      this.drafts.templateSemanticTermDraft = "";
       await this.saveTemplateSettings({
         templateDisabledBuiltinSemanticIds: disabledBuiltinTermIds.filter(id => id !== disabledBuiltinTerm.id),
         templateSemanticTermOrder: [...activeTermOrder, disabledBuiltinTerm.id],
-      }, localize("settings.template.builtin.enabled", "Built-in semantic match term enabled for review."), itemsUpdateTarget("template-semantic-library", "settings-template-semantic-library-card"));
-      if (this.templateSettingsFeedback.type !== "error") {
-        this.drafts.templateSemanticTermDraft = "";
+      }, localize("settings.template.builtin.enabled", "Built-in semantic match term enabled for review."), target);
+      if (this.templateSettingsFeedback.type === "error") {
+        this.drafts.templateSemanticTermDraft = termDraft;
+        this.render(target);
       }
       return;
     }
@@ -1214,12 +1218,14 @@ export class SettingsController {
       ...customTerms,
       nextRule,
     ];
+    this.drafts.templateSemanticTermDraft = "";
     await this.saveTemplateSettings({
       templateSemanticAllowlist: nextCustomTerms,
       templateSemanticTermOrder: [...activeTermOrder, nextRule.id],
-    }, localize("settings.template.semantic.saved", "Template semantic library updated."), itemsUpdateTarget("template-semantic-library", "settings-template-semantic-library-card"));
-    if (this.templateSettingsFeedback.type !== "error") {
-      this.drafts.templateSemanticTermDraft = "";
+    }, localize("settings.template.semantic.saved", "Template semantic library updated."), target);
+    if (this.templateSettingsFeedback.type === "error") {
+      this.drafts.templateSemanticTermDraft = termDraft;
+      this.render(target);
     }
   }
 
