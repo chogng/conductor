@@ -437,7 +437,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       selectedRelativePath: null,
     });
 
-    assert.equal(firstImport.result?.prepared.fileInfo.fileName, "broken-content.csv");
+    assert.equal(firstImport.result?.entry.fileName, "broken-content.csv");
     assert.equal(failedFiles.length, 0);
   });
 
@@ -476,7 +476,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       selectedRelativePath: null,
     });
 
-    assert.equal(firstImport.result?.prepared.fileInfo.fileName, "flaky-content.csv");
+    assert.equal(firstImport.result?.entry.fileName, "flaky-content.csv");
     assert.equal(readCount, 0);
     assert.equal(failedFiles.length, 0);
   });
@@ -644,7 +644,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     });
 
     assert.deepEqual([...result.attemptedIndexes], [1]);
-    assert.equal(result.result?.prepared.fileInfo.fileName, "B.csv");
+    assert.equal(result.result?.entry.fileName, "B.csv");
     assert.equal(failedFiles.length, 0);
   });
 
@@ -666,7 +666,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.equal(failedFiles[0].fileName, "folder/A.csv");
   });
 
-  test("appends remaining prepared files in pending import order", async () => {
+  test("appends remaining Explorer files in pending import order", async () => {
     const failedFiles: FileImportPrepareFailure[] = [];
     const filesService = store.add(new FileService());
     const appendedFileNames: string[] = [];
@@ -675,8 +675,8 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       canApplyResult: () => true,
       failedFiles,
       filesService,
-      onPreparedFileSources: preparedFileSources => {
-        appendedFileNames.push(...preparedFileSources.map(file => file.fileInfo.fileName));
+      onExplorerFiles: entries => {
+        appendedFileNames.push(...entries.map(file => file.fileName ?? ""));
       },
       pendingImportFiles: [
         createPathPendingFile("A.csv", "folder/A.csv"),
@@ -694,15 +694,15 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
   test("path prepare preserves table resource metadata", async () => {
     const failedFiles: FileImportPrepareFailure[] = [];
     const filesService = store.add(new FileService());
-    const preparedPaths: string[] = [];
+    const resourcePaths: string[] = [];
 
     const acceptedCount = await prepareRemainingPendingImportFiles({
       canApplyResult: () => true,
       failedFiles,
       filesService,
-      onPreparedFileSources: preparedFileSources => {
-        preparedPaths.push(...preparedFileSources.map(file =>
-          String(file.fileInfo.resource?.fsPath ?? "").replace(/\\/g, "/")
+      onExplorerFiles: entries => {
+        resourcePaths.push(...entries.map(file =>
+          String(file.resource?.fsPath ?? "").replace(/\\/g, "/")
         ));
       },
       pendingImportFiles: [
@@ -713,7 +713,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     });
 
     assert.equal(acceptedCount, 2);
-    assert.deepEqual(preparedPaths, ["C:/data/A.csv", "C:/data/B.csv"]);
+    assert.deepEqual(resourcePaths, ["C:/data/A.csv", "C:/data/B.csv"]);
     assert.equal(failedFiles.length, 0);
   });
 
@@ -726,8 +726,8 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       canApplyResult: () => true,
       failedFiles,
       filesService,
-      onPreparedFileSources: preparedFileSources => {
-        appendCounts.push(preparedFileSources.length);
+      onExplorerFiles: entries => {
+        appendCounts.push(entries.length);
       },
       pendingImportFiles: Array.from({ length: 200 }, (_value, index) =>
         createPathPendingFile(`${index}.csv`, `folder/${index}.csv`)),
@@ -757,13 +757,13 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       getSelectedRelativePath: () => null,
       isDisposed: () => false,
       notificationService,
-      onAppendPreparedFileSources: preparedFileSources => {
-        appendedFileNames.push(...preparedFileSources.map(file => file.fileInfo.fileName));
+      onAppendExplorerFiles: entries => {
+        appendedFileNames.push(...entries.map(file => file.fileName ?? ""));
       },
       onDraggingChange: () => undefined,
       onRemoveSourceItems: () => undefined,
-      onReplacePreparedFileSources: preparedFileSources => {
-        replacedFileNames.push(...preparedFileSources.map(file => file.fileInfo.fileName));
+      onReplaceExplorerFiles: entries => {
+        replacedFileNames.push(...entries.map(file => file.fileName ?? ""));
       },
       syncView: () => undefined,
     });
@@ -777,7 +777,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.deepEqual(replacedFileNames, []);
   });
 
-  test("closing imported sources prevents delayed prepared files from appending", async () => {
+  test("closing imported sources prevents delayed Explorer files from appending", async () => {
     const appendedFileNames: string[] = [];
     const filesService = store.add(new FileService());
     store.add(filesService.registerProvider("file", store.add(new HTMLFileSystemProvider())));
@@ -791,13 +791,13 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       getSelectedRelativePath: () => null,
       isDisposed: () => false,
       notificationService,
-      onAppendPreparedFileSources: preparedFileSources => {
-        appendedFileNames.push(...preparedFileSources.map(file => file.fileInfo.fileName));
+      onAppendExplorerFiles: entries => {
+        appendedFileNames.push(...entries.map(file => file.fileName ?? ""));
       },
       onDraggingChange: () => undefined,
       onRemoveSourceItems: () => undefined,
-      onReplacePreparedFileSources: preparedFileSources => {
-        appendedFileNames.push(...preparedFileSources.map(file => file.fileInfo.fileName));
+      onReplaceExplorerFiles: entries => {
+        appendedFileNames.push(...entries.map(file => file.fileName ?? ""));
       },
       syncView: () => undefined,
     });
@@ -843,10 +843,10 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       getSelectedRelativePath: () => null,
       isDisposed: () => false,
       notificationService,
-      onAppendPreparedFileSources: () => undefined,
+      onAppendExplorerFiles: () => undefined,
       onDraggingChange: () => undefined,
       onRemoveSourceItems: () => undefined,
-      onReplacePreparedFileSources: () => undefined,
+      onReplaceExplorerFiles: () => undefined,
       syncView: () => undefined,
     });
 

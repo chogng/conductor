@@ -23,7 +23,7 @@ URI/resource open
   -> Table / Template / Review / Slice consumers read URI-backed model facts
 
 Explicit Explorer import
-  -> fileImportExport.ts PreparedFileImport
+  -> fileImportExport.ts resource-backed ExplorerFileEntry
   -> Explorer-local imported rows
   -> ITableService.open({ resource })
   -> TableFileEditorModel / ITableModel own URI-backed model lifecycle

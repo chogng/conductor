@@ -184,7 +184,7 @@ High-level analysis flow:
 
 ```txt
 Explorer source workflow
-  -> supported table resource URI / PreparedFileImport resource row
+  -> supported table resource URI / ExplorerFileEntry row
   -> Explorer-local imported rows
   -> ITableService.open({ resource })
   -> TableFileEditorModel / ITableModel snapshot/version

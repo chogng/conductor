@@ -18,10 +18,7 @@ import type { IInstantiationService } from "src/cs/platform/instantiation/common
 import { ExplorerViewPane } from "src/cs/workbench/contrib/files/browser/explorerViewlet";
 import { ExplorerView } from "src/cs/workbench/contrib/files/browser/views/explorerView";
 import { ExplorerViewer } from "src/cs/workbench/contrib/files/browser/views/explorerViewer";
-import type {
-  PendingImportFile,
-  PreparedFileImport,
-} from "src/cs/workbench/contrib/files/browser/fileImportExport";
+import type { PendingImportFile } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import {
   type ExplorerPaneInput,
@@ -138,7 +135,7 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
       relativePath: "293K/output/Output_.csv",
       resource,
     });
-    const preparedFile = createPreparedImport({
+    const explorerEntry = createExplorerImportEntry({
       fileName: "Output_.csv",
       itemKey: "source-output",
       relativePath: "293K/output/Output_.csv",
@@ -150,11 +147,11 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
         replacePendingSourceFiles(pendingFiles: readonly PendingImportFile[]): void;
       }).replacePendingSourceFiles([pendingFile]);
       (pane as unknown as {
-        replacePreparedImportFiles(
-          preparedFiles: readonly PreparedFileImport[],
+        replaceExplorerFiles(
+          entries: readonly ExplorerFileEntry[],
           selectedItemKey: string | null,
         ): void;
-      }).replacePreparedImportFiles([preparedFile], "source-output");
+      }).replaceExplorerFiles([explorerEntry], "source-output");
 
       assert.deepEqual(openedResources, []);
       assert.deepEqual(reviewedResources, [resource.toString()]);
@@ -170,7 +167,7 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
     }
   });
 
-  test("reviews appended prepared URI imports before hover summary reads", () => {
+  test("reviews appended URI imports before hover summary reads", () => {
     const reviewedResources: string[] = [];
     const resource = URI.file("/workspace/transfer/3.csv");
     const pane = createExplorerViewPane({
@@ -178,7 +175,7 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
         reviewedResources.push(target.resource.toString());
       },
     });
-    const preparedFile = createPreparedImport({
+    const explorerEntry = createExplorerImportEntry({
       fileName: "3.csv",
       itemKey: "source-transfer",
       relativePath: "transfer/3.csv",
@@ -187,8 +184,8 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
 
     try {
       (pane as unknown as {
-        appendPreparedImportFiles(preparedFiles: readonly PreparedFileImport[]): void;
-      }).appendPreparedImportFiles([preparedFile]);
+        appendExplorerFiles(entries: readonly ExplorerFileEntry[]): void;
+      }).appendExplorerFiles([explorerEntry]);
 
       assert.deepEqual(reviewedResources, [resource.toString()]);
     } finally {
@@ -396,7 +393,7 @@ const createPendingImportFile = ({
   sourceSize: 7,
 });
 
-const createPreparedImport = ({
+const createExplorerImportEntry = ({
   fileName,
   itemKey,
   relativePath,
@@ -406,30 +403,21 @@ const createPreparedImport = ({
   readonly itemKey: string;
   readonly relativePath: string;
   readonly resource: URI;
-}): PreparedFileImport => {
+}): ExplorerFileEntry => {
   const file = new File(["A,B\n1,2"], fileName, {
     lastModified: 1,
     type: "text/csv",
   });
   const sourcePath = resource.fsPath;
   return {
-    fileEntry: {
-      file,
-      itemKey,
-      relativePath,
-      resource,
-      sourcePath,
-    },
-    fileInfo: {
-      file,
-      fileName,
-      itemKey,
-      lastModified: 1,
-      relativePath,
-      resource,
-      size: 7,
-      sourcePath,
-    },
+    file,
+    fileId: resource.toString(),
+    fileName,
+    itemKey,
+    localImport: true,
+    relativePath,
+    resource,
+    sourcePath,
   };
 };
 

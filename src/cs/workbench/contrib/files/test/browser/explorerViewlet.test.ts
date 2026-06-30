@@ -6,7 +6,6 @@ import assert from "assert";
 
 import { URI } from "src/cs/base/common/uri";
 import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
-import type { PreparedFileSource } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import {
 	ExplorerViewPane,
 	resolveExplorerSourceReplaceRemovedFileIds,
@@ -44,37 +43,37 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
 		assert.deepStrictEqual(removedFileIds, ["old-b"]);
 	});
 
-	test("opens the selected prepared URI import after pending source replacement", () => {
-		const preparedEntry = createExplorerFileEntry({
+	test("opens the selected URI import after pending source replacement", () => {
+		const resourceEntry = createExplorerFileEntry({
 			fileId: "file-b",
 			itemKey: "source-b",
 			resource: URI.file("/workspace/transfer/3.csv"),
 		});
 		const result = resolveExplorerImportOpenEntry({
-			files: [preparedEntry],
-			importedEntries: [preparedEntry],
-			selectedResource: preparedEntry.resource ?? null,
-			selectedSheetId: preparedEntry.sheetId ?? null,
+			files: [resourceEntry],
+			importedEntries: [resourceEntry],
+			selectedResource: resourceEntry.resource ?? null,
+			selectedSheetId: resourceEntry.sheetId ?? null,
 		});
 
 		assert.deepStrictEqual({
 			resource: result.entry?.resource?.toString(),
 			shouldSelect: result.shouldSelect,
 		}, {
-			resource: preparedEntry.resource?.toString(),
+			resource: resourceEntry.resource?.toString(),
 			shouldSelect: false,
 		});
 	});
 
 	test("selects and opens the first import when there is no valid current selection", () => {
-		const preparedEntry = createExplorerFileEntry({
+		const resourceEntry = createExplorerFileEntry({
 			fileId: "file-b",
 			itemKey: "source-b",
 			resource: URI.file("/workspace/transfer/3.csv"),
 		});
 		const result = resolveExplorerImportOpenEntry({
-			files: [preparedEntry],
-			importedEntries: [preparedEntry],
+			files: [resourceEntry],
+			importedEntries: [resourceEntry],
 			selectedResource: URI.file("/workspace/missing.csv"),
 			selectedSheetId: null,
 		});
@@ -83,22 +82,22 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
 			resource: result.entry?.resource?.toString(),
 			shouldSelect: result.shouldSelect,
 		}, {
-			resource: preparedEntry.resource?.toString(),
+			resource: resourceEntry.resource?.toString(),
 			shouldSelect: true,
 		});
 	});
 
 	test("forces table selection handoff when import starts outside the table pane", () => {
-		const preparedEntry = createExplorerFileEntry({
+		const resourceEntry = createExplorerFileEntry({
 			fileId: "file-b",
 			itemKey: "source-b",
 			resource: URI.file("/workspace/transfer/3.csv"),
 		});
 		const result = resolveExplorerImportOpenEntry({
-			files: [preparedEntry],
-			importedEntries: [preparedEntry],
-			selectedResource: preparedEntry.resource ?? null,
-			selectedSheetId: preparedEntry.sheetId ?? null,
+			files: [resourceEntry],
+			importedEntries: [resourceEntry],
+			selectedResource: resourceEntry.resource ?? null,
+			selectedSheetId: resourceEntry.sheetId ?? null,
 		});
 
 		assert.equal(result.shouldSelect, false);
@@ -106,7 +105,7 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
 		assert.equal(shouldSelectExplorerImportTableTarget(result, "table"), false);
 	});
 
-	test("schedules review when prepared append targets an already committed Explorer row", () => {
+	test("schedules review when append targets an already committed Explorer row", () => {
 		const resource = URI.file("/workspace/transfer/3.csv");
 		const existingEntry = createExplorerFileEntry({
 			fileId: "file-existing",
@@ -144,27 +143,18 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
 			lastModified: 1,
 			type: "text/csv",
 		});
-		const preparedFile: PreparedFileSource = {
-			fileEntry: {
-				file,
-				itemKey: "source-existing",
-				relativePath: "transfer/3.csv",
-				resource,
-				sourcePath: resource.fsPath,
-			},
-			fileInfo: {
-				file,
-				fileName: "3.csv",
-				itemKey: "source-existing",
-				lastModified: 1,
-				relativePath: "transfer/3.csv",
-				resource,
-				size: file.size,
-				sourcePath: resource.fsPath,
-			},
+		const entry: ExplorerFileEntry = {
+			file,
+			fileId: "file-existing",
+			fileName: "3.csv",
+			itemKey: "source-existing",
+			localImport: true,
+			relativePath: "transfer/3.csv",
+			resource,
+			sourcePath: resource.fsPath,
 		};
 
-		pane.appendPreparedFileSources([preparedFile]);
+		pane.appendExplorerFiles([entry]);
 
 		assert.equal(didSync, true);
 		assert.deepStrictEqual(reviewTargets.map(target => ({
@@ -178,7 +168,7 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
 });
 
 type ExplorerViewPaneImportHarness = {
-	appendPreparedFileSources(preparedFileSources: readonly PreparedFileSource[]): void;
+	appendExplorerFiles(entries: readonly ExplorerFileEntry[]): void;
 };
 
 function createExplorerFileEntry({

@@ -22,7 +22,7 @@ platform/files/IFileService
   low-level filesystem capability
 
 workbench/contrib/files/browser/fileImportExport.ts
-  dialog/drop/folder/clipboard/manual -> resource-backed PreparedFileImport rows
+  dialog/drop/folder/clipboard/manual -> resource-backed ExplorerFileEntry rows
 
 workbench/services/table/common/tableFormatService.ts
   table import format policy for CSV/TSV/XLS/XLSX resources
@@ -49,7 +49,7 @@ the closest-looking name.
 | source collection | dialog/drop/folder/clipboard/manual -> supported table file sources | Explorer workflow/helpers plus table format policy |
 | table editor support check | URI/file-name support checks before opening a table editor/preview or before read/parse where possible; `.csv`/`.tsv`/`.xls`/`.xlsx` are table formats, not URI schemes, read encodings, or languageIds | `services/table/common/tableFormatService.ts`, command/editor/model resolver |
 | table editor/model lifecycle | service-local URI/input model for open, preview, cache, reload, watch, save, and source-version state | `services/tableFile` working-copy owner plus table model resolver; no resource record and not Session |
-| source preparation result | Explorer-local row metadata, table resource URI, and diagnostics before table resource open | `PreparedFileImport` / `PreparedFileImportEntry` |
+| source preparation result | Explorer-local row metadata, table resource URI, and diagnostics before table resource open | `ExplorerFileEntry` |
 | Explorer local import | explicit user import that updates Explorer-visible rows and opens a table resource without Session | `ExplorerViewPane` |
 
 Use user-facing "Import" in labels if appropriate, but use precise internal
@@ -90,7 +90,7 @@ Explorer source workflow owns:
 
 - source metadata and bytes/path inputs from dialog/drop/folder/clipboard/manual entry points;
 - browser `File` provider registration when a dropped source has no durable resource URI;
-- `PreparedFileImport` / `PreparedFileImportEntry` rows, resource URIs, and source diagnostics.
+- resource-backed `ExplorerFileEntry` rows, resource URIs, and source diagnostics.
 
 Migration-ledger raw-table records are Session contracts, and migration-ledger
 raw-row reading is a Slice execution detail. Files/Explorer does not own raw
@@ -99,7 +99,7 @@ generation, Session mutation, or DOM rendering outside its own views.
 
 Explorer import workflows must not infer semantic badges during source
 collection or source preparation. Pending source rows may show only pending, preparing,
-or failed UI state until the file is prepared and downstream Review/Slice
+or failed UI state until the file has a resolved resource and downstream Review/Slice
 state arrives through their owning services.
 
 ## Core Files
@@ -133,7 +133,7 @@ state arrives through their owning services.
 
 `FileSourceWorkflow` is a private Explorer view helper, not a service boundary.
 It may collect sources, watch imported folders, prepare resource-backed rows, and
-return prepared imports to the caller. It must not own Session records or
+return Explorer rows to the caller. It must not own Session records or
 subscribe to table/template/table-model state.
 
 ## Format Boundary
@@ -172,15 +172,15 @@ Explorer drop/dialog/clipboard/folder
   -> command/editor/source workflow support check
   -> source collection / pending Explorer entries
   -> assign table resource URI / register browser File with file provider when needed
-  -> PreparedFileImport resource rows
+  -> resource-backed ExplorerFileEntry rows
   -> ExplorerViewPane commits rows through IExplorerService file-model APIs
-  -> ExplorerViewPane ensures IReviewService.resolveReviewSummary({ resource, sheetId? }) runs for prepared resource/sheet rows, even when no Explorer row is added
+  -> ExplorerViewPane ensures IReviewService.resolveReviewSummary({ resource, sheetId? }) runs for resolved resource/sheet rows, even when no Explorer row is added
   -> WorkbenchDomainBridge projects ExplorerPaneInput.resourceStates keyed by { resource, sheetId? }
   -> ITableService.open({ resource })
   -> TableFileEditorModel / ITableModel own URI-backed model lifecycle
 ```
 
-For folder source replacement, Explorer may publish pending/prepared rows in
+For folder source replacement, Explorer may publish pending/resource-backed rows in
 batches, but it defers the table-resource open until the replacement completes.
 That keeps the Explorer tree update ahead of table model resolution, matching
 the upstream Explorer-then-editor ordering.
@@ -245,7 +245,7 @@ Pending source entries are display-only Explorer rows. They must not be
 committed to Session, selected as real files, used for duplicate detection, or
 participate in file actions. When source preparation resolves the real file,
 Explorer replaces the pending projection and explicitly asks Review to evaluate
-the prepared `{ resource, sheetId? }` identity; Explorer still does not infer semantic badges during
+the resolved `{ resource, sheetId? }` identity; Explorer still does not infer semantic badges during
 source collection or preparation.
 
 Review input changes for already-visible Explorer rows are likewise projected
