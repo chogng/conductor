@@ -8,7 +8,6 @@ import { URI } from "src/cs/base/common/uri";
 import { startPerf } from "src/cs/workbench/common/perf";
 import {
   type ExplorerPaneInput,
-  type ExplorerResourceTarget,
   type ExplorerSelectionKind,
   type IExplorerService,
 } from "src/cs/workbench/contrib/files/browser/files";
@@ -18,6 +17,7 @@ import {
   getExplorerFileResourceIdentity,
   getExplorerResourceIdentityKey,
   type ExplorerFileEntry,
+  type ExplorerResourceIdentity,
   buildExplorerTree,
   type ExplorerTreeNode,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
@@ -88,7 +88,7 @@ export class WorkbenchDomainBridge extends Disposable {
     this._register(this.options.explorerService.onDidChangeFiles(() => this.scheduleSync()));
     this._register(this.options.explorerService.onDidChangeSelection(event => {
       this.prioritizeProcessingFile(
-        getExplorerFileIdForResourceTarget(
+        getExplorerFileIdForResourceIdentity(
           this.options.explorerService.files,
           {
             resource: event.selectedResource,
@@ -101,15 +101,15 @@ export class WorkbenchDomainBridge extends Disposable {
     }));
     this._register(this.options.explorerService.onDidChangeHoveredResource(event => {
       this.prioritizeProcessingFile(
-        getExplorerFileIdForResourceTarget(
+        getExplorerFileIdForResourceIdentity(
           this.options.explorerService.files,
-          event.target,
+          event.resource,
         ),
         "hover",
       );
     }));
     this._register(this.options.explorerService.onDidChangeVisibleTargets(event => {
-      this.prioritizeVisibleExplorerTargets(event.visibleTargets, event.nearbyTargets);
+      this.prioritizeVisibleExplorerResources(event.visibleTargets, event.nearbyTargets);
     }));
     this._register(this.options.plotService.onDidChangePlotState(() => this.scheduleSync()));
     this._register(this.options.sliceService.onDidChangeResourceSliceResult(() => this.scheduleInteractiveSync()));
@@ -260,7 +260,7 @@ export class WorkbenchDomainBridge extends Disposable {
     }
 
     const selectedIdentity = resolveExplorerSelectedResourceIdentity(
-      getExplorerSelectedResourceTarget(this.options.explorerService) ?? {
+      getExplorerSelectedResourceIdentity(this.options.explorerService) ?? {
         resource: paneInput.selectedResource,
         sheetId: paneInput.selectedSheetId ?? null,
       },
@@ -273,7 +273,7 @@ export class WorkbenchDomainBridge extends Disposable {
 
     this.options.explorerService.select({
       kind: "table",
-      candidateResources: resourceIdentities.map(toExplorerResourceTarget),
+      candidateResources: resourceIdentities,
       resource: selectedIdentity?.resource ?? null,
       sheetId: selectedIdentity?.sheetId ?? null,
     });
@@ -295,7 +295,7 @@ export class WorkbenchDomainBridge extends Disposable {
     }
 
     const selectedIdentity = resolveExplorerSelectedResourceIdentity(
-      getExplorerSelectedResourceTarget(this.options.explorerService) ?? {
+      getExplorerSelectedResourceIdentity(this.options.explorerService) ?? {
         resource: paneInput.selectedResource,
         sheetId: paneInput.selectedSheetId ?? null,
       },
@@ -312,7 +312,7 @@ export class WorkbenchDomainBridge extends Disposable {
     }
 
     this.options.explorerService.select({
-      candidateResources: createExplorerResourceIdentities(explorerFiles).map(toExplorerResourceTarget),
+      candidateResources: createExplorerResourceIdentities(explorerFiles),
       kind: "chart",
       resource: selectedIdentity?.resource ?? null,
       sheetId: selectedIdentity?.sheetId ?? null,
@@ -577,13 +577,13 @@ export class WorkbenchDomainBridge extends Disposable {
     }
   }
 
-  private prioritizeVisibleExplorerTargets(
-    visibleTargets: readonly ExplorerResourceTarget[],
-    nearbyTargets: readonly ExplorerResourceTarget[],
+  private prioritizeVisibleExplorerResources(
+    visibleResources: readonly ExplorerResourceIdentity[],
+    nearbyResources: readonly ExplorerResourceIdentity[],
   ): void {
     if (this.options.layoutService.activeWorkbenchMainPart === "chart") {
-      this.prefetchPlotDisplayResourceTargets(visibleTargets, "visible", "visibleExplorerTargets");
-      this.prefetchPlotDisplayResourceTargets(nearbyTargets, "nearby", "nearbyExplorerTargets");
+      this.prefetchPlotDisplayResourceIdentities(visibleResources, "visible", "visibleExplorerResources");
+      this.prefetchPlotDisplayResourceIdentities(nearbyResources, "nearby", "nearbyExplorerResources");
     }
     if (!shouldPrefetchExplorerThumbnails({
       activeWorkbenchMainPart: this.options.layoutService.activeWorkbenchMainPart,
@@ -592,8 +592,8 @@ export class WorkbenchDomainBridge extends Disposable {
       return;
     }
 
-    const visibleThumbnailTargets = createThumbnailPreviewTargets(visibleTargets);
-    const nearbyThumbnailTargets = createThumbnailPreviewTargets(nearbyTargets);
+    const visibleThumbnailTargets = createThumbnailPreviewTargets(visibleResources);
+    const nearbyThumbnailTargets = createThumbnailPreviewTargets(nearbyResources);
     if (visibleThumbnailTargets.length) {
       this.options.thumbnailPreviewService.prefetch(visibleThumbnailTargets, "visible");
     }
@@ -602,8 +602,8 @@ export class WorkbenchDomainBridge extends Disposable {
     }
   }
 
-  private prefetchPlotDisplayResourceTargets(
-    targets: readonly ExplorerResourceTarget[],
+  private prefetchPlotDisplayResourceIdentities(
+    resourceIdentities: readonly ExplorerResourceIdentity[],
     priority: PlotCalculatedDataPrefetchPriority,
     source: string,
   ): void {
@@ -611,10 +611,10 @@ export class WorkbenchDomainBridge extends Disposable {
       return;
     }
 
-    const inputs = createThumbnailPreviewTargets(targets).map(target => ({
+    const inputs = createThumbnailPreviewTargets(resourceIdentities).map(resourceIdentity => ({
       plotType: this.options.plotService.getState().activePlotType,
-      resource: target.resource,
-      sheetId: target.sheetId ?? null,
+      resource: resourceIdentity.resource,
+      sheetId: resourceIdentity.sheetId ?? null,
     }));
     if (!inputs.length) {
       return;
@@ -704,7 +704,7 @@ export class WorkbenchDomainBridge extends Disposable {
       return createPerformanceTraceChartTargets({
         expandedFolderKeys: this.options.explorerService.expandedFolderKeys,
         files: visibleFiles,
-        selectedTarget: getExplorerSelectedResourceTarget(this.options.explorerService) ?? {
+        selectedResourceIdentity: getExplorerSelectedResourceIdentity(this.options.explorerService) ?? {
           resource: currentPaneInput.selectedResource,
           sheetId: currentPaneInput.selectedSheetId ?? null,
         },
@@ -727,14 +727,14 @@ export class WorkbenchDomainBridge extends Disposable {
     const file = visibleFiles.find(candidate =>
       normalizeExplorerSelectionFileId(candidate.fileId) === normalizedFileId
     ) ?? null;
-    const selectedTarget = getExplorerFileResourceIdentity(file);
-    const acceptedTarget = this.options.explorerService.select({
-      candidateResources: createExplorerResourceIdentities(visibleFiles).map(toExplorerResourceTarget),
+    const selectedResourceIdentity = getExplorerFileResourceIdentity(file);
+    const acceptedResourceIdentity = this.options.explorerService.select({
+      candidateResources: createExplorerResourceIdentities(visibleFiles),
       kind: "chart",
-      resource: selectedTarget?.resource ?? null,
-      sheetId: selectedTarget?.sheetId ?? null,
+      resource: selectedResourceIdentity?.resource ?? null,
+      sheetId: selectedResourceIdentity?.sheetId ?? null,
     }, reveal);
-    const acceptedFileId = getExplorerFileIdForResourceTarget(visibleFiles, acceptedTarget);
+    const acceptedFileId = getExplorerFileIdForResourceIdentity(visibleFiles, acceptedResourceIdentity);
     return acceptedFileId && targets.some(target => target.fileId === acceptedFileId)
       ? acceptedFileId
       : null;
@@ -743,9 +743,9 @@ export class WorkbenchDomainBridge extends Disposable {
   private getPerformanceTraceSelectedChartTargetFileId(): string | null {
     const paneInput = this.options.explorerService.getPaneInput();
     const visibleFiles = this.getPerformanceTraceVisibleChartFiles(paneInput);
-    return getExplorerFileIdForResourceTarget(
+    return getExplorerFileIdForResourceIdentity(
       visibleFiles,
-      getExplorerSelectedResourceTarget(this.options.explorerService),
+      getExplorerSelectedResourceIdentity(this.options.explorerService),
     );
   }
 
@@ -761,9 +761,9 @@ export class WorkbenchDomainBridge extends Disposable {
     const file = visibleFiles.find(candidate =>
       normalizeExplorerSelectionFileId(candidate.fileId) === normalizedFileId
     ) ?? null;
-    const target = getExplorerFileResourceIdentity(file);
-    this.options.explorerService.setHoveredResource(target);
-    return target ? normalizedFileId : null;
+    const resourceIdentity = getExplorerFileResourceIdentity(file);
+    this.options.explorerService.setHoveredResource(resourceIdentity);
+    return resourceIdentity ? normalizedFileId : null;
   }
 
   private getPerformanceTraceVisibleChartFiles(
@@ -891,19 +891,19 @@ const isSliceChartTargetFile = (
 const createPerformanceTraceChartTargets = ({
   expandedFolderKeys,
   files,
-  selectedTarget,
+  selectedResourceIdentity,
   sliceService,
 }: {
   readonly expandedFolderKeys: readonly string[];
   readonly files: readonly ExplorerFileEntry[];
-  readonly selectedTarget?: ExplorerResourceTarget | null;
+  readonly selectedResourceIdentity?: ExplorerResourceIdentity | null;
   readonly sliceService: Pick<ISliceService, "getResourceResult" | "getResourceState">;
 }): readonly TemplateApplyPerformanceTraceChartTarget[] => {
   const rowIndicesByFileId = createTraceRowIndicesByFileId(
     files,
     expandedFolderKeys,
   );
-  const selectedResourceKey = getExplorerResourceIdentityKey(selectedTarget);
+  const selectedResourceKey = getExplorerResourceIdentityKey(selectedResourceIdentity);
   return files
     .map((file, index) => {
       const fileId = normalizeExplorerSelectionFileId(file.fileId);
@@ -1028,7 +1028,7 @@ export const resolveExplorerDomainSelection = (
 ): ExplorerDomainSelection => {
   const input = createExplorerDomainSelectionInput(paneFiles);
   const selectedIdentity = resolveExplorerSelectedResourceIdentity(
-    getExplorerSelectedResourceTarget(explorerService),
+    getExplorerSelectedResourceIdentity(explorerService),
     input.rawSources,
   );
   return {
@@ -1046,10 +1046,10 @@ export const reconcileExplorerDomainSelection = (
   const input = createExplorerDomainSelectionInput(
     explorerService.files,
   );
-  const selectedIdentity = reconcileExplorerSelectedResourceTarget(
+  const selectedIdentity = reconcileExplorerSelectedResourceIdentity(
     explorerService,
     kind,
-    getExplorerSelectedResourceTarget(explorerService),
+    getExplorerSelectedResourceIdentity(explorerService),
     input.rawSources,
   );
 
@@ -1074,8 +1074,8 @@ export const createExplorerPaneInput = ({
   const explorerResourceFiles = getExplorerResourceFiles(
     explorerService.files,
   );
-  const selectedTarget = resolveVisibleExplorerSelectedResourceTarget(
-    getExplorerSelectedResourceTarget(explorerService),
+  const selectedResourceIdentity = resolveVisibleExplorerSelectedResourceIdentity(
+    getExplorerSelectedResourceIdentity(explorerService),
     explorerResourceFiles,
   );
   return {
@@ -1083,25 +1083,25 @@ export const createExplorerPaneInput = ({
     mode,
     originOpenPlotOptions,
     plotAxisSettings,
-    selectedResource: selectedTarget?.resource ?? null,
-    selectedSheetId: selectedTarget?.sheetId ?? null,
+    selectedResource: selectedResourceIdentity?.resource ?? null,
+    selectedSheetId: selectedResourceIdentity?.sheetId ?? null,
     selectionKind,
     templateSelections: sliceState.templateSelections,
   };
 };
 
-const reconcileExplorerSelectedResourceTarget = (
+const reconcileExplorerSelectedResourceIdentity = (
   explorerService: Pick<IExplorerService, "select">,
   kind: ExplorerSelectionKind,
-  selectedTarget: ExplorerResourceTarget | null,
+  selectedResourceIdentity: ExplorerResourceIdentity | null,
   rawSources: readonly ExplorerResourceFileIdentity[],
 ): ExplorerResourceFileIdentity | null => {
   const selectedIdentity = resolveExplorerSelectedResourceIdentity(
-    selectedTarget,
+    selectedResourceIdentity,
     rawSources,
   );
   explorerService.select({
-    candidateResources: rawSources.map(toExplorerResourceTarget),
+    candidateResources: rawSources,
     kind,
     resource: selectedIdentity?.resource ?? null,
     sheetId: selectedIdentity?.sheetId ?? null,
@@ -1109,9 +1109,9 @@ const reconcileExplorerSelectedResourceTarget = (
   return selectedIdentity;
 };
 
-const getExplorerSelectedResourceTarget = (
+const getExplorerSelectedResourceIdentity = (
   explorerService: ExplorerSelectionState,
-): ExplorerResourceTarget | null => {
+): ExplorerResourceIdentity | null => {
   if (!explorerService.selectedResource) {
     return null;
   }
@@ -1129,27 +1129,27 @@ const createExplorerResourceIdentities = (
   const seen = new Set<string>();
   for (const file of paneFiles) {
     const fileId = normalizeExplorerSelectionFileId(file.fileId);
-    const target = getExplorerFileResourceIdentity(file);
-    const key = getExplorerResourceIdentityKey(target);
-    if (!fileId || !target?.resource || !key || seen.has(key)) {
+    const resourceIdentity = getExplorerFileResourceIdentity(file);
+    const key = getExplorerResourceIdentityKey(resourceIdentity);
+    if (!fileId || !resourceIdentity?.resource || !key || seen.has(key)) {
       continue;
     }
 
     seen.add(key);
     result.push({
       fileId,
-      resource: target.resource,
-      sheetId: target.sheetId ?? null,
+      resource: resourceIdentity.resource,
+      sheetId: resourceIdentity.sheetId ?? null,
     });
   }
   return result;
 };
 
 const resolveExplorerSelectedResourceIdentity = (
-  selectedTarget: ExplorerResourceTarget | null | undefined,
+  selectedResourceIdentity: ExplorerResourceIdentity | null | undefined,
   rawSources: readonly ExplorerResourceFileIdentity[],
 ): ExplorerResourceFileIdentity | null => {
-  const selectedKey = getExplorerResourceIdentityKey(selectedTarget);
+  const selectedKey = getExplorerResourceIdentityKey(selectedResourceIdentity);
   if (selectedKey) {
     const selectedIdentity = rawSources.find(source =>
       getExplorerResourceIdentityKey(source) === selectedKey);
@@ -1161,38 +1161,30 @@ const resolveExplorerSelectedResourceIdentity = (
   return rawSources[0] ?? null;
 };
 
-const resolveVisibleExplorerSelectedResourceTarget = (
-  selectedTarget: ExplorerResourceTarget | null,
+const resolveVisibleExplorerSelectedResourceIdentity = (
+  selectedResourceIdentity: ExplorerResourceIdentity | null,
   files: readonly ExplorerFileEntry[],
-): ExplorerResourceTarget | null => {
-  const selectedKey = getExplorerResourceIdentityKey(selectedTarget);
+): ExplorerResourceIdentity | null => {
+  const selectedKey = getExplorerResourceIdentityKey(selectedResourceIdentity);
   if (!selectedKey) {
     return null;
   }
 
-  const visibleTarget = createExplorerResourceIdentities(files)
+  return createExplorerResourceIdentities(files)
     .find(identity => getExplorerResourceIdentityKey(identity) === selectedKey);
-  return visibleTarget ? toExplorerResourceTarget(visibleTarget) : null;
 };
 
-const toExplorerResourceTarget = (
-  identity: Pick<ExplorerResourceFileIdentity, "resource" | "sheetId">,
-): ExplorerResourceTarget => ({
-  resource: identity.resource,
-  ...(identity.sheetId ? { sheetId: identity.sheetId } : {}),
-});
-
-const getExplorerFileIdForResourceTarget = (
+const getExplorerFileIdForResourceIdentity = (
   files: readonly ExplorerFileEntry[],
-  target: ExplorerResourceTarget | null | undefined,
+  resourceIdentity: ExplorerResourceIdentity | null | undefined,
 ): string | null => {
-  const targetKey = getExplorerResourceIdentityKey(target);
-  if (!targetKey) {
+  const resourceKey = getExplorerResourceIdentityKey(resourceIdentity);
+  if (!resourceKey) {
     return null;
   }
 
   const file = files.find(candidate =>
-    getExplorerResourceIdentityKey(getExplorerFileResourceIdentity(candidate)) === targetKey);
+    getExplorerResourceIdentityKey(getExplorerFileResourceIdentity(candidate)) === resourceKey);
   return normalizeExplorerSelectionFileId(file?.fileId);
 };
 
@@ -1303,10 +1295,10 @@ const hasExplorerResourceForChartFileId = (
 };
 
 const createThumbnailPreviewTargets = (
-  targets: readonly ExplorerResourceTarget[],
+  resourceIdentities: readonly ExplorerResourceIdentity[],
 ): readonly ThumbnailPreviewTarget[] =>
-  targets
-    .map(target => normalizeExplorerResourceSheet(target))
+  resourceIdentities
+    .map(resourceIdentity => normalizeExplorerResourceSheet(resourceIdentity))
     .filter((resource): resource is ResourceSheetIdentity => Boolean(resource?.resource));
 
 const createThumbnailPreviewTargetsForExplorerFileIds = (
@@ -1336,16 +1328,16 @@ const createThumbnailPreviewTargetsForExplorerFileIds = (
 };
 
 const normalizeExplorerResourceSheet = (
-  target: ExplorerResourceTarget | null | undefined,
+  resourceIdentity: ExplorerResourceIdentity | null | undefined,
 ): ResourceSheetIdentity | null => {
-  const resource = target?.resource ? URI.revive(target.resource) : null;
+  const resource = resourceIdentity?.resource ? URI.revive(resourceIdentity.resource) : null;
   if (!resource) {
     return null;
   }
 
   return {
     resource,
-    sheetId: normalizeExplorerSelectionItemKey(target?.sheetId),
+    sheetId: normalizeExplorerSelectionItemKey(resourceIdentity?.sheetId),
   };
 };
 
@@ -1393,16 +1385,18 @@ const resolveChartState = (
 };
 
 const createExplorerPaneTableSource = (
-  selection: Pick<ExplorerDomainSelection, "selectedResource" | "selectedSheetId"> | ExplorerResourceTarget | null,
+  selection: Pick<ExplorerDomainSelection, "selectedResource" | "selectedSheetId"> | ExplorerResourceIdentity | null,
   files: readonly ExplorerFileEntry[],
 ): TableSource | null => {
-  const selectedTarget = selection && "selectedResource" in selection
-    ? {
-        resource: selection.selectedResource,
-        sheetId: selection.selectedSheetId,
-      }
+  const selectedResourceIdentity = selection && "selectedResource" in selection
+    ? selection.selectedResource
+      ? {
+          resource: selection.selectedResource,
+          sheetId: selection.selectedSheetId,
+        }
+      : null
     : selection;
-  const selectedKey = getExplorerResourceIdentityKey(selectedTarget);
+  const selectedKey = getExplorerResourceIdentityKey(selectedResourceIdentity);
   if (!selectedKey) {
     return null;
   }

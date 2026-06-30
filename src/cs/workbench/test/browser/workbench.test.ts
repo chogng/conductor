@@ -130,7 +130,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.equal(input.selectedResource, null);
   });
 
-  test("creates chart thumbnail input from Explorer resource targets", () => {
+  test("creates chart thumbnail input from Explorer resource rows", () => {
     const explorerService = store.add(new ExplorerService());
     const resource = URI.file("/data/ProcessedA.csv");
     const files = [{
@@ -230,7 +230,7 @@ suite("workbench/browser/workbench thumbnail prefetch gating", () => {
 suite("workbench/browser/WorkbenchDomainBridge", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-  test("prioritizes selected Explorer resource targets immediately for plot prefetch", () => {
+  test("prioritizes selected Explorer resource immediately for plot prefetch", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const resource = URI.file("/data/B.csv");

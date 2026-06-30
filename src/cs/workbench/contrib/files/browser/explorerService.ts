@@ -17,7 +17,6 @@ import {
   type ExplorerCopyState,
   type ExplorerEditableData,
   type ExplorerRevealMode,
-  type ExplorerResourceTarget,
   type ExplorerSelectionKind,
   type ExplorerSelectionTarget,
   type IExplorerView,
@@ -31,6 +30,7 @@ import {
   getExplorerResourceIdentityKey,
   mergeExplorerCommittedFiles,
   type ExplorerFileEntry,
+  type ExplorerResourceIdentity,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 
 export class ExplorerService extends Disposable implements IExplorerService {
@@ -55,11 +55,11 @@ export class ExplorerService extends Disposable implements IExplorerService {
 
   private currentSelectedResource: URI | null = null;
   private currentSelectedSheetId: string | null = null;
-  private currentHoveredResource: ExplorerResourceTarget | null = null;
+  private currentHoveredResource: ExplorerResourceIdentity | null = null;
   private currentExpandedFolderKeys: readonly string[] = [];
   private knownFolderKeys: readonly string[] = [];
-  private currentNearbyTargets: readonly ExplorerResourceTarget[] = [];
-  private currentVisibleTargets: readonly ExplorerResourceTarget[] = [];
+  private currentNearbyTargets: readonly ExplorerResourceIdentity[] = [];
+  private currentVisibleTargets: readonly ExplorerResourceIdentity[] = [];
   private currentViewLayout: ExplorerViewLayout = "tree";
   private currentHasPendingSourceFiles = false;
   private currentFiles: ExplorerFileEntry[] = [];
@@ -87,7 +87,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
     return this.currentFiles;
   }
 
-  public get hoveredResource(): ExplorerResourceTarget | null {
+  public get hoveredResource(): ExplorerResourceIdentity | null {
     return this.currentHoveredResource;
   }
 
@@ -118,7 +118,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
     });
   }
 
-  public select(target: ExplorerSelectionTarget, reveal?: ExplorerRevealMode): ExplorerResourceTarget | null {
+  public select(target: ExplorerSelectionTarget, reveal?: ExplorerRevealMode): ExplorerResourceIdentity | null {
     const result = this.applySelection(target);
     if (result.accepted && (result.changed || reveal !== undefined)) {
       const { sheetId: _sheetId, ...targetWithoutSheetId } = target;
@@ -231,14 +231,14 @@ export class ExplorerService extends Disposable implements IExplorerService {
     }
   }
 
-  public setHoveredResource(target: ExplorerResourceTarget | null): void {
-    const nextTarget = normalizeExplorerResourceTarget(target);
-    if (areExplorerResourceTargetsEqual(this.currentHoveredResource, nextTarget)) {
+  public setHoveredResource(resource: ExplorerResourceIdentity | null): void {
+    const nextResource = normalizeExplorerResourceIdentity(resource);
+    if (areExplorerResourceIdentitiesEqual(this.currentHoveredResource, nextResource)) {
       return;
     }
 
-    this.currentHoveredResource = nextTarget;
-    this.onDidChangeHoveredResourceEmitter.fire({ target: nextTarget });
+    this.currentHoveredResource = nextResource;
+    this.onDidChangeHoveredResourceEmitter.fire({ resource: nextResource });
   }
 
   public setExpandedFolderKeys(folderKeys: readonly string[]): void {
@@ -279,16 +279,16 @@ export class ExplorerService extends Disposable implements IExplorerService {
   }
 
   public setVisibleTargets(
-    visibleTargets: readonly ExplorerResourceTarget[],
-    nearbyTargets: readonly ExplorerResourceTarget[] = [],
+    visibleTargets: readonly ExplorerResourceIdentity[],
+    nearbyTargets: readonly ExplorerResourceIdentity[] = [],
   ): void {
-    const nextVisibleTargets = normalizeExplorerResourceTargets(visibleTargets);
+    const nextVisibleTargets = normalizeExplorerResourceIdentities(visibleTargets);
     const visibleTargetKeys = new Set(nextVisibleTargets.map(getRequiredExplorerResourceIdentityKey));
-    const nextNearbyTargets = normalizeExplorerResourceTargets(nearbyTargets)
+    const nextNearbyTargets = normalizeExplorerResourceIdentities(nearbyTargets)
       .filter(target => !visibleTargetKeys.has(getRequiredExplorerResourceIdentityKey(target)));
     if (
-      areExplorerResourceTargetArraysEqual(this.currentVisibleTargets, nextVisibleTargets) &&
-      areExplorerResourceTargetArraysEqual(this.currentNearbyTargets, nextNearbyTargets)
+      areExplorerResourceIdentityArraysEqual(this.currentVisibleTargets, nextVisibleTargets) &&
+      areExplorerResourceIdentityArraysEqual(this.currentNearbyTargets, nextNearbyTargets)
     ) {
       return;
     }
@@ -492,13 +492,13 @@ function areStringArraysEqual(
   return true;
 }
 
-const normalizeExplorerResourceTargets = (
-  targets: readonly ExplorerResourceTarget[],
-): readonly ExplorerResourceTarget[] => {
-  const result: ExplorerResourceTarget[] = [];
+const normalizeExplorerResourceIdentities = (
+  identities: readonly ExplorerResourceIdentity[],
+): readonly ExplorerResourceIdentity[] => {
+  const result: ExplorerResourceIdentity[] = [];
   const seen = new Set<string>();
-  for (const target of targets) {
-    const normalized = normalizeExplorerResourceTarget(target);
+  for (const identity of identities) {
+    const normalized = normalizeExplorerResourceIdentity(identity);
     const key = getExplorerResourceIdentityKey(normalized);
     if (!normalized || !key || seen.has(key)) {
       continue;
@@ -511,29 +511,29 @@ const normalizeExplorerResourceTargets = (
   return result;
 };
 
-const getRequiredExplorerResourceIdentityKey = (target: ExplorerResourceTarget): string =>
-  getExplorerResourceIdentityKey(target) ?? "";
+const getRequiredExplorerResourceIdentityKey = (identity: ExplorerResourceIdentity): string =>
+  getExplorerResourceIdentityKey(identity) ?? "";
 
-const areExplorerResourceTargetArraysEqual = (
-  current: readonly ExplorerResourceTarget[],
-  next: readonly ExplorerResourceTarget[],
+const areExplorerResourceIdentityArraysEqual = (
+  current: readonly ExplorerResourceIdentity[],
+  next: readonly ExplorerResourceIdentity[],
 ): boolean =>
   current.length === next.length &&
-  current.every((target, index) =>
-    areExplorerResourceTargetsEqual(target, next[index] ?? null));
+  current.every((identity, index) =>
+    areExplorerResourceIdentitiesEqual(identity, next[index] ?? null));
 
 const normalizeExplorerResource = (resource: URI | null | undefined): URI | null =>
   resource ? URI.revive(resource) ?? null : null;
 
-const normalizeExplorerResourceTarget = (
-  target: ExplorerResourceTarget | null | undefined,
-): ExplorerResourceTarget | null => {
-  const resource = normalizeExplorerResource(target?.resource);
+const normalizeExplorerResourceIdentity = (
+  identity: { readonly resource?: URI | null; readonly sheetId?: string | null } | null | undefined,
+): ExplorerResourceIdentity | null => {
+  const resource = normalizeExplorerResource(identity?.resource);
   if (!resource) {
     return null;
   }
 
-  const sheetId = normalizeExplorerSheetId(target?.sheetId);
+  const sheetId = normalizeExplorerSheetId(identity?.sheetId);
   return {
     resource,
     ...(sheetId ? { sheetId } : {}),
@@ -613,9 +613,9 @@ const areExplorerResourcesEqual = (
   return URI.revive(current)?.toString() === URI.revive(next)?.toString();
 };
 
-const areExplorerResourceTargetsEqual = (
-  current: ExplorerResourceTarget | null,
-  next: ExplorerResourceTarget | null,
+const areExplorerResourceIdentitiesEqual = (
+  current: ExplorerResourceIdentity | null,
+  next: ExplorerResourceIdentity | null,
 ): boolean =>
   areExplorerResourcesEqual(current?.resource, next?.resource) &&
   normalizeExplorerSheetId(current?.sheetId) === normalizeExplorerSheetId(next?.sheetId);

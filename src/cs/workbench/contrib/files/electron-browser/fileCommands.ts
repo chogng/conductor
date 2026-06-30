@@ -1,11 +1,12 @@
 import { URI } from "src/cs/base/common/uri";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import type { INativeHostService } from "src/cs/platform/native/common/native";
-import { IExplorerService, type ExplorerResourceTarget } from "src/cs/workbench/contrib/files/browser/files";
+import { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
 import {
   getExplorerFileResourceIdentity,
   getExplorerResourceIdentityKey,
   type ExplorerFileEntry,
+  type ExplorerResourceIdentity,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 
 export const revealResourcesInOS = (
@@ -43,32 +44,32 @@ export const resolveRevealResources = (
     return [];
   }
 
-  const resourceTarget = URI.isUri(target)
+  const resourceIdentity = URI.isUri(target)
     ? { resource: target }
-    : normalizeRevealResourceTarget(target) ?? {
+    : normalizeRevealResourceIdentity(target) ?? {
         resource: explorerService.getContext().selectedResource,
         sheetId: explorerService.getContext().selectedSheetId,
       };
-  if (!resourceTarget.resource) {
+  if (!resourceIdentity.resource) {
     return [];
   }
 
-  const file = findExplorerFileEntryByResource(explorerService.files, resourceTarget);
+  const file = findExplorerFileEntryByResource(explorerService.files, resourceIdentity);
   const path = getRevealPath(file ?? undefined);
   return path ? [URI.file(path)] : [];
 };
 
-const normalizeRevealResourceTarget = (target: unknown): ExplorerResourceTarget | null => {
-  if (!target || typeof target !== "object" || !("resource" in target)) {
+const normalizeRevealResourceIdentity = (identity: unknown): ExplorerResourceIdentity | null => {
+  if (!identity || typeof identity !== "object" || !("resource" in identity)) {
     return null;
   }
 
-  const resource = reviveOptionalUri((target as { readonly resource?: unknown }).resource);
+  const resource = reviveOptionalUri((identity as { readonly resource?: unknown }).resource);
   if (!resource) {
     return null;
   }
 
-  const sheetId = normalizeSheetId((target as { readonly sheetId?: unknown }).sheetId);
+  const sheetId = normalizeSheetId((identity as { readonly sheetId?: unknown }).sheetId);
   return {
     resource,
     ...(sheetId ? { sheetId } : {}),
@@ -107,15 +108,15 @@ const reviveOptionalUri = (value: unknown): URI | null => {
 
 const findExplorerFileEntryByResource = (
   files: readonly ExplorerFileEntry[],
-  target: ExplorerResourceTarget | null,
+  resourceIdentity: ExplorerResourceIdentity | null,
 ): ExplorerFileEntry | null => {
-  const targetKey = getExplorerResourceIdentityKey(target);
-  if (!targetKey) {
+  const resourceKey = getExplorerResourceIdentityKey(resourceIdentity);
+  if (!resourceKey) {
     return null;
   }
 
   return files.find(file =>
-    getExplorerResourceIdentityKey(getExplorerFileResourceIdentity(file)) === targetKey,
+    getExplorerResourceIdentityKey(getExplorerFileResourceIdentity(file)) === resourceKey,
   ) ?? null;
 };
 

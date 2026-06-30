@@ -7,7 +7,6 @@ import { URI } from "src/cs/base/common/uri";
 import {
   IExplorerService,
   ExplorerViewId,
-  type ExplorerResourceTarget,
   type ExplorerSelectionKind,
 } from "src/cs/workbench/contrib/files/browser/files";
 import type { ExplorerViewPane } from "src/cs/workbench/contrib/files/browser/explorerViewlet";
@@ -18,6 +17,7 @@ import {
   getExplorerFileResourceIdentity,
   getExplorerResourceIdentityKey,
   type ExplorerFileEntry,
+  type ExplorerResourceIdentity,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 
 export const addFolderHandler: ICommandHandler = accessor => {
@@ -32,32 +32,32 @@ export const closeFileItemHandler: ICommandHandler<[unknown]> = (
   accessor,
   target,
 ) => {
-  const resourceTarget = resolveCommandExplorerResourceTarget(accessor, target);
-  if (!resourceTarget) {
+  const resourceIdentity = resolveCommandExplorerResourceIdentity(accessor, target);
+  if (!resourceIdentity) {
     return;
   }
 
-  withExplorerView(accessor, explorerView => explorerView.closeFile(resourceTarget));
+  withExplorerView(accessor, explorerView => explorerView.closeFile(resourceIdentity));
 };
 
 export const deleteFileItemHandler: ICommandHandler<[unknown]> = (
   accessor,
   target,
 ) => {
-  const resourceTarget = resolveCommandExplorerResourceTarget(accessor, target);
-  if (!resourceTarget) {
+  const resourceIdentity = resolveCommandExplorerResourceIdentity(accessor, target);
+  if (!resourceIdentity) {
     return;
   }
 
-  withExplorerView(accessor, explorerView => explorerView.deleteFile(resourceTarget));
+  withExplorerView(accessor, explorerView => explorerView.deleteFile(resourceIdentity));
 };
 
 export const renameFileItemHandler: ICommandHandler<[unknown]> = (
   accessor,
   target,
 ) => {
-  const resourceTarget = resolveCommandExplorerResourceTarget(accessor, target);
-  if (!resourceTarget) {
+  const resourceIdentity = resolveCommandExplorerResourceIdentity(accessor, target);
+  if (!resourceIdentity) {
     return;
   }
 
@@ -66,8 +66,8 @@ export const renameFileItemHandler: ICommandHandler<[unknown]> = (
   const kind: ExplorerSelectionKind = paneInput?.selectionKind ?? "table";
   const resource = {
     kind,
-    resource: resourceTarget.resource,
-    sheetId: resourceTarget.sheetId ?? null,
+    resource: resourceIdentity.resource,
+    sheetId: resourceIdentity.sheetId ?? null,
   };
   explorerService.select(resource, "force");
   explorerService.setEditable({
@@ -81,15 +81,15 @@ export const setFileTemplateHandler: ICommandHandler<[unknown, unknown]> = (
   target,
   selection,
 ) => {
-  const resourceTarget = URI.isUri(target)
+  const resourceIdentity = URI.isUri(target)
     ? { resource: target }
-    : normalizeCommandResourceTarget(target);
-  if (!resourceTarget?.resource || !isTemplateSelection(selection)) {
+    : normalizeCommandResourceIdentity(target);
+  if (!resourceIdentity || !isTemplateSelection(selection)) {
     return;
   }
 
   const sliceService = accessor.get(ISliceService);
-  sliceService.setTemplateSelection(resourceTarget.resource, resourceTarget.sheetId ?? null, selection);
+  sliceService.setTemplateSelection(resourceIdentity.resource, resourceIdentity.sheetId ?? null, selection);
 };
 
 const normalizeCommandString = (value: unknown): string | null => {
@@ -101,17 +101,17 @@ const normalizeCommandString = (value: unknown): string | null => {
   return normalized || null;
 };
 
-const resolveCommandExplorerResourceTarget = (
+const resolveCommandExplorerResourceIdentity = (
   accessor: Parameters<ICommandHandler>[0],
   target: unknown,
-): ExplorerResourceTarget | null => {
+): ExplorerResourceIdentity | null => {
   if (URI.isUri(target)) {
     return { resource: target };
   }
 
-  const directTarget = normalizeCommandResourceTarget(target);
-  if (directTarget) {
-    return directTarget;
+  const directIdentity = normalizeCommandResourceIdentity(target);
+  if (directIdentity) {
+    return directIdentity;
   }
 
   const explorerService = accessor.get(IExplorerService);
@@ -127,17 +127,17 @@ const resolveCommandExplorerResourceTarget = (
   return getExplorerFileResourceIdentity(file);
 };
 
-const normalizeCommandResourceTarget = (target: unknown): ExplorerResourceTarget | null => {
-  if (!target || typeof target !== "object" || !("resource" in target)) {
+const normalizeCommandResourceIdentity = (identity: unknown): ExplorerResourceIdentity | null => {
+  if (!identity || typeof identity !== "object" || !("resource" in identity)) {
     return null;
   }
 
-  const resource = reviveOptionalUri((target as { readonly resource?: unknown }).resource);
+  const resource = reviveOptionalUri((identity as { readonly resource?: unknown }).resource);
   if (!resource) {
     return null;
   }
 
-  const sheetId = normalizeCommandString((target as { readonly sheetId?: unknown }).sheetId);
+  const sheetId = normalizeCommandString((identity as { readonly sheetId?: unknown }).sheetId);
   return {
     resource,
     ...(sheetId ? { sheetId } : {}),
@@ -176,15 +176,15 @@ const reviveOptionalUri = (value: unknown): URI | null => {
 
 const findExplorerFileEntryByResource = (
   files: readonly ExplorerFileEntry[],
-  target: ExplorerResourceTarget | null,
+  resourceIdentity: ExplorerResourceIdentity | null,
 ): ExplorerFileEntry | null => {
-  const targetKey = getExplorerResourceIdentityKey(target);
-  if (!targetKey) {
+  const resourceKey = getExplorerResourceIdentityKey(resourceIdentity);
+  if (!resourceKey) {
     return null;
   }
 
   return files.find(file =>
-    getExplorerResourceIdentityKey(getExplorerFileResourceIdentity(file)) === targetKey,
+    getExplorerResourceIdentityKey(getExplorerFileResourceIdentity(file)) === resourceKey,
   ) ?? null;
 };
 

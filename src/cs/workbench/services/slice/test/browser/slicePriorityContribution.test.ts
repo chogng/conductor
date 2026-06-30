@@ -11,11 +11,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 import type {
 	ExplorerContext,
 	ExplorerHoveredResourceChangeEvent,
-	ExplorerResourceTarget,
 	ExplorerSelectionChangeEvent,
 	IExplorerService,
 	IExplorerView,
 } from "src/cs/workbench/contrib/files/browser/files";
+import type { ExplorerResourceIdentity } from "src/cs/workbench/contrib/files/common/explorerModel";
 import { SlicePriorityContribution } from "src/cs/workbench/services/slice/browser/slicePriority.contribution";
 import type {
 	ISliceService,
@@ -32,7 +32,7 @@ type ResourceSheetIdentity = {
 suite("workbench/services/slice/test/browser/slicePriorityContribution", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test("ignores existing explorer selection and hover without resource targets on startup", () => {
+	test("ignores existing explorer selection and hover without resources on startup", () => {
 		const explorer = createExplorerService();
 		const sliceService = new TestSliceService();
 
@@ -42,19 +42,19 @@ suite("workbench/services/slice/test/browser/slicePriorityContribution", () => {
 		explorer.dispose();
 	});
 
-	test("ignores explorer selection and hover events without resource targets", () => {
+	test("ignores explorer selection and hover events without resources", () => {
 		const explorer = createExplorerService();
 		const sliceService = new TestSliceService();
 		store.add(new SlicePriorityContribution(explorer.service, sliceService));
 
 		explorer.fireSelection({ kind: "chart", selectedResource: null });
-		explorer.fireHoveredResource({ target: null });
+		explorer.fireHoveredResource({ resource: null });
 
 		assert.deepEqual(sliceService.prioritizedResources, []);
 		explorer.dispose();
 	});
 
-	test("prioritizes resources from explorer selection and hover targets", () => {
+	test("prioritizes resources from explorer selection and hover", () => {
 		const resource = URI.file("/workspace/source.xlsx");
 		const explorer = createExplorerService({
 			hoveredResource: { resource, sheetId: "sheet-a" },
@@ -120,7 +120,7 @@ const createExplorerService = ({
 	selectedResource = null,
 	selectedSheetId = null,
 }: {
-	readonly hoveredResource?: ExplorerResourceTarget | null;
+	readonly hoveredResource?: ExplorerResourceIdentity | null;
 	readonly selectedResource?: URI | null;
 	readonly selectedSheetId?: string | null;
 } = {}): {

@@ -11,9 +11,9 @@ import {
 } from "src/cs/workbench/common/contributions";
 import {
 	IExplorerService,
-	type ExplorerResourceTarget,
 	type IExplorerService as IExplorerServiceType,
 } from "src/cs/workbench/contrib/files/browser/files";
+import type { ExplorerResourceIdentity } from "src/cs/workbench/contrib/files/common/explorerModel";
 import {
 	ISliceService,
 	SlicePriorityContributionId,
@@ -31,15 +31,15 @@ export class SlicePriorityContribution extends Disposable implements IWorkbenchC
 			this.prioritizeResource(event.selectedResource, event.selectedSheetId ?? null);
 		}));
 		this._register(this.explorerService.onDidChangeHoveredResource(event => {
-			this.prioritizeTarget(event.target);
+			this.prioritizeResourceIdentity(event.resource);
 		}));
 
 		this.prioritizeResource(this.explorerService.selectedResource, this.explorerService.selectedSheetId);
-		this.prioritizeTarget(this.explorerService.hoveredResource);
+		this.prioritizeResourceIdentity(this.explorerService.hoveredResource);
 	}
 
-	private prioritizeTarget(target: ExplorerResourceTarget | null): void {
-		this.prioritizeResource(target?.resource ?? null, target?.sheetId ?? null);
+	private prioritizeResourceIdentity(resourceIdentity: ExplorerResourceIdentity | null): void {
+		this.prioritizeResource(resourceIdentity?.resource ?? null, resourceIdentity?.sheetId ?? null);
 	}
 
 	private prioritizeResource(resource: URI | null, sheetId: string | null | undefined): void {

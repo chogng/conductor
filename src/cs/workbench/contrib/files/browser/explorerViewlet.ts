@@ -38,7 +38,6 @@ import {
   ExplorerViewId,
   IExplorerService,
   type ExplorerPaneInput,
-  type ExplorerResourceTarget,
   type ExplorerSelectionKind,
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
@@ -50,6 +49,7 @@ import {
   isExplorerPathInFolder,
   mergeExplorerSourceEntries,
   type ExplorerFileEntry,
+  type ExplorerResourceIdentity,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import { TOGGLE_THUMBNAIL_VIEW_ACTION_ID } from "src/cs/workbench/contrib/thumbnail/common/thumbnail";
 import { createTemplateEditorRecordFromUserTemplate } from "src/cs/workbench/contrib/template/browser/templateUserTemplateAdapter";
@@ -106,12 +106,12 @@ export class ExplorerViewPane extends ViewPane {
   private pendingSourceEntries: ExplorerFileEntry[] = [];
   private replaceItemKeys: string[] | null = null;
   private deferTableOpenUntilSourceReplace = false;
-  private deferredSourceReplaceOpenTarget: ExplorerResourceTarget | null = null;
+  private deferredSourceReplaceOpenTarget: ExplorerResourceIdentity | null = null;
   private isDragging = false;
   private disposed = false;
   private pendingLocalExpandedFolderKeys: readonly string[] | null = null;
   private cancelPendingSourceSyncView: (() => void) | null = null;
-  private reviewedExplorerTargetsSignature = "";
+  private reviewedExplorerResourceSignature = "";
 
   constructor(
     @ICommandService private readonly commandService: ICommandService,
@@ -277,7 +277,7 @@ export class ExplorerViewPane extends ViewPane {
     this.openFileDialog();
   }
 
-  public closeFile(target: ExplorerResourceTarget | URI): void {
+  public closeFile(target: ExplorerResourceIdentity | URI): void {
     const file = this.resolveExplorerFileTarget(target);
     if (!file) {
       return;
@@ -286,7 +286,7 @@ export class ExplorerViewPane extends ViewPane {
     this.handleCloseFile(file);
   }
 
-  public deleteFile(target: ExplorerResourceTarget | URI): Promise<void> {
+  public deleteFile(target: ExplorerResourceIdentity | URI): Promise<void> {
     const file = this.resolveExplorerFileTarget(target);
     if (!file) {
       return Promise.resolve();
@@ -295,14 +295,14 @@ export class ExplorerViewPane extends ViewPane {
     return this.handleDeleteFile(file);
   }
 
-  private resolveExplorerFileTarget(target: ExplorerResourceTarget | URI): ExplorerFileEntry | null {
+  private resolveExplorerFileTarget(target: ExplorerResourceIdentity | URI): ExplorerFileEntry | null {
     if (URI.isUri(target)) {
       return findExplorerFileEntryByResource(this.committedFiles, { resource: target });
     }
 
-    const resourceTarget = normalizeExplorerResourceTarget(target);
-    return resourceTarget
-      ? findExplorerFileEntryByResource(this.committedFiles, resourceTarget)
+    const resourceIdentity = normalizeExplorerResourceIdentity(target);
+    return resourceIdentity
+      ? findExplorerFileEntryByResource(this.committedFiles, resourceIdentity)
       : null;
   }
 
@@ -519,8 +519,8 @@ export class ExplorerViewPane extends ViewPane {
     this.explorerService.setEditable(null);
   };
 
-  private readonly handleHoverFileChange = (target: ExplorerResourceTarget | null): void => {
-    this.explorerService.setHoveredResource(target);
+  private readonly handleHoverFileChange = (resource: ExplorerResourceIdentity | null): void => {
+    this.explorerService.setHoveredResource(resource);
   };
 
   private readonly handleRenameFile = (file: ExplorerFileEntry, nextName: string): void => {
@@ -913,8 +913,8 @@ export class ExplorerViewPane extends ViewPane {
   };
 
   private readonly handleVisibleTargetsChange = (
-    visibleTargets: readonly ExplorerResourceTarget[],
-    nearbyTargets: readonly ExplorerResourceTarget[],
+    visibleTargets: readonly ExplorerResourceIdentity[],
+    nearbyTargets: readonly ExplorerResourceIdentity[],
   ): void => {
     this.explorerService.setVisibleTargets(visibleTargets, nearbyTargets);
   };
@@ -944,12 +944,12 @@ export class ExplorerViewPane extends ViewPane {
 
     const remainingFiles = this.committedFiles.filter(file =>
       !removedFileIds.includes(normalizeFileId(file.fileId) ?? ""));
-    const nextTarget = getFirstExplorerResourceTarget(remainingFiles);
+    const nextIdentity = getFirstExplorerResourceIdentity(remainingFiles);
     this.explorerService.select({
-      candidateResources: getExplorerResourceTargets(remainingFiles),
+      candidateResources: getExplorerResourceIdentities(remainingFiles),
       kind: this.paneInput.selectionKind,
-      resource: nextTarget?.resource ?? null,
-      sheetId: nextTarget?.sheetId ?? null,
+      resource: nextIdentity?.resource ?? null,
+      sheetId: nextIdentity?.sheetId ?? null,
     }, "force");
   }
 
@@ -1083,36 +1083,36 @@ export class ExplorerViewPane extends ViewPane {
   private selectFile(
     file: ExplorerFileEntry | null,
     reveal?: "force",
-  ): ExplorerResourceTarget | null {
-    const target = getExplorerFileResourceIdentity(file);
+  ): ExplorerResourceIdentity | null {
+    const resourceIdentity = getExplorerFileResourceIdentity(file);
     return this.explorerService.select({
-      candidateResources: getExplorerResourceTargets(this.visibleEntries),
+      candidateResources: getExplorerResourceIdentities(this.visibleEntries),
       kind: this.paneInput.selectionKind,
-      resource: target?.resource ?? null,
-      sheetId: target?.sheetId ?? null,
+      resource: resourceIdentity?.resource ?? null,
+      sheetId: resourceIdentity?.sheetId ?? null,
     }, reveal);
   }
 
   private selectImportedTableFile(
     file: ExplorerFileEntry | null,
-  ): ExplorerResourceTarget | null {
-    const target = getExplorerFileResourceIdentity(file);
+  ): ExplorerResourceIdentity | null {
+    const resourceIdentity = getExplorerFileResourceIdentity(file);
     return this.explorerService.select({
-      candidateResources: getExplorerResourceTargets(this.committedFiles),
+      candidateResources: getExplorerResourceIdentities(this.committedFiles),
       kind: "table",
-      resource: target?.resource ?? null,
-      sheetId: target?.sheetId ?? null,
+      resource: resourceIdentity?.resource ?? null,
+      sheetId: resourceIdentity?.sheetId ?? null,
     }, "force");
   }
 
   private openSelectedTableFile(
-    target: ExplorerResourceTarget | null,
+    resourceIdentity: ExplorerResourceIdentity | null,
   ): void {
     if (this.paneInput.selectionKind !== "table") {
       return;
     }
 
-    this.openExplorerTableFile(findExplorerFileEntryByResource(this.visibleEntries, target));
+    this.openExplorerTableFile(findExplorerFileEntryByResource(this.visibleEntries, resourceIdentity));
   }
 
   private openExplorerTableFile(file: ExplorerFileEntry | null | undefined): void {
@@ -1131,30 +1131,25 @@ export class ExplorerViewPane extends ViewPane {
   }
 
   private reviewCurrentExplorerEntries(force: boolean): void {
-    const targets = getExplorerResourceTargets(this.committedFiles);
-    const signature = getExplorerResourceTargetSignature(targets);
-    if (!force && signature === this.reviewedExplorerTargetsSignature) {
+    const identities = getExplorerResourceIdentities(this.committedFiles);
+    const signature = getExplorerResourceIdentitySignature(identities);
+    if (!force && signature === this.reviewedExplorerResourceSignature) {
       return;
     }
 
-    this.reviewedExplorerTargetsSignature = signature;
-    this.reviewExplorerResourceTargets(targets);
+    this.reviewedExplorerResourceSignature = signature;
+    this.reviewExplorerResourceIdentities(identities);
   }
 
   private reviewExplorerEntries(files: readonly ExplorerFileEntry[]): void {
-    this.reviewExplorerResourceTargets(getExplorerResourceTargets(files));
+    this.reviewExplorerResourceIdentities(getExplorerResourceIdentities(files));
   }
 
-  private reviewExplorerResourceTargets(targets: readonly ExplorerResourceTarget[]): void {
-    for (const target of targets) {
-      const resource = target.resource;
-      if (!resource) {
-        continue;
-      }
-
+  private reviewExplorerResourceIdentities(identities: readonly ExplorerResourceIdentity[]): void {
+    for (const identity of identities) {
       void this.reviewService.resolveReviewSummary({
-        resource,
-        sheetId: target.sheetId ?? null,
+        resource: identity.resource,
+        sheetId: identity.sheetId ?? null,
       });
     }
   }
@@ -1198,16 +1193,16 @@ export class ExplorerViewPane extends ViewPane {
       sheetId: this.explorerService.selectedSheetId,
     });
     const currentFileId = normalizeFileId(currentEntry?.fileId);
-    const nextTarget = currentFileId && removedFileIdSet.has(currentFileId)
-      ? getFirstExplorerResourceTarget(remainingFiles)
+    const nextIdentity = currentFileId && removedFileIdSet.has(currentFileId)
+      ? getFirstExplorerResourceIdentity(remainingFiles)
       : getExplorerFileResourceIdentity(currentEntry);
     this.explorerService.select({
-      candidateResources: getExplorerResourceTargets(remainingFiles),
+      candidateResources: getExplorerResourceIdentities(remainingFiles),
       kind: "table",
-      resource: nextTarget?.resource ?? null,
-      sheetId: nextTarget?.sheetId ?? null,
+      resource: nextIdentity?.resource ?? null,
+      sheetId: nextIdentity?.sheetId ?? null,
     }, "force");
-    this.openSelectedTableFile(nextTarget);
+    this.openSelectedTableFile(nextIdentity);
   }
 
   private clearExplorerSelections(): void {
@@ -1346,32 +1341,32 @@ function findExplorerImportEntryByItemKey(
 
 function findExplorerFileEntryByResource(
   files: readonly ExplorerFileEntry[],
-  target: ExplorerResourceTarget | null | undefined,
+  resourceIdentity: ExplorerResourceIdentity | null | undefined,
 ): ExplorerFileEntry | null {
-  const targetKey = getExplorerResourceIdentityKey(target);
-  if (!targetKey) {
+  const resourceKey = getExplorerResourceIdentityKey(resourceIdentity);
+  if (!resourceKey) {
     return null;
   }
 
   return files.find(file =>
-    getExplorerResourceIdentityKey(getExplorerFileResourceIdentity(file)) === targetKey,
+    getExplorerResourceIdentityKey(getExplorerFileResourceIdentity(file)) === resourceKey,
   ) ?? null;
 }
 
-function getExplorerResourceTargets(
+function getExplorerResourceIdentities(
   files: readonly ExplorerFileEntry[],
-): readonly ExplorerResourceTarget[] {
-  const result: ExplorerResourceTarget[] = [];
+): readonly ExplorerResourceIdentity[] {
+  const result: ExplorerResourceIdentity[] = [];
   const seen = new Set<string>();
   for (const file of files) {
-    const target = getExplorerFileResourceIdentity(file);
-    const key = getExplorerResourceIdentityKey(target);
-    if (!target || !key || seen.has(key)) {
+    const resourceIdentity = getExplorerFileResourceIdentity(file);
+    const key = getExplorerResourceIdentityKey(resourceIdentity);
+    if (!resourceIdentity || !key || seen.has(key)) {
       continue;
     }
 
     seen.add(key);
-    result.push(target);
+    result.push(resourceIdentity);
   }
   return result;
 }
@@ -1379,34 +1374,34 @@ function getExplorerResourceTargets(
 function getExplorerReviewTargetsSignature(
   files: readonly ExplorerFileEntry[],
 ): string {
-  return getExplorerResourceTargetSignature(getExplorerResourceTargets(files));
+  return getExplorerResourceIdentitySignature(getExplorerResourceIdentities(files));
 }
 
-function getExplorerResourceTargetSignature(
-  targets: readonly ExplorerResourceTarget[],
+function getExplorerResourceIdentitySignature(
+  resourceIdentities: readonly ExplorerResourceIdentity[],
 ): string {
-  return targets
-    .map(target => getExplorerResourceIdentityKey(target) ?? "")
+  return resourceIdentities
+    .map(resourceIdentity => getExplorerResourceIdentityKey(resourceIdentity) ?? "")
     .join("\u001f");
 }
 
-function getFirstExplorerResourceTarget(
+function getFirstExplorerResourceIdentity(
   files: readonly ExplorerFileEntry[],
-): ExplorerResourceTarget | null {
-  return getExplorerResourceTargets(files)[0] ?? null;
+): ExplorerResourceIdentity | null {
+  return getExplorerResourceIdentities(files)[0] ?? null;
 }
 
-function normalizeExplorerResourceTarget(target: unknown): ExplorerResourceTarget | null {
-  if (!target || typeof target !== "object" || !("resource" in target)) {
+function normalizeExplorerResourceIdentity(resourceIdentity: unknown): ExplorerResourceIdentity | null {
+  if (!resourceIdentity || typeof resourceIdentity !== "object" || !("resource" in resourceIdentity)) {
     return null;
   }
 
-  const resource = reviveOptionalUri((target as { readonly resource?: unknown }).resource);
+  const resource = reviveOptionalUri((resourceIdentity as { readonly resource?: unknown }).resource);
   if (!resource) {
     return null;
   }
 
-  const sheetId = normalizeItemKey((target as { readonly sheetId?: unknown }).sheetId);
+  const sheetId = normalizeItemKey((resourceIdentity as { readonly sheetId?: unknown }).sheetId);
   return {
     resource,
     ...(sheetId ? { sheetId } : {}),

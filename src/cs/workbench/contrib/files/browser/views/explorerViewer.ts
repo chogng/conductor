@@ -47,7 +47,6 @@ import {
 import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
 import type {
   ExplorerEditableData,
-  ExplorerResourceTarget,
   ExplorerThumbnailPlotModel,
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
@@ -73,6 +72,7 @@ import {
   getExplorerTreeFileKey,
   getExplorerTreeFileName,
   type ExplorerFileEntry,
+  type ExplorerResourceIdentity,
   type ExplorerSourceStatus,
   type ExplorerTreeNode,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
@@ -128,15 +128,15 @@ export type ExplorerViewerProps = {
   readonly folderImportSupport?: FolderImportSupport;
   readonly onListScroll?: (event: Event) => void;
   readonly onVisibleTargetsChange?: (
-    visibleTargets: readonly ExplorerResourceTarget[],
-    nearbyTargets: readonly ExplorerResourceTarget[],
+    visibleResources: readonly ExplorerResourceIdentity[],
+    nearbyResources: readonly ExplorerResourceIdentity[],
   ) => void;
   readonly onFolderExpansionChange?: (expandedFolderKeys: readonly string[]) => void;
   readonly onFolderKeysChange?: (folderKeys: readonly string[]) => readonly string[] | void;
   readonly onOpenFileDialog: () => void;
   readonly onRemoveFolder: (folderKey: string) => void;
   readonly onRequestTemplates?: () => void;
-  readonly onHoverFileChange?: (target: ExplorerResourceTarget | null) => void;
+  readonly onHoverFileChange?: (resource: ExplorerResourceIdentity | null) => void;
   readonly onCancelRenameFile?: () => void;
   readonly onRenameFile?: (file: ExplorerFileEntry, nextName: string) => void;
   readonly onSelectFile: (file: ExplorerFileEntry | null) => void;
@@ -180,7 +180,7 @@ type FileItemTemplate = {
   fileId: string | null;
   filePresentationSignature: string;
   fileRenderKey: string | null;
-  fileTarget: ExplorerResourceTarget | null;
+  fileResourceIdentity: ExplorerResourceIdentity | null;
   readonly host: HTMLElement;
   readonly label: IResourceLabel;
   readonly removeButton: HTMLButtonElement;
@@ -228,7 +228,7 @@ type HoverContent =
     readonly file: ExplorerFileEntry;
     readonly fileId: string;
     readonly isSelected: boolean;
-    readonly target: ExplorerResourceTarget | null;
+    readonly resourceIdentity: ExplorerResourceIdentity | null;
   };
 
 type HoverThumbnailCacheEntry = {
@@ -314,9 +314,9 @@ const isExplorerFileEntrySelected = (
   return selectedKey === getExplorerResourceIdentityKey(getExplorerFileResourceIdentity(fileEntry));
 };
 
-const areExplorerFileResourceTargetsEqual = (
-  first: ExplorerResourceTarget | null | undefined,
-  second: ExplorerResourceTarget | null | undefined,
+const areExplorerFileResourceIdentitiesEqual = (
+  first: ExplorerResourceIdentity | null | undefined,
+  second: ExplorerResourceIdentity | null | undefined,
 ): boolean =>
   getExplorerResourceIdentityKey(first) === getExplorerResourceIdentityKey(second);
 
@@ -637,24 +637,24 @@ const isReviewSummaryWarning = (
   summary.state === "needsAdjustment" ||
   summary.state === "invalid";
 
-const getResourceTargetsFromTreeNodes = (
+const getResourceIdentitiesFromTreeNodes = (
   nodes: readonly ITreeNode<FileTreeNode>[],
-): ExplorerResourceTarget[] => {
-  const result: ExplorerResourceTarget[] = [];
+): ExplorerResourceIdentity[] => {
+  const result: ExplorerResourceIdentity[] = [];
   const seen = new Set<string>();
   for (const node of nodes) {
     if (node.element.kind !== "file") {
       continue;
     }
 
-    const target = getExplorerFileResourceIdentity(node.element.entry);
-    const key = getExplorerResourceIdentityKey(target);
-    if (!target?.resource || !key || seen.has(key)) {
+    const resourceIdentity = getExplorerFileResourceIdentity(node.element.entry);
+    const key = getExplorerResourceIdentityKey(resourceIdentity);
+    if (!resourceIdentity?.resource || !key || seen.has(key)) {
       continue;
     }
 
     seen.add(key);
-    result.push(target);
+    result.push(resourceIdentity);
   }
 
   return result;
@@ -1220,7 +1220,7 @@ export class ExplorerViewer implements IDisposable {
       createExplorerFilePresentationSignature(entry, {
         badgeColorSignature: this.getBadgeColorSignature(props.explorerAppearance?.badgeColors),
         isEditing: props.editable?.isEditing === true &&
-          areExplorerFileResourceTargetsEqual(props.editable.resource, getExplorerFileResourceIdentity(entry)),
+          areExplorerFileResourceIdentitiesEqual(props.editable.resource, getExplorerFileResourceIdentity(entry)),
         templateLabel: this.resolveFileTemplateLabel(entry, props),
         templateSelectionId: getTemplateSelectionId(
           this.resolveFileTemplateSelection(getExplorerFileResourceIdentity(entry), props),
@@ -1306,12 +1306,12 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
-    const visibleTargets = getResourceTargetsFromTreeNodes(event.visible);
-    const visibleTargetKeys = new Set(visibleTargets.map(target =>
-      getExplorerResourceIdentityKey(target) ?? ""));
-    const nearbyTargets = getResourceTargetsFromTreeNodes(event.rendered)
-      .filter(target => !visibleTargetKeys.has(getExplorerResourceIdentityKey(target) ?? ""));
-    this.props.onVisibleTargetsChange(visibleTargets, nearbyTargets);
+    const visibleResources = getResourceIdentitiesFromTreeNodes(event.visible);
+    const visibleResourceKeys = new Set(visibleResources.map(resourceIdentity =>
+      getExplorerResourceIdentityKey(resourceIdentity) ?? ""));
+    const nearbyResources = getResourceIdentitiesFromTreeNodes(event.rendered)
+      .filter(resourceIdentity => !visibleResourceKeys.has(getExplorerResourceIdentityKey(resourceIdentity) ?? ""));
+    this.props.onVisibleTargetsChange(visibleResources, nearbyResources);
   };
 
   private readonly handleTreeSelect = ({ element }: ITreeSelectionEvent<FileTreeNode>): void => {
@@ -1427,7 +1427,7 @@ export class ExplorerViewer implements IDisposable {
     readonly actionPrefix: string;
     readonly commandId: string;
     readonly label: string;
-    readonly target: ExplorerResourceTarget | null;
+    readonly target: ExplorerResourceIdentity | null;
   }): IAction {
     if (!target || !this.hasUserTemplates()) {
       return createMenuAction({
@@ -1462,7 +1462,7 @@ export class ExplorerViewer implements IDisposable {
   }: {
     readonly actionPrefix: string;
     readonly commandId: string;
-    readonly target: ExplorerResourceTarget;
+    readonly target: ExplorerResourceIdentity;
   }): IAction[] {
     const currentSelection = this.resolveFileTemplateSelection(target);
     const currentSelectionId = getTemplateSelectionId(currentSelection);
@@ -1559,7 +1559,7 @@ export class ExplorerViewer implements IDisposable {
       this.hideFileItemHover(template.file.host);
     }
     template.file.fileId = null;
-    template.file.fileTarget = null;
+    template.file.fileResourceIdentity = null;
     template.file.editorStore.clear();
     template.folder.currentNode = null;
   };
@@ -1597,7 +1597,7 @@ export class ExplorerViewer implements IDisposable {
   }
 
   private resolveFileTemplateSelection(
-    target: ExplorerResourceTarget | null | undefined,
+    target: ExplorerResourceIdentity | null | undefined,
     props: ExplorerViewerProps = this.props,
   ): TemplateSelection {
     return resolveTemplateSelectionForResource(
@@ -1614,11 +1614,11 @@ export class ExplorerViewer implements IDisposable {
   ): void {
     const fileName = getFileName(fileEntry);
     const fileId = fileEntry.fileId ?? null;
-    const fileTarget = getExplorerFileResourceIdentity(fileEntry);
+    const fileResourceIdentity = getExplorerFileResourceIdentity(fileEntry);
     const isEditing = Boolean(
-      fileTarget &&
+      fileResourceIdentity &&
         this.props.editable?.isEditing === true &&
-        areExplorerFileResourceTargetsEqual(this.props.editable.resource, fileTarget),
+        areExplorerFileResourceIdentitiesEqual(this.props.editable.resource, fileResourceIdentity),
     );
     const sourceStatus = createFileSourceStatusBadge(fileEntry);
     const { host } = template;
@@ -1645,7 +1645,7 @@ export class ExplorerViewer implements IDisposable {
       template.content.parentElement === host &&
       template.actions.parentElement === host;
     template.fileId = fileId;
-    template.fileTarget = fileTarget;
+    template.fileResourceIdentity = fileResourceIdentity;
     if (canReuseRenderedPresentation) {
       if (isTemplateApplyPerformanceTraceEnabled()) {
         markTemplateApplyPerformanceTrace("explorer.fileItem.reuse", {
@@ -1701,7 +1701,7 @@ export class ExplorerViewer implements IDisposable {
         fileKind: FileKind.FILE,
       },
     );
-    if (isEditing && fileTarget) {
+    if (isEditing && fileResourceIdentity) {
       let draftName = fileName;
       const editLabel = localize("files.rename.ariaLabel", "Rename {fileName}", { fileName });
       const editor = new InlineEditableTextWidget({
@@ -1884,18 +1884,18 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
-    const visibleTargets = files
+    const visibleResources = files
       .map(file => getExplorerFileResourceIdentity(file))
-      .filter((target): target is NonNullable<ReturnType<typeof getExplorerFileResourceIdentity>> => Boolean(target));
-    const visibleTargetKeys = visibleTargets
-      .map(target => getExplorerResourceIdentityKey(target) ?? "")
+      .filter((resourceIdentity): resourceIdentity is NonNullable<ReturnType<typeof getExplorerFileResourceIdentity>> => Boolean(resourceIdentity));
+    const visibleResourceKeys = visibleResources
+      .map(resourceIdentity => getExplorerResourceIdentityKey(resourceIdentity) ?? "")
       .filter(Boolean);
-    if (areStringArraysEqual(this.thumbnailVisibleTargetKeys, visibleTargetKeys)) {
+    if (areStringArraysEqual(this.thumbnailVisibleTargetKeys, visibleResourceKeys)) {
       return;
     }
 
-    this.thumbnailVisibleTargetKeys = visibleTargetKeys;
-    this.props.onVisibleTargetsChange(visibleTargets, []);
+    this.thumbnailVisibleTargetKeys = visibleResourceKeys;
+    this.props.onVisibleTargetsChange(visibleResources, []);
   }
 
   private pruneThumbnailGridCache(files: readonly ExplorerFileEntry[]): void {
@@ -1935,7 +1935,7 @@ export class ExplorerViewer implements IDisposable {
       fileId: null,
       filePresentationSignature: "",
       fileRenderKey: null,
-      fileTarget: null,
+      fileResourceIdentity: null,
       host,
       label,
       removeButton,
@@ -1944,7 +1944,7 @@ export class ExplorerViewer implements IDisposable {
       event.stopPropagation();
       void this.props.commandService.executeCommand(
         CLOSE_FILE_ITEM_COMMAND_ID,
-        template.fileTarget,
+        template.fileResourceIdentity,
       );
     });
     appendIcon(removeButton, LxIcon.close);
@@ -2199,7 +2199,7 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
-    this.props.onHoverFileChange?.(content.kind === "thumbnail" ? content.target : null);
+    this.props.onHoverFileChange?.(content.kind === "thumbnail" ? content.resourceIdentity : null);
     this.cancelFileItemHoverHide();
     if (
       this.hoverAnchor === item &&
@@ -2372,7 +2372,7 @@ export class ExplorerViewer implements IDisposable {
       file,
       fileId,
       isSelected: item.dataset.selected === "true",
-      target: getExplorerFileResourceIdentity(fileEntry),
+      resourceIdentity: getExplorerFileResourceIdentity(fileEntry),
     };
   }
 
@@ -3215,7 +3215,7 @@ function isSameHoverContent(
     return (
       left.fileId === right.fileId &&
       left.isSelected === right.isSelected &&
-      getExplorerResourceIdentityKey(left.target) === getExplorerResourceIdentityKey(right.target)
+      getExplorerResourceIdentityKey(left.resourceIdentity) === getExplorerResourceIdentityKey(right.resourceIdentity)
     );
   }
 

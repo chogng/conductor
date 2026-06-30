@@ -219,6 +219,10 @@ bridges read `IExplorerService.files` when they need the authoritative Explorer
 row set. Slice state/result belongs to `ISliceService`; subscribers receive
 Slice events and reread `getResourceState(resource, sheetId)` or
 `getResourceResult(resource, sheetId)` when their own UI or cache needs it.
+Explorer selection, hover, and visible-row notifications carry resource
+identity directly as `{ resource, sheetId? }`; do not add public
+`ExplorerResourceTarget` wrappers or nested `{ target: ... }` event payloads
+for this chain.
 
 Chart thumbnail membership follows Slice-owned URI/sheet state, not Explorer
 row state and not plot result materialization. A resource/sheet row is visible

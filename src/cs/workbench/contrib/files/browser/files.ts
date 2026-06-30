@@ -7,6 +7,10 @@ import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
+import type {
+  ExplorerFileEntry,
+  ExplorerResourceIdentity,
+} from "src/cs/workbench/contrib/files/common/explorerModel";
 import type { FilesViewLayout } from "src/cs/workbench/contrib/files/common/files";
 import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
@@ -50,18 +54,18 @@ export type ExplorerFolderExpansionChangeEvent = {
 };
 
 export type ExplorerVisibleTargetsChangeEvent = {
-  readonly nearbyTargets: readonly ExplorerResourceTarget[];
-  readonly visibleTargets: readonly ExplorerResourceTarget[];
+  readonly nearbyTargets: readonly ExplorerResourceIdentity[];
+  readonly visibleTargets: readonly ExplorerResourceIdentity[];
 };
 
 export type ExplorerHoveredResourceChangeEvent = {
-  readonly target: ExplorerResourceTarget | null;
+  readonly resource: ExplorerResourceIdentity | null;
 };
 
 export type ExplorerSelectionTarget = {
   readonly kind: ExplorerSelectionKind;
   readonly resource: URI | null;
-  readonly candidateResources?: readonly ExplorerResourceTarget[];
+  readonly candidateResources?: readonly ExplorerResourceIdentity[];
   readonly sheetId?: string | null;
 };
 
@@ -70,7 +74,7 @@ export type ExplorerRevealMode = boolean | "force";
 export type ExplorerContext = {
   readonly selectedResource: URI | null;
   readonly selectedSheetId: string | null;
-  readonly hoveredResource: ExplorerResourceTarget | null;
+  readonly hoveredResource: ExplorerResourceIdentity | null;
   readonly expandedFolderKeys: readonly string[];
   readonly viewLayout: ExplorerViewLayout;
   readonly editable: ExplorerEditableData | null;
@@ -87,11 +91,6 @@ export type ExplorerCopyState = {
   readonly isCut: boolean;
 };
 
-export type ExplorerResourceTarget = {
-  readonly resource: URI | null;
-  readonly sheetId?: string | null;
-};
-
 export interface IExplorerView {
   selectResource?(target: ExplorerSelectionTarget, reveal?: ExplorerRevealMode): void;
   refresh?(): void;
@@ -104,7 +103,7 @@ export interface IExplorerService {
   readonly files: readonly ExplorerFileEntry[];
   readonly selectedResource: URI | null;
   readonly selectedSheetId: string | null;
-  readonly hoveredResource: ExplorerResourceTarget | null;
+  readonly hoveredResource: ExplorerResourceIdentity | null;
   readonly expandedFolderKeys: readonly string[];
   readonly viewLayout: ExplorerViewLayout;
   readonly onDidChangePendingSourceFiles: Event<boolean>;
@@ -118,7 +117,7 @@ export interface IExplorerService {
 
   getContext(): ExplorerContext;
   registerView(view: IExplorerView): IDisposable;
-  select(target: ExplorerSelectionTarget, reveal?: ExplorerRevealMode): ExplorerResourceTarget | null;
+  select(target: ExplorerSelectionTarget, reveal?: ExplorerRevealMode): ExplorerResourceIdentity | null;
   setEditable(data: ExplorerEditableData | null): void;
   setToCopy(resources: readonly ExplorerSelectionTarget[], isCut: boolean): void;
   applyBulkEdit(): Promise<void>;
@@ -127,12 +126,12 @@ export interface IExplorerService {
   appendFiles(files: readonly ExplorerFileEntry[]): readonly ExplorerFileEntry[];
   removeFiles(fileIds: readonly string[]): readonly ExplorerFileEntry[];
   renameFile(fileId: string, fileName: string): void;
-  setHoveredResource(target: ExplorerResourceTarget | null): void;
+  setHoveredResource(resource: ExplorerResourceIdentity | null): void;
   setExpandedFolderKeys(folderKeys: readonly string[]): void;
   reconcileExpandedFolderKeys(folderKeys: readonly string[]): readonly string[];
   getCollapsedFolderKeys(folderKeys: readonly string[]): readonly string[];
   setPendingSourceFiles(hasPendingSourceFiles: boolean): void;
-  setVisibleTargets(visibleTargets: readonly ExplorerResourceTarget[], nearbyTargets?: readonly ExplorerResourceTarget[]): void;
+  setVisibleTargets(visibleTargets: readonly ExplorerResourceIdentity[], nearbyTargets?: readonly ExplorerResourceIdentity[]): void;
   setViewLayout(viewLayout: ExplorerViewLayout): void;
   toggleViewLayout(): void;
   getPaneInput(): ExplorerPaneInput | null;
