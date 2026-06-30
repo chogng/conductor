@@ -424,6 +424,12 @@ export const SettingsContributionId = "workbench.contrib.settings";
 
 export const SettingsViewId = "workbench.settings";
 
+export const SettingsCommandId = {
+  showSettings: "workbench.action.showSettings",
+} as const;
+
+export type SettingsCommandId = typeof SettingsCommandId[keyof typeof SettingsCommandId];
+
 export const ISettingsService = createDecorator<ISettingsService>("settingsService");
 
 export type SettingsPersistence = {

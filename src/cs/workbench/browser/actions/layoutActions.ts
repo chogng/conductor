@@ -75,23 +75,6 @@ class ShowChartAction extends Action2 {
   }
 }
 
-class ShowSettingsAction extends Action2 {
-  public constructor() {
-    super({
-      id: WorkbenchLayoutCommandId.showSettings,
-      title: localize("workbench.mode.settings", "Settings"),
-      f1: true,
-      metadata: {
-        description: localize("workbench.showSettingsDescription", "Show the settings workbench view."),
-      },
-    });
-  }
-
-  public run(accessor: ServicesAccessor): void {
-    accessor.get(IWorkbenchLayoutService).navigateToView("settings");
-  }
-}
-
 class ToggleSidebarAction extends Action2 {
   public constructor() {
     super({
@@ -117,5 +100,4 @@ registerAction2(NavigateBackAction);
 registerAction2(NavigateForwardAction);
 registerAction2(ShowTableAction);
 registerAction2(ShowChartAction);
-registerAction2(ShowSettingsAction);
 registerAction2(ToggleSidebarAction);

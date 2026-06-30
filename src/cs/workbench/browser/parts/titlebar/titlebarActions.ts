@@ -3,6 +3,7 @@ import { localize } from "src/cs/nls";
 import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layoutCommands";
 import { createWorkbenchSidebarToggleButton } from "src/cs/workbench/browser/parts/sidebar/sidebarActions";
 import { QuickAccessCommandId } from "src/cs/workbench/contrib/quickaccess/common/quickAccessCommands";
+import { SettingsCommandId } from "src/cs/workbench/services/settings/common/settings";
 import type { LayoutView } from "src/cs/workbench/services/layout/browser/layoutService";
 
 export const WORKBENCH_TITLEBAR_UPDATE_BUTTON_ID =
@@ -93,7 +94,7 @@ export const createWorkbenchTitlebarPageButtons = (
     isActive: activePage === "chart",
   },
   {
-    commandId: WorkbenchLayoutCommandId.showSettings,
+    commandId: SettingsCommandId.showSettings,
     id: "settings",
     title: localize("titlebar.mode.settings", "Settings"),
     isActive: activePage === "settings",

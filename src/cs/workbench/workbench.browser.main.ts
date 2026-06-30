@@ -32,6 +32,7 @@ import "src/cs/workbench/services/keybinding/browser/keybindingService";
 import "src/cs/workbench/services/origin/browser/originService";
 import "src/cs/workbench/services/parameters/browser/parametersService";
 import "src/cs/workbench/services/plot/browser/plotService";
+import "src/cs/workbench/services/settings/browser/settingsService";
 import "src/cs/workbench/services/search/browser/searchService";
 import "src/cs/workbench/services/session/browser/sessionService";
 import "src/cs/workbench/services/schemaProfile/browser/schemaProfileStoreService";

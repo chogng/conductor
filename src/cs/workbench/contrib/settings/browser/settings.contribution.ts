@@ -9,9 +9,9 @@ import {
   type IViewContainersRegistry,
   type IViewsRegistry,
 } from "src/cs/workbench/common/views";
+import { registerSettingsActions } from "src/cs/workbench/contrib/settings/browser/settingsActions";
 import { SettingsViewPane } from "src/cs/workbench/contrib/settings/browser/settingsViewPane";
 import { SettingsContributionId, SettingsViewId } from "src/cs/workbench/services/settings/common/settings";
-import "src/cs/workbench/services/settings/browser/settingsService";
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
@@ -27,6 +27,12 @@ if (container) {
   }], container);
 }
 
-export class SettingsContribution extends Disposable implements IWorkbenchContribution {}
+export class SettingsContribution extends Disposable implements IWorkbenchContribution {
+  public constructor() {
+    super();
 
-registerWorkbenchContribution2(SettingsContributionId, SettingsContribution, WorkbenchPhase.AfterRestored);
+    this._register(registerSettingsActions());
+  }
+}
+
+registerWorkbenchContribution2(SettingsContributionId, SettingsContribution, WorkbenchPhase.BlockStartup);

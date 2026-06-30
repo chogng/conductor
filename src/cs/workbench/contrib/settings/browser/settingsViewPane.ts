@@ -1,9 +1,9 @@
 import { localize } from "src/cs/nls";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
-import { SettingsViewId } from "src/cs/workbench/services/settings/common/settings";
 import { SettingsController } from "src/cs/workbench/contrib/settings/browser/settingsController";
 import {
   ISettingsService,
+  SettingsViewId,
   type ISettingsService as ISettingsServiceType,
   type SettingsViewInput,
 } from "src/cs/workbench/services/settings/common/settings";
