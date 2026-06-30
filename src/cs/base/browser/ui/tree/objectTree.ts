@@ -65,6 +65,7 @@ export class ObjectTree<T, TTemplateData = HTMLElement> implements ListHandle {
   private readonly rowTemplateSet = new Set<TreeRowTemplate<T, TTemplateData>>();
   private focusedKey: string | null = null;
   private flattenedItems: FlattenedObjectTreeNode<T>[] = [];
+  private flattenedItemSignatures = new Map<string, string>();
   private flattenedItemsSource: T[] | null = null;
   private flattenedCollapsedKey = "";
   private flattenedGetChildren: IObjectTreeOptions<T, TTemplateData>["getChildren"] | null = null;
@@ -502,7 +503,23 @@ export class ObjectTree<T, TTemplateData = HTMLElement> implements ListHandle {
       this.flattenedGetChildren !== this.options.getChildren ||
       this.flattenedGetKey !== this.options.getKey
     ) {
-      this.flattenedItems = this.model.flatten();
+      const previousItems = this.flattenedItems;
+      const previousSignatures = this.flattenedItemSignatures;
+      const canReusePreviousItems =
+        this.flattenedCollapsedKey === collapsedKey &&
+        this.flattenedGetChildren === this.options.getChildren &&
+        this.flattenedGetKey === this.options.getKey;
+      const nextItems = this.model.flatten();
+      const nextSignatures = this.createFlattenedItemSignatures(nextItems);
+      this.flattenedItems = canReusePreviousItems
+        ? this.reuseFlattenedItems(
+          previousItems,
+          previousSignatures,
+          nextItems,
+          nextSignatures,
+        )
+        : nextItems;
+      this.flattenedItemSignatures = nextSignatures;
       this.flattenedItemsSource = this.options.items;
       this.flattenedCollapsedKey = collapsedKey;
       this.flattenedGetChildren = this.options.getChildren;
@@ -535,6 +552,7 @@ export class ObjectTree<T, TTemplateData = HTMLElement> implements ListHandle {
 
   private invalidateFlattenedItems(): void {
     this.flattenedItemsSource = null;
+    this.flattenedItemSignatures.clear();
     this.flattenedCollapsedKey = "";
     this.flattenedGetChildren = null;
     this.flattenedGetKey = null;
@@ -542,9 +560,58 @@ export class ObjectTree<T, TTemplateData = HTMLElement> implements ListHandle {
 
   private markFlattenedItemsFresh(): void {
     this.flattenedItemsSource = this.options.items;
+    this.flattenedItemSignatures = this.createFlattenedItemSignatures(this.flattenedItems);
     this.flattenedCollapsedKey = this.model.getCollapsedKeys().join("\n");
     this.flattenedGetChildren = this.options.getChildren;
     this.flattenedGetKey = this.options.getKey;
+  }
+
+  private reuseFlattenedItems(
+    previousItems: readonly FlattenedObjectTreeNode<T>[],
+    previousSignatures: ReadonlyMap<string, string>,
+    nextItems: readonly FlattenedObjectTreeNode<T>[],
+    nextSignatures: ReadonlyMap<string, string>,
+  ): FlattenedObjectTreeNode<T>[] {
+    const previousItemsByKey = new Map<string, FlattenedObjectTreeNode<T>>();
+    for (const entry of previousItems) {
+      previousItemsByKey.set(entry.key, entry);
+    }
+
+    return nextItems.map(entry => {
+      const previous = previousItemsByKey.get(entry.key);
+      if (
+        previous &&
+        previous.item === entry.item &&
+        previousSignatures.get(entry.key) === nextSignatures.get(entry.key)
+      ) {
+        return previous;
+      }
+
+      return entry;
+    });
+  }
+
+  private createFlattenedItemSignatures(
+    items: readonly FlattenedObjectTreeNode<T>[],
+  ): Map<string, string> {
+    const signatures = new Map<string, string>();
+    for (const entry of items) {
+      signatures.set(entry.key, this.createFlattenedItemSignature(entry));
+    }
+    return signatures;
+  }
+
+  private createFlattenedItemSignature(entry: FlattenedObjectTreeNode<T>): string {
+    const collapsed = entry.expandable && this.model.isCollapsed(entry.key);
+    const childKeys = this.model.getChildren(entry.item).map((child, index) =>
+      this.options.getKey(child, index, entry.depth + 1),
+    );
+    return [
+      entry.depth,
+      entry.expandable ? 1 : 0,
+      collapsed ? 1 : 0,
+      ...childKeys,
+    ].join("\u0000");
   }
 
   private toTreeNode(entry: FlattenedObjectTreeNode<T>): ITreeNode<T> {
