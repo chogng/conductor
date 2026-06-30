@@ -53,6 +53,23 @@ helperMutatesTwoOwners();
 
 If code feels messy, fix the ownership shape before local cleanup. Do not hide mixed responsibilities behind helpers, renamed files, or formatting-only structure.
 
+## Layering
+
+Layering decides owner, imports, and API shape.
+
+- UI/controllers normalize intent and call owner APIs.
+- Owner services/models mutate owned state and emit fact events.
+- Consumers react to events by rereading owner state.
+- Lower layers must not import higher layers.
+- Cross-layer APIs use stable values, not view objects or owner-local runtime objects.
+
+```txt
+Good: view -> ownerService.open(resource)
+Good: ownerService.onDidChangeState -> view rereads ownerService.getState()
+Bad: ownerService imports view
+Bad: event named onShouldRefreshView
+```
+
 ## Root-Cause Fixes
 
 Bug fixes start at the behavior owner, not the visible symptom.
