@@ -351,9 +351,50 @@
   color: rgb(var(--text-primary) / 1);
 }
 
-.settings-template-term-inputbox .inputbox_widget_item[data-kind="builtin-disabled"] {
-  border-style: dashed;
-  color: rgb(var(--text-tertiary) / 1);
+.settings-template-term-suggestions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.settings-template-term-suggestion {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid rgb(var(--border) / 0.78);
+  border-radius: 0.375rem;
+  background: rgb(255 255 255 / 1);
+  color: rgb(var(--text-secondary) / 1);
+  cursor: pointer;
+  padding: 0.1875rem 0.5rem;
+}
+
+.settings-template-term-suggestion:hover:not(:disabled) {
+  background: rgb(var(--bg-surface-hover) / 0.8);
+  color: rgb(var(--text-primary) / 1);
+}
+
+.settings-template-term-suggestion:disabled {
+  cursor: default;
+  opacity: 0.58;
+}
+
+.settings-template-term-suggestion-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: currentColor;
+}
+
+.settings-template-term-suggestion-label {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .settings-template-block {

@@ -1337,7 +1337,7 @@ export class SettingsView {
     section.appendChild(this.createTemplateSemanticTermField(
       settings,
       settings.activeTerms.map(term => term.source === "builtin"
-        ? this.createBuiltinSemanticTermItem(settings, term, "enabled")
+        ? this.createBuiltinSemanticTermItem(settings, term)
         : this.createCustomSemanticTermItem(settings, term)),
       title,
       true,
@@ -1351,14 +1351,43 @@ export class SettingsView {
     const section = div("settings-template-library-group");
     const title = localize("settings.template.semantic.recommendedBuiltinTitle", "Recommended built-in match terms");
     section.appendChild(text("p", "settings-template-subtitle", title));
-    section.appendChild(this.createTemplateSemanticTermField(
-      settings,
-      disabledTerms.map(term => this.createBuiltinSemanticTermItem(settings, term, "disabled")),
-      title,
-      false,
-      localize("settings.template.semantic.noDisabledBuiltin", "No recommended built-in match terms."),
-    ));
+    const list = div("settings-template-term-suggestions");
+    if (disabledTerms.length === 0) {
+      list.appendChild(text(
+        "p",
+        "settings-template-empty",
+        localize("settings.template.semantic.noDisabledBuiltin", "No recommended built-in match terms."),
+      ));
+    } else {
+      for (const term of disabledTerms) {
+        list.appendChild(this.createBuiltinSemanticTermSuggestion(settings, term));
+      }
+    }
+    section.appendChild(list);
     return section;
+  }
+
+  private createBuiltinSemanticTermSuggestion(
+    settings: TemplateSettings,
+    semanticTerm: TemplateBuiltinSemanticTerm,
+  ): HTMLButtonElement {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "settings-template-term-suggestion";
+    button.disabled = settings.isSaving;
+    button.title = localize("settings.template.semantic.enableBuiltinTitle", "Enable this built-in match term for Review");
+    button.setAttribute(
+      "aria-label",
+      localize("settings.template.semantic.enableBuiltin", "Enable built-in match term {term}", { term: semanticTerm.term }),
+    );
+    button.append(
+      createLxIcon({ className: "settings-template-term-suggestion-icon", icon: LxIcon.add, size: 14 }),
+      text("span", "settings-template-term-suggestion-label", semanticTerm.term),
+    );
+    button.addEventListener("click", () => {
+      void settings.onEnableBuiltinTerm(semanticTerm.id);
+    });
+    return button;
   }
 
   private createTemplateSemanticTermField(
@@ -1391,10 +1420,6 @@ export class SettingsView {
         void settings.onDisableBuiltinTerm(item.id);
         return;
       }
-      if (item.kind === "builtin-disabled") {
-        void settings.onEnableBuiltinTerm(item.id);
-        return;
-      }
       if (item.kind === "custom") {
         void settings.onRemoveSemanticTerm(item.id);
       }
@@ -1405,21 +1430,15 @@ export class SettingsView {
   private createBuiltinSemanticTermItem(
     settings: TemplateSettings,
     semanticTerm: TemplateBuiltinSemanticTerm,
-    state: "enabled" | "disabled",
   ): IInputBoxWidgetItem {
-    const isEnabled = state === "enabled";
     return {
       id: semanticTerm.id,
       label: semanticTerm.term,
-      kind: isEnabled ? "builtin-enabled" : "builtin-disabled",
+      kind: "builtin-enabled",
       action: {
-        ariaLabel: isEnabled
-          ? localize("settings.template.semantic.disableBuiltin", "Disable built-in match term {term}", { term: semanticTerm.term })
-          : localize("settings.template.semantic.enableBuiltin", "Enable built-in match term {term}", { term: semanticTerm.term }),
-        icon: isEnabled ? LxIcon.close : LxIcon.add,
-        title: isEnabled
-          ? localize("settings.template.semantic.disableBuiltinTitle", "Disable this built-in match term for Review")
-          : localize("settings.template.semantic.enableBuiltinTitle", "Enable this built-in match term for Review"),
+        ariaLabel: localize("settings.template.semantic.disableBuiltin", "Disable built-in match term {term}", { term: semanticTerm.term }),
+        icon: LxIcon.close,
+        title: localize("settings.template.semantic.disableBuiltinTitle", "Disable this built-in match term for Review"),
       },
       disabled: settings.isSaving,
     };
