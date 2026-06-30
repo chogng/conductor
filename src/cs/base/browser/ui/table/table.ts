@@ -247,6 +247,10 @@ export interface ITableColumnResizeEvent {
 	readonly width: number;
 }
 
+export interface ITableColumnResizeBoundaryDoubleClickEvent {
+	readonly colIndex: number;
+}
+
 export interface ITableSize {
 	readonly columnCount: number;
 	readonly rowCount: number;

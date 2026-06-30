@@ -16,6 +16,7 @@ import {
 } from "src/cs/base/browser/ui/table/tableWidget";
 import {
 	type ITableCellEditOptions,
+	type ITableColumnResizeBoundaryDoubleClickEvent,
 	type ITableColumnResizeEvent,
 	type ITableColumnResizeMode,
 	type ITableKeyboardNavigationOptions,
@@ -256,6 +257,23 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 			assert.deepEqual(headerEvents, []);
 		} finally {
 			headerListener.dispose();
+			listener.dispose();
+			widget.dispose();
+		}
+	});
+
+	test("emits column resize boundary double-click events", () => {
+		const { listener, widget } = createResizableTableWidget();
+		const events: ITableColumnResizeBoundaryDoubleClickEvent[] = [];
+		const autoFitListener = widget.onDidDoubleClickColumnResizeBoundary(event => {
+			events.push(event);
+		});
+		try {
+			dispatchColumnResizeBoundaryDoubleClick(widget, 208);
+
+			assert.deepEqual(events, [{ colIndex: 0 }]);
+		} finally {
+			autoFitListener.dispose();
 			listener.dispose();
 			widget.dispose();
 		}
@@ -879,6 +897,18 @@ function dispatchColumnResizeEnd(widget: TestTableWidget, clientX: number): void
 	const targetWindow = widget.element.ownerDocument.defaultView;
 	assert.ok(targetWindow);
 	targetWindow.dispatchEvent(createPointerEvent(widget, "pointerup", clientX, 0));
+}
+
+function dispatchColumnResizeBoundaryDoubleClick(widget: TestTableWidget, clientX: number): void {
+	const header = widget.element.querySelector<HTMLElement>(".table_view_grid_header_content");
+	assert.ok(header);
+	header.dispatchEvent(new MouseEvent("dblclick", {
+		bubbles: true,
+		button: 0,
+		cancelable: true,
+		clientX,
+		clientY: 16,
+	}));
 }
 
 function createPointerEvent(

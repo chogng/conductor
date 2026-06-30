@@ -213,6 +213,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 	public readonly onDidChangeSize: Event<Table.ITableSize>;
 	public readonly onDidChangeZoom: Event<number>;
 	public readonly onDidResizeColumn: Event<Table.ITableColumnResizeEvent>;
+	public readonly onDidDoubleClickColumnResizeBoundary: Event<Table.ITableColumnResizeBoundaryDoubleClickEvent>;
 	public readonly onDidCommitCellEdit: Event<Table.ITableCellEditCommitEvent>;
 	public readonly onDidClickBody: Event<Table.ITableBodyMouseEvent>;
 	public readonly onDidClickHeader: Event<Table.ITableColumnHeaderMouseEvent>;
@@ -225,6 +226,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 	private readonly onDidChangeSizeEmitter = this.disposables.add(new Emitter<Table.ITableSize>());
 	private readonly onDidChangeZoomEmitter = this.disposables.add(new Emitter<number>());
 	private readonly onDidResizeColumnEmitter = this.disposables.add(new Emitter<Table.ITableColumnResizeEvent>());
+	private readonly onDidDoubleClickColumnResizeBoundaryEmitter = this.disposables.add(new Emitter<Table.ITableColumnResizeBoundaryDoubleClickEvent>());
 	private readonly onDidCommitCellEditEmitter = this.disposables.add(new Emitter<Table.ITableCellEditCommitEvent>());
 	private readonly onDidNavigateKeyboardEmitter = this.disposables.add(new Emitter<Table.ITableKeyboardNavigationEvent>());
 	private readonly bodyCellTraits = new Map<TBodyTemplateData, TableBodyCellTraits>();
@@ -259,6 +261,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		this.onDidChangeSize = this.onDidChangeSizeEmitter.event;
 		this.onDidChangeZoom = this.onDidChangeZoomEmitter.event;
 		this.onDidResizeColumn = this.onDidResizeColumnEmitter.event;
+		this.onDidDoubleClickColumnResizeBoundary = this.onDidDoubleClickColumnResizeBoundaryEmitter.event;
 		this.onDidCommitCellEdit = this.onDidCommitCellEditEmitter.event;
 		this.onDidClickBody = this.createBodyClickEvent();
 		this.onDidClickHeader = this.createColumnHeaderClickEvent();
@@ -277,6 +280,9 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		}));
 		this.disposables.add(addDisposableListener(this.virtualTable.headerContent, EventType.POINTER_MOVE, event => {
 			this.onHeaderPointerMove(event as PointerEvent);
+		}));
+		this.disposables.add(addDisposableListener(this.virtualTable.headerContent, EventType.DBLCLICK, event => {
+			this.onColumnResizeBoundaryDoubleClick(event as MouseEvent);
 		}));
 		this.disposables.add(addDisposableListener(this.virtualTable.headerContent, "pointerleave", () => {
 			this.setHoveredColumnHeaderTraits(null);
@@ -1383,16 +1389,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 			return false;
 		}
 
-		const colIndex = VirtualTableGridModel.resolveColumnResizeTarget({
-			button: event.button,
-			clientX: event.clientX,
-			columnRange: this.getColumnRange(),
-			containerLeft: this.virtualTable.body.getBoundingClientRect().left,
-			getColumnWidth: index => this.options.getColumnWidth(index),
-			hitSlop: this.options.columnResize.hitSlop,
-			scrollLeft: this.virtualTable.getScrollPosition().scrollLeft,
-			zoomPercent: this.zoomPercent,
-		});
+		const colIndex = this.resolveColumnResizeTarget(event);
 		if (colIndex === null) {
 			return false;
 		}
@@ -1427,6 +1424,42 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		this.syncColumnResizeGuide();
 		this.startColumnResizeTracking();
 		return true;
+	}
+
+	private onColumnResizeBoundaryDoubleClick(event: MouseEvent): boolean {
+		if (
+			event.defaultPrevented ||
+			!this.columnResizeEnabled ||
+			!this.canStartColumnResizeFromTarget(event.target)
+		) {
+			return false;
+		}
+
+		const colIndex = this.resolveColumnResizeTarget(event);
+		if (colIndex === null) {
+			return false;
+		}
+
+		event.preventDefault();
+		event.stopPropagation();
+		this.endColumnResize(false);
+		this.onDidDoubleClickColumnResizeBoundaryEmitter.fire({ colIndex });
+		return true;
+	}
+
+	private resolveColumnResizeTarget(
+		event: Pick<MouseEvent, "button" | "clientX">,
+	): number | null {
+		return VirtualTableGridModel.resolveColumnResizeTarget({
+			button: event.button,
+			clientX: event.clientX,
+			columnRange: this.getColumnRange(),
+			containerLeft: this.virtualTable.body.getBoundingClientRect().left,
+			getColumnWidth: index => this.options.getColumnWidth(index),
+			hitSlop: this.options.columnResize?.hitSlop,
+			scrollLeft: this.virtualTable.getScrollPosition().scrollLeft,
+			zoomPercent: this.zoomPercent,
+		});
 	}
 
 	private getPageRowCount(): number {

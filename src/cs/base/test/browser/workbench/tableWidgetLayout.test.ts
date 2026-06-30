@@ -592,6 +592,95 @@ suite("base/browser/workbench tableWidget layout", () => {
     }
   });
 
+  test("auto-fits one fixed column from a resize boundary double click", async () => {
+    const storedWidths: unknown[] = [];
+    const widget = new TableWidget({
+      columnSizingMode: "fixed",
+      onSelect: () => true,
+      storeColumnWidths: (_source, widths) => {
+        storedWidths.push(widths);
+      },
+      tableViewModel: createTableWidgetModel(),
+      tableState: createTableWidgetState({
+        maxCellLengths: [20, 2],
+      }),
+    });
+    document.body.append(widget.element);
+
+    try {
+      const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+      assert.ok(viewport);
+      setElementClientSize(viewport, 500, 280);
+      widget.layout();
+      await timeout(120);
+
+      const body = widget.element.querySelector<HTMLElement>(".table_view_body");
+      assert.ok(body);
+      body.getBoundingClientRect = () => new DOMRect(0, 0, 800, 320);
+      const expectedWidth = TableColumnLayout.resolveAutoFitWidth({ headerText: "A", maxCellLength: 20 });
+      const startClientX =
+        VirtualTableGridModel.getRowHeaderWidth(widget.getZoomPercent()) +
+        TableColumnLayout.defaultWidth;
+
+      dispatchMouseEvent(getColumnResizeHandle(widget.element, 0), "dblclick", {
+        clientX: startClientX,
+        clientY: VirtualTableGridModel.getRowHeight(widget.getZoomPercent()) / 2,
+      });
+      await timeout(160);
+
+      assert.equal(getColumnHeaderWidth(widget.element, 0), expectedWidth);
+      assert.deepEqual(storedWidths.at(-1), [{
+        colIndex: 0,
+        width: expectedWidth,
+      }]);
+    } finally {
+      widget.dispose();
+    }
+  });
+
+  test("ignores resize boundary double click while auto-fit mode is active", async () => {
+    const storedWidths: unknown[] = [];
+    const widget = new TableWidget({
+      columnSizingMode: "autoFit",
+      onSelect: () => true,
+      storeColumnWidths: (_source, widths) => {
+        storedWidths.push(widths);
+      },
+      tableViewModel: createTableWidgetModel(),
+      tableState: createTableWidgetState({
+        maxCellLengths: [20, 2],
+      }),
+    });
+    document.body.append(widget.element);
+
+    try {
+      const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+      assert.ok(viewport);
+      setElementClientSize(viewport, 500, 280);
+      widget.layout();
+      await timeout(120);
+
+      const body = widget.element.querySelector<HTMLElement>(".table_view_body");
+      assert.ok(body);
+      body.getBoundingClientRect = () => new DOMRect(0, 0, 800, 320);
+      const autoFitWidth = getColumnHeaderWidth(widget.element, 0);
+      const startClientX =
+        VirtualTableGridModel.getRowHeaderWidth(widget.getZoomPercent()) +
+        autoFitWidth;
+
+      dispatchMouseEvent(getColumnResizeHandle(widget.element, 0), "dblclick", {
+        clientX: startClientX,
+        clientY: VirtualTableGridModel.getRowHeight(widget.getZoomPercent()) / 2,
+      });
+      await timeout(160);
+
+      assert.equal(getColumnHeaderWidth(widget.element, 0), autoFitWidth);
+      assert.deepEqual(storedWidths, []);
+    } finally {
+      widget.dispose();
+    }
+  });
+
   test("renders scaled numeric cells from column display profiles", async () => {
     const hoverDelegate = new TestHoverDelegate();
     const previousHoverDelegate = getBaseLayerHoverDelegate();
@@ -1596,6 +1685,19 @@ function dispatchPointerEvent(
     button: 0,
     cancelable: true,
     pointerType: "mouse",
+    ...init,
+  }));
+}
+
+function dispatchMouseEvent(
+  element: HTMLElement,
+  type: string,
+  init: MouseEventInit,
+): void {
+  element.dispatchEvent(new MouseEvent(type, {
+    bubbles: true,
+    button: 0,
+    cancelable: true,
     ...init,
   }));
 }

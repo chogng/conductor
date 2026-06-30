@@ -332,6 +332,9 @@ export class TableWidget {
     this.store.add(this.grid.onDidResizeColumn(event => {
       this.setColumnWidth(event);
     }));
+    this.store.add(this.grid.onDidDoubleClickColumnResizeBoundary(event => {
+      this.autoFitColumnWidth(event.colIndex);
+    }));
     this.store.add(this.grid.onDidClickBody(event => {
       this.onBodyClick(event);
     }));
@@ -608,6 +611,23 @@ export class TableWidget {
     }
   }
 
+  private autoFitColumnWidth(colIndex: number): boolean {
+    const tableFile = this.props.tableState.file;
+    if (!this.isFixedColumnSizingMode() || !tableFile) {
+      return false;
+    }
+
+    const normalizedColIndex = normalizeWidgetColumnIndex(colIndex);
+    if (normalizedColIndex === null || normalizedColIndex >= tableFile.columnCount) {
+      return false;
+    }
+
+    return this.setColumnWidth({
+      colIndex: normalizedColIndex,
+      width: resolveAutoFitColumnWidth(tableFile, normalizedColIndex),
+    });
+  }
+
   private syncColumnWidthSheet(): void {
     const source = getTableWidgetSource(this.props.tableState);
     const sheetKey = getTableWidgetColumnWidthSheetKey(source);
@@ -651,10 +671,7 @@ export class TableWidget {
     const nextWidths = new Map<number, number>();
     const columnCount = Math.max(0, Math.floor(Number(tableFile.columnCount) || 0));
     for (let colIndex = 0; colIndex < columnCount; colIndex += 1) {
-      nextWidths.set(colIndex, TableColumnLayout.resolveAutoFitWidth({
-        headerText: VirtualTableGridModel.getColumnLabel(colIndex),
-        maxCellLength: tableFile.maxCellLengths[colIndex],
-      }));
+      nextWidths.set(colIndex, resolveAutoFitColumnWidth(tableFile, colIndex));
     }
 
     const changed = !areColumnWidthMapsEqual(this.autoFitColumnWidths, nextWidths);
@@ -1927,6 +1944,15 @@ const getAutoFitColumnWidthSignature = (
   file.columnCount,
   file.maxCellLengths.join(","),
 ].join("\u001f");
+
+const resolveAutoFitColumnWidth = (
+  file: TableWidgetFile,
+  colIndex: number,
+): number =>
+  TableColumnLayout.resolveAutoFitWidth({
+    headerText: VirtualTableGridModel.getColumnLabel(colIndex),
+    maxCellLength: file.maxCellLengths[colIndex],
+  });
 
 const areColumnWidthMapsEqual = (
   current: ReadonlyMap<number, number>,

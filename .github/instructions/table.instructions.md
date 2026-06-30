@@ -141,6 +141,14 @@ Table auto-fit column width toggle
   -> TableWidget derives auto-fit widths from TableState.file.maxCellLengths plus header labels during render/layout, with min/max bounds
   -> base TableWidget/VirtualTable consumes getColumnWidth through the existing layout path
 
+Table fixed column boundary auto-fit
+  -> base TableWidget detects a double-click on a header column resize boundary with the same hit testing used for drag resize
+  -> base TableWidget emits onDidDoubleClickColumnResizeBoundary with the resolved column index
+  -> contrib TableWidget ignores the gesture while the table is already in global auto-fit mode
+  -> contrib TableWidget derives the target column width from TableState.file.maxCellLengths plus the header label
+  -> contrib TableWidget stores that width through the existing fixed-width persistence path
+  -> base TableWidget/VirtualTable consumes the updated width through the existing render/layout path
+
 TableWidget header scale badge / shared stepper
   -> TableViewPane derives header selection and scale-adjustment policy from template mode
   -> TableController forwards the policy to TableWidget
@@ -177,6 +185,9 @@ The base table owns UI mechanics that are independent of raw-table semantics:
 - column resize interaction mechanics, including header boundary hit testing,
   drag tracking, resize guide display, zoom-aware width deltas, and the
   `onDidResizeColumn` fact event;
+- column resize boundary double-click hit testing and the
+  `onDidDoubleClickColumnResizeBoundary` fact event; feature widgets decide how
+  to apply the gesture to their own column width policy;
 - pooled corner/header/row-header/body DOM and descriptor rebinding;
 - structural CSS hooks, header/body scroll synchronization, and reveal geometry;
 - widget-owned cell/header trait DOM hooks for hovered, selected,
