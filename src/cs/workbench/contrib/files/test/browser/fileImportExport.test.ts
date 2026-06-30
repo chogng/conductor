@@ -758,7 +758,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       getSelectedRelativePath: () => null,
       isDisposed: () => false,
       notificationService,
-      uriIdentityService: store.add(new UriIdentityService()),
+      uriIdentityService: store.add(new UriIdentityService(filesService)),
       onAppendExplorerFiles: entries => {
         appendedFileNames.push(...entries.map(file => file.fileName ?? ""));
       },
@@ -793,7 +793,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       getSelectedRelativePath: () => null,
       isDisposed: () => false,
       notificationService,
-      uriIdentityService: store.add(new UriIdentityService()),
+      uriIdentityService: store.add(new UriIdentityService(filesService)),
       onAppendExplorerFiles: entries => {
         appendedFileNames.push(...entries.map(file => file.fileName ?? ""));
       },
@@ -835,18 +835,19 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     const originalConsoleError = console.error;
     console.error = () => undefined;
     notificationService.closeNotification(IMPORT_ERROR_NOTIFICATION_ID);
+    const filesService = store.add(new FileService());
     const workflow = new FileSourceWorkflow({
       commandService: {
         executeCommand: async () => {
           throw error;
         },
       },
-      filesService: store.add(new FileService()),
+      filesService,
       getFiles: () => [],
       getSelectedRelativePath: () => null,
       isDisposed: () => false,
       notificationService,
-      uriIdentityService: store.add(new UriIdentityService()),
+      uriIdentityService: store.add(new UriIdentityService(filesService)),
       onAppendExplorerFiles: () => undefined,
       onDraggingChange: () => undefined,
       onRemoveSourceItems: () => undefined,

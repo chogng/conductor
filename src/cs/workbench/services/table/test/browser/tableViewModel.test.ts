@@ -9,12 +9,13 @@ import {
 	sanitizeTableRowBatch,
 	TableStateScope,
 } from "../../browser/tableViewModel.ts";
+import { CancellationToken } from "src/cs/base/common/cancellation";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { TableModelContentSnapshot } from "src/cs/workbench/services/table/common/model";
 
 suite("workbench/services/table/browser/tableViewModel row cache", () => {
-  ensureNoDisposablesAreLeakedInTestSuite();
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
 	test("sanitizeTableRowBatch normalizes non-array rows", () => {
 		const rows = sanitizeTableRowBatch([["a"], null, 1, ["b", "c"]]);
 		assert.deepEqual(rows, [["a"], [], [], ["b", "c"]]);
@@ -167,6 +168,45 @@ suite("workbench/services/table/browser/tableViewModel row cache", () => {
 		assert.equal(hasChunkRowsInCache(rowCache, 0, 2), true);
 		clearChunkRows(rowCache, 1, 2);
 		assert.equal(hasChunkRowsInCache(rowCache, 0, 2), false);
+	});
+
+	test("ensureRows expands row requests to the full chunk", async () => {
+		const resource = URI.file("/workspace/chunk.csv");
+		const model = createTableViewModelInScope(store.add(new TableStateScope()), {
+			previewSources: [createResourceSourceInput(resource, {
+				rows: Array.from({ length: 180 }, (_, index): string[] => [`row_${index}`]),
+			})],
+			source: { resource },
+		});
+		store.add({ dispose: () => model.clearState() });
+
+		assert.equal(model.getRow(143), null);
+		await model.ensureRows(143, 144);
+
+		assert.deepEqual(model.getRow(100), ["row_100"]);
+		assert.deepEqual(model.getRow(143), ["row_143"]);
+		assert.deepEqual(model.getRow(149), ["row_149"]);
+		assert.equal(model.getRow(150), null);
+	});
+
+	test("resolve waits for an existing chunk request before reading the row", async () => {
+		const resource = URI.file("/workspace/concurrent-chunk.csv");
+		const model = createTableViewModelInScope(store.add(new TableStateScope()), {
+			previewSources: [createResourceSourceInput(resource, {
+				rows: Array.from({ length: 180 }, (_, index): string[] => [`row_${index}`]),
+			})],
+			source: { resource },
+		});
+		store.add({ dispose: () => model.clearState() });
+
+		const [firstRow, secondRow] = await Promise.all([
+			model.resolve(143, CancellationToken.None),
+			model.resolve(144, CancellationToken.None),
+		]);
+
+		assert.deepEqual(firstRow, ["row_143"]);
+		assert.deepEqual(secondRow, ["row_144"]);
+		assert.deepEqual(model.getRow(149), ["row_149"]);
 	});
 });
 

@@ -19,6 +19,8 @@ import {
   type IFileContent,
   type IFileService,
   type IFileStat,
+  type IFileSystemProviderCapabilitiesChangeEvent,
+  type IFileSystemProviderRegistrationEvent,
   type IFileSystemProvider,
   type IReadFileOptions,
 } from "src/cs/platform/files/common/files";
@@ -231,6 +233,10 @@ function createPathService(userHome: URI): IPathService {
 class TestFileService implements IFileService {
   public readonly _serviceBrand = undefined;
   public readonly onDidFilesChange = Event.None as EventType<readonly IFileChange[]>;
+  public readonly onDidChangeFileSystemProviderCapabilities =
+    Event.None as EventType<IFileSystemProviderCapabilitiesChangeEvent>;
+  public readonly onDidChangeFileSystemProviderRegistrations =
+    Event.None as EventType<IFileSystemProviderRegistrationEvent>;
 
   public constructor(
     private readonly onWriteFile: (resource: URI, content: string) => void,
@@ -246,6 +252,21 @@ class TestFileService implements IFileService {
 
   public getProviderCapabilities(_resourceOrScheme: URI | string): FileSystemProviderCapabilities {
     return FileSystemProviderCapabilities.FileRead | FileSystemProviderCapabilities.FileWrite;
+  }
+
+  public hasProvider(resource: URI): boolean {
+    return URI.revive(resource).scheme === "file";
+  }
+
+  public hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean {
+    return Boolean(this.hasProvider(resource) && (this.getProviderCapabilities(resource) & capability));
+  }
+
+  public *listCapabilities(): Iterable<{ readonly capabilities: FileSystemProviderCapabilities; readonly scheme: string }> {
+    yield {
+      capabilities: this.getProviderCapabilities("file"),
+      scheme: "file",
+    };
   }
 
   public exists(_resource: URI): Promise<boolean> {

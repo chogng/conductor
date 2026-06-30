@@ -14,6 +14,8 @@ import {
 	type IFileChange,
 	type IFileService,
 	type IFileStat,
+	type IFileSystemProviderCapabilitiesChangeEvent,
+	type IFileSystemProviderRegistrationEvent,
 	type IFileSystemProvider,
 	type IReadFileOptions,
 	type IWatchOptions,
@@ -80,6 +82,10 @@ suite("workbench/services/files/electron-browser/elevatedFileService", () => {
 class TestFileService implements IFileService {
 	public declare readonly _serviceBrand: undefined;
 	public readonly onDidFilesChange = Event.None as Event<readonly IFileChange[]>;
+	public readonly onDidChangeFileSystemProviderCapabilities =
+		Event.None as Event<IFileSystemProviderCapabilitiesChangeEvent>;
+	public readonly onDidChangeFileSystemProviderRegistrations =
+		Event.None as Event<IFileSystemProviderRegistrationEvent>;
 	public readonly directWrites: Array<{ readonly resource: URI; readonly options: IWriteFileOptions | undefined }> = [];
 	private readonly files = new Map<string, string>();
 
@@ -96,6 +102,21 @@ class TestFileService implements IFileService {
 			FileSystemProviderCapabilities.FileWrite |
 			FileSystemProviderCapabilities.FileDelete |
 			FileSystemProviderCapabilities.FileWatch;
+	}
+
+	public hasProvider(resource: URI): boolean {
+		return URI.revive(resource).scheme === "file";
+	}
+
+	public hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean {
+		return Boolean(this.hasProvider(resource) && (this.getProviderCapabilities() & capability));
+	}
+
+	public *listCapabilities(): Iterable<{ readonly capabilities: FileSystemProviderCapabilities; readonly scheme: string }> {
+		yield {
+			capabilities: this.getProviderCapabilities(),
+			scheme: "file",
+		};
 	}
 
 	public async exists(resource: URI): Promise<boolean> {

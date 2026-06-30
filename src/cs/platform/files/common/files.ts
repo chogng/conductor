@@ -24,6 +24,7 @@ export const enum FileSystemProviderCapabilities {
   FileDelete = 1 << 4,
   FileTrash = 1 << 5,
   FileWatch = 1 << 6,
+  PathCaseSensitive = 1 << 7,
 }
 
 export type IStat = {
@@ -64,14 +65,30 @@ export type IFileChange = {
   readonly type: FileChangeType;
 };
 
+export type IFileSystemProviderRegistrationEvent = {
+  readonly added: boolean;
+  readonly provider: IFileSystemProvider;
+  readonly scheme: string;
+};
+
+export type IFileSystemProviderCapabilitiesChangeEvent = {
+  readonly provider: IFileSystemProvider;
+  readonly scheme: string;
+};
+
 export interface IFileService {
   readonly _serviceBrand: undefined;
 
   readonly onDidFilesChange: Event<readonly IFileChange[]>;
+  readonly onDidChangeFileSystemProviderCapabilities: Event<IFileSystemProviderCapabilitiesChangeEvent>;
+  readonly onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent>;
 
   registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable;
   getProvider(scheme: string): IFileSystemProvider | undefined;
   getProviderCapabilities(resourceOrScheme: URI | string): FileSystemProviderCapabilities;
+  hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean;
+  hasProvider(resource: URI): boolean;
+  listCapabilities(): Iterable<{ readonly capabilities: FileSystemProviderCapabilities; readonly scheme: string }>;
   exists(resource: URI): Promise<boolean>;
   readDir(resource: URI): Promise<readonly [string, FileType][]>;
   readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent>;
@@ -85,6 +102,7 @@ export interface IFileService {
 
 export interface IFileSystemProvider {
   readonly capabilities: FileSystemProviderCapabilities;
+  readonly onDidChangeCapabilities: Event<void>;
   readonly onDidFilesChange: Event<readonly IFileChange[]>;
 
   exists(resource: URI): Promise<boolean>;

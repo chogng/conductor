@@ -4,7 +4,7 @@
 
 import assert from "assert";
 
-import { Emitter } from "src/cs/base/common/event";
+import { Emitter, Event } from "src/cs/base/common/event";
 import { toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
 import {
@@ -15,6 +15,8 @@ import {
 	type IFileContent,
 	type IFileService,
 	type IFileStat,
+	type IFileSystemProviderCapabilitiesChangeEvent,
+	type IFileSystemProviderRegistrationEvent,
 	type IReadFileOptions,
 	type IWatchOptions,
 } from "src/cs/platform/files/common/files";
@@ -31,6 +33,10 @@ class MemoryFileService implements IFileService {
 	private readonly files = new Map<string, string>();
 	private readonly onDidFilesChangeEmitter = new Emitter<readonly IFileChange[]>();
 	public readonly onDidFilesChange = this.onDidFilesChangeEmitter.event;
+	public readonly onDidChangeFileSystemProviderCapabilities =
+		Event.None as Event<IFileSystemProviderCapabilitiesChangeEvent>;
+	public readonly onDidChangeFileSystemProviderRegistrations =
+		Event.None as Event<IFileSystemProviderRegistrationEvent>;
 
 	public getWrittenContent(resource: URI): string | undefined {
 		return this.files.get(URI.revive(resource).toString());
@@ -54,6 +60,21 @@ class MemoryFileService implements IFileService {
 			FileSystemProviderCapabilities.FileDelete |
 			FileSystemProviderCapabilities.FileTrash |
 			FileSystemProviderCapabilities.FileWatch;
+	}
+
+	public hasProvider(resource: URI): boolean {
+		return URI.revive(resource).scheme === "file";
+	}
+
+	public hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean {
+		return Boolean(this.hasProvider(resource) && (this.getProviderCapabilities() & capability));
+	}
+
+	public *listCapabilities(): Iterable<{ readonly capabilities: FileSystemProviderCapabilities; readonly scheme: string }> {
+		yield {
+			capabilities: this.getProviderCapabilities(),
+			scheme: "file",
+		};
 	}
 
 	public async exists(resource: URI): Promise<boolean> {

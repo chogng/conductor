@@ -25,6 +25,8 @@ import {
   type IFileChange,
   type IFileContent,
   type IFileStat,
+  type IFileSystemProviderCapabilitiesChangeEvent,
+  type IFileSystemProviderRegistrationEvent,
   type IFileSystemProvider,
   type IReadFileOptions,
   type IWatchOptions,
@@ -360,6 +362,10 @@ function waitFor(predicate: () => boolean): Promise<void> {
 class TestFileService implements IFileService {
   public readonly _serviceBrand = undefined;
   public readonly onDidFilesChange = Event.None as Event<readonly IFileChange[]>;
+  public readonly onDidChangeFileSystemProviderCapabilities =
+    Event.None as Event<IFileSystemProviderCapabilitiesChangeEvent>;
+  public readonly onDidChangeFileSystemProviderRegistrations =
+    Event.None as Event<IFileSystemProviderRegistrationEvent>;
 
   public constructor(private readonly content: string) {}
 
@@ -367,15 +373,30 @@ class TestFileService implements IFileService {
     return Disposable.None;
   }
 
-	public getProvider(_scheme: string): IFileSystemProvider | undefined {
-		return undefined;
-	}
+  public getProvider(_scheme: string): IFileSystemProvider | undefined {
+    return undefined;
+  }
 
-	public getProviderCapabilities(): FileSystemProviderCapabilities {
-		return FileSystemProviderCapabilities.FileRead |
-			FileSystemProviderCapabilities.FileWrite |
-			FileSystemProviderCapabilities.FileWatch;
-	}
+  public getProviderCapabilities(): FileSystemProviderCapabilities {
+    return FileSystemProviderCapabilities.FileRead |
+      FileSystemProviderCapabilities.FileWrite |
+      FileSystemProviderCapabilities.FileWatch;
+  }
+
+  public hasProvider(resource: URI): boolean {
+    return URI.revive(resource).scheme === "file";
+  }
+
+  public hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean {
+    return Boolean(this.hasProvider(resource) && (this.getProviderCapabilities() & capability));
+  }
+
+  public *listCapabilities(): Iterable<{ readonly capabilities: FileSystemProviderCapabilities; readonly scheme: string }> {
+    yield {
+      capabilities: this.getProviderCapabilities(),
+      scheme: "file",
+    };
+  }
 
   public exists(_resource: URI): Promise<boolean> {
     return Promise.resolve(true);

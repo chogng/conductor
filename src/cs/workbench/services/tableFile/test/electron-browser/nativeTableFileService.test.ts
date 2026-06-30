@@ -14,6 +14,8 @@ import {
 	type IFileContent,
 	type IFileService,
 	type IFileStat,
+	type IFileSystemProviderCapabilitiesChangeEvent,
+	type IFileSystemProviderRegistrationEvent,
 	type IReadFileOptions,
 	type IWatchOptions,
 } from "src/cs/platform/files/common/files";
@@ -56,6 +58,10 @@ suite("workbench/services/tableFile/test/electron-browser/nativeTableFileService
 class TestFileService implements IFileService {
 	public declare readonly _serviceBrand: undefined;
 	public readonly onDidFilesChange = Event.None as Event<readonly IFileChange[]>;
+	public readonly onDidChangeFileSystemProviderCapabilities =
+		Event.None as Event<IFileSystemProviderCapabilitiesChangeEvent>;
+	public readonly onDidChangeFileSystemProviderRegistrations =
+		Event.None as Event<IFileSystemProviderRegistrationEvent>;
 
 	public constructor(
 		private readonly content: Uint8Array,
@@ -73,6 +79,21 @@ class TestFileService implements IFileService {
 		return FileSystemProviderCapabilities.FileRead |
 			FileSystemProviderCapabilities.FileReadRange |
 			FileSystemProviderCapabilities.FileWatch;
+	}
+
+	public hasProvider(resource: URI): boolean {
+		return URI.revive(resource).scheme === "file";
+	}
+
+	public hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean {
+		return Boolean(this.hasProvider(resource) && (this.getProviderCapabilities() & capability));
+	}
+
+	public *listCapabilities(): Iterable<{ readonly capabilities: FileSystemProviderCapabilities; readonly scheme: string }> {
+		yield {
+			capabilities: this.getProviderCapabilities(),
+			scheme: "file",
+		};
 	}
 
 	public async exists(): Promise<boolean> {

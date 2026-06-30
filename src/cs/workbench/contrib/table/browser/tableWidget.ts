@@ -21,6 +21,7 @@ import {
   type ITableCellState,
   type ITableCellPosition,
   type ITableCellSelectionTarget,
+  type ITableDirtyPatchOutcome,
   type ITableDirtyRange,
   type ITableColumnHeaderMouseEvent,
   type ITableKeyboardNavigationEvent,
@@ -195,8 +196,6 @@ type HeaderCell = {
 type BodyRangeSelectionState = {
   readonly pointerId: number;
 };
-
-type DirtyRowsPatchResult = "full" | "ignored" | "patched";
 
 export class TableWidget {
   public readonly element: HTMLElement;
@@ -1040,7 +1039,7 @@ export class TableWidget {
       kind: event.kind,
       rowsVersion: event.version,
     });
-    let patchResult: DirtyRowsPatchResult = "full";
+    let patchResult: ITableDirtyPatchOutcome = "full";
     let tableVisible = false;
     const bodyCellRenderCountStart = this.tracedBodyCellRenderCount;
     try {
@@ -1064,29 +1063,24 @@ export class TableWidget {
     }
   }
 
-  private patchDirtyRows(event: TableWidgetRowsVersionChangeEvent): DirtyRowsPatchResult {
-    if (event.full || event.ranges.length === 0) {
-      return "full";
-    }
-
-    if (event.kind === "content") {
-      return this.grid.rerenderDirtyBodyCells(event.ranges, this.getRowsRenderVersion());
-    }
-
-    if (event.kind === "display") {
-      return this.patchDirtyDisplayRows(event.ranges);
-    }
-
-    return "full";
-  }
-
-  private patchDirtyDisplayRows(ranges: readonly ITableDirtyRange[]): DirtyRowsPatchResult {
-    const headerPatchResult = this.grid.rerenderDirtyColumnHeaders(ranges, this.getHeaderRenderVersion());
-    const bodyPatchResult = this.grid.rerenderDirtyBodyCells(ranges, this.getRowsRenderVersion());
-    if (headerPatchResult === "patched") {
+  private patchDirtyRows(event: TableWidgetRowsVersionChangeEvent): ITableDirtyPatchOutcome {
+    const includeColumnHeaders = event.kind === "display";
+    const result = this.grid.patchDirtyCells({
+      full: event.full || event.kind === "reset",
+      ranges: event.ranges,
+      bodyRenderVersion: this.getRowsRenderVersion(),
+      ...(includeColumnHeaders
+        ? {
+          columnHeaderRenderVersion: this.getHeaderRenderVersion(),
+          includeColumnHeaders,
+        }
+        : {}),
+    });
+    if (result.columnHeaders === "patched") {
       this.syncSharedColumnScaleControl();
     }
-    return headerPatchResult === "patched" || bodyPatchResult === "patched" ? "patched" : "ignored";
+
+    return result.outcome;
   }
 
   private syncVisibleHeaderColumnScaleBadges(): void {

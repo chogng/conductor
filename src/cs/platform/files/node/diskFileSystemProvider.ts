@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { Emitter, Event } from "../../../base/common/event.js";
 import { DisposableStore, toDisposable, type IDisposable } from "../../../base/common/lifecycle.js";
+import { isLinux } from "../../../base/common/platform.js";
 import { URI } from "../../../base/common/uri.js";
 import {
   FileChangeType,
@@ -35,6 +36,7 @@ const toFileType = (stat: fs.Stats): FileType => {
 export class DiskFileSystemProvider {
   private readonly onDidFilesChangeEmitter = new Emitter<readonly IFileChange[]>();
   public readonly onDidFilesChange = this.onDidFilesChangeEmitter.event;
+  public readonly onDidChangeCapabilities = Event.None;
   public readonly capabilities: FileSystemProviderCapabilities;
   private readonly watchers = new Map<string, IDisposable>();
 
@@ -48,7 +50,8 @@ export class DiskFileSystemProvider {
       FileSystemProviderCapabilities.FileAtomicWrite |
       FileSystemProviderCapabilities.FileDelete |
       FileSystemProviderCapabilities.FileWatch |
-      (trashItem ? FileSystemProviderCapabilities.FileTrash : FileSystemProviderCapabilities.None);
+      (trashItem ? FileSystemProviderCapabilities.FileTrash : FileSystemProviderCapabilities.None) |
+      (isLinux ? FileSystemProviderCapabilities.PathCaseSensitive : FileSystemProviderCapabilities.None);
   }
 
   public async stat(resource: URI): Promise<IFileStat> {

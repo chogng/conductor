@@ -1250,7 +1250,7 @@ const createTableViewModel = ({
 
   const previewStatusRef = createTableRef<TableLoadState>(previewStatus);
   const previewFileRef = createTableRef<TableFile | null>(previewFile);
-  const previewPendingChunksBySheetKeyRef = createTableRef<Map<string, Set<number>>>(
+  const previewPendingChunkRequestsBySheetKeyRef = createTableRef<Map<string, Map<number, Promise<void>>>>(
     new Map(),
   );
   const pendingRowResolveRequestsRef = createTableRef(new Map<number, Promise<unknown[]>>());
@@ -1431,15 +1431,15 @@ const createTableViewModel = ({
     [previewLoadedChunksBySheetKeyRef, tableRowsCacheBySheetKeyRef],
   );
 
-  const getOrCreatePendingChunks = memoCallback((sheetKey: string) => {
-    const pendingBySheetKey = previewPendingChunksBySheetKeyRef.current;
-    let pendingChunks = pendingBySheetKey.get(sheetKey);
-    if (!pendingChunks) {
-      pendingChunks = new Set<number>();
-      pendingBySheetKey.set(sheetKey, pendingChunks);
+  const getOrCreatePendingChunkRequests = memoCallback((sheetKey: string) => {
+    const pendingBySheetKey = previewPendingChunkRequestsBySheetKeyRef.current;
+    let pendingChunkRequests = pendingBySheetKey.get(sheetKey);
+    if (!pendingChunkRequests) {
+      pendingChunkRequests = new Map<number, Promise<void>>();
+      pendingBySheetKey.set(sheetKey, pendingChunkRequests);
     }
-    return pendingChunks;
-  }, []);
+    return pendingChunkRequests;
+  }, [previewPendingChunkRequestsBySheetKeyRef]);
 
   const notifyTableDisplayProfileChanged = memoCallback((
     change: Partial<Omit<TableRowsVersionChangeEvent, "version">> = {
@@ -1515,9 +1515,9 @@ const createTableViewModel = ({
   );
 
   const cancelPendingTableRowRequests = memoCallback(() => {
-    previewPendingChunksBySheetKeyRef.current = new Map();
+    previewPendingChunkRequestsBySheetKeyRef.current = new Map();
     pendingRowResolveRequestsRef.current = new Map();
-  }, [pendingRowResolveRequestsRef, previewPendingChunksBySheetKeyRef]);
+  }, [pendingRowResolveRequestsRef, previewPendingChunkRequestsBySheetKeyRef]);
 
   const assignCurrentPreviewCache = memoCallback(
     ({
@@ -1545,7 +1545,7 @@ const createTableViewModel = ({
     tableRowsCacheBySheetKeyRef.current = new Map();
     previewLoadedChunksBySheetKeyRef.current = new Map();
     previewCacheSheetLruRef.current = new Set();
-    previewPendingChunksBySheetKeyRef.current = new Map();
+    previewPendingChunkRequestsBySheetKeyRef.current = new Map();
     assignCurrentPreviewCache();
     columnDisplayProfileCacheRef.current = new Map();
     notifyTableRowsCacheChanged();
@@ -1555,17 +1555,16 @@ const createTableViewModel = ({
     notifyTableRowsCacheChanged,
     previewCacheSheetLruRef,
     previewLoadedChunksBySheetKeyRef,
+    previewPendingChunkRequestsBySheetKeyRef,
     tableRowsCacheBySheetKeyRef,
   ]);
 
   const invalidatePreviewRequests = memoCallback(() => {
     cancelPendingTableRowRequests();
-    previewPendingChunksBySheetKeyRef.current = new Map();
     columnDisplayProfileCacheRef.current = new Map();
   }, [
     cancelPendingTableRowRequests,
     columnDisplayProfileCacheRef,
-    previewPendingChunksBySheetKeyRef,
   ]);
 
   const clearPreviewState = memoCallback(
@@ -1618,7 +1617,7 @@ const createTableViewModel = ({
       tableRowsCacheBySheetKeyRef.current.delete(sheetKey);
       previewLoadedChunksBySheetKeyRef.current.delete(sheetKey);
       previewCacheSheetLruRef.current.delete(sheetKey);
-      previewPendingChunksBySheetKeyRef.current.delete(sheetKey);
+      previewPendingChunkRequestsBySheetKeyRef.current.delete(sheetKey);
       for (const overrideKey of Array.from(columnDisplayScaleOverridesRef.current.keys())) {
         if (overrideKey.startsWith(`${sheetKey}:`)) {
           columnDisplayScaleOverridesRef.current.delete(overrideKey);
@@ -1633,7 +1632,7 @@ const createTableViewModel = ({
       previewCacheSheetKeyRef,
       previewCacheSheetLruRef,
       previewLoadedChunksBySheetKeyRef,
-      previewPendingChunksBySheetKeyRef,
+      previewPendingChunkRequestsBySheetKeyRef,
       tableRowsCacheBySheetKeyRef,
       columnDisplayScaleOverridesRef,
       resetCurrentPreviewCache,
@@ -2132,7 +2131,7 @@ const createTableViewModel = ({
       if (!sheetKey) return;
 
       const { loadedChunks, rowCache } = getOrCreatePreviewSheetCaches(sheetKey);
-      const pendingChunks = getOrCreatePendingChunks(sheetKey);
+      const pendingChunkRequests = getOrCreatePendingChunkRequests(sheetKey);
       const totalRows = Math.max(0, Math.floor(currentPreviewFile.rowCount));
       const start = Math.max(0, Math.min(totalRows, Math.floor(startRow || 0)));
       const end = Math.max(start, Math.min(totalRows, Math.floor(endRow || 0)));
@@ -2144,6 +2143,12 @@ const createTableViewModel = ({
       const lastChunkStart =
         Math.floor((end - 1) / TABLE_UI_CHUNK_SIZE_ROWS) *
         TABLE_UI_CHUNK_SIZE_ROWS;
+      const requestStart = firstChunkStart;
+      const requestEnd = Math.min(
+        totalRows,
+        lastChunkStart + TABLE_UI_CHUNK_SIZE_ROWS,
+      );
+      const requests = new Set<Promise<void>>();
 
       for (
         let chunkStart = firstChunkStart;
@@ -2160,11 +2165,22 @@ const createTableViewModel = ({
         loadedChunks.add(chunkStart);
       }
 
+      for (
+        let chunkStart = requestStart;
+        chunkStart <= lastChunkStart;
+        chunkStart += TABLE_UI_CHUNK_SIZE_ROWS
+      ) {
+        const pendingRequest = pendingChunkRequests.get(chunkStart);
+        if (pendingRequest) {
+          requests.add(pendingRequest);
+        }
+      }
+
       const missingRanges = collectMissingChunkRanges({
         rowCache,
-        pendingChunks,
-        startRow: start,
-        endRow: end,
+        pendingChunks: new Set(pendingChunkRequests.keys()),
+        startRow: requestStart,
+        endRow: requestEnd,
         chunkSize: TABLE_UI_CHUNK_SIZE_ROWS,
         maxRangeRows: PREVIEW_ROWS_MAX_MERGED_REQUEST_ROWS,
       });
@@ -2177,7 +2193,6 @@ const createTableViewModel = ({
       }, { silent: true });
 
       const dirtyRanges: TableDirtyRange[] = [];
-      const requests: Array<Promise<void>> = [];
 
       for (const range of missingRanges) {
         const rangeStart = Math.max(0, Math.floor(Number(range.rangeStart) || 0));
@@ -2191,7 +2206,6 @@ const createTableViewModel = ({
 
         for (const chunkStart of chunkStarts) {
           loadedChunks.delete(chunkStart);
-          pendingChunks.add(chunkStart);
         }
 
         const nextRequest = (async () => {
@@ -2237,14 +2251,19 @@ const createTableViewModel = ({
           })
           .finally(() => {
             for (const chunkStart of chunkStarts) {
-              pendingChunks.delete(chunkStart);
+              if (pendingChunkRequests.get(chunkStart) === nextRequest) {
+                pendingChunkRequests.delete(chunkStart);
+              }
             }
           });
 
-        requests.push(nextRequest);
+        for (const chunkStart of chunkStarts) {
+          pendingChunkRequests.set(chunkStart, nextRequest);
+        }
+        requests.add(nextRequest);
       }
 
-      if (!requests.length) {
+      if (!requests.size) {
         endEnsurePerf({
           cacheHit: true,
           dirtyRangeCount: 0,
@@ -2252,7 +2271,7 @@ const createTableViewModel = ({
         });
         return;
       }
-      await Promise.all(requests);
+      await Promise.all(Array.from(requests));
 
       if (dirtyRanges.length > 0) {
         notifyTableRowsCacheChanged(dirtyRanges);
@@ -2260,13 +2279,13 @@ const createTableViewModel = ({
       endEnsurePerf({
         cacheHit: false,
         dirtyRangeCount: dirtyRanges.length,
-        requestCount: requests.length,
+        requestCount: requests.size,
         success: true,
       });
     },
     [
       activeSheetKeyRef,
-      getOrCreatePendingChunks,
+      getOrCreatePendingChunkRequests,
       getOrCreatePreviewSheetCaches,
       notifyTableRowsCacheChanged,
       previewCacheSheetKeyRef,

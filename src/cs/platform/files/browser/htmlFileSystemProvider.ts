@@ -1,5 +1,6 @@
-import { Emitter } from "src/cs/base/common/event";
+import { Emitter, Event } from "src/cs/base/common/event";
 import { Disposable, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
+import { isLinux } from "src/cs/base/common/platform";
 import { URI } from "src/cs/base/common/uri";
 import { isEqualOrParent, toSlashes } from "src/cs/base/common/extpath";
 import { extname } from "src/cs/base/common/resources";
@@ -266,11 +267,13 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
   public readonly capabilities =
     FileSystemProviderCapabilities.FileRead |
     FileSystemProviderCapabilities.FileReadRange |
-    FileSystemProviderCapabilities.FileWrite;
+    FileSystemProviderCapabilities.FileWrite |
+    (isLinux ? FileSystemProviderCapabilities.PathCaseSensitive : FileSystemProviderCapabilities.None);
   private readonly roots = new Map<string, RegisteredBrowserFileRoot>();
   private readonly files = new Map<string, RegisteredBrowserFile>();
   private readonly onDidFilesChangeEmitter = this._register(new Emitter<readonly IFileChange[]>());
   public readonly onDidFilesChange = this.onDidFilesChangeEmitter.event;
+  public readonly onDidChangeCapabilities = Event.None;
 
   public async registerDirectoryHandle(handle: FileSystemDirectoryHandle): Promise<URI> {
     const path = await this.registerHandle(handle);

@@ -10,11 +10,13 @@ import {
 import {
   FileSystemProviderCapabilities,
   FileType,
-	  IFileService,
-	  type IFileChange,
-	  type IFileContent,
+  IFileService,
+  type IFileChange,
+  type IFileContent,
   type IFileService as IFileServiceType,
   type IFileStat,
+  type IFileSystemProviderCapabilitiesChangeEvent,
+  type IFileSystemProviderRegistrationEvent,
   type IFileSystemProvider,
   type IReadFileOptions,
   type IWatchOptions,
@@ -259,6 +261,10 @@ class TestStorageService extends AbstractStorageService implements IStorageServi
 class TestFileService implements IFileServiceType {
   public readonly _serviceBrand = undefined;
   public readonly onDidFilesChange = Event.None as Event<readonly IFileChange[]>;
+  public readonly onDidChangeFileSystemProviderCapabilities =
+    Event.None as Event<IFileSystemProviderCapabilitiesChangeEvent>;
+  public readonly onDidChangeFileSystemProviderRegistrations =
+    Event.None as Event<IFileSystemProviderRegistrationEvent>;
   private readonly existingResources: Set<string>;
 
   constructor(
@@ -278,6 +284,21 @@ class TestFileService implements IFileServiceType {
 
   public getProviderCapabilities(_resourceOrScheme: URI | string): FileSystemProviderCapabilities {
     return FileSystemProviderCapabilities.FileRead | FileSystemProviderCapabilities.FileWrite;
+  }
+
+  public hasProvider(resource: URI): boolean {
+    return URI.revive(resource).scheme === "file";
+  }
+
+  public hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean {
+    return Boolean(this.hasProvider(resource) && (this.getProviderCapabilities(resource) & capability));
+  }
+
+  public *listCapabilities(): Iterable<{ readonly capabilities: FileSystemProviderCapabilities; readonly scheme: string }> {
+    yield {
+      capabilities: this.getProviderCapabilities("file"),
+      scheme: "file",
+    };
   }
 
   public exists(resource: URI): Promise<boolean> {

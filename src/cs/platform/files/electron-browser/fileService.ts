@@ -1,5 +1,6 @@
 import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
-import { Emitter, type Event as EventType } from "src/cs/base/common/event";
+import { Emitter, Event, type Event as EventType } from "src/cs/base/common/event";
+import { isLinux } from "src/cs/base/common/platform";
 import type { IChannel } from "src/cs/base/parts/ipc/common/ipc";
 import { URI } from "src/cs/base/common/uri";
 import {
@@ -8,6 +9,8 @@ import {
   FileSystemProviderCapabilities,
   type IFileContent,
   type IFileChange,
+  type IFileSystemProviderCapabilitiesChangeEvent,
+  type IFileSystemProviderRegistrationEvent,
   type IFileStat,
   type IFileSystemProvider,
   type IReadFileOptions,
@@ -24,6 +27,10 @@ export class ElectronBrowserFileService extends Disposable implements IFileServi
 
   private readonly onDidFilesChangeEmitter = this._register(new Emitter<readonly IFileChange[]>());
   public readonly onDidFilesChange: EventType<readonly IFileChange[]> = this.onDidFilesChangeEmitter.event;
+  public readonly onDidChangeFileSystemProviderCapabilities =
+    Event.None as EventType<IFileSystemProviderCapabilitiesChangeEvent>;
+  public readonly onDidChangeFileSystemProviderRegistrations =
+    Event.None as EventType<IFileSystemProviderRegistrationEvent>;
 
   private readonly channel: IChannel;
   private readonly watcherClient: WatcherClient;
@@ -64,7 +71,23 @@ export class ElectronBrowserFileService extends Disposable implements IFileServi
       FileSystemProviderCapabilities.FileAtomicWrite |
       FileSystemProviderCapabilities.FileDelete |
       FileSystemProviderCapabilities.FileTrash |
-      FileSystemProviderCapabilities.FileWatch;
+      FileSystemProviderCapabilities.FileWatch |
+      (isLinux ? FileSystemProviderCapabilities.PathCaseSensitive : FileSystemProviderCapabilities.None);
+  }
+
+  public hasProvider(resource: URI): boolean {
+    return URI.revive(resource).scheme === "file";
+  }
+
+  public hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean {
+    return Boolean(this.hasProvider(resource) && (this.getProviderCapabilities(resource) & capability));
+  }
+
+  public *listCapabilities(): Iterable<{ readonly capabilities: FileSystemProviderCapabilities; readonly scheme: string }> {
+    yield {
+      capabilities: this.getProviderCapabilities("file"),
+      scheme: "file",
+    };
   }
 
   public readDir(resource: URI): Promise<readonly [string, FileType][]> {

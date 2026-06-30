@@ -20,19 +20,29 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 suite("platform/files/test/common/fileService", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
   class TestFileSystemProvider implements IFileSystemProvider {
-    public readonly capabilities =
-      FileSystemProviderCapabilities.FileRead |
-      FileSystemProviderCapabilities.FileReadRange |
-      FileSystemProviderCapabilities.FileWrite |
-      FileSystemProviderCapabilities.FileDelete |
-      FileSystemProviderCapabilities.FileTrash |
-      FileSystemProviderCapabilities.FileWatch;
     private readonly onDidFilesChangeEmitter = new Emitter<readonly IFileChange[]>();
+    private readonly onDidChangeCapabilitiesEmitter = new Emitter<void>();
     public readonly onDidFilesChange = this.onDidFilesChangeEmitter.event;
+    public readonly onDidChangeCapabilities = this.onDidChangeCapabilitiesEmitter.event;
     public readonly seenPaths: string[] = [];
+
+    public constructor(
+      public capabilities =
+        FileSystemProviderCapabilities.FileRead |
+        FileSystemProviderCapabilities.FileReadRange |
+        FileSystemProviderCapabilities.FileWrite |
+        FileSystemProviderCapabilities.FileDelete |
+        FileSystemProviderCapabilities.FileTrash |
+        FileSystemProviderCapabilities.FileWatch,
+    ) {}
 
     public fire(changes: readonly IFileChange[]): void {
       this.onDidFilesChangeEmitter.fire(changes);
+    }
+
+    public setCapabilities(capabilities: FileSystemProviderCapabilities): void {
+      this.capabilities = capabilities;
+      this.onDidChangeCapabilitiesEmitter.fire();
     }
 
     public async exists(resource: URI): Promise<boolean> {
@@ -134,10 +144,56 @@ suite("platform/files/test/common/fileService", () => {
     const service = store.add(new FileService());
     const provider = new TestFileSystemProvider();
     store.add(service.registerProvider("test", provider));
+    const resource = URI.from({ path: "/folder/transfer.csv", scheme: "test" });
 
     const capabilities = service.getProviderCapabilities("test");
 
     assert.equal(Boolean(capabilities & FileSystemProviderCapabilities.FileRead), true);
     assert.equal(Boolean(capabilities & FileSystemProviderCapabilities.FileWatch), true);
+    assert.equal(service.hasProvider(resource), true);
+    assert.equal(service.hasCapability(resource, FileSystemProviderCapabilities.FileRead), true);
+    assert.deepEqual([...service.listCapabilities()], [{
+      capabilities: provider.capabilities,
+      scheme: "test",
+    }]);
+  });
+
+  test("FileService emits provider registration events and rejects duplicate schemes", () => {
+    const service = store.add(new FileService());
+    const provider = new TestFileSystemProvider();
+    const events: Array<{ readonly added: boolean; readonly provider: IFileSystemProvider; readonly scheme: string }> = [];
+    store.add(service.onDidChangeFileSystemProviderRegistrations(event => events.push(event)));
+
+    const registration = service.registerProvider("test", provider);
+
+    assert.throws(
+      () => service.registerProvider("test", new TestFileSystemProvider()),
+      /already registered/,
+    );
+
+    registration.dispose();
+
+    assert.deepEqual(events, [
+      { added: true, provider, scheme: "test" },
+      { added: false, provider, scheme: "test" },
+    ]);
+    assert.equal(service.hasProvider(URI.from({ path: "/folder/transfer.csv", scheme: "test" })), false);
+  });
+
+  test("FileService forwards provider capability change events until registration is disposed", () => {
+    const service = store.add(new FileService());
+    const provider = new TestFileSystemProvider(FileSystemProviderCapabilities.FileRead);
+    const registration = service.registerProvider("test", provider);
+    const events: Array<{ readonly provider: IFileSystemProvider; readonly scheme: string }> = [];
+    store.add(service.onDidChangeFileSystemProviderCapabilities(event => events.push(event)));
+
+    provider.setCapabilities(
+      FileSystemProviderCapabilities.FileRead |
+      FileSystemProviderCapabilities.PathCaseSensitive,
+    );
+    registration.dispose();
+    provider.setCapabilities(FileSystemProviderCapabilities.FileRead);
+
+    assert.deepEqual(events, [{ provider, scheme: "test" }]);
   });
 });

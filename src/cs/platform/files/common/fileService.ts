@@ -1,5 +1,5 @@
 import { Emitter } from "../../../base/common/event.js";
-import { Disposable, toDisposable, type IDisposable } from "../../../base/common/lifecycle.js";
+import { Disposable, DisposableStore, toDisposable, type IDisposable } from "../../../base/common/lifecycle.js";
 import { URI } from "../../../base/common/uri.js";
 import {
   IFileService,
@@ -7,6 +7,8 @@ import {
   type FileType,
   type IFileChange,
   type IFileContent,
+  type IFileSystemProviderCapabilitiesChangeEvent,
+  type IFileSystemProviderRegistrationEvent,
   type IFileStat,
   type IFileSystemProvider,
   type IReadFileOptions,
@@ -19,25 +21,51 @@ export class FileService extends Disposable implements IFileService {
   public declare readonly _serviceBrand: undefined;
 
   private readonly providers = new Map<string, IFileSystemProvider>();
-  private readonly providerListeners = new Map<string, IDisposable>();
+  private readonly providerDisposables = new Map<string, IDisposable>();
   private readonly onDidFilesChangeEmitter = this._register(new Emitter<readonly IFileChange[]>());
   public readonly onDidFilesChange = this.onDidFilesChangeEmitter.event;
+  private readonly onDidChangeFileSystemProviderCapabilitiesEmitter =
+    this._register(new Emitter<IFileSystemProviderCapabilitiesChangeEvent>());
+  public readonly onDidChangeFileSystemProviderCapabilities =
+    this.onDidChangeFileSystemProviderCapabilitiesEmitter.event;
+  private readonly onDidChangeFileSystemProviderRegistrationsEmitter =
+    this._register(new Emitter<IFileSystemProviderRegistrationEvent>());
+  public readonly onDidChangeFileSystemProviderRegistrations =
+    this.onDidChangeFileSystemProviderRegistrationsEmitter.event;
 
   public registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable {
-    const previous = this.providerListeners.get(scheme);
-    previous?.dispose();
+    if (this.providers.has(scheme)) {
+      throw new Error(`A filesystem provider for the scheme '${scheme}' is already registered.`);
+    }
 
+    const providerDisposables = new DisposableStore();
     this.providers.set(scheme, provider);
-    this.providerListeners.set(
+    this.providerDisposables.set(scheme, providerDisposables);
+    this.onDidChangeFileSystemProviderRegistrationsEmitter.fire({
+      added: true,
+      provider,
       scheme,
+    });
+    providerDisposables.add(
       provider.onDidFilesChange(changes => this.onDidFilesChangeEmitter.fire(changes)),
     );
+    providerDisposables.add(provider.onDidChangeCapabilities(() => {
+      this.onDidChangeFileSystemProviderCapabilitiesEmitter.fire({
+        provider,
+        scheme,
+      });
+    }));
 
     return toDisposable(() => {
       if (this.providers.get(scheme) === provider) {
         this.providers.delete(scheme);
-        this.providerListeners.get(scheme)?.dispose();
-        this.providerListeners.delete(scheme);
+        this.providerDisposables.delete(scheme);
+        providerDisposables.dispose();
+        this.onDidChangeFileSystemProviderRegistrationsEmitter.fire({
+          added: false,
+          provider,
+          scheme,
+        });
       }
     });
   }
@@ -56,6 +84,24 @@ export class FileService extends Disposable implements IFileService {
     }
 
     return provider.capabilities;
+  }
+
+  public hasProvider(resource: URI): boolean {
+    return this.providers.has(URI.revive(resource).scheme);
+  }
+
+  public hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean {
+    const provider = this.getProvider(URI.revive(resource).scheme);
+    return Boolean(provider && (provider.capabilities & capability));
+  }
+
+  public *listCapabilities(): Iterable<{ readonly capabilities: FileSystemProviderCapabilities; readonly scheme: string }> {
+    for (const [scheme, provider] of this.providers) {
+      yield {
+        capabilities: provider.capabilities,
+        scheme,
+      };
+    }
   }
 
   public exists(resource: URI): Promise<boolean> {
@@ -97,6 +143,15 @@ export class FileService extends Disposable implements IFileService {
 
   public watch(resource: URI, options?: IWatchOptions): IDisposable {
     return this.withProvider(resource).watch(resource, options);
+  }
+
+  public override dispose(): void {
+    for (const disposable of this.providerDisposables.values()) {
+      disposable.dispose();
+    }
+    this.providerDisposables.clear();
+    this.providers.clear();
+    super.dispose();
   }
 
   private withProvider(resource: URI): IFileSystemProvider {

@@ -5,6 +5,7 @@ import { Emitter, type Event } from "src/cs/base/common/event";
 import { toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import { FileService } from "src/cs/platform/files/common/fileService";
 import { FileChangeType, type IFileChange, type IFileService } from "src/cs/platform/files/common/files";
 import { UriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentityService";
 import { WorkspaceWatcher } from "src/cs/workbench/contrib/files/browser/workspaceWatcher";
@@ -15,9 +16,10 @@ suite("workbench/contrib/files/browser/workspaceWatcher", () => {
   test("notifies for changes under the watched folder", async () => {
     const filesService = new TestFileService();
     const changedFolders: URI[] = [];
+    const uriIdentityFileService = store.add(new FileService());
     const watcher = store.add(new WorkspaceWatcher(
       filesService,
-      store.add(new UriIdentityService()),
+      store.add(new UriIdentityService(uriIdentityFileService)),
       folder => changedFolders.push(folder),
       { changeReactDelay: 0 },
     ));
@@ -39,9 +41,10 @@ suite("workbench/contrib/files/browser/workspaceWatcher", () => {
   test("ignores changes outside the watched folder and after clear", async () => {
     const filesService = new TestFileService();
     let changeCount = 0;
+    const uriIdentityFileService = store.add(new FileService());
     const watcher = store.add(new WorkspaceWatcher(
       filesService,
-      store.add(new UriIdentityService()),
+      store.add(new UriIdentityService(uriIdentityFileService)),
       () => changeCount += 1,
       { changeReactDelay: 0 },
     ));

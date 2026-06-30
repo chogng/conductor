@@ -14,6 +14,7 @@ import type {
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import type { IDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import type { IFileService } from "src/cs/platform/files/common/files";
+import { FileService } from "src/cs/platform/files/common/fileService";
 import type { IInstantiationService } from "src/cs/platform/instantiation/common/instantiation";
 import { UriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentityService";
 import { ExplorerViewPane } from "src/cs/workbench/contrib/files/browser/explorerViewlet";
@@ -249,7 +250,7 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
     createDecorationsService(),
     createReviewService(options.onResolveReviewSummary),
     createSettingsService(),
-    new UriIdentityService(),
+    new UriIdentityService(new FileService()),
   );
 
 const createContextMenuService = (): IContextMenuService => ({
