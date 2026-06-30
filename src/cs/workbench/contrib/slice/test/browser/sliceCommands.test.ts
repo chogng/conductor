@@ -373,6 +373,7 @@ const createAccessor = ({
 	const services = new Map<ServiceIdentifier<unknown>, unknown>([
 		[IExplorerService, {
 			_serviceBrand: undefined,
+			files: explorerFiles,
 			getPaneInput: () => ({ files: explorerFiles, quickAccessFiles: [] }),
 			hasPendingSourceFiles,
 		}],

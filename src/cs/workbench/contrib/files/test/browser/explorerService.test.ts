@@ -293,4 +293,37 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
     disposable.dispose();
   });
 
+  test("keeps committed files separate from display projection", () => {
+    const service = store.add(new ExplorerService());
+    const fileA = {
+      fileId: "file-a",
+      fileName: "A.csv",
+      resource: URI.file("/data/A.csv"),
+    };
+    const fileB = {
+      fileId: "file-b",
+      fileName: "B.csv",
+      resource: URI.file("/data/B.csv"),
+    };
+
+    service.updatePaneInput({
+      files: [fileA, fileB],
+      mode: "table",
+      selectedResource: null,
+      selectedSheetId: null,
+      selectionKind: "table",
+    });
+    service.updatePaneInput({
+      files: [fileA],
+      mode: "chart",
+      quickAccessFiles: [fileA, fileB],
+      selectedResource: null,
+      selectedSheetId: null,
+      selectionKind: "chart",
+    });
+
+    assert.deepEqual(service.files.map(file => file.fileId), ["file-a", "file-b"]);
+    assert.deepEqual(service.getPaneInput()?.files.map(file => file.fileId), ["file-a"]);
+  });
+
 });

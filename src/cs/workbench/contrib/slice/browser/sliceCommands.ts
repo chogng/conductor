@@ -67,7 +67,7 @@ export const runSliceWithTemplateHandler = (
 	const reviewService = accessor.get(IReviewService);
 	const layoutService = accessor.get(IWorkbenchLayoutService);
 	const uriTargets = getSliceCommandUriTargets(
-		explorerService.getPaneInput()?.files ?? [],
+		explorerService.files,
 		sliceService,
 		Boolean(options.incremental),
 	);

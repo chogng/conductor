@@ -84,7 +84,7 @@ Explorer owns:
 - file/folder commands, actions, context menus, drag/drop UI;
 - hover triggers, timing, anchors, context-view containers, positioning, dismissal;
 - thumbnail candidate filtering before thumbnail UI renders;
-- source workflow orchestration, Explorer-local imported rows, and optional UI follow-up after table resource opens.
+- source workflow orchestration, ExplorerService-owned imported rows, and optional UI follow-up after table resource opens.
 
 Explorer source workflow owns:
 
@@ -173,7 +173,7 @@ Explorer drop/dialog/clipboard/folder
   -> source collection / pending Explorer entries
   -> assign table resource URI / register browser File with file provider when needed
   -> PreparedFileImport resource rows
-  -> ExplorerViewPane updates Explorer-local visible state
+  -> ExplorerViewPane commits rows through IExplorerService file-model APIs
   -> IReviewService.resolveReviewSummary({ resource, sheetId? }) starts URI-backed Review for the prepared row
   -> ITableService.open({ resource })
   -> TableFileEditorModel / ITableModel own URI-backed model lifecycle

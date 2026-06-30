@@ -101,19 +101,10 @@ export class ExplorerViewPane extends ViewPane {
   private readonly sourceWorkflow: FileSourceWorkflow;
   private explorerView: ExplorerView | null = null;
   private input: ExplorerPaneInput | null = null;
-  private internalFiles: ExplorerFileEntry[] = [];
   private pendingSourceEntries: ExplorerFileEntry[] = [];
   private replaceItemKeys: string[] | null = null;
-  private readonly locallyRemovedFileIds = new Set<string>();
-  private readonly locallyRenamedFileNames = new Map<string, string>();
   private deferTableOpenUntilSourceReplace = false;
   private deferredSourceReplaceOpenTarget: ExplorerResourceTarget | null = null;
-  private mergedFilesCache: {
-    readonly committedFiles: readonly ExplorerFileEntry[];
-    readonly files: ExplorerFileEntry[];
-    readonly pendingSourceEntries: readonly ExplorerFileEntry[];
-    readonly replaceItemKeys: readonly string[] | null;
-  } | null = null;
   private isDragging = false;
   private disposed = false;
   private pendingLocalExpandedFolderKeys: readonly string[] | null = null;
@@ -292,12 +283,12 @@ export class ExplorerViewPane extends ViewPane {
 
   private resolveExplorerFileTarget(target: ExplorerResourceTarget | URI): ExplorerFileEntry | null {
     if (target instanceof URI) {
-      return findExplorerFileEntryByResource(this.files, { resource: target });
+      return findExplorerFileEntryByResource(this.committedFiles, { resource: target });
     }
 
     const resourceTarget = normalizeExplorerResourceTarget(target);
     return resourceTarget
-      ? findExplorerFileEntryByResource(this.files, resourceTarget)
+      ? findExplorerFileEntryByResource(this.committedFiles, resourceTarget)
       : null;
   }
 
@@ -333,61 +324,26 @@ export class ExplorerViewPane extends ViewPane {
   }
 
   private get files(): ExplorerFileEntry[] {
-    const committedFiles = this.committedFiles;
+    const committedFiles = this.paneInput.files;
     if (!this.pendingSourceEntries.length && !this.replaceItemKeys?.length) {
       return committedFiles;
     }
 
-    const cache = this.mergedFilesCache;
-    if (
-      cache &&
-      cache.committedFiles === committedFiles &&
-      cache.pendingSourceEntries === this.pendingSourceEntries &&
-      cache.replaceItemKeys === this.replaceItemKeys
-    ) {
-      return cache.files;
-    }
-
-    const files = mergeExplorerSourceEntries({
+    return mergeExplorerSourceEntries({
       files: committedFiles,
       pendingSourceEntries: this.pendingSourceEntries,
       replaceItemKeys: this.replaceItemKeys,
     });
-    this.mergedFilesCache = {
-      committedFiles,
-      files,
-      pendingSourceEntries: this.pendingSourceEntries,
-      replaceItemKeys: this.replaceItemKeys,
-    };
-    return files;
   }
 
-  private get committedFiles(): ExplorerFileEntry[] {
-    return applyLocalExplorerFileOverrides(
-      this.baseCommittedFiles,
-      this.locallyRemovedFileIds,
-      this.locallyRenamedFileNames,
-    );
-  }
-
-  private get baseCommittedFiles(): ExplorerFileEntry[] {
-    const inputFiles = this.input?.files;
-    return mergeExplorerCommittedFiles(
-      Array.isArray(inputFiles) ? inputFiles : [],
-      this.internalFiles,
-    );
+  private get committedFiles(): readonly ExplorerFileEntry[] {
+    return this.explorerService.files;
   }
 
   private get fileIds(): readonly string[] {
-    return this.files
+    return this.committedFiles
       .map(file => normalizeFileId(file.fileId))
       .filter((fileId): fileId is string => Boolean(fileId));
-  }
-
-  private get itemKeys(): readonly string[] {
-    return this.files
-      .map(file => normalizeItemKey(file.itemKey))
-      .filter((itemKey): itemKey is string => Boolean(itemKey));
   }
 
   private get selectedResource(): URI | null {
@@ -526,7 +482,7 @@ export class ExplorerViewPane extends ViewPane {
       return;
     }
 
-    this.renameExplorerFile(normalizedFileId, normalizedName);
+    this.explorerService.renameFile(normalizedFileId, normalizedName);
     this.syncView();
   };
 
@@ -769,7 +725,6 @@ export class ExplorerViewPane extends ViewPane {
     file: ExplorerFileEntry | null,
   ): void => {
     const selectedTarget = this.selectFile(file, "force");
-    this.publishExplorerPaneInput();
     const selectedEntry = findExplorerFileEntryByResource(this.files, selectedTarget);
     if (this.deferTableOpenUntilSourceReplace) {
       this.deferSourceReplaceTableOpen(selectedEntry);
@@ -859,7 +814,7 @@ export class ExplorerViewPane extends ViewPane {
       return;
     }
 
-    const removedFiles = this.files
+    const removedFiles = this.committedFiles
       .filter((entry) => isExplorerPathInFolder(entry.relativePath, folderPath));
     const removedFileIds = new Set(
       removedFiles
@@ -930,7 +885,7 @@ export class ExplorerViewPane extends ViewPane {
 
   private notifyExplorerFilesRemoved(fileIds: readonly string[]): void {
     const removedFileIds = getNormalizedFileIds(fileIds);
-    const currentEntry = findExplorerFileEntryByResource(this.files, {
+    const currentEntry = findExplorerFileEntryByResource(this.committedFiles, {
       resource: this.explorerService.selectedResource,
       sheetId: this.explorerService.selectedSheetId,
     });
@@ -938,7 +893,7 @@ export class ExplorerViewPane extends ViewPane {
       return;
     }
 
-    const remainingFiles = this.files.filter(file =>
+    const remainingFiles = this.committedFiles.filter(file =>
       !removedFileIds.includes(normalizeFileId(file.fileId) ?? ""));
     const nextTarget = getFirstExplorerResourceTarget(remainingFiles);
     this.explorerService.select({
@@ -977,40 +932,8 @@ export class ExplorerViewPane extends ViewPane {
       return;
     }
 
-    this.hideExplorerFiles(normalizedFileIds);
+    this.explorerService.removeFiles(normalizedFileIds);
     this.selectRawFileAfterRemoval(normalizedFileIds);
-  }
-
-  private hideExplorerFiles(fileIds: readonly string[]): void {
-    const removedFileIds = new Set(fileIds);
-    for (const fileId of removedFileIds) {
-      this.locallyRemovedFileIds.add(fileId);
-      this.locallyRenamedFileNames.delete(fileId);
-    }
-
-    this.internalFiles = this.internalFiles.filter((entry) => !removedFileIds.has(entry.fileId ?? ""));
-    this.mergedFilesCache = null;
-    this.publishExplorerPaneInput();
-  }
-
-  private renameExplorerFile(fileId: string, fileName: string): void {
-    this.locallyRenamedFileNames.set(fileId, fileName);
-    this.internalFiles = this.internalFiles.map(entry =>
-      entry.fileId === fileId
-        ? { ...entry, fileName }
-        : entry);
-    this.mergedFilesCache = null;
-    this.publishExplorerPaneInput();
-  }
-
-  private restoreExplorerFiles(fileIds: readonly string[]): void {
-    let changed = false;
-    for (const fileId of getNormalizedFileIds(fileIds)) {
-      changed = this.locallyRemovedFileIds.delete(fileId) || changed;
-    }
-    if (changed) {
-      this.mergedFilesCache = null;
-    }
   }
 
   private replaceImportedFiles(
@@ -1022,16 +945,10 @@ export class ExplorerViewPane extends ViewPane {
     assertSupportedExplorerImportEntries(localEntries, importedFiles);
     const removedFileIds = resolveExplorerSourceReplaceRemovedFileIds({
       nextFiles: localEntries,
-      previousFiles: this.baseCommittedFiles,
+      previousFiles: this.committedFiles,
     });
-    this.locallyRemovedFileIds.clear();
-    for (const fileId of removedFileIds) {
-      this.locallyRemovedFileIds.add(fileId);
-    }
-    this.locallyRenamedFileNames.clear();
-    this.internalFiles = localEntries;
-    this.mergedFilesCache = null;
-    this.publishExplorerPaneInput();
+    this.notifyExplorerFilesRemoved(removedFileIds);
+    this.explorerService.replaceFiles(localEntries);
 
     this.removePendingSourceFiles(getImportItemKeys(importedFiles));
     const selectedEntry = resolveSelectedExplorerImportEntry(localEntries, selectedImportItemKey);
@@ -1041,7 +958,6 @@ export class ExplorerViewPane extends ViewPane {
     }
 
     this.selectImportedTableFile(selectedEntry);
-    this.publishExplorerPaneInput();
     if (this.deferTableOpenUntilSourceReplace) {
       this.deferSourceReplaceTableOpen(selectedEntry);
       this.syncView();
@@ -1063,27 +979,21 @@ export class ExplorerViewPane extends ViewPane {
 
     const localEntries = createLocalExplorerImportEntries(fileEntries, importedFiles);
     assertSupportedExplorerImportEntries(localEntries, importedFiles);
-    const importedEntries = filterNewExplorerImportEntries(localEntries, this.committedFiles);
+    const importedEntries = this.explorerService.appendFiles(localEntries);
     this.removePendingSourceFiles(getImportItemKeys(importedFiles));
     if (!importedEntries.length) {
       this.syncView();
       return;
     }
 
-    this.restoreExplorerFiles(importedEntries.map(file => file.fileId ?? ""));
-    this.internalFiles = mergeExplorerCommittedFiles(this.internalFiles, importedEntries);
-    this.mergedFilesCache = null;
-    this.publishExplorerPaneInput();
-
     const openTarget = resolveExplorerImportOpenEntry({
-      files: this.files,
+      files: this.committedFiles,
       importedEntries,
       selectedResource: this.explorerService.selectedResource,
       selectedSheetId: this.explorerService.selectedSheetId,
     });
     if (shouldSelectExplorerImportTableTarget(openTarget, this.paneInput.selectionKind)) {
       this.selectImportedTableFile(openTarget.entry);
-      this.publishExplorerPaneInput();
     }
     if (this.deferTableOpenUntilSourceReplace) {
       this.deferSourceReplaceTableOpen(openTarget.entry);
@@ -1124,7 +1034,7 @@ export class ExplorerViewPane extends ViewPane {
       return;
     }
 
-    const fileIds = this.files
+    const fileIds = this.committedFiles
       .filter(file => removedItemKeys.has(normalizeItemKey(file.itemKey) ?? ""))
       .map(file => normalizeFileId(file.fileId))
       .filter((fileId): fileId is string => Boolean(fileId));
@@ -1134,7 +1044,7 @@ export class ExplorerViewPane extends ViewPane {
   }
 
   private getSelectedRelativePath(): string | null {
-    const selectedFile = findExplorerFileEntryByResource(this.files, {
+    const selectedFile = findExplorerFileEntryByResource(this.committedFiles, {
       resource: this.selectedResource,
       sheetId: this.selectedSheetId,
     });
@@ -1159,21 +1069,11 @@ export class ExplorerViewPane extends ViewPane {
   ): ExplorerResourceTarget | null {
     const target = getExplorerFileResourceIdentity(file);
     return this.explorerService.select({
-      candidateResources: getExplorerResourceTargets(this.files),
+      candidateResources: getExplorerResourceTargets(this.committedFiles),
       kind: "table",
       resource: target?.resource ?? null,
       sheetId: target?.sheetId ?? null,
     }, "force");
-  }
-
-  private publishExplorerPaneInput(): void {
-    const input = this.paneInput;
-    this.explorerService.updatePaneInput({
-      ...input,
-      files: this.committedFiles,
-      selectedResource: this.explorerService.selectedResource,
-      selectedSheetId: this.explorerService.selectedSheetId,
-    });
   }
 
   private openSelectedTableFile(
@@ -1202,7 +1102,7 @@ export class ExplorerViewPane extends ViewPane {
   }
 
   private reviewCurrentExplorerEntries(force: boolean): void {
-    const targets = getExplorerResourceTargets(this.files);
+    const targets = getExplorerResourceTargets(this.committedFiles);
     const signature = targets
       .map(target => getExplorerResourceIdentityKey(target) ?? "")
       .join("\u001f");
@@ -1235,7 +1135,7 @@ export class ExplorerViewPane extends ViewPane {
       return;
     }
 
-    const entry = findExplorerFileEntryByResource(this.files, target);
+    const entry = findExplorerFileEntryByResource(this.committedFiles, target);
     if (!entry) {
       return;
     }
@@ -1251,9 +1151,9 @@ export class ExplorerViewPane extends ViewPane {
     }
 
     const removedFileIdSet = new Set(removedFileIds);
-    const remainingFiles = this.files
+    const remainingFiles = this.committedFiles
       .filter(file => !removedFileIdSet.has(normalizeFileId(file.fileId) ?? ""));
-    const currentEntry = findExplorerFileEntryByResource(this.files, {
+    const currentEntry = findExplorerFileEntryByResource(this.committedFiles, {
       resource: this.explorerService.selectedResource,
       sheetId: this.explorerService.selectedSheetId,
     });
@@ -1267,7 +1167,6 @@ export class ExplorerViewPane extends ViewPane {
       resource: nextTarget?.resource ?? null,
       sheetId: nextTarget?.sheetId ?? null,
     }, "force");
-    this.publishExplorerPaneInput();
     this.openSelectedTableFile(nextTarget);
   }
 
@@ -1384,60 +1283,6 @@ function createLocalExplorerImportEntry(
     ...entry,
     fileId,
   };
-}
-
-function filterNewExplorerImportEntries(
-  entries: readonly ExplorerFileEntry[],
-  currentFiles: readonly ExplorerFileEntry[],
-): ExplorerFileEntry[] {
-  const seen = new Set(currentFiles.map(getExplorerFileEntryKey));
-  const result: ExplorerFileEntry[] = [];
-  for (const entry of entries) {
-    const key = getExplorerFileEntryKey(entry);
-    if (!key || seen.has(key)) {
-      continue;
-    }
-
-    seen.add(key);
-    result.push(entry);
-  }
-  return result;
-}
-
-function mergeExplorerCommittedFiles(
-  baseFiles: readonly ExplorerFileEntry[],
-  localFiles: readonly ExplorerFileEntry[],
-): ExplorerFileEntry[] {
-  if (!baseFiles.length) {
-    return [...localFiles];
-  }
-  if (!localFiles.length) {
-    return [...baseFiles];
-  }
-
-  const result = [...baseFiles];
-  const indexesByKey = new Map<string, number>();
-  for (let index = 0; index < result.length; index += 1) {
-    const key = getExplorerFileEntryKey(result[index]);
-    if (key) {
-      indexesByKey.set(key, index);
-    }
-  }
-
-  for (const file of localFiles) {
-    const key = getExplorerFileEntryKey(file);
-    const index = key ? indexesByKey.get(key) : undefined;
-    if (index === undefined) {
-      if (key) {
-        indexesByKey.set(key, result.length);
-      }
-      result.push(file);
-      continue;
-    }
-
-    result[index] = file;
-  }
-  return result;
 }
 
 function resolveSelectedExplorerImportEntry(
@@ -1676,10 +1521,6 @@ function getImportedTableFileNameCandidates(
     .filter((value): value is string => Boolean(value));
 }
 
-function getExplorerFileEntryKey(file: ExplorerFileEntry | undefined): string {
-  return getExplorerFileSourceIdentityKey(file) ?? "";
-}
-
 function normalizePathValue(value: unknown): string | null {
   const path = String(value ?? "").trim();
   return path || null;
@@ -1738,29 +1579,6 @@ function normalizeFileId(value: unknown): string | null {
 function normalizeItemKey(value: unknown): string | null {
   const itemKey = String(value ?? "").trim();
   return itemKey || null;
-}
-
-function applyLocalExplorerFileOverrides(
-  files: readonly ExplorerFileEntry[],
-  removedFileIds: ReadonlySet<string>,
-  renamedFileNames: ReadonlyMap<string, string>,
-): ExplorerFileEntry[] {
-  if (removedFileIds.size === 0 && renamedFileNames.size === 0) {
-    return files as ExplorerFileEntry[];
-  }
-
-  const result: ExplorerFileEntry[] = [];
-  for (const file of files) {
-    const fileId = normalizeFileId(file.fileId);
-    if (fileId && removedFileIds.has(fileId)) {
-      continue;
-    }
-
-    const fileName = fileId ? renamedFileNames.get(fileId) : undefined;
-    result.push(fileName ? { ...file, fileName } : file);
-  }
-
-  return result;
 }
 
 function getNormalizedFileIds(values: readonly string[]): readonly string[] {

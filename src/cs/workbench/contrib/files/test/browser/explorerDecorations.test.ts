@@ -238,6 +238,7 @@ const createExplorerServiceForTest = (
 	files: readonly ExplorerFileEntry[],
 ): IExplorerService => ({
 	_serviceBrand: undefined,
+	files: [...files],
 	getPaneInput: () => ({
 		files: [...files],
 		mode: "table",

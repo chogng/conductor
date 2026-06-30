@@ -88,11 +88,7 @@ export class ExplorerDecorationsProvider extends Disposable implements IDecorati
 	}
 
 	private getExplorerEntries(): readonly ExplorerFileEntry[] {
-		const input = this.explorerService.getPaneInput();
-		return [
-			...(input?.files ?? []),
-			...(input?.quickAccessFiles ?? []),
-		];
+		return this.explorerService.files;
 	}
 
 	private hasExplorerEntryForDecorationTarget(target: ExplorerDecorationTarget): boolean {

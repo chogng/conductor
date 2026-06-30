@@ -26,7 +26,12 @@ import {
 import {
   areTemplateTargetSelectionsEqual,
 } from "src/cs/workbench/services/slice/common/templateSelection";
-import { getExplorerResourceIdentityKey } from "src/cs/workbench/contrib/files/common/explorerModel";
+import {
+  filterNewExplorerFiles,
+  getExplorerResourceIdentityKey,
+  mergeExplorerCommittedFiles,
+  type ExplorerFileEntry,
+} from "src/cs/workbench/contrib/files/common/explorerModel";
 
 export class ExplorerService extends Disposable implements IExplorerService {
   public declare readonly _serviceBrand: undefined;
@@ -55,6 +60,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
   private currentVisibleTargets: readonly ExplorerResourceTarget[] = [];
   private currentViewLayout: ExplorerViewLayout = "tree";
   private currentHasPendingSourceFiles = false;
+  private currentFiles: ExplorerFileEntry[] = [];
   private paneInput: ExplorerPaneInput | null = null;
   private readonly views = new Set<IExplorerView>();
   private editable: ExplorerEditableData | null = null;
@@ -73,6 +79,10 @@ export class ExplorerService extends Disposable implements IExplorerService {
 
   public get hasPendingSourceFiles(): boolean {
     return this.currentHasPendingSourceFiles;
+  }
+
+  public get files(): readonly ExplorerFileEntry[] {
+    return this.currentFiles;
   }
 
   public get hoveredResource(): ExplorerResourceTarget | null {
@@ -151,6 +161,71 @@ export class ExplorerService extends Disposable implements IExplorerService {
   public async refresh(): Promise<void> {
     for (const view of this.views) {
       view.refresh?.();
+    }
+  }
+
+  public replaceFiles(files: readonly ExplorerFileEntry[]): void {
+    this.setFiles(files);
+  }
+
+  public appendFiles(files: readonly ExplorerFileEntry[]): readonly ExplorerFileEntry[] {
+    const importedFiles = filterNewExplorerFiles(files, this.currentFiles);
+    if (!importedFiles.length) {
+      return [];
+    }
+
+    this.setFiles(mergeExplorerCommittedFiles(this.currentFiles, importedFiles));
+    return importedFiles;
+  }
+
+  public removeFiles(fileIds: readonly string[]): readonly ExplorerFileEntry[] {
+    const removedFileIds = new Set(
+      fileIds
+        .map(normalizeExplorerFileId)
+        .filter((fileId): fileId is string => Boolean(fileId)),
+    );
+    if (!removedFileIds.size) {
+      return [];
+    }
+
+    const removedFiles: ExplorerFileEntry[] = [];
+    const remainingFiles: ExplorerFileEntry[] = [];
+    for (const file of this.currentFiles) {
+      const fileId = normalizeExplorerFileId(file.fileId);
+      if (fileId && removedFileIds.has(fileId)) {
+        removedFiles.push(file);
+      } else {
+        remainingFiles.push(file);
+      }
+    }
+    if (!removedFiles.length) {
+      return [];
+    }
+
+    this.setFiles(remainingFiles);
+    return removedFiles;
+  }
+
+  public renameFile(fileId: string, fileName: string): void {
+    const normalizedFileId = normalizeExplorerFileId(fileId);
+    const normalizedFileName = String(fileName ?? "").trim();
+    if (!normalizedFileId || !normalizedFileName) {
+      return;
+    }
+
+    let changed = false;
+    const nextFiles = this.currentFiles.map(file => {
+      if (normalizeExplorerFileId(file.fileId) !== normalizedFileId) {
+        return file;
+      }
+
+      changed = changed || file.fileName !== normalizedFileName;
+      return file.fileName === normalizedFileName
+        ? file
+        : { ...file, fileName: normalizedFileName };
+    });
+    if (changed) {
+      this.setFiles(nextFiles);
     }
   }
 
@@ -242,6 +317,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
   }
 
   public updatePaneInput(input: ExplorerPaneInput): void {
+    this.updateFilesFromPaneInput(input);
     if (this.paneInput && isSameExplorerPaneInput(this.paneInput, input)) {
       return;
     }
@@ -306,6 +382,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
 
     this.currentSelectedResource = nextResource;
     this.currentSelectedSheetId = nextSheetId;
+    this.updatePaneInputSelection();
 
     return {
       changed: true,
@@ -343,9 +420,62 @@ export class ExplorerService extends Disposable implements IExplorerService {
       expandedFolderKeys: this.currentExpandedFolderKeys,
     });
   }
+
+  private setFiles(files: readonly ExplorerFileEntry[]): void {
+    const nextFiles = [...files];
+    if (areExplorerFilesEqual(this.currentFiles, nextFiles)) {
+      return;
+    }
+
+    this.currentFiles = nextFiles;
+    this.updatePaneInputFiles(nextFiles);
+  }
+
+  private updateFilesFromPaneInput(input: ExplorerPaneInput): void {
+    const inputFiles = input.quickAccessFiles?.length ? input.quickAccessFiles : input.files;
+    if (!areExplorerFilesEqual(this.currentFiles, inputFiles)) {
+      this.currentFiles = [...inputFiles];
+    }
+  }
+
+  private updatePaneInputFiles(files: readonly ExplorerFileEntry[]): void {
+    const input = this.paneInput ?? EMPTY_EXPLORER_PANE_INPUT;
+    this.updatePaneInput({
+      ...input,
+      files: [...files],
+      quickAccessFiles: undefined,
+      selectedResource: this.currentSelectedResource,
+      selectedSheetId: this.currentSelectedSheetId,
+    });
+  }
+
+  private updatePaneInputSelection(): void {
+    if (!this.paneInput) {
+      return;
+    }
+
+    this.updatePaneInput({
+      ...this.paneInput,
+      selectedResource: this.currentSelectedResource,
+      selectedSheetId: this.currentSelectedSheetId,
+    });
+  }
 }
 
 registerSingleton(IExplorerService, ExplorerService, InstantiationType.Delayed);
+
+const EMPTY_EXPLORER_PANE_INPUT: ExplorerPaneInput = {
+  files: [],
+  mode: "table",
+  selectedResource: null,
+  selectedSheetId: null,
+  selectionKind: "table",
+};
+
+const normalizeExplorerFileId = (value: unknown): string | null => {
+  const normalized = String(value ?? "").trim();
+  return normalized || null;
+};
 
 function normalizeExplorerFolderKeys(folderKeys: readonly string[]): string[] {
   const result: string[] = [];

@@ -190,6 +190,7 @@ function createExplorerService(
 ): IExplorerService {
 	  return {
 	    _serviceBrand: undefined,
+	    files: paneInput.quickAccessFiles?.length ? paneInput.quickAccessFiles : paneInput.files,
 	    hasPendingSourceFiles: false,
 	    hoveredResource: null,
 	    selectedResource: null,
@@ -224,6 +225,10 @@ function createExplorerService(
 	    setToCopy: () => undefined,
 	    applyBulkEdit: async () => undefined,
 	    refresh: async () => undefined,
+	    replaceFiles: () => undefined,
+	    appendFiles: () => [],
+	    removeFiles: () => [],
+	    renameFile: () => undefined,
 	    setExpandedFolderKeys: () => undefined,
 	    setHoveredResource: () => undefined,
 	    reconcileExpandedFolderKeys: folderKeys => folderKeys,

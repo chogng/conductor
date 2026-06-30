@@ -790,7 +790,7 @@ export class Workbench extends Layout {
     });
     endPerf({
       ...(shouldRefreshActiveAuxiliaryView ? {
-        explorerFileCount: this.explorerService.getPaneInput()?.files.length ?? 0,
+        explorerFileCount: this.explorerService.files.length,
       } : {}),
     });
   }
@@ -861,7 +861,7 @@ export class Workbench extends Layout {
 
     this.renderAuxiliaryBarView();
     endPerf({
-      explorerFileCount: this.explorerService.getPaneInput()?.files.length ?? 0,
+      explorerFileCount: this.explorerService.files.length,
       needsChromeRefresh,
     });
   }
@@ -1197,7 +1197,7 @@ export class Workbench extends Layout {
   private getSelectedChartFileId(): string | null {
     return resolveExplorerDomainSelection(
       this.explorerService,
-      this.explorerService.getPaneInput()?.files ?? [],
+      this.explorerService.files,
     ).chartFileId;
   }
 

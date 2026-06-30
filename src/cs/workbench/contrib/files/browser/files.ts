@@ -104,6 +104,7 @@ export interface IExplorerService {
   readonly _serviceBrand: undefined;
 
   readonly hasPendingSourceFiles: boolean;
+  readonly files: readonly ExplorerFileEntry[];
   readonly selectedResource: URI | null;
   readonly selectedSheetId: string | null;
   readonly hoveredResource: ExplorerResourceTarget | null;
@@ -124,6 +125,10 @@ export interface IExplorerService {
   setToCopy(resources: readonly ExplorerSelectionTarget[], isCut: boolean): void;
   applyBulkEdit(): Promise<void>;
   refresh(): Promise<void>;
+  replaceFiles(files: readonly ExplorerFileEntry[]): void;
+  appendFiles(files: readonly ExplorerFileEntry[]): readonly ExplorerFileEntry[];
+  removeFiles(fileIds: readonly string[]): readonly ExplorerFileEntry[];
+  renameFile(fileId: string, fileName: string): void;
   setHoveredResource(target: ExplorerResourceTarget | null): void;
   setExpandedFolderKeys(folderKeys: readonly string[]): void;
   reconcileExpandedFolderKeys(folderKeys: readonly string[]): readonly string[];

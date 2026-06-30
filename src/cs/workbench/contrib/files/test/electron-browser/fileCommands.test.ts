@@ -19,21 +19,23 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
     const explorerService = store.add(new ExplorerService());
     const sourceResource = URI.file("C:/data/source.csv");
     const normalizedResource = URI.file("C:/tmp/normalized.csv");
+    const files = [
+      {
+        fileId: "source-file",
+        fileName: "source.csv",
+        resource: sourceResource,
+        sourcePath: "C:/data/source.csv",
+      },
+      {
+        fileId: "normalized-file",
+        fileName: "normalized.csv",
+        resource: normalizedResource,
+        normalizedCsvPath: "C:/tmp/normalized.csv",
+      },
+    ];
+    explorerService.replaceFiles(files);
     explorerService.updatePaneInput({
-      files: [
-        {
-          fileId: "source-file",
-          fileName: "source.csv",
-          resource: sourceResource,
-          sourcePath: "C:/data/source.csv",
-        },
-        {
-          fileId: "normalized-file",
-          fileName: "normalized.csv",
-          resource: normalizedResource,
-          normalizedCsvPath: "C:/tmp/normalized.csv",
-        },
-      ],
+      files,
       mode: "table",
       selectedResource: sourceResource,
       selectedSheetId: null,
@@ -58,13 +60,15 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
   test("registered reveal in OS command delegates to native host", () => {
     const explorerService = store.add(new ExplorerService());
     const resource = URI.file("C:/data/file.csv");
+    const files = [{
+      fileId: "file-1",
+      fileName: "file.csv",
+      resource,
+      sourcePath: "C:/data/file.csv",
+    }];
+    explorerService.replaceFiles(files);
     explorerService.updatePaneInput({
-      files: [{
-        fileId: "file-1",
-        fileName: "file.csv",
-        resource,
-        sourcePath: "C:/data/file.csv",
-      }],
+      files,
       mode: "table",
       selectedResource: resource,
       selectedSheetId: null,
@@ -92,12 +96,14 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
   test("registered rename command enters Explorer editable state", () => {
     const explorerService = store.add(new ExplorerService());
     const resource = URI.file("C:/data/file.csv");
+    const files = [{
+      fileId: "file-1",
+      fileName: "file.csv",
+      resource,
+    }];
+    explorerService.replaceFiles(files);
     explorerService.updatePaneInput({
-      files: [{
-        fileId: "file-1",
-        fileName: "file.csv",
-        resource,
-      }],
+      files,
       mode: "table",
       selectedResource: resource,
       selectedSheetId: null,

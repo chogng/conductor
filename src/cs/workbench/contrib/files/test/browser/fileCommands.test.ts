@@ -252,6 +252,7 @@ function createExplorerServiceStub({
 }): IExplorerService {
   return {
     _serviceBrand: undefined,
+    files,
     getPaneInput: () => ({
       files,
       mode: "table",

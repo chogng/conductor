@@ -84,7 +84,7 @@ export class WorkbenchDomainBridge extends Disposable {
     this._register(this.options.explorerService.onDidChangeSelection(event => {
       this.prioritizeProcessingFile(
         getExplorerFileIdForResourceTarget(
-          this.options.explorerService.getPaneInput()?.files ?? [],
+          this.options.explorerService.files,
           {
             resource: event.selectedResource,
             sheetId: event.selectedSheetId ?? null,
@@ -97,7 +97,7 @@ export class WorkbenchDomainBridge extends Disposable {
     this._register(this.options.explorerService.onDidChangeHoveredResource(event => {
       this.prioritizeProcessingFile(
         getExplorerFileIdForResourceTarget(
-          this.options.explorerService.getPaneInput()?.files ?? [],
+          this.options.explorerService.files,
           event.target,
         ),
         "hover",
@@ -203,9 +203,7 @@ export class WorkbenchDomainBridge extends Disposable {
       return;
     }
 
-    const explorerResourceFiles = getExplorerResourceFiles(
-      this.options.explorerService.getPaneInput()?.files ?? [],
-    );
+    const explorerResourceFiles = getExplorerResourceFiles(this.options.explorerService.files);
     const endPerf = startPerf("workbenchDomainBridge.sync", {
       deferSecondaryWork,
       explorerFileCount: explorerResourceFiles.length,
@@ -249,7 +247,8 @@ export class WorkbenchDomainBridge extends Disposable {
       return false;
     }
 
-    const resourceIdentities = createExplorerResourceIdentities(paneInput.files);
+    const explorerFiles = this.options.explorerService.files;
+    const resourceIdentities = createExplorerResourceIdentities(explorerFiles);
     if (!resourceIdentities.length) {
       return false;
     }
@@ -261,7 +260,7 @@ export class WorkbenchDomainBridge extends Disposable {
       },
       resourceIdentities,
     );
-    const tableSource = createExplorerPaneTableSource(selectedIdentity, paneInput.files);
+    const tableSource = createExplorerPaneTableSource(selectedIdentity, explorerFiles);
     if (!tableSource) {
       return false;
     }
@@ -284,7 +283,8 @@ export class WorkbenchDomainBridge extends Disposable {
     }
 
     const paneInput = this.options.explorerService.getPaneInput();
-    if (paneInput?.mode !== "chart" || !paneInput.files.some(hasExplorerFileResource)) {
+    const explorerFiles = this.options.explorerService.files;
+    if (paneInput?.mode !== "chart" || !explorerFiles.some(hasExplorerFileResource)) {
       return false;
     }
 
@@ -293,12 +293,12 @@ export class WorkbenchDomainBridge extends Disposable {
         resource: paneInput.selectedResource,
         sheetId: paneInput.selectedSheetId ?? null,
       },
-      createExplorerResourceIdentities(paneInput.files.filter(hasExplorerFileResource)),
+      createExplorerResourceIdentities(explorerFiles.filter(hasExplorerFileResource)),
     );
     const selectedChartFileId = selectedIdentity?.fileId ?? null;
     const target = getSliceUriTargetForChartFileId(
       this.options.sliceService,
-      paneInput.files,
+      explorerFiles,
       selectedChartFileId,
     );
     if (!selectedChartFileId || !target) {
@@ -306,7 +306,7 @@ export class WorkbenchDomainBridge extends Disposable {
     }
 
     this.options.explorerService.select({
-      candidateResources: createExplorerResourceIdentities(paneInput.files).map(toExplorerResourceTarget),
+      candidateResources: createExplorerResourceIdentities(explorerFiles).map(toExplorerResourceTarget),
       kind: "chart",
       resource: selectedIdentity?.resource ?? null,
       sheetId: selectedIdentity?.sheetId ?? null,
@@ -322,7 +322,7 @@ export class WorkbenchDomainBridge extends Disposable {
       activeFileId: selectedChartFileId,
       activePlotType,
       activeTarget: target,
-      chartFileOptions: createExplorerChartFileOptions(selectedChartFileId, paneInput.files),
+      chartFileOptions: createExplorerChartFileOptions(selectedChartFileId, explorerFiles),
       hasChartData: true,
       showFileSelect: false,
       shouldMountCharts: false,
@@ -391,15 +391,13 @@ export class WorkbenchDomainBridge extends Disposable {
       return;
     }
 
-    const explorerResourceFiles = getExplorerResourceFiles(
-      this.options.explorerService.getPaneInput()?.files ?? [],
-    );
+    const explorerResourceFiles = getExplorerResourceFiles(this.options.explorerService.files);
     const endPerf = startPerf("workbenchDomainBridge.deferredSync", {
       explorerFileCount: explorerResourceFiles.length,
     });
     const explorerSelection = resolveExplorerDomainSelection(
       this.options.explorerService,
-      this.options.explorerService.getPaneInput()?.files ?? [],
+      this.options.explorerService.files,
     );
     this.syncSecondaryState(explorerSelection);
     endPerf({
@@ -411,7 +409,7 @@ export class WorkbenchDomainBridge extends Disposable {
     explorerSelection: ExplorerDomainSelection,
   ): void {
     const sliceState = this.options.sliceService.getState();
-    const explorerFiles = this.options.explorerService.getPaneInput()?.files ?? [];
+    const explorerFiles = this.options.explorerService.files;
     this.options.explorerService.updatePaneInput(this.getExplorerPaneInput(
       sliceState,
     ));
@@ -454,7 +452,7 @@ export class WorkbenchDomainBridge extends Disposable {
   }
 
   private getChartViewInput(
-    explorerFiles = this.options.explorerService.getPaneInput()?.files ?? [],
+    explorerFiles = this.options.explorerService.files,
     activeFileId = resolveExplorerDomainSelection(
       this.options.explorerService,
       explorerFiles,
@@ -497,7 +495,7 @@ export class WorkbenchDomainBridge extends Disposable {
     }
 
     const newlyRecentFileIds = this.rememberRecentInteractiveChartTarget(normalizedFileId);
-    const explorerFiles = this.options.explorerService.getPaneInput()?.files ?? [];
+    const explorerFiles = this.options.explorerService.files;
     const hasUriTarget = hasExplorerUriTargetForChartFileId(
       explorerFiles,
       normalizedFileId,
@@ -543,7 +541,7 @@ export class WorkbenchDomainBridge extends Disposable {
       return;
     }
 
-    const explorerFiles = this.options.explorerService.getPaneInput()?.files ?? [];
+    const explorerFiles = this.options.explorerService.files;
     this.prefetchPlotDisplayTargets(
       recentFileIds,
       "recent",
@@ -558,7 +556,7 @@ export class WorkbenchDomainBridge extends Disposable {
   private pruneRecentInteractiveChartTargets(): void {
     const explorerFileIds = new Set(
       getExplorerPaneFileIds(
-        (this.options.explorerService.getPaneInput()?.files ?? [])
+        this.options.explorerService.files
           .filter(hasExplorerFileResource),
       ),
     );
@@ -648,7 +646,7 @@ export class WorkbenchDomainBridge extends Disposable {
       priority,
       source,
     }, { silent: true });
-    const explorerFiles = this.options.explorerService.getPaneInput()?.files ?? [];
+    const explorerFiles = this.options.explorerService.files;
     const inputs = normalizedFileIds.flatMap(fileId => {
       const hasUriTarget = hasExplorerUriTargetForChartFileId(explorerFiles, fileId);
       const target = getSliceUriTargetForChartFileId(this.options.sliceService, explorerFiles, fileId);
@@ -999,7 +997,7 @@ export const reconcileExplorerDomainSelection = (
   kind: ExplorerSelectionKind = "table",
 ): ExplorerDomainSelection => {
   const input = createExplorerDomainSelectionInput(
-    explorerService.getPaneInput()?.files ?? [],
+    explorerService.files,
   );
   const selectedIdentity = reconcileExplorerSelectedResourceTarget(
     explorerService,
@@ -1029,7 +1027,7 @@ export const createExplorerPaneInput = ({
   const isThumbnailLayout = isChartMode && explorerService.viewLayout === "thumbnail";
   const selectionKind: ExplorerSelectionKind = isChartMode ? "chart" : "table";
   const explorerResourceFiles = getExplorerResourceFiles(
-    explorerService.getPaneInput()?.files ?? [],
+    explorerService.files,
   );
   const chartDataFileIds = mergeChartDataFileIds(
     explorerResourceFiles,

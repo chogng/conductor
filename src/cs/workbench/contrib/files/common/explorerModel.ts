@@ -439,6 +439,63 @@ export const mergeExplorerSourceEntries = ({
 	];
 };
 
+export const filterNewExplorerFiles = (
+	entries: readonly ExplorerFileEntry[],
+	currentFiles: readonly ExplorerFileEntry[],
+): ExplorerFileEntry[] => {
+	const seen = new Set(currentFiles.map(getExplorerFileEntryKey));
+	const result: ExplorerFileEntry[] = [];
+	for (const entry of entries) {
+		const key = getExplorerFileEntryKey(entry);
+		if (!key || seen.has(key)) {
+			continue;
+		}
+
+		seen.add(key);
+		result.push(entry);
+	}
+	return result;
+};
+
+export const mergeExplorerCommittedFiles = (
+	baseFiles: readonly ExplorerFileEntry[],
+	localFiles: readonly ExplorerFileEntry[],
+): ExplorerFileEntry[] => {
+	if (!baseFiles.length) {
+		return [...localFiles];
+	}
+	if (!localFiles.length) {
+		return [...baseFiles];
+	}
+
+	const result = [...baseFiles];
+	const indexesByKey = new Map<string, number>();
+	for (let index = 0; index < result.length; index += 1) {
+		const key = getExplorerFileEntryKey(result[index]);
+		if (key) {
+			indexesByKey.set(key, index);
+		}
+	}
+
+	for (const file of localFiles) {
+		const key = getExplorerFileEntryKey(file);
+		const index = key ? indexesByKey.get(key) : undefined;
+		if (index === undefined) {
+			if (key) {
+				indexesByKey.set(key, result.length);
+			}
+			result.push(file);
+			continue;
+		}
+
+		result[index] = file;
+	}
+	return result;
+};
+
+export const getExplorerFileEntryKey = (file: ExplorerFileEntry | undefined): string =>
+	getExplorerFileSourceIdentityKey(file) ?? "";
+
 const normalizeExplorerItemKey = (itemKey: unknown): string | null => {
 	const normalized = String(itemKey ?? "").trim();
 	return normalized || null;
