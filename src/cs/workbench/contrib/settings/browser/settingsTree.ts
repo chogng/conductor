@@ -26,7 +26,7 @@ export type SettingsTreeItem = SettingsTreeControlItem | SettingsTreeElementItem
 export type SettingsTreeSection = {
   readonly id: string;
   readonly items: readonly SettingsTreeItem[];
-  readonly title: string;
+  readonly title?: string;
 };
 
 type SettingsTreeListEntry = SettingsTreeSectionEntry | SettingsTreeItemEntry;
@@ -50,6 +50,7 @@ type SettingsTreeItemEntry = {
 // SettingsView owns control behavior and lifecycle.
 export class SettingsTree extends Disposable {
   public readonly element = div("settings-tree");
+  private entries: readonly SettingsTreeListEntry[] = [];
   private readonly list: List<SettingsTreeListEntry>;
 
   constructor() {
@@ -74,7 +75,29 @@ export class SettingsTree extends Disposable {
   }
 
   public update(sections: readonly SettingsTreeSection[]): void {
-    this.list.setItems(flattenSettingsTree(sections));
+    this.entries = flattenSettingsTree(sections);
+    this.list.setItems(this.entries);
+  }
+
+  public updateItems(sections: readonly SettingsTreeSection[], itemIds: readonly string[]): void {
+    const nextEntries = flattenSettingsTree(sections);
+    if (!haveSameEntryIds(this.entries, nextEntries)) {
+      this.entries = nextEntries;
+      this.list.setItems(nextEntries);
+      return;
+    }
+
+    const targetIds = new Set(itemIds);
+    const entries = this.entries.slice();
+    for (let index = 0; index < nextEntries.length; index++) {
+      const nextEntry = nextEntries[index];
+      if (!targetIds.has(nextEntry.id)) {
+        continue;
+      }
+      entries[index] = nextEntry;
+      this.list.splice(index, 1, [nextEntry]);
+    }
+    this.entries = entries;
   }
 
   public override dispose(): void {
@@ -283,11 +306,13 @@ function updateItemSearchText(element: HTMLElement, searchText: string): void {
 function flattenSettingsTree(sections: readonly SettingsTreeSection[]): SettingsTreeListEntry[] {
   const entries: SettingsTreeListEntry[] = [];
   for (const section of sections) {
-    entries.push({
-      kind: "section",
-      id: section.id,
-      title: section.title,
-    });
+    if (section.title) {
+      entries.push({
+        kind: "section",
+        id: section.id,
+        title: section.title,
+      });
+    }
 
     for (let index = 0; index < section.items.length; index++) {
       const item = section.items[index];
@@ -301,6 +326,11 @@ function flattenSettingsTree(sections: readonly SettingsTreeSection[]): Settings
     }
   }
   return entries;
+}
+
+function haveSameEntryIds(current: readonly SettingsTreeListEntry[], next: readonly SettingsTreeListEntry[]): boolean {
+  return current.length === next.length &&
+    current.every((entry, index) => entry.id === next[index]?.id);
 }
 
 function getSettingsTreeItemClassName(entry: SettingsTreeItemEntry): string {

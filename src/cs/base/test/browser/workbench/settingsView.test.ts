@@ -5,9 +5,10 @@ import { SettingsView, type SettingsViewOptions } from "src/cs/workbench/contrib
 import { createSettingsSections } from "src/cs/workbench/contrib/settings/browser/settingsLayout";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
-type SettingsViewOptionOverrides = Partial<Omit<SettingsViewOptions, "appearanceSettings" | "chartDefaultSettings" | "templateSettings">> & {
+type SettingsViewOptionOverrides = Partial<Omit<SettingsViewOptions, "appearanceSettings" | "chartDefaultSettings" | "originSettings" | "templateSettings">> & {
   appearanceSettings?: Partial<SettingsViewOptions["appearanceSettings"]>;
   chartDefaultSettings?: Partial<SettingsViewOptions["chartDefaultSettings"]>;
+  originSettings?: Partial<SettingsViewOptions["originSettings"]>;
   templateSettings?: Partial<SettingsViewOptions["templateSettings"]>;
 };
 
@@ -40,30 +41,15 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     }
   });
 
-  test("updates general setting items without replacing or reinserting their controls", async () => {
+  test("patches general items without replacing unrelated controls", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const view = new SettingsView(container, createSettingsViewOptions({ activeSettingsSection: "general" }));
-    let observer: MutationObserver | null = null;
-    let labelObserver: MutationObserver | null = null;
 
     try {
       const languageSelect = getButton(container, "settings-language-dropdown");
       const closeBehaviorSelect = getButton(container, "settings-close-behavior-dropdown");
       const numericDisplaySwitch = getButton(container, "settings-numeric-display-toggle");
-      const generalSettingsList = getGeneralSettingsList(container);
-      const numericDisplayLabel = getNumericDisplayLabel(container);
-      const numericDisplayTitle = getElement(numericDisplayLabel, ".settings-title");
-      const numericDisplayDescription = getElement(numericDisplayLabel, ".settings-description");
-      const listMutations: MutationRecord[] = [];
-      const labelMutations: MutationRecord[] = [];
-      observer = new MutationObserver(records => listMutations.push(...records));
-      observer.observe(generalSettingsList, { childList: true });
-      labelObserver = new MutationObserver(records => labelMutations.push(...records));
-      labelObserver.observe(numericDisplayLabel, { childList: true });
-
-      numericDisplaySwitch.click();
-      assert.ok(numericDisplaySwitch.classList.contains("ui-switch--animate"));
 
       view.update(createSettingsViewOptions({
         activeSettingsSection: "general",
@@ -81,31 +67,29 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
           optimized: true,
           onOptimizedChange: noop,
         },
-      }), { type: "descriptors", descriptorIds: ["general-preferences"] });
-      await settled();
+      }), {
+        type: "partial",
+        descriptorIds: [],
+        itemTargets: [{ descriptorId: "general-preferences", itemIds: ["settings-close-behavior-card", "settings-numeric-display-card"] }],
+      });
 
       assert.equal(getButton(container, "settings-language-dropdown"), languageSelect);
-      assert.equal(getButton(container, "settings-close-behavior-dropdown"), closeBehaviorSelect);
-      assert.equal(getButton(container, "settings-numeric-display-toggle"), numericDisplaySwitch);
-      assert.equal(getElement(getNumericDisplayLabel(container), ".settings-title"), numericDisplayTitle);
-      assert.equal(getElement(getNumericDisplayLabel(container), ".settings-description"), numericDisplayDescription);
-      assert.equal(getSelectLabel(closeBehaviorSelect), "Minimize to Tray");
-      assert.equal(closeBehaviorSelect.disabled, true);
-      assert.equal(numericDisplaySwitch.getAttribute("aria-checked"), "true");
-      assert.equal(numericDisplaySwitch.disabled, false);
-      assert.ok(numericDisplaySwitch.classList.contains("ui-switch--animate"));
-      assert.equal(listMutations.length, 0);
-      assert.equal(labelMutations.length, 0);
+      const nextCloseBehaviorSelect = getButton(container, "settings-close-behavior-dropdown");
+      const nextNumericDisplaySwitch = getButton(container, "settings-numeric-display-toggle");
+      assert.ok(nextCloseBehaviorSelect !== closeBehaviorSelect);
+      assert.ok(nextNumericDisplaySwitch !== numericDisplaySwitch);
+      assert.equal(getSelectLabel(nextCloseBehaviorSelect), "Minimize to Tray");
+      assert.equal(nextCloseBehaviorSelect.disabled, true);
+      assert.equal(nextNumericDisplaySwitch.getAttribute("aria-checked"), "true");
+      assert.equal(nextNumericDisplaySwitch.disabled, false);
     }
     finally {
-      observer?.disconnect();
-      labelObserver?.disconnect();
       view.dispose();
       container.remove();
     }
   });
 
-  test("patches a targeted descriptor without replacing sibling content", () => {
+  test("patches a targeted item without replacing sibling content", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const view = new SettingsView(container, createSettingsViewOptions({ activeSettingsSection: "general" }));
@@ -114,21 +98,28 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       const languageSelect = getButton(container, "settings-language-dropdown");
       const numericDisplaySwitch = getButton(container, "settings-numeric-display-toggle");
       const transferScaleSelect = getButton(container, "settings-default-transfer-y-scale-select");
+      const outputScaleSelect = getButton(container, "settings-default-output-y-scale-select");
+      const chartDefaultsCard = getElement(container, "#settings-chart-defaults-card");
 
       view.update(createSettingsViewOptions({
         activeSettingsSection: "general",
         chartDefaultSettings: {
           defaultYScaleForTransfer: "linear",
-          isSaving: true,
         },
-      }), { type: "descriptors", descriptorIds: ["chart-defaults"] });
+      }), {
+        type: "partial",
+        descriptorIds: [],
+        itemTargets: [{ descriptorId: "chart-defaults", itemIds: ["settings-default-transfer-y-scale-card"] }],
+      });
 
       const nextTransferScaleSelect = getButton(container, "settings-default-transfer-y-scale-select");
       assert.equal(getButton(container, "settings-language-dropdown"), languageSelect);
       assert.equal(getButton(container, "settings-numeric-display-toggle"), numericDisplaySwitch);
-      assert.notEqual(nextTransferScaleSelect, transferScaleSelect);
+      assert.equal(getButton(container, "settings-default-output-y-scale-select"), outputScaleSelect);
+      assert.equal(getElement(container, "#settings-chart-defaults-card"), chartDefaultsCard);
+      assert.ok(nextTransferScaleSelect !== transferScaleSelect);
       assert.equal(getSelectLabel(nextTransferScaleSelect), "Linear");
-      assert.equal(nextTransferScaleSelect.disabled, true);
+      assert.equal(nextTransferScaleSelect.disabled, false);
     }
     finally {
       view.dispose();
@@ -136,7 +127,41 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     }
   });
 
-  test("updates appearance controls without replacing the active section template", () => {
+  test("patches a targeted tree element card without replacing sibling cards", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const view = new SettingsView(container, createSettingsViewOptions({ activeSettingsSection: "origin" }));
+
+    try {
+      const pathCard = getElement(container, "#settings-origin-path-card");
+      const cleanupCard = getElement(container, "#settings-origin-cleanup-card");
+      const plotCard = getElement(container, "#settings-origin-plot-card");
+
+      view.update(createSettingsViewOptions({
+        activeSettingsSection: "origin",
+        originSettings: {
+          currentPath: "C:\\Origin\\Origin.exe",
+          isConfigurable: true,
+          isHealthCheckAvailable: true,
+        },
+      }), {
+        type: "partial",
+        descriptorIds: [],
+        itemTargets: [{ descriptorId: "origin-integration", itemIds: ["settings-origin-path-card"] }],
+      });
+
+      assert.ok(getElement(container, "#settings-origin-path-card") !== pathCard);
+      assert.equal(getElement(container, "#settings-origin-cleanup-card"), cleanupCard);
+      assert.equal(getElement(container, "#settings-origin-plot-card"), plotCard);
+      assert.equal(getInput(container, "settings-origin-path-value-input").value, "C:\\Origin\\Origin.exe");
+    }
+    finally {
+      view.dispose();
+      container.remove();
+    }
+  });
+
+  test("patches appearance items without replacing untargeted controls", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const view = new SettingsView(container, createSettingsViewOptions());
@@ -145,9 +170,9 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       const themeSelect = getButton(container, "settings-theme-dropdown");
       const explorerDensitySelect = getButton(container, "settings-explorer-density-dropdown");
       const explorerBadgesSwitch = getButton(container, "settings-explorer-badges-toggle");
-      const transferBlueSwatch = getButtonByAriaLabel(container, "transfer color: Blue");
+      const transferBlueSwatch = getBadgeColorSwatch(container, "blue");
       const colorInput = getInput(container, "settings-background-color-input");
-      const backgroundResetButton = getButton(container, "settings-background-reset-btn");
+      const backgroundResetButton = getBackgroundResetButton(container);
       const whiteSwatch = getButtonByAriaLabel(container, "#ffffff");
       const darkSwatch = getButtonByAriaLabel(container, "#111827");
       const transparentChromeSwitch = getButton(container, "settings-transparent-chrome-toggle");
@@ -187,24 +212,36 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
           showExplorerBadges: false,
           transparentChrome: false,
         },
-      }), { type: "descriptors", descriptorIds: ["appearance-preferences"] });
+      }), {
+        type: "partial",
+        descriptorIds: [],
+        itemTargets: [{ descriptorId: "appearance-preferences", itemIds: ["settings-theme-card", "settings-explorer-density-card", "settings-explorer-badge-colors-card", "settings-background-card"] }],
+      });
 
-      assert.equal(getButton(container, "settings-theme-dropdown"), themeSelect);
-      assert.equal(getButton(container, "settings-explorer-density-dropdown"), explorerDensitySelect);
+      const nextThemeSelect = getButton(container, "settings-theme-dropdown");
+      const nextExplorerDensitySelect = getButton(container, "settings-explorer-density-dropdown");
+      const nextTransferBlueSwatch = getBadgeColorSwatch(container, "blue");
+      const nextColorInput = getInput(container, "settings-background-color-input");
+      const nextBackgroundResetButton = getBackgroundResetButton(container);
+      const nextWhiteSwatch = getButtonByAriaLabel(container, "#ffffff");
+      const nextDarkSwatch = getButtonByAriaLabel(container, "#111827");
+
+      assert.ok(nextThemeSelect !== themeSelect);
+      assert.ok(nextExplorerDensitySelect !== explorerDensitySelect);
       assert.equal(getButton(container, "settings-explorer-badges-toggle"), explorerBadgesSwitch);
-      assert.equal(getButtonByAriaLabel(container, "transfer color: Blue"), transferBlueSwatch);
-      assert.equal(getInput(container, "settings-background-color-input"), colorInput);
-      assert.equal(getButton(container, "settings-background-reset-btn"), backgroundResetButton);
-      assert.equal(getButtonByAriaLabel(container, "#ffffff"), whiteSwatch);
-      assert.equal(getButtonByAriaLabel(container, "#111827"), darkSwatch);
+      assert.ok(nextTransferBlueSwatch !== transferBlueSwatch);
+      assert.ok(nextColorInput !== colorInput);
+      assert.ok(nextBackgroundResetButton !== backgroundResetButton);
+      assert.ok(nextWhiteSwatch !== whiteSwatch);
+      assert.ok(nextDarkSwatch !== darkSwatch);
       assert.equal(getButton(container, "settings-transparent-chrome-toggle"), transparentChromeSwitch);
 
-      assert.equal(getSelectLabel(themeSelect), "Dark");
-      assert.equal(getSelectLabel(explorerDensitySelect), "Compact");
-      assert.equal(explorerDensitySelect.disabled, true);
-      assert.equal(transferBlueSwatch.disabled, true);
-      assert.equal(transferBlueSwatch.dataset.selected, "false");
-      assert.equal(getButtonByAriaLabel(container, "transfer color: Green").dataset.selected, "true");
+      assert.equal(getSelectLabel(nextThemeSelect), "Dark");
+      assert.equal(getSelectLabel(nextExplorerDensitySelect), "Compact");
+      assert.equal(nextExplorerDensitySelect.disabled, true);
+      assert.equal(nextTransferBlueSwatch.disabled, true);
+      assert.equal(nextTransferBlueSwatch.dataset.selected, "false");
+      assert.equal(getBadgeColorSwatch(container, "green").dataset.selected, "true");
       assert.ok(explorerBadgesSwitch.classList.contains("ui-switch--animate"));
       assert.ok(transparentChromeSwitch.classList.contains("ui-switch--animate"));
       assert.equal(explorerBadgesSwitch.disabled, false);
@@ -213,26 +250,34 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(getComputedStyle(transparentChromeSwitch).opacity, "1");
       assert.equal(explorerBadgesSwitch.getAttribute("aria-checked"), "false");
       assert.equal(transparentChromeSwitch.getAttribute("aria-checked"), "false");
-      assert.equal(colorInput.value, "#111827");
-      assert.equal(colorInput.disabled, true);
-      assert.equal(backgroundResetButton.disabled, true);
-      assert.equal(whiteSwatch.dataset.selected, "false");
-      assert.equal(darkSwatch.dataset.selected, "true");
+      assert.equal(nextColorInput.value, "#111827");
+      assert.equal(nextColorInput.disabled, true);
+      assert.equal(nextBackgroundResetButton.disabled, true);
+      assert.equal(nextWhiteSwatch.dataset.selected, "false");
+      assert.equal(nextDarkSwatch.dataset.selected, "true");
       assert.ok(Array.from(container.querySelectorAll<HTMLButtonElement>(".settings-color-swatch")).every(swatch => swatch.disabled));
 
+      const currentExplorerBadgesSwitch = getButton(container, "settings-explorer-badges-toggle");
+      const currentTransparentChromeSwitch = getButton(container, "settings-transparent-chrome-toggle");
       view.update(createSettingsViewOptions({
         appearanceSettings: {
           showExplorerBadges: false,
           transparentChrome: false,
         },
-      }), { type: "descriptors", descriptorIds: ["appearance-preferences"] });
+      }), {
+        type: "partial",
+        descriptorIds: [],
+        itemTargets: [{ descriptorId: "appearance-preferences", itemIds: ["settings-explorer-badges-card", "settings-transparent-chrome-card"] }],
+      });
 
-      assert.equal(getButton(container, "settings-explorer-badges-toggle"), explorerBadgesSwitch);
-      assert.equal(getButton(container, "settings-transparent-chrome-toggle"), transparentChromeSwitch);
-      assert.equal(explorerBadgesSwitch.disabled, false);
-      assert.equal(transparentChromeSwitch.disabled, false);
-      assert.equal(explorerBadgesSwitch.getAttribute("aria-checked"), "false");
-      assert.equal(transparentChromeSwitch.getAttribute("aria-checked"), "false");
+      const nextExplorerBadgesSwitch = getButton(container, "settings-explorer-badges-toggle");
+      const nextTransparentChromeSwitch = getButton(container, "settings-transparent-chrome-toggle");
+      assert.ok(nextExplorerBadgesSwitch !== currentExplorerBadgesSwitch);
+      assert.ok(nextTransparentChromeSwitch !== currentTransparentChromeSwitch);
+      assert.equal(nextExplorerBadgesSwitch.disabled, false);
+      assert.equal(nextTransparentChromeSwitch.disabled, false);
+      assert.equal(nextExplorerBadgesSwitch.getAttribute("aria-checked"), "false");
+      assert.equal(nextTransparentChromeSwitch.getAttribute("aria-checked"), "false");
     }
     finally {
       view.dispose();
@@ -263,7 +308,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     }
   });
 
-  test("renders semantic library as its own template card group", () => {
+  test("renders semantic library as its own template tree item group", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const view = new SettingsView(container, createSettingsViewOptions({
@@ -330,19 +375,19 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     }));
 
     try {
-      const templateLibrarySection = getElement(container, "#settings-template-domain-packs-card").closest(".settings-section");
+      const templateLibraryTree = getElement(container, "#settings-template-domain-packs-card").closest(".settings-tree");
       const semanticCard = getElement(container, "#settings-template-semantic-library-card");
-      const semanticSection = semanticCard.closest(".settings-section");
+      const semanticTree = semanticCard.closest(".settings-tree");
       const widgets = semanticCard.querySelectorAll<HTMLElement>(".inputbox_widget");
       const activeWidget = widgets[0];
       const recommendedWidget = widgets[1];
 
-      assert.ok(templateLibrarySection);
-      assert.ok(semanticSection);
+      assert.ok(templateLibraryTree);
+      assert.ok(semanticTree);
       assert.ok(activeWidget);
       assert.ok(recommendedWidget);
-      assert.ok(semanticSection !== templateLibrarySection);
-      assert.equal(templateLibrarySection.querySelector("#settings-template-semantic-library-card"), null);
+      assert.ok(semanticTree !== templateLibraryTree);
+      assert.equal(templateLibraryTree.querySelector("#settings-template-semantic-library-card"), null);
       assert.equal(container.querySelector("#settings-template-semantic-custom-terms-card"), null);
       assert.equal(activeWidget.querySelectorAll(".inputbox_widget_item").length, 2);
       assert.equal(activeWidget.querySelector<HTMLElement>('.inputbox_widget_item[data-kind="builtin-enabled"] .inputbox_widget_item_label')?.textContent, "Vgs");
@@ -419,37 +464,37 @@ Paragraph with **strong text**, *emphasis*, \`code\`, [safe](https://example.com
 
 function getButton(container: HTMLElement, id: string): HTMLButtonElement {
   const button = container.querySelector<HTMLButtonElement>(`#${id}`);
-  assert.ok(button);
+  assert.ok(button, `Expected button #${id}.`);
   return button;
 }
 
 function getButtonByAriaLabel(container: HTMLElement, ariaLabel: string): HTMLButtonElement {
   const button = container.querySelector<HTMLButtonElement>(`button[aria-label="${ariaLabel}"]`);
-  assert.ok(button);
+  assert.ok(button, `Expected button with aria-label ${ariaLabel}.`);
+  return button;
+}
+
+function getBadgeColorSwatch(container: HTMLElement, color: string): HTMLButtonElement {
+  const button = container.querySelector<HTMLButtonElement>(`.settings-badge-color-swatch[data-color="${color}"]`);
+  assert.ok(button, `Expected badge color swatch ${color}.`);
+  return button;
+}
+
+function getBackgroundResetButton(container: HTMLElement): HTMLButtonElement {
+  const button = container.querySelector<HTMLButtonElement>("#settings-background-card .settings-reset-button");
+  assert.ok(button, "Expected background reset button.");
   return button;
 }
 
 function getInput(container: HTMLElement, id: string): HTMLInputElement {
   const input = container.querySelector<HTMLInputElement>(`#${id}`);
-  assert.ok(input);
+  assert.ok(input, `Expected input #${id}.`);
   return input;
-}
-
-function getGeneralSettingsList(container: HTMLElement): HTMLElement {
-  const list = container.querySelector<HTMLElement>("#settings-general-section .settings-list");
-  assert.ok(list);
-  return list;
-}
-
-function getNumericDisplayLabel(container: HTMLElement): HTMLElement {
-  const label = container.querySelector<HTMLElement>("#settings-numeric-display-card .settings-heading");
-  assert.ok(label);
-  return label;
 }
 
 function getElement(container: HTMLElement, selector: string): HTMLElement {
   const element = container.querySelector<HTMLElement>(selector);
-  assert.ok(element);
+  assert.ok(element, `Expected element ${selector}.`);
   return element;
 }
 
@@ -457,10 +502,6 @@ function getSelectLabel(button: HTMLButtonElement): string {
   const label = button.querySelector<HTMLElement>(".ui-selectbox__label");
   assert.ok(label);
   return label.textContent ?? "";
-}
-
-async function settled(): Promise<void> {
-  await new Promise(resolve => setTimeout(resolve, 0));
 }
 
 function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}): SettingsViewOptions {
@@ -678,6 +719,10 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
     chartDefaultSettings: {
       ...base.chartDefaultSettings,
       ...overrides.chartDefaultSettings,
+    },
+    originSettings: {
+      ...base.originSettings,
+      ...overrides.originSettings,
     },
     templateSettings: {
       ...base.templateSettings,

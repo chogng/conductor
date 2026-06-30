@@ -535,22 +535,6 @@
   padding-left: 0.0625rem;
 }
 
-.settings-list {
-  overflow: hidden;
-  border: 1px solid rgb(var(--border) / 0.8);
-  border-radius: 0.75rem;
-  background: rgb(var(--bg-surface) / 0.92);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.025);
-}
-
-.settings-list > .settings-card {
-  border-radius: 0;
-}
-
-.settings-list > .settings-card:not(:last-child) {
-  border-bottom: 1px solid rgb(var(--border) / 0.72);
-}
-
 .settings-row {
   display: flex;
   align-items: center;

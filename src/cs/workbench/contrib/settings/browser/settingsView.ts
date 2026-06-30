@@ -48,7 +48,13 @@ import {
   type SettingsSearchTerm,
   settingsSearchMatches,
 } from "src/cs/workbench/contrib/settings/browser/settingsSearch";
-import { SettingsTree, type SettingsTreeSection } from "src/cs/workbench/contrib/settings/browser/settingsTree";
+import {
+  SettingsTree,
+  type SettingsTreeControlItem,
+  type SettingsTreeElementItem,
+  type SettingsTreeItem,
+  type SettingsTreeSection,
+} from "src/cs/workbench/contrib/settings/browser/settingsTree";
 import type { LanguagePreference } from "src/cs/base/common/platform";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import type {
@@ -322,11 +328,48 @@ export type SettingsContentDescriptorId =
   | "origin-integration"
   | "about";
 
+export type SettingsContentItemId =
+  | "settings-language-card"
+  | "settings-close-behavior-card"
+  | "settings-numeric-display-card"
+  | "settings-default-transfer-y-scale-card"
+  | "settings-default-output-y-scale-card"
+  | "settings-default-cv-y-scale-card"
+  | "settings-default-cf-y-scale-card"
+  | "settings-default-pv-y-scale-card"
+  | "settings-chart-scale-feedback-card"
+  | "settings-chart-defaults-card"
+  | "settings-table-template-visualization-card"
+  | "settings-filename-matching-card"
+  | "settings-template-domain-packs-card"
+  | "settings-template-x-axis-priority-card"
+  | "settings-template-semantic-library-card"
+  | "settings-theme-card"
+  | "settings-explorer-density-card"
+  | "settings-explorer-badges-card"
+  | "settings-explorer-badge-colors-card"
+  | "settings-layout-card"
+  | "settings-background-card"
+  | "settings-transparent-chrome-card"
+  | "settings-origin-path-card"
+  | "settings-origin-cleanup-card"
+  | "settings-origin-plot-card"
+  | "settings-about-version-card"
+  | "settings-release-notes-card"
+  | "settings-user-guide-card"
+  | "settings-app-update-card";
+
+export type SettingsContentItemTarget = {
+  readonly descriptorId: SettingsContentDescriptorId;
+  readonly itemIds: readonly SettingsContentItemId[];
+};
+
 export type SettingsViewUpdateTarget =
   | { readonly type: "content" }
   | {
-    readonly type: "descriptors";
+    readonly type: "partial";
     readonly descriptorIds: readonly SettingsContentDescriptorId[];
+    readonly itemTargets: readonly SettingsContentItemTarget[];
   };
 
 type SettingsContentDescriptor = {
@@ -354,22 +397,6 @@ type TextInputOptions = {
   value: string;
 };
 
-type AppearanceSectionTemplate = {
-  readonly backgroundResetAction: Action;
-  readonly badgeColorButtons: Map<string, HTMLButtonElement>;
-  readonly badgeColorSwatches: HTMLElement;
-  readonly colorInput: HTMLInputElement;
-  readonly colorSwatches: HTMLElement;
-  readonly element: HTMLElement;
-  readonly explorerBadgesSwitch: SwitchWidget;
-  readonly explorerDensitySelect: SelectBox<string>;
-  readonly swatchButtons: Map<string, HTMLButtonElement>;
-  readonly themeSelect: SelectBox<string>;
-  readonly transparentChromeSwitch: SwitchWidget;
-  readonly badgeLabelSelect: SelectBox<string>;
-  readonly badgePreview: HTMLElement;
-};
-
 type ActiveSettingsDocumentDialog = {
   readonly disposeStore: DisposableStore;
   readonly overlay: HTMLElement;
@@ -385,17 +412,21 @@ export class SettingsView {
   private readonly layoutDisposables = new DisposableStore();
   private readonly descriptorDisposables = new Map<SettingsContentDescriptorId, DisposableStore>();
   private readonly descriptorElements = new Map<SettingsContentDescriptorId, HTMLElement>();
+  private readonly descriptorItemIds = new Map<SettingsContentDescriptorId, Set<SettingsContentItemId>>();
+  private readonly descriptorTrees = new Map<SettingsContentDescriptorId, SettingsTree>();
   private readonly contentDisposables = new DisposableStore();
-  private readonly generalControlDisposables = new DisposableStore();
+  private readonly itemDisposables = new Map<SettingsContentItemId, DisposableStore>();
+  private readonly treeItems = new Map<SettingsContentItemId, SettingsTreeItem>();
   private readonly root: HTMLElement;
   private readonly contentScroll = new Scrollbar({
     className: "settings-view-content-scroll",
     viewportClassName: "settings-view-content-scroll-viewport",
   });
-  private appearanceSection: AppearanceSectionTemplate | null = null;
   private contentElement: HTMLElement | null = null;
-  private generalTree: SettingsTree | null = null;
+  private activeDescriptorId: SettingsContentDescriptorId | null = null;
   private activeDescriptorDisposables: DisposableStore | null = null;
+  private activeItemDisposables: DisposableStore | null = null;
+  private activeTreeItemPatchIds: Set<SettingsContentItemId> | null = null;
   private options: SettingsViewOptions;
   private activeBadgeLabelValue = "transfer";
   private searchQuery = "";
@@ -429,28 +460,8 @@ export class SettingsView {
       return;
     }
 
-    if (hasSettingsSearchQuery(this.searchQuery)) {
-      if (target.type === "descriptors") {
-        this.updateContentDescriptors(target.descriptorIds);
-        return;
-      }
-
-      this.refreshContent();
-      return;
-    }
-
-    if (canReuseAppearanceSectionTemplate(current, options)) {
-      this.updateAppearanceSection(current, options);
-      return;
-    }
-
-    if (canReuseGeneralSectionTemplate(current, options)) {
-      this.updateGeneralSection();
-      return;
-    }
-
-    if (target.type === "descriptors") {
-      this.updateContentDescriptors(target.descriptorIds);
+    if (target.type === "partial") {
+      this.updateContentPatch(current, target);
       return;
     }
 
@@ -459,7 +470,6 @@ export class SettingsView {
 
   dispose(): void {
     this.closeSettingsDocumentDialog();
-    this.generalControlDisposables.dispose();
     this.layoutDisposables.dispose();
     this.clearDescriptorTemplates();
     this.contentDisposables.dispose();
@@ -468,24 +478,18 @@ export class SettingsView {
   }
 
   private render(): void {
-    this.generalControlDisposables.clear();
     this.layoutDisposables.clear();
     this.clearDescriptorTemplates();
     this.contentDisposables.clear();
-    this.appearanceSection = null;
     this.contentElement = null;
-    this.generalTree = null;
     reset(this.root);
     this.root.appendChild(this.createLayout());
     queueMicrotask(() => this.contentScroll.layout());
   }
 
   private refreshContent(): void {
-    this.generalControlDisposables.clear();
     this.clearDescriptorTemplates();
     this.contentDisposables.clear();
-    this.appearanceSection = null;
-    this.generalTree = null;
     const nextContent = this.createContent();
     if (!this.contentElement) {
       this.contentElement = nextContent;
@@ -498,9 +502,17 @@ export class SettingsView {
     queueMicrotask(() => this.contentScroll.layout());
   }
 
-  private updateContentDescriptors(descriptorIds: readonly SettingsContentDescriptorId[]): void {
+  private updateContentPatch(current: SettingsViewOptions, target: Extract<SettingsViewUpdateTarget, { readonly type: "partial" }>): void {
+    const descriptorIds = new Set(target.descriptorIds);
     for (const descriptorId of descriptorIds) {
       this.updateContentDescriptor(descriptorId);
+    }
+
+    for (const itemTarget of target.itemTargets) {
+      if (descriptorIds.has(itemTarget.descriptorId)) {
+        continue;
+      }
+      this.updateContentItems(itemTarget);
     }
 
     this.updateSearchResults();
@@ -518,12 +530,38 @@ export class SettingsView {
       return;
     }
 
-    const currentDisposables = this.descriptorDisposables.get(descriptorId);
-    this.descriptorDisposables.delete(descriptorId);
-    this.descriptorElements.delete(descriptorId);
+    const currentDisposables = this.collectDescriptorDisposables(descriptorId);
     const nextElement = this.createContentDescriptorElement(descriptor);
     currentElement.replaceWith(nextElement);
-    currentDisposables?.dispose();
+    currentDisposables.dispose();
+  }
+
+  private updateContentItems(target: SettingsContentItemTarget): void {
+    this.updateSettingsTreeItems(target);
+  }
+
+  private updateSettingsTreeItems(target: SettingsContentItemTarget): void {
+    const tree = this.descriptorTrees.get(target.descriptorId);
+    if (!tree) {
+      return;
+    }
+
+    const itemIds = new Set(target.itemIds);
+    const currentDisposables = target.itemIds
+      .map(itemId => this.collectContentItemDisposables(itemId));
+    const previousPatchIds = this.activeTreeItemPatchIds;
+    this.activeTreeItemPatchIds = itemIds;
+    try {
+      this.withActiveDescriptor(target.descriptorId, () => {
+        tree.updateItems(this.createDescriptorTreeSections(target.descriptorId), target.itemIds);
+      });
+    }
+    finally {
+      this.activeTreeItemPatchIds = previousPatchIds;
+    }
+    for (const disposables of currentDisposables) {
+      disposables.dispose();
+    }
   }
 
   private updateSearchResults(): void {
@@ -544,7 +582,9 @@ export class SettingsView {
   private createContentDescriptorElement(descriptor: SettingsContentDescriptor): HTMLElement {
     const disposables = new DisposableStore();
     const previousDisposables = this.activeDescriptorDisposables;
+    const previousDescriptorId = this.activeDescriptorId;
     this.activeDescriptorDisposables = disposables;
+    this.activeDescriptorId = descriptor.id;
     try {
       const element = descriptor.create();
       this.descriptorDisposables.set(descriptor.id, disposables);
@@ -553,20 +593,150 @@ export class SettingsView {
     }
     finally {
       this.activeDescriptorDisposables = previousDisposables;
+      this.activeDescriptorId = previousDescriptorId;
     }
   }
 
   private clearDescriptorTemplates(): void {
-    for (const disposables of this.descriptorDisposables.values()) {
-      disposables.dispose();
+    const descriptorIds = new Set<SettingsContentDescriptorId>([
+      ...this.descriptorDisposables.keys(),
+      ...this.descriptorItemIds.keys(),
+    ]);
+    for (const descriptorId of descriptorIds) {
+      this.collectDescriptorDisposables(descriptorId).dispose();
     }
-    this.descriptorDisposables.clear();
-    this.descriptorElements.clear();
   }
 
   private registerContentDisposable<T extends IDisposable>(disposable: T): T {
-    const disposables = this.activeDescriptorDisposables ?? this.contentDisposables;
+    const disposables = this.activeItemDisposables ?? this.activeDescriptorDisposables ?? this.contentDisposables;
     return disposables.add(disposable);
+  }
+
+  private collectDescriptorDisposables(descriptorId: SettingsContentDescriptorId): DisposableStore {
+    const disposables = new DisposableStore();
+    const itemIds = this.descriptorItemIds.get(descriptorId);
+    if (itemIds) {
+      for (const itemId of itemIds) {
+        disposables.add(this.collectContentItemDisposables(itemId));
+      }
+    }
+    this.descriptorItemIds.delete(descriptorId);
+    this.descriptorTrees.delete(descriptorId);
+    this.descriptorElements.delete(descriptorId);
+    const descriptorDisposables = this.descriptorDisposables.get(descriptorId);
+    if (descriptorDisposables) {
+      disposables.add(descriptorDisposables);
+      this.descriptorDisposables.delete(descriptorId);
+    }
+    return disposables;
+  }
+
+  private collectContentItemDisposables(itemId: SettingsContentItemId): DisposableStore {
+    const disposables = new DisposableStore();
+    const itemDisposables = this.itemDisposables.get(itemId);
+    if (itemDisposables) {
+      disposables.add(itemDisposables);
+      this.itemDisposables.delete(itemId);
+    }
+    this.treeItems.delete(itemId);
+    return disposables;
+  }
+
+  private withActiveDescriptor<T>(descriptorId: SettingsContentDescriptorId, create: () => T): T {
+    const previousDescriptorId = this.activeDescriptorId;
+    this.activeDescriptorId = descriptorId;
+    try {
+      return create();
+    }
+    finally {
+      this.activeDescriptorId = previousDescriptorId;
+    }
+  }
+
+  private createContentItem<T>(itemId: SettingsContentItemId, create: () => T): T {
+    const disposables = new DisposableStore();
+    const previousDisposables = this.activeItemDisposables;
+    this.activeItemDisposables = disposables;
+    try {
+      const value = create();
+      this.itemDisposables.set(itemId, disposables);
+      if (this.activeDescriptorId) {
+        let itemIds = this.descriptorItemIds.get(this.activeDescriptorId);
+        if (!itemIds) {
+          itemIds = new Set();
+          this.descriptorItemIds.set(this.activeDescriptorId, itemIds);
+        }
+        itemIds.add(itemId);
+      }
+      return value;
+    }
+    finally {
+      this.activeItemDisposables = previousDisposables;
+    }
+  }
+
+  private createSettingsTreeControlItem(options: {
+    readonly id: SettingsContentItemId;
+    readonly createControl: () => HTMLElement;
+    readonly description?: string;
+    readonly searchText?: string;
+    readonly title: string;
+  }): SettingsTreeControlItem {
+    const current = this.getReusableTreeItem(options.id, "control");
+    if (current) {
+      return current;
+    }
+
+    return this.createContentItem(options.id, () => {
+      const item: SettingsTreeControlItem = {
+        kind: "control",
+        control: options.createControl(),
+        description: options.description,
+        id: options.id,
+        searchText: options.searchText,
+        title: options.title,
+      };
+      this.treeItems.set(options.id, item);
+      return item;
+    });
+  }
+
+  private createSettingsTreeElementItem(options: {
+    readonly id: SettingsContentItemId;
+    readonly createElement: () => HTMLElement;
+    readonly searchText?: string;
+  }): SettingsTreeElementItem {
+    const current = this.getReusableTreeItem(options.id, "element");
+    if (current) {
+      return current;
+    }
+
+    return this.createContentItem(options.id, () => {
+      const item: SettingsTreeElementItem = {
+        kind: "element",
+        element: options.createElement(),
+        id: options.id,
+        searchText: options.searchText,
+      };
+      this.treeItems.set(options.id, item);
+      return item;
+    });
+  }
+
+  private getReusableTreeItem<TKind extends SettingsTreeItem["kind"]>(
+    itemId: SettingsContentItemId,
+    kind: TKind,
+  ): Extract<SettingsTreeItem, { readonly kind: TKind }> | null {
+    if (!this.activeTreeItemPatchIds || this.activeTreeItemPatchIds.has(itemId)) {
+      return null;
+    }
+
+    const item = this.treeItems.get(itemId);
+    if (item?.kind !== kind) {
+      return null;
+    }
+
+    return item as Extract<SettingsTreeItem, { readonly kind: TKind }>;
   }
 
   private createLayout(): HTMLElement {
@@ -748,64 +918,55 @@ export class SettingsView {
     return [
       {
         id: "general-preferences",
-        create: () => this.createGeneralPreferences(),
+        create: () => this.createSettingsTreeDescriptorElement("general-preferences"),
         order: 0,
         sectionId: "general",
       },
       {
         id: "chart-defaults",
-        create: () => this.createChartSettingsSection(this.options.chartDefaultSettings),
+        create: () => this.createSettingsTreeDescriptorElement("chart-defaults"),
         order: 10,
         sectionId: "general",
       },
       {
         id: "template-preferences",
-        create: () => this.createTemplatePreferences(),
+        create: () => this.createSettingsTreeDescriptorElement("template-preferences"),
         order: 0,
         sectionId: "template",
       },
       {
         id: "template-matching",
-        create: () => settingsSection(
-          localize("settings.template.matching.sectionTitle", "Template Matching"),
-          this.createFileNameMatching(this.options.fileNameMatchingSettings),
-        ),
+        create: () => this.createSettingsTreeDescriptorElement("template-matching"),
         order: 10,
         sectionId: "template",
       },
       {
         id: "template-library",
-        create: () => settingsSection(
-          localize("settings.template.library.sectionTitle", "Template Library"),
-          this.createTemplateDomainPacks(this.options.templateSettings),
-          this.createXAxisIntentPriority(this.options.templateSettings),
-        ),
+        create: () => this.createSettingsTreeDescriptorElement("template-library"),
         order: 20,
         sectionId: "template",
       },
       {
         id: "template-semantic-library",
-        create: () => settingsCardGroup(
-          this.createTemplateSemanticLibrary(this.options.templateSettings),
-        ),
+        create: () => this.createSettingsTreeDescriptorElement("template-semantic-library"),
         order: 30,
         sectionId: "template",
       },
       {
         id: "appearance-preferences",
-        create: () => this.createAppearanceSectionElement(),
+        create: () => this.createSettingsTreeDescriptorElement("appearance-preferences"),
         order: 0,
         sectionId: "appearance",
       },
       {
         id: "origin-integration",
-        create: () => this.createOriginSection(),
+        create: () => this.createSettingsTreeDescriptorElement("origin-integration"),
         order: 0,
         sectionId: "origin",
       },
       {
         id: "about",
-        create: () => this.createAboutSection(),
+        create: () => this.createSettingsTreeDescriptorElement("about"),
         order: 0,
         sectionId: "about",
       },
@@ -820,29 +981,36 @@ export class SettingsView {
     return section.label;
   }
 
-  private createGeneralPreferences(): HTMLElement {
-    this.generalControlDisposables.clear();
-    const generalTree = this.registerContentDisposable(new SettingsTree());
-    generalTree.update(this.createGeneralSettingsTree());
-    this.generalTree = generalTree;
-    return generalTree.element;
+  private createSettingsTreeDescriptorElement(descriptorId: SettingsContentDescriptorId): HTMLElement {
+    const tree = this.registerContentDisposable(new SettingsTree());
+    tree.update(this.createDescriptorTreeSections(descriptorId));
+    this.descriptorTrees.set(descriptorId, tree);
+    return tree.element;
   }
 
-  private updateGeneralSection(): void {
-    if (!this.generalTree) {
-      this.updateContentDescriptor("general-preferences");
-      return;
+  private createDescriptorTreeSections(descriptorId: SettingsContentDescriptorId): readonly SettingsTreeSection[] {
+    switch (descriptorId) {
+      case "general-preferences":
+        return this.createGeneralSettingsTree();
+      case "chart-defaults":
+        return this.createChartSettingsTree(this.options.chartDefaultSettings);
+      case "template-preferences":
+        return this.createTemplateSettingsTree();
+      case "template-matching":
+        return this.createTemplateMatchingSettingsTree();
+      case "template-library":
+        return this.createTemplateLibrarySettingsTree();
+      case "template-semantic-library":
+        return this.createTemplateSemanticLibrarySettingsTree();
+      case "appearance-preferences":
+        return this.createAppearanceSettingsTree();
+      case "origin-integration":
+        return this.createOriginSettingsTree();
+      case "about":
+        return this.createAboutSettingsTree();
     }
 
-    this.generalControlDisposables.clear();
-    this.generalTree.update(this.createGeneralSettingsTree());
-    queueMicrotask(() => this.contentScroll.layout());
-  }
-
-  private createChartSettingsSection(settings: ChartDefaultSettings): HTMLElement {
-    const chartTree = this.registerContentDisposable(new SettingsTree());
-    chartTree.update(this.createChartSettingsTree(settings));
-    return chartTree.element;
+    throw new Error(`Settings descriptor ${descriptorId} does not own a settings tree.`);
   }
 
   private createGeneralSettingsTree(): readonly SettingsTreeSection[] {
@@ -856,9 +1024,9 @@ export class SettingsView {
         id: "settings-general-section",
         title: this.getSectionLabel("general"),
         items: [
-          {
-            kind: "control",
-            control: this.createSelect({
+          this.createSettingsTreeControlItem({
+            id: "settings-language-card",
+            createControl: () => this.createSelect({
               id: "settings-language-dropdown",
               value: this.options.language,
               onChange: value => {
@@ -867,15 +1035,14 @@ export class SettingsView {
                 }
               },
               options: languageOptions,
-            }, this.generalControlDisposables),
-            id: "settings-language-card",
+            }),
             description: localize("settings.language.description", "Choose the display language used by the app."),
             searchText: normalizeSettingsSearchText(optionLabels(languageOptions)),
             title: localize("settings.language.title", "Language"),
-          },
-          {
-            kind: "control",
-            control: this.createSelect({
+          }),
+          this.createSettingsTreeControlItem({
+            id: "settings-close-behavior-card",
+            createControl: () => this.createSelect({
               id: "settings-close-behavior-dropdown",
               value: this.options.windowCloseSettings.behavior,
               onChange: value => {
@@ -885,35 +1052,27 @@ export class SettingsView {
               },
               options: this.options.windowCloseBehaviorOptions,
               disabled: this.options.windowCloseSettings.isSaving,
-            }, this.generalControlDisposables),
-            id: "settings-close-behavior-card",
+            }),
             description: localize("settings.closeBehavior.description", "Choose what happens when the main window is closed."),
             searchText: normalizeSettingsSearchText(optionLabels(this.options.windowCloseBehaviorOptions)),
             title: localize("settings.closeBehavior.title", "Close Window"),
-          },
-          {
-            kind: "control",
-            control: this.createSwitchWidget({
+          }),
+          this.createSettingsTreeControlItem({
+            id: "settings-numeric-display-card",
+            createControl: () => this.createSwitchWidget({
               ariaLabel: localize("settings.numericDisplay.title", "优化表格数值显示"),
               checked: this.options.numericDisplaySettings.optimized,
               id: "settings-numeric-display-toggle",
               onChange: checked => {
                 void this.options.numericDisplaySettings.onOptimizedChange(checked);
               },
-            }, this.generalControlDisposables).domNode,
-            id: "settings-numeric-display-card",
+            }).domNode,
             description: localize("settings.numericDisplay.description", "优化科学计数法以合适小数位显示以更好的预览"),
             title: localize("settings.numericDisplay.title", "优化表格数值显示"),
-          },
+          }),
         ],
       },
     ];
-  }
-
-  private createTemplatePreferences(): HTMLElement {
-    const templateTree = this.registerContentDisposable(new SettingsTree());
-    templateTree.update(this.createTemplateSettingsTree());
-    return templateTree.element;
   }
 
   private createTemplateSettingsTree(): readonly SettingsTreeSection[] {
@@ -922,9 +1081,9 @@ export class SettingsView {
         id: "settings-template-section",
         title: this.getSectionLabel("template"),
         items: [
-          {
-            kind: "control",
-            control: this.createSwitchWidget({
+          this.createSettingsTreeControlItem({
+            id: "settings-table-template-visualization-card",
+            createControl: () => this.createSwitchWidget({
               ariaLabel: localize("settings.tableTemplateVisualization.title", "Template Visualization"),
               checked: this.options.tableTemplateVisualizationSettings.enabled,
               id: "settings-table-template-visualization-toggle",
@@ -933,10 +1092,57 @@ export class SettingsView {
               },
               disabled: this.options.tableTemplateVisualizationSettings.isSaving,
             }).domNode,
-            id: "settings-table-template-visualization-card",
             description: localize("settings.tableTemplateVisualization.description", "Show the current template ranges on the table preview."),
             title: localize("settings.tableTemplateVisualization.title", "Template Visualization"),
-          },
+          }),
+        ],
+      },
+    ];
+  }
+
+  private createTemplateMatchingSettingsTree(): readonly SettingsTreeSection[] {
+    return [
+      {
+        id: "settings-template-matching-section",
+        title: localize("settings.template.matching.sectionTitle", "Template Matching"),
+        items: [
+          this.createSettingsTreeElementItem({
+            id: "settings-filename-matching-card",
+            createElement: () => this.createFileNameMatching(this.options.fileNameMatchingSettings),
+          }),
+        ],
+      },
+    ];
+  }
+
+  private createTemplateLibrarySettingsTree(): readonly SettingsTreeSection[] {
+    return [
+      {
+        id: "settings-template-library-section",
+        title: localize("settings.template.library.sectionTitle", "Template Library"),
+        items: [
+          this.createSettingsTreeElementItem({
+            id: "settings-template-domain-packs-card",
+            createElement: () => this.createTemplateDomainPacks(this.options.templateSettings),
+          }),
+          this.createSettingsTreeElementItem({
+            id: "settings-template-x-axis-priority-card",
+            createElement: () => this.createXAxisIntentPriority(this.options.templateSettings),
+          }),
+        ],
+      },
+    ];
+  }
+
+  private createTemplateSemanticLibrarySettingsTree(): readonly SettingsTreeSection[] {
+    return [
+      {
+        id: "settings-template-semantic-library-section",
+        items: [
+          this.createSettingsTreeElementItem({
+            id: "settings-template-semantic-library-card",
+            createElement: () => this.createTemplateSemanticLibrary(this.options.templateSettings),
+          }),
         ],
       },
     ];
@@ -1301,66 +1507,130 @@ export class SettingsView {
     return form;
   }
 
-  private createAppearanceSectionElement(): HTMLElement {
-    const appearanceSection = this.createAppearanceSection();
-    this.appearanceSection = appearanceSection;
-    return appearanceSection.element;
+  private createAppearanceSettingsTree(): readonly SettingsTreeSection[] {
+    const { appearanceSettings } = this.options;
+    return [
+      {
+        id: "settings-appearance-section",
+        title: this.getSectionLabel("appearance"),
+        items: [
+          this.createSettingsTreeControlItem({
+            id: "settings-theme-card",
+            createControl: () => this.createSelect({
+              id: "settings-theme-dropdown",
+              value: this.options.theme,
+              onChange: value => {
+                if (value === "system" || value === "light" || value === "dark") {
+                  void this.options.onThemeChange(value);
+                }
+              },
+              options: this.options.themeModeOptions,
+            }),
+            description: localize("settings.theme.description", "Choose the workbench color theme."),
+            searchText: normalizeSettingsSearchText(optionLabels(this.options.themeModeOptions)),
+            title: localize("settings.theme.title", "Theme"),
+          }),
+          this.createSettingsTreeControlItem({
+            id: "settings-explorer-density-card",
+            createControl: () => this.createSelect({
+              id: "settings-explorer-density-dropdown",
+              value: appearanceSettings.explorerDensity,
+              onChange: value => {
+                if (value === "compact" || value === "default" || value === "comfortable") {
+                  void this.options.appearanceSettings.onExplorerDensityChange(value);
+                }
+              },
+              options: appearanceSettings.explorerDensityOptions,
+              disabled: appearanceSettings.isExplorerDensitySaving,
+            }),
+            description: localize("settings.explorerDensity.description", "Choose how compact file rows appear in Explorer."),
+            searchText: normalizeSettingsSearchText(optionLabels(appearanceSettings.explorerDensityOptions)),
+            title: localize("settings.explorerDensity.title", "Explorer Density"),
+          }),
+          this.createSettingsTreeControlItem({
+            id: "settings-explorer-badges-card",
+            createControl: () => this.createSwitchWidget({
+              ariaLabel: localize("settings.explorerBadges.title", "Explorer Badges"),
+              checked: appearanceSettings.showExplorerBadges,
+              id: "settings-explorer-badges-toggle",
+              onChange: checked => {
+                void this.options.appearanceSettings.onExplorerBadgeVisibilityChange(checked);
+              },
+            }).domNode,
+            description: localize("settings.explorerBadges.description", "Show measurement badges beside files in Explorer."),
+            title: localize("settings.explorerBadges.title", "Explorer Badges"),
+          }),
+          this.createSettingsTreeControlItem({
+            id: "settings-explorer-badge-colors-card",
+            createControl: () => this.createBadgeColorControls(appearanceSettings),
+            description: localize("settings.explorerBadgeColors.description", "Choose Explorer badge colors by measurement label."),
+            searchText: normalizeSettingsSearchText(
+              optionLabels(appearanceSettings.explorerBadgeColorLabels),
+              optionLabels(appearanceSettings.explorerBadgeColorOptions),
+            ),
+            title: localize("settings.explorerBadgeColors.title", "Badge Colors"),
+          }),
+          this.createSettingsTreeControlItem({
+            id: "settings-layout-card",
+            createControl: () => this.createLayoutResetControl(),
+            description: localize("settings.layout.description", "Reset sidebar width and hidden workbench parts."),
+            title: localize("settings.layout.title", "Layout"),
+          }),
+          this.createSettingsTreeControlItem({
+            id: "settings-background-card",
+            createControl: () => this.createBackgroundControls(appearanceSettings),
+            description: localize("settings.background.description", "Choose the workbench page background color."),
+            title: localize("settings.background.title", "Background"),
+          }),
+          this.createSettingsTreeControlItem({
+            id: "settings-transparent-chrome-card",
+            createControl: () => this.createSwitchWidget({
+              ariaLabel: localize("settings.transparentChrome.title", "Translucent sidebar"),
+              checked: appearanceSettings.transparentChrome,
+              id: "settings-transparent-chrome-toggle",
+              onChange: checked => {
+                void this.options.appearanceSettings.onTransparentChromeChange(checked);
+              },
+            }).domNode,
+            description: localize("settings.transparentChrome.description", "Let the sidebar blend with the desktop window surface."),
+            title: localize("settings.transparentChrome.title", "Translucent sidebar"),
+          }),
+        ],
+      },
+    ];
   }
 
-  private createAppearanceSection(): AppearanceSectionTemplate {
-    const { appearanceSettings } = this.options;
-
-    const themeSelect = this.createSelectWidget({
-      id: "settings-theme-dropdown",
-      value: this.options.theme,
-      onChange: value => {
-        if (value === "system" || value === "light" || value === "dark") {
-          void this.options.onThemeChange(value);
-        }
-      },
-      options: this.options.themeModeOptions,
-    });
-    const explorerDensitySelect = this.createSelectWidget({
-      id: "settings-explorer-density-dropdown",
-      value: appearanceSettings.explorerDensity,
-      onChange: value => {
-        if (value === "compact" || value === "default" || value === "comfortable") {
-          void this.options.appearanceSettings.onExplorerDensityChange(value);
-        }
-      },
-      options: appearanceSettings.explorerDensityOptions,
-      disabled: appearanceSettings.isExplorerDensitySaving,
-    });
-    const explorerBadgesSwitch = this.createSwitchWidget({
-      ariaLabel: localize("settings.explorerBadges.title", "Explorer Badges"),
-      checked: appearanceSettings.showExplorerBadges,
-      id: "settings-explorer-badges-toggle",
-      onChange: checked => {
-        void this.options.appearanceSettings.onExplorerBadgeVisibilityChange(checked);
-      },
-    });
+  private createBadgeColorControls(appearanceSettings: AppearanceSettings): HTMLElement {
+    if (!appearanceSettings.explorerBadgeColorLabels.some(label => label.value === this.activeBadgeLabelValue)) {
+      this.activeBadgeLabelValue = appearanceSettings.explorerBadgeColorLabels[0]?.value ?? "transfer";
+    }
 
     const badgeColorSwatches = div("settings-badge-colors");
     const badgeColorButtons = new Map<string, HTMLButtonElement>();
-
     const badgeLabelSelect = this.createSelectWidget({
       id: "settings-explorer-badge-label-dropdown",
       value: this.activeBadgeLabelValue,
       onChange: value => {
         this.activeBadgeLabelValue = value;
-        this.renderBadgeColorSwatches(badgeColorSwatches, badgeColorButtons, appearanceSettings);
+        this.renderBadgeColorSwatches(badgeColorSwatches, badgeColorButtons, this.options.appearanceSettings);
       },
       options: appearanceSettings.explorerBadgeColorLabels,
+      disabled: appearanceSettings.isExplorerBadgeColorSaving,
     });
 
     const badgePreview = document.createElement("span");
     badgePreview.className = "settings-badge-preview";
 
-    const swatchesContainer = div("settings-badge-color-options");
-    badgeColorSwatches.append(swatchesContainer, badgePreview, badgeLabelSelect.domNode);
-
+    badgeColorSwatches.append(
+      div("settings-badge-color-options"),
+      badgePreview,
+      badgeLabelSelect.domNode,
+    );
     this.renderBadgeColorSwatches(badgeColorSwatches, badgeColorButtons, appearanceSettings);
+    return badgeColorSwatches;
+  }
 
+  private createLayoutResetControl(): HTMLElement {
     const layoutResetAction = this.registerContentDisposable(new Action(
       "settings.layout.reset",
       localize("settings.layout.resetButton", "Reset Layout"),
@@ -1373,7 +1643,10 @@ export class SettingsView {
     const layoutResetActionContainer = div("settings-reset-action");
     const layoutResetActionItem = this.registerContentDisposable(new SettingsResetActionViewItem(layoutResetAction));
     layoutResetActionItem.render(layoutResetActionContainer);
+    return layoutResetActionContainer;
+  }
 
+  private createBackgroundControls(appearanceSettings: AppearanceSettings): HTMLElement {
     const colorInput = document.createElement("input");
     colorInput.id = "settings-background-color-input";
     colorInput.className = "settings-color-input";
@@ -1401,103 +1674,38 @@ export class SettingsView {
     const backgroundResetActionItem = this.registerContentDisposable(new SettingsResetActionViewItem(backgroundResetAction));
     backgroundResetActionItem.render(backgroundResetActionContainer);
 
-    const transparentChromeSwitch = this.createSwitchWidget({
-      ariaLabel: localize("settings.transparentChrome.title", "Translucent sidebar"),
-      checked: appearanceSettings.transparentChrome,
-      id: "settings-transparent-chrome-toggle",
-      onChange: checked => {
-        void this.options.appearanceSettings.onTransparentChromeChange(checked);
-      },
-    });
-    const appearanceTree = this.registerContentDisposable(new SettingsTree());
-    appearanceTree.update([
-      {
-        id: "settings-appearance-section",
-        title: this.getSectionLabel("appearance"),
-        items: [
-          {
-            kind: "control",
-            control: themeSelect.domNode,
-            description: localize("settings.theme.description", "Choose the workbench color theme."),
-            id: "settings-theme-card",
-            searchText: normalizeSettingsSearchText(optionLabels(this.options.themeModeOptions)),
-            title: localize("settings.theme.title", "Theme"),
-          },
-          {
-            kind: "control",
-            control: explorerDensitySelect.domNode,
-            description: localize("settings.explorerDensity.description", "Choose how compact file rows appear in Explorer."),
-            id: "settings-explorer-density-card",
-            searchText: normalizeSettingsSearchText(optionLabels(appearanceSettings.explorerDensityOptions)),
-            title: localize("settings.explorerDensity.title", "Explorer Density"),
-          },
-          {
-            kind: "control",
-            control: explorerBadgesSwitch.domNode,
-            description: localize("settings.explorerBadges.description", "Show measurement badges beside files in Explorer."),
-            id: "settings-explorer-badges-card",
-            title: localize("settings.explorerBadges.title", "Explorer Badges"),
-          },
-          {
-            kind: "control",
-            control: badgeColorSwatches,
-            description: localize("settings.explorerBadgeColors.description", "Choose Explorer badge colors by measurement label."),
-            id: "settings-explorer-badge-colors-card",
-            searchText: normalizeSettingsSearchText(
-              optionLabels(appearanceSettings.explorerBadgeColorLabels),
-              optionLabels(appearanceSettings.explorerBadgeColorOptions),
-            ),
-            title: localize("settings.explorerBadgeColors.title", "Badge Colors"),
-          },
-          {
-            kind: "control",
-            control: layoutResetActionContainer,
-            description: localize("settings.layout.description", "Reset sidebar width and hidden workbench parts."),
-            id: "settings-layout-card",
-            title: localize("settings.layout.title", "Layout"),
-          },
-          {
-            kind: "control",
-            control: div(
-              "settings-color-controls",
-              colorInput,
-              backgroundResetActionContainer,
-              swatches,
-            ),
-            description: localize("settings.background.description", "Choose the workbench page background color."),
-            id: "settings-background-card",
-            title: localize("settings.background.title", "Background"),
-          },
-          {
-            kind: "control",
-            control: transparentChromeSwitch.domNode,
-            description: localize("settings.transparentChrome.description", "Let the sidebar blend with the desktop window surface."),
-            id: "settings-transparent-chrome-card",
-            title: localize("settings.transparentChrome.title", "Translucent sidebar"),
-          },
-        ],
-      },
-    ]);
-
-    return {
-      backgroundResetAction,
-      badgeColorButtons,
-      badgeColorSwatches,
+    return div(
+      "settings-color-controls",
       colorInput,
-      colorSwatches: swatches,
-      element: appearanceTree.element,
-      explorerBadgesSwitch,
-      explorerDensitySelect,
-      swatchButtons,
-      themeSelect,
-      transparentChromeSwitch,
-      badgeLabelSelect,
-      badgePreview,
-    };
+      backgroundResetActionContainer,
+      swatches,
+    );
   }
 
-  private createOriginSection(): HTMLElement {
-    const { originSettings } = this.options;
+  private createOriginSettingsTree(): readonly SettingsTreeSection[] {
+    return [
+      {
+        id: "settings-origin-section",
+        title: this.getSectionLabel("origin"),
+        items: [
+          this.createSettingsTreeElementItem({
+            id: "settings-origin-path-card",
+            createElement: () => this.createOriginPathCard(this.options.originSettings),
+          }),
+          this.createSettingsTreeElementItem({
+            id: "settings-origin-cleanup-card",
+            createElement: () => this.createOriginCleanupCard(this.options.originSettings),
+          }),
+          this.createSettingsTreeElementItem({
+            id: "settings-origin-plot-card",
+            createElement: () => this.createOriginPlot(this.options.originSettings),
+          }),
+        ],
+      },
+    ];
+  }
+
+  private createOriginPathCard(originSettings: OriginSettingsSectionProps): HTMLElement {
     const originPathTitle = localize("settings.origin.title", "Origin Executable Path");
     const originPathDescription = localize("settings.origin.description", "Choose the Origin app used to open files.");
     const pathCard = card("settings-origin-path-card", "settings-card-block");
@@ -1514,9 +1722,10 @@ export class SettingsView {
       headingBlock(originPathTitle, originPathDescription),
       this.createPathControls(originSettings),
     );
-    const originSection = settingsSection(this.getSectionLabel("origin"), pathCard);
-    const originList = getSettingsList(originSection);
+    return pathCard;
+  }
 
+  private createOriginCleanupCard(originSettings: OriginSettingsSectionProps): HTMLElement {
     const cleanupTitle = localize("settings.origin.cleanup.title", "Runtime Cleanup");
     const cleanupDescription = localize("settings.origin.cleanup.description", "Manage automatic cleanup for Origin runtime cache.");
     const cleanupCard = card("settings-origin-cleanup-card", "settings-card-block");
@@ -1543,56 +1752,49 @@ export class SettingsView {
         variant: "secondary",
       })),
     );
-    originList.appendChild(cleanupCard);
-
-    originList.appendChild(this.createOriginPlot(originSettings));
-    return originSection;
+    return cleanupCard;
   }
 
-  private createAboutSection(): HTMLElement {
+  private createAboutSettingsTree(): readonly SettingsTreeSection[] {
     const { appUpdateSettings } = this.options;
-    const aboutTree = this.registerContentDisposable(new SettingsTree());
-    aboutTree.update([
+    return [
       {
         id: "settings-about-section",
         title: this.getSectionLabel("about"),
         items: [
-          {
-            kind: "control",
-            control: text("p", "settings-code-value", appUpdateSettings.currentVersion || localize("settings.about.versionUnknown", "Unknown")),
-            description: localize("settings.about.versionDescription", "The installed Conductor Studio version."),
+          this.createSettingsTreeControlItem({
             id: "settings-about-version-card",
+            createControl: () => text("p", "settings-code-value", appUpdateSettings.currentVersion || localize("settings.about.versionUnknown", "Unknown")),
+            description: localize("settings.about.versionDescription", "The installed Conductor Studio version."),
             title: localize("settings.about.versionTitle", "Current Version"),
-          },
-          {
-            kind: "control",
-            control: this.createButton({
+          }),
+          this.createSettingsTreeControlItem({
+            id: "settings-release-notes-card",
+            createControl: () => this.createButton({
               id: "settings-release-notes-show-btn",
               label: localize("settings.releaseNotes.showButton", "Show Release Notes"),
               onClick: this.options.handleShowReleaseNotes,
               variant: "secondary",
             }),
             description: localize("settings.releaseNotes.description", "Review recent product changes and fixes."),
-            id: "settings-release-notes-card",
             searchText: localize("settings.releaseNotes.showButton", "Show Release Notes"),
             title: localize("settings.releaseNotes.title", "Release Notes"),
-          },
-          {
-            kind: "control",
-            control: this.createButton({
+          }),
+          this.createSettingsTreeControlItem({
+            id: "settings-user-guide-card",
+            createControl: () => this.createButton({
               id: "settings-user-guide-show-btn",
               label: localize("settings.userGuide.showButton", "Show User Guide"),
               onClick: () => this.showUserGuideDialog(),
               variant: "secondary",
             }),
             description: localize("settings.userGuide.description", "Open the bundled guide for common workflows."),
-            id: "settings-user-guide-card",
             searchText: localize("settings.userGuide.showButton", "Show User Guide"),
             title: localize("settings.userGuide.title", "User Guide"),
-          },
-          {
-            kind: "control",
-            control: this.createButton({
+          }),
+          this.createSettingsTreeControlItem({
+            id: "settings-app-update-card",
+            createControl: () => this.createButton({
               id: "settings-app-update-check-btn",
               label: this.options.appUpdateChecking ? localize("settings.appUpdate.checking", "Checking...") : localize("settings.appUpdate.checkButton", "Check for Updates"),
               onClick: this.options.handleCheckForUpdates,
@@ -1600,14 +1802,12 @@ export class SettingsView {
               variant: "secondary",
             }),
             description: localize("settings.appUpdate.description", "Check whether a newer version is available."),
-            id: "settings-app-update-card",
             searchText: localize("settings.appUpdate.checkButton", "Check for Updates"),
             title: localize("settings.appUpdate.title", "App Updates"),
-          },
+          }),
         ],
       },
-    ]);
-    return aboutTree.element;
+    ];
   }
 
   private showUserGuideDialog(): void {
@@ -1701,94 +1901,89 @@ export class SettingsView {
         id: "settings-chart-section",
         title: localize("settings.chartDefaults.sectionTitle", "Chart"),
         items: [
-          {
-            kind: "control",
-            control: this.createSelect({
+          this.createSettingsTreeControlItem({
+            id: "settings-default-transfer-y-scale-card",
+            createControl: () => this.createSelect({
               id: "settings-default-transfer-y-scale-select",
               value: settings.defaultYScaleForTransfer,
               onChange: value => void settings.onDefaultYScaleForTransferChange(value),
               options: this.options.yScaleOptions,
               disabled: settings.isSaving,
             }),
-            id: "settings-default-transfer-y-scale-card",
             description: localize("settings.chartScaleDefaults.description", "Choose the default Y-axis scale for each curve family."),
             searchText: normalizeSettingsSearchText(optionLabels(this.options.yScaleOptions)),
             title: localize("settings.chartScaleDefaults.transferCurve", "Transfer"),
-          },
-          {
-            kind: "control",
-            control: this.createSelect({
+          }),
+          this.createSettingsTreeControlItem({
+            id: "settings-default-output-y-scale-card",
+            createControl: () => this.createSelect({
               id: "settings-default-output-y-scale-select",
               value: settings.defaultYScaleForOutput,
               onChange: value => void settings.onDefaultYScaleForOutputChange(value),
               options: this.options.yScaleOptions,
               disabled: settings.isSaving,
             }),
-            id: "settings-default-output-y-scale-card",
             searchText: normalizeSettingsSearchText(
               localize("settings.chartScaleDefaults.description", "Choose the default Y-axis scale for each curve family."),
               optionLabels(this.options.yScaleOptions),
             ),
             title: localize("settings.chartScaleDefaults.outputCurve", "Output"),
-          },
-          {
-            kind: "control",
-            control: this.createSelect({
+          }),
+          this.createSettingsTreeControlItem({
+            id: "settings-default-cv-y-scale-card",
+            createControl: () => this.createSelect({
               id: "settings-default-cv-y-scale-select",
               value: settings.defaultYScaleForCv,
               onChange: value => void settings.onDefaultYScaleForCvChange(value),
               options: this.options.yScaleOptions,
               disabled: settings.isSaving,
             }),
-            id: "settings-default-cv-y-scale-card",
             searchText: normalizeSettingsSearchText(
               localize("settings.chartScaleDefaults.description", "Choose the default Y-axis scale for each curve family."),
               optionLabels(this.options.yScaleOptions),
             ),
             title: localize("settings.chartScaleDefaults.cvCurve", "C-V"),
-          },
-          {
-            kind: "control",
-            control: this.createSelect({
+          }),
+          this.createSettingsTreeControlItem({
+            id: "settings-default-cf-y-scale-card",
+            createControl: () => this.createSelect({
               id: "settings-default-cf-y-scale-select",
               value: settings.defaultYScaleForCf,
               onChange: value => void settings.onDefaultYScaleForCfChange(value),
               options: this.options.yScaleOptions,
               disabled: settings.isSaving,
             }),
-            id: "settings-default-cf-y-scale-card",
             searchText: normalizeSettingsSearchText(
               localize("settings.chartScaleDefaults.description", "Choose the default Y-axis scale for each curve family."),
               optionLabels(this.options.yScaleOptions),
             ),
             title: localize("settings.chartScaleDefaults.cfCurve", "C-f"),
-          },
-          {
-            kind: "control",
-            control: this.createSelect({
+          }),
+          this.createSettingsTreeControlItem({
+            id: "settings-default-pv-y-scale-card",
+            createControl: () => this.createSelect({
               id: "settings-default-pv-y-scale-select",
               value: settings.defaultYScaleForPv,
               onChange: value => void settings.onDefaultYScaleForPvChange(value),
               options: this.options.yScaleOptions,
               disabled: settings.isSaving,
             }),
-            id: "settings-default-pv-y-scale-card",
             searchText: normalizeSettingsSearchText(
               localize("settings.chartScaleDefaults.description", "Choose the default Y-axis scale for each curve family."),
               optionLabels(this.options.yScaleOptions),
             ),
             title: localize("settings.chartScaleDefaults.pvCurve", "P-V"),
-          },
-          ...(settings.feedback.message ? [{
-            kind: "element" as const,
-            element: this.createChartScaleFeedback(settings.feedback),
-            id: "settings-chart-scale-feedback-card",
-          }] : []),
-          {
-            kind: "element",
-            element: this.createChartDefaults(settings),
+          }),
+          ...(settings.feedback.message ? [
+            this.createSettingsTreeElementItem({
+              id: "settings-chart-scale-feedback-card",
+              createElement: () => this.createChartScaleFeedback(settings.feedback),
+            }),
+          ] : []),
+          this.createSettingsTreeElementItem({
             id: "settings-chart-defaults-card",
-          },
+            createElement: () => this.createChartDefaults(settings),
+          }),
         ],
       },
     ];
@@ -2040,17 +2235,6 @@ export class SettingsView {
     return this.createSelectWidget(options, disposables).domNode;
   }
 
-  private updateSelectWidget(widget: SelectBox<string>, options: FieldOptions): void {
-    widget.update({
-      id: options.id,
-      className: "settings-select",
-      disabled: options.disabled,
-      value: options.value,
-      options: options.options as readonly SelectBoxOption<string>[],
-      onDidSelect: options.onChange,
-    });
-  }
-
   private createInput(options: TextInputOptions): HTMLElement {
     const inputBox = this.registerContentDisposable(createInputBox({
       disabled: options.disabled,
@@ -2091,94 +2275,6 @@ export class SettingsView {
     }
     widget.domNode.setAttribute("aria-label", options.ariaLabel);
     return widget;
-  }
-
-  private updateAppearanceSection(current: SettingsViewOptions, next: SettingsViewOptions): void {
-    const template = this.appearanceSection;
-    if (!template) {
-      this.updateContentDescriptor("appearance-preferences");
-      return;
-    }
-
-    const currentAppearance = current.appearanceSettings;
-    const nextAppearance = next.appearanceSettings;
-
-    if (current.theme !== next.theme || !selectOptionsEqual(current.themeModeOptions, next.themeModeOptions)) {
-      this.updateSelectWidget(template.themeSelect, {
-        id: "settings-theme-dropdown",
-        value: next.theme,
-        options: next.themeModeOptions,
-        onChange: value => {
-          if (value === "system" || value === "light" || value === "dark") {
-            void this.options.onThemeChange(value);
-          }
-        },
-      });
-    }
-
-    if (
-      currentAppearance.explorerDensity !== nextAppearance.explorerDensity ||
-      currentAppearance.isExplorerDensitySaving !== nextAppearance.isExplorerDensitySaving ||
-      !selectOptionsEqual(currentAppearance.explorerDensityOptions, nextAppearance.explorerDensityOptions)
-    ) {
-      this.updateSelectWidget(template.explorerDensitySelect, {
-        id: "settings-explorer-density-dropdown",
-        disabled: nextAppearance.isExplorerDensitySaving,
-        value: nextAppearance.explorerDensity,
-        options: nextAppearance.explorerDensityOptions,
-        onChange: value => {
-          if (value === "compact" || value === "default" || value === "comfortable") {
-            void this.options.appearanceSettings.onExplorerDensityChange(value);
-          }
-        },
-      });
-    }
-
-    if (
-      currentAppearance.showExplorerBadges !== nextAppearance.showExplorerBadges
-    ) {
-      template.explorerBadgesSwitch.update({
-        checked: nextAppearance.showExplorerBadges,
-        className: "settings-switch",
-        id: "settings-explorer-badges-toggle",
-      });
-      template.explorerBadgesSwitch.domNode.setAttribute("aria-label", localize("settings.explorerBadges.title", "Explorer Badges"));
-    }
-
-    if (
-      !selectOptionsEqual(currentAppearance.explorerBadgeColorLabels, nextAppearance.explorerBadgeColorLabels) ||
-      currentAppearance.isExplorerBadgeColorSaving !== nextAppearance.isExplorerBadgeColorSaving
-    ) {
-      if (!nextAppearance.explorerBadgeColorLabels.some(l => l.value === this.activeBadgeLabelValue)) {
-        this.activeBadgeLabelValue = nextAppearance.explorerBadgeColorLabels[0]?.value ?? "transfer";
-      }
-      this.updateSelectWidget(template.badgeLabelSelect, {
-        id: "settings-explorer-badge-label-dropdown",
-        disabled: nextAppearance.isExplorerBadgeColorSaving,
-        value: this.activeBadgeLabelValue,
-        options: nextAppearance.explorerBadgeColorLabels,
-        onChange: value => {
-          this.activeBadgeLabelValue = value;
-          this.renderBadgeColorSwatches(template.badgeColorSwatches, template.badgeColorButtons, nextAppearance);
-        },
-      });
-    }
-
-    this.updateBadgeColorControls(template, currentAppearance, nextAppearance);
-    this.updateBackgroundControls(template, currentAppearance, nextAppearance);
-
-    if (
-      currentAppearance.transparentChrome !== nextAppearance.transparentChrome
-    ) {
-      template.transparentChromeSwitch.update({
-        checked: nextAppearance.transparentChrome,
-        className: "settings-switch",
-        id: "settings-transparent-chrome-toggle",
-      });
-      template.transparentChromeSwitch.domNode.setAttribute("aria-label", localize("settings.transparentChrome.title", "Translucent sidebar"));
-    }
-
-    queueMicrotask(() => this.contentScroll.layout());
   }
 
   private renderBadgeColorSwatches(
@@ -2225,27 +2321,6 @@ export class SettingsView {
     this.updateBadgeColorSwatches(preview, buttons, settings);
   }
 
-  private updateBadgeColorControls(
-    template: AppearanceSectionTemplate,
-    current: AppearanceSettings,
-    next: AppearanceSettings,
-  ): void {
-    if (
-      !selectOptionsEqual(current.explorerBadgeColorLabels, next.explorerBadgeColorLabels) ||
-      !selectOptionsEqual(current.explorerBadgeColorOptions, next.explorerBadgeColorOptions)
-    ) {
-      this.renderBadgeColorSwatches(template.badgeColorSwatches, template.badgeColorButtons, next);
-      return;
-    }
-
-    if (
-      current.isExplorerBadgeColorSaving !== next.isExplorerBadgeColorSaving ||
-      !badgeColorsEqual(current.explorerBadgeColors, next.explorerBadgeColors)
-    ) {
-      this.updateBadgeColorSwatches(template.badgePreview, template.badgeColorButtons, next);
-    }
-  }
-
   private updateBadgeColorSwatches(
     preview: HTMLElement | null,
     buttons: Map<string, HTMLButtonElement>,
@@ -2262,40 +2337,6 @@ export class SettingsView {
       }
       button.disabled = settings.isExplorerBadgeColorSaving;
       button.dataset.selected = String(option.value === selectedColor);
-    }
-  }
-
-  private updateBackgroundControls(
-    template: AppearanceSectionTemplate,
-    current: AppearanceSettings,
-    next: AppearanceSettings,
-  ): void {
-    if (current.backgroundColor !== next.backgroundColor) {
-      template.colorInput.value = next.backgroundColor;
-    }
-
-    if (current.isSaving !== next.isSaving) {
-      template.colorInput.disabled = next.isSaving;
-    }
-
-    if (!stringArrayEqual(current.backgroundColorOptions, next.backgroundColorOptions)) {
-      this.renderBackgroundSwatches(template.colorSwatches, template.swatchButtons, next);
-    }
-
-    if (
-      current.backgroundColor !== next.backgroundColor ||
-      current.isSaving !== next.isSaving ||
-      !stringArrayEqual(current.backgroundColorOptions, next.backgroundColorOptions)
-    ) {
-      this.updateBackgroundSwatches(template.swatchButtons, next);
-    }
-
-    if (
-      current.backgroundColor !== next.backgroundColor ||
-      current.backgroundColorDefault !== next.backgroundColorDefault ||
-      current.isSaving !== next.isSaving
-    ) {
-      template.backgroundResetAction.enabled = !next.isSaving && next.backgroundColor !== next.backgroundColorDefault;
     }
   }
 
@@ -2366,22 +2407,6 @@ function card(id: string, className: string): HTMLDivElement {
   const element = div(className ? `settings-card ${className}` : "settings-card");
   element.id = id;
   return element;
-}
-
-function settingsSection(titleText: string, ...rows: HTMLElement[]): HTMLElement {
-  return div("settings-section", title(titleText), div("settings-list", ...rows));
-}
-
-function settingsCardGroup(...rows: HTMLElement[]): HTMLElement {
-  return div("settings-section", div("settings-list", ...rows));
-}
-
-function getSettingsList(section: HTMLElement): HTMLElement {
-  const list = section.querySelector<HTMLElement>(".settings-list");
-  if (!list) {
-    throw new Error("Settings section is missing its list container.");
-  }
-  return list;
 }
 
 function title(value: string): HTMLElement {
@@ -2485,60 +2510,6 @@ function appendFeedback(container: HTMLElement, feedback: { type: "idle" | "succ
   container.appendChild(text("p", feedback.type === "error" ? "settings-feedback settings-feedback--error" : "settings-feedback settings-feedback--success", feedback.message));
 }
 
-const canReuseAppearanceSectionTemplate = (
-  current: SettingsViewOptions,
-  next: SettingsViewOptions,
-): boolean => {
-  if (current.activeSettingsSection !== "appearance" || next.activeSettingsSection !== "appearance") {
-    return false;
-  }
-
-  if (current.language !== next.language || !settingsSectionsEqual(current.settingsSections, next.settingsSections)) {
-    return false;
-  }
-
-  return true;
-};
-
-const canReuseGeneralSectionTemplate = (
-  current: SettingsViewOptions,
-  next: SettingsViewOptions,
-): boolean => {
-  if (current.activeSettingsSection !== "general" || next.activeSettingsSection !== "general") {
-    return false;
-  }
-
-  if (current.language !== next.language || !settingsSectionsEqual(current.settingsSections, next.settingsSections)) {
-    return false;
-  }
-
-  return chartDefaultSettingsEqual(current, next);
-};
-
-function chartDefaultSettingsEqual(current: SettingsViewOptions, next: SettingsViewOptions): boolean {
-  const currentSettings = current.chartDefaultSettings;
-  const nextSettings = next.chartDefaultSettings;
-  return current.axisTitleFontSizeDraft === next.axisTitleFontSizeDraft &&
-    current.tickLabelFontSizeDraft === next.tickLabelFontSizeDraft &&
-    selectOptionsEqual(current.yScaleOptions, next.yScaleOptions) &&
-    currentSettings.axisTitleFontSize === nextSettings.axisTitleFontSize &&
-    currentSettings.defaultYScaleForCf === nextSettings.defaultYScaleForCf &&
-    currentSettings.defaultYScaleForCv === nextSettings.defaultYScaleForCv &&
-    currentSettings.defaultYScaleForOutput === nextSettings.defaultYScaleForOutput &&
-    currentSettings.defaultYScaleForPv === nextSettings.defaultYScaleForPv &&
-    currentSettings.defaultYScaleForTransfer === nextSettings.defaultYScaleForTransfer &&
-    currentSettings.isSaving === nextSettings.isSaving &&
-    currentSettings.tickLabelFontSize === nextSettings.tickLabelFontSize &&
-    feedbackEqual(currentSettings.feedback, nextSettings.feedback);
-}
-
-function feedbackEqual(
-  current: { readonly message: string; readonly type: string },
-  next: { readonly message: string; readonly type: string },
-): boolean {
-  return current.message === next.message && current.type === next.type;
-}
-
 function settingsSectionsEqual(
   current: readonly SettingsSectionDefinition[],
   next: readonly SettingsSectionDefinition[],
@@ -2564,47 +2535,6 @@ function optionLabels(options: readonly SelectOption[]): readonly string[] {
   return options.map(option => option.label);
 }
 
-function selectOptionsEqual(
-  current: readonly SelectOption[],
-  next: readonly SelectOption[],
-): boolean {
-  if (current.length !== next.length) {
-    return false;
-  }
-
-  return current.every((option, index) => {
-    const nextOption = next[index];
-    return option.value === nextOption?.value &&
-      option.label === nextOption.label &&
-      option.disabled === nextOption.disabled;
-  });
-}
-
-function stringArrayEqual(
-  current: readonly string[],
-  next: readonly string[],
-): boolean {
-  if (current.length !== next.length) {
-    return false;
-  }
-
-  return current.every((value, index) => value === next[index]);
-}
-
 function badgeColorButtonKey(badge: string, color: string): string {
   return `${badge}\u001f${color}`;
-}
-
-function badgeColorsEqual(
-  current: Readonly<Record<string, string>>,
-  next: Readonly<Record<string, string>>,
-): boolean {
-  const keys = new Set([...Object.keys(current), ...Object.keys(next)]);
-  for (const key of keys) {
-    if (current[key] !== next[key]) {
-      return false;
-    }
-  }
-
-  return true;
 }

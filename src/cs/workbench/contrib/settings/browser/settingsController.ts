@@ -16,6 +16,7 @@ import {
 import {
   SettingsView,
   type SettingsContentDescriptorId,
+  type SettingsContentItemId,
   type SettingsViewOptions,
   type SettingsViewUpdateTarget,
 } from "src/cs/workbench/contrib/settings/browser/settingsView";
@@ -76,6 +77,23 @@ import {
 type SettingsControllerOptions = SettingsViewInput;
 
 const settingsContentUpdateTarget: SettingsViewUpdateTarget = { type: "content" };
+const chartDefaultsItemIds = [
+  "settings-default-transfer-y-scale-card",
+  "settings-default-output-y-scale-card",
+  "settings-default-cv-y-scale-card",
+  "settings-default-cf-y-scale-card",
+  "settings-default-pv-y-scale-card",
+  "settings-chart-scale-feedback-card",
+  "settings-chart-defaults-card",
+] as const satisfies readonly SettingsContentItemId[];
+const originAllItemIds = [
+  "settings-origin-path-card",
+  "settings-origin-cleanup-card",
+  "settings-origin-plot-card",
+] as const satisfies readonly SettingsContentItemId[];
+const appearanceBackgroundItemIds = [
+  "settings-background-card",
+] as const satisfies readonly SettingsContentItemId[];
 
 type SelectOption = {
   label: string;
@@ -268,7 +286,7 @@ export class SettingsController {
 
   private async loadOriginPath(loadRequest: string): Promise<void> {
     this.originPathLoading = true;
-    this.render(descriptorsUpdateTarget("origin-integration"));
+    this.render(itemsUpdateTarget("origin-integration", "settings-origin-path-card"));
     try {
       const configuredPath = await this.service.getOriginExePath();
       if (configuredPath) {
@@ -287,7 +305,7 @@ export class SettingsController {
     }
     finally {
       this.originPathLoading = false;
-      this.render(descriptorsUpdateTarget("origin-integration"));
+      this.render(itemsUpdateTarget("origin-integration", "settings-origin-path-card"));
     }
   }
 
@@ -379,13 +397,13 @@ export class SettingsController {
   private closeCleanupNotification(): void {
     this.originCleanupFeedback = IDLE_FEEDBACK;
     this.drafts.cleanupNotification = { ...this.drafts.cleanupNotification, isVisible: false };
-    this.render(descriptorsUpdateTarget("origin-integration"));
+    this.render(itemsUpdateTarget("origin-integration", "settings-origin-cleanup-card"));
   }
 
   private closeOriginHealthNotification(): void {
     this.originPathFeedback = IDLE_FEEDBACK;
     this.drafts.originHealthNotification = { ...this.drafts.originHealthNotification, isVisible: false };
-    this.render(descriptorsUpdateTarget("origin-integration"));
+    this.render(itemsUpdateTarget("origin-integration", "settings-origin-path-card"));
   }
 
   private createViewOptions(): SettingsViewOptions {
@@ -894,7 +912,7 @@ export class SettingsController {
     this.originPathSaving = true;
     this.originPathFeedback = IDLE_FEEDBACK;
     this.syncOriginFeedback();
-    this.render(descriptorsUpdateTarget("origin-integration"));
+    this.render(itemsUpdateTarget("origin-integration", "settings-origin-path-card"));
     try {
       const nextPath = await this.service.chooseOriginExePath();
       if (nextPath) {
@@ -916,7 +934,7 @@ export class SettingsController {
     finally {
       this.originPathSaving = false;
       this.syncOriginFeedback();
-      this.render(descriptorsUpdateTarget("origin-integration"));
+      this.render(itemsUpdateTarget("origin-integration", "settings-origin-path-card"));
     }
   }
 
@@ -928,7 +946,7 @@ export class SettingsController {
     this.originHealthChecking = true;
     this.originPathFeedback = IDLE_FEEDBACK;
     this.syncOriginFeedback();
-    this.render(descriptorsUpdateTarget("origin-integration"));
+    this.render(itemsUpdateTarget("origin-integration", "settings-origin-path-card"));
     try {
       const health = await this.service.checkOriginHealth(this.originExePath);
       const nextPath = normalizeTrimmedString(health?.originExePath);
@@ -950,7 +968,7 @@ export class SettingsController {
     finally {
       this.originHealthChecking = false;
       this.syncOriginFeedback();
-      this.render(descriptorsUpdateTarget("origin-integration"));
+      this.render(itemsUpdateTarget("origin-integration", "settings-origin-path-card"));
     }
   }
 
@@ -958,7 +976,7 @@ export class SettingsController {
     this.originCleanupSaving = true;
     this.originCleanupFeedback = IDLE_FEEDBACK;
     this.syncOriginFeedback();
-    this.render(descriptorsUpdateTarget("origin-integration"));
+    this.render(itemsUpdateTarget("origin-integration", "settings-origin-cleanup-card"));
     try {
       await this.service.updateSettings(updates);
       this.originCleanupFeedback = {
@@ -975,7 +993,7 @@ export class SettingsController {
     finally {
       this.originCleanupSaving = false;
       this.syncOriginFeedback();
-      this.render(descriptorsUpdateTarget("origin-integration"));
+      this.render(itemsUpdateTarget("origin-integration", "settings-origin-cleanup-card"));
     }
   }
 
@@ -987,7 +1005,7 @@ export class SettingsController {
     }
 
     this.pendingNumericDisplayMode = normalizedMode;
-    this.render(descriptorsUpdateTarget("general-preferences"));
+    this.render(itemsUpdateTarget("general-preferences", "settings-numeric-display-card"));
     if (!this.numericDisplaySaving) {
       await this.flushNumericDisplayMode();
     }
@@ -995,7 +1013,7 @@ export class SettingsController {
 
   private async flushNumericDisplayMode(): Promise<void> {
     this.numericDisplaySaving = true;
-    this.render(descriptorsUpdateTarget("general-preferences"));
+    this.render(itemsUpdateTarget("general-preferences", "settings-numeric-display-card"));
     try {
       while (this.pendingNumericDisplayMode !== null) {
         const mode = this.pendingNumericDisplayMode;
@@ -1011,11 +1029,11 @@ export class SettingsController {
         if (this.pendingNumericDisplayMode === mode) {
           this.pendingNumericDisplayMode = null;
         }
-        this.render(descriptorsUpdateTarget("general-preferences"));
+        this.render(itemsUpdateTarget("general-preferences", "settings-numeric-display-card"));
       }
     } finally {
       this.numericDisplaySaving = false;
-      this.render(descriptorsUpdateTarget("general-preferences"));
+      this.render(itemsUpdateTarget("general-preferences", "settings-numeric-display-card"));
     }
   }
 
@@ -1027,7 +1045,7 @@ export class SettingsController {
     }
 
     this.pendingTableTemplateVisualizationEnabled = normalized;
-    this.render(descriptorsUpdateTarget("template-preferences"));
+    this.render(itemsUpdateTarget("template-preferences", "settings-table-template-visualization-card"));
     if (!this.tableTemplateVisualizationSaving) {
       await this.flushTableTemplateVisualizationEnabled();
     }
@@ -1035,7 +1053,7 @@ export class SettingsController {
 
   private async flushTableTemplateVisualizationEnabled(): Promise<void> {
     this.tableTemplateVisualizationSaving = true;
-    this.render(descriptorsUpdateTarget("template-preferences"));
+    this.render(itemsUpdateTarget("template-preferences", "settings-table-template-visualization-card"));
     try {
       while (this.pendingTableTemplateVisualizationEnabled !== null) {
         const enabled = this.pendingTableTemplateVisualizationEnabled;
@@ -1051,18 +1069,18 @@ export class SettingsController {
         if (this.pendingTableTemplateVisualizationEnabled === enabled) {
           this.pendingTableTemplateVisualizationEnabled = null;
         }
-        this.render(descriptorsUpdateTarget("template-preferences"));
+        this.render(itemsUpdateTarget("template-preferences", "settings-table-template-visualization-card"));
       }
     } finally {
       this.tableTemplateVisualizationSaving = false;
-      this.render(descriptorsUpdateTarget("template-preferences"));
+      this.render(itemsUpdateTarget("template-preferences", "settings-table-template-visualization-card"));
     }
   }
 
   private async updateOriginPlot(updates: Partial<OriginPlotOptions>): Promise<void> {
     this.originPlotSaving = true;
     this.originPlotFeedback = IDLE_FEEDBACK;
-    this.render(descriptorsUpdateTarget("origin-integration"));
+    this.render(itemsUpdateTarget("origin-integration", "settings-origin-plot-card"));
     try {
       await this.service.updateOriginPlotOptions(updates);
       this.originPlotFeedback = {
@@ -1078,7 +1096,7 @@ export class SettingsController {
     }
     finally {
       this.originPlotSaving = false;
-      this.render(descriptorsUpdateTarget("origin-integration"));
+      this.render(itemsUpdateTarget("origin-integration", "settings-origin-plot-card"));
     }
   }
 
@@ -1086,7 +1104,7 @@ export class SettingsController {
     this.originCleanupRunning = true;
     this.originCleanupFeedback = IDLE_FEEDBACK;
     this.syncOriginFeedback();
-    this.render(descriptorsUpdateTarget("origin-integration"));
+    this.render(itemsUpdateTarget("origin-integration", "settings-origin-cleanup-card"));
     try {
       const result = await this.service.runOriginCleanup();
       const removedTotal = Number(result?.removedTotal);
@@ -1106,14 +1124,14 @@ export class SettingsController {
     finally {
       this.originCleanupRunning = false;
       this.syncOriginFeedback();
-      this.render(descriptorsUpdateTarget("origin-integration"));
+      this.render(itemsUpdateTarget("origin-integration", "settings-origin-cleanup-card"));
     }
   }
 
   private async setFileNameFieldSeparators(value: string): Promise<void> {
     this.fileNameMatchingSaving = true;
     this.fileNameMatchingFeedback = IDLE_FEEDBACK;
-    this.render(descriptorsUpdateTarget("template-matching"));
+    this.render(itemsUpdateTarget("template-matching", "settings-filename-matching-card"));
     try {
       await this.service.updateSettings({ fileNameFieldSeparators: normalizeFileNameFieldSeparators(value) });
       this.fileNameMatchingFeedback = {
@@ -1129,7 +1147,7 @@ export class SettingsController {
     }
     finally {
       this.fileNameMatchingSaving = false;
-      this.render(descriptorsUpdateTarget("template-matching"));
+      this.render(itemsUpdateTarget("template-matching", "settings-filename-matching-card"));
     }
   }
 
@@ -1140,7 +1158,7 @@ export class SettingsController {
         type: "error",
         message: localize("settings.template.semantic.emptyTerm", "Enter a match term before adding it."),
       };
-      this.render(descriptorsUpdateTarget("template-semantic-library"));
+      this.render(itemsUpdateTarget("template-semantic-library", "settings-template-semantic-library-card"));
       return;
     }
 
@@ -1165,7 +1183,7 @@ export class SettingsController {
         type: "error",
         message: localize("settings.template.semantic.duplicateTerm", "Match term already exists."),
       };
-      this.render(descriptorsUpdateTarget("template-semantic-library"));
+      this.render(itemsUpdateTarget("template-semantic-library", "settings-template-semantic-library-card"));
       return;
     }
 
@@ -1173,7 +1191,7 @@ export class SettingsController {
       await this.saveTemplateSettings({
         templateDisabledBuiltinSemanticIds: disabledBuiltinTermIds.filter(id => id !== disabledBuiltinTerm.id),
         templateSemanticTermOrder: [...activeTermOrder, disabledBuiltinTerm.id],
-      }, localize("settings.template.builtin.enabled", "Built-in semantic match term enabled for review."), "template-semantic-library");
+      }, localize("settings.template.builtin.enabled", "Built-in semantic match term enabled for review."), itemsUpdateTarget("template-semantic-library", "settings-template-semantic-library-card"));
       if (this.templateSettingsFeedback.type !== "error") {
         this.drafts.templateSemanticTermDraft = "";
       }
@@ -1199,7 +1217,7 @@ export class SettingsController {
     await this.saveTemplateSettings({
       templateSemanticAllowlist: nextCustomTerms,
       templateSemanticTermOrder: [...activeTermOrder, nextRule.id],
-    }, localize("settings.template.semantic.saved", "Template semantic library updated."), "template-semantic-library");
+    }, localize("settings.template.semantic.saved", "Template semantic library updated."), itemsUpdateTarget("template-semantic-library", "settings-template-semantic-library-card"));
     if (this.templateSettingsFeedback.type !== "error") {
       this.drafts.templateSemanticTermDraft = "";
     }
@@ -1212,7 +1230,7 @@ export class SettingsController {
       templateSemanticAllowlist: customTerms,
       templateSemanticTermOrder: normalizeTemplateSemanticTermOrder(this.settings.templateSemanticTermOrder)
         .filter(termId => termId !== id),
-    }, localize("settings.template.semantic.saved", "Template semantic library updated."), "template-semantic-library");
+    }, localize("settings.template.semantic.saved", "Template semantic library updated."), itemsUpdateTarget("template-semantic-library", "settings-template-semantic-library-card"));
   }
 
   private async disableTemplateBuiltinTerm(id: string): Promise<void> {
@@ -1224,7 +1242,7 @@ export class SettingsController {
       templateDisabledBuiltinSemanticIds: [...disabledTermIds, id],
       templateSemanticTermOrder: normalizeTemplateSemanticTermOrder(this.settings.templateSemanticTermOrder)
         .filter(termId => termId !== id),
-    }, localize("settings.template.builtin.disabled", "Built-in semantic match term disabled for review."), "template-semantic-library");
+    }, localize("settings.template.builtin.disabled", "Built-in semantic match term disabled for review."), itemsUpdateTarget("template-semantic-library", "settings-template-semantic-library-card"));
   }
 
   private async enableTemplateBuiltinTerm(id: string): Promise<void> {
@@ -1239,7 +1257,7 @@ export class SettingsController {
     await this.saveTemplateSettings({
       templateDisabledBuiltinSemanticIds: nextDisabledTermIds,
       templateSemanticTermOrder: [...activeTermOrder, id],
-    }, localize("settings.template.builtin.enabled", "Built-in semantic match term enabled for review."), "template-semantic-library");
+    }, localize("settings.template.builtin.enabled", "Built-in semantic match term enabled for review."), itemsUpdateTarget("template-semantic-library", "settings-template-semantic-library-card"));
   }
 
   private async disableTemplateDomainPack(id: string): Promise<void> {
@@ -1249,7 +1267,7 @@ export class SettingsController {
     }
     await this.saveTemplateSettings({
       templateDisabledBuiltinDomainPackIds: [...disabledIds, id],
-    }, localize("settings.template.domainPack.disabled", "Domain pack disabled for review."), "template-library");
+    }, localize("settings.template.domainPack.disabled", "Domain pack disabled for review."), itemsUpdateTarget("template-library", "settings-template-domain-packs-card"));
   }
 
   private async enableTemplateDomainPack(id: string): Promise<void> {
@@ -1257,7 +1275,7 @@ export class SettingsController {
       .filter(disabledId => disabledId !== id);
     await this.saveTemplateSettings({
       templateDisabledBuiltinDomainPackIds: disabledIds,
-    }, localize("settings.template.domainPack.enabled", "Domain pack enabled for review."), "template-library");
+    }, localize("settings.template.domainPack.enabled", "Domain pack enabled for review."), itemsUpdateTarget("template-library", "settings-template-domain-packs-card"));
   }
 
   private async moveTemplateXAxisIntent(sourceIntent: TemplateXAxisIntent, targetIntent: TemplateXAxisIntent): Promise<void> {
@@ -1272,17 +1290,17 @@ export class SettingsController {
     );
     await this.saveTemplateSettings({
       templateXAxisIntentPriority: priority,
-    }, localize("settings.template.xAxisPriority.saved", "X axis intent priority updated."), "template-library");
+    }, localize("settings.template.xAxisPriority.saved", "X axis intent priority updated."), itemsUpdateTarget("template-library", "settings-template-x-axis-priority-card"));
   }
 
   private async saveTemplateSettings(
     updates: Record<string, unknown>,
     successMessage: string,
-    descriptorId: SettingsContentDescriptorId,
+    target: SettingsViewUpdateTarget,
   ): Promise<void> {
     this.templateSettingsSaving = true;
     this.templateSettingsFeedback = IDLE_FEEDBACK;
-    this.render(descriptorsUpdateTarget(descriptorId));
+    this.render(target);
     try {
       await this.service.updateSettings(updates);
       this.templateSettingsFeedback = {
@@ -1300,7 +1318,7 @@ export class SettingsController {
     }
     finally {
       this.templateSettingsSaving = false;
-      this.render(descriptorsUpdateTarget(descriptorId));
+      this.render(target);
     }
   }
 
@@ -1311,7 +1329,7 @@ export class SettingsController {
   private async saveDefaults(operation: () => Promise<unknown>): Promise<void> {
     this.defaultsSaving = true;
     this.defaultsFeedback = IDLE_FEEDBACK;
-    this.render(descriptorsUpdateTarget("chart-defaults"));
+    this.render(itemsUpdateTarget("chart-defaults", ...chartDefaultsItemIds));
     try {
       await operation();
       this.defaultsFeedback = {
@@ -1329,7 +1347,7 @@ export class SettingsController {
     }
     finally {
       this.defaultsSaving = false;
-      this.render(descriptorsUpdateTarget("chart-defaults"));
+      this.render(itemsUpdateTarget("chart-defaults", ...chartDefaultsItemIds));
     }
   }
 
@@ -1356,7 +1374,7 @@ export class SettingsController {
     }
 
     this.pendingTransparentChrome = transparentChrome;
-    this.render(descriptorsUpdateTarget("appearance-preferences"));
+    this.render(itemsUpdateTarget("appearance-preferences", "settings-transparent-chrome-card"));
     if (!this.transparentChromeSaving) {
       await this.flushTransparentChrome();
     }
@@ -1364,7 +1382,7 @@ export class SettingsController {
 
   private async flushTransparentChrome(): Promise<void> {
     this.transparentChromeSaving = true;
-    this.render(descriptorsUpdateTarget("appearance-preferences"));
+    this.render(itemsUpdateTarget("appearance-preferences", "settings-transparent-chrome-card"));
     try {
       while (this.pendingTransparentChrome !== null) {
         const transparentChrome = this.pendingTransparentChrome;
@@ -1380,12 +1398,12 @@ export class SettingsController {
         if (this.pendingTransparentChrome === transparentChrome) {
           this.pendingTransparentChrome = null;
         }
-        this.render(descriptorsUpdateTarget("appearance-preferences"));
+        this.render(itemsUpdateTarget("appearance-preferences", "settings-transparent-chrome-card"));
       }
     }
     finally {
       this.transparentChromeSaving = false;
-      this.render(descriptorsUpdateTarget("appearance-preferences"));
+      this.render(itemsUpdateTarget("appearance-preferences", "settings-transparent-chrome-card"));
     }
   }
 
@@ -1396,7 +1414,7 @@ export class SettingsController {
     }
 
     this.explorerAppearanceSaving = true;
-    this.render(descriptorsUpdateTarget("appearance-preferences"));
+    this.render(itemsUpdateTarget("appearance-preferences", "settings-explorer-density-card"));
     try {
       await this.service.updateSettings({
         filesExplorerDensity: density,
@@ -1404,7 +1422,7 @@ export class SettingsController {
     }
     finally {
       this.explorerAppearanceSaving = false;
-      this.render(descriptorsUpdateTarget("appearance-preferences"));
+      this.render(itemsUpdateTarget("appearance-preferences", "settings-explorer-density-card"));
     }
   }
 
@@ -1416,7 +1434,7 @@ export class SettingsController {
     }
 
     this.pendingExplorerBadgeVisibility = showBadges;
-    this.render(descriptorsUpdateTarget("appearance-preferences"));
+    this.render(itemsUpdateTarget("appearance-preferences", "settings-explorer-badges-card"));
     if (!this.explorerBadgeSaving) {
       await this.flushFilesExplorerShowBadges();
     }
@@ -1424,7 +1442,7 @@ export class SettingsController {
 
   private async flushFilesExplorerShowBadges(): Promise<void> {
     this.explorerBadgeSaving = true;
-    this.render(descriptorsUpdateTarget("appearance-preferences"));
+    this.render(itemsUpdateTarget("appearance-preferences", "settings-explorer-badges-card"));
     try {
       while (this.pendingExplorerBadgeVisibility !== null) {
         const showBadges = this.pendingExplorerBadgeVisibility;
@@ -1442,12 +1460,12 @@ export class SettingsController {
         if (this.pendingExplorerBadgeVisibility === showBadges) {
           this.pendingExplorerBadgeVisibility = null;
         }
-        this.render(descriptorsUpdateTarget("appearance-preferences"));
+        this.render(itemsUpdateTarget("appearance-preferences", "settings-explorer-badges-card"));
       }
     }
     finally {
       this.explorerBadgeSaving = false;
-      this.render(descriptorsUpdateTarget("appearance-preferences"));
+      this.render(itemsUpdateTarget("appearance-preferences", "settings-explorer-badges-card"));
     }
   }
 
@@ -1475,7 +1493,7 @@ export class SettingsController {
     };
     this.pendingExplorerBadgeColors = nextColors;
     this.explorerBadgeColorSaving = true;
-    this.render(descriptorsUpdateTarget("appearance-preferences"));
+    this.render(itemsUpdateTarget("appearance-preferences", "settings-explorer-badge-colors-card"));
     try {
       await this.service.updateSettings({
         filesExplorerBadgeColors: nextColors,
@@ -1484,25 +1502,25 @@ export class SettingsController {
     finally {
       this.explorerBadgeColorSaving = false;
       this.pendingExplorerBadgeColors = null;
-      this.render(descriptorsUpdateTarget("appearance-preferences"));
+      this.render(itemsUpdateTarget("appearance-preferences", "settings-explorer-badge-colors-card"));
     }
   }
 
   private async saveAppearance(operation: () => Promise<unknown>): Promise<void> {
     this.appearanceSaving = true;
-    this.render(descriptorsUpdateTarget("appearance-preferences"));
+    this.render(itemsUpdateTarget("appearance-preferences", ...appearanceBackgroundItemIds));
     try {
       await operation();
     }
     finally {
       this.appearanceSaving = false;
-      this.render(descriptorsUpdateTarget("appearance-preferences"));
+      this.render(itemsUpdateTarget("appearance-preferences", ...appearanceBackgroundItemIds));
     }
   }
 
   private async setWindowCloseBehavior(behavior: "minimizeToTray" | "quit"): Promise<void> {
     this.windowCloseSaving = true;
-    this.render(descriptorsUpdateTarget("general-preferences"));
+    this.render(itemsUpdateTarget("general-preferences", "settings-close-behavior-card"));
     try {
       await this.service.updateSettings({
         windowCloseBehavior: behavior === "quit" ? "quit" : "minimizeToTray",
@@ -1510,13 +1528,13 @@ export class SettingsController {
     }
     finally {
       this.windowCloseSaving = false;
-      this.render(descriptorsUpdateTarget("general-preferences"));
+      this.render(itemsUpdateTarget("general-preferences", "settings-close-behavior-card"));
     }
   }
 
   private async checkForUpdates(): Promise<void> {
     this.drafts.appUpdateChecking = true;
-    this.render(descriptorsUpdateTarget("about"));
+    this.render(itemsUpdateTarget("about", "settings-app-update-card"));
     try {
       await this.commandService.executeCommand(UpdateCommandId.check);
     }
@@ -1525,17 +1543,26 @@ export class SettingsController {
     }
     finally {
       this.drafts.appUpdateChecking = false;
-      this.render(descriptorsUpdateTarget("about"));
+      this.render(itemsUpdateTarget("about", "settings-app-update-card"));
     }
   }
 }
 
-function descriptorsUpdateTarget(
-  ...descriptorIds: readonly SettingsContentDescriptorId[]
+function itemsUpdateTarget(
+  descriptorId: SettingsContentDescriptorId,
+  ...itemIds: readonly SettingsContentItemId[]
+): SettingsViewUpdateTarget {
+  return partialSettingsUpdateTarget([], [{ descriptorId, itemIds }]);
+}
+
+function partialSettingsUpdateTarget(
+  descriptorIds: readonly SettingsContentDescriptorId[],
+  itemTargets: readonly { readonly descriptorId: SettingsContentDescriptorId; readonly itemIds: readonly SettingsContentItemId[] }[],
 ): SettingsViewUpdateTarget {
   return {
-    type: "descriptors",
+    type: "partial",
     descriptorIds,
+    itemTargets,
   };
 }
 
@@ -1548,26 +1575,31 @@ function getSettingsViewUpdateTarget(
   }
 
   const descriptorIds = new Set<SettingsContentDescriptorId>();
-  if (
-    current.appUpdateSettings.currentVersion !== next.appUpdateSettings.currentVersion ||
-    current.appUpdateSettings.isAvailable !== next.appUpdateSettings.isAvailable
-  ) {
-    descriptorIds.add("about");
+  const itemTargets = new Map<SettingsContentDescriptorId, Set<SettingsContentItemId>>();
+  if (current.appUpdateSettings.currentVersion !== next.appUpdateSettings.currentVersion) {
+    addItemTarget(itemTargets, "about", "settings-about-version-card", "settings-release-notes-card");
+  }
+  if (current.appUpdateSettings.isAvailable !== next.appUpdateSettings.isAvailable) {
+    addItemTarget(itemTargets, "about", "settings-app-update-card");
   }
   if (current.isWindowsDesktopShell !== next.isWindowsDesktopShell) {
-    descriptorIds.add("origin-integration");
+    addItemTarget(itemTargets, "origin-integration", "settings-origin-path-card", "settings-origin-cleanup-card", "settings-origin-plot-card");
   }
   if (current.theme !== next.theme) {
-    descriptorIds.add("appearance-preferences");
+    addItemTarget(itemTargets, "appearance-preferences", "settings-theme-card");
   }
 
   for (const key of getChangedConductorSettingsKeys(current.conductorSettings, next.conductorSettings)) {
-    for (const descriptorId of getConductorSettingDescriptorIds(key)) {
-      descriptorIds.add(descriptorId);
+    const itemTarget = getConductorSettingItemTarget(key);
+    if (itemTarget) {
+      addItemTarget(itemTargets, itemTarget.descriptorId, ...itemTarget.itemIds);
     }
   }
 
-  return descriptorsUpdateTarget(...descriptorIds);
+  return partialSettingsUpdateTarget(
+    [...descriptorIds],
+    [...itemTargets].map(([descriptorId, itemIds]) => ({ descriptorId, itemIds: [...itemIds] })),
+  );
 }
 
 function getChangedConductorSettingsKeys(
@@ -1587,39 +1619,76 @@ function getChangedConductorSettingsKeys(
   return changedKeys;
 }
 
-function getConductorSettingDescriptorIds(key: string): readonly SettingsContentDescriptorId[] {
+function addItemTarget(
+  targets: Map<SettingsContentDescriptorId, Set<SettingsContentItemId>>,
+  descriptorId: SettingsContentDescriptorId,
+  ...itemIds: readonly SettingsContentItemId[]
+): void {
+  let descriptorItemIds = targets.get(descriptorId);
+  if (!descriptorItemIds) {
+    descriptorItemIds = new Set();
+    targets.set(descriptorId, descriptorItemIds);
+  }
+  for (const itemId of itemIds) {
+    descriptorItemIds.add(itemId);
+  }
+}
+
+function getConductorSettingItemTarget(key: string): { readonly descriptorId: SettingsContentDescriptorId; readonly itemIds: readonly SettingsContentItemId[] } | null {
   switch (key) {
     case "windowCloseBehavior":
+      return { descriptorId: "general-preferences", itemIds: ["settings-close-behavior-card"] };
     case "numericDisplayMode":
-      return ["general-preferences"];
+      return { descriptorId: "general-preferences", itemIds: ["settings-numeric-display-card"] };
     case "tableTemplateVisualizationEnabled":
-      return ["template-preferences"];
+      return { descriptorId: "template-preferences", itemIds: ["settings-table-template-visualization-card"] };
     case "fileNameFieldSeparators":
-      return ["template-matching"];
+      return { descriptorId: "template-matching", itemIds: ["settings-filename-matching-card"] };
     case "templateDisabledBuiltinDomainPackIds":
+      return { descriptorId: "template-library", itemIds: ["settings-template-domain-packs-card"] };
     case "templateXAxisIntentPriority":
-      return ["template-library"];
+      return { descriptorId: "template-library", itemIds: ["settings-template-x-axis-priority-card"] };
     case "templateDisabledBuiltinSemanticIds":
     case "templateSemanticAllowlist":
     case "templateSemanticTermOrder":
-      return ["template-semantic-library"];
+      return { descriptorId: "template-semantic-library", itemIds: ["settings-template-semantic-library-card"] };
     case "defaultYScaleForCf":
+      return { descriptorId: "chart-defaults", itemIds: ["settings-default-cf-y-scale-card"] };
     case "defaultYScaleForCv":
+      return { descriptorId: "chart-defaults", itemIds: ["settings-default-cv-y-scale-card"] };
     case "defaultYScaleForOutput":
+      return { descriptorId: "chart-defaults", itemIds: ["settings-default-output-y-scale-card"] };
     case "defaultYScaleForPv":
-    case "defaultYScaleForSpecial":
+      return { descriptorId: "chart-defaults", itemIds: ["settings-default-pv-y-scale-card"] };
     case "defaultYScaleForTransfer":
+      return { descriptorId: "chart-defaults", itemIds: ["settings-default-transfer-y-scale-card"] };
+    case "defaultYScaleForSpecial":
+      return {
+        descriptorId: "chart-defaults",
+        itemIds: [
+          "settings-default-cv-y-scale-card",
+          "settings-default-cf-y-scale-card",
+          "settings-default-pv-y-scale-card",
+        ],
+      };
     case "plotAxisSettings":
-      return ["chart-defaults"];
+      return { descriptorId: "chart-defaults", itemIds: ["settings-chart-defaults-card"] };
     case "backgroundColor":
+      return { descriptorId: "appearance-preferences", itemIds: ["settings-background-card"] };
     case "filesExplorerBadgeColors":
+      return { descriptorId: "appearance-preferences", itemIds: ["settings-explorer-badge-colors-card"] };
     case "filesExplorerDensity":
+      return { descriptorId: "appearance-preferences", itemIds: ["settings-explorer-density-card"] };
     case "filesExplorerShowBadges":
+      return { descriptorId: "appearance-preferences", itemIds: ["settings-explorer-badges-card"] };
     case "theme":
+      return { descriptorId: "appearance-preferences", itemIds: ["settings-theme-card"] };
     case "transparentChrome":
-      return ["appearance-preferences"];
+      return { descriptorId: "appearance-preferences", itemIds: ["settings-transparent-chrome-card"] };
     case "originExePath":
+      return { descriptorId: "origin-integration", itemIds: ["settings-origin-path-card"] };
     case "originExportModeDefault":
+      return { descriptorId: "origin-integration", itemIds: ["settings-origin-plot-card"] };
     case "originPlotCommandDefault":
     case "originPlotPostCommandsDefault":
     case "originPlotTypeDefault":
@@ -1627,13 +1696,14 @@ function getConductorSettingDescriptorIds(key: string): readonly SettingsContent
     case "originPlotLineWidthDefault":
     case "originPlotSymbolShapeDefault":
     case "originPlotLegendFontSizeDefault":
+      return { descriptorId: "origin-integration", itemIds: ["settings-origin-plot-card"] };
     case "originRuntimeCleanupEnabled":
     case "originRuntimeFailedRetentionDays":
     case "originRuntimeKeepSuccessJobs":
-      return ["origin-integration"];
+      return { descriptorId: "origin-integration", itemIds: ["settings-origin-cleanup-card"] };
   }
 
-  return [];
+  return null;
 }
 
 function moveItemBefore<T>(

@@ -33,10 +33,10 @@ Follow the upstream Settings editor shape at a Conductor scale:
 ```txt
 SettingsViewOptions
   -> SettingsLayout creates SettingsSectionDefinition records
-  -> SettingsController classifies updates into affected descriptor ids
+  -> SettingsController classifies updates into affected descriptor/item ids
   -> SettingsView creates SettingsContentDescriptor placement records
   -> active section renders matching descriptors / search renders all descriptors
-  -> descriptors build SettingsTreeSection records or caller-owned cards
+  -> descriptors build SettingsTreeSection records with control/element items
   -> SettingsTree.update(sections)
   -> SettingsTree flattens section/item records into List entries
   -> base List reuses rows by stable entry id
@@ -60,16 +60,20 @@ bar, toolbar, or grouped action container. For element items, `SettingsTree`
 receives the caller-owned item root and owns only the section ordering, item id,
 base card class, and optional item search metadata. `SettingsView` owns each
 control's layout, interaction callbacks, and disposable lifecycle.
+All settings content must enter the page through `SettingsTreeSection` and
+`SettingsTreeItem`; `SettingsView` must not patch standalone section/card DOM
+outside `SettingsTree`.
 
 Sections are rendering groups, not state owners. Settings content placement is
 declared by descriptor `sectionId` and `order`; moving a settings item or card
 between pages changes that placement declaration and removes the old placement.
 User edits flow from the control's typed intent callback to
 `SettingsController`, then to `ISettingsService` or an owner command.
-`SettingsController` sends the affected descriptor id(s) with the next view
-options. After the owner publishes a changed snapshot, `SettingsView.update`
-patches the affected descriptor roots and `SettingsTree` patches rows by
-stable ids.
+`SettingsController` sends affected descriptor id(s) for structural changes or
+affected item id(s) for ordinary settings changes with the next view options.
+After the owner publishes a changed snapshot, `SettingsView.update` patches the
+affected item roots where available, and `SettingsTree` patches rows by stable
+ids.
 
 ## Settings Search
 
