@@ -22,9 +22,9 @@ import {
   getFolderImportSupportForFileService,
   type PendingImportFile,
   type PendingImportSourceStatusChange,
-  type PreparedFileImport,
-  type PreparedFileImportEntry,
-  type PreparedFileImportInfo,
+  type PreparedFileSource,
+  type PreparedFileSourceEntry,
+  type PreparedFileSourceInfo,
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import {
   ExplorerView,
@@ -157,15 +157,15 @@ export class ExplorerViewPane extends ViewPane {
       getSelectedRelativePath: () => this.getSelectedRelativePath(),
       isDisposed: () => this.disposed,
       notificationService: this.notificationService,
-      onAppendPreparedFiles: preparedFiles => this.appendPreparedImportFiles(preparedFiles),
+      onAppendPreparedFileSources: preparedFileSources => this.appendPreparedFileSources(preparedFileSources),
       onAppendPendingSourceFiles: pendingFiles => this.appendPendingSourceFiles(pendingFiles),
       onClearPendingSourceFiles: () => this.clearPendingSourceFiles(),
       onDraggingChange: isDragging => {
         this.isDragging = isDragging;
       },
       onRemoveSourceItems: itemKeys => this.removeImportedSourceItemsFromExplorer(itemKeys),
-      onReplacePreparedFiles: (preparedFiles, selectedImportItemKey) => {
-        this.replacePreparedImportFiles(preparedFiles, selectedImportItemKey);
+      onReplacePreparedFileSources: (preparedFileSources, selectedImportItemKey) => {
+        this.replacePreparedFileSources(preparedFileSources, selectedImportItemKey);
       },
       onReplacePendingSourceFiles: pendingFiles => this.replacePendingSourceFiles(pendingFiles),
       onFinishPendingSourceReplace: () => this.finishPendingSourceReplace(),
@@ -982,13 +982,14 @@ export class ExplorerViewPane extends ViewPane {
     this.selectRawFileAfterRemoval(normalizedFileIds);
   }
 
-  private replaceImportedFiles(
-    fileEntries: PreparedFileImportEntry[],
-    importedFiles: PreparedFileImportInfo[],
-    selectedImportItemKey: string | null = importedFiles[0]?.itemKey ?? null,
+  private replacePreparedFileSources(
+    preparedFileSources: readonly PreparedFileSource[],
+    selectedImportItemKey: string | null,
   ): void {
-    const localEntries = createLocalExplorerImportEntries(fileEntries, importedFiles);
-    assertSupportedExplorerImportEntries(localEntries, importedFiles);
+    const fileEntries = preparedFileSources.map(prepared => prepared.fileEntry);
+    const fileInfos = preparedFileSources.map(prepared => prepared.fileInfo);
+    const localEntries = createLocalExplorerImportEntries(fileEntries, fileInfos);
+    assertSupportedExplorerImportEntries(localEntries, fileInfos);
     const removedFileIds = resolveExplorerSourceReplaceRemovedFileIds({
       nextFiles: localEntries,
       previousFiles: this.committedFiles,
@@ -996,7 +997,7 @@ export class ExplorerViewPane extends ViewPane {
     this.notifyExplorerFilesRemoved(removedFileIds);
     this.explorerService.replaceFiles(localEntries);
 
-    this.removePendingSourceFiles(getImportItemKeys(importedFiles));
+    this.removePendingSourceFiles(getImportItemKeys(fileInfos));
     const selectedEntry = resolveSelectedExplorerImportEntry(localEntries, selectedImportItemKey);
     if (!selectedEntry) {
       this.syncView();
@@ -1015,18 +1016,21 @@ export class ExplorerViewPane extends ViewPane {
     this.syncView();
   }
 
-  private appendImportedFiles(
-    fileEntries: PreparedFileImportEntry[],
-    importedFiles: PreparedFileImportInfo[],
-  ): void {
-    if (importedFiles.length === 0) {
+  private appendPreparedFileSources(preparedFileSources: readonly PreparedFileSource[]): void {
+    if (preparedFileSources.length === 0) {
       return;
     }
 
-    const localEntries = createLocalExplorerImportEntries(fileEntries, importedFiles);
-    assertSupportedExplorerImportEntries(localEntries, importedFiles);
+    const fileEntries = preparedFileSources.map(prepared => prepared.fileEntry);
+    const fileInfos = preparedFileSources.map(prepared => prepared.fileInfo);
+    const localEntries = createLocalExplorerImportEntries(fileEntries, fileInfos);
+    assertSupportedExplorerImportEntries(localEntries, fileInfos);
+    const previousReviewTargetsSignature = getExplorerReviewTargetsSignature(this.committedFiles);
     const importedEntries = this.explorerService.appendFiles(localEntries);
-    this.removePendingSourceFiles(getImportItemKeys(importedFiles));
+    if (previousReviewTargetsSignature === getExplorerReviewTargetsSignature(this.committedFiles)) {
+      this.reviewExplorerEntries(localEntries);
+    }
+    this.removePendingSourceFiles(getImportItemKeys(fileInfos));
     if (!importedEntries.length) {
       this.syncView();
       return;
@@ -1050,24 +1054,6 @@ export class ExplorerViewPane extends ViewPane {
     this.openTableSourceFromExplorerFile(openTarget.entry);
     this.navigateToTableAfterImport();
     this.syncView();
-  }
-
-  private appendPreparedImportFiles(preparedFiles: readonly PreparedFileImport[]): void {
-    this.appendImportedFiles(
-      preparedFiles.map(prepared => prepared.fileEntry),
-      preparedFiles.map(prepared => prepared.fileInfo),
-    );
-  }
-
-  private replacePreparedImportFiles(
-    preparedFiles: readonly PreparedFileImport[],
-    selectedImportItemKey: string | null,
-  ): void {
-    this.replaceImportedFiles(
-      preparedFiles.map(prepared => prepared.fileEntry),
-      preparedFiles.map(prepared => prepared.fileInfo),
-      selectedImportItemKey,
-    );
   }
 
   private removeImportedSourceItemsFromExplorer(itemKeys: readonly string[]): void {
@@ -1149,17 +1135,28 @@ export class ExplorerViewPane extends ViewPane {
 
   private reviewCurrentExplorerEntries(force: boolean): void {
     const targets = getExplorerResourceTargets(this.committedFiles);
-    const signature = targets
-      .map(target => getExplorerResourceIdentityKey(target) ?? "")
-      .join("\u001f");
+    const signature = getExplorerResourceTargetSignature(targets);
     if (!force && signature === this.reviewedExplorerTargetsSignature) {
       return;
     }
 
     this.reviewedExplorerTargetsSignature = signature;
+    this.reviewExplorerResourceTargets(targets);
+  }
+
+  private reviewExplorerEntries(files: readonly ExplorerFileEntry[]): void {
+    this.reviewExplorerResourceTargets(getExplorerResourceTargets(files));
+  }
+
+  private reviewExplorerResourceTargets(targets: readonly ExplorerResourceTarget[]): void {
     for (const target of targets) {
+      const resource = target.resource;
+      if (!resource) {
+        continue;
+      }
+
       void this.reviewService.resolveReviewSummary({
-        resource: target.resource,
+        resource,
         sheetId: target.sheetId ?? null,
       });
     }
@@ -1264,7 +1261,7 @@ function getPendingSourcePath(pendingFile: PendingImportFile): string | null {
 }
 
 function getImportItemKeys(
-  importedFiles: readonly PreparedFileImportInfo[],
+  importedFiles: readonly PreparedFileSourceInfo[],
 ): readonly string[] {
   return importedFiles
     .map(file => file.itemKey)
@@ -1272,8 +1269,8 @@ function getImportItemKeys(
 }
 
 function createLocalExplorerImportEntries(
-  fileEntries: readonly PreparedFileImportEntry[],
-  importedFiles: readonly PreparedFileImportInfo[],
+  fileEntries: readonly PreparedFileSourceEntry[],
+  importedFiles: readonly PreparedFileSourceInfo[],
 ): ExplorerFileEntry[] {
   const result: ExplorerFileEntry[] = [];
   const count = Math.max(fileEntries.length, importedFiles.length);
@@ -1292,15 +1289,15 @@ function createLocalExplorerImportEntries(
 }
 
 function createLocalExplorerImportEntriesForFile(
-  fileEntry: PreparedFileImportEntry | undefined,
-  importedFile: PreparedFileImportInfo,
+  fileEntry: PreparedFileSourceEntry | undefined,
+  importedFile: PreparedFileSourceInfo,
 ): ExplorerFileEntry[] {
   return [createLocalExplorerImportEntry(fileEntry, importedFile)];
 }
 
 function createLocalExplorerImportEntry(
-  fileEntry: PreparedFileImportEntry | undefined,
-  importedFile: PreparedFileImportInfo,
+  fileEntry: PreparedFileSourceEntry | undefined,
+  importedFile: PreparedFileSourceInfo,
 ): ExplorerFileEntry {
   const normalizedCsvPath =
     normalizePathValue(fileEntry?.normalizedCsvPath) ??
@@ -1442,6 +1439,20 @@ function getExplorerResourceTargets(
   return result;
 }
 
+function getExplorerReviewTargetsSignature(
+  files: readonly ExplorerFileEntry[],
+): string {
+  return getExplorerResourceTargetSignature(getExplorerResourceTargets(files));
+}
+
+function getExplorerResourceTargetSignature(
+  targets: readonly ExplorerResourceTarget[],
+): string {
+  return targets
+    .map(target => getExplorerResourceIdentityKey(target) ?? "")
+    .join("\u001f");
+}
+
 function getFirstExplorerResourceTarget(
   files: readonly ExplorerFileEntry[],
 ): ExplorerResourceTarget | null {
@@ -1536,7 +1547,7 @@ function getExplorerFileTablePath(file: ExplorerFileEntry | null | undefined): s
 
 function assertSupportedExplorerImportEntries(
   entries: readonly ExplorerFileEntry[],
-  importedFiles: readonly PreparedFileImportInfo[],
+  importedFiles: readonly PreparedFileSourceInfo[],
 ): void {
   const entryPaths = new Map(
     entries
@@ -1555,7 +1566,7 @@ function assertSupportedExplorerImportEntries(
 }
 
 function getImportedTableFileNameCandidates(
-  file: PreparedFileImportInfo,
+  file: PreparedFileSourceInfo,
 ): readonly string[] {
   return [
     file.fileName,

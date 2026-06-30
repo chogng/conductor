@@ -675,8 +675,8 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       canApplyResult: () => true,
       failedFiles,
       filesService,
-      onPreparedFiles: preparedFiles => {
-        appendedFileNames.push(...preparedFiles.map(file => file.fileInfo.fileName));
+      onPreparedFileSources: preparedFileSources => {
+        appendedFileNames.push(...preparedFileSources.map(file => file.fileInfo.fileName));
       },
       pendingImportFiles: [
         createPathPendingFile("A.csv", "folder/A.csv"),
@@ -700,8 +700,8 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       canApplyResult: () => true,
       failedFiles,
       filesService,
-      onPreparedFiles: preparedFiles => {
-        preparedPaths.push(...preparedFiles.map(file =>
+      onPreparedFileSources: preparedFileSources => {
+        preparedPaths.push(...preparedFileSources.map(file =>
           String(file.fileInfo.resource?.fsPath ?? "").replace(/\\/g, "/")
         ));
       },
@@ -726,8 +726,8 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       canApplyResult: () => true,
       failedFiles,
       filesService,
-      onPreparedFiles: preparedFiles => {
-        appendCounts.push(preparedFiles.length);
+      onPreparedFileSources: preparedFileSources => {
+        appendCounts.push(preparedFileSources.length);
       },
       pendingImportFiles: Array.from({ length: 200 }, (_value, index) =>
         createPathPendingFile(`${index}.csv`, `folder/${index}.csv`)),
@@ -757,13 +757,13 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       getSelectedRelativePath: () => null,
       isDisposed: () => false,
       notificationService,
-      onAppendPreparedFiles: preparedFiles => {
-        appendedFileNames.push(...preparedFiles.map(file => file.fileInfo.fileName));
+      onAppendPreparedFileSources: preparedFileSources => {
+        appendedFileNames.push(...preparedFileSources.map(file => file.fileInfo.fileName));
       },
       onDraggingChange: () => undefined,
       onRemoveSourceItems: () => undefined,
-      onReplacePreparedFiles: preparedFiles => {
-        replacedFileNames.push(...preparedFiles.map(file => file.fileInfo.fileName));
+      onReplacePreparedFileSources: preparedFileSources => {
+        replacedFileNames.push(...preparedFileSources.map(file => file.fileInfo.fileName));
       },
       syncView: () => undefined,
     });
@@ -791,13 +791,13 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       getSelectedRelativePath: () => null,
       isDisposed: () => false,
       notificationService,
-      onAppendPreparedFiles: preparedFiles => {
-        appendedFileNames.push(...preparedFiles.map(file => file.fileInfo.fileName));
+      onAppendPreparedFileSources: preparedFileSources => {
+        appendedFileNames.push(...preparedFileSources.map(file => file.fileInfo.fileName));
       },
       onDraggingChange: () => undefined,
       onRemoveSourceItems: () => undefined,
-      onReplacePreparedFiles: preparedFiles => {
-        appendedFileNames.push(...preparedFiles.map(file => file.fileInfo.fileName));
+      onReplacePreparedFileSources: preparedFileSources => {
+        appendedFileNames.push(...preparedFileSources.map(file => file.fileInfo.fileName));
       },
       syncView: () => undefined,
     });
@@ -843,10 +843,10 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       getSelectedRelativePath: () => null,
       isDisposed: () => false,
       notificationService,
-      onAppendPreparedFiles: () => undefined,
+      onAppendPreparedFileSources: () => undefined,
       onDraggingChange: () => undefined,
       onRemoveSourceItems: () => undefined,
-      onReplacePreparedFiles: () => undefined,
+      onReplacePreparedFileSources: () => undefined,
       syncView: () => undefined,
     });
 

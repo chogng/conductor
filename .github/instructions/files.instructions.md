@@ -174,8 +174,8 @@ Explorer drop/dialog/clipboard/folder
   -> assign table resource URI / register browser File with file provider when needed
   -> PreparedFileImport resource rows
   -> ExplorerViewPane commits rows through IExplorerService file-model APIs
+  -> ExplorerViewPane ensures IReviewService.resolveReviewSummary({ resource, sheetId? }) runs for prepared resource/sheet rows, even when no Explorer row is added
   -> WorkbenchDomainBridge projects ExplorerPaneInput.resourceStates keyed by { resource, sheetId? }
-  -> IReviewService.resolveReviewSummary({ resource, sheetId? }) starts Review for the prepared resource/sheet row
   -> ITableService.open({ resource })
   -> TableFileEditorModel / ITableModel own URI-backed model lifecycle
 ```
