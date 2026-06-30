@@ -369,7 +369,7 @@ function submitSemanticTerm(container: HTMLElement, value: string): void {
 }
 
 function getSemanticTermInput(container: HTMLElement): HTMLInputElement {
-  const input = container.querySelector<HTMLInputElement>("#settings-template-semantic-library-card .inputbox_widget input.inputbox_native:not([hidden])");
+  const input = container.querySelector<HTMLInputElement>("#settings-template-semantic-active-terms-card .inputbox_widget input.inputbox_native:not([hidden])");
   assert.ok(input);
   return input;
 }

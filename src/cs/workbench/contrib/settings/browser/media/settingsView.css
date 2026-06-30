@@ -206,13 +206,15 @@
   background: transparent;
 }
 
-.settings-card-block > :not([hidden]) ~ :not([hidden]) {
+.settings-card-block > :not([hidden]) ~ :not([hidden]),
+.settings-card-composite > :not([hidden]) ~ :not([hidden]) {
   --tw-space-y-reverse: 0;
   margin-top: calc(1rem * calc(1 - var(--tw-space-y-reverse)));
   margin-bottom: calc(1rem * var(--tw-space-y-reverse));
 }
 
-.settings-card-block {
+.settings-card-block,
+.settings-card-composite {
   padding: 1rem;
 }
 
@@ -502,8 +504,6 @@
   display: grid;
   gap: 0.875rem;
   min-width: 0;
-  border-top: 1px solid rgb(var(--border) / 0.7);
-  padding-top: 1rem;
 }
 
 .settings-card-row {

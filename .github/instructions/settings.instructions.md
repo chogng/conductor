@@ -36,22 +36,25 @@ SettingsViewOptions
   -> SettingsController classifies updates into affected descriptor/item ids
   -> SettingsView creates SettingsContentDescriptor placement records
   -> active section renders matching descriptors / search renders all descriptors
-  -> descriptors build SettingsTreeSection records with control/element items
+  -> descriptors build SettingsTreeSection records with control/element/composite items
   -> SettingsTree.update(sections)
   -> SettingsTree flattens section/item records into List entries
   -> base List reuses rows by stable entry id
   -> control items patch fixed title/description/control slots
   -> element items patch caller-owned item roots
+  -> composite items keep one caller-owned card root with stable child slot nodes and patch slot content by stable child ids
   -> SettingsView-owned controls emit typed intent callbacks
   -> changed control nodes replace only the item control slot
 ```
 
-`SettingsTree` owns two item shapes:
+`SettingsTree` owns three item shapes:
 
 - `SettingsTreeControlItem` for ordinary left title/description plus right
   control-slot settings;
 - `SettingsTreeElementItem` for caller-owned card content that still belongs to
   the section item order.
+- `SettingsTreeCompositeItem` for one settings row/card whose child content
+  slots have their own stable ids, stable slot DOM, and disposable lifecycles.
 
 Controls are interchangeable slot content. For control items, `SettingsTree`
 receives an `HTMLElement` for the right-side control slot and does not inspect
@@ -59,7 +62,11 @@ whether it is a select, switch, color swatch, reset button, path picker, action
 bar, toolbar, or grouped action container. For element items, `SettingsTree`
 receives the caller-owned item root and owns only the section ordering, item id,
 base card class, and optional item search metadata. `SettingsView` owns each
-control's layout, interaction callbacks, and disposable lifecycle.
+control's layout, interaction callbacks, and disposable lifecycle. Composite
+items are for settings that are one user-facing card but need independent
+patching of internal regions. The composite renderer owns the stable slot
+nodes, while the feature supplies slot content; do not split those regions into
+sibling rows and hide the model mismatch with CSS.
 All settings content must enter the page through `SettingsTreeSection` and
 `SettingsTreeItem`; `SettingsView` must not patch standalone section/card DOM
 outside `SettingsTree`.

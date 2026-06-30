@@ -21,7 +21,20 @@ export type SettingsTreeElementItem = {
   readonly searchText?: string;
 };
 
-export type SettingsTreeItem = SettingsTreeControlItem | SettingsTreeElementItem;
+export type SettingsTreeCompositeChildItem = {
+  readonly element: HTMLElement;
+  readonly id: string;
+  readonly searchText?: string;
+};
+
+export type SettingsTreeCompositeItem = {
+  readonly kind: "composite";
+  readonly id: string;
+  readonly items: readonly SettingsTreeCompositeChildItem[];
+  readonly searchText?: string;
+};
+
+export type SettingsTreeItem = SettingsTreeControlItem | SettingsTreeElementItem | SettingsTreeCompositeItem;
 
 export type SettingsTreeSection = {
   readonly id: string;
@@ -91,7 +104,7 @@ export class SettingsTree extends Disposable {
     const entries = this.entries.slice();
     for (let index = 0; index < nextEntries.length; index++) {
       const nextEntry = nextEntries[index];
-      if (!targetIds.has(nextEntry.id)) {
+      if (!settingsTreeEntryContainsTarget(nextEntry, targetIds)) {
         continue;
       }
       entries[index] = nextEntry;
@@ -200,6 +213,7 @@ class SettingsTreeItemRenderer implements IListRenderer<SettingsTreeListEntry, S
 export class SettingsTreeItemWidget extends Disposable {
   public element: HTMLElement;
   public readonly kind: SettingsTreeItem["kind"];
+  private readonly compositeChildren = new Map<string, HTMLElement>();
   private readonly rowElement: HTMLElement | null = null;
   private readonly labelElement: HTMLElement | null = null;
   private readonly titleElement: HTMLElement | null = null;
@@ -221,6 +235,9 @@ export class SettingsTreeItemWidget extends Disposable {
       this.rowElement.append(this.labelElement, this.controlElement);
       this.element.appendChild(this.rowElement);
     }
+    else if (item.kind === "composite") {
+      this.element = card("");
+    }
     else {
       this.element = item.element;
     }
@@ -235,6 +252,11 @@ export class SettingsTreeItemWidget extends Disposable {
 
     if (item.kind === "element") {
       this.updateElementItem(item);
+      return;
+    }
+
+    if (item.kind === "composite") {
+      this.updateCompositeItem(item);
       return;
     }
 
@@ -277,6 +299,45 @@ export class SettingsTreeItemWidget extends Disposable {
     this.element.classList.add("settings-card");
     if (item.searchText !== undefined) {
       updateItemSearchText(this.element, normalizeSettingsSearchText(item.searchText));
+    }
+  }
+
+  private updateCompositeItem(item: SettingsTreeCompositeItem): void {
+    this.element.id = item.id;
+    this.element.className = "settings-card settings-card-composite";
+    updateItemSearchText(
+      this.element,
+      normalizeSettingsSearchText(item.searchText, item.items.map(child => child.searchText)),
+    );
+
+    const nextIds = new Set<string>();
+    for (let index = 0; index < item.items.length; index++) {
+      const child = item.items[index]!;
+      nextIds.add(child.id);
+
+      let childSlot = this.compositeChildren.get(child.id);
+      if (!childSlot) {
+        childSlot = div("settings-tree-composite-child");
+        childSlot.id = child.id;
+        this.compositeChildren.set(child.id, childSlot);
+      }
+
+      childSlot.className = "settings-tree-composite-child";
+      if (childSlot.childNodes.length !== 1 || childSlot.firstChild !== child.element) {
+        childSlot.replaceChildren(child.element);
+      }
+
+      const expectedNextSibling = this.element.children[index] ?? null;
+      if (expectedNextSibling !== childSlot) {
+        this.element.insertBefore(childSlot, expectedNextSibling);
+      }
+    }
+
+    for (const [id, childSlot] of Array.from(this.compositeChildren)) {
+      if (!nextIds.has(id)) {
+        childSlot.remove();
+        this.compositeChildren.delete(id);
+      }
     }
   }
 }
@@ -331,6 +392,15 @@ function flattenSettingsTree(sections: readonly SettingsTreeSection[]): Settings
 function haveSameEntryIds(current: readonly SettingsTreeListEntry[], next: readonly SettingsTreeListEntry[]): boolean {
   return current.length === next.length &&
     current.every((entry, index) => entry.id === next[index]?.id);
+}
+
+function settingsTreeEntryContainsTarget(entry: SettingsTreeListEntry, targetIds: ReadonlySet<string>): boolean {
+  if (targetIds.has(entry.id)) {
+    return true;
+  }
+  return entry.kind === "item" &&
+    entry.item.kind === "composite" &&
+    entry.item.items.some(item => targetIds.has(item.id));
 }
 
 function getSettingsTreeItemClassName(entry: SettingsTreeItemEntry): string {

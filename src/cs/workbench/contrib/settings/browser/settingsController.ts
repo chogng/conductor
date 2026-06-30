@@ -94,6 +94,15 @@ const originAllItemIds = [
 const appearanceBackgroundItemIds = [
   "settings-background-card",
 ] as const satisfies readonly SettingsContentItemId[];
+const templateSemanticTermItemIds = [
+  "settings-template-semantic-active-terms-card",
+  "settings-template-semantic-recommended-terms-card",
+  "settings-template-semantic-custom-form-card",
+] as const satisfies readonly SettingsContentItemId[];
+const templateSemanticListItemIds = [
+  "settings-template-semantic-active-terms-card",
+  "settings-template-semantic-recommended-terms-card",
+] as const satisfies readonly SettingsContentItemId[];
 
 type SelectOption = {
   label: string;
@@ -1154,13 +1163,14 @@ export class SettingsController {
   private async addTemplateSemanticTerm(): Promise<void> {
     const termDraft = this.drafts.templateSemanticTermDraft;
     const term = termDraft.trim();
-    const target = itemsUpdateTarget("template-semantic-library", "settings-template-semantic-library-card");
+    const target = itemsUpdateTarget("template-semantic-library", ...templateSemanticTermItemIds);
+    const formTarget = itemsUpdateTarget("template-semantic-library", "settings-template-semantic-custom-form-card");
     if (!term) {
       this.templateSettingsFeedback = {
         type: "error",
         message: localize("settings.template.semantic.emptyTerm", "Enter a match term before adding it."),
       };
-      this.render(target);
+      this.render(formTarget);
       return;
     }
 
@@ -1185,7 +1195,7 @@ export class SettingsController {
         type: "error",
         message: localize("settings.template.semantic.duplicateTerm", "Match term already exists."),
       };
-      this.render(target);
+      this.render(formTarget);
       return;
     }
 
@@ -1236,7 +1246,7 @@ export class SettingsController {
       templateSemanticAllowlist: customTerms,
       templateSemanticTermOrder: normalizeTemplateSemanticTermOrder(this.settings.templateSemanticTermOrder)
         .filter(termId => termId !== id),
-    }, localize("settings.template.semantic.saved", "Template semantic library updated."), itemsUpdateTarget("template-semantic-library", "settings-template-semantic-library-card"));
+    }, localize("settings.template.semantic.saved", "Template semantic library updated."), itemsUpdateTarget("template-semantic-library", ...templateSemanticTermItemIds));
   }
 
   private async disableTemplateBuiltinTerm(id: string): Promise<void> {
@@ -1248,7 +1258,7 @@ export class SettingsController {
       templateDisabledBuiltinSemanticIds: [...disabledTermIds, id],
       templateSemanticTermOrder: normalizeTemplateSemanticTermOrder(this.settings.templateSemanticTermOrder)
         .filter(termId => termId !== id),
-    }, localize("settings.template.builtin.disabled", "Built-in semantic match term disabled for review."), itemsUpdateTarget("template-semantic-library", "settings-template-semantic-library-card"));
+    }, localize("settings.template.builtin.disabled", "Built-in semantic match term disabled for review."), itemsUpdateTarget("template-semantic-library", ...templateSemanticTermItemIds));
   }
 
   private async enableTemplateBuiltinTerm(id: string): Promise<void> {
@@ -1263,7 +1273,7 @@ export class SettingsController {
     await this.saveTemplateSettings({
       templateDisabledBuiltinSemanticIds: nextDisabledTermIds,
       templateSemanticTermOrder: [...activeTermOrder, id],
-    }, localize("settings.template.builtin.enabled", "Built-in semantic match term enabled for review."), itemsUpdateTarget("template-semantic-library", "settings-template-semantic-library-card"));
+    }, localize("settings.template.builtin.enabled", "Built-in semantic match term enabled for review."), itemsUpdateTarget("template-semantic-library", ...templateSemanticTermItemIds));
   }
 
   private async disableTemplateDomainPack(id: string): Promise<void> {
@@ -1655,9 +1665,10 @@ function getConductorSettingItemTarget(key: string): { readonly descriptorId: Se
     case "templateXAxisIntentPriority":
       return { descriptorId: "template-library", itemIds: ["settings-template-x-axis-priority-card"] };
     case "templateDisabledBuiltinSemanticIds":
+      return { descriptorId: "template-semantic-library", itemIds: templateSemanticListItemIds };
     case "templateSemanticAllowlist":
     case "templateSemanticTermOrder":
-      return { descriptorId: "template-semantic-library", itemIds: ["settings-template-semantic-library-card"] };
+      return { descriptorId: "template-semantic-library", itemIds: ["settings-template-semantic-active-terms-card"] };
     case "defaultYScaleForCf":
       return { descriptorId: "chart-defaults", itemIds: ["settings-default-cf-y-scale-card"] };
     case "defaultYScaleForCv":

@@ -50,6 +50,8 @@ import {
 } from "src/cs/workbench/contrib/settings/browser/settingsSearch";
 import {
   SettingsTree,
+  type SettingsTreeCompositeChildItem,
+  type SettingsTreeCompositeItem,
   type SettingsTreeControlItem,
   type SettingsTreeElementItem,
   type SettingsTreeItem,
@@ -344,6 +346,10 @@ export type SettingsContentItemId =
   | "settings-template-domain-packs-card"
   | "settings-template-x-axis-priority-card"
   | "settings-template-semantic-library-card"
+  | "settings-template-semantic-library-header"
+  | "settings-template-semantic-active-terms-card"
+  | "settings-template-semantic-recommended-terms-card"
+  | "settings-template-semantic-custom-form-card"
   | "settings-theme-card"
   | "settings-explorer-density-card"
   | "settings-explorer-badges-card"
@@ -416,7 +422,7 @@ export class SettingsView {
   private readonly descriptorTrees = new Map<SettingsContentDescriptorId, SettingsTree>();
   private readonly contentDisposables = new DisposableStore();
   private readonly itemDisposables = new Map<SettingsContentItemId, DisposableStore>();
-  private readonly treeItems = new Map<SettingsContentItemId, SettingsTreeItem>();
+  private readonly treeItems = new Map<SettingsContentItemId, SettingsTreeItem | SettingsTreeCompositeChildItem>();
   private readonly root: HTMLElement;
   private readonly contentScroll = new Scrollbar({
     className: "settings-view-content-scroll",
@@ -723,6 +729,56 @@ export class SettingsView {
     });
   }
 
+  private createSettingsTreeCompositeItem(options: {
+    readonly id: SettingsContentItemId;
+    readonly createItems: () => readonly SettingsTreeCompositeChildItem[];
+    readonly searchText?: string;
+  }): SettingsTreeCompositeItem {
+    const items = options.createItems();
+    const current = this.getReusableTreeItem(options.id, "composite");
+    if (current) {
+      const item: SettingsTreeCompositeItem = {
+        ...current,
+        items,
+        searchText: options.searchText,
+      };
+      this.treeItems.set(options.id, item);
+      return item;
+    }
+
+    return this.createContentItem(options.id, () => {
+      const item: SettingsTreeCompositeItem = {
+        kind: "composite",
+        id: options.id,
+        items,
+        searchText: options.searchText,
+      };
+      this.treeItems.set(options.id, item);
+      return item;
+    });
+  }
+
+  private createSettingsTreeCompositeChildItem(options: {
+    readonly id: SettingsContentItemId;
+    readonly createElement: () => HTMLElement;
+    readonly searchText?: string;
+  }): SettingsTreeCompositeChildItem {
+    const current = this.getReusableCompositeChildItem(options.id);
+    if (current) {
+      return current;
+    }
+
+    return this.createContentItem(options.id, () => {
+      const item: SettingsTreeCompositeChildItem = {
+        element: options.createElement(),
+        id: options.id,
+        searchText: options.searchText,
+      };
+      this.treeItems.set(options.id, item);
+      return item;
+    });
+  }
+
   private getReusableTreeItem<TKind extends SettingsTreeItem["kind"]>(
     itemId: SettingsContentItemId,
     kind: TKind,
@@ -732,11 +788,26 @@ export class SettingsView {
     }
 
     const item = this.treeItems.get(itemId);
+    if (!item || !("kind" in item)) {
+      return null;
+    }
     if (item?.kind !== kind) {
       return null;
     }
 
     return item as Extract<SettingsTreeItem, { readonly kind: TKind }>;
+  }
+
+  private getReusableCompositeChildItem(itemId: SettingsContentItemId): SettingsTreeCompositeChildItem | null {
+    if (!this.activeTreeItemPatchIds || this.activeTreeItemPatchIds.has(itemId)) {
+      return null;
+    }
+
+    const item = this.treeItems.get(itemId);
+    if (!item || "kind" in item) {
+      return null;
+    }
+    return item;
   }
 
   private createLayout(): HTMLElement {
@@ -1135,13 +1206,55 @@ export class SettingsView {
   }
 
   private createTemplateSemanticLibrarySettingsTree(): readonly SettingsTreeSection[] {
+    const settings = this.options.templateSettings;
     return [
       {
         id: "settings-template-semantic-library-section",
         items: [
-          this.createSettingsTreeElementItem({
+          this.createSettingsTreeCompositeItem({
             id: "settings-template-semantic-library-card",
-            createElement: () => this.createTemplateSemanticLibrary(this.options.templateSettings),
+            createItems: () => [
+              this.createSettingsTreeCompositeChildItem({
+                id: "settings-template-semantic-library-header",
+                createElement: () => this.createTemplateSemanticLibraryHeader(),
+                searchText: normalizeSettingsSearchText(
+                  localize("settings.template.semantic.title", "Semantic Library"),
+                  localize("settings.template.semantic.description", "Built-in match terms can be disabled for Review, and custom terms join the DataResource matcher."),
+                ),
+              }),
+              this.createSettingsTreeCompositeChildItem({
+                id: "settings-template-semantic-active-terms-card",
+                createElement: () => this.createTemplateSemanticActiveTerms(settings),
+                searchText: normalizeSettingsSearchText(
+                  localize("settings.template.semantic.activeTitle", "Active match terms"),
+                  settings.activeTerms.map(rule => `${rule.term} ${rule.canonicalRole} ${rule.axisTendency}`).join(" "),
+                ),
+              }),
+              this.createSettingsTreeCompositeChildItem({
+                id: "settings-template-semantic-recommended-terms-card",
+                createElement: () => this.createTemplateSemanticRecommendedTerms(settings),
+                searchText: normalizeSettingsSearchText(
+                  localize("settings.template.semantic.recommendedBuiltinTitle", "Recommended built-in match terms"),
+                  settings.builtinTerms
+                    .filter(term => settings.disabledBuiltinTermIds.includes(term.id))
+                    .map(rule => `${rule.term} ${rule.canonicalRole} ${rule.axisTendency}`).join(" "),
+                ),
+              }),
+              this.createSettingsTreeCompositeChildItem({
+                id: "settings-template-semantic-custom-form-card",
+                createElement: () => this.createTemplateSemanticCustomForm(settings),
+                searchText: normalizeSettingsSearchText(
+                  localize("settings.template.semantic.customMappingTitle", "Custom term mapping"),
+                  optionLabels(settings.roleOptions),
+                  optionLabels(settings.axisOptions),
+                  optionLabels(settings.matchPolicyOptions),
+                  optionLabels(settings.intentOptions),
+                  optionLabels(settings.unitOptions),
+                  optionLabels(settings.familyOptions),
+                  optionLabels(settings.ivModeOptions),
+                ),
+              }),
+            ],
           }),
         ],
       },
@@ -1307,23 +1420,31 @@ export class SettingsView {
     return container;
   }
 
-  private createTemplateSemanticLibrary(settings: TemplateSettings): HTMLElement {
-    const container = card("settings-template-semantic-library-card", "settings-card-block settings-template-semantic-library-card");
+  private createTemplateSemanticLibraryHeader(): HTMLElement {
+    const container = div("settings-template-semantic-library-header");
     const titleText = localize("settings.template.semantic.title", "Semantic Library");
     const description = localize("settings.template.semantic.description", "Built-in match terms can be disabled for Review, and custom terms join the DataResource matcher.");
-    setSettingsSearchText(
-      container,
-      titleText,
-      description,
-      settings.builtinTerms.map(rule => `${rule.term} ${rule.canonicalRole} ${rule.axisTendency}`).join(" "),
-      settings.customTerms.map(rule => `${rule.term} ${rule.canonicalRole} ${rule.axisTendency}`).join(" "),
-    );
     container.appendChild(headingBlock(titleText, description));
+    return container;
+  }
 
+  private createTemplateSemanticActiveTerms(settings: TemplateSettings): HTMLElement {
+    const container = div("settings-template-semantic-library-part");
     container.appendChild(this.createBuiltinSemanticTermList(settings));
+    return container;
+  }
+
+  private createTemplateSemanticRecommendedTerms(settings: TemplateSettings): HTMLElement {
+    const container = div("settings-template-semantic-library-part");
     container.appendChild(this.createDisabledBuiltinSemanticTermList(settings));
+    return container;
+  }
+
+  private createTemplateSemanticCustomForm(settings: TemplateSettings): HTMLElement {
+    const container = div("settings-template-semantic-library-part");
+    const titleText = localize("settings.template.semantic.customMappingTitle", "Custom term mapping");
     container.append(
-      text("p", "settings-template-subtitle", localize("settings.template.semantic.customMappingTitle", "Custom term mapping")),
+      text("p", "settings-template-subtitle", titleText),
       this.createTemplateSemanticTermForm(settings),
     );
     appendFeedback(container, settings.feedback);
