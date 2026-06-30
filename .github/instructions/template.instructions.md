@@ -94,10 +94,10 @@ Manual execution:
 
 ```txt
 manual saved-selection compatibility/UserTemplate run
-  -> ReviewService.reviewUriForExecution({ resource, sheetId })
-  -> ReviewService.reviewUriManualTemplate(saved user template id)
+  -> ReviewService.reviewResourceForExecution({ resource, sheetId })
+  -> ReviewService.reviewResourceManualTemplate(saved user template id)
   -> ManualTemplateReviewResult.ready
-  -> ISliceService.submitUri(SliceUriRequest(trigger = userCommand))
+  -> ISliceService.submitResource(SliceResourceRequest(trigger = userCommand))
   -> Slice executes the reviewed Template snapshot
 ```
 
@@ -148,14 +148,14 @@ import/export command
 - Browser export fallback may download the native `conductor.userTemplate`
   JSON payload when the platform cannot expose a save-file target. It must not
   resurrect the retired Template-editor bundle payload.
-- Active URI targets should move the current chart/Explorer target to the front of full and incremental slice queues.
+- Active `{ resource, sheetId? }` targets should move the current chart/Explorer target to the front of full and incremental slice queues.
 - Explorer hover/selection priority for slicing belongs to
-  `SlicePriorityContribution` -> `ISliceService.prioritizeUri(...)`; do not route
+  `SlicePriorityContribution` -> `ISliceService.prioritizeResource(...)`; do not route
   it through WorkbenchDomainBridge or Template code.
-- New URI slice progress belongs to `ISliceService`; consumers subscribe and
-  reread target state through `getUriState(target)`.
+- New resource/sheet slice progress belongs to `ISliceService`; consumers subscribe and
+  reread target state through `getResourceState(target)`.
 - Per-target readiness belongs to Slice; Explorer projects it into badges/chart-state without adding/removing file tree items.
-- Mark URI targets `processing` when a single-target task starts, then `ready`, `failed`, or remove through the same owner state.
+- Mark resource/sheet targets `processing` when a single-target task starts, then `ready`, `failed`, or remove through the same owner state.
 - `SliceRun` records include template fingerprint and source block ids.
 - Execution commits through `commitSliceRuns(...)`; do not add Template-owned
   run/output commit or cleanup APIs.
@@ -164,7 +164,7 @@ import/export command
   applied by the system. Keep skipped/blocked files visible through Explorer
   badges driven by Review and Slice projections.
 - Full/incremental apply must not start while another extraction job is running or while Explorer has pending/preparing sources.
-- URI cleanup belongs to `ISliceService` and URI/model resource owners; do not
+- Resource cleanup belongs to `ISliceService` and URI/model resource owners; do not
   reintroduce Session cleanup subscriptions under Template.
 
 ## Commands
@@ -176,11 +176,11 @@ do not route execution through Template code.
 
 ```txt
 slice.runWithTemplate command
-  -> ReviewService.reviewUriForExecution({ resource, sheetId })
-  -> ReviewService.reviewUriManualTemplate
+  -> ReviewService.reviewResourceForExecution({ resource, sheetId })
+  -> ReviewService.reviewResourceManualTemplate
   -> ready ManualTemplateReviewResult
-  -> ISliceService.submitUri(SliceUriRequest)
-  -> SlicePlan + SliceUriResult
+  -> ISliceService.submitResource(SliceResourceRequest)
+  -> SlicePlan + SliceResourceResult
 ```
 
 Commands/controllers must not re-detect table structure.

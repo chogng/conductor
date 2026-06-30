@@ -224,7 +224,6 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
       changeCount += 1;
     }));
     const input: ExplorerPaneInput = {
-      files: [],
       mode: "table",
       selectedResource: null,
       selectedSheetId: null,
@@ -233,7 +232,6 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
 
     service.updatePaneInput(input);
     service.updatePaneInput({
-      files: [],
       mode: "table",
       selectedResource: null,
       selectedSheetId: null,
@@ -245,45 +243,36 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
     disposable.dispose();
   });
 
-  test("publishes Explorer pane input when URI binding fields change", () => {
+  test("publishes Explorer pane input when resource state targets change", () => {
     const service = store.add(new ExplorerService());
     let changeCount = 0;
     const disposable = store.add(service.onDidChangePaneInput(() => {
       changeCount += 1;
     }));
-    const file = {
-      fileId: "file-a",
-      fileName: "A.csv",
-      localImport: true,
-      resource: URI.file("/data/A.csv"),
-      sheetId: "sheet-a",
-      sheetName: "Sheet A",
-    };
-
     service.updatePaneInput({
-      files: [file],
       mode: "table",
+      resourceStates: [{ resource: URI.file("/data/A.csv"), sheetId: "sheet-a", chartState: "ready", hasChartData: true }],
       selectedResource: URI.file("/data/A.csv"),
       selectedSheetId: "sheet-a",
       selectionKind: "table",
     });
     service.updatePaneInput({
-      files: [{ ...file }],
       mode: "table",
+      resourceStates: [{ resource: URI.file("/data/A.csv"), sheetId: "sheet-a", chartState: "ready", hasChartData: true }],
       selectedResource: URI.file("/data/A.csv"),
       selectedSheetId: "sheet-a",
       selectionKind: "table",
     });
     service.updatePaneInput({
-      files: [{ ...file, resource: URI.file("/data/B.csv") }],
       mode: "table",
+      resourceStates: [{ resource: URI.file("/data/B.csv"), sheetId: "sheet-a", chartState: "ready", hasChartData: true }],
       selectedResource: URI.file("/data/A.csv"),
       selectedSheetId: "sheet-a",
       selectionKind: "table",
     });
     service.updatePaneInput({
-      files: [{ ...file, resource: URI.file("/data/B.csv"), sheetId: "sheet-b" }],
       mode: "table",
+      resourceStates: [{ resource: URI.file("/data/B.csv"), sheetId: "sheet-b", chartState: "ready", hasChartData: true }],
       selectedResource: URI.file("/data/A.csv"),
       selectedSheetId: "sheet-a",
       selectionKind: "table",
@@ -293,7 +282,7 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
     disposable.dispose();
   });
 
-  test("keeps committed files separate from display projection", () => {
+  test("keeps committed files separate from resource state projection", () => {
     const service = store.add(new ExplorerService());
     const fileA = {
       fileId: "file-a",
@@ -306,24 +295,23 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
       resource: URI.file("/data/B.csv"),
     };
 
+    service.replaceFiles([fileA, fileB]);
     service.updatePaneInput({
-      files: [fileA, fileB],
       mode: "table",
       selectedResource: null,
       selectedSheetId: null,
       selectionKind: "table",
     });
     service.updatePaneInput({
-      files: [fileA],
       mode: "chart",
-      quickAccessFiles: [fileA, fileB],
+      resourceStates: [{ resource: fileA.resource, chartState: "ready", hasChartData: true }],
       selectedResource: null,
       selectedSheetId: null,
       selectionKind: "chart",
     });
 
     assert.deepEqual(service.files.map(file => file.fileId), ["file-a", "file-b"]);
-    assert.deepEqual(service.getPaneInput()?.files.map(file => file.fileId), ["file-a"]);
+    assert.deepEqual(service.getPaneInput()?.resourceStates?.map(state => state.resource.toString()), [fileA.resource.toString()]);
   });
 
 });

@@ -41,6 +41,7 @@ import {
   IExplorerService,
   type ExplorerPaneInput,
   type ExplorerResourceTarget,
+  type ExplorerResourceState,
   type ExplorerSelectionKind,
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
@@ -181,6 +182,9 @@ export class ExplorerViewPane extends ViewPane {
 
     this._register(this.explorerService.onDidChangePaneInput(() => {
       this.update(this.explorerService.getPaneInput());
+    }));
+    this._register(this.explorerService.onDidChangeFiles(() => {
+      this.update(this.input);
     }));
     this._register(this.explorerService.onDidChangeViewLayout(() => {
       this.update(this.input);
@@ -324,13 +328,17 @@ export class ExplorerViewPane extends ViewPane {
   }
 
   private get files(): ExplorerFileEntry[] {
-    const committedFiles = this.paneInput.files;
+    const resourceStates = this.createResourceStateMap();
+    const resourceStateFiles = this.createResourceStateFiles(this.committedFiles, resourceStates);
+    const visibleFiles = this.shouldFilterChartThumbnailFiles()
+      ? resourceStateFiles.filter(file => getExplorerResourceStateForFile(resourceStates, file)?.hasChartData === true)
+      : resourceStateFiles;
     if (!this.pendingSourceEntries.length && !this.replaceItemKeys?.length) {
-      return committedFiles;
+      return visibleFiles;
     }
 
     return mergeExplorerSourceEntries({
-      files: committedFiles,
+      files: visibleFiles,
       pendingSourceEntries: this.pendingSourceEntries,
       replaceItemKeys: this.replaceItemKeys,
     });
@@ -356,6 +364,44 @@ export class ExplorerViewPane extends ViewPane {
 
   private get viewLayout(): FilesViewLayout {
     return this.explorerService.viewLayout;
+  }
+
+  private shouldFilterChartThumbnailFiles(): boolean {
+    return this.paneInput.selectionKind === "chart" && this.viewLayout === "thumbnail";
+  }
+
+  private createResourceStateFiles(
+    files: readonly ExplorerFileEntry[],
+    resourceStates: ReadonlyMap<string, ExplorerResourceState>,
+  ): ExplorerFileEntry[] {
+    if (!resourceStates.size) {
+      return [...files];
+    }
+
+    return files.map(file => {
+      const state = getExplorerResourceStateForFile(resourceStates, file);
+      if (!state) {
+        return file;
+      }
+
+      return {
+        ...file,
+        chartMessage: state.chartMessage,
+        chartState: state.chartState,
+        hasChartData: state.hasChartData,
+      };
+    });
+  }
+
+  private createResourceStateMap(): ReadonlyMap<string, ExplorerResourceState> {
+    const resourceStates = new Map<string, ExplorerResourceState>();
+    for (const state of this.paneInput.resourceStates ?? []) {
+      const key = getExplorerResourceIdentityKey(state);
+      if (key) {
+        resourceStates.set(key, state);
+      }
+    }
+    return resourceStates;
   }
 
   private createExplorerViewProps(): ExplorerViewProps {
@@ -1527,12 +1573,19 @@ function normalizePathValue(value: unknown): string | null {
 }
 
 const EMPTY_EXPLORER_PANE_INPUT: ExplorerPaneInput = {
-  files: [],
   mode: "table",
   selectedResource: null,
   selectedSheetId: null,
   selectionKind: "table",
 };
+
+function getExplorerResourceStateForFile(
+  resourceStates: ReadonlyMap<string, ExplorerResourceState>,
+  file: ExplorerFileEntry,
+): ExplorerResourceState | null {
+  const key = getExplorerResourceIdentityKey(getExplorerFileResourceIdentity(file));
+  return key ? resourceStates.get(key) ?? null : null;
+}
 
 function getActionAnchor(event: unknown): HTMLElement {
   if (

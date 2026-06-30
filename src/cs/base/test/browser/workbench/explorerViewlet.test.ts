@@ -496,8 +496,8 @@ const createReviewService = (
       findingCodes: [],
     };
   },
-  reviewUriManualTemplate: async () => {
+  reviewResourceManualTemplate: async () => {
     throw new Error("Unexpected URI manual review in explorer viewlet test.");
   },
-  reviewUriForExecution: async () => null,
+  reviewResourceForExecution: async () => null,
 } as unknown as IReviewService);

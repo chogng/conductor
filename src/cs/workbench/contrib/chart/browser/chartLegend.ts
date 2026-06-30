@@ -6,7 +6,7 @@ import { localize } from "src/cs/nls";
 import type { PlotMainSeries } from "src/cs/workbench/services/plot/common/plotModel";
 import { getPlotColor, resolveSeriesPlotColor } from "src/cs/workbench/services/plot/common/plotColors";
 import type { PlotLegendModel, PlotType } from "src/cs/workbench/services/plot/common/plot";
-import type { SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
+import type { SliceResourceTarget } from "src/cs/workbench/services/slice/common/slice";
 
 const DEFAULT_LEGEND_FONT_SIZE = 12;
 
@@ -14,7 +14,7 @@ export type LegendContext = {
   readonly fileId: string;
   readonly plotType: PlotType;
   readonly seriesList: readonly PlotMainSeries[];
-  readonly target?: SliceUriTarget | null;
+  readonly target?: SliceResourceTarget | null;
 };
 
 export type LegendPopover = HTMLElement & {
@@ -48,8 +48,8 @@ export const isSameLegendContext = (
   left.seriesList === right.seriesList;
 
 const isSameLegendTarget = (
-  left: SliceUriTarget | null | undefined,
-  right: SliceUriTarget | null | undefined,
+  left: SliceResourceTarget | null | undefined,
+  right: SliceResourceTarget | null | undefined,
 ): boolean =>
   getLegendTargetResourceKey(left?.resource) === getLegendTargetResourceKey(right?.resource) &&
   String(left?.sheetId ?? "") === String(right?.sheetId ?? "");

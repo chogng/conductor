@@ -159,7 +159,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		assert.equal(state.kind === "fastReady" ? state.model.seriesList.length : 0, 1);
 	});
 
-	test("URI target previews do not require Session file records", () => {
+	test("resource target previews do not require Session file records", () => {
 		const target = {
 			resource: URI.file("/data/Uri.csv"),
 			sheetId: "sheet-a",
@@ -215,7 +215,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		}]);
 	});
 
-	test("plot cache changes refresh matching previews without clearing URI target previews", () => {
+	test("plot cache changes refresh matching previews without clearing resource target previews", () => {
 		const cacheEmitter = store.add(new Emitter<{ readonly fileId: string; readonly plotType: "iv" }>());
 		const target = {
 			resource: URI.file("/data/Uri.csv"),

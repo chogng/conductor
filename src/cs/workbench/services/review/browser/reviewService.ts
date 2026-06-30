@@ -14,8 +14,8 @@ import {
   type ManualTemplateReviewResult,
   type ManualTemplateSelection,
   type ReviewedTemplateConfirmationRequest,
-  type UriManualTemplateReviewRequest,
-  type UriReviewExecution,
+  type ResourceManualTemplateReviewRequest,
+  type ResourceReviewExecution,
 } from "src/cs/workbench/services/review/common/review";
 import {
   IDataResourceService,
@@ -177,14 +177,14 @@ export class ReviewService extends Disposable implements IReviewService {
     return entry?.summary ?? null;
   }
 
-  public async reviewUriForExecution(target: ReviewSummaryTarget): Promise<UriReviewExecution | null> {
+  public async reviewResourceForExecution(target: ReviewSummaryTarget): Promise<ResourceReviewExecution | null> {
     const reviewTarget = normalizeUriReviewTarget(target);
     if (!reviewTarget || !this.dataResourceService) {
       return null;
     }
 
     const entry = await this.resolveCurrentUriReviewCacheEntry(reviewTarget);
-    return entry ? createUriReviewExecutionFromCacheEntry(entry) : null;
+    return entry ? createResourceReviewExecutionFromCacheEntry(entry) : null;
   }
 
   private async resolveCurrentUriReviewCacheEntry(reviewTarget: NormalizedUriReviewTarget): Promise<UriReviewCacheEntry | null> {
@@ -299,7 +299,7 @@ export class ReviewService extends Disposable implements IReviewService {
     };
   }
 
-  public async reviewUriManualTemplate(input: UriManualTemplateReviewRequest): Promise<ManualTemplateReviewResult> {
+  public async reviewResourceManualTemplate(input: ResourceManualTemplateReviewRequest): Promise<ManualTemplateReviewResult> {
     const target = normalizeUriReviewTarget(input.target);
     if (!target || !this.dataResourceService) {
       return createInvalidManualReviewResult("review.manual.invalidUriTarget", "Manual review needs a URI content target.");
@@ -1027,9 +1027,9 @@ const createReviewSummaryFromResult = ({
   };
 };
 
-const createUriReviewExecutionFromCacheEntry = (
+const createResourceReviewExecutionFromCacheEntry = (
   entry: UriReviewCacheEntry,
-): UriReviewExecution | null => {
+): ResourceReviewExecution | null => {
   if (
     !entry.reviewSignature ||
     !isNonNegativeInteger(entry.sourceModelVersion) ||

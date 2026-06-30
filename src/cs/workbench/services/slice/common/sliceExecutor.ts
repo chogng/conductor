@@ -172,7 +172,7 @@ const createSliceRunId = (
 	plan: SlicePlan,
 ): string => {
 	const targetId = `${getSliceRunTargetResourceIdentity(plan.target.target.resource)}:${plan.target.target.sheetId ?? ""}`;
-	return `slice:uri:${targetId}:${plan.templateFingerprint}:${plan.sourceVersion ?? 0}`;
+	return `slice:resource:${targetId}:${plan.templateFingerprint}:${plan.sourceVersion ?? 0}`;
 };
 
 const getSliceRunTargetResourceIdentity = (

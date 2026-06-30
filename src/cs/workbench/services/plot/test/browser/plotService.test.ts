@@ -33,8 +33,8 @@ import type {
 } from "src/cs/workbench/services/settings/common/settings";
 import type {
   ISliceService,
-  SliceUriResult,
-  SliceUriTarget,
+  SliceResourceResult,
+  SliceResourceTarget,
 } from "src/cs/workbench/services/slice/common/slice";
 
 suite("workbench/services/plot/test/browser/plotService", () => {
@@ -2255,12 +2255,12 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     }), calculated);
   });
 
-  test("reads URI slice calculated data by target without a synthetic file id", () => {
-    const target: SliceUriTarget = {
+  test("reads resource slice calculated data by target without a synthetic file id", () => {
+    const target: SliceResourceTarget = {
       resource: URI.file("/workspace/data/transfer.csv"),
       sheetId: "Sheet 1",
     };
-    const result = createSliceUriResult(target);
+    const result = createSliceResourceResult(target);
     const service = store.add(new PlotService(
       createSessionServiceStub(createSnapshot({}, [])),
       createSettingsServiceStub(),
@@ -2282,8 +2282,8 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     }), calculated);
   });
 
-  test("reads and prefetches URI slice targets without a session snapshot", () => {
-    const target: SliceUriTarget = {
+  test("reads and prefetches resource slice targets without a session snapshot", () => {
+    const target: SliceResourceTarget = {
       resource: URI.file("/workspace/data/transfer.csv"),
       sheetId: "Sheet 1",
     };
@@ -2293,12 +2293,12 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         ...createSessionServiceStub(createSnapshot({}, [])),
         getSnapshot: () => {
           snapshotReads += 1;
-          throw new Error("URI plot target should not read Session.");
+          throw new Error("Resource plot target should not read Session.");
         },
       },
       createSettingsServiceStub(),
       store.add(new TestStorageService()),
-      createSliceServiceStub([createSliceUriResult(target)]),
+      createSliceServiceStub([createSliceResourceResult(target)]),
     ));
 
     const calculated = service.getCalculatedData({
@@ -2327,8 +2327,8 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     assert.equal(snapshotReads, 0);
   });
 
-  test("preserves URI target on plot display contexts and state writes", async () => {
-    const target: SliceUriTarget = {
+  test("preserves resource target on plot display contexts and state writes", async () => {
+    const target: SliceResourceTarget = {
       resource: URI.file("/workspace/data/transfer.csv"),
       sheetId: "Sheet 1",
     };
@@ -2336,7 +2336,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       createSessionServiceStub(createSnapshot({}, [])),
       createSettingsServiceStub(),
       store.add(new TestStorageService()),
-      createSliceServiceStub([createSliceUriResult(target)]),
+      createSliceServiceStub([createSliceResourceResult(target)]),
     ));
 
     const model = service.getPlotDisplayModel({
@@ -2375,10 +2375,10 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     assert.deepEqual(service.getHiddenLegendKeys({ target }, "iv", ["series-a"]), ["series-a"]);
   });
 
-  test("session clears preserve URI target plot caches", () => {
+  test("session clears preserve resource target plot caches", () => {
     const sessionEvents = store.add(new Emitter<SessionChangeEvent>());
     const snapshot = createSnapshot();
-    const target: SliceUriTarget = {
+    const target: SliceResourceTarget = {
       resource: URI.file("/workspace/data/transfer.csv"),
       sheetId: "Sheet 1",
     };
@@ -2386,7 +2386,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       createSessionServiceStub(snapshot, sessionEvents.event),
       createSettingsServiceStub(),
       store.add(new TestStorageService()),
-      createSliceServiceStub([createSliceUriResult(target)]),
+      createSliceServiceStub([createSliceResourceResult(target)]),
     ));
     let plotStateChanges = 0;
     const calculatedEvents: Array<{ readonly fileId?: string; readonly plotType: string }> = [];
@@ -2432,8 +2432,8 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     })?.chart, uriModel.chart);
   });
 
-  test("does not fall back to the first URI slice result without a target", () => {
-    const target: SliceUriTarget = {
+  test("does not fall back to the first resource slice result without a target", () => {
+    const target: SliceResourceTarget = {
       resource: URI.file("/workspace/data/transfer.csv"),
       sheetId: "Sheet 1",
     };
@@ -2441,7 +2441,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       createSessionServiceStub(createSnapshot({}, [])),
       createSettingsServiceStub(),
       store.add(new TestStorageService()),
-      createSliceServiceStub([createSliceUriResult(target)]),
+      createSliceServiceStub([createSliceResourceResult(target)]),
     ));
 
     assert.equal(service.getCalculatedData({ plotType: "iv" }), null);
@@ -3037,24 +3037,24 @@ const createSessionServiceStub = (
 });
 
 const createSliceServiceStub = (
-  results: readonly SliceUriResult[] = [],
+  results: readonly SliceResourceResult[] = [],
 ): ISliceService => ({
   _serviceBrand: undefined,
-  cancelUri: () => undefined,
+  cancelResource: () => undefined,
   getState: () => ({
     queueLength: 0,
     templateSelections: [],
   }),
-  getUriResult: target => results.find(result =>
+  getResourceResult: target => results.find(result =>
     result.target.resource.toString() === target.resource.toString() &&
     String(result.target.sheetId ?? "") === String(target.sheetId ?? "")
   ) ?? null,
-  getUriState: () => undefined,
+  getResourceState: () => undefined,
   onDidChangeSliceState: Event.None as Event<void>,
-  onDidChangeUriSliceResult: Event.None as Event<SliceUriTarget>,
-  prioritizeUri: () => undefined,
+  onDidChangeResourceSliceResult: Event.None as Event<SliceResourceTarget>,
+  prioritizeResource: () => undefined,
   setTemplateSelection: () => undefined,
-  submitUri: () => undefined,
+  submitResource: () => undefined,
 });
 
 const createSettingsServiceStub = (
@@ -3095,9 +3095,9 @@ const createSnapshot = (
   sessionVersion: 1,
 });
 
-const createSliceUriResult = (
-  target: SliceUriTarget,
-): SliceUriResult => ({
+const createSliceResourceResult = (
+  target: SliceResourceTarget,
+): SliceResourceResult => ({
   completedAt: 1,
   curves: [{
     curveFamily: "iv",

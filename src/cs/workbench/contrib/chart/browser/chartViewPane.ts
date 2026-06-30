@@ -63,7 +63,7 @@ import {
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
 import type { ChartViewProps } from "src/cs/workbench/contrib/chart/browser/views/chartView";
-import type { SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
+import type { SliceResourceTarget } from "src/cs/workbench/services/slice/common/slice";
 
 import "src/cs/workbench/contrib/chart/browser/media/chart.css";
 
@@ -314,7 +314,7 @@ export class ChartViewPane extends ViewPane {
   }
 
   private selectChartFile(fileId: string | null, props: ChartViewInput): void {
-    const paneFiles = this.explorerService.getPaneInput()?.files ?? [];
+    const paneFiles = this.explorerService.files;
     const targetFile = paneFiles.find(file =>
       normalizeChartFileId(file.fileId) === normalizeChartFileId(fileId)
     ) ?? null;
@@ -457,7 +457,7 @@ export class ChartViewPane extends ViewPane {
   private scheduleInspectorPrefetch(input: {
     readonly fileId: string;
     readonly plotType: PlotType;
-    readonly target?: SliceUriTarget | null;
+    readonly target?: SliceResourceTarget | null;
   }): void {
     const key = this.createInspectorPrefetchKey(input);
     if (this.pendingInspectorPrefetchKey === key) {
@@ -497,24 +497,24 @@ export class ChartViewPane extends ViewPane {
   private createInspectorPrefetchKey(input: {
     readonly fileId: string;
     readonly plotType: PlotType;
-    readonly target?: SliceUriTarget | null;
+    readonly target?: SliceResourceTarget | null;
   }): string {
     return [
       input.fileId,
       input.plotType,
-      getSliceUriTargetIdentity(input.target),
+      getSliceResourceTargetIdentity(input.target),
     ].join("|");
   }
 
   private isInspectorPrefetchTargetCurrent(input: {
     readonly fileId: string;
     readonly plotType: PlotType;
-    readonly target?: SliceUriTarget | null;
+    readonly target?: SliceResourceTarget | null;
   }): boolean {
     const currentInput = getChartPlotTargetInput(this.props);
     return !(
       currentInput.fileId !== input.fileId ||
-      !isSameSliceUriTarget(currentInput.target, input.target) ||
+      !isSameSliceResourceTarget(currentInput.target, input.target) ||
       this.getActivePlotType() !== input.plotType ||
       !this.chartService.getState().visibleDetailPanes.includes("inspector")
     );
@@ -714,7 +714,7 @@ export class ChartViewPane extends ViewPane {
     }
     const displayModel = this.plotService.getCachedPlotDisplayModel(plotInput);
     const isDisplayModelForInput = input.target
-      ? isSameSliceUriTarget(displayModel?.target, input.target)
+      ? isSameSliceResourceTarget(displayModel?.target, input.target)
       : displayModel?.fileId === fileId;
     if (
       displayModel &&
@@ -762,7 +762,7 @@ export class ChartViewPane extends ViewPane {
   }
 
   private getLegendStateKey(context: LegendContext): string {
-    return `${context.fileId}:${context.plotType}:${getSliceUriTargetIdentity(context.target)}`;
+    return `${context.fileId}:${context.plotType}:${getSliceResourceTargetIdentity(context.target)}`;
   }
 }
 
@@ -777,13 +777,13 @@ const EMPTY_CHART_VIEW_INPUT: ChartViewInput = {
 
 const getChartPlotTargetInput = (
   props: ChartViewInput,
-): { readonly fileId: string | null; readonly target?: SliceUriTarget | null } => ({
+): { readonly fileId: string | null; readonly target?: SliceResourceTarget | null } => ({
   fileId: normalizeChartFileId(props.activeFileId),
   target: props.activeTarget ?? null,
 });
 
 const createChartPlotDisplayInput = (
-  input: { readonly fileId: string | null; readonly target?: SliceUriTarget | null },
+  input: { readonly fileId: string | null; readonly target?: SliceResourceTarget | null },
   plotType: PlotType,
 ) => input.target
   ? {
@@ -797,7 +797,7 @@ const createChartPlotDisplayInput = (
 
 const createChartPlotTargetReference = (
   fileId: string,
-  target?: SliceUriTarget | null,
+  target?: SliceResourceTarget | null,
 ): PlotTargetReference => target ?? fileId;
 
 const normalizeChartFileId = (fileId: unknown): string | null => {
@@ -811,30 +811,30 @@ const isPlotCacheEventForChartInput = (
 ): boolean => {
   const input = getChartPlotTargetInput(props);
   if (input.target) {
-    return isSameSliceUriTarget(event.target, input.target);
+    return isSameSliceResourceTarget(event.target, input.target);
   }
 
   return normalizeChartFileId(event.fileId) === input.fileId;
 };
 
-const isSameSliceUriTarget = (
-  first: SliceUriTarget | null | undefined,
-  second: SliceUriTarget | null | undefined,
+const isSameSliceResourceTarget = (
+  first: SliceResourceTarget | null | undefined,
+  second: SliceResourceTarget | null | undefined,
 ): boolean =>
-  getSliceUriTargetIdentity(first) === getSliceUriTargetIdentity(second);
+  getSliceResourceTargetIdentity(first) === getSliceResourceTargetIdentity(second);
 
-const getSliceUriTargetIdentity = (
-  target: SliceUriTarget | null | undefined,
+const getSliceResourceTargetIdentity = (
+  target: SliceResourceTarget | null | undefined,
 ): string =>
   target
     ? [
-        getSliceUriTargetResourceKey(target.resource),
+        getSliceResourceKey(target.resource),
         String(target.sheetId ?? "").trim(),
       ].join("\u0000")
     : "";
 
-const getSliceUriTargetResourceKey = (resource: unknown): string => {
-  const text = getSliceUriTargetResourceString(resource);
+const getSliceResourceKey = (resource: unknown): string => {
+  const text = getSliceResourceString(resource);
   if (text) {
     return text.replace(/\\/g, "/");
   }
@@ -874,7 +874,7 @@ const getSliceUriTargetResourceKey = (resource: unknown): string => {
   ].join("").replace(/\\/g, "/");
 };
 
-const getSliceUriTargetResourceString = (resource: unknown): string => {
+const getSliceResourceString = (resource: unknown): string => {
   const toString = (resource as { readonly toString?: unknown } | null | undefined)?.toString;
   if (typeof toString !== "function") {
     return "";

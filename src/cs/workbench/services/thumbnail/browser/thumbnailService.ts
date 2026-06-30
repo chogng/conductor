@@ -18,7 +18,7 @@ import {
 	type ThumbnailBitmapTarget,
 } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import { IPlotService, type PlotType } from "src/cs/workbench/services/plot/common/plot";
-import type { SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
+import type { SliceResourceTarget } from "src/cs/workbench/services/slice/common/slice";
 import { logPerf, startPerf } from "src/cs/workbench/common/perf";
 import {
 	createThumbnailBitmapCache,
@@ -38,7 +38,7 @@ const PREVIEW_FRAME_BUDGET_MS = 6;
 type NormalizedThumbnailPreviewTarget = {
 	readonly fileId?: string | null;
 	readonly key: string;
-	readonly target?: SliceUriTarget | null;
+	readonly target?: SliceResourceTarget | null;
 };
 
 export class BrowserThumbnailService extends Disposable implements IThumbnailServiceType {
@@ -385,7 +385,7 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 	private updatePreviewStateFromPlotCacheEvent(event: {
 		readonly fileId?: string;
 		readonly plotType: string;
-		readonly target?: SliceUriTarget | null;
+		readonly target?: SliceResourceTarget | null;
 	}): void {
 		const targets = this.resolveTargetsFromPlotCacheEvent(event);
 		if (!targets.length) {
@@ -466,7 +466,7 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 
 	private resolveTargetsFromPlotCacheEvent(event: {
 		readonly fileId?: string;
-		readonly target?: SliceUriTarget | null;
+		readonly target?: SliceResourceTarget | null;
 	}): readonly NormalizedThumbnailPreviewTarget[] {
 		if (event.target) {
 			const key = createThumbnailPreviewTargetKey(event.target);
@@ -557,7 +557,7 @@ const normalizePreviewTarget = (
 };
 
 const createThumbnailPreviewTargetKey = (
-	target: SliceUriTarget,
+	target: SliceResourceTarget,
 ): string | null => {
 	const resourceKey = String(target.resource ?? "").trim();
 	return resourceKey

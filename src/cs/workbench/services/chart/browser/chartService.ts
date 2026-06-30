@@ -18,7 +18,7 @@ import {
 	type IChartService as IChartServiceType,
 } from "src/cs/workbench/services/chart/common/chart";
 import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
-import type { SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
+import type { SliceResourceTarget } from "src/cs/workbench/services/slice/common/slice";
 
 const CHART_VISIBLE_DETAIL_PANES_STORAGE_KEY = "chart.visibleDetailPanes";
 const DEFAULT_VISIBLE_DETAIL_PANES: readonly ChartDetailPane[] = [];
@@ -171,7 +171,7 @@ const isSameChartViewInput = (
 	next: ChartViewInput,
 ): boolean =>
 	current.activeFileId === next.activeFileId &&
-	isSameSliceUriTarget(current.activeTarget, next.activeTarget) &&
+	isSameSliceResourceTarget(current.activeTarget, next.activeTarget) &&
 	current.activePlotType === next.activePlotType &&
 	current.hasChartData === next.hasChartData &&
 	current.showFileSelect === next.showFileSelect &&
@@ -199,9 +199,9 @@ const areChartFileOptionsEqual = (
 		option.fileId === second[index]?.fileId &&
 		option.fileName === second[index]?.fileName);
 
-const isSameSliceUriTarget = (
-	current: SliceUriTarget | null | undefined,
-	next: SliceUriTarget | null | undefined,
+const isSameSliceResourceTarget = (
+	current: SliceResourceTarget | null | undefined,
+	next: SliceResourceTarget | null | undefined,
 ): boolean =>
 	String(current?.resource?.toString() ?? "") === String(next?.resource?.toString() ?? "") &&
 	String(current?.sheetId ?? "") === String(next?.sheetId ?? "");

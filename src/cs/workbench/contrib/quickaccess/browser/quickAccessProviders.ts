@@ -4,10 +4,10 @@ import type { QuickAccessItem } from "src/cs/platform/quickinput/common/quickAcc
 import { IQuickInputService } from "src/cs/platform/quickinput/common/quickInput";
 import {
   IExplorerService,
-  type ExplorerPaneInput,
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
   getExplorerFileResourceIdentity,
+  type ExplorerFileEntry,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import { COMMANDS_QUICK_ACCESS_PREFIX } from "src/cs/workbench/contrib/quickaccess/browser/commandsQuickAccess";
@@ -54,7 +54,7 @@ export class FilesQuickAccessProvider extends PickerQuickAccessProvider<QuickAcc
       return [];
     }
 
-    const files = getQuickAccessFiles(paneInput);
+    const files = this.explorerService.files;
     const candidateResources = files
       .map(getExplorerFileResourceIdentity)
       .filter((target): target is NonNullable<typeof target> => Boolean(target));
@@ -88,18 +88,13 @@ export class FilesQuickAccessProvider extends PickerQuickAccessProvider<QuickAcc
   }
 }
 
-const getQuickAccessFiles = (
-  paneInput: ExplorerPaneInput,
-): ExplorerPaneInput["files"] =>
-  paneInput.quickAccessFiles?.length ? paneInput.quickAccessFiles : paneInput.files;
-
 const normalizeFileId = (fileId: unknown): string | null => {
   const normalized = String(fileId ?? "").trim();
   return normalized || null;
 };
 
 const getFileDescription = (
-  file: ExplorerPaneInput["files"][number],
+  file: ExplorerFileEntry,
 ): string | undefined => {
   const path = getFirstNonEmptyText(
     file.relativePath,

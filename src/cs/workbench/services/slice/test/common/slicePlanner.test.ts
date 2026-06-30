@@ -19,7 +19,7 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 		const resource = URI.file("/workspace/source.csv");
 		const plan = createSlicePlan({
 			target: {
-				kind: "uri",
+				kind: "resource",
 				target: { resource, sheetId: "sheet-a" },
 			},
 			mode: "auto",
@@ -57,7 +57,7 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 		const resource = URI.file("/workspace/source.csv");
 		const plan = createSlicePlan({
 			target: {
-				kind: "uri",
+				kind: "resource",
 				target: { resource, sheetId: "sheet-a" },
 			},
 			mode: "manual",
@@ -81,11 +81,11 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 		assert.deepEqual(plan.errors, ["slicePlanner.axisOutOfBounds"]);
 	});
 
-	test("creates URI input ranges without raw-table identity", () => {
+	test("creates resource input ranges without raw-table identity", () => {
 		const resource = URI.file("/workspace/source.csv");
 		const plan = createSlicePlan({
 			target: {
-				kind: "uri",
+				kind: "resource",
 				target: {
 					resource,
 					sheetId: "sheet-a",
@@ -116,7 +116,7 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 		const resource = URI.file("/workspace/source.csv");
 		const plan = createSlicePlan({
 			target: {
-				kind: "uri",
+				kind: "resource",
 				target: { resource, sheetId: "sheet-a" },
 			},
 			mode: "auto",
@@ -219,7 +219,7 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 		});
 	});
 
-	test("omits raw-table version from URI-only source signatures", () => {
+	test("omits raw-table version from resource-only source signatures", () => {
 		const signature = createSliceSourceContentSignature({
 			sourceModelVersion: 6,
 			sourceUri: "file:///workspace/data/source.csv",

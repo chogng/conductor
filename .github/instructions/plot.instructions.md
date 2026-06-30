@@ -6,7 +6,7 @@ applyTo: 'src/cs/workbench/services/plot/**,src/cs/workbench/contrib/plot/**'
 
 Plot is the drawing core. Chart is a host that renders Plot output.
 
-`IPlotService` consumes Session curves/metrics and URI-backed Slice results, and
+`IPlotService` consumes Session curves/metrics and resource/sheet Slice results, and
 produces plot render/display models for Chart, Thumbnail, Search, and Export.
 
 ## Ownership
@@ -18,7 +18,7 @@ produces plot render/display models for Chart, Thumbnail, Search, and Export.
 - axis unit conversion and y-scale settings;
 - plot domains, ticks, display labels, legend labels;
 - display downsampling;
-- render/display model assembly from Session curves/metrics and URI-backed
+- render/display model assembly from Session curves/metrics and resource/sheet
   Slice results;
 - calculated-data and display-model caches/prefetch queues.
 
@@ -43,7 +43,7 @@ production, template execution, or thumbnail bitmap cache.
 ## Flow
 
 ```txt
-SessionSnapshot-backed file ids or SliceUriTarget results + PlotState
+SessionSnapshot-backed file ids or SliceResourceTarget results + PlotState
   -> PlotService
   -> calculated-data cache / display-model cache / worker queues
   -> PlotRenderModel / PlotDisplayModel
@@ -71,22 +71,22 @@ uses platform storage; callers should not write settings/storage directly.
 - Consumers request prefetch on cache miss instead of synchronously creating expensive data in render.
 - Calculated-data and display-model prefetch are separate cache warmups.
 - PlotService owns dedupe, cache-hit skip, queue promotion, stale-result checks, and perf counters.
-- Consumers pass file identity or URI Slice targets into Plot read/prefetch APIs;
+- Consumers pass file identity or resource/sheet Slice targets into Plot read/prefetch APIs;
   they should not pass `SessionSnapshot` through Plot input records. PlotService
   resolves legacy Session-backed file ids internally as the Plot owner fallback.
-- URI consumers pass the `SliceUriTarget` directly. Do not pair a URI target
+- Resource/sheet consumers pass the `SliceResourceTarget` directly. Do not pair a target
   with a legacy file id in the same Plot input; derive downstream keys from the
   target inside Plot.
 - Consumers that need Plot-owned axis/unit/scale settings call `getAxisSettings()`
   without passing Session snapshots. Session-backed callers merge file default
   axis projections in their own owner boundary when they still consume Session
   data.
-- URI target calculated/display reads resolve the current Slice URI result through
+- Resource/sheet target calculated/display reads resolve the current Slice result through
   `ISliceService` and must not resolve `ISessionService.getSnapshot()` just to
   satisfy Plot input shape. Session snapshots are required only for
   Session-backed file ids.
-- Display-model creation uses Plot-owned storage settings when a URI target has
-  no Session snapshot; do not couple URI target axis/unit/scale state back to
+- Display-model creation uses Plot-owned storage settings when a target has
+  no Session snapshot; do not couple resource/sheet axis/unit/scale state back to
   Session records.
 - Worker requests send only fields needed for plot calculation: base curves,
   matching series, latest `SliceRun` template metadata, and minimal raw file
@@ -101,9 +101,9 @@ uses platform storage; callers should not write settings/storage directly.
 ## Invalidation And Retention
 
 - Session changes should invalidate only affected file ids when possible.
-- Full Session clears/removals clear Session-backed file-record caches; URI Slice
-  target caches are invalidated by Slice target changes, not by Session events.
-- Slice URI result changes should invalidate only affected URI targets when
+- Full Session clears/removals clear Session-backed file-record caches; resource/sheet
+  Slice target caches are invalidated by Slice target changes, not by Session events.
+- Slice result changes should invalidate only affected resource/sheet targets when
   possible.
 - Plot-relevant data changes publish targeted calculated/display cache events.
 - Do not publish global `onDidChangePlotState` for unrelated file commits.
@@ -114,7 +114,7 @@ uses platform storage; callers should not write settings/storage directly.
 - Cached reads for active chart, hover, file switch, and recent backfill refresh recency.
 
 Plot render models currently consume template/base curve records from Session
-or URI Slice results and Plot-owned settings. Do not invalidate active
+or resource/sheet Slice results and Plot-owned settings. Do not invalidate active
 chart/hover caches for calculated-record, metric, or derived-only curve changes
 unless Plot starts consuming those as render inputs.
 

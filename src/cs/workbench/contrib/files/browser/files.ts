@@ -28,13 +28,18 @@ export type ExplorerThumbnailPlotModel = PlotMainRenderModelSource & {
   readonly signature: string;
 };
 
+export type ExplorerResourceState = ExplorerResourceTarget & {
+  readonly chartMessage?: string | null;
+  readonly chartState?: ExplorerFileEntry["chartState"];
+  readonly hasChartData?: boolean;
+};
+
 export type ExplorerPaneInput = {
   readonly activePlotType?: PlotType;
-  readonly files: ExplorerFileEntry[];
   readonly mode: WorkbenchMainPart;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
-  readonly quickAccessFiles?: ExplorerFileEntry[];
+  readonly resourceStates?: readonly ExplorerResourceState[];
   readonly selectedResource: URI | null;
   readonly selectedSheetId?: string | null;
   readonly selectionKind: ExplorerSelectionKind;
@@ -114,6 +119,7 @@ export interface IExplorerService {
   readonly onDidChangeSelection: Event<ExplorerSelectionChangeEvent>;
   readonly onDidChangeHoveredResource: Event<ExplorerHoveredResourceChangeEvent>;
   readonly onDidChangeExpandedFolderKeys: Event<ExplorerFolderExpansionChangeEvent>;
+  readonly onDidChangeFiles: Event<void>;
   readonly onDidChangeViewLayout: Event<ExplorerViewLayout>;
   readonly onDidChangeVisibleTargets: Event<ExplorerVisibleTargetsChangeEvent>;
   readonly onDidChangePaneInput: Event<void>;

@@ -14,7 +14,7 @@ import type {
   FileId,
   SeriesId,
 } from "src/cs/workbench/services/session/common/sessionModel";
-import type { SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
+import type { SliceResourceTarget } from "src/cs/workbench/services/slice/common/slice";
 import type {
   PlotMainRenderModel,
   PlotMainSeries,
@@ -50,15 +50,15 @@ export type PlotAxisTitleContext = {
   readonly fileId: FileId;
   readonly pane: PlotAxisTitlePane;
   readonly plotType: PlotType;
-  readonly target?: SliceUriTarget | null;
+  readonly target?: SliceResourceTarget | null;
 };
 
 export type PlotTargetInput = {
   readonly fileId?: FileId | null;
-  readonly target?: SliceUriTarget | null;
+  readonly target?: SliceResourceTarget | null;
 };
 
-export type PlotTargetReference = FileId | SliceUriTarget | PlotTargetInput;
+export type PlotTargetReference = FileId | SliceResourceTarget | PlotTargetInput;
 
 export type PlotCalculatedDataInput = {
   readonly plotType?: PlotType;
@@ -70,14 +70,14 @@ export type PlotCalculatedDataPrefetchPriority = "active" | "hover" | "visible" 
 export type PlotCalculatedDataCacheChangeEvent = {
   readonly fileId?: FileId;
   readonly plotType: PlotType;
-  readonly target?: SliceUriTarget | null;
+  readonly target?: SliceResourceTarget | null;
 };
 
 export type PlotDisplayModelCacheChangeEvent = {
   readonly fileId?: FileId;
   readonly pane?: "chart" | "inspector";
   readonly plotType: PlotType;
-  readonly target?: SliceUriTarget | null;
+  readonly target?: SliceResourceTarget | null;
 };
 
 export type PlotMainRenderModelInput = PlotCalculatedDataInput;
@@ -86,7 +86,7 @@ export type PlotLegendModel = {
   readonly fileId: FileId;
   readonly plotType: PlotType;
   readonly seriesList: readonly PlotMainSeries[];
-  readonly target?: SliceUriTarget | null;
+  readonly target?: SliceResourceTarget | null;
 };
 
 export type PlotDisplayModelRequest = {
@@ -126,7 +126,7 @@ export type PlotDisplayModel = {
   readonly fileId: FileId;
   readonly inspector: PlotPaneDisplayModel | null;
   readonly plotType: PlotType;
-  readonly target?: SliceUriTarget | null;
+  readonly target?: SliceResourceTarget | null;
   readonly unitControl: PlotUnitControlModel | null;
 };
 

@@ -116,7 +116,7 @@ export class TableTemplateDecorationsProvider extends Disposable implements IDec
 			return this.userTemplateService.getTemplate(selection.templateId)?.template ?? null;
 		}
 
-		const reviewExecution = await this.reviewService.reviewUriForExecution({
+		const reviewExecution = await this.reviewService.reviewResourceForExecution({
 			resource: source.resource,
 			sheetId: source.sheetId ?? null,
 		});

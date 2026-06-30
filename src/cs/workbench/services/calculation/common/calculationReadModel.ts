@@ -23,7 +23,7 @@ import {
   getFileRecordDomain,
   getFileRecordXGroups,
 } from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
-import type { SliceUriResult, SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
+import type { SliceResourceResult, SliceResourceTarget } from "src/cs/workbench/services/slice/common/slice";
 
 type CalculationSourceNumberArray = readonly number[] | Float64Array;
 
@@ -81,7 +81,7 @@ export type CalculatedSeries = {
 export type CalculatedDataSource = {
   readonly fileId: string | null;
   readonly inputKind: "source" | "canonical" | "sliceUri" | CalculationKind;
-  readonly target?: SliceUriTarget | null;
+  readonly target?: SliceResourceTarget | null;
 };
 
 export type CalculatedData = {
@@ -196,15 +196,15 @@ export const createCalculatedDataForCanonicalFile = ({
   };
 };
 
-export const createCalculatedDataForSliceUriResult = ({
+export const createCalculatedDataForSliceResourceResult = ({
   plotType,
   result,
 }: {
   readonly plotType: CalculationKind;
-  readonly result: SliceUriResult;
+  readonly result: SliceResourceResult;
 }): CalculatedData => {
   const curves = result.curves;
-  const activeFile = createCalculationSourceFileFromSliceUriResult(result, curves);
+  const activeFile = createCalculationSourceFileFromSliceResourceResult(result, curves);
   const seriesById = new Map(result.series.map(series => [series.id, series]));
   const usedIds = new Set<string>();
   const seriesList = curves
@@ -226,7 +226,7 @@ export const createCalculatedDataForSliceUriResult = ({
     .filter((series): series is CalculatedSeries => Boolean(series));
   const points = seriesList.flatMap(series => series.data);
   const source = {
-    fileId: createSliceUriTargetId(result.target),
+    fileId: createSliceResourceTargetId(result.target),
     inputKind: "sliceUri" as const,
     target: result.target,
   };
@@ -421,25 +421,25 @@ const createCalculationSourceFileFromCanonicalFile = (file: FileRecord): Calcula
   };
 };
 
-const createCalculationSourceFileFromSliceUriResult = (
-  result: SliceUriResult,
-  curves: SliceUriResult["curves"],
+const createCalculationSourceFileFromSliceResourceResult = (
+  result: SliceResourceResult,
+  curves: SliceResourceResult["curves"],
 ): CalculationSourceFile => {
   const xValues = curves.flatMap(curve => curve.points.map(point => point.x));
   const yValues = curves.flatMap(curve => curve.points.map(point => point.y));
   return {
-    curveType: getSliceUriCurveType(curves[0]),
+    curveType: getSliceResourceCurveType(curves[0]),
     domain: curves.length
       ? {
         x: getFiniteDomain(xValues, [0, 1]),
         y: getFiniteDomain(yValues, [0, 1]),
       }
       : undefined,
-    fileId: createSliceUriTargetId(result.target),
-    fileName: result.target.resource.path.split(/[\\/]/).filter(Boolean).pop() ?? createSliceUriTargetId(result.target),
-    series: createCalculationSourceSeriesFromSliceUriResult(result, curves),
+    fileId: createSliceResourceTargetId(result.target),
+    fileName: result.target.resource.path.split(/[\\/]/).filter(Boolean).pop() ?? createSliceResourceTargetId(result.target),
+    series: createCalculationSourceSeriesFromSliceResourceResult(result, curves),
     supportsSs: curves.some(curve => curve.curveFamily === "iv" && curve.ivMode === "transfer"),
-    xAxisRole: getSliceUriXAxisRole(curves[0]),
+    xAxisRole: getSliceResourceXAxisRole(curves[0]),
     xGroups: curves.map(curve => curve.points.map(point => point.x)),
     xLabel: getSliceTemplateBlockText(result, block => block.titles?.bottom),
     xUnit: getSliceTemplateBlockText(result, block => block.x.unit),
@@ -448,9 +448,9 @@ const createCalculationSourceFileFromSliceUriResult = (
   };
 };
 
-const createCalculationSourceSeriesFromSliceUriResult = (
-  result: SliceUriResult,
-  curves: SliceUriResult["curves"],
+const createCalculationSourceSeriesFromSliceResourceResult = (
+  result: SliceResourceResult,
+  curves: SliceResourceResult["curves"],
 ): CalculationSourceSeries[] => {
   const seriesById = new Map(result.series.map(series => [series.id, series]));
   return curves.map((curve, index): CalculationSourceSeries => {
@@ -481,8 +481,8 @@ const createCalculationSourceSeriesFromFileRecord = (
     };
   });
 
-const getSliceUriCurveType = (
-  curve: SliceUriResult["curves"][number] | undefined,
+const getSliceResourceCurveType = (
+  curve: SliceResourceResult["curves"][number] | undefined,
 ): string | undefined => {
   if (!curve) {
     return undefined;
@@ -496,8 +496,8 @@ const getSliceUriCurveType = (
   return curve.curveFamily;
 };
 
-const getSliceUriXAxisRole = (
-  curve: SliceUriResult["curves"][number] | undefined,
+const getSliceResourceXAxisRole = (
+  curve: SliceResourceResult["curves"][number] | undefined,
 ): CalculationSourceFile["xAxisRole"] => {
   if (curve?.curveFamily === "iv" && curve.ivMode === "transfer") {
     return "vg";
@@ -509,8 +509,8 @@ const getSliceUriXAxisRole = (
 };
 
 const getSliceTemplateBlockText = (
-  result: SliceUriResult,
-  readValue: (block: SliceUriResult["run"]["template"]["blocks"][number]) => string | undefined,
+  result: SliceResourceResult,
+  readValue: (block: SliceResourceResult["run"]["template"]["blocks"][number]) => string | undefined,
 ): string | undefined => {
   for (const block of result.run.template.blocks) {
     const text = String(readValue(block) ?? "").trim();
@@ -521,8 +521,8 @@ const getSliceTemplateBlockText = (
   return undefined;
 };
 
-const createSliceUriTargetId = (
-  target: SliceUriTarget,
+const createSliceResourceTargetId = (
+  target: SliceResourceTarget,
 ): string => {
   const resource = getTargetResourceKey(target.resource);
   const sheetId = String(target.sheetId ?? "").trim();

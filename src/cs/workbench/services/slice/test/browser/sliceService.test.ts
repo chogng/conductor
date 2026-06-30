@@ -24,8 +24,8 @@ import type {
 } from "src/cs/workbench/services/table/common/resolverService";
 import type { TableSource } from "src/cs/workbench/services/table/common/table";
 import type {
-	SliceUriRequest,
-	SliceUriTarget,
+	SliceResourceRequest,
+	SliceResourceTarget,
 } from "src/cs/workbench/services/slice/common/slice";
 import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 
@@ -40,10 +40,10 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 	): DataResourceService =>
 		store.add(new DataResourceService(tableModelService, settingsService));
 
-	test("stores template selections by URI target in Slice state", () => {
+	test("stores template selections by resource target in Slice state", () => {
 		const sliceService = store.add(new SliceService());
 		const target = { resource: URI.file("/workspace/file-a.csv"), sheetId: "sheet-a" };
-		const changedTargets: SliceUriTarget[] = [];
+		const changedTargets: SliceResourceTarget[] = [];
 		store.add(sliceService.onDidChangeTemplateSelection(changedTarget => {
 			changedTargets.push(changedTarget);
 		}));
@@ -85,7 +85,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		}]);
 	});
 
-	test("cleans queued URI state when the table model resource changes", async () => {
+	test("cleans queued resource state when the table model resource changes", async () => {
 		const tableModelService = store.add(new BlockingTableModelService());
 		const sliceService = store.add(new SliceService(
 			createDataResourceServiceForTest(tableModelService),
@@ -94,19 +94,19 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		const processingTarget = { resource, sheetId: "sheet-a" };
 		const queuedTarget = { resource, sheetId: "sheet-b" };
 
-		sliceService.submitUri([createUriSliceRequest(processingTarget)]);
-		await waitUntil(() => sliceService.getUriState(processingTarget)?.state === "processing");
-		sliceService.submitUri([createUriSliceRequest(queuedTarget)]);
-		assert.deepEqual(sliceService.getUriState(queuedTarget), { state: "queued" });
+		sliceService.submitResource([createResourceSliceRequest(processingTarget)]);
+		await waitUntil(() => sliceService.getResourceState(processingTarget)?.state === "processing");
+		sliceService.submitResource([createResourceSliceRequest(queuedTarget)]);
+		assert.deepEqual(sliceService.getResourceState(queuedTarget), { state: "queued" });
 
 		tableModelService.fireModelChanged(resource);
 
 		assert.equal(sliceService.getState().queueLength, 0);
-		assert.equal(sliceService.getUriState(queuedTarget), undefined);
-		assert.deepEqual(sliceService.getUriState(processingTarget), { state: "processing" });
+		assert.equal(sliceService.getResourceState(queuedTarget), undefined);
+		assert.deepEqual(sliceService.getResourceState(processingTarget), { state: "processing" });
 	});
 
-	test("cancels queued URI slice requests by target", async () => {
+	test("cancels queued resource slice requests by target", async () => {
 		const tableModelService = store.add(new BlockingTableModelService());
 		const sliceService = store.add(new SliceService(
 			createDataResourceServiceForTest(tableModelService),
@@ -115,19 +115,19 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		const processingTarget = { resource, sheetId: "sheet-a" };
 		const queuedTarget = { resource, sheetId: "sheet-b" };
 
-		sliceService.submitUri([createUriSliceRequest(processingTarget)]);
-		await waitUntil(() => sliceService.getUriState(processingTarget)?.state === "processing");
-		sliceService.submitUri([createUriSliceRequest(queuedTarget)]);
-		assert.deepEqual(sliceService.getUriState(queuedTarget), { state: "queued" });
+		sliceService.submitResource([createResourceSliceRequest(processingTarget)]);
+		await waitUntil(() => sliceService.getResourceState(processingTarget)?.state === "processing");
+		sliceService.submitResource([createResourceSliceRequest(queuedTarget)]);
+		assert.deepEqual(sliceService.getResourceState(queuedTarget), { state: "queued" });
 
-		sliceService.cancelUri([queuedTarget]);
+		sliceService.cancelResource([queuedTarget]);
 
 		assert.equal(sliceService.getState().queueLength, 0);
-		assert.deepEqual(sliceService.getUriState(queuedTarget), { state: "none" });
-		assert.deepEqual(sliceService.getUriState(processingTarget), { state: "processing" });
+		assert.deepEqual(sliceService.getResourceState(queuedTarget), { state: "none" });
+		assert.deepEqual(sliceService.getResourceState(processingTarget), { state: "processing" });
 	});
 
-	test("matches queued URI slice state when request resource is structured cloned", async () => {
+	test("matches queued resource slice state when request resource is structured cloned", async () => {
 		const tableModelService = store.add(new BlockingTableModelService());
 		const sliceService = store.add(new SliceService(
 			createDataResourceServiceForTest(tableModelService),
@@ -135,23 +135,23 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		const resource = URI.file("/workspace/source.xlsx");
 		const processingTarget = { resource, sheetId: "sheet-a" };
 		const queuedTarget = {
-			resource: resource.toJSON() as unknown as SliceUriTarget["resource"],
+			resource: resource.toJSON() as unknown as SliceResourceTarget["resource"],
 			sheetId: "sheet-b",
 		};
 		const queryTarget = { resource, sheetId: "sheet-b" };
 
-		sliceService.submitUri([createUriSliceRequest(processingTarget)]);
-		await waitUntil(() => sliceService.getUriState(processingTarget)?.state === "processing");
-		sliceService.submitUri([createUriSliceRequest(queuedTarget)]);
+		sliceService.submitResource([createResourceSliceRequest(processingTarget)]);
+		await waitUntil(() => sliceService.getResourceState(processingTarget)?.state === "processing");
+		sliceService.submitResource([createResourceSliceRequest(queuedTarget)]);
 
-		assert.deepEqual(sliceService.getUriState(queryTarget), { state: "queued" });
+		assert.deepEqual(sliceService.getResourceState(queryTarget), { state: "queued" });
 
-		sliceService.cancelUri([queryTarget]);
+		sliceService.cancelResource([queryTarget]);
 
-		assert.deepEqual(sliceService.getUriState(queryTarget), { state: "none" });
+		assert.deepEqual(sliceService.getResourceState(queryTarget), { state: "none" });
 	});
 
-	test("reads only planned URI table row ranges from windowed content", async () => {
+	test("reads only planned resource table row ranges from windowed content", async () => {
 		const resource = URI.file("/workspace/large-source.xlsx");
 		const rowCount = 1004;
 		const template = createTemplate({
@@ -193,15 +193,15 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		));
 		const target = { resource, sheetId: "sheet-a" };
 
-		sliceService.submitUri([createUriSliceRequest(target, {
+		sliceService.submitResource([createResourceSliceRequest(target, {
 			rowCount,
 			sourceModelVersion: 3,
 			sourceVersion: 7,
 			template,
 		})]);
 
-		await waitUntil(() => sliceService.getUriState(target)?.state === "ready");
-		const result = sliceService.getUriResult(target);
+		await waitUntil(() => sliceService.getResourceState(target)?.state === "ready");
+		const result = sliceService.getResourceResult(target);
 		assert.equal(result?.run.errors.length, 0);
 		assert.deepEqual(result?.curves[0]?.points, [
 			{ x: 0, y: 1 },
@@ -210,7 +210,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		]);
 	});
 
-	test("fires URI result target changes when URI results are stored and removed", async () => {
+	test("fires resource result target changes when resource results are stored and removed", async () => {
 		const resource = URI.file("/workspace/source.xlsx");
 		const content: TableModelContentSnapshot = {
 			columnCount: 2,
@@ -242,13 +242,13 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 			createDataResourceServiceForTest(tableModelService),
 		));
 		const target = { resource, sheetId: "sheet-a" };
-		const changedTargets: SliceUriTarget[] = [];
-		const listener = sliceService.onDidChangeUriSliceResult(changedTarget => {
+		const changedTargets: SliceResourceTarget[] = [];
+		const listener = sliceService.onDidChangeResourceSliceResult(changedTarget => {
 			changedTargets.push(changedTarget);
 		});
 
-		sliceService.submitUri([createUriSliceRequest(target)]);
-		await waitUntil(() => sliceService.getUriState(target)?.state === "ready");
+		sliceService.submitResource([createResourceSliceRequest(target)]);
+		await waitUntil(() => sliceService.getResourceState(target)?.state === "ready");
 		tableModelService.fireModelChanged(resource);
 		listener.dispose();
 
@@ -258,10 +258,10 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 			resource.toString(),
 			resource.toString(),
 		]);
-		assert.equal(sliceService.getUriResult(target), null);
+		assert.equal(sliceService.getResourceResult(target), null);
 	});
 
-	test("does not fall back to the default sheet when a URI slice sheet target is missing", async () => {
+	test("does not fall back to the default sheet when a resource slice sheet target is missing", async () => {
 		const resource = URI.file("/workspace/source.xlsx");
 		const content: TableModelContentSnapshot = {
 			columnCount: 2,
@@ -294,11 +294,11 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		));
 		const target = { resource, sheetId: "missing-sheet" };
 
-		sliceService.submitUri([createUriSliceRequest(target)]);
+		sliceService.submitResource([createResourceSliceRequest(target)]);
 
-		await waitUntil(() => sliceService.getUriState(target)?.state === "failed");
-		assert.equal(sliceService.getUriState(target)?.state, "failed");
-		assert.equal(sliceService.getUriResult(target), null);
+		await waitUntil(() => sliceService.getResourceState(target)?.state === "failed");
+		assert.equal(sliceService.getResourceState(target)?.state, "failed");
+		assert.equal(sliceService.getResourceResult(target), null);
 	});
 });
 
@@ -350,15 +350,15 @@ const createTestReviewFactors = () => ({
 	diagnosticPenalty: 0,
 });
 
-const createUriSliceRequest = (
-	target: SliceUriTarget,
+const createResourceSliceRequest = (
+	target: SliceResourceTarget,
 	options: {
 		readonly rowCount?: number;
 		readonly sourceModelVersion?: number;
 		readonly sourceVersion?: number;
 		readonly template?: Template;
 	} = {},
-): SliceUriRequest => {
+): SliceResourceRequest => {
 	const reviewedTemplate = createReviewedTemplate(options.template);
 	const requestSignature = JSON.stringify({
 		resource: target.resource.toString(),
@@ -366,20 +366,20 @@ const createUriSliceRequest = (
 		templateFingerprint: reviewedTemplate.templateFingerprint,
 	});
 	return {
-		id: `slice-uri-request:${target.resource.toString()}:${target.sheetId ?? ""}`,
+		id: `slice-resource-request:${target.resource.toString()}:${target.sheetId ?? ""}`,
 		target,
 		reviewedTemplate,
-		reviewSignature: "review:uri",
+		reviewSignature: "review:resource",
 		trigger: {
 			kind: "reviewDecision",
-			reviewSignature: "review:uri",
+			reviewSignature: "review:resource",
 			submittedBy: "system",
 		},
 		requestSignature,
 		createdAt: 1,
 		rowCount: options.rowCount ?? 3,
 		columnCount: 2,
-		sourceContentSignature: "source-content:uri",
+		sourceContentSignature: "source-content:resource",
 		sourceModelVersion: options.sourceModelVersion ?? 1,
 		sourceVersion: options.sourceVersion ?? 1,
 	};

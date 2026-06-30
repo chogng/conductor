@@ -6,12 +6,12 @@ import type {
   DerivedCurveKey,
   FileRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
-import type { SliceUriResult } from "src/cs/workbench/services/slice/common/slice";
+import type { SliceResourceResult } from "src/cs/workbench/services/slice/common/slice";
 
 import {
   createCalculatedData,
   createCalculatedDataKey,
-  createCalculatedDataForSliceUriResult,
+  createCalculatedDataForSliceResourceResult,
   createCalculatedDataInputSignature,
   createCalculatedPlotsByKey,
   createCalculatedSeries,
@@ -262,9 +262,9 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
     assert.notEqual(left.signature, right.signature);
   });
 
-  test("createCalculatedDataForSliceUriResult derives target id from URI components", () => {
-    const result = createSliceUriResult();
-    const calculated = createCalculatedDataForSliceUriResult({
+  test("createCalculatedDataForSliceResourceResult derives target id from URI components", () => {
+    const result = createSliceResourceResult();
+    const calculated = createCalculatedDataForSliceResourceResult({
       plotType: "iv",
       result,
     });
@@ -295,8 +295,8 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
   });
 });
 
-const createSliceUriResult = (): SliceUriResult => {
-  const resource = URI.file("/workspace/data/transfer.csv").toJSON() as unknown as SliceUriResult["target"]["resource"];
+const createSliceResourceResult = (): SliceResourceResult => {
+  const resource = URI.file("/workspace/data/transfer.csv").toJSON() as unknown as SliceResourceResult["target"]["resource"];
   const target = {
     resource,
     sheetId: "Sheet 1",

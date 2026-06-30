@@ -48,8 +48,8 @@ system application.
 - returning structured manual-template review results;
 - exposing `resolveReviewSummary({ resource, contentHash?, sheetId? })` for explicit
   non-execution scheduling/summary production by URI-backed import workflows;
-- exposing URI execution projections for Slice-level consumers through
-  `reviewUriForExecution({ resource, contentHash?, sheetId? })`;
+- exposing resource execution projections for Slice-level consumers through
+  `reviewResourceForExecution({ resource, contentHash?, sheetId? })`;
 - maintaining URI-backed latest review summaries associated with
   `resource + contentHash/sourceVersion + optional sheetId` for Explorer
   decorations and hover.
@@ -97,7 +97,7 @@ sequenceDiagram
   participant Candidate as reviewCandidate
   participant Decision as reviewDecision
 
-  Caller->>Review: resolveReviewSummary(resource, sheetId?) or reviewUriForExecution(resource, sheetId?)
+  Caller->>Review: resolveReviewSummary(resource, sheetId?) or reviewResourceForExecution(resource, sheetId?)
   alt current cached review
     Review-->>Caller: cached ready OR invalid/noCandidates OR null pending/error
   else active URI review is resolving
@@ -143,15 +143,15 @@ Missing or stale URI summaries are not refreshed by Explorer decoration reads.
 Explorer may receive a missing, stale, or active-pending summary and must keep
 rendering without forcing synchronous or background structured-content
 resolution. When ReviewService receives a DataResource, UserTemplate, or
-SchemaProfile invalidation for a tracked cached URI target, it marks the summary
+SchemaProfile invalidation for a tracked cached `{ resource, sheetId? }` target, it marks the summary
 stale and queues a Review-owned background refresh for that same target. Explicit
 import/source workflow scheduling through `resolveReviewSummary(...)` and
-execution paths through `reviewUriForExecution(...)` may also resolve structured
+execution paths through `reviewResourceForExecution(...)` may also resolve structured
 content, cache the resulting summary, and publish the later `onDidChangeReview`
 update.
 
-User commands or explicit URI-backed execution controllers read the current URI
-review execution projection and submit URI-backed Slice requests, with idempotency and
+User commands or explicit resource execution controllers read the current
+resource/sheet review execution projection and submit `SliceResourceRequest` values, with idempotency and
 staleness guards based on contentHash/sourceVersion, evidence fingerprint,
 optional materialization version, review signature, and template fingerprint.
 
@@ -159,21 +159,21 @@ Manual execution:
 
 ```txt
 user command / UserTemplate picker
-  -> IReviewService.reviewUriForExecution({ resource, contentHash?, sheetId? })
-  -> IReviewService.reviewUriManualTemplate(user template id)
+  -> IReviewService.reviewResourceForExecution({ resource, contentHash?, sheetId? })
+  -> IReviewService.reviewResourceManualTemplate(user template id)
   -> ManualTemplateReviewResult
   -> ready result only
   -> IReviewService.confirmReviewedTemplate(...) for explicit user-confirmed templates
   -> SchemaProfileService.confirmProfile(...) when structured-content bindings can be derived
-  -> SliceUriRequest(trigger = userCommand)
-  -> ISliceService.submitUri(...)
+  -> SliceResourceRequest(trigger = userCommand)
+  -> ISliceService.submitResource(...)
 ```
 
 ## Core Files
 
 | File | Owns | Must not own |
 | --- | --- | --- |
-| `common/review.ts` | `IReviewService` contract, URI execution/manual review request and result types, review/evidence/result signature helpers. | Evidence shape definitions, browser cache implementation, Explorer decoration mapping, Slice submission. |
+| `common/review.ts` | `IReviewService` contract, resource execution/manual review request and result types, review/evidence/result signature helpers. | Evidence shape definitions, browser cache implementation, Explorer decoration mapping, Slice submission. |
 | `common/reviewModel.ts` | Pure Review domain model: Review input evidence wrapper, `ReviewContext`, `SegmentCandidate`, `ReviewCandidate`, `ReviewResult`, `ReviewDecision`, factors, findings, `ReviewedTemplate`, `ReviewSummary`. | Service implementation, evidence production, DataResource semantic-library storage, Explorer UI types, structured-content adapter types. |
 | `common/reviewCandidate.ts` | Pure DataResource binding evidence + UserTemplate snapshot + URI/content context -> `SegmentCandidate` / `ReviewCandidate` derivation. | Final Review status, `ReviewedTemplate` selection, Slice execution, Explorer decoration, semantic title matching. |
 | `common/reviewDecision.ts` | Pure assembly of context, candidates, scoring, and decision policy into `ReviewResult`, selected `ReviewedTemplate`, and summary-ready facts. This is one decision pipeline, not separate scoring/result owners. | Candidate derivation, browser scheduling/cache, file/model reads, Explorer decoration mapping, Slice execution. |
@@ -234,8 +234,8 @@ snapshot. Do not reintroduce Review-local structured-content bridges.
   trigger.
 - Accepted measurement semantics belong on the reviewed executable `Template`
   snapshot (`ReviewedTemplate.template.measurement`), not as standalone fields
-  on `UriReviewExecution`, `ReviewSummary`, or Slice request bridge fields.
-- Execution trigger belongs to `SliceUriRequest.trigger`.
+  on `ResourceReviewExecution`, `ReviewSummary`, or Slice request bridge fields.
+- Execution trigger belongs to `SliceResourceRequest.trigger`.
 - Non-selected candidate records store summaries only. Detail rebuilding must
   verify DataResource semantic/evidence fingerprints and UserTemplate versions,
   and return a stale result when snapshots no longer match.
@@ -258,7 +258,7 @@ snapshot. Do not reintroduce Review-local structured-content bridges.
 ## Do Not
 
 - Do not call Slice from `ReviewService`; use an explicit user-command or
-  URI-backed execution controller that submits `SliceUriRequest` values.
+  resource execution controller that submits `SliceResourceRequest` values.
 - Do not introduce or expose a review `result target`; review results are
   derived facts associated with a URI content version.
 - Do not read raw rows, rerun table-model detection, or delegate candidate

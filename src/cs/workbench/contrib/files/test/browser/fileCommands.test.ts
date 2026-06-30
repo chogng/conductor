@@ -6,7 +6,7 @@ import { CommandsRegistry } from "../../../../../platform/commands/common/comman
 import type { ServicesAccessor, ServiceIdentifier } from "../../../../../platform/instantiation/common/instantiation.ts";
 import { IExplorerService } from "../../../../../workbench/contrib/files/browser/files.ts";
 import type { ExplorerViewPane } from "../../../../../workbench/contrib/files/browser/explorerViewlet.ts";
-import { ISliceService, type SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
+import { ISliceService, type SliceResourceTarget } from "src/cs/workbench/services/slice/common/slice";
 import type { TemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
 import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import {
@@ -39,11 +39,11 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
     let renameSelection: unknown = null;
     let editableState: unknown = null;
     let templateSelection:
-      | { readonly target: SliceUriTarget; readonly selection: TemplateSelection }
+      | { readonly target: SliceResourceTarget; readonly selection: TemplateSelection }
       | null = null;
     const sliceService = {
       _serviceBrand: undefined,
-      setTemplateSelection: (target: SliceUriTarget, selection: TemplateSelection) => {
+      setTemplateSelection: (target: SliceResourceTarget, selection: TemplateSelection) => {
         templateSelection = { target, selection };
       },
     } as unknown as ISliceService;
@@ -147,7 +147,7 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
     let renameSelection: unknown = null;
     let editableState: unknown = null;
     let templateSelection:
-      | { readonly target: SliceUriTarget; readonly selection: TemplateSelection }
+      | { readonly target: SliceResourceTarget; readonly selection: TemplateSelection }
       | null = null;
     const explorerView = createExplorerViewStub({
       openFolderImport: () => {
@@ -178,7 +178,7 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
     });
     const sliceService = {
       _serviceBrand: undefined,
-      setTemplateSelection: (target: SliceUriTarget, selection: TemplateSelection) => {
+      setTemplateSelection: (target: SliceResourceTarget, selection: TemplateSelection) => {
         templateSelection = { target, selection };
       },
     } as unknown as ISliceService;

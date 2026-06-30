@@ -240,14 +240,13 @@ const createExplorerServiceForTest = (
 	_serviceBrand: undefined,
 	files: [...files],
 	getPaneInput: () => ({
-		files: [...files],
 		mode: "table",
-		quickAccessFiles: [],
 		selectedResource: null,
 		selectedSheetId: null,
 		selectionKind: "table",
 	}),
 	hasPendingSourceFiles: false,
+	onDidChangeFiles: Event.None as Event<void>,
 	onDidChangePaneInput: Event.None as Event<void>,
 	setEditable: () => undefined,
 	setHoveredResource: () => undefined,
@@ -279,10 +278,10 @@ const createReviewServiceForTest = (
 		findingCodes: [],
 		reviewedSemanticLabel: "transfer",
 	}),
-	reviewUriManualTemplate: async () => ({
+	reviewResourceManualTemplate: async () => ({
 		kind: "invalid",
 		diagnostics: [],
 		suggestedActions: [],
 	}),
-	reviewUriForExecution: async () => null,
+	reviewResourceForExecution: async () => null,
 });

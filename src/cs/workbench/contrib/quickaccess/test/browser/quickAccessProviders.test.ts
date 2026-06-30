@@ -23,6 +23,7 @@ import {
   type ExplorerRevealMode,
   type ExplorerSelectionTarget,
 } from "src/cs/workbench/contrib/files/browser/files";
+import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import {
   COMMANDS_QUICK_ACCESS_PREFIX,
   CommandsQuickAccessProvider,
@@ -52,27 +53,24 @@ suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
     ]);
   });
 
-  test("files provider reads Explorer pane input and selects through Explorer", async () => {
+  test("files provider reads Explorer service files and selects through Explorer", async () => {
     const selections: Array<{
       readonly reveal: ExplorerRevealMode | undefined;
       readonly target: ExplorerSelectionTarget;
     }> = [];
+    const explorerFiles = [
+      { fileId: "file-a", fileName: "Alpha.csv", relativePath: "293K/input/Alpha.csv", resource: URI.file("/workspace/Alpha.csv") },
+      { fileId: "file-b", fileName: "Beta.csv", relativePath: "293K/output/Beta.csv", resource: URI.file("/workspace/Beta.csv") },
+    ];
     const paneInput: ExplorerPaneInput = {
       activePlotType: "iv",
-      files: [
-        { fileId: "file-a", fileName: "Alpha.csv", resource: URI.file("/workspace/Alpha.csv") },
-      ],
-      quickAccessFiles: [
-        { fileId: "file-a", fileName: "Alpha.csv", relativePath: "293K/input/Alpha.csv", resource: URI.file("/workspace/Alpha.csv") },
-        { fileId: "file-b", fileName: "Beta.csv", relativePath: "293K/output/Beta.csv", resource: URI.file("/workspace/Beta.csv") },
-      ],
       mode: "chart",
       selectedResource: URI.file("/workspace/Alpha.csv"),
       selectedSheetId: null,
       selectionKind: "chart",
     };
     const provider = store.add(new FilesQuickAccessProvider(
-      createExplorerService(paneInput, selections),
+      createExplorerService(paneInput, explorerFiles, selections),
       { activeWorkbenchMainPart: "chart" } as unknown as IWorkbenchLayoutService,
     ));
     const picks = await provider.provide("beta");
@@ -99,42 +97,30 @@ suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
     }]);
   });
 
-  test("files provider falls back to rendered Explorer files", async () => {
+  test("files provider returns no picks when pane input is for another mode", async () => {
     const selections: Array<{
       readonly reveal: ExplorerRevealMode | undefined;
       readonly target: ExplorerSelectionTarget;
     }> = [];
+    const explorerFiles = [
+      { fileId: "file-a", fileName: "Alpha.csv", resource: URI.file("/workspace/Alpha.csv") },
+      { fileId: "file-b", fileName: "Beta.csv", resource: URI.file("/workspace/Beta.csv") },
+    ];
     const paneInput: ExplorerPaneInput = {
       activePlotType: "iv",
-      files: [
-        { fileId: "file-a", fileName: "Alpha.csv", resource: URI.file("/workspace/Alpha.csv") },
-        { fileId: "file-b", fileName: "Beta.csv", resource: URI.file("/workspace/Beta.csv") },
-      ],
       mode: "chart",
       selectedResource: URI.file("/workspace/Alpha.csv"),
       selectedSheetId: null,
-      selectionKind: "chart",
+      selectionKind: "table",
     };
     const provider = store.add(new FilesQuickAccessProvider(
-      createExplorerService(paneInput, selections),
+      createExplorerService(paneInput, explorerFiles, selections),
       { activeWorkbenchMainPart: "chart" } as unknown as IWorkbenchLayoutService,
     ));
     const picks = await provider.provide("beta");
 
-    assert.deepEqual(picks.map(pick => pick.label), ["Beta.csv"]);
-    picks[0]?.accept?.();
-    assert.deepEqual(selections, [{
-      reveal: "force",
-      target: {
-        candidateResources: [
-          { resource: URI.file("/workspace/Alpha.csv") },
-          { resource: URI.file("/workspace/Beta.csv") },
-        ],
-        kind: "chart",
-        resource: URI.file("/workspace/Beta.csv"),
-        sheetId: null,
-      },
-    }]);
+    assert.deepEqual(picks, []);
+    assert.deepEqual(selections, []);
   });
 
   test("commands provider reads context-aware command palette actions", async () => {
@@ -183,6 +169,7 @@ function createQuickInputService(shownPrefixes: string[]): IQuickInputService {
 
 function createExplorerService(
   paneInput: ExplorerPaneInput,
+  explorerFiles: readonly ExplorerFileEntry[],
   selections: Array<{
     readonly reveal: ExplorerRevealMode | undefined;
     readonly target: ExplorerSelectionTarget;
@@ -190,7 +177,7 @@ function createExplorerService(
 ): IExplorerService {
 	  return {
 	    _serviceBrand: undefined,
-	    files: paneInput.quickAccessFiles?.length ? paneInput.quickAccessFiles : paneInput.files,
+	    files: explorerFiles,
 	    hasPendingSourceFiles: false,
 	    hoveredResource: null,
 	    selectedResource: null,
@@ -200,6 +187,7 @@ function createExplorerService(
 	    onDidChangePendingSourceFiles: Event.None as IExplorerService["onDidChangePendingSourceFiles"],
 	    onDidChangeSelection: Event.None as IExplorerService["onDidChangeSelection"],
 	    onDidChangeExpandedFolderKeys: Event.None as IExplorerService["onDidChangeExpandedFolderKeys"],
+	    onDidChangeFiles: Event.None as IExplorerService["onDidChangeFiles"],
 	    onDidChangeHoveredResource: Event.None as IExplorerService["onDidChangeHoveredResource"],
 	    onDidChangeViewLayout: Event.None as IExplorerService["onDidChangeViewLayout"],
 	    onDidChangeVisibleTargets: Event.None as IExplorerService["onDidChangeVisibleTargets"],

@@ -19,7 +19,7 @@ import {
 import {
 	IReviewService,
 	type IReviewService as IReviewServiceType,
-	type UriReviewExecution,
+	type ResourceReviewExecution,
 } from "src/cs/workbench/services/review/common/review";
 import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/reviewModel";
 import {
@@ -28,8 +28,8 @@ import {
 import {
 	ISliceService,
 	type SliceState,
-	type SliceUriRequest,
-	type SliceUriTarget,
+	type SliceResourceRequest,
+	type SliceResourceTarget,
 } from "src/cs/workbench/services/slice/common/slice";
 import { createEmptyTemplateEditorConfig } from "src/cs/workbench/services/template/common/templateEditorConfig";
 import type { Template } from "src/cs/workbench/services/template/common/template";
@@ -61,12 +61,12 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 			}),
 		}));
 
-		assert.deepEqual(sliceService.uriRequests, []);
+		assert.deepEqual(sliceService.resourceRequests, []);
 		assert.equal(notifications[0]?.id, "slice.notification");
-		assert.equal(notifications[0]?.message, "slice.runWithTemplate.noUriTables");
+		assert.equal(notifications[0]?.message, "slice.runWithTemplate.noResourceTables");
 	});
 
-	test("does not submit manual slicing without URI content targets from the selected saved template", () => {
+	test("does not submit manual slicing without resource content targets from the selected saved template", () => {
 		const sliceService = new TestSliceService();
 		const notifications: INotification[] = [];
 
@@ -85,9 +85,9 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 			}),
 		}));
 
-		assert.deepEqual(sliceService.uriRequests, []);
+		assert.deepEqual(sliceService.resourceRequests, []);
 		assert.equal(notifications[0]?.id, "slice.notification");
-		assert.equal(notifications[0]?.message, "slice.runWithTemplate.noUriTables");
+		assert.equal(notifications[0]?.message, "slice.runWithTemplate.noResourceTables");
 	});
 
 	test("does not run while explorer has pending sources", () => {
@@ -100,11 +100,11 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 			sliceService,
 		}));
 
-		assert.deepEqual(sliceService.uriRequests, []);
+		assert.deepEqual(sliceService.resourceRequests, []);
 		assert.equal(notifications[0]?.id, "slice.notification");
 	});
 
-	test("submits URI slice requests with a source content signature", async () => {
+	test("submits resource slice requests with a source content signature", async () => {
 		const sliceService = new TestSliceService();
 		const resource = URI.file("/workspace/transfer.csv");
 		const reviewedTemplate = createReviewedTemplate();
@@ -120,7 +120,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 				sheetId: "sheet-a",
 			}],
 			reviewService: createReviewServiceForTest({
-				reviewUriForExecution: async target => createReadyUriExecution({
+				reviewResourceForExecution: async target => createReadyResourceExecution({
 					applicationKind: "systemRecommended",
 					reviewedTemplate,
 					reviewSignature,
@@ -141,7 +141,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 
 		await waitForMicrotasks();
 
-		const request = sliceService.uriRequests[0];
+		const request = sliceService.resourceRequests[0];
 		assert.ok(request);
 		assert.equal(request.target.resource.toString(), resource.toString());
 		assert.equal(request.target.sheetId, "sheet-a");
@@ -155,7 +155,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 		assert.deepEqual(confirmations, []);
 	});
 
-	test("confirms manual URI reviewed templates before submitting slice requests", async () => {
+	test("confirms manual resource reviewed templates before submitting slice requests", async () => {
 		const sliceService = new TestSliceService();
 		const resource = URI.file("/workspace/transfer.csv");
 		const reviewedTemplate = createReviewedTemplate();
@@ -170,13 +170,13 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 				sheetId: "sheet-a",
 			}],
 			reviewService: createReviewServiceForTest({
-				reviewUriForExecution: async target => createReadyUriExecution({
+				reviewResourceForExecution: async target => createReadyResourceExecution({
 					applicationKind: "userActionRequired",
 					reviewedTemplate,
 					reviewSignature: "review:manual",
 					target,
 				}),
-				reviewUriManualTemplate: async () => ({
+				reviewResourceManualTemplate: async () => ({
 					kind: "ready",
 					reviewedTemplate,
 					suggestedActions: [],
@@ -201,7 +201,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 
 		await waitForMicrotasks();
 
-		assert.equal(sliceService.uriRequests.length, 1);
+		assert.equal(sliceService.resourceRequests.length, 1);
 		assert.equal(confirmations.length, 1);
 		assert.equal(confirmations[0]?.target.resource.toString(), resource.toString());
 		assert.equal(confirmations[0]?.target.sheetId, "sheet-a");
@@ -209,7 +209,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 		assert.equal(confirmations[0]?.reason, "user");
 	});
 
-	test("does not block manual URI slicing when schema profile confirmation fails", async () => {
+	test("does not block manual resource slicing when schema profile confirmation fails", async () => {
 		const sliceService = new TestSliceService();
 		const resource = URI.file("/workspace/transfer.csv");
 		const reviewedTemplate = createReviewedTemplate();
@@ -223,13 +223,13 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 				sheetId: "sheet-a",
 			}],
 			reviewService: createReviewServiceForTest({
-				reviewUriForExecution: async target => createReadyUriExecution({
+				reviewResourceForExecution: async target => createReadyResourceExecution({
 					applicationKind: "userActionRequired",
 					reviewedTemplate,
 					reviewSignature: "review:manual",
 					target,
 				}),
-				reviewUriManualTemplate: async () => ({
+				reviewResourceManualTemplate: async () => ({
 					kind: "ready",
 					reviewedTemplate,
 					suggestedActions: [],
@@ -253,10 +253,10 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 
 		await waitForMicrotasks();
 
-		assert.equal(sliceService.uriRequests.length, 1);
+		assert.equal(sliceService.resourceRequests.length, 1);
 	});
 
-	test("does not submit URI auto slice when review needs user action", async () => {
+	test("does not submit resource auto slice when review needs user action", async () => {
 		const sliceService = new TestSliceService();
 		const resource = URI.file("/workspace/transfer.csv");
 		const reviewedTemplate = createReviewedTemplate();
@@ -270,7 +270,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 				sheetId: "sheet-a",
 			}],
 			reviewService: createReviewServiceForTest({
-				reviewUriForExecution: async target => createReadyUriExecution({
+				reviewResourceForExecution: async target => createReadyResourceExecution({
 					applicationKind: "userActionRequired",
 					reviewedTemplate,
 					reviewSignature: "review:user-action",
@@ -285,10 +285,10 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 
 		await waitForMicrotasks();
 
-		assert.deepEqual(sliceService.uriRequests, []);
+		assert.deepEqual(sliceService.resourceRequests, []);
 	});
 
-	test("does not submit URI slice requests without a review signature", async () => {
+	test("does not submit resource slice requests without a review signature", async () => {
 		const sliceService = new TestSliceService();
 		const resource = URI.file("/workspace/transfer.csv");
 		const reviewedTemplate = createReviewedTemplate();
@@ -304,7 +304,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 			}],
 			notifications,
 			reviewService: createReviewServiceForTest({
-				reviewUriForExecution: async () => null,
+				reviewResourceForExecution: async () => null,
 			}),
 			sliceService,
 			templateState: createTemplateState({
@@ -314,7 +314,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 
 		await waitForMicrotasks();
 
-		assert.deepEqual(sliceService.uriRequests, []);
+		assert.deepEqual(sliceService.resourceRequests, []);
 		assert.equal(notifications[0]?.id, "slice.notification");
 	});
 });
@@ -322,9 +322,9 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 class TestSliceService implements ISliceService {
 	public declare readonly _serviceBrand: undefined;
 	public readonly onDidChangeSliceState = Event.None as Event<void>;
-	public readonly onDidChangeTemplateSelection = Event.None as Event<SliceUriTarget>;
-	public readonly onDidChangeUriSliceResult = Event.None as Event<SliceUriTarget>;
-	public readonly uriRequests: SliceUriRequest[] = [];
+	public readonly onDidChangeTemplateSelection = Event.None as Event<SliceResourceTarget>;
+	public readonly onDidChangeResourceSliceResult = Event.None as Event<SliceResourceTarget>;
+	public readonly resourceRequests: SliceResourceRequest[] = [];
 
 	public getState(): SliceState {
 		return {
@@ -333,11 +333,11 @@ class TestSliceService implements ISliceService {
 		};
 	}
 
-	public getUriResult(): null {
+	public getResourceResult(): null {
 		return null;
 	}
 
-	public getUriState(): undefined {
+	public getResourceState(): undefined {
 		return undefined;
 	}
 
@@ -345,12 +345,12 @@ class TestSliceService implements ISliceService {
 		return { kind: "auto" };
 	}
 
-	public submitUri(requests: readonly SliceUriRequest[]): void {
-		this.uriRequests.push(...requests);
+	public submitResource(requests: readonly SliceResourceRequest[]): void {
+		this.resourceRequests.push(...requests);
 	}
-	public prioritizeUri(_target: SliceUriTarget): void {}
-	public cancelUri(_targets: readonly SliceUriTarget[]): void {}
-	public setTemplateSelection(_target: SliceUriTarget, _selection: TemplateSelection): void {}
+	public prioritizeResource(_target: SliceResourceTarget): void {}
+	public cancelResource(_targets: readonly SliceResourceTarget[]): void {}
+	public setTemplateSelection(_target: SliceResourceTarget, _selection: TemplateSelection): void {}
 }
 
 const createAccessor = ({
@@ -374,7 +374,7 @@ const createAccessor = ({
 		[IExplorerService, {
 			_serviceBrand: undefined,
 			files: explorerFiles,
-			getPaneInput: () => ({ files: explorerFiles, quickAccessFiles: [] }),
+			getPaneInput: () => ({ mode: "table", selectedResource: null, selectionKind: "table" }),
 			hasPendingSourceFiles,
 		}],
 		[INotificationService, {
@@ -465,16 +465,16 @@ const createReviewServiceForTest = (
 		state: "missing",
 		findingCodes: [],
 	}),
-	reviewUriManualTemplate: async () => ({
+	reviewResourceManualTemplate: async () => ({
 		kind: "invalid",
 		diagnostics: [],
 		suggestedActions: [],
 	}),
-	reviewUriForExecution: async () => null,
+	reviewResourceForExecution: async () => null,
 	...overrides,
 });
 
-const createReadyUriExecution = ({
+const createReadyResourceExecution = ({
 	applicationKind,
 	reviewedTemplate,
 	reviewSignature,
@@ -488,7 +488,7 @@ const createReadyUriExecution = ({
 	readonly sourceModelVersion?: number;
 	readonly sourceVersion?: number;
 	readonly target: { readonly resource: URI; readonly sheetId?: string | null };
-}): UriReviewExecution => ({
+}): ResourceReviewExecution => ({
 	resource: target.resource,
 	...(target.sheetId ? { sheetId: target.sheetId } : {}),
 	summary: {

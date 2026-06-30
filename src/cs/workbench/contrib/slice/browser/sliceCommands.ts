@@ -14,15 +14,15 @@ import {
 import {
 	ISliceService,
 	type ISliceService as ISliceServiceType,
-	type SliceUriRequest,
-	type SliceUriTarget,
+	type SliceResourceRequest,
+	type SliceResourceTarget,
 } from "src/cs/workbench/services/slice/common/slice";
 import {
 	IReviewService,
 	type IReviewService as IReviewServiceType,
 	type ManualTemplateSelection,
 	type ReviewedTemplateConfirmationReason,
-	type UriReviewExecution,
+	type ResourceReviewExecution,
 } from "src/cs/workbench/services/review/common/review";
 import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/reviewModel";
 import {
@@ -66,7 +66,7 @@ export const runSliceWithTemplateHandler = (
 	const sliceService = accessor.get(ISliceService);
 	const reviewService = accessor.get(IReviewService);
 	const layoutService = accessor.get(IWorkbenchLayoutService);
-	const uriTargets = getSliceCommandUriTargets(
+	const resourceTargets = getSliceCommandResourceTargets(
 		explorerService.files,
 		sliceService,
 		Boolean(options.incremental),
@@ -77,24 +77,24 @@ export const runSliceWithTemplateHandler = (
 		return;
 	}
 
-	if (!uriTargets.length) {
+	if (!resourceTargets.length) {
 		notificationService.notify({
 			id: "slice.notification",
 			message: options.incremental
-				? localize("slice.runWithTemplate.noNewUriTables", "No new table resources to slice.")
-				: localize("slice.runWithTemplate.noUriTables", "No table resources are available to slice."),
+				? localize("slice.runWithTemplate.noNewResourceTables", "No new table resources to slice.")
+				: localize("slice.runWithTemplate.noResourceTables", "No table resources are available to slice."),
 			severity: Severity.Info,
 		});
 		return;
 	}
 
-	void runUriTargetsWithTemplate({
+	void runResourceTargetsWithTemplate({
 		layoutService,
 		notificationService,
 		reviewService,
 		selection,
 		sliceService,
-		targets: uriTargets,
+		targets: resourceTargets,
 	});
 };
 
@@ -131,7 +131,7 @@ const createSliceCommandTemplateSelection = (
 	return createTemplateSelection(templateId);
 };
 
-const runUriTargetsWithTemplate = async ({
+const runResourceTargetsWithTemplate = async ({
 	layoutService,
 	notificationService,
 	reviewService,
@@ -144,11 +144,11 @@ const runUriTargetsWithTemplate = async ({
 	readonly reviewService: IReviewServiceType;
 	readonly selection: TemplateSelection;
 	readonly sliceService: ISliceServiceType;
-	readonly targets: readonly SliceUriTarget[];
+	readonly targets: readonly SliceResourceTarget[];
 }): Promise<void> => {
-	const requests: SliceUriRequest[] = [];
+	const requests: SliceResourceRequest[] = [];
 	for (const target of targets) {
-		const reviewExecution = await reviewService.reviewUriForExecution({
+		const reviewExecution = await reviewService.reviewResourceForExecution({
 			resource: target.resource,
 			sheetId: target.sheetId ?? null,
 		});
@@ -163,7 +163,7 @@ const runUriTargetsWithTemplate = async ({
 			continue;
 		}
 
-		const request = createSliceUriRequest({
+		const request = createSliceResourceRequest({
 			review: reviewExecution,
 			reviewedTemplate,
 			selection,
@@ -183,19 +183,19 @@ const runUriTargetsWithTemplate = async ({
 	if (!requests.length) {
 		notificationService.notify({
 			id: "slice.notification",
-			message: localize("slice.runWithTemplate.noReviewedUriTables", "No reviewed URI tables are available to slice."),
+			message: localize("slice.runWithTemplate.noReviewedResourceTables", "No reviewed table resources are available to slice."),
 			severity: Severity.Info,
 		});
 		return;
 	}
 
-	sliceService.submitUri(requests);
+	sliceService.submitResource(requests);
 	layoutService.navigateToView("chart");
 };
 
 const getManualReviewedTemplate = async (
 	reviewService: IReviewServiceType,
-	review: UriReviewExecution,
+	review: ResourceReviewExecution,
 	selection: TemplateSelection,
 ): Promise<ReviewedTemplate | null> => {
 	const manualSelection = getManualReviewSelection(selection);
@@ -203,7 +203,7 @@ const getManualReviewedTemplate = async (
 		return null;
 	}
 
-	const result = await reviewService.reviewUriManualTemplate({
+	const result = await reviewService.reviewResourceManualTemplate({
 		target: {
 			resource: review.resource,
 			...(review.contentHash ? { contentHash: review.contentHash } : {}),
@@ -220,7 +220,7 @@ const confirmManualReviewedTemplate = async ({
 	reviewService,
 	selection,
 }: {
-	readonly review: UriReviewExecution;
+	readonly review: ResourceReviewExecution;
 	readonly reviewedTemplate: ReviewedTemplate;
 	readonly reviewService: IReviewServiceType;
 	readonly selection: TemplateSelection;
@@ -266,22 +266,22 @@ const getManualReviewSelection = (
 	return null;
 };
 
-const createSliceUriRequest = ({
+const createSliceResourceRequest = ({
 	review,
 	reviewedTemplate,
 	selection,
 	target,
 }: {
-	readonly review: UriReviewExecution;
+	readonly review: ResourceReviewExecution;
 	readonly reviewedTemplate: ReviewedTemplate;
 	readonly selection: TemplateSelection;
-	readonly target: SliceUriTarget;
-}): SliceUriRequest | null => {
+	readonly target: SliceResourceTarget;
+}): SliceResourceRequest | null => {
 	if (!reviewedTemplate.template.measurement) {
 		return null;
 	}
 
-	const requestSignature = createUriSliceRequestSignature({
+	const requestSignature = createResourceSliceRequestSignature({
 		reviewSignature: review.reviewSignature,
 		sourceModelVersion: review.sourceModelVersion,
 		sourceVersion: review.sourceVersion,
@@ -290,14 +290,14 @@ const createSliceUriRequest = ({
 	const sourceContentSignature = createSliceSourceContentSignature({
 		sourceSheetId: review.sheetId ?? null,
 		sourceModelVersion: review.sourceModelVersion,
-		sourceUri: getSliceUriTargetResourceIdentity(review.resource),
+		sourceUri: getSliceResourceIdentity(review.resource),
 		sourceVersion: review.sourceVersion,
 	}, {
 		reviewSignature: review.reviewSignature,
 	});
-	const targetId = createSliceUriTargetId(target);
+	const targetId = createSliceResourceTargetId(target);
 	return {
-		id: `slice-uri-request:${targetId}:${requestSignature}`,
+		id: `slice-resource-request:${targetId}:${requestSignature}`,
 		target,
 		reviewedTemplate,
 		reviewSignature: review.reviewSignature,
@@ -322,20 +322,20 @@ const createSliceUriRequest = ({
 	};
 };
 
-const getSliceCommandUriTargets = (
+const getSliceCommandResourceTargets = (
 	files: readonly ExplorerFileEntry[],
 	sliceService: ISliceServiceType,
 	incremental: boolean,
-): SliceUriTarget[] => {
-	const result: SliceUriTarget[] = [];
+): SliceResourceTarget[] => {
+	const result: SliceResourceTarget[] = [];
 	const seen = new Set<string>();
 	for (const file of files) {
-		const target = createSliceUriTarget(file);
+		const target = createSliceResourceTarget(file);
 		if (!target) {
 			continue;
 		}
-		const targetId = createSliceUriTargetId(target);
-		if (incremental && sliceService.getUriResult(target)) {
+		const targetId = createSliceResourceTargetId(target);
+		if (incremental && sliceService.getResourceResult(target)) {
 			continue;
 		}
 		if (seen.has(targetId)) {
@@ -348,9 +348,9 @@ const getSliceCommandUriTargets = (
 	return result;
 };
 
-const createSliceUriTarget = (
+const createSliceResourceTarget = (
 	file: ExplorerFileEntry,
-): SliceUriTarget | null => {
+): SliceResourceTarget | null => {
 	const resource = file.resource ? URI.revive(file.resource) : null;
 	if (!resource || file.sourceStatus) {
 		return null;
@@ -363,7 +363,7 @@ const createSliceUriTarget = (
 	};
 };
 
-const createUriSliceRequestSignature = ({
+const createResourceSliceRequestSignature = ({
 	reviewSignature,
 	sourceModelVersion,
 	sourceVersion,
@@ -382,18 +382,18 @@ const createUriSliceRequestSignature = ({
 
 const normalizeText = (value: unknown): string => String(value ?? "").trim();
 
-const createSliceUriTargetId = (
-	target: SliceUriTarget,
+const createSliceResourceTargetId = (
+	target: SliceResourceTarget,
 ): string => {
-	const resource = getSliceUriTargetResourceIdentity(target.resource);
+	const resource = getSliceResourceIdentity(target.resource);
 	const sheetId = normalizeText(target.sheetId);
 	return sheetId ? `${resource}\u0000${sheetId}` : resource;
 };
 
-const getSliceUriTargetResourceIdentity = (
+const getSliceResourceIdentity = (
 	resource: unknown,
 ): string => {
-	const text = getSliceUriTargetResourceString(resource);
+	const text = getSliceResourceString(resource);
 	if (text) {
 		return text.replace(/\\/g, "/");
 	}
@@ -416,7 +416,7 @@ const getSliceUriTargetResourceIdentity = (
 	return "";
 };
 
-const getSliceUriTargetResourceString = (
+const getSliceResourceString = (
 	resource: unknown,
 ): string => {
 	if (!resource) {

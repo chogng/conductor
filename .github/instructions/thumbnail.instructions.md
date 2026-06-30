@@ -92,10 +92,10 @@ flowchart TD
 4. Explorer publishes visible/nearby file ids while thumbnail layout is active.
 5. Domain bridge prefetches recent, visible, and nearby thumbnail previews with
    `ThumbnailPreviewTarget` values. File-id targets stay opaque to Thumbnail and
-   are resolved by Plot; URI resource rows carry the Slice URI target.
+   are resolved by Plot; resource/sheet rows carry the Slice target.
 6. Preview service reads Plot cached data, keeps loading state on miss, and retries on Plot cache events.
-7. Preview service fires `onDidChangePreview` with the file-id target or URI
-   target that changed.
+7. Preview service fires `onDidChangePreview` with the file-id target or
+   resource/sheet target that changed.
 8. Explorer refreshes only the active hover or affected thumbnail grid item.
 
 ## DOM and Performance

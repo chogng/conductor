@@ -35,7 +35,6 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
     ];
     explorerService.replaceFiles(files);
     explorerService.updatePaneInput({
-      files,
       mode: "table",
       selectedResource: sourceResource,
       selectedSheetId: null,
@@ -68,7 +67,6 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
     }];
     explorerService.replaceFiles(files);
     explorerService.updatePaneInput({
-      files,
       mode: "table",
       selectedResource: resource,
       selectedSheetId: null,
@@ -103,7 +101,6 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
     }];
     explorerService.replaceFiles(files);
     explorerService.updatePaneInput({
-      files,
       mode: "table",
       selectedResource: resource,
       selectedSheetId: null,

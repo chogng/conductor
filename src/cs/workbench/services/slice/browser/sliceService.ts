@@ -15,12 +15,12 @@ import {
 	type SlicePlan,
 	type SlicePlanRangeRef,
 	type SliceState,
-	type SliceUriBaseCurveRecord,
-	type SliceUriRequest,
-	type SliceUriResult,
-	type SliceUriRun,
-	type SliceUriSeriesRecord,
-	type SliceUriTarget,
+	type SliceResourceBaseCurveRecord,
+	type SliceResourceRequest,
+	type SliceResourceResult,
+	type SliceResourceRun,
+	type SliceResourceSeriesRecord,
+	type SliceResourceTarget,
 } from "src/cs/workbench/services/slice/common/slice";
 import {
 	IDataResourceService,
@@ -45,15 +45,15 @@ import {
 	type TemplateTargetSelection,
 } from "src/cs/workbench/services/slice/common/templateSelection";
 
-type UriSliceQueueEntry = {
-	readonly kind: "uri";
-	readonly request: SliceUriRequest;
+type ResourceSliceQueueEntry = {
+	readonly kind: "resource";
+	readonly request: SliceResourceRequest;
 	readonly plan: SlicePlan;
 };
 
-type SliceQueueEntry = UriSliceQueueEntry;
+type SliceQueueEntry = ResourceSliceQueueEntry;
 
-type ResolvedUriSliceRows = {
+type ResolvedResourceSliceRows = {
 	readonly content: StructuredContentGridSnapshot;
 	readonly sourceModelVersion: number;
 	readonly sourceVersion: number;
@@ -64,15 +64,15 @@ export class SliceService extends Disposable implements ISliceServiceType {
 
 	private readonly onDidChangeSliceStateEmitter = this._register(new Emitter<void>());
 	public readonly onDidChangeSliceState = this.onDidChangeSliceStateEmitter.event;
-	private readonly onDidChangeUriSliceResultEmitter = this._register(new Emitter<SliceUriTarget>());
-	public readonly onDidChangeUriSliceResult = this.onDidChangeUriSliceResultEmitter.event;
-	private readonly onDidChangeTemplateSelectionEmitter = this._register(new Emitter<SliceUriTarget>());
+	private readonly onDidChangeResourceSliceResultEmitter = this._register(new Emitter<SliceResourceTarget>());
+	public readonly onDidChangeResourceSliceResult = this.onDidChangeResourceSliceResultEmitter.event;
+	private readonly onDidChangeTemplateSelectionEmitter = this._register(new Emitter<SliceResourceTarget>());
 	public readonly onDidChangeTemplateSelection = this.onDidChangeTemplateSelectionEmitter.event;
 
-	private readonly uriStatesByCacheKey = new Map<string, SliceFileState>();
-	private readonly uriTargetsByCacheKey = new Map<string, SliceUriTarget>();
+	private readonly resourceStatesByCacheKey = new Map<string, SliceFileState>();
+	private readonly resourceTargetsByCacheKey = new Map<string, SliceResourceTarget>();
 	private readonly queue: SliceQueueEntry[] = [];
-	private readonly uriResultsByCacheKey = new Map<string, SliceUriResult>();
+	private readonly resourceResultsByCacheKey = new Map<string, SliceResourceResult>();
 	private readonly templateSelectionsByTarget = new Map<string, TemplateTargetSelection>();
 	private activeQueueKey: string | null = null;
 	private isSliceQueueRunning = false;
@@ -83,7 +83,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		super();
 		if (this.dataResourceService) {
 			this._register(this.dataResourceService.onDidChangeResource(resource => {
-				this.removeUriResultsForResource(resource);
+				this.removeResourceResultsForResource(resource);
 			}));
 		}
 	}
@@ -95,44 +95,44 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		};
 	}
 
-	public getUriResult(target: SliceUriTarget): SliceUriResult | null {
-		return this.uriResultsByCacheKey.get(createSliceUriCacheKey(target)) ?? null;
+	public getResourceResult(target: SliceResourceTarget): SliceResourceResult | null {
+		return this.resourceResultsByCacheKey.get(createSliceResourceCacheKey(target)) ?? null;
 	}
 
-	public getUriState(target: SliceUriTarget): SliceFileState | undefined {
-		return this.uriStatesByCacheKey.get(createSliceUriCacheKey(target));
+	public getResourceState(target: SliceResourceTarget): SliceFileState | undefined {
+		return this.resourceStatesByCacheKey.get(createSliceResourceCacheKey(target));
 	}
 
-	public getTemplateSelection(target: SliceUriTarget): TemplateSelection {
+	public getTemplateSelection(target: SliceResourceTarget): TemplateSelection {
 		const normalizedTarget = normalizeTemplateSelectionTarget(target);
 		if (!normalizedTarget) {
 			return { kind: "auto" };
 		}
-		return this.templateSelectionsByTarget.get(createSliceUriCacheKey(normalizedTarget))?.selection ?? { kind: "auto" };
+		return this.templateSelectionsByTarget.get(createSliceResourceCacheKey(normalizedTarget))?.selection ?? { kind: "auto" };
 	}
 
-	public submitUri(requests: readonly SliceUriRequest[]): void {
+	public submitResource(requests: readonly SliceResourceRequest[]): void {
 		let didChange = false;
 		for (const request of requests) {
-			const cacheKey = createSliceUriCacheKey(request.target);
-			this.uriTargetsByCacheKey.set(cacheKey, normalizeSliceUriTarget(request.target));
-			const plan = this.createUriRequestPlan(request);
+			const cacheKey = createSliceResourceCacheKey(request.target);
+			this.resourceTargetsByCacheKey.set(cacheKey, normalizeSliceResourceTarget(request.target));
+			const plan = this.createResourceRequestPlan(request);
 			if (!plan) {
-				didChange = this.setUriState(cacheKey, {
+				didChange = this.setResourceState(cacheKey, {
 					state: "skipped",
-					code: "slice.uriRequestInvalid",
-					message: "The URI slice request is no longer valid.",
+					code: "slice.resourceRequestInvalid",
+					message: "The resource slice request is no longer valid.",
 				}) || didChange;
 				continue;
 			}
 
-			if (request.trigger.kind === "reviewDecision" && this.isLatestUriAutoRunCurrent(request, plan)) {
-				didChange = this.setUriState(cacheKey, { state: "ready" }) || didChange;
+			if (request.trigger.kind === "reviewDecision" && this.isLatestResourceAutoRunCurrent(request, plan)) {
+				didChange = this.setResourceState(cacheKey, { state: "ready" }) || didChange;
 				continue;
 			}
 
-			this.enqueueSliceEntry({ kind: "uri", request, plan });
-			didChange = this.setUriState(cacheKey, { state: "queued" }) || didChange;
+			this.enqueueSliceEntry({ kind: "resource", request, plan });
+			didChange = this.setResourceState(cacheKey, { state: "queued" }) || didChange;
 		}
 		if (didChange) {
 			this.fireSliceStateChange();
@@ -140,13 +140,13 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		this.startSliceQueue();
 	}
 
-	public prioritizeUri(target: SliceUriTarget): void {
-		const cacheKey = createSliceUriCacheKey(target);
+	public prioritizeResource(target: SliceResourceTarget): void {
+		const cacheKey = createSliceResourceCacheKey(target);
 		if (!cacheKey) {
 			return;
 		}
 
-		this.uriTargetsByCacheKey.set(cacheKey, normalizeSliceUriTarget(target));
+		this.resourceTargetsByCacheKey.set(cacheKey, normalizeSliceResourceTarget(target));
 		this.prioritizeQueueKey(cacheKey);
 	}
 
@@ -162,10 +162,10 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		this.fireSliceStateChange();
 	}
 
-	public cancelUri(targets: readonly SliceUriTarget[]): void {
+	public cancelResource(targets: readonly SliceResourceTarget[]): void {
 		const cacheKeys = new Set(
 			targets
-				.map(target => createSliceUriCacheKey(target))
+				.map(target => createSliceResourceCacheKey(target))
 				.filter(Boolean),
 		);
 		if (!cacheKeys.size) {
@@ -184,8 +184,8 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			if (this.activeQueueKey === queueKey) {
 				this.activeQueueKey = null;
 			}
-			didChange = this.setUriState(queueKey, { state: "none" }) || didChange;
-			didChange = this.deleteUriTargetIfUnused(queueKey) || didChange;
+			didChange = this.setResourceState(queueKey, { state: "none" }) || didChange;
+			didChange = this.deleteResourceTargetIfUnused(queueKey) || didChange;
 		}
 
 		if (didChange) {
@@ -193,14 +193,14 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		}
 	}
 
-	public setTemplateSelection(target: SliceUriTarget, selection: TemplateSelection): void {
+	public setTemplateSelection(target: SliceResourceTarget, selection: TemplateSelection): void {
 		const normalizedTarget = normalizeTemplateSelectionTarget(target);
 		if (!normalizedTarget) {
 			return;
 		}
 
 		const nextSelection = normalizeTemplateSelection(selection);
-		const cacheKey = createSliceUriCacheKey(normalizedTarget);
+		const cacheKey = createSliceResourceCacheKey(normalizedTarget);
 		if (areTemplateSelectionsEqual(
 			this.templateSelectionsByTarget.get(cacheKey)?.selection,
 			nextSelection,
@@ -216,11 +216,11 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		this.fireSliceStateChange();
 	}
 
-	private createUriRequestPlan(request: SliceUriRequest): SlicePlan | null {
+	private createResourceRequestPlan(request: SliceResourceRequest): SlicePlan | null {
 		const plan = createSlicePlan({
 			target: {
-				kind: "uri",
-				target: normalizeSliceUriTarget(request.target),
+				kind: "resource",
+				target: normalizeSliceResourceTarget(request.target),
 			},
 			mode: request.trigger.kind === "reviewDecision" ? "auto" : "manual",
 			selection: request.trigger.kind === "reviewDecision"
@@ -276,7 +276,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 				this.setQueueEntryState(entry, { state: "processing" });
 				this.fireSliceStateChange();
 
-				await this.processUriSliceEntry(entry);
+				await this.processResourceSliceEntry(entry);
 			}
 		} finally {
 			this.isSliceQueueRunning = false;
@@ -290,20 +290,20 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		return Boolean(this.dataResourceService) && this.queue.length > 0;
 	}
 
-	private async processUriSliceEntry(entry: UriSliceQueueEntry): Promise<void> {
-		const cacheKey = createSliceUriCacheKey(entry.request.target);
-		const resolved = await this.readRowsForUriRequest(entry.request);
+	private async processResourceSliceEntry(entry: ResourceSliceQueueEntry): Promise<void> {
+		const cacheKey = createSliceResourceCacheKey(entry.request.target);
+		const resolved = await this.readRowsForResourceRequest(entry.request);
 		if (!resolved) {
-			this.setUriState(cacheKey, {
+			this.setResourceState(cacheKey, {
 				state: "failed",
-				code: "slice.uriRowsUnavailable",
-				message: "URI table rows are unavailable for slicing.",
+				code: "slice.resourceRowsUnavailable",
+				message: "Resource table rows are unavailable for slicing.",
 			});
 			this.fireSliceStateChange();
 			return;
 		}
 
-		if (!this.isCurrentUriSlicePlan(entry, resolved)) {
+		if (!this.isCurrentResourceSlicePlan(entry, resolved)) {
 			this.dropStaleSliceEntry(entry);
 			return;
 		}
@@ -312,17 +312,17 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			plan: entry.plan,
 			rows: readStructuredContentRowsForSlicePlan(resolved.content, entry.plan),
 		});
-		const result = createSliceUriResult({
+		const result = createSliceResourceResult({
 			execution,
 			completedAt: Date.now(),
 			request: entry.request,
 			sourceModelVersion: resolved.sourceModelVersion,
 			sourceVersion: resolved.sourceVersion,
 		});
-		this.uriResultsByCacheKey.set(cacheKey, result);
-		this.uriTargetsByCacheKey.set(cacheKey, normalizeSliceUriTarget(entry.request.target));
-		this.fireUriSliceResultChange(result.target);
-		this.setUriState(cacheKey, result.run.errors.length
+		this.resourceResultsByCacheKey.set(cacheKey, result);
+		this.resourceTargetsByCacheKey.set(cacheKey, normalizeSliceResourceTarget(entry.request.target));
+		this.fireResourceSliceResultChange(result.target);
+		this.setResourceState(cacheKey, result.run.errors.length
 			? {
 				state: "failed",
 				code: result.run.errors[0] ?? "slice.failed",
@@ -332,15 +332,15 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		this.fireSliceStateChange();
 	}
 
-	private isCurrentUriSlicePlan(
-		entry: UriSliceQueueEntry,
-		resolved: ResolvedUriSliceRows,
+	private isCurrentResourceSlicePlan(
+		entry: ResourceSliceQueueEntry,
+		resolved: ResolvedResourceSliceRows,
 	): boolean {
 		return entry.request.sourceModelVersion === resolved.sourceModelVersion &&
 			entry.request.sourceVersion === resolved.sourceVersion &&
 			entry.request.rowCount === resolved.content.rowCount &&
 			entry.request.columnCount === resolved.content.columnCount &&
-			entry.plan.sourceContentSignature === this.createUriRequestPlan(entry.request)?.sourceContentSignature &&
+			entry.plan.sourceContentSignature === this.createResourceRequestPlan(entry.request)?.sourceContentSignature &&
 			entry.plan.templateFingerprint === entry.request.reviewedTemplate.templateFingerprint;
 	}
 
@@ -358,9 +358,9 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		this.fireSliceStateChange();
 	}
 
-	private async readRowsForUriRequest(
-		request: SliceUriRequest,
-	): Promise<ResolvedUriSliceRows | null> {
+	private async readRowsForResourceRequest(
+		request: SliceResourceRequest,
+	): Promise<ResolvedResourceSliceRows | null> {
 		if (!this.dataResourceService) {
 			return null;
 		}
@@ -375,7 +375,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 				return null;
 			}
 
-			return createResolvedUriSliceRows(reference.object.snapshot);
+			return createResolvedResourceSliceRows(reference.object.snapshot);
 		} catch {
 			return null;
 		} finally {
@@ -383,8 +383,8 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		}
 	}
 
-	private isLatestUriAutoRunCurrent(request: SliceUriRequest, plan: SlicePlan): boolean {
-		const result = this.uriResultsByCacheKey.get(createSliceUriCacheKey(request.target));
+	private isLatestResourceAutoRunCurrent(request: SliceResourceRequest, plan: SlicePlan): boolean {
+		const result = this.resourceResultsByCacheKey.get(createSliceResourceCacheKey(request.target));
 		if (!result) {
 			return false;
 		}
@@ -399,13 +399,13 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			run.errors.length === 0;
 	}
 
-	private setUriState(cacheKey: string, state: SliceFileState): boolean {
-		const current = this.uriStatesByCacheKey.get(cacheKey);
+	private setResourceState(cacheKey: string, state: SliceFileState): boolean {
+		const current = this.resourceStatesByCacheKey.get(cacheKey);
 		if (isSameSliceFileState(current, state)) {
 			return false;
 		}
 
-		this.uriStatesByCacheKey.set(cacheKey, state);
+		this.resourceStatesByCacheKey.set(cacheKey, state);
 		return true;
 	}
 
@@ -415,7 +415,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			return false;
 		}
 
-		return this.setUriState(stateKey, state);
+		return this.setResourceState(stateKey, state);
 	}
 
 	private deleteQueueEntryState(entry: SliceQueueEntry): boolean {
@@ -424,20 +424,20 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			return false;
 		}
 
-		const didDeleteState = this.uriStatesByCacheKey.delete(stateKey);
-		const didDeleteTarget = this.deleteUriTargetIfUnused(stateKey);
+		const didDeleteState = this.resourceStatesByCacheKey.delete(stateKey);
+		const didDeleteTarget = this.deleteResourceTargetIfUnused(stateKey);
 		return didDeleteState || didDeleteTarget;
 	}
 
-	private deleteUriTargetIfUnused(cacheKey: string): boolean {
-		if (this.uriResultsByCacheKey.has(cacheKey)) {
+	private deleteResourceTargetIfUnused(cacheKey: string): boolean {
+		if (this.resourceResultsByCacheKey.has(cacheKey)) {
 			return false;
 		}
 
-		return this.uriTargetsByCacheKey.delete(cacheKey);
+		return this.resourceTargetsByCacheKey.delete(cacheKey);
 	}
 
-	private removeUriResultsForResource(resource: URI): void {
+	private removeResourceResultsForResource(resource: URI): void {
 		const cacheKey = normalizeResourceUri(resource);
 		if (!cacheKey) {
 			return;
@@ -447,27 +447,27 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		for (let index = this.queue.length - 1; index >= 0; index -= 1) {
 			const entry = this.queue[index];
 			if (entry && normalizeResourceUri(entry.request.target.resource) === cacheKey) {
-				const entryCacheKey = createSliceUriCacheKey(entry.request.target);
+				const entryCacheKey = createSliceResourceCacheKey(entry.request.target);
 				this.queue.splice(index, 1);
-				this.uriStatesByCacheKey.delete(entryCacheKey);
-				this.deleteUriTargetIfUnused(entryCacheKey);
+				this.resourceStatesByCacheKey.delete(entryCacheKey);
+				this.deleteResourceTargetIfUnused(entryCacheKey);
 				if (this.activeQueueKey === entryCacheKey) {
 					this.activeQueueKey = null;
 				}
 				didChange = true;
 			}
 		}
-		for (const [resultCacheKey, result] of this.uriResultsByCacheKey) {
+		for (const [resultCacheKey, result] of this.resourceResultsByCacheKey) {
 			if (normalizeResourceUri(result.target.resource) !== cacheKey) {
 				continue;
 			}
-			this.uriResultsByCacheKey.delete(resultCacheKey);
-			this.uriStatesByCacheKey.delete(resultCacheKey);
-			this.uriTargetsByCacheKey.delete(resultCacheKey);
+			this.resourceResultsByCacheKey.delete(resultCacheKey);
+			this.resourceStatesByCacheKey.delete(resultCacheKey);
+			this.resourceTargetsByCacheKey.delete(resultCacheKey);
 			if (this.activeQueueKey === resultCacheKey) {
 				this.activeQueueKey = null;
 			}
-			this.fireUriSliceResultChange(result.target);
+			this.fireResourceSliceResultChange(result.target);
 			didChange = true;
 		}
 		if (didChange) {
@@ -479,12 +479,12 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		this.onDidChangeSliceStateEmitter.fire(undefined);
 	}
 
-	private fireUriSliceResultChange(target: SliceUriTarget): void {
-		this.onDidChangeUriSliceResultEmitter.fire(normalizeSliceUriTarget(target));
+	private fireResourceSliceResultChange(target: SliceResourceTarget): void {
+		this.onDidChangeResourceSliceResultEmitter.fire(normalizeSliceResourceTarget(target));
 	}
 }
 
-const createSliceUriResult = ({
+const createSliceResourceResult = ({
 	execution,
 	completedAt,
 	request,
@@ -493,46 +493,46 @@ const createSliceUriResult = ({
 }: {
 	readonly execution: SliceExecutionResult;
 	readonly completedAt: number;
-	readonly request: SliceUriRequest;
+	readonly request: SliceResourceRequest;
 	readonly sourceModelVersion: number;
 	readonly sourceVersion: number;
-}): SliceUriResult => ({
-	target: normalizeSliceUriTarget(request.target),
-	run: createSliceUriRun(execution.run, request.target),
-	series: execution.series.map(series => createSliceUriSeriesRecord(series, request.target)),
-	curves: execution.curves.flatMap(curve => createSliceUriCurveRecord(curve, request.target) ?? []),
+}): SliceResourceResult => ({
+	target: normalizeSliceResourceTarget(request.target),
+	run: createSliceResourceRun(execution.run, request.target),
+	series: execution.series.map(series => createSliceResourceSeriesRecord(series, request.target)),
+	curves: execution.curves.flatMap(curve => createSliceResourceCurveRecord(curve, request.target) ?? []),
 	requestSignature: request.requestSignature,
 	sourceModelVersion,
 	sourceVersion,
 	completedAt,
 });
 
-const createSliceUriRun = (
+const createSliceResourceRun = (
 	run: SliceExecutionResult["run"],
-	target: SliceUriTarget,
-): SliceUriRun => {
+	target: SliceResourceTarget,
+): SliceResourceRun => {
 	const { inputRanges, ...rest } = run;
 	return {
 		...rest,
 		resource: target.resource,
 		sheetId: target.sheetId ?? null,
-		inputRanges: inputRanges.map(inputRange => createSliceUriRangeRef(inputRange, target)),
+		inputRanges: inputRanges.map(inputRange => createSliceResourceRangeRef(inputRange, target)),
 	};
 };
 
-const createSliceUriRangeRef = (
+const createSliceResourceRangeRef = (
 	range: SlicePlanRangeRef,
-	target: SliceUriTarget,
-): SliceUriRun["inputRanges"][number] => ({
+	target: SliceResourceTarget,
+): SliceResourceRun["inputRanges"][number] => ({
 	resource: "resource" in range ? range.resource : target.resource,
 	sheetId: "sheetId" in range ? range.sheetId ?? null : target.sheetId ?? null,
 	range: range.range,
 });
 
-const createSliceUriSeriesRecord = (
+const createSliceResourceSeriesRecord = (
 	series: SliceExecutionResult["series"][number],
-	target: SliceUriTarget,
-): SliceUriSeriesRecord => {
+	target: SliceResourceTarget,
+): SliceResourceSeriesRecord => {
 	return {
 		...series,
 		resource: target.resource,
@@ -540,10 +540,10 @@ const createSliceUriSeriesRecord = (
 	};
 };
 
-const createSliceUriCurveRecord = (
+const createSliceResourceCurveRecord = (
 	curve: SliceExecutionResult["curves"][number],
-	target: SliceUriTarget,
-): SliceUriBaseCurveRecord | null => {
+	target: SliceResourceTarget,
+): SliceResourceBaseCurveRecord | null => {
 	if (curve.curveGeneration !== "base") {
 		return null;
 	}
@@ -590,7 +590,7 @@ const createTemplateSelectionFromReviewedTemplate = (
 
 const getSliceQueueEntryStateKey = (
 	entry: SliceQueueEntry,
-): string | null => createSliceUriCacheKey(entry.request.target);
+): string | null => createSliceResourceCacheKey(entry.request.target);
 
 const readStructuredContentRowsForSlicePlan = (
 	content: StructuredContentGridSnapshot,
@@ -610,18 +610,18 @@ const readStructuredContentRowsForSlicePlan = (
 
 const getSliceQueueEntryKey = (
 	entry: SliceQueueEntry,
-): string => `uri:${createSliceUriCacheKey(entry.request.target)}`;
+): string => `resource:${createSliceResourceCacheKey(entry.request.target)}`;
 
-const normalizeSliceUriTarget = (
-	target: SliceUriTarget,
-): SliceUriTarget => ({
+const normalizeSliceResourceTarget = (
+	target: SliceResourceTarget,
+): SliceResourceTarget => ({
 	resource: target.resource,
 	sheetId: normalizeText(target.sheetId) || null,
 });
 
-const createResolvedUriSliceRows = (
+const createResolvedResourceSliceRows = (
 	snapshot: DataResourceStructuredContentSnapshot,
-): ResolvedUriSliceRows => ({
+): ResolvedResourceSliceRows => ({
 	content: snapshot.content,
 	sourceModelVersion: snapshot.sourceModelVersion,
 	sourceVersion: snapshot.sourceVersion,
@@ -675,8 +675,8 @@ const getResourceUriString = (
 	return "";
 };
 
-const createSliceUriCacheKey = (
-	target: SliceUriTarget,
+const createSliceResourceCacheKey = (
+	target: SliceResourceTarget,
 ): string => {
 	const resource = normalizeResourceUri(target.resource);
 	const sheetId = normalizeText(target.sheetId);

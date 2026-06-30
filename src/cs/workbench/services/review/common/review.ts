@@ -27,7 +27,7 @@ export type ManualTemplateSelection =
     readonly templateId: string;
   };
 
-export type UriManualTemplateReviewRequest = {
+export type ResourceManualTemplateReviewRequest = {
   readonly target: ReviewSummaryTarget;
   readonly selection: ManualTemplateSelection;
 };
@@ -60,7 +60,7 @@ export type ManualTemplateReviewResult =
       readonly suggestedActions: readonly ReviewSuggestedAction[];
     };
 
-export type UriReviewExecution = {
+export type ResourceReviewExecution = {
   readonly resource: URI;
   readonly sheetId?: string;
   readonly contentHash?: string;
@@ -92,8 +92,8 @@ export interface IReviewService {
   getLatestReviewSummary(target: ReviewSummaryTarget): ReviewSummary;
   confirmReviewedTemplate(input: ReviewedTemplateConfirmationRequest): Promise<SchemaProfile | null>;
   resolveReviewSummary(target: ReviewSummaryTarget): Promise<ReviewSummary | null>;
-  reviewUriForExecution(target: ReviewSummaryTarget): Promise<UriReviewExecution | null>;
-  reviewUriManualTemplate(input: UriManualTemplateReviewRequest): Promise<ManualTemplateReviewResult>;
+  reviewResourceForExecution(target: ReviewSummaryTarget): Promise<ResourceReviewExecution | null>;
+  reviewResourceManualTemplate(input: ResourceManualTemplateReviewRequest): Promise<ManualTemplateReviewResult>;
 }
 
 export const createReviewEvidenceSignature = (

@@ -84,7 +84,7 @@ Explorer owns:
 - file/folder commands, actions, context menus, drag/drop UI;
 - hover triggers, timing, anchors, context-view containers, positioning, dismissal;
 - thumbnail candidate filtering before thumbnail UI renders;
-- source workflow orchestration, ExplorerService-owned imported rows, and optional UI follow-up after table resource opens.
+- source workflow orchestration, `IExplorerService.files` imported rows, resource/sheet state projection, and optional UI follow-up after table resource opens.
 
 Explorer source workflow owns:
 
@@ -107,7 +107,7 @@ state arrives through their owning services.
 | File | Responsibility |
 | --- | --- |
 | `contrib/files/browser/files.ts` | `IExplorerService`, view/context contracts. |
-| `contrib/files/browser/explorerService.ts` | Explorer state/model, selection/reveal, layout, expansion, pane input events. |
+| `contrib/files/browser/explorerService.ts` | Explorer state/model, committed file rows, selection/reveal, layout, expansion, pane input events. |
 | `contrib/files/common/explorerModel.ts` | Explorer resources/items/tree helpers. |
 | `contrib/files/common/explorerFileNestingTrie.ts` | Explorer display-only file nesting pattern matching. |
 | `contrib/files/browser/explorerViewlet.ts` | Explorer `ViewPane` host and sidebar actions. |
@@ -174,7 +174,8 @@ Explorer drop/dialog/clipboard/folder
   -> assign table resource URI / register browser File with file provider when needed
   -> PreparedFileImport resource rows
   -> ExplorerViewPane commits rows through IExplorerService file-model APIs
-  -> IReviewService.resolveReviewSummary({ resource, sheetId? }) starts URI-backed Review for the prepared row
+  -> WorkbenchDomainBridge projects ExplorerPaneInput.resourceStates keyed by { resource, sheetId? }
+  -> IReviewService.resolveReviewSummary({ resource, sheetId? }) starts Review for the prepared resource/sheet row
   -> ITableService.open({ resource })
   -> TableFileEditorModel / ITableModel own URI-backed model lifecycle
 ```
@@ -204,14 +205,22 @@ Explorer template-menu labels are view projection, not Bridge state. Explorer
 reads `IUserTemplateService` snapshots for labels and `ISliceService` selection
 projection from pane input; it does not read Template editor draft state.
 
-Slice progress/readiness is likewise projected, not owned, by Explorer:
+Slice progress/readiness is likewise projected for display, not owned, by Explorer:
 
 ```txt
 ISliceService.onDidChangeSliceState
   -> WorkbenchDomainBridge rereads SliceState
-  -> ExplorerPaneInput chartState/chartMessage
+  -> ExplorerPaneInput.resourceStates chartState/chartMessage
   -> Explorer view renders status
 ```
+
+`ExplorerPaneInput.resourceStates` is a resource/sheet keyed view projection.
+It may carry chart/review tags for rendering, but it must not feed back into the
+committed Explorer file model. Commands, Quick Access, decorations, and
+cross-domain bridges read `IExplorerService.files` when they need the
+authoritative Explorer row set. Explorer view code derives the current visible
+rows from `IExplorerService.files` plus `resourceStates`; pane input must not
+carry a second file list.
 
 Explorer item close/delete keeps row lifecycle and filesystem lifecycle
 separate:
@@ -236,7 +245,7 @@ Pending source entries are display-only Explorer rows. They must not be
 committed to Session, selected as real files, used for duplicate detection, or
 participate in file actions. When source preparation resolves the real file,
 Explorer replaces the pending projection and explicitly asks Review to evaluate
-the prepared URI target; Explorer still does not infer semantic badges during
+the prepared `{ resource, sheetId? }` target; Explorer still does not infer semantic badges during
 source collection or preparation.
 
 Review input changes for already-visible Explorer rows are likewise projected
@@ -308,7 +317,7 @@ Rules:
 - Selection/reveal uses `IExplorerService.select(...)` and `IExplorerView.selectResource(...)`.
 - Rename starts editable state through `IExplorerService.setEditable(...)`; Explorer view state owns display-name overrides for visible rows.
 - File-template selection delegates to `ISliceService.setTemplateSelection(...)`; Explorer owns the command surface, Slice owns the selection state and execution.
-- Slice progress/readiness comes from `ISliceService.getUriState(target)`; Explorer must use it as the sole progress/readiness source.
+- Slice progress/readiness comes from `ISliceService.getResourceState(target)`; Explorer must use it as the sole progress/readiness source.
 - Do not reach `ExplorerViewPane` through `IViewsService.getViewWithId(...)`.
 - Do not publish `onDidRequest*` events from `IExplorerService` as hidden commands.
 

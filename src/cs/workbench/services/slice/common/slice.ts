@@ -165,14 +165,14 @@ export type SliceRequestTrigger =
       readonly submittedBy: "user" | "system";
     };
 
-export type SliceUriTarget = {
+export type SliceResourceTarget = {
   readonly resource: URI;
   readonly sheetId?: SliceSheetId | null;
 };
 
-export type SliceUriRequest = {
+export type SliceResourceRequest = {
   readonly id: string;
-  readonly target: SliceUriTarget;
+  readonly target: SliceResourceTarget;
   readonly reviewedTemplate: ReviewedTemplate;
   readonly reviewSignature: string;
   readonly trigger: SliceRequestTrigger;
@@ -221,7 +221,7 @@ export type SliceCommit = {
   readonly curves: readonly SliceCurveRecord[];
 };
 
-export type SliceUriRangeRef = {
+export type SliceResourceRangeRef = {
   readonly resource: URI;
   readonly sheetId?: SliceSheetId | null;
   readonly range: SliceRangeRef;
@@ -229,11 +229,11 @@ export type SliceUriRangeRef = {
 
 export type SlicePlanTarget =
   {
-    readonly kind: "uri";
-    readonly target: SliceUriTarget;
+    readonly kind: "resource";
+    readonly target: SliceResourceTarget;
   };
 
-export type SlicePlanRangeRef = SliceUriRangeRef;
+export type SlicePlanRangeRef = SliceResourceRangeRef;
 
 export type SliceExecutionRun = Omit<SliceRun, "fileId" | "inputRanges" | "rawTableId" | "sourceRawTableVersion"> & {
   readonly inputRanges: readonly SlicePlanRangeRef[];
@@ -257,18 +257,18 @@ export type SliceExecutionResult = {
   readonly curves: readonly SliceExecutionCurveRecord[];
 };
 
-export type SliceUriRun = Omit<SliceExecutionRun, "inputRanges"> & {
+export type SliceResourceRun = Omit<SliceExecutionRun, "inputRanges"> & {
   readonly resource: URI;
   readonly sheetId?: SliceSheetId | null;
-  readonly inputRanges: readonly SliceUriRangeRef[];
+  readonly inputRanges: readonly SliceResourceRangeRef[];
 };
 
-export type SliceUriSeriesRecord = Omit<SliceSeriesRecord, "fileId" | "sheetId"> & {
+export type SliceResourceSeriesRecord = Omit<SliceSeriesRecord, "fileId" | "sheetId"> & {
   readonly resource: URI;
   readonly sheetId?: SliceSheetId | null;
 };
 
-export type SliceUriBaseCurveRecord = Omit<SliceBaseCurveRecord, "fileId" | "lineage"> & {
+export type SliceResourceBaseCurveRecord = Omit<SliceBaseCurveRecord, "fileId" | "lineage"> & {
   readonly resource: URI;
   readonly sheetId?: SliceSheetId | null;
   readonly lineage: Omit<Extract<SliceCurveLineage, { curveGeneration: "base" }>, "baseSeries"> & {
@@ -280,13 +280,13 @@ export type SliceUriBaseCurveRecord = Omit<SliceBaseCurveRecord, "fileId" | "lin
   };
 };
 
-export type SliceUriCurveRecord = SliceUriBaseCurveRecord;
+export type SliceResourceCurveRecord = SliceResourceBaseCurveRecord;
 
-export type SliceUriResult = {
-  readonly target: SliceUriTarget;
-  readonly run: SliceUriRun;
-  readonly series: readonly SliceUriSeriesRecord[];
-  readonly curves: readonly SliceUriCurveRecord[];
+export type SliceResourceResult = {
+  readonly target: SliceResourceTarget;
+  readonly run: SliceResourceRun;
+  readonly series: readonly SliceResourceSeriesRecord[];
+  readonly curves: readonly SliceResourceCurveRecord[];
   readonly requestSignature: string;
   readonly sourceModelVersion: number;
   readonly sourceVersion: number;
@@ -351,15 +351,15 @@ export interface ISliceService {
   readonly _serviceBrand: undefined;
 
   readonly onDidChangeSliceState: Event<void>;
-  readonly onDidChangeTemplateSelection: Event<SliceUriTarget>;
-  readonly onDidChangeUriSliceResult: Event<SliceUriTarget>;
+  readonly onDidChangeTemplateSelection: Event<SliceResourceTarget>;
+  readonly onDidChangeResourceSliceResult: Event<SliceResourceTarget>;
 
   getState(): SliceState;
-  getTemplateSelection(target: SliceUriTarget): TemplateSelection;
-  getUriResult(target: SliceUriTarget): SliceUriResult | null;
-  getUriState(target: SliceUriTarget): SliceFileState | undefined;
-  submitUri(requests: readonly SliceUriRequest[]): void;
-  prioritizeUri(target: SliceUriTarget): void;
-  cancelUri(targets: readonly SliceUriTarget[]): void;
-  setTemplateSelection(target: SliceUriTarget, selection: TemplateSelection): void;
+  getTemplateSelection(target: SliceResourceTarget): TemplateSelection;
+  getResourceResult(target: SliceResourceTarget): SliceResourceResult | null;
+  getResourceState(target: SliceResourceTarget): SliceFileState | undefined;
+  submitResource(requests: readonly SliceResourceRequest[]): void;
+  prioritizeResource(target: SliceResourceTarget): void;
+  cancelResource(targets: readonly SliceResourceTarget[]): void;
+  setTemplateSelection(target: SliceResourceTarget, selection: TemplateSelection): void;
 }

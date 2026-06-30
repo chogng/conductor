@@ -188,13 +188,13 @@ Explorer source workflow
 Primary review/template flow:
 
 ```txt
-URI + contentHash/sourceVersion
+{ resource, sheetId? } + contentHash/sourceVersion
   -> canonical content evidence
   + DataResource binding evidence/UserTemplate snapshots
   -> SegmentCandidate / ReviewCandidate
   -> ReviewResult / ReviewedTemplate
-  -> SliceUriRequest
-  -> SliceUriResult
+  -> SliceResourceRequest
+  -> SliceResourceResult
 ```
 
 Specific flow owners:
@@ -202,14 +202,15 @@ Specific flow owners:
 - Import/source collection: Explorer/files workflow coordinates source preparation; Explorer owns local visible rows and table-resource open handoff.
 - Session ledger: Session backs only migration-ledger imported raw-table storage and downstream analysis records, including TableModel commits, during migration.
 - Structured evidence / Review candidate building: DataResource produces
-  URI/content-version structured evidence, semantic-library fingerprints,
+  resource/sheet content-version structured evidence, semantic-library fingerprints,
   X ranges/groups, data blocks, dependent values, and binding candidates.
   Review consumes that evidence plus UserTemplate snapshots to build transient
   `SegmentCandidate` / `ReviewCandidate` values. Table UI/materialization is a
-  branch on the same URI content chain, not the public Review identity. Do not
+  branch on the same resource/sheet content chain, not the public Review identity. Do not
   keep retired service, record, or command names in new docs or APIs.
-- Review: evaluates candidates, selects a `ReviewedTemplate` for table adapter
-  execution when ready, and keeps URI-backed review results service-local.
+- Review: evaluates candidates for `{ resource, sheetId? }`, selects a
+  `ReviewedTemplate` for table adapter execution when ready, and keeps Review
+  results service-local.
 - Explicit execution controllers and Slice commands consume
   `ReviewDecision.ready.application.systemRecommended`, apply idempotency
   guards, and submit Slice requests.

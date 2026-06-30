@@ -22,7 +22,7 @@ import {
 	type IPlotService as IPlotServiceType,
 	type PlotDisplayModelInput,
 } from "src/cs/workbench/services/plot/common/plot";
-import type { SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
+import type { SliceResourceTarget } from "src/cs/workbench/services/slice/common/slice";
 import type { DataResourceStructuredContentSnapshot } from "src/cs/workbench/services/dataResource/common/dataResource";
 import {
 	ISearchService,
@@ -216,7 +216,7 @@ export class SearchService extends Disposable implements ISearchServiceType {
 	private createPointLookupPlotDisplayModelInput(
 		fileId: string,
 		plotType: NonNullable<PlotDisplayModelInput["plotType"]>,
-		target: SliceUriTarget | null,
+		target: SliceResourceTarget | null,
 	): PlotDisplayModelInput {
 		const legendModel = this.plotService.getCachedPlotLegendModel({
 			fileId,

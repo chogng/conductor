@@ -10,11 +10,11 @@ import type {
 	ChartProcessingStatus,
 	ChartViewInput,
 } from "src/cs/workbench/services/chart/common/chartViewInput";
-import type { SliceUriTarget } from "src/cs/workbench/services/slice/common/slice";
+import type { SliceResourceTarget } from "src/cs/workbench/services/slice/common/slice";
 
 export type CreateChartViewInputOptions = {
 	readonly activeFileId: string | null;
-	readonly activeTarget?: SliceUriTarget | null;
+	readonly activeTarget?: SliceResourceTarget | null;
 	readonly activePlotType: PlotType;
 	readonly chartFileOptions: readonly ChartFileOption[];
 	readonly hasChartData?: boolean;

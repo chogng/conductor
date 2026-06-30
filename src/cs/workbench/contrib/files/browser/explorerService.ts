@@ -11,6 +11,7 @@ import {
   type ExplorerPaneInput,
   type ExplorerFolderExpansionChangeEvent,
   type ExplorerHoveredResourceChangeEvent,
+  type ExplorerResourceState,
   type ExplorerSelectionChangeEvent,
   type ExplorerVisibleTargetsChangeEvent,
   type ExplorerContext,
@@ -44,6 +45,8 @@ export class ExplorerService extends Disposable implements IExplorerService {
   public readonly onDidChangeHoveredResource = this.onDidChangeHoveredResourceEmitter.event;
   private readonly onDidChangeExpandedFolderKeysEmitter = this._register(new Emitter<ExplorerFolderExpansionChangeEvent>());
   public readonly onDidChangeExpandedFolderKeys = this.onDidChangeExpandedFolderKeysEmitter.event;
+  private readonly onDidChangeFilesEmitter = this._register(new Emitter<void>());
+  public readonly onDidChangeFiles = this.onDidChangeFilesEmitter.event;
   private readonly onDidChangeViewLayoutEmitter = this._register(new Emitter<ExplorerViewLayout>());
   public readonly onDidChangeViewLayout = this.onDidChangeViewLayoutEmitter.event;
   private readonly onDidChangeVisibleTargetsEmitter = this._register(new Emitter<ExplorerVisibleTargetsChangeEvent>());
@@ -317,7 +320,6 @@ export class ExplorerService extends Disposable implements IExplorerService {
   }
 
   public updatePaneInput(input: ExplorerPaneInput): void {
-    this.updateFilesFromPaneInput(input);
     if (this.paneInput && isSameExplorerPaneInput(this.paneInput, input)) {
       return;
     }
@@ -428,25 +430,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
     }
 
     this.currentFiles = nextFiles;
-    this.updatePaneInputFiles(nextFiles);
-  }
-
-  private updateFilesFromPaneInput(input: ExplorerPaneInput): void {
-    const inputFiles = input.quickAccessFiles?.length ? input.quickAccessFiles : input.files;
-    if (!areExplorerFilesEqual(this.currentFiles, inputFiles)) {
-      this.currentFiles = [...inputFiles];
-    }
-  }
-
-  private updatePaneInputFiles(files: readonly ExplorerFileEntry[]): void {
-    const input = this.paneInput ?? EMPTY_EXPLORER_PANE_INPUT;
-    this.updatePaneInput({
-      ...input,
-      files: [...files],
-      quickAccessFiles: undefined,
-      selectedResource: this.currentSelectedResource,
-      selectedSheetId: this.currentSelectedSheetId,
-    });
+    this.onDidChangeFilesEmitter.fire(undefined);
   }
 
   private updatePaneInputSelection(): void {
@@ -465,7 +449,6 @@ export class ExplorerService extends Disposable implements IExplorerService {
 registerSingleton(IExplorerService, ExplorerService, InstantiationType.Delayed);
 
 const EMPTY_EXPLORER_PANE_INPUT: ExplorerPaneInput = {
-  files: [],
   mode: "table",
   selectedResource: null,
   selectedSheetId: null,
@@ -576,8 +559,7 @@ const isSameExplorerPaneInput = (
     current.templateSelections ?? [],
     next.templateSelections ?? [],
   ) &&
-  areExplorerFilesEqual(current.files, next.files) &&
-  areExplorerFilesEqual(current.quickAccessFiles ?? [], next.quickAccessFiles ?? []) &&
+  areExplorerResourceStatesEqual(current.resourceStates ?? [], next.resourceStates ?? []) &&
   areOriginPlotOptionsEqual(current.originOpenPlotOptions, next.originOpenPlotOptions) &&
   areShallowRecordsEqual(current.plotAxisSettings, next.plotAxisSettings) &&
   areThumbnailPlotModelsEqual(
@@ -595,8 +577,8 @@ const isSameExplorerEditableData = (
   current?.resource.sheetId === next?.resource.sheetId;
 
 const areExplorerFilesEqual = (
-  current: ExplorerPaneInput["files"],
-  next: ExplorerPaneInput["files"],
+  current: readonly ExplorerFileEntry[],
+  next: readonly ExplorerFileEntry[],
 ): boolean =>
   current.length === next.length &&
   current.every((file, index) => {
@@ -620,8 +602,8 @@ const areExplorerFilesEqual = (
   });
 
 const areExplorerResourcesEqual = (
-  current: ExplorerPaneInput["files"][number]["resource"],
-  next: ExplorerPaneInput["files"][number]["resource"],
+  current: ExplorerFileEntry["resource"],
+  next: ExplorerFileEntry["resource"],
 ): boolean => {
   if (current === next) {
     return true;
@@ -639,6 +621,19 @@ const areExplorerResourceTargetsEqual = (
 ): boolean =>
   areExplorerResourcesEqual(current?.resource, next?.resource) &&
   normalizeExplorerSheetId(current?.sheetId) === normalizeExplorerSheetId(next?.sheetId);
+
+const areExplorerResourceStatesEqual = (
+  current: readonly ExplorerResourceState[],
+  next: readonly ExplorerResourceState[],
+): boolean =>
+  current.length === next.length &&
+  current.every((state, index) => {
+    const nextState = next[index];
+    return state.chartMessage === nextState?.chartMessage &&
+      state.chartState === nextState?.chartState &&
+      state.hasChartData === nextState?.hasChartData &&
+      areExplorerResourceTargetsEqual(state, nextState ?? null);
+  });
 
 const areOriginPlotOptionsEqual = (
   current: ExplorerPaneInput["originOpenPlotOptions"],

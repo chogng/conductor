@@ -20,25 +20,25 @@ import { SlicePriorityContribution } from "src/cs/workbench/services/slice/brows
 import type {
 	ISliceService,
 	SliceState,
-	SliceUriRequest,
-	SliceUriTarget,
+	SliceResourceRequest,
+	SliceResourceTarget,
 } from "src/cs/workbench/services/slice/common/slice";
 import type { TemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
 
 suite("workbench/services/slice/test/browser/slicePriorityContribution", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test("ignores existing explorer selection and hover without URI targets on startup", () => {
+	test("ignores existing explorer selection and hover without resource targets on startup", () => {
 		const explorer = createExplorerService();
 		const sliceService = new TestSliceService();
 
 		store.add(new SlicePriorityContribution(explorer.service, sliceService));
 
-		assert.deepEqual(sliceService.prioritizedUriTargets, []);
+		assert.deepEqual(sliceService.prioritizedResourceTargets, []);
 		explorer.dispose();
 	});
 
-	test("ignores explorer selection and hover events without URI targets", () => {
+	test("ignores explorer selection and hover events without resource targets", () => {
 		const explorer = createExplorerService();
 		const sliceService = new TestSliceService();
 		store.add(new SlicePriorityContribution(explorer.service, sliceService));
@@ -46,11 +46,11 @@ suite("workbench/services/slice/test/browser/slicePriorityContribution", () => {
 		explorer.fireSelection({ kind: "chart", selectedResource: null });
 		explorer.fireHoveredResource({ target: null });
 
-		assert.deepEqual(sliceService.prioritizedUriTargets, []);
+		assert.deepEqual(sliceService.prioritizedResourceTargets, []);
 		explorer.dispose();
 	});
 
-	test("prioritizes URI targets from explorer selection and hover targets", () => {
+	test("prioritizes resource targets from explorer selection and hover targets", () => {
 		const resource = URI.file("/workspace/source.xlsx");
 		const explorer = createExplorerService({
 			hoveredResource: { resource, sheetId: "sheet-a" },
@@ -61,7 +61,7 @@ suite("workbench/services/slice/test/browser/slicePriorityContribution", () => {
 
 		store.add(new SlicePriorityContribution(explorer.service, sliceService));
 
-		assert.deepEqual(sliceService.prioritizedUriTargets.map(target => ({
+		assert.deepEqual(sliceService.prioritizedResourceTargets.map(target => ({
 			resource: target.resource.toString(),
 			sheetId: target.sheetId,
 		})), [{
@@ -78,9 +78,9 @@ suite("workbench/services/slice/test/browser/slicePriorityContribution", () => {
 class TestSliceService implements ISliceService {
 	public declare readonly _serviceBrand: undefined;
 	public readonly onDidChangeSliceState = Event.None as Event<void>;
-	public readonly onDidChangeTemplateSelection = Event.None as Event<SliceUriTarget>;
-	public readonly onDidChangeUriSliceResult = Event.None as Event<SliceUriTarget>;
-	public readonly prioritizedUriTargets: SliceUriTarget[] = [];
+	public readonly onDidChangeTemplateSelection = Event.None as Event<SliceResourceTarget>;
+	public readonly onDidChangeResourceSliceResult = Event.None as Event<SliceResourceTarget>;
+	public readonly prioritizedResourceTargets: SliceResourceTarget[] = [];
 
 	public getState(): SliceState {
 		return {
@@ -89,11 +89,11 @@ class TestSliceService implements ISliceService {
 		};
 	}
 
-	public getUriResult(): null {
+	public getResourceResult(): null {
 		return null;
 	}
 
-	public getUriState(): undefined {
+	public getResourceState(): undefined {
 		return undefined;
 	}
 
@@ -101,14 +101,14 @@ class TestSliceService implements ISliceService {
 		return { kind: "auto" };
 	}
 
-	public submitUri(_requests: readonly SliceUriRequest[]): void {}
+	public submitResource(_requests: readonly SliceResourceRequest[]): void {}
 
-	public prioritizeUri(target: SliceUriTarget): void {
-		this.prioritizedUriTargets.push(target);
+	public prioritizeResource(target: SliceResourceTarget): void {
+		this.prioritizedResourceTargets.push(target);
 	}
 
-	public cancelUri(_targets: readonly SliceUriTarget[]): void {}
-	public setTemplateSelection(_target: SliceUriTarget, _selection: TemplateSelection): void {}
+	public cancelResource(_targets: readonly SliceResourceTarget[]): void {}
+	public setTemplateSelection(_target: SliceResourceTarget, _selection: TemplateSelection): void {}
 }
 
 const createExplorerService = ({

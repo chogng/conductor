@@ -78,11 +78,11 @@ Manual execution:
 
 ```txt
 user template picker / saved-selection compatibility picker
-  -> IReviewService.reviewUriForExecution({ resource, sheetId })
-  -> IReviewService.reviewUriManualTemplate(saved user template id)
+  -> IReviewService.reviewResourceForExecution({ resource, sheetId })
+  -> IReviewService.reviewResourceManualTemplate(saved user template id)
   -> IUserTemplateService.getTemplate(...)
   -> ManualTemplateReviewResult.ready
-  -> SliceUriRequest(trigger = userCommand)
+  -> SliceResourceRequest(trigger = userCommand)
 ```
 
 ## Rules
