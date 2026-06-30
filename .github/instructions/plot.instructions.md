@@ -43,7 +43,7 @@ production, template execution, or thumbnail bitmap cache.
 ## Flow
 
 ```txt
-SessionSnapshot-backed file ids or SliceResourceTarget results + PlotState
+SessionSnapshot-backed file ids or resource/sheet Slice results + PlotState
   -> PlotService
   -> calculated-data cache / display-model cache / worker queues
   -> PlotRenderModel / PlotDisplayModel
@@ -71,21 +71,21 @@ uses platform storage; callers should not write settings/storage directly.
 - Consumers request prefetch on cache miss instead of synchronously creating expensive data in render.
 - Calculated-data and display-model prefetch are separate cache warmups.
 - PlotService owns dedupe, cache-hit skip, queue promotion, stale-result checks, and perf counters.
-- Consumers pass file identity or resource/sheet Slice targets into Plot read/prefetch APIs;
+- Consumers pass file identity or direct resource/sheet Slice identity into Plot read/prefetch APIs;
   they should not pass `SessionSnapshot` through Plot input records. PlotService
   resolves legacy Session-backed file ids internally as the Plot owner fallback.
-- Resource/sheet consumers pass the `SliceResourceTarget` directly. Do not pair a target
-  with a legacy file id in the same Plot input; derive downstream keys from the
-  target inside Plot.
+- Resource/sheet consumers pass `resource` and optional `sheetId` directly. Do
+  not pair a resource/sheet input with a legacy file id in the same Plot input;
+  derive downstream keys from the resource identity inside Plot.
 - Consumers that need Plot-owned axis/unit/scale settings call `getAxisSettings()`
   without passing Session snapshots. Session-backed callers merge file default
   axis projections in their own owner boundary when they still consume Session
   data.
-- Resource/sheet target calculated/display reads resolve the current Slice result through
+- Resource/sheet calculated/display reads resolve the current Slice result through
   `ISliceService` and must not resolve `ISessionService.getSnapshot()` just to
   satisfy Plot input shape. Session snapshots are required only for
   Session-backed file ids.
-- Display-model creation uses Plot-owned storage settings when a target has
+- Display-model creation uses Plot-owned storage settings when a resource/sheet input has
   no Session snapshot; do not couple resource/sheet axis/unit/scale state back to
   Session records.
 - Worker requests send only fields needed for plot calculation: base curves,
@@ -102,8 +102,8 @@ uses platform storage; callers should not write settings/storage directly.
 
 - Session changes should invalidate only affected file ids when possible.
 - Full Session clears/removals clear Session-backed file-record caches; resource/sheet
-  Slice target caches are invalidated by Slice target changes, not by Session events.
-- Slice result changes should invalidate only affected resource/sheet targets when
+  Slice caches are invalidated by Slice resource changes, not by Session events.
+- Slice result changes should invalidate only affected resource/sheet identities when
   possible.
 - Plot-relevant data changes publish targeted calculated/display cache events.
 - Do not publish global `onDidChangePlotState` for unrelated file commits.

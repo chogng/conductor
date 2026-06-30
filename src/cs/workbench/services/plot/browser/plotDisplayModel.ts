@@ -49,14 +49,16 @@ export const createPlotDisplayModelFromCalculatedData = (
     fileId: parts.fileId,
     pane: "chart",
     plotType: parts.chartData.kind as PlotType,
-    target: parts.target,
+    resource: parts.resource,
+    sheetId: parts.sheetId,
   });
   const chartYTitleContext = createAxisTitleContext({
     axis: "y",
     fileId: parts.fileId,
     pane: "chart",
     plotType: parts.chartData.kind as PlotType,
-    target: parts.target,
+    resource: parts.resource,
+    sheetId: parts.sheetId,
   });
   const chartDefaultXAxisTitle = resolveAxisTitleLabel(
     parts.chartData.activeFile?.xLabel,
@@ -91,11 +93,13 @@ export const createPlotDisplayModelFromCalculatedData = (
         displayUnits: parts.displayUnits,
         fileId: parts.fileId,
         hiddenLegendKeys: parts.hiddenLegendKeys,
-        target: parts.target,
+        resource: parts.resource,
+        sheetId: parts.sheetId,
         yScaleMode: parts.yScaleMode,
       }),
     plotType: parts.chartData.kind as PlotType,
-    target: parts.target,
+    resource: parts.resource,
+    sheetId: parts.sheetId,
     unitControl: createUnitControlModel(parts.chartData, input.axisSettings),
   };
 };
@@ -114,7 +118,8 @@ export const createPlotInspectorDisplayModelFromCalculatedData = (
     displayUnits: parts.displayUnits,
     fileId: parts.fileId,
     hiddenLegendKeys: parts.hiddenLegendKeys,
-    target: parts.target,
+    resource: parts.resource,
+    sheetId: parts.sheetId,
     yScaleMode: parts.yScaleMode,
   });
 };
@@ -131,7 +136,8 @@ const createPlotDisplayModelParts = (
   };
   readonly fileId: string;
   readonly hiddenLegendKeys: readonly string[];
-  readonly target?: PlotDisplayModel["target"];
+  readonly resource?: PlotDisplayModel["resource"];
+  readonly sheetId?: PlotDisplayModel["sheetId"];
   readonly yScaleMode: "linear" | "log";
 } | null => {
   const calculatedData = input.calculatedData;
@@ -152,14 +158,15 @@ const createPlotDisplayModelParts = (
     displayUnits,
     fileId,
     hiddenLegendKeys,
-    target: calculatedData.source.target ?? null,
+    resource: calculatedData.source.resource ?? null,
+    sheetId: calculatedData.source.sheetId ?? null,
     yScaleMode,
   };
 };
 
 export const getPlotAxisTitleStateKey = (context: PlotAxisTitleContext): string =>
   [
-    getPlotAxisTitleTargetKey(context),
+    getPlotAxisTitleIdentityKey(context),
     context.plotType,
     context.pane,
     context.axis,
@@ -181,7 +188,8 @@ const createInspectorDisplayModel = ({
   displayUnits,
   fileId,
   hiddenLegendKeys,
-  target,
+  resource,
+  sheetId,
   yScaleMode,
 }: {
   readonly axisTitleOverridesByKey: Readonly<Record<string, string>> | undefined;
@@ -194,7 +202,8 @@ const createInspectorDisplayModel = ({
   };
   readonly fileId: string;
   readonly hiddenLegendKeys: readonly string[];
-  readonly target?: PlotDisplayModel["target"];
+  readonly resource?: PlotDisplayModel["resource"];
+  readonly sheetId?: PlotDisplayModel["sheetId"];
   readonly yScaleMode: "linear" | "log";
 }): PlotDisplayModel["inspector"] => {
   const inspectorData = createSecondCalculatedData(
@@ -208,14 +217,16 @@ const createInspectorDisplayModel = ({
     fileId,
     pane: "inspector",
     plotType: chartData.kind as PlotType,
-    target,
+    resource,
+    sheetId,
   });
   const inspectorYTitleContext = createAxisTitleContext({
     axis: "y",
     fileId,
     pane: "inspector",
     plotType: chartData.kind as PlotType,
-    target,
+    resource,
+    sheetId,
   });
   const inspectorDefaultXAxisTitle = resolveAxisTitleLabel(
     inspectorData.activeFile?.xLabel,
@@ -296,20 +307,20 @@ const createUnitControlModel = (
   };
 };
 
-const getPlotAxisTitleTargetKey = (
+const getPlotAxisTitleIdentityKey = (
   context: PlotAxisTitleContext,
 ): string => {
-  const resource = getTargetResourceKey(context.target?.resource);
+  const resource = getResourceKey(context.resource);
   if (!resource) {
     return context.fileId;
   }
 
-  const sheetId = String(context.target?.sheetId ?? "").trim();
+  const sheetId = String(context.sheetId ?? "").trim();
   return sheetId ? `${resource}\u0000${sheetId}` : resource;
 };
 
-const getTargetResourceKey = (resource: unknown): string => {
-  const text = getTargetResourceString(resource);
+const getResourceKey = (resource: unknown): string => {
+  const text = getResourceString(resource);
   if (text) {
     return text.replace(/\\/g, "/");
   }
@@ -349,7 +360,7 @@ const getTargetResourceKey = (resource: unknown): string => {
   ].join("").replace(/\\/g, "/");
 };
 
-const getTargetResourceString = (resource: unknown): string => {
+const getResourceString = (resource: unknown): string => {
   const toString = (resource as { readonly toString?: unknown } | null | undefined)?.toString;
   if (typeof toString !== "function") {
     return "";

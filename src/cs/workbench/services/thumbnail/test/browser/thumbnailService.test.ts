@@ -159,27 +159,27 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		assert.equal(state.kind === "fastReady" ? state.model.seriesList.length : 0, 1);
 	});
 
-	test("resource target previews do not require Session file records", () => {
-		const target = {
+	test("resource previews do not require Session file records", () => {
+		const resourceInput = {
 			resource: URI.file("/data/Uri.csv"),
 			sheetId: "sheet-a",
 		};
-		const calculatedTargets: Array<{
+		const calculatedResources: Array<{
 			readonly hasFileId: boolean;
-			readonly targetResource?: string | null;
+			readonly resource?: string | null;
 		}> = [];
 		const calculatedPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
 		const displayPrefetches: Array<{
 			readonly hasFileId: boolean;
-			readonly targetResource?: string | null;
+			readonly resource?: string | null;
 		}> = [];
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
 				getCachedCalculatedData: () => null,
 				getCalculatedData: (input: Parameters<IPlotService["getCalculatedData"]>[0]) => {
-					calculatedTargets.push({
+					calculatedResources.push({
 						hasFileId: Object.prototype.hasOwnProperty.call(input, "fileId"),
-						targetResource: input.target?.resource.toString() ?? null,
+						resource: input.resource?.toString() ?? null,
 					});
 					return {
 						fileId: null,
@@ -195,39 +195,39 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				prefetchPlotDisplayModel: (input: Parameters<IPlotService["prefetchPlotDisplayModel"]>[0]) => {
 					displayPrefetches.push({
 						hasFileId: Object.prototype.hasOwnProperty.call(input, "fileId"),
-						targetResource: input.target?.resource.toString() ?? null,
+						resource: input.resource?.toString() ?? null,
 					});
 				},
 			} as unknown as IPlotService,
 		));
 
-		service.prefetch([target], "visible");
+		service.prefetch([resourceInput], "visible");
 
 		assert.deepEqual(calculatedPrefetches, []);
 		assert.deepEqual(displayPrefetches, [{
 			hasFileId: false,
-			targetResource: "file:///data/Uri.csv",
+			resource: "file:///data/Uri.csv",
 		}]);
-		assert.equal(service.request(target, "hover").kind, "ready");
-		assert.deepEqual(calculatedTargets, [{
+		assert.equal(service.request(resourceInput, "hover").kind, "ready");
+		assert.deepEqual(calculatedResources, [{
 			hasFileId: false,
-			targetResource: "file:///data/Uri.csv",
+			resource: "file:///data/Uri.csv",
 		}]);
 	});
 
-	test("plot cache changes refresh matching previews without clearing resource target previews", () => {
+	test("plot cache changes refresh matching previews without clearing resource previews", () => {
 		const cacheEmitter = store.add(new Emitter<{ readonly fileId: string; readonly plotType: "iv" }>());
-		const target = {
+		const resourceInput = {
 			resource: URI.file("/data/Uri.csv"),
 			sheetId: "sheet-a",
 		};
 		let sessionBackedSignature = "plot:file-a:initial";
-		const changedTargets: Array<{ readonly fileId?: string | null; readonly targetResource?: string | null }> = [];
+		const changedResources: Array<{ readonly fileId?: string | null; readonly resource?: string | null }> = [];
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
 				getCachedCalculatedData: (input: Parameters<IPlotService["getCachedCalculatedData"]>[0]) => ({
 					fileId: input.fileId ?? null,
-					signature: input.target ? "plot:uri-a" : sessionBackedSignature,
+					signature: input.resource ? "plot:uri-a" : sessionBackedSignature,
 				}),
 				getCalculatedData: () => {
 					throw new Error("thumbnail previews must not synchronously calculate cached plot data");
@@ -240,22 +240,22 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 			} as unknown as IPlotService,
 		));
 		store.add(service.onDidChangePreview(event => {
-			changedTargets.push({
+			changedResources.push({
 				fileId: event.fileId,
-				targetResource: event.target?.resource.toString() ?? null,
+				resource: event.resource?.toString() ?? null,
 			});
 		}));
 
 		assert.equal(service.request("file-a", "hover").kind, "ready");
-		assert.equal(service.request(target, "hover").kind, "ready");
-		changedTargets.length = 0;
+		assert.equal(service.request(resourceInput, "hover").kind, "ready");
+		changedResources.length = 0;
 
 		sessionBackedSignature = "plot:file-a:next";
 		cacheEmitter.fire({ fileId: "file-a", plotType: "iv" });
 
-		assert.equal(service.get(target).kind, "ready");
-		assert.deepEqual(changedTargets, [
-			{ fileId: "file-a", targetResource: null },
+		assert.equal(service.get(resourceInput).kind, "ready");
+		assert.deepEqual(changedResources, [
+			{ fileId: "file-a", resource: null },
 		]);
 	});
 

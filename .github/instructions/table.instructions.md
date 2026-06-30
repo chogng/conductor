@@ -140,7 +140,7 @@ TableWidget header scale badge / shared stepper
   -> TableWidget rerenders affected visible cells and header scale controls
 
 Template visualization
-  -> ISliceService owns the current template slot for each TableSource/sheet target
+  -> ISliceService owns the current template slot for each resource/sheet identity
   -> TableTemplateDecorationsProvider implements the workbench `IDecorationsProvider` contract and listens to the slot and related template materialization changes
   -> auto slot reads the current Review-owned system recommended ReviewedTemplate.template
   -> saved user slot reads the selected IUserTemplateService UserTemplate.template snapshot directly

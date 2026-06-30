@@ -8,7 +8,6 @@ import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { executeSlicePlan } from "src/cs/workbench/services/slice/common/sliceExecutor";
 import { createSlicePlan } from "src/cs/workbench/services/slice/common/slicePlanner";
-import type { SliceResourceTarget } from "src/cs/workbench/services/slice/common/slice";
 import type { Template } from "src/cs/workbench/services/template/common/template";
 
 suite("workbench/services/slice/test/common/sliceExecutor", () => {
@@ -23,10 +22,8 @@ suite("workbench/services/slice/test/common/sliceExecutor", () => {
 			},
 		});
 		const plan = createSlicePlan({
-			target: {
-				kind: "resource",
-				target: { resource, sheetId: "sheet-a" },
-			},
+			resource,
+			sheetId: "sheet-a",
 			mode: "auto",
 			selection: { kind: "auto" },
 			sourceVersion: 3,
@@ -99,15 +96,10 @@ suite("workbench/services/slice/test/common/sliceExecutor", () => {
 	});
 
 	test("derives resource run ids from resource components after structured clone", () => {
-		const resource = URI.file("/workspace/source.xlsx").toJSON() as unknown as SliceResourceTarget["resource"];
+		const resource = URI.file("/workspace/source.xlsx").toJSON() as unknown as URI;
 		const plan = createSlicePlan({
-			target: {
-				kind: "resource",
-				target: {
-					resource,
-					sheetId: "sheet-a",
-				},
-			},
+			resource,
+			sheetId: "sheet-a",
 			mode: "manual",
 			selection: { kind: "auto" },
 			sourceVersion: 7,

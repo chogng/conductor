@@ -136,8 +136,8 @@ import/export command
 - WorkbenchDomainBridge must not construct or push Template-owned execution
   workflow inputs, and must not read `TemplateState` for Explorer current-template display.
   Explorer current-template display is a view projection in ExplorerViewPane;
-  per-target slicing selections come from `ISliceService`.
-- Per-target template selections for slicing belong to `ISliceService`; do not
+  per-resource slicing selections come from `ISliceService`.
+- Per-resource template selections for slicing belong to `ISliceService`; do not
   store them in `TemplateState` or `IUserTemplateService`.
 - Do not reintroduce Template-owned workflow inputs or
   `TemplateState.selectionsByFileId`; slicing selections come from
@@ -148,14 +148,14 @@ import/export command
 - Browser export fallback may download the native `conductor.userTemplate`
   JSON payload when the platform cannot expose a save-file target. It must not
   resurrect the retired Template-editor bundle payload.
-- Active `{ resource, sheetId? }` targets should move the current chart/Explorer target to the front of full and incremental slice queues.
+- Active `{ resource, sheetId? }` identities should move the current chart/Explorer resource to the front of full and incremental slice queues.
 - Explorer hover/selection priority for slicing belongs to
   `SlicePriorityContribution` -> `ISliceService.prioritizeResource(...)`; do not route
   it through WorkbenchDomainBridge or Template code.
 - New resource/sheet slice progress belongs to `ISliceService`; consumers subscribe and
-  reread target state through `getResourceState(target)`.
-- Per-target readiness belongs to Slice; Explorer projects it into badges/chart-state without adding/removing file tree items.
-- Mark resource/sheet targets `processing` when a single-target task starts, then `ready`, `failed`, or remove through the same owner state.
+  reread state through `getResourceState(resource, sheetId)`.
+- Per-resource readiness belongs to Slice; Explorer projects it into badges/chart-state without adding/removing file tree items.
+- Mark resource/sheet identities `processing` when a single-resource task starts, then `ready`, `failed`, or remove through the same owner state.
 - `SliceRun` records include template fingerprint and source block ids.
 - Execution commits through `commitSliceRuns(...)`; do not add Template-owned
   run/output commit or cleanup APIs.

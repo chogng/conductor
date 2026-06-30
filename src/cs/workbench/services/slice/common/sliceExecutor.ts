@@ -171,14 +171,14 @@ const createSliceSeriesId = (
 const createSliceRunId = (
 	plan: SlicePlan,
 ): string => {
-	const targetId = `${getSliceRunTargetResourceIdentity(plan.target.target.resource)}:${plan.target.target.sheetId ?? ""}`;
+	const targetId = `${getSliceRunResourceIdentity(plan.resource)}:${plan.sheetId ?? ""}`;
 	return `slice:resource:${targetId}:${plan.templateFingerprint}:${plan.sourceVersion ?? 0}`;
 };
 
-const getSliceRunTargetResourceIdentity = (
+const getSliceRunResourceIdentity = (
 	resource: unknown,
 ): string => {
-	const text = getSliceRunTargetResourceString(resource);
+	const text = getSliceRunResourceString(resource);
 	if (text) {
 		return text.replace(/\\/g, "/");
 	}
@@ -201,7 +201,7 @@ const getSliceRunTargetResourceIdentity = (
 	return "";
 };
 
-const getSliceRunTargetResourceString = (
+const getSliceRunResourceString = (
 	resource: unknown,
 ): string => {
 	if (!resource) {

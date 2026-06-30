@@ -5,6 +5,7 @@ import {
   executeCalculation,
 } from "src/cs/workbench/services/calculation/common/calculationExecutor";
 import { startPerf } from "src/cs/workbench/common/perf";
+import type { URI } from "src/cs/base/common/uri";
 import { createSecondDerivativeResult } from "src/cs/workbench/services/calculation/common/gm";
 import {
   CalculationKinds,
@@ -23,7 +24,7 @@ import {
   getFileRecordDomain,
   getFileRecordXGroups,
 } from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
-import type { SliceResourceResult, SliceResourceTarget } from "src/cs/workbench/services/slice/common/slice";
+import type { SliceResourceResult } from "src/cs/workbench/services/slice/common/slice";
 
 type CalculationSourceNumberArray = readonly number[] | Float64Array;
 
@@ -80,8 +81,9 @@ export type CalculatedSeries = {
 
 export type CalculatedDataSource = {
   readonly fileId: string | null;
-  readonly inputKind: "source" | "canonical" | "sliceUri" | CalculationKind;
-  readonly target?: SliceResourceTarget | null;
+  readonly inputKind: "source" | "canonical" | "sliceResource" | CalculationKind;
+  readonly resource?: URI | null;
+  readonly sheetId?: string | null;
 };
 
 export type CalculatedData = {
@@ -226,9 +228,10 @@ export const createCalculatedDataForSliceResourceResult = ({
     .filter((series): series is CalculatedSeries => Boolean(series));
   const points = seriesList.flatMap(series => series.data);
   const source = {
-    fileId: createSliceResourceTargetId(result.target),
-    inputKind: "sliceUri" as const,
-    target: result.target,
+    fileId: createSliceResourceId(result.resource, result.sheetId),
+    inputKind: "sliceResource" as const,
+    resource: result.resource,
+    sheetId: result.sheetId ?? null,
   };
   const xDomain = getFiniteDomain(points.map(point => Number(point.x)), [0, 1]);
   const xUnitLabel = String(activeFile?.xUnit ?? "");
@@ -435,8 +438,8 @@ const createCalculationSourceFileFromSliceResourceResult = (
         y: getFiniteDomain(yValues, [0, 1]),
       }
       : undefined,
-    fileId: createSliceResourceTargetId(result.target),
-    fileName: result.target.resource.path.split(/[\\/]/).filter(Boolean).pop() ?? createSliceResourceTargetId(result.target),
+    fileId: createSliceResourceId(result.resource, result.sheetId),
+    fileName: result.resource.path.split(/[\\/]/).filter(Boolean).pop() ?? createSliceResourceId(result.resource, result.sheetId),
     series: createCalculationSourceSeriesFromSliceResourceResult(result, curves),
     supportsSs: curves.some(curve => curve.curveFamily === "iv" && curve.ivMode === "transfer"),
     xAxisRole: getSliceResourceXAxisRole(curves[0]),
@@ -521,16 +524,17 @@ const getSliceTemplateBlockText = (
   return undefined;
 };
 
-const createSliceResourceTargetId = (
-  target: SliceResourceTarget,
+const createSliceResourceId = (
+  resource: URI,
+  sheetId?: string | null,
 ): string => {
-  const resource = getTargetResourceKey(target.resource);
-  const sheetId = String(target.sheetId ?? "").trim();
-  return sheetId ? `${resource}\u0000${sheetId}` : resource;
+  const resourceId = getResourceKey(resource);
+  const normalizedSheetId = String(sheetId ?? "").trim();
+  return normalizedSheetId ? `${resourceId}\u0000${normalizedSheetId}` : resourceId;
 };
 
-const getTargetResourceKey = (resource: unknown): string => {
-  const text = getTargetResourceString(resource);
+const getResourceKey = (resource: unknown): string => {
+  const text = getResourceString(resource);
   if (text) {
     return text.replace(/\\/g, "/");
   }
@@ -570,7 +574,7 @@ const getTargetResourceKey = (resource: unknown): string => {
   ].join("").replace(/\\/g, "/");
 };
 
-const getTargetResourceString = (resource: unknown): string => {
+const getResourceString = (resource: unknown): string => {
   const toString = (resource as { readonly toString?: unknown } | null | undefined)?.toString;
   if (typeof toString !== "function") {
     return "";

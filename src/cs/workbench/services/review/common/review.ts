@@ -27,16 +27,14 @@ export type ManualTemplateSelection =
     readonly templateId: string;
   };
 
-export type ResourceManualTemplateReviewRequest = {
-  readonly target: ReviewSummaryTarget;
+export type ResourceManualTemplateReviewRequest = ReviewSummaryTarget & {
   readonly selection: ManualTemplateSelection;
 };
 
 export type ReviewedTemplateConfirmationReason =
   | "user";
 
-export type ReviewedTemplateConfirmationRequest = {
-  readonly target: ReviewSummaryTarget;
+export type ReviewedTemplateConfirmationRequest = ReviewSummaryTarget & {
   readonly reviewedTemplate: ReviewedTemplate;
   readonly reason?: ReviewedTemplateConfirmationReason;
 };

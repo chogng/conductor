@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Event } from "src/cs/base/common/event";
+import type { URI } from "src/cs/base/common/uri";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import {
   CalculationKinds,
@@ -14,7 +15,6 @@ import type {
   FileId,
   SeriesId,
 } from "src/cs/workbench/services/session/common/sessionModel";
-import type { SliceResourceTarget } from "src/cs/workbench/services/slice/common/slice";
 import type {
   PlotMainRenderModel,
   PlotMainSeries,
@@ -50,15 +50,17 @@ export type PlotAxisTitleContext = {
   readonly fileId: FileId;
   readonly pane: PlotAxisTitlePane;
   readonly plotType: PlotType;
-  readonly target?: SliceResourceTarget | null;
+  readonly resource?: URI | null;
+  readonly sheetId?: string | null;
 };
 
 export type PlotTargetInput = {
   readonly fileId?: FileId | null;
-  readonly target?: SliceResourceTarget | null;
+  readonly resource?: URI | null;
+  readonly sheetId?: string | null;
 };
 
-export type PlotTargetReference = FileId | SliceResourceTarget | PlotTargetInput;
+export type PlotTargetReference = FileId | URI | PlotTargetInput;
 
 export type PlotCalculatedDataInput = {
   readonly plotType?: PlotType;
@@ -70,14 +72,16 @@ export type PlotCalculatedDataPrefetchPriority = "active" | "hover" | "visible" 
 export type PlotCalculatedDataCacheChangeEvent = {
   readonly fileId?: FileId;
   readonly plotType: PlotType;
-  readonly target?: SliceResourceTarget | null;
+  readonly resource?: URI | null;
+  readonly sheetId?: string | null;
 };
 
 export type PlotDisplayModelCacheChangeEvent = {
   readonly fileId?: FileId;
   readonly pane?: "chart" | "inspector";
   readonly plotType: PlotType;
-  readonly target?: SliceResourceTarget | null;
+  readonly resource?: URI | null;
+  readonly sheetId?: string | null;
 };
 
 export type PlotMainRenderModelInput = PlotCalculatedDataInput;
@@ -86,7 +90,8 @@ export type PlotLegendModel = {
   readonly fileId: FileId;
   readonly plotType: PlotType;
   readonly seriesList: readonly PlotMainSeries[];
-  readonly target?: SliceResourceTarget | null;
+  readonly resource?: URI | null;
+  readonly sheetId?: string | null;
 };
 
 export type PlotDisplayModelRequest = {
@@ -126,7 +131,8 @@ export type PlotDisplayModel = {
   readonly fileId: FileId;
   readonly inspector: PlotPaneDisplayModel | null;
   readonly plotType: PlotType;
-  readonly target?: SliceResourceTarget | null;
+  readonly resource?: URI | null;
+  readonly sheetId?: string | null;
   readonly unitControl: PlotUnitControlModel | null;
 };
 

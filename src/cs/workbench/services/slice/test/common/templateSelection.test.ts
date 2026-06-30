@@ -7,13 +7,13 @@ import assert from "assert";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
-	areTemplateTargetSelectionsEqual,
+	areTemplateResourceSelectionsEqual,
 	createTemplateSelection,
 	getTemplateSelectionId,
 	isAutoTemplateId,
-	removeTemplateSelectionsForTargets,
+	removeTemplateSelectionsForResources,
 	removeTemplateSelectionsForTemplate,
-	resolveTemplateSelectionForTarget,
+	resolveTemplateSelectionForResource,
 } from "src/cs/workbench/services/slice/common/templateSelection";
 
 suite("workbench/services/slice/test/common/templateSelection", () => {
@@ -38,74 +38,74 @@ suite("workbench/services/slice/test/common/templateSelection", () => {
 		assert.equal(isAutoTemplateId(null), false);
 	});
 
-	test("resolves target selection before current selection", () => {
+	test("resolves resource selection before current selection", () => {
 		const current = createTemplateSelection("template-current");
 		const resource = URI.file("/workspace/file-a.csv");
-		const target = { resource, sheetId: "sheet-a" };
+		const resourceSelection = { resource, sheetId: "sheet-a" };
 
 		assert.deepEqual(
-			resolveTemplateSelectionForTarget(
-				target,
-				[{ target, selection: createTemplateSelection("template-file") }],
+			resolveTemplateSelectionForResource(
+				resourceSelection,
+				[{ ...resourceSelection, selection: createTemplateSelection("template-file") }],
 				current,
 			),
 			{ kind: "saved", templateId: "template-file" },
 		);
 		assert.equal(
-			resolveTemplateSelectionForTarget({ resource: URI.file("/workspace/file-b.csv") }, [], current),
+			resolveTemplateSelectionForResource({ resource: URI.file("/workspace/file-b.csv") }, [], current),
 			current,
 		);
 	});
 
-	test("removes selections for deleted targets", () => {
-		const targetA = { resource: URI.file("/workspace/file-a.csv") };
-		const targetB = { resource: URI.file("/workspace/file-b.csv"), sheetId: "sheet-b" };
+	test("removes selections for deleted resources", () => {
+		const resourceA = { resource: URI.file("/workspace/file-a.csv") };
+		const resourceB = { resource: URI.file("/workspace/file-b.csv"), sheetId: "sheet-b" };
 		assert.deepEqual(
-			removeTemplateSelectionsForTargets(
+			removeTemplateSelectionsForResources(
 				[
-					{ target: targetA, selection: createTemplateSelection("template-a") },
-					{ target: targetB, selection: createTemplateSelection("template-b") },
+					{ ...resourceA, selection: createTemplateSelection("template-a") },
+					{ ...resourceB, selection: createTemplateSelection("template-b") },
 				],
-				[targetA],
+				[resourceA],
 			),
 			[
-				{ target: targetB, selection: createTemplateSelection("template-b") },
+				{ ...resourceB, selection: createTemplateSelection("template-b") },
 			],
 		);
 	});
 
 	test("removes selections for deleted templates", () => {
-		const targetA = { resource: URI.file("/workspace/file-a.csv") };
-		const targetB = { resource: URI.file("/workspace/file-b.csv") };
-		const targetC = { resource: URI.file("/workspace/file-c.csv") };
+		const resourceA = { resource: URI.file("/workspace/file-a.csv") };
+		const resourceB = { resource: URI.file("/workspace/file-b.csv") };
+		const resourceC = { resource: URI.file("/workspace/file-c.csv") };
 		assert.deepEqual(
 			removeTemplateSelectionsForTemplate(
 				[
-					{ target: targetA, selection: createTemplateSelection("template-a") },
-					{ target: targetB, selection: createTemplateSelection("template-b") },
-					{ target: targetC, selection: { kind: "auto" } },
+					{ ...resourceA, selection: createTemplateSelection("template-a") },
+					{ ...resourceB, selection: createTemplateSelection("template-b") },
+					{ ...resourceC, selection: { kind: "auto" } },
 				],
 				"template-a",
 			),
 			[
-				{ target: targetB, selection: createTemplateSelection("template-b") },
-				{ target: targetC, selection: { kind: "auto" } },
+				{ ...resourceB, selection: createTemplateSelection("template-b") },
+				{ ...resourceC, selection: { kind: "auto" } },
 			],
 		);
 	});
 
-	test("compares target selections without depending on insertion order", () => {
-		const targetA = { resource: URI.file("/workspace/file-a.csv") };
-		const targetB = { resource: URI.file("/workspace/file-b.csv") };
+	test("compares resource selections without depending on insertion order", () => {
+		const resourceA = { resource: URI.file("/workspace/file-a.csv") };
+		const resourceB = { resource: URI.file("/workspace/file-b.csv") };
 
-		assert.equal(areTemplateTargetSelectionsEqual(
+		assert.equal(areTemplateResourceSelectionsEqual(
 			[
-				{ target: targetA, selection: createTemplateSelection("template-a") },
-				{ target: targetB, selection: { kind: "auto" } },
+				{ ...resourceA, selection: createTemplateSelection("template-a") },
+				{ ...resourceB, selection: { kind: "auto" } },
 			],
 			[
-				{ target: targetB, selection: { kind: "auto" } },
-				{ target: targetA, selection: createTemplateSelection("template-a") },
+				{ ...resourceB, selection: { kind: "auto" } },
+				{ ...resourceA, selection: createTemplateSelection("template-a") },
 			],
 		), true);
 	});

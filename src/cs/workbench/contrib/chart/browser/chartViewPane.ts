@@ -7,6 +7,7 @@ import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
 import { Action } from "src/cs/base/common/actions";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
+import type { URI } from "src/cs/base/common/uri";
 import { ICommandService } from "src/cs/platform/commands/common/commands";
 import { localize } from "src/cs/nls";
 import { logPerf } from "src/cs/workbench/common/perf";
@@ -63,11 +64,16 @@ import {
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
 import type { ChartViewProps } from "src/cs/workbench/contrib/chart/browser/views/chartView";
-import type { SliceResourceTarget } from "src/cs/workbench/services/slice/common/slice";
 
 import "src/cs/workbench/contrib/chart/browser/media/chart.css";
 
 const INSPECTOR_PREFETCH_STABLE_DELAY_MS = 320;
+
+type ChartPlotInput = {
+  readonly fileId: string | null;
+  readonly resource?: URI | null;
+  readonly sheetId?: string | null;
+};
 
 export class ChartViewPane extends ViewPane {
   private readonly centerArea: HTMLElement;
@@ -260,11 +266,11 @@ export class ChartViewPane extends ViewPane {
     if (unitState) {
       this.setHeaderUnitControls(createChartUnitControls({
         onDidChangeScale: (fileId, scale) => this.updatePlotYScale(
-          createChartPlotTargetReference(fileId, props.activeTarget ?? null),
+          createChartPlotReference(fileId, props.activeResource ?? null, props.activeSheetId ?? null),
           scale,
         ),
         onDidChangeUnit: (fileId, axis, unit) => this.updatePlotUnit(
-          createChartPlotTargetReference(fileId, props.activeTarget ?? null),
+          createChartPlotReference(fileId, props.activeResource ?? null, props.activeSheetId ?? null),
           axis,
           unit,
         ),
@@ -446,7 +452,8 @@ export class ChartViewPane extends ViewPane {
       this.scheduleInspectorPrefetch({
         fileId,
         plotType,
-        target: input.target,
+        resource: input.resource,
+        sheetId: input.sheetId,
       });
     } else {
       this.cancelPendingInspectorPrefetch();
@@ -457,7 +464,8 @@ export class ChartViewPane extends ViewPane {
   private scheduleInspectorPrefetch(input: {
     readonly fileId: string;
     readonly plotType: PlotType;
-    readonly target?: SliceResourceTarget | null;
+    readonly resource?: URI | null;
+    readonly sheetId?: string | null;
   }): void {
     const key = this.createInspectorPrefetchKey(input);
     if (this.pendingInspectorPrefetchKey === key) {
@@ -497,24 +505,26 @@ export class ChartViewPane extends ViewPane {
   private createInspectorPrefetchKey(input: {
     readonly fileId: string;
     readonly plotType: PlotType;
-    readonly target?: SliceResourceTarget | null;
+    readonly resource?: URI | null;
+    readonly sheetId?: string | null;
   }): string {
     return [
       input.fileId,
       input.plotType,
-      getSliceResourceTargetIdentity(input.target),
+      getResourceSheetIdentity(input.resource, input.sheetId),
     ].join("|");
   }
 
   private isInspectorPrefetchTargetCurrent(input: {
     readonly fileId: string;
     readonly plotType: PlotType;
-    readonly target?: SliceResourceTarget | null;
+    readonly resource?: URI | null;
+    readonly sheetId?: string | null;
   }): boolean {
     const currentInput = getChartPlotTargetInput(this.props);
     return !(
       currentInput.fileId !== input.fileId ||
-      !isSameSliceResourceTarget(currentInput.target, input.target) ||
+      getResourceSheetIdentity(currentInput.resource, currentInput.sheetId) !== getResourceSheetIdentity(input.resource, input.sheetId) ||
       this.getActivePlotType() !== input.plotType ||
       !this.chartService.getState().visibleDetailPanes.includes("inspector")
     );
@@ -666,7 +676,7 @@ export class ChartViewPane extends ViewPane {
     const currentLabelOverride = this.getLegendLabels(context)[legendKey] ?? null;
     const nextLabelOverride = resolveLegendLabelOverride(nextLabel, defaultLabel);
     this.plotService.setLegendLabel(
-      createChartPlotTargetReference(context.fileId, context.target),
+      createChartPlotReference(context.fileId, context.resource, context.sheetId),
       legendKey,
       nextLabelOverride,
     );
@@ -678,7 +688,7 @@ export class ChartViewPane extends ViewPane {
 
   private toggleLegendItem(context: LegendContext, legendKey: string): void {
     this.plotService.toggleHiddenLegendKey(
-      createChartPlotTargetReference(context.fileId, context.target),
+      createChartPlotReference(context.fileId, context.resource, context.sheetId),
       context.plotType,
       legendKey,
       context.seriesList.map(series => series.id),
@@ -713,8 +723,8 @@ export class ChartViewPane extends ViewPane {
       this.plotService.prefetchPlotDisplayModel(plotInput, "active");
     }
     const displayModel = this.plotService.getCachedPlotDisplayModel(plotInput);
-    const isDisplayModelForInput = input.target
-      ? isSameSliceResourceTarget(displayModel?.target, input.target)
+    const isDisplayModelForInput = input.resource
+      ? getResourceSheetIdentity(displayModel?.resource, displayModel?.sheetId) === getResourceSheetIdentity(input.resource, input.sheetId)
       : displayModel?.fileId === fileId;
     if (
       displayModel &&
@@ -726,7 +736,8 @@ export class ChartViewPane extends ViewPane {
         fileId: displayModel.fileId,
         plotType,
         seriesList: displayModel.chart.model.seriesList,
-        target: displayModel.target ?? input.target ?? null,
+        resource: displayModel.resource ?? input.resource ?? null,
+        sheetId: displayModel.sheetId ?? input.sheetId ?? null,
       };
     }
 
@@ -739,7 +750,7 @@ export class ChartViewPane extends ViewPane {
     }
 
     return this.plotService.getHiddenLegendKeys(
-      createChartPlotTargetReference(context.fileId, context.target),
+      createChartPlotReference(context.fileId, context.resource, context.sheetId),
       context.plotType,
       context.seriesList.map(series => series.id),
     );
@@ -751,7 +762,7 @@ export class ChartViewPane extends ViewPane {
     }
 
     const liveLegendKeys = new Set(context.seriesList.map((series) => series.id));
-    const labels = this.plotService.getLegendLabels(createChartPlotTargetReference(context.fileId, context.target));
+    const labels = this.plotService.getLegendLabels(createChartPlotReference(context.fileId, context.resource, context.sheetId));
     const next: Record<string, string> = {};
     for (const [legendKey, label] of Object.entries(labels)) {
       if (liveLegendKeys.has(legendKey)) {
@@ -762,13 +773,14 @@ export class ChartViewPane extends ViewPane {
   }
 
   private getLegendStateKey(context: LegendContext): string {
-    return `${context.fileId}:${context.plotType}:${getSliceResourceTargetIdentity(context.target)}`;
+    return `${context.fileId}:${context.plotType}:${getResourceSheetIdentity(context.resource, context.sheetId)}`;
   }
 }
 
 const EMPTY_CHART_VIEW_INPUT: ChartViewInput = {
   activeFileId: null,
-  activeTarget: null,
+  activeResource: null,
+  activeSheetId: null,
   activePlotType: "iv",
   chartFileOptions: [],
   hasChartData: false,
@@ -777,28 +789,31 @@ const EMPTY_CHART_VIEW_INPUT: ChartViewInput = {
 
 const getChartPlotTargetInput = (
   props: ChartViewInput,
-): { readonly fileId: string | null; readonly target?: SliceResourceTarget | null } => ({
+): ChartPlotInput => ({
   fileId: normalizeChartFileId(props.activeFileId),
-  target: props.activeTarget ?? null,
+  resource: props.activeResource ?? null,
+  sheetId: props.activeSheetId ?? null,
 });
 
 const createChartPlotDisplayInput = (
-  input: { readonly fileId: string | null; readonly target?: SliceResourceTarget | null },
+  input: ChartPlotInput,
   plotType: PlotType,
-) => input.target
+) => input.resource
   ? {
       plotType,
-      target: input.target,
+      resource: input.resource,
+      sheetId: input.sheetId,
     }
   : {
       fileId: input.fileId,
       plotType,
     };
 
-const createChartPlotTargetReference = (
+const createChartPlotReference = (
   fileId: string,
-  target?: SliceResourceTarget | null,
-): PlotTargetReference => target ?? fileId;
+  resource?: URI | null,
+  sheetId?: string | null,
+): PlotTargetReference => resource ? { resource, sheetId: sheetId ?? null } : fileId;
 
 const normalizeChartFileId = (fileId: unknown): string | null => {
   const normalized = String(fileId ?? "").trim();
@@ -810,31 +825,26 @@ const isPlotCacheEventForChartInput = (
   props: ChartViewInput,
 ): boolean => {
   const input = getChartPlotTargetInput(props);
-  if (input.target) {
-    return isSameSliceResourceTarget(event.target, input.target);
+  if (input.resource) {
+    return getResourceSheetIdentity(event.resource, event.sheetId) === getResourceSheetIdentity(input.resource, input.sheetId);
   }
 
   return normalizeChartFileId(event.fileId) === input.fileId;
 };
 
-const isSameSliceResourceTarget = (
-  first: SliceResourceTarget | null | undefined,
-  second: SliceResourceTarget | null | undefined,
-): boolean =>
-  getSliceResourceTargetIdentity(first) === getSliceResourceTargetIdentity(second);
-
-const getSliceResourceTargetIdentity = (
-  target: SliceResourceTarget | null | undefined,
+const getResourceSheetIdentity = (
+  resource: URI | null | undefined,
+  sheetId?: string | null,
 ): string =>
-  target
+  resource
     ? [
-        getSliceResourceKey(target.resource),
-        String(target.sheetId ?? "").trim(),
+        getResourceKey(resource),
+        String(sheetId ?? "").trim(),
       ].join("\u0000")
     : "";
 
-const getSliceResourceKey = (resource: unknown): string => {
-  const text = getSliceResourceString(resource);
+const getResourceKey = (resource: unknown): string => {
+  const text = getResourceString(resource);
   if (text) {
     return text.replace(/\\/g, "/");
   }
@@ -874,7 +884,7 @@ const getSliceResourceKey = (resource: unknown): string => {
   ].join("").replace(/\\/g, "/");
 };
 
-const getSliceResourceString = (resource: unknown): string => {
+const getResourceString = (resource: unknown): string => {
   const toString = (resource as { readonly toString?: unknown } | null | undefined)?.toString;
   if (typeof toString !== "function") {
     return "";

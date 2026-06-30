@@ -25,7 +25,7 @@ import {
   type ExplorerViewLayout,
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
-  areTemplateTargetSelectionsEqual,
+  areTemplateResourceSelectionsEqual,
 } from "src/cs/workbench/services/slice/common/templateSelection";
 import {
   filterNewExplorerFiles,
@@ -555,7 +555,7 @@ const isSameExplorerPaneInput = (
   areExplorerResourcesEqual(current.selectedResource, next.selectedResource) &&
   current.selectedSheetId === next.selectedSheetId &&
   current.selectionKind === next.selectionKind &&
-  areTemplateTargetSelectionsEqual(
+  areTemplateResourceSelectionsEqual(
     current.templateSelections ?? [],
     next.templateSelections ?? [],
   ) &&

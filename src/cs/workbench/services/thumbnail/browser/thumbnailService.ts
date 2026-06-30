@@ -4,6 +4,7 @@
 
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { Emitter, Event } from "src/cs/base/common/event";
+import type { URI } from "src/cs/base/common/uri";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
 	IThumbnailPreviewService,
@@ -18,7 +19,6 @@ import {
 	type ThumbnailBitmapTarget,
 } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import { IPlotService, type PlotType } from "src/cs/workbench/services/plot/common/plot";
-import type { SliceResourceTarget } from "src/cs/workbench/services/slice/common/slice";
 import { logPerf, startPerf } from "src/cs/workbench/common/perf";
 import {
 	createThumbnailBitmapCache,
@@ -38,7 +38,8 @@ const PREVIEW_FRAME_BUDGET_MS = 6;
 type NormalizedThumbnailPreviewTarget = {
 	readonly fileId?: string | null;
 	readonly key: string;
-	readonly target?: SliceResourceTarget | null;
+	readonly resource?: URI | null;
+	readonly sheetId?: string | null;
 };
 
 export class BrowserThumbnailService extends Disposable implements IThumbnailServiceType {
@@ -385,7 +386,8 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 	private updatePreviewStateFromPlotCacheEvent(event: {
 		readonly fileId?: string;
 		readonly plotType: string;
-		readonly target?: SliceResourceTarget | null;
+		readonly resource?: URI | null;
+		readonly sheetId?: string | null;
 	}): void {
 		const targets = this.resolveTargetsFromPlotCacheEvent(event);
 		if (!targets.length) {
@@ -466,10 +468,11 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 
 	private resolveTargetsFromPlotCacheEvent(event: {
 		readonly fileId?: string;
-		readonly target?: SliceResourceTarget | null;
+		readonly resource?: URI | null;
+		readonly sheetId?: string | null;
 	}): readonly NormalizedThumbnailPreviewTarget[] {
-		if (event.target) {
-			const key = createThumbnailPreviewTargetKey(event.target);
+		if (event.resource) {
+			const key = createThumbnailPreviewResourceKey(event.resource, event.sheetId);
 			const target = key ? this.targetsByKey.get(key) : null;
 			return target ? [target] : [];
 		}
@@ -486,13 +489,13 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 	private fireDidChangePreview(target: NormalizedThumbnailPreviewTarget): void {
 		this.onDidChangePreviewEmitter.fire({
 			...(target.fileId ? { fileId: target.fileId } : {}),
-			...(target.target ? { target: target.target } : {}),
+			...(target.resource ? { resource: target.resource, sheetId: target.sheetId ?? null } : {}),
 		});
 	}
 
 	private prefetchPlotPreview(target: NormalizedThumbnailPreviewTarget, priority: ThumbnailPreviewPriority): void {
 		const plotType = this.plotService.getState().activePlotType;
-		if (!target.target) {
+		if (!target.resource) {
 			const fileId = normalizePreviewFileId(target.fileId);
 			if (fileId) {
 				this.plotService.prefetchCalculatedData([fileId], priority, plotType);
@@ -518,10 +521,11 @@ const asThumbnailCanvas = (target: ThumbnailBitmapTarget): HTMLCanvasElement => 
 const createPlotPreviewInput = (
 	target: NormalizedThumbnailPreviewTarget,
 	plotType: PlotType,
-) => target.target
+) => target.resource
 	? {
 		plotType,
-		target: target.target,
+		resource: target.resource,
+		sheetId: target.sheetId,
 	}
 	: {
 		fileId: normalizePreviewFileId(target.fileId),
@@ -545,23 +549,25 @@ const normalizePreviewTarget = (
 		return fileId ? { fileId, key: fileId } : null;
 	}
 
-	const key = createThumbnailPreviewTargetKey(target);
+	const key = createThumbnailPreviewResourceKey(target.resource, target.sheetId);
 	if (!key) {
 		return null;
 	}
 
 	return {
 		key,
-		target,
+		resource: target.resource,
+		sheetId: target.sheetId ?? null,
 	};
 };
 
-const createThumbnailPreviewTargetKey = (
-	target: SliceResourceTarget,
+const createThumbnailPreviewResourceKey = (
+	resource: URI | null | undefined,
+	sheetId?: string | null,
 ): string | null => {
-	const resourceKey = String(target.resource ?? "").trim();
+	const resourceKey = String(resource ?? "").trim();
 	return resourceKey
-		? `${resourceKey}::${String(target.sheetId ?? "")}`
+		? `${resourceKey}::${String(sheetId ?? "")}`
 		: null;
 };
 

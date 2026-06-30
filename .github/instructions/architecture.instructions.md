@@ -39,6 +39,13 @@ Keep these mechanisms separate:
 - The owner of state is the only component that mutates that state.
 - Public APIs expose behavior and snapshots, not mutable internals.
 - Target records are values; behavior lives on the owner service/model.
+- URI-backed model/service identity uses `resource: URI` as the core identity.
+  When sheet-level identity is needed, carry `sheetId` as an adjacent optional
+  field. Do not introduce or preserve public `*ResourceTarget`,
+  `*SourceTarget`, or nested `{ target: { resource, sheetId } }` wrappers for
+  resource identity; migrate call sites to direct `resource` / `sheetId`
+  parameters or fields. Use `target` only for actual command/UI/operation
+  targets.
 - Views read state and translate user gestures into commands or service calls.
 - Command handlers validate arguments and delegate; they do not mutate DOM or `SessionModel`.
 - Contributions register things; they are not business orchestrators.

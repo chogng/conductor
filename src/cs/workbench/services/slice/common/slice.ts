@@ -8,7 +8,7 @@ import { createDecorator } from "src/cs/platform/instantiation/common/instantiat
 import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
 import type {
   TemplateSelection,
-  TemplateTargetSelection,
+  TemplateResourceSelection,
 } from "src/cs/workbench/services/slice/common/templateSelection";
 import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/reviewModel";
 
@@ -165,14 +165,10 @@ export type SliceRequestTrigger =
       readonly submittedBy: "user" | "system";
     };
 
-export type SliceResourceTarget = {
-  readonly resource: URI;
-  readonly sheetId?: SliceSheetId | null;
-};
-
 export type SliceResourceRequest = {
   readonly id: string;
-  readonly target: SliceResourceTarget;
+  readonly resource: URI;
+  readonly sheetId?: SliceSheetId | null;
   readonly reviewedTemplate: ReviewedTemplate;
   readonly reviewSignature: string;
   readonly trigger: SliceRequestTrigger;
@@ -227,12 +223,6 @@ export type SliceResourceRangeRef = {
   readonly range: SliceRangeRef;
 };
 
-export type SlicePlanTarget =
-  {
-    readonly kind: "resource";
-    readonly target: SliceResourceTarget;
-  };
-
 export type SlicePlanRangeRef = SliceResourceRangeRef;
 
 export type SliceExecutionRun = Omit<SliceRun, "fileId" | "inputRanges" | "rawTableId" | "sourceRawTableVersion"> & {
@@ -283,7 +273,8 @@ export type SliceResourceBaseCurveRecord = Omit<SliceBaseCurveRecord, "fileId" |
 export type SliceResourceCurveRecord = SliceResourceBaseCurveRecord;
 
 export type SliceResourceResult = {
-  readonly target: SliceResourceTarget;
+  readonly resource: URI;
+  readonly sheetId?: SliceSheetId | null;
   readonly run: SliceResourceRun;
   readonly series: readonly SliceResourceSeriesRecord[];
   readonly curves: readonly SliceResourceCurveRecord[];
@@ -294,7 +285,8 @@ export type SliceResourceResult = {
 };
 
 export type SlicePlan = {
-  readonly target: SlicePlanTarget;
+  readonly resource: URI;
+  readonly sheetId?: SliceSheetId | null;
   readonly mode: SliceRun["mode"];
   readonly selection: TemplateSelection;
   readonly sourceVersion?: number;
@@ -317,7 +309,8 @@ export type SlicePlanBlock = {
 };
 
 export type CreateSlicePlanInput = {
-  readonly target: SlicePlanTarget;
+  readonly resource: URI;
+  readonly sheetId?: SliceSheetId | null;
   readonly mode: SliceRun["mode"];
   readonly selection: TemplateSelection;
   readonly sourceVersion?: number;
@@ -344,22 +337,22 @@ export type SliceFileState =
 
 export type SliceState = {
   readonly queueLength: number;
-  readonly templateSelections: readonly TemplateTargetSelection[];
+  readonly templateSelections: readonly TemplateResourceSelection[];
 };
 
 export interface ISliceService {
   readonly _serviceBrand: undefined;
 
   readonly onDidChangeSliceState: Event<void>;
-  readonly onDidChangeTemplateSelection: Event<SliceResourceTarget>;
-  readonly onDidChangeResourceSliceResult: Event<SliceResourceTarget>;
+  readonly onDidChangeTemplateSelection: Event<{ readonly resource: URI; readonly sheetId?: SliceSheetId | null }>;
+  readonly onDidChangeResourceSliceResult: Event<{ readonly resource: URI; readonly sheetId?: SliceSheetId | null }>;
 
   getState(): SliceState;
-  getTemplateSelection(target: SliceResourceTarget): TemplateSelection;
-  getResourceResult(target: SliceResourceTarget): SliceResourceResult | null;
-  getResourceState(target: SliceResourceTarget): SliceFileState | undefined;
+  getTemplateSelection(resource: URI, sheetId?: SliceSheetId | null): TemplateSelection;
+  getResourceResult(resource: URI, sheetId?: SliceSheetId | null): SliceResourceResult | null;
+  getResourceState(resource: URI, sheetId?: SliceSheetId | null): SliceFileState | undefined;
   submitResource(requests: readonly SliceResourceRequest[]): void;
-  prioritizeResource(target: SliceResourceTarget): void;
-  cancelResource(targets: readonly SliceResourceTarget[]): void;
-  setTemplateSelection(target: SliceResourceTarget, selection: TemplateSelection): void;
+  prioritizeResource(resource: URI, sheetId?: SliceSheetId | null): void;
+  cancelResource(resources: readonly { readonly resource: URI; readonly sheetId?: SliceSheetId | null }[]): void;
+  setTemplateSelection(resource: URI, sheetId: SliceSheetId | null | undefined, selection: TemplateSelection): void;
 }

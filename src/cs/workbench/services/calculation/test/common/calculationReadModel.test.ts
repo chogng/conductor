@@ -262,7 +262,7 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
     assert.notEqual(left.signature, right.signature);
   });
 
-  test("createCalculatedDataForSliceResourceResult derives target id from URI components", () => {
+  test("createCalculatedDataForSliceResourceResult derives resource id from URI components", () => {
     const result = createSliceResourceResult();
     const calculated = createCalculatedDataForSliceResourceResult({
       plotType: "iv",
@@ -274,7 +274,7 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
       "file:///workspace/data/transfer.csv\u0000Sheet 1",
     );
     assert.equal(calculated.source.fileId?.includes("[object Object]"), false);
-    assert.equal(calculated.source.target?.sheetId, "Sheet 1");
+    assert.equal(calculated.source.sheetId, "Sheet 1");
   });
 
   test("createSecondCalculatedData derives drawable second-pass data from calculated data", () => {
@@ -296,11 +296,8 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
 });
 
 const createSliceResourceResult = (): SliceResourceResult => {
-  const resource = URI.file("/workspace/data/transfer.csv").toJSON() as unknown as SliceResourceResult["target"]["resource"];
-  const target = {
-    resource,
-    sheetId: "Sheet 1",
-  };
+  const resource = URI.file("/workspace/data/transfer.csv").toJSON() as unknown as URI;
+  const sheetId = "Sheet 1";
   return {
     completedAt: 1,
     curves: [{
@@ -311,7 +308,7 @@ const createSliceResourceResult = (): SliceResourceResult => {
         baseFamily: "iv",
         baseSeries: {
           resource,
-          sheetId: "Sheet 1",
+          sheetId,
           seriesId: "series-a",
         },
         curveGeneration: "base",
@@ -323,7 +320,7 @@ const createSliceResourceResult = (): SliceResourceResult => {
       ],
       resource,
       seriesId: "series-a",
-      sheetId: "Sheet 1",
+      sheetId,
       signature: "curve-a",
     }],
     requestSignature: "request-a",
@@ -336,7 +333,7 @@ const createSliceResourceResult = (): SliceResourceResult => {
       outputSeriesIds: ["series-a"],
       resource,
       selection: { kind: "auto" },
-      sheetId: "Sheet 1",
+      sheetId,
       sourceContentSignature: "source-a",
       template: {
         blocks: [{
@@ -359,12 +356,13 @@ const createSliceResourceResult = (): SliceResourceResult => {
       id: "series-a",
       name: "Series A",
       resource,
-      sheetId: "Sheet 1",
+      sheetId,
       y: [1, 2],
     }],
     sourceModelVersion: 1,
     sourceVersion: 1,
-    target,
+    resource,
+    sheetId,
   };
 };
 

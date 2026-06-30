@@ -191,12 +191,12 @@ for preview is not a Session commit. Session raw-table commits remain a
 migration ledger for domains that still explicitly own Session records; they are
 not the ordinary Explorer file-to-table path.
 
-Per-target template selection is a Files command surface but not Files state:
+Per-resource template selection is a Files command surface but not Files state:
 
 ```txt
 Explorer context menu / template picker
   -> files.item.setTemplate command
-  -> ISliceService.setTemplateSelection({ resource, sheetId }, selection)
+  -> ISliceService.setTemplateSelection(resource, sheetId, selection)
   -> SliceState.templateSelections
   -> WorkbenchDomainBridge projects selection into Explorer pane input
 ```
@@ -245,7 +245,7 @@ Pending source entries are display-only Explorer rows. They must not be
 committed to Session, selected as real files, used for duplicate detection, or
 participate in file actions. When source preparation resolves the real file,
 Explorer replaces the pending projection and explicitly asks Review to evaluate
-the prepared `{ resource, sheetId? }` target; Explorer still does not infer semantic badges during
+the prepared `{ resource, sheetId? }` identity; Explorer still does not infer semantic badges during
 source collection or preparation.
 
 Review input changes for already-visible Explorer rows are likewise projected
@@ -284,8 +284,8 @@ Migration-ledger raw rows that still carry `sourcePath` are projected into
 Explorer resource rows before Table opens them; `WorkbenchDomainBridge` must
 not derive table resources directly from Session raw records. File
 close/delete/reveal commands operate on `{ resource, sheetId }`; the template
-command may resolve that target to the current downstream Slice `fileId` only
-when delegating to `ISliceService.setTemplateSelection(...)`.
+command delegates the current `resource` and optional `sheetId` directly to
+`ISliceService.setTemplateSelection(...)`.
 
 Explorer decoration details live in `explorer-decorations.instructions.md`.
 
@@ -316,8 +316,8 @@ Rules:
 - Add-data commands call `IViewsService.openView(ExplorerViewId)` when the actual picker/drop/folder workflow is view-local.
 - Selection/reveal uses `IExplorerService.select(...)` and `IExplorerView.selectResource(...)`.
 - Rename starts editable state through `IExplorerService.setEditable(...)`; Explorer view state owns display-name overrides for visible rows.
-- File-template selection delegates to `ISliceService.setTemplateSelection(...)`; Explorer owns the command surface, Slice owns the selection state and execution.
-- Slice progress/readiness comes from `ISliceService.getResourceState(target)`; Explorer must use it as the sole progress/readiness source.
+- File-template selection delegates to `ISliceService.setTemplateSelection(resource, sheetId, selection)`; Explorer owns the command surface, Slice owns the selection state and execution.
+- Slice progress/readiness comes from `ISliceService.getResourceState(resource, sheetId)`; Explorer must use it as the sole progress/readiness source.
 - Do not reach `ExplorerViewPane` through `IViewsService.getViewWithId(...)`.
 - Do not publish `onDidRequest*` events from `IExplorerService` as hidden commands.
 

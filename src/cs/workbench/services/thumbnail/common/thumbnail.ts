@@ -4,10 +4,10 @@
 
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { Event } from "src/cs/base/common/event";
+import type { URI } from "src/cs/base/common/uri";
 import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
 import type { PlotMainRenderModelSource } from "src/cs/workbench/services/plot/common/plotModel";
 import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
-import type { SliceResourceTarget } from "src/cs/workbench/services/slice/common/slice";
 
 export const IThumbnailService = createDecorator<IThumbnailService>("thumbnailService");
 export const IThumbnailPreviewService = createDecorator<IThumbnailPreviewService>("thumbnailPreviewService");
@@ -27,11 +27,17 @@ export type ThumbnailPreviewState =
 	| { readonly kind: "ready"; readonly model: ThumbnailPreviewPlotModel; readonly signature: string }
 	| { readonly kind: "error"; readonly message: string };
 
-export type ThumbnailPreviewTarget = string | SliceResourceTarget;
+export type ThumbnailPreviewResource = {
+	readonly resource: URI;
+	readonly sheetId?: string | null;
+};
+
+export type ThumbnailPreviewTarget = string | ThumbnailPreviewResource;
 
 export type ThumbnailPreviewChangeEvent = {
 	readonly fileId?: string | null;
-	readonly target?: SliceResourceTarget | null;
+	readonly resource?: URI | null;
+	readonly sheetId?: string | null;
 };
 
 export type ThumbnailBitmapOptions = {

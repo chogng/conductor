@@ -99,9 +99,9 @@ import {
   createTemplateSelection,
   getTemplateSelectionId,
   getTemplateSelectionTemplateId,
-  resolveTemplateSelectionForTarget,
+  resolveTemplateSelectionForResource,
   type TemplateSelection,
-  type TemplateTargetSelection,
+  type TemplateResourceSelection,
 } from "src/cs/workbench/services/slice/common/templateSelection";
 import type { TemplateEditorRecord } from "src/cs/workbench/services/template/common/template";
 import { isAutoTemplateId } from "src/cs/workbench/services/slice/common/templateSelection";
@@ -140,7 +140,7 @@ export type ExplorerViewerProps = {
   readonly onCancelRenameFile?: () => void;
   readonly onRenameFile?: (file: ExplorerFileEntry, nextName: string) => void;
   readonly onSelectFile: (file: ExplorerFileEntry | null) => void;
-  readonly templateSelections?: readonly TemplateTargetSelection[];
+  readonly templateSelections?: readonly TemplateResourceSelection[];
   readonly thumbnailPlotModelsByFileId?: Readonly<Record<string, ExplorerThumbnailPlotModel>>;
 };
 
@@ -1600,7 +1600,7 @@ export class ExplorerViewer implements IDisposable {
     target: ExplorerResourceTarget | null | undefined,
     props: ExplorerViewerProps = this.props,
   ): TemplateSelection {
-    return resolveTemplateSelectionForTarget(
+    return resolveTemplateSelectionForResource(
       target,
       props.templateSelections ?? [],
       { kind: "auto" },

@@ -77,7 +77,7 @@ flowchart TD
     ExplorerService[IExplorerService layout/selection/visibility] --> ExplorerViewer[ExplorerViewer]
     ExplorerViewer --> PreviewTarget{Preview target}
     PreviewTarget -->|Plot-backed file id| ThumbnailPreviewService[IThumbnailPreviewService]
-    PreviewTarget -->|URI resource target| ThumbnailPreviewService
+    PreviewTarget -->|URI resource/sheet identity| ThumbnailPreviewService
     Plot[IPlotService cached render data] --> ThumbnailPreviewService
     ThumbnailPreviewService --> ThumbnailView[createThumbnailView]
     ThumbnailView --> ThumbnailService[IThumbnailService]
@@ -92,10 +92,11 @@ flowchart TD
 4. Explorer publishes visible/nearby file ids while thumbnail layout is active.
 5. Domain bridge prefetches recent, visible, and nearby thumbnail previews with
    `ThumbnailPreviewTarget` values. File-id targets stay opaque to Thumbnail and
-   are resolved by Plot; resource/sheet rows carry the Slice target.
+   are resolved by Plot; resource/sheet rows carry `resource` and optional
+   `sheetId` directly.
 6. Preview service reads Plot cached data, keeps loading state on miss, and retries on Plot cache events.
 7. Preview service fires `onDidChangePreview` with the file-id target or
-   resource/sheet target that changed.
+   resource/sheet identity that changed.
 8. Explorer refreshes only the active hover or affected thumbnail grid item.
 
 ## DOM and Performance

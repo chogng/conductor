@@ -47,10 +47,7 @@ export class SlicePriorityContribution extends Disposable implements IWorkbenchC
 			return;
 		}
 
-		this.sliceService.prioritizeResource({
-			resource,
-			sheetId: normalizeText(sheetId) ?? null,
-		});
+		this.sliceService.prioritizeResource(resource, normalizeText(sheetId));
 	}
 }
 

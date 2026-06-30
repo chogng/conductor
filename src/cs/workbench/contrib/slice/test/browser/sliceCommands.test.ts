@@ -29,7 +29,6 @@ import {
 	ISliceService,
 	type SliceState,
 	type SliceResourceRequest,
-	type SliceResourceTarget,
 } from "src/cs/workbench/services/slice/common/slice";
 import { createEmptyTemplateEditorConfig } from "src/cs/workbench/services/template/common/templateEditorConfig";
 import type { Template } from "src/cs/workbench/services/template/common/template";
@@ -45,6 +44,11 @@ import {
 	type UserTemplate,
 	type UserTemplateChangeEvent,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
+
+type ResourceSheetIdentity = {
+	readonly resource: URI;
+	readonly sheetId?: string | null;
+};
 
 suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -143,8 +147,8 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 
 		const request = sliceService.resourceRequests[0];
 		assert.ok(request);
-		assert.equal(request.target.resource.toString(), resource.toString());
-		assert.equal(request.target.sheetId, "sheet-a");
+		assert.equal(request.resource.toString(), resource.toString());
+		assert.equal(request.sheetId, "sheet-a");
 		assert.notEqual(request.sourceContentSignature, request.requestSignature);
 		assert.match(request.sourceContentSignature, /transfer\.csv/);
 		assert.match(request.sourceContentSignature, /"sourceModelVersion":7/);
@@ -203,8 +207,8 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 
 		assert.equal(sliceService.resourceRequests.length, 1);
 		assert.equal(confirmations.length, 1);
-		assert.equal(confirmations[0]?.target.resource.toString(), resource.toString());
-		assert.equal(confirmations[0]?.target.sheetId, "sheet-a");
+		assert.equal(confirmations[0]?.resource.toString(), resource.toString());
+		assert.equal(confirmations[0]?.sheetId, "sheet-a");
 		assert.equal(confirmations[0]?.reviewedTemplate, reviewedTemplate);
 		assert.equal(confirmations[0]?.reason, "user");
 	});
@@ -322,8 +326,8 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 class TestSliceService implements ISliceService {
 	public declare readonly _serviceBrand: undefined;
 	public readonly onDidChangeSliceState = Event.None as Event<void>;
-	public readonly onDidChangeTemplateSelection = Event.None as Event<SliceResourceTarget>;
-	public readonly onDidChangeResourceSliceResult = Event.None as Event<SliceResourceTarget>;
+	public readonly onDidChangeTemplateSelection = Event.None as Event<ResourceSheetIdentity>;
+	public readonly onDidChangeResourceSliceResult = Event.None as Event<ResourceSheetIdentity>;
 	public readonly resourceRequests: SliceResourceRequest[] = [];
 
 	public getState(): SliceState {
@@ -348,9 +352,9 @@ class TestSliceService implements ISliceService {
 	public submitResource(requests: readonly SliceResourceRequest[]): void {
 		this.resourceRequests.push(...requests);
 	}
-	public prioritizeResource(_target: SliceResourceTarget): void {}
-	public cancelResource(_targets: readonly SliceResourceTarget[]): void {}
-	public setTemplateSelection(_target: SliceResourceTarget, _selection: TemplateSelection): void {}
+	public prioritizeResource(_resource: URI, _sheetId?: string | null): void {}
+	public cancelResource(_resources: readonly ResourceSheetIdentity[]): void {}
+	public setTemplateSelection(_resource: URI, _sheetId: string | null | undefined, _selection: TemplateSelection): void {}
 }
 
 const createAccessor = ({

@@ -596,8 +596,8 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     const labels = new ResourceLabels();
     const requestedTargets: Array<{
       readonly fileId?: string;
-      readonly targetResource?: string | null;
-      readonly targetSheetId?: string | null;
+      readonly resource?: string | null;
+      readonly sheetId?: string | null;
     }> = [];
     document.body.append(hoverHost);
     hoverHost.append(host);
@@ -624,8 +624,8 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
             requestedTargets.push({ fileId: target });
           } else {
             requestedTargets.push({
-              targetResource: target.resource.toString(),
-              targetSheetId: target.sheetId ?? null,
+              resource: target.resource.toString(),
+              sheetId: target.sheetId ?? null,
             });
           }
           return { kind: "loading" };
@@ -641,8 +641,8 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       assert.deepEqual(requestedTargets, [{
         fileId: "file-a",
       }, {
-        targetResource: "file:///data/UriA.csv",
-        targetSheetId: null,
+        resource: "file:///data/UriA.csv",
+        sheetId: null,
       }]);
     } finally {
       viewer.dispose();

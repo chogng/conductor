@@ -108,10 +108,7 @@ export class TableTemplateDecorationsProvider extends Disposable implements IDec
 		source: TableSource,
 		token: CancellationToken,
 	): Promise<Template | null> {
-		const selection = this.sliceService.getTemplateSelection({
-			resource: source.resource,
-			sheetId: source.sheetId ?? null,
-		});
+		const selection = this.sliceService.getTemplateSelection(source.resource, source.sheetId ?? null);
 		if (isSavedTemplateSelection(selection)) {
 			return this.userTemplateService.getTemplate(selection.templateId)?.template ?? null;
 		}

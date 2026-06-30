@@ -89,10 +89,7 @@ export const setFileTemplateHandler: ICommandHandler<[unknown, unknown]> = (
   }
 
   const sliceService = accessor.get(ISliceService);
-  sliceService.setTemplateSelection({
-    resource: resourceTarget.resource,
-    sheetId: resourceTarget.sheetId ?? null,
-  }, selection);
+  sliceService.setTemplateSelection(resourceTarget.resource, resourceTarget.sheetId ?? null, selection);
 };
 
 const normalizeCommandString = (value: unknown): string | null => {

@@ -21,9 +21,13 @@ import type {
 	ISliceService,
 	SliceState,
 	SliceResourceRequest,
-	SliceResourceTarget,
 } from "src/cs/workbench/services/slice/common/slice";
 import type { TemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
+
+type ResourceSheetIdentity = {
+	readonly resource: URI;
+	readonly sheetId?: string | null;
+};
 
 suite("workbench/services/slice/test/browser/slicePriorityContribution", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -34,7 +38,7 @@ suite("workbench/services/slice/test/browser/slicePriorityContribution", () => {
 
 		store.add(new SlicePriorityContribution(explorer.service, sliceService));
 
-		assert.deepEqual(sliceService.prioritizedResourceTargets, []);
+		assert.deepEqual(sliceService.prioritizedResources, []);
 		explorer.dispose();
 	});
 
@@ -46,11 +50,11 @@ suite("workbench/services/slice/test/browser/slicePriorityContribution", () => {
 		explorer.fireSelection({ kind: "chart", selectedResource: null });
 		explorer.fireHoveredResource({ target: null });
 
-		assert.deepEqual(sliceService.prioritizedResourceTargets, []);
+		assert.deepEqual(sliceService.prioritizedResources, []);
 		explorer.dispose();
 	});
 
-	test("prioritizes resource targets from explorer selection and hover targets", () => {
+	test("prioritizes resources from explorer selection and hover targets", () => {
 		const resource = URI.file("/workspace/source.xlsx");
 		const explorer = createExplorerService({
 			hoveredResource: { resource, sheetId: "sheet-a" },
@@ -61,9 +65,9 @@ suite("workbench/services/slice/test/browser/slicePriorityContribution", () => {
 
 		store.add(new SlicePriorityContribution(explorer.service, sliceService));
 
-		assert.deepEqual(sliceService.prioritizedResourceTargets.map(target => ({
-			resource: target.resource.toString(),
-			sheetId: target.sheetId,
+		assert.deepEqual(sliceService.prioritizedResources.map(resource => ({
+			resource: resource.resource.toString(),
+			sheetId: resource.sheetId,
 		})), [{
 			resource: resource.toString(),
 			sheetId: "sheet-a",
@@ -78,9 +82,9 @@ suite("workbench/services/slice/test/browser/slicePriorityContribution", () => {
 class TestSliceService implements ISliceService {
 	public declare readonly _serviceBrand: undefined;
 	public readonly onDidChangeSliceState = Event.None as Event<void>;
-	public readonly onDidChangeTemplateSelection = Event.None as Event<SliceResourceTarget>;
-	public readonly onDidChangeResourceSliceResult = Event.None as Event<SliceResourceTarget>;
-	public readonly prioritizedResourceTargets: SliceResourceTarget[] = [];
+	public readonly onDidChangeTemplateSelection = Event.None as Event<ResourceSheetIdentity>;
+	public readonly onDidChangeResourceSliceResult = Event.None as Event<ResourceSheetIdentity>;
+	public readonly prioritizedResources: ResourceSheetIdentity[] = [];
 
 	public getState(): SliceState {
 		return {
@@ -103,12 +107,12 @@ class TestSliceService implements ISliceService {
 
 	public submitResource(_requests: readonly SliceResourceRequest[]): void {}
 
-	public prioritizeResource(target: SliceResourceTarget): void {
-		this.prioritizedResourceTargets.push(target);
+	public prioritizeResource(resource: URI, sheetId?: string | null): void {
+		this.prioritizedResources.push({ resource, sheetId });
 	}
 
-	public cancelResource(_targets: readonly SliceResourceTarget[]): void {}
-	public setTemplateSelection(_target: SliceResourceTarget, _selection: TemplateSelection): void {}
+	public cancelResource(_resources: readonly ResourceSheetIdentity[]): void {}
+	public setTemplateSelection(_resource: URI, _sheetId: string | null | undefined, _selection: TemplateSelection): void {}
 }
 
 const createExplorerService = ({

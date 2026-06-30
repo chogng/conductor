@@ -60,7 +60,8 @@ export const createSlicePlan = (
 	}
 
 	return {
-		target: input.target,
+		resource: input.resource,
+		sheetId: input.sheetId ?? null,
 		mode: input.mode,
 		selection: input.selection,
 		...(input.sourceVersion !== undefined ? { sourceVersion: input.sourceVersion } : {}),
@@ -124,8 +125,8 @@ const createPlanRange = (
 	},
 ): SlicePlanRangeRef => {
 	return {
-		resource: input.target.target.resource,
-		sheetId: input.target.target.sheetId ?? null,
+		resource: input.resource,
+		sheetId: input.sheetId ?? null,
 		range,
 	};
 };

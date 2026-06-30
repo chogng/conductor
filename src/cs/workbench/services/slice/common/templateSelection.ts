@@ -10,18 +10,19 @@ export type TemplateSelection =
 	| { readonly kind: "auto" }
 	| { readonly kind: "saved"; readonly templateId: string };
 
-export type TemplateSelectionTarget = {
+export type TemplateSelectionResource = {
 	readonly resource: URI;
 	readonly sheetId?: string | null;
 };
 
-export type TemplateSelectionTargetLike = {
+export type TemplateSelectionResourceLike = {
 	readonly resource?: URI | null;
 	readonly sheetId?: string | null;
 };
 
-export type TemplateTargetSelection = {
-	readonly target: TemplateSelectionTarget;
+export type TemplateResourceSelection = {
+	readonly resource: URI;
+	readonly sheetId?: string | null;
 	readonly selection: TemplateSelection;
 };
 
@@ -63,97 +64,97 @@ export const getTemplateSelectionId = (selection: TemplateSelection): string => 
 	return selection.templateId;
 };
 
-export const resolveTemplateSelectionForTarget = (
-	target: TemplateSelectionTargetLike | null | undefined,
-	targetSelections: readonly TemplateTargetSelection[],
+export const resolveTemplateSelectionForResource = (
+	resource: TemplateSelectionResourceLike | null | undefined,
+	resourceSelections: readonly TemplateResourceSelection[],
 	currentSelection: TemplateSelection,
 ): TemplateSelection => {
-	const targetKey = createTemplateSelectionTargetCacheKey(target);
-	if (!targetKey) {
+	const resourceKey = createTemplateSelectionResourceCacheKey(resource);
+	if (!resourceKey) {
 		return currentSelection;
 	}
 
-	return targetSelections.find(selection =>
-		createTemplateSelectionTargetCacheKey(selection.target) === targetKey,
+	return resourceSelections.find(selection =>
+		createTemplateSelectionResourceCacheKey(selection) === resourceKey,
 	)?.selection ?? currentSelection;
 };
 
-export const removeTemplateSelectionsForTargets = (
-	targetSelections: readonly TemplateTargetSelection[],
-	targets: Iterable<TemplateSelectionTargetLike | null | undefined>,
-): readonly TemplateTargetSelection[] => {
-	const targetKeys = new Set<string>();
-	for (const target of targets) {
-		const targetKey = createTemplateSelectionTargetCacheKey(target);
-		if (targetKey) {
-			targetKeys.add(targetKey);
+export const removeTemplateSelectionsForResources = (
+	resourceSelections: readonly TemplateResourceSelection[],
+	resources: Iterable<TemplateSelectionResourceLike | null | undefined>,
+): readonly TemplateResourceSelection[] => {
+	const resourceKeys = new Set<string>();
+	for (const resource of resources) {
+		const resourceKey = createTemplateSelectionResourceCacheKey(resource);
+		if (resourceKey) {
+			resourceKeys.add(resourceKey);
 		}
 	}
-	if (!targetKeys.size) {
-		return targetSelections;
+	if (!resourceKeys.size) {
+		return resourceSelections;
 	}
 
-	const next = targetSelections.filter(selection => {
-		const targetKey = createTemplateSelectionTargetCacheKey(selection.target);
-		return !targetKey || !targetKeys.has(targetKey);
+	const next = resourceSelections.filter(selection => {
+		const resourceKey = createTemplateSelectionResourceCacheKey(selection);
+		return !resourceKey || !resourceKeys.has(resourceKey);
 	});
-	return next.length === targetSelections.length ? targetSelections : next;
+	return next.length === resourceSelections.length ? resourceSelections : next;
 };
 
 export const removeTemplateSelectionsForTemplate = (
-	targetSelections: readonly TemplateTargetSelection[],
+	resourceSelections: readonly TemplateResourceSelection[],
 	templateId: string | null | undefined,
-): readonly TemplateTargetSelection[] => {
+): readonly TemplateResourceSelection[] => {
 	const normalizedTemplateId = String(templateId ?? "").trim();
 	if (!normalizedTemplateId) {
-		return targetSelections;
+		return resourceSelections;
 	}
 
-	const next = targetSelections.filter(({ selection }) =>
+	const next = resourceSelections.filter(({ selection }) =>
 		getTemplateSelectionTemplateId(selection) !== normalizedTemplateId,
 	);
-	return next.length === targetSelections.length ? targetSelections : next;
+	return next.length === resourceSelections.length ? resourceSelections : next;
 };
 
-export const normalizeTemplateSelectionTarget = (
-	target: TemplateSelectionTargetLike | null | undefined,
-): TemplateSelectionTarget | null => {
-	const resource = target?.resource ? URI.revive(target.resource) : null;
+export const normalizeTemplateSelectionResource = (
+	resourceIdentity: TemplateSelectionResourceLike | null | undefined,
+): TemplateSelectionResource | null => {
+	const resource = resourceIdentity?.resource ? URI.revive(resourceIdentity.resource) : null;
 	if (!resource) {
 		return null;
 	}
 
-	const sheetId = normalizeText(target?.sheetId);
+	const sheetId = normalizeText(resourceIdentity?.sheetId);
 	return {
 		resource,
 		...(sheetId ? { sheetId } : {}),
 	};
 };
 
-export const areTemplateTargetSelectionsEqual = (
-	current: readonly TemplateTargetSelection[],
-	next: readonly TemplateTargetSelection[],
+export const areTemplateResourceSelectionsEqual = (
+	current: readonly TemplateResourceSelection[],
+	next: readonly TemplateResourceSelection[],
 ): boolean => {
 	if (current.length !== next.length) {
 		return false;
 	}
 
 	const nextSelections = new Map<string, TemplateSelection>();
-	for (const targetSelection of next) {
-		const targetKey = createTemplateSelectionTargetCacheKey(targetSelection.target);
-		if (!targetKey) {
+	for (const resourceSelection of next) {
+		const resourceKey = createTemplateSelectionResourceCacheKey(resourceSelection);
+		if (!resourceKey) {
 			return false;
 		}
-		nextSelections.set(targetKey, targetSelection.selection);
+		nextSelections.set(resourceKey, resourceSelection.selection);
 	}
 
-	for (const targetSelection of current) {
-		const targetKey = createTemplateSelectionTargetCacheKey(targetSelection.target);
-		if (!targetKey) {
+	for (const resourceSelection of current) {
+		const resourceKey = createTemplateSelectionResourceCacheKey(resourceSelection);
+		if (!resourceKey) {
 			return false;
 		}
-		const nextSelection = nextSelections.get(targetKey);
-		if (!isSameTemplateSelection(targetSelection.selection, nextSelection)) {
+		const nextSelection = nextSelections.get(resourceKey);
+		if (!isSameTemplateSelection(resourceSelection.selection, nextSelection)) {
 			return false;
 		}
 	}
@@ -174,15 +175,15 @@ export const areTemplateSelectionsEqual = (
 
 const isSameTemplateSelection = areTemplateSelectionsEqual;
 
-const createTemplateSelectionTargetCacheKey = (
-	target: TemplateSelectionTargetLike | null | undefined,
+const createTemplateSelectionResourceCacheKey = (
+	resourceIdentity: TemplateSelectionResourceLike | null | undefined,
 ): string | null => {
-	const normalizedTarget = normalizeTemplateSelectionTarget(target);
-	if (!normalizedTarget) {
+	const normalizedResource = normalizeTemplateSelectionResource(resourceIdentity);
+	if (!normalizedResource) {
 		return null;
 	}
 
-	return `${normalizedTarget.resource.toString().replace(/\\/g, "/")}\u001f${normalizeText(normalizedTarget.sheetId)}`;
+	return `${normalizedResource.resource.toString().replace(/\\/g, "/")}\u001f${normalizeText(normalizedResource.sheetId)}`;
 };
 
 const normalizeText = (value: unknown): string => String(value ?? "").trim();

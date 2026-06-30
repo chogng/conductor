@@ -6,7 +6,7 @@ import { localize } from "src/cs/nls";
 import type { PlotMainSeries } from "src/cs/workbench/services/plot/common/plotModel";
 import { getPlotColor, resolveSeriesPlotColor } from "src/cs/workbench/services/plot/common/plotColors";
 import type { PlotLegendModel, PlotType } from "src/cs/workbench/services/plot/common/plot";
-import type { SliceResourceTarget } from "src/cs/workbench/services/slice/common/slice";
+import type { URI } from "src/cs/base/common/uri";
 
 const DEFAULT_LEGEND_FONT_SIZE = 12;
 
@@ -14,7 +14,8 @@ export type LegendContext = {
   readonly fileId: string;
   readonly plotType: PlotType;
   readonly seriesList: readonly PlotMainSeries[];
-  readonly target?: SliceResourceTarget | null;
+  readonly resource?: URI | null;
+  readonly sheetId?: string | null;
 };
 
 export type LegendPopover = HTMLElement & {
@@ -34,7 +35,8 @@ export const getLegendContext = (
     fileId: legendModel.fileId,
     plotType,
     seriesList: legendModel.seriesList,
-    target: legendModel.target ?? null,
+    resource: legendModel.resource ?? null,
+    sheetId: legendModel.sheetId ?? null,
   };
 };
 
@@ -43,19 +45,13 @@ export const isSameLegendContext = (
   right: LegendContext,
 ): boolean =>
   left.fileId === right.fileId &&
-  isSameLegendTarget(left.target, right.target) &&
+  getLegendResourceKey(left.resource) === getLegendResourceKey(right.resource) &&
+  String(left.sheetId ?? "") === String(right.sheetId ?? "") &&
   left.plotType === right.plotType &&
   left.seriesList === right.seriesList;
 
-const isSameLegendTarget = (
-  left: SliceResourceTarget | null | undefined,
-  right: SliceResourceTarget | null | undefined,
-): boolean =>
-  getLegendTargetResourceKey(left?.resource) === getLegendTargetResourceKey(right?.resource) &&
-  String(left?.sheetId ?? "") === String(right?.sheetId ?? "");
-
-const getLegendTargetResourceKey = (resource: unknown): string => {
-  const text = getLegendTargetResourceString(resource);
+const getLegendResourceKey = (resource: unknown): string => {
+  const text = getLegendResourceString(resource);
   if (text) {
     return text.replace(/\\/g, "/");
   }
@@ -95,7 +91,7 @@ const getLegendTargetResourceKey = (resource: unknown): string => {
   ].join("").replace(/\\/g, "/");
 };
 
-const getLegendTargetResourceString = (resource: unknown): string => {
+const getLegendResourceString = (resource: unknown): string => {
   const toString = (resource as { readonly toString?: unknown } | null | undefined)?.toString;
   if (typeof toString !== "function") {
     return "";

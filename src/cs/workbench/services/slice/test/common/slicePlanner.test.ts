@@ -18,10 +18,8 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 	test("creates input ranges from a block-aware template", () => {
 		const resource = URI.file("/workspace/source.csv");
 		const plan = createSlicePlan({
-			target: {
-				kind: "resource",
-				target: { resource, sheetId: "sheet-a" },
-			},
+			resource,
+			sheetId: "sheet-a",
 			mode: "auto",
 			selection: { kind: "auto" },
 			sourceContentSignature: "source-content-a",
@@ -56,10 +54,8 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 	test("reports out-of-bounds template blocks without producing executable ranges", () => {
 		const resource = URI.file("/workspace/source.csv");
 		const plan = createSlicePlan({
-			target: {
-				kind: "resource",
-				target: { resource, sheetId: "sheet-a" },
-			},
+			resource,
+			sheetId: "sheet-a",
 			mode: "manual",
 			selection: { kind: "saved", templateId: "template-a" },
 			template: {
@@ -84,13 +80,8 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 	test("creates resource input ranges without raw-table identity", () => {
 		const resource = URI.file("/workspace/source.csv");
 		const plan = createSlicePlan({
-			target: {
-				kind: "resource",
-				target: {
-					resource,
-					sheetId: "sheet-a",
-				},
-			},
+			resource,
+			sheetId: "sheet-a",
 			mode: "auto",
 			selection: { kind: "auto" },
 			sourceVersion: 3,
@@ -115,10 +106,8 @@ suite("workbench/services/slice/test/common/slicePlanner", () => {
 	test("expands fixed template segments into executable plan blocks", () => {
 		const resource = URI.file("/workspace/source.csv");
 		const plan = createSlicePlan({
-			target: {
-				kind: "resource",
-				target: { resource, sheetId: "sheet-a" },
-			},
+			resource,
+			sheetId: "sheet-a",
 			mode: "auto",
 			selection: { kind: "auto" },
 			sourceContentSignature: "source-content-a",

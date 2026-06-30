@@ -92,14 +92,14 @@ export class ExplorerDecorationsProvider extends Disposable implements IDecorati
 	}
 
 	private hasExplorerEntryForDecorationTarget(target: ExplorerDecorationTarget): boolean {
-		const targetResourceKey = normalizeResourceKey(target.resource);
-		if (!targetResourceKey) {
+		const resourceKey = normalizeResourceKey(target.resource);
+		if (!resourceKey) {
 			return false;
 		}
 
 		return this.getExplorerEntries().some(entry => {
 			const entryResource = getExplorerEntryDecorationResource(entry);
-			if (normalizeResourceKey(entryResource) !== targetResourceKey) {
+			if (normalizeResourceKey(entryResource) !== resourceKey) {
 				return false;
 			}
 			return target.sheetId

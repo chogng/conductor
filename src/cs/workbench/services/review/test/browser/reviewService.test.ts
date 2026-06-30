@@ -795,7 +795,8 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.deepEqual(summary.findingCodes, ["review.sheetNotFound"]);
 
 		const manualResult = await service.reviewResourceManualTemplate({
-			target,
+			resource: target.resource,
+			sheetId: target.sheetId,
 			selection: {
 				kind: "user",
 				templateId: "template-a",
@@ -880,10 +881,8 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(schemaProfileService.confirmations.length, 0);
 
 		const profile = await service.confirmReviewedTemplate({
-			target: {
-				resource,
-				sheetId: "table-a",
-			},
+			resource,
+			sheetId: "table-a",
 			reviewedTemplate,
 			reason: "user",
 		});
@@ -938,9 +937,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		);
 
 		const profile = await service.confirmReviewedTemplate({
-			target: {
-				resource: URI.file("/workspace/Missing.csv"),
-			},
+			resource: URI.file("/workspace/Missing.csv"),
 			reviewedTemplate: createReviewedTemplateForTest(),
 			reason: "user",
 		});
@@ -960,10 +957,8 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		);
 
 		const profile = await service.confirmReviewedTemplate({
-			target: {
-				resource,
-				sheetId: "table-a",
-			},
+			resource,
+			sheetId: "table-a",
 			reviewedTemplate: createReviewedTemplateForTest(createTemplate({
 				blocks: [{
 					rowRange: {

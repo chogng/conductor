@@ -226,7 +226,7 @@ export class ReviewService extends Disposable implements IReviewService {
   }
 
   public async confirmReviewedTemplate(input: ReviewedTemplateConfirmationRequest): Promise<SchemaProfile | null> {
-    const target = normalizeUriReviewTarget(input.target);
+    const target = normalizeUriReviewTarget(input);
     if (!target || !this.dataResourceService || !this.schemaProfileService) {
       return null;
     }
@@ -300,7 +300,7 @@ export class ReviewService extends Disposable implements IReviewService {
   }
 
   public async reviewResourceManualTemplate(input: ResourceManualTemplateReviewRequest): Promise<ManualTemplateReviewResult> {
-    const target = normalizeUriReviewTarget(input.target);
+    const target = normalizeUriReviewTarget(input);
     if (!target || !this.dataResourceService) {
       return createInvalidManualReviewResult("review.manual.invalidUriTarget", "Manual review needs a URI content target.");
     }
@@ -550,7 +550,7 @@ export class ReviewService extends Disposable implements IReviewService {
     }
 
     const structuredContent = resolution.snapshot;
-    const targetSheetId = target.sheetId;
+    const sheetId = target.sheetId;
     const result = deriveReviewResult({
       columnCount: structuredContent.columnCount,
       contentHash: target.contentHash,
@@ -560,7 +560,7 @@ export class ReviewService extends Disposable implements IReviewService {
       resource: target.resource,
       rowCount: structuredContent.rowCount,
       schemaProfileSnapshot: this.schemaProfileService?.getSnapshot(),
-      sheetId: targetSheetId ?? undefined,
+      sheetId: sheetId ?? undefined,
       sourceVersion: structuredContent.sourceVersion,
       userTemplateSnapshot: this.userTemplateService.getSnapshot(),
     });
@@ -579,7 +579,7 @@ export class ReviewService extends Disposable implements IReviewService {
       summary: createReviewSummaryFromResult({
         resource: target.resource,
         result,
-        sheetId: targetSheetId,
+        sheetId,
       }),
     };
   }

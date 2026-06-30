@@ -34,8 +34,12 @@ import type {
 import type {
   ISliceService,
   SliceResourceResult,
-  SliceResourceTarget,
 } from "src/cs/workbench/services/slice/common/slice";
+
+type ResourceSheetIdentity = {
+  readonly resource: URI;
+  readonly sheetId?: string | null;
+};
 
 suite("workbench/services/plot/test/browser/plotService", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -2255,12 +2259,12 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     }), calculated);
   });
 
-  test("reads resource slice calculated data by target without a synthetic file id", () => {
-    const target: SliceResourceTarget = {
+  test("reads resource slice calculated data by resource without a synthetic file id", () => {
+    const resourceInput = {
       resource: URI.file("/workspace/data/transfer.csv"),
       sheetId: "Sheet 1",
     };
-    const result = createSliceResourceResult(target);
+    const result = createSliceResourceResult(resourceInput);
     const service = store.add(new PlotService(
       createSessionServiceStub(createSnapshot({}, [])),
       createSettingsServiceStub(),
@@ -2270,20 +2274,20 @@ suite("workbench/services/plot/test/browser/plotService", () => {
 
     const calculated = service.getCalculatedData({
       plotType: "iv",
-      target,
+      ...resourceInput,
     });
 
     assert.ok(calculated);
-    assert.equal(calculated.source.inputKind, "sliceUri");
+    assert.equal(calculated.source.inputKind, "sliceResource");
     assert.equal(calculated.seriesList[0]?.name, "A");
     assert.equal(service.getCachedCalculatedData({
       plotType: "iv",
-      target,
+      ...resourceInput,
     }), calculated);
   });
 
-  test("reads and prefetches resource slice targets without a session snapshot", () => {
-    const target: SliceResourceTarget = {
+  test("reads and prefetches resource slices without a session snapshot", () => {
+    const resourceInput = {
       resource: URI.file("/workspace/data/transfer.csv"),
       sheetId: "Sheet 1",
     };
@@ -2298,37 +2302,37 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       },
       createSettingsServiceStub(),
       store.add(new TestStorageService()),
-      createSliceServiceStub([createSliceResourceResult(target)]),
+      createSliceServiceStub([createSliceResourceResult(resourceInput)]),
     ));
 
     const calculated = service.getCalculatedData({
       plotType: "iv",
-      target,
+      ...resourceInput,
     });
     const model = service.getPlotDisplayModel({
       plotType: "iv",
-      target,
+      ...resourceInput,
     });
     service.prefetchPlotDisplayModel({
       plotType: "iv",
-      target,
+      ...resourceInput,
     }, "active");
     service.prefetchPlotDisplayModels([{
       plotType: "iv",
-      target,
+      ...resourceInput,
     }], "visible");
 
     assert.ok(calculated);
     assert.ok(model);
     assert.ok(service.getCachedPlotDisplayModel({
       plotType: "iv",
-      target,
+      ...resourceInput,
     }));
     assert.equal(snapshotReads, 0);
   });
 
-  test("preserves resource target on plot display contexts and state writes", async () => {
-    const target: SliceResourceTarget = {
+  test("preserves resource identity on plot display contexts and state writes", async () => {
+    const resourceInput = {
       resource: URI.file("/workspace/data/transfer.csv"),
       sheetId: "Sheet 1",
     };
@@ -2336,34 +2340,34 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       createSessionServiceStub(createSnapshot({}, [])),
       createSettingsServiceStub(),
       store.add(new TestStorageService()),
-      createSliceServiceStub([createSliceResourceResult(target)]),
+      createSliceServiceStub([createSliceResourceResult(resourceInput)]),
     ));
 
     const model = service.getPlotDisplayModel({
       plotType: "iv",
-      target,
+      ...resourceInput,
     });
     const legend = service.getPlotLegendModel({
       plotType: "iv",
-      target,
+      ...resourceInput,
     });
 
     assert.ok(model);
     assert.ok(legend);
-    assert.equal(model.target?.resource.toString(), target.resource.toString());
-    assert.equal(model.target?.sheetId, target.sheetId);
-    assert.equal(model.chart.xAxisTitleContext.target?.resource.toString(), target.resource.toString());
-    assert.equal(model.chart.xAxisTitleContext.target?.sheetId, target.sheetId);
-    assert.equal(legend.target?.resource.toString(), target.resource.toString());
-    assert.equal(legend.target?.sheetId, target.sheetId);
+    assert.equal(model.resource?.toString(), resourceInput.resource.toString());
+    assert.equal(model.sheetId, resourceInput.sheetId);
+    assert.equal(model.chart.xAxisTitleContext.resource?.toString(), resourceInput.resource.toString());
+    assert.equal(model.chart.xAxisTitleContext.sheetId, resourceInput.sheetId);
+    assert.equal(legend.resource?.toString(), resourceInput.resource.toString());
+    assert.equal(legend.sheetId, resourceInput.sheetId);
 
     service.setAxisTitleOverride(model.chart.xAxisTitleContext, "Gate Bias", model.chart.defaultXAxisTitle);
-    service.setLegendLabel({ target }, "series-a", "Renamed Series");
-    await service.setAxisUnit({ target }, "x", "mV");
-    await service.setYScale({ target }, "log");
+    service.setLegendLabel(resourceInput, "series-a", "Renamed Series");
+    await service.setAxisUnit(resourceInput, "x", "mV");
+    await service.setYScale(resourceInput, "log");
     const updated = service.getPlotDisplayModel({
       plotType: "iv",
-      target,
+      ...resourceInput,
     });
 
     assert.equal(updated?.chart.xAxisTitle, "Gate Bias");
@@ -2371,14 +2375,14 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     assert.equal(updated?.unitControl?.xUnit, "mV");
     assert.equal(updated?.chart.yScaleMode, "log");
 
-    service.toggleHiddenLegendKey({ target }, "iv", "series-a", ["series-a"]);
-    assert.deepEqual(service.getHiddenLegendKeys({ target }, "iv", ["series-a"]), ["series-a"]);
+    service.toggleHiddenLegendKey(resourceInput, "iv", "series-a", ["series-a"]);
+    assert.deepEqual(service.getHiddenLegendKeys(resourceInput, "iv", ["series-a"]), ["series-a"]);
   });
 
-  test("session clears preserve resource target plot caches", () => {
+  test("session clears preserve resource plot caches", () => {
     const sessionEvents = store.add(new Emitter<SessionChangeEvent>());
     const snapshot = createSnapshot();
-    const target: SliceResourceTarget = {
+    const resourceInput = {
       resource: URI.file("/workspace/data/transfer.csv"),
       sheetId: "Sheet 1",
     };
@@ -2386,7 +2390,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       createSessionServiceStub(snapshot, sessionEvents.event),
       createSettingsServiceStub(),
       store.add(new TestStorageService()),
-      createSliceServiceStub([createSliceResourceResult(target)]),
+      createSliceServiceStub([createSliceResourceResult(resourceInput)]),
     ));
     let plotStateChanges = 0;
     const calculatedEvents: Array<{ readonly fileId?: string; readonly plotType: string }> = [];
@@ -2407,7 +2411,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     });
     const uriModel = service.getPlotDisplayModel({
       plotType: "iv",
-      target,
+      ...resourceInput,
     });
     assert.ok(uriModel);
     calculatedEvents.length = 0;
@@ -2428,12 +2432,12 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     }), null);
     assert.strictEqual(service.getCachedPlotDisplayModel({
       plotType: "iv",
-      target,
+      ...resourceInput,
     })?.chart, uriModel.chart);
   });
 
-  test("does not fall back to the first resource slice result without a target", () => {
-    const target: SliceResourceTarget = {
+  test("does not fall back to the first resource slice result without resource identity", () => {
+    const resourceInput = {
       resource: URI.file("/workspace/data/transfer.csv"),
       sheetId: "Sheet 1",
     };
@@ -2441,7 +2445,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       createSessionServiceStub(createSnapshot({}, [])),
       createSettingsServiceStub(),
       store.add(new TestStorageService()),
-      createSliceServiceStub([createSliceResourceResult(target)]),
+      createSliceServiceStub([createSliceResourceResult(resourceInput)]),
     ));
 
     assert.equal(service.getCalculatedData({ plotType: "iv" }), null);
@@ -3045,13 +3049,13 @@ const createSliceServiceStub = (
     queueLength: 0,
     templateSelections: [],
   }),
-  getResourceResult: target => results.find(result =>
-    result.target.resource.toString() === target.resource.toString() &&
-    String(result.target.sheetId ?? "") === String(target.sheetId ?? "")
+  getResourceResult: (resource, sheetId) => results.find(result =>
+    result.resource.toString() === resource.toString() &&
+    String(result.sheetId ?? "") === String(sheetId ?? "")
   ) ?? null,
   getResourceState: () => undefined,
   onDidChangeSliceState: Event.None as Event<void>,
-  onDidChangeResourceSliceResult: Event.None as Event<SliceResourceTarget>,
+  onDidChangeResourceSliceResult: Event.None as Event<ResourceSheetIdentity>,
   prioritizeResource: () => undefined,
   setTemplateSelection: () => undefined,
   submitResource: () => undefined,
@@ -3096,7 +3100,7 @@ const createSnapshot = (
 });
 
 const createSliceResourceResult = (
-  target: SliceResourceTarget,
+  resourceInput: ResourceSheetIdentity,
 ): SliceResourceResult => ({
   completedAt: 1,
   curves: [{
@@ -3106,8 +3110,8 @@ const createSliceResourceResult = (
     lineage: {
       baseFamily: "iv",
       baseSeries: {
-        resource: target.resource,
-        sheetId: target.sheetId,
+        resource: resourceInput.resource,
+        sheetId: resourceInput.sheetId,
         seriesId: "series-a",
       },
       curveGeneration: "base",
@@ -3117,18 +3121,18 @@ const createSliceResourceResult = (
       { x: 0, y: 0.001 },
       { x: 1, y: 0.002 },
     ],
-    resource: target.resource,
+    resource: resourceInput.resource,
     seriesId: "series-a",
-    sheetId: target.sheetId,
+    sheetId: resourceInput.sheetId,
     signature: "slice-curve-a",
   }],
   requestSignature: "request-a",
   run: {
     errors: [],
-    id: "slice-uri-run-a",
+    id: "slice-resource-run-a",
     inputRanges: [{
-      resource: target.resource,
-      sheetId: target.sheetId,
+      resource: resourceInput.resource,
+      sheetId: resourceInput.sheetId,
       range: {
         endCol: 1,
         endRow: 1,
@@ -3139,9 +3143,9 @@ const createSliceResourceResult = (
     mode: "auto",
     outputCurveKeys: [],
     outputSeriesIds: ["series-a"],
-    resource: target.resource,
+    resource: resourceInput.resource,
     selection: { kind: "auto" },
-    sheetId: target.sheetId,
+    sheetId: resourceInput.sheetId,
     sourceContentSignature: "source-a",
     template: {
       blocks: [{
@@ -3173,13 +3177,14 @@ const createSliceResourceResult = (
     groupIndex: 0,
     id: "series-a",
     name: "A",
-    resource: target.resource,
-    sheetId: target.sheetId,
+    resource: resourceInput.resource,
+    sheetId: resourceInput.sheetId,
     y: [0.001, 0.002],
   }],
   sourceModelVersion: 1,
   sourceVersion: 1,
-  target,
+  resource: resourceInput.resource,
+  sheetId: resourceInput.sheetId,
 });
 
 const createFileRecord = (

@@ -6,7 +6,7 @@ import { CommandsRegistry } from "../../../../../platform/commands/common/comman
 import type { ServicesAccessor, ServiceIdentifier } from "../../../../../platform/instantiation/common/instantiation.ts";
 import { IExplorerService } from "../../../../../workbench/contrib/files/browser/files.ts";
 import type { ExplorerViewPane } from "../../../../../workbench/contrib/files/browser/explorerViewlet.ts";
-import { ISliceService, type SliceResourceTarget } from "src/cs/workbench/services/slice/common/slice";
+import { ISliceService } from "src/cs/workbench/services/slice/common/slice";
 import type { TemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
 import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import {
@@ -39,12 +39,12 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
     let renameSelection: unknown = null;
     let editableState: unknown = null;
     let templateSelection:
-      | { readonly target: SliceResourceTarget; readonly selection: TemplateSelection }
+      | { readonly resource: URI; readonly sheetId: string | null; readonly selection: TemplateSelection }
       | null = null;
     const sliceService = {
       _serviceBrand: undefined,
-      setTemplateSelection: (target: SliceResourceTarget, selection: TemplateSelection) => {
-        templateSelection = { target, selection };
+      setTemplateSelection: (resource: URI, sheetId: string | null | undefined, selection: TemplateSelection) => {
+        templateSelection = { resource, sheetId: sheetId ?? null, selection };
       },
     } as unknown as ISliceService;
     const explorerService = createExplorerServiceStub({
@@ -106,7 +106,8 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
       },
     });
     assert.deepEqual(templateSelection, {
-      target: { resource: resource1, sheetId: null },
+      resource: resource1,
+      sheetId: null,
       selection: {
         kind: "saved",
         templateId: "template-1",
@@ -147,7 +148,7 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
     let renameSelection: unknown = null;
     let editableState: unknown = null;
     let templateSelection:
-      | { readonly target: SliceResourceTarget; readonly selection: TemplateSelection }
+      | { readonly resource: URI; readonly sheetId: string | null; readonly selection: TemplateSelection }
       | null = null;
     const explorerView = createExplorerViewStub({
       openFolderImport: () => {
@@ -178,8 +179,8 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
     });
     const sliceService = {
       _serviceBrand: undefined,
-      setTemplateSelection: (target: SliceResourceTarget, selection: TemplateSelection) => {
-        templateSelection = { target, selection };
+      setTemplateSelection: (resource: URI, sheetId: string | null | undefined, selection: TemplateSelection) => {
+        templateSelection = { resource, sheetId: sheetId ?? null, selection };
       },
     } as unknown as ISliceService;
     const accessor = createAccessor([
@@ -219,7 +220,8 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
       },
     });
     assert.deepEqual(templateSelection, {
-      target: { resource: resource2, sheetId: null },
+      resource: resource2,
+      sheetId: null,
       selection: { kind: "auto" },
     });
     assert.ok(CommandsRegistry.getCommand(ADD_FOLDER_ACTION_ID));

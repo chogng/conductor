@@ -5,7 +5,7 @@
 import type {
 	PlotType,
 } from "src/cs/workbench/services/plot/common/plot";
-import type { SliceResourceTarget } from "src/cs/workbench/services/slice/common/slice";
+import type { URI } from "src/cs/base/common/uri";
 import type { ChartFileOption } from "src/cs/workbench/services/chart/common/chartFileOptions";
 
 
@@ -25,7 +25,8 @@ export type ChartViewInput = {
 	readonly chartFileOptions?: readonly ChartFileOption[];
 	readonly processingStatus?: Partial<ChartProcessingStatus>;
 	readonly activeFileId?: string | null;
-	readonly activeTarget?: SliceResourceTarget | null;
+	readonly activeResource?: URI | null;
+	readonly activeSheetId?: string | null;
 	readonly showFileSelect?: boolean;
 	readonly shouldMountCharts?: boolean;
 };

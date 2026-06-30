@@ -14,7 +14,7 @@ import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
 import type { PlotMainRenderModelSource } from "src/cs/workbench/services/plot/common/plotModel";
 import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
 import type {
-  TemplateTargetSelection,
+  TemplateResourceSelection,
 } from "src/cs/workbench/services/slice/common/templateSelection";
 
 export const IExplorerService = createDecorator<IExplorerService>("explorerService");
@@ -43,7 +43,7 @@ export type ExplorerPaneInput = {
   readonly selectedResource: URI | null;
   readonly selectedSheetId?: string | null;
   readonly selectionKind: ExplorerSelectionKind;
-  readonly templateSelections?: readonly TemplateTargetSelection[];
+  readonly templateSelections?: readonly TemplateResourceSelection[];
   readonly thumbnailPlotModelsByFileId?: Readonly<Record<string, ExplorerThumbnailPlotModel>>;
 };
 

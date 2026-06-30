@@ -22,7 +22,6 @@ import {
 	type IPlotService as IPlotServiceType,
 	type PlotDisplayModelInput,
 } from "src/cs/workbench/services/plot/common/plot";
-import type { SliceResourceTarget } from "src/cs/workbench/services/slice/common/slice";
 import type { DataResourceStructuredContentSnapshot } from "src/cs/workbench/services/dataResource/common/dataResource";
 import {
 	ISearchService,
@@ -158,7 +157,8 @@ export class SearchService extends Disposable implements ISearchServiceType {
 		const plotDisplayModelInput = this.createPointLookupPlotDisplayModelInput(
 			fileId,
 			chartInput.activePlotType ?? this.plotService.getState().activePlotType,
-			chartInput.activeTarget ?? null,
+			chartInput.activeResource ?? null,
+			chartInput.activeSheetId ?? null,
 		);
 		const plotDisplayModel = this.plotService.getCachedPlotDisplayModel(plotDisplayModelInput);
 		if (!plotDisplayModel) {
@@ -216,30 +216,36 @@ export class SearchService extends Disposable implements ISearchServiceType {
 	private createPointLookupPlotDisplayModelInput(
 		fileId: string,
 		plotType: NonNullable<PlotDisplayModelInput["plotType"]>,
-		target: SliceResourceTarget | null,
+		resource: PlotDisplayModelInput["resource"],
+		sheetId: PlotDisplayModelInput["sheetId"],
 	): PlotDisplayModelInput {
 		const legendModel = this.plotService.getCachedPlotLegendModel({
 			fileId,
 			plotType,
-			target,
+			resource,
+			sheetId,
 		});
 		const liveLegendKeys = legendModel?.seriesList.map(series => series.id) ?? [];
 		const legendFileId = legendModel?.fileId ?? fileId;
-		const legendTarget = legendModel?.target ?? target;
+		const legendResource = legendModel?.resource ?? resource;
+		const legendSheetId = legendModel?.sheetId ?? sheetId;
 		return {
 			fileId,
 			hiddenLegendKeys: liveLegendKeys.length
 				? this.plotService.getHiddenLegendKeys({
 					fileId: legendFileId,
-					target: legendTarget,
+					resource: legendResource,
+					sheetId: legendSheetId,
 				}, plotType, liveLegendKeys)
 				: [],
 			legendLabels: this.getPointLookupLegendLabels({
 				fileId: legendFileId,
-				target: legendTarget,
+				resource: legendResource,
+				sheetId: legendSheetId,
 			}, liveLegendKeys),
 			plotType,
-			target,
+			resource,
+			sheetId,
 		};
 	}
 
