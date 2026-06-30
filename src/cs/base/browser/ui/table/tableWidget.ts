@@ -686,7 +686,27 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		this.virtualTable.clearBodyCells();
 	}
 
-	public rerenderDirtyBodyCells(
+	public patchDirtyCells(options: Table.ITableDirtyPatchOptions): Table.ITableDirtyPatchResult {
+		if (options.full || options.ranges.length === 0) {
+			return {
+				body: "ignored",
+				columnHeaders: "ignored",
+				outcome: "full",
+			};
+		}
+
+		const columnHeaders = options.includeColumnHeaders
+			? this.rerenderDirtyColumnHeaders(options.ranges, options.columnHeaderRenderVersion)
+			: "ignored";
+		const body = this.rerenderDirtyBodyCells(options.ranges, options.bodyRenderVersion);
+		return {
+			body,
+			columnHeaders,
+			outcome: body === "patched" || columnHeaders === "patched" ? "patched" : "ignored",
+		};
+	}
+
+	private rerenderDirtyBodyCells(
 		ranges: readonly Table.ITableDirtyRange[],
 		renderVersion: unknown,
 	): Table.ITablePatchResult {
@@ -700,7 +720,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		return "patched";
 	}
 
-	public rerenderDirtyColumnHeaders(
+	private rerenderDirtyColumnHeaders(
 		ranges: readonly Table.ITableDirtyRange[],
 		renderVersion: unknown,
 	): Table.ITablePatchResult {

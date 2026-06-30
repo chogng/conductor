@@ -42,6 +42,7 @@
 	flex: 0 0 auto;
 	overflow: hidden;
 	background: #fff;
+	box-shadow: inset 0 -1px 0 rgb(var(--border) / 1);
 	color: rgb(var(--text-secondary) / 1);
 	font-size: calc(12px * var(--table-view-zoom));
 	line-height: var(--table-view-line-height);

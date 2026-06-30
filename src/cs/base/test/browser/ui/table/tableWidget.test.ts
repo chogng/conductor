@@ -756,20 +756,20 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 		}
 	});
 
-	test("rerenders dirty column headers through the base table patch path", () => {
-		const bodyRenders: string[] = [];
+	test("patches dirty body cells and column headers through the base table patch path", () => {
+		const bodyContentRenders: string[] = [];
 		const headerRenders: string[] = [];
-			const widget = new TableWidget<TestBodyTemplateData, HTMLElement>({
+		const widget = new TableWidget<TestBodyTemplateData, HTMLElement>({
 			getColumnWidth: () => 160,
 			renderer: {
 				clearBodyCell: templateData => {
 					templateData.content.textContent = "";
 				},
 				disposeBodyCellTemplate: () => undefined,
-				renderBodyCell: (_templateData, descriptor) => {
-					bodyRenders.push(`${descriptor.rowIndex}:${descriptor.colIndex}`);
+				renderBodyCell: () => undefined,
+				renderBodyCellContent: (_templateData, descriptor) => {
+					bodyContentRenders.push(`${descriptor.rowIndex}:${descriptor.colIndex}`);
 				},
-				renderBodyCellContent: () => undefined,
 				renderBodyCellTemplate: (cell, content) => ({ cell, content }),
 				renderColumnHeader: (cell, descriptor) => {
 					headerRenders.push(String(descriptor.colIndex));
@@ -788,17 +788,43 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 			setElementClientSize(viewport, 500, 280);
 			widget.attachContent();
 			widget.render({ columnCount: 5, rowCount: 20, headerRenderVersion: "a" });
-			const bodyRenderCount = bodyRenders.length;
+			const bodyRenderCount = bodyContentRenders.length;
 			const headerRenderCount = headerRenders.length;
 
-			assert.equal(widget.rerenderDirtyColumnHeaders([
-				{ startCol: 1, endCol: 3 },
-				{ startCol: 2, endCol: 4 },
-			], "b"), "patched");
+			const patched = widget.patchDirtyCells({
+				bodyRenderVersion: "b",
+				columnHeaderRenderVersion: "b",
+				includeColumnHeaders: true,
+				ranges: [{ startRow: 1, endRow: 3, startCol: 1, endCol: 3 }],
+			});
 
-			assert.deepEqual(headerRenders.slice(headerRenderCount), ["1", "2", "3"]);
-			assert.equal(bodyRenders.length, bodyRenderCount);
-			assert.equal(widget.rerenderDirtyColumnHeaders([{ startCol: 20, endCol: 21 }], "c"), "ignored");
+			assert.equal(patched.outcome, "patched");
+			assert.equal(patched.body, "patched");
+			assert.equal(patched.columnHeaders, "patched");
+			assert.deepEqual(headerRenders.slice(headerRenderCount), ["1", "2"]);
+			assert.deepEqual(bodyContentRenders.slice(bodyRenderCount), ["1:1", "1:2", "2:1", "2:2"]);
+
+			const ignored = widget.patchDirtyCells({
+				bodyRenderVersion: "c",
+				columnHeaderRenderVersion: "c",
+				includeColumnHeaders: true,
+				ranges: [{ startCol: 20, endCol: 21 }],
+			});
+			assert.deepEqual(ignored, {
+				body: "ignored",
+				columnHeaders: "ignored",
+				outcome: "ignored",
+			});
+
+			assert.deepEqual(widget.patchDirtyCells({
+				bodyRenderVersion: "d",
+				full: true,
+				ranges: [{ startCol: 1, endCol: 2 }],
+			}), {
+				body: "ignored",
+				columnHeaders: "ignored",
+				outcome: "full",
+			});
 		} finally {
 			widget.dispose();
 		}

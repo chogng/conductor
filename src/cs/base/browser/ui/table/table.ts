@@ -290,6 +290,21 @@ export interface ITableDirtyRange {
 }
 
 export type ITablePatchResult = "ignored" | "patched";
+export type ITableDirtyPatchOutcome = "full" | ITablePatchResult;
+
+export interface ITableDirtyPatchOptions {
+	readonly bodyRenderVersion: unknown;
+	readonly columnHeaderRenderVersion?: unknown;
+	readonly full?: boolean;
+	readonly includeColumnHeaders?: boolean;
+	readonly ranges: readonly ITableDirtyRange[];
+}
+
+export interface ITableDirtyPatchResult {
+	readonly body: ITablePatchResult;
+	readonly columnHeaders: ITablePatchResult;
+	readonly outcome: ITableDirtyPatchOutcome;
+}
 
 export class TableError extends Error {
 	public constructor(user: string, message: string) {
