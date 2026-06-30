@@ -1,8 +1,8 @@
 # Critical Rules
 
 These rules have the highest priority.
-
-* NEVER add fallback logic.
+- Must read the [Coding Guidelines](.github/instructions/coding-guidelines.instructions.md) before thinking or editing
+* NEVER add fallback logic
 * NEVER replace a real fix with renamed declarations, moved logic, wrappers, facades, adapters, aliases, re-exports, or compatibility layers.
 * NEVER keep legacy interfaces or local compatibility code just to avoid updating call sites.
 * Call sites MUST migrate directly to the target interface.
@@ -26,8 +26,7 @@ when you coding, see the upstream architechture [`C:\Users\lanxi\Desktop\vscode`
 
 
 
-before you write or edit any code, you MUST first read the [Architecture Instructions](.github/instructions/architecture.instructions.md) and the [Coding Guidelines](.github/instructions/coding-guidelines.instructions.md).
-
+before you write or edit any code, you MUST first read the [Architecture Instructions](.github/instructions/architecture.instructions.md) and 
 when coding under a path with a matching `.github/instructions/*.instructions.md` file, read that instruction before editing code in that area.
 
 when writing or editing naming, command/action ids, command handlers, action registration, contribution wiring, service calls, or responsibility boundaries, you MUST first read [Architecture Instructions](.github/instructions/architecture.instructions.md), [Commands and Dispatch](.github/instructions/commands.instructions.md), [Coding Guidelines](.github/instructions/coding-guidelines.instructions.md), and the matching module instruction such as [Files Capability / Explorer UI](.github/instructions/files.instructions.md). Do not infer these rules from memory.

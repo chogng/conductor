@@ -1,228 +1,234 @@
 ---
-description: Coding guidelines for Conductor workbench code - ownership, root-cause fixes, imports, service APIs, shared values, and NLS.
+description: Coding guidelines for workbench code - ownership, root-cause fixes, imports, service APIs, shared values, and NLS.
 applyTo: 'src/cs/**'
 ---
 # Coding Guidelines
 
-Use this file as the short coding entry point. Before editing code, read:
-
-1. `architecture.instructions.md` for ownership, layers, events, selection, and domain flow.
-2. The matching module instruction file for the path you are editing.
-3. `commands.instructions.md` when changing command/action ids, handlers, menus, keybindings, controllers, or contribution wiring.
-4. `settings.instructions.md` when changing settings persistence, settings UI, or settings-driven side effects.
-5. `service-components.instructions.md` when introducing service helpers, controllers, stores, models, providers, adapters, planners, readers, registries, or caches.
+These are self-contained baseline coding rules for workbench code. Keep rules
+general, examples small, and domain-specific ownership maps out of this file.
 
 ## Core Rules
 
-- Keep behavior on the state owner.
+- Put behavior on the state owner.
 - Keep registration, invocation, and subscription separate.
-- Keep model state and view state separate.
+- Keep model state, view state, and persistence state separate.
 - Keep runtime folders honest: `common`, `browser`, `electron-browser`, `electron-main`, `node`.
-- Prefer upstream VS Code shape when a responsibility has an upstream counterpart.
-- Use constructors for DI and lifecycle wiring when a class owns runtime state.
-- Make code readability come from visible ownership, entry points, and side effects.
-- Conductor-specific additions must be named and justified as Conductor-specific.
+- Make ownership visible through names, entry points, mutation points, and events.
+- Name and justify product-specific additions.
+- Do not solve ownership problems with fallback or compatibility layers.
+- When replacing an interface, migrate call sites directly.
 
-## Readable Code Shape
+## Before Editing
 
-Readable Conductor code should make the architecture visible. A reader should
-be able to identify the entry point, state owner, mutation point, event facts,
-and lifecycle owner without reconstructing hidden flow from helpers or naming
-history.
+Code from the owner boundary, not the symptom file.
 
-Follow the upstream VS Code style in shape, not surface aesthetics:
+- Identify the owner before editing behavior.
+- Read the owner implementation before changing callers.
+- Search direct call sites before changing public APIs, events, command ids, action ids, or exported types.
+- Read nearby tests before changing behavior or adding tests.
 
-- registration files wire contributions and services;
-- commands, actions, and controllers normalize input and delegate;
-- services and models mutate only their owned state;
-- records, targets, candidates, and DTO-like values stay as data;
-- subscriptions, context keys, providers, and disposables are tied to a clear
-  lifecycle owner.
+## Readable Shape
 
-When code feels messy, fix the ownership shape before local cleanup. Do not
-hide mixed responsibilities behind a helper, rename a file without moving the
-responsibility, or add formatting-only structure while old and new owners still
-share the same behavior.
-
-Avoid files that mix unrelated roles such as schema definitions, candidate
-building, evaluation, application planning, UI state, and compatibility bridges.
-If migration forces a temporary mix, mark the bridge explicitly and keep the new
-owner API clear.
-
-## Root-Cause Fixes
-
-Bug fixes start from the behavior owner, not the visible symptom.
-
-Trace:
+Good code exposes the chain:
 
 ```txt
-user symptom
-  -> UI/event entry point
-  -> command/action/controller/widget path
-  -> service/component/primitive that owns the state or lifecycle
-  -> incorrect owner behavior
+entry point -> owner API -> owner mutation -> fact event -> subscriber reread
 ```
 
-If the chain crosses shared infrastructure such as hover, context menus,
-ActionBar, dropdowns, view containers, layout, commands, storage, file service,
-or session events, inspect the shared owner first.
-
-When an upstream counterpart exists under `/Users/lance/Desktop/vscode`, inspect
-it before editing. Preserve upstream semantics unless Conductor intentionally
-diverges.
-
-Regression tests should exercise the owner contract or original shared path.
-
-## Commands And Actions
-
-Quick choice:
-
-| Need | Prefer |
-| --- | --- |
-| callable operation with no UI placement | `CommandsRegistry.registerCommand(...)` |
-| menu/toolbar/keybinding/Command Palette/context metadata | `registerAction2(...)` |
-| live mutable label/tooltip/enabled/checked | runtime `Action` / `IAction` |
-| local temporary DOM gesture | callback |
-
-Command ids describe the owner operation, not UI location. Handlers normalize
-args, resolve services/controllers, call owner APIs, and return.
-
-## Files And Explorer Names
-
-| Name | Meaning |
-| --- | --- |
-| `IFileService` | platform filesystem capability |
-| `files` module | Files capability/container and source workflow surface |
-| `IExplorerService` | Explorer UI state: resources, selection, reveal, expansion, layout, context |
-| `ISessionService` | imported data-file/raw-table ledger plus downstream analysis records |
-| `ExplorerView` / `ExplorerViewer` | Files container UI rendering |
-| `fileImportExport.ts` | file transfer and source collection helpers |
-| `ITableFileService` / `TableFileEditorModel` | URI-backed table file open/cache/reload/save lifecycle |
-
-Do not introduce `IFileImportService` by default. Source collection stays in
-Explorer/files workflow; ordinary execution stays keyed by `{ resource, sheetId? }` through Slice;
-ordinary Explorer file-to-table imports update Explorer-local rows and open
-URI-backed table resources through `ITableService`.
-
-## Service APIs
-
-Owner APIs act on pure target/value records:
+Use:
 
 ```txt
-ownerService.select(target, reveal?)
-ownerService.reveal(target, options?)
-ownerService.open(target, options?)
-ownerService.update(target, update)
-ownerModel.setSelection(selection)
-```
-
-Do not turn targets into behavior objects.
-
-Write concrete field types directly when the type is already part of the local
-contract. For example, use `readonly resource: URI` instead of
-`readonly resource: SomeTarget["resource"]`. Use indexed access types only when
-the field intentionally follows another type's changing property shape, not as
-a shortcut for a known concrete type.
-
-Dependency direction:
-
-```txt
-platform -> base
-workbench/services -> platform + service interfaces + session snapshots
-workbench/contrib -> service interfaces
-view -> props, commands, owner service APIs
-```
-
-Avoid `service -> view`, `service -> CommandsRegistry`, `session -> UI state`,
-`source preparation -> review/template/plot`, `plot -> chart DOM`, and
-`chart -> raw table parsing`.
-
-## Constructors And Lifecycle
-
-Match the upstream VS Code constructor shape for classes that own a runtime
-lifecycle: services, controllers, contributions, models, stores, providers,
-adapters, widgets, and view parts.
-
-Use constructors to:
-
-- inject services through DI parameters;
-- capture immutable options needed for the object's lifetime;
-- initialize owned fields and context keys;
-- register disposables, event subscriptions, providers, and lightweight
-  contribution wiring through the object's lifecycle owner.
-
-Keep constructors synchronous and lightweight. They establish invariants and
-wiring; they do not run domain workflows, execute commands, perform async
-loading, parse large inputs, fire owner events for externally visible changes,
-or mutate state owned by another service. Put those behaviors behind explicit
-owner APIs, lifecycle methods, or event callbacks.
-
-Do not introduce a class or constructor for pure data. Shared records, command
-targets, review candidates, table facts, and DTO-like values stay as interfaces,
-types, or plain objects unless the object has a real lifecycle, invariant, or
-owned disposable state.
-
-## Imports
-
-- Use relative imports within the same capability/module.
-- Keep nearby files consistent.
-- Import DI service symbols once and use the same name for value/type positions:
-
-```ts
-import { xxx } from "../../xxx/xxx";
-```
-
-Use `type` imports for pure type-only symbols. Do not alias a service interface
-only to split type/value imports.
-
-## Shared Values
-
-- Keep implementation details private to the owning file/module.
-- Export constants only when callers depend on them as API.
-- Keep UI ids, labels, CSS hooks, and aria relationships with the rendering or registration owner.
-- Keep storage keys with the service/part that reads and writes them.
-- Do not add constants modules just to avoid deciding ownership.
-
-When unsure, prefer an owner API over exporting shared mutable knowledge.
-
-## DOM And CSS Ownership
-
-Follow the upstream VS Code class ownership shape: the component, renderer, or
-widget that creates a DOM node owns that node's slot and state classes.
-
-- Feature renderers/widgets declare classes for DOM they create.
-- The behavior owner toggles state classes.
-- Feature roots provide CSS scope and layout context.
-- Base/platform primitives must not know feature-specific class names.
-- Do not add wrapper elements, alias classes, or compatibility DOM hooks just
-  to preserve old selectors. Migrate the affected CSS and call sites directly.
-
-Prefer:
-
-```ts
-const row = append(container, $('.settings-row'));
-row.classList.toggle('is-expanded', expanded);
-```
-
-```css
-.settings-view .settings-row.is-expanded {
-  min-height: 48px;
-}
+commandHandler -> ownerService.update(target, update);
+ownerService.onDidChangeState.fire(event);
+consumer rereads ownerService.getState();
 ```
 
 Avoid:
 
 ```ts
-inputBox.element.classList.add('settings-row');
+view.callsOtherViewRefresh();
+eventNamedOnShouldRefreshView.fire();
+helperMutatesTwoOwners();
 ```
 
-Internal DOM classes are private styling contracts for the owning module.
-Cross-module behavior should use TypeScript APIs, events, options, services, or
-explicit owner-provided elements instead of querying another feature's DOM.
+If code feels messy, fix the ownership shape before local cleanup. Do not hide mixed responsibilities behind helpers, renamed files, or formatting-only structure.
+
+## Root-Cause Fixes
+
+Bug fixes start at the behavior owner, not the visible symptom.
+
+Trace:
+
+```txt
+symptom -> UI/command entry -> owner service/model/widget -> incorrect owner behavior
+```
+
+- Inspect shared owners first when the chain crosses hover, context menus,
+  layout, commands, storage, filesystem, persistence, or other shared
+  infrastructure.
+- Regression tests should exercise the owner contract or original shared path.
+
+## Commands And Actions
+
+Pick the smallest command surface that matches the use:
+
+| Need | Prefer |
+| --- | --- |
+| callable operation with no UI placement | `CommandsRegistry.registerCommand(...)` |
+| menu, toolbar, keybinding, or Command Palette metadata | `registerAction2(...)` |
+| live label, tooltip, enabled, or checked state | runtime `Action` / `IAction` |
+| local DOM-only gesture | callback |
+
+Handlers normalize arguments and delegate to owner APIs.
+
+```ts
+// Good
+function handler(accessor, rawTarget) {
+	const target = normalizeTarget(rawTarget);
+	accessor.get(IOwnerService).open(target);
+}
+
+// Bad
+function handler(accessor) {
+	accessor.get(IOwnerService)._state.value = next;
+}
+```
+
+## Service APIs
+
+Keep API shape aligned with the owner boundary.
+
+- If a call operates on an owner-owned runtime model object, pass that model object instead of flattening its fields.
+- Use direct value fields/records at external boundaries such as commands, events, persistence, cross-service requests, and URI identity.
+- Treat repeated long parameter groups as a missing-owner smell. Fix the owner API/model first; do not hide it with wrappers, aliases, facades, adapters, re-exports, or `*Target` bags.
+- Do not widen a method signature for downstream convenience. Fix the owner boundary or split the responsibility.
+- When changing an interface, update call sites to the new interface. Do not keep aliases, re-exports, wrappers, overloads, or compatibility signatures.
+- Use names that state the real owner and responsibility. Do not add a new service just to name a workflow.
+- Name public behavior APIs with verbs or verb phrases. Use `setX` only when an owner/model directly replaces its own state.
+
+Example:
+
+```ts
+// Good: behavior APIs use verbs and keep owner-owned runtime objects intact.
+ownerService.select(resource, options);
+ownerService.rename(item, name);
+
+// Good: value boundary, no runtime item crosses services.
+operationService.apply(resource, subId, options);
+
+// Good: model-local state replacement.
+ownerModel.setSelection(selection);
+
+// Bad: public behavior shaped like a state setter.
+ownerService.setSelection(selection);
+
+// Bad: owner-owned item state flattened for convenience.
+ownerService.rename(resource, subId, name, source, mode);
+
+// Bad: workflow name without ownership.
+ownerImportService.importItem(item);
+```
+
+Use concrete field types when the contract is concrete:
+
+```ts
+// Good
+readonly resource: URI;
+
+// Bad
+readonly resource: SomeTarget["resource"];
+```
+
+Keep dependency direction one-way:
+
+```txt
+platform -> base
+workbench/services -> platform + service interfaces + shared snapshots
+workbench/contrib -> service interfaces
+view -> props, commands, owner service APIs
+```
+
+Avoid `service -> view`, `service -> CommandsRegistry`, `persistence -> UI
+state`, `preparation workflow -> unrelated domain`, `domain renderer -> another
+domain DOM`, and `view shell -> raw parsing`.
+
+## Constructors And Lifecycle
+
+Use constructors only to establish object lifetime:
+
+- inject services;
+- capture immutable lifetime options;
+- initialize owned fields and context keys;
+- register disposables, subscriptions, providers, and lightweight wiring.
+
+Do not start workflows, parse large inputs, execute commands, fire externally visible changes, or mutate another owner from a constructor.
+
+```ts
+// Good
+constructor(@IThingService private readonly thingService: IThingService) {
+	this._register(this.thingService.onDidChangeThing(() => this.update()));
+}
+
+// Bad
+constructor(@ICommandService commandService: ICommandService) {
+	commandService.executeCommand("thing.run");
+}
+```
+
+Do not add classes for pure data. Use interfaces, types, or plain objects unless the object owns lifecycle, invariants, or disposables.
+
+## Imports
+
+- Use relative imports within the same capability/module.
+- Keep nearby files consistent.
+- Import DI service symbols once and reuse the same name for value/type positions.
+- Use `type` imports for pure type-only symbols.
+- Do not alias a service interface only to split type/value imports.
+
+```ts
+import { IThingService } from "../../thing/common/thing";
+import type { ThingRecord } from "../../thing/common/thing";
+```
+
+## Shared Values
+
+- Keep implementation details private to the owner.
+- Export constants only when callers depend on them as API.
+- Keep UI ids, labels, CSS hooks, aria relationships, and storage keys with the owner that renders or reads them.
+- Do not add constants modules just to avoid deciding ownership.
+
+When unsure, add an owner API instead of exporting shared mutable knowledge.
+
+## DOM And CSS Ownership
+
+The component that creates a DOM node owns that node's classes and state.
+
+- Renderers/widgets declare classes for DOM they create.
+- Behavior owners toggle state classes.
+- Feature roots provide CSS scope and layout context.
+- Base/platform primitives must not know feature-specific classes.
+- Do not add wrapper elements, alias classes, or compatibility DOM hooks to preserve old selectors.
+
+```ts
+// Good
+const row = append(container, $(".settings-row"));
+row.classList.toggle("is-expanded", expanded);
+
+// Bad
+inputBox.element.classList.add("settings-row");
+```
+
+```css
+.settings-view .settings-row.is-expanded {
+	min-height: 48px;
+}
+```
+
+Cross-module behavior should use APIs, events, options, services, or explicit owner-provided elements, not another feature's private DOM.
 
 ## Components
 
-Avoid vague manager hierarchies. Prefer names that state the role:
+Prefer names that state the role:
 
 ```txt
 Service, Controller, Store, Model, Provider, Reader, Adapter, Planner, Cache, Registry
@@ -232,15 +238,16 @@ Use `Manager` only when none of those names is accurate.
 
 ## Migration Comments
 
-When keeping retired compatibility code during migration, annotate the boundary:
+When explicitly allowed to keep temporary migration code, state the boundary and
+deletion condition.
 
 ```ts
-// TODO(conductor-architecture): Migration bridge.
-// This command currently calls ExplorerViewPane because IExplorerService is not wired yet.
-// Move the behavior into IExplorerService and keep this handler as argument normalization only.
+// TODO(migration): Migration bridge.
+// Boundary: this handler still calls the view until IOwnerService owns the action.
+// Delete when the action is an IOwnerService API and this handler only normalizes arguments.
 ```
 
-Avoid generic TODOs like `// TODO: clean up later`.
+Avoid generic comments like `// TODO: clean up later`.
 
 ## NLS Keys
 
@@ -250,22 +257,14 @@ Keys describe stable product ownership and user-facing meaning:
 domain.feature.message
 ```
 
-Prefer:
-
 ```ts
-localize("files.import.failedToReadFiles", "Failed to read {count} file(s).")
-localize("files.item.delete", "Delete")
-localize("chart.views.search", "Search")
-localize("titlebar.mode.chart", "Chart")
+// Good
+localize("domain.feature.failedToLoad", "Failed to load {count} item(s).");
+localize("domain.item.delete", "Delete");
+
+// Bad
+localize("failedToLoad", "Failed to load {count} item(s).");
+localize("helper.failedToLoad", "Failed to load {count} item(s).");
 ```
 
-Avoid ownerless or implementation-shaped keys:
-
-```ts
-localize("import.failedToReadFiles", "Failed to read {count} file(s).")
-localize("fileImportExport.failedToReadFiles", "Failed to read {count} file(s).")
-```
-
-Use `files.import.*` for Explorer data-file import/source collection,
-`files.item.*` or `files.actions.*` for item/action labels, and top-level
-`files.*` for Files/Explorer-wide labels.
+Use keys that name the product domain, not the helper file or implementation path.
