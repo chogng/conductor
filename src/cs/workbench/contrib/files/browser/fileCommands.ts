@@ -81,7 +81,7 @@ export const setFileTemplateHandler: ICommandHandler<[unknown, unknown]> = (
   target,
   selection,
 ) => {
-  const resourceTarget = target instanceof URI
+  const resourceTarget = URI.isUri(target)
     ? { resource: target }
     : normalizeCommandResourceTarget(target);
   if (!resourceTarget?.resource || !isTemplateSelection(selection)) {
@@ -105,7 +105,7 @@ const resolveCommandExplorerResourceTarget = (
   accessor: Parameters<ICommandHandler>[0],
   target: unknown,
 ): ExplorerResourceTarget | null => {
-  if (target instanceof URI) {
+  if (URI.isUri(target)) {
     return { resource: target };
   }
 
@@ -145,7 +145,7 @@ const normalizeCommandResourceTarget = (target: unknown): ExplorerResourceTarget
 };
 
 const reviveOptionalUri = (value: unknown): URI | null => {
-  if (value instanceof URI) {
+  if (URI.isUri(value)) {
     return value;
   }
 

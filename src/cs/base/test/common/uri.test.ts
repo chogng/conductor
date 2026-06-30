@@ -28,6 +28,24 @@ suite("base/test/common/uri", () => {
     assert.doesNotMatch(resource.fsPath, /%20/);
   });
 
+  test("isUri recognizes URI instances and upstream URI shape", () => {
+    const resource = URI.file("C:\\data\\sample.csv");
+    const uriLike = {
+      authority: resource.authority,
+      fragment: resource.fragment,
+      path: resource.path,
+      query: resource.query,
+      scheme: resource.scheme,
+      fsPath: resource.fsPath,
+      with: (change: Parameters<URI["with"]>[0]) => resource.with(change),
+      toString: () => resource.toString(),
+    };
+
+    assert.equal(URI.isUri(resource), true);
+    assert.equal(URI.isUri(uriLike), true);
+    assert.equal(URI.isUri(resource.toJSON()), false);
+  });
+
   test("toJSON marks URI values for IPC revive", () => {
     const resource = URI.file("C:\\data\\sample.csv");
     const raw = JSON.parse(JSON.stringify({ resource }));

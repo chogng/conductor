@@ -74,6 +74,26 @@ const joinPathSegments = (basePath: string, segments: readonly string[]): string
 };
 
 export class URI {
+  public static isUri(thing: unknown): thing is URI {
+    if (thing instanceof URI) {
+      return true;
+    }
+
+    if (!thing || typeof thing !== "object") {
+      return false;
+    }
+
+    const candidate = thing as URI;
+    return typeof candidate.authority === "string" &&
+      typeof candidate.fragment === "string" &&
+      typeof candidate.path === "string" &&
+      typeof candidate.query === "string" &&
+      typeof candidate.scheme === "string" &&
+      typeof candidate.fsPath === "string" &&
+      typeof candidate.with === "function" &&
+      typeof candidate.toString === "function";
+  }
+
   public static file(fsPath: string): URI {
     return new URI("file", normalizeFilePath(fsPath));
   }

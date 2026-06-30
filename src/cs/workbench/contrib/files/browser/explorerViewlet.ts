@@ -286,7 +286,7 @@ export class ExplorerViewPane extends ViewPane {
   }
 
   private resolveExplorerFileTarget(target: ExplorerResourceTarget | URI): ExplorerFileEntry | null {
-    if (target instanceof URI) {
+    if (URI.isUri(target)) {
       return findExplorerFileEntryByResource(this.committedFiles, { resource: target });
     }
 
@@ -1466,7 +1466,7 @@ function normalizeExplorerResourceTarget(target: unknown): ExplorerResourceTarge
 }
 
 function reviveOptionalUri(value: unknown): URI | null {
-  if (value instanceof URI) {
+  if (URI.isUri(value)) {
     return value;
   }
 

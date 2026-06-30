@@ -29,12 +29,12 @@ export const resolveRevealResources = (
   accessor: ServicesAccessor,
   target?: unknown,
 ): readonly URI[] => {
-  if (target instanceof URI) {
+  if (URI.isUri(target)) {
     return [target];
   }
 
   if (Array.isArray(target)) {
-    return target.flatMap(candidate => candidate instanceof URI ? [candidate] : []);
+    return target.flatMap(candidate => URI.isUri(candidate) ? [candidate] : []);
   }
 
   const explorerService = accessor.get(IExplorerService);
@@ -43,7 +43,7 @@ export const resolveRevealResources = (
     return [];
   }
 
-  const resourceTarget = target instanceof URI
+  const resourceTarget = URI.isUri(target)
     ? { resource: target }
     : normalizeRevealResourceTarget(target) ?? {
         resource: explorerService.getContext().selectedResource,
@@ -76,7 +76,7 @@ const normalizeRevealResourceTarget = (target: unknown): ExplorerResourceTarget 
 };
 
 const reviveOptionalUri = (value: unknown): URI | null => {
-  if (value instanceof URI) {
+  if (URI.isUri(value)) {
     return value;
   }
 
