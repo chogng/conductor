@@ -4,7 +4,9 @@ import {
   createInputBox,
   MessageType,
 } from "src/cs/base/browser/ui/inputbox/inputBox";
+import { InputBoxWidget } from "src/cs/base/browser/ui/inputbox/inputBoxWidget";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/test/browser/inputBox", () => {
@@ -37,6 +39,37 @@ suite("workbench/test/browser/inputBox", () => {
     assert.equal(inputBox.input.getAttribute("aria-invalid"), "false");
     assert.equal(inputBox.input.getAttribute("aria-label"), "X value");
     assert.equal(inputBox.input.className, "inputbox_native");
+    inputBox.dispose();
+  });
+
+  test("InputBoxWidget does not create native tooltips", () => {
+    const inputBox = new InputBoxWidget({
+      ariaLabel: "Match term",
+      items: [
+        {
+          id: "custom-term",
+          label: "Custom Term",
+          action: {
+            ariaLabel: "Remove match term Custom Term",
+            icon: LxIcon.close,
+          },
+        },
+      ],
+      placeholder: "Add match term",
+    });
+
+    const item = inputBox.field.children[0];
+    const action = item.children[1];
+
+    assert.equal(inputBox.input.placeholder, "Add match term");
+    assert.equal(inputBox.input.getAttribute("title"), null);
+    assert.equal(item.getAttribute("title"), null);
+    assert.equal(action.getAttribute("title"), null);
+
+    inputBox.update({ placeholder: "Next match term" });
+
+    assert.equal(inputBox.input.placeholder, "Next match term");
+    assert.equal(inputBox.input.getAttribute("title"), null);
     inputBox.dispose();
   });
 
@@ -227,6 +260,18 @@ class FakeElement {
   style: Record<string, string> = {};
   private currentValue = "";
 
+  get title(): string {
+    return this.attributes.get("title") ?? "";
+  }
+
+  set title(value: string) {
+    if (value) {
+      this.attributes.set("title", value);
+      return;
+    }
+    this.attributes.delete("title");
+  }
+
   get value(): string {
     return this.currentValue;
   }
@@ -242,6 +287,16 @@ class FakeElement {
 
   appendChild(node: FakeElement): FakeElement {
     this.children.push(node);
+    return node;
+  }
+
+  insertBefore(node: FakeElement, child: FakeElement): FakeElement {
+    const index = this.children.indexOf(child);
+    if (index === -1) {
+      this.children.push(node);
+      return node;
+    }
+    this.children.splice(index, 0, node);
     return node;
   }
 

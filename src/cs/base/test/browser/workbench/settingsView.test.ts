@@ -380,22 +380,22 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       const semanticTree = semanticCard.closest(".settings-tree");
       const widgets = semanticCard.querySelectorAll<HTMLElement>(".inputbox_widget");
       const activeWidget = widgets[0];
-      const recommendedWidget = widgets[1];
+      const recommendedSuggestion = semanticCard.querySelector<HTMLElement>(".settings-template-term-suggestion");
 
       assert.ok(templateLibraryTree);
       assert.ok(semanticTree);
       assert.ok(activeWidget);
-      assert.ok(recommendedWidget);
+      assert.ok(recommendedSuggestion);
       assert.ok(semanticTree !== templateLibraryTree);
       assert.equal(templateLibraryTree.querySelector("#settings-template-semantic-library-card"), null);
       assert.equal(container.querySelector("#settings-template-semantic-custom-terms-card"), null);
+      assert.equal(widgets.length, 1);
       assert.equal(activeWidget.querySelectorAll(".inputbox_widget_item").length, 2);
       assert.equal(activeWidget.querySelector<HTMLElement>('.inputbox_widget_item[data-kind="builtin-enabled"] .inputbox_widget_item_label')?.textContent, "Vgs");
       assert.equal(activeWidget.querySelector<HTMLElement>('.inputbox_widget_item[data-kind="custom"] .inputbox_widget_item_label')?.textContent, "Custom Gate");
       assert.ok(activeWidget.querySelector("input.inputbox_native"));
-      assert.equal(recommendedWidget.querySelectorAll('.inputbox_widget_item[data-kind="builtin-disabled"]').length, 1);
-      assert.equal(recommendedWidget.querySelector<HTMLElement>(".inputbox_widget_item_label")?.textContent, "Drain Current");
-      assert.equal(recommendedWidget.querySelector<HTMLInputElement>("input.inputbox_native")?.hidden, true);
+      assert.equal(semanticCard.querySelectorAll(".settings-template-term-suggestion").length, 1);
+      assert.equal(recommendedSuggestion.querySelector<HTMLElement>(".settings-template-term-suggestion-label")?.textContent, "Drain Current");
       assert.ok(semanticCard.querySelector("#settings-template-semantic-role-select"));
       assert.equal(semanticCard.querySelector("#settings-template-semantic-term-input"), null);
     }

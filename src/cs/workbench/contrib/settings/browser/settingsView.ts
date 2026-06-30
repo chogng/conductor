@@ -1438,7 +1438,6 @@ export class SettingsView {
       action: {
         ariaLabel: localize("settings.template.semantic.disableBuiltin", "Disable built-in match term {term}", { term: semanticTerm.term }),
         icon: LxIcon.close,
-        title: localize("settings.template.semantic.disableBuiltinTitle", "Disable this built-in match term for Review"),
       },
       disabled: settings.isSaving,
     };
@@ -1449,11 +1448,9 @@ export class SettingsView {
       id: semanticTerm.id,
       label: semanticTerm.term,
       kind: "custom",
-      title: formatSemanticTermRule(semanticTerm),
       action: {
         ariaLabel: localize("settings.template.semantic.removeTerm", "Remove match term {term}", { term: semanticTerm.term }),
         icon: LxIcon.close,
-        title: localize("settings.template.semantic.remove", "Remove term"),
       },
       disabled: settings.isSaving,
     };
@@ -2482,18 +2479,6 @@ function formatXAxisIntent(intent: TemplateXAxisIntent): string {
     return localize("settings.template.intent.frequencySweep", "Frequency sweep");
   }
   return localize("settings.template.intent.genericXY", "Generic XY");
-}
-
-function formatSemanticTermRule(rule: TemplateSemanticTerm): string {
-  return [
-    rule.canonicalRole,
-    rule.axisTendency,
-    rule.matchPolicy,
-    rule.intent,
-    rule.canonicalUnit,
-    rule.family,
-    rule.ivMode,
-  ].filter(Boolean).join(" / ");
 }
 
 function formatDomainPackKind(kind: DataResourceBuiltinSemanticDomainPack["kind"]): string {

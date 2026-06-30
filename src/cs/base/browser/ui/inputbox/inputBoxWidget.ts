@@ -9,7 +9,6 @@ import "src/cs/base/browser/ui/inputbox/inputBoxWidget.css";
 export type InputBoxWidgetItemAction = {
   readonly ariaLabel: string;
   readonly icon: LxIconDefinition;
-  readonly title?: string;
 };
 
 export type IInputBoxWidgetItem = {
@@ -19,7 +18,6 @@ export type IInputBoxWidgetItem = {
   readonly ariaLabel?: string;
   readonly disabled?: boolean;
   readonly kind?: string;
-  readonly title?: string;
 };
 
 export type IInputBoxWidgetItemActionEvent = {
@@ -37,7 +35,6 @@ export type InputBoxWidgetOptions = Pick<
   | "id"
   | "placeholder"
   | "readOnly"
-  | "tooltip"
   | "type"
   | "value"
 > & {
@@ -70,7 +67,7 @@ export class InputBoxWidget extends Disposable {
 
   public constructor(options: InputBoxWidgetOptions = {}) {
     super();
-    this.inputBox = this._register(createInputBox(options));
+    this.inputBox = this._register(createInputBox(getInputBoxOptions(options)));
     this.element = this.inputBox.element;
     this.field = this.inputBox.field;
     this.input = this.inputBox.input;
@@ -106,7 +103,7 @@ export class InputBoxWidget extends Disposable {
       this.disabled = options.disabled === true;
       this.renderItems();
     }
-    this.inputBox.update(options);
+    this.inputBox.update(getInputBoxOptions(options));
   }
 
   public focus(): void {
@@ -183,9 +180,6 @@ export class InputBoxWidget extends Disposable {
     if (item.kind) {
       element.dataset.kind = item.kind;
     }
-    if (item.title) {
-      element.title = item.title;
-    }
     if (item.ariaLabel) {
       element.setAttribute("aria-label", item.ariaLabel);
     }
@@ -200,7 +194,6 @@ export class InputBoxWidget extends Disposable {
       actionButton.type = "button";
       actionButton.className = "inputbox_widget_item_action";
       actionButton.disabled = this.disabled || item.disabled === true;
-      actionButton.title = item.action.title ?? item.action.ariaLabel;
       actionButton.setAttribute("aria-label", item.action.ariaLabel);
       actionButton.appendChild(createLxIcon({
         className: "inputbox_widget_item_action_icon",
@@ -240,3 +233,17 @@ export class InputBoxWidget extends Disposable {
 
 const isElementInsideButton = (target: EventTarget | null): boolean =>
   target instanceof Element && Boolean(target.closest("button"));
+
+const getInputBoxOptions = (options: InputBoxWidgetOptions): InputBoxOptions => ({
+  ariaDescribedBy: options.ariaDescribedBy,
+  ariaLabel: options.ariaLabel,
+  ariaLabelledBy: options.ariaLabelledBy,
+  autoComplete: options.autoComplete,
+  disabled: options.disabled,
+  id: options.id,
+  placeholder: options.placeholder,
+  readOnly: options.readOnly,
+  tooltip: "",
+  type: options.type,
+  value: options.value,
+});
