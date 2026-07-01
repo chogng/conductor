@@ -1014,6 +1014,10 @@ export class SettingsController {
   }
 
   private async addTemplateSemanticTerm(): Promise<void> {
+    if (this.templateSettingsSaving) {
+      return;
+    }
+
     const termDraft = this.drafts.templateSemanticTermDraft;
     const term = termDraft.trim();
     const builtinTarget = itemsUpdateTarget("template-semantic-library", ...templateSemanticBuiltinTermFromInputItemIds);
@@ -1065,7 +1069,9 @@ export class SettingsController {
         templateSemanticTermOrder: [...activeTermOrder, disabledBuiltinTerm.id],
       }, null, builtinTarget, disabledBuiltinTerm.id);
       if (!didSave) {
-        this.drafts.templateSemanticTermDraft = termDraft;
+        if (!this.drafts.templateSemanticTermDraft) {
+          this.drafts.templateSemanticTermDraft = termDraft;
+        }
         this.render(builtinTarget);
       }
       return;
@@ -1089,7 +1095,9 @@ export class SettingsController {
       templateSemanticTermOrder: [...activeTermOrder, nextRule.id],
     }, localize("settings.template.semantic.saved", "Template semantic library updated."), customTarget);
     if (!didSave) {
-      this.drafts.templateSemanticTermDraft = termDraft;
+      if (!this.drafts.templateSemanticTermDraft) {
+        this.drafts.templateSemanticTermDraft = termDraft;
+      }
       this.render(customTarget);
     }
   }

@@ -476,6 +476,95 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
     }
   });
 
+  test("keeps semantic term input editable while add save is pending", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const updateDeferred = new Deferred<ConductorSettings | null>();
+    const service = createSettingsService({}, updateDeferred);
+    let updateCount = 0;
+    service.updateSettings = async () => {
+      updateCount++;
+      return updateDeferred.promise;
+    };
+    const controller = new SettingsController(
+      container,
+      createSettingsViewInput(service.settings),
+      service,
+      createCommandService(),
+      createNotificationService(),
+    );
+    controller.attachNavigation(container);
+
+    try {
+      openTemplateSection(container);
+      const input = getSemanticTermInput(container);
+      input.focus();
+
+      submitSemanticTerm(container, "Codex Custom Term");
+      await settled();
+
+      const pendingInput = getSemanticTermInput(container);
+      assert.equal(pendingInput, input);
+      assert.equal(document.activeElement, input);
+      assert.equal(input.readOnly, false);
+      assert.equal(input.value, "");
+
+      input.value = "Next Term";
+      input.dispatchEvent(new globalThis.Event("input", { bubbles: true }));
+      input.dispatchEvent(new globalThis.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      await settled();
+
+      assert.equal(updateCount, 1);
+      assert.equal(input.value, "Next Term");
+    }
+    finally {
+      updateDeferred.resolve(service.settings);
+      await settled();
+      controller.dispose();
+      container.remove();
+    }
+  });
+
+  test("keeps newer semantic term draft when add save fails", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const updateDeferred = new Deferred<ConductorSettings | null>();
+    const service = createSettingsService({}, updateDeferred);
+    const controller = new SettingsController(
+      container,
+      createSettingsViewInput(service.settings),
+      service,
+      createCommandService(),
+      createNotificationService(),
+    );
+    controller.attachNavigation(container);
+
+    try {
+      openTemplateSection(container);
+      const input = getSemanticTermInput(container);
+      input.focus();
+
+      submitSemanticTerm(container, "Codex Custom Term");
+      await settled();
+
+      input.value = "Next Term";
+      input.dispatchEvent(new globalThis.Event("input", { bubbles: true }));
+
+      updateDeferred.reject("save failed");
+      await settled();
+
+      assert.equal(getSemanticTermInput(container), input);
+      assert.equal(input.value, "Next Term");
+      assert.equal(input.readOnly, false);
+    }
+    finally {
+      controller.dispose();
+      container.remove();
+    }
+  });
+
   test("patches only active term list when removing a custom semantic term", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -552,17 +641,24 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
 
 class Deferred<T> {
   public readonly promise: Promise<T>;
+  private rejectPromise: ((reason?: unknown) => void) | null = null;
   private resolvePromise: ((value: T | PromiseLike<T>) => void) | null = null;
 
   constructor() {
-    this.promise = new Promise<T>(resolve => {
+    this.promise = new Promise<T>((resolve, reject) => {
       this.resolvePromise = resolve;
+      this.rejectPromise = reject;
     });
   }
 
   resolve(value: T): void {
     assert.ok(this.resolvePromise);
     this.resolvePromise(value);
+  }
+
+  reject(reason?: unknown): void {
+    assert.ok(this.rejectPromise);
+    this.rejectPromise(reason);
   }
 }
 

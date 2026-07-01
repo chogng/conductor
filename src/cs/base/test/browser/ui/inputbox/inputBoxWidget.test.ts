@@ -56,6 +56,26 @@ suite("base/browser/ui/inputbox/InputBoxWidget", () => {
     }
   });
 
+  test("keeps native input mouse defaults so the browser can place the caret", () => {
+    const inputBox = new InputBoxWidget();
+    document.body.appendChild(inputBox.element);
+
+    try {
+      const event = new MouseEvent("mousedown", {
+        bubbles: true,
+        cancelable: true,
+      });
+
+      const defaultAllowed = inputBox.input.dispatchEvent(event);
+
+      assert.equal(defaultAllowed, true);
+      assert.equal(event.defaultPrevented, false);
+    }
+    finally {
+      inputBox.dispose();
+    }
+  });
+
   test("patches keyed items without replacing unchanged item nodes", () => {
     const inputBox = new InputBoxWidget({
       items: [

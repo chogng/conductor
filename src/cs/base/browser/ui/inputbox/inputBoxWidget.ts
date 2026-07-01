@@ -167,7 +167,7 @@ export class InputBoxWidget extends Disposable {
       this.onDidAcceptEmitter.fire(this.input.value);
     }));
     this._register(addDisposableListener(this.field, EventType.MOUSE_DOWN, event => {
-      if (!this.inputVisible || this.disabled || isElementInsideButton(event.target)) {
+      if (!this.inputVisible || this.disabled || isElementInsideButton(event.target) || event.target === this.input) {
         return;
       }
 

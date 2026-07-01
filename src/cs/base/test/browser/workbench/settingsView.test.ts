@@ -796,7 +796,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(getElement(container, "#settings-template-semantic-custom-form-card"), customFormCard);
       assert.equal((activeInput as HTMLInputElement).value, "New Term");
       assert.equal((activeInput as HTMLInputElement).disabled, false);
-      assert.equal((activeInput as HTMLInputElement).readOnly, true);
+      assert.equal((activeInput as HTMLInputElement).readOnly, false);
     }
     finally {
       view.dispose();
