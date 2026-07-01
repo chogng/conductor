@@ -71,20 +71,20 @@ type SettingsControllerOptions = SettingsViewInput;
 
 const settingsContentUpdateTarget: SettingsViewUpdateTarget = { type: "content" };
 const chartDefaultsItemIds = [
-  "settings-default-transfer-y-scale-card",
-  "settings-default-output-y-scale-card",
-  "settings-default-cv-y-scale-card",
-  "settings-default-cf-y-scale-card",
-  "settings-default-pv-y-scale-card",
-  "settings-chart-defaults-card",
+  "settings-default-transfer-y-scale-item",
+  "settings-default-output-y-scale-item",
+  "settings-default-cv-y-scale-item",
+  "settings-default-cf-y-scale-item",
+  "settings-default-pv-y-scale-item",
+  "settings-chart-defaults-item",
 ] as const satisfies readonly SettingsContentItemId[];
 const originAllItemIds = [
-  "settings-origin-path-card",
-  "settings-origin-cleanup-card",
-  "settings-origin-plot-card",
+  "settings-origin-path-item",
+  "settings-origin-cleanup-item",
+  "settings-origin-plot-item",
 ] as const satisfies readonly SettingsContentItemId[];
 const appearanceBackgroundItemIds = [
-  "settings-background-card",
+  "settings-background-item",
 ] as const satisfies readonly SettingsContentItemId[];
 const templateSemanticCustomTermItemIds = [
   "settings-template-semantic-active-terms-list-item",
@@ -92,16 +92,16 @@ const templateSemanticCustomTermItemIds = [
 ] as const satisfies readonly SettingsContentItemId[];
 const templateSemanticBuiltinTermItemIds = [
   "settings-template-semantic-active-terms-list-item",
-  "settings-template-semantic-recommended-terms-list-item",
+  "settings-template-semantic-default-terms-list-item",
 ] as const satisfies readonly SettingsContentItemId[];
 const templateSemanticBuiltinTermFromInputItemIds = [
   "settings-template-semantic-active-terms-list-item",
   "settings-template-semantic-active-terms-input-item",
-  "settings-template-semantic-recommended-terms-list-item",
+  "settings-template-semantic-default-terms-list-item",
 ] as const satisfies readonly SettingsContentItemId[];
 const templateSemanticListItemIds = [
   "settings-template-semantic-active-terms-list-item",
-  "settings-template-semantic-recommended-terms-list-item",
+  "settings-template-semantic-default-terms-list-item",
 ] as const satisfies readonly SettingsContentItemId[];
 
 type SelectOption = {
@@ -292,7 +292,7 @@ export class SettingsController {
 
   private async loadOriginPath(loadRequest: string): Promise<void> {
     this.originPathLoading = true;
-    this.render(itemsUpdateTarget("origin-integration", "settings-origin-path-card"));
+    this.render(itemsUpdateTarget("origin-integration", "settings-origin-path-item"));
     try {
       const configuredPath = await this.service.getOriginExePath();
       if (configuredPath) {
@@ -311,7 +311,7 @@ export class SettingsController {
     }
     finally {
       this.originPathLoading = false;
-      this.render(itemsUpdateTarget("origin-integration", "settings-origin-path-card"));
+      this.render(itemsUpdateTarget("origin-integration", "settings-origin-path-item"));
     }
   }
 
@@ -752,7 +752,7 @@ export class SettingsController {
     }
 
     this.originPathSaving = true;
-    this.render(itemsUpdateTarget("origin-integration", "settings-origin-path-card"));
+    this.render(itemsUpdateTarget("origin-integration", "settings-origin-path-item"));
     try {
       const nextPath = await this.service.chooseOriginExePath();
       if (nextPath) {
@@ -777,7 +777,7 @@ export class SettingsController {
     }
     finally {
       this.originPathSaving = false;
-      this.render(itemsUpdateTarget("origin-integration", "settings-origin-path-card"));
+      this.render(itemsUpdateTarget("origin-integration", "settings-origin-path-item"));
     }
   }
 
@@ -787,7 +787,7 @@ export class SettingsController {
     }
 
     this.originHealthChecking = true;
-    this.render(itemsUpdateTarget("origin-integration", "settings-origin-path-card"));
+    this.render(itemsUpdateTarget("origin-integration", "settings-origin-path-item"));
     try {
       const health = await this.service.checkOriginHealth(this.originExePath);
       const nextPath = normalizeTrimmedString(health?.originExePath);
@@ -812,13 +812,13 @@ export class SettingsController {
     }
     finally {
       this.originHealthChecking = false;
-      this.render(itemsUpdateTarget("origin-integration", "settings-origin-path-card"));
+      this.render(itemsUpdateTarget("origin-integration", "settings-origin-path-item"));
     }
   }
 
   private async updateOriginCleanup(updates: Record<string, unknown>): Promise<void> {
     this.originCleanupSaving = true;
-    this.render(itemsUpdateTarget("origin-integration", "settings-origin-cleanup-card"));
+    this.render(itemsUpdateTarget("origin-integration", "settings-origin-cleanup-item"));
     try {
       await this.service.updateSettings(updates);
     }
@@ -832,7 +832,7 @@ export class SettingsController {
     }
     finally {
       this.originCleanupSaving = false;
-      this.render(itemsUpdateTarget("origin-integration", "settings-origin-cleanup-card"));
+      this.render(itemsUpdateTarget("origin-integration", "settings-origin-cleanup-item"));
     }
   }
 
@@ -844,7 +844,7 @@ export class SettingsController {
     }
 
     this.pendingNumericDisplayMode = normalizedMode;
-    this.render(itemsUpdateTarget("general-preferences", "settings-numeric-display-card"));
+    this.render(itemsUpdateTarget("general-preferences", "settings-numeric-display-item"));
     if (!this.numericDisplaySaving) {
       await this.flushNumericDisplayMode();
     }
@@ -852,7 +852,7 @@ export class SettingsController {
 
   private async flushNumericDisplayMode(): Promise<void> {
     this.numericDisplaySaving = true;
-    this.render(itemsUpdateTarget("general-preferences", "settings-numeric-display-card"));
+    this.render(itemsUpdateTarget("general-preferences", "settings-numeric-display-item"));
     try {
       while (this.pendingNumericDisplayMode !== null) {
         const mode = this.pendingNumericDisplayMode;
@@ -868,11 +868,11 @@ export class SettingsController {
         if (this.pendingNumericDisplayMode === mode) {
           this.pendingNumericDisplayMode = null;
         }
-        this.render(itemsUpdateTarget("general-preferences", "settings-numeric-display-card"));
+        this.render(itemsUpdateTarget("general-preferences", "settings-numeric-display-item"));
       }
     } finally {
       this.numericDisplaySaving = false;
-      this.render(itemsUpdateTarget("general-preferences", "settings-numeric-display-card"));
+      this.render(itemsUpdateTarget("general-preferences", "settings-numeric-display-item"));
     }
   }
 
@@ -884,7 +884,7 @@ export class SettingsController {
     }
 
     this.pendingTableTemplateVisualizationEnabled = normalized;
-    this.render(itemsUpdateTarget("template-preferences", "settings-table-template-visualization-card"));
+    this.render(itemsUpdateTarget("template-preferences", "settings-table-template-visualization-item"));
     if (!this.tableTemplateVisualizationSaving) {
       await this.flushTableTemplateVisualizationEnabled();
     }
@@ -892,7 +892,7 @@ export class SettingsController {
 
   private async flushTableTemplateVisualizationEnabled(): Promise<void> {
     this.tableTemplateVisualizationSaving = true;
-    this.render(itemsUpdateTarget("template-preferences", "settings-table-template-visualization-card"));
+    this.render(itemsUpdateTarget("template-preferences", "settings-table-template-visualization-item"));
     try {
       while (this.pendingTableTemplateVisualizationEnabled !== null) {
         const enabled = this.pendingTableTemplateVisualizationEnabled;
@@ -908,17 +908,17 @@ export class SettingsController {
         if (this.pendingTableTemplateVisualizationEnabled === enabled) {
           this.pendingTableTemplateVisualizationEnabled = null;
         }
-        this.render(itemsUpdateTarget("template-preferences", "settings-table-template-visualization-card"));
+        this.render(itemsUpdateTarget("template-preferences", "settings-table-template-visualization-item"));
       }
     } finally {
       this.tableTemplateVisualizationSaving = false;
-      this.render(itemsUpdateTarget("template-preferences", "settings-table-template-visualization-card"));
+      this.render(itemsUpdateTarget("template-preferences", "settings-table-template-visualization-item"));
     }
   }
 
   private async updateOriginPlot(updates: Partial<OriginPlotOptions>): Promise<void> {
     this.originPlotSaving = true;
-    this.render(itemsUpdateTarget("origin-integration", "settings-origin-plot-card"));
+    this.render(itemsUpdateTarget("origin-integration", "settings-origin-plot-item"));
     try {
       await this.service.updateOriginPlotOptions(updates);
     }
@@ -932,13 +932,13 @@ export class SettingsController {
     }
     finally {
       this.originPlotSaving = false;
-      this.render(itemsUpdateTarget("origin-integration", "settings-origin-plot-card"));
+      this.render(itemsUpdateTarget("origin-integration", "settings-origin-plot-item"));
     }
   }
 
   private async runOriginCleanup(): Promise<void> {
     this.originCleanupRunning = true;
-    this.render(itemsUpdateTarget("origin-integration", "settings-origin-cleanup-card"));
+    this.render(itemsUpdateTarget("origin-integration", "settings-origin-cleanup-item"));
     try {
       const result = await this.service.runOriginCleanup();
       const removedTotal = Number(result?.removedTotal);
@@ -961,13 +961,13 @@ export class SettingsController {
     }
     finally {
       this.originCleanupRunning = false;
-      this.render(itemsUpdateTarget("origin-integration", "settings-origin-cleanup-card"));
+      this.render(itemsUpdateTarget("origin-integration", "settings-origin-cleanup-item"));
     }
   }
 
   private async setFileNameFieldSeparators(value: string): Promise<void> {
     this.fileNameMatchingSaving = true;
-    this.render(itemsUpdateTarget("template-matching", "settings-filename-matching-card"));
+    this.render(itemsUpdateTarget("template-matching", "settings-filename-matching-item"));
     try {
       await this.service.updateSettings({ fileNameFieldSeparators: normalizeFileNameFieldSeparators(value) });
     }
@@ -981,7 +981,7 @@ export class SettingsController {
     }
     finally {
       this.fileNameMatchingSaving = false;
-      this.render(itemsUpdateTarget("template-matching", "settings-filename-matching-card"));
+      this.render(itemsUpdateTarget("template-matching", "settings-filename-matching-item"));
     }
   }
 
@@ -1117,7 +1117,7 @@ export class SettingsController {
     }
     await this.saveTemplateSettings({
       templateDisabledBuiltinDomainPackIds: [...disabledIds, id],
-    }, localize("settings.template.domainPack.disabled", "Domain pack disabled for review."), itemsUpdateTarget("template-library", "settings-template-domain-packs-card"));
+    }, localize("settings.template.domainPack.disabled", "Domain pack disabled for review."), itemsUpdateTarget("template-library", "settings-template-domain-packs-item"));
   }
 
   private async enableTemplateDomainPack(id: string): Promise<void> {
@@ -1125,7 +1125,7 @@ export class SettingsController {
       .filter(disabledId => disabledId !== id);
     await this.saveTemplateSettings({
       templateDisabledBuiltinDomainPackIds: disabledIds,
-    }, localize("settings.template.domainPack.enabled", "Domain pack enabled for review."), itemsUpdateTarget("template-library", "settings-template-domain-packs-card"));
+    }, localize("settings.template.domainPack.enabled", "Domain pack enabled for review."), itemsUpdateTarget("template-library", "settings-template-domain-packs-item"));
   }
 
   private async moveTemplateXAxisIntent(sourceIntent: TemplateXAxisIntent, targetIntent: TemplateXAxisIntent): Promise<void> {
@@ -1140,7 +1140,7 @@ export class SettingsController {
     );
     await this.saveTemplateSettings({
       templateXAxisIntentPriority: priority,
-    }, localize("settings.template.xAxisPriority.saved", "X axis intent priority updated."), itemsUpdateTarget("template-library", "settings-template-x-axis-priority-card"));
+    }, localize("settings.template.xAxisPriority.saved", "X axis intent priority updated."), itemsUpdateTarget("template-library", "settings-template-x-axis-priority-item"));
   }
 
   private async saveTemplateSettings(
@@ -1228,7 +1228,7 @@ export class SettingsController {
     }
 
     this.pendingTransparentChrome = transparentChrome;
-    this.render(itemsUpdateTarget("appearance-preferences", "settings-transparent-chrome-card"));
+    this.render(itemsUpdateTarget("appearance-preferences", "settings-transparent-chrome-item"));
     if (!this.transparentChromeSaving) {
       await this.flushTransparentChrome();
     }
@@ -1236,7 +1236,7 @@ export class SettingsController {
 
   private async flushTransparentChrome(): Promise<void> {
     this.transparentChromeSaving = true;
-    this.render(itemsUpdateTarget("appearance-preferences", "settings-transparent-chrome-card"));
+    this.render(itemsUpdateTarget("appearance-preferences", "settings-transparent-chrome-item"));
     try {
       while (this.pendingTransparentChrome !== null) {
         const transparentChrome = this.pendingTransparentChrome;
@@ -1252,12 +1252,12 @@ export class SettingsController {
         if (this.pendingTransparentChrome === transparentChrome) {
           this.pendingTransparentChrome = null;
         }
-        this.render(itemsUpdateTarget("appearance-preferences", "settings-transparent-chrome-card"));
+        this.render(itemsUpdateTarget("appearance-preferences", "settings-transparent-chrome-item"));
       }
     }
     finally {
       this.transparentChromeSaving = false;
-      this.render(itemsUpdateTarget("appearance-preferences", "settings-transparent-chrome-card"));
+      this.render(itemsUpdateTarget("appearance-preferences", "settings-transparent-chrome-item"));
     }
   }
 
@@ -1268,7 +1268,7 @@ export class SettingsController {
     }
 
     this.explorerAppearanceSaving = true;
-    this.render(itemsUpdateTarget("appearance-preferences", "settings-explorer-density-card"));
+    this.render(itemsUpdateTarget("appearance-preferences", "settings-explorer-density-item"));
     try {
       await this.service.updateSettings({
         filesExplorerDensity: density,
@@ -1276,7 +1276,7 @@ export class SettingsController {
     }
     finally {
       this.explorerAppearanceSaving = false;
-      this.render(itemsUpdateTarget("appearance-preferences", "settings-explorer-density-card"));
+      this.render(itemsUpdateTarget("appearance-preferences", "settings-explorer-density-item"));
     }
   }
 
@@ -1288,7 +1288,7 @@ export class SettingsController {
     }
 
     this.pendingExplorerBadgeVisibility = showBadges;
-    this.render(itemsUpdateTarget("appearance-preferences", "settings-explorer-badges-card"));
+    this.render(itemsUpdateTarget("appearance-preferences", "settings-explorer-badges-item"));
     if (!this.explorerBadgeSaving) {
       await this.flushFilesExplorerShowBadges();
     }
@@ -1296,7 +1296,7 @@ export class SettingsController {
 
   private async flushFilesExplorerShowBadges(): Promise<void> {
     this.explorerBadgeSaving = true;
-    this.render(itemsUpdateTarget("appearance-preferences", "settings-explorer-badges-card"));
+    this.render(itemsUpdateTarget("appearance-preferences", "settings-explorer-badges-item"));
     try {
       while (this.pendingExplorerBadgeVisibility !== null) {
         const showBadges = this.pendingExplorerBadgeVisibility;
@@ -1314,12 +1314,12 @@ export class SettingsController {
         if (this.pendingExplorerBadgeVisibility === showBadges) {
           this.pendingExplorerBadgeVisibility = null;
         }
-        this.render(itemsUpdateTarget("appearance-preferences", "settings-explorer-badges-card"));
+        this.render(itemsUpdateTarget("appearance-preferences", "settings-explorer-badges-item"));
       }
     }
     finally {
       this.explorerBadgeSaving = false;
-      this.render(itemsUpdateTarget("appearance-preferences", "settings-explorer-badges-card"));
+      this.render(itemsUpdateTarget("appearance-preferences", "settings-explorer-badges-item"));
     }
   }
 
@@ -1347,7 +1347,7 @@ export class SettingsController {
     };
     this.pendingExplorerBadgeColors = nextColors;
     this.explorerBadgeColorSaving = true;
-    this.render(itemsUpdateTarget("appearance-preferences", "settings-explorer-badge-colors-card"));
+    this.render(itemsUpdateTarget("appearance-preferences", "settings-explorer-badge-colors-item"));
     try {
       await this.service.updateSettings({
         filesExplorerBadgeColors: nextColors,
@@ -1356,7 +1356,7 @@ export class SettingsController {
     finally {
       this.explorerBadgeColorSaving = false;
       this.pendingExplorerBadgeColors = null;
-      this.render(itemsUpdateTarget("appearance-preferences", "settings-explorer-badge-colors-card"));
+      this.render(itemsUpdateTarget("appearance-preferences", "settings-explorer-badge-colors-item"));
     }
   }
 
@@ -1374,7 +1374,7 @@ export class SettingsController {
 
   private async setWindowCloseBehavior(behavior: "minimizeToTray" | "quit"): Promise<void> {
     this.windowCloseSaving = true;
-    this.render(itemsUpdateTarget("general-preferences", "settings-close-behavior-card"));
+    this.render(itemsUpdateTarget("general-preferences", "settings-close-behavior-item"));
     try {
       await this.service.updateSettings({
         windowCloseBehavior: behavior === "quit" ? "quit" : "minimizeToTray",
@@ -1382,13 +1382,13 @@ export class SettingsController {
     }
     finally {
       this.windowCloseSaving = false;
-      this.render(itemsUpdateTarget("general-preferences", "settings-close-behavior-card"));
+      this.render(itemsUpdateTarget("general-preferences", "settings-close-behavior-item"));
     }
   }
 
   private async checkForUpdates(): Promise<void> {
     this.drafts.appUpdateChecking = true;
-    this.render(itemsUpdateTarget("about", "settings-app-update-card"));
+    this.render(itemsUpdateTarget("about", "settings-app-update-item"));
     try {
       await this.commandService.executeCommand(UpdateCommandId.check);
     }
@@ -1397,7 +1397,7 @@ export class SettingsController {
     }
     finally {
       this.drafts.appUpdateChecking = false;
-      this.render(itemsUpdateTarget("about", "settings-app-update-card"));
+      this.render(itemsUpdateTarget("about", "settings-app-update-item"));
     }
   }
 }
@@ -1431,16 +1431,16 @@ function getSettingsViewUpdateTarget(
   const descriptorIds = new Set<SettingsContentDescriptorId>();
   const itemTargets = new Map<SettingsContentDescriptorId, Set<SettingsContentItemId>>();
   if (current.appUpdateSettings.currentVersion !== next.appUpdateSettings.currentVersion) {
-    addItemTarget(itemTargets, "about", "settings-about-version-card", "settings-release-notes-card");
+    addItemTarget(itemTargets, "about", "settings-about-version-item", "settings-release-notes-item");
   }
   if (current.appUpdateSettings.isAvailable !== next.appUpdateSettings.isAvailable) {
-    addItemTarget(itemTargets, "about", "settings-app-update-card");
+    addItemTarget(itemTargets, "about", "settings-app-update-item");
   }
   if (current.isWindowsDesktopShell !== next.isWindowsDesktopShell) {
-    addItemTarget(itemTargets, "origin-integration", "settings-origin-path-card", "settings-origin-cleanup-card", "settings-origin-plot-card");
+    addItemTarget(itemTargets, "origin-integration", "settings-origin-path-item", "settings-origin-cleanup-item", "settings-origin-plot-item");
   }
   if (current.theme !== next.theme) {
-    addItemTarget(itemTargets, "appearance-preferences", "settings-theme-card");
+    addItemTarget(itemTargets, "appearance-preferences", "settings-theme-item");
   }
 
   for (const key of getChangedConductorSettingsKeys(current.conductorSettings, next.conductorSettings)) {
@@ -1491,59 +1491,59 @@ function addItemTarget(
 function getConductorSettingItemTarget(key: string): { readonly descriptorId: SettingsContentDescriptorId; readonly itemIds: readonly SettingsContentItemId[] } | null {
   switch (key) {
     case "windowCloseBehavior":
-      return { descriptorId: "general-preferences", itemIds: ["settings-close-behavior-card"] };
+      return { descriptorId: "general-preferences", itemIds: ["settings-close-behavior-item"] };
     case "numericDisplayMode":
-      return { descriptorId: "general-preferences", itemIds: ["settings-numeric-display-card"] };
+      return { descriptorId: "general-preferences", itemIds: ["settings-numeric-display-item"] };
     case "tableTemplateVisualizationEnabled":
-      return { descriptorId: "template-preferences", itemIds: ["settings-table-template-visualization-card"] };
+      return { descriptorId: "template-preferences", itemIds: ["settings-table-template-visualization-item"] };
     case "fileNameFieldSeparators":
-      return { descriptorId: "template-matching", itemIds: ["settings-filename-matching-card"] };
+      return { descriptorId: "template-matching", itemIds: ["settings-filename-matching-item"] };
     case "templateDisabledBuiltinDomainPackIds":
-      return { descriptorId: "template-library", itemIds: ["settings-template-domain-packs-card"] };
+      return { descriptorId: "template-library", itemIds: ["settings-template-domain-packs-item"] };
     case "templateXAxisIntentPriority":
-      return { descriptorId: "template-library", itemIds: ["settings-template-x-axis-priority-card"] };
+      return { descriptorId: "template-library", itemIds: ["settings-template-x-axis-priority-item"] };
     case "templateDisabledBuiltinSemanticIds":
       return { descriptorId: "template-semantic-library", itemIds: templateSemanticListItemIds };
     case "templateSemanticAllowlist":
     case "templateSemanticTermOrder":
       return { descriptorId: "template-semantic-library", itemIds: ["settings-template-semantic-active-terms-list-item"] };
     case "defaultYScaleForCf":
-      return { descriptorId: "chart-defaults", itemIds: ["settings-default-cf-y-scale-card"] };
+      return { descriptorId: "chart-defaults", itemIds: ["settings-default-cf-y-scale-item"] };
     case "defaultYScaleForCv":
-      return { descriptorId: "chart-defaults", itemIds: ["settings-default-cv-y-scale-card"] };
+      return { descriptorId: "chart-defaults", itemIds: ["settings-default-cv-y-scale-item"] };
     case "defaultYScaleForOutput":
-      return { descriptorId: "chart-defaults", itemIds: ["settings-default-output-y-scale-card"] };
+      return { descriptorId: "chart-defaults", itemIds: ["settings-default-output-y-scale-item"] };
     case "defaultYScaleForPv":
-      return { descriptorId: "chart-defaults", itemIds: ["settings-default-pv-y-scale-card"] };
+      return { descriptorId: "chart-defaults", itemIds: ["settings-default-pv-y-scale-item"] };
     case "defaultYScaleForTransfer":
-      return { descriptorId: "chart-defaults", itemIds: ["settings-default-transfer-y-scale-card"] };
+      return { descriptorId: "chart-defaults", itemIds: ["settings-default-transfer-y-scale-item"] };
     case "defaultYScaleForSpecial":
       return {
         descriptorId: "chart-defaults",
         itemIds: [
-          "settings-default-cv-y-scale-card",
-          "settings-default-cf-y-scale-card",
-          "settings-default-pv-y-scale-card",
+          "settings-default-cv-y-scale-item",
+          "settings-default-cf-y-scale-item",
+          "settings-default-pv-y-scale-item",
         ],
       };
     case "plotAxisSettings":
-      return { descriptorId: "chart-defaults", itemIds: ["settings-chart-defaults-card"] };
+      return { descriptorId: "chart-defaults", itemIds: ["settings-chart-defaults-item"] };
     case "backgroundColor":
-      return { descriptorId: "appearance-preferences", itemIds: ["settings-background-card"] };
+      return { descriptorId: "appearance-preferences", itemIds: ["settings-background-item"] };
     case "filesExplorerBadgeColors":
-      return { descriptorId: "appearance-preferences", itemIds: ["settings-explorer-badge-colors-card"] };
+      return { descriptorId: "appearance-preferences", itemIds: ["settings-explorer-badge-colors-item"] };
     case "filesExplorerDensity":
-      return { descriptorId: "appearance-preferences", itemIds: ["settings-explorer-density-card"] };
+      return { descriptorId: "appearance-preferences", itemIds: ["settings-explorer-density-item"] };
     case "filesExplorerShowBadges":
-      return { descriptorId: "appearance-preferences", itemIds: ["settings-explorer-badges-card"] };
+      return { descriptorId: "appearance-preferences", itemIds: ["settings-explorer-badges-item"] };
     case "theme":
-      return { descriptorId: "appearance-preferences", itemIds: ["settings-theme-card"] };
+      return { descriptorId: "appearance-preferences", itemIds: ["settings-theme-item"] };
     case "transparentChrome":
-      return { descriptorId: "appearance-preferences", itemIds: ["settings-transparent-chrome-card"] };
+      return { descriptorId: "appearance-preferences", itemIds: ["settings-transparent-chrome-item"] };
     case "originExePath":
-      return { descriptorId: "origin-integration", itemIds: ["settings-origin-path-card"] };
+      return { descriptorId: "origin-integration", itemIds: ["settings-origin-path-item"] };
     case "originExportModeDefault":
-      return { descriptorId: "origin-integration", itemIds: ["settings-origin-plot-card"] };
+      return { descriptorId: "origin-integration", itemIds: ["settings-origin-plot-item"] };
     case "originPlotCommandDefault":
     case "originPlotPostCommandsDefault":
     case "originPlotTypeDefault":
@@ -1551,11 +1551,11 @@ function getConductorSettingItemTarget(key: string): { readonly descriptorId: Se
     case "originPlotLineWidthDefault":
     case "originPlotSymbolShapeDefault":
     case "originPlotLegendFontSizeDefault":
-      return { descriptorId: "origin-integration", itemIds: ["settings-origin-plot-card"] };
+      return { descriptorId: "origin-integration", itemIds: ["settings-origin-plot-item"] };
     case "originRuntimeCleanupEnabled":
     case "originRuntimeFailedRetentionDays":
     case "originRuntimeKeepSuccessJobs":
-      return { descriptorId: "origin-integration", itemIds: ["settings-origin-cleanup-card"] };
+      return { descriptorId: "origin-integration", itemIds: ["settings-origin-cleanup-item"] };
   }
 
   return null;

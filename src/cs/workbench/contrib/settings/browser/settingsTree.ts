@@ -1,4 +1,3 @@
-import { append } from "src/cs/base/browser/dom";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { normalizeSettingsSearchText, settingsSearchMatches } from "src/cs/workbench/contrib/settings/browser/settingsSearch";
 
@@ -27,6 +26,8 @@ export type SettingsTreeCompositeItem = {
 export type SettingsTreeItem = SettingsTreeElementItem | SettingsTreeCompositeItem;
 
 export type SettingsTreeSection = {
+  readonly description?: string;
+  readonly headerId?: string;
   readonly id: string;
   readonly items: readonly SettingsTreeItem[];
   readonly title?: string;
@@ -37,37 +38,82 @@ type SettingsTreeEntry = SettingsTreeSectionEntry | SettingsTreeItemEntry;
 type SettingsTreeSectionEntry = {
   readonly kind: "section";
   readonly id: string;
-  readonly title: string;
 };
 
 type SettingsTreeItemEntry = {
   readonly first: boolean;
   readonly groupId: string;
+  readonly hasDivider: boolean;
   readonly id: string;
   readonly item: SettingsTreeItem;
   readonly kind: "item";
   readonly last: boolean;
 };
 
-type SettingsTreeSectionState = {
+export type SettingsTreeListItemRenderState = {
+  readonly first: boolean;
+  readonly groupId: string;
+  readonly hasDivider: boolean;
+  readonly id: string;
+  readonly last: boolean;
+};
+
+export type SettingsTreeSectionTemplate = {
+  readonly bodyElement: HTMLElement;
   readonly element: HTMLElement;
+  readonly listElement: HTMLElement;
+};
+
+export type SettingsTreeSectionHeaderTemplate = {
+  readonly descriptionElement: HTMLElement;
+  readonly element: HTMLElement;
+  readonly titleElement: HTMLElement;
+};
+
+export type SettingsTreeListItemTemplate = {
+  readonly bodyElement: HTMLElement;
+  readonly dividerElement: HTMLElement;
+  readonly element: HTMLElement;
+};
+
+export type SettingsTreeRenderer = {
+  readonly createCompositeChild: (item: SettingsTreeCompositeChildItem) => HTMLElement;
+  readonly createCompositeItem: (item: SettingsTreeCompositeItem) => HTMLElement;
+  readonly createListItem: (item: SettingsTreeListItemRenderState) => SettingsTreeListItemTemplate;
+  readonly createRoot: () => HTMLElement;
+  readonly createSection: (section: SettingsTreeSection) => SettingsTreeSectionTemplate;
+  readonly createSectionHeader: (section: SettingsTreeSection) => SettingsTreeSectionHeaderTemplate;
+  readonly updateCompositeChild: (element: HTMLElement, item: SettingsTreeCompositeChildItem) => void;
+  readonly updateCompositeItem: (element: HTMLElement, item: SettingsTreeCompositeItem) => void;
+  readonly updateListItem: (template: SettingsTreeListItemTemplate, item: SettingsTreeListItemRenderState) => void;
+};
+
+type SettingsTreeSectionState = {
+  readonly bodyElement: HTMLElement;
+  readonly element: HTMLElement;
+  headerTemplate: SettingsTreeSectionHeaderTemplate | null;
   readonly items: Map<string, SettingsTreeItemState>;
   readonly listElement: HTMLElement;
-  titleElement: HTMLElement | null;
 };
 
 type SettingsTreeItemState = {
   readonly element: HTMLElement;
   entry: SettingsTreeItemEntry;
+  readonly listItemTemplate: SettingsTreeListItemTemplate;
   widget: SettingsTreeItemWidget;
 };
 
 // Small settings tree: section and item ids are stable keys. SettingsView owns
-// row DOM, control behavior, and lifecycle.
+// cell DOM, control behavior, and renderer-owned structural classes.
 export class SettingsTree extends Disposable {
-  public readonly element = div("settings-tree");
+  public readonly element: HTMLElement;
   private entries: readonly SettingsTreeEntry[] = [];
   private readonly sections = new Map<string, SettingsTreeSectionState>();
+
+  constructor(private readonly renderer: SettingsTreeRenderer) {
+    super();
+    this.element = this.renderer.createRoot();
+  }
 
   public update(sections: readonly SettingsTreeSection[]): void {
     this.entries = flattenSettingsTree(sections);
@@ -155,7 +201,7 @@ export class SettingsTree extends Disposable {
         this.sections.set(section.id, state);
       }
 
-      this.updateSectionTitle(state, section);
+      this.updateSectionHeader(state, section);
       this.updateSectionItems(state, section, targetIds);
       const reference = this.element.children[index] ?? null;
       if (reference !== state.element) {
@@ -165,34 +211,42 @@ export class SettingsTree extends Disposable {
   }
 
   private createSectionState(section: SettingsTreeSection): SettingsTreeSectionState {
-    const element = div("settings-section");
-    updateElementId(element, section.id);
-    const listElement = div("settings-section-list");
+    const template = this.renderer.createSection(section);
+    updateElementId(template.element, section.id);
+    const listElement = template.listElement;
     listElement.setAttribute("role", "list");
-    element.appendChild(listElement);
     return {
-      element,
+      bodyElement: template.bodyElement,
+      element: template.element,
+      headerTemplate: null,
       items: new Map(),
       listElement,
-      titleElement: null,
     };
   }
 
-  private updateSectionTitle(state: SettingsTreeSectionState, section: SettingsTreeSection): void {
+  private updateSectionHeader(state: SettingsTreeSectionState, section: SettingsTreeSection): void {
     updateElementId(state.element, section.id);
-    if (!section.title) {
-      state.titleElement?.remove();
-      state.titleElement = null;
+    const titleText = section.title ?? "";
+    const descriptionText = section.description ?? "";
+    if (titleText.length === 0 && descriptionText.length === 0) {
+      state.headerTemplate?.element.remove();
+      state.headerTemplate = null;
       return;
     }
 
-    if (!state.titleElement) {
-      state.titleElement = title("");
-      state.element.insertBefore(state.titleElement, state.listElement);
+    if (!state.headerTemplate) {
+      state.headerTemplate = this.renderer.createSectionHeader(section);
+      state.element.insertBefore(state.headerTemplate.element, state.bodyElement);
     }
 
-    if (state.titleElement.textContent !== section.title) {
-      state.titleElement.textContent = section.title;
+    updateElementId(state.headerTemplate.element, section.headerId ?? `${section.id}-header`);
+    state.headerTemplate.titleElement.hidden = titleText.length === 0;
+    state.headerTemplate.descriptionElement.hidden = descriptionText.length === 0;
+    if (state.headerTemplate.titleElement.textContent !== titleText) {
+      state.headerTemplate.titleElement.textContent = titleText;
+    }
+    if (state.headerTemplate.descriptionElement.textContent !== descriptionText) {
+      state.headerTemplate.descriptionElement.textContent = descriptionText;
     }
   }
 
@@ -229,12 +283,13 @@ export class SettingsTree extends Disposable {
   }
 
   private createItemState(entry: SettingsTreeItemEntry): SettingsTreeItemState {
-    const element = div("settings-tree-item");
-    element.setAttribute("role", "presentation");
+    const template = this.renderer.createListItem(entry);
+    template.element.setAttribute("role", "listitem");
     const state: SettingsTreeItemState = {
-      element,
+      element: template.element,
       entry,
-      widget: new SettingsTreeItemWidget(entry.item),
+      listItemTemplate: template,
+      widget: new SettingsTreeItemWidget(entry.item, this.renderer),
     };
     this.updateItemState(state, entry, null);
     return state;
@@ -245,11 +300,10 @@ export class SettingsTree extends Disposable {
     entry: SettingsTreeItemEntry,
     targetIds: ReadonlySet<string> | null,
   ): void {
-    updateElementClassName(state.element, getSettingsTreeItemClassName(entry));
-    updateElementDataset(state.element, "groupId", entry.groupId);
+    this.renderer.updateListItem(state.listItemTemplate, entry);
     if (state.widget.kind !== entry.item.kind) {
       state.widget.dispose();
-      state.widget = new SettingsTreeItemWidget(entry.item);
+      state.widget = new SettingsTreeItemWidget(entry.item, this.renderer);
     }
     else if (!targetIds || targetIds.has(entry.id)) {
       state.widget.update(entry.item);
@@ -259,8 +313,8 @@ export class SettingsTree extends Disposable {
     }
 
     state.entry = entry;
-    if (state.element.firstChild !== state.widget.element) {
-      state.element.replaceChildren(state.widget.element);
+    if (state.listItemTemplate.bodyElement.firstChild !== state.widget.element) {
+      state.listItemTemplate.bodyElement.replaceChildren(state.widget.element);
     }
   }
 
@@ -283,12 +337,15 @@ export class SettingsTreeItemWidget extends Disposable {
   public readonly kind: SettingsTreeItem["kind"];
   private readonly compositeChildren = new Map<string, HTMLElement>();
 
-  constructor(item: SettingsTreeItem) {
+  constructor(
+    item: SettingsTreeItem,
+    private readonly renderer: SettingsTreeRenderer,
+  ) {
     super();
     this.kind = item.kind;
 
     if (item.kind === "composite") {
-      this.element = cell("");
+      this.element = this.renderer.createCompositeItem(item);
     }
     else {
       this.element = item.element;
@@ -316,8 +373,8 @@ export class SettingsTreeItemWidget extends Disposable {
     }
 
     updateElementId(this.element, item.id);
-    updateElementClassName(this.element, "settings-cell settings-cell-composite settings-list-item");
-    updateElementAttribute(this.element, "role", "listitem");
+    this.renderer.updateCompositeItem(this.element, item);
+    this.element.removeAttribute("role");
     this.element.removeAttribute("data-search");
 
     for (let index = 0; index < item.items.length; index++) {
@@ -341,15 +398,14 @@ export class SettingsTreeItemWidget extends Disposable {
       this.element = item.element;
     }
     updateElementId(this.element, item.id);
-    this.element.classList.add("settings-cell", "settings-list-item");
-    updateElementAttribute(this.element, "role", "listitem");
+    this.element.removeAttribute("role");
     this.element.removeAttribute("data-search");
   }
 
   private updateCompositeItem(item: SettingsTreeCompositeItem): void {
     updateElementId(this.element, item.id);
-    updateElementClassName(this.element, "settings-cell settings-cell-composite settings-list-item");
-    updateElementAttribute(this.element, "role", "listitem");
+    this.renderer.updateCompositeItem(this.element, item);
+    this.element.removeAttribute("role");
     this.element.removeAttribute("data-search");
 
     const nextIds = new Set<string>();
@@ -374,12 +430,12 @@ export class SettingsTreeItemWidget extends Disposable {
     childElement = this.compositeChildren.get(child.id),
   ): HTMLElement {
     if (!childElement) {
-      childElement = div("settings-tree-composite-child");
+      childElement = this.renderer.createCompositeChild(child);
       updateElementId(childElement, child.id);
       this.compositeChildren.set(child.id, childElement);
     }
 
-    updateElementClassName(childElement, "settings-tree-composite-child");
+    this.renderer.updateCompositeChild(childElement, child);
     if (childElement.childNodes.length !== 1 || childElement.firstChild !== child.element) {
       childElement.replaceChildren(child.element);
     }
@@ -392,53 +448,19 @@ export class SettingsTreeItemWidget extends Disposable {
   }
 }
 
-function cell(id: string): HTMLDivElement {
-  const element = div("settings-cell settings-cell-row");
-  element.id = id;
-  return element;
-}
-
-function div(className: string, ...children: Array<Node | string>): HTMLDivElement {
-  const element = document.createElement("div");
-  element.className = className;
-  append(element, ...children);
-  return element;
-}
-
-function updateElementClassName(element: HTMLElement, className: string): void {
-  if (element.className !== className) {
-    element.className = className;
-  }
-}
-
 function updateElementId(element: HTMLElement, id: string): void {
   if (element.id !== id) {
     element.id = id;
   }
 }
 
-function updateElementAttribute(element: HTMLElement, name: string, value: string): void {
-  if (element.getAttribute(name) !== value) {
-    element.setAttribute(name, value);
-  }
-}
-
-function updateElementDataset(element: HTMLElement, key: string, value: string): void {
-  if (element.dataset[key] !== value) {
-    element.dataset[key] = value;
-  }
-}
-
 function flattenSettingsTree(sections: readonly SettingsTreeSection[]): SettingsTreeEntry[] {
   const entries: SettingsTreeEntry[] = [];
   for (const section of sections) {
-    if (section.title) {
-      entries.push({
-        kind: "section",
-        id: section.id,
-        title: section.title,
-      });
-    }
+    entries.push({
+      kind: "section",
+      id: section.id,
+    });
 
     for (let index = 0; index < section.items.length; index++) {
       const item = section.items[index];
@@ -459,6 +481,7 @@ function createSettingsTreeItemEntry(
   return {
     first: !previousItem || getSettingsTreeItemGroupId(section, previousItem) !== groupId,
     groupId,
+    hasDivider: index > 0,
     id: item.id,
     item,
     kind: "item",
@@ -507,27 +530,4 @@ function getSettingsTreeItemSearchText(item: SettingsTreeItem): string {
     return normalizeSettingsSearchText(item.searchText, item.items.map(child => child.searchText));
   }
   return normalizeSettingsSearchText(item.searchText);
-}
-
-function getSettingsTreeItemClassName(entry: SettingsTreeItemEntry): string {
-  return [
-    "settings-tree-item",
-    entry.first ? "settings-tree-item--first" : undefined,
-    entry.last ? "settings-tree-item--last" : undefined,
-  ].filter(Boolean).join(" ");
-}
-
-function title(value: string): HTMLElement {
-  return text("h3", "settings-title", value);
-}
-
-function text<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className: string,
-  value: string,
-): HTMLElementTagNameMap[K] {
-  const element = document.createElement(tag);
-  element.className = className;
-  element.textContent = value;
-  return element;
 }

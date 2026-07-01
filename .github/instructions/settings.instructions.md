@@ -38,36 +38,54 @@ SettingsViewOptions
   -> SettingsController classifies updates into affected descriptor/item ids
   -> SettingsView creates SettingsContentDescriptor placement records
   -> active section renders matching descriptors / search renders all descriptors
-  -> descriptors build SettingsTreeSection records with element/composite items
-  -> SettingsTree.update(sections)
-  -> SettingsTree renders keyed section list and item cell DOM owned by settings
-  -> SettingsTree reuses cells by stable section/item id
-  -> SettingsTree.updateItems updates keyed cells and patches already-rendered item widgets without replacing sibling cells
-  -> element items patch caller-owned row/card roots
-  -> grouped sibling items model independently updateable cells that can be visually joined as one card
-  -> composite items keep one caller-owned card root only when child items share the same row lifecycle
+  -> SettingsView creates one SettingsTreeModel root with a content header title
+  -> descriptors add element/composite item elements to SettingsTreeModel sections by stable section id
+  -> SettingsTreeModel.toSections() produces SettingsTreeSection records
+  -> SettingsTree.update(model.toSections())
+  -> SettingsTree uses the settings tree renderer to create structural templates
+  -> SettingsTree renders a keyed section list
+  -> each SettingsTreeSection renders an optional section header followed by one white section body with an internal list
+  -> each list item renders an explicit divider node followed by the item body
+  -> SettingsTree reuses section and list item DOM by stable section/item id
+  -> SettingsTree.updateItems updates keyed list items and patches already-rendered item widgets without replacing sibling list items
+  -> element items patch caller-owned cell roots
+  -> grouped sibling items model independently updateable cells inside one section list
+  -> composite items keep one caller-owned cell root only when child items share the same list item lifecycle
   -> SettingsView-owned controls and composite child content can register a local patch for component-internal updates
   -> SettingsView-owned controls emit typed intent callbacks
-  -> changed rows replace only the targeted SettingsTree item
+  -> changed settings update only the targeted SettingsTree item
 ```
 
-`SettingsTree` owns two item shapes plus explicit cell grouping metadata when a
-visual card is composed from several independently updateable rows:
+`SettingsTreeModel` is a SettingsView-owned model for one settings content
+surface: a root element with a content-level header title, ordered section
+elements, and item elements with stable parentage. Descriptors contribute
+items through `SettingsTreeModel.addItemToSection(...)`. The model must not
+mutate DOM or bypass `SettingsTree`; it only owns tree identity, order, and
+parent-child shape before producing `SettingsTreeSection` records.
 
-- `SettingsTreeElementItem` for caller-owned card content that still belongs to
+`SettingsTree` owns keyed section/list-item order, lifecycle, stable ids,
+roles, search visibility, and mounting. The settings tree renderer owns
+section-list, section, optional section-header, section-body, list, list-item,
+list-item divider, list-item body, and composite templates plus their product CSS classes. `SettingsTree` must not hardcode
+settings product class names; renderer templates and `SettingsView`-owned cells
+own that styling boundary. The tree owns two item shapes plus explicit grouping
+metadata when several independently updateable list items belong to one logical
+section group:
+
+- `SettingsTreeElementItem` for caller-owned cell content that still belongs to
   the section item order.
-- `SettingsTreeCompositeItem` for one settings row/card whose child content
-  items have their own stable ids, stable item DOM, and disposable lifecycles.
+- `SettingsTreeCompositeItem` for one settings list item whose child content
+  items have their own stable ids, stable child DOM, and disposable lifecycles.
 
-`SettingsView` creates ordinary setting row/card DOM, including labels, layout,
+`SettingsView` creates ordinary setting cell DOM, including labels, layout,
 controls, interaction callbacks, local patch registrations, and disposable
 lifecycle. `SettingsTree` receives caller-owned element roots and owns only the
-section ordering, item id, base card class, visual grouping metadata, and
-optional item search metadata.
+section ordering, renderer-created section/header/body/list-item lifecycles,
+divider/body lifecycles, grouping metadata, item id, and optional item search
+metadata.
 
 Prefer modeling independently updateable regions as sibling `SettingsTree`
-entries with stable ids, even when those cells are visually joined into one
-card. This keeps the tree model update target aligned with the DOM unit being
+entries with stable ids inside one section. This keeps the tree model update target aligned with the DOM unit being
 patched. The visual grouping must be explicit in `SettingsTree` item metadata
 or cell class computation, not an unrelated wrapper or selector that hides a
 model mismatch. Use `SettingsTreeCompositeItem` only when the children truly
@@ -78,10 +96,11 @@ Each rendered settings content area owns one `SettingsTree` root. Descriptors
 contribute `SettingsTreeSection` records to that tree; they do not create
 separate tree roots. All settings content must enter the page through
 `SettingsTreeSection` and `SettingsTreeItem`; `SettingsView` must not patch
-standalone section/card DOM outside `SettingsTree`.
+standalone section or list DOM outside `SettingsTree`.
 
-Sections are rendering groups, not state owners. Settings content placement is
-declared by descriptor `sectionId` and `order`; moving a settings item or card
+Sections are rendering groups, not state owners. Each section has an optional
+header followed by one white section body with an internal list. Settings content placement is
+declared by descriptor `sectionId` and `order`; moving a settings item or section
 between pages changes that placement declaration and removes the old placement.
 User edits flow from the control's typed intent callback to
 `SettingsController`, then to `ISettingsService` or an owner command.
@@ -89,14 +108,14 @@ User edits flow from the control's typed intent callback to
 affected item id(s) for ordinary settings changes with the next view options.
 After the owner publishes a changed snapshot, `SettingsView.update` applies
 registered local component patches owned by `SettingsView` and updates the
-containing card's search metadata in place. These local patch callbacks must
+containing item's search metadata in place. These local patch callbacks must
 not be stored on `SettingsTreeItem` records. If one update target mixes local
 and non-local item ids, `SettingsView` applies the local patches first and sends
 only the remaining item ids through `SettingsTree` widget patching by stable
 ids. `SettingsTree.updateItems` must keep stable item keys, sibling cells, and
-settings cards alive. A targeted grouped item id patches only that cell. A
+settings sections alive. A targeted grouped item id patches only that cell. A
 targeted composite child id patches only that child item; it must not replace
-the parent composite card or sibling child items.
+the parent composite list item or sibling child items.
 
 ## Settings Search
 
@@ -108,17 +127,24 @@ sidebar navigation surface and main content surface. It does not go through
 SettingsNavigationView search input
   -> SettingsController searchQuery draft
   -> SettingsView renders all settings sections
-  -> setting cards filter by item-level search text
+  -> setting list items filter by item-level search text
   -> matching controls keep their normal SettingsController callbacks
 ```
 
-`SettingsTreeItem.searchText` is rendering metadata for a row card. It may
+The content header identifies the current settings content page. Section
+headers identify rendering groups inside that page. Neither header is a settings
+item or search target. Cross-page settings search filters and reveals concrete
+settings list items by item-level search metadata; page and section labels may
+be displayed as context, but they must not cause sibling items to match.
+
+`SettingsTreeItem.searchText` is rendering metadata for a settings list item. It may
 include option labels, field labels, or semantic match terms that help the view
-filter rows, but it must not encode control behavior or persistence details.
+filter settings list items, but it must not encode control behavior or
+persistence details.
 
 ## Template Semantic Library UI
 
-The Template settings semantic-library card shows **match terms**. A match term
+The Template settings semantic-library section shows **match terms**. A match term
 is the user-facing token for text that DataResource/Review can match, plus the
 canonical semantic mapping that match should produce.
 
@@ -127,21 +153,29 @@ CSS for this surface. Do not call these blocks "aliases" in product text: the
 persisted settings and DataResource records may still carry `alias` field names,
 but that is storage/schema terminology, not the UI concept.
 
-The semantic-library card is one visual card composed from sibling
-`SettingsTree` entries: header, active terms, recommended built-in terms, and
-custom term mapping. Each entry has a stable item id and can be targeted by
-`SettingsController` without rerendering the other entries in the visual card.
+The semantic-library surface is one `SettingsTreeSection` without a separate
+visible section header. Its first list entry renders the semantic-library title
+and description in the list item leading area. The first list entry's trailing
+area contains the active match-term editor, an explicit divider, and the
+recommended built-in default terms. Custom mapping controls belong to their own
+list item trailing area. `SettingsView` chooses each list item's leading/trailing orientation
+explicitly as horizontal or vertical when it creates the item cell. Each visible
+list entry has a stable item id and can be targeted by `SettingsController`
+without rerendering the other entries in the section.
 Semantic-library save or validation feedback belongs in notification/toast
-presentation, not as a `SettingsTree` item in the card.
+presentation, not as a `SettingsTree` item in the section.
 
 The active terms entry renders concrete terms in a dense `InputBox` and owns
 the editable native input for adding a match term. Disabled built-in terms
-should render as compact suggestion buttons in the recommended-terms entry, not
-inside a second input-like field. The active terms entry registers separate
-local patch item ids for its term list and editable input, and the recommended
-terms entry registers a local patch item id for its suggestion list. Each term
-block or suggestion button is a concrete matching token, not a separate
-settings row or state owner. Typing in the active terms input updates the
+should render as compact suggestion buttons in the active terms entry's default
+region, not inside a second input-like field or a separate visible list item.
+`SettingsView` creates a standard settings section item for this entry. Its
+leading area owns the label/description search text, and its trailing area owns
+stable `editor`, `divider`, and `default` regions so full-item and local patches
+reuse the same internal DOM. The active terms entry registers separate local
+patch item ids for its term list, editable input, and default suggestion list.
+Each term block or suggestion button is a concrete matching token, not a
+separate settings list item or state owner. Typing in the active terms input updates the
 semantic term draft, and user gestures still flow through `SettingsController`
 callbacks and then to `ISettingsService`.
 
@@ -178,8 +212,10 @@ not introduce a parallel settings store.
 | `platform/languagePacks/**`, `workbench/services/localization/**`, `contrib/localization/**` | display-language services and command/action wiring. |
 | `contrib/settings/browser/settingsController.ts` | form drafts, validation, saving state, dispatch to settings service or owner commands. |
 | `contrib/settings/browser/settingsLayout.ts` | settings section ids, navigation grouping, and section icon metadata. |
-| `contrib/settings/browser/settingsSearch.ts` | settings search text normalization, query tokenization, and row/card matching helpers. |
+| `contrib/settings/browser/settingsSearch.ts` | settings search text normalization, query tokenization, and section/list item matching helpers. |
+| `contrib/settings/browser/settingsTreeModels.ts` | settings tree model elements for content root, sections, item parentage, and conversion to render sections. |
 | `contrib/settings/browser/settingsTree.ts` | stable keyed settings item widgets; owns section ordering, grouping, and element/composite mounting. |
+| `contrib/settings/browser/settingsTreeRenderer.ts` | settings tree structural DOM templates and product CSS classes for section/list/list-item/composite wrappers. |
 | `contrib/settings/browser/settingsView.ts` | pure DOM rendering; callbacks only. |
 | `contrib/settings/browser/settings.contribution.ts` | view/contribution registration and thin ViewPane shells that attach the shared settings controller to registered view bodies. |
 

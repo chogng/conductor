@@ -141,20 +141,20 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
     try {
       const switchButton = getButton(container, "settings-numeric-display-toggle");
       const content = getElement(container, ".settings-view-content");
-      const tree = getElement(container, ".settings-view-content > .settings-tree");
+      const tree = getElement(container, ".settings-view-content > .settings-section-list");
       assert.equal(switchButton.getAttribute("aria-checked"), "false");
 
       switchButton.click();
 
       assert.equal(getElement(container, ".settings-view-content"), content);
-      assert.equal(getElement(container, ".settings-view-content > .settings-tree"), tree);
+      assert.equal(getElement(container, ".settings-view-content > .settings-section-list"), tree);
       assert.equal(getButton(container, "settings-numeric-display-toggle"), switchButton);
       assert.equal(switchButton.getAttribute("aria-checked"), "true");
       assert.equal(switchButton.disabled, false);
 
       controller.update(createSettingsViewInput(service.settings));
       assert.equal(getElement(container, ".settings-view-content"), content);
-      assert.equal(getElement(container, ".settings-view-content > .settings-tree"), tree);
+      assert.equal(getElement(container, ".settings-view-content > .settings-section-list"), tree);
       assert.equal(getButton(container, "settings-numeric-display-toggle"), switchButton);
       assert.equal(switchButton.getAttribute("aria-checked"), "true");
       assert.equal(switchButton.disabled, false);
@@ -162,12 +162,12 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       service.settings = { numericDisplayMode: "smart" };
       controller.update(createSettingsViewInput(service.settings));
       assert.equal(getElement(container, ".settings-view-content"), content);
-      assert.equal(getElement(container, ".settings-view-content > .settings-tree"), tree);
+      assert.equal(getElement(container, ".settings-view-content > .settings-section-list"), tree);
       updateDeferred.resolve(service.settings);
       await settled();
 
       assert.equal(getElement(container, ".settings-view-content"), content);
-      assert.equal(getElement(container, ".settings-view-content > .settings-tree"), tree);
+      assert.equal(getElement(container, ".settings-view-content > .settings-section-list"), tree);
       assert.equal(getButton(container, "settings-numeric-display-toggle"), switchButton);
       assert.equal(switchButton.getAttribute("aria-checked"), "true");
       assert.equal(switchButton.disabled, false);

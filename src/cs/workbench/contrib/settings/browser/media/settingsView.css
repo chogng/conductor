@@ -175,6 +175,18 @@
   padding: 3rem 0 4rem;
 }
 
+.settings-content-header {
+  min-width: 0;
+}
+
+.settings-content-title {
+  margin: 0;
+  color: rgb(var(--text-primary) / 1);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 2rem;
+}
+
 .settings-view-content > :not([hidden]) ~ :not([hidden]) {
   --tw-space-y-reverse: 0;
   margin-top: calc(2.25rem * calc(1 - var(--tw-space-y-reverse)));
@@ -343,6 +355,23 @@
   color: rgb(var(--text-primary) / 1);
 }
 
+.settings-template-semantic-section {
+  display: grid;
+  min-width: 0;
+  gap: 0.875rem;
+}
+
+.settings-template-semantic-editor,
+.settings-template-semantic-default {
+  min-width: 0;
+}
+
+.settings-template-semantic-divider {
+  min-width: 0;
+  height: 1px;
+  background: rgb(var(--border) / 0.72);
+}
+
 .settings-template-term-suggestions {
   display: flex;
   min-height: 1.5rem;
@@ -497,80 +526,97 @@
   min-width: 0;
 }
 
-.settings-cell-row {
+.settings-list-item-cell {
   padding: 1rem;
 }
 
-.settings-tree {
-  display: block;
+.settings-section-list {
+  display: grid;
+  gap: 2.25rem;
   height: auto;
 }
 
-.settings-section:not(:first-child) {
-  margin-top: 2.25rem;
+.settings-section {
+  display: grid;
+  gap: 0.625rem;
+  min-width: 0;
 }
 
-.settings-section-list {
-  display: block;
-}
-
-.settings-tree .settings-section > .settings-title {
-  margin-bottom: 1.125rem;
-  padding-left: 0.0625rem;
-}
-
-.settings-tree-item {
+.settings-section-body {
   overflow: hidden;
-  border-right: 1px solid rgb(var(--border) / 0.8);
-  border-left: 1px solid rgb(var(--border) / 0.8);
+  border: 1px solid rgb(var(--border) / 0.8);
+  border-radius: 0.75rem;
   background: rgb(var(--bg-surface) / 0.92);
-}
-
-.settings-tree-item--first {
-  border-top: 1px solid rgb(var(--border) / 0.8);
-  border-top-left-radius: 0.75rem;
-  border-top-right-radius: 0.75rem;
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.025);
 }
 
-.settings-tree-item--last {
-  border-bottom: 1px solid rgb(var(--border) / 0.8);
-  border-bottom-right-radius: 0.75rem;
-  border-bottom-left-radius: 0.75rem;
+.settings-section-header {
+  min-width: 0;
+  padding: 0;
 }
 
-.settings-tree-item:not(.settings-tree-item--last) {
-  border-bottom: 1px solid rgb(var(--border) / 0.72);
+.settings-section-header[hidden] {
+  display: none;
 }
 
-.settings-tree-item > .settings-cell {
+.settings-section-header > .settings-title {
+  margin: 0;
+}
+
+.settings-section-header > .settings-description {
+  margin: 0.25rem 0 0;
+}
+
+.settings-list {
+  display: block;
+}
+
+.settings-list-item {
+  overflow: hidden;
+  background: transparent;
+}
+
+.settings-list-item-divider {
+  border-top: 1px solid rgb(var(--border) / 0.72);
+}
+
+.settings-list-item-divider[hidden] {
+  display: none;
+}
+
+.settings-list-item-body {
+  min-width: 0;
+}
+
+.settings-list-item-body > .settings-cell {
   border-radius: 0;
 }
 
-.settings-section > .settings-title {
-  margin-bottom: 1.125rem;
-  padding-left: 0.0625rem;
+.settings-list-item-content {
+  display: flex;
+  gap: 0.75rem;
+  min-width: 0;
 }
 
-.settings-row {
-  display: flex;
+.settings-list-item-cell--horizontal .settings-list-item-content {
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
 }
 
-.settings-row-item {
-  min-width: 0px;
+.settings-list-item-cell--vertical .settings-list-item-content {
+  align-items: stretch;
+  flex-direction: column;
+  justify-content: flex-start;
 }
 
-.settings-row-leading {
+.settings-list-item-leading {
   min-width: 0px;
   flex: 1 1 auto;
   display: grid;
   gap: 0.5rem;
 }
 
-.settings-row-trailing {
+.settings-list-item-trailing {
   align-self: center;
   flex: 0 0 auto;
   display: flex;
@@ -581,7 +627,25 @@
   width: fit-content;
 }
 
-.settings-row-trailing .settings-select {
+.settings-list-item-trailing.settings-template-semantic-section {
+  display: grid;
+  align-self: stretch;
+  justify-content: stretch;
+  width: 100%;
+}
+
+.settings-list-item-cell--vertical .settings-list-item-trailing {
+  align-self: stretch;
+  justify-content: stretch;
+  width: 100%;
+}
+
+.settings-list-item-cell--vertical .settings-list-item-trailing > * {
+  min-width: 0;
+  width: 100%;
+}
+
+.settings-list-item-trailing .settings-select {
   width: 150px;
 }
 
@@ -1090,7 +1154,7 @@
   --switch-height: 18px;
 }
 
-.settings-row-trailing .settings-switch:disabled {
+.settings-list-item-trailing .settings-switch:disabled {
   opacity: 1;
 }
 
@@ -1115,23 +1179,23 @@
   }
 
   .settings-path-controls,
-  .settings-row {
+  .settings-list-item-cell--horizontal .settings-list-item-content {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .settings-row-trailing,
+  .settings-list-item-trailing,
   .settings-color-controls,
   .settings-path-controls .settings-button {
     align-self: stretch;
     width: 100%;
   }
 
-  .settings-row-trailing {
+  .settings-list-item-trailing {
     justify-content: flex-start;
   }
 
-  .settings-row-trailing .settings-select {
+  .settings-list-item-trailing .settings-select {
     width: 100%;
   }
 
