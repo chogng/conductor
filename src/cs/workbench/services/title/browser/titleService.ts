@@ -16,6 +16,7 @@ export type WorkbenchTitlebarState = {
   readonly chartIntentCommandId?: string;
   readonly enabled?: boolean;
   readonly installUpdateCommandId?: string | null;
+  readonly isAuxiliaryBarExpanded?: boolean;
   readonly isSidebarVisible?: boolean;
   readonly isUpdateReadyToInstall?: boolean;
   readonly isUpdateVisible?: boolean;

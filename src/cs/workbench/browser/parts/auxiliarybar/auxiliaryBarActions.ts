@@ -99,13 +99,3 @@ for (const view of AuxiliaryBarTitleMenuItems) {
     when: ActiveWorkbenchMainPartContext.isEqualTo("chart"),
   });
 }
-
-MenuRegistry.appendMenuItem(MenuId.AuxiliaryBarTitle, {
-  command: {
-    id: CloseAuxiliaryBarCommandId,
-    title: localize("auxiliarybar.close", "Close Secondary Side Bar"),
-    icon: LxIcon.close,
-  },
-  group: "navigation",
-  order: 100,
-});

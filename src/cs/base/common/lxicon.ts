@@ -46,6 +46,7 @@ export const lxInfoCircle = registerLibraryIcon(lxiconsLibrary.infoCircle);
 export const lxLayoutSidebarLeftEmpty = registerLibraryIcon(lxiconsLibrary.layoutSidebarLeftEmpty);
 export const lxLayoutSidebarLeftOffEmpty = registerLibraryIcon(lxiconsLibrary.layoutSidebarLeftOffEmpty);
 export const lxLayoutSidebarRightEmpty = registerLibraryIcon(lxiconsLibrary.layoutSidebarRightEmpty);
+export const lxLayoutSidebarRightOffEmpty = registerLibraryIcon(lxiconsLibrary.layoutSidebarRightOffEmpty);
 export const lxMoreHorizontal = registerLibraryIcon(lxiconsLibrary.moreHorizontal);
 export const lxAdd = registerLibraryIcon(lxiconsLibrary.add);
 export const lxAppearance = registerLibraryIcon(lxiconsLibrary.appearance);
@@ -110,6 +111,7 @@ export const LxIcon = {
 	layoutSidebarLeftEmpty: lxLayoutSidebarLeftEmpty,
 	layoutSidebarLeftOffEmpty: lxLayoutSidebarLeftOffEmpty,
 	layoutSidebarRightEmpty: lxLayoutSidebarRightEmpty,
+	layoutSidebarRightOffEmpty: lxLayoutSidebarRightOffEmpty,
 	listUnordered: lxListUnordered,
 	legend: lxLegend,
 	moreHorizontal: lxMoreHorizontal,

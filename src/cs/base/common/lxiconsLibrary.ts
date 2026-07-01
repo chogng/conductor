@@ -26,6 +26,7 @@ import {
 	lxLayoutSidebarLeftEmpty as renderLayoutSidebarLeftEmpty,
 	lxLayoutSidebarLeftOffEmpty as renderLayoutSidebarLeftOffEmpty,
 	lxLayoutSidebarRightEmpty as renderLayoutSidebarRightEmpty,
+	lxLayoutSidebarRightOffEmpty as renderLayoutSidebarRightOffEmpty,
 	lxListUnordered as renderListUnordered,
 	lxLegend as renderLegend,
 	lxOrigin as renderOrigin,
@@ -157,6 +158,10 @@ export const lxiconsLibrary = {
 	layoutSidebarRightEmpty: {
 		id: "layout-sidebar-right-empty",
 		render: renderLayoutSidebarRightEmpty,
+	},
+	layoutSidebarRightOffEmpty: {
+		id: "layout-sidebar-right-off-empty",
+		render: renderLayoutSidebarRightOffEmpty,
 	},
 	legend: {
 		id: "legend",

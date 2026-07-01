@@ -289,6 +289,8 @@ function createTitlebarProps(previewCase: PreviewCase): WorkbenchTitlebarProps {
       windowControlsSide: "right",
     },
     commandService,
+    isAuxiliaryBarExpanded: true,
+    isSidebarVisible: true,
     updateAction: previewCase.updateAction,
   };
 }

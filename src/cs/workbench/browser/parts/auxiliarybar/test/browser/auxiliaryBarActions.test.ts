@@ -19,7 +19,6 @@ await import("src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions");
 
 suite("workbench/browser/parts/auxiliarybar/test/browser/auxiliaryBarActions", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
-  const closeAuxiliaryBarCommandId = "workbench.action.closeAuxiliaryBar";
   const originalDocument = globalThis.document;
 
   setup(() => {
@@ -68,10 +67,10 @@ suite("workbench/browser/parts/auxiliarybar/test/browser/auxiliaryBarActions", (
     }).actions;
 
     assert.ok(!actions.some(action => action.id === ParametersCommandId.showParameters));
-    assert.ok(actions.some(action => action.id === closeAuxiliaryBarCommandId));
+    assert.deepEqual(actions.map(action => action.id), []);
   });
 
-  test("includes close action when table auxiliary bar has no view switch actions", () => {
+  test("omits title actions when table auxiliary bar has no view switch actions", () => {
     const disposables = store.add(new DisposableStore());
     const auxiliaryBarPart = disposables.add(new AuxiliaryBarPart());
     const contextKeyService = disposables.add(new ContextKeyService());
@@ -87,7 +86,7 @@ suite("workbench/browser/parts/auxiliarybar/test/browser/auxiliaryBarActions", (
       workbenchMainPart: "table",
     }).actions;
 
-    assert.deepEqual(actions.map(action => action.id), [closeAuxiliaryBarCommandId]);
+    assert.deepEqual(actions.map(action => action.id), []);
   });
 });
 

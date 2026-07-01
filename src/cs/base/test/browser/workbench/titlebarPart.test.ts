@@ -16,6 +16,8 @@ suite("workbench/browser/parts/titlebar/titlebarPart", () => {
         showBrandIcon: false,
         windowControlsSide: "left",
       },
+      isAuxiliaryBarExpanded: true,
+      isSidebarVisible: true,
     });
 
     const rightControls = parent.querySelector(".titlebar-right");
@@ -37,6 +39,8 @@ suite("workbench/browser/parts/titlebar/titlebarPart", () => {
         showBrandIcon: true,
         windowControlsSide: "right",
       },
+      isAuxiliaryBarExpanded: true,
+      isSidebarVisible: true,
     });
 
     const rightControls = parent.querySelector(".titlebar-right");
@@ -58,6 +62,8 @@ suite("workbench/browser/parts/titlebar/titlebarPart", () => {
     part.update({
       activePage: "table",
       commandService: createCommandService(calls),
+      isAuxiliaryBarExpanded: true,
+      isSidebarVisible: true,
       updateAction: {
         commandId: "update.install",
         isVisible: true,
@@ -86,6 +92,8 @@ suite("workbench/browser/parts/titlebar/titlebarPart", () => {
     part.update({
       activePage: "table",
       commandService,
+      isAuxiliaryBarExpanded: true,
+      isSidebarVisible: true,
       updateAction: {
         commandId: "update.downloadNow",
         isVisible: true,
@@ -98,6 +106,8 @@ suite("workbench/browser/parts/titlebar/titlebarPart", () => {
     part.update({
       activePage: "table",
       commandService,
+      isAuxiliaryBarExpanded: true,
+      isSidebarVisible: true,
       updateAction: {
         commandId: "update.downloading",
         isVisible: true,
@@ -131,6 +141,8 @@ suite("workbench/browser/parts/titlebar/titlebarPart", () => {
     part.update({
       activePage: "table",
       commandService,
+      isAuxiliaryBarExpanded: true,
+      isSidebarVisible: true,
       updateAction: {
         commandId: "update.install",
         isVisible: true,
@@ -144,6 +156,8 @@ suite("workbench/browser/parts/titlebar/titlebarPart", () => {
     part.update({
       activePage: "table",
       commandService,
+      isAuxiliaryBarExpanded: true,
+      isSidebarVisible: true,
       updateAction: {
         isVisible: false,
       },
@@ -165,6 +179,8 @@ suite("workbench/browser/parts/titlebar/titlebarPart", () => {
     part.update({
       activePage: "table",
       commandService,
+      isAuxiliaryBarExpanded: true,
+      isSidebarVisible: true,
       updateAction: {
         commandId: "update.downloading",
         isVisible: true,
@@ -178,6 +194,8 @@ suite("workbench/browser/parts/titlebar/titlebarPart", () => {
     part.update({
       activePage: "table",
       commandService,
+      isAuxiliaryBarExpanded: true,
+      isSidebarVisible: true,
       updateAction: {
         commandId: "update.checking",
         isVisible: true,

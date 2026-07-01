@@ -6,7 +6,7 @@ import type { IViewPaneContainer } from "src/cs/workbench/common/views";
 import { ActionViewItem, type IActionViewItem, type IActionViewItemOptions } from "src/cs/base/browser/ui/actionbar/actionViewItem";
 import type { IActionViewItemProvider } from "src/cs/base/browser/ui/actionbar/actionbar";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
-import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
+import type { LxIconDefinition } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import {
   cleanGroupedActions,
@@ -38,7 +38,6 @@ import {
 const AuxiliaryBarClassName = "workbench_layout_auxiliarybar";
 const AuxiliaryBarPaneId = "workbench-auxiliarybar";
 const WorkbenchAuxiliaryBarWidthStorageKey = "workbench.auxiliarybar.width";
-const CloseAuxiliaryBarCommandId = "workbench.action.closeAuxiliaryBar";
 const AuxiliaryBarViewSwitchActionClass = "auxiliarybar_view_switch_action";
 
 export const AUXILIARY_BAR_DEFAULT_WIDTH_PX = 280;
@@ -367,18 +366,7 @@ const createAuxiliaryBarActions = ({
       return [{ ...action, icon: menuAction.icon } satisfies AuxiliaryBarViewSwitchAction];
     }
 
-    if (menuAction.id !== CloseAuxiliaryBarCommandId) {
-      return [];
-    }
-
-    return [toAction({
-      id: menuAction.id,
-      label: menuAction.label,
-      tooltip: menuAction.tooltip || menuAction.label,
-      enabled: menuAction.enabled,
-      icon: LxIcon.close,
-      run: (...args) => menuAction.run(...args),
-    })];
+    return [];
   });
 };
 

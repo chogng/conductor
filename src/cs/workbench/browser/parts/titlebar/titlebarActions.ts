@@ -1,7 +1,6 @@
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layoutCommands";
-import { createWorkbenchSidebarToggleButton } from "src/cs/workbench/browser/parts/sidebar/sidebarActions";
 import { QuickAccessCommandId } from "src/cs/workbench/contrib/quickaccess/common/quickAccessCommands";
 import { SHOW_SETTINGS_COMMAND_ID } from "src/cs/workbench/contrib/settings/browser/settingsActions";
 import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
@@ -35,10 +34,6 @@ export type WorkbenchTitlebarPageButton = {
   readonly isActive: boolean;
 };
 
-export type WorkbenchTitlebarSidebarButton = ReturnType<
-  typeof createWorkbenchSidebarToggleButton
->;
-
 export type WorkbenchTitlebarQuickAccessButton = {
   readonly commandId: string;
   readonly icon: LxIconDefinition;
@@ -54,11 +49,6 @@ export type WorkbenchTitlebarUpdateInfo = {
   readonly tooltip?: string | null;
   readonly version?: string | null;
 };
-
-export const createWorkbenchTitlebarSidebarButton = (
-  isVisible: boolean,
-): WorkbenchTitlebarSidebarButton =>
-  createWorkbenchSidebarToggleButton(isVisible);
 
 export const createWorkbenchTitlebarNavButtons = (
   canNavigateBack: boolean,

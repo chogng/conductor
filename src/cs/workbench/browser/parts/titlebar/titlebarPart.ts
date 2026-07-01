@@ -15,6 +15,10 @@ import {
 } from "src/cs/base/common/lifecycle";
 import { ICommandService } from "src/cs/platform/commands/common/commands";
 import { INativeHostService } from "src/cs/platform/native/common/native";
+import {
+  createWorkbenchLayoutAuxiliaryBarToggleButton,
+  createWorkbenchLayoutSidebarToggleButton,
+} from "src/cs/workbench/browser/actions/layoutActions";
 import * as WorkbenchTitlebarActions from "src/cs/workbench/browser/parts/titlebar/titlebarActions";
 import type { WorkbenchTitlebarPageButton } from "src/cs/workbench/browser/parts/titlebar/titlebarActions";
 import type { WorkbenchTitlebarProps } from "src/cs/workbench/browser/parts/titlebar/windowTitle";
@@ -370,6 +374,7 @@ const createQuickAccessButton = (
 };
 
 type WorkbenchTitlebarViewRefs = {
+  readonly auxiliaryBarAction: WorkbenchTitlebarRuntimeAction;
   readonly sidebarAction: WorkbenchTitlebarRuntimeAction;
   readonly navActions: ReadonlyMap<string, WorkbenchTitlebarRuntimeAction>;
   readonly pageActions: ReadonlyMap<string, WorkbenchTitlebarRuntimeAction>;
@@ -400,14 +405,22 @@ class WorkbenchTitlebarView extends Disposable {
         props.activePage,
       );
     const sidebarButton =
-      WorkbenchTitlebarActions.createWorkbenchTitlebarSidebarButton(
-        props.isSidebarVisible ?? true,
+      createWorkbenchLayoutSidebarToggleButton(
+        props.isSidebarVisible,
       );
+    const auxiliaryBarButton = createWorkbenchLayoutAuxiliaryBarToggleButton(
+      props.isAuxiliaryBarExpanded,
+    );
 
     this.refs.sidebarAction.label = sidebarButton.title;
     this.refs.sidebarAction.tooltip = sidebarButton.title;
     this.refs.sidebarAction.icon = sidebarButton.icon;
     this.refs.sidebarAction.checked = sidebarButton.isActive;
+
+    this.refs.auxiliaryBarAction.label = auxiliaryBarButton.title;
+    this.refs.auxiliaryBarAction.tooltip = auxiliaryBarButton.title;
+    this.refs.auxiliaryBarAction.icon = auxiliaryBarButton.icon;
+    this.refs.auxiliaryBarAction.checked = auxiliaryBarButton.isActive;
 
     for (const button of navButtons) {
       const runtimeAction = this.refs.navActions.get(button.id);
@@ -478,7 +491,8 @@ const createWorkbenchTitlebarView = (
     canNavigateForward = false,
     commandService,
     id = WORKBENCH_TITLEBAR_ID,
-    isSidebarVisible = true,
+    isSidebarVisible,
+    isAuxiliaryBarExpanded,
     nativeHostService,
     updateAction,
   }: WorkbenchTitlebarProps,
@@ -520,9 +534,12 @@ const createWorkbenchTitlebarView = (
   ].filter(Boolean).join(" "));
   actionBarDisposables.push(navActionBar);
   const sidebarButton =
-    WorkbenchTitlebarActions.createWorkbenchTitlebarSidebarButton(
+    createWorkbenchLayoutSidebarToggleButton(
       isSidebarVisible,
     );
+  const auxiliaryBarButton = createWorkbenchLayoutAuxiliaryBarToggleButton(
+    isAuxiliaryBarExpanded,
+  );
   const sidebarRuntimeAction = createTitlebarRuntimeAction({
     commandId: sidebarButton.commandId,
     commandService,
@@ -533,6 +550,16 @@ const createWorkbenchTitlebarView = (
   actionBarDisposables.push(sidebarRuntimeAction);
   sidebarRuntimeAction.checked = sidebarButton.isActive;
   navActionBar.push(sidebarRuntimeAction, { label: false });
+
+  const auxiliaryBarRuntimeAction = createTitlebarRuntimeAction({
+    commandId: auxiliaryBarButton.commandId,
+    commandService,
+    icon: auxiliaryBarButton.icon,
+    id: auxiliaryBarButton.id,
+    title: auxiliaryBarButton.title,
+  });
+  actionBarDisposables.push(auxiliaryBarRuntimeAction);
+  auxiliaryBarRuntimeAction.checked = auxiliaryBarButton.isActive;
 
   for (const button of navButtons) {
     const isBack =
@@ -574,6 +601,10 @@ const createWorkbenchTitlebarView = (
   }
 
   for (const button of pageButtons) {
+    if (button.id === "settings") {
+      pageActionBar.push(auxiliaryBarRuntimeAction, { label: false });
+    }
+
     const runtimeAction = createTitlebarRuntimeAction({
       commandId: button.commandId,
       commandService,
@@ -629,6 +660,7 @@ const createWorkbenchTitlebarView = (
   return new WorkbenchTitlebarView(
     appendChildren(header, [leftControls, center, rightControls]),
     {
+      auxiliaryBarAction: auxiliaryBarRuntimeAction,
       navActions: navActionsById,
       pageActions: pageActionsById,
       sidebarAction: sidebarRuntimeAction,

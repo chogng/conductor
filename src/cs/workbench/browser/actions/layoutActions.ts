@@ -1,3 +1,4 @@
+import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import { Categories } from "src/cs/platform/action/common/actionCommonCategories";
 import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
@@ -11,6 +12,47 @@ import {
   IWorkbenchLayoutService,
   Parts,
 } from "src/cs/workbench/services/layout/browser/layoutService";
+
+export const WORKBENCH_LAYOUT_SIDEBAR_TOGGLE_BUTTON_ID =
+  "workbench-titlebar-sidebar-toggle-button";
+export const WORKBENCH_LAYOUT_AUXILIARY_BAR_TOGGLE_BUTTON_ID =
+  "workbench-titlebar-auxiliarybar-toggle-button";
+
+export type WorkbenchLayoutToggleButton = {
+  readonly commandId: string;
+  readonly icon: LxIconDefinition;
+  readonly id: string;
+  readonly isActive: boolean;
+  readonly title: string;
+};
+
+export const createWorkbenchLayoutSidebarToggleButton = (
+  isVisible: boolean,
+): WorkbenchLayoutToggleButton => ({
+  commandId: WorkbenchLayoutCommandId.toggleSidebar,
+  icon: isVisible
+    ? LxIcon.layoutSidebarLeftEmpty
+    : LxIcon.layoutSidebarLeftOffEmpty,
+  id: WORKBENCH_LAYOUT_SIDEBAR_TOGGLE_BUTTON_ID,
+  isActive: isVisible,
+  title: isVisible
+    ? localize("sidebar.hide", "Hide Side Bar")
+    : localize("sidebar.show", "Show Side Bar"),
+});
+
+export const createWorkbenchLayoutAuxiliaryBarToggleButton = (
+  isVisible: boolean,
+): WorkbenchLayoutToggleButton => ({
+  commandId: WorkbenchLayoutCommandId.toggleAuxiliaryBar,
+  icon: isVisible
+    ? LxIcon.layoutSidebarRightEmpty
+    : LxIcon.layoutSidebarRightOffEmpty,
+  id: WORKBENCH_LAYOUT_AUXILIARY_BAR_TOGGLE_BUTTON_ID,
+  isActive: isVisible,
+  title: isVisible
+    ? localize("titlebar.auxiliaryBar.hide", "Hide Secondary Side Bar")
+    : localize("titlebar.auxiliaryBar.show", "Show Secondary Side Bar"),
+});
 
 class NavigateBackAction extends Action2 {
   public constructor() {

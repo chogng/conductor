@@ -155,12 +155,14 @@ suite("workbench/browser/titleService", () => {
       activePage: state?.activePage,
       canNavigateBack: state?.canNavigateBack,
       canNavigateForward: state?.canNavigateForward,
+      isAuxiliaryBarExpanded: state?.isAuxiliaryBarExpanded,
       isSidebarVisible: state?.isSidebarVisible,
       changeCount,
     }, {
       activePage: "chart",
       canNavigateBack: true,
       canNavigateForward: false,
+      isAuxiliaryBarExpanded: true,
       isSidebarVisible: true,
       changeCount: 2,
     });
@@ -183,6 +185,24 @@ suite("workbench/browser/titleService", () => {
 
     assert.equal(state?.isSidebarVisible, false);
     assert.equal(layoutService.isVisible(Parts.SIDEBAR_PART), false);
+
+    titleService.dispose();
+    layoutService.dispose();
+    storage.dispose();
+  });
+
+  test("reflects auxiliary bar expanded state without owning layout state", () => {
+    const storage = new TestStorageService();
+    const layoutService = new BrowserWorkbenchLayoutService(storage);
+    const titleService = new BrowserTitleService(testCommandService, layoutService, testNativeHostService);
+
+    titleService.updateTitlebarState({ enabled: true });
+    layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+
+    const state = titleService.getTitlebarState();
+
+    assert.equal(state?.isAuxiliaryBarExpanded, false);
+    assert.equal(layoutService.isVisible(Parts.AUXILIARYBAR_PART), false);
 
     titleService.dispose();
     layoutService.dispose();

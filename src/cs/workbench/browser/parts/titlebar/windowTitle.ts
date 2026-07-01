@@ -50,11 +50,22 @@ export type WorkbenchTitlebarUpdateAction = {
   readonly version?: string | null;
 };
 
-export type WorkbenchTitlebarProps = Omit<WorkbenchTitlebarState, "activePage"> & {
+export type ResolvedWorkbenchTitlebarState = WorkbenchTitlebarState & {
+  readonly activePage: WorkbenchTitlebarActivePage;
+  readonly isAuxiliaryBarExpanded: boolean;
+  readonly isSidebarVisible: boolean;
+};
+
+export type WorkbenchTitlebarProps = Omit<
+  WorkbenchTitlebarState,
+  "activePage" | "isAuxiliaryBarExpanded" | "isSidebarVisible"
+> & {
   readonly activePage: WorkbenchTitlebarActivePage;
   readonly chrome?: WorkbenchTitlebarChrome;
   readonly commandService?: ICommandService;
   readonly id?: string;
+  readonly isAuxiliaryBarExpanded: boolean;
+  readonly isSidebarVisible: boolean;
   readonly nativeHostService?: INativeHostService;
   readonly updateAction?: WorkbenchTitlebarUpdateAction;
 };
@@ -152,7 +163,10 @@ export class BrowserTitleService extends Disposable implements ITitleService {
       this.onDidChangeTitlebarStateEmitter.fire();
     }));
     this._register(this.layoutService.onDidChangePartVisibility(event => {
-      if (event.partId === Parts.SIDEBAR_PART) {
+      if (
+        event.partId === Parts.SIDEBAR_PART ||
+        event.partId === Parts.AUXILIARYBAR_PART
+      ) {
         this.onDidChangeTitlebarStateEmitter.fire();
       }
     }));
@@ -179,7 +193,7 @@ export class BrowserTitleService extends Disposable implements ITitleService {
     return disposables;
   }
 
-  public getTitlebarState(): WorkbenchTitlebarState | undefined {
+  public getTitlebarState(): ResolvedWorkbenchTitlebarState | undefined {
     const state = this.titlebarState;
     const navigation = this.layoutService.getWorkbenchNavigationState();
     const windowState = getWorkbenchWindowState();
@@ -198,6 +212,9 @@ export class BrowserTitleService extends Disposable implements ITitleService {
         navigation.historyIndex < navigation.historyLength - 1,
       chartIntentCommandId: state.chartIntentCommandId,
       installUpdateCommandId: state.installUpdateCommandId,
+      isAuxiliaryBarExpanded:
+        state.isAuxiliaryBarExpanded ??
+        this.layoutService.isVisible(Parts.AUXILIARYBAR_PART),
       isSidebarVisible:
         state.isSidebarVisible ??
         this.layoutService.isVisible(Parts.SIDEBAR_PART),
