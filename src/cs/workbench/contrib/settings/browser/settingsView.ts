@@ -55,9 +55,6 @@ import {
 } from "src/cs/workbench/contrib/settings/browser/settingsTree";
 import type { LanguagePreference } from "src/cs/base/common/platform";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
-import type {
-  Feedback,
-} from "src/cs/workbench/contrib/settings/common/feedback";
 import "src/cs/base/browser/ui/inputbox/inputBox.css";
 import "src/cs/workbench/contrib/settings/browser/media/settingsView.css";
 
@@ -71,18 +68,15 @@ type OriginSettingsSectionProps = {
   currentPath: string;
   cleanupEnabled: boolean;
   cleanupFailedRetentionDays: number;
-  cleanupFeedback?: Feedback;
   cleanupKeepSuccessJobs: number;
   cleanupRunning: boolean;
   cleanupSaving: boolean;
-  feedback: Feedback;
   isConfigurable: boolean;
   isHealthCheckAvailable: boolean;
   isCleanupAvailable: boolean;
   isHealthChecking: boolean;
   isLoading: boolean;
   plotCommand: string;
-  plotFeedback?: Feedback;
   plotPostCommandsText: string;
   plotSaving: boolean;
   plotType: number;
@@ -157,7 +151,6 @@ type AppearanceSettings = {
 };
 
 type FileNameMatchingSettings = {
-  feedback: Feedback;
   fieldSeparators: string;
   isSaving: boolean;
   onFieldSeparatorsChange: (value: string) => Promise<void> | void;
@@ -171,7 +164,6 @@ type ChartDefaultSettings = {
   defaultYScaleForTransfer: "linear" | "log";
   tickLabelFontSize: number | "";
   axisTitleFontSize: number | "";
-  feedback: Feedback;
   isSaving: boolean;
   onDefaultYScaleForCfChange: (value: string) => Promise<void> | void;
   onDefaultYScaleForCvChange: (value: string) => Promise<void> | void;
@@ -333,7 +325,6 @@ export type SettingsContentItemId =
   | "settings-default-cv-y-scale-card"
   | "settings-default-cf-y-scale-card"
   | "settings-default-pv-y-scale-card"
-  | "settings-chart-scale-feedback-card"
   | "settings-chart-defaults-card"
   | "settings-table-template-visualization-card"
   | "settings-filename-matching-card"
@@ -2303,12 +2294,6 @@ export class SettingsView {
               disabled: this.options.chartDefaultSettings.isSaving,
             })),
           }),
-          ...(settings.feedback.message ? [
-            this.createSettingsTreeElementItem({
-              id: "settings-chart-scale-feedback-card",
-              createElement: () => this.createChartScaleFeedback(settings.feedback),
-            }),
-          ] : []),
           this.createSettingsTreeElementItem({
             id: "settings-chart-defaults-card",
             createElement: () => this.createChartDefaults(settings),
@@ -2316,12 +2301,6 @@ export class SettingsView {
         ],
       },
     ];
-  }
-
-  private createChartScaleFeedback(feedback: Feedback): HTMLElement {
-    const feedbackCard = card("settings-chart-scale-feedback-card", "settings-card-block");
-    appendFeedback(feedbackCard, feedback);
-    return feedbackCard;
   }
 
   private createChartDefaults(settings: ChartDefaultSettings): HTMLElement {
@@ -2421,15 +2400,12 @@ export class SettingsView {
       },
       disabled: settings.isSaving,
     });
-    const feedback = text("p", "settings-feedback", "");
-    updateFeedbackElement(feedback, settings.feedback);
     body.append(
       label(separatorsLabel),
       div("settings-input settings-input--mono", separatorsInput.element),
       text("p", "settings-hint", hint),
     );
     container.appendChild(body);
-    container.appendChild(feedback);
     this.registerLocalContentPatch("settings-filename-matching-card", {
       element: container,
       getSearchText: () => normalizeSettingsSearchText(titleText, description, separatorsLabel, hint),
@@ -2441,7 +2417,6 @@ export class SettingsView {
           onChange: this.options.setFileNameFieldSeparatorsDraft,
           disabled: settings.isSaving,
         });
-        updateFeedbackElement(feedback, settings.feedback);
       },
     });
     return container;
@@ -2584,14 +2559,11 @@ export class SettingsView {
       postCommandsTextarea,
       text("p", "settings-hint", localize("settings.origin.plot.postCommandsHint", "One LabTalk command per line, executed after plotting.")),
     );
-    const feedback = text("p", "settings-feedback", "");
-    updateFeedbackElement(feedback, settings.plotFeedback);
     container.append(
       field(localize("settings.origin.plot.xyPairsLabel", "XY pairs"), xyPairsInput.element, localize("settings.origin.plot.xyPairsHint", "LabTalk expression, for example ((1,2)) or ((1,2),(3,4)).")),
       field(localize("settings.origin.plot.commandLabel", "Plot command override"), commandInput.element, localize("settings.origin.plot.commandHint", "Optional full LabTalk command. If set, it overrides plot type and XY pairs.")),
       field(localize("chart.legend.fontSize", "Legend size"), legendInput.element),
       postCommandsContainer,
-      feedback,
     );
     this.registerLocalContentPatch("settings-origin-plot-card", {
       element: container,
@@ -2632,7 +2604,6 @@ export class SettingsView {
           postCommandsTextarea.value = this.options.postCommandsDraft;
         }
         postCommandsTextarea.disabled = disabled;
-        updateFeedbackElement(feedback, settings.plotFeedback);
       },
     });
     return container;
@@ -3195,24 +3166,6 @@ function formatDomainPackSearchText(pack: BuiltinSemanticDomainPack): string {
     pack.intentPriors.join(" "),
     pack.patterns.join(" "),
   ].join(" ");
-}
-
-function appendFeedback(container: HTMLElement, feedback: { type: "idle" | "success" | "error"; message: string } | undefined): void {
-  if (!feedback?.message) {
-    return;
-  }
-
-  container.appendChild(text("p", feedback.type === "error" ? "settings-feedback settings-feedback--error" : "settings-feedback settings-feedback--success", feedback.message));
-}
-
-function updateFeedbackElement(element: HTMLElement, feedback: { type: "idle" | "success" | "error"; message: string } | undefined): void {
-  element.hidden = !feedback?.message;
-  element.className = feedback?.type === "error"
-    ? "settings-feedback settings-feedback--error"
-    : feedback?.type === "success"
-      ? "settings-feedback settings-feedback--success"
-      : "settings-feedback";
-  element.textContent = feedback?.message ?? "";
 }
 
 function updateElementSearchText(element: HTMLElement, searchText: string): void {

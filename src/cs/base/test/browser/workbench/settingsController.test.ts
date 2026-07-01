@@ -353,7 +353,6 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       submitSemanticTerm(container, builtinTerm.alias);
       await settled();
 
-      assert.equal(container.querySelector("#settings-template-semantic-feedback-card"), null);
       assert.equal(notifications.at(-1)?.message, "Match term already exists.");
       assert.equal(notifications.at(-1)?.presentation?.type, "error");
 
@@ -460,7 +459,6 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
         alias: "Custom Term",
         canonicalRole: "voltage",
         axisTendency: "x",
-        matchPolicy: "exact",
         enabled: true,
       }],
     });

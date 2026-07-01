@@ -12,11 +12,6 @@ type SettingsViewOptionOverrides = Partial<Omit<SettingsViewOptions, "appearance
   templateSettings?: Partial<SettingsViewOptions["templateSettings"]>;
 };
 
-const idleFeedback = {
-  message: "",
-  type: "idle" as const,
-};
-
 const noop = () => undefined;
 
 suite("workbench/contrib/settings/browser/settingsView", () => {
@@ -447,7 +442,6 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(semanticRows[3]!.classList.contains("settings-tree-item--last"), true);
       assert.equal(container.querySelector("#settings-template-semantic-custom-terms-card"), null);
       assert.equal(container.querySelector("#settings-template-semantic-term-input-card"), null);
-      assert.equal(container.querySelector("#settings-template-semantic-feedback-card"), null);
       assert.equal(semanticHeader.querySelector(".inputbox_widget"), null);
       assert.equal(widgets.length, 1);
       assert.equal(activeWidget.querySelectorAll(".inputbox_widget_item").length, 2);
@@ -566,7 +560,6 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(container.querySelector("#settings-template-semantic-term-input-card"), null);
       assert.equal(nextRecommendedContent, recommendedContent);
       assert.equal(getElement(container, "#settings-template-semantic-custom-form-card"), customFormCard);
-      assert.equal(container.querySelector("#settings-template-semantic-feedback-card"), null);
       assert.equal(nextActiveWidget.querySelectorAll(".inputbox_widget_item").length, 2);
       assert.equal(nextRecommendedTermsCard.querySelectorAll(".settings-template-term-suggestion").length, 0);
       assert.equal(settingsTreeUpdateCount, 0);
@@ -781,7 +774,6 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(getElement(container, "#settings-template-semantic-custom-form-card"), customFormCard);
       assert.equal(getButton(container, "settings-template-semantic-role-select"), roleSelect);
       assert.equal(customFormCard.querySelector("#settings-template-semantic-add-button"), null);
-      assert.equal(customFormCard.querySelector(".settings-template-feedback-slot"), null);
       assert.equal(roleSelect.disabled, true);
     }
     finally {
@@ -1090,7 +1082,6 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
       defaultYScaleForOutput: "linear",
       defaultYScaleForPv: "linear",
       defaultYScaleForTransfer: "log",
-      feedback: idleFeedback,
       isSaving: false,
       tickLabelFontSize: 18,
       onAxisTitleFontSizeChange: noop,
@@ -1106,7 +1097,6 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
     cleanupKeepSuccessOptions: [{ label: "0", value: "0" }],
     fileNameFieldSeparatorsDraft: "_",
     fileNameMatchingSettings: {
-      feedback: idleFeedback,
       fieldSeparators: "_",
       isSaving: false,
       onFieldSeparatorsChange: noop,
@@ -1127,12 +1117,10 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
     originSettings: {
       cleanupEnabled: false,
       cleanupFailedRetentionDays: 7,
-      cleanupFeedback: idleFeedback,
       cleanupKeepSuccessJobs: 0,
       cleanupRunning: false,
       cleanupSaving: false,
       currentPath: "",
-      feedback: idleFeedback,
       isCleanupAvailable: false,
       isConfigurable: false,
       isHealthCheckAvailable: false,
@@ -1140,7 +1128,6 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
       isLoading: false,
       isSaving: false,
       plotCommand: "",
-      plotFeedback: idleFeedback,
       plotLegendFontSize: "",
       plotLineWidth: 2,
       plotPostCommandsText: "",

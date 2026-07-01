@@ -700,21 +700,6 @@
   font-weight: 500;
 }
 
-.settings-feedback {
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-}
-
-.settings-feedback--error {
-  --tw-text-opacity: 1;
-  color: rgb(239 68 68 / var(--tw-text-opacity, 1));
-}
-
-.settings-feedback--success {
-  --tw-text-opacity: 1;
-  color: rgb(5 150 105 / var(--tw-text-opacity, 1));
-}
-
 .settings-button {
   height: 34px;
   white-space: nowrap;

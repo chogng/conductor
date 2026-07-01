@@ -9,11 +9,6 @@ import {
 import { normalizePlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
 import { normalizeFileNameFieldSeparators } from "src/cs/workbench/services/settings/common/fileNameMatching";
 import {
-  IDLE_FEEDBACK,
-  type Feedback,
-  type NotificationFeedbackState,
-} from "src/cs/workbench/contrib/settings/common/feedback";
-import {
   SettingsNavigationView,
   SettingsView,
   type SettingsContentDescriptorId,
@@ -72,7 +67,6 @@ import {
 } from "src/cs/workbench/services/themes/common/themeService";
 import {
   Severity,
-  type INotificationHandle,
   type INotificationService,
 } from "src/cs/workbench/services/notification/common/notificationService";
 
@@ -85,7 +79,6 @@ const chartDefaultsItemIds = [
   "settings-default-cv-y-scale-card",
   "settings-default-cf-y-scale-card",
   "settings-default-pv-y-scale-card",
-  "settings-chart-scale-feedback-card",
   "settings-chart-defaults-card",
 ] as const satisfies readonly SettingsContentItemId[];
 const originAllItemIds = [
@@ -123,10 +116,8 @@ type SettingsDraftState = {
   activeSettingsSection: SettingsSectionId;
   appUpdateChecking: boolean;
   axisTitleFontSizeDraft: string;
-  cleanupNotification: NotificationFeedbackState;
   fileNameFieldSeparatorsDraft: string;
   originLegendFontSizeDraft: string;
-  originHealthNotification: NotificationFeedbackState;
   plotCommandDraft: string;
   postCommandsDraft: string;
   searchQuery: string;
@@ -141,7 +132,7 @@ type SettingsDraftState = {
   xyPairsDraft: string;
 };
 
-const ORIGIN_HEALTH_NOTIFICATION_ID = "settings.originHealth";
+const ORIGIN_NOTIFICATION_ID = "settings.origin";
 const CLEANUP_NOTIFICATION_ID = "settings.cleanup";
 const TEMPLATE_SETTINGS_NOTIFICATION_ID = "settings.templateSettings";
 
@@ -157,18 +148,13 @@ export class SettingsController {
   private originPathLoading = true;
   private originPathSaving = false;
   private originHealthChecking = false;
-  private originPathFeedback: Feedback = IDLE_FEEDBACK;
   private originCleanupSaving = false;
   private originCleanupRunning = false;
-  private originCleanupFeedback: Feedback = IDLE_FEEDBACK;
   private originPlotSaving = false;
-  private originPlotFeedback: Feedback = IDLE_FEEDBACK;
   private fileNameMatchingSaving = false;
-  private fileNameMatchingFeedback: Feedback = IDLE_FEEDBACK;
   private templateSettingsSaving = false;
   private pendingTemplateActionItemId: string | null = null;
   private defaultsSaving = false;
-  private defaultsFeedback: Feedback = IDLE_FEEDBACK;
   private appearanceSaving = false;
   private explorerBadgeSaving = false;
   private explorerBadgeColorSaving = false;
@@ -182,10 +168,6 @@ export class SettingsController {
   private numericDisplaySaving = false;
   private tableTemplateVisualizationSaving = false;
   private windowCloseSaving = false;
-  private cleanupNotificationSignature: string | null = null;
-  private originHealthNotificationSignature: string | null = null;
-  private cleanupNotification: INotificationHandle | null = null;
-  private originHealthNotification: INotificationHandle | null = null;
   private drafts: SettingsDraftState;
   private options: SettingsControllerOptions;
 
@@ -238,15 +220,12 @@ export class SettingsController {
     const previous = this.options;
     this.options = options;
     this.syncDrafts(previous);
-    this.syncOriginFeedback();
     this.syncOriginPath();
     this.render(getSettingsViewUpdateTarget(previous, options));
   }
 
   dispose(): void {
     this.disposed = true;
-    this.originHealthNotification?.close();
-    this.cleanupNotification?.close();
     this.contentAttachment?.dispose();
     this.navigationAttachment?.dispose();
     this.contentAttachment = null;
@@ -261,10 +240,8 @@ export class SettingsController {
       activeSettingsSection: "general",
       appUpdateChecking: false,
       axisTitleFontSizeDraft: String(axisSettings.axisTitleFontSize ?? ""),
-      cleanupNotification: { isVisible: false, message: "", type: "success" },
       fileNameFieldSeparatorsDraft: this.fileNameFieldSeparators,
       originLegendFontSizeDraft: String(this.originPlotConfig.legendFontSize ?? ""),
-      originHealthNotification: { isVisible: false, message: "", type: "success" },
       plotCommandDraft: this.originPlotConfig.command ?? "",
       postCommandsDraft: originPostCommandsToMultiline(this.originPlotConfig.postCommands),
       searchQuery: "",
@@ -293,24 +270,6 @@ export class SettingsController {
     this.drafts.plotCommandDraft = this.originPlotConfig.command ?? "";
     this.drafts.postCommandsDraft = originPostCommandsToMultiline(this.originPlotConfig.postCommands);
     this.drafts.xyPairsDraft = this.originPlotConfig.xyPairs ?? "";
-  }
-
-  private syncOriginFeedback(): void {
-    this.showNotificationFromFeedback(this.options.conductorSettings ? this.originPathFeedback : IDLE_FEEDBACK, "originHealthNotification");
-    this.showNotificationFromFeedback(this.originCleanupFeedback, "cleanupNotification");
-  }
-
-  private showNotificationFromFeedback(feedback: Feedback, key: "originHealthNotification" | "cleanupNotification"): void {
-    if (!feedback.message || feedback.type === "idle") {
-      this.drafts[key] = { ...this.drafts[key], isVisible: false };
-      return;
-    }
-
-    this.drafts[key] = {
-      isVisible: true,
-      message: feedback.message,
-      type: feedback.type === "error" ? "error" : "success",
-    };
   }
 
   private syncOriginPath(): void {
@@ -371,99 +330,22 @@ export class SettingsController {
     if (this.disposed) {
       return;
     }
-    this.updateNotifications();
     const options = this.createViewOptions();
     this.contentView?.update(options, target);
     this.navigationView?.update(options);
   }
 
-  private updateNotifications(): void {
-    this.updateNotification(ORIGIN_HEALTH_NOTIFICATION_ID, this.drafts.originHealthNotification, "settings-origin-health-notification", () => this.closeOriginHealthNotification());
-    this.updateNotification(CLEANUP_NOTIFICATION_ID, this.drafts.cleanupNotification, "settings-origin-cleanup-notification", () => this.closeCleanupNotification());
-  }
-
-  private updateNotification(id: string, state: NotificationFeedbackState, dataUi: string, onClose: () => void): void {
-    const currentNotification = id === ORIGIN_HEALTH_NOTIFICATION_ID
-      ? this.originHealthNotification
-      : this.cleanupNotification;
-
-    if (!state.isVisible) {
-      this.setNotificationHandle(id, null);
-      this.setNotificationSignature(id, null);
-      currentNotification?.close();
-      return;
-    }
-
-    const nextSignature = `${state.message}\u0000${state.type}\u0000${dataUi}`;
-    if (currentNotification && this.getNotificationSignature(id) === nextSignature) {
-      return;
-    }
-
-    if (currentNotification) {
-      this.setNotificationHandle(id, null);
-      this.setNotificationSignature(id, null);
-      currentNotification.close();
-    }
-
-    const notification = this.notificationService.notify({
+  private showSettingsNotification(id: string, message: string, type: "success" | "error", dataUi: string): void {
+    this.notificationService.notify({
       id,
-      message: state.message,
+      message,
       presentation: {
         dataUi,
         position: "fixed",
-        type: state.type,
+        type,
       },
-      severity: state.type === "error" ? Severity.Error : Severity.Info,
+      severity: type === "error" ? Severity.Error : Severity.Info,
     });
-    this.setNotificationHandle(id, notification);
-    this.setNotificationSignature(id, nextSignature);
-    notification.onDidClose(() => {
-      if (this.getNotificationHandle(id) === notification) {
-        this.setNotificationHandle(id, null);
-        this.setNotificationSignature(id, null);
-        onClose();
-      }
-    });
-  }
-
-  private getNotificationHandle(id: string): INotificationHandle | null {
-    return id === ORIGIN_HEALTH_NOTIFICATION_ID
-      ? this.originHealthNotification
-      : this.cleanupNotification;
-  }
-
-  private setNotificationHandle(id: string, notification: INotificationHandle | null): void {
-    if (id === ORIGIN_HEALTH_NOTIFICATION_ID) {
-      this.originHealthNotification = notification;
-      return;
-    }
-    this.cleanupNotification = notification;
-  }
-
-  private getNotificationSignature(id: string): string | null {
-    return id === ORIGIN_HEALTH_NOTIFICATION_ID
-      ? this.originHealthNotificationSignature
-      : this.cleanupNotificationSignature;
-  }
-
-  private setNotificationSignature(id: string, signature: string | null): void {
-    if (id === ORIGIN_HEALTH_NOTIFICATION_ID) {
-      this.originHealthNotificationSignature = signature;
-      return;
-    }
-    this.cleanupNotificationSignature = signature;
-  }
-
-  private closeCleanupNotification(): void {
-    this.originCleanupFeedback = IDLE_FEEDBACK;
-    this.drafts.cleanupNotification = { ...this.drafts.cleanupNotification, isVisible: false };
-    this.render(itemsUpdateTarget("origin-integration", "settings-origin-cleanup-card"));
-  }
-
-  private closeOriginHealthNotification(): void {
-    this.originPathFeedback = IDLE_FEEDBACK;
-    this.drafts.originHealthNotification = { ...this.drafts.originHealthNotification, isVisible: false };
-    this.render(itemsUpdateTarget("origin-integration", "settings-origin-path-card"));
   }
 
   private createViewOptions(): SettingsViewOptions {
@@ -636,7 +518,6 @@ export class SettingsController {
 
   private get fileNameMatchingSettings(): SettingsViewOptions["fileNameMatchingSettings"] {
     return {
-      feedback: this.fileNameMatchingFeedback,
       fieldSeparators: this.fileNameFieldSeparators,
       isSaving: this.fileNameMatchingSaving,
       onFieldSeparatorsChange: value => this.setFileNameFieldSeparators(value),
@@ -653,7 +534,6 @@ export class SettingsController {
       defaultYScaleForTransfer: this.defaultYScaleForTransfer,
       tickLabelFontSize: axisSettings.tickLabelFontSize,
       axisTitleFontSize: axisSettings.axisTitleFontSize,
-      feedback: this.defaultsFeedback,
       isSaving: this.defaultsSaving,
       onDefaultYScaleForCfChange: value => this.updateDefault({ defaultYScaleForCf: value === "log" ? "log" : "linear" }),
       onDefaultYScaleForCvChange: value => this.updateDefault({ defaultYScaleForCv: value === "log" ? "log" : "linear" }),
@@ -763,18 +643,15 @@ export class SettingsController {
       currentPath: String(this.originExePath ?? ""),
       cleanupEnabled: cleanupConfig.enabled,
       cleanupFailedRetentionDays: cleanupConfig.failedRetentionDays,
-      cleanupFeedback: this.originCleanupFeedback,
       cleanupKeepSuccessJobs: cleanupConfig.keepSuccessJobs,
       cleanupRunning: this.originCleanupRunning,
       cleanupSaving: this.originCleanupSaving,
-      feedback: this.originPathFeedback,
       isConfigurable: this.service.canManageOrigin(),
       isHealthCheckAvailable: this.service.canCheckOriginHealth(),
       isCleanupAvailable: this.service.canRunOriginCleanup(),
       isHealthChecking: this.originHealthChecking,
       isLoading: this.originPathLoading,
       plotCommand: originPlotConfig.command,
-      plotFeedback: this.originPlotFeedback,
       plotPostCommandsText: originPostCommandsToMultiline(originPlotConfig.postCommands),
       plotSaving: this.originPlotSaving,
       plotType: originPlotConfig.type,
@@ -960,30 +837,31 @@ export class SettingsController {
     }
 
     this.originPathSaving = true;
-    this.originPathFeedback = IDLE_FEEDBACK;
-    this.syncOriginFeedback();
     this.render(itemsUpdateTarget("origin-integration", "settings-origin-path-card"));
     try {
       const nextPath = await this.service.chooseOriginExePath();
       if (nextPath) {
         this.originExePath = nextPath;
-        this.originPathFeedback = {
-          type: "success",
-          message: localize("settings.origin.chooseSaved", "Origin executable path updated."),
-        };
+        this.showSettingsNotification(
+          ORIGIN_NOTIFICATION_ID,
+          localize("settings.origin.chooseSaved", "Origin executable path updated."),
+          "success",
+          "settings-origin-notification",
+        );
       }
     }
     catch (error) {
-      this.originPathFeedback = {
-        type: "error",
-        message: localize("settings.origin.chooseFailed", "Failed to update Origin executable path: {error}", {
+      this.showSettingsNotification(
+        ORIGIN_NOTIFICATION_ID,
+        localize("settings.origin.chooseFailed", "Failed to update Origin executable path: {error}", {
           error: this.service.errorMessage(error),
         }),
-      };
+        "error",
+        "settings-origin-notification",
+      );
     }
     finally {
       this.originPathSaving = false;
-      this.syncOriginFeedback();
       this.render(itemsUpdateTarget("origin-integration", "settings-origin-path-card"));
     }
   }
@@ -994,8 +872,6 @@ export class SettingsController {
     }
 
     this.originHealthChecking = true;
-    this.originPathFeedback = IDLE_FEEDBACK;
-    this.syncOriginFeedback();
     this.render(itemsUpdateTarget("origin-integration", "settings-origin-path-card"));
     try {
       const health = await this.service.checkOriginHealth(this.originExePath);
@@ -1003,46 +879,44 @@ export class SettingsController {
       if (nextPath) {
         this.originExePath = nextPath;
       }
-      this.originPathFeedback = {
-        type: "success",
-        message: localize("settings.origin.checkSuccess", "Origin connection check passed"),
-      };
+      this.showSettingsNotification(
+        ORIGIN_NOTIFICATION_ID,
+        localize("settings.origin.checkSuccess", "Origin connection check passed"),
+        "success",
+        "settings-origin-health-notification",
+      );
     }
     catch (error) {
       const detail = this.service.formatOriginError(error);
-      this.originPathFeedback = {
-        type: "error",
-        message: localize("settings.origin.checkFailed", "Origin connection check failed: {error}", { error: detail }),
-      };
+      this.showSettingsNotification(
+        ORIGIN_NOTIFICATION_ID,
+        localize("settings.origin.checkFailed", "Origin connection check failed: {error}", { error: detail }),
+        "error",
+        "settings-origin-health-notification",
+      );
     }
     finally {
       this.originHealthChecking = false;
-      this.syncOriginFeedback();
       this.render(itemsUpdateTarget("origin-integration", "settings-origin-path-card"));
     }
   }
 
   private async updateOriginCleanup(updates: Record<string, unknown>): Promise<void> {
     this.originCleanupSaving = true;
-    this.originCleanupFeedback = IDLE_FEEDBACK;
-    this.syncOriginFeedback();
     this.render(itemsUpdateTarget("origin-integration", "settings-origin-cleanup-card"));
     try {
       await this.service.updateSettings(updates);
-      this.originCleanupFeedback = {
-        type: "success",
-        message: localize("settings.origin.cleanup.saved", "Origin cleanup settings updated."),
-      };
     }
     catch (error) {
-      this.originCleanupFeedback = {
-        type: "error",
-        message: localize("settings.origin.cleanup.saveFailed", "Failed to update cleanup settings: {error}", { error: this.service.errorMessage(error) }),
-      };
+      this.showSettingsNotification(
+        CLEANUP_NOTIFICATION_ID,
+        localize("settings.origin.cleanup.saveFailed", "Failed to update cleanup settings: {error}", { error: this.service.errorMessage(error) }),
+        "error",
+        "settings-origin-cleanup-notification",
+      );
     }
     finally {
       this.originCleanupSaving = false;
-      this.syncOriginFeedback();
       this.render(itemsUpdateTarget("origin-integration", "settings-origin-cleanup-card"));
     }
   }
@@ -1129,20 +1003,17 @@ export class SettingsController {
 
   private async updateOriginPlot(updates: Partial<OriginPlotOptions>): Promise<void> {
     this.originPlotSaving = true;
-    this.originPlotFeedback = IDLE_FEEDBACK;
     this.render(itemsUpdateTarget("origin-integration", "settings-origin-plot-card"));
     try {
       await this.service.updateOriginPlotOptions(updates);
-      this.originPlotFeedback = {
-        type: "success",
-        message: localize("settings.origin.plot.saved", "Origin plot settings updated."),
-      };
     }
     catch (error) {
-      this.originPlotFeedback = {
-        type: "error",
-        message: localize("settings.origin.plot.saveFailed", "Failed to update plot settings: {error}", { error: this.service.errorMessage(error) }),
-      };
+      this.showSettingsNotification(
+        "settings.originPlot",
+        localize("settings.origin.plot.saveFailed", "Failed to update plot settings: {error}", { error: this.service.errorMessage(error) }),
+        "error",
+        "settings-origin-plot-notification",
+      );
     }
     finally {
       this.originPlotSaving = false;
@@ -1152,48 +1023,46 @@ export class SettingsController {
 
   private async runOriginCleanup(): Promise<void> {
     this.originCleanupRunning = true;
-    this.originCleanupFeedback = IDLE_FEEDBACK;
-    this.syncOriginFeedback();
     this.render(itemsUpdateTarget("origin-integration", "settings-origin-cleanup-card"));
     try {
       const result = await this.service.runOriginCleanup();
       const removedTotal = Number(result?.removedTotal);
-      this.originCleanupFeedback = {
-        type: "success",
-        message: localize("settings.origin.cleanup.runSuccess", "Cleanup completed. Removed {count} job folder(s).", {
+      this.showSettingsNotification(
+        CLEANUP_NOTIFICATION_ID,
+        localize("settings.origin.cleanup.runSuccess", "Cleanup completed. Removed {count} job folder(s).", {
           count: Number.isFinite(removedTotal) && removedTotal >= 0 ? removedTotal : 0,
         }),
-      };
+        "success",
+        "settings-origin-cleanup-notification",
+      );
     }
     catch (error) {
-      this.originCleanupFeedback = {
-        type: "error",
-        message: localize("settings.origin.cleanup.runFailed", "Cleanup failed: {error}", { error: this.service.errorMessage(error) }),
-      };
+      this.showSettingsNotification(
+        CLEANUP_NOTIFICATION_ID,
+        localize("settings.origin.cleanup.runFailed", "Cleanup failed: {error}", { error: this.service.errorMessage(error) }),
+        "error",
+        "settings-origin-cleanup-notification",
+      );
     }
     finally {
       this.originCleanupRunning = false;
-      this.syncOriginFeedback();
       this.render(itemsUpdateTarget("origin-integration", "settings-origin-cleanup-card"));
     }
   }
 
   private async setFileNameFieldSeparators(value: string): Promise<void> {
     this.fileNameMatchingSaving = true;
-    this.fileNameMatchingFeedback = IDLE_FEEDBACK;
     this.render(itemsUpdateTarget("template-matching", "settings-filename-matching-card"));
     try {
       await this.service.updateSettings({ fileNameFieldSeparators: normalizeFileNameFieldSeparators(value) });
-      this.fileNameMatchingFeedback = {
-        type: "success",
-        message: localize("settings.filenameMatching.saved", "Filename field separators updated."),
-      };
     }
     catch (error) {
-      this.fileNameMatchingFeedback = {
-        type: "error",
-        message: localize("settings.filenameMatching.saveFailed", "Failed to update filename field separators: {error}", { error: this.service.errorMessage(error) }),
-      };
+      this.showSettingsNotification(
+        "settings.fileNameMatching",
+        localize("settings.filenameMatching.saveFailed", "Failed to update filename field separators: {error}", { error: this.service.errorMessage(error) }),
+        "error",
+        "settings-filename-matching-notification",
+      );
     }
     finally {
       this.fileNameMatchingSaving = false;
@@ -1380,16 +1249,7 @@ export class SettingsController {
   }
 
   private showTemplateSettingsNotification(message: string, type: "success" | "error"): void {
-    this.notificationService.notify({
-      id: TEMPLATE_SETTINGS_NOTIFICATION_ID,
-      message,
-      presentation: {
-        dataUi: "settings-template-notification",
-        position: "fixed",
-        type,
-      },
-      severity: type === "error" ? Severity.Error : Severity.Info,
-    });
+    this.showSettingsNotification(TEMPLATE_SETTINGS_NOTIFICATION_ID, message, type, "settings-template-notification");
   }
 
   private async updateDefault(updates: Record<string, unknown>): Promise<void> {
@@ -1398,22 +1258,19 @@ export class SettingsController {
 
   private async saveDefaults(operation: () => Promise<unknown>): Promise<void> {
     this.defaultsSaving = true;
-    this.defaultsFeedback = IDLE_FEEDBACK;
     this.render(itemsUpdateTarget("chart-defaults", ...chartDefaultsItemIds));
     try {
       await operation();
-      this.defaultsFeedback = {
-        type: "success",
-        message: localize("conductorSettings.defaultsSaved", "Chart defaults saved."),
-      };
     }
     catch (error) {
-      this.defaultsFeedback = {
-        type: "error",
-        message: localize("conductorSettings.defaultsSaveFailed", "Failed to save chart defaults: {error}", {
+      this.showSettingsNotification(
+        "settings.chartDefaults",
+        localize("conductorSettings.defaultsSaveFailed", "Failed to save chart defaults: {error}", {
           error: this.service.errorMessage(error),
         }),
-      };
+        "error",
+        "settings-chart-defaults-notification",
+      );
     }
     finally {
       this.defaultsSaving = false;
