@@ -78,9 +78,7 @@ import {
 import { getWorkbenchWindowState } from "src/cs/workbench/browser/parts/titlebar/windowTitle";
 import {
   AuxiliaryBarViews,
-  type AuxiliaryBarMode,
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions";
-import { AuxiliaryBarModel } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarModel";
 import type { WorkbenchStyle } from "src/cs/workbench/browser/style";
 import {
   WorkbenchWindow,
@@ -533,7 +531,6 @@ export class Workbench extends Layout {
   private titleService!: ITitleService;
   private exportService!: IExportService;
   private domainBridge: WorkbenchDomainBridge | null = null;
-  private readonly auxiliaryBarModel = new AuxiliaryBarModel();
   private cancelScheduledAuxiliarySurfacesRefresh: (() => void) | null = null;
   private readonly scheduledAuxiliarySurfacesRefreshReasons = new Set<WorkbenchAuxiliaryRefreshReason>();
   private scheduledAuxiliarySurfacesRefreshNeedsChrome = false;
@@ -653,7 +650,7 @@ export class Workbench extends Layout {
       });
 
       measureWorkbenchBoot("workbench:service-layer:install:contextkeys", () => {
-        this._register(new WorkbenchContextKeysHandler(this.contextKeyService));
+        this._register(new WorkbenchContextKeysHandler(this.contextKeyService, this.layoutService));
         this.activeWorkbenchViewContext = ActiveWorkbenchViewContext.bindTo(this.contextKeyService);
         this.activeWorkbenchMainPartContext = ActiveWorkbenchMainPartContext.bindTo(this.contextKeyService);
         this.activeAuxiliaryBarViewContext = ActiveAuxiliaryBarViewContext.bindTo(this.contextKeyService);
@@ -794,7 +791,7 @@ export class Workbench extends Layout {
     this.scheduledAuxiliarySurfacesRefreshReasons.clear();
     this.scheduledAuxiliarySurfacesRefreshNeedsChrome = false;
     const endPerf = startPerf("workbench.refreshWorkbench", {
-      activeAuxiliaryBarView: this.auxiliaryBarModel.getActiveView(this.getActiveAuxiliaryBarMode()),
+      activeAuxiliaryBarView: this.getActiveAuxiliaryBarView(this.activeWorkbenchMainPart),
       activeView: this.activeView,
       mode: this.activeWorkbenchMainPart,
       reason,
@@ -868,7 +865,7 @@ export class Workbench extends Layout {
       ? "workbench.refreshSelectionSurfaces"
       : "workbench.refreshAuxiliarySurfaces";
     const endPerf = startPerf(stage, {
-      activeAuxiliaryBarView: this.auxiliaryBarModel.getActiveView(this.getActiveAuxiliaryBarMode()),
+      activeAuxiliaryBarView: this.getActiveAuxiliaryBarView(this.activeWorkbenchMainPart),
       activeView: this.activeView,
       mode: this.activeWorkbenchMainPart,
       reason: reasons[0] ?? "unknown",
@@ -905,7 +902,7 @@ export class Workbench extends Layout {
   }
 
   private shouldRefreshActiveAuxiliaryViewFromWorkbenchState(): boolean {
-    switch (this.auxiliaryBarModel.getActiveView(this.getActiveAuxiliaryBarMode())) {
+    switch (this.getActiveAuxiliaryBarView(this.activeWorkbenchMainPart)) {
       case "search":
       case "template":
       case "settings":
@@ -918,7 +915,7 @@ export class Workbench extends Layout {
   }
 
   private shouldRefreshAuxiliarySurfacesForSessionChange(event: SessionChangeEvent): boolean {
-    const activeAuxiliaryView = this.auxiliaryBarModel.getActiveView(this.getActiveAuxiliaryBarMode());
+    const activeAuxiliaryView = this.getActiveAuxiliaryBarView(this.activeWorkbenchMainPart);
     switch (activeAuxiliaryView) {
       case "export":
         return this.shouldRefreshExportSurfacesForSessionChange(event);
@@ -1100,7 +1097,7 @@ export class Workbench extends Layout {
   private updateContextKeys(): void {
     this.updateWorkbenchModeContextKeys();
     this.activeAuxiliaryBarViewContext?.set(
-      this.auxiliaryBarModel.getActiveView(this.getActiveAuxiliaryBarMode()),
+      this.getActiveAuxiliaryBarView(this.activeWorkbenchMainPart),
     );
   }
 
@@ -1154,13 +1151,13 @@ export class Workbench extends Layout {
       return;
     }
 
-    const state = this.auxiliaryBarModel.update({
+    const state = this.updateAuxiliaryBarPartState({
       activeView: this.layoutService.activeAuxiliaryBarView,
       contextKeyService: this.contextKeyService,
       menuService: this.menuService,
-      mode: this.getActiveAuxiliaryBarMode(),
       templateMode: this.templateViewStateService.getState().mode,
       visible,
+      workbenchMainPart: this.activeWorkbenchMainPart,
     });
     this.updateAuxiliaryBarPaneContainer({
       actions: state.actions,
@@ -1178,7 +1175,7 @@ export class Workbench extends Layout {
       return;
     }
 
-    switch (this.auxiliaryBarModel.getActiveView(this.getActiveAuxiliaryBarMode())) {
+    switch (this.getActiveAuxiliaryBarView(this.activeWorkbenchMainPart)) {
       case "template":
         break;
       case "parameters":
@@ -1209,7 +1206,7 @@ export class Workbench extends Layout {
   }
 
   private getActiveAuxiliaryBarElement(): HTMLElement | null {
-    const viewId = this.auxiliaryBarModel.getActiveViewId(this.getActiveAuxiliaryBarMode());
+    const viewId = this.getActiveAuxiliaryBarViewId(this.activeWorkbenchMainPart);
     return viewId ? this.viewsService.getViewWithId(viewId)?.element ?? null : null;
   }
 
@@ -1236,10 +1233,6 @@ export class Workbench extends Layout {
   private isAuxiliaryBarVisibleForActiveMode(): boolean {
     return this.activeWorkbenchMainPart !== "settings" &&
       this.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
-  }
-
-  private getActiveAuxiliaryBarMode(): AuxiliaryBarMode {
-    return this.activeWorkbenchMainPart === "chart" ? "chart" : "table";
   }
 
   private layoutVisibleViewContainers(): void {

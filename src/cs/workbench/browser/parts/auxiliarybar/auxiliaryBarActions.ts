@@ -1,15 +1,24 @@
 import { toAction, type IAction } from "src/cs/base/common/actions";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
+import { Categories } from "src/cs/platform/action/common/actionCommonCategories";
 import {
+  Action2,
   cleanGroupedActions,
   MenuId,
   MenuRegistry,
+  registerAction2,
   type IMenuService,
 } from "src/cs/platform/actions/common/actions";
 import type { IContextKeyService } from "src/cs/platform/contextkey/common/contextkey";
+import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import { ActiveWorkbenchMainPartContext } from "src/cs/workbench/browser/contextkeys";
-import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
+import { AuxiliaryBarVisibleContext } from "src/cs/workbench/common/contextkeys";
+import {
+  IWorkbenchLayoutService,
+  Parts,
+  type WorkbenchMainPart,
+} from "src/cs/workbench/services/layout/browser/layoutService";
 import {
   ExportCommandId,
   ExportViewId,
@@ -32,14 +41,15 @@ import {
 import type { TemplateMode } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
 
 export type AuxiliaryBarView = "template" | "search" | "export" | "parameters" | "settings";
-export type AuxiliaryBarMode = Exclude<WorkbenchMainPart, "settings">;
 export type TemplateAuxiliaryBarMode = TemplateMode;
+
+const CloseAuxiliaryBarCommandId = "workbench.action.closeAuxiliaryBar";
 
 export type AuxiliaryBarViewDescriptor = {
   readonly id: AuxiliaryBarView;
   readonly commandId?: string;
   readonly icon?: LxIconDefinition;
-  readonly mode: AuxiliaryBarMode;
+  readonly workbenchMainPart: WorkbenchMainPart;
   readonly order: number;
   readonly viewId: string;
   readonly labelKey: string;
@@ -55,7 +65,7 @@ export type AuxiliaryBarViewSwitchAction = IAction & {
 export const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
   {
     id: "template",
-    mode: "table",
+    workbenchMainPart: "table",
     order: 0,
     viewId: TemplateViewId,
     labelKey: "template.management.title",
@@ -65,7 +75,7 @@ export const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
     id: "search",
     commandId: SearchCommandId.showSearch,
     icon: LxIcon.search,
-    mode: "chart",
+    workbenchMainPart: "chart",
     order: 0,
     viewId: SearchViewId,
     labelKey: "chart.views.search",
@@ -75,7 +85,7 @@ export const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
     id: "export",
     commandId: ExportCommandId.showExport,
     icon: LxIcon.origin,
-    mode: "chart",
+    workbenchMainPart: "chart",
     order: 10,
     viewId: ExportViewId,
     labelKey: "chart.views.export",
@@ -85,7 +95,7 @@ export const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
     id: "parameters",
     commandId: ParametersCommandId.showParameters,
     icon: LxIcon.parameters,
-    mode: "chart",
+    workbenchMainPart: "chart",
     order: 20,
     viewId: ParametersViewId,
     labelKey: "chart.views.parameters",
@@ -95,7 +105,7 @@ export const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
     id: "settings",
     commandId: OriginCommandId.showExportSettings,
     icon: LxIcon.settings,
-    mode: "chart",
+    workbenchMainPart: "chart",
     order: 30,
     viewId: OriginExportSettingsViewId,
     labelKey: "origin.curveSettings.title",
@@ -104,20 +114,27 @@ export const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
 ];
 
 export const getAuxiliaryBarViews = (
-  mode: AuxiliaryBarMode,
+  workbenchMainPart: WorkbenchMainPart,
 ): readonly AuxiliaryBarViewDescriptor[] =>
-  AuxiliaryBarViews.filter((view) => view.mode === mode);
+  AuxiliaryBarViews.filter((view) => view.workbenchMainPart === workbenchMainPart);
 
 export const getDefaultAuxiliaryBarView = (
-  mode: AuxiliaryBarMode,
-): AuxiliaryBarView =>
-  mode === "chart" ? "export" : "template";
+  workbenchMainPart: WorkbenchMainPart,
+): AuxiliaryBarView | null => {
+  if (workbenchMainPart === "chart") {
+    return "export";
+  }
+  if (workbenchMainPart === "table") {
+    return "template";
+  }
+  return null;
+};
 
-export const getAuxiliaryBarTitleForMode = (
-  mode: AuxiliaryBarMode,
+export const getAuxiliaryBarTitleForWorkbenchMainPart = (
+  workbenchMainPart: WorkbenchMainPart,
   templateMode: TemplateAuxiliaryBarMode,
 ): string => {
-  if (mode === "chart") {
+  if (workbenchMainPart === "chart") {
     return localize("auxiliarybar.chart.title", "Chart");
   }
 
@@ -126,61 +143,65 @@ export const getAuxiliaryBarTitleForMode = (
     : localize("template.management.title", "Template Management");
 };
 
-export const getAuxiliaryBarTitle = (mode: AuxiliaryBarMode): string =>
-  getAuxiliaryBarTitleForMode(mode, "management");
-
 export const resolveAuxiliaryBarView = (
   view: AuxiliaryBarView,
-  mode: AuxiliaryBarMode,
-): AuxiliaryBarView =>
-  getAuxiliaryBarViews(mode).some((candidate) => candidate.id === view)
+  workbenchMainPart: WorkbenchMainPart,
+): AuxiliaryBarView | null =>
+  getAuxiliaryBarViews(workbenchMainPart).some((candidate) => candidate.id === view)
     ? view
-    : getDefaultAuxiliaryBarView(mode);
+    : getDefaultAuxiliaryBarView(workbenchMainPart);
 
 export const createAuxiliaryBarActions = ({
   activeView,
   contextKeyService,
   menuService,
-  mode,
+  workbenchMainPart,
 }: {
   readonly activeView: AuxiliaryBarView;
   readonly contextKeyService: IContextKeyService;
   readonly menuService: IMenuService;
-  readonly mode: AuxiliaryBarMode;
+  readonly workbenchMainPart: WorkbenchMainPart;
 }): IAction[] => {
   const viewsByCommandId = new Map(
-    getAuxiliaryBarViews(mode)
+    getAuxiliaryBarViews(workbenchMainPart)
       .filter((view): view is AuxiliaryBarViewDescriptor & {
         readonly commandId: string;
         readonly icon: LxIconDefinition;
       } => !!view.commandId && !!view.icon)
       .map((view) => [view.commandId, view]),
   );
-  if (!viewsByCommandId.size) {
-    return [];
-  }
-
   return cleanGroupedActions(
     menuService.getMenuActions(MenuId.AuxiliaryBarTitle, contextKeyService),
-  ).flatMap((menuAction) => {
+  ).flatMap((menuAction): IAction[] => {
     const view = viewsByCommandId.get(menuAction.id);
-    if (!view) {
+    if (view) {
+      const label = localize(view.labelKey, view.label);
+      const action = toAction({
+        id: menuAction.id,
+        label,
+        tooltip: label,
+        class: AuxiliaryBarViewSwitchActionClass,
+        enabled: menuAction.enabled,
+        checked: activeView === view.id,
+        icon: view.icon,
+        run: (...args) => menuAction.run(...args),
+      });
+
+      return [{ ...action, icon: view.icon } satisfies AuxiliaryBarViewSwitchAction];
+    }
+
+    if (menuAction.id !== CloseAuxiliaryBarCommandId) {
       return [];
     }
 
-    const label = localize(view.labelKey, view.label);
-    const action = toAction({
+    return [toAction({
       id: menuAction.id,
-      label,
-      tooltip: label,
-      class: AuxiliaryBarViewSwitchActionClass,
+      label: menuAction.label,
+      tooltip: menuAction.tooltip || menuAction.label,
       enabled: menuAction.enabled,
-      checked: activeView === view.id,
-      icon: view.icon,
+      icon: LxIcon.close,
       run: (...args) => menuAction.run(...args),
-    });
-
-    return { ...action, icon: view.icon } satisfies AuxiliaryBarViewSwitchAction;
+    })];
   });
 };
 
@@ -190,8 +211,27 @@ export const isAuxiliaryBarViewSwitchAction = (
   action.class?.split(/\s+/g).includes(AuxiliaryBarViewSwitchActionClass) === true &&
   "icon" in action;
 
+registerAction2(class extends Action2 {
+  public constructor() {
+    super({
+      id: CloseAuxiliaryBarCommandId,
+      title: localize("auxiliarybar.close", "Close Secondary Side Bar"),
+      category: Categories.View,
+      f1: true,
+      precondition: AuxiliaryBarVisibleContext,
+      metadata: {
+        description: localize("auxiliarybar.closeDescription", "Close the secondary side bar."),
+      },
+    });
+  }
+
+  public run(accessor: ServicesAccessor): void {
+    accessor.get(IWorkbenchLayoutService).setPartHidden(true, Parts.AUXILIARYBAR_PART);
+  }
+});
+
 for (const view of AuxiliaryBarViews) {
-  if (view.mode !== "chart" || !view.commandId || !view.icon) {
+  if (view.workbenchMainPart !== "chart" || !view.commandId || !view.icon) {
     continue;
   }
 
@@ -206,3 +246,13 @@ for (const view of AuxiliaryBarViews) {
     when: ActiveWorkbenchMainPartContext.isEqualTo("chart"),
   });
 }
+
+MenuRegistry.appendMenuItem(MenuId.AuxiliaryBarTitle, {
+  command: {
+    id: CloseAuxiliaryBarCommandId,
+    title: localize("auxiliarybar.close", "Close Secondary Side Bar"),
+    icon: LxIcon.close,
+  },
+  group: "navigation",
+  order: 100,
+});

@@ -17,6 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 
 suite("workbench/browser/parts/auxiliarybar/test/browser/auxiliaryBarActions", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
+  const closeAuxiliaryBarCommandId = "workbench.action.closeAuxiliaryBar";
 
   test("parameters action uses the parameters command id", () => {
     const disposables = store.add(new DisposableStore());
@@ -28,7 +29,7 @@ suite("workbench/browser/parts/auxiliarybar/test/browser/auxiliaryBarActions", (
       activeView: "parameters",
       contextKeyService,
       menuService,
-      mode: "chart",
+      workbenchMainPart: "chart",
     });
 
     assert.ok(actions.some(action =>
@@ -36,7 +37,7 @@ suite("workbench/browser/parts/auxiliarybar/test/browser/auxiliaryBarActions", (
     ));
   });
 
-  test("filters auxiliary bar title actions by workbench mode context", () => {
+  test("filters view switch actions by workbench main part context", () => {
     const disposables = store.add(new DisposableStore());
     const contextKeyService = disposables.add(new ContextKeyService());
     const menuService = disposables.add(new MenuService(createCommandService()));
@@ -46,10 +47,27 @@ suite("workbench/browser/parts/auxiliarybar/test/browser/auxiliaryBarActions", (
       activeView: "parameters",
       contextKeyService,
       menuService,
-      mode: "chart",
+      workbenchMainPart: "chart",
     });
 
-    assert.deepEqual(actions, []);
+    assert.ok(!actions.some(action => action.id === ParametersCommandId.showParameters));
+    assert.ok(actions.some(action => action.id === closeAuxiliaryBarCommandId));
+  });
+
+  test("includes close action when table auxiliary bar has no view switch actions", () => {
+    const disposables = store.add(new DisposableStore());
+    const contextKeyService = disposables.add(new ContextKeyService());
+    const menuService = disposables.add(new MenuService(createCommandService()));
+    contextKeyService.setContext("activeWorkbenchMainPart", "table");
+
+    const actions = createAuxiliaryBarActions({
+      activeView: "template",
+      contextKeyService,
+      menuService,
+      workbenchMainPart: "table",
+    });
+
+    assert.deepEqual(actions.map(action => action.id), [closeAuxiliaryBarCommandId]);
   });
 });
 

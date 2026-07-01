@@ -6,10 +6,19 @@ import type { IViewPaneContainer } from "src/cs/workbench/common/views";
 import { ActionViewItem, type IActionViewItem, type IActionViewItemOptions } from "src/cs/base/browser/ui/actionbar/actionViewItem";
 import type { IActionViewItemProvider } from "src/cs/base/browser/ui/actionbar/actionbar";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
+import type { IMenuService } from "src/cs/platform/actions/common/actions";
+import type { IContextKeyService } from "src/cs/platform/contextkey/common/contextkey";
 import {
+  AuxiliaryBarViews,
+  createAuxiliaryBarActions,
+  getAuxiliaryBarTitleForWorkbenchMainPart,
   isAuxiliaryBarViewSwitchAction,
+  resolveAuxiliaryBarView,
+  type AuxiliaryBarView,
   type AuxiliaryBarViewSwitchAction,
+  type TemplateAuxiliaryBarMode,
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions";
+import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
 import {
   StorageScope,
   StorageTarget,
@@ -36,6 +45,12 @@ export const createAuxiliaryBarActionViewItem: IActionViewItemProvider = (
 ): IActionViewItem | undefined =>
   isAuxiliaryBarViewSwitchAction(action)
     ? new AuxiliaryBarViewSwitchActionViewItem(action, options)
+    : action.icon
+      ? new ActionViewItem(undefined, action, {
+          ...options,
+          icon: true,
+          label: false,
+        })
     : undefined;
 
 export const clampAuxiliaryBarWidth = (width: number): number =>
@@ -48,6 +63,26 @@ type AuxiliaryBarPaneContainerInput = {
   readonly actions: readonly IAction[];
   readonly container: IViewPaneContainer;
   readonly title: string;
+};
+
+type AuxiliaryBarViewState = {
+  readonly viewId: string;
+  readonly visible: boolean;
+};
+
+type AuxiliaryBarState = {
+  readonly actions: readonly IAction[];
+  readonly title: string;
+  readonly views: readonly AuxiliaryBarViewState[];
+};
+
+type AuxiliaryBarInput = {
+  readonly workbenchMainPart: WorkbenchMainPart;
+  readonly activeView: string;
+  readonly contextKeyService: IContextKeyService;
+  readonly menuService: IMenuService;
+  readonly templateMode: TemplateAuxiliaryBarMode;
+  readonly visible: boolean;
 };
 
 export class AuxiliaryBarLayout {
@@ -92,6 +127,7 @@ const createAuxiliaryBarSplitPane = (
 });
 
 export class AuxiliaryBarPart extends Disposable {
+  private activeView: AuxiliaryBarView = "template";
   private readonly layout: AuxiliaryBarLayout;
 
   public readonly paneId = AuxiliaryBarPaneId;
@@ -139,11 +175,75 @@ export class AuxiliaryBarPart extends Disposable {
     return createAuxiliaryBarSplitPane(this.width, visible);
   }
 
+  public getActiveView(workbenchMainPart: WorkbenchMainPart): AuxiliaryBarView | null {
+    return this.resolveActiveView(workbenchMainPart);
+  }
+
+  public getActiveViewId(workbenchMainPart: WorkbenchMainPart): string | null {
+    const activeView = this.resolveActiveView(workbenchMainPart);
+    return AuxiliaryBarViews.find(view => view.id === activeView)?.viewId ?? null;
+  }
+
+  public updateState(input: AuxiliaryBarInput): AuxiliaryBarState {
+    if (isAuxiliaryBarView(input.activeView)) {
+      this.setActiveView(input.activeView, input.workbenchMainPart);
+    }
+    const activeView = this.resolveActiveView(input.workbenchMainPart);
+    return {
+      actions: input.visible && activeView
+        ? createAuxiliaryBarActions({
+            activeView,
+            contextKeyService: input.contextKeyService,
+            menuService: input.menuService,
+            workbenchMainPart: input.workbenchMainPart,
+          })
+        : [],
+      title: input.visible
+        ? getAuxiliaryBarTitleForWorkbenchMainPart(input.workbenchMainPart, input.templateMode)
+        : "",
+      views: this.getViewStates(input.workbenchMainPart, input.visible),
+    };
+  }
+
   public updatePaneContainer(input: AuxiliaryBarPaneContainerInput): void {
     input.container.setTitle(input.title);
     input.container.setActions(input.actions);
   }
+
+  private resolveActiveView(workbenchMainPart: WorkbenchMainPart): AuxiliaryBarView | null {
+    const activeView = resolveAuxiliaryBarView(this.activeView, workbenchMainPart);
+    if (activeView) {
+      this.activeView = activeView;
+    }
+    return activeView;
+  }
+
+  private setActiveView(view: AuxiliaryBarView, workbenchMainPart: WorkbenchMainPart): boolean {
+    const nextView = resolveAuxiliaryBarView(view, workbenchMainPart);
+    if (!nextView) {
+      return false;
+    }
+    if (this.activeView === nextView) {
+      return false;
+    }
+    this.activeView = nextView;
+    return true;
+  }
+
+  private getViewStates(
+    workbenchMainPart: WorkbenchMainPart,
+    visible: boolean,
+  ): readonly AuxiliaryBarViewState[] {
+    const activeView = this.resolveActiveView(workbenchMainPart);
+    return AuxiliaryBarViews.map(view => ({
+      viewId: view.viewId,
+      visible: visible && view.workbenchMainPart === workbenchMainPart && view.id === activeView,
+    }));
+  }
 }
+
+const isAuxiliaryBarView = (view: string): view is AuxiliaryBarView =>
+  AuxiliaryBarViews.some(candidate => candidate.id === view);
 
 class AuxiliaryBarViewSwitchActionViewItem extends ActionViewItem {
   constructor(

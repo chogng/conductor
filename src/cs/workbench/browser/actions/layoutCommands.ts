@@ -5,4 +5,5 @@ export const WorkbenchLayoutCommandId = {
   showTable: "workbench.action.showTable",
   showChart: "workbench.action.showChart",
   toggleSidebar: "workbench.action.toggleSidebar",
+  toggleAuxiliaryBar: "workbench.action.toggleAuxiliaryBar",
 } as const;

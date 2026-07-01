@@ -67,6 +67,7 @@ const LAYOUT_TRANSITION_DURATION_MS = 300;
 
 type SidebarPaneContainerInput = Parameters<SidebarPart["updatePaneContainer"]>[0];
 type AuxiliaryBarPaneContainerInput = Parameters<AuxiliaryBarPart["updatePaneContainer"]>[0];
+type AuxiliaryBarInput = Parameters<AuxiliaryBarPart["updateState"]>[0];
 
 export type LayoutParts = {
   readonly controller?: Node | null;
@@ -298,6 +299,24 @@ export class Layout extends Disposable {
     input: AuxiliaryBarPaneContainerInput,
   ): void {
     this.auxiliaryBarPart.updatePaneContainer(input);
+  }
+
+  protected updateAuxiliaryBarPartState(
+    input: AuxiliaryBarInput,
+  ): ReturnType<AuxiliaryBarPart["updateState"]> {
+    return this.auxiliaryBarPart.updateState(input);
+  }
+
+  protected getActiveAuxiliaryBarView(
+    workbenchMainPart: WorkbenchMainPart,
+  ): ReturnType<AuxiliaryBarPart["getActiveView"]> {
+    return this.auxiliaryBarPart.getActiveView(workbenchMainPart);
+  }
+
+  protected getActiveAuxiliaryBarViewId(
+    workbenchMainPart: WorkbenchMainPart,
+  ): ReturnType<AuxiliaryBarPart["getActiveViewId"]> {
+    return this.auxiliaryBarPart.getActiveViewId(workbenchMainPart);
   }
 
   private renderWorkbenchMain(): void {
