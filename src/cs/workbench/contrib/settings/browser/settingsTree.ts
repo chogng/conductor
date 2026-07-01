@@ -1,6 +1,6 @@
 import { append } from "src/cs/base/browser/dom";
 import { Disposable } from "src/cs/base/common/lifecycle";
-import { normalizeSettingsSearchText } from "src/cs/workbench/contrib/settings/browser/settingsSearch";
+import { normalizeSettingsSearchText, settingsSearchMatches } from "src/cs/workbench/contrib/settings/browser/settingsSearch";
 
 export type SettingsTreeElementItem = {
   readonly kind: "element";
@@ -84,6 +84,49 @@ export class SettingsTree extends Disposable {
     const targetIds = new Set(itemIds);
     this.entries = nextEntries;
     this.updateSections(sections, targetIds);
+  }
+
+  public updateItemSearchText(itemId: string, searchText: string): void {
+    const normalizedSearchText = normalizeSettingsSearchText(searchText);
+    this.entries = this.entries.map(entry => {
+      if (entry.kind !== "item" || entry.id !== itemId) {
+        return entry;
+      }
+      return {
+        ...entry,
+        item: updateSettingsTreeItemSearchText(entry.item, normalizedSearchText),
+      };
+    });
+
+    for (const section of this.sections.values()) {
+      const state = section.items.get(itemId);
+      if (!state) {
+        continue;
+      }
+      state.entry = {
+        ...state.entry,
+        item: updateSettingsTreeItemSearchText(state.entry.item, normalizedSearchText),
+      };
+      return;
+    }
+  }
+
+  public filterSearchResults(queryWords: readonly string[]): number {
+    let resultCount = 0;
+    for (const section of this.sections.values()) {
+      let visibleItemCount = 0;
+      for (const item of section.items.values()) {
+        const isMatch = queryWords.length === 0 ||
+          settingsSearchMatches(getSettingsTreeItemSearchText(item.entry.item), queryWords);
+        item.element.hidden = !isMatch;
+        if (isMatch) {
+          visibleItemCount++;
+          resultCount++;
+        }
+      }
+      section.element.hidden = visibleItemCount === 0;
+    }
+    return resultCount;
   }
 
   public override dispose(): void {
@@ -245,7 +288,7 @@ export class SettingsTreeItemWidget extends Disposable {
     this.kind = item.kind;
 
     if (item.kind === "composite") {
-      this.element = card("");
+      this.element = cell("");
     }
     else {
       this.element = item.element;
@@ -273,12 +316,9 @@ export class SettingsTreeItemWidget extends Disposable {
     }
 
     updateElementId(this.element, item.id);
-    updateElementClassName(this.element, "settings-card settings-card-composite settings-list-item");
+    updateElementClassName(this.element, "settings-cell settings-cell-composite settings-list-item");
     updateElementAttribute(this.element, "role", "listitem");
-    updateItemSearchText(
-      this.element,
-      normalizeSettingsSearchText(item.searchText, item.items.map(child => child.searchText)),
-    );
+    this.element.removeAttribute("data-search");
 
     for (let index = 0; index < item.items.length; index++) {
       const child = item.items[index]!;
@@ -301,21 +341,16 @@ export class SettingsTreeItemWidget extends Disposable {
       this.element = item.element;
     }
     updateElementId(this.element, item.id);
-    this.element.classList.add("settings-card", "settings-list-item");
+    this.element.classList.add("settings-cell", "settings-list-item");
     updateElementAttribute(this.element, "role", "listitem");
-    if (item.searchText !== undefined) {
-      updateItemSearchText(this.element, normalizeSettingsSearchText(item.searchText));
-    }
+    this.element.removeAttribute("data-search");
   }
 
   private updateCompositeItem(item: SettingsTreeCompositeItem): void {
     updateElementId(this.element, item.id);
-    updateElementClassName(this.element, "settings-card settings-card-composite settings-list-item");
+    updateElementClassName(this.element, "settings-cell settings-cell-composite settings-list-item");
     updateElementAttribute(this.element, "role", "listitem");
-    updateItemSearchText(
-      this.element,
-      normalizeSettingsSearchText(item.searchText, item.items.map(child => child.searchText)),
-    );
+    this.element.removeAttribute("data-search");
 
     const nextIds = new Set<string>();
     for (let index = 0; index < item.items.length; index++) {
@@ -357,8 +392,8 @@ export class SettingsTreeItemWidget extends Disposable {
   }
 }
 
-function card(id: string): HTMLDivElement {
-  const element = div("settings-card settings-card-row");
+function cell(id: string): HTMLDivElement {
+  const element = div("settings-cell settings-cell-row");
   element.id = id;
   return element;
 }
@@ -368,17 +403,6 @@ function div(className: string, ...children: Array<Node | string>): HTMLDivEleme
   element.className = className;
   append(element, ...children);
   return element;
-}
-
-function updateItemSearchText(element: HTMLElement, searchText: string): void {
-  if (searchText) {
-    if (element.dataset.search !== searchText) {
-      element.dataset.search = searchText;
-    }
-  }
-  else if (element.dataset.search !== undefined) {
-    delete element.dataset.search;
-  }
 }
 
 function updateElementClassName(element: HTMLElement, className: string): void {
@@ -463,6 +487,26 @@ function settingsTreeEntriesHaveSameIdentity(entry: SettingsTreeEntry, next: Set
 
 function settingsTreeCompositeItemContainsTarget(item: SettingsTreeCompositeItem, targetIds: ReadonlySet<string>): boolean {
   return item.items.some(item => targetIds.has(item.id));
+}
+
+function updateSettingsTreeItemSearchText(item: SettingsTreeItem, searchText: string): SettingsTreeItem {
+  if (item.kind === "element") {
+    return {
+      ...item,
+      searchText,
+    };
+  }
+  return {
+    ...item,
+    searchText,
+  };
+}
+
+function getSettingsTreeItemSearchText(item: SettingsTreeItem): string {
+  if (item.kind === "composite") {
+    return normalizeSettingsSearchText(item.searchText, item.items.map(child => child.searchText));
+  }
+  return normalizeSettingsSearchText(item.searchText);
 }
 
 function getSettingsTreeItemClassName(entry: SettingsTreeItemEntry): string {

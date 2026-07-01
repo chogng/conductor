@@ -390,19 +390,19 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     try {
       const templateLibraryTree = getElement(container, "#settings-template-domain-packs-card").closest(".settings-tree");
       const semanticHeader = getElement(container, "#settings-template-semantic-library-header");
-      const activeTermsCard = getElement(container, "#settings-template-semantic-active-terms-card");
-      const recommendedTermsCard = getElement(container, "#settings-template-semantic-recommended-terms-card");
-      const customFormCard = getElement(container, "#settings-template-semantic-custom-form-card");
+      const activeTermsItem = getElement(container, "#settings-template-semantic-active-terms-item");
+      const recommendedTermsItem = getElement(container, "#settings-template-semantic-recommended-terms-item");
+      const customFormItem = getElement(container, "#settings-template-semantic-custom-form-item");
       const semanticTree = semanticHeader.closest(".settings-tree");
       const semanticRows = [
         getClosestSettingsTreeItem(semanticHeader),
-        getClosestSettingsTreeItem(activeTermsCard),
-        getClosestSettingsTreeItem(recommendedTermsCard),
-        getClosestSettingsTreeItem(customFormCard),
+        getClosestSettingsTreeItem(activeTermsItem),
+        getClosestSettingsTreeItem(recommendedTermsItem),
+        getClosestSettingsTreeItem(customFormItem),
       ];
-      const widgets = activeTermsCard.querySelectorAll<HTMLElement>(".inputbox_widget");
+      const widgets = activeTermsItem.querySelectorAll<HTMLElement>(".inputbox_widget");
       const activeWidget = widgets[0];
-      const recommendedSuggestion = recommendedTermsCard.querySelector<HTMLElement>(".settings-template-term-suggestion");
+      const recommendedSuggestion = recommendedTermsItem.querySelector<HTMLElement>(".settings-template-term-suggestion");
 
       assert.ok(templateLibraryTree);
       assert.ok(semanticTree);
@@ -414,7 +414,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(container.querySelector("#settings-template-semantic-library-card"), null);
       assert.equal(container.querySelector(".ui-list__row"), null);
       assert.equal(semanticHeader.closest(".settings-tree-composite-child"), null);
-      assert.equal(activeTermsCard.closest(".settings-tree-composite-child"), null);
+      assert.equal(activeTermsItem.closest(".settings-tree-composite-child"), null);
       assert.equal(semanticRows[0]!.parentElement, semanticRows[1]!.parentElement);
       assert.equal(semanticRows[1]!.previousElementSibling, semanticRows[0]);
       assert.equal(semanticRows[2]!.previousElementSibling, semanticRows[1]);
@@ -440,15 +440,13 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(activeWidget.querySelector<HTMLElement>('.inputbox_widget_item[data-kind="builtin-enabled"] .inputbox_widget_item_label')?.textContent, "Vgs");
       assert.equal(activeWidget.querySelector<HTMLElement>('.inputbox_widget_item[data-kind="custom"] .inputbox_widget_item_label')?.textContent, "Custom Gate");
       assert.equal(activeWidget.querySelector<HTMLInputElement>("input.inputbox_native:not([hidden])")?.placeholder, "Add match term");
-      assert.equal(activeTermsCard.querySelector("#settings-template-semantic-add-button"), null);
-      assert.equal(recommendedTermsCard.querySelectorAll(".settings-template-term-suggestion").length, 1);
+      assert.equal(activeTermsItem.querySelector("#settings-template-semantic-add-button"), null);
+      assert.equal(recommendedTermsItem.querySelectorAll(".settings-template-term-suggestion").length, 1);
       assert.equal(recommendedSuggestion.querySelector<HTMLElement>(".settings-template-term-suggestion-label")?.textContent, "Drain Current");
-      assert.equal(customFormCard.querySelector("#settings-template-semantic-role-select"), null);
-      assert.ok(customFormCard.querySelector("#settings-template-semantic-axis-select"));
-      assert.ok(customFormCard.querySelector("#settings-template-semantic-unit-select"));
-      assert.equal(customFormCard.querySelector("#settings-template-semantic-policy-select"), null);
-      assert.equal(customFormCard.querySelector("#settings-template-semantic-add-button"), null);
-      assert.equal(customFormCard.querySelector("#settings-template-semantic-term-input"), null);
+      assert.ok(customFormItem.querySelector("#settings-template-semantic-role-select"));
+      assert.equal(customFormItem.querySelector("#settings-template-semantic-policy-select"), null);
+      assert.equal(customFormItem.querySelector("#settings-template-semantic-add-button"), null);
+      assert.equal(customFormItem.querySelector("#settings-template-semantic-term-input"), null);
     }
     finally {
       view.dispose();
@@ -488,13 +486,13 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
 
     try {
       const semanticHeader = getElement(container, "#settings-template-semantic-library-header");
-      const activeTermsCard = getElement(container, "#settings-template-semantic-active-terms-card");
-      const recommendedTermsCard = getElement(container, "#settings-template-semantic-recommended-terms-card");
-      const customFormCard = getElement(container, "#settings-template-semantic-custom-form-card");
-      const previousActiveWidget = getElement(activeTermsCard, ".inputbox_widget");
+      const activeTermsItem = getElement(container, "#settings-template-semantic-active-terms-item");
+      const recommendedTermsItem = getElement(container, "#settings-template-semantic-recommended-terms-item");
+      const customFormItem = getElement(container, "#settings-template-semantic-custom-form-item");
+      const previousActiveWidget = getElement(activeTermsItem, ".inputbox_widget");
       const previousActiveInput = getElement(previousActiveWidget, "input.inputbox_native");
       const previousActiveTerm = getElement(previousActiveWidget, '.inputbox_widget_item[data-item-id="builtin-vgs"]');
-      const recommendedContent = recommendedTermsCard.firstElementChild;
+      const recommendedContent = recommendedTermsItem.firstElementChild;
       assert.ok(recommendedContent);
       let settingsTreeUpdateCount = 0;
       const viewInternals = view as unknown as {
@@ -533,25 +531,25 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
         viewInternals.updateSettingsTreeItems = originalUpdateSettingsTreeItems;
       }
 
-      const nextActiveTermsCard = getElement(container, "#settings-template-semantic-active-terms-card");
-      const nextRecommendedTermsCard = getElement(container, "#settings-template-semantic-recommended-terms-card");
-      const nextActiveWidget = nextActiveTermsCard.querySelector<HTMLElement>(".inputbox_widget");
-      const nextActiveInput = nextActiveTermsCard.querySelector<HTMLElement>("input.inputbox_native");
-      const nextRecommendedContent = nextRecommendedTermsCard.firstElementChild;
+      const nextActiveTermsItem = getElement(container, "#settings-template-semantic-active-terms-item");
+      const nextRecommendedTermsItem = getElement(container, "#settings-template-semantic-recommended-terms-item");
+      const nextActiveWidget = nextActiveTermsItem.querySelector<HTMLElement>(".inputbox_widget");
+      const nextActiveInput = nextActiveTermsItem.querySelector<HTMLElement>("input.inputbox_native");
+      const nextRecommendedContent = nextRecommendedTermsItem.firstElementChild;
       assert.ok(nextActiveWidget);
       assert.ok(nextActiveInput);
       assert.equal(container.querySelector("#settings-template-semantic-library-card"), null);
       assert.equal(getElement(container, "#settings-template-semantic-library-header"), semanticHeader);
-      assert.equal(nextActiveTermsCard, activeTermsCard);
-      assert.equal(nextRecommendedTermsCard, recommendedTermsCard);
+      assert.equal(nextActiveTermsItem, activeTermsItem);
+      assert.equal(nextRecommendedTermsItem, recommendedTermsItem);
       assert.equal(nextActiveWidget, previousActiveWidget);
       assert.equal(nextActiveInput, previousActiveInput);
       assert.equal(getElement(nextActiveWidget, '.inputbox_widget_item[data-item-id="builtin-vgs"]'), previousActiveTerm);
       assert.equal(container.querySelector("#settings-template-semantic-term-input-card"), null);
       assert.equal(nextRecommendedContent, recommendedContent);
-      assert.equal(getElement(container, "#settings-template-semantic-custom-form-card"), customFormCard);
+      assert.equal(getElement(container, "#settings-template-semantic-custom-form-item"), customFormItem);
       assert.equal(nextActiveWidget.querySelectorAll(".inputbox_widget_item").length, 2);
-      assert.equal(nextRecommendedTermsCard.querySelectorAll(".settings-template-term-suggestion").length, 0);
+      assert.equal(nextRecommendedTermsItem.querySelectorAll(".settings-template-term-suggestion").length, 0);
       assert.equal(settingsTreeUpdateCount, 0);
     }
     finally {
@@ -591,10 +589,10 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     }));
 
     try {
-      const activeTermsCard = getElement(container, "#settings-template-semantic-active-terms-card");
+      const activeTermsItem = getElement(container, "#settings-template-semantic-active-terms-item");
       const semanticHeader = getElement(container, "#settings-template-semantic-library-header");
       const semanticHeaderRow = getClosestSettingsTreeItem(semanticHeader);
-      const previousActiveWidget = getElement(activeTermsCard, ".inputbox_widget");
+      const previousActiveWidget = getElement(activeTermsItem, ".inputbox_widget");
       const previousActiveInput = getElement(previousActiveWidget, "input.inputbox_native");
       const treeTargets: SettingsContentItemTarget[] = [];
       const viewInternals = view as unknown as {
@@ -633,13 +631,13 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
         viewInternals.updateSettingsTreeItems = originalUpdateSettingsTreeItems;
       }
 
-      const nextActiveTermsCard = getElement(container, "#settings-template-semantic-active-terms-card");
+      const nextActiveTermsItem = getElement(container, "#settings-template-semantic-active-terms-item");
       const nextSemanticHeader = getElement(container, "#settings-template-semantic-library-header");
-      const nextActiveWidget = getElement(nextActiveTermsCard, ".inputbox_widget");
+      const nextActiveWidget = getElement(nextActiveTermsItem, ".inputbox_widget");
       const nextActiveInput = getElement(nextActiveWidget, "input.inputbox_native");
       assert.equal(nextSemanticHeader === semanticHeader, false);
       assert.equal(getClosestSettingsTreeItem(nextSemanticHeader), semanticHeaderRow);
-      assert.equal(nextActiveTermsCard, activeTermsCard);
+      assert.equal(nextActiveTermsItem, activeTermsItem);
       assert.equal(nextActiveWidget, previousActiveWidget);
       assert.equal(nextActiveInput, previousActiveInput);
       assert.equal(nextActiveWidget.querySelectorAll(".inputbox_widget_item").length, 2);
@@ -692,8 +690,8 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     }));
 
     try {
-      const recommendedTermsCard = getElement(container, "#settings-template-semantic-recommended-terms-card");
-      const recommendedList = getElement(recommendedTermsCard, ".settings-template-term-suggestions");
+      const recommendedTermsItem = getElement(container, "#settings-template-semantic-recommended-terms-item");
+      const recommendedList = getElement(recommendedTermsItem, ".settings-template-term-suggestions");
       const drainCurrent = getSemanticSuggestion(recommendedList, "Drain Current");
 
       view.update(createSettingsViewOptions({
@@ -711,8 +709,8 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
         }],
       });
 
-      assert.equal(getElement(container, "#settings-template-semantic-recommended-terms-card"), recommendedTermsCard);
-      assert.equal(getElement(recommendedTermsCard, ".settings-template-term-suggestions"), recommendedList);
+      assert.equal(getElement(container, "#settings-template-semantic-recommended-terms-item"), recommendedTermsItem);
+      assert.equal(getElement(recommendedTermsItem, ".settings-template-term-suggestions"), recommendedList);
       assert.equal(getSemanticSuggestion(recommendedList, "Drain Current"), drainCurrent);
       assert.equal(querySemanticSuggestion(recommendedList, "Vgs"), null);
       assert.ok(getSemanticSuggestion(recommendedList, "Gate Voltage"));
@@ -734,8 +732,8 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     const view = new SettingsView(container, createSettingsViewOptions({ activeSettingsSection: "template" }));
 
     try {
-      const customFormCard = getElement(container, "#settings-template-semantic-custom-form-card");
-      const axisSelect = getButton(container, "settings-template-semantic-axis-select");
+      const customFormItem = getElement(container, "#settings-template-semantic-custom-form-item");
+      const roleSelect = getButton(container, "settings-template-semantic-role-select");
 
       view.update(createSettingsViewOptions({
         activeSettingsSection: "template",
@@ -747,14 +745,14 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
         descriptorIds: [],
         itemTargets: [{
           descriptorId: "template-semantic-library",
-          itemIds: ["settings-template-semantic-custom-form-card"],
+          itemIds: ["settings-template-semantic-custom-form-item"],
         }],
       });
 
-      assert.equal(getElement(container, "#settings-template-semantic-custom-form-card"), customFormCard);
-      assert.equal(getButton(container, "settings-template-semantic-axis-select"), axisSelect);
-      assert.equal(customFormCard.querySelector("#settings-template-semantic-add-button"), null);
-      assert.equal(axisSelect.disabled, true);
+      assert.equal(getElement(container, "#settings-template-semantic-custom-form-item"), customFormItem);
+      assert.equal(getButton(container, "settings-template-semantic-role-select"), roleSelect);
+      assert.equal(customFormItem.querySelector("#settings-template-semantic-add-button"), null);
+      assert.equal(roleSelect.disabled, true);
     }
     finally {
       view.dispose();
@@ -768,10 +766,10 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     const view = new SettingsView(container, createSettingsViewOptions({ activeSettingsSection: "template" }));
 
     try {
-      const activeTermsCard = getElement(container, "#settings-template-semantic-active-terms-card");
-      const activeInputWidget = getElement(activeTermsCard, ".inputbox_widget");
+      const activeTermsItem = getElement(container, "#settings-template-semantic-active-terms-item");
+      const activeInputWidget = getElement(activeTermsItem, ".inputbox_widget");
       const activeInput = getElement(activeInputWidget, "input.inputbox_native");
-      const customFormCard = getElement(container, "#settings-template-semantic-custom-form-card");
+      const customFormItem = getElement(container, "#settings-template-semantic-custom-form-item");
 
       view.update(createSettingsViewOptions({
         activeSettingsSection: "template",
@@ -788,12 +786,12 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
         }],
       });
 
-      assert.equal(getElement(container, "#settings-template-semantic-active-terms-card"), activeTermsCard);
-      assert.equal(getElement(activeTermsCard, ".inputbox_widget"), activeInputWidget);
+      assert.equal(getElement(container, "#settings-template-semantic-active-terms-item"), activeTermsItem);
+      assert.equal(getElement(activeTermsItem, ".inputbox_widget"), activeInputWidget);
       assert.equal(getElement(activeInputWidget, "input.inputbox_native"), activeInput);
       assert.equal(container.querySelector("#settings-template-semantic-term-input-card"), null);
       assert.equal(container.querySelector("#settings-template-semantic-add-button"), null);
-      assert.equal(getElement(container, "#settings-template-semantic-custom-form-card"), customFormCard);
+      assert.equal(getElement(container, "#settings-template-semantic-custom-form-item"), customFormItem);
       assert.equal((activeInput as HTMLInputElement).value, "New Term");
       assert.equal((activeInput as HTMLInputElement).disabled, false);
       assert.equal((activeInput as HTMLInputElement).readOnly, true);
@@ -835,8 +833,8 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     }));
 
     try {
-      const activeTermsCard = getElement(container, "#settings-template-semantic-active-terms-card");
-      const activeWidget = getElement(activeTermsCard, ".inputbox_widget");
+      const activeTermsItem = getElement(container, "#settings-template-semantic-active-terms-item");
+      const activeWidget = getElement(activeTermsItem, ".inputbox_widget");
       const vgsItem = getElement(activeWidget, '.inputbox_widget_item[data-item-id="builtin-vgs"]');
       const idItem = getElement(activeWidget, '.inputbox_widget_item[data-item-id="builtin-id"]');
       const vgsAction = getInputBoxWidgetItemAction(vgsItem);
@@ -859,8 +857,8 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
         }],
       });
 
-      assert.equal(getElement(container, "#settings-template-semantic-active-terms-card"), activeTermsCard);
-      assert.equal(getElement(activeTermsCard, ".inputbox_widget"), activeWidget);
+      assert.equal(getElement(container, "#settings-template-semantic-active-terms-item"), activeTermsItem);
+      assert.equal(getElement(activeTermsItem, ".inputbox_widget"), activeWidget);
       assert.equal(getElement(activeWidget, '.inputbox_widget_item[data-item-id="builtin-vgs"]'), vgsItem);
       assert.equal(getElement(activeWidget, '.inputbox_widget_item[data-item-id="builtin-id"]'), idItem);
       assert.equal(getInputBoxWidgetItemAction(vgsItem), vgsAction);

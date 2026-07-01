@@ -49,10 +49,12 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
 
     assert.equal(tree.element.querySelector("#settings-custom-card"), card);
     assert.equal(tree.element.querySelector("#settings-custom-card")?.closest(".settings-tree-item"), row);
-    assert.equal((card as HTMLElement | null)?.dataset.search, "updated custom");
+    assert.equal(tree.filterSearchResults(["updated"]), 1);
+    assert.equal(row instanceof HTMLElement ? row.hidden : true, false);
+    assert.equal(card instanceof HTMLElement ? card.hasAttribute("data-search") : true, false);
   });
 
-  test("stores item search text on the card", () => {
+  test("filters item search text without storing it on the card DOM", () => {
     if (typeof document === "undefined") {
       return;
     }
@@ -74,24 +76,30 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
       },
     ]);
 
-    assert.equal(
-      tree.element.querySelector<HTMLElement>("#settings-search-card")?.dataset.search,
-      "search title search description option label",
-    );
+    const card = tree.element.querySelector<HTMLElement>("#settings-search-card");
+    const row = card?.closest<HTMLElement>(".settings-tree-item");
+    const section = card?.closest<HTMLElement>(".settings-section");
+    assert.equal(tree.filterSearchResults(["option", "label"]), 1);
+    assert.equal(row?.hidden, false);
+    assert.equal(section?.hidden, false);
+    assert.equal(tree.filterSearchResults(["missing"]), 0);
+    assert.equal(row?.hidden, true);
+    assert.equal(section?.hidden, true);
+    assert.equal(card?.hasAttribute("data-search"), false);
   });
 
-  test("mounts caller-owned element items as settings cards", () => {
+  test("mounts caller-owned element items as settings cells", () => {
     if (typeof document === "undefined") {
       return;
     }
 
     const tree = store.add(new SettingsTree());
     const firstElement = document.createElement("div");
-    firstElement.className = "settings-card-block";
-    firstElement.dataset.search = "first element";
+    firstElement.className = "settings-cell-block";
+    firstElement.setAttribute("data-search", "legacy first element");
     const secondElement = document.createElement("div");
-    secondElement.className = "settings-card-block";
-    secondElement.dataset.search = "second element";
+    secondElement.className = "settings-cell-block";
+    secondElement.setAttribute("data-search", "legacy second element");
 
     tree.update([
       {
@@ -108,9 +116,9 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
     ]);
 
     assert.equal(tree.element.querySelector("#settings-element-card"), firstElement);
-    assert.equal(firstElement.classList.contains("settings-card"), true);
-    assert.equal(firstElement.classList.contains("settings-card-block"), true);
-    assert.equal(firstElement.dataset.search, "first element");
+    assert.equal(firstElement.classList.contains("settings-cell"), true);
+    assert.equal(firstElement.classList.contains("settings-cell-block"), true);
+    assert.equal(firstElement.hasAttribute("data-search"), false);
 
     tree.update([
       {
@@ -128,11 +136,11 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
 
     assert.equal(tree.element.querySelector("#settings-element-card"), secondElement);
     assert.equal(tree.element.contains(firstElement), false);
-    assert.equal(secondElement.classList.contains("settings-card"), true);
-    assert.equal(secondElement.dataset.search, "second element");
+    assert.equal(secondElement.classList.contains("settings-cell"), true);
+    assert.equal(secondElement.hasAttribute("data-search"), false);
   });
 
-  test("renders settings sections as lists with settings list item cards", () => {
+  test("renders settings sections as lists with settings list item cells", () => {
     if (typeof document === "undefined") {
       return;
     }
@@ -166,18 +174,20 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
     ]);
 
     const list = tree.element.querySelector<HTMLElement>(".settings-section-list");
-    const elementCard = tree.element.querySelector<HTMLElement>("#settings-element-card");
-    const compositeCard = tree.element.querySelector<HTMLElement>("#settings-composite-card");
-    const elementRow = elementCard?.closest<HTMLElement>(".settings-tree-item");
-    const compositeRow = compositeCard?.closest<HTMLElement>(".settings-tree-item");
+    const elementCell = tree.element.querySelector<HTMLElement>("#settings-element-card");
+    const compositeCell = tree.element.querySelector<HTMLElement>("#settings-composite-card");
+    const elementRow = elementCell?.closest<HTMLElement>(".settings-tree-item");
+    const compositeRow = compositeCell?.closest<HTMLElement>(".settings-tree-item");
 
     assert.equal(list?.getAttribute("role"), "list");
     assert.equal(elementRow?.getAttribute("role"), "presentation");
     assert.equal(compositeRow?.getAttribute("role"), "presentation");
-    assert.equal(elementCard?.getAttribute("role"), "listitem");
-    assert.equal(compositeCard?.getAttribute("role"), "listitem");
-    assert.equal(elementCard?.classList.contains("settings-list-item"), true);
-    assert.equal(compositeCard?.classList.contains("settings-list-item"), true);
+    assert.equal(elementCell?.getAttribute("role"), "listitem");
+    assert.equal(compositeCell?.getAttribute("role"), "listitem");
+    assert.equal(elementCell?.classList.contains("settings-list-item"), true);
+    assert.equal(compositeCell?.classList.contains("settings-list-item"), true);
+    assert.equal(elementCell?.classList.contains("settings-cell"), true);
+    assert.equal(compositeCell?.classList.contains("settings-cell"), true);
   });
 
   test("uses item group ids for visual row boundaries", () => {
@@ -362,7 +372,7 @@ function createElementItem(options: {
 function createRowElement(id: string, title: string, description?: string): HTMLElement {
   const card = document.createElement("div");
   card.id = id;
-  card.className = "settings-card settings-card-row";
+  card.className = "settings-cell settings-cell-row";
   const row = document.createElement("div");
   row.className = "settings-row";
   const element = document.createElement("div");

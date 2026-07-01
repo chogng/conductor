@@ -764,13 +764,13 @@ function submitSemanticTerm(container: HTMLElement, value: string): void {
 }
 
 function getSemanticTermInput(container: HTMLElement): HTMLInputElement {
-  const input = container.querySelector<HTMLInputElement>("#settings-template-semantic-active-terms-card .inputbox_widget input.inputbox_native:not([hidden])");
+  const input = container.querySelector<HTMLInputElement>("#settings-template-semantic-active-terms-item .inputbox_widget input.inputbox_native:not([hidden])");
   assert.ok(input);
   return input;
 }
 
 function getActiveBuiltinTermAction(container: HTMLElement, term: string): HTMLButtonElement {
-  const item = Array.from(container.querySelectorAll<HTMLElement>('#settings-template-semantic-active-terms-card .inputbox_widget_item[data-kind="builtin-enabled"]'))
+  const item = Array.from(container.querySelectorAll<HTMLElement>('#settings-template-semantic-active-terms-item .inputbox_widget_item[data-kind="builtin-enabled"]'))
     .find(item => item.querySelector<HTMLElement>(".inputbox_widget_item_label")?.textContent === term);
   assert.ok(item);
   const action = item.querySelector<HTMLButtonElement>(".inputbox_widget_item_action");
@@ -779,7 +779,7 @@ function getActiveBuiltinTermAction(container: HTMLElement, term: string): HTMLB
 }
 
 function getActiveCustomTermAction(container: HTMLElement, term: string): HTMLButtonElement {
-  const item = Array.from(container.querySelectorAll<HTMLElement>('#settings-template-semantic-active-terms-card .inputbox_widget_item[data-kind="custom"]'))
+  const item = Array.from(container.querySelectorAll<HTMLElement>('#settings-template-semantic-active-terms-item .inputbox_widget_item[data-kind="custom"]'))
     .find(item => item.querySelector<HTMLElement>(".inputbox_widget_item_label")?.textContent === term);
   assert.ok(item);
   const action = item.querySelector<HTMLButtonElement>(".inputbox_widget_item_action");
@@ -788,7 +788,7 @@ function getActiveCustomTermAction(container: HTMLElement, term: string): HTMLBu
 }
 
 function hasActiveCustomTerm(container: HTMLElement, term: string): boolean {
-  return Array.from(container.querySelectorAll<HTMLElement>('#settings-template-semantic-active-terms-card .inputbox_widget_item[data-kind="custom"]'))
+  return Array.from(container.querySelectorAll<HTMLElement>('#settings-template-semantic-active-terms-item .inputbox_widget_item[data-kind="custom"]'))
     .some(item => item.querySelector<HTMLElement>(".inputbox_widget_item_label")?.textContent === term);
 }
 

@@ -31,10 +31,6 @@ export function normalizeSettingsSearchText(...terms: readonly SettingsSearchTer
   return values.join(" ").toLocaleLowerCase();
 }
 
-export function setSettingsSearchText(element: HTMLElement, ...terms: readonly SettingsSearchTerm[]): void {
-  element.dataset.search = normalizeSettingsSearchText(...terms);
-}
-
 export function settingsSearchMatches(searchText: string, queryWords: readonly string[]): boolean {
   return queryWords.every(word => searchText.includes(word));
 }
