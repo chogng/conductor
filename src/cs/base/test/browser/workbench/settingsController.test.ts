@@ -6,6 +6,7 @@ import { SettingsView, type SettingsContentItemTarget } from "src/cs/workbench/c
 import {
   NoOpNotification,
   NotificationsFilter,
+  type INotification,
   type INotificationService,
 } from "src/cs/workbench/services/notification/common/notificationService";
 import type { ICommandEvent, ICommandService } from "src/cs/platform/commands/common/commands";
@@ -269,7 +270,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
     }
   });
 
-  test("does not show success feedback when disabling a built-in semantic term", async () => {
+  test("shows semantic term validation through notification", async () => {
     const builtinTerm = dataResourceBuiltinSemanticTerms[0];
     assert.ok(builtinTerm);
     const container = document.createElement("div");
@@ -278,6 +279,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
     const service = createSettingsService({});
     let controller: SettingsController | undefined;
     const savedSettings: Partial<ConductorSettings>[] = [];
+    const notifications: INotification[] = [];
     service.updateSettings = async updates => {
       const nextSettings = updates as Partial<ConductorSettings>;
       savedSettings.push(nextSettings);
@@ -293,7 +295,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       createSettingsViewInput(service.settings),
       service,
       createCommandService(),
-      createNotificationService(),
+      createNotificationService(notifications),
     );
     controller.attachNavigation(container);
 
@@ -302,15 +304,15 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       submitSemanticTerm(container, builtinTerm.alias);
       await settled();
 
-      assert.ok(container.textContent?.includes("Match term already exists."));
+      assert.equal(container.querySelector("#settings-template-semantic-feedback-card"), null);
+      assert.equal(notifications.at(-1)?.message, "Match term already exists.");
+      assert.equal(notifications.at(-1)?.presentation?.type, "error");
 
       getActiveBuiltinTermAction(container, builtinTerm.alias).click();
       await settled();
 
       assert.deepEqual(savedSettings.at(-1)?.templateDisabledBuiltinSemanticIds, [builtinTerm.id]);
-      const feedbackSlot = getElement(container, "#settings-template-semantic-feedback-card .settings-template-feedback-slot");
-      assert.equal(feedbackSlot.textContent, "");
-      assert.equal(feedbackSlot.classList.contains("settings-feedback--success"), false);
+      assert.equal(notifications.at(-1)?.message, "Match term already exists.");
     }
     finally {
       controller?.dispose();
@@ -318,7 +320,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
     }
   });
 
-  test("patches only active terms, term input, and feedback when adding a custom semantic term", async () => {
+  test("patches only active term list and input when adding a custom semantic term", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
 
@@ -334,6 +336,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
 
     let controller: SettingsController | undefined;
     const service = createSettingsService({});
+    const notifications: INotification[] = [];
     service.updateSettings = async updates => {
       const nextSettings = updates as Partial<ConductorSettings>;
       service.settings = {
@@ -348,7 +351,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       createSettingsViewInput(service.settings),
       service,
       createCommandService(),
-      createNotificationService(),
+      createNotificationService(notifications),
     );
     controller.attachNavigation(container);
 
@@ -365,20 +368,20 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
           .map(target => target.itemIds),
         [
           [
-            "settings-template-semantic-active-terms-card",
-            "settings-template-semantic-term-input-card",
-            "settings-template-semantic-feedback-card",
+            "settings-template-semantic-active-terms-list-item",
+            "settings-template-semantic-active-terms-input-item",
           ],
           [
-            "settings-template-semantic-active-terms-card",
+            "settings-template-semantic-active-terms-list-item",
           ],
           [
-            "settings-template-semantic-active-terms-card",
-            "settings-template-semantic-term-input-card",
-            "settings-template-semantic-feedback-card",
+            "settings-template-semantic-active-terms-list-item",
+            "settings-template-semantic-active-terms-input-item",
           ],
         ],
       );
+      assert.equal(notifications.at(-1)?.message, "Template semantic library updated.");
+      assert.equal(notifications.at(-1)?.presentation?.type, "success");
     }
     finally {
       prototype.updateContentItems = originalUpdateContentItems;
@@ -450,7 +453,7 @@ function createCommandService(deferred = new Deferred<unknown>()): ICommandServi
   };
 }
 
-function createNotificationService(): INotificationService {
+function createNotificationService(notifications: INotification[] = []): INotificationService {
   return {
     _serviceBrand: undefined,
     onDidChangeFilter: Event.None as Event<void>,
@@ -458,7 +461,10 @@ function createNotificationService(): INotificationService {
     getFilter: () => NotificationsFilter.ERROR,
     getFilters: () => [],
     info: () => undefined,
-    notify: () => new NoOpNotification(),
+    notify: notification => {
+      notifications.push(notification);
+      return new NoOpNotification();
+    },
     prompt: () => new NoOpNotification(),
     removeFilter: () => undefined,
     setFilter: () => undefined,
@@ -503,7 +509,7 @@ function submitSemanticTerm(container: HTMLElement, value: string): void {
 }
 
 function getSemanticTermInput(container: HTMLElement): HTMLInputElement {
-  const input = container.querySelector<HTMLInputElement>("#settings-template-semantic-term-input-card .inputbox_widget input.inputbox_native:not([hidden])");
+  const input = container.querySelector<HTMLInputElement>("#settings-template-semantic-active-terms-card .inputbox_widget input.inputbox_native:not([hidden])");
   assert.ok(input);
   return input;
 }

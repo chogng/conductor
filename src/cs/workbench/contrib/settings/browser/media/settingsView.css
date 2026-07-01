@@ -491,27 +491,10 @@
   line-height: 1.25rem;
 }
 
-.settings-template-term-input-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  min-width: 0;
-}
-
-.settings-template-term-input-row > .inputbox_widget {
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
 .settings-template-semantic-form {
   display: grid;
   gap: 0.875rem;
   min-width: 0;
-}
-
-.settings-template-feedback-slot {
-  min-height: 1.25rem;
-  margin: 0;
 }
 
 .settings-card-row {
@@ -576,22 +559,40 @@
   gap: 0.75rem;
 }
 
-.settings-split-row {
-  align-items: flex-start;
-}
-
-.settings-row-title {
+.settings-row-leading {
   min-width: 0px;
   flex: 1 1 auto;
+  display: grid;
+  gap: 0.5rem;
 }
 
-.settings-row-control {
+.settings-row-trailing {
   align-self: center;
   flex: 0 0 auto;
+  display: flex;
+  min-width: 0px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
   width: fit-content;
 }
 
-.settings-row-control .settings-select {
+.settings-row-item {
+  min-width: 0px;
+}
+
+.settings-row-item--trailing {
+  display: flex;
+  min-width: 0px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.settings-row-label {
+  min-width: 0px;
+}
+
+.settings-row-trailing .settings-select {
   width: 150px;
 }
 
@@ -1111,7 +1112,7 @@
   --switch-height: 18px;
 }
 
-.settings-row-control .settings-switch:disabled {
+.settings-row-trailing .settings-switch:disabled {
   opacity: 1;
 }
 
@@ -1140,14 +1141,19 @@
     flex-direction: column;
   }
 
-  .settings-row-control,
+  .settings-row-trailing,
   .settings-color-controls,
   .settings-path-controls .settings-button {
     align-self: stretch;
     width: 100%;
   }
 
-  .settings-row-control .settings-select {
+  .settings-row-item--trailing {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .settings-row-trailing .settings-select {
     width: 100%;
   }
 

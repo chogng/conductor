@@ -43,32 +43,33 @@ SettingsViewOptions
   -> SettingsTree renders keyed section list and item cell DOM owned by settings
   -> SettingsTree reuses cells by stable section/item id
   -> SettingsTree.updateItems updates keyed cells and patches already-rendered item widgets without replacing sibling cells
-  -> control items patch fixed title/description/control slots
+  -> control items patch keyed leading/trailing child items
   -> element items patch caller-owned item roots
   -> grouped sibling items model independently updateable cells that can be visually joined as one card
-  -> composite items keep one caller-owned card root only when child slots share the same row lifecycle
+  -> composite items keep one caller-owned card root only when child items share the same row lifecycle
   -> SettingsView-owned controls and composite child content can register a local patch for component-internal updates
   -> SettingsView-owned controls emit typed intent callbacks
-  -> changed control nodes replace only the item control slot
+  -> changed control nodes replace only the targeted row child item
 ```
 
 `SettingsTree` owns three item shapes plus explicit cell grouping metadata when a
 visual card is composed from several independently updateable rows:
 
-- `SettingsTreeControlItem` for ordinary left title/description plus right
-  control-slot settings;
+- `SettingsTreeControlItem` for ordinary left leading child items plus right
+  trailing child items;
 - `SettingsTreeElementItem` for caller-owned card content that still belongs to
   the section item order.
 - `SettingsTreeCompositeItem` for one settings row/card whose child content
-  slots have their own stable ids, stable slot DOM, and disposable lifecycles.
+  items have their own stable ids, stable item DOM, and disposable lifecycles.
 
-Controls are interchangeable slot content. For control items, `SettingsTree`
-receives an `HTMLElement` for the right-side control slot and does not inspect
-whether it is a select, switch, color swatch, reset button, path picker, action
-bar, toolbar, or grouped action container. For element items, `SettingsTree`
-receives the caller-owned item root and owns only the section ordering, item id,
-base card class, and optional item search metadata. `SettingsView` owns each
-control's layout, interaction callbacks, and disposable lifecycle.
+Controls are interchangeable child item content. For control items, `SettingsTree`
+receives keyed leading and trailing `HTMLElement` child items and does not inspect
+whether trailing content is a select, switch, color swatch, reset button, path
+picker, action bar, toolbar, or grouped action container. For element items,
+`SettingsTree` receives the caller-owned item root and owns only the section
+ordering, item id, base card class, and optional item search metadata.
+`SettingsView` owns each control's layout, interaction callbacks, and
+disposable lifecycle.
 
 Prefer modeling independently updateable regions as sibling `SettingsTree`
 entries with stable ids, even when those cells are visually joined into one
@@ -76,7 +77,7 @@ card. This keeps the tree model update target aligned with the DOM unit being
 patched. The visual grouping must be explicit in `SettingsTree` item metadata
 or cell class computation, not an unrelated wrapper or selector that hides a
 model mismatch. Use `SettingsTreeCompositeItem` only when the children truly
-share one cell-level lifecycle and should be patched through stable child slot
+share one cell-level lifecycle and should be patched through stable child item
 nodes owned by the composite renderer.
 
 Each rendered settings content area owns one `SettingsTree` root. Descriptors
@@ -100,8 +101,8 @@ and non-local item ids, `SettingsView` applies the local patches first and sends
 only the remaining item ids through `SettingsTree` widget patching by stable
 ids. `SettingsTree.updateItems` must keep stable item keys, sibling cells,
 settings cards, and control nodes alive. A targeted grouped item id patches
-only that cell. A targeted composite child id patches only that child slot; it
-must not replace the parent composite card or sibling child slots.
+only that cell. A targeted composite child id patches only that child item; it
+must not replace the parent composite card or sibling child items.
 
 ## Settings Search
 
@@ -133,19 +134,22 @@ persisted settings and DataResource records may still carry `alias` field names,
 but that is storage/schema terminology, not the UI concept.
 
 The semantic-library card is one visual card composed from sibling
-`SettingsTree` entries: header, active terms, term input, recommended built-in
-terms, custom term mapping, and feedback. Each entry has a stable item id and
-can be targeted by `SettingsController` without rerendering the other entries
-in the visual card.
+`SettingsTree` entries: header, active terms, recommended built-in terms, and
+custom term mapping. Each entry has a stable item id and can be targeted by
+`SettingsController` without rerendering the other entries in the visual card.
+Semantic-library save or validation feedback belongs in notification/toast
+presentation, not as a `SettingsTree` item in the card.
 
-The active terms entry should render only concrete terms in a dense `InputBox`
-with its native input hidden. The term input entry owns the editable native
-input and add button. Disabled built-in terms should render as compact
-suggestion buttons in the recommended-terms entry, not inside a second
-input-like field. Each term block or suggestion button is a concrete matching
-token, not a separate settings row or state owner. Typing in the term input
-updates the semantic term draft, and user gestures still flow through
-`SettingsController` callbacks and then to `ISettingsService`.
+The active terms entry renders concrete terms in a dense `InputBox` and owns
+the editable native input for adding a match term. Disabled built-in terms
+should render as compact suggestion buttons in the recommended-terms entry, not
+inside a second input-like field. The active terms entry registers separate
+local patch item ids for its term list and editable input, and the recommended
+terms entry registers a local patch item id for its suggestion list. Each term
+block or suggestion button is a concrete matching token, not a separate
+settings row or state owner. Typing in the active terms input updates the
+semantic term draft, and user gestures still flow through `SettingsController`
+callbacks and then to `ISettingsService`.
 
 ## Configuration vs Storage
 
@@ -181,7 +185,7 @@ not introduce a parallel settings store.
 | `contrib/settings/browser/settingsController.ts` | form drafts, validation, saving state, dispatch to settings service or owner commands. |
 | `contrib/settings/browser/settingsLayout.ts` | settings section ids, navigation grouping, and section icon metadata. |
 | `contrib/settings/browser/settingsSearch.ts` | settings search text normalization, query tokenization, and row/card matching helpers. |
-| `contrib/settings/browser/settingsTree.ts` | stable keyed settings item widgets; owns fixed label/control DOM slots for caller-owned controls. |
+| `contrib/settings/browser/settingsTree.ts` | stable keyed settings item widgets; owns keyed leading/trailing child items for caller-owned controls. |
 | `contrib/settings/browser/settingsView.ts` | pure DOM rendering; callbacks only. |
 | `contrib/settings/browser/settingsViewPane.ts` | DI shell, controller lifecycle, settings view-input subscription. |
 | `contrib/settings/browser/settings.contribution.ts` | view/contribution registration. |

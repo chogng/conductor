@@ -25,12 +25,11 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
         id: "settings-test-section",
         title: "Section",
         items: [
-          {
-            kind: "control",
-            control,
+          createControlItem({
             id: "settings-custom-card",
             title: "Custom",
-          },
+            control,
+          }),
         ],
       },
     ]);
@@ -41,13 +40,12 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
         id: "settings-test-section",
         title: "Section",
         items: [
-          {
-            kind: "control",
-            control,
+          createControlItem({
             description: "Updated description",
             id: "settings-custom-card",
             title: "Updated Custom",
-          },
+            control,
+          }),
         ],
       },
     ]);
@@ -64,7 +62,7 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
     );
   });
 
-  test("mounts control containers without layout variants", () => {
+  test("mounts control leading and trailing items", () => {
     if (typeof document === "undefined") {
       return;
     }
@@ -72,6 +70,8 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
     const tree = store.add(new SettingsTree());
     const control = document.createElement("div");
     control.className = "settings-test-custom-container";
+    const accessory = document.createElement("span");
+    accessory.textContent = "Accessory";
     tree.update([
       {
         id: "settings-test-section",
@@ -79,20 +79,40 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
         items: [
           {
             kind: "control",
-            control,
             id: "settings-layout-card",
-            title: "Layout",
+            leading: [
+              {
+                id: "label",
+                element: text("settings-title", "Layout"),
+                searchText: "Layout",
+              },
+              {
+                id: "accessory",
+                element: accessory,
+                searchText: "Accessory",
+              },
+            ],
+            trailing: [
+              {
+                id: "control",
+                element: control,
+              },
+            ],
           },
         ],
       },
     ]);
 
-    const controlSlot = tree.element.querySelector("#settings-layout-card .settings-row-control");
-    assert.equal(controlSlot?.className, "settings-row-control");
-    assert.equal(controlSlot?.firstChild, control);
+    const leading = tree.element.querySelector("#settings-layout-card .settings-row-leading");
+    const trailing = tree.element.querySelector("#settings-layout-card .settings-row-trailing");
+    assert.equal(leading?.children.length, 2);
+    assert.equal(leading?.children[1]?.firstChild, accessory);
+    assert.equal(trailing?.className, "settings-row-trailing");
+    assert.equal(trailing?.firstElementChild?.className, "settings-row-item settings-row-item--trailing");
+    assert.equal(trailing?.firstElementChild?.firstChild, control);
   });
 
-  test("replaces the control slot when the caller supplies a different control", () => {
+  test("replaces the trailing item when the caller supplies a different control", () => {
     if (typeof document === "undefined") {
       return;
     }
@@ -108,13 +128,12 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
         id: "settings-test-section",
         title: "Section",
         items: [
-          {
-            kind: "control",
-            control: firstControl,
+          createControlItem({
             description: "Description",
             id: "settings-switch-card",
             title: "Control",
-          },
+            control: firstControl,
+          }),
         ],
       },
     ]);
@@ -125,20 +144,19 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
         id: "settings-test-section",
         title: "Section",
         items: [
-          {
-            kind: "control",
-            control: secondControl,
+          createControlItem({
             id: "settings-switch-card",
             title: "Control",
-          },
+            control: secondControl,
+          }),
         ],
       },
     ]);
 
-    const controlSlot = tree.element.querySelector("#settings-switch-card .settings-row-control");
+    const trailing = tree.element.querySelector("#settings-switch-card .settings-row-trailing");
     assert.equal(tree.element.querySelector("#settings-switch-card"), card);
-    assert.equal(controlSlot?.className, "settings-row-control");
-    assert.equal(controlSlot?.firstChild, secondControl);
+    assert.equal(trailing?.className, "settings-row-trailing");
+    assert.equal(trailing?.firstElementChild?.firstChild, secondControl);
     assert.equal(tree.element.querySelector("#settings-first-control"), null);
   });
 
@@ -155,14 +173,13 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
         id: "settings-test-section",
         title: "Section",
         items: [
-          {
-            kind: "control",
-            control,
+          createControlItem({
             description: "Search Description",
             id: "settings-search-card",
             searchText: "Option Label",
             title: "Search Title",
-          },
+            control,
+          }),
         ],
       },
     ]);
@@ -253,9 +270,20 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
           },
           {
             kind: "control",
-            control,
             id: "settings-plain-card",
-            title: "Plain",
+            leading: [
+              {
+                id: "label",
+                element: text("settings-title", "Plain"),
+                searchText: "Plain",
+              },
+            ],
+            trailing: [
+              {
+                id: "control",
+                element: control,
+              },
+            ],
           },
         ],
       },
@@ -295,12 +323,11 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
         id: "settings-test-section",
         title: "Section",
         items: [
-          {
-            kind: "control",
-            control: firstControl,
+          createControlItem({
             id: "settings-control-card",
             title: "Control",
-          },
+            control: firstControl,
+          }),
         ],
       },
     ]);
@@ -312,12 +339,11 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
         id: "settings-test-section",
         title: "Section",
         items: [
-          {
-            kind: "control",
-            control: secondControl,
+          createControlItem({
             id: "settings-control-card",
             title: "Updated Control",
-          },
+            control: secondControl,
+          }),
         ],
       },
     ], ["settings-control-card"]);
@@ -366,9 +392,9 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
     ]);
     const card = tree.element.querySelector("#settings-composite-card");
     const row = card?.closest(".settings-tree-item");
-    const headerSlot = tree.element.querySelector("#settings-header-child");
-    const activeSlot = tree.element.querySelector("#settings-active-child");
-    const recommendedSlot = tree.element.querySelector("#settings-recommended-child");
+    const headerChild = tree.element.querySelector("#settings-header-child");
+    const activeChild = tree.element.querySelector("#settings-active-child");
+    const recommendedChild = tree.element.querySelector("#settings-recommended-child");
 
     tree.updateItems([
       {
@@ -390,11 +416,55 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
     assert.equal(tree.element.querySelector("#settings-composite-card"), card);
     assert.equal(tree.element.querySelector("#settings-composite-card")?.closest(".settings-tree-item"), row);
     assert.equal(tree.element.querySelector("#settings-composite-card")?.closest(".ui-list__row"), null);
-    assert.equal(tree.element.querySelector("#settings-header-child"), headerSlot);
-    assert.equal(tree.element.querySelector("#settings-active-child"), activeSlot);
-    assert.equal(tree.element.querySelector("#settings-recommended-child"), recommendedSlot);
-    assert.equal(activeSlot?.firstChild, nextActiveElement);
-    assert.equal(headerSlot?.firstChild, headerElement);
-    assert.equal(recommendedSlot?.firstChild, recommendedElement);
+    assert.equal(tree.element.querySelector("#settings-header-child"), headerChild);
+    assert.equal(tree.element.querySelector("#settings-active-child"), activeChild);
+    assert.equal(tree.element.querySelector("#settings-recommended-child"), recommendedChild);
+    assert.equal(activeChild?.firstChild, nextActiveElement);
+    assert.equal(headerChild?.firstChild, headerElement);
+    assert.equal(recommendedChild?.firstChild, recommendedElement);
   });
 });
+
+function createControlItem(options: {
+  readonly control: HTMLElement;
+  readonly description?: string;
+  readonly id: string;
+  readonly searchText?: string;
+  readonly title: string;
+}) {
+  return {
+    kind: "control" as const,
+    id: options.id,
+    leading: [
+      {
+        id: "label",
+        element: label(options.title, options.description),
+        searchText: [options.title, options.description].filter(Boolean).join(" "),
+      },
+    ],
+    searchText: options.searchText,
+    trailing: [
+      {
+        id: "control",
+        element: options.control,
+      },
+    ],
+  };
+}
+
+function label(title: string, description?: string): HTMLElement {
+  const element = document.createElement("div");
+  element.className = description ? "settings-row-label settings-heading" : "settings-row-label";
+  element.appendChild(text("settings-title", title));
+  if (description) {
+    element.appendChild(text("settings-description", description));
+  }
+  return element;
+}
+
+function text(className: string, value: string): HTMLElement {
+  const element = document.createElement("span");
+  element.className = className;
+  element.textContent = value;
+  return element;
+}

@@ -97,24 +97,22 @@ const appearanceBackgroundItemIds = [
   "settings-background-card",
 ] as const satisfies readonly SettingsContentItemId[];
 const templateSemanticCustomTermItemIds = [
-  "settings-template-semantic-active-terms-card",
-  "settings-template-semantic-term-input-card",
-  "settings-template-semantic-feedback-card",
+  "settings-template-semantic-active-terms-list-item",
+  "settings-template-semantic-active-terms-input-item",
 ] as const satisfies readonly SettingsContentItemId[];
 const templateSemanticBuiltinTermItemIds = [
-  "settings-template-semantic-active-terms-card",
-  "settings-template-semantic-recommended-terms-card",
-  "settings-template-semantic-feedback-card",
+  "settings-template-semantic-active-terms-list-item",
+  "settings-template-semantic-active-terms-input-item",
+  "settings-template-semantic-recommended-terms-list-item",
 ] as const satisfies readonly SettingsContentItemId[];
 const templateSemanticBuiltinTermFromInputItemIds = [
-  "settings-template-semantic-active-terms-card",
-  "settings-template-semantic-term-input-card",
-  "settings-template-semantic-recommended-terms-card",
-  "settings-template-semantic-feedback-card",
+  "settings-template-semantic-active-terms-list-item",
+  "settings-template-semantic-active-terms-input-item",
+  "settings-template-semantic-recommended-terms-list-item",
 ] as const satisfies readonly SettingsContentItemId[];
 const templateSemanticListItemIds = [
-  "settings-template-semantic-active-terms-card",
-  "settings-template-semantic-recommended-terms-card",
+  "settings-template-semantic-active-terms-list-item",
+  "settings-template-semantic-recommended-terms-list-item",
 ] as const satisfies readonly SettingsContentItemId[];
 
 type SelectOption = {
@@ -147,6 +145,7 @@ type SettingsDraftState = {
 
 const ORIGIN_HEALTH_NOTIFICATION_ID = "settings.originHealth";
 const CLEANUP_NOTIFICATION_ID = "settings.cleanup";
+const TEMPLATE_SETTINGS_NOTIFICATION_ID = "settings.templateSettings";
 
 export class SettingsController {
   private readonly service: ISettingsService;
@@ -169,7 +168,6 @@ export class SettingsController {
   private fileNameMatchingSaving = false;
   private fileNameMatchingFeedback: Feedback = IDLE_FEEDBACK;
   private templateSettingsSaving = false;
-  private templateSettingsFeedback: Feedback = IDLE_FEEDBACK;
   private defaultsSaving = false;
   private defaultsFeedback: Feedback = IDLE_FEEDBACK;
   private appearanceSaving = false;
@@ -718,7 +716,6 @@ export class SettingsController {
       disabledDomainPackIds: normalizeTemplateDisabledBuiltinDomainPackIds(this.settings.templateDisabledBuiltinDomainPackIds),
       disabledBuiltinTermIds,
       familyOptions: this.templateSemanticFamilyOptions,
-      feedback: this.templateSettingsFeedback,
       intentOptions: this.templateSemanticIntentOptions,
       isSaving: this.templateSettingsSaving,
       ivModeOptions: this.templateSemanticIvModeOptions,
@@ -1225,13 +1222,11 @@ export class SettingsController {
     const term = termDraft.trim();
     const builtinTarget = itemsUpdateTarget("template-semantic-library", ...templateSemanticBuiltinTermFromInputItemIds);
     const customTarget = itemsUpdateTarget("template-semantic-library", ...templateSemanticCustomTermItemIds);
-    const feedbackTarget = itemsUpdateTarget("template-semantic-library", "settings-template-semantic-feedback-card");
     if (!term) {
-      this.templateSettingsFeedback = {
-        type: "error",
-        message: localize("settings.template.semantic.emptyTerm", "Enter a match term before adding it."),
-      };
-      this.render(feedbackTarget);
+      this.showTemplateSettingsNotification(
+        localize("settings.template.semantic.emptyTerm", "Enter a match term before adding it."),
+        "error",
+      );
       return;
     }
 
@@ -1252,21 +1247,20 @@ export class SettingsController {
         !disabledBuiltinTermIdSet.has(candidate.id) && candidate.alias === term
       );
     if (duplicatesEnabledTerm) {
-      this.templateSettingsFeedback = {
-        type: "error",
-        message: localize("settings.template.semantic.duplicateTerm", "Match term already exists."),
-      };
-      this.render(feedbackTarget);
+      this.showTemplateSettingsNotification(
+        localize("settings.template.semantic.duplicateTerm", "Match term already exists."),
+        "error",
+      );
       return;
     }
 
     if (disabledBuiltinTerm) {
       this.drafts.templateSemanticTermDraft = "";
-      await this.saveTemplateSettings({
+      const didSave = await this.saveTemplateSettings({
         templateDisabledBuiltinSemanticIds: disabledBuiltinTermIds.filter(id => id !== disabledBuiltinTerm.id),
         templateSemanticTermOrder: [...activeTermOrder, disabledBuiltinTerm.id],
       }, null, builtinTarget);
-      if (this.templateSettingsFeedback.type === "error") {
+      if (!didSave) {
         this.drafts.templateSemanticTermDraft = termDraft;
         this.render(builtinTarget);
       }
@@ -1290,11 +1284,11 @@ export class SettingsController {
       nextRule,
     ];
     this.drafts.templateSemanticTermDraft = "";
-    await this.saveTemplateSettings({
+    const didSave = await this.saveTemplateSettings({
       templateSemanticAllowlist: nextCustomTerms,
       templateSemanticTermOrder: [...activeTermOrder, nextRule.id],
     }, localize("settings.template.semantic.saved", "Template semantic library updated."), customTarget);
-    if (this.templateSettingsFeedback.type === "error") {
+    if (!didSave) {
       this.drafts.templateSemanticTermDraft = termDraft;
       this.render(customTarget);
     }
@@ -1307,7 +1301,7 @@ export class SettingsController {
       templateSemanticAllowlist: customTerms,
       templateSemanticTermOrder: normalizeTemplateSemanticTermOrder(this.settings.templateSemanticTermOrder)
         .filter(termId => termId !== id),
-    }, localize("settings.template.semantic.saved", "Template semantic library updated."), itemsUpdateTarget("template-semantic-library", "settings-template-semantic-active-terms-card", "settings-template-semantic-feedback-card"));
+    }, localize("settings.template.semantic.saved", "Template semantic library updated."), itemsUpdateTarget("template-semantic-library", ...templateSemanticCustomTermItemIds));
   }
 
   private async disableTemplateBuiltinTerm(id: string): Promise<void> {
@@ -1374,31 +1368,42 @@ export class SettingsController {
     updates: Record<string, unknown>,
     successMessage: string | null,
     target: SettingsViewUpdateTarget,
-  ): Promise<void> {
+  ): Promise<boolean> {
     this.templateSettingsSaving = true;
-    this.templateSettingsFeedback = IDLE_FEEDBACK;
     this.render(target);
     try {
       await this.service.updateSettings(updates);
       if (successMessage !== null) {
-        this.templateSettingsFeedback = {
-          type: "success",
-          message: successMessage,
-        };
+        this.showTemplateSettingsNotification(successMessage, "success");
       }
+      return true;
     }
     catch (error) {
-      this.templateSettingsFeedback = {
-        type: "error",
-        message: localize("settings.template.saveFailed", "Failed to update template settings: {error}", {
+      this.showTemplateSettingsNotification(
+        localize("settings.template.saveFailed", "Failed to update template settings: {error}", {
           error: this.service.errorMessage(error),
         }),
-      };
+        "error",
+      );
+      return false;
     }
     finally {
       this.templateSettingsSaving = false;
       this.render(target);
     }
+  }
+
+  private showTemplateSettingsNotification(message: string, type: "success" | "error"): void {
+    this.notificationService.notify({
+      id: TEMPLATE_SETTINGS_NOTIFICATION_ID,
+      message,
+      presentation: {
+        dataUi: "settings-template-notification",
+        position: "fixed",
+        type,
+      },
+      severity: type === "error" ? Severity.Error : Severity.Info,
+    });
   }
 
   private async updateDefault(updates: Record<string, unknown>): Promise<void> {
@@ -1731,7 +1736,7 @@ function getConductorSettingItemTarget(key: string): { readonly descriptorId: Se
       return { descriptorId: "template-semantic-library", itemIds: templateSemanticListItemIds };
     case "templateSemanticAllowlist":
     case "templateSemanticTermOrder":
-      return { descriptorId: "template-semantic-library", itemIds: ["settings-template-semantic-active-terms-card"] };
+      return { descriptorId: "template-semantic-library", itemIds: ["settings-template-semantic-active-terms-list-item"] };
     case "defaultYScaleForCf":
       return { descriptorId: "chart-defaults", itemIds: ["settings-default-cf-y-scale-card"] };
     case "defaultYScaleForCv":
