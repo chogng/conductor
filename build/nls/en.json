@@ -508,8 +508,6 @@
   "settings.tableTemplateVisualization.title": "Template Visualization",
   "settings.template.axis.dependent": "Y/dependent",
   "settings.template.axis.unknown": "unknown",
-  "settings.template.builtin.disabled": "Built-in semantic match term disabled for review.",
-  "settings.template.builtin.enabled": "Built-in semantic match term enabled for review.",
   "settings.template.domainPack.disabled": "Domain pack disabled for review.",
   "settings.template.domainPack.enabled": "Domain pack enabled for review.",
   "settings.template.domainPacks.activeTitle": "Active packs",

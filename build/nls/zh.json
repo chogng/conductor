@@ -508,8 +508,6 @@
   "settings.tableTemplateVisualization.title": "模板可视化",
   "settings.template.axis.dependent": "Y/因变量",
   "settings.template.axis.unknown": "未知",
-  "settings.template.builtin.disabled": "已为 Review 禁用内置语义匹配词条。",
-  "settings.template.builtin.enabled": "已为 Review 启用内置语义匹配词条。",
   "settings.template.domainPack.disabled": "已为 Review 禁用领域包。",
   "settings.template.domainPack.enabled": "已为 Review 启用领域包。",
   "settings.template.domainPacks.activeTitle": "已启用",

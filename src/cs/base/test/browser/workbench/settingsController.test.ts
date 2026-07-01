@@ -264,7 +264,55 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
     }
   });
 
-  test("patches only active terms and custom form when adding a custom semantic term", async () => {
+  test("does not show success feedback when disabling a built-in semantic term", async () => {
+    const builtinTerm = dataResourceBuiltinSemanticTerms[0];
+    assert.ok(builtinTerm);
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const service = createSettingsService({});
+    let controller: SettingsController | undefined;
+    let savedSettings: Partial<ConductorSettings> | null = null;
+    service.updateSettings = async updates => {
+      const nextSettings = updates as Partial<ConductorSettings>;
+      savedSettings = nextSettings;
+      service.settings = {
+        ...service.settings,
+        ...nextSettings,
+      };
+      controller?.update(createSettingsViewInput(service.settings));
+      return service.settings;
+    };
+    controller = new SettingsController(
+      container,
+      createSettingsViewInput(service.settings),
+      service,
+      createCommandService(),
+      createNotificationService(),
+    );
+
+    try {
+      openTemplateSection(container);
+      submitSemanticTerm(container, builtinTerm.alias);
+      await settled();
+
+      assert.ok(container.textContent?.includes("Match term already exists."));
+
+      getActiveBuiltinTermAction(container, builtinTerm.alias).click();
+      await settled();
+
+      assert.deepEqual(savedSettings?.templateDisabledBuiltinSemanticIds, [builtinTerm.id]);
+      const feedbackSlot = getElement(container, "#settings-template-semantic-feedback-card .settings-template-feedback-slot");
+      assert.equal(feedbackSlot.textContent, "");
+      assert.equal(feedbackSlot.classList.contains("settings-feedback--success"), false);
+    }
+    finally {
+      controller?.dispose();
+      container.remove();
+    }
+  });
+
+  test("patches only active terms, term input, and feedback when adding a custom semantic term", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
 
@@ -311,14 +359,16 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
         [
           [
             "settings-template-semantic-active-terms-card",
-            "settings-template-semantic-custom-form-card",
+            "settings-template-semantic-term-input-card",
+            "settings-template-semantic-feedback-card",
           ],
           [
             "settings-template-semantic-active-terms-card",
           ],
           [
             "settings-template-semantic-active-terms-card",
-            "settings-template-semantic-custom-form-card",
+            "settings-template-semantic-term-input-card",
+            "settings-template-semantic-feedback-card",
           ],
         ],
       );
@@ -446,9 +496,18 @@ function submitSemanticTerm(container: HTMLElement, value: string): void {
 }
 
 function getSemanticTermInput(container: HTMLElement): HTMLInputElement {
-  const input = container.querySelector<HTMLInputElement>("#settings-template-semantic-active-terms-card .inputbox_widget input.inputbox_native:not([hidden])");
+  const input = container.querySelector<HTMLInputElement>("#settings-template-semantic-term-input-card .inputbox_widget input.inputbox_native:not([hidden])");
   assert.ok(input);
   return input;
+}
+
+function getActiveBuiltinTermAction(container: HTMLElement, term: string): HTMLButtonElement {
+  const item = Array.from(container.querySelectorAll<HTMLElement>('#settings-template-semantic-active-terms-card .inputbox_widget_item[data-kind="builtin-enabled"]'))
+    .find(item => item.querySelector<HTMLElement>(".inputbox_widget_item_label")?.textContent === term);
+  assert.ok(item);
+  const action = item.querySelector<HTMLButtonElement>(".inputbox_widget_item_action");
+  assert.ok(action);
+  return action;
 }
 
 function getButton(container: HTMLElement, id: string): HTMLButtonElement {
