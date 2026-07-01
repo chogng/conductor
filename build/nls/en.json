@@ -564,7 +564,7 @@
   "settings.template.semantic.removeTerm": "Remove match term {term}",
   "settings.template.semantic.roleLabel": "Role",
   "settings.template.semantic.saved": "Template semantic library updated",
-  "settings.template.semantic.shortTerm": "Enter at least two letters or digits for the match term.",
+  "settings.template.semantic.shortTerm": "Enter at least two letters or digits for the match term",
   "settings.template.semantic.termInputPlaceholder": "Add match term",
   "settings.template.semantic.title": "Semantic Library",
   "settings.template.semantic.unitLabel": "Unit",
