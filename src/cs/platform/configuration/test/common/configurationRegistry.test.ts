@@ -68,6 +68,48 @@ suite("platform/configuration/common/configurationRegistry", () => {
     );
   });
 
+  test("normalizes template semantic allowlist field shape without semantic matching filters", () => {
+    assert.deepEqual(normalizeConductorSettings({
+      templateSemanticAllowlist: [{
+        id: "single-i",
+        alias: " I ",
+        canonicalRole: "current",
+        axisTendency: "dependent",
+        enabled: true,
+      }, {
+        id: "punctuation",
+        alias: ";",
+        canonicalRole: "current",
+        axisTendency: "dependent",
+        enabled: true,
+      }, {
+        id: "drain-current",
+        alias: " Id ",
+        canonicalRole: "current",
+        axisTendency: "dependent",
+        enabled: true,
+      }],
+    }).templateSemanticAllowlist, [{
+      id: "single-i",
+      alias: "I",
+      canonicalRole: "current",
+      axisTendency: "dependent",
+      enabled: true,
+    }, {
+      id: "punctuation",
+      alias: ";",
+      canonicalRole: "current",
+      axisTendency: "dependent",
+      enabled: true,
+    }, {
+      id: "drain-current",
+      alias: "Id",
+      canonicalRole: "current",
+      axisTendency: "dependent",
+      enabled: true,
+    }]);
+  });
+
   test("normalizes Explorer badge colors", () => {
     assert.deepEqual(normalizeConductorSettings({
       filesExplorerBadgeColors: {

@@ -571,7 +571,7 @@ export class SettingsController {
   }
 
   private get templateSettings(): SettingsViewOptions["templateSettings"] {
-    const customTerms = normalizeTemplateSemanticAllowlist(this.settings.templateSemanticAllowlist).map(toTemplateSemanticTermView);
+    const customTerms = this.matchingTemplateSemanticAllowlist.map(toTemplateSemanticTermView);
     const builtinTermViews = builtinSemanticTerms.map(toBuiltinTemplateSemanticTermView);
     const disabledBuiltinTermIds = normalizeTemplateDisabledBuiltinSemanticIds(this.settings.templateDisabledBuiltinSemanticIds);
     return {
@@ -603,6 +603,11 @@ export class SettingsController {
       unitOptions: this.templateSemanticUnitOptions,
       xAxisIntentPriority: normalizeTemplateXAxisIntentPriority(this.settings.templateXAxisIntentPriority),
     };
+  }
+
+  private get matchingTemplateSemanticAllowlist(): readonly TemplateSemanticTermRule[] {
+    return normalizeTemplateSemanticAllowlist(this.settings.templateSemanticAllowlist)
+      .filter(rule => isCustomSemanticMatchTermAllowed(rule.alias));
   }
 
   private get appearanceSettings(): SettingsViewOptions["appearanceSettings"] {
@@ -1075,19 +1080,27 @@ export class SettingsController {
     const term = termDraft.trim();
     const builtinTarget = itemsUpdateTarget("template-semantic-library", ...templateSemanticBuiltinTermFromInputItemIds);
     const customTarget = itemsUpdateTarget("template-semantic-library", ...templateSemanticCustomTermItemIds);
-    if (!term || !isCustomSemanticMatchTermAllowed(term)) {
+    if (!term) {
       this.showTemplateSettingsNotification(
         localize("settings.template.semantic.emptyTerm", "Enter a match term before adding it."),
         "error",
       );
       return;
     }
+    if (!isCustomSemanticMatchTermAllowed(term)) {
+      this.showTemplateSettingsNotification(
+        localize("settings.template.semantic.shortTerm", "Enter at least two letters or digits for the match term."),
+        "error",
+      );
+      return;
+    }
 
-    const customTerms = normalizeTemplateSemanticAllowlist(this.settings.templateSemanticAllowlist);
+    const storedCustomTerms = normalizeTemplateSemanticAllowlist(this.settings.templateSemanticAllowlist);
+    const matchingCustomTerms = storedCustomTerms.filter(rule => isCustomSemanticMatchTermAllowed(rule.alias));
     const disabledBuiltinTermIds = normalizeTemplateDisabledBuiltinSemanticIds(this.settings.templateDisabledBuiltinSemanticIds);
     const activeTermOrder = getTemplateActiveSemanticTermOrder(
       builtinSemanticTerms,
-      customTerms,
+      matchingCustomTerms,
       disabledBuiltinTermIds,
       normalizeTemplateSemanticTermOrder(this.settings.templateSemanticTermOrder),
     );
@@ -1095,7 +1108,7 @@ export class SettingsController {
     const disabledBuiltinTerm = builtinSemanticTerms.find(candidate =>
       disabledBuiltinTermIdSet.has(candidate.id) && candidate.alias === term
     );
-    const duplicatesEnabledTerm = customTerms.some(candidate => candidate.alias === term) ||
+    const duplicatesEnabledTerm = matchingCustomTerms.some(candidate => candidate.alias === term) ||
       builtinSemanticTerms.some(candidate =>
         !disabledBuiltinTermIdSet.has(candidate.id) && candidate.alias === term
       );
@@ -1132,7 +1145,7 @@ export class SettingsController {
       enabled: true,
     };
     const nextCustomTerms = [
-      ...customTerms,
+      ...storedCustomTerms,
       nextRule,
     ];
     this.drafts.templateSemanticTermDraft = "";
@@ -1173,7 +1186,7 @@ export class SettingsController {
     const nextDisabledTermIds = disabledTermIds.filter(disabledId => disabledId !== id);
     const activeTermOrder = getTemplateActiveSemanticTermOrder(
       builtinSemanticTerms,
-      normalizeTemplateSemanticAllowlist(this.settings.templateSemanticAllowlist),
+      this.matchingTemplateSemanticAllowlist,
       disabledTermIds,
       normalizeTemplateSemanticTermOrder(this.settings.templateSemanticTermOrder),
     );

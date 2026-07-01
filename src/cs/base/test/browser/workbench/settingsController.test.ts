@@ -272,7 +272,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
     }
   });
 
-  test("adds single-character semantic terms from the token input", async () => {
+  test("rejects single-character semantic terms from the token input", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
 
@@ -304,17 +304,55 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       submitSemanticTerm(container, "V");
       await settled();
 
-      assert.equal(updateCount, 1);
-      const customTerms = service.settings.templateSemanticAllowlist;
-      assert.ok(Array.isArray(customTerms));
-      assert.equal(customTerms.at(-1)?.alias, "V");
-      assert.equal(notifications.at(-1)?.message, "Template semantic library updated.");
-      assert.equal(notifications.at(-1)?.presentation?.type, "success");
-      assert.equal(getSemanticTermInput(container).value, "");
-      assert.ok(getActiveCustomTermAction(container, "V"));
+      assert.equal(updateCount, 0);
+      assert.equal(service.settings.templateSemanticAllowlist, undefined);
+      assert.equal(notifications.at(-1)?.message, "Enter at least two letters or digits for the match term.");
+      assert.equal(notifications.at(-1)?.presentation?.type, "error");
+      assert.equal(getSemanticTermInput(container).value, "V");
+      assert.equal(hasActiveCustomTerm(container, "V"), false);
     }
     finally {
       controller?.dispose();
+      container.remove();
+    }
+  });
+
+  test("hides configured single-character semantic terms from the active list", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const service = createSettingsService({
+      templateSemanticAllowlist: [{
+        id: "single-i",
+        alias: "I",
+        canonicalRole: "current",
+        axisTendency: "dependent",
+        enabled: true,
+      }, {
+        id: "drive-bias",
+        alias: "DriveBias",
+        canonicalRole: "voltage",
+        axisTendency: "x",
+        enabled: true,
+      }],
+    });
+    const controller = new SettingsController(
+      container,
+      createSettingsViewInput(service.settings),
+      service,
+      createCommandService(),
+      createNotificationService(),
+    );
+    controller.attachNavigation(container);
+
+    try {
+      openTemplateSection(container);
+
+      assert.equal(hasActiveCustomTerm(container, "I"), false);
+      assert.equal(hasActiveCustomTerm(container, "DriveBias"), true);
+    }
+    finally {
+      controller.dispose();
       container.remove();
     }
   });
@@ -651,6 +689,11 @@ function getActiveCustomTermAction(container: HTMLElement, term: string): HTMLBu
   const action = item.querySelector<HTMLButtonElement>(".inputbox_widget_item_action");
   assert.ok(action);
   return action;
+}
+
+function hasActiveCustomTerm(container: HTMLElement, term: string): boolean {
+  return Array.from(container.querySelectorAll<HTMLElement>('#settings-template-semantic-active-terms-card .inputbox_widget_item[data-kind="custom"]'))
+    .some(item => item.querySelector<HTMLElement>(".inputbox_widget_item_label")?.textContent === term);
 }
 
 function getButton(container: HTMLElement, id: string): HTMLButtonElement {

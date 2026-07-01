@@ -240,7 +240,7 @@ export function isBuiltinSemanticMatchTermAllowed(value: unknown): boolean {
 }
 
 export function isCustomSemanticMatchTermAllowed(value: unknown): boolean {
-	return normalizeSemanticLookupText(value).length > 0;
+	return normalizeSemanticLookupText(value).length > 1;
 }
 
 //#endregion

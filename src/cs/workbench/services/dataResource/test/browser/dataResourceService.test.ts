@@ -121,7 +121,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		));
 	});
 
-	test("uses explicitly configured single-character template semantic term entries", async () => {
+	test("ignores configured single-character template semantic term entries", async () => {
 		const evidence = await resolveEvidence([
 			["V", "I"],
 			["0", "1e-12"],
@@ -143,16 +143,10 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			}],
 		});
 
-		assert.ok(evidence.columnTitleSpans.some(span =>
-			span.targetColumn === 0 &&
-			span.canonicalRole === "voltage" &&
-			span.axisTendency === "x" &&
-			span.reasons.includes("semanticAllowlist.term")
-		));
-		assert.ok(evidence.columnTitleSpans.some(span =>
-			span.targetColumn === 1 &&
-			span.canonicalRole === "current" &&
-			span.axisTendency === "dependent" &&
+		assert.equal(isCustomSemanticMatchTermAllowed("V"), false);
+		assert.equal(isCustomSemanticMatchTermAllowed("Id"), true);
+		assert.ok(!evidence.columnTitleSpans.some(span =>
+			(span.targetColumn === 0 || span.targetColumn === 1) &&
 			span.reasons.includes("semanticAllowlist.term")
 		));
 	});
