@@ -1103,22 +1103,22 @@ const readTitleSpanIntents = (
 	}
 	const intents: StructuredXAxisIntent[] = [];
 	for (const reason of titleSpan.reasons) {
-		if (reason === "infoNeighborhood.intent:rawTransient" || reason === "semanticAllowlist.intent:rawTransient") {
+		if (reason === "infoNeighborhood.intent:rawTransient") {
 			intents.push("rawTransient");
 		}
-		if (reason === "infoNeighborhood.intent:ivCurve" || reason === "semanticAllowlist.intent:ivCurve") {
+		if (reason === "infoNeighborhood.intent:ivCurve") {
 			intents.push("ivCurve");
 		}
-		if (reason === "infoNeighborhood.intent:pvCurve" || reason === "semanticAllowlist.intent:pvCurve") {
+		if (reason === "infoNeighborhood.intent:pvCurve") {
 			intents.push("pvCurve");
 		}
-		if (reason === "infoNeighborhood.intent:cvCurve" || reason === "semanticAllowlist.intent:cvCurve") {
+		if (reason === "infoNeighborhood.intent:cvCurve") {
 			intents.push("cvCurve");
 		}
-		if (reason === "infoNeighborhood.intent:frequencySweep" || reason === "semanticAllowlist.intent:frequencySweep") {
+		if (reason === "infoNeighborhood.intent:frequencySweep") {
 			intents.push("frequencySweep");
 		}
-		if (reason === "infoNeighborhood.intent:genericXY" || reason === "semanticAllowlist.intent:genericXY") {
+		if (reason === "infoNeighborhood.intent:genericXY") {
 			intents.push("genericXY");
 		}
 	}

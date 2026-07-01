@@ -75,6 +75,8 @@ suite("platform/configuration/common/configurationRegistry", () => {
         alias: " I ",
         canonicalRole: "current",
         axisTendency: "dependent",
+        family: "iv",
+        intent: "ivCurve",
         enabled: true,
       }, {
         id: "punctuation",

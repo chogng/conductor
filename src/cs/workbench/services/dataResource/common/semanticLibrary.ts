@@ -92,7 +92,6 @@ type SemanticTitleTerm = {
 	readonly aliases: readonly string[];
 	readonly title: SemanticTitleRecord;
 	readonly source: SemanticTitleLookupSource;
-	readonly intent?: TemplateXAxisIntent;
 	readonly domainPackIds: readonly string[];
 };
 
@@ -211,7 +210,6 @@ export function createSemanticMatcher(
 		titleTerms: titleTerms.map(term => ({
 			key: term.key,
 			title: term.title,
-			intent: term.intent,
 			source: term.source,
 		})),
 		disabledBuiltinTermIds: Array.from(disabledBuiltinTermIds).sort(),
@@ -304,9 +302,6 @@ const createSemanticTitleMatch = (
 	const reasons = axisMarker
 		? [reason, `semanticLibrary.axisMarker:${axisMarker}`]
 		: [reason];
-	if (term.intent) {
-		reasons.push(`semanticAllowlist.intent:${term.intent}`);
-	}
 	return {
 		canonicalRole: title.canonicalRole,
 		...(title.canonicalUnit ? { canonicalUnit: title.canonicalUnit } : {}),
@@ -341,12 +336,10 @@ function compileAllowlistTitleTerms(
 				canonicalRole: rule.canonicalRole as StructuredMeasurementColumnRole,
 				...(rule.canonicalUnit ? { canonicalUnit: rule.canonicalUnit as StructuredCanonicalUnit } : {}),
 				axisTendency: rule.axisTendency as StructuredAxisTendency,
-				...(rule.family ? { family: rule.family as StructuredMeasurementFamily } : {}),
 				...(rule.ivMode ? { ivMode: rule.ivMode as StructuredIvSweepMode } : {}),
 				aliases: [rule.alias],
 			},
 			source: "allowlist",
-			...(rule.intent ? { intent: rule.intent } : {}),
 			domainPackIds: [],
 		});
 	}

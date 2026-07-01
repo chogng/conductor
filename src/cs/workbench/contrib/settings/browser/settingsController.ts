@@ -45,7 +45,6 @@ import {
   type TemplateSemanticTermRule,
   type TemplateSemanticAxisTendency,
   type TemplateSemanticColumnRole,
-  type TemplateSemanticFamily,
   type TemplateSemanticIvMode,
   type TemplateSemanticUnit,
   type TemplateXAxisIntent,
@@ -123,8 +122,6 @@ type SettingsDraftState = {
   searchQuery: string;
   templateSemanticTermDraft: string;
   templateSemanticAxisDraft: TemplateSemanticAxisTendency;
-  templateSemanticFamilyDraft: TemplateSemanticFamily | "";
-  templateSemanticIntentDraft: TemplateXAxisIntent | "";
   templateSemanticIvModeDraft: TemplateSemanticIvMode | "";
   templateSemanticRoleDraft: TemplateSemanticColumnRole;
   templateSemanticUnitDraft: TemplateSemanticUnit | "";
@@ -247,8 +244,6 @@ export class SettingsController {
       searchQuery: "",
       templateSemanticTermDraft: "",
       templateSemanticAxisDraft: "x",
-      templateSemanticFamilyDraft: "",
-      templateSemanticIntentDraft: "",
       templateSemanticIvModeDraft: "",
       templateSemanticRoleDraft: "voltage",
       templateSemanticUnitDraft: "",
@@ -420,16 +415,6 @@ export class SettingsController {
           this.drafts.templateSemanticAxisDraft = value;
         }
       },
-      setTemplateSemanticFamilyDraft: value => {
-        if (value === "" || value === "iv" || value === "cv" || value === "cf" || value === "pv" || value === "it" || value === "unknown") {
-          this.drafts.templateSemanticFamilyDraft = value;
-        }
-      },
-      setTemplateSemanticIntentDraft: value => {
-        if (value === "" || value === "rawTransient" || value === "ivCurve" || value === "pvCurve" || value === "cvCurve" || value === "frequencySweep" || value === "genericXY") {
-          this.drafts.templateSemanticIntentDraft = value;
-        }
-      },
       setTemplateSemanticIvModeDraft: value => {
         if (value === "" || value === "transfer" || value === "output" || value === "unknown") {
           this.drafts.templateSemanticIvModeDraft = value;
@@ -456,8 +441,6 @@ export class SettingsController {
       themeModeOptions: this.themeModeOptions,
       templateSemanticTermDraft: this.drafts.templateSemanticTermDraft,
       templateSemanticAxisDraft: this.drafts.templateSemanticAxisDraft,
-      templateSemanticFamilyDraft: this.drafts.templateSemanticFamilyDraft,
-      templateSemanticIntentDraft: this.drafts.templateSemanticIntentDraft,
       templateSemanticIvModeDraft: this.drafts.templateSemanticIvModeDraft,
       templateSemanticRoleDraft: this.drafts.templateSemanticRoleDraft,
       templateSemanticUnitDraft: this.drafts.templateSemanticUnitDraft,
@@ -587,8 +570,6 @@ export class SettingsController {
       builtinDomainPacks: builtinSemanticDomainPacks,
       disabledDomainPackIds: normalizeTemplateDisabledBuiltinDomainPackIds(this.settings.templateDisabledBuiltinDomainPackIds),
       disabledBuiltinTermIds,
-      familyOptions: this.templateSemanticFamilyOptions,
-      intentOptions: this.templateSemanticIntentOptions,
       isSaving: this.templateSettingsSaving,
       ivModeOptions: this.templateSemanticIvModeOptions,
       onAddSemanticTerm: () => this.addTemplateSemanticTerm(),
@@ -786,18 +767,6 @@ export class SettingsController {
     ];
   }
 
-  private get templateSemanticIntentOptions(): SelectOption[] {
-    return [
-      { value: "", label: localize("settings.template.intent.none", "none") },
-      { value: "pvCurve", label: localize("settings.template.intent.pvCurve", "PV curve") },
-      { value: "ivCurve", label: localize("settings.template.intent.ivCurve", "IV curve") },
-      { value: "cvCurve", label: localize("settings.template.intent.cvCurve", "CV curve") },
-      { value: "frequencySweep", label: localize("settings.template.intent.frequencySweep", "Frequency sweep") },
-      { value: "rawTransient", label: localize("settings.template.intent.rawTransient", "Raw transient") },
-      { value: "genericXY", label: localize("settings.template.intent.genericXY", "Generic XY") },
-    ];
-  }
-
   private get templateSemanticUnitOptions(): SelectOption[] {
     return [
       { value: "", label: localize("settings.template.unit.none", "none") },
@@ -808,18 +777,6 @@ export class SettingsController {
       { value: "Hz", label: "Hz" },
       { value: "S", label: "S" },
       { value: "ohm", label: "ohm" },
-    ];
-  }
-
-  private get templateSemanticFamilyOptions(): SelectOption[] {
-    return [
-      { value: "", label: localize("settings.template.family.none", "none") },
-      { value: "iv", label: "iv" },
-      { value: "cv", label: "cv" },
-      { value: "cf", label: "cf" },
-      { value: "pv", label: "pv" },
-      { value: "it", label: "it" },
-      { value: "unknown", label: localize("settings.template.family.unknown", "unknown") },
     ];
   }
 
@@ -1139,9 +1096,7 @@ export class SettingsController {
       canonicalRole: this.drafts.templateSemanticRoleDraft,
       ...(this.drafts.templateSemanticUnitDraft ? { canonicalUnit: this.drafts.templateSemanticUnitDraft } : {}),
       axisTendency: this.drafts.templateSemanticAxisDraft,
-      ...(this.drafts.templateSemanticFamilyDraft ? { family: this.drafts.templateSemanticFamilyDraft } : {}),
       ...(this.drafts.templateSemanticIvModeDraft ? { ivMode: this.drafts.templateSemanticIvModeDraft } : {}),
-      ...(this.drafts.templateSemanticIntentDraft ? { intent: this.drafts.templateSemanticIntentDraft } : {}),
       enabled: true,
     };
     const nextCustomTerms = [
@@ -1724,9 +1679,7 @@ const toTemplateSemanticTermView = (
   canonicalRole: rule.canonicalRole,
   ...(rule.canonicalUnit ? { canonicalUnit: rule.canonicalUnit } : {}),
   axisTendency: rule.axisTendency,
-  ...(rule.family ? { family: rule.family } : {}),
   ...(rule.ivMode ? { ivMode: rule.ivMode } : {}),
-  ...(rule.intent ? { intent: rule.intent } : {}),
   enabled: rule.enabled,
 });
 
@@ -1738,7 +1691,6 @@ const toBuiltinTemplateSemanticTermView = (
   canonicalRole: term.canonicalRole,
   ...(term.canonicalUnit ? { canonicalUnit: term.canonicalUnit } : {}),
   axisTendency: term.axisTendency,
-  ...(term.family ? { family: term.family } : {}),
   ...(term.ivMode ? { ivMode: term.ivMode } : {}),
   domainPackIds: term.domainPackIds,
 });

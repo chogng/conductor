@@ -116,9 +116,7 @@ type TemplateSemanticTermRule = {
   canonicalRole: string;
   canonicalUnit?: string;
   axisTendency: string;
-  family?: string;
   ivMode?: string;
-  intent?: string;
   enabled: boolean;
 };
 
@@ -361,14 +359,6 @@ const TEMPLATE_SEMANTIC_UNITS = new Set([
   "F",
   "Hz",
   "S",
-]);
-const TEMPLATE_SEMANTIC_FAMILIES = new Set([
-  "iv",
-  "cv",
-  "cf",
-  "pv",
-  "it",
-  "unknown",
 ]);
 const TEMPLATE_SEMANTIC_IV_MODES = new Set([
   "transfer",
@@ -628,14 +618,8 @@ function normalizeTemplateSemanticAllowlist(value: unknown): TemplateSemanticTer
     const canonicalUnit = isSetValue(TEMPLATE_SEMANTIC_UNITS, raw.canonicalUnit)
       ? raw.canonicalUnit
       : undefined;
-    const family = isSetValue(TEMPLATE_SEMANTIC_FAMILIES, raw.family)
-      ? raw.family
-      : undefined;
     const ivMode = isSetValue(TEMPLATE_SEMANTIC_IV_MODES, raw.ivMode)
       ? raw.ivMode
-      : undefined;
-    const intent = isSetValue(TEMPLATE_X_AXIS_INTENTS, raw.intent)
-      ? raw.intent
       : undefined;
     rules.push({
       id,
@@ -643,9 +627,7 @@ function normalizeTemplateSemanticAllowlist(value: unknown): TemplateSemanticTer
       canonicalRole,
       ...(canonicalUnit ? { canonicalUnit } : {}),
       axisTendency,
-      ...(family ? { family } : {}),
       ...(ivMode ? { ivMode } : {}),
-      ...(intent ? { intent } : {}),
       enabled: raw.enabled !== false,
     });
   }
@@ -1010,9 +992,7 @@ function createConductorConfigurationProperties(): Record<string, IConfiguration
         canonicalRole: { enum: Array.from(TEMPLATE_SEMANTIC_COLUMN_ROLES), type: "string" },
         canonicalUnit: { enum: Array.from(TEMPLATE_SEMANTIC_UNITS), type: "string" },
         enabled: { type: "boolean" },
-        family: { enum: Array.from(TEMPLATE_SEMANTIC_FAMILIES), type: "string" },
         id: { type: "string" },
-        intent: { enum: Array.from(TEMPLATE_X_AXIS_INTENTS), type: "string" },
         ivMode: { enum: Array.from(TEMPLATE_SEMANTIC_IV_MODES), type: "string" },
       },
       required: ["alias", "canonicalRole", "axisTendency"],

@@ -62,7 +62,6 @@ export type TemplateSemanticColumnRole =
   | "current"
   | "unknown";
 export type TemplateSemanticUnit = "V" | "A" | "ohm" | "s" | "F" | "Hz" | "S";
-export type TemplateSemanticFamily = "iv" | "cv" | "cf" | "pv" | "it" | "unknown";
 export type TemplateSemanticIvMode = "transfer" | "output" | "unknown";
 
 export type TemplateSemanticTermRule = {
@@ -71,9 +70,7 @@ export type TemplateSemanticTermRule = {
   readonly canonicalRole: TemplateSemanticColumnRole;
   readonly canonicalUnit?: TemplateSemanticUnit;
   readonly axisTendency: TemplateSemanticAxisTendency;
-  readonly family?: TemplateSemanticFamily;
   readonly ivMode?: TemplateSemanticIvMode;
-  readonly intent?: TemplateXAxisIntent;
   readonly enabled: boolean;
 };
 
@@ -128,14 +125,6 @@ const TEMPLATE_SEMANTIC_UNITS = new Set<TemplateSemanticUnit>([
   "F",
   "Hz",
   "S",
-]);
-const TEMPLATE_SEMANTIC_FAMILIES = new Set<TemplateSemanticFamily>([
-  "iv",
-  "cv",
-  "cf",
-  "pv",
-  "it",
-  "unknown",
 ]);
 const TEMPLATE_SEMANTIC_IV_MODES = new Set<TemplateSemanticIvMode>([
   "transfer",
@@ -279,14 +268,8 @@ export const normalizeTemplateSemanticAllowlist = (
     const canonicalUnit = typeof record.canonicalUnit === "string" && TEMPLATE_SEMANTIC_UNITS.has(record.canonicalUnit as TemplateSemanticUnit)
       ? record.canonicalUnit as TemplateSemanticUnit
       : undefined;
-    const family = typeof record.family === "string" && TEMPLATE_SEMANTIC_FAMILIES.has(record.family as TemplateSemanticFamily)
-      ? record.family as TemplateSemanticFamily
-      : undefined;
     const ivMode = typeof record.ivMode === "string" && TEMPLATE_SEMANTIC_IV_MODES.has(record.ivMode as TemplateSemanticIvMode)
       ? record.ivMode as TemplateSemanticIvMode
-      : undefined;
-    const intent = typeof record.intent === "string" && TEMPLATE_X_AXIS_INTENTS.has(record.intent as TemplateXAxisIntent)
-      ? record.intent as TemplateXAxisIntent
       : undefined;
     rules.push({
       id,
@@ -294,9 +277,7 @@ export const normalizeTemplateSemanticAllowlist = (
       canonicalRole,
       ...(canonicalUnit ? { canonicalUnit } : {}),
       axisTendency,
-      ...(family ? { family } : {}),
       ...(ivMode ? { ivMode } : {}),
-      ...(intent ? { intent } : {}),
       enabled: record.enabled !== false,
     });
   }

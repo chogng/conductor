@@ -24,7 +24,6 @@ import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/services/se
 import type {
   TemplateSemanticAxisTendency,
   TemplateSemanticColumnRole,
-  TemplateSemanticFamily,
   TemplateSemanticIvMode,
   TemplateSemanticUnit,
   TemplateXAxisIntent,
@@ -182,8 +181,6 @@ type TemplateSettings = {
   builtinDomainPacks: readonly BuiltinSemanticDomainPack[];
   disabledDomainPackIds: readonly string[];
   disabledBuiltinTermIds: readonly string[];
-  familyOptions: readonly SelectOption[];
-  intentOptions: readonly SelectOption[];
   isSaving: boolean;
   ivModeOptions: readonly SelectOption[];
   onAddSemanticTerm: () => Promise<void> | void;
@@ -209,13 +206,11 @@ type TemplateSemanticTerm = {
   readonly canonicalRole: TemplateSemanticColumnRole;
   readonly canonicalUnit?: TemplateSemanticUnit;
   readonly axisTendency: TemplateSemanticAxisTendency;
-  readonly family?: TemplateSemanticFamily;
   readonly ivMode?: TemplateSemanticIvMode;
-  readonly intent?: TemplateXAxisIntent;
   readonly enabled: boolean;
 };
 
-type TemplateBuiltinSemanticTerm = Omit<TemplateSemanticTerm, "enabled" | "intent"> & {
+type TemplateBuiltinSemanticTerm = Omit<TemplateSemanticTerm, "enabled"> & {
   readonly domainPackIds: readonly string[];
 };
 
@@ -282,8 +277,6 @@ export type SettingsViewOptions = SettingsViewProps & {
   setPostCommandsDraft: (value: string) => void;
   setTemplateSemanticTermDraft: (value: string) => void;
   setTemplateSemanticAxisDraft: (value: string) => void;
-  setTemplateSemanticFamilyDraft: (value: string) => void;
-  setTemplateSemanticIntentDraft: (value: string) => void;
   setTemplateSemanticIvModeDraft: (value: string) => void;
   setTemplateSemanticRoleDraft: (value: string) => void;
   setTemplateSemanticUnitDraft: (value: string) => void;
@@ -294,8 +287,6 @@ export type SettingsViewOptions = SettingsViewProps & {
   themeModeOptions: SelectOption[];
   templateSemanticTermDraft: string;
   templateSemanticAxisDraft: TemplateSemanticAxisTendency;
-  templateSemanticFamilyDraft: TemplateSemanticFamily | "";
-  templateSemanticIntentDraft: TemplateXAxisIntent | "";
   templateSemanticIvModeDraft: TemplateSemanticIvMode | "";
   templateSemanticRoleDraft: TemplateSemanticColumnRole;
   templateSemanticUnitDraft: TemplateSemanticUnit | "";
@@ -401,8 +392,6 @@ type SettingsDocumentDialogOptions = {
 
 type TemplateSemanticCustomFormWidgets = {
   readonly axisSelect: SelectBox<string>;
-  readonly familySelect: SelectBox<string>;
-  readonly intentSelect: SelectBox<string>;
   readonly ivModeSelect: SelectBox<string>;
   readonly roleSelect: SelectBox<string>;
   readonly unitSelect: SelectBox<string>;
@@ -1402,9 +1391,7 @@ export class SettingsView {
       localize("settings.template.semantic.customMappingTitle", "Custom term mapping"),
       optionLabels(settings.roleOptions),
       optionLabels(settings.axisOptions),
-      optionLabels(settings.intentOptions),
       optionLabels(settings.unitOptions),
-      optionLabels(settings.familyOptions),
       optionLabels(settings.ivModeOptions),
     );
   }
@@ -1418,16 +1405,12 @@ export class SettingsView {
       const grid = div("settings-grid settings-grid--three");
       const roleSelect = this.createSelectWidget(this.getTemplateSemanticRoleSelectOptions(settings));
       const axisSelect = this.createSelectWidget(this.getTemplateSemanticAxisSelectOptions(settings));
-      const intentSelect = this.createSelectWidget(this.getTemplateSemanticIntentSelectOptions(settings));
       const unitSelect = this.createSelectWidget(this.getTemplateSemanticUnitSelectOptions(settings));
-      const familySelect = this.createSelectWidget(this.getTemplateSemanticFamilySelectOptions(settings));
       const ivModeSelect = this.createSelectWidget(this.getTemplateSemanticIvModeSelectOptions(settings));
       grid.append(
         field(localize("settings.template.semantic.roleLabel", "Role"), roleSelect.domNode),
         field(localize("settings.template.semantic.axisLabel", "Axis"), axisSelect.domNode),
-        field(localize("settings.template.semantic.intentLabel", "Intent"), intentSelect.domNode),
         field(localize("settings.template.semantic.unitLabel", "Unit"), unitSelect.domNode),
-        field(localize("settings.template.semantic.familyLabel", "Family"), familySelect.domNode),
         field(localize("settings.template.semantic.ivModeLabel", "IV mode"), ivModeSelect.domNode),
       );
       form.appendChild(grid);
@@ -1437,8 +1420,6 @@ export class SettingsView {
       );
       widgets = {
         axisSelect,
-        familySelect,
-        intentSelect,
         ivModeSelect,
         roleSelect,
         unitSelect,
@@ -1448,9 +1429,7 @@ export class SettingsView {
 
     this.updateSelectWidget(widgets.roleSelect, this.getTemplateSemanticRoleSelectOptions(settings));
     this.updateSelectWidget(widgets.axisSelect, this.getTemplateSemanticAxisSelectOptions(settings));
-    this.updateSelectWidget(widgets.intentSelect, this.getTemplateSemanticIntentSelectOptions(settings));
     this.updateSelectWidget(widgets.unitSelect, this.getTemplateSemanticUnitSelectOptions(settings));
-    this.updateSelectWidget(widgets.familySelect, this.getTemplateSemanticFamilySelectOptions(settings));
     this.updateSelectWidget(widgets.ivModeSelect, this.getTemplateSemanticIvModeSelectOptions(settings));
   }
 
@@ -1474,32 +1453,12 @@ export class SettingsView {
     };
   }
 
-  private getTemplateSemanticIntentSelectOptions(settings: TemplateSettings): FieldOptions {
-    return {
-      id: "settings-template-semantic-intent-select",
-      value: this.options.templateSemanticIntentDraft,
-      onChange: this.options.setTemplateSemanticIntentDraft,
-      options: settings.intentOptions,
-      disabled: settings.isSaving,
-    };
-  }
-
   private getTemplateSemanticUnitSelectOptions(settings: TemplateSettings): FieldOptions {
     return {
       id: "settings-template-semantic-unit-select",
       value: this.options.templateSemanticUnitDraft,
       onChange: this.options.setTemplateSemanticUnitDraft,
       options: settings.unitOptions,
-      disabled: settings.isSaving,
-    };
-  }
-
-  private getTemplateSemanticFamilySelectOptions(settings: TemplateSettings): FieldOptions {
-    return {
-      id: "settings-template-semantic-family-select",
-      value: this.options.templateSemanticFamilyDraft,
-      onChange: this.options.setTemplateSemanticFamilyDraft,
-      options: settings.familyOptions,
       disabled: settings.isSaving,
     };
   }
