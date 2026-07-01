@@ -26,7 +26,6 @@ import type {
   TemplateSemanticColumnRole,
   TemplateSemanticFamily,
   TemplateSemanticIvMode,
-  TemplateSemanticMatchPolicy,
   TemplateSemanticUnit,
   TemplateXAxisIntent,
 } from "src/cs/workbench/services/settings/common/settings";
@@ -195,7 +194,6 @@ type TemplateSettings = {
   intentOptions: readonly SelectOption[];
   isSaving: boolean;
   ivModeOptions: readonly SelectOption[];
-  matchPolicyOptions: readonly SelectOption[];
   onAddSemanticTerm: () => Promise<void> | void;
   onDisableBuiltinTerm: (id: string) => Promise<void> | void;
   onDisableDomainPack: (id: string) => Promise<void> | void;
@@ -222,11 +220,10 @@ type TemplateSemanticTerm = {
   readonly family?: TemplateSemanticFamily;
   readonly ivMode?: TemplateSemanticIvMode;
   readonly intent?: TemplateXAxisIntent;
-  readonly matchPolicy: TemplateSemanticMatchPolicy;
   readonly enabled: boolean;
 };
 
-type TemplateBuiltinSemanticTerm = Omit<TemplateSemanticTerm, "enabled" | "intent" | "matchPolicy"> & {
+type TemplateBuiltinSemanticTerm = Omit<TemplateSemanticTerm, "enabled" | "intent"> & {
   readonly domainPackIds: readonly string[];
 };
 
@@ -296,7 +293,6 @@ export type SettingsViewOptions = SettingsViewProps & {
   setTemplateSemanticFamilyDraft: (value: string) => void;
   setTemplateSemanticIntentDraft: (value: string) => void;
   setTemplateSemanticIvModeDraft: (value: string) => void;
-  setTemplateSemanticMatchPolicyDraft: (value: string) => void;
   setTemplateSemanticRoleDraft: (value: string) => void;
   setTemplateSemanticUnitDraft: (value: string) => void;
   setTickLabelFontSizeDraft: (value: string) => void;
@@ -309,7 +305,6 @@ export type SettingsViewOptions = SettingsViewProps & {
   templateSemanticFamilyDraft: TemplateSemanticFamily | "";
   templateSemanticIntentDraft: TemplateXAxisIntent | "";
   templateSemanticIvModeDraft: TemplateSemanticIvMode | "";
-  templateSemanticMatchPolicyDraft: TemplateSemanticMatchPolicy;
   templateSemanticRoleDraft: TemplateSemanticColumnRole;
   templateSemanticUnitDraft: TemplateSemanticUnit | "";
   tickLabelFontSizeDraft: string;
@@ -418,7 +413,6 @@ type TemplateSemanticCustomFormWidgets = {
   readonly familySelect: SelectBox<string>;
   readonly intentSelect: SelectBox<string>;
   readonly ivModeSelect: SelectBox<string>;
-  readonly matchPolicySelect: SelectBox<string>;
   readonly roleSelect: SelectBox<string>;
   readonly unitSelect: SelectBox<string>;
 };
@@ -1417,7 +1411,6 @@ export class SettingsView {
       localize("settings.template.semantic.customMappingTitle", "Custom term mapping"),
       optionLabels(settings.roleOptions),
       optionLabels(settings.axisOptions),
-      optionLabels(settings.matchPolicyOptions),
       optionLabels(settings.intentOptions),
       optionLabels(settings.unitOptions),
       optionLabels(settings.familyOptions),
@@ -1434,7 +1427,6 @@ export class SettingsView {
       const grid = div("settings-grid settings-grid--three");
       const roleSelect = this.createSelectWidget(this.getTemplateSemanticRoleSelectOptions(settings));
       const axisSelect = this.createSelectWidget(this.getTemplateSemanticAxisSelectOptions(settings));
-      const matchPolicySelect = this.createSelectWidget(this.getTemplateSemanticMatchPolicySelectOptions(settings));
       const intentSelect = this.createSelectWidget(this.getTemplateSemanticIntentSelectOptions(settings));
       const unitSelect = this.createSelectWidget(this.getTemplateSemanticUnitSelectOptions(settings));
       const familySelect = this.createSelectWidget(this.getTemplateSemanticFamilySelectOptions(settings));
@@ -1442,7 +1434,6 @@ export class SettingsView {
       grid.append(
         field(localize("settings.template.semantic.roleLabel", "Role"), roleSelect.domNode),
         field(localize("settings.template.semantic.axisLabel", "Axis"), axisSelect.domNode),
-        field(localize("settings.template.semantic.policyLabel", "Match"), matchPolicySelect.domNode),
         field(localize("settings.template.semantic.intentLabel", "Intent"), intentSelect.domNode),
         field(localize("settings.template.semantic.unitLabel", "Unit"), unitSelect.domNode),
         field(localize("settings.template.semantic.familyLabel", "Family"), familySelect.domNode),
@@ -1458,7 +1449,6 @@ export class SettingsView {
         familySelect,
         intentSelect,
         ivModeSelect,
-        matchPolicySelect,
         roleSelect,
         unitSelect,
       };
@@ -1467,7 +1457,6 @@ export class SettingsView {
 
     this.updateSelectWidget(widgets.roleSelect, this.getTemplateSemanticRoleSelectOptions(settings));
     this.updateSelectWidget(widgets.axisSelect, this.getTemplateSemanticAxisSelectOptions(settings));
-    this.updateSelectWidget(widgets.matchPolicySelect, this.getTemplateSemanticMatchPolicySelectOptions(settings));
     this.updateSelectWidget(widgets.intentSelect, this.getTemplateSemanticIntentSelectOptions(settings));
     this.updateSelectWidget(widgets.unitSelect, this.getTemplateSemanticUnitSelectOptions(settings));
     this.updateSelectWidget(widgets.familySelect, this.getTemplateSemanticFamilySelectOptions(settings));
@@ -1490,16 +1479,6 @@ export class SettingsView {
       value: this.options.templateSemanticAxisDraft,
       onChange: this.options.setTemplateSemanticAxisDraft,
       options: settings.axisOptions,
-      disabled: settings.isSaving,
-    };
-  }
-
-  private getTemplateSemanticMatchPolicySelectOptions(settings: TemplateSettings): FieldOptions {
-    return {
-      id: "settings-template-semantic-policy-select",
-      value: this.options.templateSemanticMatchPolicyDraft,
-      onChange: this.options.setTemplateSemanticMatchPolicyDraft,
-      options: settings.matchPolicyOptions,
       disabled: settings.isSaving,
     };
   }

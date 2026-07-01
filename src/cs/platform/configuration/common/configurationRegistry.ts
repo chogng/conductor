@@ -119,7 +119,6 @@ type TemplateSemanticTermRule = {
   family?: string;
   ivMode?: string;
   intent?: string;
-  matchPolicy: string;
   enabled: boolean;
 };
 
@@ -333,11 +332,6 @@ const TEMPLATE_X_AXIS_INTENTS = new Set([
   "frequencySweep",
   "rawTransient",
   "genericXY",
-]);
-const TEMPLATE_SEMANTIC_MATCH_POLICIES = new Set([
-  "exact",
-  "token",
-  "contains",
 ]);
 const TEMPLATE_SEMANTIC_AXIS_TENDENCIES = new Set([
   "x",
@@ -628,9 +622,6 @@ function normalizeTemplateSemanticAllowlist(value: unknown): TemplateSemanticTer
     const axisTendency = isSetValue(TEMPLATE_SEMANTIC_AXIS_TENDENCIES, raw.axisTendency)
       ? raw.axisTendency
       : "unknown";
-    const matchPolicy = isSetValue(TEMPLATE_SEMANTIC_MATCH_POLICIES, raw.matchPolicy)
-      ? raw.matchPolicy
-      : "exact";
     const id = typeof raw.id === "string" && raw.id.trim()
       ? raw.id.trim()
       : `template-semantic-${index}`;
@@ -655,7 +646,6 @@ function normalizeTemplateSemanticAllowlist(value: unknown): TemplateSemanticTer
       ...(family ? { family } : {}),
       ...(ivMode ? { ivMode } : {}),
       ...(intent ? { intent } : {}),
-      matchPolicy,
       enabled: raw.enabled !== false,
     });
   }
@@ -1024,7 +1014,6 @@ function createConductorConfigurationProperties(): Record<string, IConfiguration
         id: { type: "string" },
         intent: { enum: Array.from(TEMPLATE_X_AXIS_INTENTS), type: "string" },
         ivMode: { enum: Array.from(TEMPLATE_SEMANTIC_IV_MODES), type: "string" },
-        matchPolicy: { enum: Array.from(TEMPLATE_SEMANTIC_MATCH_POLICIES), type: "string" },
       },
       required: ["alias", "canonicalRole", "axisTendency"],
       type: "object",

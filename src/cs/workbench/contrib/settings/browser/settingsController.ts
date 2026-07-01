@@ -52,13 +52,13 @@ import {
   type TemplateSemanticColumnRole,
   type TemplateSemanticFamily,
   type TemplateSemanticIvMode,
-  type TemplateSemanticMatchPolicy,
   type TemplateSemanticUnit,
   type TemplateXAxisIntent,
 } from "src/cs/workbench/services/settings/common/settings";
 import {
   dataResourceBuiltinSemanticTerms,
   dataResourceBuiltinSemanticDomainPacks,
+  isDataResourceSemanticMatchTermAllowed,
   type DataResourceBuiltinSemanticTerm,
 } from "src/cs/workbench/services/dataResource/common/semanticLibrary";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
@@ -135,7 +135,6 @@ type SettingsDraftState = {
   templateSemanticFamilyDraft: TemplateSemanticFamily | "";
   templateSemanticIntentDraft: TemplateXAxisIntent | "";
   templateSemanticIvModeDraft: TemplateSemanticIvMode | "";
-  templateSemanticMatchPolicyDraft: TemplateSemanticMatchPolicy;
   templateSemanticRoleDraft: TemplateSemanticColumnRole;
   templateSemanticUnitDraft: TemplateSemanticUnit | "";
   tickLabelFontSizeDraft: string;
@@ -274,7 +273,6 @@ export class SettingsController {
       templateSemanticFamilyDraft: "",
       templateSemanticIntentDraft: "",
       templateSemanticIvModeDraft: "",
-      templateSemanticMatchPolicyDraft: "exact",
       templateSemanticRoleDraft: "voltage",
       templateSemanticUnitDraft: "",
       tickLabelFontSizeDraft: String(axisSettings.tickLabelFontSize ?? ""),
@@ -555,11 +553,6 @@ export class SettingsController {
           this.drafts.templateSemanticIvModeDraft = value;
         }
       },
-      setTemplateSemanticMatchPolicyDraft: value => {
-        if (value === "exact" || value === "token" || value === "contains") {
-          this.drafts.templateSemanticMatchPolicyDraft = value;
-        }
-      },
       setTemplateSemanticRoleDraft: value => {
         if (this.templateSemanticRoleOptions.some(option => option.value === value)) {
           this.drafts.templateSemanticRoleDraft = value as TemplateSemanticColumnRole;
@@ -584,7 +577,6 @@ export class SettingsController {
       templateSemanticFamilyDraft: this.drafts.templateSemanticFamilyDraft,
       templateSemanticIntentDraft: this.drafts.templateSemanticIntentDraft,
       templateSemanticIvModeDraft: this.drafts.templateSemanticIvModeDraft,
-      templateSemanticMatchPolicyDraft: this.drafts.templateSemanticMatchPolicyDraft,
       templateSemanticRoleDraft: this.drafts.templateSemanticRoleDraft,
       templateSemanticUnitDraft: this.drafts.templateSemanticUnitDraft,
       tickLabelFontSizeDraft: this.drafts.tickLabelFontSizeDraft,
@@ -719,7 +711,6 @@ export class SettingsController {
       intentOptions: this.templateSemanticIntentOptions,
       isSaving: this.templateSettingsSaving,
       ivModeOptions: this.templateSemanticIvModeOptions,
-      matchPolicyOptions: this.templateSemanticMatchPolicyOptions,
       onAddSemanticTerm: () => this.addTemplateSemanticTerm(),
       onDisableBuiltinTerm: id => this.disableTemplateBuiltinTerm(id),
       onDisableDomainPack: id => this.disableTemplateDomainPack(id),
@@ -910,14 +901,6 @@ export class SettingsController {
       { value: "x", label: "X" },
       { value: "dependent", label: localize("settings.template.axis.dependent", "Y/dependent") },
       { value: "unknown", label: localize("settings.template.axis.unknown", "unknown") },
-    ];
-  }
-
-  private get templateSemanticMatchPolicyOptions(): SelectOption[] {
-    return [
-      { value: "exact", label: localize("settings.template.matchPolicy.exact", "exact") },
-      { value: "token", label: localize("settings.template.matchPolicy.token", "token") },
-      { value: "contains", label: localize("settings.template.matchPolicy.contains", "contains") },
     ];
   }
 
@@ -1231,6 +1214,14 @@ export class SettingsController {
       return;
     }
 
+    if (!isDataResourceSemanticMatchTermAllowed(term)) {
+      this.showTemplateSettingsNotification(
+        localize("settings.template.semantic.ambiguousTerm", "Single-character match terms are too ambiguous for semantic matching."),
+        "error",
+      );
+      return;
+    }
+
     const customTerms = normalizeTemplateSemanticAllowlist(this.settings.templateSemanticAllowlist);
     const disabledBuiltinTermIds = normalizeTemplateDisabledBuiltinSemanticIds(this.settings.templateDisabledBuiltinSemanticIds);
     const activeTermOrder = getTemplateActiveSemanticTermOrder(
@@ -1277,7 +1268,6 @@ export class SettingsController {
       ...(this.drafts.templateSemanticFamilyDraft ? { family: this.drafts.templateSemanticFamilyDraft } : {}),
       ...(this.drafts.templateSemanticIvModeDraft ? { ivMode: this.drafts.templateSemanticIvModeDraft } : {}),
       ...(this.drafts.templateSemanticIntentDraft ? { intent: this.drafts.templateSemanticIntentDraft } : {}),
-      matchPolicy: this.drafts.templateSemanticMatchPolicyDraft,
       enabled: true,
     };
     const nextCustomTerms = [
@@ -1875,7 +1865,6 @@ const toTemplateSemanticTermView = (
   ...(rule.family ? { family: rule.family } : {}),
   ...(rule.ivMode ? { ivMode: rule.ivMode } : {}),
   ...(rule.intent ? { intent: rule.intent } : {}),
-  matchPolicy: rule.matchPolicy,
   enabled: rule.enabled,
 });
 

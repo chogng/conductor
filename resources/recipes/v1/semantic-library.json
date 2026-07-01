@@ -146,14 +146,14 @@
       "axisTendency": "dependent",
       "family": "cv",
       "domainPackIds": ["semiconductor-ivcv", "frequency-sweep"],
-      "aliases": ["C", "Cap", "Capacitance", "Cp", "Cgg", "Cgd", "Cgs", "Cgb"]
+      "aliases": ["Cap", "Capacitance", "Cp", "Cgg", "Cgd", "Cgs", "Cgb"]
     },
     {
       "canonicalRole": "conductance",
       "canonicalUnit": "S",
       "axisTendency": "dependent",
       "domainPackIds": ["semiconductor-ivcv", "frequency-sweep"],
-      "aliases": ["G", "Conductance", "Transconductance", "gm"]
+      "aliases": ["Conductance", "Transconductance", "gm"]
     },
     {
       "canonicalRole": "frequency",
@@ -161,7 +161,7 @@
       "axisTendency": "x",
       "family": "cf",
       "domainPackIds": ["core-test-measurement", "frequency-sweep"],
-      "aliases": ["Frequency", "Freq", "f", "Hz"]
+      "aliases": ["Frequency", "Freq", "Hz"]
     },
     {
       "canonicalRole": "time",
@@ -169,21 +169,21 @@
       "axisTendency": "x",
       "family": "it",
       "domainPackIds": ["core-test-measurement", "raw-transient", "ferroelectric-pv"],
-      "aliases": ["Time", "t", "Seconds", "Second", "Sec"]
+      "aliases": ["Time", "Seconds", "Second", "Sec"]
     },
     {
       "canonicalRole": "voltage",
       "canonicalUnit": "V",
       "axisTendency": "x",
       "domainPackIds": ["core-test-measurement", "raw-transient", "ferroelectric-pv"],
-      "aliases": ["Voltage", "V", "Vp", "Vpn", "Bias", "Bias Voltage"]
+      "aliases": ["Voltage", "Vp", "Vpn", "Bias", "Bias Voltage"]
     },
     {
       "canonicalRole": "current",
       "canonicalUnit": "A",
       "axisTendency": "dependent",
       "domainPackIds": ["core-test-measurement", "raw-transient", "ferroelectric-pv"],
-      "aliases": ["Current", "I", "Ipt"]
+      "aliases": ["Current", "Ipt"]
     }
   ]
 }

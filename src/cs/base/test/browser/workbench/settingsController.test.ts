@@ -237,6 +237,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
     document.body.appendChild(container);
 
     const service = createSettingsService({});
+    const notifications: INotification[] = [];
     let updateCount = 0;
     service.updateSettings = async updates => {
       const nextSettings = updates as Partial<ConductorSettings>;
@@ -252,7 +253,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       createSettingsViewInput(service.settings),
       service,
       createCommandService(),
-      createNotificationService(),
+      createNotificationService(notifications),
     );
     controller.attachNavigation(container);
 
@@ -262,7 +263,49 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       await settled();
 
       assert.equal(updateCount, 0);
-      assert.ok(container.textContent?.includes("Match term already exists."));
+      assert.equal(notifications.at(-1)?.message, "Match term already exists.");
+      assert.equal(notifications.at(-1)?.presentation?.type, "error");
+    }
+    finally {
+      controller.dispose();
+      container.remove();
+    }
+  });
+
+  test("rejects single-character semantic terms without updating settings", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const service = createSettingsService({});
+    const notifications: INotification[] = [];
+    let updateCount = 0;
+    service.updateSettings = async updates => {
+      const nextSettings = updates as Partial<ConductorSettings>;
+      updateCount++;
+      service.settings = {
+        ...service.settings,
+        ...nextSettings,
+      };
+      return service.settings;
+    };
+    const controller = new SettingsController(
+      container,
+      createSettingsViewInput(service.settings),
+      service,
+      createCommandService(),
+      createNotificationService(notifications),
+    );
+    controller.attachNavigation(container);
+
+    try {
+      openTemplateSection(container);
+      submitSemanticTerm(container, "V");
+      await settled();
+
+      assert.equal(updateCount, 0);
+      assert.equal(notifications.at(-1)?.message, "Single-character match terms are too ambiguous for semantic matching.");
+      assert.equal(notifications.at(-1)?.presentation?.type, "error");
+      assert.equal(getSemanticTermInput(container).value, "V");
     }
     finally {
       controller.dispose();

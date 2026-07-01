@@ -46,7 +46,6 @@ export type TemplateXAxisIntent =
   | "frequencySweep"
   | "genericXY";
 
-export type TemplateSemanticMatchPolicy = "exact" | "token" | "contains";
 export type TemplateSemanticAxisTendency = "x" | "dependent" | "unknown";
 export type TemplateSemanticColumnRole =
   | "vd"
@@ -75,7 +74,6 @@ export type TemplateSemanticTermRule = {
   readonly family?: TemplateSemanticFamily;
   readonly ivMode?: TemplateSemanticIvMode;
   readonly intent?: TemplateXAxisIntent;
-  readonly matchPolicy: TemplateSemanticMatchPolicy;
   readonly enabled: boolean;
 };
 
@@ -101,11 +99,6 @@ const TEMPLATE_X_AXIS_INTENTS = new Set<TemplateXAxisIntent>([
   "frequencySweep",
   "rawTransient",
   "genericXY",
-]);
-const TEMPLATE_SEMANTIC_MATCH_POLICIES = new Set<TemplateSemanticMatchPolicy>([
-  "exact",
-  "token",
-  "contains",
 ]);
 const TEMPLATE_SEMANTIC_AXIS_TENDENCIES = new Set<TemplateSemanticAxisTendency>([
   "x",
@@ -280,9 +273,6 @@ export const normalizeTemplateSemanticAllowlist = (
     const axisTendency = typeof record.axisTendency === "string" && TEMPLATE_SEMANTIC_AXIS_TENDENCIES.has(record.axisTendency as TemplateSemanticAxisTendency)
       ? record.axisTendency as TemplateSemanticAxisTendency
       : "unknown";
-    const matchPolicy = typeof record.matchPolicy === "string" && TEMPLATE_SEMANTIC_MATCH_POLICIES.has(record.matchPolicy as TemplateSemanticMatchPolicy)
-      ? record.matchPolicy as TemplateSemanticMatchPolicy
-      : "exact";
     const id = typeof record.id === "string" && record.id.trim()
       ? record.id.trim()
       : `template-semantic-${index}`;
@@ -307,7 +297,6 @@ export const normalizeTemplateSemanticAllowlist = (
       ...(family ? { family } : {}),
       ...(ivMode ? { ivMode } : {}),
       ...(intent ? { intent } : {}),
-      matchPolicy,
       enabled: record.enabled !== false,
     });
   }

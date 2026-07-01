@@ -13,7 +13,6 @@ import type {
 } from "./structuredContent";
 import type {
 	TemplateSemanticTermRule,
-	TemplateSemanticMatchPolicy,
 	TemplateXAxisIntent,
 } from "src/cs/workbench/services/settings/common/settings";
 
@@ -84,7 +83,6 @@ type SemanticTitleLookupEntry = {
 	readonly alias: string;
 	readonly title: SemanticTitleRecord;
 	readonly source: SemanticTitleLookupSource;
-	readonly matchPolicy: TemplateSemanticMatchPolicy | "library";
 	readonly intent?: TemplateXAxisIntent;
 	readonly domainPackIds: readonly string[];
 };
@@ -97,7 +95,6 @@ type SemanticRowMarkerLookupEntry = {
 
 type SemanticTitleMatchCandidate = {
 	readonly aliasLength: number;
-	readonly matchRank: number;
 	readonly reason: string;
 	readonly sourceRank: number;
 	readonly entry: SemanticTitleLookupEntry;
@@ -124,13 +121,15 @@ const builtinRowMarkerEntries: SemanticRowMarkerLookupEntry[] = [];
 
 for (const title of semanticLibrary.titles) {
 	for (const alias of title.aliases) {
+		if (!isDataResourceSemanticMatchTermAllowed(alias)) {
+			continue;
+		}
 		const id = createBuiltinTermId(title, alias);
 		builtinTitleEntries.push({
 			id,
 			alias: normalizeSemanticLookupText(alias),
 			title,
 			source: "library",
-			matchPolicy: "library",
 			domainPackIds: title.domainPackIds ?? [],
 		});
 		builtinSemanticTerms.push({
@@ -186,7 +185,6 @@ export function createDataResourceSemanticMatcher(
 			alias: entry.alias,
 			title: entry.title,
 			intent: entry.intent,
-			matchPolicy: entry.matchPolicy,
 		})),
 		disabledBuiltinTermIds: Array.from(disabledBuiltinTermIds).sort(),
 		disabledDomainPackIds: Array.from(disabledDomainPackIds).sort(),
@@ -214,6 +212,10 @@ export const normalizeDataResourceSemanticText = (
 	value: unknown,
 ): string => defaultSemanticMatcher.normalizeText(value);
 
+export function isDataResourceSemanticMatchTermAllowed(value: unknown): boolean {
+	return normalizeSemanticLookupText(value).length > 1;
+}
+
 const matchSemanticTitle = (
 	value: unknown,
 	titleEntries: readonly SemanticTitleLookupEntry[],
@@ -226,7 +228,6 @@ const matchSemanticTitle = (
 	const axisMarker = readAxisMarker(rawText);
 	const titleWithoutAxisMarker = stripAxisMarker(rawText);
 	const normalizedTitle = normalizeSemanticLookupText(titleWithoutAxisMarker);
-	const normalizedTitleTokens = normalizeSemanticLookupTokens(titleWithoutAxisMarker);
 	const matches: SemanticTitleMatchCandidate[] = [];
 
 	for (const entry of titleEntries) {
@@ -236,45 +237,17 @@ const matchSemanticTitle = (
 		if (normalizedTitle === entry.alias) {
 			matches.push({
 				aliasLength: entry.alias.length,
-				matchRank: 3,
 				reason: entry.source === "allowlist" ? "semanticAllowlist.term" : "semanticLibrary.term",
 				sourceRank: entry.source === "allowlist" ? 1 : 0,
 				entry,
 			});
 			continue;
 		}
-
-		if (entry.alias.length <= 1) {
-			continue;
-		}
-		const tokenMatched = normalizedTitleTokens.includes(entry.alias);
-		if (tokenMatched && (entry.matchPolicy === "library" || entry.matchPolicy === "token" || entry.matchPolicy === "contains")) {
-			matches.push({
-				aliasLength: entry.alias.length,
-				matchRank: 2,
-				reason: entry.source === "allowlist" ? "semanticAllowlist.tokenTerm" : "semanticLibrary.tokenTerm",
-				sourceRank: entry.source === "allowlist" ? 1 : 0,
-				entry,
-			});
-			continue;
-		}
-
-		const containedMatched = entry.alias.length >= 4 && normalizedTitle.includes(entry.alias);
-		if (containedMatched && (entry.matchPolicy === "library" || entry.matchPolicy === "contains")) {
-			matches.push({
-				aliasLength: entry.alias.length,
-				matchRank: 1,
-				reason: entry.source === "allowlist" ? "semanticAllowlist.containsTerm" : "semanticLibrary.containsTerm",
-				sourceRank: entry.source === "allowlist" ? 1 : 0,
-				entry,
-			});
-		}
 	}
 
 	const selected = matches
 		.sort((left, right) =>
 			getAxisMatchRank(right.entry.title, axisMarker) - getAxisMatchRank(left.entry.title, axisMarker) ||
-			right.matchRank - left.matchRank ||
 			right.sourceRank - left.sourceRank ||
 			right.aliasLength - left.aliasLength
 		)[0];
@@ -326,7 +299,7 @@ function normalizeAllowlistEntries(
 	allowlist: readonly TemplateSemanticTermRule[],
 ): readonly SemanticTitleLookupEntry[] {
 	return allowlist
-		.filter(rule => rule.enabled !== false && rule.alias.trim())
+		.filter(rule => rule.enabled !== false && isDataResourceSemanticMatchTermAllowed(rule.alias))
 		.map(rule => ({
 			id: rule.id,
 			alias: normalizeSemanticLookupText(rule.alias),
@@ -339,7 +312,6 @@ function normalizeAllowlistEntries(
 				aliases: [rule.alias],
 			},
 			source: "allowlist",
-			matchPolicy: rule.matchPolicy,
 			...(rule.intent ? { intent: rule.intent } : {}),
 			domainPackIds: [],
 		}));
@@ -394,18 +366,6 @@ function normalizeSemanticLookupText(
 		.replace(/\u03a9|\u03c9|\u2126/g, "ohm")
 		.toLowerCase()
 		.replace(/[^a-z0-9]+/g, "");
-}
-
-function normalizeSemanticLookupTokens(
-	value: unknown,
-): readonly string[] {
-	return normalizeText(value)
-		.replace(/\u00b5|\u03bc/g, "u")
-		.replace(/\u03a9|\u03c9|\u2126/g, "ohm")
-		.toLowerCase()
-		.split(/[^a-z0-9]+/g)
-		.map(token => token.trim())
-		.filter(Boolean);
 }
 
 function normalizeText(

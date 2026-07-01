@@ -360,7 +360,6 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
             canonicalRole: "vg",
             canonicalUnit: "V",
             axisTendency: "x",
-            matchPolicy: "exact",
             enabled: true,
             source: "custom",
           },
@@ -372,7 +371,6 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
             canonicalRole: "vg",
             canonicalUnit: "V",
             axisTendency: "x",
-            matchPolicy: "exact",
             enabled: true,
           },
         ],
@@ -460,6 +458,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(recommendedTermsCard.querySelectorAll(".settings-template-term-suggestion").length, 1);
       assert.equal(recommendedSuggestion.querySelector<HTMLElement>(".settings-template-term-suggestion-label")?.textContent, "Drain Current");
       assert.ok(customFormCard.querySelector("#settings-template-semantic-role-select"));
+      assert.equal(customFormCard.querySelector("#settings-template-semantic-policy-select"), null);
       assert.equal(customFormCard.querySelector("#settings-template-semantic-add-button"), null);
       assert.equal(customFormCard.querySelector("#settings-template-semantic-term-input"), null);
     }
@@ -1175,7 +1174,6 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
     setTemplateSemanticFamilyDraft: noop,
     setTemplateSemanticIntentDraft: noop,
     setTemplateSemanticIvModeDraft: noop,
-    setTemplateSemanticMatchPolicyDraft: noop,
     setTemplateSemanticRoleDraft: noop,
     setTemplateSemanticUnitDraft: noop,
     setTickLabelFontSizeDraft: noop,
@@ -1192,7 +1190,6 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
     templateSemanticFamilyDraft: "",
     templateSemanticIntentDraft: "",
     templateSemanticIvModeDraft: "",
-    templateSemanticMatchPolicyDraft: "exact",
     templateSemanticRoleDraft: "voltage",
     templateSemanticUnitDraft: "",
     templateSettings: {
@@ -1207,7 +1204,6 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
       intentOptions: [{ label: "Generic XY", value: "genericXY" }],
       isSaving: false,
       ivModeOptions: [{ label: "none", value: "" }],
-      matchPolicyOptions: [{ label: "exact", value: "exact" }],
       onAddSemanticTerm: noop,
       onDisableBuiltinTerm: noop,
       onDisableDomainPack: noop,

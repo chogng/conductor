@@ -57,19 +57,26 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 	};
 
 	test("matches semantic title and row marker terms", () => {
-		const xMatch = matchDataResourceSemanticTitle("drain TotalCurrent(IdVg_n938_des) X");
-		const yMatch = matchDataResourceSemanticTitle("drain TotalCurrent(IdVg_n938_des) Y");
+		const drainVoltageMatch = matchDataResourceSemanticTitle("Drain Voltage");
+		const gateVoltageXMatch = matchDataResourceSemanticTitle("Gate Voltage X");
+		const gateVoltageYMatch = matchDataResourceSemanticTitle("Gate Voltage Y");
 
-		assert.equal(xMatch?.axisTendency, "x");
-		assert.equal(xMatch?.canonicalRole, "vg");
-		assert.equal(yMatch?.axisTendency, "dependent");
-		assert.equal(yMatch?.canonicalRole, "id");
+		assert.equal(drainVoltageMatch?.axisTendency, "x");
+		assert.equal(drainVoltageMatch?.canonicalRole, "vd");
+		assert.equal(gateVoltageXMatch?.axisTendency, "x");
+		assert.equal(gateVoltageXMatch?.canonicalRole, "vg");
+		assert.equal(gateVoltageYMatch?.axisTendency, "dependent");
+		assert.equal(gateVoltageYMatch?.canonicalRole, "vg");
 		assert.equal(matchDataResourceSemanticTitle("vpn")?.canonicalRole, "voltage");
 		assert.equal(matchDataResourceSemanticTitle("vpn")?.axisTendency, "x");
 		assert.equal(matchDataResourceSemanticTitle("Cp")?.canonicalRole, "capacitance");
 		assert.equal(matchDataResourceSemanticTitle("Cp")?.axisTendency, "dependent");
-		assert.equal(matchDataResourceSemanticTitle("Cp(vp=0.00000)")?.canonicalRole, "capacitance");
-		assert.equal(matchDataResourceSemanticTitle("Cp(vp=0.00000)")?.axisTendency, "dependent");
+		assert.equal(matchDataResourceSemanticTitle("Cp(vp=0.00000)"), null);
+		assert.equal(matchDataResourceSemanticTitle("CH1 Voltage"), null);
+		assert.equal(matchDataResourceSemanticTitle("drain TotalCurrent(IdVg_n938_des) X"), null);
+		for (const ambiguousTerm of ["V", "I", "C", "G", "t", "f"]) {
+			assert.equal(matchDataResourceSemanticTitle(ambiguousTerm), null);
+		}
 		assert.equal(matchDataResourceSemanticTitle("ipt")?.canonicalRole, "current");
 		assert.equal(matchDataResourceSemanticTitle("ipt")?.axisTendency, "dependent");
 		assert.equal(matchDataResourceRowMarker("DataName"), "titleRow");
@@ -88,14 +95,12 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 				alias: "DriveBias",
 				canonicalRole: "voltage",
 				axisTendency: "x",
-				matchPolicy: "exact",
 				enabled: true,
 			}, {
 				id: "sense-current",
 				alias: "SenseCurrent",
 				canonicalRole: "current",
 				axisTendency: "dependent",
-				matchPolicy: "exact",
 				enabled: true,
 			}],
 		});
@@ -114,6 +119,33 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		));
 	});
 
+	test("ignores single-character template semantic term entries", async () => {
+		const evidence = await resolveEvidence([
+			["V", "I"],
+			["0", "1e-12"],
+			["0.5", "2e-12"],
+			["1", "4e-12"],
+		], {
+			templateSemanticAllowlist: [{
+				id: "single-v",
+				alias: "V",
+				canonicalRole: "voltage",
+				axisTendency: "x",
+				enabled: true,
+			}, {
+				id: "single-i",
+				alias: "I",
+				canonicalRole: "current",
+				axisTendency: "dependent",
+				enabled: true,
+			}],
+		});
+
+		assert.equal(evidence.columnTitleSpans.length, 0);
+		assert.equal(evidence.semanticCandidates[0]?.roleCandidates[0]?.role, "unknown");
+		assert.equal(evidence.semanticCandidates[1]?.roleCandidates[0]?.role, "unknown");
+	});
+
 	test("can disable built-in semantic terms without deleting user terms", async () => {
 		const vgTerm = dataResourceBuiltinSemanticTerms.find(term => term.alias === "Vg");
 		assert.ok(vgTerm);
@@ -129,7 +161,6 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 				alias: "SenseCurrent",
 				canonicalRole: "current",
 				axisTendency: "dependent",
-				matchPolicy: "exact",
 				enabled: true,
 			}],
 		});
@@ -164,7 +195,6 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 				alias: "SenseCurrent",
 				canonicalRole: "current",
 				axisTendency: "dependent",
-				matchPolicy: "exact",
 				enabled: true,
 			}],
 		});
