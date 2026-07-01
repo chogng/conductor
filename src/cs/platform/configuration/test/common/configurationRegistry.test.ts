@@ -77,6 +77,7 @@ suite("platform/configuration/common/configurationRegistry", () => {
         axisTendency: "dependent",
         family: "iv",
         intent: "ivCurve",
+        ivMode: "transfer",
         enabled: true,
       }, {
         id: "punctuation",

@@ -344,8 +344,6 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
             canonicalRole: "vg",
             canonicalUnit: "V",
             axisTendency: "x",
-            family: "iv",
-            ivMode: "transfer",
             domainPackIds: ["semiconductor-ivcv"],
             source: "builtin",
           },
@@ -377,8 +375,6 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
             canonicalRole: "vg",
             canonicalUnit: "V",
             axisTendency: "x",
-            family: "iv",
-            ivMode: "transfer",
             domainPackIds: ["semiconductor-ivcv"],
           },
           {
@@ -387,8 +383,6 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
             canonicalRole: "id",
             canonicalUnit: "A",
             axisTendency: "dependent",
-            family: "iv",
-            ivMode: "transfer",
             domainPackIds: ["semiconductor-ivcv"],
           },
         ],
@@ -472,8 +466,6 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
         canonicalRole: "vg" as const,
         canonicalUnit: "V" as const,
         axisTendency: "x" as const,
-        family: "iv" as const,
-        ivMode: "transfer" as const,
         domainPackIds: ["semiconductor-ivcv"],
       },
       {
@@ -482,8 +474,6 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
         canonicalRole: "id" as const,
         canonicalUnit: "A" as const,
         axisTendency: "dependent" as const,
-        family: "iv" as const,
-        ivMode: "transfer" as const,
         domainPackIds: ["semiconductor-ivcv"],
       },
     ];
@@ -580,8 +570,6 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
         canonicalRole: "vg" as const,
         canonicalUnit: "V" as const,
         axisTendency: "x" as const,
-        family: "iv" as const,
-        ivMode: "transfer" as const,
         domainPackIds: ["semiconductor-ivcv"],
       },
       {
@@ -590,8 +578,6 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
         canonicalRole: "id" as const,
         canonicalUnit: "A" as const,
         axisTendency: "dependent" as const,
-        family: "iv" as const,
-        ivMode: "transfer" as const,
         domainPackIds: ["semiconductor-ivcv"],
       },
     ];
@@ -678,8 +664,6 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
         canonicalRole: "vg" as const,
         canonicalUnit: "V" as const,
         axisTendency: "x" as const,
-        family: "iv" as const,
-        ivMode: "transfer" as const,
         domainPackIds: ["semiconductor-ivcv"],
       },
       {
@@ -688,8 +672,6 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
         canonicalRole: "id" as const,
         canonicalUnit: "A" as const,
         axisTendency: "dependent" as const,
-        family: "iv" as const,
-        ivMode: "transfer" as const,
         domainPackIds: ["semiconductor-ivcv"],
       },
       {
@@ -698,8 +680,6 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
         canonicalRole: "vg" as const,
         canonicalUnit: "V" as const,
         axisTendency: "x" as const,
-        family: "iv" as const,
-        ivMode: "transfer" as const,
         domainPackIds: ["semiconductor-ivcv"],
       },
     ];
@@ -834,8 +814,6 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
         canonicalRole: "vg" as const,
         canonicalUnit: "V" as const,
         axisTendency: "x" as const,
-        family: "iv" as const,
-        ivMode: "transfer" as const,
         domainPackIds: ["semiconductor-ivcv"],
       },
       {
@@ -844,8 +822,6 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
         canonicalRole: "id" as const,
         canonicalUnit: "A" as const,
         axisTendency: "dependent" as const,
-        family: "iv" as const,
-        ivMode: "transfer" as const,
         domainPackIds: ["semiconductor-ivcv"],
       },
     ];
@@ -1158,7 +1134,6 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
     setPostCommandsDraft: noop,
     setTemplateSemanticTermDraft: noop,
     setTemplateSemanticAxisDraft: noop,
-    setTemplateSemanticIvModeDraft: noop,
     setTemplateSemanticRoleDraft: noop,
     setTemplateSemanticUnitDraft: noop,
     setTickLabelFontSizeDraft: noop,
@@ -1172,7 +1147,6 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
     },
     templateSemanticTermDraft: "",
     templateSemanticAxisDraft: "x",
-    templateSemanticIvModeDraft: "",
     templateSemanticRoleDraft: "voltage",
     templateSemanticUnitDraft: "",
     templateSettings: {
@@ -1184,7 +1158,6 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
       disabledBuiltinTermIds: [],
       disabledDomainPackIds: [],
       isSaving: false,
-      ivModeOptions: [{ label: "none", value: "" }],
       onAddSemanticTerm: noop,
       onDisableBuiltinTerm: noop,
       onDisableDomainPack: noop,

@@ -45,7 +45,6 @@ import {
   type TemplateSemanticTermRule,
   type TemplateSemanticAxisTendency,
   type TemplateSemanticColumnRole,
-  type TemplateSemanticIvMode,
   type TemplateSemanticUnit,
   type TemplateXAxisIntent,
 } from "src/cs/workbench/services/settings/common/settings";
@@ -122,7 +121,6 @@ type SettingsDraftState = {
   searchQuery: string;
   templateSemanticTermDraft: string;
   templateSemanticAxisDraft: TemplateSemanticAxisTendency;
-  templateSemanticIvModeDraft: TemplateSemanticIvMode | "";
   templateSemanticRoleDraft: TemplateSemanticColumnRole;
   templateSemanticUnitDraft: TemplateSemanticUnit | "";
   tickLabelFontSizeDraft: string;
@@ -244,7 +242,6 @@ export class SettingsController {
       searchQuery: "",
       templateSemanticTermDraft: "",
       templateSemanticAxisDraft: "x",
-      templateSemanticIvModeDraft: "",
       templateSemanticRoleDraft: "voltage",
       templateSemanticUnitDraft: "",
       tickLabelFontSizeDraft: String(axisSettings.tickLabelFontSize ?? ""),
@@ -415,11 +412,6 @@ export class SettingsController {
           this.drafts.templateSemanticAxisDraft = value;
         }
       },
-      setTemplateSemanticIvModeDraft: value => {
-        if (value === "" || value === "transfer" || value === "output" || value === "unknown") {
-          this.drafts.templateSemanticIvModeDraft = value;
-        }
-      },
       setTemplateSemanticRoleDraft: value => {
         if (this.templateSemanticRoleOptions.some(option => option.value === value)) {
           this.drafts.templateSemanticRoleDraft = value as TemplateSemanticColumnRole;
@@ -441,7 +433,6 @@ export class SettingsController {
       themeModeOptions: this.themeModeOptions,
       templateSemanticTermDraft: this.drafts.templateSemanticTermDraft,
       templateSemanticAxisDraft: this.drafts.templateSemanticAxisDraft,
-      templateSemanticIvModeDraft: this.drafts.templateSemanticIvModeDraft,
       templateSemanticRoleDraft: this.drafts.templateSemanticRoleDraft,
       templateSemanticUnitDraft: this.drafts.templateSemanticUnitDraft,
       tickLabelFontSizeDraft: this.drafts.tickLabelFontSizeDraft,
@@ -571,7 +562,6 @@ export class SettingsController {
       disabledDomainPackIds: normalizeTemplateDisabledBuiltinDomainPackIds(this.settings.templateDisabledBuiltinDomainPackIds),
       disabledBuiltinTermIds,
       isSaving: this.templateSettingsSaving,
-      ivModeOptions: this.templateSemanticIvModeOptions,
       onAddSemanticTerm: () => this.addTemplateSemanticTerm(),
       onDisableBuiltinTerm: id => this.disableTemplateBuiltinTerm(id),
       onDisableDomainPack: id => this.disableTemplateDomainPack(id),
@@ -777,15 +767,6 @@ export class SettingsController {
       { value: "Hz", label: "Hz" },
       { value: "S", label: "S" },
       { value: "ohm", label: "ohm" },
-    ];
-  }
-
-  private get templateSemanticIvModeOptions(): SelectOption[] {
-    return [
-      { value: "", label: localize("settings.template.ivMode.none", "none") },
-      { value: "transfer", label: localize("settings.template.ivMode.transfer", "transfer") },
-      { value: "output", label: localize("settings.template.ivMode.output", "output") },
-      { value: "unknown", label: localize("settings.template.ivMode.unknown", "unknown") },
     ];
   }
 
@@ -1096,7 +1077,6 @@ export class SettingsController {
       canonicalRole: this.drafts.templateSemanticRoleDraft,
       ...(this.drafts.templateSemanticUnitDraft ? { canonicalUnit: this.drafts.templateSemanticUnitDraft } : {}),
       axisTendency: this.drafts.templateSemanticAxisDraft,
-      ...(this.drafts.templateSemanticIvModeDraft ? { ivMode: this.drafts.templateSemanticIvModeDraft } : {}),
       enabled: true,
     };
     const nextCustomTerms = [
@@ -1679,7 +1659,6 @@ const toTemplateSemanticTermView = (
   canonicalRole: rule.canonicalRole,
   ...(rule.canonicalUnit ? { canonicalUnit: rule.canonicalUnit } : {}),
   axisTendency: rule.axisTendency,
-  ...(rule.ivMode ? { ivMode: rule.ivMode } : {}),
   enabled: rule.enabled,
 });
 
@@ -1691,6 +1670,5 @@ const toBuiltinTemplateSemanticTermView = (
   canonicalRole: term.canonicalRole,
   ...(term.canonicalUnit ? { canonicalUnit: term.canonicalUnit } : {}),
   axisTendency: term.axisTendency,
-  ...(term.ivMode ? { ivMode: term.ivMode } : {}),
   domainPackIds: term.domainPackIds,
 });

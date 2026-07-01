@@ -24,7 +24,6 @@ import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/services/se
 import type {
   TemplateSemanticAxisTendency,
   TemplateSemanticColumnRole,
-  TemplateSemanticIvMode,
   TemplateSemanticUnit,
   TemplateXAxisIntent,
 } from "src/cs/workbench/services/settings/common/settings";
@@ -182,7 +181,6 @@ type TemplateSettings = {
   disabledDomainPackIds: readonly string[];
   disabledBuiltinTermIds: readonly string[];
   isSaving: boolean;
-  ivModeOptions: readonly SelectOption[];
   onAddSemanticTerm: () => Promise<void> | void;
   onDisableBuiltinTerm: (id: string) => Promise<void> | void;
   onDisableDomainPack: (id: string) => Promise<void> | void;
@@ -206,7 +204,6 @@ type TemplateSemanticTerm = {
   readonly canonicalRole: TemplateSemanticColumnRole;
   readonly canonicalUnit?: TemplateSemanticUnit;
   readonly axisTendency: TemplateSemanticAxisTendency;
-  readonly ivMode?: TemplateSemanticIvMode;
   readonly enabled: boolean;
 };
 
@@ -277,7 +274,6 @@ export type SettingsViewOptions = SettingsViewProps & {
   setPostCommandsDraft: (value: string) => void;
   setTemplateSemanticTermDraft: (value: string) => void;
   setTemplateSemanticAxisDraft: (value: string) => void;
-  setTemplateSemanticIvModeDraft: (value: string) => void;
   setTemplateSemanticRoleDraft: (value: string) => void;
   setTemplateSemanticUnitDraft: (value: string) => void;
   setTickLabelFontSizeDraft: (value: string) => void;
@@ -287,7 +283,6 @@ export type SettingsViewOptions = SettingsViewProps & {
   themeModeOptions: SelectOption[];
   templateSemanticTermDraft: string;
   templateSemanticAxisDraft: TemplateSemanticAxisTendency;
-  templateSemanticIvModeDraft: TemplateSemanticIvMode | "";
   templateSemanticRoleDraft: TemplateSemanticColumnRole;
   templateSemanticUnitDraft: TemplateSemanticUnit | "";
   tickLabelFontSizeDraft: string;
@@ -392,7 +387,6 @@ type SettingsDocumentDialogOptions = {
 
 type TemplateSemanticCustomFormWidgets = {
   readonly axisSelect: SelectBox<string>;
-  readonly ivModeSelect: SelectBox<string>;
   readonly roleSelect: SelectBox<string>;
   readonly unitSelect: SelectBox<string>;
 };
@@ -1309,7 +1303,7 @@ export class SettingsView {
   private createTemplateSemanticLibraryHeader(): HTMLElement {
     const container = card("settings-template-semantic-library-header", "settings-card-block");
     const titleText = localize("settings.template.semantic.title", "Semantic Library");
-    const description = localize("settings.template.semantic.description", "Built-in match terms can be disabled for Review, and custom terms join the DataResource matcher.");
+    const description = localize("settings.template.semantic.description", "Terms that can slice template automatically.");
     container.appendChild(headingBlock(titleText, description));
     return container;
   }
@@ -1365,7 +1359,7 @@ export class SettingsView {
   private getTemplateSemanticLibraryHeaderSearchText(): string {
     return normalizeSettingsSearchText(
       localize("settings.template.semantic.title", "Semantic Library"),
-      localize("settings.template.semantic.description", "Built-in match terms can be disabled for Review, and custom terms join the DataResource matcher."),
+      localize("settings.template.semantic.description", "Terms that can slice template automatically."),
     );
   }
 
@@ -1392,7 +1386,6 @@ export class SettingsView {
       optionLabels(settings.roleOptions),
       optionLabels(settings.axisOptions),
       optionLabels(settings.unitOptions),
-      optionLabels(settings.ivModeOptions),
     );
   }
 
@@ -1406,12 +1399,10 @@ export class SettingsView {
       const roleSelect = this.createSelectWidget(this.getTemplateSemanticRoleSelectOptions(settings));
       const axisSelect = this.createSelectWidget(this.getTemplateSemanticAxisSelectOptions(settings));
       const unitSelect = this.createSelectWidget(this.getTemplateSemanticUnitSelectOptions(settings));
-      const ivModeSelect = this.createSelectWidget(this.getTemplateSemanticIvModeSelectOptions(settings));
       grid.append(
         field(localize("settings.template.semantic.roleLabel", "Role"), roleSelect.domNode),
         field(localize("settings.template.semantic.axisLabel", "Axis"), axisSelect.domNode),
         field(localize("settings.template.semantic.unitLabel", "Unit"), unitSelect.domNode),
-        field(localize("settings.template.semantic.ivModeLabel", "IV mode"), ivModeSelect.domNode),
       );
       form.appendChild(grid);
       container.append(
@@ -1420,7 +1411,6 @@ export class SettingsView {
       );
       widgets = {
         axisSelect,
-        ivModeSelect,
         roleSelect,
         unitSelect,
       };
@@ -1430,7 +1420,6 @@ export class SettingsView {
     this.updateSelectWidget(widgets.roleSelect, this.getTemplateSemanticRoleSelectOptions(settings));
     this.updateSelectWidget(widgets.axisSelect, this.getTemplateSemanticAxisSelectOptions(settings));
     this.updateSelectWidget(widgets.unitSelect, this.getTemplateSemanticUnitSelectOptions(settings));
-    this.updateSelectWidget(widgets.ivModeSelect, this.getTemplateSemanticIvModeSelectOptions(settings));
   }
 
   private getTemplateSemanticRoleSelectOptions(settings: TemplateSettings): FieldOptions {
@@ -1459,16 +1448,6 @@ export class SettingsView {
       value: this.options.templateSemanticUnitDraft,
       onChange: this.options.setTemplateSemanticUnitDraft,
       options: settings.unitOptions,
-      disabled: settings.isSaving,
-    };
-  }
-
-  private getTemplateSemanticIvModeSelectOptions(settings: TemplateSettings): FieldOptions {
-    return {
-      id: "settings-template-semantic-iv-mode-select",
-      value: this.options.templateSemanticIvModeDraft,
-      onChange: this.options.setTemplateSemanticIvModeDraft,
-      options: settings.ivModeOptions,
       disabled: settings.isSaving,
     };
   }

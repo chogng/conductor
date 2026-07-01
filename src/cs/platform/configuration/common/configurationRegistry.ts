@@ -116,7 +116,6 @@ type TemplateSemanticTermRule = {
   canonicalRole: string;
   canonicalUnit?: string;
   axisTendency: string;
-  ivMode?: string;
   enabled: boolean;
 };
 
@@ -359,11 +358,6 @@ const TEMPLATE_SEMANTIC_UNITS = new Set([
   "F",
   "Hz",
   "S",
-]);
-const TEMPLATE_SEMANTIC_IV_MODES = new Set([
-  "transfer",
-  "output",
-  "unknown",
 ]);
 const ORIGIN_EXPORT_MODES = new Set([
   "merged",
@@ -618,16 +612,12 @@ function normalizeTemplateSemanticAllowlist(value: unknown): TemplateSemanticTer
     const canonicalUnit = isSetValue(TEMPLATE_SEMANTIC_UNITS, raw.canonicalUnit)
       ? raw.canonicalUnit
       : undefined;
-    const ivMode = isSetValue(TEMPLATE_SEMANTIC_IV_MODES, raw.ivMode)
-      ? raw.ivMode
-      : undefined;
     rules.push({
       id,
       alias,
       canonicalRole,
       ...(canonicalUnit ? { canonicalUnit } : {}),
       axisTendency,
-      ...(ivMode ? { ivMode } : {}),
       enabled: raw.enabled !== false,
     });
   }
@@ -993,7 +983,6 @@ function createConductorConfigurationProperties(): Record<string, IConfiguration
         canonicalUnit: { enum: Array.from(TEMPLATE_SEMANTIC_UNITS), type: "string" },
         enabled: { type: "boolean" },
         id: { type: "string" },
-        ivMode: { enum: Array.from(TEMPLATE_SEMANTIC_IV_MODES), type: "string" },
       },
       required: ["alias", "canonicalRole", "axisTendency"],
       type: "object",

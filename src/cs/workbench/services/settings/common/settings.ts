@@ -62,7 +62,6 @@ export type TemplateSemanticColumnRole =
   | "current"
   | "unknown";
 export type TemplateSemanticUnit = "V" | "A" | "ohm" | "s" | "F" | "Hz" | "S";
-export type TemplateSemanticIvMode = "transfer" | "output" | "unknown";
 
 export type TemplateSemanticTermRule = {
   readonly id: string;
@@ -70,7 +69,6 @@ export type TemplateSemanticTermRule = {
   readonly canonicalRole: TemplateSemanticColumnRole;
   readonly canonicalUnit?: TemplateSemanticUnit;
   readonly axisTendency: TemplateSemanticAxisTendency;
-  readonly ivMode?: TemplateSemanticIvMode;
   readonly enabled: boolean;
 };
 
@@ -126,12 +124,6 @@ const TEMPLATE_SEMANTIC_UNITS = new Set<TemplateSemanticUnit>([
   "Hz",
   "S",
 ]);
-const TEMPLATE_SEMANTIC_IV_MODES = new Set<TemplateSemanticIvMode>([
-  "transfer",
-  "output",
-  "unknown",
-]);
-
 export const DEFAULT_FILES_EXPLORER_DENSITY: FilesExplorerDensity = "compact";
 export const DEFAULT_FILES_EXPLORER_SHOW_BADGES = true;
 export const DEFAULT_TABLE_TEMPLATE_VISUALIZATION_ENABLED = false;
@@ -268,16 +260,12 @@ export const normalizeTemplateSemanticAllowlist = (
     const canonicalUnit = typeof record.canonicalUnit === "string" && TEMPLATE_SEMANTIC_UNITS.has(record.canonicalUnit as TemplateSemanticUnit)
       ? record.canonicalUnit as TemplateSemanticUnit
       : undefined;
-    const ivMode = typeof record.ivMode === "string" && TEMPLATE_SEMANTIC_IV_MODES.has(record.ivMode as TemplateSemanticIvMode)
-      ? record.ivMode as TemplateSemanticIvMode
-      : undefined;
     rules.push({
       id,
       alias,
       canonicalRole,
       ...(canonicalUnit ? { canonicalUnit } : {}),
       axisTendency,
-      ...(ivMode ? { ivMode } : {}),
       enabled: record.enabled !== false,
     });
   }

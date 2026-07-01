@@ -336,7 +336,6 @@ function compileAllowlistTitleTerms(
 				canonicalRole: rule.canonicalRole as StructuredMeasurementColumnRole,
 				...(rule.canonicalUnit ? { canonicalUnit: rule.canonicalUnit as StructuredCanonicalUnit } : {}),
 				axisTendency: rule.axisTendency as StructuredAxisTendency,
-				...(rule.ivMode ? { ivMode: rule.ivMode as StructuredIvSweepMode } : {}),
 				aliases: [rule.alias],
 			},
 			source: "allowlist",
