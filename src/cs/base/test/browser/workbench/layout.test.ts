@@ -97,7 +97,6 @@ suite("workbench/browser/layout", () => {
     try {
       layout.setParts({
         auxiliaryBar: createPart("auxiliarybar"),
-        settings: createPart("settings"),
         sidebar: createPart("sidebar"),
         workbench: createPart("workbench"),
       });
@@ -114,8 +113,13 @@ suite("workbench/browser/layout", () => {
       assert.equal(
         layout.element.querySelector<HTMLElement>(".workbench_layout_shell")
           ?.classList.contains("workbench_layout_shell--hidden"),
-        true,
+        false,
       );
+      assert.equal(split.classList.contains("workbench_layout_split--with-auxiliarybar"), true);
+      const gridTemplateColumns = split.querySelector<HTMLElement>(".ui-split-view__grid")
+        ?.style.gridTemplateColumns ?? "";
+      assert.ok(gridTemplateColumns.startsWith("250px"));
+      assert.ok(gridTemplateColumns.endsWith("0px"));
       assert.equal(split.classList.contains("workbench_layout_split--animate-sidebar"), false);
       assert.equal(split.classList.contains("workbench_layout_split--animate-auxiliarybar"), false);
 

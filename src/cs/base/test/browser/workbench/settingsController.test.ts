@@ -33,6 +33,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       createCommandService(),
       createNotificationService(),
     );
+    controller.attachNavigation(container);
 
     try {
       openAppearanceSection(container);
@@ -83,6 +84,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       createCommandService(commandDeferred),
       createNotificationService(),
     );
+    controller.attachNavigation(container);
 
     try {
       openAppearanceSection(container);
@@ -133,6 +135,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       createCommandService(),
       createNotificationService(),
     );
+    controller.attachNavigation(container);
 
     try {
       const switchButton = getButton(container, "settings-numeric-display-toggle");
@@ -200,6 +203,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       createCommandService(),
       createNotificationService(),
     );
+    controller.attachNavigation(container);
 
     try {
       openTemplateSection(container);
@@ -249,6 +253,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       createCommandService(),
       createNotificationService(),
     );
+    controller.attachNavigation(container);
 
     try {
       openTemplateSection(container);
@@ -272,10 +277,10 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
 
     const service = createSettingsService({});
     let controller: SettingsController | undefined;
-    let savedSettings: Partial<ConductorSettings> | null = null;
+    const savedSettings: Partial<ConductorSettings>[] = [];
     service.updateSettings = async updates => {
       const nextSettings = updates as Partial<ConductorSettings>;
-      savedSettings = nextSettings;
+      savedSettings.push(nextSettings);
       service.settings = {
         ...service.settings,
         ...nextSettings,
@@ -290,6 +295,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       createCommandService(),
       createNotificationService(),
     );
+    controller.attachNavigation(container);
 
     try {
       openTemplateSection(container);
@@ -301,7 +307,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       getActiveBuiltinTermAction(container, builtinTerm.alias).click();
       await settled();
 
-      assert.deepEqual(savedSettings?.templateDisabledBuiltinSemanticIds, [builtinTerm.id]);
+      assert.deepEqual(savedSettings.at(-1)?.templateDisabledBuiltinSemanticIds, [builtinTerm.id]);
       const feedbackSlot = getElement(container, "#settings-template-semantic-feedback-card .settings-template-feedback-slot");
       assert.equal(feedbackSlot.textContent, "");
       assert.equal(feedbackSlot.classList.contains("settings-feedback--success"), false);
@@ -344,6 +350,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       createCommandService(),
       createNotificationService(),
     );
+    controller.attachNavigation(container);
 
     try {
       openTemplateSection(container);

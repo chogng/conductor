@@ -33,23 +33,27 @@ Follow the upstream Settings editor shape at a Conductor scale:
 ```txt
 SettingsViewOptions
   -> SettingsLayout creates SettingsSectionDefinition records
+  -> SettingsControllerService shares one SettingsController across the settings sidebar nav and main content panes
+  -> SettingsNavigationView renders sidebar section/search navigation from the shared controller state
   -> SettingsController classifies updates into affected descriptor/item ids
   -> SettingsView creates SettingsContentDescriptor placement records
   -> active section renders matching descriptors / search renders all descriptors
   -> descriptors build SettingsTreeSection records with control/element/composite items
   -> SettingsTree.update(sections)
-  -> SettingsTree flattens section/item records into List entries
-  -> base List reuses rows by stable entry id
-  -> SettingsTree.updateItems updates keyed List entries and patches already-rendered item widgets without replacing row nodes
+  -> SettingsTree renders keyed section list and item cell DOM owned by settings
+  -> SettingsTree reuses cells by stable section/item id
+  -> SettingsTree.updateItems updates keyed cells and patches already-rendered item widgets without replacing sibling cells
   -> control items patch fixed title/description/control slots
   -> element items patch caller-owned item roots
-  -> composite items keep one caller-owned card root with stable child slot nodes and patch slot content by stable child ids
+  -> grouped sibling items model independently updateable cells that can be visually joined as one card
+  -> composite items keep one caller-owned card root only when child slots share the same row lifecycle
   -> SettingsView-owned controls and composite child content can register a local patch for component-internal updates
   -> SettingsView-owned controls emit typed intent callbacks
   -> changed control nodes replace only the item control slot
 ```
 
-`SettingsTree` owns three item shapes:
+`SettingsTree` owns three item shapes plus explicit cell grouping metadata when a
+visual card is composed from several independently updateable rows:
 
 - `SettingsTreeControlItem` for ordinary left title/description plus right
   control-slot settings;
@@ -64,11 +68,17 @@ whether it is a select, switch, color swatch, reset button, path picker, action
 bar, toolbar, or grouped action container. For element items, `SettingsTree`
 receives the caller-owned item root and owns only the section ordering, item id,
 base card class, and optional item search metadata. `SettingsView` owns each
-control's layout, interaction callbacks, and disposable lifecycle. Composite
-items are for settings that are one user-facing card but need independent
-patching of internal regions. The composite renderer owns the stable slot
-nodes, while the feature supplies slot content; do not split those regions into
-sibling rows and hide the model mismatch with CSS.
+control's layout, interaction callbacks, and disposable lifecycle.
+
+Prefer modeling independently updateable regions as sibling `SettingsTree`
+entries with stable ids, even when those cells are visually joined into one
+card. This keeps the tree model update target aligned with the DOM unit being
+patched. The visual grouping must be explicit in `SettingsTree` item metadata
+or cell class computation, not an unrelated wrapper or selector that hides a
+model mismatch. Use `SettingsTreeCompositeItem` only when the children truly
+share one cell-level lifecycle and should be patched through stable child slot
+nodes owned by the composite renderer.
+
 Each rendered settings content area owns one `SettingsTree` root. Descriptors
 contribute `SettingsTreeSection` records to that tree; they do not create
 separate tree roots. All settings content must enter the page through
@@ -88,19 +98,20 @@ containing card's search metadata in place. These local patch callbacks must
 not be stored on `SettingsTreeItem` records. If one update target mixes local
 and non-local item ids, `SettingsView` applies the local patches first and sends
 only the remaining item ids through `SettingsTree` widget patching by stable
-ids. `SettingsTree.updateItems` may use `List.splice` to update the base List
-model, but stable item keys must keep the existing List row, settings card, and
-control nodes alive. A targeted composite child id patches only that child slot;
-it must not replace the parent composite card or sibling child slots.
+ids. `SettingsTree.updateItems` must keep stable item keys, sibling cells,
+settings cards, and control nodes alive. A targeted grouped item id patches
+only that cell. A targeted composite child id patches only that child slot; it
+must not replace the parent composite card or sibling child slots.
 
 ## Settings Search
 
-Settings search is local `SettingsView` view state. It does not go through
+Settings search is local `SettingsController` view state shared by the settings
+sidebar navigation surface and main content surface. It does not go through
 `ISearchService`, commands, configuration, or `ISettingsService`.
 
 ```txt
-SettingsView search input
-  -> SettingsView.searchQuery
+SettingsNavigationView search input
+  -> SettingsController searchQuery draft
   -> SettingsView renders all settings sections
   -> setting cards filter by item-level search text
   -> matching controls keep their normal SettingsController callbacks
@@ -121,12 +132,19 @@ CSS for this surface. Do not call these blocks "aliases" in product text: the
 persisted settings and DataResource records may still carry `alias` field names,
 but that is storage/schema terminology, not the UI concept.
 
-The semantic-library card should render active terms in a dense `InputBox`:
-wrapped term blocks followed by the editable native input. Disabled built-in
-terms should render as compact suggestion buttons below the active term field,
-not inside a second input-like field. Each term block or suggestion button is a
-concrete matching token, not a separate settings row or state owner. Typing in
-the input updates the semantic term draft, and user gestures still flow through
+The semantic-library card is one visual card composed from sibling
+`SettingsTree` entries: header, active terms, term input, recommended built-in
+terms, custom term mapping, and feedback. Each entry has a stable item id and
+can be targeted by `SettingsController` without rerendering the other entries
+in the visual card.
+
+The active terms entry should render only concrete terms in a dense `InputBox`
+with its native input hidden. The term input entry owns the editable native
+input and add button. Disabled built-in terms should render as compact
+suggestion buttons in the recommended-terms entry, not inside a second
+input-like field. Each term block or suggestion button is a concrete matching
+token, not a separate settings row or state owner. Typing in the term input
+updates the semantic term draft, and user gestures still flow through
 `SettingsController` callbacks and then to `ISettingsService`.
 
 ## Configuration vs Storage

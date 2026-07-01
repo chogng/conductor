@@ -423,6 +423,7 @@ export type ConductorSettings = {
 export const SettingsContributionId = "workbench.contrib.settings";
 
 export const SettingsViewId = "workbench.settings";
+export const SettingsNavigationViewId = "workbench.settings.navigation";
 
 export const SettingsCommandId = {
   showSettings: "workbench.action.showSettings",

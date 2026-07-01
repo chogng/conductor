@@ -248,15 +248,6 @@ html.workbench-transparent-chrome-macos.workbench-opaque-surface #root {
   min-height: 0;
 }
 
-.workbench_layout_settings {
-  position: absolute;
-  inset: 0;
-}
-
-.workbench_layout_settings--hidden {
-  display: none;
-}
-
 .workbench_layout_controller,
 .workbench_layout_overlay {
   min-height: 0;

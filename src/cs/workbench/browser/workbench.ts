@@ -40,6 +40,7 @@ import { ICalculationService } from "src/cs/workbench/services/calculation/commo
 import {
   ExplorerViewId,
   IExplorerService,
+  type ExplorerViewLayout,
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
   IParametersService,
@@ -48,9 +49,11 @@ import { IPlotService } from "src/cs/workbench/services/plot/common/plot";
 import { IThumbnailPreviewService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import {
   ISettingsService,
+  SettingsNavigationViewId,
   SettingsViewId,
   type SettingsServiceOptions,
 } from "src/cs/workbench/services/settings/common/settings";
+import { ThumbnailViewId } from "src/cs/workbench/contrib/thumbnail/common/thumbnail";
 import {
   IWorkbenchLayoutService,
   Parts,
@@ -75,6 +78,7 @@ import {
 import { getWorkbenchWindowState } from "src/cs/workbench/browser/parts/titlebar/windowTitle";
 import {
   AuxiliaryBarViews,
+  type AuxiliaryBarMode,
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions";
 import { AuxiliaryBarModel } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarModel";
 import type { WorkbenchStyle } from "src/cs/workbench/browser/style";
@@ -118,6 +122,7 @@ import { registerNotificationCommands } from "src/cs/workbench/browser/parts/not
 //#region types and startup helpers
 
 type WorkbenchFullRefreshReason =
+  | "explorerViewLayout"
   | "initial"
   | "resetLayout"
   | "sameViewMode"
@@ -133,6 +138,27 @@ type WorkbenchAuxiliaryRefreshReason =
   | "exportState"
   | "templateState"
   | `session:${string}`;
+
+export type WorkbenchSidebarSurface =
+  | "explorer"
+  | "thumbnail"
+  | "settingsNavigation";
+
+export const resolveWorkbenchSidebarSurface = ({
+  activeMainPart,
+  explorerViewLayout,
+}: {
+  readonly activeMainPart: WorkbenchMainPart;
+  readonly explorerViewLayout: ExplorerViewLayout;
+}): WorkbenchSidebarSurface => {
+  if (activeMainPart === "settings") {
+    return "settingsNavigation";
+  }
+  if (activeMainPart === "chart" && explorerViewLayout === "thumbnail") {
+    return "thumbnail";
+  }
+  return "explorer";
+};
 
 export type WorkbenchOptions = {
   readonly className?: string;
@@ -667,6 +693,9 @@ export class Workbench extends Layout {
           }
           this.scheduleWorkbenchAuxiliarySurfacesRefresh("explorerSelection", false);
         }));
+        this._register(this.explorerService.onDidChangeViewLayout(() => {
+          this.refreshWorkbench("explorerViewLayout");
+        }));
         this._register(this.chartService.onDidChangeChartState(() => {
           if (!this.shouldRefreshActiveAuxiliaryViewFromWorkbenchState()) {
             return;
@@ -765,7 +794,7 @@ export class Workbench extends Layout {
     this.scheduledAuxiliarySurfacesRefreshReasons.clear();
     this.scheduledAuxiliarySurfacesRefreshNeedsChrome = false;
     const endPerf = startPerf("workbench.refreshWorkbench", {
-      activeAuxiliaryBarView: this.auxiliaryBarModel.getActiveView(this.activeWorkbenchMainPart),
+      activeAuxiliaryBarView: this.auxiliaryBarModel.getActiveView(this.getActiveAuxiliaryBarMode()),
       activeView: this.activeView,
       mode: this.activeWorkbenchMainPart,
       reason,
@@ -839,17 +868,16 @@ export class Workbench extends Layout {
       ? "workbench.refreshSelectionSurfaces"
       : "workbench.refreshAuxiliarySurfaces";
     const endPerf = startPerf(stage, {
-      activeAuxiliaryBarView: this.auxiliaryBarModel.getActiveView(this.activeWorkbenchMainPart),
+      activeAuxiliaryBarView: this.auxiliaryBarModel.getActiveView(this.getActiveAuxiliaryBarMode()),
       activeView: this.activeView,
       mode: this.activeWorkbenchMainPart,
       reason: reasons[0] ?? "unknown",
       reasons: reasons.join(","),
     }, { silent: true });
     if (needsChromeRefresh) {
-      const isWorkbenchActive = this.activeView !== "settings";
-      const isAuxiliaryBarVisible = this.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+      const isAuxiliaryBarVisible = this.isAuxiliaryBarVisibleForActiveMode();
       this.updateWorkbenchModeContextKeys();
-      this.updateAuxiliaryBar(isWorkbenchActive && isAuxiliaryBarVisible);
+      this.updateAuxiliaryBar(isAuxiliaryBarVisible);
       this.updateContextKeys();
     }
     if (!this.shouldRefreshActiveAuxiliaryViewFromWorkbenchState()) {
@@ -877,7 +905,7 @@ export class Workbench extends Layout {
   }
 
   private shouldRefreshActiveAuxiliaryViewFromWorkbenchState(): boolean {
-    switch (this.auxiliaryBarModel.getActiveView(this.activeWorkbenchMainPart)) {
+    switch (this.auxiliaryBarModel.getActiveView(this.getActiveAuxiliaryBarMode())) {
       case "search":
       case "template":
       case "settings":
@@ -890,7 +918,7 @@ export class Workbench extends Layout {
   }
 
   private shouldRefreshAuxiliarySurfacesForSessionChange(event: SessionChangeEvent): boolean {
-    const activeAuxiliaryView = this.auxiliaryBarModel.getActiveView(this.activeWorkbenchMainPart);
+    const activeAuxiliaryView = this.auxiliaryBarModel.getActiveView(this.getActiveAuxiliaryBarMode());
     switch (activeAuxiliaryView) {
       case "export":
         return this.shouldRefreshExportSurfacesForSessionChange(event);
@@ -920,15 +948,16 @@ export class Workbench extends Layout {
       this.setParts({
         sidebar: this.getViewContainerElement(WorkbenchViewContainers.files, null),
         workbench: this.getViewContainerElement(
-          WorkbenchViewContainers.main,
-          this.activeWorkbenchMainPart === "chart" ? this.getChartViewElement() : this.getTableViewElement(),
+          this.activeWorkbenchMainPart === "settings"
+            ? WorkbenchViewContainers.settings
+            : WorkbenchViewContainers.main,
+          this.getActiveMainPartElement(),
         ),
         auxiliaryBar: this.getViewContainerElement(
           WorkbenchViewContainers.auxiliarybar,
           this.getActiveAuxiliaryBarElement(),
         ),
         overlay: this.notifications.element,
-        settings: this.getViewContainerElement(WorkbenchViewContainers.settings, null),
       });
     });
 
@@ -1013,11 +1042,11 @@ export class Workbench extends Layout {
   //#region view containers and visible parts
 
   private updateViewContainers(): void {
-    const isSettingsActive = this.activeView === "settings";
-    const isWorkbenchActive = !isSettingsActive;
+    const isSettingsActive = this.activeWorkbenchMainPart === "settings";
     const isChartActive = this.activeWorkbenchMainPart === "chart";
+    const sidebarSurface = this.getActiveSidebarSurface();
     const isSidebarVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
-    const isAuxiliaryBarVisible = this.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+    const isAuxiliaryBarVisible = this.isAuxiliaryBarVisibleForActiveMode();
 
     if (isSidebarVisible) {
       measureWorkbenchBoot("workbench:view-containers:open:files", () => {
@@ -1030,40 +1059,48 @@ export class Workbench extends Layout {
       });
     }
 
-    if (isWorkbenchActive) {
+    if (isSettingsActive) {
+      measureWorkbenchBoot("workbench:view-containers:open:settings", () => {
+        void this.viewsService.openViewContainer(WorkbenchViewContainers.settings);
+      });
+    } else {
       measureWorkbenchBoot("workbench:view-containers:open:main", () => {
         void this.viewsService.openViewContainer(WorkbenchViewContainers.main);
       });
       measureWorkbenchBoot("workbench:view-containers:close:settings", () => {
         this.viewsService.closeViewContainer(WorkbenchViewContainers.settings);
       });
-    } else {
-      measureWorkbenchBoot("workbench:view-containers:open:settings", () => {
-        void this.viewsService.openViewContainer(WorkbenchViewContainers.settings);
-      });
     }
 
     measureWorkbenchBoot("workbench:view-containers:set-visible", () => {
       this.viewsService.setViewVisible(
         ExplorerViewId,
-        isWorkbenchActive && isSidebarVisible,
+        sidebarSurface === "explorer" && isSidebarVisible,
       );
-      this.viewsService.setViewVisible(TableViewId, isWorkbenchActive && !isChartActive);
-      this.viewsService.setViewVisible(ChartViewId, isWorkbenchActive && isChartActive);
+      this.viewsService.setViewVisible(
+        ThumbnailViewId,
+        sidebarSurface === "thumbnail" && isSidebarVisible,
+      );
+      this.viewsService.setViewVisible(
+        SettingsNavigationViewId,
+        sidebarSurface === "settingsNavigation" && isSidebarVisible,
+      );
+      this.viewsService.setViewVisible(TableViewId, !isSettingsActive && !isChartActive);
+      this.viewsService.setViewVisible(ChartViewId, !isSettingsActive && isChartActive);
       this.viewsService.setViewVisible(SettingsViewId, isSettingsActive);
     });
     measureWorkbenchBoot("workbench:view-containers:update-sidebar", () => {
-      this.updateSidebar(isWorkbenchActive && isSidebarVisible);
+      this.updateSidebar(isSidebarVisible);
     });
     measureWorkbenchBoot("workbench:view-containers:update-auxiliarybar", () => {
-      this.updateAuxiliaryBar(isWorkbenchActive && isAuxiliaryBarVisible);
+      this.updateAuxiliaryBar(isAuxiliaryBarVisible);
     });
   }
 
   private updateContextKeys(): void {
     this.updateWorkbenchModeContextKeys();
     this.activeAuxiliaryBarViewContext?.set(
-      this.auxiliaryBarModel.getActiveView(this.activeWorkbenchMainPart),
+      this.auxiliaryBarModel.getActiveView(this.getActiveAuxiliaryBarMode()),
     );
   }
 
@@ -1087,7 +1124,26 @@ export class Workbench extends Layout {
     this.updateSidebarPaneContainer({
       actions: [],
       container,
-      title: visible ? localize("files.explorerSection", "Explorer") : "",
+      title: visible ? this.getActiveSidebarTitle() : "",
+    });
+  }
+
+  private getActiveSidebarTitle(): string {
+    switch (this.getActiveSidebarSurface()) {
+      case "settingsNavigation":
+        return localize("settings.title", "Settings");
+      case "thumbnail":
+        return localize("files.thumbnailView", "Thumbnail");
+      case "explorer":
+      default:
+        return localize("files.explorerSection", "Explorer");
+    }
+  }
+
+  private getActiveSidebarSurface(): WorkbenchSidebarSurface {
+    return resolveWorkbenchSidebarSurface({
+      activeMainPart: this.activeWorkbenchMainPart,
+      explorerViewLayout: this.explorerService.viewLayout,
     });
   }
 
@@ -1102,7 +1158,7 @@ export class Workbench extends Layout {
       activeView: this.layoutService.activeAuxiliaryBarView,
       contextKeyService: this.contextKeyService,
       menuService: this.menuService,
-      mode: this.activeWorkbenchMainPart,
+      mode: this.getActiveAuxiliaryBarMode(),
       templateMode: this.templateViewStateService.getState().mode,
       visible,
     });
@@ -1118,11 +1174,11 @@ export class Workbench extends Layout {
   }
 
   private renderAuxiliaryBarView(): void {
-    if (this.activeView === "settings") {
+    if (this.activeWorkbenchMainPart === "settings") {
       return;
     }
 
-    switch (this.auxiliaryBarModel.getActiveView(this.activeWorkbenchMainPart)) {
+    switch (this.auxiliaryBarModel.getActiveView(this.getActiveAuxiliaryBarMode())) {
       case "template":
         break;
       case "parameters":
@@ -1153,7 +1209,7 @@ export class Workbench extends Layout {
   }
 
   private getActiveAuxiliaryBarElement(): HTMLElement | null {
-    const viewId = this.auxiliaryBarModel.getActiveViewId(this.activeWorkbenchMainPart);
+    const viewId = this.auxiliaryBarModel.getActiveViewId(this.getActiveAuxiliaryBarMode());
     return viewId ? this.viewsService.getViewWithId(viewId)?.element ?? null : null;
   }
 
@@ -1163,6 +1219,27 @@ export class Workbench extends Layout {
 
   private getChartViewElement(): HTMLElement | null {
     return this.viewsService.getViewWithId(ChartViewId)?.element ?? null;
+  }
+
+  private getActiveMainPartElement(): HTMLElement | null {
+    switch (this.activeWorkbenchMainPart) {
+      case "chart":
+        return this.getChartViewElement();
+      case "settings":
+        return this.viewsService.getViewWithId(SettingsViewId)?.element ?? null;
+      case "table":
+      default:
+        return this.getTableViewElement();
+    }
+  }
+
+  private isAuxiliaryBarVisibleForActiveMode(): boolean {
+    return this.activeWorkbenchMainPart !== "settings" &&
+      this.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+  }
+
+  private getActiveAuxiliaryBarMode(): AuxiliaryBarMode {
+    return this.activeWorkbenchMainPart === "chart" ? "chart" : "table";
   }
 
   private layoutVisibleViewContainers(): void {

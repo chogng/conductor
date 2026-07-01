@@ -193,6 +193,7 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
 				files,
 				viewLayout: "thumbnail",
 			},
+			surfaceViewLayout: "thumbnail",
 			input: {
 				mode: "chart",
 				selectedResource: null,

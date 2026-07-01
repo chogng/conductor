@@ -4,7 +4,6 @@
 
 import assert from "assert";
 
-import { List } from "src/cs/base/browser/ui/list/listWidget";
 import { SettingsTree } from "src/cs/workbench/contrib/settings/browser/settingsTree";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -226,6 +225,60 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
     assert.equal(secondElement.dataset.search, "second element");
   });
 
+  test("uses item group ids for visual row boundaries", () => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const tree = store.add(new SettingsTree());
+    const firstElement = document.createElement("div");
+    const secondElement = document.createElement("div");
+    const control = document.createElement("button");
+
+    tree.update([
+      {
+        id: "settings-test-section",
+        items: [
+          {
+            kind: "element",
+            element: firstElement,
+            groupId: "settings-semantic-group",
+            id: "settings-semantic-header-card",
+          },
+          {
+            kind: "element",
+            element: secondElement,
+            groupId: "settings-semantic-group",
+            id: "settings-semantic-active-card",
+          },
+          {
+            kind: "control",
+            control,
+            id: "settings-plain-card",
+            title: "Plain",
+          },
+        ],
+      },
+    ]);
+
+    const firstRow = tree.element.querySelector("#settings-semantic-header-card")?.closest<HTMLElement>(".settings-tree-item");
+    const secondRow = tree.element.querySelector("#settings-semantic-active-card")?.closest<HTMLElement>(".settings-tree-item");
+    const plainRow = tree.element.querySelector("#settings-plain-card")?.closest<HTMLElement>(".settings-tree-item");
+
+    assert.equal(firstRow?.dataset.groupId, "settings-semantic-group");
+    assert.equal(secondRow?.dataset.groupId, "settings-semantic-group");
+    assert.equal(plainRow?.dataset.groupId, "settings-test-section");
+    assert.equal(firstRow?.parentElement, secondRow?.parentElement);
+    assert.equal(secondRow?.previousElementSibling, firstRow);
+    assert.equal(plainRow?.previousElementSibling, secondRow);
+    assert.equal(firstRow?.classList.contains("settings-tree-item--first"), true);
+    assert.equal(firstRow?.classList.contains("settings-tree-item--last"), false);
+    assert.equal(secondRow?.classList.contains("settings-tree-item--first"), false);
+    assert.equal(secondRow?.classList.contains("settings-tree-item--last"), true);
+    assert.equal(plainRow?.classList.contains("settings-tree-item--first"), true);
+    assert.equal(plainRow?.classList.contains("settings-tree-item--last"), true);
+  });
+
   test("updates a targeted item without replacing the parent row", () => {
     if (typeof document === "undefined") {
       return;
@@ -253,38 +306,25 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
     ]);
     const card = tree.element.querySelector("#settings-control-card");
     const row = card?.closest(".settings-tree-item");
-    const listRow = card?.closest(".ui-list__row");
-    const listSplices: Array<{ readonly deleteCount: number; readonly insertCount: number }> = [];
-    const originalListSplice = List.prototype.splice;
-    List.prototype.splice = function (start, deleteCount, elements = []) {
-      listSplices.push({ deleteCount, insertCount: elements.length });
-      return originalListSplice.call(this, start, deleteCount, elements);
-    };
 
-    try {
-      tree.updateItems([
-        {
-          id: "settings-test-section",
-          title: "Section",
-          items: [
-            {
-              kind: "control",
-              control: secondControl,
-              id: "settings-control-card",
-              title: "Updated Control",
-            },
-          ],
-        },
-      ], ["settings-control-card"]);
-    }
-    finally {
-      List.prototype.splice = originalListSplice;
-    }
+    tree.updateItems([
+      {
+        id: "settings-test-section",
+        title: "Section",
+        items: [
+          {
+            kind: "control",
+            control: secondControl,
+            id: "settings-control-card",
+            title: "Updated Control",
+          },
+        ],
+      },
+    ], ["settings-control-card"]);
 
-    assert.deepEqual(listSplices, [{ deleteCount: 1, insertCount: 1 }]);
     assert.equal(tree.element.querySelector("#settings-control-card"), card);
     assert.equal(tree.element.querySelector("#settings-control-card")?.closest(".settings-tree-item"), row);
-    assert.equal(tree.element.querySelector("#settings-control-card")?.closest(".ui-list__row"), listRow);
+    assert.equal(tree.element.querySelector("#settings-control-card")?.closest(".ui-list__row"), null);
     assert.equal(tree.element.querySelector("#settings-first-control"), null);
     assert.equal(tree.element.querySelector("#settings-second-control"), secondControl);
     assert.equal(
@@ -325,42 +365,31 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
       },
     ]);
     const card = tree.element.querySelector("#settings-composite-card");
-    const listRow = card?.closest(".ui-list__row");
+    const row = card?.closest(".settings-tree-item");
     const headerSlot = tree.element.querySelector("#settings-header-child");
     const activeSlot = tree.element.querySelector("#settings-active-child");
     const recommendedSlot = tree.element.querySelector("#settings-recommended-child");
-    const listSplices: Array<{ readonly deleteCount: number; readonly insertCount: number }> = [];
-    const originalListSplice = List.prototype.splice;
-    List.prototype.splice = function (start, deleteCount, elements = []) {
-      listSplices.push({ deleteCount, insertCount: elements.length });
-      return originalListSplice.call(this, start, deleteCount, elements);
-    };
 
-    try {
-      tree.updateItems([
-        {
-          id: "settings-test-section",
-          items: [
-            {
-              kind: "composite",
-              id: "settings-composite-card",
-              items: [
-                { id: "settings-header-child", element: headerElement },
-                { id: "settings-active-child", element: nextActiveElement },
-                { id: "settings-recommended-child", element: recommendedElement },
-              ],
-            },
-          ],
-        },
-      ], ["settings-active-child"]);
-    }
-    finally {
-      List.prototype.splice = originalListSplice;
-    }
+    tree.updateItems([
+      {
+        id: "settings-test-section",
+        items: [
+          {
+            kind: "composite",
+            id: "settings-composite-card",
+            items: [
+              { id: "settings-header-child", element: headerElement },
+              { id: "settings-active-child", element: nextActiveElement },
+              { id: "settings-recommended-child", element: recommendedElement },
+            ],
+          },
+        ],
+      },
+    ], ["settings-active-child"]);
 
-    assert.deepEqual(listSplices, [{ deleteCount: 1, insertCount: 1 }]);
     assert.equal(tree.element.querySelector("#settings-composite-card"), card);
-    assert.equal(tree.element.querySelector("#settings-composite-card")?.closest(".ui-list__row"), listRow);
+    assert.equal(tree.element.querySelector("#settings-composite-card")?.closest(".settings-tree-item"), row);
+    assert.equal(tree.element.querySelector("#settings-composite-card")?.closest(".ui-list__row"), null);
     assert.equal(tree.element.querySelector("#settings-header-child"), headerSlot);
     assert.equal(tree.element.querySelector("#settings-active-child"), activeSlot);
     assert.equal(tree.element.querySelector("#settings-recommended-child"), recommendedSlot);

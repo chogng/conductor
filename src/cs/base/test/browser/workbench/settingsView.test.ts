@@ -1,6 +1,5 @@
 import assert from "assert";
 
-import { List } from "src/cs/base/browser/ui/list/listWidget";
 import { renderWorkbenchMarkdown } from "src/cs/workbench/browser/markdownRenderer";
 import { SettingsView, type SettingsContentItemTarget, type SettingsViewOptions } from "src/cs/workbench/contrib/settings/browser/settingsView";
 import { createSettingsSections } from "src/cs/workbench/contrib/settings/browser/settingsLayout";
@@ -53,43 +52,31 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       const languageSelect = getButton(container, "settings-language-dropdown");
       const closeBehaviorSelect = getButton(container, "settings-close-behavior-dropdown");
       const numericDisplaySwitch = getButton(container, "settings-numeric-display-toggle");
-      const listSplices: Array<{ readonly deleteCount: number; readonly insertCount: number }> = [];
-      const originalListSplice = List.prototype.splice;
-      List.prototype.splice = function (start, deleteCount, elements = []) {
-        listSplices.push({ deleteCount, insertCount: elements.length });
-        return originalListSplice.call(this, start, deleteCount, elements);
-      };
 
-      try {
-        view.update(createSettingsViewOptions({
-          activeSettingsSection: "general",
-          windowCloseBehaviorOptions: [
-            { label: "Minimize to Tray", value: "minimizeToTray" },
-            { label: "Quit", value: "quit" },
-          ],
-          windowCloseSettings: {
-            behavior: "minimizeToTray",
-            isSaving: true,
-            onBehaviorChange: noop,
-          },
-          numericDisplaySettings: {
-            isSaving: true,
-            optimized: true,
-            onOptimizedChange: noop,
-          },
-        }), {
-          type: "partial",
-          descriptorIds: [],
-          itemTargets: [{ descriptorId: "general-preferences", itemIds: ["settings-close-behavior-card", "settings-numeric-display-card"] }],
-        });
-      }
-      finally {
-        List.prototype.splice = originalListSplice;
-      }
+      view.update(createSettingsViewOptions({
+        activeSettingsSection: "general",
+        windowCloseBehaviorOptions: [
+          { label: "Minimize to Tray", value: "minimizeToTray" },
+          { label: "Quit", value: "quit" },
+        ],
+        windowCloseSettings: {
+          behavior: "minimizeToTray",
+          isSaving: true,
+          onBehaviorChange: noop,
+        },
+        numericDisplaySettings: {
+          isSaving: true,
+          optimized: true,
+          onOptimizedChange: noop,
+        },
+      }), {
+        type: "partial",
+        descriptorIds: [],
+        itemTargets: [{ descriptorId: "general-preferences", itemIds: ["settings-close-behavior-card", "settings-numeric-display-card"] }],
+      });
 
       assert.equal(getElement(container, ".settings-view-content"), content);
       assert.equal(getElement(container, ".settings-view-content > .settings-tree"), tree);
-      assert.deepEqual(listSplices, []);
       assert.equal(getButton(container, "settings-language-dropdown"), languageSelect);
       const nextCloseBehaviorSelect = getButton(container, "settings-close-behavior-dropdown");
       const nextNumericDisplaySwitch = getButton(container, "settings-numeric-display-toggle");
@@ -119,33 +106,21 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       const transferScaleSelect = getButton(container, "settings-default-transfer-y-scale-select");
       const outputScaleSelect = getButton(container, "settings-default-output-y-scale-select");
       const chartDefaultsCard = getElement(container, "#settings-chart-defaults-card");
-      const listSplices: Array<{ readonly deleteCount: number; readonly insertCount: number }> = [];
-      const originalListSplice = List.prototype.splice;
-      List.prototype.splice = function (start, deleteCount, elements = []) {
-        listSplices.push({ deleteCount, insertCount: elements.length });
-        return originalListSplice.call(this, start, deleteCount, elements);
-      };
 
-      try {
-        view.update(createSettingsViewOptions({
-          activeSettingsSection: "general",
-          chartDefaultSettings: {
-            defaultYScaleForTransfer: "linear",
-          },
-        }), {
-          type: "partial",
-          descriptorIds: [],
-          itemTargets: [{ descriptorId: "chart-defaults", itemIds: ["settings-default-transfer-y-scale-card"] }],
-        });
-      }
-      finally {
-        List.prototype.splice = originalListSplice;
-      }
+      view.update(createSettingsViewOptions({
+        activeSettingsSection: "general",
+        chartDefaultSettings: {
+          defaultYScaleForTransfer: "linear",
+        },
+      }), {
+        type: "partial",
+        descriptorIds: [],
+        itemTargets: [{ descriptorId: "chart-defaults", itemIds: ["settings-default-transfer-y-scale-card"] }],
+      });
 
       const nextTransferScaleSelect = getButton(container, "settings-default-transfer-y-scale-select");
       assert.equal(getElement(container, ".settings-view-content"), content);
       assert.equal(getElement(container, ".settings-view-content > .settings-tree"), tree);
-      assert.deepEqual(listSplices, []);
       assert.equal(getButton(container, "settings-language-dropdown"), languageSelect);
       assert.equal(getButton(container, "settings-numeric-display-toggle"), numericDisplaySwitch);
       assert.equal(getButton(container, "settings-default-output-y-scale-select"), outputScaleSelect);
@@ -361,7 +336,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     }
   });
 
-  test("renders template section in a single settings tree with semantic library as a composite item", () => {
+  test("renders template section in a single settings tree with semantic library as grouped items", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const view = new SettingsView(container, createSettingsViewOptions({
@@ -429,14 +404,24 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
 
     try {
       const templateLibraryTree = getElement(container, "#settings-template-domain-packs-card").closest(".settings-tree");
-      const semanticCard = getElement(container, "#settings-template-semantic-library-card");
       const semanticHeader = getElement(container, "#settings-template-semantic-library-header");
       const activeTermsCard = getElement(container, "#settings-template-semantic-active-terms-card");
+      const termInputCard = getElement(container, "#settings-template-semantic-term-input-card");
       const recommendedTermsCard = getElement(container, "#settings-template-semantic-recommended-terms-card");
       const customFormCard = getElement(container, "#settings-template-semantic-custom-form-card");
-      const semanticTree = semanticCard.closest(".settings-tree");
+      const feedbackCard = getElement(container, "#settings-template-semantic-feedback-card");
+      const semanticTree = semanticHeader.closest(".settings-tree");
+      const semanticRows = [
+        getClosestSettingsTreeItem(semanticHeader),
+        getClosestSettingsTreeItem(activeTermsCard),
+        getClosestSettingsTreeItem(termInputCard),
+        getClosestSettingsTreeItem(recommendedTermsCard),
+        getClosestSettingsTreeItem(customFormCard),
+        getClosestSettingsTreeItem(feedbackCard),
+      ];
       const widgets = activeTermsCard.querySelectorAll<HTMLElement>(".inputbox_widget");
       const activeWidget = widgets[0];
+      const termInputWidget = getElement(termInputCard, ".inputbox_widget");
       const recommendedSuggestion = recommendedTermsCard.querySelector<HTMLElement>(".settings-template-term-suggestion");
 
       assert.ok(templateLibraryTree);
@@ -445,17 +430,47 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.ok(recommendedSuggestion);
       assert.equal(container.querySelectorAll(".settings-view-content > .settings-tree").length, 1);
       assert.equal(semanticTree, templateLibraryTree);
-      assert.equal(templateLibraryTree.querySelector("#settings-template-semantic-library-card"), semanticCard);
+      assert.equal(templateLibraryTree.querySelector("#settings-template-semantic-library-header"), semanticHeader);
+      assert.equal(container.querySelector("#settings-template-semantic-library-card"), null);
+      assert.equal(container.querySelector(".ui-list__row"), null);
+      assert.equal(semanticHeader.closest(".settings-tree-composite-child"), null);
+      assert.equal(activeTermsCard.closest(".settings-tree-composite-child"), null);
+      assert.equal(semanticRows[0]!.parentElement, semanticRows[1]!.parentElement);
+      assert.equal(semanticRows[1]!.previousElementSibling, semanticRows[0]);
+      assert.equal(semanticRows[2]!.previousElementSibling, semanticRows[1]);
+      assert.equal(semanticRows[3]!.previousElementSibling, semanticRows[2]);
+      assert.equal(semanticRows[4]!.previousElementSibling, semanticRows[3]);
+      assert.equal(semanticRows[5]!.previousElementSibling, semanticRows[4]);
+      assert.deepEqual(
+        semanticRows.map(row => row.dataset.groupId),
+        [
+          "settings-template-semantic-library",
+          "settings-template-semantic-library",
+          "settings-template-semantic-library",
+          "settings-template-semantic-library",
+          "settings-template-semantic-library",
+          "settings-template-semantic-library",
+        ],
+      );
+      assert.equal(semanticRows[0]!.classList.contains("settings-tree-item--first"), true);
+      assert.equal(semanticRows[0]!.classList.contains("settings-tree-item--last"), false);
+      assert.equal(semanticRows[1]!.classList.contains("settings-tree-item--first"), false);
+      assert.equal(semanticRows[4]!.classList.contains("settings-tree-item--last"), false);
+      assert.equal(semanticRows[5]!.classList.contains("settings-tree-item--last"), true);
       assert.equal(container.querySelector("#settings-template-semantic-custom-terms-card"), null);
       assert.equal(semanticHeader.querySelector(".inputbox_widget"), null);
       assert.equal(widgets.length, 1);
       assert.equal(activeWidget.querySelectorAll(".inputbox_widget_item").length, 2);
       assert.equal(activeWidget.querySelector<HTMLElement>('.inputbox_widget_item[data-kind="builtin-enabled"] .inputbox_widget_item_label')?.textContent, "Vgs");
       assert.equal(activeWidget.querySelector<HTMLElement>('.inputbox_widget_item[data-kind="custom"] .inputbox_widget_item_label')?.textContent, "Custom Gate");
-      assert.ok(activeWidget.querySelector("input.inputbox_native"));
+      assert.equal(activeWidget.querySelector<HTMLInputElement>("input.inputbox_native")?.hidden, true);
+      assert.equal(termInputWidget.querySelector<HTMLInputElement>("input.inputbox_native:not([hidden])")?.placeholder, "Add match term");
+      assert.ok(termInputCard.querySelector("#settings-template-semantic-add-button"));
       assert.equal(recommendedTermsCard.querySelectorAll(".settings-template-term-suggestion").length, 1);
       assert.equal(recommendedSuggestion.querySelector<HTMLElement>(".settings-template-term-suggestion-label")?.textContent, "Drain Current");
       assert.ok(customFormCard.querySelector("#settings-template-semantic-role-select"));
+      assert.equal(customFormCard.querySelector("#settings-template-semantic-add-button"), null);
+      assert.ok(feedbackCard.querySelector(".settings-template-feedback-slot"));
       assert.equal(customFormCard.querySelector("#settings-template-semantic-term-input"), null);
     }
     finally {
@@ -499,13 +514,16 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     }));
 
     try {
-      const semanticCard = getElement(container, "#settings-template-semantic-library-card");
       const semanticHeader = getElement(container, "#settings-template-semantic-library-header");
       const activeTermsCard = getElement(container, "#settings-template-semantic-active-terms-card");
+      const termInputCard = getElement(container, "#settings-template-semantic-term-input-card");
       const recommendedTermsCard = getElement(container, "#settings-template-semantic-recommended-terms-card");
       const customFormCard = getElement(container, "#settings-template-semantic-custom-form-card");
+      const feedbackCard = getElement(container, "#settings-template-semantic-feedback-card");
       const previousActiveWidget = getElement(activeTermsCard, ".inputbox_widget");
       const previousActiveInput = getElement(previousActiveWidget, "input.inputbox_native");
+      const previousTermInputWidget = getElement(termInputCard, ".inputbox_widget");
+      const previousTermInput = getElement(previousTermInputWidget, "input.inputbox_native");
       const recommendedContent = recommendedTermsCard.firstElementChild;
       assert.ok(recommendedContent);
       let settingsTreeUpdateCount = 0;
@@ -552,14 +570,18 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       const nextRecommendedContent = nextRecommendedTermsCard.firstElementChild;
       assert.ok(nextActiveWidget);
       assert.ok(nextActiveInput);
-      assert.equal(getElement(container, "#settings-template-semantic-library-card"), semanticCard);
+      assert.equal(container.querySelector("#settings-template-semantic-library-card"), null);
       assert.equal(getElement(container, "#settings-template-semantic-library-header"), semanticHeader);
       assert.equal(nextActiveTermsCard, activeTermsCard);
       assert.equal(nextRecommendedTermsCard, recommendedTermsCard);
       assert.equal(nextActiveWidget, previousActiveWidget);
       assert.equal(nextActiveInput, previousActiveInput);
+      assert.equal(getElement(container, "#settings-template-semantic-term-input-card"), termInputCard);
+      assert.equal(getElement(termInputCard, ".inputbox_widget"), previousTermInputWidget);
+      assert.equal(getElement(previousTermInputWidget, "input.inputbox_native"), previousTermInput);
       assert.equal(nextRecommendedContent, recommendedContent);
       assert.equal(getElement(container, "#settings-template-semantic-custom-form-card"), customFormCard);
+      assert.equal(getElement(container, "#settings-template-semantic-feedback-card"), feedbackCard);
       assert.equal(nextActiveWidget.querySelectorAll(".inputbox_widget_item").length, 2);
       assert.equal(nextRecommendedTermsCard.querySelectorAll(".settings-template-term-suggestion").length, 0);
       assert.equal(settingsTreeUpdateCount, 0);
@@ -570,7 +592,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     }
   });
 
-  test("does not promote local semantic child patches when another child needs tree update", () => {
+  test("updates semantic header as a tree item while patching active terms locally", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const builtinTerms = [
@@ -606,6 +628,8 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
 
     try {
       const activeTermsCard = getElement(container, "#settings-template-semantic-active-terms-card");
+      const semanticHeader = getElement(container, "#settings-template-semantic-library-header");
+      const semanticHeaderRow = getClosestSettingsTreeItem(semanticHeader);
       const previousActiveWidget = getElement(activeTermsCard, ".inputbox_widget");
       const previousActiveInput = getElement(previousActiveWidget, "input.inputbox_native");
       const treeTargets: SettingsContentItemTarget[] = [];
@@ -646,8 +670,11 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       }
 
       const nextActiveTermsCard = getElement(container, "#settings-template-semantic-active-terms-card");
+      const nextSemanticHeader = getElement(container, "#settings-template-semantic-library-header");
       const nextActiveWidget = getElement(nextActiveTermsCard, ".inputbox_widget");
       const nextActiveInput = getElement(nextActiveWidget, "input.inputbox_native");
+      assert.equal(nextSemanticHeader === semanticHeader, false);
+      assert.equal(getClosestSettingsTreeItem(nextSemanticHeader), semanticHeaderRow);
       assert.equal(nextActiveTermsCard, activeTermsCard);
       assert.equal(nextActiveWidget, previousActiveWidget);
       assert.equal(nextActiveInput, previousActiveInput);
@@ -751,16 +778,10 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     try {
       const customFormCard = getElement(container, "#settings-template-semantic-custom-form-card");
       const roleSelect = getButton(container, "settings-template-semantic-role-select");
-      const addButton = getButton(container, "settings-template-semantic-add-button");
-      const feedback = getElement(customFormCard, ".settings-template-feedback-slot");
 
       view.update(createSettingsViewOptions({
         activeSettingsSection: "template",
         templateSettings: {
-          feedback: {
-            type: "success",
-            message: "Saved.",
-          },
           isSaving: true,
         },
       }), {
@@ -774,10 +795,92 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
 
       assert.equal(getElement(container, "#settings-template-semantic-custom-form-card"), customFormCard);
       assert.equal(getButton(container, "settings-template-semantic-role-select"), roleSelect);
-      assert.equal(getButton(container, "settings-template-semantic-add-button"), addButton);
-      assert.equal(getElement(customFormCard, ".settings-template-feedback-slot"), feedback);
+      assert.equal(customFormCard.querySelector("#settings-template-semantic-add-button"), null);
+      assert.equal(customFormCard.querySelector(".settings-template-feedback-slot"), null);
       assert.equal(roleSelect.disabled, true);
+    }
+    finally {
+      view.dispose();
+      container.remove();
+    }
+  });
+
+  test("patches semantic term input without replacing active tokens or custom form", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const view = new SettingsView(container, createSettingsViewOptions({ activeSettingsSection: "template" }));
+
+    try {
+      const activeTermsCard = getElement(container, "#settings-template-semantic-active-terms-card");
+      const termInputCard = getElement(container, "#settings-template-semantic-term-input-card");
+      const termInputWidget = getElement(termInputCard, ".inputbox_widget");
+      const termInput = getElement(termInputWidget, "input.inputbox_native");
+      const addButton = getButton(container, "settings-template-semantic-add-button");
+      const customFormCard = getElement(container, "#settings-template-semantic-custom-form-card");
+
+      view.update(createSettingsViewOptions({
+        activeSettingsSection: "template",
+        templateSemanticTermDraft: "New Term",
+        templateSettings: {
+          isSaving: true,
+        },
+      }), {
+        type: "partial",
+        descriptorIds: [],
+        itemTargets: [{
+          descriptorId: "template-semantic-library",
+          itemIds: ["settings-template-semantic-term-input-card"],
+        }],
+      });
+
+      assert.equal(getElement(container, "#settings-template-semantic-active-terms-card"), activeTermsCard);
+      assert.equal(getElement(container, "#settings-template-semantic-term-input-card"), termInputCard);
+      assert.equal(getElement(termInputCard, ".inputbox_widget"), termInputWidget);
+      assert.equal(getElement(termInputWidget, "input.inputbox_native"), termInput);
+      assert.equal(getButton(container, "settings-template-semantic-add-button"), addButton);
+      assert.equal(getElement(container, "#settings-template-semantic-custom-form-card"), customFormCard);
+      assert.equal((termInput as HTMLInputElement).value, "New Term");
+      assert.equal((termInput as HTMLInputElement).disabled, true);
       assert.equal(addButton.disabled, true);
+    }
+    finally {
+      view.dispose();
+      container.remove();
+    }
+  });
+
+  test("patches semantic feedback without replacing form controls", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const view = new SettingsView(container, createSettingsViewOptions({ activeSettingsSection: "template" }));
+
+    try {
+      const customFormCard = getElement(container, "#settings-template-semantic-custom-form-card");
+      const roleSelect = getButton(container, "settings-template-semantic-role-select");
+      const feedbackCard = getElement(container, "#settings-template-semantic-feedback-card");
+      const feedback = getElement(feedbackCard, ".settings-template-feedback-slot");
+
+      view.update(createSettingsViewOptions({
+        activeSettingsSection: "template",
+        templateSettings: {
+          feedback: {
+            type: "success",
+            message: "Saved.",
+          },
+        },
+      }), {
+        type: "partial",
+        descriptorIds: [],
+        itemTargets: [{
+          descriptorId: "template-semantic-library",
+          itemIds: ["settings-template-semantic-feedback-card"],
+        }],
+      });
+
+      assert.equal(getElement(container, "#settings-template-semantic-custom-form-card"), customFormCard);
+      assert.equal(getButton(container, "settings-template-semantic-role-select"), roleSelect);
+      assert.equal(getElement(container, "#settings-template-semantic-feedback-card"), feedbackCard);
+      assert.equal(getElement(feedbackCard, ".settings-template-feedback-slot"), feedback);
       assert.equal(feedback.textContent, "Saved.");
     }
     finally {
@@ -877,6 +980,12 @@ function getElement(container: HTMLElement, selector: string): HTMLElement {
   const element = container.querySelector<HTMLElement>(selector);
   assert.ok(element, `Expected element ${selector}.`);
   return element;
+}
+
+function getClosestSettingsTreeItem(element: HTMLElement): HTMLElement {
+  const item = element.closest(".settings-tree-item") as HTMLElement | null;
+  assert.ok(item, `Expected settings tree item for #${element.id}.`);
+  return item;
 }
 
 function getSemanticSuggestion(container: HTMLElement, label: string): HTMLButtonElement {
@@ -1030,6 +1139,7 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
     },
     plotCommandDraft: "",
     postCommandsDraft: "",
+    searchQuery: "",
     setActiveSettingsSection: noop,
     setAxisTitleFontSizeDraft: noop,
     setFileNameFieldSeparatorsDraft: noop,
@@ -1045,6 +1155,7 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
     setTemplateSemanticRoleDraft: noop,
     setTemplateSemanticUnitDraft: noop,
     setTickLabelFontSizeDraft: noop,
+    setSearchQuery: noop,
     setXyPairsDraft: noop,
     settingsSections: createSettingsSections(),
     tableTemplateVisualizationSettings: {

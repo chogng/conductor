@@ -11,15 +11,12 @@ import {
   Parts,
   type IWorkbenchLayoutService,
   type IWorkbenchNavigationState,
-  type LayoutView,
   type WorkbenchMainPart,
 } from "src/cs/workbench/services/layout/browser/layoutService";
 import { SidebarPart } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import { AuxiliaryBarPart } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
 import { WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS } from "src/cs/workbench/browser/parts/titlebar/titlebarActions";
 import type { IStorageService } from "src/cs/platform/storage/common/storage";
-
-export type { LayoutView } from "src/cs/workbench/services/layout/browser/layoutService";
 
 const getLayoutBootNowMs = (): number =>
   typeof performance !== "undefined" && typeof performance.now === "function"
@@ -74,13 +71,12 @@ type AuxiliaryBarPaneContainerInput = Parameters<AuxiliaryBarPart["updatePaneCon
 export type LayoutParts = {
   readonly controller?: Node | null;
   readonly workbench?: Node | null;
-  readonly settings?: Node | null;
   readonly overlay?: Node | null;
   readonly sidebar?: Node | null;
   readonly auxiliaryBar?: Node | null;
 };
 
-type LayoutPane = "workbench" | "settings";
+type LayoutPane = "workbench";
 
 export type ViewPaneDefinition = {
   labelledBy: string;
@@ -90,15 +86,13 @@ export type ViewPaneDefinition = {
 
 export type LayoutStateInput = {
   activeMainPart: WorkbenchMainPart;
-  activeView: LayoutView;
-  hasVisitedSettingsView: boolean;
+  activeView: WorkbenchMainPart;
   historyIndex: number;
   historyLength: number;
 };
 
 export type ViewPaneState = ViewPaneDefinition & {
   isActive: boolean;
-  shouldMount: boolean;
 };
 
 export type LayoutState = ReturnType<typeof getLayoutState>;
@@ -106,14 +100,12 @@ export type LayoutState = ReturnType<typeof getLayoutState>;
 const DEFAULT_WORKBENCH_NAVIGATION_STATE: IWorkbenchNavigationState = {
   activeMainPart: "table",
   activeView: "table",
-  hasVisitedSettingsView: false,
   historyIndex: 0,
   historyLength: 1,
 };
 
 const LayoutPaneIds: Record<LayoutPane, string> = {
   workbench: "workbench-viewpane-main",
-  settings: "workbench-viewpane-settings",
 };
 
 export const VIEW_PANES: Record<LayoutPane, ViewPaneDefinition> = {
@@ -121,11 +113,6 @@ export const VIEW_PANES: Record<LayoutPane, ViewPaneDefinition> = {
     labelledBy: WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS.table,
     paneId: LayoutPaneIds.workbench,
     view: "workbench",
-  },
-  settings: {
-    labelledBy: WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS.settings,
-    paneId: LayoutPaneIds.settings,
-    view: "settings",
   },
 };
 
@@ -140,9 +127,6 @@ export const setWorkbenchSidebarPortal = (
 export const useWorkbenchSidebarPortal = (): HTMLElement | null =>
   workbenchSidebarPortal;
 
-const isWorkbenchView = (activeView: LayoutView): activeView is WorkbenchMainPart =>
-  activeView !== "settings";
-
 export class Layout extends Disposable {
   private readonly sidebarPart: SidebarPart;
   private readonly auxiliaryBarPart: AuxiliaryBarPart;
@@ -150,7 +134,6 @@ export class Layout extends Disposable {
   private readonly scheduledLayoutServiceUpdate =
     this._register(new MutableDisposable());
   private readonly main = document.createElement("div");
-  private readonly settingsMain = document.createElement("div");
   private readonly sidebar: HTMLElement;
   private readonly auxiliaryBar: HTMLElement;
   private readonly overlay = document.createElement("div");
@@ -158,7 +141,6 @@ export class Layout extends Disposable {
   private readonly shell = document.createElement("div");
   private readonly viewStack = document.createElement("div");
   private readonly workbenchPane = createPaneElement(VIEW_PANES.workbench.paneId);
-  private readonly settingsPane = createPaneElement(VIEW_PANES.settings.paneId);
   private parts: LayoutParts = {};
   private hasRenderedAuxiliaryBarPane = false;
   private layoutTransitionPart: Parts.SIDEBAR_PART | Parts.AUXILIARYBAR_PART | null = null;
@@ -179,7 +161,6 @@ export class Layout extends Disposable {
     this.auxiliaryBar = this.auxiliaryBarPart.element;
     this.element.className = "workbench_layout";
     this.main.className = "workbench_layout_main";
-    this.settingsMain.className = "workbench_layout_main workbench_layout_settings";
     this.overlay.className = "workbench_layout_overlay";
     this.controller.className = "workbench_layout_controller";
     this.shell.className = "workbench_layout_shell";
@@ -209,7 +190,7 @@ export class Layout extends Disposable {
     parent.replaceChildren(this.element);
   }
 
-  public get activeView(): LayoutView {
+  public get activeView(): WorkbenchMainPart {
     return this.workbenchLayoutService?.activeView ?? "table";
   }
 
@@ -233,11 +214,11 @@ export class Layout extends Disposable {
     this.workbenchLayoutService?.navigateForward();
   }
 
-  public navigateToView(view: LayoutView): void {
+  public navigateToView(view: WorkbenchMainPart): void {
     this.workbenchLayoutService?.navigateToView(view);
   }
 
-  public resetToView(view: LayoutView): void {
+  public resetToView(view: WorkbenchMainPart): void {
     this.workbenchLayoutService?.resetToView(view);
   }
 
@@ -265,8 +246,7 @@ export class Layout extends Disposable {
 
   private render(): void {
     measureLayoutBoot("workbench:layout:render", () => {
-      const workbenchActive = isWorkbenchView(this.activeView);
-      const renderSingleWorkbenchPane = this.shouldRenderSingleWorkbenchPane(workbenchActive);
+      const renderSingleWorkbenchPane = this.shouldRenderSingleWorkbenchPane();
       measureLayoutBoot("workbench:layout:render:classes", () => {
         if (this.parts.auxiliaryBar) {
           this.hasRenderedAuxiliaryBarPane = true;
@@ -278,16 +258,15 @@ export class Layout extends Disposable {
       measureLayoutBoot("workbench:layout:render:parts", () => {
         replaceOptionalChildIfChanged(this.controller, this.parts.controller);
         this.renderWorkbenchMain();
-        this.renderSettingsMain();
         replaceOptionalChildIfChanged(this.overlay, this.parts.overlay);
         replaceOptionalChildIfChanged(this.sidebar, this.parts.sidebar);
         replaceOptionalChildIfChanged(this.auxiliaryBar, this.parts.auxiliaryBar);
       });
       measureLayoutBoot("workbench:layout:render:workbench-shell", () => {
-        this.renderWorkbenchShell(workbenchActive, renderSingleWorkbenchPane);
+        this.renderWorkbenchShell(renderSingleWorkbenchPane);
       });
       measureLayoutBoot("workbench:layout:render:view-stack", () => {
-        this.renderViewStack(workbenchActive);
+        this.renderViewStack();
       });
       measureLayoutBoot("workbench:layout:render:split-relayout", () => {
         this.splitView.current?.relayout();
@@ -334,61 +313,39 @@ export class Layout extends Disposable {
     replaceChildrenIfChanged(this.main, this.workbenchPane);
   }
 
-  private renderSettingsMain(): void {
-    const settingsPane = this.state.layoutState.panes.settings;
-
-    if (!settingsPane.shouldMount) {
-      replaceChildrenIfChanged(this.settingsMain);
-      return;
-    }
-
-    updatePaneElement(this.settingsPane, {
-      children: this.parts.settings,
-      isActive: settingsPane.isActive,
-      labelledBy: settingsPane.labelledBy,
-      paneId: settingsPane.paneId,
-    });
-    replaceChildrenIfChanged(this.settingsMain, this.settingsPane);
-  }
-
-  private renderWorkbenchShell(workbenchActive: boolean, renderSingleWorkbenchPane: boolean): void {
+  private renderWorkbenchShell(renderSingleWorkbenchPane: boolean): void {
     if (renderSingleWorkbenchPane) {
-      this.renderSingleWorkbenchPane(workbenchActive);
+      this.renderSingleWorkbenchPane();
       return;
     }
 
-    this.renderSplit(workbenchActive);
+    this.renderSplit();
   }
 
-  private shouldRenderSingleWorkbenchPane(workbenchActive: boolean): boolean {
-    return workbenchActive && !this.parts.sidebar && !this.parts.auxiliaryBar;
+  private shouldRenderSingleWorkbenchPane(): boolean {
+    return !this.parts.sidebar && !this.parts.auxiliaryBar;
   }
 
-  private renderSingleWorkbenchPane(workbenchActive: boolean): void {
+  private renderSingleWorkbenchPane(): void {
     measureLayoutBoot("workbench:layout:render:single-main", () => {
       this.splitView.clear();
-      this.shell.className = workbenchActive
-        ? "workbench_layout_shell"
-        : "workbench_layout_shell workbench_layout_shell--hidden";
-      this.shell.setAttribute("aria-hidden", String(!workbenchActive));
-      this.shell.inert = !workbenchActive;
+      this.shell.className = "workbench_layout_shell";
+      this.shell.setAttribute("aria-hidden", "false");
+      this.shell.inert = false;
       replaceChildrenIfChanged(this.shell, this.main);
     });
   }
 
-  private renderSplit(workbenchActive: boolean): void {
+  private renderSplit(): void {
     const panes = measureLayoutBoot("workbench:layout:render:split:panes", () => this.getSplitPanes());
     const splitClassName = measureLayoutBoot("workbench:layout:render:split:class-name", () => {
       const splitClassNames = ["workbench_layout_split"];
       if (this.hasAuxiliaryBarPane()) {
         splitClassNames.push("workbench_layout_split--with-auxiliarybar");
       }
-      if (!workbenchActive) {
-        splitClassNames.push("workbench_layout_split--inactive");
-      }
-      if (workbenchActive && this.layoutTransitionPart === Parts.SIDEBAR_PART) {
+      if (this.layoutTransitionPart === Parts.SIDEBAR_PART) {
         splitClassNames.push("workbench_layout_split--animate-sidebar");
-      } else if (workbenchActive && this.layoutTransitionPart === Parts.AUXILIARYBAR_PART) {
+      } else if (this.layoutTransitionPart === Parts.AUXILIARYBAR_PART) {
         splitClassNames.push("workbench_layout_split--animate-auxiliarybar");
       }
       return splitClassNames.join(" ");
@@ -438,22 +395,15 @@ export class Layout extends Disposable {
       });
     }
     measureLayoutBoot("workbench:layout:render:split:shell", () => {
-      this.shell.className = workbenchActive
-        ? "workbench_layout_shell"
-        : "workbench_layout_shell workbench_layout_shell--hidden";
-      this.shell.setAttribute("aria-hidden", String(!workbenchActive));
-      this.shell.inert = !workbenchActive;
+      this.shell.className = "workbench_layout_shell";
+      this.shell.setAttribute("aria-hidden", "false");
+      this.shell.inert = false;
       replaceChildrenIfChanged(this.shell, splitView.element);
     });
   }
 
-  private renderViewStack(workbenchActive: boolean): void {
-    this.settingsMain.className = workbenchActive
-      ? "workbench_layout_main workbench_layout_settings workbench_layout_settings--hidden"
-      : "workbench_layout_main workbench_layout_settings";
-    this.settingsMain.setAttribute("aria-hidden", String(workbenchActive));
-    this.settingsMain.inert = workbenchActive;
-    replaceChildrenIfChanged(this.viewStack, this.shell, this.settingsMain);
+  private renderViewStack(): void {
+    replaceChildrenIfChanged(this.viewStack, this.shell);
     replaceChildrenIfChanged(
       this.element,
       this.controller,
@@ -491,7 +441,11 @@ export class Layout extends Disposable {
     const sidebarIndex = 0;
     const sidebarVisible = this.isPartVisible(Parts.SIDEBAR_PART);
     const nextWidth = sizes[sidebarIndex];
-    if (sidebarVisible && typeof nextWidth === "number" && Number.isFinite(nextWidth)) {
+    if (
+      sidebarVisible &&
+      typeof nextWidth === "number" &&
+      Number.isFinite(nextWidth)
+    ) {
       this.sidebarPart.resize(nextWidth);
     }
 
@@ -576,6 +530,10 @@ export class Layout extends Disposable {
   }
 
   private isPartVisible(part: Parts): boolean {
+    if (part === Parts.AUXILIARYBAR_PART && this.activeWorkbenchMainPart === "settings") {
+      return false;
+    }
+
     return this.workbenchLayoutService?.isVisible(part) ?? true;
   }
 
@@ -588,7 +546,6 @@ export class Layout extends Disposable {
       layoutState: getLayoutState({
         activeMainPart: state.activeMainPart,
         activeView: state.activeView,
-        hasVisitedSettingsView: state.hasVisitedSettingsView,
         historyIndex: state.historyIndex,
         historyLength: state.historyLength,
       }),
@@ -599,15 +556,10 @@ export class Layout extends Disposable {
 export const getLayoutState = ({
   activeMainPart,
   activeView,
-  hasVisitedSettingsView,
   historyIndex,
   historyLength,
 }: LayoutStateInput) => {
-  const isSettingsActive = activeView === "settings";
-  const isWorkbenchActive = !isSettingsActive;
-  const workbenchLabelledBy = activeMainPart === "chart"
-    ? WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS.chart
-    : WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS.table;
+  const workbenchLabelledBy = WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS[activeMainPart];
 
   return {
     activeView,
@@ -617,13 +569,7 @@ export const getLayoutState = ({
       workbench: {
         ...VIEW_PANES.workbench,
         labelledBy: workbenchLabelledBy,
-        isActive: isWorkbenchActive,
-        shouldMount: true,
-      },
-      settings: {
-        ...VIEW_PANES.settings,
-        isActive: isSettingsActive,
-        shouldMount: isSettingsActive || hasVisitedSettingsView,
+        isActive: true,
       },
     },
   };
@@ -686,7 +632,6 @@ const areLayoutPartsEqual = (
 ): boolean =>
   (left.controller ?? null) === (right.controller ?? null) &&
   (left.workbench ?? null) === (right.workbench ?? null) &&
-  (left.settings ?? null) === (right.settings ?? null) &&
   (left.overlay ?? null) === (right.overlay ?? null) &&
   (left.sidebar ?? null) === (right.sidebar ?? null) &&
   (left.auxiliaryBar ?? null) === (right.auxiliaryBar ?? null);

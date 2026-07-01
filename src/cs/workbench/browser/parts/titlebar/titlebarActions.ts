@@ -4,13 +4,13 @@ import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layou
 import { createWorkbenchSidebarToggleButton } from "src/cs/workbench/browser/parts/sidebar/sidebarActions";
 import { QuickAccessCommandId } from "src/cs/workbench/contrib/quickaccess/common/quickAccessCommands";
 import { SettingsCommandId } from "src/cs/workbench/services/settings/common/settings";
-import type { LayoutView } from "src/cs/workbench/services/layout/browser/layoutService";
+import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
 
 export const WORKBENCH_TITLEBAR_UPDATE_BUTTON_ID =
   "workbench-titlebar-update-button";
 export const WORKBENCH_TITLEBAR_QUICK_ACCESS_BUTTON_ID =
   "workbench-titlebar-quick-access-button";
-export const WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS: Record<LayoutView, string> = {
+export const WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS: Record<WorkbenchMainPart, string> = {
   table: "workbench-titlebar-table-button",
   chart: "workbench-titlebar-chart-button",
   settings: "workbench-titlebar-settings-button",
@@ -30,7 +30,7 @@ export type WorkbenchTitlebarNavButton = {
 
 export type WorkbenchTitlebarPageButton = {
   readonly commandId: string;
-  readonly id: LayoutView;
+  readonly id: WorkbenchMainPart;
   readonly title: string;
   readonly isActive: boolean;
 };
@@ -46,7 +46,7 @@ export type WorkbenchTitlebarQuickAccessButton = {
   readonly title: string;
 };
 
-export type WorkbenchTitlebarActivePage = LayoutView | string;
+export type WorkbenchTitlebarActivePage = WorkbenchMainPart | string;
 
 export type WorkbenchTitlebarUpdateInfo = {
   readonly label?: string | null;

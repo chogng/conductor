@@ -50,8 +50,6 @@ import {
 } from "src/cs/workbench/contrib/settings/browser/settingsSearch";
 import {
   SettingsTree,
-  type SettingsTreeCompositeChildItem,
-  type SettingsTreeCompositeItem,
   type SettingsTreeControlItem,
   type SettingsTreeElementItem,
   type SettingsTreeItem,
@@ -288,6 +286,7 @@ export type SettingsViewOptions = SettingsViewProps & {
   plotCommandDraft: string;
   postCommandsDraft: string;
   setActiveSettingsSection: (section: SettingsSectionId) => void;
+  searchQuery: string;
   setAxisTitleFontSizeDraft: (value: string) => void;
   setFileNameFieldSeparatorsDraft: (value: string) => void;
   setOriginLegendFontSizeDraft: (value: string) => void;
@@ -302,6 +301,7 @@ export type SettingsViewOptions = SettingsViewProps & {
   setTemplateSemanticRoleDraft: (value: string) => void;
   setTemplateSemanticUnitDraft: (value: string) => void;
   setTickLabelFontSizeDraft: (value: string) => void;
+  setSearchQuery: (value: string) => void;
   setXyPairsDraft: (value: string) => void;
   settingsSections: readonly SettingsSectionDefinition[];
   themeModeOptions: SelectOption[];
@@ -345,11 +345,12 @@ export type SettingsContentItemId =
   | "settings-filename-matching-card"
   | "settings-template-domain-packs-card"
   | "settings-template-x-axis-priority-card"
-  | "settings-template-semantic-library-card"
   | "settings-template-semantic-library-header"
   | "settings-template-semantic-active-terms-card"
+  | "settings-template-semantic-term-input-card"
   | "settings-template-semantic-recommended-terms-card"
   | "settings-template-semantic-custom-form-card"
+  | "settings-template-semantic-feedback-card"
   | "settings-theme-card"
   | "settings-explorer-density-card"
   | "settings-explorer-badges-card"
@@ -413,15 +414,18 @@ type SettingsDocumentDialogOptions = {
 };
 
 type TemplateSemanticCustomFormWidgets = {
-  readonly addButton: HTMLButtonElement;
   readonly axisSelect: SelectBox<string>;
   readonly familySelect: SelectBox<string>;
-  readonly feedback: HTMLElement;
   readonly intentSelect: SelectBox<string>;
   readonly ivModeSelect: SelectBox<string>;
   readonly matchPolicySelect: SelectBox<string>;
   readonly roleSelect: SelectBox<string>;
   readonly unitSelect: SelectBox<string>;
+};
+
+type TemplateSemanticTermInputWidgets = {
+  readonly addButton: HTMLButtonElement;
+  readonly inputBox: InputBoxWidget;
 };
 
 type LocalContentPatch = {
@@ -431,15 +435,15 @@ type LocalContentPatch = {
 };
 
 export class SettingsView {
-  private readonly layoutDisposables = new DisposableStore();
   private readonly descriptorDisposables = new Map<SettingsContentDescriptorId, DisposableStore>();
   private readonly descriptorItemIds = new Map<SettingsContentDescriptorId, Set<SettingsContentItemId>>();
   private readonly renderedDescriptorIds = new Set<SettingsContentDescriptorId>();
   private readonly contentDisposables = new DisposableStore();
   private readonly itemDisposables = new Map<SettingsContentItemId, DisposableStore>();
   private readonly localContentPatches = new Map<SettingsContentItemId, LocalContentPatch>();
-  private readonly treeItems = new Map<SettingsContentItemId, SettingsTreeItem | SettingsTreeCompositeChildItem>();
+  private readonly treeItems = new Map<SettingsContentItemId, SettingsTreeItem>();
   private readonly templateSemanticActiveTermFields = new WeakMap<HTMLElement, InputBoxWidget>();
+  private readonly templateSemanticTermInputs = new WeakMap<HTMLElement, TemplateSemanticTermInputWidgets>();
   private readonly templateSemanticCustomForms = new WeakMap<HTMLElement, TemplateSemanticCustomFormWidgets>();
   private readonly templateSemanticRecommendedTermButtons = new WeakMap<HTMLElement, Map<string, HTMLButtonElement>>();
   private readonly templateSemanticRecommendedTermEmptyMessages = new WeakMap<HTMLElement, HTMLElement>();
@@ -456,7 +460,6 @@ export class SettingsView {
   private activeTreeItemPatchIds: Set<SettingsContentItemId> | null = null;
   private options: SettingsViewOptions;
   private activeBadgeLabelValue = "transfer";
-  private searchQuery = "";
   private settingsDocumentDialog: ActiveSettingsDocumentDialog | null = null;
 
   constructor(container: HTMLElement, options: SettingsViewOptions) {
@@ -480,9 +483,10 @@ export class SettingsView {
       return;
     }
 
-    this.updateNavSelection();
-
-    if (current.activeSettingsSection !== options.activeSettingsSection) {
+    if (
+      current.activeSettingsSection !== options.activeSettingsSection ||
+      current.searchQuery !== options.searchQuery
+    ) {
       this.refreshContent();
       return;
     }
@@ -497,7 +501,6 @@ export class SettingsView {
 
   dispose(): void {
     this.closeSettingsDocumentDialog();
-    this.layoutDisposables.dispose();
     this.clearDescriptorTemplates();
     this.contentDisposables.dispose();
     this.contentScroll.dispose();
@@ -505,12 +508,11 @@ export class SettingsView {
   }
 
   private render(): void {
-    this.layoutDisposables.clear();
     this.clearDescriptorTemplates();
     this.contentDisposables.clear();
     this.contentElement = null;
     reset(this.root);
-    this.root.appendChild(this.createLayout());
+    this.root.appendChild(this.createContentScroll());
     queueMicrotask(() => this.contentScroll.layout());
   }
 
@@ -610,18 +612,7 @@ export class SettingsView {
 
   private updateLocalContentSearchText(card: HTMLElement): void {
     const item = this.treeItems.get(card.id as SettingsContentItemId);
-    if (!item || !("kind" in item)) {
-      return;
-    }
-
-    if (item.kind === "composite") {
-      updateElementSearchText(
-        card,
-        normalizeSettingsSearchText(
-          item.searchText,
-          item.items.map(child => this.localContentPatches.get(child.id as SettingsContentItemId)?.getSearchText() ?? child.searchText),
-        ),
-      );
+    if (!item) {
       return;
     }
 
@@ -659,7 +650,7 @@ export class SettingsView {
   }
 
   private updateSearchResults(): void {
-    if (!this.contentElement || !hasSettingsSearchQuery(this.searchQuery)) {
+    if (!this.contentElement || !hasSettingsSearchQuery(this.options.searchQuery)) {
       return;
     }
 
@@ -667,7 +658,7 @@ export class SettingsView {
       empty.remove();
     }
 
-    const resultCount = this.filterSearchResults(this.contentElement, getSettingsSearchWords(this.searchQuery));
+    const resultCount = this.filterSearchResults(this.contentElement, getSettingsSearchWords(this.options.searchQuery));
     if (resultCount === 0) {
       this.contentElement.appendChild(this.createEmptySearchResults());
     }
@@ -786,6 +777,7 @@ export class SettingsView {
     readonly id: SettingsContentItemId;
     readonly createControl: () => HTMLElement;
     readonly description?: string;
+    readonly groupId?: string;
     readonly searchText?: string;
     readonly title: string;
   }): SettingsTreeControlItem {
@@ -799,6 +791,7 @@ export class SettingsView {
         kind: "control",
         control: options.createControl(),
         description: options.description,
+        groupId: options.groupId,
         id: options.id,
         searchText: options.searchText,
         title: options.title,
@@ -811,6 +804,7 @@ export class SettingsView {
   private createSettingsTreeElementItem(options: {
     readonly id: SettingsContentItemId;
     readonly createElement: () => HTMLElement;
+    readonly groupId?: string;
     readonly searchText?: string;
   }): SettingsTreeElementItem {
     const current = this.getReusableTreeItem(options.id, "element");
@@ -822,56 +816,7 @@ export class SettingsView {
       const item: SettingsTreeElementItem = {
         kind: "element",
         element: options.createElement(),
-        id: options.id,
-        searchText: options.searchText,
-      };
-      this.treeItems.set(options.id, item);
-      return item;
-    });
-  }
-
-  private createSettingsTreeCompositeItem(options: {
-    readonly id: SettingsContentItemId;
-    readonly createItems: () => readonly SettingsTreeCompositeChildItem[];
-    readonly searchText?: string;
-  }): SettingsTreeCompositeItem {
-    const items = options.createItems();
-    const current = this.getReusableTreeItem(options.id, "composite");
-    if (current) {
-      const item: SettingsTreeCompositeItem = {
-        ...current,
-        items,
-        searchText: options.searchText,
-      };
-      this.treeItems.set(options.id, item);
-      return item;
-    }
-
-    return this.createContentItem(options.id, () => {
-      const item: SettingsTreeCompositeItem = {
-        kind: "composite",
-        id: options.id,
-        items,
-        searchText: options.searchText,
-      };
-      this.treeItems.set(options.id, item);
-      return item;
-    });
-  }
-
-  private createSettingsTreeCompositeChildItem(options: {
-    readonly id: SettingsContentItemId;
-    readonly createElement: () => HTMLElement;
-    readonly searchText?: string;
-  }): SettingsTreeCompositeChildItem {
-    const current = this.getReusableCompositeChildItem(options.id);
-    if (current) {
-      return current;
-    }
-
-    return this.createContentItem(options.id, () => {
-      const item: SettingsTreeCompositeChildItem = {
-        element: options.createElement(),
+        groupId: options.groupId,
         id: options.id,
         searchText: options.searchText,
       };
@@ -889,36 +834,11 @@ export class SettingsView {
     }
 
     const item = this.treeItems.get(itemId);
-    if (!item || !("kind" in item)) {
-      return null;
-    }
     if (item?.kind !== kind) {
       return null;
     }
 
     return item as Extract<SettingsTreeItem, { readonly kind: TKind }>;
-  }
-
-  private getReusableCompositeChildItem(itemId: SettingsContentItemId): SettingsTreeCompositeChildItem | null {
-    if (!this.activeTreeItemPatchIds || this.activeTreeItemPatchIds.has(itemId)) {
-      return null;
-    }
-
-    return this.getCurrentCompositeChildItem(itemId);
-  }
-
-  private getCurrentCompositeChildItem(itemId: SettingsContentItemId): SettingsTreeCompositeChildItem | null {
-    const item = this.treeItems.get(itemId);
-    if (!item || "kind" in item) {
-      return null;
-    }
-    return item;
-  }
-
-  private createLayout(): HTMLElement {
-    const layout = div("settings-view-layout");
-    layout.append(this.createNav(), this.createContentScroll());
-    return layout;
   }
 
   private createContentScroll(): HTMLElement {
@@ -927,113 +847,9 @@ export class SettingsView {
     return this.contentScroll.element;
   }
 
-  private createNav(): HTMLElement {
-    const aside = document.createElement("aside");
-    aside.className = "settings-view-nav";
-    aside.setAttribute("aria-label", localize("settings.nav.ariaLabel", "Settings sections"));
-
-    const backButton = document.createElement("button");
-    backButton.type = "button";
-    backButton.className = "settings-view-nav-back";
-    backButton.addEventListener("click", () => void this.options.onNavigateBack());
-    backButton.append(
-      createLxIcon({ className: "settings-view-nav-back-icon", icon: LxIcon.arrowLeft, size: 14 }),
-      text("span", "settings-view-nav-back-label", localize("settings.nav.back", "Back")),
-    );
-
-    const clearSearchButton = document.createElement("button");
-    clearSearchButton.type = "button";
-    clearSearchButton.className = "settings-view-search-clear";
-    clearSearchButton.hidden = true;
-    clearSearchButton.setAttribute("aria-label", localize("settings.nav.clearSearch", "Clear search"));
-    clearSearchButton.appendChild(createLxIcon({ className: "settings-view-search-clear-icon", icon: LxIcon.close, size: 14 }));
-    const searchInputBox = this.layoutDisposables.add(createInputBox({
-      ariaLabel: localize("settings.nav.searchPlaceholder", "Search settings..."),
-      left: createLxIcon({ className: "settings-view-search-icon", icon: LxIcon.search, size: 14 }),
-      placeholder: localize("settings.nav.searchPlaceholder", "Search settings..."),
-      right: clearSearchButton,
-      type: "text",
-      value: this.searchQuery,
-    }));
-    const searchInput = searchInputBox.input;
-    const clearSearchSlot = clearSearchButton.parentElement as HTMLElement | null;
-    const search = div("settings-view-search", searchInputBox.element);
-
-    const nav = document.createElement("nav");
-    nav.className = "settings-view-nav-list";
-    const groups = createSettingsNavGroups();
-    for (const group of groups) {
-      const groupElement = div("settings-view-nav-group");
-      const groupLabel = text("p", "settings-view-nav-group-label", group.label);
-      const groupItems = div("settings-view-nav-group-items");
-      for (const sectionId of group.sectionIds) {
-        const section = this.options.settingsSections.find(item => item.id === sectionId);
-        if (!section) {
-          continue;
-        }
-
-        const isActive = this.options.activeSettingsSection === section.id;
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "settings-view-nav-item";
-        button.dataset.sectionId = section.id;
-        button.dataset.selected = String(isActive);
-        if (isActive) {
-          button.setAttribute("aria-current", "page");
-        }
-        button.append(
-          createLxIcon({ className: "settings-view-nav-item-icon", icon: section.icon, size: 16 }),
-          text("span", "settings-view-nav-item-label", section.label),
-        );
-        button.addEventListener("click", () => this.options.setActiveSettingsSection(section.id));
-        groupItems.appendChild(button);
-      }
-      groupElement.append(groupLabel, groupItems);
-      nav.appendChild(groupElement);
-    }
-
-    const updateSearchState = () => {
-      const queryWords = getSettingsSearchWords(searchInput.value);
-      clearSearchButton.hidden = queryWords.length === 0;
-      if (clearSearchSlot) {
-        clearSearchSlot.hidden = clearSearchButton.hidden;
-      }
-    };
-
-    this.layoutDisposables.add(addDisposableListener(searchInput, "input", () => {
-      this.searchQuery = searchInput.value;
-      updateSearchState();
-      this.refreshContent();
-    }));
-    this.layoutDisposables.add(addDisposableListener(clearSearchButton, "click", () => {
-      searchInput.value = "";
-      this.searchQuery = "";
-      updateSearchState();
-      this.refreshContent();
-      searchInput.focus();
-    }));
-    updateSearchState();
-
-    aside.append(div("settings-view-nav-header", backButton), search, nav);
-    return aside;
-  }
-
-  private updateNavSelection(): void {
-    for (const button of Array.from(this.root.querySelectorAll<HTMLButtonElement>(".settings-view-nav-item"))) {
-      const isActive = button.dataset.sectionId === this.options.activeSettingsSection;
-      button.dataset.selected = String(isActive);
-      if (isActive) {
-        button.setAttribute("aria-current", "page");
-      }
-      else {
-        button.removeAttribute("aria-current");
-      }
-    }
-  }
-
   private createContent(): HTMLElement {
     const content = div("settings-view-content");
-    const queryWords = getSettingsSearchWords(this.searchQuery);
+    const queryWords = getSettingsSearchWords(this.options.searchQuery);
     if (queryWords.length > 0) {
       this.renderSearchResults(content, queryWords);
       return content;
@@ -1087,7 +903,7 @@ export class SettingsView {
   }
 
   private createVisibleContentTreeSections(initializeDescriptors: boolean): readonly SettingsTreeSection[] {
-    const sectionIds = hasSettingsSearchQuery(this.searchQuery)
+    const sectionIds = hasSettingsSearchQuery(this.options.searchQuery)
       ? this.options.settingsSections.map(section => section.id)
       : [this.options.activeSettingsSection];
     return this.createContentTreeSections(this.getContentDescriptorsForSections(sectionIds), initializeDescriptors);
@@ -1329,37 +1145,45 @@ export class SettingsView {
 
   private createTemplateSemanticLibrarySettingsTree(): readonly SettingsTreeSection[] {
     const settings = this.options.templateSettings;
+    const groupId = "settings-template-semantic-library";
     return [
       {
         id: "settings-template-semantic-library-section",
         items: [
-          this.createSettingsTreeCompositeItem({
-            id: "settings-template-semantic-library-card",
-            createItems: () => [
-              this.createSettingsTreeCompositeChildItem({
-                id: "settings-template-semantic-library-header",
-                createElement: () => this.createTemplateSemanticLibraryHeader(),
-                searchText: normalizeSettingsSearchText(
-                  localize("settings.template.semantic.title", "Semantic Library"),
-                  localize("settings.template.semantic.description", "Built-in match terms can be disabled for Review, and custom terms join the DataResource matcher."),
-                ),
-              }),
-              this.createSettingsTreeCompositeChildItem({
-                id: "settings-template-semantic-active-terms-card",
-                createElement: () => this.createTemplateSemanticActiveTerms(settings),
-                searchText: this.getTemplateSemanticActiveTermsSearchText(settings),
-              }),
-              this.createSettingsTreeCompositeChildItem({
-                id: "settings-template-semantic-recommended-terms-card",
-                createElement: () => this.createTemplateSemanticRecommendedTerms(settings),
-                searchText: this.getTemplateSemanticRecommendedTermsSearchText(settings),
-              }),
-              this.createSettingsTreeCompositeChildItem({
-                id: "settings-template-semantic-custom-form-card",
-                createElement: () => this.createTemplateSemanticCustomForm(settings),
-                searchText: this.getTemplateSemanticCustomFormSearchText(settings),
-              }),
-            ],
+          this.createSettingsTreeElementItem({
+            id: "settings-template-semantic-library-header",
+            groupId,
+            createElement: () => this.createTemplateSemanticLibraryHeader(),
+            searchText: this.getTemplateSemanticLibraryHeaderSearchText(),
+          }),
+          this.createSettingsTreeElementItem({
+            id: "settings-template-semantic-active-terms-card",
+            groupId,
+            createElement: () => this.createTemplateSemanticActiveTerms(settings),
+            searchText: this.getTemplateSemanticActiveTermsSearchText(settings),
+          }),
+          this.createSettingsTreeElementItem({
+            id: "settings-template-semantic-term-input-card",
+            groupId,
+            createElement: () => this.createTemplateSemanticTermInput(settings),
+            searchText: this.getTemplateSemanticTermInputSearchText(),
+          }),
+          this.createSettingsTreeElementItem({
+            id: "settings-template-semantic-recommended-terms-card",
+            groupId,
+            createElement: () => this.createTemplateSemanticRecommendedTerms(settings),
+            searchText: this.getTemplateSemanticRecommendedTermsSearchText(settings),
+          }),
+          this.createSettingsTreeElementItem({
+            id: "settings-template-semantic-custom-form-card",
+            groupId,
+            createElement: () => this.createTemplateSemanticCustomForm(settings),
+            searchText: this.getTemplateSemanticCustomFormSearchText(settings),
+          }),
+          this.createSettingsTreeElementItem({
+            id: "settings-template-semantic-feedback-card",
+            groupId,
+            createElement: () => this.createTemplateSemanticFeedback(settings),
           }),
         ],
       },
@@ -1526,7 +1350,7 @@ export class SettingsView {
   }
 
   private createTemplateSemanticLibraryHeader(): HTMLElement {
-    const container = div("settings-template-semantic-library-header");
+    const container = card("settings-template-semantic-library-header", "settings-card-block");
     const titleText = localize("settings.template.semantic.title", "Semantic Library");
     const description = localize("settings.template.semantic.description", "Built-in match terms can be disabled for Review, and custom terms join the DataResource matcher.");
     container.appendChild(headingBlock(titleText, description));
@@ -1534,7 +1358,7 @@ export class SettingsView {
   }
 
   private createTemplateSemanticActiveTerms(settings: TemplateSettings): HTMLElement {
-    const container = div("settings-template-semantic-library-part");
+    const container = card("settings-template-semantic-active-terms-card", "settings-card-block");
     this.updateTemplateSemanticActiveTerms(container, settings);
     this.registerLocalContentPatch("settings-template-semantic-active-terms-card", {
       element: container,
@@ -1544,8 +1368,19 @@ export class SettingsView {
     return container;
   }
 
+  private createTemplateSemanticTermInput(settings: TemplateSettings): HTMLElement {
+    const container = card("settings-template-semantic-term-input-card", "settings-card-block");
+    this.updateTemplateSemanticTermInput(container, settings);
+    this.registerLocalContentPatch("settings-template-semantic-term-input-card", {
+      element: container,
+      getSearchText: () => this.getTemplateSemanticTermInputSearchText(),
+      update: () => this.updateTemplateSemanticTermInput(container, this.options.templateSettings),
+    });
+    return container;
+  }
+
   private createTemplateSemanticRecommendedTerms(settings: TemplateSettings): HTMLElement {
-    const container = div("settings-template-semantic-library-part");
+    const container = card("settings-template-semantic-recommended-terms-card", "settings-card-block");
     this.updateTemplateSemanticRecommendedTerms(container, settings);
     this.registerLocalContentPatch("settings-template-semantic-recommended-terms-card", {
       element: container,
@@ -1555,8 +1390,19 @@ export class SettingsView {
     return container;
   }
 
+  private createTemplateSemanticFeedback(settings: TemplateSettings): HTMLElement {
+    const container = card("settings-template-semantic-feedback-card", "settings-card-block");
+    this.updateTemplateSemanticFeedbackCard(container, settings);
+    this.registerLocalContentPatch("settings-template-semantic-feedback-card", {
+      element: container,
+      getSearchText: () => settings.feedback.message,
+      update: () => this.updateTemplateSemanticFeedbackCard(container, this.options.templateSettings),
+    });
+    return container;
+  }
+
   private createTemplateSemanticCustomForm(settings: TemplateSettings): HTMLElement {
-    const container = div("settings-template-semantic-library-part");
+    const container = card("settings-template-semantic-custom-form-card", "settings-card-block");
     this.updateTemplateSemanticCustomForm(container, settings);
     this.registerLocalContentPatch("settings-template-semantic-custom-form-card", {
       element: container,
@@ -1566,10 +1412,24 @@ export class SettingsView {
     return container;
   }
 
+  private getTemplateSemanticLibraryHeaderSearchText(): string {
+    return normalizeSettingsSearchText(
+      localize("settings.template.semantic.title", "Semantic Library"),
+      localize("settings.template.semantic.description", "Built-in match terms can be disabled for Review, and custom terms join the DataResource matcher."),
+    );
+  }
+
   private getTemplateSemanticActiveTermsSearchText(settings: TemplateSettings): string {
     return normalizeSettingsSearchText(
       localize("settings.template.semantic.activeTitle", "Active match terms"),
       settings.activeTerms.map(rule => `${rule.term} ${rule.canonicalRole} ${rule.axisTendency}`).join(" "),
+    );
+  }
+
+  private getTemplateSemanticTermInputSearchText(): string {
+    return normalizeSettingsSearchText(
+      localize("settings.template.semantic.termInputTitle", "Add match term"),
+      localize("settings.template.semantic.termInputPlaceholder", "Add match term"),
     );
   }
 
@@ -1618,29 +1478,14 @@ export class SettingsView {
         field(localize("settings.template.semantic.familyLabel", "Family"), familySelect.domNode),
         field(localize("settings.template.semantic.ivModeLabel", "IV mode"), ivModeSelect.domNode),
       );
-      const addButton = this.createButton({
-        id: "settings-template-semantic-add-button",
-        label: localize("settings.template.semantic.add", "Add Term"),
-        onClick: () => void this.options.templateSettings.onAddSemanticTerm(),
-        disabled: settings.isSaving || !this.options.templateSemanticTermDraft.trim(),
-        variant: "primary",
-      });
-      const feedback = text("p", "settings-feedback settings-template-feedback-slot", "");
-      feedback.setAttribute("aria-live", "polite");
-      form.append(
-        grid,
-        div("settings-actions-end", addButton),
-        feedback,
-      );
+      form.appendChild(grid);
       container.append(
         text("p", "settings-template-subtitle", titleText),
         form,
       );
       widgets = {
-        addButton,
         axisSelect,
         familySelect,
-        feedback,
         intentSelect,
         ivModeSelect,
         matchPolicySelect,
@@ -1657,8 +1502,66 @@ export class SettingsView {
     this.updateSelectWidget(widgets.unitSelect, this.getTemplateSemanticUnitSelectOptions(settings));
     this.updateSelectWidget(widgets.familySelect, this.getTemplateSemanticFamilySelectOptions(settings));
     this.updateSelectWidget(widgets.ivModeSelect, this.getTemplateSemanticIvModeSelectOptions(settings));
+  }
+
+  private updateTemplateSemanticTermInput(container: HTMLElement, settings: TemplateSettings): void {
+    let widgets = this.templateSemanticTermInputs.get(container);
+    if (!widgets) {
+      reset(container);
+      const titleText = localize("settings.template.semantic.termInputTitle", "Add match term");
+      const inputBox = this.registerContentDisposable(new InputBoxWidget({
+        ariaLabel: titleText,
+        disabled: settings.isSaving,
+        inputVisible: true,
+        placeholder: localize("settings.template.semantic.termInputPlaceholder", "Add match term"),
+        value: this.options.templateSemanticTermDraft,
+      }));
+      inputBox.element.classList.add("settings-template-term-inputbox");
+      const addButton = this.createButton({
+        id: "settings-template-semantic-add-button",
+        label: localize("settings.template.semantic.add", "Add Term"),
+        onClick: () => void this.options.templateSettings.onAddSemanticTerm(),
+        disabled: settings.isSaving || !this.options.templateSemanticTermDraft.trim(),
+        variant: "primary",
+      });
+      this.registerContentDisposable(inputBox.onDidChange(value => {
+        this.options.setTemplateSemanticTermDraft(value);
+        addButton.disabled = this.options.templateSettings.isSaving || !value.trim();
+      }));
+      this.registerContentDisposable(inputBox.onDidAccept(() => {
+        void this.options.templateSettings.onAddSemanticTerm();
+      }));
+      container.append(
+        text("p", "settings-template-subtitle", titleText),
+        div("settings-template-term-input-row", inputBox.element, addButton),
+      );
+      widgets = {
+        addButton,
+        inputBox,
+      };
+      this.templateSemanticTermInputs.set(container, widgets);
+      return;
+    }
+
+    widgets.inputBox.update({
+      ariaLabel: localize("settings.template.semantic.termInputTitle", "Add match term"),
+      disabled: settings.isSaving,
+      inputVisible: true,
+      placeholder: localize("settings.template.semantic.termInputPlaceholder", "Add match term"),
+      value: this.options.templateSemanticTermDraft,
+    });
     widgets.addButton.disabled = settings.isSaving || !this.options.templateSemanticTermDraft.trim();
-    this.updateTemplateSemanticFeedback(widgets.feedback, settings.feedback);
+  }
+
+  private updateTemplateSemanticFeedbackCard(container: HTMLElement, settings: TemplateSettings): void {
+    let feedback = container.querySelector<HTMLElement>(".settings-template-feedback-slot");
+    if (!feedback) {
+      reset(container);
+      feedback = text("p", "settings-feedback settings-template-feedback-slot", "");
+      feedback.setAttribute("aria-live", "polite");
+      container.appendChild(feedback);
+    }
+    this.updateTemplateSemanticFeedback(feedback, settings.feedback);
   }
 
   private updateTemplateSemanticFeedback(element: HTMLElement, feedback: Feedback): void {
@@ -1753,18 +1656,10 @@ export class SettingsView {
       inputBox = this.registerContentDisposable(new InputBoxWidget({
         ariaLabel: title,
         disabled: settings.isSaving,
-        inputVisible: true,
+        inputVisible: false,
         items,
-        placeholder: localize("settings.template.semantic.termInputPlaceholder", "Add match term"),
-        value: this.options.templateSemanticTermDraft,
       }));
       inputBox.element.classList.add("settings-template-term-inputbox");
-      this.registerContentDisposable(inputBox.onDidChange(value => {
-        this.options.setTemplateSemanticTermDraft(value);
-      }));
-      this.registerContentDisposable(inputBox.onDidAccept(() => {
-        void this.options.templateSettings.onAddSemanticTerm();
-      }));
       this.registerContentDisposable(inputBox.onDidTriggerItemAction(({ item }) => {
         if (item.kind === "builtin-enabled") {
           void this.options.templateSettings.onDisableBuiltinTerm(item.id);
@@ -1783,10 +1678,8 @@ export class SettingsView {
     inputBox.update({
       ariaLabel: title,
       disabled: settings.isSaving,
-      inputVisible: true,
+      inputVisible: false,
       items,
-      placeholder: localize("settings.template.semantic.termInputPlaceholder", "Add match term"),
-      value: this.options.templateSemanticTermDraft,
     });
   }
 
@@ -3149,6 +3042,159 @@ export class SettingsView {
     });
   }
 
+}
+
+export class SettingsNavigationView {
+  private readonly disposables = new DisposableStore();
+  private readonly root: HTMLElement;
+  private clearSearchButton: HTMLButtonElement | null = null;
+  private clearSearchSlot: HTMLElement | null = null;
+  private searchInput: HTMLInputElement | null = null;
+  private options: SettingsViewOptions;
+
+  constructor(container: HTMLElement, options: SettingsViewOptions) {
+    this.root = document.createElement("aside");
+    this.root.className = "settings-view-nav";
+    container.appendChild(this.root);
+    this.options = options;
+    this.render();
+  }
+
+  public update(options: SettingsViewOptions): void {
+    const current = this.options;
+    this.options = options;
+    if (
+      current.language !== options.language ||
+      !settingsSectionsEqual(current.settingsSections, options.settingsSections)
+    ) {
+      this.render();
+      return;
+    }
+
+    this.updateSelection();
+    this.updateSearchState();
+  }
+
+  public dispose(): void {
+    this.disposables.dispose();
+    this.root.remove();
+  }
+
+  private render(): void {
+    this.disposables.clear();
+    this.root.setAttribute("aria-label", localize("settings.nav.ariaLabel", "Settings sections"));
+    this.root.replaceChildren(
+      div("settings-view-nav-header", this.createBackButton()),
+      this.createSearch(),
+      this.createNavigationList(),
+    );
+    this.updateSearchState();
+  }
+
+  private createBackButton(): HTMLButtonElement {
+    const backButton = document.createElement("button");
+    backButton.type = "button";
+    backButton.className = "settings-view-nav-back";
+    backButton.addEventListener("click", () => void this.options.onNavigateBack());
+    backButton.append(
+      createLxIcon({ className: "settings-view-nav-back-icon", icon: LxIcon.arrowLeft, size: 14 }),
+      text("span", "settings-view-nav-back-label", localize("settings.nav.back", "Back")),
+    );
+    return backButton;
+  }
+
+  private createSearch(): HTMLElement {
+    const clearSearchButton = document.createElement("button");
+    clearSearchButton.type = "button";
+    clearSearchButton.className = "settings-view-search-clear";
+    clearSearchButton.hidden = true;
+    clearSearchButton.setAttribute("aria-label", localize("settings.nav.clearSearch", "Clear search"));
+    clearSearchButton.appendChild(createLxIcon({ className: "settings-view-search-clear-icon", icon: LxIcon.close, size: 14 }));
+
+    const searchInputBox = this.disposables.add(createInputBox({
+      ariaLabel: localize("settings.nav.searchPlaceholder", "Search settings..."),
+      left: createLxIcon({ className: "settings-view-search-icon", icon: LxIcon.search, size: 14 }),
+      placeholder: localize("settings.nav.searchPlaceholder", "Search settings..."),
+      right: clearSearchButton,
+      type: "text",
+      value: this.options.searchQuery,
+    }));
+    this.searchInput = searchInputBox.input;
+    this.clearSearchButton = clearSearchButton;
+    this.clearSearchSlot = clearSearchButton.parentElement as HTMLElement | null;
+
+    this.disposables.add(addDisposableListener(searchInputBox.input, "input", () => {
+      this.options.setSearchQuery(searchInputBox.input.value);
+      this.updateSearchState();
+    }));
+    this.disposables.add(addDisposableListener(clearSearchButton, "click", () => {
+      this.options.setSearchQuery("");
+      this.updateSearchState();
+      searchInputBox.input.focus();
+    }));
+
+    return div("settings-view-search", searchInputBox.element);
+  }
+
+  private createNavigationList(): HTMLElement {
+    const nav = document.createElement("nav");
+    nav.className = "settings-view-nav-list";
+    const groups = createSettingsNavGroups();
+    for (const group of groups) {
+      const groupElement = div("settings-view-nav-group");
+      const groupLabel = text("p", "settings-view-nav-group-label", group.label);
+      const groupItems = div("settings-view-nav-group-items");
+      for (const sectionId of group.sectionIds) {
+        const section = this.options.settingsSections.find(item => item.id === sectionId);
+        if (!section) {
+          continue;
+        }
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "settings-view-nav-item";
+        button.dataset.sectionId = section.id;
+        button.append(
+          createLxIcon({ className: "settings-view-nav-item-icon", icon: section.icon, size: 16 }),
+          text("span", "settings-view-nav-item-label", section.label),
+        );
+        button.addEventListener("click", () => this.options.setActiveSettingsSection(section.id));
+        groupItems.appendChild(button);
+      }
+      groupElement.append(groupLabel, groupItems);
+      nav.appendChild(groupElement);
+    }
+    this.updateSelection(nav);
+    return nav;
+  }
+
+  private updateSelection(root: ParentNode = this.root): void {
+    for (const button of Array.from(root.querySelectorAll<HTMLButtonElement>(".settings-view-nav-item"))) {
+      const isActive = button.dataset.sectionId === this.options.activeSettingsSection;
+      button.dataset.selected = String(isActive);
+      if (isActive) {
+        button.setAttribute("aria-current", "page");
+      }
+      else {
+        button.removeAttribute("aria-current");
+      }
+    }
+  }
+
+  private updateSearchState(): void {
+    if (!this.searchInput || !this.clearSearchButton) {
+      return;
+    }
+
+    if (this.searchInput.value !== this.options.searchQuery) {
+      this.searchInput.value = this.options.searchQuery;
+    }
+    const queryWords = getSettingsSearchWords(this.options.searchQuery);
+    this.clearSearchButton.hidden = queryWords.length === 0;
+    if (this.clearSearchSlot) {
+      this.clearSearchSlot.hidden = this.clearSearchButton.hidden;
+    }
+  }
 }
 
 function div(className: string, ...children: Array<Node | string>): HTMLDivElement {

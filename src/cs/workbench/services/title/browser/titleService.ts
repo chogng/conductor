@@ -1,16 +1,16 @@
 import type { Event } from "src/cs/base/common/event";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type { LayoutView } from "src/cs/workbench/services/layout/browser/layoutService";
+import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
 
 export const ITitleService = createDecorator<ITitleService>("titleService");
 
 export type WorkbenchTitlebarActivePage =
-  | LayoutView
+  | WorkbenchMainPart
   | string;
 
 export type WorkbenchTitlebarState = {
-  readonly activePage?: LayoutView;
+  readonly activePage?: WorkbenchMainPart;
   readonly canNavigateBack?: boolean;
   readonly canNavigateForward?: boolean;
   readonly chartIntentCommandId?: string;

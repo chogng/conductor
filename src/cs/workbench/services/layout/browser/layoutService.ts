@@ -47,21 +47,19 @@ export interface IPartVisibilityChangeEvent {
   readonly visible: boolean;
 }
 
-export type WorkbenchMainPart = "table" | "chart";
-export type LayoutView = WorkbenchMainPart | "settings";
+export type WorkbenchMainPart = "table" | "chart" | "settings";
 
 export interface IWorkbenchNavigationState {
   readonly activeMainPart: WorkbenchMainPart;
-  readonly activeView: LayoutView;
-  readonly hasVisitedSettingsView: boolean;
+  readonly activeView: WorkbenchMainPart;
   readonly historyIndex: number;
   readonly historyLength: number;
 }
 
 type LayoutNavigationState = {
   readonly activeMainPart: WorkbenchMainPart;
-  readonly activeView: LayoutView;
-  readonly history: readonly LayoutView[];
+  readonly activeView: WorkbenchMainPart;
+  readonly history: readonly WorkbenchMainPart[];
   readonly historyIndex: number;
 };
 
@@ -80,18 +78,18 @@ export interface IWorkbenchLayoutService extends ILayoutServiceType {
   readonly onDidChangeWorkbenchNavigation: EventType<IWorkbenchNavigationState>;
 
   readonly activeAuxiliaryBarView: string;
-  readonly activeView: LayoutView;
+  readonly activeView: WorkbenchMainPart;
   readonly activeWorkbenchMainPart: WorkbenchMainPart;
 
   getWorkbenchNavigationState(): IWorkbenchNavigationState;
   navigateBack(): void;
   navigateForward(): void;
-  navigateToView(view: LayoutView): void;
+  navigateToView(view: WorkbenchMainPart): void;
   selectAuxiliaryBarView(view: string): void;
   layout(): void;
   isVisible(part: Parts): boolean;
   resetLayoutState(): void;
-  resetToView(view: LayoutView): void;
+  resetToView(view: WorkbenchMainPart): void;
   selectView(view: string): void;
   setPartHidden(hidden: boolean, part: Parts): void;
 }
@@ -123,7 +121,6 @@ export class BrowserWorkbenchLayoutService
     Parts.AUXILIARYBAR_PART,
   ]);
   private navigation = INITIAL_LAYOUT_NAVIGATION_STATE;
-  private hasVisitedSettingsView = false;
   private dimension: IDimension = Dimension.None;
   private auxiliaryBarView = "";
 
@@ -155,7 +152,7 @@ export class BrowserWorkbenchLayoutService
     return this.mainContainer;
   }
 
-  public get activeView(): LayoutView {
+  public get activeView(): WorkbenchMainPart {
     return this.navigation.activeView;
   }
 
@@ -211,7 +208,7 @@ export class BrowserWorkbenchLayoutService
     this.setNavigation(navigateLayoutForward(this.navigation));
   }
 
-  public navigateToView(view: LayoutView): void {
+  public navigateToView(view: WorkbenchMainPart): void {
     this.setNavigation(navigateToLayoutPage(this.navigation, view));
   }
 
@@ -283,9 +280,9 @@ export class BrowserWorkbenchLayoutService
     this.selectAuxiliaryBarView("");
   }
 
-  public resetToView(view: LayoutView): void {
+  public resetToView(view: WorkbenchMainPart): void {
     this.setNavigation({
-      activeMainPart: resolveActiveMainPart(view, this.navigation.activeMainPart),
+      activeMainPart: view,
       activeView: view,
       history: [view],
       historyIndex: 0,
@@ -293,7 +290,7 @@ export class BrowserWorkbenchLayoutService
   }
 
   public selectView(view: string): void {
-    const resolvedView = resolveLayoutView(view);
+    const resolvedView = resolveWorkbenchMainPart(view);
     if (resolvedView) {
       this.navigateToView(resolvedView);
     }
@@ -321,22 +318,14 @@ export class BrowserWorkbenchLayoutService
     }
 
     this.navigation = nextNavigation;
-    this.markActiveViewVisited();
     this.blurActiveElement();
     this.onDidChangeWorkbenchNavigationEmitter.fire(this.createNavigationState());
-  }
-
-  private markActiveViewVisited(): void {
-    if (this.navigation.activeView === "settings") {
-      this.hasVisitedSettingsView = true;
-    }
   }
 
   private createNavigationState(): IWorkbenchNavigationState {
     return {
       activeMainPart: this.navigation.activeMainPart,
       activeView: this.navigation.activeView,
-      hasVisitedSettingsView: this.hasVisitedSettingsView,
       historyIndex: this.navigation.historyIndex,
       historyLength: this.navigation.history.length,
     };
@@ -369,7 +358,7 @@ export class BrowserWorkbenchLayoutService
 
 const navigateToLayoutPage = (
   prevState: LayoutNavigationState,
-  nextPage: LayoutView,
+  nextPage: WorkbenchMainPart,
 ): LayoutNavigationState => {
   if (prevState.activeView === nextPage) {
     return prevState;
@@ -382,7 +371,7 @@ const navigateToLayoutPage = (
   const nextHistory = [...truncatedHistory, nextPage];
 
   return {
-    activeMainPart: resolveActiveMainPart(nextPage, prevState.activeMainPart),
+    activeMainPart: nextPage,
     activeView: nextPage,
     history: nextHistory,
     historyIndex: nextHistory.length - 1,
@@ -400,7 +389,7 @@ const navigateLayoutBack = (
   const activeView = prevState.history[nextIndex];
   return {
     ...prevState,
-    activeMainPart: resolveActiveMainPart(activeView, prevState.activeMainPart),
+    activeMainPart: activeView,
     activeView,
     historyIndex: nextIndex,
   };
@@ -417,25 +406,19 @@ const navigateLayoutForward = (
   const activeView = prevState.history[nextIndex];
   return {
     ...prevState,
-    activeMainPart: resolveActiveMainPart(activeView, prevState.activeMainPart),
+    activeMainPart: activeView,
     activeView,
     historyIndex: nextIndex,
   };
 };
 
-const resolveLayoutView = (value: string): LayoutView | null => {
+const resolveWorkbenchMainPart = (value: string): WorkbenchMainPart | null => {
   if (value === "table" || value === "chart" || value === "settings") {
     return value;
   }
 
   return null;
 };
-
-const resolveActiveMainPart = (
-  view: LayoutView,
-  fallback: WorkbenchMainPart,
-): WorkbenchMainPart =>
-  view === "table" || view === "chart" ? view : fallback;
 
 registerSingleton(
   IWorkbenchLayoutService,

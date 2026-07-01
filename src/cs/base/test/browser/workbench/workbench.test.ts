@@ -25,7 +25,9 @@ import {
 import { TableViewId } from "src/cs/workbench/contrib/table/common/table";
 import { ChartViewId } from "src/cs/workbench/services/chart/common/chart";
 import { ExplorerViewId } from "src/cs/workbench/contrib/files/browser/files";
-import { SettingsViewId } from "src/cs/workbench/services/settings/common/settings";
+import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
+import { SettingsNavigationViewId, SettingsViewId } from "src/cs/workbench/services/settings/common/settings";
+import { ThumbnailViewId } from "src/cs/workbench/contrib/thumbnail/common/thumbnail";
 import type { ThumbnailPreviewChangeEvent } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import {
@@ -297,6 +299,20 @@ suite("workbench/browser/workbench layout integration", () => {
 
       assert.equal(layoutService.isVisible(Parts.AUXILIARYBAR_PART), true);
       assert.deepEqual(
+        viewsService.setVisibleCalls.filter(call =>
+          call.id === ExplorerViewId ||
+          call.id === ThumbnailViewId ||
+          call.id === SettingsNavigationViewId ||
+          call.id === SettingsViewId
+        ),
+        [
+          { id: ExplorerViewId, visible: false },
+          { id: ThumbnailViewId, visible: false },
+          { id: SettingsNavigationViewId, visible: true },
+          { id: SettingsViewId, visible: true },
+        ],
+      );
+      assert.deepEqual(
         viewsService.closeCalls.filter(id => id === WorkbenchViewContainers.auxiliarybar),
         [],
       );
@@ -308,6 +324,20 @@ suite("workbench/browser/workbench layout integration", () => {
 
       assert.equal(layoutService.isVisible(Parts.AUXILIARYBAR_PART), true);
       assert.deepEqual(
+        viewsService.setVisibleCalls.filter(call =>
+          call.id === ExplorerViewId ||
+          call.id === ThumbnailViewId ||
+          call.id === SettingsNavigationViewId ||
+          call.id === SettingsViewId
+        ),
+        [
+          { id: ExplorerViewId, visible: true },
+          { id: ThumbnailViewId, visible: false },
+          { id: SettingsNavigationViewId, visible: false },
+          { id: SettingsViewId, visible: false },
+        ],
+      );
+      assert.deepEqual(
         viewsService.closeCalls.filter(id => id === WorkbenchViewContainers.auxiliarybar),
         [],
       );
@@ -317,6 +347,68 @@ suite("workbench/browser/workbench layout integration", () => {
       );
     } finally {
       workbench.dispose();
+      contextKeyService.dispose();
+      layoutService.dispose();
+      storage.dispose();
+      parent.remove();
+    }
+  });
+
+  test("chart thumbnail layout uses the thumbnail sidebar surface", async () => {
+    const parent = document.createElement("div");
+    const storage = new TestStorageService();
+    const layoutService = new BrowserWorkbenchLayoutService(storage);
+    const viewsService = new RecordingViewsService(layoutService);
+    const contextKeyService = new ContextKeyService();
+    const explorerService = new ExplorerService();
+    document.body.append(parent);
+
+    const workbench = new Workbench(parent, createWorkbenchOptions({
+      contextKeyService,
+      explorerService,
+      layoutService,
+      storage,
+      viewsService,
+    }));
+
+    try {
+      viewsService.clearCalls();
+
+      layoutService.navigateToView("chart");
+      await Promise.resolve();
+
+      assert.deepEqual(
+        viewsService.setVisibleCalls.filter(call =>
+          call.id === ExplorerViewId ||
+          call.id === ThumbnailViewId
+        ),
+        [
+          { id: ExplorerViewId, visible: true },
+          { id: ThumbnailViewId, visible: false },
+        ],
+      );
+
+      viewsService.clearCalls();
+      explorerService.setViewLayout("thumbnail");
+      await Promise.resolve();
+
+      assert.deepEqual(
+        viewsService.setVisibleCalls.filter(call =>
+          call.id === ExplorerViewId ||
+          call.id === ThumbnailViewId
+        ),
+        [
+          { id: ExplorerViewId, visible: false },
+          { id: ThumbnailViewId, visible: true },
+        ],
+      );
+      assert.equal(
+        (viewsService.getActiveViewPaneContainerWithId(WorkbenchViewContainers.files) as TestViewPaneContainer | null)?.title,
+        "Thumbnail",
+      );
+    } finally {
+      workbench.dispose();
+      explorerService.dispose();
       contextKeyService.dispose();
       layoutService.dispose();
       storage.dispose();
@@ -350,8 +442,11 @@ suite("workbench/browser/workbench layout integration", () => {
         updateViewInput: () => undefined,
       },
       explorerService: {
+        files: [],
+        getPaneInput: () => null,
         hasPendingSourceFiles: false,
         hoveredResource: null,
+        onDidChangeFiles: Event.None,
         onDidChangeHoveredResource: Event.None,
         onDidChangePendingSourceFiles: Event.None,
         onDidChangeSelection: Event.None,
@@ -359,6 +454,7 @@ suite("workbench/browser/workbench layout integration", () => {
         selectedResource: null,
         selectedSheetId: null,
         updatePaneInput: () => undefined,
+        viewLayout: "tree",
       },
       layoutService: {
         activeWorkbenchMainPart: "table",
@@ -380,6 +476,7 @@ suite("workbench/browser/workbench layout integration", () => {
         onDidChangeConductorSettings: Event.None,
         onDidChangeNumericDisplayMode: Event.None,
       },
+      sliceService: createSliceService(),
       tableService: {
         open: () => undefined,
       },
@@ -439,8 +536,11 @@ suite("workbench/browser/workbench layout integration", () => {
         },
       },
       explorerService: {
+        files: [],
+        getPaneInput: () => null,
         hasPendingSourceFiles: false,
         hoveredResource: null,
+        onDidChangeFiles: Event.None,
         onDidChangeHoveredResource: Event.None,
         onDidChangePendingSourceFiles: Event.None,
         onDidChangeSelection: Event.None,
@@ -485,6 +585,7 @@ suite("workbench/browser/workbench layout integration", () => {
         onDidChangeConductorSettings: Event.None,
         onDidChangeNumericDisplayMode: Event.None,
       },
+      sliceService: createSliceService(),
       tableService: {
         open: () => undefined,
       },
@@ -574,12 +675,14 @@ const createProcessedFileRecord = (fileId: string): FileRecord => {
 
 const createWorkbenchOptions = ({
   contextKeyService,
+  explorerService,
   layoutService,
   onDidRenderInitialWorkbench,
   storage,
   viewsService,
 }: {
   readonly contextKeyService: ContextKeyService;
+  readonly explorerService?: WorkbenchService<"explorerService">;
   readonly layoutService: BrowserWorkbenchLayoutService;
   readonly onDidRenderInitialWorkbench?: () => void;
   readonly storage: TestStorageService;
@@ -625,18 +728,23 @@ const createWorkbenchOptions = ({
     } as unknown as ICommandService,
     contextKeyService,
     dialogsService: {} as WorkbenchService<"dialogsService">,
-    explorerService: {
+    explorerService: explorerService ?? {
+      files: [],
+      getPaneInput: () => null,
       hasPendingSourceFiles: false,
       hoveredResource: null,
+      onDidChangeFiles: Event.None,
       onDidChangeHoveredResource: Event.None,
       onDidChangeVisibleTargets: Event.None,
       onDidChangePendingSourceFiles: Event.None,
       onDidChangeSelection: Event.None,
+      onDidChangeViewLayout: Event.None,
       selectedResource: null,
       selectedSheetId: null,
       select: () => undefined,
       setPendingSourceFiles: () => undefined,
       updatePaneInput: () => undefined,
+      viewLayout: "tree",
     } as unknown as WorkbenchService<"explorerService">,
     exportService: {
       getState: () => ({
@@ -697,6 +805,7 @@ const createWorkbenchOptions = ({
       updatePlotAxisSettings: async () => null,
       updateSettings: async () => null,
     } as unknown as WorkbenchService<"settingsService">,
+    sliceService: createSliceService(),
     storageService: storage,
     tableService: {
       onDidChangeTableState: Event.None,
@@ -729,3 +838,21 @@ const createWorkbenchOptions = ({
     viewsService,
   };
 };
+
+const createSliceService = (): WorkbenchService<"sliceService"> => ({
+  _serviceBrand: undefined,
+  cancelResource: () => undefined,
+  getResourceResult: () => null,
+  getResourceState: () => undefined,
+  getState: () => ({
+    queueLength: 0,
+    templateSelections: [],
+  }),
+  getTemplateSelection: () => ({ kind: "auto" }),
+  onDidChangeResourceSliceResult: Event.None,
+  onDidChangeSliceState: Event.None,
+  onDidChangeTemplateSelection: Event.None,
+  prioritizeResource: () => undefined,
+  setTemplateSelection: () => undefined,
+  submitResource: () => undefined,
+} as unknown as WorkbenchService<"sliceService">);

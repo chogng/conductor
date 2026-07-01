@@ -76,7 +76,7 @@ suite("workbench/browser/layout", () => {
     assert.ok(TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX < SIDEBAR_DEFAULT_WIDTH_PX);
   });
 
-  test("navigation owns active workbench main part separately from settings page", () => {
+  test("settings is a workbench main part", () => {
     const storage = new TestStorageService();
     const service = new BrowserWorkbenchLayoutService(storage);
 
@@ -86,7 +86,7 @@ suite("workbench/browser/layout", () => {
 
     service.navigateToView("settings");
     assert.equal(service.getWorkbenchNavigationState().activeView, "settings");
-    assert.equal(service.getWorkbenchNavigationState().activeMainPart, "chart");
+    assert.equal(service.getWorkbenchNavigationState().activeMainPart, "settings");
 
     service.navigateToView("table");
     assert.equal(service.getWorkbenchNavigationState().activeView, "table");

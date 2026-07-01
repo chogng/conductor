@@ -6,7 +6,10 @@ import assert from "assert";
 
 import { Emitter, Event } from "src/cs/base/common/event";
 import { URI } from "src/cs/base/common/uri";
-import { resolveInitialWorkbenchViewMode } from "src/cs/workbench/browser/workbench";
+import {
+  resolveInitialWorkbenchViewMode,
+  resolveWorkbenchSidebarSurface,
+} from "src/cs/workbench/browser/workbench";
 import {
   createExplorerPaneInput,
   shouldPrefetchExplorerThumbnails,
@@ -31,6 +34,7 @@ import { createTemplateSelection } from "src/cs/workbench/services/slice/common/
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { SliceState } from "src/cs/workbench/services/slice/common/slice";
 import type { TemplateApplyPerformanceTraceTargetApi } from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
+import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
 
 type ThumbnailPrefetchForTest = {
   readonly priority: string;
@@ -208,6 +212,31 @@ suite("workbench/browser/workbench Explorer pane input", () => {
 suite("workbench/browser/workbench initial mode", () => {
   test("starts in table mode without reading Session state", () => {
     assert.equal(resolveInitialWorkbenchViewMode(), "table");
+  });
+});
+
+suite("workbench/browser/workbench sidebar surface", () => {
+  test("derives sidebar surface from main part and Explorer layout", () => {
+    assert.equal(resolveWorkbenchSidebarSurface({
+      activeMainPart: "table",
+      explorerViewLayout: "tree",
+    }), "explorer");
+    assert.equal(resolveWorkbenchSidebarSurface({
+      activeMainPart: "table",
+      explorerViewLayout: "thumbnail",
+    }), "explorer");
+    assert.equal(resolveWorkbenchSidebarSurface({
+      activeMainPart: "chart",
+      explorerViewLayout: "tree",
+    }), "explorer");
+    assert.equal(resolveWorkbenchSidebarSurface({
+      activeMainPart: "chart",
+      explorerViewLayout: "thumbnail",
+    }), "thumbnail");
+    assert.equal(resolveWorkbenchSidebarSurface({
+      activeMainPart: "settings",
+      explorerViewLayout: "thumbnail",
+    }), "settingsNavigation");
   });
 });
 
@@ -1649,7 +1678,7 @@ const createDomainBridgeOptionsForTest = ({
   tableSources,
   visibleDetailPanes = [],
 }: {
-  readonly activeWorkbenchMainPart?: "chart" | "table";
+  readonly activeWorkbenchMainPart?: WorkbenchMainPart;
   readonly chartActiveFileIds?: (string | null)[];
   readonly chartFileOptionInputs?: Array<NonNullable<ChartViewInput["chartFileOptions"]>>;
   readonly chartViewInputs?: Array<{

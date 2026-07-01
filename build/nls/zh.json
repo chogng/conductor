@@ -578,6 +578,7 @@
   "settings.template.semantic.roleLabel": "角色",
   "settings.template.semantic.saved": "模板语义库已更新。",
   "settings.template.semantic.termInputPlaceholder": "添加匹配词条",
+  "settings.template.semantic.termInputTitle": "添加匹配词条",
   "settings.template.semantic.title": "语义库",
   "settings.template.semantic.unitLabel": "单位",
   "settings.template.unit.none": "无",

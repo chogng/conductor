@@ -145,7 +145,7 @@ state arrives through their owning services.
 | `contrib/files/browser/explorerService.ts` | Explorer state/model, committed file rows, selection/reveal, layout, expansion, pane input events. |
 | `contrib/files/common/explorerModel.ts` | Explorer resources/items/tree helpers. |
 | `contrib/files/common/explorerFileNestingTrie.ts` | Explorer display-only file nesting pattern matching. |
-| `contrib/files/browser/explorerViewlet.ts` | Explorer `ViewPane` host and sidebar actions. |
+| `contrib/files/browser/explorerViewlet.ts` | Explorer `ViewPane` host, sidebar actions, and files-owned shared sidebar surface behavior reused by the thumbnail surface. |
 | `contrib/files/browser/views/explorerView.ts` | Explorer DOM shell/drag-drop host. |
 | `contrib/files/browser/views/explorerViewer.ts` | Tree/thumbnail renderer, row templates, context menus, Explorer-owned hover containers. |
 | `contrib/files/browser/fileActions.ts` / `fileCommands.ts` | Files/Explorer action and command handlers. |

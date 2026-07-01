@@ -94,12 +94,27 @@ import {
 
 import "src/cs/workbench/contrib/files/browser/views/media/explorerViewlet.css";
 
-export class ExplorerViewPane extends ViewPane {
+export type ExplorerViewPaneSurfaceOptions = {
+  readonly className: string;
+  readonly id: string;
+  readonly title: string;
+  readonly viewLayout: FilesViewLayout;
+};
+
+const ExplorerViewPaneSurface: ExplorerViewPaneSurfaceOptions = {
+  className: "files-view-pane",
+  id: ExplorerViewId,
+  title: localize("files.explorerSection", "Explorer"),
+  viewLayout: "tree",
+};
+
+export abstract class BaseExplorerViewPane extends ViewPane {
   private readonly root: HTMLDivElement;
   private readonly content: HTMLDivElement;
   private readonly explorerHost: HTMLDivElement;
   private readonly listRef: { current: ListHandle | null } = { current: null };
   private readonly sourceWorkflow: FileSourceWorkflow;
+  private readonly surfaceViewLayout: FilesViewLayout;
   private explorerView: ExplorerView | null = null;
   private input: ExplorerPaneInput | null = null;
   private pendingSourceEntries: ExplorerFileEntry[] = [];
@@ -112,7 +127,8 @@ export class ExplorerViewPane extends ViewPane {
   private cancelPendingSourceSyncView: (() => void) | null = null;
   private reviewedExplorerResourceSignature = "";
 
-  constructor(
+  protected constructor(
+    options: ExplorerViewPaneSurfaceOptions,
     @ICommandService private readonly commandService: ICommandService,
     @IContextMenuService private readonly contextMenuService: IContextMenuService,
     @IDialogService private readonly dialogService: IDialogService,
@@ -133,11 +149,12 @@ export class ExplorerViewPane extends ViewPane {
     @IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
   ) {
     super({
-      id: ExplorerViewId,
-      title: localize("files.explorerSection", "Explorer"),
-      className: "files-view-pane",
+      id: options.id,
+      title: options.title,
+      className: options.className,
       bodyClassName: "workbench-part-view-pane__body",
     });
+    this.surfaceViewLayout = options.viewLayout;
 
     this.root = document.createElement("div");
     this.root.className = "files-pane files-pane-root";
@@ -367,7 +384,7 @@ export class ExplorerViewPane extends ViewPane {
   }
 
   private get viewLayout(): FilesViewLayout {
-    return this.explorerService.viewLayout;
+    return this.surfaceViewLayout;
   }
 
   private shouldFilterChartThumbnailFiles(): boolean {
@@ -713,7 +730,7 @@ export class ExplorerViewPane extends ViewPane {
   private showMoreActions(anchor: HTMLElement): void {
     const canCloseFolder = this.visibleEntries.length > 0;
     const isChartMode = this.paneInput.mode === "chart";
-    const isThumbnailView = isChartMode && this.viewLayout === "thumbnail";
+    const isThumbnailView = isChartMode && this.explorerService.viewLayout === "thumbnail";
     this.contextMenuService.showContextMenu({
       autoSelectFirstItem: true,
       getAnchor: () => anchor,
@@ -1188,6 +1205,51 @@ export class ExplorerViewPane extends ViewPane {
     if (this.layoutService.activeWorkbenchMainPart === "chart") {
       this.layoutService.navigateToView("table");
     }
+  }
+}
+
+export class ExplorerViewPane extends BaseExplorerViewPane {
+  constructor(
+    @ICommandService commandService: ICommandService,
+    @IContextMenuService contextMenuService: IContextMenuService,
+    @IDialogService dialogService: IDialogService,
+    @IExplorerService explorerService: IExplorerService,
+    @IFileService filesService: IFileService,
+    @IInstantiationService instantiationService: IInstantiationService,
+    @IAppearanceService appearanceService: IAppearanceService,
+    @IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+    @INotificationService notificationService: INotificationService,
+    @ITableService tableService: ITableService,
+    @ISliceService sliceService: ISliceService,
+    @IThumbnailPreviewService thumbnailPreviewService: IThumbnailPreviewService,
+    @IThumbnailService thumbnailService: IThumbnailService,
+    @IUserTemplateService userTemplateService: IUserTemplateServiceType,
+    @IDecorationsService decorationsService: IDecorationsServiceType,
+    @IReviewService reviewService: IReviewServiceType,
+    @ISettingsService settingsService: ISettingsServiceType,
+    @IUriIdentityService uriIdentityService: IUriIdentityService,
+  ) {
+    super(
+      ExplorerViewPaneSurface,
+      commandService,
+      contextMenuService,
+      dialogService,
+      explorerService,
+      filesService,
+      instantiationService,
+      appearanceService,
+      layoutService,
+      notificationService,
+      tableService,
+      sliceService,
+      thumbnailPreviewService,
+      thumbnailService,
+      userTemplateService,
+      decorationsService,
+      reviewService,
+      settingsService,
+      uriIdentityService,
+    );
   }
 }
 

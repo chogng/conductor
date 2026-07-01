@@ -14,12 +14,14 @@ import {
   type NotificationFeedbackState,
 } from "src/cs/workbench/contrib/settings/common/feedback";
 import {
+  SettingsNavigationView,
   SettingsView,
   type SettingsContentDescriptorId,
   type SettingsContentItemId,
   type SettingsViewOptions,
   type SettingsViewUpdateTarget,
 } from "src/cs/workbench/contrib/settings/browser/settingsView";
+import { toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import {
   createSettingsSections,
   type SettingsSectionId,
@@ -130,6 +132,7 @@ type SettingsDraftState = {
   originHealthNotification: NotificationFeedbackState;
   plotCommandDraft: string;
   postCommandsDraft: string;
+  searchQuery: string;
   templateSemanticTermDraft: string;
   templateSemanticAxisDraft: TemplateSemanticAxisTendency;
   templateSemanticFamilyDraft: TemplateSemanticFamily | "";
@@ -147,7 +150,10 @@ const CLEANUP_NOTIFICATION_ID = "settings.cleanup";
 
 export class SettingsController {
   private readonly service: ISettingsService;
-  private readonly view: SettingsView;
+  private contentAttachment: IDisposable | null = null;
+  private contentView: SettingsView | null = null;
+  private navigationAttachment: IDisposable | null = null;
+  private navigationView: SettingsNavigationView | null = null;
   private disposed = false;
   private originPathLoadRequest: string | null = null;
   private originExePath = "";
@@ -187,7 +193,7 @@ export class SettingsController {
   private options: SettingsControllerOptions;
 
   constructor(
-    container: HTMLElement,
+    container: HTMLElement | null,
     options: SettingsControllerOptions,
     service: ISettingsService,
     private readonly commandService: ICommandService,
@@ -197,8 +203,38 @@ export class SettingsController {
     this.service = service;
     this.originExePath = normalizeTrimmedString(options.conductorSettings?.originExePath);
     this.drafts = this.createDraftState();
-    this.view = new SettingsView(container, this.createViewOptions());
+    if (container) {
+      this.attachContent(container);
+    }
     this.syncOriginPath();
+  }
+
+  public attachContent(container: HTMLElement): IDisposable {
+    this.contentAttachment?.dispose();
+    const view = new SettingsView(container, this.createViewOptions());
+    this.contentView = view;
+    const attachment = toDisposable(() => {
+      if (this.contentView === view) {
+        this.contentView = null;
+      }
+      view.dispose();
+    });
+    this.contentAttachment = attachment;
+    return attachment;
+  }
+
+  public attachNavigation(container: HTMLElement): IDisposable {
+    this.navigationAttachment?.dispose();
+    const view = new SettingsNavigationView(container, this.createViewOptions());
+    this.navigationView = view;
+    const attachment = toDisposable(() => {
+      if (this.navigationView === view) {
+        this.navigationView = null;
+      }
+      view.dispose();
+    });
+    this.navigationAttachment = attachment;
+    return attachment;
   }
 
   update(options: SettingsControllerOptions): void {
@@ -214,7 +250,12 @@ export class SettingsController {
     this.disposed = true;
     this.originHealthNotification?.close();
     this.cleanupNotification?.close();
-    this.view.dispose();
+    this.contentAttachment?.dispose();
+    this.navigationAttachment?.dispose();
+    this.contentAttachment = null;
+    this.navigationAttachment = null;
+    this.contentView = null;
+    this.navigationView = null;
   }
 
   private createDraftState(): SettingsDraftState {
@@ -229,6 +270,7 @@ export class SettingsController {
       originHealthNotification: { isVisible: false, message: "", type: "success" },
       plotCommandDraft: this.originPlotConfig.command ?? "",
       postCommandsDraft: originPostCommandsToMultiline(this.originPlotConfig.postCommands),
+      searchQuery: "",
       templateSemanticTermDraft: "",
       templateSemanticAxisDraft: "x",
       templateSemanticFamilyDraft: "",
@@ -334,7 +376,9 @@ export class SettingsController {
       return;
     }
     this.updateNotifications();
-    this.view.update(this.createViewOptions(), target);
+    const options = this.createViewOptions();
+    this.contentView?.update(options, target);
+    this.navigationView?.update(options);
   }
 
   private updateNotifications(): void {
@@ -466,8 +510,13 @@ export class SettingsController {
       originSettings: this.originSettings,
       plotCommandDraft: this.drafts.plotCommandDraft,
       postCommandsDraft: this.drafts.postCommandsDraft,
+      searchQuery: this.drafts.searchQuery,
       setActiveSettingsSection: section => {
         this.drafts.activeSettingsSection = section;
+        this.render(settingsContentUpdateTarget);
+      },
+      setSearchQuery: value => {
+        this.drafts.searchQuery = value;
         this.render(settingsContentUpdateTarget);
       },
       setAxisTitleFontSizeDraft: value => {

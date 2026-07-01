@@ -3,3 +3,4 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const TOGGLE_THUMBNAIL_VIEW_ACTION_ID = "files.toggleThumbnailView";
+export const ThumbnailViewId = "workbench.thumbnail";

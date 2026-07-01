@@ -5,16 +5,6 @@
   border-top: 1px solid rgb(var(--border) / 0.75);
 }
 
-.settings-view-layout {
-  display: grid;
-  height: 100%;
-  min-height: 0;
-  align-items: stretch;
-  gap: 0;
-  grid-template-columns: 264px minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
-}
-
 .settings-view-nav {
   height: 100%;
   width: 100%;
@@ -501,6 +491,18 @@
   line-height: 1.25rem;
 }
 
+.settings-template-term-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.settings-template-term-input-row > .inputbox_widget {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .settings-template-semantic-form {
   display: grid;
   gap: 0.875rem;
@@ -521,32 +523,12 @@
   height: auto;
 }
 
-.settings-tree .ui-list {
-  display: block;
-  height: auto;
-}
-
-.settings-tree .ui-list__viewport {
-  height: auto;
-  overflow: visible;
-}
-
-.settings-tree .ui-list__stage {
-  height: auto !important;
-}
-
-.settings-tree .ui-list__row {
-  position: relative;
-  top: auto !important;
-  height: auto !important;
-}
-
-.settings-tree .ui-list__row-content {
-  height: auto;
-}
-
-.settings-tree .ui-list__row[data-template-id="section"]:not(:first-child) {
+.settings-section:not(:first-child) {
   margin-top: 2.25rem;
+}
+
+.settings-section-list {
+  display: block;
 }
 
 .settings-tree .settings-section > .settings-title {
@@ -1139,28 +1121,8 @@
 }
 
 @media (max-width: 900px) {
-  .settings-view-layout {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-
-  .settings-view-nav {
-    height: auto;
-    max-height: 42vh;
-    border-right: 0;
-    border-bottom: 1px solid rgb(var(--border) / 0.75);
-  }
-
   .settings-view-content-scroll {
     min-height: 0;
-  }
-
-  .settings-view-nav-list {
-    gap: 0.75rem;
-  }
-
-  .settings-view-nav-group-items {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .settings-view-content {

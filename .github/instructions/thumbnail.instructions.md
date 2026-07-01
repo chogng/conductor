@@ -47,17 +47,27 @@ Explorer file filtering.
 | `src/cs/workbench/services/thumbnail/common/thumbnail.ts` | Thumbnail service contract and request/result types. |
 | `src/cs/workbench/services/thumbnail/browser/thumbnailService.ts` | Bitmap cache/rendering, preview cache, invalidation, request scheduling. |
 | `src/cs/workbench/services/thumbnail/browser/thumbnailBitmap.ts` | Convert `PlotRenderModel` into canvas/bitmap output. No Session reads. |
-| `src/cs/workbench/contrib/thumbnail/common/thumbnail.ts` | Thumbnail action/command ids. |
+| `src/cs/workbench/contrib/thumbnail/common/thumbnail.ts` | Thumbnail action/command ids and `ThumbnailViewId`. |
 | `src/cs/workbench/contrib/thumbnail/browser/thumbnailView.ts` | Reusable thumbnail component. Receives file display metadata and plot render models. |
+| `src/cs/workbench/contrib/thumbnail/browser/thumbnailViewPane.ts` | Thumbnail sidebar surface class. Declares the thumbnail view id/title/layout while reusing the files-owned Explorer surface behavior. |
 | `src/cs/workbench/contrib/thumbnail/browser/thumbnailCommands.ts` | Thumbnail command handlers. Normalize and delegate to services. |
 | `src/cs/workbench/contrib/thumbnail/browser/thumbnailActions.ts` | `Action2` wrappers for thumbnail commands. |
-| `src/cs/workbench/contrib/thumbnail/browser/thumbnail.contribution.ts` | Registers thumbnail actions and CSS. |
+| `src/cs/workbench/contrib/thumbnail/browser/thumbnail.contribution.ts` | Registers thumbnail actions, CSS, and the thumbnail sidebar view descriptor in the files container. |
 
 ## Explorer Integration
 
-Explorer is one resource manager with two layouts. The thumbnail toggle action
-is thumbnail-specific UI, but the command delegates to
-`IExplorerService.toggleViewLayout()` because Explorer owns layout state.
+Explorer is one resource manager with two sidebar surfaces in
+`WorkbenchViewContainers.files`: `ExplorerViewId` renders the tree surface and
+`ThumbnailViewId` renders the same Explorer model in thumbnail layout. The
+thumbnail toggle action is thumbnail-specific UI, but the command delegates to
+`IExplorerService.toggleViewLayout()` because Explorer owns layout state and
+Workbench uses that state to choose which sidebar surface is visible in chart
+mode.
+
+The thumbnail view descriptor and `ThumbnailViewPane` class live in the
+thumbnail contribution. The pane inherits the files-owned Explorer surface
+behavior; do not move Explorer selection, ordering, import, filtering, hover,
+or context menu ownership into thumbnail code.
 
 Selection is still Explorer selection. A thumbnail click is equivalent to a
 tree item selection and must flow through the existing Explorer selection
@@ -74,7 +84,12 @@ hover content.
 
 ```mermaid
 flowchart TD
-    ExplorerService[IExplorerService layout/selection/visibility] --> ExplorerViewer[ExplorerViewer]
+    WorkbenchFilesContainer[WorkbenchViewContainers.files] --> ExplorerSurface[ExplorerViewId tree surface]
+    WorkbenchFilesContainer --> ThumbnailSurface[ThumbnailViewId thumbnail surface]
+    ExplorerService[IExplorerService layout/selection/visibility] --> ExplorerSurface
+    ExplorerService --> ThumbnailSurface
+    ExplorerSurface --> ExplorerViewer[ExplorerViewer]
+    ThumbnailSurface --> ExplorerViewer
     ExplorerViewer --> PreviewTarget{Preview target}
     PreviewTarget -->|Plot-backed file id| ThumbnailPreviewService[IThumbnailPreviewService]
     PreviewTarget -->|URI resource/sheet identity| ThumbnailPreviewService

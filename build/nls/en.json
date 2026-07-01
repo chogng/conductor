@@ -578,6 +578,7 @@
   "settings.template.semantic.roleLabel": "Role",
   "settings.template.semantic.saved": "Template semantic library updated.",
   "settings.template.semantic.termInputPlaceholder": "Add match term",
+  "settings.template.semantic.termInputTitle": "Add match term",
   "settings.template.semantic.title": "Semantic Library",
   "settings.template.semantic.unitLabel": "Unit",
   "settings.template.unit.none": "none",

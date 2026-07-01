@@ -10,21 +10,32 @@ import {
   type IViewsRegistry,
 } from "src/cs/workbench/common/views";
 import { registerSettingsActions } from "src/cs/workbench/contrib/settings/browser/settingsActions";
-import { SettingsViewPane } from "src/cs/workbench/contrib/settings/browser/settingsViewPane";
-import { SettingsContributionId, SettingsViewId } from "src/cs/workbench/services/settings/common/settings";
+import { SettingsNavigationViewPane, SettingsViewPane } from "src/cs/workbench/contrib/settings/browser/settingsViewPane";
+import { SettingsContributionId, SettingsNavigationViewId, SettingsViewId } from "src/cs/workbench/services/settings/common/settings";
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-const container = viewContainersRegistry.get(WorkbenchViewContainers.settings);
+const sidebarContainer = viewContainersRegistry.get(WorkbenchViewContainers.files);
+const settingsContainer = viewContainersRegistry.get(WorkbenchViewContainers.settings);
 
-if (container) {
+if (sidebarContainer) {
+  viewsRegistry.registerViews([{
+    id: SettingsNavigationViewId,
+    name: localize("settings.title", "Settings"),
+    ctorDescriptor: new SyncDescriptor(SettingsNavigationViewPane),
+    hideByDefault: false,
+    order: 10,
+  }], sidebarContainer);
+}
+
+if (settingsContainer) {
   viewsRegistry.registerViews([{
     id: SettingsViewId,
     name: localize("settings.title", "Settings"),
     ctorDescriptor: new SyncDescriptor(SettingsViewPane),
     hideByDefault: false,
     order: 0,
-  }], container);
+  }], settingsContainer);
 }
 
 export class SettingsContribution extends Disposable implements IWorkbenchContribution {
