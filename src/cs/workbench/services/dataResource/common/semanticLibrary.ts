@@ -86,26 +86,21 @@ const semanticLibrary = semanticLibraryJson as unknown as SemanticLibrary;
 
 type SemanticTitleLookupSource = "library" | "allowlist";
 
-type SemanticTitleLookupEntry = {
+type SemanticTitleTerm = {
 	readonly id?: string;
-	readonly alias: string;
+	readonly key: string;
+	readonly aliases: readonly string[];
 	readonly title: SemanticTitleRecord;
 	readonly source: SemanticTitleLookupSource;
 	readonly intent?: TemplateXAxisIntent;
 	readonly domainPackIds: readonly string[];
 };
 
-type SemanticRowMarkerLookupEntry = {
-	readonly alias: string;
+type SemanticRowMarkerTerm = {
+	readonly key: string;
+	readonly aliases: readonly string[];
 	readonly kind: SemanticRowMarkerKind;
 	readonly domainPackIds: readonly string[];
-};
-
-type SemanticTitleMatchCandidate = {
-	readonly aliasLength: number;
-	readonly reason: string;
-	readonly sourceRank: number;
-	readonly entry: SemanticTitleLookupEntry;
 };
 
 //#endregion
@@ -124,7 +119,7 @@ export type SemanticMatcher = {
 	readonly fingerprint: string;
 	readonly matchTitle: (value: unknown) => SemanticTitleMatch | null;
 	readonly matchRowMarker: (value: unknown) => SemanticRowMarkerKind | null;
-	readonly normalizeText: (value: unknown) => string;
+	readonly toKey: (value: unknown) => string;
 	readonly xAxisIntentPriority: readonly TemplateXAxisIntent[];
 };
 
@@ -133,19 +128,21 @@ export type SemanticMatcher = {
 //#region Built-in recipe indexes
 // Precomputed library indexes keep matcher construction cheap for each settings snapshot.
 
-const builtinTitleEntries: SemanticTitleLookupEntry[] = [];
+const builtinTitleTermsByKey = new Map<string, SemanticTitleTerm>();
 const builtinSemanticTermRecords: BuiltinSemanticTerm[] = [];
-const builtinRowMarkerEntries: SemanticRowMarkerLookupEntry[] = [];
+const builtinRowMarkerTermsByKey = new Map<string, SemanticRowMarkerTerm>();
 
 for (const title of semanticLibrary.titles) {
 	for (const alias of title.aliases) {
 		if (!isBuiltinSemanticMatchTermAllowed(alias)) {
 			continue;
 		}
-		const id = createBuiltinTermId(title, alias);
-		builtinTitleEntries.push({
+		const key = toSemanticTermKey(alias);
+		const id = createBuiltinTermId(title, key);
+		addSemanticTitleTerm(builtinTitleTermsByKey, {
 			id,
-			alias: normalizeSemanticLookupText(alias),
+			key,
+			aliases: [alias],
 			title,
 			source: "library",
 			domainPackIds: title.domainPackIds ?? [],
@@ -165,8 +162,13 @@ for (const title of semanticLibrary.titles) {
 
 for (const marker of semanticLibrary.rowMarkers) {
 	for (const alias of marker.aliases) {
-		builtinRowMarkerEntries.push({
-			alias: normalizeSemanticLookupText(alias),
+		const key = toSemanticTermKey(alias);
+		if (!key) {
+			continue;
+		}
+		addSemanticRowMarkerTerm(builtinRowMarkerTermsByKey, {
+			key,
+			aliases: [alias],
 			kind: marker.kind,
 			domainPackIds: marker.domainPackIds ?? [],
 		});
@@ -187,38 +189,44 @@ export const builtinSemanticDomainPacks: readonly BuiltinSemanticDomainPack[] = 
 export function createSemanticMatcher(
 	options: SemanticMatcherOptions = {},
 ): SemanticMatcher {
-	const allowlist = normalizeAllowlistEntries(options.allowlist ?? []);
+	const allowlist = compileAllowlistTitleTerms(options.allowlist ?? []);
 	const disabledBuiltinTermIds = new Set((options.disabledBuiltinTermIds ?? []).filter(Boolean));
 	const disabledDomainPackIds = new Set((options.disabledDomainPackIds ?? []).filter(Boolean));
 	const xAxisIntentPriority = Array.isArray(options.xAxisIntentPriority)
 		? options.xAxisIntentPriority.slice()
 		: [];
-	const titleEntries = [
-		...builtinTitleEntries.filter(entry =>
-			(!entry.id || !disabledBuiltinTermIds.has(entry.id)) &&
-			hasActiveDomainPack(entry.domainPackIds, disabledDomainPackIds)
+	const titleTerms = compileSemanticTitleTerms([
+		...Array.from(builtinTitleTermsByKey.values()).filter(term =>
+			(!term.id || !disabledBuiltinTermIds.has(term.id)) &&
+			hasActiveDomainPack(term.domainPackIds, disabledDomainPackIds)
 		),
 		...allowlist,
-	];
-	const rowMarkerEntries = builtinRowMarkerEntries.filter(entry =>
-		hasActiveDomainPack(entry.domainPackIds, disabledDomainPackIds)
+	]);
+	const titleTermsByKey = new Map(titleTerms.map(term => [term.key, term]));
+	const rowMarkerTerms = Array.from(builtinRowMarkerTermsByKey.values()).filter(term =>
+		hasActiveDomainPack(term.domainPackIds, disabledDomainPackIds)
 	);
+	const rowMarkerTermsByKey = new Map(rowMarkerTerms.map(term => [term.key, term]));
 	const fingerprint = `data-resource-semantic:${hashString(stableStringify({
-		allowlist: allowlist.map(entry => ({
-			alias: entry.alias,
-			title: entry.title,
-			intent: entry.intent,
+		titleTerms: titleTerms.map(term => ({
+			key: term.key,
+			title: term.title,
+			intent: term.intent,
+			source: term.source,
 		})),
 		disabledBuiltinTermIds: Array.from(disabledBuiltinTermIds).sort(),
 		disabledDomainPackIds: Array.from(disabledDomainPackIds).sort(),
-		library: semanticLibrary,
+		rowMarkerTerms: rowMarkerTerms.map(term => ({
+			key: term.key,
+			kind: term.kind,
+		})),
 		xAxisIntentPriority,
 	}))}`;
 	return {
 		fingerprint,
-		matchTitle: value => matchSemanticTitleFromEntries(value, titleEntries),
-		matchRowMarker: value => matchSemanticRowMarkerFromEntries(value, rowMarkerEntries),
-		normalizeText: normalizeSemanticLookupText,
+		matchTitle: value => matchSemanticTitleFromTerms(value, titleTermsByKey),
+		matchRowMarker: value => matchSemanticRowMarkerFromTerms(value, rowMarkerTermsByKey),
+		toKey: toSemanticTermKey,
 		xAxisIntentPriority,
 	};
 }
@@ -231,26 +239,32 @@ export const matchSemanticRowMarker = (
 	value: unknown,
 ): SemanticRowMarkerKind | null => defaultSemanticMatcher.matchRowMarker(value);
 
-export const normalizeSemanticText = (
+export function toSemanticTermKey(
 	value: unknown,
-): string => defaultSemanticMatcher.normalizeText(value);
+): string {
+	return normalizeText(value)
+		.replace(/\u00b5|\u03bc/g, "u")
+		.replace(/\u03a9|\u03c9|\u2126/g, "ohm")
+		.toLowerCase()
+		.replace(/[^\p{L}\p{N}]+/gu, "");
+}
 
 export function isBuiltinSemanticMatchTermAllowed(value: unknown): boolean {
-	return normalizeSemanticLookupText(value).length > 1;
+	return toSemanticTermKey(value).length > 1;
 }
 
 export function isCustomSemanticMatchTermAllowed(value: unknown): boolean {
-	return normalizeSemanticLookupText(value).length > 1;
+	return toSemanticTermKey(value).length > 1;
 }
 
 //#endregion
 
 //#region Title and row-marker matching
-// Match normalized headers against built-in recipe terms and user allowlist entries.
+// Match header keys against built-in recipe terms and user allowlist entries.
 
-const matchSemanticTitleFromEntries = (
+const matchSemanticTitleFromTerms = (
 	value: unknown,
-	titleEntries: readonly SemanticTitleLookupEntry[],
+	titleTermsByKey: ReadonlyMap<string, SemanticTitleTerm>,
 ): SemanticTitleMatch | null => {
 	const rawText = normalizeText(value);
 	if (!rawText) {
@@ -259,61 +273,39 @@ const matchSemanticTitleFromEntries = (
 
 	const axisMarker = readAxisMarker(rawText);
 	const titleWithoutAxisMarker = stripAxisMarker(rawText);
-	const normalizedTitle = normalizeSemanticLookupText(titleWithoutAxisMarker);
-	const matches: SemanticTitleMatchCandidate[] = [];
-
-	for (const entry of titleEntries) {
-		if (!entry.alias) {
-			continue;
-		}
-		if (normalizedTitle === entry.alias) {
-			matches.push({
-				aliasLength: entry.alias.length,
-				reason: entry.source === "allowlist" ? "semanticAllowlist.term" : "semanticLibrary.term",
-				sourceRank: entry.source === "allowlist" ? 1 : 0,
-				entry,
-			});
-			continue;
-		}
-	}
-
-	const selected = matches
-		.sort((left, right) =>
-			getAxisMatchRank(right.entry.title, axisMarker) - getAxisMatchRank(left.entry.title, axisMarker) ||
-			right.sourceRank - left.sourceRank ||
-			right.aliasLength - left.aliasLength
-		)[0];
-	return selected
-		? createSemanticTitleMatch(selected.entry, normalizedTitle, axisMarker, selected.reason)
+	const key = toSemanticTermKey(titleWithoutAxisMarker);
+	const term = titleTermsByKey.get(key);
+	return term
+		? createSemanticTitleMatch(term, key, axisMarker, term.source === "allowlist" ? "semanticAllowlist.term" : "semanticLibrary.term")
 		: null;
 };
 
-const matchSemanticRowMarkerFromEntries = (
+const matchSemanticRowMarkerFromTerms = (
 	value: unknown,
-	rowMarkerEntries: readonly SemanticRowMarkerLookupEntry[],
+	rowMarkerTermsByKey: ReadonlyMap<string, SemanticRowMarkerTerm>,
 ): SemanticRowMarkerKind | null => {
-	const normalized = normalizeSemanticLookupText(value);
-	if (!normalized) {
+	const key = toSemanticTermKey(value);
+	if (!key) {
 		return null;
 	}
-	return rowMarkerEntries.find(entry => entry.alias === normalized)?.kind ?? null;
+	return rowMarkerTermsByKey.get(key)?.kind ?? null;
 };
 
 const createSemanticTitleMatch = (
-	entry: SemanticTitleLookupEntry,
-	normalizedTitle: string,
+	term: SemanticTitleTerm,
+	key: string,
 	axisMarker: StructuredAxisTendency | null,
 	reason: string,
 ): SemanticTitleMatch => {
-	const title = entry.title;
+	const title = term.title;
 	const axisTendency = axisMarker ?? title.axisTendency;
-	const baseConfidence = entry.source === "allowlist" ? 0.97 : 0.95;
+	const baseConfidence = term.source === "allowlist" ? 0.97 : 0.95;
 	const confidence = clampConfidence(title.axisTendency === axisTendency ? baseConfidence : baseConfidence - 0.07);
 	const reasons = axisMarker
 		? [reason, `semanticLibrary.axisMarker:${axisMarker}`]
 		: [reason];
-	if (entry.intent) {
-		reasons.push(`semanticAllowlist.intent:${entry.intent}`);
+	if (term.intent) {
+		reasons.push(`semanticAllowlist.intent:${term.intent}`);
 	}
 	return {
 		canonicalRole: title.canonicalRole,
@@ -321,7 +313,7 @@ const createSemanticTitleMatch = (
 		axisTendency,
 		...(title.family ? { family: title.family } : {}),
 		...(title.ivMode ? { ivMode: title.ivMode } : {}),
-		normalizedTitle,
+		normalizedTitle: key,
 		confidence,
 		reasons,
 	};
@@ -330,16 +322,21 @@ const createSemanticTitleMatch = (
 //#endregion
 
 //#region Allowlist and domain-pack filtering
-// Translate Settings records into matcher entries and remove disabled recipe domains.
+// Compile raw aliases into key-owned matcher terms and remove disabled recipe domains.
 
-function normalizeAllowlistEntries(
+function compileAllowlistTitleTerms(
 	allowlist: readonly TemplateSemanticTermRule[],
-): readonly SemanticTitleLookupEntry[] {
-	return allowlist
-		.filter(rule => rule.enabled !== false && isCustomSemanticMatchTermAllowed(rule.alias))
-		.map(rule => ({
+): readonly SemanticTitleTerm[] {
+	const termsByKey = new Map<string, SemanticTitleTerm>();
+	for (const rule of allowlist) {
+		if (rule.enabled === false || !isCustomSemanticMatchTermAllowed(rule.alias)) {
+			continue;
+		}
+		const key = toSemanticTermKey(rule.alias);
+		addSemanticTitleTerm(termsByKey, {
 			id: rule.id,
-			alias: normalizeSemanticLookupText(rule.alias),
+			key,
+			aliases: [rule.alias],
 			title: {
 				canonicalRole: rule.canonicalRole as StructuredMeasurementColumnRole,
 				...(rule.canonicalUnit ? { canonicalUnit: rule.canonicalUnit as StructuredCanonicalUnit } : {}),
@@ -351,7 +348,70 @@ function normalizeAllowlistEntries(
 			source: "allowlist",
 			...(rule.intent ? { intent: rule.intent } : {}),
 			domainPackIds: [],
-		}));
+		});
+	}
+	return Array.from(termsByKey.values());
+}
+
+function compileSemanticTitleTerms(
+	terms: readonly SemanticTitleTerm[],
+): readonly SemanticTitleTerm[] {
+	const termsByKey = new Map<string, SemanticTitleTerm>();
+	for (const term of terms) {
+		addSemanticTitleTerm(termsByKey, term);
+	}
+	return Array.from(termsByKey.values());
+}
+
+function addSemanticTitleTerm(
+	termsByKey: Map<string, SemanticTitleTerm>,
+	term: SemanticTitleTerm,
+): void {
+	if (!term.key) {
+		return;
+	}
+	const current = termsByKey.get(term.key);
+	if (!current) {
+		termsByKey.set(term.key, term);
+		return;
+	}
+	termsByKey.set(term.key, {
+		...current,
+		aliases: mergeUniqueValues(current.aliases, term.aliases),
+	});
+}
+
+function addSemanticRowMarkerTerm(
+	termsByKey: Map<string, SemanticRowMarkerTerm>,
+	term: SemanticRowMarkerTerm,
+): void {
+	if (!term.key) {
+		return;
+	}
+	const current = termsByKey.get(term.key);
+	if (!current) {
+		termsByKey.set(term.key, term);
+		return;
+	}
+	termsByKey.set(term.key, {
+		...current,
+		aliases: mergeUniqueValues(current.aliases, term.aliases),
+	});
+}
+
+function mergeUniqueValues(
+	current: readonly string[],
+	next: readonly string[],
+): readonly string[] {
+	const values = current.slice();
+	const seen = new Set(values);
+	for (const value of next) {
+		if (!seen.has(value)) {
+			values.push(value);
+			seen.add(value);
+		}
+	}
+	return values;
 }
 
 function hasActiveDomainPack(
@@ -363,13 +423,13 @@ function hasActiveDomainPack(
 
 function createBuiltinTermId(
 	title: SemanticTitleRecord,
-	alias: string,
+	key: string,
 ): string {
 	return [
 		"builtin",
 		title.canonicalRole,
 		title.axisTendency,
-		normalizeSemanticLookupText(alias),
+		key,
 	].join(":");
 }
 
@@ -377,11 +437,6 @@ function createBuiltinTermId(
 
 //#region Axis-marker handling
 // Optional trailing X/Y markers refine the semantic axis without changing the term.
-
-const getAxisMatchRank = (
-	title: SemanticTitleRecord,
-	axisMarker: StructuredAxisTendency | null,
-): number => !axisMarker || title.axisTendency === axisMarker ? 1 : 0;
 
 const readAxisMarker = (
 	value: string,
@@ -403,17 +458,7 @@ const stripAxisMarker = (
 //#endregion
 
 //#region Text normalization and fingerprints
-// Shared normalization defines which match-term text is valid and comparable.
-
-function normalizeSemanticLookupText(
-	value: unknown,
-): string {
-	return normalizeText(value)
-		.replace(/\u00b5|\u03bc/g, "u")
-		.replace(/\u03a9|\u03c9|\u2126/g, "ohm")
-		.toLowerCase()
-		.replace(/[^\p{L}\p{N}]+/gu, "");
-}
+// Shared key generation defines which match-term text is valid and comparable.
 
 function normalizeText(
 	value: unknown,

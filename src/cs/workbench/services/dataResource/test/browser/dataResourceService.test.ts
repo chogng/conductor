@@ -16,7 +16,7 @@ import {
 	isCustomSemanticMatchTermAllowed,
 	matchSemanticRowMarker,
 	matchSemanticTitle,
-	normalizeSemanticText,
+	toSemanticTermKey,
 } from "src/cs/workbench/services/dataResource/common/semanticLibrary";
 import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 import type { StructuredContentEvidence } from "src/cs/workbench/services/dataResource/common/structuredContent";
@@ -121,6 +121,59 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		));
 	});
 
+	test("compiles template semantic aliases under term keys inside DataResource matcher", () => {
+		const matcher = createSemanticMatcher({
+			allowlist: [{
+				id: "drive-bias-camel",
+				alias: "DriveBias",
+				canonicalRole: "voltage",
+				axisTendency: "x",
+				enabled: true,
+			}, {
+				id: "drive-bias-underscored",
+				alias: "Drive_Bias",
+				canonicalRole: "current",
+				axisTendency: "dependent",
+				enabled: true,
+			}, {
+				id: "drive-bias-hyphenated",
+				alias: "Drive-Bias",
+				canonicalRole: "current",
+				axisTendency: "dependent",
+				enabled: true,
+			}],
+		});
+		const match = matcher.matchTitle("drive-bias");
+
+		assert.equal(toSemanticTermKey("V_G_S"), "vgs");
+		assert.equal(toSemanticTermKey("V-G-S"), "vgs");
+		assert.equal(toSemanticTermKey("Drive-Bias"), "drivebias");
+		assert.equal(match?.canonicalRole, "voltage");
+		assert.equal(match?.axisTendency, "x");
+		assert.ok(match?.reasons.includes("semanticAllowlist.term"));
+		assert.equal(matcher.matchTitle("drivebias")?.canonicalRole, "voltage");
+		assert.equal(matcher.matchTitle("drive_bias")?.canonicalRole, "voltage");
+	});
+
+	test("keeps built-in semantic key ownership when user aliases compile to the same key", () => {
+		const builtinMatcher = createSemanticMatcher();
+		const matcher = createSemanticMatcher({
+			allowlist: [{
+				id: "custom-vgs-alias",
+				alias: "V-G-S",
+				canonicalRole: "voltage",
+				axisTendency: "dependent",
+				enabled: true,
+			}],
+		});
+		const match = matcher.matchTitle("v_g_s");
+
+		assert.equal(match?.canonicalRole, "vg");
+		assert.equal(match?.axisTendency, "x");
+		assert.ok(match?.reasons.includes("semanticLibrary.term"));
+		assert.equal(matcher.fingerprint, builtinMatcher.fingerprint);
+	});
+
 	test("ignores configured single-character template semantic term entries", async () => {
 		const evidence = await resolveEvidence([
 			["V", "I"],
@@ -152,7 +205,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 	});
 
 	test("uses Chinese template semantic term entries", async () => {
-		assert.equal(normalizeSemanticText("栅 压"), "栅压");
+		assert.equal(toSemanticTermKey("栅 压"), "栅压");
 		assert.equal(isCustomSemanticMatchTermAllowed("漏极电流"), true);
 		assert.equal(isCustomSemanticMatchTermAllowed(";"), false);
 

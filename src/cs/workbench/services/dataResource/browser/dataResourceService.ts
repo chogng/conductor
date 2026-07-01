@@ -846,7 +846,7 @@ const createColumnProfiles = ({
 	return Array.from({ length: columnCount }, (_, column): StructuredColumnProfile => {
 		const titleSpan = titleSpansByColumn.get(column);
 		const headerText = titleSpan?.titleCell.text ?? getFallbackColumnHeaderText(column);
-		const normalizedHeader = titleSpan?.normalizedTitle ?? semanticMatcher.normalizeText(headerText);
+		const normalizedHeader = titleSpan?.normalizedTitle ?? semanticMatcher.toKey(headerText);
 		const numericRun = longestRunsByColumn.get(column);
 		const explicitUnitText = titleSpan?.canonicalUnit ?? null;
 		return {
