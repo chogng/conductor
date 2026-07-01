@@ -47,26 +47,11 @@ export type TemplateXAxisIntent =
   | "genericXY";
 
 export type TemplateSemanticAxisTendency = "x" | "dependent" | "unknown";
-export type TemplateSemanticColumnRole =
-  | "vd"
-  | "vg"
-  | "vs"
-  | "id"
-  | "ig"
-  | "is"
-  | "capacitance"
-  | "conductance"
-  | "frequency"
-  | "time"
-  | "voltage"
-  | "current"
-  | "unknown";
 export type TemplateSemanticUnit = "V" | "A" | "ohm" | "s" | "F" | "Hz" | "S";
 
 export type TemplateSemanticTermRule = {
   readonly id: string;
   readonly alias: string;
-  readonly canonicalRole: TemplateSemanticColumnRole;
   readonly canonicalUnit?: TemplateSemanticUnit;
   readonly axisTendency: TemplateSemanticAxisTendency;
   readonly enabled: boolean;
@@ -98,21 +83,6 @@ const TEMPLATE_X_AXIS_INTENTS = new Set<TemplateXAxisIntent>([
 const TEMPLATE_SEMANTIC_AXIS_TENDENCIES = new Set<TemplateSemanticAxisTendency>([
   "x",
   "dependent",
-  "unknown",
-]);
-const TEMPLATE_SEMANTIC_COLUMN_ROLES = new Set<TemplateSemanticColumnRole>([
-  "vd",
-  "vg",
-  "vs",
-  "id",
-  "ig",
-  "is",
-  "capacitance",
-  "conductance",
-  "frequency",
-  "time",
-  "voltage",
-  "current",
   "unknown",
 ]);
 const TEMPLATE_SEMANTIC_UNITS = new Set<TemplateSemanticUnit>([
@@ -248,9 +218,6 @@ export const normalizeTemplateSemanticAllowlist = (
     if (!alias) {
       continue;
     }
-    const canonicalRole = typeof record.canonicalRole === "string" && TEMPLATE_SEMANTIC_COLUMN_ROLES.has(record.canonicalRole as TemplateSemanticColumnRole)
-      ? record.canonicalRole as TemplateSemanticColumnRole
-      : "unknown";
     const axisTendency = typeof record.axisTendency === "string" && TEMPLATE_SEMANTIC_AXIS_TENDENCIES.has(record.axisTendency as TemplateSemanticAxisTendency)
       ? record.axisTendency as TemplateSemanticAxisTendency
       : "unknown";
@@ -263,7 +230,6 @@ export const normalizeTemplateSemanticAllowlist = (
     rules.push({
       id,
       alias,
-      canonicalRole,
       ...(canonicalUnit ? { canonicalUnit } : {}),
       axisTendency,
       enabled: record.enabled !== false,

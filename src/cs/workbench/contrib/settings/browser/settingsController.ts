@@ -44,7 +44,6 @@ import {
   type SettingsViewInput,
   type TemplateSemanticTermRule,
   type TemplateSemanticAxisTendency,
-  type TemplateSemanticColumnRole,
   type TemplateSemanticUnit,
   type TemplateXAxisIntent,
 } from "src/cs/workbench/services/settings/common/settings";
@@ -121,7 +120,6 @@ type SettingsDraftState = {
   searchQuery: string;
   templateSemanticTermDraft: string;
   templateSemanticAxisDraft: TemplateSemanticAxisTendency;
-  templateSemanticRoleDraft: TemplateSemanticColumnRole;
   templateSemanticUnitDraft: TemplateSemanticUnit | "";
   tickLabelFontSizeDraft: string;
   xyPairsDraft: string;
@@ -242,7 +240,6 @@ export class SettingsController {
       searchQuery: "",
       templateSemanticTermDraft: "",
       templateSemanticAxisDraft: "x",
-      templateSemanticRoleDraft: "voltage",
       templateSemanticUnitDraft: "",
       tickLabelFontSizeDraft: String(axisSettings.tickLabelFontSize ?? ""),
       xyPairsDraft: this.originPlotConfig.xyPairs ?? "",
@@ -412,11 +409,6 @@ export class SettingsController {
           this.drafts.templateSemanticAxisDraft = value;
         }
       },
-      setTemplateSemanticRoleDraft: value => {
-        if (this.templateSemanticRoleOptions.some(option => option.value === value)) {
-          this.drafts.templateSemanticRoleDraft = value as TemplateSemanticColumnRole;
-        }
-      },
       setTemplateSemanticUnitDraft: value => {
         if (value === "" || value === "V" || value === "A" || value === "ohm" || value === "s" || value === "F" || value === "Hz" || value === "S") {
           this.drafts.templateSemanticUnitDraft = value;
@@ -433,7 +425,6 @@ export class SettingsController {
       themeModeOptions: this.themeModeOptions,
       templateSemanticTermDraft: this.drafts.templateSemanticTermDraft,
       templateSemanticAxisDraft: this.drafts.templateSemanticAxisDraft,
-      templateSemanticRoleDraft: this.drafts.templateSemanticRoleDraft,
       templateSemanticUnitDraft: this.drafts.templateSemanticUnitDraft,
       tickLabelFontSizeDraft: this.drafts.tickLabelFontSizeDraft,
       windowCloseBehaviorOptions: this.windowCloseBehaviorOptions,
@@ -570,7 +561,6 @@ export class SettingsController {
       onMoveXAxisIntent: (sourceIntent, targetIntent) => this.moveTemplateXAxisIntent(sourceIntent, targetIntent),
       onRemoveSemanticTerm: id => this.removeTemplateSemanticTerm(id),
       pendingActionItemId: this.pendingTemplateActionItemId,
-      roleOptions: this.templateSemanticRoleOptions,
       unitOptions: this.templateSemanticUnitOptions,
       xAxisIntentPriority: normalizeTemplateXAxisIntentPriority(this.settings.templateXAxisIntentPriority),
     };
@@ -728,24 +718,6 @@ export class SettingsController {
     return [
       { value: "linear", label: localize("settings.yScale.linear", "Linear") },
       { value: "log", label: localize("settings.yScale.log", "Log") },
-    ];
-  }
-
-  private get templateSemanticRoleOptions(): SelectOption[] {
-    return [
-      { value: "voltage", label: localize("settings.template.role.voltage", "voltage") },
-      { value: "current", label: localize("settings.template.role.current", "current") },
-      { value: "time", label: localize("settings.template.role.time", "time") },
-      { value: "frequency", label: localize("settings.template.role.frequency", "frequency") },
-      { value: "capacitance", label: localize("settings.template.role.capacitance", "capacitance") },
-      { value: "conductance", label: localize("settings.template.role.conductance", "conductance") },
-      { value: "vg", label: localize("settings.template.role.vg", "vg") },
-      { value: "vd", label: localize("settings.template.role.vd", "vd") },
-      { value: "vs", label: localize("settings.template.role.vs", "vs") },
-      { value: "id", label: localize("settings.template.role.id", "id") },
-      { value: "ig", label: localize("settings.template.role.ig", "ig") },
-      { value: "is", label: localize("settings.template.role.is", "is") },
-      { value: "unknown", label: localize("settings.template.role.unknown", "unknown") },
     ];
   }
 
@@ -1080,7 +1052,6 @@ export class SettingsController {
     const nextRule: TemplateSemanticTermRule = {
       id: `template-semantic-${Date.now().toString(36)}`,
       alias: term,
-      canonicalRole: this.drafts.templateSemanticRoleDraft,
       ...(this.drafts.templateSemanticUnitDraft ? { canonicalUnit: this.drafts.templateSemanticUnitDraft } : {}),
       axisTendency: this.drafts.templateSemanticAxisDraft,
       enabled: true,
@@ -1664,7 +1635,6 @@ const toTemplateSemanticTermView = (
 ): SettingsViewOptions["templateSettings"]["customTerms"][number] => ({
   id: rule.id,
   term: rule.alias,
-  canonicalRole: rule.canonicalRole,
   ...(rule.canonicalUnit ? { canonicalUnit: rule.canonicalUnit } : {}),
   axisTendency: rule.axisTendency,
   enabled: rule.enabled,

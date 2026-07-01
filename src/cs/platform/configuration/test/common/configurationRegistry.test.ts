@@ -73,7 +73,6 @@ suite("platform/configuration/common/configurationRegistry", () => {
       templateSemanticAllowlist: [{
         id: "single-i",
         alias: " I ",
-        canonicalRole: "current",
         axisTendency: "dependent",
         family: "iv",
         intent: "ivCurve",
@@ -82,32 +81,27 @@ suite("platform/configuration/common/configurationRegistry", () => {
       }, {
         id: "punctuation",
         alias: ";",
-        canonicalRole: "current",
         axisTendency: "dependent",
         enabled: true,
       }, {
         id: "drain-current",
         alias: " Id ",
-        canonicalRole: "current",
         axisTendency: "dependent",
         enabled: true,
       }],
     }).templateSemanticAllowlist, [{
       id: "single-i",
       alias: "I",
-      canonicalRole: "current",
       axisTendency: "dependent",
       enabled: true,
     }, {
       id: "punctuation",
       alias: ";",
-      canonicalRole: "current",
       axisTendency: "dependent",
       enabled: true,
     }, {
       id: "drain-current",
       alias: "Id",
-      canonicalRole: "current",
       axisTendency: "dependent",
       enabled: true,
     }]);

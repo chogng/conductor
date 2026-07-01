@@ -95,13 +95,11 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			templateSemanticAllowlist: [{
 				id: "drive-bias",
 				alias: "DriveBias",
-				canonicalRole: "voltage",
 				axisTendency: "x",
 				enabled: true,
 			}, {
 				id: "sense-current",
 				alias: "SenseCurrent",
-				canonicalRole: "current",
 				axisTendency: "dependent",
 				enabled: true,
 			}],
@@ -110,13 +108,13 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.ok(evidence.semanticLibraryFingerprint.includes("data-resource-semantic:"));
 		assert.ok(evidence.columnTitleSpans.some(span =>
 			span.targetColumn === 0 &&
-			span.canonicalRole === "voltage" &&
+			span.canonicalRole === "unknown" &&
 			span.axisTendency === "x" &&
 			span.reasons.includes("semanticAllowlist.term")
 		));
 		assert.ok(evidence.columnTitleSpans.some(span =>
 			span.targetColumn === 1 &&
-			span.canonicalRole === "current" &&
+			span.canonicalRole === "unknown" &&
 			span.axisTendency === "dependent"
 		));
 	});
@@ -126,19 +124,16 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			allowlist: [{
 				id: "drive-bias-camel",
 				alias: "DriveBias",
-				canonicalRole: "voltage",
 				axisTendency: "x",
 				enabled: true,
 			}, {
 				id: "drive-bias-underscored",
 				alias: "Drive_Bias",
-				canonicalRole: "current",
 				axisTendency: "dependent",
 				enabled: true,
 			}, {
 				id: "drive-bias-hyphenated",
 				alias: "Drive-Bias",
-				canonicalRole: "current",
 				axisTendency: "dependent",
 				enabled: true,
 			}],
@@ -148,11 +143,11 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.equal(toSemanticTermKey("V_G_S"), "vgs");
 		assert.equal(toSemanticTermKey("V-G-S"), "vgs");
 		assert.equal(toSemanticTermKey("Drive-Bias"), "drivebias");
-		assert.equal(match?.canonicalRole, "voltage");
+		assert.equal(match?.canonicalRole, "unknown");
 		assert.equal(match?.axisTendency, "x");
 		assert.ok(match?.reasons.includes("semanticAllowlist.term"));
-		assert.equal(matcher.matchTitle("drivebias")?.canonicalRole, "voltage");
-		assert.equal(matcher.matchTitle("drive_bias")?.canonicalRole, "voltage");
+		assert.equal(matcher.matchTitle("drivebias")?.canonicalRole, "unknown");
+		assert.equal(matcher.matchTitle("drive_bias")?.canonicalRole, "unknown");
 	});
 
 	test("keeps built-in semantic key ownership when user aliases compile to the same key", () => {
@@ -161,7 +156,6 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			allowlist: [{
 				id: "custom-vgs-alias",
 				alias: "V-G-S",
-				canonicalRole: "voltage",
 				axisTendency: "dependent",
 				enabled: true,
 			}],
@@ -184,13 +178,11 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			templateSemanticAllowlist: [{
 				id: "single-v",
 				alias: "V",
-				canonicalRole: "voltage",
 				axisTendency: "x",
 				enabled: true,
 			}, {
 				id: "single-i",
 				alias: "I",
-				canonicalRole: "current",
 				axisTendency: "dependent",
 				enabled: true,
 			}],
@@ -218,13 +210,11 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			templateSemanticAllowlist: [{
 				id: "gate-voltage-zh",
 				alias: "栅压",
-				canonicalRole: "voltage",
 				axisTendency: "x",
 				enabled: true,
 			}, {
 				id: "drain-current-zh",
 				alias: "漏极电流",
-				canonicalRole: "current",
 				axisTendency: "dependent",
 				enabled: true,
 			}],
@@ -232,13 +222,13 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 
 		assert.ok(evidence.columnTitleSpans.some(span =>
 			span.targetColumn === 0 &&
-			span.canonicalRole === "voltage" &&
+			span.canonicalRole === "unknown" &&
 			span.axisTendency === "x" &&
 			span.reasons.includes("semanticAllowlist.term")
 		));
 		assert.ok(evidence.columnTitleSpans.some(span =>
 			span.targetColumn === 1 &&
-			span.canonicalRole === "current" &&
+			span.canonicalRole === "unknown" &&
 			span.axisTendency === "dependent" &&
 			span.reasons.includes("semanticAllowlist.term")
 		));
@@ -257,7 +247,6 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			templateSemanticAllowlist: [{
 				id: "sense-current",
 				alias: "SenseCurrent",
-				canonicalRole: "current",
 				axisTendency: "dependent",
 				enabled: true,
 			}],
@@ -269,7 +258,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		));
 		assert.ok(evidence.columnTitleSpans.some(span =>
 			span.targetColumn === 1 &&
-			span.canonicalRole === "current" &&
+			span.canonicalRole === "unknown" &&
 			span.reasons.includes("semanticAllowlist.term")
 		));
 	});
@@ -291,7 +280,6 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			templateSemanticAllowlist: [{
 				id: "sense-current",
 				alias: "SenseCurrent",
-				canonicalRole: "current",
 				axisTendency: "dependent",
 				enabled: true,
 			}],
@@ -303,7 +291,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		));
 		assert.ok(evidence.columnTitleSpans.some(span =>
 			span.targetColumn === 1 &&
-			span.canonicalRole === "current" &&
+			span.canonicalRole === "unknown" &&
 			span.reasons.includes("semanticAllowlist.term")
 		));
 	});

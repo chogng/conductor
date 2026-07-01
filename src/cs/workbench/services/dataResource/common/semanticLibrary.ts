@@ -333,7 +333,7 @@ function compileAllowlistTitleTerms(
 			key,
 			aliases: [rule.alias],
 			title: {
-				canonicalRole: rule.canonicalRole as StructuredMeasurementColumnRole,
+				canonicalRole: "unknown",
 				...(rule.canonicalUnit ? { canonicalUnit: rule.canonicalUnit as StructuredCanonicalUnit } : {}),
 				axisTendency: rule.axisTendency as StructuredAxisTendency,
 				aliases: [rule.alias],

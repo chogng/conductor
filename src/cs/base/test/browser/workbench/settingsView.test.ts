@@ -350,7 +350,6 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
           {
             id: "custom-gate",
             term: "Custom Gate",
-            canonicalRole: "vg",
             canonicalUnit: "V",
             axisTendency: "x",
             enabled: true,
@@ -361,7 +360,6 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
           {
             id: "custom-gate",
             term: "Custom Gate",
-            canonicalRole: "vg",
             canonicalUnit: "V",
             axisTendency: "x",
             enabled: true,
@@ -445,7 +443,9 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(activeTermsCard.querySelector("#settings-template-semantic-add-button"), null);
       assert.equal(recommendedTermsCard.querySelectorAll(".settings-template-term-suggestion").length, 1);
       assert.equal(recommendedSuggestion.querySelector<HTMLElement>(".settings-template-term-suggestion-label")?.textContent, "Drain Current");
-      assert.ok(customFormCard.querySelector("#settings-template-semantic-role-select"));
+      assert.equal(customFormCard.querySelector("#settings-template-semantic-role-select"), null);
+      assert.ok(customFormCard.querySelector("#settings-template-semantic-axis-select"));
+      assert.ok(customFormCard.querySelector("#settings-template-semantic-unit-select"));
       assert.equal(customFormCard.querySelector("#settings-template-semantic-policy-select"), null);
       assert.equal(customFormCard.querySelector("#settings-template-semantic-add-button"), null);
       assert.equal(customFormCard.querySelector("#settings-template-semantic-term-input"), null);
@@ -735,7 +735,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
 
     try {
       const customFormCard = getElement(container, "#settings-template-semantic-custom-form-card");
-      const roleSelect = getButton(container, "settings-template-semantic-role-select");
+      const axisSelect = getButton(container, "settings-template-semantic-axis-select");
 
       view.update(createSettingsViewOptions({
         activeSettingsSection: "template",
@@ -752,9 +752,9 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       });
 
       assert.equal(getElement(container, "#settings-template-semantic-custom-form-card"), customFormCard);
-      assert.equal(getButton(container, "settings-template-semantic-role-select"), roleSelect);
+      assert.equal(getButton(container, "settings-template-semantic-axis-select"), axisSelect);
       assert.equal(customFormCard.querySelector("#settings-template-semantic-add-button"), null);
-      assert.equal(roleSelect.disabled, true);
+      assert.equal(axisSelect.disabled, true);
     }
     finally {
       view.dispose();
@@ -796,7 +796,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(getElement(container, "#settings-template-semantic-custom-form-card"), customFormCard);
       assert.equal((activeInput as HTMLInputElement).value, "New Term");
       assert.equal((activeInput as HTMLInputElement).disabled, false);
-      assert.equal((activeInput as HTMLInputElement).readOnly, false);
+      assert.equal((activeInput as HTMLInputElement).readOnly, true);
     }
     finally {
       view.dispose();
@@ -1134,7 +1134,6 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
     setPostCommandsDraft: noop,
     setTemplateSemanticTermDraft: noop,
     setTemplateSemanticAxisDraft: noop,
-    setTemplateSemanticRoleDraft: noop,
     setTemplateSemanticUnitDraft: noop,
     setTickLabelFontSizeDraft: noop,
     setSearchQuery: noop,
@@ -1147,7 +1146,6 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
     },
     templateSemanticTermDraft: "",
     templateSemanticAxisDraft: "x",
-    templateSemanticRoleDraft: "voltage",
     templateSemanticUnitDraft: "",
     templateSettings: {
       activeTerms: [],
@@ -1166,7 +1164,6 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
       onMoveXAxisIntent: noop,
       onRemoveSemanticTerm: noop,
       pendingActionItemId: null,
-      roleOptions: [{ label: "voltage", value: "voltage" }],
       unitOptions: [{ label: "none", value: "" }],
       xAxisIntentPriority: ["genericXY"],
     },

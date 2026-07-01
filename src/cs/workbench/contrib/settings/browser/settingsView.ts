@@ -23,7 +23,6 @@ import { LxIcon } from "src/cs/base/common/lxicon";
 import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/services/settings/common/fileNameMatching";
 import type {
   TemplateSemanticAxisTendency,
-  TemplateSemanticColumnRole,
   TemplateSemanticUnit,
   TemplateXAxisIntent,
 } from "src/cs/workbench/services/settings/common/settings";
@@ -189,7 +188,6 @@ type TemplateSettings = {
   onMoveXAxisIntent: (sourceIntent: TemplateXAxisIntent, targetIntent: TemplateXAxisIntent) => Promise<void> | void;
   onRemoveSemanticTerm: (id: string) => Promise<void> | void;
   pendingActionItemId: string | null;
-  roleOptions: readonly SelectOption[];
   unitOptions: readonly SelectOption[];
   xAxisIntentPriority: readonly TemplateXAxisIntent[];
 };
@@ -201,13 +199,13 @@ type TemplateActiveSemanticTerm =
 type TemplateSemanticTerm = {
   readonly id: string;
   readonly term: string;
-  readonly canonicalRole: TemplateSemanticColumnRole;
   readonly canonicalUnit?: TemplateSemanticUnit;
   readonly axisTendency: TemplateSemanticAxisTendency;
   readonly enabled: boolean;
 };
 
 type TemplateBuiltinSemanticTerm = Omit<TemplateSemanticTerm, "enabled"> & {
+  readonly canonicalRole: string;
   readonly domainPackIds: readonly string[];
 };
 
@@ -274,7 +272,6 @@ export type SettingsViewOptions = SettingsViewProps & {
   setPostCommandsDraft: (value: string) => void;
   setTemplateSemanticTermDraft: (value: string) => void;
   setTemplateSemanticAxisDraft: (value: string) => void;
-  setTemplateSemanticRoleDraft: (value: string) => void;
   setTemplateSemanticUnitDraft: (value: string) => void;
   setTickLabelFontSizeDraft: (value: string) => void;
   setSearchQuery: (value: string) => void;
@@ -283,7 +280,6 @@ export type SettingsViewOptions = SettingsViewProps & {
   themeModeOptions: SelectOption[];
   templateSemanticTermDraft: string;
   templateSemanticAxisDraft: TemplateSemanticAxisTendency;
-  templateSemanticRoleDraft: TemplateSemanticColumnRole;
   templateSemanticUnitDraft: TemplateSemanticUnit | "";
   tickLabelFontSizeDraft: string;
   windowCloseBehaviorOptions: SelectOption[];
@@ -387,7 +383,6 @@ type SettingsDocumentDialogOptions = {
 
 type TemplateSemanticCustomFormWidgets = {
   readonly axisSelect: SelectBox<string>;
-  readonly roleSelect: SelectBox<string>;
   readonly unitSelect: SelectBox<string>;
 };
 
@@ -1367,7 +1362,7 @@ export class SettingsView {
     return normalizeSettingsSearchText(
       localize("settings.template.semantic.activeTitle", "Active match terms"),
       localize("settings.template.semantic.termInputPlaceholder", "Add match term"),
-      settings.activeTerms.map(rule => `${rule.term} ${rule.canonicalRole} ${rule.axisTendency}`).join(" "),
+      settings.activeTerms.map(getTemplateSemanticTermSearchText).join(" "),
     );
   }
 
@@ -1383,7 +1378,6 @@ export class SettingsView {
   private getTemplateSemanticCustomFormSearchText(settings: TemplateSettings): string {
     return normalizeSettingsSearchText(
       localize("settings.template.semantic.customMappingTitle", "Custom term mapping"),
-      optionLabels(settings.roleOptions),
       optionLabels(settings.axisOptions),
       optionLabels(settings.unitOptions),
     );
@@ -1395,12 +1389,10 @@ export class SettingsView {
       reset(container);
       const titleText = localize("settings.template.semantic.customMappingTitle", "Custom term mapping");
       const form = div("settings-template-semantic-form");
-      const grid = div("settings-grid settings-grid--three");
-      const roleSelect = this.createSelectWidget(this.getTemplateSemanticRoleSelectOptions(settings));
+      const grid = div("settings-grid settings-grid--two");
       const axisSelect = this.createSelectWidget(this.getTemplateSemanticAxisSelectOptions(settings));
       const unitSelect = this.createSelectWidget(this.getTemplateSemanticUnitSelectOptions(settings));
       grid.append(
-        field(localize("settings.template.semantic.roleLabel", "Role"), roleSelect.domNode),
         field(localize("settings.template.semantic.axisLabel", "Axis"), axisSelect.domNode),
         field(localize("settings.template.semantic.unitLabel", "Unit"), unitSelect.domNode),
       );
@@ -1411,25 +1403,13 @@ export class SettingsView {
       );
       widgets = {
         axisSelect,
-        roleSelect,
         unitSelect,
       };
       this.templateSemanticCustomForms.set(container, widgets);
     }
 
-    this.updateSelectWidget(widgets.roleSelect, this.getTemplateSemanticRoleSelectOptions(settings));
     this.updateSelectWidget(widgets.axisSelect, this.getTemplateSemanticAxisSelectOptions(settings));
     this.updateSelectWidget(widgets.unitSelect, this.getTemplateSemanticUnitSelectOptions(settings));
-  }
-
-  private getTemplateSemanticRoleSelectOptions(settings: TemplateSettings): FieldOptions {
-    return {
-      id: "settings-template-semantic-role-select",
-      value: this.options.templateSemanticRoleDraft,
-      onChange: this.options.setTemplateSemanticRoleDraft,
-      options: settings.roleOptions,
-      disabled: settings.isSaving,
-    };
   }
 
   private getTemplateSemanticAxisSelectOptions(settings: TemplateSettings): FieldOptions {
@@ -3060,6 +3040,13 @@ function isTemplateXAxisIntent(value: unknown): value is TemplateXAxisIntent {
     value === "cvCurve" ||
     value === "frequencySweep" ||
     value === "genericXY";
+}
+
+function getTemplateSemanticTermSearchText(term: TemplateActiveSemanticTerm): string {
+  if (term.source === "builtin") {
+    return `${term.term} ${term.canonicalRole} ${term.axisTendency}`;
+  }
+  return `${term.term} ${term.axisTendency}`;
 }
 
 function formatXAxisIntent(intent: TemplateXAxisIntent): string {

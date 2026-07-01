@@ -113,7 +113,6 @@ type NumericDisplayMode = "raw" | "smart";
 type TemplateSemanticTermRule = {
   id: string;
   alias: string;
-  canonicalRole: string;
   canonicalUnit?: string;
   axisTendency: string;
   enabled: boolean;
@@ -333,21 +332,6 @@ const TEMPLATE_X_AXIS_INTENTS = new Set([
 const TEMPLATE_SEMANTIC_AXIS_TENDENCIES = new Set([
   "x",
   "dependent",
-  "unknown",
-]);
-const TEMPLATE_SEMANTIC_COLUMN_ROLES = new Set([
-  "vd",
-  "vg",
-  "vs",
-  "id",
-  "ig",
-  "is",
-  "capacitance",
-  "conductance",
-  "frequency",
-  "time",
-  "voltage",
-  "current",
   "unknown",
 ]);
 const TEMPLATE_SEMANTIC_UNITS = new Set([
@@ -600,9 +584,6 @@ function normalizeTemplateSemanticAllowlist(value: unknown): TemplateSemanticTer
     if (!alias) {
       continue;
     }
-    const canonicalRole = isSetValue(TEMPLATE_SEMANTIC_COLUMN_ROLES, raw.canonicalRole)
-      ? raw.canonicalRole
-      : "unknown";
     const axisTendency = isSetValue(TEMPLATE_SEMANTIC_AXIS_TENDENCIES, raw.axisTendency)
       ? raw.axisTendency
       : "unknown";
@@ -615,7 +596,6 @@ function normalizeTemplateSemanticAllowlist(value: unknown): TemplateSemanticTer
     rules.push({
       id,
       alias,
-      canonicalRole,
       ...(canonicalUnit ? { canonicalUnit } : {}),
       axisTendency,
       enabled: raw.enabled !== false,
@@ -979,12 +959,11 @@ function createConductorConfigurationProperties(): Record<string, IConfiguration
       properties: {
         alias: { type: "string" },
         axisTendency: { enum: Array.from(TEMPLATE_SEMANTIC_AXIS_TENDENCIES), type: "string" },
-        canonicalRole: { enum: Array.from(TEMPLATE_SEMANTIC_COLUMN_ROLES), type: "string" },
         canonicalUnit: { enum: Array.from(TEMPLATE_SEMANTIC_UNITS), type: "string" },
         enabled: { type: "boolean" },
         id: { type: "string" },
       },
-      required: ["alias", "canonicalRole", "axisTendency"],
+      required: ["alias", "axisTendency"],
       type: "object",
     },
   };
