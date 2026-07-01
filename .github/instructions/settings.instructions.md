@@ -181,8 +181,7 @@ not introduce a parallel settings store.
 | `contrib/settings/browser/settingsSearch.ts` | settings search text normalization, query tokenization, and row/card matching helpers. |
 | `contrib/settings/browser/settingsTree.ts` | stable keyed settings item widgets; owns section ordering, grouping, and element/composite mounting. |
 | `contrib/settings/browser/settingsView.ts` | pure DOM rendering; callbacks only. |
-| `contrib/settings/browser/settingsViewPane.ts` | DI shell, controller lifecycle, settings view-input subscription. |
-| `contrib/settings/browser/settings.contribution.ts` | view/contribution registration. |
+| `contrib/settings/browser/settings.contribution.ts` | view/contribution registration and thin ViewPane shells that attach the shared settings controller to registered view bodies. |
 
 ## Direct Update vs Command
 
