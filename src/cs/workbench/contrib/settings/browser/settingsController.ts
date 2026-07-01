@@ -58,7 +58,7 @@ import {
 import {
   dataResourceBuiltinSemanticTerms,
   dataResourceBuiltinSemanticDomainPacks,
-  isDataResourceSemanticMatchTermAllowed,
+  isDataResourceCustomSemanticMatchTermAllowed,
   type DataResourceBuiltinSemanticTerm,
 } from "src/cs/workbench/services/dataResource/common/semanticLibrary";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
@@ -1206,17 +1206,9 @@ export class SettingsController {
     const term = termDraft.trim();
     const builtinTarget = itemsUpdateTarget("template-semantic-library", ...templateSemanticBuiltinTermFromInputItemIds);
     const customTarget = itemsUpdateTarget("template-semantic-library", ...templateSemanticCustomTermItemIds);
-    if (!term) {
+    if (!term || !isDataResourceCustomSemanticMatchTermAllowed(term)) {
       this.showTemplateSettingsNotification(
         localize("settings.template.semantic.emptyTerm", "Enter a match term before adding it."),
-        "error",
-      );
-      return;
-    }
-
-    if (!isDataResourceSemanticMatchTermAllowed(term)) {
-      this.showTemplateSettingsNotification(
-        localize("settings.template.semantic.ambiguousTerm", "Single-character match terms are too ambiguous for semantic matching."),
         "error",
       );
       return;

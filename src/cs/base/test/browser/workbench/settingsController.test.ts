@@ -272,12 +272,13 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
     }
   });
 
-  test("rejects single-character semantic terms without updating settings", async () => {
+  test("adds single-character semantic terms from the token input", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
 
     const service = createSettingsService({});
     const notifications: INotification[] = [];
+    let controller: SettingsController | undefined;
     let updateCount = 0;
     service.updateSettings = async updates => {
       const nextSettings = updates as Partial<ConductorSettings>;
@@ -286,9 +287,10 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
         ...service.settings,
         ...nextSettings,
       };
+      controller?.update(createSettingsViewInput(service.settings));
       return service.settings;
     };
-    const controller = new SettingsController(
+    controller = new SettingsController(
       container,
       createSettingsViewInput(service.settings),
       service,
@@ -302,13 +304,17 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       submitSemanticTerm(container, "V");
       await settled();
 
-      assert.equal(updateCount, 0);
-      assert.equal(notifications.at(-1)?.message, "Single-character match terms are too ambiguous for semantic matching.");
-      assert.equal(notifications.at(-1)?.presentation?.type, "error");
-      assert.equal(getSemanticTermInput(container).value, "V");
+      assert.equal(updateCount, 1);
+      const customTerms = service.settings.templateSemanticAllowlist;
+      assert.ok(Array.isArray(customTerms));
+      assert.equal(customTerms.at(-1)?.alias, "V");
+      assert.equal(notifications.at(-1)?.message, "Template semantic library updated.");
+      assert.equal(notifications.at(-1)?.presentation?.type, "success");
+      assert.equal(getSemanticTermInput(container).value, "");
+      assert.ok(getActiveCustomTermAction(container, "V"));
     }
     finally {
-      controller.dispose();
+      controller?.dispose();
       container.remove();
     }
   });

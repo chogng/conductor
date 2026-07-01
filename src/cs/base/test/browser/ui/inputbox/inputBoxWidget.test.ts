@@ -7,6 +7,55 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 suite("base/browser/ui/inputbox/InputBoxWidget", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
 
+  test("accepts editable input with Enter", () => {
+    const inputBox = new InputBoxWidget();
+    document.body.appendChild(inputBox.element);
+    let acceptedValue: string | null = null;
+    const acceptDisposable = inputBox.onDidAccept(value => {
+      acceptedValue = value;
+    });
+
+    try {
+      inputBox.input.value = "V";
+      const event = new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        key: "Enter",
+      });
+
+      const defaultAllowed = inputBox.input.dispatchEvent(event);
+
+      assert.equal(defaultAllowed, false);
+      assert.equal(event.defaultPrevented, true);
+      assert.equal(acceptedValue, "V");
+    }
+    finally {
+      acceptDisposable.dispose();
+      inputBox.dispose();
+    }
+  });
+
+  test("focuses the native input when the field is clicked", () => {
+    const inputBox = new InputBoxWidget();
+    document.body.appendChild(inputBox.element);
+
+    try {
+      const event = new MouseEvent("mousedown", {
+        bubbles: true,
+        cancelable: true,
+      });
+
+      const defaultAllowed = inputBox.field.dispatchEvent(event);
+
+      assert.equal(defaultAllowed, false);
+      assert.equal(event.defaultPrevented, true);
+      assert.equal(document.activeElement, inputBox.input);
+    }
+    finally {
+      inputBox.dispose();
+    }
+  });
+
   test("patches keyed items without replacing unchanged item nodes", () => {
     const inputBox = new InputBoxWidget({
       items: [

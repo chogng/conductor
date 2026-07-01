@@ -121,7 +121,7 @@ const builtinRowMarkerEntries: SemanticRowMarkerLookupEntry[] = [];
 
 for (const title of semanticLibrary.titles) {
 	for (const alias of title.aliases) {
-		if (!isDataResourceSemanticMatchTermAllowed(alias)) {
+		if (!isDataResourceBuiltinSemanticMatchTermAllowed(alias)) {
 			continue;
 		}
 		const id = createBuiltinTermId(title, alias);
@@ -212,8 +212,12 @@ export const normalizeDataResourceSemanticText = (
 	value: unknown,
 ): string => defaultSemanticMatcher.normalizeText(value);
 
-export function isDataResourceSemanticMatchTermAllowed(value: unknown): boolean {
+export function isDataResourceBuiltinSemanticMatchTermAllowed(value: unknown): boolean {
 	return normalizeSemanticLookupText(value).length > 1;
+}
+
+export function isDataResourceCustomSemanticMatchTermAllowed(value: unknown): boolean {
+	return normalizeSemanticLookupText(value).length > 0;
 }
 
 const matchSemanticTitle = (
@@ -299,7 +303,7 @@ function normalizeAllowlistEntries(
 	allowlist: readonly TemplateSemanticTermRule[],
 ): readonly SemanticTitleLookupEntry[] {
 	return allowlist
-		.filter(rule => rule.enabled !== false && isDataResourceSemanticMatchTermAllowed(rule.alias))
+		.filter(rule => rule.enabled !== false && isDataResourceCustomSemanticMatchTermAllowed(rule.alias))
 		.map(rule => ({
 			id: rule.id,
 			alias: normalizeSemanticLookupText(rule.alias),

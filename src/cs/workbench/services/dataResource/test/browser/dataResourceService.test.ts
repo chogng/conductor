@@ -119,7 +119,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		));
 	});
 
-	test("ignores single-character template semantic term entries", async () => {
+	test("uses explicitly configured single-character template semantic term entries", async () => {
 		const evidence = await resolveEvidence([
 			["V", "I"],
 			["0", "1e-12"],
@@ -141,9 +141,18 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			}],
 		});
 
-		assert.equal(evidence.columnTitleSpans.length, 0);
-		assert.equal(evidence.semanticCandidates[0]?.roleCandidates[0]?.role, "unknown");
-		assert.equal(evidence.semanticCandidates[1]?.roleCandidates[0]?.role, "unknown");
+		assert.ok(evidence.columnTitleSpans.some(span =>
+			span.targetColumn === 0 &&
+			span.canonicalRole === "voltage" &&
+			span.axisTendency === "x" &&
+			span.reasons.includes("semanticAllowlist.term")
+		));
+		assert.ok(evidence.columnTitleSpans.some(span =>
+			span.targetColumn === 1 &&
+			span.canonicalRole === "current" &&
+			span.axisTendency === "dependent" &&
+			span.reasons.includes("semanticAllowlist.term")
+		));
 	});
 
 	test("can disable built-in semantic terms without deleting user terms", async () => {

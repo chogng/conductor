@@ -11,14 +11,14 @@ import {
   type IWriteFileOptions,
 } from "../common/files.js";
 
-type SessionWatcher = {
+type FileWatchSession = {
   readonly emitter: Emitter<readonly IFileChange[]>;
-  readonly provider: DiskFileSystemProvider;
   readonly store: DisposableStore;
+  readonly watchProvider: DiskFileSystemProvider;
 };
 
 export class DiskFileSystemProviderChannel implements IServerChannel<string> {
-  private readonly sessionToWatcher = new Map<string, SessionWatcher>();
+  private readonly watchSessions = new Map<string, FileWatchSession>();
   private readonly watchRequests = new Map<string, IDisposable>();
 
   constructor(private readonly provider: DiskFileSystemProvider) {}
@@ -82,16 +82,17 @@ export class DiskFileSystemProviderChannel implements IServerChannel<string> {
   }
 
   private onFileChange(sessionId: string): Event<readonly IFileChange[]> {
-    let session = this.sessionToWatcher.get(sessionId);
+    let session = this.watchSessions.get(sessionId);
     if (!session) {
       const store = new DisposableStore();
-      const provider = new DiskFileSystemProvider();
+      const watchProvider = new DiskFileSystemProvider();
       const emitter = store.add(new Emitter<readonly IFileChange[]>({
         onDidRemoveLastListener: () => this.disposeSession(sessionId),
       }));
-      store.add(provider.onDidFilesChange(changes => emitter.fire(changes)));
-      session = { emitter, provider, store };
-      this.sessionToWatcher.set(sessionId, session);
+      store.add(this.provider.onDidFilesChange(changes => emitter.fire(changes)));
+      store.add(watchProvider.onDidFilesChange(changes => emitter.fire(changes)));
+      session = { emitter, store, watchProvider };
+      this.watchSessions.set(sessionId, session);
     }
 
     return session.emitter.event;
@@ -103,7 +104,7 @@ export class DiskFileSystemProviderChannel implements IServerChannel<string> {
     resource: URI,
     options: IWatchOptions,
   ): void {
-    const session = this.sessionToWatcher.get(sessionId);
+    const session = this.watchSessions.get(sessionId);
     if (!session || !watchId) {
       return;
     }
@@ -112,7 +113,7 @@ export class DiskFileSystemProviderChannel implements IServerChannel<string> {
     this.watchRequests.get(requestKey)?.dispose();
     this.watchRequests.set(
       requestKey,
-      session.provider.watch(watchId, resource, options),
+      session.watchProvider.watch(watchId, resource, options),
     );
   }
 
@@ -123,8 +124,8 @@ export class DiskFileSystemProviderChannel implements IServerChannel<string> {
   }
 
   private disposeSession(sessionId: string): void {
-    this.sessionToWatcher.get(sessionId)?.store.dispose();
-    this.sessionToWatcher.delete(sessionId);
+    this.watchSessions.get(sessionId)?.store.dispose();
+    this.watchSessions.delete(sessionId);
 
     for (const [requestKey, disposable] of this.watchRequests) {
       if (requestKey.startsWith(`${sessionId}:`)) {
