@@ -125,6 +125,7 @@ export class SettingsTree extends Disposable {
     const element = div("settings-section");
     updateElementId(element, section.id);
     const listElement = div("settings-section-list");
+    listElement.setAttribute("role", "list");
     element.appendChild(listElement);
     return {
       element,
@@ -185,8 +186,10 @@ export class SettingsTree extends Disposable {
   }
 
   private createItemState(entry: SettingsTreeItemEntry): SettingsTreeItemState {
+    const element = div("settings-tree-item");
+    element.setAttribute("role", "presentation");
     const state: SettingsTreeItemState = {
-      element: div("settings-tree-item"),
+      element,
       entry,
       widget: new SettingsTreeItemWidget(entry.item),
     };
@@ -270,7 +273,8 @@ export class SettingsTreeItemWidget extends Disposable {
     }
 
     updateElementId(this.element, item.id);
-    updateElementClassName(this.element, "settings-card settings-card-composite");
+    updateElementClassName(this.element, "settings-card settings-card-composite settings-list-item");
+    updateElementAttribute(this.element, "role", "listitem");
     updateItemSearchText(
       this.element,
       normalizeSettingsSearchText(item.searchText, item.items.map(child => child.searchText)),
@@ -297,7 +301,8 @@ export class SettingsTreeItemWidget extends Disposable {
       this.element = item.element;
     }
     updateElementId(this.element, item.id);
-    this.element.classList.add("settings-card");
+    this.element.classList.add("settings-card", "settings-list-item");
+    updateElementAttribute(this.element, "role", "listitem");
     if (item.searchText !== undefined) {
       updateItemSearchText(this.element, normalizeSettingsSearchText(item.searchText));
     }
@@ -305,7 +310,8 @@ export class SettingsTreeItemWidget extends Disposable {
 
   private updateCompositeItem(item: SettingsTreeCompositeItem): void {
     updateElementId(this.element, item.id);
-    updateElementClassName(this.element, "settings-card settings-card-composite");
+    updateElementClassName(this.element, "settings-card settings-card-composite settings-list-item");
+    updateElementAttribute(this.element, "role", "listitem");
     updateItemSearchText(
       this.element,
       normalizeSettingsSearchText(item.searchText, item.items.map(child => child.searchText)),
@@ -384,6 +390,12 @@ function updateElementClassName(element: HTMLElement, className: string): void {
 function updateElementId(element: HTMLElement, id: string): void {
   if (element.id !== id) {
     element.id = id;
+  }
+}
+
+function updateElementAttribute(element: HTMLElement, name: string, value: string): void {
+  if (element.getAttribute(name) !== value) {
+    element.setAttribute(name, value);
   }
 }
 

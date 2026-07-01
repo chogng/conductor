@@ -132,6 +132,54 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
     assert.equal(secondElement.dataset.search, "second element");
   });
 
+  test("renders settings sections as lists with settings list item cards", () => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const tree = store.add(new SettingsTree());
+    const element = createRowElement("settings-element-card", "Element");
+    const compositeChild = document.createElement("div");
+    compositeChild.textContent = "Composite child";
+
+    tree.update([
+      {
+        id: "settings-test-section",
+        title: "Section",
+        items: [
+          createElementItem({
+            element,
+            id: "settings-element-card",
+          }),
+          {
+            kind: "composite",
+            id: "settings-composite-card",
+            items: [
+              {
+                element: compositeChild,
+                id: "settings-composite-child",
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+
+    const list = tree.element.querySelector<HTMLElement>(".settings-section-list");
+    const elementCard = tree.element.querySelector<HTMLElement>("#settings-element-card");
+    const compositeCard = tree.element.querySelector<HTMLElement>("#settings-composite-card");
+    const elementRow = elementCard?.closest<HTMLElement>(".settings-tree-item");
+    const compositeRow = compositeCard?.closest<HTMLElement>(".settings-tree-item");
+
+    assert.equal(list?.getAttribute("role"), "list");
+    assert.equal(elementRow?.getAttribute("role"), "presentation");
+    assert.equal(compositeRow?.getAttribute("role"), "presentation");
+    assert.equal(elementCard?.getAttribute("role"), "listitem");
+    assert.equal(compositeCard?.getAttribute("role"), "listitem");
+    assert.equal(elementCard?.classList.contains("settings-list-item"), true);
+    assert.equal(compositeCard?.classList.contains("settings-list-item"), true);
+  });
+
   test("uses item group ids for visual row boundaries", () => {
     if (typeof document === "undefined") {
       return;
