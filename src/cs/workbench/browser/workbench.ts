@@ -76,9 +76,6 @@ import {
   type WorkbenchTitlebarState,
 } from "src/cs/workbench/services/title/browser/titleService";
 import { getWorkbenchWindowState } from "src/cs/workbench/browser/parts/titlebar/windowTitle";
-import {
-  AuxiliaryBarViews,
-} from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions";
 import type { WorkbenchStyle } from "src/cs/workbench/browser/style";
 import {
   WorkbenchWindow,
@@ -1097,7 +1094,7 @@ export class Workbench extends Layout {
   private updateContextKeys(): void {
     this.updateWorkbenchModeContextKeys();
     this.activeAuxiliaryBarViewContext?.set(
-      this.getActiveAuxiliaryBarView(this.activeWorkbenchMainPart),
+      this.getActiveAuxiliaryBarView(this.activeWorkbenchMainPart) ?? "",
     );
   }
 
@@ -1107,8 +1104,8 @@ export class Workbench extends Layout {
   }
 
   private closeAuxiliaryBarViews(): void {
-    for (const view of AuxiliaryBarViews) {
-      this.viewsService.closeView(view.viewId);
+    for (const viewId of this.getAuxiliaryBarViewIds()) {
+      this.viewsService.closeView(viewId);
     }
   }
 

@@ -319,6 +319,10 @@ export class Layout extends Disposable {
     return this.auxiliaryBarPart.getActiveViewId(workbenchMainPart);
   }
 
+  protected getAuxiliaryBarViewIds(): ReturnType<AuxiliaryBarPart["getViewIds"]> {
+    return this.auxiliaryBarPart.getViewIds();
+  }
+
   private renderWorkbenchMain(): void {
     const state = this.state.layoutState;
     const workbenchPane = state.panes.workbench;

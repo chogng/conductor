@@ -87,7 +87,7 @@ class ToggleSidebarAction extends Action2 {
       title: localize("workbench.toggleSidebar", "Toggle Sidebar"),
       category: Categories.View,
       f1: true,
-      toggled: SideBarVisibleContext,
+      toggled: SideBarVisibleContext.isEqualTo(true),
       metadata: {
         description: localize("workbench.toggleSidebarDescription", "Toggle the workbench sidebar."),
       },
@@ -110,7 +110,7 @@ class ToggleAuxiliaryBarAction extends Action2 {
       title: localize("workbench.toggleAuxiliaryBar", "Toggle Secondary Side Bar"),
       category: Categories.View,
       f1: true,
-      toggled: AuxiliaryBarVisibleContext,
+      toggled: AuxiliaryBarVisibleContext.isEqualTo(true),
       metadata: {
         description: localize("workbench.toggleAuxiliaryBarDescription", "Toggle the secondary side bar."),
       },

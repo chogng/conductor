@@ -6,6 +6,7 @@ import { ViewPaneContainer } from "src/cs/workbench/browser/parts/views/viewPane
 import { Workbench } from "src/cs/workbench/browser/workbench";
 import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layoutCommands";
 import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
+import "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions";
 import { createAuxiliaryBarActionViewItem } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
 import { createSidebarActionViewItem } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import { hideWorkbenchSplash } from "src/cs/workbench/browser/parts/splash/partsSplash";

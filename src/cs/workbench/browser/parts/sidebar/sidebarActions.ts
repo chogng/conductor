@@ -42,7 +42,7 @@ registerAction2(class extends Action2 {
       title: localize("sidebar.close", "Close Primary Side Bar"),
       category: Categories.View,
       f1: true,
-      precondition: SideBarVisibleContext,
+      precondition: SideBarVisibleContext.isEqualTo(true),
       metadata: {
         description: localize("sidebar.closeDescription", "Close the primary side bar."),
       },
