@@ -203,6 +203,7 @@ type TemplateSettings = {
   onEnableDomainPack: (id: string) => Promise<void> | void;
   onMoveXAxisIntent: (sourceIntent: TemplateXAxisIntent, targetIntent: TemplateXAxisIntent) => Promise<void> | void;
   onRemoveSemanticTerm: (id: string) => Promise<void> | void;
+  pendingActionItemId: string | null;
   roleOptions: readonly SelectOption[];
   unitOptions: readonly SelectOption[];
   xAxisIntentPriority: readonly TemplateXAxisIntent[];
@@ -422,12 +423,6 @@ type TemplateSemanticCustomFormWidgets = {
   readonly unitSelect: SelectBox<string>;
 };
 
-type SettingsViewControlChild = {
-  readonly element: HTMLElement;
-  readonly id: string;
-  readonly searchText?: string;
-};
-
 type LocalContentPatch = {
   readonly element: HTMLElement;
   readonly getSearchText: () => string | undefined;
@@ -616,11 +611,6 @@ export class SettingsView {
     }
 
     const patch = this.localContentPatches.get(item.id as SettingsContentItemId);
-    if (item.kind === "control") {
-      updateElementSearchText(card, getSettingsTreeControlItemSearchText(item, patch?.getSearchText()));
-      return;
-    }
-
     updateElementSearchText(card, normalizeSettingsSearchText(patch?.getSearchText() ?? item.searchText));
   }
 
@@ -769,51 +759,40 @@ export class SettingsView {
     }
   }
 
-  private createSettingsTreeControlItem(options: {
+  private createSettingsTreeRowItem(options: {
     readonly id: SettingsContentItemId;
+    readonly content: HTMLElement;
+    readonly description?: string;
     readonly groupId?: string;
-    readonly leading: readonly SettingsViewControlChild[];
     readonly searchText?: string;
-    readonly trailing: readonly SettingsViewControlChild[];
-  }): SettingsTreeItem {
-    const current = this.getReusableTreeItem(options.id, "control");
+    readonly title: string;
+  }): SettingsTreeElementItem {
+    const current = this.getReusableTreeItem(options.id, "element");
     if (current) {
       return current;
     }
 
     return this.createContentItem(options.id, () => {
-      const item = {
-        kind: "control",
+      const element = card(options.id, "settings-card-row");
+      const row = div("settings-row");
+      const labelElement = div(options.description ? "settings-row-item settings-row-leading settings-heading" : "settings-row-item settings-row-leading");
+      labelElement.appendChild(title(options.title));
+      if (options.description) {
+        labelElement.appendChild(text("p", "settings-description", options.description));
+      }
+      row.append(labelElement, div("settings-row-item settings-row-trailing", options.content));
+      element.appendChild(row);
+
+      const item: SettingsTreeElementItem = {
+        kind: "element",
+        element,
         groupId: options.groupId,
         id: options.id,
-        leading: options.leading,
-        searchText: options.searchText,
-        trailing: options.trailing,
-      } satisfies SettingsTreeItem;
+        searchText: normalizeSettingsSearchText(options.title, options.description, options.searchText),
+      };
       this.treeItems.set(options.id, item);
       return item;
     });
-  }
-
-  private createSettingsTreeLabelItem(titleText: string, description?: string): SettingsViewControlChild {
-    const element = div(description ? "settings-row-label settings-heading" : "settings-row-label");
-    element.appendChild(title(titleText));
-    if (description) {
-      element.appendChild(text("p", "settings-description", description));
-    }
-    return {
-      element,
-      id: "label",
-      searchText: normalizeSettingsSearchText(titleText, description),
-    };
-  }
-
-  private createSettingsTreeTrailingItem(element: HTMLElement, searchText?: string): SettingsViewControlChild {
-    return {
-      element,
-      id: "control",
-      searchText,
-    };
   }
 
   private createSettingsTreeElementItem(options: {
@@ -1046,14 +1025,12 @@ export class SettingsView {
         id: "settings-general-section",
         title: this.getSectionLabel("general"),
         items: [
-          this.createSettingsTreeControlItem({
+          this.createSettingsTreeRowItem({
             id: "settings-language-card",
-            leading: [this.createSettingsTreeLabelItem(
-              localize("settings.language.title", "Language"),
-              localize("settings.language.description", "Choose the display language used by the app."),
-            )],
+            title: localize("settings.language.title", "Language"),
+            description: localize("settings.language.description", "Choose the display language used by the app."),
             searchText: normalizeSettingsSearchText(optionLabels(languageOptions)),
-            trailing: [this.createSettingsTreeTrailingItem(this.createLocalSelectControl("settings-language-card", () => ({
+            content: this.createLocalSelectControl("settings-language-card", () => ({
               id: "settings-language-dropdown",
               value: this.options.language,
               onChange: value => {
@@ -1062,16 +1039,14 @@ export class SettingsView {
                 }
               },
               options: languageOptions,
-            })))],
+            })),
           }),
-          this.createSettingsTreeControlItem({
+          this.createSettingsTreeRowItem({
             id: "settings-close-behavior-card",
-            leading: [this.createSettingsTreeLabelItem(
-              localize("settings.closeBehavior.title", "Close Window"),
-              localize("settings.closeBehavior.description", "Choose what happens when the main window is closed."),
-            )],
+            title: localize("settings.closeBehavior.title", "Close Window"),
+            description: localize("settings.closeBehavior.description", "Choose what happens when the main window is closed."),
             searchText: normalizeSettingsSearchText(optionLabels(this.options.windowCloseBehaviorOptions)),
-            trailing: [this.createSettingsTreeTrailingItem(this.createLocalSelectControl("settings-close-behavior-card", () => ({
+            content: this.createLocalSelectControl("settings-close-behavior-card", () => ({
               id: "settings-close-behavior-dropdown",
               value: this.options.windowCloseSettings.behavior,
               onChange: value => {
@@ -1081,15 +1056,13 @@ export class SettingsView {
               },
               options: this.options.windowCloseBehaviorOptions,
               disabled: this.options.windowCloseSettings.isSaving,
-            })))],
+            })),
           }),
-          this.createSettingsTreeControlItem({
+          this.createSettingsTreeRowItem({
             id: "settings-numeric-display-card",
-            leading: [this.createSettingsTreeLabelItem(
-              localize("settings.numericDisplay.title", "优化表格数值显示"),
-              localize("settings.numericDisplay.description", "优化科学计数法以合适小数位显示以更好的预览"),
-            )],
-            trailing: [this.createSettingsTreeTrailingItem(this.createLocalSwitchControl({
+            title: localize("settings.numericDisplay.title", "优化表格数值显示"),
+            description: localize("settings.numericDisplay.description", "优化科学计数法以合适小数位显示以更好的预览"),
+            content: this.createLocalSwitchControl({
               itemId: "settings-numeric-display-card",
               ariaLabel: localize("settings.numericDisplay.title", "优化表格数值显示"),
               getChecked: () => this.options.numericDisplaySettings.optimized,
@@ -1097,7 +1070,7 @@ export class SettingsView {
               onChange: checked => {
                 void this.options.numericDisplaySettings.onOptimizedChange(checked);
               },
-            }))],
+            }),
           }),
         ],
       },
@@ -1110,13 +1083,11 @@ export class SettingsView {
         id: "settings-template-section",
         title: this.getSectionLabel("template"),
         items: [
-          this.createSettingsTreeControlItem({
+          this.createSettingsTreeRowItem({
             id: "settings-table-template-visualization-card",
-            leading: [this.createSettingsTreeLabelItem(
-              localize("settings.tableTemplateVisualization.title", "Template Visualization"),
-              localize("settings.tableTemplateVisualization.description", "Show the current template ranges on the table preview."),
-            )],
-            trailing: [this.createSettingsTreeTrailingItem(this.createLocalSwitchControl({
+            title: localize("settings.tableTemplateVisualization.title", "Template Visualization"),
+            description: localize("settings.tableTemplateVisualization.description", "Show the current template ranges on the table preview."),
+            content: this.createLocalSwitchControl({
               itemId: "settings-table-template-visualization-card",
               ariaLabel: localize("settings.tableTemplateVisualization.title", "Template Visualization"),
               getChecked: () => this.options.tableTemplateVisualizationSettings.enabled,
@@ -1125,7 +1096,7 @@ export class SettingsView {
               onChange: checked => {
                 void this.options.tableTemplateVisualizationSettings.onEnabledChange(checked);
               },
-            }))],
+            }),
           }),
         ],
       },
@@ -1577,10 +1548,10 @@ export class SettingsView {
     const title = localize("settings.template.semantic.activeTitle", "Active match terms");
     this.getTemplateSemanticActiveTermsInputBox(container).update({
       ariaLabel: title,
-      disabled: settings.isSaving,
       inputVisible: true,
       items: this.createTemplateSemanticActiveTermItems(settings),
       placeholder: localize("settings.template.semantic.termInputPlaceholder", "Add match term"),
+      readOnly: settings.isSaving,
       value: this.options.templateSemanticTermDraft,
     });
   }
@@ -1594,9 +1565,9 @@ export class SettingsView {
   private updateTemplateSemanticActiveTermInput(container: HTMLElement, settings: TemplateSettings): void {
     this.getTemplateSemanticActiveTermsInputBox(container).update({
       ariaLabel: localize("settings.template.semantic.activeTitle", "Active match terms"),
-      disabled: settings.isSaving,
       inputVisible: true,
       placeholder: localize("settings.template.semantic.termInputPlaceholder", "Add match term"),
+      readOnly: settings.isSaving,
       value: this.options.templateSemanticTermDraft,
     });
   }
@@ -1715,7 +1686,7 @@ export class SettingsView {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "settings-template-term-suggestion";
-    button.disabled = settings.isSaving;
+    button.disabled = settings.pendingActionItemId === semanticTerm.id;
     button.title = localize("settings.template.semantic.enableBuiltinTitle", "Enable this built-in match term for Review");
     button.setAttribute(
       "aria-label",
@@ -1736,7 +1707,7 @@ export class SettingsView {
     settings: TemplateSettings,
     semanticTerm: TemplateBuiltinSemanticTerm,
   ): void {
-    button.disabled = settings.isSaving;
+    button.disabled = settings.pendingActionItemId === semanticTerm.id;
     button.title = localize("settings.template.semantic.enableBuiltinTitle", "Enable this built-in match term for Review");
     button.setAttribute(
       "aria-label",
@@ -1760,7 +1731,7 @@ export class SettingsView {
         ariaLabel: localize("settings.template.semantic.disableBuiltin", "Disable built-in match term {term}", { term: semanticTerm.term }),
         icon: LxIcon.close,
       },
-      disabled: settings.isSaving,
+      disabled: settings.pendingActionItemId === semanticTerm.id,
     };
   }
 
@@ -1773,7 +1744,7 @@ export class SettingsView {
         ariaLabel: localize("settings.template.semantic.removeTerm", "Remove match term {term}", { term: semanticTerm.term }),
         icon: LxIcon.close,
       },
-      disabled: settings.isSaving,
+      disabled: settings.pendingActionItemId === semanticTerm.id,
     };
   }
 
@@ -1784,14 +1755,12 @@ export class SettingsView {
         id: "settings-appearance-section",
         title: this.getSectionLabel("appearance"),
         items: [
-          this.createSettingsTreeControlItem({
+          this.createSettingsTreeRowItem({
             id: "settings-theme-card",
-            leading: [this.createSettingsTreeLabelItem(
-              localize("settings.theme.title", "Theme"),
-              localize("settings.theme.description", "Choose the workbench color theme."),
-            )],
+            title: localize("settings.theme.title", "Theme"),
+            description: localize("settings.theme.description", "Choose the workbench color theme."),
             searchText: normalizeSettingsSearchText(optionLabels(this.options.themeModeOptions)),
-            trailing: [this.createSettingsTreeTrailingItem(this.createLocalSelectControl("settings-theme-card", () => ({
+            content: this.createLocalSelectControl("settings-theme-card", () => ({
               id: "settings-theme-dropdown",
               value: this.options.theme,
               onChange: value => {
@@ -1800,16 +1769,14 @@ export class SettingsView {
                 }
               },
               options: this.options.themeModeOptions,
-            })))],
+            })),
           }),
-          this.createSettingsTreeControlItem({
+          this.createSettingsTreeRowItem({
             id: "settings-explorer-density-card",
-            leading: [this.createSettingsTreeLabelItem(
-              localize("settings.explorerDensity.title", "Explorer Density"),
-              localize("settings.explorerDensity.description", "Choose how compact file rows appear in Explorer."),
-            )],
+            title: localize("settings.explorerDensity.title", "Explorer Density"),
+            description: localize("settings.explorerDensity.description", "Choose how compact file rows appear in Explorer."),
             searchText: normalizeSettingsSearchText(optionLabels(appearanceSettings.explorerDensityOptions)),
-            trailing: [this.createSettingsTreeTrailingItem(this.createLocalSelectControl("settings-explorer-density-card", () => ({
+            content: this.createLocalSelectControl("settings-explorer-density-card", () => ({
               id: "settings-explorer-density-dropdown",
               value: this.options.appearanceSettings.explorerDensity,
               onChange: value => {
@@ -1819,15 +1786,13 @@ export class SettingsView {
               },
               options: this.options.appearanceSettings.explorerDensityOptions,
               disabled: this.options.appearanceSettings.isExplorerDensitySaving,
-            })))],
+            })),
           }),
-          this.createSettingsTreeControlItem({
+          this.createSettingsTreeRowItem({
             id: "settings-explorer-badges-card",
-            leading: [this.createSettingsTreeLabelItem(
-              localize("settings.explorerBadges.title", "Explorer Badges"),
-              localize("settings.explorerBadges.description", "Show measurement badges beside files in Explorer."),
-            )],
-            trailing: [this.createSettingsTreeTrailingItem(this.createLocalSwitchControl({
+            title: localize("settings.explorerBadges.title", "Explorer Badges"),
+            description: localize("settings.explorerBadges.description", "Show measurement badges beside files in Explorer."),
+            content: this.createLocalSwitchControl({
               itemId: "settings-explorer-badges-card",
               ariaLabel: localize("settings.explorerBadges.title", "Explorer Badges"),
               getChecked: () => this.options.appearanceSettings.showExplorerBadges,
@@ -1835,43 +1800,35 @@ export class SettingsView {
               onChange: checked => {
                 void this.options.appearanceSettings.onExplorerBadgeVisibilityChange(checked);
               },
-            }))],
+            }),
           }),
-          this.createSettingsTreeControlItem({
+          this.createSettingsTreeRowItem({
             id: "settings-explorer-badge-colors-card",
-            leading: [this.createSettingsTreeLabelItem(
-              localize("settings.explorerBadgeColors.title", "Badge Colors"),
-              localize("settings.explorerBadgeColors.description", "Choose Explorer badge colors by measurement label."),
-            )],
+            title: localize("settings.explorerBadgeColors.title", "Badge Colors"),
+            description: localize("settings.explorerBadgeColors.description", "Choose Explorer badge colors by measurement label."),
             searchText: normalizeSettingsSearchText(
               optionLabels(appearanceSettings.explorerBadgeColorLabels),
               optionLabels(appearanceSettings.explorerBadgeColorOptions),
             ),
-            trailing: [this.createSettingsTreeTrailingItem(this.createBadgeColorControls(appearanceSettings))],
+            content: this.createBadgeColorControls(appearanceSettings),
           }),
-          this.createSettingsTreeControlItem({
+          this.createSettingsTreeRowItem({
             id: "settings-layout-card",
-            leading: [this.createSettingsTreeLabelItem(
-              localize("settings.layout.title", "Layout"),
-              localize("settings.layout.description", "Reset sidebar width and hidden workbench parts."),
-            )],
-            trailing: [this.createSettingsTreeTrailingItem(this.createLayoutResetControl())],
+            title: localize("settings.layout.title", "Layout"),
+            description: localize("settings.layout.description", "Reset sidebar width and hidden workbench parts."),
+            content: this.createLayoutResetControl(),
           }),
-          this.createSettingsTreeControlItem({
+          this.createSettingsTreeRowItem({
             id: "settings-background-card",
-            leading: [this.createSettingsTreeLabelItem(
-              localize("settings.background.title", "Background"),
-              localize("settings.background.description", "Choose the workbench page background color."),
-            )],
-            trailing: [this.createSettingsTreeTrailingItem(this.createBackgroundControls(appearanceSettings))],
+            title: localize("settings.background.title", "Background"),
+            description: localize("settings.background.description", "Choose the workbench page background color."),
+            content: this.createBackgroundControls(appearanceSettings),
           }),
-          this.createSettingsTreeControlItem({
+          this.createSettingsTreeRowItem({
             id: "settings-transparent-chrome-card",
-            leading: [this.createSettingsTreeLabelItem(
-              localize("settings.transparentChrome.title", "Translucent sidebar"),
-              localize("settings.transparentChrome.description", "Let the sidebar blend with the desktop window surface."),
-            )],
-            trailing: [this.createSettingsTreeTrailingItem(this.createLocalSwitchControl({
+            title: localize("settings.transparentChrome.title", "Translucent sidebar"),
+            description: localize("settings.transparentChrome.description", "Let the sidebar blend with the desktop window surface."),
+            content: this.createLocalSwitchControl({
               itemId: "settings-transparent-chrome-card",
               ariaLabel: localize("settings.transparentChrome.title", "Translucent sidebar"),
               getChecked: () => this.options.appearanceSettings.transparentChrome,
@@ -1879,7 +1836,7 @@ export class SettingsView {
               onChange: checked => {
                 void this.options.appearanceSettings.onTransparentChromeChange(checked);
               },
-            }))],
+            }),
           }),
         ],
       },
@@ -2155,56 +2112,48 @@ export class SettingsView {
         id: "settings-about-section",
         title: this.getSectionLabel("about"),
         items: [
-          this.createSettingsTreeControlItem({
+          this.createSettingsTreeRowItem({
             id: "settings-about-version-card",
-            leading: [this.createSettingsTreeLabelItem(
-              localize("settings.about.versionTitle", "Current Version"),
-              localize("settings.about.versionDescription", "The installed Conductor Studio version."),
-            )],
-            trailing: [this.createSettingsTreeTrailingItem(text("p", "settings-code-value", appUpdateSettings.currentVersion || localize("settings.about.versionUnknown", "Unknown")))],
+            title: localize("settings.about.versionTitle", "Current Version"),
+            description: localize("settings.about.versionDescription", "The installed Conductor Studio version."),
+            content: text("p", "settings-code-value", appUpdateSettings.currentVersion || localize("settings.about.versionUnknown", "Unknown")),
           }),
-          this.createSettingsTreeControlItem({
+          this.createSettingsTreeRowItem({
             id: "settings-release-notes-card",
-            leading: [this.createSettingsTreeLabelItem(
-              localize("settings.releaseNotes.title", "Release Notes"),
-              localize("settings.releaseNotes.description", "Review recent product changes and fixes."),
-            )],
+            title: localize("settings.releaseNotes.title", "Release Notes"),
+            description: localize("settings.releaseNotes.description", "Review recent product changes and fixes."),
             searchText: localize("settings.releaseNotes.showButton", "Show Release Notes"),
-            trailing: [this.createSettingsTreeTrailingItem(this.createButton({
+            content: this.createButton({
               id: "settings-release-notes-show-btn",
               label: localize("settings.releaseNotes.showButton", "Show Release Notes"),
               onClick: this.options.handleShowReleaseNotes,
               variant: "secondary",
-            }))],
+            }),
           }),
-          this.createSettingsTreeControlItem({
+          this.createSettingsTreeRowItem({
             id: "settings-user-guide-card",
-            leading: [this.createSettingsTreeLabelItem(
-              localize("settings.userGuide.title", "User Guide"),
-              localize("settings.userGuide.description", "Open the bundled guide for common workflows."),
-            )],
+            title: localize("settings.userGuide.title", "User Guide"),
+            description: localize("settings.userGuide.description", "Open the bundled guide for common workflows."),
             searchText: localize("settings.userGuide.showButton", "Show User Guide"),
-            trailing: [this.createSettingsTreeTrailingItem(this.createButton({
+            content: this.createButton({
               id: "settings-user-guide-show-btn",
               label: localize("settings.userGuide.showButton", "Show User Guide"),
               onClick: () => this.showUserGuideDialog(),
               variant: "secondary",
-            }))],
+            }),
           }),
-          this.createSettingsTreeControlItem({
+          this.createSettingsTreeRowItem({
             id: "settings-app-update-card",
-            leading: [this.createSettingsTreeLabelItem(
-              localize("settings.appUpdate.title", "App Updates"),
-              localize("settings.appUpdate.description", "Check whether a newer version is available."),
-            )],
+            title: localize("settings.appUpdate.title", "App Updates"),
+            description: localize("settings.appUpdate.description", "Check whether a newer version is available."),
             searchText: localize("settings.appUpdate.checkButton", "Check for Updates"),
-            trailing: [this.createSettingsTreeTrailingItem(this.createLocalButtonControl("settings-app-update-card", () => ({
+            content: this.createLocalButtonControl("settings-app-update-card", () => ({
               id: "settings-app-update-check-btn",
               label: this.options.appUpdateChecking ? localize("settings.appUpdate.checking", "Checking...") : localize("settings.appUpdate.checkButton", "Check for Updates"),
               onClick: this.options.handleCheckForUpdates,
               disabled: !this.options.appUpdateSettings.isAvailable || this.options.appUpdateChecking,
               variant: "secondary",
-            })))],
+            })),
           }),
         ],
       },
@@ -2302,88 +2251,78 @@ export class SettingsView {
         id: "settings-chart-section",
         title: localize("settings.chartDefaults.sectionTitle", "Chart"),
         items: [
-          this.createSettingsTreeControlItem({
+          this.createSettingsTreeRowItem({
             id: "settings-default-transfer-y-scale-card",
-            leading: [this.createSettingsTreeLabelItem(
-              localize("settings.chartScaleDefaults.transferCurve", "Transfer"),
-              localize("settings.chartScaleDefaults.description", "Choose the default Y-axis scale for each curve family."),
-            )],
+            title: localize("settings.chartScaleDefaults.transferCurve", "Transfer"),
+            description: localize("settings.chartScaleDefaults.description", "Choose the default Y-axis scale for each curve family."),
             searchText: normalizeSettingsSearchText(optionLabels(this.options.yScaleOptions)),
-            trailing: [this.createSettingsTreeTrailingItem(this.createLocalSelectControl("settings-default-transfer-y-scale-card", () => ({
+            content: this.createLocalSelectControl("settings-default-transfer-y-scale-card", () => ({
               id: "settings-default-transfer-y-scale-select",
               value: this.options.chartDefaultSettings.defaultYScaleForTransfer,
               onChange: value => void this.options.chartDefaultSettings.onDefaultYScaleForTransferChange(value),
               options: this.options.yScaleOptions,
               disabled: this.options.chartDefaultSettings.isSaving,
-            })))],
+            })),
           }),
-          this.createSettingsTreeControlItem({
+          this.createSettingsTreeRowItem({
             id: "settings-default-output-y-scale-card",
-            leading: [this.createSettingsTreeLabelItem(
-              localize("settings.chartScaleDefaults.outputCurve", "Output"),
-            )],
+            title: localize("settings.chartScaleDefaults.outputCurve", "Output"),
             searchText: normalizeSettingsSearchText(
               localize("settings.chartScaleDefaults.description", "Choose the default Y-axis scale for each curve family."),
               optionLabels(this.options.yScaleOptions),
             ),
-            trailing: [this.createSettingsTreeTrailingItem(this.createLocalSelectControl("settings-default-output-y-scale-card", () => ({
+            content: this.createLocalSelectControl("settings-default-output-y-scale-card", () => ({
               id: "settings-default-output-y-scale-select",
               value: this.options.chartDefaultSettings.defaultYScaleForOutput,
               onChange: value => void this.options.chartDefaultSettings.onDefaultYScaleForOutputChange(value),
               options: this.options.yScaleOptions,
               disabled: this.options.chartDefaultSettings.isSaving,
-            })))],
+            })),
           }),
-          this.createSettingsTreeControlItem({
+          this.createSettingsTreeRowItem({
             id: "settings-default-cv-y-scale-card",
-            leading: [this.createSettingsTreeLabelItem(
-              localize("settings.chartScaleDefaults.cvCurve", "C-V"),
-            )],
+            title: localize("settings.chartScaleDefaults.cvCurve", "C-V"),
             searchText: normalizeSettingsSearchText(
               localize("settings.chartScaleDefaults.description", "Choose the default Y-axis scale for each curve family."),
               optionLabels(this.options.yScaleOptions),
             ),
-            trailing: [this.createSettingsTreeTrailingItem(this.createLocalSelectControl("settings-default-cv-y-scale-card", () => ({
+            content: this.createLocalSelectControl("settings-default-cv-y-scale-card", () => ({
               id: "settings-default-cv-y-scale-select",
               value: this.options.chartDefaultSettings.defaultYScaleForCv,
               onChange: value => void this.options.chartDefaultSettings.onDefaultYScaleForCvChange(value),
               options: this.options.yScaleOptions,
               disabled: this.options.chartDefaultSettings.isSaving,
-            })))],
+            })),
           }),
-          this.createSettingsTreeControlItem({
+          this.createSettingsTreeRowItem({
             id: "settings-default-cf-y-scale-card",
-            leading: [this.createSettingsTreeLabelItem(
-              localize("settings.chartScaleDefaults.cfCurve", "C-f"),
-            )],
+            title: localize("settings.chartScaleDefaults.cfCurve", "C-f"),
             searchText: normalizeSettingsSearchText(
               localize("settings.chartScaleDefaults.description", "Choose the default Y-axis scale for each curve family."),
               optionLabels(this.options.yScaleOptions),
             ),
-            trailing: [this.createSettingsTreeTrailingItem(this.createLocalSelectControl("settings-default-cf-y-scale-card", () => ({
+            content: this.createLocalSelectControl("settings-default-cf-y-scale-card", () => ({
               id: "settings-default-cf-y-scale-select",
               value: this.options.chartDefaultSettings.defaultYScaleForCf,
               onChange: value => void this.options.chartDefaultSettings.onDefaultYScaleForCfChange(value),
               options: this.options.yScaleOptions,
               disabled: this.options.chartDefaultSettings.isSaving,
-            })))],
+            })),
           }),
-          this.createSettingsTreeControlItem({
+          this.createSettingsTreeRowItem({
             id: "settings-default-pv-y-scale-card",
-            leading: [this.createSettingsTreeLabelItem(
-              localize("settings.chartScaleDefaults.pvCurve", "P-V"),
-            )],
+            title: localize("settings.chartScaleDefaults.pvCurve", "P-V"),
             searchText: normalizeSettingsSearchText(
               localize("settings.chartScaleDefaults.description", "Choose the default Y-axis scale for each curve family."),
               optionLabels(this.options.yScaleOptions),
             ),
-            trailing: [this.createSettingsTreeTrailingItem(this.createLocalSelectControl("settings-default-pv-y-scale-card", () => ({
+            content: this.createLocalSelectControl("settings-default-pv-y-scale-card", () => ({
               id: "settings-default-pv-y-scale-select",
               value: this.options.chartDefaultSettings.defaultYScaleForPv,
               onChange: value => void this.options.chartDefaultSettings.onDefaultYScaleForPvChange(value),
               options: this.options.yScaleOptions,
               disabled: this.options.chartDefaultSettings.isSaving,
-            })))],
+            })),
           }),
           ...(settings.feedback.message ? [
             this.createSettingsTreeElementItem({
@@ -3304,14 +3243,6 @@ function updateElementSearchText(element: HTMLElement, searchText: string): void
   else {
     delete element.dataset.search;
   }
-}
-
-function getSettingsTreeControlItemSearchText(item: Extract<SettingsTreeItem, { readonly kind: "control" }>, trailingSearchText?: string): string {
-  return normalizeSettingsSearchText(
-    item.searchText,
-    item.leading.map(child => child.searchText),
-    trailingSearchText ?? item.trailing.map(child => child.searchText),
-  );
 }
 
 function settingsSectionsEqual(

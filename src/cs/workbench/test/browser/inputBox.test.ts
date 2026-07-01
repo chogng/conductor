@@ -290,6 +290,10 @@ class FakeElement {
     return node;
   }
 
+  replaceChildren(...nodes: FakeElement[]): void {
+    this.children.splice(0, this.children.length, ...nodes);
+  }
+
   insertBefore(node: FakeElement, child: FakeElement): FakeElement {
     const index = this.children.indexOf(child);
     if (index === -1) {

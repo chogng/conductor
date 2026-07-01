@@ -105,12 +105,17 @@ export class InputBoxWidget extends Disposable {
       this.updateInputVisibility();
       shouldUpdateEmptyElement = true;
     }
+    let forceUpdateItems = false;
     if (options.disabled !== undefined) {
-      this.disabled = options.disabled === true;
-      shouldRenderItems = true;
+      const disabled = options.disabled === true;
+      if (this.disabled !== disabled) {
+        shouldRenderItems = true;
+        forceUpdateItems = true;
+      }
+      this.disabled = disabled;
     }
     if (shouldRenderItems) {
-      this.renderItems();
+      this.renderItems(forceUpdateItems);
     }
     else if (shouldUpdateEmptyElement) {
       this.updateEmptyElement();
@@ -171,8 +176,9 @@ export class InputBoxWidget extends Disposable {
     }));
   }
 
-  private renderItems(): void {
+  private renderItems(forceUpdateItems = false): void {
     const nextIds = new Set<string>();
+    const previousItems = new Map(this.itemById);
     this.itemById.clear();
 
     for (const item of this.items) {
@@ -183,7 +189,10 @@ export class InputBoxWidget extends Disposable {
         node = this.createItemElement(item);
         this.itemNodes.set(item.id, node);
       }
-      this.updateItemElement(node, item);
+      const previousItem = previousItems.get(item.id);
+      if (forceUpdateItems || !previousItem || !inputBoxWidgetItemsEqual(previousItem, item)) {
+        this.updateItemElement(node, item);
+      }
     }
 
     for (const [id, node] of Array.from(this.itemNodes)) {
@@ -323,6 +332,31 @@ const getInputBoxOptions = (options: InputBoxWidgetOptions): InputBoxOptions => 
   value: options.value,
 });
 
+const inputBoxWidgetItemsEqual = (
+  current: IInputBoxWidgetItem,
+  next: IInputBoxWidgetItem,
+): boolean =>
+  current.id === next.id &&
+  current.label === next.label &&
+  normalizeOptionalString(current.ariaLabel) === normalizeOptionalString(next.ariaLabel) &&
+  (current.disabled === true) === (next.disabled === true) &&
+  normalizeOptionalString(current.kind) === normalizeOptionalString(next.kind) &&
+  inputBoxWidgetItemActionsEqual(current.action, next.action);
+
+const inputBoxWidgetItemActionsEqual = (
+  current: InputBoxWidgetItemAction | undefined,
+  next: InputBoxWidgetItemAction | undefined,
+): boolean => {
+  if (!current || !next) {
+    return current === next;
+  }
+  return current.icon === next.icon &&
+    normalizeOptionalString(current.ariaLabel) === normalizeOptionalString(next.ariaLabel);
+};
+
+const normalizeOptionalString = (value: string | undefined): string | undefined =>
+  value || undefined;
+
 const setClassName = (element: HTMLElement, className: string): void => {
   if (element.className !== className) {
     element.className = className;
@@ -337,7 +371,7 @@ const setOptionalAttribute = (element: HTMLElement, name: string, value: string 
     return;
   }
 
-  if (element.hasAttribute(name)) {
+  if (element.getAttribute(name) !== null) {
     element.removeAttribute(name);
   }
 };

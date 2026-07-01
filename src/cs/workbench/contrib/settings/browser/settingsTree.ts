@@ -2,21 +2,6 @@ import { append } from "src/cs/base/browser/dom";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { normalizeSettingsSearchText } from "src/cs/workbench/contrib/settings/browser/settingsSearch";
 
-type ControlItem = {
-  readonly kind: "control";
-  readonly groupId?: string;
-  readonly id: string;
-  readonly leading: readonly ControlChildItem[];
-  readonly searchText?: string;
-  readonly trailing: readonly ControlChildItem[];
-};
-
-type ControlChildItem = {
-  readonly element: HTMLElement;
-  readonly id: string;
-  readonly searchText?: string;
-};
-
 export type SettingsTreeElementItem = {
   readonly kind: "element";
   readonly element: HTMLElement;
@@ -39,7 +24,7 @@ export type SettingsTreeCompositeItem = {
   readonly searchText?: string;
 };
 
-export type SettingsTreeItem = ControlItem | SettingsTreeElementItem | SettingsTreeCompositeItem;
+export type SettingsTreeItem = SettingsTreeElementItem | SettingsTreeCompositeItem;
 
 export type SettingsTreeSection = {
   readonly id: string;
@@ -77,9 +62,8 @@ type SettingsTreeItemState = {
   widget: SettingsTreeItemWidget;
 };
 
-// Small settings tree: section and item ids are stable keys. Control items use
-// keyed leading/trailing child items; element items use caller-owned item content.
-// SettingsView owns control behavior and lifecycle.
+// Small settings tree: section and item ids are stable keys. SettingsView owns
+// row DOM, control behavior, and lifecycle.
 export class SettingsTree extends Disposable {
   public readonly element = div("settings-tree");
   private entries: readonly SettingsTreeEntry[] = [];
@@ -252,24 +236,12 @@ export class SettingsTreeItemWidget extends Disposable {
   public element: HTMLElement;
   public readonly kind: SettingsTreeItem["kind"];
   private readonly compositeChildren = new Map<string, HTMLElement>();
-  private readonly controlChildElements = new Map<string, HTMLElement>();
-  private readonly rowElement: HTMLElement | null = null;
-  private readonly leadingElement: HTMLElement | null = null;
-  private readonly trailingElement: HTMLElement | null = null;
 
   constructor(item: SettingsTreeItem) {
     super();
     this.kind = item.kind;
 
-    if (item.kind === "control") {
-      this.element = card("");
-      this.rowElement = div("settings-row");
-      this.leadingElement = div("settings-row-leading");
-      this.trailingElement = div("settings-row-trailing");
-      this.rowElement.append(this.leadingElement, this.trailingElement);
-      this.element.appendChild(this.rowElement);
-    }
-    else if (item.kind === "composite") {
+    if (item.kind === "composite") {
       this.element = card("");
     }
     else {
@@ -284,21 +256,12 @@ export class SettingsTreeItemWidget extends Disposable {
       throw new Error(`Cannot update settings tree ${this.kind} item with ${item.kind} item`);
     }
 
-    if (item.kind === "element") {
-      this.updateElementItem(item);
-      return;
-    }
-
     if (item.kind === "composite") {
       this.updateCompositeItem(item);
       return;
     }
 
-    updateElementId(this.element, item.id);
-    this.updateSearchText(item);
-    updateElementClassName(this.rowElement!, "settings-row");
-    this.updateControlChildItems("leading", this.leadingElement!, item.leading);
-    this.updateControlChildItems("trailing", this.trailingElement!, item.trailing);
+    this.updateElementItem(item);
   }
 
   public updateCompositeChildren(item: SettingsTreeCompositeItem, childIds: ReadonlySet<string>): void {
@@ -326,52 +289,6 @@ export class SettingsTreeItemWidget extends Disposable {
   public override dispose(): void {
     super.dispose();
     this.element.remove();
-  }
-
-  private updateSearchText(item: ControlItem): void {
-    const searchText = normalizeSettingsSearchText(
-      item.searchText,
-      item.leading.map(child => child.searchText),
-      item.trailing.map(child => child.searchText),
-    );
-    updateItemSearchText(this.element, searchText);
-  }
-
-  private updateControlChildItems(
-    placement: "leading" | "trailing",
-    container: HTMLElement,
-    items: readonly ControlChildItem[],
-  ): void {
-    updateElementClassName(container, `settings-row-${placement}`);
-
-    const nextItemKeys = new Set(items.map(item => getControlChildItemKey(placement, item.id)));
-    for (const [itemKey, itemElement] of Array.from(this.controlChildElements)) {
-      if (itemKey.startsWith(`${placement}:`) && !nextItemKeys.has(itemKey)) {
-        itemElement.remove();
-        this.controlChildElements.delete(itemKey);
-      }
-    }
-
-    for (let index = 0; index < items.length; index++) {
-      const item = items[index]!;
-      const itemKey = getControlChildItemKey(placement, item.id);
-      let itemElement = this.controlChildElements.get(itemKey);
-      if (!itemElement) {
-        itemElement = div(`settings-row-item settings-row-item--${placement}`);
-        itemElement.dataset.itemId = item.id;
-        this.controlChildElements.set(itemKey, itemElement);
-      }
-      updateElementClassName(itemElement, `settings-row-item settings-row-item--${placement}`);
-      updateElementDataset(itemElement, "itemId", item.id);
-      if (itemElement.childNodes.length !== 1 || itemElement.firstChild !== item.element) {
-        itemElement.replaceChildren(item.element);
-      }
-
-      const expectedNextSibling = container.children[index] ?? null;
-      if (expectedNextSibling !== itemElement) {
-        container.insertBefore(itemElement, expectedNextSibling);
-      }
-    }
   }
 
   private updateElementItem(item: SettingsTreeElementItem): void {
@@ -474,10 +391,6 @@ function updateElementDataset(element: HTMLElement, key: string, value: string):
   if (element.dataset[key] !== value) {
     element.dataset[key] = value;
   }
-}
-
-function getControlChildItemKey(placement: "leading" | "trailing", id: string): string {
-  return `${placement}:${id}`;
 }
 
 function flattenSettingsTree(sections: readonly SettingsTreeSection[]): SettingsTreeEntry[] {

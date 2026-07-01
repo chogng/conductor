@@ -824,7 +824,82 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(container.querySelector("#settings-template-semantic-add-button"), null);
       assert.equal(getElement(container, "#settings-template-semantic-custom-form-card"), customFormCard);
       assert.equal((activeInput as HTMLInputElement).value, "New Term");
-      assert.equal((activeInput as HTMLInputElement).disabled, true);
+      assert.equal((activeInput as HTMLInputElement).disabled, false);
+      assert.equal((activeInput as HTMLInputElement).readOnly, true);
+    }
+    finally {
+      view.dispose();
+      container.remove();
+    }
+  });
+
+  test("patches only the pending semantic term action state", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const builtinTerms = [
+      {
+        id: "builtin-vgs",
+        term: "Vgs",
+        canonicalRole: "vg" as const,
+        canonicalUnit: "V" as const,
+        axisTendency: "x" as const,
+        family: "iv" as const,
+        ivMode: "transfer" as const,
+        domainPackIds: ["semiconductor-ivcv"],
+      },
+      {
+        id: "builtin-id",
+        term: "Drain Current",
+        canonicalRole: "id" as const,
+        canonicalUnit: "A" as const,
+        axisTendency: "dependent" as const,
+        family: "iv" as const,
+        ivMode: "transfer" as const,
+        domainPackIds: ["semiconductor-ivcv"],
+      },
+    ];
+    const activeTerms = builtinTerms.map(term => ({ ...term, source: "builtin" as const }));
+    const view = new SettingsView(container, createSettingsViewOptions({
+      activeSettingsSection: "template",
+      templateSettings: {
+        activeTerms,
+        builtinTerms,
+      },
+    }));
+
+    try {
+      const activeTermsCard = getElement(container, "#settings-template-semantic-active-terms-card");
+      const activeWidget = getElement(activeTermsCard, ".inputbox_widget");
+      const vgsItem = getElement(activeWidget, '.inputbox_widget_item[data-item-id="builtin-vgs"]');
+      const idItem = getElement(activeWidget, '.inputbox_widget_item[data-item-id="builtin-id"]');
+      const vgsAction = getInputBoxWidgetItemAction(vgsItem);
+      const idAction = getInputBoxWidgetItemAction(idItem);
+
+      view.update(createSettingsViewOptions({
+        activeSettingsSection: "template",
+        templateSettings: {
+          activeTerms,
+          builtinTerms,
+          isSaving: true,
+          pendingActionItemId: "builtin-id",
+        },
+      }), {
+        type: "partial",
+        descriptorIds: [],
+        itemTargets: [{
+          descriptorId: "template-semantic-library",
+          itemIds: ["settings-template-semantic-active-terms-list-item"],
+        }],
+      });
+
+      assert.equal(getElement(container, "#settings-template-semantic-active-terms-card"), activeTermsCard);
+      assert.equal(getElement(activeTermsCard, ".inputbox_widget"), activeWidget);
+      assert.equal(getElement(activeWidget, '.inputbox_widget_item[data-item-id="builtin-vgs"]'), vgsItem);
+      assert.equal(getElement(activeWidget, '.inputbox_widget_item[data-item-id="builtin-id"]'), idItem);
+      assert.equal(getInputBoxWidgetItemAction(vgsItem), vgsAction);
+      assert.equal(getInputBoxWidgetItemAction(idItem), idAction);
+      assert.equal(vgsAction.disabled, false);
+      assert.equal(idAction.disabled, true);
     }
     finally {
       view.dispose();
@@ -940,6 +1015,12 @@ function getSemanticSuggestion(container: HTMLElement, label: string): HTMLButto
 function querySemanticSuggestion(container: HTMLElement, label: string): HTMLButtonElement | null {
   return Array.from(container.querySelectorAll<HTMLButtonElement>(".settings-template-term-suggestion"))
     .find(button => button.querySelector<HTMLElement>(".settings-template-term-suggestion-label")?.textContent === label) ?? null;
+}
+
+function getInputBoxWidgetItemAction(item: HTMLElement): HTMLButtonElement {
+  const button = item.querySelector<HTMLButtonElement>(".inputbox_widget_item_action");
+  assert.ok(button);
+  return button;
 }
 
 function getSelectLabel(button: HTMLButtonElement): string {
@@ -1134,6 +1215,7 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
       onEnableDomainPack: noop,
       onMoveXAxisIntent: noop,
       onRemoveSemanticTerm: noop,
+      pendingActionItemId: null,
       roleOptions: [{ label: "voltage", value: "voltage" }],
       unitOptions: [{ label: "none", value: "" }],
       xAxisIntentPriority: ["genericXY"],

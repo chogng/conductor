@@ -102,7 +102,6 @@ const templateSemanticCustomTermItemIds = [
 ] as const satisfies readonly SettingsContentItemId[];
 const templateSemanticBuiltinTermItemIds = [
   "settings-template-semantic-active-terms-list-item",
-  "settings-template-semantic-active-terms-input-item",
   "settings-template-semantic-recommended-terms-list-item",
 ] as const satisfies readonly SettingsContentItemId[];
 const templateSemanticBuiltinTermFromInputItemIds = [
@@ -168,6 +167,7 @@ export class SettingsController {
   private fileNameMatchingSaving = false;
   private fileNameMatchingFeedback: Feedback = IDLE_FEEDBACK;
   private templateSettingsSaving = false;
+  private pendingTemplateActionItemId: string | null = null;
   private defaultsSaving = false;
   private defaultsFeedback: Feedback = IDLE_FEEDBACK;
   private appearanceSaving = false;
@@ -727,6 +727,7 @@ export class SettingsController {
       onEnableDomainPack: id => this.enableTemplateDomainPack(id),
       onMoveXAxisIntent: (sourceIntent, targetIntent) => this.moveTemplateXAxisIntent(sourceIntent, targetIntent),
       onRemoveSemanticTerm: id => this.removeTemplateSemanticTerm(id),
+      pendingActionItemId: this.pendingTemplateActionItemId,
       roleOptions: this.templateSemanticRoleOptions,
       unitOptions: this.templateSemanticUnitOptions,
       xAxisIntentPriority: normalizeTemplateXAxisIntentPriority(this.settings.templateXAxisIntentPriority),
@@ -1259,7 +1260,7 @@ export class SettingsController {
       const didSave = await this.saveTemplateSettings({
         templateDisabledBuiltinSemanticIds: disabledBuiltinTermIds.filter(id => id !== disabledBuiltinTerm.id),
         templateSemanticTermOrder: [...activeTermOrder, disabledBuiltinTerm.id],
-      }, null, builtinTarget);
+      }, null, builtinTarget, disabledBuiltinTerm.id);
       if (!didSave) {
         this.drafts.templateSemanticTermDraft = termDraft;
         this.render(builtinTarget);
@@ -1301,7 +1302,7 @@ export class SettingsController {
       templateSemanticAllowlist: customTerms,
       templateSemanticTermOrder: normalizeTemplateSemanticTermOrder(this.settings.templateSemanticTermOrder)
         .filter(termId => termId !== id),
-    }, localize("settings.template.semantic.saved", "Template semantic library updated."), itemsUpdateTarget("template-semantic-library", ...templateSemanticCustomTermItemIds));
+    }, localize("settings.template.semantic.saved", "Template semantic library updated."), itemsUpdateTarget("template-semantic-library", "settings-template-semantic-active-terms-list-item"), id);
   }
 
   private async disableTemplateBuiltinTerm(id: string): Promise<void> {
@@ -1313,7 +1314,7 @@ export class SettingsController {
       templateDisabledBuiltinSemanticIds: [...disabledTermIds, id],
       templateSemanticTermOrder: normalizeTemplateSemanticTermOrder(this.settings.templateSemanticTermOrder)
         .filter(termId => termId !== id),
-    }, null, itemsUpdateTarget("template-semantic-library", ...templateSemanticBuiltinTermItemIds));
+    }, null, itemsUpdateTarget("template-semantic-library", ...templateSemanticBuiltinTermItemIds), id);
   }
 
   private async enableTemplateBuiltinTerm(id: string): Promise<void> {
@@ -1328,7 +1329,7 @@ export class SettingsController {
     await this.saveTemplateSettings({
       templateDisabledBuiltinSemanticIds: nextDisabledTermIds,
       templateSemanticTermOrder: [...activeTermOrder, id],
-    }, null, itemsUpdateTarget("template-semantic-library", ...templateSemanticBuiltinTermItemIds));
+    }, null, itemsUpdateTarget("template-semantic-library", ...templateSemanticBuiltinTermItemIds), id);
   }
 
   private async disableTemplateDomainPack(id: string): Promise<void> {
@@ -1368,8 +1369,10 @@ export class SettingsController {
     updates: Record<string, unknown>,
     successMessage: string | null,
     target: SettingsViewUpdateTarget,
+    pendingActionItemId: string | null = null,
   ): Promise<boolean> {
     this.templateSettingsSaving = true;
+    this.pendingTemplateActionItemId = pendingActionItemId;
     this.render(target);
     try {
       await this.service.updateSettings(updates);
@@ -1389,6 +1392,7 @@ export class SettingsController {
     }
     finally {
       this.templateSettingsSaving = false;
+      this.pendingTemplateActionItemId = null;
       this.render(target);
     }
   }

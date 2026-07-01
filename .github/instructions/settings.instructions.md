@@ -38,38 +38,32 @@ SettingsViewOptions
   -> SettingsController classifies updates into affected descriptor/item ids
   -> SettingsView creates SettingsContentDescriptor placement records
   -> active section renders matching descriptors / search renders all descriptors
-  -> descriptors build SettingsTreeSection records with control/element/composite items
+  -> descriptors build SettingsTreeSection records with element/composite items
   -> SettingsTree.update(sections)
   -> SettingsTree renders keyed section list and item cell DOM owned by settings
   -> SettingsTree reuses cells by stable section/item id
   -> SettingsTree.updateItems updates keyed cells and patches already-rendered item widgets without replacing sibling cells
-  -> control items patch keyed leading/trailing child items
-  -> element items patch caller-owned item roots
+  -> element items patch caller-owned row/card roots
   -> grouped sibling items model independently updateable cells that can be visually joined as one card
   -> composite items keep one caller-owned card root only when child items share the same row lifecycle
   -> SettingsView-owned controls and composite child content can register a local patch for component-internal updates
   -> SettingsView-owned controls emit typed intent callbacks
-  -> changed control nodes replace only the targeted row child item
+  -> changed rows replace only the targeted SettingsTree item
 ```
 
-`SettingsTree` owns three item shapes plus explicit cell grouping metadata when a
+`SettingsTree` owns two item shapes plus explicit cell grouping metadata when a
 visual card is composed from several independently updateable rows:
 
-- `SettingsTreeControlItem` for ordinary left leading child items plus right
-  trailing child items;
 - `SettingsTreeElementItem` for caller-owned card content that still belongs to
   the section item order.
 - `SettingsTreeCompositeItem` for one settings row/card whose child content
   items have their own stable ids, stable item DOM, and disposable lifecycles.
 
-Controls are interchangeable child item content. For control items, `SettingsTree`
-receives keyed leading and trailing `HTMLElement` child items and does not inspect
-whether trailing content is a select, switch, color swatch, reset button, path
-picker, action bar, toolbar, or grouped action container. For element items,
-`SettingsTree` receives the caller-owned item root and owns only the section
-ordering, item id, base card class, and optional item search metadata.
-`SettingsView` owns each control's layout, interaction callbacks, and
-disposable lifecycle.
+`SettingsView` creates ordinary setting row/card DOM, including labels, layout,
+controls, interaction callbacks, local patch registrations, and disposable
+lifecycle. `SettingsTree` receives caller-owned element roots and owns only the
+section ordering, item id, base card class, visual grouping metadata, and
+optional item search metadata.
 
 Prefer modeling independently updateable regions as sibling `SettingsTree`
 entries with stable ids, even when those cells are visually joined into one
@@ -99,10 +93,10 @@ containing card's search metadata in place. These local patch callbacks must
 not be stored on `SettingsTreeItem` records. If one update target mixes local
 and non-local item ids, `SettingsView` applies the local patches first and sends
 only the remaining item ids through `SettingsTree` widget patching by stable
-ids. `SettingsTree.updateItems` must keep stable item keys, sibling cells,
-settings cards, and control nodes alive. A targeted grouped item id patches
-only that cell. A targeted composite child id patches only that child item; it
-must not replace the parent composite card or sibling child items.
+ids. `SettingsTree.updateItems` must keep stable item keys, sibling cells, and
+settings cards alive. A targeted grouped item id patches only that cell. A
+targeted composite child id patches only that child item; it must not replace
+the parent composite card or sibling child items.
 
 ## Settings Search
 
@@ -185,7 +179,7 @@ not introduce a parallel settings store.
 | `contrib/settings/browser/settingsController.ts` | form drafts, validation, saving state, dispatch to settings service or owner commands. |
 | `contrib/settings/browser/settingsLayout.ts` | settings section ids, navigation grouping, and section icon metadata. |
 | `contrib/settings/browser/settingsSearch.ts` | settings search text normalization, query tokenization, and row/card matching helpers. |
-| `contrib/settings/browser/settingsTree.ts` | stable keyed settings item widgets; owns keyed leading/trailing child items for caller-owned controls. |
+| `contrib/settings/browser/settingsTree.ts` | stable keyed settings item widgets; owns section ordering, grouping, and element/composite mounting. |
 | `contrib/settings/browser/settingsView.ts` | pure DOM rendering; callbacks only. |
 | `contrib/settings/browser/settingsViewPane.ts` | DI shell, controller lifecycle, settings view-input subscription. |
 | `contrib/settings/browser/settings.contribution.ts` | view/contribution registration. |

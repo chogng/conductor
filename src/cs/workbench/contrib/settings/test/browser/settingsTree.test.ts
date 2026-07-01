@@ -10,154 +10,46 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 suite("workbench/contrib/settings/test/browser/settingsTree", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-  test("reuses item controls across keyed updates", () => {
+  test("reuses caller-owned element items across keyed updates", () => {
     if (typeof document === "undefined") {
       return;
     }
 
     const tree = store.add(new SettingsTree());
-    const control = document.createElement("button");
-    control.id = "settings-custom-control";
-    control.textContent = "Control";
+    const element = createRowElement("settings-custom-card", "Custom");
 
     tree.update([
       {
         id: "settings-test-section",
         title: "Section",
         items: [
-          createControlItem({
+          createElementItem({
+            element,
             id: "settings-custom-card",
-            title: "Custom",
-            control,
           }),
         ],
       },
     ]);
     const card = tree.element.querySelector("#settings-custom-card");
+    const row = card?.closest(".settings-tree-item");
 
     tree.update([
       {
         id: "settings-test-section",
         title: "Section",
         items: [
-          createControlItem({
-            description: "Updated description",
+          createElementItem({
+            element,
             id: "settings-custom-card",
-            title: "Updated Custom",
-            control,
+            searchText: "Updated Custom",
           }),
         ],
       },
     ]);
 
     assert.equal(tree.element.querySelector("#settings-custom-card"), card);
-    assert.equal(tree.element.querySelector("#settings-custom-control"), control);
-    assert.equal(
-      tree.element.querySelector("#settings-custom-card .settings-title")?.textContent,
-      "Updated Custom",
-    );
-    assert.equal(
-      tree.element.querySelector("#settings-custom-card .settings-description")?.textContent,
-      "Updated description",
-    );
-  });
-
-  test("mounts control leading and trailing items", () => {
-    if (typeof document === "undefined") {
-      return;
-    }
-
-    const tree = store.add(new SettingsTree());
-    const control = document.createElement("div");
-    control.className = "settings-test-custom-container";
-    const accessory = document.createElement("span");
-    accessory.textContent = "Accessory";
-    tree.update([
-      {
-        id: "settings-test-section",
-        title: "Section",
-        items: [
-          {
-            kind: "control",
-            id: "settings-layout-card",
-            leading: [
-              {
-                id: "label",
-                element: text("settings-title", "Layout"),
-                searchText: "Layout",
-              },
-              {
-                id: "accessory",
-                element: accessory,
-                searchText: "Accessory",
-              },
-            ],
-            trailing: [
-              {
-                id: "control",
-                element: control,
-              },
-            ],
-          },
-        ],
-      },
-    ]);
-
-    const leading = tree.element.querySelector("#settings-layout-card .settings-row-leading");
-    const trailing = tree.element.querySelector("#settings-layout-card .settings-row-trailing");
-    assert.equal(leading?.children.length, 2);
-    assert.equal(leading?.children[1]?.firstChild, accessory);
-    assert.equal(trailing?.className, "settings-row-trailing");
-    assert.equal(trailing?.firstElementChild?.className, "settings-row-item settings-row-item--trailing");
-    assert.equal(trailing?.firstElementChild?.firstChild, control);
-  });
-
-  test("replaces the trailing item when the caller supplies a different control", () => {
-    if (typeof document === "undefined") {
-      return;
-    }
-
-    const tree = store.add(new SettingsTree());
-    const firstControl = document.createElement("button");
-    firstControl.id = "settings-first-control";
-    const secondControl = document.createElement("button");
-    secondControl.id = "settings-second-control";
-
-    tree.update([
-      {
-        id: "settings-test-section",
-        title: "Section",
-        items: [
-          createControlItem({
-            description: "Description",
-            id: "settings-switch-card",
-            title: "Control",
-            control: firstControl,
-          }),
-        ],
-      },
-    ]);
-    const card = tree.element.querySelector("#settings-switch-card");
-
-    tree.update([
-      {
-        id: "settings-test-section",
-        title: "Section",
-        items: [
-          createControlItem({
-            id: "settings-switch-card",
-            title: "Control",
-            control: secondControl,
-          }),
-        ],
-      },
-    ]);
-
-    const trailing = tree.element.querySelector("#settings-switch-card .settings-row-trailing");
-    assert.equal(tree.element.querySelector("#settings-switch-card"), card);
-    assert.equal(trailing?.className, "settings-row-trailing");
-    assert.equal(trailing?.firstElementChild?.firstChild, secondControl);
-    assert.equal(tree.element.querySelector("#settings-first-control"), null);
+    assert.equal(tree.element.querySelector("#settings-custom-card")?.closest(".settings-tree-item"), row);
+    assert.equal((card as HTMLElement | null)?.dataset.search, "updated custom");
   });
 
   test("stores item search text on the card", () => {
@@ -166,19 +58,17 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
     }
 
     const tree = store.add(new SettingsTree());
-    const control = document.createElement("button");
+    const element = createRowElement("settings-search-card", "Search Title", "Search Description");
 
     tree.update([
       {
         id: "settings-test-section",
         title: "Section",
         items: [
-          createControlItem({
-            description: "Search Description",
+          createElementItem({
+            element,
             id: "settings-search-card",
-            searchText: "Option Label",
-            title: "Search Title",
-            control,
+            searchText: "Search Title Search Description Option Label",
           }),
         ],
       },
@@ -250,7 +140,7 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
     const tree = store.add(new SettingsTree());
     const firstElement = document.createElement("div");
     const secondElement = document.createElement("div");
-    const control = document.createElement("button");
+    const plainElement = createRowElement("settings-plain-card", "Plain");
 
     tree.update([
       {
@@ -269,21 +159,9 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
             id: "settings-semantic-active-card",
           },
           {
-            kind: "control",
+            kind: "element",
+            element: plainElement,
             id: "settings-plain-card",
-            leading: [
-              {
-                id: "label",
-                element: text("settings-title", "Plain"),
-                searchText: "Plain",
-              },
-            ],
-            trailing: [
-              {
-                id: "control",
-                element: control,
-              },
-            ],
           },
         ],
       },
@@ -313,20 +191,17 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
     }
 
     const tree = store.add(new SettingsTree());
-    const firstControl = document.createElement("button");
-    firstControl.id = "settings-first-control";
-    const secondControl = document.createElement("button");
-    secondControl.id = "settings-second-control";
+    const firstElement = createRowElement("settings-control-card", "Control");
+    const secondElement = createRowElement("settings-control-card", "Updated Control");
 
     tree.update([
       {
         id: "settings-test-section",
         title: "Section",
         items: [
-          createControlItem({
+          createElementItem({
+            element: firstElement,
             id: "settings-control-card",
-            title: "Control",
-            control: firstControl,
           }),
         ],
       },
@@ -339,20 +214,18 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
         id: "settings-test-section",
         title: "Section",
         items: [
-          createControlItem({
+          createElementItem({
+            element: secondElement,
             id: "settings-control-card",
-            title: "Updated Control",
-            control: secondControl,
           }),
         ],
       },
     ], ["settings-control-card"]);
 
-    assert.equal(tree.element.querySelector("#settings-control-card"), card);
+    assert.equal(tree.element.querySelector("#settings-control-card"), secondElement);
     assert.equal(tree.element.querySelector("#settings-control-card")?.closest(".settings-tree-item"), row);
     assert.equal(tree.element.querySelector("#settings-control-card")?.closest(".ui-list__row"), null);
-    assert.equal(tree.element.querySelector("#settings-first-control"), null);
-    assert.equal(tree.element.querySelector("#settings-second-control"), secondControl);
+    assert.equal(tree.element.contains(firstElement), false);
     assert.equal(
       tree.element.querySelector("#settings-control-card .settings-title")?.textContent,
       "Updated Control",
@@ -425,41 +298,34 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
   });
 });
 
-function createControlItem(options: {
-  readonly control: HTMLElement;
-  readonly description?: string;
+function createElementItem(options: {
+  readonly element: HTMLElement;
   readonly id: string;
   readonly searchText?: string;
-  readonly title: string;
 }) {
   return {
-    kind: "control" as const,
+    kind: "element" as const,
+    element: options.element,
     id: options.id,
-    leading: [
-      {
-        id: "label",
-        element: label(options.title, options.description),
-        searchText: [options.title, options.description].filter(Boolean).join(" "),
-      },
-    ],
     searchText: options.searchText,
-    trailing: [
-      {
-        id: "control",
-        element: options.control,
-      },
-    ],
   };
 }
 
-function label(title: string, description?: string): HTMLElement {
+function createRowElement(id: string, title: string, description?: string): HTMLElement {
+  const card = document.createElement("div");
+  card.id = id;
+  card.className = "settings-card settings-card-row";
+  const row = document.createElement("div");
+  row.className = "settings-row";
   const element = document.createElement("div");
-  element.className = description ? "settings-row-label settings-heading" : "settings-row-label";
+  element.className = description ? "settings-row-item settings-row-leading settings-heading" : "settings-row-item settings-row-leading";
   element.appendChild(text("settings-title", title));
   if (description) {
     element.appendChild(text("settings-description", description));
   }
-  return element;
+  row.appendChild(element);
+  card.appendChild(row);
+  return card;
 }
 
 function text(className: string, value: string): HTMLElement {

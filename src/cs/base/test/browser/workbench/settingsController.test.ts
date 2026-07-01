@@ -389,6 +389,80 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       container.remove();
     }
   });
+
+  test("patches only active term list when removing a custom semantic term", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const patchedTargets: SettingsContentItemTarget[] = [];
+    const prototype = SettingsView.prototype as unknown as {
+      updateContentItems: (target: SettingsContentItemTarget) => void;
+    };
+    const originalUpdateContentItems = prototype.updateContentItems;
+    prototype.updateContentItems = function (target: SettingsContentItemTarget): void {
+      patchedTargets.push(target);
+      return originalUpdateContentItems.call(this, target);
+    };
+
+    let controller: SettingsController | undefined;
+    const service = createSettingsService({
+      templateSemanticAllowlist: [{
+        id: "custom-term",
+        alias: "Custom Term",
+        canonicalRole: "voltage",
+        axisTendency: "x",
+        matchPolicy: "exact",
+        enabled: true,
+      }],
+    });
+    service.updateSettings = async updates => {
+      const nextSettings = updates as Partial<ConductorSettings>;
+      service.settings = {
+        ...service.settings,
+        ...nextSettings,
+      };
+      controller?.update(createSettingsViewInput(service.settings));
+      return service.settings;
+    };
+    controller = new SettingsController(
+      container,
+      createSettingsViewInput(service.settings),
+      service,
+      createCommandService(),
+      createNotificationService(),
+    );
+    controller.attachNavigation(container);
+
+    try {
+      openTemplateSection(container);
+      patchedTargets.length = 0;
+
+      getActiveCustomTermAction(container, "Custom Term").click();
+      await settled();
+
+      assert.deepEqual(
+        patchedTargets
+          .filter(target => target.descriptorId === "template-semantic-library")
+          .map(target => target.itemIds),
+        [
+          [
+            "settings-template-semantic-active-terms-list-item",
+          ],
+          [
+            "settings-template-semantic-active-terms-list-item",
+          ],
+          [
+            "settings-template-semantic-active-terms-list-item",
+          ],
+        ],
+      );
+    }
+    finally {
+      prototype.updateContentItems = originalUpdateContentItems;
+      controller?.dispose();
+      container.remove();
+    }
+  });
 });
 
 class Deferred<T> {
@@ -516,6 +590,15 @@ function getSemanticTermInput(container: HTMLElement): HTMLInputElement {
 
 function getActiveBuiltinTermAction(container: HTMLElement, term: string): HTMLButtonElement {
   const item = Array.from(container.querySelectorAll<HTMLElement>('#settings-template-semantic-active-terms-card .inputbox_widget_item[data-kind="builtin-enabled"]'))
+    .find(item => item.querySelector<HTMLElement>(".inputbox_widget_item_label")?.textContent === term);
+  assert.ok(item);
+  const action = item.querySelector<HTMLButtonElement>(".inputbox_widget_item_action");
+  assert.ok(action);
+  return action;
+}
+
+function getActiveCustomTermAction(container: HTMLElement, term: string): HTMLButtonElement {
+  const item = Array.from(container.querySelectorAll<HTMLElement>('#settings-template-semantic-active-terms-card .inputbox_widget_item[data-kind="custom"]'))
     .find(item => item.querySelector<HTMLElement>(".inputbox_widget_item_label")?.textContent === term);
   assert.ok(item);
   const action = item.querySelector<HTMLButtonElement>(".inputbox_widget_item_action");
