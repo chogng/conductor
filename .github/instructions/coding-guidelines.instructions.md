@@ -53,6 +53,15 @@ helperMutatesTwoOwners();
 
 If code feels messy, fix the ownership shape before local cleanup. Do not hide mixed responsibilities behind helpers, renamed files, or formatting-only structure.
 
+## Responsibility Regions
+
+In medium or large owner files, use lightweight region comments to mark
+distinct responsibilities.
+
+Prefer regions for public contracts, schema records, indexes/cache setup,
+public APIs, matching logic, and normalization helpers. Region comments should
+explain block responsibility, not repeat obvious code.
+
 ## Layering
 
 Layering decides owner, imports, and API shape.

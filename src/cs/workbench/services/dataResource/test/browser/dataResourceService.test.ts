@@ -10,11 +10,13 @@ import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { DataResourceService } from "src/cs/workbench/services/dataResource/browser/dataResourceService";
 import {
-	createDataResourceSemanticMatcher,
-	dataResourceBuiltinSemanticTerms,
-	dataResourceBuiltinSemanticDomainPacks,
-	matchDataResourceRowMarker,
-	matchDataResourceSemanticTitle,
+	createSemanticMatcher,
+	builtinSemanticTerms,
+	builtinSemanticDomainPacks,
+	isCustomSemanticMatchTermAllowed,
+	matchSemanticRowMarker,
+	matchSemanticTitle,
+	normalizeSemanticText,
 } from "src/cs/workbench/services/dataResource/common/semanticLibrary";
 import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 import type { StructuredContentEvidence } from "src/cs/workbench/services/dataResource/common/structuredContent";
@@ -57,9 +59,9 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 	};
 
 	test("matches semantic title and row marker terms", () => {
-		const drainVoltageMatch = matchDataResourceSemanticTitle("Drain Voltage");
-		const gateVoltageXMatch = matchDataResourceSemanticTitle("Gate Voltage X");
-		const gateVoltageYMatch = matchDataResourceSemanticTitle("Gate Voltage Y");
+		const drainVoltageMatch = matchSemanticTitle("Drain Voltage");
+		const gateVoltageXMatch = matchSemanticTitle("Gate Voltage X");
+		const gateVoltageYMatch = matchSemanticTitle("Gate Voltage Y");
 
 		assert.equal(drainVoltageMatch?.axisTendency, "x");
 		assert.equal(drainVoltageMatch?.canonicalRole, "vd");
@@ -67,20 +69,20 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.equal(gateVoltageXMatch?.canonicalRole, "vg");
 		assert.equal(gateVoltageYMatch?.axisTendency, "dependent");
 		assert.equal(gateVoltageYMatch?.canonicalRole, "vg");
-		assert.equal(matchDataResourceSemanticTitle("vpn")?.canonicalRole, "voltage");
-		assert.equal(matchDataResourceSemanticTitle("vpn")?.axisTendency, "x");
-		assert.equal(matchDataResourceSemanticTitle("Cp")?.canonicalRole, "capacitance");
-		assert.equal(matchDataResourceSemanticTitle("Cp")?.axisTendency, "dependent");
-		assert.equal(matchDataResourceSemanticTitle("Cp(vp=0.00000)"), null);
-		assert.equal(matchDataResourceSemanticTitle("CH1 Voltage"), null);
-		assert.equal(matchDataResourceSemanticTitle("drain TotalCurrent(IdVg_n938_des) X"), null);
+		assert.equal(matchSemanticTitle("vpn")?.canonicalRole, "voltage");
+		assert.equal(matchSemanticTitle("vpn")?.axisTendency, "x");
+		assert.equal(matchSemanticTitle("Cp")?.canonicalRole, "capacitance");
+		assert.equal(matchSemanticTitle("Cp")?.axisTendency, "dependent");
+		assert.equal(matchSemanticTitle("Cp(vp=0.00000)"), null);
+		assert.equal(matchSemanticTitle("CH1 Voltage"), null);
+		assert.equal(matchSemanticTitle("drain TotalCurrent(IdVg_n938_des) X"), null);
 		for (const ambiguousTerm of ["V", "I", "C", "G", "t", "f"]) {
-			assert.equal(matchDataResourceSemanticTitle(ambiguousTerm), null);
+			assert.equal(matchSemanticTitle(ambiguousTerm), null);
 		}
-		assert.equal(matchDataResourceSemanticTitle("ipt")?.canonicalRole, "current");
-		assert.equal(matchDataResourceSemanticTitle("ipt")?.axisTendency, "dependent");
-		assert.equal(matchDataResourceRowMarker("DataName"), "titleRow");
-		assert.equal(matchDataResourceRowMarker("DataValue"), "dataRow");
+		assert.equal(matchSemanticTitle("ipt")?.canonicalRole, "current");
+		assert.equal(matchSemanticTitle("ipt")?.axisTendency, "dependent");
+		assert.equal(matchSemanticRowMarker("DataName"), "titleRow");
+		assert.equal(matchSemanticRowMarker("DataValue"), "dataRow");
 	});
 
 	test("uses template semantic term entries in DataResource matcher", async () => {
@@ -155,8 +157,48 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		));
 	});
 
+	test("uses Chinese template semantic term entries", async () => {
+		assert.equal(normalizeSemanticText("栅 压"), "栅压");
+		assert.equal(isCustomSemanticMatchTermAllowed("漏极电流"), true);
+		assert.equal(isCustomSemanticMatchTermAllowed(";"), false);
+
+		const evidence = await resolveEvidence([
+			["栅压", "漏极电流"],
+			["0", "1e-12"],
+			["0.5", "2e-12"],
+			["1", "4e-12"],
+		], {
+			templateSemanticAllowlist: [{
+				id: "gate-voltage-zh",
+				alias: "栅压",
+				canonicalRole: "voltage",
+				axisTendency: "x",
+				enabled: true,
+			}, {
+				id: "drain-current-zh",
+				alias: "漏极电流",
+				canonicalRole: "current",
+				axisTendency: "dependent",
+				enabled: true,
+			}],
+		});
+
+		assert.ok(evidence.columnTitleSpans.some(span =>
+			span.targetColumn === 0 &&
+			span.canonicalRole === "voltage" &&
+			span.axisTendency === "x" &&
+			span.reasons.includes("semanticAllowlist.term")
+		));
+		assert.ok(evidence.columnTitleSpans.some(span =>
+			span.targetColumn === 1 &&
+			span.canonicalRole === "current" &&
+			span.axisTendency === "dependent" &&
+			span.reasons.includes("semanticAllowlist.term")
+		));
+	});
+
 	test("can disable built-in semantic terms without deleting user terms", async () => {
-		const vgTerm = dataResourceBuiltinSemanticTerms.find(term => term.alias === "Vg");
+		const vgTerm = builtinSemanticTerms.find(term => term.alias === "Vg");
 		assert.ok(vgTerm);
 		const evidence = await resolveEvidence([
 			["Vg", "SenseCurrent"],
@@ -186,8 +228,8 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 	});
 
 	test("can disable built-in domain packs without deleting user terms", async () => {
-		assert.ok(dataResourceBuiltinSemanticDomainPacks.some(pack => pack.id === "origin-like-export"));
-		const matcher = createDataResourceSemanticMatcher({
+		assert.ok(builtinSemanticDomainPacks.some(pack => pack.id === "origin-like-export"));
+		const matcher = createSemanticMatcher({
 			disabledDomainPackIds: ["origin-like-export"],
 		});
 		assert.equal(matcher.matchRowMarker("DataName"), null);

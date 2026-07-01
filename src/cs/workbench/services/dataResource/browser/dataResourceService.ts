@@ -17,8 +17,8 @@ import {
 	type IDataResourceStructuredContentReference,
 } from "src/cs/workbench/services/dataResource/common/dataResource";
 import {
-	createDataResourceSemanticMatcher,
-	type DataResourceSemanticMatcher,
+	createSemanticMatcher,
+	type SemanticMatcher,
 } from "src/cs/workbench/services/dataResource/common/semanticLibrary";
 import {
 	createEmptyStructuredContentStructure,
@@ -139,13 +139,13 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 	) {
 		super();
 
-		this.semanticSettingsFingerprint = this.createSemanticMatcher().fingerprint;
+		this.semanticSettingsFingerprint = this.createSettingsSemanticMatcher().fingerprint;
 		this._register(this.tableModelService.onDidChangeModel(model => {
 			this.trackResource(model.resource);
 			this.onDidChangeResourceEmitter.fire(model.resource);
 		}));
 		this._register(this.settingsService.onDidChangeConductorSettings(() => {
-			const nextFingerprint = this.createSemanticMatcher().fingerprint;
+			const nextFingerprint = this.createSettingsSemanticMatcher().fingerprint;
 			if (nextFingerprint === this.semanticSettingsFingerprint) {
 				return;
 			}
@@ -168,7 +168,7 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 			target.resource,
 			createStructuredContentSource(target),
 		);
-		const resolution = createStructuredContentResolution(reference.object.getSnapshot(), target, this.createSemanticMatcher());
+		const resolution = createStructuredContentResolution(reference.object.getSnapshot(), target, this.createSettingsSemanticMatcher());
 		return {
 			object: resolution,
 			dispose: () => {
@@ -183,7 +183,7 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 		this.trackResource(target.resource);
 		const model = this.tableModelService.get(target.resource);
 		return model
-			? createStructuredContentResolution(model.getSnapshot(), target, this.createSemanticMatcher())
+			? createStructuredContentResolution(model.getSnapshot(), target, this.createSettingsSemanticMatcher())
 			: undefined;
 	}
 
@@ -192,9 +192,9 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 		this.tableModelService.resolve(target.resource, createStructuredContentSource(target));
 	}
 
-	private createSemanticMatcher(): DataResourceSemanticMatcher {
+	private createSettingsSemanticMatcher(): SemanticMatcher {
 		const settings = this.settingsService.getConductorSettings();
-		return createDataResourceSemanticMatcher({
+		return createSemanticMatcher({
 			allowlist: normalizeTemplateSemanticAllowlist(settings?.templateSemanticAllowlist),
 			disabledBuiltinTermIds: normalizeTemplateDisabledBuiltinSemanticIds(settings?.templateDisabledBuiltinSemanticIds),
 			disabledDomainPackIds: normalizeTemplateDisabledBuiltinDomainPackIds(settings?.templateDisabledBuiltinDomainPackIds),
@@ -210,7 +210,7 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 const createStructuredContentResolution = (
 	snapshot: TableModelSnapshot,
 	target: DataResourceStructuredContentTarget,
-	semanticMatcher: DataResourceSemanticMatcher,
+	semanticMatcher: SemanticMatcher,
 ): DataResourceStructuredContentResolution => {
 	if (snapshot.loadState.state === "error") {
 		return {
@@ -285,7 +285,7 @@ const toDataResourceLoadState = (
 
 const createStructuredContentEvidence = (
 	content: TableModelContentSnapshot,
-	semanticMatcher: DataResourceSemanticMatcher,
+	semanticMatcher: SemanticMatcher,
 ): StructuredContentEvidence => {
 	const endPerf = startPerf("dataResource.structuredContent.evidence", {
 		columnCount: content.columnCount,
@@ -453,7 +453,7 @@ const createColumnTitleSpanEvidence = ({
 }: {
 	readonly numericRuns: readonly NumericRun[];
 	readonly rows: readonly (readonly string[])[];
-	readonly semanticMatcher: DataResourceSemanticMatcher;
+	readonly semanticMatcher: SemanticMatcher;
 }): readonly StructuredColumnTitleSpanEvidence[] => {
 	const spans: StructuredColumnTitleSpanEvidence[] = [];
 	for (const run of numericRuns) {
@@ -487,7 +487,7 @@ const createColumnTitleSpanEvidence = ({
 const findTitleCellForNumericRun = (
 	rows: readonly (readonly string[])[],
 	run: NumericRun,
-	semanticMatcher: DataResourceSemanticMatcher,
+	semanticMatcher: SemanticMatcher,
 ): StructuredColumnTitleSpanEvidence["titleCell"] | null => {
 	const immediateRow = run.startRow - 1;
 	if (immediateRow >= 0) {
@@ -515,7 +515,7 @@ const readTitleCellFromRow = (
 	row: readonly string[],
 	rowIndex: number,
 	targetColumn: number,
-	semanticMatcher: DataResourceSemanticMatcher,
+	semanticMatcher: SemanticMatcher,
 ): StructuredColumnTitleSpanEvidence["titleCell"] | null => {
 	const firstCellMarker = semanticMatcher.matchRowMarker(row[0]);
 	const targetText = normalizeText(row[targetColumn]);
@@ -547,7 +547,7 @@ const createInfoCellNeighborhoodEvidence = ({
 	titleSpans,
 }: {
 	readonly rows: readonly (readonly string[])[];
-	readonly semanticMatcher: DataResourceSemanticMatcher;
+	readonly semanticMatcher: SemanticMatcher;
 	readonly titleSpans: readonly StructuredColumnTitleSpanEvidence[];
 }): readonly StructuredInfoCellNeighborhoodEvidence[] => {
 	const neighborhoods: StructuredInfoCellNeighborhoodEvidence[] = [];
@@ -655,7 +655,7 @@ const readInfoCellNeighbors = (
 const createNeighborhoodRoleCandidates = (
 	span: StructuredColumnTitleSpanEvidence,
 	neighbors: StructuredInfoCellNeighborhoodEvidence["neighbors"],
-	semanticMatcher: DataResourceSemanticMatcher,
+	semanticMatcher: SemanticMatcher,
 ): StructuredInfoCellNeighborhoodEvidence["xRoleCandidates"] => {
 	const candidates = new Map<StructuredXAxisRole, { confidence: number; reasons: string[] }>();
 	const addCandidate = (
@@ -756,7 +756,7 @@ const createNeighborhoodReasons = (
 	neighbors: StructuredInfoCellNeighborhoodEvidence["neighbors"],
 	roleCandidates: StructuredInfoCellNeighborhoodEvidence["xRoleCandidates"],
 	intentCandidates: StructuredInfoCellNeighborhoodEvidence["intentCandidates"],
-	semanticMatcher: DataResourceSemanticMatcher,
+	semanticMatcher: SemanticMatcher,
 ): readonly string[] => {
 	const reasons = neighbors.map(neighbor => `infoNeighborhood.neighbor:${neighbor.direction}`);
 	for (const neighbor of neighbors) {
@@ -838,7 +838,7 @@ const createColumnProfiles = ({
 	readonly columnCount: number;
 	readonly numericRuns: readonly NumericRun[];
 	readonly rows: readonly (readonly string[])[];
-	readonly semanticMatcher: DataResourceSemanticMatcher;
+	readonly semanticMatcher: SemanticMatcher;
 	readonly titleSpans: readonly StructuredColumnTitleSpanEvidence[];
 }): readonly StructuredColumnProfile[] => {
 	const longestRunsByColumn = createLongestRunsByColumn(numericRuns);
@@ -866,7 +866,7 @@ const createColumnSemanticCandidates = ({
 	titleSpans,
 }: {
 	readonly columnProfiles: readonly StructuredColumnProfile[];
-	readonly semanticMatcher: DataResourceSemanticMatcher;
+	readonly semanticMatcher: SemanticMatcher;
 	readonly titleSpans: readonly StructuredColumnTitleSpanEvidence[];
 }): readonly StructuredColumnSemanticCandidate[] => {
 	const titleSpansByColumn = createBestTitleSpanByColumn(titleSpans);

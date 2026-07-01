@@ -56,10 +56,10 @@ import {
   type TemplateXAxisIntent,
 } from "src/cs/workbench/services/settings/common/settings";
 import {
-  dataResourceBuiltinSemanticTerms,
-  dataResourceBuiltinSemanticDomainPacks,
-  isDataResourceCustomSemanticMatchTermAllowed,
-  type DataResourceBuiltinSemanticTerm,
+  builtinSemanticTerms,
+  builtinSemanticDomainPacks,
+  isCustomSemanticMatchTermAllowed,
+  type BuiltinSemanticTerm,
 } from "src/cs/workbench/services/dataResource/common/semanticLibrary";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import { WorkbenchCommandId } from "src/cs/workbench/browser/actions/workbenchCommands";
@@ -692,19 +692,19 @@ export class SettingsController {
 
   private get templateSettings(): SettingsViewOptions["templateSettings"] {
     const customTerms = normalizeTemplateSemanticAllowlist(this.settings.templateSemanticAllowlist).map(toTemplateSemanticTermView);
-    const builtinTerms = dataResourceBuiltinSemanticTerms.map(toBuiltinTemplateSemanticTermView);
+    const builtinTermViews = builtinSemanticTerms.map(toBuiltinTemplateSemanticTermView);
     const disabledBuiltinTermIds = normalizeTemplateDisabledBuiltinSemanticIds(this.settings.templateDisabledBuiltinSemanticIds);
     return {
       activeTerms: createTemplateActiveSemanticTerms(
-        builtinTerms,
+        builtinTermViews,
         customTerms,
         disabledBuiltinTermIds,
         normalizeTemplateSemanticTermOrder(this.settings.templateSemanticTermOrder),
       ),
       customTerms,
       axisOptions: this.templateSemanticAxisOptions,
-      builtinTerms,
-      builtinDomainPacks: dataResourceBuiltinSemanticDomainPacks,
+      builtinTerms: builtinTermViews,
+      builtinDomainPacks: builtinSemanticDomainPacks,
       disabledDomainPackIds: normalizeTemplateDisabledBuiltinDomainPackIds(this.settings.templateDisabledBuiltinDomainPackIds),
       disabledBuiltinTermIds,
       familyOptions: this.templateSemanticFamilyOptions,
@@ -1206,7 +1206,7 @@ export class SettingsController {
     const term = termDraft.trim();
     const builtinTarget = itemsUpdateTarget("template-semantic-library", ...templateSemanticBuiltinTermFromInputItemIds);
     const customTarget = itemsUpdateTarget("template-semantic-library", ...templateSemanticCustomTermItemIds);
-    if (!term || !isDataResourceCustomSemanticMatchTermAllowed(term)) {
+    if (!term || !isCustomSemanticMatchTermAllowed(term)) {
       this.showTemplateSettingsNotification(
         localize("settings.template.semantic.emptyTerm", "Enter a match term before adding it."),
         "error",
@@ -1217,17 +1217,17 @@ export class SettingsController {
     const customTerms = normalizeTemplateSemanticAllowlist(this.settings.templateSemanticAllowlist);
     const disabledBuiltinTermIds = normalizeTemplateDisabledBuiltinSemanticIds(this.settings.templateDisabledBuiltinSemanticIds);
     const activeTermOrder = getTemplateActiveSemanticTermOrder(
-      dataResourceBuiltinSemanticTerms,
+      builtinSemanticTerms,
       customTerms,
       disabledBuiltinTermIds,
       normalizeTemplateSemanticTermOrder(this.settings.templateSemanticTermOrder),
     );
     const disabledBuiltinTermIdSet = new Set(disabledBuiltinTermIds);
-    const disabledBuiltinTerm = dataResourceBuiltinSemanticTerms.find(candidate =>
+    const disabledBuiltinTerm = builtinSemanticTerms.find(candidate =>
       disabledBuiltinTermIdSet.has(candidate.id) && candidate.alias === term
     );
     const duplicatesEnabledTerm = customTerms.some(candidate => candidate.alias === term) ||
-      dataResourceBuiltinSemanticTerms.some(candidate =>
+      builtinSemanticTerms.some(candidate =>
         !disabledBuiltinTermIdSet.has(candidate.id) && candidate.alias === term
       );
     if (duplicatesEnabledTerm) {
@@ -1303,7 +1303,7 @@ export class SettingsController {
     const disabledTermIds = normalizeTemplateDisabledBuiltinSemanticIds(this.settings.templateDisabledBuiltinSemanticIds);
     const nextDisabledTermIds = disabledTermIds.filter(disabledId => disabledId !== id);
     const activeTermOrder = getTemplateActiveSemanticTermOrder(
-      dataResourceBuiltinSemanticTerms,
+      builtinSemanticTerms,
       normalizeTemplateSemanticAllowlist(this.settings.templateSemanticAllowlist),
       disabledTermIds,
       normalizeTemplateSemanticTermOrder(this.settings.templateSemanticTermOrder),
@@ -1833,7 +1833,7 @@ function createTemplateActiveSemanticTerms(
 }
 
 function getTemplateActiveSemanticTermOrder(
-  builtinTerms: readonly DataResourceBuiltinSemanticTerm[],
+  builtinTerms: readonly BuiltinSemanticTerm[],
   customTerms: readonly TemplateSemanticTermRule[],
   disabledBuiltinTermIds: readonly string[],
   termOrder: readonly string[],
@@ -1861,7 +1861,7 @@ const toTemplateSemanticTermView = (
 });
 
 const toBuiltinTemplateSemanticTermView = (
-  term: DataResourceBuiltinSemanticTerm,
+  term: BuiltinSemanticTerm,
 ): SettingsViewOptions["templateSettings"]["builtinTerms"][number] => ({
   id: term.id,
   term: term.alias,

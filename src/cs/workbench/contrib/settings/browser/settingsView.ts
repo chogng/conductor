@@ -30,7 +30,7 @@ import type {
   TemplateXAxisIntent,
 } from "src/cs/workbench/services/settings/common/settings";
 import type {
-  DataResourceBuiltinSemanticDomainPack,
+  BuiltinSemanticDomainPack,
 } from "src/cs/workbench/services/dataResource/common/semanticLibrary";
 import {
   createSettingsNavGroups,
@@ -187,7 +187,7 @@ type TemplateSettings = {
   customTerms: readonly TemplateSemanticTerm[];
   axisOptions: readonly SelectOption[];
   builtinTerms: readonly TemplateBuiltinSemanticTerm[];
-  builtinDomainPacks: readonly DataResourceBuiltinSemanticDomainPack[];
+  builtinDomainPacks: readonly BuiltinSemanticDomainPack[];
   disabledDomainPackIds: readonly string[];
   disabledBuiltinTermIds: readonly string[];
   familyOptions: readonly SelectOption[];
@@ -1208,7 +1208,7 @@ export class SettingsView {
 
   private createTemplateDomainPackBlock(
     settings: TemplateSettings,
-    pack: DataResourceBuiltinSemanticDomainPack,
+    pack: BuiltinSemanticDomainPack,
     state: "enabled" | "disabled",
   ): HTMLElement {
     const block = div("settings-template-domain-pack");
@@ -3172,7 +3172,7 @@ function formatXAxisIntent(intent: TemplateXAxisIntent): string {
   return localize("settings.template.intent.genericXY", "Generic XY");
 }
 
-function formatDomainPackKind(kind: DataResourceBuiltinSemanticDomainPack["kind"]): string {
+function formatDomainPackKind(kind: BuiltinSemanticDomainPack["kind"]): string {
   if (kind === "core") {
     return localize("settings.template.domainPacks.kind.core", "core");
   }
@@ -3185,7 +3185,7 @@ function formatDomainPackKind(kind: DataResourceBuiltinSemanticDomainPack["kind"
   return localize("settings.template.domainPacks.kind.test", "test");
 }
 
-function formatDomainPackSearchText(pack: DataResourceBuiltinSemanticDomainPack): string {
+function formatDomainPackSearchText(pack: BuiltinSemanticDomainPack): string {
   return [
     pack.id,
     pack.label,

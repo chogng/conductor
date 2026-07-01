@@ -16,7 +16,10 @@ import type {
 	TemplateXAxisIntent,
 } from "src/cs/workbench/services/settings/common/settings";
 
-export type DataResourceSemanticTitleMatch = {
+//#region Public semantic contracts
+// Stable values consumed by DataResource evidence, Settings UI, and Review callers.
+
+export type SemanticTitleMatch = {
 	readonly canonicalRole: StructuredMeasurementColumnRole;
 	readonly canonicalUnit?: StructuredCanonicalUnit;
 	readonly axisTendency: StructuredAxisTendency;
@@ -27,9 +30,9 @@ export type DataResourceSemanticTitleMatch = {
 	readonly reasons: readonly string[];
 };
 
-export type DataResourceRowMarkerKind = "titleRow" | "dataRow";
+export type SemanticRowMarkerKind = "titleRow" | "dataRow";
 
-export type DataResourceBuiltinSemanticTerm = {
+export type BuiltinSemanticTerm = {
 	readonly id: string;
 	readonly alias: string;
 	readonly canonicalRole: StructuredMeasurementColumnRole;
@@ -40,7 +43,7 @@ export type DataResourceBuiltinSemanticTerm = {
 	readonly domainPackIds: readonly string[];
 };
 
-export type DataResourceBuiltinSemanticDomainPack = {
+export type BuiltinSemanticDomainPack = {
 	readonly id: string;
 	readonly label: string;
 	readonly kind: "core" | "domain" | "format" | "test";
@@ -50,6 +53,11 @@ export type DataResourceBuiltinSemanticDomainPack = {
 	readonly xRolePriorityByIntent: Readonly<Record<string, readonly string[]>>;
 	readonly patterns: readonly string[];
 };
+
+//#endregion
+
+//#region Recipe schema and lookup records
+// Internal shapes for the bundled semantic recipe plus normalized lookup entries.
 
 type SemanticTitleRecord = {
 	readonly canonicalRole: StructuredMeasurementColumnRole;
@@ -62,14 +70,14 @@ type SemanticTitleRecord = {
 };
 
 type SemanticRowMarkerRecord = {
-	readonly kind: DataResourceRowMarkerKind;
+	readonly kind: SemanticRowMarkerKind;
 	readonly domainPackIds?: readonly string[];
 	readonly aliases: readonly string[];
 };
 
 type SemanticLibrary = {
 	readonly schemaVersion: 1;
-	readonly domainPacks: readonly DataResourceBuiltinSemanticDomainPack[];
+	readonly domainPacks: readonly BuiltinSemanticDomainPack[];
 	readonly rowMarkers: readonly SemanticRowMarkerRecord[];
 	readonly titles: readonly SemanticTitleRecord[];
 };
@@ -89,7 +97,7 @@ type SemanticTitleLookupEntry = {
 
 type SemanticRowMarkerLookupEntry = {
 	readonly alias: string;
-	readonly kind: DataResourceRowMarkerKind;
+	readonly kind: SemanticRowMarkerKind;
 	readonly domainPackIds: readonly string[];
 };
 
@@ -100,28 +108,38 @@ type SemanticTitleMatchCandidate = {
 	readonly entry: SemanticTitleLookupEntry;
 };
 
-export type DataResourceSemanticMatcherOptions = {
+//#endregion
+
+//#region Matcher options and instance contract
+// Settings-derived options select active built-ins and add user-defined terms.
+
+export type SemanticMatcherOptions = {
 	readonly allowlist?: readonly TemplateSemanticTermRule[];
 	readonly disabledBuiltinTermIds?: readonly string[];
 	readonly disabledDomainPackIds?: readonly string[];
 	readonly xAxisIntentPriority?: readonly TemplateXAxisIntent[];
 };
 
-export type DataResourceSemanticMatcher = {
+export type SemanticMatcher = {
 	readonly fingerprint: string;
-	readonly matchTitle: (value: unknown) => DataResourceSemanticTitleMatch | null;
-	readonly matchRowMarker: (value: unknown) => DataResourceRowMarkerKind | null;
+	readonly matchTitle: (value: unknown) => SemanticTitleMatch | null;
+	readonly matchRowMarker: (value: unknown) => SemanticRowMarkerKind | null;
 	readonly normalizeText: (value: unknown) => string;
 	readonly xAxisIntentPriority: readonly TemplateXAxisIntent[];
 };
 
+//#endregion
+
+//#region Built-in recipe indexes
+// Precomputed library indexes keep matcher construction cheap for each settings snapshot.
+
 const builtinTitleEntries: SemanticTitleLookupEntry[] = [];
-const builtinSemanticTerms: DataResourceBuiltinSemanticTerm[] = [];
+const builtinSemanticTermRecords: BuiltinSemanticTerm[] = [];
 const builtinRowMarkerEntries: SemanticRowMarkerLookupEntry[] = [];
 
 for (const title of semanticLibrary.titles) {
 	for (const alias of title.aliases) {
-		if (!isDataResourceBuiltinSemanticMatchTermAllowed(alias)) {
+		if (!isBuiltinSemanticMatchTermAllowed(alias)) {
 			continue;
 		}
 		const id = createBuiltinTermId(title, alias);
@@ -132,7 +150,7 @@ for (const title of semanticLibrary.titles) {
 			source: "library",
 			domainPackIds: title.domainPackIds ?? [],
 		});
-		builtinSemanticTerms.push({
+		builtinSemanticTermRecords.push({
 			id,
 			alias,
 			canonicalRole: title.canonicalRole,
@@ -155,15 +173,20 @@ for (const marker of semanticLibrary.rowMarkers) {
 	}
 }
 
-const defaultSemanticMatcher = createDataResourceSemanticMatcher();
+const defaultSemanticMatcher = createSemanticMatcher();
 
-export const dataResourceSemanticLibraryFingerprint = defaultSemanticMatcher.fingerprint;
-export const dataResourceBuiltinSemanticTerms: readonly DataResourceBuiltinSemanticTerm[] = Object.freeze(builtinSemanticTerms.slice());
-export const dataResourceBuiltinSemanticDomainPacks: readonly DataResourceBuiltinSemanticDomainPack[] = Object.freeze(semanticLibrary.domainPacks.slice());
+//#endregion
 
-export function createDataResourceSemanticMatcher(
-	options: DataResourceSemanticMatcherOptions = {},
-): DataResourceSemanticMatcher {
+//#region Public matcher API
+// Exported entry points used by services and settings validation.
+
+export const semanticLibraryFingerprint = defaultSemanticMatcher.fingerprint;
+export const builtinSemanticTerms: readonly BuiltinSemanticTerm[] = Object.freeze(builtinSemanticTermRecords.slice());
+export const builtinSemanticDomainPacks: readonly BuiltinSemanticDomainPack[] = Object.freeze(semanticLibrary.domainPacks.slice());
+
+export function createSemanticMatcher(
+	options: SemanticMatcherOptions = {},
+): SemanticMatcher {
 	const allowlist = normalizeAllowlistEntries(options.allowlist ?? []);
 	const disabledBuiltinTermIds = new Set((options.disabledBuiltinTermIds ?? []).filter(Boolean));
 	const disabledDomainPackIds = new Set((options.disabledDomainPackIds ?? []).filter(Boolean));
@@ -193,37 +216,42 @@ export function createDataResourceSemanticMatcher(
 	}))}`;
 	return {
 		fingerprint,
-		matchTitle: value => matchSemanticTitle(value, titleEntries),
-		matchRowMarker: value => matchSemanticRowMarker(value, rowMarkerEntries),
+		matchTitle: value => matchSemanticTitleFromEntries(value, titleEntries),
+		matchRowMarker: value => matchSemanticRowMarkerFromEntries(value, rowMarkerEntries),
 		normalizeText: normalizeSemanticLookupText,
 		xAxisIntentPriority,
 	};
 }
 
-export const matchDataResourceSemanticTitle = (
+export const matchSemanticTitle = (
 	value: unknown,
-): DataResourceSemanticTitleMatch | null => defaultSemanticMatcher.matchTitle(value);
+): SemanticTitleMatch | null => defaultSemanticMatcher.matchTitle(value);
 
-export const matchDataResourceRowMarker = (
+export const matchSemanticRowMarker = (
 	value: unknown,
-): DataResourceRowMarkerKind | null => defaultSemanticMatcher.matchRowMarker(value);
+): SemanticRowMarkerKind | null => defaultSemanticMatcher.matchRowMarker(value);
 
-export const normalizeDataResourceSemanticText = (
+export const normalizeSemanticText = (
 	value: unknown,
 ): string => defaultSemanticMatcher.normalizeText(value);
 
-export function isDataResourceBuiltinSemanticMatchTermAllowed(value: unknown): boolean {
+export function isBuiltinSemanticMatchTermAllowed(value: unknown): boolean {
 	return normalizeSemanticLookupText(value).length > 1;
 }
 
-export function isDataResourceCustomSemanticMatchTermAllowed(value: unknown): boolean {
+export function isCustomSemanticMatchTermAllowed(value: unknown): boolean {
 	return normalizeSemanticLookupText(value).length > 0;
 }
 
-const matchSemanticTitle = (
+//#endregion
+
+//#region Title and row-marker matching
+// Match normalized headers against built-in recipe terms and user allowlist entries.
+
+const matchSemanticTitleFromEntries = (
 	value: unknown,
 	titleEntries: readonly SemanticTitleLookupEntry[],
-): DataResourceSemanticTitleMatch | null => {
+): SemanticTitleMatch | null => {
 	const rawText = normalizeText(value);
 	if (!rawText) {
 		return null;
@@ -260,10 +288,10 @@ const matchSemanticTitle = (
 		: null;
 };
 
-const matchSemanticRowMarker = (
+const matchSemanticRowMarkerFromEntries = (
 	value: unknown,
 	rowMarkerEntries: readonly SemanticRowMarkerLookupEntry[],
-): DataResourceRowMarkerKind | null => {
+): SemanticRowMarkerKind | null => {
 	const normalized = normalizeSemanticLookupText(value);
 	if (!normalized) {
 		return null;
@@ -276,7 +304,7 @@ const createSemanticTitleMatch = (
 	normalizedTitle: string,
 	axisMarker: StructuredAxisTendency | null,
 	reason: string,
-): DataResourceSemanticTitleMatch => {
+): SemanticTitleMatch => {
 	const title = entry.title;
 	const axisTendency = axisMarker ?? title.axisTendency;
 	const baseConfidence = entry.source === "allowlist" ? 0.97 : 0.95;
@@ -299,11 +327,16 @@ const createSemanticTitleMatch = (
 	};
 };
 
+//#endregion
+
+//#region Allowlist and domain-pack filtering
+// Translate Settings records into matcher entries and remove disabled recipe domains.
+
 function normalizeAllowlistEntries(
 	allowlist: readonly TemplateSemanticTermRule[],
 ): readonly SemanticTitleLookupEntry[] {
 	return allowlist
-		.filter(rule => rule.enabled !== false && isDataResourceCustomSemanticMatchTermAllowed(rule.alias))
+		.filter(rule => rule.enabled !== false && isCustomSemanticMatchTermAllowed(rule.alias))
 		.map(rule => ({
 			id: rule.id,
 			alias: normalizeSemanticLookupText(rule.alias),
@@ -340,6 +373,11 @@ function createBuiltinTermId(
 	].join(":");
 }
 
+//#endregion
+
+//#region Axis-marker handling
+// Optional trailing X/Y markers refine the semantic axis without changing the term.
+
 const getAxisMatchRank = (
 	title: SemanticTitleRecord,
 	axisMarker: StructuredAxisTendency | null,
@@ -362,6 +400,11 @@ const stripAxisMarker = (
 	value: string,
 ): string => value.replace(/(^|[\s_\-()])[xy]\s*$/i, " ");
 
+//#endregion
+
+//#region Text normalization and fingerprints
+// Shared normalization defines which match-term text is valid and comparable.
+
 function normalizeSemanticLookupText(
 	value: unknown,
 ): string {
@@ -369,7 +412,7 @@ function normalizeSemanticLookupText(
 		.replace(/\u00b5|\u03bc/g, "u")
 		.replace(/\u03a9|\u03c9|\u2126/g, "ohm")
 		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, "");
+		.replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
 function normalizeText(
@@ -393,3 +436,5 @@ function hashString(
 
 	return (hash >>> 0).toString(36);
 }
+
+//#endregion

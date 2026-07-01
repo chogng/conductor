@@ -16,7 +16,7 @@ import type {
   NumericDisplayMode,
   SettingsViewInput,
 } from "src/cs/workbench/services/settings/common/settings";
-import { dataResourceBuiltinSemanticTerms } from "src/cs/workbench/services/dataResource/common/semanticLibrary";
+import { builtinSemanticTerms } from "src/cs/workbench/services/dataResource/common/semanticLibrary";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/settings/browser/settingsController", () => {
@@ -179,7 +179,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
   });
 
   test("re-enables a disabled built-in semantic term from the token input", async () => {
-    const builtinTerm = dataResourceBuiltinSemanticTerms[0];
+    const builtinTerm = builtinSemanticTerms[0];
     assert.ok(builtinTerm);
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -231,7 +231,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
   });
 
   test("rejects duplicate active semantic terms without updating settings", async () => {
-    const builtinTerm = dataResourceBuiltinSemanticTerms[0];
+    const builtinTerm = builtinSemanticTerms[0];
     assert.ok(builtinTerm);
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -320,7 +320,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
   });
 
   test("shows semantic term validation through notification", async () => {
-    const builtinTerm = dataResourceBuiltinSemanticTerms[0];
+    const builtinTerm = builtinSemanticTerms[0];
     assert.ok(builtinTerm);
     const container = document.createElement("div");
     document.body.appendChild(container);
