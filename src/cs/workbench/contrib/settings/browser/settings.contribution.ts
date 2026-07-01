@@ -15,14 +15,17 @@ import {
   ISettingsControllerService,
   type ISettingsControllerService as ISettingsControllerServiceType,
 } from "src/cs/workbench/contrib/settings/browser/settingsControllerService";
-import { SettingsContributionId, SettingsNavigationViewId, SettingsViewId } from "src/cs/workbench/services/settings/common/settings";
+
+const SETTINGS_CONTRIBUTION_ID = "workbench.contrib.settings";
+const SETTINGS_VIEW_ID = "workbench.settings";
+const SETTINGS_NAVIGATION_VIEW_ID = "workbench.settings.navigation";
 
 class SettingsViewPane extends ViewPane {
   constructor(
     @ISettingsControllerService settingsControllerService: ISettingsControllerServiceType,
   ) {
     super({
-      id: SettingsViewId,
+      id: SETTINGS_VIEW_ID,
       title: localize("settings.title", "Settings"),
       className: "settings-view-pane",
       bodyClassName: "workbench-part-view-pane__body",
@@ -36,7 +39,7 @@ class SettingsNavigationViewPane extends ViewPane {
     @ISettingsControllerService settingsControllerService: ISettingsControllerServiceType,
   ) {
     super({
-      id: SettingsNavigationViewId,
+      id: SETTINGS_NAVIGATION_VIEW_ID,
       title: localize("settings.title", "Settings"),
       className: "settings-navigation-view-pane",
       bodyClassName: "workbench-part-view-pane__body",
@@ -47,12 +50,12 @@ class SettingsNavigationViewPane extends ViewPane {
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-const sidebarContainer = viewContainersRegistry.get(WorkbenchViewContainers.files);
+const sidebarContainer = viewContainersRegistry.get(WorkbenchViewContainers.settingsNavigation);
 const settingsContainer = viewContainersRegistry.get(WorkbenchViewContainers.settings);
 
 if (sidebarContainer) {
   viewsRegistry.registerViews([{
-    id: SettingsNavigationViewId,
+    id: SETTINGS_NAVIGATION_VIEW_ID,
     name: localize("settings.title", "Settings"),
     ctorDescriptor: new SyncDescriptor(SettingsNavigationViewPane),
     hideByDefault: false,
@@ -62,7 +65,7 @@ if (sidebarContainer) {
 
 if (settingsContainer) {
   viewsRegistry.registerViews([{
-    id: SettingsViewId,
+    id: SETTINGS_VIEW_ID,
     name: localize("settings.title", "Settings"),
     ctorDescriptor: new SyncDescriptor(SettingsViewPane),
     hideByDefault: false,
@@ -78,4 +81,4 @@ export class SettingsContribution extends Disposable implements IWorkbenchContri
   }
 }
 
-registerWorkbenchContribution2(SettingsContributionId, SettingsContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(SETTINGS_CONTRIBUTION_ID, SettingsContribution, WorkbenchPhase.BlockStartup);

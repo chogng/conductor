@@ -409,17 +409,6 @@ export type ConductorSettings = {
   [key: string]: unknown;
 };
 
-export const SettingsContributionId = "workbench.contrib.settings";
-
-export const SettingsViewId = "workbench.settings";
-export const SettingsNavigationViewId = "workbench.settings.navigation";
-
-export const SettingsCommandId = {
-  showSettings: "workbench.action.showSettings",
-} as const;
-
-export type SettingsCommandId = typeof SettingsCommandId[keyof typeof SettingsCommandId];
-
 export const ISettingsService = createDecorator<ISettingsService>("settingsService");
 
 export type SettingsPersistence = {

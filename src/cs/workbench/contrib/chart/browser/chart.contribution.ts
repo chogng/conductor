@@ -40,7 +40,7 @@ function registerChartView(): void {
 
   const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
   const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-  const container = viewContainersRegistry.get(WorkbenchViewContainers.main);
+  const container = viewContainersRegistry.get(WorkbenchViewContainers.chart);
   if (!container) {
     return;
   }

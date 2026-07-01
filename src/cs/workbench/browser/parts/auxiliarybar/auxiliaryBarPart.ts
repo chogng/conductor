@@ -14,27 +14,21 @@ import {
   type IMenuService,
 } from "src/cs/platform/actions/common/actions";
 import type { IContextKeyService } from "src/cs/platform/contextkey/common/contextkey";
-import {
-  TemplateViewId,
-} from "src/cs/workbench/contrib/template/common/template";
 import type { TemplateMode } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
 import {
   ExportCommandId,
-  ExportViewId,
 } from "src/cs/workbench/services/export/common/export";
 import {
   OriginCommandId,
-  OriginExportSettingsViewId,
 } from "src/cs/workbench/services/origin/common/origin";
 import {
   ParametersCommandId,
-  ParametersViewId,
 } from "src/cs/workbench/services/parameters/common/parameters";
 import {
   SearchCommandId,
-  SearchViewId,
 } from "src/cs/workbench/services/search/common/search";
 import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
+import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import {
   StorageScope,
   StorageTarget,
@@ -54,10 +48,10 @@ export const AUXILIARY_BAR_MAX_WIDTH_PX = Number.POSITIVE_INFINITY;
 export type AuxiliaryBarView = "template" | "search" | "export" | "parameters" | "settings";
 
 type AuxiliaryBarViewDescriptor = {
+  readonly containerId: string;
   readonly id: AuxiliaryBarView;
   readonly commandId?: string;
   readonly workbenchMainPart: WorkbenchMainPart;
-  readonly viewId: string;
 };
 
 type AuxiliaryBarViewSwitchAction = IAction & {
@@ -66,33 +60,33 @@ type AuxiliaryBarViewSwitchAction = IAction & {
 
 const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
   {
+    containerId: WorkbenchViewContainers.template,
     id: "template",
     workbenchMainPart: "table",
-    viewId: TemplateViewId,
   },
   {
+    containerId: WorkbenchViewContainers.search,
     id: "search",
     commandId: SearchCommandId.showSearch,
     workbenchMainPart: "chart",
-    viewId: SearchViewId,
   },
   {
+    containerId: WorkbenchViewContainers.export,
     id: "export",
     commandId: ExportCommandId.showExport,
     workbenchMainPart: "chart",
-    viewId: ExportViewId,
   },
   {
+    containerId: WorkbenchViewContainers.parameters,
     id: "parameters",
     commandId: ParametersCommandId.showParameters,
     workbenchMainPart: "chart",
-    viewId: ParametersViewId,
   },
   {
+    containerId: WorkbenchViewContainers.originSettings,
     id: "settings",
     commandId: OriginCommandId.showExportSettings,
     workbenchMainPart: "chart",
-    viewId: OriginExportSettingsViewId,
   },
 ];
 
@@ -128,15 +122,9 @@ type AuxiliaryBarPaneContainerInput = {
   readonly title: string;
 };
 
-type AuxiliaryBarViewState = {
-  readonly viewId: string;
-  readonly visible: boolean;
-};
-
 type AuxiliaryBarState = {
   readonly actions: readonly IAction[];
   readonly title: string;
-  readonly views: readonly AuxiliaryBarViewState[];
 };
 
 type AuxiliaryBarInput = {
@@ -242,13 +230,16 @@ export class AuxiliaryBarPart extends Disposable {
     return this.resolveActiveView(workbenchMainPart);
   }
 
-  public getActiveViewId(workbenchMainPart: WorkbenchMainPart): string | null {
-    const activeView = this.resolveActiveView(workbenchMainPart);
-    return AuxiliaryBarViews.find(view => view.id === activeView)?.viewId ?? null;
-  }
+  public getActiveViewContainerId(
+    workbenchMainPart: WorkbenchMainPart,
+    requestedView: string,
+  ): string | null {
+    if (isAuxiliaryBarView(requestedView)) {
+      this.setActiveView(requestedView, workbenchMainPart);
+    }
 
-  public getViewIds(): readonly string[] {
-    return AuxiliaryBarViews.map(view => view.viewId);
+    const activeView = this.resolveActiveView(workbenchMainPart);
+    return AuxiliaryBarViews.find(view => view.id === activeView)?.containerId ?? null;
   }
 
   public updateState(input: AuxiliaryBarInput): AuxiliaryBarState {
@@ -268,7 +259,6 @@ export class AuxiliaryBarPart extends Disposable {
       title: input.visible
         ? getAuxiliaryBarTitleForWorkbenchMainPart(input.workbenchMainPart, input.templateMode)
         : "",
-      views: this.getViewStates(input.workbenchMainPart, input.visible),
     };
   }
 
@@ -297,16 +287,6 @@ export class AuxiliaryBarPart extends Disposable {
     return true;
   }
 
-  private getViewStates(
-    workbenchMainPart: WorkbenchMainPart,
-    visible: boolean,
-  ): readonly AuxiliaryBarViewState[] {
-    const activeView = this.resolveActiveView(workbenchMainPart);
-    return AuxiliaryBarViews.map(view => ({
-      viewId: view.viewId,
-      visible: visible && view.workbenchMainPart === workbenchMainPart && view.id === activeView,
-    }));
-  }
 }
 
 const isAuxiliaryBarView = (view: string): view is AuxiliaryBarView =>

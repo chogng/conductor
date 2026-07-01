@@ -43,7 +43,7 @@ function registerOriginView(): void {
 
   const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
   const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-  const container = viewContainersRegistry.get(WorkbenchViewContainers.auxiliarybar);
+  const container = viewContainersRegistry.get(WorkbenchViewContainers.originSettings);
   if (!container) {
     return;
   }

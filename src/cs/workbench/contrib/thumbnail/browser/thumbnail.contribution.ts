@@ -22,7 +22,7 @@ import "src/cs/workbench/contrib/thumbnail/browser/media/thumbnail.css";
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-const container = viewContainersRegistry.get(WorkbenchViewContainers.files);
+const container = viewContainersRegistry.get(WorkbenchViewContainers.thumbnail);
 
 if (container) {
   viewsRegistry.registerViews([{

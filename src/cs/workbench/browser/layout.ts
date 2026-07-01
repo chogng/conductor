@@ -313,14 +313,11 @@ export class Layout extends Disposable {
     return this.auxiliaryBarPart.getActiveView(workbenchMainPart);
   }
 
-  protected getActiveAuxiliaryBarViewId(
+  protected getActiveAuxiliaryBarViewContainerId(
     workbenchMainPart: WorkbenchMainPart,
-  ): ReturnType<AuxiliaryBarPart["getActiveViewId"]> {
-    return this.auxiliaryBarPart.getActiveViewId(workbenchMainPart);
-  }
-
-  protected getAuxiliaryBarViewIds(): ReturnType<AuxiliaryBarPart["getViewIds"]> {
-    return this.auxiliaryBarPart.getViewIds();
+    activeView: string,
+  ): ReturnType<AuxiliaryBarPart["getActiveViewContainerId"]> {
+    return this.auxiliaryBarPart.getActiveViewContainerId(workbenchMainPart, activeView);
   }
 
   private renderWorkbenchMain(): void {

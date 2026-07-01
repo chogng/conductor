@@ -44,19 +44,54 @@ registerContainer(
   ViewContainerLocation.Sidebar,
 );
 registerContainer(
-  WorkbenchViewContainers.main,
-  localize("workbench.views.main", "Workbench"),
+  WorkbenchViewContainers.thumbnail,
+  localize("workbench.views.thumbnail", "Thumbnail"),
+  ViewContainerLocation.Sidebar,
+);
+registerContainer(
+  WorkbenchViewContainers.settingsNavigation,
+  localize("workbench.views.settings", "Settings"),
+  ViewContainerLocation.Sidebar,
+);
+registerContainer(
+  WorkbenchViewContainers.table,
+  localize("workbench.views.table", "Table"),
   ViewContainerLocation.Panel,
 );
 registerContainer(
-  WorkbenchViewContainers.auxiliarybar,
-  localize("workbench.views.secondary", "Details"),
-  ViewContainerLocation.AuxiliaryBar,
+  WorkbenchViewContainers.chart,
+  localize("workbench.views.chart", "Chart"),
+  ViewContainerLocation.Panel,
 );
 registerContainer(
   WorkbenchViewContainers.settings,
   localize("workbench.views.settings", "Settings"),
   ViewContainerLocation.Panel,
+);
+registerContainer(
+  WorkbenchViewContainers.template,
+  localize("template.management.title", "Template Management"),
+  ViewContainerLocation.AuxiliaryBar,
+);
+registerContainer(
+  WorkbenchViewContainers.search,
+  localize("chart.views.search", "Search"),
+  ViewContainerLocation.AuxiliaryBar,
+);
+registerContainer(
+  WorkbenchViewContainers.export,
+  localize("chart.views.export", "Export"),
+  ViewContainerLocation.AuxiliaryBar,
+);
+registerContainer(
+  WorkbenchViewContainers.parameters,
+  localize("chart.views.parameters", "Parameters"),
+  ViewContainerLocation.AuxiliaryBar,
+);
+registerContainer(
+  WorkbenchViewContainers.originSettings,
+  localize("origin.curveSettings.title", "Origin Settings"),
+  ViewContainerLocation.AuxiliaryBar,
 );
 
 export class WorkbenchContribution extends Disposable implements IWorkbenchContribution {
@@ -91,8 +126,10 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
 }
 
 function registerContainer(id: string, title: string, location: ViewContainerLocation): ViewContainer {
-  const isAuxiliaryBar = id === WorkbenchViewContainers.auxiliarybar;
-  const isSidebar = id === WorkbenchViewContainers.files;
+  const isAuxiliaryBar = location === ViewContainerLocation.AuxiliaryBar;
+  const isSidebar = id === WorkbenchViewContainers.files ||
+    id === WorkbenchViewContainers.thumbnail ||
+    id === WorkbenchViewContainers.settingsNavigation;
   return viewContainersRegistry.registerViewContainer({
     id,
     title,

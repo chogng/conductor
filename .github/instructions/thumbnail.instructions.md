@@ -52,17 +52,17 @@ Explorer file filtering.
 | `src/cs/workbench/contrib/thumbnail/browser/thumbnailViewPane.ts` | Thumbnail sidebar surface class. Declares the thumbnail view id/title/layout while reusing the files-owned Explorer surface behavior. |
 | `src/cs/workbench/contrib/thumbnail/browser/thumbnailCommands.ts` | Thumbnail command handlers. Normalize and delegate to services. |
 | `src/cs/workbench/contrib/thumbnail/browser/thumbnailActions.ts` | `Action2` wrappers for thumbnail commands. |
-| `src/cs/workbench/contrib/thumbnail/browser/thumbnail.contribution.ts` | Registers thumbnail actions, CSS, and the thumbnail sidebar view descriptor in the files container. |
+| `src/cs/workbench/contrib/thumbnail/browser/thumbnail.contribution.ts` | Registers thumbnail actions, CSS, and the thumbnail sidebar view descriptor in the thumbnail container. |
 
 ## Explorer Integration
 
-Explorer is one resource manager with two sidebar surfaces in
-`WorkbenchViewContainers.files`: `ExplorerViewId` renders the tree surface and
-`ThumbnailViewId` renders the same Explorer model in thumbnail layout. The
-thumbnail toggle action is thumbnail-specific UI, but the command delegates to
-`IExplorerService.toggleViewLayout()` because Explorer owns layout state and
-Workbench uses that state to choose which sidebar surface is visible in chart
-mode.
+Explorer is one resource manager with two sidebar containers:
+`WorkbenchViewContainers.files` hosts `ExplorerViewId` for the tree surface, and
+`WorkbenchViewContainers.thumbnail` hosts `ThumbnailViewId` for the thumbnail
+surface. The thumbnail toggle action is thumbnail-specific UI, but the command
+delegates to `IExplorerService.toggleViewLayout()` because Explorer owns layout
+state and Workbench uses that state to choose which sidebar container is active
+in chart mode.
 
 The thumbnail view descriptor and `ThumbnailViewPane` class live in the
 thumbnail contribution. The pane inherits the files-owned Explorer surface
@@ -85,7 +85,7 @@ hover content.
 ```mermaid
 flowchart TD
     WorkbenchFilesContainer[WorkbenchViewContainers.files] --> ExplorerSurface[ExplorerViewId tree surface]
-    WorkbenchFilesContainer --> ThumbnailSurface[ThumbnailViewId thumbnail surface]
+    WorkbenchThumbnailContainer[WorkbenchViewContainers.thumbnail] --> ThumbnailSurface[ThumbnailViewId thumbnail surface]
     ExplorerService[IExplorerService layout/selection/visibility] --> ExplorerSurface
     ExplorerService --> ThumbnailSurface
     ExplorerSurface --> ExplorerViewer[ExplorerViewer]

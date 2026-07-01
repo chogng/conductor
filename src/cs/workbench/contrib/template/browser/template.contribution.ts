@@ -19,7 +19,7 @@ registerTemplateCommands();
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-const container = viewContainersRegistry.get(WorkbenchViewContainers.auxiliarybar);
+const container = viewContainersRegistry.get(WorkbenchViewContainers.template);
 
 if (container) {
   viewsRegistry.registerViews([{

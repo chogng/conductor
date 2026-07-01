@@ -12,15 +12,17 @@ import {
 } from "src/cs/platform/actions/common/actions";
 import { CommandsRegistry } from "src/cs/platform/commands/common/commands";
 import type { ServicesAccessor, ServiceIdentifier } from "src/cs/platform/instantiation/common/instantiation";
-import { registerSettingsActions } from "src/cs/workbench/contrib/settings/browser/settingsActions";
+import {
+  registerSettingsActions,
+  SHOW_SETTINGS_COMMAND_ID,
+} from "src/cs/workbench/contrib/settings/browser/settingsActions";
 import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
-import { SettingsCommandId } from "src/cs/workbench/services/settings/common/settings";
 
 suite("workbench/contrib/settings/test/browser/settingsActions", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
 
   test("show settings action opens the settings workbench view", () => {
-    const registration = registerSettingsActions();
+    const actionRegistration = registerSettingsActions();
     const calls: string[] = [];
     const accessor = createAccessor([
       [IWorkbenchLayoutService, {
@@ -29,13 +31,13 @@ suite("workbench/contrib/settings/test/browser/settingsActions", () => {
     ]);
 
     try {
-      CommandsRegistry.getCommand(SettingsCommandId.showSettings)?.handler(accessor);
+      CommandsRegistry.getCommand(SHOW_SETTINGS_COMMAND_ID)?.handler(accessor);
       const commandPaletteIds = getCommandPaletteIds();
 
       assert.deepEqual(calls, ["view:settings"]);
-      assert.ok(commandPaletteIds.has(SettingsCommandId.showSettings));
+      assert.ok(commandPaletteIds.has(SHOW_SETTINGS_COMMAND_ID));
     } finally {
-      registration.dispose();
+      actionRegistration.dispose();
     }
   });
 });

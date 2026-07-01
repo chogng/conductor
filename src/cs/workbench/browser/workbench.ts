@@ -32,13 +32,9 @@ import type {
   ServicesAccessor,
 } from "src/cs/platform/instantiation/common/instantiation";
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
-import {
-  ChartViewId,
-  IChartService,
-} from "src/cs/workbench/services/chart/common/chart";
+import { IChartService } from "src/cs/workbench/services/chart/common/chart";
 import { ICalculationService } from "src/cs/workbench/services/calculation/common/calculation";
 import {
-  ExplorerViewId,
   IExplorerService,
   type ExplorerViewLayout,
 } from "src/cs/workbench/contrib/files/browser/files";
@@ -49,11 +45,8 @@ import { IPlotService } from "src/cs/workbench/services/plot/common/plot";
 import { IThumbnailPreviewService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import {
   ISettingsService,
-  SettingsNavigationViewId,
-  SettingsViewId,
   type SettingsServiceOptions,
 } from "src/cs/workbench/services/settings/common/settings";
-import { ThumbnailViewId } from "src/cs/workbench/contrib/thumbnail/common/thumbnail";
 import {
   IWorkbenchLayoutService,
   Parts,
@@ -85,7 +78,6 @@ import {
   resolveExplorerDomainSelection,
 } from "src/cs/workbench/browser/workbenchDomainBridge";
 import { ITableService } from "src/cs/workbench/services/table/common/table";
-import { TableViewId } from "src/cs/workbench/contrib/table/common/table";
 import {
   ISessionService,
   type ISessionService as ISessionServiceType,
@@ -940,16 +932,14 @@ export class Workbench extends Layout {
   private renderWorkbench(): void {
     measureWorkbenchBoot("workbench:render:set-parts", () => {
       this.setParts({
-        sidebar: this.getViewContainerElement(WorkbenchViewContainers.files, null),
+        sidebar: this.getViewContainerElement(this.getActiveSidebarContainerId(), null),
         workbench: this.getViewContainerElement(
-          this.activeWorkbenchMainPart === "settings"
-            ? WorkbenchViewContainers.settings
-            : WorkbenchViewContainers.main,
-          this.getActiveMainPartElement(),
+          this.getActiveWorkbenchContainerId(),
+          null,
         ),
         auxiliaryBar: this.getViewContainerElement(
-          WorkbenchViewContainers.auxiliarybar,
-          this.getActiveAuxiliaryBarElement(),
+          this.getActiveAuxiliaryBarContainerId(),
+          null,
         ),
         overlay: this.notifications.element,
       });
@@ -1036,52 +1026,26 @@ export class Workbench extends Layout {
   //#region view containers and visible parts
 
   private updateViewContainers(): void {
-    const isSettingsActive = this.activeWorkbenchMainPart === "settings";
-    const isChartActive = this.activeWorkbenchMainPart === "chart";
     const sidebarSurface = this.getActiveSidebarSurface();
+    const sidebarContainerId = this.getSidebarContainerId(sidebarSurface);
+    const activeWorkbenchContainerId = this.getActiveWorkbenchContainerId();
+    const activeAuxiliaryBarContainerId = this.getActiveAuxiliaryBarContainerId();
     const isSidebarVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
     const isAuxiliaryBarVisible = this.isAuxiliaryBarVisibleForActiveMode();
 
     if (isSidebarVisible) {
-      measureWorkbenchBoot("workbench:view-containers:open:files", () => {
-        void this.viewsService.openViewContainer(WorkbenchViewContainers.files);
+      measureWorkbenchBoot("workbench:view-containers:open:sidebar", () => {
+        void this.viewsService.openViewContainer(sidebarContainerId);
       });
     }
-    if (isAuxiliaryBarVisible) {
+    if (isAuxiliaryBarVisible && activeAuxiliaryBarContainerId) {
       measureWorkbenchBoot("workbench:view-containers:open:auxiliarybar", () => {
-        void this.viewsService.openViewContainer(WorkbenchViewContainers.auxiliarybar);
+        void this.viewsService.openViewContainer(activeAuxiliaryBarContainerId);
       });
     }
 
-    if (isSettingsActive) {
-      measureWorkbenchBoot("workbench:view-containers:open:settings", () => {
-        void this.viewsService.openViewContainer(WorkbenchViewContainers.settings);
-      });
-    } else {
-      measureWorkbenchBoot("workbench:view-containers:open:main", () => {
-        void this.viewsService.openViewContainer(WorkbenchViewContainers.main);
-      });
-      measureWorkbenchBoot("workbench:view-containers:close:settings", () => {
-        this.viewsService.closeViewContainer(WorkbenchViewContainers.settings);
-      });
-    }
-
-    measureWorkbenchBoot("workbench:view-containers:set-visible", () => {
-      this.viewsService.setViewVisible(
-        ExplorerViewId,
-        sidebarSurface === "explorer" && isSidebarVisible,
-      );
-      this.viewsService.setViewVisible(
-        ThumbnailViewId,
-        sidebarSurface === "thumbnail" && isSidebarVisible,
-      );
-      this.viewsService.setViewVisible(
-        SettingsNavigationViewId,
-        sidebarSurface === "settingsNavigation" && isSidebarVisible,
-      );
-      this.viewsService.setViewVisible(TableViewId, !isSettingsActive && !isChartActive);
-      this.viewsService.setViewVisible(ChartViewId, !isSettingsActive && isChartActive);
-      this.viewsService.setViewVisible(SettingsViewId, isSettingsActive);
+    measureWorkbenchBoot("workbench:view-containers:open:workbench", () => {
+      void this.viewsService.openViewContainer(activeWorkbenchContainerId);
     });
     measureWorkbenchBoot("workbench:view-containers:update-sidebar", () => {
       this.updateSidebar(isSidebarVisible);
@@ -1103,14 +1067,8 @@ export class Workbench extends Layout {
     this.activeWorkbenchMainPartContext?.set(this.activeWorkbenchMainPart);
   }
 
-  private closeAuxiliaryBarViews(): void {
-    for (const viewId of this.getAuxiliaryBarViewIds()) {
-      this.viewsService.closeView(viewId);
-    }
-  }
-
   private updateSidebar(visible: boolean): void {
-    const container = this.viewsService.getActiveViewPaneContainerWithId(WorkbenchViewContainers.files);
+    const container = this.viewsService.getActiveViewPaneContainerWithId(this.getActiveSidebarContainerId());
     if (!container) {
       return;
     }
@@ -1141,10 +1099,42 @@ export class Workbench extends Layout {
     });
   }
 
+  private getActiveSidebarContainerId(): string {
+    return this.getSidebarContainerId(this.getActiveSidebarSurface());
+  }
+
+  private getSidebarContainerId(surface: WorkbenchSidebarSurface): string {
+    switch (surface) {
+      case "settingsNavigation":
+        return WorkbenchViewContainers.settingsNavigation;
+      case "thumbnail":
+        return WorkbenchViewContainers.thumbnail;
+      case "explorer":
+      default:
+        return WorkbenchViewContainers.files;
+    }
+  }
+
+  private getActiveWorkbenchContainerId(): string {
+    switch (this.activeWorkbenchMainPart) {
+      case "chart":
+        return WorkbenchViewContainers.chart;
+      case "settings":
+        return WorkbenchViewContainers.settings;
+      case "table":
+      default:
+        return WorkbenchViewContainers.table;
+    }
+  }
+
   private updateAuxiliaryBar(visible: boolean): void {
-    const container = this.viewsService.getActiveViewPaneContainerWithId(WorkbenchViewContainers.auxiliarybar);
+    const activeAuxiliaryBarContainerId = this.getActiveAuxiliaryBarContainerId();
+    if (!activeAuxiliaryBarContainerId) {
+      return;
+    }
+
+    const container = this.viewsService.getActiveViewPaneContainerWithId(activeAuxiliaryBarContainerId);
     if (!container) {
-      this.closeAuxiliaryBarViews();
       return;
     }
 
@@ -1161,10 +1151,6 @@ export class Workbench extends Layout {
       container,
       title: state.title,
     });
-
-    for (const view of state.views) {
-      this.viewsService.setViewVisible(view.viewId, view.visible);
-    }
   }
 
   private renderAuxiliaryBarView(): void {
@@ -1202,29 +1188,11 @@ export class Workbench extends Layout {
     });
   }
 
-  private getActiveAuxiliaryBarElement(): HTMLElement | null {
-    const viewId = this.getActiveAuxiliaryBarViewId(this.activeWorkbenchMainPart);
-    return viewId ? this.viewsService.getViewWithId(viewId)?.element ?? null : null;
-  }
-
-  private getTableViewElement(): HTMLElement | null {
-    return this.viewsService.getViewWithId(TableViewId)?.element ?? null;
-  }
-
-  private getChartViewElement(): HTMLElement | null {
-    return this.viewsService.getViewWithId(ChartViewId)?.element ?? null;
-  }
-
-  private getActiveMainPartElement(): HTMLElement | null {
-    switch (this.activeWorkbenchMainPart) {
-      case "chart":
-        return this.getChartViewElement();
-      case "settings":
-        return this.viewsService.getViewWithId(SettingsViewId)?.element ?? null;
-      case "table":
-      default:
-        return this.getTableViewElement();
-    }
+  private getActiveAuxiliaryBarContainerId(): string | null {
+    return this.getActiveAuxiliaryBarViewContainerId(
+      this.activeWorkbenchMainPart,
+      this.layoutService.activeAuxiliaryBarView,
+    );
   }
 
   private isAuxiliaryBarVisibleForActiveMode(): boolean {
@@ -1238,7 +1206,11 @@ export class Workbench extends Layout {
     }
   }
 
-  private getViewContainerElement(containerId: string, fallback: HTMLElement | null): HTMLElement | null {
+  private getViewContainerElement(containerId: string | null, fallback: HTMLElement | null): HTMLElement | null {
+    if (!containerId) {
+      return fallback;
+    }
+
     const element = this.viewsService.getViewContainerElement(containerId);
     return element instanceof HTMLElement ? element : fallback;
   }

@@ -32,6 +32,13 @@ workbench mode switching.
 `Action2` registers a command with the same id. Do not also call
 `CommandsRegistry.registerCommand(...)` with that id.
 
+Because an `Action2` id is also a command id, place and reuse that id at the
+operation owner boundary. A button, titlebar entry, menu item, or another view
+must not import a feature's action implementation just to get the id. If the
+operation is owned by workbench navigation, put the id with workbench layout
+commands; if it is owned by a feature/domain, put the id with that feature's
+command contract and let the `Action2` use it.
+
 Command Palette visibility comes from `MenuId.CommandPalette` menu actions.
 Use `registerAction2({ f1: true, ... })` or explicit menu registration. Do not
 make quick access scan bare `CommandsRegistry` to compensate for missing action
