@@ -84,6 +84,14 @@ section ordering, renderer-created section/header/body/list-item lifecycles,
 divider/body lifecycles, grouping metadata, item id, and optional item search
 metadata.
 
+When a settings item is a complete base widget such as `InputBoxWidget`, do not
+wrap it in a feature `settings-cell-block` or create feature-specific classes
+that restyle the widget internals. Model it as a normal
+`SettingsTreeElementItem`: `SettingsTree` still renders the
+`SettingsTreeSection`, section body, internal list, list item, divider, and
+list-item body from the renderer template, and the base widget element is the
+caller-owned content mounted inside that list-item body.
+
 When a settings section item has a display/edit interaction, model that state
 through the shared section-item edit option in `SettingsView`. The base section
 item owns the display-state cursor, role, focus, click, and keyboard activation;
@@ -184,6 +192,11 @@ Domain priority is a separate Template Library settings item backed by
 DataResource sees several complete domain matches in one data file, it chooses
 the highest-priority complete domain and uses that domain's X/Y evidence for
 slicing; incomplete higher-priority domains are skipped.
+Render domain priority as its own `SettingsTreeSection` with the standard
+section header, section body, internal list, and list item template. The list
+item content is the `InputBoxWidget.element` itself; do not wrap it in a
+feature cell, do not bypass the section/list-item template, and do not add
+domain-priority CSS that changes `InputBoxWidget` field or token styling.
 
 Domain pack intent and role rows are read-only semantic-library facts. Do not
 add a separate global X-axis intent ordering setting; DataResource applies the
