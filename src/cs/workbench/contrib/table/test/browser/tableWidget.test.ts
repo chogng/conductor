@@ -37,14 +37,12 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
 
   test("serializes table column width storage", () => {
     assert.deepEqual(toStoredTableColumnLayout({
-      sizingMode: "autoFit",
       widths: [
         { colIndex: 2, width: 243.6 },
         { colIndex: 1, width: -12 },
       ],
     }), {
       version: 2,
-      sizingMode: "autoFit",
       widths: {
         "1": 0,
         "2": 244,
@@ -55,34 +53,17 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
   test("restores table column layout state from storage", () => {
     assert.deepEqual(toTableColumnLayoutState({
       version: 2,
-      sizingMode: "autoFit",
       widths: {
         "2": 243.6,
         invalid: 120,
         "1": -12,
       },
     }), {
-      sizingMode: "autoFit",
       widths: [
         { colIndex: 1, width: 0 },
         { colIndex: 2, width: 244 },
       ],
     });
-  });
-
-  test("resolves auto-fit widths with minimum and maximum bounds", () => {
-    assert.equal(
-      TableColumnLayout.resolveAutoFitWidth({ headerText: "A", maxCellLength: 1 }),
-      TableColumnLayout.autoFitMinWidth,
-    );
-    assert.equal(
-      TableColumnLayout.resolveAutoFitWidth({ headerText: "AA", maxCellLength: 20 }),
-      164,
-    );
-    assert.equal(
-      TableColumnLayout.resolveAutoFitWidth({ headerText: "A", maxCellLength: 500 }),
-      TableColumnLayout.maxWidth,
-    );
   });
 
   test("resolves bounded render ranges", () => {

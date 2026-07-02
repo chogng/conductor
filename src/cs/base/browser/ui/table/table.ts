@@ -217,6 +217,14 @@ export interface ITableWidgetOptions<TBodyTemplateData = unknown, TColumnHeaderT
 	readonly zoom?: ITableZoomOptions;
 }
 
+export interface ITableColumnAutoFitWidthOptions {
+	readonly bodyTexts: readonly string[];
+	readonly headerAccessoryWidth?: number;
+	readonly headerText: string;
+	readonly maximumWidth: number;
+	readonly minimumWidth: number;
+}
+
 export interface ITableKeyboardNavigationOptions {
 	readonly enabled?: boolean;
 }

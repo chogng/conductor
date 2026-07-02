@@ -58,6 +58,8 @@ import {
 
 const TABLE_WIDGET_COLUMN_LAYOUT_STORAGE_DEBOUNCE_MS = 120;
 const TABLE_WIDGET_COLUMN_SCALE_RESIZE_GUTTER_PX = 8;
+const TABLE_WIDGET_AUTO_FIT_SAMPLE_ROW_COUNT = 32;
+const TABLE_WIDGET_AUTO_FIT_SAMPLE_TEXT_MAX_LENGTH = 256;
 
 export type TableWidgetColumnWidth = TableColumnWidth;
 
@@ -230,6 +232,7 @@ export class TableWidget {
   private suppressNextBodyClick = false;
   private bodyClickSuppressionTimeout: number | null = null;
   private hoveredColumnScaleColIndex: number | null = null;
+  private columnScaleBadgeMeasureElement: HTMLButtonElement | null = null;
   private tracedBodyCellRenderCount = 0;
   private tracedHeaderCellRenderCount = 0;
   private props: TableWidgetProps;
@@ -407,6 +410,8 @@ export class TableWidget {
     this.disposeStateListener = null;
     this.endBodyRangeSelection();
     this.clearBodyClickSuppression();
+    this.columnScaleBadgeMeasureElement?.remove();
+    this.columnScaleBadgeMeasureElement = null;
     this.store.dispose();
   }
 
@@ -623,8 +628,90 @@ export class TableWidget {
 
     return this.setColumnWidth({
       colIndex: normalizedColIndex,
-      width: resolveAutoFitColumnWidth(tableFile, normalizedColIndex),
+      width: this.resolveAutoFitColumnWidth(tableFile, normalizedColIndex),
     });
+  }
+
+  private resolveAutoFitColumnWidth(
+    file: TableWidgetFile,
+    colIndex: number,
+  ): number {
+    const profile = this.props.tableViewModel.getColumnDisplayProfile(colIndex);
+    return this.grid.measureColumnAutoFitWidth({
+      bodyTexts: this.getAutoFitColumnBodyTexts(file, colIndex, profile),
+      headerAccessoryWidth: this.measureColumnScaleBadgeWidth(profile),
+      headerText: VirtualTableGridModel.getColumnLabel(colIndex),
+      maximumWidth: TableColumnLayout.maxWidth,
+      minimumWidth: TableColumnLayout.autoFitMinWidth,
+    });
+  }
+
+  private getAutoFitColumnBodyTexts(
+    file: TableWidgetFile,
+    colIndex: number,
+    profile: ColumnDisplayProfile,
+  ): readonly string[] {
+    const texts = new Set<string>();
+    const lengthSample = createAutoFitLengthSample(file.maxCellLengths[colIndex]);
+    if (lengthSample) {
+      texts.add(lengthSample);
+    }
+
+    const sampleRowCount = Math.min(file.rowCount, TABLE_WIDGET_AUTO_FIT_SAMPLE_ROW_COUNT);
+    for (let rowIndex = 0; rowIndex < sampleRowCount; rowIndex += 1) {
+      this.addAutoFitColumnBodyText(texts, rowIndex, colIndex, profile);
+    }
+
+    const { rowRange } = this.grid.getState();
+    for (let rowIndex = rowRange.startIndex; rowIndex < rowRange.endIndex; rowIndex += 1) {
+      this.addAutoFitColumnBodyText(texts, rowIndex, colIndex, profile);
+    }
+
+    return Array.from(texts);
+  }
+
+  private addAutoFitColumnBodyText(
+    texts: Set<string>,
+    rowIndex: number,
+    colIndex: number,
+    profile: ColumnDisplayProfile,
+  ): void {
+    if (!this.props.tableViewModel.isResolved(rowIndex)) {
+      return;
+    }
+
+    texts.add(formatCell(this.props.tableViewModel.get(rowIndex)[colIndex], profile));
+  }
+
+  private measureColumnScaleBadgeWidth(profile: ColumnDisplayProfile): number {
+    if (!isTableColumnScaleStepperVisible(profile)) {
+      return 0;
+    }
+
+    const badge = this.getColumnScaleBadgeMeasureElement();
+    badge.textContent = getColumnScaleValueText(profile);
+    badge.dataset.interactive = this.canAdjustColumnScale() ? "true" : "false";
+    const style = badge.ownerDocument.defaultView?.getComputedStyle(badge);
+    const rect = badge.getBoundingClientRect();
+    return rect.width + getCssPixelValue(style?.marginLeft) + getCssPixelValue(style?.marginRight);
+  }
+
+  private getColumnScaleBadgeMeasureElement(): HTMLButtonElement {
+    if (this.columnScaleBadgeMeasureElement) {
+      return this.columnScaleBadgeMeasureElement;
+    }
+
+    const badge = this.element.ownerDocument.createElement("button");
+    badge.type = "button";
+    badge.className = "table_view_column_scale_badge";
+    badge.style.position = "absolute";
+    badge.style.visibility = "hidden";
+    badge.style.pointerEvents = "none";
+    badge.style.contain = "layout style";
+    badge.tabIndex = -1;
+    this.element.append(badge);
+    this.columnScaleBadgeMeasureElement = badge;
+    return badge;
   }
 
   private syncColumnWidthSheet(): void {
@@ -662,7 +749,11 @@ export class TableWidget {
       return true;
     }
 
-    const signature = getAutoFitColumnWidthSignature(this.props.tableState, tableFile);
+    const signature = getAutoFitColumnWidthSignature(
+      this.props.tableState,
+      tableFile,
+      this.props.tableViewModel.getRowsVersion(),
+    );
     if (this.autoFitColumnWidthSignature === signature) {
       return false;
     }
@@ -670,7 +761,7 @@ export class TableWidget {
     const nextWidths = new Map<number, number>();
     const columnCount = Math.max(0, Math.floor(Number(tableFile.columnCount) || 0));
     for (let colIndex = 0; colIndex < columnCount; colIndex += 1) {
-      nextWidths.set(colIndex, resolveAutoFitColumnWidth(tableFile, colIndex));
+      nextWidths.set(colIndex, this.resolveAutoFitColumnWidth(tableFile, colIndex));
     }
 
     const changed = !areColumnWidthMapsEqual(this.autoFitColumnWidths, nextWidths);
@@ -1043,9 +1134,21 @@ export class TableWidget {
     let tableVisible = false;
     const bodyCellRenderCountStart = this.tracedBodyCellRenderCount;
     try {
+      const shouldSyncAutoFitColumnWidths = !this.isFixedColumnSizingMode();
       tableVisible = this.isTableVisible();
+      if (shouldSyncAutoFitColumnWidths) {
+        this.autoFitColumnWidthSignature = null;
+      }
       if (!tableVisible) {
         this.render();
+        return;
+      }
+
+      if (shouldSyncAutoFitColumnWidths) {
+        if (this.renderTable()) {
+          this.layoutNow();
+        }
+        this.syncHeaderScroll();
         return;
       }
 
@@ -1892,6 +1995,19 @@ const setDatasetValue = (element: HTMLElement, key: string, value: string): bool
   return true;
 };
 
+const createAutoFitLengthSample = (maxCellLength: unknown): string => {
+  const cellLength = Math.min(
+    TABLE_WIDGET_AUTO_FIT_SAMPLE_TEXT_MAX_LENGTH,
+    Math.max(0, Math.floor(Number(maxCellLength) || 0)),
+  );
+  return cellLength > 0 ? "0".repeat(cellLength) : "";
+};
+
+const getCssPixelValue = (value: string | undefined): number => {
+  const parsed = Number.parseFloat(value ?? "");
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 const isPointInsideElement = (element: HTMLElement, clientX: number, clientY: number): boolean => {
   const rect = element.getBoundingClientRect();
   return isPointInsideRect(rect, clientX, clientY);
@@ -1932,21 +2048,15 @@ const getTableWidgetInputKey = ({
 const getAutoFitColumnWidthSignature = (
   tableState: TableWidgetState,
   file: TableWidgetFile,
+  rowsVersion: number,
 ): string => [
   getTableWidgetSheetKey(tableState) ?? "",
   file.sourceVersion ?? "",
   file.columnCount,
   file.maxCellLengths.join(","),
+  tableState.displayVersion ?? "",
+  rowsVersion,
 ].join("\u001f");
-
-const resolveAutoFitColumnWidth = (
-  file: TableWidgetFile,
-  colIndex: number,
-): number =>
-  TableColumnLayout.resolveAutoFitWidth({
-    headerText: VirtualTableGridModel.getColumnLabel(colIndex),
-    maxCellLength: file.maxCellLengths[colIndex],
-  });
 
 const areColumnWidthMapsEqual = (
   current: ReadonlyMap<number, number>,

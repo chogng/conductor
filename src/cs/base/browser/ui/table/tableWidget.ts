@@ -20,6 +20,10 @@ import "src/cs/base/browser/ui/table/table.css";
 
 const TABLE_WIDGET_RESIZING_COLUMN_CLASS = "table_view--resizing_column";
 const TABLE_WIDGET_COLUMN_RESIZE_HANDLE_CLASS = "table_view_column_resize_handle";
+const TABLE_WIDGET_BASE_FONT_SIZE = 12;
+const TABLE_WIDGET_BASE_CELL_INLINE_PADDING = 8;
+const TABLE_WIDGET_COLUMN_CELL_BORDER_WIDTH = 1;
+const TABLE_WIDGET_COLUMN_RESIZE_HANDLE_WIDTH = 8;
 // Wheel events separated by more than this start a new zoom gesture, so
 // trackpad inertia or a later scroll does not reuse stale accumulated delta.
 const TABLE_WIDGET_ZOOM_WHEEL_GESTURE_RESET_MS = 200;
@@ -248,6 +252,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 	private zoomPercent: number = TABLE_WIDGET_ZOOM_OPTIONS.defaultPercent;
 	private zoomWheelAccumulatedDelta = 0;
 	private zoomWheelLastEventTime = 0;
+	private textMeasurementContext: CanvasRenderingContext2D | null = null;
 
 	public constructor(private readonly options: Table.ITableWidgetOptions<TBodyTemplateData, TColumnHeaderTemplateData>) {
 		const { className, ...virtualOptions } = options;
@@ -507,6 +512,64 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		handle.setAttribute("role", "separator");
 		handle.setAttribute("aria-orientation", "vertical");
 		return handle;
+	}
+
+	public measureColumnAutoFitWidth(options: Table.ITableColumnAutoFitWidthOptions): number {
+		const zoomScale = this.getZoomScale();
+		const headerFont = this.getAutoFitMeasurementFont("500");
+		const bodyFont = this.getAutoFitMeasurementFont("400");
+		const headerTextWidth = this.measureTextWidth(options.headerText, headerFont);
+		let bodyTextWidth = 0;
+		for (const text of options.bodyTexts) {
+			bodyTextWidth = Math.max(bodyTextWidth, this.measureTextWidth(text, bodyFont));
+		}
+
+		const inlinePaddingWidth = TABLE_WIDGET_BASE_CELL_INLINE_PADDING * 2 * zoomScale;
+		const headerAccessoryWidth = normalizeTableMeasurementWidth(options.headerAccessoryWidth ?? 0);
+		const headerWidth = headerTextWidth +
+			inlinePaddingWidth +
+			headerAccessoryWidth +
+			TABLE_WIDGET_COLUMN_RESIZE_HANDLE_WIDTH +
+			TABLE_WIDGET_COLUMN_CELL_BORDER_WIDTH;
+		const bodyWidth = bodyTextWidth +
+			inlinePaddingWidth +
+			TABLE_WIDGET_COLUMN_CELL_BORDER_WIDTH;
+		return clampTableMeasurementColumnWidth(
+			Math.max(headerWidth, bodyWidth) / zoomScale,
+			options.minimumWidth,
+			options.maximumWidth,
+		);
+	}
+
+	private getAutoFitMeasurementFont(fontWeight: string): string {
+		const style = getWindow(this.element).getComputedStyle(this.virtualTable.body);
+		return [
+			style.fontStyle,
+			style.fontVariant,
+			fontWeight,
+			`${TABLE_WIDGET_BASE_FONT_SIZE * this.getZoomScale()}px`,
+			style.fontFamily,
+		].join(" ");
+	}
+
+	private measureTextWidth(text: string, font: string): number {
+		const context = this.getTextMeasurementContext();
+		context.font = font;
+		return context.measureText(text).width;
+	}
+
+	private getTextMeasurementContext(): CanvasRenderingContext2D {
+		if (this.textMeasurementContext) {
+			return this.textMeasurementContext;
+		}
+
+		const canvas = this.element.ownerDocument.createElement("canvas");
+		const context = canvas.getContext("2d");
+		if (!context) {
+			throw new Error("Table text measurement requires canvas 2D context.");
+		}
+		this.textMeasurementContext = context;
+		return context;
 	}
 
 	public isContentVisible(): boolean {
@@ -1643,6 +1706,20 @@ function clampTableWidgetZoomPercent(zoomPercent: number): number {
 		TABLE_WIDGET_ZOOM_OPTIONS.maxPercent,
 		Math.max(TABLE_WIDGET_ZOOM_OPTIONS.minPercent, Math.floor(Number(zoomPercent) || 0)),
 	);
+}
+
+function clampTableMeasurementColumnWidth(
+	width: number,
+	minimumWidth: number,
+	maximumWidth: number,
+): number {
+	const minimum = normalizeTableMeasurementWidth(minimumWidth);
+	const maximum = Math.max(minimum, normalizeTableMeasurementWidth(maximumWidth));
+	return Math.min(maximum, Math.max(minimum, Math.ceil(normalizeTableMeasurementWidth(width))));
+}
+
+function normalizeTableMeasurementWidth(width: number): number {
+	return Number.isFinite(width) ? Math.max(0, width) : 0;
 }
 
 function toTableWidgetSize(options: Table.ITableRenderOptions): Table.ITableSize {

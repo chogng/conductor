@@ -21,7 +21,7 @@ measurement structure.
 - current cell value lookup and active-table cell search;
 - focus/reveal/highlight state;
 - non-interactive range decoration state for display-only overlays;
-- column sizing mode and column width persistence;
+- settings-derived column sizing mode projection and fixed column width persistence;
 - column-level display profiles for numeric presentation;
 - paged resource rows cache, loading state, and row request lifecycle;
 - block table preview model and invalidation when source changes.
@@ -62,12 +62,12 @@ sheet-key derivation rules in service/view files.
 | `services/tableFile/browser/tableFileService.ts` | file-backed table resolve service: validates table file support, chooses table read mode, and delegates cached file editor models to the manager. |
 | `services/tableFile/common/encoding.ts` | table file text/byte mode, byte conversion, and mime helpers. |
 | `services/tableFile/common/tableFileEditorModel.ts` | URI-backed `TableFileEditorModel`: file working-copy lifecycle, file-backed read/sourceVersion flow, and updates to the associated `ITableModel`. |
-| `common/tableColumnLayout.ts` | column sizing mode, width policy, auto-fit width policy, and storage serialization. |
+| `common/tableColumnLayout.ts` | column sizing mode type, width bounds, default sizing mode, and fixed-width storage serialization. |
 | `common/tableDisplayProfile.ts` / `numericFormat.ts` | display profile and numeric formatting helpers. |
 | `services/tableFile/common/tableFileEditorModelManager.ts` | file-backed table model manager: cache/reuse, reload/remove, pending resolve de-duplication, and model change events. |
 | `browser/tableService.ts` | table service owner, view input, copy text, column width persistence, and active-view consumption of table range data from `IDecorationsService`. |
 | `browser/tableViewModel.ts` | per-table preview view model: source switching, resource row cache, selection/highlight/reveal, and row request lifecycle. |
-| `base/browser/ui/table/tableWidget.ts` / `table.css` | Conductor-specific two-dimensional table widget facade, normalized mouse/keyboard table events, and structural CSS over the virtual table base. |
+| `base/browser/ui/table/tableWidget.ts` / `table.css` | Conductor-specific two-dimensional table widget facade, normalized mouse/keyboard table events, auto-fit width measurement, and structural CSS over the virtual table base. |
 | `base/browser/ui/table/virtualTable.ts` | two-dimensional virtual table engine: visible range calculation, pooled corner/header/body DOM, scroll spacers, cell descriptor rebinding, and scroll/visible-range fact events. |
 | `contrib/table/browser/tableWidget.ts` | raw table adapter/renderers over base table widget events, service selection sync, keyboard shortcuts, wheel handling, zoom controls, column width persistence callbacks, and final decoration snapshots. |
 | `contrib/table/browser/tableTemplateDecorationsProvider.ts` | provider from the current Slice-owned template slot to Template-derived table range decorations. |
@@ -128,24 +128,25 @@ Session/settings/command/search bridge
   -> base table widget owns structural CSS, zoom state, column resize mechanics, and facade defaults
   -> base VirtualTable reuses visible cell DOM and emits scroll/visible-range facts
   -> TableWidget emits selection callbacks and exposes base size/zoom/column-resize callbacks
-  -> TableService stores external selection, column sizing mode, and width state
+  -> TableService stores external selection and fixed column width state while deriving column sizing mode from settings
 
-Table auto-fit column width toggle
-  -> TableViewPane toolbar action / TableCommandId.toggleColumnAutoFit
-  -> command handler reads ITableService.getViewInput() for the active source
-  -> ITableService.toggleColumnSizingMode(active source)
-  -> TableService stores the sheet-scoped layout mode and fires onDidChangeTableViewInput
-  -> TableViewPane rereads ITableService.getViewInput(), updates the checked toolbar action, and passes columnSizingMode to TableController
+Table default auto-fit column width setting
+  -> SettingsView switch
+  -> SettingsController.updateSettings({ tableAutoFitColumnWidthsEnabled })
+  -> ISettingsService publishes onDidChangeConductorSettings
+  -> TableService rereads the setting and fires onDidChangeTableViewInput for the active table
+  -> TableViewPane rereads ITableService.getViewInput() and passes columnSizingMode to TableController
   -> TableWidget switches getColumnWidth between persisted fixed widths and auto-fit widths
   -> TableWidget disables base column resize while auto-fit is active
-  -> TableWidget derives auto-fit widths from TableState.file.maxCellLengths plus header labels during render/layout, with min/max bounds
+  -> contrib TableWidget passes header text, rendered body samples, max-length samples, and header accessory width into base TableWidget.measureColumnAutoFitWidth
+  -> base TableWidget measures the samples with current table font, padding, border, resize handle, zoom, and min/max bounds
   -> base TableWidget/VirtualTable consumes getColumnWidth through the existing layout path
 
 Table fixed column boundary auto-fit
   -> base TableWidget detects a double-click on a header column resize boundary with the same hit testing used for drag resize
   -> base TableWidget emits onDidDoubleClickColumnResizeBoundary with the resolved column index
   -> contrib TableWidget ignores the gesture while the table is already in global auto-fit mode
-  -> contrib TableWidget derives the target column width from TableState.file.maxCellLengths plus the header label
+  -> contrib TableWidget calls base TableWidget.measureColumnAutoFitWidth for the target column
   -> contrib TableWidget stores that width through the existing fixed-width persistence path
   -> base TableWidget/VirtualTable consumes the updated width through the existing render/layout path
 

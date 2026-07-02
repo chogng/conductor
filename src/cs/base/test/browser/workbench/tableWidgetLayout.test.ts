@@ -510,15 +510,14 @@ suite("base/browser/workbench tableWidget layout", () => {
       widget.layout();
       await timeout(120);
 
-      assert.equal(
-        getColumnHeaderWidth(widget.element, 0),
-        TableColumnLayout.resolveAutoFitWidth({ headerText: "A", maxCellLength: 1 }),
-      );
-      assert.equal(
-        getColumnHeaderWidth(widget.element, 1),
-        TableColumnLayout.resolveAutoFitWidth({ headerText: "B", maxCellLength: 20 }),
-      );
-      assert.equal(getColumnHeaderWidth(widget.element, 2), TableColumnLayout.maxWidth);
+      const shortWidth = getColumnHeaderWidth(widget.element, 0);
+      const mediumWidth = getColumnHeaderWidth(widget.element, 1);
+      const longWidth = getColumnHeaderWidth(widget.element, 2);
+
+      assert.equal(shortWidth, TableColumnLayout.autoFitMinWidth);
+      assert.ok(mediumWidth > TableColumnLayout.defaultWidth);
+      assert.ok(mediumWidth < TableColumnLayout.maxWidth);
+      assert.equal(longWidth, TableColumnLayout.maxWidth);
     } finally {
       widget.dispose();
     }
@@ -617,7 +616,6 @@ suite("base/browser/workbench tableWidget layout", () => {
       const body = widget.element.querySelector<HTMLElement>(".table_view_body");
       assert.ok(body);
       body.getBoundingClientRect = () => new DOMRect(0, 0, 800, 320);
-      const expectedWidth = TableColumnLayout.resolveAutoFitWidth({ headerText: "A", maxCellLength: 20 });
       const startClientX =
         VirtualTableGridModel.getRowHeaderWidth(widget.getZoomPercent()) +
         TableColumnLayout.defaultWidth;
@@ -628,10 +626,12 @@ suite("base/browser/workbench tableWidget layout", () => {
       });
       await timeout(160);
 
-      assert.equal(getColumnHeaderWidth(widget.element, 0), expectedWidth);
+      const autoFitWidth = getColumnHeaderWidth(widget.element, 0);
+      assert.ok(autoFitWidth > TableColumnLayout.defaultWidth);
+      assert.ok(autoFitWidth < TableColumnLayout.maxWidth);
       assert.deepEqual(storedWidths.at(-1), [{
         colIndex: 0,
-        width: expectedWidth,
+        width: autoFitWidth,
       }]);
     } finally {
       widget.dispose();
