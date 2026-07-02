@@ -31,12 +31,15 @@ suite("platform/configuration/common/configurationRegistry", () => {
     assert.deepEqual(properties["filesExplorerDensity"].enum, ["compact", "default", "comfortable"]);
     assert.equal(properties["filesExplorerShowBadges"].default, true);
     assert.equal(properties["filesExplorerShowBadges"].type, "boolean");
-    assert.equal(properties["fileNameFieldSeparators"].default, "_- .()[]{}");
     assert.equal(properties["numericDisplayMode"].default, "raw");
     assert.deepEqual(properties["numericDisplayMode"].enum, ["raw", "smart"]);
+    assert.equal(properties["tableAutoFitColumnWidthsEnabled"].default, false);
+    assert.equal(properties["tableAutoFitColumnWidthsEnabled"].type, "boolean");
     assert.equal(properties["tableTemplateVisualizationEnabled"].default, false);
     assert.equal(properties["tableTemplateVisualizationEnabled"].type, "boolean");
     assert.equal(properties["plotAxisSettings"].type, "object");
+    assert.equal(CONDUCTOR_CONFIGURATION_KEYS.includes("fileNameFieldSeparators"), false);
+    assert.equal(CONDUCTOR_CONFIGURATION_KEYS.includes("tableAutoFitColumnWidthsEnabled"), true);
     assert.equal(CONDUCTOR_CONFIGURATION_KEYS.includes("tableTemplateVisualizationEnabled"), true);
     assert.equal(CONDUCTOR_CONFIGURATION_KEYS.includes("originRuntimeCleanupEnabled"), true);
   });
@@ -56,6 +59,13 @@ suite("platform/configuration/common/configurationRegistry", () => {
     assert.equal(normalizeConductorSettings({ numericDisplayMode: "cell" }).numericDisplayMode, "raw");
   });
 
+  test("drops retired filename field separator setting", () => {
+    assert.equal(
+      Object.hasOwn(normalizeConductorSettings({ fileNameFieldSeparators: "_" }), "fileNameFieldSeparators"),
+      false,
+    );
+  });
+
   test("normalizes table template visualization", () => {
     assert.equal(normalizeConductorSettings({}).tableTemplateVisualizationEnabled, false);
     assert.equal(
@@ -64,6 +74,18 @@ suite("platform/configuration/common/configurationRegistry", () => {
     );
     assert.equal(
       normalizeConductorSettings({ tableTemplateVisualizationEnabled: "true" }).tableTemplateVisualizationEnabled,
+      false,
+    );
+  });
+
+  test("normalizes table auto-fit column widths", () => {
+    assert.equal(normalizeConductorSettings({}).tableAutoFitColumnWidthsEnabled, false);
+    assert.equal(
+      normalizeConductorSettings({ tableAutoFitColumnWidthsEnabled: true }).tableAutoFitColumnWidthsEnabled,
+      true,
+    );
+    assert.equal(
+      normalizeConductorSettings({ tableAutoFitColumnWidthsEnabled: "true" }).tableAutoFitColumnWidthsEnabled,
       false,
     );
   });

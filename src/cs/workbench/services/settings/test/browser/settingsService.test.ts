@@ -222,20 +222,17 @@ suite("workbench/services/settings/browser/settingsService", () => {
     }));
 
     await service.updateSettings({
-      fileNameFieldSeparators: "_",
       language: "zh",
       theme: "dark",
     });
 
     assert.deepEqual(calls, [
       ["update", {
-        fileNameFieldSeparators: "_",
         language: "zh",
         theme: "dark",
       }],
     ]);
     assert.deepEqual(service.getConductorSettings(), {
-      fileNameFieldSeparators: "_",
       language: "zh",
       theme: "dark",
     });

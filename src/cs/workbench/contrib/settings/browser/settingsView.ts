@@ -21,7 +21,6 @@ import { SwitchWidget } from "src/cs/base/browser/ui/switch/switchWidget";
 import { Action, type IAction } from "src/cs/base/common/actions";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
-import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/services/settings/common/fileNameMatching";
 import type {
   BuiltinSemanticDomainPack,
 } from "src/cs/workbench/services/dataResource/common/semanticLibrary";
@@ -115,6 +114,12 @@ type NumericDisplaySettings = {
   onOptimizedChange: (optimized: boolean) => Promise<void> | void;
 };
 
+type TableColumnWidthSettings = {
+  autoFitEnabled: boolean;
+  isSaving: boolean;
+  onAutoFitChange: (enabled: boolean) => Promise<void> | void;
+};
+
 type TableTemplateVisualizationSettings = {
   enabled: boolean;
   isSaving: boolean;
@@ -142,12 +147,6 @@ type AppearanceSettings = {
   onExplorerBadgeVisibilityChange: (enabled: boolean) => Promise<void> | void;
   onExplorerDensityChange: (value: string) => Promise<void> | void;
   onTransparentChromeChange: (enabled: boolean) => Promise<void> | void;
-};
-
-type FileNameMatchingSettings = {
-  fieldSeparators: string;
-  isSaving: boolean;
-  onFieldSeparatorsChange: (value: string) => Promise<void> | void;
 };
 
 type ChartDefaultSettings = {
@@ -216,9 +215,9 @@ type SettingsViewProps = {
   appearanceSettings: AppearanceSettings;
   appUpdateSettings: AppUpdateSettings;
   chartDefaultSettings: ChartDefaultSettings;
-  fileNameMatchingSettings: FileNameMatchingSettings;
   language: LanguagePreference;
   numericDisplaySettings: NumericDisplaySettings;
+  tableColumnWidthSettings: TableColumnWidthSettings;
   tableTemplateVisualizationSettings: TableTemplateVisualizationSettings;
   templateSettings: TemplateSettings;
   onLanguageChange: (language: LanguagePreference) => Promise<void> | void;
@@ -260,7 +259,6 @@ export type SettingsViewOptions = SettingsViewProps & {
   cleanupEnabledOptions: SelectOption[];
   cleanupFailedDaysOptions: SelectOption[];
   cleanupKeepSuccessOptions: SelectOption[];
-  fileNameFieldSeparatorsDraft: string;
   handleCheckForUpdates: () => void;
   handleShowReleaseNotes: () => void;
   originLegendFontSizeDraft: string;
@@ -269,7 +267,6 @@ export type SettingsViewOptions = SettingsViewProps & {
   setActiveSettingsSection: (section: SettingsSectionId) => void;
   searchQuery: string;
   setAxisTitleFontSizeDraft: (value: string) => void;
-  setFileNameFieldSeparatorsDraft: (value: string) => void;
   setOriginLegendFontSizeDraft: (value: string) => void;
   setPlotCommandDraft: (value: string) => void;
   setPostCommandsDraft: (value: string) => void;
@@ -288,7 +285,6 @@ export type SettingsContentDescriptorId =
   | "general-preferences"
   | "chart-defaults"
   | "template-preferences"
-  | "template-matching"
   | "template-library"
   | "template-domain-priority"
   | "template-semantic-library"
@@ -300,6 +296,7 @@ export type SettingsContentItemId =
   | "settings-language-item"
   | "settings-close-behavior-item"
   | "settings-numeric-display-item"
+  | "settings-table-auto-fit-columns-item"
   | "settings-default-transfer-y-scale-item"
   | "settings-default-output-y-scale-item"
   | "settings-default-cv-y-scale-item"
@@ -307,7 +304,6 @@ export type SettingsContentItemId =
   | "settings-default-pv-y-scale-item"
   | "settings-chart-defaults-item"
   | "settings-table-template-visualization-item"
-  | "settings-filename-matching-item"
   | "settings-template-domain-packs-item"
   | "settings-template-semantic-domain-priority-item"
   | "settings-template-semantic-empty-item"
@@ -1047,11 +1043,6 @@ export class SettingsView {
         sectionId: "template",
       },
       {
-        id: "template-matching",
-        order: 10,
-        sectionId: "template",
-      },
-      {
         id: "template-library",
         order: 20,
         sectionId: "template",
@@ -1102,9 +1093,6 @@ export class SettingsView {
         return;
       case "template-preferences":
         this.addTemplateSettingsTreeElements(model);
-        return;
-      case "template-matching":
-        this.addTemplateMatchingSettingsTreeElements(model);
         return;
       case "template-library":
         this.addTemplateLibrarySettingsTreeElements(model);
@@ -1188,6 +1176,22 @@ export class SettingsView {
         },
       }),
     }));
+    model.addItemToSection(section, this.createSettingsTreeListItem({
+      id: "settings-table-auto-fit-columns-item",
+      orientation: "horizontal",
+      label: localize("settings.tableAutoFitColumns.title", "自动调整列宽"),
+      description: localize("settings.tableAutoFitColumns.description", "开启后表格默认按内容自适应列宽。"),
+      trailingContent: this.createLocalSwitchControl({
+        itemId: "settings-table-auto-fit-columns-item",
+        ariaLabel: localize("settings.tableAutoFitColumns.title", "自动调整列宽"),
+        getChecked: () => this.options.tableColumnWidthSettings.autoFitEnabled,
+        getDisabled: () => this.options.tableColumnWidthSettings.isSaving,
+        id: "settings-table-auto-fit-columns-toggle",
+        onChange: checked => {
+          void this.options.tableColumnWidthSettings.onAutoFitChange(checked);
+        },
+      }),
+    }));
   }
 
   private addTemplateSettingsTreeElements(model: SettingsTreeModel): void {
@@ -1209,17 +1213,6 @@ export class SettingsView {
           void this.options.tableTemplateVisualizationSettings.onEnabledChange(checked);
         },
       }),
-    }));
-  }
-
-  private addTemplateMatchingSettingsTreeElements(model: SettingsTreeModel): void {
-    model.addItemToSection({
-      id: "settings-template-matching-section",
-      title: localize("settings.template.matching.sectionTitle", "Template Matching"),
-    }, this.createSettingsTreeElementItem({
-      id: "settings-filename-matching-item",
-      createElement: () => this.createFileNameMatching(this.options.fileNameMatchingSettings),
-      searchText: this.getFileNameMatchingSearchText(),
     }));
   }
 
@@ -2309,57 +2302,6 @@ export class SettingsView {
       localize("settings.chartTypographyDefaults.description", "Choose default chart title and tick label sizes."),
       localize("settings.chartTypographyDefaults.titleSize", "Title"),
       localize("settings.chartTypographyDefaults.tickLabel", "Tick label"),
-    );
-  }
-
-  private createFileNameMatching(settings: FileNameMatchingSettings): HTMLElement {
-    const container = cell("settings-filename-matching-item", "settings-cell-block");
-    const titleText = localize("settings.filenameMatching.title", "Filename Field Matching");
-    const description = localize("settings.filenameMatching.description", "Choose which separator characters split filename fields for template rules.");
-    const separatorsLabel = localize("settings.filenameMatching.label", "Field separators");
-    const hint = localize("settings.filenameMatching.hint", "Each character acts as a separator. The default is {value}.", { value: DEFAULT_FILE_NAME_FIELD_SEPARATORS });
-    container.appendChild(headingBlock(titleText, description));
-    const body = div("settings-field");
-    const separatorsInput = this.createInputWidget({
-      id: "settings-filename-separators-input",
-      value: this.options.fileNameFieldSeparatorsDraft,
-      onChange: this.options.setFileNameFieldSeparatorsDraft,
-      onBlur: () => {
-        const settings = this.options.fileNameMatchingSettings;
-        if (this.options.fileNameFieldSeparatorsDraft !== settings.fieldSeparators) {
-          void settings.onFieldSeparatorsChange(this.options.fileNameFieldSeparatorsDraft);
-        }
-      },
-      disabled: settings.isSaving,
-    });
-    body.append(
-      label(separatorsLabel),
-      div("settings-input settings-input--mono", separatorsInput.element),
-      text("p", "settings-hint", hint),
-    );
-    container.appendChild(body);
-    this.registerLocalContentPatch("settings-filename-matching-item", {
-      element: container,
-      getSearchText: () => this.getFileNameMatchingSearchText(),
-      update: () => {
-        const settings = this.options.fileNameMatchingSettings;
-        this.updateInputWidget(separatorsInput, {
-          id: "settings-filename-separators-input",
-          value: this.options.fileNameFieldSeparatorsDraft,
-          onChange: this.options.setFileNameFieldSeparatorsDraft,
-          disabled: settings.isSaving,
-        });
-      },
-    });
-    return container;
-  }
-
-  private getFileNameMatchingSearchText(): string {
-    return normalizeSettingsSearchText(
-      localize("settings.filenameMatching.title", "Filename Field Matching"),
-      localize("settings.filenameMatching.description", "Choose which separator characters split filename fields for template rules."),
-      localize("settings.filenameMatching.label", "Field separators"),
-      localize("settings.filenameMatching.hint", "Each character acts as a separator. The default is {value}.", { value: DEFAULT_FILE_NAME_FIELD_SEPARATORS }),
     );
   }
 

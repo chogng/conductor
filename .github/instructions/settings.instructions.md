@@ -236,7 +236,6 @@ not introduce a parallel settings store.
 | File | Responsibility |
 | --- | --- |
 | `services/settings/common/settings.ts` | settings contracts, persisted types, view input, `ISettingsService`. |
-| `services/settings/common/fileNameMatching.ts` | filename-matching preference defaults, normalization, and pure matching helpers used by Settings UI and settings consumers. |
 | `services/settings/browser/settingsService.ts` | settings snapshot owner, load/update/merge, view input, events. |
 | `platform/configuration/common/*` | upstream-shaped configuration registry/models/service and schema/defaults. |
 | `workbench/services/configuration/**` | workbench configuration helpers/registration/runtime integration. |

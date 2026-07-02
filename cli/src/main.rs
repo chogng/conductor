@@ -179,12 +179,6 @@ fn process_file(
     calculation_cache_path: Option<&str>,
 ) -> Result<Value, String> {
     let segmentation_mode = json_string(config.get("xSegmentationMode")).to_ascii_lowercase();
-    let file_name_vg_keywords =
-        split_file_name_match_input(&json_string(config.get("fileNameVgKeywords")));
-    let file_name_vd_keywords =
-        split_file_name_match_input(&json_string(config.get("fileNameVdKeywords")));
-    let use_file_name_mapping =
-        !file_name_vg_keywords.is_empty() || !file_name_vd_keywords.is_empty();
 
     let x_col = json_usize(config.get("xCol")).ok_or_else(|| "Invalid config: xCol".to_string())?;
     let start_row =
@@ -455,42 +449,6 @@ fn process_file(
     let left_title = json_string(config.get("leftTitle"));
     let x_unit = json_string(config.get("xUnit"));
     let y_unit = json_string(config.get("yUnit"));
-    let file_name_role = if use_file_name_mapping {
-        if file_name_vg_keywords.is_empty() || file_name_vd_keywords.is_empty() {
-            return Err(format!(
-                "{}: Invalid template config: both file-name prefix groups are required.",
-                dataset.file_name
-            ));
-        }
-        let separators = normalize_file_name_field_separators(&json_string(
-            config.get("fileNameFieldSeparators"),
-        ));
-        let matched_vg = match_file_name_against_pattern_tokens(
-            &dataset.file_name,
-            &file_name_vg_keywords,
-            &separators,
-        );
-        let matched_vd = match_file_name_against_pattern_tokens(
-            &dataset.file_name,
-            &file_name_vd_keywords,
-            &separators,
-        );
-        if !matched_vg && !matched_vd {
-            return Err(format!(
-                "{}: File name does not match configured template prefixes.",
-                dataset.file_name
-            ));
-        }
-        if matched_vg && !matched_vd {
-            Some("vg")
-        } else if matched_vd && !matched_vg {
-            Some("vd")
-        } else {
-            None
-        }
-    } else {
-        None
-    };
     let fallback_x_label = excel_column_label(x_col);
     let x_label = append_axis_unit(
         if bottom_title.is_empty() {
@@ -502,14 +460,8 @@ fn process_file(
     );
     let y_label = append_axis_unit(&left_title, &y_unit);
     let (x_axis_role, x_axis_role_source) = detect_axis_role(&x_label);
-    let effective_axis_role = x_axis_role.or(file_name_role);
-    let effective_axis_role_source = if x_axis_role.is_some() {
-        x_axis_role_source
-    } else if file_name_role.is_some() {
-        "fileName"
-    } else {
-        x_axis_role_source
-    };
+    let effective_axis_role = x_axis_role;
+    let effective_axis_role_source = x_axis_role_source;
     let auto_curve_type = json_string(config.get("autoCurveType")).to_ascii_lowercase();
     let curve_type = match auto_curve_type.as_str() {
         "transfer" => Some("transfer"),

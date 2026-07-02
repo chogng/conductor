@@ -121,6 +121,7 @@ type TemplateSemanticTermRule = {
 export type ConductorSettings = JsonRecord & {
   language: string;
   numericDisplayMode: NumericDisplayMode;
+  tableAutoFitColumnWidthsEnabled: boolean;
   tableTemplateVisualizationEnabled: boolean;
   templateDisabledBuiltinDomainPackIds: string[];
   templateDisabledBuiltinSemanticIds: string[];
@@ -134,7 +135,6 @@ export type ConductorSettings = JsonRecord & {
   transparentChrome: boolean;
   windowCloseBehavior: string;
   stopOnErrorDefault: boolean;
-  fileNameFieldSeparators: string;
   ionIoffMethodDefault: string;
   defaultYScaleForTransfer: string;
   defaultYScaleForOutput: string;
@@ -292,7 +292,6 @@ function normalizeOriginExePath(inputPath: unknown): string | null {
   return normalized || null;
 }
 
-const DEFAULT_FILE_NAME_FIELD_SEPARATORS = "_- .()[]{}";
 const SS_METHODS = new Set(["auto", "manual"]);
 const ION_IOFF_METHODS = new Set(["auto", "manual"]);
 const FILES_EXPLORER_DENSITIES = new Set([
@@ -351,6 +350,7 @@ const BACKGROUND_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
 export const DEFAULT_CONDUCTOR_CONFIGURATION: ConductorSettings = {
   language: "system",
   numericDisplayMode: "raw",
+  tableAutoFitColumnWidthsEnabled: false,
   tableTemplateVisualizationEnabled: false,
   templateDisabledBuiltinDomainPackIds: [],
   templateDisabledBuiltinSemanticIds: [],
@@ -364,7 +364,6 @@ export const DEFAULT_CONDUCTOR_CONFIGURATION: ConductorSettings = {
   transparentChrome: true,
   windowCloseBehavior: "minimizeToTray",
   stopOnErrorDefault: false,
-  fileNameFieldSeparators: DEFAULT_FILE_NAME_FIELD_SEPARATORS,
   ionIoffMethodDefault: "auto",
   defaultYScaleForTransfer: "log",
   defaultYScaleForOutput: "linear",
@@ -489,29 +488,6 @@ function normalizeIntegerText(value: unknown, min: number, max: number): string 
   const text = normalizeFiniteNumberText(value);
   if (!text) return "";
   return String(normalizeRoundedBoundedInt(text, min, min, max));
-}
-
-function uniqueCharacters(value: string): string {
-  const seen = new Set<string>();
-  let result = "";
-
-  for (const char of value) {
-    if (seen.has(char)) continue;
-    seen.add(char);
-    result += char;
-  }
-
-  return result;
-}
-
-function normalizeFileNameFieldSeparators(value: unknown): string {
-  const raw = String(value ?? "")
-    .replace(/\r/g, "")
-    .replace(/\n/g, "")
-    .replace(/\t/g, " ");
-  const deduped = uniqueCharacters(raw);
-
-  return deduped.length ? deduped : DEFAULT_FILE_NAME_FIELD_SEPARATORS;
 }
 
 function normalizeFilesExplorerBadgeColors(value: unknown): Record<string, string> {
@@ -679,6 +655,7 @@ function normalizePlotAxisSettings(
 
 export function normalizeConductorSettings(raw: unknown): ConductorSettings {
   const next = isRecord(raw) ? { ...raw } : {};
+  delete next.fileNameFieldSeparators;
 
   const language = isSetValue(LANGUAGES, next.language)
     ? next.language
@@ -698,6 +675,10 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
   const tableTemplateVisualizationEnabled = normalizeBoolean(
     next.tableTemplateVisualizationEnabled,
     DEFAULT_CONDUCTOR_CONFIGURATION.tableTemplateVisualizationEnabled,
+  );
+  const tableAutoFitColumnWidthsEnabled = normalizeBoolean(
+    next.tableAutoFitColumnWidthsEnabled,
+    DEFAULT_CONDUCTOR_CONFIGURATION.tableAutoFitColumnWidthsEnabled,
   );
   const templateSemanticAllowlist = normalizeTemplateSemanticAllowlist(
     next.templateSemanticAllowlist,
@@ -804,9 +785,9 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
     ...DEFAULT_CONDUCTOR_CONFIGURATION,
     ...next,
     language,
-    fileNameFieldSeparators: normalizeFileNameFieldSeparators(next.fileNameFieldSeparators),
     stopOnErrorDefault,
     numericDisplayMode,
+    tableAutoFitColumnWidthsEnabled,
     tableTemplateVisualizationEnabled,
     templateDisabledBuiltinDomainPackIds,
     templateDisabledBuiltinSemanticIds,

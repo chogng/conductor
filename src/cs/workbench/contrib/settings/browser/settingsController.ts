@@ -7,7 +7,6 @@ import {
   type OriginPlotOptions,
 } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import { normalizePlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
-import { normalizeFileNameFieldSeparators } from "src/cs/workbench/services/settings/common/fileNameMatching";
 import {
   SettingsNavigationView,
   SettingsView,
@@ -32,6 +31,7 @@ import {
   normalizeFilesExplorerBadgeColors,
   normalizeFilesExplorerShowBadges,
   normalizeNumericDisplayMode,
+  normalizeTableAutoFitColumnWidthsEnabled,
   normalizeTableTemplateVisualizationEnabled,
   normalizeTemplateDisabledBuiltinDomainPackIds,
   normalizeTemplateSemanticDomainPriority,
@@ -91,7 +91,6 @@ type SettingsDraftState = {
   activeSettingsSection: SettingsSectionId;
   appUpdateChecking: boolean;
   axisTitleFontSizeDraft: string;
-  fileNameFieldSeparatorsDraft: string;
   originLegendFontSizeDraft: string;
   plotCommandDraft: string;
   postCommandsDraft: string;
@@ -140,7 +139,6 @@ export class SettingsController {
   private originCleanupSaving = false;
   private originCleanupRunning = false;
   private originPlotSaving = false;
-  private fileNameMatchingSaving = false;
   private templateSettingsSaving = false;
   private pendingTemplateActionItemId: string | null = null;
   private defaultsSaving = false;
@@ -151,11 +149,13 @@ export class SettingsController {
   private pendingExplorerBadgeColors: Record<string, FilesExplorerBadgeColor> | null = null;
   private pendingExplorerBadgeVisibility: boolean | null = null;
   private pendingNumericDisplayMode: "raw" | "smart" | null = null;
+  private pendingTableAutoFitColumnWidthsEnabled: boolean | null = null;
   private pendingTableTemplateVisualizationEnabled: boolean | null = null;
   private pendingTransparentChrome: boolean | null = null;
   private templateSemanticDraftCounter = 0;
   private transparentChromeSaving = false;
   private numericDisplaySaving = false;
+  private tableAutoFitColumnWidthsSaving = false;
   private tableTemplateVisualizationSaving = false;
   private windowCloseSaving = false;
   private drafts: SettingsDraftState;
@@ -230,7 +230,6 @@ export class SettingsController {
       activeSettingsSection: "general",
       appUpdateChecking: false,
       axisTitleFontSizeDraft: String(axisSettings.axisTitleFontSize ?? ""),
-      fileNameFieldSeparatorsDraft: this.fileNameFieldSeparators,
       originLegendFontSizeDraft: String(this.originPlotConfig.legendFontSize ?? ""),
       plotCommandDraft: this.originPlotConfig.command ?? "",
       postCommandsDraft: originPostCommandsToMultiline(this.originPlotConfig.postCommands),
@@ -249,7 +248,6 @@ export class SettingsController {
     const axisSettings = this.axisSettings;
     this.drafts.axisTitleFontSizeDraft = String(axisSettings.axisTitleFontSize ?? "");
     this.drafts.tickLabelFontSizeDraft = String(axisSettings.tickLabelFontSize ?? "");
-    this.drafts.fileNameFieldSeparatorsDraft = this.fileNameFieldSeparators;
     this.drafts.originLegendFontSizeDraft = String(this.originPlotConfig.legendFontSize ?? "");
     this.drafts.plotCommandDraft = this.originPlotConfig.command ?? "";
     this.drafts.postCommandsDraft = originPostCommandsToMultiline(this.originPlotConfig.postCommands);
@@ -343,8 +341,6 @@ export class SettingsController {
       cleanupEnabledOptions: this.cleanupEnabledOptions,
       cleanupFailedDaysOptions: this.cleanupFailedDaysOptions,
       cleanupKeepSuccessOptions: this.cleanupKeepSuccessOptions,
-      fileNameFieldSeparatorsDraft: this.drafts.fileNameFieldSeparatorsDraft,
-      fileNameMatchingSettings: this.fileNameMatchingSettings,
       handleCheckForUpdates: () => void this.checkForUpdates(),
       handleShowReleaseNotes: () => {
         void this.commandService.executeCommand(
@@ -354,6 +350,7 @@ export class SettingsController {
       },
       language: this.options.language,
       numericDisplaySettings: this.numericDisplaySettings,
+      tableColumnWidthSettings: this.tableColumnWidthSettings,
       tableTemplateVisualizationSettings: this.tableTemplateVisualizationSettings,
       templateSettings: this.templateSettings,
       originLegendFontSizeDraft: this.drafts.originLegendFontSizeDraft,
@@ -383,9 +380,6 @@ export class SettingsController {
       },
       setAxisTitleFontSizeDraft: value => {
         this.drafts.axisTitleFontSizeDraft = value;
-      },
-      setFileNameFieldSeparatorsDraft: value => {
-        this.drafts.fileNameFieldSeparatorsDraft = value;
       },
       setOriginLegendFontSizeDraft: value => {
         this.drafts.originLegendFontSizeDraft = value;
@@ -441,10 +435,6 @@ export class SettingsController {
     return normalizePlotAxisSettings(this.settings.plotAxisSettings);
   }
 
-  private get fileNameFieldSeparators(): string {
-    return normalizeFileNameFieldSeparators(this.settings.fileNameFieldSeparators);
-  }
-
   private get defaultYScaleForTransfer(): "linear" | "log" {
     return this.settings.defaultYScaleForTransfer === "linear" ? "linear" : "log";
   }
@@ -458,14 +448,6 @@ export class SettingsController {
       return value;
     }
     return this.settings.defaultYScaleForSpecial === "log" ? "log" : "linear";
-  }
-
-  private get fileNameMatchingSettings(): SettingsViewOptions["fileNameMatchingSettings"] {
-    return {
-      fieldSeparators: this.fileNameFieldSeparators,
-      isSaving: this.fileNameMatchingSaving,
-      onFieldSeparatorsChange: value => this.setFileNameFieldSeparators(value),
-    };
   }
 
   private get chartDefaultSettings(): SettingsViewOptions["chartDefaultSettings"] {
@@ -503,6 +485,14 @@ export class SettingsController {
       optimized: mode === "smart",
       isSaving: this.numericDisplaySaving,
       onOptimizedChange: value => this.setNumericDisplayOptimized(value),
+    };
+  }
+
+  private get tableColumnWidthSettings(): SettingsViewOptions["tableColumnWidthSettings"] {
+    return {
+      autoFitEnabled: this.pendingTableAutoFitColumnWidthsEnabled ?? normalizeTableAutoFitColumnWidthsEnabled(this.settings.tableAutoFitColumnWidthsEnabled),
+      isSaving: this.tableAutoFitColumnWidthsSaving,
+      onAutoFitChange: value => this.setTableAutoFitColumnWidthsEnabled(value),
     };
   }
 
@@ -835,6 +825,46 @@ export class SettingsController {
     }
   }
 
+  private async setTableAutoFitColumnWidthsEnabled(enabled: boolean): Promise<void> {
+    const normalized = Boolean(enabled);
+    const current = this.pendingTableAutoFitColumnWidthsEnabled ?? normalizeTableAutoFitColumnWidthsEnabled(this.settings.tableAutoFitColumnWidthsEnabled);
+    if (normalized === current) {
+      return;
+    }
+
+    this.pendingTableAutoFitColumnWidthsEnabled = normalized;
+    this.render(itemsUpdateTarget("general-preferences", "settings-table-auto-fit-columns-item"));
+    if (!this.tableAutoFitColumnWidthsSaving) {
+      await this.flushTableAutoFitColumnWidthsEnabled();
+    }
+  }
+
+  private async flushTableAutoFitColumnWidthsEnabled(): Promise<void> {
+    this.tableAutoFitColumnWidthsSaving = true;
+    this.render(itemsUpdateTarget("general-preferences", "settings-table-auto-fit-columns-item"));
+    try {
+      while (this.pendingTableAutoFitColumnWidthsEnabled !== null) {
+        const enabled = this.pendingTableAutoFitColumnWidthsEnabled;
+        try {
+          await this.service.updateSettings({ tableAutoFitColumnWidthsEnabled: enabled });
+        }
+        catch {
+          if (this.pendingTableAutoFitColumnWidthsEnabled === enabled) {
+            this.pendingTableAutoFitColumnWidthsEnabled = null;
+          }
+          break;
+        }
+        if (this.pendingTableAutoFitColumnWidthsEnabled === enabled) {
+          this.pendingTableAutoFitColumnWidthsEnabled = null;
+        }
+        this.render(itemsUpdateTarget("general-preferences", "settings-table-auto-fit-columns-item"));
+      }
+    } finally {
+      this.tableAutoFitColumnWidthsSaving = false;
+      this.render(itemsUpdateTarget("general-preferences", "settings-table-auto-fit-columns-item"));
+    }
+  }
+
   private async setTableTemplateVisualizationEnabled(enabled: boolean): Promise<void> {
     const normalized = Boolean(enabled);
     const current = this.pendingTableTemplateVisualizationEnabled ?? normalizeTableTemplateVisualizationEnabled(this.settings.tableTemplateVisualizationEnabled);
@@ -921,26 +951,6 @@ export class SettingsController {
     finally {
       this.originCleanupRunning = false;
       this.render(itemsUpdateTarget("origin-integration", "settings-origin-cleanup-item"));
-    }
-  }
-
-  private async setFileNameFieldSeparators(value: string): Promise<void> {
-    this.fileNameMatchingSaving = true;
-    this.render(itemsUpdateTarget("template-matching", "settings-filename-matching-item"));
-    try {
-      await this.service.updateSettings({ fileNameFieldSeparators: normalizeFileNameFieldSeparators(value) });
-    }
-    catch (error) {
-      this.showSettingsNotification(
-        "settings.fileNameMatching",
-        localize("settings.filenameMatching.saveFailed", "Failed to update filename field separators: {error}", { error: this.service.errorMessage(error) }),
-        "error",
-        "settings-filename-matching-notification",
-      );
-    }
-    finally {
-      this.fileNameMatchingSaving = false;
-      this.render(itemsUpdateTarget("template-matching", "settings-filename-matching-item"));
     }
   }
 
@@ -1809,10 +1819,10 @@ function getConductorSettingItemTarget(key: string): { readonly descriptorId: Se
       return { descriptorId: "general-preferences", itemIds: ["settings-close-behavior-item"] };
     case "numericDisplayMode":
       return { descriptorId: "general-preferences", itemIds: ["settings-numeric-display-item"] };
+    case "tableAutoFitColumnWidthsEnabled":
+      return { descriptorId: "general-preferences", itemIds: ["settings-table-auto-fit-columns-item"] };
     case "tableTemplateVisualizationEnabled":
       return { descriptorId: "template-preferences", itemIds: ["settings-table-template-visualization-item"] };
-    case "fileNameFieldSeparators":
-      return { descriptorId: "template-matching", itemIds: ["settings-filename-matching-item"] };
     case "templateDisabledBuiltinDomainPackIds":
       return { descriptorId: "template-library", itemIds: ["settings-template-domain-packs-item"] };
     case "templateSemanticDomainPriority":
