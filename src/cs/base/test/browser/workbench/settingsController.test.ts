@@ -150,14 +150,14 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       assert.equal(getElement(container, ".settings-view-content > .settings-section-list"), tree);
       assert.equal(getButton(container, "settings-numeric-display-toggle"), switchButton);
       assert.equal(switchButton.getAttribute("aria-checked"), "true");
-      assert.equal(switchButton.disabled, false);
+      assert.equal(switchButton.disabled, true);
 
       controller.update(createSettingsViewInput(service.settings));
       assert.equal(getElement(container, ".settings-view-content"), content);
       assert.equal(getElement(container, ".settings-view-content > .settings-section-list"), tree);
       assert.equal(getButton(container, "settings-numeric-display-toggle"), switchButton);
       assert.equal(switchButton.getAttribute("aria-checked"), "true");
-      assert.equal(switchButton.disabled, false);
+      assert.equal(switchButton.disabled, true);
 
       service.settings = { numericDisplayMode: "smart" };
       controller.update(createSettingsViewInput(service.settings));
@@ -171,6 +171,85 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       assert.equal(getButton(container, "settings-numeric-display-toggle"), switchButton);
       assert.equal(switchButton.getAttribute("aria-checked"), "true");
       assert.equal(switchButton.disabled, false);
+    }
+    finally {
+      controller.dispose();
+      container.remove();
+    }
+  });
+
+  test("keeps numeric and template switch transitions after settings patch", () => {
+    const numericContainer = document.createElement("div");
+    const templateContainer = document.createElement("div");
+    document.body.append(numericContainer, templateContainer);
+
+    const numericController = new SettingsController(
+      numericContainer,
+      createSettingsViewInput({ numericDisplayMode: "raw" }),
+      createSettingsService({ numericDisplayMode: "raw" }),
+      createCommandService(),
+      createNotificationService(),
+    );
+    const templateController = new SettingsController(
+      templateContainer,
+      createSettingsViewInput({ tableTemplateVisualizationEnabled: false }),
+      createSettingsService({ tableTemplateVisualizationEnabled: false }),
+      createCommandService(),
+      createNotificationService(),
+    );
+
+    try {
+      numericController.attachNavigation(numericContainer);
+      templateController.attachNavigation(templateContainer);
+      openTemplateSection(templateContainer);
+
+      const numericSwitch = getButton(numericContainer, "settings-numeric-display-toggle");
+      const templateSwitch = getButton(templateContainer, "settings-table-template-visualization-toggle");
+
+      numericSwitch.click();
+      templateSwitch.click();
+
+      assertSwitchInteractionAnimation(numericSwitch);
+      assertSwitchInteractionAnimation(templateSwitch);
+    }
+    finally {
+      numericController.dispose();
+      templateController.dispose();
+      numericContainer.remove();
+      templateContainer.remove();
+    }
+  });
+
+  test("keeps numeric switch transition when settings service publishes saved input", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const service = createSettingsService({ numericDisplayMode: "raw" });
+    let controller: SettingsController | undefined;
+    service.updateSettings = async updates => {
+      service.settings = {
+        ...service.settings,
+        ...(updates as Partial<ConductorSettings>),
+      };
+      controller?.update(createSettingsViewInput(service.settings));
+      return service.settings;
+    };
+    controller = new SettingsController(
+      container,
+      createSettingsViewInput(service.settings),
+      service,
+      createCommandService(),
+      createNotificationService(),
+    );
+    controller.attachNavigation(container);
+
+    try {
+      const switchButton = getButton(container, "settings-numeric-display-toggle");
+      switchButton.click();
+
+      assert.equal(getButton(container, "settings-numeric-display-toggle"), switchButton);
+      assert.equal(switchButton.getAttribute("aria-checked"), "true");
+      assertSwitchInteractionAnimation(switchButton);
     }
     finally {
       controller.dispose();
@@ -1173,6 +1252,14 @@ function getButton(container: HTMLElement, id: string): HTMLButtonElement {
   const button = container.querySelector<HTMLButtonElement>(`#${id}`);
   assert.ok(button);
   return button;
+}
+
+function assertSwitchInteractionAnimation(button: HTMLButtonElement): void {
+  const thumb = button.querySelector<HTMLElement>(".ui-switch__thumb");
+  assert.ok(thumb);
+  assert.ok(button.classList.contains("ui-switch--animate"));
+  assert.ok(getComputedStyle(thumb).transitionDuration !== "0s");
+  assert.ok(getComputedStyle(thumb).transitionProperty.includes("transform"));
 }
 
 function clickNewSemanticRule(container: HTMLElement): void {

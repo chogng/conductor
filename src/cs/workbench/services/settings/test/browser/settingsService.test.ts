@@ -260,6 +260,28 @@ suite("workbench/services/settings/browser/settingsService", () => {
 
     assert.equal(service.getConductorSettings()?.theme, "light");
   });
+
+  test("keeps settings view loaded while default persistence writes configuration", async () => {
+    const configurationService = settingsTestStore.add(new ConfigurationService());
+    const service = settingsTestStore.add(new BrowserSettingsService(configurationService));
+    service.mergeConductorSettings({});
+    service.update(createSettingsServiceOptions({
+      settingsPersistence: undefined,
+    }));
+
+    const loadedStates: boolean[] = [];
+    const disposable = settingsTestStore.add(service.onDidChangeSettingsViewInput(() => {
+      loadedStates.push(Boolean(service.getSettingsViewInput()?.conductorSettingsLoaded));
+    }));
+
+    await service.updateSettings({ numericDisplayMode: "smart" });
+    await drainMicrotasks();
+
+    assert.deepEqual(loadedStates.filter(state => !state), []);
+    assert.equal(service.getSettingsViewInput()?.conductorSettingsLoaded, true);
+    assert.equal(service.getConductorSettings()?.numericDisplayMode, "smart");
+    disposable.dispose();
+  });
 });
 
 const createBrowserSettingsService = (): BrowserSettingsService =>

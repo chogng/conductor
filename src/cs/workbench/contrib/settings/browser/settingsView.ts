@@ -1156,6 +1156,7 @@ export class SettingsView {
         itemId: "settings-numeric-display-item",
         ariaLabel: localize("settings.numericDisplay.title", "优化表格数值显示"),
         getChecked: () => this.options.numericDisplaySettings.optimized,
+        getDisabled: () => this.options.numericDisplaySettings.isSaving,
         id: "settings-numeric-display-toggle",
         onChange: checked => {
           void this.options.numericDisplaySettings.onOptimizedChange(checked);

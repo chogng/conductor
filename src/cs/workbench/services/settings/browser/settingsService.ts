@@ -100,7 +100,7 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
           event.affectsConfiguration(key),
         )
       ) {
-        void this.loadSettings();
+        void this.loadSettings({ showLoadingState: false });
       }
     }));
   }
@@ -116,7 +116,7 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
     this.publishOriginSettingsViewInput();
 
     if (!this.conductorSettingsLoaded) {
-      void this.loadSettings();
+      void this.loadSettings({ showLoadingState: true });
     }
   }
 
@@ -291,13 +291,17 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
     return getErrorMessage(error) || localize("common.unknownError", "Unknown error");
   }
 
-  private async loadSettings(): Promise<void> {
+  private async loadSettings(
+    options: { readonly showLoadingState: boolean },
+  ): Promise<void> {
     if (this.loadingSettings) {
       return;
     }
 
     this.loadingSettings = true;
-    this.setConductorSettingsLoaded(false);
+    if (options.showLoadingState) {
+      this.setConductorSettingsLoaded(false);
+    }
 
     try {
       const settings = toConductorSettings(await this.getSettingsPersistence().getSettings());
@@ -305,7 +309,7 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
         this.setConductorSettings(settings, true);
       }
     } catch {
-      if (!this.disposed) {
+      if (!this.disposed && options.showLoadingState) {
         this.setConductorSettingsLoaded(true);
       }
     } finally {

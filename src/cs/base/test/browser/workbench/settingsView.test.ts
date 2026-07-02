@@ -84,7 +84,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(getSelectLabel(nextCloseBehaviorSelect), "Minimize to Tray");
       assert.equal(nextCloseBehaviorSelect.disabled, true);
       assert.equal(nextNumericDisplaySwitch.getAttribute("aria-checked"), "true");
-      assert.equal(nextNumericDisplaySwitch.disabled, false);
+      assert.equal(nextNumericDisplaySwitch.disabled, true);
     }
     finally {
       view.dispose();
