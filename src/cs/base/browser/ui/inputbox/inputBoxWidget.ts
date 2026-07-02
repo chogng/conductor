@@ -63,6 +63,8 @@ export class InputBoxWidget extends Disposable {
   private readonly onDidAcceptEmitter = this._register(new Emitter<string>());
   public readonly onDidAccept: Event<string> = this.onDidAcceptEmitter.event;
 
+  public readonly onDidBlur: Event<void>;
+
   private readonly onDidChangeEmitter = this._register(new Emitter<string>());
   public readonly onDidChange: Event<string> = this.onDidChangeEmitter.event;
 
@@ -72,6 +74,7 @@ export class InputBoxWidget extends Disposable {
   public constructor(options: InputBoxWidgetOptions = {}) {
     super();
     this.inputBox = this._register(createInputBox(getInputBoxOptions(options)));
+    this.onDidBlur = this.inputBox.onDidBlur;
     this.element = this.inputBox.element;
     this.field = this.inputBox.field;
     this.input = this.inputBox.input;

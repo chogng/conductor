@@ -12,7 +12,7 @@ import type {
 	StructuredMeasurementFamily,
 } from "./structuredContent";
 import type {
-	TemplateSemanticTermRule,
+	TemplateSemanticDomainRule,
 	TemplateXAxisIntent,
 } from "src/cs/workbench/services/settings/common/settings";
 
@@ -23,11 +23,20 @@ export type SemanticTitleMatch = {
 	readonly canonicalRole: StructuredMeasurementColumnRole;
 	readonly canonicalUnit?: StructuredCanonicalUnit;
 	readonly axisTendency: StructuredAxisTendency;
+	readonly semanticDomains: readonly SemanticTitleDomainMatch[];
 	readonly family?: StructuredMeasurementFamily;
 	readonly ivMode?: StructuredIvSweepMode;
 	readonly normalizedTitle: string;
 	readonly confidence: number;
 	readonly reasons: readonly string[];
+};
+
+export type SemanticTitleDomainMatch = {
+	readonly id: string;
+	readonly title: string;
+	readonly axisTendency: StructuredAxisTendency;
+	readonly priorityIndex: number;
+	readonly source: "builtin" | "user";
 };
 
 export type SemanticRowMarkerKind = "titleRow" | "dataRow";
@@ -52,6 +61,14 @@ export type BuiltinSemanticDomainPack = {
 	readonly intentPriors: readonly TemplateXAxisIntent[];
 	readonly xRolePriorityByIntent: Readonly<Record<string, readonly string[]>>;
 	readonly patterns: readonly string[];
+};
+
+export type BuiltinSemanticDomainRule = {
+	readonly id: string;
+	readonly title: string;
+	readonly xTerms: readonly string[];
+	readonly yTerms: readonly string[];
+	readonly description: string;
 };
 
 //#endregion
@@ -84,7 +101,7 @@ type SemanticLibrary = {
 
 const semanticLibrary = semanticLibraryJson as unknown as SemanticLibrary;
 
-type SemanticTitleLookupSource = "library" | "allowlist";
+type SemanticTitleLookupSource = "library" | "domainRule";
 
 type SemanticTitleTerm = {
 	readonly id?: string;
@@ -93,6 +110,7 @@ type SemanticTitleTerm = {
 	readonly title: SemanticTitleRecord;
 	readonly source: SemanticTitleLookupSource;
 	readonly domainPackIds: readonly string[];
+	readonly semanticDomains: readonly SemanticTitleDomainMatch[];
 };
 
 type SemanticRowMarkerTerm = {
@@ -108,7 +126,8 @@ type SemanticRowMarkerTerm = {
 // Settings-derived options select active built-ins and add user-defined terms.
 
 export type SemanticMatcherOptions = {
-	readonly allowlist?: readonly TemplateSemanticTermRule[];
+	readonly domainPriority?: readonly string[];
+	readonly domainRules?: readonly TemplateSemanticDomainRule[];
 	readonly disabledBuiltinTermIds?: readonly string[];
 	readonly disabledDomainPackIds?: readonly string[];
 	readonly xAxisIntentPriority?: readonly TemplateXAxisIntent[];
@@ -119,6 +138,7 @@ export type SemanticMatcher = {
 	readonly matchTitle: (value: unknown) => SemanticTitleMatch | null;
 	readonly matchRowMarker: (value: unknown) => SemanticRowMarkerKind | null;
 	readonly toKey: (value: unknown) => string;
+	readonly semanticDomainPriority: readonly string[];
 	readonly xAxisIntentPriority: readonly TemplateXAxisIntent[];
 };
 
@@ -145,6 +165,7 @@ for (const title of semanticLibrary.titles) {
 			title,
 			source: "library",
 			domainPackIds: title.domainPackIds ?? [],
+			semanticDomains: [],
 		});
 		builtinSemanticTermRecords.push({
 			id,
@@ -174,6 +195,63 @@ for (const marker of semanticLibrary.rowMarkers) {
 	}
 }
 
+function createBuiltinSemanticDomainRules(): readonly BuiltinSemanticDomainRule[] {
+	return [{
+		id: "builtin-domain:iv",
+		title: "iv",
+		description: "Semiconductor IV slicing: voltage sweeps against current responses.",
+		xTerms: collectBuiltinAliasesByRole(["vg", "vd", "vs", "voltage"]),
+		yTerms: collectBuiltinAliasesByRole(["id", "ig", "is", "current"]),
+	}, {
+		id: "builtin-domain:cv",
+		title: "cv",
+		description: "Capacitance-voltage slicing: voltage or frequency sweeps against capacitance/conductance.",
+		xTerms: collectBuiltinAliasesByRole(["vg", "vd", "voltage", "frequency"]),
+		yTerms: collectBuiltinAliasesByRole(["capacitance", "conductance"]),
+	}, {
+		id: "builtin-domain:frequency",
+		title: "frequency",
+		description: "Frequency sweep slicing for capacitance, conductance, or impedance-like data.",
+		xTerms: collectBuiltinAliasesByRole(["frequency"]),
+		yTerms: collectBuiltinAliasesByRole(["capacitance", "conductance"]),
+	}, {
+		id: "builtin-domain:transient",
+		title: "transient",
+		description: "Time-domain slicing for waveform-like voltage/current traces.",
+		xTerms: collectBuiltinAliasesByRole(["time"]),
+		yTerms: collectBuiltinAliasesByRole(["voltage", "current", "id", "ig"]),
+	}, {
+		id: "builtin-domain:generic",
+		title: "generic",
+		description: "Generic X/Y slicing when no test-specific domain wins.",
+		xTerms: collectBuiltinAliasesByRole(["voltage", "time", "frequency"]),
+		yTerms: collectBuiltinAliasesByRole(["current", "capacitance", "conductance"]),
+	}];
+}
+
+function collectBuiltinAliasesByRole(
+	roles: readonly StructuredMeasurementColumnRole[],
+): readonly string[] {
+	const roleSet = new Set(roles);
+	const aliases: string[] = [];
+	const seen = new Set<string>();
+	for (const title of semanticLibrary.titles) {
+		if (!roleSet.has(title.canonicalRole)) {
+			continue;
+		}
+		for (const alias of title.aliases) {
+			const key = toSemanticTermKey(alias);
+			if (!key || seen.has(key)) {
+				continue;
+			}
+			seen.add(key);
+			aliases.push(alias);
+		}
+	}
+	return aliases;
+}
+
+const builtinSemanticDomainRuleRecords: readonly BuiltinSemanticDomainRule[] = Object.freeze(createBuiltinSemanticDomainRules());
 const defaultSemanticMatcher = createSemanticMatcher();
 
 //#endregion
@@ -184,24 +262,30 @@ const defaultSemanticMatcher = createSemanticMatcher();
 export const semanticLibraryFingerprint = defaultSemanticMatcher.fingerprint;
 export const builtinSemanticTerms: readonly BuiltinSemanticTerm[] = Object.freeze(builtinSemanticTermRecords.slice());
 export const builtinSemanticDomainPacks: readonly BuiltinSemanticDomainPack[] = Object.freeze(semanticLibrary.domainPacks.slice());
+export const builtinSemanticDomainRules: readonly BuiltinSemanticDomainRule[] = builtinSemanticDomainRuleRecords;
 
 export function createSemanticMatcher(
 	options: SemanticMatcherOptions = {},
 ): SemanticMatcher {
-	const allowlist = compileAllowlistTitleTerms(options.allowlist ?? []);
 	const disabledBuiltinTermIds = new Set((options.disabledBuiltinTermIds ?? []).filter(Boolean));
 	const disabledDomainPackIds = new Set((options.disabledDomainPackIds ?? []).filter(Boolean));
 	const xAxisIntentPriority = Array.isArray(options.xAxisIntentPriority)
 		? options.xAxisIntentPriority.slice()
 		: [];
+	const domainRules = createEffectiveSemanticDomainRules(options.domainRules ?? []);
+	const domainTitleTerms = compileDomainRuleTitleTerms(domainRules, options.domainPriority ?? []);
 	const titleTerms = compileSemanticTitleTerms([
 		...Array.from(builtinTitleTermsByKey.values()).filter(term =>
 			(!term.id || !disabledBuiltinTermIds.has(term.id)) &&
 			hasActiveDomainPack(term.domainPackIds, disabledDomainPackIds)
 		),
-		...allowlist,
+		...domainTitleTerms,
 	]);
 	const titleTermsByKey = new Map(titleTerms.map(term => [term.key, term]));
+	const semanticDomainPriority = createSemanticDomainPriority(
+		domainRules.filter(rule => rule.enabled !== false).map(rule => rule.id),
+		options.domainPriority ?? [],
+	);
 	const rowMarkerTerms = Array.from(builtinRowMarkerTermsByKey.values()).filter(term =>
 		hasActiveDomainPack(term.domainPackIds, disabledDomainPackIds)
 	);
@@ -211,7 +295,9 @@ export function createSemanticMatcher(
 			key: term.key,
 			title: term.title,
 			source: term.source,
+			semanticDomains: term.semanticDomains,
 		})),
+		semanticDomainPriority,
 		disabledBuiltinTermIds: Array.from(disabledBuiltinTermIds).sort(),
 		disabledDomainPackIds: Array.from(disabledDomainPackIds).sort(),
 		rowMarkerTerms: rowMarkerTerms.map(term => ({
@@ -225,6 +311,7 @@ export function createSemanticMatcher(
 		matchTitle: value => matchSemanticTitleFromTerms(value, titleTermsByKey),
 		matchRowMarker: value => matchSemanticRowMarkerFromTerms(value, rowMarkerTermsByKey),
 		toKey: toSemanticTermKey,
+		semanticDomainPriority,
 		xAxisIntentPriority,
 	};
 }
@@ -258,7 +345,7 @@ export function isCustomSemanticMatchTermAllowed(value: unknown): boolean {
 //#endregion
 
 //#region Title and row-marker matching
-// Match header keys against built-in recipe terms and user allowlist entries.
+// Match header keys against built-in recipe terms and domain-rule entries.
 
 const matchSemanticTitleFromTerms = (
 	value: unknown,
@@ -274,7 +361,7 @@ const matchSemanticTitleFromTerms = (
 	const key = toSemanticTermKey(titleWithoutAxisMarker);
 	const term = titleTermsByKey.get(key);
 	return term
-		? createSemanticTitleMatch(term, key, axisMarker, term.source === "allowlist" ? "semanticAllowlist.term" : "semanticLibrary.term")
+		? createSemanticTitleMatch(term, key, axisMarker, term.source === "domainRule" ? "semanticDomainRule.term" : "semanticLibrary.term")
 		: null;
 };
 
@@ -297,8 +384,9 @@ const createSemanticTitleMatch = (
 ): SemanticTitleMatch => {
 	const title = term.title;
 	const axisTendency = axisMarker ?? title.axisTendency;
-	const baseConfidence = term.source === "allowlist" ? 0.97 : 0.95;
+	const baseConfidence = term.source === "domainRule" ? 0.97 : 0.95;
 	const confidence = clampConfidence(title.axisTendency === axisTendency ? baseConfidence : baseConfidence - 0.07);
+	const domainReasons = term.semanticDomains.map(domain => `semanticDomain:${domain.id}:${domain.priorityIndex}`);
 	const reasons = axisMarker
 		? [reason, `semanticLibrary.axisMarker:${axisMarker}`]
 		: [reason];
@@ -306,43 +394,91 @@ const createSemanticTitleMatch = (
 		canonicalRole: title.canonicalRole,
 		...(title.canonicalUnit ? { canonicalUnit: title.canonicalUnit } : {}),
 		axisTendency,
+		semanticDomains: term.semanticDomains,
 		...(title.family ? { family: title.family } : {}),
 		...(title.ivMode ? { ivMode: title.ivMode } : {}),
 		normalizedTitle: key,
 		confidence,
-		reasons,
+		reasons: [...reasons, ...domainReasons],
 	};
 };
 
 //#endregion
 
-//#region Allowlist and domain-pack filtering
-// Compile raw aliases into key-owned matcher terms and remove disabled recipe domains.
+//#region Domain rules and domain-pack filtering
+// Compile user/built-in domain rules into key-owned matcher terms and remove disabled recipe domains.
 
-function compileAllowlistTitleTerms(
-	allowlist: readonly TemplateSemanticTermRule[],
+function compileDomainRuleTitleTerms(
+	rules: readonly (TemplateSemanticDomainRule & { readonly source: "builtin" | "user" })[],
+	priority: readonly string[],
 ): readonly SemanticTitleTerm[] {
+	const semanticDomainPriority = createSemanticDomainPriority(rules.map(rule => rule.id), priority);
+	const priorityIndexById = new Map(semanticDomainPriority.map((id, index) => [id, index]));
 	const termsByKey = new Map<string, SemanticTitleTerm>();
-	for (const rule of allowlist) {
-		if (rule.enabled === false || !isCustomSemanticMatchTermAllowed(rule.alias)) {
+	for (const rule of rules) {
+		if (rule.enabled === false || !isCustomSemanticMatchTermAllowed(rule.title)) {
 			continue;
 		}
-		const key = toSemanticTermKey(rule.alias);
-		addSemanticTitleTerm(termsByKey, {
+		const priorityIndex = priorityIndexById.get(rule.id);
+		if (priorityIndex === undefined) {
+			continue;
+		}
+		const semanticDomain = {
 			id: rule.id,
-			key,
-			aliases: [rule.alias],
-			title: {
-				canonicalRole: "unknown",
-				...(rule.canonicalUnit ? { canonicalUnit: rule.canonicalUnit as StructuredCanonicalUnit } : {}),
-				axisTendency: rule.axisTendency as StructuredAxisTendency,
-				aliases: [rule.alias],
-			},
-			source: "allowlist",
-			domainPackIds: [],
+			title: rule.title,
+			source: rule.source,
+			priorityIndex,
+		};
+		addDomainRuleTitleTerms(termsByKey, rule, "x", {
+			...semanticDomain,
+			axisTendency: "x",
+		});
+		addDomainRuleTitleTerms(termsByKey, rule, "dependent", {
+			...semanticDomain,
+			axisTendency: "dependent",
 		});
 	}
 	return Array.from(termsByKey.values());
+}
+
+function createEffectiveSemanticDomainRules(
+	userRules: readonly TemplateSemanticDomainRule[],
+): readonly (TemplateSemanticDomainRule & { readonly source: "builtin" | "user" })[] {
+	const userRuleIds = new Set(userRules.map(rule => rule.id));
+	return [
+		...builtinSemanticDomainRuleRecords
+			.filter(rule => !userRuleIds.has(rule.id))
+			.map(rule => ({ ...rule, source: "builtin" as const, enabled: true })),
+		...userRules.map(rule => ({ ...rule, source: "user" as const })),
+	];
+}
+
+function addDomainRuleTitleTerms(
+	termsByKey: Map<string, SemanticTitleTerm>,
+	rule: TemplateSemanticDomainRule,
+	axisTendency: StructuredAxisTendency,
+	semanticDomain: SemanticTitleDomainMatch,
+): void {
+	const aliases = axisTendency === "x" ? rule.xTerms : rule.yTerms;
+	for (const alias of aliases) {
+		if (!isCustomSemanticMatchTermAllowed(alias)) {
+			continue;
+		}
+		const key = toSemanticTermKey(alias);
+		addSemanticTitleTerm(termsByKey, {
+			id: `${rule.id}:${axisTendency}:${key}`,
+			key,
+			aliases: [alias],
+			title: {
+				canonicalRole: "unknown",
+				axisTendency,
+				aliases: [alias],
+			},
+			source: "domainRule",
+			domainPackIds: [],
+			semanticDomains: [semanticDomain],
+		});
+	}
 }
 
 function compileSemanticTitleTerms(
@@ -370,7 +506,49 @@ function addSemanticTitleTerm(
 	termsByKey.set(term.key, {
 		...current,
 		aliases: mergeUniqueValues(current.aliases, term.aliases),
+		semanticDomains: mergeSemanticDomains(current.semanticDomains, term.semanticDomains),
 	});
+}
+
+function mergeSemanticDomains(
+	current: readonly SemanticTitleDomainMatch[],
+	next: readonly SemanticTitleDomainMatch[],
+): readonly SemanticTitleDomainMatch[] {
+	const values = current.slice();
+	const seen = new Set(values.map(domain => `${domain.id}:${domain.axisTendency}`));
+	for (const domain of next) {
+		const key = `${domain.id}:${domain.axisTendency}`;
+		if (seen.has(key)) {
+			continue;
+		}
+		values.push(domain);
+		seen.add(key);
+	}
+	return values.sort((left, right) => left.priorityIndex - right.priorityIndex);
+}
+
+function createSemanticDomainPriority(
+	ruleIds: readonly string[],
+	priority: readonly string[],
+): readonly string[] {
+	const ruleIdSet = new Set(ruleIds);
+	const result: string[] = [];
+	const seen = new Set<string>();
+	for (const id of priority) {
+		if (!ruleIdSet.has(id) || seen.has(id)) {
+			continue;
+		}
+		seen.add(id);
+		result.push(id);
+	}
+	for (const id of ruleIds) {
+		if (seen.has(id)) {
+			continue;
+		}
+		seen.add(id);
+		result.push(id);
+	}
+	return result;
 }
 
 function addSemanticRowMarkerTerm(

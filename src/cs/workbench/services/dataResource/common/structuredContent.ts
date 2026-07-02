@@ -164,8 +164,17 @@ export type StructuredColumnTitleSpanEvidence = {
 	readonly canonicalRole: StructuredMeasurementColumnRole;
 	readonly canonicalUnit?: StructuredCanonicalUnit;
 	readonly axisTendency: StructuredAxisTendency;
+	readonly semanticDomains: readonly StructuredSemanticDomainEvidence[];
 	readonly confidence: number;
 	readonly reasons: readonly string[];
+};
+
+export type StructuredSemanticDomainEvidence = {
+	readonly id: string;
+	readonly title: string;
+	readonly axisTendency: StructuredAxisTendency;
+	readonly priorityIndex: number;
+	readonly source: "builtin" | "user";
 };
 
 export type StructuredXAxisRole =

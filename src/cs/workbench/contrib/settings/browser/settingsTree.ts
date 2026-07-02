@@ -1,3 +1,7 @@
+import { createLxIcon, type LxIconDefinition } from "src/cs/base/browser/ui/lxicon/lxicon";
+import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
+import { ActionViewItem, type IActionViewItemOptions } from "src/cs/base/browser/ui/actionbar/actionViewItem";
+import type { IAction } from "src/cs/base/common/actions";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { normalizeSettingsSearchText, settingsSearchMatches } from "src/cs/workbench/contrib/settings/browser/settingsSearch";
 
@@ -27,10 +31,20 @@ export type SettingsTreeItem = SettingsTreeElementItem | SettingsTreeCompositeIt
 
 export type SettingsTreeSection = {
   readonly description?: string;
+  readonly headerActions?: readonly SettingsTreeSectionHeaderAction[];
   readonly headerId?: string;
   readonly id: string;
   readonly items: readonly SettingsTreeItem[];
   readonly title?: string;
+};
+
+export type SettingsTreeSectionHeaderAction = {
+  readonly ariaLabel: string;
+  readonly disabled?: boolean;
+  readonly icon?: LxIconDefinition;
+  readonly id: string;
+  readonly label: string;
+  readonly run: () => void;
 };
 
 type SettingsTreeEntry = SettingsTreeSectionEntry | SettingsTreeItemEntry;
@@ -65,6 +79,7 @@ export type SettingsTreeSectionTemplate = {
 };
 
 export type SettingsTreeSectionHeaderTemplate = {
+  readonly actionBarElement: HTMLElement;
   readonly descriptionElement: HTMLElement;
   readonly element: HTMLElement;
   readonly titleElement: HTMLElement;
@@ -89,6 +104,7 @@ export type SettingsTreeRenderer = {
 };
 
 type SettingsTreeSectionState = {
+  actionBar: ActionBar | null;
   readonly bodyElement: HTMLElement;
   readonly element: HTMLElement;
   headerTemplate: SettingsTreeSectionHeaderTemplate | null;
@@ -218,6 +234,7 @@ export class SettingsTree extends Disposable {
     return {
       bodyElement: template.bodyElement,
       element: template.element,
+      actionBar: null,
       headerTemplate: null,
       items: new Map(),
       listElement,
@@ -228,7 +245,10 @@ export class SettingsTree extends Disposable {
     updateElementId(state.element, section.id);
     const titleText = section.title ?? "";
     const descriptionText = section.description ?? "";
-    if (titleText.length === 0 && descriptionText.length === 0) {
+    const actions = section.headerActions ?? [];
+    if (titleText.length === 0 && descriptionText.length === 0 && actions.length === 0) {
+      state.actionBar?.dispose();
+      state.actionBar = null;
       state.headerTemplate?.element.remove();
       state.headerTemplate = null;
       return;
@@ -242,12 +262,14 @@ export class SettingsTree extends Disposable {
     updateElementId(state.headerTemplate.element, section.headerId ?? `${section.id}-header`);
     state.headerTemplate.titleElement.hidden = titleText.length === 0;
     state.headerTemplate.descriptionElement.hidden = descriptionText.length === 0;
+    state.headerTemplate.actionBarElement.hidden = actions.length === 0;
     if (state.headerTemplate.titleElement.textContent !== titleText) {
       state.headerTemplate.titleElement.textContent = titleText;
     }
     if (state.headerTemplate.descriptionElement.textContent !== descriptionText) {
       state.headerTemplate.descriptionElement.textContent = descriptionText;
     }
+    this.updateSectionHeaderActions(state, actions);
   }
 
   private updateSectionItems(
@@ -319,6 +341,8 @@ export class SettingsTree extends Disposable {
   }
 
   private disposeSectionState(section: SettingsTreeSectionState): void {
+    section.actionBar?.dispose();
+    section.actionBar = null;
     for (const item of section.items.values()) {
       this.disposeItemState(item);
     }
@@ -329,6 +353,83 @@ export class SettingsTree extends Disposable {
   private disposeItemState(item: SettingsTreeItemState): void {
     item.widget.dispose();
     item.element.remove();
+  }
+
+  private updateSectionHeaderActions(
+    state: SettingsTreeSectionState,
+    actions: readonly SettingsTreeSectionHeaderAction[],
+  ): void {
+    if (!state.headerTemplate) {
+      return;
+    }
+    state.actionBar?.dispose();
+    state.actionBar = null;
+    if (!actions.length) {
+      return;
+    }
+
+    const actionBar = new ActionBar({
+      ariaLabel: actions.map(action => action.label).join(", "),
+      className: "settings-section-header-actionbar",
+      actionViewItemProvider: (action, options) =>
+        new SettingsSectionHeaderActionViewItem(action, options),
+    });
+    for (const item of actions) {
+      const action: IAction = {
+        id: item.id,
+        label: item.label,
+        tooltip: item.ariaLabel,
+        class: undefined,
+        enabled: item.disabled !== true,
+        icon: item.icon,
+        run: () => item.run(),
+      };
+      actionBar.push(action, {
+        className: "settings-section-header-action",
+        label: true,
+      });
+    }
+    state.actionBar = actionBar;
+    state.headerTemplate.actionBarElement.replaceChildren(actionBar.domNode);
+  }
+}
+
+class SettingsSectionHeaderActionViewItem extends ActionViewItem {
+  constructor(
+    action: IAction,
+    options: IActionViewItemOptions,
+  ) {
+    super(undefined, action, options);
+  }
+
+  public override render(container: HTMLElement): void {
+    super.render(container);
+    const button = container.querySelector<HTMLButtonElement>("button");
+    if (button) {
+      updateElementId(button, this.action.id);
+    }
+  }
+
+  protected override updateLabel(): void {
+    if (!this.label) {
+      return;
+    }
+    if (!this.action.icon) {
+      super.updateLabel();
+      return;
+    }
+
+    const label = document.createElement("span");
+    label.className = "settings-section-header-action-label";
+    label.textContent = this.options.label === false ? "" : this.action.label;
+    this.label.replaceChildren(
+      createLxIcon({
+        className: "settings-section-header-action-icon",
+        icon: this.action.icon,
+        size: 14,
+      }),
+      label,
+    );
   }
 }
 

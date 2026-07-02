@@ -49,11 +49,11 @@ export type TemplateXAxisIntent =
 export type TemplateSemanticAxisTendency = "x" | "dependent" | "unknown";
 export type TemplateSemanticUnit = "V" | "A" | "ohm" | "s" | "F" | "Hz" | "S";
 
-export type TemplateSemanticTermRule = {
+export type TemplateSemanticDomainRule = {
   readonly id: string;
-  readonly alias: string;
-  readonly canonicalUnit?: TemplateSemanticUnit;
-  readonly axisTendency: TemplateSemanticAxisTendency;
+  readonly title: string;
+  readonly xTerms: readonly string[];
+  readonly yTerms: readonly string[];
   readonly enabled: boolean;
 };
 
@@ -79,11 +79,6 @@ const TEMPLATE_X_AXIS_INTENTS = new Set<TemplateXAxisIntent>([
   "frequencySweep",
   "rawTransient",
   "genericXY",
-]);
-const TEMPLATE_SEMANTIC_AXIS_TENDENCIES = new Set<TemplateSemanticAxisTendency>([
-  "x",
-  "dependent",
-  "unknown",
 ]);
 const TEMPLATE_SEMANTIC_UNITS = new Set<TemplateSemanticUnit>([
   "V",
@@ -114,10 +109,10 @@ export const DEFAULT_TEMPLATE_X_AXIS_INTENT_PRIORITY: readonly TemplateXAxisInte
   "rawTransient",
   "genericXY",
 ]);
-export const DEFAULT_TEMPLATE_SEMANTIC_ALLOWLIST: readonly TemplateSemanticTermRule[] = Object.freeze([]);
+export const DEFAULT_TEMPLATE_SEMANTIC_DOMAIN_RULES: readonly TemplateSemanticDomainRule[] = Object.freeze([]);
+export const DEFAULT_TEMPLATE_SEMANTIC_DOMAIN_PRIORITY: readonly string[] = Object.freeze([]);
 export const DEFAULT_TEMPLATE_DISABLED_BUILTIN_SEMANTIC_IDS: readonly string[] = Object.freeze([]);
 export const DEFAULT_TEMPLATE_DISABLED_BUILTIN_DOMAIN_PACK_IDS: readonly string[] = Object.freeze([]);
-export const DEFAULT_TEMPLATE_SEMANTIC_TERM_ORDER: readonly string[] = Object.freeze([]);
 
 export const normalizeFilesExplorerDensity = (
   value: unknown,
@@ -200,38 +195,37 @@ export const normalizeTemplateXAxisIntentPriority = (
   return result;
 };
 
-export const normalizeTemplateSemanticAllowlist = (
+export const normalizeTemplateSemanticDomainRules = (
   value: unknown,
-): readonly TemplateSemanticTermRule[] => {
+): readonly TemplateSemanticDomainRule[] => {
   if (!Array.isArray(value)) {
-    return DEFAULT_TEMPLATE_SEMANTIC_ALLOWLIST;
+    return DEFAULT_TEMPLATE_SEMANTIC_DOMAIN_RULES;
   }
 
-  const rules: TemplateSemanticTermRule[] = [];
+  const rules: TemplateSemanticDomainRule[] = [];
+  const seenIds = new Set<string>();
   for (let index = 0; index < value.length; index += 1) {
     const raw = value[index];
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
       continue;
     }
     const record = raw as Record<string, unknown>;
-    const alias = typeof record.alias === "string" ? record.alias.trim() : "";
-    if (!alias) {
+    const title = typeof record.title === "string" ? record.title.trim() : "";
+    if (!title) {
       continue;
     }
-    const axisTendency = typeof record.axisTendency === "string" && TEMPLATE_SEMANTIC_AXIS_TENDENCIES.has(record.axisTendency as TemplateSemanticAxisTendency)
-      ? record.axisTendency as TemplateSemanticAxisTendency
-      : "unknown";
     const id = typeof record.id === "string" && record.id.trim()
       ? record.id.trim()
-      : `template-semantic-${index}`;
-    const canonicalUnit = typeof record.canonicalUnit === "string" && TEMPLATE_SEMANTIC_UNITS.has(record.canonicalUnit as TemplateSemanticUnit)
-      ? record.canonicalUnit as TemplateSemanticUnit
-      : undefined;
+      : `template-semantic-domain-${index}`;
+    if (seenIds.has(id)) {
+      continue;
+    }
+    seenIds.add(id);
     rules.push({
       id,
-      alias,
-      ...(canonicalUnit ? { canonicalUnit } : {}),
-      axisTendency,
+      title,
+      xTerms: normalizeTemplateSemanticTermList(record.xTerms),
+      yTerms: normalizeTemplateSemanticTermList(record.yTerms),
       enabled: record.enabled !== false,
     });
   }
@@ -276,11 +270,11 @@ export const normalizeTemplateDisabledBuiltinDomainPackIds = (
   return ids;
 };
 
-export const normalizeTemplateSemanticTermOrder = (
+export const normalizeTemplateSemanticDomainPriority = (
   value: unknown,
 ): readonly string[] => {
   if (!Array.isArray(value)) {
-    return DEFAULT_TEMPLATE_SEMANTIC_TERM_ORDER;
+    return DEFAULT_TEMPLATE_SEMANTIC_DOMAIN_PRIORITY;
   }
   const seen = new Set<string>();
   const ids: string[] = [];
@@ -295,6 +289,33 @@ export const normalizeTemplateSemanticTermOrder = (
   return ids;
 };
 
+const normalizeTemplateSemanticTermList = (
+  value: unknown,
+): readonly string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    const term = typeof item === "string" ? item.trim() : "";
+    if (!term) {
+      continue;
+    }
+    const key = term
+      .replace(/\u00b5|\u03bc/g, "u")
+      .replace(/\u03a9|\u03c9|\u2126/g, "ohm")
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, "");
+    if (!key || seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    result.push(term);
+  }
+  return result;
+};
+
 export type ConductorSettings = {
   backgroundColor?: string;
   filesExplorerBadgeColors?: FilesExplorerBadgeColors;
@@ -306,8 +327,8 @@ export type ConductorSettings = {
   tableTemplateVisualizationEnabled?: boolean;
   templateDisabledBuiltinDomainPackIds?: readonly string[];
   templateDisabledBuiltinSemanticIds?: readonly string[];
-  templateSemanticAllowlist?: readonly TemplateSemanticTermRule[];
-  templateSemanticTermOrder?: readonly string[];
+  templateSemanticDomainPriority?: readonly string[];
+  templateSemanticDomainRules?: readonly TemplateSemanticDomainRule[];
   templateXAxisIntentPriority?: readonly TemplateXAxisIntent[];
   theme?: ThemeMode;
   transparentChrome?: boolean;

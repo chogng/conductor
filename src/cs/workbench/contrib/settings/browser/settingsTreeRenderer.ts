@@ -51,10 +51,14 @@ export const settingsTreeRenderer: SettingsTreeRenderer = {
 
   createSectionHeader(): SettingsTreeSectionHeaderTemplate {
     const element = div("settings-section-header");
+    const textElement = div("settings-section-header-text");
     const titleElement = title("");
     const descriptionElement = text("p", "settings-description", "");
-    element.append(titleElement, descriptionElement);
+    const actionBarElement = div("settings-section-header-actions");
+    textElement.append(titleElement, descriptionElement);
+    element.append(textElement, actionBarElement);
     return {
+      actionBarElement,
       descriptionElement,
       element,
       titleElement,

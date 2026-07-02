@@ -1,7 +1,7 @@
 import assert from "assert";
 
 import { renderWorkbenchMarkdown } from "src/cs/workbench/browser/markdownRenderer";
-import { SettingsView, type SettingsContentItemTarget, type SettingsViewOptions } from "src/cs/workbench/contrib/settings/browser/settingsView";
+import { SettingsView, type SettingsViewOptions } from "src/cs/workbench/contrib/settings/browser/settingsView";
 import { createSettingsSections } from "src/cs/workbench/contrib/settings/browser/settingsLayout";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -357,57 +357,58 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     }
   });
 
-  test("renders template section in a single settings tree with semantic library as grouped items", () => {
+  test("renders template semantic rules as section items with header actions", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
+    let createCount = 0;
+    let resetCount = 0;
     const view = new SettingsView(container, createSettingsViewOptions({
       activeSettingsSection: "template",
       templateSettings: {
-        activeTerms: [
+        onCreateSemanticSectionItem: () => {
+          createCount++;
+        },
+        onResetSemanticDomainRules: () => {
+          resetCount++;
+        },
+        semanticSectionItems: [
           {
-            id: "builtin-vgs",
-            term: "Vgs",
-            canonicalRole: "vg",
-            canonicalUnit: "V",
-            axisTendency: "x",
-            domainPackIds: ["semiconductor-ivcv"],
-            source: "builtin",
+            id: "settings-template-semantic-section-item:draft:2",
+            isSaving: false,
+            ruleId: "draft-2",
+            source: "draft",
+            title: "",
+            xDraft: "",
+            xTerms: ["Vg"],
+            yDraft: "",
+            yTerms: ["Id"],
           },
           {
-            id: "custom-gate",
-            term: "Custom Gate",
-            canonicalUnit: "V",
-            axisTendency: "x",
-            enabled: true,
+            id: "settings-template-semantic-section-item:custom:custom-gate",
+            isSaving: false,
+            ruleId: "custom-gate",
             source: "custom",
+            title: "iv",
+            xDraft: "",
+            xTerms: ["Custom Gate"],
+            yDraft: "",
+            yTerms: ["Id"],
           },
         ],
-        customTerms: [
+        domainPriorityItems: [
           {
             id: "custom-gate",
-            term: "Custom Gate",
-            canonicalUnit: "V",
-            axisTendency: "x",
-            enabled: true,
-          },
-        ],
-        disabledBuiltinTermIds: ["builtin-id"],
-        builtinTerms: [
-          {
-            id: "builtin-vgs",
-            term: "Vgs",
-            canonicalRole: "vg",
-            canonicalUnit: "V",
-            axisTendency: "x",
-            domainPackIds: ["semiconductor-ivcv"],
+            source: "custom",
+            title: "iv",
+            xTerms: ["Custom Gate"],
+            yTerms: ["Id"],
           },
           {
-            id: "builtin-id",
-            term: "Drain Current",
-            canonicalRole: "id",
-            canonicalUnit: "A",
-            axisTendency: "dependent",
-            domainPackIds: ["semiconductor-ivcv"],
+            id: "builtin-domain:iv",
+            source: "builtin",
+            title: "builtin iv",
+            xTerms: ["Vg"],
+            yTerms: ["Id"],
           },
         ],
       },
@@ -417,39 +418,36 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       const templatePreferencesItem = getElement(container, "#settings-table-template-visualization-item");
       const templatePreferencesSection = templatePreferencesItem.closest<HTMLElement>(".settings-section");
       const templateLibraryTree = getElement(container, "#settings-template-domain-packs-item").closest(".settings-section-list");
-      const activeTermsItem = getElement(container, "#settings-template-semantic-active-terms-item");
-      const customFormItem = getElement(container, "#settings-template-semantic-custom-form-item");
       const semanticSection = getElement(container, "#settings-template-semantic-library-section");
-      const semanticTree = activeTermsItem.closest(".settings-section-list");
+      const semanticTree = semanticSection.closest(".settings-section-list");
+      const resetButton = getButton(container, "settings-template-semantic-reset-rules");
+      const newButton = getButton(container, "settings-template-semantic-new-rule");
+      const draftItem = getElement(container, "#settings-template-semantic-section-item\\:draft\\:2");
+      const customItem = getElement(container, "#settings-template-semantic-section-item\\:custom\\:custom-gate");
+      const domainPriorityItem = getElement(container, "#settings-template-semantic-domain-priority-item");
       const semanticItems = [
-        getClosestSettingsListItem(activeTermsItem),
-        getClosestSettingsListItem(customFormItem),
+        getClosestSettingsListItem(draftItem),
+        getClosestSettingsListItem(customItem),
       ];
-      const widgets = activeTermsItem.querySelectorAll<HTMLElement>(".inputbox_widget");
-      const activeWidget = widgets[0];
-      const recommendedSuggestion = activeTermsItem.querySelector<HTMLElement>(".settings-template-term-suggestion");
-      const activeTermsLeading = getElement(activeTermsItem, ".settings-list-item-leading");
-      const activeTermsTrailing = getElement(activeTermsItem, ".settings-list-item-trailing");
-      const semanticTemplate = getElement(activeTermsItem, ".settings-template-semantic-section");
-      const semanticEditor = getElement(activeTermsItem, ".settings-template-semantic-editor");
-      const semanticDivider = getElement(activeTermsItem, ".settings-template-semantic-divider");
-      const semanticDefault = getElement(activeTermsItem, ".settings-template-semantic-default");
-      const customFormLeading = getElement(customFormItem, ".settings-list-item-leading");
-      const customFormTrailing = getElement(customFormItem, ".settings-list-item-trailing");
 
       assert.ok(templateLibraryTree);
       assert.ok(semanticTree);
-      assert.ok(activeWidget);
-      assert.ok(recommendedSuggestion);
+      assert.ok(domainPriorityItem);
       assert.equal(templatePreferencesSection?.querySelector(".settings-section-header"), null);
       assert.equal(container.querySelectorAll(".settings-view-content > .settings-section-list").length, 1);
       assert.equal(semanticTree, templateLibraryTree);
-      assert.equal(activeTermsItem.closest(".settings-section"), semanticSection);
-      assert.equal(templateLibraryTree.querySelector("#settings-template-semantic-library-header"), null);
-      assert.equal(semanticSection.querySelector(".settings-section-header"), null);
+      assert.equal(draftItem.closest(".settings-section"), semanticSection);
+      assert.equal(getElement(semanticSection, ".settings-section-header .settings-title").textContent, "Rules");
+      assert.ok(getElement(semanticSection, ".settings-section-header-actions .ui-actionbar"));
+      assert.equal(resetButton.textContent?.trim(), "Reset");
+      resetButton.click();
+      assert.equal(resetCount, 1);
+      assert.equal(newButton.textContent?.trim(), "New");
+      newButton.click();
+      assert.equal(createCount, 1);
       assert.equal(container.querySelector("#settings-template-semantic-library-item"), null);
       assert.equal(container.querySelector(".ui-list__row"), null);
-      assert.equal(activeTermsItem.closest(".settings-composite-child"), null);
+      assert.equal(draftItem.closest(".settings-composite-child"), null);
       assert.equal(container.querySelector("#settings-template-semantic-recommended-terms-item"), null);
       assert.equal(semanticItems[0]!.parentElement, semanticItems[1]!.parentElement);
       assert.equal(semanticItems[1]!.previousElementSibling, semanticItems[0]);
@@ -464,38 +462,23 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(semanticItems[0]!.classList.contains("settings-list-item--last"), false);
       assert.equal(semanticItems[1]!.classList.contains("settings-list-item--first"), false);
       assert.equal(semanticItems[1]!.classList.contains("settings-list-item--last"), true);
-      assert.equal(activeTermsItem.classList.contains("settings-list-item-cell--vertical"), true);
-      assert.equal(customFormItem.classList.contains("settings-list-item-cell--vertical"), true);
-      assert.equal(activeTermsLeading.querySelector(".settings-title")?.textContent, "Semantic Library");
-      assert.equal(activeTermsLeading.querySelector(".settings-description")?.textContent, "Terms that can slice template automatically.");
-      assert.equal(customFormLeading.querySelector(".settings-title")?.textContent, "Custom term mapping");
-      assert.ok(activeTermsTrailing.querySelector(".inputbox_widget"));
-      assert.equal(semanticTemplate, activeTermsTrailing);
-      assert.equal(semanticTemplate.children[0], semanticEditor);
-      assert.equal(semanticTemplate.children[1], semanticDivider);
-      assert.equal(semanticTemplate.children[2], semanticDefault);
-      assert.ok(semanticEditor.querySelector(".inputbox_widget"));
-      assert.equal(semanticDivider.getAttribute("aria-hidden"), "true");
-      assert.equal(semanticDivider.previousElementSibling, semanticEditor);
-      assert.equal(semanticDivider.nextElementSibling, semanticDefault);
-      assert.ok(semanticDefault.querySelector(".settings-template-term-suggestions"));
-      assert.ok(customFormTrailing.querySelector(".settings-template-semantic-form"));
-      assert.equal(activeTermsItem.querySelector(".settings-template-subtitle"), null);
-      assert.equal(customFormItem.querySelector(".settings-template-subtitle"), null);
-      assert.equal(container.querySelector("#settings-template-semantic-custom-terms-item"), null);
-      assert.equal(container.querySelector("#settings-template-semantic-term-input-item"), null);
-      assert.equal(widgets.length, 1);
-      assert.equal(activeWidget.querySelectorAll(".inputbox_widget_item").length, 2);
-      assert.equal(activeWidget.querySelector<HTMLElement>('.inputbox_widget_item[data-kind="builtin-enabled"] .inputbox_widget_item_label')?.textContent, "Vgs");
-      assert.equal(activeWidget.querySelector<HTMLElement>('.inputbox_widget_item[data-kind="custom"] .inputbox_widget_item_label')?.textContent, "Custom Gate");
-      assert.equal(activeWidget.querySelector<HTMLInputElement>("input.inputbox_native:not([hidden])")?.placeholder, "Add match term");
-      assert.equal(activeTermsItem.querySelector("#settings-template-semantic-add-button"), null);
-      assert.equal(activeTermsItem.querySelectorAll(".settings-template-term-suggestion").length, 1);
-      assert.equal(recommendedSuggestion.querySelector<HTMLElement>(".settings-template-term-suggestion-label")?.textContent, "Drain Current");
-      assert.ok(customFormItem.querySelector("#settings-template-semantic-axis-select"));
-      assert.equal(customFormItem.querySelector("#settings-template-semantic-policy-select"), null);
-      assert.equal(customFormItem.querySelector("#settings-template-semantic-add-button"), null);
-      assert.equal(customFormItem.querySelector("#settings-template-semantic-term-input"), null);
+      assert.equal(draftItem.classList.contains("settings-list-item-cell--vertical"), true);
+      assert.equal(customItem.classList.contains("settings-list-item-cell--vertical"), true);
+      assert.equal(draftItem.querySelectorAll(".inputbox_widget").length, 3);
+      assert.equal(getSemanticRuleInput(draftItem, "Domain scope, for example iv").value, "");
+      assert.equal(getSemanticRuleInput(draftItem, "X representative").value, "");
+      assert.equal(getSemanticRuleInput(draftItem, "Y representative").value, "");
+      assert.equal(draftItem.querySelectorAll(".settings-template-semantic-axis-field .settings-label").length, 0);
+      assert.ok(draftItem.textContent?.includes("Vg"));
+      assert.ok(draftItem.textContent?.includes("Id"));
+      assert.equal(customItem.classList.contains("settings-list-item-cell--editable-display"), false);
+      assert.equal(getSemanticRuleInput(customItem, "Domain scope, for example iv").readOnly, false);
+      assert.equal(getSemanticRuleInput(customItem, "X representative").hidden, false);
+      assert.equal(getSemanticRuleActionLabels(customItem).includes("Remove"), true);
+      assert.equal(getSemanticRuleActionLabels(customItem).includes("Cancel"), false);
+      assert.equal(getSemanticRuleActionLabels(customItem).includes("Done"), false);
+      assert.ok(customItem.textContent?.includes("Custom Gate"));
+      assert.ok(customItem.textContent?.includes("Id"));
     }
     finally {
       view.dispose();
@@ -503,99 +486,54 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     }
   });
 
-  test("patches semantic term lists without replacing active terms or custom form", () => {
+  test("prepends a new semantic draft item without replacing existing sibling items", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
-    const builtinTerms = [
-      {
-        id: "builtin-vgs",
-        term: "Vgs",
-        canonicalRole: "vg" as const,
-        canonicalUnit: "V" as const,
-        axisTendency: "x" as const,
-        domainPackIds: ["semiconductor-ivcv"],
-      },
-      {
-        id: "builtin-id",
-        term: "Drain Current",
-        canonicalRole: "id" as const,
-        canonicalUnit: "A" as const,
-        axisTendency: "dependent" as const,
-        domainPackIds: ["semiconductor-ivcv"],
-      },
-    ];
+    const firstItem = {
+      id: "settings-template-semantic-section-item:draft:first" as const,
+      isSaving: false,
+      ruleId: "first",
+      source: "draft" as const,
+      title: "First",
+      xDraft: "",
+      xTerms: ["Vg"],
+      yDraft: "",
+      yTerms: ["Id"],
+    };
+    const secondItem = {
+      id: "settings-template-semantic-section-item:draft:second" as const,
+      isSaving: false,
+      ruleId: "second",
+      source: "draft" as const,
+      title: "Second",
+      xDraft: "",
+      xTerms: ["Vd"],
+      yDraft: "",
+      yTerms: ["Id2"],
+    };
     const view = new SettingsView(container, createSettingsViewOptions({
       activeSettingsSection: "template",
       templateSettings: {
-        activeTerms: [{ ...builtinTerms[0]!, source: "builtin" }],
-        builtinTerms,
-        disabledBuiltinTermIds: ["builtin-id"],
+        semanticSectionItems: [firstItem],
       },
     }));
 
     try {
-      const activeTermsItem = getElement(container, "#settings-template-semantic-active-terms-item");
-      const customFormItem = getElement(container, "#settings-template-semantic-custom-form-item");
-      const previousActiveWidget = getElement(activeTermsItem, ".inputbox_widget");
-      const previousActiveInput = getElement(previousActiveWidget, "input.inputbox_native");
-      const previousActiveTerm = getElement(previousActiveWidget, '.inputbox_widget_item[data-item-id="builtin-vgs"]');
-      const recommendedDefault = getElement(activeTermsItem, ".settings-template-semantic-default");
-      let settingsTreeUpdateCount = 0;
-      const viewInternals = view as unknown as {
-        updateSettingsTreeItems: (target: SettingsContentItemTarget) => void;
-      };
-      const originalUpdateSettingsTreeItems = viewInternals.updateSettingsTreeItems;
-      viewInternals.updateSettingsTreeItems = function (target: SettingsContentItemTarget): void {
-        settingsTreeUpdateCount++;
-        return originalUpdateSettingsTreeItems.call(this, target);
-      };
+      view.update(createSettingsViewOptions({
+        activeSettingsSection: "template",
+        templateSettings: {
+          semanticSectionItems: [secondItem, firstItem],
+        },
+      }), {
+        type: "partial",
+        descriptorIds: ["template-semantic-library"],
+        itemTargets: [],
+      });
 
-      try {
-        view.update(createSettingsViewOptions({
-          activeSettingsSection: "template",
-          templateSettings: {
-            activeTerms: [
-              { ...builtinTerms[0]!, source: "builtin" },
-              { ...builtinTerms[1]!, source: "builtin" },
-            ],
-            builtinTerms,
-            disabledBuiltinTermIds: [],
-          },
-        }), {
-          type: "partial",
-          descriptorIds: [],
-          itemTargets: [{
-            descriptorId: "template-semantic-library",
-            itemIds: [
-              "settings-template-semantic-active-terms-list-item",
-              "settings-template-semantic-default-terms-list-item",
-            ],
-          }],
-        });
-      }
-      finally {
-        viewInternals.updateSettingsTreeItems = originalUpdateSettingsTreeItems;
-      }
-
-      const nextActiveTermsItem = getElement(container, "#settings-template-semantic-active-terms-item");
-      const nextActiveWidget = nextActiveTermsItem.querySelector<HTMLElement>(".inputbox_widget");
-      const nextActiveInput = nextActiveTermsItem.querySelector<HTMLElement>("input.inputbox_native");
-      const nextRecommendedDefault = getElement(nextActiveTermsItem, ".settings-template-semantic-default");
-      assert.ok(nextActiveWidget);
-      assert.ok(nextActiveInput);
-      assert.equal(container.querySelector("#settings-template-semantic-library-item"), null);
-      assert.equal(container.querySelector("#settings-template-semantic-library-header"), null);
-      assert.equal(container.querySelector("#settings-template-semantic-recommended-terms-item"), null);
-      assert.equal(nextActiveTermsItem, activeTermsItem);
-      assert.equal(nextActiveWidget, previousActiveWidget);
-      assert.equal(nextActiveInput, previousActiveInput);
-      assert.equal(getElement(nextActiveWidget, '.inputbox_widget_item[data-item-id="builtin-vgs"]'), previousActiveTerm);
-      assert.equal(container.querySelector("#settings-template-semantic-term-input-item"), null);
-      assert.equal(nextRecommendedDefault, recommendedDefault);
-      assert.equal(getElement(container, "#settings-template-semantic-custom-form-item"), customFormItem);
-      assert.equal(nextActiveWidget.querySelectorAll(".inputbox_widget_item").length, 2);
-      assert.equal(nextActiveTermsItem.querySelectorAll(".settings-template-term-suggestion").length, 0);
-      assert.equal(settingsTreeUpdateCount, 0);
+      const secondElement = getElement(container, "#settings-template-semantic-section-item\\:draft\\:second");
+      const nextFirstElement = getElement(container, "#settings-template-semantic-section-item\\:draft\\:first");
+      assert.equal(getClosestSettingsListItem(nextFirstElement).previousElementSibling, getClosestSettingsListItem(secondElement));
+      assert.equal(getSemanticRuleInput(secondElement, "Domain scope, for example iv").value, "Second");
     }
     finally {
       view.dispose();
@@ -603,309 +541,67 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     }
   });
 
-  test("patches active terms locally without tree item updates", () => {
+  test("patches semantic domain priority item", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
-    const builtinTerms = [
+    const domainPriorityItems = [
       {
-        id: "builtin-vgs",
-        term: "Vgs",
-        canonicalRole: "vg" as const,
-        canonicalUnit: "V" as const,
-        axisTendency: "x" as const,
-        domainPackIds: ["semiconductor-ivcv"],
+        id: "domain-iv",
+        source: "custom" as const,
+        title: "iv",
+        xTerms: ["Vg"],
+        yTerms: ["Id"],
       },
       {
-        id: "builtin-id",
-        term: "Drain Current",
-        canonicalRole: "id" as const,
-        canonicalUnit: "A" as const,
-        axisTendency: "dependent" as const,
-        domainPackIds: ["semiconductor-ivcv"],
+        id: "domain-cv",
+        source: "builtin" as const,
+        title: "cv",
+        xTerms: ["Vg"],
+        yTerms: ["Cp"],
+      },
+      {
+        id: "domain-frequency",
+        source: "builtin" as const,
+        title: "frequency",
+        xTerms: ["Frequency"],
+        yTerms: ["Cp"],
       },
     ];
     const view = new SettingsView(container, createSettingsViewOptions({
       activeSettingsSection: "template",
       templateSettings: {
-        activeTerms: [{ ...builtinTerms[0]!, source: "builtin" }],
-        builtinTerms,
-        disabledBuiltinTermIds: ["builtin-id"],
+        domainPriorityItems: domainPriorityItems.slice(0, 2),
       },
     }));
 
     try {
-      const activeTermsItem = getElement(container, "#settings-template-semantic-active-terms-item");
-      const previousActiveWidget = getElement(activeTermsItem, ".inputbox_widget");
-      const previousActiveInput = getElement(previousActiveWidget, "input.inputbox_native");
-      const treeTargets: SettingsContentItemTarget[] = [];
-      const viewInternals = view as unknown as {
-        updateSettingsTreeItems: (target: SettingsContentItemTarget) => void;
-      };
-      const originalUpdateSettingsTreeItems = viewInternals.updateSettingsTreeItems;
-      viewInternals.updateSettingsTreeItems = function (target: SettingsContentItemTarget): void {
-        treeTargets.push(target);
-        return originalUpdateSettingsTreeItems.call(this, target);
-      };
+      const priorityItem = getElement(container, "#settings-template-semantic-domain-priority-item");
+      const priorityList = getElement(priorityItem, ".settings-template-block-list");
 
-      try {
-        view.update(createSettingsViewOptions({
-          activeSettingsSection: "template",
-          templateSettings: {
-            activeTerms: [
-              { ...builtinTerms[0]!, source: "builtin" },
-              { ...builtinTerms[1]!, source: "builtin" },
-            ],
-            builtinTerms,
-            disabledBuiltinTermIds: [],
-          },
-        }), {
-          type: "partial",
-          descriptorIds: [],
-          itemTargets: [{
-            descriptorId: "template-semantic-library",
-            itemIds: [
-              "settings-template-semantic-active-terms-list-item",
-            ],
-          }],
-        });
-      }
-      finally {
-        viewInternals.updateSettingsTreeItems = originalUpdateSettingsTreeItems;
-      }
+      view.update(createSettingsViewOptions({
+        activeSettingsSection: "template",
+        templateSettings: {
+          domainPriorityItems: domainPriorityItems.slice(1),
+        },
+      }), {
+        type: "partial",
+        descriptorIds: [],
+        itemTargets: [{
+          descriptorId: "template-library",
+          itemIds: ["settings-template-semantic-domain-priority-item"],
+        }],
+      });
 
-      const nextActiveTermsItem = getElement(container, "#settings-template-semantic-active-terms-item");
-      const nextActiveWidget = getElement(nextActiveTermsItem, ".inputbox_widget");
-      const nextActiveInput = getElement(nextActiveWidget, "input.inputbox_native");
-      assert.equal(container.querySelector("#settings-template-semantic-library-header"), null);
-      assert.equal(nextActiveTermsItem, activeTermsItem);
-      assert.equal(nextActiveWidget, previousActiveWidget);
-      assert.equal(nextActiveInput, previousActiveInput);
-      assert.equal(nextActiveWidget.querySelectorAll(".inputbox_widget_item").length, 2);
+      const nextPriorityItem = getElement(container, "#settings-template-semantic-domain-priority-item");
+      const nextPriorityList = getElement(nextPriorityItem, ".settings-template-block-list");
+      assert.ok(nextPriorityList.textContent !== priorityList.textContent);
+      assert.equal(queryTemplateBlock(nextPriorityList, "iv"), null);
+      assert.ok(getTemplateBlock(nextPriorityList, "frequency"));
       assert.deepEqual(
-        treeTargets.map(target => target.itemIds),
-        [],
+        Array.from(nextPriorityList.querySelectorAll<HTMLElement>(".settings-template-block-title"))
+          .map(label => label.textContent),
+        ["cv", "frequency"],
       );
-    }
-    finally {
-      view.dispose();
-      container.remove();
-    }
-  });
-
-  test("patches semantic recommended terms without replacing unchanged suggestions", () => {
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    const builtinTerms = [
-      {
-        id: "builtin-vgs",
-        term: "Vgs",
-        canonicalRole: "vg" as const,
-        canonicalUnit: "V" as const,
-        axisTendency: "x" as const,
-        domainPackIds: ["semiconductor-ivcv"],
-      },
-      {
-        id: "builtin-id",
-        term: "Drain Current",
-        canonicalRole: "id" as const,
-        canonicalUnit: "A" as const,
-        axisTendency: "dependent" as const,
-        domainPackIds: ["semiconductor-ivcv"],
-      },
-      {
-        id: "builtin-gate",
-        term: "Gate Voltage",
-        canonicalRole: "vg" as const,
-        canonicalUnit: "V" as const,
-        axisTendency: "x" as const,
-        domainPackIds: ["semiconductor-ivcv"],
-      },
-    ];
-    const view = new SettingsView(container, createSettingsViewOptions({
-      activeSettingsSection: "template",
-      templateSettings: {
-        builtinTerms,
-        disabledBuiltinTermIds: ["builtin-vgs", "builtin-id"],
-      },
-    }));
-
-    try {
-      const activeTermsItem = getElement(container, "#settings-template-semantic-active-terms-item");
-      const recommendedList = getElement(activeTermsItem, ".settings-template-term-suggestions");
-      const drainCurrent = getSemanticSuggestion(recommendedList, "Drain Current");
-
-      view.update(createSettingsViewOptions({
-        activeSettingsSection: "template",
-        templateSettings: {
-          builtinTerms,
-          disabledBuiltinTermIds: ["builtin-id", "builtin-gate"],
-        },
-      }), {
-        type: "partial",
-        descriptorIds: [],
-        itemTargets: [{
-          descriptorId: "template-semantic-library",
-          itemIds: ["settings-template-semantic-default-terms-list-item"],
-        }],
-      });
-
-      assert.equal(container.querySelector("#settings-template-semantic-recommended-terms-item"), null);
-      assert.equal(getElement(container, "#settings-template-semantic-active-terms-item"), activeTermsItem);
-      assert.equal(getElement(activeTermsItem, ".settings-template-term-suggestions"), recommendedList);
-      assert.equal(getSemanticSuggestion(recommendedList, "Drain Current"), drainCurrent);
-      assert.equal(querySemanticSuggestion(recommendedList, "Vgs"), null);
-      assert.ok(getSemanticSuggestion(recommendedList, "Gate Voltage"));
-      assert.deepEqual(
-        Array.from(recommendedList.querySelectorAll<HTMLButtonElement>(".settings-template-term-suggestion"))
-          .map(button => button.querySelector<HTMLElement>(".settings-template-term-suggestion-label")?.textContent),
-        ["Drain Current", "Gate Voltage"],
-      );
-    }
-    finally {
-      view.dispose();
-      container.remove();
-    }
-  });
-
-  test("patches semantic custom form without replacing controls", () => {
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    const view = new SettingsView(container, createSettingsViewOptions({ activeSettingsSection: "template" }));
-
-    try {
-      const customFormItem = getElement(container, "#settings-template-semantic-custom-form-item");
-      const axisSelect = getButton(container, "settings-template-semantic-axis-select");
-
-      view.update(createSettingsViewOptions({
-        activeSettingsSection: "template",
-        templateSettings: {
-          isSaving: true,
-        },
-      }), {
-        type: "partial",
-        descriptorIds: [],
-        itemTargets: [{
-          descriptorId: "template-semantic-library",
-          itemIds: ["settings-template-semantic-custom-form-item"],
-        }],
-      });
-
-      assert.equal(getElement(container, "#settings-template-semantic-custom-form-item"), customFormItem);
-      assert.equal(getButton(container, "settings-template-semantic-axis-select"), axisSelect);
-      assert.equal(customFormItem.querySelector("#settings-template-semantic-add-button"), null);
-      assert.equal(axisSelect.disabled, true);
-    }
-    finally {
-      view.dispose();
-      container.remove();
-    }
-  });
-
-  test("patches semantic active terms input without replacing custom form", () => {
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    const view = new SettingsView(container, createSettingsViewOptions({ activeSettingsSection: "template" }));
-
-    try {
-      const activeTermsItem = getElement(container, "#settings-template-semantic-active-terms-item");
-      const activeInputWidget = getElement(activeTermsItem, ".inputbox_widget");
-      const activeInput = getElement(activeInputWidget, "input.inputbox_native");
-      const customFormItem = getElement(container, "#settings-template-semantic-custom-form-item");
-
-      view.update(createSettingsViewOptions({
-        activeSettingsSection: "template",
-        templateSemanticTermDraft: "New Term",
-        templateSettings: {
-          isSaving: true,
-        },
-      }), {
-        type: "partial",
-        descriptorIds: [],
-        itemTargets: [{
-          descriptorId: "template-semantic-library",
-          itemIds: ["settings-template-semantic-active-terms-input-item"],
-        }],
-      });
-
-      assert.equal(getElement(container, "#settings-template-semantic-active-terms-item"), activeTermsItem);
-      assert.equal(getElement(activeTermsItem, ".inputbox_widget"), activeInputWidget);
-      assert.equal(getElement(activeInputWidget, "input.inputbox_native"), activeInput);
-      assert.equal(container.querySelector("#settings-template-semantic-term-input-item"), null);
-      assert.equal(container.querySelector("#settings-template-semantic-add-button"), null);
-      assert.equal(getElement(container, "#settings-template-semantic-custom-form-item"), customFormItem);
-      assert.equal((activeInput as HTMLInputElement).value, "New Term");
-      assert.equal((activeInput as HTMLInputElement).disabled, false);
-      assert.equal((activeInput as HTMLInputElement).readOnly, false);
-    }
-    finally {
-      view.dispose();
-      container.remove();
-    }
-  });
-
-  test("patches only the pending semantic term action state", () => {
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    const builtinTerms = [
-      {
-        id: "builtin-vgs",
-        term: "Vgs",
-        canonicalRole: "vg" as const,
-        canonicalUnit: "V" as const,
-        axisTendency: "x" as const,
-        domainPackIds: ["semiconductor-ivcv"],
-      },
-      {
-        id: "builtin-id",
-        term: "Drain Current",
-        canonicalRole: "id" as const,
-        canonicalUnit: "A" as const,
-        axisTendency: "dependent" as const,
-        domainPackIds: ["semiconductor-ivcv"],
-      },
-    ];
-    const activeTerms = builtinTerms.map(term => ({ ...term, source: "builtin" as const }));
-    const view = new SettingsView(container, createSettingsViewOptions({
-      activeSettingsSection: "template",
-      templateSettings: {
-        activeTerms,
-        builtinTerms,
-      },
-    }));
-
-    try {
-      const activeTermsItem = getElement(container, "#settings-template-semantic-active-terms-item");
-      const activeWidget = getElement(activeTermsItem, ".inputbox_widget");
-      const vgsItem = getElement(activeWidget, '.inputbox_widget_item[data-item-id="builtin-vgs"]');
-      const idItem = getElement(activeWidget, '.inputbox_widget_item[data-item-id="builtin-id"]');
-      const vgsAction = getInputBoxWidgetItemAction(vgsItem);
-      const idAction = getInputBoxWidgetItemAction(idItem);
-
-      view.update(createSettingsViewOptions({
-        activeSettingsSection: "template",
-        templateSettings: {
-          activeTerms,
-          builtinTerms,
-          isSaving: true,
-          pendingActionItemId: "builtin-id",
-        },
-      }), {
-        type: "partial",
-        descriptorIds: [],
-        itemTargets: [{
-          descriptorId: "template-semantic-library",
-          itemIds: ["settings-template-semantic-active-terms-list-item"],
-        }],
-      });
-
-      assert.equal(getElement(container, "#settings-template-semantic-active-terms-item"), activeTermsItem);
-      assert.equal(getElement(activeTermsItem, ".inputbox_widget"), activeWidget);
-      assert.equal(getElement(activeWidget, '.inputbox_widget_item[data-item-id="builtin-vgs"]'), vgsItem);
-      assert.equal(getElement(activeWidget, '.inputbox_widget_item[data-item-id="builtin-id"]'), idItem);
-      assert.equal(getInputBoxWidgetItemAction(vgsItem), vgsAction);
-      assert.equal(getInputBoxWidgetItemAction(idItem), idAction);
-      assert.equal(vgsAction.disabled, false);
-      assert.equal(idAction.disabled, true);
     }
     finally {
       view.dispose();
@@ -1012,21 +708,27 @@ function getClosestSettingsListItem(element: HTMLElement): HTMLElement {
   return item;
 }
 
-function getSemanticSuggestion(container: HTMLElement, label: string): HTMLButtonElement {
-  const button = querySemanticSuggestion(container, label);
-  assert.ok(button, `Expected semantic suggestion ${label}.`);
-  return button;
+function getTemplateBlock(container: HTMLElement, label: string): HTMLElement {
+  const block = queryTemplateBlock(container, label);
+  assert.ok(block, `Expected template block ${label}.`);
+  return block;
 }
 
-function querySemanticSuggestion(container: HTMLElement, label: string): HTMLButtonElement | null {
-  return Array.from(container.querySelectorAll<HTMLButtonElement>(".settings-template-term-suggestion"))
-    .find(button => button.querySelector<HTMLElement>(".settings-template-term-suggestion-label")?.textContent === label) ?? null;
+function queryTemplateBlock(container: HTMLElement, label: string): HTMLElement | null {
+  return Array.from(container.querySelectorAll<HTMLElement>(".settings-template-block"))
+    .find(block => block.querySelector<HTMLElement>(".settings-template-block-title")?.textContent === label) ?? null;
 }
 
-function getInputBoxWidgetItemAction(item: HTMLElement): HTMLButtonElement {
-  const button = item.querySelector<HTMLButtonElement>(".inputbox_widget_item_action");
-  assert.ok(button);
-  return button;
+function getSemanticRuleInput(container: HTMLElement, placeholder: string): HTMLInputElement {
+  const input = Array.from(container.querySelectorAll<HTMLInputElement>(".inputbox_widget input.inputbox_native"))
+    .find(input => input.placeholder === placeholder);
+  assert.ok(input, `Expected semantic rule input ${placeholder}.`);
+  return input;
+}
+
+function getSemanticRuleActionLabels(container: HTMLElement): string[] {
+  return Array.from(container.querySelectorAll<HTMLButtonElement>(".settings-template-semantic-rule-action"))
+    .map(button => button.textContent?.trim() ?? "");
 }
 
 function getSelectLabel(button: HTMLButtonElement): string {
@@ -1171,9 +873,6 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
     setOriginLegendFontSizeDraft: noop,
     setPlotCommandDraft: noop,
     setPostCommandsDraft: noop,
-    setTemplateSemanticTermDraft: noop,
-    setTemplateSemanticAxisDraft: noop,
-    setTemplateSemanticUnitDraft: noop,
     setTickLabelFontSizeDraft: noop,
     setSearchQuery: noop,
     setXyPairsDraft: noop,
@@ -1183,27 +882,24 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
       isSaving: false,
       onEnabledChange: noop,
     },
-    templateSemanticTermDraft: "",
-    templateSemanticAxisDraft: "x",
-    templateSemanticUnitDraft: "",
     templateSettings: {
-      activeTerms: [],
-      customTerms: [],
-      axisOptions: [{ label: "X", value: "x" }],
-      builtinTerms: [],
       builtinDomainPacks: [],
-      disabledBuiltinTermIds: [],
       disabledDomainPackIds: [],
+      domainPriorityItems: [],
       isSaving: false,
-      onAddSemanticTerm: noop,
-      onDisableBuiltinTerm: noop,
+      onAddSemanticSectionItemTerm: noop,
+      onCommitSemanticSectionItemTitle: noop,
+      onCreateSemanticSectionItem: noop,
       onDisableDomainPack: noop,
-      onEnableBuiltinTerm: noop,
       onEnableDomainPack: noop,
+      onMoveSemanticDomainPriority: noop,
       onMoveXAxisIntent: noop,
-      onRemoveSemanticTerm: noop,
+      onRemoveSemanticSectionItem: noop,
+      onRemoveSemanticSectionItemTerm: noop,
+      onResetSemanticDomainRules: noop,
+      onUpdateSemanticSectionItemDraft: noop,
       pendingActionItemId: null,
-      unitOptions: [{ label: "none", value: "" }],
+      semanticSectionItems: [],
       xAxisIntentPriority: ["genericXY"],
     },
     theme: "system",

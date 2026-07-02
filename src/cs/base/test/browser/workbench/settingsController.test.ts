@@ -2,7 +2,7 @@ import assert from "assert";
 
 import { Event } from "src/cs/base/common/event";
 import { SettingsController } from "src/cs/workbench/contrib/settings/browser/settingsController";
-import { SettingsView, type SettingsContentItemTarget } from "src/cs/workbench/contrib/settings/browser/settingsView";
+import { SettingsView, type SettingsContentItemId, type SettingsContentItemTarget } from "src/cs/workbench/contrib/settings/browser/settingsView";
 import {
   NoOpNotification,
   NotificationsFilter,
@@ -16,7 +16,7 @@ import type {
   NumericDisplayMode,
   SettingsViewInput,
 } from "src/cs/workbench/services/settings/common/settings";
-import { builtinSemanticTerms } from "src/cs/workbench/services/dataResource/common/semanticLibrary";
+import { builtinSemanticDomainRules } from "src/cs/workbench/services/dataResource/common/semanticLibrary";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/settings/browser/settingsController", () => {
@@ -178,195 +178,14 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
     }
   });
 
-  test("re-enables a disabled built-in semantic term from the token input", async () => {
-    const builtinTerm = builtinSemanticTerms[0];
-    assert.ok(builtinTerm);
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-
-    const service = createSettingsService({
-      templateDisabledBuiltinSemanticIds: [builtinTerm.id],
-    });
-    const updateSettings = { value: null as Partial<ConductorSettings> | null };
-    service.updateSettings = async updates => {
-      const nextSettings = updates as Partial<ConductorSettings>;
-      updateSettings.value = nextSettings;
-      service.settings = {
-        ...service.settings,
-        ...nextSettings,
-      };
-      return service.settings;
-    };
-    const controller = new SettingsController(
-      container,
-      createSettingsViewInput(service.settings),
-      service,
-      createCommandService(),
-      createNotificationService(),
-    );
-    controller.attachNavigation(container);
-
-    try {
-      openTemplateSection(container);
-      submitSemanticTerm(container, builtinTerm.alias);
-      await settled();
-
-      const savedSettings = updateSettings.value;
-      assert.ok(savedSettings);
-      assert.deepEqual(savedSettings.templateDisabledBuiltinSemanticIds, []);
-      const termOrder = savedSettings.templateSemanticTermOrder;
-      assert.ok(Array.isArray(termOrder));
-      assert.equal(termOrder.at(-1), builtinTerm.id);
-      assert.equal(
-        new Set(termOrder).size,
-        termOrder.length,
-      );
-      assert.deepEqual(service.settings.templateDisabledBuiltinSemanticIds, []);
-      assert.equal(getSemanticTermInput(container).value, "");
-    }
-    finally {
-      controller.dispose();
-      container.remove();
-    }
-  });
-
-  test("rejects duplicate active semantic terms without updating settings", async () => {
-    const builtinTerm = builtinSemanticTerms[0];
-    assert.ok(builtinTerm);
+  test("creates semantic section item rules with X and Y axis evidence", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
 
     const service = createSettingsService({});
     const notifications: INotification[] = [];
-    let updateCount = 0;
-    service.updateSettings = async updates => {
-      const nextSettings = updates as Partial<ConductorSettings>;
-      updateCount++;
-      service.settings = {
-        ...service.settings,
-        ...nextSettings,
-      };
-      return service.settings;
-    };
-    const controller = new SettingsController(
-      container,
-      createSettingsViewInput(service.settings),
-      service,
-      createCommandService(),
-      createNotificationService(notifications),
-    );
-    controller.attachNavigation(container);
-
-    try {
-      openTemplateSection(container);
-      submitSemanticTerm(container, builtinTerm.alias);
-      await settled();
-
-      assert.equal(updateCount, 0);
-      assert.equal(notifications.at(-1)?.message, "Match term already exists.");
-      assert.equal(notifications.at(-1)?.presentation?.type, "error");
-    }
-    finally {
-      controller.dispose();
-      container.remove();
-    }
-  });
-
-  test("rejects single-character semantic terms from the token input", async () => {
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-
-    const service = createSettingsService({});
-    const notifications: INotification[] = [];
-    let controller: SettingsController | undefined;
-    let updateCount = 0;
-    service.updateSettings = async updates => {
-      const nextSettings = updates as Partial<ConductorSettings>;
-      updateCount++;
-      service.settings = {
-        ...service.settings,
-        ...nextSettings,
-      };
-      controller?.update(createSettingsViewInput(service.settings));
-      return service.settings;
-    };
-    controller = new SettingsController(
-      container,
-      createSettingsViewInput(service.settings),
-      service,
-      createCommandService(),
-      createNotificationService(notifications),
-    );
-    controller.attachNavigation(container);
-
-    try {
-      openTemplateSection(container);
-      submitSemanticTerm(container, "V");
-      await settled();
-
-      assert.equal(updateCount, 0);
-      assert.equal(service.settings.templateSemanticAllowlist, undefined);
-      assert.equal(notifications.at(-1)?.message, "Enter at least two letters or digits for the match term.");
-      assert.equal(notifications.at(-1)?.presentation?.type, "error");
-      assert.equal(getSemanticTermInput(container).value, "V");
-      assert.equal(hasActiveCustomTerm(container, "V"), false);
-    }
-    finally {
-      controller?.dispose();
-      container.remove();
-    }
-  });
-
-  test("hides configured single-character semantic terms from the active list", async () => {
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-
-    const service = createSettingsService({
-      templateSemanticAllowlist: [{
-        id: "single-i",
-        alias: "I",
-        canonicalRole: "current",
-        axisTendency: "dependent",
-        enabled: true,
-      }, {
-        id: "drive-bias",
-        alias: "DriveBias",
-        canonicalRole: "voltage",
-        axisTendency: "x",
-        enabled: true,
-      }],
-    });
-    const controller = new SettingsController(
-      container,
-      createSettingsViewInput(service.settings),
-      service,
-      createCommandService(),
-      createNotificationService(),
-    );
-    controller.attachNavigation(container);
-
-    try {
-      openTemplateSection(container);
-
-      assert.equal(hasActiveCustomTerm(container, "I"), false);
-      assert.equal(hasActiveCustomTerm(container, "DriveBias"), true);
-    }
-    finally {
-      controller.dispose();
-      container.remove();
-    }
-  });
-
-  test("shows semantic term validation through notification", async () => {
-    const builtinTerm = builtinSemanticTerms[0];
-    assert.ok(builtinTerm);
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-
-    const service = createSettingsService({});
-    let controller: SettingsController | undefined;
     const savedSettings: Partial<ConductorSettings>[] = [];
-    const notifications: INotification[] = [];
+    let controller: SettingsController | undefined;
     service.updateSettings = async updates => {
       const nextSettings = updates as Partial<ConductorSettings>;
       savedSettings.push(nextSettings);
@@ -388,17 +207,29 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
 
     try {
       openTemplateSection(container);
-      submitSemanticTerm(container, builtinTerm.alias);
+      clickNewSemanticRule(container);
+      const draftItem = getSemanticRuleItems(container)[0];
+      assert.ok(draftItem);
+
+      setSemanticRuleInput(draftItem, "Domain scope, for example iv", "iv");
+      acceptSemanticRuleInput(container, "X representative", "Codex Gate Bias");
+      acceptSemanticRuleInput(container, "Y representative", "Codex Drain Current");
       await settled();
 
-      assert.equal(notifications.at(-1)?.message, "Match term already exists.");
-      assert.equal(notifications.at(-1)?.presentation?.type, "error");
-
-      getActiveBuiltinTermAction(container, builtinTerm.alias).click();
-      await settled();
-
-      assert.deepEqual(savedSettings.at(-1)?.templateDisabledBuiltinSemanticIds, [builtinTerm.id]);
-      assert.equal(notifications.at(-1)?.message, "Match term already exists.");
+      const update = savedSettings.at(-1);
+      assert.ok(update);
+      const domainRules = update.templateSemanticDomainRules;
+      assert.ok(Array.isArray(domainRules));
+      assert.equal(domainRules.length, 1);
+      assert.equal(domainRules[0]?.title, "iv");
+      assert.deepEqual(domainRules[0]?.xTerms, ["Codex Gate Bias"]);
+      assert.deepEqual(domainRules[0]?.yTerms, ["Codex Drain Current"]);
+      assert.deepEqual(update.templateSemanticDomainPriority?.slice(0, 1), [domainRules[0]?.id]);
+      const savedItem = getSemanticRuleItems(container)
+        .find(item => hasSemanticRuleValue(item, "Codex Gate Bias"));
+      assert.ok(savedItem);
+      assert.equal(hasSemanticRuleValue(savedItem, "iv"), true);
+      assert.equal(hasSemanticRuleValue(savedItem, "Codex Drain Current"), true);
     }
     finally {
       controller?.dispose();
@@ -406,15 +237,403 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
     }
   });
 
-  test("patches only active term list and input when adding a custom semantic term", async () => {
+  test("saves semantic section item widget values on blur", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const service = createSettingsService({});
+    const savedSettings: Partial<ConductorSettings>[] = [];
+    let controller: SettingsController | undefined;
+    service.updateSettings = async updates => {
+      const nextSettings = updates as Partial<ConductorSettings>;
+      savedSettings.push(nextSettings);
+      service.settings = {
+        ...service.settings,
+        ...nextSettings,
+      };
+      controller?.update(createSettingsViewInput(service.settings));
+      return service.settings;
+    };
+    controller = new SettingsController(
+      container,
+      createSettingsViewInput(service.settings),
+      service,
+      createCommandService(),
+      createNotificationService(),
+    );
+    controller.attachNavigation(container);
+
+    try {
+      openTemplateSection(container);
+      clickNewSemanticRule(container);
+      const draftItem = getSemanticRuleItems(container)[0];
+      assert.ok(draftItem);
+
+      blurSemanticRuleInput(draftItem, "Domain scope, for example iv", "blur");
+      blurSemanticRuleInput(container, "X representative", "Blur Gate");
+      assert.equal(savedSettings.length, 0);
+      blurSemanticRuleInput(container, "Y representative", "Blur Current");
+      await settled();
+
+      const update = savedSettings.at(-1);
+      assert.ok(update);
+      const domainRules = update.templateSemanticDomainRules;
+      assert.ok(Array.isArray(domainRules));
+      assert.equal(domainRules[0]?.title, "blur");
+      assert.deepEqual(domainRules[0]?.xTerms, ["Blur Gate"]);
+      assert.deepEqual(domainRules[0]?.yTerms, ["Blur Current"]);
+    }
+    finally {
+      controller?.dispose();
+      container.remove();
+    }
+  });
+
+  test("edits saved custom semantic section item terms", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const service = createSettingsService({
+      templateSemanticDomainPriority: ["custom-term"],
+      templateSemanticDomainRules: [{
+        id: "custom-term",
+        title: "Custom Term",
+        xTerms: ["Custom Gate"],
+        yTerms: ["Custom Current"],
+        enabled: true,
+      }],
+    });
+    const savedSettings: Partial<ConductorSettings>[] = [];
+    let controller: SettingsController | undefined;
+    service.updateSettings = async updates => {
+      const nextSettings = updates as Partial<ConductorSettings>;
+      savedSettings.push(nextSettings);
+      service.settings = {
+        ...service.settings,
+        ...nextSettings,
+      };
+      controller?.update(createSettingsViewInput(service.settings));
+      return service.settings;
+    };
+    controller = new SettingsController(
+      container,
+      createSettingsViewInput(service.settings),
+      service,
+      createCommandService(),
+      createNotificationService(),
+    );
+    controller.attachNavigation(container);
+
+    try {
+      openTemplateSection(container);
+      const customItem = getSemanticRuleItems(container)
+        .find(item => hasSemanticRuleValue(item, "Custom Term"));
+      assert.ok(customItem);
+      assert.equal(getSemanticRuleInput(customItem, "X representative").hidden, false);
+      assert.equal(getSemanticRuleInput(customItem, "Domain scope, for example iv").readOnly, false);
+      assert.equal(getSemanticRuleActionLabels(customItem).includes("Done"), false);
+      assert.equal(getSemanticRuleActionLabels(customItem).includes("Cancel"), false);
+
+      acceptSemanticRuleInput(customItem, "X representative", "Added Gate");
+      const editedItem = getSemanticRuleItems(container)
+        .find(item => hasSemanticRuleValue(item, "Added Gate"));
+      assert.ok(editedItem);
+      await settled();
+
+      const update = savedSettings.at(-1);
+      assert.ok(update);
+      assert.deepEqual(update.templateSemanticDomainPriority?.slice(0, 1), ["custom-term"]);
+      assert.deepEqual(update.templateSemanticDomainRules, [{
+        id: "custom-term",
+        title: "Custom Term",
+        xTerms: ["Custom Gate", "Added Gate"],
+        yTerms: ["Custom Current"],
+        enabled: true,
+      }]);
+    }
+    finally {
+      controller?.dispose();
+      container.remove();
+    }
+  });
+
+  test("edits built-in semantic section item terms as user overrides", async () => {
+    const builtinRule = builtinSemanticDomainRules.find(rule => rule.title === "iv");
+    assert.ok(builtinRule);
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const service = createSettingsService({});
+    const savedSettings: Partial<ConductorSettings>[] = [];
+    let controller: SettingsController | undefined;
+    service.updateSettings = async updates => {
+      const nextSettings = updates as Partial<ConductorSettings>;
+      savedSettings.push(nextSettings);
+      service.settings = {
+        ...service.settings,
+        ...nextSettings,
+      };
+      controller?.update(createSettingsViewInput(service.settings));
+      return service.settings;
+    };
+    controller = new SettingsController(
+      container,
+      createSettingsViewInput(service.settings),
+      service,
+      createCommandService(),
+      createNotificationService(),
+    );
+    controller.attachNavigation(container);
+
+    try {
+      openTemplateSection(container);
+      const builtinItem = getSemanticRuleItems(container)
+        .find(item => hasSemanticRuleValue(item, builtinRule.title));
+      assert.ok(builtinItem);
+      assert.equal(getSemanticRuleInput(builtinItem, "X representative").hidden, false);
+      assert.equal(getSemanticRuleInput(builtinItem, "Domain scope, for example iv").readOnly, false);
+      assert.equal(getSemanticRuleActionLabels(builtinItem).includes("Done"), false);
+      assert.equal(getSemanticRuleActionLabels(builtinItem).includes("Cancel"), false);
+
+      acceptSemanticRuleInput(builtinItem, "X representative", "Codex Override Gate");
+      const editedItem = getSemanticRuleItems(container)
+        .find(item => hasSemanticRuleValue(item, "Codex Override Gate"));
+      assert.ok(editedItem);
+      await settled();
+
+      const update = savedSettings.at(-1);
+      assert.ok(update);
+      const rule = update.templateSemanticDomainRules?.find(rule => rule.id === builtinRule.id);
+      assert.ok(rule);
+      assert.equal(rule.title, builtinRule.title);
+      assert.ok(rule.xTerms.includes("Codex Override Gate"));
+      assert.deepEqual(rule.yTerms, builtinRule.yTerms);
+      assert.equal(update.templateSemanticDomainPriority?.includes(builtinRule.id), true);
+    }
+    finally {
+      controller?.dispose();
+      container.remove();
+    }
+  });
+
+  test("resets built-in semantic section item overrides without removing custom rules", async () => {
+    const builtinRule = builtinSemanticDomainRules.find(rule => rule.title === "iv");
+    assert.ok(builtinRule);
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const service = createSettingsService({
+      templateSemanticDomainPriority: ["custom-term"],
+      templateSemanticDomainRules: [{
+        id: builtinRule.id,
+        title: builtinRule.title,
+        xTerms: ["Codex Override Gate"],
+        yTerms: builtinRule.yTerms,
+        enabled: true,
+      }, {
+        id: "custom-term",
+        title: "Custom Term",
+        xTerms: ["Custom Gate"],
+        yTerms: ["Custom Current"],
+        enabled: true,
+      }],
+    });
+    const savedSettings: Partial<ConductorSettings>[] = [];
+    let controller: SettingsController | undefined;
+    service.updateSettings = async updates => {
+      const nextSettings = updates as Partial<ConductorSettings>;
+      savedSettings.push(nextSettings);
+      service.settings = {
+        ...service.settings,
+        ...nextSettings,
+      };
+      controller?.update(createSettingsViewInput(service.settings));
+      return service.settings;
+    };
+    controller = new SettingsController(
+      container,
+      createSettingsViewInput(service.settings),
+      service,
+      createCommandService(),
+      createNotificationService(),
+    );
+    controller.attachNavigation(container);
+
+    try {
+      openTemplateSection(container);
+      getButton(container, "settings-template-semantic-reset-rules").click();
+      await settled();
+
+      const update = savedSettings.at(-1);
+      assert.ok(update);
+      assert.deepEqual(update.templateSemanticDomainRules, [{
+        id: "custom-term",
+        title: "Custom Term",
+        xTerms: ["Custom Gate"],
+        yTerms: ["Custom Current"],
+        enabled: true,
+      }]);
+      assert.deepEqual(
+        update.templateSemanticDomainPriority?.slice(0, builtinSemanticDomainRules.length),
+        builtinSemanticDomainRules.map(rule => rule.id),
+      );
+      assert.equal(update.templateSemanticDomainPriority?.includes("custom-term"), true);
+    }
+    finally {
+      controller?.dispose();
+      container.remove();
+    }
+  });
+
+  test("rejects duplicate semantic section item terms inside the same input", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const service = createSettingsService({});
+    const notifications: INotification[] = [];
+    let updateCount = 0;
+    service.updateSettings = async updates => {
+      const nextSettings = updates as Partial<ConductorSettings>;
+      updateCount++;
+      service.settings = {
+        ...service.settings,
+        ...nextSettings,
+      };
+      return service.settings;
+    };
+    const controller = new SettingsController(
+      container,
+      createSettingsViewInput(service.settings),
+      service,
+      createCommandService(),
+      createNotificationService(notifications),
+    );
+    controller.attachNavigation(container);
+
+    try {
+      openTemplateSection(container);
+      clickNewSemanticRule(container);
+      const draftItem = getSemanticRuleItems(container)[0];
+      assert.ok(draftItem);
+      setSemanticRuleInput(draftItem, "Domain scope, for example iv", "iv");
+      acceptSemanticRuleInput(container, "X representative", "Codex Gate Bias");
+      acceptSemanticRuleInput(container, "X representative", "Codex-Gate-Bias");
+      await settled();
+
+      assert.equal(updateCount, 0);
+      assert.equal(notifications.at(-1)?.message, "Character block already exists in this input.");
+      assert.equal(notifications.at(-1)?.presentation?.type, "error");
+    }
+    finally {
+      controller.dispose();
+      container.remove();
+    }
+  });
+
+  test("rejects single-character semantic section item terms", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const service = createSettingsService({});
+    const notifications: INotification[] = [];
+    let controller: SettingsController | undefined;
+    let updateCount = 0;
+    service.updateSettings = async updates => {
+      const nextSettings = updates as Partial<ConductorSettings>;
+      updateCount++;
+      service.settings = {
+        ...service.settings,
+        ...nextSettings,
+      };
+      controller?.update(createSettingsViewInput(service.settings));
+      return service.settings;
+    };
+    controller = new SettingsController(
+      container,
+      createSettingsViewInput(service.settings),
+      service,
+      createCommandService(),
+      createNotificationService(notifications),
+    );
+    controller.attachNavigation(container);
+
+    try {
+      openTemplateSection(container);
+      clickNewSemanticRule(container);
+      const draftItem = getSemanticRuleItems(container)[0];
+      assert.ok(draftItem);
+      acceptSemanticRuleInput(draftItem, "Domain scope, for example iv", "V");
+      await settled();
+
+      assert.equal(updateCount, 0);
+      assert.equal(service.settings.templateSemanticDomainRules, undefined);
+      assert.equal(notifications.at(-1)?.message, "Enter at least two letters or digits for the domain scope.");
+      assert.equal(notifications.at(-1)?.presentation?.type, "error");
+      assert.equal(getSemanticRuleInput(draftItem, "Domain scope, for example iv").value, "V");
+      assert.equal(hasReadOnlySemanticRuleValue(container, "V"), false);
+    }
+    finally {
+      controller?.dispose();
+      container.remove();
+    }
+  });
+
+  test("hides configured single-character semantic domain rules from section items", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const service = createSettingsService({
+      templateSemanticDomainRules: [{
+        id: "single-i",
+        title: "I",
+        xTerms: ["Vg"],
+        yTerms: ["Id"],
+        enabled: true,
+      }, {
+        id: "drive-bias",
+        title: "DriveBias",
+        xTerms: ["DriveBias"],
+        yTerms: ["SenseCurrent"],
+        enabled: true,
+      }],
+    });
+    const controller = new SettingsController(
+      container,
+      createSettingsViewInput(service.settings),
+      service,
+      createCommandService(),
+      createNotificationService(),
+    );
+    controller.attachNavigation(container);
+
+    try {
+      openTemplateSection(container);
+
+      assert.equal(hasSemanticRuleValue(container, "I"), false);
+      assert.equal(hasSemanticRuleValue(container, "DriveBias"), true);
+    }
+    finally {
+      controller.dispose();
+      container.remove();
+    }
+  });
+
+  test("patches semantic library descriptor when adding a custom section item", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
 
     const patchedTargets: SettingsContentItemTarget[] = [];
+    const patchedDescriptors: string[] = [];
     const prototype = SettingsView.prototype as unknown as {
+      updateContentDescriptor: (descriptorId: string) => void;
       updateContentItems: (target: SettingsContentItemTarget) => void;
     };
+    const originalUpdateContentDescriptor = prototype.updateContentDescriptor;
     const originalUpdateContentItems = prototype.updateContentItems;
+    prototype.updateContentDescriptor = function (descriptorId: string): void {
+      patchedDescriptors.push(descriptorId);
+      return originalUpdateContentDescriptor.call(this, descriptorId);
+    };
     prototype.updateContentItems = function (target: SettingsContentItemTarget): void {
       patchedTargets.push(target);
       return originalUpdateContentItems.call(this, target);
@@ -444,39 +663,47 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
     try {
       openTemplateSection(container);
       patchedTargets.length = 0;
+      patchedDescriptors.length = 0;
 
-      submitSemanticTerm(container, "Codex Custom Term");
+      clickNewSemanticRule(container);
+      const draftItem = getSemanticRuleItems(container)[0];
+      assert.ok(draftItem);
+      setSemanticRuleInput(draftItem, "Domain scope, for example iv", "custom");
+      acceptSemanticRuleInput(container, "X representative", "Codex Custom X");
+      patchedTargets.length = 0;
+      patchedDescriptors.length = 0;
+      acceptSemanticRuleInput(container, "Y representative", "Codex Custom Y");
       await settled();
 
+      assert.deepEqual(patchedTargets, [
+        {
+          descriptorId: "template-semantic-library",
+          itemIds: [draftItem.id as SettingsContentItemId],
+        },
+        {
+          descriptorId: "template-library",
+          itemIds: ["settings-template-semantic-domain-priority-item"],
+        },
+      ]);
       assert.deepEqual(
-        patchedTargets
-          .filter(target => target.descriptorId === "template-semantic-library")
-          .map(target => target.itemIds),
+        patchedDescriptors.filter(descriptorId => descriptorId === "template-semantic-library"),
         [
-          [
-            "settings-template-semantic-active-terms-list-item",
-            "settings-template-semantic-active-terms-input-item",
-          ],
-          [
-            "settings-template-semantic-active-terms-list-item",
-          ],
-          [
-            "settings-template-semantic-active-terms-list-item",
-            "settings-template-semantic-active-terms-input-item",
-          ],
+          "template-semantic-library",
+          "template-semantic-library",
+          "template-semantic-library",
+          "template-semantic-library",
         ],
       );
-      assert.equal(notifications.at(-1)?.message, "Template semantic library updated.");
-      assert.equal(notifications.at(-1)?.presentation?.type, "success");
     }
     finally {
+      prototype.updateContentDescriptor = originalUpdateContentDescriptor;
       prototype.updateContentItems = originalUpdateContentItems;
       controller?.dispose();
       container.remove();
     }
   });
 
-  test("keeps semantic term input editable while add save is pending", async () => {
+  test("keeps semantic draft section item editable while save is pending", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
 
@@ -498,25 +725,31 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
 
     try {
       openTemplateSection(container);
-      const input = getSemanticTermInput(container);
+      clickNewSemanticRule(container);
+      const draftItem = getSemanticRuleItems(container)[0];
+      assert.ok(draftItem);
+      const input = getSemanticRuleInput(draftItem, "Domain scope, for example iv");
       input.focus();
 
-      submitSemanticTerm(container, "Codex Custom Term");
+      setSemanticRuleInput(draftItem, "Domain scope, for example iv", "Codex Custom Term");
+      acceptSemanticRuleInput(container, "X representative", "Codex Gate Bias");
+      acceptSemanticRuleInput(container, "Y representative", "Codex Drain Current");
       await settled();
 
-      const pendingInput = getSemanticTermInput(container);
-      assert.equal(pendingInput, input);
-      assert.equal(document.activeElement, input);
-      assert.equal(input.readOnly, false);
-      assert.equal(input.value, "");
+      const pendingItem = getSemanticRuleItems(container)[0];
+      assert.ok(pendingItem);
+      const pendingInput = getSemanticRuleInput(pendingItem, "Domain scope, for example iv");
+      assert.equal(pendingInput.value, "Codex Custom Term");
+      assert.equal(pendingInput.disabled, true);
 
-      input.value = "Next Term";
-      input.dispatchEvent(new globalThis.Event("input", { bubbles: true }));
-      input.dispatchEvent(new globalThis.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-      await settled();
-
+      clickNewSemanticRule(container);
+      const nextDraftItem = getSemanticRuleItems(container)[0];
+      assert.ok(nextDraftItem);
+      const nextInput = getSemanticRuleInput(nextDraftItem, "Domain scope, for example iv");
+      setSemanticRuleInput(nextDraftItem, "Domain scope, for example iv", "Next Term");
       assert.equal(updateCount, 1);
-      assert.equal(input.value, "Next Term");
+      assert.equal(nextInput.value, "Next Term");
+      assert.equal(nextInput.disabled, false);
     }
     finally {
       updateDeferred.resolve(service.settings);
@@ -543,21 +776,31 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
 
     try {
       openTemplateSection(container);
-      const input = getSemanticTermInput(container);
+      clickNewSemanticRule(container);
+      const draftItem = getSemanticRuleItems(container)[0];
+      assert.ok(draftItem);
+      const input = getSemanticRuleInput(draftItem, "Domain scope, for example iv");
       input.focus();
 
-      submitSemanticTerm(container, "Codex Custom Term");
+      setSemanticRuleInput(draftItem, "Domain scope, for example iv", "Codex Custom Term");
+      acceptSemanticRuleInput(container, "X representative", "Codex Gate Bias");
+      acceptSemanticRuleInput(container, "Y representative", "Codex Drain Current");
       await settled();
 
-      input.value = "Next Term";
-      input.dispatchEvent(new globalThis.Event("input", { bubbles: true }));
+      const pendingItem = getSemanticRuleItems(container)[0];
+      assert.ok(pendingItem);
+      const pendingInput = getSemanticRuleInput(pendingItem, "Domain scope, for example iv");
+      pendingInput.value = "Next Term";
+      pendingInput.dispatchEvent(new globalThis.Event("input", { bubbles: true }));
 
       updateDeferred.reject("save failed");
       await settled();
 
-      assert.equal(getSemanticTermInput(container), input);
-      assert.equal(input.value, "Next Term");
-      assert.equal(input.readOnly, false);
+      const failedItem = getSemanticRuleItems(container)[0];
+      assert.ok(failedItem);
+      const failedInput = getSemanticRuleInput(failedItem, "Domain scope, for example iv");
+      assert.equal(failedInput.value, "Next Term");
+      assert.equal(failedInput.readOnly, false);
     }
     finally {
       controller.dispose();
@@ -565,15 +808,22 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
     }
   });
 
-  test("patches only active term list when removing a custom semantic term", async () => {
+  test("patches semantic library descriptor when removing a custom section item", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
 
     const patchedTargets: SettingsContentItemTarget[] = [];
+    const patchedDescriptors: string[] = [];
     const prototype = SettingsView.prototype as unknown as {
+      updateContentDescriptor: (descriptorId: string) => void;
       updateContentItems: (target: SettingsContentItemTarget) => void;
     };
+    const originalUpdateContentDescriptor = prototype.updateContentDescriptor;
     const originalUpdateContentItems = prototype.updateContentItems;
+    prototype.updateContentDescriptor = function (descriptorId: string): void {
+      patchedDescriptors.push(descriptorId);
+      return originalUpdateContentDescriptor.call(this, descriptorId);
+    };
     prototype.updateContentItems = function (target: SettingsContentItemTarget): void {
       patchedTargets.push(target);
       return originalUpdateContentItems.call(this, target);
@@ -581,11 +831,11 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
 
     let controller: SettingsController | undefined;
     const service = createSettingsService({
-      templateSemanticAllowlist: [{
+      templateSemanticDomainRules: [{
         id: "custom-term",
-        alias: "Custom Term",
-        canonicalRole: "voltage",
-        axisTendency: "x",
+        title: "Custom Term",
+        xTerms: ["Custom Gate"],
+        yTerms: ["Custom Current"],
         enabled: true,
       }],
     });
@@ -610,28 +860,31 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
     try {
       openTemplateSection(container);
       patchedTargets.length = 0;
+      patchedDescriptors.length = 0;
 
-      getActiveCustomTermAction(container, "Custom Term").click();
+      const customItem = getSemanticRuleItems(container)
+        .find(item => hasSemanticRuleValue(item, "Custom Term"));
+      assert.ok(customItem);
+      patchedTargets.length = 0;
+      patchedDescriptors.length = 0;
+      getSemanticRuleAction(customItem, "Remove").click();
       await settled();
 
+      assert.deepEqual(patchedTargets, [{
+        descriptorId: "template-library",
+        itemIds: ["settings-template-semantic-domain-priority-item"],
+      }]);
       assert.deepEqual(
-        patchedTargets
-          .filter(target => target.descriptorId === "template-semantic-library")
-          .map(target => target.itemIds),
+        patchedDescriptors.filter(descriptorId => descriptorId === "template-semantic-library"),
         [
-          [
-            "settings-template-semantic-active-terms-list-item",
-          ],
-          [
-            "settings-template-semantic-active-terms-list-item",
-          ],
-          [
-            "settings-template-semantic-active-terms-list-item",
-          ],
+          "template-semantic-library",
+          "template-semantic-library",
+          "template-semantic-library",
         ],
       );
     }
     finally {
+      prototype.updateContentDescriptor = originalUpdateContentDescriptor;
       prototype.updateContentItems = originalUpdateContentItems;
       controller?.dispose();
       container.remove();
@@ -756,46 +1009,69 @@ function openTemplateSection(container: HTMLElement): void {
   button.click();
 }
 
-function submitSemanticTerm(container: HTMLElement, value: string): void {
-  const input = getSemanticTermInput(container);
-  input.value = value;
-  input.dispatchEvent(new globalThis.Event("input", { bubbles: true }));
-  input.dispatchEvent(new globalThis.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-}
-
-function getSemanticTermInput(container: HTMLElement): HTMLInputElement {
-  const input = container.querySelector<HTMLInputElement>("#settings-template-semantic-active-terms-item .inputbox_widget input.inputbox_native:not([hidden])");
-  assert.ok(input);
-  return input;
-}
-
-function getActiveBuiltinTermAction(container: HTMLElement, term: string): HTMLButtonElement {
-  const item = Array.from(container.querySelectorAll<HTMLElement>('#settings-template-semantic-active-terms-item .inputbox_widget_item[data-kind="builtin-enabled"]'))
-    .find(item => item.querySelector<HTMLElement>(".inputbox_widget_item_label")?.textContent === term);
-  assert.ok(item);
-  const action = item.querySelector<HTMLButtonElement>(".inputbox_widget_item_action");
-  assert.ok(action);
-  return action;
-}
-
-function getActiveCustomTermAction(container: HTMLElement, term: string): HTMLButtonElement {
-  const item = Array.from(container.querySelectorAll<HTMLElement>('#settings-template-semantic-active-terms-item .inputbox_widget_item[data-kind="custom"]'))
-    .find(item => item.querySelector<HTMLElement>(".inputbox_widget_item_label")?.textContent === term);
-  assert.ok(item);
-  const action = item.querySelector<HTMLButtonElement>(".inputbox_widget_item_action");
-  assert.ok(action);
-  return action;
-}
-
-function hasActiveCustomTerm(container: HTMLElement, term: string): boolean {
-  return Array.from(container.querySelectorAll<HTMLElement>('#settings-template-semantic-active-terms-item .inputbox_widget_item[data-kind="custom"]'))
-    .some(item => item.querySelector<HTMLElement>(".inputbox_widget_item_label")?.textContent === term);
-}
-
 function getButton(container: HTMLElement, id: string): HTMLButtonElement {
   const button = container.querySelector<HTMLButtonElement>(`#${id}`);
   assert.ok(button);
   return button;
+}
+
+function clickNewSemanticRule(container: HTMLElement): void {
+  getButton(container, "settings-template-semantic-new-rule").click();
+}
+
+function getSemanticRuleItems(container: ParentNode): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>(".settings-template-semantic-rule-item"));
+}
+
+function getSemanticRuleInput(container: ParentNode, placeholder: string): HTMLInputElement {
+  const input = Array.from(container.querySelectorAll<HTMLInputElement>(".settings-template-semantic-rule-input input.inputbox_native"))
+    .find(input => input.placeholder === placeholder);
+  assert.ok(input);
+  return input;
+}
+
+function setSemanticRuleInput(container: ParentNode, placeholder: string, value: string): void {
+  const input = getSemanticRuleInput(container, placeholder);
+  input.value = value;
+  input.dispatchEvent(new globalThis.Event("input", { bubbles: true }));
+}
+
+function acceptSemanticRuleInput(container: ParentNode, placeholder: string, value: string): void {
+  const input = getSemanticRuleInput(container, placeholder);
+  input.value = value;
+  input.dispatchEvent(new globalThis.Event("input", { bubbles: true }));
+  input.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter" }));
+}
+
+function blurSemanticRuleInput(container: ParentNode, placeholder: string, value: string): void {
+  const input = getSemanticRuleInput(container, placeholder);
+  input.value = value;
+  input.dispatchEvent(new globalThis.Event("input", { bubbles: true }));
+  input.dispatchEvent(new FocusEvent("blur", { bubbles: true }));
+}
+
+function getSemanticRuleAction(container: ParentNode, label: string): HTMLButtonElement {
+  const button = Array.from(container.querySelectorAll<HTMLButtonElement>(".settings-template-semantic-rule-action"))
+    .find(button => button.textContent?.trim() === label);
+  assert.ok(button);
+  return button;
+}
+
+function getSemanticRuleActionLabels(container: ParentNode): string[] {
+  return Array.from(container.querySelectorAll<HTMLButtonElement>(".settings-template-semantic-rule-action"))
+    .map(button => button.textContent?.trim() ?? "");
+}
+
+function hasSemanticRuleValue(container: ParentNode, value: string): boolean {
+  return Array.from(container.querySelectorAll<HTMLInputElement>(".settings-template-semantic-rule-input input.inputbox_native"))
+    .some(input => input.value === value) ||
+    Array.from(container.querySelectorAll<HTMLElement>(".settings-template-semantic-rule-input .inputbox_widget_item_label"))
+      .some(item => item.textContent === value);
+}
+
+function hasReadOnlySemanticRuleValue(container: ParentNode, value: string): boolean {
+  return Array.from(container.querySelectorAll<HTMLInputElement>(".settings-template-semantic-rule-input input.inputbox_native"))
+    .some(input => input.value === value && input.readOnly);
 }
 
 function getElement(container: ParentNode, selector: string): HTMLElement {

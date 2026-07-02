@@ -23,6 +23,7 @@ import {
 import {
 	createEmptyStructuredContentStructure,
 	readStructuredContentRows,
+	type StructuredAxisTendency,
 	type StructuredBindingCandidate,
 	type StructuredColumnProfile,
 	type StructuredColumnSemanticCandidate,
@@ -48,7 +49,8 @@ import {
 	ISettingsService,
 	normalizeTemplateDisabledBuiltinSemanticIds,
 	normalizeTemplateDisabledBuiltinDomainPackIds,
-	normalizeTemplateSemanticAllowlist,
+	normalizeTemplateSemanticDomainPriority,
+	normalizeTemplateSemanticDomainRules,
 	normalizeTemplateXAxisIntentPriority,
 } from "src/cs/workbench/services/settings/common/settings";
 import {
@@ -195,7 +197,8 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 	private createSettingsSemanticMatcher(): SemanticMatcher {
 		const settings = this.settingsService.getConductorSettings();
 		return createSemanticMatcher({
-			allowlist: normalizeTemplateSemanticAllowlist(settings?.templateSemanticAllowlist),
+			domainPriority: normalizeTemplateSemanticDomainPriority(settings?.templateSemanticDomainPriority),
+			domainRules: normalizeTemplateSemanticDomainRules(settings?.templateSemanticDomainRules),
 			disabledBuiltinTermIds: normalizeTemplateDisabledBuiltinSemanticIds(settings?.templateDisabledBuiltinSemanticIds),
 			disabledDomainPackIds: normalizeTemplateDisabledBuiltinDomainPackIds(settings?.templateDisabledBuiltinDomainPackIds),
 			xAxisIntentPriority: normalizeTemplateXAxisIntentPriority(settings?.templateXAxisIntentPriority),
@@ -314,6 +317,7 @@ const createStructuredContentEvidence = (
 			neighborhoods: infoCellNeighborhoods,
 			titleSpans: baseColumnTitleSpans,
 		});
+		const selectedSemanticDomain = selectSemanticDomainForSlicing(columnTitleSpans);
 		const columnProfiles = createColumnProfiles({
 			columnCount: content.columnCount,
 			numericRuns,
@@ -330,6 +334,7 @@ const createStructuredContentEvidence = (
 			columnCount: content.columnCount,
 			numericRuns,
 			rows,
+			selectedSemanticDomainId: selectedSemanticDomain?.id,
 			xAxisIntentPriority: semanticMatcher.xAxisIntentPriority as readonly StructuredXAxisIntent[],
 			titleSpans: columnTitleSpans,
 		});
@@ -338,6 +343,7 @@ const createStructuredContentEvidence = (
 		const dataBlockCandidates = createDataBlockCandidates({
 			columnCount: content.columnCount,
 			rows,
+			selectedSemanticDomainId: selectedSemanticDomain?.id,
 			titleSpans: columnTitleSpans,
 			xGroupCandidates,
 			xRangeAnalyses,
@@ -477,6 +483,7 @@ const createColumnTitleSpanEvidence = ({
 			canonicalRole: match.canonicalRole,
 			...(match.canonicalUnit ? { canonicalUnit: match.canonicalUnit } : {}),
 			axisTendency: match.axisTendency,
+			semanticDomains: match.semanticDomains,
 			confidence: match.confidence,
 			reasons: match.reasons,
 		});
@@ -901,12 +908,14 @@ const createXRangeAnalyses = ({
 	columnCount,
 	numericRuns,
 	rows,
+	selectedSemanticDomainId,
 	xAxisIntentPriority,
 	titleSpans,
 }: {
 	readonly columnCount: number;
 	readonly numericRuns: readonly NumericRun[];
 	readonly rows: readonly (readonly string[])[];
+	readonly selectedSemanticDomainId?: string;
 	readonly xAxisIntentPriority: readonly StructuredXAxisIntent[];
 	readonly titleSpans: readonly StructuredColumnTitleSpanEvidence[];
 }): readonly XRangeAnalysis[] => {
@@ -914,13 +923,19 @@ const createXRangeAnalyses = ({
 	const drafts: XRangeDraft[] = [];
 	for (const run of numericRuns) {
 		const titleSpan = titleSpansByRun.get(getRunKey(run));
+		const effectiveTitleSpan = selectedSemanticDomainId
+			? createSemanticDomainTitleSpan(titleSpan, selectedSemanticDomainId, "x")
+			: titleSpan;
+		if (selectedSemanticDomainId && !effectiveTitleSpan) {
+			continue;
+		}
 		const pattern = analyzeNumericPattern(run.values);
 		const baseConfidence = scoreXRangeCandidate({
 			columnCount,
 			pattern,
 			rows,
 			run,
-			titleSpan,
+			titleSpan: effectiveTitleSpan,
 		});
 		if (baseConfidence < 0.45) {
 			continue;
@@ -928,10 +943,10 @@ const createXRangeAnalyses = ({
 
 		drafts.push({
 			baseConfidence,
-			intentSelection: selectXRangeIntent(titleSpan, xAxisIntentPriority),
+			intentSelection: selectXRangeIntent(effectiveTitleSpan, xAxisIntentPriority),
 			pattern,
 			run,
-			...(titleSpan ? { titleSpan } : {}),
+			...(effectiveTitleSpan ? { titleSpan: effectiveTitleSpan } : {}),
 		});
 	}
 
@@ -976,12 +991,68 @@ const createXRangeAnalyses = ({
 	);
 };
 
+type SelectedSemanticDomain = {
+	readonly id: string;
+	readonly title: string;
+	readonly priorityIndex: number;
+};
+
+const selectSemanticDomainForSlicing = (
+	titleSpans: readonly StructuredColumnTitleSpanEvidence[],
+): SelectedSemanticDomain | null => {
+	const domains = new Map<string, {
+		readonly id: string;
+		readonly title: string;
+		readonly priorityIndex: number;
+		hasX: boolean;
+		hasY: boolean;
+	}>();
+	for (const span of titleSpans) {
+		for (const domain of span.semanticDomains) {
+			let record = domains.get(domain.id);
+			if (!record) {
+				record = {
+					id: domain.id,
+					title: domain.title,
+					priorityIndex: domain.priorityIndex,
+					hasX: false,
+					hasY: false,
+				};
+				domains.set(domain.id, record);
+			}
+			if (domain.axisTendency === "x") {
+				record.hasX = true;
+			}
+			if (domain.axisTendency === "dependent") {
+				record.hasY = true;
+			}
+		}
+	}
+	return Array.from(domains.values())
+		.filter(domain => domain.hasX && domain.hasY)
+		.sort((left, right) => left.priorityIndex - right.priorityIndex)[0] ?? null;
+};
+
+const createSemanticDomainTitleSpan = (
+	titleSpan: StructuredColumnTitleSpanEvidence | undefined,
+	domainId: string,
+	axisTendency: StructuredAxisTendency,
+): StructuredColumnTitleSpanEvidence | undefined => {
+	const domain = titleSpan?.semanticDomains.find(domain =>
+		domain.id === domainId &&
+		domain.axisTendency === axisTendency
+	);
+	return domain && titleSpan
+		? { ...titleSpan, axisTendency }
+		: undefined;
+};
+
 const scoreXRangeCandidate = ({
-columnCount,
-pattern,
-rows,
-run,
-titleSpan,
+	columnCount,
+	pattern,
+	rows,
+	run,
+	titleSpan,
 }: {
 	readonly columnCount: number;
 	readonly pattern: NumericPatternAnalysis;
@@ -1174,12 +1245,14 @@ const createXGroupCandidates = (
 const createDataBlockCandidates = ({
 	columnCount,
 	rows,
+	selectedSemanticDomainId,
 	titleSpans,
 	xGroupCandidates,
 	xRangeAnalyses,
 }: {
 	readonly columnCount: number;
 	readonly rows: readonly (readonly string[])[];
+	readonly selectedSemanticDomainId?: string;
 	readonly titleSpans: readonly StructuredColumnTitleSpanEvidence[];
 	readonly xGroupCandidates: readonly StructuredXGroupCandidate[];
 	readonly xRangeAnalyses: readonly XRangeAnalysis[];
@@ -1194,6 +1267,7 @@ const createDataBlockCandidates = ({
 			columnCount,
 			direction: "right",
 			rows,
+			selectedSemanticDomainId,
 			titleSpansByColumn,
 			xRangeAnalyses: strongX,
 		});
@@ -1204,6 +1278,7 @@ const createDataBlockCandidates = ({
 				columnCount,
 				direction: "left",
 				rows,
+				selectedSemanticDomainId,
 				titleSpansByColumn,
 				xRangeAnalyses: strongX,
 			});
@@ -1264,6 +1339,7 @@ const scanDependentColumns = ({
 	columnCount,
 	direction,
 	rows,
+	selectedSemanticDomainId,
 	titleSpansByColumn,
 	xRangeAnalyses,
 }: {
@@ -1271,6 +1347,7 @@ const scanDependentColumns = ({
 	readonly columnCount: number;
 	readonly direction: "left" | "right";
 	readonly rows: readonly (readonly string[])[];
+	readonly selectedSemanticDomainId?: string;
 	readonly titleSpansByColumn: ReadonlyMap<number, StructuredColumnTitleSpanEvidence>;
 	readonly xRangeAnalyses: readonly XRangeAnalysis[];
 }): {
@@ -1295,6 +1372,7 @@ const scanDependentColumns = ({
 				column,
 				current: analysis,
 				rows,
+				selectedSemanticDomainId,
 				titleSpansByColumn,
 				xRangeAnalyses,
 			})
@@ -1304,6 +1382,12 @@ const scanDependentColumns = ({
 
 		const coverage = getNumericCoverage(rows, column, analysis.candidate.startRow, analysis.candidate.endRow);
 		if (coverage >= 0.6) {
+			if (selectedSemanticDomainId) {
+				const dependentTitleSpan = titleSpansByColumn.get(column);
+				if (!createSemanticDomainTitleSpan(dependentTitleSpan, selectedSemanticDomainId, "dependent")) {
+					continue;
+				}
+			}
 			dependentColumns.push(column);
 			continue;
 		}
@@ -1318,16 +1402,21 @@ const isIndependentXBoundary = ({
 	column,
 	current,
 	rows,
+	selectedSemanticDomainId,
 	titleSpansByColumn,
 	xRangeAnalyses,
 }: {
 	readonly column: number;
 	readonly current: XRangeAnalysis;
 	readonly rows: readonly (readonly string[])[];
+	readonly selectedSemanticDomainId?: string;
 	readonly titleSpansByColumn: ReadonlyMap<number, StructuredColumnTitleSpanEvidence>;
 	readonly xRangeAnalyses: readonly XRangeAnalysis[];
 }): boolean => {
 	const titleSpan = titleSpansByColumn.get(column);
+	if (selectedSemanticDomainId) {
+		return Boolean(createSemanticDomainTitleSpan(titleSpan, selectedSemanticDomainId, "x"));
+	}
 	if (titleSpan?.axisTendency === "x") {
 		return true;
 	}

@@ -84,6 +84,13 @@ section ordering, renderer-created section/header/body/list-item lifecycles,
 divider/body lifecycles, grouping metadata, item id, and optional item search
 metadata.
 
+When a settings section item has a display/edit interaction, model that state
+through the shared section-item edit option in `SettingsView`. The base section
+item owns the display-state cursor, role, focus, click, and keyboard activation;
+the feature owner still owns whether the item is in display or edit state and
+receives a typed edit intent callback. Do not hand-roll per-feature clickable
+wrappers around settings list items.
+
 Prefer modeling independently updateable regions as sibling `SettingsTree`
 entries with stable ids inside one section. This keeps the tree model update target aligned with the DOM unit being
 patched. The visual grouping must be explicit in `SettingsTree` item metadata
@@ -144,40 +151,46 @@ persistence details.
 
 ## Template Semantic Library UI
 
-The Template settings semantic-library section shows **match terms**. A match term
-is the user-facing token for text that DataResource/Review can match, plus the
-canonical semantic mapping that match should produce.
+The Template settings semantic-library section shows **domain rules**. A domain
+rule is a user-facing domain scope, such as `iv`, plus X and Y character blocks
+that DataResource can turn into axis evidence before Review builds binding
+candidates.
 
-Use "match term" / "term" in Settings UI labels, aria labels, tests, and local
-CSS for this surface. Do not call these blocks "aliases" in product text: the
-persisted settings and DataResource records may still carry `alias` field names,
-but that is storage/schema terminology, not the UI concept.
+The semantic-library surface is one `SettingsTreeSection` with a visible header:
+the title and description stay on the left, and header actions on the right live
+inside the section header actionbar container. Header actions belong to
+`SettingsTreeSection.headerActions`; do not model them as standalone settings
+list items or hand-written header buttons.
 
-The semantic-library surface is one `SettingsTreeSection` without a separate
-visible section header. Its first list entry renders the semantic-library title
-and description in the list item leading area. The first list entry's trailing
-area contains the active match-term editor, an explicit divider, and the
-recommended built-in default terms. Custom mapping controls belong to their own
-list item trailing area. `SettingsView` chooses each list item's leading/trailing orientation
-explicitly as horizontal or vertical when it creates the item cell. Each visible
-list entry has a stable item id and can be targeted by `SettingsController`
-without rerendering the other entries in the section.
+Each domain rule is a real settings list item with always-visible
+`InputBoxWidget` controls. New rules are prepended as draft items and must not
+replace existing draft or saved sibling items. The item leading area owns the
+domain-scope title widget; the item trailing area owns two vertical widgets for
+X and Y character-block tokens plus row actions. The title widget commits on
+blur or Enter. The X and Y widgets commit their own token changes on Enter,
+blur with pending text, or token removal. The X widget dedupes only its own
+tokens by normalized key, and the Y widget does the same for Y tokens; terms may
+appear in multiple domain rules. A rule is persisted only when the draft has a
+valid domain title plus at least one X and one Y character block. Each persisted
+save writes one `templateSemanticDomainRules` record with a stable rule id.
+
+Domain priority is a separate Template Library settings item backed by
+`templateSemanticDomainPriority`. It renders draggable domain blocks. When
+DataResource sees several complete domain matches in one data file, it chooses
+the highest-priority complete domain and uses that domain's X/Y evidence for
+slicing; incomplete higher-priority domains are skipped.
+
+`SettingsView` chooses each list item's leading/trailing orientation explicitly
+as horizontal or vertical when it creates the item cell. Each visible list entry
+has a stable item id and can be targeted by `SettingsController` without
+rerendering unrelated entries in the section.
 Semantic-library save or validation feedback belongs in notification/toast
 presentation, not as a `SettingsTree` item in the section.
 
-The active terms entry renders concrete terms in a dense `InputBox` and owns
-the editable native input for adding a match term. Disabled built-in terms
-should render as compact suggestion buttons in the active terms entry's default
-region, not inside a second input-like field or a separate visible list item.
-`SettingsView` creates a standard settings section item for this entry. Its
-leading area owns the label/description search text, and its trailing area owns
-stable `editor`, `divider`, and `default` regions so full-item and local patches
-reuse the same internal DOM. The active terms entry registers separate local
-patch item ids for its term list, editable input, and default suggestion list.
-Each term block or suggestion button is a concrete matching token, not a
-separate settings list item or state owner. Typing in the active terms input updates the
-semantic term draft, and user gestures still flow through `SettingsController`
-callbacks and then to `ISettingsService`.
+Each domain rule or priority block is a Settings UI value, not a separate state
+owner. Typing in draft item inputs updates the controller-owned semantic section
+item draft, and user gestures still flow through `SettingsController` callbacks
+and then to `ISettingsService`.
 
 ## Configuration vs Storage
 

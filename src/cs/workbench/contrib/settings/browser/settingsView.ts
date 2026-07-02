@@ -2,7 +2,7 @@ import { localize } from "src/cs/nls";
 import { addDisposableListener, append, EventType, reset } from "src/cs/base/browser/dom";
 import { createButton as createActionButton, updateButton as updateActionButton } from "src/cs/base/browser/ui/button/button";
 import { ActionViewItem } from "src/cs/base/browser/ui/actionbar/actionViewItem";
-import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
+import { createLxIcon, type LxIconDefinition } from "src/cs/base/browser/ui/lxicon/lxicon";
 import {
   MODAL_BODY_SCROLL_CLASS,
   createModalCloseActionBar,
@@ -21,11 +21,7 @@ import { Action, type IAction } from "src/cs/base/common/actions";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/services/settings/common/fileNameMatching";
-import type {
-  TemplateSemanticAxisTendency,
-  TemplateSemanticUnit,
-  TemplateXAxisIntent,
-} from "src/cs/workbench/services/settings/common/settings";
+import type { TemplateXAxisIntent } from "src/cs/workbench/services/settings/common/settings";
 import type {
   BuiltinSemanticDomainPack,
 } from "src/cs/workbench/services/dataResource/common/semanticLibrary";
@@ -172,41 +168,49 @@ type ChartDefaultSettings = {
 };
 
 type TemplateSettings = {
-  activeTerms: readonly TemplateActiveSemanticTerm[];
-  customTerms: readonly TemplateSemanticTerm[];
-  axisOptions: readonly SelectOption[];
-  builtinTerms: readonly TemplateBuiltinSemanticTerm[];
   builtinDomainPacks: readonly BuiltinSemanticDomainPack[];
   disabledDomainPackIds: readonly string[];
-  disabledBuiltinTermIds: readonly string[];
+  domainPriorityItems: readonly TemplateSemanticDomainPriorityItem[];
   isSaving: boolean;
-  onAddSemanticTerm: () => Promise<void> | void;
-  onDisableBuiltinTerm: (id: string) => Promise<void> | void;
+  onAddSemanticSectionItemTerm: (id: string, axis: TemplateSemanticAxis, value: string) => Promise<void> | void;
+  onCommitSemanticSectionItemTitle: (id: string) => Promise<void> | void;
+  onCreateSemanticSectionItem: () => Promise<void> | void;
   onDisableDomainPack: (id: string) => Promise<void> | void;
-  onEnableBuiltinTerm: (id: string) => Promise<void> | void;
   onEnableDomainPack: (id: string) => Promise<void> | void;
+  onMoveSemanticDomainPriority: (sourceId: string, targetId: string) => Promise<void> | void;
   onMoveXAxisIntent: (sourceIntent: TemplateXAxisIntent, targetIntent: TemplateXAxisIntent) => Promise<void> | void;
-  onRemoveSemanticTerm: (id: string) => Promise<void> | void;
+  onRemoveSemanticSectionItem: (id: string) => Promise<void> | void;
+  onRemoveSemanticSectionItemTerm: (id: string, axis: TemplateSemanticAxis, term: string) => Promise<void> | void;
+  onResetSemanticDomainRules: () => Promise<void> | void;
+  onUpdateSemanticSectionItemDraft: (id: string, field: TemplateSemanticSectionItemDraftField, value: string) => void;
   pendingActionItemId: string | null;
-  unitOptions: readonly SelectOption[];
+  semanticSectionItems: readonly TemplateSemanticSectionItem[];
   xAxisIntentPriority: readonly TemplateXAxisIntent[];
 };
 
-type TemplateActiveSemanticTerm =
-  | (TemplateSemanticTerm & { readonly source: "custom" })
-  | (TemplateBuiltinSemanticTerm & { readonly source: "builtin" });
+type TemplateSemanticAxis = "x" | "y";
+type SettingsSectionItemEditState = "display" | "edit";
+type TemplateSemanticSectionItemDraftField = "title" | "xDraft" | "yDraft";
 
-type TemplateSemanticTerm = {
-  readonly id: string;
-  readonly term: string;
-  readonly canonicalUnit?: TemplateSemanticUnit;
-  readonly axisTendency: TemplateSemanticAxisTendency;
-  readonly enabled: boolean;
+type TemplateSemanticSectionItem = {
+  readonly autoFocus?: boolean;
+  readonly id: SettingsContentItemId;
+  readonly isSaving: boolean;
+  readonly ruleId: string;
+  readonly source: "builtin" | "custom" | "draft";
+  readonly title: string;
+  readonly xDraft: string;
+  readonly xTerms: readonly string[];
+  readonly yDraft: string;
+  readonly yTerms: readonly string[];
 };
 
-type TemplateBuiltinSemanticTerm = Omit<TemplateSemanticTerm, "enabled"> & {
-  readonly canonicalRole: string;
-  readonly domainPackIds: readonly string[];
+type TemplateSemanticDomainPriorityItem = {
+  readonly id: string;
+  readonly source: "builtin" | "custom";
+  readonly title: string;
+  readonly xTerms: readonly string[];
+  readonly yTerms: readonly string[];
 };
 
 type SettingsViewProps = {
@@ -270,17 +274,11 @@ export type SettingsViewOptions = SettingsViewProps & {
   setOriginLegendFontSizeDraft: (value: string) => void;
   setPlotCommandDraft: (value: string) => void;
   setPostCommandsDraft: (value: string) => void;
-  setTemplateSemanticTermDraft: (value: string) => void;
-  setTemplateSemanticAxisDraft: (value: string) => void;
-  setTemplateSemanticUnitDraft: (value: string) => void;
   setTickLabelFontSizeDraft: (value: string) => void;
   setSearchQuery: (value: string) => void;
   setXyPairsDraft: (value: string) => void;
   settingsSections: readonly SettingsSectionDefinition[];
   themeModeOptions: SelectOption[];
-  templateSemanticTermDraft: string;
-  templateSemanticAxisDraft: TemplateSemanticAxisTendency;
-  templateSemanticUnitDraft: TemplateSemanticUnit | "";
   tickLabelFontSizeDraft: string;
   windowCloseBehaviorOptions: SelectOption[];
   xyPairsDraft: string;
@@ -311,12 +309,10 @@ export type SettingsContentItemId =
   | "settings-table-template-visualization-item"
   | "settings-filename-matching-item"
   | "settings-template-domain-packs-item"
+  | "settings-template-semantic-domain-priority-item"
   | "settings-template-x-axis-priority-item"
-  | "settings-template-semantic-active-terms-item"
-  | "settings-template-semantic-active-terms-list-item"
-  | "settings-template-semantic-active-terms-input-item"
-  | "settings-template-semantic-default-terms-list-item"
-  | "settings-template-semantic-custom-form-item"
+  | "settings-template-semantic-empty-item"
+  | `settings-template-semantic-section-item:${string}`
   | "settings-theme-item"
   | "settings-explorer-density-item"
   | "settings-explorer-badges-item"
@@ -379,11 +375,6 @@ type SettingsDocumentDialogOptions = {
   readonly markdown: string;
 };
 
-type TemplateSemanticCustomFormWidgets = {
-  readonly axisSelect: SelectBox<string>;
-  readonly unitSelect: SelectBox<string>;
-};
-
 type SettingsSectionItem<TRegion extends string = never> = {
   readonly element: HTMLElement;
   readonly leading: SettingsSectionItemLeading;
@@ -416,6 +407,12 @@ type LocalContentPatch = {
 
 type SettingsSectionItemOrientation = "horizontal" | "vertical";
 
+type SettingsSectionItemEditOptions = {
+  readonly ariaLabel?: string;
+  readonly onEdit?: () => Promise<void> | void;
+  readonly state: SettingsSectionItemEditState;
+};
+
 type SettingsTreeListItemOptions = {
   readonly id: SettingsContentItemId;
   readonly description?: string;
@@ -429,6 +426,7 @@ type SettingsTreeListItemOptions = {
 type SettingsSectionItemContentOptions = {
   readonly id: SettingsContentItemId;
   readonly description?: string;
+  readonly edit?: SettingsSectionItemEditOptions;
   readonly label: string;
   readonly orientation: SettingsSectionItemOrientation;
   readonly trailingContent: HTMLElement;
@@ -438,6 +436,7 @@ type SettingsSectionItemContentOptions = {
 type SettingsSectionItemRegionOptions<TRegion extends string> = {
   readonly id: SettingsContentItemId;
   readonly description?: string;
+  readonly edit?: SettingsSectionItemEditOptions;
   readonly label: string;
   readonly orientation: SettingsSectionItemOrientation;
   readonly trailingClassName: string;
@@ -449,6 +448,12 @@ type SettingsSectionItemOptions<TRegion extends string> =
   | SettingsSectionItemContentOptions
   | SettingsSectionItemRegionOptions<TRegion>;
 
+function hasSettingsSectionItemRegions<TRegion extends string>(
+  options: SettingsSectionItemOptions<TRegion>,
+): options is SettingsSectionItemRegionOptions<TRegion> {
+  return options.trailingRegions !== undefined;
+}
+
 export class SettingsView {
   private readonly descriptorDisposables = new Map<SettingsContentDescriptorId, DisposableStore>();
   private readonly descriptorItemIds = new Map<SettingsContentDescriptorId, Set<SettingsContentItemId>>();
@@ -457,10 +462,6 @@ export class SettingsView {
   private readonly itemDisposables = new Map<SettingsContentItemId, DisposableStore>();
   private readonly localContentPatches = new Map<SettingsContentItemId, LocalContentPatch>();
   private readonly treeItems = new Map<SettingsContentItemId, SettingsTreeItem>();
-  private readonly templateSemanticActiveTermFields = new WeakMap<HTMLElement, InputBoxWidget>();
-  private readonly templateSemanticCustomForms = new WeakMap<HTMLElement, TemplateSemanticCustomFormWidgets>();
-  private readonly templateSemanticRecommendedTermButtons = new WeakMap<HTMLElement, Map<string, HTMLButtonElement>>();
-  private readonly templateSemanticRecommendedTermEmptyMessages = new WeakMap<HTMLElement, HTMLElement>();
   private readonly root: HTMLElement;
   private readonly contentScroll = new Scrollbar({
     className: "settings-view-content-scroll",
@@ -808,6 +809,7 @@ export class SettingsView {
       `settings-list-item-cell settings-list-item-cell--${options.orientation}`,
     );
     const content = div("settings-list-item-content");
+    this.applySettingsSectionItemEditState(element, content, options);
     const labelElement = div(options.description ? "settings-list-item-leading settings-heading" : "settings-list-item-leading");
     const labelTitleElement = title(options.label);
     labelElement.appendChild(labelTitleElement);
@@ -818,7 +820,7 @@ export class SettingsView {
     }
     const trailingElement = div("settings-list-item-trailing");
     const regions = Object.create(null) as Record<TRegion, HTMLElement>;
-    if ("trailingRegions" in options) {
+    if (hasSettingsSectionItemRegions(options)) {
       trailingElement.classList.add(options.trailingClassName);
       for (const region of options.trailingRegions) {
         const regionElement = div(region.className);
@@ -846,6 +848,43 @@ export class SettingsView {
         regions,
       },
     };
+  }
+
+  private applySettingsSectionItemEditState<TRegion extends string>(
+    element: HTMLElement,
+    activationElement: HTMLElement,
+    options: SettingsSectionItemOptions<TRegion>,
+  ): void {
+    if (!options.edit) {
+      return;
+    }
+    element.classList.add("settings-list-item-cell--editable");
+    element.classList.add(`settings-list-item-cell--editable-${options.edit.state}`);
+    element.dataset.editState = options.edit.state;
+    activationElement.classList.add("settings-list-item-content--editable");
+    activationElement.classList.add(`settings-list-item-content--editable-${options.edit.state}`);
+    if (options.edit.state !== "display") {
+      return;
+    }
+    activationElement.tabIndex = 0;
+    activationElement.setAttribute("role", "button");
+    activationElement.setAttribute("aria-label", options.edit.ariaLabel ?? options.label);
+    element.addEventListener("click", event => {
+      if (isSettingsSectionItemEditActivationBlocked(event.target)) {
+        return;
+      }
+      void options.edit?.onEdit?.();
+    });
+    activationElement.addEventListener("keydown", event => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+      if (isSettingsSectionItemEditActivationBlocked(event.target)) {
+        return;
+      }
+      event.preventDefault();
+      void options.edit?.onEdit?.();
+    });
   }
 
   private createSettingsTreeElementItem(options: {
@@ -1188,6 +1227,11 @@ export class SettingsView {
       searchText: this.getTemplateDomainPacksSearchText(this.options.templateSettings),
     }));
     model.addItemToSection(section, this.createSettingsTreeElementItem({
+      id: "settings-template-semantic-domain-priority-item",
+      createElement: () => this.createTemplateSemanticDomainPriority(this.options.templateSettings),
+      searchText: this.getTemplateSemanticDomainPrioritySearchText(this.options.templateSettings),
+    }));
+    model.addItemToSection(section, this.createSettingsTreeElementItem({
       id: "settings-template-x-axis-priority-item",
       createElement: () => this.createXAxisIntentPriority(this.options.templateSettings),
       searchText: this.getTemplateXAxisIntentPrioritySearchText(this.options.templateSettings),
@@ -1199,19 +1243,46 @@ export class SettingsView {
     const groupId = "settings-template-semantic-library";
     const section = {
       id: "settings-template-semantic-library-section",
+      title: localize("settings.template.semantic.rulesTitle", "Rules"),
+      description: localize("settings.template.semantic.rulesDescription", "Define character blocks that become X and Y evidence before Review builds binding candidates."),
+      headerActions: [
+        {
+          id: "settings-template-semantic-reset-rules",
+          label: localize("settings.template.semantic.resetRules", "Reset"),
+          ariaLabel: localize("settings.template.semantic.resetRulesAria", "Reset built-in semantic rules"),
+          disabled: settings.isSaving,
+          icon: LxIcon.refresh,
+          run: () => {
+            void settings.onResetSemanticDomainRules();
+          },
+        },
+        {
+          id: "settings-template-semantic-new-rule",
+          label: localize("settings.template.semantic.newRule", "New"),
+          ariaLabel: localize("settings.template.semantic.newRuleAria", "Create template semantic rule"),
+          icon: LxIcon.add,
+          run: () => {
+            void settings.onCreateSemanticSectionItem();
+          },
+        },
+      ],
     };
-    model.addItemToSection(section, this.createSettingsTreeElementItem({
-      id: "settings-template-semantic-active-terms-item",
-      groupId,
-      createElement: () => this.createTemplateSemanticActiveTermsItem(settings),
-      searchText: this.getTemplateSemanticLibrarySearchText(settings),
-    }));
-    model.addItemToSection(section, this.createSettingsTreeElementItem({
-      id: "settings-template-semantic-custom-form-item",
-      groupId,
-      createElement: () => this.createTemplateSemanticCustomFormItem(settings),
-      searchText: this.getTemplateSemanticCustomFormSearchText(settings),
-    }));
+    if (!settings.semanticSectionItems.length) {
+      model.addItemToSection(section, this.createSettingsTreeElementItem({
+        id: "settings-template-semantic-empty-item",
+        groupId,
+        createElement: () => this.createTemplateSemanticEmptyItem(),
+        searchText: this.getTemplateSemanticLibrarySearchText(settings),
+      }));
+    }
+    for (const item of settings.semanticSectionItems) {
+      model.addItemToSection(section, this.createSettingsTreeElementItem({
+        id: item.id,
+        groupId,
+        createElement: () => this.createTemplateSemanticSectionItem(item, settings),
+        searchText: this.getTemplateSemanticSectionItemSearchText(item),
+      }));
+    }
   }
 
   private createTemplateDomainPacks(settings: TemplateSettings): HTMLElement {
@@ -1361,76 +1432,242 @@ export class SettingsView {
     return container;
   }
 
-  private createTemplateSemanticActiveTermsItem(settings: TemplateSettings): HTMLElement {
-    const item = this.createSettingsSectionItem<"editor" | "divider" | "default">({
-      id: "settings-template-semantic-active-terms-item",
+  private createTemplateSemanticDomainPriority(settings: TemplateSettings): HTMLElement {
+    const container = cell("settings-template-semantic-domain-priority-item", "settings-cell-block");
+    const titleText = localize("settings.template.domainPriority.title", "Semantic Domain Priority");
+    const description = localize("settings.template.domainPriority.description", "Drag domain blocks to choose which complete X/Y domain wins when a data file matches several domains.");
+    container.appendChild(headingBlock(titleText, description));
+
+    const list = div("settings-template-block-list");
+    for (const domain of settings.domainPriorityItems) {
+      const block = div("settings-template-block settings-template-block--domain");
+      block.draggable = !settings.isSaving;
+      block.dataset.domainId = domain.id;
+      block.tabIndex = 0;
+      const meta = [
+        domain.source,
+        `X ${domain.xTerms.length}`,
+        `Y ${domain.yTerms.length}`,
+      ].join(" / ");
+      block.append(
+        createLxIcon({ className: "settings-template-block-handle", icon: LxIcon.listUnordered, size: 14 }),
+        text("span", "settings-template-block-title", domain.title),
+        text("span", "settings-template-block-meta", meta),
+      );
+      block.addEventListener("dragstart", event => {
+        event.dataTransfer?.setData("application/x-conductor-template-domain", domain.id);
+      });
+      block.addEventListener("dragover", event => {
+        event.preventDefault();
+      });
+      block.addEventListener("drop", event => {
+        event.preventDefault();
+        const source = event.dataTransfer?.getData("application/x-conductor-template-domain");
+        if (source) {
+          void settings.onMoveSemanticDomainPriority(source, domain.id);
+        }
+      });
+      list.appendChild(block);
+    }
+
+    container.appendChild(list);
+    return container;
+  }
+
+  private createTemplateSemanticEmptyItem(): HTMLElement {
+    return this.createSettingsSectionItem({
+      id: "settings-template-semantic-empty-item",
       orientation: "vertical",
-      label: localize("settings.template.semantic.title", "Semantic Library"),
-      description: localize("settings.template.semantic.description", "Terms that can slice template automatically."),
-      trailingClassName: "settings-template-semantic-section",
+      label: localize("settings.template.semantic.noRulesTitle", "No Rules Yet"),
+      description: localize("settings.template.semantic.noRulesDescription", "Create rules to give DataResource X and Y evidence before Review evaluates bindings."),
+      trailingContent: div("settings-template-semantic-empty-spacer"),
+    }).element;
+  }
+
+  private createTemplateSemanticSectionItem(
+    semanticItem: TemplateSemanticSectionItem,
+    settings: TemplateSettings,
+  ): HTMLElement {
+    const item = this.createSettingsSectionItem<"x" | "y">({
+      id: semanticItem.id,
+      orientation: "vertical",
+      label: localize("settings.template.semantic.ruleItemTitle", "Domain scope"),
+      trailingClassName: "settings-template-semantic-rule-trailing",
       trailingRegions: [
-        { id: "editor", className: "settings-template-semantic-editor", kind: "content" },
-        { id: "divider", className: "settings-template-semantic-divider", kind: "divider" },
-        { id: "default", className: "settings-template-semantic-default", kind: "content" },
+        { id: "x", className: "settings-template-semantic-axis-field", kind: "content" },
+        { id: "y", className: "settings-template-semantic-axis-field", kind: "content" },
       ],
     });
-    this.updateTemplateSemanticLibrarySectionItem(item, settings);
-    this.registerLocalContentPatch("settings-template-semantic-active-terms-item", {
-      element: item.trailing.element,
-      getSearchText: () => this.getTemplateSemanticLibrarySearchText(this.options.templateSettings),
-      update: () => this.updateTemplateSemanticLibrarySectionItem(item, this.options.templateSettings),
+    item.element.classList.add("settings-template-semantic-rule-item");
+    const leadingInput = this.createTemplateSemanticSectionItemInput({
+      ariaLabel: localize("settings.template.semantic.leadingAria", "Domain scope"),
+      disabled: semanticItem.isSaving,
+      placeholder: localize("settings.template.semantic.leadingPlaceholder", "Domain scope, for example iv"),
+      readOnly: false,
+      value: semanticItem.title,
+      onAccept: () => {
+        void settings.onCommitSemanticSectionItemTitle(semanticItem.id);
+      },
+      onBlur: () => {
+        void settings.onCommitSemanticSectionItemTitle(semanticItem.id);
+      },
+      onChange: value => settings.onUpdateSemanticSectionItemDraft(semanticItem.id, "title", value),
     });
-    this.registerLocalContentPatch("settings-template-semantic-active-terms-list-item", {
-      element: item.trailing.regions.editor,
-      treeItemId: "settings-template-semantic-active-terms-item",
-      getSearchText: () => this.getTemplateSemanticLibrarySearchText(this.options.templateSettings),
-      update: () => this.updateTemplateSemanticActiveTermItems(item.trailing.regions.editor, this.options.templateSettings),
-    });
-    this.registerLocalContentPatch("settings-template-semantic-active-terms-input-item", {
-      element: item.trailing.regions.editor,
-      treeItemId: "settings-template-semantic-active-terms-item",
-      getSearchText: () => this.getTemplateSemanticLibrarySearchText(this.options.templateSettings),
-      update: () => this.updateTemplateSemanticActiveTermInput(item.trailing.regions.editor, this.options.templateSettings),
-    });
-    this.registerLocalContentPatch("settings-template-semantic-default-terms-list-item", {
-      element: item.trailing.regions.default,
-      treeItemId: "settings-template-semantic-active-terms-item",
-      getSearchText: () => this.getTemplateSemanticLibrarySearchText(this.options.templateSettings),
-      update: () => this.updateTemplateSemanticRecommendedTerms(item.trailing.regions.default, this.options.templateSettings),
-    });
+    item.leading.labelElement.replaceWith(leadingInput.element);
+    if (item.leading.descriptionElement) {
+      item.leading.descriptionElement.remove();
+    }
+    item.leading.element.classList.add("settings-template-semantic-rule-leading");
+
+    item.trailing.regions.x.appendChild(
+      this.createTemplateSemanticTermsInput({
+        axis: "x",
+        ariaLabel: localize("settings.template.semantic.xRepresentativeAria", "X axis representative character block"),
+        disabled: semanticItem.isSaving,
+        emptyLabel: localize("settings.template.semantic.noXTerms", "No X blocks"),
+        placeholder: localize("settings.template.semantic.xRepresentativePlaceholder", "X representative"),
+        readOnly: false,
+        terms: semanticItem.xTerms,
+        value: semanticItem.xDraft,
+        onAccept: value => settings.onAddSemanticSectionItemTerm(semanticItem.id, "x", value),
+        onChange: value => settings.onUpdateSemanticSectionItemDraft(semanticItem.id, "xDraft", value),
+        onRemoveTerm: term => settings.onRemoveSemanticSectionItemTerm(semanticItem.id, "x", term),
+      }).element,
+    );
+    item.trailing.regions.y.appendChild(
+      this.createTemplateSemanticTermsInput({
+        axis: "y",
+        ariaLabel: localize("settings.template.semantic.yRepresentativeAria", "Y axis representative character block"),
+        disabled: semanticItem.isSaving,
+        emptyLabel: localize("settings.template.semantic.noYTerms", "No Y blocks"),
+        placeholder: localize("settings.template.semantic.yRepresentativePlaceholder", "Y representative"),
+        readOnly: false,
+        terms: semanticItem.yTerms,
+        value: semanticItem.yDraft,
+        onAccept: value => settings.onAddSemanticSectionItemTerm(semanticItem.id, "y", value),
+        onChange: value => settings.onUpdateSemanticSectionItemDraft(semanticItem.id, "yDraft", value),
+        onRemoveTerm: term => settings.onRemoveSemanticSectionItemTerm(semanticItem.id, "y", term),
+      }).element,
+    );
+    item.trailing.element.appendChild(this.createTemplateSemanticSectionItemActions(semanticItem, settings));
+    if (semanticItem.autoFocus) {
+      queueMicrotask(() => leadingInput.focus());
+    }
     return item.element;
   }
 
-  private updateTemplateSemanticLibrarySectionItem(
-    item: SettingsSectionItem<"editor" | "divider" | "default">,
-    settings: TemplateSettings,
-  ): void {
-    this.updateTemplateSemanticActiveTerms(item.trailing.regions.editor, settings);
-    this.updateTemplateSemanticRecommendedTerms(item.trailing.regions.default, settings);
+  private createTemplateSemanticSectionItemInput(options: {
+    readonly ariaLabel: string;
+    readonly disabled: boolean;
+    readonly onAccept: () => void;
+    readonly onBlur: () => void;
+    readonly onChange: (value: string) => void;
+    readonly placeholder: string;
+    readonly readOnly: boolean;
+    readonly value: string;
+  }): InputBoxWidget {
+    const inputBox = this.registerContentDisposable(new InputBoxWidget({
+      ariaLabel: options.ariaLabel,
+      disabled: options.disabled,
+      placeholder: options.placeholder,
+      readOnly: options.readOnly,
+      value: options.value,
+    }));
+    inputBox.element.classList.add("settings-template-semantic-rule-input");
+    this.registerContentDisposable(inputBox.onDidChange(options.onChange));
+    this.registerContentDisposable(inputBox.onDidAccept(options.onAccept));
+    this.registerContentDisposable(inputBox.onDidBlur(options.onBlur));
+    return inputBox;
   }
 
-  private createTemplateSemanticCustomFormItem(settings: TemplateSettings): HTMLElement {
-    const container = div("settings-template-library-group settings-template-semantic-control");
-    this.updateTemplateSemanticCustomForm(container, settings);
-    this.registerLocalContentPatch("settings-template-semantic-custom-form-item", {
-      element: container,
-      getSearchText: () => this.getTemplateSemanticCustomFormSearchText(this.options.templateSettings),
-      update: () => this.updateTemplateSemanticCustomForm(container, this.options.templateSettings),
-    });
-    return this.createSettingsSectionItem({
-      id: "settings-template-semantic-custom-form-item",
-      orientation: "vertical",
-      label: localize("settings.template.semantic.customMappingTitle", "Custom term mapping"),
-      trailingContent: container,
-    }).element;
+  private createTemplateSemanticTermsInput(options: {
+    readonly ariaLabel: string;
+    readonly axis: TemplateSemanticAxis;
+    readonly disabled: boolean;
+    readonly emptyLabel: string;
+    readonly onAccept: (value: string) => void;
+    readonly onChange: (value: string) => void;
+    readonly onRemoveTerm: (term: string) => void;
+    readonly placeholder: string;
+    readonly readOnly: boolean;
+    readonly terms: readonly string[];
+    readonly value: string;
+  }): InputBoxWidget {
+    const items: IInputBoxWidgetItem[] = options.terms.map((term, index) => ({
+      id: `${options.axis}:${index}:${term}`,
+      label: term,
+      kind: options.axis,
+      ...(options.readOnly ? {} : {
+        action: {
+          ariaLabel: localize("settings.template.semantic.removeTerm", "Remove character block {term}", { term }),
+          icon: LxIcon.close,
+        },
+      }),
+    }));
+    const inputBox = this.registerContentDisposable(new InputBoxWidget({
+      ariaLabel: options.ariaLabel,
+      disabled: options.disabled,
+      emptyLabel: options.emptyLabel,
+      inputVisible: !options.readOnly,
+      items,
+      placeholder: options.placeholder,
+      value: options.value,
+    }));
+    inputBox.element.classList.add("settings-template-semantic-rule-input");
+    this.registerContentDisposable(inputBox.onDidChange(options.onChange));
+    this.registerContentDisposable(inputBox.onDidAccept(options.onAccept));
+    this.registerContentDisposable(inputBox.onDidBlur(() => {
+      options.onAccept(inputBox.value);
+    }));
+    this.registerContentDisposable(inputBox.onDidTriggerItemAction(event => {
+      options.onRemoveTerm(event.item.label);
+    }));
+    return inputBox;
+  }
+
+  private createTemplateSemanticSectionItemActions(
+    semanticItem: TemplateSemanticSectionItem,
+    settings: TemplateSettings,
+  ): HTMLElement {
+    const actions = div("settings-template-semantic-rule-actions");
+    if (semanticItem.source === "custom") {
+      const removeButton = this.createTemplateSemanticSectionItemActionButton({
+        ariaLabel: localize("settings.template.semantic.removeRule", "Remove domain rule {term}", { term: semanticItem.title }),
+        icon: LxIcon.close,
+        label: localize("settings.template.semantic.removeRuleLabel", "Remove"),
+        disabled: semanticItem.isSaving,
+      });
+      removeButton.addEventListener("click", () => {
+        void settings.onRemoveSemanticSectionItem(semanticItem.ruleId);
+      });
+      actions.appendChild(removeButton);
+    }
+    return actions;
+  }
+
+  private createTemplateSemanticSectionItemActionButton(options: {
+    readonly ariaLabel: string;
+    readonly disabled: boolean;
+    readonly icon: LxIconDefinition;
+    readonly label: string;
+  }): HTMLButtonElement {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "settings-template-semantic-rule-action";
+    button.disabled = options.disabled;
+    button.setAttribute("aria-label", options.ariaLabel);
+    button.append(
+      createLxIcon({ className: "settings-template-semantic-rule-action-icon", icon: options.icon, size: 14 }),
+      text("span", "settings-template-semantic-rule-action-label", options.label),
+    );
+    return button;
   }
 
   private getTemplateSemanticLibrarySearchText(settings: TemplateSettings): string {
     return normalizeSettingsSearchText(
-      localize("settings.template.semantic.title", "Semantic Library"),
-      localize("settings.template.semantic.description", "Terms that can slice template automatically."),
-      localize("settings.template.semantic.termInputPlaceholder", "Add match term"),
-      this.getTemplateSemanticRecommendedTermsSearchText(settings),
+      localize("settings.template.semantic.rulesTitle", "Rules"),
+      localize("settings.template.semantic.rulesDescription", "Define character blocks that become X and Y evidence before Review builds binding candidates."),
+      settings.semanticSectionItems.map(item => this.getTemplateSemanticSectionItemSearchText(item)).join(" "),
     );
   }
 
@@ -1450,263 +1687,21 @@ export class SettingsView {
     );
   }
 
-  private getTemplateSemanticRecommendedTermsSearchText(settings: TemplateSettings): string {
+  private getTemplateSemanticDomainPrioritySearchText(settings: TemplateSettings): string {
     return normalizeSettingsSearchText(
-      localize("settings.template.semantic.recommendedBuiltinTitle", "Recommended built-in match terms"),
-      settings.builtinTerms
-        .filter(term => settings.disabledBuiltinTermIds.includes(term.id))
-        .map(rule => `${rule.term} ${rule.canonicalRole} ${rule.axisTendency}`).join(" "),
+      localize("settings.template.domainPriority.title", "Semantic Domain Priority"),
+      localize("settings.template.domainPriority.description", "Drag domain blocks to choose which complete X/Y domain wins when a data file matches several domains."),
+      settings.domainPriorityItems.map(domain => `${domain.title} ${domain.source} ${domain.xTerms.join(" ")} ${domain.yTerms.join(" ")}`).join(" "),
     );
   }
 
-  private getTemplateSemanticCustomFormSearchText(settings: TemplateSettings): string {
+  private getTemplateSemanticSectionItemSearchText(item: TemplateSemanticSectionItem): string {
     return normalizeSettingsSearchText(
-      localize("settings.template.semantic.customMappingTitle", "Custom term mapping"),
-      optionLabels(settings.axisOptions),
-      optionLabels(settings.unitOptions),
+      item.title,
+      item.xTerms.join(" "),
+      item.yTerms.join(" "),
+      item.source,
     );
-  }
-
-  private updateTemplateSemanticCustomForm(container: HTMLElement, settings: TemplateSettings): void {
-    let widgets = this.templateSemanticCustomForms.get(container);
-    if (!widgets) {
-      reset(container);
-      const form = div("settings-template-semantic-form");
-      const grid = div("settings-grid settings-grid--two");
-      const axisSelect = this.createSelectWidget(this.getTemplateSemanticAxisSelectOptions(settings));
-      const unitSelect = this.createSelectWidget(this.getTemplateSemanticUnitSelectOptions(settings));
-      grid.append(
-        field(localize("settings.template.semantic.axisLabel", "Axis"), axisSelect.domNode),
-        field(localize("settings.template.semantic.unitLabel", "Unit"), unitSelect.domNode),
-      );
-      form.appendChild(grid);
-      container.appendChild(form);
-      widgets = {
-        axisSelect,
-        unitSelect,
-      };
-      this.templateSemanticCustomForms.set(container, widgets);
-    }
-
-    this.updateSelectWidget(widgets.axisSelect, this.getTemplateSemanticAxisSelectOptions(settings));
-    this.updateSelectWidget(widgets.unitSelect, this.getTemplateSemanticUnitSelectOptions(settings));
-  }
-
-  private getTemplateSemanticAxisSelectOptions(settings: TemplateSettings): FieldOptions {
-    return {
-      id: "settings-template-semantic-axis-select",
-      value: this.options.templateSemanticAxisDraft,
-      onChange: this.options.setTemplateSemanticAxisDraft,
-      options: settings.axisOptions,
-      disabled: settings.isSaving,
-    };
-  }
-
-  private getTemplateSemanticUnitSelectOptions(settings: TemplateSettings): FieldOptions {
-    return {
-      id: "settings-template-semantic-unit-select",
-      value: this.options.templateSemanticUnitDraft,
-      onChange: this.options.setTemplateSemanticUnitDraft,
-      options: settings.unitOptions,
-      disabled: settings.isSaving,
-    };
-  }
-
-  private updateTemplateSemanticActiveTerms(container: HTMLElement, settings: TemplateSettings): void {
-    const title = localize("settings.template.semantic.activeTitle", "Active match terms");
-    this.getTemplateSemanticActiveTermsInputBox(container).update({
-      ariaLabel: title,
-      inputVisible: true,
-      items: this.createTemplateSemanticActiveTermItems(settings),
-      placeholder: localize("settings.template.semantic.termInputPlaceholder", "Add match term"),
-      readOnly: false,
-      value: this.options.templateSemanticTermDraft,
-    });
-  }
-
-  private updateTemplateSemanticActiveTermItems(container: HTMLElement, settings: TemplateSettings): void {
-    this.getTemplateSemanticActiveTermsInputBox(container).update({
-      items: this.createTemplateSemanticActiveTermItems(settings),
-    });
-  }
-
-  private updateTemplateSemanticActiveTermInput(container: HTMLElement, settings: TemplateSettings): void {
-    this.getTemplateSemanticActiveTermsInputBox(container).update({
-      ariaLabel: localize("settings.template.semantic.activeTitle", "Active match terms"),
-      inputVisible: true,
-      placeholder: localize("settings.template.semantic.termInputPlaceholder", "Add match term"),
-      readOnly: false,
-      value: this.options.templateSemanticTermDraft,
-    });
-  }
-
-  private getTemplateSemanticActiveTermsInputBox(container: HTMLElement): InputBoxWidget {
-    let inputBox = this.templateSemanticActiveTermFields.get(container);
-    if (inputBox) {
-      return inputBox;
-    }
-
-    reset(container);
-    inputBox = this.registerContentDisposable(new InputBoxWidget());
-    inputBox.element.classList.add("settings-template-term-inputbox");
-    this.registerContentDisposable(inputBox.onDidChange(value => {
-      this.options.setTemplateSemanticTermDraft(value);
-    }));
-    this.registerContentDisposable(inputBox.onDidAccept(() => {
-      void this.options.templateSettings.onAddSemanticTerm();
-    }));
-    this.registerContentDisposable(inputBox.onDidTriggerItemAction(({ item }) => {
-      if (item.kind === "builtin-enabled") {
-        void this.options.templateSettings.onDisableBuiltinTerm(item.id);
-        return;
-      }
-      if (item.kind === "custom") {
-        void this.options.templateSettings.onRemoveSemanticTerm(item.id);
-      }
-    }));
-    container.appendChild(inputBox.element);
-    this.templateSemanticActiveTermFields.set(container, inputBox);
-    return inputBox;
-  }
-
-  private createTemplateSemanticActiveTermItems(settings: TemplateSettings): readonly IInputBoxWidgetItem[] {
-    return settings.activeTerms.map(term => term.source === "builtin"
-      ? this.createBuiltinSemanticTermItem(settings, term)
-      : this.createCustomSemanticTermItem(settings, term));
-  }
-
-  private updateTemplateSemanticRecommendedTerms(container: HTMLElement, settings: TemplateSettings): void {
-    let list = container.querySelector<HTMLElement>(".settings-template-term-suggestions");
-    if (!list) {
-      reset(container);
-      list = div("settings-template-term-suggestions");
-      container.appendChild(list);
-    }
-
-    let buttons = this.templateSemanticRecommendedTermButtons.get(list);
-    if (!buttons) {
-      buttons = new Map();
-      this.templateSemanticRecommendedTermButtons.set(list, buttons);
-    }
-
-    const disabledTermIds = new Set(settings.disabledBuiltinTermIds);
-    const disabledTerms = settings.builtinTerms.filter(term => disabledTermIds.has(term.id));
-    if (disabledTerms.length === 0) {
-      for (const button of buttons.values()) {
-        button.remove();
-      }
-      buttons.clear();
-      let empty = this.templateSemanticRecommendedTermEmptyMessages.get(list);
-      if (!empty) {
-        empty = text(
-          "p",
-          "settings-template-empty",
-          localize("settings.template.semantic.noDisabledBuiltin", "No recommended built-in match terms."),
-        );
-        this.templateSemanticRecommendedTermEmptyMessages.set(list, empty);
-        list.appendChild(empty);
-      }
-      return;
-    }
-
-    this.templateSemanticRecommendedTermEmptyMessages.get(list)?.remove();
-    this.templateSemanticRecommendedTermEmptyMessages.delete(list);
-    const nextIds = new Set<string>();
-    for (const term of disabledTerms) {
-      nextIds.add(term.id);
-      let button = buttons.get(term.id);
-      if (!button) {
-        button = this.createBuiltinSemanticTermSuggestion(settings, term);
-        buttons.set(term.id, button);
-      }
-      this.updateBuiltinSemanticTermSuggestion(button, settings, term);
-    }
-    for (const [id, button] of Array.from(buttons)) {
-      if (nextIds.has(id)) {
-        continue;
-      }
-      button.remove();
-      buttons.delete(id);
-    }
-
-    let referenceNode: ChildNode | null = null;
-    for (let index = disabledTerms.length - 1; index >= 0; index--) {
-      const term = disabledTerms[index]!;
-      const button = buttons.get(term.id)!;
-      if (button.parentElement !== list || button.nextSibling !== referenceNode) {
-        list.insertBefore(button, referenceNode);
-      }
-      referenceNode = button;
-    }
-  }
-
-  private createBuiltinSemanticTermSuggestion(
-    settings: TemplateSettings,
-    semanticTerm: TemplateBuiltinSemanticTerm,
-  ): HTMLButtonElement {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "settings-template-term-suggestion";
-    button.disabled = settings.pendingActionItemId === semanticTerm.id;
-    button.title = localize("settings.template.semantic.enableBuiltinTitle", "Enable this built-in match term for Review");
-    button.setAttribute(
-      "aria-label",
-      localize("settings.template.semantic.enableBuiltin", "Enable built-in match term {term}", { term: semanticTerm.term }),
-    );
-    button.append(
-      createLxIcon({ className: "settings-template-term-suggestion-icon", icon: LxIcon.add, size: 14 }),
-      text("span", "settings-template-term-suggestion-label", semanticTerm.term),
-    );
-    button.addEventListener("click", () => {
-      void this.options.templateSettings.onEnableBuiltinTerm(semanticTerm.id);
-    });
-    return button;
-  }
-
-  private updateBuiltinSemanticTermSuggestion(
-    button: HTMLButtonElement,
-    settings: TemplateSettings,
-    semanticTerm: TemplateBuiltinSemanticTerm,
-  ): void {
-    button.disabled = settings.pendingActionItemId === semanticTerm.id;
-    button.title = localize("settings.template.semantic.enableBuiltinTitle", "Enable this built-in match term for Review");
-    button.setAttribute(
-      "aria-label",
-      localize("settings.template.semantic.enableBuiltin", "Enable built-in match term {term}", { term: semanticTerm.term }),
-    );
-    const label = button.querySelector<HTMLElement>(".settings-template-term-suggestion-label");
-    if (label && label.textContent !== semanticTerm.term) {
-      label.textContent = semanticTerm.term;
-    }
-  }
-
-  private createBuiltinSemanticTermItem(
-    settings: TemplateSettings,
-    semanticTerm: TemplateBuiltinSemanticTerm,
-  ): IInputBoxWidgetItem {
-    return {
-      id: semanticTerm.id,
-      label: semanticTerm.term,
-      kind: "builtin-enabled",
-      action: {
-        ariaLabel: localize("settings.template.semantic.disableBuiltin", "Disable built-in match term {term}", { term: semanticTerm.term }),
-        icon: LxIcon.close,
-      },
-      disabled: settings.pendingActionItemId === semanticTerm.id,
-    };
-  }
-
-  private createCustomSemanticTermItem(settings: TemplateSettings, semanticTerm: TemplateSemanticTerm): IInputBoxWidgetItem {
-    return {
-      id: semanticTerm.id,
-      label: semanticTerm.term,
-      kind: "custom",
-      action: {
-        ariaLabel: localize("settings.template.semantic.removeTerm", "Remove match term {term}", { term: semanticTerm.term }),
-        icon: LxIcon.close,
-      },
-      disabled: settings.pendingActionItemId === semanticTerm.id,
-    };
   }
 
   private addAppearanceSettingsTreeElements(model: SettingsTreeModel): void {
@@ -3091,6 +3086,20 @@ function label(value: string): HTMLElement {
   return text("p", "settings-label", value);
 }
 
+function isSettingsSectionItemEditActivationBlocked(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  const interactiveElement = target.closest("a,button,input,select,textarea");
+  if (!interactiveElement) {
+    return false;
+  }
+  if (interactiveElement instanceof HTMLInputElement && (interactiveElement.readOnly || interactiveElement.disabled)) {
+    return false;
+  }
+  return true;
+}
+
 function text<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, value: string): HTMLElementTagNameMap[K] {
   const element = document.createElement(tag);
   element.className = className;
@@ -3105,13 +3114,6 @@ function isTemplateXAxisIntent(value: unknown): value is TemplateXAxisIntent {
     value === "cvCurve" ||
     value === "frequencySweep" ||
     value === "genericXY";
-}
-
-function getTemplateSemanticTermSearchText(term: TemplateActiveSemanticTerm): string {
-  if (term.source === "builtin") {
-    return `${term.term} ${term.canonicalRole} ${term.axisTendency}`;
-  }
-  return `${term.term} ${term.axisTendency}`;
 }
 
 function formatXAxisIntent(intent: TemplateXAxisIntent): string {
