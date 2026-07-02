@@ -6,7 +6,6 @@ import {
 } from "src/cs/base/browser/ui/inputbox/inputBox";
 import { InputBoxWidget } from "src/cs/base/browser/ui/inputbox/inputBoxWidget";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
-import { LxIcon } from "src/cs/base/common/lxicon";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/test/browser/inputBox", () => {
@@ -49,10 +48,8 @@ suite("workbench/test/browser/inputBox", () => {
         {
           id: "custom-term",
           label: "Custom Term",
-          action: {
-            ariaLabel: "Remove match term Custom Term",
-            icon: LxIcon.close,
-          },
+          removable: true,
+          removeAriaLabel: "Remove match term Custom Term",
         },
       ],
       placeholder: "Add match term",

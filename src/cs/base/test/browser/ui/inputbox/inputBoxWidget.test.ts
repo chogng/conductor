@@ -133,6 +133,33 @@ suite("base/browser/ui/inputbox/InputBoxWidget", () => {
     }
   });
 
+  test("renders removable items with a close action and remove event", () => {
+    const inputBox = new InputBoxWidget({
+      items: [
+        createRemovableItem("alpha", "Alpha"),
+      ],
+    });
+    document.body.appendChild(inputBox.element);
+
+    try {
+      const alpha = getItem(inputBox, "alpha");
+      const action = getItemAction(alpha);
+      let removedItemLabel = "";
+      const removeDisposable = inputBox.onDidRemoveItem(({ item }) => {
+        removedItemLabel = item.label;
+      });
+
+      assert.equal(action.getAttribute("aria-label"), "Remove token Alpha");
+      action.click();
+      assert.equal(removedItemLabel, "Alpha");
+
+      removeDisposable.dispose();
+    }
+    finally {
+      inputBox.dispose();
+    }
+  });
+
   test("emits dropped item source and target", () => {
     const inputBox = new InputBoxWidget({
       items: [
@@ -181,6 +208,15 @@ function createDraggableItem(id: string, label: string) {
     id,
     label,
     draggable: true,
+  };
+}
+
+function createRemovableItem(id: string, label: string) {
+  return {
+    id,
+    label,
+    removable: true,
+    removeAriaLabel: `Remove token ${label}`,
   };
 }
 

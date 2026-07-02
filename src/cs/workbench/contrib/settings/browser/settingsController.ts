@@ -521,6 +521,7 @@ export class SettingsController {
       onCommitSemanticSectionItemTitle: id => this.commitTemplateSemanticSectionItemTitle(id),
       onCreateSemanticSectionItem: () => this.createTemplateSemanticSectionItem(),
       onMoveSemanticDomainPriority: (sourceId, targetId) => this.moveTemplateSemanticDomainPriority(sourceId, targetId),
+      onRemoveSemanticDomainPriorityItem: (id, source) => this.removeTemplateSemanticDomainPriorityItem(id, source),
       onRemoveSemanticSectionItem: id => this.removeTemplateSemanticSectionItem(id),
       onRemoveSemanticSectionItemTerm: (id, axis, term) => this.removeTemplateSemanticSectionItemTerm(id, axis, term),
       onResetSemanticDomainRules: () => this.resetTemplateSemanticDomainRules(),
@@ -1345,6 +1346,13 @@ export class SettingsController {
         .filter(ruleId => ruleId !== customRule.id),
       templateSemanticDomainRules: customRules,
     }, localize("settings.template.semantic.saved", "Template semantic library updated."), partialSettingsUpdateTarget(["template-semantic-library", "template-domain-priority"], []), itemId);
+  }
+
+  private async removeTemplateSemanticDomainPriorityItem(
+    id: string,
+    source: "builtin" | "custom",
+  ): Promise<void> {
+    await this.removeTemplateSemanticSectionItem(createTemplateSemanticSectionItemId(source, id));
   }
 
   private async hideBuiltinTemplateSemanticSectionItem(

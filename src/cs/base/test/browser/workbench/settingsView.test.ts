@@ -641,10 +641,14 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
         yTerms: ["Cp"],
       },
     ];
+    const removedPriorityItems: string[] = [];
     const view = new SettingsView(container, createSettingsViewOptions({
       activeSettingsSection: "template",
       templateSettings: {
         domainPriorityItems: domainPriorityItems.slice(0, 2),
+        onRemoveSemanticDomainPriorityItem: (id, source) => {
+          removedPriorityItems.push(`${source}:${id}`);
+        },
       },
     }));
 
@@ -655,11 +659,20 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.ok(priorityItem.closest(".settings-list-item"));
       assert.equal(priorityItem.closest(".settings-section")?.id, "settings-template-domain-priority-section");
       const priorityLabels = getInputBoxItemLabels(priorityItem);
+      getInputBoxItemAction(priorityItem, "Remove domain iv").click();
+      getInputBoxItemAction(priorityItem, "Remove domain cv").click();
+      assert.deepEqual(removedPriorityItems, [
+        "custom:domain-iv",
+        "builtin:domain-cv",
+      ]);
 
       view.update(createSettingsViewOptions({
         activeSettingsSection: "template",
         templateSettings: {
           domainPriorityItems: domainPriorityItems.slice(1),
+          onRemoveSemanticDomainPriorityItem: (id, source) => {
+            removedPriorityItems.push(`${source}:${id}`);
+          },
         },
       }), {
         type: "partial",
@@ -810,6 +823,12 @@ function getSemanticRuleSourceText(container: HTMLElement): string {
 function getInputBoxItemLabels(container: HTMLElement): string[] {
   return Array.from(container.querySelectorAll<HTMLElement>(".inputbox_widget_item_label"))
     .map(label => label.textContent ?? "");
+}
+
+function getInputBoxItemAction(container: HTMLElement, ariaLabel: string): HTMLButtonElement {
+  const button = container.querySelector<HTMLButtonElement>(`.inputbox_widget_item_action[aria-label="${ariaLabel}"]`);
+  assert.ok(button, `Expected input box item action ${ariaLabel}.`);
+  return button;
 }
 
 function getSelectLabel(button: HTMLButtonElement): string {
@@ -968,6 +987,7 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
       onCommitSemanticSectionItemTitle: noop,
       onCreateSemanticSectionItem: noop,
       onMoveSemanticDomainPriority: noop,
+      onRemoveSemanticDomainPriorityItem: noop,
       onRemoveSemanticSectionItem: noop,
       onRemoveSemanticSectionItemTerm: noop,
       onResetSemanticDomainRules: noop,

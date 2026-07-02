@@ -170,6 +170,7 @@ type TemplateSettings = {
   onCommitSemanticSectionItemTitle: (id: string) => Promise<void> | void;
   onCreateSemanticSectionItem: () => Promise<void> | void;
   onMoveSemanticDomainPriority: (sourceId: string, targetId: string) => Promise<void> | void;
+  onRemoveSemanticDomainPriorityItem: (id: string, source: TemplateSemanticDomainPriorityItem["source"]) => Promise<void> | void;
   onRemoveSemanticSectionItem: (id: string) => Promise<void> | void;
   onRemoveSemanticSectionItemTerm: (id: string, axis: TemplateSemanticAxis, term: string) => Promise<void> | void;
   onResetSemanticDomainRules: () => Promise<void> | void;
@@ -1264,6 +1265,8 @@ export class SettingsView {
       label: domain.title,
       draggable: !settings.isSaving,
       kind: domain.source,
+      removable: true,
+      removeAriaLabel: localize("settings.template.domainPriority.remove", "Remove domain {title}", { title: domain.title }),
     }));
     const inputBox = this.registerContentDisposable(new InputBoxWidget({
       ariaLabel: titleText,
@@ -1274,6 +1277,13 @@ export class SettingsView {
     }));
     this.registerContentDisposable(inputBox.onDidDropItem(event => {
       void settings.onMoveSemanticDomainPriority(event.sourceItem.id, event.targetItem.id);
+    }));
+    this.registerContentDisposable(inputBox.onDidRemoveItem(event => {
+      const domain = settings.domainPriorityItems.find(domain => domain.id === event.item.id);
+      if (!domain) {
+        return;
+      }
+      void settings.onRemoveSemanticDomainPriorityItem(domain.id, domain.source);
     }));
     return inputBox.element;
   }
@@ -1420,10 +1430,8 @@ export class SettingsView {
       label: term,
       kind: options.axis,
       ...(options.readOnly ? {} : {
-        action: {
-          ariaLabel: localize("settings.template.semantic.removeTerm", "Remove character block {term}", { term }),
-          icon: LxIcon.close,
-        },
+        removable: true,
+        removeAriaLabel: localize("settings.template.semantic.removeTerm", "Remove character block {term}", { term }),
       }),
     }));
     const inputBox = this.registerContentDisposable(new InputBoxWidget({
@@ -1451,7 +1459,7 @@ export class SettingsView {
       }
       options.onAccept(inputBox.value);
     }));
-    this.registerContentDisposable(inputBox.onDidTriggerItemAction(event => {
+    this.registerContentDisposable(inputBox.onDidRemoveItem(event => {
       options.onRemoveTerm(event.item.label);
     }));
     return inputBox;

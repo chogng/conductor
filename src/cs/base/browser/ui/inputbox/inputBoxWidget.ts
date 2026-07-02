@@ -3,6 +3,7 @@ import { createInputBox, type IMessage, type InputBox, type InputBoxOptions } fr
 import { createLxIcon, type LxIconDefinition } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
+import { LxIcon } from "src/cs/base/common/lxicon";
 
 import "src/cs/base/browser/ui/inputbox/inputBoxWidget.css";
 
@@ -11,17 +12,34 @@ export type InputBoxWidgetItemAction = {
   readonly icon: LxIconDefinition;
 };
 
-export type IInputBoxWidgetItem = {
+type InputBoxWidgetItemBase = {
   readonly id: string;
   readonly label: string;
-  readonly action?: InputBoxWidgetItemAction;
   readonly ariaLabel?: string;
   readonly disabled?: boolean;
   readonly draggable?: boolean;
   readonly kind?: string;
 };
 
+export type IInputBoxWidgetItem = InputBoxWidgetItemBase & (
+  | {
+    readonly action?: InputBoxWidgetItemAction;
+    readonly removable?: false;
+    readonly removeAriaLabel?: never;
+  }
+  | {
+    readonly action?: never;
+    readonly removable: true;
+    readonly removeAriaLabel: string;
+  }
+);
+
 export type IInputBoxWidgetItemActionEvent = {
+  readonly browserEvent: MouseEvent;
+  readonly item: IInputBoxWidgetItem;
+};
+
+export type IInputBoxWidgetItemRemoveEvent = {
   readonly browserEvent: MouseEvent;
   readonly item: IInputBoxWidgetItem;
 };
@@ -78,6 +96,9 @@ export class InputBoxWidget extends Disposable {
 
   private readonly onDidTriggerItemActionEmitter = this._register(new Emitter<IInputBoxWidgetItemActionEvent>());
   public readonly onDidTriggerItemAction: Event<IInputBoxWidgetItemActionEvent> = this.onDidTriggerItemActionEmitter.event;
+
+  private readonly onDidRemoveItemEmitter = this._register(new Emitter<IInputBoxWidgetItemRemoveEvent>());
+  public readonly onDidRemoveItem: Event<IInputBoxWidgetItemRemoveEvent> = this.onDidRemoveItemEmitter.event;
 
   private readonly onDidDropItemEmitter = this._register(new Emitter<IInputBoxWidgetItemDropEvent>());
   public readonly onDidDropItem: Event<IInputBoxWidgetItemDropEvent> = this.onDidDropItemEmitter.event;
@@ -301,8 +322,9 @@ export class InputBoxWidget extends Disposable {
     if (label.textContent !== item.label) {
       label.textContent = item.label;
     }
-    if (item.action) {
-      this.updateItemActionButton(element, item);
+    const itemAction = getInputBoxWidgetItemAction(item);
+    if (itemAction) {
+      this.updateItemActionButton(element, item, itemAction);
       return;
     }
 
@@ -316,14 +338,24 @@ export class InputBoxWidget extends Disposable {
     return id ? this.itemById.get(id) : undefined;
   }
 
-  private updateItemActionButton(element: HTMLElement, item: IInputBoxWidgetItem): void {
+  private updateItemActionButton(
+    element: HTMLElement,
+    item: IInputBoxWidgetItem,
+    action: InputBoxWidgetItemAction,
+  ): void {
     let actionButton = this.itemActionButtons.get(item.id);
     if (!actionButton) {
       actionButton = document.createElement("button");
       actionButton.type = "button";
       actionButton.addEventListener("click", event => {
         const currentItem = this.itemById.get(item.id);
-        if (currentItem) {
+        if (!currentItem) {
+          return;
+        }
+        if (currentItem.removable === true) {
+          this.onDidRemoveItemEmitter.fire({ browserEvent: event, item: currentItem });
+        }
+        else {
           this.onDidTriggerItemActionEmitter.fire({ browserEvent: event, item: currentItem });
         }
       });
@@ -336,14 +368,14 @@ export class InputBoxWidget extends Disposable {
     if (actionButton.disabled !== disabled) {
       actionButton.disabled = disabled;
     }
-    setOptionalAttribute(actionButton, "aria-label", item.action!.ariaLabel);
-    if (this.itemActionIcons.get(item.id) !== item.action!.icon) {
+    setOptionalAttribute(actionButton, "aria-label", action.ariaLabel);
+    if (this.itemActionIcons.get(item.id) !== action.icon) {
       actionButton.replaceChildren(createLxIcon({
         className: "inputbox_widget_item_action_icon",
-        icon: item.action!.icon,
+        icon: action.icon,
         size: 14,
       }));
-      this.itemActionIcons.set(item.id, item.action!.icon);
+      this.itemActionIcons.set(item.id, action.icon);
     }
   }
 
@@ -399,7 +431,9 @@ const inputBoxWidgetItemsEqual = (
   normalizeOptionalString(current.ariaLabel) === normalizeOptionalString(next.ariaLabel) &&
   (current.disabled === true) === (next.disabled === true) &&
   (current.draggable === true) === (next.draggable === true) &&
+  (current.removable === true) === (next.removable === true) &&
   normalizeOptionalString(current.kind) === normalizeOptionalString(next.kind) &&
+  normalizeOptionalString(current.removeAriaLabel) === normalizeOptionalString(next.removeAriaLabel) &&
   inputBoxWidgetItemActionsEqual(current.action, next.action);
 
 const inputBoxWidgetItemActionsEqual = (
@@ -415,6 +449,19 @@ const inputBoxWidgetItemActionsEqual = (
 
 const normalizeOptionalString = (value: string | undefined): string | undefined =>
   value || undefined;
+
+const getInputBoxWidgetItemAction = (item: IInputBoxWidgetItem): InputBoxWidgetItemAction | undefined => {
+  if (item.action) {
+    return item.action;
+  }
+  if (item.removable === true) {
+    return {
+      ariaLabel: item.removeAriaLabel,
+      icon: LxIcon.close,
+    };
+  }
+  return undefined;
+};
 
 const setClassName = (element: HTMLElement, className: string): void => {
   if (element.className !== className) {
