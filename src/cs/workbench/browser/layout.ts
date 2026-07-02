@@ -64,6 +64,8 @@ const measureLayoutBoot = <T>(stage: string, run: () => T): T => {
 export const MAIN_MIN_WIDTH_PX = 220;
 export const TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX = 240;
 const LAYOUT_TRANSITION_DURATION_MS = 300;
+const SIDEBAR_TRANSITION_CLASS = "workbench_layout_split--animate-sidebar";
+const AUXILIARY_BAR_TRANSITION_CLASS = "workbench_layout_split--animate-auxiliarybar";
 
 type SidebarPaneContainerInput = Parameters<SidebarPart["updatePaneContainer"]>[0];
 type AuxiliaryBarPaneContainerInput = Parameters<AuxiliaryBarPart["updatePaneContainer"]>[0];
@@ -364,9 +366,9 @@ export class Layout extends Disposable {
         splitClassNames.push("workbench_layout_split--with-auxiliarybar");
       }
       if (this.layoutTransitionPart === Parts.SIDEBAR_PART) {
-        splitClassNames.push("workbench_layout_split--animate-sidebar");
+        splitClassNames.push(SIDEBAR_TRANSITION_CLASS);
       } else if (this.layoutTransitionPart === Parts.AUXILIARYBAR_PART) {
-        splitClassNames.push("workbench_layout_split--animate-auxiliarybar");
+        splitClassNames.push(AUXILIARY_BAR_TRANSITION_CLASS);
       }
       return splitClassNames.join(" ");
     });
@@ -508,7 +510,7 @@ export class Layout extends Disposable {
       }
 
       this.layoutTransitionPart = null;
-      this.render();
+      this.clearLayoutTransitionClasses();
     }, LAYOUT_TRANSITION_DURATION_MS);
   }
 
@@ -518,6 +520,14 @@ export class Layout extends Disposable {
       this.layoutTransitionTimer = null;
     }
     this.layoutTransitionPart = null;
+    this.clearLayoutTransitionClasses();
+  }
+
+  private clearLayoutTransitionClasses(): void {
+    this.splitView.current?.element.classList.remove(
+      SIDEBAR_TRANSITION_CLASS,
+      AUXILIARY_BAR_TRANSITION_CLASS,
+    );
   }
 
   private updateLayoutService(): void {

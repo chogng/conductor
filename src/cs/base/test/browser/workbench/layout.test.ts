@@ -40,11 +40,22 @@ class TestStorageService extends AbstractStorageService {
   }
 }
 
+class RecordingLayout extends Layout {
+  public renderCount = 0;
+
+  protected override onDidRenderLayout(): void {
+    this.renderCount += 1;
+  }
+}
+
 const createPart = (id: string): HTMLElement => {
   const element = document.createElement("div");
   element.id = id;
   return element;
 };
+
+const timeout = (durationMs: number): Promise<void> =>
+  new Promise(resolve => setTimeout(resolve, durationMs));
 
 suite("workbench/browser/layout", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
@@ -254,6 +265,11 @@ suite("workbench/browser/layout", () => {
       layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
 
       assert.equal(
+        layout.element.querySelector<HTMLElement>(".workbench_layout_split")
+          ?.classList.contains("workbench_layout_split--animate-sidebar"),
+        true,
+      );
+      assert.equal(
         layout.element.querySelector(".workbench_layout_sidebar"),
         sidebarHost,
       );
@@ -268,6 +284,42 @@ suite("workbench/browser/layout", () => {
       assert.equal(sidebar.parentElement, sidebarHost);
       assert.equal(workbench.parentElement, workbenchPane);
       assert.equal(auxiliaryBar.parentElement, auxiliaryBarHost);
+    } finally {
+      layout.dispose();
+      layoutService.dispose();
+      storage.dispose();
+      parent.remove();
+    }
+  });
+
+  test("clears sidebar transition class without a second layout render", async () => {
+    const parent = document.createElement("div");
+    const storage = new TestStorageService();
+    const layoutService = new BrowserWorkbenchLayoutService(storage);
+    document.body.append(parent);
+    const layout = new RecordingLayout(parent, layoutService, storage);
+
+    try {
+      layout.setParts({
+        auxiliaryBar: createPart("auxiliarybar"),
+        sidebar: createPart("sidebar"),
+        workbench: createPart("workbench"),
+      });
+      const renderCountBeforeToggle = layout.renderCount;
+
+      layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+
+      const split = layout.element.querySelector<HTMLElement>(".workbench_layout_split");
+      assert.ok(split);
+      assert.equal(split.classList.contains("workbench_layout_split--animate-sidebar"), true);
+
+      const renderCountAfterToggle = layout.renderCount;
+      assert.equal(renderCountAfterToggle, renderCountBeforeToggle + 1);
+
+      await timeout(350);
+
+      assert.equal(split.classList.contains("workbench_layout_split--animate-sidebar"), false);
+      assert.equal(layout.renderCount, renderCountAfterToggle);
     } finally {
       layout.dispose();
       layoutService.dispose();
