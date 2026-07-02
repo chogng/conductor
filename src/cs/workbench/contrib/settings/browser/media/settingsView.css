@@ -521,6 +521,10 @@
   min-width: 0;
 }
 
+.settings-list-item-body--standard-padding {
+  padding: 1rem;
+}
+
 .settings-list-item-body > .settings-cell {
   border-radius: 0;
 }

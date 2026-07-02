@@ -6,6 +6,7 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import { normalizeSettingsSearchText, settingsSearchMatches } from "src/cs/workbench/contrib/settings/browser/settingsSearch";
 
 export type SettingsTreeElementItem = {
+  readonly bodyPadding?: "standard";
   readonly kind: "element";
   readonly element: HTMLElement;
   readonly groupId?: string;
@@ -55,6 +56,7 @@ type SettingsTreeSectionEntry = {
 };
 
 type SettingsTreeItemEntry = {
+  readonly bodyPadding: "none" | "standard";
   readonly first: boolean;
   readonly groupId: string;
   readonly hasDivider: boolean;
@@ -65,6 +67,7 @@ type SettingsTreeItemEntry = {
 };
 
 export type SettingsTreeListItemRenderState = {
+  readonly bodyPadding: "none" | "standard";
   readonly first: boolean;
   readonly groupId: string;
   readonly hasDivider: boolean;
@@ -580,6 +583,7 @@ function createSettingsTreeItemEntry(
   const previousItem = section.items[index - 1];
   const nextItem = section.items[index + 1];
   return {
+    bodyPadding: item.kind === "element" ? item.bodyPadding ?? "none" : "none",
     first: !previousItem || getSettingsTreeItemGroupId(section, previousItem) !== groupId,
     groupId,
     hasDivider: index > 0,

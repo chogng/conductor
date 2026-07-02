@@ -736,6 +736,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       const priorityItem = getElement(container, "#settings-template-semantic-domain-priority-item");
       assert.equal(priorityItem.classList.contains("inputbox_widget"), true);
       assert.equal(priorityItem.parentElement?.classList.contains("settings-list-item-body"), true);
+      assert.equal(priorityItem.parentElement?.classList.contains("settings-list-item-body--standard-padding"), true);
       assert.ok(priorityItem.closest(".settings-list-item"));
       assert.equal(priorityItem.closest(".settings-section")?.id, "settings-template-domain-priority-section");
       const priorityLabels = getInputBoxItemLabels(priorityItem);
@@ -766,6 +767,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       const nextPriorityItem = getElement(container, "#settings-template-semantic-domain-priority-item");
       assert.equal(nextPriorityItem.classList.contains("inputbox_widget"), true);
       assert.equal(nextPriorityItem.parentElement?.classList.contains("settings-list-item-body"), true);
+      assert.equal(nextPriorityItem.parentElement?.classList.contains("settings-list-item-body--standard-padding"), true);
       assert.ok(nextPriorityItem.closest(".settings-list-item"));
       assert.equal(nextPriorityItem.closest(".settings-section")?.id, "settings-template-domain-priority-section");
       const nextPriorityLabels = getInputBoxItemLabels(nextPriorityItem);

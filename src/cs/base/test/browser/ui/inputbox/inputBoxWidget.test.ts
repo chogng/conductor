@@ -1,6 +1,6 @@
 import assert from "assert";
 
-import { InputBoxWidget } from "src/cs/base/browser/ui/inputbox/inputBoxWidget";
+import { InputBoxWidget, type IInputBoxWidgetItem } from "src/cs/base/browser/ui/inputbox/inputBoxWidget";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -205,7 +205,7 @@ function createDraggableItem(id: string, label: string) {
   };
 }
 
-function createRemovableItem(id: string, label: string) {
+function createRemovableItem(id: string, label: string): IInputBoxWidgetItem {
   return {
     id,
     label,

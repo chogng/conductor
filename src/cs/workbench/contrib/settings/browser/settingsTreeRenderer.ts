@@ -20,7 +20,7 @@ export const settingsTreeRenderer: SettingsTreeRenderer = {
     const element = div(getSettingsTreeListItemClassName(item));
     const dividerElement = div("settings-list-item-divider");
     dividerElement.setAttribute("aria-hidden", "true");
-    const bodyElement = div("settings-list-item-body");
+    const bodyElement = div(getSettingsTreeListItemBodyClassName(item));
     element.append(dividerElement, bodyElement);
     updateElementDataset(element, "groupId", item.groupId);
     updateElementHidden(dividerElement, !item.hasDivider);
@@ -75,6 +75,7 @@ export const settingsTreeRenderer: SettingsTreeRenderer = {
 
   updateListItem(template: SettingsTreeListItemTemplate, item: SettingsTreeListItemRenderState): void {
     updateElementClassName(template.element, getSettingsTreeListItemClassName(item));
+    updateElementClassName(template.bodyElement, getSettingsTreeListItemBodyClassName(item));
     updateElementDataset(template.element, "groupId", item.groupId);
     updateElementHidden(template.dividerElement, !item.hasDivider);
   },
@@ -110,6 +111,13 @@ function getSettingsTreeListItemClassName(item: SettingsTreeListItemRenderState)
     "settings-list-item",
     item.first ? "settings-list-item--first" : undefined,
     item.last ? "settings-list-item--last" : undefined,
+  ].filter(Boolean).join(" ");
+}
+
+function getSettingsTreeListItemBodyClassName(item: SettingsTreeListItemRenderState): string {
+  return [
+    "settings-list-item-body",
+    item.bodyPadding === "standard" ? "settings-list-item-body--standard-padding" : undefined,
   ].filter(Boolean).join(" ");
 }
 

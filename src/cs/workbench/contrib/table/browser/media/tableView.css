@@ -15,6 +15,10 @@
   overflow: hidden;
 }
 
+.table_view_pane.table_view_pane--empty > .workbench_center_area_header {
+  display: none;
+}
+
 .table_view_pane .table_view_grid_header_corner,
 .table_view_pane .table_view_grid_header_cell,
 .table_view_pane .table_view_grid_header_spacer {
@@ -115,7 +119,8 @@
 }
 
 .table_view_actions:hover,
-.table_view_actions:focus-within {
+.table_view_actions:focus-within,
+.table_view_actions.table_view_actions--active {
   opacity: 1;
 }
 

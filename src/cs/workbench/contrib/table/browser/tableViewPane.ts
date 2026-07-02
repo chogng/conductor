@@ -47,6 +47,9 @@ import {
 export type TableViewPaneProps = TableViewInput;
 
 const ZOOM_CONTROL_ACTION_ID = "table.header.zoom";
+const ZOOM_CONTROL_ACTIVE_CLASS = "table_view_actions--active";
+const ZOOM_CONTROL_ACTIVE_MS = 1200;
+const TABLE_VIEW_PANE_EMPTY_CLASS = "table_view_pane--empty";
 
 export class TableViewPane extends ViewPane {
   private readonly centerArea: HTMLElement;
@@ -66,6 +69,7 @@ export class TableViewPane extends ViewPane {
   private readonly zoomOutAction: Action;
   private readonly resetZoomAction: Action;
   private zoomControl: Stepper | null = null;
+  private zoomControlActiveTimeout: number | null = null;
   private controller: TableController | null = null;
   private pendingControllerRender: IDisposable | null = null;
   private props: TableViewPaneProps | null = null;
@@ -150,6 +154,7 @@ export class TableViewPane extends ViewPane {
       children: this.content,
       titleContent: this.headerTitle,
     });
+    this.centerArea.classList.add(TABLE_VIEW_PANE_EMPTY_CLASS);
     this.body.append(this.centerArea);
     this._register(this.instantiationService.createInstance(TableDropTarget, this.centerArea));
     this._register(this.tableService.onDidChangeTableViewInput(() => {
@@ -181,6 +186,7 @@ export class TableViewPane extends ViewPane {
 
   public dispose(): void {
     this.disposed = true;
+    this.clearZoomControlActive();
     this.pendingControllerRender?.dispose();
     this.pendingControllerRender = null;
     this.controller?.dispose();
@@ -215,7 +221,7 @@ export class TableViewPane extends ViewPane {
     ));
     this.store.add(this.tableWidgetService.registerController(this.controller));
     this.store.add(this.controller.onDidChangeSize(() => this.updateDimensions()));
-    this.store.add(this.controller.onDidChangeZoom(() => this.updateZoomControl()));
+    this.store.add(this.controller.onDidChangeZoom(() => this.onControllerZoomChanged()));
     this.content.append(this.controller.element);
     this.controller.element.append(this.actionBar.domNode);
     this.controller.layout();
@@ -233,6 +239,7 @@ export class TableViewPane extends ViewPane {
   }
 
   private updateHeader(props: TableViewPaneProps): void {
+    this.centerArea.classList.toggle(TABLE_VIEW_PANE_EMPTY_CLASS, !hasVisibleTableFile(props.tableState.file));
     this.updateSheetTabs(
       props.tableState.sheets,
       props.tableState.source ?? props.tableState.file?.source ?? null,
@@ -366,6 +373,11 @@ export class TableViewPane extends ViewPane {
     });
   }
 
+  private onControllerZoomChanged(): void {
+    this.updateZoomControl();
+    this.showZoomControlActive();
+  }
+
   private updateZoomControl(): void {
     const zoomPercent = this.controller?.getZoomPercent() ?? TABLE_WIDGET_ZOOM_OPTIONS.defaultPercent;
     this.zoomOutAction.enabled = zoomPercent > TABLE_WIDGET_ZOOM_OPTIONS.minPercent;
@@ -373,6 +385,30 @@ export class TableViewPane extends ViewPane {
     this.resetZoomAction.enabled = zoomPercent !== TABLE_WIDGET_ZOOM_OPTIONS.defaultPercent;
     this.zoomControl?.setValue(`${zoomPercent}%`);
     this.zoomControl?.syncActions();
+  }
+
+  private showZoomControlActive(): void {
+    const targetWindow = this.actionBar.domNode.ownerDocument.defaultView;
+    if (!targetWindow) {
+      return;
+    }
+
+    this.actionBar.domNode.classList.add(ZOOM_CONTROL_ACTIVE_CLASS);
+    if (this.zoomControlActiveTimeout !== null) {
+      targetWindow.clearTimeout(this.zoomControlActiveTimeout);
+    }
+    this.zoomControlActiveTimeout = targetWindow.setTimeout(() => {
+      this.zoomControlActiveTimeout = null;
+      this.actionBar.domNode.classList.remove(ZOOM_CONTROL_ACTIVE_CLASS);
+    }, ZOOM_CONTROL_ACTIVE_MS);
+  }
+
+  private clearZoomControlActive(): void {
+    if (this.zoomControlActiveTimeout !== null) {
+      this.actionBar.domNode.ownerDocument.defaultView?.clearTimeout(this.zoomControlActiveTimeout);
+      this.zoomControlActiveTimeout = null;
+    }
+    this.actionBar.domNode.classList.remove(ZOOM_CONTROL_ACTIVE_CLASS);
   }
 
   private updateDimensions(): void {
@@ -403,6 +439,9 @@ const formatTableWidgetSize = (size: ITableSize | null): string => {
 
   return `${size.rowCount} \u00d7 ${size.columnCount}`;
 };
+
+const hasVisibleTableFile = (file: TableViewPaneProps["tableState"]["file"]): boolean =>
+  Boolean(file && file.rowCount > 0 && file.columnCount > 0);
 
 const getSheetTabTitle = (sheet: TableSheetTab): string => {
   const dimensions = sheet.rowCount > 0 && sheet.columnCount > 0

@@ -875,9 +875,10 @@ export class SettingsView {
   }
 
   private createSettingsTreeElementItem(options: {
-    readonly id: SettingsContentItemId;
+    readonly bodyPadding?: "standard";
     readonly createElement: () => HTMLElement;
     readonly groupId?: string;
+    readonly id: SettingsContentItemId;
     readonly searchText?: string;
   }): SettingsTreeElementItem {
     const current = this.getReusableTreeItem(options.id, "element");
@@ -887,6 +888,7 @@ export class SettingsView {
 
     return this.createContentItem(options.id, () => {
       const item: SettingsTreeElementItem = {
+        bodyPadding: options.bodyPadding,
         kind: "element",
         element: options.createElement(),
         groupId: options.groupId,
@@ -1207,6 +1209,7 @@ export class SettingsView {
       description: localize("settings.template.domainPriority.description", "Drag domain blocks to choose which complete X/Y domain wins when a data file matches several domains."),
     }, this.createSettingsTreeElementItem({
       id: "settings-template-semantic-domain-priority-item",
+      bodyPadding: "standard",
       createElement: () => this.createTemplateSemanticDomainPriority(this.options.templateSettings),
       searchText: this.getTemplateSemanticDomainPrioritySearchText(this.options.templateSettings),
     }));
@@ -1437,15 +1440,21 @@ export class SettingsView {
     readonly terms: readonly string[];
     readonly value: string;
   }): InputBoxWidget {
-    const items: IInputBoxWidgetItem[] = options.terms.map((term, index) => ({
-      id: `${options.axis}:${index}:${term}`,
-      label: term,
-      kind: options.axis,
-      ...(options.readOnly ? {} : {
+    const items: IInputBoxWidgetItem[] = options.terms.map((term, index) => {
+      const item = {
+        id: `${options.axis}:${index}:${term}`,
+        label: term,
+        kind: options.axis,
+      };
+      if (options.readOnly) {
+        return item;
+      }
+      return {
+        ...item,
         removable: true,
         removeAriaLabel: localize("settings.template.semantic.removeTerm", "Remove character block {term}", { term }),
-      }),
-    }));
+      };
+    });
     const inputBox = this.registerContentDisposable(new InputBoxWidget({
       ariaLabel: options.ariaLabel,
       disabled: options.disabled,
