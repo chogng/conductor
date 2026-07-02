@@ -486,6 +486,8 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       const badge = host.querySelector<HTMLElement>(".file-list-item-review-decoration");
       assert.ok(badge);
       assert.equal(badge.textContent, "...");
+      assert.equal(badge.hasAttribute("title"), false);
+      assert.equal(host.querySelector<HTMLElement>(".file-list-item-label")?.hasAttribute("title"), false);
 
       viewer.setProps({
         ...props,
@@ -505,6 +507,8 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       assert.deepEqual(rerenderedKeys, [["file-a"]]);
       assert.equal(badge.textContent, "cv");
       assert.equal(badge.dataset.color, "purple");
+      assert.equal(badge.hasAttribute("title"), false);
+      assert.equal(host.querySelector<HTMLElement>(".file-list-item-label")?.hasAttribute("title"), false);
 
       viewer.setProps({
         ...props,

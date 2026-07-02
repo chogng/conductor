@@ -1702,6 +1702,7 @@ export class ExplorerViewer implements IDisposable {
         ...(decorationResource ? {
           fileDecorations: {
             resource: decorationResource,
+            showTooltip: false,
           },
         } : {}),
         fileKind: FileKind.FILE,

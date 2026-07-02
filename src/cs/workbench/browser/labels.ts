@@ -35,6 +35,7 @@ export type ResourceLabelOptions = IIconLabelValueOptions & {
   readonly fileDecorations?: {
     readonly includeChildren?: boolean;
     readonly resource: URI;
+    readonly showTooltip?: boolean;
   };
   readonly fileKind?: FileKind;
 };
@@ -157,6 +158,9 @@ export class ResourceLabel implements IResourceLabel {
       : getIconClasses(resource, fileKind);
     const decoration = this.getDecoration(options);
     this.currentDecoration = decoration;
+    const decorationTitle = options.fileDecorations?.showTooltip === false
+      ? undefined
+      : decoration?.tooltip;
     this.label.setLabel(name, {
       ...options,
       extraClasses: [
@@ -169,7 +173,7 @@ export class ResourceLabel implements IResourceLabel {
         ...(options.extraClasses ?? []),
       ],
       icon: resourceIcon,
-      title: decoration?.tooltip || options.title,
+      title: decorationTitle || options.title,
     });
 
     this.applyDecoration(decoration);

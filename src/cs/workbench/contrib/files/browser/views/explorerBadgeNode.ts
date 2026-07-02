@@ -105,7 +105,7 @@ export class ExplorerBadgeNode {
     } else {
       delete this.node.dataset.source;
     }
-    if (badge.title) {
+    if (badge.state === "source" && badge.title) {
       this.node.title = badge.title;
     } else {
       this.node.removeAttribute("title");
