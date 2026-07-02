@@ -20,7 +20,6 @@
   "titles": [
     {
       "canonicalRole": "voltage",
-      "canonicalUnit": "V",
       "axisTendency": "x",
       "family": "unknown",
       "domainPackIds": ["replace-with-domain-pack-id"],
@@ -28,7 +27,6 @@
     },
     {
       "canonicalRole": "current",
-      "canonicalUnit": "A",
       "axisTendency": "dependent",
       "family": "unknown",
       "domainPackIds": ["replace-with-domain-pack-id"],
