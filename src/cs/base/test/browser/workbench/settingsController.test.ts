@@ -416,6 +416,120 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
     }
   });
 
+  test("keeps built-in semantic item unchanged on title blur", async () => {
+    const builtinRule = builtinSemanticDomainRules.find(rule => rule.title === "transient");
+    assert.ok(builtinRule);
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const service = createSettingsService({});
+    const savedSettings: Partial<ConductorSettings>[] = [];
+    let controller: SettingsController | undefined;
+    service.updateSettings = async updates => {
+      const nextSettings = updates as Partial<ConductorSettings>;
+      savedSettings.push(nextSettings);
+      service.settings = {
+        ...service.settings,
+        ...nextSettings,
+      };
+      controller?.update(createSettingsViewInput(service.settings));
+      return service.settings;
+    };
+    controller = new SettingsController(
+      container,
+      createSettingsViewInput(service.settings),
+      service,
+      createCommandService(),
+      createNotificationService(),
+    );
+    controller.attachNavigation(container);
+
+    try {
+      openTemplateSection(container);
+      const builtinItem = getSemanticRuleItems(container)
+        .find(item => hasSemanticRuleValue(item, builtinRule.title));
+      assert.ok(builtinItem);
+      assert.equal(getSemanticRuleActionNames(builtinItem).includes(`Remove domain rule ${builtinRule.title}`), true);
+
+      blurSemanticRuleInput(builtinItem, "Domain scope, for example iv", builtinRule.title);
+      await settled();
+
+      const nextBuiltinItem = getSemanticRuleItems(container)
+        .find(item => hasSemanticRuleValue(item, builtinRule.title));
+      assert.ok(nextBuiltinItem);
+      assert.deepEqual(savedSettings, []);
+      assert.equal(service.settings.templateSemanticDomainRules, undefined);
+      assert.equal(getSemanticRuleActionNames(nextBuiltinItem).includes(`Remove domain rule ${builtinRule.title}`), true);
+    }
+    finally {
+      controller?.dispose();
+      container.remove();
+    }
+  });
+
+  test("removes built-in semantic section item until reset restores it", async () => {
+    const builtinRule = builtinSemanticDomainRules.find(rule => rule.title === "transient");
+    assert.ok(builtinRule);
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const service = createSettingsService({});
+    const savedSettings: Partial<ConductorSettings>[] = [];
+    let controller: SettingsController | undefined;
+    service.updateSettings = async updates => {
+      const nextSettings = updates as Partial<ConductorSettings>;
+      savedSettings.push(nextSettings);
+      service.settings = {
+        ...service.settings,
+        ...nextSettings,
+      };
+      controller?.update(createSettingsViewInput(service.settings));
+      return service.settings;
+    };
+    controller = new SettingsController(
+      container,
+      createSettingsViewInput(service.settings),
+      service,
+      createCommandService(),
+      createNotificationService(),
+    );
+    controller.attachNavigation(container);
+
+    try {
+      openTemplateSection(container);
+      const builtinItem = getSemanticRuleItems(container)
+        .find(item => hasSemanticRuleValue(item, builtinRule.title));
+      assert.ok(builtinItem);
+
+      getSemanticRuleAction(builtinItem, `Remove domain rule ${builtinRule.title}`).click();
+      await settled();
+
+      const removeUpdate = savedSettings.at(-1);
+      assert.ok(removeUpdate);
+      assert.deepEqual(removeUpdate.templateSemanticDomainRules?.find(rule => rule.id === builtinRule.id), {
+        id: builtinRule.id,
+        title: builtinRule.title,
+        xTerms: builtinRule.xTerms,
+        yTerms: builtinRule.yTerms,
+        enabled: false,
+      });
+      assert.equal(removeUpdate.templateSemanticDomainPriority?.includes(builtinRule.id), false);
+      assert.equal(getSemanticRuleItems(container).some(item => hasSemanticRuleValue(item, builtinRule.title)), false);
+
+      getButton(container, "settings-template-semantic-reset-rules").click();
+      await settled();
+
+      const resetUpdate = savedSettings.at(-1);
+      assert.ok(resetUpdate);
+      assert.equal(resetUpdate.templateSemanticDomainRules?.some(rule => rule.id === builtinRule.id) ?? false, false);
+      assert.equal(getSemanticRuleItems(container).some(item => hasSemanticRuleValue(item, builtinRule.title)), true);
+    }
+    finally {
+      controller?.dispose();
+      container.remove();
+    }
+  });
+
   test("resets built-in semantic section item overrides without removing custom rules", async () => {
     const builtinRule = builtinSemanticDomainRules.find(rule => rule.title === "iv");
     assert.ok(builtinRule);

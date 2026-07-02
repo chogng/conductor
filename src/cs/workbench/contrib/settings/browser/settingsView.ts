@@ -1468,7 +1468,12 @@ export class SettingsView {
       onChange: value => settings.onUpdateSemanticSectionItemDraft(semanticItem.id, "title", value),
     });
     leadingInput.element.classList.add("settings-template-semantic-rule-title-input");
-    const leadingContent = div("settings-template-semantic-rule-leading-row", leadingInput.element);
+    const sourceLabel = text(
+      "span",
+      "settings-template-semantic-rule-source",
+      formatTemplateSemanticSectionItemSource(semanticItem.source),
+    );
+    const leadingContent = div("settings-template-semantic-rule-leading-row", sourceLabel, leadingInput.element);
     const leadingActions = this.createTemplateSemanticSectionItemActions(semanticItem, settings);
     if (leadingActions) {
       leadingContent.appendChild(leadingActions);
@@ -1587,19 +1592,17 @@ export class SettingsView {
   private createTemplateSemanticSectionItemActions(
     semanticItem: TemplateSemanticSectionItem,
     settings: TemplateSettings,
-  ): HTMLElement | null {
-    if (semanticItem.source !== "custom") {
-      return null;
-    }
-
+  ): HTMLElement {
     const actionLabel = localize("settings.template.semantic.removeRuleLabel", "Remove");
-    const actionAriaLabel = localize("settings.template.semantic.removeRule", "Remove domain rule {term}", { term: semanticItem.title });
+    const actionAriaLabel = semanticItem.title.trim()
+      ? localize("settings.template.semantic.removeRule", "Remove domain rule {term}", { term: semanticItem.title })
+      : localize("settings.template.semantic.removeUntitledRule", "Remove domain rule");
     const removeAction = this.registerContentDisposable(new Action(
       "settings.template.semantic.removeRule",
       actionLabel,
       "",
       !semanticItem.isSaving,
-      () => void settings.onRemoveSemanticSectionItem(semanticItem.ruleId),
+      () => void settings.onRemoveSemanticSectionItem(semanticItem.id),
     ));
     removeAction.tooltip = actionAriaLabel;
     removeAction.icon = LxIcon.trashFlat;
@@ -3050,6 +3053,12 @@ function text<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, 
   element.className = className;
   element.textContent = value;
   return element;
+}
+
+function formatTemplateSemanticSectionItemSource(source: TemplateSemanticSectionItem["source"]): string {
+  return source === "builtin"
+    ? localize("settings.template.semantic.sourceHome", "Home")
+    : localize("settings.template.semantic.sourceUser", "User");
 }
 
 function formatXAxisIntent(intent: StructuredXAxisIntent): string {

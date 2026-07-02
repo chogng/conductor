@@ -354,6 +354,17 @@
   width: 100%;
 }
 
+.settings-template-semantic-rule-source {
+  flex: 0 0 2.75rem;
+  overflow: hidden;
+  color: rgb(var(--text-secondary) / 1);
+  font-size: 0.75rem;
+  line-height: 30px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .settings-template-semantic-rule-leading-row > .settings-template-semantic-rule-input {
   flex: 1 1 auto;
   min-width: 0;

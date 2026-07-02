@@ -468,17 +468,52 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(getSemanticRuleInput(draftItem, "Domain scope, for example iv").value, "");
       assert.equal(getSemanticRuleInput(draftItem, "X representative").value, "");
       assert.equal(getSemanticRuleInput(draftItem, "Y representative").value, "");
+      assert.equal(getSemanticRuleSourceText(draftItem), "User");
+      assert.equal(getSemanticRuleActionNames(draftItem).includes("Remove domain rule"), true);
       assert.equal(draftItem.querySelectorAll(".settings-template-semantic-axis-field .settings-label").length, 0);
       assert.ok(draftItem.textContent?.includes("Vg"));
       assert.ok(draftItem.textContent?.includes("Id"));
       assert.equal(customItem.classList.contains("settings-list-item-cell--editable-display"), false);
       assert.equal(getSemanticRuleInput(customItem, "Domain scope, for example iv").readOnly, false);
       assert.equal(getSemanticRuleInput(customItem, "X representative").hidden, false);
+      assert.equal(getSemanticRuleSourceText(customItem), "User");
       assert.equal(getSemanticRuleActionNames(customItem).includes("Remove domain rule iv"), true);
       assert.equal(getSemanticRuleActionNames(customItem).includes("Cancel"), false);
       assert.equal(getSemanticRuleActionNames(customItem).includes("Done"), false);
       assert.ok(customItem.textContent?.includes("Custom Gate"));
       assert.ok(customItem.textContent?.includes("Id"));
+    }
+    finally {
+      view.dispose();
+      container.remove();
+    }
+  });
+
+  test("renders built-in semantic rule source as home", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const view = new SettingsView(container, createSettingsViewOptions({
+      activeSettingsSection: "template",
+      templateSettings: {
+        semanticSectionItems: [
+          {
+            id: "settings-template-semantic-section-item:builtin:builtin-domain:iv",
+            isSaving: false,
+            ruleId: "builtin-domain:iv",
+            source: "builtin",
+            title: "iv",
+            xDraft: "",
+            xTerms: ["Vg"],
+            yDraft: "",
+            yTerms: ["Id"],
+          },
+        ],
+      },
+    }));
+
+    try {
+      const builtinItem = getElement(container, "#settings-template-semantic-section-item\\:builtin\\:builtin-domain\\:iv");
+      assert.equal(getSemanticRuleSourceText(builtinItem), "Home");
     }
     finally {
       view.dispose();
@@ -730,6 +765,12 @@ function getSemanticRuleInput(container: HTMLElement, placeholder: string): HTML
 function getSemanticRuleActionNames(container: HTMLElement): string[] {
   return Array.from(container.querySelectorAll<HTMLButtonElement>(".settings-template-semantic-rule-action"))
     .map(button => button.getAttribute("aria-label") ?? "");
+}
+
+function getSemanticRuleSourceText(container: HTMLElement): string {
+  const source = container.querySelector<HTMLElement>(".settings-template-semantic-rule-source");
+  assert.ok(source, "Expected semantic rule source label.");
+  return source.textContent ?? "";
 }
 
 function getInputBoxItemLabels(container: HTMLElement): string[] {

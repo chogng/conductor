@@ -7,7 +7,6 @@
   min-height: 30px;
   gap: 4px;
   background-color: rgb(255 255 255 / 1);
-  padding: 6px;
 }
 
 .inputbox_widget_field > .inputbox_native {
@@ -56,8 +55,8 @@
 
 .inputbox_widget_item_action {
   display: inline-flex;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
