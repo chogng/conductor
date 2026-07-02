@@ -17,12 +17,19 @@ export type IInputBoxWidgetItem = {
   readonly action?: InputBoxWidgetItemAction;
   readonly ariaLabel?: string;
   readonly disabled?: boolean;
+  readonly draggable?: boolean;
   readonly kind?: string;
 };
 
 export type IInputBoxWidgetItemActionEvent = {
   readonly browserEvent: MouseEvent;
   readonly item: IInputBoxWidgetItem;
+};
+
+export type IInputBoxWidgetItemDropEvent = {
+  readonly browserEvent: DragEvent;
+  readonly sourceItem: IInputBoxWidgetItem;
+  readonly targetItem: IInputBoxWidgetItem;
 };
 
 export type InputBoxWidgetOptions = Pick<
@@ -59,6 +66,7 @@ export class InputBoxWidget extends Disposable {
   private emptyLabel = "";
   private inputVisible = true;
   private disabled = false;
+  private dragSourceItemId: string | null = null;
 
   private readonly onDidAcceptEmitter = this._register(new Emitter<string>());
   public readonly onDidAccept: Event<string> = this.onDidAcceptEmitter.event;
@@ -70,6 +78,9 @@ export class InputBoxWidget extends Disposable {
 
   private readonly onDidTriggerItemActionEmitter = this._register(new Emitter<IInputBoxWidgetItemActionEvent>());
   public readonly onDidTriggerItemAction: Event<IInputBoxWidgetItemActionEvent> = this.onDidTriggerItemActionEmitter.event;
+
+  private readonly onDidDropItemEmitter = this._register(new Emitter<IInputBoxWidgetItemDropEvent>());
+  public readonly onDidDropItem: Event<IInputBoxWidgetItemDropEvent> = this.onDidDropItemEmitter.event;
 
   public constructor(options: InputBoxWidgetOptions = {}) {
     super();
@@ -224,6 +235,41 @@ export class InputBoxWidget extends Disposable {
 
   private createItemElement(item: IInputBoxWidgetItem): HTMLElement {
     const element = document.createElement("span");
+    this._register(addDisposableListener(element, EventType.DRAG_START, event => {
+      const currentItem = this.getItemForElement(element);
+      if (!currentItem || this.disabled || currentItem.draggable !== true) {
+        event.preventDefault();
+        return;
+      }
+      this.dragSourceItemId = currentItem.id;
+      if (event.dataTransfer) {
+        event.dataTransfer.setData("application/x-conductor-inputbox-widget-item", currentItem.id);
+        event.dataTransfer.effectAllowed = "move";
+      }
+    }));
+    this._register(addDisposableListener(element, EventType.DRAG_OVER, event => {
+      const currentItem = this.getItemForElement(element);
+      if (!currentItem || !this.dragSourceItemId || currentItem.id === this.dragSourceItemId) {
+        return;
+      }
+      event.preventDefault();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = "move";
+      }
+    }));
+    this._register(addDisposableListener(element, EventType.DROP, event => {
+      const targetItem = this.getItemForElement(element);
+      const sourceItem = this.dragSourceItemId ? this.itemById.get(this.dragSourceItemId) : undefined;
+      this.dragSourceItemId = null;
+      if (!sourceItem || !targetItem || sourceItem.id === targetItem.id) {
+        return;
+      }
+      event.preventDefault();
+      this.onDidDropItemEmitter.fire({ browserEvent: event, sourceItem, targetItem });
+    }));
+    this._register(addDisposableListener(element, EventType.DRAG_END, () => {
+      this.dragSourceItemId = null;
+    }));
 
     const label = document.createElement("span");
     label.className = "inputbox_widget_item_label";
@@ -236,6 +282,10 @@ export class InputBoxWidget extends Disposable {
     setClassName(element, "inputbox_widget_item");
     if (element.dataset.itemId !== item.id) {
       element.dataset.itemId = item.id;
+    }
+    const draggable = !this.disabled && item.draggable === true;
+    if (element.draggable !== draggable) {
+      element.draggable = draggable;
     }
     if (item.kind) {
       if (element.dataset.kind !== item.kind) {
@@ -259,6 +309,11 @@ export class InputBoxWidget extends Disposable {
     this.itemActionButtons.get(item.id)?.remove();
     this.itemActionButtons.delete(item.id);
     this.itemActionIcons.delete(item.id);
+  }
+
+  private getItemForElement(element: HTMLElement): IInputBoxWidgetItem | undefined {
+    const id = element.dataset.itemId;
+    return id ? this.itemById.get(id) : undefined;
   }
 
   private updateItemActionButton(element: HTMLElement, item: IInputBoxWidgetItem): void {
@@ -343,6 +398,7 @@ const inputBoxWidgetItemsEqual = (
   current.label === next.label &&
   normalizeOptionalString(current.ariaLabel) === normalizeOptionalString(next.ariaLabel) &&
   (current.disabled === true) === (next.disabled === true) &&
+  (current.draggable === true) === (next.draggable === true) &&
   normalizeOptionalString(current.kind) === normalizeOptionalString(next.kind) &&
   inputBoxWidgetItemActionsEqual(current.action, next.action);
 

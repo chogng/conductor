@@ -132,6 +132,37 @@ suite("base/browser/ui/inputbox/InputBoxWidget", () => {
       inputBox.dispose();
     }
   });
+
+  test("emits dropped item source and target", () => {
+    const inputBox = new InputBoxWidget({
+      items: [
+        createDraggableItem("alpha", "Alpha"),
+        createDraggableItem("beta", "Beta"),
+        createDraggableItem("gamma", "Gamma"),
+      ],
+    });
+    document.body.appendChild(inputBox.element);
+
+    try {
+      const alpha = getItem(inputBox, "alpha");
+      const gamma = getItem(inputBox, "gamma");
+      let droppedItems: readonly string[] = [];
+      const dropDisposable = inputBox.onDidDropItem(({ sourceItem, targetItem }) => {
+        droppedItems = [sourceItem.id, targetItem.id];
+      });
+
+      alpha.dispatchEvent(new Event("dragstart", { bubbles: true, cancelable: true }));
+      const defaultAllowed = gamma.dispatchEvent(new Event("drop", { bubbles: true, cancelable: true }));
+
+      assert.equal(defaultAllowed, false);
+      assert.deepEqual(droppedItems, ["alpha", "gamma"]);
+
+      dropDisposable.dispose();
+    }
+    finally {
+      inputBox.dispose();
+    }
+  });
 });
 
 function createItem(id: string, label: string) {
@@ -142,6 +173,14 @@ function createItem(id: string, label: string) {
       ariaLabel: `Remove ${label}`,
       icon: LxIcon.close,
     },
+  };
+}
+
+function createDraggableItem(id: string, label: string) {
+  return {
+    id,
+    label,
+    draggable: true,
   };
 }
 

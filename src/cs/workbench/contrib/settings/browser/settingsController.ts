@@ -937,26 +937,26 @@ export class SettingsController {
     builtinRules: readonly TemplateSemanticDomainRuleView[],
     customRules: readonly TemplateSemanticDomainRuleView[],
   ): SettingsViewOptions["templateSettings"]["semanticSectionItems"] {
-    const customRuleIds = new Set(customRules.map(rule => rule.id));
     const builtinRuleIds = new Set(builtinRules.map(rule => rule.id));
+    const customRulesById = new Map(customRules.map(rule => [rule.id, rule]));
     const draftByRuleId = new Map(this.drafts.templateSemanticSectionItemDrafts.map(draft => [draft.ruleId, draft]));
     const newDrafts = this.drafts.templateSemanticSectionItemDrafts.filter(draft =>
-      !customRuleIds.has(draft.ruleId) && !builtinRuleIds.has(draft.ruleId)
+      !customRulesById.has(draft.ruleId) && !builtinRuleIds.has(draft.ruleId)
     );
-    const effectiveBuiltinRules = builtinRules.filter(rule => !customRuleIds.has(rule.id));
     return [
       ...newDrafts.map((draft, index) => this.createTemplateSemanticDraftSectionItem(draft, index === 0)),
-      ...customRules.map(rule => {
+      ...customRules.filter(rule => !builtinRuleIds.has(rule.id)).map(rule => {
         const draft = draftByRuleId.get(rule.id);
         return draft
           ? this.createTemplateSemanticDraftSectionItem(draft, false)
           : this.createSavedTemplateSemanticSectionItem(rule);
       }),
-      ...effectiveBuiltinRules.map(rule => {
+      ...builtinRules.map(rule => {
         const draft = draftByRuleId.get(rule.id);
+        const customRule = customRulesById.get(rule.id);
         return draft
           ? this.createTemplateSemanticDraftSectionItem(draft, false)
-          : this.createSavedTemplateSemanticSectionItem(rule);
+          : this.createSavedTemplateSemanticSectionItem(customRule ?? rule);
       }),
     ];
   }
@@ -1199,12 +1199,16 @@ export class SettingsController {
       ...storedCustomRules.map(toTemplateSemanticDomainRuleView),
     ], normalizeTemplateSemanticDomainPriority(this.settings.templateSemanticDomainPriority));
     const isExistingActiveRule = activeDomainPriority.includes(nextRules.id);
+    const existingRuleIndex = storedCustomRules.findIndex(rule => rule.id === nextRules.id);
+    const nextStoredCustomRules = existingRuleIndex === -1
+      ? [nextRules, ...storedCustomRules]
+      : storedCustomRules.map(rule => rule.id === nextRules.id ? nextRules : rule);
     const didSave = await this.saveTemplateSettings({
       templateSemanticDomainPriority: isExistingActiveRule
         ? activeDomainPriority
         : [nextRules.id, ...activeDomainPriority.filter(id => id !== nextRules.id)],
-      templateSemanticDomainRules: [nextRules, ...storedCustomRules.filter(rule => rule.id !== nextRules.id)],
-    }, null, descriptorUpdateTarget("template-semantic-library"), id);
+      templateSemanticDomainRules: nextStoredCustomRules,
+    }, null, partialSettingsUpdateTarget(["template-semantic-library", "template-domain-priority"], []), id);
     if (didSave) {
       this.drafts.templateSemanticSectionItemDrafts = this.drafts.templateSemanticSectionItemDrafts.filter(draft => draft.id !== id);
       this.render(descriptorUpdateTarget("template-semantic-library"));
@@ -1263,7 +1267,7 @@ export class SettingsController {
         ? normalizeTemplateSemanticDomainPriority(this.settings.templateSemanticDomainPriority)
         : normalizeTemplateSemanticDomainPriority(this.settings.templateSemanticDomainPriority).filter(ruleId => ruleId !== id),
       templateSemanticDomainRules: customRules,
-    }, localize("settings.template.semantic.saved", "Template semantic library updated."), descriptorUpdateTarget("template-semantic-library"), id);
+    }, localize("settings.template.semantic.saved", "Template semantic library updated."), partialSettingsUpdateTarget(["template-semantic-library", "template-domain-priority"], []), id);
   }
 
   private async resetTemplateSemanticDomainRules(): Promise<void> {
@@ -1284,7 +1288,7 @@ export class SettingsController {
         ...customDomainPriority,
       ],
       templateSemanticDomainRules: storedCustomRules,
-    }, localize("settings.template.semantic.reset", "Built-in semantic rules reset."), descriptorUpdateTarget("template-semantic-library"));
+    }, localize("settings.template.semantic.reset", "Built-in semantic rules reset."), partialSettingsUpdateTarget(["template-semantic-library", "template-domain-priority"], []));
     if (didSave) {
       this.drafts.templateSemanticSectionItemDrafts = this.drafts.templateSemanticSectionItemDrafts
         .filter(draft => !builtinRuleIds.has(draft.ruleId));
@@ -1340,7 +1344,7 @@ export class SettingsController {
     );
     await this.saveTemplateSettings({
       templateSemanticDomainPriority: priority,
-    }, localize("settings.template.domainPriority.saved", "Semantic domain priority updated."), itemsUpdateTarget("template-library", "settings-template-semantic-domain-priority-item"));
+    }, localize("settings.template.domainPriority.saved", "Semantic domain priority updated."), itemsUpdateTarget("template-domain-priority", "settings-template-semantic-domain-priority-item"));
   }
 
   private async saveTemplateSettings(
@@ -1650,14 +1654,13 @@ function getSettingsViewUpdateTarget(
   }
 
   for (const key of getChangedConductorSettingsKeys(current.conductorSettings, next.conductorSettings)) {
-    if (
-      key === "templateSemanticDomainRules" ||
-      key === "templateSemanticDomainPriority"
-    ) {
+    if (key === "templateSemanticDomainRules") {
       descriptorIds.add("template-semantic-library");
-      if (key === "templateSemanticDomainPriority") {
-        addItemTarget(itemTargets, "template-library", "settings-template-semantic-domain-priority-item");
-      }
+      descriptorIds.add("template-domain-priority");
+      continue;
+    }
+    if (key === "templateSemanticDomainPriority") {
+      addItemTarget(itemTargets, "template-domain-priority", "settings-template-semantic-domain-priority-item");
       continue;
     }
     const itemTarget = getConductorSettingItemTarget(key);
@@ -1724,7 +1727,7 @@ function getConductorSettingItemTarget(key: string): { readonly descriptorId: Se
     case "templateDisabledBuiltinDomainPackIds":
       return { descriptorId: "template-library", itemIds: ["settings-template-domain-packs-item"] };
     case "templateSemanticDomainPriority":
-      return { descriptorId: "template-library", itemIds: ["settings-template-semantic-domain-priority-item"] };
+      return { descriptorId: "template-domain-priority", itemIds: ["settings-template-semantic-domain-priority-item"] };
     case "templateXAxisIntentPriority":
       return { descriptorId: "template-library", itemIds: ["settings-template-x-axis-priority-item"] };
     case "defaultYScaleForCf":

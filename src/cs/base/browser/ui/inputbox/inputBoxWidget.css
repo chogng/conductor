@@ -37,6 +37,14 @@
   padding: 3px 4px 3px 8px;
 }
 
+.inputbox_widget_item[draggable="true"] {
+  cursor: grab;
+}
+
+.inputbox_widget_item[draggable="true"]:active {
+  cursor: grabbing;
+}
+
 .inputbox_widget_item_label {
   min-width: 0;
   overflow: hidden;

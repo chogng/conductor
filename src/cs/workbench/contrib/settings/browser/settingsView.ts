@@ -291,6 +291,7 @@ export type SettingsContentDescriptorId =
   | "template-preferences"
   | "template-matching"
   | "template-library"
+  | "template-domain-priority"
   | "template-semantic-library"
   | "appearance-preferences"
   | "origin-integration"
@@ -1063,6 +1064,11 @@ export class SettingsView {
         sectionId: "template",
       },
       {
+        id: "template-domain-priority",
+        order: 40,
+        sectionId: "template",
+      },
+      {
         id: "appearance-preferences",
         order: 0,
         sectionId: "appearance",
@@ -1107,6 +1113,9 @@ export class SettingsView {
         return;
       case "template-semantic-library":
         this.addTemplateSemanticLibrarySettingsTreeElements(model);
+        return;
+      case "template-domain-priority":
+        this.addTemplateDomainPrioritySettingsTreeElements(model);
         return;
       case "appearance-preferences":
         this.addAppearanceSettingsTreeElements(model);
@@ -1227,14 +1236,21 @@ export class SettingsView {
       searchText: this.getTemplateDomainPacksSearchText(this.options.templateSettings),
     }));
     model.addItemToSection(section, this.createSettingsTreeElementItem({
-      id: "settings-template-semantic-domain-priority-item",
-      createElement: () => this.createTemplateSemanticDomainPriority(this.options.templateSettings),
-      searchText: this.getTemplateSemanticDomainPrioritySearchText(this.options.templateSettings),
-    }));
-    model.addItemToSection(section, this.createSettingsTreeElementItem({
       id: "settings-template-x-axis-priority-item",
       createElement: () => this.createXAxisIntentPriority(this.options.templateSettings),
       searchText: this.getTemplateXAxisIntentPrioritySearchText(this.options.templateSettings),
+    }));
+  }
+
+  private addTemplateDomainPrioritySettingsTreeElements(model: SettingsTreeModel): void {
+    model.addItemToSection({
+      id: "settings-template-domain-priority-section",
+      title: localize("settings.template.domainPriority.title", "Semantic Domain Priority"),
+      description: localize("settings.template.domainPriority.description", "Drag domain blocks to choose which complete X/Y domain wins when a data file matches several domains."),
+    }, this.createSettingsTreeElementItem({
+      id: "settings-template-semantic-domain-priority-item",
+      createElement: () => this.createTemplateSemanticDomainPriority(this.options.templateSettings),
+      searchText: this.getTemplateSemanticDomainPrioritySearchText(this.options.templateSettings),
     }));
   }
 
@@ -1435,42 +1451,24 @@ export class SettingsView {
   private createTemplateSemanticDomainPriority(settings: TemplateSettings): HTMLElement {
     const container = cell("settings-template-semantic-domain-priority-item", "settings-cell-block");
     const titleText = localize("settings.template.domainPriority.title", "Semantic Domain Priority");
-    const description = localize("settings.template.domainPriority.description", "Drag domain blocks to choose which complete X/Y domain wins when a data file matches several domains.");
-    container.appendChild(headingBlock(titleText, description));
-
-    const list = div("settings-template-block-list");
-    for (const domain of settings.domainPriorityItems) {
-      const block = div("settings-template-block settings-template-block--domain");
-      block.draggable = !settings.isSaving;
-      block.dataset.domainId = domain.id;
-      block.tabIndex = 0;
-      const meta = [
-        domain.source,
-        `X ${domain.xTerms.length}`,
-        `Y ${domain.yTerms.length}`,
-      ].join(" / ");
-      block.append(
-        createLxIcon({ className: "settings-template-block-handle", icon: LxIcon.listUnordered, size: 14 }),
-        text("span", "settings-template-block-title", domain.title),
-        text("span", "settings-template-block-meta", meta),
-      );
-      block.addEventListener("dragstart", event => {
-        event.dataTransfer?.setData("application/x-conductor-template-domain", domain.id);
-      });
-      block.addEventListener("dragover", event => {
-        event.preventDefault();
-      });
-      block.addEventListener("drop", event => {
-        event.preventDefault();
-        const source = event.dataTransfer?.getData("application/x-conductor-template-domain");
-        if (source) {
-          void settings.onMoveSemanticDomainPriority(source, domain.id);
-        }
-      });
-      list.appendChild(block);
-    }
-
-    container.appendChild(list);
+    const items: IInputBoxWidgetItem[] = settings.domainPriorityItems.map(domain => ({
+      id: domain.id,
+      label: domain.title,
+      draggable: !settings.isSaving,
+      kind: domain.source,
+    }));
+    const inputBox = this.registerContentDisposable(new InputBoxWidget({
+      ariaLabel: titleText,
+      disabled: settings.isSaving,
+      inputVisible: false,
+      items,
+      readOnly: true,
+    }));
+    inputBox.element.classList.add("settings-template-domain-priority-input");
+    this.registerContentDisposable(inputBox.onDidDropItem(event => {
+      void settings.onMoveSemanticDomainPriority(event.sourceItem.id, event.targetItem.id);
+    }));
+    container.appendChild(inputBox.element);
     return container;
   }
 
