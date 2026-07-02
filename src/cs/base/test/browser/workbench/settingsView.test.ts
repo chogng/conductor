@@ -474,9 +474,9 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(customItem.classList.contains("settings-list-item-cell--editable-display"), false);
       assert.equal(getSemanticRuleInput(customItem, "Domain scope, for example iv").readOnly, false);
       assert.equal(getSemanticRuleInput(customItem, "X representative").hidden, false);
-      assert.equal(getSemanticRuleActionLabels(customItem).includes("Remove"), true);
-      assert.equal(getSemanticRuleActionLabels(customItem).includes("Cancel"), false);
-      assert.equal(getSemanticRuleActionLabels(customItem).includes("Done"), false);
+      assert.equal(getSemanticRuleActionNames(customItem).includes("Remove domain rule iv"), true);
+      assert.equal(getSemanticRuleActionNames(customItem).includes("Cancel"), false);
+      assert.equal(getSemanticRuleActionNames(customItem).includes("Done"), false);
       assert.ok(customItem.textContent?.includes("Custom Gate"));
       assert.ok(customItem.textContent?.includes("Id"));
     }
@@ -576,7 +576,8 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
 
     try {
       const priorityItem = getElement(container, "#settings-template-semantic-domain-priority-item");
-      const priorityList = getElement(priorityItem, ".settings-template-block-list");
+      const priorityInput = getElement(priorityItem, ".settings-template-domain-priority-input");
+      const priorityLabels = getInputBoxItemLabels(priorityInput);
 
       view.update(createSettingsViewOptions({
         activeSettingsSection: "template",
@@ -587,19 +588,19 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
         type: "partial",
         descriptorIds: [],
         itemTargets: [{
-          descriptorId: "template-library",
+          descriptorId: "template-domain-priority",
           itemIds: ["settings-template-semantic-domain-priority-item"],
         }],
       });
 
       const nextPriorityItem = getElement(container, "#settings-template-semantic-domain-priority-item");
-      const nextPriorityList = getElement(nextPriorityItem, ".settings-template-block-list");
-      assert.ok(nextPriorityList.textContent !== priorityList.textContent);
-      assert.equal(queryTemplateBlock(nextPriorityList, "iv"), null);
-      assert.ok(getTemplateBlock(nextPriorityList, "frequency"));
+      const nextPriorityInput = getElement(nextPriorityItem, ".settings-template-domain-priority-input");
+      const nextPriorityLabels = getInputBoxItemLabels(nextPriorityInput);
+      assert.ok(nextPriorityLabels.join("\n") !== priorityLabels.join("\n"));
+      assert.equal(nextPriorityLabels.includes("iv"), false);
+      assert.equal(nextPriorityLabels.includes("frequency"), true);
       assert.deepEqual(
-        Array.from(nextPriorityList.querySelectorAll<HTMLElement>(".settings-template-block-title"))
-          .map(label => label.textContent),
+        nextPriorityLabels,
         ["cv", "frequency"],
       );
     }
@@ -726,9 +727,14 @@ function getSemanticRuleInput(container: HTMLElement, placeholder: string): HTML
   return input;
 }
 
-function getSemanticRuleActionLabels(container: HTMLElement): string[] {
+function getSemanticRuleActionNames(container: HTMLElement): string[] {
   return Array.from(container.querySelectorAll<HTMLButtonElement>(".settings-template-semantic-rule-action"))
-    .map(button => button.textContent?.trim() ?? "");
+    .map(button => button.getAttribute("aria-label") ?? "");
+}
+
+function getInputBoxItemLabels(container: HTMLElement): string[] {
+  return Array.from(container.querySelectorAll<HTMLElement>(".inputbox_widget_item_label"))
+    .map(label => label.textContent ?? "");
 }
 
 function getSelectLabel(button: HTMLButtonElement): string {

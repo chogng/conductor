@@ -34,7 +34,7 @@
   background: rgb(255 255 255 / 1);
   color: rgb(var(--text-secondary) / 1);
   cursor: default;
-  padding: 3px 4px 3px 8px;
+  padding: 2px 2px 2px 6px;
 }
 
 .inputbox_widget_item[draggable="true"] {
@@ -56,8 +56,8 @@
 
 .inputbox_widget_item_action {
   display: inline-flex;
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;

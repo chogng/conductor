@@ -1,8 +1,9 @@
 import { localize } from "src/cs/nls";
 import { addDisposableListener, append, EventType, reset } from "src/cs/base/browser/dom";
 import { createButton as createActionButton, updateButton as updateActionButton } from "src/cs/base/browser/ui/button/button";
+import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
 import { ActionViewItem } from "src/cs/base/browser/ui/actionbar/actionViewItem";
-import { createLxIcon, type LxIconDefinition } from "src/cs/base/browser/ui/lxicon/lxicon";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import {
   MODAL_BODY_SCROLL_CLASS,
   createModalCloseActionBar,
@@ -1511,7 +1512,13 @@ export class SettingsView {
       },
       onChange: value => settings.onUpdateSemanticSectionItemDraft(semanticItem.id, "title", value),
     });
-    item.leading.labelElement.replaceWith(leadingInput.element);
+    leadingInput.element.classList.add("settings-template-semantic-rule-title-input");
+    const leadingContent = div("settings-template-semantic-rule-leading-row", leadingInput.element);
+    const leadingActions = this.createTemplateSemanticSectionItemActions(semanticItem, settings);
+    if (leadingActions) {
+      leadingContent.appendChild(leadingActions);
+    }
+    item.leading.labelElement.replaceWith(leadingContent);
     if (item.leading.descriptionElement) {
       item.leading.descriptionElement.remove();
     }
@@ -1547,7 +1554,6 @@ export class SettingsView {
         onRemoveTerm: term => settings.onRemoveSemanticSectionItemTerm(semanticItem.id, "y", term),
       }).element,
     );
-    item.trailing.element.appendChild(this.createTemplateSemanticSectionItemActions(semanticItem, settings));
     if (semanticItem.autoFocus) {
       queueMicrotask(() => leadingInput.focus());
     }
@@ -1626,39 +1632,33 @@ export class SettingsView {
   private createTemplateSemanticSectionItemActions(
     semanticItem: TemplateSemanticSectionItem,
     settings: TemplateSettings,
-  ): HTMLElement {
-    const actions = div("settings-template-semantic-rule-actions");
-    if (semanticItem.source === "custom") {
-      const removeButton = this.createTemplateSemanticSectionItemActionButton({
-        ariaLabel: localize("settings.template.semantic.removeRule", "Remove domain rule {term}", { term: semanticItem.title }),
-        icon: LxIcon.close,
-        label: localize("settings.template.semantic.removeRuleLabel", "Remove"),
-        disabled: semanticItem.isSaving,
-      });
-      removeButton.addEventListener("click", () => {
-        void settings.onRemoveSemanticSectionItem(semanticItem.ruleId);
-      });
-      actions.appendChild(removeButton);
+  ): HTMLElement | null {
+    if (semanticItem.source !== "custom") {
+      return null;
     }
-    return actions;
-  }
 
-  private createTemplateSemanticSectionItemActionButton(options: {
-    readonly ariaLabel: string;
-    readonly disabled: boolean;
-    readonly icon: LxIconDefinition;
-    readonly label: string;
-  }): HTMLButtonElement {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "settings-template-semantic-rule-action";
-    button.disabled = options.disabled;
-    button.setAttribute("aria-label", options.ariaLabel);
-    button.append(
-      createLxIcon({ className: "settings-template-semantic-rule-action-icon", icon: options.icon, size: 14 }),
-      text("span", "settings-template-semantic-rule-action-label", options.label),
-    );
-    return button;
+    const actionLabel = localize("settings.template.semantic.removeRuleLabel", "Remove");
+    const actionAriaLabel = localize("settings.template.semantic.removeRule", "Remove domain rule {term}", { term: semanticItem.title });
+    const removeAction = this.registerContentDisposable(new Action(
+      "settings.template.semantic.removeRule",
+      actionLabel,
+      "",
+      !semanticItem.isSaving,
+      () => void settings.onRemoveSemanticSectionItem(semanticItem.ruleId),
+    ));
+    removeAction.tooltip = actionAriaLabel;
+    removeAction.icon = LxIcon.trashFlat;
+
+    const actionBar = this.registerContentDisposable(new ActionBar({
+      ariaLabel: actionAriaLabel,
+      className: "settings-template-semantic-rule-actionbar",
+    }));
+    actionBar.push(removeAction, {
+      className: "settings-template-semantic-rule-action",
+      icon: true,
+      label: false,
+    });
+    return actionBar.domNode;
   }
 
   private getTemplateSemanticLibrarySearchText(settings: TemplateSettings): string {

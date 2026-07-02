@@ -331,8 +331,8 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       assert.ok(customItem);
       assert.equal(getSemanticRuleInput(customItem, "X representative").hidden, false);
       assert.equal(getSemanticRuleInput(customItem, "Domain scope, for example iv").readOnly, false);
-      assert.equal(getSemanticRuleActionLabels(customItem).includes("Done"), false);
-      assert.equal(getSemanticRuleActionLabels(customItem).includes("Cancel"), false);
+      assert.equal(getSemanticRuleActionNames(customItem).includes("Done"), false);
+      assert.equal(getSemanticRuleActionNames(customItem).includes("Cancel"), false);
 
       acceptSemanticRuleInput(customItem, "X representative", "Added Gate");
       const editedItem = getSemanticRuleItems(container)
@@ -392,8 +392,8 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       assert.ok(builtinItem);
       assert.equal(getSemanticRuleInput(builtinItem, "X representative").hidden, false);
       assert.equal(getSemanticRuleInput(builtinItem, "Domain scope, for example iv").readOnly, false);
-      assert.equal(getSemanticRuleActionLabels(builtinItem).includes("Done"), false);
-      assert.equal(getSemanticRuleActionLabels(builtinItem).includes("Cancel"), false);
+      assert.equal(getSemanticRuleActionNames(builtinItem).includes("Done"), false);
+      assert.equal(getSemanticRuleActionNames(builtinItem).includes("Cancel"), false);
 
       acceptSemanticRuleInput(builtinItem, "X representative", "Codex Override Gate");
       const editedItem = getSemanticRuleItems(container)
@@ -680,11 +680,8 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
           descriptorId: "template-semantic-library",
           itemIds: [draftItem.id as SettingsContentItemId],
         },
-        {
-          descriptorId: "template-library",
-          itemIds: ["settings-template-semantic-domain-priority-item"],
-        },
       ]);
+      assert.equal(patchedDescriptors.includes("template-domain-priority"), true);
       assert.deepEqual(
         patchedDescriptors.filter(descriptorId => descriptorId === "template-semantic-library"),
         [
@@ -867,13 +864,11 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       assert.ok(customItem);
       patchedTargets.length = 0;
       patchedDescriptors.length = 0;
-      getSemanticRuleAction(customItem, "Remove").click();
+      getSemanticRuleAction(customItem, "Remove domain rule Custom Term").click();
       await settled();
 
-      assert.deepEqual(patchedTargets, [{
-        descriptorId: "template-library",
-        itemIds: ["settings-template-semantic-domain-priority-item"],
-      }]);
+      assert.deepEqual(patchedTargets, []);
+      assert.equal(patchedDescriptors.includes("template-domain-priority"), true);
       assert.deepEqual(
         patchedDescriptors.filter(descriptorId => descriptorId === "template-semantic-library"),
         [
@@ -1050,16 +1045,16 @@ function blurSemanticRuleInput(container: ParentNode, placeholder: string, value
   input.dispatchEvent(new FocusEvent("blur", { bubbles: true }));
 }
 
-function getSemanticRuleAction(container: ParentNode, label: string): HTMLButtonElement {
+function getSemanticRuleAction(container: ParentNode, accessibleName: string): HTMLButtonElement {
   const button = Array.from(container.querySelectorAll<HTMLButtonElement>(".settings-template-semantic-rule-action"))
-    .find(button => button.textContent?.trim() === label);
+    .find(button => button.getAttribute("aria-label") === accessibleName);
   assert.ok(button);
   return button;
 }
 
-function getSemanticRuleActionLabels(container: ParentNode): string[] {
+function getSemanticRuleActionNames(container: ParentNode): string[] {
   return Array.from(container.querySelectorAll<HTMLButtonElement>(".settings-template-semantic-rule-action"))
-    .map(button => button.textContent?.trim() ?? "");
+    .map(button => button.getAttribute("aria-label") ?? "");
 }
 
 function hasSemanticRuleValue(container: ParentNode, value: string): boolean {
