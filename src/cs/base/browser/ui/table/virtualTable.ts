@@ -175,6 +175,8 @@ export type VirtualTableVisibleRangeChangeEvent = {
 /**
  * Renderer boundary for pooled cells. Implementations should be idempotent: the
  * same DOM cell will be rebound to many row/column descriptors while scrolling.
+ * Do not assign stable DOM ids from model coordinates; use the current
+ * descriptor, ARIA coordinates, and owner-managed data attributes instead.
  */
 export type VirtualTableRenderer<TBodyTemplateData = unknown, TColumnHeaderTemplateData = unknown> = {
 	readonly clearBodyCell: (templateData: TBodyTemplateData) => void;
@@ -693,7 +695,9 @@ export namespace VirtualTableGridModel {
  * rows/columns, and header/body scroll sync. It intentionally does not own data
  * fetching, cell formatting, selection semantics, keyboard shortcuts, or
  * persistence. Consumers subscribe to the emitted facts and re-render by passing
- * total row/column counts plus a renderer-owned version token.
+ * total row/column counts plus a renderer-owned version token. Grid separators
+ * are owned by the continuous structural element that spans the boundary; pooled
+ * cells and spacers must not redraw the same line.
  */
 export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData = unknown> implements IDisposable {
 	public readonly element: HTMLElement;

@@ -15,6 +15,12 @@
   overflow: hidden;
 }
 
+.table_view_pane .table_view_grid_header_corner,
+.table_view_pane .table_view_grid_header_cell,
+.table_view_pane .table_view_grid_header_spacer {
+  border-top: 0;
+}
+
 .table_view_drop_target--dragging::after {
   content: "";
   position: absolute;

@@ -191,6 +191,14 @@ The base table owns UI mechanics that are independent of raw-table semantics:
   to apply the gesture to their own column width policy;
 - pooled corner/header/row-header/body DOM and descriptor rebinding;
 - structural CSS hooks, header/body scroll synchronization, and reveal geometry;
+- table grid separator ownership. A visual separator at one table grid boundary
+  must have one owner. Container-spanning horizontal separators, such as the
+  column-header bottom rule, belong to the continuous container that spans
+  header cells and spacer area. Individual header cells and spacer elements must
+  not redraw the same horizontal rule. Cell-owned borders are for per-cell grid
+  boundaries such as column dividers or body row dividers. Feature CSS may remove
+  a table edge when an outer workbench shell owns that boundary, but it must not
+  add a second overlapping line at the same coordinate.
 - widget-owned cell/header trait DOM hooks for hovered, selected,
   highlighted, decorated, active, and selection-frame state; feature widgets provide a
   selection/focus/highlight snapshot through `TableWidget.setCellState(...)`
@@ -228,6 +236,13 @@ Feature widgets consume those facts by subscribing and rereading owner state.
 They should not make each logical cell a long-lived component or subscribe each
 cell to model data. Instead, the feature widget adapts model state into render
 versions and cell/header renderers for the currently visible pool.
+
+Virtual table body rows, body cells, and column headers are pooled templates.
+The DOM nodes are rebound to different row/column descriptors while scrolling.
+Do not create stable DOM `id` values from row/column coordinates or use ids as
+the lookup contract for table cells. Use the base table structural classes,
+ARIA coordinates, and owner-managed data attributes for transient interaction
+state.
 
 Row/cache updates are aggregated by the table model. `subscribeRowsVersion`
 emits dirty ranges as half-open model coordinates; the base widget intersects

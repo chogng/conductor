@@ -38,8 +38,8 @@
 }
 
 .workbench_layout_sidebar .workbench-view-pane-container__header {
-  height: 44px;
-  min-height: 44px;
+  height: 40px;
+  min-height: 40px;
   padding: 0 10px;
 }
 
