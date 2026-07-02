@@ -154,12 +154,45 @@ suite("base/browser/ui/inputbox/InputBoxWidget", () => {
     }
   });
 
-  test("emits dropped item source and target", () => {
+  test("does not reorder items unless item reordering is enabled", () => {
     const inputBox = new InputBoxWidget({
       items: [
-        createDraggableItem("alpha", "Alpha"),
-        createDraggableItem("beta", "Beta"),
-        createDraggableItem("gamma", "Gamma"),
+        createItem("alpha", "Alpha"),
+        createItem("beta", "Beta"),
+      ],
+    });
+    document.body.appendChild(inputBox.element);
+
+    try {
+      const alpha = getItem(inputBox, "alpha");
+      const beta = getItem(inputBox, "beta");
+      let reorderCount = 0;
+      const reorderDisposable = inputBox.onDidMoveItem(() => {
+        reorderCount++;
+      });
+
+      const dragAllowed = alpha.dispatchEvent(new Event("dragstart", { bubbles: true, cancelable: true }));
+      const dropAllowed = beta.dispatchEvent(new Event("drop", { bubbles: true, cancelable: true }));
+
+      assert.equal(dragAllowed, false);
+      assert.equal(dropAllowed, true);
+      assert.equal(reorderCount, 0);
+      assert.deepEqual(getItemIds(inputBox), ["alpha", "beta"]);
+
+      reorderDisposable.dispose();
+    }
+    finally {
+      inputBox.dispose();
+    }
+  });
+
+  test("reorders items when item reordering is enabled", () => {
+    const inputBox = new InputBoxWidget({
+      itemsReorderable: true,
+      items: [
+        createItem("alpha", "Alpha"),
+        createItem("beta", "Beta"),
+        createItem("gamma", "Gamma"),
       ],
     });
     document.body.appendChild(inputBox.element);
@@ -167,18 +200,30 @@ suite("base/browser/ui/inputbox/InputBoxWidget", () => {
     try {
       const alpha = getItem(inputBox, "alpha");
       const gamma = getItem(inputBox, "gamma");
-      let droppedItems: readonly string[] = [];
-      const dropDisposable = inputBox.onDidDropItem(({ sourceItem, targetItem }) => {
-        droppedItems = [sourceItem.id, targetItem.id];
+      let reorder: readonly unknown[] = [];
+      const reorderDisposable = inputBox.onDidMoveItem(event => {
+        reorder = [
+          event.sourceItem.id,
+          event.sourceIndex,
+          event.targetItem.id,
+          event.targetIndex,
+          event.items.map(item => item.id),
+        ];
       });
 
       alpha.dispatchEvent(new Event("dragstart", { bubbles: true, cancelable: true }));
+      assert.equal(alpha.classList.contains("dragging"), true);
+      gamma.dispatchEvent(new Event("dragover", { bubbles: true, cancelable: true }));
+      assert.equal(gamma.classList.contains("drop-target"), true);
       const defaultAllowed = gamma.dispatchEvent(new Event("drop", { bubbles: true, cancelable: true }));
 
       assert.equal(defaultAllowed, false);
-      assert.deepEqual(droppedItems, ["alpha", "gamma"]);
+      assert.deepEqual(reorder, ["alpha", 0, "gamma", 2, ["beta", "gamma", "alpha"]]);
+      assert.deepEqual(getItemIds(inputBox), ["beta", "gamma", "alpha"]);
+      assert.equal(getItem(inputBox, "alpha").classList.contains("dragging"), false);
+      assert.equal(getItem(inputBox, "gamma").classList.contains("drop-target"), false);
 
-      dropDisposable.dispose();
+      reorderDisposable.dispose();
     }
     finally {
       inputBox.dispose();
@@ -197,14 +242,6 @@ function createItem(id: string, label: string) {
   };
 }
 
-function createDraggableItem(id: string, label: string) {
-  return {
-    id,
-    label,
-    draggable: true,
-  };
-}
-
 function createRemovableItem(id: string, label: string): IInputBoxWidgetItem {
   return {
     id,
@@ -212,6 +249,11 @@ function createRemovableItem(id: string, label: string): IInputBoxWidgetItem {
     removable: true,
     removeAriaLabel: `Remove token ${label}`,
   };
+}
+
+function getItemIds(inputBox: InputBoxWidget): string[] {
+  return Array.from(inputBox.field.querySelectorAll<HTMLElement>(".inputbox_widget_item"))
+    .map(item => item.dataset.itemId ?? "");
 }
 
 function getItem(inputBox: InputBoxWidget, id: string): HTMLElement {

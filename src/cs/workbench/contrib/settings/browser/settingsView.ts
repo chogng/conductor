@@ -170,7 +170,7 @@ type TemplateSettings = {
   onAddSemanticSectionItemTerm: (id: string, axis: TemplateSemanticAxis, value: string) => Promise<void> | void;
   onCommitSemanticSectionItemTitle: (id: string) => Promise<void> | void;
   onCreateSemanticSectionItem: () => Promise<void> | void;
-  onMoveSemanticDomainPriority: (sourceId: string, targetId: string) => Promise<void> | void;
+  onMoveSemanticDomainPriority: (sourceId: string, targetIndex: number) => Promise<void> | void;
   onRemoveSemanticDomainPriorityItem: (id: string, source: TemplateSemanticDomainPriorityItem["source"]) => Promise<void> | void;
   onRemoveSemanticSectionItem: (id: string) => Promise<void> | void;
   onRemoveSemanticSectionItemTerm: (id: string, axis: TemplateSemanticAxis, term: string) => Promise<void> | void;
@@ -1267,7 +1267,6 @@ export class SettingsView {
     const items: IInputBoxWidgetItem[] = settings.domainPriorityItems.map(domain => ({
       id: domain.id,
       label: domain.title,
-      draggable: !settings.isSaving,
       kind: domain.source,
       removable: true,
       removeAriaLabel: localize("settings.template.domainPriority.remove", "Remove domain {title}", { title: domain.title }),
@@ -1276,11 +1275,12 @@ export class SettingsView {
       ariaLabel: titleText,
       disabled: settings.isSaving,
       inputVisible: false,
+      itemsReorderable: true,
       items,
       readOnly: true,
     }));
-    this.registerContentDisposable(inputBox.onDidDropItem(event => {
-      void settings.onMoveSemanticDomainPriority(event.sourceItem.id, event.targetItem.id);
+    this.registerContentDisposable(inputBox.onDidMoveItem(event => {
+      void settings.onMoveSemanticDomainPriority(event.sourceItem.id, event.targetIndex);
     }));
     this.registerContentDisposable(inputBox.onDidRemoveItem(event => {
       const domain = settings.domainPriorityItems.find(domain => domain.id === event.item.id);

@@ -37,12 +37,20 @@
   padding: 2px 2px 2px 6px;
 }
 
-.inputbox_widget_item[draggable="true"] {
+.inputbox_widget_item.draggable {
   cursor: grab;
 }
 
-.inputbox_widget_item[draggable="true"]:active {
+.inputbox_widget_item.draggable:active {
   cursor: grabbing;
+}
+
+.inputbox_widget_item.dragging {
+  opacity: 0.55;
+}
+
+.inputbox_widget_item.drop-target {
+  border-color: rgb(var(--accent) / 1);
 }
 
 .inputbox_widget_item_label {

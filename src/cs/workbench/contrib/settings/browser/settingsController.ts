@@ -520,7 +520,7 @@ export class SettingsController {
       onAddSemanticSectionItemTerm: (id, axis, value) => this.addTemplateSemanticSectionItemTerm(id, axis, value),
       onCommitSemanticSectionItemTitle: id => this.commitTemplateSemanticSectionItemTitle(id),
       onCreateSemanticSectionItem: () => this.createTemplateSemanticSectionItem(),
-      onMoveSemanticDomainPriority: (sourceId, targetId) => this.moveTemplateSemanticDomainPriority(sourceId, targetId),
+      onMoveSemanticDomainPriority: (sourceId, targetIndex) => this.moveTemplateSemanticDomainPriority(sourceId, targetIndex),
       onRemoveSemanticDomainPriorityItem: (id, source) => this.removeTemplateSemanticDomainPriorityItem(id, source),
       onRemoveSemanticSectionItem: id => this.removeTemplateSemanticSectionItem(id),
       onRemoveSemanticSectionItemTerm: (id, axis, term) => this.removeTemplateSemanticSectionItemTerm(id, axis, term),
@@ -1405,19 +1405,16 @@ export class SettingsController {
     }
   }
 
-  private async moveTemplateSemanticDomainPriority(sourceId: string, targetId: string): Promise<void> {
-    if (sourceId === targetId) {
+  private async moveTemplateSemanticDomainPriority(sourceId: string, targetIndex: number): Promise<void> {
+    const activeDomainPriority = getTemplateActiveSemanticDomainRuleIds([
+      ...builtinSemanticDomainRules.map(toBuiltinTemplateSemanticDomainRuleView),
+      ...this.matchingTemplateSemanticDomainRules.map(toTemplateSemanticDomainRuleView),
+    ], normalizeTemplateSemanticDomainPriority(this.settings.templateSemanticDomainPriority));
+    const sourceIndex = activeDomainPriority.findIndex(id => id === sourceId);
+    if (sourceIndex === -1 || sourceIndex === targetIndex) {
       return;
     }
-    const priority = moveItemBefore(
-      getTemplateActiveSemanticDomainRuleIds([
-        ...builtinSemanticDomainRules.map(toBuiltinTemplateSemanticDomainRuleView),
-        ...this.matchingTemplateSemanticDomainRules.map(toTemplateSemanticDomainRuleView),
-      ], normalizeTemplateSemanticDomainPriority(this.settings.templateSemanticDomainPriority)),
-      id => id,
-      sourceId,
-      targetId,
-    );
+    const priority = moveItem(activeDomainPriority, sourceIndex, targetIndex);
     await this.saveTemplateSettings({
       templateSemanticDomainPriority: priority,
     }, localize("settings.template.domainPriority.saved", "Semantic domain priority updated."), itemsUpdateTarget("template-domain-priority", "settings-template-semantic-domain-priority-item"));
@@ -1863,22 +1860,20 @@ function getConductorSettingItemTarget(key: string): { readonly descriptorId: Se
   return null;
 }
 
-function moveItemBefore<T>(
+function moveItem<T>(
   values: readonly T[],
-  getId: (value: T) => string,
-  sourceId: string,
-  targetId: string,
+  sourceIndex: number,
+  targetIndex: number,
 ): T[] {
-  const result = values.slice();
-  const sourceIndex = result.findIndex(value => getId(value) === sourceId);
-  const targetIndex = result.findIndex(value => getId(value) === targetId);
-  if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) {
-    return result;
+  if (sourceIndex === targetIndex || sourceIndex < 0 || targetIndex < 0 || sourceIndex >= values.length || targetIndex >= values.length) {
+    return values.slice();
   }
-  const [source] = result.splice(sourceIndex, 1);
-  const nextTargetIndex = result.findIndex(value => getId(value) === targetId);
-  result.splice(nextTargetIndex === -1 ? result.length : nextTargetIndex, 0, source);
-  return result;
+  const nextValues = values.slice();
+  const [source] = nextValues.splice(sourceIndex, 1);
+  if (source !== undefined) {
+    nextValues.splice(targetIndex, 0, source);
+  }
+  return nextValues;
 }
 
 type TemplateSemanticDomainRuleView = {

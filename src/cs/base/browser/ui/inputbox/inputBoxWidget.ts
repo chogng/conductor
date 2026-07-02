@@ -17,7 +17,6 @@ type InputBoxWidgetItemBase = {
   readonly label: string;
   readonly ariaLabel?: string;
   readonly disabled?: boolean;
-  readonly draggable?: boolean;
   readonly kind?: string;
 };
 
@@ -44,10 +43,13 @@ export type IInputBoxWidgetItemRemoveEvent = {
   readonly item: IInputBoxWidgetItem;
 };
 
-export type IInputBoxWidgetItemDropEvent = {
+export type IInputBoxWidgetItemMoveEvent = {
   readonly browserEvent: DragEvent;
+  readonly items: readonly IInputBoxWidgetItem[];
   readonly sourceItem: IInputBoxWidgetItem;
+  readonly sourceIndex: number;
   readonly targetItem: IInputBoxWidgetItem;
+  readonly targetIndex: number;
 };
 
 export type InputBoxWidgetOptions = Pick<
@@ -65,6 +67,7 @@ export type InputBoxWidgetOptions = Pick<
 > & {
   readonly emptyLabel?: string;
   readonly inputVisible?: boolean;
+  readonly itemsReorderable?: boolean;
   readonly items?: readonly IInputBoxWidgetItem[];
 };
 
@@ -83,6 +86,7 @@ export class InputBoxWidget extends Disposable {
   private items: readonly IInputBoxWidgetItem[] = [];
   private emptyLabel = "";
   private inputVisible = true;
+  private itemsReorderable = false;
   private disabled = false;
   private dragSourceItemId: string | null = null;
 
@@ -97,8 +101,8 @@ export class InputBoxWidget extends Disposable {
   private readonly onDidRemoveItemEmitter = this._register(new Emitter<IInputBoxWidgetItemRemoveEvent>());
   public readonly onDidRemoveItem: Event<IInputBoxWidgetItemRemoveEvent> = this.onDidRemoveItemEmitter.event;
 
-  private readonly onDidDropItemEmitter = this._register(new Emitter<IInputBoxWidgetItemDropEvent>());
-  public readonly onDidDropItem: Event<IInputBoxWidgetItemDropEvent> = this.onDidDropItemEmitter.event;
+  private readonly onDidMoveItemEmitter = this._register(new Emitter<IInputBoxWidgetItemMoveEvent>());
+  public readonly onDidMoveItem: Event<IInputBoxWidgetItemMoveEvent> = this.onDidMoveItemEmitter.event;
 
   public constructor(options: InputBoxWidgetOptions = {}) {
     super();
@@ -124,6 +128,7 @@ export class InputBoxWidget extends Disposable {
   public update(options: InputBoxWidgetOptions = {}): void {
     let shouldRenderItems = false;
     let shouldUpdateEmptyElement = false;
+    let forceUpdateItems = false;
     if (options.items !== undefined) {
       this.items = options.items;
       shouldRenderItems = true;
@@ -137,7 +142,14 @@ export class InputBoxWidget extends Disposable {
       this.updateInputVisibility();
       shouldUpdateEmptyElement = true;
     }
-    let forceUpdateItems = false;
+    if (options.itemsReorderable !== undefined) {
+      const itemsReorderable = options.itemsReorderable === true;
+      if (this.itemsReorderable !== itemsReorderable) {
+        shouldRenderItems = true;
+        forceUpdateItems = true;
+      }
+      this.itemsReorderable = itemsReorderable;
+    }
     if (options.disabled !== undefined) {
       const disabled = options.disabled === true;
       if (this.disabled !== disabled) {
@@ -242,7 +254,7 @@ export class InputBoxWidget extends Disposable {
     const element = document.createElement("span");
     this._register(addDisposableListener(element, EventType.DRAG_START, event => {
       const currentItem = this.getItemForElement(element);
-      if (!currentItem || this.disabled || currentItem.draggable !== true) {
+      if (!currentItem || !this.canReorderItem(currentItem)) {
         event.preventDefault();
         return;
       }
@@ -250,30 +262,51 @@ export class InputBoxWidget extends Disposable {
       if (event.dataTransfer) {
         event.dataTransfer.setData("application/x-conductor-inputbox-widget-item", currentItem.id);
         event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setDragImage(element, 8, 8);
       }
+      element.classList.add("dragging");
     }));
     this._register(addDisposableListener(element, EventType.DRAG_OVER, event => {
       const currentItem = this.getItemForElement(element);
-      if (!currentItem || !this.dragSourceItemId || currentItem.id === this.dragSourceItemId) {
+      if (!currentItem || !this.dragSourceItemId || currentItem.id === this.dragSourceItemId || !this.canReorderItem(currentItem)) {
         return;
       }
       event.preventDefault();
       if (event.dataTransfer) {
         event.dataTransfer.dropEffect = "move";
       }
+      element.classList.add("drop-target");
+    }));
+    this._register(addDisposableListener(element, EventType.DRAG_LEAVE, () => {
+      element.classList.remove("drop-target");
     }));
     this._register(addDisposableListener(element, EventType.DROP, event => {
       const targetItem = this.getItemForElement(element);
       const sourceItem = this.dragSourceItemId ? this.itemById.get(this.dragSourceItemId) : undefined;
-      this.dragSourceItemId = null;
-      if (!sourceItem || !targetItem || sourceItem.id === targetItem.id) {
+      this.clearItemDragState();
+      if (!sourceItem || !targetItem || sourceItem.id === targetItem.id || !this.canReorderItem(sourceItem) || !this.canReorderItem(targetItem)) {
+        return;
+      }
+      const sourceIndex = this.items.findIndex(item => item.id === sourceItem.id);
+      const targetIndex = this.items.findIndex(item => item.id === targetItem.id);
+      if (sourceIndex === -1 || targetIndex === -1) {
         return;
       }
       event.preventDefault();
-      this.onDidDropItemEmitter.fire({ browserEvent: event, sourceItem, targetItem });
+      const nextItems = moveItem(this.items, sourceIndex, targetIndex);
+      this.items = nextItems;
+      this.renderItems();
+      this.onDidMoveItemEmitter.fire({
+        browserEvent: event,
+        items: nextItems,
+        sourceItem,
+        sourceIndex,
+        targetItem,
+        targetIndex,
+      });
     }));
     this._register(addDisposableListener(element, EventType.DRAG_END, () => {
-      this.dragSourceItemId = null;
+      this.clearItemDragState();
     }));
 
     const label = document.createElement("span");
@@ -288,10 +321,11 @@ export class InputBoxWidget extends Disposable {
     if (element.dataset.itemId !== item.id) {
       element.dataset.itemId = item.id;
     }
-    const draggable = !this.disabled && item.draggable === true;
+    const draggable = this.canReorderItem(item);
     if (element.draggable !== draggable) {
       element.draggable = draggable;
     }
+    element.classList.toggle("draggable", draggable);
     if (item.kind) {
       if (element.dataset.kind !== item.kind) {
         element.dataset.kind = item.kind;
@@ -320,6 +354,17 @@ export class InputBoxWidget extends Disposable {
   private getItemForElement(element: HTMLElement): IInputBoxWidgetItem | undefined {
     const id = element.dataset.itemId;
     return id ? this.itemById.get(id) : undefined;
+  }
+
+  private canReorderItem(item: IInputBoxWidgetItem): boolean {
+    return this.itemsReorderable && !this.disabled && item.disabled !== true;
+  }
+
+  private clearItemDragState(): void {
+    this.dragSourceItemId = null;
+    for (const node of this.itemNodes.values()) {
+      node.classList.remove("dragging", "drop-target");
+    }
   }
 
   private updateItemActionButton(
@@ -414,7 +459,6 @@ const inputBoxWidgetItemsEqual = (
   current.label === next.label &&
   normalizeOptionalString(current.ariaLabel) === normalizeOptionalString(next.ariaLabel) &&
   (current.disabled === true) === (next.disabled === true) &&
-  (current.draggable === true) === (next.draggable === true) &&
   (current.removable === true) === (next.removable === true) &&
   normalizeOptionalString(current.kind) === normalizeOptionalString(next.kind) &&
   normalizeOptionalString(current.removeAriaLabel) === normalizeOptionalString(next.removeAriaLabel) &&
@@ -445,6 +489,19 @@ const getInputBoxWidgetItemAction = (item: IInputBoxWidgetItem): InputBoxWidgetI
     };
   }
   return undefined;
+};
+
+const moveItem = <T>(items: readonly T[], sourceIndex: number, targetIndex: number): readonly T[] => {
+  if (sourceIndex === targetIndex || sourceIndex < 0 || targetIndex < 0 || sourceIndex >= items.length || targetIndex >= items.length) {
+    return items.slice();
+  }
+
+  const nextItems = items.slice();
+  const [sourceItem] = nextItems.splice(sourceIndex, 1);
+  if (sourceItem !== undefined) {
+    nextItems.splice(targetIndex, 0, sourceItem);
+  }
+  return nextItems;
 };
 
 const setClassName = (element: HTMLElement, className: string): void => {
