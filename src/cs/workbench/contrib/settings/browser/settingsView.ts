@@ -1457,7 +1457,6 @@ export class SettingsView {
       },
       onChange: value => settings.onUpdateSemanticSectionItemDraft(semanticItem.id, "title", value),
     });
-    leadingInput.element.classList.add("settings-template-semantic-rule-title-input");
     const sourceLabel = text(
       "span",
       "settings-template-semantic-rule-source",
@@ -1519,8 +1518,8 @@ export class SettingsView {
     readonly placeholder: string;
     readonly readOnly: boolean;
     readonly value: string;
-  }): InputBoxWidget {
-    const inputBox = this.registerContentDisposable(new InputBoxWidget({
+  }): InputBox<HTMLInputElement> {
+    const inputBox = this.registerContentDisposable(createInputBox({
       ariaLabel: options.ariaLabel,
       disabled: options.disabled,
       placeholder: options.placeholder,
@@ -1529,8 +1528,17 @@ export class SettingsView {
     }));
     inputBox.element.classList.add("settings-template-semantic-rule-input");
     this.registerContentDisposable(inputBox.onDidChange(options.onChange));
-    this.registerContentDisposable(inputBox.onDidAccept(options.onAccept));
     this.registerContentDisposable(inputBox.onDidBlur(options.onBlur));
+    this.registerContentDisposable(addDisposableListener(inputBox.input, EventType.KEY_DOWN, event => {
+      if (event.key !== "Enter" || event.isComposing || inputBox.input.disabled || inputBox.input.readOnly) {
+        return;
+      }
+      if (!inputBox.value.trim()) {
+        return;
+      }
+      event.preventDefault();
+      options.onAccept();
+    }));
     return inputBox;
   }
 

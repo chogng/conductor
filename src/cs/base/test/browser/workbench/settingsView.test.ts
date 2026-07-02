@@ -464,7 +464,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(semanticItems[1]!.classList.contains("settings-list-item--last"), true);
       assert.equal(draftItem.classList.contains("settings-list-item-cell--vertical"), true);
       assert.equal(customItem.classList.contains("settings-list-item-cell--vertical"), true);
-      assert.equal(draftItem.querySelectorAll(".inputbox_widget").length, 3);
+      assert.equal(draftItem.querySelectorAll(".inputbox_widget").length, 2);
       assert.equal(getSemanticRuleInput(draftItem, "Domain scope, for example iv").value, "");
       assert.equal(getSemanticRuleInput(draftItem, "X representative").value, "");
       assert.equal(getSemanticRuleInput(draftItem, "Y representative").value, "");
@@ -804,7 +804,7 @@ function queryTemplateBlock(container: HTMLElement, label: string): HTMLElement 
 }
 
 function getSemanticRuleInput(container: HTMLElement, placeholder: string): HTMLInputElement {
-  const input = Array.from(container.querySelectorAll<HTMLInputElement>(".inputbox_widget input.inputbox_native"))
+  const input = Array.from(container.querySelectorAll<HTMLInputElement>(".settings-template-semantic-rule-input input.inputbox_native"))
     .find(input => input.placeholder === placeholder);
   assert.ok(input, `Expected semantic rule input ${placeholder}.`);
   return input;
