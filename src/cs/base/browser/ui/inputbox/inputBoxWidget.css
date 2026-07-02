@@ -13,7 +13,7 @@
 .inputbox_widget_field > .inputbox_native {
   flex: 1 0 96px;
   min-width: 96px;
-  min-height: 28px;
+  min-height: 22px;
 }
 
 .inputbox_widget_field--input-hidden > .inputbox_native {
