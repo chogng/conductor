@@ -22,10 +22,10 @@ import { Action, type IAction } from "src/cs/base/common/actions";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/services/settings/common/fileNameMatching";
-import type { TemplateXAxisIntent } from "src/cs/workbench/services/settings/common/settings";
 import type {
   BuiltinSemanticDomainPack,
 } from "src/cs/workbench/services/dataResource/common/semanticLibrary";
+import type { StructuredXAxisIntent } from "src/cs/workbench/services/dataResource/common/structuredContent";
 import {
   createSettingsNavGroups,
   type SettingsSectionDefinition,
@@ -179,14 +179,12 @@ type TemplateSettings = {
   onDisableDomainPack: (id: string) => Promise<void> | void;
   onEnableDomainPack: (id: string) => Promise<void> | void;
   onMoveSemanticDomainPriority: (sourceId: string, targetId: string) => Promise<void> | void;
-  onMoveXAxisIntent: (sourceIntent: TemplateXAxisIntent, targetIntent: TemplateXAxisIntent) => Promise<void> | void;
   onRemoveSemanticSectionItem: (id: string) => Promise<void> | void;
   onRemoveSemanticSectionItemTerm: (id: string, axis: TemplateSemanticAxis, term: string) => Promise<void> | void;
   onResetSemanticDomainRules: () => Promise<void> | void;
   onUpdateSemanticSectionItemDraft: (id: string, field: TemplateSemanticSectionItemDraftField, value: string) => void;
   pendingActionItemId: string | null;
   semanticSectionItems: readonly TemplateSemanticSectionItem[];
-  xAxisIntentPriority: readonly TemplateXAxisIntent[];
 };
 
 type TemplateSemanticAxis = "x" | "y";
@@ -312,7 +310,6 @@ export type SettingsContentItemId =
   | "settings-filename-matching-item"
   | "settings-template-domain-packs-item"
   | "settings-template-semantic-domain-priority-item"
-  | "settings-template-x-axis-priority-item"
   | "settings-template-semantic-empty-item"
   | `settings-template-semantic-section-item:${string}`
   | "settings-theme-item"
@@ -1236,11 +1233,6 @@ export class SettingsView {
       createElement: () => this.createTemplateDomainPacks(this.options.templateSettings),
       searchText: this.getTemplateDomainPacksSearchText(this.options.templateSettings),
     }));
-    model.addItemToSection(section, this.createSettingsTreeElementItem({
-      id: "settings-template-x-axis-priority-item",
-      createElement: () => this.createXAxisIntentPriority(this.options.templateSettings),
-      searchText: this.getTemplateXAxisIntentPrioritySearchText(this.options.templateSettings),
-    }));
   }
 
   private addTemplateDomainPrioritySettingsTreeElements(model: SettingsTreeModel): void {
@@ -1410,43 +1402,6 @@ export class SettingsView {
     }
     row.appendChild(chips);
     return row;
-  }
-
-  private createXAxisIntentPriority(settings: TemplateSettings): HTMLElement {
-    const container = cell("settings-template-x-axis-priority-item", "settings-cell-block");
-    const titleText = localize("settings.template.xAxisPriority.title", "X Axis Intent Priority");
-    const description = localize("settings.template.xAxisPriority.description", "Drag intent blocks to decide which X role wins when one table exposes several legal X sequences.");
-    container.appendChild(headingBlock(titleText, description));
-
-    const list = div("settings-template-block-list");
-    for (const intent of settings.xAxisIntentPriority) {
-      const block = div("settings-template-block settings-template-block--intent");
-      block.draggable = !settings.isSaving;
-      block.dataset.intent = intent;
-      block.tabIndex = 0;
-      block.append(
-        createLxIcon({ className: "settings-template-block-handle", icon: LxIcon.listUnordered, size: 14 }),
-        text("span", "settings-template-block-title", formatXAxisIntent(intent)),
-        text("span", "settings-template-block-meta", intent),
-      );
-      block.addEventListener("dragstart", event => {
-        event.dataTransfer?.setData("application/x-conductor-template-intent", intent);
-      });
-      block.addEventListener("dragover", event => {
-        event.preventDefault();
-      });
-      block.addEventListener("drop", event => {
-        event.preventDefault();
-        const source = event.dataTransfer?.getData("application/x-conductor-template-intent");
-        if (isTemplateXAxisIntent(source)) {
-          void settings.onMoveXAxisIntent(source, intent);
-        }
-      });
-      list.appendChild(block);
-    }
-
-    container.appendChild(list);
-    return container;
   }
 
   private createTemplateSemanticDomainPriority(settings: TemplateSettings): HTMLElement {
@@ -1674,14 +1629,6 @@ export class SettingsView {
       localize("settings.template.domainPacks.title", "Domain Packs"),
       localize("settings.template.domainPacks.description", "Built-in domain packs scope title and marker evidence before Review builds binding candidates."),
       settings.builtinDomainPacks.map(formatDomainPackSearchText).join(" "),
-    );
-  }
-
-  private getTemplateXAxisIntentPrioritySearchText(settings: TemplateSettings): string {
-    return normalizeSettingsSearchText(
-      localize("settings.template.xAxisPriority.title", "X Axis Intent Priority"),
-      localize("settings.template.xAxisPriority.description", "Drag intent blocks to decide which X role wins when one table exposes several legal X sequences."),
-      settings.xAxisIntentPriority.map(formatXAxisIntent).join(" "),
     );
   }
 
@@ -3105,16 +3052,7 @@ function text<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, 
   return element;
 }
 
-function isTemplateXAxisIntent(value: unknown): value is TemplateXAxisIntent {
-  return value === "rawTransient" ||
-    value === "ivCurve" ||
-    value === "pvCurve" ||
-    value === "cvCurve" ||
-    value === "frequencySweep" ||
-    value === "genericXY";
-}
-
-function formatXAxisIntent(intent: TemplateXAxisIntent): string {
+function formatXAxisIntent(intent: StructuredXAxisIntent): string {
   if (intent === "rawTransient") {
     return localize("settings.template.intent.rawTransient", "Raw transient");
   }

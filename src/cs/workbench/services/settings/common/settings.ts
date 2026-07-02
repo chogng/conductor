@@ -38,14 +38,6 @@ export type FilesExplorerBadgeColor =
   | "cyan";
 
 export type FilesExplorerBadgeColors = Readonly<Record<string, FilesExplorerBadgeColor>>;
-export type TemplateXAxisIntent =
-  | "rawTransient"
-  | "ivCurve"
-  | "pvCurve"
-  | "cvCurve"
-  | "frequencySweep"
-  | "genericXY";
-
 export type TemplateSemanticAxisTendency = "x" | "dependent" | "unknown";
 export type TemplateSemanticUnit = "V" | "A" | "ohm" | "s" | "F" | "Hz" | "S";
 
@@ -72,14 +64,6 @@ const FILES_EXPLORER_BADGE_COLORS = new Set<FilesExplorerBadgeColor>([
   "cyan",
 ]);
 const NUMERIC_DISPLAY_MODES = new Set<NumericDisplayMode>(["raw", "smart"]);
-const TEMPLATE_X_AXIS_INTENTS = new Set<TemplateXAxisIntent>([
-  "pvCurve",
-  "ivCurve",
-  "cvCurve",
-  "frequencySweep",
-  "rawTransient",
-  "genericXY",
-]);
 const TEMPLATE_SEMANTIC_UNITS = new Set<TemplateSemanticUnit>([
   "V",
   "A",
@@ -101,14 +85,6 @@ export const DEFAULT_FILES_EXPLORER_BADGE_COLORS: FilesExplorerBadgeColors = Obj
   transfer: "blue",
   unknown: "orange",
 });
-export const DEFAULT_TEMPLATE_X_AXIS_INTENT_PRIORITY: readonly TemplateXAxisIntent[] = Object.freeze([
-  "pvCurve",
-  "ivCurve",
-  "cvCurve",
-  "frequencySweep",
-  "rawTransient",
-  "genericXY",
-]);
 export const DEFAULT_TEMPLATE_SEMANTIC_DOMAIN_RULES: readonly TemplateSemanticDomainRule[] = Object.freeze([]);
 export const DEFAULT_TEMPLATE_SEMANTIC_DOMAIN_PRIORITY: readonly string[] = Object.freeze([]);
 export const DEFAULT_TEMPLATE_DISABLED_BUILTIN_SEMANTIC_IDS: readonly string[] = Object.freeze([]);
@@ -168,32 +144,6 @@ export const normalizeNumericDisplayMode = (
   typeof value === "string" && NUMERIC_DISPLAY_MODES.has(value as NumericDisplayMode)
     ? value as NumericDisplayMode
     : DEFAULT_NUMERIC_DISPLAY_MODE;
-
-export const normalizeTemplateXAxisIntentPriority = (
-  value: unknown,
-): readonly TemplateXAxisIntent[] => {
-  const seen = new Set<TemplateXAxisIntent>();
-  const result: TemplateXAxisIntent[] = [];
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      if (typeof item !== "string" || !TEMPLATE_X_AXIS_INTENTS.has(item as TemplateXAxisIntent)) {
-        continue;
-      }
-      const intent = item as TemplateXAxisIntent;
-      if (!seen.has(intent)) {
-        seen.add(intent);
-        result.push(intent);
-      }
-    }
-  }
-
-  for (const intent of DEFAULT_TEMPLATE_X_AXIS_INTENT_PRIORITY) {
-    if (!seen.has(intent)) {
-      result.push(intent);
-    }
-  }
-  return result;
-};
 
 export const normalizeTemplateSemanticDomainRules = (
   value: unknown,
@@ -329,7 +279,6 @@ export type ConductorSettings = {
   templateDisabledBuiltinSemanticIds?: readonly string[];
   templateSemanticDomainPriority?: readonly string[];
   templateSemanticDomainRules?: readonly TemplateSemanticDomainRule[];
-  templateXAxisIntentPriority?: readonly TemplateXAxisIntent[];
   theme?: ThemeMode;
   transparentChrome?: boolean;
   windowCloseBehavior?: "minimizeToTray" | "quit";

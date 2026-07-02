@@ -36,13 +36,11 @@ import {
   normalizeTemplateDisabledBuiltinDomainPackIds,
   normalizeTemplateSemanticDomainPriority,
   normalizeTemplateSemanticDomainRules,
-  normalizeTemplateXAxisIntentPriority,
   type ConductorSettings,
   type FilesExplorerBadgeColor,
   type ISettingsService,
   type SettingsViewInput,
   type TemplateSemanticDomainRule,
-  type TemplateXAxisIntent,
 } from "src/cs/workbench/services/settings/common/settings";
 import {
   builtinSemanticDomainPacks,
@@ -524,14 +522,12 @@ export class SettingsController {
       onDisableDomainPack: id => this.disableTemplateDomainPack(id),
       onEnableDomainPack: id => this.enableTemplateDomainPack(id),
       onMoveSemanticDomainPriority: (sourceId, targetId) => this.moveTemplateSemanticDomainPriority(sourceId, targetId),
-      onMoveXAxisIntent: (sourceIntent, targetIntent) => this.moveTemplateXAxisIntent(sourceIntent, targetIntent),
       onRemoveSemanticSectionItem: id => this.removeTemplateSemanticSectionItem(id),
       onRemoveSemanticSectionItemTerm: (id, axis, term) => this.removeTemplateSemanticSectionItemTerm(id, axis, term),
       onResetSemanticDomainRules: () => this.resetTemplateSemanticDomainRules(),
       onUpdateSemanticSectionItemDraft: (id, field, value) => this.updateTemplateSemanticSectionItemDraft(id, field, value),
       pendingActionItemId: this.pendingTemplateActionItemId,
       semanticSectionItems: semanticDomainItems,
-      xAxisIntentPriority: normalizeTemplateXAxisIntentPriority(this.settings.templateXAxisIntentPriority),
     };
   }
 
@@ -1314,21 +1310,6 @@ export class SettingsController {
     }, localize("settings.template.domainPack.enabled", "Domain pack enabled for review."), itemsUpdateTarget("template-library", "settings-template-domain-packs-item"));
   }
 
-  private async moveTemplateXAxisIntent(sourceIntent: TemplateXAxisIntent, targetIntent: TemplateXAxisIntent): Promise<void> {
-    if (sourceIntent === targetIntent) {
-      return;
-    }
-    const priority = moveItemBefore(
-      normalizeTemplateXAxisIntentPriority(this.settings.templateXAxisIntentPriority),
-      intent => intent,
-      sourceIntent,
-      targetIntent,
-    );
-    await this.saveTemplateSettings({
-      templateXAxisIntentPriority: priority,
-    }, localize("settings.template.xAxisPriority.saved", "X axis intent priority updated."), itemsUpdateTarget("template-library", "settings-template-x-axis-priority-item"));
-  }
-
   private async moveTemplateSemanticDomainPriority(sourceId: string, targetId: string): Promise<void> {
     if (sourceId === targetId) {
       return;
@@ -1728,8 +1709,6 @@ function getConductorSettingItemTarget(key: string): { readonly descriptorId: Se
       return { descriptorId: "template-library", itemIds: ["settings-template-domain-packs-item"] };
     case "templateSemanticDomainPriority":
       return { descriptorId: "template-domain-priority", itemIds: ["settings-template-semantic-domain-priority-item"] };
-    case "templateXAxisIntentPriority":
-      return { descriptorId: "template-library", itemIds: ["settings-template-x-axis-priority-item"] };
     case "defaultYScaleForCf":
       return { descriptorId: "chart-defaults", itemIds: ["settings-default-cf-y-scale-item"] };
     case "defaultYScaleForCv":

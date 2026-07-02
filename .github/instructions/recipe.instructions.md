@@ -28,7 +28,8 @@ not an executable extraction plan.
 cell kind classification
   -> numeric runs
   -> column title spans
-  -> X range candidates
+  -> selected semantic domain
+  -> X range candidates ranked by that domain's intent/role profile
   -> X group / line candidates
   -> data block candidates
   -> dependent value candidates
@@ -49,6 +50,9 @@ structured content.
 - Axis tendency is evidence, not an absolute decision. DataResource combines it
   with X evidence such as monotonicity, stable step, segmented/reset patterns,
   and aligned numeric ranges.
+- Built-in semantic domain intent and role priorities are domain-owned evidence
+  used only after DataResource chooses a complete semantic domain. Do not add a
+  global X intent priority setting beside the domain priority model.
 - Generic aliases such as `voltage` and `current` must stay conservative. They
   may identify column roles, but should not force an IV transfer/output mode
   without a specific title such as `Vg`, `Vd`, or equivalent aliases.

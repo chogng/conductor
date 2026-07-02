@@ -10,11 +10,9 @@ import type {
 	StructuredIvSweepMode,
 	StructuredMeasurementColumnRole,
 	StructuredMeasurementFamily,
+	StructuredXAxisIntent,
 } from "./structuredContent";
-import type {
-	TemplateSemanticDomainRule,
-	TemplateXAxisIntent,
-} from "src/cs/workbench/services/settings/common/settings";
+import type { TemplateSemanticDomainRule } from "src/cs/workbench/services/settings/common/settings";
 
 //#region Public semantic contracts
 // Stable values consumed by DataResource evidence, Settings UI, and Review callers.
@@ -58,7 +56,7 @@ export type BuiltinSemanticDomainPack = {
 	readonly kind: "core" | "domain" | "format" | "test";
 	readonly description: string;
 	readonly rolePriors: readonly string[];
-	readonly intentPriors: readonly TemplateXAxisIntent[];
+	readonly intentPriors: readonly StructuredXAxisIntent[];
 	readonly xRolePriorityByIntent: Readonly<Record<string, readonly string[]>>;
 	readonly patterns: readonly string[];
 };
@@ -69,6 +67,11 @@ export type BuiltinSemanticDomainRule = {
 	readonly xTerms: readonly string[];
 	readonly yTerms: readonly string[];
 	readonly description: string;
+};
+
+export type SemanticDomainXPriority = {
+	readonly intentPriors: readonly StructuredXAxisIntent[];
+	readonly xRolePriorityByIntent: Readonly<Record<string, readonly string[]>>;
 };
 
 //#endregion
@@ -130,7 +133,6 @@ export type SemanticMatcherOptions = {
 	readonly domainRules?: readonly TemplateSemanticDomainRule[];
 	readonly disabledBuiltinTermIds?: readonly string[];
 	readonly disabledDomainPackIds?: readonly string[];
-	readonly xAxisIntentPriority?: readonly TemplateXAxisIntent[];
 };
 
 export type SemanticMatcher = {
@@ -139,7 +141,7 @@ export type SemanticMatcher = {
 	readonly matchRowMarker: (value: unknown) => SemanticRowMarkerKind | null;
 	readonly toKey: (value: unknown) => string;
 	readonly semanticDomainPriority: readonly string[];
-	readonly xAxisIntentPriority: readonly TemplateXAxisIntent[];
+	readonly getDomainXPriority: (domainId: string | undefined) => SemanticDomainXPriority | null;
 };
 
 //#endregion
@@ -229,6 +231,39 @@ function createBuiltinSemanticDomainRules(): readonly BuiltinSemanticDomainRule[
 	}];
 }
 
+const builtinSemanticDomainXPriorityById: ReadonlyMap<string, SemanticDomainXPriority> = new Map([
+	["builtin-domain:iv", {
+		intentPriors: ["ivCurve", "cvCurve", "frequencySweep"],
+		xRolePriorityByIntent: readDomainPackXRolePriority("semiconductor-ivcv"),
+	}],
+	["builtin-domain:cv", {
+		intentPriors: ["cvCurve", "frequencySweep", "ivCurve"],
+		xRolePriorityByIntent: readDomainPackXRolePriority("semiconductor-ivcv"),
+	}],
+	["builtin-domain:frequency", {
+		intentPriors: ["frequencySweep"],
+		xRolePriorityByIntent: readDomainPackXRolePriority("frequency-sweep"),
+	}],
+	["builtin-domain:transient", {
+		intentPriors: ["rawTransient"],
+		xRolePriorityByIntent: readDomainPackXRolePriority("raw-transient"),
+	}],
+	["builtin-domain:generic", {
+		intentPriors: ["genericXY"],
+		xRolePriorityByIntent: readDomainPackXRolePriority("core-test-measurement"),
+	}],
+]);
+
+function readDomainPackXRolePriority(
+	packId: string,
+): Readonly<Record<string, readonly string[]>> {
+	const pack = semanticLibrary.domainPacks.find(candidate => candidate.id === packId);
+	if (!pack) {
+		throw new Error(`Missing semantic domain pack: ${packId}`);
+	}
+	return pack.xRolePriorityByIntent;
+}
+
 function collectBuiltinAliasesByRole(
 	roles: readonly StructuredMeasurementColumnRole[],
 ): readonly string[] {
@@ -269,9 +304,6 @@ export function createSemanticMatcher(
 ): SemanticMatcher {
 	const disabledBuiltinTermIds = new Set((options.disabledBuiltinTermIds ?? []).filter(Boolean));
 	const disabledDomainPackIds = new Set((options.disabledDomainPackIds ?? []).filter(Boolean));
-	const xAxisIntentPriority = Array.isArray(options.xAxisIntentPriority)
-		? options.xAxisIntentPriority.slice()
-		: [];
 	const domainRules = createEffectiveSemanticDomainRules(options.domainRules ?? []);
 	const domainTitleTerms = compileDomainRuleTitleTerms(domainRules, options.domainPriority ?? []);
 	const titleTerms = compileSemanticTitleTerms([
@@ -298,13 +330,16 @@ export function createSemanticMatcher(
 			semanticDomains: term.semanticDomains,
 		})),
 		semanticDomainPriority,
+		builtinSemanticDomainXPriority: Array.from(builtinSemanticDomainXPriorityById, ([id, priority]) => ({
+			id,
+			priority,
+		})),
 		disabledBuiltinTermIds: Array.from(disabledBuiltinTermIds).sort(),
 		disabledDomainPackIds: Array.from(disabledDomainPackIds).sort(),
 		rowMarkerTerms: rowMarkerTerms.map(term => ({
 			key: term.key,
 			kind: term.kind,
 		})),
-		xAxisIntentPriority,
 	}))}`;
 	return {
 		fingerprint,
@@ -312,7 +347,13 @@ export function createSemanticMatcher(
 		matchRowMarker: value => matchSemanticRowMarkerFromTerms(value, rowMarkerTermsByKey),
 		toKey: toSemanticTermKey,
 		semanticDomainPriority,
-		xAxisIntentPriority,
+		getDomainXPriority: domainId => {
+			if (!domainId) {
+				return null;
+			}
+			const priority = builtinSemanticDomainXPriorityById.get(domainId);
+			return priority ? priority : null;
+		},
 	};
 }
 

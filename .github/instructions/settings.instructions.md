@@ -180,6 +180,10 @@ DataResource sees several complete domain matches in one data file, it chooses
 the highest-priority complete domain and uses that domain's X/Y evidence for
 slicing; incomplete higher-priority domains are skipped.
 
+Domain pack intent and role rows are read-only semantic-library facts. Do not
+add a separate global X-axis intent ordering setting; DataResource applies the
+selected semantic domain's own intent/role profile when ranking X candidates.
+
 `SettingsView` chooses each list item's leading/trailing orientation explicitly
 as horizontal or vertical when it creates the item cell. Each visible list entry
 has a stable item id and can be targeted by `SettingsController` without

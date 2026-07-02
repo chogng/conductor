@@ -126,7 +126,6 @@ export type ConductorSettings = JsonRecord & {
   templateDisabledBuiltinSemanticIds: string[];
   templateSemanticAllowlist: TemplateSemanticTermRule[];
   templateSemanticTermOrder: string[];
-  templateXAxisIntentPriority: string[];
   theme: string;
   backgroundColor: string;
   filesExplorerBadgeColors: Record<string, string>;
@@ -321,14 +320,6 @@ const DEFAULT_FILES_EXPLORER_BADGE_COLORS = Object.freeze<Record<string, string>
 });
 const LANGUAGES = new Set(["system", "en", "zh"]);
 const NUMERIC_DISPLAY_MODES = new Set(["raw", "smart"]);
-const TEMPLATE_X_AXIS_INTENTS = new Set([
-  "pvCurve",
-  "ivCurve",
-  "cvCurve",
-  "frequencySweep",
-  "rawTransient",
-  "genericXY",
-]);
 const TEMPLATE_SEMANTIC_AXIS_TENDENCIES = new Set([
   "x",
   "dependent",
@@ -356,14 +347,6 @@ const WINDOW_CLOSE_BEHAVIORS = new Set([
 ]);
 const DEFAULT_BACKGROUND_COLOR = "#f3f4f6";
 const BACKGROUND_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
-const DEFAULT_TEMPLATE_X_AXIS_INTENT_PRIORITY = Object.freeze([
-  "pvCurve",
-  "ivCurve",
-  "cvCurve",
-  "frequencySweep",
-  "rawTransient",
-  "genericXY",
-]);
 
 export const DEFAULT_CONDUCTOR_CONFIGURATION: ConductorSettings = {
   language: "system",
@@ -373,7 +356,6 @@ export const DEFAULT_CONDUCTOR_CONFIGURATION: ConductorSettings = {
   templateDisabledBuiltinSemanticIds: [],
   templateSemanticAllowlist: [],
   templateSemanticTermOrder: [],
-  templateXAxisIntentPriority: DEFAULT_TEMPLATE_X_AXIS_INTENT_PRIORITY.slice(),
   theme: "system",
   backgroundColor: DEFAULT_BACKGROUND_COLOR,
   filesExplorerBadgeColors: DEFAULT_FILES_EXPLORER_BADGE_COLORS,
@@ -544,29 +526,6 @@ function normalizeFilesExplorerBadgeColors(value: unknown): Record<string, strin
   }
 
   return colors;
-}
-
-function normalizeTemplateXAxisIntentPriority(value: unknown): string[] {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      if (typeof item !== "string" || !TEMPLATE_X_AXIS_INTENTS.has(item)) {
-        continue;
-      }
-      if (!seen.has(item)) {
-        seen.add(item);
-        result.push(item);
-      }
-    }
-  }
-
-  for (const intent of DEFAULT_TEMPLATE_X_AXIS_INTENT_PRIORITY) {
-    if (!seen.has(intent)) {
-      result.push(intent);
-    }
-  }
-  return result;
 }
 
 function normalizeTemplateSemanticAllowlist(value: unknown): TemplateSemanticTermRule[] {
@@ -752,9 +711,6 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
   const templateDisabledBuiltinSemanticIds = normalizeTemplateDisabledBuiltinSemanticIds(
     next.templateDisabledBuiltinSemanticIds,
   );
-  const templateXAxisIntentPriority = normalizeTemplateXAxisIntentPriority(
-    next.templateXAxisIntentPriority,
-  );
   const filesExplorerDensity = isSetValue(
     FILES_EXPLORER_DENSITIES,
     next.filesExplorerDensity,
@@ -856,7 +812,6 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
     templateDisabledBuiltinSemanticIds,
     templateSemanticAllowlist,
     templateSemanticTermOrder,
-    templateXAxisIntentPriority,
     theme,
     filesExplorerBadgeColors,
     filesExplorerDensity,
@@ -922,14 +877,6 @@ function createConductorConfigurationProperties(): Record<string, IConfiguration
     ...properties.numericDisplayMode,
     enum: ["raw", "smart"],
     enumItemLabels: ["raw", "smart"],
-  };
-
-  properties.templateXAxisIntentPriority = {
-    ...properties.templateXAxisIntentPriority,
-    items: {
-      enum: Array.from(TEMPLATE_X_AXIS_INTENTS),
-      type: "string",
-    },
   };
 
   properties.templateDisabledBuiltinSemanticIds = {

@@ -324,7 +324,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(result.reviews[0]?.findings.some(finding => finding.code === "review.ambiguousCandidates"), false);
 	});
 
-	test("uses X intent priority to resolve time and voltage X candidates before Review", async () => {
+	test("uses semantic domain intent profile to resolve time and voltage X candidates before Review", async () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/FastIvTransfer.csv");
 		const service = createReviewServiceForTest(
@@ -336,9 +336,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 				["DataValue", "1", "0.5", "2e-12"],
 				["DataValue", "2", "1", "3e-12"],
 				["DataValue", "3", "1.5", "4e-12"],
-			]), {
-				templateXAxisIntentPriority: ["ivCurve", "pvCurve", "cvCurve", "frequencySweep", "rawTransient", "genericXY"],
-			}),
+			])),
 		);
 
 		const reviewExecution = await service.reviewResourceForExecution({ resource });

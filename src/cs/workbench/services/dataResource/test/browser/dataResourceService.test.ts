@@ -402,7 +402,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		));
 	});
 
-	test("uses semantic domain priority before X intent priority when several X ranges are legal", async () => {
+	test("uses semantic domain priority and domain intent profiles when several X ranges are legal", async () => {
 		const rows = [
 			["FastIV", "interval", ""],
 			["DataName", "Time", "Vp", "Ipt"],
@@ -413,11 +413,9 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		const pvFirst = await resolveEvidence(rows);
 		const rawFirst = await resolveEvidence(rows, {
 			templateSemanticDomainPriority: ["builtin-domain:transient", "builtin-domain:iv"],
-			templateXAxisIntentPriority: ["rawTransient", "pvCurve", "ivCurve", "cvCurve", "frequencySweep", "genericXY"],
 		});
 		const ivFirst = await resolveEvidence(rows, {
 			templateSemanticDomainPriority: ["builtin-domain:iv", "builtin-domain:transient"],
-			templateXAxisIntentPriority: ["ivCurve", "pvCurve", "cvCurve", "frequencySweep", "rawTransient", "genericXY"],
 		});
 
 		assert.equal(pvFirst.xRangeCandidates[0]?.column, 2);

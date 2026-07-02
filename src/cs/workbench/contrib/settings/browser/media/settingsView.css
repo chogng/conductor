@@ -471,10 +471,6 @@
   outline-offset: 2px;
 }
 
-.settings-template-block--intent {
-  justify-content: flex-start;
-}
-
 .settings-template-block--term {
   align-items: flex-start;
 }

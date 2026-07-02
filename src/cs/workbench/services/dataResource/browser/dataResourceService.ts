@@ -18,6 +18,7 @@ import {
 } from "src/cs/workbench/services/dataResource/common/dataResource";
 import {
 	createSemanticMatcher,
+	type SemanticDomainXPriority,
 	type SemanticMatcher,
 } from "src/cs/workbench/services/dataResource/common/semanticLibrary";
 import {
@@ -51,7 +52,6 @@ import {
 	normalizeTemplateDisabledBuiltinDomainPackIds,
 	normalizeTemplateSemanticDomainPriority,
 	normalizeTemplateSemanticDomainRules,
-	normalizeTemplateXAxisIntentPriority,
 } from "src/cs/workbench/services/settings/common/settings";
 import {
 	type TableModelContentSnapshot,
@@ -88,6 +88,7 @@ type NumericRun = {
 type XRangeAnalysis = {
 	readonly candidate: StructuredXRangeCandidate;
 	readonly intentPriorityRank: number;
+	readonly rolePriorityRank: number;
 	readonly run: NumericRun;
 };
 
@@ -95,6 +96,8 @@ type XRangeIntentSelection = {
 	readonly intent: StructuredXAxisIntent;
 	readonly priorityIndex: number;
 	readonly priorityRank: number;
+	readonly rolePriorityIndex: number | null;
+	readonly rolePriorityRank: number;
 };
 
 type XRangeDraft = {
@@ -124,6 +127,7 @@ type GroupRange = {
 const MinimumNumericRunPoints = 2;
 const BlockXConfidenceThreshold = 0.55;
 const XIntentPriorityPenalty = 0.04;
+const XRolePriorityPenalty = 0.02;
 const UntypedXIntentPenalty = 0.06;
 const NumberTolerance = 1e-9;
 
@@ -201,7 +205,6 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 			domainRules: normalizeTemplateSemanticDomainRules(settings?.templateSemanticDomainRules),
 			disabledBuiltinTermIds: normalizeTemplateDisabledBuiltinSemanticIds(settings?.templateDisabledBuiltinSemanticIds),
 			disabledDomainPackIds: normalizeTemplateDisabledBuiltinDomainPackIds(settings?.templateDisabledBuiltinDomainPackIds),
-			xAxisIntentPriority: normalizeTemplateXAxisIntentPriority(settings?.templateXAxisIntentPriority),
 		});
 	}
 
@@ -332,10 +335,10 @@ const createStructuredContentEvidence = (
 		});
 		const xRangeAnalyses = createXRangeAnalyses({
 			columnCount: content.columnCount,
+			domainXPriority: semanticMatcher.getDomainXPriority(selectedSemanticDomain?.id),
 			numericRuns,
 			rows,
 			selectedSemanticDomainId: selectedSemanticDomain?.id,
-			xAxisIntentPriority: semanticMatcher.xAxisIntentPriority as readonly StructuredXAxisIntent[],
 			titleSpans: columnTitleSpans,
 		});
 		const xRangeCandidates = xRangeAnalyses.map(analysis => analysis.candidate);
@@ -906,17 +909,17 @@ const createColumnSemanticCandidates = ({
 
 const createXRangeAnalyses = ({
 	columnCount,
+	domainXPriority,
 	numericRuns,
 	rows,
 	selectedSemanticDomainId,
-	xAxisIntentPriority,
 	titleSpans,
 }: {
 	readonly columnCount: number;
+	readonly domainXPriority: SemanticDomainXPriority | null;
 	readonly numericRuns: readonly NumericRun[];
 	readonly rows: readonly (readonly string[])[];
 	readonly selectedSemanticDomainId?: string;
-	readonly xAxisIntentPriority: readonly StructuredXAxisIntent[];
 	readonly titleSpans: readonly StructuredColumnTitleSpanEvidence[];
 }): readonly XRangeAnalysis[] => {
 	const titleSpansByRun = createTitleSpanByRun(titleSpans);
@@ -943,7 +946,7 @@ const createXRangeAnalyses = ({
 
 		drafts.push({
 			baseConfidence,
-			intentSelection: selectXRangeIntent(effectiveTitleSpan, xAxisIntentPriority),
+			intentSelection: selectXRangeIntent(effectiveTitleSpan, domainXPriority),
 			pattern,
 			run,
 			...(effectiveTitleSpan ? { titleSpan: effectiveTitleSpan } : {}),
@@ -956,10 +959,18 @@ const createXRangeAnalyses = ({
 			.filter((priorityIndex): priorityIndex is number => priorityIndex !== undefined)
 	);
 	const hasIntentSelection = Number.isFinite(bestPriorityIndex);
+	const bestRolePriorityIndex = Math.min(
+		...drafts
+			.map(draft => draft.intentSelection?.rolePriorityIndex)
+			.filter((priorityIndex): priorityIndex is number => priorityIndex !== null && priorityIndex !== undefined)
+	);
+	const hasRolePrioritySelection = Number.isFinite(bestRolePriorityIndex);
 	const analyses: XRangeAnalysis[] = [];
 	for (const draft of drafts) {
 		const confidence = clampConfidence(
-			draft.baseConfidence - getXIntentPriorityPenalty(draft.intentSelection, hasIntentSelection ? bestPriorityIndex : 0, hasIntentSelection),
+			draft.baseConfidence -
+				getXIntentPriorityPenalty(draft.intentSelection, hasIntentSelection ? bestPriorityIndex : 0, hasIntentSelection) -
+				getXRolePriorityPenalty(draft.intentSelection, hasRolePrioritySelection ? bestRolePriorityIndex : 0, hasRolePrioritySelection),
 		);
 		if (confidence < 0.45) {
 			continue;
@@ -969,6 +980,7 @@ const createXRangeAnalyses = ({
 		analyses.push({
 			run: draft.run,
 			intentPriorityRank: draft.intentSelection?.priorityRank ?? 0,
+			rolePriorityRank: draft.intentSelection?.rolePriorityRank ?? 0,
 			candidate: {
 				id: `x-range:c${draft.run.column}:r${draft.run.startRow}-${draft.run.endRow}`,
 				column: draft.run.column,
@@ -986,6 +998,7 @@ const createXRangeAnalyses = ({
 	return analyses.sort((left, right) =>
 		right.candidate.confidence - left.candidate.confidence ||
 		right.intentPriorityRank - left.intentPriorityRank ||
+		right.rolePriorityRank - left.rolePriorityRank ||
 		left.candidate.column - right.candidate.column ||
 		left.candidate.startRow - right.candidate.startRow
 	);
@@ -1115,6 +1128,9 @@ const createXRangeReasons = (
 	if (intentSelection) {
 		reasons.push(`xRange.intent:${intentSelection.intent}`);
 		reasons.push(`xRange.intentPriority:${intentSelection.priorityIndex}`);
+		if (intentSelection.rolePriorityIndex !== null) {
+			reasons.push(`xRange.rolePriority:${intentSelection.rolePriorityIndex}`);
+		}
 	}
 	if (hasAlignedNumericNeighbor(rows, run, Number.MAX_SAFE_INTEGER)) {
 		reasons.push("xRange.alignedDependentNeighbor");
@@ -1124,9 +1140,9 @@ const createXRangeReasons = (
 
 const selectXRangeIntent = (
 	titleSpan: StructuredColumnTitleSpanEvidence | undefined,
-	xAxisIntentPriority: readonly StructuredXAxisIntent[],
+	domainXPriority: SemanticDomainXPriority | null,
 ): XRangeIntentSelection | null => {
-	if (titleSpan?.axisTendency !== "x") {
+	if (titleSpan?.axisTendency !== "x" || !domainXPriority) {
 		return null;
 	}
 	const intents = readTitleSpanIntents(titleSpan);
@@ -1136,7 +1152,7 @@ const selectXRangeIntent = (
 	const selected = intents
 		.map(intent => ({
 			intent,
-			priorityIndex: xAxisIntentPriority.indexOf(intent),
+			priorityIndex: domainXPriority.intentPriors.indexOf(intent),
 		}))
 		.filter((candidate): candidate is { readonly intent: StructuredXAxisIntent; readonly priorityIndex: number } =>
 			candidate.priorityIndex !== -1
@@ -1145,11 +1161,31 @@ const selectXRangeIntent = (
 	if (!selected) {
 		return null;
 	}
+	const rolePriority = domainXPriority.xRolePriorityByIntent[selected.intent];
+	const rolePriorityIndex = rolePriority ? selectXRolePriorityIndex(titleSpan.canonicalRole, rolePriority) : null;
 	return {
 		intent: selected.intent,
 		priorityIndex: selected.priorityIndex,
-		priorityRank: xAxisIntentPriority.length - selected.priorityIndex,
+		priorityRank: domainXPriority.intentPriors.length - selected.priorityIndex,
+		rolePriorityIndex,
+		rolePriorityRank: rolePriority && rolePriorityIndex !== null ? rolePriority.length - rolePriorityIndex : 0,
 	};
+};
+
+const selectXRolePriorityIndex = (
+	role: StructuredColumnTitleSpanEvidence["canonicalRole"],
+	rolePriority: readonly string[],
+): number | null => {
+	const roleNames = new Set<string>([role, toXAxisRole(role)]);
+	let selectedIndex: number | null = null;
+	for (let index = 0; index < rolePriority.length; index += 1) {
+		const priorityRole = rolePriority[index];
+		if (priorityRole === undefined || !roleNames.has(priorityRole)) {
+			continue;
+		}
+		selectedIndex = selectedIndex === null ? index : Math.min(selectedIndex, index);
+	}
+	return selectedIndex;
 };
 
 const getXIntentPriorityPenalty = (
@@ -1164,6 +1200,17 @@ const getXIntentPriorityPenalty = (
 		return UntypedXIntentPenalty;
 	}
 	return Math.max(0, intentSelection.priorityIndex - bestPriorityIndex) * XIntentPriorityPenalty;
+};
+
+const getXRolePriorityPenalty = (
+	intentSelection: XRangeIntentSelection | null,
+	bestPriorityIndex: number,
+	hasRolePrioritySelection: boolean,
+): number => {
+	if (!hasRolePrioritySelection || !intentSelection || intentSelection.rolePriorityIndex === null) {
+		return 0;
+	}
+	return Math.max(0, intentSelection.rolePriorityIndex - bestPriorityIndex) * XRolePriorityPenalty;
 };
 
 const readTitleSpanIntents = (
