@@ -907,12 +907,6 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
     cleanupEnabledOptions: [{ label: "Disabled", value: "false" }],
     cleanupFailedDaysOptions: [{ label: "7", value: "7" }],
     cleanupKeepSuccessOptions: [{ label: "0", value: "0" }],
-    fileNameFieldSeparatorsDraft: "_",
-    fileNameMatchingSettings: {
-      fieldSeparators: "_",
-      isSaving: false,
-      onFieldSeparatorsChange: noop,
-    },
     handleCheckForUpdates: noop,
     handleShowReleaseNotes: noop,
     language: "system",
@@ -964,7 +958,6 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
     searchQuery: "",
     setActiveSettingsSection: noop,
     setAxisTitleFontSizeDraft: noop,
-    setFileNameFieldSeparatorsDraft: noop,
     setOriginLegendFontSizeDraft: noop,
     setPlotCommandDraft: noop,
     setPostCommandsDraft: noop,
@@ -972,6 +965,11 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
     setSearchQuery: noop,
     setXyPairsDraft: noop,
     settingsSections: createSettingsSections(),
+    tableColumnWidthSettings: {
+      autoFitEnabled: false,
+      isSaving: false,
+      onAutoFitChange: noop,
+    },
     tableTemplateVisualizationSettings: {
       enabled: false,
       isSaving: false,

@@ -380,7 +380,6 @@ export interface ITableService {
 	clearHighlight(): void;
 	findCell(query: TableCellSearchQuery): Promise<TableCellSearchResult>;
 	getCellValue(cell: TableCell): Promise<TableCellValueResult>;
-	getColumnSizingMode(source: TableSource | null | undefined): TableColumnSizingMode;
 	getColumnWidths(source: TableSource | null | undefined): readonly TableColumnWidth[];
 	getPreviewRow(rowIndex: number): unknown[] | null;
 	getSelection(): TableSelection;
@@ -392,13 +391,8 @@ export interface ITableService {
 	resetColumnDisplayScale(colIndex: number): boolean;
 	select(target: TableSelectionTarget | null, reveal?: TableRevealMode): boolean;
 	selectAllColumns(): boolean;
-	setColumnSizingMode(
-		source: TableSource | null | undefined,
-		mode: TableColumnSizingMode,
-	): boolean;
 	storeColumnWidths(
 		source: TableSource | null | undefined,
 		widths: readonly TableColumnWidth[],
 	): void;
-	toggleColumnSizingMode(source: TableSource | null | undefined): boolean;
 }

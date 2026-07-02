@@ -178,6 +178,57 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
     }
   });
 
+  test("keeps table auto-fit columns switch on the pending value while saving", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const updateDeferred = new Deferred<ConductorSettings | null>();
+    const service = createSettingsService({ tableAutoFitColumnWidthsEnabled: false }, updateDeferred);
+    const savedSettings: Partial<ConductorSettings>[] = [];
+    service.updateSettings = async updates => {
+      savedSettings.push(updates as Partial<ConductorSettings>);
+      return updateDeferred.promise;
+    };
+    const controller = new SettingsController(
+      container,
+      createSettingsViewInput(service.settings),
+      service,
+      createCommandService(),
+      createNotificationService(),
+    );
+    controller.attachNavigation(container);
+
+    try {
+      const switchButton = getButton(container, "settings-table-auto-fit-columns-toggle");
+      assert.equal(switchButton.getAttribute("aria-checked"), "false");
+
+      switchButton.click();
+
+      assert.deepEqual(savedSettings, [{ tableAutoFitColumnWidthsEnabled: true }]);
+      assert.equal(getButton(container, "settings-table-auto-fit-columns-toggle"), switchButton);
+      assert.equal(switchButton.getAttribute("aria-checked"), "true");
+      assert.equal(switchButton.disabled, true);
+
+      controller.update(createSettingsViewInput(service.settings));
+      assert.equal(getButton(container, "settings-table-auto-fit-columns-toggle"), switchButton);
+      assert.equal(switchButton.getAttribute("aria-checked"), "true");
+      assert.equal(switchButton.disabled, true);
+
+      service.settings = { tableAutoFitColumnWidthsEnabled: true };
+      controller.update(createSettingsViewInput(service.settings));
+      updateDeferred.resolve(service.settings);
+      await settled();
+
+      assert.equal(getButton(container, "settings-table-auto-fit-columns-toggle"), switchButton);
+      assert.equal(switchButton.getAttribute("aria-checked"), "true");
+      assert.equal(switchButton.disabled, false);
+    }
+    finally {
+      controller.dispose();
+      container.remove();
+    }
+  });
+
   test("creates semantic section item rules with X and Y axis evidence", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

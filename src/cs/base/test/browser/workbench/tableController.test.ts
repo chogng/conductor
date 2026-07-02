@@ -205,7 +205,6 @@ function createTableService(): ITableService {
 		clearSelection: () => false,
 		findCell: async () => ({ kind: "empty" }),
 		getCellValue: async () => ({ kind: "empty" }),
-		getColumnSizingMode: () => "fixed",
 		getColumnWidths: () => [],
 		getPreviewRow: () => null,
 		getSelection: (): TableSelection => ({}),
@@ -217,9 +216,7 @@ function createTableService(): ITableService {
 		resetColumnDisplayScale: () => false,
 		select: () => false,
 		selectAllColumns: () => false,
-		setColumnSizingMode: () => false,
 		storeColumnWidths: () => undefined,
-		toggleColumnSizingMode: () => false,
 	};
 }
 

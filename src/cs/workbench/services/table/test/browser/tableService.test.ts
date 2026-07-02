@@ -38,7 +38,10 @@ import {
   type CreateTableViewModelWithScopeOptions,
 } from "src/cs/workbench/services/table/browser/tableViewModel";
 import type { TableModelContentSnapshot } from "src/cs/workbench/services/table/common/model";
-import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
+import type {
+  ConductorSettings,
+  ISettingsService,
+} from "src/cs/workbench/services/settings/common/settings";
 
 let tableTestStore: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite> | undefined;
 
@@ -694,7 +697,7 @@ suite("workbench/services/table/browser/tableService", () => {
     service.dispose();
   });
 
-  test("owns table column width persistence", () => {
+  test("owns fixed table column width persistence", () => {
     const storageService = new TestStorageService();
     const source = {
       resource: URI.file("/workspace/data/widths.csv"),
@@ -705,7 +708,6 @@ suite("workbench/services/table/browser/tableService", () => {
     });
 
     assert.deepEqual(service.getColumnWidths(source), []);
-    assert.equal(service.getColumnSizingMode(source), "fixed");
 
     service.storeColumnWidths(source, [
       { colIndex: 2, width: 243.6 },
@@ -716,26 +718,29 @@ suite("workbench/services/table/browser/tableService", () => {
       { colIndex: 1, width: 0 },
       { colIndex: 2, width: 244 },
     ]);
-    assert.equal(service.setColumnSizingMode(source, "autoFit"), true);
-    assert.equal(service.getColumnSizingMode(source), "autoFit");
-    assert.deepEqual(service.getColumnWidths(source), [
-      { colIndex: 1, width: 0 },
-      { colIndex: 2, width: 244 },
-    ]);
-    assert.equal(service.toggleColumnSizingMode(source), true);
-    assert.equal(service.getColumnSizingMode(source), "fixed");
 
     service.storeColumnWidths(source, []);
 
     assert.deepEqual(service.getColumnWidths(source), []);
-    assert.equal(service.getColumnSizingMode(source), "fixed");
     service.dispose();
     storageService.dispose();
   });
 
-  test("publishes table view input when active column sizing mode changes", async () => {
+  test("uses table auto-fit setting as column sizing mode", async () => {
+    const settingsEmitter = new Emitter<ConductorSettings | null>();
+    store.add(settingsEmitter);
+    let conductorSettings: ConductorSettings = {
+      numericDisplayMode: "raw",
+      tableAutoFitColumnWidthsEnabled: false,
+    };
+    const settingsService = createSettingsServiceStub({
+      getConductorSettings: () => conductorSettings,
+      onDidChangeConductorSettings: settingsEmitter.event,
+    });
     const resource = URI.file("/workspace/data/column-sizing.csv");
-    const { service } = createTableServiceFixture();
+    const { service } = createTableServiceFixture({
+      settingsService,
+    });
     let changeCount = 0;
     const disposable = store.add(service.onDidChangeTableViewInput(() => {
       changeCount += 1;
@@ -744,12 +749,26 @@ suite("workbench/services/table/browser/tableService", () => {
     service.open({ resource });
     await waitForReadyTableService(service);
     const initialChangeCount = changeCount;
-    const input = service.getViewInput();
 
-    assert.equal(input?.columnSizingMode, "fixed");
-    assert.equal(service.toggleColumnSizingMode(input?.tableState.file?.source), true);
+    assert.equal(service.getViewInput()?.columnSizingMode, "fixed");
+    conductorSettings = {
+      ...conductorSettings,
+      tableAutoFitColumnWidthsEnabled: true,
+    };
+    settingsEmitter.fire(conductorSettings);
     assert.equal(service.getViewInput()?.columnSizingMode, "autoFit");
     assert.equal(changeCount, initialChangeCount + 1);
+
+    settingsEmitter.fire(conductorSettings);
+    assert.equal(changeCount, initialChangeCount + 1);
+
+    conductorSettings = {
+      ...conductorSettings,
+      tableAutoFitColumnWidthsEnabled: false,
+    };
+    settingsEmitter.fire(conductorSettings);
+    assert.equal(service.getViewInput()?.columnSizingMode, "fixed");
+    assert.equal(changeCount, initialChangeCount + 2);
 
     disposable.dispose();
     service.dispose();
@@ -1035,7 +1054,10 @@ const createSettingsServiceStub = (
   overrides: Partial<ISettingsService> = {},
 ): ISettingsService => ({
   _serviceBrand: undefined,
-  getConductorSettings: () => ({ numericDisplayMode: "raw" }),
+  getConductorSettings: () => ({
+    numericDisplayMode: "raw",
+    tableAutoFitColumnWidthsEnabled: false,
+  }),
   onDidChangeConductorSettings: Event.None,
   onDidChangeNumericDisplayMode: Event.None,
   onDidChangeOriginSettingsViewInput: Event.None,

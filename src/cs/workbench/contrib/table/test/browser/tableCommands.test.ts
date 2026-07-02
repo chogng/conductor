@@ -5,7 +5,6 @@
 import assert from "assert";
 
 import { Event } from "src/cs/base/common/event";
-import { URI } from "src/cs/base/common/uri";
 import {
 	isIMenuItem,
 	MenuId,
@@ -20,7 +19,6 @@ import {
 	type ITableWidgetController,
 } from "src/cs/workbench/contrib/table/browser/tableWidgetService";
 import { TableCommandId } from "src/cs/workbench/contrib/table/common/table";
-import { ITableService, type TableSource } from "src/cs/workbench/services/table/common/table";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/table/test/browser/tableCommands", () => {
@@ -61,40 +59,6 @@ suite("workbench/contrib/table/test/browser/tableCommands", () => {
 		} finally {
 			zoomControllerRegistration.dispose();
 			tableWidgetService.dispose();
-			registration.dispose();
-		}
-	});
-
-	test("column auto-fit command delegates to the table service active source", async () => {
-		const registration = registerTableActions();
-		const source = { resource: URI.file("/workspace/table.csv") };
-		const calls: Array<TableSource | null | undefined> = [];
-		const tableService = {
-			getViewInput: () => ({
-				columnSizingMode: "fixed" as const,
-				tableState: {
-					file: { source },
-					source,
-				},
-			}),
-			toggleColumnSizingMode: (target: TableSource | null | undefined) => {
-				calls.push(target);
-				return true;
-			},
-		};
-		const accessor = {
-			get: (serviceId: unknown) => {
-				if (serviceId === ITableService) {
-					return tableService;
-				}
-				throw new Error("column auto-fit command must resolve only ITableService");
-			},
-		} as unknown as ServicesAccessor;
-
-		try {
-			assert.equal(await CommandsRegistry.getCommand(TableCommandId.toggleColumnAutoFit)?.handler(accessor), true);
-			assert.deepEqual(calls, [source]);
-		} finally {
 			registration.dispose();
 		}
 	});
