@@ -86,9 +86,6 @@ export class InputBoxWidget extends Disposable {
   private disabled = false;
   private dragSourceItemId: string | null = null;
 
-  private readonly onDidAcceptEmitter = this._register(new Emitter<string>());
-  public readonly onDidAccept: Event<string> = this.onDidAcceptEmitter.event;
-
   public readonly onDidBlur: Event<void>;
 
   private readonly onDidChangeEmitter = this._register(new Emitter<string>());
@@ -188,19 +185,6 @@ export class InputBoxWidget extends Disposable {
 
   private registerListeners(): void {
     this._register(this.inputBox.onDidChange(value => this.onDidChangeEmitter.fire(value)));
-    this._register(addDisposableListener(this.input, EventType.KEY_DOWN, event => {
-      if (event.key !== "Enter" || event.isComposing || this.disabled || !this.inputVisible || this.input.readOnly) {
-        return;
-      }
-
-      const value = this.input.value.trim();
-      if (!value) {
-        return;
-      }
-
-      event.preventDefault();
-      this.onDidAcceptEmitter.fire(this.input.value);
-    }));
     this._register(addDisposableListener(this.field, EventType.MOUSE_DOWN, event => {
       if (!this.inputVisible || this.disabled || isElementInsideButton(event.target) || event.target === this.input) {
         return;

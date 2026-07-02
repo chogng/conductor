@@ -7,13 +7,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 suite("base/browser/ui/inputbox/InputBoxWidget", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
 
-  test("accepts editable input with Enter", () => {
+  test("leaves Enter handling to the input owner", () => {
     const inputBox = new InputBoxWidget();
     document.body.appendChild(inputBox.element);
-    let acceptedValue: string | null = null;
-    const acceptDisposable = inputBox.onDidAccept(value => {
-      acceptedValue = value;
-    });
 
     try {
       inputBox.input.value = "V";
@@ -25,12 +21,10 @@ suite("base/browser/ui/inputbox/InputBoxWidget", () => {
 
       const defaultAllowed = inputBox.input.dispatchEvent(event);
 
-      assert.equal(defaultAllowed, false);
-      assert.equal(event.defaultPrevented, true);
-      assert.equal(acceptedValue, "V");
+      assert.equal(defaultAllowed, true);
+      assert.equal(event.defaultPrevented, false);
     }
     finally {
-      acceptDisposable.dispose();
       inputBox.dispose();
     }
   });

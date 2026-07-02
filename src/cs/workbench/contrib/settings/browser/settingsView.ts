@@ -42,6 +42,7 @@ import {
 } from "src/cs/workbench/contrib/settings/browser/settingsTree";
 import { SettingsTreeModel } from "src/cs/workbench/contrib/settings/browser/settingsTreeModels";
 import { settingsTreeRenderer } from "src/cs/workbench/contrib/settings/browser/settingsTreeRenderer";
+import { isCustomSemanticMatchTermAllowed } from "src/cs/workbench/services/dataResource/common/semanticLibrary";
 import type { LanguagePreference } from "src/cs/base/common/platform";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import "src/cs/base/browser/ui/inputbox/inputBox.css";
@@ -1397,17 +1398,28 @@ export class SettingsView {
       value: options.value,
     }));
     inputBox.element.classList.add("settings-template-semantic-rule-input");
-    this.registerContentDisposable(inputBox.onDidChange(options.onChange));
-    this.registerContentDisposable(inputBox.onDidBlur(options.onBlur));
+    let acceptedCurrentValue = false;
+    this.registerContentDisposable(inputBox.onDidChange(value => {
+      acceptedCurrentValue = false;
+      options.onChange(value);
+    }));
+    this.registerContentDisposable(inputBox.onDidBlur(() => {
+      if (acceptedCurrentValue) {
+        return;
+      }
+      options.onBlur();
+    }));
     this.registerContentDisposable(addDisposableListener(inputBox.input, EventType.KEY_DOWN, event => {
       if (event.key !== "Enter" || event.isComposing || inputBox.input.disabled || inputBox.input.readOnly) {
         return;
       }
-      if (!inputBox.value.trim()) {
-        return;
-      }
       event.preventDefault();
       options.onAccept();
+      if (!isCustomSemanticMatchTermAllowed(inputBox.value.trim())) {
+        return;
+      }
+      acceptedCurrentValue = true;
+      inputBox.blur();
     }));
     return inputBox;
   }
@@ -1449,9 +1461,16 @@ export class SettingsView {
       acceptedCurrentValue = false;
       options.onChange(value);
     }));
-    this.registerContentDisposable(inputBox.onDidAccept(value => {
+    this.registerContentDisposable(addDisposableListener(inputBox.input, EventType.KEY_DOWN, event => {
+      if (event.key !== "Enter" || event.isComposing || inputBox.input.disabled || inputBox.input.readOnly || inputBox.input.hidden) {
+        return;
+      }
+      if (!inputBox.value.trim()) {
+        return;
+      }
+      event.preventDefault();
       acceptedCurrentValue = true;
-      options.onAccept(value);
+      options.onAccept(inputBox.value);
     }));
     this.registerContentDisposable(inputBox.onDidBlur(() => {
       if (acceptedCurrentValue) {

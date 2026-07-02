@@ -37,7 +37,24 @@ suite("workbench/test/browser/inputBox", () => {
     assert.equal(inputBox.input.getAttribute("autocomplete"), "off");
     assert.equal(inputBox.input.getAttribute("aria-invalid"), "false");
     assert.equal(inputBox.input.getAttribute("aria-label"), "X value");
+    assert.equal(inputBox.input.getAttribute("title"), null);
     assert.equal(inputBox.input.className, "inputbox_native");
+    inputBox.dispose();
+  });
+
+  test("createInputBox uses managed hover without native title", () => {
+    const inputBox = createInputBox({
+      placeholder: "Domain scope, for example iv",
+      tooltip: "Domain scope, for example iv",
+    });
+
+    assert.equal(inputBox.input.getAttribute("title"), null);
+
+    inputBox.setTooltip("Next tooltip");
+    assert.equal(inputBox.input.getAttribute("title"), null);
+
+    inputBox.setTooltip("");
+    assert.equal(inputBox.input.getAttribute("title"), null);
     inputBox.dispose();
   });
 

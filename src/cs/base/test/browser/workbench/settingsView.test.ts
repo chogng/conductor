@@ -560,6 +560,86 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     }
   });
 
+  test("blurs semantic rule title after valid Enter commit", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    let commitCount = 0;
+    const view = new SettingsView(container, createSettingsViewOptions({
+      activeSettingsSection: "template",
+      templateSettings: {
+        onCommitSemanticSectionItemTitle: () => {
+          commitCount += 1;
+        },
+        semanticSectionItems: [
+          {
+            id: "settings-template-semantic-section-item:draft:valid-title",
+            isSaving: false,
+            ruleId: "valid-title",
+            source: "draft",
+            title: "iv",
+            xDraft: "",
+            xTerms: ["Vg"],
+            yDraft: "",
+            yTerms: ["Id"],
+          },
+        ],
+      },
+    }));
+
+    try {
+      const input = getSemanticRuleInput(container, "Domain scope, for example iv");
+      input.focus();
+      input.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Enter" }));
+
+      assert.equal(commitCount, 1);
+      assert.ok(document.activeElement !== input);
+    }
+    finally {
+      view.dispose();
+      container.remove();
+    }
+  });
+
+  test("keeps semantic rule title focused after invalid Enter commit", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    let commitCount = 0;
+    const view = new SettingsView(container, createSettingsViewOptions({
+      activeSettingsSection: "template",
+      templateSettings: {
+        onCommitSemanticSectionItemTitle: () => {
+          commitCount += 1;
+        },
+        semanticSectionItems: [
+          {
+            id: "settings-template-semantic-section-item:draft:invalid-title",
+            isSaving: false,
+            ruleId: "invalid-title",
+            source: "draft",
+            title: "V",
+            xDraft: "",
+            xTerms: ["Vg"],
+            yDraft: "",
+            yTerms: ["Id"],
+          },
+        ],
+      },
+    }));
+
+    try {
+      const input = getSemanticRuleInput(container, "Domain scope, for example iv");
+      input.focus();
+      input.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Enter" }));
+
+      assert.equal(commitCount, 1);
+      assert.equal(document.activeElement, input);
+    }
+    finally {
+      view.dispose();
+      container.remove();
+    }
+  });
+
   test("prepends a new semantic draft item without replacing existing sibling items", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

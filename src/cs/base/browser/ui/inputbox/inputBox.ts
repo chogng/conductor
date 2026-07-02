@@ -158,13 +158,12 @@ export class InputBox<TInput extends InputBoxInputElement = HTMLInputElement> ex
 
   public setTooltip(tooltip: string): void {
     this.tooltip = tooltip;
+    this.input.removeAttribute("title");
     if (!tooltip) {
-      this.input.removeAttribute("title");
       this.hover.clear();
       return;
     }
 
-    this.input.setAttribute("title", tooltip);
     if (this.hover.current) {
       this.hover.current.update?.(tooltip);
       return;
