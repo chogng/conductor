@@ -80,7 +80,7 @@ Review Algorithm Sequence:
 URI + contentHash/sourceVersion + optional sheetId
   -> DataResourceService infers structured evidence
      (cell kinds, numeric runs, title spans, X ranges/groups, blocks, bindings,
-      diagnostics, profiles, semantic library fingerprint)
+      diagnostics, profiles, semantic rules fingerprint)
   -> ReviewService reads structured content snapshot
   -> ReviewService builds SegmentCandidate / ReviewCandidate values
      directly from DataResource binding candidates and UserTemplateSnapshot
@@ -134,7 +134,7 @@ label such as a curve kind, family, or role comes from `ReviewSummary` /
 `ReviewedTemplate` metadata after Review has made a decision.
 
 This summary cache is service-local. It is invalidated by content version
-changes, evidence fingerprint changes, DataResource semantic-library/evidence
+changes, evidence fingerprint changes, DataResource semantic-rules/evidence
 fingerprint changes, UserTemplate changes, review policy changes, and optional
 materialization-version changes. Explorer must not fall back to Session
 raw-table records for URI-backed semantic decorations.
@@ -174,7 +174,7 @@ user command / UserTemplate picker
 | File | Owns | Must not own |
 | --- | --- | --- |
 | `common/review.ts` | `IReviewService` contract, resource execution/manual review request and result types, review/evidence/result signature helpers. | Evidence shape definitions, browser cache implementation, Explorer decoration mapping, Slice submission. |
-| `common/reviewModel.ts` | Pure Review domain model: Review input evidence wrapper, `ReviewContext`, `SegmentCandidate`, `ReviewCandidate`, `ReviewResult`, `ReviewDecision`, factors, findings, `ReviewedTemplate`, `ReviewSummary`. | Service implementation, evidence production, DataResource semantic-library storage, Explorer UI types, structured-content adapter types. |
+| `common/reviewModel.ts` | Pure Review domain model: Review input evidence wrapper, `ReviewContext`, `SegmentCandidate`, `ReviewCandidate`, `ReviewResult`, `ReviewDecision`, factors, findings, `ReviewedTemplate`, `ReviewSummary`. | Service implementation, evidence production, DataResource semantic-rules storage, Explorer UI types, structured-content adapter types. |
 | `common/reviewCandidate.ts` | Pure DataResource binding evidence + UserTemplate snapshot + URI/content context -> `SegmentCandidate` / `ReviewCandidate` derivation. | Final Review status, `ReviewedTemplate` selection, Slice execution, Explorer decoration, semantic title matching. |
 | `common/reviewDecision.ts` | Pure assembly of context, candidates, scoring, and decision policy into `ReviewResult`, selected `ReviewedTemplate`, and summary-ready facts. This is one decision pipeline, not separate scoring/result owners. | Candidate derivation, browser scheduling/cache, file/model reads, Explorer decoration mapping, Slice execution. |
 | `browser/reviewService.ts` | Injectable service owner for cache, stale checks, scheduling/background review, manual review entry points, and consuming `IDataResourceService` structured-content snapshots. | Table UI parsing, table projection ownership, data-resource resolution, DOM/UI decoration, Explorer tree state, Slice execution. |

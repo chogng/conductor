@@ -1,28 +1,34 @@
 ---
-description: DataResource semantic library - passive aliases, canonical roles, units, axis tendencies, and row markers used by DataResource evidence production.
-applyTo: 'resources/recipes/**,src/cs/workbench/services/dataResource/**'
+description: DataResource semantic rules - passive aliases, canonical roles, units, axis tendencies, and row markers used by DataResource evidence production.
+applyTo: 'resources/rules/**,src/cs/workbench/services/dataResource/**'
 ---
-# Semantic Library
+# Semantic Rules
 
-Recipes are retired from the automatic Review path. The remaining recipe-owned
-artifact is the DataResource semantic library JSON: a passive alias library used
-by DataResource title matching while producing structured-content evidence.
+Recipes are retired from the automatic Review path. The remaining built-in
+rules artifacts are the DataResource semantic rules JSON files: passive alias
+and domain rules used by DataResource title matching while producing
+structured-content evidence.
 
-The library is not a layout taxonomy, not a Template, not a Review selector, and
+The rules are not a layout taxonomy, not a Template, not a Review selector, and
 not an executable extraction plan.
 
 ## Ownership
 
-`resources/recipes/v1/semantic-library.json` owns:
+`resources/rules/v1/*.json` owns one domain, format, or shared rule boundary
+per file:
 
 - title aliases such as `DataName`, `Vg`, `Vd`, `Id`, `Cgg`, `time`, and
   `frequency`;
 - canonical measurement roles and canonical units;
 - axis tendency hints (`x`, `dependent`, or `unknown`);
 - measurement family/mode hints only when the role is specific enough;
-- row marker aliases such as `DataName` and `DataValue`.
+- row marker aliases such as B1500 `DataName` and `DataValue` when they are
+  domain evidence for the owning rule file.
+- built-in semantic domain rules such as `iv`, `cv`, `frequency`,
+  `transient`, and `generic`;
+- domain-owned X intent and role-priority profiles.
 
-`DataResourceService` owns using that library to produce:
+`DataResourceService` owns using those rules to produce:
 
 ```txt
 cell kind classification
@@ -43,9 +49,13 @@ structured content.
 
 ## Rules
 
-- Keep the library passive JSON. Do not add TypeScript callbacks, service
+- Keep the rules passive JSON. Do not add TypeScript callbacks, service
   lookups, row parsing, or Review scoring rules.
-- Prefer canonical title aliases over layout names. The library should say what
+- Put a built-in domain's X/Y evidence and X ranking profile in that domain's
+  own rules file. Shared title aliases belong in `core.json`; row markers that
+  are domain evidence, such as B1500 IV `DataName` and `DataValue`, belong with
+  the owning domain rules.
+- Prefer canonical title aliases over layout names. The rules should say what
   a title means, not whether a table is `xy`, `xyyyy`, or `pairwiseXY`.
 - Axis tendency is evidence, not an absolute decision. DataResource combines it
   with X evidence such as monotonicity, stable step, segmented/reset patterns,

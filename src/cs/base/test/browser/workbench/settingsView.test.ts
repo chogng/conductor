@@ -417,7 +417,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     try {
       const templatePreferencesItem = getElement(container, "#settings-table-template-visualization-item");
       const templatePreferencesSection = templatePreferencesItem.closest<HTMLElement>(".settings-section");
-      const semanticSection = getElement(container, "#settings-template-semantic-library-section");
+      const semanticSection = getElement(container, "#settings-template-semantic-rules-section");
       const semanticTree = semanticSection.closest(".settings-section-list");
       const resetButton = getButton(container, "settings-template-semantic-reset-rules");
       const newButton = getButton(container, "settings-template-semantic-new-rule");
@@ -442,7 +442,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(newButton.textContent?.trim(), "New");
       newButton.click();
       assert.equal(createCount, 1);
-      assert.equal(container.querySelector("#settings-template-semantic-library-item"), null);
+      assert.equal(container.querySelector("#settings-template-semantic-rules-item"), null);
       assert.equal(container.querySelector(".ui-list__row"), null);
       assert.equal(draftItem.closest(".settings-composite-child"), null);
       assert.equal(container.querySelector("#settings-template-semantic-recommended-terms-item"), null);
@@ -451,8 +451,8 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.deepEqual(
         semanticItems.map(item => item.dataset.groupId),
         [
-          "settings-template-semantic-library",
-          "settings-template-semantic-library",
+          "settings-template-semantic-rules",
+          "settings-template-semantic-rules",
         ],
       );
       assert.equal(semanticItems[0]!.classList.contains("settings-list-item--first"), true);
@@ -680,7 +680,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
         },
       }), {
         type: "partial",
-        descriptorIds: ["template-semantic-library"],
+        descriptorIds: ["template-semantic-rules"],
         itemTargets: [],
       });
 

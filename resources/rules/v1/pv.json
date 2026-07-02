@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "pv",
+  "label": "Ferroelectric PV",
+  "kind": "domain",
+  "domainPacks": [
+    {
+      "id": "ferroelectric-pv",
+      "label": "Ferroelectric PV",
+      "kind": "domain",
+      "description": "Voltage, time, and current roles used by PV loop and raw transient exports.",
+      "rolePriors": ["voltage", "time", "current"],
+      "intentPriors": ["pvCurve", "rawTransient"],
+      "xRolePriorityByIntent": {
+        "pvCurve": ["voltage", "time", "index"],
+        "rawTransient": ["time", "voltage", "index"]
+      },
+      "patterns": ["voltage loop X", "time transient X", "current dependent traces"]
+    }
+  ]
+}

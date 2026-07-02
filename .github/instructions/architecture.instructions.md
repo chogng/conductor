@@ -224,7 +224,7 @@ Specific flow owners:
 - Import/source collection: Explorer/files workflow coordinates source preparation; Explorer owns local visible rows and table-resource open handoff.
 - Session ledger: Session backs only migration-ledger imported raw-table storage and downstream analysis records, including TableModel commits, during migration.
 - Structured evidence / Review candidate building: DataResource produces
-  resource/sheet content-version structured evidence, semantic-library fingerprints,
+  resource/sheet content-version structured evidence, semantic-rules fingerprints,
   X ranges/groups, data blocks, dependent values, and binding candidates.
   Review consumes that evidence plus UserTemplate snapshots to build transient
   `SegmentCandidate` / `ReviewCandidate` values. Table UI/materialization is a

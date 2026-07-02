@@ -399,7 +399,7 @@ const createReviewedTemplate = (
 		source: {
 			kind: "dataResource",
 			bindingCandidateId: "binding-a",
-			semanticLibraryFingerprint: "semantic:test",
+			semanticRulesFingerprint: "semantic:test",
 		},
 		template,
 		templateFingerprint,

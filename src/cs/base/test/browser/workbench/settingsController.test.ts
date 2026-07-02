@@ -16,7 +16,7 @@ import type {
   NumericDisplayMode,
   SettingsViewInput,
 } from "src/cs/workbench/services/settings/common/settings";
-import { builtinSemanticDomainRules } from "src/cs/workbench/services/dataResource/common/semanticLibrary";
+import { builtinSemanticDomainRules } from "src/cs/workbench/services/dataResource/common/semanticRules";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/settings/browser/settingsController", () => {
@@ -783,7 +783,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
     }
   });
 
-  test("patches semantic library descriptor when adding a custom section item", async () => {
+  test("patches semantic rules descriptor when adding a custom section item", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
 
@@ -842,18 +842,18 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
 
       assert.deepEqual(patchedTargets, [
         {
-          descriptorId: "template-semantic-library",
+          descriptorId: "template-semantic-rules",
           itemIds: [draftItem.id as SettingsContentItemId],
         },
       ]);
       assert.equal(patchedDescriptors.includes("template-domain-priority"), true);
       assert.deepEqual(
-        patchedDescriptors.filter(descriptorId => descriptorId === "template-semantic-library"),
+        patchedDescriptors.filter(descriptorId => descriptorId === "template-semantic-rules"),
         [
-          "template-semantic-library",
-          "template-semantic-library",
-          "template-semantic-library",
-          "template-semantic-library",
+          "template-semantic-rules",
+          "template-semantic-rules",
+          "template-semantic-rules",
+          "template-semantic-rules",
         ],
       );
     }
@@ -970,7 +970,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
     }
   });
 
-  test("patches semantic library descriptor when removing a custom section item", async () => {
+  test("patches semantic rules descriptor when removing a custom section item", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
 
@@ -1035,11 +1035,11 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       assert.deepEqual(patchedTargets, []);
       assert.equal(patchedDescriptors.includes("template-domain-priority"), true);
       assert.deepEqual(
-        patchedDescriptors.filter(descriptorId => descriptorId === "template-semantic-library"),
+        patchedDescriptors.filter(descriptorId => descriptorId === "template-semantic-rules"),
         [
-          "template-semantic-library",
-          "template-semantic-library",
-          "template-semantic-library",
+          "template-semantic-rules",
+          "template-semantic-rules",
+          "template-semantic-rules",
         ],
       );
     }

@@ -366,7 +366,7 @@ export type StructuredContentEvidence = {
 	readonly columnTitleSpans: readonly StructuredColumnTitleSpanEvidence[];
 	readonly infoCellNeighborhoods: readonly StructuredInfoCellNeighborhoodEvidence[];
 	readonly bindingCandidates: readonly StructuredBindingCandidate[];
-	readonly semanticLibraryFingerprint: string;
+	readonly semanticRulesFingerprint: string;
 	readonly semanticCandidates: readonly StructuredColumnSemanticCandidate[];
 	readonly groups: readonly StructuredMeasurementGroupRecord[];
 	readonly blocks: readonly StructuredMeasurementBlockRecord[];

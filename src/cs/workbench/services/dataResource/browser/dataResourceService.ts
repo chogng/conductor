@@ -20,7 +20,7 @@ import {
 	createSemanticMatcher,
 	type SemanticDomainXPriority,
 	type SemanticMatcher,
-} from "src/cs/workbench/services/dataResource/common/semanticLibrary";
+} from "src/cs/workbench/services/dataResource/common/semanticRules";
 import {
 	createEmptyStructuredContentStructure,
 	readStructuredContentRows,
@@ -362,7 +362,7 @@ const createStructuredContentEvidence = (
 			dataBlockCandidates,
 			numericRuns,
 			rowCount: content.rowCount,
-			semanticLibraryFingerprint: semanticMatcher.fingerprint,
+			semanticRulesFingerprint: semanticMatcher.fingerprint,
 			titleSpans: columnTitleSpans,
 		});
 		const blocks = createStructuredMeasurementBlocks({
@@ -391,7 +391,7 @@ const createStructuredContentEvidence = (
 			columnTitleSpans,
 			infoCellNeighborhoods,
 			bindingCandidates,
-			semanticLibraryFingerprint: semanticMatcher.fingerprint,
+			semanticRulesFingerprint: semanticMatcher.fingerprint,
 			semanticCandidates,
 			groups: [],
 			blocks,
@@ -1608,14 +1608,14 @@ const createStructuredContentStructure = ({
 	dataBlockCandidates,
 	numericRuns,
 	rowCount,
-	semanticLibraryFingerprint,
+	semanticRulesFingerprint,
 	titleSpans,
 }: {
 	readonly columnCount: number;
 	readonly dataBlockCandidates: readonly StructuredDataBlockCandidate[];
 	readonly numericRuns: readonly NumericRun[];
 	readonly rowCount: number;
-	readonly semanticLibraryFingerprint: string;
+	readonly semanticRulesFingerprint: string;
 	readonly titleSpans: readonly StructuredColumnTitleSpanEvidence[];
 }): StructuredContentStructure => {
 	if (!numericRuns.length || rowCount <= 0 || columnCount <= 0) {
@@ -1668,7 +1668,7 @@ const createStructuredContentStructure = ({
 			columnCount,
 			dataBlockCandidates,
 			rowCount,
-			semanticLibraryFingerprint,
+			semanticRulesFingerprint,
 			titleSpans,
 		}),
 	};
@@ -1698,19 +1698,19 @@ const createStructureFingerprint = ({
 	columnCount,
 	dataBlockCandidates,
 	rowCount,
-	semanticLibraryFingerprint,
+	semanticRulesFingerprint,
 	titleSpans,
 }: {
 	readonly columnCount: number;
 	readonly dataBlockCandidates: readonly StructuredDataBlockCandidate[];
 	readonly rowCount: number;
-	readonly semanticLibraryFingerprint: string;
+	readonly semanticRulesFingerprint: string;
 	readonly titleSpans: readonly StructuredColumnTitleSpanEvidence[];
 }): string => [
 	"data-resource-structure",
 	rowCount,
 	columnCount,
-	semanticLibraryFingerprint,
+	semanticRulesFingerprint,
 	dataBlockCandidates.map(block => [
 		block.startRow,
 		block.endRow,

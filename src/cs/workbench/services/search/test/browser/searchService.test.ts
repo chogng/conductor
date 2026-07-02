@@ -478,7 +478,7 @@ const createStructuredContentSnapshot = (
 		columnTitleSpans: [],
 		infoCellNeighborhoods: [],
 		bindingCandidates: [],
-		semanticLibraryFingerprint: "semantic:test",
+		semanticRulesFingerprint: "semantic:test",
 		groups: [{
 			blockIds: ["block-a"],
 			fileId: resource.toString(),

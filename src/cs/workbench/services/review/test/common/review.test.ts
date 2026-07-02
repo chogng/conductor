@@ -102,7 +102,7 @@ const createReviewEvidence = (
     columnTitleSpans: [],
     infoCellNeighborhoods: [],
     bindingCandidates: [],
-    semanticLibraryFingerprint: "semantic:test",
+    semanticRulesFingerprint: "semantic:test",
     semanticCandidates: [],
     groups: [],
     blocks: [],

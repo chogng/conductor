@@ -17,7 +17,7 @@ import {
 	matchSemanticRowMarker,
 	matchSemanticTitle,
 	toSemanticTermKey,
-} from "src/cs/workbench/services/dataResource/common/semanticLibrary";
+} from "src/cs/workbench/services/dataResource/common/semanticRules";
 import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 import type { StructuredContentEvidence } from "src/cs/workbench/services/dataResource/common/structuredContent";
 import {
@@ -83,6 +83,8 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.equal(matchSemanticTitle("ipt")?.axisTendency, "dependent");
 		assert.equal(matchSemanticRowMarker("DataName"), "titleRow");
 		assert.equal(matchSemanticRowMarker("DataValue"), "dataRow");
+		assert.equal(matchSemanticRowMarker("Name"), null);
+		assert.equal(matchSemanticRowMarker("Value"), null);
 	});
 
 	test("uses template semantic term entries in DataResource matcher", async () => {
@@ -102,7 +104,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			}],
 		});
 
-		assert.ok(evidence.semanticLibraryFingerprint.includes("data-resource-semantic:"));
+		assert.ok(evidence.semanticRulesFingerprint.includes("data-resource-semantic:"));
 		assert.ok(evidence.columnTitleSpans.some(span =>
 			span.targetColumn === 0 &&
 			span.canonicalRole === "unknown" &&
@@ -158,7 +160,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 
 		assert.equal(match?.canonicalRole, "vg");
 		assert.equal(match?.axisTendency, "x");
-		assert.ok(match?.reasons.includes("semanticLibrary.term"));
+		assert.ok(match?.reasons.includes("semanticRules.term"));
 		assert.ok(match?.semanticDomains.some(domain =>
 			domain.id === "custom-vgs-domain" &&
 			domain.axisTendency === "dependent"
@@ -326,7 +328,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.ok(evidence.bindingCandidates.length > 0);
 	});
 
-	test("uses DataName/DataValue title rows as column evidence", async () => {
+	test("uses B1500 DataName/DataValue title rows as IV column evidence", async () => {
 		const evidence = await resolveEvidence([
 			["Device", "N1", "N1"],
 			["DataName", "Vg", "Id"],

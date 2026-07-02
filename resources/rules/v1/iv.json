@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "id": "iv",
+  "label": "Semiconductor IV",
+  "kind": "domain",
+  "domainPacks": [
+    {
+      "id": "semiconductor-ivcv",
+      "label": "Semiconductor IV/CV",
+      "kind": "domain",
+      "description": "Gate/drain/source voltage and current roles used by IV, CV, and CF device tests.",
+      "rolePriors": ["vg", "vd", "id", "ig", "capacitance", "conductance", "frequency"],
+      "intentPriors": ["ivCurve", "cvCurve", "frequencySweep"],
+      "xRolePriorityByIntent": {
+        "ivCurve": ["voltage", "vg", "vd", "time", "index"],
+        "cvCurve": ["voltage", "vg", "frequency", "time", "index"],
+        "frequencySweep": ["frequency", "voltage", "time", "index"]
+      },
+      "patterns": ["Vg/Vd sweep columns", "Id/Ig dependent columns", "CV/CF measurement columns"]
+    }
+  ],
+  "rowMarkers": [
+    {
+      "kind": "titleRow",
+      "domainPackIds": ["semiconductor-ivcv"],
+      "aliases": ["DataName", "Data Name"]
+    },
+    {
+      "kind": "dataRow",
+      "domainPackIds": ["semiconductor-ivcv"],
+      "aliases": ["DataValue", "Data Value"]
+    }
+  ],
+  "titles": [
+    {
+      "canonicalRole": "vg",
+      "canonicalUnit": "V",
+      "axisTendency": "x",
+      "family": "iv",
+      "ivMode": "transfer",
+      "domainPackIds": ["semiconductor-ivcv"],
+      "aliases": ["Vg", "Vgs", "Gate Voltage", "GateVoltage", "Gate V", "idvg"]
+    },
+    {
+      "canonicalRole": "vd",
+      "canonicalUnit": "V",
+      "axisTendency": "x",
+      "family": "iv",
+      "ivMode": "output",
+      "domainPackIds": ["semiconductor-ivcv"],
+      "aliases": ["Vd", "Vds", "Drain Voltage", "DrainVoltage", "Drain V", "idvd"]
+    },
+    {
+      "canonicalRole": "vs",
+      "canonicalUnit": "V",
+      "axisTendency": "x",
+      "family": "iv",
+      "domainPackIds": ["semiconductor-ivcv"],
+      "aliases": ["Vs", "Source Voltage", "SourceVoltage", "Source V"]
+    },
+    {
+      "canonicalRole": "id",
+      "canonicalUnit": "A",
+      "axisTendency": "dependent",
+      "family": "iv",
+      "domainPackIds": ["semiconductor-ivcv"],
+      "aliases": ["Id", "Ids", "Drain Current", "DrainCurrent", "TotalCurrent", "CurrentDrain"]
+    },
+    {
+      "canonicalRole": "ig",
+      "canonicalUnit": "A",
+      "axisTendency": "dependent",
+      "family": "iv",
+      "domainPackIds": ["semiconductor-ivcv"],
+      "aliases": ["Ig", "Igs", "Gate Current", "GateCurrent", "CurrentGate"]
+    },
+    {
+      "canonicalRole": "is",
+      "canonicalUnit": "A",
+      "axisTendency": "dependent",
+      "family": "iv",
+      "domainPackIds": ["semiconductor-ivcv"],
+      "aliases": ["Is", "Source Current", "SourceCurrent", "CurrentSource"]
+    }
+  ],
+  "domainRules": [
+    {
+      "id": "builtin-domain:iv",
+      "title": "iv",
+      "description": "Semiconductor IV slicing: voltage sweeps against current responses.",
+      "xTerms": ["Vg", "Vgs", "Gate Voltage", "Gate V", "idvg", "Vd", "Vds", "Drain Voltage", "Drain V", "idvd", "Vs", "Source Voltage", "Source V", "Voltage", "Vp", "Vpn", "Bias", "Bias Voltage"],
+      "yTerms": ["Id", "Ids", "Drain Current", "TotalCurrent", "CurrentDrain", "Ig", "Igs", "Gate Current", "CurrentGate", "Is", "Source Current", "CurrentSource", "Current", "Ipt"]
+    }
+  ],
+  "domainXPriorities": [
+    {
+      "domainRuleId": "builtin-domain:iv",
+      "intentPriors": ["ivCurve", "cvCurve", "frequencySweep"],
+      "xRolePriorityByIntent": {
+        "ivCurve": ["voltage", "vg", "vd", "time", "index"],
+        "cvCurve": ["voltage", "vg", "frequency", "time", "index"],
+        "frequencySweep": ["frequency", "voltage", "time", "index"]
+      }
+    }
+  ]
+}

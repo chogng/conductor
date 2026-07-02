@@ -103,7 +103,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			userTemplateSnapshot: userTemplateService.getSnapshot(),
 		});
 
-		assert.equal(result.semanticLibraryFingerprint, "semantic:test");
+		assert.equal(result.semanticRulesFingerprint, "semantic:test");
 		assert.equal(result.reviewPolicyVersion, 13);
 		assert.equal(typeof result.evidenceFingerprint, "string");
 		assert.equal(typeof result.candidates[0]?.providerRank, "number");
@@ -512,7 +512,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate?.template.measurement?.ivMode, "output");
 	});
 
-	test("derives IV transfer review from Origin DataName metadata rows", async () => {
+	test("derives IV transfer review from B1500 DataName metadata rows", async () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/TransferMetadata.csv");
 		const service = createReviewServiceForTest(
@@ -1516,7 +1516,7 @@ const createReviewEvidence = ({
 				reasons: ["binding.test"],
 			}] : []),
 		] : [],
-		semanticLibraryFingerprint: "semantic:test",
+		semanticRulesFingerprint: "semantic:test",
 		semanticCandidates: [],
 		groups: [],
 		blocks: [{

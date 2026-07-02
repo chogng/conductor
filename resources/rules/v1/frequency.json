@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "id": "frequency",
+  "label": "Frequency Sweep",
+  "kind": "domain",
+  "domainPacks": [
+    {
+      "id": "frequency-sweep",
+      "label": "Frequency Sweep",
+      "kind": "test",
+      "description": "Frequency-first sweeps for capacitance, conductance, and impedance-like data.",
+      "rolePriors": ["frequency", "capacitance", "conductance"],
+      "intentPriors": ["frequencySweep"],
+      "xRolePriorityByIntent": {
+        "frequencySweep": ["frequency", "voltage", "time", "index"]
+      },
+      "patterns": ["frequency X columns", "capacitance or conductance dependent columns"]
+    }
+  ],
+  "domainRules": [
+    {
+      "id": "builtin-domain:frequency",
+      "title": "frequency",
+      "description": "Frequency sweep slicing for capacitance, conductance, or impedance-like data.",
+      "xTerms": ["Frequency", "Freq", "Hz"],
+      "yTerms": ["Cap", "Capacitance", "Cp", "Cgg", "Cgd", "Cgs", "Cgb", "Conductance", "Transconductance", "gm"]
+    }
+  ],
+  "domainXPriorities": [
+    {
+      "domainRuleId": "builtin-domain:frequency",
+      "intentPriors": ["frequencySweep"],
+      "xRolePriorityByIntent": {
+        "frequencySweep": ["frequency", "voltage", "time", "index"]
+      }
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "id": "replace-with-rule-file-id",
+  "label": "Replace With Rule Label",
+  "kind": "domain",
+  "domainPacks": [
+    {
+      "id": "replace-with-domain-pack-id",
+      "label": "Replace With Domain Pack Label",
+      "kind": "domain",
+      "description": "Describe the measurement domain, format, or test boundary covered by this rule file.",
+      "rolePriors": ["voltage", "current"],
+      "intentPriors": ["genericXY"],
+      "xRolePriorityByIntent": {
+        "genericXY": ["voltage", "time", "frequency", "index"]
+      },
+      "patterns": ["title row above numeric data", "X columns paired with dependent columns"]
+    }
+  ],
+  "titles": [
+    {
+      "canonicalRole": "voltage",
+      "canonicalUnit": "V",
+      "axisTendency": "x",
+      "family": "unknown",
+      "domainPackIds": ["replace-with-domain-pack-id"],
+      "aliases": ["Replace X Title", "Replace X Alias"]
+    },
+    {
+      "canonicalRole": "current",
+      "canonicalUnit": "A",
+      "axisTendency": "dependent",
+      "family": "unknown",
+      "domainPackIds": ["replace-with-domain-pack-id"],
+      "aliases": ["Replace Y Title", "Replace Y Alias"]
+    }
+  ],
+  "domainRules": [
+    {
+      "id": "replace-with-domain-rule-id",
+      "title": "replace-with-domain-title",
+      "description": "Describe which X terms and dependent terms identify this semantic domain.",
+      "xTerms": ["Replace X Title", "Replace X Alias"],
+      "yTerms": ["Replace Y Title", "Replace Y Alias"]
+    }
+  ],
+  "domainXPriorities": [
+    {
+      "domainRuleId": "replace-with-domain-rule-id",
+      "intentPriors": ["genericXY"],
+      "xRolePriorityByIntent": {
+        "genericXY": ["voltage", "time", "frequency", "index"]
+      }
+    }
+  ]
+}

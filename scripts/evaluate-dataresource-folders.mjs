@@ -31,7 +31,7 @@ const [
   importCompiled("cs/base/common/uri.js"),
   importCompiled("cs/workbench/services/dataResource/browser/dataResourceService.js"),
   importCompiled("cs/workbench/services/dataResource/common/structuredContent.js"),
-  importCompiled("cs/workbench/services/dataResource/common/semanticLibrary.js"),
+  importCompiled("cs/workbench/services/dataResource/common/semanticRules.js"),
   importCompiled("cs/workbench/services/table/common/model.js"),
   importCompiled("cs/workbench/services/table/common/tableReadBuffer.js"),
   importCompiled("cs/workbench/services/table/common/tableStructureParser.js"),

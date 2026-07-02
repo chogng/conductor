@@ -306,7 +306,7 @@ const createStructuredContentEvidence = ({
 		ambiguityCodes: [],
 		reasons: ["binding.test"],
 	}],
-	semanticLibraryFingerprint: "semantic:test",
+	semanticRulesFingerprint: "semantic:test",
 	semanticCandidates: [],
 	groups: [],
 	blocks: [{

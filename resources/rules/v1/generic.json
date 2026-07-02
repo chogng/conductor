@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "generic",
+  "label": "Generic X/Y",
+  "kind": "domain",
+  "domainRules": [
+    {
+      "id": "builtin-domain:generic",
+      "title": "generic",
+      "description": "Generic X/Y slicing when no test-specific domain wins.",
+      "xTerms": ["Voltage", "Vp", "Vpn", "Bias", "Bias Voltage", "Time", "Seconds", "Second", "Sec", "Frequency", "Freq", "Hz"],
+      "yTerms": ["Current", "Ipt", "Cap", "Capacitance", "Cp", "Cgg", "Cgd", "Cgs", "Cgb", "Conductance", "Transconductance", "gm"]
+    }
+  ],
+  "domainXPriorities": [
+    {
+      "domainRuleId": "builtin-domain:generic",
+      "intentPriors": ["genericXY"],
+      "xRolePriorityByIntent": {
+        "genericXY": ["voltage", "time", "frequency", "index"]
+      }
+    }
+  ]
+}

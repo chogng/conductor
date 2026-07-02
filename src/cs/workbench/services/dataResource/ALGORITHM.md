@@ -539,7 +539,7 @@ Review can use:
 
 - binding confidence from `DataResource`;
 - role / unit / axis tendency from ColumnTitleSpanEvidence;
-- semantic library fingerprint / evidence fingerprint;
+- semantic rules fingerprint / evidence fingerprint;
 - semantic roles and units;
 - parser diagnostics;
 - ambiguity codes;
@@ -588,7 +588,7 @@ from the bound X range; Y should not decide the slice range independently.
 - First-row-header files may have no metadata block at all.
 - Headerless numeric files may start directly at row 0 with no names, units, or
   metadata references.
-- Origin-style files may have hundreds of metadata rows before `DataName` and
+- B1500-style files may have hundreds of metadata rows before `DataName` and
   `DataValue` rows.
 - Title/info rows may use a row marker plus per-column titles, such as
   `DataName,Vg,Id,...`, rather than a simple one-cell header.

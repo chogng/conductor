@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "id": "cv",
+  "label": "Capacitance Voltage",
+  "kind": "domain",
+  "titles": [
+    {
+      "canonicalRole": "capacitance",
+      "canonicalUnit": "F",
+      "axisTendency": "dependent",
+      "family": "cv",
+      "domainPackIds": ["semiconductor-ivcv", "frequency-sweep"],
+      "aliases": ["Cap", "Capacitance", "Cp", "Cgg", "Cgd", "Cgs", "Cgb"]
+    },
+    {
+      "canonicalRole": "conductance",
+      "canonicalUnit": "S",
+      "axisTendency": "dependent",
+      "domainPackIds": ["semiconductor-ivcv", "frequency-sweep"],
+      "aliases": ["Conductance", "Transconductance", "gm"]
+    }
+  ],
+  "domainRules": [
+    {
+      "id": "builtin-domain:cv",
+      "title": "cv",
+      "description": "Capacitance-voltage slicing: voltage or frequency sweeps against capacitance/conductance.",
+      "xTerms": ["Vg", "Vgs", "Gate Voltage", "Gate V", "idvg", "Vd", "Vds", "Drain Voltage", "Drain V", "idvd", "Voltage", "Vp", "Vpn", "Bias", "Bias Voltage", "Frequency", "Freq", "Hz"],
+      "yTerms": ["Cap", "Capacitance", "Cp", "Cgg", "Cgd", "Cgs", "Cgb", "Conductance", "Transconductance", "gm"]
+    }
+  ],
+  "domainXPriorities": [
+    {
+      "domainRuleId": "builtin-domain:cv",
+      "intentPriors": ["cvCurve", "frequencySweep", "ivCurve"],
+      "xRolePriorityByIntent": {
+        "ivCurve": ["voltage", "vg", "vd", "time", "index"],
+        "cvCurve": ["voltage", "vg", "frequency", "time", "index"],
+        "frequencySweep": ["frequency", "voltage", "time", "index"]
+      }
+    }
+  ]
+}

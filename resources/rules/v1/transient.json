@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "id": "transient",
+  "label": "Raw Transient",
+  "kind": "domain",
+  "domainPacks": [
+    {
+      "id": "raw-transient",
+      "label": "Raw Transient",
+      "kind": "test",
+      "description": "Time-first acquisition traces before projection into IV, PV, or other curve views.",
+      "rolePriors": ["time", "voltage", "current"],
+      "intentPriors": ["rawTransient"],
+      "xRolePriorityByIntent": {
+        "rawTransient": ["time", "voltage", "index"]
+      },
+      "patterns": ["Time X columns", "voltage/current waveform columns"]
+    }
+  ],
+  "domainRules": [
+    {
+      "id": "builtin-domain:transient",
+      "title": "transient",
+      "description": "Time-domain slicing for waveform-like voltage/current traces.",
+      "xTerms": ["Time", "Seconds", "Second", "Sec"],
+      "yTerms": ["Voltage", "Vp", "Vpn", "Bias", "Bias Voltage", "Current", "Ipt", "Id", "Ids", "Drain Current", "TotalCurrent", "CurrentDrain", "Ig", "Igs", "Gate Current", "CurrentGate"]
+    }
+  ],
+  "domainXPriorities": [
+    {
+      "domainRuleId": "builtin-domain:transient",
+      "intentPriors": ["rawTransient"],
+      "xRolePriorityByIntent": {
+        "rawTransient": ["time", "voltage", "index"]
+      }
+    }
+  ]
+}

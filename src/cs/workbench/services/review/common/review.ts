@@ -121,7 +121,7 @@ export const createReviewEvidenceSignature = (
           dependentValueCandidates: evidence.structuredContent.dependentValueCandidates,
           columnTitleSpans: evidence.structuredContent.columnTitleSpans,
           bindingCandidates: evidence.structuredContent.bindingCandidates,
-          semanticLibraryFingerprint: evidence.structuredContent.semanticLibraryFingerprint,
+          semanticRulesFingerprint: evidence.structuredContent.semanticRulesFingerprint,
           semanticCandidates: evidence.structuredContent.semanticCandidates,
           groups: evidence.structuredContent.groups,
           blocks: evidence.structuredContent.blocks,

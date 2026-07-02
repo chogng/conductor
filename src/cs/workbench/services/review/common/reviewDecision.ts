@@ -82,7 +82,7 @@ export const deriveReviewResult = (
 		...(context.contentHash ? { contentHash: context.contentHash } : {}),
 		...(context.sheetId ? { sheetId: context.sheetId } : {}),
 		evidenceFingerprint: context.evidenceFingerprint,
-		semanticLibraryFingerprint: input.evidence.structuredContent?.semanticLibraryFingerprint ?? "",
+		semanticRulesFingerprint: input.evidence.structuredContent?.semanticRulesFingerprint ?? "",
 		userTemplateCatalogVersion: input.userTemplateSnapshot.version,
 		userTemplateEffectiveFingerprint: input.userTemplateSnapshot.effectiveFingerprint,
 		reviewEngineVersion: REVIEW_ENGINE_VERSION,

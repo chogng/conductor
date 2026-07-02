@@ -42,7 +42,7 @@ import {
 } from "src/cs/workbench/contrib/settings/browser/settingsTree";
 import { SettingsTreeModel } from "src/cs/workbench/contrib/settings/browser/settingsTreeModels";
 import { settingsTreeRenderer } from "src/cs/workbench/contrib/settings/browser/settingsTreeRenderer";
-import { isCustomSemanticMatchTermAllowed } from "src/cs/workbench/services/dataResource/common/semanticLibrary";
+import { isCustomSemanticMatchTermAllowed } from "src/cs/workbench/services/dataResource/common/semanticRules";
 import type { LanguagePreference } from "src/cs/base/common/platform";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import "src/cs/base/browser/ui/inputbox/inputBox.css";
@@ -280,7 +280,7 @@ export type SettingsContentDescriptorId =
   | "chart-defaults"
   | "template-preferences"
   | "template-domain-priority"
-  | "template-semantic-library"
+  | "template-semantic-rules"
   | "appearance-preferences"
   | "origin-integration"
   | "about";
@@ -1037,7 +1037,7 @@ export class SettingsView {
         sectionId: "template",
       },
       {
-        id: "template-semantic-library",
+        id: "template-semantic-rules",
         order: 20,
         sectionId: "template",
       },
@@ -1083,8 +1083,8 @@ export class SettingsView {
       case "template-preferences":
         this.addTemplateSettingsTreeElements(model);
         return;
-      case "template-semantic-library":
-        this.addTemplateSemanticLibrarySettingsTreeElements(model);
+      case "template-semantic-rules":
+        this.addTemplateSemanticRulesSettingsTreeElements(model);
         return;
       case "template-domain-priority":
         this.addTemplateDomainPrioritySettingsTreeElements(model);
@@ -1215,11 +1215,11 @@ export class SettingsView {
     }));
   }
 
-  private addTemplateSemanticLibrarySettingsTreeElements(model: SettingsTreeModel): void {
+  private addTemplateSemanticRulesSettingsTreeElements(model: SettingsTreeModel): void {
     const settings = this.options.templateSettings;
-    const groupId = "settings-template-semantic-library";
+    const groupId = "settings-template-semantic-rules";
     const section = {
-      id: "settings-template-semantic-library-section",
+      id: "settings-template-semantic-rules-section",
       title: localize("settings.template.semantic.rulesTitle", "Rules"),
       description: localize("settings.template.semantic.rulesDescription", "Define character blocks that become X and Y evidence before Review builds binding candidates."),
       headerActions: [
@@ -1249,7 +1249,7 @@ export class SettingsView {
         id: "settings-template-semantic-empty-item",
         groupId,
         createElement: () => this.createTemplateSemanticEmptyItem(),
-        searchText: this.getTemplateSemanticLibrarySearchText(settings),
+        searchText: this.getTemplateSemanticRulesSearchText(settings),
       }));
     }
     for (const item of settings.semanticSectionItems) {
@@ -1523,7 +1523,7 @@ export class SettingsView {
     return actionBar.domNode;
   }
 
-  private getTemplateSemanticLibrarySearchText(settings: TemplateSettings): string {
+  private getTemplateSemanticRulesSearchText(settings: TemplateSettings): string {
     return normalizeSettingsSearchText(
       localize("settings.template.semantic.rulesTitle", "Rules"),
       localize("settings.template.semantic.rulesDescription", "Define character blocks that become X and Y evidence before Review builds binding candidates."),

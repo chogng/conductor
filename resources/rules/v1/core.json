@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "id": "core",
+  "label": "Core Measurement Titles",
+  "kind": "core",
+  "domainPacks": [
+    {
+      "id": "core-test-measurement",
+      "label": "Core Test Measurement",
+      "kind": "core",
+      "description": "Common measurement titles that stay useful when no test-specific domain is known.",
+      "rolePriors": ["voltage", "current", "time", "frequency"],
+      "intentPriors": ["genericXY"],
+      "xRolePriorityByIntent": {
+        "genericXY": ["voltage", "time", "frequency", "index"]
+      },
+      "patterns": ["numeric sweep columns", "title above numeric data"]
+    }
+  ],
+  "titles": [
+    {
+      "canonicalRole": "frequency",
+      "canonicalUnit": "Hz",
+      "axisTendency": "x",
+      "family": "cf",
+      "domainPackIds": ["core-test-measurement", "frequency-sweep"],
+      "aliases": ["Frequency", "Freq", "Hz"]
+    },
+    {
+      "canonicalRole": "time",
+      "canonicalUnit": "s",
+      "axisTendency": "x",
+      "family": "it",
+      "domainPackIds": ["core-test-measurement", "raw-transient", "ferroelectric-pv"],
+      "aliases": ["Time", "Seconds", "Second", "Sec"]
+    },
+    {
+      "canonicalRole": "voltage",
+      "canonicalUnit": "V",
+      "axisTendency": "x",
+      "domainPackIds": ["core-test-measurement", "raw-transient", "ferroelectric-pv"],
+      "aliases": ["Voltage", "Vp", "Vpn", "Bias", "Bias Voltage"]
+    },
+    {
+      "canonicalRole": "current",
+      "canonicalUnit": "A",
+      "axisTendency": "dependent",
+      "domainPackIds": ["core-test-measurement", "raw-transient", "ferroelectric-pv"],
+      "aliases": ["Current", "Ipt"]
+    }
+  ]
+}

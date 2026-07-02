@@ -157,14 +157,14 @@ include option labels, field labels, or semantic match terms that help the view
 filter settings list items, but it must not encode control behavior or
 persistence details.
 
-## Template Semantic Library UI
+## Template Semantic Rules UI
 
-The Template settings semantic-library section shows **domain rules**. A domain
+The Template settings semantic-rules section shows **domain rules**. A domain
 rule is a user-facing domain scope, such as `iv`, plus X and Y character blocks
 that DataResource can turn into axis evidence before Review builds binding
 candidates.
 
-The semantic-library surface is one `SettingsTreeSection` with a visible header:
+The semantic-rules surface is one `SettingsTreeSection` with a visible header:
 the title and description stay on the left, and header actions on the right live
 inside the section header actionbar container. Header actions belong to
 `SettingsTreeSection.headerActions`; do not model them as standalone settings
@@ -206,7 +206,7 @@ candidates.
 as horizontal or vertical when it creates the item cell. Each visible list entry
 has a stable item id and can be targeted by `SettingsController` without
 rerendering unrelated entries in the section.
-Semantic-library save or validation feedback belongs in notification/toast
+Semantic-rules save or validation feedback belongs in notification/toast
 presentation, not as a `SettingsTree` item in the section.
 
 Each domain rule or priority block is a Settings UI value, not a separate state

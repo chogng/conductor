@@ -133,7 +133,7 @@ const createDataResourceReviewCandidate = ({
 		source: {
 			kind: "dataResource",
 			bindingCandidateId: binding.id,
-			semanticLibraryFingerprint: structuredContent.semanticLibraryFingerprint,
+			semanticRulesFingerprint: structuredContent.semanticRulesFingerprint,
 		},
 		interpretation,
 		interpretationFingerprint: createCandidateInterpretationFingerprint(interpretation),

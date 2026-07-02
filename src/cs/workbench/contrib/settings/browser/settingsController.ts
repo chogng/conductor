@@ -46,7 +46,7 @@ import {
   type BuiltinSemanticDomainRule,
   isCustomSemanticMatchTermAllowed,
   toSemanticTermKey,
-} from "src/cs/workbench/services/dataResource/common/semanticLibrary";
+} from "src/cs/workbench/services/dataResource/common/semanticRules";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import { WorkbenchCommandId } from "src/cs/workbench/browser/actions/workbenchCommands";
 import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layoutCommands";
@@ -1047,7 +1047,7 @@ export class SettingsController {
       yDraft: "",
       yTerms: [],
     }, ...this.drafts.templateSemanticSectionItemDrafts];
-    this.render(descriptorUpdateTarget("template-semantic-library"));
+    this.render(descriptorUpdateTarget("template-semantic-rules"));
   }
 
   private updateTemplateSemanticSectionItemDraft(
@@ -1124,7 +1124,7 @@ export class SettingsController {
       draft.yTerms = [...draft.yTerms, term];
       draft.yDraft = "";
     }
-    this.render(itemsUpdateTarget("template-semantic-library", id as SettingsContentItemId));
+    this.render(itemsUpdateTarget("template-semantic-rules", id as SettingsContentItemId));
     await this.saveTemplateSemanticSectionItemIfComplete(draft, id);
   }
 
@@ -1160,7 +1160,7 @@ export class SettingsController {
       }
       draft.yTerms = nextTerms;
     }
-    this.render(itemsUpdateTarget("template-semantic-library", id as SettingsContentItemId));
+    this.render(itemsUpdateTarget("template-semantic-rules", id as SettingsContentItemId));
     await this.saveTemplateSemanticSectionItemIfComplete(draft, id);
   }
 
@@ -1247,10 +1247,10 @@ export class SettingsController {
         ? activeDomainPriority
         : [nextRules.id, ...activeDomainPriority.filter(id => id !== nextRules.id)],
       templateSemanticDomainRules: nextStoredCustomRules,
-    }, null, partialSettingsUpdateTarget(["template-semantic-library", "template-domain-priority"], []), id);
+    }, null, partialSettingsUpdateTarget(["template-semantic-rules", "template-domain-priority"], []), id);
     if (didSave) {
       this.drafts.templateSemanticSectionItemDrafts = this.drafts.templateSemanticSectionItemDrafts.filter(draft => draft.id !== id);
-      this.render(descriptorUpdateTarget("template-semantic-library"));
+      this.render(descriptorUpdateTarget("template-semantic-rules"));
     }
   }
 
@@ -1322,7 +1322,7 @@ export class SettingsController {
     const draft = this.drafts.templateSemanticSectionItemDrafts.find(draft => draft.id === itemId);
     if (draft?.source === "draft") {
       this.discardTemplateSemanticSectionItemDraft(itemId);
-      this.render(descriptorUpdateTarget("template-semantic-library"));
+      this.render(descriptorUpdateTarget("template-semantic-rules"));
       return;
     }
 
@@ -1345,7 +1345,7 @@ export class SettingsController {
       templateSemanticDomainPriority: normalizeTemplateSemanticDomainPriority(this.settings.templateSemanticDomainPriority)
         .filter(ruleId => ruleId !== customRule.id),
       templateSemanticDomainRules: customRules,
-    }, localize("settings.template.semantic.saved", "Template semantic library updated."), partialSettingsUpdateTarget(["template-semantic-library", "template-domain-priority"], []), itemId);
+    }, localize("settings.template.semantic.saved", "Template semantic rules updated."), partialSettingsUpdateTarget(["template-semantic-rules", "template-domain-priority"], []), itemId);
   }
 
   private async removeTemplateSemanticDomainPriorityItem(
@@ -1376,7 +1376,7 @@ export class SettingsController {
       templateSemanticDomainPriority: normalizeTemplateSemanticDomainPriority(this.settings.templateSemanticDomainPriority)
         .filter(ruleId => ruleId !== builtinRule.id),
       templateSemanticDomainRules: nextRules,
-    }, localize("settings.template.semantic.saved", "Template semantic library updated."), partialSettingsUpdateTarget(["template-semantic-library", "template-domain-priority"], []), createTemplateSemanticSectionItemId("builtin", builtinRule.id));
+    }, localize("settings.template.semantic.saved", "Template semantic rules updated."), partialSettingsUpdateTarget(["template-semantic-rules", "template-domain-priority"], []), createTemplateSemanticSectionItemId("builtin", builtinRule.id));
   }
 
   private async resetTemplateSemanticDomainRules(): Promise<void> {
@@ -1397,11 +1397,11 @@ export class SettingsController {
         ...customDomainPriority,
       ],
       templateSemanticDomainRules: storedCustomRules,
-    }, localize("settings.template.semantic.reset", "Built-in semantic rules reset."), partialSettingsUpdateTarget(["template-semantic-library", "template-domain-priority"], []));
+    }, localize("settings.template.semantic.reset", "Built-in semantic rules reset."), partialSettingsUpdateTarget(["template-semantic-rules", "template-domain-priority"], []));
     if (didSave) {
       this.drafts.templateSemanticSectionItemDrafts = this.drafts.templateSemanticSectionItemDrafts
         .filter(draft => !builtinRuleIds.has(draft.ruleId));
-      this.render(descriptorUpdateTarget("template-semantic-library"));
+      this.render(descriptorUpdateTarget("template-semantic-rules"));
     }
   }
 
@@ -1728,7 +1728,7 @@ function getSettingsViewUpdateTarget(
 
   for (const key of getChangedConductorSettingsKeys(current.conductorSettings, next.conductorSettings)) {
     if (key === "templateSemanticDomainRules") {
-      descriptorIds.add("template-semantic-library");
+      descriptorIds.add("template-semantic-rules");
       descriptorIds.add("template-domain-priority");
       continue;
     }

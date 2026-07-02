@@ -36,7 +36,7 @@ export type ReviewCandidateSource =
 	| {
 		readonly kind: "dataResource";
 		readonly bindingCandidateId: string;
-		readonly semanticLibraryFingerprint: string;
+		readonly semanticRulesFingerprint: string;
 	}
 	| {
 		readonly kind: "user";
@@ -185,7 +185,7 @@ export type ReviewedTemplateSource =
 	| {
 		readonly kind: "dataResource";
 		readonly bindingCandidateId: string;
-		readonly semanticLibraryFingerprint: string;
+		readonly semanticRulesFingerprint: string;
 	}
 	| {
 		readonly kind: "user";
@@ -249,7 +249,7 @@ export type ReviewResult = {
 	readonly modelVersion?: number;
 	readonly sourceVersion?: number;
 	readonly evidenceFingerprint: string;
-	readonly semanticLibraryFingerprint: string;
+	readonly semanticRulesFingerprint: string;
 	readonly userTemplateCatalogVersion: number;
 	readonly userTemplateEffectiveFingerprint: string;
 	readonly reviewEngineVersion: number;

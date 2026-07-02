@@ -236,7 +236,7 @@ const evaluationSamples: readonly EvaluationSample[] = [{
 		relation: "oneX-oneY",
 	},
 }, {
-	name: "metadata + DataName/DataValue",
+	name: "B1500 metadata + DataName/DataValue",
 	rows: [
 		["SetupTitle", "Transfer_DB"],
 		["TestParameter", "Channel.VName", "Vg", "Vd", "Vs"],
