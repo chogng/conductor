@@ -134,7 +134,8 @@ export class TableViewPane extends ViewPane {
     this.content.className = "table_view_pane_content";
     this.renderHeaderActions();
     this.headerTitle.append(this.sheetTabList);
-    this.headerRight.append(this.dimensions, this.actionBar.domNode);
+    this.headerRight.append(this.dimensions);
+    this.actionBar.domNode.hidden = true;
     this.store.add(addDisposableListener(this.sheetTabList, EventType.CLICK, event => {
       this.onSheetTabListClick(event as MouseEvent);
     }));
@@ -216,6 +217,7 @@ export class TableViewPane extends ViewPane {
     this.store.add(this.controller.onDidChangeSize(() => this.updateDimensions()));
     this.store.add(this.controller.onDidChangeZoom(() => this.updateZoomControl()));
     this.content.append(this.controller.element);
+    this.controller.element.append(this.actionBar.domNode);
     this.controller.layout();
     this.updateHeaderRight();
   }
@@ -374,9 +376,11 @@ export class TableViewPane extends ViewPane {
   }
 
   private updateDimensions(): void {
-    const dimensions = formatTableWidgetSize(this.controller?.getSize() ?? null);
+    const size = this.controller?.getSize() ?? null;
+    const dimensions = formatTableWidgetSize(size);
     setText(this.dimensions, dimensions);
     setHidden(this.dimensions, !dimensions);
+    setHidden(this.actionBar.domNode, !dimensions);
   }
 }
 
