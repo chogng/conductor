@@ -1405,7 +1405,6 @@ export class SettingsView {
   }
 
   private createTemplateSemanticDomainPriority(settings: TemplateSettings): HTMLElement {
-    const container = cell("settings-template-semantic-domain-priority-item", "settings-cell-block");
     const titleText = localize("settings.template.domainPriority.title", "Semantic Domain Priority");
     const items: IInputBoxWidgetItem[] = settings.domainPriorityItems.map(domain => ({
       id: domain.id,
@@ -1420,12 +1419,10 @@ export class SettingsView {
       items,
       readOnly: true,
     }));
-    inputBox.element.classList.add("settings-template-domain-priority-input");
     this.registerContentDisposable(inputBox.onDidDropItem(event => {
       void settings.onMoveSemanticDomainPriority(event.sourceItem.id, event.targetItem.id);
     }));
-    container.appendChild(inputBox.element);
-    return container;
+    return inputBox.element;
   }
 
   private createTemplateSemanticEmptyItem(): HTMLElement {
@@ -1578,9 +1575,19 @@ export class SettingsView {
       value: options.value,
     }));
     inputBox.element.classList.add("settings-template-semantic-rule-input");
-    this.registerContentDisposable(inputBox.onDidChange(options.onChange));
-    this.registerContentDisposable(inputBox.onDidAccept(options.onAccept));
+    let acceptedCurrentValue = false;
+    this.registerContentDisposable(inputBox.onDidChange(value => {
+      acceptedCurrentValue = false;
+      options.onChange(value);
+    }));
+    this.registerContentDisposable(inputBox.onDidAccept(value => {
+      acceptedCurrentValue = true;
+      options.onAccept(value);
+    }));
     this.registerContentDisposable(inputBox.onDidBlur(() => {
+      if (acceptedCurrentValue) {
+        return;
+      }
       options.onAccept(inputBox.value);
     }));
     this.registerContentDisposable(inputBox.onDidTriggerItemAction(event => {

@@ -82,6 +82,35 @@ suite("workbench/test/browser/labels", () => {
 
 		labels.dispose();
 	});
+
+	test("suppresses decoration tooltip when the caller owns hover content", () => {
+		const resource = URI.file("/workspace/data.csv");
+		const service = new TestDecorationsService({
+			color: "charts.orange",
+			tooltip: "Review needs adjustment.",
+		});
+		store.add(service);
+		const labels = new ResourceLabels(service);
+		const container = document.createElement("div");
+		const label = labels.create(container);
+
+		label.setResource(
+			{ name: "data.csv", resource: "/workspace/data.csv" },
+			{
+				fileDecorations: {
+					resource,
+					showTooltip: false,
+				},
+				fileKind: FileKind.FILE,
+			},
+		);
+
+		assert.equal(label.element.dataset.decorationColor, "orange");
+		assert.equal(label.element.style.color, "orange");
+		assert.equal(label.element.title, "");
+
+		labels.dispose();
+	});
 });
 
 class TestDecorationsService implements IDisposable {

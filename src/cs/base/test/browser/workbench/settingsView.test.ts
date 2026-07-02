@@ -521,6 +521,48 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     }
   });
 
+  test("commits a semantic term once when Enter is followed by blur", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const addCalls: string[] = [];
+    const itemId = "settings-template-semantic-section-item:draft:2";
+    const view = new SettingsView(container, createSettingsViewOptions({
+      activeSettingsSection: "template",
+      templateSettings: {
+        onAddSemanticSectionItemTerm: (id, axis, value) => {
+          addCalls.push(`${id}:${axis}:${value}`);
+        },
+        semanticSectionItems: [
+          {
+            id: itemId,
+            isSaving: false,
+            ruleId: "draft-2",
+            source: "draft",
+            title: "frequency",
+            xDraft: "",
+            xTerms: ["Frequency"],
+            yDraft: "",
+            yTerms: ["Capacitance"],
+          },
+        ],
+      },
+    }));
+
+    try {
+      const input = getSemanticRuleInput(container, "X representative");
+      input.value = "Overlay";
+      input.dispatchEvent(new globalThis.Event("input", { bubbles: true }));
+      input.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter" }));
+      input.dispatchEvent(new FocusEvent("blur", { bubbles: true }));
+
+      assert.deepEqual(addCalls, [`${itemId}:x:Overlay`]);
+    }
+    finally {
+      view.dispose();
+      container.remove();
+    }
+  });
+
   test("prepends a new semantic draft item without replacing existing sibling items", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
