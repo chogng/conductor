@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "supplements": [
+    {
+      "id": 1,
+      "label": "title-data-row-markers",
+      "description": "Use row-level marker cells as auxiliary evidence for formats where title rows and data rows are explicitly marked.",
+      "priority": 1,
+      "match": {
+        "markerColumn": 0,
+        "titleRowTerms": [
+          {
+            "key": "dataname",
+            "aliases": ["DataName", "Data Name"]
+          }
+        ],
+        "dataRowTerms": [
+          {
+            "key": "datavalue",
+            "aliases": ["DataValue", "Data Value"]
+          }
+        ]
+      },
+      "requires": {
+        "sameMarkerColumn": true,
+        "titleRowHasMatchedColumns": true,
+        "dataRowsHaveNumericRuns": true,
+        "mustStayInsideDetectedBlock": true
+      },
+      "provides": {
+        "titleRow": "markerRow",
+        "dataRows": "markerRows",
+        "ignoreMarkerColumn": true
+      }
+    }
+  ]
+}

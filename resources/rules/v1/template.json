@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": 1,
+      "label": "iv",
+      "description": "Cut voltage sweep columns with bound current response columns.",
+      "priority": 1,
+      "badge": "transfer",
+      "columns": {
+        "x": [
+          {
+            "id": 1,
+            "label": "Vg",
+            "terms": [
+              {
+                "key": "vg",
+                "aliases": ["Vg"]
+              },
+              {
+                "key": "vgs",
+                "aliases": ["Vgs"]
+              },
+              {
+                "key": "gatevoltage",
+                "aliases": ["Gate Voltage"]
+              },
+              {
+                "key": "gatev",
+                "aliases": ["Gate V"]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "label": "Vd",
+            "terms": [
+              {
+                "key": "vd",
+                "aliases": ["Vd"]
+              },
+              {
+                "key": "vds",
+                "aliases": ["Vds"]
+              },
+              {
+                "key": "drainvoltage",
+                "aliases": ["Drain Voltage"]
+              },
+              {
+                "key": "drainv",
+                "aliases": ["Drain V"]
+              }
+            ]
+          }
+        ],
+        "y": [
+          {
+            "id": 1,
+            "label": "Id",
+            "terms": [
+              {
+                "key": "id",
+                "aliases": ["Id"]
+              },
+              {
+                "key": "ids",
+                "aliases": ["Ids"]
+              },
+              {
+                "key": "draincurrent",
+                "aliases": ["Drain Current"]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "label": "Ig",
+            "terms": [
+              {
+                "key": "ig",
+                "aliases": ["Ig"]
+              },
+              {
+                "key": "igs",
+                "aliases": ["Igs"]
+              },
+              {
+                "key": "gatecurrent",
+                "aliases": ["Gate Current"]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
