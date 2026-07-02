@@ -89,7 +89,6 @@ export const DEFAULT_FILES_EXPLORER_BADGE_COLORS: FilesExplorerBadgeColors = Obj
 export const DEFAULT_TEMPLATE_SEMANTIC_DOMAIN_RULES: readonly TemplateSemanticDomainRule[] = Object.freeze([]);
 export const DEFAULT_TEMPLATE_SEMANTIC_DOMAIN_PRIORITY: readonly string[] = Object.freeze([]);
 export const DEFAULT_TEMPLATE_DISABLED_BUILTIN_SEMANTIC_IDS: readonly string[] = Object.freeze([]);
-export const DEFAULT_TEMPLATE_DISABLED_BUILTIN_DOMAIN_PACK_IDS: readonly string[] = Object.freeze([]);
 
 export const normalizeFilesExplorerDensity = (
   value: unknown,
@@ -209,25 +208,6 @@ export const normalizeTemplateDisabledBuiltinSemanticIds = (
   return ids;
 };
 
-export const normalizeTemplateDisabledBuiltinDomainPackIds = (
-  value: unknown,
-): readonly string[] => {
-  if (!Array.isArray(value)) {
-    return DEFAULT_TEMPLATE_DISABLED_BUILTIN_DOMAIN_PACK_IDS;
-  }
-  const seen = new Set<string>();
-  const ids: string[] = [];
-  for (const item of value) {
-    const id = typeof item === "string" ? item.trim() : "";
-    if (!id || seen.has(id)) {
-      continue;
-    }
-    seen.add(id);
-    ids.push(id);
-  }
-  return ids;
-};
-
 export const normalizeTemplateSemanticDomainPriority = (
   value: unknown,
 ): readonly string[] => {
@@ -283,7 +263,6 @@ export type ConductorSettings = {
   numericDisplayMode?: NumericDisplayMode;
   tableAutoFitColumnWidthsEnabled?: boolean;
   tableTemplateVisualizationEnabled?: boolean;
-  templateDisabledBuiltinDomainPackIds?: readonly string[];
   templateDisabledBuiltinSemanticIds?: readonly string[];
   templateSemanticDomainPriority?: readonly string[];
   templateSemanticDomainRules?: readonly TemplateSemanticDomainRule[];

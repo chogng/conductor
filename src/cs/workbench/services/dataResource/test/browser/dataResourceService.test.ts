@@ -13,7 +13,6 @@ import {
 	createSemanticMatcher,
 	builtinSemanticDomainRules,
 	builtinSemanticTerms,
-	builtinSemanticDomainPacks,
 	isCustomSemanticMatchTermAllowed,
 	matchSemanticRowMarker,
 	matchSemanticTitle,
@@ -262,40 +261,6 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			["1", "4e-12"],
 		], {
 			templateDisabledBuiltinSemanticIds: [vgTerm.id],
-			templateSemanticDomainRules: [{
-				id: "sense-current",
-				title: "sense",
-				xTerms: ["DriveBias"],
-				yTerms: ["SenseCurrent"],
-				enabled: true,
-			}],
-		});
-
-		assert.ok(!evidence.columnTitleSpans.some(span =>
-			span.targetColumn === 0 &&
-			span.canonicalRole === "vg"
-		));
-		assert.ok(evidence.columnTitleSpans.some(span =>
-			span.targetColumn === 1 &&
-			span.canonicalRole === "unknown" &&
-			span.reasons.includes("semanticDomainRule.term")
-		));
-	});
-
-	test("can disable built-in domain packs without deleting user terms", async () => {
-		assert.ok(builtinSemanticDomainPacks.some(pack => pack.id === "origin-like-export"));
-		const matcher = createSemanticMatcher({
-			disabledDomainPackIds: ["origin-like-export"],
-		});
-		assert.equal(matcher.matchRowMarker("DataName"), null);
-
-		const evidence = await resolveEvidence([
-			["Vg", "SenseCurrent"],
-			["0", "1e-12"],
-			["0.5", "2e-12"],
-			["1", "4e-12"],
-		], {
-			templateDisabledBuiltinDomainPackIds: ["semiconductor-ivcv"],
 			templateSemanticDomainRules: [{
 				id: "sense-current",
 				title: "sense",

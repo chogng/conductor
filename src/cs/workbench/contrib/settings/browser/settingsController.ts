@@ -33,7 +33,6 @@ import {
   normalizeNumericDisplayMode,
   normalizeTableAutoFitColumnWidthsEnabled,
   normalizeTableTemplateVisualizationEnabled,
-  normalizeTemplateDisabledBuiltinDomainPackIds,
   normalizeTemplateSemanticDomainPriority,
   normalizeTemplateSemanticDomainRules,
   type ConductorSettings,
@@ -43,7 +42,6 @@ import {
   type TemplateSemanticDomainRule,
 } from "src/cs/workbench/services/settings/common/settings";
 import {
-  builtinSemanticDomainPacks,
   builtinSemanticDomainRules,
   type BuiltinSemanticDomainRule,
   isCustomSemanticMatchTermAllowed,
@@ -517,15 +515,11 @@ export class SettingsController {
       .map(toBuiltinTemplateSemanticDomainRuleView);
     const semanticDomainItems = this.createTemplateSemanticSectionItems(builtinDomainRules, customDomainRules);
     return {
-      builtinDomainPacks: builtinSemanticDomainPacks,
-      disabledDomainPackIds: normalizeTemplateDisabledBuiltinDomainPackIds(this.settings.templateDisabledBuiltinDomainPackIds),
       domainPriorityItems: this.createTemplateSemanticDomainPriorityItems(builtinDomainRules, customDomainRules),
       isSaving: this.templateSettingsSaving,
       onAddSemanticSectionItemTerm: (id, axis, value) => this.addTemplateSemanticSectionItemTerm(id, axis, value),
       onCommitSemanticSectionItemTitle: id => this.commitTemplateSemanticSectionItemTitle(id),
       onCreateSemanticSectionItem: () => this.createTemplateSemanticSectionItem(),
-      onDisableDomainPack: id => this.disableTemplateDomainPack(id),
-      onEnableDomainPack: id => this.enableTemplateDomainPack(id),
       onMoveSemanticDomainPriority: (sourceId, targetId) => this.moveTemplateSemanticDomainPriority(sourceId, targetId),
       onRemoveSemanticSectionItem: id => this.removeTemplateSemanticSectionItem(id),
       onRemoveSemanticSectionItemTerm: (id, axis, term) => this.removeTemplateSemanticSectionItemTerm(id, axis, term),
@@ -1403,24 +1397,6 @@ export class SettingsController {
     }
   }
 
-  private async disableTemplateDomainPack(id: string): Promise<void> {
-    const disabledIds = normalizeTemplateDisabledBuiltinDomainPackIds(this.settings.templateDisabledBuiltinDomainPackIds);
-    if (disabledIds.includes(id)) {
-      return;
-    }
-    await this.saveTemplateSettings({
-      templateDisabledBuiltinDomainPackIds: [...disabledIds, id],
-    }, localize("settings.template.domainPack.disabled", "Domain pack disabled for review."), itemsUpdateTarget("template-library", "settings-template-domain-packs-item"));
-  }
-
-  private async enableTemplateDomainPack(id: string): Promise<void> {
-    const disabledIds = normalizeTemplateDisabledBuiltinDomainPackIds(this.settings.templateDisabledBuiltinDomainPackIds)
-      .filter(disabledId => disabledId !== id);
-    await this.saveTemplateSettings({
-      templateDisabledBuiltinDomainPackIds: disabledIds,
-    }, localize("settings.template.domainPack.enabled", "Domain pack enabled for review."), itemsUpdateTarget("template-library", "settings-template-domain-packs-item"));
-  }
-
   private async moveTemplateSemanticDomainPriority(sourceId: string, targetId: string): Promise<void> {
     if (sourceId === targetId) {
       return;
@@ -1823,8 +1799,6 @@ function getConductorSettingItemTarget(key: string): { readonly descriptorId: Se
       return { descriptorId: "general-preferences", itemIds: ["settings-table-auto-fit-columns-item"] };
     case "tableTemplateVisualizationEnabled":
       return { descriptorId: "template-preferences", itemIds: ["settings-table-template-visualization-item"] };
-    case "templateDisabledBuiltinDomainPackIds":
-      return { descriptorId: "template-library", itemIds: ["settings-template-domain-packs-item"] };
     case "templateSemanticDomainPriority":
       return { descriptorId: "template-domain-priority", itemIds: ["settings-template-semantic-domain-priority-item"] };
     case "defaultYScaleForCf":

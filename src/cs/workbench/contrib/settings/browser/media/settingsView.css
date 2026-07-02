@@ -226,118 +226,6 @@
   min-width: 0;
 }
 
-.settings-template-library-group {
-  display: grid;
-  gap: 0.5rem;
-  min-width: 0;
-}
-
-.settings-template-subtitle {
-  margin: 0;
-  color: rgb(var(--text-secondary) / 1);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  line-height: 1.125rem;
-}
-
-.settings-template-domain-pack-list {
-  display: grid;
-  gap: 0.5rem;
-  min-width: 0;
-}
-
-.settings-template-domain-pack {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  min-width: 0;
-  gap: 0.625rem;
-  align-items: flex-start;
-  border: 1px solid rgb(var(--border) / 0.8);
-  border-radius: 0.5rem;
-  background: rgb(var(--bg-0) / 0.72);
-  padding: 0.75rem;
-}
-
-.settings-template-domain-pack[data-state="disabled"] {
-  border-style: dashed;
-  color: rgb(var(--text-tertiary) / 1);
-}
-
-.settings-template-domain-pack-icon {
-  display: inline-flex;
-  margin-top: 0.125rem;
-  color: rgb(var(--text-tertiary) / 1);
-}
-
-.settings-template-domain-pack-body {
-  display: grid;
-  min-width: 0;
-  gap: 0.5rem;
-}
-
-.settings-template-domain-pack-header {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.375rem;
-}
-
-.settings-template-domain-pack-kind {
-  display: inline-flex;
-  min-width: 0;
-  align-items: center;
-  border: 1px solid rgb(var(--border) / 0.72);
-  border-radius: 0.3125rem;
-  background: rgb(var(--bg-200) / 0.62);
-  color: rgb(var(--text-secondary) / 1);
-  padding: 0.0625rem 0.375rem;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  line-height: 1rem;
-}
-
-.settings-template-domain-pack-details {
-  display: grid;
-  min-width: 0;
-  gap: 0.375rem;
-}
-
-.settings-template-domain-pack-detail {
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  min-width: 0;
-  gap: 0.5rem;
-  align-items: start;
-}
-
-.settings-template-domain-pack-detail-label {
-  color: rgb(var(--text-tertiary) / 1);
-  font-size: 0.75rem;
-  line-height: 1.125rem;
-}
-
-.settings-template-domain-pack-detail-values {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-}
-
-.settings-template-domain-pack-detail-chip {
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-  border-radius: 0.25rem;
-  background: rgb(var(--bg-200) / 0.65);
-  color: rgb(var(--text-secondary) / 1);
-  padding: 0.0625rem 0.375rem;
-  font-size: 0.75rem;
-  line-height: 1rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .settings-template-semantic-rule-item .settings-list-item-content {
   gap: 0.875rem;
 }
@@ -466,33 +354,6 @@
   min-width: 0;
   flex: 1 1 auto;
   gap: 0.125rem;
-}
-
-.settings-template-block-title {
-  min-width: 0;
-  overflow: hidden;
-  color: rgb(var(--text-primary) / 1);
-  font-size: 0.875rem;
-  font-weight: 600;
-  line-height: 1.25rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.settings-template-block-meta {
-  min-width: 0;
-  overflow: hidden;
-  color: rgb(var(--text-secondary) / 1);
-  font-size: 0.75rem;
-  line-height: 1rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.settings-template-block-meta.settings-template-domain-pack-description {
-  overflow: visible;
-  text-overflow: clip;
-  white-space: normal;
 }
 
 .settings-template-icon-button {
@@ -1268,19 +1129,6 @@
     align-items: flex-start;
     flex-direction: column;
     width: 100%;
-  }
-
-  .settings-template-domain-pack {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .settings-template-domain-pack-icon {
-    display: none;
-  }
-
-  .settings-template-domain-pack-detail {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0.25rem;
   }
 
   .settings-color-controls {

@@ -50,7 +50,7 @@ export type BuiltinSemanticTerm = {
 	readonly domainPackIds: readonly string[];
 };
 
-export type BuiltinSemanticDomainPack = {
+type SemanticDomainPack = {
 	readonly id: string;
 	readonly label: string;
 	readonly kind: "core" | "domain" | "format" | "test";
@@ -97,7 +97,7 @@ type SemanticRowMarkerRecord = {
 
 type SemanticLibrary = {
 	readonly schemaVersion: 1;
-	readonly domainPacks: readonly BuiltinSemanticDomainPack[];
+	readonly domainPacks: readonly SemanticDomainPack[];
 	readonly rowMarkers: readonly SemanticRowMarkerRecord[];
 	readonly titles: readonly SemanticTitleRecord[];
 };
@@ -132,7 +132,6 @@ export type SemanticMatcherOptions = {
 	readonly domainPriority?: readonly string[];
 	readonly domainRules?: readonly TemplateSemanticDomainRule[];
 	readonly disabledBuiltinTermIds?: readonly string[];
-	readonly disabledDomainPackIds?: readonly string[];
 };
 
 export type SemanticMatcher = {
@@ -296,20 +295,17 @@ const defaultSemanticMatcher = createSemanticMatcher();
 
 export const semanticLibraryFingerprint = defaultSemanticMatcher.fingerprint;
 export const builtinSemanticTerms: readonly BuiltinSemanticTerm[] = Object.freeze(builtinSemanticTermRecords.slice());
-export const builtinSemanticDomainPacks: readonly BuiltinSemanticDomainPack[] = Object.freeze(semanticLibrary.domainPacks.slice());
 export const builtinSemanticDomainRules: readonly BuiltinSemanticDomainRule[] = builtinSemanticDomainRuleRecords;
 
 export function createSemanticMatcher(
 	options: SemanticMatcherOptions = {},
 ): SemanticMatcher {
 	const disabledBuiltinTermIds = new Set((options.disabledBuiltinTermIds ?? []).filter(Boolean));
-	const disabledDomainPackIds = new Set((options.disabledDomainPackIds ?? []).filter(Boolean));
 	const domainRules = createEffectiveSemanticDomainRules(options.domainRules ?? []);
 	const domainTitleTerms = compileDomainRuleTitleTerms(domainRules, options.domainPriority ?? []);
 	const titleTerms = compileSemanticTitleTerms([
 		...Array.from(builtinTitleTermsByKey.values()).filter(term =>
-			(!term.id || !disabledBuiltinTermIds.has(term.id)) &&
-			hasActiveDomainPack(term.domainPackIds, disabledDomainPackIds)
+			!term.id || !disabledBuiltinTermIds.has(term.id)
 		),
 		...domainTitleTerms,
 	]);
@@ -318,9 +314,7 @@ export function createSemanticMatcher(
 		domainRules.filter(rule => rule.enabled !== false).map(rule => rule.id),
 		options.domainPriority ?? [],
 	);
-	const rowMarkerTerms = Array.from(builtinRowMarkerTermsByKey.values()).filter(term =>
-		hasActiveDomainPack(term.domainPackIds, disabledDomainPackIds)
-	);
+	const rowMarkerTerms = Array.from(builtinRowMarkerTermsByKey.values());
 	const rowMarkerTermsByKey = new Map(rowMarkerTerms.map(term => [term.key, term]));
 	const fingerprint = `data-resource-semantic:${hashString(stableStringify({
 		titleTerms: titleTerms.map(term => ({
@@ -335,7 +329,6 @@ export function createSemanticMatcher(
 			priority,
 		})),
 		disabledBuiltinTermIds: Array.from(disabledBuiltinTermIds).sort(),
-		disabledDomainPackIds: Array.from(disabledDomainPackIds).sort(),
 		rowMarkerTerms: rowMarkerTerms.map(term => ({
 			key: term.key,
 			kind: term.kind,
@@ -623,13 +616,6 @@ function mergeUniqueValues(
 		}
 	}
 	return values;
-}
-
-function hasActiveDomainPack(
-	domainPackIds: readonly string[],
-	disabledDomainPackIds: ReadonlySet<string>,
-): boolean {
-	return domainPackIds.length === 0 || domainPackIds.some(id => !disabledDomainPackIds.has(id));
 }
 
 function createBuiltinTermId(

@@ -123,7 +123,6 @@ export type ConductorSettings = JsonRecord & {
   numericDisplayMode: NumericDisplayMode;
   tableAutoFitColumnWidthsEnabled: boolean;
   tableTemplateVisualizationEnabled: boolean;
-  templateDisabledBuiltinDomainPackIds: string[];
   templateDisabledBuiltinSemanticIds: string[];
   templateSemanticAllowlist: TemplateSemanticTermRule[];
   templateSemanticTermOrder: string[];
@@ -352,7 +351,6 @@ export const DEFAULT_CONDUCTOR_CONFIGURATION: ConductorSettings = {
   numericDisplayMode: "raw",
   tableAutoFitColumnWidthsEnabled: false,
   tableTemplateVisualizationEnabled: false,
-  templateDisabledBuiltinDomainPackIds: [],
   templateDisabledBuiltinSemanticIds: [],
   templateSemanticAllowlist: [],
   templateSemanticTermOrder: [],
@@ -573,23 +571,6 @@ function normalizeTemplateSemanticTermOrder(value: unknown): string[] {
   return ids;
 }
 
-function normalizeTemplateDisabledBuiltinDomainPackIds(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  const seen = new Set<string>();
-  const ids: string[] = [];
-  for (const item of value) {
-    const id = typeof item === "string" ? item.trim() : "";
-    if (!id || seen.has(id)) {
-      continue;
-    }
-    seen.add(id);
-    ids.push(id);
-  }
-  return ids;
-}
-
 function normalizePlotAxisSettings(
   value: unknown,
   fallback: PlotAxisSettings = DEFAULT_CONDUCTOR_CONFIGURATION.plotAxisSettings,
@@ -656,6 +637,7 @@ function normalizePlotAxisSettings(
 export function normalizeConductorSettings(raw: unknown): ConductorSettings {
   const next = isRecord(raw) ? { ...raw } : {};
   delete next.fileNameFieldSeparators;
+  delete next.templateDisabledBuiltinDomainPackIds;
 
   const language = isSetValue(LANGUAGES, next.language)
     ? next.language
@@ -685,9 +667,6 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
   );
   const templateSemanticTermOrder = normalizeTemplateSemanticTermOrder(
     next.templateSemanticTermOrder,
-  );
-  const templateDisabledBuiltinDomainPackIds = normalizeTemplateDisabledBuiltinDomainPackIds(
-    next.templateDisabledBuiltinDomainPackIds,
   );
   const templateDisabledBuiltinSemanticIds = normalizeTemplateDisabledBuiltinSemanticIds(
     next.templateDisabledBuiltinSemanticIds,
@@ -789,7 +768,6 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
     numericDisplayMode,
     tableAutoFitColumnWidthsEnabled,
     tableTemplateVisualizationEnabled,
-    templateDisabledBuiltinDomainPackIds,
     templateDisabledBuiltinSemanticIds,
     templateSemanticAllowlist,
     templateSemanticTermOrder,
@@ -869,13 +847,6 @@ function createConductorConfigurationProperties(): Record<string, IConfiguration
 
   properties.templateSemanticTermOrder = {
     ...properties.templateSemanticTermOrder,
-    items: {
-      type: "string",
-    },
-  };
-
-  properties.templateDisabledBuiltinDomainPackIds = {
-    ...properties.templateDisabledBuiltinDomainPackIds,
     items: {
       type: "string",
     },

@@ -39,6 +39,7 @@ suite("platform/configuration/common/configurationRegistry", () => {
     assert.equal(properties["tableTemplateVisualizationEnabled"].type, "boolean");
     assert.equal(properties["plotAxisSettings"].type, "object");
     assert.equal(CONDUCTOR_CONFIGURATION_KEYS.includes("fileNameFieldSeparators"), false);
+    assert.equal(CONDUCTOR_CONFIGURATION_KEYS.includes("templateDisabledBuiltinDomainPackIds"), false);
     assert.equal(CONDUCTOR_CONFIGURATION_KEYS.includes("tableAutoFitColumnWidthsEnabled"), true);
     assert.equal(CONDUCTOR_CONFIGURATION_KEYS.includes("tableTemplateVisualizationEnabled"), true);
     assert.equal(CONDUCTOR_CONFIGURATION_KEYS.includes("originRuntimeCleanupEnabled"), true);
@@ -62,6 +63,13 @@ suite("platform/configuration/common/configurationRegistry", () => {
   test("drops retired filename field separator setting", () => {
     assert.equal(
       Object.hasOwn(normalizeConductorSettings({ fileNameFieldSeparators: "_" }), "fileNameFieldSeparators"),
+      false,
+    );
+  });
+
+  test("drops retired template domain pack setting", () => {
+    assert.equal(
+      Object.hasOwn(normalizeConductorSettings({ templateDisabledBuiltinDomainPackIds: ["semiconductor-ivcv"] }), "templateDisabledBuiltinDomainPackIds"),
       false,
     );
   });

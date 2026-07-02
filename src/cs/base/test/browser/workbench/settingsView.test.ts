@@ -417,7 +417,6 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     try {
       const templatePreferencesItem = getElement(container, "#settings-table-template-visualization-item");
       const templatePreferencesSection = templatePreferencesItem.closest<HTMLElement>(".settings-section");
-      const templateLibraryTree = getElement(container, "#settings-template-domain-packs-item").closest(".settings-section-list");
       const semanticSection = getElement(container, "#settings-template-semantic-library-section");
       const semanticTree = semanticSection.closest(".settings-section-list");
       const resetButton = getButton(container, "settings-template-semantic-reset-rules");
@@ -430,12 +429,10 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
         getClosestSettingsListItem(customItem),
       ];
 
-      assert.ok(templateLibraryTree);
       assert.ok(semanticTree);
       assert.ok(domainPriorityItem);
       assert.equal(templatePreferencesSection?.querySelector(".settings-section-header"), null);
       assert.equal(container.querySelectorAll(".settings-view-content > .settings-section-list").length, 1);
-      assert.equal(semanticTree, templateLibraryTree);
       assert.equal(draftItem.closest(".settings-section"), semanticSection);
       assert.equal(getElement(semanticSection, ".settings-section-header .settings-title").textContent, "Rules");
       assert.ok(getElement(semanticSection, ".settings-section-header-actions .ui-actionbar"));
@@ -792,17 +789,6 @@ function getClosestSettingsListItem(element: HTMLElement): HTMLElement {
   return item;
 }
 
-function getTemplateBlock(container: HTMLElement, label: string): HTMLElement {
-  const block = queryTemplateBlock(container, label);
-  assert.ok(block, `Expected template block ${label}.`);
-  return block;
-}
-
-function queryTemplateBlock(container: HTMLElement, label: string): HTMLElement | null {
-  return Array.from(container.querySelectorAll<HTMLElement>(".settings-template-block"))
-    .find(block => block.querySelector<HTMLElement>(".settings-template-block-title")?.textContent === label) ?? null;
-}
-
 function getSemanticRuleInput(container: HTMLElement, placeholder: string): HTMLInputElement {
   const input = Array.from(container.querySelectorAll<HTMLInputElement>(".settings-template-semantic-rule-input input.inputbox_native"))
     .find(input => input.placeholder === placeholder);
@@ -976,15 +962,11 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
       onEnabledChange: noop,
     },
     templateSettings: {
-      builtinDomainPacks: [],
-      disabledDomainPackIds: [],
       domainPriorityItems: [],
       isSaving: false,
       onAddSemanticSectionItemTerm: noop,
       onCommitSemanticSectionItemTitle: noop,
       onCreateSemanticSectionItem: noop,
-      onDisableDomainPack: noop,
-      onEnableDomainPack: noop,
       onMoveSemanticDomainPriority: noop,
       onRemoveSemanticSectionItem: noop,
       onRemoveSemanticSectionItemTerm: noop,

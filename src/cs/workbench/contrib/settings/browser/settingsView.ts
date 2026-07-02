@@ -21,10 +21,6 @@ import { SwitchWidget } from "src/cs/base/browser/ui/switch/switchWidget";
 import { Action, type IAction } from "src/cs/base/common/actions";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
-import type {
-  BuiltinSemanticDomainPack,
-} from "src/cs/workbench/services/dataResource/common/semanticLibrary";
-import type { StructuredXAxisIntent } from "src/cs/workbench/services/dataResource/common/structuredContent";
 import {
   createSettingsNavGroups,
   type SettingsSectionDefinition,
@@ -168,15 +164,11 @@ type ChartDefaultSettings = {
 };
 
 type TemplateSettings = {
-  builtinDomainPacks: readonly BuiltinSemanticDomainPack[];
-  disabledDomainPackIds: readonly string[];
   domainPriorityItems: readonly TemplateSemanticDomainPriorityItem[];
   isSaving: boolean;
   onAddSemanticSectionItemTerm: (id: string, axis: TemplateSemanticAxis, value: string) => Promise<void> | void;
   onCommitSemanticSectionItemTitle: (id: string) => Promise<void> | void;
   onCreateSemanticSectionItem: () => Promise<void> | void;
-  onDisableDomainPack: (id: string) => Promise<void> | void;
-  onEnableDomainPack: (id: string) => Promise<void> | void;
   onMoveSemanticDomainPriority: (sourceId: string, targetId: string) => Promise<void> | void;
   onRemoveSemanticSectionItem: (id: string) => Promise<void> | void;
   onRemoveSemanticSectionItemTerm: (id: string, axis: TemplateSemanticAxis, term: string) => Promise<void> | void;
@@ -285,7 +277,6 @@ export type SettingsContentDescriptorId =
   | "general-preferences"
   | "chart-defaults"
   | "template-preferences"
-  | "template-library"
   | "template-domain-priority"
   | "template-semantic-library"
   | "appearance-preferences"
@@ -304,7 +295,6 @@ export type SettingsContentItemId =
   | "settings-default-pv-y-scale-item"
   | "settings-chart-defaults-item"
   | "settings-table-template-visualization-item"
-  | "settings-template-domain-packs-item"
   | "settings-template-semantic-domain-priority-item"
   | "settings-template-semantic-empty-item"
   | `settings-template-semantic-section-item:${string}`
@@ -1043,18 +1033,13 @@ export class SettingsView {
         sectionId: "template",
       },
       {
-        id: "template-library",
+        id: "template-semantic-library",
         order: 20,
         sectionId: "template",
       },
       {
-        id: "template-semantic-library",
-        order: 30,
-        sectionId: "template",
-      },
-      {
         id: "template-domain-priority",
-        order: 40,
+        order: 30,
         sectionId: "template",
       },
       {
@@ -1093,9 +1078,6 @@ export class SettingsView {
         return;
       case "template-preferences":
         this.addTemplateSettingsTreeElements(model);
-        return;
-      case "template-library":
-        this.addTemplateLibrarySettingsTreeElements(model);
         return;
       case "template-semantic-library":
         this.addTemplateSemanticLibrarySettingsTreeElements(model);
@@ -1216,18 +1198,6 @@ export class SettingsView {
     }));
   }
 
-  private addTemplateLibrarySettingsTreeElements(model: SettingsTreeModel): void {
-    const section = {
-      id: "settings-template-library-section",
-      title: localize("settings.template.library.sectionTitle", "Template Library"),
-    };
-    model.addItemToSection(section, this.createSettingsTreeElementItem({
-      id: "settings-template-domain-packs-item",
-      createElement: () => this.createTemplateDomainPacks(this.options.templateSettings),
-      searchText: this.getTemplateDomainPacksSearchText(this.options.templateSettings),
-    }));
-  }
-
   private addTemplateDomainPrioritySettingsTreeElements(model: SettingsTreeModel): void {
     model.addItemToSection({
       id: "settings-template-domain-priority-section",
@@ -1285,116 +1255,6 @@ export class SettingsView {
         searchText: this.getTemplateSemanticSectionItemSearchText(item),
       }));
     }
-  }
-
-  private createTemplateDomainPacks(settings: TemplateSettings): HTMLElement {
-    const container = cell("settings-template-domain-packs-item", "settings-cell-block");
-    const titleText = localize("settings.template.domainPacks.title", "Domain Packs");
-    const description = localize("settings.template.domainPacks.description", "Built-in domain packs scope title and marker evidence before Review builds binding candidates.");
-    container.appendChild(headingBlock(titleText, description));
-
-    const disabledIds = new Set(settings.disabledDomainPackIds);
-    const activePacks = settings.builtinDomainPacks.filter(pack => !disabledIds.has(pack.id));
-    const disabledPacks = settings.builtinDomainPacks.filter(pack => disabledIds.has(pack.id));
-
-    const activeGroup = div("settings-template-library-group");
-    activeGroup.appendChild(text("p", "settings-template-subtitle", localize("settings.template.domainPacks.activeTitle", "Active packs")));
-    const activeList = div("settings-template-domain-pack-list");
-    for (const pack of activePacks) {
-      activeList.appendChild(this.createTemplateDomainPackBlock(settings, pack, "enabled"));
-    }
-    activeGroup.appendChild(activeList);
-
-    const disabledGroup = div("settings-template-library-group");
-    disabledGroup.appendChild(text("p", "settings-template-subtitle", localize("settings.template.domainPacks.disabledTitle", "Disabled packs")));
-    const disabledList = div("settings-template-domain-pack-list");
-    if (!disabledPacks.length) {
-      disabledList.appendChild(text("p", "settings-template-empty", localize("settings.template.domainPacks.noDisabled", "No disabled packs.")));
-    }
-    for (const pack of disabledPacks) {
-      disabledList.appendChild(this.createTemplateDomainPackBlock(settings, pack, "disabled"));
-    }
-    disabledGroup.appendChild(disabledList);
-
-    container.append(activeGroup, disabledGroup);
-    return container;
-  }
-
-  private createTemplateDomainPackBlock(
-    settings: TemplateSettings,
-    pack: BuiltinSemanticDomainPack,
-    state: "enabled" | "disabled",
-  ): HTMLElement {
-    const block = div("settings-template-domain-pack");
-    block.dataset.state = state;
-    const body = div("settings-template-domain-pack-body");
-    const header = div(
-      "settings-template-domain-pack-header",
-      text("span", "settings-template-block-title", pack.label),
-      text("span", "settings-template-domain-pack-kind", formatDomainPackKind(pack.kind)),
-    );
-    const meta = text(
-      "p",
-      "settings-template-block-meta settings-template-domain-pack-description",
-      pack.description,
-    );
-    const details = div("settings-template-domain-pack-details");
-    details.append(
-      this.createTemplateDomainPackDetail(
-        localize("settings.template.domainPacks.intentPriors", "Intent"),
-        pack.intentPriors.map(formatXAxisIntent),
-      ),
-      this.createTemplateDomainPackDetail(
-        localize("settings.template.domainPacks.rolePriors", "Roles"),
-        pack.rolePriors,
-      ),
-      this.createTemplateDomainPackDetail(
-        localize("settings.template.domainPacks.patterns", "Patterns"),
-        pack.patterns,
-      ),
-    );
-    body.append(header, meta, details);
-
-    const toggleButton = document.createElement("button");
-    toggleButton.type = "button";
-    toggleButton.className = "settings-template-icon-button";
-    toggleButton.disabled = settings.isSaving;
-    toggleButton.title = state === "enabled"
-      ? localize("settings.template.domainPacks.disableTitle", "Disable this domain pack for Review")
-      : localize("settings.template.domainPacks.enableTitle", "Enable this domain pack for Review");
-    toggleButton.setAttribute("aria-label", state === "enabled"
-      ? localize("settings.template.domainPacks.disable", "Disable domain pack {label}", { label: pack.label })
-      : localize("settings.template.domainPacks.enable", "Enable domain pack {label}", { label: pack.label }));
-    toggleButton.appendChild(createLxIcon({
-      className: "settings-template-icon",
-      icon: state === "enabled" ? LxIcon.close : LxIcon.add,
-      size: 14,
-    }));
-    toggleButton.addEventListener("click", () => {
-      if (state === "enabled") {
-        void settings.onDisableDomainPack(pack.id);
-        return;
-      }
-      void settings.onEnableDomainPack(pack.id);
-    });
-
-    block.append(
-      createLxIcon({ className: "settings-template-domain-pack-icon", icon: LxIcon.summary, size: 16 }),
-      body,
-      toggleButton,
-    );
-    return block;
-  }
-
-  private createTemplateDomainPackDetail(labelText: string, values: readonly string[]): HTMLElement {
-    const row = div("settings-template-domain-pack-detail");
-    row.appendChild(text("span", "settings-template-domain-pack-detail-label", labelText));
-    const chips = div("settings-template-domain-pack-detail-values");
-    for (const value of values) {
-      chips.appendChild(text("span", "settings-template-domain-pack-detail-chip", value));
-    }
-    row.appendChild(chips);
-    return row;
   }
 
   private createTemplateSemanticDomainPriority(settings: TemplateSettings): HTMLElement {
@@ -1632,14 +1492,6 @@ export class SettingsView {
       localize("settings.template.semantic.rulesTitle", "Rules"),
       localize("settings.template.semantic.rulesDescription", "Define character blocks that become X and Y evidence before Review builds binding candidates."),
       settings.semanticSectionItems.map(item => this.getTemplateSemanticSectionItemSearchText(item)).join(" "),
-    );
-  }
-
-  private getTemplateDomainPacksSearchText(settings: TemplateSettings): string {
-    return normalizeSettingsSearchText(
-      localize("settings.template.domainPacks.title", "Domain Packs"),
-      localize("settings.template.domainPacks.description", "Built-in domain packs scope title and marker evidence before Review builds binding candidates."),
-      settings.builtinDomainPacks.map(formatDomainPackSearchText).join(" "),
     );
   }
 
@@ -3016,50 +2868,6 @@ function formatTemplateSemanticSectionItemSource(source: TemplateSemanticSection
   return source === "builtin"
     ? localize("settings.template.semantic.sourceHome", "Home")
     : localize("settings.template.semantic.sourceUser", "User");
-}
-
-function formatXAxisIntent(intent: StructuredXAxisIntent): string {
-  if (intent === "rawTransient") {
-    return localize("settings.template.intent.rawTransient", "Raw transient");
-  }
-  if (intent === "ivCurve") {
-    return localize("settings.template.intent.ivCurve", "IV curve");
-  }
-  if (intent === "pvCurve") {
-    return localize("settings.template.intent.pvCurve", "PV curve");
-  }
-  if (intent === "cvCurve") {
-    return localize("settings.template.intent.cvCurve", "CV curve");
-  }
-  if (intent === "frequencySweep") {
-    return localize("settings.template.intent.frequencySweep", "Frequency sweep");
-  }
-  return localize("settings.template.intent.genericXY", "Generic XY");
-}
-
-function formatDomainPackKind(kind: BuiltinSemanticDomainPack["kind"]): string {
-  if (kind === "core") {
-    return localize("settings.template.domainPacks.kind.core", "core");
-  }
-  if (kind === "domain") {
-    return localize("settings.template.domainPacks.kind.domain", "domain");
-  }
-  if (kind === "format") {
-    return localize("settings.template.domainPacks.kind.format", "format");
-  }
-  return localize("settings.template.domainPacks.kind.test", "test");
-}
-
-function formatDomainPackSearchText(pack: BuiltinSemanticDomainPack): string {
-  return [
-    pack.id,
-    pack.label,
-    pack.kind,
-    pack.description,
-    pack.rolePriors.join(" "),
-    pack.intentPriors.join(" "),
-    pack.patterns.join(" "),
-  ].join(" ");
 }
 
 function updateSettingsTreeItemSearchText(item: SettingsTreeItem, searchText: string): SettingsTreeItem {

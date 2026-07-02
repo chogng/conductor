@@ -187,7 +187,7 @@ draft discards the draft item. Removing a custom rule deletes that stored rule.
 Removing a built-in rule stores a same-id disabled rule so the item disappears
 until the semantic reset action removes built-in overrides and restores it.
 
-Domain priority is a separate Template Library settings item backed by
+Domain priority is a separate Template settings item backed by
 `templateSemanticDomainPriority`. It renders draggable domain blocks. When
 DataResource sees several complete domain matches in one data file, it chooses
 the highest-priority complete domain and uses that domain's X/Y evidence for
@@ -198,9 +198,9 @@ item content is the `InputBoxWidget.element` itself; do not wrap it in a
 feature cell, do not bypass the section/list-item template, and do not add
 domain-priority CSS that changes `InputBoxWidget` field or token styling.
 
-Domain pack intent and role rows are read-only semantic-library facts. Do not
-add a separate global X-axis intent ordering setting; DataResource applies the
-selected semantic domain's own intent/role profile when ranking X candidates.
+Do not add a separate global X-axis intent ordering setting; DataResource
+applies the selected semantic domain's own intent/role profile when ranking X
+candidates.
 
 `SettingsView` chooses each list item's leading/trailing orientation explicitly
 as horizontal or vertical when it creates the item cell. Each visible list entry

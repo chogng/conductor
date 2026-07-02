@@ -49,7 +49,6 @@ import {
 import {
 	ISettingsService,
 	normalizeTemplateDisabledBuiltinSemanticIds,
-	normalizeTemplateDisabledBuiltinDomainPackIds,
 	normalizeTemplateSemanticDomainPriority,
 	normalizeTemplateSemanticDomainRules,
 } from "src/cs/workbench/services/settings/common/settings";
@@ -204,7 +203,6 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 			domainPriority: normalizeTemplateSemanticDomainPriority(settings?.templateSemanticDomainPriority),
 			domainRules: normalizeTemplateSemanticDomainRules(settings?.templateSemanticDomainRules),
 			disabledBuiltinTermIds: normalizeTemplateDisabledBuiltinSemanticIds(settings?.templateDisabledBuiltinSemanticIds),
-			disabledDomainPackIds: normalizeTemplateDisabledBuiltinDomainPackIds(settings?.templateDisabledBuiltinDomainPackIds),
 		});
 	}
 
