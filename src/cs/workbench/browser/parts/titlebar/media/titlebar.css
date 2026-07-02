@@ -233,9 +233,12 @@ html.workbench-transparent-chrome-windows .titlebar-root {
     rgb(var(--bg-200) / 0.5);
 }
 
-.titlebar-page-button--active,
-.dark .titlebar-page-button--active {
-  color: rgb(var(--accent)) !important;
+.titlebar-page-button--active {
+  color: rgb(var(--text-primary)) !important;
+}
+
+.titlebar-page-button--active .ui-lxicon {
+  opacity: 1;
 }
 
 /* Reserved space for Electron's native window controls overlay. */
