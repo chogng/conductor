@@ -458,8 +458,8 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
 	      assert.ok(leadingGrid.querySelector(".settings-template-semantic-rule-actionbar .actionbaritem-delete"));
 	      assert.equal(getSemanticRuleInput(draftItem, "Definition, for example iv transfer").value, "");
 	      assert.equal(getSemanticRuleInput(draftItem, "Type, for example transfer").value, "");
-      assert.equal(getSemanticRuleInput(draftItem, "X representative").value, "");
-      assert.equal(getSemanticRuleInput(draftItem, "Y representative").value, "");
+      assert.equal(getSemanticRuleInput(draftItem, "Add X field").value, "");
+      assert.equal(getSemanticRuleInput(draftItem, "Add Y field").value, "");
       assert.equal(getSemanticRuleSourceText(draftItem), "User");
       assert.equal(getSemanticRuleActionNames(draftItem).includes("Remove"), true);
       assert.equal(draftItem.querySelectorAll(".settings-template-semantic-axis-field .settings-label").length, 0);
@@ -467,7 +467,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.ok(draftItem.textContent?.includes("Id"));
       assert.equal(customItem.classList.contains("settings-list-item-cell--editable-display"), false);
       assert.equal(getSemanticRuleInput(customItem, "Definition, for example iv transfer").readOnly, false);
-      assert.equal(getSemanticRuleInput(customItem, "X representative").hidden, false);
+      assert.equal(getSemanticRuleInput(customItem, "Add X field").hidden, false);
       assert.equal(getSemanticRuleSourceText(customItem), "User");
       assert.equal(getSemanticRuleActionNames(customItem).includes("Remove"), true);
       assert.equal(getSemanticRuleActionNames(customItem).includes("Cancel"), false);
@@ -541,7 +541,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     }));
 
     try {
-      const input = getSemanticRuleInput(container, "X representative");
+      const input = getSemanticRuleInput(container, "Add X field");
       input.value = "Overlay";
       input.dispatchEvent(new globalThis.Event("input", { bubbles: true }));
       input.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter" }));
@@ -572,7 +572,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
 
     try {
       const item = getElement(container, "#settings-template-semantic-section-item\\:custom\\:stable-rule");
-      const xInput = getSemanticRuleInput(item, "X representative");
+      const xInput = getSemanticRuleInput(item, "Add X field");
       const xWidget = getClosestInputBoxWidget(xInput);
       xInput.focus();
 
@@ -593,7 +593,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       });
 
       assert.equal(getElement(container, "#settings-template-semantic-section-item\\:custom\\:stable-rule"), item);
-      assert.equal(getSemanticRuleInput(item, "X representative"), xInput);
+      assert.equal(getSemanticRuleInput(item, "Add X field"), xInput);
       assert.equal(getClosestInputBoxWidget(xInput), xWidget);
       assert.equal(xInput.disabled, true);
       assert.deepEqual(getInputBoxItemLabels(item).filter(label => label === "Vd"), ["Vd"]);
@@ -621,7 +621,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
 
     try {
       const item = getElement(container, "#settings-template-semantic-section-item\\:custom\\:stable-rule");
-      const yInput = getSemanticRuleInput(item, "Y representative");
+      const yInput = getSemanticRuleInput(item, "Add Y field");
       const yWidget = getClosestInputBoxWidget(yInput);
       yInput.focus();
 
@@ -641,7 +641,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       });
 
       assert.equal(getElement(container, "#settings-template-semantic-section-item\\:custom\\:stable-rule"), item);
-      assert.equal(getSemanticRuleInput(item, "Y representative"), yInput);
+      assert.equal(getSemanticRuleInput(item, "Add Y field"), yInput);
       assert.equal(getClosestInputBoxWidget(yInput), yWidget);
       assert.deepEqual(getInputBoxItemLabels(item).filter(label => label === "Ig"), ["Ig"]);
     }

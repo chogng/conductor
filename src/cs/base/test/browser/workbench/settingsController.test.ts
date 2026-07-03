@@ -446,8 +446,8 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       assert.ok(draftItem);
 
       setSemanticRuleInput(draftItem, "Definition, for example iv transfer", "iv");
-      acceptSemanticRuleInput(container, "X representative", "Codex Gate Bias");
-      acceptSemanticRuleInput(container, "Y representative", "Codex Drain Current");
+      acceptSemanticRuleInput(container, "Add X field", "Codex Gate Bias");
+      acceptSemanticRuleInput(container, "Add Y field", "Codex Drain Current");
       await settled();
 
       const update = savedSettings.at(-1);
@@ -510,9 +510,9 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       assert.ok(draftItem);
 
       blurSemanticRuleInput(draftItem, "Definition, for example iv transfer", "blur");
-      blurSemanticRuleInput(container, "X representative", "Blur Gate");
+      blurSemanticRuleInput(container, "Add X field", "Blur Gate");
       assert.equal(savedSettings.length, 0);
-      blurSemanticRuleInput(container, "Y representative", "Blur Current");
+      blurSemanticRuleInput(container, "Add Y field", "Blur Current");
       await settled();
 
       const update = savedSettings.at(-1);
@@ -567,12 +567,12 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       const customItem = getSemanticRuleItems(container)
         .find(item => hasSemanticRuleValue(item, "Custom Term"));
       assert.ok(customItem);
-      assert.equal(getSemanticRuleInput(customItem, "X representative").hidden, false);
+      assert.equal(getSemanticRuleInput(customItem, "Add X field").hidden, false);
       assert.equal(getSemanticRuleInput(customItem, "Definition, for example iv transfer").readOnly, false);
       assert.equal(getSemanticRuleActionNames(customItem).includes("Done"), false);
       assert.equal(getSemanticRuleActionNames(customItem).includes("Cancel"), false);
 
-      acceptSemanticRuleInput(customItem, "X representative", "Added Gate");
+      acceptSemanticRuleInput(customItem, "Add X field", "Added Gate");
       const editedItem = getSemanticRuleItems(container)
         .find(item => hasSemanticRuleValue(item, "Added Gate"));
       assert.ok(editedItem);
@@ -624,12 +624,12 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       const builtinItem = getSemanticRuleItems(container)
         .find(item => hasSemanticRuleValue(item, builtinRule.label));
       assert.ok(builtinItem);
-      assert.equal(getSemanticRuleInput(builtinItem, "X representative").hidden, false);
+      assert.equal(getSemanticRuleInput(builtinItem, "Add X field").hidden, false);
       assert.equal(getSemanticRuleInput(builtinItem, "Definition, for example iv transfer").readOnly, false);
       assert.equal(getSemanticRuleActionNames(builtinItem).includes("Done"), false);
       assert.equal(getSemanticRuleActionNames(builtinItem).includes("Cancel"), false);
 
-      acceptSemanticRuleInput(builtinItem, "X representative", "Codex Override Gate");
+      acceptSemanticRuleInput(builtinItem, "Add X field", "Codex Override Gate");
       const editedItem = getSemanticRuleItems(container)
         .find(item => hasSemanticRuleValue(item, "Codex Override Gate"));
       assert.ok(editedItem);
@@ -870,8 +870,8 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       const draftItem = getSemanticRuleItems(container)[0];
       assert.ok(draftItem);
       setSemanticRuleInput(draftItem, "Definition, for example iv transfer", "iv");
-      acceptSemanticRuleInput(container, "X representative", "Codex Gate Bias");
-      acceptSemanticRuleInput(container, "X representative", "Codex-Gate-Bias");
+      acceptSemanticRuleInput(container, "Add X field", "Codex Gate Bias");
+      acceptSemanticRuleInput(container, "Add X field", "Codex-Gate-Bias");
       await settled();
 
       assert.equal(updateCount, 0);
@@ -1023,10 +1023,10 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       const draftItem = getSemanticRuleItems(container)[0];
       assert.ok(draftItem);
       setSemanticRuleInput(draftItem, "Definition, for example iv transfer", "custom");
-      acceptSemanticRuleInput(container, "X representative", "Codex Custom X");
+      acceptSemanticRuleInput(container, "Add X field", "Codex Custom X");
       patchedTargets.length = 0;
       patchedDescriptors.length = 0;
-      acceptSemanticRuleInput(container, "Y representative", "Codex Custom Y");
+      acceptSemanticRuleInput(container, "Add Y field", "Codex Custom Y");
       await settled();
 
       assert.deepEqual(patchedTargets, [
@@ -1083,8 +1083,8 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       input.focus();
 
       setSemanticRuleInput(draftItem, "Definition, for example iv transfer", "Codex Custom Term");
-      acceptSemanticRuleInput(container, "X representative", "Codex Gate Bias");
-      acceptSemanticRuleInput(container, "Y representative", "Codex Drain Current");
+      acceptSemanticRuleInput(container, "Add X field", "Codex Gate Bias");
+      acceptSemanticRuleInput(container, "Add Y field", "Codex Drain Current");
       await settled();
 
       const pendingItem = getSemanticRuleItems(container)[0];
@@ -1134,8 +1134,8 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       input.focus();
 
       setSemanticRuleInput(draftItem, "Definition, for example iv transfer", "Codex Custom Term");
-      acceptSemanticRuleInput(container, "X representative", "Codex Gate Bias");
-      acceptSemanticRuleInput(container, "Y representative", "Codex Drain Current");
+      acceptSemanticRuleInput(container, "Add X field", "Codex Gate Bias");
+      acceptSemanticRuleInput(container, "Add Y field", "Codex Drain Current");
       await settled();
 
       const pendingItem = getSemanticRuleItems(container)[0];
@@ -1393,9 +1393,9 @@ function getSemanticRuleInputAriaLabel(placeholder: string): string {
       return "Definition";
     case "Type, for example transfer":
       return "Type";
-    case "X representative":
+    case "Add X field":
       return "X axis representative character block";
-    case "Y representative":
+    case "Add Y field":
       return "Y axis representative character block";
     default:
       return placeholder;
