@@ -994,6 +994,7 @@ const createReviewSummaryFromResult = ({
       confidence: normalizeConfidence(decision.reviewedTemplate.review.confidence),
       findingCodes: decision.reviewedTemplate.review.findings.map(finding => finding.code),
       message: decision.summary,
+      ...(decision.reviewedTemplate.reviewedType ? { reviewedType: decision.reviewedTemplate.reviewedType } : {}),
       reviewedSemanticLabel: normalizeOptionalText(decision.reviewedTemplate.template.name),
       reviewSignature,
       templateFingerprint: decision.reviewedTemplate.templateFingerprint,
@@ -1079,6 +1080,7 @@ const createStaleReviewSummaryFromCacheEntry = (
   ...(target.sheetId ? { sheetId: target.sheetId } : {}),
   state: "stale",
   ...(entry.summary.confidence !== undefined ? { confidence: entry.summary.confidence } : {}),
+  ...(entry.summary.reviewedType ? { reviewedType: entry.summary.reviewedType } : {}),
   ...(entry.summary.reviewedSemanticLabel ? { reviewedSemanticLabel: entry.summary.reviewedSemanticLabel } : {}),
   findingCodes: distinctReviewFindingCodes([
     "review.stale",
@@ -1102,6 +1104,7 @@ const createReviewResultSignature = (
   result.reviewEngineVersion,
   result.reviewPolicyVersion,
   result.decision.kind,
+  result.decision.kind === "ready" ? result.decision.reviewedTemplate.reviewedType ?? "" : "",
   result.decision.kind === "ready" ? result.decision.reviewedTemplate.templateFingerprint : "",
   result.reviews.map(review => [
     review.candidateId,

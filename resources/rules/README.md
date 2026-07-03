@@ -24,8 +24,9 @@ Rules describe facts and cutting behavior, such as:
 - a stable rule id and a human-readable label. The id may be numeric, but it is
   identity only and must not encode sorting;
 - a rule priority for sorting rules without changing rule identity;
-- a result type. Product UI may display this type as a badge attached to a
-  successful cut result;
+- a result type. Review may project this type as `reviewedType` for a
+  successful, unambiguous cut result, and product UI may display that projection
+  as a badge;
 - title aliases that identify X and Y columns, such as `Vg`, `Vd`, `Id`,
   `Cgg`, `time`, and `frequency`;
 - rule-local X/Y outputs and human-readable labels;
@@ -44,7 +45,9 @@ A rule author should not be required to provide semantic roles such as gate
 voltage or drain current. User-authored rules only need to say which title
 terms belong to X and which title terms belong to Y, plus an optional type such
 as `transfer` when the product should display a definition for successful cuts.
-The algorithm treats that type as a label, not as physical meaning.
+The algorithm treats that type as a result label, not as physical meaning. If a
+reviewed result is mixed or lacks a type, Explorer does not synthesize a badge
+from rule labels, file names, or physical roles.
 
 A rule must not contain a separate hand-written result preference list. The
 algorithm derives result use order from rule priority and the cut candidates it

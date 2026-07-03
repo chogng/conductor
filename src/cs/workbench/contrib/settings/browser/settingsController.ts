@@ -1041,7 +1041,7 @@ export class SettingsController {
     if (!title) {
       if (draft.source !== "draft" || draft.xTerms.length || draft.yTerms.length) {
         this.showTemplateSettingsNotification(
-          localize("settings.template.semantic.emptyRule", "Enter a rule label before saving."),
+          localize("settings.template.semantic.emptyRule", "Enter a definition before saving."),
           "error",
         );
       }
@@ -1049,7 +1049,7 @@ export class SettingsController {
     }
     if (!isCustomSemanticMatchTermAllowed(title)) {
       this.showTemplateSettingsNotification(
-        localize("settings.template.semantic.shortRuleLabel", "Enter at least two letters or digits for the rule label."),
+        localize("settings.template.semantic.shortRuleLabel", "Enter at least two letters or digits for the definition."),
         "error",
       );
       return;
@@ -1238,14 +1238,14 @@ export class SettingsController {
     const title = draft.title.trim();
     if (!title) {
       this.showTemplateSettingsNotification(
-        localize("settings.template.semantic.emptyRule", "Enter a rule label before saving."),
+        localize("settings.template.semantic.emptyRule", "Enter a definition before saving."),
         "error",
       );
       return null;
     }
     if (!isCustomSemanticMatchTermAllowed(title)) {
       this.showTemplateSettingsNotification(
-        localize("settings.template.semantic.shortRuleLabel", "Enter at least two letters or digits for the rule label."),
+        localize("settings.template.semantic.shortRuleLabel", "Enter at least two letters or digits for the definition."),
         "error",
       );
       return null;

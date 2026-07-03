@@ -177,10 +177,7 @@ export const createExplorerDecorationDataFromReviewSummary = (
 				tooltip: summary.message ?? localize("files.decorations.reviewStale", "Review is stale."),
 			};
 		case "ready":
-			return {
-				letter: getReviewSummaryBadgeLetter(summary),
-				tooltip: summary.message ?? localize("files.decorations.reviewReady", "Review ready."),
-			};
+			return createReadyReviewDecorationData(summary);
 		case "needsAdjustment":
 			return {
 				color: "charts.orange",
@@ -196,9 +193,15 @@ export const createExplorerDecorationDataFromReviewSummary = (
 	}
 };
 
-const getReviewSummaryBadgeLetter = (
+const createReadyReviewDecorationData = (
 	summary: ReviewSummary,
-): string => {
-	const label = String(summary.reviewedSemanticLabel ?? "").trim();
-	return label || localize("files.decorations.reviewBadge", "Review");
+): IDecorationData | undefined => {
+	const reviewedType = String(summary.reviewedType ?? "").trim();
+	if (!reviewedType) {
+		return undefined;
+	}
+	return {
+		letter: reviewedType,
+		tooltip: summary.reviewedSemanticLabel ?? summary.message ?? localize("files.decorations.reviewReady", "Review ready."),
+	};
 };

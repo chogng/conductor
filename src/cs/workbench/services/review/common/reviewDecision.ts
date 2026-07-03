@@ -208,6 +208,7 @@ const createReviewDecision = ({
 			reviewedTemplate: {
 				candidateId: readyCandidate.id,
 				source: toReviewedTemplateSource(readyCandidate.source),
+				...(readyCandidate.interpretation.reviewedType ? { reviewedType: readyCandidate.interpretation.reviewedType } : {}),
 				template,
 				templateFingerprint,
 				review,

@@ -36,14 +36,30 @@ suite("workbench/contrib/files/browser/views/explorerDecorationsProvider", () =>
 				confidence: 0.95,
 				findingCodes: [],
 				message: "Template is ready.",
-				reviewedSemanticLabel: "transfer",
+				reviewedType: "transfer",
+				reviewedSemanticLabel: "Detected Transfer",
 				reviewSignature: "review:a",
 				templateFingerprint: "template:a",
 			}),
 			{
 				letter: "transfer",
-				tooltip: "Template is ready.",
+				tooltip: "Detected Transfer",
 			},
+		);
+
+		assert.equal(
+			createExplorerDecorationDataFromReviewSummary({
+				resource,
+				sheetId: "table-a",
+				state: "ready",
+				confidence: 0.95,
+				findingCodes: [],
+				message: "Template is ready.",
+				reviewedSemanticLabel: "Detected Transfer",
+				reviewSignature: "review:a",
+				templateFingerprint: "template:a",
+			}),
+			undefined,
 		);
 
 		assert.deepEqual(
@@ -265,6 +281,7 @@ const createReviewServiceForTest = (
 			state: "ready",
 			confidence: 0.95,
 			findingCodes: [],
+			reviewedType: "transfer",
 			reviewedSemanticLabel: "transfer",
 		};
 	},
@@ -276,6 +293,7 @@ const createReviewServiceForTest = (
 		state: "ready",
 		confidence: 0.95,
 		findingCodes: [],
+		reviewedType: "transfer",
 		reviewedSemanticLabel: "transfer",
 	}),
 	reviewResourceManualTemplate: async () => ({

@@ -445,7 +445,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       const draftItem = getSemanticRuleItems(container)[0];
       assert.ok(draftItem);
 
-      setSemanticRuleInput(draftItem, "Domain scope, for example iv", "iv");
+      setSemanticRuleInput(draftItem, "Definition, for example iv transfer", "iv");
       acceptSemanticRuleInput(container, "X representative", "Codex Gate Bias");
       acceptSemanticRuleInput(container, "Y representative", "Codex Drain Current");
       await settled();
@@ -509,7 +509,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       const draftItem = getSemanticRuleItems(container)[0];
       assert.ok(draftItem);
 
-      blurSemanticRuleInput(draftItem, "Domain scope, for example iv", "blur");
+      blurSemanticRuleInput(draftItem, "Definition, for example iv transfer", "blur");
       blurSemanticRuleInput(container, "X representative", "Blur Gate");
       assert.equal(savedSettings.length, 0);
       blurSemanticRuleInput(container, "Y representative", "Blur Current");
@@ -568,7 +568,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
         .find(item => hasSemanticRuleValue(item, "Custom Term"));
       assert.ok(customItem);
       assert.equal(getSemanticRuleInput(customItem, "X representative").hidden, false);
-      assert.equal(getSemanticRuleInput(customItem, "Domain scope, for example iv").readOnly, false);
+      assert.equal(getSemanticRuleInput(customItem, "Definition, for example iv transfer").readOnly, false);
       assert.equal(getSemanticRuleActionNames(customItem).includes("Done"), false);
       assert.equal(getSemanticRuleActionNames(customItem).includes("Cancel"), false);
 
@@ -625,7 +625,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
         .find(item => hasSemanticRuleValue(item, builtinRule.label));
       assert.ok(builtinItem);
       assert.equal(getSemanticRuleInput(builtinItem, "X representative").hidden, false);
-      assert.equal(getSemanticRuleInput(builtinItem, "Domain scope, for example iv").readOnly, false);
+      assert.equal(getSemanticRuleInput(builtinItem, "Definition, for example iv transfer").readOnly, false);
       assert.equal(getSemanticRuleActionNames(builtinItem).includes("Done"), false);
       assert.equal(getSemanticRuleActionNames(builtinItem).includes("Cancel"), false);
 
@@ -686,9 +686,9 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       const builtinItem = getSemanticRuleItems(container)
         .find(item => hasSemanticRuleValue(item, builtinRule.label));
       assert.ok(builtinItem);
-      assert.equal(getSemanticRuleActionNames(builtinItem).includes(`Remove domain rule ${builtinRule.label}`), true);
+      assert.equal(getSemanticRuleActionNames(builtinItem).includes("Remove"), true);
 
-      blurSemanticRuleInput(builtinItem, "Domain scope, for example iv", builtinRule.label);
+      blurSemanticRuleInput(builtinItem, "Definition, for example iv transfer", builtinRule.label);
       await settled();
 
       const nextBuiltinItem = getSemanticRuleItems(container)
@@ -696,7 +696,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       assert.ok(nextBuiltinItem);
       assert.deepEqual(savedSettings, []);
       assert.equal(service.settings.templateSemanticPatches, undefined);
-      assert.equal(getSemanticRuleActionNames(nextBuiltinItem).includes(`Remove domain rule ${builtinRule.label}`), true);
+      assert.equal(getSemanticRuleActionNames(nextBuiltinItem).includes("Remove"), true);
     }
     finally {
       controller?.dispose();
@@ -738,7 +738,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
         .find(item => hasSemanticRuleValue(item, builtinRule.label));
       assert.ok(builtinItem);
 
-      getSemanticRuleAction(builtinItem, `Remove domain rule ${builtinRule.label}`).click();
+      getSemanticRuleAction(builtinItem, "Remove").click();
       await settled();
 
       const removeUpdate = savedSettings.at(-1);
@@ -869,7 +869,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       clickNewSemanticRule(container);
       const draftItem = getSemanticRuleItems(container)[0];
       assert.ok(draftItem);
-      setSemanticRuleInput(draftItem, "Domain scope, for example iv", "iv");
+      setSemanticRuleInput(draftItem, "Definition, for example iv transfer", "iv");
       acceptSemanticRuleInput(container, "X representative", "Codex Gate Bias");
       acceptSemanticRuleInput(container, "X representative", "Codex-Gate-Bias");
       await settled();
@@ -916,14 +916,14 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       clickNewSemanticRule(container);
       const draftItem = getSemanticRuleItems(container)[0];
       assert.ok(draftItem);
-      acceptSemanticRuleInput(draftItem, "Domain scope, for example iv", "V");
+      acceptSemanticRuleInput(draftItem, "Definition, for example iv transfer", "V");
       await settled();
 
       assert.equal(updateCount, 0);
       assert.equal(service.settings.templateSemanticPatches, undefined);
-      assert.equal(notifications.at(-1)?.message, "Enter at least two letters or digits for the rule label.");
+      assert.equal(notifications.at(-1)?.message, "Enter at least two letters or digits for the definition.");
       assert.equal(notifications.at(-1)?.presentation?.type, "error");
-      assert.equal(getSemanticRuleInput(draftItem, "Domain scope, for example iv").value, "V");
+      assert.equal(getSemanticRuleInput(draftItem, "Definition, for example iv transfer").value, "V");
       assert.equal(hasReadOnlySemanticRuleValue(container, "V"), false);
     }
     finally {
@@ -1022,7 +1022,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       clickNewSemanticRule(container);
       const draftItem = getSemanticRuleItems(container)[0];
       assert.ok(draftItem);
-      setSemanticRuleInput(draftItem, "Domain scope, for example iv", "custom");
+      setSemanticRuleInput(draftItem, "Definition, for example iv transfer", "custom");
       acceptSemanticRuleInput(container, "X representative", "Codex Custom X");
       patchedTargets.length = 0;
       patchedDescriptors.length = 0;
@@ -1079,25 +1079,25 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       clickNewSemanticRule(container);
       const draftItem = getSemanticRuleItems(container)[0];
       assert.ok(draftItem);
-      const input = getSemanticRuleInput(draftItem, "Domain scope, for example iv");
+      const input = getSemanticRuleInput(draftItem, "Definition, for example iv transfer");
       input.focus();
 
-      setSemanticRuleInput(draftItem, "Domain scope, for example iv", "Codex Custom Term");
+      setSemanticRuleInput(draftItem, "Definition, for example iv transfer", "Codex Custom Term");
       acceptSemanticRuleInput(container, "X representative", "Codex Gate Bias");
       acceptSemanticRuleInput(container, "Y representative", "Codex Drain Current");
       await settled();
 
       const pendingItem = getSemanticRuleItems(container)[0];
       assert.ok(pendingItem);
-      const pendingInput = getSemanticRuleInput(pendingItem, "Domain scope, for example iv");
+      const pendingInput = getSemanticRuleInput(pendingItem, "Definition, for example iv transfer");
       assert.equal(pendingInput.value, "Codex Custom Term");
       assert.equal(pendingInput.disabled, true);
 
       clickNewSemanticRule(container);
       const nextDraftItem = getSemanticRuleItems(container)[0];
       assert.ok(nextDraftItem);
-      const nextInput = getSemanticRuleInput(nextDraftItem, "Domain scope, for example iv");
-      setSemanticRuleInput(nextDraftItem, "Domain scope, for example iv", "Next Term");
+      const nextInput = getSemanticRuleInput(nextDraftItem, "Definition, for example iv transfer");
+      setSemanticRuleInput(nextDraftItem, "Definition, for example iv transfer", "Next Term");
       assert.equal(updateCount, 1);
       assert.equal(nextInput.value, "Next Term");
       assert.equal(nextInput.disabled, false);
@@ -1130,17 +1130,17 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       clickNewSemanticRule(container);
       const draftItem = getSemanticRuleItems(container)[0];
       assert.ok(draftItem);
-      const input = getSemanticRuleInput(draftItem, "Domain scope, for example iv");
+      const input = getSemanticRuleInput(draftItem, "Definition, for example iv transfer");
       input.focus();
 
-      setSemanticRuleInput(draftItem, "Domain scope, for example iv", "Codex Custom Term");
+      setSemanticRuleInput(draftItem, "Definition, for example iv transfer", "Codex Custom Term");
       acceptSemanticRuleInput(container, "X representative", "Codex Gate Bias");
       acceptSemanticRuleInput(container, "Y representative", "Codex Drain Current");
       await settled();
 
       const pendingItem = getSemanticRuleItems(container)[0];
       assert.ok(pendingItem);
-      const pendingInput = getSemanticRuleInput(pendingItem, "Domain scope, for example iv");
+      const pendingInput = getSemanticRuleInput(pendingItem, "Definition, for example iv transfer");
       pendingInput.value = "Next Term";
       pendingInput.dispatchEvent(new globalThis.Event("input", { bubbles: true }));
 
@@ -1149,7 +1149,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
 
       const failedItem = getSemanticRuleItems(container)[0];
       assert.ok(failedItem);
-      const failedInput = getSemanticRuleInput(failedItem, "Domain scope, for example iv");
+      const failedInput = getSemanticRuleInput(failedItem, "Definition, for example iv transfer");
       assert.equal(failedInput.value, "Next Term");
       assert.equal(failedInput.readOnly, false);
     }
@@ -1217,7 +1217,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       assert.ok(customItem);
       patchedTargets.length = 0;
       patchedDescriptors.length = 0;
-      getSemanticRuleAction(customItem, "Remove domain rule Custom Term").click();
+      getSemanticRuleAction(customItem, "Remove").click();
       await settled();
 
       assert.deepEqual(patchedTargets, []);
@@ -1389,10 +1389,10 @@ function getSemanticRuleInput(container: ParentNode, placeholder: string): HTMLI
 
 function getSemanticRuleInputAriaLabel(placeholder: string): string {
   switch (placeholder) {
-    case "Domain scope, for example iv":
-      return "Domain scope";
+    case "Definition, for example iv transfer":
+      return "Definition";
     case "Type, for example transfer":
-      return "Rule type";
+      return "Type";
     case "X representative":
       return "X axis representative character block";
     case "Y representative":

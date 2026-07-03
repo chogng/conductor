@@ -461,7 +461,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(getSemanticRuleInput(draftItem, "X representative").value, "");
       assert.equal(getSemanticRuleInput(draftItem, "Y representative").value, "");
       assert.equal(getSemanticRuleSourceText(draftItem), "User");
-      assert.equal(getSemanticRuleActionNames(draftItem).includes("Remove domain rule"), true);
+      assert.equal(getSemanticRuleActionNames(draftItem).includes("Remove"), true);
       assert.equal(draftItem.querySelectorAll(".settings-template-semantic-axis-field .settings-label").length, 0);
       assert.ok(draftItem.textContent?.includes("Vg"));
       assert.ok(draftItem.textContent?.includes("Id"));
@@ -469,7 +469,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(getSemanticRuleInput(customItem, "Definition, for example iv transfer").readOnly, false);
       assert.equal(getSemanticRuleInput(customItem, "X representative").hidden, false);
       assert.equal(getSemanticRuleSourceText(customItem), "User");
-      assert.equal(getSemanticRuleActionNames(customItem).includes("Remove domain rule iv"), true);
+      assert.equal(getSemanticRuleActionNames(customItem).includes("Remove"), true);
       assert.equal(getSemanticRuleActionNames(customItem).includes("Cancel"), false);
       assert.equal(getSemanticRuleActionNames(customItem).includes("Done"), false);
       assert.ok(customItem.textContent?.includes("Custom Gate"));

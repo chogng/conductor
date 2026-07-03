@@ -115,10 +115,12 @@ const createDataResourceReviewCandidate = ({
 	}
 
 	const measurement = createCandidateMeasurementBinding(projection.measurementBlocks);
+	const reviewedType = createCandidateReviewedType(projection.measurementBlocks);
 	const name = getDataResourceCandidateName(projection.measurementBlocks, binding);
 	const interpretation = createReviewCandidateInterpretation({
 		name,
 		version: 1,
+		...(reviewedType ? { reviewedType } : {}),
 		...(measurement ? { measurement } : {}),
 		blocks: projection.blocks,
 		stopOnError: false,
@@ -443,11 +445,13 @@ const createReviewCandidateInterpretation = ({
 	blocks,
 	measurement,
 	name,
+	reviewedType,
 	stopOnError,
 	version,
 }: ReviewCandidateInterpretation): ReviewCandidateInterpretation => ({
 	name,
 	version,
+	...(reviewedType ? { reviewedType } : {}),
 	...(measurement ? { measurement } : {}),
 	blocks,
 	stopOnError,
@@ -462,6 +466,7 @@ const createCandidateInterpretationFingerprint = (
 		blocks,
 		measurement,
 		name,
+		reviewedType,
 		stopOnError,
 		version,
 	} = interpretation;
@@ -469,6 +474,7 @@ const createCandidateInterpretationFingerprint = (
 		schemaVersion: 1,
 		name,
 		version,
+		...(reviewedType ? { reviewedType } : {}),
 		...(measurement ? { measurement } : {}),
 		blocks,
 		stopOnError,
@@ -489,6 +495,18 @@ const createCandidateMeasurementBinding = (
 
 	return measurements.every(measurement => areSameTemplateMeasurementBinding(first, measurement))
 		? first
+		: undefined;
+};
+
+const createCandidateReviewedType = (
+	blocks: readonly StructuredMeasurementBlockRecord[],
+): string | undefined => {
+	const types = blocks
+		.map(block => normalizeOptionalText(block.type))
+		.filter((type): type is string => Boolean(type));
+	const uniqueTypes = [...new Set(types)];
+	return uniqueTypes.length === 1 && types.length === blocks.length
+		? uniqueTypes[0]
 		: undefined;
 };
 

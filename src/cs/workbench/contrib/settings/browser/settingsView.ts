@@ -388,6 +388,7 @@ type TemplateSemanticSectionItemActions = {
 type TemplateSemanticSectionItemControls = {
   readonly leadingInput: InputBox<HTMLInputElement>;
   readonly sourceLabel: HTMLElement;
+  readonly typeInput: InputBox<HTMLInputElement>;
   readonly xInput: InputBoxWidget;
   readonly yInput: InputBoxWidget;
   readonly actions: TemplateSemanticSectionItemActions | null;
@@ -1404,6 +1405,7 @@ export class SettingsView {
         this.updateTemplateSemanticSectionItemControls(nextItem, {
           leadingInput,
           sourceLabel,
+          typeInput,
           xInput,
           yInput,
           actions: leadingActions,
@@ -1421,11 +1423,18 @@ export class SettingsView {
     controls: TemplateSemanticSectionItemControls,
   ): void {
     controls.leadingInput.update({
-      ariaLabel: localize("settings.template.semantic.leadingAria", "Domain scope"),
+      ariaLabel: localize("settings.template.semantic.leadingAria", "Definition"),
       disabled: semanticItem.isSaving,
-      placeholder: localize("settings.template.semantic.leadingPlaceholder", "Domain scope, for example iv"),
+      placeholder: localize("settings.template.semantic.leadingPlaceholder", "Definition, for example iv transfer"),
       readOnly: false,
       value: semanticItem.title,
+    });
+    controls.typeInput.update({
+      ariaLabel: localize("settings.template.semantic.typeAria", "Type"),
+      disabled: semanticItem.isSaving,
+      placeholder: localize("settings.template.semantic.typePlaceholder", "Type, for example transfer"),
+      readOnly: false,
+      value: semanticItem.type ?? "",
     });
     const sourceText = formatTemplateSemanticSectionItemSource(semanticItem.source);
     if (controls.sourceLabel.textContent !== sourceText) {
@@ -1453,7 +1462,7 @@ export class SettingsView {
     });
     if (controls.actions) {
       controls.actions.removeAction.enabled = !semanticItem.isSaving;
-      controls.actions.removeAction.tooltip = getTemplateSemanticSectionItemRemoveAriaLabel(semanticItem);
+      controls.actions.removeAction.tooltip = localize("settings.template.semantic.removeRuleLabel", "Remove");
     }
   }
 
@@ -1567,7 +1576,7 @@ export class SettingsView {
       !semanticItem.isSaving,
       () => void settings.onRemoveSemanticSectionItem(semanticItem.id),
     ));
-    removeAction.tooltip = actionAriaLabel;
+    removeAction.tooltip = actionLabel;
     removeAction.icon = LxIcon.trashFlat;
 
     const actionBar = this.registerContentDisposable(new ActionBar({

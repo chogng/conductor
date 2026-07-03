@@ -65,6 +65,7 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 			curveFamily: "iv",
 			ivMode: "transfer",
 		});
+		assert.equal(candidate.interpretation.reviewedType, "transfer");
 		assert.ok(candidate.interpretationFingerprint.startsWith("review-interpretation:"));
 	});
 
@@ -314,6 +315,7 @@ const createStructuredContentEvidence = ({
 		fileId: "file-a",
 		rawTableId: "table-a",
 		label: "Detected IV Transfer",
+		type: "transfer",
 		family: "iv",
 		ivMode: "transfer",
 		source: {

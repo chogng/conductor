@@ -26,8 +26,8 @@ Confirmed decoration:
 
 - comes from `IReviewService.getLatestReviewSummary({ resource, sheetId })`;
 - is the final Explorer semantic decoration display;
-- may show review-owned semantic summary fields such as curve kind, family,
-  role, confidence, message, and stale/invalid state;
+- may show review-owned summary fields such as reviewed type, confidence,
+  message, and stale/invalid state;
 - represents reviewed template readiness, stale review, manual-adjustment needs, or final invalid review state.
 - is exposed to Explorer through `ExplorerDecorationsProvider` registered on `IDecorationsService`, not through `ExplorerFileEntry`.
 - must not read or subscribe to `ReviewEvidence`; Explorer consumes
@@ -61,6 +61,10 @@ ExplorerFileEntry resource + sheetId
 Review is the source of semantic Explorer decorations. If Review cannot provide
 a ready template, Explorer must not keep showing a semantic decoration from earlier
 content/materialization progress or row metadata.
+Ready semantic decoration text comes from `ReviewSummary.reviewedType`. If the
+ready summary has no `reviewedType`, Explorer does not synthesize a badge from
+`reviewedSemanticLabel`, template name, family, role, file name, or row
+metadata.
 Explorer rich hover reads the same review-owned `ReviewSummary`; label
 decorations own only short color/tooltip/strikethrough presentation.
 `IDecorationData.color` carries a theme `ColorIdentifier` token, not a concrete

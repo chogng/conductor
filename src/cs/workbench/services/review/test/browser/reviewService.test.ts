@@ -113,6 +113,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(result.decision.kind, "ready");
 		assert.equal(result.decision.kind === "ready" && result.decision.application.kind, "systemRecommended");
 		assert.equal(result.decision.kind === "ready" && result.decision.reviewedTemplate.source.kind, "dataResource");
+		assert.equal(result.reviewedTemplate?.reviewedType, "transfer");
 		assert.deepEqual(result.reviewedTemplate?.template.measurement, {
 			curveFamily: "iv",
 			ivMode: "transfer",
@@ -324,7 +325,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(result.reviews[0]?.findings.some(finding => finding.code === "review.ambiguousCandidates"), false);
 	});
 
-	test("uses semantic domain intent profile to resolve time and voltage X candidates before Review", async () => {
+	test("does not resolve time and voltage X ambiguity from semantic domain intent", async () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/FastIvTransfer.csv");
 		const service = createReviewServiceForTest(
@@ -341,13 +342,9 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 
 		const reviewExecution = await service.reviewResourceForExecution({ resource });
 
-		assert.equal(reviewExecution?.summary.state, "ready");
-		assert.equal(reviewExecution?.summary.findingCodes.includes("review.ambiguousCandidates"), false);
-		assert.deepEqual(reviewExecution?.systemRecommendedReviewedTemplate?.template.blocks[0]?.x.columns, [2]);
-		assert.deepEqual(reviewExecution?.systemRecommendedReviewedTemplate?.template.measurement, {
-			curveFamily: "iv",
-			ivMode: "transfer",
-		});
+		assert.equal(reviewExecution?.summary.state, "needsAdjustment");
+		assert.equal(reviewExecution?.summary.findingCodes.includes("review.ambiguousCandidates"), true);
+		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate, undefined);
 	});
 
 	test("does not require adjustment when a repeated-block candidate covers child block candidates", async () => {
@@ -445,7 +442,8 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(summary.state, "ready");
 		assert.equal(summary.resource, resource);
 		assert.equal(summary.sheetId, "table-a");
-		assert.equal(summary.reviewedSemanticLabel, "Detected IV Transfer");
+		assert.equal(summary.reviewedType, "transfer");
+		assert.equal(summary.reviewedSemanticLabel, "Detected Transfer");
 		assert.equal(summary.message, "Review is ready and recommended for system application.");
 		assert.deepEqual(summary.findingCodes, []);
 		assert.equal(typeof summary.confidence, "number");
@@ -458,6 +456,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(reviewExecution.sourceVersion, 1);
 		assert.equal(reviewExecution.systemRecommendedReviewedTemplate?.template.measurement?.curveFamily, "iv");
 		assert.equal(reviewExecution.systemRecommendedReviewedTemplate?.template.measurement?.ivMode, "transfer");
+		assert.equal(reviewExecution.systemRecommendedReviewedTemplate?.reviewedType, "transfer");
 		assert.equal(service.getLatestReviewSummary(target).reviewSignature, reviewExecution.reviewSignature);
 		assert.equal(service.getLatestReviewSummary(target).state, "ready");
 	});
@@ -479,7 +478,8 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const summary = await service.resolveReviewSummary(target);
 
 		assert.equal(summary?.state, "ready");
-		assert.equal(summary?.reviewedSemanticLabel, "Detected IV Transfer");
+		assert.equal(summary?.reviewedType, "transfer");
+		assert.equal(summary?.reviewedSemanticLabel, "Detected Transfer");
 		assert.equal(service.getLatestReviewSummary(target).state, "ready");
 		assert.equal(service.getLatestReviewSummary(target).reviewSignature, summary?.reviewSignature);
 	});
@@ -506,10 +506,12 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 
 		const summary = service.getLatestReviewSummary(target);
 		assert.equal(summary.state, "ready");
-		assert.equal(summary.reviewedSemanticLabel, "Detected IV Output");
+		assert.equal(summary.reviewedType, "output");
+		assert.equal(summary.reviewedSemanticLabel, "Detected Output");
 
 		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate?.template.measurement?.curveFamily, "iv");
 		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate?.template.measurement?.ivMode, "output");
+		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate?.reviewedType, "output");
 	});
 
 	test("derives IV transfer review from B1500 DataName metadata rows", async () => {
@@ -583,7 +585,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.deepEqual(reviewExecution?.summary.findingCodes, ["review.noCandidates"]);
 	});
 
-	test("does not auto-select IV mode from generic voltage URI content", async () => {
+	test("derives PV measurement from generic voltage URI content without IV mode", async () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Instrument.csv");
 		const dataResourceService = store.add(new CountingDataResourceService(
@@ -606,18 +608,20 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(dataResourceService.resolveStructuredContentCalls, 0);
 		const reviewExecution = await service.reviewResourceForExecution(target);
 		assert.ok(reviewExecution);
-		assert.equal(reviewExecution.systemRecommendedReviewedTemplate?.template.measurement?.curveFamily, undefined);
+		assert.equal(reviewExecution.systemRecommendedReviewedTemplate?.template.measurement?.curveFamily, "pv");
 		assert.equal(reviewExecution.systemRecommendedReviewedTemplate?.template.measurement?.ivMode, undefined);
 		assert.equal(reviewExecution.summary.state, "ready");
 
 		const summary = service.getLatestReviewSummary(target);
 		assert.deepEqual({
 			findingCodes: summary.findingCodes,
+			reviewedType: summary.reviewedType,
 			reviewedSemanticLabel: summary.reviewedSemanticLabel,
 			state: summary.state,
 		}, {
 			findingCodes: [],
-			reviewedSemanticLabel: "Detected Data Block",
+			reviewedType: "pv",
+			reviewedSemanticLabel: "Detected Pv",
 			state: "ready",
 		});
 
@@ -861,7 +865,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(service.getLatestReviewSummary(target).state, "ready");
 	});
 
-	test("confirms reviewed templates into schema profiles from structured content", async () => {
+	test("does not confirm reviewed templates without structured column roles", async () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 		const schemaProfileService = store.add(new TestSchemaProfileService());
 		const resource = URI.file("/workspace/Transfer.csv");
@@ -885,25 +889,8 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			reason: "user",
 		});
 
-		assert.ok(profile);
-		assert.equal(schemaProfileService.confirmations.length, 1);
-		assert.deepEqual(profile.bindings, [{
-			selector: {
-				columnIndex: 0,
-				normalizedHeader: "vg",
-			},
-			role: "vg",
-			axis: "x",
-			canonicalUnit: "V",
-		}, {
-			selector: {
-				columnIndex: 1,
-				normalizedHeader: "id",
-			},
-			role: "id",
-			axis: "y",
-			canonicalUnit: "A",
-		}]);
+		assert.equal(profile, null);
+		assert.equal(schemaProfileService.confirmations.length, 0);
 	});
 
 	test("does not learn schema profiles from automatic URI review derivation", async () => {
@@ -1524,6 +1511,7 @@ const createReviewEvidence = ({
 			fileId: "file-a",
 			rawTableId: "table-a",
 			label: "Transfer",
+			type: "transfer",
 			family: "iv",
 			ivMode: "transfer",
 			source: {

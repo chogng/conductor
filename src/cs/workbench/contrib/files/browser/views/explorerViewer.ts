@@ -216,7 +216,7 @@ type HoverContent =
     readonly isWarning: boolean;
     readonly message: string;
     readonly reason: string;
-    readonly semanticLabel: string;
+    readonly reviewedType: string;
     readonly state: ReviewSummary["state"];
   }
   | {
@@ -500,6 +500,7 @@ const createReviewSummarySignature = (
 ): string => [
   summary?.state ?? "",
   summary?.confidence ?? "",
+  summary?.reviewedType ?? "",
   summary?.reviewedSemanticLabel ?? "",
   summary?.message ?? "",
   summary?.findingCodes.join("\u001d") ?? "",
@@ -616,9 +617,9 @@ const formatReviewConfidence = (
   return `${Math.round(Math.max(0, Math.min(1, normalized)) * 100)}%`;
 };
 
-const getReviewSummarySemanticLabel = (
+const getReviewSummaryType = (
   summary: ReviewSummary,
-): string => String(summary.reviewedSemanticLabel ?? "").trim();
+): string => String(summary.reviewedType ?? "").trim();
 
 const getReviewSummaryMessage = (
   summary: ReviewSummary,
@@ -2430,7 +2431,7 @@ export class ExplorerViewer implements IDisposable {
       isWarning: isReviewSummaryWarning(summary),
       message: getReviewSummaryMessage(summary),
       reason: getReviewSummaryReason(summary),
-      semanticLabel: getReviewSummarySemanticLabel(summary),
+      reviewedType: getReviewSummaryType(summary),
       state: summary.state,
     };
   }
@@ -2492,9 +2493,9 @@ export class ExplorerViewer implements IDisposable {
     details.append(
       createTableModelRow(localize("files.reviewStateLabel", "Review:"), getReviewStateLabel(content.state)),
     );
-    if (content.semanticLabel) {
+    if (content.reviewedType) {
       details.append(
-        createTableModelRow(localize("files.reviewTypeLabel", "Type:"), content.semanticLabel),
+        createTableModelRow(localize("files.reviewTypeLabel", "Type:"), content.reviewedType),
       );
     }
     if (content.confidence) {
@@ -3236,7 +3237,7 @@ function isSameHoverContent(
 
   return (
     left.state === right.state &&
-    left.semanticLabel === right.semanticLabel &&
+    left.reviewedType === right.reviewedType &&
     left.confidence === right.confidence &&
     left.message === right.message &&
     left.isWarning === right.isWarning &&

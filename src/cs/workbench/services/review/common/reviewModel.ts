@@ -107,6 +107,7 @@ export type ReviewCandidateBlock = {
 export type ReviewCandidateInterpretation = {
 	readonly name: string;
 	readonly version: number;
+	readonly reviewedType?: string;
 	readonly measurement?: TemplateMeasurementBinding;
 	readonly blocks: readonly ReviewCandidateBlock[];
 	readonly stopOnError: boolean;
@@ -196,6 +197,7 @@ export type ReviewedTemplateSource =
 export type ReviewedTemplate = {
 	readonly candidateId: string;
 	readonly source: ReviewedTemplateSource;
+	readonly reviewedType?: string;
 	readonly template: Template;
 	readonly templateFingerprint: string;
 	readonly review: CandidateReview;
@@ -279,6 +281,7 @@ export type ReviewSummary = {
 	readonly sheetId?: string;
 	readonly state: ReviewSummaryState;
 	readonly confidence?: number;
+	readonly reviewedType?: string;
 	readonly reviewedSemanticLabel?: string;
 	readonly message?: string;
 	readonly findingCodes: readonly string[];

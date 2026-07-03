@@ -168,13 +168,14 @@ ReviewService onDidChangeReview
   -> ExplorerDecorationsProvider.provideDecorations(resource)
   -> IReviewService.getLatestReviewSummary({ resource, contentHash?, sheetId? })
   -> ReviewService returns cached/stale/active-pending/missing summary without resolving content
-  -> ReviewSummary(state, confidence, reviewedSemanticLabel, message, signatures)
+  -> ReviewSummary(state, confidence, reviewedType, reviewedSemanticLabel, message, signatures)
   -> IDecorationsService / Explorer hover presentation
 ```
 
 Explorer decoration does not subscribe to or read `ReviewEvidence`. A semantic
-label such as a curve kind, family, or role comes from `ReviewSummary` /
-`ReviewedTemplate` metadata after Review has made a decision.
+display type comes from `ReviewSummary.reviewedType` after Review has made a
+decision. Explorer must not infer that type from template names, file names,
+families, roles, or raw evidence.
 
 This summary cache is service-local. It is invalidated by content version
 changes, evidence fingerprint changes, DataResource semantic-rules/evidence
@@ -275,9 +276,12 @@ snapshot. Do not reintroduce Review-local structured-content bridges.
   `dataResource` or `user`. It must not encode manual, auto,
   saved-selection compatibility, force-review override, user command, or system
   trigger.
-- Accepted measurement semantics belong on the reviewed executable `Template`
-  snapshot (`ReviewedTemplate.template.measurement`), not as standalone fields
-  on `ResourceReviewExecution`, `ReviewSummary`, or Slice request bridge fields.
+- Accepted executable measurement semantics belong on the reviewed executable
+  `Template` snapshot (`ReviewedTemplate.template.measurement`), not as
+  standalone fields on `ResourceReviewExecution` or Slice request bridge
+  fields. `ReviewSummary.reviewedType` is a Review-owned decoration/hover
+  projection of the selected result type; it is not a Slice execution input and
+  must not be inferred by Explorer.
 - Execution trigger belongs to `SliceResourceRequest.trigger`.
 - Non-selected candidate records store summaries only. Detail rebuilding must
   verify DataResource semantic/evidence fingerprints and UserTemplate versions,
