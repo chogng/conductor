@@ -33,17 +33,16 @@ import {
   normalizeNumericDisplayMode,
   normalizeTableAutoFitColumnWidthsEnabled,
   normalizeTableTemplateVisualizationEnabled,
-  normalizeTemplateSemanticDomainPriority,
-  normalizeTemplateSemanticDomainRules,
+  normalizeTemplateRules,
   type ConductorSettings,
   type FilesExplorerBadgeColor,
   type ISettingsService,
   type SettingsViewInput,
-  type TemplateSemanticDomainRule,
+  type TemplateRule,
 } from "src/cs/workbench/services/settings/common/settings";
 import {
-  builtinSemanticDomainRules,
-  type BuiltinSemanticDomainRule,
+  builtinRules,
+  type BuiltinRule,
   isCustomSemanticMatchTermAllowed,
   toSemanticTermKey,
 } from "src/cs/workbench/services/dataResource/common/semanticRules";
@@ -103,6 +102,7 @@ type TemplateSemanticSectionItemDraft = {
   readonly ruleId: string;
   readonly source: "builtin" | "custom" | "draft";
   title: string;
+  badge: string;
   xDraft: string;
   xTerms: string[];
   yDraft: string;
@@ -111,12 +111,13 @@ type TemplateSemanticSectionItemDraft = {
 
 type TemplateSemanticComparableRule = {
   readonly id: string;
-  readonly title: string;
+  readonly label: string;
+  readonly badge?: string;
   readonly xTerms: readonly string[];
   readonly yTerms: readonly string[];
 };
 
-type TemplateSemanticSectionItemDraftField = "title" | "xDraft" | "yDraft";
+type TemplateSemanticSectionItemDraftField = "title" | "badge" | "xDraft" | "yDraft";
 
 const ORIGIN_NOTIFICATION_ID = "settings.origin";
 const CLEANUP_NOTIFICATION_ID = "settings.cleanup";
@@ -503,37 +504,34 @@ export class SettingsController {
   }
 
   private get templateSettings(): SettingsViewOptions["templateSettings"] {
-    const storedDomainRules = this.matchingTemplateSemanticDomainRules;
-    const disabledBuiltinRuleIds = new Set(storedDomainRules
+    const storedRules = this.matchingTemplateRules;
+    const disabledBuiltinRuleIds = new Set(storedRules
       .filter(rule => rule.enabled === false)
       .map(rule => rule.id));
-    const customDomainRules = storedDomainRules
+    const customRules = storedRules
       .filter(rule => rule.enabled !== false)
-      .map(toTemplateSemanticDomainRuleView);
-    const builtinDomainRules = builtinSemanticDomainRules
+      .map(toTemplateRuleView);
+    const visibleBuiltinRules = builtinRules
       .filter(rule => !disabledBuiltinRuleIds.has(rule.id))
-      .map(toBuiltinTemplateSemanticDomainRuleView);
-    const semanticDomainItems = this.createTemplateSemanticSectionItems(builtinDomainRules, customDomainRules);
+      .map(toBuiltinTemplateRuleView);
+    const semanticRuleItems = this.createTemplateSemanticSectionItems(visibleBuiltinRules, customRules);
     return {
-      domainPriorityItems: this.createTemplateSemanticDomainPriorityItems(builtinDomainRules, customDomainRules),
       isSaving: this.templateSettingsSaving,
       onAddSemanticSectionItemTerm: (id, axis, value) => this.addTemplateSemanticSectionItemTerm(id, axis, value),
       onCommitSemanticSectionItemTitle: id => this.commitTemplateSemanticSectionItemTitle(id),
       onCreateSemanticSectionItem: () => this.createTemplateSemanticSectionItem(),
-      onMoveSemanticDomainPriority: (sourceId, targetIndex) => this.moveTemplateSemanticDomainPriority(sourceId, targetIndex),
-      onRemoveSemanticDomainPriorityItem: (id, source) => this.removeTemplateSemanticDomainPriorityItem(id, source),
       onRemoveSemanticSectionItem: id => this.removeTemplateSemanticSectionItem(id),
       onRemoveSemanticSectionItemTerm: (id, axis, term) => this.removeTemplateSemanticSectionItemTerm(id, axis, term),
-      onResetSemanticDomainRules: () => this.resetTemplateSemanticDomainRules(),
+      onResetSemanticRules: () => this.resetTemplateSemanticRules(),
       onUpdateSemanticSectionItemDraft: (id, field, value) => this.updateTemplateSemanticSectionItemDraft(id, field, value),
       pendingActionItemId: this.pendingTemplateActionItemId,
-      semanticSectionItems: semanticDomainItems,
+      semanticSectionItems: semanticRuleItems,
     };
   }
 
-  private get matchingTemplateSemanticDomainRules(): readonly TemplateSemanticDomainRule[] {
-    return normalizeTemplateSemanticDomainRules(this.settings.templateSemanticDomainRules)
-      .filter(rule => isCustomSemanticMatchTermAllowed(rule.title));
+  private get matchingTemplateRules(): readonly TemplateRule[] {
+    return normalizeTemplateRules(this.settings.templateRules)
+      .filter(rule => isCustomSemanticMatchTermAllowed(rule.label));
   }
 
   private get appearanceSettings(): SettingsViewOptions["appearanceSettings"] {
@@ -950,8 +948,8 @@ export class SettingsController {
   }
 
   private createTemplateSemanticSectionItems(
-    builtinRules: readonly TemplateSemanticDomainRuleView[],
-    customRules: readonly TemplateSemanticDomainRuleView[],
+    builtinRules: readonly TemplateRuleView[],
+    customRules: readonly TemplateRuleView[],
   ): SettingsViewOptions["templateSettings"]["semanticSectionItems"] {
     const builtinRuleIds = new Set(builtinRules.map(rule => rule.id));
     const customRulesById = new Map(customRules.map(rule => [rule.id, rule]));
@@ -959,20 +957,20 @@ export class SettingsController {
     const newDrafts = this.drafts.templateSemanticSectionItemDrafts.filter(draft =>
       !customRulesById.has(draft.ruleId) && !builtinRuleIds.has(draft.ruleId)
     );
+    const savedRules = [
+      ...customRules.filter(rule => !builtinRuleIds.has(rule.id)),
+      ...builtinRules.map(rule => {
+        const customRule = customRulesById.get(rule.id);
+        return customRule ? { ...customRule, source: "builtin" as const } : rule;
+      }),
+    ].sort(compareTemplateRuleViews);
     return [
       ...newDrafts.map((draft, index) => this.createTemplateSemanticDraftSectionItem(draft, index === 0)),
-      ...customRules.filter(rule => !builtinRuleIds.has(rule.id)).map(rule => {
+      ...savedRules.map(rule => {
         const draft = draftByRuleId.get(rule.id);
         return draft
           ? this.createTemplateSemanticDraftSectionItem(draft, false)
           : this.createSavedTemplateSemanticSectionItem(rule);
-      }),
-      ...builtinRules.map(rule => {
-        const draft = draftByRuleId.get(rule.id);
-        const customRule = customRulesById.get(rule.id);
-        return draft
-          ? this.createTemplateSemanticDraftSectionItem(draft, false)
-          : this.createSavedTemplateSemanticSectionItem(customRule ? { ...customRule, source: "builtin" } : rule);
       }),
     ];
   }
@@ -987,6 +985,7 @@ export class SettingsController {
       isSaving: this.pendingTemplateActionItemId === draft.id,
       ruleId: draft.ruleId,
       title: draft.title,
+      badge: draft.badge,
       source: draft.source,
       xDraft: draft.xDraft,
       xTerms: draft.xTerms,
@@ -996,7 +995,7 @@ export class SettingsController {
   }
 
   private createSavedTemplateSemanticSectionItem(
-    rule: TemplateSemanticDomainRuleView,
+    rule: TemplateRuleView,
   ): SettingsViewOptions["templateSettings"]["semanticSectionItems"][number] {
     return {
       id: createTemplateSemanticSectionItemId(rule.source, rule.id),
@@ -1004,6 +1003,7 @@ export class SettingsController {
       ruleId: rule.id,
       source: rule.source,
       title: rule.title,
+      badge: rule.badge ?? "",
       xDraft: "",
       xTerms: rule.xTerms,
       yDraft: "",
@@ -1011,37 +1011,15 @@ export class SettingsController {
     };
   }
 
-  private createTemplateSemanticDomainPriorityItems(
-    builtinRules: readonly TemplateSemanticDomainRuleView[],
-    customRules: readonly TemplateSemanticDomainRuleView[],
-  ): SettingsViewOptions["templateSettings"]["domainPriorityItems"] {
-    const rules = [...builtinRules, ...customRules];
-    const rulesById = new Map(rules.map(rule => [rule.id, rule]));
-    return getTemplateActiveSemanticDomainRuleIds(
-      rules,
-      normalizeTemplateSemanticDomainPriority(this.settings.templateSemanticDomainPriority),
-    ).flatMap(id => {
-      const rule = rulesById.get(id);
-      return rule
-        ? [{
-          id: rule.id,
-          title: rule.title,
-          source: rule.source,
-          xTerms: rule.xTerms,
-          yTerms: rule.yTerms,
-        }]
-        : [];
-    });
-  }
-
   private createTemplateSemanticSectionItem(): void {
-    const ruleId = `template-semantic-domain-${Date.now().toString(36)}-${this.templateSemanticDraftCounter++}`;
+    const ruleId = `template-rule-${Date.now().toString(36)}-${this.templateSemanticDraftCounter++}`;
     const id = createTemplateSemanticSectionItemId("draft", ruleId);
     this.drafts.templateSemanticSectionItemDrafts = [{
       id,
       ruleId,
       source: "draft",
       title: "",
+      badge: "",
       xDraft: "",
       xTerms: [],
       yDraft: "",
@@ -1071,7 +1049,7 @@ export class SettingsController {
     if (!title) {
       if (draft.source !== "draft" || draft.xTerms.length || draft.yTerms.length) {
         this.showTemplateSettingsNotification(
-          localize("settings.template.semantic.emptyRule", "Enter a domain scope before saving."),
+          localize("settings.template.semantic.emptyRule", "Enter a rule label before saving."),
           "error",
         );
       }
@@ -1079,7 +1057,7 @@ export class SettingsController {
     }
     if (!isCustomSemanticMatchTermAllowed(title)) {
       this.showTemplateSettingsNotification(
-        localize("settings.template.semantic.shortDomainTitle", "Enter at least two letters or digits for the domain scope."),
+        localize("settings.template.semantic.shortRuleLabel", "Enter at least two letters or digits for the rule label."),
         "error",
       );
       return;
@@ -1172,7 +1150,7 @@ export class SettingsController {
 
     const builtinRule = findBuiltinSemanticSectionItemRule(id);
     if (builtinRule) {
-      const customRule = this.matchingTemplateSemanticDomainRules.find(rule =>
+      const customRule = this.matchingTemplateRules.find(rule =>
         rule.enabled !== false && rule.id === builtinRule.id
       );
       const rule = customRule ?? builtinRule;
@@ -1180,7 +1158,8 @@ export class SettingsController {
         id: id as SettingsContentItemId,
         ruleId: rule.id,
         source: "builtin",
-        title: rule.title,
+        title: rule.label,
+        badge: rule.badge ?? "",
         xDraft: "",
         xTerms: [...rule.xTerms],
         yDraft: "",
@@ -1190,7 +1169,7 @@ export class SettingsController {
       return sectionItemDraft;
     }
 
-    const customRule = this.matchingTemplateSemanticDomainRules.find(rule =>
+    const customRule = this.matchingTemplateRules.find(rule =>
       rule.enabled !== false && createTemplateSemanticSectionItemId("custom", rule.id) === id
     );
     if (!customRule) {
@@ -1201,7 +1180,8 @@ export class SettingsController {
       id: id as SettingsContentItemId,
       ruleId: customRule.id,
       source: "custom",
-      title: customRule.title,
+      title: customRule.label,
+      badge: customRule.badge ?? "",
       xDraft: "",
       xTerms: [...customRule.xTerms],
       yDraft: "",
@@ -1232,22 +1212,14 @@ export class SettingsController {
       return;
     }
 
-    const storedCustomRules = normalizeTemplateSemanticDomainRules(this.settings.templateSemanticDomainRules);
-    const activeDomainPriority = getTemplateActiveSemanticDomainRuleIds([
-      ...builtinSemanticDomainRules.map(toBuiltinTemplateSemanticDomainRuleView),
-      ...storedCustomRules.map(toTemplateSemanticDomainRuleView),
-    ], normalizeTemplateSemanticDomainPriority(this.settings.templateSemanticDomainPriority));
-    const isExistingActiveRule = activeDomainPriority.includes(nextRules.id);
-    const existingRuleIndex = storedCustomRules.findIndex(rule => rule.id === nextRules.id);
-    const nextStoredCustomRules = existingRuleIndex === -1
-      ? [nextRules, ...storedCustomRules]
-      : storedCustomRules.map(rule => rule.id === nextRules.id ? nextRules : rule);
+    const storedRules = normalizeTemplateRules(this.settings.templateRules);
+    const existingRuleIndex = storedRules.findIndex(rule => rule.id === nextRules.id);
+    const nextStoredRules = existingRuleIndex === -1
+      ? [nextRules, ...storedRules]
+      : storedRules.map(rule => rule.id === nextRules.id ? nextRules : rule);
     const didSave = await this.saveTemplateSettings({
-      templateSemanticDomainPriority: isExistingActiveRule
-        ? activeDomainPriority
-        : [nextRules.id, ...activeDomainPriority.filter(id => id !== nextRules.id)],
-      templateSemanticDomainRules: nextStoredCustomRules,
-    }, null, partialSettingsUpdateTarget(["template-semantic-rules", "template-domain-priority"], []), id);
+      templateRules: nextStoredRules,
+    }, null, partialSettingsUpdateTarget(["template-semantic-rules"], []), id);
     if (didSave) {
       this.drafts.templateSemanticSectionItemDrafts = this.drafts.templateSemanticSectionItemDrafts.filter(draft => draft.id !== id);
       this.render(descriptorUpdateTarget("template-semantic-rules"));
@@ -1256,16 +1228,16 @@ export class SettingsController {
 
   private isTemplateSemanticSectionItemDraftUnchanged(
     draft: TemplateSemanticSectionItemDraft,
-    nextRule: TemplateSemanticDomainRule,
+    nextRule: TemplateRule,
   ): boolean {
     if (draft.source === "draft") {
       return false;
     }
 
     const sourceRule = draft.source === "custom"
-      ? this.matchingTemplateSemanticDomainRules.find(rule => rule.enabled !== false && rule.id === draft.ruleId)
-      : this.matchingTemplateSemanticDomainRules.find(rule => rule.enabled !== false && rule.id === draft.ruleId) ??
-        builtinSemanticDomainRules.find(rule => rule.id === draft.ruleId);
+      ? this.matchingTemplateRules.find(rule => rule.enabled !== false && rule.id === draft.ruleId)
+      : this.matchingTemplateRules.find(rule => rule.enabled !== false && rule.id === draft.ruleId) ??
+        builtinRules.find(rule => rule.id === draft.ruleId);
     return sourceRule ? templateSemanticRuleValuesEqual(nextRule, sourceRule) : false;
   }
 
@@ -1277,18 +1249,18 @@ export class SettingsController {
   private createTemplateSemanticRulesFromDraft(
     draft: TemplateSemanticSectionItemDraft,
     notifyIncompleteAxes: boolean,
-  ): TemplateSemanticDomainRule | null {
+  ): TemplateRule | null {
     const title = draft.title.trim();
     if (!title) {
       this.showTemplateSettingsNotification(
-        localize("settings.template.semantic.emptyRule", "Enter a domain scope before saving."),
+        localize("settings.template.semantic.emptyRule", "Enter a rule label before saving."),
         "error",
       );
       return null;
     }
     if (!isCustomSemanticMatchTermAllowed(title)) {
       this.showTemplateSettingsNotification(
-        localize("settings.template.semantic.shortDomainTitle", "Enter at least two letters or digits for the domain scope."),
+        localize("settings.template.semantic.shortRuleLabel", "Enter at least two letters or digits for the rule label."),
         "error",
       );
       return null;
@@ -1305,13 +1277,33 @@ export class SettingsController {
       }
       return null;
     }
+    const badge = draft.badge.trim();
     return {
       id: draft.ruleId,
-      title,
+      label: title,
+      priority: this.getTemplateRulePriority(draft.ruleId),
+      ...(badge ? { badge } : {}),
       xTerms,
       yTerms,
       enabled: true,
     };
+  }
+
+  private getTemplateRulePriority(ruleId: string): number {
+    const storedRule = normalizeTemplateRules(this.settings.templateRules)
+      .find(rule => rule.id === ruleId);
+    if (storedRule) {
+      return storedRule.priority;
+    }
+    const builtinRule = builtinRules.find(rule => rule.id === ruleId);
+    if (builtinRule) {
+      return builtinRule.priority;
+    }
+    const priorities = [
+      ...builtinRules.map(rule => rule.priority),
+      ...normalizeTemplateRules(this.settings.templateRules).map(rule => rule.priority),
+    ].filter(priority => Number.isFinite(priority));
+    return priorities.length ? Math.min(...priorities) - 1 : 1;
   }
 
   private async removeTemplateSemanticSectionItem(itemId: string): Promise<void> {
@@ -1332,38 +1324,32 @@ export class SettingsController {
       return;
     }
 
-    const customRule = this.matchingTemplateSemanticDomainRules.find(rule =>
+    const customRule = this.matchingTemplateRules.find(rule =>
       createTemplateSemanticSectionItemId("custom", rule.id) === itemId
     );
     if (!customRule) {
       return;
     }
     this.discardTemplateSemanticSectionItemDraft(itemId);
-    const customRules = normalizeTemplateSemanticDomainRules(this.settings.templateSemanticDomainRules)
+    const customRules = normalizeTemplateRules(this.settings.templateRules)
       .filter(rule => rule.id !== customRule.id);
     await this.saveTemplateSettings({
-      templateSemanticDomainPriority: normalizeTemplateSemanticDomainPriority(this.settings.templateSemanticDomainPriority)
-        .filter(ruleId => ruleId !== customRule.id),
-      templateSemanticDomainRules: customRules,
-    }, localize("settings.template.semantic.saved", "Template semantic rules updated."), partialSettingsUpdateTarget(["template-semantic-rules", "template-domain-priority"], []), itemId);
-  }
-
-  private async removeTemplateSemanticDomainPriorityItem(
-    id: string,
-    source: "builtin" | "custom",
-  ): Promise<void> {
-    await this.removeTemplateSemanticSectionItem(createTemplateSemanticSectionItemId(source, id));
+      templateRules: customRules,
+    }, localize("settings.template.semantic.saved", "Template rules updated."), partialSettingsUpdateTarget(["template-semantic-rules"], []), itemId);
   }
 
   private async hideBuiltinTemplateSemanticSectionItem(
-    builtinRule: BuiltinSemanticDomainRule,
+    builtinRule: BuiltinRule,
   ): Promise<void> {
     this.discardTemplateSemanticSectionItemDraft(createTemplateSemanticSectionItemId("builtin", builtinRule.id));
     this.discardTemplateSemanticSectionItemDraft(createTemplateSemanticSectionItemId("custom", builtinRule.id));
-    const storedRules = normalizeTemplateSemanticDomainRules(this.settings.templateSemanticDomainRules);
-    const hiddenRule: TemplateSemanticDomainRule = {
+    const storedRules = normalizeTemplateRules(this.settings.templateRules);
+    const hiddenRule: TemplateRule = {
       id: builtinRule.id,
-      title: builtinRule.title,
+      label: builtinRule.label,
+      ...(builtinRule.description ? { description: builtinRule.description } : {}),
+      priority: builtinRule.priority,
+      ...(builtinRule.badge ? { badge: builtinRule.badge } : {}),
       xTerms: builtinRule.xTerms,
       yTerms: builtinRule.yTerms,
       enabled: false,
@@ -1373,51 +1359,25 @@ export class SettingsController {
       ? [hiddenRule, ...storedRules]
       : storedRules.map(rule => rule.id === builtinRule.id ? hiddenRule : rule);
     await this.saveTemplateSettings({
-      templateSemanticDomainPriority: normalizeTemplateSemanticDomainPriority(this.settings.templateSemanticDomainPriority)
-        .filter(ruleId => ruleId !== builtinRule.id),
-      templateSemanticDomainRules: nextRules,
-    }, localize("settings.template.semantic.saved", "Template semantic rules updated."), partialSettingsUpdateTarget(["template-semantic-rules", "template-domain-priority"], []), createTemplateSemanticSectionItemId("builtin", builtinRule.id));
+      templateRules: nextRules,
+    }, localize("settings.template.semantic.saved", "Template rules updated."), partialSettingsUpdateTarget(["template-semantic-rules"], []), createTemplateSemanticSectionItemId("builtin", builtinRule.id));
   }
 
-  private async resetTemplateSemanticDomainRules(): Promise<void> {
+  private async resetTemplateSemanticRules(): Promise<void> {
     if (this.templateSettingsSaving) {
       return;
     }
-    const builtinRuleIds = new Set(builtinSemanticDomainRules.map(rule => rule.id));
-    const storedCustomRules = normalizeTemplateSemanticDomainRules(this.settings.templateSemanticDomainRules)
+    const builtinRuleIds = new Set(builtinRules.map(rule => rule.id));
+    const storedCustomRules = normalizeTemplateRules(this.settings.templateRules)
       .filter(rule => !builtinRuleIds.has(rule.id));
-    const activeDomainPriority = getTemplateActiveSemanticDomainRuleIds([
-      ...builtinSemanticDomainRules.map(toBuiltinTemplateSemanticDomainRuleView),
-      ...storedCustomRules.map(toTemplateSemanticDomainRuleView),
-    ], normalizeTemplateSemanticDomainPriority(this.settings.templateSemanticDomainPriority));
-    const customDomainPriority = activeDomainPriority.filter(id => !builtinRuleIds.has(id));
     const didSave = await this.saveTemplateSettings({
-      templateSemanticDomainPriority: [
-        ...builtinSemanticDomainRules.map(rule => rule.id),
-        ...customDomainPriority,
-      ],
-      templateSemanticDomainRules: storedCustomRules,
-    }, localize("settings.template.semantic.reset", "Built-in semantic rules reset."), partialSettingsUpdateTarget(["template-semantic-rules", "template-domain-priority"], []));
+      templateRules: storedCustomRules,
+    }, localize("settings.template.semantic.reset", "Built-in rules reset."), partialSettingsUpdateTarget(["template-semantic-rules"], []));
     if (didSave) {
       this.drafts.templateSemanticSectionItemDrafts = this.drafts.templateSemanticSectionItemDrafts
         .filter(draft => !builtinRuleIds.has(draft.ruleId));
       this.render(descriptorUpdateTarget("template-semantic-rules"));
     }
-  }
-
-  private async moveTemplateSemanticDomainPriority(sourceId: string, targetIndex: number): Promise<void> {
-    const activeDomainPriority = getTemplateActiveSemanticDomainRuleIds([
-      ...builtinSemanticDomainRules.map(toBuiltinTemplateSemanticDomainRuleView),
-      ...this.matchingTemplateSemanticDomainRules.map(toTemplateSemanticDomainRuleView),
-    ], normalizeTemplateSemanticDomainPriority(this.settings.templateSemanticDomainPriority));
-    const sourceIndex = activeDomainPriority.findIndex(id => id === sourceId);
-    if (sourceIndex === -1 || sourceIndex === targetIndex) {
-      return;
-    }
-    const priority = moveItem(activeDomainPriority, sourceIndex, targetIndex);
-    await this.saveTemplateSettings({
-      templateSemanticDomainPriority: priority,
-    }, localize("settings.template.domainPriority.saved", "Semantic domain priority updated."), itemsUpdateTarget("template-domain-priority", "settings-template-semantic-domain-priority-item"));
   }
 
   private async saveTemplateSettings(
@@ -1727,13 +1687,8 @@ function getSettingsViewUpdateTarget(
   }
 
   for (const key of getChangedConductorSettingsKeys(current.conductorSettings, next.conductorSettings)) {
-    if (key === "templateSemanticDomainRules") {
+    if (key === "templateRules") {
       descriptorIds.add("template-semantic-rules");
-      descriptorIds.add("template-domain-priority");
-      continue;
-    }
-    if (key === "templateSemanticDomainPriority") {
-      addItemTarget(itemTargets, "template-domain-priority", "settings-template-semantic-domain-priority-item");
       continue;
     }
     const itemTarget = getConductorSettingItemTarget(key);
@@ -1787,8 +1742,8 @@ function createTemplateSemanticSectionItemId(
   return `settings-template-semantic-section-item:${source}:${id}`;
 }
 
-function findBuiltinSemanticSectionItemRule(itemId: string): BuiltinSemanticDomainRule | undefined {
-  return builtinSemanticDomainRules.find(rule =>
+function findBuiltinSemanticSectionItemRule(itemId: string): BuiltinRule | undefined {
+  return builtinRules.find(rule =>
     createTemplateSemanticSectionItemId("builtin", rule.id) === itemId ||
     createTemplateSemanticSectionItemId("custom", rule.id) === itemId
   );
@@ -1804,8 +1759,6 @@ function getConductorSettingItemTarget(key: string): { readonly descriptorId: Se
       return { descriptorId: "general-preferences", itemIds: ["settings-table-auto-fit-columns-item"] };
     case "tableTemplateVisualizationEnabled":
       return { descriptorId: "template-preferences", itemIds: ["settings-table-template-visualization-item"] };
-    case "templateSemanticDomainPriority":
-      return { descriptorId: "template-domain-priority", itemIds: ["settings-template-semantic-domain-priority-item"] };
     case "defaultYScaleForCf":
       return { descriptorId: "chart-defaults", itemIds: ["settings-default-cf-y-scale-item"] };
     case "defaultYScaleForCv":
@@ -1860,52 +1813,21 @@ function getConductorSettingItemTarget(key: string): { readonly descriptorId: Se
   return null;
 }
 
-function moveItem<T>(
-  values: readonly T[],
-  sourceIndex: number,
-  targetIndex: number,
-): T[] {
-  if (sourceIndex === targetIndex || sourceIndex < 0 || targetIndex < 0 || sourceIndex >= values.length || targetIndex >= values.length) {
-    return values.slice();
-  }
-  const nextValues = values.slice();
-  const [source] = nextValues.splice(sourceIndex, 1);
-  if (source !== undefined) {
-    nextValues.splice(targetIndex, 0, source);
-  }
-  return nextValues;
-}
-
-type TemplateSemanticDomainRuleView = {
+type TemplateRuleView = {
   readonly id: string;
   readonly title: string;
+  readonly badge?: string;
+  readonly priority: number;
   readonly xTerms: readonly string[];
   readonly yTerms: readonly string[];
   readonly source: "builtin" | "custom";
 };
 
-function getTemplateActiveSemanticDomainRuleIds(
-  rules: readonly TemplateSemanticDomainRuleView[],
-  priority: readonly string[],
-): readonly string[] {
-  const ruleIds = new Set(rules.map(rule => rule.id));
-  const result: string[] = [];
-  const seen = new Set<string>();
-  for (const id of priority) {
-    if (!ruleIds.has(id) || seen.has(id)) {
-      continue;
-    }
-    seen.add(id);
-    result.push(id);
-  }
-  for (const rule of rules) {
-    if (seen.has(rule.id)) {
-      continue;
-    }
-    seen.add(rule.id);
-    result.push(rule.id);
-  }
-  return result;
+function compareTemplateRuleViews(
+  left: TemplateRuleView,
+  right: TemplateRuleView,
+): number {
+  return left.priority - right.priority || left.title.localeCompare(right.title);
 }
 
 function normalizeDraftSemanticTermList(
@@ -1932,7 +1854,8 @@ function templateSemanticRuleValuesEqual(
   current: TemplateSemanticComparableRule,
   next: TemplateSemanticComparableRule,
 ): boolean {
-  return current.title.trim() === next.title.trim() &&
+  return current.label.trim() === next.label.trim() &&
+    (current.badge ?? "").trim() === (next.badge ?? "").trim() &&
     semanticTermListsEqual(current.xTerms, next.xTerms) &&
     semanticTermListsEqual(current.yTerms, next.yTerms);
 }
@@ -1947,21 +1870,25 @@ function semanticTermListsEqual(
     normalizedCurrent.every((term, index) => term === normalizedNext[index]);
 }
 
-const toTemplateSemanticDomainRuleView = (
-  rule: TemplateSemanticDomainRule,
-): TemplateSemanticDomainRuleView => ({
+const toTemplateRuleView = (
+  rule: TemplateRule,
+): TemplateRuleView => ({
   id: rule.id,
-  title: rule.title,
+  title: rule.label,
+  ...(rule.badge ? { badge: rule.badge } : {}),
+  priority: rule.priority,
   xTerms: rule.xTerms,
   yTerms: rule.yTerms,
   source: "custom",
 });
 
-const toBuiltinTemplateSemanticDomainRuleView = (
-  rule: BuiltinSemanticDomainRule,
-): TemplateSemanticDomainRuleView => ({
+const toBuiltinTemplateRuleView = (
+  rule: BuiltinRule,
+): TemplateRuleView => ({
   id: rule.id,
-  title: rule.title,
+  title: rule.label,
+  ...(rule.badge ? { badge: rule.badge } : {}),
+  priority: rule.priority,
   xTerms: rule.xTerms,
   yTerms: rule.yTerms,
   source: "builtin",

@@ -368,7 +368,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
         onCreateSemanticSectionItem: () => {
           createCount++;
         },
-        onResetSemanticDomainRules: () => {
+        onResetSemanticRules: () => {
           resetCount++;
         },
         semanticSectionItems: [
@@ -395,22 +395,6 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
             yTerms: ["Id"],
           },
         ],
-        domainPriorityItems: [
-          {
-            id: "custom-gate",
-            source: "custom",
-            title: "iv",
-            xTerms: ["Custom Gate"],
-            yTerms: ["Id"],
-          },
-          {
-            id: "builtin-domain:iv",
-            source: "builtin",
-            title: "builtin iv",
-            xTerms: ["Vg"],
-            yTerms: ["Id"],
-          },
-        ],
       },
     }));
 
@@ -423,14 +407,12 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       const newButton = getButton(container, "settings-template-semantic-new-rule");
       const draftItem = getElement(container, "#settings-template-semantic-section-item\\:draft\\:2");
       const customItem = getElement(container, "#settings-template-semantic-section-item\\:custom\\:custom-gate");
-      const domainPriorityItem = getElement(container, "#settings-template-semantic-domain-priority-item");
       const semanticItems = [
         getClosestSettingsListItem(draftItem),
         getClosestSettingsListItem(customItem),
       ];
 
       assert.ok(semanticTree);
-      assert.ok(domainPriorityItem);
       assert.equal(templatePreferencesSection?.querySelector(".settings-section-header"), null);
       assert.equal(container.querySelectorAll(".settings-view-content > .settings-section-list").length, 1);
       assert.equal(draftItem.closest(".settings-section"), semanticSection);
@@ -462,7 +444,20 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(draftItem.classList.contains("settings-list-item-cell--vertical"), true);
       assert.equal(customItem.classList.contains("settings-list-item-cell--vertical"), true);
       assert.equal(draftItem.querySelectorAll(".inputbox_widget").length, 2);
+      const leadingGrid = getElement(draftItem, ".settings-template-semantic-rule-leading-grid");
+      const inputGrid = getElement(draftItem, ".settings-template-semantic-rule-input-grid");
+      assert.equal(leadingGrid.children[1], inputGrid);
+      assert.equal(inputGrid.querySelectorAll(".settings-template-semantic-rule-input").length, 2);
+      assert.deepEqual(
+        Array.from(leadingGrid.querySelectorAll<HTMLInputElement>("input")).map(input => input.placeholder),
+        [
+          "Domain scope, for example iv",
+          "Definition, for example transfer",
+        ],
+      );
+      assert.ok(leadingGrid.querySelector(".settings-template-semantic-rule-actionbar .actionbaritem-delete"));
       assert.equal(getSemanticRuleInput(draftItem, "Domain scope, for example iv").value, "");
+      assert.equal(getSemanticRuleInput(draftItem, "Definition, for example transfer").value, "");
       assert.equal(getSemanticRuleInput(draftItem, "X representative").value, "");
       assert.equal(getSemanticRuleInput(draftItem, "Y representative").value, "");
       assert.equal(getSemanticRuleSourceText(draftItem), "User");
@@ -695,96 +690,6 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     }
   });
 
-  test("patches semantic domain priority item", () => {
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    const domainPriorityItems = [
-      {
-        id: "domain-iv",
-        source: "custom" as const,
-        title: "iv",
-        xTerms: ["Vg"],
-        yTerms: ["Id"],
-      },
-      {
-        id: "domain-cv",
-        source: "builtin" as const,
-        title: "cv",
-        xTerms: ["Vg"],
-        yTerms: ["Cp"],
-      },
-      {
-        id: "domain-frequency",
-        source: "builtin" as const,
-        title: "frequency",
-        xTerms: ["Frequency"],
-        yTerms: ["Cp"],
-      },
-    ];
-    const removedPriorityItems: string[] = [];
-    const view = new SettingsView(container, createSettingsViewOptions({
-      activeSettingsSection: "template",
-      templateSettings: {
-        domainPriorityItems: domainPriorityItems.slice(0, 2),
-        onRemoveSemanticDomainPriorityItem: (id, source) => {
-          removedPriorityItems.push(`${source}:${id}`);
-        },
-      },
-    }));
-
-    try {
-      const priorityItem = getElement(container, "#settings-template-semantic-domain-priority-item");
-      assert.equal(priorityItem.classList.contains("inputbox_widget"), true);
-      assert.equal(priorityItem.parentElement?.classList.contains("settings-list-item-body"), true);
-      assert.equal(priorityItem.parentElement?.classList.contains("settings-list-item-body--standard-padding"), true);
-      assert.ok(priorityItem.closest(".settings-list-item"));
-      assert.equal(priorityItem.closest(".settings-section")?.id, "settings-template-domain-priority-section");
-      const priorityLabels = getInputBoxItemLabels(priorityItem);
-      getInputBoxItemAction(priorityItem, "Remove domain iv").click();
-      getInputBoxItemAction(priorityItem, "Remove domain cv").click();
-      assert.deepEqual(removedPriorityItems, [
-        "custom:domain-iv",
-        "builtin:domain-cv",
-      ]);
-
-      view.update(createSettingsViewOptions({
-        activeSettingsSection: "template",
-        templateSettings: {
-          domainPriorityItems: domainPriorityItems.slice(1),
-          onRemoveSemanticDomainPriorityItem: (id, source) => {
-            removedPriorityItems.push(`${source}:${id}`);
-          },
-        },
-      }), {
-        type: "partial",
-        descriptorIds: [],
-        itemTargets: [{
-          descriptorId: "template-domain-priority",
-          itemIds: ["settings-template-semantic-domain-priority-item"],
-        }],
-      });
-
-      const nextPriorityItem = getElement(container, "#settings-template-semantic-domain-priority-item");
-      assert.equal(nextPriorityItem.classList.contains("inputbox_widget"), true);
-      assert.equal(nextPriorityItem.parentElement?.classList.contains("settings-list-item-body"), true);
-      assert.equal(nextPriorityItem.parentElement?.classList.contains("settings-list-item-body--standard-padding"), true);
-      assert.ok(nextPriorityItem.closest(".settings-list-item"));
-      assert.equal(nextPriorityItem.closest(".settings-section")?.id, "settings-template-domain-priority-section");
-      const nextPriorityLabels = getInputBoxItemLabels(nextPriorityItem);
-      assert.ok(nextPriorityLabels.join("\n") !== priorityLabels.join("\n"));
-      assert.equal(nextPriorityLabels.includes("iv"), false);
-      assert.equal(nextPriorityLabels.includes("frequency"), true);
-      assert.deepEqual(
-        nextPriorityLabels,
-        ["cv", "frequency"],
-      );
-    }
-    finally {
-      view.dispose();
-      container.remove();
-    }
-  });
-
   test("opens user guide modal from about section", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -885,7 +790,7 @@ function getClosestSettingsListItem(element: HTMLElement): HTMLElement {
 }
 
 function getSemanticRuleInput(container: HTMLElement, placeholder: string): HTMLInputElement {
-  const input = Array.from(container.querySelectorAll<HTMLInputElement>(".settings-template-semantic-rule-input input.inputbox_native"))
+  const input = Array.from(container.querySelectorAll<HTMLInputElement>(".settings-template-semantic-rule-input input"))
     .find(input => input.placeholder === placeholder);
   assert.ok(input, `Expected semantic rule input ${placeholder}.`);
   return input;
@@ -1063,16 +968,13 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
       onEnabledChange: noop,
     },
     templateSettings: {
-      domainPriorityItems: [],
       isSaving: false,
       onAddSemanticSectionItemTerm: noop,
       onCommitSemanticSectionItemTitle: noop,
       onCreateSemanticSectionItem: noop,
-      onMoveSemanticDomainPriority: noop,
-      onRemoveSemanticDomainPriorityItem: noop,
       onRemoveSemanticSectionItem: noop,
       onRemoveSemanticSectionItemTerm: noop,
-      onResetSemanticDomainRules: noop,
+      onResetSemanticRules: noop,
       onUpdateSemanticSectionItemDraft: noop,
       pendingActionItemId: null,
       semanticSectionItems: [],

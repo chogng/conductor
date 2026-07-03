@@ -1,37 +1,81 @@
 {
   "schemaVersion": 1,
-  "id": "frequency",
-  "label": "Frequency Sweep",
-  "kind": "domain",
-  "domainPacks": [
+  "rules": [
     {
-      "id": "frequency-sweep",
-      "label": "Frequency Sweep",
-      "kind": "test",
-      "description": "Frequency-first sweeps for capacitance, conductance, and impedance-like data.",
-      "rolePriors": ["frequency", "capacitance", "conductance"],
-      "intentPriors": ["frequencySweep"],
-      "xRolePriorityByIntent": {
-        "frequencySweep": ["frequency", "voltage", "time", "index"]
-      },
-      "patterns": ["frequency X columns", "capacitance or conductance dependent columns"]
-    }
-  ],
-  "domainRules": [
-    {
-      "id": "builtin-domain:frequency",
-      "title": "frequency",
-      "description": "Frequency sweep slicing for capacitance, conductance, or impedance-like data.",
-      "xTerms": ["Frequency", "Freq", "Hz"],
-      "yTerms": ["Cap", "Capacitance", "Cp", "Cgg", "Cgd", "Cgs", "Cgb", "Conductance", "Transconductance", "gm"]
-    }
-  ],
-  "domainXPriorities": [
-    {
-      "domainRuleId": "builtin-domain:frequency",
-      "intentPriors": ["frequencySweep"],
-      "xRolePriorityByIntent": {
-        "frequencySweep": ["frequency", "voltage", "time", "index"]
+      "id": 1,
+      "label": "frequency",
+      "description": "Cut frequency sweep columns with bound capacitance or conductance response columns.",
+      "priority": 20,
+      "badge": "cf",
+      "columns": {
+        "x": [
+          {
+            "id": 1,
+            "label": "Frequency",
+            "terms": [
+              {
+                "key": "frequency",
+                "aliases": ["Frequency"]
+              },
+              {
+                "key": "freq",
+                "aliases": ["Freq"]
+              },
+              {
+                "key": "hz",
+                "aliases": ["Hz"]
+              }
+            ]
+          }
+        ],
+        "y": [
+          {
+            "id": 1,
+            "label": "Capacitance",
+            "terms": [
+              {
+                "key": "cap",
+                "aliases": ["Cap"]
+              },
+              {
+                "key": "capacitance",
+                "aliases": ["Capacitance"]
+              },
+              {
+                "key": "cp",
+                "aliases": ["Cp"]
+              },
+              {
+                "key": "cgg",
+                "aliases": ["Cgg"]
+              },
+              {
+                "key": "cgd",
+                "aliases": ["Cgd"]
+              },
+              {
+                "key": "cgs",
+                "aliases": ["Cgs"]
+              },
+              {
+                "key": "cgb",
+                "aliases": ["Cgb"]
+              },
+              {
+                "key": "conductance",
+                "aliases": ["Conductance"]
+              },
+              {
+                "key": "transconductance",
+                "aliases": ["Transconductance"]
+              },
+              {
+                "key": "gm",
+                "aliases": ["gm"]
+              }
+            ]
+          }
+        ]
       }
     }
   ]

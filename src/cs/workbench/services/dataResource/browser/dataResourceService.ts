@@ -18,7 +18,6 @@ import {
 } from "src/cs/workbench/services/dataResource/common/dataResource";
 import {
 	createSemanticMatcher,
-	type SemanticDomainXPriority,
 	type SemanticMatcher,
 } from "src/cs/workbench/services/dataResource/common/semanticRules";
 import {
@@ -48,9 +47,7 @@ import {
 } from "src/cs/workbench/services/dataResource/common/structuredContent";
 import {
 	ISettingsService,
-	normalizeTemplateDisabledBuiltinSemanticIds,
-	normalizeTemplateSemanticDomainPriority,
-	normalizeTemplateSemanticDomainRules,
+	normalizeTemplateRules,
 } from "src/cs/workbench/services/settings/common/settings";
 import {
 	type TableModelContentSnapshot,
@@ -86,22 +83,11 @@ type NumericRun = {
 
 type XRangeAnalysis = {
 	readonly candidate: StructuredXRangeCandidate;
-	readonly intentPriorityRank: number;
-	readonly rolePriorityRank: number;
 	readonly run: NumericRun;
-};
-
-type XRangeIntentSelection = {
-	readonly intent: StructuredXAxisIntent;
-	readonly priorityIndex: number;
-	readonly priorityRank: number;
-	readonly rolePriorityIndex: number | null;
-	readonly rolePriorityRank: number;
 };
 
 type XRangeDraft = {
 	readonly baseConfidence: number;
-	readonly intentSelection: XRangeIntentSelection | null;
 	readonly pattern: NumericPatternAnalysis;
 	readonly run: NumericRun;
 	readonly titleSpan?: StructuredColumnTitleSpanEvidence;
@@ -125,9 +111,6 @@ type GroupRange = {
 
 const MinimumNumericRunPoints = 2;
 const BlockXConfidenceThreshold = 0.55;
-const XIntentPriorityPenalty = 0.04;
-const XRolePriorityPenalty = 0.02;
-const UntypedXIntentPenalty = 0.06;
 const NumberTolerance = 1e-9;
 
 export class DataResourceService extends Disposable implements IDataResourceService {
@@ -200,9 +183,7 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 	private createSettingsSemanticMatcher(): SemanticMatcher {
 		const settings = this.settingsService.getConductorSettings();
 		return createSemanticMatcher({
-			domainPriority: normalizeTemplateSemanticDomainPriority(settings?.templateSemanticDomainPriority),
-			domainRules: normalizeTemplateSemanticDomainRules(settings?.templateSemanticDomainRules),
-			disabledBuiltinTermIds: normalizeTemplateDisabledBuiltinSemanticIds(settings?.templateDisabledBuiltinSemanticIds),
+			rules: normalizeTemplateRules(settings?.templateRules),
 		});
 	}
 
@@ -318,7 +299,6 @@ const createStructuredContentEvidence = (
 			neighborhoods: infoCellNeighborhoods,
 			titleSpans: baseColumnTitleSpans,
 		});
-		const selectedSemanticDomain = selectSemanticDomainForSlicing(columnTitleSpans);
 		const columnProfiles = createColumnProfiles({
 			columnCount: content.columnCount,
 			numericRuns,
@@ -333,10 +313,8 @@ const createStructuredContentEvidence = (
 		});
 		const xRangeAnalyses = createXRangeAnalyses({
 			columnCount: content.columnCount,
-			domainXPriority: semanticMatcher.getDomainXPriority(selectedSemanticDomain?.id),
 			numericRuns,
 			rows,
-			selectedSemanticDomainId: selectedSemanticDomain?.id,
 			titleSpans: columnTitleSpans,
 		});
 		const xRangeCandidates = xRangeAnalyses.map(analysis => analysis.candidate);
@@ -344,7 +322,6 @@ const createStructuredContentEvidence = (
 		const dataBlockCandidates = createDataBlockCandidates({
 			columnCount: content.columnCount,
 			rows,
-			selectedSemanticDomainId: selectedSemanticDomain?.id,
 			titleSpans: columnTitleSpans,
 			xGroupCandidates,
 			xRangeAnalyses,
@@ -482,9 +459,8 @@ const createColumnTitleSpanEvidence = ({
 			endRow: run.endRow,
 			normalizedTitle: match.normalizedTitle,
 			canonicalRole: match.canonicalRole,
-			...(match.canonicalUnit ? { canonicalUnit: match.canonicalUnit } : {}),
 			axisTendency: match.axisTendency,
-			semanticDomains: match.semanticDomains,
+			semanticRules: match.semanticRules,
 			confidence: match.confidence,
 			reasons: match.reasons,
 		});
@@ -884,7 +860,7 @@ const createColumnSemanticCandidates = ({
 			? null
 			: semanticMatcher.matchTitle(profile.headerText);
 		const role = titleSpan?.canonicalRole ?? match?.canonicalRole ?? "unknown";
-		const unit = titleSpan?.canonicalUnit ?? match?.canonicalUnit;
+		const unit = titleSpan?.canonicalUnit;
 		const confidence = titleSpan?.confidence ?? match?.confidence ?? 0.2;
 		return {
 			rawCol: profile.rawCol,
@@ -907,36 +883,26 @@ const createColumnSemanticCandidates = ({
 
 const createXRangeAnalyses = ({
 	columnCount,
-	domainXPriority,
 	numericRuns,
 	rows,
-	selectedSemanticDomainId,
 	titleSpans,
 }: {
 	readonly columnCount: number;
-	readonly domainXPriority: SemanticDomainXPriority | null;
 	readonly numericRuns: readonly NumericRun[];
 	readonly rows: readonly (readonly string[])[];
-	readonly selectedSemanticDomainId?: string;
 	readonly titleSpans: readonly StructuredColumnTitleSpanEvidence[];
 }): readonly XRangeAnalysis[] => {
 	const titleSpansByRun = createTitleSpanByRun(titleSpans);
 	const drafts: XRangeDraft[] = [];
 	for (const run of numericRuns) {
 		const titleSpan = titleSpansByRun.get(getRunKey(run));
-		const effectiveTitleSpan = selectedSemanticDomainId
-			? createSemanticDomainTitleSpan(titleSpan, selectedSemanticDomainId, "x")
-			: titleSpan;
-		if (selectedSemanticDomainId && !effectiveTitleSpan) {
-			continue;
-		}
 		const pattern = analyzeNumericPattern(run.values);
 		const baseConfidence = scoreXRangeCandidate({
 			columnCount,
 			pattern,
 			rows,
 			run,
-			titleSpan: effectiveTitleSpan,
+			titleSpan,
 		});
 		if (baseConfidence < 0.45) {
 			continue;
@@ -944,41 +910,22 @@ const createXRangeAnalyses = ({
 
 		drafts.push({
 			baseConfidence,
-			intentSelection: selectXRangeIntent(effectiveTitleSpan, domainXPriority),
 			pattern,
 			run,
-			...(effectiveTitleSpan ? { titleSpan: effectiveTitleSpan } : {}),
+			...(titleSpan ? { titleSpan } : {}),
 		});
 	}
 
-	const bestPriorityIndex = Math.min(
-		...drafts
-			.map(draft => draft.intentSelection?.priorityIndex)
-			.filter((priorityIndex): priorityIndex is number => priorityIndex !== undefined)
-	);
-	const hasIntentSelection = Number.isFinite(bestPriorityIndex);
-	const bestRolePriorityIndex = Math.min(
-		...drafts
-			.map(draft => draft.intentSelection?.rolePriorityIndex)
-			.filter((priorityIndex): priorityIndex is number => priorityIndex !== null && priorityIndex !== undefined)
-	);
-	const hasRolePrioritySelection = Number.isFinite(bestRolePriorityIndex);
 	const analyses: XRangeAnalysis[] = [];
 	for (const draft of drafts) {
-		const confidence = clampConfidence(
-			draft.baseConfidence -
-				getXIntentPriorityPenalty(draft.intentSelection, hasIntentSelection ? bestPriorityIndex : 0, hasIntentSelection) -
-				getXRolePriorityPenalty(draft.intentSelection, hasRolePrioritySelection ? bestRolePriorityIndex : 0, hasRolePrioritySelection),
-		);
+		const confidence = clampConfidence(draft.baseConfidence);
 		if (confidence < 0.45) {
 			continue;
 		}
 
-		const reasons = createXRangeReasons(draft.pattern, draft.titleSpan, rows, draft.run, draft.intentSelection);
+		const reasons = createXRangeReasons(draft.pattern, draft.titleSpan, rows, draft.run);
 		analyses.push({
 			run: draft.run,
-			intentPriorityRank: draft.intentSelection?.priorityRank ?? 0,
-			rolePriorityRank: draft.intentSelection?.rolePriorityRank ?? 0,
 			candidate: {
 				id: `x-range:c${draft.run.column}:r${draft.run.startRow}-${draft.run.endRow}`,
 				column: draft.run.column,
@@ -995,67 +942,9 @@ const createXRangeAnalyses = ({
 	}
 	return analyses.sort((left, right) =>
 		right.candidate.confidence - left.candidate.confidence ||
-		right.intentPriorityRank - left.intentPriorityRank ||
-		right.rolePriorityRank - left.rolePriorityRank ||
 		left.candidate.column - right.candidate.column ||
 		left.candidate.startRow - right.candidate.startRow
 	);
-};
-
-type SelectedSemanticDomain = {
-	readonly id: string;
-	readonly title: string;
-	readonly priorityIndex: number;
-};
-
-const selectSemanticDomainForSlicing = (
-	titleSpans: readonly StructuredColumnTitleSpanEvidence[],
-): SelectedSemanticDomain | null => {
-	const domains = new Map<string, {
-		readonly id: string;
-		readonly title: string;
-		readonly priorityIndex: number;
-		hasX: boolean;
-		hasY: boolean;
-	}>();
-	for (const span of titleSpans) {
-		for (const domain of span.semanticDomains) {
-			let record = domains.get(domain.id);
-			if (!record) {
-				record = {
-					id: domain.id,
-					title: domain.title,
-					priorityIndex: domain.priorityIndex,
-					hasX: false,
-					hasY: false,
-				};
-				domains.set(domain.id, record);
-			}
-			if (domain.axisTendency === "x") {
-				record.hasX = true;
-			}
-			if (domain.axisTendency === "dependent") {
-				record.hasY = true;
-			}
-		}
-	}
-	return Array.from(domains.values())
-		.filter(domain => domain.hasX && domain.hasY)
-		.sort((left, right) => left.priorityIndex - right.priorityIndex)[0] ?? null;
-};
-
-const createSemanticDomainTitleSpan = (
-	titleSpan: StructuredColumnTitleSpanEvidence | undefined,
-	domainId: string,
-	axisTendency: StructuredAxisTendency,
-): StructuredColumnTitleSpanEvidence | undefined => {
-	const domain = titleSpan?.semanticDomains.find(domain =>
-		domain.id === domainId &&
-		domain.axisTendency === axisTendency
-	);
-	return domain && titleSpan
-		? { ...titleSpan, axisTendency }
-		: undefined;
 };
 
 const scoreXRangeCandidate = ({
@@ -1108,7 +997,6 @@ const createXRangeReasons = (
 	titleSpan: StructuredColumnTitleSpanEvidence | undefined,
 	rows: readonly (readonly string[])[],
 	run: NumericRun,
-	intentSelection: XRangeIntentSelection | null,
 ): readonly string[] => {
 	const reasons: string[] = ["xRange.numericRun"];
 	if (pattern.direction !== "mixed") {
@@ -1123,141 +1011,10 @@ const createXRangeReasons = (
 	if (titleSpan?.axisTendency === "x") {
 		reasons.push(`xRange.title:${titleSpan.canonicalRole}`);
 	}
-	if (intentSelection) {
-		reasons.push(`xRange.intent:${intentSelection.intent}`);
-		reasons.push(`xRange.intentPriority:${intentSelection.priorityIndex}`);
-		if (intentSelection.rolePriorityIndex !== null) {
-			reasons.push(`xRange.rolePriority:${intentSelection.rolePriorityIndex}`);
-		}
-	}
 	if (hasAlignedNumericNeighbor(rows, run, Number.MAX_SAFE_INTEGER)) {
 		reasons.push("xRange.alignedDependentNeighbor");
 	}
 	return reasons;
-};
-
-const selectXRangeIntent = (
-	titleSpan: StructuredColumnTitleSpanEvidence | undefined,
-	domainXPriority: SemanticDomainXPriority | null,
-): XRangeIntentSelection | null => {
-	if (titleSpan?.axisTendency !== "x" || !domainXPriority) {
-		return null;
-	}
-	const intents = readTitleSpanIntents(titleSpan);
-	if (!intents.length) {
-		return null;
-	}
-	const selected = intents
-		.map(intent => ({
-			intent,
-			priorityIndex: domainXPriority.intentPriors.indexOf(intent),
-		}))
-		.filter((candidate): candidate is { readonly intent: StructuredXAxisIntent; readonly priorityIndex: number } =>
-			candidate.priorityIndex !== -1
-		)
-		.sort((left, right) => left.priorityIndex - right.priorityIndex)[0];
-	if (!selected) {
-		return null;
-	}
-	const rolePriority = domainXPriority.xRolePriorityByIntent[selected.intent];
-	const rolePriorityIndex = rolePriority ? selectXRolePriorityIndex(titleSpan.canonicalRole, rolePriority) : null;
-	return {
-		intent: selected.intent,
-		priorityIndex: selected.priorityIndex,
-		priorityRank: domainXPriority.intentPriors.length - selected.priorityIndex,
-		rolePriorityIndex,
-		rolePriorityRank: rolePriority && rolePriorityIndex !== null ? rolePriority.length - rolePriorityIndex : 0,
-	};
-};
-
-const selectXRolePriorityIndex = (
-	role: StructuredColumnTitleSpanEvidence["canonicalRole"],
-	rolePriority: readonly string[],
-): number | null => {
-	const roleNames = new Set<string>([role, toXAxisRole(role)]);
-	let selectedIndex: number | null = null;
-	for (let index = 0; index < rolePriority.length; index += 1) {
-		const priorityRole = rolePriority[index];
-		if (priorityRole === undefined || !roleNames.has(priorityRole)) {
-			continue;
-		}
-		selectedIndex = selectedIndex === null ? index : Math.min(selectedIndex, index);
-	}
-	return selectedIndex;
-};
-
-const getXIntentPriorityPenalty = (
-	intentSelection: XRangeIntentSelection | null,
-	bestPriorityIndex: number,
-	hasIntentSelection: boolean,
-): number => {
-	if (!hasIntentSelection) {
-		return 0;
-	}
-	if (!intentSelection) {
-		return UntypedXIntentPenalty;
-	}
-	return Math.max(0, intentSelection.priorityIndex - bestPriorityIndex) * XIntentPriorityPenalty;
-};
-
-const getXRolePriorityPenalty = (
-	intentSelection: XRangeIntentSelection | null,
-	bestPriorityIndex: number,
-	hasRolePrioritySelection: boolean,
-): number => {
-	if (!hasRolePrioritySelection || !intentSelection || intentSelection.rolePriorityIndex === null) {
-		return 0;
-	}
-	return Math.max(0, intentSelection.rolePriorityIndex - bestPriorityIndex) * XRolePriorityPenalty;
-};
-
-const readTitleSpanIntents = (
-	titleSpan: StructuredColumnTitleSpanEvidence | undefined,
-): readonly StructuredXAxisIntent[] => {
-	if (!titleSpan) {
-		return [];
-	}
-	const intents: StructuredXAxisIntent[] = [];
-	for (const reason of titleSpan.reasons) {
-		if (reason === "infoNeighborhood.intent:rawTransient") {
-			intents.push("rawTransient");
-		}
-		if (reason === "infoNeighborhood.intent:ivCurve") {
-			intents.push("ivCurve");
-		}
-		if (reason === "infoNeighborhood.intent:pvCurve") {
-			intents.push("pvCurve");
-		}
-		if (reason === "infoNeighborhood.intent:cvCurve") {
-			intents.push("cvCurve");
-		}
-		if (reason === "infoNeighborhood.intent:frequencySweep") {
-			intents.push("frequencySweep");
-		}
-		if (reason === "infoNeighborhood.intent:genericXY") {
-			intents.push("genericXY");
-		}
-	}
-	intents.push(...getXRoleIntents(titleSpan.canonicalRole));
-	return uniqueStrings(intents);
-};
-
-const getXRoleIntents = (
-	role: StructuredMeasurementColumnRef["role"],
-): readonly StructuredXAxisIntent[] => {
-	if (role === "time") {
-		return ["rawTransient", "genericXY"];
-	}
-	if (role === "frequency") {
-		return ["frequencySweep", "genericXY"];
-	}
-	if (role === "vg" || role === "vd" || role === "vs") {
-		return ["ivCurve", "cvCurve", "genericXY"];
-	}
-	if (role === "voltage") {
-		return ["ivCurve", "pvCurve", "cvCurve", "frequencySweep", "rawTransient", "genericXY"];
-	}
-	return [];
 };
 
 const createXGroupCandidates = (
@@ -1290,14 +1047,12 @@ const createXGroupCandidates = (
 const createDataBlockCandidates = ({
 	columnCount,
 	rows,
-	selectedSemanticDomainId,
 	titleSpans,
 	xGroupCandidates,
 	xRangeAnalyses,
 }: {
 	readonly columnCount: number;
 	readonly rows: readonly (readonly string[])[];
-	readonly selectedSemanticDomainId?: string;
 	readonly titleSpans: readonly StructuredColumnTitleSpanEvidence[];
 	readonly xGroupCandidates: readonly StructuredXGroupCandidate[];
 	readonly xRangeAnalyses: readonly XRangeAnalysis[];
@@ -1312,7 +1067,6 @@ const createDataBlockCandidates = ({
 			columnCount,
 			direction: "right",
 			rows,
-			selectedSemanticDomainId,
 			titleSpansByColumn,
 			xRangeAnalyses: strongX,
 		});
@@ -1323,7 +1077,6 @@ const createDataBlockCandidates = ({
 				columnCount,
 				direction: "left",
 				rows,
-				selectedSemanticDomainId,
 				titleSpansByColumn,
 				xRangeAnalyses: strongX,
 			});
@@ -1384,7 +1137,6 @@ const scanDependentColumns = ({
 	columnCount,
 	direction,
 	rows,
-	selectedSemanticDomainId,
 	titleSpansByColumn,
 	xRangeAnalyses,
 }: {
@@ -1392,7 +1144,6 @@ const scanDependentColumns = ({
 	readonly columnCount: number;
 	readonly direction: "left" | "right";
 	readonly rows: readonly (readonly string[])[];
-	readonly selectedSemanticDomainId?: string;
 	readonly titleSpansByColumn: ReadonlyMap<number, StructuredColumnTitleSpanEvidence>;
 	readonly xRangeAnalyses: readonly XRangeAnalysis[];
 }): {
@@ -1417,7 +1168,6 @@ const scanDependentColumns = ({
 				column,
 				current: analysis,
 				rows,
-				selectedSemanticDomainId,
 				titleSpansByColumn,
 				xRangeAnalyses,
 			})
@@ -1427,11 +1177,10 @@ const scanDependentColumns = ({
 
 		const coverage = getNumericCoverage(rows, column, analysis.candidate.startRow, analysis.candidate.endRow);
 		if (coverage >= 0.6) {
-			if (selectedSemanticDomainId) {
-				const dependentTitleSpan = titleSpansByColumn.get(column);
-				if (!createSemanticDomainTitleSpan(dependentTitleSpan, selectedSemanticDomainId, "dependent")) {
-					continue;
-				}
+			const xTitleSpan = titleSpansByColumn.get(analysis.candidate.column);
+			const dependentTitleSpan = titleSpansByColumn.get(column);
+			if (xTitleSpan && !hasSharedRuleBinding(xTitleSpan, dependentTitleSpan)) {
+				continue;
 			}
 			dependentColumns.push(column);
 			continue;
@@ -1443,25 +1192,36 @@ const scanDependentColumns = ({
 	return { dependentColumns, separatorColumns };
 };
 
+const hasSharedRuleBinding = (
+	xTitleSpan: StructuredColumnTitleSpanEvidence,
+	dependentTitleSpan: StructuredColumnTitleSpanEvidence | undefined,
+): boolean => {
+	const xRuleIds = new Set(xTitleSpan.semanticRules
+		.filter(rule => rule.axisTendency === "x")
+		.map(rule => rule.id));
+	if (!xRuleIds.size) {
+		return true;
+	}
+	return Boolean(dependentTitleSpan?.semanticRules.some(rule =>
+		rule.axisTendency === "dependent" &&
+		xRuleIds.has(rule.id)
+	));
+};
+
 const isIndependentXBoundary = ({
 	column,
 	current,
 	rows,
-	selectedSemanticDomainId,
 	titleSpansByColumn,
 	xRangeAnalyses,
 }: {
 	readonly column: number;
 	readonly current: XRangeAnalysis;
 	readonly rows: readonly (readonly string[])[];
-	readonly selectedSemanticDomainId?: string;
 	readonly titleSpansByColumn: ReadonlyMap<number, StructuredColumnTitleSpanEvidence>;
 	readonly xRangeAnalyses: readonly XRangeAnalysis[];
 }): boolean => {
 	const titleSpan = titleSpansByColumn.get(column);
-	if (selectedSemanticDomainId) {
-		return Boolean(createSemanticDomainTitleSpan(titleSpan, selectedSemanticDomainId, "x"));
-	}
 	if (titleSpan?.axisTendency === "x") {
 		return true;
 	}
@@ -1756,8 +1516,10 @@ const createStructuredMeasurementBlocks = ({
 			fileId: "uri-file",
 			rawTableId: "uri-table",
 			label: getStructuredMeasurementLabel(measurement),
+			...(measurement.badge ? { badge: measurement.badge } : {}),
 			family: measurement.family,
 			...(measurement.ivMode ? { ivMode: measurement.ivMode } : {}),
+			...(measurement.itMode ? { itMode: measurement.itMode } : {}),
 			source: {
 				fullRange: createStructuredContentFullRange(content),
 				...(titleRow !== undefined ? {
@@ -1835,31 +1597,99 @@ const inferMeasurementForBlock = (
 	block: StructuredDataBlockCandidate,
 	titleSpansByColumn: ReadonlyMap<number, StructuredColumnTitleSpanEvidence>,
 ): {
+	readonly badge?: string;
 	readonly family: StructuredMeasurementFamily;
 	readonly ivMode?: StructuredMeasurementBlockRecord["ivMode"];
+	readonly itMode?: StructuredMeasurementBlockRecord["itMode"];
 } => {
-	const xRole = titleSpansByColumn.get(block.xColumn)?.canonicalRole;
-	const dependentRoles = block.dependentColumns.map(column => titleSpansByColumn.get(column)?.canonicalRole);
-	if (dependentRoles.some(role => role === "id" || role === "current" || role === "ig" || role === "is")) {
-		if (xRole === "vg") {
-			return { family: "iv", ivMode: "transfer" };
-		}
-		if (xRole === "vd") {
-			return { family: "iv", ivMode: "output" };
-		}
-		if (xRole === "time") {
-			return { family: "it" };
-		}
+	const rule = selectBlockRule(block, titleSpansByColumn);
+	if (rule?.badge) {
+		return toMeasurementFromBadge(rule.badge);
 	}
-	if (dependentRoles.some(role => role === "capacitance")) {
-		if (xRole === "frequency") {
-			return { family: "cf" };
-		}
-		if (xRole === "vg" || xRole === "vd" || xRole === "voltage") {
-			return { family: "cv" };
-		}
+	if (rule) {
+		return {
+			badge: rule.label,
+			family: "unknown",
+		};
 	}
 	return { family: "unknown" };
+};
+
+const selectBlockRule = (
+	block: StructuredDataBlockCandidate,
+	titleSpansByColumn: ReadonlyMap<number, StructuredColumnTitleSpanEvidence>,
+): {
+	readonly id: string;
+	readonly label: string;
+	readonly badge?: string;
+	readonly priorityIndex: number;
+} | null => {
+	const xRules = titleSpansByColumn.get(block.xColumn)?.semanticRules
+		.filter(rule => rule.axisTendency === "x") ?? [];
+	const yRulesById = new Map<string, {
+		readonly id: string;
+		readonly label: string;
+		readonly badge?: string;
+		readonly priorityIndex: number;
+	}>();
+	for (const column of block.dependentColumns) {
+		for (const rule of titleSpansByColumn.get(column)?.semanticRules ?? []) {
+			if (rule.axisTendency !== "dependent") {
+				continue;
+			}
+			const current = yRulesById.get(rule.id);
+			if (!current || rule.priorityIndex < current.priorityIndex) {
+				yRulesById.set(rule.id, {
+					id: rule.id,
+					label: rule.label,
+					...(rule.badge ? { badge: rule.badge } : {}),
+					priorityIndex: rule.priorityIndex,
+				});
+			}
+		}
+	}
+	return xRules
+		.filter(rule => yRulesById.has(rule.id))
+		.map(rule => ({
+			id: rule.id,
+			label: rule.label,
+			...(rule.badge ? { badge: rule.badge } : {}),
+			priorityIndex: Math.min(rule.priorityIndex, yRulesById.get(rule.id)?.priorityIndex ?? rule.priorityIndex),
+		}))
+		.sort((left, right) => left.priorityIndex - right.priorityIndex)[0] ?? null;
+};
+
+const toMeasurementFromBadge = (
+	badge: string,
+): {
+	readonly badge: string;
+	readonly family: StructuredMeasurementFamily;
+	readonly ivMode?: StructuredMeasurementBlockRecord["ivMode"];
+	readonly itMode?: StructuredMeasurementBlockRecord["itMode"];
+} => {
+	const normalized = badge.trim().toLowerCase();
+	if (normalized === "transfer") {
+		return { badge, family: "iv", ivMode: "transfer" };
+	}
+	if (normalized === "output") {
+		return { badge, family: "iv", ivMode: "output" };
+	}
+	if (normalized === "iv") {
+		return { badge, family: "iv" };
+	}
+	if (normalized === "cv") {
+		return { badge, family: "cv" };
+	}
+	if (normalized === "cf" || normalized === "frequency") {
+		return { badge, family: "cf" };
+	}
+	if (normalized === "pv") {
+		return { badge, family: "pv" };
+	}
+	if (normalized === "transient") {
+		return { badge, family: "it", itMode: "transient" };
+	}
+	return { badge, family: "unknown" };
 };
 
 const createEvidenceDiagnostics = ({
@@ -2340,10 +2170,14 @@ const createStructuredContentFullRange = (
 
 const getStructuredMeasurementLabel = (
 	measurement: {
+		readonly badge?: string;
 		readonly family: StructuredMeasurementFamily;
 		readonly ivMode?: StructuredMeasurementBlockRecord["ivMode"];
 	},
 ): string => {
+	if (measurement.badge) {
+		return `Detected ${formatMeasurementBadgeLabel(measurement.badge)}`;
+	}
 	if (measurement.family === "iv" && measurement.ivMode === "transfer") {
 		return "Detected IV Transfer";
 	}
@@ -2355,6 +2189,15 @@ const getStructuredMeasurementLabel = (
 	}
 	return "Detected Data Block";
 };
+
+const formatMeasurementBadgeLabel = (
+	badge: string,
+): string => badge
+	.trim()
+	.split(/[\s_-]+/g)
+	.filter(Boolean)
+	.map(part => part.length ? `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}` : "")
+	.join(" ");
 
 const toStructuredContentDiagnostic = (
 	diagnostic: TableParseDiagnostic,

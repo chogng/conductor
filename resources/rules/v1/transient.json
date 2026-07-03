@@ -1,37 +1,109 @@
 {
   "schemaVersion": 1,
-  "id": "transient",
-  "label": "Raw Transient",
-  "kind": "domain",
-  "domainPacks": [
+  "rules": [
     {
-      "id": "raw-transient",
-      "label": "Raw Transient",
-      "kind": "test",
-      "description": "Time-first acquisition traces before projection into IV, PV, or other curve views.",
-      "rolePriors": ["time", "voltage", "current"],
-      "intentPriors": ["rawTransient"],
-      "xRolePriorityByIntent": {
-        "rawTransient": ["time", "voltage", "index"]
-      },
-      "patterns": ["Time X columns", "voltage/current waveform columns"]
-    }
-  ],
-  "domainRules": [
-    {
-      "id": "builtin-domain:transient",
-      "title": "transient",
-      "description": "Time-domain slicing for waveform-like voltage/current traces.",
-      "xTerms": ["Time", "Seconds", "Second", "Sec"],
-      "yTerms": ["Voltage", "Vp", "Vpn", "Bias", "Bias Voltage", "Current", "Ipt", "Id", "Ids", "Drain Current", "TotalCurrent", "CurrentDrain", "Ig", "Igs", "Gate Current", "CurrentGate"]
-    }
-  ],
-  "domainXPriorities": [
-    {
-      "domainRuleId": "builtin-domain:transient",
-      "intentPriors": ["rawTransient"],
-      "xRolePriorityByIntent": {
-        "rawTransient": ["time", "voltage", "index"]
+      "id": 1,
+      "label": "transient",
+      "description": "Cut time sweep columns with bound voltage or current waveform columns.",
+      "priority": 30,
+      "badge": "transient",
+      "columns": {
+        "x": [
+          {
+            "id": 1,
+            "label": "Time",
+            "terms": [
+              {
+                "key": "time",
+                "aliases": ["Time"]
+              },
+              {
+                "key": "seconds",
+                "aliases": ["Seconds"]
+              },
+              {
+                "key": "second",
+                "aliases": ["Second"]
+              },
+              {
+                "key": "sec",
+                "aliases": ["Sec"]
+              }
+            ]
+          }
+        ],
+        "y": [
+          {
+            "id": 1,
+            "label": "Signal",
+            "terms": [
+              {
+                "key": "voltage",
+                "aliases": ["Voltage"]
+              },
+              {
+                "key": "vp",
+                "aliases": ["Vp"]
+              },
+              {
+                "key": "vpn",
+                "aliases": ["Vpn"]
+              },
+              {
+                "key": "bias",
+                "aliases": ["Bias"]
+              },
+              {
+                "key": "biasvoltage",
+                "aliases": ["Bias Voltage"]
+              },
+              {
+                "key": "current",
+                "aliases": ["Current"]
+              },
+              {
+                "key": "ipt",
+                "aliases": ["Ipt"]
+              },
+              {
+                "key": "id",
+                "aliases": ["Id"]
+              },
+              {
+                "key": "ids",
+                "aliases": ["Ids"]
+              },
+              {
+                "key": "draincurrent",
+                "aliases": ["Drain Current", "DrainCurrent"]
+              },
+              {
+                "key": "totalcurrent",
+                "aliases": ["TotalCurrent"]
+              },
+              {
+                "key": "currentdrain",
+                "aliases": ["CurrentDrain"]
+              },
+              {
+                "key": "ig",
+                "aliases": ["Ig"]
+              },
+              {
+                "key": "igs",
+                "aliases": ["Igs"]
+              },
+              {
+                "key": "gatecurrent",
+                "aliases": ["Gate Current", "GateCurrent"]
+              },
+              {
+                "key": "currentgate",
+                "aliases": ["CurrentGate"]
+              }
+            ]
+          }
+        ]
       }
     }
   ]

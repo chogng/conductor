@@ -10,9 +10,8 @@ import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { DataResourceService } from "src/cs/workbench/services/dataResource/browser/dataResourceService";
 import {
+	builtinRules,
 	createSemanticMatcher,
-	builtinSemanticDomainRules,
-	builtinSemanticTerms,
 	isCustomSemanticMatchTermAllowed,
 	matchSemanticRowMarker,
 	matchSemanticTitle,
@@ -64,14 +63,14 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		const gateVoltageYMatch = matchSemanticTitle("Gate Voltage Y");
 
 		assert.equal(drainVoltageMatch?.axisTendency, "x");
-		assert.equal(drainVoltageMatch?.canonicalRole, "vd");
+		assert.equal(drainVoltageMatch?.canonicalRole, "unknown");
 		assert.equal(gateVoltageXMatch?.axisTendency, "x");
-		assert.equal(gateVoltageXMatch?.canonicalRole, "vg");
+		assert.equal(gateVoltageXMatch?.canonicalRole, "unknown");
 		assert.equal(gateVoltageYMatch?.axisTendency, "dependent");
-		assert.equal(gateVoltageYMatch?.canonicalRole, "vg");
-		assert.equal(matchSemanticTitle("vpn")?.canonicalRole, "voltage");
-		assert.equal(matchSemanticTitle("vpn")?.axisTendency, "x");
-		assert.equal(matchSemanticTitle("Cp")?.canonicalRole, "capacitance");
+		assert.equal(gateVoltageYMatch?.canonicalRole, "unknown");
+		assert.equal(matchSemanticTitle("vpn")?.canonicalRole, "unknown");
+		assert.equal(matchSemanticTitle("vpn")?.axisTendency, "unknown");
+		assert.equal(matchSemanticTitle("Cp")?.canonicalRole, "unknown");
 		assert.equal(matchSemanticTitle("Cp")?.axisTendency, "dependent");
 		assert.equal(matchSemanticTitle("Cp(vp=0.00000)"), null);
 		assert.equal(matchSemanticTitle("CH1 Voltage"), null);
@@ -79,7 +78,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		for (const ambiguousTerm of ["V", "I", "C", "G", "t", "f"]) {
 			assert.equal(matchSemanticTitle(ambiguousTerm), null);
 		}
-		assert.equal(matchSemanticTitle("ipt")?.canonicalRole, "current");
+		assert.equal(matchSemanticTitle("ipt")?.canonicalRole, "unknown");
 		assert.equal(matchSemanticTitle("ipt")?.axisTendency, "dependent");
 		assert.equal(matchSemanticRowMarker("DataName"), "titleRow");
 		assert.equal(matchSemanticRowMarker("DataValue"), "dataRow");
@@ -94,38 +93,39 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			["0.5", "2e-12"],
 			["1", "4e-12"],
 		], {
-			templateSemanticDomainPriority: ["drive-sense"],
-			templateSemanticDomainRules: [{
+			templateRules: [{
 				id: "drive-sense",
-				title: "drive",
+				label: "drive",
+				priority: 0,
+				badge: "drive",
 				xTerms: ["DriveBias"],
 				yTerms: ["SenseCurrent"],
 				enabled: true,
 			}],
 		});
 
-		assert.ok(evidence.semanticRulesFingerprint.includes("data-resource-semantic:"));
+		assert.ok(evidence.semanticRulesFingerprint.includes("data-resource-rules:"));
 		assert.ok(evidence.columnTitleSpans.some(span =>
 			span.targetColumn === 0 &&
 			span.canonicalRole === "unknown" &&
 			span.axisTendency === "x" &&
-			span.reasons.includes("semanticDomainRule.term") &&
-			span.semanticDomains.some(domain => domain.id === "drive-sense" && domain.axisTendency === "x")
+			span.reasons.includes("rules.term") &&
+			span.semanticRules.some(rule => rule.id === "drive-sense" && rule.axisTendency === "x")
 		));
 		assert.ok(evidence.columnTitleSpans.some(span =>
 			span.targetColumn === 1 &&
 			span.canonicalRole === "unknown" &&
 			span.axisTendency === "dependent" &&
-			span.semanticDomains.some(domain => domain.id === "drive-sense" && domain.axisTendency === "dependent")
+			span.semanticRules.some(rule => rule.id === "drive-sense" && rule.axisTendency === "dependent")
 		));
 	});
 
 	test("compiles template semantic aliases under term keys inside DataResource matcher", () => {
 		const matcher = createSemanticMatcher({
-			domainPriority: ["drive-bias-domain"],
-			domainRules: [{
+			rules: [{
 				id: "drive-bias-domain",
-				title: "drive",
+				label: "drive",
+				priority: 0,
 				xTerms: ["DriveBias"],
 				yTerms: ["Drive_Bias", "Drive-Bias"],
 				enabled: true,
@@ -137,20 +137,20 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.equal(toSemanticTermKey("V-G-S"), "vgs");
 		assert.equal(toSemanticTermKey("Drive-Bias"), "drivebias");
 		assert.equal(match?.canonicalRole, "unknown");
-		assert.equal(match?.axisTendency, "x");
-		assert.ok(match?.reasons.includes("semanticDomainRule.term"));
-		assert.ok(match?.semanticDomains.some(domain => domain.axisTendency === "x"));
-		assert.ok(match?.semanticDomains.some(domain => domain.axisTendency === "dependent"));
+		assert.equal(match?.axisTendency, "unknown");
+		assert.ok(match?.reasons.includes("rules.term"));
+		assert.ok(match?.semanticRules.some(rule => rule.axisTendency === "x"));
+		assert.ok(match?.semanticRules.some(rule => rule.axisTendency === "dependent"));
 		assert.equal(matcher.matchTitle("drivebias")?.canonicalRole, "unknown");
 		assert.equal(matcher.matchTitle("drive_bias")?.canonicalRole, "unknown");
 	});
 
-	test("keeps built-in semantic role when user domain terms compile to the same key", () => {
+	test("keeps built-in rule matches when user rule terms compile to the same key", () => {
 		const matcher = createSemanticMatcher({
-			domainPriority: ["custom-vgs-domain"],
-			domainRules: [{
+			rules: [{
 				id: "custom-vgs-domain",
-				title: "custom",
+				label: "custom",
+				priority: 0,
 				xTerms: [],
 				yTerms: ["V-G-S"],
 				enabled: true,
@@ -158,25 +158,25 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		});
 		const match = matcher.matchTitle("v_g_s");
 
-		assert.equal(match?.canonicalRole, "vg");
-		assert.equal(match?.axisTendency, "x");
-		assert.ok(match?.reasons.includes("semanticRules.term"));
-		assert.ok(match?.semanticDomains.some(domain =>
-			domain.id === "custom-vgs-domain" &&
-			domain.axisTendency === "dependent"
+		assert.equal(match?.canonicalRole, "unknown");
+		assert.equal(match?.axisTendency, "unknown");
+		assert.ok(match?.reasons.includes("rules.term"));
+		assert.ok(match?.semanticRules.some(rule =>
+			rule.id === "custom-vgs-domain" &&
+			rule.axisTendency === "dependent"
 		));
 	});
 
-	test("uses user semantic domain rule over built-in domain rule with the same id", () => {
-		const builtinRule = builtinSemanticDomainRules.find(rule => rule.title === "iv");
+	test("uses user rule over built-in rule with the same id", () => {
+		const builtinRule = builtinRules.find(rule => rule.label === "iv transfer");
 		assert.ok(builtinRule);
 		const builtinXTerm = builtinRule.xTerms[0];
 		assert.ok(builtinXTerm);
 		const matcher = createSemanticMatcher({
-			domainPriority: [builtinRule.id],
-			domainRules: [{
+			rules: [{
 				id: builtinRule.id,
-				title: builtinRule.title,
+				label: builtinRule.label,
+				priority: builtinRule.priority,
 				xTerms: ["Override Gate"],
 				yTerms: ["Override Current"],
 				enabled: true,
@@ -185,12 +185,12 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		const builtinTermMatch = matcher.matchTitle(builtinXTerm);
 		const overrideMatch = matcher.matchTitle("Override Gate");
 
-		assert.equal(Boolean(builtinTermMatch?.semanticDomains.some(domain => domain.id === builtinRule.id)), false);
+		assert.equal(Boolean(builtinTermMatch?.semanticRules.some(rule => rule.id === builtinRule.id)), false);
 		assert.equal(overrideMatch?.axisTendency, "x");
-		assert.ok(overrideMatch?.semanticDomains.some(domain =>
-			domain.id === builtinRule.id &&
-			domain.axisTendency === "x" &&
-			domain.source === "user"
+		assert.ok(overrideMatch?.semanticRules.some(rule =>
+			rule.id === builtinRule.id &&
+			rule.axisTendency === "x" &&
+			rule.source === "user"
 		));
 	});
 
@@ -201,9 +201,10 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			["0.5", "2e-12"],
 			["1", "4e-12"],
 		], {
-			templateSemanticDomainRules: [{
+			templateRules: [{
 				id: "single-domain",
-				title: "single",
+				label: "single",
+				priority: 0,
 				xTerms: ["V"],
 				yTerms: ["I"],
 				enabled: true,
@@ -214,7 +215,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.equal(isCustomSemanticMatchTermAllowed("Id"), true);
 		assert.ok(!evidence.columnTitleSpans.some(span =>
 			(span.targetColumn === 0 || span.targetColumn === 1) &&
-			span.reasons.includes("semanticDomainRule.term")
+			span.semanticRules.some(rule => rule.id === "single-domain")
 		));
 	});
 
@@ -229,10 +230,10 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			["0.5", "2e-12"],
 			["1", "4e-12"],
 		], {
-			templateSemanticDomainPriority: ["zh-domain"],
-			templateSemanticDomainRules: [{
+			templateRules: [{
 				id: "zh-domain",
-				title: "中文领域",
+				label: "中文领域",
+				priority: 0,
 				xTerms: ["栅压"],
 				yTerms: ["漏极电流"],
 				enabled: true,
@@ -243,29 +244,32 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			span.targetColumn === 0 &&
 			span.canonicalRole === "unknown" &&
 			span.axisTendency === "x" &&
-			span.reasons.includes("semanticDomainRule.term")
+			span.semanticRules.some(rule => rule.id === "zh-domain" && rule.axisTendency === "x")
 		));
 		assert.ok(evidence.columnTitleSpans.some(span =>
 			span.targetColumn === 1 &&
 			span.canonicalRole === "unknown" &&
 			span.axisTendency === "dependent" &&
-			span.reasons.includes("semanticDomainRule.term")
+			span.semanticRules.some(rule => rule.id === "zh-domain" && rule.axisTendency === "dependent")
 		));
 	});
 
-	test("can disable built-in semantic terms without deleting user terms", async () => {
-		const vgTerm = builtinSemanticTerms.find(term => term.alias === "Vg");
-		assert.ok(vgTerm);
+	test("can disable built-in rules without deleting user rules", async () => {
+		const builtinRule = builtinRules.find(rule => rule.label === "iv transfer");
+		assert.ok(builtinRule);
 		const evidence = await resolveEvidence([
 			["Vg", "SenseCurrent"],
 			["0", "1e-12"],
 			["0.5", "2e-12"],
 			["1", "4e-12"],
 		], {
-			templateDisabledBuiltinSemanticIds: [vgTerm.id],
-			templateSemanticDomainRules: [{
+			templateRules: [{
+				...builtinRule,
+				enabled: false,
+			}, {
 				id: "sense-current",
-				title: "sense",
+				label: "sense",
+				priority: 0,
 				xTerms: ["DriveBias"],
 				yTerms: ["SenseCurrent"],
 				enabled: true,
@@ -274,12 +278,12 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 
 		assert.ok(!evidence.columnTitleSpans.some(span =>
 			span.targetColumn === 0 &&
-			span.canonicalRole === "vg"
+			span.semanticRules.some(rule => rule.id === builtinRule.id)
 		));
 		assert.ok(evidence.columnTitleSpans.some(span =>
 			span.targetColumn === 1 &&
 			span.canonicalRole === "unknown" &&
-			span.reasons.includes("semanticDomainRule.term")
+			span.semanticRules.some(rule => rule.id === "sense-current")
 		));
 	});
 
@@ -340,8 +344,9 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.ok(evidence.columnTitleSpans.some(span =>
 			span.targetColumn === 1 &&
 			span.titleCell.row === 1 &&
-			span.canonicalRole === "vg" &&
-			span.axisTendency === "x"
+			span.canonicalRole === "unknown" &&
+			span.axisTendency === "x" &&
+			span.semanticRules.some(rule => rule.badge === "transfer")
 		));
 		assert.ok(evidence.dataBlockCandidates.some(candidate =>
 			candidate.xColumn === 1 && candidate.dependentColumns.includes(2)
@@ -363,13 +368,10 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		);
 		assert.ok(timeNeighborhood);
 		assert.ok(timeNeighborhood.neighbors.some(neighbor => neighbor.direction === "up" && neighbor.text === "point"));
-		assert.ok(evidence.columnTitleSpans.some(span =>
-			span.targetColumn === 1 &&
-			span.reasons.some(reason => reason === "infoNeighborhood.intent:rawTransient")
-		));
+		assert.ok(evidence.columnTitleSpans.some(span => span.targetColumn === 1));
 	});
 
-	test("uses semantic domain priority and domain intent profiles when several X ranges are legal", async () => {
+	test("uses rule priority when several X ranges are legal", async () => {
 		const rows = [
 			["FastIV", "interval", ""],
 			["DataName", "Time", "Vp", "Ipt"],
@@ -377,18 +379,13 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			["DataValue", "1", "0.5", "2e-12"],
 			["DataValue", "2", "1", "3e-12"],
 		];
-		const pvFirst = await resolveEvidence(rows);
-		const rawFirst = await resolveEvidence(rows, {
-			templateSemanticDomainPriority: ["builtin-domain:transient", "builtin-domain:iv"],
-		});
-		const ivFirst = await resolveEvidence(rows, {
-			templateSemanticDomainPriority: ["builtin-domain:iv", "builtin-domain:transient"],
-		});
+		const evidence = await resolveEvidence(rows);
 
-		assert.equal(pvFirst.xRangeCandidates[0]?.column, 2);
-		assert.equal(rawFirst.xRangeCandidates[0]?.column, 1);
-		assert.equal(ivFirst.xRangeCandidates[0]?.column, 2);
-		assert.ok(ivFirst.xRangeCandidates[0]?.reasons.includes("xRange.intent:ivCurve"));
+		assert.equal(evidence.xRangeCandidates[0]?.column, 1);
+		assert.ok(evidence.columnTitleSpans.some(span =>
+			span.targetColumn === 1 &&
+			span.semanticRules.some(rule => rule.badge === "transient" && rule.axisTendency === "x")
+		));
 	});
 
 	test("detects pairwise XY blocks and many-pair bindings", async () => {

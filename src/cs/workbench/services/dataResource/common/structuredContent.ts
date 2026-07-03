@@ -164,15 +164,17 @@ export type StructuredColumnTitleSpanEvidence = {
 	readonly canonicalRole: StructuredMeasurementColumnRole;
 	readonly canonicalUnit?: StructuredCanonicalUnit;
 	readonly axisTendency: StructuredAxisTendency;
-	readonly semanticDomains: readonly StructuredSemanticDomainEvidence[];
+	readonly semanticRules: readonly StructuredRuleEvidence[];
 	readonly confidence: number;
 	readonly reasons: readonly string[];
 };
 
-export type StructuredSemanticDomainEvidence = {
+export type StructuredRuleEvidence = {
 	readonly id: string;
-	readonly title: string;
+	readonly label: string;
+	readonly badge?: string;
 	readonly axisTendency: StructuredAxisTendency;
+	readonly priority: number;
 	readonly priorityIndex: number;
 	readonly source: "builtin" | "user";
 };
@@ -304,6 +306,7 @@ export type StructuredMeasurementBlockRecord = {
 	readonly rawTableId: string;
 	readonly groupId?: string;
 	readonly label: string;
+	readonly badge?: string;
 	readonly family: StructuredMeasurementFamily;
 	readonly ivMode?: StructuredIvSweepMode;
 	readonly itMode?: StructuredItSweepMode;

@@ -1,42 +1,129 @@
 {
   "schemaVersion": 1,
-  "id": "cv",
-  "label": "Capacitance Voltage",
-  "kind": "domain",
-  "titles": [
+  "rules": [
     {
-      "canonicalRole": "capacitance",
-      "canonicalUnit": "F",
-      "axisTendency": "dependent",
-      "family": "cv",
-      "domainPackIds": ["semiconductor-ivcv", "frequency-sweep"],
-      "aliases": ["Cap", "Capacitance", "Cp", "Cgg", "Cgd", "Cgs", "Cgb"]
-    },
-    {
-      "canonicalRole": "conductance",
-      "canonicalUnit": "S",
-      "axisTendency": "dependent",
-      "domainPackIds": ["semiconductor-ivcv", "frequency-sweep"],
-      "aliases": ["Conductance", "Transconductance", "gm"]
-    }
-  ],
-  "domainRules": [
-    {
-      "id": "builtin-domain:cv",
-      "title": "cv",
-      "description": "Capacitance-voltage slicing: voltage or frequency sweeps against capacitance/conductance.",
-      "xTerms": ["Vg", "Vgs", "Gate Voltage", "Gate V", "idvg", "Vd", "Vds", "Drain Voltage", "Drain V", "idvd", "Voltage", "Vp", "Vpn", "Bias", "Bias Voltage", "Frequency", "Freq", "Hz"],
-      "yTerms": ["Cap", "Capacitance", "Cp", "Cgg", "Cgd", "Cgs", "Cgb", "Conductance", "Transconductance", "gm"]
-    }
-  ],
-  "domainXPriorities": [
-    {
-      "domainRuleId": "builtin-domain:cv",
-      "intentPriors": ["cvCurve", "frequencySweep", "ivCurve"],
-      "xRolePriorityByIntent": {
-        "ivCurve": ["voltage", "vg", "vd", "time", "index"],
-        "cvCurve": ["voltage", "vg", "frequency", "time", "index"],
-        "frequencySweep": ["frequency", "voltage", "time", "index"]
+      "id": 1,
+      "label": "cv",
+      "description": "Cut voltage sweep columns with bound capacitance or conductance response columns.",
+      "priority": 10,
+      "badge": "cv",
+      "columns": {
+        "x": [
+          {
+            "id": 1,
+            "label": "Voltage",
+            "terms": [
+              {
+                "key": "vg",
+                "aliases": ["Vg"]
+              },
+              {
+                "key": "vgs",
+                "aliases": ["Vgs"]
+              },
+              {
+                "key": "gatevoltage",
+                "aliases": ["Gate Voltage", "GateVoltage"]
+              },
+              {
+                "key": "gatev",
+                "aliases": ["Gate V"]
+              },
+              {
+                "key": "idvg",
+                "aliases": ["idvg"]
+              },
+              {
+                "key": "vd",
+                "aliases": ["Vd"]
+              },
+              {
+                "key": "vds",
+                "aliases": ["Vds"]
+              },
+              {
+                "key": "drainvoltage",
+                "aliases": ["Drain Voltage", "DrainVoltage"]
+              },
+              {
+                "key": "drainv",
+                "aliases": ["Drain V"]
+              },
+              {
+                "key": "idvd",
+                "aliases": ["idvd"]
+              },
+              {
+                "key": "voltage",
+                "aliases": ["Voltage"]
+              },
+              {
+                "key": "vp",
+                "aliases": ["Vp"]
+              },
+              {
+                "key": "vpn",
+                "aliases": ["Vpn"]
+              },
+              {
+                "key": "bias",
+                "aliases": ["Bias"]
+              },
+              {
+                "key": "biasvoltage",
+                "aliases": ["Bias Voltage"]
+              }
+            ]
+          }
+        ],
+        "y": [
+          {
+            "id": 1,
+            "label": "Capacitance",
+            "terms": [
+              {
+                "key": "cap",
+                "aliases": ["Cap"]
+              },
+              {
+                "key": "capacitance",
+                "aliases": ["Capacitance"]
+              },
+              {
+                "key": "cp",
+                "aliases": ["Cp"]
+              },
+              {
+                "key": "cgg",
+                "aliases": ["Cgg"]
+              },
+              {
+                "key": "cgd",
+                "aliases": ["Cgd"]
+              },
+              {
+                "key": "cgs",
+                "aliases": ["Cgs"]
+              },
+              {
+                "key": "cgb",
+                "aliases": ["Cgb"]
+              },
+              {
+                "key": "conductance",
+                "aliases": ["Conductance"]
+              },
+              {
+                "key": "transconductance",
+                "aliases": ["Transconductance"]
+              },
+              {
+                "key": "gm",
+                "aliases": ["gm"]
+              }
+            ]
+          }
+        ]
       }
     }
   ]

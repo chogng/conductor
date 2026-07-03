@@ -165,16 +165,13 @@ type ChartDefaultSettings = {
 };
 
 type TemplateSettings = {
-  domainPriorityItems: readonly TemplateSemanticDomainPriorityItem[];
   isSaving: boolean;
   onAddSemanticSectionItemTerm: (id: string, axis: TemplateSemanticAxis, value: string) => Promise<void> | void;
   onCommitSemanticSectionItemTitle: (id: string) => Promise<void> | void;
   onCreateSemanticSectionItem: () => Promise<void> | void;
-  onMoveSemanticDomainPriority: (sourceId: string, targetIndex: number) => Promise<void> | void;
-  onRemoveSemanticDomainPriorityItem: (id: string, source: TemplateSemanticDomainPriorityItem["source"]) => Promise<void> | void;
   onRemoveSemanticSectionItem: (id: string) => Promise<void> | void;
   onRemoveSemanticSectionItemTerm: (id: string, axis: TemplateSemanticAxis, term: string) => Promise<void> | void;
-  onResetSemanticDomainRules: () => Promise<void> | void;
+  onResetSemanticRules: () => Promise<void> | void;
   onUpdateSemanticSectionItemDraft: (id: string, field: TemplateSemanticSectionItemDraftField, value: string) => void;
   pendingActionItemId: string | null;
   semanticSectionItems: readonly TemplateSemanticSectionItem[];
@@ -182,7 +179,7 @@ type TemplateSettings = {
 
 type TemplateSemanticAxis = "x" | "y";
 type SettingsSectionItemEditState = "display" | "edit";
-type TemplateSemanticSectionItemDraftField = "title" | "xDraft" | "yDraft";
+type TemplateSemanticSectionItemDraftField = "title" | "badge" | "xDraft" | "yDraft";
 
 type TemplateSemanticSectionItem = {
   readonly autoFocus?: boolean;
@@ -191,17 +188,10 @@ type TemplateSemanticSectionItem = {
   readonly ruleId: string;
   readonly source: "builtin" | "custom" | "draft";
   readonly title: string;
+  readonly badge?: string;
   readonly xDraft: string;
   readonly xTerms: readonly string[];
   readonly yDraft: string;
-  readonly yTerms: readonly string[];
-};
-
-type TemplateSemanticDomainPriorityItem = {
-  readonly id: string;
-  readonly source: "builtin" | "custom";
-  readonly title: string;
-  readonly xTerms: readonly string[];
   readonly yTerms: readonly string[];
 };
 
@@ -279,7 +269,6 @@ export type SettingsContentDescriptorId =
   | "general-preferences"
   | "chart-defaults"
   | "template-preferences"
-  | "template-domain-priority"
   | "template-semantic-rules"
   | "appearance-preferences"
   | "origin-integration"
@@ -297,7 +286,6 @@ export type SettingsContentItemId =
   | "settings-default-pv-y-scale-item"
   | "settings-chart-defaults-item"
   | "settings-table-template-visualization-item"
-  | "settings-template-semantic-domain-priority-item"
   | "settings-template-semantic-empty-item"
   | `settings-template-semantic-section-item:${string}`
   | "settings-theme-item"
@@ -1042,11 +1030,6 @@ export class SettingsView {
         sectionId: "template",
       },
       {
-        id: "template-domain-priority",
-        order: 30,
-        sectionId: "template",
-      },
-      {
         id: "appearance-preferences",
         order: 0,
         sectionId: "appearance",
@@ -1085,9 +1068,6 @@ export class SettingsView {
         return;
       case "template-semantic-rules":
         this.addTemplateSemanticRulesSettingsTreeElements(model);
-        return;
-      case "template-domain-priority":
-        this.addTemplateDomainPrioritySettingsTreeElements(model);
         return;
       case "appearance-preferences":
         this.addAppearanceSettingsTreeElements(model);
@@ -1203,19 +1183,6 @@ export class SettingsView {
     }));
   }
 
-  private addTemplateDomainPrioritySettingsTreeElements(model: SettingsTreeModel): void {
-    model.addItemToSection({
-      id: "settings-template-domain-priority-section",
-      title: localize("settings.template.domainPriority.title", "Semantic Domain Priority"),
-      description: localize("settings.template.domainPriority.description", "Drag domain blocks to choose which complete X/Y domain wins when a data file matches several domains."),
-    }, this.createSettingsTreeElementItem({
-      id: "settings-template-semantic-domain-priority-item",
-      bodyPadding: "standard",
-      createElement: () => this.createTemplateSemanticDomainPriority(this.options.templateSettings),
-      searchText: this.getTemplateSemanticDomainPrioritySearchText(this.options.templateSettings),
-    }));
-  }
-
   private addTemplateSemanticRulesSettingsTreeElements(model: SettingsTreeModel): void {
     const settings = this.options.templateSettings;
     const groupId = "settings-template-semantic-rules";
@@ -1231,7 +1198,7 @@ export class SettingsView {
           disabled: settings.isSaving,
           icon: LxIcon.refresh,
           run: () => {
-            void settings.onResetSemanticDomainRules();
+            void settings.onResetSemanticRules();
           },
         },
         {
@@ -1263,36 +1230,6 @@ export class SettingsView {
     }
   }
 
-  private createTemplateSemanticDomainPriority(settings: TemplateSettings): HTMLElement {
-    const titleText = localize("settings.template.domainPriority.title", "Semantic Domain Priority");
-    const items: IInputBoxWidgetItem[] = settings.domainPriorityItems.map(domain => ({
-      id: domain.id,
-      label: domain.title,
-      kind: domain.source,
-      removable: true,
-      removeAriaLabel: localize("settings.template.domainPriority.remove", "Remove domain {title}", { title: domain.title }),
-    }));
-    const inputBox = this.registerContentDisposable(new InputBoxWidget({
-      ariaLabel: titleText,
-      disabled: settings.isSaving,
-      inputVisible: false,
-      itemsReorderable: true,
-      items,
-      readOnly: true,
-    }));
-    this.registerContentDisposable(inputBox.onDidMoveItem(event => {
-      void settings.onMoveSemanticDomainPriority(event.sourceItem.id, event.targetIndex);
-    }));
-    this.registerContentDisposable(inputBox.onDidRemoveItem(event => {
-      const domain = settings.domainPriorityItems.find(domain => domain.id === event.item.id);
-      if (!domain) {
-        return;
-      }
-      void settings.onRemoveSemanticDomainPriorityItem(domain.id, domain.source);
-    }));
-    return inputBox.element;
-  }
-
   private createTemplateSemanticEmptyItem(): HTMLElement {
     return this.createSettingsSectionItem({
       id: "settings-template-semantic-empty-item",
@@ -1319,9 +1256,9 @@ export class SettingsView {
     });
     item.element.classList.add("settings-template-semantic-rule-item");
     const leadingInput = this.createTemplateSemanticSectionItemInput({
-      ariaLabel: localize("settings.template.semantic.leadingAria", "Domain scope"),
+      ariaLabel: localize("settings.template.semantic.leadingAria", "Rule label"),
       disabled: semanticItem.isSaving,
-      placeholder: localize("settings.template.semantic.leadingPlaceholder", "Domain scope, for example iv"),
+      placeholder: localize("settings.template.semantic.leadingPlaceholder", "Rule label, for example iv transfer"),
       readOnly: false,
       value: semanticItem.title,
       onAccept: () => {
@@ -1332,16 +1269,31 @@ export class SettingsView {
       },
       onChange: value => settings.onUpdateSemanticSectionItemDraft(semanticItem.id, "title", value),
     });
+    const badgeInput = this.createTemplateSemanticSectionItemInput({
+      ariaLabel: localize("settings.template.semantic.badgeAria", "Definition badge"),
+      disabled: semanticItem.isSaving,
+      placeholder: localize("settings.template.semantic.badgePlaceholder", "Definition, for example transfer"),
+      readOnly: false,
+      value: semanticItem.badge ?? "",
+      onAccept: () => {
+        void settings.onCommitSemanticSectionItemTitle(semanticItem.id);
+      },
+      onBlur: () => {
+        void settings.onCommitSemanticSectionItemTitle(semanticItem.id);
+      },
+      onChange: value => settings.onUpdateSemanticSectionItemDraft(semanticItem.id, "badge", value),
+    });
     const sourceLabel = text(
       "span",
       "settings-template-semantic-rule-source",
       formatTemplateSemanticSectionItemSource(semanticItem.source),
     );
-    const leadingContent = div("settings-template-semantic-rule-leading-row", sourceLabel, leadingInput.element);
-    const leadingActions = this.createTemplateSemanticSectionItemActions(semanticItem, settings);
-    if (leadingActions) {
-      leadingContent.appendChild(leadingActions);
-    }
+    const leadingContent = div(
+      "settings-template-semantic-rule-leading-grid",
+      sourceLabel,
+      div("settings-template-semantic-rule-input-grid", leadingInput.element, badgeInput.element),
+      this.createTemplateSemanticSectionItemActions(semanticItem, settings),
+    );
     item.leading.labelElement.replaceWith(leadingContent);
     if (item.leading.descriptionElement) {
       item.leading.descriptionElement.remove();
@@ -1500,8 +1452,8 @@ export class SettingsView {
   ): HTMLElement {
     const actionLabel = localize("settings.template.semantic.removeRuleLabel", "Remove");
     const actionAriaLabel = semanticItem.title.trim()
-      ? localize("settings.template.semantic.removeRule", "Remove domain rule {term}", { term: semanticItem.title })
-      : localize("settings.template.semantic.removeUntitledRule", "Remove domain rule");
+      ? localize("settings.template.semantic.removeRule", "Remove rule {term}", { term: semanticItem.title })
+      : localize("settings.template.semantic.removeUntitledRule", "Remove rule");
     const removeAction = this.registerContentDisposable(new Action(
       "settings.template.semantic.removeRule",
       actionLabel,
@@ -1517,7 +1469,7 @@ export class SettingsView {
       className: "settings-template-semantic-rule-actionbar",
     }));
     actionBar.push(removeAction, {
-      className: "settings-template-semantic-rule-action",
+      className: "settings-template-semantic-rule-action actionbaritem-delete",
       icon: true,
       label: false,
     });
@@ -1532,17 +1484,10 @@ export class SettingsView {
     );
   }
 
-  private getTemplateSemanticDomainPrioritySearchText(settings: TemplateSettings): string {
-    return normalizeSettingsSearchText(
-      localize("settings.template.domainPriority.title", "Semantic Domain Priority"),
-      localize("settings.template.domainPriority.description", "Drag domain blocks to choose which complete X/Y domain wins when a data file matches several domains."),
-      settings.domainPriorityItems.map(domain => `${domain.title} ${domain.source} ${domain.xTerms.join(" ")} ${domain.yTerms.join(" ")}`).join(" "),
-    );
-  }
-
   private getTemplateSemanticSectionItemSearchText(item: TemplateSemanticSectionItem): string {
     return normalizeSettingsSearchText(
       item.title,
+      item.badge ?? "",
       item.xTerms.join(" "),
       item.yTerms.join(" "),
       item.source,

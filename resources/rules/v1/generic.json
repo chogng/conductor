@@ -1,23 +1,125 @@
 {
   "schemaVersion": 1,
-  "id": "generic",
-  "label": "Generic X/Y",
-  "kind": "domain",
-  "domainRules": [
+  "rules": [
     {
-      "id": "builtin-domain:generic",
-      "title": "generic",
-      "description": "Generic X/Y slicing when no test-specific domain wins.",
-      "xTerms": ["Voltage", "Vp", "Vpn", "Bias", "Bias Voltage", "Time", "Seconds", "Second", "Sec", "Frequency", "Freq", "Hz"],
-      "yTerms": ["Current", "Ipt", "Cap", "Capacitance", "Cp", "Cgg", "Cgd", "Cgs", "Cgb", "Conductance", "Transconductance", "gm"]
-    }
-  ],
-  "domainXPriorities": [
-    {
-      "domainRuleId": "builtin-domain:generic",
-      "intentPriors": ["genericXY"],
-      "xRolePriorityByIntent": {
-        "genericXY": ["voltage", "time", "frequency", "index"]
+      "id": 1,
+      "label": "generic",
+      "description": "Cut common numeric X/Y measurement columns when no more specific rule wins.",
+      "priority": 1000,
+      "badge": "generic",
+      "columns": {
+        "x": [
+          {
+            "id": 1,
+            "label": "X",
+            "terms": [
+              {
+                "key": "voltage",
+                "aliases": ["Voltage"]
+              },
+              {
+                "key": "vp",
+                "aliases": ["Vp"]
+              },
+              {
+                "key": "vpn",
+                "aliases": ["Vpn"]
+              },
+              {
+                "key": "bias",
+                "aliases": ["Bias"]
+              },
+              {
+                "key": "biasvoltage",
+                "aliases": ["Bias Voltage"]
+              },
+              {
+                "key": "time",
+                "aliases": ["Time"]
+              },
+              {
+                "key": "seconds",
+                "aliases": ["Seconds"]
+              },
+              {
+                "key": "second",
+                "aliases": ["Second"]
+              },
+              {
+                "key": "sec",
+                "aliases": ["Sec"]
+              },
+              {
+                "key": "frequency",
+                "aliases": ["Frequency"]
+              },
+              {
+                "key": "freq",
+                "aliases": ["Freq"]
+              },
+              {
+                "key": "hz",
+                "aliases": ["Hz"]
+              }
+            ]
+          }
+        ],
+        "y": [
+          {
+            "id": 1,
+            "label": "Y",
+            "terms": [
+              {
+                "key": "current",
+                "aliases": ["Current"]
+              },
+              {
+                "key": "ipt",
+                "aliases": ["Ipt"]
+              },
+              {
+                "key": "cap",
+                "aliases": ["Cap"]
+              },
+              {
+                "key": "capacitance",
+                "aliases": ["Capacitance"]
+              },
+              {
+                "key": "cp",
+                "aliases": ["Cp"]
+              },
+              {
+                "key": "cgg",
+                "aliases": ["Cgg"]
+              },
+              {
+                "key": "cgd",
+                "aliases": ["Cgd"]
+              },
+              {
+                "key": "cgs",
+                "aliases": ["Cgs"]
+              },
+              {
+                "key": "cgb",
+                "aliases": ["Cgb"]
+              },
+              {
+                "key": "conductance",
+                "aliases": ["Conductance"]
+              },
+              {
+                "key": "transconductance",
+                "aliases": ["Transconductance"]
+              },
+              {
+                "key": "gm",
+                "aliases": ["gm"]
+              }
+            ]
+          }
+        ]
       }
     }
   ]

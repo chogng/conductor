@@ -234,16 +234,23 @@
   width: 100%;
 }
 
-.settings-template-semantic-rule-leading-row {
-  display: flex;
-  min-width: 0;
+.settings-template-semantic-rule-leading-grid {
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.5rem;
+  column-gap: 0.5rem;
+  min-width: 0;
   width: 100%;
 }
 
+.settings-template-semantic-rule-input-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
+  gap: 0.5rem;
+}
+
 .settings-template-semantic-rule-source {
-  flex: 0 0 2.75rem;
   overflow: hidden;
   color: rgb(var(--text-secondary) / 1);
   font-size: 0.75rem;
@@ -253,12 +260,8 @@
   white-space: nowrap;
 }
 
-.settings-template-semantic-rule-leading-row > .settings-template-semantic-rule-input {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
 .settings-template-semantic-rule-input {
+  min-width: 0;
   width: 100%;
 }
 

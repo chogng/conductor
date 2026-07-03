@@ -5,10 +5,10 @@ rules to produce structured evidence and cut candidates from tabular
 measurement data. Review consumes those candidates; Slice executes a reviewed
 template.
 
-`v1/template.json` documents the target authoring shape. The current concrete
-runtime files under `v1/*.json`, such as `iv.json`, `cv.json`,
-`frequency.json`, and `transient.json`, should move toward the same rule shape
-instead of keeping separate built-in and user-only models.
+`v1/template.json` documents the target authoring shape. The concrete runtime
+files under `v1/*.json`, such as `iv.json`, `cv.json`, `frequency.json`, and
+`transient.json`, use the same rule shape instead of keeping separate built-in
+and user-only models.
 
 `v1/supplement.json` documents auxiliary evidence rules. Supplements are not
 cutting templates. They describe special structures that can strengthen or
@@ -16,7 +16,8 @@ bound evidence when those structures are actually observed.
 
 ## Rules
 
-A rule is a cutting template. It decides how data is segmented and bound.
+A rule is a cutting template. It provides the title evidence used by
+DataResource while it decides how data is segmented and bound.
 
 Rules describe facts and cutting behavior, such as:
 
@@ -30,6 +31,10 @@ Rules describe facts and cutting behavior, such as:
 - rule-local X/Y outputs and human-readable labels;
 - normalized term keys for each title alias, such as `Vg` -> `vg` and
   `Gate Voltage` -> `gatevoltage`;
+
+One rule should map to one badge. For example, `transfer` and `output` are
+separate rules because their result definitions differ even when they share Y
+terms.
 
 Rules do not configure row-range, grouping, or binding algorithms. DataResource
 owns those behaviors: X numeric runs determine row ranges, Y follows the bound

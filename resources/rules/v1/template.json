@@ -3,8 +3,8 @@
   "rules": [
     {
       "id": 1,
-      "label": "iv",
-      "description": "Cut voltage sweep columns with bound current response columns.",
+      "label": "iv transfer",
+      "description": "Cut gate-voltage sweep columns with bound current response columns.",
       "priority": 1,
       "badge": "transfer",
       "columns": {
@@ -30,9 +30,58 @@
                 "aliases": ["Gate V"]
               }
             ]
+          }
+        ],
+        "y": [
+          {
+            "id": 1,
+            "label": "Id",
+            "terms": [
+              {
+                "key": "id",
+                "aliases": ["Id"]
+              },
+              {
+                "key": "ids",
+                "aliases": ["Ids"]
+              },
+              {
+                "key": "draincurrent",
+                "aliases": ["Drain Current"]
+              }
+            ]
           },
           {
             "id": 2,
+            "label": "Ig",
+            "terms": [
+              {
+                "key": "ig",
+                "aliases": ["Ig"]
+              },
+              {
+                "key": "igs",
+                "aliases": ["Igs"]
+              },
+              {
+                "key": "gatecurrent",
+                "aliases": ["Gate Current"]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "label": "iv output",
+      "description": "Cut drain-voltage sweep columns with bound current response columns.",
+      "priority": 2,
+      "badge": "output",
+      "columns": {
+        "x": [
+          {
+            "id": 1,
             "label": "Vd",
             "terms": [
               {

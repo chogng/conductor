@@ -196,9 +196,17 @@ type ColumnTitleSpanEvidence = {
   readonly startRow: number;
   readonly endRow: number;
   readonly normalizedTitle: string;
-  readonly canonicalRole: "vg" | "vd" | "id" | "time" | "frequency" | "capacitance" | string;
-  readonly canonicalUnit?: "V" | "A" | "s" | "Hz" | "F" | string;
+  readonly canonicalRole: "unknown";
   readonly axisTendency: "x" | "dependent" | "unknown";
+  readonly semanticRules: readonly {
+    readonly id: string;
+    readonly label: string;
+    readonly badge?: string;
+    readonly axisTendency: "x" | "dependent" | "unknown";
+    readonly priority: number;
+    readonly priorityIndex: number;
+    readonly source: "builtin" | "user";
+  }[];
   readonly confidence: number;
   readonly reasons: readonly string[];
 };
@@ -330,27 +338,28 @@ numeric run
   -> if the row has an info marker, read the title cell at the target column
   -> otherwise find nearest title/info cell above the same column
   -> normalize title
-  -> lookup canonical title library
+  -> lookup rule title terms
   -> emit ColumnTitleSpanEvidence
 ```
 
-The title library should cover common aliases:
+Rules should cover common aliases as X/Y evidence, not as physical role
+judgements:
 
 ```txt
 Vg / Vgs / Gate Voltage
-  -> role: vg, unit: V, axisTendency: x
+  -> rule evidence: axisTendency x, badge transfer
 
 Vd / Vds / Drain Voltage
-  -> role: vd, unit: V, axisTendency: x
+  -> rule evidence: axisTendency x, badge output
 
 Id / Ids / Drain Current
-  -> role: id, unit: A, axisTendency: dependent
+  -> rule evidence: axisTendency dependent
 
 time / frequency / bias
-  -> role: time/frequency/voltage, axisTendency: x
+  -> rule evidence from matching transient / frequency / generic rules
 
 Cgg / capacitance
-  -> role: capacitance, unit: F, axisTendency: dependent
+  -> rule evidence: axisTendency dependent
 ```
 
 The title span is bounded by the continuous numeric run below the title. It
@@ -362,9 +371,9 @@ should stop at:
 - a repeated-block boundary;
 - a column-structure break.
 
-Title evidence can strongly identify the column's data type, but it should not
-create a slice range without a numeric run. The final row start / row end still
-comes from the selected XRangeCandidate.
+Title evidence can strongly identify whether a column is usable as X or Y for a
+matched rule, but it should not create a slice range without a numeric run. The
+final row start / row end still comes from the selected XRangeCandidate.
 
 ### X Range Scoring
 
@@ -376,8 +385,8 @@ Positive evidence:
 - low variance in adjacent deltas;
 - segmented constant-step behavior;
 - repeated pattern across blocks or adjacent pair columns;
-- header or unit hints such as `Vg`, `Vd`, `time`, `frequency`, or `bias`;
-- title/info cell above the same column matches an X-like canonical role;
+- header hints such as `Vg`, `Vd`, `time`, `frequency`, or `bias`;
+- title/info cell above the same column matches a rule X term;
 - row alignment with nearby dependent value candidates.
 
 Negative evidence:
@@ -495,8 +504,8 @@ Positive evidence:
 - column is inside a DataBlockCandidate;
 - numeric coverage is high;
 - column is adjacent to an X range or follows a shared X;
-- header or unit hints match measurement values such as current or capacitance;
-- title/info cell above the same column matches a dependent-like canonical role;
+- header hints match rule Y terms such as current or capacitance aliases;
+- title/info cell above the same column shares a rule with the bound X term;
 - values are not merely row indexes or repeated sweep parameters.
 
 ### Binding Generation
@@ -538,9 +547,8 @@ Review should consume the evidence and decide:
 Review can use:
 
 - binding confidence from `DataResource`;
-- role / unit / axis tendency from ColumnTitleSpanEvidence;
+- rule evidence, badge, and axis tendency from ColumnTitleSpanEvidence;
 - semantic rules fingerprint / evidence fingerprint;
-- semantic roles and units;
 - parser diagnostics;
 - ambiguity codes;
 - user templates or confirmed schema profiles;

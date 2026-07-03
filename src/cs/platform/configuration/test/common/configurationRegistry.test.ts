@@ -98,41 +98,51 @@ suite("platform/configuration/common/configurationRegistry", () => {
     );
   });
 
-  test("normalizes template semantic allowlist field shape without semantic matching filters", () => {
+  test("normalizes template rules field shape without semantic matching filters", () => {
     assert.deepEqual(normalizeConductorSettings({
-      templateSemanticAllowlist: [{
-        id: "single-i",
-        alias: " I ",
-        axisTendency: "dependent",
-        family: "iv",
-        intent: "ivCurve",
-        ivMode: "transfer",
+      templateRules: [{
+        id: "drive-sense",
+        label: " Drive ",
+        description: " Demo ",
+        priority: 0,
+        badge: " transfer ",
+        xTerms: [" V "],
+        yTerms: [" I "],
         enabled: true,
       }, {
         id: "punctuation",
-        alias: ";",
-        axisTendency: "dependent",
+        label: ";",
+        priority: 2,
+        xTerms: [";"],
+        yTerms: ["?"],
         enabled: true,
       }, {
-        id: "drain-current",
-        alias: " Id ",
-        axisTendency: "dependent",
+        id: "no-terms",
+        label: "No Terms",
         enabled: true,
       }],
-    }).templateSemanticAllowlist, [{
-      id: "single-i",
-      alias: "I",
-      axisTendency: "dependent",
+    }).templateRules, [{
+      id: "drive-sense",
+      label: "Drive",
+      description: "Demo",
+      priority: 0,
+      badge: "transfer",
+      xTerms: ["V"],
+      yTerms: ["I"],
       enabled: true,
     }, {
       id: "punctuation",
-      alias: ";",
-      axisTendency: "dependent",
+      label: ";",
+      priority: 2,
+      xTerms: [";"],
+      yTerms: ["?"],
       enabled: true,
     }, {
-      id: "drain-current",
-      alias: "Id",
-      axisTendency: "dependent",
+      id: "no-terms",
+      label: "No Terms",
+      priority: 3,
+      xTerms: [],
+      yTerms: [],
       enabled: true,
     }]);
   });

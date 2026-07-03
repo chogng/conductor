@@ -1,105 +1,291 @@
 {
   "schemaVersion": 1,
-  "id": "iv",
-  "label": "Semiconductor IV",
-  "kind": "domain",
-  "domainPacks": [
+  "rules": [
     {
-      "id": "semiconductor-ivcv",
-      "label": "Semiconductor IV/CV",
-      "kind": "domain",
-      "description": "Gate/drain/source voltage and current roles used by IV, CV, and CF device tests.",
-      "rolePriors": ["vg", "vd", "id", "ig", "capacitance", "conductance", "frequency"],
-      "intentPriors": ["ivCurve", "cvCurve", "frequencySweep"],
-      "xRolePriorityByIntent": {
-        "ivCurve": ["voltage", "vg", "vd", "time", "index"],
-        "cvCurve": ["voltage", "vg", "frequency", "time", "index"],
-        "frequencySweep": ["frequency", "voltage", "time", "index"]
-      },
-      "patterns": ["Vg/Vd sweep columns", "Id/Ig dependent columns", "CV/CF measurement columns"]
-    }
-  ],
-  "rowMarkers": [
-    {
-      "kind": "titleRow",
-      "domainPackIds": ["semiconductor-ivcv"],
-      "aliases": ["DataName", "Data Name"]
+      "id": 1,
+      "label": "iv transfer",
+      "description": "Cut gate-voltage sweep columns with bound current response columns.",
+      "priority": 1,
+      "badge": "transfer",
+      "columns": {
+        "x": [
+          {
+            "id": 1,
+            "label": "Vg",
+            "terms": [
+              {
+                "key": "vg",
+                "aliases": ["Vg"]
+              },
+              {
+                "key": "vgs",
+                "aliases": ["Vgs"]
+              },
+              {
+                "key": "gatevoltage",
+                "aliases": ["Gate Voltage", "GateVoltage"]
+              },
+              {
+                "key": "gatev",
+                "aliases": ["Gate V"]
+              },
+              {
+                "key": "idvg",
+                "aliases": ["idvg"]
+              }
+            ]
+          }
+        ],
+        "y": [
+          {
+            "id": 1,
+            "label": "Current",
+            "terms": [
+              {
+                "key": "id",
+                "aliases": ["Id"]
+              },
+              {
+                "key": "ids",
+                "aliases": ["Ids"]
+              },
+              {
+                "key": "draincurrent",
+                "aliases": ["Drain Current", "DrainCurrent"]
+              },
+              {
+                "key": "totalcurrent",
+                "aliases": ["TotalCurrent"]
+              },
+              {
+                "key": "currentdrain",
+                "aliases": ["CurrentDrain"]
+              },
+              {
+                "key": "ig",
+                "aliases": ["Ig"]
+              },
+              {
+                "key": "igs",
+                "aliases": ["Igs"]
+              },
+              {
+                "key": "gatecurrent",
+                "aliases": ["Gate Current", "GateCurrent"]
+              },
+              {
+                "key": "currentgate",
+                "aliases": ["CurrentGate"]
+              },
+              {
+                "key": "is",
+                "aliases": ["Is"]
+              },
+              {
+                "key": "sourcecurrent",
+                "aliases": ["Source Current", "SourceCurrent"]
+              },
+              {
+                "key": "currentsource",
+                "aliases": ["CurrentSource"]
+              },
+              {
+                "key": "current",
+                "aliases": ["Current"]
+              },
+              {
+                "key": "ipt",
+                "aliases": ["Ipt"]
+              }
+            ]
+          }
+        ]
+      }
     },
     {
-      "kind": "dataRow",
-      "domainPackIds": ["semiconductor-ivcv"],
-      "aliases": ["DataValue", "Data Value"]
-    }
-  ],
-  "titles": [
-    {
-      "canonicalRole": "vg",
-      "canonicalUnit": "V",
-      "axisTendency": "x",
-      "family": "iv",
-      "ivMode": "transfer",
-      "domainPackIds": ["semiconductor-ivcv"],
-      "aliases": ["Vg", "Vgs", "Gate Voltage", "GateVoltage", "Gate V", "idvg"]
+      "id": 2,
+      "label": "iv output",
+      "description": "Cut drain-voltage sweep columns with bound current response columns.",
+      "priority": 2,
+      "badge": "output",
+      "columns": {
+        "x": [
+          {
+            "id": 1,
+            "label": "Vd",
+            "terms": [
+              {
+                "key": "vd",
+                "aliases": ["Vd"]
+              },
+              {
+                "key": "vds",
+                "aliases": ["Vds"]
+              },
+              {
+                "key": "drainvoltage",
+                "aliases": ["Drain Voltage", "DrainVoltage"]
+              },
+              {
+                "key": "drainv",
+                "aliases": ["Drain V"]
+              },
+              {
+                "key": "idvd",
+                "aliases": ["idvd"]
+              }
+            ]
+          }
+        ],
+        "y": [
+          {
+            "id": 1,
+            "label": "Current",
+            "terms": [
+              {
+                "key": "id",
+                "aliases": ["Id"]
+              },
+              {
+                "key": "ids",
+                "aliases": ["Ids"]
+              },
+              {
+                "key": "draincurrent",
+                "aliases": ["Drain Current", "DrainCurrent"]
+              },
+              {
+                "key": "totalcurrent",
+                "aliases": ["TotalCurrent"]
+              },
+              {
+                "key": "currentdrain",
+                "aliases": ["CurrentDrain"]
+              },
+              {
+                "key": "ig",
+                "aliases": ["Ig"]
+              },
+              {
+                "key": "igs",
+                "aliases": ["Igs"]
+              },
+              {
+                "key": "gatecurrent",
+                "aliases": ["Gate Current", "GateCurrent"]
+              },
+              {
+                "key": "currentgate",
+                "aliases": ["CurrentGate"]
+              },
+              {
+                "key": "is",
+                "aliases": ["Is"]
+              },
+              {
+                "key": "sourcecurrent",
+                "aliases": ["Source Current", "SourceCurrent"]
+              },
+              {
+                "key": "currentsource",
+                "aliases": ["CurrentSource"]
+              },
+              {
+                "key": "current",
+                "aliases": ["Current"]
+              },
+              {
+                "key": "ipt",
+                "aliases": ["Ipt"]
+              }
+            ]
+          }
+        ]
+      }
     },
     {
-      "canonicalRole": "vd",
-      "canonicalUnit": "V",
-      "axisTendency": "x",
-      "family": "iv",
-      "ivMode": "output",
-      "domainPackIds": ["semiconductor-ivcv"],
-      "aliases": ["Vd", "Vds", "Drain Voltage", "DrainVoltage", "Drain V", "idvd"]
-    },
-    {
-      "canonicalRole": "vs",
-      "canonicalUnit": "V",
-      "axisTendency": "x",
-      "family": "iv",
-      "domainPackIds": ["semiconductor-ivcv"],
-      "aliases": ["Vs", "Source Voltage", "SourceVoltage", "Source V"]
-    },
-    {
-      "canonicalRole": "id",
-      "canonicalUnit": "A",
-      "axisTendency": "dependent",
-      "family": "iv",
-      "domainPackIds": ["semiconductor-ivcv"],
-      "aliases": ["Id", "Ids", "Drain Current", "DrainCurrent", "TotalCurrent", "CurrentDrain"]
-    },
-    {
-      "canonicalRole": "ig",
-      "canonicalUnit": "A",
-      "axisTendency": "dependent",
-      "family": "iv",
-      "domainPackIds": ["semiconductor-ivcv"],
-      "aliases": ["Ig", "Igs", "Gate Current", "GateCurrent", "CurrentGate"]
-    },
-    {
-      "canonicalRole": "is",
-      "canonicalUnit": "A",
-      "axisTendency": "dependent",
-      "family": "iv",
-      "domainPackIds": ["semiconductor-ivcv"],
-      "aliases": ["Is", "Source Current", "SourceCurrent", "CurrentSource"]
-    }
-  ],
-  "domainRules": [
-    {
-      "id": "builtin-domain:iv",
-      "title": "iv",
-      "description": "Semiconductor IV slicing: voltage sweeps against current responses.",
-      "xTerms": ["Vg", "Vgs", "Gate Voltage", "Gate V", "idvg", "Vd", "Vds", "Drain Voltage", "Drain V", "idvd", "Vs", "Source Voltage", "Source V", "Voltage", "Vp", "Vpn", "Bias", "Bias Voltage"],
-      "yTerms": ["Id", "Ids", "Drain Current", "TotalCurrent", "CurrentDrain", "Ig", "Igs", "Gate Current", "CurrentGate", "Is", "Source Current", "CurrentSource", "Current", "Ipt"]
-    }
-  ],
-  "domainXPriorities": [
-    {
-      "domainRuleId": "builtin-domain:iv",
-      "intentPriors": ["ivCurve", "cvCurve", "frequencySweep"],
-      "xRolePriorityByIntent": {
-        "ivCurve": ["voltage", "vg", "vd", "time", "index"],
-        "cvCurve": ["voltage", "vg", "frequency", "time", "index"],
-        "frequencySweep": ["frequency", "voltage", "time", "index"]
+      "id": 3,
+      "label": "iv voltage",
+      "description": "Cut general voltage sweep columns with bound current response columns.",
+      "priority": 3,
+      "badge": "iv",
+      "columns": {
+        "x": [
+          {
+            "id": 1,
+            "label": "Voltage",
+            "terms": [
+              {
+                "key": "vs",
+                "aliases": ["Vs"]
+              },
+              {
+                "key": "sourcevoltage",
+                "aliases": ["Source Voltage", "SourceVoltage"]
+              },
+              {
+                "key": "sourcev",
+                "aliases": ["Source V"]
+              },
+              {
+                "key": "voltage",
+                "aliases": ["Voltage"]
+              },
+              {
+                "key": "vp",
+                "aliases": ["Vp"]
+              },
+              {
+                "key": "vpn",
+                "aliases": ["Vpn"]
+              },
+              {
+                "key": "bias",
+                "aliases": ["Bias"]
+              },
+              {
+                "key": "biasvoltage",
+                "aliases": ["Bias Voltage"]
+              }
+            ]
+          }
+        ],
+        "y": [
+          {
+            "id": 1,
+            "label": "Current",
+            "terms": [
+              {
+                "key": "id",
+                "aliases": ["Id"]
+              },
+              {
+                "key": "ids",
+                "aliases": ["Ids"]
+              },
+              {
+                "key": "draincurrent",
+                "aliases": ["Drain Current", "DrainCurrent"]
+              },
+              {
+                "key": "totalcurrent",
+                "aliases": ["TotalCurrent"]
+              },
+              {
+                "key": "currentdrain",
+                "aliases": ["CurrentDrain"]
+              },
+              {
+                "key": "current",
+                "aliases": ["Current"]
+              },
+              {
+                "key": "ipt",
+                "aliases": ["Ipt"]
+              }
+            ]
+          }
+        ]
       }
     }
   ]

@@ -110,11 +110,14 @@ type PlotAxisSettings = {
 };
 
 type NumericDisplayMode = "raw" | "smart";
-type TemplateSemanticTermRule = {
+type TemplateRule = {
   id: string;
-  alias: string;
-  canonicalUnit?: string;
-  axisTendency: string;
+  label: string;
+  description?: string;
+  priority: number;
+  badge?: string;
+  xTerms: string[];
+  yTerms: string[];
   enabled: boolean;
 };
 
@@ -123,9 +126,7 @@ export type ConductorSettings = JsonRecord & {
   numericDisplayMode: NumericDisplayMode;
   tableAutoFitColumnWidthsEnabled: boolean;
   tableTemplateVisualizationEnabled: boolean;
-  templateDisabledBuiltinSemanticIds: string[];
-  templateSemanticAllowlist: TemplateSemanticTermRule[];
-  templateSemanticTermOrder: string[];
+  templateRules: TemplateRule[];
   theme: string;
   backgroundColor: string;
   filesExplorerBadgeColors: Record<string, string>;
@@ -318,20 +319,6 @@ const DEFAULT_FILES_EXPLORER_BADGE_COLORS = Object.freeze<Record<string, string>
 });
 const LANGUAGES = new Set(["system", "en", "zh"]);
 const NUMERIC_DISPLAY_MODES = new Set(["raw", "smart"]);
-const TEMPLATE_SEMANTIC_AXIS_TENDENCIES = new Set([
-  "x",
-  "dependent",
-  "unknown",
-]);
-const TEMPLATE_SEMANTIC_UNITS = new Set([
-  "V",
-  "A",
-  "ohm",
-  "s",
-  "F",
-  "Hz",
-  "S",
-]);
 const ORIGIN_EXPORT_MODES = new Set([
   "merged",
   "workbookBooks",
@@ -351,9 +338,7 @@ export const DEFAULT_CONDUCTOR_CONFIGURATION: ConductorSettings = {
   numericDisplayMode: "raw",
   tableAutoFitColumnWidthsEnabled: false,
   tableTemplateVisualizationEnabled: false,
-  templateDisabledBuiltinSemanticIds: [],
-  templateSemanticAllowlist: [],
-  templateSemanticTermOrder: [],
+  templateRules: [],
   theme: "system",
   backgroundColor: DEFAULT_BACKGROUND_COLOR,
   filesExplorerBadgeColors: DEFAULT_FILES_EXPLORER_BADGE_COLORS,
@@ -502,59 +487,44 @@ function normalizeFilesExplorerBadgeColors(value: unknown): Record<string, strin
   return colors;
 }
 
-function normalizeTemplateSemanticAllowlist(value: unknown): TemplateSemanticTermRule[] {
+function normalizeTemplateRules(value: unknown): TemplateRule[] {
   if (!Array.isArray(value)) {
     return [];
   }
 
-  const rules: TemplateSemanticTermRule[] = [];
+  const rules: TemplateRule[] = [];
+  const seenIds = new Set<string>();
   for (let index = 0; index < value.length; index += 1) {
     const raw = value[index];
     if (!isRecord(raw)) {
       continue;
     }
-    const alias = typeof raw.alias === "string" ? raw.alias.trim() : "";
-    if (!alias) {
+    const label = typeof raw.label === "string" ? raw.label.trim() : "";
+    if (!label) {
       continue;
     }
-    const axisTendency = isSetValue(TEMPLATE_SEMANTIC_AXIS_TENDENCIES, raw.axisTendency)
-      ? raw.axisTendency
-      : "unknown";
     const id = typeof raw.id === "string" && raw.id.trim()
       ? raw.id.trim()
-      : `template-semantic-${index}`;
-    const canonicalUnit = isSetValue(TEMPLATE_SEMANTIC_UNITS, raw.canonicalUnit)
-      ? raw.canonicalUnit
-      : undefined;
+      : `template-rule-${index}`;
+    if (seenIds.has(id)) {
+      continue;
+    }
+    seenIds.add(id);
     rules.push({
       id,
-      alias,
-      ...(canonicalUnit ? { canonicalUnit } : {}),
-      axisTendency,
+      label,
+      ...(typeof raw.description === "string" && raw.description.trim() ? { description: raw.description.trim() } : {}),
+      priority: typeof raw.priority === "number" && Number.isFinite(raw.priority) ? raw.priority : index + 1,
+      ...(typeof raw.badge === "string" && raw.badge.trim() ? { badge: raw.badge.trim() } : {}),
+      xTerms: normalizeTemplateRuleTerms(raw.xTerms),
+      yTerms: normalizeTemplateRuleTerms(raw.yTerms),
       enabled: raw.enabled !== false,
     });
   }
   return rules;
 }
 
-function normalizeTemplateDisabledBuiltinSemanticIds(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  const seen = new Set<string>();
-  const ids: string[] = [];
-  for (const item of value) {
-    const id = typeof item === "string" ? item.trim() : "";
-    if (!id || seen.has(id)) {
-      continue;
-    }
-    seen.add(id);
-    ids.push(id);
-  }
-  return ids;
-}
-
-function normalizeTemplateSemanticTermOrder(value: unknown): string[] {
+function normalizeTemplateRuleTerms(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -662,14 +632,8 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
     next.tableAutoFitColumnWidthsEnabled,
     DEFAULT_CONDUCTOR_CONFIGURATION.tableAutoFitColumnWidthsEnabled,
   );
-  const templateSemanticAllowlist = normalizeTemplateSemanticAllowlist(
-    next.templateSemanticAllowlist,
-  );
-  const templateSemanticTermOrder = normalizeTemplateSemanticTermOrder(
-    next.templateSemanticTermOrder,
-  );
-  const templateDisabledBuiltinSemanticIds = normalizeTemplateDisabledBuiltinSemanticIds(
-    next.templateDisabledBuiltinSemanticIds,
+  const templateRules = normalizeTemplateRules(
+    next.templateRules,
   );
   const filesExplorerDensity = isSetValue(
     FILES_EXPLORER_DENSITIES,
@@ -768,9 +732,7 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
     numericDisplayMode,
     tableAutoFitColumnWidthsEnabled,
     tableTemplateVisualizationEnabled,
-    templateDisabledBuiltinSemanticIds,
-    templateSemanticAllowlist,
-    templateSemanticTermOrder,
+    templateRules,
     theme,
     filesExplorerBadgeColors,
     filesExplorerDensity,
@@ -838,31 +800,27 @@ function createConductorConfigurationProperties(): Record<string, IConfiguration
     enumItemLabels: ["raw", "smart"],
   };
 
-  properties.templateDisabledBuiltinSemanticIds = {
-    ...properties.templateDisabledBuiltinSemanticIds,
+  properties.templateRules = {
+    ...properties.templateRules,
     items: {
-      type: "string",
-    },
-  };
-
-  properties.templateSemanticTermOrder = {
-    ...properties.templateSemanticTermOrder,
-    items: {
-      type: "string",
-    },
-  };
-
-  properties.templateSemanticAllowlist = {
-    ...properties.templateSemanticAllowlist,
-    items: {
+      additionalProperties: false,
       properties: {
-        alias: { type: "string" },
-        axisTendency: { enum: Array.from(TEMPLATE_SEMANTIC_AXIS_TENDENCIES), type: "string" },
-        canonicalUnit: { enum: Array.from(TEMPLATE_SEMANTIC_UNITS), type: "string" },
+        badge: { type: "string" },
+        description: { type: "string" },
         enabled: { type: "boolean" },
         id: { type: "string" },
+        label: { type: "string" },
+        priority: { type: "number" },
+        xTerms: {
+          items: { type: "string" },
+          type: "array",
+        },
+        yTerms: {
+          items: { type: "string" },
+          type: "array",
+        },
       },
-      required: ["alias", "axisTendency"],
+      required: ["id", "label", "priority", "xTerms", "yTerms", "enabled"],
       type: "object",
     },
   };

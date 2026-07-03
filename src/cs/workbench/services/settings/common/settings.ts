@@ -38,12 +38,13 @@ export type FilesExplorerBadgeColor =
   | "cyan";
 
 export type FilesExplorerBadgeColors = Readonly<Record<string, FilesExplorerBadgeColor>>;
-export type TemplateSemanticAxisTendency = "x" | "dependent" | "unknown";
-export type TemplateSemanticUnit = "V" | "A" | "ohm" | "s" | "F" | "Hz" | "S";
 
-export type TemplateSemanticDomainRule = {
+export type TemplateRule = {
   readonly id: string;
-  readonly title: string;
+  readonly label: string;
+  readonly description?: string;
+  readonly priority: number;
+  readonly badge?: string;
   readonly xTerms: readonly string[];
   readonly yTerms: readonly string[];
   readonly enabled: boolean;
@@ -64,15 +65,6 @@ const FILES_EXPLORER_BADGE_COLORS = new Set<FilesExplorerBadgeColor>([
   "cyan",
 ]);
 const NUMERIC_DISPLAY_MODES = new Set<NumericDisplayMode>(["raw", "smart"]);
-const TEMPLATE_SEMANTIC_UNITS = new Set<TemplateSemanticUnit>([
-  "V",
-  "A",
-  "ohm",
-  "s",
-  "F",
-  "Hz",
-  "S",
-]);
 export const DEFAULT_FILES_EXPLORER_DENSITY: FilesExplorerDensity = "compact";
 export const DEFAULT_FILES_EXPLORER_SHOW_BADGES = true;
 export const DEFAULT_TABLE_AUTO_FIT_COLUMN_WIDTHS_ENABLED = false;
@@ -86,9 +78,7 @@ export const DEFAULT_FILES_EXPLORER_BADGE_COLORS: FilesExplorerBadgeColors = Obj
   transfer: "blue",
   unknown: "orange",
 });
-export const DEFAULT_TEMPLATE_SEMANTIC_DOMAIN_RULES: readonly TemplateSemanticDomainRule[] = Object.freeze([]);
-export const DEFAULT_TEMPLATE_SEMANTIC_DOMAIN_PRIORITY: readonly string[] = Object.freeze([]);
-export const DEFAULT_TEMPLATE_DISABLED_BUILTIN_SEMANTIC_IDS: readonly string[] = Object.freeze([]);
+export const DEFAULT_TEMPLATE_RULES: readonly TemplateRule[] = Object.freeze([]);
 
 export const normalizeFilesExplorerDensity = (
   value: unknown,
@@ -152,14 +142,14 @@ export const normalizeNumericDisplayMode = (
     ? value as NumericDisplayMode
     : DEFAULT_NUMERIC_DISPLAY_MODE;
 
-export const normalizeTemplateSemanticDomainRules = (
+export const normalizeTemplateRules = (
   value: unknown,
-): readonly TemplateSemanticDomainRule[] => {
+): readonly TemplateRule[] => {
   if (!Array.isArray(value)) {
-    return DEFAULT_TEMPLATE_SEMANTIC_DOMAIN_RULES;
+    return DEFAULT_TEMPLATE_RULES;
   }
 
-  const rules: TemplateSemanticDomainRule[] = [];
+  const rules: TemplateRule[] = [];
   const seenIds = new Set<string>();
   for (let index = 0; index < value.length; index += 1) {
     const raw = value[index];
@@ -167,67 +157,37 @@ export const normalizeTemplateSemanticDomainRules = (
       continue;
     }
     const record = raw as Record<string, unknown>;
-    const title = typeof record.title === "string" ? record.title.trim() : "";
-    if (!title) {
+    const label = typeof record.label === "string" ? record.label.trim() : "";
+    if (!label) {
       continue;
     }
     const id = typeof record.id === "string" && record.id.trim()
       ? record.id.trim()
-      : `template-semantic-domain-${index}`;
+      : `template-rule-${index}`;
     if (seenIds.has(id)) {
       continue;
     }
+    const priority = typeof record.priority === "number" && Number.isFinite(record.priority)
+      ? record.priority
+      : index + 1;
+    const description = typeof record.description === "string" ? record.description.trim() : "";
+    const badge = typeof record.badge === "string" ? record.badge.trim() : "";
     seenIds.add(id);
     rules.push({
       id,
-      title,
-      xTerms: normalizeTemplateSemanticTermList(record.xTerms),
-      yTerms: normalizeTemplateSemanticTermList(record.yTerms),
+      label,
+      ...(description ? { description } : {}),
+      priority,
+      ...(badge ? { badge } : {}),
+      xTerms: normalizeTemplateRuleTermList(record.xTerms),
+      yTerms: normalizeTemplateRuleTermList(record.yTerms),
       enabled: record.enabled !== false,
     });
   }
   return rules;
 };
 
-export const normalizeTemplateDisabledBuiltinSemanticIds = (
-  value: unknown,
-): readonly string[] => {
-  if (!Array.isArray(value)) {
-    return DEFAULT_TEMPLATE_DISABLED_BUILTIN_SEMANTIC_IDS;
-  }
-  const seen = new Set<string>();
-  const ids: string[] = [];
-  for (const item of value) {
-    const id = typeof item === "string" ? item.trim() : "";
-    if (!id || seen.has(id)) {
-      continue;
-    }
-    seen.add(id);
-    ids.push(id);
-  }
-  return ids;
-};
-
-export const normalizeTemplateSemanticDomainPriority = (
-  value: unknown,
-): readonly string[] => {
-  if (!Array.isArray(value)) {
-    return DEFAULT_TEMPLATE_SEMANTIC_DOMAIN_PRIORITY;
-  }
-  const seen = new Set<string>();
-  const ids: string[] = [];
-  for (const item of value) {
-    const id = typeof item === "string" ? item.trim() : "";
-    if (!id || seen.has(id)) {
-      continue;
-    }
-    seen.add(id);
-    ids.push(id);
-  }
-  return ids;
-};
-
-const normalizeTemplateSemanticTermList = (
+const normalizeTemplateRuleTermList = (
   value: unknown,
 ): readonly string[] => {
   if (!Array.isArray(value)) {
@@ -263,9 +223,7 @@ export type ConductorSettings = {
   numericDisplayMode?: NumericDisplayMode;
   tableAutoFitColumnWidthsEnabled?: boolean;
   tableTemplateVisualizationEnabled?: boolean;
-  templateDisabledBuiltinSemanticIds?: readonly string[];
-  templateSemanticDomainPriority?: readonly string[];
-  templateSemanticDomainRules?: readonly TemplateSemanticDomainRule[];
+  templateRules?: readonly TemplateRule[];
   theme?: ThemeMode;
   transparentChrome?: boolean;
   windowCloseBehavior?: "minimizeToTray" | "quit";
