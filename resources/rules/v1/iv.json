@@ -82,14 +82,6 @@
                 "aliases": ["Drain Current", "DrainCurrent"]
               },
               {
-                "key": "totalcurrent",
-                "aliases": ["TotalCurrent"]
-              },
-              {
-                "key": "currentdrain",
-                "aliases": ["CurrentDrain"]
-              },
-              {
                 "key": "ig",
                 "aliases": ["Ig"]
               },
@@ -102,28 +94,12 @@
                 "aliases": ["Gate Current", "GateCurrent"]
               },
               {
-                "key": "currentgate",
-                "aliases": ["CurrentGate"]
-              },
-              {
                 "key": "is",
                 "aliases": ["Is"]
               },
               {
                 "key": "sourcecurrent",
                 "aliases": ["Source Current", "SourceCurrent"]
-              },
-              {
-                "key": "currentsource",
-                "aliases": ["CurrentSource"]
-              },
-              {
-                "key": "current",
-                "aliases": ["Current"]
-              },
-              {
-                "key": "ipt",
-                "aliases": ["Ipt"]
               },
               {
                 "key": "ch1current",
@@ -219,48 +195,12 @@
                 "aliases": ["Drain Current", "DrainCurrent"]
               },
               {
-                "key": "totalcurrent",
-                "aliases": ["TotalCurrent"]
-              },
-              {
-                "key": "currentdrain",
-                "aliases": ["CurrentDrain"]
-              },
-              {
-                "key": "ig",
-                "aliases": ["Ig"]
-              },
-              {
-                "key": "igs",
-                "aliases": ["Igs"]
-              },
-              {
                 "key": "gatecurrent",
                 "aliases": ["Gate Current", "GateCurrent"]
               },
               {
-                "key": "currentgate",
-                "aliases": ["CurrentGate"]
-              },
-              {
-                "key": "is",
-                "aliases": ["Is"]
-              },
-              {
                 "key": "sourcecurrent",
                 "aliases": ["Source Current", "SourceCurrent"]
-              },
-              {
-                "key": "currentsource",
-                "aliases": ["CurrentSource"]
-              },
-              {
-                "key": "current",
-                "aliases": ["Current"]
-              },
-              {
-                "key": "ipt",
-                "aliases": ["Ipt"]
               },
               {
                 "key": "ch1current",

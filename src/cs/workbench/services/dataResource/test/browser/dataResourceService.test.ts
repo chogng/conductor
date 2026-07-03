@@ -112,6 +112,21 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 	});
 
 	test("keeps built-in IV semantic rules split between transfer and output", () => {
+		const removedYTerms = new Set([
+			"TotalCurrent",
+			"CurrentDrain",
+			"CurrentGate",
+			"CurrentSource",
+			"Current",
+			"Ipt",
+		]);
+		const modeCurrentTerms = new Set([
+			"Id",
+			"Ids",
+			"Ig",
+			"Igs",
+			"Is",
+		]);
 		assert.deepStrictEqual(
 			builtinRules
 				.filter(rule => rule.id.startsWith("iv:"))
@@ -119,14 +134,33 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 					label: rule.label,
 					type: rule.type,
 					proofTerms: rule.proofTerms.filter(term => term === "Output" || term === "Transfer_DB" || term === "CH2 Voltage"),
+					xTerms: rule.xTerms.filter(term => term === "idvg" || term === "idvd"),
+					yTerms: rule.yTerms.filter(term => modeCurrentTerms.has(term)),
+					removedYTerms: rule.yTerms.filter(term => removedYTerms.has(term)),
 				})),
 			[
-				{ label: "iv transfer", type: "transfer", proofTerms: ["Transfer_DB", "CH2 Voltage"] },
-				{ label: "iv output", type: "output", proofTerms: ["Output", "CH2 Voltage"] },
+				{
+					label: "iv transfer",
+					type: "transfer",
+					proofTerms: ["Transfer_DB", "CH2 Voltage"],
+					xTerms: ["idvg"],
+					yTerms: ["Id", "Ids", "Ig", "Igs", "Is"],
+					removedYTerms: [],
+				},
+				{
+					label: "iv output",
+					type: "output",
+					proofTerms: ["Output", "CH2 Voltage"],
+					xTerms: ["idvd"],
+					yTerms: ["Id", "Ids"],
+					removedYTerms: [],
+				},
 			],
 		);
 		assert.equal(matchSemanticTitle("Output")?.semanticRules[0]?.type, "output");
 		assert.equal(matchSemanticTitle("Transfer_DB")?.semanticRules[0]?.type, "transfer");
+		const totalCurrentRules = matchSemanticTitle("TotalCurrent")?.semanticRules ?? [];
+		assert.equal(totalCurrentRules.some(rule => rule.id === "iv:1" || rule.id === "iv:2"), false);
 	});
 
 	test("keeps globally constant shared CH2 proof values from selecting IV mode for CH1 data blocks", async () => {
