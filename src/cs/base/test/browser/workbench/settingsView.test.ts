@@ -451,12 +451,12 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.deepEqual(
         Array.from(leadingGrid.querySelectorAll<HTMLInputElement>("input")).map(input => input.placeholder),
 	        [
-	          "Domain scope, for example iv",
+	          "Definition, for example iv transfer",
 	          "Type, for example transfer",
 	        ],
 	      );
 	      assert.ok(leadingGrid.querySelector(".settings-template-semantic-rule-actionbar .actionbaritem-delete"));
-	      assert.equal(getSemanticRuleInput(draftItem, "Domain scope, for example iv").value, "");
+	      assert.equal(getSemanticRuleInput(draftItem, "Definition, for example iv transfer").value, "");
 	      assert.equal(getSemanticRuleInput(draftItem, "Type, for example transfer").value, "");
       assert.equal(getSemanticRuleInput(draftItem, "X representative").value, "");
       assert.equal(getSemanticRuleInput(draftItem, "Y representative").value, "");
@@ -466,7 +466,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.ok(draftItem.textContent?.includes("Vg"));
       assert.ok(draftItem.textContent?.includes("Id"));
       assert.equal(customItem.classList.contains("settings-list-item-cell--editable-display"), false);
-      assert.equal(getSemanticRuleInput(customItem, "Domain scope, for example iv").readOnly, false);
+      assert.equal(getSemanticRuleInput(customItem, "Definition, for example iv transfer").readOnly, false);
       assert.equal(getSemanticRuleInput(customItem, "X representative").hidden, false);
       assert.equal(getSemanticRuleSourceText(customItem), "User");
       assert.equal(getSemanticRuleActionNames(customItem).includes("Remove domain rule iv"), true);
@@ -628,13 +628,6 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       view.update(createSettingsViewOptions({
         activeSettingsSection: "template",
         templateSettings: {
-          domainPriorityItems: [{
-            id: "stable-rule",
-            source: "custom",
-            title: "iv",
-            xTerms: ["Vg"],
-            yTerms: ["Id", "Ig"],
-          }],
           semanticSectionItems: [createSemanticRuleItem({
             id: itemId,
             xTerms: ["Vg"],
@@ -643,7 +636,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
         },
       }), {
         type: "partial",
-        descriptorIds: ["template-semantic-rules", "template-domain-priority"],
+        descriptorIds: ["template-semantic-rules"],
         itemTargets: [],
       });
 
@@ -685,7 +678,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     }));
 
     try {
-      const input = getSemanticRuleInput(container, "Domain scope, for example iv");
+      const input = getSemanticRuleInput(container, "Definition, for example iv transfer");
       input.focus();
       input.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Enter" }));
 
@@ -725,7 +718,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     }));
 
     try {
-      const input = getSemanticRuleInput(container, "Domain scope, for example iv");
+      const input = getSemanticRuleInput(container, "Definition, for example iv transfer");
       input.focus();
       input.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Enter" }));
 
@@ -785,7 +778,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       const secondElement = getElement(container, "#settings-template-semantic-section-item\\:draft\\:second");
       const nextFirstElement = getElement(container, "#settings-template-semantic-section-item\\:draft\\:first");
       assert.equal(getClosestSettingsListItem(nextFirstElement).previousElementSibling, getClosestSettingsListItem(secondElement));
-      assert.equal(getSemanticRuleInput(secondElement, "Domain scope, for example iv").value, "Second");
+      assert.equal(getSemanticRuleInput(secondElement, "Definition, for example iv transfer").value, "Second");
     }
     finally {
       view.dispose();

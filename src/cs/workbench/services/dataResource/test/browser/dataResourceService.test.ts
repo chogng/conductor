@@ -90,6 +90,18 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.equal(matchSemanticRowMarker("Value"), null);
 	});
 
+	test("keeps built-in IV semantic rules split between transfer and output", () => {
+		assert.deepStrictEqual(
+			builtinRules
+				.filter(rule => rule.id.startsWith("iv:"))
+				.map(rule => ({ label: rule.label, type: rule.type })),
+			[
+				{ label: "iv transfer", type: "transfer" },
+				{ label: "iv output", type: "output" },
+			],
+		);
+	});
+
 	test("uses template semantic term entries in DataResource matcher", async () => {
 		const evidence = await resolveEvidence([
 			["DriveBias", "SenseCurrent"],

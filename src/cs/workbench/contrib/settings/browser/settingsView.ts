@@ -1308,7 +1308,7 @@ export class SettingsView {
     const item = this.createSettingsSectionItem<"x" | "y">({
       id: semanticItem.id,
       orientation: "vertical",
-      label: localize("settings.template.semantic.ruleItemTitle", "Domain scope"),
+      label: localize("settings.template.semantic.ruleItemTitle", "Definition"),
       trailingClassName: "settings-template-semantic-rule-trailing",
       trailingRegions: [
         { id: "x", className: "settings-template-semantic-axis-field", kind: "content" },
@@ -1317,9 +1317,9 @@ export class SettingsView {
     });
     item.element.classList.add("settings-template-semantic-rule-item");
     const leadingInput = this.createTemplateSemanticSectionItemInput({
-      ariaLabel: localize("settings.template.semantic.leadingAria", "Rule label"),
+      ariaLabel: localize("settings.template.semantic.leadingAria", "Definition"),
       disabled: semanticItem.isSaving,
-      placeholder: localize("settings.template.semantic.leadingPlaceholder", "Rule label, for example iv transfer"),
+      placeholder: localize("settings.template.semantic.leadingPlaceholder", "Definition, for example iv transfer"),
       readOnly: false,
       value: semanticItem.title,
       onAccept: () => {
@@ -1331,7 +1331,7 @@ export class SettingsView {
       onChange: value => settings.onUpdateSemanticSectionItemDraft(semanticItem.id, "title", value),
     });
     const typeInput = this.createTemplateSemanticSectionItemInput({
-      ariaLabel: localize("settings.template.semantic.typeAria", "Rule type"),
+      ariaLabel: localize("settings.template.semantic.typeAria", "Type"),
       disabled: semanticItem.isSaving,
       placeholder: localize("settings.template.semantic.typePlaceholder", "Type, for example transfer"),
       readOnly: false,
@@ -1349,11 +1349,12 @@ export class SettingsView {
       "settings-template-semantic-rule-source",
       formatTemplateSemanticSectionItemSource(semanticItem.source),
     );
+    const leadingActions = this.createTemplateSemanticSectionItemActions(semanticItem, settings);
     const leadingContent = div(
       "settings-template-semantic-rule-leading-grid",
       sourceLabel,
       div("settings-template-semantic-rule-input-grid", leadingInput.element, typeInput.element),
-      this.createTemplateSemanticSectionItemActions(semanticItem, settings),
+      ...(leadingActions ? [leadingActions.element] : []),
     );
     item.leading.labelElement.replaceWith(leadingContent);
     if (item.leading.descriptionElement) {
