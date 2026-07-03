@@ -6,7 +6,7 @@
       "label": "iv transfer",
       "description": "Cut gate-voltage sweep columns with bound current response columns.",
       "priority": 1,
-      "badge": "transfer",
+      "type": "transfer",
       "columns": {
         "x": [
           {
@@ -77,7 +77,7 @@
       "label": "iv output",
       "description": "Cut drain-voltage sweep columns with bound current response columns.",
       "priority": 2,
-      "badge": "output",
+      "type": "output",
       "columns": {
         "x": [
           {

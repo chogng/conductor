@@ -172,7 +172,7 @@ export type StructuredColumnTitleSpanEvidence = {
 export type StructuredRuleEvidence = {
 	readonly id: string;
 	readonly label: string;
-	readonly badge?: string;
+	readonly type?: string;
 	readonly axisTendency: StructuredAxisTendency;
 	readonly priority: number;
 	readonly priorityIndex: number;
@@ -306,7 +306,7 @@ export type StructuredMeasurementBlockRecord = {
 	readonly rawTableId: string;
 	readonly groupId?: string;
 	readonly label: string;
-	readonly badge?: string;
+	readonly type?: string;
 	readonly family: StructuredMeasurementFamily;
 	readonly ivMode?: StructuredIvSweepMode;
 	readonly itMode?: StructuredItSweepMode;

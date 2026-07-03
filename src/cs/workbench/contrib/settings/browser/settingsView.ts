@@ -179,7 +179,7 @@ type TemplateSettings = {
 
 type TemplateSemanticAxis = "x" | "y";
 type SettingsSectionItemEditState = "display" | "edit";
-type TemplateSemanticSectionItemDraftField = "title" | "badge" | "xDraft" | "yDraft";
+type TemplateSemanticSectionItemDraftField = "title" | "type" | "xDraft" | "yDraft";
 
 type TemplateSemanticSectionItem = {
   readonly autoFocus?: boolean;
@@ -188,7 +188,7 @@ type TemplateSemanticSectionItem = {
   readonly ruleId: string;
   readonly source: "builtin" | "custom" | "draft";
   readonly title: string;
-  readonly badge?: string;
+  readonly type?: string;
   readonly xDraft: string;
   readonly xTerms: readonly string[];
   readonly yDraft: string;
@@ -1330,19 +1330,19 @@ export class SettingsView {
       },
       onChange: value => settings.onUpdateSemanticSectionItemDraft(semanticItem.id, "title", value),
     });
-    const badgeInput = this.createTemplateSemanticSectionItemInput({
-      ariaLabel: localize("settings.template.semantic.badgeAria", "Definition badge"),
+    const typeInput = this.createTemplateSemanticSectionItemInput({
+      ariaLabel: localize("settings.template.semantic.typeAria", "Rule type"),
       disabled: semanticItem.isSaving,
-      placeholder: localize("settings.template.semantic.badgePlaceholder", "Definition, for example transfer"),
+      placeholder: localize("settings.template.semantic.typePlaceholder", "Type, for example transfer"),
       readOnly: false,
-      value: semanticItem.badge ?? "",
+      value: semanticItem.type ?? "",
       onAccept: () => {
         void settings.onCommitSemanticSectionItemTitle(semanticItem.id);
       },
       onBlur: () => {
         void settings.onCommitSemanticSectionItemTitle(semanticItem.id);
       },
-      onChange: value => settings.onUpdateSemanticSectionItemDraft(semanticItem.id, "badge", value),
+      onChange: value => settings.onUpdateSemanticSectionItemDraft(semanticItem.id, "type", value),
     });
     const sourceLabel = text(
       "span",
@@ -1352,7 +1352,7 @@ export class SettingsView {
     const leadingContent = div(
       "settings-template-semantic-rule-leading-grid",
       sourceLabel,
-      div("settings-template-semantic-rule-input-grid", leadingInput.element, badgeInput.element),
+      div("settings-template-semantic-rule-input-grid", leadingInput.element, typeInput.element),
       this.createTemplateSemanticSectionItemActions(semanticItem, settings),
     );
     item.leading.labelElement.replaceWith(leadingContent);
@@ -1595,7 +1595,7 @@ export class SettingsView {
   private getTemplateSemanticSectionItemSearchText(item: TemplateSemanticSectionItem): string {
     return normalizeSettingsSearchText(
       item.title,
-      item.badge ?? "",
+      item.type ?? "",
       item.xTerms.join(" "),
       item.yTerms.join(" "),
       item.source,

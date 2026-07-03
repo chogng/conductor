@@ -6,7 +6,7 @@
       "label": "generic",
       "description": "Cut common numeric X/Y measurement columns when no more specific rule wins.",
       "priority": 1000,
-      "badge": "generic",
+      "type": "generic",
       "columns": {
         "x": [
           {

@@ -126,7 +126,7 @@ type TemplateSemanticRulePatch = {
   label?: string;
   description?: string;
   priority?: number;
-  badge?: string;
+  type?: string;
   enabled?: boolean;
   xKeys?: TemplateSemanticRuleAxisPatch;
   yKeys?: TemplateSemanticRuleAxisPatch;
@@ -557,7 +557,7 @@ function normalizeTemplateSemanticRulePatches(value: unknown): TemplateSemanticR
     seenIds.add(id);
     const label = typeof item.label === "string" ? item.label.trim() : "";
     const description = typeof item.description === "string" ? item.description.trim() : "";
-    const badge = typeof item.badge === "string" ? item.badge.trim() : "";
+    const type = typeof item.type === "string" ? item.type.trim() : "";
     const priority = typeof item.priority === "number" && Number.isFinite(item.priority)
       ? item.priority
       : undefined;
@@ -566,7 +566,7 @@ function normalizeTemplateSemanticRulePatches(value: unknown): TemplateSemanticR
       ...(label ? { label } : {}),
       ...(description ? { description } : {}),
       ...(priority !== undefined ? { priority } : {}),
-      ...(badge ? { badge } : {}),
+      ...(type ? { type } : {}),
       ...(typeof item.enabled === "boolean" ? { enabled: item.enabled } : {}),
       ...(normalizeTemplateSemanticAxisPatch(item.xKeys) ? { xKeys: normalizeTemplateSemanticAxisPatch(item.xKeys) } : {}),
       ...(normalizeTemplateSemanticAxisPatch(item.yKeys) ? { yKeys: normalizeTemplateSemanticAxisPatch(item.yKeys) } : {}),
@@ -927,12 +927,12 @@ function createConductorConfigurationProperties(): Record<string, IConfiguration
         items: {
           additionalProperties: false,
           properties: {
-            badge: { type: "string" },
             description: { type: "string" },
             enabled: { type: "boolean" },
             id: { type: "string" },
             label: { type: "string" },
             priority: { type: "number" },
+            type: { type: "string" },
             xKeys: createTemplateSemanticAxisPatchSchema(),
             yKeys: createTemplateSemanticAxisPatchSchema(),
           },

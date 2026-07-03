@@ -24,15 +24,15 @@ Rules describe facts and cutting behavior, such as:
 - a stable rule id and a human-readable label. The id may be numeric, but it is
   identity only and must not encode sorting;
 - a rule priority for sorting rules without changing rule identity;
-- a result badge. Product UI may call this a definition, but the JSON field is
-  `badge` because it becomes the badge attached to a successful cut result;
+- a result type. Product UI may display this type as a badge attached to a
+  successful cut result;
 - title aliases that identify X and Y columns, such as `Vg`, `Vd`, `Id`,
   `Cgg`, `time`, and `frequency`;
 - rule-local X/Y outputs and human-readable labels;
 - normalized term keys for each title alias, such as `Vg` -> `vg` and
   `Gate Voltage` -> `gatevoltage`;
 
-One rule should map to one badge. For example, `transfer` and `output` are
+One rule should map to one type. For example, `transfer` and `output` are
 separate rules because their result definitions differ even when they share Y
 terms.
 
@@ -42,9 +42,9 @@ X range, and line/group candidates come from X segmentation.
 
 A rule author should not be required to provide semantic roles such as gate
 voltage or drain current. User-authored rules only need to say which title
-terms belong to X and which title terms belong to Y, plus an optional badge
-such as `transfer` when the product should display a definition for successful
-cuts. The algorithm treats that badge as a label, not as physical meaning.
+terms belong to X and which title terms belong to Y, plus an optional type such
+as `transfer` when the product should display a definition for successful cuts.
+The algorithm treats that type as a label, not as physical meaning.
 
 A rule must not contain a separate hand-written result preference list. The
 algorithm derives result use order from rule priority and the cut candidates it

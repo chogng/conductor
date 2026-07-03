@@ -17,7 +17,11 @@ import {
 	matchSemanticTitle,
 	toSemanticTermKey,
 } from "src/cs/workbench/services/dataResource/common/semanticRules";
-import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
+import type {
+	ISettingsService,
+	TemplateSemanticPatches,
+	TemplateSemanticTermPatch,
+} from "src/cs/workbench/services/settings/common/settings";
 import type { StructuredContentEvidence } from "src/cs/workbench/services/dataResource/common/structuredContent";
 import {
 	TableModel as TableContentModel,
@@ -93,12 +97,12 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			["0.5", "2e-12"],
 			["1", "4e-12"],
 		], {
-			templateSemanticPatches: createRulePatchSettings({
-				id: "drive-sense",
-				label: "drive",
-				badge: "drive",
-				xTerms: ["DriveBias"],
-				yTerms: ["SenseCurrent"],
+				templateSemanticPatches: createRulePatchSettings({
+					id: "drive-sense",
+					label: "drive",
+					type: "drive",
+					xTerms: ["DriveBias"],
+					yTerms: ["SenseCurrent"],
 			}).templateSemanticPatches,
 		});
 
@@ -336,12 +340,12 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		]);
 
 		assert.ok(evidence.columnTitleSpans.some(span =>
-			span.targetColumn === 1 &&
-			span.titleCell.row === 1 &&
-			span.canonicalRole === "unknown" &&
-			span.axisTendency === "x" &&
-			span.semanticRules.some(rule => rule.badge === "transfer")
-		));
+				span.targetColumn === 1 &&
+				span.titleCell.row === 1 &&
+				span.canonicalRole === "unknown" &&
+				span.axisTendency === "x" &&
+				span.semanticRules.some(rule => rule.type === "transfer")
+			));
 		assert.ok(evidence.dataBlockCandidates.some(candidate =>
 			candidate.xColumn === 1 && candidate.dependentColumns.includes(2)
 		));
@@ -376,10 +380,10 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		const evidence = await resolveEvidence(rows);
 
 		assert.equal(evidence.xRangeCandidates[0]?.column, 1);
-		assert.ok(evidence.columnTitleSpans.some(span =>
-			span.targetColumn === 1 &&
-			span.semanticRules.some(rule => rule.badge === "transient" && rule.axisTendency === "x")
-		));
+			assert.ok(evidence.columnTitleSpans.some(span =>
+				span.targetColumn === 1 &&
+				span.semanticRules.some(rule => rule.type === "transient" && rule.axisTendency === "x")
+			));
 	});
 
 	test("detects pairwise XY blocks and many-pair bindings", async () => {
@@ -580,25 +584,25 @@ const createTableContent = (
 
 const createRulePatchSettings = (
 	rule: {
-		readonly id: string;
-		readonly label: string;
-		readonly badge?: string;
-		readonly xTerms: readonly string[];
-		readonly yTerms: readonly string[];
+			readonly id: string;
+			readonly label: string;
+			readonly type?: string;
+			readonly xTerms: readonly string[];
+			readonly yTerms: readonly string[];
 	},
 	options: {
 		readonly xRemoveTerms?: readonly string[];
 		readonly yRemoveTerms?: readonly string[];
 	} = {},
-): { readonly templateSemanticPatches: Record<string, unknown> } => ({
+	): { readonly templateSemanticPatches: TemplateSemanticPatches } => ({
 	templateSemanticPatches: {
 		terms: createTermPatches([...rule.xTerms, ...rule.yTerms]),
 		rules: [{
-			id: rule.id,
-			label: rule.label,
-			priority: 0,
-			...(rule.badge ? { badge: rule.badge } : {}),
-			enabled: true,
+				id: rule.id,
+				label: rule.label,
+				priority: 0,
+				...(rule.type ? { type: rule.type } : {}),
+				enabled: true,
 			xKeys: {
 				addKeys: rule.xTerms.map(toSemanticTermKey).filter(Boolean),
 				removeKeys: (options.xRemoveTerms ?? []).map(toSemanticTermKey).filter(Boolean),
@@ -613,7 +617,7 @@ const createRulePatchSettings = (
 
 const createTermPatches = (
 	terms: readonly string[],
-): readonly Record<string, unknown>[] => {
+): readonly TemplateSemanticTermPatch[] => {
 	const aliasesByKey = new Map<string, string[]>();
 	for (const term of terms) {
 		const key = toSemanticTermKey(term);

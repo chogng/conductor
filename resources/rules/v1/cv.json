@@ -6,7 +6,7 @@
       "label": "cv",
       "description": "Cut voltage sweep columns with bound capacitance or conductance response columns.",
       "priority": 10,
-      "badge": "cv",
+      "type": "cv",
       "columns": {
         "x": [
           {

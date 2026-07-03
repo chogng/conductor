@@ -1511,13 +1511,13 @@ const createStructuredMeasurementBlocks = ({
 			startCol: block.startCol,
 			endCol: block.endCol,
 		};
-		return {
-			id: block.id,
-			fileId: "uri-file",
-			rawTableId: "uri-table",
-			label: getStructuredMeasurementLabel(measurement),
-			...(measurement.badge ? { badge: measurement.badge } : {}),
-			family: measurement.family,
+			return {
+				id: block.id,
+				fileId: "uri-file",
+				rawTableId: "uri-table",
+				label: getStructuredMeasurementLabel(measurement),
+				...(measurement.type ? { type: measurement.type } : {}),
+				family: measurement.family,
 			...(measurement.ivMode ? { ivMode: measurement.ivMode } : {}),
 			...(measurement.itMode ? { itMode: measurement.itMode } : {}),
 			source: {
@@ -1597,18 +1597,18 @@ const inferMeasurementForBlock = (
 	block: StructuredDataBlockCandidate,
 	titleSpansByColumn: ReadonlyMap<number, StructuredColumnTitleSpanEvidence>,
 ): {
-	readonly badge?: string;
+	readonly type?: string;
 	readonly family: StructuredMeasurementFamily;
 	readonly ivMode?: StructuredMeasurementBlockRecord["ivMode"];
 	readonly itMode?: StructuredMeasurementBlockRecord["itMode"];
 } => {
 	const rule = selectBlockRule(block, titleSpansByColumn);
-	if (rule?.badge) {
-		return toMeasurementFromBadge(rule.badge);
+	if (rule?.type) {
+		return toMeasurementFromType(rule.type);
 	}
 	if (rule) {
 		return {
-			badge: rule.label,
+			type: rule.label,
 			family: "unknown",
 		};
 	}
@@ -1621,7 +1621,7 @@ const selectBlockRule = (
 ): {
 	readonly id: string;
 	readonly label: string;
-	readonly badge?: string;
+	readonly type?: string;
 	readonly priorityIndex: number;
 } | null => {
 	const xRules = titleSpansByColumn.get(block.xColumn)?.semanticRules
@@ -1629,7 +1629,7 @@ const selectBlockRule = (
 	const yRulesById = new Map<string, {
 		readonly id: string;
 		readonly label: string;
-		readonly badge?: string;
+		readonly type?: string;
 		readonly priorityIndex: number;
 	}>();
 	for (const column of block.dependentColumns) {
@@ -1642,7 +1642,7 @@ const selectBlockRule = (
 				yRulesById.set(rule.id, {
 					id: rule.id,
 					label: rule.label,
-					...(rule.badge ? { badge: rule.badge } : {}),
+					...(rule.type ? { type: rule.type } : {}),
 					priorityIndex: rule.priorityIndex,
 				});
 			}
@@ -1653,43 +1653,43 @@ const selectBlockRule = (
 		.map(rule => ({
 			id: rule.id,
 			label: rule.label,
-			...(rule.badge ? { badge: rule.badge } : {}),
+			...(rule.type ? { type: rule.type } : {}),
 			priorityIndex: Math.min(rule.priorityIndex, yRulesById.get(rule.id)?.priorityIndex ?? rule.priorityIndex),
 		}))
 		.sort((left, right) => left.priorityIndex - right.priorityIndex)[0] ?? null;
 };
 
-const toMeasurementFromBadge = (
-	badge: string,
+const toMeasurementFromType = (
+	measurementType: string,
 ): {
-	readonly badge: string;
+	readonly type: string;
 	readonly family: StructuredMeasurementFamily;
 	readonly ivMode?: StructuredMeasurementBlockRecord["ivMode"];
 	readonly itMode?: StructuredMeasurementBlockRecord["itMode"];
 } => {
-	const normalized = badge.trim().toLowerCase();
+	const normalized = measurementType.trim().toLowerCase();
 	if (normalized === "transfer") {
-		return { badge, family: "iv", ivMode: "transfer" };
+		return { type: measurementType, family: "iv", ivMode: "transfer" };
 	}
 	if (normalized === "output") {
-		return { badge, family: "iv", ivMode: "output" };
+		return { type: measurementType, family: "iv", ivMode: "output" };
 	}
 	if (normalized === "iv") {
-		return { badge, family: "iv" };
+		return { type: measurementType, family: "iv" };
 	}
 	if (normalized === "cv") {
-		return { badge, family: "cv" };
+		return { type: measurementType, family: "cv" };
 	}
 	if (normalized === "cf" || normalized === "frequency") {
-		return { badge, family: "cf" };
+		return { type: measurementType, family: "cf" };
 	}
 	if (normalized === "pv") {
-		return { badge, family: "pv" };
+		return { type: measurementType, family: "pv" };
 	}
 	if (normalized === "transient") {
-		return { badge, family: "it", itMode: "transient" };
+		return { type: measurementType, family: "it", itMode: "transient" };
 	}
-	return { badge, family: "unknown" };
+	return { type: measurementType, family: "unknown" };
 };
 
 const createEvidenceDiagnostics = ({
@@ -2170,13 +2170,13 @@ const createStructuredContentFullRange = (
 
 const getStructuredMeasurementLabel = (
 	measurement: {
-		readonly badge?: string;
+		readonly type?: string;
 		readonly family: StructuredMeasurementFamily;
 		readonly ivMode?: StructuredMeasurementBlockRecord["ivMode"];
 	},
 ): string => {
-	if (measurement.badge) {
-		return `Detected ${formatMeasurementBadgeLabel(measurement.badge)}`;
+	if (measurement.type) {
+		return `Detected ${formatMeasurementTypeLabel(measurement.type)}`;
 	}
 	if (measurement.family === "iv" && measurement.ivMode === "transfer") {
 		return "Detected IV Transfer";
@@ -2190,9 +2190,9 @@ const getStructuredMeasurementLabel = (
 	return "Detected Data Block";
 };
 
-const formatMeasurementBadgeLabel = (
-	badge: string,
-): string => badge
+const formatMeasurementTypeLabel = (
+	measurementType: string,
+): string => measurementType
 	.trim()
 	.split(/[\s_-]+/g)
 	.filter(Boolean)

@@ -776,7 +776,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
           id: builtinRule.id,
           label: builtinRule.label,
           priority: builtinRule.priority,
-          ...(builtinRule.badge ? { badge: builtinRule.badge } : {}),
+          ...(builtinRule.type ? { type: builtinRule.type } : {}),
           enabled: true,
           xKeys: {
             addKeys: ["codexoverridegate"],
@@ -1391,8 +1391,8 @@ function getSemanticRuleInputAriaLabel(placeholder: string): string {
   switch (placeholder) {
     case "Domain scope, for example iv":
       return "Domain scope";
-    case "Definition, for example transfer":
-      return "Definition badge";
+    case "Type, for example transfer":
+      return "Rule type";
     case "X representative":
       return "X axis representative character block";
     case "Y representative":
@@ -1463,7 +1463,7 @@ function createTemplateSemanticPatchSettings(
     readonly id: string;
     readonly label: string;
     readonly priority: number;
-    readonly badge?: string;
+    readonly type?: string;
     readonly xTerms: readonly string[];
     readonly yTerms: readonly string[];
     readonly enabled?: boolean;
@@ -1476,7 +1476,7 @@ function createTemplateSemanticPatchSettings(
         id: rule.id,
         label: rule.label,
         priority: rule.priority,
-        ...(rule.badge ? { badge: rule.badge } : {}),
+        ...(rule.type ? { type: rule.type } : {}),
         ...(rule.enabled === false ? { enabled: false } : { enabled: true }),
         xKeys: {
           addKeys: rule.xTerms.map(toSemanticTermKey).filter(Boolean),

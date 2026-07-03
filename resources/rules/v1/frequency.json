@@ -6,7 +6,7 @@
       "label": "frequency",
       "description": "Cut frequency sweep columns with bound capacitance or conductance response columns.",
       "priority": 20,
-      "badge": "cf",
+      "type": "cf",
       "columns": {
         "x": [
           {

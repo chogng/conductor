@@ -184,11 +184,11 @@ type ColumnTitleSpanEvidence = {
   readonly normalizedTitle: string;
   readonly canonicalRole: "unknown";
   readonly axisTendency: "x" | "dependent" | "unknown";
-  readonly semanticRules: readonly {
-    readonly id: string;
-    readonly label: string;
-    readonly badge?: string;
-    readonly axisTendency: "x" | "dependent" | "unknown";
+	readonly semanticRules: readonly {
+	  readonly id: string;
+	  readonly label: string;
+	  readonly type?: string;
+	  readonly axisTendency: "x" | "dependent" | "unknown";
     readonly priority: number;
     readonly priorityIndex: number;
     readonly source: "builtin" | "user";
@@ -303,10 +303,10 @@ numeric run
 
 ```txt
 Vg / Vgs / Gate Voltage
-  -> rule evidence: axisTendency x, badge transfer
+  -> rule evidence: axisTendency x, type transfer
 
 Vd / Vds / Drain Voltage
-  -> rule evidence: axisTendency x, badge output
+  -> rule evidence: axisTendency x, type output
 
 Id / Ids / Drain Current
   -> rule evidence: axisTendency dependent
@@ -467,7 +467,7 @@ Review 消费 evidence，然后决定：
 Review 可以使用：
 
 - DataResource 给出的 binding confidence；
-- ColumnTitleSpanEvidence 给出的 rule evidence、badge 和 axis tendency；
+- ColumnTitleSpanEvidence 给出的 rule evidence、type 和 axis tendency；
 - semantic rules fingerprint / evidence fingerprint；
 - parser diagnostics；
 - ambiguity codes；

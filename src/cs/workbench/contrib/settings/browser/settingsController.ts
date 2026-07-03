@@ -106,7 +106,7 @@ type TemplateSemanticSectionItemDraft = {
   readonly ruleId: string;
   readonly source: "builtin" | "custom" | "draft";
   title: string;
-  badge: string;
+  type: string;
   xDraft: string;
   xTerms: string[];
   yDraft: string;
@@ -116,13 +116,13 @@ type TemplateSemanticSectionItemDraft = {
 type TemplateSemanticComparableRule = {
   readonly id: string;
   readonly label: string;
-  readonly badge?: string;
+  readonly type?: string;
   readonly priority: number;
   readonly xTerms: readonly string[];
   readonly yTerms: readonly string[];
 };
 
-type TemplateSemanticSectionItemDraftField = "title" | "badge" | "xDraft" | "yDraft";
+type TemplateSemanticSectionItemDraftField = "title" | "type" | "xDraft" | "yDraft";
 
 const ORIGIN_NOTIFICATION_ID = "settings.origin";
 const CLEANUP_NOTIFICATION_ID = "settings.cleanup";
@@ -977,7 +977,7 @@ export class SettingsController {
       isSaving: this.pendingTemplateActionItemId === draft.id,
       ruleId: draft.ruleId,
       title: draft.title,
-      badge: draft.badge,
+      type: draft.type,
       source: draft.source,
       xDraft: draft.xDraft,
       xTerms: draft.xTerms,
@@ -995,7 +995,7 @@ export class SettingsController {
       ruleId: rule.id,
       source: rule.source,
       title: rule.title,
-      badge: rule.badge ?? "",
+      type: rule.type ?? "",
       xDraft: "",
       xTerms: rule.xTerms,
       yDraft: "",
@@ -1011,7 +1011,7 @@ export class SettingsController {
       ruleId,
       source: "draft",
       title: "",
-      badge: "",
+      type: "",
       xDraft: "",
       xTerms: [],
       yDraft: "",
@@ -1151,7 +1151,7 @@ export class SettingsController {
         ruleId: rule.id,
         source: "builtin",
         title: rule.label,
-        badge: rule.badge ?? "",
+        type: rule.type ?? "",
         xDraft: "",
         xTerms: [...rule.xTerms],
         yDraft: "",
@@ -1173,7 +1173,7 @@ export class SettingsController {
       ruleId: customRule.id,
       source: "custom",
       title: customRule.label,
-      badge: customRule.badge ?? "",
+      type: customRule.type ?? "",
       xDraft: "",
       xTerms: [...customRule.xTerms],
       yDraft: "",
@@ -1267,7 +1267,7 @@ export class SettingsController {
       draft: {
         ruleId: draft.ruleId,
         title,
-        badge: draft.badge.trim(),
+        type: draft.type.trim(),
         source: draft.source,
         xTerms,
         yTerms,
@@ -1791,7 +1791,7 @@ function getConductorSettingItemTarget(key: string): { readonly descriptorId: Se
 type TemplateRuleView = {
   readonly id: string;
   readonly title: string;
-  readonly badge?: string;
+  readonly type?: string;
   readonly priority: number;
   readonly xTerms: readonly string[];
   readonly yTerms: readonly string[];
@@ -1830,7 +1830,7 @@ function templateSemanticRuleValuesEqual(
   next: TemplateSemanticComparableRule,
 ): boolean {
   return current.label.trim() === next.label.trim() &&
-    (current.badge ?? "").trim() === (next.badge ?? "").trim() &&
+    (current.type ?? "").trim() === (next.type ?? "").trim() &&
     current.priority === next.priority &&
     semanticTermListsEqual(current.xTerms, next.xTerms) &&
     semanticTermListsEqual(current.yTerms, next.yTerms);
@@ -1851,7 +1851,7 @@ const toTemplateRuleView = (
 ): TemplateRuleView => ({
   id: rule.id,
   title: rule.label,
-  ...(rule.badge ? { badge: rule.badge } : {}),
+  ...(rule.type ? { type: rule.type } : {}),
   priority: rule.priority,
   xTerms: rule.xTerms,
   yTerms: rule.yTerms,
@@ -1867,7 +1867,7 @@ function createTemplateSemanticPatchesForDraft({
   readonly draft: {
     readonly ruleId: string;
     readonly title: string;
-    readonly badge: string;
+    readonly type: string;
     readonly source: "builtin" | "custom" | "draft";
     readonly xTerms: readonly string[];
     readonly yTerms: readonly string[];
@@ -1883,7 +1883,7 @@ function createTemplateSemanticPatchesForDraft({
     id: draft.ruleId,
     label: draft.title,
     priority,
-    ...(draft.badge ? { badge: draft.badge } : {}),
+    ...(draft.type ? { type: draft.type } : {}),
     enabled: true,
     xKeys: {
       addKeys: xKeys.filter(key => !baseXKeys.includes(key)),

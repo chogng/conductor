@@ -6,7 +6,7 @@
       "label": "transient",
       "description": "Cut time sweep columns with bound voltage or current waveform columns.",
       "priority": 30,
-      "badge": "transient",
+      "type": "transient",
       "columns": {
         "x": [
           {

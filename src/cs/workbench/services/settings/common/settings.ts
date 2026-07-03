@@ -55,7 +55,7 @@ export type TemplateSemanticRulePatch = {
   readonly label?: string;
   readonly description?: string;
   readonly priority?: number;
-  readonly badge?: string;
+  readonly type?: string;
   readonly enabled?: boolean;
   readonly xKeys?: TemplateSemanticRuleAxisPatch;
   readonly yKeys?: TemplateSemanticRuleAxisPatch;
@@ -227,7 +227,7 @@ const normalizeTemplateSemanticRulePatches = (
     seenIds.add(id);
     const label = typeof record.label === "string" ? record.label.trim() : "";
     const description = typeof record.description === "string" ? record.description.trim() : "";
-    const badge = typeof record.badge === "string" ? record.badge.trim() : "";
+    const type = typeof record.type === "string" ? record.type.trim() : "";
     const priority = typeof record.priority === "number" && Number.isFinite(record.priority)
       ? record.priority
       : undefined;
@@ -236,7 +236,7 @@ const normalizeTemplateSemanticRulePatches = (
       ...(label ? { label } : {}),
       ...(description ? { description } : {}),
       ...(priority !== undefined ? { priority } : {}),
-      ...(badge ? { badge } : {}),
+      ...(type ? { type } : {}),
       ...(typeof record.enabled === "boolean" ? { enabled: record.enabled } : {}),
       ...(normalizeTemplateSemanticAxisPatch(record.xKeys) ? { xKeys: normalizeTemplateSemanticAxisPatch(record.xKeys) } : {}),
       ...(normalizeTemplateSemanticAxisPatch(record.yKeys) ? { yKeys: normalizeTemplateSemanticAxisPatch(record.yKeys) } : {}),

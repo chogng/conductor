@@ -450,14 +450,14 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(inputGrid.querySelectorAll(".settings-template-semantic-rule-input").length, 2);
       assert.deepEqual(
         Array.from(leadingGrid.querySelectorAll<HTMLInputElement>("input")).map(input => input.placeholder),
-        [
-          "Domain scope, for example iv",
-          "Definition, for example transfer",
-        ],
-      );
-      assert.ok(leadingGrid.querySelector(".settings-template-semantic-rule-actionbar .actionbaritem-delete"));
-      assert.equal(getSemanticRuleInput(draftItem, "Domain scope, for example iv").value, "");
-      assert.equal(getSemanticRuleInput(draftItem, "Definition, for example transfer").value, "");
+	        [
+	          "Domain scope, for example iv",
+	          "Type, for example transfer",
+	        ],
+	      );
+	      assert.ok(leadingGrid.querySelector(".settings-template-semantic-rule-actionbar .actionbaritem-delete"));
+	      assert.equal(getSemanticRuleInput(draftItem, "Domain scope, for example iv").value, "");
+	      assert.equal(getSemanticRuleInput(draftItem, "Type, for example transfer").value, "");
       assert.equal(getSemanticRuleInput(draftItem, "X representative").value, "");
       assert.equal(getSemanticRuleInput(draftItem, "Y representative").value, "");
       assert.equal(getSemanticRuleSourceText(draftItem), "User");

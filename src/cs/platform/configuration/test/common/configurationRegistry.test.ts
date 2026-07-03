@@ -113,7 +113,7 @@ suite("platform/configuration/common/configurationRegistry", () => {
           label: " Drive ",
           description: " Demo ",
           priority: 0,
-          badge: " transfer ",
+          type: " transfer ",
           enabled: true,
           xKeys: {
             addKeys: [" Drive-Bias "],
@@ -139,7 +139,7 @@ suite("platform/configuration/common/configurationRegistry", () => {
         label: "Drive",
         description: "Demo",
         priority: 0,
-        badge: "transfer",
+        type: "transfer",
         enabled: true,
         xKeys: {
           addKeys: ["drivebias"],

@@ -6,7 +6,7 @@
       "label": "pv",
       "description": "Cut voltage or time columns with bound current response columns.",
       "priority": 40,
-      "badge": "pv",
+      "type": "pv",
       "columns": {
         "x": [
           {

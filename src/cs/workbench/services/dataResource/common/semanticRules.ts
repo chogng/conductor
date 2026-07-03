@@ -36,7 +36,7 @@ export type SemanticTitleMatch = {
 export type SemanticTitleRuleMatch = {
 	readonly id: string;
 	readonly label: string;
-	readonly badge?: string;
+	readonly type?: string;
 	readonly axisTendency: StructuredAxisTendency;
 	readonly priority: number;
 	readonly priorityIndex: number;
@@ -50,7 +50,7 @@ export type SemanticRule = {
 	readonly label: string;
 	readonly description?: string;
 	readonly priority: number;
-	readonly badge?: string;
+	readonly type?: string;
 	readonly xTerms: readonly string[];
 	readonly yTerms: readonly string[];
 	readonly enabled: boolean;
@@ -81,7 +81,7 @@ type RuleRecord = {
 	readonly label: string;
 	readonly description?: string;
 	readonly priority: number;
-	readonly badge?: string;
+	readonly type?: string;
 	readonly columns: {
 		readonly x: readonly RuleColumnRecord[];
 		readonly y: readonly RuleColumnRecord[];
@@ -208,7 +208,7 @@ export function createSemanticMatcher(
 			id: rule.id,
 			label: rule.label,
 			priority: rule.priority,
-			badge: rule.badge,
+			type: rule.type,
 			enabled: rule.enabled,
 			xTerms: rule.xTerms,
 			yTerms: rule.yTerms,
@@ -362,7 +362,7 @@ function toBuiltinRule(
 		label: rule.label.trim(),
 		description: normalizeText(rule.description),
 		priority: rule.priority,
-		...(normalizeText(rule.badge) ? { badge: normalizeText(rule.badge) } : {}),
+		...(normalizeText(rule.type) ? { type: normalizeText(rule.type) } : {}),
 		xTerms: flattenRuleTerms(rule.columns.x),
 		yTerms: flattenRuleTerms(rule.columns.y),
 		enabled: true,
@@ -453,7 +453,7 @@ function createEffectiveRules(
 			label: rule.label,
 			...(rule.description ? { description: rule.description } : {}),
 			priority: rule.priority,
-			...(rule.badge ? { badge: rule.badge } : {}),
+			...(rule.type ? { type: rule.type } : {}),
 			enabled: rule.enabled,
 			source: "builtin",
 			xKeys: termsToKeys(rule.xTerms),
@@ -557,7 +557,7 @@ function createUserRuleState(
 		label: patch.label?.trim() ?? patch.id,
 		...(patch.description ? { description: patch.description } : {}),
 		priority: Number.isFinite(patch.priority) ? Number(patch.priority) : 0,
-		...(patch.badge ? { badge: patch.badge } : {}),
+		...(patch.type ? { type: patch.type } : {}),
 		enabled: patch.enabled !== false,
 		source: "user",
 		xKeys: [],
@@ -574,7 +574,7 @@ function applyRulePatch(
 		...(patch.label ? { label: patch.label } : {}),
 		...(patch.description ? { description: patch.description } : {}),
 		...(Number.isFinite(patch.priority) ? { priority: Number(patch.priority) } : {}),
-		...(patch.badge ? { badge: patch.badge } : {}),
+		...(patch.type ? { type: patch.type } : {}),
 		...(typeof patch.enabled === "boolean" ? { enabled: patch.enabled } : {}),
 		xKeys: applyRuleAxisPatch(base.xKeys, patch.xKeys),
 		yKeys: applyRuleAxisPatch(base.yKeys, patch.yKeys),
@@ -606,7 +606,7 @@ function toEffectiveRule(
 		label: rule.label,
 		...(rule.description ? { description: rule.description } : {}),
 		priority: rule.priority,
-		...(rule.badge ? { badge: rule.badge } : {}),
+		...(rule.type ? { type: rule.type } : {}),
 		enabled: rule.enabled,
 		source: rule.source,
 		xTerms: keysToAliases(rule.xKeys, termIndex),
@@ -681,7 +681,7 @@ function addRuleTitleTerms(
 	const ruleMatch: SemanticTitleRuleMatch = {
 		id: rule.id,
 		label: rule.label,
-		...(rule.badge ? { badge: rule.badge } : {}),
+		...(rule.type ? { type: rule.type } : {}),
 		axisTendency,
 		priority: rule.priority,
 		priorityIndex,

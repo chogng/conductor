@@ -198,11 +198,11 @@ type ColumnTitleSpanEvidence = {
   readonly normalizedTitle: string;
   readonly canonicalRole: "unknown";
   readonly axisTendency: "x" | "dependent" | "unknown";
-  readonly semanticRules: readonly {
-    readonly id: string;
-    readonly label: string;
-    readonly badge?: string;
-    readonly axisTendency: "x" | "dependent" | "unknown";
+	readonly semanticRules: readonly {
+	  readonly id: string;
+	  readonly label: string;
+	  readonly type?: string;
+	  readonly axisTendency: "x" | "dependent" | "unknown";
     readonly priority: number;
     readonly priorityIndex: number;
     readonly source: "builtin" | "user";
@@ -406,10 +406,10 @@ judgements:
 
 ```txt
 Vg / Vgs / Gate Voltage
-  -> rule evidence: axisTendency x, badge transfer
+  -> rule evidence: axisTendency x, type transfer
 
 Vd / Vds / Drain Voltage
-  -> rule evidence: axisTendency x, badge output
+  -> rule evidence: axisTendency x, type output
 
 Id / Ids / Drain Current
   -> rule evidence: axisTendency dependent
@@ -606,7 +606,7 @@ Review should consume the evidence and decide:
 Review can use:
 
 - binding confidence from `DataResource`;
-- rule evidence, badge, and axis tendency from ColumnTitleSpanEvidence;
+- rule evidence, type, and axis tendency from ColumnTitleSpanEvidence;
 - semantic rules fingerprint / evidence fingerprint;
 - parser diagnostics;
 - ambiguity codes;
