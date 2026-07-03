@@ -887,6 +887,19 @@ function createConductorConfigurationProperties(): Record<string, IConfiguration
     enumItemLabels: ["raw", "smart"],
   };
 
+  properties.originPlotLegendFontSizeDefault = {
+    ...properties.originPlotLegendFontSizeDefault,
+    type: ["string", "number"],
+  };
+
+  properties.originPlotPostCommandsDefault = {
+    ...properties.originPlotPostCommandsDefault,
+    type: ["array", "string"],
+    items: {
+      type: "string",
+    },
+  };
+
   properties.templateSemanticPatches = {
     ...properties.templateSemanticPatches,
     additionalProperties: false,

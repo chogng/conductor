@@ -176,6 +176,9 @@ export class DiskFileSystemProvider {
     const targetStat = this.tryStat(target);
     const watchDirectory = targetStat?.isDirectory() === true ? target : path.dirname(target);
     const watchedFilePath = targetStat?.isDirectory() === true ? null : target;
+    if (watchedFilePath) {
+      fs.mkdirSync(watchDirectory, { recursive: true });
+    }
     const store = new DisposableStore();
     const watcher = fs.watch(
       watchDirectory,

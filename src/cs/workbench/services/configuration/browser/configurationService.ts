@@ -19,9 +19,13 @@ export class BrowserConfigurationService extends ConfigurationService implements
 		super();
 	}
 
-	public async whenRemoteConfigurationLoaded(): Promise<void> {}
+	public async whenRemoteConfigurationLoaded(): Promise<void> {
+		await this.initialize(undefined);
+	}
 
-	public override async initialize(_arg?: unknown): Promise<void> {}
+	public override async initialize(_arg?: unknown): Promise<void> {
+		await super.initialize();
+	}
 
 	public isSettingAppliedForAllProfiles(_setting: string): boolean {
 		return false;

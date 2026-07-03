@@ -29,12 +29,16 @@ import {
 	type RestrictedSettings,
 } from "src/cs/workbench/services/configuration/common/configuration";
 
+let configurationUpdateSourceId = 0;
+
 export class ElectronBrowserConfigurationService extends ConfigurationService implements IWorkbenchConfigurationService {
 	public readonly restrictedSettings: RestrictedSettings = NO_RESTRICTED_SETTINGS;
 	public readonly onDidChangeRestrictedSettings = onDidChangeRestrictedSettingsNone;
 
 	private readonly configurationChannelClient: ConfigurationChannelClient;
 	private readonly userConfiguration: Promise<UserConfiguration>;
+	private readonly configurationUpdateSource = `electron-browser:${++configurationUpdateSourceId}`;
+	private readonly remoteConfigurationLoaded: Promise<void>;
 
 	public constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -48,6 +52,10 @@ export class ElectronBrowserConfigurationService extends ConfigurationService im
 		);
 		this.userConfiguration = this.createUserConfiguration();
 		this._register(this.configurationChannelClient.onDidChangeConfiguration(event => {
+			if (event.requestSource === this.configurationUpdateSource) {
+				return;
+			}
+
 			if (
 				event.source !== ConfigurationTarget.USER
 				&& event.source !== ConfigurationTarget.USER_LOCAL
@@ -59,9 +67,11 @@ export class ElectronBrowserConfigurationService extends ConfigurationService im
 				console.error("Failed to reload user settings.", error);
 			});
 		}));
-		void this.reloadConfiguration().catch(error => {
+		this.remoteConfigurationLoaded = this.reloadConfiguration().catch(error => {
 			console.error("Failed to load user settings.", error);
+			throw error;
 		});
+		void this.remoteConfigurationLoaded.catch(() => undefined);
 	}
 
 	public override async reloadConfiguration(): Promise<void> {
@@ -92,12 +102,19 @@ export class ElectronBrowserConfigurationService extends ConfigurationService im
 			return;
 		}
 
-		await this.configurationChannelClient.updateUserConfiguration(model.toRaw());
+		await this.configurationChannelClient.updateUserConfiguration(
+			model.toRaw(),
+			this.configurationUpdateSource,
+		);
 	}
 
-	public async whenRemoteConfigurationLoaded(): Promise<void> {}
+	public async whenRemoteConfigurationLoaded(): Promise<void> {
+		await this.remoteConfigurationLoaded;
+	}
 
-	public override async initialize(_arg?: unknown): Promise<void> {}
+	public override async initialize(_arg?: unknown): Promise<void> {
+		await this.whenRemoteConfigurationLoaded();
+	}
 
 	public isSettingAppliedForAllProfiles(_setting: string): boolean {
 		return false;

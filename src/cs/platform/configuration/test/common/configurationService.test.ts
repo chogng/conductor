@@ -73,17 +73,24 @@ class TestFileSystemProvider implements IFileSystemProvider {
 }
 
 function createFileBackedConfigurationService(userDataPath: string, store: Pick<DisposableStore, "add">): {
+  readonly fileService: FileService;
   readonly service: ConfigurationService;
+  readonly settingsResource: URI;
   readonly settingsPath: string;
 } {
   const settingsPath = path.join(userDataPath, "User", "settings.json");
+  const settingsResource = URI.file(settingsPath);
   const fileService = store.add(new FileService());
   store.add(fileService.registerProvider("file", new TestFileSystemProvider(new DiskFileSystemProvider())));
   return {
-    service: new ConfigurationService(URI.file(settingsPath), fileService),
+    fileService,
+    service: new ConfigurationService(settingsResource, fileService),
+    settingsResource,
     settingsPath,
   };
 }
+
+const waitForConfigurationScheduler = () => new Promise(resolve => setTimeout(resolve, 80));
 
 suite("platform/configuration/common/configurationService", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -160,6 +167,17 @@ suite("platform/configuration/common/configurationService", () => {
     service.dispose();
   });
 
+  test("rejects non-user configuration update targets", async () => {
+    const service = new ConfigurationService();
+
+    await assert.rejects(
+      () => service.updateValue("theme", "dark", ConfigurationTarget.WORKSPACE),
+      /Unable to write theme to target/,
+    );
+
+    service.dispose();
+  });
+
   test("updates override values", async () => {
     const service = new ConfigurationService();
 
@@ -209,6 +227,27 @@ suite("platform/configuration/common/configurationService", () => {
     service.dispose();
   });
 
+  test("file backed service reloads when user settings change on disk", async () => {
+    const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-main-config-test-"));
+    const { fileService, service, settingsResource } = createFileBackedConfigurationService(userDataPath, store);
+    await service.initialize();
+
+    const change = new Promise<IConfigurationChangeEvent>(resolve => {
+      let disposable: IDisposable | undefined;
+      disposable = service.onDidChangeConfiguration(event => {
+        disposable?.dispose();
+        resolve(event);
+      });
+    });
+    await fileService.writeFile(settingsResource, "{ \"theme\": \"dark\" }\n");
+    const event = await change;
+
+    assert.equal(service.getValue("theme"), "dark");
+    assert.equal(event.affectsConfiguration("theme"), true);
+
+    service.dispose();
+  });
+
   test("file backed service reads JSONC user settings", async () => {
     const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-main-config-test-"));
     const { service, settingsPath } = createFileBackedConfigurationService(userDataPath, store);
@@ -227,7 +266,7 @@ suite("platform/configuration/common/configurationService", () => {
     service.dispose();
   });
 
-  test("file backed service falls back to defaults for unreadable user settings", async () => {
+  test("file backed service reads defaults when initial user settings are invalid", async () => {
     const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-main-config-test-"));
     const { service, settingsPath } = createFileBackedConfigurationService(userDataPath, store);
     fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
@@ -237,6 +276,43 @@ suite("platform/configuration/common/configurationService", () => {
 
     assert.equal(service.getValue("theme"), "system");
 
+    service.dispose();
+  });
+
+  test("file backed service keeps last valid user settings when JSONC is invalid", async () => {
+    const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-main-config-test-"));
+    const { fileService, service, settingsResource } = createFileBackedConfigurationService(userDataPath, store);
+    await service.initialize();
+    await fileService.writeFile(settingsResource, "{ \"theme\": \"dark\" }\n");
+    await waitForConfigurationScheduler();
+    assert.equal(service.getValue("theme"), "dark");
+
+    const events: IConfigurationChangeEvent[] = [];
+    const disposable = service.onDidChangeConfiguration(event => events.push(event));
+    await fileService.writeFile(settingsResource, "{");
+    await waitForConfigurationScheduler();
+
+    assert.equal(service.getValue("theme"), "dark");
+    assert.equal(events.length, 0);
+
+    disposable.dispose();
+    service.dispose();
+  });
+
+  test("file backed service does not reload from its own writes", async () => {
+    const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-main-config-test-"));
+    const { service } = createFileBackedConfigurationService(userDataPath, store);
+    await service.initialize();
+    const events: IConfigurationChangeEvent[] = [];
+    const disposable = service.onDidChangeConfiguration(event => events.push(event));
+
+    await service.updateValue("theme", "dark", ConfigurationTarget.USER);
+    await waitForConfigurationScheduler();
+
+    assert.equal(service.getValue("theme"), "dark");
+    assert.equal(events.length, 1);
+
+    disposable.dispose();
     service.dispose();
   });
 });

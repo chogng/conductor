@@ -37,6 +37,8 @@ suite("platform/configuration/common/configurationRegistry", () => {
     assert.equal(properties["tableAutoFitColumnWidthsEnabled"].type, "boolean");
     assert.equal(properties["tableTemplateVisualizationEnabled"].default, false);
     assert.equal(properties["tableTemplateVisualizationEnabled"].type, "boolean");
+    assert.deepEqual(properties["originPlotLegendFontSizeDefault"].type, ["string", "number"]);
+    assert.deepEqual(properties["originPlotPostCommandsDefault"].type, ["array", "string"]);
     assert.equal(properties["plotAxisSettings"].type, "object");
     assert.equal(CONDUCTOR_CONFIGURATION_KEYS.includes("fileNameFieldSeparators"), false);
     assert.equal(CONDUCTOR_CONFIGURATION_KEYS.includes("templateDisabledBuiltinDomainPackIds"), false);

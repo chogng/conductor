@@ -1,7 +1,9 @@
 import { Emitter } from "../../../base/common/event.js";
+import { RunOnceScheduler } from "../../../base/common/async.js";
 import { isObjectRecord } from "../../../base/common/json.js";
 import { parse as parseJsonc } from "../../../base/common/jsonc.js";
 import { Disposable } from "../../../base/common/lifecycle.js";
+import { isEqual as isEqualResource } from "../../../base/common/resources.js";
 import type { URI } from "../../../base/common/uri.js";
 import {
   ConfigurationTarget,
@@ -24,8 +26,9 @@ import {
 import {
   Extensions,
   type IConfigurationRegistry,
+  type IRegisteredConfigurationPropertySchema,
 } from "./configurationRegistry.js";
-import type { IFileService } from "../../files/common/files.js";
+import type { IFileChange, IFileService } from "../../files/common/files.js";
 import { Registry } from "../../registry/common/platform.js";
 
 export class ConfigurationService extends Disposable implements IConfigurationService {
@@ -35,6 +38,11 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
   protected configuration = this.createConfiguration();
   protected readonly onDidChangeConfigurationEmitter =
     this._register(new Emitter<IConfigurationChangeEvent>());
+  private readonly reloadUserConfigurationScheduler?: RunOnceScheduler;
+  private initializePromise: Promise<void> | undefined;
+  private hasLoadedUserConfiguration = false;
+  private isWritingUserConfiguration = false;
+  private userConfigurationParseError: unknown = null;
 
   public readonly onDidChangeConfiguration = this.onDidChangeConfigurationEmitter.event;
 
@@ -43,6 +51,26 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
     private readonly userSettingsFileService?: IFileService,
   ) {
     super();
+    if (this.userSettingsResource && this.userSettingsFileService) {
+      this.reloadUserConfigurationScheduler = this._register(new RunOnceScheduler(() => {
+        void this.reloadConfiguration().catch(error => {
+          console.error("Failed to reload user settings.", error);
+        });
+      }, 50));
+      this._register(this.userSettingsFileService.watch(this.userSettingsResource));
+      this._register(this.userSettingsFileService.onDidFilesChange(changes => {
+        if (!this.affectsUserSettingsResource(changes)) {
+          return;
+        }
+
+        if (this.isWritingUserConfiguration) {
+          return;
+        }
+
+        this.reloadUserConfigurationScheduler?.schedule();
+      }));
+    }
+
     this._register(this.registry.onDidUpdateConfiguration(() => {
       const previous = Configuration.parse(this.configuration.toData());
       const defaults = this.createDefaultConfigurationModel();
@@ -61,7 +89,11 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
   }
 
   public async initialize(_arg?: unknown): Promise<void> {
-    await this.reloadConfiguration();
+    this.initializePromise ??= this.reloadConfiguration().catch(error => {
+      this.initializePromise = undefined;
+      throw error;
+    });
+    await this.initializePromise;
   }
 
   public getConfigurationData(): IConfigurationData {
@@ -108,16 +140,18 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
     _options?: IConfigurationUpdateOptions,
   ): Promise<void> {
     const target = typeof arg3 === "number" ? arg3 : arg4 ?? ConfigurationTarget.USER;
+    this.validateWritableTarget(key, target);
     const overrides = this.resolveUpdateOverrides(arg3);
+    const validatedValue = this.validateAndNormalizeUpdateValue(key, value, overrides);
     const previous = Configuration.parse(this.configuration.toData());
     const model = this.getModelForTarget(target).merge();
 
     if (overrides.overrideIdentifiers?.length) {
-      this.updateOverrideValue(model, overrides.overrideIdentifiers, key, value);
-    } else if (value === undefined) {
+      this.updateOverrideValue(model, overrides.overrideIdentifiers, key, validatedValue);
+    } else if (validatedValue === undefined) {
       model.removeValue(key);
     } else {
-      model.setValue(key, value);
+      model.setValue(key, validatedValue);
     }
 
     await this.writeConfigurationForTarget(target, model);
@@ -131,6 +165,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
   public async updateUserConfiguration(raw: Record<string, unknown>): Promise<void> {
     const previous = Configuration.parse(this.configuration.toData());
     const model = parseConfigurationModel(raw);
+    this.validateConfigurationModel(model);
 
     await this.writeConfigurationForTarget(ConfigurationTarget.USER, model);
 
@@ -163,6 +198,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
     if (userChange.keys.length || userChange.overrides.length) {
       this.fireDidChangeConfiguration(userChange, previous, ConfigurationTarget.USER);
     }
+    this.hasLoadedUserConfiguration = true;
   }
 
   public keys(): {
@@ -203,7 +239,10 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
     value: ConfigurationTarget | IConfigurationOverrides | IConfigurationUpdateOverrides | undefined,
   ): IConfigurationUpdateOverrides {
     if (isConfigurationUpdateOverrides(value)) {
-      return value;
+      return {
+        resource: value.resource,
+        overrideIdentifiers: this.normalizeOverrideIdentifiers(value.overrideIdentifiers),
+      };
     }
 
     if (isConfigurationOverrides(value)) {
@@ -267,10 +306,16 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
       return;
     }
 
-    await this.userSettingsFileService.writeFile(
-      this.userSettingsResource,
-      `${JSON.stringify(model.toRaw(), null, 2)}\n`,
-    );
+    const wasWriting = this.isWritingUserConfiguration;
+    this.isWritingUserConfiguration = true;
+    try {
+      await this.userSettingsFileService.writeFile(
+        this.userSettingsResource,
+        `${JSON.stringify(model.toRaw(), null, 2)}\n`,
+      );
+    } finally {
+      this.isWritingUserConfiguration = wasWriting;
+    }
   }
 
   protected fireDidChangeConfiguration(
@@ -296,12 +341,160 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
     }
   }
 
+  private affectsUserSettingsResource(changes: readonly IFileChange[]): boolean {
+    if (!this.userSettingsResource) {
+      return false;
+    }
+
+    return changes.some(change => isEqualResource(change.resource, this.userSettingsResource));
+  }
+
+  private validateWritableTarget(key: string, target: ConfigurationTarget): void {
+    if (target === ConfigurationTarget.USER || target === ConfigurationTarget.USER_LOCAL) {
+      return;
+    }
+
+    throw new Error(`Unable to write ${key} to target ${target}.`);
+  }
+
+  private validateAndNormalizeUpdateValue(
+    key: string,
+    value: unknown,
+    overrides: IConfigurationUpdateOverrides,
+  ): unknown {
+    this.validateConfigurationValue(key, value);
+    const inspect = this.inspect(key, {
+      resource: overrides.resource,
+      overrideIdentifier: overrides.overrideIdentifiers?.[0],
+    });
+
+    return this.configurationValuesEqual(value, inspect.defaultValue)
+      ? undefined
+      : value;
+  }
+
+  private validateConfigurationModel(model: ConfigurationModel): void {
+    for (const key of model.keys) {
+      this.validateConfigurationValue(key, model.getValue(key));
+    }
+
+    for (const override of model.overrides) {
+      const overrideModel = new ConfigurationModel(
+        override.contents,
+        [...override.keys],
+        [],
+      );
+      for (const key of override.keys) {
+        this.validateConfigurationValue(key, overrideModel.getValue(key));
+      }
+    }
+  }
+
+  private validateConfigurationValue(key: string, value: unknown): void {
+    if (value === undefined) {
+      return;
+    }
+
+    const schema = this.registry.getConfigurationProperties()[key];
+    if (!schema) {
+      return;
+    }
+
+    if (schema.enum?.length && !schema.enum.some(item => this.configurationValuesEqual(item, value))) {
+      throw new Error(`Invalid value for configuration '${key}'.`);
+    }
+
+    if (schema.type && !this.matchesConfigurationSchemaType(value, schema)) {
+      throw new Error(`Invalid type for configuration '${key}'.`);
+    }
+  }
+
+  private matchesConfigurationSchemaType(
+    value: unknown,
+    schema: IRegisteredConfigurationPropertySchema,
+  ): boolean {
+    const types = Array.isArray(schema.type) ? schema.type : [schema.type];
+    return types.some(type => {
+      switch (type) {
+        case "array":
+          return Array.isArray(value);
+        case "boolean":
+          return typeof value === "boolean";
+        case "integer":
+          return Number.isInteger(value);
+        case "null":
+          return value === null;
+        case "number":
+          return typeof value === "number" && Number.isFinite(value);
+        case "object":
+          return isObjectRecord(value);
+        case "string":
+          return typeof value === "string";
+        default:
+          return false;
+      }
+    });
+  }
+
+  private normalizeOverrideIdentifiers(
+    overrideIdentifiers: readonly string[] | null | undefined,
+  ): string[] | undefined {
+    if (!overrideIdentifiers?.length) {
+      return undefined;
+    }
+
+    const normalized: string[] = [];
+    for (const identifier of overrideIdentifiers) {
+      if (!normalized.includes(identifier)) {
+        normalized.push(identifier);
+      }
+    }
+
+    return normalized.length ? normalized : undefined;
+  }
+
+  private configurationValuesEqual(left: unknown, right: unknown): boolean {
+    if (Object.is(left, right)) {
+      return true;
+    }
+
+    if (Array.isArray(left) && Array.isArray(right)) {
+      return left.length === right.length
+        && left.every((value, index) => this.configurationValuesEqual(value, right[index]));
+    }
+
+    if (isObjectRecord(left) && isObjectRecord(right)) {
+      const leftKeys = Object.keys(left);
+      const rightKeys = Object.keys(right);
+      return leftKeys.length === rightKeys.length
+        && leftKeys.every(key => this.configurationValuesEqual(left[key], right[key]));
+    }
+
+    return false;
+  }
+
+  private getLastValidUserConfiguration(): ConfigurationModel {
+    return this.hasLoadedUserConfiguration
+      ? ConfigurationModel.from(this.configuration.toData().userLocal)
+      : ConfigurationModel.createEmptyModel();
+  }
+
+  private recordUserConfigurationParseError(error: unknown): void {
+    this.userConfigurationParseError = error;
+    console.error("Failed to parse user settings; keeping the last valid configuration.", error);
+  }
+
+  protected getUserConfigurationParseError(): unknown {
+    return this.userConfigurationParseError;
+  }
+
   private async readUserConfiguration(): Promise<ConfigurationModel> {
     if (!this.userSettingsResource || !this.userSettingsFileService) {
       return ConfigurationModel.createEmptyModel();
     }
 
     if (!await this.userSettingsFileService.exists(this.userSettingsResource)) {
+      this.userConfigurationParseError = null;
       return ConfigurationModel.createEmptyModel();
     }
 
@@ -309,12 +502,16 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
       const content = await this.userSettingsFileService.readFile(this.userSettingsResource);
       const raw = parseJsonc(new TextDecoder().decode(content.value) || "{}");
       if (!isObjectRecord(raw)) {
-        return ConfigurationModel.createEmptyModel();
+        throw new Error(`User settings must be a JSON object: ${this.userSettingsResource.toString()}`);
       }
 
-      return parseConfigurationModel(raw);
-    } catch {
-      return ConfigurationModel.createEmptyModel();
+      const model = parseConfigurationModel(raw);
+      this.validateConfigurationModel(model);
+      this.userConfigurationParseError = null;
+      return model;
+    } catch (error) {
+      this.recordUserConfigurationParseError(error);
+      return this.getLastValidUserConfiguration();
     }
   }
 }

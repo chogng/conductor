@@ -12,6 +12,8 @@ import {
 import { IFileService } from "src/cs/platform/files/common/files";
 
 export class UserConfiguration {
+	private lastValidConfiguration = ConfigurationModel.createEmptyModel();
+
 	public constructor(
 		private readonly settingsResource: URI,
 		private readonly fileService: IFileService,
@@ -27,16 +29,23 @@ export class UserConfiguration {
 
 	public async loadConfiguration(): Promise<ConfigurationModel> {
 		if (!await this.fileService.exists(this.settingsResource)) {
-			return ConfigurationModel.createEmptyModel();
+			this.lastValidConfiguration = ConfigurationModel.createEmptyModel();
+			return this.lastValidConfiguration;
 		}
 
-		const content = await this.fileService.readFile(this.settingsResource);
-		const raw = parseJsonc(new TextDecoder().decode(content.value) || "{}");
-		if (!isObjectRecord(raw)) {
-			throw new Error(`User settings must be a JSON object: ${this.settingsResource.toString()}`);
-		}
+		try {
+			const content = await this.fileService.readFile(this.settingsResource);
+			const raw = parseJsonc(new TextDecoder().decode(content.value) || "{}");
+			if (!isObjectRecord(raw)) {
+				throw new Error(`User settings must be a JSON object: ${this.settingsResource.toString()}`);
+			}
 
-		return parseConfigurationModel(raw);
+			this.lastValidConfiguration = parseConfigurationModel(raw);
+			return this.lastValidConfiguration;
+		} catch (error) {
+			console.error("Failed to parse user settings; keeping the last valid renderer configuration.", error);
+			return this.lastValidConfiguration;
+		}
 	}
 
 	public async writeConfiguration(model: ConfigurationModel): Promise<void> {

@@ -46,6 +46,7 @@ class MemoryFileService implements IFileService {
 	public declare readonly _serviceBrand: undefined;
 
 	private readonly files = new Map<string, string>();
+	private readonly readCounts = new Map<string, number>();
 	private readonly onDidFilesChangeEmitter = new Emitter<readonly IFileChange[]>();
 	public readonly onDidFilesChange = this.onDidFilesChangeEmitter.event;
 	public readonly onDidChangeFileSystemProviderCapabilities =
@@ -59,6 +60,14 @@ class MemoryFileService implements IFileService {
 
 	public setContent(resource: URI, content: string): void {
 		this.files.set(URI.revive(resource).toString(), content);
+	}
+
+	public getReadCount(resource: URI): number {
+		return this.readCounts.get(URI.revive(resource).toString()) ?? 0;
+	}
+
+	public resetReadCount(resource: URI): void {
+		this.readCounts.set(URI.revive(resource).toString(), 0);
 	}
 
 	public registerProvider(): IDisposable {
@@ -101,8 +110,10 @@ class MemoryFileService implements IFileService {
 	}
 
 	public async readFile(resource: URI, _options?: IReadFileOptions): Promise<IFileContent> {
+		const key = URI.revive(resource).toString();
+		this.readCounts.set(key, (this.readCounts.get(key) ?? 0) + 1);
 		return {
-			value: new TextEncoder().encode(this.files.get(URI.revive(resource).toString()) ?? ""),
+			value: new TextEncoder().encode(this.files.get(key) ?? ""),
 		};
 	}
 
@@ -144,6 +155,8 @@ class MemoryFileService implements IFileService {
 		return toDisposable(() => undefined);
 	}
 }
+
+const waitForConfigurationScheduler = () => new Promise(resolve => setTimeout(resolve, 80));
 
 class TestNativeHostService implements INativeHostService {
 	public declare readonly _serviceBrand: undefined;
@@ -259,6 +272,33 @@ suite("workbench/services/configuration/electron-browser/configurationService", 
 			files.getWrittenContent(settingsResource),
 			"{\n  \"editor.tabSize\": 2\n}\n",
 		);
+		service.dispose();
+		mainConfigurationService.dispose();
+	});
+
+	test("skips renderer reload for renderer-originated user settings IPC updates", async () => {
+		const userDataPath = "C:\\Users\\lanxi\\AppData\\Roaming\\Conductor Studio";
+		const settingsResource = getUserSettingsResource(userDataPath);
+		const files = new MemoryFileService();
+		files.setContent(settingsResource, "{ \"theme\": \"system\" }");
+		const mainConfigurationService = new ConfigurationService(settingsResource, files);
+		await mainConfigurationService.initialize();
+
+		const service = new ElectronBrowserConfigurationService(
+			files,
+			new TestNativeHostService(userDataPath),
+			new TestMainProcessService(mainConfigurationService),
+		);
+		await service.initialize(undefined);
+		files.resetReadCount(settingsResource);
+
+		await service.updateValue("theme", "dark", ConfigurationTarget.USER);
+		await waitForConfigurationScheduler();
+
+		assert.equal(service.getValue("theme"), "dark");
+		assert.equal(mainConfigurationService.getValue("theme"), "dark");
+		assert.equal(files.getReadCount(settingsResource), 0);
+
 		service.dispose();
 		mainConfigurationService.dispose();
 	});
