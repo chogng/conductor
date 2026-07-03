@@ -33,13 +33,16 @@ per file:
 ```txt
 cell kind classification
   -> numeric runs
+  -> repeated XY header interpretation (axis suffix, continuous semantic keyword matches, legend labels)
   -> column title spans
   -> selected semantic domain
   -> X range candidates ranked by that domain's intent/role profile
   -> X group / line candidates
   -> data block candidates
+  -> identical-X repeated pair promotion to shared-X blocks
   -> dependent value candidates
   -> binding candidates
+  -> aligned block header row projection
   -> structured measurement blocks
 ```
 

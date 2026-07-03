@@ -28,6 +28,7 @@ export type SemanticTitleMatch = {
 	readonly canonicalRole: StructuredMeasurementColumnRole;
 	readonly axisTendency: StructuredAxisTendency;
 	readonly semanticRules: readonly SemanticTitleRuleMatch[];
+	readonly matchedTermKeys: readonly string[];
 	readonly normalizedTitle: string;
 	readonly confidence: number;
 	readonly reasons: readonly string[];
@@ -754,10 +755,58 @@ const matchSemanticTitleFromTerms = (
 	const titleWithoutAxisMarker = stripAxisMarker(rawText);
 	const key = toSemanticTermKey(titleWithoutAxisMarker);
 	const term = titleTermsByKey.get(key);
-	return term
-		? createSemanticTitleMatch(term, key, axisMarker)
+	if (term) {
+		return createSemanticTitleMatch(term, key, axisMarker);
+	}
+
+	const keywordTerms = matchSemanticTitleKeywordTerms(key, titleTermsByKey);
+	return keywordTerms.length
+		? createSemanticTitleMatch(mergeSemanticTitleKeywordTerms(keywordTerms), key, axisMarker)
 		: null;
 };
+
+const matchSemanticTitleKeywordTerms = (
+	key: string,
+	titleTermsByKey: ReadonlyMap<string, SemanticTitleTerm>,
+): readonly SemanticTitleTerm[] => {
+	if (!key) {
+		return [];
+	}
+	const matches = Array.from(titleTermsByKey.values()).filter(term =>
+		term.key !== key &&
+		isSemanticKeywordTermAllowed(term.key) &&
+		key.includes(term.key)
+	);
+	return matches.filter(term =>
+		!matches.some(candidate =>
+			candidate.key !== term.key &&
+			candidate.key.length > term.key.length &&
+			candidate.key.includes(term.key)
+		)
+	);
+};
+
+const mergeSemanticTitleKeywordTerms = (
+	terms: readonly SemanticTitleTerm[],
+): SemanticTitleTerm => ({
+	key: terms.map(term => term.key).join("+"),
+	aliases: terms.reduce<readonly string[]>(
+		(aliases, term) => mergeUniqueValues(aliases, term.aliases),
+		[],
+	),
+	ruleMatches: mergeRuleMatches([], terms.flatMap(term => term.ruleMatches)),
+});
+
+const isSemanticKeywordTermAllowed = (
+	key: string,
+): boolean =>
+	key.length > 2 ||
+	key === "cv" ||
+	key === "cf" ||
+	key === "gm" ||
+	key === "id" ||
+	key === "vg" ||
+	key === "vd";
 
 const matchSemanticRowMarkerFromTerms = (
 	value: unknown,
@@ -791,6 +840,7 @@ function createSemanticTitleMatch(
 		canonicalRole: "unknown",
 		axisTendency,
 		semanticRules: ruleMatches,
+		matchedTermKeys: term.key.split("+").filter(Boolean),
 		normalizedTitle: key,
 		confidence,
 		reasons,

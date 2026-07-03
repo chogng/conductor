@@ -99,7 +99,12 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			rule.label === "iv output" &&
 			rule.axisTendency === "unknown"
 		));
-		assert.equal(matchSemanticTitle("drain TotalCurrent(IdVg_n938_des) X"), null);
+		const idVgHeaderMatch = matchSemanticTitle("drain TotalCurrent(IdVg_n938_des) X");
+		assert.equal(idVgHeaderMatch?.axisTendency, "x");
+		assert.ok(idVgHeaderMatch?.semanticRules.some(rule =>
+			rule.label === "iv transfer" &&
+			rule.axisTendency === "x"
+		));
 		for (const ambiguousTerm of ["V", "I", "C", "G", "t", "f"]) {
 			assert.equal(matchSemanticTitle(ambiguousTerm), null);
 		}
@@ -504,6 +509,33 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.equal(binding.relation, "oneX-oneY");
 	});
 
+	test("uses numeric cells above shared-X dependent columns as legends", async () => {
+		const evidence = await resolveEvidence([
+			["Vg/Vbg", "-2", "-1", "0", "1", "2"],
+			["-0.5", "6.99798e-25", "9.17778e-24", "1.20448e-22", "1.5787e-21", "2.06466e-20"],
+			["-0.49", "1.02071e-24", "1.32659e-23", "1.72784e-22", "2.26435e-21", "2.96144e-20"],
+			["-0.48", "1.78185e-24", "1.9823e-23", "2.47955e-22", "3.24689e-21", "4.24753e-20"],
+			["-0.47", "2.29694e-24", "2.70037e-23", "3.55605e-22", "4.65956e-21", "6.09296e-20"],
+		]);
+
+		const block = evidence.blocks.find(candidate =>
+			candidate.columns.columns.some(column => column.headerText === "Vg/Vbg") &&
+			candidate.columns.columns.some(column => column.headerText === "-2")
+		);
+		assert.ok(block);
+		assert.deepEqual(
+			block.columns.columns.map(column => column.headerText),
+			["Vg/Vbg", "-2", "-1", "0", "1", "2"],
+		);
+		assert.equal(block.source.headerRange?.startRow, 0);
+		assert.equal(block.family, "iv");
+		assert.equal(block.ivMode, "transfer");
+		assert.ok(evidence.bindingCandidates.some(candidate =>
+			candidate.relation === "oneX-manyY" &&
+			candidate.dataBlockCandidateIds.includes(block.id)
+		));
+	});
+
 	test("uses X evidence for headerless numeric data", async () => {
 		const evidence = await resolveEvidence([
 			["0", "1e-12"],
@@ -579,7 +611,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			));
 	});
 
-	test("detects pairwise XY blocks and many-pair bindings", async () => {
+	test("promotes pairwise XY blocks with identical X values to shared X bindings", async () => {
 		const evidence = await resolveEvidence([
 			[
 				"drain TotalCurrent(IdVg_n938_des) X",
@@ -598,7 +630,124 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.ok(evidence.dataBlockCandidates.some(candidate =>
 			candidate.xColumn === 2 && candidate.dependentColumns.length === 1
 		));
-		assert.ok(evidence.bindingCandidates.some(candidate => candidate.relation === "manyXYpairs"));
+		assert.ok(evidence.dataBlockCandidates.some(candidate =>
+			candidate.xColumn === 0 &&
+			candidate.dependentColumns.join(",") === "1,3" &&
+			candidate.reasons.includes("dataBlock.sharedIdenticalXValues")
+		));
+		assert.equal(evidence.bindingCandidates.some(candidate => candidate.relation === "manyXYpairs"), false);
+		assert.ok(evidence.bindingCandidates.some(candidate => candidate.relation === "oneX-manyY"));
+	});
+
+	test("classifies repeated IdVg XY headers as IV transfer", async () => {
+		const evidence = await resolveEvidence([
+			[
+				"drain TotalCurrent(IdVg_n938_des) X",
+				"drain TotalCurrent(IdVg_n938_des) Y",
+				"drain TotalCurrent(IdVg_n944_des) X",
+				"drain TotalCurrent(IdVg_n944_des) Y",
+			],
+			["-0.5", "2e-23", "-0.5", "2e-22"],
+			["-0.49", "3e-23", "-0.49", "3e-22"],
+			["-0.48", "4e-23", "-0.48", "4e-22"],
+			["-0.47", "6e-23", "-0.47", "6e-22"],
+		]);
+
+		const sharedBlock = evidence.dataBlockCandidates.find(candidate =>
+			candidate.xColumn === 0 &&
+			candidate.dependentColumns.join(",") === "1,3" &&
+			candidate.reasons.includes("dataBlock.sharedIdenticalXValues")
+		);
+		assert.ok(sharedBlock);
+		const measurementBlock = evidence.blocks.find(block => block.id === sharedBlock.id);
+		assert.equal(measurementBlock?.family, "iv");
+		assert.equal(measurementBlock?.ivMode, "transfer");
+		assert.deepEqual(
+			measurementBlock?.columns.columns.map(column => column.headerText),
+			[
+				"drain TotalCurrent(IdVg_n938_des) X",
+				"n938_des",
+				"n944_des",
+			],
+		);
+	});
+
+	test("extracts common CV expression from repeated pairwise XY headers", async () => {
+		const evidence = await resolveEvidence([
+			[
+				"c(g:g)(CV_n256_ac_des) X",
+				"c(g:g)(CV_n256_ac_des) Y",
+				"c(g:g)(CV_n350_ac_des) X",
+				"c(g:g)(CV_n350_ac_des) Y",
+			],
+			["-0.5", "9.84e-16", "-0.5", "9.87e-16"],
+			["0", "1.00e-15", "0", "1.01e-15"],
+			["0.5", "1.20e-15", "0.5", "1.21e-15"],
+			["1", "1.60e-15", "1", "1.61e-15"],
+		]);
+
+		const spansByColumn = new Map(evidence.columnTitleSpans.map(span => [span.targetColumn, span]));
+		assert.equal(spansByColumn.get(0)?.normalizedTitle, "cgg");
+		assert.equal(spansByColumn.get(0)?.axisTendency, "x");
+		assert.equal(spansByColumn.get(0)?.reasons.includes("title.repeatedXYPair.commonSemantic"), true);
+		assert.equal(spansByColumn.get(1)?.normalizedTitle, "cgg");
+		assert.equal(spansByColumn.get(1)?.axisTendency, "dependent");
+		assert.equal(spansByColumn.get(1)?.semanticRules.some(rule =>
+			rule.type === "cv" &&
+			rule.axisTendency === "dependent"
+		), true);
+		const sharedBlock = evidence.dataBlockCandidates.find(candidate =>
+			candidate.xColumn === 0 &&
+			candidate.dependentColumns.join(",") === "1,3" &&
+			candidate.reasons.includes("dataBlock.sharedIdenticalXValues")
+		);
+		assert.ok(sharedBlock);
+		assert.ok(evidence.bindingCandidates.some(candidate =>
+			candidate.relation === "oneX-manyY" &&
+			candidate.dataBlockCandidateIds.includes(sharedBlock.id)
+		));
+		assert.equal(evidence.bindingCandidates.some(candidate => candidate.relation === "manyXYpairs"), false);
+		assert.equal(evidence.blocks.find(block => block.id === sharedBlock.id)?.family, "cv");
+		assert.deepEqual(
+			evidence.blocks.find(block => block.id === sharedBlock.id)?.columns.columns.map(column => column.headerText),
+			[
+				"c(g:g)(CV_n256_ac_des) X",
+				"n256_ac_des",
+				"n350_ac_des",
+			],
+		);
+	});
+
+	test("uses repeated XY legend semantic tokens as measurement evidence", async () => {
+		const evidence = await resolveEvidence([
+			[
+				"metric(CV_n256_ac_des) X",
+				"metric(CV_n256_ac_des) Y",
+				"metric(CV_n350_ac_des) X",
+				"metric(CV_n350_ac_des) Y",
+			],
+			["-0.5", "9.84e-16", "-0.5", "9.87e-16"],
+			["0", "1.00e-15", "0", "1.01e-15"],
+			["0.5", "1.20e-15", "0.5", "1.21e-15"],
+			["1", "1.60e-15", "1", "1.61e-15"],
+		]);
+
+		const sharedBlock = evidence.dataBlockCandidates.find(candidate =>
+			candidate.xColumn === 0 &&
+			candidate.dependentColumns.join(",") === "1,3" &&
+			candidate.reasons.includes("dataBlock.sharedIdenticalXValues")
+		);
+		assert.ok(sharedBlock);
+		const measurementBlock = evidence.blocks.find(block => block.id === sharedBlock.id);
+		assert.equal(measurementBlock?.family, "cv");
+		assert.deepEqual(
+			measurementBlock?.columns.columns.map(column => column.headerText),
+			[
+				"metric(CV_n256_ac_des) X",
+				"n256_ac_des",
+				"n350_ac_des",
+			],
+		);
 	});
 
 	test("detects aligned repeated data blocks", async () => {

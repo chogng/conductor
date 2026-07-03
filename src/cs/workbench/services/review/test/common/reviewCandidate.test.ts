@@ -16,6 +16,7 @@ import {
 import {
 	createEmptyStructuredContentStructure,
 	type StructuredContentEvidence,
+	type StructuredMeasurementColumnRef,
 } from "src/cs/workbench/services/dataResource/common/structuredContent";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import type { Template } from "src/cs/workbench/services/template/common/template";
@@ -82,6 +83,18 @@ suite("workbench/services/review/test/common/reviewCandidate", () => {
 			{ startRow: 3, endRow: 4 },
 		]);
 		assert.equal(candidate.interpretation.blocks[0]?.legend.target, "group");
+	});
+
+	test("uses distinct multi-Y headers as y-column legends", () => {
+		const context = createReviewContext(createReviewEvidence({
+			multiY: true,
+		}));
+		const candidate = deriveDataResourceReviewCandidates({ context })[0];
+
+		assert.ok(candidate);
+		assert.equal(candidate.interpretation.blocks.length, 1);
+		assert.deepEqual(candidate.interpretation.blocks[0]?.y.columns, [1, 2, 3, 4, 5]);
+		assert.equal(candidate.interpretation.blocks[0]?.legend.target, "yColumn");
 	});
 
 	test("keeps compatible user templates as ready review candidates", () => {
@@ -206,166 +219,177 @@ const createUserTemplate = (template: Template): UserTemplate => ({
 });
 
 const createReviewEvidence = (options: {
+	readonly multiY?: boolean;
 	readonly xGroups?: boolean;
 } = {}): ReviewEvidence => ({
 	sourceMetadata: {
 		fileName: "Transfer.csv",
 		rowCount: options.xGroups ? 5 : 4,
-		columnCount: 2,
+		columnCount: options.multiY ? 6 : 2,
 	},
 	structuredContent: createStructuredContentEvidence(options),
 });
 
 const createStructuredContentEvidence = ({
+	multiY = false,
 	xGroups = false,
 }: {
+	readonly multiY?: boolean;
 	readonly xGroups?: boolean;
-} = {}): StructuredContentEvidence => ({
-	structure: {
-		...createEmptyStructuredContentStructure(),
-		fingerprint: "schema-a",
-	},
-	columnProfiles: [{
+} = {}): StructuredContentEvidence => {
+	const dependentColumns = multiY ? [1, 2, 3, 4, 5] : [1];
+	const dependentHeaders = multiY ? ["-2", "-1", "0", "1", "2"] : ["Id"];
+	const endCol = dependentColumns[dependentColumns.length - 1] ?? 1;
+	const endRow = xGroups ? 4 : 3;
+	const measurementColumns: StructuredMeasurementColumnRef[] = [{
 		rawCol: 0,
+		role: "vg",
+		unit: "V",
 		headerText: "Vg",
-		normalizedHeader: "vg",
-		kind: "numeric",
-	}, {
-		rawCol: 1,
-		headerText: "Id",
-		normalizedHeader: "id",
-		kind: "numeric",
-	}],
-	xRangeCandidates: [{
-		id: "x-range-a",
-		column: 0,
-		startRow: 1,
-		endRow: xGroups ? 4 : 3,
-		direction: xGroups ? "mixed" : "ascending",
-		stepKind: xGroups ? "segmentedConstant" : "constant",
-		step: 1,
-		pointCount: xGroups ? 4 : 3,
 		confidence: 0.95,
-		reasons: ["xRange.test"],
-	}],
-	xGroupCandidates: xGroups
-		? [{
-			id: "x-group-a",
-			xRangeCandidateId: "x-range-a",
+		dataRange: {
 			startRow: 1,
-			endRow: 2,
-			direction: "ascending",
-			groupKind: "singleMonotonicRun",
-			lineIndex: 0,
+			endRow,
+			startCol: 0,
+			endCol: 0,
+		},
+	}, ...dependentColumns.map((column, index): StructuredMeasurementColumnRef => ({
+		rawCol: column,
+		role: multiY ? "current" : "id",
+		unit: "A",
+		headerText: dependentHeaders[index] ?? `Y${index + 1}`,
+		confidence: 0.95,
+		dataRange: {
+			startRow: 1,
+			endRow,
+			startCol: column,
+			endCol: column,
+		},
+	}))];
+
+	return {
+		structure: {
+			...createEmptyStructuredContentStructure(),
+			fingerprint: "schema-a",
+		},
+		columnProfiles: [{
+			rawCol: 0,
+			headerText: "Vg",
+			normalizedHeader: "vg",
+			kind: "numeric",
+		}, ...dependentColumns.map((column, index) => ({
+			rawCol: column,
+			headerText: dependentHeaders[index] ?? `Y${index + 1}`,
+			normalizedHeader: String(dependentHeaders[index] ?? `Y${index + 1}`).toLowerCase(),
+			kind: "numeric" as const,
+		}))],
+		xRangeCandidates: [{
+			id: "x-range-a",
+			column: 0,
+			startRow: 1,
+			endRow,
+			direction: xGroups ? "mixed" : "ascending",
+			stepKind: xGroups ? "segmentedConstant" : "constant",
+			step: 1,
+			pointCount: xGroups ? 4 : 3,
 			confidence: 0.95,
-			reasons: [],
-		}, {
-			id: "x-group-b",
-			xRangeCandidateId: "x-range-a",
-			startRow: 3,
-			endRow: 4,
-			direction: "descending",
-			groupKind: "directionBreak",
-			lineIndex: 1,
-			confidence: 0.95,
-			reasons: [],
-		}]
-		: [],
-	dataBlockCandidates: [{
-		id: "data-block-a",
-		xRangeCandidateId: "x-range-a",
-		xGroupCandidateIds: xGroups ? ["x-group-a", "x-group-b"] : [],
-		startRow: 1,
-		endRow: xGroups ? 4 : 3,
-		startCol: 0,
-		endCol: 1,
-		xColumn: 0,
-		dependentColumns: [1],
-		separatorColumns: [],
-		columnDirection: "rightPreferred",
-		confidence: 0.95,
-		reasons: ["dataBlock.test"],
-	}],
-	dependentValueCandidates: [{
-		id: "dependent-a",
-		column: 1,
-		xRangeCandidateIds: ["x-range-a"],
-		dataBlockCandidateIds: ["data-block-a"],
-		numericCoverage: 1,
-		confidence: 0.95,
-		reasons: ["dependent.test"],
-	}],
-	columnTitleSpans: [],
-	infoCellNeighborhoods: [],
-	bindingCandidates: [{
-		id: "binding-a",
-		xRangeCandidateIds: ["x-range-a"],
-		dependentValueCandidateIds: ["dependent-a"],
-		dataBlockCandidateIds: ["data-block-a"],
-		relation: "oneX-oneY",
-		confidence: 0.95,
-		ambiguityCodes: [],
-		reasons: ["binding.test"],
-	}],
-	semanticRulesFingerprint: "semantic:test",
-	semanticCandidates: [],
-	groups: [],
-	blocks: [{
-		id: "data-block-a",
-		fileId: "file-a",
-		rawTableId: "table-a",
-		label: "Detected IV Transfer",
-		type: "transfer",
-		family: "iv",
-		ivMode: "transfer",
-		source: {
-			fullRange: {
-				startRow: 0,
-				endRow: xGroups ? 4 : 3,
-				startCol: 0,
-				endCol: 1,
-			},
-			dataRange: {
+			reasons: ["xRange.test"],
+		}],
+		xGroupCandidates: xGroups
+			? [{
+				id: "x-group-a",
+				xRangeCandidateId: "x-range-a",
 				startRow: 1,
-				endRow: xGroups ? 4 : 3,
-				startCol: 0,
-				endCol: 1,
-			},
-		},
-		columns: {
-			columns: [{
-				rawCol: 0,
-				role: "vg",
-				unit: "V",
-				headerText: "Vg",
+				endRow: 2,
+				direction: "ascending",
+				groupKind: "singleMonotonicRun",
+				lineIndex: 0,
 				confidence: 0.95,
-				dataRange: {
-					startRow: 1,
-					endRow: xGroups ? 4 : 3,
-					startCol: 0,
-					endCol: 0,
-				},
+				reasons: [],
 			}, {
-				rawCol: 1,
-				role: "id",
-				unit: "A",
-				headerText: "Id",
+				id: "x-group-b",
+				xRangeCandidateId: "x-range-a",
+				startRow: 3,
+				endRow: 4,
+				direction: "descending",
+				groupKind: "directionBreak",
+				lineIndex: 1,
 				confidence: 0.95,
+				reasons: [],
+			}]
+			: [],
+		dataBlockCandidates: [{
+			id: "data-block-a",
+			xRangeCandidateId: "x-range-a",
+			xGroupCandidateIds: xGroups ? ["x-group-a", "x-group-b"] : [],
+			startRow: 1,
+			endRow,
+			startCol: 0,
+			endCol,
+			xColumn: 0,
+			dependentColumns,
+			separatorColumns: [],
+			columnDirection: "rightPreferred",
+			confidence: 0.95,
+			reasons: ["dataBlock.test"],
+		}],
+		dependentValueCandidates: dependentColumns.map((column, index) => ({
+			id: `dependent-${index + 1}`,
+			column,
+			xRangeCandidateIds: ["x-range-a"],
+			dataBlockCandidateIds: ["data-block-a"],
+			numericCoverage: 1,
+			confidence: 0.95,
+			reasons: ["dependent.test"],
+		})),
+		columnTitleSpans: [],
+		infoCellNeighborhoods: [],
+		bindingCandidates: [{
+			id: "binding-a",
+			xRangeCandidateIds: ["x-range-a"],
+			dependentValueCandidateIds: dependentColumns.map((_, index) => `dependent-${index + 1}`),
+			dataBlockCandidateIds: ["data-block-a"],
+			relation: multiY ? "oneX-manyY" : "oneX-oneY",
+			confidence: 0.95,
+			ambiguityCodes: [],
+			reasons: ["binding.test"],
+		}],
+		semanticRulesFingerprint: "semantic:test",
+		semanticCandidates: [],
+		groups: [],
+		blocks: [{
+			id: "data-block-a",
+			fileId: "file-a",
+			rawTableId: "table-a",
+			label: "Detected IV Transfer",
+			type: "transfer",
+			family: "iv",
+			ivMode: "transfer",
+			source: {
+				fullRange: {
+					startRow: 0,
+					endRow,
+					startCol: 0,
+					endCol,
+				},
 				dataRange: {
 					startRow: 1,
-					endRow: xGroups ? 4 : 3,
-					startCol: 1,
-					endCol: 1,
+					endRow,
+					startCol: 0,
+					endCol,
 				},
-			}],
-		},
-		rowCount: xGroups ? 4 : 3,
-		columnCount: 2,
-		confidence: 0.95,
-		diagnosticCodes: [],
-	}],
-	diagnostics: [],
-});
+			},
+			columns: {
+				columns: measurementColumns,
+			},
+			rowCount: xGroups ? 4 : 3,
+			columnCount: endCol + 1,
+			confidence: 0.95,
+			diagnosticCodes: [],
+		}],
+		diagnostics: [],
+	};
+};
 
 const createTemplate = (): Template => ({
 	schemaVersion: 1,

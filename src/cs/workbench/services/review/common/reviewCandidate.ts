@@ -18,6 +18,7 @@ import type {
 	ReviewCandidateColumnRange,
 	ReviewCandidateDiagnostic,
 	ReviewCandidateInterpretation,
+	ReviewCandidateLegend,
 	ReviewCandidateRowRange,
 	ReviewContext,
 } from "src/cs/workbench/services/review/common/reviewModel";
@@ -233,6 +234,11 @@ const createReviewBlocksForDataBlock = ({
 		}];
 	const xUnit = getMeasurementColumnUnit(measurementBlock, dataBlock.xColumn);
 	const yUnit = getCommonMeasurementColumnUnit(measurementBlock, dataBlock.dependentColumns);
+	const legendTarget = getReviewBlockLegendTarget({
+		dataBlock,
+		hasMultipleXGroups: xGroups.length > 1,
+		measurementBlock,
+	});
 	return rowRanges.map(rowRange => ({
 		rowRange: {
 			startRow: rowRange.startRow,
@@ -244,10 +250,44 @@ const createReviewBlocksForDataBlock = ({
 			kind: "none",
 		},
 		legend: {
-			target: xGroups.length > 1 ? "group" : "auto",
+			target: legendTarget,
 			...(rowRange.lineIndex !== undefined ? { prefix: `Line ${rowRange.lineIndex + 1}` } : {}),
 		},
 	}));
+};
+
+const getReviewBlockLegendTarget = ({
+	dataBlock,
+	hasMultipleXGroups,
+	measurementBlock,
+}: {
+	readonly dataBlock: StructuredDataBlockCandidate;
+	readonly hasMultipleXGroups: boolean;
+	readonly measurementBlock?: StructuredMeasurementBlockRecord;
+}): ReviewCandidateLegend["target"] => {
+	if (hasMultipleXGroups) {
+		return "group";
+	}
+	if (dataBlock.dependentColumns.length < 2) {
+		return "auto";
+	}
+	return hasDistinctDependentColumnHeaders(measurementBlock, dataBlock.dependentColumns)
+		? "yColumn"
+		: "auto";
+};
+
+const hasDistinctDependentColumnHeaders = (
+	block: StructuredMeasurementBlockRecord | undefined,
+	columns: readonly number[],
+): boolean => {
+	const headers = columns
+		.map(column => getMeasurementColumnHeader(block, column));
+	if (headers.some(header => !header)) {
+		return false;
+	}
+
+	const normalizedHeaders = headers.map(header => normalizeLegendHeaderText(header ?? ""));
+	return new Set(normalizedHeaders).size === columns.length;
 };
 
 const createAxisBinding = (
@@ -273,6 +313,12 @@ const getMeasurementColumnUnit = (
 	column: number,
 ): string | null =>
 	normalizeOptionalText(block?.columns.columns.find(candidate => candidate.rawCol === column)?.unit);
+
+const getMeasurementColumnHeader = (
+	block: StructuredMeasurementBlockRecord | undefined,
+	column: number,
+): string | null =>
+	normalizeOptionalText(block?.columns.columns.find(candidate => candidate.rawCol === column)?.headerText);
 
 const getCommonMeasurementColumnUnit = (
 	block: StructuredMeasurementBlockRecord | undefined,
@@ -620,6 +666,10 @@ const normalizeOptionalText = (
 	const normalized = String(value ?? "").trim();
 	return normalized || null;
 };
+
+const normalizeLegendHeaderText = (
+	value: string,
+): string => value.trim().toLowerCase();
 
 const hashString = (
 	value: string,

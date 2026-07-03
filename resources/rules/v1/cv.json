@@ -8,6 +8,18 @@
       "priority": 10,
       "type": "cv",
       "columns": {
+        "proof": [
+          {
+            "id": 1,
+            "label": "Measurement type",
+            "terms": [
+              {
+                "key": "cv",
+                "aliases": ["CV", "C-V"]
+              }
+            ]
+          }
+        ],
         "x": [
           {
             "id": 1,

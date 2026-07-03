@@ -31,6 +31,7 @@ type EvaluationExpectation = {
 	readonly relation?: string;
 	readonly family?: string;
 	readonly ivMode?: string;
+	readonly legendTarget?: string;
 	readonly groupCount?: number;
 	readonly direction?: string;
 };
@@ -42,6 +43,7 @@ type EvaluationSummary = {
 	readonly relation?: string;
 	readonly family?: string;
 	readonly ivMode?: string;
+	readonly legendTarget?: string;
 	readonly xRangeCount: number;
 	readonly groupCount: number;
 	readonly blockCount: number;
@@ -100,6 +102,7 @@ const evaluateSample = async (
 		? structuredContent.dataBlockCandidates.find(candidate => candidate.id === binding.dataBlockCandidateIds[0])
 		: undefined;
 	const measurement = review.reviewedTemplate?.template.measurement;
+	const reviewedBlock = review.reviewedTemplate?.template.blocks[0];
 	const groupCount = dataBlock
 		? structuredContent.xGroupCandidates.filter(group => group.xRangeCandidateId === dataBlock.xRangeCandidateId).length
 		: 0;
@@ -113,6 +116,7 @@ const evaluateSample = async (
 		relation: binding?.relation,
 		family: measurement?.curveFamily,
 		ivMode: measurement?.ivMode ?? undefined,
+		legendTarget: reviewedBlock?.legend.target,
 		xRangeCount: structuredContent.xRangeCandidates.length,
 		groupCount,
 		blockCount: structuredContent.dataBlockCandidates.length,
@@ -135,6 +139,7 @@ const printEvaluationSummary = (
 		`relation=${summary.relation ?? "n/a"}`,
 		`family=${summary.family ?? "n/a"}`,
 		`ivMode=${summary.ivMode ?? "n/a"}`,
+		`legend=${summary.legendTarget ?? "n/a"}`,
 		`xRanges=${summary.xRangeCount}`,
 		`groups=${summary.groupCount}`,
 		`blocks=${summary.blockCount}`,
@@ -160,6 +165,9 @@ const assertEvaluation = (
 	}
 	if (expectation.ivMode !== undefined) {
 		assert.equal(summary.ivMode, expectation.ivMode);
+	}
+	if (expectation.legendTarget !== undefined) {
+		assert.equal(summary.legendTarget, expectation.legendTarget);
 	}
 	if (expectation.groupCount !== undefined) {
 		assert.equal(summary.groupCount, expectation.groupCount);
@@ -206,6 +214,22 @@ const evaluationSamples: readonly EvaluationSample[] = [{
 		relation: "oneX-manyY",
 	},
 }, {
+	name: "first-row X,numeric-legends",
+	rows: [
+		["Vg/Vbg", "-2", "-1", "0", "1", "2"],
+		["-0.5", "6.99798e-25", "9.17778e-24", "1.20448e-22", "1.5787e-21", "2.06466e-20"],
+		["-0.49", "1.02071e-24", "1.32659e-23", "1.72784e-22", "2.26435e-21", "2.96144e-20"],
+		["-0.48", "1.78185e-24", "1.9823e-23", "2.47955e-22", "3.24689e-21", "4.24753e-20"],
+		["-0.47", "2.29694e-24", "2.70037e-23", "3.55605e-22", "4.65956e-21", "6.09296e-20"],
+	],
+	expect: {
+		decision: "ready",
+		family: "iv",
+		ivMode: "transfer",
+		legendTarget: "yColumn",
+		relation: "oneX-manyY",
+	},
+}, {
 	name: "pairwise XY XY",
 	rows: [
 		[
@@ -220,8 +244,29 @@ const evaluationSamples: readonly EvaluationSample[] = [{
 		["1.5", "8e-12", "1.5", "8e-11"],
 	],
 	expect: {
-		decision: "needsManualAdjustment",
-		relation: "manyXYpairs",
+		decision: "ready",
+		relation: "oneX-manyY",
+	},
+}, {
+	name: "pairwise IdVg XY XY",
+	rows: [
+		[
+			"drain TotalCurrent(IdVg_n938_des) X",
+			"drain TotalCurrent(IdVg_n938_des) Y",
+			"drain TotalCurrent(IdVg_n944_des) X",
+			"drain TotalCurrent(IdVg_n944_des) Y",
+		],
+		["-0.5", "2e-23", "-0.5", "2e-22"],
+		["-0.49", "3e-23", "-0.49", "3e-22"],
+		["-0.48", "4e-23", "-0.48", "4e-22"],
+		["-0.47", "6e-23", "-0.47", "6e-22"],
+	],
+	expect: {
+		decision: "ready",
+		family: "iv",
+		ivMode: "transfer",
+		legendTarget: "yColumn",
+		relation: "oneX-manyY",
 	},
 }, {
 	name: "headerless numeric",
