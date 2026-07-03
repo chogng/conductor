@@ -120,6 +120,14 @@ high-confidence signal: titles such as `Vg`, `Vd`, `time`, `frequency`, and
 `bias` can promote the corresponding numeric run to an X candidate; titles such
 as `Id`, `Ig`, and `capacitance` usually point to dependent values.
 
+Proof titles are auxiliary rule evidence, not extracted Y columns. When a proof
+title points at numeric data such as `CH2 Voltage`, `DataResource` validates the
+numeric shape against the accepted X groups before it becomes strong rule
+evidence: each X group must hold one proof value, and the group representatives
+must be constant or monotonic stepped values. That proof validates the auxiliary
+condition column, but it does not distinguish IV output from IV transfer unless
+the rule also has exclusive mode evidence such as `Output` or `Transfer_DB`.
+
 This requires a fast canonical title library owned by `DataResource`. It should
 not be a Recipe responsibility or a temporary rule inside Review scoring.
 `DataResource` emits title matches as structured evidence, and Review consumes
@@ -246,6 +254,7 @@ raw table rows
   -> score XRangeCandidate values
   -> derive XGroupCandidate / line candidates from monotonic X segments
   -> derive DataBlockCandidate values around high-confidence X ranges
+  -> validate numeric proof columns against each block's X groups
   -> collect DependentValueCandidate values inside data blocks
   -> generate BindingCandidate values
   -> expose structured evidence
@@ -375,9 +384,12 @@ not persist the normalized form as the visible term. The typed term is normalize
 first. If the key already exists, the typed term is stored as a user alias under
 that key. If the key does not exist, a user term patch creates that key and uses
 the typed term as its first alias. When the input happens inside an existing
-rule's X or Y area, the same operation also stores a `templateSemanticPatches`
-rule-axis link for that key. If several aliases derive the same key, they merge
-under that key with all matching rule records preserved.
+rule's Proof, X, or Y area, the same operation also stores a
+`templateSemanticPatches` rule link for that key. Proof links participate in
+title matching as `axisTendency: unknown` auxiliary rule evidence; X and Y
+links provide axis tendency.
+If several aliases derive the same key, they merge under that key with all
+matching rule records preserved.
 
 When reading a file column title, the title cell is a transient token. It is
 normalized into a key for lookup, but it is not added to any alias list and is

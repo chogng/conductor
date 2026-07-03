@@ -160,8 +160,10 @@ persistence details.
 ## Template Semantic Rules UI
 
 The Template settings semantic-rules section shows **domain rules**. A domain
-rule is a user-facing domain scope, such as `iv`, plus X and Y character blocks
-that DataResource can turn into axis evidence before Review builds binding
+rule is a user-facing domain scope, such as `iv`, plus Proof, X, and Y
+character blocks. Proof blocks carry auxiliary evidence such as legend or
+channel-mapping terms for distinguishing semantic variants like IV output vs
+transfer. X and Y blocks become axis evidence before Review builds binding
 candidates.
 
 The semantic-rules surface is one `SettingsTreeSection` with a visible header:
@@ -174,31 +176,31 @@ Each domain rule is a real settings list item with always-visible
 `InputBoxWidget` controls. New rules are prepended as draft items and must not
 replace existing draft or saved sibling items. The item leading area owns the
 domain-scope title widget plus a lightweight `Home`/`User` source label; the
-item trailing area owns two vertical widgets for X and Y character-block tokens
-plus row actions. The title widget commits on
-blur or Enter. The X and Y widgets commit their own token changes on Enter,
-blur with pending text, or token removal. The X widget dedupes only its own
-tokens by normalized key, and the Y widget does the same for Y tokens; terms may
-appear in multiple domain rules. A rule is persisted only when the draft has a
-valid domain title plus at least one X and one Y character block. Each persisted
-save writes `templateSemanticPatches`: typed tokens become term alias patches,
-and the rule stores only normalized X/Y key links plus metadata.
+item trailing area owns three vertical widgets for Proof, X, and Y
+character-block tokens plus row actions. The title widget commits on
+blur or Enter. The Proof, X, and Y widgets commit their own token changes on
+Enter, blur with pending text, or token removal. Each widget dedupes only its
+own tokens by normalized key; terms may appear in multiple domain rules. A rule
+is persisted only when the draft has a valid domain title plus at least one
+Proof, X, and Y character block. Each persisted save writes
+`templateSemanticPatches`: typed tokens become term alias patches, and the rule
+stores only normalized Proof/X/Y key links plus metadata.
 The row remove action belongs to every semantic rule section item. Removing a
 draft discards the draft item. Removing a custom rule deletes that stored rule.
 Removing a built-in rule stores a same-id disabled rule patch so the item
 disappears until the semantic reset action removes built-in overrides and
 restores it.
 
-Domain priority is a separate Template settings item backed by
-`templateSemanticDomainPriority`. It renders draggable domain blocks. When
-DataResource sees several complete domain matches in one data file, it chooses
-the highest-priority complete domain and uses that domain's X/Y evidence for
-slicing; incomplete higher-priority domains are skipped.
-Render domain priority as its own `SettingsTreeSection` with the standard
-section header, section body, internal list, and list item template. The list
-item content is the `InputBoxWidget.element` itself; do not wrap it in a
-feature cell, do not bypass the section/list-item template, and do not add
-domain-priority CSS that changes `InputBoxWidget` field or token styling.
+Rule priority is a separate Template settings item backed by each rule patch's
+`priority` field inside `templateSemanticPatches.rules`. It renders draggable
+rule blocks. When DataResource sees several complete rule matches in one data
+file, it chooses the highest-priority complete rule and uses that rule's X/Y
+evidence for slicing; incomplete higher-priority rules are skipped. Render rule
+priority as its own `SettingsTreeSection` with the standard section header,
+section body, internal list, and list item template. The list item content is
+the `InputBoxWidget.element` itself; do not wrap it in a feature cell, do not
+bypass the section/list-item template, and do not add rule-priority CSS that
+changes `InputBoxWidget` field or token styling.
 
 Do not add a separate global X-axis intent ordering setting; DataResource
 applies the selected semantic domain's own intent/role profile when ranking X

@@ -51,10 +51,10 @@ structured content.
 
 - Keep the rules passive JSON. Do not add TypeScript callbacks, service
   lookups, row parsing, or Review scoring rules.
-- Put a built-in domain's X/Y evidence and X ranking profile in that domain's
-  own rules file. Shared title aliases belong in `core.json`; row markers that
-  are domain evidence, such as B1500 IV `DataName` and `DataValue`, belong with
-  the owning domain rules.
+- Put a built-in domain's Proof/X/Y evidence and X ranking profile in that
+  domain's own rules file. Shared title aliases belong in `core.json`; row
+  markers that are domain evidence, such as B1500 IV `DataName` and
+  `DataValue`, belong with the owning domain rules.
 - Prefer canonical title aliases over layout names. The rules should say what
   a title means, not whether a table is `xy`, `xyyyy`, or `pairwiseXY`.
 - Axis tendency is evidence, not an absolute decision. DataResource combines it

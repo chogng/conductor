@@ -353,7 +353,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const service = createReviewServiceForTest(
 			userTemplateService,
 			createDataResourceServiceForTest(resource, [], null, createTestTableModelContent([
-				["CH1 Voltage", "CH1 Current", "CH1 Resistance", "", "CH2 Voltage", "CH2 Current", "CH2 Resistance"],
+				["CH1 Voltage", "CH1 Current", "CH1 Resistance", "", "CH1 Voltage", "CH1 Current", "CH1 Resistance"],
 				["0", "1e-12", "100", "", "0", "1e-11", "200"],
 				["0.5", "2e-12", "110", "", "0.5", "2e-11", "210"],
 				["1", "4e-12", "120", "", "1", "4e-11", "220"],

@@ -128,6 +128,7 @@ type TemplateSemanticRulePatch = {
   priority?: number;
   type?: string;
   enabled?: boolean;
+  proofKeys?: TemplateSemanticRuleAxisPatch;
   xKeys?: TemplateSemanticRuleAxisPatch;
   yKeys?: TemplateSemanticRuleAxisPatch;
 };
@@ -568,6 +569,7 @@ function normalizeTemplateSemanticRulePatches(value: unknown): TemplateSemanticR
       ...(priority !== undefined ? { priority } : {}),
       ...(type ? { type } : {}),
       ...(typeof item.enabled === "boolean" ? { enabled: item.enabled } : {}),
+      ...(normalizeTemplateSemanticAxisPatch(item.proofKeys) ? { proofKeys: normalizeTemplateSemanticAxisPatch(item.proofKeys) } : {}),
       ...(normalizeTemplateSemanticAxisPatch(item.xKeys) ? { xKeys: normalizeTemplateSemanticAxisPatch(item.xKeys) } : {}),
       ...(normalizeTemplateSemanticAxisPatch(item.yKeys) ? { yKeys: normalizeTemplateSemanticAxisPatch(item.yKeys) } : {}),
     });
@@ -931,6 +933,7 @@ function createConductorConfigurationProperties(): Record<string, IConfiguration
             enabled: { type: "boolean" },
             id: { type: "string" },
             label: { type: "string" },
+            proofKeys: createTemplateSemanticAxisPatchSchema(),
             priority: { type: "number" },
             type: { type: "string" },
             xKeys: createTemplateSemanticAxisPatchSchema(),

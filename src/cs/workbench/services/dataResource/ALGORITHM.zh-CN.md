@@ -110,6 +110,9 @@ row n+2: -0.9
 
 如果 X 自身 fixed-step / monotonic 证据很强，title evidence 是加强项。如果 X 的 step 不规律，title evidence 就变成第二类高置信证据：`Vg`、`Vd`、`time`、`frequency`、`bias` 这类 title 可以把对应 numeric run 提升为 X candidate；`Id`、`Ig`、`capacitance` 这类 title 则更倾向于 dependent value。
 
+Proof title 是辅助规则证据，不是要抽取的 Y 列。当 proof title 指向 `CH2 Voltage`
+这类 numeric data 时，DataResource 必须先按已接受的 X groups 校验数值形态，才把它作为强规则证据：每个 X group 内 proof 值必须恒定，各 group 的代表值必须是全局恒定或单调阶梯。这个 proof 只证明辅助条件列存在，不能区分 IV output 和 IV transfer；只有 `Output` 或 `Transfer_DB` 这类独占模式证据才能决定模式。
+
 这要求 DataResource 有一个可快速匹配的 canonical title library。它不属于 Recipe，也不应该临时写在 Review scoring 里。DataResource 负责把 title match 产成 structured evidence，Review 再消费它。
 
 ## 候选模型
@@ -230,6 +233,7 @@ raw table rows
   -> score XRangeCandidate values
   -> derive XGroupCandidate / line candidates from monotonic X segments
   -> derive DataBlockCandidate values around high-confidence X ranges
+  -> validate numeric proof columns against each block's X groups
   -> collect DependentValueCandidate values inside data blocks
   -> generate BindingCandidate values
   -> expose structured evidence
@@ -299,7 +303,9 @@ numeric run
   -> emit ColumnTitleSpanEvidence
 ```
 
-规则需要覆盖常见别名，把它们作为 X/Y 证据，而不是物理 role 判定：
+规则需要覆盖常见别名，把它们作为 Proof/X/Y 规则证据，而不是物理 role 判定。
+Proof 链接以 `axisTendency: unknown` 参与标题匹配，作为辅助证明；X/Y
+链接提供轴向倾向判定：
 
 ```txt
 Vg / Vgs / Gate Voltage

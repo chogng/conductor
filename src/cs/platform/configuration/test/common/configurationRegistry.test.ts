@@ -115,6 +115,10 @@ suite("platform/configuration/common/configurationRegistry", () => {
           priority: 0,
           type: " transfer ",
           enabled: true,
+          proofKeys: {
+            addKeys: [" Legend Output "],
+            removeKeys: ["Fixed Gate Bias"],
+          },
           xKeys: {
             addKeys: [" Drive-Bias "],
             removeKeys: ["Gate Voltage"],
@@ -141,6 +145,10 @@ suite("platform/configuration/common/configurationRegistry", () => {
         priority: 0,
         type: "transfer",
         enabled: true,
+        proofKeys: {
+          addKeys: ["legendoutput"],
+          removeKeys: ["fixedgatebias"],
+        },
         xKeys: {
           addKeys: ["drivebias"],
           removeKeys: ["gatevoltage"],

@@ -346,7 +346,9 @@ const createStructuredContentEvidence = (
 			columnProfiles,
 			content,
 			dataBlockCandidates,
+			rows,
 			titleSpans: columnTitleSpans,
+			xGroupCandidates,
 		});
 		const diagnostics = createEvidenceDiagnostics({
 			bindingCandidates,
@@ -1490,16 +1492,24 @@ const createStructuredMeasurementBlocks = ({
 	columnProfiles,
 	content,
 	dataBlockCandidates,
+	rows,
 	titleSpans,
+	xGroupCandidates,
 }: {
 	readonly columnProfiles: readonly StructuredColumnProfile[];
 	readonly content: TableModelContentSnapshot;
 	readonly dataBlockCandidates: readonly StructuredDataBlockCandidate[];
+	readonly rows: readonly (readonly string[])[];
 	readonly titleSpans: readonly StructuredColumnTitleSpanEvidence[];
+	readonly xGroupCandidates: readonly StructuredXGroupCandidate[];
 }): readonly StructuredMeasurementBlockRecord[] => {
 	const titleSpansByColumn = createBestTitleSpanByColumn(titleSpans);
 	return dataBlockCandidates.map((block): StructuredMeasurementBlockRecord => {
-		const measurement = inferMeasurementForBlock(block, titleSpansByColumn);
+		const measurement = inferMeasurementForBlock(block, {
+			rows,
+			titleSpansByColumn,
+			xGroupCandidates,
+		});
 		const headerRows = block.dependentColumns
 			.map(column => titleSpansByColumn.get(column)?.titleCell.row)
 			.concat(titleSpansByColumn.get(block.xColumn)?.titleCell.row)
@@ -1595,14 +1605,18 @@ const createMeasurementColumnRef = ({
 
 const inferMeasurementForBlock = (
 	block: StructuredDataBlockCandidate,
-	titleSpansByColumn: ReadonlyMap<number, StructuredColumnTitleSpanEvidence>,
+	context: {
+		readonly rows: readonly (readonly string[])[];
+		readonly titleSpansByColumn: ReadonlyMap<number, StructuredColumnTitleSpanEvidence>;
+		readonly xGroupCandidates: readonly StructuredXGroupCandidate[];
+	},
 ): {
 	readonly type?: string;
 	readonly family: StructuredMeasurementFamily;
 	readonly ivMode?: StructuredMeasurementBlockRecord["ivMode"];
 	readonly itMode?: StructuredMeasurementBlockRecord["itMode"];
 } => {
-	const rule = selectBlockRule(block, titleSpansByColumn);
+	const rule = selectBlockRule(block, context);
 	if (rule?.type) {
 		return toMeasurementFromType(rule.type);
 	}
@@ -1617,15 +1631,26 @@ const inferMeasurementForBlock = (
 
 const selectBlockRule = (
 	block: StructuredDataBlockCandidate,
-	titleSpansByColumn: ReadonlyMap<number, StructuredColumnTitleSpanEvidence>,
+	context: {
+		readonly rows: readonly (readonly string[])[];
+		readonly titleSpansByColumn: ReadonlyMap<number, StructuredColumnTitleSpanEvidence>;
+		readonly xGroupCandidates: readonly StructuredXGroupCandidate[];
+	},
 ): {
 	readonly id: string;
 	readonly label: string;
 	readonly type?: string;
 	readonly priorityIndex: number;
 } | null => {
+	const { rows, titleSpansByColumn, xGroupCandidates } = context;
 	const xRules = titleSpansByColumn.get(block.xColumn)?.semanticRules
 		.filter(rule => rule.axisTendency === "x") ?? [];
+	const proofScoresByRuleId = collectBlockProofScores({
+		block,
+		rows,
+		titleSpansByColumn,
+		xGroupCandidates,
+	});
 	const yRulesById = new Map<string, {
 		readonly id: string;
 		readonly label: string;
@@ -1648,15 +1673,111 @@ const selectBlockRule = (
 			}
 		}
 	}
-	return xRules
+	const candidates = xRules
 		.filter(rule => yRulesById.has(rule.id))
 		.map(rule => ({
 			id: rule.id,
 			label: rule.label,
 			...(rule.type ? { type: rule.type } : {}),
 			priorityIndex: Math.min(rule.priorityIndex, yRulesById.get(rule.id)?.priorityIndex ?? rule.priorityIndex),
-		}))
+			proofScore: proofScoresByRuleId.get(rule.id) ?? 0,
+		}));
+	if (!candidates.length) {
+		return null;
+	}
+	const bestProofScore = Math.max(...candidates.map(candidate => candidate.proofScore));
+	const strongestCandidates = candidates.filter(candidate => candidate.proofScore === bestProofScore);
+	const strongestTypes = new Set(strongestCandidates.map(candidate => candidate.type).filter(Boolean));
+	if (strongestTypes.has("transfer") && strongestTypes.has("output")) {
+		return null;
+	}
+	return strongestCandidates
 		.sort((left, right) => left.priorityIndex - right.priorityIndex)[0] ?? null;
+};
+
+const collectBlockProofScores = ({
+	block,
+	rows,
+	titleSpansByColumn,
+	xGroupCandidates,
+}: {
+	readonly block: StructuredDataBlockCandidate;
+	readonly rows: readonly (readonly string[])[];
+	readonly titleSpansByColumn: ReadonlyMap<number, StructuredColumnTitleSpanEvidence>;
+	readonly xGroupCandidates: readonly StructuredXGroupCandidate[];
+}): ReadonlyMap<string, number> => {
+	const scores = new Map<string, number>();
+	const blockColumns = new Set([block.xColumn, ...block.dependentColumns]);
+	for (const [column, titleSpan] of titleSpansByColumn) {
+		const rules = titleSpan.semanticRules.filter(rule => rule.axisTendency === "unknown");
+		if (!rules.length) {
+			continue;
+		}
+		const proofKind = blockColumns.has(column)
+			? "title"
+			: getBlockProofColumnKind({
+				block,
+				column,
+				rows,
+				xGroupCandidates,
+			});
+		for (const rule of rules) {
+			const score = getBlockProofScore(proofKind);
+			if (score <= 0) {
+				continue;
+			}
+			scores.set(rule.id, (scores.get(rule.id) ?? 0) + score);
+		}
+	}
+	return scores;
+};
+
+const getBlockProofScore = (
+	proofKind: BlockProofColumnKind,
+): number => proofKind === "none" ? 0 : 1;
+
+type BlockProofColumnKind = "none" | "title" | "constantByXGroup" | "steppedByXGroup";
+
+const getBlockProofColumnKind = ({
+	block,
+	column,
+	rows,
+	xGroupCandidates,
+}: {
+	readonly block: StructuredDataBlockCandidate;
+	readonly column: number;
+	readonly rows: readonly (readonly string[])[];
+	readonly xGroupCandidates: readonly StructuredXGroupCandidate[];
+}): BlockProofColumnKind => {
+	if (getNumericCoverage(rows, column, block.startRow, block.endRow) < 0.8) {
+		return "title";
+	}
+	const groups = xGroupCandidates
+		.filter(group => block.xGroupCandidateIds.includes(group.id))
+		.sort((left, right) => left.startRow - right.startRow);
+	const ranges = groups.length
+		? groups.map(group => ({ startRow: group.startRow, endRow: group.endRow }))
+		: [{ startRow: block.startRow, endRow: block.endRow }];
+	const representatives: number[] = [];
+	for (const range of ranges) {
+		const values = readNumericValues(rows, column, range.startRow, range.endRow);
+		const rowCount = range.endRow - range.startRow + 1;
+		if (values.length / Math.max(1, rowCount) < 0.8 || values.length < 2) {
+			return "none";
+		}
+		const representative = values[0] ?? 0;
+		if (!values.every(value => nearlyEqual(value, representative))) {
+			return "none";
+		}
+		representatives.push(representative);
+	}
+	if (representatives.length <= 1 || representatives.every(value => nearlyEqual(value, representatives[0] ?? 0))) {
+		return "constantByXGroup";
+	}
+	const direction = getDirection(createDiffs(representatives));
+	return getMonotonicity(createDiffs(representatives), direction) >= 0.98
+		? "steppedByXGroup"
+		: "none";
 };
 
 const toMeasurementFromType = (

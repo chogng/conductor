@@ -105,6 +105,8 @@ type TemplateSemanticSectionItemDraft = {
   readonly id: SettingsContentItemId;
   readonly ruleId: string;
   readonly source: "builtin" | "custom" | "draft";
+  proofDraft: string;
+  proofTerms: string[];
   title: string;
   type: string;
   xDraft: string;
@@ -118,11 +120,12 @@ type TemplateSemanticComparableRule = {
   readonly label: string;
   readonly type?: string;
   readonly priority: number;
+  readonly proofTerms: readonly string[];
   readonly xTerms: readonly string[];
   readonly yTerms: readonly string[];
 };
 
-type TemplateSemanticSectionItemDraftField = "title" | "type" | "xDraft" | "yDraft";
+type TemplateSemanticSectionItemDraftField = "title" | "type" | "proofDraft" | "xDraft" | "yDraft";
 
 const ORIGIN_NOTIFICATION_ID = "settings.origin";
 const CLEANUP_NOTIFICATION_ID = "settings.cleanup";
@@ -145,6 +148,7 @@ export class SettingsController {
   private originPlotSaving = false;
   private templateSettingsSaving = false;
   private pendingTemplateActionItemId: string | null = null;
+  private pendingTemplateRulePriorityIds: readonly string[] | null = null;
   private defaultsSaving = false;
   private appearanceSaving = false;
   private explorerBadgeSaving = false;
@@ -517,11 +521,16 @@ export class SettingsController {
       onAddSemanticSectionItemTerm: (id, axis, value) => this.addTemplateSemanticSectionItemTerm(id, axis, value),
       onCommitSemanticSectionItemTitle: id => this.commitTemplateSemanticSectionItemTitle(id),
       onCreateSemanticSectionItem: () => this.createTemplateSemanticSectionItem(),
+      onMoveSemanticRulePriority: ruleIds => this.moveTemplateSemanticRulePriority(ruleIds),
+      onRemoveSemanticRulePriorityItem: (id, source) => this.removeTemplateSemanticRulePriorityItem(id, source),
       onRemoveSemanticSectionItem: id => this.removeTemplateSemanticSectionItem(id),
       onRemoveSemanticSectionItemTerm: (id, axis, term) => this.removeTemplateSemanticSectionItemTerm(id, axis, term),
       onResetSemanticRules: () => this.resetTemplateSemanticRules(),
       onUpdateSemanticSectionItemDraft: (id, field, value) => this.updateTemplateSemanticSectionItemDraft(id, field, value),
       pendingActionItemId: this.pendingTemplateActionItemId,
+      rulePriorityItems: this.createTemplateSemanticRulePriorityItems(
+        this.matchingTemplateRules.map(toTemplateRuleView),
+      ),
       semanticSectionItems: semanticRuleItems,
     };
   }
@@ -955,7 +964,7 @@ export class SettingsController {
     const newDrafts = this.drafts.templateSemanticSectionItemDrafts.filter(draft =>
       !rules.some(rule => rule.id === draft.ruleId)
     );
-    const savedRules = [...rules].sort(compareTemplateRuleViews);
+    const savedRules = orderTemplateRuleViews(rules, this.pendingTemplateRulePriorityIds);
     return [
       ...newDrafts.map((draft, index) => this.createTemplateSemanticDraftSectionItem(draft, index === 0)),
       ...savedRules.map(rule => {
@@ -965,6 +974,20 @@ export class SettingsController {
           : this.createSavedTemplateSemanticSectionItem(rule);
       }),
     ];
+  }
+
+  private createTemplateSemanticRulePriorityItems(
+    rules: readonly TemplateRuleView[],
+  ): SettingsViewOptions["templateSettings"]["rulePriorityItems"] {
+    return orderTemplateRuleViews(rules, this.pendingTemplateRulePriorityIds).map(rule => ({
+      id: rule.id,
+      source: rule.source,
+      title: rule.title,
+      ...(rule.type ? { type: rule.type } : {}),
+      proofTerms: rule.proofTerms,
+      xTerms: rule.xTerms,
+      yTerms: rule.yTerms,
+    }));
   }
 
   private createTemplateSemanticDraftSectionItem(
@@ -979,6 +1002,8 @@ export class SettingsController {
       title: draft.title,
       type: draft.type,
       source: draft.source,
+      proofDraft: draft.proofDraft,
+      proofTerms: draft.proofTerms,
       xDraft: draft.xDraft,
       xTerms: draft.xTerms,
       yDraft: draft.yDraft,
@@ -996,6 +1021,8 @@ export class SettingsController {
       source: rule.source,
       title: rule.title,
       type: rule.type ?? "",
+      proofDraft: "",
+      proofTerms: rule.proofTerms,
       xDraft: "",
       xTerms: rule.xTerms,
       yDraft: "",
@@ -1010,6 +1037,8 @@ export class SettingsController {
       id,
       ruleId,
       source: "draft",
+      proofDraft: "",
+      proofTerms: [],
       title: "",
       type: "",
       xDraft: "",
@@ -1039,7 +1068,7 @@ export class SettingsController {
     }
     const title = draft.title.trim();
     if (!title) {
-      if (draft.source !== "draft" || draft.xTerms.length || draft.yTerms.length) {
+      if (draft.source !== "draft" || draft.proofTerms.length || draft.xTerms.length || draft.yTerms.length) {
         this.showTemplateSettingsNotification(
           localize("settings.template.semantic.emptyRule", "Enter a definition before saving."),
           "error",
@@ -1059,7 +1088,7 @@ export class SettingsController {
 
   private async addTemplateSemanticSectionItemTerm(
     id: string,
-    axis: "x" | "y",
+    axis: "proof" | "x" | "y",
     value: string,
   ): Promise<void> {
     const draft = this.getOrCreateTemplateSemanticSectionItemDraft(id);
@@ -1077,7 +1106,7 @@ export class SettingsController {
       );
       return;
     }
-    const terms = axis === "x" ? draft.xTerms : draft.yTerms;
+    const terms = getTemplateSemanticSectionItemTerms(draft, axis);
     const termKey = toSemanticTermKey(term);
     if (terms.some(current => toSemanticTermKey(current) === termKey)) {
       this.showTemplateSettingsNotification(
@@ -1086,7 +1115,11 @@ export class SettingsController {
       );
       return;
     }
-    if (axis === "x") {
+    if (axis === "proof") {
+      draft.proofTerms = [...draft.proofTerms, term];
+      draft.proofDraft = "";
+    }
+    else if (axis === "x") {
       draft.xTerms = [...draft.xTerms, term];
       draft.xDraft = "";
     }
@@ -1100,7 +1133,7 @@ export class SettingsController {
 
   private async removeTemplateSemanticSectionItemTerm(
     id: string,
-    axis: "x" | "y",
+    axis: "proof" | "x" | "y",
     term: string,
   ): Promise<void> {
     const draft = this.getOrCreateTemplateSemanticSectionItemDraft(id);
@@ -1108,7 +1141,18 @@ export class SettingsController {
       return;
     }
     const termKey = toSemanticTermKey(term);
-    if (axis === "x") {
+    if (axis === "proof") {
+      const nextTerms = draft.proofTerms.filter(current => toSemanticTermKey(current) !== termKey);
+      if (!nextTerms.length && draft.source !== "draft") {
+        this.showTemplateSettingsNotification(
+          localize("settings.template.semantic.incompleteProofTerms", "Keep at least one proof character block."),
+          "error",
+        );
+        return;
+      }
+      draft.proofTerms = nextTerms;
+    }
+    else if (axis === "x") {
       const nextTerms = draft.xTerms.filter(current => toSemanticTermKey(current) !== termKey);
       if (!nextTerms.length && draft.source !== "draft") {
         this.showTemplateSettingsNotification(
@@ -1152,6 +1196,8 @@ export class SettingsController {
         source: "builtin",
         title: rule.label,
         type: rule.type ?? "",
+        proofDraft: "",
+        proofTerms: [...rule.proofTerms],
         xDraft: "",
         xTerms: [...rule.xTerms],
         yDraft: "",
@@ -1174,6 +1220,8 @@ export class SettingsController {
       source: "custom",
       title: customRule.label,
       type: customRule.type ?? "",
+      proofDraft: "",
+      proofTerms: [...customRule.proofTerms],
       xDraft: "",
       xTerms: [...customRule.xTerms],
       yDraft: "",
@@ -1190,9 +1238,10 @@ export class SettingsController {
     if (this.templateSettingsSaving) {
       return;
     }
+    const proofTerms = normalizeDraftSemanticTermList([...draft.proofTerms, draft.proofDraft]);
     const xTerms = normalizeDraftSemanticTermList([...draft.xTerms, draft.xDraft]);
     const yTerms = normalizeDraftSemanticTermList([...draft.yTerms, draft.yDraft]);
-    if (!xTerms.length || !yTerms.length) {
+    if (!proofTerms.length || !xTerms.length || !yTerms.length) {
       return;
     }
     const nextPatches = this.createTemplateSemanticPatchesFromDraft(draft, false);
@@ -1206,7 +1255,7 @@ export class SettingsController {
 
     const didSave = await this.saveTemplateSettings({
       templateSemanticPatches: nextPatches,
-    }, null, partialSettingsUpdateTarget(["template-semantic-rules"], []), id);
+    }, null, partialSettingsUpdateTarget(["template-semantic-rules", "template-rule-priority"], []), id);
     if (didSave) {
       this.drafts.templateSemanticSectionItemDrafts = this.drafts.templateSemanticSectionItemDrafts.filter(draft => draft.id !== id);
       this.render(descriptorUpdateTarget("template-semantic-rules"));
@@ -1253,10 +1302,11 @@ export class SettingsController {
 
     const xTerms = normalizeDraftSemanticTermList([...draft.xTerms, draft.xDraft]);
     const yTerms = normalizeDraftSemanticTermList([...draft.yTerms, draft.yDraft]);
-    if (!xTerms.length || !yTerms.length) {
+    const proofTerms = normalizeDraftSemanticTermList([...draft.proofTerms, draft.proofDraft]);
+    if (!proofTerms.length || !xTerms.length || !yTerms.length) {
       if (notifyIncompleteAxes) {
         this.showTemplateSettingsNotification(
-          localize("settings.template.semantic.incompleteAxes", "Enter at least one X character block and one Y character block."),
+          localize("settings.template.semantic.incompleteAxes", "Enter at least one proof, X, and Y character block."),
           "error",
         );
       }
@@ -1269,6 +1319,7 @@ export class SettingsController {
         title,
         type: draft.type.trim(),
         source: draft.source,
+        proofTerms,
         xTerms,
         yTerms,
       },
@@ -1321,7 +1372,14 @@ export class SettingsController {
     const customRules = removeTemplateSemanticRulePatch(this.templateSemanticPatches, customRule.id);
     await this.saveTemplateSettings({
       templateSemanticPatches: customRules,
-    }, localize("settings.template.semantic.saved", "Template rules updated."), partialSettingsUpdateTarget(["template-semantic-rules"], []), itemId);
+    }, localize("settings.template.semantic.saved", "Template rules updated."), partialSettingsUpdateTarget(["template-semantic-rules", "template-rule-priority"], []), itemId);
+  }
+
+  private async removeTemplateSemanticRulePriorityItem(
+    id: string,
+    source: "builtin" | "custom",
+  ): Promise<void> {
+    await this.removeTemplateSemanticSectionItem(createTemplateSemanticSectionItemId(source, id));
   }
 
   private async hideBuiltinTemplateSemanticSectionItem(
@@ -1336,7 +1394,7 @@ export class SettingsController {
     const nextPatches = upsertTemplateSemanticRulePatch(this.templateSemanticPatches, hiddenRule);
     await this.saveTemplateSettings({
       templateSemanticPatches: nextPatches,
-    }, localize("settings.template.semantic.saved", "Template rules updated."), partialSettingsUpdateTarget(["template-semantic-rules"], []), createTemplateSemanticSectionItemId("builtin", builtinRule.id));
+    }, localize("settings.template.semantic.saved", "Template rules updated."), partialSettingsUpdateTarget(["template-semantic-rules", "template-rule-priority"], []), createTemplateSemanticSectionItemId("builtin", builtinRule.id));
   }
 
   private async resetTemplateSemanticRules(): Promise<void> {
@@ -1347,11 +1405,40 @@ export class SettingsController {
     const storedCustomPatches = removeTemplateSemanticRulePatches(this.templateSemanticPatches, builtinRuleIds);
     const didSave = await this.saveTemplateSettings({
       templateSemanticPatches: storedCustomPatches,
-    }, localize("settings.template.semantic.reset", "Built-in rules reset."), partialSettingsUpdateTarget(["template-semantic-rules"], []));
+    }, localize("settings.template.semantic.reset", "Built-in rules reset."), partialSettingsUpdateTarget(["template-semantic-rules", "template-rule-priority"], []));
     if (didSave) {
       this.drafts.templateSemanticSectionItemDrafts = this.drafts.templateSemanticSectionItemDrafts
         .filter(draft => !builtinRuleIds.has(draft.ruleId));
       this.render(descriptorUpdateTarget("template-semantic-rules"));
+    }
+  }
+
+  private async moveTemplateSemanticRulePriority(
+    ruleIds: readonly string[],
+  ): Promise<void> {
+    if (this.templateSettingsSaving) {
+      return;
+    }
+    const currentItems = this.createTemplateSemanticRulePriorityItems(
+      this.matchingTemplateRules.map(toTemplateRuleView),
+    );
+    if (!templateRulePriorityOrderMatchesItems(ruleIds, currentItems)) {
+      return;
+    }
+    if (ruleIds.every((ruleId, index) => currentItems[index]?.id === ruleId)) {
+      return;
+    }
+
+    const nextPatches = createTemplateSemanticPriorityPatches(this.templateSemanticPatches, ruleIds);
+    this.pendingTemplateRulePriorityIds = ruleIds;
+    try {
+      await this.saveTemplateSettings({
+        templateSemanticPatches: nextPatches,
+      }, localize("settings.template.rulePriority.saved", "Rule priority updated."), partialSettingsUpdateTarget(["template-semantic-rules", "template-rule-priority"], []));
+    }
+    finally {
+      this.pendingTemplateRulePriorityIds = null;
+      this.render(partialSettingsUpdateTarget(["template-semantic-rules", "template-rule-priority"], []));
     }
   }
 
@@ -1664,6 +1751,7 @@ function getSettingsViewUpdateTarget(
   for (const key of getChangedConductorSettingsKeys(current.conductorSettings, next.conductorSettings)) {
     if (key === "templateSemanticPatches") {
       descriptorIds.add("template-semantic-rules");
+      descriptorIds.add("template-rule-priority");
       continue;
     }
     const itemTarget = getConductorSettingItemTarget(key);
@@ -1793,6 +1881,7 @@ type TemplateRuleView = {
   readonly title: string;
   readonly type?: string;
   readonly priority: number;
+  readonly proofTerms: readonly string[];
   readonly xTerms: readonly string[];
   readonly yTerms: readonly string[];
   readonly source: "builtin" | "custom";
@@ -1803,6 +1892,49 @@ function compareTemplateRuleViews(
   right: TemplateRuleView,
 ): number {
   return left.priority - right.priority || left.title.localeCompare(right.title);
+}
+
+function orderTemplateRuleViews(
+  rules: readonly TemplateRuleView[],
+  priorityRuleIds: readonly string[] | null,
+): readonly TemplateRuleView[] {
+  if (!priorityRuleIds) {
+    return [...rules].sort(compareTemplateRuleViews);
+  }
+  const ruleIds = new Set(rules.map(rule => rule.id));
+  if (priorityRuleIds.length !== ruleIds.size || priorityRuleIds.some(ruleId => !ruleIds.has(ruleId))) {
+    return [...rules].sort(compareTemplateRuleViews);
+  }
+  const indexByRuleId = new Map(priorityRuleIds.map((ruleId, index) => [ruleId, index]));
+  return [...rules].sort((left, right) =>
+    indexByRuleId.get(left.id)! - indexByRuleId.get(right.id)!
+  );
+}
+
+function templateRulePriorityOrderMatchesItems(
+  ruleIds: readonly string[],
+  items: readonly { readonly id: string }[],
+): boolean {
+  if (ruleIds.length !== items.length) {
+    return false;
+  }
+  const itemIds = new Set(items.map(item => item.id));
+  return ruleIds.every(ruleId => itemIds.has(ruleId)) &&
+    new Set(ruleIds).size === itemIds.size;
+}
+
+function createTemplateSemanticPriorityPatches(
+  current: TemplateSemanticPatches,
+  ruleIds: readonly string[],
+): TemplateSemanticPatches {
+  let patches = current;
+  for (const [priority, ruleId] of ruleIds.entries()) {
+    patches = upsertTemplateSemanticRulePatch(patches, {
+      id: ruleId,
+      priority,
+    });
+  }
+  return patches;
 }
 
 function normalizeDraftSemanticTermList(
@@ -1825,6 +1957,16 @@ function normalizeDraftSemanticTermList(
   return result;
 }
 
+function getTemplateSemanticSectionItemTerms(
+  draft: TemplateSemanticSectionItemDraft,
+  axis: "proof" | "x" | "y",
+): readonly string[] {
+  if (axis === "proof") {
+    return draft.proofTerms;
+  }
+  return axis === "x" ? draft.xTerms : draft.yTerms;
+}
+
 function templateSemanticRuleValuesEqual(
   current: TemplateSemanticComparableRule,
   next: TemplateSemanticComparableRule,
@@ -1832,6 +1974,7 @@ function templateSemanticRuleValuesEqual(
   return current.label.trim() === next.label.trim() &&
     (current.type ?? "").trim() === (next.type ?? "").trim() &&
     current.priority === next.priority &&
+    semanticTermListsEqual(current.proofTerms, next.proofTerms) &&
     semanticTermListsEqual(current.xTerms, next.xTerms) &&
     semanticTermListsEqual(current.yTerms, next.yTerms);
 }
@@ -1853,6 +1996,7 @@ const toTemplateRuleView = (
   title: rule.label,
   ...(rule.type ? { type: rule.type } : {}),
   priority: rule.priority,
+  proofTerms: rule.proofTerms,
   xTerms: rule.xTerms,
   yTerms: rule.yTerms,
   source: rule.source === "builtin" ? "builtin" : "custom",
@@ -1869,14 +2013,17 @@ function createTemplateSemanticPatchesForDraft({
     readonly title: string;
     readonly type: string;
     readonly source: "builtin" | "custom" | "draft";
+    readonly proofTerms: readonly string[];
     readonly xTerms: readonly string[];
     readonly yTerms: readonly string[];
   };
   readonly priority: number;
 }): TemplateSemanticPatches {
   const builtinRule = builtinRules.find(rule => rule.id === draft.ruleId);
+  const proofKeys = draft.proofTerms.map(toSemanticTermKey).filter(Boolean);
   const xKeys = draft.xTerms.map(toSemanticTermKey).filter(Boolean);
   const yKeys = draft.yTerms.map(toSemanticTermKey).filter(Boolean);
+  const baseProofKeys = builtinRule ? builtinRule.proofTerms.map(toSemanticTermKey).filter(Boolean) : [];
   const baseXKeys = builtinRule ? builtinRule.xTerms.map(toSemanticTermKey).filter(Boolean) : [];
   const baseYKeys = builtinRule ? builtinRule.yTerms.map(toSemanticTermKey).filter(Boolean) : [];
   const rulePatch: TemplateSemanticRulePatch = {
@@ -1885,6 +2032,10 @@ function createTemplateSemanticPatchesForDraft({
     priority,
     ...(draft.type ? { type: draft.type } : {}),
     enabled: true,
+    proofKeys: {
+      addKeys: proofKeys.filter(key => !baseProofKeys.includes(key)),
+      removeKeys: baseProofKeys.filter(key => !proofKeys.includes(key)),
+    },
     xKeys: {
       addKeys: xKeys.filter(key => !baseXKeys.includes(key)),
       removeKeys: baseXKeys.filter(key => !xKeys.includes(key)),
@@ -1896,12 +2047,12 @@ function createTemplateSemanticPatchesForDraft({
   };
 
   let patches = upsertTemplateSemanticRulePatch(current, rulePatch);
-  for (const term of [...draft.xTerms, ...draft.yTerms]) {
+  for (const term of [...draft.proofTerms, ...draft.xTerms, ...draft.yTerms]) {
     patches = upsertTemplateSemanticTermAliasPatch(patches, toSemanticTermKey(term), term);
   }
   const currentRule = createEffectiveSemanticRules(current).find(rule => rule.id === draft.ruleId);
-  for (const term of [...(currentRule?.xTerms ?? []), ...(currentRule?.yTerms ?? [])]) {
-    if (![...draft.xTerms, ...draft.yTerms].some(nextTerm => nextTerm === term) && !isBuiltinSemanticRuleAlias(term)) {
+  for (const term of [...(currentRule?.proofTerms ?? []), ...(currentRule?.xTerms ?? []), ...(currentRule?.yTerms ?? [])]) {
+    if (![...draft.proofTerms, ...draft.xTerms, ...draft.yTerms].some(nextTerm => nextTerm === term) && !isBuiltinSemanticRuleAlias(term)) {
       patches = removeTemplateSemanticTermAliasPatch(patches, toSemanticTermKey(term), term);
     }
   }
@@ -1927,6 +2078,7 @@ function mergeTemplateSemanticRulePatch(
   return {
     ...current,
     ...next,
+    proofKeys: next.proofKeys ?? current.proofKeys,
     xKeys: next.xKeys ?? current.xKeys,
     yKeys: next.yKeys ?? current.yKeys,
   };
@@ -2032,5 +2184,9 @@ function mergeAliasList(
 function isBuiltinSemanticRuleAlias(
   alias: string,
 ): boolean {
-  return builtinRules.some(rule => rule.xTerms.includes(alias) || rule.yTerms.includes(alias));
+  return builtinRules.some(rule =>
+    rule.proofTerms.includes(alias) ||
+    rule.xTerms.includes(alias) ||
+    rule.yTerms.includes(alias)
+  );
 }

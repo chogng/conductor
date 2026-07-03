@@ -169,17 +169,20 @@ type TemplateSettings = {
   onAddSemanticSectionItemTerm: (id: string, axis: TemplateSemanticAxis, value: string) => Promise<void> | void;
   onCommitSemanticSectionItemTitle: (id: string) => Promise<void> | void;
   onCreateSemanticSectionItem: () => Promise<void> | void;
+  onMoveSemanticRulePriority: (ruleIds: readonly string[]) => Promise<void> | void;
+  onRemoveSemanticRulePriorityItem: (id: string, source: "builtin" | "custom") => Promise<void> | void;
   onRemoveSemanticSectionItem: (id: string) => Promise<void> | void;
   onRemoveSemanticSectionItemTerm: (id: string, axis: TemplateSemanticAxis, term: string) => Promise<void> | void;
   onResetSemanticRules: () => Promise<void> | void;
   onUpdateSemanticSectionItemDraft: (id: string, field: TemplateSemanticSectionItemDraftField, value: string) => void;
   pendingActionItemId: string | null;
+  rulePriorityItems: readonly TemplateSemanticRulePriorityItem[];
   semanticSectionItems: readonly TemplateSemanticSectionItem[];
 };
 
-type TemplateSemanticAxis = "x" | "y";
+type TemplateSemanticAxis = "proof" | "x" | "y";
 type SettingsSectionItemEditState = "display" | "edit";
-type TemplateSemanticSectionItemDraftField = "title" | "type" | "xDraft" | "yDraft";
+type TemplateSemanticSectionItemDraftField = "title" | "type" | "proofDraft" | "xDraft" | "yDraft";
 
 type TemplateSemanticSectionItem = {
   readonly autoFocus?: boolean;
@@ -189,9 +192,21 @@ type TemplateSemanticSectionItem = {
   readonly source: "builtin" | "custom" | "draft";
   readonly title: string;
   readonly type?: string;
+  readonly proofDraft: string;
+  readonly proofTerms: readonly string[];
   readonly xDraft: string;
   readonly xTerms: readonly string[];
   readonly yDraft: string;
+  readonly yTerms: readonly string[];
+};
+
+type TemplateSemanticRulePriorityItem = {
+  readonly id: string;
+  readonly source: "builtin" | "custom";
+  readonly title: string;
+  readonly type?: string;
+  readonly proofTerms: readonly string[];
+  readonly xTerms: readonly string[];
   readonly yTerms: readonly string[];
 };
 
@@ -270,6 +285,7 @@ export type SettingsContentDescriptorId =
   | "chart-defaults"
   | "template-preferences"
   | "template-semantic-rules"
+  | "template-rule-priority"
   | "appearance-preferences"
   | "origin-integration"
   | "about";
@@ -286,6 +302,7 @@ export type SettingsContentItemId =
   | "settings-default-pv-y-scale-item"
   | "settings-chart-defaults-item"
   | "settings-table-template-visualization-item"
+  | "settings-template-rule-priority-item"
   | "settings-template-semantic-empty-item"
   | `settings-template-semantic-section-item:${string}`
   | "settings-theme-item"
@@ -389,6 +406,7 @@ type TemplateSemanticSectionItemControls = {
   readonly leadingInput: InputBox<HTMLInputElement>;
   readonly sourceLabel: HTMLElement;
   readonly typeInput: InputBox<HTMLInputElement>;
+  readonly proofInput: InputBoxWidget;
   readonly xInput: InputBoxWidget;
   readonly yInput: InputBoxWidget;
   readonly actions: TemplateSemanticSectionItemActions | null;
@@ -1092,6 +1110,11 @@ export class SettingsView {
         sectionId: "template",
       },
       {
+        id: "template-rule-priority",
+        order: 30,
+        sectionId: "template",
+      },
+      {
         id: "appearance-preferences",
         order: 0,
         sectionId: "appearance",
@@ -1130,6 +1153,9 @@ export class SettingsView {
         return;
       case "template-semantic-rules":
         this.addTemplateSemanticRulesSettingsTreeElements(model);
+        return;
+      case "template-rule-priority":
+        this.addTemplateRulePrioritySettingsTreeElements(model);
         return;
       case "appearance-preferences":
         this.addAppearanceSettingsTreeElements(model);
@@ -1251,7 +1277,7 @@ export class SettingsView {
     const section = {
       id: "settings-template-semantic-rules-section",
       title: localize("settings.template.semantic.rulesTitle", "Rules"),
-      description: localize("settings.template.semantic.rulesDescription", "Define character blocks that become X and Y evidence before Review builds binding candidates."),
+      description: localize("settings.template.semantic.rulesDescription", "Define proof, X, and Y character blocks before Review builds binding candidates."),
       headerActions: [
         {
           id: "settings-template-semantic-reset-rules",
@@ -1292,12 +1318,62 @@ export class SettingsView {
     }
   }
 
+  private addTemplateRulePrioritySettingsTreeElements(model: SettingsTreeModel): void {
+    const section = {
+      id: "settings-template-rule-priority-section",
+      title: localize("settings.template.rulePriority.title", "Rule Priority"),
+      description: localize("settings.template.rulePriority.description", "Drag rule blocks to decide which matching rule wins when multiple rules fit the same data."),
+    };
+    model.addItemToSection(section, this.createSettingsTreeElementItem({
+      id: "settings-template-rule-priority-item",
+      bodyPadding: "standard",
+      createElement: () => this.createTemplateRulePriority(this.options.templateSettings),
+      searchText: this.getTemplateRulePrioritySearchText(this.options.templateSettings),
+    }));
+  }
+
+  private createTemplateRulePriority(settings: TemplateSettings): HTMLElement {
+    const inputBox = this.registerContentDisposable(new InputBoxWidget({
+      ariaLabel: localize("settings.template.rulePriority.aria", "Rule priority order"),
+      disabled: settings.isSaving,
+      emptyLabel: localize("settings.template.rulePriority.empty", "No rules yet"),
+      inputVisible: false,
+      items: createTemplateRulePriorityInputItems(settings.rulePriorityItems),
+      itemsReorderable: true,
+    }));
+    this.registerContentDisposable(inputBox.onDidMoveItem(event => {
+      void settings.onMoveSemanticRulePriority(event.items.map(item => item.id));
+    }));
+    this.registerContentDisposable(inputBox.onDidRemoveItem(event => {
+      const item = settings.rulePriorityItems.find(item => item.id === event.item.id);
+      if (!item) {
+        return;
+      }
+      void settings.onRemoveSemanticRulePriorityItem(item.id, item.source);
+    }));
+    this.registerLocalContentPatch("settings-template-rule-priority-item", {
+      element: inputBox.element,
+      getSearchText: () => this.getTemplateRulePrioritySearchText(this.options.templateSettings),
+      update: () => {
+        inputBox.update({
+          ariaLabel: localize("settings.template.rulePriority.aria", "Rule priority order"),
+          disabled: this.options.templateSettings.isSaving,
+          emptyLabel: localize("settings.template.rulePriority.empty", "No rules yet"),
+          inputVisible: false,
+          items: createTemplateRulePriorityInputItems(this.options.templateSettings.rulePriorityItems),
+          itemsReorderable: true,
+        });
+      },
+    });
+    return inputBox.element;
+  }
+
   private createTemplateSemanticEmptyItem(): HTMLElement {
     return this.createSettingsSectionItem({
       id: "settings-template-semantic-empty-item",
       orientation: "vertical",
       label: localize("settings.template.semantic.noRulesTitle", "No Rules Yet"),
-      description: localize("settings.template.semantic.noRulesDescription", "Create rules to give DataResource X and Y evidence before Review evaluates bindings."),
+      description: localize("settings.template.semantic.noRulesDescription", "Create rules to give DataResource proof, X, and Y evidence before Review evaluates bindings."),
       trailingContent: div("settings-template-semantic-empty-spacer"),
     }).element;
   }
@@ -1306,12 +1382,13 @@ export class SettingsView {
     semanticItem: TemplateSemanticSectionItem,
     settings: TemplateSettings,
   ): HTMLElement {
-    const item = this.createSettingsSectionItem<"x" | "y">({
+    const item = this.createSettingsSectionItem<"proof" | "x" | "y">({
       id: semanticItem.id,
       orientation: "vertical",
       label: localize("settings.template.semantic.ruleItemTitle", "Definition"),
       trailingClassName: "settings-template-semantic-rule-trailing",
       trailingRegions: [
+        { id: "proof", className: "settings-template-semantic-axis-field", kind: "content" },
         { id: "x", className: "settings-template-semantic-axis-field", kind: "content" },
         { id: "y", className: "settings-template-semantic-axis-field", kind: "content" },
       ],
@@ -1363,6 +1440,20 @@ export class SettingsView {
     }
     item.leading.element.classList.add("settings-template-semantic-rule-leading");
 
+    const proofInput = this.createTemplateSemanticTermsInput({
+      axis: "proof",
+      ariaLabel: localize("settings.template.semantic.proofRepresentativeAria", "Proof representative character block"),
+      disabled: semanticItem.isSaving,
+      emptyLabel: localize("settings.template.semantic.noProofTerms", "No proof blocks"),
+      placeholder: localize("settings.template.semantic.proofRepresentativePlaceholder", "Add proof field"),
+      readOnly: false,
+      terms: semanticItem.proofTerms,
+      value: semanticItem.proofDraft,
+      onAccept: value => settings.onAddSemanticSectionItemTerm(semanticItem.id, "proof", value),
+      onChange: value => settings.onUpdateSemanticSectionItemDraft(semanticItem.id, "proofDraft", value),
+      onRemoveTerm: term => settings.onRemoveSemanticSectionItemTerm(semanticItem.id, "proof", term),
+    });
+    item.trailing.regions.proof.appendChild(proofInput.element);
     const xInput = this.createTemplateSemanticTermsInput({
       axis: "x",
       ariaLabel: localize("settings.template.semantic.xRepresentativeAria", "X axis representative character block"),
@@ -1406,6 +1497,7 @@ export class SettingsView {
           leadingInput,
           sourceLabel,
           typeInput,
+          proofInput,
           xInput,
           yInput,
           actions: leadingActions,
@@ -1440,6 +1532,16 @@ export class SettingsView {
     if (controls.sourceLabel.textContent !== sourceText) {
       controls.sourceLabel.textContent = sourceText;
     }
+    controls.proofInput.update({
+      ariaLabel: localize("settings.template.semantic.proofRepresentativeAria", "Proof representative character block"),
+      disabled: semanticItem.isSaving,
+      emptyLabel: localize("settings.template.semantic.noProofTerms", "No proof blocks"),
+      inputVisible: true,
+      items: createTemplateSemanticTermItems("proof", semanticItem.proofTerms, false),
+      placeholder: localize("settings.template.semantic.proofRepresentativePlaceholder", "Add proof field"),
+      readOnly: false,
+      value: semanticItem.proofDraft,
+    });
     controls.xInput.update({
       ariaLabel: localize("settings.template.semantic.xRepresentativeAria", "X axis representative character block"),
       disabled: semanticItem.isSaving,
@@ -1595,7 +1697,7 @@ export class SettingsView {
   private getTemplateSemanticRulesSearchText(settings: TemplateSettings): string {
     return normalizeSettingsSearchText(
       localize("settings.template.semantic.rulesTitle", "Rules"),
-      localize("settings.template.semantic.rulesDescription", "Define character blocks that become X and Y evidence before Review builds binding candidates."),
+      localize("settings.template.semantic.rulesDescription", "Define proof, X, and Y character blocks before Review builds binding candidates."),
       settings.semanticSectionItems.map(item => this.getTemplateSemanticSectionItemSearchText(item)).join(" "),
     );
   }
@@ -1604,9 +1706,25 @@ export class SettingsView {
     return normalizeSettingsSearchText(
       item.title,
       item.type ?? "",
+      item.proofTerms.join(" "),
       item.xTerms.join(" "),
       item.yTerms.join(" "),
       item.source,
+    );
+  }
+
+  private getTemplateRulePrioritySearchText(settings: TemplateSettings): string {
+    return normalizeSettingsSearchText(
+      localize("settings.template.rulePriority.title", "Rule Priority"),
+      localize("settings.template.rulePriority.description", "Drag rule blocks to decide which matching rule wins when multiple rules fit the same data."),
+      settings.rulePriorityItems.map(item => [
+        item.title,
+        item.type ?? "",
+        item.source,
+        item.proofTerms.join(" "),
+        item.xTerms.join(" "),
+        item.yTerms.join(" "),
+      ].join(" ")).join(" "),
     );
   }
 
@@ -2988,6 +3106,23 @@ function createTemplateSemanticTermItems(
       removeAriaLabel: localize("settings.template.semantic.removeTerm", "Remove character block {term}", { term }),
     };
   });
+}
+
+function createTemplateRulePriorityInputItems(
+  items: readonly TemplateSemanticRulePriorityItem[],
+): readonly IInputBoxWidgetItem[] {
+  return items.map(item => ({
+    id: item.id,
+    label: item.title,
+    kind: item.source,
+    ariaLabel: item.title.trim()
+      ? localize("settings.template.rulePriority.ruleAria", "Rule priority block {title}", { title: item.title })
+      : localize("settings.template.rulePriority.untitledRuleAria", "Untitled rule priority block"),
+    removable: true,
+    removeAriaLabel: item.title.trim()
+      ? localize("settings.template.rulePriority.remove", "Remove rule {title}", { title: item.title })
+      : localize("settings.template.rulePriority.removeUntitled", "Remove rule"),
+  }));
 }
 
 function getTemplateSemanticSectionItemRemoveAriaLabel(

@@ -378,6 +378,8 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
             ruleId: "draft-2",
             source: "draft",
             title: "",
+            proofDraft: "",
+            proofTerms: ["Legend Output"],
             xDraft: "",
             xTerms: ["Vg"],
             yDraft: "",
@@ -389,6 +391,8 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
             ruleId: "custom-gate",
             source: "custom",
             title: "iv",
+            proofDraft: "",
+            proofTerms: ["Legend Transfer"],
             xDraft: "",
             xTerms: ["Custom Gate"],
             yDraft: "",
@@ -443,7 +447,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(semanticItems[1]!.classList.contains("settings-list-item--last"), true);
       assert.equal(draftItem.classList.contains("settings-list-item-cell--vertical"), true);
       assert.equal(customItem.classList.contains("settings-list-item-cell--vertical"), true);
-      assert.equal(draftItem.querySelectorAll(".inputbox_widget").length, 2);
+      assert.equal(draftItem.querySelectorAll(".inputbox_widget").length, 3);
       const leadingGrid = getElement(draftItem, ".settings-template-semantic-rule-leading-grid");
       const inputGrid = getElement(draftItem, ".settings-template-semantic-rule-input-grid");
       assert.equal(leadingGrid.children[1], inputGrid);
@@ -456,22 +460,26 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
 	        ],
 	      );
 	      assert.ok(leadingGrid.querySelector(".settings-template-semantic-rule-actionbar .actionbaritem-delete"));
-	      assert.equal(getSemanticRuleInput(draftItem, "Definition, for example iv transfer").value, "");
-	      assert.equal(getSemanticRuleInput(draftItem, "Type, for example transfer").value, "");
+      assert.equal(getSemanticRuleInput(draftItem, "Definition, for example iv transfer").value, "");
+      assert.equal(getSemanticRuleInput(draftItem, "Type, for example transfer").value, "");
+      assert.equal(getSemanticRuleInput(draftItem, "Add proof field").value, "");
       assert.equal(getSemanticRuleInput(draftItem, "Add X field").value, "");
       assert.equal(getSemanticRuleInput(draftItem, "Add Y field").value, "");
       assert.equal(getSemanticRuleSourceText(draftItem), "User");
       assert.equal(getSemanticRuleActionNames(draftItem).includes("Remove"), true);
       assert.equal(draftItem.querySelectorAll(".settings-template-semantic-axis-field .settings-label").length, 0);
+      assert.ok(draftItem.textContent?.includes("Legend Output"));
       assert.ok(draftItem.textContent?.includes("Vg"));
       assert.ok(draftItem.textContent?.includes("Id"));
       assert.equal(customItem.classList.contains("settings-list-item-cell--editable-display"), false);
       assert.equal(getSemanticRuleInput(customItem, "Definition, for example iv transfer").readOnly, false);
+      assert.equal(getSemanticRuleInput(customItem, "Add proof field").hidden, false);
       assert.equal(getSemanticRuleInput(customItem, "Add X field").hidden, false);
       assert.equal(getSemanticRuleSourceText(customItem), "User");
       assert.equal(getSemanticRuleActionNames(customItem).includes("Remove"), true);
       assert.equal(getSemanticRuleActionNames(customItem).includes("Cancel"), false);
       assert.equal(getSemanticRuleActionNames(customItem).includes("Done"), false);
+      assert.ok(customItem.textContent?.includes("Legend Transfer"));
       assert.ok(customItem.textContent?.includes("Custom Gate"));
       assert.ok(customItem.textContent?.includes("Id"));
     }
@@ -494,6 +502,8 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
             ruleId: "builtin-domain:iv",
             source: "builtin",
             title: "iv",
+            proofDraft: "",
+            proofTerms: ["Legend Transfer"],
             xDraft: "",
             xTerms: ["Vg"],
             yDraft: "",
@@ -506,6 +516,75 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     try {
       const builtinItem = getElement(container, "#settings-template-semantic-section-item\\:builtin\\:builtin-domain\\:iv");
       assert.equal(getSemanticRuleSourceText(builtinItem), "Home");
+    }
+    finally {
+      view.dispose();
+      container.remove();
+    }
+  });
+
+  test("renders draggable template rule priority blocks", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    let movedRuleIds: readonly string[] = [];
+    let removedRule: readonly string[] = [];
+    const view = new SettingsView(container, createSettingsViewOptions({
+      activeSettingsSection: "template",
+      templateSettings: {
+        onMoveSemanticRulePriority: ruleIds => {
+          movedRuleIds = ruleIds;
+        },
+        onRemoveSemanticRulePriorityItem: (id, source) => {
+          removedRule = [id, source];
+        },
+        rulePriorityItems: [
+          {
+            id: "rule-a",
+            source: "builtin",
+            title: "Rule A",
+            proofTerms: ["Legend A"],
+            xTerms: ["Gate A"],
+            yTerms: ["Current A"],
+          },
+          {
+            id: "rule-b",
+            source: "custom",
+            title: "Rule B",
+            type: "transfer",
+            proofTerms: ["Legend B"],
+            xTerms: ["Gate B"],
+            yTerms: ["Current B"],
+          },
+          {
+            id: "rule-c",
+            source: "custom",
+            title: "Rule C",
+            proofTerms: ["Legend C"],
+            xTerms: ["Gate C"],
+            yTerms: ["Current C"],
+          },
+        ],
+      },
+    }));
+
+    try {
+      const prioritySection = getElement(container, "#settings-template-rule-priority-section");
+      const priorityItem = getElement(container, "#settings-template-rule-priority-item");
+      const blocks = Array.from(priorityItem.querySelectorAll<HTMLElement>(".inputbox_widget_item"));
+
+      assert.equal(getElement(prioritySection, ".settings-section-header .settings-title").textContent, "Rule Priority");
+      assert.equal(priorityItem.closest(".settings-section"), prioritySection);
+      assert.equal(getClosestSettingsListItem(priorityItem).querySelector(".settings-list-item-body--standard-padding") !== null, true);
+      assert.deepEqual(getInputBoxItemLabels(priorityItem), ["Rule A", "Rule B", "Rule C"]);
+      assert.deepEqual(blocks.map(block => block.draggable), [true, true, true]);
+      assert.ok(getInputBoxItemAction(priorityItem, "Remove rule Rule B"));
+
+      blocks[0]!.dispatchEvent(new Event("dragstart", { bubbles: true, cancelable: true }));
+      blocks[2]!.dispatchEvent(new Event("drop", { bubbles: true, cancelable: true }));
+
+      assert.deepEqual(movedRuleIds, ["rule-b", "rule-c", "rule-a"]);
+      getInputBoxItemAction(priorityItem, "Remove rule Rule B").click();
+      assert.deepEqual(removedRule, ["rule-b", "custom"]);
     }
     finally {
       view.dispose();
@@ -531,6 +610,8 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
             ruleId: "draft-2",
             source: "draft",
             title: "frequency",
+            proofDraft: "",
+            proofTerms: ["Legend Frequency"],
             xDraft: "",
             xTerms: ["Frequency"],
             yDraft: "",
@@ -668,6 +749,8 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
             ruleId: "valid-title",
             source: "draft",
             title: "iv",
+            proofDraft: "",
+            proofTerms: ["Legend Transfer"],
             xDraft: "",
             xTerms: ["Vg"],
             yDraft: "",
@@ -708,6 +791,8 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
             ruleId: "invalid-title",
             source: "draft",
             title: "V",
+            proofDraft: "",
+            proofTerms: ["Legend Transfer"],
             xDraft: "",
             xTerms: ["Vg"],
             yDraft: "",
@@ -740,6 +825,8 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       ruleId: "first",
       source: "draft" as const,
       title: "First",
+      proofDraft: "",
+      proofTerms: ["First Proof"],
       xDraft: "",
       xTerms: ["Vg"],
       yDraft: "",
@@ -751,6 +838,8 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       ruleId: "second",
       source: "draft" as const,
       title: "Second",
+      proofDraft: "",
+      proofTerms: ["Second Proof"],
       xDraft: "",
       xTerms: ["Vd"],
       yDraft: "",
@@ -936,6 +1025,8 @@ function createSemanticRuleItem(
     ruleId: "stable-rule",
     source: "custom",
     title: "iv",
+    proofDraft: "",
+    proofTerms: ["Legend Transfer"],
     xDraft: "",
     xTerms: ["Vg"],
     yDraft: "",
@@ -1098,11 +1189,14 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
       onAddSemanticSectionItemTerm: noop,
       onCommitSemanticSectionItemTitle: noop,
       onCreateSemanticSectionItem: noop,
+      onMoveSemanticRulePriority: noop,
+      onRemoveSemanticRulePriorityItem: noop,
       onRemoveSemanticSectionItem: noop,
       onRemoveSemanticSectionItemTerm: noop,
       onResetSemanticRules: noop,
       onUpdateSemanticSectionItemDraft: noop,
       pendingActionItemId: null,
+      rulePriorityItems: [],
       semanticSectionItems: [],
     },
     theme: "system",

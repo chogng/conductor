@@ -51,6 +51,7 @@ export type SemanticRule = {
 	readonly description?: string;
 	readonly priority: number;
 	readonly type?: string;
+	readonly proofTerms: readonly string[];
 	readonly xTerms: readonly string[];
 	readonly yTerms: readonly string[];
 	readonly enabled: boolean;
@@ -83,6 +84,7 @@ type RuleRecord = {
 	readonly priority: number;
 	readonly type?: string;
 	readonly columns: {
+		readonly proof?: readonly RuleColumnRecord[];
 		readonly x: readonly RuleColumnRecord[];
 		readonly y: readonly RuleColumnRecord[];
 	};
@@ -133,8 +135,9 @@ export type EffectiveSemanticRule = SemanticRule & {
 	readonly source: "builtin" | "user";
 };
 
-type EffectiveRuleState = Omit<SemanticRule, "xTerms" | "yTerms"> & {
+type EffectiveRuleState = Omit<SemanticRule, "proofTerms" | "xTerms" | "yTerms"> & {
 	readonly source: "builtin" | "user";
+	readonly proofKeys: readonly string[];
 	readonly xKeys: readonly string[];
 	readonly yKeys: readonly string[];
 };
@@ -210,6 +213,7 @@ export function createSemanticMatcher(
 			priority: rule.priority,
 			type: rule.type,
 			enabled: rule.enabled,
+			proofTerms: rule.proofTerms,
 			xTerms: rule.xTerms,
 			yTerms: rule.yTerms,
 			source: rule.source,
@@ -303,6 +307,7 @@ function validateRuleRecord(
 	if (!Number.isFinite(rule.priority)) {
 		throw new Error(`Invalid rule priority in ${fileId}:${rule.id}.`);
 	}
+	validateRuleColumns(fileId, rule.id, "proof", rule.columns.proof ?? []);
 	const xKeys = validateRuleColumns(fileId, rule.id, "x", rule.columns.x);
 	const yKeys = validateRuleColumns(fileId, rule.id, "y", rule.columns.y);
 	if (!xKeys.size || !yKeys.size) {
@@ -318,7 +323,7 @@ function validateRuleRecord(
 function validateRuleColumns(
 	fileId: string,
 	ruleId: number,
-	axis: "x" | "y",
+	axis: "proof" | "x" | "y",
 	columns: readonly RuleColumnRecord[],
 ): ReadonlySet<string> {
 	const columnIds = new Set<number>();
@@ -363,6 +368,7 @@ function toBuiltinRule(
 		description: normalizeText(rule.description),
 		priority: rule.priority,
 		...(normalizeText(rule.type) ? { type: normalizeText(rule.type) } : {}),
+		proofTerms: flattenRuleTerms(rule.columns.proof ?? []),
 		xTerms: flattenRuleTerms(rule.columns.x),
 		yTerms: flattenRuleTerms(rule.columns.y),
 		enabled: true,
@@ -456,6 +462,7 @@ function createEffectiveRules(
 			...(rule.type ? { type: rule.type } : {}),
 			enabled: rule.enabled,
 			source: "builtin",
+			proofKeys: termsToKeys(rule.proofTerms),
 			xKeys: termsToKeys(rule.xTerms),
 			yKeys: termsToKeys(rule.yTerms),
 		});
@@ -480,7 +487,7 @@ function createTermIndex(
 ): ReadonlyMap<string, SemanticTermIndexRecord> {
 	const recordsByKey = new Map<string, SemanticTermIndexRecord>();
 	for (const rule of builtinRuleRecords) {
-		for (const alias of [...rule.xTerms, ...rule.yTerms]) {
+		for (const alias of [...rule.proofTerms, ...rule.xTerms, ...rule.yTerms]) {
 			addTermIndexAlias(recordsByKey, toSemanticTermKey(alias), alias, "builtin");
 		}
 	}
@@ -544,6 +551,7 @@ function isValidNewRulePatch(
 ): boolean {
 	return Boolean(
 		patch.label?.trim() &&
+		patch.proofKeys?.addKeys.length &&
 		patch.xKeys?.addKeys.length &&
 		patch.yKeys?.addKeys.length
 	);
@@ -560,6 +568,7 @@ function createUserRuleState(
 		...(patch.type ? { type: patch.type } : {}),
 		enabled: patch.enabled !== false,
 		source: "user",
+		proofKeys: [],
 		xKeys: [],
 		yKeys: [],
 	};
@@ -576,6 +585,7 @@ function applyRulePatch(
 		...(Number.isFinite(patch.priority) ? { priority: Number(patch.priority) } : {}),
 		...(patch.type ? { type: patch.type } : {}),
 		...(typeof patch.enabled === "boolean" ? { enabled: patch.enabled } : {}),
+		proofKeys: applyRuleAxisPatch(base.proofKeys, patch.proofKeys),
 		xKeys: applyRuleAxisPatch(base.xKeys, patch.xKeys),
 		yKeys: applyRuleAxisPatch(base.yKeys, patch.yKeys),
 	};
@@ -609,6 +619,7 @@ function toEffectiveRule(
 		...(rule.type ? { type: rule.type } : {}),
 		enabled: rule.enabled,
 		source: rule.source,
+		proofTerms: keysToAliases(rule.proofKeys, termIndex),
 		xTerms: keysToAliases(rule.xKeys, termIndex),
 		yTerms: keysToAliases(rule.yKeys, termIndex),
 	};
@@ -665,6 +676,7 @@ function compileRuleTitleTerms(
 		if (priorityIndex === undefined) {
 			continue;
 		}
+		addRuleTitleTerms(termsByKey, rule, "unknown", priorityIndex, rule.proofTerms);
 		addRuleTitleTerms(termsByKey, rule, "x", priorityIndex, rule.xTerms);
 		addRuleTitleTerms(termsByKey, rule, "dependent", priorityIndex, rule.yTerms);
 	}

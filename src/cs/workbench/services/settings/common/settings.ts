@@ -57,6 +57,7 @@ export type TemplateSemanticRulePatch = {
   readonly priority?: number;
   readonly type?: string;
   readonly enabled?: boolean;
+  readonly proofKeys?: TemplateSemanticRuleAxisPatch;
   readonly xKeys?: TemplateSemanticRuleAxisPatch;
   readonly yKeys?: TemplateSemanticRuleAxisPatch;
 };
@@ -238,6 +239,7 @@ const normalizeTemplateSemanticRulePatches = (
       ...(priority !== undefined ? { priority } : {}),
       ...(type ? { type } : {}),
       ...(typeof record.enabled === "boolean" ? { enabled: record.enabled } : {}),
+      ...(normalizeTemplateSemanticAxisPatch(record.proofKeys) ? { proofKeys: normalizeTemplateSemanticAxisPatch(record.proofKeys) } : {}),
       ...(normalizeTemplateSemanticAxisPatch(record.xKeys) ? { xKeys: normalizeTemplateSemanticAxisPatch(record.xKeys) } : {}),
       ...(normalizeTemplateSemanticAxisPatch(record.yKeys) ? { yKeys: normalizeTemplateSemanticAxisPatch(record.yKeys) } : {}),
     });

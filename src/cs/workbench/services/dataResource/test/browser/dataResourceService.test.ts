@@ -77,7 +77,28 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.equal(matchSemanticTitle("Cp")?.canonicalRole, "unknown");
 		assert.equal(matchSemanticTitle("Cp")?.axisTendency, "dependent");
 		assert.equal(matchSemanticTitle("Cp(vp=0.00000)"), null);
-		assert.equal(matchSemanticTitle("CH1 Voltage"), null);
+		const channelXMatch = matchSemanticTitle("CH1 Voltage");
+		assert.equal(channelXMatch?.axisTendency, "x");
+		assert.ok(channelXMatch?.semanticRules.some(rule =>
+			rule.label === "iv transfer" &&
+			rule.axisTendency === "x"
+		));
+		assert.ok(channelXMatch?.semanticRules.some(rule =>
+			rule.label === "iv output" &&
+			rule.axisTendency === "x"
+		));
+		assert.equal(matchSemanticTitle("CH1 Current")?.axisTendency, "dependent");
+		assert.equal(matchSemanticTitle("CH1 Resistance")?.axisTendency, "dependent");
+		const channelProofMatch = matchSemanticTitle("CH2 Voltage");
+		assert.equal(channelProofMatch?.axisTendency, "unknown");
+		assert.ok(channelProofMatch?.semanticRules.some(rule =>
+			rule.label === "iv transfer" &&
+			rule.axisTendency === "unknown"
+		));
+		assert.ok(channelProofMatch?.semanticRules.some(rule =>
+			rule.label === "iv output" &&
+			rule.axisTendency === "unknown"
+		));
 		assert.equal(matchSemanticTitle("drain TotalCurrent(IdVg_n938_des) X"), null);
 		for (const ambiguousTerm of ["V", "I", "C", "G", "t", "f"]) {
 			assert.equal(matchSemanticTitle(ambiguousTerm), null);
@@ -94,12 +115,78 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.deepStrictEqual(
 			builtinRules
 				.filter(rule => rule.id.startsWith("iv:"))
-				.map(rule => ({ label: rule.label, type: rule.type })),
+				.map(rule => ({
+					label: rule.label,
+					type: rule.type,
+					proofTerms: rule.proofTerms.filter(term => term === "Output" || term === "Transfer_DB" || term === "CH2 Voltage"),
+				})),
 			[
-				{ label: "iv transfer", type: "transfer" },
-				{ label: "iv output", type: "output" },
+				{ label: "iv transfer", type: "transfer", proofTerms: ["Transfer_DB", "CH2 Voltage"] },
+				{ label: "iv output", type: "output", proofTerms: ["Output", "CH2 Voltage"] },
 			],
 		);
+		assert.equal(matchSemanticTitle("Output")?.semanticRules[0]?.type, "output");
+		assert.equal(matchSemanticTitle("Transfer_DB")?.semanticRules[0]?.type, "transfer");
+	});
+
+	test("keeps shared CH2 proof values from selecting IV mode for CH1 data blocks", async () => {
+		for (const ch2Values of [
+			["0", "0", "0", "1", "1", "1"],
+			["1", "1", "1", "1", "1", "1"],
+		]) {
+			const evidence = await resolveEvidence([
+				["CH1 Voltage", "CH1 Current", "CH1 Resistance", "CH2 Voltage"],
+				["0", "1e-12", "100", ch2Values[0] ?? ""],
+				["0.5", "2e-12", "110", ch2Values[1] ?? ""],
+				["1", "4e-12", "120", ch2Values[2] ?? ""],
+				["0", "5e-12", "130", ch2Values[3] ?? ""],
+				["0.5", "6e-12", "140", ch2Values[4] ?? ""],
+				["1", "8e-12", "150", ch2Values[5] ?? ""],
+			]);
+
+			const block = evidence.blocks.find(candidate =>
+				candidate.source.dataRange?.startCol === 0 &&
+				candidate.source.dataRange?.endCol === 2
+			);
+			assert.ok(block);
+			assert.equal(block.ivMode, undefined);
+		}
+	});
+
+	test("uses exclusive output proof title to select IV output for CH1 data blocks", async () => {
+		const evidence = await resolveEvidence([
+			["CH1 Voltage", "CH1 Current", "CH1 Resistance", "CH2 Voltage", "Output"],
+			["0", "1e-12", "100", "0", "1"],
+			["0.5", "2e-12", "110", "0", "1"],
+			["1", "4e-12", "120", "0", "1"],
+			["0", "5e-12", "130", "1", "1"],
+			["0.5", "6e-12", "140", "1", "1"],
+			["1", "8e-12", "150", "1", "1"],
+		]);
+
+		const block = evidence.blocks.find(candidate =>
+			candidate.source.dataRange?.startCol === 0 &&
+			candidate.source.dataRange?.endCol === 2
+		);
+		assert.equal(block?.ivMode, "output");
+	});
+
+	test("uses exclusive transfer proof title to select IV transfer for CH1 data blocks", async () => {
+		const evidence = await resolveEvidence([
+			["CH1 Voltage", "CH1 Current", "CH1 Resistance", "CH2 Voltage", "Transfer_DB"],
+			["0", "1e-12", "100", "0", "1"],
+			["0.5", "2e-12", "110", "0", "1"],
+			["1", "4e-12", "120", "0", "1"],
+			["0", "5e-12", "130", "1", "1"],
+			["0.5", "6e-12", "140", "1", "1"],
+			["1", "8e-12", "150", "1", "1"],
+		]);
+
+		const block = evidence.blocks.find(candidate =>
+			candidate.source.dataRange?.startCol === 0 &&
+			candidate.source.dataRange?.endCol === 2
+		);
+		assert.equal(block?.ivMode, "transfer");
 	});
 
 	test("uses template semantic term entries in DataResource matcher", async () => {
@@ -113,6 +200,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 					id: "drive-sense",
 					label: "drive",
 					type: "drive",
+					proofTerms: ["Drive Legend"],
 					xTerms: ["DriveBias"],
 					yTerms: ["SenseCurrent"],
 			}).templateSemanticPatches,
@@ -139,11 +227,13 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			patches: createRulePatchSettings({
 				id: "drive-bias-domain",
 				label: "drive",
+				proofTerms: ["Drive Legend"],
 				xTerms: ["DriveBias"],
 				yTerms: ["Drive_Bias", "Drive-Bias"],
 			}).templateSemanticPatches,
 		});
 		const match = matcher.matchTitle("drive-bias");
+		const proofMatch = matcher.matchTitle("Drive Legend");
 
 		assert.equal(toSemanticTermKey("V_G_S"), "vgs");
 		assert.equal(toSemanticTermKey("V-G-S"), "vgs");
@@ -153,6 +243,11 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.ok(match?.reasons.includes("rules.term"));
 		assert.ok(match?.semanticRules.some(rule => rule.axisTendency === "x"));
 		assert.ok(match?.semanticRules.some(rule => rule.axisTendency === "dependent"));
+		assert.equal(proofMatch?.axisTendency, "unknown");
+		assert.ok(proofMatch?.semanticRules.some(rule =>
+			rule.id === "drive-bias-domain" &&
+			rule.axisTendency === "unknown"
+		));
 		assert.equal(matcher.matchTitle("drivebias")?.canonicalRole, "unknown");
 		assert.equal(matcher.matchTitle("drive_bias")?.canonicalRole, "unknown");
 	});
@@ -162,6 +257,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			patches: createRulePatchSettings({
 				id: "custom-vgs-domain",
 				label: "custom",
+				proofTerms: ["Custom Legend"],
 				xTerms: ["DriveBias"],
 				yTerms: ["V-G-S"],
 			}).templateSemanticPatches,
@@ -186,6 +282,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			patches: createRulePatchSettings({
 				id: builtinRule.id,
 				label: builtinRule.label,
+				proofTerms: ["Override Legend"],
 				xTerms: ["Override Gate"],
 				yTerms: ["Override Current"],
 			}, {
@@ -215,6 +312,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			templateSemanticPatches: createRulePatchSettings({
 				id: "single-domain",
 				label: "single",
+				proofTerms: ["Single Legend"],
 				xTerms: ["V"],
 				yTerms: ["I"],
 			}).templateSemanticPatches,
@@ -242,6 +340,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			templateSemanticPatches: createRulePatchSettings({
 				id: "zh-domain",
 				label: "中文领域",
+				proofTerms: ["中文图例"],
 				xTerms: ["栅压"],
 				yTerms: ["漏极电流"],
 			}).templateSemanticPatches,
@@ -271,7 +370,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			["1", "4e-12"],
 		], {
 			templateSemanticPatches: {
-				terms: createTermPatches(["DriveBias", "SenseCurrent"]),
+				terms: createTermPatches(["Sense Legend", "DriveBias", "SenseCurrent"]),
 				rules: [{
 					id: builtinRule.id,
 					enabled: false,
@@ -280,6 +379,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 					label: "sense",
 					priority: 0,
 					enabled: true,
+					proofKeys: { addKeys: ["senselegend"], removeKeys: [] },
 					xKeys: { addKeys: ["drivebias"], removeKeys: [] },
 					yKeys: { addKeys: ["sensecurrent"], removeKeys: [] },
 				}],
@@ -422,7 +522,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 
 	test("detects aligned repeated data blocks", async () => {
 		const evidence = await resolveEvidence([
-			["CH1 Voltage", "CH1 Current", "CH1 Resistance", "", "CH2 Voltage", "CH2 Current", "CH2 Resistance"],
+			["CH1 Voltage", "CH1 Current", "CH1 Resistance", "", "CH1 Voltage", "CH1 Current", "CH1 Resistance"],
 			["0", "1e-12", "100", "", "0", "1e-11", "200"],
 			["0.5", "2e-12", "110", "", "0.5", "2e-11", "210"],
 			["1", "4e-12", "120", "", "1", "4e-11", "220"],
@@ -599,6 +699,7 @@ const createRulePatchSettings = (
 			readonly id: string;
 			readonly label: string;
 			readonly type?: string;
+			readonly proofTerms: readonly string[];
 			readonly xTerms: readonly string[];
 			readonly yTerms: readonly string[];
 	},
@@ -608,13 +709,17 @@ const createRulePatchSettings = (
 	} = {},
 	): { readonly templateSemanticPatches: TemplateSemanticPatches } => ({
 	templateSemanticPatches: {
-		terms: createTermPatches([...rule.xTerms, ...rule.yTerms]),
+		terms: createTermPatches([...rule.proofTerms, ...rule.xTerms, ...rule.yTerms]),
 		rules: [{
 				id: rule.id,
 				label: rule.label,
 				priority: 0,
 				...(rule.type ? { type: rule.type } : {}),
 				enabled: true,
+			proofKeys: {
+				addKeys: rule.proofTerms.map(toSemanticTermKey).filter(Boolean),
+				removeKeys: [],
+			},
 			xKeys: {
 				addKeys: rule.xTerms.map(toSemanticTermKey).filter(Boolean),
 				removeKeys: (options.xRemoveTerms ?? []).map(toSemanticTermKey).filter(Boolean),

@@ -8,6 +8,30 @@
       "priority": 1,
       "type": "transfer",
       "columns": {
+        "proof": [
+          {
+            "id": 1,
+            "label": "Channel export",
+            "terms": [
+              {
+                "key": "transferdb",
+                "aliases": ["Transfer_DB", "Transfer DB"]
+              },
+              {
+                "key": "ch2voltage",
+                "aliases": ["CH2 Voltage", "Ch2 Voltage"]
+              },
+              {
+                "key": "ch2current",
+                "aliases": ["CH2 Current", "Ch2 Current"]
+              },
+              {
+                "key": "ch2resistance",
+                "aliases": ["CH2 Resistance", "Ch2 Resistance"]
+              }
+            ]
+          }
+        ],
         "x": [
           {
             "id": 1,
@@ -32,6 +56,10 @@
               {
                 "key": "idvg",
                 "aliases": ["idvg"]
+              },
+              {
+                "key": "ch1voltage",
+                "aliases": ["CH1 Voltage", "Ch1 Voltage"]
               }
             ]
           }
@@ -96,6 +124,14 @@
               {
                 "key": "ipt",
                 "aliases": ["Ipt"]
+              },
+              {
+                "key": "ch1current",
+                "aliases": ["CH1 Current", "Ch1 Current"]
+              },
+              {
+                "key": "ch1resistance",
+                "aliases": ["CH1 Resistance", "Ch1 Resistance"]
               }
             ]
           }
@@ -109,6 +145,30 @@
       "priority": 2,
       "type": "output",
       "columns": {
+        "proof": [
+          {
+            "id": 1,
+            "label": "Channel export",
+            "terms": [
+              {
+                "key": "output",
+                "aliases": ["Output"]
+              },
+              {
+                "key": "ch2voltage",
+                "aliases": ["CH2 Voltage", "Ch2 Voltage"]
+              },
+              {
+                "key": "ch2current",
+                "aliases": ["CH2 Current", "Ch2 Current"]
+              },
+              {
+                "key": "ch2resistance",
+                "aliases": ["CH2 Resistance", "Ch2 Resistance"]
+              }
+            ]
+          }
+        ],
         "x": [
           {
             "id": 1,
@@ -133,6 +193,10 @@
               {
                 "key": "idvd",
                 "aliases": ["idvd"]
+              },
+              {
+                "key": "ch1voltage",
+                "aliases": ["CH1 Voltage", "Ch1 Voltage"]
               }
             ]
           }
@@ -197,6 +261,14 @@
               {
                 "key": "ipt",
                 "aliases": ["Ipt"]
+              },
+              {
+                "key": "ch1current",
+                "aliases": ["CH1 Current", "Ch1 Current"]
+              },
+              {
+                "key": "ch1resistance",
+                "aliases": ["CH1 Resistance", "Ch1 Resistance"]
               }
             ]
           }
