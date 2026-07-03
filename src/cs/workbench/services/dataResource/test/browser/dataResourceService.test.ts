@@ -93,15 +93,13 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			["0.5", "2e-12"],
 			["1", "4e-12"],
 		], {
-			templateRules: [{
+			templateSemanticPatches: createRulePatchSettings({
 				id: "drive-sense",
 				label: "drive",
-				priority: 0,
 				badge: "drive",
 				xTerms: ["DriveBias"],
 				yTerms: ["SenseCurrent"],
-				enabled: true,
-			}],
+			}).templateSemanticPatches,
 		});
 
 		assert.ok(evidence.semanticRulesFingerprint.includes("data-resource-rules:"));
@@ -122,14 +120,12 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 
 	test("compiles template semantic aliases under term keys inside DataResource matcher", () => {
 		const matcher = createSemanticMatcher({
-			rules: [{
+			patches: createRulePatchSettings({
 				id: "drive-bias-domain",
 				label: "drive",
-				priority: 0,
 				xTerms: ["DriveBias"],
 				yTerms: ["Drive_Bias", "Drive-Bias"],
-				enabled: true,
-			}],
+			}).templateSemanticPatches,
 		});
 		const match = matcher.matchTitle("drive-bias");
 
@@ -147,14 +143,12 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 
 	test("keeps built-in rule matches when user rule terms compile to the same key", () => {
 		const matcher = createSemanticMatcher({
-			rules: [{
+			patches: createRulePatchSettings({
 				id: "custom-vgs-domain",
 				label: "custom",
-				priority: 0,
-				xTerms: [],
+				xTerms: ["DriveBias"],
 				yTerms: ["V-G-S"],
-				enabled: true,
-			}],
+			}).templateSemanticPatches,
 		});
 		const match = matcher.matchTitle("v_g_s");
 
@@ -167,20 +161,21 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		));
 	});
 
-	test("uses user rule over built-in rule with the same id", () => {
+	test("applies same-id user patches to built-in rule key links", () => {
 		const builtinRule = builtinRules.find(rule => rule.label === "iv transfer");
 		assert.ok(builtinRule);
 		const builtinXTerm = builtinRule.xTerms[0];
 		assert.ok(builtinXTerm);
 		const matcher = createSemanticMatcher({
-			rules: [{
+			patches: createRulePatchSettings({
 				id: builtinRule.id,
 				label: builtinRule.label,
-				priority: builtinRule.priority,
 				xTerms: ["Override Gate"],
 				yTerms: ["Override Current"],
-				enabled: true,
-			}],
+			}, {
+				xRemoveTerms: builtinRule.xTerms,
+				yRemoveTerms: builtinRule.yTerms,
+			}).templateSemanticPatches,
 		});
 		const builtinTermMatch = matcher.matchTitle(builtinXTerm);
 		const overrideMatch = matcher.matchTitle("Override Gate");
@@ -190,7 +185,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.ok(overrideMatch?.semanticRules.some(rule =>
 			rule.id === builtinRule.id &&
 			rule.axisTendency === "x" &&
-			rule.source === "user"
+			rule.source === "builtin"
 		));
 	});
 
@@ -201,14 +196,12 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			["0.5", "2e-12"],
 			["1", "4e-12"],
 		], {
-			templateRules: [{
+			templateSemanticPatches: createRulePatchSettings({
 				id: "single-domain",
 				label: "single",
-				priority: 0,
 				xTerms: ["V"],
 				yTerms: ["I"],
-				enabled: true,
-			}],
+			}).templateSemanticPatches,
 		});
 
 		assert.equal(isCustomSemanticMatchTermAllowed("V"), false);
@@ -230,14 +223,12 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			["0.5", "2e-12"],
 			["1", "4e-12"],
 		], {
-			templateRules: [{
+			templateSemanticPatches: createRulePatchSettings({
 				id: "zh-domain",
 				label: "中文领域",
-				priority: 0,
 				xTerms: ["栅压"],
 				yTerms: ["漏极电流"],
-				enabled: true,
-			}],
+			}).templateSemanticPatches,
 		});
 
 		assert.ok(evidence.columnTitleSpans.some(span =>
@@ -263,17 +254,20 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			["0.5", "2e-12"],
 			["1", "4e-12"],
 		], {
-			templateRules: [{
-				...builtinRule,
-				enabled: false,
-			}, {
-				id: "sense-current",
-				label: "sense",
-				priority: 0,
-				xTerms: ["DriveBias"],
-				yTerms: ["SenseCurrent"],
-				enabled: true,
-			}],
+			templateSemanticPatches: {
+				terms: createTermPatches(["DriveBias", "SenseCurrent"]),
+				rules: [{
+					id: builtinRule.id,
+					enabled: false,
+				}, {
+					id: "sense-current",
+					label: "sense",
+					priority: 0,
+					enabled: true,
+					xKeys: { addKeys: ["drivebias"], removeKeys: [] },
+					yKeys: { addKeys: ["sensecurrent"], removeKeys: [] },
+				}],
+			},
 		});
 
 		assert.ok(!evidence.columnTitleSpans.some(span =>
@@ -582,4 +576,59 @@ const createTableContent = (
 		rowCount: rows.length,
 		rows,
 	};
+};
+
+const createRulePatchSettings = (
+	rule: {
+		readonly id: string;
+		readonly label: string;
+		readonly badge?: string;
+		readonly xTerms: readonly string[];
+		readonly yTerms: readonly string[];
+	},
+	options: {
+		readonly xRemoveTerms?: readonly string[];
+		readonly yRemoveTerms?: readonly string[];
+	} = {},
+): { readonly templateSemanticPatches: Record<string, unknown> } => ({
+	templateSemanticPatches: {
+		terms: createTermPatches([...rule.xTerms, ...rule.yTerms]),
+		rules: [{
+			id: rule.id,
+			label: rule.label,
+			priority: 0,
+			...(rule.badge ? { badge: rule.badge } : {}),
+			enabled: true,
+			xKeys: {
+				addKeys: rule.xTerms.map(toSemanticTermKey).filter(Boolean),
+				removeKeys: (options.xRemoveTerms ?? []).map(toSemanticTermKey).filter(Boolean),
+			},
+			yKeys: {
+				addKeys: rule.yTerms.map(toSemanticTermKey).filter(Boolean),
+				removeKeys: (options.yRemoveTerms ?? []).map(toSemanticTermKey).filter(Boolean),
+			},
+		}],
+	},
+});
+
+const createTermPatches = (
+	terms: readonly string[],
+): readonly Record<string, unknown>[] => {
+	const aliasesByKey = new Map<string, string[]>();
+	for (const term of terms) {
+		const key = toSemanticTermKey(term);
+		if (!key) {
+			continue;
+		}
+		const aliases = aliasesByKey.get(key) ?? [];
+		if (!aliases.includes(term)) {
+			aliases.push(term);
+		}
+		aliasesByKey.set(key, aliases);
+	}
+	return [...aliasesByKey].map(([key, addAliases]) => ({
+		key,
+		addAliases,
+		removeAliases: [],
+	}));
 };

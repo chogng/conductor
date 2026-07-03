@@ -98,53 +98,57 @@ suite("platform/configuration/common/configurationRegistry", () => {
     );
   });
 
-  test("normalizes template rules field shape without semantic matching filters", () => {
+  test("normalizes template semantic patch field shape without semantic matching filters", () => {
     assert.deepEqual(normalizeConductorSettings({
-      templateRules: [{
-        id: "drive-sense",
-        label: " Drive ",
-        description: " Demo ",
-        priority: 0,
-        badge: " transfer ",
-        xTerms: [" V "],
-        yTerms: [" I "],
-        enabled: true,
-      }, {
-        id: "punctuation",
-        label: ";",
-        priority: 2,
-        xTerms: [";"],
-        yTerms: ["?"],
-        enabled: true,
-      }, {
-        id: "no-terms",
-        label: "No Terms",
-        enabled: true,
+      templateSemanticPatches: {
+        terms: [{
+          key: " Drive-Bias ",
+          addAliases: ["Drive Bias", "Drive-Bias", "Wrong"],
+          removeAliases: ["Drive_Bias"],
+        }],
+        rules: [{
+          id: "drive-sense",
+          label: " Drive ",
+          description: " Demo ",
+          priority: 0,
+          badge: " transfer ",
+          enabled: true,
+          xKeys: {
+            addKeys: [" Drive-Bias "],
+            removeKeys: ["Gate Voltage"],
+          },
+          yKeys: {
+            addKeys: [" SenseCurrent "],
+            removeKeys: [],
+          },
+        }, {
+          id: "",
+          label: "ignored",
+        }],
+      },
+    }).templateSemanticPatches, {
+      terms: [{
+        key: "drivebias",
+        addAliases: ["Drive Bias", "Drive-Bias"],
+        removeAliases: ["Drive_Bias"],
       }],
-    }).templateRules, [{
-      id: "drive-sense",
-      label: "Drive",
-      description: "Demo",
-      priority: 0,
-      badge: "transfer",
-      xTerms: ["V"],
-      yTerms: ["I"],
-      enabled: true,
-    }, {
-      id: "punctuation",
-      label: ";",
-      priority: 2,
-      xTerms: [";"],
-      yTerms: ["?"],
-      enabled: true,
-    }, {
-      id: "no-terms",
-      label: "No Terms",
-      priority: 3,
-      xTerms: [],
-      yTerms: [],
-      enabled: true,
-    }]);
+      rules: [{
+        id: "drive-sense",
+        label: "Drive",
+        description: "Demo",
+        priority: 0,
+        badge: "transfer",
+        enabled: true,
+        xKeys: {
+          addKeys: ["drivebias"],
+          removeKeys: ["gatevoltage"],
+        },
+        yKeys: {
+          addKeys: ["sensecurrent"],
+          removeKeys: [],
+        },
+      }],
+    });
   });
 
   test("normalizes Explorer badge colors", () => {

@@ -110,15 +110,31 @@ type PlotAxisSettings = {
 };
 
 type NumericDisplayMode = "raw" | "smart";
-type TemplateRule = {
+type TemplateSemanticTermPatch = {
+  key: string;
+  addAliases: string[];
+  removeAliases: string[];
+};
+
+type TemplateSemanticRuleAxisPatch = {
+  addKeys: string[];
+  removeKeys: string[];
+};
+
+type TemplateSemanticRulePatch = {
   id: string;
-  label: string;
+  label?: string;
   description?: string;
-  priority: number;
+  priority?: number;
   badge?: string;
-  xTerms: string[];
-  yTerms: string[];
-  enabled: boolean;
+  enabled?: boolean;
+  xKeys?: TemplateSemanticRuleAxisPatch;
+  yKeys?: TemplateSemanticRuleAxisPatch;
+};
+
+type TemplateSemanticPatches = {
+  terms: TemplateSemanticTermPatch[];
+  rules: TemplateSemanticRulePatch[];
 };
 
 export type ConductorSettings = JsonRecord & {
@@ -126,7 +142,7 @@ export type ConductorSettings = JsonRecord & {
   numericDisplayMode: NumericDisplayMode;
   tableAutoFitColumnWidthsEnabled: boolean;
   tableTemplateVisualizationEnabled: boolean;
-  templateRules: TemplateRule[];
+  templateSemanticPatches: TemplateSemanticPatches;
   theme: string;
   backgroundColor: string;
   filesExplorerBadgeColors: Record<string, string>;
@@ -338,7 +354,10 @@ export const DEFAULT_CONDUCTOR_CONFIGURATION: ConductorSettings = {
   numericDisplayMode: "raw",
   tableAutoFitColumnWidthsEnabled: false,
   tableTemplateVisualizationEnabled: false,
-  templateRules: [],
+  templateSemanticPatches: {
+    terms: [],
+    rules: [],
+  },
   theme: "system",
   backgroundColor: DEFAULT_BACKGROUND_COLOR,
   filesExplorerBadgeColors: DEFAULT_FILES_EXPLORER_BADGE_COLORS,
@@ -487,58 +506,126 @@ function normalizeFilesExplorerBadgeColors(value: unknown): Record<string, strin
   return colors;
 }
 
-function normalizeTemplateRules(value: unknown): TemplateRule[] {
+function normalizeTemplateSemanticPatches(value: unknown): TemplateSemanticPatches {
+  if (!isRecord(value)) {
+    return { terms: [], rules: [] };
+  }
+  return {
+    terms: normalizeTemplateSemanticTermPatches(value.terms),
+    rules: normalizeTemplateSemanticRulePatches(value.rules),
+  };
+}
+
+function normalizeTemplateSemanticTermPatches(value: unknown): TemplateSemanticTermPatch[] {
   if (!Array.isArray(value)) {
     return [];
   }
+  const patches: TemplateSemanticTermPatch[] = [];
+  const seenKeys = new Set<string>();
+  for (const item of value) {
+    if (!isRecord(item)) {
+      continue;
+    }
+    const key = normalizeTemplateSemanticKey(item.key);
+    if (!key || seenKeys.has(key)) {
+      continue;
+    }
+    seenKeys.add(key);
+    patches.push({
+      key,
+      addAliases: normalizeTemplateSemanticAliasList(item.addAliases, key),
+      removeAliases: normalizeTemplateSemanticAliasList(item.removeAliases, key),
+    });
+  }
+  return patches;
+}
 
-  const rules: TemplateRule[] = [];
+function normalizeTemplateSemanticRulePatches(value: unknown): TemplateSemanticRulePatch[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const patches: TemplateSemanticRulePatch[] = [];
   const seenIds = new Set<string>();
-  for (let index = 0; index < value.length; index += 1) {
-    const raw = value[index];
-    if (!isRecord(raw)) {
+  for (const item of value) {
+    if (!isRecord(item)) {
       continue;
     }
-    const label = typeof raw.label === "string" ? raw.label.trim() : "";
-    if (!label) {
-      continue;
-    }
-    const id = typeof raw.id === "string" && raw.id.trim()
-      ? raw.id.trim()
-      : `template-rule-${index}`;
-    if (seenIds.has(id)) {
+    const id = typeof item.id === "string" ? item.id.trim() : "";
+    if (!id || seenIds.has(id)) {
       continue;
     }
     seenIds.add(id);
-    rules.push({
+    const label = typeof item.label === "string" ? item.label.trim() : "";
+    const description = typeof item.description === "string" ? item.description.trim() : "";
+    const badge = typeof item.badge === "string" ? item.badge.trim() : "";
+    const priority = typeof item.priority === "number" && Number.isFinite(item.priority)
+      ? item.priority
+      : undefined;
+    patches.push({
       id,
-      label,
-      ...(typeof raw.description === "string" && raw.description.trim() ? { description: raw.description.trim() } : {}),
-      priority: typeof raw.priority === "number" && Number.isFinite(raw.priority) ? raw.priority : index + 1,
-      ...(typeof raw.badge === "string" && raw.badge.trim() ? { badge: raw.badge.trim() } : {}),
-      xTerms: normalizeTemplateRuleTerms(raw.xTerms),
-      yTerms: normalizeTemplateRuleTerms(raw.yTerms),
-      enabled: raw.enabled !== false,
+      ...(label ? { label } : {}),
+      ...(description ? { description } : {}),
+      ...(priority !== undefined ? { priority } : {}),
+      ...(badge ? { badge } : {}),
+      ...(typeof item.enabled === "boolean" ? { enabled: item.enabled } : {}),
+      ...(normalizeTemplateSemanticAxisPatch(item.xKeys) ? { xKeys: normalizeTemplateSemanticAxisPatch(item.xKeys) } : {}),
+      ...(normalizeTemplateSemanticAxisPatch(item.yKeys) ? { yKeys: normalizeTemplateSemanticAxisPatch(item.yKeys) } : {}),
     });
   }
-  return rules;
+  return patches;
 }
 
-function normalizeTemplateRuleTerms(value: unknown): string[] {
+function normalizeTemplateSemanticAxisPatch(value: unknown): TemplateSemanticRuleAxisPatch | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const patch = {
+    addKeys: normalizeTemplateSemanticKeyList(value.addKeys),
+    removeKeys: normalizeTemplateSemanticKeyList(value.removeKeys),
+  };
+  return patch.addKeys.length || patch.removeKeys.length ? patch : undefined;
+}
+
+function normalizeTemplateSemanticAliasList(value: unknown, key: string): string[] {
   if (!Array.isArray(value)) {
     return [];
   }
   const seen = new Set<string>();
-  const ids: string[] = [];
+  const aliases: string[] = [];
   for (const item of value) {
-    const id = typeof item === "string" ? item.trim() : "";
-    if (!id || seen.has(id)) {
+    const alias = typeof item === "string" ? item.trim() : "";
+    if (!alias || normalizeTemplateSemanticKey(alias) !== key || seen.has(alias)) {
       continue;
     }
-    seen.add(id);
-    ids.push(id);
+    seen.add(alias);
+    aliases.push(alias);
   }
-  return ids;
+  return aliases;
+}
+
+function normalizeTemplateSemanticKeyList(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const seen = new Set<string>();
+  const keys: string[] = [];
+  for (const item of value) {
+    const key = normalizeTemplateSemanticKey(item);
+    if (!key || seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    keys.push(key);
+  }
+  return keys;
+}
+
+function normalizeTemplateSemanticKey(value: unknown): string {
+  return String(value ?? "").trim()
+    .replace(/\u00b5|\u03bc/g, "u")
+    .replace(/\u03a9|\u03c9|\u2126/g, "ohm")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
 function normalizePlotAxisSettings(
@@ -632,8 +719,8 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
     next.tableAutoFitColumnWidthsEnabled,
     DEFAULT_CONDUCTOR_CONFIGURATION.tableAutoFitColumnWidthsEnabled,
   );
-  const templateRules = normalizeTemplateRules(
-    next.templateRules,
+  const templateSemanticPatches = normalizeTemplateSemanticPatches(
+    next.templateSemanticPatches,
   );
   const filesExplorerDensity = isSetValue(
     FILES_EXPLORER_DENSITIES,
@@ -732,7 +819,7 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
     numericDisplayMode,
     tableAutoFitColumnWidthsEnabled,
     tableTemplateVisualizationEnabled,
-    templateRules,
+    templateSemanticPatches,
     theme,
     filesExplorerBadgeColors,
     filesExplorerDensity,
@@ -800,32 +887,70 @@ function createConductorConfigurationProperties(): Record<string, IConfiguration
     enumItemLabels: ["raw", "smart"],
   };
 
-  properties.templateRules = {
-    ...properties.templateRules,
-    items: {
-      additionalProperties: false,
-      properties: {
-        badge: { type: "string" },
-        description: { type: "string" },
-        enabled: { type: "boolean" },
-        id: { type: "string" },
-        label: { type: "string" },
-        priority: { type: "number" },
-        xTerms: {
-          items: { type: "string" },
-          type: "array",
+  properties.templateSemanticPatches = {
+    ...properties.templateSemanticPatches,
+    additionalProperties: false,
+    properties: {
+      terms: {
+        items: {
+          additionalProperties: false,
+          properties: {
+            addAliases: {
+              items: { type: "string" },
+              type: "array",
+            },
+            key: { type: "string" },
+            removeAliases: {
+              items: { type: "string" },
+              type: "array",
+            },
+          },
+          required: ["key"],
+          type: "object",
         },
-        yTerms: {
-          items: { type: "string" },
-          type: "array",
-        },
+        type: "array",
       },
-      required: ["id", "label", "priority", "xTerms", "yTerms", "enabled"],
-      type: "object",
+      rules: {
+        items: {
+          additionalProperties: false,
+          properties: {
+            badge: { type: "string" },
+            description: { type: "string" },
+            enabled: { type: "boolean" },
+            id: { type: "string" },
+            label: { type: "string" },
+            priority: { type: "number" },
+            xKeys: createTemplateSemanticAxisPatchSchema(),
+            yKeys: createTemplateSemanticAxisPatchSchema(),
+          },
+          required: ["id"],
+          type: "object",
+        },
+        type: "array",
+      },
     },
+    required: ["terms", "rules"],
+    type: "object",
   };
 
   return properties;
+}
+
+function createTemplateSemanticAxisPatchSchema(): IJSONSchema {
+  return {
+    additionalProperties: false,
+    properties: {
+      addKeys: {
+        items: { type: "string" },
+        type: "array",
+      },
+      removeKeys: {
+        items: { type: "string" },
+        type: "array",
+      },
+    },
+    type: "object",
+  };
 }
 
 function getJsonSchemaType(value: unknown): IConfigurationPropertySchema["type"] {

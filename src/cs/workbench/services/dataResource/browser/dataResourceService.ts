@@ -47,7 +47,7 @@ import {
 } from "src/cs/workbench/services/dataResource/common/structuredContent";
 import {
 	ISettingsService,
-	normalizeTemplateRules,
+	normalizeTemplateSemanticPatches,
 } from "src/cs/workbench/services/settings/common/settings";
 import {
 	type TableModelContentSnapshot,
@@ -183,7 +183,7 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 	private createSettingsSemanticMatcher(): SemanticMatcher {
 		const settings = this.settingsService.getConductorSettings();
 		return createSemanticMatcher({
-			rules: normalizeTemplateRules(settings?.templateRules),
+			patches: normalizeTemplateSemanticPatches(settings?.templateSemanticPatches),
 		});
 	}
 

@@ -14,7 +14,12 @@ import type {
 	StructuredAxisTendency,
 	StructuredMeasurementColumnRole,
 } from "./structuredContent";
-import type { TemplateRule } from "src/cs/workbench/services/settings/common/settings";
+import type {
+	TemplateSemanticPatches,
+	TemplateSemanticRuleAxisPatch,
+	TemplateSemanticRulePatch,
+	TemplateSemanticTermPatch,
+} from "src/cs/workbench/services/settings/common/settings";
 
 //#region Public semantic contracts
 // Stable values consumed by DataResource evidence, Settings UI, and Review callers.
@@ -40,7 +45,18 @@ export type SemanticTitleRuleMatch = {
 
 export type SemanticRowMarkerKind = "titleRow" | "dataRow";
 
-export type BuiltinRule = TemplateRule & {
+export type SemanticRule = {
+	readonly id: string;
+	readonly label: string;
+	readonly description?: string;
+	readonly priority: number;
+	readonly badge?: string;
+	readonly xTerms: readonly string[];
+	readonly yTerms: readonly string[];
+	readonly enabled: boolean;
+};
+
+export type BuiltinRule = SemanticRule & {
 	readonly source: "builtin";
 };
 
@@ -113,8 +129,26 @@ type SemanticRowMarkerTerm = {
 	readonly kind: SemanticRowMarkerKind;
 };
 
-type EffectiveRule = TemplateRule & {
+export type EffectiveSemanticRule = SemanticRule & {
 	readonly source: "builtin" | "user";
+};
+
+type EffectiveRuleState = Omit<SemanticRule, "xTerms" | "yTerms"> & {
+	readonly source: "builtin" | "user";
+	readonly xKeys: readonly string[];
+	readonly yKeys: readonly string[];
+};
+
+type SemanticTermAliasSource = "builtin" | "user";
+
+type SemanticTermAliasRecord = {
+	readonly text: string;
+	readonly source: SemanticTermAliasSource;
+};
+
+type SemanticTermIndexRecord = {
+	readonly key: string;
+	readonly aliases: readonly SemanticTermAliasRecord[];
 };
 
 //#endregion
@@ -123,7 +157,7 @@ type EffectiveRule = TemplateRule & {
 // Settings-derived options add user-defined rules to the bundled rule set.
 
 export type SemanticMatcherOptions = {
-	readonly rules?: readonly TemplateRule[];
+	readonly patches?: TemplateSemanticPatches;
 };
 
 export type SemanticMatcher = {
@@ -162,7 +196,7 @@ export const builtinRules: readonly BuiltinRule[] = builtinRuleRecords;
 export function createSemanticMatcher(
 	options: SemanticMatcherOptions = {},
 ): SemanticMatcher {
-	const effectiveRules = createEffectiveRules(options.rules ?? []);
+	const effectiveRules = createEffectiveRules(options.patches);
 	const rulePriority = createRulePriority(effectiveRules);
 	const priorityIndexById = new Map(rulePriority.map((id, index) => [id, index]));
 	const titleTerms = compileRuleTitleTerms(effectiveRules, priorityIndexById);
@@ -178,6 +212,7 @@ export function createSemanticMatcher(
 			enabled: rule.enabled,
 			xTerms: rule.xTerms,
 			yTerms: rule.yTerms,
+			source: rule.source,
 		})),
 		rulePriority,
 		rowMarkerTerms: rowMarkerTerms.map(term => ({
@@ -201,6 +236,10 @@ export const matchSemanticTitle = (
 export const matchSemanticRowMarker = (
 	value: unknown,
 ): SemanticRowMarkerKind | null => defaultSemanticMatcher.matchRowMarker(value);
+
+export const createEffectiveSemanticRules = (
+	patches?: TemplateSemanticPatches,
+): readonly EffectiveSemanticRule[] => createEffectiveRules(patches);
 
 export function toSemanticTermKey(
 	value: unknown,
@@ -404,41 +443,220 @@ function addSupplementMarkerTerms(
 //#region Rule matching
 
 function createEffectiveRules(
-	userRules: readonly TemplateRule[],
-): readonly EffectiveRule[] {
-	const rulesById = new Map<string, EffectiveRule>();
+	patches: TemplateSemanticPatches | undefined,
+): readonly EffectiveSemanticRule[] {
+	const termIndex = createTermIndex(patches?.terms ?? []);
+	const rulesById = new Map<string, EffectiveRuleState>();
 	for (const rule of builtinRuleRecords) {
-		rulesById.set(rule.id, rule);
+		rulesById.set(rule.id, {
+			id: rule.id,
+			label: rule.label,
+			...(rule.description ? { description: rule.description } : {}),
+			priority: rule.priority,
+			...(rule.badge ? { badge: rule.badge } : {}),
+			enabled: rule.enabled,
+			source: "builtin",
+			xKeys: termsToKeys(rule.xTerms),
+			yKeys: termsToKeys(rule.yTerms),
+		});
 	}
-	for (const rule of userRules) {
-		if (!rule.label.trim()) {
+	for (const patch of patches?.rules ?? []) {
+		const current = rulesById.get(patch.id);
+		if (!current && !isValidNewRulePatch(patch)) {
 			continue;
 		}
-		rulesById.set(rule.id, {
-			...rule,
-			source: "user",
-		});
+		const base = current ?? createUserRuleState(patch);
+		rulesById.set(patch.id, applyRulePatch(base, patch));
 	}
 	return Array.from(rulesById.values())
 		.filter(rule => rule.enabled !== false)
+		.map(rule => toEffectiveRule(rule, termIndex))
+		.filter(rule => rule.xTerms.length && rule.yTerms.length)
 		.sort(compareTemplateRules);
 }
 
+function createTermIndex(
+	patches: readonly TemplateSemanticTermPatch[],
+): ReadonlyMap<string, SemanticTermIndexRecord> {
+	const recordsByKey = new Map<string, SemanticTermIndexRecord>();
+	for (const rule of builtinRuleRecords) {
+		for (const alias of [...rule.xTerms, ...rule.yTerms]) {
+			addTermIndexAlias(recordsByKey, toSemanticTermKey(alias), alias, "builtin");
+		}
+	}
+	for (const patch of patches) {
+		for (const alias of patch.removeAliases) {
+			removeTermIndexAlias(recordsByKey, patch.key, alias);
+		}
+		for (const alias of patch.addAliases) {
+			if (toSemanticTermKey(alias) === patch.key) {
+				addTermIndexAlias(recordsByKey, patch.key, alias, "user");
+			}
+		}
+	}
+	return recordsByKey;
+}
+
+function addTermIndexAlias(
+	recordsByKey: Map<string, SemanticTermIndexRecord>,
+	key: string,
+	alias: string,
+	source: SemanticTermAliasSource,
+): void {
+	if (!key || !alias) {
+		return;
+	}
+	const current = recordsByKey.get(key);
+	if (!current) {
+		recordsByKey.set(key, {
+			key,
+			aliases: [{ text: alias, source }],
+		});
+		return;
+	}
+	if (current.aliases.some(record => record.text === alias)) {
+		return;
+	}
+	recordsByKey.set(key, {
+		...current,
+		aliases: [...current.aliases, { text: alias, source }],
+	});
+}
+
+function removeTermIndexAlias(
+	recordsByKey: Map<string, SemanticTermIndexRecord>,
+	key: string,
+	alias: string,
+): void {
+	const current = recordsByKey.get(key);
+	if (!current) {
+		return;
+	}
+	const aliases = current.aliases.filter(record => record.text !== alias);
+	recordsByKey.set(key, {
+		...current,
+		aliases,
+	});
+}
+
+function isValidNewRulePatch(
+	patch: TemplateSemanticRulePatch,
+): boolean {
+	return Boolean(
+		patch.label?.trim() &&
+		patch.xKeys?.addKeys.length &&
+		patch.yKeys?.addKeys.length
+	);
+}
+
+function createUserRuleState(
+	patch: TemplateSemanticRulePatch,
+): EffectiveRuleState {
+	return {
+		id: patch.id,
+		label: patch.label?.trim() ?? patch.id,
+		...(patch.description ? { description: patch.description } : {}),
+		priority: Number.isFinite(patch.priority) ? Number(patch.priority) : 0,
+		...(patch.badge ? { badge: patch.badge } : {}),
+		enabled: patch.enabled !== false,
+		source: "user",
+		xKeys: [],
+		yKeys: [],
+	};
+}
+
+function applyRulePatch(
+	base: EffectiveRuleState,
+	patch: TemplateSemanticRulePatch,
+): EffectiveRuleState {
+	return {
+		...base,
+		...(patch.label ? { label: patch.label } : {}),
+		...(patch.description ? { description: patch.description } : {}),
+		...(Number.isFinite(patch.priority) ? { priority: Number(patch.priority) } : {}),
+		...(patch.badge ? { badge: patch.badge } : {}),
+		...(typeof patch.enabled === "boolean" ? { enabled: patch.enabled } : {}),
+		xKeys: applyRuleAxisPatch(base.xKeys, patch.xKeys),
+		yKeys: applyRuleAxisPatch(base.yKeys, patch.yKeys),
+	};
+}
+
+function applyRuleAxisPatch(
+	keys: readonly string[],
+	patch: TemplateSemanticRuleAxisPatch | undefined,
+): readonly string[] {
+	if (!patch) {
+		return keys;
+	}
+	const nextKeys = keys.filter(key => !patch.removeKeys.includes(key));
+	for (const key of patch.addKeys) {
+		if (!nextKeys.includes(key)) {
+			nextKeys.push(key);
+		}
+	}
+	return nextKeys;
+}
+
+function toEffectiveRule(
+	rule: EffectiveRuleState,
+	termIndex: ReadonlyMap<string, SemanticTermIndexRecord>,
+): EffectiveSemanticRule {
+	return {
+		id: rule.id,
+		label: rule.label,
+		...(rule.description ? { description: rule.description } : {}),
+		priority: rule.priority,
+		...(rule.badge ? { badge: rule.badge } : {}),
+		enabled: rule.enabled,
+		source: rule.source,
+		xTerms: keysToAliases(rule.xKeys, termIndex),
+		yTerms: keysToAliases(rule.yKeys, termIndex),
+	};
+}
+
+function termsToKeys(
+	terms: readonly string[],
+): readonly string[] {
+	const keys: string[] = [];
+	for (const term of terms) {
+		const key = toSemanticTermKey(term);
+		if (key && !keys.includes(key)) {
+			keys.push(key);
+		}
+	}
+	return keys;
+}
+
+function keysToAliases(
+	keys: readonly string[],
+	termIndex: ReadonlyMap<string, SemanticTermIndexRecord>,
+): readonly string[] {
+	const aliases: string[] = [];
+	for (const key of keys) {
+		for (const alias of termIndex.get(key)?.aliases ?? []) {
+			if (!aliases.includes(alias.text)) {
+				aliases.push(alias.text);
+			}
+		}
+	}
+	return aliases;
+}
+
 function createRulePriority(
-	rules: readonly EffectiveRule[],
+	rules: readonly EffectiveSemanticRule[],
 ): readonly string[] {
 	return rules.map(rule => rule.id);
 }
 
 function compareTemplateRules(
-	left: Pick<TemplateRule, "id" | "priority">,
-	right: Pick<TemplateRule, "id" | "priority">,
+	left: Pick<SemanticRule, "id" | "priority">,
+	right: Pick<SemanticRule, "id" | "priority">,
 ): number {
 	return left.priority - right.priority || left.id.localeCompare(right.id);
 }
 
 function compileRuleTitleTerms(
-	rules: readonly EffectiveRule[],
+	rules: readonly EffectiveSemanticRule[],
 	priorityIndexById: ReadonlyMap<string, number>,
 ): readonly SemanticTitleTerm[] {
 	const termsByKey = new Map<string, SemanticTitleTerm>();
@@ -455,7 +673,7 @@ function compileRuleTitleTerms(
 
 function addRuleTitleTerms(
 	termsByKey: Map<string, SemanticTitleTerm>,
-	rule: EffectiveRule,
+	rule: EffectiveSemanticRule,
 	axisTendency: StructuredAxisTendency,
 	priorityIndex: number,
 	aliases: readonly string[],

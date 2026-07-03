@@ -337,10 +337,69 @@ numeric run
   -> inspect the row immediately above the run
   -> if the row has an info marker, read the title cell at the target column
   -> otherwise find nearest title/info cell above the same column
-  -> normalize title
-  -> lookup rule title terms
+  -> normalize title into a semantic term key
+  -> lookup rule title aliases by that key
   -> emit ColumnTitleSpanEvidence
 ```
+
+### Semantic Tokens, Keys, and Aliases
+
+Use one vocabulary for the title-matching path:
+
+- `token`: raw text typed by a user, configured by a rule author, or read from a
+  column title cell;
+- `alias`: preserved configured vocabulary. Built-in rule files store aliases
+  explicitly; settings/user edits store typed terms as user alias patches under
+  `templateSemanticPatches.terms`;
+- `key`: normalized semantic identity produced by `toSemanticTermKey(...)`.
+
+The key is not a user-authored replacement for the typed text. It is a lookup
+and dedupe value. `toSemanticTermKey(...)` trims text, normalizes micro and ohm
+symbols, lowercases, and removes non-letter/non-number separators. Examples:
+
+```txt
+V_G_S        -> key vgs
+V-G-S        -> key vgs
+Gate Voltage -> key gatevoltage
+Drive-Bias   -> key drivebias
+```
+
+When compiling built-in semantic rules, the JSON source may include both a
+declared `key` and an `aliases` list. This is the only place where authors write
+an explicit key. Every alias must normalize to the declared key; otherwise the
+rule file is invalid. The compiled matcher stores the alias text for traceable
+vocabulary and indexes it by the derived key.
+
+When compiling settings or user rule terms, do not ask the user for a key and do
+not persist the normalized form as the visible term. The typed term is normalized
+first. If the key already exists, the typed term is stored as a user alias under
+that key. If the key does not exist, a user term patch creates that key and uses
+the typed term as its first alias. When the input happens inside an existing
+rule's X or Y area, the same operation also stores a `templateSemanticPatches`
+rule-axis link for that key. If several aliases derive the same key, they merge
+under that key with all matching rule records preserved.
+
+When reading a file column title, the title cell is a transient token. It is
+normalized into a key for lookup, but it is not added to any alias list and is
+not promoted to a rule key. A title match emits evidence only:
+`normalizedTitle` stores the key that matched, and `semanticRules` stores the
+rule matches that were already configured.
+
+Axis ownership comes from the matched rule record, not from the token storage
+shape:
+
+- a key mapped only by X aliases emits `axisTendency: x`;
+- a key mapped only by Y aliases emits `axisTendency: dependent`;
+- a key mapped by both X and Y aliases emits `axisTendency: unknown`, unless an
+  explicit trailing axis marker such as `X` or `Y` selects one side;
+- a title token that has no configured key match emits no semantic title
+  evidence.
+
+This keeps token capture separate from semantic judgement. DataResource owns
+the token-to-key lookup and ambiguity evidence. Review consumes the resulting
+title spans, X ranges/groups, data blocks, bindings, and fingerprints; Review
+must not reinterpret raw title tokens or create aliases to make a candidate
+fit.
 
 Rules should cover common aliases as X/Y evidence, not as physical role
 judgements:

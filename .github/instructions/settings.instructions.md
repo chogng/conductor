@@ -181,11 +181,13 @@ blur with pending text, or token removal. The X widget dedupes only its own
 tokens by normalized key, and the Y widget does the same for Y tokens; terms may
 appear in multiple domain rules. A rule is persisted only when the draft has a
 valid domain title plus at least one X and one Y character block. Each persisted
-save writes one `templateSemanticDomainRules` record with a stable rule id.
+save writes `templateSemanticPatches`: typed tokens become term alias patches,
+and the rule stores only normalized X/Y key links plus metadata.
 The row remove action belongs to every semantic rule section item. Removing a
 draft discards the draft item. Removing a custom rule deletes that stored rule.
-Removing a built-in rule stores a same-id disabled rule so the item disappears
-until the semantic reset action removes built-in overrides and restores it.
+Removing a built-in rule stores a same-id disabled rule patch so the item
+disappears until the semantic reset action removes built-in overrides and
+restores it.
 
 Domain priority is a separate Template settings item backed by
 `templateSemanticDomainPriority`. It renders draggable domain blocks. When

@@ -39,15 +39,31 @@ export type FilesExplorerBadgeColor =
 
 export type FilesExplorerBadgeColors = Readonly<Record<string, FilesExplorerBadgeColor>>;
 
-export type TemplateRule = {
+export type TemplateSemanticTermPatch = {
+  readonly key: string;
+  readonly addAliases: readonly string[];
+  readonly removeAliases: readonly string[];
+};
+
+export type TemplateSemanticRuleAxisPatch = {
+  readonly addKeys: readonly string[];
+  readonly removeKeys: readonly string[];
+};
+
+export type TemplateSemanticRulePatch = {
   readonly id: string;
-  readonly label: string;
+  readonly label?: string;
   readonly description?: string;
-  readonly priority: number;
+  readonly priority?: number;
   readonly badge?: string;
-  readonly xTerms: readonly string[];
-  readonly yTerms: readonly string[];
-  readonly enabled: boolean;
+  readonly enabled?: boolean;
+  readonly xKeys?: TemplateSemanticRuleAxisPatch;
+  readonly yKeys?: TemplateSemanticRuleAxisPatch;
+};
+
+export type TemplateSemanticPatches = {
+  readonly terms: readonly TemplateSemanticTermPatch[];
+  readonly rules: readonly TemplateSemanticRulePatch[];
 };
 
 const FILES_EXPLORER_DENSITIES = new Set<FilesExplorerDensity>([
@@ -78,7 +94,10 @@ export const DEFAULT_FILES_EXPLORER_BADGE_COLORS: FilesExplorerBadgeColors = Obj
   transfer: "blue",
   unknown: "orange",
 });
-export const DEFAULT_TEMPLATE_RULES: readonly TemplateRule[] = Object.freeze([]);
+export const DEFAULT_TEMPLATE_SEMANTIC_PATCHES: TemplateSemanticPatches = Object.freeze({
+  terms: Object.freeze([]),
+  rules: Object.freeze([]),
+});
 
 export const normalizeFilesExplorerDensity = (
   value: unknown,
@@ -142,77 +161,152 @@ export const normalizeNumericDisplayMode = (
     ? value as NumericDisplayMode
     : DEFAULT_NUMERIC_DISPLAY_MODE;
 
-export const normalizeTemplateRules = (
+export const normalizeTemplateSemanticPatches = (
   value: unknown,
-): readonly TemplateRule[] => {
-  if (!Array.isArray(value)) {
-    return DEFAULT_TEMPLATE_RULES;
+): TemplateSemanticPatches => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return DEFAULT_TEMPLATE_SEMANTIC_PATCHES;
   }
 
-  const rules: TemplateRule[] = [];
+  const record = value as Record<string, unknown>;
+  return {
+    terms: normalizeTemplateSemanticTermPatches(record.terms),
+    rules: normalizeTemplateSemanticRulePatches(record.rules),
+  };
+};
+
+const normalizeTemplateSemanticTermPatches = (
+  value: unknown,
+): readonly TemplateSemanticTermPatch[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const patches: TemplateSemanticTermPatch[] = [];
+  const seenKeys = new Set<string>();
+  for (const item of value) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      continue;
+    }
+    const record = item as Record<string, unknown>;
+    const key = normalizeTemplateSemanticKey(record.key);
+    if (!key || seenKeys.has(key)) {
+      continue;
+    }
+    seenKeys.add(key);
+    patches.push({
+      key,
+      addAliases: normalizeTemplateSemanticAliasList(record.addAliases, key),
+      removeAliases: normalizeTemplateSemanticAliasList(record.removeAliases, key),
+    });
+  }
+  return patches;
+};
+
+const normalizeTemplateSemanticRulePatches = (
+  value: unknown,
+): readonly TemplateSemanticRulePatch[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const patches: TemplateSemanticRulePatch[] = [];
   const seenIds = new Set<string>();
-  for (let index = 0; index < value.length; index += 1) {
-    const raw = value[index];
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+  for (const item of value) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
       continue;
     }
-    const record = raw as Record<string, unknown>;
-    const label = typeof record.label === "string" ? record.label.trim() : "";
-    if (!label) {
+    const record = item as Record<string, unknown>;
+    const id = typeof record.id === "string" ? record.id.trim() : "";
+    if (!id) {
       continue;
     }
-    const id = typeof record.id === "string" && record.id.trim()
-      ? record.id.trim()
-      : `template-rule-${index}`;
     if (seenIds.has(id)) {
       continue;
     }
-    const priority = typeof record.priority === "number" && Number.isFinite(record.priority)
-      ? record.priority
-      : index + 1;
+    seenIds.add(id);
+    const label = typeof record.label === "string" ? record.label.trim() : "";
     const description = typeof record.description === "string" ? record.description.trim() : "";
     const badge = typeof record.badge === "string" ? record.badge.trim() : "";
-    seenIds.add(id);
-    rules.push({
+    const priority = typeof record.priority === "number" && Number.isFinite(record.priority)
+      ? record.priority
+      : undefined;
+    patches.push({
       id,
-      label,
+      ...(label ? { label } : {}),
       ...(description ? { description } : {}),
-      priority,
+      ...(priority !== undefined ? { priority } : {}),
       ...(badge ? { badge } : {}),
-      xTerms: normalizeTemplateRuleTermList(record.xTerms),
-      yTerms: normalizeTemplateRuleTermList(record.yTerms),
-      enabled: record.enabled !== false,
+      ...(typeof record.enabled === "boolean" ? { enabled: record.enabled } : {}),
+      ...(normalizeTemplateSemanticAxisPatch(record.xKeys) ? { xKeys: normalizeTemplateSemanticAxisPatch(record.xKeys) } : {}),
+      ...(normalizeTemplateSemanticAxisPatch(record.yKeys) ? { yKeys: normalizeTemplateSemanticAxisPatch(record.yKeys) } : {}),
     });
   }
-  return rules;
+  return patches;
 };
 
-const normalizeTemplateRuleTermList = (
+const normalizeTemplateSemanticAxisPatch = (
+  value: unknown,
+): TemplateSemanticRuleAxisPatch | undefined => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  const patch = {
+    addKeys: normalizeTemplateSemanticKeyList(record.addKeys),
+    removeKeys: normalizeTemplateSemanticKeyList(record.removeKeys),
+  };
+  return patch.addKeys.length || patch.removeKeys.length ? patch : undefined;
+};
+
+const normalizeTemplateSemanticAliasList = (
+  value: unknown,
+  key: string,
+): readonly string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    const alias = typeof item === "string" ? item.trim() : "";
+    if (!alias || normalizeTemplateSemanticKey(alias) !== key || seen.has(alias)) {
+      continue;
+    }
+    seen.add(alias);
+    result.push(alias);
+  }
+  return result;
+};
+
+const normalizeTemplateSemanticKeyList = (
   value: unknown,
 ): readonly string[] => {
   if (!Array.isArray(value)) {
     return [];
   }
+
   const result: string[] = [];
   const seen = new Set<string>();
   for (const item of value) {
-    const term = typeof item === "string" ? item.trim() : "";
-    if (!term) {
-      continue;
-    }
-    const key = term
-      .replace(/\u00b5|\u03bc/g, "u")
-      .replace(/\u03a9|\u03c9|\u2126/g, "ohm")
-      .toLowerCase()
-      .replace(/[^\p{L}\p{N}]+/gu, "");
+    const key = normalizeTemplateSemanticKey(item);
     if (!key || seen.has(key)) {
       continue;
     }
     seen.add(key);
-    result.push(term);
+    result.push(key);
   }
   return result;
 };
+
+const normalizeTemplateSemanticKey = (
+  value: unknown,
+): string => String(value ?? "").trim()
+  .replace(/\u00b5|\u03bc/g, "u")
+  .replace(/\u03a9|\u03c9|\u2126/g, "ohm")
+  .toLowerCase()
+  .replace(/[^\p{L}\p{N}]+/gu, "");
 
 export type ConductorSettings = {
   backgroundColor?: string;
@@ -223,7 +317,7 @@ export type ConductorSettings = {
   numericDisplayMode?: NumericDisplayMode;
   tableAutoFitColumnWidthsEnabled?: boolean;
   tableTemplateVisualizationEnabled?: boolean;
-  templateRules?: readonly TemplateRule[];
+  templateSemanticPatches?: TemplateSemanticPatches;
   theme?: ThemeMode;
   transparentChrome?: boolean;
   windowCloseBehavior?: "minimizeToTray" | "quit";

@@ -79,8 +79,8 @@ Review Algorithm Sequence:
 ```txt
 URI + contentHash/sourceVersion + optional sheetId
   -> DataResourceService infers structured evidence
-     (cell kinds, numeric runs, title spans, X ranges/groups, blocks, bindings,
-      diagnostics, profiles, semantic rules fingerprint)
+     (cell kinds, numeric runs, title spans, semantic term keys, X ranges/groups,
+      blocks, bindings, diagnostics, profiles, semantic rules fingerprint)
   -> ReviewService reads structured content snapshot
   -> ReviewService builds SegmentCandidate / ReviewCandidate values
      directly from DataResource binding candidates and UserTemplateSnapshot
@@ -89,6 +89,48 @@ URI + contentHash/sourceVersion + optional sheetId
   -> ReviewDecision returns invalid/noCandidates when the evidence is ambiguous
   -> Slice stays on the user-template path until Review produces a usable template
 ```
+
+Semantic token boundary:
+
+```txt
+typed/configured term text
+  -> DataResource stores the original text as an alias/term entry
+  -> DataResource derives a normalized semantic term key for lookup and dedupe
+  -> DataResource matches column titles by normalized key
+  -> DataResource emits title spans, X ranges/groups, blocks, and bindings
+  -> Review consumes those evidence records and never reclassifies raw tokens
+```
+
+In this flow, "token" means the text a user or rule author typed, such as
+`V_G_S`, `V-G-S`, `Gate Voltage`, or `Drain Current`. Runtime matching must not
+store that typed token as a public key. The token remains alias text on the rule
+or user setting surface, and `DataResource` derives the private lookup key with
+`toSemanticTermKey(...)`.
+
+Use `key` only for normalized semantic identity inside DataResource matching:
+case-folded text with separators removed and unit symbols normalized. Examples:
+`V_G_S` and `V-G-S` both derive the key `vgs`; `Gate Voltage` derives
+`gatevoltage`. This key is for lookup, rule merging, dedupe, evidence
+fingerprints, and built-in rule-file validation.
+
+Write to `alias` / term lists when preserving configured vocabulary:
+
+- built-in semantic rule files declare a `key` plus `aliases`; every alias must
+  normalize back to that exact key;
+- settings/user edits persist `templateSemanticPatches`: typed terms are stored
+  as user alias patches under their normalized key, and rule-axis edits persist
+  key links through `xKeys` / `yKeys` add/remove patches;
+- column-title text from the file is not written back as a key or alias during
+  Review. It is normalized into a transient key for matching only.
+
+Review only sees the already-derived evidence: `columnTitleSpans`,
+`xGroupCandidates`, `dataBlockCandidates`, `bindingCandidates`, semantic rule
+matches, and fingerprints. If a token can match both X and dependent rules under
+the same key, DataResource must emit ambiguous or unknown axis evidence; Review
+scores that ambiguity. Review must not resolve ambiguity by inventing another
+alias, by treating the raw token as a new key, or by falling back to Template or
+Table UI parsing.
+
 ```mermaid
 sequenceDiagram
   participant Caller as URI-backed caller / import workflow / Slice Command
@@ -106,8 +148,9 @@ sequenceDiagram
   else missing or stale review
     Review->>Data: resolveStructuredContent(resource, sheetId)
     Data->>Data: cell kind -> numeric runs -> title spans
+    Data->>Data: alias term -> normalized key -> semantic rule match
     Data->>Data: X ranges/groups -> data blocks -> dependents -> bindings
-    Note over Data: Vg=>transfer, Vd=>output, generic Voltage=>unknown
+    Note over Data: typed token stays alias; normalized key is lookup evidence
     Review->>Candidate: project DataResource bindings + UserTemplate snapshot
     Candidate->>Decision: candidate templates
     Decision->>Decision: score + ambiguity + freshness + diagnostics
