@@ -23,6 +23,7 @@ import {
 import { ReviewService } from "src/cs/workbench/services/review/browser/reviewService";
 import type {
 	ReviewEvidence,
+	ReviewSummary,
 	ReviewSummaryTarget,
 	ReviewedTemplate,
 } from "src/cs/workbench/services/review/common/reviewModel";
@@ -104,7 +105,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		});
 
 		assert.equal(result.semanticRulesFingerprint, "semantic:test");
-		assert.equal(result.reviewPolicyVersion, 13);
+		assert.equal(result.reviewPolicyVersion, 14);
 		assert.equal(typeof result.evidenceFingerprint, "string");
 		assert.equal(typeof result.candidates[0]?.providerRank, "number");
 		assert.equal(result.reviewedTemplate, result.decision.kind === "ready" ? result.decision.reviewedTemplate : undefined);
@@ -347,6 +348,143 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate, undefined);
 	});
 
+	test("derives IV output review from stepped CH2 proof across repeated CH1 sweeps", async () => {
+		const userTemplateService = createUserTemplateServiceForTest();
+		const resource = URI.file("/workspace/SteppedChannelOutput.csv");
+		const service = createReviewServiceForTest(
+			userTemplateService,
+			createDataResourceServiceForTest(resource, [], null, createTestTableModelContent([
+				["CH1 Voltage", "CH1 Current", "CH1 Resistance", "CH2 Voltage"],
+				["0", "1e-12", "100", "0"],
+				["0.5", "2e-12", "110", "0"],
+				["1", "4e-12", "120", "0"],
+				["0", "5e-12", "130", "1"],
+				["0.5", "6e-12", "140", "1"],
+				["1", "8e-12", "150", "1"],
+			])),
+		);
+
+		const reviewExecution = await service.reviewResourceForExecution({ resource });
+
+		assert.equal(reviewExecution?.summary.state, "ready");
+		assert.equal(reviewExecution?.summary.reviewedType, "output");
+		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate?.template.measurement?.ivMode, "output");
+	});
+
+	test("derives IV output review from stepped CH2 proof with instrument export columns", async () => {
+		const userTemplateService = createUserTemplateServiceForTest();
+		const resource = URI.file("/workspace/InstrumentOutput.csv");
+		const rows: string[][] = [[
+			"Repeat",
+			"VAR2",
+			"Point",
+			"CH1 Voltage",
+			"CH1 Current",
+			"CH1 Resistance",
+			"CH1 Time",
+			"CH2 Voltage",
+			"CH2 Current",
+			"CH2 Time",
+			"R",
+		]];
+		const ch2Values = [-60, -40, -20, 0, 20, 40, 60];
+		for (let groupIndex = 0; groupIndex < ch2Values.length; groupIndex += 1) {
+			for (let point = 0; point < 201; point += 1) {
+				const ch1Voltage = -3 + point * 0.03;
+				const ch2Voltage = ch2Values[groupIndex] +
+					(groupIndex === 2 && point % 2 === 0 ? -1e-5 : 0) +
+					(groupIndex === 3 ? (point % 5 - 2) * 1e-6 : 0) +
+					(groupIndex === 4 && point % 2 === 0 ? -1e-5 : 0);
+				rows.push([
+					"1",
+					String(groupIndex + 1),
+					String(point + 1),
+					ch1Voltage.toFixed(5),
+					(-3e-9 + groupIndex * 1e-10 + point * 1e-12).toExponential(6),
+					String(800 + groupIndex * 20 + point),
+					String(point * 0.12),
+					String(ch2Voltage),
+					String(1 + groupIndex * 0.1 + point * 0.001),
+					String(point * 0.12),
+					String(800 + groupIndex * 20 + point),
+				]);
+			}
+		}
+		const service = createReviewServiceForTest(
+			userTemplateService,
+			createDataResourceServiceForTest(resource, [], null, createTestTableModelContent(rows)),
+		);
+
+		const reviewExecution = await service.reviewResourceForExecution({ resource });
+
+		assert.equal(reviewExecution?.summary.state, "ready");
+		assert.equal(reviewExecution?.summary.reviewedType, "output");
+		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate?.template.measurement?.ivMode, "output");
+	});
+
+	test("derives IV output review when transfer-priority settings keep noisy CH2 current as transfer proof", async () => {
+		const userTemplateService = createUserTemplateServiceForTest();
+		const resource = URI.file("/workspace/ConfiguredInstrumentOutput.csv");
+		const rows: string[][] = [[
+			"Repeat",
+			"VAR2",
+			"Point",
+			"CH1 Voltage",
+			"CH1 Current",
+			"CH1 Resistance",
+			"CH1 Time",
+			"CH2 Voltage",
+			"CH2 Current",
+			"CH2 Time",
+			"R",
+		]];
+		for (let groupIndex = 0; groupIndex < 2; groupIndex += 1) {
+			for (let point = 0; point < 3; point += 1) {
+				rows.push([
+					"1",
+					String(groupIndex + 1),
+					String(point + 1),
+					String(point * 0.5),
+					String((1 + groupIndex + point) * 1e-12),
+					String(100 + point),
+					String(point * 0.12),
+					String(groupIndex ? 20 + (point - 1) * 1e-5 : 0),
+					String((1 + point * 0.4 - groupIndex * 0.1) * 1e-9),
+					String(point * 0.12),
+					String(100 + point),
+				]);
+			}
+		}
+		const conductorSettings = {
+			templateSemanticPatches: {
+				terms: [],
+				rules: [
+					{
+						id: "iv:1",
+						priority: 0,
+						yKeys: { addKeys: [], removeKeys: ["ch1resistance"] },
+					},
+					{
+						id: "iv:2",
+						priority: 1,
+						proofKeys: { addKeys: [], removeKeys: ["ch2current", "ch2resistance"] },
+						yKeys: { addKeys: [], removeKeys: ["ch1resistance"] },
+					},
+				],
+			},
+		};
+		const service = createReviewServiceForTest(
+			userTemplateService,
+			createDataResourceServiceForTest(resource, [], null, createTestTableModelContent(rows), conductorSettings),
+		);
+
+		const reviewExecution = await service.reviewResourceForExecution({ resource });
+
+		assert.equal(reviewExecution?.summary.state, "ready");
+		assert.equal(reviewExecution?.summary.reviewedType, "output");
+		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate?.template.measurement?.ivMode, "output");
+	});
+
 	test("does not require adjustment when a repeated-block candidate covers child block candidates", async () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/RepeatedBlocks.csv");
@@ -512,6 +650,59 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate?.template.measurement?.curveFamily, "iv");
 		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate?.template.measurement?.ivMode, "output");
 		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate?.reviewedType, "output");
+	});
+
+	test("refreshes cached URI reviews when review policy changes", async () => {
+		const userTemplateService = createUserTemplateServiceForTest();
+		const resource = URI.file("/workspace/Output.csv");
+		const service = createReviewServiceForTest(
+			userTemplateService,
+			createDataResourceServiceForTest(resource, [], null, createTestTableModelContent([
+				["Vd", "Id"],
+				["0", "1"],
+				["1", "2"],
+			])),
+		);
+
+		const target = {
+			resource,
+			sheetId: "table-a",
+		};
+		const reviewExecution = await service.reviewResourceForExecution(target);
+		assert.equal(reviewExecution?.summary.reviewedType, "output");
+
+		const cacheProbe = service as unknown as {
+			readonly uriReviewCacheByKey: Map<string, {
+				readonly reviewEngineVersion: number;
+				readonly reviewPolicyVersion: number;
+				readonly summary: ReviewSummary;
+				readonly [key: string]: unknown;
+			}>;
+		};
+		const cacheEntries = Array.from(cacheProbe.uriReviewCacheByKey.entries());
+		assert.equal(cacheEntries.length, 1);
+		const [cacheKey, cachedEntry] = cacheEntries[0] ?? [];
+		assert.ok(cacheKey);
+		assert.ok(cachedEntry);
+		cacheProbe.uriReviewCacheByKey.set(cacheKey, {
+			...cachedEntry,
+			reviewEngineVersion: 0,
+			reviewPolicyVersion: 0,
+			summary: {
+				...cachedEntry.summary,
+				reviewedSemanticLabel: "Detected Transfer",
+				reviewedType: "transfer",
+			},
+		});
+
+		const staleSummary = service.getLatestReviewSummary(target);
+		assert.equal(staleSummary.state, "stale");
+		assert.equal(staleSummary.reviewedType, "transfer");
+
+		await waitUntil(() => {
+			const summary = service.getLatestReviewSummary(target);
+			return summary.state === "ready" && summary.reviewedType === "output";
+		}, 40, 5);
 	});
 
 	test("derives IV transfer review from B1500 DataName metadata rows", async () => {

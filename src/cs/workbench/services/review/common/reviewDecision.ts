@@ -387,7 +387,12 @@ export const scoreReviewCandidates = ({
 	const competitor = topCandidate
 		? orderedBaseScores
 			.map(([candidateId, score]) => ({ candidate: candidateById.get(candidateId), score }))
-			.find(entry => entry.candidate && entry.candidate.id !== topCandidate.id && !isReviewCandidateCoveredBy(topCandidate, entry.candidate))
+			.find(entry =>
+				entry.candidate &&
+				entry.candidate.id !== topCandidate.id &&
+				!isReviewCandidateCoveredBy(topCandidate, entry.candidate) &&
+				!isReviewCandidateSemanticallyDominatedBy(topCandidate, entry.candidate)
+			)
 		: undefined;
 	const secondScore = competitor?.score ?? 0;
 	const secondCandidate = competitor?.candidate;
@@ -421,6 +426,41 @@ const isReviewCandidateCoveredBy = (
 	return topBlockIds.length > candidateBlockIds.length &&
 		candidateBlockIds.length > 0 &&
 		candidateBlockIds.every(blockId => topBlockIds.includes(blockId));
+};
+
+const isReviewCandidateSemanticallyDominatedBy = (
+	topCandidate: ReviewCandidate,
+	candidate: ReviewCandidate,
+): boolean =>
+	hasReviewCandidateMeasurement(topCandidate) &&
+	candidate.source.kind === "dataResource" &&
+	!hasReviewCandidateMeasurement(candidate) &&
+	!areReviewCandidatesStructuralPeers(topCandidate, candidate) &&
+	topCandidate.confidence >= candidate.confidence;
+
+const hasReviewCandidateMeasurement = (
+	candidate: ReviewCandidate,
+): boolean =>
+	Boolean(candidate.interpretation.measurement) ||
+	Boolean(String(candidate.interpretation.reviewedType ?? "").trim());
+
+const areReviewCandidatesStructuralPeers = (
+	left: ReviewCandidate,
+	right: ReviewCandidate,
+): boolean => {
+	const leftBlocks = left.interpretation.blocks;
+	const rightBlocks = right.interpretation.blocks;
+	if (leftBlocks.length !== rightBlocks.length) {
+		return false;
+	}
+	return leftBlocks.every((leftBlock, index) => {
+		const rightBlock = rightBlocks[index];
+		return Boolean(rightBlock) &&
+			leftBlock.rowRange.startRow === rightBlock.rowRange.startRow &&
+			leftBlock.rowRange.endRow === rightBlock.rowRange.endRow &&
+			leftBlock.x.columns.length === rightBlock.x.columns.length &&
+			leftBlock.y.columns.length === rightBlock.y.columns.length;
+	});
 };
 
 const getReviewCaptureStringArray = (value: unknown): readonly string[] =>

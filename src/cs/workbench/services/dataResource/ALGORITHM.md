@@ -123,10 +123,14 @@ as `Id`, `Ig`, and `capacitance` usually point to dependent values.
 Proof titles are auxiliary rule evidence, not extracted Y columns. When a proof
 title points at numeric data such as `CH2 Voltage`, `DataResource` validates the
 numeric shape against the accepted X groups before it becomes strong rule
-evidence: each X group must hold one proof value, and the group representatives
-must be constant or monotonic stepped values. That proof validates the auxiliary
-condition column, but it does not distinguish IV output from IV transfer unless
-the rule also has exclusive mode evidence such as `Output` or `Transfer_DB`.
+evidence: each X group must hold one proof value within instrument-export
+precision, allowing small numeric jitter relative to the proof column's full
+span, and the group representatives must be constant or monotonic stepped
+values. A globally constant proof validates the auxiliary condition column, but
+it does not distinguish IV output from IV transfer unless the rule also has
+exclusive mode evidence such as `Output` or `Transfer_DB`. A monotonic stepped
+proof means the primary X sweep repeats under different bias conditions, so it
+is strong IV output proof.
 
 This requires a fast canonical title library owned by `DataResource`. It should
 not be a Recipe responsibility or a temporary rule inside Review scoring.

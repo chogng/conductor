@@ -129,28 +129,75 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.equal(matchSemanticTitle("Transfer_DB")?.semanticRules[0]?.type, "transfer");
 	});
 
-	test("keeps shared CH2 proof values from selecting IV mode for CH1 data blocks", async () => {
-		for (const ch2Values of [
-			["0", "0", "0", "1", "1", "1"],
-			["1", "1", "1", "1", "1", "1"],
-		]) {
-			const evidence = await resolveEvidence([
-				["CH1 Voltage", "CH1 Current", "CH1 Resistance", "CH2 Voltage"],
-				["0", "1e-12", "100", ch2Values[0] ?? ""],
-				["0.5", "2e-12", "110", ch2Values[1] ?? ""],
-				["1", "4e-12", "120", ch2Values[2] ?? ""],
-				["0", "5e-12", "130", ch2Values[3] ?? ""],
-				["0.5", "6e-12", "140", ch2Values[4] ?? ""],
-				["1", "8e-12", "150", ch2Values[5] ?? ""],
-			]);
+	test("keeps globally constant shared CH2 proof values from selecting IV mode for CH1 data blocks", async () => {
+		const evidence = await resolveEvidence([
+			["CH1 Voltage", "CH1 Current", "CH1 Resistance", "CH2 Voltage"],
+			["0", "1e-12", "100", "1"],
+			["0.5", "2e-12", "110", "1"],
+			["1", "4e-12", "120", "1"],
+			["0", "5e-12", "130", "1"],
+			["0.5", "6e-12", "140", "1"],
+			["1", "8e-12", "150", "1"],
+		]);
 
-			const block = evidence.blocks.find(candidate =>
-				candidate.source.dataRange?.startCol === 0 &&
-				candidate.source.dataRange?.endCol === 2
-			);
-			assert.ok(block);
-			assert.equal(block.ivMode, undefined);
-		}
+		const block = evidence.blocks.find(candidate =>
+			candidate.source.dataRange?.startCol === 0 &&
+			candidate.source.dataRange?.endCol === 2
+		);
+		assert.ok(block);
+		assert.equal(block.ivMode, undefined);
+	});
+
+	test("uses stepped shared CH2 proof values to select IV output for repeated CH1 sweeps", async () => {
+		const evidence = await resolveEvidence([
+			["CH1 Voltage", "CH1 Current", "CH1 Resistance", "CH2 Voltage"],
+			["0", "1e-12", "100", "0"],
+			["0.5", "2e-12", "110", "0"],
+			["1", "4e-12", "120", "0"],
+			["0", "5e-12", "130", "19.99999"],
+			["0.5", "6e-12", "140", "20"],
+			["1", "8e-12", "150", "20.00001"],
+		]);
+
+		const block = evidence.blocks.find(candidate =>
+			candidate.source.dataRange?.startCol === 0 &&
+			candidate.source.dataRange?.endCol === 2
+		);
+		assert.equal(block?.ivMode, "output");
+	});
+
+	test("keeps noisy nA CH2 current proof from overriding stepped CH2 voltage output proof", async () => {
+		const semanticPatches: TemplateSemanticPatches = {
+			terms: [],
+			rules: [
+				{
+					id: "iv:1",
+					priority: 0,
+					yKeys: { addKeys: [], removeKeys: ["ch1resistance"] },
+				},
+				{
+					id: "iv:2",
+					priority: 1,
+					proofKeys: { addKeys: [], removeKeys: ["ch2current", "ch2resistance"] },
+					yKeys: { addKeys: [], removeKeys: ["ch1resistance"] },
+				},
+			],
+		};
+		const evidence = await resolveEvidence([
+			["CH1 Voltage", "CH1 Current", "CH1 Resistance", "CH2 Voltage", "CH2 Current"],
+			["0", "1e-12", "100", "0", "1.0e-9"],
+			["0.5", "2e-12", "110", "0", "1.4e-9"],
+			["1", "4e-12", "120", "0", "0.9e-9"],
+			["0", "5e-12", "130", "19.99999", "1.1e-9"],
+			["0.5", "6e-12", "140", "20", "1.5e-9"],
+			["1", "8e-12", "150", "20.00001", "1.0e-9"],
+		], { templateSemanticPatches: semanticPatches });
+
+		const block = evidence.blocks.find(candidate =>
+			candidate.source.dataRange?.startCol === 0 &&
+			candidate.source.dataRange?.endCol === 1
+		);
+		assert.equal(block?.ivMode, "output");
 	});
 
 	test("uses exclusive output proof title to select IV output for CH1 data blocks", async () => {

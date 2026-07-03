@@ -112,6 +112,7 @@ type GroupRange = {
 const MinimumNumericRunPoints = 2;
 const BlockXConfidenceThreshold = 0.55;
 const NumberTolerance = 1e-9;
+const ProofColumnAbsoluteTolerance = 1e-12;
 
 export class DataResourceService extends Disposable implements IDataResourceService {
 	public declare readonly _serviceBrand: undefined;
@@ -1645,7 +1646,7 @@ const selectBlockRule = (
 	const { rows, titleSpansByColumn, xGroupCandidates } = context;
 	const xRules = titleSpansByColumn.get(block.xColumn)?.semanticRules
 		.filter(rule => rule.axisTendency === "x") ?? [];
-	const proofScoresByRuleId = collectBlockProofScores({
+	const proofEvidenceByRuleId = collectBlockProofEvidence({
 		block,
 		rows,
 		titleSpansByColumn,
@@ -1675,27 +1676,35 @@ const selectBlockRule = (
 	}
 	const candidates = xRules
 		.filter(rule => yRulesById.has(rule.id))
-		.map(rule => ({
-			id: rule.id,
-			label: rule.label,
-			...(rule.type ? { type: rule.type } : {}),
-			priorityIndex: Math.min(rule.priorityIndex, yRulesById.get(rule.id)?.priorityIndex ?? rule.priorityIndex),
-			proofScore: proofScoresByRuleId.get(rule.id) ?? 0,
-		}));
+		.map(rule => {
+			const proofEvidence = proofEvidenceByRuleId.get(rule.id) ?? [];
+			return {
+				id: rule.id,
+				label: rule.label,
+				...(rule.type ? { type: rule.type } : {}),
+				priorityIndex: Math.min(rule.priorityIndex, yRulesById.get(rule.id)?.priorityIndex ?? rule.priorityIndex),
+				proofEvidenceCount: proofEvidence.length,
+				proofScore: getBlockRuleProofScore(rule.type, proofEvidence),
+			};
+		});
 	if (!candidates.length) {
 		return null;
 	}
 	const bestProofScore = Math.max(...candidates.map(candidate => candidate.proofScore));
 	const strongestCandidates = candidates.filter(candidate => candidate.proofScore === bestProofScore);
-	const strongestTypes = new Set(strongestCandidates.map(candidate => candidate.type).filter(Boolean));
+	const bestProofEvidenceCount = Math.max(...strongestCandidates.map(candidate => candidate.proofEvidenceCount));
+	const strongestEvidenceCandidates = strongestCandidates.filter(candidate =>
+		candidate.proofEvidenceCount === bestProofEvidenceCount
+	);
+	const strongestTypes = new Set(strongestEvidenceCandidates.map(candidate => candidate.type).filter(Boolean));
 	if (strongestTypes.has("transfer") && strongestTypes.has("output")) {
 		return null;
 	}
-	return strongestCandidates
+	return strongestEvidenceCandidates
 		.sort((left, right) => left.priorityIndex - right.priorityIndex)[0] ?? null;
 };
 
-const collectBlockProofScores = ({
+const collectBlockProofEvidence = ({
 	block,
 	rows,
 	titleSpansByColumn,
@@ -1705,8 +1714,8 @@ const collectBlockProofScores = ({
 	readonly rows: readonly (readonly string[])[];
 	readonly titleSpansByColumn: ReadonlyMap<number, StructuredColumnTitleSpanEvidence>;
 	readonly xGroupCandidates: readonly StructuredXGroupCandidate[];
-}): ReadonlyMap<string, number> => {
-	const scores = new Map<string, number>();
+}): ReadonlyMap<string, readonly BlockProofColumnKind[]> => {
+	const evidenceByRuleId = new Map<string, BlockProofColumnKind[]>();
 	const blockColumns = new Set([block.xColumn, ...block.dependentColumns]);
 	for (const [column, titleSpan] of titleSpansByColumn) {
 		const rules = titleSpan.semanticRules.filter(rule => rule.axisTendency === "unknown");
@@ -1722,19 +1731,30 @@ const collectBlockProofScores = ({
 				xGroupCandidates,
 			});
 		for (const rule of rules) {
-			const score = getBlockProofScore(proofKind);
-			if (score <= 0) {
+			if (proofKind === "none") {
 				continue;
 			}
-			scores.set(rule.id, (scores.get(rule.id) ?? 0) + score);
+			const kinds = evidenceByRuleId.get(rule.id) ?? [];
+			kinds.push(proofKind);
+			evidenceByRuleId.set(rule.id, kinds);
 		}
 	}
-	return scores;
+	return evidenceByRuleId;
 };
 
-const getBlockProofScore = (
-	proofKind: BlockProofColumnKind,
-): number => proofKind === "none" ? 0 : 1;
+const getBlockRuleProofScore = (
+	ruleType: string | undefined,
+	proofEvidence: readonly BlockProofColumnKind[] | undefined,
+): number => {
+	if (!proofEvidence?.length) {
+		return 0;
+	}
+	const baseScore = proofEvidence.length;
+	const steppedOutputBonus = ruleType === "output"
+		? proofEvidence.filter(kind => kind === "steppedByXGroup").length
+		: 0;
+	return baseScore + steppedOutputBonus;
+};
 
 type BlockProofColumnKind = "none" | "title" | "constantByXGroup" | "steppedByXGroup";
 
@@ -1758,6 +1778,7 @@ const getBlockProofColumnKind = ({
 	const ranges = groups.length
 		? groups.map(group => ({ startRow: group.startRow, endRow: group.endRow }))
 		: [{ startRow: block.startRow, endRow: block.endRow }];
+	const proofValueTolerance = getProofColumnValueTolerance(rows, column, block.startRow, block.endRow);
 	const representatives: number[] = [];
 	for (const range of ranges) {
 		const values = readNumericValues(rows, column, range.startRow, range.endRow);
@@ -1766,7 +1787,7 @@ const getBlockProofColumnKind = ({
 			return "none";
 		}
 		const representative = values[0] ?? 0;
-		if (!values.every(value => nearlyEqual(value, representative))) {
+		if (!values.every(value => nearlyEqualWithTolerance(value, representative, proofValueTolerance))) {
 			return "none";
 		}
 		representatives.push(representative);
@@ -1778,6 +1799,23 @@ const getBlockProofColumnKind = ({
 	return getMonotonicity(createDiffs(representatives), direction) >= 0.98
 		? "steppedByXGroup"
 		: "none";
+};
+
+const getProofColumnValueTolerance = (
+	rows: readonly (readonly string[])[],
+	column: number,
+	startRow: number,
+	endRow: number,
+): number => {
+	const values = readNumericValues(rows, column, startRow, endRow);
+	if (!values.length) {
+		return ProofColumnAbsoluteTolerance;
+	}
+	const min = Math.min(...values);
+	const max = Math.max(...values);
+	const span = Math.abs(max - min);
+	const scale = Math.max(Math.abs(min), Math.abs(max));
+	return Math.max(ProofColumnAbsoluteTolerance, span * 1e-6, scale * 1e-9);
 };
 
 const toMeasurementFromType = (
@@ -2399,6 +2437,12 @@ const nearlyEqual = (
 	left: number,
 	right: number,
 ): boolean => Math.abs(left - right) <= Math.max(NumberTolerance, Math.max(Math.abs(left), Math.abs(right)) * 1e-9);
+
+const nearlyEqualWithTolerance = (
+	left: number,
+	right: number,
+	tolerance: number,
+): boolean => Math.abs(left - right) <= tolerance;
 
 const average = (
 	values: readonly number[],

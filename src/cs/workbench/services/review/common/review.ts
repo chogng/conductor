@@ -19,7 +19,7 @@ import type { SchemaProfile } from "src/cs/workbench/services/schemaProfile/comm
 export const IReviewService = createDecorator<IReviewService>("reviewService");
 
 export const REVIEW_ENGINE_VERSION = 2;
-export const REVIEW_POLICY_VERSION = 13;
+export const REVIEW_POLICY_VERSION = 14;
 
 export type ManualTemplateSelection =
   {

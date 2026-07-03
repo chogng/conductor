@@ -11,6 +11,8 @@ import { InstantiationType, registerSingleton } from "src/cs/platform/instantiat
 import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
 import {
   IReviewService,
+  REVIEW_ENGINE_VERSION,
+  REVIEW_POLICY_VERSION,
   type ManualTemplateReviewResult,
   type ManualTemplateSelection,
   type ReviewedTemplateConfirmationRequest,
@@ -72,6 +74,8 @@ type UriReviewCacheEntry = {
   readonly fileName?: string | null;
   readonly modelSignature: string;
   readonly result?: ReviewResult;
+  readonly reviewEngineVersion: number;
+  readonly reviewPolicyVersion: number;
   readonly reviewSignature?: string;
   readonly sourceModelVersion?: number;
   readonly sourceVersion?: number;
@@ -148,11 +152,12 @@ export class ReviewService extends Disposable implements IReviewService {
 
     const key = getUriReviewTargetKey(reviewTarget);
     const cached = this.uriReviewCacheByKey.get(key);
-    if (cached && !this.staleUriReviewKeys.has(key)) {
+    if (cached && isCurrentUriReviewCacheEntry(cached) && !this.staleUriReviewKeys.has(key)) {
       return cached.summary;
     }
 
     if (cached) {
+      this.markStaleUriReviewCacheEntryForRefresh(key, reviewTarget);
       return createStaleReviewSummaryFromCacheEntry(cached, reviewTarget);
     }
     if (this.activeUriReviewPromisesByKey.has(key)) {
@@ -191,8 +196,11 @@ export class ReviewService extends Disposable implements IReviewService {
     const key = getUriReviewTargetKey(reviewTarget);
     this.trackUriReviewTarget(key, reviewTarget);
     const cached = this.uriReviewCacheByKey.get(key);
-    if (cached && !this.staleUriReviewKeys.has(key)) {
+    if (cached && isCurrentUriReviewCacheEntry(cached) && !this.staleUriReviewKeys.has(key)) {
       return cached;
+    }
+    if (cached && !isCurrentUriReviewCacheEntry(cached)) {
+      this.markStaleUriReviewCacheEntryForRefresh(key, reviewTarget);
     }
 
     const activeReview = this.activeUriReviewPromisesByKey.get(key);
@@ -395,6 +403,16 @@ export class ReviewService extends Disposable implements IReviewService {
     this.uriReviewGenerationByKey.set(key, this.getUriReviewGeneration(key) + 1);
   }
 
+  private markStaleUriReviewCacheEntryForRefresh(key: string, target: NormalizedUriReviewTarget): void {
+    if (this.staleUriReviewKeys.has(key)) {
+      return;
+    }
+
+    this.markUriReviewTargetStale(key);
+    this.queueUriReviewRefresh(key, target);
+    this.fireReviewChange();
+  }
+
   private queueUriReviewRefresh(key: string, target: NormalizedUriReviewTarget): void {
     if (this.disposed) {
       return;
@@ -476,6 +494,8 @@ export class ReviewService extends Disposable implements IReviewService {
     } catch (error) {
       return {
         modelSignature: createUriReviewErrorSignature(target, error),
+        reviewEngineVersion: REVIEW_ENGINE_VERSION,
+        reviewPolicyVersion: REVIEW_POLICY_VERSION,
         summary: {
           resource: target.resource,
           ...(target.sheetId ? { sheetId: target.sheetId } : {}),
@@ -503,6 +523,8 @@ export class ReviewService extends Disposable implements IReviewService {
     if (resolution.kind === "loadError") {
       return {
         modelSignature,
+        reviewEngineVersion: REVIEW_ENGINE_VERSION,
+        reviewPolicyVersion: REVIEW_POLICY_VERSION,
         summary: {
           resource: target.resource,
           ...(target.sheetId ? { sheetId: target.sheetId } : {}),
@@ -515,6 +537,8 @@ export class ReviewService extends Disposable implements IReviewService {
     if (resolution.kind === "pending") {
       return {
         modelSignature,
+        reviewEngineVersion: REVIEW_ENGINE_VERSION,
+        reviewPolicyVersion: REVIEW_POLICY_VERSION,
         summary: {
           resource: target.resource,
           ...(target.sheetId ? { sheetId: target.sheetId } : {}),
@@ -527,6 +551,8 @@ export class ReviewService extends Disposable implements IReviewService {
     if (resolution.kind === "missingSheet") {
       return {
         modelSignature,
+        reviewEngineVersion: REVIEW_ENGINE_VERSION,
+        reviewPolicyVersion: REVIEW_POLICY_VERSION,
         summary: {
           resource: target.resource,
           ...(target.sheetId ? { sheetId: target.sheetId } : {}),
@@ -539,6 +565,8 @@ export class ReviewService extends Disposable implements IReviewService {
     if (resolution.kind === "missingContent") {
       return {
         modelSignature,
+        reviewEngineVersion: REVIEW_ENGINE_VERSION,
+        reviewPolicyVersion: REVIEW_POLICY_VERSION,
         summary: {
           resource: target.resource,
           ...(target.sheetId ? { sheetId: target.sheetId } : {}),
@@ -572,6 +600,8 @@ export class ReviewService extends Disposable implements IReviewService {
       ...(target.contentHash ? { contentHash: target.contentHash } : {}),
       modelSignature,
       result,
+      reviewEngineVersion: REVIEW_ENGINE_VERSION,
+      reviewPolicyVersion: REVIEW_POLICY_VERSION,
       reviewSignature,
       rowCount: structuredContent.rowCount,
       sourceModelVersion: structuredContent.sourceModelVersion,
@@ -1056,6 +1086,12 @@ const createResourceReviewExecutionFromCacheEntry = (
     ...(systemRecommendedReviewedTemplate ? { systemRecommendedReviewedTemplate } : {}),
   };
 };
+
+const isCurrentUriReviewCacheEntry = (
+  entry: UriReviewCacheEntry,
+): boolean =>
+  entry.reviewEngineVersion === REVIEW_ENGINE_VERSION &&
+  entry.reviewPolicyVersion === REVIEW_POLICY_VERSION;
 
 const getSystemRecommendedReviewedTemplate = (
   result: ReviewResult | undefined,
