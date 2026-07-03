@@ -1566,9 +1566,7 @@ export class SettingsView {
     settings: TemplateSettings,
   ): TemplateSemanticSectionItemActions | null {
     const actionLabel = localize("settings.template.semantic.removeRuleLabel", "Remove");
-    const actionAriaLabel = semanticItem.title.trim()
-      ? localize("settings.template.semantic.removeRule", "Remove domain rule {term}", { term: semanticItem.title })
-      : localize("settings.template.semantic.removeUntitledRule", "Remove domain rule");
+    const actionAriaLabel = getTemplateSemanticSectionItemRemoveAriaLabel(semanticItem);
     const removeAction = this.registerContentDisposable(new Action(
       "settings.template.semantic.removeRule",
       actionLabel,
