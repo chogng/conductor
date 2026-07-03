@@ -5,6 +5,17 @@ import {
   MessageType,
 } from "src/cs/base/browser/ui/inputbox/inputBox";
 import { InputBoxWidget } from "src/cs/base/browser/ui/inputbox/inputBoxWidget";
+import type {
+  IManagedHover,
+  IManagedHoverContent,
+  IManagedHoverContentOrFactory,
+  IManagedHoverOptions,
+} from "src/cs/base/browser/ui/hover/hover";
+import {
+  getBaseLayerHoverDelegate,
+  type IHoverDelegate,
+  setBaseLayerHoverDelegate,
+} from "src/cs/base/browser/ui/hover/hoverDelegate";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -42,20 +53,54 @@ suite("workbench/test/browser/inputBox", () => {
     inputBox.dispose();
   });
 
+  test("createInputBox does not create tooltip from placeholder", () => {
+    const previousHoverDelegate = getBaseLayerHoverDelegate();
+    const hoverDelegate = new TestHoverDelegate();
+    setBaseLayerHoverDelegate(hoverDelegate);
+    const inputBox = createInputBox({
+      placeholder: "Domain scope, for example iv",
+    });
+
+    try {
+      assert.equal(inputBox.input.getAttribute("title"), null);
+      assert.equal(hoverDelegate.hovers.length, 0);
+
+      inputBox.update({ placeholder: "Next domain scope" });
+
+      assert.equal(inputBox.input.placeholder, "Next domain scope");
+      assert.equal(inputBox.input.getAttribute("title"), null);
+      assert.equal(hoverDelegate.hovers.length, 0);
+    } finally {
+      inputBox.dispose();
+      setBaseLayerHoverDelegate(previousHoverDelegate);
+    }
+  });
+
   test("createInputBox uses managed hover without native title", () => {
+    const previousHoverDelegate = getBaseLayerHoverDelegate();
+    const hoverDelegate = new TestHoverDelegate();
+    setBaseLayerHoverDelegate(hoverDelegate);
     const inputBox = createInputBox({
       placeholder: "Domain scope, for example iv",
       tooltip: "Domain scope, for example iv",
     });
 
-    assert.equal(inputBox.input.getAttribute("title"), null);
+    try {
+      assert.equal(inputBox.input.getAttribute("title"), null);
+      assert.equal(hoverDelegate.hovers.length, 1);
 
-    inputBox.setTooltip("Next tooltip");
-    assert.equal(inputBox.input.getAttribute("title"), null);
+      inputBox.setTooltip("Next tooltip");
+      assert.equal(inputBox.input.getAttribute("title"), null);
+      assert.equal(hoverDelegate.hovers.length, 1);
+      assert.equal(hoverDelegate.hovers[0]?.content, "Next tooltip");
 
-    inputBox.setTooltip("");
-    assert.equal(inputBox.input.getAttribute("title"), null);
-    inputBox.dispose();
+      inputBox.setTooltip("");
+      assert.equal(inputBox.input.getAttribute("title"), null);
+      assert.equal(hoverDelegate.hovers[0]?.isDisposed, true);
+    } finally {
+      inputBox.dispose();
+      setBaseLayerHoverDelegate(previousHoverDelegate);
+    }
   });
 
   test("InputBoxWidget does not create native tooltips", () => {
@@ -384,3 +429,41 @@ const createFakeElement = (tagName: string): FakeElement => {
   element.tagName = tagName.toUpperCase();
   return element;
 };
+
+class TestHoverDelegate implements IHoverDelegate {
+  public readonly hovers: TestManagedHover[] = [];
+
+  public setupManagedHover(
+    _target: HTMLElement,
+    content: IManagedHoverContentOrFactory,
+    _options?: IManagedHoverOptions,
+  ): IManagedHover {
+    const hover = new TestManagedHover(content);
+    this.hovers.push(hover);
+    return hover;
+  }
+}
+
+class TestManagedHover implements IManagedHover {
+  public isDisposed = false;
+
+  public constructor(
+    public content: IManagedHoverContentOrFactory,
+  ) { }
+
+  public show(): void {
+    // Test hover does not render.
+  }
+
+  public hide(): void {
+    // Test hover does not render.
+  }
+
+  public update(content: IManagedHoverContent): void {
+    this.content = content;
+  }
+
+  public dispose(): void {
+    this.isDisposed = true;
+  }
+}

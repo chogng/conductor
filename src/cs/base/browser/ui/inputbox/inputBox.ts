@@ -99,7 +99,7 @@ export class InputBox<TInput extends InputBoxInputElement = HTMLInputElement> ex
 
     this.element.append(this.field);
 
-    this.setTooltip(options.tooltip ?? options.placeholder ?? "");
+    this.setTooltip(options.tooltip ?? "");
     this.setActions(options.actions, options);
     this.setScrollable(options.scrollable === true || options.flexibleHeight === true);
     this.registerListeners();
