@@ -95,12 +95,11 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
     this.originSettingsViewInput = this.createOriginSettingsViewInput();
     this.settingsViewInput = this.createSettingsViewInput();
     this._register(this.configurationService.onDidChangeConfiguration(event => {
-      if (
-        CONDUCTOR_CONFIGURATION_KEYS.some(key =>
-          event.affectsConfiguration(key),
-        )
-      ) {
-        void this.loadSettings({ showLoadingState: false });
+      const affectedKeys = CONDUCTOR_CONFIGURATION_KEYS.filter(key =>
+        event.affectsConfiguration(key),
+      );
+      if (affectedKeys.length) {
+        void this.loadSettings({ showLoadingState: false, keys: affectedKeys });
       }
     }));
   }
@@ -292,7 +291,7 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
   }
 
   private async loadSettings(
-    options: { readonly showLoadingState: boolean },
+    options: { readonly keys?: readonly string[]; readonly showLoadingState: boolean },
   ): Promise<void> {
     if (this.loadingSettings) {
       return;
@@ -306,7 +305,7 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
     try {
       const settings = toConductorSettings(await this.getSettingsPersistence().getSettings());
       if (!this.disposed) {
-        this.setConductorSettings(settings, true);
+        this.setConductorSettings(this.getLoadedSettingsPatch(settings, options.keys), true);
       }
     } catch {
       if (!this.disposed && options.showLoadingState) {
@@ -315,6 +314,24 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
     } finally {
       this.loadingSettings = false;
     }
+  }
+
+  private getLoadedSettingsPatch(
+    settings: ConductorSettings | null,
+    keys: readonly string[] | undefined,
+  ): ConductorSettings | null {
+    if (!settings || !keys) {
+      return settings;
+    }
+
+    const patch: Record<string, unknown> = {};
+    for (const key of keys) {
+      patch[key] = settings[key as keyof ConductorSettings];
+    }
+    return {
+      ...(this.conductorSettings ?? {}),
+      ...patch,
+    };
   }
 
   private getSettingsPersistence(): SettingsPersistence {
@@ -481,8 +498,10 @@ function createConfigurationSettingsPersistence(
         ...readSettings(),
         ...patch,
       }) as Record<string, unknown>;
+      const updatedSettings: Record<string, unknown> = {};
 
       for (const key of Object.keys(patch)) {
+        updatedSettings[key] = nextSettings[key];
         await configurationService.updateValue(
           key,
           nextSettings[key],
@@ -490,7 +509,7 @@ function createConfigurationSettingsPersistence(
         );
       }
 
-      return readSettings();
+      return updatedSettings;
     },
   };
 }

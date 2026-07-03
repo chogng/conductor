@@ -630,7 +630,16 @@ function compareOverrides(
       continue;
     }
 
-    const result = compare(from.override(identifier), to.override(identifier));
+    const result = compareConfigurationContents(
+      {
+        contents: from.getOverrideValue<Record<string, unknown>>(undefined, identifier) ?? {},
+        keys: from.getKeysForOverrideIdentifier(identifier),
+      },
+      {
+        contents: to.getOverrideValue<Record<string, unknown>>(undefined, identifier) ?? {},
+        keys: to.getKeysForOverrideIdentifier(identifier),
+      },
+    );
     const keys = [...result.added, ...result.removed, ...result.updated];
     if (keys.length) {
       overrides.push([identifier, keys]);
@@ -638,6 +647,29 @@ function compareOverrides(
   }
 
   return overrides;
+}
+
+function compareConfigurationContents(
+  from: { readonly contents: Record<string, unknown>; readonly keys: readonly string[] } | undefined,
+  to: { readonly contents: Record<string, unknown>; readonly keys: readonly string[] } | undefined,
+): Pick<IConfigurationCompareResult, "added" | "removed" | "updated"> {
+  const added = to ? (from ? to.keys.filter(key => !from.keys.includes(key)) : [...to.keys]) : [];
+  const removed = from ? (to ? from.keys.filter(key => !to.keys.includes(key)) : [...from.keys]) : [];
+  const updated: string[] = [];
+
+  if (from && to) {
+    for (const key of from.keys) {
+      if (to.keys.includes(key)
+        && !equals(
+          getConfigurationValue(from.contents, key),
+          getConfigurationValue(to.contents, key),
+        )) {
+        updated.push(key);
+      }
+    }
+  }
+
+  return { added, removed, updated };
 }
 
 function compareResultToChange(result: IConfigurationCompareResult): IConfigurationChange {

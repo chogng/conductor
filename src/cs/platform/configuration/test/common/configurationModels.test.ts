@@ -104,4 +104,30 @@ suite("platform/configuration/common/configurationModels", () => {
       true,
     );
   });
+
+  test("compares shared override identifiers without recursive override diffing", () => {
+    const configuration = new Configuration(
+      ConfigurationModel.createEmptyModel(),
+      ConfigurationModel.createEmptyModel(),
+      parseConfigurationModel({
+        "[json]": {
+          "editor.tabSize": 2,
+        },
+      }),
+      ConfigurationModel.createEmptyModel(),
+      ConfigurationModel.createEmptyModel(),
+      ConfigurationModel.createEmptyModel(),
+    );
+
+    const change = configuration.compareAndUpdateLocalUserConfiguration(
+      parseConfigurationModel({
+        "[json]": {
+          "editor.tabSize": 3,
+        },
+      }),
+    );
+
+    assert.deepEqual(change.keys, []);
+    assert.deepEqual(change.overrides, [["json", ["editor.tabSize"]]]);
+  });
 });

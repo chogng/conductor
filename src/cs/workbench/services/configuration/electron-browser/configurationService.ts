@@ -47,6 +47,18 @@ export class ElectronBrowserConfigurationService extends ConfigurationService im
 			mainProcessService.getChannel(CONFIGURATION_CHANNEL_NAME),
 		);
 		this.userConfiguration = this.createUserConfiguration();
+		this._register(this.configurationChannelClient.onDidChangeConfiguration(event => {
+			if (
+				event.source !== ConfigurationTarget.USER
+				&& event.source !== ConfigurationTarget.USER_LOCAL
+			) {
+				return;
+			}
+
+			void this.reloadConfiguration().catch(error => {
+				console.error("Failed to reload user settings.", error);
+			});
+		}));
 		void this.reloadConfiguration().catch(error => {
 			console.error("Failed to load user settings.", error);
 		});

@@ -380,6 +380,19 @@ type LocalContentPatch = {
   readonly update: () => void;
 };
 
+type TemplateSemanticSectionItemActions = {
+  readonly element: HTMLElement;
+  readonly removeAction: Action;
+};
+
+type TemplateSemanticSectionItemControls = {
+  readonly leadingInput: InputBox<HTMLInputElement>;
+  readonly sourceLabel: HTMLElement;
+  readonly xInput: InputBoxWidget;
+  readonly yInput: InputBoxWidget;
+  readonly actions: TemplateSemanticSectionItemActions | null;
+};
+
 type SettingsSectionItemOrientation = "horizontal" | "vertical";
 
 type SettingsSectionItemEditOptions = {
@@ -544,17 +557,23 @@ export class SettingsView {
       return;
     }
 
-    const itemIds = new Set(this.descriptorItemIds.get(descriptorId) ?? []);
-    const currentDisposables = this.collectDescriptorDisposables(descriptorId);
+    const itemIds = [...(this.descriptorItemIds.get(descriptorId) ?? [])];
+    const treeItemIds = this.updateLocalContentItems({ descriptorId, itemIds });
+    const treeItemIdSet = new Set(treeItemIds);
+    const preservedItemIds = new Set(itemIds.filter(itemId => !treeItemIdSet.has(itemId)));
+    const currentDisposables = this.collectDescriptorDisposables(descriptorId, preservedItemIds);
     const previousPatchIds = this.activeTreeItemPatchIds;
-    this.activeTreeItemPatchIds = itemIds;
+    this.activeTreeItemPatchIds = treeItemIdSet;
+    let nextSections: readonly SettingsTreeSection[];
     try {
-      tree.update(this.createVisibleContentTreeSections(false));
+      nextSections = this.createVisibleContentTreeSections(false);
+      tree.update(nextSections);
     }
     finally {
       this.activeTreeItemPatchIds = previousPatchIds;
       currentDisposables.dispose();
     }
+    this.disposeDisconnectedPreservedItems(descriptorId, preservedItemIds, nextSections);
   }
 
   private updateContentItems(target: SettingsContentItemTarget): void {
@@ -694,21 +713,63 @@ export class SettingsView {
     });
   }
 
-  private collectDescriptorDisposables(descriptorId: SettingsContentDescriptorId): DisposableStore {
+  private collectDescriptorDisposables(
+    descriptorId: SettingsContentDescriptorId,
+    preservedItemIds: ReadonlySet<SettingsContentItemId> = new Set(),
+  ): DisposableStore {
     const disposables = new DisposableStore();
     const itemIds = this.descriptorItemIds.get(descriptorId);
+    const nextItemIds = new Set<SettingsContentItemId>();
     if (itemIds) {
       for (const itemId of itemIds) {
+        if (preservedItemIds.has(itemId)) {
+          nextItemIds.add(itemId);
+          continue;
+        }
         disposables.add(this.collectContentItemDisposables(itemId));
       }
     }
-    this.descriptorItemIds.delete(descriptorId);
+    if (nextItemIds.size) {
+      this.descriptorItemIds.set(descriptorId, nextItemIds);
+    }
+    else {
+      this.descriptorItemIds.delete(descriptorId);
+    }
     const descriptorDisposables = this.descriptorDisposables.get(descriptorId);
     if (descriptorDisposables) {
       disposables.add(descriptorDisposables);
       this.descriptorDisposables.delete(descriptorId);
     }
     return disposables;
+  }
+
+  private disposeDisconnectedPreservedItems(
+    descriptorId: SettingsContentDescriptorId,
+    preservedItemIds: ReadonlySet<SettingsContentItemId>,
+    nextSections: readonly SettingsTreeSection[],
+  ): void {
+    if (preservedItemIds.size === 0) {
+      return;
+    }
+
+    const nextItemIds = new Set<SettingsContentItemId>();
+    for (const section of nextSections) {
+      for (const item of section.items) {
+        nextItemIds.add(item.id as SettingsContentItemId);
+      }
+    }
+
+    const descriptorItemIds = this.descriptorItemIds.get(descriptorId);
+    for (const itemId of preservedItemIds) {
+      if (nextItemIds.has(itemId)) {
+        continue;
+      }
+      descriptorItemIds?.delete(itemId);
+      this.collectContentItemDisposables(itemId).dispose();
+    }
+    if (descriptorItemIds?.size === 0) {
+      this.descriptorItemIds.delete(descriptorId);
+    }
   }
 
   private collectContentItemDisposables(itemId: SettingsContentItemId): DisposableStore {
@@ -1300,40 +1361,99 @@ export class SettingsView {
     }
     item.leading.element.classList.add("settings-template-semantic-rule-leading");
 
-    item.trailing.regions.x.appendChild(
-      this.createTemplateSemanticTermsInput({
-        axis: "x",
-        ariaLabel: localize("settings.template.semantic.xRepresentativeAria", "X axis representative character block"),
-        disabled: semanticItem.isSaving,
-        emptyLabel: localize("settings.template.semantic.noXTerms", "No X blocks"),
-        placeholder: localize("settings.template.semantic.xRepresentativePlaceholder", "X representative"),
-        readOnly: false,
-        terms: semanticItem.xTerms,
-        value: semanticItem.xDraft,
-        onAccept: value => settings.onAddSemanticSectionItemTerm(semanticItem.id, "x", value),
-        onChange: value => settings.onUpdateSemanticSectionItemDraft(semanticItem.id, "xDraft", value),
-        onRemoveTerm: term => settings.onRemoveSemanticSectionItemTerm(semanticItem.id, "x", term),
-      }).element,
-    );
-    item.trailing.regions.y.appendChild(
-      this.createTemplateSemanticTermsInput({
-        axis: "y",
-        ariaLabel: localize("settings.template.semantic.yRepresentativeAria", "Y axis representative character block"),
-        disabled: semanticItem.isSaving,
-        emptyLabel: localize("settings.template.semantic.noYTerms", "No Y blocks"),
-        placeholder: localize("settings.template.semantic.yRepresentativePlaceholder", "Y representative"),
-        readOnly: false,
-        terms: semanticItem.yTerms,
-        value: semanticItem.yDraft,
-        onAccept: value => settings.onAddSemanticSectionItemTerm(semanticItem.id, "y", value),
-        onChange: value => settings.onUpdateSemanticSectionItemDraft(semanticItem.id, "yDraft", value),
-        onRemoveTerm: term => settings.onRemoveSemanticSectionItemTerm(semanticItem.id, "y", term),
-      }).element,
-    );
+    const xInput = this.createTemplateSemanticTermsInput({
+      axis: "x",
+      ariaLabel: localize("settings.template.semantic.xRepresentativeAria", "X axis representative character block"),
+      disabled: semanticItem.isSaving,
+      emptyLabel: localize("settings.template.semantic.noXTerms", "No X blocks"),
+      placeholder: localize("settings.template.semantic.xRepresentativePlaceholder", "X representative"),
+      readOnly: false,
+      terms: semanticItem.xTerms,
+      value: semanticItem.xDraft,
+      onAccept: value => settings.onAddSemanticSectionItemTerm(semanticItem.id, "x", value),
+      onChange: value => settings.onUpdateSemanticSectionItemDraft(semanticItem.id, "xDraft", value),
+      onRemoveTerm: term => settings.onRemoveSemanticSectionItemTerm(semanticItem.id, "x", term),
+    });
+    item.trailing.regions.x.appendChild(xInput.element);
+    const yInput = this.createTemplateSemanticTermsInput({
+      axis: "y",
+      ariaLabel: localize("settings.template.semantic.yRepresentativeAria", "Y axis representative character block"),
+      disabled: semanticItem.isSaving,
+      emptyLabel: localize("settings.template.semantic.noYTerms", "No Y blocks"),
+      placeholder: localize("settings.template.semantic.yRepresentativePlaceholder", "Y representative"),
+      readOnly: false,
+      terms: semanticItem.yTerms,
+      value: semanticItem.yDraft,
+      onAccept: value => settings.onAddSemanticSectionItemTerm(semanticItem.id, "y", value),
+      onChange: value => settings.onUpdateSemanticSectionItemDraft(semanticItem.id, "yDraft", value),
+      onRemoveTerm: term => settings.onRemoveSemanticSectionItemTerm(semanticItem.id, "y", term),
+    });
+    item.trailing.regions.y.appendChild(yInput.element);
+    this.registerLocalContentPatch(semanticItem.id, {
+      element: item.element,
+      getSearchText: () => {
+        const nextItem = this.options.templateSettings.semanticSectionItems.find(item => item.id === semanticItem.id);
+        return nextItem ? this.getTemplateSemanticSectionItemSearchText(nextItem) : undefined;
+      },
+      update: () => {
+        const nextItem = this.options.templateSettings.semanticSectionItems.find(item => item.id === semanticItem.id);
+        if (!nextItem) {
+          return;
+        }
+        this.updateTemplateSemanticSectionItemControls(nextItem, {
+          leadingInput,
+          sourceLabel,
+          xInput,
+          yInput,
+          actions: leadingActions,
+        });
+      },
+    });
     if (semanticItem.autoFocus) {
       queueMicrotask(() => leadingInput.focus());
     }
     return item.element;
+  }
+
+  private updateTemplateSemanticSectionItemControls(
+    semanticItem: TemplateSemanticSectionItem,
+    controls: TemplateSemanticSectionItemControls,
+  ): void {
+    controls.leadingInput.update({
+      ariaLabel: localize("settings.template.semantic.leadingAria", "Domain scope"),
+      disabled: semanticItem.isSaving,
+      placeholder: localize("settings.template.semantic.leadingPlaceholder", "Domain scope, for example iv"),
+      readOnly: false,
+      value: semanticItem.title,
+    });
+    const sourceText = formatTemplateSemanticSectionItemSource(semanticItem.source);
+    if (controls.sourceLabel.textContent !== sourceText) {
+      controls.sourceLabel.textContent = sourceText;
+    }
+    controls.xInput.update({
+      ariaLabel: localize("settings.template.semantic.xRepresentativeAria", "X axis representative character block"),
+      disabled: semanticItem.isSaving,
+      emptyLabel: localize("settings.template.semantic.noXTerms", "No X blocks"),
+      inputVisible: true,
+      items: createTemplateSemanticTermItems("x", semanticItem.xTerms, false),
+      placeholder: localize("settings.template.semantic.xRepresentativePlaceholder", "X representative"),
+      readOnly: false,
+      value: semanticItem.xDraft,
+    });
+    controls.yInput.update({
+      ariaLabel: localize("settings.template.semantic.yRepresentativeAria", "Y axis representative character block"),
+      disabled: semanticItem.isSaving,
+      emptyLabel: localize("settings.template.semantic.noYTerms", "No Y blocks"),
+      inputVisible: true,
+      items: createTemplateSemanticTermItems("y", semanticItem.yTerms, false),
+      placeholder: localize("settings.template.semantic.yRepresentativePlaceholder", "Y representative"),
+      readOnly: false,
+      value: semanticItem.yDraft,
+    });
+    if (controls.actions) {
+      controls.actions.removeAction.enabled = !semanticItem.isSaving;
+      controls.actions.removeAction.tooltip = getTemplateSemanticSectionItemRemoveAriaLabel(semanticItem);
+    }
   }
 
   private createTemplateSemanticSectionItemInput(options: {
@@ -1393,27 +1513,12 @@ export class SettingsView {
     readonly terms: readonly string[];
     readonly value: string;
   }): InputBoxWidget {
-    const items: IInputBoxWidgetItem[] = options.terms.map((term, index) => {
-      const item = {
-        id: `${options.axis}:${index}:${term}`,
-        label: term,
-        kind: options.axis,
-      };
-      if (options.readOnly) {
-        return item;
-      }
-      return {
-        ...item,
-        removable: true,
-        removeAriaLabel: localize("settings.template.semantic.removeTerm", "Remove character block {term}", { term }),
-      };
-    });
     const inputBox = this.registerContentDisposable(new InputBoxWidget({
       ariaLabel: options.ariaLabel,
       disabled: options.disabled,
       emptyLabel: options.emptyLabel,
       inputVisible: !options.readOnly,
-      items,
+      items: createTemplateSemanticTermItems(options.axis, options.terms, options.readOnly),
       placeholder: options.placeholder,
       value: options.value,
     }));
@@ -1449,11 +1554,11 @@ export class SettingsView {
   private createTemplateSemanticSectionItemActions(
     semanticItem: TemplateSemanticSectionItem,
     settings: TemplateSettings,
-  ): HTMLElement {
+  ): TemplateSemanticSectionItemActions | null {
     const actionLabel = localize("settings.template.semantic.removeRuleLabel", "Remove");
     const actionAriaLabel = semanticItem.title.trim()
-      ? localize("settings.template.semantic.removeRule", "Remove rule {term}", { term: semanticItem.title })
-      : localize("settings.template.semantic.removeUntitledRule", "Remove rule");
+      ? localize("settings.template.semantic.removeRule", "Remove domain rule {term}", { term: semanticItem.title })
+      : localize("settings.template.semantic.removeUntitledRule", "Remove domain rule");
     const removeAction = this.registerContentDisposable(new Action(
       "settings.template.semantic.removeRule",
       actionLabel,
@@ -1473,7 +1578,10 @@ export class SettingsView {
       icon: true,
       label: false,
     });
-    return actionBar.domNode;
+    return {
+      element: actionBar.domNode,
+      removeAction,
+    };
   }
 
   private getTemplateSemanticRulesSearchText(settings: TemplateSettings): string {
@@ -2850,6 +2958,36 @@ function formatTemplateSemanticSectionItemSource(source: TemplateSemanticSection
   return source === "builtin"
     ? localize("settings.template.semantic.sourceHome", "Home")
     : localize("settings.template.semantic.sourceUser", "User");
+}
+
+function createTemplateSemanticTermItems(
+  axis: TemplateSemanticAxis,
+  terms: readonly string[],
+  readOnly: boolean,
+): readonly IInputBoxWidgetItem[] {
+  return terms.map((term, index) => {
+    const item = {
+      id: `${axis}:${index}:${term}`,
+      label: term,
+      kind: axis,
+    };
+    if (readOnly) {
+      return item;
+    }
+    return {
+      ...item,
+      removable: true,
+      removeAriaLabel: localize("settings.template.semantic.removeTerm", "Remove character block {term}", { term }),
+    };
+  });
+}
+
+function getTemplateSemanticSectionItemRemoveAriaLabel(
+  semanticItem: TemplateSemanticSectionItem,
+): string {
+  return semanticItem.title.trim()
+    ? localize("settings.template.semantic.removeRule", "Remove domain rule {term}", { term: semanticItem.title })
+    : localize("settings.template.semantic.removeUntitledRule", "Remove domain rule");
 }
 
 function updateSettingsTreeItemSearchText(item: SettingsTreeItem, searchText: string): SettingsTreeItem {

@@ -2,7 +2,9 @@ import assert from "assert";
 
 import { Event } from "src/cs/base/common/event";
 import { SettingsController } from "src/cs/workbench/contrib/settings/browser/settingsController";
+import { SettingsControllerService } from "src/cs/workbench/contrib/settings/browser/settingsControllerService";
 import { SettingsView, type SettingsContentItemId, type SettingsContentItemTarget } from "src/cs/workbench/contrib/settings/browser/settingsView";
+import { ConfigurationService } from "src/cs/platform/configuration/common/configurationService";
 import {
   NoOpNotification,
   NotificationsFilter,
@@ -17,6 +19,7 @@ import type {
   SettingsViewInput,
 } from "src/cs/workbench/services/settings/common/settings";
 import { builtinRules, toSemanticTermKey } from "src/cs/workbench/services/dataResource/common/semanticRules";
+import { BrowserSettingsService } from "src/cs/workbench/services/settings/browser/settingsService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/settings/browser/settingsController", () => {
@@ -45,7 +48,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       switchButton.click();
 
       assert.equal(switchButton.getAttribute("aria-checked"), "false");
-      assert.ok(switchButton.classList.contains("ui-switch--animate"));
+      assertSwitchInteractionAnimation(switchButton);
       assert.equal(switchButton.disabled, false);
       assert.equal(getComputedStyle(switchButton).opacity, "1");
 
@@ -53,7 +56,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       assert.equal(getButton(container, "settings-explorer-badges-toggle"), switchButton);
       assert.equal(switchButton.getAttribute("aria-checked"), "false");
       assert.equal(switchButton.disabled, false);
-      assert.ok(switchButton.classList.contains("ui-switch--animate"));
+      assertSwitchInteractionAnimation(switchButton);
       assert.equal(getComputedStyle(switchButton).opacity, "1");
 
       service.settings = { filesExplorerShowBadges: false };
@@ -96,7 +99,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       switchButton.click();
 
       assert.equal(switchButton.getAttribute("aria-checked"), "false");
-      assert.ok(switchButton.classList.contains("ui-switch--animate"));
+      assertSwitchInteractionAnimation(switchButton);
       assert.equal(switchButton.disabled, false);
       assert.equal(getComputedStyle(switchButton).opacity, "1");
 
@@ -104,7 +107,7 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       assert.equal(getButton(container, "settings-transparent-chrome-toggle"), switchButton);
       assert.equal(switchButton.getAttribute("aria-checked"), "false");
       assert.equal(switchButton.disabled, false);
-      assert.ok(switchButton.classList.contains("ui-switch--animate"));
+      assertSwitchInteractionAnimation(switchButton);
       assert.equal(getComputedStyle(switchButton).opacity, "1");
 
       service.settings = { transparentChrome: false };
@@ -254,6 +257,107 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
     finally {
       controller.dispose();
       container.remove();
+    }
+  });
+
+  test("keeps template visualization switch transition when settings service publishes saved input", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const service = createSettingsService({ tableTemplateVisualizationEnabled: false });
+    let controller: SettingsController | undefined;
+    service.updateSettings = async updates => {
+      service.settings = {
+        ...service.settings,
+        ...(updates as Partial<ConductorSettings>),
+      };
+      controller?.update(createSettingsViewInput(service.settings));
+      return service.settings;
+    };
+    controller = new SettingsController(
+      container,
+      createSettingsViewInput(service.settings),
+      service,
+      createCommandService(),
+      createNotificationService(),
+    );
+    controller.attachNavigation(container);
+
+    try {
+      openTemplateSection(container);
+      const switchButton = getButton(container, "settings-table-template-visualization-toggle");
+      switchButton.click();
+
+      assert.equal(getButton(container, "settings-table-template-visualization-toggle"), switchButton);
+      assert.equal(switchButton.getAttribute("aria-checked"), "true");
+      assertSwitchInteractionAnimation(switchButton);
+    }
+    finally {
+      controller.dispose();
+      container.remove();
+    }
+  });
+
+  test("keeps template visualization switch through configuration persistence", async () => {
+    const contentContainer = document.createElement("div");
+    const navigationContainer = document.createElement("div");
+    document.body.append(contentContainer, navigationContainer);
+
+    const configurationService = new ConfigurationService();
+    const settingsService = new BrowserSettingsService(configurationService);
+    settingsService.mergeConductorSettings({ tableTemplateVisualizationEnabled: false });
+    settingsService.update({
+      appUpdateSettings: {
+        currentVersion: "1.0.0",
+        isAvailable: false,
+      },
+      isWindowsDesktopShell: false,
+      language: "en",
+      settingsPersistence: undefined,
+      theme: "light",
+    });
+    const controllerService = new SettingsControllerService(
+      settingsService,
+      createCommandService(),
+      createNotificationService(),
+    );
+    const contentAttachment = controllerService.attachContent(contentContainer);
+    const navigationAttachment = controllerService.attachNavigation(navigationContainer);
+
+    try {
+      openTemplateSection(navigationContainer);
+      const switchButton = getButton(contentContainer, "settings-table-template-visualization-toggle");
+      assert.equal(switchButton.getAttribute("aria-checked"), "false");
+
+      switchButton.click();
+
+      assert.equal(
+        getButton(contentContainer, "settings-table-template-visualization-toggle"),
+        switchButton,
+        "Template visualization switch should survive the pending render.",
+      );
+      assert.equal(switchButton.getAttribute("aria-checked"), "true");
+      assertSwitchInteractionAnimation(switchButton);
+
+      await settled();
+
+      assert.equal(configurationService.getValue("tableTemplateVisualizationEnabled"), true);
+      assert.equal(
+        getButton(contentContainer, "settings-table-template-visualization-toggle"),
+        switchButton,
+        "Template visualization switch should survive the configuration writeback render.",
+      );
+      assert.equal(switchButton.getAttribute("aria-checked"), "true");
+      assertSwitchInteractionAnimation(switchButton);
+    }
+    finally {
+      navigationAttachment.dispose();
+      contentAttachment.dispose();
+      controllerService.dispose();
+      settingsService.dispose();
+      configurationService.dispose();
+      contentContainer.remove();
+      navigationContainer.remove();
     }
   });
 
@@ -1262,7 +1366,6 @@ function getButton(container: HTMLElement, id: string): HTMLButtonElement {
 function assertSwitchInteractionAnimation(button: HTMLButtonElement): void {
   const thumb = button.querySelector<HTMLElement>(".ui-switch__thumb");
   assert.ok(thumb);
-  assert.ok(button.classList.contains("ui-switch--animate"));
   assert.ok(getComputedStyle(thumb).transitionDuration !== "0s");
   assert.ok(getComputedStyle(thumb).transitionProperty.includes("transform"));
 }

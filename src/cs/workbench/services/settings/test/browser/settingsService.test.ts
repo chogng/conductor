@@ -282,6 +282,35 @@ suite("workbench/services/settings/browser/settingsService", () => {
     assert.equal(service.getConductorSettings()?.numericDisplayMode, "smart");
     disposable.dispose();
   });
+
+  test("keeps default persistence writeback scoped to affected keys", async () => {
+    const configurationService = settingsTestStore.add(new ConfigurationService());
+    const service = settingsTestStore.add(new BrowserSettingsService(configurationService));
+    service.mergeConductorSettings({ tableTemplateVisualizationEnabled: false });
+    service.update(createSettingsServiceOptions({
+      settingsPersistence: undefined,
+    }));
+
+    const languages: SettingsViewInput["language"][] = [];
+    const themes: SettingsViewInput["theme"][] = [];
+    const disposable = settingsTestStore.add(service.onDidChangeSettingsViewInput(() => {
+      const input = service.getSettingsViewInput();
+      if (input) {
+        languages.push(input.language);
+        themes.push(input.theme);
+      }
+    }));
+
+    await service.updateSettings({ tableTemplateVisualizationEnabled: true });
+    await drainMicrotasks();
+
+    assert.deepEqual(service.getConductorSettings(), {
+      tableTemplateVisualizationEnabled: true,
+    });
+    assert.deepEqual(languages, ["en"]);
+    assert.deepEqual(themes, ["light"]);
+    disposable.dispose();
+  });
 });
 
 const createBrowserSettingsService = (): BrowserSettingsService =>

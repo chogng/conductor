@@ -92,7 +92,7 @@ suite("base/test/browser/ui/switch/switch", () => {
     assert.equal(button.style.getPropertyValue("--switch-on"), "rgb(10, 20, 30)");
   });
 
-  test("createSwitch does not animate initial or updated switch state", () => {
+  test("createSwitch exposes stable transition styles", () => {
     const button = createSwitch({
       checked: true,
     });
@@ -100,13 +100,17 @@ suite("base/test/browser/ui/switch/switch", () => {
     const thumb = button.querySelector<HTMLElement>(".ui-switch__thumb");
     assert.ok(thumb);
 
-    assert.equal(getComputedStyle(button).transitionDuration, "0s");
-    assert.equal(getComputedStyle(thumb).transitionDuration, "0s");
+    assert.ok(getComputedStyle(button).transitionProperty.includes("background-color"));
+    assert.ok(getComputedStyle(button).transitionDuration !== "0s");
+    assert.ok(getComputedStyle(thumb).transitionProperty.includes("transform"));
+    assert.ok(getComputedStyle(thumb).transitionDuration !== "0s");
 
     updateSwitch(button, { checked: false });
 
-    assert.equal(getComputedStyle(button).transitionDuration, "0s");
-    assert.equal(getComputedStyle(thumb).transitionDuration, "0s");
+    assert.ok(getComputedStyle(button).transitionProperty.includes("background-color"));
+    assert.ok(getComputedStyle(button).transitionDuration !== "0s");
+    assert.ok(getComputedStyle(thumb).transitionProperty.includes("transform"));
+    assert.ok(getComputedStyle(thumb).transitionDuration !== "0s");
     button.remove();
   });
 
@@ -165,7 +169,6 @@ suite("base/test/browser/ui/switch/switch", () => {
       assert.equal(widget.checked, true);
       assert.ok(widget.domNode.classList.contains("ui-switch"));
       assert.ok(widget.domNode.classList.contains("extra"));
-      assert.ok(widget.domNode.classList.contains("ui-switch--animate"));
       assert.equal(widget.domNode.id, "widget-switch");
       assert.equal(widget.domNode.getAttribute("aria-checked"), "true");
 
@@ -189,7 +192,7 @@ suite("base/test/browser/ui/switch/switch", () => {
     }
   });
 
-  test("SwitchWidget enables animation only for user toggles", () => {
+  test("SwitchWidget keeps transition styles across programmatic and user updates", () => {
     const widget = new SwitchWidget({
       checked: false,
     });
@@ -197,17 +200,16 @@ suite("base/test/browser/ui/switch/switch", () => {
     const thumb = widget.domNode.querySelector<HTMLElement>(".ui-switch__thumb");
     assert.ok(thumb);
 
-    assert.equal(getComputedStyle(widget.domNode).transitionDuration, "0s");
-    assert.equal(getComputedStyle(thumb).transitionDuration, "0s");
+    assert.ok(getComputedStyle(widget.domNode).transitionDuration !== "0s");
+    assert.ok(getComputedStyle(thumb).transitionDuration !== "0s");
 
     widget.update({ checked: true });
 
-    assert.equal(getComputedStyle(widget.domNode).transitionDuration, "0s");
-    assert.equal(getComputedStyle(thumb).transitionDuration, "0s");
+    assert.ok(getComputedStyle(widget.domNode).transitionDuration !== "0s");
+    assert.ok(getComputedStyle(thumb).transitionDuration !== "0s");
 
     widget.domNode.click();
 
-    assert.ok(widget.domNode.classList.contains("ui-switch--animate"));
     assert.ok(getComputedStyle(widget.domNode).transitionDuration !== "0s");
     assert.equal(getComputedStyle(widget.domNode).transitionProperty.includes("opacity"), false);
     assert.ok(getComputedStyle(thumb).transitionDuration !== "0s");

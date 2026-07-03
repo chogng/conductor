@@ -229,8 +229,8 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       explorerBadgesSwitch.click();
       transparentChromeSwitch.click();
 
-      assert.ok(explorerBadgesSwitch.classList.contains("ui-switch--animate"));
-      assert.ok(transparentChromeSwitch.classList.contains("ui-switch--animate"));
+      assertSwitchTransition(explorerBadgesSwitch);
+      assertSwitchTransition(transparentChromeSwitch);
 
       view.update(createSettingsViewOptions({
         theme: "dark",
@@ -291,8 +291,8 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(nextTransferBlueSwatch.disabled, true);
       assert.equal(nextTransferBlueSwatch.dataset.selected, "false");
       assert.equal(getBadgeColorSwatch(container, "green").dataset.selected, "true");
-      assert.ok(explorerBadgesSwitch.classList.contains("ui-switch--animate"));
-      assert.ok(transparentChromeSwitch.classList.contains("ui-switch--animate"));
+      assertSwitchTransition(explorerBadgesSwitch);
+      assertSwitchTransition(transparentChromeSwitch);
       assert.equal(explorerBadgesSwitch.disabled, false);
       assert.equal(transparentChromeSwitch.disabled, false);
       assert.equal(getComputedStyle(explorerBadgesSwitch).opacity, "1");
@@ -555,6 +555,109 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     }
   });
 
+  test("patches semantic rule inputs without replacing focused token controls", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const itemId = "settings-template-semantic-section-item:custom:stable-rule" as const;
+    const view = new SettingsView(container, createSettingsViewOptions({
+      activeSettingsSection: "template",
+      templateSettings: {
+        semanticSectionItems: [createSemanticRuleItem({
+          id: itemId,
+          xTerms: ["Vg"],
+          yTerms: ["Id"],
+        })],
+      },
+    }));
+
+    try {
+      const item = getElement(container, "#settings-template-semantic-section-item\\:custom\\:stable-rule");
+      const xInput = getSemanticRuleInput(item, "X representative");
+      const xWidget = getClosestInputBoxWidget(xInput);
+      xInput.focus();
+
+      view.update(createSettingsViewOptions({
+        activeSettingsSection: "template",
+        templateSettings: {
+          semanticSectionItems: [createSemanticRuleItem({
+            id: itemId,
+            isSaving: true,
+            xTerms: ["Vg", "Vd"],
+            yTerms: ["Id"],
+          })],
+        },
+      }), {
+        type: "partial",
+        descriptorIds: [],
+        itemTargets: [{ descriptorId: "template-semantic-rules", itemIds: [itemId] }],
+      });
+
+      assert.equal(getElement(container, "#settings-template-semantic-section-item\\:custom\\:stable-rule"), item);
+      assert.equal(getSemanticRuleInput(item, "X representative"), xInput);
+      assert.equal(getClosestInputBoxWidget(xInput), xWidget);
+      assert.equal(xInput.disabled, true);
+      assert.deepEqual(getInputBoxItemLabels(item).filter(label => label === "Vd"), ["Vd"]);
+    }
+    finally {
+      view.dispose();
+      container.remove();
+    }
+  });
+
+  test("patches semantic descriptor without replacing stable rule inputs", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const itemId = "settings-template-semantic-section-item:custom:stable-rule" as const;
+    const view = new SettingsView(container, createSettingsViewOptions({
+      activeSettingsSection: "template",
+      templateSettings: {
+        semanticSectionItems: [createSemanticRuleItem({
+          id: itemId,
+          xTerms: ["Vg"],
+          yTerms: ["Id"],
+        })],
+      },
+    }));
+
+    try {
+      const item = getElement(container, "#settings-template-semantic-section-item\\:custom\\:stable-rule");
+      const yInput = getSemanticRuleInput(item, "Y representative");
+      const yWidget = getClosestInputBoxWidget(yInput);
+      yInput.focus();
+
+      view.update(createSettingsViewOptions({
+        activeSettingsSection: "template",
+        templateSettings: {
+          domainPriorityItems: [{
+            id: "stable-rule",
+            source: "custom",
+            title: "iv",
+            xTerms: ["Vg"],
+            yTerms: ["Id", "Ig"],
+          }],
+          semanticSectionItems: [createSemanticRuleItem({
+            id: itemId,
+            xTerms: ["Vg"],
+            yTerms: ["Id", "Ig"],
+          })],
+        },
+      }), {
+        type: "partial",
+        descriptorIds: ["template-semantic-rules", "template-domain-priority"],
+        itemTargets: [],
+      });
+
+      assert.equal(getElement(container, "#settings-template-semantic-section-item\\:custom\\:stable-rule"), item);
+      assert.equal(getSemanticRuleInput(item, "Y representative"), yInput);
+      assert.equal(getClosestInputBoxWidget(yInput), yWidget);
+      assert.deepEqual(getInputBoxItemLabels(item).filter(label => label === "Ig"), ["Ig"]);
+    }
+    finally {
+      view.dispose();
+      container.remove();
+    }
+  });
+
   test("blurs semantic rule title after valid Enter commit", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -753,6 +856,13 @@ function getButton(container: HTMLElement, id: string): HTMLButtonElement {
   return button;
 }
 
+function assertSwitchTransition(button: HTMLButtonElement): void {
+  const thumb = button.querySelector<HTMLElement>(".ui-switch__thumb");
+  assert.ok(thumb);
+  assert.ok(getComputedStyle(thumb).transitionDuration !== "0s");
+  assert.ok(getComputedStyle(thumb).transitionProperty.includes("transform"));
+}
+
 function getButtonByAriaLabel(container: HTMLElement, ariaLabel: string): HTMLButtonElement {
   const button = container.querySelector<HTMLButtonElement>(`button[aria-label="${ariaLabel}"]`);
   assert.ok(button, `Expected button with aria-label ${ariaLabel}.`);
@@ -796,6 +906,12 @@ function getSemanticRuleInput(container: HTMLElement, placeholder: string): HTML
   return input;
 }
 
+function getClosestInputBoxWidget(input: HTMLInputElement): HTMLElement {
+  const widget = input.closest<HTMLElement>(".inputbox_widget");
+  assert.ok(widget, `Expected inputbox widget for input ${input.placeholder}.`);
+  return widget;
+}
+
 function getSemanticRuleActionNames(container: HTMLElement): string[] {
   return Array.from(container.querySelectorAll<HTMLButtonElement>(".settings-template-semantic-rule-action"))
     .map(button => button.getAttribute("aria-label") ?? "");
@@ -816,6 +932,23 @@ function getInputBoxItemAction(container: HTMLElement, ariaLabel: string): HTMLB
   const button = container.querySelector<HTMLButtonElement>(`.inputbox_widget_item_action[aria-label="${ariaLabel}"]`);
   assert.ok(button, `Expected input box item action ${ariaLabel}.`);
   return button;
+}
+
+function createSemanticRuleItem(
+  overrides: Partial<SettingsViewOptions["templateSettings"]["semanticSectionItems"][number]> = {},
+): SettingsViewOptions["templateSettings"]["semanticSectionItems"][number] {
+  return {
+    id: "settings-template-semantic-section-item:custom:stable-rule",
+    isSaving: false,
+    ruleId: "stable-rule",
+    source: "custom",
+    title: "iv",
+    xDraft: "",
+    xTerms: ["Vg"],
+    yDraft: "",
+    yTerms: ["Id"],
+    ...overrides,
+  };
 }
 
 function getSelectLabel(button: HTMLButtonElement): string {

@@ -11,6 +11,7 @@ import type {
 } from "src/cs/base/parts/ipc/common/ipc";
 import {
 	ConfigurationTarget,
+	type IConfigurationChangeEvent,
 } from "src/cs/platform/configuration/common/configuration";
 import {
 	ConfigurationChannel,
@@ -312,6 +313,39 @@ suite("workbench/services/configuration/electron-browser/configurationService", 
 
 		assert.equal(service.getValue("windowCloseBehavior"), "quit");
 		assert.equal(mainConfigurationService.getValue("windowCloseBehavior"), "quit");
+
+		service.dispose();
+		mainConfigurationService.dispose();
+	});
+
+	test("reloads renderer settings when main process user configuration changes", async () => {
+		const userDataPath = "C:\\Users\\lanxi\\AppData\\Roaming\\Conductor Studio";
+		const settingsResource = getUserSettingsResource(userDataPath);
+		const files = new MemoryFileService();
+		const mainConfigurationService = new ConfigurationService(settingsResource, files);
+		await mainConfigurationService.initialize();
+
+		const service = new ElectronBrowserConfigurationService(
+			files,
+			new TestNativeHostService(userDataPath),
+			new TestMainProcessService(mainConfigurationService),
+		);
+		await service.reloadConfiguration();
+
+		const change = new Promise<IConfigurationChangeEvent>(resolve => {
+			let disposable: IDisposable | undefined;
+			disposable = service.onDidChangeConfiguration(event => {
+				disposable?.dispose();
+				resolve(event);
+			});
+		});
+
+		await mainConfigurationService.updateValue("theme", "dark", ConfigurationTarget.USER);
+		const event = await change;
+
+		assert.equal(service.getValue("theme"), "dark");
+		assert.deepEqual([...event.affectedKeys], ["theme"]);
+		assert.equal(event.affectsConfiguration("theme"), true);
 
 		service.dispose();
 		mainConfigurationService.dispose();

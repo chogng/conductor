@@ -13,8 +13,6 @@ export type SwitchOptions = {
   readonly testId?: string;
 };
 
-const SWITCH_ANIMATE_CLASS = "ui-switch--animate";
-
 const getSwitchClassName = ({
   className = "",
 }: Pick<SwitchOptions, "className"> = {}): string => {
@@ -55,10 +53,7 @@ export const updateSwitch = (
   }
 
   button.disabled = options.disabled === true;
-  const preserveAnimation = button.classList?.contains(SWITCH_ANIMATE_CLASS) === true;
-  button.className = preserveAnimation
-    ? `${getSwitchClassName(options)} ${SWITCH_ANIMATE_CLASS}`
-    : getSwitchClassName(options);
+  button.className = getSwitchClassName(options);
   button.setAttribute("aria-checked", options.checked ? "true" : "false");
 
   for (const [name, value] of Object.entries(getSwitchDataAttributes(options))) {
