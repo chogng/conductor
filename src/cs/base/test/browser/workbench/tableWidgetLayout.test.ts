@@ -882,7 +882,7 @@ suite("base/browser/workbench tableWidget layout", () => {
     }
   });
 
-  test("positions the column scale stepper inside the hovered column header", async () => {
+  test("centers the column scale stepper inside the hovered column header", async () => {
     const dynamicModel = createDynamicScaleTableWidgetModel();
     const widget = new TableWidget({
       columnSizingMode: "fixed",
@@ -917,9 +917,9 @@ suite("base/browser/workbench tableWidget layout", () => {
       });
 
       const control = getVisibleColumnScaleControl(widget.element);
-      assert.equal(control.style.left, "56px");
+      assert.equal(control.style.left, "80px");
       assert.equal(control.style.top, "30px");
-      assert.equal(control.style.width, "160px");
+      assert.equal(control.style.width, "112px");
       assert.equal(control.style.height, "");
       const targetWindow = widget.element.ownerDocument.defaultView;
       assert.ok(targetWindow);
@@ -938,7 +938,11 @@ suite("base/browser/workbench tableWidget layout", () => {
       );
       assert.equal(
         targetWindow.getComputedStyle(getVisibleColumnScaleControlButton(widget.element, "value")).flexGrow,
-        "1",
+        "0",
+      );
+      assert.equal(
+        targetWindow.getComputedStyle(getVisibleColumnScaleControlButton(widget.element, "value")).minWidth,
+        "48px",
       );
 
       dispatchPointerEvent(headerCell, "pointermove", {

@@ -57,7 +57,7 @@ import {
 } from "src/cs/workbench/services/table/common/table";
 
 const TABLE_WIDGET_COLUMN_LAYOUT_STORAGE_DEBOUNCE_MS = 120;
-const TABLE_WIDGET_COLUMN_SCALE_RESIZE_GUTTER_PX = 8;
+const TABLE_WIDGET_COLUMN_SCALE_RESIZE_HANDLE_GUTTER_PX = 8;
 const TABLE_WIDGET_AUTO_FIT_SAMPLE_ROW_COUNT = 32;
 const TABLE_WIDGET_AUTO_FIT_SAMPLE_TEXT_MAX_LENGTH = 256;
 
@@ -1515,17 +1515,22 @@ export class TableWidget {
     }
 
     setHidden(this.columnScaleControl.element, false);
+    this.columnScaleControl.element.style.width = "";
     const rootRect = this.element.getBoundingClientRect();
     const cellRect = headerCell.getBoundingClientRect();
-    const fallbackWidth = this.getColumnWidth(colIndex) * (this.getZoomPercent() / 100);
     const fallbackHeight = VirtualTableGridModel.getRowHeight(this.getZoomPercent());
     const controlRect = this.columnScaleControl.element.getBoundingClientRect();
     const controlHeight = controlRect.height || 24;
     const controlWidth = Math.max(
-      0,
-      (cellRect.width || fallbackWidth) - (TABLE_WIDGET_COLUMN_SCALE_RESIZE_GUTTER_PX * 2),
+      controlRect.width || 0,
+      this.columnScaleControl.element.offsetWidth,
+      this.columnScaleControl.element.scrollWidth,
     );
-    this.columnScaleControl.element.style.left = `${cellRect.left - rootRect.left + TABLE_WIDGET_COLUMN_SCALE_RESIZE_GUTTER_PX}px`;
+    const cellLeft = cellRect.left - rootRect.left;
+    const cellWidth = cellRect.width || (this.getColumnWidth(colIndex) * (this.getZoomPercent() / 100));
+    const centeredLeft = cellLeft + ((cellWidth - controlWidth) / 2);
+    const handleSafeLeft = cellLeft + cellWidth - TABLE_WIDGET_COLUMN_SCALE_RESIZE_HANDLE_GUTTER_PX - controlWidth;
+    this.columnScaleControl.element.style.left = `${Math.min(centeredLeft, handleSafeLeft)}px`;
     this.columnScaleControl.element.style.top = `${cellRect.top - rootRect.top + (((cellRect.height || fallbackHeight) - controlHeight) / 2)}px`;
     this.columnScaleControl.element.style.width = `${controlWidth}px`;
   }
