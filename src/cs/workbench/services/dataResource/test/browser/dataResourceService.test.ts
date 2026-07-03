@@ -645,6 +645,45 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.equal(evidence.bindingCandidates.length, 0);
 		assert.ok(evidence.diagnostics.some(diagnostic => diagnostic.code === "dataResource.noNumericRuns"));
 	});
+
+	test("does not publish resource changes when stable table content is unchanged", async () => {
+		const resource = URI.file("/workspace/reopened.csv");
+		const settingsService = {
+			onDidChangeConductorSettings: Event.None,
+			getConductorSettings: () => null,
+		} as unknown as ISettingsService;
+		const tableModelService = store.add(new ReResolvingTableModelService(
+			resource,
+			createTableContent([
+				["Vg", "Id"],
+				["0", "1"],
+				["1", "2"],
+			]),
+		));
+		const service = store.add(new DataResourceService(tableModelService, settingsService));
+		const changedResources: URI[] = [];
+		store.add(service.onDidChangeResource(changedResource => {
+			changedResources.push(changedResource);
+		}));
+
+		const reference = await service.resolveStructuredContent({ resource });
+		reference.dispose();
+		assert.equal(changedResources.length, 0);
+
+		await tableModelService.resolveWith(createTableContent([
+			["Vg", "Id"],
+			["0", "1"],
+			["1", "2"],
+		]), 1);
+		assert.equal(changedResources.length, 0);
+
+		await tableModelService.resolveWith(createTableContent([
+			["Vg", "Id"],
+			["0", "1"],
+			["2", "3"],
+		]), 2);
+		assert.deepEqual(changedResources.map(changedResource => changedResource.toString()), [resource.toString()]);
+	});
 });
 
 class TestTableModelService extends Disposable implements ITableModelService {
@@ -724,6 +763,95 @@ class TestTableModelService extends Disposable implements ITableModelService {
 			}),
 		});
 		this.onDidChangeModelEmitter.fire(this.model);
+	}
+}
+
+class ReResolvingTableModelService extends Disposable implements ITableModelService {
+	public declare readonly _serviceBrand: undefined;
+
+	private readonly onDidChangeModelEmitter = this._register(new Emitter<ITableModel>());
+	public readonly onDidChangeModel = this.onDidChangeModelEmitter.event;
+	private readonly model: TableContentModel;
+	private content: TableModelContentSnapshot;
+	private sourceVersion = 1;
+
+	public constructor(
+		private readonly resource: URI,
+		content: TableModelContentSnapshot,
+	) {
+		super();
+		this.content = content;
+		this.model = this._register(new TableContentModel(resource));
+		this._register(this.model.onDidChange(model => {
+			this.onDidChangeModelEmitter.fire(model);
+		}));
+	}
+
+	public canHandleResource(resource: URI): boolean {
+		return resource.toString() === this.resource.toString();
+	}
+
+	public async createModelReference(
+		resource: URI,
+		source?: TableSource | null,
+	): Promise<ITableModelReference> {
+		if (!this.canHandleResource(resource)) {
+			throw new Error(`Unsupported test table resource: ${resource.toString()}`);
+		}
+
+		if (this.model.getSnapshot().loadState.state !== "ready") {
+			await this.resolveModel(source);
+		}
+		return {
+			object: this.model,
+			dispose: () => undefined,
+		};
+	}
+
+	public get(resource: URI | null | undefined): ITableModel | undefined {
+		return resource && this.canHandleResource(resource)
+			? this.model
+			: undefined;
+	}
+
+	public registerContentProvider(provider: ITableModelContentProvider): { dispose(): void } {
+		return {
+			dispose: () => {
+				provider.dispose();
+			},
+		};
+	}
+
+	public resolve(resource: URI, source?: TableSource | null): void {
+		if (!this.canHandleResource(resource)) {
+			return;
+		}
+
+		void this.resolveModel(source);
+	}
+
+	public async resolveWith(content: TableModelContentSnapshot, sourceVersion: number): Promise<void> {
+		this.content = content;
+		this.sourceVersion = sourceVersion;
+		await this.resolveModel();
+	}
+
+	private async resolveModel(source?: TableSource | null): Promise<void> {
+		const sheetId = String(source?.sheetId ?? "table-a");
+		await this.model.resolve({
+			resolveContent: async () => ({
+				content: this.content,
+				diagnostics: [],
+				format: "csv",
+				resource: this.resource,
+				sheets: [{
+					content: this.content,
+					sheetId,
+					sheetName: null,
+				}],
+				sourceVersion: this.sourceVersion,
+			}),
+		});
 	}
 }
 

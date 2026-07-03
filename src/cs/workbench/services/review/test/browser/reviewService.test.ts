@@ -652,16 +652,19 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate?.reviewedType, "output");
 	});
 
-	test("refreshes cached URI reviews when review policy changes", async () => {
+	test("keeps stale summary reads off policy refresh work", async () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Output.csv");
-		const service = createReviewServiceForTest(
-			userTemplateService,
+		const dataResourceService = store.add(new CountingDataResourceService(
 			createDataResourceServiceForTest(resource, [], null, createTestTableModelContent([
 				["Vd", "Id"],
 				["0", "1"],
 				["1", "2"],
 			])),
+		));
+		const service = createReviewServiceForTest(
+			userTemplateService,
+			dataResourceService,
 		);
 
 		const target = {
@@ -699,10 +702,14 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(staleSummary.state, "stale");
 		assert.equal(staleSummary.reviewedType, "transfer");
 
-		await waitUntil(() => {
-			const summary = service.getLatestReviewSummary(target);
-			return summary.state === "ready" && summary.reviewedType === "output";
-		}, 40, 5);
+		const resolveStructuredContentCalls = dataResourceService.resolveStructuredContentCalls;
+		await new Promise(resolve => setTimeout(resolve, 25));
+		assert.equal(dataResourceService.resolveStructuredContentCalls, resolveStructuredContentCalls);
+		assert.equal(service.getLatestReviewSummary(target).state, "stale");
+
+		const refreshedSummary = await service.resolveReviewSummary(target);
+		assert.equal(refreshedSummary?.state, "ready");
+		assert.equal(refreshedSummary?.reviewedType, "output");
 	});
 
 	test("derives IV transfer review from B1500 DataName metadata rows", async () => {

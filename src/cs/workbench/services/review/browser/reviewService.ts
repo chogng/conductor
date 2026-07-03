@@ -157,7 +157,6 @@ export class ReviewService extends Disposable implements IReviewService {
     }
 
     if (cached) {
-      this.markStaleUriReviewCacheEntryForRefresh(key, reviewTarget);
       return createStaleReviewSummaryFromCacheEntry(cached, reviewTarget);
     }
     if (this.activeUriReviewPromisesByKey.has(key)) {

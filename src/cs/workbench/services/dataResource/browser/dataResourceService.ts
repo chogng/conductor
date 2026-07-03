@@ -120,6 +120,7 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 	private readonly onDidChangeResourceEmitter = this._register(new Emitter<URI>());
 	public readonly onDidChangeResource: Event<URI> = this.onDidChangeResourceEmitter.event;
 	private readonly trackedResources = new Map<string, URI>();
+	private readonly structuredContentSignaturesByResourceKey = new Map<string, string>();
 	private semanticSettingsFingerprint = "";
 
 	public constructor(
@@ -128,10 +129,17 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 	) {
 		super();
 
+		this._register({
+			dispose: () => {
+				this.trackedResources.clear();
+				this.structuredContentSignaturesByResourceKey.clear();
+			},
+		});
 		this.semanticSettingsFingerprint = this.createSettingsSemanticMatcher().fingerprint;
 		this._register(this.tableModelService.onDidChangeModel(model => {
-			this.trackResource(model.resource);
-			this.onDidChangeResourceEmitter.fire(model.resource);
+			if (this.rememberStableStructuredContentSignature(model.getSnapshot())) {
+				this.onDidChangeResourceEmitter.fire(model.resource);
+			}
 		}));
 		this._register(this.settingsService.onDidChangeConductorSettings(() => {
 			const nextFingerprint = this.createSettingsSemanticMatcher().fingerprint;
@@ -157,7 +165,9 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 			target.resource,
 			createStructuredContentSource(target),
 		);
-		const resolution = createStructuredContentResolution(reference.object.getSnapshot(), target, this.createSettingsSemanticMatcher());
+		const snapshot = reference.object.getSnapshot();
+		this.rememberStableStructuredContentSignature(snapshot);
+		const resolution = createStructuredContentResolution(snapshot, target, this.createSettingsSemanticMatcher());
 		return {
 			object: resolution,
 			dispose: () => {
@@ -171,9 +181,13 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 	): DataResourceStructuredContentResolution | undefined {
 		this.trackResource(target.resource);
 		const model = this.tableModelService.get(target.resource);
-		return model
-			? createStructuredContentResolution(model.getSnapshot(), target, this.createSettingsSemanticMatcher())
-			: undefined;
+		if (!model) {
+			return undefined;
+		}
+
+		const snapshot = model.getSnapshot();
+		this.rememberStableStructuredContentSignature(snapshot);
+		return createStructuredContentResolution(snapshot, target, this.createSettingsSemanticMatcher());
 	}
 
 	public resolve(target: DataResourceStructuredContentTarget): void {
@@ -188,8 +202,23 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 		});
 	}
 
-	private trackResource(resource: URI): void {
-		this.trackedResources.set(normalizeResourceIdentity(resource), resource);
+	private trackResource(resource: URI): string {
+		const resourceKey = normalizeResourceIdentity(resource);
+		this.trackedResources.set(resourceKey, resource);
+		return resourceKey;
+	}
+
+	private rememberStableStructuredContentSignature(snapshot: TableModelSnapshot): boolean {
+		const signature = createStableStructuredContentSignature(snapshot, this.semanticSettingsFingerprint);
+		if (!signature) {
+			this.trackResource(snapshot.resource);
+			return false;
+		}
+
+		const resourceKey = this.trackResource(snapshot.resource);
+		const previousSignature = this.structuredContentSignaturesByResourceKey.get(resourceKey);
+		this.structuredContentSignaturesByResourceKey.set(resourceKey, signature);
+		return previousSignature !== undefined && previousSignature !== signature;
 	}
 }
 
@@ -251,6 +280,99 @@ const createStructuredContentResolution = (
 			},
 		},
 	};
+};
+
+const createStableStructuredContentSignature = (
+	snapshot: TableModelSnapshot,
+	semanticSettingsFingerprint: string,
+): string | null => {
+	const state = snapshot.loadState.state;
+	if (state !== "ready" && state !== "error") {
+		return null;
+	}
+
+	const builder = createSignatureBuilder();
+	builder.append(state);
+	builder.append(semanticSettingsFingerprint);
+	builder.append(snapshot.sourceVersion);
+	builder.append(snapshot.format ?? "");
+	builder.append(snapshot.defaultSheetId ?? "");
+	appendDiagnosticsSignature(builder, snapshot.diagnostics);
+	if (state === "error") {
+		builder.append(snapshot.loadState.message);
+		return builder.digest();
+	}
+
+	appendContentSignature(builder, snapshot.content);
+	builder.append(snapshot.sheets.length);
+	for (const sheet of snapshot.sheets) {
+		builder.append(sheet.sheetId);
+		builder.append(sheet.sheetName ?? "");
+		appendDiagnosticsSignature(builder, sheet.diagnostics ?? []);
+		appendContentSignature(builder, sheet.content);
+	}
+	return builder.digest();
+};
+
+const createSignatureBuilder = () => {
+	let hash = 2166136261;
+	const appendText = (value: string): void => {
+		for (let index = 0; index < value.length; index += 1) {
+			hash ^= value.charCodeAt(index);
+			hash = Math.imul(hash, 16777619);
+		}
+		hash ^= 31;
+		hash = Math.imul(hash, 16777619);
+	};
+	return {
+		append(value: unknown): void {
+			appendText(String(value ?? ""));
+		},
+		digest(): string {
+			return (hash >>> 0).toString(36);
+		},
+	};
+};
+
+const appendDiagnosticsSignature = (
+	builder: ReturnType<typeof createSignatureBuilder>,
+	diagnostics: readonly TableParseDiagnostic[],
+): void => {
+	builder.append(diagnostics.length);
+	for (const diagnostic of diagnostics) {
+		builder.append(diagnostic.code);
+		builder.append(diagnostic.message);
+		builder.append(diagnostic.severity);
+		builder.append(diagnostic.rowIndex ?? "");
+		builder.append(diagnostic.columnIndex ?? "");
+		builder.append(diagnostic.sheetId ?? "");
+	}
+};
+
+const appendContentSignature = (
+	builder: ReturnType<typeof createSignatureBuilder>,
+	content: TableModelContentSnapshot | null,
+): void => {
+	if (!content) {
+		builder.append("null");
+		return;
+	}
+
+	builder.append(content.rowCount);
+	builder.append(content.columnCount);
+	builder.append(content.maxCellLengths.length);
+	for (const length of content.maxCellLengths) {
+		builder.append(length);
+	}
+
+	const rows = readStructuredContentRows(content);
+	builder.append(rows.length);
+	for (const row of rows) {
+		builder.append(row.length);
+		for (const value of row) {
+			builder.append(value);
+		}
+	}
 };
 
 const toDataResourceLoadState = (
