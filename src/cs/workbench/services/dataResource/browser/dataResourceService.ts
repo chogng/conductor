@@ -484,7 +484,9 @@ const createStructuredContentEvidence = (
 		const xGroupCandidates = createXGroupCandidates(xRangeAnalyses);
 		const dataBlockCandidates = applyExplicitDataRowBoundaryEvidence({
 			blocks: createDataBlockCandidates({
+				blockSegments,
 				columnCount: content.columnCount,
+				explicitDataRowRanges,
 				rows,
 				titleSpans: columnTitleSpans,
 				xGroupCandidates,
@@ -1391,13 +1393,17 @@ const createXGroupCandidates = (
 };
 
 const createDataBlockCandidates = ({
+	blockSegments,
 	columnCount,
+	explicitDataRowRanges,
 	rows,
 	titleSpans,
 	xGroupCandidates,
 	xRangeAnalyses,
 }: {
+	readonly blockSegments: readonly StructuredBlockSegment[];
 	readonly columnCount: number;
+	readonly explicitDataRowRanges: readonly ExplicitDataRowRange[];
 	readonly rows: readonly (readonly string[])[];
 	readonly titleSpans: readonly StructuredColumnTitleSpanEvidence[];
 	readonly xGroupCandidates: readonly StructuredXGroupCandidate[];
@@ -1407,62 +1413,79 @@ const createDataBlockCandidates = ({
 	const groupsByXRangeId = groupXGroupsByRangeId(xGroupCandidates);
 	const strongX = xRangeAnalyses.filter(analysis => analysis.candidate.confidence >= BlockXConfidenceThreshold);
 	const blocks: StructuredDataBlockCandidate[] = [];
-	for (const analysis of strongX) {
-		const right = scanDependentColumns({
-			analysis,
-			columnCount,
-			direction: "right",
-			rows,
+	const blockScopes = blockSegments.length && explicitDataRowRanges.length < 2
+		? blockSegments.map(segment => segment.dataRange)
+		: [{
+			startRow: 0,
+			endRow: Math.max(0, rows.length - 1),
+			startCol: 0,
+			endCol: Math.max(0, columnCount - 1),
+		}];
+	for (const scope of blockScopes) {
+		const scopedX = selectBlockScopedXRangeAnalyses({
+			scope,
+			strongX,
 			titleSpansByColumn,
-			xRangeAnalyses: strongX,
 		});
-		const left = right.dependentColumns.length
-			? emptyDependentScan
-			: scanDependentColumns({
+		for (const analysis of scopedX) {
+			const right = scanDependentColumns({
 				analysis,
-				columnCount,
-				direction: "left",
+				direction: "right",
+				maxColumn: scope.endCol,
+				minColumn: scope.startCol,
 				rows,
 				titleSpansByColumn,
-				xRangeAnalyses: strongX,
+				xRangeAnalyses: scopedX,
 			});
-		const dependentColumns = right.dependentColumns.length ? right.dependentColumns : left.dependentColumns;
-		if (!dependentColumns.length) {
-			continue;
-		}
+			const left = right.dependentColumns.length
+				? emptyDependentScan
+				: scanDependentColumns({
+					analysis,
+					direction: "left",
+					maxColumn: scope.endCol,
+					minColumn: scope.startCol,
+					rows,
+					titleSpansByColumn,
+					xRangeAnalyses: scopedX,
+				});
+			const dependentColumns = right.dependentColumns.length ? right.dependentColumns : left.dependentColumns;
+			if (!dependentColumns.length) {
+				continue;
+			}
 
-		const separatorColumns = [...right.separatorColumns, ...left.separatorColumns];
-		const columns = [analysis.candidate.column, ...dependentColumns];
-		const columnDirection = right.dependentColumns.length
-			? "rightPreferred"
-			: "leftObserved";
-		const coverage = average(dependentColumns.map(column =>
-			getNumericCoverage(rows, column, analysis.candidate.startRow, analysis.candidate.endRow)
-		));
-		const confidence = clampConfidence(
-			analysis.candidate.confidence * 0.76 +
-			coverage * 0.18 +
-			(columnDirection === "rightPreferred" ? 0.06 : -0.05)
-		);
-		blocks.push({
-			id: `data-block:${analysis.candidate.id}`,
-			xRangeCandidateId: analysis.candidate.id,
-			xGroupCandidateIds: groupsByXRangeId.get(analysis.candidate.id)?.map(group => group.id) ?? [],
-			startRow: analysis.candidate.startRow,
-			endRow: analysis.candidate.endRow,
-			startCol: Math.min(...columns),
-			endCol: Math.max(...columns),
-			xColumn: analysis.candidate.column,
-			dependentColumns,
-			separatorColumns,
-			columnDirection,
-			confidence,
-			reasons: [
-				"dataBlock.fromXRange",
-				`dataBlock.columnDirection:${columnDirection}`,
-				...(separatorColumns.length ? ["dataBlock.separatorColumns"] : []),
-			],
-		});
+			const separatorColumns = [...right.separatorColumns, ...left.separatorColumns];
+			const columns = [analysis.candidate.column, ...dependentColumns];
+			const columnDirection = right.dependentColumns.length
+				? "rightPreferred"
+				: "leftObserved";
+			const coverage = average(dependentColumns.map(column =>
+				getNumericCoverage(rows, column, analysis.candidate.startRow, analysis.candidate.endRow)
+			));
+			const confidence = clampConfidence(
+				analysis.candidate.confidence * 0.76 +
+				coverage * 0.18 +
+				(columnDirection === "rightPreferred" ? 0.06 : -0.05)
+			);
+			blocks.push({
+				id: `data-block:${analysis.candidate.id}`,
+				xRangeCandidateId: analysis.candidate.id,
+				xGroupCandidateIds: groupsByXRangeId.get(analysis.candidate.id)?.map(group => group.id) ?? [],
+				startRow: analysis.candidate.startRow,
+				endRow: analysis.candidate.endRow,
+				startCol: Math.min(...columns),
+				endCol: Math.max(...columns),
+				xColumn: analysis.candidate.column,
+				dependentColumns,
+				separatorColumns,
+				columnDirection,
+				confidence,
+				reasons: [
+					"dataBlock.fromXRange",
+					`dataBlock.columnDirection:${columnDirection}`,
+					...(separatorColumns.length ? ["dataBlock.separatorColumns"] : []),
+				],
+			});
+		}
 	}
 	const sharedXBlocks = createRepeatedPairSharedXDataBlocks(blocks, rows);
 	return [...blocks, ...sharedXBlocks].sort((left, right) =>
@@ -1470,6 +1493,37 @@ const createDataBlockCandidates = ({
 		left.startRow - right.startRow
 	);
 };
+
+const selectBlockScopedXRangeAnalyses = ({
+	scope,
+	strongX,
+	titleSpansByColumn,
+}: {
+	readonly scope: StructuredContentSourceRange;
+	readonly strongX: readonly XRangeAnalysis[];
+	readonly titleSpansByColumn: ReadonlyMap<number, StructuredColumnTitleSpanEvidence>;
+}): readonly XRangeAnalysis[] => {
+	const scoped = strongX.filter(analysis =>
+		analysis.candidate.column >= scope.startCol &&
+		analysis.candidate.column <= scope.endCol &&
+		analysis.candidate.startRow >= scope.startRow &&
+		analysis.candidate.endRow <= scope.endRow
+	);
+	const preferred = scoped.filter(analysis => isPreferredBlockXRange(analysis, titleSpansByColumn));
+	return preferred.length ? preferred : scoped;
+};
+
+const isPreferredBlockXRange = (
+	analysis: XRangeAnalysis,
+	titleSpansByColumn: ReadonlyMap<number, StructuredColumnTitleSpanEvidence>,
+): boolean => {
+	const titleSpan = titleSpansByColumn.get(analysis.candidate.column);
+	return titleSpan?.axisTendency === "x" && !isIndexLikeHeader(titleSpan.titleCell.text);
+};
+
+const isIndexLikeHeader = (
+	value: string,
+): boolean => /^(index|idx|point|points|sample|samples|step|steps)$/i.test(normalizeText(value));
 
 const applyExplicitDataRowBoundaryEvidence = ({
 	blocks,
@@ -1579,15 +1633,17 @@ const emptyDependentScan: {
 
 const scanDependentColumns = ({
 	analysis,
-	columnCount,
 	direction,
+	maxColumn,
+	minColumn,
 	rows,
 	titleSpansByColumn,
 	xRangeAnalyses,
 }: {
 	readonly analysis: XRangeAnalysis;
-	readonly columnCount: number;
 	readonly direction: "left" | "right";
+	readonly maxColumn: number;
+	readonly minColumn: number;
 	readonly rows: readonly (readonly string[])[];
 	readonly titleSpansByColumn: ReadonlyMap<number, StructuredColumnTitleSpanEvidence>;
 	readonly xRangeAnalyses: readonly XRangeAnalysis[];
@@ -1600,7 +1656,7 @@ const scanDependentColumns = ({
 	const step = direction === "right" ? 1 : -1;
 	for (
 		let column = analysis.candidate.column + step;
-		column >= 0 && column < columnCount;
+		column >= minColumn && column <= maxColumn;
 		column += step
 	) {
 		if (isSeparatorColumn(rows, column, analysis.candidate.startRow, analysis.candidate.endRow)) {
@@ -1638,8 +1694,21 @@ const scanDependentColumns = ({
 			break;
 		}
 	}
+	const boundaryColumn = direction === "right" ? maxColumn + 1 : minColumn - 1;
+	if (
+		boundaryColumn >= 0 &&
+		hasColumn(rows, boundaryColumn) &&
+		isSeparatorColumn(rows, boundaryColumn, analysis.candidate.startRow, analysis.candidate.endRow)
+	) {
+		separatorColumns.push(boundaryColumn);
+	}
 	return { dependentColumns, separatorColumns };
 };
+
+const hasColumn = (
+	rows: readonly (readonly string[])[],
+	column: number,
+): boolean => rows.some(row => column < row.length);
 
 const hasSharedRuleBinding = (
 	xTitleSpan: StructuredColumnTitleSpanEvidence,

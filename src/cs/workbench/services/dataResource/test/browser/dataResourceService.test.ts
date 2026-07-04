@@ -931,6 +931,27 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		));
 	});
 
+	test("runs block-internal binding inside FET physical block segments", async () => {
+		const evidence = await resolveEvidence([
+			["1-HS", "Index", "Vd (V)", "Id (A)", "Vg (V)", "Ig (A)", "", "", "", "Index", "Vd (V)", "Id (A)", "Vg (V)", "Ig (A)"],
+			["", "1", "3", "1e-10", "60", "4e-10", "", "", "", "1", "5", "2e-10", "60", "3e-10"],
+			["", "2", "2.97", "2e-10", "60", "3e-10", "", "", "", "2", "4.95", "3e-10", "60", "2e-10"],
+			["", "3", "2.94", "3e-10", "60", "2e-10", "", "", "", "3", "4.9", "4e-10", "60", "1e-10"],
+		]);
+
+		assert.deepEqual(evidence.structure.blockRegions.map(region => region.range), [
+			{ startRow: 0, endRow: 3, startCol: 0, endCol: 5 },
+			{ startRow: 0, endRow: 3, startCol: 9, endCol: 13 },
+		]);
+		assert.equal(evidence.dataBlockCandidates.some(candidate =>
+			candidate.xColumn === 1 || candidate.xColumn === 9
+		), false);
+		assert.ok(evidence.dataBlockCandidates.every(candidate =>
+			(candidate.startCol >= 1 && candidate.endCol <= 5) ||
+			(candidate.startCol >= 9 && candidate.endCol <= 13)
+		));
+	});
+
 	test("keeps left-side dependent values lower confidence but available", async () => {
 		const evidence = await resolveEvidence([
 			["Id", "Vg"],
