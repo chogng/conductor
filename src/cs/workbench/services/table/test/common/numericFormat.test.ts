@@ -46,7 +46,7 @@ suite("workbench/services/table/common/numericFormat", () => {
     );
   });
 
-  test("prefers an adjacent lower scale to avoid buried zero displays", () => {
+  test("uses representative adjacent scale without letting small outliers dominate", () => {
     assert.equal(
       chooseColumnScaleExponentFromCells([
         "-3.70327E-009",
@@ -61,7 +61,7 @@ suite("workbench/services/table/common/numericFormat", () => {
         ...Array.from({ length: 24 }, (_, index) => `-${(3 + index / 100).toFixed(5)}E-009`),
         ...Array.from({ length: 200 }, (_, index) => `-${(3 + index / 100).toFixed(5)}E-006`),
       ]),
-      -9,
+      -6,
     );
 
     assert.equal(
@@ -71,7 +71,7 @@ suite("workbench/services/table/common/numericFormat", () => {
         ...Array.from({ length: 604 }, (_, index) => `${(1 + index / 100).toFixed(5)}E-009`),
         ...Array.from({ length: 743 }, (_, index) => `${(1 + index / 100).toFixed(5)}E-006`),
       ]),
-      -9,
+      -6,
     );
 
     assert.equal(

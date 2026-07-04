@@ -21,6 +21,7 @@ import type {
 import {
   createTableDecorationData,
   createTableDecorationResource,
+  type TableRange,
   type TableRangeDecoration,
   type TableState,
   type TableWidgetViewModel,
@@ -670,7 +671,7 @@ suite("workbench/services/table/browser/tableService", () => {
 
   test("adjusts column display scale through the service owner API", async () => {
     const resource = URI.file("/workspace/data/display-scale.csv");
-    const { service } = createTableServiceFixture({
+    const { service, decorationsService } = createTableServiceFixture({
       fileService: createCsvFileService([
         ["CH1 Current"],
         ["-3.70327E-009"],
@@ -681,6 +682,17 @@ suite("workbench/services/table/browser/tableService", () => {
         getConductorSettings: () => ({ numericDisplayMode: "smart" }),
       }),
     });
+    const provider = tableTestStore?.add(new TestTableDecorationsProvider())
+      ?? new TestTableDecorationsProvider();
+    tableTestStore?.add(decorationsService.registerDecorationsProvider(provider));
+    const decorationResource = createTableDecorationResource({ resource });
+    assert.ok(decorationResource);
+    provider.setDisplayDataRanges(decorationResource, [{
+      startRow: 0,
+      endRow: 3,
+      startCol: 0,
+      endCol: 0,
+    }]);
 
     assert.equal(service.adjustColumnDisplayScale(0, 1), false);
     service.open({ resource });
@@ -1032,13 +1044,17 @@ class TestTableDecorationsProvider extends Disposable implements IDecorationsPro
   public readonly label = "test.table";
   private readonly onDidChangeEmitter = this._register(new Emitter<readonly URI[] | undefined>());
   public readonly onDidChange = this.onDidChangeEmitter.event;
+  private readonly dataRangesByResource = new Map<string, readonly TableRange[]>();
   private readonly decorationsByResource = new Map<string, readonly TableRangeDecoration[]>();
 
   public provideDecorations(
     uri: URI,
     _token: CancellationToken,
   ): IDecorationData | undefined {
-    return createTableDecorationData(this.decorationsByResource.get(uri.toString()) ?? []);
+    return createTableDecorationData({
+      tableDisplayDataRanges: this.dataRangesByResource.get(uri.toString()) ?? [],
+      tableRangeDecorations: this.decorationsByResource.get(uri.toString()) ?? [],
+    });
   }
 
   public setDecorations(
@@ -1046,6 +1062,14 @@ class TestTableDecorationsProvider extends Disposable implements IDecorationsPro
     decorations: readonly TableRangeDecoration[],
   ): void {
     this.decorationsByResource.set(resource.toString(), decorations);
+    this.onDidChangeEmitter.fire([resource]);
+  }
+
+  public setDisplayDataRanges(
+    resource: URI,
+    ranges: readonly TableRange[],
+  ): void {
+    this.dataRangesByResource.set(resource.toString(), ranges);
     this.onDidChangeEmitter.fire([resource]);
   }
 }

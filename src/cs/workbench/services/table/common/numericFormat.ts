@@ -12,9 +12,6 @@ const SCIENTIFIC_NUMERIC_CELL_PATTERN = /[eE][+-]?\d+$/;
 const DOMINANT_SCALE_BUCKET_RATIO = 0.6;
 const SCIENTIFIC_SCALE_BUCKET_RATIO = 0.4;
 const MIN_SCIENTIFIC_SCALE_BUCKET_COUNT = 2;
-const ADJACENT_SCALE_BUCKET_MAX_SPAN = 3;
-const LOWER_SMALL_VALUE_BUCKET_MIN_RATIO = 0.05;
-const LOWER_SMALL_VALUE_MAX_EXPONENT = -3;
 const MAX_TABLE_DISPLAY_SIGNIFICANT_DIGITS = 12;
 const SUPERSCRIPT_DIGITS: Record<string, string> = {
 	"+": "⁺",
@@ -188,11 +185,6 @@ const chooseScaleBucket = (samples: Iterable<NumericScaleSample>): number => {
 	}
 
 	const nonZeroCount = magnitudes.length;
-	const lowerSmallValueBucket = getLowerSmallValueBucket(bucketCounts, nonZeroCount);
-	if (lowerSmallValueBucket) {
-		return lowerSmallValueBucket.exponent;
-	}
-
 	const dominantBucket = getMaxBucket(bucketCounts, bucket => bucket.count);
 	if (dominantBucket && dominantBucket.count / nonZeroCount >= DOMINANT_SCALE_BUCKET_RATIO) {
 		return dominantBucket.exponent;
@@ -208,30 +200,6 @@ const chooseScaleBucket = (samples: Iterable<NumericScaleSample>): number => {
 	}
 
 	return toEngineeringScaleExponent(getMedianMagnitude(magnitudes));
-};
-
-const getLowerSmallValueBucket = (
-	bucketCounts: ReadonlyMap<number, ScaleBucketCount>,
-	nonZeroCount: number,
-): ScaleBucketCount | null => {
-	const buckets = Array.from(bucketCounts.values())
-		.filter(bucket => bucket.count / nonZeroCount >= LOWER_SMALL_VALUE_BUCKET_MIN_RATIO)
-		.sort((left, right) => left.exponent - right.exponent);
-	const firstBucket = buckets[0];
-	const lastBucket = buckets[buckets.length - 1];
-	if (!firstBucket || !lastBucket) {
-		return null;
-	}
-
-	if (
-		firstBucket.exponent === lastBucket.exponent ||
-		lastBucket.exponent > LOWER_SMALL_VALUE_MAX_EXPONENT ||
-		lastBucket.exponent - firstBucket.exponent > ADJACENT_SCALE_BUCKET_MAX_SPAN
-	) {
-		return null;
-	}
-
-	return firstBucket;
 };
 
 const getMaxBucket = (

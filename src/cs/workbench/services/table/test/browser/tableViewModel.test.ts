@@ -13,6 +13,27 @@ import { CancellationToken } from "src/cs/base/common/cancellation";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { TableModelContentSnapshot } from "src/cs/workbench/services/table/common/model";
+import type {
+  TableRange,
+  TableViewModel,
+} from "src/cs/workbench/services/table/common/table";
+
+function setTableViewModelDataRange(
+  model: TableViewModel,
+  range: Partial<TableRange> = {},
+): void {
+  const state = model.getState();
+  const file = state.file;
+  assert.ok(file);
+  model.setDisplayDataRanges([{
+    sheetId: file.sheetId ?? state.selectedSheetId ?? state.source?.sheetId ?? null,
+    startRow: 0,
+    endRow: Math.max(0, file.rowCount - 1),
+    startCol: 0,
+    endCol: Math.max(0, file.columnCount - 1),
+    ...range,
+  }]);
+}
 
 suite("workbench/services/table/browser/tableViewModel row cache", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -294,6 +315,7 @@ suite("workbench/services/table/browser/tableViewModel display profiles", () => 
       source: { resource },
     });
     store.add({ dispose: () => model.clearState() });
+    setTableViewModelDataRange(model);
 
     const numericProfile = model.getColumnDisplayProfile(1);
     assert.equal(numericProfile.mode, "columnScale");
@@ -306,6 +328,45 @@ suite("workbench/services/table/browser/tableViewModel display profiles", () => 
     const textProfile = model.getColumnDisplayProfile(2);
     assert.equal(textProfile.mode, "raw");
     assert.equal(textProfile.isNumericColumn, false);
+  });
+
+  test("uses only data range rows for smart numeric display", () => {
+    const resource = URI.file("/workspace/metadata-before-data.csv");
+    const model = createTableViewModelInScope(store.add(new TableStateScope()), {
+      numericDisplayMode: "smart",
+      settingsVersion: 4,
+      previewSources: [createResourceSourceInput(resource, {
+        sourceVersion: 8,
+        rows: [
+          ["TestParameter", "1000000"],
+          ["TestParameter", "2000000"],
+          ["TestParameter", "3000000"],
+          ["TestParameter", "4000000"],
+          ["TestParameter", "5000000"],
+          ["DataName", "Ig"],
+          ["DataValue", "-3.00000E-009"],
+          ["DataValue", "-4.00000E-009"],
+          ["DataValue", "-5.00000E-009"],
+        ],
+      })],
+      source: { resource },
+    });
+    store.add({ dispose: () => model.clearState() });
+
+    const metadataOnlyProfile = model.getColumnDisplayProfile(1);
+    assert.equal(metadataOnlyProfile.mode, "raw");
+
+    setTableViewModelDataRange(model, {
+      startRow: 5,
+      endRow: 8,
+      startCol: 1,
+      endCol: 1,
+    });
+
+    const dataRangeProfile = model.getColumnDisplayProfile(1);
+    assert.equal(dataRangeProfile.mode, "columnScale");
+    assert.equal(dataRangeProfile.scaleExponent, -9);
+    assert.equal(dataRangeProfile.headerSuffix, "×10⁻⁹");
   });
 
   test("ignores empty cells and falls back for mixed text columns", () => {
@@ -327,6 +388,7 @@ suite("workbench/services/table/browser/tableViewModel display profiles", () => 
       source: { resource },
     });
     store.add({ dispose: () => model.clearState() });
+    setTableViewModelDataRange(model);
 
     const sparseNumericProfile = model.getColumnDisplayProfile(0);
     assert.equal(sparseNumericProfile.mode, "columnScale");
@@ -355,6 +417,7 @@ suite("workbench/services/table/browser/tableViewModel display profiles", () => 
       source: { resource },
     });
     store.add({ dispose: () => model.clearState() });
+    setTableViewModelDataRange(model);
 
     const profile = model.getColumnDisplayProfile(0);
     assert.equal(profile.mode, "columnScale");
@@ -379,6 +442,7 @@ suite("workbench/services/table/browser/tableViewModel display profiles", () => 
       source: { resource },
     });
     store.add({ dispose: () => model.clearState() });
+    setTableViewModelDataRange(model);
 
     const firstProfile = model.getColumnDisplayProfile(0);
     const secondProfile = model.getColumnDisplayProfile(0);
@@ -405,6 +469,7 @@ suite("workbench/services/table/browser/tableViewModel display profiles", () => 
       source: { resource },
     });
     store.add({ dispose: () => model.clearState() });
+    setTableViewModelDataRange(model);
 
     const profile = model.getColumnDisplayProfile(0);
     assert.equal(profile.mode, "columnScale");
@@ -431,6 +496,7 @@ suite("workbench/services/table/browser/tableViewModel display profiles", () => 
       source: { resource },
     });
     store.add({ dispose: () => model.clearState() });
+    setTableViewModelDataRange(model);
 
     const currentProfile = model.getColumnDisplayProfile(4);
     assert.equal(currentProfile.mode, "columnScale");
@@ -460,6 +526,7 @@ suite("workbench/services/table/browser/tableViewModel display profiles", () => 
       source: { resource },
     });
     store.add({ dispose: () => model.clearState() });
+    setTableViewModelDataRange(model);
 
     assert.equal(model.getColumnDisplayProfile(0).scaleExponent, -9);
 
@@ -484,7 +551,7 @@ suite("workbench/services/table/browser/tableViewModel display profiles", () => 
     assert.equal(resetProfile.isScaleManual, undefined);
   });
 
-  test("keeps adjacent lower current scale when cached column rows mix nano and micro samples", () => {
+  test("uses representative current scale when data range rows mix adjacent magnitudes", () => {
     const resource = URI.file("/workspace/mixed-scale.csv");
     const model = createTableViewModelInScope(store.add(new TableStateScope()), {
       numericDisplayMode: "smart",
@@ -508,10 +575,11 @@ suite("workbench/services/table/browser/tableViewModel display profiles", () => 
       source: { resource },
     });
     store.add({ dispose: () => model.clearState() });
+    setTableViewModelDataRange(model);
 
     const profile = model.getColumnDisplayProfile(0);
-    assert.equal(profile.scaleExponent, -9);
-    assert.equal(profile.headerSuffix, "×10⁻⁹");
+    assert.equal(profile.scaleExponent, -6);
+    assert.equal(profile.headerSuffix, "×10⁻⁶");
   });
 
   test("loads missing chunk rows from the table model snapshot", async () => {

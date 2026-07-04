@@ -6,6 +6,7 @@ import type { Template } from "src/cs/workbench/services/template/common/templat
 import {
   areTableCellsEqual,
   areColumnIndexesEqual,
+  createTemplateTableDataRanges,
   createTemplateTableDecorations,
   normalizeColumnIndexes,
   resolveTemplateCellSelection,
@@ -141,6 +142,24 @@ suite("workbench/contrib/template/test/browser/templateTableMap", () => {
           startRow: 1,
           endRow: 4,
           startCol: 4,
+          endCol: 4,
+        },
+      ],
+    );
+
+    assert.deepEqual(
+      createTemplateTableDataRanges({
+        columnCount: 6,
+        rowCount: 5,
+        sheetId: "sheet-a",
+        template,
+      }),
+      [
+        {
+          sheetId: "sheet-a",
+          startRow: 1,
+          endRow: 4,
+          startCol: 1,
           endCol: 4,
         },
       ],

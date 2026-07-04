@@ -12,6 +12,7 @@ import { startPerf } from "src/cs/workbench/common/perf";
 import {
   areTableSourcesEqual,
   createTableDecorationResource,
+  getTableDisplayDataRangesFromDecorationData,
   getTableRangeDecorationsFromDecorationData,
   ITableService,
   normalizeTableSource,
@@ -1205,12 +1206,13 @@ export class TableService extends Disposable implements ITableService {
     const context = this.createActiveTableDecorationContext();
     if (!tableViewModel || !context) {
       tableViewModel?.setRangeDecorations([]);
+      tableViewModel?.setDisplayDataRanges([]);
       return;
     }
 
-    tableViewModel.setRangeDecorations(getTableRangeDecorationsFromDecorationData(
-      this.decorationsService.getDecorationData(context.decorationResource, false),
-    ));
+    const decorationData = this.decorationsService.getDecorationData(context.decorationResource, false);
+    tableViewModel.setRangeDecorations(getTableRangeDecorationsFromDecorationData(decorationData));
+    tableViewModel.setDisplayDataRanges(getTableDisplayDataRangesFromDecorationData(decorationData));
   }
 
   private createActiveTableDecorationContext(): TableDecorationContext | null {

@@ -199,6 +199,40 @@ export const createTemplateTableDecorations = ({
   return decorations;
 };
 
+export const createTemplateTableDataRanges = ({
+  columnCount,
+  rowCount,
+  sheetId,
+  template,
+}: {
+  readonly columnCount: number;
+  readonly rowCount: number;
+  readonly sheetId?: string | null;
+  readonly template: Template;
+}): readonly TableRange[] => {
+  const normalizedRowCount = Math.max(0, Math.floor(Number(rowCount) || 0));
+  const normalizedColumnCount = Math.max(0, Math.floor(Number(columnCount) || 0));
+  if (normalizedRowCount <= 0 || normalizedColumnCount <= 0) {
+    return [];
+  }
+
+  return template.blocks
+    .map(block => createTemplateBlockDecoration(
+      block,
+      normalizedRowCount,
+      normalizedColumnCount,
+      sheetId ?? null,
+    ))
+    .filter((range): range is TableRangeDecoration => Boolean(range))
+    .map(range => ({
+      sheetId: range.sheetId,
+      startRow: range.startRow,
+      endRow: range.endRow,
+      startCol: range.startCol,
+      endCol: range.endCol,
+    }));
+};
+
 function normalizeTableRanges(ranges: readonly TableRange[] | undefined): TableRange[] {
   return (Array.isArray(ranges) ? ranges : [])
     .map((range): TableRange | null => {

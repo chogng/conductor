@@ -44,7 +44,8 @@ export type TableRangeDecoration = TableRange & {
 };
 
 export type TableDecorationData = IDecorationData<{
-	readonly tableRangeDecorations: readonly TableRangeDecoration[];
+	readonly tableDisplayDataRanges?: readonly TableRange[];
+	readonly tableRangeDecorations?: readonly TableRangeDecoration[];
 }>;
 
 export type TableSelectionTarget =
@@ -224,6 +225,7 @@ export type TableViewModel = {
 	onDidChangeHighlight: (callback: (highlight: TableHighlight) => void) => () => void;
 	onDidChangeRevealCell: (callback: (cell: TableCell | null) => void) => () => void;
 	selectAllColumns: () => boolean;
+	setDisplayDataRanges: (ranges: readonly TableRange[]) => void;
 	setRangeDecorations: (decorations: readonly TableRangeDecoration[]) => void;
 	setSelection: (selection: TableSelection | null) => void;
 	subscribeRowsVersion: (callback: (event: TableRowsVersionChangeEvent) => void) => () => void;
@@ -342,11 +344,18 @@ export const parseTableDecorationResource = (
 	return null;
 };
 
-export const createTableDecorationData = (
-	tableRangeDecorations: readonly TableRangeDecoration[],
-): TableDecorationData | undefined =>
-	tableRangeDecorations.length
-		? { tableRangeDecorations }
+export const createTableDecorationData = ({
+	tableDisplayDataRanges = [],
+	tableRangeDecorations = [],
+}: {
+	readonly tableDisplayDataRanges?: readonly TableRange[];
+	readonly tableRangeDecorations?: readonly TableRangeDecoration[];
+}): TableDecorationData | undefined =>
+	tableRangeDecorations.length || tableDisplayDataRanges.length
+		? {
+			...(tableRangeDecorations.length ? { tableRangeDecorations } : {}),
+			...(tableDisplayDataRanges.length ? { tableDisplayDataRanges } : {}),
+		}
 		: undefined;
 
 export const getTableRangeDecorationsFromDecorationData = (
@@ -355,6 +364,15 @@ export const getTableRangeDecorationsFromDecorationData = (
 	decorationData.flatMap(data =>
 		Array.isArray((data as Partial<TableDecorationData>).tableRangeDecorations)
 			? (data as TableDecorationData).tableRangeDecorations
+			: [],
+	);
+
+export const getTableDisplayDataRangesFromDecorationData = (
+	decorationData: readonly IDecorationData[],
+): readonly TableRange[] =>
+	decorationData.flatMap(data =>
+		Array.isArray((data as Partial<TableDecorationData>).tableDisplayDataRanges)
+			? (data as TableDecorationData).tableDisplayDataRanges
 			: [],
 	);
 

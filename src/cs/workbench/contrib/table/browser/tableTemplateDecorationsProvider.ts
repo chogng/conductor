@@ -11,7 +11,10 @@ import { IReviewService } from "src/cs/workbench/services/review/common/review";
 import { ISliceService } from "src/cs/workbench/services/slice/common/slice";
 import { isSavedTemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
 import { IUserTemplateService } from "src/cs/workbench/services/userTemplate/common/userTemplate";
-import { createTemplateTableDecorations } from "src/cs/workbench/contrib/template/browser/templateTableMap";
+import {
+	createTemplateTableDataRanges,
+	createTemplateTableDecorations,
+} from "src/cs/workbench/contrib/template/browser/templateTableMap";
 import {
 	createTableDecorationData,
 	createTableDecorationResource,
@@ -85,23 +88,26 @@ export class TableTemplateDecorationsProvider extends Disposable implements IDec
 		)?.toString() !== uri.toString()) {
 			return undefined;
 		}
-		if (!normalizeTableTemplateVisualizationEnabled(
-			this.settingsService.getConductorSettings()?.tableTemplateVisualizationEnabled,
-		)) {
-			return undefined;
-		}
-
 		const template = await this.getCurrentTemplate(source, token);
 		if (!template || token.isCancellationRequested) {
 			return undefined;
 		}
 
-		return createTableDecorationData(createTemplateTableDecorations({
+		const tableContext = {
 			columnCount: tableState.file.columnCount,
 			rowCount: tableState.file.rowCount,
 			sheetId: tableState.file.sheetId ?? tableState.selectedSheetId ?? source.sheetId ?? null,
 			template,
-		}));
+		};
+		const tableRangeDecorations = normalizeTableTemplateVisualizationEnabled(
+			this.settingsService.getConductorSettings()?.tableTemplateVisualizationEnabled,
+		)
+			? createTemplateTableDecorations(tableContext)
+			: [];
+		return createTableDecorationData({
+			tableDisplayDataRanges: createTemplateTableDataRanges(tableContext),
+			tableRangeDecorations,
+		});
 	}
 
 	private async getCurrentTemplate(

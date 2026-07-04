@@ -164,9 +164,10 @@ Template visualization
   -> TableTemplateDecorationsProvider implements the workbench `IDecorationsProvider` contract and listens to the slot and related template materialization changes
   -> auto slot reads the current Review-owned system recommended ReviewedTemplate.template
   -> saved user slot reads the selected IUserTemplateService UserTemplate.template snapshot directly
-  -> templateTableMap projects Template blocks/axis ranges into TableRangeDecoration values
-  -> provider returns `IDecorationData<{ tableRangeDecorations }>` for the active table decoration resource
-  -> TableService listens to `IDecorationsService.onDidChangeDecorations`, rereads `getDecorationData(...)`, and updates display-only table view-model state
+  -> templateTableMap projects Template blocks into display data ranges and Template block/axis ranges into visual TableRangeDecoration values
+  -> provider returns `IDecorationData<{ tableDisplayDataRanges, tableRangeDecorations }>` for the active table decoration resource
+  -> TableService listens to `IDecorationsService.onDidChangeDecorations`, rereads `getDecorationData(...)`, and updates active table view-model data ranges and display-only range decorations
+  -> tableViewModel invalidates column display profiles when display data ranges change because smart numeric sampling is limited to data ranges
 ```
 
 Table range decoration payloads intentionally use the shared decorations bus as

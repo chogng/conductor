@@ -257,6 +257,52 @@ const normalizeTableRangeDecorations = (
     .filter((decoration): decoration is TableRangeDecoration => Boolean(decoration));
 };
 
+const normalizeTableDisplayDataRanges = (
+  ranges: readonly TableRange[] | null | undefined,
+  context: { readonly columnCount: number; readonly rowCount: number; readonly sheetId: string | null } | null,
+): readonly TableRange[] => {
+  const rowCount = Math.max(0, Math.floor(Number(context?.rowCount) || 0));
+  const columnCount = Math.max(0, Math.floor(Number(context?.columnCount) || 0));
+  const sheetId = context?.sheetId ?? null;
+  if (rowCount <= 0 || columnCount <= 0) {
+    return [];
+  }
+
+  return (Array.isArray(ranges) ? ranges : [])
+    .map((range): TableRange | null => {
+      const startRow = Math.floor(Number(range.startRow));
+      const endRow = Math.floor(Number(range.endRow));
+      const startCol = Math.floor(Number(range.startCol));
+      const endCol = Math.floor(Number(range.endCol));
+      if (
+        !Number.isInteger(startRow) ||
+        !Number.isInteger(endRow) ||
+        !Number.isInteger(startCol) ||
+        !Number.isInteger(endCol) ||
+        (range.sheetId && range.sheetId !== sheetId)
+      ) {
+        return null;
+      }
+
+      const normalizedStartRow = Math.max(0, Math.min(startRow, endRow));
+      const normalizedEndRow = Math.min(rowCount - 1, Math.max(startRow, endRow));
+      const normalizedStartCol = Math.max(0, Math.min(startCol, endCol));
+      const normalizedEndCol = Math.min(columnCount - 1, Math.max(startCol, endCol));
+      if (normalizedStartRow > normalizedEndRow || normalizedStartCol > normalizedEndCol) {
+        return null;
+      }
+
+      return {
+        sheetId,
+        startRow: normalizedStartRow,
+        endRow: normalizedEndRow,
+        startCol: normalizedStartCol,
+        endCol: normalizedEndCol,
+      };
+    })
+    .filter((range): range is TableRange => Boolean(range));
+};
+
 const areTableRangeDecorationsEqual = (
   first: readonly TableRangeDecoration[],
   second: readonly TableRangeDecoration[],
@@ -996,6 +1042,26 @@ const collectNumericColumnSamples = (
   };
 };
 
+const getColumnDisplayDataRanges = (
+  ranges: readonly TableRange[],
+  colIndex: number,
+  rowCount: number,
+): readonly Pick<TableRange, "endRow" | "startRow">[] =>
+  ranges
+    .filter(range =>
+      range.startCol <= colIndex &&
+      range.endCol >= colIndex
+    )
+    .map(range => ({
+      startRow: Math.max(0, Math.floor(Number(range.startRow) || 0)),
+      endRow: Math.min(
+        Math.max(0, rowCount - 1),
+        Math.floor(Number(range.endRow) || 0),
+      ),
+    }))
+    .filter(range => range.startRow <= range.endRow)
+    .sort((left, right) => left.startRow - right.startRow || left.endRow - right.endRow);
+
 const getUnhealthyTableMessage = (data: TableViewModelSourceData): string => {
   const message = String(data.previewHealthMessage ?? "").trim().toLowerCase();
   if (data.previewHealth === "decodeFailed") {
@@ -1241,6 +1307,7 @@ const createTableViewModel = ({
   );
   const highlightRef = createTableRef<TableHighlight>({});
   const rangeDecorationsRef = createTableRef<readonly TableRangeDecoration[]>([]);
+  const displayDataRangesRef = createTableRef<readonly TableRange[]>([]);
   const revealCellRef = createTableRef<TableCell | null>(null);
   const selectionSubscribersRef = createTableRef(new Set<(selection: TableSelection) => void>());
   const highlightSubscribersRef = createTableRef(new Set<(highlight: TableHighlight) => void>());
@@ -1392,6 +1459,7 @@ const createTableViewModel = ({
     selectionRef.current = clearedSelection;
     highlightRef.current = {};
     rangeDecorationsRef.current = [];
+    displayDataRangesRef.current = [];
     revealCellRef.current = null;
     for (const callback of Array.from(rangeDecorationSubscribersRef.current)) {
       try {
@@ -1819,38 +1887,74 @@ const createTableViewModel = ({
       const currentFile = previewFileRef.current;
       const sheetKey = activeSheetKey ?? "";
       const columnCount = Math.max(0, Math.floor(Number(currentFile?.columnCount) || 0));
+      const rowCount = Math.max(0, Math.floor(Number(currentFile?.rowCount) || 0));
       const normalizedColIndex = Math.max(0, Math.floor(Number(colIndex) || 0));
-      if (normalizedColIndex >= columnCount) {
+      if (normalizedColIndex >= columnCount || rowCount <= 0) {
+        return [];
+      }
+
+      const dataRanges = getColumnDisplayDataRanges(
+        displayDataRangesRef.current,
+        normalizedColIndex,
+        rowCount,
+      );
+      if (!dataRanges.length) {
         return [];
       }
 
       const content = sourcesByKeyRef.current.get(sheetKey)?.content;
+      const samples: unknown[] = [];
+      const sampledRows = new Set<number>();
       if (content) {
-        const contentSamples = readTableModelContentRows(
-          content,
-          0,
-          Math.min(content.rowCount, TABLE_COLUMN_PROFILE_MAX_SAMPLE_ROWS),
-        ).map(row => row[normalizedColIndex]);
-        if (contentSamples.length) {
-          return contentSamples;
+        for (const range of dataRanges) {
+          if (samples.length >= TABLE_COLUMN_PROFILE_MAX_SAMPLE_ROWS) {
+            break;
+          }
+
+          const startRow = range.startRow;
+          const endRowExclusive = Math.min(
+            range.endRow + 1,
+            startRow + TABLE_COLUMN_PROFILE_MAX_SAMPLE_ROWS - samples.length,
+          );
+          const rows = readTableModelContentRows(content, startRow, endRowExclusive);
+          for (let rowOffset = 0; rowOffset < rows.length; rowOffset += 1) {
+            const rowIndex = startRow + rowOffset;
+            if (sampledRows.has(rowIndex)) {
+              continue;
+            }
+
+            sampledRows.add(rowIndex);
+            samples.push(rows[rowOffset][normalizedColIndex]);
+            if (samples.length >= TABLE_COLUMN_PROFILE_MAX_SAMPLE_ROWS) {
+              break;
+            }
+          }
         }
+        return samples;
       }
 
-      const samples: unknown[] = [];
-      const entries = Array.from(tableRowsCacheRef.current.entries())
-        .sort(([left], [right]) => left - right);
-      for (const [, row] of entries) {
-        if (!Array.isArray(row)) {
-          continue;
+      for (const range of dataRanges) {
+        for (let rowIndex = range.startRow; rowIndex <= range.endRow; rowIndex += 1) {
+          if (sampledRows.has(rowIndex)) {
+            continue;
+          }
+
+          sampledRows.add(rowIndex);
+          const row = tableRowsCacheRef.current.get(rowIndex);
+          if (Array.isArray(row)) {
+            samples.push(row[normalizedColIndex]);
+          }
+          if (samples.length >= TABLE_COLUMN_PROFILE_MAX_SAMPLE_ROWS) {
+            break;
+          }
         }
-        samples.push(row[normalizedColIndex]);
         if (samples.length >= TABLE_COLUMN_PROFILE_MAX_SAMPLE_ROWS) {
           break;
         }
       }
       return samples;
     },
-    [activeSheetKey, previewFileRef, sourcesByKeyRef, tableRowsCacheRef],
+    [activeSheetKey, displayDataRangesRef, previewFileRef, sourcesByKeyRef, tableRowsCacheRef],
   );
 
   const getColumnDisplayProfile = memoCallback(
@@ -2404,6 +2508,19 @@ const createTableViewModel = ({
     [getRangeDecorationContext, rangeDecorationSubscribersRef, rangeDecorationsRef],
   );
 
+  const setDisplayDataRanges = memoCallback(
+    (ranges: readonly TableRange[]): void => {
+      const normalizedRanges = normalizeTableDisplayDataRanges(ranges, getRangeDecorationContext());
+      if (areTableRangesEqual(displayDataRangesRef.current, normalizedRanges)) {
+        return;
+      }
+
+      displayDataRangesRef.current = normalizedRanges;
+      notifyTableDisplayProfileChanged();
+    },
+    [displayDataRangesRef, getRangeDecorationContext, notifyTableDisplayProfileChanged],
+  );
+
   const onDidChangeState = memoCallback(
     (callback: () => void): (() => void) => {
       stateSubscribersRef.current.add(callback);
@@ -2612,6 +2729,7 @@ const createTableViewModel = ({
     resolve: resolveTableRow,
     resetColumnDisplayScale,
     selectAllColumns,
+    setDisplayDataRanges,
     setRangeDecorations,
     setSelection,
     highlightColumns,
