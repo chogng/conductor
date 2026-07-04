@@ -12,6 +12,8 @@ import { MenuService } from "src/cs/platform/actions/common/menuService";
 import {
   AuxiliaryBarPart,
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
+import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
+import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 import { ParametersCommandId } from "src/cs/workbench/services/parameters/common/parameters";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -34,7 +36,7 @@ suite("workbench/browser/parts/auxiliarybar/test/browser/auxiliaryBarActions", (
     const auxiliaryBarPart = disposables.add(new AuxiliaryBarPart());
     const contextKeyService = disposables.add(new ContextKeyService());
     const menuService = disposables.add(new MenuService(createCommandService()));
-    contextKeyService.setContext("activeWorkbenchMainPart", "chart");
+    contextKeyService.setContext("activePanelViewContainer", ChartViewContainerId);
 
     const actions = auxiliaryBarPart.updateState({
       activeView: "parameters",
@@ -42,7 +44,7 @@ suite("workbench/browser/parts/auxiliarybar/test/browser/auxiliaryBarActions", (
       menuService,
       templateMode: "management",
       visible: true,
-      workbenchMainPart: "chart",
+      activePanelViewContainerId: ChartViewContainerId,
     }).actions;
 
     assert.ok(actions.some(action =>
@@ -50,12 +52,12 @@ suite("workbench/browser/parts/auxiliarybar/test/browser/auxiliaryBarActions", (
     ));
   });
 
-  test("filters view switch actions by workbench main part context", () => {
+  test("filters view switch actions by active panel view container context", () => {
     const disposables = store.add(new DisposableStore());
     const auxiliaryBarPart = disposables.add(new AuxiliaryBarPart());
     const contextKeyService = disposables.add(new ContextKeyService());
     const menuService = disposables.add(new MenuService(createCommandService()));
-    contextKeyService.setContext("activeWorkbenchMainPart", "table");
+    contextKeyService.setContext("activePanelViewContainer", TableViewContainerId);
 
     const actions = auxiliaryBarPart.updateState({
       activeView: "parameters",
@@ -63,7 +65,7 @@ suite("workbench/browser/parts/auxiliarybar/test/browser/auxiliaryBarActions", (
       menuService,
       templateMode: "management",
       visible: true,
-      workbenchMainPart: "chart",
+      activePanelViewContainerId: ChartViewContainerId,
     }).actions;
 
     assert.ok(!actions.some(action => action.id === ParametersCommandId.showParameters));
@@ -75,7 +77,7 @@ suite("workbench/browser/parts/auxiliarybar/test/browser/auxiliaryBarActions", (
     const auxiliaryBarPart = disposables.add(new AuxiliaryBarPart());
     const contextKeyService = disposables.add(new ContextKeyService());
     const menuService = disposables.add(new MenuService(createCommandService()));
-    contextKeyService.setContext("activeWorkbenchMainPart", "table");
+    contextKeyService.setContext("activePanelViewContainer", TableViewContainerId);
 
     const actions = auxiliaryBarPart.updateState({
       activeView: "template",
@@ -83,7 +85,7 @@ suite("workbench/browser/parts/auxiliarybar/test/browser/auxiliaryBarActions", (
       menuService,
       templateMode: "management",
       visible: true,
-      workbenchMainPart: "table",
+      activePanelViewContainerId: TableViewContainerId,
     }).actions;
 
     assert.deepEqual(actions.map(action => action.id), []);

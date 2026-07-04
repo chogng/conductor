@@ -8,10 +8,14 @@ import {
   AuxiliaryBarVisibleContext,
   SideBarVisibleContext,
 } from "src/cs/workbench/common/contextkeys";
+import { ViewContainerLocation } from "src/cs/workbench/common/views";
+import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
+import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 import {
   IWorkbenchLayoutService,
   Parts,
 } from "src/cs/workbench/services/layout/browser/layoutService";
+import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 
 export const WORKBENCH_LAYOUT_SIDEBAR_TOGGLE_BUTTON_ID =
   "workbench-titlebar-sidebar-toggle-button";
@@ -67,7 +71,7 @@ class NavigateBackAction extends Action2 {
   }
 
   public run(accessor: ServicesAccessor): void {
-    accessor.get(IWorkbenchLayoutService).navigateBack();
+    accessor.get(IViewsService).navigateViewContainerBack(ViewContainerLocation.Panel);
   }
 }
 
@@ -84,7 +88,7 @@ class NavigateForwardAction extends Action2 {
   }
 
   public run(accessor: ServicesAccessor): void {
-    accessor.get(IWorkbenchLayoutService).navigateForward();
+    accessor.get(IViewsService).navigateViewContainerForward(ViewContainerLocation.Panel);
   }
 }
 
@@ -101,7 +105,9 @@ class ShowTableAction extends Action2 {
   }
 
   public run(accessor: ServicesAccessor): void {
-    accessor.get(IWorkbenchLayoutService).navigateToView("table");
+    void accessor.get(IViewsService).openViewContainer(
+      TableViewContainerId,
+    );
   }
 }
 
@@ -118,7 +124,9 @@ class ShowChartAction extends Action2 {
   }
 
   public run(accessor: ServicesAccessor): void {
-    accessor.get(IWorkbenchLayoutService).navigateToView("chart");
+    void accessor.get(IViewsService).openViewContainer(
+      ChartViewContainerId,
+    );
   }
 }
 

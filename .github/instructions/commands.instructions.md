@@ -134,7 +134,8 @@ the operation needs the exact visible row.
 
 | Command family | Owner |
 | --- | --- |
-| workbench navigation/mode/sidebar/window chrome | layout service or native host; titlebar only renders buttons |
+| workbench main mode/container navigation | `IViewsService.openViewContainer(...)` / view-container navigation APIs |
+| workbench part visibility/sidebar/auxiliary bar/window chrome | layout service or native host; titlebar only renders buttons |
 | Explorer add/remove/select/toggle layout | `IExplorerService`, or `ExplorerViewPane` reached through `IViewsService.openView(...)` for view-local workflows |
 | low-level filesystem operations | `IFileService`, usually not user-facing workbench commands |
 | Explorer source import/open | Explorer source workflow + Explorer-local rows + `ITableService.open({ resource })` |
@@ -145,7 +146,7 @@ the operation needs the exact visible row.
 | thumbnail cache/layout | `IThumbnailService` for cache, `IExplorerService` for layout |
 | search query/open result | `ISearchService`, then target owner for reveal |
 | export | `IExportService` |
-| parameters pane navigation | workbench layout and `IParametersService` view state |
+| parameters pane navigation | `IViewsService` for the chart container, layout service for the active auxiliary view, and `IParametersService` view state |
 
 ## Controllers
 

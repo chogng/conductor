@@ -6,7 +6,8 @@ import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle"
 import { localize } from "src/cs/nls";
 import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
-import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
+import { SettingsViewContainerId } from "src/cs/workbench/contrib/settings/common/settings";
+import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 
 export const SHOW_SETTINGS_COMMAND_ID = "workbench.action.showSettings";
 
@@ -27,7 +28,9 @@ export const registerSettingsActions = (): IDisposable => {
     }
 
     public run(accessor: ServicesAccessor): void {
-      accessor.get(IWorkbenchLayoutService).navigateToView("settings");
+      void accessor.get(IViewsService).openViewContainer(
+        SettingsViewContainerId,
+      );
     }
   }));
 

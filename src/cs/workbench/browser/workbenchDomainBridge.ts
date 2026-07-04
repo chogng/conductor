@@ -3,15 +3,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { runWhenGlobalIdle } from "src/cs/base/common/async";
+import type { Event } from "src/cs/base/common/event";
 import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
 import { startPerf } from "src/cs/workbench/common/perf";
 import {
+  type ExplorerPaneMode,
   type ExplorerPaneInput,
   type IExplorerService,
 } from "src/cs/workbench/contrib/files/browser/files";
 import type { ICalculationService } from "src/cs/workbench/services/calculation/common/calculation";
-import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
 import {
   getExplorerFileResourceIdentity,
   getExplorerResourceIdentityKey,
@@ -20,10 +21,12 @@ import {
   buildExplorerTree,
   type ExplorerTreeNode,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
-import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import { createChartViewInput } from "src/cs/workbench/services/chart/browser/chartViewInput";
 import type { ChartFileOption } from "src/cs/workbench/services/chart/common/chartFileOptions";
-import type { IChartService } from "src/cs/workbench/services/chart/common/chart";
+import {
+  ChartViewContainerId,
+  type IChartService,
+} from "src/cs/workbench/services/chart/common/chart";
 import { getOriginOpenPlotOptions, type ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 import type {
   IPlotService,
@@ -36,6 +39,7 @@ import type {
   ITableService,
   TableSource,
 } from "src/cs/workbench/services/table/common/table";
+import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
 import {
   type ISliceService,
   type SliceFileState,
@@ -66,7 +70,8 @@ export type WorkbenchDomainBridgeOptions = {
   readonly chartService: IChartService;
   readonly calculationService: ICalculationService;
   readonly explorerService: IExplorerService;
-  readonly layoutService: IWorkbenchLayoutService;
+  readonly getActivePanelViewContainerId: () => string | null;
+  readonly onDidChangeActivePanelViewContainer: Event<void>;
   readonly plotService: IPlotService;
   readonly settingsService: ISettingsService;
   readonly sliceService: ISliceService;
@@ -113,7 +118,7 @@ export class WorkbenchDomainBridge extends Disposable {
     this._register(this.options.plotService.onDidChangePlotState(() => this.scheduleSync()));
     this._register(this.options.sliceService.onDidChangeResourceSliceResult(() => this.scheduleInteractiveSync()));
     this._register(this.options.sliceService.onDidChangeSliceState(() => this.scheduleInteractiveSync()));
-    this._register(this.options.layoutService.onDidChangeWorkbenchNavigation(() => this.scheduleSync()));
+    this._register(this.options.onDidChangeActivePanelViewContainer(() => this.scheduleSync()));
     this._register({
       dispose: () => {
         this.cancelScheduledSync?.();
@@ -136,6 +141,18 @@ export class WorkbenchDomainBridge extends Disposable {
   private cancelScheduledSync: (() => void) | null = null;
   private cancelScheduledDeferredSecondarySync: (() => void) | null = null;
   private scheduledSyncKind: "frame" | "microtask" | null = null;
+
+  private isTablePanelActive(): boolean {
+    return this.options.getActivePanelViewContainerId() === TableViewContainerId;
+  }
+
+  private isChartPanelActive(): boolean {
+    return this.options.getActivePanelViewContainerId() === ChartViewContainerId;
+  }
+
+  private getExplorerPaneMode(): ExplorerPaneMode {
+    return this.isChartPanelActive() ? "chart" : "table";
+  }
 
   public sync(options: WorkbenchDomainBridgeSyncOptions = {}): void {
     this.cancelScheduledSync?.();
@@ -240,7 +257,7 @@ export class WorkbenchDomainBridge extends Disposable {
   }
 
   private trySyncCurrentUriTablePaneInput(): boolean {
-    if (this.options.layoutService.activeWorkbenchMainPart !== "table") {
+    if (!this.isTablePanelActive()) {
       return false;
     }
 
@@ -279,7 +296,7 @@ export class WorkbenchDomainBridge extends Disposable {
   private trySyncCurrentUriChartPaneInput({
     deferSecondaryWork = false,
   }: WorkbenchDomainBridgeSyncOptions = {}): boolean {
-    if (this.options.layoutService.activeWorkbenchMainPart !== "chart") {
+    if (!this.isChartPanelActive()) {
       return false;
     }
 
@@ -446,7 +463,7 @@ export class WorkbenchDomainBridge extends Disposable {
     return createExplorerPaneInput({
       activePlotType: this.options.plotService.getState().activePlotType,
       explorerService: this.options.explorerService,
-      mode: this.options.layoutService.activeWorkbenchMainPart,
+      mode: this.getExplorerPaneMode(),
       originOpenPlotOptions: getOriginOpenPlotOptions(conductorSettings),
       plotAxisSettings: conductorSettings?.plotAxisSettings,
       sliceState,
@@ -540,7 +557,7 @@ export class WorkbenchDomainBridge extends Disposable {
     const recentFileIds = fileIds
       .map(fileId => String(fileId ?? "").trim())
       .filter(Boolean);
-    if (!recentFileIds.length || this.options.layoutService.activeWorkbenchMainPart !== "chart") {
+    if (!recentFileIds.length || !this.isChartPanelActive()) {
       return;
     }
 
@@ -575,12 +592,12 @@ export class WorkbenchDomainBridge extends Disposable {
     visibleResources: readonly ExplorerResourceIdentity[],
     nearbyResources: readonly ExplorerResourceIdentity[],
   ): void {
-    if (this.options.layoutService.activeWorkbenchMainPart === "chart") {
+    if (this.isChartPanelActive()) {
       this.prefetchPlotDisplayResourceIdentities(visibleResources, "visible", "visibleExplorerResources");
       this.prefetchPlotDisplayResourceIdentities(nearbyResources, "nearby", "nearbyExplorerResources");
     }
     if (!shouldPrefetchExplorerThumbnails({
-      activeWorkbenchMainPart: this.options.layoutService.activeWorkbenchMainPart,
+      activePanelViewContainerId: this.options.getActivePanelViewContainerId(),
       viewLayout: this.options.explorerService.viewLayout,
     })) {
       return;
@@ -601,7 +618,7 @@ export class WorkbenchDomainBridge extends Disposable {
     priority: PlotCalculatedDataPrefetchPriority,
     source: string,
   ): void {
-    if (this.options.layoutService.activeWorkbenchMainPart !== "chart") {
+    if (!this.isChartPanelActive()) {
       return;
     }
 
@@ -632,7 +649,7 @@ export class WorkbenchDomainBridge extends Disposable {
     priority: PlotCalculatedDataPrefetchPriority,
     source: string,
   ): void {
-    if (this.options.layoutService.activeWorkbenchMainPart !== "chart") {
+    if (!this.isChartPanelActive()) {
       return;
     }
 
@@ -971,18 +988,18 @@ const createTraceRowIndicesByFileId = (
 };
 
 export const shouldPrefetchExplorerThumbnails = ({
-  activeWorkbenchMainPart,
+  activePanelViewContainerId,
   viewLayout,
 }: {
-  readonly activeWorkbenchMainPart: WorkbenchMainPart;
+  readonly activePanelViewContainerId: string | null;
   readonly viewLayout: IExplorerService["viewLayout"];
 }): boolean =>
-  activeWorkbenchMainPart === "chart" && viewLayout === "thumbnail";
+  activePanelViewContainerId === ChartViewContainerId && viewLayout === "thumbnail";
 
 type CreateExplorerPaneInputOptions = {
   readonly activePlotType: PlotType;
   readonly explorerService: IExplorerService;
-  readonly mode: WorkbenchMainPart;
+  readonly mode: ExplorerPaneMode;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly sliceState: SliceState;
@@ -1063,7 +1080,7 @@ export const createExplorerPaneInput = ({
   sliceState,
 }: CreateExplorerPaneInputOptions): ExplorerPaneInput => {
   const isChartMode = mode === "chart";
-  const selectionKind: WorkbenchMainPart = isChartMode ? "chart" : "table";
+  const selectionKind: ExplorerPaneMode = isChartMode ? "chart" : "table";
   const explorerResourceFiles = getExplorerResourceFiles(
     explorerService.files,
   );

@@ -22,10 +22,30 @@ import {
   Parts,
   type IWorkbenchLayoutService as IWorkbenchLayoutServiceType,
 } from "src/cs/workbench/services/layout/browser/layoutService";
-import { IViewsService, type IViewsService as IViewsServiceType } from "src/cs/workbench/services/views/common/viewsService";
+import {
+  IViewsService,
+  type IViewContainerNavigationState,
+  type IViewsService as IViewsServiceType,
+} from "src/cs/workbench/services/views/common/viewsService";
+
+type ViewContainerNavigation = {
+  readonly history: readonly string[];
+  readonly historyIndex: number;
+};
+
+type ViewContainerNavigationUpdate =
+  | "record"
+  | {
+    readonly navigation: ViewContainerNavigation;
+  };
 
 export class ViewsService extends Disposable implements IViewsServiceType {
   public declare readonly _serviceBrand: undefined;
+
+  private readonly onDidChangeViewContainerNavigationEmitter =
+    this._register(new Emitter<IViewContainerNavigationState>());
+  public readonly onDidChangeViewContainerNavigation =
+    this.onDidChangeViewContainerNavigationEmitter.event;
 
   private readonly onDidChangeViewContainerVisibilityEmitter = this._register(new Emitter<{
     readonly id: string;
@@ -49,6 +69,7 @@ export class ViewsService extends Disposable implements IViewsServiceType {
   private readonly focusedViewContextKey: IContextKey<string>;
   private readonly visibleViewContainers = new Map<ViewContainerLocation, string>();
   private readonly lastActiveViewContainers = new Map<ViewContainerLocation, string>();
+  private readonly viewContainerNavigation = new Map<ViewContainerLocation, ViewContainerNavigation>();
   private readonly visibleAddedViews = new Map<string, boolean>();
   private readonly viewsById = new Map<string, IView>();
   private readonly viewPaneContainers = new Map<string, IViewPaneContainer>();
@@ -79,10 +100,17 @@ export class ViewsService extends Disposable implements IViewsServiceType {
       this.visibleViewContextKeys.clear();
       this.visibleViewContainers.clear();
       this.lastActiveViewContainers.clear();
+      this.viewContainerNavigation.clear();
       this.visibleAddedViews.clear();
       this.viewsById.clear();
       this.viewPaneContainers.clear();
     }));
+  }
+
+  public getViewContainerNavigationState(
+    location: ViewContainerLocation,
+  ): IViewContainerNavigationState {
+    return this.createViewContainerNavigationState(location);
   }
 
   public isViewContainerVisible(id: string): boolean {
@@ -105,16 +133,60 @@ export class ViewsService extends Disposable implements IViewsServiceType {
   }
 
   public async openViewContainer(id: string, _focus?: boolean): Promise<ViewContainer | null> {
-    return this.openViewContainerInternal(id, true);
+    return this.openViewContainerInternal(id, true, "record");
   }
 
-  private openViewContainerInternal(id: string, updatePartVisibility: boolean): ViewContainer | null {
+  public navigateViewContainerBack(location: ViewContainerLocation): ViewContainer | null {
+    const navigation = this.viewContainerNavigation.get(location);
+    if (!navigation || navigation.historyIndex <= 0) {
+      return this.getVisibleViewContainer(location);
+    }
+
+    const nextNavigation = {
+      history: navigation.history,
+      historyIndex: navigation.historyIndex - 1,
+    };
+    const id = nextNavigation.history[nextNavigation.historyIndex];
+    return this.openViewContainerInternal(id, true, { navigation: nextNavigation });
+  }
+
+  public navigateViewContainerForward(location: ViewContainerLocation): ViewContainer | null {
+    const navigation = this.viewContainerNavigation.get(location);
+    if (!navigation || navigation.historyIndex >= navigation.history.length - 1) {
+      return this.getVisibleViewContainer(location);
+    }
+
+    const nextNavigation = {
+      history: navigation.history,
+      historyIndex: navigation.historyIndex + 1,
+    };
+    const id = nextNavigation.history[nextNavigation.historyIndex];
+    return this.openViewContainerInternal(id, true, { navigation: nextNavigation });
+  }
+
+  public resetViewContainerNavigation(location: ViewContainerLocation, id: string): ViewContainer | null {
+    const viewContainer = this.viewDescriptorService.getViewContainerById(id);
+    if (!viewContainer || this.viewDescriptorService.getViewContainerLocation(viewContainer) !== location) {
+      return null;
+    }
+
+    return this.openViewContainerInternal(id, true, {
+      navigation: { history: [id], historyIndex: 0 },
+    });
+  }
+
+  private openViewContainerInternal(
+    id: string,
+    updatePartVisibility: boolean,
+    navigationUpdate: ViewContainerNavigationUpdate,
+  ): ViewContainer | null {
     const viewContainer = this.viewDescriptorService.getViewContainerById(id);
     const location = viewContainer ? this.viewDescriptorService.getViewContainerLocation(viewContainer) : null;
     if (!viewContainer || location === null) {
       return null;
     }
 
+    const previousNavigationState = this.createViewContainerNavigationState(location);
     const previousId = this.visibleViewContainers.get(location);
     if (previousId && previousId !== id) {
       this.viewPaneContainers.get(previousId)?.setVisible(false);
@@ -124,11 +196,13 @@ export class ViewsService extends Disposable implements IViewsServiceType {
     const viewPaneContainer = this.getOrCreateViewPaneContainer(viewContainer);
     this.visibleViewContainers.set(location, id);
     this.lastActiveViewContainers.set(location, id);
+    this.updateViewContainerNavigation(location, id, navigationUpdate);
     viewPaneContainer.setVisible(true);
     this.applyAddedViewVisibility(id);
     if (previousId !== id) {
       this.onDidChangeViewContainerVisibilityEmitter.fire({ id, visible: true, location });
     }
+    this.fireViewContainerNavigationChangeIfNeeded(location, previousNavigationState);
     if (updatePartVisibility) {
       this.updatePartVisibility(location, true);
     }
@@ -150,6 +224,7 @@ export class ViewsService extends Disposable implements IViewsServiceType {
       this.visibleViewContainers.delete(location);
       this.lastActiveViewContainers.set(location, id);
       this.onDidChangeViewContainerVisibilityEmitter.fire({ id, visible: false, location });
+      this.fireViewContainerNavigationChange(location);
       if (updatePartVisibility) {
         this.updatePartVisibility(location, false);
       }
@@ -398,6 +473,7 @@ export class ViewsService extends Disposable implements IViewsServiceType {
     for (const [location, id] of this.visibleViewContainers) {
       if (id === viewContainerId) {
         this.visibleViewContainers.delete(location);
+        this.fireViewContainerNavigationChange(location);
         this.updatePartVisibility(location, false);
       }
     }
@@ -405,6 +481,22 @@ export class ViewsService extends Disposable implements IViewsServiceType {
       if (id === viewContainerId) {
         this.lastActiveViewContainers.delete(location);
       }
+    }
+    for (const [location, navigation] of this.viewContainerNavigation) {
+      if (!navigation.history.includes(viewContainerId)) {
+        continue;
+      }
+
+      const history = navigation.history.filter(id => id !== viewContainerId);
+      if (!history.length) {
+        this.viewContainerNavigation.delete(location);
+      } else {
+        this.viewContainerNavigation.set(location, {
+          history,
+          historyIndex: Math.min(navigation.historyIndex, history.length - 1),
+        });
+      }
+      this.fireViewContainerNavigationChange(location);
     }
   }
 
@@ -510,7 +602,7 @@ export class ViewsService extends Disposable implements IViewsServiceType {
 
     const id = this.getLastOrDefaultViewContainerId(location);
     if (id) {
-      this.openViewContainerInternal(id, false);
+      this.openViewContainerInternal(id, false, "record");
     }
   }
 
@@ -528,6 +620,64 @@ export class ViewsService extends Disposable implements IViewsServiceType {
     if (part) {
       this.layoutService.setPartHidden(!visible, part);
     }
+  }
+
+  private updateViewContainerNavigation(
+    location: ViewContainerLocation,
+    id: string,
+    update: ViewContainerNavigationUpdate,
+  ): void {
+    if (update === "record") {
+      const previous = this.viewContainerNavigation.get(location);
+      if (previous?.history[previous.historyIndex] === id) {
+        return;
+      }
+
+      const history = previous
+        ? previous.history.slice(0, previous.historyIndex + 1)
+        : [];
+      this.viewContainerNavigation.set(location, {
+        history: [...history, id],
+        historyIndex: history.length,
+      });
+      return;
+    }
+
+    this.viewContainerNavigation.set(location, update.navigation);
+  }
+
+  private createViewContainerNavigationState(
+    location: ViewContainerLocation,
+  ): IViewContainerNavigationState {
+    const navigation = this.viewContainerNavigation.get(location);
+    return {
+      activeViewContainerId: this.visibleViewContainers.get(location) ?? null,
+      historyIndex: navigation?.historyIndex ?? -1,
+      historyLength: navigation?.history.length ?? 0,
+      location,
+    };
+  }
+
+  private fireViewContainerNavigationChangeIfNeeded(
+    location: ViewContainerLocation,
+    previous: IViewContainerNavigationState,
+  ): void {
+    const next = this.createViewContainerNavigationState(location);
+    if (
+      previous.activeViewContainerId === next.activeViewContainerId &&
+      previous.historyIndex === next.historyIndex &&
+      previous.historyLength === next.historyLength
+    ) {
+      return;
+    }
+
+    this.onDidChangeViewContainerNavigationEmitter.fire(next);
+  }
+
+  private fireViewContainerNavigationChange(location: ViewContainerLocation): void {
+    this.onDidChangeViewContainerNavigationEmitter.fire(
+      this.createViewContainerNavigationState(location),
+    );
   }
 }
 

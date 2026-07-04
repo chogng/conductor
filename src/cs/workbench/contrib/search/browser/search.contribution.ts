@@ -16,8 +16,8 @@ import {
 } from "src/cs/workbench/common/contributions";
 import {
   ActiveAuxiliaryBarViewContext,
-  ActiveWorkbenchMainPartContext,
-} from "src/cs/workbench/browser/contextkeys";
+  ActivePanelViewContainerContext,
+} from "src/cs/workbench/common/contextkeys";
 import {
   Extensions as ViewExtensions,
   type IViewContainersRegistry,
@@ -31,6 +31,7 @@ import {
   SearchViewContainerId,
   SearchViewId,
 } from "src/cs/workbench/services/search/common/search";
+import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
@@ -69,7 +70,7 @@ function registerSearchView(): void {
     ctorDescriptor: new SyncDescriptor(SearchViewPane),
     order: 5,
     when: ContextKeyExpr.and(
-      ActiveWorkbenchMainPartContext.isEqualTo("chart"),
+      ActivePanelViewContainerContext.isEqualTo(ChartViewContainerId),
       ActiveAuxiliaryBarViewContext.isEqualTo("search"),
     ),
   }], searchContainer);

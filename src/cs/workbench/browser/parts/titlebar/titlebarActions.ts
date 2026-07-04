@@ -3,13 +3,17 @@ import { localize } from "src/cs/nls";
 import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layoutCommands";
 import { QuickAccessCommandId } from "src/cs/workbench/contrib/quickaccess/common/quickAccessCommands";
 import { SHOW_SETTINGS_COMMAND_ID } from "src/cs/workbench/contrib/settings/browser/settingsActions";
-import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
+import { SettingsViewContainerId } from "src/cs/workbench/contrib/settings/common/settings";
+import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
+import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 
 export const WORKBENCH_TITLEBAR_UPDATE_BUTTON_ID =
   "workbench-titlebar-update-button";
 export const WORKBENCH_TITLEBAR_QUICK_ACCESS_BUTTON_ID =
   "workbench-titlebar-quick-access-button";
-export const WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS: Record<WorkbenchMainPart, string> = {
+export type WorkbenchTitlebarPageId = "table" | "chart" | "settings";
+
+export const WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS: Record<WorkbenchTitlebarPageId, string> = {
   table: "workbench-titlebar-table-button",
   chart: "workbench-titlebar-chart-button",
   settings: "workbench-titlebar-settings-button",
@@ -29,7 +33,7 @@ export type WorkbenchTitlebarNavButton = {
 
 export type WorkbenchTitlebarPageButton = {
   readonly commandId: string;
-  readonly id: WorkbenchMainPart;
+  readonly id: WorkbenchTitlebarPageId;
   readonly title: string;
   readonly isActive: boolean;
 };
@@ -41,7 +45,7 @@ export type WorkbenchTitlebarQuickAccessButton = {
   readonly title: string;
 };
 
-export type WorkbenchTitlebarActivePage = WorkbenchMainPart | string;
+export type WorkbenchTitlebarActivePage = string;
 
 export type WorkbenchTitlebarUpdateInfo = {
   readonly label?: string | null;
@@ -75,19 +79,19 @@ export const createWorkbenchTitlebarPageButtons = (
     commandId: WorkbenchLayoutCommandId.showTable,
     id: "table",
     title: localize("titlebar.mode.table", "Table"),
-    isActive: activePage === "table",
+    isActive: activePage === TableViewContainerId,
   },
   {
     commandId: WorkbenchLayoutCommandId.showChart,
     id: "chart",
     title: localize("titlebar.mode.chart", "Chart"),
-    isActive: activePage === "chart",
+    isActive: activePage === ChartViewContainerId,
   },
   {
     commandId: SHOW_SETTINGS_COMMAND_ID,
     id: "settings",
     title: localize("titlebar.mode.settings", "Settings"),
-    isActive: activePage === "settings",
+    isActive: activePage === SettingsViewContainerId,
   },
 ];
 

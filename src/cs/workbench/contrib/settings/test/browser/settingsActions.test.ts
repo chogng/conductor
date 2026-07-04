@@ -16,7 +16,8 @@ import {
   registerSettingsActions,
   SHOW_SETTINGS_COMMAND_ID,
 } from "src/cs/workbench/contrib/settings/browser/settingsActions";
-import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
+import { SettingsViewContainerId } from "src/cs/workbench/contrib/settings/common/settings";
+import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 
 suite("workbench/contrib/settings/test/browser/settingsActions", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
@@ -25,8 +26,11 @@ suite("workbench/contrib/settings/test/browser/settingsActions", () => {
     const actionRegistration = registerSettingsActions();
     const calls: string[] = [];
     const accessor = createAccessor([
-      [IWorkbenchLayoutService, {
-        navigateToView: (view: string) => calls.push(`view:${view}`),
+      [IViewsService, {
+        openViewContainer: async (id: string) => {
+          calls.push(`container:${id}`);
+          return null;
+        },
       }],
     ]);
 
@@ -34,7 +38,9 @@ suite("workbench/contrib/settings/test/browser/settingsActions", () => {
       CommandsRegistry.getCommand(SHOW_SETTINGS_COMMAND_ID)?.handler(accessor);
       const commandPaletteIds = getCommandPaletteIds();
 
-      assert.deepEqual(calls, ["view:settings"]);
+      assert.deepEqual(calls, [
+        `container:${SettingsViewContainerId}`,
+      ]);
       assert.ok(commandPaletteIds.has(SHOW_SETTINGS_COMMAND_ID));
     } finally {
       actionRegistration.dispose();

@@ -8,6 +8,8 @@ import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import { SearchCommandId } from "src/cs/workbench/services/search/common/search";
 import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
+import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
+import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 
 export const registerSearchCommands = (): IDisposable => {
 	const disposables = new DisposableStore();
@@ -38,6 +40,8 @@ const showChartAuxiliaryView = (
 	view: string,
 ): void => {
 	const layoutService = accessor.get(IWorkbenchLayoutService);
-	layoutService.navigateToView("chart");
+	void accessor.get(IViewsService).openViewContainer(
+		ChartViewContainerId,
+	);
 	layoutService.selectAuxiliaryBarView(view);
 };

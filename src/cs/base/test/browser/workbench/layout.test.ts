@@ -8,6 +8,7 @@ import {
   Parts,
 } from "src/cs/workbench/services/layout/browser/layoutService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import { WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS } from "src/cs/workbench/browser/parts/titlebar/titlebarActions";
 
 class TestStorageService extends AbstractStorageService {
   private readonly values = new Map<string, string>();
@@ -115,7 +116,12 @@ suite("workbench/browser/layout", () => {
       const split = layout.element.querySelector<HTMLElement>(".workbench_layout_split");
       assert.ok(split);
 
-      layoutService.navigateToView("settings");
+      layout.setWorkbenchPaneState({
+        canNavigateBack: false,
+        canNavigateForward: false,
+        suppressAuxiliaryBar: true,
+        workbenchPaneLabelledBy: WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS.settings,
+      });
 
       assert.equal(
         layout.element.querySelector(".workbench_layout_split"),
@@ -134,7 +140,12 @@ suite("workbench/browser/layout", () => {
       assert.equal(split.classList.contains("workbench_layout_split--animate-sidebar"), false);
       assert.equal(split.classList.contains("workbench_layout_split--animate-auxiliarybar"), false);
 
-      layoutService.navigateToView("table");
+      layout.setWorkbenchPaneState({
+        canNavigateBack: false,
+        canNavigateForward: false,
+        suppressAuxiliaryBar: false,
+        workbenchPaneLabelledBy: WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS.table,
+      });
 
       assert.equal(
         layout.element.querySelector(".workbench_layout_split"),

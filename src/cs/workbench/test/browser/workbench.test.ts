@@ -7,7 +7,7 @@ import assert from "assert";
 import { Emitter, Event } from "src/cs/base/common/event";
 import { URI } from "src/cs/base/common/uri";
 import {
-  resolveInitialWorkbenchViewMode,
+  resolveInitialPanelViewContainerId,
   resolveWorkbenchSidebarSurface,
 } from "src/cs/workbench/browser/workbench";
 import {
@@ -17,6 +17,9 @@ import {
 } from "src/cs/workbench/browser/workbenchDomainBridge";
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
 import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
+import { SettingsViewContainerId } from "src/cs/workbench/contrib/settings/common/settings";
+import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
+import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
 import type {
   FileImportResult,
@@ -34,7 +37,6 @@ import { createTemplateSelection } from "src/cs/workbench/services/slice/common/
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { SliceState } from "src/cs/workbench/services/slice/common/slice";
 import type { TemplateApplyPerformanceTraceTargetApi } from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
-import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
 
 type ThumbnailPrefetchForTest = {
   readonly priority: string;
@@ -209,32 +211,32 @@ suite("workbench/browser/workbench Explorer pane input", () => {
 
 });
 
-suite("workbench/browser/workbench initial mode", () => {
-  test("starts in table mode without reading Session state", () => {
-    assert.equal(resolveInitialWorkbenchViewMode(), "table");
+suite("workbench/browser/workbench initial panel view container", () => {
+  test("starts in table panel without reading Session state", () => {
+    assert.equal(resolveInitialPanelViewContainerId(), TableViewContainerId);
   });
 });
 
 suite("workbench/browser/workbench sidebar surface", () => {
-  test("derives sidebar surface from main part and Explorer layout", () => {
+  test("derives sidebar surface from active panel view container and Explorer layout", () => {
     assert.equal(resolveWorkbenchSidebarSurface({
-      activeMainPart: "table",
+      activePanelViewContainerId: TableViewContainerId,
       explorerViewLayout: "tree",
     }), "explorer");
     assert.equal(resolveWorkbenchSidebarSurface({
-      activeMainPart: "table",
+      activePanelViewContainerId: TableViewContainerId,
       explorerViewLayout: "thumbnail",
     }), "explorer");
     assert.equal(resolveWorkbenchSidebarSurface({
-      activeMainPart: "chart",
+      activePanelViewContainerId: ChartViewContainerId,
       explorerViewLayout: "tree",
     }), "explorer");
     assert.equal(resolveWorkbenchSidebarSurface({
-      activeMainPart: "chart",
+      activePanelViewContainerId: ChartViewContainerId,
       explorerViewLayout: "thumbnail",
     }), "thumbnail");
     assert.equal(resolveWorkbenchSidebarSurface({
-      activeMainPart: "settings",
+      activePanelViewContainerId: SettingsViewContainerId,
       explorerViewLayout: "thumbnail",
     }), "settingsNavigation");
   });
@@ -243,15 +245,15 @@ suite("workbench/browser/workbench sidebar surface", () => {
 suite("workbench/browser/workbench thumbnail prefetch gating", () => {
   test("allows visible thumbnail prefetch only in chart thumbnail layout", () => {
     assert.equal(shouldPrefetchExplorerThumbnails({
-      activeWorkbenchMainPart: "chart",
+      activePanelViewContainerId: ChartViewContainerId,
       viewLayout: "thumbnail",
     }), true);
     assert.equal(shouldPrefetchExplorerThumbnails({
-      activeWorkbenchMainPart: "chart",
+      activePanelViewContainerId: ChartViewContainerId,
       viewLayout: "tree",
     }), false);
     assert.equal(shouldPrefetchExplorerThumbnails({
-      activeWorkbenchMainPart: "table",
+      activePanelViewContainerId: TableViewContainerId,
       viewLayout: "thumbnail",
     }), false);
   });
@@ -904,7 +906,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       selectionKind: "table",
     });
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
-      activeWorkbenchMainPart: "table",
+      activePanelViewContainerId: TableViewContainerId,
       explorerService,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
@@ -1659,7 +1661,7 @@ const createSliceStateForTest = ({
 });
 
 const createDomainBridgeOptionsForTest = ({
-  activeWorkbenchMainPart = "chart",
+  activePanelViewContainerId = ChartViewContainerId,
   chartActiveFileIds,
   chartFileOptionInputs,
   chartViewInputs,
@@ -1678,7 +1680,7 @@ const createDomainBridgeOptionsForTest = ({
   tableSources,
   visibleDetailPanes = [],
 }: {
-  readonly activeWorkbenchMainPart?: WorkbenchMainPart;
+  readonly activePanelViewContainerId?: string;
   readonly chartActiveFileIds?: (string | null)[];
   readonly chartFileOptionInputs?: Array<NonNullable<ChartViewInput["chartFileOptions"]>>;
   readonly chartViewInputs?: Array<{
@@ -1741,10 +1743,8 @@ const createDomainBridgeOptionsForTest = ({
     },
   } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["chartService"],
   explorerService,
-  layoutService: {
-    activeWorkbenchMainPart,
-    onDidChangeWorkbenchNavigation: Event.None,
-  } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["layoutService"],
+  getActivePanelViewContainerId: () => activePanelViewContainerId,
+  onDidChangeActivePanelViewContainer: Event.None as Event<void>,
   plotService: {
 	    ...createPlotService(),
 	    getCachedPlotDisplayModel: ({ fileId }) => (cachedPlotDisplayFileIds ?? []).includes(String(fileId ?? "").trim())

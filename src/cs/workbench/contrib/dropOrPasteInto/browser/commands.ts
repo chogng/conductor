@@ -5,12 +5,16 @@
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import { CommandsRegistry } from "src/cs/platform/commands/common/commands";
-import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import type { IWorkbenchContribution } from "src/cs/workbench/common/contributions";
+import { SettingsViewContainerId } from "src/cs/workbench/contrib/settings/common/settings";
 import {
   dropAsPreferenceConfig,
   pasteAsPreferenceConfig,
 } from "src/cs/workbench/contrib/dropOrPasteInto/browser/configurationSchema";
+import {
+  IViewsService,
+  type IViewsService as IViewsServiceType,
+} from "src/cs/workbench/services/views/common/viewsService";
 
 const CONFIGURE_PREFERRED_PASTE_ACTION_ID = "workbench.action.configurePreferredPasteAction";
 const CONFIGURE_PREFERRED_DROP_ACTION_ID = "workbench.action.configurePreferredDropAction";
@@ -34,7 +38,7 @@ export class DropOrPasteIntoCommands extends Disposable implements IWorkbenchCon
           description: pasteAsPreferenceConfig,
         }],
       },
-      handler: accessor => this.openSettings(accessor.get(IWorkbenchLayoutService)),
+      handler: accessor => this.openSettings(accessor.get(IViewsService)),
     }));
 
     this._register(CommandsRegistry.registerCommand({
@@ -50,11 +54,11 @@ export class DropOrPasteIntoCommands extends Disposable implements IWorkbenchCon
           description: dropAsPreferenceConfig,
         }],
       },
-      handler: accessor => this.openSettings(accessor.get(IWorkbenchLayoutService)),
+      handler: accessor => this.openSettings(accessor.get(IViewsService)),
     }));
   }
 
-  private openSettings(layoutService: IWorkbenchLayoutService): void {
-    layoutService.navigateToView("settings");
+  private openSettings(viewsService: IViewsServiceType): void {
+    void viewsService.openViewContainer(SettingsViewContainerId);
   }
 }

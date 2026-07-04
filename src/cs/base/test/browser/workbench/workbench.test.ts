@@ -11,7 +11,13 @@ import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import { ContextKeyService } from "src/cs/platform/contextkey/browser/contextKeyService";
 import { StorageScope } from "src/cs/platform/storage/common/storage";
 import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
-import type { IView, IViewDescriptor, IViewPaneContainer, ViewContainer, ViewContainerLocation } from "src/cs/workbench/common/views";
+import {
+  ViewContainerLocation,
+  type IView,
+  type IViewDescriptor,
+  type IViewPaneContainer,
+  type ViewContainer,
+} from "src/cs/workbench/common/views";
 import { Workbench, type WorkbenchOptions } from "src/cs/workbench/browser/workbench";
 import {
   WorkbenchDomainBridge,
@@ -36,13 +42,11 @@ import { OriginExportSettingsViewContainerId } from "src/cs/workbench/services/o
 import { ParametersViewContainerId } from "src/cs/workbench/services/parameters/common/parameters";
 import { SearchViewContainerId } from "src/cs/workbench/services/search/common/search";
 import type { ThumbnailPreviewChangeEvent } from "src/cs/workbench/services/thumbnail/common/thumbnail";
-import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
-import {
-  createEmptySessionModel,
-  type BaseCurveKey,
-  type FileRecord,
-} from "src/cs/workbench/services/session/common/sessionModel";
-import type { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
+import { createEmptySessionModel } from "src/cs/workbench/services/session/common/sessionModel";
+import type {
+  IViewContainerNavigationState,
+  IViewsService,
+} from "src/cs/workbench/services/views/common/viewsService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 type WorkbenchService<K extends keyof WorkbenchOptions> = NonNullable<WorkbenchOptions[K]>;
@@ -138,11 +142,16 @@ class TestViewPaneContainer implements IViewPaneContainer {
 class RecordingViewsService implements IViewsService {
   public declare readonly _serviceBrand: undefined;
 
+  private readonly onDidChangeViewContainerNavigationEmitter =
+    new Emitter<IViewContainerNavigationState>();
+
   public readonly onDidChangeViewContainerVisibility = Event.None as Event<{
     readonly id: string;
     readonly visible: boolean;
     readonly location: ViewContainerLocation;
   }>;
+  public readonly onDidChangeViewContainerNavigation =
+    this.onDidChangeViewContainerNavigationEmitter.event;
   public readonly onDidChangeViewVisibility = Event.None as Event<{
     readonly id: string;
     readonly visible: boolean;
@@ -155,6 +164,11 @@ class RecordingViewsService implements IViewsService {
   private readonly visibleContainers = new Set<string>();
   private readonly elements = new Map<string, HTMLElement>();
   private readonly containers = new Map<string, TestViewPaneContainer>();
+  private readonly activeContainerByLocation = new Map<ViewContainerLocation, string>();
+  private readonly navigationByLocation = new Map<ViewContainerLocation, {
+    readonly history: readonly string[];
+    readonly historyIndex: number;
+  }>();
 
   public constructor(
     private readonly layoutService: BrowserWorkbenchLayoutService,
@@ -182,19 +196,83 @@ class RecordingViewsService implements IViewsService {
   }
 
   public openViewContainer(id: string): Promise<ViewContainer | null> {
-    this.openCalls.push(id);
-    this.visibleContainers.add(id);
-    this.updatePartVisibility(id, true);
+    this.openViewContainerInternal(id, "record");
     return Promise.resolve(null);
   }
 
   public closeViewContainer(id: string): void {
     this.closeCalls.push(id);
+    const location = this.getViewContainerLocation(id);
+    const previous = location
+      ? this.getViewContainerNavigationState(location)
+      : null;
     this.visibleContainers.delete(id);
+    if (location && this.activeContainerByLocation.get(location) === id) {
+      this.activeContainerByLocation.delete(location);
+    }
     this.updatePartVisibility(id, false);
+    if (location && previous) {
+      this.fireViewContainerNavigationChangeIfNeeded(location, previous);
+    }
   }
 
-  public getVisibleViewContainer(): ViewContainer | null {
+  public getVisibleViewContainer(_location: ViewContainerLocation): ViewContainer | null {
+    return null;
+  }
+
+  public getViewContainerNavigationState(location: ViewContainerLocation): IViewContainerNavigationState {
+    const navigation = this.navigationByLocation.get(location);
+    return {
+      activeViewContainerId: this.activeContainerByLocation.get(location) ?? null,
+      historyIndex: navigation?.historyIndex ?? -1,
+      historyLength: navigation?.history.length ?? 0,
+      location,
+    };
+  }
+
+  public navigateViewContainerBack(location: ViewContainerLocation): ViewContainer | null {
+    const navigation = this.navigationByLocation.get(location);
+    if (!navigation || navigation.historyIndex <= 0) {
+      return null;
+    }
+
+    const nextNavigation = {
+      history: navigation.history,
+      historyIndex: navigation.historyIndex - 1,
+    };
+    this.openViewContainerInternal(nextNavigation.history[nextNavigation.historyIndex]!, {
+      navigation: nextNavigation,
+    });
+    return null;
+  }
+
+  public navigateViewContainerForward(location: ViewContainerLocation): ViewContainer | null {
+    const navigation = this.navigationByLocation.get(location);
+    if (!navigation || navigation.historyIndex >= navigation.history.length - 1) {
+      return null;
+    }
+
+    const nextNavigation = {
+      history: navigation.history,
+      historyIndex: navigation.historyIndex + 1,
+    };
+    this.openViewContainerInternal(nextNavigation.history[nextNavigation.historyIndex]!, {
+      navigation: nextNavigation,
+    });
+    return null;
+  }
+
+  public resetViewContainerNavigation(
+    location: ViewContainerLocation,
+    id: string,
+  ): ViewContainer | null {
+    if (this.getViewContainerLocation(id) !== location) {
+      return null;
+    }
+
+    this.openViewContainerInternal(id, {
+      navigation: { history: [id], historyIndex: 0 },
+    });
     return null;
   }
 
@@ -238,12 +316,112 @@ class RecordingViewsService implements IViewsService {
   public getViewWithId<T extends IView>(): T | null { return null; }
   public getViewProgressIndicator(): unknown | undefined { return undefined; }
 
+  private openViewContainerInternal(
+    id: string,
+    navigationUpdate: "record" | {
+      readonly navigation: {
+        readonly history: readonly string[];
+        readonly historyIndex: number;
+      };
+    },
+  ): void {
+    this.openCalls.push(id);
+    const location = this.getViewContainerLocation(id);
+    const previous = location
+      ? this.getViewContainerNavigationState(location)
+      : null;
+    if (location) {
+      const previousId = this.activeContainerByLocation.get(location);
+      if (previousId && previousId !== id) {
+        this.visibleContainers.delete(previousId);
+      }
+      this.activeContainerByLocation.set(location, id);
+      this.updateNavigation(location, id, navigationUpdate);
+    }
+    this.visibleContainers.add(id);
+    this.updatePartVisibility(id, true);
+    if (location && previous) {
+      this.fireViewContainerNavigationChangeIfNeeded(location, previous);
+    }
+  }
+
+  private updateNavigation(
+    location: ViewContainerLocation,
+    id: string,
+    update: "record" | {
+      readonly navigation: {
+        readonly history: readonly string[];
+        readonly historyIndex: number;
+      };
+    },
+  ): void {
+    if (update === "record") {
+      const previous = this.navigationByLocation.get(location);
+      if (previous?.history[previous.historyIndex] === id) {
+        return;
+      }
+
+      const history = previous
+        ? previous.history.slice(0, previous.historyIndex + 1)
+        : [];
+      this.navigationByLocation.set(location, {
+        history: [...history, id],
+        historyIndex: history.length,
+      });
+      return;
+    }
+
+    this.navigationByLocation.set(location, update.navigation);
+  }
+
+  private fireViewContainerNavigationChangeIfNeeded(
+    location: ViewContainerLocation,
+    previous: IViewContainerNavigationState,
+  ): void {
+    const next = this.getViewContainerNavigationState(location);
+    if (
+      previous.activeViewContainerId === next.activeViewContainerId &&
+      previous.historyIndex === next.historyIndex &&
+      previous.historyLength === next.historyLength
+    ) {
+      return;
+    }
+
+    this.onDidChangeViewContainerNavigationEmitter.fire(next);
+  }
+
+  private getViewContainerLocation(id: string): ViewContainerLocation | null {
+    switch (id) {
+      case ExplorerViewContainerId:
+      case ThumbnailViewContainerId:
+      case SettingsNavigationViewContainerId:
+        return ViewContainerLocation.Sidebar;
+      case TableViewContainerId:
+      case ChartViewContainerId:
+      case SettingsViewContainerId:
+        return ViewContainerLocation.Panel;
+      case TemplateViewContainerId:
+      case SearchViewContainerId:
+      case ExportViewContainerId:
+      case ParametersViewContainerId:
+      case OriginExportSettingsViewContainerId:
+        return ViewContainerLocation.AuxiliaryBar;
+      default:
+        return null;
+    }
+  }
+
   private updatePartVisibility(id: string, visible: boolean): void {
     switch (id) {
       case ExplorerViewContainerId:
       case ThumbnailViewContainerId:
       case SettingsNavigationViewContainerId:
         this.layoutService.setPartHidden(!visible, Parts.SIDEBAR_PART);
+        break;
+      case TableViewContainerId:
+      case ChartViewContainerId:
+      case SettingsViewContainerId:
+        this.layoutService.setPartHidden(!visible, Parts.PANEL_PART);
         break;
       case TemplateViewContainerId:
       case SearchViewContainerId:
@@ -327,7 +505,7 @@ suite("workbench/browser/workbench layout integration", () => {
     try {
       viewsService.clearCalls();
 
-      layoutService.navigateToView("settings");
+      await viewsService.openViewContainer(SettingsViewContainerId);
       await Promise.resolve();
 
       assert.equal(layoutService.isVisible(Parts.AUXILIARYBAR_PART), true);
@@ -342,7 +520,7 @@ suite("workbench/browser/workbench layout integration", () => {
 
       viewsService.clearCalls();
 
-      layoutService.navigateToView("table");
+      await viewsService.openViewContainer(TableViewContainerId);
       await Promise.resolve();
 
       assert.equal(layoutService.isVisible(Parts.AUXILIARYBAR_PART), true);
@@ -386,7 +564,7 @@ suite("workbench/browser/workbench layout integration", () => {
     try {
       viewsService.clearCalls();
 
-      layoutService.navigateToView("chart");
+      await viewsService.openViewContainer(ChartViewContainerId);
       await Promise.resolve();
 
       assert.equal(viewsService.openCalls.includes(ExplorerViewContainerId), true);
@@ -413,23 +591,14 @@ suite("workbench/browser/workbench layout integration", () => {
     }
   });
 
-  test("visible explorer range does not prefetch tree thumbnails", () => {
+  test("visible explorer range does not prefetch outside chart thumbnail layout", () => {
     const visibleTargetsEmitter = new Emitter<{
       readonly nearbyTargets: readonly { readonly resource: URI }[];
       readonly visibleTargets: readonly { readonly resource: URI }[];
     }>();
     const plotPrefetches: Array<{ fileIds: readonly string[]; priority: string }> = [];
     const thumbnailPrefetches: Array<{ fileIds: readonly string[]; priority: string }> = [];
-    const tableModelPriorities: string[] = [];
     const bridge = new WorkbenchDomainBridge({
-      tableModelQueueService: {
-        enqueueRawTables: () => undefined,
-        getQueueSnapshot: () => ({ rawTables: [] }),
-        onDidChangeTableModelQueueState: Event.None as Event<void>,
-        prioritizeRawTables: (_rawTableRefs: unknown, priority: string) => {
-          tableModelPriorities.push(priority);
-        },
-      },
       calculationService: {
         prioritizeCalculationFile: () => undefined,
         prioritizeCalculationFiles: () => undefined,
@@ -453,10 +622,8 @@ suite("workbench/browser/workbench layout integration", () => {
         updatePaneInput: () => undefined,
         viewLayout: "tree",
       },
-      layoutService: {
-        activeWorkbenchMainPart: "table",
-        onDidChangeWorkbenchNavigation: Event.None,
-      },
+      getActivePanelViewContainerId: () => TableViewContainerId,
+      onDidChangeActivePanelViewContainer: Event.None,
       plotService: {
         getState: () => ({ activePlotType: "iv" }),
         onDidChangePlotState: Event.None,
@@ -491,7 +658,6 @@ suite("workbench/browser/workbench layout integration", () => {
         visibleTargets: [{ resource: URI.file("/data/A.csv") }],
       });
 
-      assert.deepEqual(tableModelPriorities, ["visible", "nearby"]);
       assert.deepEqual(plotPrefetches, []);
       assert.deepEqual(thumbnailPrefetches, []);
     } finally {
@@ -500,18 +666,12 @@ suite("workbench/browser/workbench layout integration", () => {
     }
   });
 
-  test("sync prefetches the active chart file at active plot priority", () => {
+  test("sync does not synthesize active chart data from Session", () => {
     const calculationPriorities: string[] = [];
     const plotPrefetches: Array<{ fileIds: readonly string[]; priority: string }> = [];
     const plotDisplayPrefetches: Array<{ fileId?: string | null; plotType?: string; priority: string; sessionVersion?: number }> = [];
     const chartActiveFileIds: Array<string | null | undefined> = [];
     const bridge = new WorkbenchDomainBridge({
-      tableModelQueueService: {
-        enqueueRawTables: () => undefined,
-        getQueueSnapshot: () => ({ rawTables: [] }),
-        onDidChangeTableModelQueueState: Event.None as Event<void>,
-        prioritizeRawTables: () => undefined,
-      },
       calculationService: {
         prioritizeCalculationFile: (fileId: string | null | undefined) => {
           if (fileId) {
@@ -548,10 +708,8 @@ suite("workbench/browser/workbench layout integration", () => {
         updatePaneInput: () => undefined,
         viewLayout: "tree",
       },
-      layoutService: {
-        activeWorkbenchMainPart: "chart",
-        onDidChangeWorkbenchNavigation: Event.None,
-      },
+      getActivePanelViewContainerId: () => ChartViewContainerId,
+      onDidChangeActivePanelViewContainer: Event.None,
       plotService: {
         getCachedCalculatedData: () => null,
         getCalculatedData: () => null,
@@ -574,7 +732,9 @@ suite("workbench/browser/workbench layout integration", () => {
         },
       },
       sessionService: {
-        getSnapshot: () => createProcessedSnapshot("file-a"),
+        getSnapshot: () => {
+          throw new Error("Domain bridge must not read Session snapshot.");
+        },
         onDidChangeSession: Event.None,
       },
       settingsService: {
@@ -595,80 +755,16 @@ suite("workbench/browser/workbench layout integration", () => {
     try {
       bridge.sync();
 
-      assert.deepEqual(chartActiveFileIds, ["file-a"]);
-      assert.deepEqual(calculationPriorities, ["file-a"]);
+      assert.deepEqual(chartActiveFileIds, [null]);
+      assert.deepEqual(calculationPriorities, []);
       assert.deepEqual(plotPrefetches, []);
-      assert.deepEqual(plotDisplayPrefetches, [
-        {
-          fileId: "file-a",
-          plotType: "iv",
-          priority: "active",
-          sessionVersion: 1,
-        },
-      ]);
+      assert.deepEqual(plotDisplayPrefetches, []);
     } finally {
       bridge.dispose();
     }
   });
 
 });
-
-const createProcessedSnapshot = (fileId: string): SessionSnapshot => ({
-  fileOrder: [fileId],
-  filesById: {
-    [fileId]: createProcessedFileRecord(fileId),
-  },
-  schemaVersion: 1,
-  sessionVersion: 1,
-});
-
-const createProcessedFileRecord = (fileId: string): FileRecord => {
-  const curveKey = `base:iv:transfer:${fileId}-series` as BaseCurveKey;
-  const seriesId = `${fileId}-series`;
-  return {
-    curvesByKey: {
-      [curveKey]: {
-        curveFamily: "iv",
-        curveGeneration: "base",
-        fileId,
-        ivMode: "transfer",
-        lineage: {
-          baseFamily: "iv",
-          baseSeries: { fileId, seriesId },
-          curveGeneration: "base",
-          ivMode: "transfer",
-        },
-        points: [
-          { x: 0, y: 0.001 },
-          { x: 1, y: 0.002 },
-        ],
-        seriesId,
-        signature: `${fileId}:curve`,
-      },
-    },
-    id: fileId,
-    kind: "unknown",
-    metricsByKey: {},
-    name: `${fileId}.csv`,
-    raw: {
-      fileId,
-      fileName: `${fileId}.csv`,
-      tableOrder: [],
-      tablesById: {},
-    },
-    rawTableVersionsById: {},
-    seriesById: {
-      [seriesId]: {
-        fileId,
-        groupIndex: 0,
-        id: seriesId,
-        name: "A",
-        y: [0.001, 0.002],
-      },
-    },
-    seriesOrder: [seriesId],
-  };
-};
 
 const createWorkbenchOptions = ({
   contextKeyService,

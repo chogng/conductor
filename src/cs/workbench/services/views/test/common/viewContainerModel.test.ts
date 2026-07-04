@@ -4,6 +4,8 @@ import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors
 import { ContextKeyService } from "src/cs/platform/contextkey/browser/contextKeyService";
 import { ContextKeyExpr } from "src/cs/platform/contextkey/common/contextkey";
 import { type IView, type IViewPaneContainer, type ViewContainer } from "src/cs/workbench/common/views";
+import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
+import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 import { ViewContainerModel } from "src/cs/workbench/services/views/common/viewContainerModel";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -74,13 +76,13 @@ suite("workbench/services/views/common/viewContainerModel", () => {
         ctorDescriptor: new SyncDescriptor(TestView),
         id: "test.view",
         name: "Test",
-        when: ContextKeyExpr.equals("activeWorkbenchMainPart", "chart"),
+        when: ContextKeyExpr.equals("activePanelViewContainer", ChartViewContainerId),
       },
     }]);
 
     assert.deepStrictEqual(model.activeViewDescriptors.map(view => view.id), []);
 
-    contextKeyService.setContext("activeWorkbenchMainPart", "chart");
+    contextKeyService.setContext("activePanelViewContainer", ChartViewContainerId);
 
     assert.deepStrictEqual(model.activeViewDescriptors.map(view => view.id), ["test.view"]);
 
@@ -88,7 +90,7 @@ suite("workbench/services/views/common/viewContainerModel", () => {
     contextKeyService.dispose();
   });
 
-  test("switches mutually exclusive workbench main views from mode context", () => {
+  test("switches mutually exclusive workbench panel views from active container context", () => {
     const contextKeyService = new ContextKeyService();
     const model = new ViewContainerModel({
       ctorDescriptor: new SyncDescriptor(TestViewPaneContainer),
@@ -103,7 +105,7 @@ suite("workbench/services/views/common/viewContainerModel", () => {
           id: "workbench.table",
           name: "Table",
           order: 0,
-          when: ContextKeyExpr.equals("activeWorkbenchMainPart", "table"),
+          when: ContextKeyExpr.equals("activePanelViewContainer", TableViewContainerId),
         },
       },
       {
@@ -112,18 +114,18 @@ suite("workbench/services/views/common/viewContainerModel", () => {
           id: "workbench.chart",
           name: "Chart",
           order: 10,
-          when: ContextKeyExpr.equals("activeWorkbenchMainPart", "chart"),
+          when: ContextKeyExpr.equals("activePanelViewContainer", ChartViewContainerId),
         },
       },
     ]);
 
     assert.deepStrictEqual(model.visibleViewDescriptors.map(view => view.id), []);
 
-    contextKeyService.setContext("activeWorkbenchMainPart", "table");
+    contextKeyService.setContext("activePanelViewContainer", TableViewContainerId);
 
     assert.deepStrictEqual(model.visibleViewDescriptors.map(view => view.id), ["workbench.table"]);
 
-    contextKeyService.setContext("activeWorkbenchMainPart", "chart");
+    contextKeyService.setContext("activePanelViewContainer", ChartViewContainerId);
 
     assert.deepStrictEqual(model.visibleViewDescriptors.map(view => view.id), ["workbench.chart"]);
 

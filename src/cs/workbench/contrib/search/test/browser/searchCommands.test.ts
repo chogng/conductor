@@ -14,6 +14,8 @@ import type { ServicesAccessor, ServiceIdentifier } from "src/cs/platform/instan
 import { registerSearchCommands } from "src/cs/workbench/contrib/search/browser/searchCommands";
 import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import { SearchCommandId } from "src/cs/workbench/services/search/common/search";
+import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
+import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/search/test/browser/searchCommands", () => {
@@ -23,8 +25,13 @@ suite("workbench/contrib/search/test/browser/searchCommands", () => {
 		const calls: string[] = [];
 		const accessor = createAccessor([
 			[IWorkbenchLayoutService, {
-				navigateToView: (view: string) => calls.push(`view:${view}`),
 				selectAuxiliaryBarView: (view: string) => calls.push(`aux:${view}`),
+			}],
+			[IViewsService, {
+				openViewContainer: async (id: string) => {
+					calls.push(`container:${id}`);
+					return null;
+				},
 			}],
 		]);
 
@@ -32,7 +39,10 @@ suite("workbench/contrib/search/test/browser/searchCommands", () => {
 			CommandsRegistry.getCommand(SearchCommandId.showSearch)?.handler(accessor);
 			const commandPaletteIds = getCommandPaletteIds();
 
-			assert.deepEqual(calls, ["view:chart", "aux:search"]);
+			assert.deepEqual(calls, [
+				`container:${ChartViewContainerId}`,
+				"aux:search",
+			]);
 			assert.ok(commandPaletteIds.has(SearchCommandId.showSearch));
 		} finally {
 			registration.dispose();

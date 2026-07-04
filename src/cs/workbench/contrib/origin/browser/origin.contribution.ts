@@ -16,8 +16,8 @@ import {
 } from "src/cs/workbench/common/contributions";
 import {
   ActiveAuxiliaryBarViewContext,
-  ActiveWorkbenchMainPartContext,
-} from "src/cs/workbench/browser/contextkeys";
+  ActivePanelViewContainerContext,
+} from "src/cs/workbench/common/contextkeys";
 import {
   Extensions as ViewExtensions,
   type IViewContainersRegistry,
@@ -31,6 +31,7 @@ import {
   OriginExportSettingsViewContainerId,
   OriginExportSettingsViewId,
 } from "src/cs/workbench/services/origin/common/origin";
+import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
@@ -69,7 +70,7 @@ function registerOriginView(): void {
     ctorDescriptor: new SyncDescriptor(OriginSettingsViewPane),
     order: 30,
     when: ContextKeyExpr.and(
-      ActiveWorkbenchMainPartContext.isEqualTo("chart"),
+      ActivePanelViewContainerContext.isEqualTo(ChartViewContainerId),
       ActiveAuxiliaryBarViewContext.isEqualTo("settings"),
     ),
   }], originContainer);

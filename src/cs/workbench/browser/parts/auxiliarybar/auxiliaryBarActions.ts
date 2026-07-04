@@ -8,8 +8,10 @@ import {
   registerAction2,
 } from "src/cs/platform/actions/common/actions";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
-import { ActiveWorkbenchMainPartContext } from "src/cs/workbench/browser/contextkeys";
-import { AuxiliaryBarVisibleContext } from "src/cs/workbench/common/contextkeys";
+import {
+  ActivePanelViewContainerContext,
+  AuxiliaryBarVisibleContext,
+} from "src/cs/workbench/common/contextkeys";
 import {
   IWorkbenchLayoutService,
   Parts,
@@ -26,6 +28,7 @@ import {
 import {
   SearchCommandId,
 } from "src/cs/workbench/services/search/common/search";
+import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 
 const CloseAuxiliaryBarCommandId = "workbench.action.closeAuxiliaryBar";
 
@@ -96,6 +99,6 @@ for (const view of AuxiliaryBarTitleMenuItems) {
     },
     group: "navigation",
     order: view.order,
-    when: ActiveWorkbenchMainPartContext.isEqualTo("chart"),
+    when: ActivePanelViewContainerContext.isEqualTo(ChartViewContainerId),
   });
 }

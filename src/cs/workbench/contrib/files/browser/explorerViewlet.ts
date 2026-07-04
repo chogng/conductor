@@ -17,7 +17,8 @@ import { IInstantiationService } from "src/cs/platform/instantiation/common/inst
 import { IUriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentity";
 import type { WorkbenchSidebarAction } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
-import { IWorkbenchLayoutService, type WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
+import { ViewContainerLocation } from "src/cs/workbench/common/views";
+import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import {
   FileSourceWorkflow,
   getFolderImportSupportForFileService,
@@ -38,7 +39,10 @@ import {
   ExplorerViewId,
   IExplorerService,
   type ExplorerPaneInput,
+  type ExplorerPaneMode,
 } from "src/cs/workbench/contrib/files/browser/files";
+import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
+import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 import {
   getExplorerFileResourceIdentity,
   getExplorerFolderPath,
@@ -136,7 +140,7 @@ export abstract class BaseExplorerViewPane extends ViewPane {
     @IFileService private readonly filesService: IFileService,
     @IInstantiationService private readonly instantiationService: IInstantiationService,
     @IAppearanceService private readonly appearanceService: IAppearanceService,
-    @IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+    @IViewsService private readonly viewsService: IViewsService,
     @INotificationService private readonly notificationService: INotificationService,
     @ITableService private readonly tableService: ITableService,
     @ISliceService private readonly sliceService: ISliceService,
@@ -1202,8 +1206,13 @@ export abstract class BaseExplorerViewPane extends ViewPane {
   }
 
   private navigateToTableAfterImport(): void {
-    if (this.layoutService.activeWorkbenchMainPart === "chart") {
-      this.layoutService.navigateToView("table");
+    const activeContainerId = this.viewsService.getViewContainerNavigationState(
+      ViewContainerLocation.Panel,
+    ).activeViewContainerId;
+    if (activeContainerId === ChartViewContainerId) {
+      void this.viewsService.openViewContainer(
+        TableViewContainerId,
+      );
     }
   }
 }
@@ -1217,7 +1226,7 @@ export class ExplorerViewPane extends BaseExplorerViewPane {
     @IFileService filesService: IFileService,
     @IInstantiationService instantiationService: IInstantiationService,
     @IAppearanceService appearanceService: IAppearanceService,
-    @IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+    @IViewsService viewsService: IViewsService,
     @INotificationService notificationService: INotificationService,
     @ITableService tableService: ITableService,
     @ISliceService sliceService: ISliceService,
@@ -1238,7 +1247,7 @@ export class ExplorerViewPane extends BaseExplorerViewPane {
       filesService,
       instantiationService,
       appearanceService,
-      layoutService,
+      viewsService,
       notificationService,
       tableService,
       sliceService,
@@ -1330,7 +1339,7 @@ export function resolveExplorerImportOpenEntry({
 
 export function shouldSelectExplorerImportTableTarget(
   openTarget: { readonly entry: ExplorerFileEntry | null; readonly shouldSelect: boolean },
-  selectionKind: WorkbenchMainPart,
+  selectionKind: ExplorerPaneMode,
 ): openTarget is { readonly entry: ExplorerFileEntry; readonly shouldSelect: boolean } {
   return Boolean(openTarget.entry && (openTarget.shouldSelect || selectionKind !== "table"));
 }

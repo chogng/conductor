@@ -14,6 +14,8 @@ import type { ServicesAccessor, ServiceIdentifier } from "src/cs/platform/instan
 import { registerOriginCommands } from "src/cs/workbench/contrib/origin/browser/originCommands";
 import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import { OriginCommandId } from "src/cs/workbench/services/origin/common/origin";
+import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
+import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/origin/test/browser/originCommands", () => {
@@ -23,8 +25,13 @@ suite("workbench/contrib/origin/test/browser/originCommands", () => {
 		const calls: string[] = [];
 		const accessor = createAccessor([
 			[IWorkbenchLayoutService, {
-				navigateToView: (view: string) => calls.push(`view:${view}`),
 				selectAuxiliaryBarView: (view: string) => calls.push(`aux:${view}`),
+			}],
+			[IViewsService, {
+				openViewContainer: async (id: string) => {
+					calls.push(`container:${id}`);
+					return null;
+				},
 			}],
 		]);
 
@@ -32,7 +39,10 @@ suite("workbench/contrib/origin/test/browser/originCommands", () => {
 			CommandsRegistry.getCommand(OriginCommandId.showExportSettings)?.handler(accessor);
 			const commandPaletteIds = getCommandPaletteIds();
 
-			assert.deepEqual(calls, ["view:chart", "aux:settings"]);
+			assert.deepEqual(calls, [
+				`container:${ChartViewContainerId}`,
+				"aux:settings",
+			]);
 			assert.ok(commandPaletteIds.has(OriginCommandId.showExportSettings));
 		} finally {
 			registration.dispose();

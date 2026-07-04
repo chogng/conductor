@@ -35,7 +35,9 @@ import {
   FILES_QUICK_ACCESS_PREFIX,
   FilesQuickAccessProvider,
 } from "src/cs/workbench/contrib/quickaccess/browser/quickAccessProviders";
-import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
+import { ViewContainerLocation } from "src/cs/workbench/common/views";
+import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
+import type { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
@@ -73,7 +75,7 @@ suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
     };
     const provider = store.add(new FilesQuickAccessProvider(
       createExplorerService(paneInput, explorerFiles, selections),
-      { activeWorkbenchMainPart: "chart" } as unknown as IWorkbenchLayoutService,
+      createViewsService(ChartViewContainerId),
     ));
     const picks = await provider.provide("beta");
 
@@ -112,7 +114,7 @@ suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
     };
     const provider = store.add(new FilesQuickAccessProvider(
       createExplorerService(paneInput, explorerFiles, selections),
-      { activeWorkbenchMainPart: "chart" } as unknown as IWorkbenchLayoutService,
+      createViewsService(ChartViewContainerId),
     ));
     const picks = await provider.provide("beta");
 
@@ -233,6 +235,19 @@ function createExplorerService(
     getPaneInput: () => paneInput,
     updatePaneInput: () => undefined,
   };
+}
+
+function createViewsService(activeViewContainerId: string): IViewsService {
+  return {
+    _serviceBrand: undefined,
+    getViewContainerNavigationState: (location: ViewContainerLocation) => ({
+      activeViewContainerId:
+        location === ViewContainerLocation.Panel ? activeViewContainerId : null,
+      historyIndex: location === ViewContainerLocation.Panel ? 0 : -1,
+      historyLength: location === ViewContainerLocation.Panel ? 1 : 0,
+      location,
+    }),
+  } as unknown as IViewsService;
 }
 
 function createCommandService(): ICommandService {

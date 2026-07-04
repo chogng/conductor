@@ -6,7 +6,6 @@ import type { Event } from "src/cs/base/common/event";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
 import type {
   ExplorerFileEntry,
   ExplorerResourceIdentity,
@@ -25,6 +24,7 @@ export const ExplorerViewContainerId = "workbench.viewContainer.files";
 export const ExplorerViewId = "workbench.files";
 
 export type ExplorerViewLayout = FilesViewLayout;
+export type ExplorerPaneMode = "table" | "chart";
 
 export type ExplorerThumbnailPlotModel = PlotMainRenderModelSource & {
   readonly signature: string;
@@ -32,18 +32,18 @@ export type ExplorerThumbnailPlotModel = PlotMainRenderModelSource & {
 
 export type ExplorerPaneInput = {
   readonly activePlotType?: PlotType;
-  readonly mode: WorkbenchMainPart;
+  readonly mode: ExplorerPaneMode;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly selectedResource: URI | null;
   readonly selectedSheetId?: string | null;
-  readonly selectionKind: WorkbenchMainPart;
+  readonly selectionKind: ExplorerPaneMode;
   readonly templateSelections?: readonly TemplateResourceSelection[];
   readonly thumbnailPlotModelsByFileId?: Readonly<Record<string, ExplorerThumbnailPlotModel>>;
 };
 
 export type ExplorerSelectionChangeEvent = {
-  readonly kind: WorkbenchMainPart;
+  readonly kind: ExplorerPaneMode;
   readonly selectedResource: URI | null;
   readonly selectedSheetId?: string | null;
 };

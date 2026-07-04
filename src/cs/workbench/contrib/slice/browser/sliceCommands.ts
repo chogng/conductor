@@ -24,10 +24,8 @@ import {
 	type ResourceReviewExecution,
 } from "src/cs/workbench/services/review/common/review";
 import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/reviewModel";
-import {
-	IWorkbenchLayoutService,
-	type IWorkbenchLayoutService as IWorkbenchLayoutServiceType,
-} from "src/cs/workbench/services/layout/browser/layoutService";
+import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
+import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import {
 	ITemplateViewStateService,
 } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
@@ -69,7 +67,7 @@ export const runSliceWithTemplateHandler = (
 
 	const sliceService = accessor.get(ISliceService);
 	const reviewService = accessor.get(IReviewService);
-	const layoutService = accessor.get(IWorkbenchLayoutService);
+	const viewsService = accessor.get(IViewsService);
 	const resources = getSliceCommandResources(
 		explorerService.files,
 		sliceService,
@@ -93,11 +91,11 @@ export const runSliceWithTemplateHandler = (
 	}
 
 	void runResourcesWithTemplate({
-		layoutService,
 		notificationService,
 		reviewService,
 		selection,
 		sliceService,
+		viewsService,
 		resources,
 	});
 };
@@ -136,18 +134,18 @@ const createSliceCommandTemplateSelection = (
 };
 
 const runResourcesWithTemplate = async ({
-	layoutService,
 	notificationService,
 	reviewService,
 	selection,
 	sliceService,
+	viewsService,
 	resources,
 }: {
 	readonly notificationService: Pick<INotificationService, "notify">;
-	readonly layoutService: Pick<IWorkbenchLayoutServiceType, "navigateToView">;
 	readonly reviewService: IReviewServiceType;
 	readonly selection: TemplateSelection;
 	readonly sliceService: ISliceServiceType;
+	readonly viewsService: Pick<IViewsService, "openViewContainer">;
 	readonly resources: readonly SliceCommandResource[];
 }): Promise<void> => {
 	const requests: SliceResourceRequest[] = [];
@@ -194,7 +192,7 @@ const runResourcesWithTemplate = async ({
 	}
 
 	sliceService.submitResource(requests);
-	layoutService.navigateToView("chart");
+	void viewsService.openViewContainer(ChartViewContainerId);
 };
 
 const getManualReviewedTemplate = async (

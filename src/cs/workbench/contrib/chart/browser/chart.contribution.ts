@@ -9,7 +9,7 @@ import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors
 import { Registry } from "src/cs/platform/registry/common/platform";
 import { ViewPaneContainer } from "src/cs/workbench/browser/parts/views/viewPaneContainer";
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from "src/cs/workbench/common/contributions";
-import { ActiveWorkbenchMainPartContext } from "src/cs/workbench/browser/contextkeys";
+import { ActivePanelViewContainerContext } from "src/cs/workbench/common/contextkeys";
 import {
   Extensions as ViewExtensions,
   type IViewContainersRegistry,
@@ -61,7 +61,7 @@ function registerChartView(): void {
     hideByDefault: false,
     order: 10,
     when: ContextKeyExpr.and(
-      ActiveWorkbenchMainPartContext.isEqualTo("chart"),
+      ActivePanelViewContainerContext.isEqualTo(ChartViewContainerId),
     ),
   }], chartContainer);
 }

@@ -4,6 +4,7 @@ import { Event } from "src/cs/base/common/event";
 import type { ICommandEvent, ICommandService } from "src/cs/platform/commands/common/commands";
 import { WORKBENCH_TITLEBAR_UPDATE_BUTTON_ID } from "src/cs/workbench/browser/parts/titlebar/titlebarActions";
 import { WorkbenchTitlebarPart } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
+import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
 
 suite("workbench/browser/parts/titlebar/titlebarPart", () => {
   test("reserves a trailing gutter when window controls are on the left", () => {
@@ -11,7 +12,7 @@ suite("workbench/browser/parts/titlebar/titlebarPart", () => {
     const part = new WorkbenchTitlebarPart(parent);
 
     part.update({
-      activePage: "table",
+      activePage: TableViewContainerId,
       chrome: {
         showBrandIcon: false,
         windowControlsSide: "left",
@@ -34,7 +35,7 @@ suite("workbench/browser/parts/titlebar/titlebarPart", () => {
     const part = new WorkbenchTitlebarPart(parent);
 
     part.update({
-      activePage: "table",
+      activePage: TableViewContainerId,
       chrome: {
         showBrandIcon: true,
         windowControlsSide: "right",
@@ -60,7 +61,7 @@ suite("workbench/browser/parts/titlebar/titlebarPart", () => {
     const part = new WorkbenchTitlebarPart(parent);
 
     part.update({
-      activePage: "table",
+      activePage: TableViewContainerId,
       commandService: createCommandService(calls),
       isAuxiliaryBarExpanded: true,
       isSidebarVisible: true,
@@ -90,7 +91,7 @@ suite("workbench/browser/parts/titlebar/titlebarPart", () => {
     const part = new WorkbenchTitlebarPart(parent);
 
     part.update({
-      activePage: "table",
+      activePage: TableViewContainerId,
       commandService,
       isAuxiliaryBarExpanded: true,
       isSidebarVisible: true,
@@ -104,7 +105,7 @@ suite("workbench/browser/parts/titlebar/titlebarPart", () => {
     const updateButton = getUpdateButton(parent);
 
     part.update({
-      activePage: "table",
+      activePage: TableViewContainerId,
       commandService,
       isAuxiliaryBarExpanded: true,
       isSidebarVisible: true,
@@ -139,7 +140,7 @@ suite("workbench/browser/parts/titlebar/titlebarPart", () => {
     const part = new WorkbenchTitlebarPart(parent);
 
     part.update({
-      activePage: "table",
+      activePage: TableViewContainerId,
       commandService,
       isAuxiliaryBarExpanded: true,
       isSidebarVisible: true,
@@ -154,7 +155,7 @@ suite("workbench/browser/parts/titlebar/titlebarPart", () => {
     assert.ok(getUpdateButton(parent));
 
     part.update({
-      activePage: "table",
+      activePage: TableViewContainerId,
       commandService,
       isAuxiliaryBarExpanded: true,
       isSidebarVisible: true,
@@ -177,7 +178,7 @@ suite("workbench/browser/parts/titlebar/titlebarPart", () => {
     const part = new WorkbenchTitlebarPart(parent);
 
     part.update({
-      activePage: "table",
+      activePage: TableViewContainerId,
       commandService,
       isAuxiliaryBarExpanded: true,
       isSidebarVisible: true,
@@ -192,7 +193,7 @@ suite("workbench/browser/parts/titlebar/titlebarPart", () => {
     const updateButton = getUpdateButton(parent);
 
     part.update({
-      activePage: "table",
+      activePage: TableViewContainerId,
       commandService,
       isAuxiliaryBarExpanded: true,
       isSidebarVisible: true,

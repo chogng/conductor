@@ -13,7 +13,7 @@ import {
   WorkbenchPhase,
   type IWorkbenchContribution,
 } from "src/cs/workbench/common/contributions";
-import { ActiveWorkbenchMainPartContext } from "src/cs/workbench/browser/contextkeys";
+import { ActivePanelViewContainerContext } from "src/cs/workbench/common/contextkeys";
 import {
   Extensions as ViewExtensions,
   type IViewContainersRegistry,
@@ -67,7 +67,7 @@ function registerTableView(): void {
     hideByDefault: false,
     order: 0,
     when: ContextKeyExpr.and(
-      ActiveWorkbenchMainPartContext.isEqualTo("table"),
+      ActivePanelViewContainerContext.isEqualTo(TableViewContainerId),
     ),
   }], tableContainer);
 }

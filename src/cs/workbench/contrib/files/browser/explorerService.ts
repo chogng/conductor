@@ -9,6 +9,7 @@ import { InstantiationType, registerSingleton } from "src/cs/platform/instantiat
 import {
   IExplorerService,
   type ExplorerPaneInput,
+  type ExplorerPaneMode,
   type ExplorerFolderExpansionChangeEvent,
   type ExplorerHoveredResourceChangeEvent,
   type ExplorerSelectionChangeEvent,
@@ -20,7 +21,6 @@ import {
   type IExplorerView,
   type ExplorerViewLayout,
 } from "src/cs/workbench/contrib/files/browser/files";
-import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
 import {
   areTemplateResourceSelectionsEqual,
 } from "src/cs/workbench/services/slice/common/templateSelection";
@@ -341,7 +341,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
     return this.currentSelectedResource;
   }
 
-  private getSelectionKind(): WorkbenchMainPart {
+  private getSelectionKind(): ExplorerPaneMode {
     return this.paneInput?.selectionKind ?? "table";
   }
 
@@ -377,7 +377,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
   }
 
   private fireSelectionChange(
-    kind: WorkbenchMainPart,
+    kind: ExplorerPaneMode,
     result: {
       readonly changed: boolean;
       readonly selectedResource: URI | null;

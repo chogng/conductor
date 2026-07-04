@@ -26,7 +26,7 @@ suite("platform/actions/common/menuService", () => {
     const menuId = newTestMenuId();
     disposables.add(MenuRegistry.appendMenuItem(menuId, {
       command: { id: "visible.command", title: "Visible" },
-      when: ContextKeyExpr.equals("activeWorkbenchMainPart", "chart"),
+      when: ContextKeyExpr.equals("activePanelViewContainer", "workbench.viewContainer.chart"),
     }));
     const menu = disposables.add(menuService.createMenu(menuId, contextKeyService));
     const events: IMenuChangeEvent[] = [];
@@ -34,7 +34,7 @@ suite("platform/actions/common/menuService", () => {
 
     assert.deepEqual(cleanGroupedActions(menu.getActions()).map(action => action.id), []);
 
-    contextKeyService.setContext("activeWorkbenchMainPart", "chart");
+    contextKeyService.setContext("activePanelViewContainer", "workbench.viewContainer.chart");
 
     assert.deepEqual(cleanGroupedActions(menu.getActions()).map(action => action.id), ["visible.command"]);
     assert.equal(events.at(-1)?.isStructuralChange, true);

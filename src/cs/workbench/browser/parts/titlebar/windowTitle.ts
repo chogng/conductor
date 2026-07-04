@@ -23,6 +23,7 @@ import {
   WORKBENCH_TITLEBAR_ID,
   WorkbenchTitlebarPart,
 } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
+import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
 
 export type WorkbenchWindowState = {
   readonly environment: IWorkbenchEnvironmentService["environment"];
@@ -159,9 +160,6 @@ export class BrowserTitleService extends Disposable implements ITitleService {
   ) {
     super();
 
-    this._register(this.layoutService.onDidChangeWorkbenchNavigation(() => {
-      this.onDidChangeTitlebarStateEmitter.fire();
-    }));
     this._register(this.layoutService.onDidChangePartVisibility(event => {
       if (
         event.partId === Parts.SIDEBAR_PART ||
@@ -195,7 +193,6 @@ export class BrowserTitleService extends Disposable implements ITitleService {
 
   public getTitlebarState(): ResolvedWorkbenchTitlebarState | undefined {
     const state = this.titlebarState;
-    const navigation = this.layoutService.getWorkbenchNavigationState();
     const windowState = getWorkbenchWindowState();
     const enabled = state.enabled ?? windowState.isDesktopChromePreviewEnabled;
 
@@ -204,12 +201,9 @@ export class BrowserTitleService extends Disposable implements ITitleService {
     }
 
     return {
-      activePage: state.activePage ?? navigation.activeMainPart,
-      canNavigateBack:
-        state.canNavigateBack ?? navigation.historyIndex > 0,
-      canNavigateForward:
-        state.canNavigateForward ??
-        navigation.historyIndex < navigation.historyLength - 1,
+      activePage: state.activePage ?? TableViewContainerId,
+      canNavigateBack: state.canNavigateBack ?? false,
+      canNavigateForward: state.canNavigateForward ?? false,
       chartIntentCommandId: state.chartIntentCommandId,
       installUpdateCommandId: state.installUpdateCommandId,
       isAuxiliaryBarExpanded:
@@ -238,7 +232,7 @@ export class BrowserTitleService extends Disposable implements ITitleService {
     const windowState = getWorkbenchWindowState();
     return {
       ...state,
-      activePage: state.activePage ?? "table",
+      activePage: state.activePage ?? TableViewContainerId,
       id: WORKBENCH_TITLEBAR_ID,
       chrome: getWorkbenchTitlebarChrome(windowState),
       commandService: this.commandService,

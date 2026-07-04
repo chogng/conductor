@@ -20,7 +20,6 @@ import {
   IDecorationsService,
   type IDecorationsService as IDecorationsServiceType,
 } from "src/cs/workbench/services/decorations/common/decorations";
-import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import {
   IReviewService,
@@ -40,6 +39,7 @@ import {
   IUserTemplateService,
   type IUserTemplateService as IUserTemplateServiceType,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
+import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 
 const ThumbnailViewPaneSurface: ExplorerViewPaneSurfaceOptions = {
   className: "files-view-pane files-thumbnail-view-pane",
@@ -57,7 +57,7 @@ export class ThumbnailViewPane extends BaseExplorerViewPane {
     @IFileService filesService: IFileService,
     @IInstantiationService instantiationService: IInstantiationService,
     @IAppearanceService appearanceService: IAppearanceService,
-    @IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+    @IViewsService viewsService: IViewsService,
     @INotificationService notificationService: INotificationService,
     @ITableService tableService: ITableService,
     @ISliceService sliceService: ISliceService,
@@ -78,7 +78,7 @@ export class ThumbnailViewPane extends BaseExplorerViewPane {
       filesService,
       instantiationService,
       appearanceService,
-      layoutService,
+      viewsService,
       notificationService,
       tableService,
       sliceService,

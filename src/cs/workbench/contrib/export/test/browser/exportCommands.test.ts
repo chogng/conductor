@@ -13,7 +13,9 @@ import { CommandsRegistry } from "src/cs/platform/commands/common/commands";
 import type { ServicesAccessor, ServiceIdentifier } from "src/cs/platform/instantiation/common/instantiation";
 import { registerExportCommands } from "src/cs/workbench/contrib/export/browser/exportCommands";
 import { ExportCommandId, IExportService } from "src/cs/workbench/services/export/common/export";
+import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
+import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/export/test/browser/exportCommands", () => {
@@ -23,8 +25,13 @@ suite("workbench/contrib/export/test/browser/exportCommands", () => {
 		const calls: string[] = [];
 		const accessor = createAccessor([
 			[IWorkbenchLayoutService, {
-				navigateToView: (view: string) => calls.push(`view:${view}`),
 				selectAuxiliaryBarView: (view: string) => calls.push(`aux:${view}`),
+			}],
+			[IViewsService, {
+				openViewContainer: async (id: string) => {
+					calls.push(`container:${id}`);
+					return null;
+				},
 			}],
 		]);
 
@@ -32,7 +39,10 @@ suite("workbench/contrib/export/test/browser/exportCommands", () => {
 			CommandsRegistry.getCommand(ExportCommandId.showExport)?.handler(accessor);
 			const commandPaletteIds = getCommandPaletteIds();
 
-			assert.deepEqual(calls, ["view:chart", "aux:export"]);
+			assert.deepEqual(calls, [
+				`container:${ChartViewContainerId}`,
+				"aux:export",
+			]);
 			assert.ok(commandPaletteIds.has(ExportCommandId.showExport));
 		} finally {
 			registration.dispose();

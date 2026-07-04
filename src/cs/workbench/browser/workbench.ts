@@ -57,19 +57,24 @@ import {
 import {
   IWorkbenchLayoutService,
   Parts,
-  type WorkbenchMainPart,
 } from "src/cs/workbench/services/layout/browser/layoutService";
-import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
+import {
+  type IViewContainerNavigationState,
+  IViewsService,
+} from "src/cs/workbench/services/views/common/viewsService";
+import { ViewContainerLocation } from "src/cs/workbench/common/views";
 import { localize } from "src/cs/nls";
 import { isThemeMode } from "src/cs/workbench/common/theme";
 import { startPerf } from "src/cs/workbench/common/perf";
 import {
   ActiveAuxiliaryBarViewContext,
-  ActiveWorkbenchMainPartContext,
-  ActiveWorkbenchViewContext,
+  ActivePanelViewContainerContext,
+} from "src/cs/workbench/common/contextkeys";
+import {
   WorkbenchContextKeysHandler,
 } from "src/cs/workbench/browser/contextkeys";
 import { Layout } from "src/cs/workbench/browser/layout";
+import { WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS } from "src/cs/workbench/browser/parts/titlebar/titlebarActions";
 import {
   ITitleService,
   type WorkbenchTitlebarState,
@@ -158,19 +163,33 @@ export type WorkbenchSidebarSurface =
   | "settingsNavigation";
 
 export const resolveWorkbenchSidebarSurface = ({
-  activeMainPart,
+  activePanelViewContainerId,
   explorerViewLayout,
 }: {
-  readonly activeMainPart: WorkbenchMainPart;
+  readonly activePanelViewContainerId: string;
   readonly explorerViewLayout: ExplorerViewLayout;
 }): WorkbenchSidebarSurface => {
-  if (activeMainPart === "settings") {
+  if (activePanelViewContainerId === SettingsViewContainerId) {
     return "settingsNavigation";
   }
-  if (activeMainPart === "chart" && explorerViewLayout === "thumbnail") {
+  if (activePanelViewContainerId === ChartViewContainerId && explorerViewLayout === "thumbnail") {
     return "thumbnail";
   }
   return "explorer";
+};
+
+const getWorkbenchPaneLabelledBy = (
+  activePanelViewContainerId: string,
+): string => {
+  if (activePanelViewContainerId === ChartViewContainerId) {
+    return WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS.chart;
+  }
+
+  if (activePanelViewContainerId === SettingsViewContainerId) {
+    return WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS.settings;
+  }
+
+  return WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS.table;
 };
 
 export type WorkbenchOptions = {
@@ -509,7 +528,7 @@ const getInitialLanguagePreference = (): LanguagePreference => {
     : "system";
 };
 
-export const resolveInitialWorkbenchViewMode = (): WorkbenchMainPart => "table";
+export const resolveInitialPanelViewContainerId = (): string => TableViewContainerId;
 
 //#endregion
 
@@ -528,8 +547,7 @@ export class Workbench extends Layout {
   private session!: ISessionServiceType;
   private commandService!: ICommandService;
   private contextKeyService!: IContextKeyService;
-  private activeWorkbenchViewContext: IContextKey<string> | null = null;
-  private activeWorkbenchMainPartContext: IContextKey<WorkbenchMainPart | ""> | null = null;
+  private activePanelViewContainerContext: IContextKey<string> | null = null;
   private activeAuxiliaryBarViewContext: IContextKey<string> | null = null;
   private calculationService!: ICalculationService;
   private chartService!: IChartService;
@@ -562,6 +580,14 @@ export class Workbench extends Layout {
 
   public get contentElement(): HTMLElement {
     return this.window.contentElement;
+  }
+
+  public get activePanelViewContainerId(): string {
+    if (!this.viewsService) {
+      return TableViewContainerId;
+    }
+
+    return this.resolveActivePanelViewContainerId(this.getPanelViewContainerNavigationState());
   }
 
   constructor(parent: HTMLElement, options: WorkbenchOptions = {}) {
@@ -671,18 +697,17 @@ export class Workbench extends Layout {
 
       measureWorkbenchBoot("workbench:service-layer:install:contextkeys", () => {
         this._register(new WorkbenchContextKeysHandler(this.contextKeyService, this.layoutService));
-        this.activeWorkbenchViewContext = ActiveWorkbenchViewContext.bindTo(this.contextKeyService);
-        this.activeWorkbenchMainPartContext = ActiveWorkbenchMainPartContext.bindTo(this.contextKeyService);
+        this.activePanelViewContainerContext = ActivePanelViewContainerContext.bindTo(this.contextKeyService);
         this.activeAuxiliaryBarViewContext = ActiveAuxiliaryBarViewContext.bindTo(this.contextKeyService);
       });
 
-      const initialViewMode = measureWorkbenchBoot("workbench:service-layer:install:initial-state", () => {
+      const initialPanelViewContainerId = measureWorkbenchBoot("workbench:service-layer:install:initial-state", () => {
         this.lastObservedExportState = this.exportService.getState();
         this.titleService.updateTitlebarState(this.titlebarState);
-        const viewMode = resolveInitialWorkbenchViewMode();
+        const panelViewContainerId = resolveInitialPanelViewContainerId();
         this._register(this.createNotificationsHandlers());
         this.settingsService.update(this.getSettingsServiceOptions());
-        return viewMode;
+        return panelViewContainerId;
       });
 
       const domainBridge = measureWorkbenchBoot("workbench:service-layer:install:bridge-create", () =>
@@ -690,7 +715,13 @@ export class Workbench extends Layout {
           calculationService: this.calculationService,
           chartService: this.chartService,
           explorerService: this.explorerService,
-          layoutService: this.layoutService,
+          getActivePanelViewContainerId: () => this.activePanelViewContainerId,
+          onDidChangeActivePanelViewContainer: listener =>
+            this.viewsService.onDidChangeViewContainerNavigation(event => {
+              if (event.location === ViewContainerLocation.Panel) {
+                listener();
+              }
+            }),
           plotService: this.plotService,
           settingsService: this.settingsService,
           sliceService: this.sliceService,
@@ -747,7 +778,12 @@ export class Workbench extends Layout {
         this._register(this.templateViewStateService.onDidChangeTemplateState(() => {
           this.scheduleWorkbenchAuxiliarySurfacesRefresh("templateState", true);
         }));
-        this._register(this.layoutService.onDidChangeWorkbenchNavigation(() => {
+        this._register(this.viewsService.onDidChangeViewContainerNavigation(event => {
+          if (event.location !== ViewContainerLocation.Panel) {
+            return;
+          }
+
+          this.updateActivePanelViewContainerState();
           if (!this.suppressNavigationRefresh) {
             this.refreshWorkbench("navigation");
           }
@@ -765,13 +801,13 @@ export class Workbench extends Layout {
       measureWorkbenchBoot("workbench:service-layer:install:reset-view", () => {
         this.suppressNavigationRefresh = true;
         try {
-          this.resetToView(initialViewMode);
+          this.resetActivePanelViewContainer(initialPanelViewContainerId);
         } finally {
           this.suppressNavigationRefresh = false;
         }
       });
       measureWorkbenchBoot("workbench:service-layer:install:domain-sync", () => {
-        domainBridge.sync({ deferSecondaryWork: initialViewMode === "table" });
+        domainBridge.sync({ deferSecondaryWork: initialPanelViewContainerId === TableViewContainerId });
       });
       measureWorkbenchBoot("workbench:service-layer:install:refresh-initial", () => {
         this.refreshWorkbench("initial");
@@ -788,7 +824,11 @@ export class Workbench extends Layout {
   update(options: WorkbenchOptions = {}): void {
     if ("titlebarState" in options) {
       this.titlebarState = options.titlebarState;
-      this.getActiveTitleService()?.updateTitlebarState(options.titlebarState);
+      if (this.serviceStartupState === "started") {
+        this.updateTitlebarNavigationState();
+      } else {
+        this.getActiveTitleService()?.updateTitlebarState(options.titlebarState);
+      }
     }
     this.window.update({
       ...options,
@@ -811,9 +851,8 @@ export class Workbench extends Layout {
     this.scheduledAuxiliarySurfacesRefreshReasons.clear();
     this.scheduledAuxiliarySurfacesRefreshNeedsChrome = false;
     const endPerf = startPerf("workbench.refreshWorkbench", {
-      activeAuxiliaryBarView: this.getActiveAuxiliaryBarView(this.activeWorkbenchMainPart),
-      activeView: this.activeView,
-      mode: this.activeWorkbenchMainPart,
+      activeAuxiliaryBarView: this.getActiveAuxiliaryBarView(this.activePanelViewContainerId),
+      activePanelViewContainerId: this.activePanelViewContainerId,
       reason,
     }, { silent: true });
     measureWorkbenchBoot(`workbench:refresh:${reason}:mode-context`, () => {
@@ -885,9 +924,8 @@ export class Workbench extends Layout {
       ? "workbench.refreshSelectionSurfaces"
       : "workbench.refreshAuxiliarySurfaces";
     const endPerf = startPerf(stage, {
-      activeAuxiliaryBarView: this.getActiveAuxiliaryBarView(this.activeWorkbenchMainPart),
-      activeView: this.activeView,
-      mode: this.activeWorkbenchMainPart,
+      activeAuxiliaryBarView: this.getActiveAuxiliaryBarView(this.activePanelViewContainerId),
+      activePanelViewContainerId: this.activePanelViewContainerId,
       reason: reasons[0] ?? "unknown",
       reasons: reasons.join(","),
     }, { silent: true });
@@ -922,7 +960,7 @@ export class Workbench extends Layout {
   }
 
   private shouldRefreshActiveAuxiliaryViewFromWorkbenchState(): boolean {
-    switch (this.getActiveAuxiliaryBarView(this.activeWorkbenchMainPart)) {
+    switch (this.getActiveAuxiliaryBarView(this.activePanelViewContainerId)) {
       case "search":
       case "template":
       case "settings":
@@ -935,7 +973,7 @@ export class Workbench extends Layout {
   }
 
   private shouldRefreshAuxiliarySurfacesForSessionChange(event: SessionChangeEvent): boolean {
-    const activeAuxiliaryView = this.getActiveAuxiliaryBarView(this.activeWorkbenchMainPart);
+    const activeAuxiliaryView = this.getActiveAuxiliaryBarView(this.activePanelViewContainerId);
     switch (activeAuxiliaryView) {
       case "export":
         return this.shouldRefreshExportSurfacesForSessionChange(event);
@@ -965,7 +1003,7 @@ export class Workbench extends Layout {
       this.setParts({
         sidebar: this.getViewContainerElement(this.getActiveSidebarContainerId(), null),
         workbench: this.getViewContainerElement(
-          this.getActiveWorkbenchContainerId(),
+          this.getActivePanelViewContainerId(),
           null,
         ),
         auxiliaryBar: this.getViewContainerElement(
@@ -1073,7 +1111,7 @@ export class Workbench extends Layout {
   private updateViewContainers(): void {
     const sidebarSurface = this.getActiveSidebarSurface();
     const sidebarContainerId = this.getSidebarContainerId(sidebarSurface);
-    const activeWorkbenchContainerId = this.getActiveWorkbenchContainerId();
+    const activePanelViewContainerId = this.getActivePanelViewContainerId();
     const activeAuxiliaryBarContainerId = this.getActiveAuxiliaryBarContainerId();
     const isSidebarVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
     const isAuxiliaryBarVisible = this.isAuxiliaryBarVisibleForActiveMode();
@@ -1090,7 +1128,7 @@ export class Workbench extends Layout {
     }
 
     measureWorkbenchBoot("workbench:view-containers:open:workbench", () => {
-      void this.viewsService.openViewContainer(activeWorkbenchContainerId);
+      void this.viewsService.openViewContainer(activePanelViewContainerId);
     });
     measureWorkbenchBoot("workbench:view-containers:update-sidebar", () => {
       this.updateSidebar(isSidebarVisible);
@@ -1103,13 +1141,12 @@ export class Workbench extends Layout {
   private updateContextKeys(): void {
     this.updateWorkbenchModeContextKeys();
     this.activeAuxiliaryBarViewContext?.set(
-      this.getActiveAuxiliaryBarView(this.activeWorkbenchMainPart) ?? "",
+      this.getActiveAuxiliaryBarView(this.activePanelViewContainerId) ?? "",
     );
   }
 
   private updateWorkbenchModeContextKeys(): void {
-    this.activeWorkbenchViewContext?.set(this.activeView);
-    this.activeWorkbenchMainPartContext?.set(this.activeWorkbenchMainPart);
+    this.activePanelViewContainerContext?.set(this.activePanelViewContainerId);
   }
 
   private updateSidebar(visible: boolean): void {
@@ -1139,7 +1176,7 @@ export class Workbench extends Layout {
 
   private getActiveSidebarSurface(): WorkbenchSidebarSurface {
     return resolveWorkbenchSidebarSurface({
-      activeMainPart: this.activeWorkbenchMainPart,
+      activePanelViewContainerId: this.activePanelViewContainerId,
       explorerViewLayout: this.explorerService.viewLayout,
     });
   }
@@ -1160,16 +1197,8 @@ export class Workbench extends Layout {
     }
   }
 
-  private getActiveWorkbenchContainerId(): string {
-    switch (this.activeWorkbenchMainPart) {
-      case "chart":
-        return ChartViewContainerId;
-      case "settings":
-        return SettingsViewContainerId;
-      case "table":
-      default:
-        return TableViewContainerId;
-    }
+  private getActivePanelViewContainerId(): string {
+    return this.activePanelViewContainerId;
   }
 
   private updateAuxiliaryBar(visible: boolean): void {
@@ -1189,7 +1218,7 @@ export class Workbench extends Layout {
       menuService: this.menuService,
       templateMode: this.templateViewStateService.getState().mode,
       visible,
-      workbenchMainPart: this.activeWorkbenchMainPart,
+      activePanelViewContainerId: this.activePanelViewContainerId,
     });
     this.updateAuxiliaryBarPaneContainer({
       actions: state.actions,
@@ -1199,11 +1228,11 @@ export class Workbench extends Layout {
   }
 
   private renderAuxiliaryBarView(): void {
-    if (this.activeWorkbenchMainPart === "settings") {
+    if (this.activePanelViewContainerId === SettingsViewContainerId) {
       return;
     }
 
-    switch (this.getActiveAuxiliaryBarView(this.activeWorkbenchMainPart)) {
+    switch (this.getActiveAuxiliaryBarView(this.activePanelViewContainerId)) {
       case "template":
         break;
       case "parameters":
@@ -1234,14 +1263,14 @@ export class Workbench extends Layout {
   }
 
   private getActiveAuxiliaryBarContainerId(): string | null {
-    return this.getActiveAuxiliaryBarViewContainerId(
-      this.activeWorkbenchMainPart,
+    return this.getActiveAuxiliaryBarContainerIdForPanel(
+      this.activePanelViewContainerId,
       this.layoutService.activeAuxiliaryBarView,
     );
   }
 
   private isAuxiliaryBarVisibleForActiveMode(): boolean {
-    return this.activeWorkbenchMainPart !== "settings" &&
+    return this.activePanelViewContainerId !== SettingsViewContainerId &&
       this.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
   }
 
@@ -1264,14 +1293,43 @@ export class Workbench extends Layout {
 
   //#region navigation
 
-  private showWorkbenchViewMode(viewMode: WorkbenchMainPart): void {
-    const previousViewMode = this.activeWorkbenchMainPart;
-    if (this.activeView !== viewMode) {
-      this.navigateToView(viewMode);
-    }
-    if (previousViewMode === viewMode) {
-      this.refreshWorkbench("sameViewMode");
-    }
+  private getPanelViewContainerNavigationState(): IViewContainerNavigationState {
+    return this.viewsService.getViewContainerNavigationState(ViewContainerLocation.Panel);
+  }
+
+  private resolveActivePanelViewContainerId(
+    navigationState: IViewContainerNavigationState,
+  ): string {
+    return navigationState.activeViewContainerId ?? TableViewContainerId;
+  }
+
+  private updateActivePanelViewContainerState(): void {
+    const navigationState = this.getPanelViewContainerNavigationState();
+    const activePanelViewContainerId = this.resolveActivePanelViewContainerId(navigationState);
+    this.setWorkbenchPaneState({
+      canNavigateBack: navigationState.historyIndex > 0,
+      canNavigateForward: navigationState.historyIndex < navigationState.historyLength - 1,
+      suppressAuxiliaryBar: activePanelViewContainerId === SettingsViewContainerId,
+      workbenchPaneLabelledBy: getWorkbenchPaneLabelledBy(activePanelViewContainerId),
+    });
+    this.updateTitlebarNavigationState();
+  }
+
+  private updateTitlebarNavigationState(): void {
+    const navigationState = this.getPanelViewContainerNavigationState();
+    this.titleService.updateTitlebarState({
+      ...this.titlebarState,
+      activePage: this.activePanelViewContainerId,
+      canNavigateBack: navigationState.historyIndex > 0,
+      canNavigateForward: navigationState.historyIndex < navigationState.historyLength - 1,
+    });
+  }
+
+  private resetActivePanelViewContainer(viewContainerId: string): void {
+    this.viewsService.resetViewContainerNavigation(
+      ViewContainerLocation.Panel,
+      viewContainerId,
+    );
   }
 
   //#endregion

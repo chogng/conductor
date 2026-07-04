@@ -8,5 +8,7 @@ export const FocusedViewContext = new RawContextKey<string>("focusedView", "");
 export const HasWebFileSystemAccess = new RawContextKey<boolean>("hasWebFileSystemAccess", false);
 export const SideBarVisibleContext = new RawContextKey<boolean>("sideBarVisible", false);
 export const AuxiliaryBarVisibleContext = new RawContextKey<boolean>("auxiliaryBarVisible", false);
+export const ActivePanelViewContainerContext = new RawContextKey<string>("activePanelViewContainer", "");
+export const ActiveAuxiliaryBarViewContext = new RawContextKey<string>("activeAuxiliaryBarView", "");
 
 export const getVisibleViewContextKey = (viewId: string): string => `view.${viewId}.visible`;

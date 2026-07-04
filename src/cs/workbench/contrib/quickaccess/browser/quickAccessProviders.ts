@@ -4,13 +4,17 @@ import type { QuickAccessItem } from "src/cs/platform/quickinput/common/quickAcc
 import { IQuickInputService } from "src/cs/platform/quickinput/common/quickInput";
 import {
   IExplorerService,
+  type ExplorerPaneMode,
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
   getExplorerFileResourceIdentity,
   type ExplorerFileEntry,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
-import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import { COMMANDS_QUICK_ACCESS_PREFIX } from "src/cs/workbench/contrib/quickaccess/browser/commandsQuickAccess";
+import { ViewContainerLocation } from "src/cs/workbench/common/views";
+import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
+import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
+import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 
 export const FILES_QUICK_ACCESS_PREFIX = "file ";
 
@@ -42,15 +46,18 @@ export class DefaultQuickAccessProvider extends PickerQuickAccessProvider<QuickA
 export class FilesQuickAccessProvider extends PickerQuickAccessProvider<QuickAccessItem> {
   public constructor(
     @IExplorerService private readonly explorerService: IExplorerService,
-    @IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+    @IViewsService private readonly viewsService: IViewsService,
   ) {
     super(FILES_QUICK_ACCESS_PREFIX);
   }
 
   protected getPicks(filter: string): readonly QuickAccessItem[] {
     const paneInput = this.explorerService.getPaneInput();
-    const selectionKind = this.layoutService.activeWorkbenchMainPart;
-    if (!paneInput || paneInput.selectionKind !== selectionKind) {
+    const activeContainerId = this.viewsService.getViewContainerNavigationState(
+      ViewContainerLocation.Panel,
+    ).activeViewContainerId;
+    const selectionKind = getExplorerSelectionKind(activeContainerId);
+    if (!selectionKind || !paneInput || paneInput.selectionKind !== selectionKind) {
       return [];
     }
 
@@ -79,6 +86,20 @@ export class FilesQuickAccessProvider extends PickerQuickAccessProvider<QuickAcc
       .filter(item => !normalizedFilter || `${item.label} ${item.description ?? ""} ${item.id}`.toLowerCase().includes(normalizedFilter));
   }
 }
+
+const getExplorerSelectionKind = (
+  activeContainerId: string | null,
+): ExplorerPaneMode | null => {
+  if (activeContainerId === ChartViewContainerId) {
+    return "chart";
+  }
+
+  if (activeContainerId === TableViewContainerId) {
+    return "table";
+  }
+
+  return null;
+};
 
 const normalizeFileId = (fileId: unknown): string | null => {
   const normalized = String(fileId ?? "").trim();

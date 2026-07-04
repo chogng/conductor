@@ -27,7 +27,8 @@ import {
   type IExplorerService,
 } from "src/cs/workbench/contrib/files/browser/files";
 import { DEFAULT_EXPLORER_APPEARANCE, type IAppearanceService } from "src/cs/workbench/services/appearance/common/appearance";
-import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
+import { ViewContainerLocation } from "src/cs/workbench/common/views";
+import type { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import type { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import type { ITableService, TableSource } from "src/cs/workbench/services/table/common/table";
 import type { IThumbnailPreviewService, IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
@@ -208,8 +209,10 @@ type CreateExplorerViewPaneOptions = {
   readonly paneInput?: ExplorerPaneInput | null;
 };
 
-const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): ExplorerViewPane =>
-  new ExplorerViewPane(
+const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): ExplorerViewPane => {
+  const uriFileService = new FileService();
+  const uriIdentityService = new UriIdentityService(uriFileService);
+  const pane = new ExplorerViewPane(
     {
       executeCommand: async () => undefined,
     } as unknown as ICommandService,
@@ -234,7 +237,7 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
       getAppearance: () => ({ explorer: DEFAULT_EXPLORER_APPEARANCE }),
       onDidChangeAppearance: Event.None,
     } as unknown as IAppearanceService,
-    {} as unknown as IWorkbenchLayoutService,
+    createViewsService(),
     {
       notify: () => undefined,
     } as unknown as INotificationService,
@@ -258,8 +261,21 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
     createDecorationsService(),
     createReviewService(options.onResolveReviewSummary),
     createSettingsService(),
-    new UriIdentityService(new FileService()),
+    uriIdentityService,
   );
+  const disposePane = pane.dispose.bind(pane);
+  let disposed = false;
+  pane.dispose = () => {
+    if (disposed) {
+      return;
+    }
+    disposed = true;
+    disposePane();
+    uriIdentityService.dispose();
+    uriFileService.dispose();
+  };
+  return pane;
+};
 
 const createContextMenuService = (): IContextMenuService => ({
   showContextMenu: () => undefined,
@@ -319,6 +335,17 @@ const createInstantiationService = (
 
   return instantiationService;
 };
+
+const createViewsService = (): IViewsService => ({
+  _serviceBrand: undefined,
+  getViewContainerNavigationState: (location: ViewContainerLocation) => ({
+    activeViewContainerId: null,
+    historyIndex: -1,
+    historyLength: 0,
+    location,
+  }),
+  openViewContainer: async () => null,
+} as unknown as IViewsService);
 
 const createExplorerService = (
   paneInput: ExplorerPaneInput | null,

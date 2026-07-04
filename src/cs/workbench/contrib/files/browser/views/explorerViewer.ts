@@ -44,9 +44,9 @@ import {
   RENAME_FILE_ITEM_COMMAND_ID,
   SET_FILE_TEMPLATE_COMMAND_ID,
 } from "src/cs/workbench/contrib/files/common/files";
-import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
 import type {
   ExplorerEditableData,
+  ExplorerPaneMode,
   ExplorerThumbnailPlotModel,
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
@@ -123,7 +123,7 @@ export type ExplorerViewerProps = {
   readonly decorationResourcesByFileKey?: Readonly<Record<string, URI>>;
   readonly decorationsByFileKey?: Readonly<Record<string, IDecorationData>>;
   readonly reviewSummariesByFileKey?: Readonly<Record<string, ReviewSummary>>;
-  readonly mode?: WorkbenchMainPart;
+  readonly mode?: ExplorerPaneMode;
   readonly viewLayout?: FilesViewLayout;
   readonly folderImportSupport?: FolderImportSupport;
   readonly onListScroll?: (event: Event) => void;

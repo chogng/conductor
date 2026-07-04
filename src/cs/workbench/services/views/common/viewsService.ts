@@ -10,9 +10,17 @@ import type {
 
 export const IViewsService = createDecorator<IViewsService>("viewsService");
 
+export interface IViewContainerNavigationState {
+  readonly activeViewContainerId: string | null;
+  readonly historyIndex: number;
+  readonly historyLength: number;
+  readonly location: ViewContainerLocation;
+}
+
 export interface IViewsService {
   readonly _serviceBrand: undefined;
 
+  readonly onDidChangeViewContainerNavigation: Event<IViewContainerNavigationState>;
   readonly onDidChangeViewContainerVisibility: Event<{
     readonly id: string;
     readonly visible: boolean;
@@ -24,9 +32,13 @@ export interface IViewsService {
   }>;
   readonly onDidChangeFocusedView: Event<void>;
 
+  getViewContainerNavigationState(location: ViewContainerLocation): IViewContainerNavigationState;
   isViewContainerVisible(id: string): boolean;
   isViewContainerActive(id: string): boolean;
   openViewContainer(id: string, focus?: boolean): Promise<ViewContainer | null>;
+  navigateViewContainerBack(location: ViewContainerLocation): ViewContainer | null;
+  navigateViewContainerForward(location: ViewContainerLocation): ViewContainer | null;
+  resetViewContainerNavigation(location: ViewContainerLocation, id: string): ViewContainer | null;
   closeViewContainer(id: string): void;
   getVisibleViewContainer(location: ViewContainerLocation): ViewContainer | null;
   getViewContainerElement(id: string): unknown | null;

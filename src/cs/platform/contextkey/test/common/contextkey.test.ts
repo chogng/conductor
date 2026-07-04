@@ -22,7 +22,7 @@ suite("platform/contextkey/common/contextkey", () => {
 
     test("evaluates structured expressions", () => {
         const context = new TestContext({
-            activeWorkbenchMainPart: "chart",
+            activePanelViewContainer: "workbench.viewContainer.chart",
             fileCount: 3,
             hasWebFileSystemAccess: true,
         });
@@ -30,11 +30,11 @@ suite("platform/contextkey/common/contextkey", () => {
         assert.equal(
             evaluateContextKeyRules(
                 ContextKeyExpr.and(
-                    ContextKeyExpr.equals("activeWorkbenchMainPart", "chart"),
+                    ContextKeyExpr.equals("activePanelViewContainer", "workbench.viewContainer.chart"),
                     ContextKeyExpr.greater("fileCount", 1),
                     ContextKeyExpr.or(
                         ContextKeyExpr.has("hasWebFileSystemAccess"),
-                        ContextKeyExpr.equals("activeWorkbenchMainPart", "table"),
+                        ContextKeyExpr.equals("activePanelViewContainer", "workbench.viewContainer.table"),
                     ),
                 ),
                 context,
@@ -46,13 +46,13 @@ suite("platform/contextkey/common/contextkey", () => {
     test("evaluates string rules with grouped or clauses", () => {
         const context = new TestContext({
             activeAuxiliaryBarView: "search",
-            activeWorkbenchMainPart: "chart",
+            activePanelViewContainer: "workbench.viewContainer.chart",
             fileCount: 2,
         });
 
         assert.equal(
             evaluateContextKeyRules(
-                "activeWorkbenchMainPart == 'chart' && (activeAuxiliaryBarView == 'export' || activeAuxiliaryBarView == 'search') && fileCount >= 2",
+                "activePanelViewContainer == 'workbench.viewContainer.chart' && (activeAuxiliaryBarView == 'export' || activeAuxiliaryBarView == 'search') && fileCount >= 2",
                 context,
             ),
             true,
@@ -61,7 +61,7 @@ suite("platform/contextkey/common/contextkey", () => {
 
     test("extracts expression keys centrally", () => {
         const rules = ContextKeyExpr.and(
-            ContextKeyExpr.equals("activeWorkbenchMainPart", "chart"),
+            ContextKeyExpr.equals("activePanelViewContainer", "workbench.viewContainer.chart"),
             ContextKeyExpr.or(
                 ContextKeyExpr.equals("activeAuxiliaryBarView", "search"),
                 ContextKeyExpr.greaterEquals("fileCount", 1),
@@ -70,11 +70,11 @@ suite("platform/contextkey/common/contextkey", () => {
 
         assert.deepEqual(
             getContextKeyRulesKeys(rules),
-            ["activeWorkbenchMainPart", "activeAuxiliaryBarView", "fileCount"],
+            ["activePanelViewContainer", "activeAuxiliaryBarView", "fileCount"],
         );
         assert.deepEqual(
-            getContextKeyRulesKeys("activeWorkbenchMainPart == 'chart' && (activeAuxiliaryBarView == 'search' || fileCount > 0)"),
-            ["activeWorkbenchMainPart", "activeAuxiliaryBarView", "fileCount"],
+            getContextKeyRulesKeys("activePanelViewContainer == 'workbench.viewContainer.chart' && (activeAuxiliaryBarView == 'search' || fileCount > 0)"),
+            ["activePanelViewContainer", "activeAuxiliaryBarView", "fileCount"],
         );
     });
 

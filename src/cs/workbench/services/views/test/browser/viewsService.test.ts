@@ -229,36 +229,62 @@ class TestViewContainerModel implements IViewContainerModel {
   public remove(): void {}
 }
 
+type TestViewDescriptorServiceEntry = {
+  readonly container: ViewContainer;
+  readonly location?: ViewContainerLocation;
+  readonly viewDescriptor: IViewDescriptor;
+};
+
 class TestViewDescriptorService implements IViewDescriptorService {
   public declare readonly _serviceBrand: undefined;
   public readonly onDidChangeViewContainers: IViewDescriptorService["onDidChangeViewContainers"] = noneEvent();
   public readonly onDidChangeContainer: IViewDescriptorService["onDidChangeContainer"] = noneEvent();
   public readonly viewContainers: readonly ViewContainer[];
   public readonly model: TestViewContainerModel;
+  private readonly entries: readonly Required<TestViewDescriptorServiceEntry>[];
+  private readonly models = new Map<string, TestViewContainerModel>();
 
   public constructor(
-    private readonly container: ViewContainer,
-    private readonly viewDescriptor: IViewDescriptor,
-    private readonly location = ViewContainerLocation.Panel,
+    containerOrEntries: ViewContainer | readonly TestViewDescriptorServiceEntry[],
+    viewDescriptor?: IViewDescriptor,
+    location = ViewContainerLocation.Panel,
   ) {
-    this.viewContainers = [container];
-    this.model = new TestViewContainerModel(container, viewDescriptor);
+    const entries = Array.isArray(containerOrEntries)
+      ? containerOrEntries
+      : [{
+        container: containerOrEntries,
+        location,
+        viewDescriptor: viewDescriptor!,
+      }];
+    this.entries = entries.map(entry => ({
+      container: entry.container,
+      location: entry.location ?? ViewContainerLocation.Panel,
+      viewDescriptor: entry.viewDescriptor,
+    }));
+    this.viewContainers = this.entries.map(entry => entry.container);
+    for (const entry of this.entries) {
+      this.models.set(entry.container.id, new TestViewContainerModel(
+        entry.container,
+        entry.viewDescriptor,
+      ));
+    }
+    this.model = this.models.get(this.entries[0]!.container.id)!;
   }
 
   public getViewDescriptorById(viewId: string): IViewDescriptor | null {
-    return viewId === this.viewDescriptor.id ? this.viewDescriptor : null;
+    return this.getEntryByViewId(viewId)?.viewDescriptor ?? null;
   }
 
   public getViewLocationById(viewId: string): ViewContainerLocation | null {
-    return viewId === this.viewDescriptor.id ? this.location : null;
+    return this.getEntryByViewId(viewId)?.location ?? null;
   }
 
   public getViewContainerByViewId(viewId: string): ViewContainer | null {
-    return viewId === this.viewDescriptor.id ? this.container : null;
+    return this.getEntryByViewId(viewId)?.container ?? null;
   }
 
   public getViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation | null {
-    return viewContainer.id === this.container.id ? this.location : null;
+    return this.getEntryByContainerId(viewContainer.id)?.location ?? null;
   }
 
   public getDefaultViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation | null {
@@ -270,20 +296,23 @@ class TestViewDescriptorService implements IViewDescriptorService {
   }
 
   public getViewContainerModel(container: ViewContainer): IViewContainerModel {
-    assert.equal(container.id, this.container.id);
-    return this.model;
+    const model = this.models.get(container.id);
+    assert.ok(model);
+    return model;
   }
 
   public getViewContainerById(id: string): ViewContainer | null {
-    return id === this.container.id ? this.container : null;
+    return this.getEntryByContainerId(id)?.container ?? null;
   }
 
   public getViewContainersByLocation(location: ViewContainerLocation): readonly ViewContainer[] {
-    return location === this.location ? [this.container] : [];
+    return this.entries
+      .filter(entry => entry.location === location)
+      .map(entry => entry.container);
   }
 
   public getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined {
-    return location === this.location ? this.container : undefined;
+    return this.entries.find(entry => entry.location === location)?.container;
   }
 
   public moveViewsToContainer(
@@ -291,6 +320,14 @@ class TestViewDescriptorService implements IViewDescriptorService {
     _viewContainer: ViewContainer,
     _visibilityState?: ViewVisibilityState,
   ): void {}
+
+  private getEntryByViewId(viewId: string): Required<TestViewDescriptorServiceEntry> | null {
+    return this.entries.find(entry => entry.viewDescriptor.id === viewId) ?? null;
+  }
+
+  private getEntryByContainerId(containerId: string): Required<TestViewDescriptorServiceEntry> | null {
+    return this.entries.find(entry => entry.container.id === containerId) ?? null;
+  }
 }
 
 suite("workbench/services/views/browser/ViewsService", () => {
@@ -465,6 +502,104 @@ suite("workbench/services/views/browser/ViewsService", () => {
 
     assert.equal(layoutService.isVisible(Parts.AUXILIARYBAR_PART), true);
     assert.equal(viewsService.isViewContainerVisible(container.id), true);
+
+    viewsService.dispose();
+    instantiationService.dispose();
+    layoutService.dispose();
+    contextKeyService.dispose();
+    storageService.dispose();
+  });
+
+  test("tracks view container navigation per location", async () => {
+    const tableViewDescriptor: IViewDescriptor = {
+      ctorDescriptor: new SyncDescriptor(TestView),
+      id: "test.table.view",
+      name: "Table",
+    };
+    const chartViewDescriptor: IViewDescriptor = {
+      ctorDescriptor: new SyncDescriptor(TestView),
+      id: "test.chart.view",
+      name: "Chart",
+    };
+    const tableContainer: ViewContainer = {
+      ctorDescriptor: new SyncDescriptor(TestViewPaneContainer),
+      id: "test.table.container",
+      title: "Table",
+    };
+    const chartContainer: ViewContainer = {
+      ctorDescriptor: new SyncDescriptor(TestViewPaneContainer),
+      id: "test.chart.container",
+      title: "Chart",
+    };
+    const storageService = store.add(new TestStorageService());
+    const contextKeyService = store.add(new ContextKeyService());
+    const layoutService = store.add(new BrowserWorkbenchLayoutService(storageService));
+    const services = new ServiceCollection();
+    const instantiationService = store.add(new InstantiationService(services));
+    const descriptorService = new TestViewDescriptorService([{
+      container: tableContainer,
+      viewDescriptor: tableViewDescriptor,
+    }, {
+      container: chartContainer,
+      viewDescriptor: chartViewDescriptor,
+    }]);
+
+    services.set(IStorageService, storageService);
+    services.set(IContextKeyService, contextKeyService);
+    services.set(IWorkbenchLayoutService, layoutService);
+    services.set(IInstantiationService, instantiationService);
+    services.set(IViewDescriptorService, descriptorService);
+
+    const viewsService = store.add(new ViewsService(
+      descriptorService,
+      contextKeyService,
+      instantiationService,
+      layoutService,
+    ));
+
+    assert.deepStrictEqual(viewsService.getViewContainerNavigationState(ViewContainerLocation.Panel), {
+      activeViewContainerId: null,
+      historyIndex: -1,
+      historyLength: 0,
+      location: ViewContainerLocation.Panel,
+    });
+
+    await viewsService.openViewContainer(tableContainer.id);
+    await viewsService.openViewContainer(chartContainer.id);
+
+    assert.deepStrictEqual(viewsService.getViewContainerNavigationState(ViewContainerLocation.Panel), {
+      activeViewContainerId: chartContainer.id,
+      historyIndex: 1,
+      historyLength: 2,
+      location: ViewContainerLocation.Panel,
+    });
+
+    assert.equal(viewsService.navigateViewContainerBack(ViewContainerLocation.Panel)?.id, tableContainer.id);
+    assert.deepStrictEqual(viewsService.getViewContainerNavigationState(ViewContainerLocation.Panel), {
+      activeViewContainerId: tableContainer.id,
+      historyIndex: 0,
+      historyLength: 2,
+      location: ViewContainerLocation.Panel,
+    });
+
+    assert.equal(viewsService.navigateViewContainerForward(ViewContainerLocation.Panel)?.id, chartContainer.id);
+    assert.deepStrictEqual(viewsService.getViewContainerNavigationState(ViewContainerLocation.Panel), {
+      activeViewContainerId: chartContainer.id,
+      historyIndex: 1,
+      historyLength: 2,
+      location: ViewContainerLocation.Panel,
+    });
+
+    assert.equal(viewsService.resetViewContainerNavigation(
+      ViewContainerLocation.Panel,
+      tableContainer.id,
+    )?.id, tableContainer.id);
+    assert.deepStrictEqual(viewsService.getViewContainerNavigationState(ViewContainerLocation.Panel), {
+      activeViewContainerId: tableContainer.id,
+      historyIndex: 0,
+      historyLength: 1,
+      location: ViewContainerLocation.Panel,
+    });
 
     viewsService.dispose();
     instantiationService.dispose();

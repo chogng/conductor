@@ -21,6 +21,7 @@ import {
   BrowserWorkbenchLayoutService,
   Parts,
 } from "src/cs/workbench/services/layout/browser/layoutService";
+import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 import type { IWorkbenchEnvironmentService } from "src/cs/workbench/services/environment/common/environmentService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -136,7 +137,7 @@ suite("workbench/browser/titleService", () => {
     });
   });
 
-  test("publishes titlebar state from the layout owner", () => {
+  test("publishes titlebar navigation state from the shell owner", () => {
     const storage = new TestStorageService();
     const layoutService = new BrowserWorkbenchLayoutService(storage);
     const titleService = new BrowserTitleService(testCommandService, layoutService, testNativeHostService);
@@ -146,8 +147,12 @@ suite("workbench/browser/titleService", () => {
       changeCount += 1;
     });
 
-    titleService.updateTitlebarState({ enabled: true });
-    layoutService.navigateToView("chart");
+    titleService.updateTitlebarState({
+      activePage: ChartViewContainerId,
+      canNavigateBack: true,
+      canNavigateForward: false,
+      enabled: true,
+    });
 
     const state = titleService.getTitlebarState();
 
@@ -159,12 +164,12 @@ suite("workbench/browser/titleService", () => {
       isSidebarVisible: state?.isSidebarVisible,
       changeCount,
     }, {
-      activePage: "chart",
+      activePage: ChartViewContainerId,
       canNavigateBack: true,
       canNavigateForward: false,
       isAuxiliaryBarExpanded: true,
       isSidebarVisible: true,
-      changeCount: 2,
+      changeCount: 1,
     });
 
     listener.dispose();
@@ -248,12 +253,14 @@ suite("workbench/browser/titleService", () => {
     storage.dispose();
   });
 
-  test("patches titlebar state without replacing derived layout state", () => {
+  test("patches titlebar state without replacing shell navigation state", () => {
     const storage = new TestStorageService();
     const layoutService = new BrowserWorkbenchLayoutService(storage);
     const titleService = new BrowserTitleService(testCommandService, layoutService, testNativeHostService);
 
     titleService.updateTitlebarState({
+      activePage: ChartViewContainerId,
+      canNavigateBack: true,
       chartIntentCommandId: "chart.intent",
       enabled: true,
     });
@@ -266,7 +273,6 @@ suite("workbench/browser/titleService", () => {
       updateProgressPercent: null,
       updateVersion: "1.2.3",
     });
-    layoutService.navigateToView("chart");
 
     const state = titleService.getTitlebarState();
 
@@ -282,7 +288,7 @@ suite("workbench/browser/titleService", () => {
       updateProgressPercent: state?.updateProgressPercent,
       updateVersion: state?.updateVersion,
     }, {
-      activePage: "chart",
+      activePage: ChartViewContainerId,
       canNavigateBack: true,
       chartIntentCommandId: "chart.intent",
       installUpdateCommandId: "update.install",

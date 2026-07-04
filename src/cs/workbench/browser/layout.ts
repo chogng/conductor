@@ -10,8 +10,6 @@ import SplitView, {
 import {
   Parts,
   type IWorkbenchLayoutService,
-  type IWorkbenchNavigationState,
-  type WorkbenchMainPart,
 } from "src/cs/workbench/services/layout/browser/layoutService";
 import { SidebarPart } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import { AuxiliaryBarPart } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
@@ -88,10 +86,10 @@ export type ViewPaneDefinition = {
 };
 
 export type LayoutStateInput = {
-  activeMainPart: WorkbenchMainPart;
-  activeView: WorkbenchMainPart;
-  historyIndex: number;
-  historyLength: number;
+  canNavigateBack: boolean;
+  canNavigateForward: boolean;
+  suppressAuxiliaryBar: boolean;
+  workbenchPaneLabelledBy: string;
 };
 
 export type ViewPaneState = ViewPaneDefinition & {
@@ -99,13 +97,6 @@ export type ViewPaneState = ViewPaneDefinition & {
 };
 
 export type LayoutState = ReturnType<typeof getLayoutState>;
-
-const DEFAULT_WORKBENCH_NAVIGATION_STATE: IWorkbenchNavigationState = {
-  activeMainPart: "table",
-  activeView: "table",
-  historyIndex: 0,
-  historyLength: 1,
-};
 
 const LayoutPaneIds: Record<LayoutPane, string> = {
   workbench: "workbench-viewpane-main",
@@ -148,6 +139,10 @@ export class Layout extends Disposable {
   private hasRenderedAuxiliaryBarPane = false;
   private layoutTransitionPart: Parts.SIDEBAR_PART | Parts.AUXILIARYBAR_PART | null = null;
   private layoutTransitionTimer: ReturnType<typeof setTimeout> | null = null;
+  private canNavigateBack = false;
+  private canNavigateForward = false;
+  private suppressAuxiliaryBar = false;
+  private workbenchPaneLabelledBy = WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS.table;
 
   public readonly element = document.createElement("div");
 
@@ -172,12 +167,6 @@ export class Layout extends Disposable {
       this.mount(parent);
     }
 
-    if (this.workbenchLayoutService) {
-      this._register(this.workbenchLayoutService.onDidChangeWorkbenchNavigation(() => {
-        this.clearLayoutTransition();
-        this.render();
-      }));
-    }
     this._register(this.sidebarPart.onDidChangeWidth(() => this.render()));
     this._register(this.auxiliaryBarPart.onDidChangeWidth(() => this.render()));
     if (this.workbenchLayoutService) {
@@ -193,40 +182,12 @@ export class Layout extends Disposable {
     parent.replaceChildren(this.element);
   }
 
-  public get activeView(): WorkbenchMainPart {
-    return this.workbenchLayoutService?.activeView ?? "table";
-  }
-
-  public get activeWorkbenchMainPart(): WorkbenchMainPart {
-    return this.workbenchLayoutService?.activeWorkbenchMainPart ?? "table";
-  }
-
-  public get state(): WorkbenchLayoutNavigationState {
-    return this.createLayoutNavigationState();
+  public get state(): WorkbenchLayoutState {
+    return this.createLayoutState();
   }
 
   public get sidebarVisible(): boolean {
     return this.isPartVisible(Parts.SIDEBAR_PART);
-  }
-
-  public navigateBack(): void {
-    this.workbenchLayoutService?.navigateBack();
-  }
-
-  public navigateForward(): void {
-    this.workbenchLayoutService?.navigateForward();
-  }
-
-  public navigateToView(view: WorkbenchMainPart): void {
-    this.workbenchLayoutService?.navigateToView(view);
-  }
-
-  public resetToView(view: WorkbenchMainPart): void {
-    this.workbenchLayoutService?.resetToView(view);
-  }
-
-  public selectView(view: string): void {
-    this.workbenchLayoutService?.selectView(view);
   }
 
   public setParts(parts: LayoutParts): void {
@@ -235,6 +196,29 @@ export class Layout extends Disposable {
     }
 
     this.parts = parts;
+    this.render();
+  }
+
+  public setWorkbenchPaneState({
+    canNavigateBack,
+    canNavigateForward,
+    suppressAuxiliaryBar,
+    workbenchPaneLabelledBy,
+  }: LayoutStateInput): void {
+    if (
+      this.canNavigateBack === canNavigateBack &&
+      this.canNavigateForward === canNavigateForward &&
+      this.suppressAuxiliaryBar === suppressAuxiliaryBar &&
+      this.workbenchPaneLabelledBy === workbenchPaneLabelledBy
+    ) {
+      return;
+    }
+
+    this.canNavigateBack = canNavigateBack;
+    this.canNavigateForward = canNavigateForward;
+    this.suppressAuxiliaryBar = suppressAuxiliaryBar;
+    this.workbenchPaneLabelledBy = workbenchPaneLabelledBy;
+    this.clearLayoutTransition();
     this.render();
   }
 
@@ -310,16 +294,16 @@ export class Layout extends Disposable {
   }
 
   protected getActiveAuxiliaryBarView(
-    workbenchMainPart: WorkbenchMainPart,
+    panelContainerId: string,
   ): ReturnType<AuxiliaryBarPart["getActiveView"]> {
-    return this.auxiliaryBarPart.getActiveView(workbenchMainPart);
+    return this.auxiliaryBarPart.getActiveView(panelContainerId);
   }
 
-  protected getActiveAuxiliaryBarViewContainerId(
-    workbenchMainPart: WorkbenchMainPart,
+  protected getActiveAuxiliaryBarContainerIdForPanel(
+    panelContainerId: string,
     activeView: string,
-  ): ReturnType<AuxiliaryBarPart["getActiveViewContainerId"]> {
-    return this.auxiliaryBarPart.getActiveViewContainerId(workbenchMainPart, activeView);
+  ): string | null {
+    return this.auxiliaryBarPart.getActiveContainerIdForPanel(panelContainerId, activeView);
   }
 
   private renderWorkbenchMain(): void {
@@ -560,52 +544,48 @@ export class Layout extends Disposable {
   }
 
   private isPartVisible(part: Parts): boolean {
-    if (part === Parts.AUXILIARYBAR_PART && this.activeWorkbenchMainPart === "settings") {
+    if (part === Parts.AUXILIARYBAR_PART && this.suppressAuxiliaryBar) {
       return false;
     }
 
     return this.workbenchLayoutService?.isVisible(part) ?? true;
   }
 
-  private createLayoutNavigationState(): WorkbenchLayoutNavigationState {
-    const state = this.workbenchLayoutService?.getWorkbenchNavigationState() ??
-      DEFAULT_WORKBENCH_NAVIGATION_STATE;
-
+  private createLayoutState(): WorkbenchLayoutState {
     return {
-      ...state,
+      canNavigateBack: this.canNavigateBack,
+      canNavigateForward: this.canNavigateForward,
+      suppressAuxiliaryBar: this.suppressAuxiliaryBar,
+      workbenchPaneLabelledBy: this.workbenchPaneLabelledBy,
       layoutState: getLayoutState({
-        activeMainPart: state.activeMainPart,
-        activeView: state.activeView,
-        historyIndex: state.historyIndex,
-        historyLength: state.historyLength,
+        canNavigateBack: this.canNavigateBack,
+        canNavigateForward: this.canNavigateForward,
+        suppressAuxiliaryBar: this.suppressAuxiliaryBar,
+        workbenchPaneLabelledBy: this.workbenchPaneLabelledBy,
       }),
     };
   }
 }
 
 export const getLayoutState = ({
-  activeMainPart,
-  activeView,
-  historyIndex,
-  historyLength,
+  canNavigateBack,
+  canNavigateForward,
+  workbenchPaneLabelledBy,
 }: LayoutStateInput) => {
-  const workbenchLabelledBy = WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS[activeMainPart];
-
   return {
-    activeView,
-    canNavigateBack: historyIndex > 0,
-    canNavigateForward: historyIndex < historyLength - 1,
+    canNavigateBack,
+    canNavigateForward,
     panes: {
       workbench: {
         ...VIEW_PANES.workbench,
-        labelledBy: workbenchLabelledBy,
+        labelledBy: workbenchPaneLabelledBy,
         isActive: true,
       },
     },
   };
 };
 
-export type WorkbenchLayoutNavigationState = IWorkbenchNavigationState & {
+export type WorkbenchLayoutState = LayoutStateInput & {
   layoutState: LayoutState;
 };
 
