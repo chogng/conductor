@@ -7,6 +7,7 @@ import { createDecorator } from "src/cs/platform/instantiation/common/instantiat
 export const IOriginService = createDecorator<IOriginService>("originService");
 
 export const OriginContributionId = "workbench.contrib.origin";
+export const OriginExportSettingsViewContainerId = "workbench.viewContainer.originSettings";
 export const OriginExportSettingsViewId = "workbench.origin.exportSettings";
 
 export const OriginCommandId = {

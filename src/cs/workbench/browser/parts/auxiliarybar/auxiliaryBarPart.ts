@@ -15,20 +15,24 @@ import {
 } from "src/cs/platform/actions/common/actions";
 import type { IContextKeyService } from "src/cs/platform/contextkey/common/contextkey";
 import type { TemplateMode } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
+import { TemplateViewContainerId } from "src/cs/workbench/contrib/template/common/template";
 import {
   ExportCommandId,
+  ExportViewContainerId,
 } from "src/cs/workbench/services/export/common/export";
 import {
   OriginCommandId,
+  OriginExportSettingsViewContainerId,
 } from "src/cs/workbench/services/origin/common/origin";
 import {
   ParametersCommandId,
+  ParametersViewContainerId,
 } from "src/cs/workbench/services/parameters/common/parameters";
 import {
   SearchCommandId,
+  SearchViewContainerId,
 } from "src/cs/workbench/services/search/common/search";
 import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
-import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import {
   StorageScope,
   StorageTarget,
@@ -59,30 +63,30 @@ type AuxiliaryBarViewSwitchAction = IAction & {
 
 const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
   {
-    containerId: WorkbenchViewContainers.template,
+    containerId: TemplateViewContainerId,
     id: "template",
     workbenchMainPart: "table",
   },
   {
-    containerId: WorkbenchViewContainers.search,
+    containerId: SearchViewContainerId,
     id: "search",
     commandId: SearchCommandId.showSearch,
     workbenchMainPart: "chart",
   },
   {
-    containerId: WorkbenchViewContainers.export,
+    containerId: ExportViewContainerId,
     id: "export",
     commandId: ExportCommandId.showExport,
     workbenchMainPart: "chart",
   },
   {
-    containerId: WorkbenchViewContainers.parameters,
+    containerId: ParametersViewContainerId,
     id: "parameters",
     commandId: ParametersCommandId.showParameters,
     workbenchMainPart: "chart",
   },
   {
-    containerId: WorkbenchViewContainers.originSettings,
+    containerId: OriginExportSettingsViewContainerId,
     id: "settings",
     commandId: OriginCommandId.showExportSettings,
     workbenchMainPart: "chart",

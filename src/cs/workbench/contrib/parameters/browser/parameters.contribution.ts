@@ -16,7 +16,6 @@ import {
   ActiveAuxiliaryBarViewContext,
   ActiveWorkbenchMainPartContext,
 } from "src/cs/workbench/browser/contextkeys";
-import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import {
   Extensions as ViewExtensions,
   type IViewContainersRegistry,
@@ -26,6 +25,7 @@ import { registerParametersCommands } from "src/cs/workbench/contrib/parameters/
 import { ParametersViewPane } from "src/cs/workbench/contrib/parameters/browser/parametersViewPane";
 import {
   ParametersContributionId,
+  ParametersViewContainerId,
   ParametersViewId,
 } from "src/cs/workbench/services/parameters/common/parameters";
 
@@ -47,7 +47,7 @@ function registerParametersView(): void {
 
   const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
   const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-  const container = viewContainersRegistry.get(WorkbenchViewContainers.parameters);
+  const container = viewContainersRegistry.get(ParametersViewContainerId);
   if (!container) {
     return;
   }

@@ -12,7 +12,6 @@ import {
   WorkbenchPhase,
   type IWorkbenchContribution,
 } from "src/cs/workbench/common/contributions";
-import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import { ActiveWorkbenchMainPartContext } from "src/cs/workbench/browser/contextkeys";
 import {
   Extensions as ViewExtensions,
@@ -21,6 +20,7 @@ import {
 } from "src/cs/workbench/common/views";
 import {
   TableContributionId,
+  TableViewContainerId,
   TableViewId,
 } from "src/cs/workbench/contrib/table/common/table";
 import TableViewPane from "src/cs/workbench/contrib/table/browser/tableViewPane";
@@ -46,7 +46,7 @@ function registerTableView(): void {
 
   const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
   const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-  const container = viewContainersRegistry.get(WorkbenchViewContainers.table);
+  const container = viewContainersRegistry.get(TableViewContainerId);
   if (!container) {
     return;
   }

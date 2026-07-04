@@ -32,21 +32,28 @@ import type {
   ServicesAccessor,
 } from "src/cs/platform/instantiation/common/instantiation";
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
-import { IChartService } from "src/cs/workbench/services/chart/common/chart";
+import { ChartViewContainerId, IChartService } from "src/cs/workbench/services/chart/common/chart";
 import { ICalculationService } from "src/cs/workbench/services/calculation/common/calculation";
 import {
+  ExplorerViewContainerId,
   IExplorerService,
   type ExplorerViewLayout,
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
   IParametersService,
+  ParametersViewContainerId,
 } from "src/cs/workbench/services/parameters/common/parameters";
 import { IPlotService } from "src/cs/workbench/services/plot/common/plot";
 import { IThumbnailPreviewService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
+import { ThumbnailViewContainerId } from "src/cs/workbench/contrib/thumbnail/common/thumbnail";
 import {
   ISettingsService,
   type SettingsServiceOptions,
 } from "src/cs/workbench/services/settings/common/settings";
+import {
+  SettingsNavigationViewContainerId,
+  SettingsViewContainerId,
+} from "src/cs/workbench/contrib/settings/common/settings";
 import {
   IWorkbenchLayoutService,
   Parts,
@@ -56,7 +63,6 @@ import { IViewsService } from "src/cs/workbench/services/views/common/viewsServi
 import { localize } from "src/cs/nls";
 import { isThemeMode } from "src/cs/workbench/common/theme";
 import { startPerf } from "src/cs/workbench/common/perf";
-import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import {
   ActiveAuxiliaryBarViewContext,
   ActiveWorkbenchMainPartContext,
@@ -78,6 +84,7 @@ import {
   resolveExplorerDomainSelection,
 } from "src/cs/workbench/browser/workbenchDomainBridge";
 import { ITableService } from "src/cs/workbench/services/table/common/table";
+import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
 import {
   ISessionService,
   type ISessionService as ISessionServiceType,
@@ -89,20 +96,25 @@ import {
   ITemplateViewStateService,
   type ITemplateViewStateService as ITemplateViewStateServiceType,
 } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
+import { TemplateViewContainerId } from "src/cs/workbench/contrib/template/common/template";
 import {
   ISliceService,
   type ISliceService as ISliceServiceType,
 } from "src/cs/workbench/services/slice/common/slice";
 import {
   IExportService,
+  ExportViewContainerId,
   type ExportState,
 } from "src/cs/workbench/services/export/common/export";
+import { OriginExportSettingsViewContainerId } from "src/cs/workbench/services/origin/common/origin";
+import { SearchViewContainerId } from "src/cs/workbench/services/search/common/search";
 import {
   INotificationService,
   NotificationService,
 } from "src/cs/workbench/services/notification/common/notificationService";
 import { NotificationToasts } from "src/cs/workbench/browser/parts/notifications/notificationsToasts";
 import { registerNotificationCommands } from "src/cs/workbench/browser/parts/notifications/notificationsCommands";
+import { NotificationStatus } from "src/cs/workbench/browser/parts/notifications/notificationsStatus";
 
 //#endregion
 
@@ -125,6 +137,20 @@ type WorkbenchAuxiliaryRefreshReason =
   | "exportState"
   | "templateState"
   | `session:${string}`;
+
+const WorkbenchLayoutViewContainerIds = [
+  ExplorerViewContainerId,
+  ThumbnailViewContainerId,
+  SettingsNavigationViewContainerId,
+  TableViewContainerId,
+  ChartViewContainerId,
+  SettingsViewContainerId,
+  TemplateViewContainerId,
+  SearchViewContainerId,
+  ExportViewContainerId,
+  ParametersViewContainerId,
+  OriginExportSettingsViewContainerId,
+] as const;
 
 export type WorkbenchSidebarSurface =
   | "explorer"
@@ -492,6 +518,8 @@ export class Workbench extends Layout {
 
   private readonly window: WorkbenchWindow;
   private readonly notifications: NotificationToasts;
+  private readonly notificationStatus: NotificationStatus;
+  private readonly notificationsOverlay = document.createElement("div");
   private readonly services: Lazy<WorkbenchServices>;
   private readonly shellServices: WorkbenchShellServices;
   private languagePreference: LanguagePreference = getInitialLanguagePreference();
@@ -550,6 +578,9 @@ export class Workbench extends Layout {
       titleService: shellServices.titleService ?? options.titleService,
     }));
     this.notifications = this._register(new NotificationToasts());
+    this.notificationStatus = this._register(new NotificationStatus());
+    this.notificationsOverlay.className = "workbench_notifications_overlay";
+    this.notificationsOverlay.append(this.notificationStatus.element, this.notifications.element);
     this.mount(this.window.contentElement);
     if ("titlebarState" in options) {
       shellServices.titleService?.updateTitlebarState(options.titlebarState);
@@ -941,7 +972,7 @@ export class Workbench extends Layout {
           this.getActiveAuxiliaryBarContainerId(),
           null,
         ),
-        overlay: this.notifications.element,
+        overlay: this.notificationsOverlay,
       });
     });
 
@@ -993,9 +1024,12 @@ export class Workbench extends Layout {
 
     disposables.add(registerNotificationCommands(this.notifications, this.commandService));
 
-    const registerToastSource = (source: NotificationService): void => {
+    const registerNotificationSource = (source: NotificationService): void => {
       for (const toast of source.toasts) {
         this.notifications.show(toast);
+      }
+      if (source.statusMessage) {
+        this.notificationStatus.show(source.statusMessage);
       }
 
       disposables.add(source.onDidChangeToast(event => {
@@ -1014,9 +1048,20 @@ export class Workbench extends Layout {
             break;
         }
       }));
+
+      disposables.add(source.onDidChangeStatusMessage(event => {
+        switch (event.kind) {
+          case "add":
+            this.notificationStatus.show(event.item);
+            break;
+          case "remove":
+            this.notificationStatus.hide(event.item);
+            break;
+        }
+      }));
     };
 
-    registerToastSource(this.notificationService);
+    registerNotificationSource(this.notificationService);
 
     return disposables;
   }
@@ -1106,24 +1151,24 @@ export class Workbench extends Layout {
   private getSidebarContainerId(surface: WorkbenchSidebarSurface): string {
     switch (surface) {
       case "settingsNavigation":
-        return WorkbenchViewContainers.settingsNavigation;
+        return SettingsNavigationViewContainerId;
       case "thumbnail":
-        return WorkbenchViewContainers.thumbnail;
+        return ThumbnailViewContainerId;
       case "explorer":
       default:
-        return WorkbenchViewContainers.files;
+        return ExplorerViewContainerId;
     }
   }
 
   private getActiveWorkbenchContainerId(): string {
     switch (this.activeWorkbenchMainPart) {
       case "chart":
-        return WorkbenchViewContainers.chart;
+        return ChartViewContainerId;
       case "settings":
-        return WorkbenchViewContainers.settings;
+        return SettingsViewContainerId;
       case "table":
       default:
-        return WorkbenchViewContainers.table;
+        return TableViewContainerId;
     }
   }
 
@@ -1201,7 +1246,7 @@ export class Workbench extends Layout {
   }
 
   private layoutVisibleViewContainers(): void {
-    for (const id of Object.values(WorkbenchViewContainers)) {
+    for (const id of WorkbenchLayoutViewContainerIds) {
       this.viewsService.getActiveViewPaneContainerWithId(id)?.layout?.();
     }
   }

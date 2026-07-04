@@ -5,7 +5,6 @@
 import { localize } from "src/cs/nls";
 import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
 import { Registry } from "src/cs/platform/registry/common/platform";
-import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import {
   Extensions as ViewExtensions,
   type IViewContainersRegistry,
@@ -13,11 +12,14 @@ import {
 } from "src/cs/workbench/common/views";
 import "src/cs/workbench/contrib/files/browser/fileActions.contribution";
 import { ExplorerViewPane } from "src/cs/workbench/contrib/files/browser/explorerViewlet";
-import { ExplorerViewId } from "src/cs/workbench/contrib/files/browser/files";
+import {
+  ExplorerViewContainerId,
+  ExplorerViewId,
+} from "src/cs/workbench/contrib/files/browser/files";
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-const container = viewContainersRegistry.get(WorkbenchViewContainers.files);
+const container = viewContainersRegistry.get(ExplorerViewContainerId);
 
 if (container) {
   viewsRegistry.registerViews([{

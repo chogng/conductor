@@ -12,7 +12,6 @@ import {
   ActiveAuxiliaryBarViewContext,
   ActiveWorkbenchMainPartContext,
 } from "src/cs/workbench/browser/contextkeys";
-import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import {
   Extensions as ViewExtensions,
   type IViewContainersRegistry,
@@ -22,6 +21,7 @@ import { registerOriginCommands } from "src/cs/workbench/contrib/origin/browser/
 import { OriginSettingsViewPane } from "src/cs/workbench/contrib/origin/browser/originSettingsViewPane";
 import {
   OriginContributionId,
+  OriginExportSettingsViewContainerId,
   OriginExportSettingsViewId,
 } from "src/cs/workbench/services/origin/common/origin";
 
@@ -43,7 +43,7 @@ function registerOriginView(): void {
 
   const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
   const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-  const container = viewContainersRegistry.get(WorkbenchViewContainers.originSettings);
+  const container = viewContainersRegistry.get(OriginExportSettingsViewContainerId);
   if (!container) {
     return;
   }

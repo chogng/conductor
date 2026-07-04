@@ -16,7 +16,6 @@ import {
   ActiveAuxiliaryBarViewContext,
   ActiveWorkbenchMainPartContext,
 } from "src/cs/workbench/browser/contextkeys";
-import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import {
   Extensions as ViewExtensions,
   type IViewContainersRegistry,
@@ -26,6 +25,7 @@ import { registerSearchCommands } from "src/cs/workbench/contrib/search/browser/
 import { SearchViewPane } from "src/cs/workbench/contrib/search/browser/searchViewPane";
 import {
   SearchContributionId,
+  SearchViewContainerId,
   SearchViewId,
 } from "src/cs/workbench/services/search/common/search";
 
@@ -47,7 +47,7 @@ function registerSearchView(): void {
 
   const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
   const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-  const container = viewContainersRegistry.get(WorkbenchViewContainers.search);
+  const container = viewContainersRegistry.get(SearchViewContainerId);
   if (!container) {
     return;
   }

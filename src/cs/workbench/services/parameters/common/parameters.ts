@@ -10,6 +10,7 @@ import type {
 
 export const IParametersService = createDecorator<IParametersService>("parametersService");
 export const ParametersContributionId = "workbench.contrib.parameters";
+export const ParametersViewContainerId = "workbench.viewContainer.parameters";
 export const ParametersViewId = "workbench.parameters";
 
 export const ParametersCommandId = {

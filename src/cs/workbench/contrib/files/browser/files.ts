@@ -21,6 +21,7 @@ import type {
 } from "src/cs/workbench/services/slice/common/templateSelection";
 
 export const IExplorerService = createDecorator<IExplorerService>("explorerService");
+export const ExplorerViewContainerId = "workbench.viewContainer.files";
 export const ExplorerViewId = "workbench.files";
 
 export type ExplorerViewLayout = FilesViewLayout;

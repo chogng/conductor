@@ -10,6 +10,7 @@ import type { DataResourceStructuredContentSnapshot } from "src/cs/workbench/ser
 
 export const ISearchService = createDecorator<ISearchService>("searchService");
 export const SearchContributionId = "workbench.contrib.search";
+export const SearchViewContainerId = "workbench.viewContainer.search";
 export const SearchViewId = "workbench.search";
 
 export const SearchCommandId = {

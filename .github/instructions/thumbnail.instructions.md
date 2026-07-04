@@ -57,8 +57,8 @@ Explorer file filtering.
 ## Explorer Integration
 
 Explorer is one resource manager with two sidebar containers:
-`WorkbenchViewContainers.files` hosts `ExplorerViewId` for the tree surface, and
-`WorkbenchViewContainers.thumbnail` hosts `ThumbnailViewId` for the thumbnail
+`ExplorerViewContainerId` hosts `ExplorerViewId` for the tree surface, and
+`ThumbnailViewContainerId` hosts `ThumbnailViewId` for the thumbnail
 surface. The thumbnail toggle action is thumbnail-specific UI, but the command
 delegates to `IExplorerService.toggleViewLayout()` because Explorer owns layout
 state and Workbench uses that state to choose which sidebar container is active
@@ -84,8 +84,8 @@ hover content.
 
 ```mermaid
 flowchart TD
-    WorkbenchFilesContainer[WorkbenchViewContainers.files] --> ExplorerSurface[ExplorerViewId tree surface]
-    WorkbenchThumbnailContainer[WorkbenchViewContainers.thumbnail] --> ThumbnailSurface[ThumbnailViewId thumbnail surface]
+    WorkbenchFilesContainer[ExplorerViewContainerId] --> ExplorerSurface[ExplorerViewId tree surface]
+    WorkbenchThumbnailContainer[ThumbnailViewContainerId] --> ThumbnailSurface[ThumbnailViewId thumbnail surface]
     ExplorerService[IExplorerService layout/selection/visibility] --> ExplorerSurface
     ExplorerService --> ThumbnailSurface
     ExplorerSurface --> ExplorerViewer[ExplorerViewer]

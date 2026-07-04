@@ -9,7 +9,6 @@ import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors
 import { Registry } from "src/cs/platform/registry/common/platform";
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from "src/cs/workbench/common/contributions";
 import { ActiveWorkbenchMainPartContext } from "src/cs/workbench/browser/contextkeys";
-import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import {
   Extensions as ViewExtensions,
   type IViewContainersRegistry,
@@ -17,6 +16,7 @@ import {
 } from "src/cs/workbench/common/views";
 import {
   ChartContributionId,
+  ChartViewContainerId,
   ChartViewId,
 } from "src/cs/workbench/services/chart/common/chart";
 import { registerChartCommands } from "src/cs/workbench/contrib/chart/browser/chartCommands";
@@ -40,7 +40,7 @@ function registerChartView(): void {
 
   const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
   const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-  const container = viewContainersRegistry.get(WorkbenchViewContainers.chart);
+  const container = viewContainersRegistry.get(ChartViewContainerId);
   if (!container) {
     return;
   }

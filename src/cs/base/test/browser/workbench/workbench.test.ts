@@ -17,12 +17,24 @@ import {
   WorkbenchDomainBridge,
   type WorkbenchDomainBridgeOptions,
 } from "src/cs/workbench/browser/workbenchDomainBridge";
-import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import {
   BrowserWorkbenchLayoutService,
   Parts,
 } from "src/cs/workbench/services/layout/browser/layoutService";
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
+import { ExplorerViewContainerId } from "src/cs/workbench/contrib/files/browser/files";
+import {
+  SettingsNavigationViewContainerId,
+  SettingsViewContainerId,
+} from "src/cs/workbench/contrib/settings/common/settings";
+import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
+import { TemplateViewContainerId } from "src/cs/workbench/contrib/template/common/template";
+import { ThumbnailViewContainerId } from "src/cs/workbench/contrib/thumbnail/common/thumbnail";
+import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
+import { ExportViewContainerId } from "src/cs/workbench/services/export/common/export";
+import { OriginExportSettingsViewContainerId } from "src/cs/workbench/services/origin/common/origin";
+import { ParametersViewContainerId } from "src/cs/workbench/services/parameters/common/parameters";
+import { SearchViewContainerId } from "src/cs/workbench/services/search/common/search";
 import type { ThumbnailPreviewChangeEvent } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import {
@@ -34,12 +46,25 @@ import type { IViewsService } from "src/cs/workbench/services/views/common/views
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 type WorkbenchService<K extends keyof WorkbenchOptions> = NonNullable<WorkbenchOptions[K]>;
+const WorkbenchTestViewContainerIds = [
+  ExplorerViewContainerId,
+  ThumbnailViewContainerId,
+  SettingsNavigationViewContainerId,
+  TableViewContainerId,
+  ChartViewContainerId,
+  SettingsViewContainerId,
+  TemplateViewContainerId,
+  SearchViewContainerId,
+  ExportViewContainerId,
+  ParametersViewContainerId,
+  OriginExportSettingsViewContainerId,
+] as const;
 const AuxiliaryBarViewContainers = [
-  WorkbenchViewContainers.template,
-  WorkbenchViewContainers.search,
-  WorkbenchViewContainers.export,
-  WorkbenchViewContainers.parameters,
-  WorkbenchViewContainers.originSettings,
+  TemplateViewContainerId,
+  SearchViewContainerId,
+  ExportViewContainerId,
+  ParametersViewContainerId,
+  OriginExportSettingsViewContainerId,
 ] as const;
 
 class TestStorageService extends AbstractStorageService {
@@ -134,7 +159,7 @@ class RecordingViewsService implements IViewsService {
   public constructor(
     private readonly layoutService: BrowserWorkbenchLayoutService,
   ) {
-    for (const id of Object.values(WorkbenchViewContainers)) {
+    for (const id of WorkbenchTestViewContainerIds) {
       const container = new TestViewPaneContainer();
       container.element.dataset.containerId = id;
       this.elements.set(id, container.element);
@@ -215,16 +240,16 @@ class RecordingViewsService implements IViewsService {
 
   private updatePartVisibility(id: string, visible: boolean): void {
     switch (id) {
-      case WorkbenchViewContainers.files:
-      case WorkbenchViewContainers.thumbnail:
-      case WorkbenchViewContainers.settingsNavigation:
+      case ExplorerViewContainerId:
+      case ThumbnailViewContainerId:
+      case SettingsNavigationViewContainerId:
         this.layoutService.setPartHidden(!visible, Parts.SIDEBAR_PART);
         break;
-      case WorkbenchViewContainers.template:
-      case WorkbenchViewContainers.search:
-      case WorkbenchViewContainers.export:
-      case WorkbenchViewContainers.parameters:
-      case WorkbenchViewContainers.originSettings:
+      case TemplateViewContainerId:
+      case SearchViewContainerId:
+      case ExportViewContainerId:
+      case ParametersViewContainerId:
+      case OriginExportSettingsViewContainerId:
         this.layoutService.setPartHidden(!visible, Parts.AUXILIARYBAR_PART);
         break;
       default:
@@ -272,9 +297,9 @@ suite("workbench/browser/workbench layout integration", () => {
         hasSidebar: true,
         hasSplit: true,
       }]);
-      assert.equal(viewsService.openCalls.includes(WorkbenchViewContainers.files), true);
-      assert.equal(viewsService.openCalls.includes(WorkbenchViewContainers.table), true);
-      assert.equal(viewsService.openCalls.includes(WorkbenchViewContainers.template), true);
+      assert.equal(viewsService.openCalls.includes(ExplorerViewContainerId), true);
+      assert.equal(viewsService.openCalls.includes(TableViewContainerId), true);
+      assert.equal(viewsService.openCalls.includes(TemplateViewContainerId), true);
     } finally {
       workbench.dispose();
       contextKeyService.dispose();
@@ -306,10 +331,10 @@ suite("workbench/browser/workbench layout integration", () => {
       await Promise.resolve();
 
       assert.equal(layoutService.isVisible(Parts.AUXILIARYBAR_PART), true);
-      assert.equal(viewsService.openCalls.includes(WorkbenchViewContainers.settingsNavigation), true);
-      assert.equal(viewsService.openCalls.includes(WorkbenchViewContainers.settings), true);
-      assert.equal(viewsService.openCalls.includes(WorkbenchViewContainers.files), false);
-      assert.equal(viewsService.openCalls.includes(WorkbenchViewContainers.thumbnail), false);
+      assert.equal(viewsService.openCalls.includes(SettingsNavigationViewContainerId), true);
+      assert.equal(viewsService.openCalls.includes(SettingsViewContainerId), true);
+      assert.equal(viewsService.openCalls.includes(ExplorerViewContainerId), false);
+      assert.equal(viewsService.openCalls.includes(ThumbnailViewContainerId), false);
       assert.deepEqual(
         viewsService.closeCalls.filter(id => AuxiliaryBarViewContainers.includes(id as typeof AuxiliaryBarViewContainers[number])),
         [],
@@ -321,9 +346,9 @@ suite("workbench/browser/workbench layout integration", () => {
       await Promise.resolve();
 
       assert.equal(layoutService.isVisible(Parts.AUXILIARYBAR_PART), true);
-      assert.equal(viewsService.openCalls.includes(WorkbenchViewContainers.files), true);
-      assert.equal(viewsService.openCalls.includes(WorkbenchViewContainers.table), true);
-      assert.equal(viewsService.openCalls.includes(WorkbenchViewContainers.thumbnail), false);
+      assert.equal(viewsService.openCalls.includes(ExplorerViewContainerId), true);
+      assert.equal(viewsService.openCalls.includes(TableViewContainerId), true);
+      assert.equal(viewsService.openCalls.includes(ThumbnailViewContainerId), false);
       assert.deepEqual(
         viewsService.closeCalls.filter(id => AuxiliaryBarViewContainers.includes(id as typeof AuxiliaryBarViewContainers[number])),
         [],
@@ -364,18 +389,18 @@ suite("workbench/browser/workbench layout integration", () => {
       layoutService.navigateToView("chart");
       await Promise.resolve();
 
-      assert.equal(viewsService.openCalls.includes(WorkbenchViewContainers.files), true);
-      assert.equal(viewsService.openCalls.includes(WorkbenchViewContainers.chart), true);
-      assert.equal(viewsService.openCalls.includes(WorkbenchViewContainers.thumbnail), false);
+      assert.equal(viewsService.openCalls.includes(ExplorerViewContainerId), true);
+      assert.equal(viewsService.openCalls.includes(ChartViewContainerId), true);
+      assert.equal(viewsService.openCalls.includes(ThumbnailViewContainerId), false);
 
       viewsService.clearCalls();
       explorerService.setViewLayout("thumbnail");
       await Promise.resolve();
 
-      assert.equal(viewsService.openCalls.includes(WorkbenchViewContainers.thumbnail), true);
-      assert.equal(viewsService.openCalls.includes(WorkbenchViewContainers.chart), true);
+      assert.equal(viewsService.openCalls.includes(ThumbnailViewContainerId), true);
+      assert.equal(viewsService.openCalls.includes(ChartViewContainerId), true);
       assert.equal(
-        (viewsService.getActiveViewPaneContainerWithId(WorkbenchViewContainers.thumbnail) as TestViewPaneContainer | null)?.title,
+        (viewsService.getActiveViewPaneContainerWithId(ThumbnailViewContainerId) as TestViewPaneContainer | null)?.title,
         "Thumbnail",
       );
     } finally {
@@ -667,6 +692,8 @@ const createWorkbenchOptions = ({
   const notificationService = {
     get toasts() { return []; },
     onDidChangeToast: Event.None,
+    get statusMessage() { return undefined; },
+    onDidChangeStatusMessage: Event.None,
   } as unknown as WorkbenchService<"notificationService">;
   const tableViewModel = {
     getState: () => ({}),

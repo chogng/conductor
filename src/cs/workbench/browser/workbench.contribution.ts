@@ -5,12 +5,24 @@ import { Registry } from "src/cs/platform/registry/common/platform";
 import { ViewPaneContainer } from "src/cs/workbench/browser/parts/views/viewPaneContainer";
 import { Workbench } from "src/cs/workbench/browser/workbench";
 import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layoutCommands";
-import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions";
 import "src/cs/workbench/browser/parts/sidebar/sidebarActions";
 import { createAuxiliaryBarActionViewItem } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
 import { createSidebarActionViewItem } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import { hideWorkbenchSplash } from "src/cs/workbench/browser/parts/splash/partsSplash";
+import { ExplorerViewContainerId } from "src/cs/workbench/contrib/files/browser/files";
+import {
+  SettingsNavigationViewContainerId,
+  SettingsViewContainerId,
+} from "src/cs/workbench/contrib/settings/common/settings";
+import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
+import { TemplateViewContainerId } from "src/cs/workbench/contrib/template/common/template";
+import { ThumbnailViewContainerId } from "src/cs/workbench/contrib/thumbnail/common/thumbnail";
+import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
+import { ExportViewContainerId } from "src/cs/workbench/services/export/common/export";
+import { OriginExportSettingsViewContainerId } from "src/cs/workbench/services/origin/common/origin";
+import { ParametersViewContainerId } from "src/cs/workbench/services/parameters/common/parameters";
+import { SearchViewContainerId } from "src/cs/workbench/services/search/common/search";
 import {
   CommandsRegistry,
 } from "src/cs/platform/commands/common/commands";
@@ -40,57 +52,57 @@ const markBootUiReady = (source: string) => {
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 
 registerContainer(
-  WorkbenchViewContainers.files,
+  ExplorerViewContainerId,
   localize("workbench.views.files", "Files"),
   ViewContainerLocation.Sidebar,
 );
 registerContainer(
-  WorkbenchViewContainers.thumbnail,
+  ThumbnailViewContainerId,
   localize("workbench.views.thumbnail", "Thumbnail"),
   ViewContainerLocation.Sidebar,
 );
 registerContainer(
-  WorkbenchViewContainers.settingsNavigation,
+  SettingsNavigationViewContainerId,
   localize("workbench.views.settings", "Settings"),
   ViewContainerLocation.Sidebar,
 );
 registerContainer(
-  WorkbenchViewContainers.table,
+  TableViewContainerId,
   localize("workbench.views.table", "Table"),
   ViewContainerLocation.Panel,
 );
 registerContainer(
-  WorkbenchViewContainers.chart,
+  ChartViewContainerId,
   localize("workbench.views.chart", "Chart"),
   ViewContainerLocation.Panel,
 );
 registerContainer(
-  WorkbenchViewContainers.settings,
+  SettingsViewContainerId,
   localize("workbench.views.settings", "Settings"),
   ViewContainerLocation.Panel,
 );
 registerContainer(
-  WorkbenchViewContainers.template,
+  TemplateViewContainerId,
   localize("template.management.title", "Template Management"),
   ViewContainerLocation.AuxiliaryBar,
 );
 registerContainer(
-  WorkbenchViewContainers.search,
+  SearchViewContainerId,
   localize("chart.views.search", "Search"),
   ViewContainerLocation.AuxiliaryBar,
 );
 registerContainer(
-  WorkbenchViewContainers.export,
+  ExportViewContainerId,
   localize("chart.views.export", "Export"),
   ViewContainerLocation.AuxiliaryBar,
 );
 registerContainer(
-  WorkbenchViewContainers.parameters,
+  ParametersViewContainerId,
   localize("chart.views.parameters", "Parameters"),
   ViewContainerLocation.AuxiliaryBar,
 );
 registerContainer(
-  WorkbenchViewContainers.originSettings,
+  OriginExportSettingsViewContainerId,
   localize("origin.curveSettings.title", "Origin Settings"),
   ViewContainerLocation.AuxiliaryBar,
 );
@@ -128,9 +140,9 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
 
 function registerContainer(id: string, title: string, location: ViewContainerLocation): ViewContainer {
   const isAuxiliaryBar = location === ViewContainerLocation.AuxiliaryBar;
-  const isSidebar = id === WorkbenchViewContainers.files ||
-    id === WorkbenchViewContainers.thumbnail ||
-    id === WorkbenchViewContainers.settingsNavigation;
+  const isSidebar = id === ExplorerViewContainerId ||
+    id === ThumbnailViewContainerId ||
+    id === SettingsNavigationViewContainerId;
   return viewContainersRegistry.registerViewContainer({
     id,
     title,

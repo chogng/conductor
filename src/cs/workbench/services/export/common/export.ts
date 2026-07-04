@@ -22,6 +22,7 @@ import type {
 export const IExportService = createDecorator<IExportService>("exportService");
 
 export const ExportContributionId = "workbench.contrib.export";
+export const ExportViewContainerId = "workbench.viewContainer.export";
 export const ExportViewId = "workbench.export";
 
 export const ExportCommandId = {
