@@ -47,6 +47,10 @@ import {
 	type StructuredXRangeStepKind,
 } from "src/cs/workbench/services/dataResource/common/structuredContent";
 import {
+	createStructuredBlockSegments,
+	type StructuredBlockSegment,
+} from "src/cs/workbench/services/dataResource/common/structuredBlockSegmentation";
+import {
 	ISettingsService,
 	normalizeTemplateSemanticPatches,
 } from "src/cs/workbench/services/settings/common/settings";
@@ -435,6 +439,10 @@ const createStructuredContentEvidence = (
 	let bindingCandidateCount = 0;
 	try {
 		const rows = getStructuredContentRows(content);
+		const blockSegments = createStructuredBlockSegments({
+			columnCount: content.columnCount,
+			rows,
+		});
 		const explicitDataRowRanges = createExplicitDataRowRanges(rows, semanticMatcher);
 		const numericRuns = createNumericRuns({
 			columnCount: content.columnCount,
@@ -495,6 +503,7 @@ const createStructuredContentEvidence = (
 			rows,
 		});
 		const structure = createStructuredContentStructure({
+			blockSegments,
 			columnCount: content.columnCount,
 			dataBlockCandidates,
 			numericRuns,
@@ -2004,6 +2013,7 @@ const getVerticalRepeatedBlockBindingKey = (
 };
 
 const createStructuredContentStructure = ({
+	blockSegments,
 	columnCount,
 	dataBlockCandidates,
 	numericRuns,
@@ -2011,6 +2021,7 @@ const createStructuredContentStructure = ({
 	semanticRulesFingerprint,
 	titleSpans,
 }: {
+	readonly blockSegments: readonly StructuredBlockSegment[];
 	readonly columnCount: number;
 	readonly dataBlockCandidates: readonly StructuredDataBlockCandidate[];
 	readonly numericRuns: readonly NumericRun[];
@@ -2045,18 +2056,11 @@ const createStructuredContentStructure = ({
 		rowCount: block.endRow - block.startRow + 1,
 		columnCount: block.endCol - block.startCol + 1,
 	}));
-	const blockRegions = dataBlockCandidates.length
-		? dataBlockCandidates.map(block => ({
-			id: `block-region:${block.id}`,
-			range: {
-				startRow: block.startRow,
-				endRow: block.endRow,
-				startCol: block.startCol,
-				endCol: block.endCol,
-			},
-			kind: "single" as const,
-		}))
-		: [];
+	const blockRegions = blockSegments.map(segment => ({
+		id: `block-region:${segment.id}`,
+		range: segment.range,
+		kind: "single" as const,
+	}));
 	return {
 		headerRows,
 		unitRows: [],
@@ -2065,6 +2069,7 @@ const createStructuredContentStructure = ({
 		fingerprint: createStructureFingerprint({
 			columnCount,
 			dataBlockCandidates,
+			blockSegments,
 			rowCount,
 			semanticRulesFingerprint,
 			titleSpans,
@@ -2075,12 +2080,14 @@ const createStructuredContentStructure = ({
 const createStructureFingerprint = ({
 	columnCount,
 	dataBlockCandidates,
+	blockSegments,
 	rowCount,
 	semanticRulesFingerprint,
 	titleSpans,
 }: {
 	readonly columnCount: number;
 	readonly dataBlockCandidates: readonly StructuredDataBlockCandidate[];
+	readonly blockSegments: readonly StructuredBlockSegment[];
 	readonly rowCount: number;
 	readonly semanticRulesFingerprint: string;
 	readonly titleSpans: readonly StructuredColumnTitleSpanEvidence[];
@@ -2096,6 +2103,16 @@ const createStructureFingerprint = ({
 		block.endCol,
 		block.xColumn,
 		block.dependentColumns.join(","),
+	].join(":")).join("|"),
+	blockSegments.map(segment => [
+		segment.range.startRow,
+		segment.range.endRow,
+		segment.range.startCol,
+		segment.range.endCol,
+		segment.dataRange.startRow,
+		segment.dataRange.endRow,
+		segment.dataRange.startCol,
+		segment.dataRange.endCol,
 	].join(":")).join("|"),
 	titleSpans.map(span => [
 		span.targetColumn,
