@@ -6,10 +6,13 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
 import { Registry } from "src/cs/platform/registry/common/platform";
+import { createSidebarActionViewItem } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
+import { ViewPaneContainer } from "src/cs/workbench/browser/parts/views/viewPaneContainer";
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from "src/cs/workbench/common/contributions";
 import {
   Extensions as ViewExtensions,
   type IViewContainersRegistry,
+  ViewContainerLocation,
   type IViewsRegistry,
 } from "src/cs/workbench/common/views";
 import {
@@ -24,17 +27,25 @@ import "src/cs/workbench/contrib/thumbnail/browser/media/thumbnail.css";
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-const container = viewContainersRegistry.get(ThumbnailViewContainerId);
+const container = viewContainersRegistry.registerViewContainer({
+  id: ThumbnailViewContainerId,
+  title: localize("workbench.views.thumbnail", "Thumbnail"),
+  ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [{
+    actionViewItemProvider: createSidebarActionViewItem,
+    className: "workbench-part-view-pane-container",
+    id: ThumbnailViewContainerId,
+    renderHeader: true,
+    title: localize("workbench.views.thumbnail", "Thumbnail"),
+  }]),
+}, ViewContainerLocation.Sidebar, { isDefault: true, doNotRegisterOpenCommand: true });
 
-if (container) {
-  viewsRegistry.registerViews([{
-    id: ThumbnailViewId,
-    name: localize("files.thumbnailView", "Thumbnail"),
-    ctorDescriptor: new SyncDescriptor(ThumbnailViewPane),
-    hideByDefault: false,
-    order: 1,
-  }], container);
-}
+viewsRegistry.registerViews([{
+  id: ThumbnailViewId,
+  name: localize("files.thumbnailView", "Thumbnail"),
+  ctorDescriptor: new SyncDescriptor(ThumbnailViewPane),
+  hideByDefault: false,
+  order: 1,
+}], container);
 
 export class ThumbnailContribution extends Disposable implements IWorkbenchContribution {}
 

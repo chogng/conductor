@@ -1,8 +1,14 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
 import { Registry } from "src/cs/platform/registry/common/platform";
+import { createSidebarActionViewItem } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
+import { ViewPaneContainer } from "src/cs/workbench/browser/parts/views/viewPaneContainer";
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from "src/cs/workbench/common/contributions";
 import {
   SettingsNavigationViewContainerId,
@@ -13,6 +19,7 @@ import {
 import {
   Extensions as ViewExtensions,
   type IViewContainersRegistry,
+  ViewContainerLocation,
   type IViewsRegistry,
 } from "src/cs/workbench/common/views";
 import { registerSettingsActions } from "src/cs/workbench/contrib/settings/browser/settingsActions";
@@ -53,28 +60,43 @@ class SettingsNavigationViewPane extends ViewPane {
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-const sidebarContainer = viewContainersRegistry.get(SettingsNavigationViewContainerId);
-const settingsContainer = viewContainersRegistry.get(SettingsViewContainerId);
+const sidebarContainer = viewContainersRegistry.registerViewContainer({
+  id: SettingsNavigationViewContainerId,
+  title: localize("workbench.views.settings", "Settings"),
+  ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [{
+    actionViewItemProvider: createSidebarActionViewItem,
+    className: "workbench-part-view-pane-container",
+    id: SettingsNavigationViewContainerId,
+    renderHeader: true,
+    title: localize("workbench.views.settings", "Settings"),
+  }]),
+}, ViewContainerLocation.Sidebar, { isDefault: true, doNotRegisterOpenCommand: true });
+const settingsContainer = viewContainersRegistry.registerViewContainer({
+  id: SettingsViewContainerId,
+  title: localize("workbench.views.settings", "Settings"),
+  ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [{
+    className: "workbench-part-view-pane-container",
+    id: SettingsViewContainerId,
+    renderHeader: false,
+    title: localize("workbench.views.settings", "Settings"),
+  }]),
+}, ViewContainerLocation.Panel, { isDefault: true, doNotRegisterOpenCommand: true });
 
-if (sidebarContainer) {
-  viewsRegistry.registerViews([{
-    id: SettingsNavigationViewId,
-    name: localize("settings.title", "Settings"),
-    ctorDescriptor: new SyncDescriptor(SettingsNavigationViewPane),
-    hideByDefault: false,
-    order: 10,
-  }], sidebarContainer);
-}
+viewsRegistry.registerViews([{
+  id: SettingsNavigationViewId,
+  name: localize("settings.title", "Settings"),
+  ctorDescriptor: new SyncDescriptor(SettingsNavigationViewPane),
+  hideByDefault: false,
+  order: 10,
+}], sidebarContainer);
 
-if (settingsContainer) {
-  viewsRegistry.registerViews([{
-    id: SettingsViewId,
-    name: localize("settings.title", "Settings"),
-    ctorDescriptor: new SyncDescriptor(SettingsViewPane),
-    hideByDefault: false,
-    order: 0,
-  }], settingsContainer);
-}
+viewsRegistry.registerViews([{
+  id: SettingsViewId,
+  name: localize("settings.title", "Settings"),
+  ctorDescriptor: new SyncDescriptor(SettingsViewPane),
+  hideByDefault: false,
+  order: 0,
+}], settingsContainer);
 
 export class SettingsContribution extends Disposable implements IWorkbenchContribution {
   public constructor() {

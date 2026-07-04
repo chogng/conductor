@@ -7,6 +7,8 @@ import { localize } from "src/cs/nls";
 import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
 import { Registry } from "src/cs/platform/registry/common/platform";
 import { ContextKeyExpr } from "src/cs/platform/contextkey/common/contextkey";
+import { createAuxiliaryBarActionViewItem } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
+import { ViewPaneContainer } from "src/cs/workbench/browser/parts/views/viewPaneContainer";
 import {
   registerWorkbenchContribution2,
   WorkbenchPhase,
@@ -19,6 +21,7 @@ import {
 import {
   Extensions as ViewExtensions,
   type IViewContainersRegistry,
+  ViewContainerLocation,
   type IViewsRegistry,
 } from "src/cs/workbench/common/views";
 import { registerParametersCommands } from "src/cs/workbench/contrib/parameters/browser/parametersCommands";
@@ -28,6 +31,20 @@ import {
   ParametersViewContainerId,
   ParametersViewId,
 } from "src/cs/workbench/services/parameters/common/parameters";
+
+const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
+const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+const parametersContainer = viewContainersRegistry.registerViewContainer({
+  id: ParametersViewContainerId,
+  title: localize("chart.views.parameters", "Parameters"),
+  ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [{
+    actionViewItemProvider: createAuxiliaryBarActionViewItem,
+    className: "workbench-part-view-pane-container",
+    id: ParametersViewContainerId,
+    renderHeader: true,
+    title: localize("chart.views.parameters", "Parameters"),
+  }]),
+}, ViewContainerLocation.AuxiliaryBar, { isDefault: true, doNotRegisterOpenCommand: true });
 
 export class ParametersContribution extends Disposable implements IWorkbenchContribution {
   public constructor() {
@@ -45,13 +62,6 @@ function registerParametersView(): void {
     return;
   }
 
-  const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
-  const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-  const container = viewContainersRegistry.get(ParametersViewContainerId);
-  if (!container) {
-    return;
-  }
-
   parametersViewRegistered = true;
   viewsRegistry.registerViews([{
     id: ParametersViewId,
@@ -62,7 +72,7 @@ function registerParametersView(): void {
       ActiveWorkbenchMainPartContext.isEqualTo("chart"),
       ActiveAuxiliaryBarViewContext.isEqualTo("parameters"),
     ),
-  }], container);
+  }], parametersContainer);
 }
 
 registerWorkbenchContribution2(ParametersContributionId, ParametersContribution, WorkbenchPhase.BlockStartup);

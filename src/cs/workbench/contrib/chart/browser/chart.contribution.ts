@@ -7,11 +7,13 @@ import { localize } from "src/cs/nls";
 import { ContextKeyExpr } from "src/cs/platform/contextkey/common/contextkey";
 import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
 import { Registry } from "src/cs/platform/registry/common/platform";
+import { ViewPaneContainer } from "src/cs/workbench/browser/parts/views/viewPaneContainer";
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from "src/cs/workbench/common/contributions";
 import { ActiveWorkbenchMainPartContext } from "src/cs/workbench/browser/contextkeys";
 import {
   Extensions as ViewExtensions,
   type IViewContainersRegistry,
+  ViewContainerLocation,
   type IViewsRegistry,
 } from "src/cs/workbench/common/views";
 import {
@@ -21,6 +23,19 @@ import {
 } from "src/cs/workbench/services/chart/common/chart";
 import { registerChartCommands } from "src/cs/workbench/contrib/chart/browser/chartCommands";
 import ChartViewPane from "src/cs/workbench/contrib/chart/browser/chartViewPane";
+
+const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
+const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+const chartContainer = viewContainersRegistry.registerViewContainer({
+  id: ChartViewContainerId,
+  title: localize("workbench.views.chart", "Chart"),
+  ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [{
+    className: "workbench-part-view-pane-container",
+    id: ChartViewContainerId,
+    renderHeader: false,
+    title: localize("workbench.views.chart", "Chart"),
+  }]),
+}, ViewContainerLocation.Panel, { isDefault: true, doNotRegisterOpenCommand: true });
 
 export class ChartContribution extends Disposable implements IWorkbenchContribution {
   public constructor() {
@@ -38,13 +53,6 @@ function registerChartView(): void {
     return;
   }
 
-  const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
-  const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-  const container = viewContainersRegistry.get(ChartViewContainerId);
-  if (!container) {
-    return;
-  }
-
   chartViewRegistered = true;
   viewsRegistry.registerViews([{
     id: ChartViewId,
@@ -55,7 +63,7 @@ function registerChartView(): void {
     when: ContextKeyExpr.and(
       ActiveWorkbenchMainPartContext.isEqualTo("chart"),
     ),
-  }], container);
+  }], chartContainer);
 }
 
 registerWorkbenchContribution2(ChartContributionId, ChartContribution, WorkbenchPhase.BlockStartup);

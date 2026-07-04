@@ -7,6 +7,8 @@ import { localize } from "src/cs/nls";
 import { ContextKeyExpr } from "src/cs/platform/contextkey/common/contextkey";
 import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
 import { Registry } from "src/cs/platform/registry/common/platform";
+import { createAuxiliaryBarActionViewItem } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
+import { ViewPaneContainer } from "src/cs/workbench/browser/parts/views/viewPaneContainer";
 import {
   registerWorkbenchContribution2,
   WorkbenchPhase,
@@ -19,6 +21,7 @@ import {
 import {
   Extensions as ViewExtensions,
   type IViewContainersRegistry,
+  ViewContainerLocation,
   type IViewsRegistry,
 } from "src/cs/workbench/common/views";
 import { registerSearchCommands } from "src/cs/workbench/contrib/search/browser/searchCommands";
@@ -28,6 +31,20 @@ import {
   SearchViewContainerId,
   SearchViewId,
 } from "src/cs/workbench/services/search/common/search";
+
+const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
+const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+const searchContainer = viewContainersRegistry.registerViewContainer({
+  id: SearchViewContainerId,
+  title: localize("chart.views.search", "Search"),
+  ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [{
+    actionViewItemProvider: createAuxiliaryBarActionViewItem,
+    className: "workbench-part-view-pane-container",
+    id: SearchViewContainerId,
+    renderHeader: true,
+    title: localize("chart.views.search", "Search"),
+  }]),
+}, ViewContainerLocation.AuxiliaryBar, { isDefault: true, doNotRegisterOpenCommand: true });
 
 export class SearchContribution extends Disposable implements IWorkbenchContribution {
   public constructor() {
@@ -45,13 +62,6 @@ function registerSearchView(): void {
     return;
   }
 
-  const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
-  const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-  const container = viewContainersRegistry.get(SearchViewContainerId);
-  if (!container) {
-    return;
-  }
-
   searchViewRegistered = true;
   viewsRegistry.registerViews([{
     id: SearchViewId,
@@ -62,7 +72,7 @@ function registerSearchView(): void {
       ActiveWorkbenchMainPartContext.isEqualTo("chart"),
       ActiveAuxiliaryBarViewContext.isEqualTo("search"),
     ),
-  }], container);
+  }], searchContainer);
 }
 
 registerWorkbenchContribution2(SearchContributionId, SearchContribution, WorkbenchPhase.BlockStartup);
