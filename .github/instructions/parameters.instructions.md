@@ -36,8 +36,8 @@ rendering, chart shell, Session mutation, or table selection.
 
 ```txt
 show parameters command -> IWorkbenchLayoutService
-current file id -> IParametersService.updateViewState
-IParametersService resolves metric-bearing file record + model version
+current chart target -> IParametersService.updateViewState
+IParametersService resolves Session file record or Slice resource result + model version
 onDidChangeParametersViewState -> ParametersViewPane render
 ```
 
@@ -46,7 +46,7 @@ onDidChangeParametersViewState -> ParametersViewPane render
 - Selected rows, filters, method choices, and panel state are service-local.
 - Parameter rows link to curves/metrics by ids, not copied data.
 - `onDidChangeParametersViewState` is a leaf view event for Parameters views.
-- Workbench provides the current file id while rendering the active Parameters auxiliary view; Parameters resolves the backing record/version through its own service boundary.
+- Workbench provides the current chart target while rendering the active Parameters auxiliary view; Parameters resolves the backing record/version through its own service boundary.
 - `updateViewState` should suppress duplicate publishes when effective input is unchanged.
 - Showing/hiding Parameters belongs to layout/view commands, not `IParametersService`.
 

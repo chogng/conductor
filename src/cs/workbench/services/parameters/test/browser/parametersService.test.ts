@@ -4,6 +4,7 @@
 
 import assert from "assert";
 
+import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { createCalculatedMetricRecordsByFile } from "src/cs/workbench/services/calculation/common/calculationMetricRecordBuilder";
 import { ParametersService } from "src/cs/workbench/services/parameters/browser/parametersService";
@@ -13,6 +14,10 @@ import type {
   SessionSnapshot,
 } from "src/cs/workbench/services/session/common/session";
 import type { FileRecord, MetricKey } from "src/cs/workbench/services/session/common/sessionModel";
+import type {
+  ISliceService,
+  SliceResourceResult,
+} from "src/cs/workbench/services/slice/common/slice";
 
 let parametersTestStore: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>;
 
@@ -134,15 +139,72 @@ suite("workbench/services/parameters/test/browser/parametersService", () => {
       assert.equal(selectedFile.rows[0]?.id, "series-1");
     }
   });
+
+  test("resolves selected resource result without reading Session", () => {
+    let snapshotReads = 0;
+    const resource = URI.file("/data/Transfer.csv");
+    const service = createParametersService(() => {
+      snapshotReads += 1;
+      throw new Error("Resource parameter input should not read Session.");
+    }, [createSliceResourceResult({ resource, sheetId: "sheet-a" })]);
+
+    const viewState = service.createViewState({
+      fileId: "resource-file-a",
+      resource,
+      sheetId: "sheet-a",
+    });
+
+    assert.equal(snapshotReads, 0);
+    assert.equal(viewState.kind, "table");
+    if (viewState.kind === "table") {
+      assert.equal(viewState.gmMetricHeader, "gm");
+      assert.equal(viewState.showTransferMetrics, true);
+      assert.equal(viewState.rows[0]?.id, "series-a");
+      assert.equal(viewState.rows[0]?.name, "A");
+      assert.notEqual(viewState.rows[0]?.gmMaxAbs, null);
+      assert.notEqual(viewState.rows[0]?.ion, null);
+    }
+  });
+
+  test("publishes selected resource again when Slice result version changes", () => {
+    const resource = URI.file("/data/Transfer.csv");
+    let result = createSliceResourceResult({ resource, sheetId: "sheet-a" }, 1);
+    const service = createParametersService(createEmptySnapshot(), () => [result]);
+    const viewStates: ParametersViewState[] = [];
+    const disposable = parametersTestStore.add(service.onDidChangeParametersViewState(state => {
+      viewStates.push(state);
+    }));
+
+    const firstViewState = service.updateViewState({
+      fileId: "resource-file-a",
+      resource,
+      sheetId: "sheet-a",
+    });
+    result = createSliceResourceResult({ resource, sheetId: "sheet-a" }, 2);
+    const secondViewState = service.updateViewState({
+      fileId: "resource-file-a",
+      resource,
+      sheetId: "sheet-a",
+    });
+
+    assert.notEqual(secondViewState, firstViewState);
+    assert.deepEqual(viewStates, [firstViewState, secondViewState]);
+
+    disposable.dispose();
+  });
 });
 
 const createParametersService = (
   snapshotOrFactory: SessionSnapshot | (() => SessionSnapshot) = createEmptySnapshot(),
+  resourceResultsOrFactory: readonly SliceResourceResult[] | (() => readonly SliceResourceResult[]) = [],
 ): ParametersService => {
   const getSnapshot = typeof snapshotOrFactory === "function"
     ? snapshotOrFactory
     : () => snapshotOrFactory;
-  const service = new ParametersService(createSessionServiceStub(getSnapshot));
+  const service = new ParametersService(
+    createSessionServiceStub(getSnapshot),
+    createSliceServiceStub(resourceResultsOrFactory),
+  );
   parametersTestStore.add(service);
   return service;
 };
@@ -150,6 +212,21 @@ const createParametersService = (
 const createSessionServiceStub = (getSnapshot: () => SessionSnapshot): ISessionService => ({
   getSnapshot,
 } as ISessionService);
+
+const createSliceServiceStub = (
+  resourceResultsOrFactory: readonly SliceResourceResult[] | (() => readonly SliceResourceResult[]),
+): ISliceService => {
+  const getResourceResults = typeof resourceResultsOrFactory === "function"
+    ? resourceResultsOrFactory
+    : () => resourceResultsOrFactory;
+  return {
+    getResourceResult: (resource, sheetId) =>
+      getResourceResults().find(result =>
+        result.resource.toString() === resource.toString() &&
+        String(result.sheetId ?? "") === String(sheetId ?? "")
+      ) ?? null,
+  } as ISliceService;
+};
 
 const createEmptySnapshot = (): SessionSnapshot => ({
   fileOrder: [],
@@ -245,4 +322,100 @@ const createProcessedFileRecord = (): FileRecord => ({
     },
   },
   metricsByKey: {},
+});
+
+const createSliceResourceResult = (
+  {
+    resource,
+    sheetId = null,
+  }: {
+    readonly resource: URI;
+    readonly sheetId?: string | null;
+  },
+  sourceVersion = 1,
+): SliceResourceResult => ({
+  completedAt: sourceVersion,
+  curves: [{
+    curveFamily: "iv",
+    curveGeneration: "base",
+    ivMode: "transfer",
+    lineage: {
+      baseFamily: "iv",
+      baseSeries: {
+        resource,
+        sheetId,
+        seriesId: "series-a",
+      },
+      curveGeneration: "base",
+      ivMode: "transfer",
+    },
+    points: [
+      { x: 0, y: 1e-12 },
+      { x: 1, y: 1e-9 },
+      { x: 2, y: 1e-6 },
+    ],
+    resource,
+    seriesId: "series-a",
+    sheetId,
+    signature: `slice-curve-a-${sourceVersion}`,
+  }],
+  requestSignature: `request-a-${sourceVersion}`,
+  resource,
+  run: {
+    errors: [],
+    id: "slice-resource-run-a",
+    inputRanges: [{
+      range: {
+        endCol: 1,
+        endRow: 2,
+        startCol: 0,
+        startRow: 0,
+      },
+      resource,
+      sheetId,
+    }],
+    mode: "auto",
+    outputCurveKeys: [],
+    outputSeriesIds: ["series-a"],
+    resource,
+    selection: { kind: "auto" },
+    sheetId,
+    sourceContentSignature: `source-a-${sourceVersion}`,
+    template: {
+      blocks: [{
+        legend: { target: "yColumn" },
+        rowRange: { endRow: 2, startRow: 0 },
+        segmentation: { kind: "none" },
+        titles: {
+          bottom: "Voltage",
+          left: "Current",
+        },
+        x: {
+          columns: [0],
+          unit: "V",
+        },
+        y: {
+          columns: [1],
+          unit: "A",
+        },
+      }],
+      name: "transfer",
+      schemaVersion: 1,
+      stopOnError: false,
+      version: 1,
+    },
+    templateFingerprint: "template-a",
+    warnings: [],
+  },
+  series: [{
+    groupIndex: 0,
+    id: "series-a",
+    name: "A",
+    resource,
+    sheetId,
+    y: [1e-12, 1e-9, 1e-6],
+  }],
+  sheetId,
+  sourceModelVersion: sourceVersion,
+  sourceVersion,
 });

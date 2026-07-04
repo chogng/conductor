@@ -135,6 +135,7 @@ type WorkbenchFullRefreshReason =
 
 type WorkbenchAuxiliaryRefreshReason =
   | "chartState"
+  | "chartViewInput"
   | "explorerSelection"
   | "settings"
   | "plotState"
@@ -750,6 +751,12 @@ export class Workbench extends Layout {
           }
           this.scheduleWorkbenchAuxiliarySurfacesRefresh("chartState", false);
         }));
+        this._register(this.chartService.onDidChangeChartViewInput(() => {
+          if (!this.shouldRefreshActiveAuxiliaryViewFromWorkbenchState()) {
+            return;
+          }
+          this.scheduleWorkbenchAuxiliarySurfacesRefresh("chartViewInput", false);
+        }));
         this._register({
           dispose: () => {
             this.cancelScheduledAuxiliarySurfacesRefresh?.();
@@ -1236,7 +1243,7 @@ export class Workbench extends Layout {
       case "template":
         break;
       case "parameters":
-        this.renderParametersView(this.getSelectedChartFileId());
+        this.renderParametersView();
         break;
       case "search":
         break;
@@ -1256,9 +1263,12 @@ export class Workbench extends Layout {
     });
   }
 
-  private renderParametersView(activeFileId: string | null): void {
+  private renderParametersView(): void {
+    const chartInput = this.chartService.getViewInput();
     this.parametersService.updateViewState({
-      fileId: activeFileId,
+      fileId: chartInput?.activeFileId ?? null,
+      resource: chartInput?.activeResource ?? null,
+      sheetId: chartInput?.activeSheetId ?? null,
     });
   }
 

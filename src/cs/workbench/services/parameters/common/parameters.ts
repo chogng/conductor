@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Event } from "src/cs/base/common/event";
+import type { URI } from "src/cs/base/common/uri";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type {
   ParametersViewState,
@@ -21,6 +22,8 @@ export type ParametersCommandId = typeof ParametersCommandId[keyof typeof Parame
 
 export type ParametersViewStateInput = {
   readonly fileId?: string | null;
+  readonly resource?: URI | null;
+  readonly sheetId?: string | null;
 };
 
 export interface IParametersService {
