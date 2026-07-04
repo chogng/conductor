@@ -11,6 +11,33 @@
   pointer-events: none;
 }
 
+.workbench_notifications_status {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 45;
+  display: flex;
+  max-width: min(520px, calc(100% - 32px));
+  pointer-events: none;
+}
+
+.workbench_notifications_status[hidden] {
+  display: none;
+}
+
+.workbench_notifications_status_message {
+  min-height: 28px;
+  padding: 6px 10px;
+  border: 1px solid var(--conductor-notificationToast-border);
+  border-radius: 6px;
+  background-color: var(--conductor-notifications-background);
+  color: var(--conductor-notifications-foreground);
+  box-shadow: 0 8px 20px rgb(0 0 0 / 12%);
+  font-size: 12px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+
 .conductor-toast {
   position: relative;
   display: flex;

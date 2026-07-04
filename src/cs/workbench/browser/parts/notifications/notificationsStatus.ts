@@ -1,8 +1,6 @@
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { NotificationStatusMessage } from "src/cs/workbench/common/notifications";
 
-import "src/cs/workbench/browser/parts/notifications/media/notificationsStatus.css";
-
 export class NotificationStatus implements IDisposable {
   public readonly element = document.createElement("div");
 
