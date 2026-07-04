@@ -10,7 +10,7 @@ import { LxIcon } from "src/cs/base/common/lxicon";
 import type {
   NotificationToastOptions,
   NotificationToastType,
-} from "src/cs/workbench/services/notification/common/notificationService";
+} from "src/cs/workbench/common/notifications";
 import { getPrimaryNotificationAction } from "src/cs/workbench/browser/parts/notifications/notificationsActions";
 import { localize } from "src/cs/nls";
 

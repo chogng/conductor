@@ -20,8 +20,8 @@ import {
 import {
   Severity,
   type INotificationService,
-  type NotificationPresentationType,
 } from "src/cs/workbench/services/notification/common/notificationService";
+import type { NotificationToastType } from "src/cs/workbench/common/notifications";
 import {
   isAutoTemplateId,
 } from "src/cs/workbench/services/slice/common/templateSelection";
@@ -679,7 +679,7 @@ export class TemplateView {
     }
   }
 
-  private showNotification(message: string, type: NotificationPresentationType = "success"): void {
+  private showNotification(message: string, type: NotificationToastType = "success"): void {
     const severity = Severity.fromValue(type);
     this.props.notificationService.notify({
       id: TEMPLATE_NOTIFICATION_ID,

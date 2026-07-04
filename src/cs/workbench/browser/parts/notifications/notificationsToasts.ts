@@ -2,13 +2,11 @@ import { TimeoutTimer } from "src/cs/base/common/async";
 import type { IAction } from "src/cs/base/common/actions";
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import type {
-  NotificationToastOptions,
-  NotificationToastType,
-} from "src/cs/workbench/services/notification/common/notificationService";
 import {
   DEFAULT_NOTIFICATION_TOAST_ID,
-} from "src/cs/workbench/services/notification/common/notificationService";
+  type NotificationToastOptions,
+  type NotificationToastType,
+} from "src/cs/workbench/common/notifications";
 import { runNotificationAction } from "src/cs/workbench/browser/parts/notifications/notificationsActions";
 import { NotificationRenderer } from "src/cs/workbench/browser/parts/notifications/notificationsViewer";
 

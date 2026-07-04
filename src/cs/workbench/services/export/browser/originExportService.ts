@@ -21,8 +21,8 @@ import { formatOriginBridgeError } from "src/cs/workbench/services/export/common
 import {
   INotificationService,
   Severity,
-  type NotificationPresentationType,
 } from "src/cs/workbench/services/notification/common/notificationService";
+import type { NotificationToastType } from "src/cs/workbench/common/notifications";
 
 export type OriginControllerOptions = {
   readonly buildCsvExportRequest: OriginCsvRequestBuilder;
@@ -47,7 +47,7 @@ const showOriginNotification = (
   message: string,
   type?: unknown,
 ): void => {
-  const notificationType: NotificationPresentationType =
+  const notificationType: NotificationToastType =
     type === "error" || type === "warning" || type === "info" || type === "success"
       ? type
       : "success";

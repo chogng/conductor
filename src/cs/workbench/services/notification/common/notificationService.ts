@@ -20,10 +20,16 @@ import {
   type IStatusMessageOptions,
   type INotificationPresentationOptions,
   type NotificationMessage,
-  type NotificationPresentationPosition,
-  type NotificationPresentationType,
   type NotificationsFilter,
 } from "src/cs/platform/notification/common/notification";
+import {
+  DEFAULT_NOTIFICATION_TOAST_ID,
+  type NotificationStatusMessage,
+  type NotificationStatusMessageEvent,
+  type NotificationToastEvent,
+  type NotificationToastOptions,
+  type NotificationToastType,
+} from "src/cs/workbench/common/notifications";
 
 export {
   INotificationService,
@@ -50,31 +56,7 @@ export {
   type IStatusMessageOptions,
   NeverShowAgainScope,
   type NotificationMessage,
-  type NotificationPresentationType,
 } from "src/cs/platform/notification/common/notification";
-
-export const DEFAULT_NOTIFICATION_TOAST_ID = "workbench.notificationToast";
-
-export type NotificationToastType = NotificationPresentationType;
-export type NotificationToastPosition = NotificationPresentationPosition;
-
-export type NotificationToastOptions = {
-  readonly actions?: readonly IAction[];
-  readonly className?: string;
-  readonly dataUi?: string;
-  readonly duration?: number;
-  readonly id?: string;
-  readonly message: string;
-  readonly onClose?: () => void;
-  readonly position?: NotificationToastPosition;
-  readonly type?: NotificationToastType;
-};
-
-export type NotificationToastEvent =
-  | { readonly kind: "show"; readonly options: NotificationToastOptions }
-  | { readonly kind: "hide"; readonly id?: string }
-  | { readonly kind: "dispose"; readonly id?: string }
-  | { readonly kind: "disposeAll" };
 
 class ToastNotificationHandle implements INotificationHandle {
   private readonly onDidCloseEmitter = new Emitter<void>();
@@ -125,13 +107,20 @@ export class NotificationService extends Disposable implements INotificationServ
 
   public readonly onDidChangeFilter = Event.None as Event<void>;
   private readonly onDidChangeToastEmitter = this._register(new Emitter<NotificationToastEvent>());
+  private readonly onDidChangeStatusMessageEmitter = this._register(new Emitter<NotificationStatusMessageEvent>());
   private readonly toastOptions = new Map<string, NotificationToastOptions>();
+  private currentStatusMessage: NotificationStatusMessage | undefined;
 
   public get toasts(): readonly NotificationToastOptions[] {
     return [...this.toastOptions.values()];
   }
 
   public readonly onDidChangeToast = this.onDidChangeToastEmitter.event;
+  public readonly onDidChangeStatusMessage = this.onDidChangeStatusMessageEmitter.event;
+
+  public get statusMessage(): NotificationStatusMessage | undefined {
+    return this.currentStatusMessage;
+  }
 
   public setFilter(): void {}
 
@@ -194,9 +183,10 @@ export class NotificationService extends Disposable implements INotificationServ
   }
 
   public status(message: NotificationMessage, options?: IStatusMessageOptions): IStatusHandle {
-    const id = "workbench.notificationStatus";
+    const item: NotificationStatusMessage = options
+      ? { message: getNotificationMessage(message), options }
+      : { message: getNotificationMessage(message) };
     let isClosed = false;
-    let handle: INotificationHandle | undefined;
     let showTimer: ReturnType<typeof setTimeout> | undefined;
     let hideTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -205,20 +195,14 @@ export class NotificationService extends Disposable implements INotificationServ
       isClosed = true;
       if (showTimer) clearTimeout(showTimer);
       if (hideTimer) clearTimeout(hideTimer);
-      handle?.close();
+      this.removeStatusMessage(item);
     };
     this._register({ dispose: close });
 
     const show = (): void => {
       if (isClosed) return;
-      handle = this.notify({
-        id,
-        severity: Severity.Info,
-        message: getNotificationMessage(message),
-        presentation: {
-          type: "info",
-        },
-      });
+      this.currentStatusMessage = item;
+      this.onDidChangeStatusMessageEmitter.fire({ kind: "add", item });
       if (typeof options?.hideAfter === "number") {
         hideTimer = setTimeout(close, options.hideAfter);
       }
@@ -231,6 +215,15 @@ export class NotificationService extends Disposable implements INotificationServ
     }
 
     return { close };
+  }
+
+  private removeStatusMessage(item: NotificationStatusMessage): void {
+    if (this.currentStatusMessage !== item) {
+      return;
+    }
+
+    this.currentStatusMessage = undefined;
+    this.onDidChangeStatusMessageEmitter.fire({ kind: "remove", item });
   }
 
   public closeNotification(id?: string): void {
