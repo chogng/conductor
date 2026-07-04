@@ -114,6 +114,15 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.equal(matchSemanticRowMarker("DataValue"), "dataRow");
 		assert.equal(matchSemanticRowMarker("Name"), null);
 		assert.equal(matchSemanticRowMarker("Value"), null);
+		const matcher = createSemanticMatcher();
+		assert.deepEqual(matcher.matchRowMarkerInRow(["DataName", "Vg"]), {
+			kind: "titleRow",
+			column: 0,
+			requiresSameMarkerColumn: true,
+			supplementId: "supplement:1",
+			supplementLabel: "title-data-row-markers",
+		});
+		assert.equal(matcher.matchRowMarkerInRow(["", "DataName"]), null);
 	});
 
 	test("keeps built-in IV semantic rules split between transfer and output", () => {
@@ -576,6 +585,106 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		));
 	});
 
+	test("keeps B1500 metadata numeric rows from competing with repeated DataName blocks", async () => {
+		const rows = [
+			["SetupTitle", "Transfer1-3"],
+			["AnalysisSetup", "Analysis.Setup.Vector.Graph.XAxis.Name", "Vg"],
+			["AnalysisSetup", "Analysis.Setup.Vector.Graph.XAxis.Left", "-5"],
+			["AnalysisSetup", "Analysis.Setup.Vector.Graph.XAxis.Right", "20"],
+			["DataName", "Vg", "Id", "gm"],
+			["DataValue", "-5", "1e-12", "2e-12"],
+			["DataValue", "-4.875", "2e-12", "3e-12"],
+			["DataValue", "-4.75", "3e-12", "4e-12"],
+			["SetupTitle", "Transfer1-3"],
+			["AnalysisSetup", "Analysis.Setup.Vector.Graph.XAxis.Name", "Vg"],
+			["AnalysisSetup", "Analysis.Setup.Vector.Graph.XAxis.Left", "-5"],
+			["AnalysisSetup", "Analysis.Setup.Vector.Graph.XAxis.Right", "20"],
+			["DataName", "Vg", "Id", "gm"],
+			["DataValue", "-5", "1.5e-12", "2.5e-12"],
+			["DataValue", "-4.875", "2.5e-12", "3.5e-12"],
+			["DataValue", "-4.75", "3.5e-12", "4.5e-12"],
+		];
+		const evidence = await resolveEvidence(rows);
+
+		assert.ok(evidence.xRangeCandidates.some(candidate => rows[candidate.startRow]?.[0] === "AnalysisSetup"));
+		assert.ok(evidence.dataBlockCandidates.every(candidate => rows[candidate.startRow]?.[0] === "DataValue"));
+		const repeatedBinding = evidence.bindingCandidates.find(candidate =>
+			candidate.relation === "repeatedBlocks" &&
+			candidate.dataBlockCandidateIds.length === 2
+		);
+		assert.ok(repeatedBinding);
+		assert.equal(repeatedBinding.confidence, 1);
+		assert.ok(repeatedBinding.reasons.includes("binding.repeatedBlocks.explicitDataRows"));
+		const repeatedBlocks = repeatedBinding.dataBlockCandidateIds
+			.map(blockId => evidence.blocks.find(block => block.id === blockId));
+		assert.deepEqual(repeatedBlocks.map(block => block?.ivMode), ["transfer", "transfer"]);
+	});
+
+	test("uses DataName rows as boundary evidence after numeric-core block detection", async () => {
+		const evidence = await resolveEvidence([
+			["Setup", "Start", "Stop"],
+			["Setup", "0", "100"],
+			["Setup", "1", "200"],
+			["DataName", "Vg", "Id"],
+			["DataValue", "-1", "1e-12"],
+			["DataValue", "0", "2e-12"],
+			["DataValue", "1", "4e-12"],
+		]);
+
+		assert.ok(evidence.xRangeCandidates.some(candidate => candidate.startRow === 1));
+		assert.equal(evidence.dataBlockCandidates.some(candidate => candidate.startRow === 1), false);
+		const block = evidence.dataBlockCandidates.find(candidate =>
+			candidate.startRow === 4 &&
+			candidate.endRow === 6 &&
+			candidate.startCol === 1 &&
+			candidate.endCol === 2
+		);
+		assert.ok(block);
+		assert.ok(block.reasons.includes("dataBlock.explicitDataRows"));
+		assert.deepEqual(evidence.structure.dataRegions.map(region => region.range), [{
+			startRow: 4,
+			endRow: 6,
+			startCol: 1,
+			endCol: 2,
+		}]);
+	});
+
+	test("does not create data range from DataName/DataValue markers without numeric-core binding", async () => {
+		const evidence = await resolveEvidence([
+			["DataName", "Vg", "Id"],
+			["DataValue", "not numeric", ""],
+			["DataValue", "", "also text"],
+		]);
+
+		assert.equal(evidence.xRangeCandidates.length, 0);
+		assert.equal(evidence.dataBlockCandidates.length, 0);
+		assert.equal(evidence.bindingCandidates.length, 0);
+		assert.equal(evidence.structure.dataRegions.length, 0);
+	});
+
+	test("uses the direct Vg/Id pair before auxiliary dependent headers", async () => {
+		const evidence = await resolveEvidence([
+			["DataName", "Vg", "Id", "gm"],
+			["DataValue", "-5", "1e-12", "2e-12"],
+			["DataValue", "-4.875", "2e-12", "3e-12"],
+			["DataValue", "-4.75", "3e-12", "4e-12"],
+		], {
+			templateSemanticPatches: {
+				terms: [],
+				rules: [
+					{ id: "iv:1", priority: 5 },
+					{ id: "cv:1", priority: 0 },
+				],
+			} satisfies TemplateSemanticPatches,
+		});
+
+		const block = evidence.blocks.find(candidate =>
+			candidate.source.dataRange?.startCol === 1 &&
+			candidate.source.dataRange?.endCol === 3
+		);
+		assert.equal(block?.ivMode, "transfer");
+	});
+
 	test("records four-neighbor info cell evidence as auxiliary title context", async () => {
 		const evidence = await resolveEvidence([
 			["FastIV", "point", "interval"],
@@ -639,6 +748,28 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.ok(evidence.bindingCandidates.some(candidate => candidate.relation === "oneX-manyY"));
 	});
 
+	test("keeps pairwise XY blocks separate when similar headers have different X values", async () => {
+		const evidence = await resolveEvidence([
+			[
+				"c(g:g)(CV_n256_ac_des) X",
+				"c(g:g)(CV_n256_ac_des) Y",
+				"c(g:g)(CV_n350_ac_des) X",
+				"c(g:g)(CV_n350_ac_des) Y",
+			],
+			["-0.5", "9.84e-16", "-0.45", "9.87e-16"],
+			["0", "1.00e-15", "0.05", "1.01e-15"],
+			["0.5", "1.20e-15", "0.55", "1.21e-15"],
+			["1", "1.60e-15", "1.05", "1.61e-15"],
+		]);
+
+		assert.equal(evidence.dataBlockCandidates.some(candidate =>
+			candidate.xColumn === 0 &&
+			candidate.dependentColumns.join(",") === "1,3" &&
+			candidate.reasons.includes("dataBlock.sharedIdenticalXValues")
+		), false);
+		assert.ok(evidence.bindingCandidates.some(candidate => candidate.relation === "manyXYpairs"));
+	});
+
 	test("classifies repeated IdVg XY headers as IV transfer", async () => {
 		const evidence = await resolveEvidence([
 			[
@@ -666,8 +797,8 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			measurementBlock?.columns.columns.map(column => column.headerText),
 			[
 				"drain TotalCurrent(IdVg_n938_des) X",
-				"n938_des",
-				"n944_des",
+				"drain TotalCurrent(IdVg_n938_des)",
+				"drain TotalCurrent(IdVg_n944_des)",
 			],
 		);
 	});
@@ -712,13 +843,13 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			evidence.blocks.find(block => block.id === sharedBlock.id)?.columns.columns.map(column => column.headerText),
 			[
 				"c(g:g)(CV_n256_ac_des) X",
-				"n256_ac_des",
-				"n350_ac_des",
+				"c(g:g)(CV_n256_ac_des)",
+				"c(g:g)(CV_n350_ac_des)",
 			],
 		);
 	});
 
-	test("uses repeated XY legend semantic tokens as measurement evidence", async () => {
+	test("uses repeated XY parenthesized semantic tokens as measurement evidence", async () => {
 		const evidence = await resolveEvidence([
 			[
 				"metric(CV_n256_ac_des) X",
@@ -744,8 +875,8 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			measurementBlock?.columns.columns.map(column => column.headerText),
 			[
 				"metric(CV_n256_ac_des) X",
-				"n256_ac_des",
-				"n350_ac_des",
+				"metric(CV_n256_ac_des)",
+				"metric(CV_n350_ac_des)",
 			],
 		);
 	});

@@ -49,9 +49,46 @@ The algorithm treats that type as a result label, not as physical meaning. If a
 reviewed result is mixed or lacks a type, Explorer does not synthesize a badge
 from rule labels, file names, or physical roles.
 
+Built-in physical domains are stricter than user-authored labels. They must not
+force `transfer` or `output` by spreading the same ambiguous terms across
+multiple flat X/Y lists. When a term carries physical responsibility, the
+semantic layer must keep that responsibility visible: a sweep discriminator is
+different from a weak voltage name, primary drain/channel current is different
+from weak `Current` / `TotalCurrent`, leakage current is different from primary
+current, `gm` is derived transfer evidence, and capacitance responses classify
+the block as CV before IV mode is considered.
+
 A rule must not contain a separate hand-written result preference list. The
 algorithm derives result use order from rule priority and the cut candidates it
 produces.
+
+## Measurement Classification
+
+DataResource decides measurement type from bounded table evidence in this
+order:
+
+1. Derive data rows from numeric core evidence. Explicit marker structures such
+   as `DataName` / `DataValue` may restrict or explain candidate rows, but they
+   do not define the data range without continuous numeric runs, an acceptable
+   X candidate, and aligned dependent values. Metadata numbers outside the
+   accepted numeric core do not compete with real table values.
+2. Normalize repeated shapes. `XYXYXY` with identical X values and native
+   `X, Y1, Y2, ... Yn` are both treated as shared-X, multi-Y data. The changing
+   Y headers are line legends.
+3. Determine the X role from numeric shape. A sweep X changes within each
+   curve; a step or bias column is stable within a curve and changes across
+   curves. Only the sweep X can decide IV mode.
+4. Determine the Y family before IV mode. Capacitance responses such as `Cgg`,
+   `Cgs`, `Cgd`, `Cgb`, `Capacitance`, `Cp`, or `Cs` classify CV even when the
+   X sweep is `Vg`. IV mode is considered only after primary or weak current Y
+   evidence proves the block is an IV response.
+5. Decide transfer/output from the sweep X. `Vg` / `Vgs` / `Gate Voltage` /
+   `IdVg` sweep means transfer; `Vd` / `Vds` / `Drain Voltage` / `IdVd` sweep
+   means output. Generic voltage/current names, channel numbers, trace names,
+   and file names are supporting evidence only.
+6. Prefer direct X/Y pairs over auxiliary columns. A bound `Vg -> Id` pair
+   outranks nearby `gm`, leakage, or other derived columns. `gm` can indicate a
+   transfer-derived curve, but it is not primary transfer Y by itself.
 
 ## Supplements
 

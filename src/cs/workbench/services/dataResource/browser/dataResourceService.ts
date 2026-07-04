@@ -87,6 +87,13 @@ type NumericRunTitleCell = {
 	readonly titleCell: StructuredColumnTitleSpanEvidence["titleCell"];
 };
 
+type ExplicitDataRowRange = {
+	readonly markerColumn: number;
+	readonly titleRow: number;
+	readonly startRow: number;
+	readonly endRow: number;
+};
+
 type RepeatedPairTitleInterpretation = {
 	readonly reasons: readonly string[];
 	readonly semanticTitle: string;
@@ -96,6 +103,7 @@ type BlockRuleCandidate = {
 	readonly id: string;
 	readonly label: string;
 	readonly type?: string;
+	readonly directPairScore: number;
 	readonly priorityIndex: number;
 	readonly proofEvidenceCount: number;
 	readonly proofScore: number;
@@ -427,6 +435,7 @@ const createStructuredContentEvidence = (
 	let bindingCandidateCount = 0;
 	try {
 		const rows = getStructuredContentRows(content);
+		const explicitDataRowRanges = createExplicitDataRowRanges(rows, semanticMatcher);
 		const numericRuns = createNumericRuns({
 			columnCount: content.columnCount,
 			rows,
@@ -465,12 +474,15 @@ const createStructuredContentEvidence = (
 		});
 		const xRangeCandidates = xRangeAnalyses.map(analysis => analysis.candidate);
 		const xGroupCandidates = createXGroupCandidates(xRangeAnalyses);
-		const dataBlockCandidates = createDataBlockCandidates({
-			columnCount: content.columnCount,
-			rows,
-			titleSpans: columnTitleSpans,
-			xGroupCandidates,
-			xRangeAnalyses,
+		const dataBlockCandidates = applyExplicitDataRowBoundaryEvidence({
+			blocks: createDataBlockCandidates({
+				columnCount: content.columnCount,
+				rows,
+				titleSpans: columnTitleSpans,
+				xGroupCandidates,
+				xRangeAnalyses,
+			}),
+			explicitDataRowRanges,
 		});
 		const dependentValueCandidates = createDependentValueCandidates({
 			dataBlockCandidates,
@@ -479,6 +491,7 @@ const createStructuredContentEvidence = (
 		const bindingCandidates = createBindingCandidates({
 			dataBlockCandidates,
 			dependentValueCandidates,
+			explicitDataRowRanges,
 			rows,
 		});
 		const structure = createStructuredContentStructure({
@@ -578,6 +591,40 @@ const createNumericRuns = ({
 		}
 	}
 	return runs;
+};
+
+const createExplicitDataRowRanges = (
+	rows: readonly (readonly string[])[],
+	semanticMatcher: SemanticMatcher,
+): readonly ExplicitDataRowRange[] => {
+	const ranges: ExplicitDataRowRange[] = [];
+	for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+		const titleMarker = semanticMatcher.matchRowMarkerInRow(rows[rowIndex] ?? []);
+		if (titleMarker?.kind !== "titleRow") {
+			continue;
+		}
+		const startRow = rowIndex + 1;
+		let endRow = startRow - 1;
+		for (let dataRow = startRow; dataRow < rows.length; dataRow += 1) {
+			const dataMarker = semanticMatcher.matchRowMarkerInRow(rows[dataRow] ?? []);
+			if (
+				dataMarker?.kind !== "dataRow" ||
+				(titleMarker.requiresSameMarkerColumn && dataMarker.column !== titleMarker.column)
+			) {
+				break;
+			}
+			endRow = dataRow;
+		}
+		if (endRow >= startRow) {
+			ranges.push({
+				markerColumn: titleMarker.column,
+				titleRow: rowIndex,
+				startRow,
+				endRow,
+			});
+		}
+	}
+	return ranges;
 };
 
 const createColumnTitleSpanEvidence = ({
@@ -682,20 +729,20 @@ const addRepeatedPairTitleInterpretations = (
 		return;
 	}
 
-	const parsedBases = pairs.map(pair => parseTrailingLegendGroup(pair.base));
+	const parsedBases = pairs.map(pair => parseTrailingParenthesizedHeaderPart(pair.base));
 	if (parsedBases.some(base => !base)) {
 		return;
 	}
-	const semanticKey = semanticMatcher.toKey(parsedBases[0]?.semanticText);
-	if (!semanticKey || parsedBases.some(base => semanticMatcher.toKey(base?.semanticText) !== semanticKey)) {
+	const semanticKey = semanticMatcher.toKey(parsedBases[0]?.outerText);
+	if (!semanticKey || parsedBases.some(base => semanticMatcher.toKey(base?.outerText) !== semanticKey)) {
 		return;
 	}
-	const legendKeys = new Set(parsedBases.map(base => semanticMatcher.toKey(base?.legendText)));
-	if (legendKeys.size < 2) {
+	const innerKeys = new Set(parsedBases.map(base => semanticMatcher.toKey(base?.innerText)));
+	if (innerKeys.size < 2) {
 		return;
 	}
 
-	const semanticText = parsedBases[0]!.semanticText;
+	const semanticText = parsedBases[0]!.outerText;
 	if (!semanticMatcher.matchTitle(`${semanticText} Y`)) {
 		return;
 	}
@@ -703,7 +750,7 @@ const addRepeatedPairTitleInterpretations = (
 	const reasons = [
 		"title.repeatedXYPair",
 		"title.repeatedXYPair.commonSemantic",
-		"title.repeatedXYPair.variableLegend",
+		"title.repeatedXYPair.parenthesizedEvidence",
 	];
 	for (const pair of pairs) {
 		interpretations.set(pair.xColumn, {
@@ -730,9 +777,9 @@ const parsePairAxisTitle = (
 	return base ? { axis, base } : null;
 };
 
-const parseTrailingLegendGroup = (
+const parseTrailingParenthesizedHeaderPart = (
 	value: string | undefined,
-): { readonly semanticText: string; readonly legendText: string } | null => {
+): { readonly outerText: string; readonly innerText: string } | null => {
 	const text = normalizeText(value);
 	if (!text.endsWith(")")) {
 		return null;
@@ -751,9 +798,9 @@ const parseTrailingLegendGroup = (
 		if (depth !== 0) {
 			continue;
 		}
-		const semanticText = text.slice(0, index).trim();
-		const legendText = text.slice(index + 1, -1).trim();
-		return semanticText && legendText ? { semanticText, legendText } : null;
+		const outerText = text.slice(0, index).trim();
+		const innerText = text.slice(index + 1, -1).trim();
+		return outerText && innerText ? { outerText, innerText } : null;
 	}
 	return null;
 };
@@ -791,9 +838,9 @@ const readTitleCellFromRow = (
 	targetColumn: number,
 	semanticMatcher: SemanticMatcher,
 ): StructuredColumnTitleSpanEvidence["titleCell"] | null => {
-	const firstCellMarker = semanticMatcher.matchRowMarker(row[0]);
+	const rowMarker = semanticMatcher.matchRowMarkerInRow(row);
 	const targetText = normalizeText(row[targetColumn]);
-	if (firstCellMarker === "titleRow") {
+	if (rowMarker?.kind === "titleRow") {
 		return targetText
 			? {
 				row: rowIndex,
@@ -802,7 +849,7 @@ const readTitleCellFromRow = (
 			}
 			: null;
 	}
-	if (firstCellMarker === "dataRow") {
+	if (rowMarker?.kind === "dataRow") {
 		return null;
 	}
 	if (targetText && parseFiniteNumber(targetText) === null) {
@@ -1415,6 +1462,36 @@ const createDataBlockCandidates = ({
 	);
 };
 
+const applyExplicitDataRowBoundaryEvidence = ({
+	blocks,
+	explicitDataRowRanges,
+}: {
+	readonly blocks: readonly StructuredDataBlockCandidate[];
+	readonly explicitDataRowRanges: readonly ExplicitDataRowRange[];
+}): readonly StructuredDataBlockCandidate[] => {
+	if (!explicitDataRowRanges.length) {
+		return blocks;
+	}
+	const containedBlocks = blocks.filter(block =>
+		explicitDataRowRanges.some(range => isDataBlockInsideExplicitDataRows(block, range))
+	);
+	if (!containedBlocks.length) {
+		return blocks;
+	}
+	return containedBlocks.map(block => ({
+		...block,
+		confidence: clampConfidence(block.confidence + 0.04),
+		reasons: uniqueStrings([...block.reasons, "dataBlock.explicitDataRows"]),
+	}));
+};
+
+const isDataBlockInsideExplicitDataRows = (
+	block: StructuredDataBlockCandidate,
+	range: ExplicitDataRowRange,
+): boolean =>
+	block.startRow >= range.startRow &&
+	block.endRow <= range.endRow;
+
 const createRepeatedPairSharedXDataBlocks = (
 	blocks: readonly StructuredDataBlockCandidate[],
 	rows: readonly (readonly string[])[],
@@ -1648,10 +1725,12 @@ const createDependentValueCandidates = ({
 const createBindingCandidates = ({
 	dataBlockCandidates,
 	dependentValueCandidates,
+	explicitDataRowRanges,
 	rows,
 }: {
 	readonly dataBlockCandidates: readonly StructuredDataBlockCandidate[];
 	readonly dependentValueCandidates: readonly StructuredDependentValueCandidate[];
+	readonly explicitDataRowRanges: readonly ExplicitDataRowRange[];
 	readonly rows: readonly (readonly string[])[];
 }): readonly StructuredBindingCandidate[] => {
 	const dependentByBlockId = new Map<string, StructuredDependentValueCandidate[]>();
@@ -1729,6 +1808,28 @@ const createBindingCandidates = ({
 			confidence: clampConfidence(Math.min(...repeatedBlocks.map(block => block.confidence)) + 0.06),
 			ambiguityCodes: [],
 			reasons: ["binding.repeatedBlocks"],
+		});
+	}
+
+	const verticalRepeatedBlockGroups = createVerticalRepeatedBlockGroups({
+		blocks: dataBlockCandidates,
+		coveredBlockIds,
+		explicitDataRowRanges,
+		rows,
+	});
+	for (const group of verticalRepeatedBlockGroups) {
+		const blockIds = group.map(block => block.id);
+		candidates.push({
+			id: `binding:vertical-repeated-blocks:${getVerticalRepeatedBlockBindingKey(group)}`,
+			xRangeCandidateIds: group.map(block => block.xRangeCandidateId),
+			dependentValueCandidateIds: group.flatMap(block =>
+				dependentByBlockId.get(block.id)?.map(candidate => candidate.id) ?? []
+			),
+			dataBlockCandidateIds: blockIds,
+			relation: "repeatedBlocks",
+			confidence: clampConfidence(Math.min(...group.map(block => block.confidence)) + 0.06),
+			ambiguityCodes: [],
+			reasons: ["binding.repeatedBlocks", "binding.repeatedBlocks.explicitDataRows"],
 		});
 	}
 
@@ -1827,6 +1928,81 @@ const haveAlignedRepeatedBlocks = (
 	);
 };
 
+const createVerticalRepeatedBlockGroups = ({
+	blocks,
+	coveredBlockIds,
+	explicitDataRowRanges,
+	rows,
+}: {
+	readonly blocks: readonly StructuredDataBlockCandidate[];
+	readonly coveredBlockIds: ReadonlySet<string>;
+	readonly explicitDataRowRanges: readonly ExplicitDataRowRange[];
+	readonly rows: readonly (readonly string[])[];
+}): readonly (readonly StructuredDataBlockCandidate[])[] => {
+	if (explicitDataRowRanges.length < 2) {
+		return [];
+	}
+	const groups = new Map<string, StructuredDataBlockCandidate[]>();
+	for (const block of blocks) {
+		if (
+			coveredBlockIds.has(block.id) ||
+			block.columnDirection !== "rightPreferred" ||
+			!block.dependentColumns.length
+		) {
+			continue;
+		}
+		const range = findContainingExplicitDataRowRange(block, explicitDataRowRanges);
+		if (!range || block.startRow !== range.startRow || block.endRow !== range.endRow) {
+			continue;
+		}
+		const schemaKey = createVerticalRepeatedBlockSchemaKey(block, range, rows);
+		if (!schemaKey) {
+			continue;
+		}
+		const group = groups.get(schemaKey) ?? [];
+		group.push(block);
+		groups.set(schemaKey, group);
+	}
+	return Array.from(groups.values())
+		.filter(group => group.length > 1)
+		.map(group => group.sort((left, right) => left.startRow - right.startRow || left.startCol - right.startCol))
+		.sort((left, right) => (left[0]?.startCol ?? 0) - (right[0]?.startCol ?? 0));
+};
+
+const findContainingExplicitDataRowRange = (
+	block: StructuredDataBlockCandidate,
+	ranges: readonly ExplicitDataRowRange[],
+): ExplicitDataRowRange | undefined =>
+	ranges.find(range =>
+		block.startRow >= range.startRow &&
+		block.endRow <= range.endRow
+	);
+
+const createVerticalRepeatedBlockSchemaKey = (
+	block: StructuredDataBlockCandidate,
+	range: ExplicitDataRowRange,
+	rows: readonly (readonly string[])[],
+): string | null => {
+	const columns = [block.xColumn, ...block.dependentColumns];
+	const headerKeys = columns.map(column => normalizeHeaderLegendText(getHeaderCellText(rows, range.titleRow, column)));
+	if (headerKeys.some(header => !header)) {
+		return null;
+	}
+	return [
+		`x:${block.xColumn - block.startCol}`,
+		`y:${block.dependentColumns.map(column => column - block.startCol).join(",")}`,
+		`headers:${headerKeys.join(",")}`,
+	].join("|");
+};
+
+const getVerticalRepeatedBlockBindingKey = (
+	group: readonly StructuredDataBlockCandidate[],
+): string => {
+	const first = group[0]!;
+	const last = group[group.length - 1]!;
+	return `c${first.startCol}-${first.endCol}:r${first.startRow}-${last.endRow}`;
+};
+
 const createStructuredContentStructure = ({
 	columnCount,
 	dataBlockCandidates,
@@ -1858,19 +2034,17 @@ const createStructuredContentStructure = ({
 			confidence: span.confidence,
 			source: "measurementHeader" as const,
 		}));
-	const dataRegions = dataBlockCandidates.length
-		? dataBlockCandidates.map(block => ({
-			id: `data-region:${block.id}`,
-			range: {
-				startRow: block.startRow,
-				endRow: block.endRow,
-				startCol: block.startCol,
-				endCol: block.endCol,
-			},
-			rowCount: block.endRow - block.startRow + 1,
-			columnCount: block.endCol - block.startCol + 1,
-		}))
-		: [createFallbackDataRegion(numericRuns)];
+	const dataRegions = dataBlockCandidates.map(block => ({
+		id: `data-region:${block.id}`,
+		range: {
+			startRow: block.startRow,
+			endRow: block.endRow,
+			startCol: block.startCol,
+			endCol: block.endCol,
+		},
+		rowCount: block.endRow - block.startRow + 1,
+		columnCount: block.endCol - block.startCol + 1,
+	}));
 	const blockRegions = dataBlockCandidates.length
 		? dataBlockCandidates.map(block => ({
 			id: `block-region:${block.id}`,
@@ -1895,26 +2069,6 @@ const createStructuredContentStructure = ({
 			semanticRulesFingerprint,
 			titleSpans,
 		}),
-	};
-};
-
-const createFallbackDataRegion = (
-	numericRuns: readonly NumericRun[],
-) => {
-	const startRow = Math.min(...numericRuns.map(run => run.startRow));
-	const endRow = Math.max(...numericRuns.map(run => run.endRow));
-	const startCol = Math.min(...numericRuns.map(run => run.column));
-	const endCol = Math.max(...numericRuns.map(run => run.column));
-	return {
-		id: "data-region:numeric-runs",
-		range: {
-			startRow,
-			endRow,
-			startCol,
-			endCol,
-		},
-		rowCount: endRow - startRow + 1,
-		columnCount: endCol - startCol + 1,
 	};
 };
 
@@ -2061,7 +2215,6 @@ const createMeasurementColumnRef = ({
 		block,
 		column,
 		rows,
-		semanticMatcher,
 	});
 	const headerText = repeatedPairLegendText ??
 		titleSpan?.titleCell.text ??
@@ -2093,12 +2246,10 @@ const createRepeatedPairLegendHeaderText = ({
 	block,
 	column,
 	rows,
-	semanticMatcher,
 }: {
 	readonly block: StructuredDataBlockCandidate;
 	readonly column: number;
 	readonly rows: readonly (readonly string[])[];
-	readonly semanticMatcher: SemanticMatcher;
 }): string | null => {
 	if (!block.reasons.includes("dataBlock.repeatedPairSharedX") || !block.dependentColumns.includes(column)) {
 		return null;
@@ -2108,23 +2259,7 @@ const createRepeatedPairLegendHeaderText = ({
 	if (!pairTitle || pairTitle.axis !== "dependent") {
 		return null;
 	}
-	const group = parseTrailingLegendGroup(pairTitle.base);
-	if (!group) {
-		return pairTitle.base;
-	}
-	return stripLeadingSemanticLegendToken(group.legendText, semanticMatcher) ?? group.legendText;
-};
-
-const stripLeadingSemanticLegendToken = (
-	value: string,
-	semanticMatcher: SemanticMatcher,
-): string | null => {
-	const prefix = readLeadingSemanticPrefix(value, semanticMatcher);
-	if (!prefix) {
-		return null;
-	}
-	const remainder = value.slice(prefix.endIndex).replace(/^[\s_\-:./\\|,;]+/g, "").trim();
-	return remainder || null;
+	return pairTitle.base;
 };
 
 const findAlignedBlockHeaderRow = ({
@@ -2220,39 +2355,12 @@ const selectBlockRule = (
 		titleSpansByColumn,
 		xGroupCandidates,
 	});
-	const yRulesById = new Map<string, {
-		readonly id: string;
-		readonly label: string;
-		readonly type?: string;
-		readonly priorityIndex: number;
-	}>();
-	for (const column of block.dependentColumns) {
-		for (const rule of titleSpansByColumn.get(column)?.semanticRules ?? []) {
-			if (rule.axisTendency !== "dependent") {
-				continue;
-			}
-			const current = yRulesById.get(rule.id);
-			if (!current || rule.priorityIndex < current.priorityIndex) {
-				yRulesById.set(rule.id, {
-					id: rule.id,
-					label: rule.label,
-					...(rule.type ? { type: rule.type } : {}),
-					priorityIndex: rule.priorityIndex,
-				});
-			}
-		}
-	}
 	let candidates: readonly BlockRuleCandidate[] = xRules.length
-		? xRules.filter(rule => yRulesById.has(rule.id)).map(rule => {
-			const proofEvidence = proofEvidenceByRuleId.get(rule.id) ?? [];
-			return {
-				id: rule.id,
-				label: rule.label,
-				...(rule.type ? { type: rule.type } : {}),
-				priorityIndex: Math.min(rule.priorityIndex, yRulesById.get(rule.id)?.priorityIndex ?? rule.priorityIndex),
-				proofEvidenceCount: proofEvidence.length,
-				proofScore: getBlockRuleProofScore(rule.type, proofEvidence),
-			};
+		? createDirectXYRuleCandidates({
+			block,
+			proofEvidenceByRuleId,
+			titleSpansByColumn,
+			xRules,
 		})
 		: [];
 	if (!candidates.length) {
@@ -2280,12 +2388,80 @@ const selectBlockRule = (
 	const strongestEvidenceCandidates = strongestCandidates.filter(candidate =>
 		candidate.proofEvidenceCount === bestProofEvidenceCount
 	);
-	const strongestTypes = new Set(strongestEvidenceCandidates.map(candidate => candidate.type).filter(Boolean));
+	const bestDirectPairScore = Math.max(...strongestEvidenceCandidates.map(candidate => candidate.directPairScore));
+	const strongestDirectPairCandidates = strongestEvidenceCandidates.filter(candidate =>
+		candidate.directPairScore === bestDirectPairScore
+	);
+	const strongestTypes = new Set(strongestDirectPairCandidates.map(candidate => candidate.type).filter(Boolean));
 	if (strongestTypes.has("transfer") && strongestTypes.has("output")) {
 		return null;
 	}
-	return strongestEvidenceCandidates
+	return strongestDirectPairCandidates
 		.sort((left, right) => left.priorityIndex - right.priorityIndex)[0] ?? null;
+};
+
+const createDirectXYRuleCandidates = ({
+	block,
+	proofEvidenceByRuleId,
+	titleSpansByColumn,
+	xRules,
+}: {
+	readonly block: StructuredDataBlockCandidate;
+	readonly proofEvidenceByRuleId: ReadonlyMap<string, readonly BlockProofColumnKind[]>;
+	readonly titleSpansByColumn: ReadonlyMap<number, StructuredColumnTitleSpanEvidence>;
+	readonly xRules: readonly HeaderSemanticRuleMatch[];
+}): readonly BlockRuleCandidate[] => {
+	const candidatesByRuleId = new Map<string, BlockRuleCandidate>();
+	for (const column of block.dependentColumns) {
+		const yRules = titleSpansByColumn.get(column)?.semanticRules
+			.filter(rule => rule.axisTendency === "dependent") ?? [];
+		for (const xRule of xRules) {
+			const yRule = yRules.find(rule => rule.id === xRule.id);
+			if (!yRule) {
+				continue;
+			}
+			const proofEvidence = proofEvidenceByRuleId.get(xRule.id) ?? [];
+			const directPairScore = getDirectXYPairScore(block, column);
+			const candidate: BlockRuleCandidate = {
+				id: xRule.id,
+				label: xRule.label,
+				...(xRule.type ? { type: xRule.type } : {}),
+				directPairScore,
+				priorityIndex: Math.min(xRule.priorityIndex, yRule.priorityIndex),
+				proofEvidenceCount: proofEvidence.length,
+				proofScore: getBlockRuleProofScore(xRule.type, proofEvidence),
+			};
+			const current = candidatesByRuleId.get(candidate.id);
+			if (
+				!current ||
+				candidate.directPairScore > current.directPairScore ||
+				candidate.priorityIndex < current.priorityIndex
+			) {
+				candidatesByRuleId.set(candidate.id, candidate);
+			}
+		}
+	}
+	return Array.from(candidatesByRuleId.values());
+};
+
+const getDirectXYPairScore = (
+	block: StructuredDataBlockCandidate,
+	dependentColumn: number,
+): number => {
+	let score = 1;
+	if (dependentColumn === block.dependentColumns[0]) {
+		score += 1;
+	}
+	if (
+		(block.columnDirection === "rightPreferred" && dependentColumn > block.xColumn) ||
+		(block.columnDirection === "leftObserved" && dependentColumn < block.xColumn)
+	) {
+		score += 0.5;
+	}
+	if (Math.abs(dependentColumn - block.xColumn) === 1) {
+		score += 2;
+	}
+	return score;
 };
 
 const createRepeatedPairHeaderRuleCandidates = ({
@@ -2394,40 +2570,14 @@ const matchHeaderTitleParts = (
 const createParenthesizedHeaderTitleParts = (
 	value: string,
 ): readonly string[] => {
-	const group = parseTrailingLegendGroup(value);
+	const group = parseTrailingParenthesizedHeaderPart(value);
 	if (!group) {
 		return [];
 	}
 	return uniqueStrings([
-		group.semanticText,
-		group.legendText,
+		group.outerText,
+		group.innerText,
 	]);
-};
-
-const readLeadingSemanticPrefix = (
-	value: string,
-	semanticMatcher: SemanticMatcher,
-): { readonly endIndex: number } | null => {
-	let normalizedPrefix = "";
-	let best: { readonly endIndex: number; readonly keyLength: number } | null = null;
-	for (let index = 0; index < value.length; index += 1) {
-		const charKey = toSemanticTermKey(value[index]);
-		if (!charKey) {
-			continue;
-		}
-		normalizedPrefix += charKey;
-		const match = semanticMatcher.matchTitle(normalizedPrefix);
-		if (!match?.matchedTermKeys.includes(normalizedPrefix)) {
-			continue;
-		}
-		if (!best || normalizedPrefix.length > best.keyLength) {
-			best = {
-				endIndex: index + 1,
-				keyLength: normalizedPrefix.length,
-			};
-		}
-	}
-	return best ? { endIndex: best.endIndex } : null;
 };
 
 const createRuleCandidatesFromSemanticMatches = ({
@@ -2451,6 +2601,7 @@ const createRuleCandidatesFromSemanticMatches = ({
 				id: rule.id,
 				label: rule.label,
 				...(rule.type ? { type: rule.type } : {}),
+				directPairScore: 0,
 				priorityIndex: rule.priorityIndex,
 				proofEvidenceCount: proofEvidence.length,
 				proofScore: getBlockRuleProofScore(rule.type, proofEvidence),

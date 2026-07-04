@@ -511,6 +511,43 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate?.template.blocks.length, 2);
 	});
 
+	test("derives repeated DataName/DataValue transfer review without metadata ambiguity", async () => {
+		const userTemplateService = createUserTemplateServiceForTest();
+		const resource = URI.file("/workspace/TransferRepeatedDataName.csv");
+		const service = createReviewServiceForTest(
+			userTemplateService,
+			createDataResourceServiceForTest(resource, [], null, createTestTableModelContent([
+				["SetupTitle", "Transfer1-3"],
+				["AnalysisSetup", "Analysis.Setup.Vector.Graph.XAxis.Name", "Vg"],
+				["AnalysisSetup", "Analysis.Setup.Vector.Graph.XAxis.Left", "-5"],
+				["AnalysisSetup", "Analysis.Setup.Vector.Graph.XAxis.Right", "20"],
+				["DataName", "Vg", "Id", "gm"],
+				["DataValue", "-5", "1e-12", "2e-12"],
+				["DataValue", "-4.875", "2e-12", "3e-12"],
+				["DataValue", "-4.75", "3e-12", "4e-12"],
+				["SetupTitle", "Transfer1-3"],
+				["AnalysisSetup", "Analysis.Setup.Vector.Graph.XAxis.Name", "Vg"],
+				["AnalysisSetup", "Analysis.Setup.Vector.Graph.XAxis.Left", "-5"],
+				["AnalysisSetup", "Analysis.Setup.Vector.Graph.XAxis.Right", "20"],
+				["DataName", "Vg", "Id", "gm"],
+				["DataValue", "-5", "1.5e-12", "2.5e-12"],
+				["DataValue", "-4.875", "2.5e-12", "3.5e-12"],
+				["DataValue", "-4.75", "3.5e-12", "4.5e-12"],
+			])),
+		);
+
+		const reviewExecution = await service.reviewResourceForExecution({ resource });
+
+		assert.equal(reviewExecution?.summary.state, "ready");
+		assert.equal(reviewExecution?.summary.reviewedType, "transfer");
+		assert.equal(reviewExecution?.summary.findingCodes.includes("review.ambiguousCandidates"), false);
+		assert.ok(
+			reviewExecution?.systemRecommendedReviewedTemplate?.source.kind === "dataResource" &&
+			reviewExecution.systemRecommendedReviewedTemplate.source.bindingCandidateId.startsWith("binding:vertical-repeated-blocks:"),
+		);
+		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate?.template.blocks.length, 2);
+	});
+
 	test("derives user template candidates from the user template snapshot", async () => {
 		const template = createTemplate({
 			id: "template-a",

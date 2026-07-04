@@ -25,6 +25,13 @@ ranges, Y-like aligned ranges, and binding candidates. Review should lower the
 semantic confidence when names and units are absent, but it should not treat the
 file as missing data.
 
+The primary definition of `dataRange` comes from the numeric core and the
+accepted X row span: first prove that target columns form a readable continuous
+numeric block over the same row interval, then prove that one column can anchor
+the sweep / X role, then bind dependent columns aligned to that X row span.
+Markers such as `DataName` / `DataValue` are boundary and title evidence only;
+they must not define the data range by themselves.
+
 The current failure mode is usually not that Slice cuts the table incorrectly.
 Slice can only execute a reviewed template. When Review cannot evaluate a file,
 the more likely cause is that the structured evidence before Review is
@@ -44,6 +51,7 @@ DataResource
   -> generate DataBlockCandidate values
   -> detect DependentValueCandidate values
   -> generate BindingCandidate values
+  -> generate MeasurementClassificationCandidate values
   -> expose structured evidence with confidence and reasons
 
 Review
@@ -62,6 +70,12 @@ Slice
 `dataRange` is not the algorithm. It is one output of the segmentation layer:
 the continuous area that is usable as data. Review should not rediscover
 `dataRange` from raw rows, and Slice should not infer headers, roles, or layout.
+
+`DataResource` should not declare data range from an auxiliary marker column.
+Markers, titles, and metadata references may narrow or explain existing numeric
+evidence. Without a continuous numeric core, an acceptable X candidate, and
+dependent values aligned to the X row span, the result should stay ambiguous or
+invalid instead of being auto-recommended.
 
 ## Core Principle
 
@@ -240,6 +254,31 @@ type BindingCandidate = {
 };
 ```
 
+```ts
+type MeasurementClassificationCandidate = {
+  readonly bindingCandidateId: string;
+  readonly family: "iv" | "cv" | "cf" | "it" | "pv" | "unknown";
+  readonly ivMode?: "transfer" | "output" | "unknown";
+  readonly xRole: "sweep" | "step" | "condition" | "unknown";
+  readonly xStrength: "strongDiscriminator" | "weakVoltage" | "generic" | "unknown";
+  readonly yFamilyEvidence:
+    | "primaryCurrentStrong"
+    | "primaryCurrentWeak"
+    | "leakage"
+    | "derivedGm"
+    | "capacitance"
+    | "generic"
+    | "unknown";
+  readonly sourceWeights: readonly {
+    readonly source: "axisHeader" | "columnHeader" | "dataNameSection" | "traceName" | "fileName";
+    readonly confidence: number;
+  }[];
+  readonly confidence: number;
+  readonly ambiguityCodes: readonly string[];
+  readonly reasons: readonly string[];
+};
+```
+
 Layout names such as `xy`, `xyyyy`, or `xyxyxy` should be treated as derived
 explanations over binding candidates. They should not be the first thing the
 algorithm tries to classify.
@@ -252,7 +291,7 @@ raw table rows
   -> classify cell kinds: empty / text / number
   -> find continuous numeric runs by column
   -> segment column blocks first
-  -> use row markers and text rows as boundary context
+  -> use row markers and text rows only as boundary context
   -> match nearby column title spans through the title library
   -> group compatible runs into data regions
   -> score XRangeCandidate values
@@ -261,6 +300,10 @@ raw table rows
   -> validate numeric proof columns against each block's X groups
   -> collect DependentValueCandidate values inside data blocks
   -> generate BindingCandidate values
+  -> derive sweep / step / condition role evidence from numeric shape
+  -> classify dependent response family and strength
+  -> score direct X/Y pair evidence before auxiliary dependents
+  -> generate MeasurementClassificationCandidate values
   -> expose structured evidence
   -> Review evaluates evidence and materializes Template
 ```
@@ -299,18 +342,20 @@ algorithm should inspect the numeric core: if most target columns are numeric
 and those columns form continuous runs vertically, the row can still belong to
 the data region.
 
-A high-confidence data boundary usually has at least one of these signals:
+A high-confidence data range must have a numeric core first. Boundary
+confidence is then strengthened by signals such as:
 
 - the first info cell or row marker at the data boundary is meaningful, such as
   `DataName`, `DataValue`, `Vg`, or `Id`;
 - the data columns contain an identifiable X pattern, such as fixed step,
   monotonicity, segmented sweep, or repeated pattern.
 
-If either signal exists, candidate generation can continue. If neither exists,
-especially when text/numeric cells are mixed, column blocks are discontinuous,
-the X pattern is absent, and no title/info marker exists, `DataResource` should
-emit dirty / ambiguous evidence. Review should not automatically recommend the
-data as ready.
+A marker without a numeric core must not produce a ready candidate. A numeric
+core without markers can still produce candidates; headerless numeric-only data
+is exactly that case. If text/numeric cells are mixed, column blocks are
+discontinuous, the X pattern is absent, and no title/info marker exists,
+`DataResource` should emit dirty / ambiguous evidence. Review should not
+automatically recommend the data as ready.
 
 ### Numeric Runs
 
@@ -328,6 +373,52 @@ Each run should record:
 
 This pass should naturally skip large metadata blocks because those rows do not
 form long numeric runs.
+
+### Data Range Detection
+
+Data range is not determined by auxiliary columns such as `DataName` or
+`DataValue`. The main path is:
+
+```txt
+numeric runs by column
+  -> numeric core block
+  -> XRangeCandidate row span
+  -> aligned dependent columns
+  -> BindingCandidate
+  -> dataRange = row/column envelope of the accepted binding
+```
+
+Constraints:
+
+- **numeric core**: multiple target columns form continuous numeric runs over
+  the same row interval, with enough numeric coverage and explainable blanks or
+  text noise;
+- **X anchor**: the numeric core contains at least one acceptable XRangeCandidate
+  from monotonic / fixed-step / segmented sweep / repeated pattern evidence, or
+  from strong title evidence over a continuous row interval;
+- **row span**: data-range start/end primarily come from the accepted
+  XRangeCandidate row span; dependent values follow that span;
+- **column envelope**: the column range comes from the DataBlockCandidate around
+  X, including aligned dependent columns and excluding marker columns, metadata
+  columns, and blank separators;
+- **boundary stop**: empty rows, long text blocks, column-structure breaks, the
+  next independent numeric core, X-pattern breaks, and repeated-section
+  boundaries may stop the range;
+- **coherence**: sparse metadata numbers, or a short single numeric column with
+  no X/dependent alignment, cannot become a data range.
+
+`DataName` / `DataValue` can only:
+
+- help identify title-row and data-row boundaries;
+- keep metadata numbers in B1500-style files from competing with the same
+  candidate;
+- provide source weight for column titles inside the same data section.
+
+They cannot create a data range alone. Even when `DataValue` is present, later
+columns must still form a continuous numeric core and generate an X/dependent
+binding candidate. Conversely, headerless numeric-only files have no
+`DataName` / `DataValue`, but should still produce data range when numeric core,
+X anchor, and binding coherence are strong enough.
 
 ### Column Title Span Matching
 
@@ -436,6 +527,10 @@ time / frequency / bias
 Cgg / capacitance
   -> rule evidence: axisTendency dependent
 ```
+
+Here `type transfer` / `type output` is candidate rule evidence, not the final
+measurement mode. Final mode must still pass sweep-role confirmation and Y
+family confirmation; it must not be decided from a title word alone.
 
 The title span is bounded by the continuous numeric run below the title. It
 should stop at:
@@ -610,6 +705,148 @@ they are X ranges. The ambiguity belongs to binding selection: Review must
 decide whether the data should be treated as repeated pairwise X/value bindings
 or as one shared X range with many dependent value columns.
 
+### Shared-X / Repeated-XY Normalization
+
+`xy`, `xyyyy`, and `xyxyxy` are not three separate algorithms. They should first
+normalize into binding evidence:
+
+```txt
+X Y
+  -> oneX-oneY
+
+X Y1 Y2 Y3
+  -> oneX-manyY
+
+X1 Y1 X2 Y2 X3 Y3
+  -> if X1/X2/X3 contain identical values within tolerance, collapse to oneX-manyY
+  -> Y1/Y2/Y3 headers become line legends
+  -> if X values differ, keep manyXYpairs or repeated blocks
+```
+
+The high-confidence signal is identical X data, not similar headers. Similar
+headers are supporting evidence only. For example, repeated
+`c(g:g)(CV_n256_ac_des) X/Y` and `c(g:g)(CV_n350_ac_des) X/Y` pairs collapse
+only when their X columns are identical. The corresponding Y headers provide
+the line legends; parenthesized or changing header substrings are only
+supporting semantic evidence.
+
+Native `X,Y1,Y2,...Yn` data, such as a first `Vg/Vbg` column followed by
+`-2,-1,0,1,2` dependent columns, is already shared-X multi-Y data. The
+dependent headers are legends, not primary transfer/output evidence.
+
+### Measurement Family / Mode Classification
+
+Measurement classification is an interpretation of binding evidence. It should
+not decide how data is sliced. The order is:
+
+```txt
+BindingCandidate
+  -> confirm whether X is the real sweep
+  -> classify IV / CV / derived / unknown from Y family
+  -> allow transfer / output only for IV family
+  -> decide transfer / output from sweep X
+  -> resolve conflicts with source weights and direct-pair score
+```
+
+#### X Decides Mode Only When It Is Sweep
+
+`Vg` or `Vd` appearing in the file is not enough. The column may be a sweep,
+step, bias, condition, or unknown. Only `xRole: "sweep"` can decide IV mode:
+gate-voltage sweep supports transfer; drain-voltage sweep supports output.
+Gate or drain step/bias columns are condition evidence, not mode decisions.
+
+#### Y Decides Family, Not Mode
+
+Y proves response family and confidence:
+
+- `Cgg`, `Cgs`, `Cgd`, `Cgb`, `Capacitance`, `Cp`, or `Cs`: classify CV first,
+  even when X is `Vg`;
+- `Id`, `Ids`, `Drain Current`, or `Channel Current`: strong primary IV
+  current;
+- `Current`, `TotalCurrent`, or `CH1 Current`: weak IV current requiring source
+  or proof evidence;
+- `Ig`, `Igs`, or `Gate Current`: leakage IV, not primary transfer/output
+  proof;
+- `Is` or `Source Current`: source-current IV, not primary transfer/output
+  proof;
+- `gm` or `Transconductance`: transfer-derived evidence, not primary transfer
+  Y.
+
+Mode is driven by the sweep variable, but Y must prove the block is eligible
+for that mode. If Y is capacitance, the block remains CV and does not enter
+transfer/output classification.
+
+#### Direct X/Y Pairs Outrank Auxiliary Columns
+
+Inside one block, a clear `Vg -> Id` or `Vd -> Id` pair should outrank nearby
+`gm`, `Ig`, `Is`, proof columns, or file-name hints. For `Vg, Id, gm`, the
+primary pair is `Vg -> Id`; `gm` is only derived evidence.
+
+#### Header Matching Uses Continuous Normalized Keywords
+
+Header matching should not depend on delimiter tokenization. It may match
+continuous normalized keywords inside a header:
+
+```txt
+c(g:g)(CV_n256_ac_des)
+  -> cgg/capacitance family
+  -> CV_n256_ac_des as supporting semantic evidence
+  -> the Y header text is the legend
+
+drain TotalCurrent(IdVg_n938_des)
+  -> TotalCurrent is weak current
+  -> IdVg is a sweep-discriminator hint
+  -> the Y header text is the legend
+```
+
+This must not become blind substring matching. Short keys such as `id`, `vg`,
+and `vd` need source and role guards:
+
+```txt
+axis label / bound column header
+  > DataName-owned section header
+  > trace / measurement name
+  > file name
+```
+
+File names, trace names, and legends are supporting evidence only. They must not
+decide transfer/output by themselves.
+
+#### Built-In Terms Need Responsibility Layers
+
+Built-in rules should not keep widening flat transfer/output X/Y lists. Terms
+with physical meaning should carry explicit responsibility:
+
+```txt
+x.sweepDiscriminator     Vg / Vgs / Gate Voltage / IdVg / Vd / Vds / Drain Voltage / IdVd
+x.weakVoltage            Voltage / CH1 Voltage / CH2 Voltage / Bias Voltage
+y.primaryCurrentStrong   Id / Ids / Drain Current / Channel Current
+y.primaryCurrentWeak     Current / TotalCurrent / CH1 Current / CH2 Current
+y.leakage                Ig / Igs / Gate Current
+y.sourceCurrent          Is / Source Current
+y.derivedGm              gm / Transconductance
+y.capacitance            Cgg / Cgd / Cgs / Cgb / Capacitance / Cp / Cs
+```
+
+This is not adding more fields for its own sake. It removes unreasonable
+duplicate ownership: weak evidence must not appear as strong Y evidence in both
+transfer and output.
+
+#### Conservative Downgrades
+
+Downgrade to family unknown, IV unknown mode, or needs adjustment when:
+
+- the X title is clear, but numeric shape shows step/bias instead of sweep;
+- Y is only `Ig`, `Is`, or `gm`, with no primary current;
+- the file only has generic `Voltage` + `Current`;
+- channel names such as CH1/CH2 lack wiring proof;
+- `IdVg` / `IdVd` appears only in a file name or legend;
+- transfer and output evidence are equally strong;
+- the data can be sliced, but semantic source evidence is too weak.
+
+Voltage sign, current sign, and sweep direction do not change transfer/output
+mode.
+
 ## Review Evaluation
 
 Review should consume the evidence and decide:
@@ -711,6 +948,20 @@ The algorithm should be tested against at least these shapes:
 - first-row `X,Y` table;
 - first-row `X,Y,Y,Y` table;
 - first-row `X,Y,X,Y` pairwise table;
+- `XYXYXY` where repeated X columns are identical and should collapse to
+  shared-X multi-Y with Y headers as legends;
+- `XYXYXY` where repeated X columns differ and should remain manyXYpairs or
+  repeated blocks;
+- continuous-keyword CV headers such as `c(g:g)(CV_n256_ac_des) X/Y`, with the
+  Y header used as legend and the parenthesized text as supporting evidence;
+- continuous-keyword IV headers such as `drain TotalCurrent(IdVg_n938_des) X/Y`,
+  with weak current and sweep-discriminator evidence separated;
+- `Vg, Id, gm` where direct `Vg -> Id` proves primary transfer and `gm` remains
+  derived evidence;
+- `Vg, Cgg` classified as CV, not transfer;
+- `Vg` as step/bias instead of sweep, which must not decide transfer;
+- `Ig` / `Is` must not prove primary transfer/output alone;
+- `TotalCurrent` confidence is weaker than `Id` / `Ids` / `Drain Current`;
 - headerless numeric-only `X,Y` data starting at row 0;
 - headerless numeric-only `X,Y,Y,Y` and `X,Y,X,Y` data starting at row 0;
 - long metadata block followed by a `DataName` row and numeric `DataValue`

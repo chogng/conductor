@@ -46,6 +46,14 @@ export type SemanticTitleRuleMatch = {
 
 export type SemanticRowMarkerKind = "titleRow" | "dataRow";
 
+export type SemanticRowMarkerMatch = {
+	readonly kind: SemanticRowMarkerKind;
+	readonly column: number;
+	readonly requiresSameMarkerColumn: boolean;
+	readonly supplementId: string;
+	readonly supplementLabel: string;
+};
+
 export type SemanticRule = {
 	readonly id: string;
 	readonly label: string;
@@ -110,8 +118,20 @@ type SupplementRecord = {
 	readonly id: number;
 	readonly label: string;
 	readonly match: {
+		readonly markerColumn: number;
 		readonly titleRowTerms?: readonly SupplementTermSet[];
 		readonly dataRowTerms?: readonly SupplementTermSet[];
+	};
+	readonly requires: {
+		readonly sameMarkerColumn: boolean;
+		readonly titleRowHasMatchedColumns: boolean;
+		readonly dataRowsHaveNumericRuns: boolean;
+		readonly mustStayInsideDetectedBlock: boolean;
+	};
+	readonly provides: {
+		readonly titleRow: string;
+		readonly dataRows: string;
+		readonly ignoreMarkerColumn: boolean;
 	};
 };
 
@@ -130,6 +150,10 @@ type SemanticRowMarkerTerm = {
 	readonly key: string;
 	readonly aliases: readonly string[];
 	readonly kind: SemanticRowMarkerKind;
+	readonly markerColumn: number;
+	readonly requiresSameMarkerColumn: boolean;
+	readonly supplementId: string;
+	readonly supplementLabel: string;
 };
 
 export type EffectiveSemanticRule = SemanticRule & {
@@ -167,7 +191,7 @@ export type SemanticMatcherOptions = {
 export type SemanticMatcher = {
 	readonly fingerprint: string;
 	readonly matchTitle: (value: unknown) => SemanticTitleMatch | null;
-	readonly matchRowMarker: (value: unknown) => SemanticRowMarkerKind | null;
+	readonly matchRowMarkerInRow: (row: readonly string[]) => SemanticRowMarkerMatch | null;
 	readonly toKey: (value: unknown) => string;
 	readonly rulePriority: readonly string[];
 };
@@ -207,6 +231,7 @@ export function createSemanticMatcher(
 	const titleTermsByKey = new Map(titleTerms.map(term => [term.key, term]));
 	const rowMarkerTerms = Array.from(builtinRowMarkerTermsByKey.values());
 	const rowMarkerTermsByKey = new Map(rowMarkerTerms.map(term => [term.key, term]));
+	const rowMarkerColumns = uniqueNumbers(rowMarkerTerms.map(term => term.markerColumn));
 	const fingerprint = `data-resource-rules:${hashString(stableStringify({
 		rules: effectiveRules.map(rule => ({
 			id: rule.id,
@@ -223,12 +248,15 @@ export function createSemanticMatcher(
 		rowMarkerTerms: rowMarkerTerms.map(term => ({
 			key: term.key,
 			kind: term.kind,
+			markerColumn: term.markerColumn,
+			requiresSameMarkerColumn: term.requiresSameMarkerColumn,
+			supplementId: term.supplementId,
 		})),
 	}))}`;
 	return {
 		fingerprint,
 		matchTitle: value => matchSemanticTitleFromTerms(value, titleTermsByKey),
-		matchRowMarker: value => matchSemanticRowMarkerFromTerms(value, rowMarkerTermsByKey),
+		matchRowMarkerInRow: row => matchSemanticRowMarkerInRow(row, rowMarkerTermsByKey, rowMarkerColumns),
 		toKey: toSemanticTermKey,
 		rulePriority,
 	};
@@ -240,7 +268,7 @@ export const matchSemanticTitle = (
 
 export const matchSemanticRowMarker = (
 	value: unknown,
-): SemanticRowMarkerKind | null => defaultSemanticMatcher.matchRowMarker(value);
+): SemanticRowMarkerKind | null => matchSemanticRowMarkerTerm(value, builtinRowMarkerTermsByKey)?.kind ?? null;
 
 export const createEffectiveSemanticRules = (
 	patches?: TemplateSemanticPatches,
@@ -409,10 +437,25 @@ function compileSupplementRowMarkers(
 	}
 	const termsByKey = new Map<string, SemanticRowMarkerTerm>();
 	for (const supplement of file.supplements) {
+		validateSupplementRecord(supplement);
 		addSupplementMarkerTerms(termsByKey, supplement, "titleRow", supplement.match.titleRowTerms ?? []);
 		addSupplementMarkerTerms(termsByKey, supplement, "dataRow", supplement.match.dataRowTerms ?? []);
 	}
 	return termsByKey;
+}
+
+function validateSupplementRecord(
+	supplement: SupplementRecord,
+): void {
+	if (!Number.isInteger(supplement.id) || supplement.id <= 0) {
+		throw new Error("Invalid supplement id.");
+	}
+	if (!supplement.label.trim()) {
+		throw new Error(`Missing supplement label for ${supplement.id}.`);
+	}
+	if (!Number.isInteger(supplement.match.markerColumn) || supplement.match.markerColumn < 0) {
+		throw new Error(`Invalid supplement marker column in ${supplement.label}:${supplement.id}.`);
+	}
 }
 
 function addSupplementMarkerTerms(
@@ -428,8 +471,15 @@ function addSupplementMarkerTerms(
 				throw new Error(`Invalid supplement alias "${alias}" in ${supplement.label}:${supplement.id}.`);
 			}
 			const current = termsByKey.get(key);
-			if (current && current.kind !== kind) {
-				throw new Error(`Supplement alias "${alias}" is configured as both ${current.kind} and ${kind}.`);
+			if (
+				current &&
+				(
+					current.kind !== kind ||
+					current.markerColumn !== supplement.match.markerColumn ||
+					current.requiresSameMarkerColumn !== supplement.requires.sameMarkerColumn
+				)
+			) {
+				throw new Error(`Supplement alias "${alias}" has conflicting row marker semantics.`);
 			}
 			termsByKey.set(key, current
 				? {
@@ -440,6 +490,10 @@ function addSupplementMarkerTerms(
 					key,
 					aliases: [alias],
 					kind,
+					markerColumn: supplement.match.markerColumn,
+					requiresSameMarkerColumn: supplement.requires.sameMarkerColumn,
+					supplementId: `supplement:${supplement.id}`,
+					supplementLabel: supplement.label.trim(),
 				});
 		}
 	}
@@ -808,15 +862,36 @@ const isSemanticKeywordTermAllowed = (
 	key === "vg" ||
 	key === "vd";
 
-const matchSemanticRowMarkerFromTerms = (
+const matchSemanticRowMarkerInRow = (
+	row: readonly string[],
+	rowMarkerTermsByKey: ReadonlyMap<string, SemanticRowMarkerTerm>,
+	rowMarkerColumns: readonly number[],
+): SemanticRowMarkerMatch | null => {
+	for (const column of rowMarkerColumns) {
+		const term = matchSemanticRowMarkerTerm(row[column], rowMarkerTermsByKey);
+		if (!term || term.markerColumn !== column) {
+			continue;
+		}
+		return {
+			kind: term.kind,
+			column,
+			requiresSameMarkerColumn: term.requiresSameMarkerColumn,
+			supplementId: term.supplementId,
+			supplementLabel: term.supplementLabel,
+		};
+	}
+	return null;
+};
+
+const matchSemanticRowMarkerTerm = (
 	value: unknown,
 	rowMarkerTermsByKey: ReadonlyMap<string, SemanticRowMarkerTerm>,
-): SemanticRowMarkerKind | null => {
+): SemanticRowMarkerTerm | null => {
 	const key = toSemanticTermKey(value);
 	if (!key) {
 		return null;
 	}
-	return rowMarkerTermsByKey.get(key)?.kind ?? null;
+	return rowMarkerTermsByKey.get(key) ?? null;
 };
 
 function createSemanticTitleMatch(
@@ -923,6 +998,21 @@ function mergeUniqueValues(
 		}
 	}
 	return values;
+}
+
+function uniqueNumbers(
+	values: readonly number[],
+): readonly number[] {
+	const seen = new Set<number>();
+	const result: number[] = [];
+	for (const value of values) {
+		if (seen.has(value)) {
+			continue;
+		}
+		seen.add(value);
+		result.push(value);
+	}
+	return result.sort((left, right) => left - right);
 }
 
 function hashString(
