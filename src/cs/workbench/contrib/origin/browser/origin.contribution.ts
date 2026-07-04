@@ -53,7 +53,6 @@ function registerOriginView(): void {
     id: OriginExportSettingsViewId,
     name: localize("origin.curveSettings.title", "Origin Settings"),
     ctorDescriptor: new SyncDescriptor(OriginSettingsViewPane),
-    hideByDefault: true,
     order: 30,
     when: ContextKeyExpr.and(
       ActiveWorkbenchMainPartContext.isEqualTo("chart"),

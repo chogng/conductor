@@ -57,7 +57,6 @@ function registerSearchView(): void {
     id: SearchViewId,
     name: localize("chart.views.search", "Search"),
     ctorDescriptor: new SyncDescriptor(SearchViewPane),
-    hideByDefault: true,
     order: 5,
     when: ContextKeyExpr.and(
       ActiveWorkbenchMainPartContext.isEqualTo("chart"),

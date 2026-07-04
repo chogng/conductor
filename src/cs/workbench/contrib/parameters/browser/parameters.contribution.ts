@@ -57,7 +57,6 @@ function registerParametersView(): void {
     id: ParametersViewId,
     name: localize("chart.views.parameters", "Parameters"),
     ctorDescriptor: new SyncDescriptor(ParametersViewPane),
-    hideByDefault: true,
     order: 20,
     when: ContextKeyExpr.and(
       ActiveWorkbenchMainPartContext.isEqualTo("chart"),

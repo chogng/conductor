@@ -156,6 +156,7 @@ suite("workbench/services/views/common/viewContainerModel", () => {
     contextKeyService.setContext("activeAuxiliaryBarView", "export");
 
     assert.deepStrictEqual(model.activeViewDescriptors.map(view => view.id), ["workbench.searchOrExport"]);
+    assert.deepStrictEqual(model.visibleViewDescriptors.map(view => view.id), ["workbench.searchOrExport"]);
 
     model.dispose();
     contextKeyService.dispose();

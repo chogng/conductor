@@ -53,7 +53,6 @@ function registerExportView(): void {
     id: ExportViewId,
     name: localize("chart.views.export", "Export"),
     ctorDescriptor: new SyncDescriptor(ExportViewPane),
-    hideByDefault: true,
     order: 10,
     when: ContextKeyExpr.and(
       ActiveWorkbenchMainPartContext.isEqualTo("chart"),

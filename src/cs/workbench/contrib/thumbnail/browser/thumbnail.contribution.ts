@@ -29,7 +29,7 @@ if (container) {
     id: ThumbnailViewId,
     name: localize("files.thumbnailView", "Thumbnail"),
     ctorDescriptor: new SyncDescriptor(ThumbnailViewPane),
-    hideByDefault: true,
+    hideByDefault: false,
     order: 1,
   }], container);
 }
