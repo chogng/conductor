@@ -7,6 +7,6 @@ edition = "2024"
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]
-calamine = { version = "0.31", default-features = false, features = ["dates", "picture"] }
+calamine = { version = "0.36", default-features = false, features = ["dates", "picture"] }
 quick-xml = "0.38"
 serde_json = "1.0"
