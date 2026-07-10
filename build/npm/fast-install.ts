@@ -9,8 +9,12 @@ import {
   root,
 } from "./installStateHash.ts";
 
+const isSilent = process.argv.includes("--silent");
+
 if (!process.argv.includes("--force") && isUpToDate()) {
-  console.log(`\x1b[32mAll dependencies up to date.\x1b[0m ${forceInstallMessage}`);
+  if (!isSilent) {
+    console.log(`\x1b[32mAll dependencies up to date.\x1b[0m ${forceInstallMessage}`);
+  }
   process.exit(0);
 }
 

@@ -16,7 +16,6 @@ cd "$ROOT"
 # Vite, desktop TypeScript watch, Electron launch, and restart handling.
 export NODE_ENV=development
 export CONDUCTOR_DEV=1
-export ELECTRON_ENABLE_LOGGING=1
 export ELECTRON_ENABLE_STACK_DUMPING=1
 
 exec npm run dev:desktop -- "$@"

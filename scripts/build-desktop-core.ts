@@ -6,15 +6,15 @@
 import { createHash } from 'node:crypto';
 import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
+import * as ts from 'typescript';
 import { getVersion } from '../build/lib/git.ts';
 
 const packageJsonMarkerId = 'BUILD_INSERT_PACKAGE_CONFIGURATION';
-const tscWatchReadyMarker = 'Watching for file changes.';
-const desktopBuildReadyMarker = '[desktop-build] ready';
 const tscExtraArgs = process.argv.slice(2);
 const isWatch = tscExtraArgs.includes('--watch') || tscExtraArgs.includes('-w');
 const projectRoot = process.cwd();
+const desktopTsconfigPath = path.join(projectRoot, 'src', 'tsconfig.desktop.json');
 const desktopOutDir = path.join(projectRoot, 'out', 'desktop');
 const packageJsonPath = path.join(projectRoot, 'package.json');
 const bootstrapMetaPath = path.join(desktopOutDir, 'src', 'bootstrap-meta.js');
@@ -81,50 +81,71 @@ const getDesktopBuildFingerprint = (): string => {
 	return hash.digest('hex');
 };
 
-const reportDesktopBuildReady = (): void => {
-	inlinePackageConfiguration(false);
-	console.log(`${desktopBuildReadyMarker} ${getDesktopBuildFingerprint()}`);
+interface DesktopBuildReadyMessage {
+	readonly type: 'desktopBuildReady';
+	readonly fingerprint: string;
+}
+
+interface DesktopBuildFailedMessage {
+	readonly type: 'desktopBuildFailed';
+	readonly errorCount: number;
+}
+
+type DesktopBuildMessage = DesktopBuildReadyMessage | DesktopBuildFailedMessage;
+
+const sendDesktopBuildMessage = (message: DesktopBuildMessage): void => {
+	if (process.connected && process.send) {
+		process.send(message);
+	}
 };
 
 rmSync(desktopOutDir, { recursive: true, force: true });
 
 if (isWatch) {
-	const proc = spawn(tscCmd, tscArgs, { stdio: ['inherit', 'pipe', 'pipe'] });
+	const commandLine = ts.parseCommandLine(tscExtraArgs);
+	const diagnosticFormatHost: ts.FormatDiagnosticsHost = {
+		getCanonicalFileName: fileName => fileName,
+		getCurrentDirectory: () => projectRoot,
+		getNewLine: () => ts.sys.newLine,
+	};
+	const reportDiagnostic = (diagnostic: ts.Diagnostic): void => {
+		process.stderr.write(ts.formatDiagnosticsWithColorAndContext([diagnostic], diagnosticFormatHost));
+	};
 
-	const relayOutput = (
-		stream: NodeJS.ReadableStream,
-		outputTarget: NodeJS.WritableStream,
-	): void => {
-		stream.setEncoding('utf8');
-		let pending = '';
-		stream.on('data', chunk => {
-			const text = String(chunk);
-			outputTarget.write(text);
-			pending += text;
+	if (commandLine.errors.length) {
+		for (const diagnostic of commandLine.errors) {
+			reportDiagnostic(diagnostic);
+		}
+		process.exit(1);
+	}
 
-			let markerIndex = pending.indexOf(tscWatchReadyMarker);
-			while (markerIndex >= 0) {
-				reportDesktopBuildReady();
-				pending = pending.slice(markerIndex + tscWatchReadyMarker.length);
-				markerIndex = pending.indexOf(tscWatchReadyMarker);
-			}
+	const reportWatchStatus: ts.WatchStatusReporter = (_diagnostic, _newLine, _options, errorCount) => {
+		if (errorCount === undefined) {
+			return;
+		}
 
-			if (pending.length >= tscWatchReadyMarker.length) {
-				pending = pending.slice(-(tscWatchReadyMarker.length - 1));
-			}
+		if (errorCount > 0) {
+			sendDesktopBuildMessage({ type: 'desktopBuildFailed', errorCount });
+			return;
+		}
+
+		inlinePackageConfiguration(false);
+		sendDesktopBuildMessage({
+			type: 'desktopBuildReady',
+			fingerprint: getDesktopBuildFingerprint(),
 		});
 	};
 
-	relayOutput(proc.stdout, process.stdout);
-	relayOutput(proc.stderr, process.stderr);
-
-	proc.on('exit', code => {
-		process.exit(code ?? 1);
-	});
-	proc.on('error', error => {
-		console.error(error.message);
-		process.exit(1);
-	});
+	const host = ts.createWatchCompilerHost(
+		desktopTsconfigPath,
+		commandLine.options,
+		ts.sys,
+		ts.createEmitAndSemanticDiagnosticsBuilderProgram,
+		reportDiagnostic,
+		reportWatchStatus,
+		commandLine.watchOptions,
+	);
+	ts.createWatchProgram(host);
 } else {
 	const res = spawnSync(tscCmd, tscArgs, { stdio: 'inherit' });
 	if ((res.status ?? 1) !== 0) {

@@ -10,7 +10,6 @@ pushd %~dp0\..
 :: Vite, desktop TypeScript watch, Electron launch, and restart handling.
 set NODE_ENV=development
 set CONDUCTOR_DEV=1
-set ELECTRON_ENABLE_LOGGING=1
 set ELECTRON_ENABLE_STACK_DUMPING=1
 
 call npm.cmd run dev:desktop -- %*

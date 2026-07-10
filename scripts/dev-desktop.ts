@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Internal helper for scripts/code.*. It owns the Conductor-specific dev loop:
 // Vite, desktop TypeScript watch, Electron launch, and restart handling.
-import { spawn } from "node:child_process";
+import { fork, spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import net from "node:net";
 import path from "node:path";
@@ -13,7 +13,6 @@ const port = Number(process.env.DEV_PORT || 5174);
 // code/electron-browser owns Electron workbench bootstrapping.
 const devWorkbenchPath = "/src/cs/code/electron-browser/workbench/workbench-dev.html";
 const devUrl = `http://${host}:${port}${devWorkbenchPath}`;
-const devStartupStartMs = Date.now();
 const devServerWarmupPaths = [
   devWorkbenchPath,
   "/@vite/client",
@@ -28,37 +27,35 @@ const devServerWarmupPaths = [
 ];
 
 const isWin = process.platform === "win32";
-const npmCmd = "npm";
-const viteCmd = isWin ? "cmd.exe" : npmCmd;
-const viteArgs = isWin
-  ? ["/d", "/s", "/c", npmCmd, "run", "dev:vite", "--", "--host", host, "--port", String(port)]
-  : ["run", "dev:vite", "--", "--host", host, "--port", String(port)];
-const electronBuildWatchCmd = isWin ? "cmd.exe" : npmCmd;
-const electronBuildWatchArgs = isWin
-  ? ["/d", "/s", "/c", npmCmd, "run", "build:desktop:core", "--", "--watch", "--preserveWatchOutput"]
-  : ["run", "build:desktop:core", "--", "--watch", "--preserveWatchOutput"];
+const viteScriptPath = path.join(process.cwd(), "node_modules", "vite", "bin", "vite.js");
+const electronBuildScriptPath = path.join(process.cwd(), "scripts", "build-desktop-core.ts");
 const electronBin = isWin
   ? path.join(process.cwd(), "node_modules", "electron", "dist", "electron.exe")
   : path.join(process.cwd(), "node_modules", ".bin", "electron");
 
-const desktopBuildReadyMarker = "[desktop-build] ready";
-const desktopBuildReadyPattern = /\[desktop-build\] ready ([a-f0-9]{64})/;
 const electronWatchReadyTimeoutMs = 20_000;
+
+interface DesktopBuildReadyMessage {
+  readonly type: "desktopBuildReady";
+  readonly fingerprint: string;
+}
+
+interface DesktopBuildFailedMessage {
+  readonly type: "desktopBuildFailed";
+  readonly errorCount: number;
+}
+
+type DesktopBuildMessage = DesktopBuildReadyMessage | DesktopBuildFailedMessage;
 
 let viteExited = false;
 let viteExitCode = 0;
 let isShuttingDown = false;
 let restartTimer: NodeJS.Timeout | null = null;
-let isRestarting = false;
+let restartRequested = false;
+let restartOperation: Promise<void> | null = null;
 let electronProc: ChildProcess | null = null;
 let electronBuildWatchProc: ChildProcess | null = null;
-let electronBuildWatcherReady: Promise<void> | null = null;
-
-const logDesktopDevBoot = (stage: string, extra = "") => {
-  const elapsedMs = Date.now() - devStartupStartMs;
-  const suffix = extra ? ` ${extra}` : "";
-  console.log(`[desktop] +${elapsedMs}ms ${stage}${suffix}`);
-};
+const expectedElectronExits = new WeakSet<ChildProcess>();
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -99,11 +96,19 @@ try {
   process.exit(1);
 }
 
-console.log(`[desktop] Starting Vite dev server at ${devUrl}`);
-
 const viteProc = spawn(
-  viteCmd,
-  viteArgs,
+  process.execPath,
+  [
+    viteScriptPath,
+    "--configLoader",
+    "runner",
+    "--host",
+    host,
+    "--port",
+    String(port),
+    "--logLevel",
+    "warn",
+  ],
   {
     stdio: "inherit",
     env: {
@@ -129,24 +134,52 @@ viteProc.on("exit", (code) => {
   }
 });
 
+const isDesktopBuildMessage = (message: unknown): message is DesktopBuildMessage => {
+  if (!message || typeof message !== "object" || !("type" in message)) {
+    return false;
+  }
+
+  const candidate = message as Partial<DesktopBuildMessage>;
+  return (
+    (candidate.type === "desktopBuildReady" && typeof candidate.fingerprint === "string") ||
+    (candidate.type === "desktopBuildFailed" && typeof candidate.errorCount === "number")
+  );
+};
+
 const startElectronBuildWatcher = () => {
-  console.log("[desktop] Starting Electron TypeScript watcher.");
   let readyTimeout: NodeJS.Timeout | null = null;
   let resolveReady: () => void = () => {};
+  let rejectReady: (error: Error) => void = () => {};
   let isReady = false;
   let lastBuildFingerprint = "";
-  const readyPromise = new Promise<void>((resolve) => {
+  const readyPromise = new Promise<void>((resolve, reject) => {
     resolveReady = resolve;
+    rejectReady = reject;
   });
 
-  const markReady = () => {
-    if (isReady) return;
-    isReady = true;
+  const clearReadyTimeout = () => {
     if (readyTimeout) {
       clearTimeout(readyTimeout);
       readyTimeout = null;
     }
+  };
+
+  const markReady = () => {
+    if (isReady) return;
+    isReady = true;
+    clearReadyTimeout();
     resolveReady();
+  };
+
+  const failWatcher = (error: Error) => {
+    if (!isReady) {
+      clearReadyTimeout();
+      rejectReady(error);
+      return;
+    }
+
+    console.error(`[desktop] ${error.message}`);
+    void shutdown(1);
   };
 
   const handleBuildReady = (fingerprint: string) => {
@@ -159,57 +192,42 @@ const startElectronBuildWatcher = () => {
     if (fingerprint === lastBuildFingerprint) return;
 
     lastBuildFingerprint = fingerprint;
-    scheduleElectronRestart("desktop build changed");
+    scheduleElectronRestart();
   };
 
-  const proc = spawn(electronBuildWatchCmd, electronBuildWatchArgs, {
-    stdio: ["inherit", "pipe", "pipe"],
+  const proc = fork(electronBuildScriptPath, ["--watch", "--preserveWatchOutput"], {
+    execArgv: ["--experimental-strip-types"],
+    stdio: ["inherit", "inherit", "inherit", "ipc"],
     env: process.env,
   });
 
-  const relayOutput = (stream: NodeJS.ReadableStream | null, outputTarget: NodeJS.WriteStream) => {
-    if (!stream) return;
-    stream.setEncoding("utf8");
-    let pending = "";
-    stream.on("data", (chunk: string | Buffer) => {
-      const text = String(chunk);
-      outputTarget.write(text);
-      pending += text;
+  proc.on("message", message => {
+    if (!isDesktopBuildMessage(message)) return;
 
-      let match = desktopBuildReadyPattern.exec(pending);
-      while (match) {
-        handleBuildReady(match[1]);
-        pending = pending.slice(match.index + match[0].length);
-        match = desktopBuildReadyPattern.exec(pending);
-      }
+    if (message.type === "desktopBuildReady") {
+      handleBuildReady(message.fingerprint);
+      return;
+    }
 
-      const pendingLimit = desktopBuildReadyMarker.length + 64;
-      if (pending.length > pendingLimit) {
-        pending = pending.slice(-pendingLimit);
-      }
-    });
-  };
-
-  relayOutput(proc.stdout, process.stdout);
-  relayOutput(proc.stderr, process.stderr);
+    if (!isReady) {
+      failWatcher(new Error(`Initial desktop TypeScript build failed with ${message.errorCount} error(s).`));
+    }
+  });
 
   readyTimeout = setTimeout(() => {
-    console.error(
-      `[desktop] Electron TS watcher did not complete its initial build within ${electronWatchReadyTimeoutMs}ms.`,
+    failWatcher(
+      new Error(`Electron TypeScript build did not complete within ${electronWatchReadyTimeoutMs}ms.`),
     );
-    void shutdown(1);
   }, electronWatchReadyTimeoutMs);
 
   proc.on("error", (error) => {
     if (isShuttingDown) return;
-    console.error(`[desktop] Failed to start Electron TS watcher: ${error.message}`);
-    void shutdown(1);
+    failWatcher(new Error(`Failed to start Electron TypeScript watcher: ${error.message}`));
   });
 
   proc.on("exit", (code) => {
     if (isShuttingDown) return;
-    console.error(`[desktop] Electron TS watcher exited unexpectedly (code: ${code ?? 0}).`);
-    void shutdown((code ?? 1) || 1);
+    failWatcher(new Error(`Electron TypeScript watcher exited unexpectedly (code: ${code ?? 0}).`));
   });
 
   electronBuildWatchProc = proc;
@@ -234,7 +252,6 @@ const waitForServer = async (url: string, timeoutMs = 60_000) => {
 };
 
 const warmupDevServer = async (baseUrl: string) => {
-  const started = Date.now();
   for (const warmupPath of devServerWarmupPaths) {
     const warmupUrl = new URL(warmupPath, baseUrl).toString();
     const response = await fetch(warmupUrl, {
@@ -252,14 +269,10 @@ const warmupDevServer = async (baseUrl: string) => {
 
     await response.arrayBuffer();
   }
-  logDesktopDevBoot(
-    "dev-server:warmup:done",
-    `(requests=${devServerWarmupPaths.length} duration=${Date.now() - started}ms)`,
-  );
 };
 
 const stopProcessTreeOnWindows = (proc: ChildProcess | null, timeoutMs = 5_000) =>
-  new Promise<void>((resolve) => {
+  new Promise<void>((resolve, reject) => {
     if (!proc || !proc.pid || proc.killed || proc.exitCode !== null) {
       resolve();
       return;
@@ -267,7 +280,7 @@ const stopProcessTreeOnWindows = (proc: ChildProcess | null, timeoutMs = 5_000) 
 
     let settled = false;
     let waitTimer: NodeJS.Timeout | null = null;
-    const finish = () => {
+    const finish = (error?: Error) => {
       if (settled) return;
       settled = true;
       if (waitTimer) {
@@ -275,7 +288,11 @@ const stopProcessTreeOnWindows = (proc: ChildProcess | null, timeoutMs = 5_000) 
         waitTimer = null;
       }
       proc.off("exit", onExit);
-      resolve();
+      if (error) {
+        reject(error);
+      } else {
+        resolve();
+      }
     };
 
     const onExit = () => {
@@ -284,12 +301,7 @@ const stopProcessTreeOnWindows = (proc: ChildProcess | null, timeoutMs = 5_000) 
     proc.once("exit", onExit);
 
     waitTimer = setTimeout(() => {
-      try {
-        proc.kill("SIGKILL");
-      } catch {
-        // Ignore if already gone.
-      }
-      finish();
+      finish(new Error(`Timed out stopping process tree ${proc.pid}.`));
     }, timeoutMs);
 
     const killer = spawn("taskkill", ["/PID", String(proc.pid), "/T", "/F"], {
@@ -297,31 +309,29 @@ const stopProcessTreeOnWindows = (proc: ChildProcess | null, timeoutMs = 5_000) 
       windowsHide: true,
     });
 
-    killer.once("error", () => {
-      try {
-        proc.kill("SIGKILL");
-      } catch {
-        // Ignore if already gone.
-      }
-      finish();
+    killer.once("error", error => {
+      finish(new Error(`Failed to run taskkill for process ${proc.pid}: ${error.message}`));
     });
 
-    killer.once("exit", () => {
-      if (proc.exitCode !== null || proc.killed) {
+    killer.once("exit", code => {
+      if (code === 0 || proc.exitCode !== null) {
         finish();
+        return;
       }
+
+      finish(new Error(`taskkill failed for process ${proc.pid} with exit code ${code ?? 1}.`));
     });
   });
 
 const stopProcess = (proc: ChildProcess | null, signal: NodeJS.Signals = "SIGTERM", timeoutMs = 5_000) =>
-  new Promise<void>((resolve) => {
+  new Promise<void>((resolve, reject) => {
     if (!proc || proc.killed || proc.exitCode !== null) {
       resolve();
       return;
     }
 
     if (isWin) {
-      void stopProcessTreeOnWindows(proc, timeoutMs).then(resolve);
+      void stopProcessTreeOnWindows(proc, timeoutMs).then(resolve, reject);
       return;
     }
 
@@ -367,7 +377,6 @@ const stopProcess = (proc: ChildProcess | null, signal: NodeJS.Signals = "SIGTER
   });
 
 const startElectron = () => {
-  console.log(`[desktop] Launching Electron with ${devUrl}`);
   const electronEnv: NodeJS.ProcessEnv = {
     ...process.env,
     ELECTRON_START_URL: devUrl,
@@ -388,30 +397,55 @@ const startElectron = () => {
   proc.on("exit", (code) => {
     if (isShuttingDown) return;
 
-    if (!isRestarting) {
-      void shutdown(code ?? 0);
+    if (electronProc === proc) {
+      electronProc = null;
     }
+    if (expectedElectronExits.has(proc)) return;
+
+    void shutdown(code ?? 0);
   });
 
   electronProc = proc;
 };
 
-const scheduleElectronRestart = (reason = "desktop build changed") => {
+const scheduleElectronRestart = () => {
   if (isShuttingDown) return;
 
+  restartRequested = true;
   if (restartTimer) clearTimeout(restartTimer);
 
-  restartTimer = setTimeout(async () => {
-    if (!electronProc) {
-      startElectron();
-      return;
-    }
+  restartTimer = setTimeout(() => {
+    restartTimer = null;
+    if (restartOperation || !restartRequested) return;
 
-    isRestarting = true;
-    console.log(`[desktop] Restarting Electron (${reason})...`);
-    await stopProcess(electronProc);
-    startElectron();
-    isRestarting = false;
+    restartOperation = (async () => {
+      const currentElectron = electronProc;
+      if (currentElectron) {
+        expectedElectronExits.add(currentElectron);
+        console.log("[desktop] Restarting Electron.");
+        await stopProcess(currentElectron);
+      }
+
+      // Builds completed while the old process was stopping are included in the new launch.
+      restartRequested = false;
+      if (!isShuttingDown) {
+        startElectron();
+      }
+    })();
+
+    void restartOperation
+      .catch(error => {
+        if (!isShuttingDown) {
+          console.error(`[desktop] Failed to restart Electron: ${getErrorMessage(error)}`);
+          void shutdown(1);
+        }
+      })
+      .finally(() => {
+        restartOperation = null;
+        if (restartRequested && !isShuttingDown) {
+          scheduleElectronRestart();
+        }
+      });
   }, 120);
 };
 
@@ -423,12 +457,21 @@ const shutdown = async (exitCode = 0) => {
     clearTimeout(restartTimer);
     restartTimer = null;
   }
+  restartRequested = false;
 
-  await stopProcess(electronProc);
-  await stopProcess(electronBuildWatchProc);
-  await stopProcess(viteProc);
+  const stopResults = await Promise.allSettled([
+    stopProcess(electronProc),
+    stopProcess(electronBuildWatchProc),
+    stopProcess(viteProc),
+  ]);
+  const stopErrors = stopResults
+    .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+    .map(result => getErrorMessage(result.reason));
+  for (const error of stopErrors) {
+    console.error(`[desktop] ${error}`);
+  }
 
-  process.exit(exitCode);
+  process.exit(exitCode || (stopErrors.length ? 1 : 0));
 };
 
 const shutdownSignals = ["SIGINT", "SIGTERM", "SIGHUP"];
@@ -445,16 +488,12 @@ for (const signal of shutdownSignals) {
   });
 }
 
-logDesktopDevBoot("dev-server:wait", `(url=${devUrl})`);
-
 try {
   await waitForServer(devUrl);
 } catch (error) {
   console.error(`[desktop] ${getErrorMessage(error)}`);
   await shutdown(1);
 }
-
-logDesktopDevBoot("dev-server:ready");
 
 try {
   await warmupDevServer(devUrl);
@@ -463,9 +502,7 @@ try {
 }
 
 try {
-  electronBuildWatcherReady ??= startElectronBuildWatcher();
-  await electronBuildWatcherReady;
-  logDesktopDevBoot("electron:start");
+  await startElectronBuildWatcher();
   startElectron();
 } catch (error) {
   console.error(`[desktop] Failed to start desktop development: ${getErrorMessage(error)}`);
