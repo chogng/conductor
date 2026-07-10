@@ -3,12 +3,15 @@
  *  Copyright (c) Conductor Studio contributors. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { getVersion } from '../build/lib/git.ts';
 
 const packageJsonMarkerId = 'BUILD_INSERT_PACKAGE_CONFIGURATION';
+const tscWatchReadyMarker = 'Watching for file changes.';
+const desktopBuildReadyMarker = '[desktop-build] ready';
 const tscExtraArgs = process.argv.slice(2);
 const isWatch = tscExtraArgs.includes('--watch') || tscExtraArgs.includes('-w');
 const projectRoot = process.cwd();
@@ -52,6 +55,37 @@ const inlinePackageConfiguration = (throwOnMissingMarker: boolean): void => {
 	);
 };
 
+const getDesktopBuildFingerprint = (): string => {
+	const hash = createHash('sha256');
+
+	const hashDirectory = (directoryPath: string): void => {
+		const entries = readdirSync(directoryPath, { withFileTypes: true })
+			.sort((left, right) => left.name.localeCompare(right.name));
+
+		for (const entry of entries) {
+			const entryPath = path.join(directoryPath, entry.name);
+			if (entry.isDirectory()) {
+				hashDirectory(entryPath);
+				continue;
+			}
+
+			const relativePath = path.relative(desktopOutDir, entryPath).replaceAll(path.sep, '/');
+			hash.update(relativePath);
+			hash.update('\0');
+			hash.update(readFileSync(entryPath));
+			hash.update('\0');
+		}
+	};
+
+	hashDirectory(desktopOutDir);
+	return hash.digest('hex');
+};
+
+const reportDesktopBuildReady = (): void => {
+	inlinePackageConfiguration(false);
+	console.log(`${desktopBuildReadyMarker} ${getDesktopBuildFingerprint()}`);
+};
+
 rmSync(desktopOutDir, { recursive: true, force: true });
 
 if (isWatch) {
@@ -62,11 +96,21 @@ if (isWatch) {
 		outputTarget: NodeJS.WritableStream,
 	): void => {
 		stream.setEncoding('utf8');
+		let pending = '';
 		stream.on('data', chunk => {
 			const text = String(chunk);
 			outputTarget.write(text);
-			if (text.includes('Watching for file changes.')) {
-				inlinePackageConfiguration(false);
+			pending += text;
+
+			let markerIndex = pending.indexOf(tscWatchReadyMarker);
+			while (markerIndex >= 0) {
+				reportDesktopBuildReady();
+				pending = pending.slice(markerIndex + tscWatchReadyMarker.length);
+				markerIndex = pending.indexOf(tscWatchReadyMarker);
+			}
+
+			if (pending.length >= tscWatchReadyMarker.length) {
+				pending = pending.slice(-(tscWatchReadyMarker.length - 1));
 			}
 		});
 	};

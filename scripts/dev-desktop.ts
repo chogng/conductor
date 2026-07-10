@@ -3,8 +3,6 @@
 // Vite, desktop TypeScript watch, Electron launch, and restart handling.
 import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
-import { readdirSync, watch } from "node:fs";
-import type { FSWatcher } from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -42,10 +40,9 @@ const electronBuildWatchArgs = isWin
 const electronBin = isWin
   ? path.join(process.cwd(), "node_modules", "electron", "dist", "electron.exe")
   : path.join(process.cwd(), "node_modules", ".bin", "electron");
-const desktopOutDir = path.join(process.cwd(), "out", "desktop");
 
-const watchedExtensions = new Set([".cjs", ".js", ".mjs", ".json"]);
-const electronWatchReadyMarker = "Watching for file changes.";
+const desktopBuildReadyMarker = "[desktop-build] ready";
+const desktopBuildReadyPattern = /\[desktop-build\] ready ([a-f0-9]{64})/;
 const electronWatchReadyTimeoutMs = 20_000;
 
 let viteExited = false;
@@ -56,7 +53,6 @@ let isRestarting = false;
 let electronProc: ChildProcess | null = null;
 let electronBuildWatchProc: ChildProcess | null = null;
 let electronBuildWatcherReady: Promise<void> | null = null;
-const watcherClosers: Array<() => void> = [];
 
 const logDesktopDevBoot = (stage: string, extra = "") => {
   const elapsedMs = Date.now() - devStartupStartMs;
@@ -66,12 +62,6 @@ const logDesktopDevBoot = (stage: string, extra = "") => {
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
-
-const getErrorCode = (error: unknown) => {
-  if (!error || typeof error !== "object" || !("code" in error)) return "";
-  const code = (error as { code?: unknown }).code;
-  return typeof code === "string" ? code : "";
-};
 
 const checkPortAvailability = (targetHost: string, targetPort: number) =>
   new Promise<boolean>((resolve, reject) => {
@@ -144,21 +134,32 @@ const startElectronBuildWatcher = () => {
   let readyTimeout: NodeJS.Timeout | null = null;
   let resolveReady: () => void = () => {};
   let isReady = false;
+  let lastBuildFingerprint = "";
   const readyPromise = new Promise<void>((resolve) => {
     resolveReady = resolve;
   });
 
-  const markReady = (warning = "") => {
+  const markReady = () => {
     if (isReady) return;
     isReady = true;
     if (readyTimeout) {
       clearTimeout(readyTimeout);
       readyTimeout = null;
     }
-    if (warning) {
-      console.warn(`[desktop] ${warning}`);
-    }
     resolveReady();
+  };
+
+  const handleBuildReady = (fingerprint: string) => {
+    if (!isReady) {
+      lastBuildFingerprint = fingerprint;
+      markReady();
+      return;
+    }
+
+    if (fingerprint === lastBuildFingerprint) return;
+
+    lastBuildFingerprint = fingerprint;
+    scheduleElectronRestart("desktop build changed");
   };
 
   const proc = spawn(electronBuildWatchCmd, electronBuildWatchArgs, {
@@ -173,16 +174,18 @@ const startElectronBuildWatcher = () => {
     stream.on("data", (chunk: string | Buffer) => {
       const text = String(chunk);
       outputTarget.write(text);
-      if (isReady) return;
-
       pending += text;
-      if (pending.includes(electronWatchReadyMarker)) {
-        markReady();
-        return;
+
+      let match = desktopBuildReadyPattern.exec(pending);
+      while (match) {
+        handleBuildReady(match[1]);
+        pending = pending.slice(match.index + match[0].length);
+        match = desktopBuildReadyPattern.exec(pending);
       }
 
-      if (pending.length > electronWatchReadyMarker.length * 2) {
-        pending = pending.slice(-electronWatchReadyMarker.length * 2);
+      const pendingLimit = desktopBuildReadyMarker.length + 64;
+      if (pending.length > pendingLimit) {
+        pending = pending.slice(-pendingLimit);
       }
     });
   };
@@ -191,21 +194,20 @@ const startElectronBuildWatcher = () => {
   relayOutput(proc.stderr, process.stderr);
 
   readyTimeout = setTimeout(() => {
-    markReady(
-      `Electron TS watcher startup exceeded ${electronWatchReadyTimeoutMs}ms; enabling desktop restart watchers anyway.`,
+    console.error(
+      `[desktop] Electron TS watcher did not complete its initial build within ${electronWatchReadyTimeoutMs}ms.`,
     );
+    void shutdown(1);
   }, electronWatchReadyTimeoutMs);
 
   proc.on("error", (error) => {
     if (isShuttingDown) return;
-    markReady();
     console.error(`[desktop] Failed to start Electron TS watcher: ${error.message}`);
     void shutdown(1);
   });
 
   proc.on("exit", (code) => {
     if (isShuttingDown) return;
-    markReady();
     console.error(`[desktop] Electron TS watcher exited unexpectedly (code: ${code ?? 0}).`);
     void shutdown((code ?? 1) || 1);
   });
@@ -394,7 +396,7 @@ const startElectron = () => {
   electronProc = proc;
 };
 
-const scheduleElectronRestart = (reason = "files changed") => {
+const scheduleElectronRestart = (reason = "desktop build changed") => {
   if (isShuttingDown) return;
 
   if (restartTimer) clearTimeout(restartTimer);
@@ -413,82 +415,6 @@ const scheduleElectronRestart = (reason = "files changed") => {
   }, 120);
 };
 
-const shouldRestartForPath = (filePath: string) => {
-  if (!filePath) return false;
-
-  const normalized = filePath.replaceAll("\\", "/");
-
-  if (normalized.includes("node_modules")) return false;
-
-  const ext = path.extname(normalized);
-  return watchedExtensions.has(ext);
-};
-
-const handleElectronFileEvent = (eventType: string, changedPath: string) => {
-  if (!shouldRestartForPath(changedPath)) return;
-  scheduleElectronRestart(`${eventType}: ${changedPath}`);
-};
-
-const trackWatcher = (watcher: FSWatcher) => {
-  watcher.on("error", (error: Error) => {
-    if (isShuttingDown) return;
-
-    console.error(`[desktop] Watcher error: ${error.message}`);
-    void shutdown(1);
-  });
-
-  watcherClosers.push(() => {
-    try {
-      watcher.close();
-    } catch {
-      // Ignore close errors during shutdown.
-    }
-  });
-};
-
-const startElectronWatchers = () => {
-  const rootDir = desktopOutDir;
-
-  try {
-    const recursiveWatcher = watch(
-      rootDir,
-      { recursive: true },
-      (eventType, filename) => {
-        if (!filename) return;
-        handleElectronFileEvent(eventType, String(filename));
-      },
-    );
-    trackWatcher(recursiveWatcher);
-    return;
-  } catch (error) {
-    if (getErrorCode(error) !== "ERR_FEATURE_UNAVAILABLE_ON_PLATFORM") throw error;
-
-    console.warn(
-      "[desktop] Recursive watch unsupported on this platform, using directory-level watchers.",
-    );
-
-    const watchDirectory = (dirPath: string) => {
-      const watcher = watch(dirPath, (eventType: string, filename: string | null) => {
-        if (!filename) return;
-
-        const changedAbsPath = path.join(dirPath, String(filename));
-        const changedRelPath = path.relative(rootDir, changedAbsPath);
-        handleElectronFileEvent(eventType, changedRelPath);
-      });
-
-      trackWatcher(watcher);
-
-      const entries = readdirSync(dirPath, { withFileTypes: true });
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue;
-        watchDirectory(path.join(dirPath, entry.name));
-      }
-    };
-
-    watchDirectory(rootDir);
-  }
-};
-
 const shutdown = async (exitCode = 0) => {
   if (isShuttingDown) return;
   isShuttingDown = true;
@@ -497,8 +423,6 @@ const shutdown = async (exitCode = 0) => {
     clearTimeout(restartTimer);
     restartTimer = null;
   }
-
-  for (const closeWatcher of watcherClosers) closeWatcher();
 
   await stopProcess(electronProc);
   await stopProcess(electronBuildWatchProc);
@@ -543,8 +467,7 @@ try {
   await electronBuildWatcherReady;
   logDesktopDevBoot("electron:start");
   startElectron();
-  startElectronWatchers();
 } catch (error) {
-  console.error(`[desktop] Failed to start file watchers: ${getErrorMessage(error)}`);
+  console.error(`[desktop] Failed to start desktop development: ${getErrorMessage(error)}`);
   await shutdown(1);
 }
