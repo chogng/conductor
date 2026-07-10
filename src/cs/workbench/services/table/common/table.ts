@@ -361,20 +361,18 @@ export const createTableDecorationData = ({
 export const getTableRangeDecorationsFromDecorationData = (
 	decorationData: readonly IDecorationData[],
 ): readonly TableRangeDecoration[] =>
-	decorationData.flatMap(data =>
-		Array.isArray((data as Partial<TableDecorationData>).tableRangeDecorations)
-			? (data as TableDecorationData).tableRangeDecorations
-			: [],
-	);
+	decorationData.flatMap(data => {
+		const tableRangeDecorations = (data as Partial<TableDecorationData>).tableRangeDecorations;
+		return Array.isArray(tableRangeDecorations) ? tableRangeDecorations : [];
+	});
 
 export const getTableDisplayDataRangesFromDecorationData = (
 	decorationData: readonly IDecorationData[],
 ): readonly TableRange[] =>
-	decorationData.flatMap(data =>
-		Array.isArray((data as Partial<TableDecorationData>).tableDisplayDataRanges)
-			? (data as TableDecorationData).tableDisplayDataRanges
-			: [],
-	);
+	decorationData.flatMap(data => {
+		const tableDisplayDataRanges = (data as Partial<TableDecorationData>).tableDisplayDataRanges;
+		return Array.isArray(tableDisplayDataRanges) ? tableDisplayDataRanges : [];
+	});
 
 const getTableSourceResourceIdentity = (
 	source: TableSourceInput | null | undefined,
