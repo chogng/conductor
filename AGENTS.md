@@ -1,38 +1,55 @@
-# Critical Rules
+# Repository Agent Instructions
 
-These rules have the highest priority.
-- Must read the [Coding Guidelines](.github/instructions/coding-guidelines.instructions.md) before thinking or editing
-* NEVER add fallback logic
-* NEVER replace a real fix with renamed declarations, moved logic, wrappers, facades, adapters, aliases, re-exports, or compatibility layers.
-* NEVER keep legacy interfaces or local compatibility code just to avoid updating call sites.
-* Call sites MUST migrate directly to the target interface.
-* When the target interface requires call-site changes, migrate the affected call sites directly instead of adding wrappers, aliases, or compatibility code to shrink the diff.
+## Instruction Resolution
 
+These repository rules are mandatory. Within the repository instructions, an
+applicable scoped `.github/instructions/*.instructions.md` rule governs its
+declared paths and may define explicit path-specific exceptions to these general
+defaults.
 
-When replacement logic is complete:
+Before proposing or making repository code changes:
 
-* Retire the old compatibility path.
-* Empty file shells may stay only if needed.
-* Empty shells MUST NOT re-export, forward, delegate, alias, wrap, or preserve old behavior.
+1. Read every `.github/instructions/*.instructions.md` file whose `applyTo`
+   scope or documented responsibility matches the target change.
+2. For changes under `src/cs/**`, always read:
+   - `.github/instructions/coding-guidelines.instructions.md`
+   - `.github/instructions/architecture.instructions.md`
+3. Read `.github/instructions/commands.instructions.md` before changing command
+   or action IDs, handlers, actions, menus, keybindings, contribution
+   registration, or dispatch ownership.
+4. Inspect upstream VS Code when the responsibility has a plausible upstream
+   counterpart. Follow its ownership shape where applicable and justify any
+   intentional divergence. The upstream checkouts are:
+   - `C:\Users\lanxi\Desktop\vscode`
+   - `/Users/lance/Desktop/vscode`
+5. Consult `.github/conductor-instructions.md` for repository overview and
+   general conventions not covered by a more specific instruction.
 
-Migration bridges are allowed only when explicitly requested by the user or required by a real external constraint. Any bridge MUST state its reason, boundary, and deletion condition.
+Treat documentation as reference. Verify claims against the current code,
+tests, and runtime behavior.
 
-Documentation may be wrong or stale. Treat it as reference only; verify against actual code, tests, runtime behavior, and current implementation.
+## Implementation Rules
 
+- Fix behavior at its owning service, model, component, or primitive. Do not
+  disguise an incomplete fix through renaming, moving, forwarding, wrapping,
+  aliasing, re-exporting, or adapting the old behavior.
+- When a contract changes, migrate affected call sites directly and remove the
+  superseded path.
+- Do not introduce fallback or compatibility logic merely to avoid the real
+  fix. A fallback or migration bridge is allowed only when:
+  - an applicable scoped instruction explicitly defines it;
+  - the user explicitly requests it; or
+  - a real external constraint requires it.
+- Every allowed fallback or migration bridge must document why it exists, its
+  exact boundary, and its deletion condition.
+- Prefer the existing structure and local changes. Add a file only when it has
+  a clear responsibility boundary, genuine reuse value, or materially improves
+  the existing owner.
 
-when you have any questions, see the [Conductor Instructions](.github/conductor-instructions.md).
+## Replacement Cleanup
 
-when you coding, see the upstream architechture [`C:\Users\lanxi\Desktop\vscode` or `/Users/lance/Desktop/vscode`].
+After a replacement is complete, remove the obsolete compatibility entry
+points and implementations.
 
-
-
-before you write or edit any code, you MUST first read the [Architecture Instructions](.github/instructions/architecture.instructions.md) and 
-when coding under a path with a matching `.github/instructions/*.instructions.md` file, read that instruction before editing code in that area.
-
-when writing or editing naming, command/action ids, command handlers, action registration, contribution wiring, service calls, or responsibility boundaries, you MUST first read [Architecture Instructions](.github/instructions/architecture.instructions.md), [Commands and Dispatch](.github/instructions/commands.instructions.md), [Coding Guidelines](.github/instructions/coding-guidelines.instructions.md), and the matching module instruction such as [Files Capability / Explorer UI](.github/instructions/files.instructions.md). Do not infer these rules from memory.
-
-when coding, prefer local modifications and existing structure; create new files only when the responsibility boundary is clear, reuse value is real, or keeping the change in the existing file would make it meaningfully worse.
-
-when fixing a bug, do not make a local workaround first. Before editing, identify the root-cause chain from user symptom to triggering entry point, shared owner, and incorrect owner behavior. If the affected responsibility has an upstream VS Code counterpart, inspect `C:\Users\lanxi\Desktop\vscode` and state whether the fix follows or intentionally diverges from upstream. Only edit the owning service/component/primitive unless the local surface truly owns the behavior.
-
-after each code update, check whether sequence diagrams in the matching module instructions need to be updated, and update them when the behavior or call flow changes.
+Keep an empty file shell only when it remains structurally required. It must not
+re-export, forward, delegate, alias, wrap, or preserve superseded behavior.
