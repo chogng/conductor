@@ -8,7 +8,9 @@ import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
 	areTableSourcesEqual,
+	createTableDecorationResource,
 	normalizeTableSource,
+	parseTableDecorationResource,
 	toTableSheetKey,
 } from "src/cs/workbench/services/table/common/table";
 
@@ -49,5 +51,34 @@ suite("workbench/services/table/test/common/table", () => {
 			{ resource, sheetId: "Forward" },
 			{ resource, sheetId: "Reverse" },
 		), false);
+	});
+
+	test("round trips table decoration resources without losing source identity", () => {
+		const resource = URI.from({
+			fragment: "table-view",
+			path: "/workspace/data/workbook.xlsx",
+			query: "revision=2",
+			scheme: "table-memory",
+		});
+		const decorationResource = createTableDecorationResource({
+			resource,
+			sheetId: " Sheet 1 ",
+		});
+
+		assert.ok(decorationResource);
+		assert.deepStrictEqual(parseTableDecorationResource(decorationResource), {
+			resource,
+			sheetId: "Sheet 1",
+		});
+	});
+
+	test("rejects malformed table decoration resources", () => {
+		const resource = URI.from({
+			fragment: "conductor.tableDecoration=%",
+			path: "/workspace/data/workbook.xlsx",
+			scheme: "table-memory",
+		});
+
+		assert.equal(parseTableDecorationResource(resource), null);
 	});
 });

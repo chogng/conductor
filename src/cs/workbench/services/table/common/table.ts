@@ -302,8 +302,12 @@ export const toTableSheetKey = (source: TableSource): string => {
 	return "";
 };
 
-const TableDecorationFragment = "conductor.tableDecoration";
-const TableDecorationSheetFragmentPrefix = `${TableDecorationFragment}.sheetId=`;
+type TableDecorationResourcePayload = {
+	readonly resourceFragment: string;
+	readonly sheetId: string | null;
+};
+
+const TableDecorationFragmentPrefix = "conductor.tableDecoration=";
 
 // Decoration adapter boundary: IDecorationsProvider is URI-only, while table
 // range decorations are sheet scoped. Keep this fragment private to decoration
@@ -318,10 +322,12 @@ export const createTableDecorationResource = (
 	}
 
 	const normalizedSheetId = normalizeTableText(sheetId) || normalizeTableText(normalizedSource.sheetId);
+	const payload: TableDecorationResourcePayload = {
+		resourceFragment: normalizedSource.resource.fragment,
+		sheetId: normalizedSheetId || null,
+	};
 	return normalizedSource.resource.with({
-		fragment: normalizedSheetId
-			? `${TableDecorationSheetFragmentPrefix}${encodeURIComponent(normalizedSheetId)}`
-			: TableDecorationFragment,
+		fragment: `${TableDecorationFragmentPrefix}${encodeURIComponent(JSON.stringify(payload))}`,
 	});
 };
 
@@ -329,19 +335,28 @@ export const parseTableDecorationResource = (
 	resource: URI,
 ): TableSource | null => {
 	const fragment = normalizeTableText(resource.fragment);
-	if (fragment === TableDecorationFragment) {
-		return {
-			resource: resource.with({ fragment: "" }),
-		};
+	if (!fragment.startsWith(TableDecorationFragmentPrefix)) {
+		return null;
 	}
-	if (fragment.startsWith(TableDecorationSheetFragmentPrefix)) {
-		const sheetId = decodeURIComponent(fragment.slice(TableDecorationSheetFragmentPrefix.length));
+
+	try {
+		const payload = JSON.parse(decodeURIComponent(
+			fragment.slice(TableDecorationFragmentPrefix.length),
+		)) as Partial<TableDecorationResourcePayload> | null;
+		if (!payload ||
+			typeof payload.resourceFragment !== "string" ||
+			(payload.sheetId !== null && typeof payload.sheetId !== "string")) {
+			return null;
+		}
+
+		const sheetId = normalizeTableText(payload.sheetId);
 		return {
-			resource: resource.with({ fragment: "" }),
+			resource: resource.with({ fragment: payload.resourceFragment }),
 			...(sheetId ? { sheetId } : {}),
 		};
+	} catch {
+		return null;
 	}
-	return null;
 };
 
 export const createTableDecorationData = ({
