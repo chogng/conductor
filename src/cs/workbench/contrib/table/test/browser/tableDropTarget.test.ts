@@ -5,6 +5,7 @@
 import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import { FileService } from "src/cs/platform/files/common/fileService";
 import { TableDropTarget } from "src/cs/workbench/contrib/table/browser/tableDropTarget";
 import {
 	NotificationService,
@@ -23,6 +24,7 @@ suite("workbench/contrib/table/test/browser/tableDropTarget", () => {
 		const tableTarget = createTestElement();
 		const dropTarget = store.add(new TableDropTarget(
 			tableTarget,
+			store.add(new FileService()),
 			store.add(new NotificationService()),
 			createTableService(),
 			createTableModelService(),
@@ -39,6 +41,7 @@ suite("workbench/contrib/table/test/browser/tableDropTarget", () => {
 		const tableTarget = createTestElement();
 		const dropTarget = new TableDropTarget(
 			tableTarget,
+			store.add(new FileService()),
 			store.add(new NotificationService()),
 			createTableService(),
 			createTableModelService(),

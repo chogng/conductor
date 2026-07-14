@@ -9,6 +9,10 @@ import type {
   FileSystemHandle,
 } from "../../../../../platform/files/browser/webFileSystemAccess.ts";
 import { FileService } from "../../../../../platform/files/common/fileService.ts";
+import {
+  FileType,
+  type IFileStat,
+} from "../../../../../platform/files/common/files.ts";
 import { UriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentityService";
 import { IMPORT_ERROR_NOTIFICATION_ID } from "../../browser/fileConstants.ts";
 import { NotificationService } from "../../../../services/notification/common/notificationService.ts";
@@ -24,6 +28,7 @@ import {
   getPendingImportPrepareConcurrency,
   getFolderImportSupportForFileService,
   prepareFirstPendingImportFile,
+  prepareFileSourcesForImport,
   prepareRemainingPendingImportFiles,
   type FileImportPrepareFailure,
   type FileSource,
@@ -34,9 +39,15 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 
 suite("workbench/contrib/files/test/browser/fileImportExport", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
+  let browserFilesService: FileService;
   let notificationService: NotificationService;
 
   setup(() => {
+    browserFilesService = store.add(new FileService());
+    store.add(browserFilesService.registerProvider(
+      "file",
+      store.add(new HTMLFileSystemProvider()),
+    ));
     notificationService = store.add(new NotificationService());
   });
 
@@ -489,7 +500,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       items: [{
         getAsFileSystemHandle: async () => createStableFileHandle(file),
       }],
-    }));
+    }), browserFilesService);
 
     assert.deepEqual(result.map(source => source.relativePath), ["transfer.csv"]);
     assert.equal(result.length, 1);
@@ -511,9 +522,60 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
           name: "root",
         }),
       }],
-    }));
+    }), browserFilesService);
 
     assert.deepEqual(result.map(source => source.relativePath), ["root/child/nested.csv"]);
+  });
+
+  test("collectDroppedFiles resolves native folders to resource-backed files", async () => {
+    const filesService = store.add(new NativeDroppedFolderFileService());
+    const droppedFolder = new File([], "293K", { lastModified: 1 });
+    const sources = await collectDroppedFiles(createDataTransfer({
+      files: [droppedFolder],
+      items: [{
+        getAsFileSystemHandle: async () => createDirectoryHandle({
+          children: [createFileHandle("unresolved.csv", "Vg,Id\n0,1")],
+          name: "293K",
+        }),
+      }],
+    }), filesService, () => "C:\\data\\293K");
+    const result = await prepareFileSourcesForImport({
+      filesService,
+      sources,
+    });
+
+    assert.deepEqual({
+      entries: result.entries.map(entry => ({
+        relativePath: entry.relativePath,
+        resourcePath: normalizeTestFilePath(entry.resource?.fsPath),
+      })),
+      errorMessage: result.errorMessage,
+      sources: sources.map(source => ({
+        kind: source.kind,
+        relativePath: source.relativePath,
+        resourcePath: source.kind === "path"
+          ? normalizeTestFilePath(source.resource.fsPath)
+          : null,
+      })),
+    }, {
+      entries: [{
+        relativePath: "293K/root.csv",
+        resourcePath: "c:/data/293k/root.csv",
+      }, {
+        relativePath: "293K/output/nested.csv",
+        resourcePath: "c:/data/293k/output/nested.csv",
+      }],
+      errorMessage: null,
+      sources: [{
+        kind: "path",
+        relativePath: "293K/root.csv",
+        resourcePath: "c:/data/293k/root.csv",
+      }, {
+        kind: "path",
+        relativePath: "293K/output/nested.csv",
+        resourcePath: "c:/data/293k/output/nested.csv",
+      }],
+    });
   });
 
   test("collectDroppedFiles skips unsupported file system handles before reading", async () => {
@@ -541,7 +603,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
           name: "root",
         }),
       }],
-    }));
+    }), browserFilesService);
 
     assert.deepEqual(result.map(source => source.relativePath), ["root/transfer.csv"]);
     assert.equal(unsupportedReadCount, 0);
@@ -555,7 +617,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
           createWebkitFileEntry(createCsvFile("A.csv", "Vg,Id\n0,1")),
         ]),
       }],
-    }));
+    }), browserFilesService);
 
     assert.deepEqual(result.map(source => source.relativePath), ["folder/A.csv"]);
   });
@@ -574,7 +636,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
         },
         webkitGetAsEntry: () => canReadEntry ? entry : null,
       }],
-    }));
+    }), browserFilesService);
 
     assert.deepEqual(result.map(source => source.relativePath), ["folder/A.csv"]);
   });
@@ -586,7 +648,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       items: [{
         getAsFile: () => file,
       }],
-    }));
+    }), browserFilesService);
 
     assert.deepEqual(result.map(source => source.relativePath), ["A.csv"]);
   });
@@ -601,7 +663,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
         }),
       ],
       items: [],
-    }));
+    }), browserFilesService);
 
     assert.deepEqual(result.map(source => source.relativePath), ["transfer.csv"]);
   });
@@ -611,7 +673,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     const result = await collectDroppedFiles(createDataTransfer({
       files: [file],
       items: [],
-    }));
+    }), browserFilesService);
 
     assert.deepEqual(result.map(source => source.relativePath), ["folder/A.csv"]);
   });
@@ -871,6 +933,40 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.ok(message?.includes("Permission denied"), String(message));
   });
 });
+
+class NativeDroppedFolderFileService extends FileService {
+  public override async readDir(resource: URI): Promise<readonly [string, FileType][]> {
+    const path = normalizeTestFilePath(resource.fsPath);
+    if (path?.endsWith("/293k")) {
+      return [
+        ["output", FileType.Directory],
+        ["root.csv", FileType.File],
+      ];
+    }
+    if (path?.endsWith("/293k/output")) {
+      return [["nested.csv", FileType.File]];
+    }
+
+    return [];
+  }
+
+  public override async stat(resource: URI): Promise<IFileStat> {
+    const path = normalizeTestFilePath(resource.fsPath) ?? "";
+    const isDirectory = path.endsWith("/293k") || path.endsWith("/293k/output");
+    return {
+      ctime: 1,
+      mtime: 1,
+      path: resource.fsPath,
+      size: isDirectory ? 0 : 12,
+      type: isDirectory ? FileType.Directory : FileType.File,
+    };
+  }
+}
+
+const normalizeTestFilePath = (value: string | undefined): string | null => {
+  const path = value?.replace(/\\/g, "/").toLowerCase() ?? "";
+  return path || null;
+};
 
 type TestDataTransferItem = Omit<Partial<DataTransferItem>, "webkitGetAsEntry"> & {
   readonly getAsFileSystemHandle?: () => Promise<FileSystemHandle | null>;

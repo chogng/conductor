@@ -414,7 +414,7 @@ export class FileSourceWorkflow implements IDisposable {
       return;
     }
 
-    this.handleSelectFiles(await collectDroppedFiles(dataTransfer));
+    this.handleSelectFiles(await collectDroppedFiles(dataTransfer, this.options.filesService));
   }
 
   private async doOpenFolderDialog(): Promise<void> {
@@ -1589,7 +1589,9 @@ export const prepareDroppedFilesForImport = async ({
 }: PrepareDroppedFilesForImportOptions): Promise<FileSourcePreparationResult> =>
   prepareFileSourcesForImport({
     ...options,
-    sources: dataTransfer ? await collectDroppedFiles(dataTransfer) : [],
+    sources: dataTransfer
+      ? await collectDroppedFiles(dataTransfer, options.filesService)
+      : [],
   });
 
 export const prepareFileSourcesForImport = async ({
@@ -1993,8 +1995,20 @@ const getFileSourceSize = (source: FileSource): number =>
 
 export const collectDroppedFiles = async (
   dataTransfer: DataTransfer,
+  filesService: IFileService,
+  resolveFilePath: (file: File) => string | undefined = getPathForFile,
 ): Promise<FileSource[]> => {
   const startedAt = getPerfNow();
+  const nativeSources = await collectNativeDroppedFiles(
+    dataTransfer,
+    filesService,
+    resolveFilePath,
+  );
+  if (nativeSources) {
+    markDroppedFilesCollected(startedAt, dataTransfer, nativeSources);
+    return nativeSources;
+  }
+
   const droppedFiles: DroppedFile[] = [];
   const items = Array.from(dataTransfer.items) as DataTransferItemWithFileSystemAccess[];
   const droppedItems = items.map(snapshotDroppedDataTransferItem);
@@ -2042,15 +2056,65 @@ export const collectDroppedFiles = async (
   }
 
   const sources = droppedFiles.map(createDroppedFileSource);
+  markDroppedFilesCollected(startedAt, dataTransfer, sources);
+
+  return sources;
+};
+
+const collectNativeDroppedFiles = async (
+  dataTransfer: DataTransfer,
+  filesService: IFileService,
+  resolveFilePath: (file: File) => string | undefined,
+): Promise<FileSource[] | null> => {
+  const nativeFiles = Array.from(dataTransfer.files).flatMap(file => {
+    const filePath = String(resolveFilePath(file) ?? "").trim();
+    if (!filePath || !isAbsoluteFilePath(filePath)) {
+      return [];
+    }
+
+    return [{ file, resource: URI.file(filePath) }];
+  });
+  if (nativeFiles.length === 0) {
+    return null;
+  }
+
+  const sources: FileSource[] = [];
+  for (const { file, resource } of nativeFiles) {
+    let stat: IFileStat | null = null;
+    try {
+      stat = await filesService.stat(resource);
+    } catch {
+      // Native FileList entries already have a durable resource; stat is used only
+      // to distinguish folders. Delete this branch when native DND exposes the
+      // file/directory kind without a filesystem read.
+    }
+
+    if (stat && (stat.type & FileType.Directory) === FileType.Directory) {
+      const folder = await collectFolderImportFiles(resource, filesService);
+      sources.push(...folder.files);
+      continue;
+    }
+
+    if (tableFormatService.canHandle(resource)) {
+      sources.push(createFileSource(file, file.name, resource));
+    }
+  }
+
+  return sources;
+};
+
+const markDroppedFilesCollected = (
+  startedAt: number,
+  dataTransfer: DataTransfer,
+  sources: readonly FileSource[],
+): void => {
   markTemplateApplyPerformanceTrace("import.drop.collected", {
     dataTransferFileCount: dataTransfer.files.length,
     durationMs: getPerfNow() - startedAt,
-    itemCount: items.length,
+    itemCount: dataTransfer.items.length,
     sourceCount: sources.length,
     totalSizeBytes: sources.reduce((sum, source) => sum + getFileSourceSize(source), 0),
   });
-
-  return sources;
 };
 
 const getDroppedFileKey = (file: File, relativePath?: string | null): string =>

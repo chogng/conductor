@@ -5,6 +5,7 @@
 import { DragAndDropObserver } from "src/cs/base/browser/dom";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
+import { IFileService } from "src/cs/platform/files/common/files";
 import {
 	collectDroppedFiles,
 	type FileSource,
@@ -25,6 +26,7 @@ const TABLE_DROP_TARGET_DRAGGING_CLASS_NAME = "table_view_drop_target--dragging"
 export class TableDropTarget extends Disposable {
 	public constructor(
 		private readonly container: HTMLElement,
+		@IFileService private readonly filesService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITableService private readonly tableService: ITableService,
 		@ITableModelService private readonly tableModelService: ITableModelService,
@@ -73,7 +75,9 @@ export class TableDropTarget extends Disposable {
 	}
 
 	private async openDroppedTable(dataTransfer: DataTransfer | null): Promise<void> {
-		const sources = dataTransfer ? await collectDroppedFiles(dataTransfer) : [];
+		const sources = dataTransfer
+			? await collectDroppedFiles(dataTransfer, this.filesService)
+			: [];
 		const source = getFirstDroppedTableResource(sources, this.tableModelService);
 		if (!source) {
 			this.showOpenError(getDropTableOpenErrorMessage(sources));
