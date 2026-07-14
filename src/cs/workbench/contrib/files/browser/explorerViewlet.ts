@@ -48,7 +48,6 @@ import {
   getExplorerFolderPath,
   getExplorerResourceIdentityKey,
   getExplorerFileSourceIdentityKey,
-  getExplorerTreeFileKey,
   isExplorerPathInFolder,
   mergeExplorerSourceEntries,
   type ExplorerFileEntry,
@@ -56,13 +55,9 @@ import {
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import { TOGGLE_THUMBNAIL_VIEW_ACTION_ID } from "src/cs/workbench/contrib/thumbnail/common/thumbnail";
 import { createTemplateEditorRecordFromUserTemplate } from "src/cs/workbench/contrib/template/browser/templateUserTemplateAdapter";
-import {
-  ExplorerDecorationsProvider,
-  createExplorerDecorationResource,
-} from "src/cs/workbench/contrib/files/browser/views/explorerDecorationsProvider";
+import { ExplorerDecorationsProvider } from "src/cs/workbench/contrib/files/browser/views/explorerDecorationsProvider";
 import {
   IDecorationsService,
-  type IDecorationData,
   type IDecorationsService as IDecorationsServiceType,
 } from "src/cs/workbench/services/decorations/common/decorations";
 import {
@@ -90,7 +85,6 @@ import {
   ISettingsService,
   type ISettingsService as ISettingsServiceType,
 } from "src/cs/workbench/services/settings/common/settings";
-import type { ReviewSummary } from "src/cs/workbench/services/review/common/reviewModel";
 import {
   ISliceService,
   type SliceFileState,
@@ -233,19 +227,10 @@ export abstract class BaseExplorerViewPane extends ViewPane {
       this.reviewCurrentExplorerEntries(true);
       this.syncView();
     }));
-    this._register(this.reviewService.onDidChangeReview(() => {
-      this.syncView();
-    }));
     this._register(this.sliceService.onDidChangeResourceSliceResult(() => {
       this.syncView();
     }));
     this._register(this.sliceService.onDidChangeSliceState(() => {
-      this.syncView();
-    }));
-    this._register(this.decorationsService.onDidChangeDecorations(event => {
-      if (!this.hasAffectedExplorerDecoration(event)) {
-        return;
-      }
       this.syncView();
     }));
 
@@ -441,10 +426,8 @@ export abstract class BaseExplorerViewPane extends ViewPane {
       editable: this.explorerService.getContext().editable,
       templateRecords: this.createTemplateRecords(),
       files,
-      decorationResourcesByFileKey: this.createExplorerDecorationResourcesByFileKey(files),
-      decorationsByFileKey: this.createExplorerDecorationsByFileKey(files),
-      reviewSummariesByFileKey: this.createExplorerReviewSummariesByFileKey(files),
       decorationsService: this.decorationsService,
+      reviewService: this.reviewService,
       folderImportSupport: getFolderImportSupportForFileService(this.filesService),
       isDragging: this.isDragging,
       mode: input.mode,
@@ -463,72 +446,6 @@ export abstract class BaseExplorerViewPane extends ViewPane {
       onSelectFile: this.handleSelectFile,
       thumbnailPlotModelsByFileId: input.thumbnailPlotModelsByFileId,
     };
-  }
-
-  private createExplorerDecorationsByFileKey(
-    files: readonly ExplorerFileEntry[],
-  ): Readonly<Record<string, IDecorationData>> {
-    const decorationsByFileKey: Record<string, IDecorationData> = {};
-    for (const file of files) {
-      const resource = getExplorerFileDecorationResource(file);
-      if (!resource) {
-        continue;
-      }
-      const decoration = this.decorationsService.getDecorationData(
-        createExplorerDecorationResource(resource, file.sheetId),
-        false,
-      )[0];
-      if (decoration) {
-        decorationsByFileKey[getExplorerTreeFileKey(file)] = decoration;
-      }
-    }
-    return decorationsByFileKey;
-  }
-
-  private createExplorerDecorationResourcesByFileKey(
-    files: readonly ExplorerFileEntry[],
-  ): Readonly<Record<string, URI>> {
-    const resourcesByFileKey: Record<string, URI> = {};
-    for (const file of files) {
-      const resource = getExplorerFileDecorationResource(file);
-      if (!resource) {
-        continue;
-      }
-      resourcesByFileKey[getExplorerTreeFileKey(file)] =
-        createExplorerDecorationResource(resource, file.sheetId);
-    }
-    return resourcesByFileKey;
-  }
-
-  private createExplorerReviewSummariesByFileKey(
-    files: readonly ExplorerFileEntry[],
-  ): Readonly<Record<string, ReviewSummary>> {
-    const summariesByFileKey: Record<string, ReviewSummary> = {};
-    for (const file of files) {
-      const resource = getExplorerFileDecorationResource(file);
-      if (!resource) {
-        continue;
-      }
-      const summary = this.reviewService.getLatestReviewSummary({
-        resource,
-        sheetId: file.sheetId ?? null,
-      });
-      if (summary.state === "missing") {
-        continue;
-      }
-      summariesByFileKey[getExplorerTreeFileKey(file)] = summary;
-    }
-    return summariesByFileKey;
-  }
-
-  private hasAffectedExplorerDecoration(event: { affectsResource(resource: URI): boolean }): boolean {
-    for (const file of this.visibleEntries) {
-      const resource = getExplorerFileDecorationResource(file);
-      if (resource && event.affectsResource(createExplorerDecorationResource(resource, file.sheetId))) {
-        return true;
-      }
-    }
-    return false;
   }
 
   private readonly handleCancelRenameFile = (): void => {
@@ -1507,11 +1424,6 @@ function getExplorerFileTableResource(file: ExplorerFileEntry | null | undefined
 
   const path = getExplorerFileTablePath(file);
   return path ? URI.file(path) : null;
-}
-
-function getExplorerFileDecorationResource(file: ExplorerFileEntry | null | undefined): URI | null {
-  const resource = file?.resource ? URI.revive(file.resource) : null;
-  return resource ?? null;
 }
 
 function getExplorerFileTablePath(file: ExplorerFileEntry | null | undefined): string | null {

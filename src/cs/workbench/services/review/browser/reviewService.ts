@@ -13,6 +13,7 @@ import {
   IReviewService,
   REVIEW_ENGINE_VERSION,
   REVIEW_POLICY_VERSION,
+  type ReviewChangeEvent,
   type ManualTemplateReviewResult,
   type ManualTemplateSelection,
   type ReviewedTemplateConfirmationRequest,
@@ -89,9 +90,10 @@ const ReviewChangeBatchDelayMs = 16;
 export class ReviewService extends Disposable implements IReviewService {
   public declare readonly _serviceBrand: undefined;
 
-  private readonly onDidChangeReviewEmitter = this._register(new Emitter<void>());
+  private readonly onDidChangeReviewEmitter = this._register(new Emitter<ReviewChangeEvent>());
   public readonly onDidChangeReview = this.onDidChangeReviewEmitter.event;
 
+  private readonly pendingReviewChangeTargetsByKey = new Map<string, NormalizedUriReviewTarget>();
   private readonly staleUriReviewKeys = new Set<string>();
   private readonly activeUriReviewPromisesByKey = new Map<string, Promise<UriReviewCacheEntry | null>>();
   private readonly pendingUriReviewRefreshTargetsByKey = new Map<string, NormalizedUriReviewTarget>();
@@ -118,6 +120,7 @@ export class ReviewService extends Disposable implements IReviewService {
         this.staleUriReviewKeys.clear();
         this.activeUriReviewPromisesByKey.clear();
         this.pendingUriReviewRefreshTargetsByKey.clear();
+        this.pendingReviewChangeTargetsByKey.clear();
         this.uriReviewCacheByKey.clear();
         this.uriReviewGenerationByKey.clear();
         this.uriReviewTargetsByKey.clear();
@@ -208,7 +211,7 @@ export class ReviewService extends Disposable implements IReviewService {
       const entry = await activeReview;
       this.trackUriReviewTarget(key, reviewTarget);
       if (this.getUriReviewGeneration(key) !== generation) {
-        this.fireReviewChange();
+        this.fireReviewChange(reviewTarget);
         return null;
       }
       if (entry) {
@@ -216,7 +219,7 @@ export class ReviewService extends Disposable implements IReviewService {
       } else {
         this.deleteUriReviewCacheEntry(key);
       }
-      this.fireReviewChange();
+      this.fireReviewChange(reviewTarget);
       return entry;
     }
 
@@ -228,7 +231,7 @@ export class ReviewService extends Disposable implements IReviewService {
     } else if (this.getUriReviewGeneration(key) === generation) {
       this.deleteUriReviewCacheEntry(key);
     }
-    this.fireReviewChange();
+    this.fireReviewChange(reviewTarget);
     return entry;
   }
 
@@ -343,15 +346,26 @@ export class ReviewService extends Disposable implements IReviewService {
     return this.reviewResolvedManualTemplate(selection, resolution.snapshot.columnCount, resolution.snapshot.rowCount);
   }
 
-  private fireReviewChange(): void {
-    if (this.disposed || this.scheduledReviewChange) {
+  private fireReviewChange(...targets: readonly NormalizedUriReviewTarget[]): void {
+    if (this.disposed) {
+      return;
+    }
+
+    for (const target of targets) {
+      this.pendingReviewChangeTargetsByKey.set(getUriReviewTargetKey(target), target);
+    }
+    if (this.scheduledReviewChange || !this.pendingReviewChangeTargetsByKey.size) {
       return;
     }
 
     this.scheduledReviewChange = disposableTimeout(() => {
       this.scheduledReviewChange?.dispose();
       this.scheduledReviewChange = null;
-      this.onDidChangeReviewEmitter.fire(undefined);
+      const changedTargets = [...this.pendingReviewChangeTargetsByKey.values()];
+      this.pendingReviewChangeTargetsByKey.clear();
+      if (changedTargets.length) {
+        this.onDidChangeReviewEmitter.fire(changedTargets);
+      }
     }, ReviewChangeBatchDelayMs);
   }
 
@@ -409,7 +423,7 @@ export class ReviewService extends Disposable implements IReviewService {
 
     this.markUriReviewTargetStale(key);
     this.queueUriReviewRefresh(key, target);
-    this.fireReviewChange();
+    this.fireReviewChange(target);
   }
 
   private queueUriReviewRefresh(key: string, target: NormalizedUriReviewTarget): void {
@@ -478,6 +492,7 @@ export class ReviewService extends Disposable implements IReviewService {
       }
     });
     this.activeUriReviewPromisesByKey.set(key, review);
+    this.fireReviewChange(target);
     return review;
   }
 
@@ -619,7 +634,7 @@ export class ReviewService extends Disposable implements IReviewService {
       return;
     }
 
-    let didChange = false;
+    const changedTargets: NormalizedUriReviewTarget[] = [];
     for (const [key, target] of this.uriReviewTargetsByKey) {
       if (normalizeResourceIdentity(target.resource) !== resourceIdentity) {
         continue;
@@ -629,10 +644,10 @@ export class ReviewService extends Disposable implements IReviewService {
       }
       this.markUriReviewTargetStale(key);
       this.queueUriReviewRefresh(key, target);
-      didChange = true;
+      changedTargets.push(target);
     }
-    if (didChange) {
-      this.fireReviewChange();
+    if (changedTargets.length) {
+      this.fireReviewChange(...changedTargets);
     }
   }
 
@@ -641,16 +656,16 @@ export class ReviewService extends Disposable implements IReviewService {
       return;
     }
 
-    let didChange = false;
+    const changedTargets: NormalizedUriReviewTarget[] = [];
     for (const [key, target] of this.uriReviewTargetsByKey) {
       if (this.uriReviewCacheByKey.has(key)) {
         this.markUriReviewTargetStale(key);
         this.queueUriReviewRefresh(key, target);
-        didChange = true;
+        changedTargets.push(target);
       }
     }
-    if (didChange) {
-      this.fireReviewChange();
+    if (changedTargets.length) {
+      this.fireReviewChange(...changedTargets);
     }
   }
 

@@ -164,7 +164,8 @@ sequenceDiagram
 Explorer decoration and hover consume only Review's public summary:
 
 ```txt
-ReviewService onDidChangeReview
+ReviewService onDidChangeReview(changed resource/sheet targets)
+  -> ExplorerDecorationsProvider invalidates only affected decoration resources
   -> ExplorerDecorationsProvider.provideDecorations(resource)
   -> IReviewService.getLatestReviewSummary({ resource, contentHash?, sheetId? })
   -> ReviewService returns cached/stale/active-pending/missing summary without resolving content
@@ -243,6 +244,9 @@ snapshot. Do not reintroduce Review-local structured-content bridges.
 - Review API targets use URI plus optional content version and content
   sub-targets. Do not expose `result target`, synthetic cache keys, or keyed map
   fields as public contracts.
+- `onDidChangeReview` carries the changed URI/sheet targets. Consumers must
+  filter against their owned resource before rereading state; they must not use
+  a Review change as a global view or unrelated model refresh signal.
 - Public Review target interfaces may accept nullable optional fields at the
   service boundary. `ReviewService` must normalize them once into a private
   target interface with optional concrete fields before cache, scheduling,

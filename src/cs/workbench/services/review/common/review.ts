@@ -82,10 +82,12 @@ export type ReviewEvidenceSignatureContext = {
 
 export type ReviewEvidenceSignatureInput = ReviewEvidence;
 
+export type ReviewChangeEvent = readonly ReviewSummaryTarget[];
+
 export interface IReviewService {
   readonly _serviceBrand: undefined;
 
-  readonly onDidChangeReview: Event<void>;
+  readonly onDidChangeReview: Event<ReviewChangeEvent>;
 
   getLatestReviewSummary(target: ReviewSummaryTarget): ReviewSummary;
   confirmReviewedTemplate(input: ReviewedTemplateConfirmationRequest): Promise<SchemaProfile | null>;

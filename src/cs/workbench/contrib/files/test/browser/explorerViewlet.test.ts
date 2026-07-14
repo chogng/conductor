@@ -105,20 +105,23 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
 		assert.equal(shouldSelectExplorerImportTableTarget(result, "table"), false);
 	});
 
-	test("schedules review when append targets an already committed Explorer row", () => {
-		const resource = URI.file("/workspace/transfer/3.csv");
-		const existingEntry = createExplorerFileEntry({
-			fileId: "file-existing",
-			itemKey: "source-existing",
+	test("starts every review immediately when append targets committed Explorer rows", () => {
+		const resources = [
+			URI.file("/workspace/transfer/3.csv"),
+			URI.file("/workspace/transfer/4.csv"),
+		];
+		const existingEntries = resources.map((resource, index) => createExplorerFileEntry({
+			fileId: `file-existing-${index}`,
+			itemKey: `source-existing-${index}`,
 			resource,
-		});
+		}));
 		const reviewTargets: Array<{ readonly resource: URI; readonly sheetId?: string | null }> = [];
 		let didSync = false;
 		const pane = Object.create(ExplorerViewPane.prototype) as ExplorerViewPaneImportHarness & Record<string, unknown>;
 		Object.assign(pane, {
 			explorerService: {
 				appendFiles: () => [],
-				files: [existingEntry],
+				files: existingEntries,
 				selectedResource: null,
 				selectedSheetId: null,
 			},
@@ -139,31 +142,30 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
 				didSync = true;
 			},
 		});
-		const file = new File(["A,B\n1,2"], "3.csv", {
-			lastModified: 1,
-			type: "text/csv",
-		});
-		const entry: ExplorerFileEntry = {
-			file,
-			fileId: "file-existing",
-			fileName: "3.csv",
-			itemKey: "source-existing",
+		const entries: ExplorerFileEntry[] = resources.map((resource, index) => ({
+			file: new File(["A,B\n1,2"], `${index + 3}.csv`, {
+				lastModified: 1,
+				type: "text/csv",
+			}),
+			fileId: `file-existing-${index}`,
+			fileName: `${index + 3}.csv`,
+			itemKey: `source-existing-${index}`,
 			localImport: true,
-			relativePath: "transfer/3.csv",
+			relativePath: `transfer/${index + 3}.csv`,
 			resource,
 			sourcePath: resource.fsPath,
-		};
+		}));
 
-		pane.appendExplorerFiles([entry]);
+		pane.appendExplorerFiles(entries);
 
 		assert.equal(didSync, true);
 		assert.deepStrictEqual(reviewTargets.map(target => ({
 			resource: target.resource.toString(),
 			sheetId: target.sheetId ?? null,
-		})), [{
+		})), resources.map(resource => ({
 			resource: resource.toString(),
 			sheetId: null,
-		}]);
+		})));
 	});
 
 	test("reads Slice owner state when rendering chart thumbnails", () => {

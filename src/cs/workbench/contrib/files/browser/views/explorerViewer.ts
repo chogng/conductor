@@ -24,7 +24,7 @@ import {
 } from "src/cs/base/browser/ui/tree/objectTree";
 import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import type { URI } from "src/cs/base/common/uri";
+import { URI } from "src/cs/base/common/uri";
 import { AnchorAxisAlignment, AnchorPosition } from "src/cs/base/common/layout";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { isMacintosh, isWindows } from "src/cs/base/common/platform";
@@ -85,7 +85,13 @@ import {
   ExplorerBadgeNode,
   type ExplorerBadgePresentation,
 } from "src/cs/workbench/contrib/files/browser/views/explorerBadgeNode";
-import type { IDecorationData } from "src/cs/workbench/services/decorations/common/decorations";
+import { createExplorerDecorationResource } from "src/cs/workbench/contrib/files/browser/views/explorerDecorationsProvider";
+import type {
+  IDecorationData,
+  IDecorationsService,
+  IResourceDecorationChangeEvent,
+} from "src/cs/workbench/services/decorations/common/decorations";
+import type { IReviewService } from "src/cs/workbench/services/review/common/review";
 import type { ReviewSummary } from "src/cs/workbench/services/review/common/reviewModel";
 import type {
   IThumbnailPreviewService,
@@ -120,9 +126,8 @@ export type ExplorerViewerProps = {
   readonly editable?: ExplorerEditableData | null;
   readonly templateRecords?: readonly TemplateEditorRecord[];
   readonly files: ExplorerFileEntry[];
-  readonly decorationResourcesByFileKey?: Readonly<Record<string, URI>>;
-  readonly decorationsByFileKey?: Readonly<Record<string, IDecorationData>>;
-  readonly reviewSummariesByFileKey?: Readonly<Record<string, ReviewSummary>>;
+  readonly decorationsService: Pick<IDecorationsService, "getDecoration" | "getDecorationData" | "onDidChangeDecorations">;
+  readonly reviewService: Pick<IReviewService, "getLatestReviewSummary">;
   readonly mode?: ExplorerPaneMode;
   readonly viewLayout?: FilesViewLayout;
   readonly folderImportSupport?: FolderImportSupport;
@@ -177,6 +182,7 @@ type FileItemTemplate = {
   readonly badge: ExplorerBadgeNode;
   readonly content: HTMLDivElement;
   readonly editorStore: DisposableStore;
+  decorationResource: URI | null;
   fileId: string | null;
   filePresentationSignature: string;
   fileRenderKey: string | null;
@@ -487,27 +493,6 @@ const normalizeDecorationColor = (
     : normalized;
 };
 
-const createExplorerDecorationSignature = (
-  decoration: IDecorationData | undefined,
-): string => [
-  decoration?.color ?? "",
-  decoration?.letter ?? "",
-  decoration?.tooltip ?? "",
-].join("\u001d");
-
-const createReviewSummarySignature = (
-  summary: ReviewSummary | undefined,
-): string => [
-  summary?.state ?? "",
-  summary?.confidence ?? "",
-  summary?.reviewedType ?? "",
-  summary?.reviewedSemanticLabel ?? "",
-  summary?.message ?? "",
-  summary?.findingCodes.join("\u001d") ?? "",
-  summary?.reviewSignature ?? "",
-  summary?.templateFingerprint ?? "",
-].join("\u001f");
-
 const getReviewStateLabel = (
   state: ReviewSummary["state"],
 ): string => {
@@ -809,6 +794,7 @@ export class ExplorerViewer implements IDisposable {
   private readonly thumbnailHost: HTMLDivElement;
   private readonly hoverThumbnailCache = new Map<string, HoverThumbnailCacheEntry>();
   private readonly thumbnailGridItemCache = new Map<string, ThumbnailGridItemCacheEntry>();
+  private readonly fileItemTemplates = new Set<FileItemTemplate>();
   private hoverView: FileItemHoverView | null = null;
   private hoverContainer: HTMLElement | null = null;
   private hoverAnchor: HTMLElement | null = null;
@@ -897,6 +883,9 @@ export class ExplorerViewer implements IDisposable {
         this.refreshThumbnailGridItem(fileId);
       }
     }));
+    this.disposables.add(this.props.decorationsService.onDidChangeDecorations(
+      this.handleDecorationChanges,
+    ));
   }
 
   getListHandle(): ListHandle {
@@ -1222,7 +1211,6 @@ export class ExplorerViewer implements IDisposable {
     entry: ExplorerFileEntry,
     props: ExplorerViewerProps,
   ): string {
-    const fileKey = getExplorerTreeFileKey(entry);
     return [
       createExplorerFilePresentationSignature(entry, {
         badgeColorSignature: this.getBadgeColorSignature(props.explorerAppearance?.badgeColors),
@@ -1234,8 +1222,6 @@ export class ExplorerViewer implements IDisposable {
         ),
       }),
       createFileHoverContextSignature(entry),
-      createExplorerDecorationSignature(props.decorationsByFileKey?.[fileKey]),
-      createReviewSummarySignature(props.reviewSummariesByFileKey?.[fileKey]),
       props.mode ?? "",
     ].join("\u001f");
   }
@@ -1566,6 +1552,7 @@ export class ExplorerViewer implements IDisposable {
       this.hideFileItemHover(template.file.host);
     }
     template.file.fileId = null;
+    template.file.decorationResource = null;
     template.file.fileResourceIdentity = null;
     template.file.editorStore.clear();
     template.folder.currentNode = null;
@@ -1579,6 +1566,7 @@ export class ExplorerViewer implements IDisposable {
   }
 
   private readonly disposeTreeItemTemplate = (template: TreeItemTemplate): void => {
+    this.fileItemTemplates.delete(template.file);
     template.file.editorStore.dispose();
     template.file.label.dispose();
     template.folder.actionButton.dispose();
@@ -1631,8 +1619,9 @@ export class ExplorerViewer implements IDisposable {
     const { host } = template;
     const fileKey = getFileRenderKey(fileEntry);
     const treeFileKey = getExplorerTreeFileKey(fileEntry);
-    const decoration = this.props.decorationsByFileKey?.[treeFileKey] ?? null;
-    const decorationResource = this.props.decorationResourcesByFileKey?.[treeFileKey];
+    const decorationResource = fileEntry.resource
+      ? createExplorerDecorationResource(URI.revive(fileEntry.resource), fileEntry.sheetId)
+      : null;
     const presentationSignature = this.createFilePresentationSignature(fileEntry, this.props);
     if (this.hoverAnchor === host && template.fileId !== fileId) {
       this.hideFileItemHover(host);
@@ -1653,6 +1642,7 @@ export class ExplorerViewer implements IDisposable {
       template.actions.parentElement === host;
     template.fileId = fileId;
     template.fileResourceIdentity = fileResourceIdentity;
+    template.decorationResource = decorationResource;
     if (canReuseRenderedPresentation) {
       if (isTemplateApplyPerformanceTraceEnabled()) {
         markTemplateApplyPerformanceTrace("explorer.fileItem.reuse", {
@@ -1736,14 +1726,7 @@ export class ExplorerViewer implements IDisposable {
       template.label.element.style.display = "none";
       template.content.append(editor.element);
     }
-    const badge = sourceStatus?.status === "failed"
-      ? sourceStatus
-      : decoration ?? sourceStatus;
-    template.badge.setBadge(fileKey, createBadgePresentation(
-      fileKey,
-      badge,
-      this.explorerAppearance.badgeColors,
-    ));
+    this.updateFileItemBadge(fileEntry, template);
     template.removeButton.setAttribute(
       "aria-label",
       localize("files.import.closeFileButtonLabel", "Close {fileName}", { fileName }),
@@ -1939,6 +1922,7 @@ export class ExplorerViewer implements IDisposable {
       actions,
       badge,
       content,
+      decorationResource: null,
       editorStore: new DisposableStore(),
       fileId: null,
       filePresentationSignature: "",
@@ -1948,6 +1932,7 @@ export class ExplorerViewer implements IDisposable {
       label,
       removeButton,
     };
+    this.fileItemTemplates.add(template);
     removeButton.addEventListener("click", (event) => {
       event.stopPropagation();
       void this.props.commandService.executeCommand(
@@ -2410,9 +2395,14 @@ export class ExplorerViewer implements IDisposable {
 
   private resolveReviewHoverContent(item: HTMLElement): HoverContent | null {
     const fileContext = this.resolveFileHoverContext(item);
-    const treeFileKey = String(item.dataset.treeFileKey ?? "").trim();
-    const summary = treeFileKey
-      ? this.props.reviewSummariesByFileKey?.[treeFileKey]
+    const resourceIdentity = getExplorerFileResourceIdentity(
+      this.getExplorerFileEntryFromItem(item),
+    );
+    const summary = resourceIdentity
+      ? this.props.reviewService.getLatestReviewSummary({
+          resource: resourceIdentity.resource,
+          sheetId: resourceIdentity.sheetId ?? null,
+        })
       : undefined;
     if (!summary) {
       return fileContext
@@ -2434,6 +2424,46 @@ export class ExplorerViewer implements IDisposable {
       reviewedType: getReviewSummaryType(summary),
       state: summary.state,
     };
+  }
+
+  private readonly handleDecorationChanges = (
+    event: IResourceDecorationChangeEvent,
+  ): void => {
+    let refreshHover = false;
+    for (const template of this.fileItemTemplates) {
+      const decorationResource = template.decorationResource;
+      if (!decorationResource || !event.affectsResource(decorationResource)) {
+        continue;
+      }
+      const fileEntry = this.getExplorerFileEntryFromItem(template.host);
+      if (!fileEntry) {
+        continue;
+      }
+      this.updateFileItemBadge(fileEntry, template);
+      refreshHover ||= this.hoverAnchor === template.host;
+    }
+    if (refreshHover) {
+      this.refreshVisibleHover();
+    }
+  };
+
+  private updateFileItemBadge(
+    fileEntry: ExplorerFileEntry,
+    template: FileItemTemplate,
+  ): void {
+    const fileKey = getFileRenderKey(fileEntry);
+    const sourceStatus = createFileSourceStatusBadge(fileEntry);
+    const decoration = template.decorationResource
+      ? this.props.decorationsService.getDecorationData(template.decorationResource, false)[0]
+      : undefined;
+    const badge = sourceStatus?.status === "failed"
+      ? sourceStatus
+      : decoration ?? sourceStatus;
+    template.badge.setBadge(fileKey, createBadgePresentation(
+      fileKey,
+      badge,
+      this.explorerAppearance.badgeColors,
+    ));
   }
 
   private resolveFileHoverContext(item: HTMLElement): FileHoverContext | null {

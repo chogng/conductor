@@ -2,7 +2,6 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from "src/cs/base/common/async";
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
@@ -17,20 +16,14 @@ import {
 	IReviewService,
 	type IReviewService as IReviewServiceType,
 } from "src/cs/workbench/services/review/common/review";
-import type { ReviewSummary } from "src/cs/workbench/services/review/common/reviewModel";
+import type { ReviewSummary, ReviewSummaryTarget } from "src/cs/workbench/services/review/common/reviewModel";
 import type { IDecorationData, IDecorationsProvider } from "src/cs/workbench/services/decorations/common/decorations";
-
-const ExplorerDecorationReviewChangeDelayMs = 250;
 
 export class ExplorerDecorationsProvider extends Disposable implements IDecorationsProvider {
 	public readonly label = localize("files.decorations.providerLabel", "Explorer");
 
 	private readonly onDidChangeEmitter = this._register(new Emitter<readonly URI[]>());
 	public readonly onDidChange: Event<readonly URI[]> = this.onDidChangeEmitter.event;
-	private readonly reviewChangeScheduler = this._register(new RunOnceScheduler(
-		() => this.fireAllResourceDecorationsChanged(),
-		ExplorerDecorationReviewChangeDelayMs,
-	));
 
 	public constructor(
 		@IExplorerService private readonly explorerService: IExplorerServiceType,
@@ -40,8 +33,8 @@ export class ExplorerDecorationsProvider extends Disposable implements IDecorati
 		this._register(this.explorerService.onDidChangePaneInput(() => {
 			this.fireAllResourceDecorationsChanged();
 		}));
-		this._register(this.reviewService.onDidChangeReview(() => {
-			this.reviewChangeScheduler.schedule();
+		this._register(this.reviewService.onDidChangeReview(targets => {
+			this.fireReviewDecorationsChanged(targets);
 		}));
 	}
 
@@ -68,12 +61,25 @@ export class ExplorerDecorationsProvider extends Disposable implements IDecorati
 		}
 	}
 
-	private getExplorerResources(): readonly URI[] {
+	private fireReviewDecorationsChanged(targets: readonly ReviewSummaryTarget[]): void {
+		const resources = this.getExplorerResources(targets);
+		if (resources.length) {
+			this.onDidChangeEmitter.fire(resources);
+		}
+	}
+
+	private getExplorerResources(
+		targets?: readonly ReviewSummaryTarget[],
+	): readonly URI[] {
 		const resources: URI[] = [];
 		const seen = new Set<string>();
+		const targetIndex = targets ? createReviewTargetIndex(targets) : null;
 		for (const entry of this.getExplorerEntries()) {
 			const resource = getExplorerEntryDecorationResource(entry);
 			if (!resource) {
+				continue;
+			}
+			if (targetIndex && !isExplorerEntryReviewTarget(entry, resource, targetIndex)) {
 				continue;
 			}
 			const decorationResource = createExplorerDecorationResource(resource, entry.sheetId);
@@ -118,6 +124,44 @@ const getExplorerEntryDecorationResource = (
 ): URI | null => {
 	const resource = entry.resource ? URI.revive(entry.resource) : null;
 	return resource ?? null;
+};
+
+type ReviewTargetIndex = ReadonlyMap<string, ReadonlySet<string> | null>;
+
+const createReviewTargetIndex = (
+	targets: readonly ReviewSummaryTarget[],
+): ReviewTargetIndex => {
+	const index = new Map<string, Set<string> | null>();
+	for (const target of targets) {
+		const resourceKey = normalizeResourceKey(target.resource);
+		if (!resourceKey || index.get(resourceKey) === null) {
+			continue;
+		}
+		const sheetId = String(target.sheetId ?? "").trim();
+		if (!sheetId) {
+			index.set(resourceKey, null);
+			continue;
+		}
+		let sheetIds = index.get(resourceKey);
+		if (!sheetIds) {
+			sheetIds = new Set<string>();
+			index.set(resourceKey, sheetIds);
+		}
+		sheetIds.add(sheetId);
+	}
+	return index;
+};
+
+const isExplorerEntryReviewTarget = (
+	entry: ExplorerFileEntry,
+	resource: URI,
+	targetIndex: ReviewTargetIndex,
+): boolean => {
+	const sheetIds = targetIndex.get(normalizeResourceKey(resource));
+	if (sheetIds === undefined) {
+		return false;
+	}
+	return sheetIds === null || sheetIds.has(String(entry.sheetId ?? "").trim());
 };
 
 const SheetFragmentPrefix = "conductor.sheetId=";

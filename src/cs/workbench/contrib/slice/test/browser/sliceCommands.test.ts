@@ -19,6 +19,7 @@ import {
 import {
 	IReviewService,
 	type IReviewService as IReviewServiceType,
+	type ReviewChangeEvent,
 	type ResourceReviewExecution,
 } from "src/cs/workbench/services/review/common/review";
 import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/reviewModel";
@@ -461,7 +462,7 @@ const createReviewServiceForTest = (
 		state: "missing",
 		findingCodes: [],
 	}),
-	onDidChangeReview: Event.None as Event<void>,
+	onDidChangeReview: Event.None as Event<ReviewChangeEvent>,
 	confirmReviewedTemplate: async () => null,
 	resolveReviewSummary: async target => ({
 		resource: target.resource,

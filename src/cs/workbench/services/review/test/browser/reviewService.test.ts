@@ -941,6 +941,41 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(dataResourceService.resolveStructuredContentCalls, 1);
 	});
 
+	test("publishes pending state when explicit URI review starts", async () => {
+		const userTemplateService = createUserTemplateServiceForTest();
+		const dataResourceService = store.add(new ControlledDataResourceService());
+		const service = createReviewServiceForTest(
+			userTemplateService,
+			dataResourceService,
+		);
+		const target = {
+			resource: URI.file("/workspace/Pending.csv"),
+			sheetId: "table-a",
+		};
+		let reviewChangeCount = 0;
+		const changedTargets: ReviewSummaryTarget[] = [];
+		store.add(service.onDidChangeReview(targets => {
+			reviewChangeCount += 1;
+			changedTargets.push(...targets);
+		}));
+
+		const review = service.resolveReviewSummary(target);
+		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 1);
+		assert.equal(service.getLatestReviewSummary(target).state, "pending");
+		await waitUntil(() => reviewChangeCount > 0, 40, 5);
+		assert.equal(service.getLatestReviewSummary(target).state, "pending");
+		assert.deepEqual(changedTargets.map(changedTarget => ({
+			resource: changedTarget.resource.toString(),
+			sheetId: changedTarget.sheetId,
+		})), [{
+			resource: target.resource.toString(),
+			sheetId: "table-a",
+		}]);
+
+		dataResourceService.resolveNext({ kind: "missingContent" });
+		await review;
+	});
+
 	test("keeps uncached active URI review isolated from resource-change reruns", async () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Transfer.csv");

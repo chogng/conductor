@@ -8,6 +8,7 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
 import { ISettingsService, normalizeTableTemplateVisualizationEnabled } from "src/cs/workbench/services/settings/common/settings";
 import { IReviewService } from "src/cs/workbench/services/review/common/review";
+import type { ReviewSummaryTarget } from "src/cs/workbench/services/review/common/reviewModel";
 import { ISliceService } from "src/cs/workbench/services/slice/common/slice";
 import { isSavedTemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
 import { IUserTemplateService } from "src/cs/workbench/services/userTemplate/common/userTemplate";
@@ -56,8 +57,10 @@ export class TableTemplateDecorationsProvider extends Disposable implements IDec
 		this._register(this.settingsService.onDidChangeConductorSettings(() => {
 			this.fireCurrentTableDecorationChanged();
 		}));
-		this._register(this.reviewService.onDidChangeReview(() => {
-			this.fireCurrentTableDecorationChanged();
+		this._register(this.reviewService.onDidChangeReview(targets => {
+			if (this.isCurrentTableReviewChanged(targets)) {
+				this.fireCurrentTableDecorationChanged();
+			}
 		}));
 		this._register(this.userTemplateService.onDidChangeUserTemplates(() => {
 			this.fireCurrentTableDecorationChanged();
@@ -143,6 +146,26 @@ export class TableTemplateDecorationsProvider extends Disposable implements IDec
 		if (resource) {
 			this.onDidChangeEmitter.fire([resource]);
 		}
+	}
+
+	private isCurrentTableReviewChanged(
+		targets: readonly ReviewSummaryTarget[],
+	): boolean {
+		const tableState = this.tableService.getViewInput()?.tableState ?? null;
+		const source = tableState?.source ?? null;
+		if (!source || !tableState?.file) {
+			return false;
+		}
+		const currentResource = createTableDecorationResource(
+			source,
+			tableState.file.sheetId ?? tableState.selectedSheetId ?? source.sheetId ?? null,
+		);
+		return Boolean(currentResource && targets.some(target =>
+			createTableDecorationResource({
+				resource: target.resource,
+				sheetId: target.sheetId ?? null,
+			})?.toString() === currentResource.toString(),
+		));
 	}
 }
 

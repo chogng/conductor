@@ -1,5 +1,5 @@
 ---
-description: Explorer decoration rules for Review summaries, visible-first scheduling, stale result protection, and row reuse.
+description: Explorer decoration rules for Review summaries, resource-scoped updates, stale result protection, and row reuse.
 applyTo: 'src/cs/workbench/contrib/files/**,src/cs/workbench/services/review/**,src/cs/workbench/browser/workbenchDomainBridge.ts'
 ---
 # Explorer Decorations
@@ -38,9 +38,9 @@ Confirmed decoration:
 ```txt
 ExplorerFileEntry resource + sheetId
   -> ExplorerViewPane prepared-import workflow
-  -> IReviewService.resolveReviewSummary({ resource, sheetId }) explicit Review scheduling
-  -> ReviewService onDidChangeReview
-  -> ExplorerDecorationsProvider.onDidChange(resources)
+  -> IReviewService.resolveReviewSummary({ resource, sheetId }) immediate explicit Review scheduling
+  -> ReviewService onDidChangeReview(changed targets)
+  -> ExplorerDecorationsProvider.onDidChange(changed resources)
 
 ExplorerFileEntry resource + sheetId
   -> ExplorerDecorationsProvider.provideDecorations(resource)
@@ -48,14 +48,11 @@ ExplorerFileEntry resource + sheetId
   -> Explorer decoration data
   -> IDecorationsService cache / onDidChangeDecorations
   -> ResourceLabels fileDecorations for label color / tooltip
-  -> ExplorerViewPane decorationsByFileKey for badge text
-  -> ExplorerViewer decorationsByFileKey
-  -> ExplorerBadgeNode
+  -> ExplorerViewer updates the affected reusable row's ExplorerBadgeNode in place
 
 ExplorerFileEntry resource + sheetId
-  -> ExplorerViewPane reviewSummariesByFileKey
   -> IReviewService.getLatestReviewSummary({ resource, sheetId }) side-effect-free cache read
-  -> ExplorerViewer review hover content
+  -> ExplorerViewer live review hover content
 ```
 
 Review is the source of semantic Explorer decorations. If Review cannot provide
@@ -74,16 +71,19 @@ string aliases in Explorer rendering code.
 
 ## Scheduling
 
-Explorer reports actual rendered range from ObjectTree/List. Do not calculate
-"first page" from density or row height.
+Explorer reports actual rendered range from ObjectTree/List for data-plane
+priorities. Do not calculate "first page" from density or row height. Review
+summary production starts immediately for every committed Explorer target; do
+not gate it behind a view-owned concurrency queue.
 
 ```txt
-visible rows   -> table-model priority visible
-overscan rows  -> table-model priority nearby
-remaining rows -> table-model priority background
-prepared import -> ExplorerViewPane review scheduler -> IReviewService.resolveReviewSummary(target)
-reviewChanged -> ExplorerDecorationsProvider review scheduler -> provider.onDidChange(resources)
-  -> IDecorationsService DebounceEmitter -> onDidChangeDecorations -> ExplorerViewer rerender
+visible rows    -> table-model priority visible
+overscan rows   -> table-model priority nearby
+remaining rows  -> table-model priority background
+prepared import -> ExplorerViewPane immediately calls IReviewService.resolveReviewSummary(target)
+reviewChanged(targets) -> ExplorerDecorationsProvider.onDidChange(affected resources)
+  -> IDecorationsService DebounceEmitter -> onDidChangeDecorations
+  -> ResourceLabels and ExplorerViewer update affected reusable rows in place
 ```
 
 Review summary reads from Explorer must not start structured-content resolution
@@ -102,5 +102,6 @@ Virtualized rows are reusable DOM. Bind badge updates to the current row key
 before writing text, state, title, or classes. Repeated renders with the same
 badge key should not rewrite DOM.
 
-Explorer decoration work uses provider output keyed by Explorer file key, with
-Review summary as the semantic source.
+Explorer decoration work uses provider output keyed by the URI-only decoration
+adapter resource, with Review summary as the semantic source. Decoration events
+must not rebuild the Explorer view props or tree.

@@ -21,7 +21,6 @@ import {
   ExplorerViewer,
   type ExplorerViewerProps,
 } from "src/cs/workbench/contrib/files/browser/views/explorerViewer";
-import { getExplorerTreeFileKey } from "src/cs/workbench/contrib/files/common/explorerModel";
 import {
   CLOSE_FILE_ITEM_COMMAND_ID,
   DELETE_FILE_ITEM_COMMAND_ID,
@@ -35,6 +34,11 @@ import type {
   ThumbnailPreviewPlotModel,
   ThumbnailPreviewTarget,
 } from "src/cs/workbench/services/thumbnail/common/thumbnail";
+import type {
+  IDecorationData,
+  IResourceDecorationChangeEvent,
+} from "src/cs/workbench/services/decorations/common/decorations";
+import type { ReviewSummary } from "src/cs/workbench/services/review/common/reviewModel";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/files/browser/explorerViewer", () => {
@@ -91,8 +95,8 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       expandedFolderKeys: ["folder:293K", "folder:293K/output"],
       files: [file],
       mode: "table",
-      reviewSummariesByFileKey: {
-        [getExplorerTreeFileKey(file)]: {
+      reviewService: {
+        getLatestReviewSummary: () => ({
           confidence: 0.92,
           findingCodes: ["review.ready.systemRecommended"],
           message: "Template is ready.",
@@ -101,7 +105,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           reviewSignature: "review:1",
           state: "ready",
           templateFingerprint: "template:1",
-        },
+        }),
       },
     };
     const viewer = createViewer(host, hoverHost, props, labels, contextViewService);
@@ -167,12 +171,12 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       expandedFolderKeys: ["folder:293K", "folder:293K/output"],
       files: [file],
       mode: "table",
-      reviewSummariesByFileKey: {
-        [getExplorerTreeFileKey(file)]: {
+      reviewService: {
+        getLatestReviewSummary: () => ({
           findingCodes: [],
           resource: URI.file("/workspace/Output_.csv"),
           state: "missing",
-        },
+        }),
       },
     };
     const viewer = createViewer(host, hoverHost, props, labels, contextViewService);
@@ -464,20 +468,27 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     document.body.append(hoverHost);
     hoverHost.append(host);
 
+    const resource = URI.file("/workspace/A.csv");
+    const decorationChanged = new Emitter<IResourceDecorationChangeEvent>();
+    let decoration: IDecorationData = {
+      letter: "...",
+      color: "purple",
+      tooltip: "Review pending",
+    };
+    const decorationsService = {
+      getDecoration: () => undefined,
+      getDecorationData: () => [decoration],
+      onDidChangeDecorations: decorationChanged.event,
+    };
     const initialFile: ExplorerViewerProps["files"][number] = {
       fileId: "file-a",
       fileName: "A.csv",
       itemKey: "file-a",
+      resource,
     };
     const props: ExplorerViewerProps = {
       ...createViewerProps(),
-      decorationsByFileKey: {
-        [getExplorerTreeFileKey(initialFile)]: {
-          letter: "...",
-          color: "purple",
-          tooltip: "Review pending",
-        },
-      },
+      decorationsService,
       files: [initialFile],
     };
     const viewer = createViewer(host, hoverHost, props, labels);
@@ -489,45 +500,36 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       assert.equal(badge.hasAttribute("title"), false);
       assert.equal(host.querySelector<HTMLElement>(".file-list-item-label")?.hasAttribute("title"), false);
 
-      viewer.setProps({
-        ...props,
-        decorationsByFileKey: {
-          [getExplorerTreeFileKey(initialFile)]: {
-            letter: "cv",
-            color: "purple",
-            tooltip: "Review ready",
-          },
-        },
-        files: [{
-          ...initialFile,
-        }],
+      decoration = {
+        letter: "cv",
+        color: "purple",
+        tooltip: "Review ready",
+      };
+      decorationChanged.fire({
+        affectsResource: candidate => candidate.toString() === resource.toString(),
       });
 
       assert.equal(setChildrenCount, 0);
-      assert.deepEqual(rerenderedKeys, [["file-a"]]);
+      assert.deepEqual(rerenderedKeys, []);
       assert.equal(badge.textContent, "cv");
       assert.equal(badge.dataset.color, "purple");
       assert.equal(badge.hasAttribute("title"), false);
       assert.equal(host.querySelector<HTMLElement>(".file-list-item-label")?.hasAttribute("title"), false);
 
-      viewer.setProps({
-        ...props,
-        decorationsByFileKey: {
-          [getExplorerTreeFileKey(initialFile)]: {
-            letter: "cv",
-            color: "green",
-            tooltip: "Review ready",
-          },
-        },
-        files: [{
-          ...initialFile,
-        }],
+      decoration = {
+        letter: "cv",
+        color: "green",
+        tooltip: "Review ready",
+      };
+      decorationChanged.fire({
+        affectsResource: candidate => candidate.toString() === resource.toString(),
       });
 
-      assert.deepEqual(rerenderedKeys, [["file-a"], ["file-a"]]);
+      assert.deepEqual(rerenderedKeys, []);
       assert.equal(badge.dataset.color, "green");
     } finally {
       viewer.dispose();
+      decorationChanged.dispose();
       labels.dispose();
       hoverHost.remove();
       ObjectTree.prototype.setChildren = originalSetChildren;
@@ -1238,11 +1240,24 @@ const createViewerProps = (): ExplorerViewerProps => ({
     fileName: "A.csv",
     itemKey: "file-a",
   }],
+  decorationsService: {
+    getDecoration: () => undefined,
+    getDecorationData: () => [],
+    onDidChangeDecorations: Event.None as Event<IResourceDecorationChangeEvent>,
+  },
   mode: "table",
   onListScroll: () => undefined,
   onOpenFileDialog: () => undefined,
   onRemoveFolder: () => undefined,
   onSelectFile: () => undefined,
+  reviewService: {
+    getLatestReviewSummary: target => ({
+      resource: target.resource,
+      ...(target.sheetId ? { sheetId: target.sheetId } : {}),
+      state: "missing",
+      findingCodes: [],
+    } satisfies ReviewSummary),
+  },
   thumbnailPreviewService: {
     _serviceBrand: undefined,
     onDidChangePreview: NoThumbnailPreviewEvent,

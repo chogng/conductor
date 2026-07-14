@@ -16,6 +16,7 @@ import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/ex
 import type { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
 import type {
 	IReviewService,
+	ReviewChangeEvent,
 } from "src/cs/workbench/services/review/common/review";
 import type {
 	ReviewSummary,
@@ -44,6 +45,18 @@ suite("workbench/contrib/files/browser/views/explorerDecorationsProvider", () =>
 			{
 				letter: "transfer",
 				tooltip: "Detected Transfer",
+			},
+		);
+
+		assert.deepEqual(
+			createExplorerDecorationDataFromReviewSummary({
+				resource,
+				state: "pending",
+				findingCodes: [],
+			}),
+			{
+				letter: "...",
+				tooltip: "files.decorations.reviewPending",
 			},
 		);
 
@@ -132,9 +145,9 @@ suite("workbench/contrib/files/browser/views/explorerDecorationsProvider", () =>
 		assert.deepEqual(calls, []);
 	});
 
-	test("fires decoration changes for resource entries", async () => {
+	test("fires decoration changes for the changed resource entry", () => {
 		const resource = URI.file("/workspace/Transfer.xlsx");
-		const reviewChanged = new Emitter<void>();
+		const reviewChanged = new Emitter<ReviewChangeEvent>();
 		const changedResources: URI[][] = [];
 		const provider = store.add(new ExplorerDecorationsProvider(
 			createExplorerServiceForTest([{
@@ -147,17 +160,17 @@ suite("workbench/contrib/files/browser/views/explorerDecorationsProvider", () =>
 		));
 		store.add(provider.onDidChange(resources => changedResources.push([...resources])));
 
-		reviewChanged.fire();
-		await timeout(300);
+		reviewChanged.fire([{ resource, sheetId: "sheet-a" }]);
 
 		assert.equal(changedResources.length, 1);
 		assert.equal(changedResources[0]?.[0]?.with({ fragment: "" }).toString(), resource.toString());
 		assert.equal(changedResources[0]?.[0]?.fragment, "conductor.sheetId=sheet-a");
 	});
 
-	test("coalesces repeated review changes before publishing decoration resources", async () => {
+	test("does not invalidate explorer entries outside the review change", () => {
 		const resource = URI.file("/workspace/Transfer.xlsx");
-		const reviewChanged = new Emitter<void>();
+		const otherResource = URI.file("/workspace/Other.xlsx");
+		const reviewChanged = new Emitter<ReviewChangeEvent>();
 		const changedResources: URI[][] = [];
 		const provider = store.add(new ExplorerDecorationsProvider(
 			createExplorerServiceForTest([{
@@ -165,17 +178,20 @@ suite("workbench/contrib/files/browser/views/explorerDecorationsProvider", () =>
 				fileName: "Transfer.xlsx",
 				resource,
 				sheetId: "sheet-a",
+			}, {
+				fileId: "file-b",
+				fileName: "Other.xlsx",
+				resource: otherResource,
+				sheetId: "sheet-b",
 			}]),
 			createReviewServiceForTest([], reviewChanged.event),
 		));
 		store.add(provider.onDidChange(resources => changedResources.push([...resources])));
 
-		reviewChanged.fire();
-		reviewChanged.fire();
-		reviewChanged.fire();
-		await timeout(300);
+		reviewChanged.fire([{ resource, sheetId: "sheet-a" }]);
 
 		assert.equal(changedResources.length, 1);
+		assert.equal(changedResources[0]?.length, 1);
 		assert.equal(changedResources[0]?.[0]?.with({ fragment: "" }).toString(), resource.toString());
 	});
 
@@ -225,9 +241,9 @@ suite("workbench/contrib/files/browser/views/explorerDecorationsProvider", () =>
 		assert.deepEqual(calls, []);
 	});
 
-	test("does not fire decoration changes for entries without resources", async () => {
+	test("does not fire decoration changes for entries without resources", () => {
 		const resource = URI.file("/workspace/PathOnly.xlsx");
-		const reviewChanged = new Emitter<void>();
+		const reviewChanged = new Emitter<ReviewChangeEvent>();
 		const changedResources: URI[][] = [];
 		const provider = store.add(new ExplorerDecorationsProvider(
 			createExplorerServiceForTest([{
@@ -240,15 +256,11 @@ suite("workbench/contrib/files/browser/views/explorerDecorationsProvider", () =>
 		));
 		store.add(provider.onDidChange(resources => changedResources.push([...resources])));
 
-		reviewChanged.fire();
-		await timeout(300);
+		reviewChanged.fire([{ resource, sheetId: "sheet-a" }]);
 
 		assert.deepEqual(changedResources, []);
 	});
 });
-
-const timeout = (ms: number): Promise<void> =>
-	new Promise(resolve => setTimeout(resolve, ms));
 
 const createExplorerServiceForTest = (
 	files: readonly ExplorerFileEntry[],
@@ -270,7 +282,7 @@ const createExplorerServiceForTest = (
 
 const createReviewServiceForTest = (
 	calls: ReviewSummaryTarget[],
-	onDidChangeReview: Event<void> = Event.None as Event<void>,
+	onDidChangeReview: Event<ReviewChangeEvent> = Event.None as Event<ReviewChangeEvent>,
 ): IReviewService => ({
 	_serviceBrand: undefined,
 	getLatestReviewSummary: target => {
