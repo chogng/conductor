@@ -495,7 +495,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
 
   test("collectDroppedFiles reads file system handles before FileList fallback", async () => {
     const file = createCsvFile("transfer.csv", "Vg,Id\n0,1");
-    const result = await collectDroppedFiles(createDataTransfer({
+    const { sources: result } = await collectDroppedFiles(createDataTransfer({
       files: [file],
       items: [{
         getAsFileSystemHandle: async () => createStableFileHandle(file),
@@ -507,7 +507,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
   });
 
   test("collectDroppedFiles preserves dropped directory relative paths", async () => {
-    const result = await collectDroppedFiles(createDataTransfer({
+    const { sources: result } = await collectDroppedFiles(createDataTransfer({
       files: [],
       items: [{
         getAsFileSystemHandle: async () => createDirectoryHandle({
@@ -530,7 +530,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
   test("collectDroppedFiles resolves native folders to resource-backed files", async () => {
     const filesService = store.add(new NativeDroppedFolderFileService());
     const droppedFolder = new File([], "293K", { lastModified: 1 });
-    const sources = await collectDroppedFiles(createDataTransfer({
+    const collection = await collectDroppedFiles(createDataTransfer({
       files: [droppedFolder],
       items: [{
         getAsFileSystemHandle: async () => createDirectoryHandle({
@@ -541,7 +541,8 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     }), filesService, () => "C:\\data\\293K");
     const result = await prepareFileSourcesForImport({
       filesService,
-      sources,
+      readFailures: collection.readFailures,
+      sources: collection.sources,
     });
 
     assert.deepEqual({
@@ -550,7 +551,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
         resourcePath: normalizeTestFilePath(entry.resource?.fsPath),
       })),
       errorMessage: result.errorMessage,
-      sources: sources.map(source => ({
+      sources: collection.sources.map(source => ({
         kind: source.kind,
         relativePath: source.relativePath,
         resourcePath: source.kind === "path"
@@ -578,6 +579,117 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     });
   });
 
+  test("collectDroppedFiles preserves browser sources when native paths resolve partially", async () => {
+    const filesService = store.add(new NativeDroppedFolderFileService());
+    const nativeFile = createCsvFile("native.csv", "Vg,Id\n0,1");
+    const browserFile = createCsvFile("browser.csv", "Vg,Id\n0,2");
+    const collection = await collectDroppedFiles(createDataTransfer({
+      files: [nativeFile, browserFile],
+      items: [{
+        getAsFile: () => nativeFile,
+      }, {
+        getAsFileSystemHandle: async () => createStableFileHandle(browserFile),
+      }],
+    }), filesService, file => file === nativeFile ? "C:\\data\\native.csv" : undefined);
+
+    assert.deepEqual(collection.sources.map(source => ({
+      fileName: source.kind === "path" ? source.fileName : source.file.name,
+      kind: source.kind,
+    })), [{
+      fileName: "native.csv",
+      kind: "path",
+    }, {
+      fileName: "browser.csv",
+      kind: "data",
+    }]);
+  });
+
+  test("collectDroppedFiles keeps distinct native resources with matching file metadata", async () => {
+    const filesService = store.add(new NativeDroppedFolderFileService());
+    const first = createCsvFile("data.csv", "Vg,Id\n0,1");
+    const second = createCsvFile("data.csv", "Vg,Id\n0,1");
+    const collection = await collectDroppedFiles(createDataTransfer({
+      files: [first, second],
+      items: [],
+    }), filesService, file => file === first
+      ? "C:\\first\\data.csv"
+      : "C:\\second\\data.csv");
+
+    assert.deepEqual(collection.sources.map(source =>
+      source.kind === "path" ? normalizeTestFilePath(source.resource.fsPath) : null
+    ), ["c:/first/data.csv", "c:/second/data.csv"]);
+  });
+
+  test("collectDroppedFiles preserves native folder read failures", async () => {
+    const filesService = store.add(new NativeDroppedFolderReadFailureFileService());
+    const droppedFolder = new File([], "293K", { lastModified: 1 });
+    const collection = await collectDroppedFiles(createDataTransfer({
+      files: [droppedFolder],
+      items: [],
+    }), filesService, () => "C:\\data\\293K");
+    const result = await prepareFileSourcesForImport({
+      filesService,
+      readFailures: collection.readFailures,
+      sources: collection.sources,
+    });
+
+    assert.deepEqual({
+      readFailures: collection.readFailures,
+      sourcePaths: collection.sources.map(source => source.relativePath),
+    }, {
+      readFailures: [{
+        fileName: "blocked",
+        message: "Permission denied",
+        relativePath: "293K/blocked",
+      }],
+      sourcePaths: ["293K/root.csv"],
+    });
+    assert.ok(result.errorMessage?.includes("Permission denied"), String(result.errorMessage));
+    assert.ok(result.errorMessage?.includes("293K/blocked"), String(result.errorMessage));
+  });
+
+  test("collectDroppedFiles resolves native entry metadata in parallel", async () => {
+    const filesService = store.add(new ConcurrentNativeDroppedFileService());
+    const files = Array.from({ length: 80 }, (_value, index) =>
+      createCsvFile(`${index}.csv`, `Vg,Id\n0,${index}`)
+    );
+    const collection = await collectDroppedFiles(createDataTransfer({
+      files,
+      items: [],
+    }), filesService, file => `C:\\data\\${file.name}`);
+
+    assert.deepEqual({
+      maxActiveStatCount: filesService.maxActiveStatCount,
+      sourceNames: collection.sources.map(source =>
+        source.kind === "path" ? source.fileName : source.file.name
+      ),
+    }, {
+      maxActiveStatCount: files.length,
+      sourceNames: files.map(file => file.name),
+    });
+  });
+
+  test("collectDroppedFiles limits only native folder scans", async () => {
+    const filesService = store.add(new ConcurrentNativeDroppedFolderFileService());
+    const folders = Array.from({ length: 24 }, (_value, index) =>
+      new File([], `folder-${index}`, { lastModified: index })
+    );
+    const collection = await collectDroppedFiles(createDataTransfer({
+      files: folders,
+      items: [],
+    }), filesService, file => `C:\\data\\${file.name}`);
+
+    assert.deepEqual({
+      maxActiveReadDirCount: filesService.maxActiveReadDirCount,
+      readFailures: collection.readFailures,
+      sources: collection.sources,
+    }, {
+      maxActiveReadDirCount: 20,
+      readFailures: [],
+      sources: [],
+    });
+  });
+
   test("collectDroppedFiles skips unsupported file system handles before reading", async () => {
     let unsupportedReadCount = 0;
     const unsupportedHandle: FileSystemFileHandle = {
@@ -592,7 +704,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       },
     };
 
-    const result = await collectDroppedFiles(createDataTransfer({
+    const { sources: result } = await collectDroppedFiles(createDataTransfer({
       files: [],
       items: [{
         getAsFileSystemHandle: async () => createDirectoryHandle({
@@ -610,7 +722,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
   });
 
   test("collectDroppedFiles falls back to webkit entries", async () => {
-    const result = await collectDroppedFiles(createDataTransfer({
+    const { sources: result } = await collectDroppedFiles(createDataTransfer({
       files: [],
       items: [{
         webkitGetAsEntry: () => createWebkitDirectoryEntry("folder", [
@@ -627,7 +739,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     const entry = createWebkitDirectoryEntry("folder", [
       createWebkitFileEntry(createCsvFile("A.csv", "Vg,Id\n0,1")),
     ]);
-    const result = await collectDroppedFiles(createDataTransfer({
+    const { sources: result } = await collectDroppedFiles(createDataTransfer({
       files: [],
       items: [{
         getAsFileSystemHandle: async () => {
@@ -643,7 +755,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
 
   test("collectDroppedFiles falls back to data transfer item files", async () => {
     const file = createCsvFile("A.csv", "Vg,Id\n0,1");
-    const result = await collectDroppedFiles(createDataTransfer({
+    const { sources: result } = await collectDroppedFiles(createDataTransfer({
       files: [],
       items: [{
         getAsFile: () => file,
@@ -654,7 +766,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
   });
 
   test("collectDroppedFiles skips unsupported FileList entries", async () => {
-    const result = await collectDroppedFiles(createDataTransfer({
+    const { sources: result } = await collectDroppedFiles(createDataTransfer({
       files: [
         createCsvFile("transfer.csv", "Vg,Id\n0,1"),
         new File(["not a table"], "notes.txt", {
@@ -670,7 +782,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
 
   test("collectDroppedFiles keeps FileList webkit relative paths", async () => {
     const file = createDirectoryFile("folder/A.csv", "Vg,Id\n0,1");
-    const result = await collectDroppedFiles(createDataTransfer({
+    const { sources: result } = await collectDroppedFiles(createDataTransfer({
       files: [file],
       items: [],
     }), browserFilesService);
@@ -959,6 +1071,86 @@ class NativeDroppedFolderFileService extends FileService {
       path: resource.fsPath,
       size: isDirectory ? 0 : 12,
       type: isDirectory ? FileType.Directory : FileType.File,
+    };
+  }
+}
+
+class NativeDroppedFolderReadFailureFileService extends NativeDroppedFolderFileService {
+  public override async readDir(resource: URI): Promise<readonly [string, FileType][]> {
+    const path = normalizeTestFilePath(resource.fsPath);
+    if (path?.endsWith("/293k")) {
+      return [
+        ["blocked", FileType.Directory],
+        ["root.csv", FileType.File],
+      ];
+    }
+    if (path?.endsWith("/293k/blocked")) {
+      throw new Error("Permission denied");
+    }
+
+    return super.readDir(resource);
+  }
+
+  public override async stat(resource: URI): Promise<IFileStat> {
+    const path = normalizeTestFilePath(resource.fsPath) ?? "";
+    if (path.endsWith("/293k/blocked")) {
+      return {
+        ctime: 1,
+        mtime: 1,
+        path: resource.fsPath,
+        size: 0,
+        type: FileType.Directory,
+      };
+    }
+
+    return super.stat(resource);
+  }
+}
+
+class ConcurrentNativeDroppedFileService extends FileService {
+  private activeStatCount = 0;
+  public maxActiveStatCount = 0;
+
+  public override async stat(resource: URI): Promise<IFileStat> {
+    this.activeStatCount += 1;
+    this.maxActiveStatCount = Math.max(
+      this.maxActiveStatCount,
+      this.activeStatCount,
+    );
+    await Promise.resolve();
+    this.activeStatCount -= 1;
+    return {
+      ctime: 1,
+      mtime: 1,
+      path: resource.fsPath,
+      size: 12,
+      type: FileType.File,
+    };
+  }
+}
+
+class ConcurrentNativeDroppedFolderFileService extends FileService {
+  private activeReadDirCount = 0;
+  public maxActiveReadDirCount = 0;
+
+  public override async readDir(_resource: URI): Promise<readonly [string, FileType][]> {
+    this.activeReadDirCount += 1;
+    this.maxActiveReadDirCount = Math.max(
+      this.maxActiveReadDirCount,
+      this.activeReadDirCount,
+    );
+    await Promise.resolve();
+    this.activeReadDirCount -= 1;
+    return [];
+  }
+
+  public override async stat(resource: URI): Promise<IFileStat> {
+    return {
+      ctime: 1,
+      mtime: 1,
+      path: resource.fsPath,
+      size: 0,
+      type: FileType.Directory,
     };
   }
 }

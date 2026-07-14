@@ -117,6 +117,11 @@ export type FolderImportFiles = {
   readonly readFailures: FolderFileReadFailure[];
 };
 
+export type DroppedFileCollection = {
+  readonly readFailures: readonly FolderFileReadFailure[];
+  readonly sources: readonly FileSource[];
+};
+
 export const buildFileSourceIdentityKey = (
   fileName: unknown,
   size: unknown,
@@ -139,6 +144,7 @@ const PENDING_IMPORT_PREPARE_MIN_CONCURRENCY = 4;
 const PENDING_IMPORT_PREPARE_DEFAULT_CONCURRENCY = 8;
 const PENDING_IMPORT_PREPARE_MAX_CONCURRENCY = 16;
 const FILE_SOURCE_READ_ATTEMPTS = 2;
+const NATIVE_DROP_FOLDER_SCAN_CONCURRENCY = 20;
 
 export type PendingImportFile = {
   canUseNativePath?: boolean;
@@ -222,6 +228,7 @@ export type FileSourcePreparationResult = {
 export type PrepareFileSourcesForImportOptions = {
   readonly canApplyResult?: () => boolean;
   readonly filesService: IFileService;
+  readonly readFailures?: readonly FolderFileReadFailure[];
   readonly selectedRelativePath?: string | null;
   readonly sources: readonly FileSource[];
 };
@@ -396,21 +403,31 @@ export class FileSourceWorkflow implements IDisposable {
     });
   }
 
-  private handleSelectFiles(selectedFiles: FileSource[]): void {
+  private handleSelectFiles(collection: DroppedFileCollection): void {
+    const selectedFiles = collection.sources;
     this.clearImportedFolderWatch();
     this.options.onDraggingChange(false);
     if (selectedFiles.length === 0) {
-      this.showImportError(this.getNoSupportedDroppedFilesError());
+      this.showImportError(buildImportErrorMessage({
+        failedFiles: [],
+        hasAnyUnsupportedFiles: false,
+        readFailures: collection.readFailures,
+      }) ?? this.getNoSupportedDroppedFilesError());
       this.options.syncView();
       return;
     }
 
-    void this.importFiles(selectedFiles);
+    void this.importFiles(selectedFiles, {
+      readFailures: collection.readFailures,
+    });
   }
 
   private async doImportDroppedFiles(dataTransfer: DataTransfer | null): Promise<void> {
     if (!dataTransfer) {
-      this.handleSelectFiles([]);
+      this.handleSelectFiles({
+        readFailures: [],
+        sources: [],
+      });
       return;
     }
 
@@ -1586,17 +1603,24 @@ function getFolderReadFailurePath(folder: URI | null): string | null {
 export const prepareDroppedFilesForImport = async ({
   dataTransfer,
   ...options
-}: PrepareDroppedFilesForImportOptions): Promise<FileSourcePreparationResult> =>
-  prepareFileSourcesForImport({
+}: PrepareDroppedFilesForImportOptions): Promise<FileSourcePreparationResult> => {
+  const collection = dataTransfer
+    ? await collectDroppedFiles(dataTransfer, options.filesService)
+    : { readFailures: [], sources: [] };
+  return prepareFileSourcesForImport({
     ...options,
-    sources: dataTransfer
-      ? await collectDroppedFiles(dataTransfer, options.filesService)
-      : [],
+    readFailures: [
+      ...(options.readFailures ?? []),
+      ...collection.readFailures,
+    ],
+    sources: collection.sources,
   });
+};
 
 export const prepareFileSourcesForImport = async ({
   canApplyResult = () => true,
   filesService,
+  readFailures = [],
   selectedRelativePath = null,
   sources,
 }: PrepareFileSourcesForImportOptions): Promise<FileSourcePreparationResult> => {
@@ -1612,6 +1636,7 @@ export const prepareFileSourcesForImport = async ({
       errorMessage: buildImportErrorMessage({
         failedFiles,
         hasAnyUnsupportedFiles,
+        readFailures,
       }),
     };
   }
@@ -1644,6 +1669,7 @@ export const prepareFileSourcesForImport = async ({
     errorMessage: buildImportErrorMessage({
       failedFiles,
       hasAnyUnsupportedFiles,
+      readFailures,
     }),
   };
 };
@@ -1949,28 +1975,16 @@ export const createFileSource = (
   relativePath?: string | null,
   resource?: URI | null,
 ): FileSource => {
-  const resourcePath = String(resource?.fsPath ?? "").trim();
-  if (resource && resourcePath && isAbsoluteFilePath(resourcePath)) {
+  const resolvedResource = resource ?? resolveNativeDroppedFileResource(file, getPathForFile);
+  const resourcePath = String(resolvedResource?.fsPath ?? "").trim();
+  if (resolvedResource && resourcePath && isAbsoluteFilePath(resourcePath)) {
     return {
       file,
       fileName: file.name,
       kind: "path",
       lastModified: file.lastModified,
       relativePath,
-      resource,
-      size: file.size,
-    };
-  }
-
-  const filePath = String(getPathForFile(file) ?? "").trim();
-  if (filePath && isAbsoluteFilePath(filePath)) {
-    return {
-      file,
-      fileName: file.name,
-      kind: "path",
-      lastModified: file.lastModified,
-      relativePath,
-      resource: URI.file(filePath),
+      resource: resolvedResource,
       size: file.size,
     };
   }
@@ -1986,7 +2000,12 @@ export const createFileSource = (
 const createDroppedFileSource = ({
   file,
   relativePath,
-}: DroppedFile): FileSource => createFileSource(file, relativePath);
+}: DroppedFile, resolveFilePath: (file: File) => string | undefined): FileSource =>
+  createFileSource(
+    file,
+    relativePath,
+    resolveNativeDroppedFileResource(file, resolveFilePath),
+  );
 
 const getFileSourceSize = (source: FileSource): number =>
   source.kind === "path"
@@ -1997,23 +2016,64 @@ export const collectDroppedFiles = async (
   dataTransfer: DataTransfer,
   filesService: IFileService,
   resolveFilePath: (file: File) => string | undefined = getPathForFile,
-): Promise<FileSource[]> => {
+): Promise<DroppedFileCollection> => {
   const startedAt = getPerfNow();
-  const nativeSources = await collectNativeDroppedFiles(
-    dataTransfer,
+  const files = Array.from(dataTransfer.files);
+  const items = Array.from(dataTransfer.items) as DataTransferItemWithFileSystemAccess[];
+  const droppedItems = items.map(snapshotDroppedDataTransferItem);
+  const nativeCollection = await collectNativeDroppedFiles(
+    files,
     filesService,
     resolveFilePath,
   );
-  if (nativeSources) {
-    markDroppedFilesCollected(startedAt, dataTransfer, nativeSources);
-    return nativeSources;
-  }
+  const isHandledNativeFile = (file: File): boolean =>
+    nativeCollection.handledFiles.has(file);
+  const shouldCollectBrowserSources =
+    files.some(file => !isHandledNativeFile(file)) ||
+    droppedItems.some((item, index) => {
+      const itemFile = item.file ?? (
+        droppedItems.length === files.length ? files[index] : null
+      );
+      return !itemFile || !isHandledNativeFile(itemFile);
+    });
+  const browserSources = shouldCollectBrowserSources
+    ? await collectBrowserDroppedFiles(
+        files,
+        droppedItems,
+        resolveFilePath,
+        isHandledNativeFile,
+      )
+    : [];
+  const sources = mergeDroppedFileSources(nativeCollection.sources, browserSources);
+  markDroppedFilesCollected(startedAt, dataTransfer, sources);
 
+  return {
+    readFailures: nativeCollection.readFailures,
+    sources,
+  };
+};
+
+const collectBrowserDroppedFiles = async (
+  files: readonly File[],
+  droppedItems: readonly DroppedDataTransferItem[],
+  resolveFilePath: (file: File) => string | undefined,
+  isHandledNativeFile: (file: File) => boolean,
+): Promise<FileSource[]> => {
   const droppedFiles: DroppedFile[] = [];
-  const items = Array.from(dataTransfer.items) as DataTransferItemWithFileSystemAccess[];
-  const droppedItems = items.map(snapshotDroppedDataTransferItem);
 
-  for (const item of droppedItems) {
+  for (let index = 0; index < droppedItems.length; index += 1) {
+    const item = droppedItems[index];
+    if (!item) {
+      continue;
+    }
+
+    const itemFile = item.file ?? (
+      droppedItems.length === files.length ? files[index] : null
+    );
+    if (itemFile && isHandledNativeFile(itemFile)) {
+      continue;
+    }
+
     const handle = await item.handle;
     if (handle) {
       await collectFileSystemHandleFiles(handle, droppedFiles);
@@ -2040,7 +2100,11 @@ export const collectDroppedFiles = async (
   const seenFiles = new Set(droppedFiles.map(({ file, relativePath }) =>
     getDroppedFileKey(file, relativePath)
   ));
-  for (const file of Array.from(dataTransfer.files)) {
+  for (const file of files) {
+    if (isHandledNativeFile(file)) {
+      continue;
+    }
+
     if (!tableFormatService.canHandle(file.name)) {
       continue;
     }
@@ -2055,53 +2119,203 @@ export const collectDroppedFiles = async (
     droppedFiles.push({ file, relativePath });
   }
 
-  const sources = droppedFiles.map(createDroppedFileSource);
-  markDroppedFilesCollected(startedAt, dataTransfer, sources);
+  return droppedFiles.map(file => createDroppedFileSource(file, resolveFilePath));
+};
 
-  return sources;
+type NativeDroppedFile = {
+  readonly file: File;
+  readonly resource: URI;
+};
+
+type ResolvedNativeDroppedFile = NativeDroppedFile & {
+  readonly stat: IFileStat | null;
+};
+
+type NativeDroppedFileResult = DroppedFileCollection & {
+  readonly handled: boolean;
+};
+
+type NativeDroppedFileCollection = DroppedFileCollection & {
+  readonly handledFiles: ReadonlySet<File>;
 };
 
 const collectNativeDroppedFiles = async (
-  dataTransfer: DataTransfer,
+  files: readonly File[],
   filesService: IFileService,
   resolveFilePath: (file: File) => string | undefined,
-): Promise<FileSource[] | null> => {
-  const nativeFiles = Array.from(dataTransfer.files).flatMap(file => {
-    const filePath = String(resolveFilePath(file) ?? "").trim();
-    if (!filePath || !isAbsoluteFilePath(filePath)) {
-      return [];
-    }
-
-    return [{ file, resource: URI.file(filePath) }];
+): Promise<NativeDroppedFileCollection> => {
+  const nativeFiles = files.flatMap(file => {
+    const resource = resolveNativeDroppedFileResource(file, resolveFilePath);
+    return resource ? [{ file, resource }] : [];
   });
   if (nativeFiles.length === 0) {
-    return null;
+    return {
+      handledFiles: new Set<File>(),
+      readFailures: [],
+      sources: [],
+    };
   }
 
-  const sources: FileSource[] = [];
-  for (const { file, resource } of nativeFiles) {
-    let stat: IFileStat | null = null;
-    try {
-      stat = await filesService.stat(resource);
-    } catch {
-      // Native FileList entries already have a durable resource; stat is used only
-      // to distinguish folders. Delete this branch when native DND exposes the
-      // file/directory kind without a filesystem read.
-    }
+  const resolvedNativeFiles = await Promise.all(
+    nativeFiles.map(async nativeFile => ({
+      ...nativeFile,
+      stat: await tryStatNativeDroppedFile(nativeFile.resource, filesService),
+    })),
+  );
+  const results: Array<NativeDroppedFileResult | undefined> =
+    new Array(resolvedNativeFiles.length);
+  const folderTasks: Array<{
+    readonly index: number;
+    readonly nativeFile: ResolvedNativeDroppedFile;
+  }> = [];
 
-    if (stat && (stat.type & FileType.Directory) === FileType.Directory) {
-      const folder = await collectFolderImportFiles(resource, filesService);
-      sources.push(...folder.files);
+  for (const [index, nativeFile] of resolvedNativeFiles.entries()) {
+    if (nativeFile.stat &&
+      (nativeFile.stat.type & FileType.Directory) === FileType.Directory) {
+      folderTasks.push({ index, nativeFile });
       continue;
     }
 
-    if (tableFormatService.canHandle(resource)) {
-      sources.push(createFileSource(file, file.name, resource));
-    }
+    results[index] = createNativeDroppedFileResult(nativeFile);
   }
 
+  const folderResults = await mapWithConcurrency(
+    folderTasks,
+    NATIVE_DROP_FOLDER_SCAN_CONCURRENCY,
+    async ({ index, nativeFile }) => ({
+      index,
+      result: await collectNativeDroppedFolder(nativeFile, filesService),
+    }),
+  );
+  for (const { index, result } of folderResults) {
+    results[index] = result;
+  }
+
+  return {
+    handledFiles: new Set(nativeFiles.flatMap(({ file }, index) =>
+      results[index]?.handled
+        ? [file]
+        : []
+    )),
+    readFailures: results.flatMap(result => result?.readFailures ?? []),
+    sources: results.flatMap(result => result?.sources ?? []),
+  };
+};
+
+const collectNativeDroppedFolder = async (
+  { file, resource }: ResolvedNativeDroppedFile,
+  filesService: IFileService,
+): Promise<NativeDroppedFileResult> => {
+  try {
+    const folder = await collectFolderImportFiles(resource, filesService);
+    return {
+      handled: true,
+      readFailures: folder.readFailures,
+      sources: folder.files,
+    };
+  } catch (error) {
+    return {
+      handled: true,
+      readFailures: [{
+        fileName: file.name,
+        message: getErrorMessage(error),
+        relativePath: file.name,
+      }],
+      sources: [],
+    };
+  }
+};
+
+const createNativeDroppedFileResult = (
+  { file, resource, stat }: ResolvedNativeDroppedFile,
+): NativeDroppedFileResult => {
+  const isSupportedFile = tableFormatService.canHandle(resource);
+  return {
+    handled: Boolean(stat) || isSupportedFile,
+    readFailures: [],
+    sources: isSupportedFile
+      ? [createFileSource(file, file.name, resource)]
+      : [],
+  };
+};
+
+const tryStatNativeDroppedFile = async (
+  resource: URI,
+  filesService: IFileService,
+): Promise<IFileStat | null> => {
+  try {
+    return await filesService.stat(resource);
+  } catch {
+    // Native FileList entries already have a durable resource; stat is used only
+    // to distinguish folders. Delete this branch when native DND exposes the
+    // file/directory kind without a filesystem read.
+    return null;
+  }
+};
+
+const mapWithConcurrency = async <T, R>(
+  items: readonly T[],
+  concurrency: number,
+  task: (item: T) => Promise<R>,
+): Promise<R[]> => {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(concurrency, items.length);
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (true) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= items.length) {
+        return;
+      }
+
+      results[index] = await task(items[index]);
+    }
+  }));
+  return results;
+};
+
+const resolveNativeDroppedFileResource = (
+  file: File,
+  resolveFilePath: (file: File) => string | undefined,
+): URI | null => {
+  try {
+    const filePath = String(resolveFilePath(file) ?? "").trim();
+    return filePath && isAbsoluteFilePath(filePath) ? URI.file(filePath) : null;
+  } catch {
+    return null;
+  }
+};
+
+const mergeDroppedFileSources = (
+  first: readonly FileSource[],
+  second: readonly FileSource[],
+): FileSource[] => {
+  const sources: FileSource[] = [];
+  const seenKeys = new Set<string>();
+  for (const source of [...first, ...second]) {
+    const key = getFileSourceKey(source);
+    if (key && seenKeys.has(key)) {
+      continue;
+    }
+
+    if (key) {
+      seenKeys.add(key);
+    }
+    sources.push(source);
+  }
   return sources;
 };
+
+const getFileSourceKey = (source: FileSource): string =>
+  source.kind === "path"
+    ? `resource:${source.resource.toString()}`
+    : buildFileSourceIdentityKey(
+        source.file.name,
+        source.file.size,
+        source.file.lastModified,
+        source.relativePath,
+      );
 
 const markDroppedFilesCollected = (
   startedAt: number,
@@ -2558,45 +2772,38 @@ function compareFolderFileStatTasks(
   });
 }
 
+type FolderFileStatResult =
+  | {
+    readonly ok: true;
+    readonly lastModified: number;
+    readonly name: string;
+    readonly relativePath: string;
+    readonly resource: URI;
+    readonly size: number;
+  }
+  | {
+    readonly ok: false;
+    readonly fileName: string;
+    readonly message: string;
+    readonly relativePath: string;
+  };
+
 async function statFolderFileTasks(
   tasks: readonly FolderFileStatTask[],
   filesService: IFileService,
   canUseNativePath: boolean,
 ): Promise<FolderFileCollection> {
-  const results: Array<
-    | {
-      readonly ok: true;
-      readonly lastModified: number;
-      readonly name: string;
-      readonly relativePath: string;
-      readonly resource: URI;
-      readonly size: number;
-    }
-    | {
-      readonly ok: false;
-      readonly fileName: string;
-      readonly message: string;
-      readonly relativePath: string;
-    }
-    | undefined
-  > = new Array(tasks.length);
-  let nextTaskIndex = 0;
-  const workerCount = Math.min(FOLDER_IMPORT_STAT_CONCURRENCY, tasks.length);
   const files: FolderImportFileSource[] = [];
   const readFailures: FolderFileReadFailure[] = [];
   const startedAt = getPerfNow();
+  const workerCount = Math.min(FOLDER_IMPORT_STAT_CONCURRENCY, tasks.length);
 
-  await Promise.all(Array.from({ length: workerCount }, async () => {
-    while (true) {
-      const index = nextTaskIndex;
-      nextTaskIndex += 1;
-      const task = tasks[index];
-      if (!task) {
-        return;
-      }
-
+  const results = await mapWithConcurrency<FolderFileStatTask, FolderFileStatResult>(
+    tasks,
+    workerCount,
+    async task => {
       const result = await tryStatFileSource(task.resource, filesService);
-      results[index] = result.ok
+      return result.ok
         ? {
           lastModified: getFileLastModified(result.stat),
           name: task.name,
@@ -2611,14 +2818,10 @@ async function statFolderFileTasks(
           ok: false,
           relativePath: task.relativePath,
         };
-    }
-  }));
+    },
+  );
 
   for (const result of results) {
-    if (!result) {
-      continue;
-    }
-
     if (result.ok) {
       files.push({
         canUseNativePath,

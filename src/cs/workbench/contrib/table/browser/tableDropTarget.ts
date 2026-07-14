@@ -75,12 +75,12 @@ export class TableDropTarget extends Disposable {
 	}
 
 	private async openDroppedTable(dataTransfer: DataTransfer | null): Promise<void> {
-		const sources = dataTransfer
+		const collection = dataTransfer
 			? await collectDroppedFiles(dataTransfer, this.filesService)
-			: [];
-		const source = getFirstDroppedTableResource(sources, this.tableModelService);
+			: { readFailures: [], sources: [] };
+		const source = getFirstDroppedTableResource(collection.sources, this.tableModelService);
 		if (!source) {
-			this.showOpenError(getDropTableOpenErrorMessage(sources));
+			this.showOpenError(getDropTableOpenErrorMessage(collection.sources));
 			return;
 		}
 
