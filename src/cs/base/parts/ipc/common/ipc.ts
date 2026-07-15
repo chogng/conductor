@@ -1,5 +1,10 @@
 import { CancellationToken, CancellationTokenSource } from "../../../common/cancellation.js";
-import { CancellationError } from "../../../common/errors.js";
+import {
+    CancellationError,
+    transformErrorForSerialization,
+    transformErrorFromSerialization,
+    type SerializedError,
+} from "../../../common/errors.js";
 import { Emitter, Event } from "../../../common/event.js";
 import { DisposableStore, type IDisposable, toDisposable } from "../../../common/lifecycle.js";
 import {
@@ -140,12 +145,6 @@ type ResponseMessage =
     | { readonly type: ResponseType.Error; readonly id: number; readonly error: SerializedError }
     | { readonly type: ResponseType.Event; readonly id: number; readonly data: unknown };
 
-interface SerializedError {
-    readonly name: string;
-    readonly message: string;
-    readonly stack?: string;
-}
-
 export interface ClientConnectionEvent {
     readonly protocol: IMessagePassingProtocol;
     readonly onDidClientDisconnect: Event<void>;
@@ -168,21 +167,6 @@ function decodeMessage<T>(message: Uint8Array): T {
         JSON.parse(decoder.decode(message)) as T,
         DefaultURITransformer,
     ));
-}
-
-function serializeError(error: unknown): SerializedError {
-    if (error instanceof Error) {
-        return { name: error.name, message: error.message, stack: error.stack };
-    }
-
-    return { name: "Error", message: String(error) };
-}
-
-function reviveError(error: SerializedError): Error {
-    const result = new Error(error.message);
-    result.name = error.name;
-    result.stack = error.stack;
-    return result;
 }
 
 function eventToPromise<T>(event: Event<T>): Promise<T> {
@@ -229,7 +213,11 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
         const channel = this.channels.get(request.channelName);
 
         if (!channel) {
-            this.sendResponse({ type: ResponseType.Error, id: request.id, error: { name: "Error", message: `Unknown channel: ${request.channelName}` } });
+            this.sendResponse({
+                type: ResponseType.Error,
+                id: request.id,
+                error: transformErrorForSerialization(`Unknown channel: ${request.channelName}`),
+            });
             return;
         }
 
@@ -237,10 +225,10 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
         const cancellation = toDisposable(() => source.cancel());
         this.activeRequests.set(request.id, cancellation);
 
-        Promise.resolve(channel.call(this.ctx, request.name, request.arg, source.token)).then(data => {
+        Promise.resolve().then(() => channel.call(this.ctx, request.name, request.arg, source.token)).then(data => {
             this.sendResponse({ type: ResponseType.Success, id: request.id, data });
         }, error => {
-            this.sendResponse({ type: ResponseType.Error, id: request.id, error: serializeError(error) });
+            this.sendResponse({ type: ResponseType.Error, id: request.id, error: transformErrorForSerialization(error) });
         }).finally(() => {
             source.dispose();
             cancellation.dispose();
@@ -252,7 +240,11 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
         const channel = this.channels.get(request.channelName);
 
         if (!channel) {
-            this.sendResponse({ type: ResponseType.Error, id: request.id, error: { name: "Error", message: `Unknown channel: ${request.channelName}` } });
+            this.sendResponse({
+                type: ResponseType.Error,
+                id: request.id,
+                error: transformErrorForSerialization(`Unknown channel: ${request.channelName}`),
+            });
             return;
         }
 
@@ -335,7 +327,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
                 }
 
                 if (response.type === ResponseType.Error) {
-                    reject(reviveError(response.error));
+                    reject(transformErrorFromSerialization(response.error));
                     return;
                 }
 

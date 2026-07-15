@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {
+	isSerializedError,
 	transformErrorForSerialization,
 	transformErrorFromSerialization,
 	type SerializedError,
@@ -19,7 +20,7 @@ export type WebWorkerRequestMessage = {
 };
 
 export type WebWorkerReplyMessage = {
-	readonly error?: unknown;
+	readonly error?: SerializedError;
 	readonly requestId: number;
 	readonly result?: unknown;
 	readonly type: 'reply';
@@ -148,7 +149,7 @@ export class WebWorkerClient<TProxy extends object> extends Disposable implement
 		if (message.error !== undefined) {
 			pending.reject(isSerializedError(message.error)
 				? transformErrorFromSerialization(message.error)
-				: message.error);
+				: new Error('The web worker returned an invalid error response.'));
 			return;
 		}
 		pending.resolve(message.result);
@@ -251,17 +252,6 @@ function isRequestMessage(message: unknown): message is WebWorkerRequestMessage 
 		typeof candidate.requestId === 'number' &&
 		typeof candidate.method === 'string' &&
 		Array.isArray(candidate.args);
-}
-
-function isSerializedError(error: unknown): error is SerializedError {
-	if (!error || typeof error !== 'object') {
-		return false;
-	}
-	const candidate = error as Partial<SerializedError>;
-	return candidate.$isError === true &&
-		typeof candidate.name === 'string' &&
-		typeof candidate.message === 'string' &&
-		typeof candidate.noTelemetry === 'boolean';
 }
 
 function toError(error: unknown, fallbackMessage: string): Error {

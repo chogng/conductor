@@ -107,58 +107,130 @@ export function onUnexpectedExternalError(error: unknown): undefined {
 	return undefined;
 }
 
+/**
+ * Transport-neutral error record. Optional metadata is omitted when absent;
+ * `noTelemetry` is a presence marker and therefore only carries `true`.
+ */
 export interface SerializedError {
 	readonly $isError: true;
 	readonly name: string;
 	readonly message: string;
-	readonly noTelemetry: boolean;
 	readonly stack?: string;
 	readonly code?: string;
 	readonly cause?: SerializedError;
+	readonly noTelemetry?: true;
 }
 
 type ErrorWithCode = Error & {
 	code?: string;
 };
 
-type ErrorWithStackTrace = Error & {
-	readonly stacktrace?: string;
-};
-
 type ErrorWithCause = Error & {
 	cause?: unknown;
 };
 
-export function transformErrorForSerialization(error: Error): SerializedError;
-export function transformErrorForSerialization(error: unknown): unknown;
-export function transformErrorForSerialization(error: unknown): unknown {
-	if (error instanceof Error) {
-		const cause = (error as ErrorWithCause).cause;
-		return {
-			$isError: true,
-			name: error.name,
-			message: error.message,
-			stack: (error as ErrorWithStackTrace).stacktrace || error.stack,
-			noTelemetry: ErrorNoTelemetry.isErrorNoTelemetry(error),
-			code: (error as ErrorWithCode).code,
-			cause: cause instanceof Error
-				? transformErrorForSerialization(cause)
-				: undefined,
-		};
+type ErrorLike = Partial<SerializedError> & {
+	readonly cause?: unknown;
+	readonly stacktrace?: unknown;
+};
+
+const MAX_SERIALIZED_ERROR_CAUSE_DEPTH = 16;
+
+export function isSerializedError(error: unknown): error is SerializedError {
+	return isSerializedErrorInternal(error, new Set<object>(), 0);
+}
+
+function isSerializedErrorInternal(
+	error: unknown,
+	seen: Set<object>,
+	depth: number,
+): error is SerializedError {
+	if (!error || typeof error !== "object") {
+		return false;
+	}
+	if (seen.has(error) || depth > MAX_SERIALIZED_ERROR_CAUSE_DEPTH) {
+		return false;
+	}
+	seen.add(error);
+
+	const candidate = error as Partial<SerializedError>;
+	return candidate.$isError === true &&
+		typeof candidate.name === "string" &&
+		typeof candidate.message === "string" &&
+		(candidate.stack === undefined || typeof candidate.stack === "string") &&
+		(candidate.code === undefined || typeof candidate.code === "string") &&
+		(candidate.noTelemetry === undefined || candidate.noTelemetry === true) &&
+		(candidate.cause === undefined || isSerializedErrorInternal(candidate.cause, seen, depth + 1));
+}
+
+export function transformErrorForSerialization(error: unknown): SerializedError {
+	return serializeError(error, new Set<object>(), 0);
+}
+
+function serializeError(
+	error: unknown,
+	seen: Set<object>,
+	depth: number,
+): SerializedError {
+	const candidate = error && typeof error === "object"
+		? error as ErrorLike
+		: undefined;
+	if (candidate) {
+		seen.add(candidate);
 	}
 
-	return error;
+	const name = typeof candidate?.name === "string" && candidate.name
+		? candidate.name
+		: "Error";
+	const message = getSerializedErrorMessage(error, candidate);
+	const stacktrace = candidate?.stacktrace;
+	const stack = typeof stacktrace === "string" && stacktrace
+		? stacktrace
+		: typeof candidate?.stack === "string" && candidate.stack
+			? candidate.stack
+			: undefined;
+	const code = typeof candidate?.code === "string"
+		? candidate.code
+		: undefined;
+	const noTelemetry = error instanceof Error
+		? ErrorNoTelemetry.isErrorNoTelemetry(error)
+		: candidate?.$isError === true && candidate.noTelemetry === true;
+	const cause = candidate?.cause;
+	const serializedCause = cause !== undefined && cause !== null &&
+		depth < MAX_SERIALIZED_ERROR_CAUSE_DEPTH &&
+		(typeof cause !== "object" || !seen.has(cause))
+		? serializeError(cause, seen, depth + 1)
+		: undefined;
+
+	return {
+		$isError: true,
+		name,
+		message,
+		...(stack ? { stack } : {}),
+		...(code !== undefined ? { code } : {}),
+		...(serializedCause ? { cause: serializedCause } : {}),
+		...(noTelemetry ? { noTelemetry: true as const } : {}),
+	};
+}
+
+function getSerializedErrorMessage(error: unknown, candidate: ErrorLike | undefined): string {
+	if (error instanceof Error || typeof candidate?.message === "string") {
+		return candidate?.message ?? "";
+	}
+	if (typeof candidate?.stack === "string") {
+		return candidate.stack.split("\n")[0] ?? candidate.stack;
+	}
+	return error === undefined ? "Unknown error" : String(error);
 }
 
 export function transformErrorFromSerialization(data: SerializedError): Error {
 	let error: Error;
 	if (data.noTelemetry) {
-		error = new ErrorNoTelemetry();
+		error = new ErrorNoTelemetry(data.message);
 	} else {
-		error = new Error();
-		error.name = data.name;
+		error = new Error(data.message);
 	}
-	error.message = data.message;
+	error.name = data.name;
 	error.stack = data.stack;
 
 	if (data.code) {

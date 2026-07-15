@@ -63,7 +63,6 @@ suite('platform/webWorker/browser/webWorkerService', () => {
 				code: 'TEST_FAILURE',
 				message: 'Worker request failed.',
 				name: 'TestError',
-				noTelemetry: false,
 			},
 		});
 
@@ -131,11 +130,8 @@ suite('platform/webWorker/browser/webWorkerService', () => {
 			firstTransfer: [buffer],
 			secondError: {
 				$isError: true,
-				cause: undefined,
-				code: undefined,
 				message: 'Handler failed.',
 				name: 'Error',
-				noTelemetry: false,
 				stack: (replies[1]?.message.error as Error & { stack?: string })?.stack,
 			},
 		});
