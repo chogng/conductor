@@ -36,8 +36,10 @@ import type {
 } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import type {
   IDecorationData,
+  IDecorationsService,
   IResourceDecorationChangeEvent,
 } from "src/cs/workbench/services/decorations/common/decorations";
+import type { IReviewService } from "src/cs/workbench/services/review/common/review";
 import type { ReviewSummary } from "src/cs/workbench/services/review/common/reviewModel";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -90,25 +92,24 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       relativePath: "293K/output/Output_.csv",
       resource: URI.file("/workspace/Output_.csv"),
     };
+    const reviewService = createReviewService(() => ({
+      confidence: 0.92,
+      findingCodes: ["review.ready.systemRecommended"],
+      message: "Template is ready.",
+      resource: URI.file("/workspace/Output_.csv"),
+      reviewedSemanticLabel: "output",
+      reviewedType: "output",
+      reviewSignature: "review:1",
+      state: "ready",
+      templateFingerprint: "template:1",
+    }));
     const props: ExplorerViewerProps = {
       ...createViewerProps(),
       expandedFolderKeys: ["folder:293K", "folder:293K/output"],
       files: [file],
       mode: "table",
-      reviewService: {
-        getLatestReviewSummary: () => ({
-          confidence: 0.92,
-          findingCodes: ["review.ready.systemRecommended"],
-          message: "Template is ready.",
-          resource: URI.file("/workspace/Output_.csv"),
-          reviewedSemanticLabel: "output",
-          reviewSignature: "review:1",
-          state: "ready",
-          templateFingerprint: "template:1",
-        }),
-      },
     };
-    const viewer = createViewer(host, hoverHost, props, labels, contextViewService);
+    const viewer = createViewer(host, hoverHost, props, labels, contextViewService, { reviewService });
 
     try {
       const content = host.querySelector<HTMLElement>(".file-list-item-content");
@@ -151,7 +152,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     }
   });
 
-  test("shows missing review result as error in file item hover", () => {
+  test("shows ordinary file hover when no review result is cached", () => {
     const host = document.createElement("div");
     const hoverHost = document.createElement("div");
     const labels = new ResourceLabels();
@@ -166,20 +167,18 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       relativePath: "293K/output/Output_.csv",
       resource: URI.file("/workspace/Output_.csv"),
     };
+    const reviewService = createReviewService(() => ({
+      findingCodes: [],
+      resource: URI.file("/workspace/Output_.csv"),
+      state: "missing",
+    }));
     const props: ExplorerViewerProps = {
       ...createViewerProps(),
       expandedFolderKeys: ["folder:293K", "folder:293K/output"],
       files: [file],
       mode: "table",
-      reviewService: {
-        getLatestReviewSummary: () => ({
-          findingCodes: [],
-          resource: URI.file("/workspace/Output_.csv"),
-          state: "missing",
-        }),
-      },
     };
-    const viewer = createViewer(host, hoverHost, props, labels, contextViewService);
+    const viewer = createViewer(host, hoverHost, props, labels, contextViewService, { reviewService });
 
     try {
       const item = host.querySelector<HTMLElement>(".file-list-item");
@@ -189,7 +188,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         relatedTarget: null,
       }));
 
-      assert.ok(contextViewService.renderedElement?.classList.contains("file-list-hover--review-decoration"));
+      assert.equal(contextViewService.renderedElement?.dataset.hoverKind, "file");
       const rows = [...(contextViewService.renderedElement?.querySelectorAll<HTMLElement>(".file-list-hover-review-decoration-row") ?? [])]
         .map(row => [
           row.querySelector(".file-list-hover-review-decoration-label")?.textContent ?? "",
@@ -198,9 +197,6 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       assert.deepEqual(rows, [
         ["File:", "Output_.csv"],
         ["Path:", "293K/output"],
-        ["Review:", "Error"],
-        ["Message:", "Review result is unavailable."],
-        ["Findings:", "No Review result is cached for this file."],
       ]);
     } finally {
       viewer.dispose();
@@ -310,6 +306,12 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
 
     const viewer = createViewer(host, hoverHost, {
       ...createViewerProps(),
+      files: [{
+        fileId: "file-a",
+        fileName: "A.csv",
+        itemKey: "file-a",
+        resource: URI.file("/workspace/A.csv"),
+      }],
       templateRecords: [{
         id: autoTemplateSelectionId,
         name: "Recommended template",
@@ -339,6 +341,12 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
 
     const viewer = createViewer(host, hoverHost, {
       ...createViewerProps(),
+      files: [{
+        fileId: "file-a",
+        fileName: "A.csv",
+        itemKey: "file-a",
+        resource: URI.file("/workspace/A.csv"),
+      }],
       templateRecords: [{
         id: "template-a",
         name: "Template A",
@@ -377,6 +385,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       files: [{
         ...baseProps.files[0],
         normalizedCsvPath: "/tmp/A.csv",
+        resource: URI.file("/tmp/A.csv"),
       }],
       templateRecords: [{
         id: "template-a",
@@ -410,6 +419,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     const host = document.createElement("div");
     const hoverHost = document.createElement("div");
     const labels = new ResourceLabels();
+    const resource = URI.file("/workspace/A.csv");
     const commands: Array<{ readonly args: readonly unknown[]; readonly id: string }> = [];
     document.body.append(hoverHost);
     hoverHost.append(host);
@@ -422,6 +432,12 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           return undefined;
         },
       },
+      files: [{
+        fileId: "file-a",
+        fileName: "A.csv",
+        itemKey: "file-a",
+        resource,
+      }],
     }, labels);
 
     try {
@@ -430,9 +446,12 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
 
       closeButton.click();
 
-      assert.deepEqual(commands, [{
-        args: ["file-a"],
+      assert.deepEqual(commands.map(command => ({
+        id: command.id,
+        resource: (command.args[0] as { readonly resource?: URI } | undefined)?.resource?.toString(),
+      })), [{
         id: CLOSE_FILE_ITEM_COMMAND_ID,
+        resource: resource.toString(),
       }]);
     } finally {
       viewer.dispose();
@@ -464,7 +483,6 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
 
     const host = document.createElement("div");
     const hoverHost = document.createElement("div");
-    const labels = new ResourceLabels();
     document.body.append(hoverHost);
     hoverHost.append(host);
 
@@ -479,7 +497,8 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       getDecoration: () => undefined,
       getDecorationData: () => [decoration],
       onDidChangeDecorations: decorationChanged.event,
-    };
+    } as unknown as IDecorationsService;
+    const labels = new ResourceLabels(decorationsService);
     const initialFile: ExplorerViewerProps["files"][number] = {
       fileId: "file-a",
       fileName: "A.csv",
@@ -488,10 +507,9 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     };
     const props: ExplorerViewerProps = {
       ...createViewerProps(),
-      decorationsService,
       files: [initialFile],
     };
-    const viewer = createViewer(host, hoverHost, props, labels);
+    const viewer = createViewer(host, hoverHost, props, labels, undefined, { decorationsService });
 
     try {
       const badge = host.querySelector<HTMLElement>(".file-list-item-review-decoration");
@@ -506,7 +524,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         tooltip: "Review ready",
       };
       decorationChanged.fire({
-        affectsResource: candidate => candidate.toString() === resource.toString(),
+        affectsResource: () => true,
       });
 
       assert.equal(setChildrenCount, 0);
@@ -522,7 +540,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         tooltip: "Review ready",
       };
       decorationChanged.fire({
-        affectsResource: candidate => candidate.toString() === resource.toString(),
+        affectsResource: () => true,
       });
 
       assert.deepEqual(rerenderedKeys, []);
@@ -1159,10 +1177,15 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
 const getFileContextActions = (
   viewer: ExplorerViewer,
   fileId: string,
-): IAction[] =>
-  (viewer as unknown as {
-    createFileContextActions(fileId: string): IAction[];
-  }).createFileContextActions(fileId);
+): IAction[] => {
+  const harness = viewer as unknown as {
+    readonly props: ExplorerViewerProps;
+    createFileContextActions(file: ExplorerViewerProps["files"][number]): IAction[];
+  };
+  const file = harness.props.files.find(candidate => candidate.fileId === fileId);
+  assert.ok(file);
+  return harness.createFileContextActions(file);
+};
 
 class TestContextViewService implements IContextViewService {
   public declare readonly _serviceBrand: undefined;
@@ -1218,6 +1241,10 @@ const createViewer = (
   props: ExplorerViewerProps,
   labels: ResourceLabels,
   contextViewService = new TestContextViewService(),
+  services: {
+    readonly decorationsService?: IDecorationsService;
+    readonly reviewService?: IReviewService;
+  } = {},
   contextMenuService: IContextMenuService = {
     showContextMenu: () => undefined,
   } as unknown as IContextMenuService,
@@ -1229,6 +1256,8 @@ const createViewer = (
     labels,
     contextMenuService,
     contextViewService,
+    services.decorationsService ?? createDecorationsService(),
+    services.reviewService ?? createReviewService(),
   );
 
 const createViewerProps = (): ExplorerViewerProps => ({
@@ -1240,24 +1269,11 @@ const createViewerProps = (): ExplorerViewerProps => ({
     fileName: "A.csv",
     itemKey: "file-a",
   }],
-  decorationsService: {
-    getDecoration: () => undefined,
-    getDecorationData: () => [],
-    onDidChangeDecorations: Event.None as Event<IResourceDecorationChangeEvent>,
-  },
   mode: "table",
   onListScroll: () => undefined,
   onOpenFileDialog: () => undefined,
   onRemoveFolder: () => undefined,
   onSelectFile: () => undefined,
-  reviewService: {
-    getLatestReviewSummary: target => ({
-      resource: target.resource,
-      ...(target.sheetId ? { sheetId: target.sheetId } : {}),
-      state: "missing",
-      findingCodes: [],
-    } satisfies ReviewSummary),
-  },
   thumbnailPreviewService: {
     _serviceBrand: undefined,
     onDidChangePreview: NoThumbnailPreviewEvent,
@@ -1268,6 +1284,24 @@ const createViewerProps = (): ExplorerViewerProps => ({
   },
   thumbnailService: createThumbnailService(),
 });
+
+const createDecorationsService = (): IDecorationsService => ({
+  getDecoration: () => undefined,
+  getDecorationData: () => [],
+  onDidChangeDecorations: Event.None as Event<IResourceDecorationChangeEvent>,
+} as unknown as IDecorationsService);
+
+const createReviewService = (
+  getLatestReviewSummary: IReviewService["getLatestReviewSummary"] = target => ({
+    resource: target.resource,
+    ...(target.sheetId ? { sheetId: target.sheetId } : {}),
+    state: "missing",
+    findingCodes: [],
+  } satisfies ReviewSummary),
+): IReviewService => ({
+  getLatestReviewSummary,
+  onDidChangeReview: Event.None,
+} as unknown as IReviewService);
 
 const timeout = (ms: number): Promise<void> =>
   new Promise(resolve => setTimeout(resolve, ms));

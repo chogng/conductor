@@ -477,6 +477,7 @@ const createReviewServiceForTest = (
 	}),
 	reviewResourceForExecution: async () => null,
 	...overrides,
+	getLatestResourceReviewExecution: overrides.getLatestResourceReviewExecution ?? (() => null),
 });
 
 const createReadyResourceExecution = ({

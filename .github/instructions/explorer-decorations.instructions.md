@@ -55,6 +55,11 @@ ExplorerFileEntry resource + sheetId
   -> ExplorerViewer live review hover content
 ```
 
+Files registers one `ExplorerDecorationsProvider` contribution for the shared
+Explorer service. Reusable tree and thumbnail panes must not register their own
+provider instances. `ResourceLabels` owns the Decorations service subscription;
+ExplorerViewer consumes that label-owned fact event for its custom badge node.
+
 Review is the source of semantic Explorer decorations. If Review cannot provide
 a ready template, Explorer must not keep showing a semantic decoration from earlier
 content/materialization progress or row metadata.

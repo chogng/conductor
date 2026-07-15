@@ -294,15 +294,14 @@ Explorer replaces the pending projection and explicitly asks Review to evaluate
 the resolved `{ resource, sheetId? }` identity; Explorer still does not infer semantic badges during
 source collection or preparation.
 
-Review input changes for already-visible Explorer rows are likewise projected
-through Review, not inferred in Files:
+Review input changes for already-visible Explorer rows are owned by Review and
+projected into Files; Explorer does not reschedule every visible row:
 
 ```txt
-IUserTemplateService.onDidChangeUserTemplates / ISettingsService.onDidChangeConductorSettings
-  -> ExplorerViewPane.reviewExplorerEntries(current files)
-  -> IReviewService.resolveReviewSummary({ resource, sheetId? })
+DataResource / UserTemplate / SchemaProfile facts
+  -> ReviewService invalidates tracked targets and schedules Review-owned refresh
   -> IReviewService.onDidChangeReview
-  -> ExplorerViewPane syncs ReviewSummary and decoration props
+  -> ExplorerDecorationsProvider invalidates affected decoration resources
 ```
 
 ## Explorer View Rules

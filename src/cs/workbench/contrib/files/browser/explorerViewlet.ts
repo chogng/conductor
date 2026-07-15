@@ -55,11 +55,6 @@ import {
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import { TOGGLE_THUMBNAIL_VIEW_ACTION_ID } from "src/cs/workbench/contrib/thumbnail/common/thumbnail";
 import { createTemplateEditorRecordFromUserTemplate } from "src/cs/workbench/contrib/template/browser/templateUserTemplateAdapter";
-import { ExplorerDecorationsProvider } from "src/cs/workbench/contrib/files/browser/views/explorerDecorationsProvider";
-import {
-  IDecorationsService,
-  type IDecorationsService as IDecorationsServiceType,
-} from "src/cs/workbench/services/decorations/common/decorations";
 import {
   IThumbnailPreviewService,
   IThumbnailService,
@@ -81,10 +76,6 @@ import {
   IReviewService,
   type IReviewService as IReviewServiceType,
 } from "src/cs/workbench/services/review/common/review";
-import {
-  ISettingsService,
-  type ISettingsService as ISettingsServiceType,
-} from "src/cs/workbench/services/settings/common/settings";
 import {
   ISliceService,
   type SliceFileState,
@@ -141,9 +132,7 @@ export abstract class BaseExplorerViewPane extends ViewPane {
     @IThumbnailPreviewService private readonly thumbnailPreviewService: IThumbnailPreviewService,
     @IThumbnailService private readonly thumbnailService: IThumbnailService,
     @IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
-    @IDecorationsService private readonly decorationsService: IDecorationsServiceType,
     @IReviewService private readonly reviewService: IReviewServiceType,
-    @ISettingsService private readonly settingsService: ISettingsServiceType,
     @IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
   ) {
     super({
@@ -192,12 +181,6 @@ export abstract class BaseExplorerViewPane extends ViewPane {
       },
       syncView: () => this.syncView(),
     });
-    const decorationsProvider = this._register(new ExplorerDecorationsProvider(
-      this.explorerService,
-      this.reviewService,
-    ));
-    this._register(this.decorationsService.registerDecorationsProvider(decorationsProvider));
-
     this._register(this.explorerService.onDidChangePaneInput(() => {
       this.update(this.explorerService.getPaneInput());
     }));
@@ -220,11 +203,6 @@ export abstract class BaseExplorerViewPane extends ViewPane {
       this.syncView();
     }));
     this._register(this.userTemplateService.onDidChangeUserTemplates(() => {
-      this.reviewCurrentExplorerEntries(true);
-      this.syncView();
-    }));
-    this._register(this.settingsService.onDidChangeConductorSettings(() => {
-      this.reviewCurrentExplorerEntries(true);
       this.syncView();
     }));
     this._register(this.sliceService.onDidChangeResourceSliceResult(() => {
@@ -240,7 +218,7 @@ export abstract class BaseExplorerViewPane extends ViewPane {
 
   public update(input: ExplorerPaneInput | null): void {
     this.input = input;
-    this.reviewCurrentExplorerEntries(false);
+    this.reviewCurrentExplorerEntries();
 
     if (!this.explorerView) {
       this.explorerView = this.instantiationService.createInstance(
@@ -426,8 +404,6 @@ export abstract class BaseExplorerViewPane extends ViewPane {
       editable: this.explorerService.getContext().editable,
       templateRecords: this.createTemplateRecords(),
       files,
-      decorationsService: this.decorationsService,
-      reviewService: this.reviewService,
       folderImportSupport: getFolderImportSupportForFileService(this.filesService),
       isDragging: this.isDragging,
       mode: input.mode,
@@ -924,6 +900,7 @@ export abstract class BaseExplorerViewPane extends ViewPane {
     });
     this.notifyExplorerFilesRemoved(removedFileIds);
     this.explorerService.replaceFiles(entries);
+    this.reviewExplorerEntries(entries);
 
     this.removePendingSourceFiles(getImportItemKeys(entries));
     const selectedEntry = resolveSelectedExplorerImportEntry(entries, selectedImportItemKey);
@@ -950,11 +927,8 @@ export abstract class BaseExplorerViewPane extends ViewPane {
     }
 
     assertSupportedExplorerImportEntries(entries);
-    const previousReviewTargetsSignature = getExplorerReviewTargetsSignature(this.committedFiles);
     const importedEntries = this.explorerService.appendFiles(entries);
-    if (previousReviewTargetsSignature === getExplorerReviewTargetsSignature(this.committedFiles)) {
-      this.reviewExplorerEntries(entries);
-    }
+    this.reviewExplorerEntries(entries);
     this.removePendingSourceFiles(getImportItemKeys(entries));
     if (!importedEntries.length) {
       this.syncView();
@@ -1048,10 +1022,10 @@ export abstract class BaseExplorerViewPane extends ViewPane {
     }
   }
 
-  private reviewCurrentExplorerEntries(force: boolean): void {
+  private reviewCurrentExplorerEntries(): void {
     const identities = getExplorerResourceIdentities(this.committedFiles);
     const signature = getExplorerResourceIdentitySignature(identities);
-    if (!force && signature === this.reviewedExplorerResourceSignature) {
+    if (signature === this.reviewedExplorerResourceSignature) {
       return;
     }
 
@@ -1150,9 +1124,7 @@ export class ExplorerViewPane extends BaseExplorerViewPane {
     @IThumbnailPreviewService thumbnailPreviewService: IThumbnailPreviewService,
     @IThumbnailService thumbnailService: IThumbnailService,
     @IUserTemplateService userTemplateService: IUserTemplateServiceType,
-    @IDecorationsService decorationsService: IDecorationsServiceType,
     @IReviewService reviewService: IReviewServiceType,
-    @ISettingsService settingsService: ISettingsServiceType,
     @IUriIdentityService uriIdentityService: IUriIdentityService,
   ) {
     super(
@@ -1171,9 +1143,7 @@ export class ExplorerViewPane extends BaseExplorerViewPane {
       thumbnailPreviewService,
       thumbnailService,
       userTemplateService,
-      decorationsService,
       reviewService,
-      settingsService,
       uriIdentityService,
     );
   }
@@ -1328,12 +1298,6 @@ function getExplorerResourceIdentities(
     result.push(resourceIdentity);
   }
   return result;
-}
-
-function getExplorerReviewTargetsSignature(
-  files: readonly ExplorerFileEntry[],
-): string {
-  return getExplorerResourceIdentitySignature(getExplorerResourceIdentities(files));
 }
 
 function getExplorerResourceIdentitySignature(

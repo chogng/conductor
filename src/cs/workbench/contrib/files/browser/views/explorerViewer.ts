@@ -86,12 +86,15 @@ import {
   type ExplorerBadgePresentation,
 } from "src/cs/workbench/contrib/files/browser/views/explorerBadgeNode";
 import { createExplorerDecorationResource } from "src/cs/workbench/contrib/files/browser/views/explorerDecorationsProvider";
-import type {
-  IDecorationData,
+import {
   IDecorationsService,
-  IResourceDecorationChangeEvent,
+  type IDecorationData,
+  type IResourceDecorationChangeEvent,
 } from "src/cs/workbench/services/decorations/common/decorations";
-import type { IReviewService } from "src/cs/workbench/services/review/common/review";
+import {
+  IReviewService,
+  type ReviewChangeEvent,
+} from "src/cs/workbench/services/review/common/review";
 import type { ReviewSummary } from "src/cs/workbench/services/review/common/reviewModel";
 import type {
   IThumbnailPreviewService,
@@ -126,8 +129,6 @@ export type ExplorerViewerProps = {
   readonly editable?: ExplorerEditableData | null;
   readonly templateRecords?: readonly TemplateEditorRecord[];
   readonly files: ExplorerFileEntry[];
-  readonly decorationsService: Pick<IDecorationsService, "getDecoration" | "getDecorationData" | "onDidChangeDecorations">;
-  readonly reviewService: Pick<IReviewService, "getLatestReviewSummary">;
   readonly mode?: ExplorerPaneMode;
   readonly viewLayout?: FilesViewLayout;
   readonly folderImportSupport?: FolderImportSupport;
@@ -828,6 +829,8 @@ export class ExplorerViewer implements IDisposable {
     private readonly labels: ResourceLabels,
     @IContextMenuService private readonly contextMenuService: IContextMenuService,
     @IContextViewService private readonly contextViewService: IContextViewService,
+    @IDecorationsService private readonly decorationsService: IDecorationsService,
+    @IReviewService private readonly reviewService: IReviewService,
   ) {
     this.props = props;
     this.explorerAppearance = props.explorerAppearance ?? DEFAULT_EXPLORER_APPEARANCE;
@@ -883,9 +886,10 @@ export class ExplorerViewer implements IDisposable {
         this.refreshThumbnailGridItem(fileId);
       }
     }));
-    this.disposables.add(this.props.decorationsService.onDidChangeDecorations(
+    this.disposables.add(this.labels.onDidChangeDecorations(
       this.handleDecorationChanges,
     ));
+    this.disposables.add(this.reviewService.onDidChangeReview(this.handleReviewChanges));
   }
 
   getListHandle(): ListHandle {
@@ -1644,6 +1648,7 @@ export class ExplorerViewer implements IDisposable {
     template.fileResourceIdentity = fileResourceIdentity;
     template.decorationResource = decorationResource;
     if (canReuseRenderedPresentation) {
+      this.updateFileItemBadge(fileEntry, template);
       if (isTemplateApplyPerformanceTraceEnabled()) {
         markTemplateApplyPerformanceTrace("explorer.fileItem.reuse", {
           chartState: fileEntry.chartState ?? null,
@@ -2399,12 +2404,12 @@ export class ExplorerViewer implements IDisposable {
       this.getExplorerFileEntryFromItem(item),
     );
     const summary = resourceIdentity
-      ? this.props.reviewService.getLatestReviewSummary({
+      ? this.reviewService.getLatestReviewSummary({
           resource: resourceIdentity.resource,
           sheetId: resourceIdentity.sheetId ?? null,
         })
       : undefined;
-    if (!summary) {
+    if (!summary || summary.state === "missing") {
       return fileContext
         ? {
             kind: "file",
@@ -2447,6 +2452,32 @@ export class ExplorerViewer implements IDisposable {
     }
   };
 
+  private readonly handleReviewChanges = (
+    targets: ReviewChangeEvent,
+  ): void => {
+    if (!this.hoverAnchor) {
+      return;
+    }
+
+    const resourceIdentity = getExplorerFileResourceIdentity(
+      this.getExplorerFileEntryFromItem(this.hoverAnchor),
+    );
+    if (!resourceIdentity) {
+      return;
+    }
+
+    const resourceKey = resourceIdentity.resource.toString();
+    const sheetId = String(resourceIdentity.sheetId ?? "").trim();
+    if (targets.some(target => {
+      const targetResource = URI.revive(target.resource);
+      const targetSheetId = String(target.sheetId ?? "").trim();
+      return targetResource?.toString() === resourceKey &&
+        (!targetSheetId || targetSheetId === sheetId);
+    })) {
+      this.refreshVisibleHover();
+    }
+  };
+
   private updateFileItemBadge(
     fileEntry: ExplorerFileEntry,
     template: FileItemTemplate,
@@ -2454,7 +2485,7 @@ export class ExplorerViewer implements IDisposable {
     const fileKey = getFileRenderKey(fileEntry);
     const sourceStatus = createFileSourceStatusBadge(fileEntry);
     const decoration = template.decorationResource
-      ? this.props.decorationsService.getDecorationData(template.decorationResource, false)[0]
+      ? this.decorationsService.getDecorationData(template.decorationResource, false)[0]
       : undefined;
     const badge = sourceStatus?.status === "failed"
       ? sourceStatus
@@ -2751,8 +2782,10 @@ export class ExplorerViewer implements IDisposable {
     file: ExplorerFileEntry,
     priority: "hover" | "visible" | null,
   ): ThumbnailPreviewState {
-    const target = getExplorerFileResourceIdentity(file);
-    if (!target?.resource) {
+    const resourceTarget = getExplorerFileResourceIdentity(file);
+    const fileId = String(file.fileId ?? "").trim();
+    const target: ThumbnailPreviewTarget | null = resourceTarget ?? (fileId || null);
+    if (!target) {
       return { kind: "idle" };
     }
 

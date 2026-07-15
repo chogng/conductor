@@ -115,9 +115,9 @@ suite("workbench/contrib/files/browser/views/explorerDecorationsProvider", () =>
 			createReviewServiceForTest(calls),
 		));
 
-		const decoration = provider.provideDecorations(resource.with({
-			fragment: "conductor.sheetId=sheet-a",
-		}));
+    const decoration = provider.provideDecorations(
+      createExplorerDecorationResource(resource, "sheet-a"),
+    );
 
 		assert.equal(decoration?.letter, "transfer");
 		assert.equal(calls[0]?.resource.toString(), resource.toString());
@@ -164,7 +164,7 @@ suite("workbench/contrib/files/browser/views/explorerDecorationsProvider", () =>
 
 		assert.equal(changedResources.length, 1);
 		assert.equal(changedResources[0]?.[0]?.with({ fragment: "" }).toString(), resource.toString());
-		assert.equal(changedResources[0]?.[0]?.fragment, "conductor.sheetId=sheet-a");
+    assert.equal(changedResources[0]?.[0]?.fragment.startsWith("conductor.explorerDecoration="), true);
 	});
 
 	test("does not invalidate explorer entries outside the review change", () => {
@@ -195,7 +195,7 @@ suite("workbench/contrib/files/browser/views/explorerDecorationsProvider", () =>
 		assert.equal(changedResources[0]?.[0]?.with({ fragment: "" }).toString(), resource.toString());
 	});
 
-	test("does not infer a sheet target from a bare decoration resource", () => {
+  test("keeps an explicit resource-only decoration target sheetless", () => {
 		const resource = URI.file("/workspace/MultiSheet.xlsx");
 		const calls: ReviewSummaryTarget[] = [];
 		const provider = store.add(new ExplorerDecorationsProvider(
@@ -213,14 +213,16 @@ suite("workbench/contrib/files/browser/views/explorerDecorationsProvider", () =>
 			createReviewServiceForTest(calls),
 		));
 
-		const decoration = provider.provideDecorations(resource);
+    const decoration = provider.provideDecorations(
+      createExplorerDecorationResource(resource),
+    );
 
 		assert.equal(decoration?.letter, "transfer");
 		assert.equal(calls[0]?.resource.toString(), resource.toString());
 		assert.equal(calls[0]?.sheetId, null);
 	});
 
-	test("does not query review for resources outside the explorer input", () => {
+  test("does not query review for resources outside the explorer input", () => {
 		const resource = URI.file("/workspace/Transfer.xlsx");
 		const calls: ReviewSummaryTarget[] = [];
 		const provider = store.add(new ExplorerDecorationsProvider(
@@ -238,8 +240,46 @@ suite("workbench/contrib/files/browser/views/explorerDecorationsProvider", () =>
 			provider.provideDecorations(createExplorerDecorationResource(resource, "missing-sheet")),
 			undefined,
 		);
-		assert.deepEqual(calls, []);
-	});
+    assert.deepEqual(calls, []);
+  });
+
+  test("preserves the original resource fragment through the decoration adapter", () => {
+    const resource = URI.file("/workspace/Transfer.xlsx").with({ fragment: "source-fragment" });
+    const calls: ReviewSummaryTarget[] = [];
+    const provider = store.add(new ExplorerDecorationsProvider(
+      createExplorerServiceForTest([{
+        fileId: "file-a",
+        fileName: "Transfer.xlsx",
+        resource,
+        sheetId: "sheet-a",
+      }]),
+      createReviewServiceForTest(calls),
+    ));
+
+    provider.provideDecorations(createExplorerDecorationResource(resource, "sheet-a"));
+
+    assert.equal(calls[0]?.resource.toString(), resource.toString());
+    assert.equal(calls[0]?.sheetId, "sheet-a");
+  });
+
+  test("ignores malformed and unwrapped decoration resources", () => {
+    const resource = URI.file("/workspace/Transfer.xlsx");
+    const calls: ReviewSummaryTarget[] = [];
+    const provider = store.add(new ExplorerDecorationsProvider(
+      createExplorerServiceForTest([{
+        fileId: "file-a",
+        fileName: "Transfer.xlsx",
+        resource,
+      }]),
+      createReviewServiceForTest(calls),
+    ));
+
+    assert.equal(provider.provideDecorations(resource), undefined);
+    assert.equal(provider.provideDecorations(resource.with({
+      fragment: "conductor.explorerDecoration=%",
+    })), undefined);
+    assert.deepEqual(calls, []);
+  });
 
 	test("does not fire decoration changes for entries without resources", () => {
 		const resource = URI.file("/workspace/PathOnly.xlsx");
@@ -285,7 +325,7 @@ const createReviewServiceForTest = (
 	onDidChangeReview: Event<ReviewChangeEvent> = Event.None as Event<ReviewChangeEvent>,
 ): IReviewService => ({
 	_serviceBrand: undefined,
-	getLatestReviewSummary: target => {
+  getLatestReviewSummary: target => {
 		calls.push(target);
 		return {
 			resource: target.resource,
@@ -294,10 +334,11 @@ const createReviewServiceForTest = (
 			confidence: 0.95,
 			findingCodes: [],
 			reviewedType: "transfer",
-			reviewedSemanticLabel: "transfer",
-		};
-	},
-	onDidChangeReview,
+      reviewedSemanticLabel: "transfer",
+    };
+  },
+  getLatestResourceReviewExecution: () => null,
+  onDidChangeReview,
 	confirmReviewedTemplate: async () => null,
 	resolveReviewSummary: async target => ({
 		resource: target.resource,

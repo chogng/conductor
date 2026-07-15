@@ -84,6 +84,11 @@ type UriReviewCacheEntry = {
   readonly rowCount?: number;
 };
 
+type ActiveUriReview = {
+  readonly generation: number;
+  readonly promise: Promise<UriReviewCacheEntry | null>;
+};
+
 const MaxUriReviewCacheEntries = 512;
 const ReviewChangeBatchDelayMs = 16;
 
@@ -95,7 +100,7 @@ export class ReviewService extends Disposable implements IReviewService {
 
   private readonly pendingReviewChangeTargetsByKey = new Map<string, NormalizedUriReviewTarget>();
   private readonly staleUriReviewKeys = new Set<string>();
-  private readonly activeUriReviewPromisesByKey = new Map<string, Promise<UriReviewCacheEntry | null>>();
+  private readonly activeUriReviewsByKey = new Map<string, ActiveUriReview>();
   private readonly pendingUriReviewRefreshTargetsByKey = new Map<string, NormalizedUriReviewTarget>();
   private readonly uriReviewCacheByKey = new Map<string, UriReviewCacheEntry>();
   private readonly uriReviewGenerationByKey = new Map<string, number>();
@@ -118,7 +123,7 @@ export class ReviewService extends Disposable implements IReviewService {
         this.scheduledUriReviewRefresh?.dispose();
         this.scheduledUriReviewRefresh = null;
         this.staleUriReviewKeys.clear();
-        this.activeUriReviewPromisesByKey.clear();
+        this.activeUriReviewsByKey.clear();
         this.pendingUriReviewRefreshTargetsByKey.clear();
         this.pendingReviewChangeTargetsByKey.clear();
         this.uriReviewCacheByKey.clear();
@@ -162,7 +167,7 @@ export class ReviewService extends Disposable implements IReviewService {
     if (cached) {
       return createStaleReviewSummaryFromCacheEntry(cached, reviewTarget);
     }
-    if (this.activeUriReviewPromisesByKey.has(key)) {
+    if (this.activeUriReviewsByKey.has(key)) {
       return {
         resource: reviewTarget.resource,
         ...(reviewTarget.sheetId ? { sheetId: reviewTarget.sheetId } : {}),
@@ -172,6 +177,19 @@ export class ReviewService extends Disposable implements IReviewService {
     }
 
     return fallback();
+  }
+
+  public getLatestResourceReviewExecution(target: ReviewSummaryTarget): ResourceReviewExecution | null {
+    const reviewTarget = normalizeUriReviewTarget(target);
+    if (!reviewTarget || !this.dataResourceService) {
+      return null;
+    }
+
+    const key = getUriReviewTargetKey(reviewTarget);
+    const cached = this.uriReviewCacheByKey.get(key);
+    return cached && isCurrentUriReviewCacheEntry(cached) && !this.staleUriReviewKeys.has(key)
+      ? createResourceReviewExecutionFromCacheEntry(cached)
+      : null;
   }
 
   public async resolveReviewSummary(target: ReviewSummaryTarget): Promise<ReviewSummary | null> {
@@ -205,34 +223,24 @@ export class ReviewService extends Disposable implements IReviewService {
       this.markStaleUriReviewCacheEntryForRefresh(key, reviewTarget);
     }
 
-    const activeReview = this.activeUriReviewPromisesByKey.get(key);
+    const activeReview = this.activeUriReviewsByKey.get(key);
     if (activeReview) {
-      const generation = this.getUriReviewGeneration(key);
-      const entry = await activeReview;
+      const entry = await activeReview.promise;
       this.trackUriReviewTarget(key, reviewTarget);
-      if (this.getUriReviewGeneration(key) !== generation) {
-        this.fireReviewChange(reviewTarget);
-        return null;
-      }
-      if (entry) {
-        this.storeUriReviewCacheEntry(key, entry);
-      } else {
-        this.deleteUriReviewCacheEntry(key);
-      }
-      this.fireReviewChange(reviewTarget);
-      return entry;
+      return this.getUriReviewGeneration(key) === activeReview.generation ? entry : null;
     }
 
-    const generation = this.getUriReviewGeneration(key);
-    const entry = await this.resolveUriReviewSummaryForKey(key, reviewTarget);
+    const review = this.startUriReview(key, reviewTarget);
+    const entry = await review.promise;
     this.trackUriReviewTarget(key, reviewTarget);
-    if (this.getUriReviewGeneration(key) === generation && entry) {
+    const isCurrentGeneration = this.getUriReviewGeneration(key) === review.generation;
+    if (isCurrentGeneration && entry) {
       this.storeUriReviewCacheEntry(key, entry);
-    } else if (this.getUriReviewGeneration(key) === generation) {
+    } else if (isCurrentGeneration) {
       this.deleteUriReviewCacheEntry(key);
     }
     this.fireReviewChange(reviewTarget);
-    return entry;
+    return isCurrentGeneration ? entry : null;
   }
 
   public async confirmReviewedTemplate(input: ReviewedTemplateConfirmationRequest): Promise<SchemaProfile | null> {
@@ -394,11 +402,21 @@ export class ReviewService extends Disposable implements IReviewService {
   }
 
   private evictUriReviewTarget(key: string): void {
+    const target = this.uriReviewTargetsByKey.get(key);
+    const hadCachedReview = this.uriReviewCacheByKey.has(key);
+    const hasActiveReview = this.activeUriReviewsByKey.has(key);
     this.uriReviewTargetsByKey.delete(key);
     this.uriReviewCacheByKey.delete(key);
     this.staleUriReviewKeys.delete(key);
     this.pendingUriReviewRefreshTargetsByKey.delete(key);
-    this.uriReviewGenerationByKey.delete(key);
+    if (hasActiveReview) {
+      this.uriReviewGenerationByKey.set(key, this.getUriReviewGeneration(key) + 1);
+    } else {
+      this.uriReviewGenerationByKey.delete(key);
+    }
+    if (target && hadCachedReview) {
+      this.fireReviewChange(target);
+    }
   }
 
   private trimUriReviewCaches(): void {
@@ -459,10 +477,10 @@ export class ReviewService extends Disposable implements IReviewService {
         continue;
       }
 
-      const activeReview = this.activeUriReviewPromisesByKey.get(key);
+      const activeReview = this.activeUriReviewsByKey.get(key);
       if (activeReview) {
         this.pendingUriReviewRefreshTargetsByKey.set(key, target);
-        void activeReview.then(
+        void activeReview.promise.then(
           () => this.scheduleUriReviewRefresh(),
           () => this.scheduleUriReviewRefresh(),
         );
@@ -477,21 +495,21 @@ export class ReviewService extends Disposable implements IReviewService {
     return this.uriReviewGenerationByKey.get(key) ?? 0;
   }
 
-  private resolveUriReviewSummaryForKey(
+  private startUriReview(
     key: string,
     target: NormalizedUriReviewTarget,
-  ): Promise<UriReviewCacheEntry | null> {
-    const activeReview = this.activeUriReviewPromisesByKey.get(key);
-    if (activeReview) {
-      return activeReview;
-    }
-
-    const review = this.resolveUriReviewSummary(target).finally(() => {
-      if (this.activeUriReviewPromisesByKey.get(key) === review) {
-        this.activeUriReviewPromisesByKey.delete(key);
+  ): ActiveUriReview {
+    const generation = this.getUriReviewGeneration(key);
+    const promise = this.resolveUriReviewSummary(target).finally(() => {
+      if (this.activeUriReviewsByKey.get(key)?.promise === promise) {
+        this.activeUriReviewsByKey.delete(key);
+        if (!this.uriReviewTargetsByKey.get(key)) {
+          this.uriReviewGenerationByKey.delete(key);
+        }
       }
     });
-    this.activeUriReviewPromisesByKey.set(key, review);
+    const review = { generation, promise };
+    this.activeUriReviewsByKey.set(key, review);
     this.fireReviewChange(target);
     return review;
   }

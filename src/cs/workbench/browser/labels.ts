@@ -10,6 +10,7 @@ import {
   type IIconLabelValueOptions,
 } from "src/cs/base/browser/ui/iconLabel/iconLabel";
 import { LxIcon } from "src/cs/base/common/lxicon";
+import { Emitter, type Event } from "src/cs/base/common/event";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
 import type {
@@ -51,6 +52,9 @@ export interface IResourceLabel extends IDisposable {
 export class ResourceLabels implements IDisposable {
   private readonly labels = new Set<IResourceLabel>();
   private readonly disposables = new DisposableStore();
+  private readonly onDidChangeDecorationsEmitter = this.disposables.add(new Emitter<IResourceDecorationChangeEvent>());
+  public readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent> =
+    this.onDidChangeDecorationsEmitter.event;
 
   public constructor(
     private readonly decorationsService?: Pick<IDecorationsService, "getDecoration" | "onDidChangeDecorations">,
@@ -60,6 +64,7 @@ export class ResourceLabels implements IDisposable {
         for (const label of this.labels) {
           label.notifyFileDecorationsChanges(event);
         }
+        this.onDidChangeDecorationsEmitter.fire(event);
       }));
     }
   }

@@ -14,6 +14,7 @@ import {
   type IViewsRegistry,
 } from "src/cs/workbench/common/views";
 import "src/cs/workbench/contrib/files/browser/fileActions.contribution";
+import "src/cs/workbench/contrib/files/browser/views/explorerDecorationsProvider";
 import { ExplorerViewPane } from "src/cs/workbench/contrib/files/browser/explorerViewlet";
 import {
   ExplorerViewContainerId,

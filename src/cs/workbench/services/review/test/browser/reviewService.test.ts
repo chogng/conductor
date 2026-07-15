@@ -941,6 +941,68 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(dataResourceService.resolveStructuredContentCalls, 1);
 	});
 
+	test("does not commit a superseded active Review through a later waiter", async () => {
+		const userTemplateService = createUserTemplateServiceForTest();
+		const resource = URI.file("/workspace/Transfer.csv");
+		const dataResourceService = store.add(new ControlledDataResourceService());
+		const service = createReviewServiceForTest(userTemplateService, dataResourceService);
+		const target = { resource, sheetId: "table-a" };
+		const readyReference = store.add(
+			await createDataResourceServiceForTest(resource).resolveStructuredContent(target),
+		);
+
+		const initialReview = service.reviewResourceForExecution(target);
+		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 1);
+		dataResourceService.resolveNext(readyReference.object);
+		await initialReview;
+		assert.equal(service.getLatestReviewSummary(target).state, "ready");
+
+		dataResourceService.fireDidChangeResource(resource);
+		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 2, 40, 5);
+		dataResourceService.fireDidChangeResource(resource);
+		const laterWaiter = service.reviewResourceForExecution(target);
+		dataResourceService.resolveNext({ kind: "missingContent" });
+
+		assert.equal(await laterWaiter, null);
+		assert.equal(service.getLatestReviewSummary(target).state, "stale");
+		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 3, 40, 5);
+		dataResourceService.resolveNext(readyReference.object);
+		await waitUntil(() => service.getLatestReviewSummary(target).state === "ready", 40, 5);
+	});
+
+	test("publishes a Review change when a cached target is evicted", async () => {
+		const userTemplateService = createUserTemplateServiceForTest();
+		const resource = URI.file("/workspace/Transfer.csv");
+		const service = createReviewServiceForTest(
+			userTemplateService,
+			createDataResourceServiceForTest(resource),
+		);
+		const target = { resource, sheetId: "table-a" };
+		await service.resolveReviewSummary(target);
+		await new Promise(resolve => setTimeout(resolve, 25));
+
+		const changedTargets: ReviewSummaryTarget[] = [];
+		store.add(service.onDidChangeReview(targets => changedTargets.push(...targets)));
+		const cacheProbe = service as unknown as {
+			trackUriReviewTarget(
+				key: string,
+				target: { readonly resource: URI; readonly sheetId?: string },
+			): void;
+		};
+		for (let index = 0; index < 512; index += 1) {
+			cacheProbe.trackUriReviewTarget(`test:${index}`, {
+				resource: URI.file(`/workspace/Other-${index}.csv`),
+			});
+		}
+		await new Promise(resolve => setTimeout(resolve, 25));
+
+		assert.equal(service.getLatestReviewSummary(target).state, "missing");
+		assert.equal(changedTargets.some(changedTarget =>
+			changedTarget.resource.toString() === resource.toString() &&
+			changedTarget.sheetId === "table-a",
+		), true);
+	});
+
 	test("publishes pending state when explicit URI review starts", async () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 		const dataResourceService = store.add(new ControlledDataResourceService());

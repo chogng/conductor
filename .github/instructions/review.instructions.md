@@ -50,6 +50,8 @@ system application.
   non-execution scheduling/summary production by URI-backed import workflows;
 - exposing resource execution projections for Slice-level consumers through
   `reviewResourceForExecution({ resource, contentHash?, sheetId? })`;
+- exposing `getLatestResourceReviewExecution(...)` as a side-effect-free read of
+  the current cached execution projection for presentation consumers;
 - maintaining URI-backed latest review summaries associated with
   `resource + contentHash/sourceVersion + optional sheetId` for Explorer
   decorations and hover.
@@ -194,6 +196,11 @@ import/source workflow scheduling through `resolveReviewSummary(...)` and
 execution paths through `reviewResourceForExecution(...)` may also resolve structured
 content, cache the resulting summary, and publish the later `onDidChangeReview`
 update.
+
+`getLatestResourceReviewExecution(...)` follows the same read-only rule. It
+must not resolve structured content, enqueue Review, or return stale execution
+data. Explicit scheduling and execution remain owned by
+`resolveReviewSummary(...)` and `reviewResourceForExecution(...)`.
 
 User commands or explicit resource execution controllers read the current
 resource/sheet review execution projection and submit `SliceResourceRequest` values, with idempotency and

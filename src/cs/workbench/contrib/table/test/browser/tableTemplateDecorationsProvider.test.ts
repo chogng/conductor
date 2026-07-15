@@ -14,7 +14,10 @@ import type {
 	ReviewChangeEvent,
 } from "src/cs/workbench/services/review/common/review";
 import type { ISliceService } from "src/cs/workbench/services/slice/common/slice";
-import type { ITableService } from "src/cs/workbench/services/table/common/table";
+import {
+	createTableDecorationResource,
+	type ITableService,
+} from "src/cs/workbench/services/table/common/table";
 import type { IUserTemplateService } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
 suite("workbench/contrib/table/browser/tableTemplateDecorationsProvider", () => {
@@ -53,6 +56,42 @@ suite("workbench/contrib/table/browser/tableTemplateDecorationsProvider", () => 
 		assert.equal(changes[0]?.length, 1);
 		assert.equal(changes[0]?.[0]?.with({ fragment: "" }).toString(), activeResource.toString());
 	});
+
+	test("reads the cached Review execution without starting Review work", () => {
+		const activeResource = URI.file("/workspace/Active.xlsx");
+		let cachedExecutionReads = 0;
+		let reviewExecutions = 0;
+		const reviewService = {
+			_serviceBrand: undefined,
+			getLatestResourceReviewExecution: () => {
+				cachedExecutionReads += 1;
+				return null;
+			},
+			onDidChangeReview: Event.None,
+			reviewResourceForExecution: async () => {
+				reviewExecutions += 1;
+				return null;
+			},
+		} as unknown as IReviewService;
+		const provider = store.add(new TableTemplateDecorationsProvider(
+			reviewService,
+			createSettingsService(),
+			createSliceService(),
+			createTableService(activeResource, "sheet-a"),
+			createUserTemplateService(),
+		));
+		const decorationResource = createTableDecorationResource({
+			resource: activeResource,
+			sheetId: "sheet-a",
+		});
+		assert.ok(decorationResource);
+
+		assert.equal(provider.provideDecorations(decorationResource), undefined);
+		assert.deepEqual({ cachedExecutionReads, reviewExecutions }, {
+			cachedExecutionReads: 1,
+			reviewExecutions: 0,
+		});
+	});
 });
 
 const createReviewService = (
@@ -67,6 +106,7 @@ const createSettingsService = (): ISettingsService => ({
 } as unknown as ISettingsService);
 
 const createSliceService = (): ISliceService => ({
+	getTemplateSelection: () => ({ kind: "auto" }),
 	onDidChangeTemplateSelection: Event.None,
 } as unknown as ISliceService);
 

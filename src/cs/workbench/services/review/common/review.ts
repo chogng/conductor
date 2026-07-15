@@ -90,6 +90,7 @@ export interface IReviewService {
   readonly onDidChangeReview: Event<ReviewChangeEvent>;
 
   getLatestReviewSummary(target: ReviewSummaryTarget): ReviewSummary;
+  getLatestResourceReviewExecution(target: ReviewSummaryTarget): ResourceReviewExecution | null;
   confirmReviewedTemplate(input: ReviewedTemplateConfirmationRequest): Promise<SchemaProfile | null>;
   resolveReviewSummary(target: ReviewSummaryTarget): Promise<ReviewSummary | null>;
   reviewResourceForExecution(target: ReviewSummaryTarget): Promise<ResourceReviewExecution | null>;

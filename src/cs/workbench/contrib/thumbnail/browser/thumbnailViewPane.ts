@@ -16,19 +16,11 @@ import {
 import { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
 import { ThumbnailViewId } from "src/cs/workbench/contrib/thumbnail/common/thumbnail";
 import { IAppearanceService } from "src/cs/workbench/services/appearance/common/appearance";
-import {
-  IDecorationsService,
-  type IDecorationsService as IDecorationsServiceType,
-} from "src/cs/workbench/services/decorations/common/decorations";
 import { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import {
   IReviewService,
   type IReviewService as IReviewServiceType,
 } from "src/cs/workbench/services/review/common/review";
-import {
-  ISettingsService,
-  type ISettingsService as ISettingsServiceType,
-} from "src/cs/workbench/services/settings/common/settings";
 import { ISliceService } from "src/cs/workbench/services/slice/common/slice";
 import { ITableService } from "src/cs/workbench/services/table/common/table";
 import {
@@ -64,9 +56,7 @@ export class ThumbnailViewPane extends BaseExplorerViewPane {
     @IThumbnailPreviewService thumbnailPreviewService: IThumbnailPreviewService,
     @IThumbnailService thumbnailService: IThumbnailService,
     @IUserTemplateService userTemplateService: IUserTemplateServiceType,
-    @IDecorationsService decorationsService: IDecorationsServiceType,
     @IReviewService reviewService: IReviewServiceType,
-    @ISettingsService settingsService: ISettingsServiceType,
     @IUriIdentityService uriIdentityService: IUriIdentityService,
   ) {
     super(
@@ -85,9 +75,7 @@ export class ThumbnailViewPane extends BaseExplorerViewPane {
       thumbnailPreviewService,
       thumbnailService,
       userTemplateService,
-      decorationsService,
       reviewService,
-      settingsService,
       uriIdentityService,
     );
   }

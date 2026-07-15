@@ -8,6 +8,7 @@ import type { ListHandle } from "src/cs/base/browser/ui/list/listWidget";
 import { DisposableStore, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { IInstantiationService } from "src/cs/platform/instantiation/common/instantiation";
 import { ResourceLabels } from "src/cs/workbench/browser/labels";
+import { IDecorationsService } from "src/cs/workbench/services/decorations/common/decorations";
 import {
   ExplorerViewer,
   type ExplorerViewerProps,
@@ -35,13 +36,14 @@ export class ExplorerView implements IDisposable {
     host: HTMLElement,
     props: ExplorerViewProps,
     @IInstantiationService private readonly instantiationService: IInstantiationService,
+    @IDecorationsService decorationsService: IDecorationsService,
   ) {
     this.host = host;
     this.props = props;
     const dom = this.createDom();
     this.root = dom.root;
     this.viewport = dom.viewport;
-    const labels = new ResourceLabels(this.props.decorationsService);
+    const labels = new ResourceLabels(decorationsService);
     this.explorerViewer = this.disposables.add(
       this.instantiationService.createInstance(
         ExplorerViewer,
@@ -107,8 +109,6 @@ export class ExplorerView implements IDisposable {
       editable: this.props.editable,
       templateRecords: this.props.templateRecords,
       files: this.props.files,
-      decorationsService: this.props.decorationsService,
-      reviewService: this.props.reviewService,
       folderImportSupport: this.props.folderImportSupport,
       mode: this.props.mode,
       viewLayout: this.props.viewLayout,

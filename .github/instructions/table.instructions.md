@@ -162,7 +162,7 @@ TableWidget header scale badge / shared stepper
 Template visualization
   -> ISliceService owns the current template slot for each resource/sheet identity
   -> TableTemplateDecorationsProvider implements the workbench `IDecorationsProvider` contract and listens to the slot and related template materialization changes
-  -> auto slot reads the current Review-owned system recommended ReviewedTemplate.template
+  -> auto slot reads the current cached Review-owned system recommended ReviewedTemplate.template through the side-effect-free execution projection
   -> saved user slot reads the selected IUserTemplateService UserTemplate.template snapshot directly
   -> templateTableMap projects Template blocks into display data ranges and Template block/axis ranges into visual TableRangeDecoration values
   -> provider returns `IDecorationData<{ tableDisplayDataRanges, tableRangeDecorations }>` for the active table decoration resource

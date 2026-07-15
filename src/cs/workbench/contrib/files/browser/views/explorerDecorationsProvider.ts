@@ -8,6 +8,11 @@ import { URI } from "src/cs/base/common/uri";
 import type { CancellationToken } from "src/cs/base/common/cancellation";
 import { localize } from "src/cs/nls";
 import {
+	registerWorkbenchContribution2,
+	WorkbenchPhase,
+	type IWorkbenchContribution,
+} from "src/cs/workbench/common/contributions";
+import {
 	IExplorerService,
 	type IExplorerService as IExplorerServiceType,
 } from "src/cs/workbench/contrib/files/browser/files";
@@ -17,7 +22,13 @@ import {
 	type IReviewService as IReviewServiceType,
 } from "src/cs/workbench/services/review/common/review";
 import type { ReviewSummary, ReviewSummaryTarget } from "src/cs/workbench/services/review/common/reviewModel";
-import type { IDecorationData, IDecorationsProvider } from "src/cs/workbench/services/decorations/common/decorations";
+import {
+	IDecorationsService,
+	type IDecorationData,
+	type IDecorationsProvider,
+} from "src/cs/workbench/services/decorations/common/decorations";
+
+const ExplorerDecorationsContributionId = "workbench.contrib.files.explorerDecorations";
 
 export class ExplorerDecorationsProvider extends Disposable implements IDecorationsProvider {
 	public readonly label = localize("files.decorations.providerLabel", "Explorer");
@@ -30,7 +41,7 @@ export class ExplorerDecorationsProvider extends Disposable implements IDecorati
 		@IReviewService private readonly reviewService: IReviewServiceType,
 	) {
 		super();
-		this._register(this.explorerService.onDidChangePaneInput(() => {
+		this._register(this.explorerService.onDidChangeFiles(() => {
 			this.fireAllResourceDecorationsChanged();
 		}));
 		this._register(this.reviewService.onDidChangeReview(targets => {
@@ -43,7 +54,7 @@ export class ExplorerDecorationsProvider extends Disposable implements IDecorati
 		_token?: CancellationToken,
 	): IDecorationData | undefined {
 		const target = parseExplorerDecorationResource(resource);
-		if (!this.hasExplorerEntryForDecorationTarget(target)) {
+		if (!target || !this.hasExplorerEntryForDecorationTarget(target)) {
 			return undefined;
 		}
 
@@ -164,7 +175,12 @@ const isExplorerEntryReviewTarget = (
 	return sheetIds === null || sheetIds.has(String(entry.sheetId ?? "").trim());
 };
 
-const SheetFragmentPrefix = "conductor.sheetId=";
+type ExplorerDecorationResourcePayload = {
+	readonly resourceFragment: string;
+	readonly sheetId: string | null;
+};
+
+const ExplorerDecorationFragmentPrefix = "conductor.explorerDecoration=";
 
 // Decoration adapter boundary: IDecorationsProvider is URI-only, while Explorer
 // review decorations are sheet-row scoped. Keep this fragment private to the
@@ -174,9 +190,13 @@ export const createExplorerDecorationResource = (
 	sheetId?: ExplorerFileEntry["sheetId"],
 ): URI => {
 	const normalizedSheetId = String(sheetId ?? "").trim();
-	return normalizedSheetId
-		? resource.with({ fragment: `${SheetFragmentPrefix}${encodeURIComponent(normalizedSheetId)}` })
-		: resource;
+	const payload: ExplorerDecorationResourcePayload = {
+		resourceFragment: resource.fragment,
+		sheetId: normalizedSheetId || null,
+	};
+	return resource.with({
+		fragment: `${ExplorerDecorationFragmentPrefix}${encodeURIComponent(JSON.stringify(payload))}`,
+	});
 };
 
 type ExplorerDecorationTarget = {
@@ -186,18 +206,49 @@ type ExplorerDecorationTarget = {
 
 const parseExplorerDecorationResource = (
 	resource: URI,
-): ExplorerDecorationTarget => {
+): ExplorerDecorationTarget | null => {
 	const fragment = String(resource.fragment ?? "");
-	if (!fragment.startsWith(SheetFragmentPrefix)) {
-		return { resource, sheetId: null };
+	if (!fragment.startsWith(ExplorerDecorationFragmentPrefix)) {
+		return null;
 	}
 
-	const encodedSheetId = fragment.slice(SheetFragmentPrefix.length);
-	return {
-		resource: resource.with({ fragment: "" }),
-		sheetId: decodeURIComponent(encodedSheetId),
-	};
+	try {
+		const payload = JSON.parse(decodeURIComponent(
+			fragment.slice(ExplorerDecorationFragmentPrefix.length),
+		)) as Partial<ExplorerDecorationResourcePayload> | null;
+		if (!payload ||
+			typeof payload.resourceFragment !== "string" ||
+			(payload.sheetId !== null && typeof payload.sheetId !== "string")) {
+			return null;
+		}
+
+		const sheetId = String(payload.sheetId ?? "").trim();
+		return {
+			resource: resource.with({ fragment: payload.resourceFragment }),
+			sheetId: sheetId || null,
+		};
+	} catch {
+		return null;
+	}
 };
+
+class ExplorerDecorationsContribution extends Disposable implements IWorkbenchContribution {
+	public constructor(
+		@IDecorationsService decorationsService: IDecorationsService,
+		@IExplorerService explorerService: IExplorerServiceType,
+		@IReviewService reviewService: IReviewServiceType,
+	) {
+		super();
+		const provider = this._register(new ExplorerDecorationsProvider(explorerService, reviewService));
+		this._register(decorationsService.registerDecorationsProvider(provider));
+	}
+}
+
+registerWorkbenchContribution2(
+	ExplorerDecorationsContributionId,
+	ExplorerDecorationsContribution,
+	WorkbenchPhase.BlockStartup,
+);
 
 export const createExplorerDecorationDataFromReviewSummary = (
 	summary: ReviewSummary | undefined,

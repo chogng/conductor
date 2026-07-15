@@ -2,7 +2,6 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CancellationToken } from "src/cs/base/common/cancellation";
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
@@ -76,10 +75,9 @@ export class TableTemplateDecorationsProvider extends Disposable implements IDec
 		}));
 	}
 
-	public async provideDecorations(
+	public provideDecorations(
 		uri: URI,
-		token: CancellationToken,
-	): Promise<IDecorationData | undefined> {
+	): IDecorationData | undefined {
 		const source = parseTableDecorationResource(uri);
 		const tableState = this.tableService.getViewInput()?.tableState ?? null;
 		if (!source || !tableState?.source || !tableState.file) {
@@ -91,8 +89,8 @@ export class TableTemplateDecorationsProvider extends Disposable implements IDec
 		)?.toString() !== uri.toString()) {
 			return undefined;
 		}
-		const template = await this.getCurrentTemplate(source, token);
-		if (!template || token.isCancellationRequested) {
+		const template = this.getCurrentTemplate(source);
+		if (!template) {
 			return undefined;
 		}
 
@@ -113,22 +111,18 @@ export class TableTemplateDecorationsProvider extends Disposable implements IDec
 		});
 	}
 
-	private async getCurrentTemplate(
+	private getCurrentTemplate(
 		source: TableSource,
-		token: CancellationToken,
-	): Promise<Template | null> {
+	): Template | null {
 		const selection = this.sliceService.getTemplateSelection(source.resource, source.sheetId ?? null);
 		if (isSavedTemplateSelection(selection)) {
 			return this.userTemplateService.getTemplate(selection.templateId)?.template ?? null;
 		}
 
-		const reviewExecution = await this.reviewService.reviewResourceForExecution({
+		const reviewExecution = this.reviewService.getLatestResourceReviewExecution({
 			resource: source.resource,
 			sheetId: source.sheetId ?? null,
 		});
-		if (token.isCancellationRequested) {
-			return null;
-		}
 		return reviewExecution?.systemRecommendedReviewedTemplate?.template ?? null;
 	}
 

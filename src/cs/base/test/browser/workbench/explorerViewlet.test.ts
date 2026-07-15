@@ -40,7 +40,6 @@ import type {
   IReviewService,
 } from "src/cs/workbench/services/review/common/review";
 import type { ReviewSummaryTarget } from "src/cs/workbench/services/review/common/reviewModel";
-import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 
 suite("workbench/contrib/files/browser/explorerViewlet", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
@@ -212,6 +211,8 @@ type CreateExplorerViewPaneOptions = {
 const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): ExplorerViewPane => {
   const uriFileService = new FileService();
   const uriIdentityService = new UriIdentityService(uriFileService);
+  const decorationsService = createDecorationsService();
+  const reviewService = createReviewService(options.onResolveReviewSummary);
   const pane = new ExplorerViewPane(
     {
       executeCommand: async () => undefined,
@@ -232,7 +233,7 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
       getProvider: () => undefined,
       moveFileToTrash: options.moveFileToTrash ?? (async () => undefined),
     } as unknown as IFileService,
-    createInstantiationService(createContextMenuService()),
+    createInstantiationService(createContextMenuService(), decorationsService, reviewService),
     {
       getAppearance: () => ({ explorer: DEFAULT_EXPLORER_APPEARANCE }),
       onDidChangeAppearance: Event.None,
@@ -258,9 +259,7 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
       warmPlotThumbnail: () => undefined,
     } as unknown as IThumbnailService,
     createUserTemplateService(),
-    createDecorationsService(),
-    createReviewService(options.onResolveReviewSummary),
-    createSettingsService(),
+    reviewService,
     uriIdentityService,
   );
   const disposePane = pane.dispose.bind(pane);
@@ -292,6 +291,8 @@ const createContextViewService = (): IContextViewService => ({
 
 const createInstantiationService = (
   contextMenuService: IContextMenuService,
+  decorationsService: IDecorationsService,
+  reviewService: IReviewService,
 ): IInstantiationService => {
   const contextViewService = createContextViewService();
   let instantiationService: IInstantiationService;
@@ -304,6 +305,7 @@ const createInstantiationService = (
         args[0] as HTMLElement,
         args[1] as ConstructorParameters<typeof ExplorerView>[1],
         instantiationService,
+        decorationsService,
       );
     }
 
@@ -315,6 +317,8 @@ const createInstantiationService = (
         args[3] as ConstructorParameters<typeof ExplorerViewer>[3],
         contextMenuService,
         contextViewService,
+        decorationsService,
+        reviewService,
       );
     }
 
@@ -570,11 +574,3 @@ const createReviewService = (
   },
   reviewResourceForExecution: async () => null,
 } as unknown as IReviewService);
-
-const createSettingsService = (): ISettingsService => ({
-  _serviceBrand: undefined,
-  onDidChangeConductorSettings: Event.None,
-  onDidChangeNumericDisplayMode: Event.None,
-  onDidChangeOriginSettingsViewInput: Event.None,
-  onDidChangeSettingsViewInput: Event.None,
-} as unknown as ISettingsService);
