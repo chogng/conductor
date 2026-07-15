@@ -1,9 +1,10 @@
 import assert from "assert";
 
 import {
+  createCheckbox,
   getCheckboxAriaAttributes,
   getCheckboxClassName,
-  getCheckboxIconMarkup,
+  updateCheckbox,
 } from "../../../../browser/ui/checkbox/checkbox.ts";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -27,18 +28,36 @@ suite("base/test/browser/ui/checkbox/checkbox", () => {
     });
   });
 
-  test("getCheckboxIconMarkup returns markup only when checked", () => {
-    assert.equal(getCheckboxIconMarkup({ checked: false }), "");
-
-    const markup = getCheckboxIconMarkup({
+  test("createCheckbox owns checked icon rendering", () => {
+    const checkbox = createCheckbox("span", {
       checked: true,
       iconClassName: "icon",
       iconSize: 12,
     });
+    const icon = checkbox.firstElementChild as HTMLElement | null;
+    const svg = icon?.firstElementChild;
+    const checkedState = {
+      iconClassName: icon?.className,
+      iconHeight: icon?.style.height,
+      iconWidth: icon?.style.width,
+      stroke: svg?.querySelector("path")?.getAttribute("stroke"),
+      svgName: svg?.localName,
+    };
 
-    assert.match(markup, /^<span class="icon" aria-hidden="true">/);
-    assert.match(markup, /width="12"/);
-    assert.match(markup, /height="12"/);
-    assert.match(markup, /currentColor/);
+    updateCheckbox(checkbox, { checked: false });
+
+    assert.deepEqual({
+      checkedState,
+      uncheckedChildCount: checkbox.childElementCount,
+    }, {
+      checkedState: {
+        iconClassName: "ui-lxicon icon",
+        iconHeight: "12px",
+        iconWidth: "12px",
+        stroke: "currentColor",
+        svgName: "svg",
+      },
+      uncheckedChildCount: 0,
+    });
   });
 });

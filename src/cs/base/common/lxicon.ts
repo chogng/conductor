@@ -2,88 +2,59 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-	lxiconsLibrary,
-	type LxIconLibraryEntry,
-} from "src/cs/base/common/lxiconsLibrary";
-
-export type LxIconRenderer = () => string;
-
-export type LxIconDefinition = LxIcon | LxIconRenderer;
-
 export type LxIcon = {
 	readonly id: string;
-	readonly render: LxIconRenderer;
 };
 
-const iconsById = new Map<string, LxIcon>();
+function defineLxIcon(id: string): LxIcon {
+	return { id };
+}
 
-export const registerLxIcon = (id: string, render: LxIconRenderer): LxIcon => {
-	const existing = iconsById.get(id);
-	if (existing) {
-		return existing;
-	}
-
-	const icon = { id, render };
-	iconsById.set(id, icon);
-	return icon;
-};
-
-export const getLxIcon = (id: string): LxIcon | undefined => iconsById.get(id);
-
-export const getAllLxIcons = (): readonly LxIcon[] => Array.from(iconsById.values());
-
-export const resolveLxIconRenderer = (icon: LxIconDefinition): LxIconRenderer =>
-	typeof icon === "function" ? icon : icon.render;
-
-const registerLibraryIcon = (entry: LxIconLibraryEntry): LxIcon =>
-	registerLxIcon(entry.id, entry.render);
-
-export const lxAlertCircle = registerLibraryIcon(lxiconsLibrary.alertCircle);
-export const lxAlertTriangle = registerLibraryIcon(lxiconsLibrary.alertTriangle);
-export const lxCheckCircle = registerLibraryIcon(lxiconsLibrary.checkCircle);
-export const lxInfoCircle = registerLibraryIcon(lxiconsLibrary.infoCircle);
-export const lxLayoutSidebarLeftEmpty = registerLibraryIcon(lxiconsLibrary.layoutSidebarLeftEmpty);
-export const lxLayoutSidebarLeftOffEmpty = registerLibraryIcon(lxiconsLibrary.layoutSidebarLeftOffEmpty);
-export const lxLayoutSidebarRightEmpty = registerLibraryIcon(lxiconsLibrary.layoutSidebarRightEmpty);
-export const lxLayoutSidebarRightOffEmpty = registerLibraryIcon(lxiconsLibrary.layoutSidebarRightOffEmpty);
-export const lxMoreHorizontal = registerLibraryIcon(lxiconsLibrary.moreHorizontal);
-export const lxAdd = registerLibraryIcon(lxiconsLibrary.add);
-export const lxAppearance = registerLibraryIcon(lxiconsLibrary.appearance);
-export const lxChart = registerLibraryIcon(lxiconsLibrary.chart);
-export const lxArrowLeft = registerLibraryIcon(lxiconsLibrary.arrowLeft);
-export const lxArrowRight = registerLibraryIcon(lxiconsLibrary.arrowRight);
-export const lxCheck = registerLibraryIcon(lxiconsLibrary.check);
-export const lxChevronDown = registerLibraryIcon(lxiconsLibrary.chevronDown);
-export const lxChevronRight = registerLibraryIcon(lxiconsLibrary.chevronRight);
-export const lxClose = registerLibraryIcon(lxiconsLibrary.close);
-export const lxCopy = registerLibraryIcon(lxiconsLibrary.copy);
-export const lxCsvGreen = registerLibraryIcon(lxiconsLibrary.csvGreen);
-export const lxCsvLetterFilled = registerLibraryIcon(lxiconsLibrary.csvLetter);
-export const lxXlsGreen = registerLibraryIcon(lxiconsLibrary.xlsGreen);
-export const lxXlsLetterFilled = registerLibraryIcon(lxiconsLibrary.xlsLetter);
-export const lxExportTray = registerLibraryIcon(lxiconsLibrary.exportTray);
-export const lxTrashFlat = registerLibraryIcon(lxiconsLibrary.trashFlat);
-export const lxDiagnostics = registerLibraryIcon(lxiconsLibrary.diagnostics);
-export const lxDownload = registerLibraryIcon(lxiconsLibrary.download);
-export const lxDownloadTray = registerLibraryIcon(lxiconsLibrary.downloadTray);
-export const lxEdit = registerLibraryIcon(lxiconsLibrary.edit);
-export const lxFileText = registerLibraryIcon(lxiconsLibrary.fileText);
-export const lxGear = registerLibraryIcon(lxiconsLibrary.gear);
-export const lxListUnordered = registerLibraryIcon(lxiconsLibrary.listUnordered);
-export const lxLegend = registerLibraryIcon(lxiconsLibrary.legend);
-export const lxOrigin = registerLibraryIcon(lxiconsLibrary.origin);
-export const lxParameters = registerLibraryIcon(lxiconsLibrary.parameters);
-export const lxRemove = registerLibraryIcon(lxiconsLibrary.remove);
-export const lxSearch = registerLibraryIcon(lxiconsLibrary.search);
-export const lxSettings = registerLibraryIcon(lxiconsLibrary.settings);
-export const lxScreenFull = registerLibraryIcon(lxiconsLibrary.screenFull);
-export const lxScreenNormal = registerLibraryIcon(lxiconsLibrary.screenNormal);
-export const lxSummary = registerLibraryIcon(lxiconsLibrary.summary);
-export const lxTable = registerLibraryIcon(lxiconsLibrary.table);
-export const lxPinned = registerLibraryIcon(lxiconsLibrary.pinned);
-export const lxUnpin = registerLibraryIcon(lxiconsLibrary.unpin);
-export const lxRefresh = registerLibraryIcon(lxiconsLibrary.refresh);
+export const lxAlertCircle = defineLxIcon("alert-circle");
+export const lxAlertTriangle = defineLxIcon("alert-triangle");
+export const lxCheckCircle = defineLxIcon("check-circle");
+export const lxInfoCircle = defineLxIcon("info-circle");
+export const lxLayoutSidebarLeftEmpty = defineLxIcon("layout-sidebar-left-empty");
+export const lxLayoutSidebarLeftOffEmpty = defineLxIcon("layout-sidebar-left-off-empty");
+export const lxLayoutSidebarRightEmpty = defineLxIcon("layout-sidebar-right-empty");
+export const lxLayoutSidebarRightOffEmpty = defineLxIcon("layout-sidebar-right-off-empty");
+export const lxMoreHorizontal = defineLxIcon("more-horizontal");
+export const lxAdd = defineLxIcon("add");
+export const lxAppearance = defineLxIcon("appearance");
+export const lxChart = defineLxIcon("chart");
+export const lxArrowLeft = defineLxIcon("arrow-left");
+export const lxArrowRight = defineLxIcon("arrow-right");
+export const lxCheck = defineLxIcon("check");
+export const lxChevronDown = defineLxIcon("chevron-down");
+export const lxChevronRight = defineLxIcon("chevron-right");
+export const lxClose = defineLxIcon("close");
+export const lxCopy = defineLxIcon("copy");
+export const lxCsvGreen = defineLxIcon("csv-green");
+export const lxCsvLetterFilled = defineLxIcon("csv-letter-filled");
+export const lxXlsGreen = defineLxIcon("xls-green");
+export const lxXlsLetterFilled = defineLxIcon("xls-letter-filled");
+export const lxExportTray = defineLxIcon("export-tray");
+export const lxTrashFlat = defineLxIcon("trash-flat");
+export const lxDiagnostics = defineLxIcon("diagnostics");
+export const lxDownload = defineLxIcon("download");
+export const lxDownloadTray = defineLxIcon("download-tray");
+export const lxEdit = defineLxIcon("edit");
+export const lxFileText = defineLxIcon("file-text");
+export const lxGear = defineLxIcon("gear");
+export const lxListUnordered = defineLxIcon("list-unordered");
+export const lxLegend = defineLxIcon("legend");
+export const lxOrigin = defineLxIcon("origin");
+export const lxParameters = defineLxIcon("parameters");
+export const lxRemove = defineLxIcon("remove");
+export const lxSearch = defineLxIcon("search");
+export const lxSettings = defineLxIcon("settings");
+export const lxScreenFull = defineLxIcon("screen-full");
+export const lxScreenNormal = defineLxIcon("screen-normal");
+export const lxSummary = defineLxIcon("summary");
+export const lxTable = defineLxIcon("table");
+export const lxPinned = defineLxIcon("pinned");
+export const lxUnpin = defineLxIcon("unpin");
+export const lxRefresh = defineLxIcon("refresh");
 
 export const LxIcon = {
 	add: lxAdd,

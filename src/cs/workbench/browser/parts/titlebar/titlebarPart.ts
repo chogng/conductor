@@ -1,14 +1,12 @@
-import {
-  normalizeLxIconSvgMarkup,
-} from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
 import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { Action, type IAction } from "src/cs/base/common/actions";
 import {
   ActionViewItem,
   type IActionViewItem,
   type IActionViewItemOptions,
 } from "src/cs/base/browser/ui/actionbar/actionViewItem";
-import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import {
   Disposable,
   type IDisposable,
@@ -30,11 +28,10 @@ export const WORKBENCH_TITLEBAR_DRAG_REGION_STYLE = {
 export const WORKBENCH_TITLEBAR_ID = "workbench-titlebar";
 
 const WORKBENCH_TITLEBAR_HEIGHT = 35;
-const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
-const appendChildren = <T extends HTMLElement | SVGElement>(
+const appendChildren = <T extends HTMLElement>(
   parent: T,
-  children: Array<HTMLElement | SVGElement | Text | null | undefined>,
+  children: Array<HTMLElement | Text | null | undefined>,
 ): T => {
   for (const child of children) {
     if (child) {
@@ -72,61 +69,9 @@ const createElement = <K extends keyof HTMLElementTagNameMap>(
   return element;
 };
 
-const createSvgIcon = (
-  size: number,
-  path: string,
-  className = "",
-): SVGSVGElement => {
-  const svg = document.createElementNS(SVG_NAMESPACE, "svg");
-  svg.setAttribute("width", String(size));
-  svg.setAttribute("height", String(size));
-  svg.setAttribute("viewBox", "0 0 24 24");
-  svg.setAttribute("fill", "none");
-  svg.setAttribute("stroke", "currentColor");
-  svg.setAttribute("stroke-width", "2");
-  svg.setAttribute("stroke-linecap", "round");
-  svg.setAttribute("stroke-linejoin", "round");
-  svg.setAttribute("aria-hidden", "true");
-
-  if (className) {
-    svg.setAttribute("class", className);
-  }
-
-  for (const command of path.split("|")) {
-    const pathElement = document.createElementNS(SVG_NAMESPACE, "path");
-    pathElement.setAttribute("d", command);
-    svg.appendChild(pathElement);
-  }
-
-  return svg;
-};
-
-const createLxIcon = (
-  icon: LxIconDefinition,
-  size: number,
-  className = "",
-): SVGSVGElement => {
-  const container = document.createElement("div");
-  container.innerHTML = normalizeLxIconSvgMarkup(icon);
-  const svg = container.firstElementChild;
-
-  if (!(svg instanceof SVGSVGElement)) {
-    return createSvgIcon(size, "", className);
-  }
-
-  svg.setAttribute("width", String(size));
-  svg.setAttribute("height", String(size));
-
-  if (className) {
-    svg.setAttribute("class", className);
-  }
-
-  return svg;
-};
-
 const getDefaultPageActionIcon = (
   action: WorkbenchTitlebarPageButton,
-): LxIconDefinition => {
+): LxIcon => {
   if (action.id === "table") {
     return LxIcon.table;
   }
@@ -144,7 +89,7 @@ const getDefaultPageActionIcon = (
 
 const createIconButton = (
   attributes: Record<string, string | boolean | number | undefined>,
-  icon: HTMLElement | SVGElement,
+  icon: HTMLElement,
   onClick?: () => void,
 ): HTMLButtonElement => {
   const button = createElement("button", {
@@ -182,7 +127,7 @@ const createTitlebarRuntimeAction = ({
 }: {
   readonly commandId: string;
   readonly commandService?: ICommandService;
-  readonly icon: LxIconDefinition;
+  readonly icon: LxIcon;
   readonly id: string;
   readonly onIntent?: () => void;
   readonly title: string;
@@ -359,7 +304,10 @@ const createQuickAccessButton = (
       "aria-label": action.title,
       className: "titlebar-quick-access-button",
     },
-    createLxIcon(action.icon, 14, "opacity-80"),
+    createLxIcon({
+      icon: action.icon,
+      size: 14,
+    }),
     () => {
       void commandService?.executeCommand(action.commandId);
     },

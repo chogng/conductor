@@ -1,6 +1,6 @@
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
-import type { LxIconDefinition } from "src/cs/base/common/lxicon";
+import type { LxIcon } from "src/cs/base/common/lxicon";
 
 export interface ITelemetryData {
     readonly from?: string;
@@ -15,7 +15,7 @@ export interface IAction {
     class: string | undefined;
     enabled: boolean;
     checked?: boolean;
-    icon?: LxIconDefinition;
+    icon?: LxIcon;
     run(...args: unknown[]): unknown;
 }
 
@@ -32,7 +32,7 @@ export interface IActionChangeEvent {
     readonly class?: string;
     readonly enabled?: boolean;
     readonly checked?: boolean;
-    readonly icon?: LxIconDefinition;
+    readonly icon?: LxIcon;
 }
 
 export class Action extends Disposable implements IAction {
@@ -47,7 +47,7 @@ export class Action extends Disposable implements IAction {
     protected actionClass: string | undefined;
     protected actionEnabled: boolean;
     protected actionChecked: boolean | undefined;
-    protected actionIcon: LxIconDefinition | undefined;
+    protected actionIcon: LxIcon | undefined;
 
     constructor(
         id: string,
@@ -123,11 +123,11 @@ export class Action extends Disposable implements IAction {
         }
     }
 
-    public get icon(): LxIconDefinition | undefined {
+    public get icon(): LxIcon | undefined {
         return this.actionIcon;
     }
 
-    public set icon(value: LxIconDefinition | undefined) {
+    public set icon(value: LxIcon | undefined) {
         if (this.actionIcon !== value) {
             this.actionIcon = value;
             this.onDidChangeEmitter.fire({ icon: value });
@@ -258,7 +258,7 @@ export function toAction(options: {
     class?: string;
     enabled?: boolean;
     checked?: boolean;
-    icon?: LxIconDefinition;
+    icon?: LxIcon;
     run: (...args: unknown[]) => unknown;
 }): IAction {
     return {

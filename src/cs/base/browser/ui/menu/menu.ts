@@ -5,7 +5,7 @@ import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollableElement";
 import { EmptySubmenuAction, IAction, Separator, SubmenuAction } from "src/cs/base/common/actions";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
+import { LxIcon } from "src/cs/base/common/lxicon";
 
 import "src/cs/base/browser/ui/menu/menu.css";
 
@@ -15,7 +15,7 @@ export type MenuOptions = {
     withScrollArea?: boolean;
 };
 
-export type MenuIcon = Node | (() => Node) | LxIconDefinition;
+export type MenuIcon = Node | (() => Node) | LxIcon;
 
 export type MenuItemAction = {
     readonly className?: string;
@@ -246,8 +246,7 @@ function createIconNode(icon: MenuIcon | undefined): Node | undefined {
         return icon;
     }
     if (typeof icon === "function") {
-        const rendered = icon();
-        return rendered instanceof Node ? rendered : createLxIcon({ icon: () => rendered, size: 14 });
+        return icon();
     }
 
     return createLxIcon({ icon, size: 14 });

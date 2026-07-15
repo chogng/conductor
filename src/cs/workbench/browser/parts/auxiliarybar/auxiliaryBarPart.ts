@@ -6,7 +6,7 @@ import type { IViewPaneContainer } from "src/cs/workbench/common/views";
 import { ActionViewItem, type IActionViewItem, type IActionViewItemOptions } from "src/cs/base/browser/ui/actionbar/actionViewItem";
 import type { IActionViewItemProvider } from "src/cs/base/browser/ui/actionbar/actionbar";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
-import type { LxIconDefinition } from "src/cs/base/common/lxicon";
+import type { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import {
   cleanGroupedActions,
@@ -59,7 +59,7 @@ type AuxiliaryBarViewDescriptor = {
 };
 
 type AuxiliaryBarViewSwitchAction = IAction & {
-  readonly icon: LxIconDefinition;
+  readonly icon: LxIcon;
 };
 
 const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [

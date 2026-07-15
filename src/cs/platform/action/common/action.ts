@@ -5,7 +5,7 @@
 
 import type { ContextKeyExpression } from "src/cs/platform/contextkey/common/contextkey";
 import type { ICommandMetadata } from "src/cs/platform/commands/common/commands";
-import type { LxIconDefinition } from "src/cs/base/common/lxicon";
+import type { LxIcon } from "src/cs/base/common/lxicon";
 
 export interface ILocalizedString {
   readonly value: string;
@@ -20,7 +20,7 @@ export function isLocalizedString(value: unknown): value is ILocalizedString {
 }
 
 export type ICommandActionTitle = string | ILocalizedString;
-export type Icon = LxIconDefinition;
+export type Icon = LxIcon;
 
 export interface ICommandAction {
   readonly id: string;

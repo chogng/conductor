@@ -1,4 +1,4 @@
-import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { LxIcon } from "src/cs/base/common/lxicon";
 
 import "src/cs/base/browser/ui/checkbox/checkbox.css";
@@ -44,28 +44,24 @@ export const getCheckboxAriaAttributes = ({
         "aria-checked": checked,
       };
 
-export const getCheckboxIconMarkup = ({
+const createCheckboxIcon = ({
   checked = false,
   iconClassName = "",
   iconSize,
   size = "sm",
-}: Pick<CheckboxOptions, "checked" | "iconClassName" | "iconSize" | "size"> = {}): string => {
+}: Pick<CheckboxOptions, "checked" | "iconClassName" | "iconSize" | "size"> = {}): HTMLSpanElement | undefined => {
   if (!checked) {
-    return "";
+    return undefined;
   }
 
   const resolvedIconSize = iconSize ?? (size === "lg" ? 11 : 10);
-  const svgMarkup = normalizeLxIconSvgMarkup(LxIcon.check).replace(
-    /<svg\b([^>]*)>/i,
-    (_match, attributes: string) =>
-      `<svg${attributes} width="${resolvedIconSize}" height="${resolvedIconSize}">`,
-  );
-
-  if (!iconClassName) {
-    return svgMarkup;
-  }
-
-  return `<span class="${iconClassName}" aria-hidden="true">${svgMarkup}</span>`;
+  const icon = createLxIcon({
+    className: iconClassName || undefined,
+    icon: LxIcon.check,
+    size: resolvedIconSize,
+  });
+  icon.setAttribute("aria-hidden", "true");
+  return icon;
 };
 
 export const createCheckbox = (
@@ -91,5 +87,9 @@ export const updateCheckbox = (
     checkbox.setAttribute(name, String(value));
   }
 
-  checkbox.innerHTML = getCheckboxIconMarkup(options);
+  checkbox.replaceChildren();
+  const icon = createCheckboxIcon(options);
+  if (icon) {
+    checkbox.appendChild(icon);
+  }
 };

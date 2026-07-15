@@ -22,11 +22,11 @@ import {
   type ITreeRenderer,
   type ITreeSelectionEvent,
 } from "src/cs/base/browser/ui/tree/objectTree";
-import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
 import { AnchorAxisAlignment, AnchorPosition } from "src/cs/base/common/layout";
-import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import { isMacintosh, isWindows } from "src/cs/base/common/platform";
 import { Separator, SubmenuAction, type IAction } from "src/cs/base/common/actions";
 import { CommandsRegistry, type ICommandService } from "src/cs/platform/commands/common/commands";
@@ -777,16 +777,11 @@ const appendFileHoverContextRows = (
 
 const appendIcon = (
   container: HTMLElement,
-  icon: LxIconDefinition,
+  icon: LxIcon,
   size = 16,
   className?: string,
 ) => {
-  const iconSpan = document.createElement("span");
-  iconSpan.className = className ? `ui-lxicon ${className}` : "ui-lxicon";
-  iconSpan.style.width = `${size}px`;
-  iconSpan.style.height = `${size}px`;
-  iconSpan.innerHTML = normalizeLxIconSvgMarkup(icon);
-  container.appendChild(iconSpan);
+  container.appendChild(createLxIcon({ className, icon, size }));
 };
 
 export class ExplorerViewer implements IDisposable {

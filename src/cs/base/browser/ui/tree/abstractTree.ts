@@ -8,7 +8,7 @@ import type {
 } from "src/cs/base/browser/ui/list/list";
 import type { ListHandle } from "src/cs/base/browser/ui/list/listWidget";
 import { ListView, type IListViewOptions, type ListRenderRange } from "src/cs/base/browser/ui/list/listView";
-import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import type { FlattenedTreeNode, IndexTreeModelChange } from "src/cs/base/browser/ui/tree/indexTreeModel";
@@ -65,11 +65,12 @@ const classNames = (...names: Array<string | undefined>): string =>
   names.filter(Boolean).join(" ");
 
 const renderChevron = (collapsed: boolean): HTMLSpanElement => {
-  const icon = document.createElement("span");
-  icon.className = "ui-tree__disclosure-icon";
+  const icon = createLxIcon({
+    className: "ui-tree__disclosure-icon",
+    icon: LxIcon.chevronRight,
+  });
   icon.setAttribute("aria-hidden", "true");
   icon.dataset.collapsed = collapsed ? "true" : "false";
-  icon.innerHTML = normalizeLxIconSvgMarkup(LxIcon.chevronRight);
   return icon;
 };
 

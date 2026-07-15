@@ -7,7 +7,7 @@ import { BaseActionViewItem, type IActionViewItemOptions } from "src/cs/base/bro
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { Action, ActionRunner, type IAction, type IActionChangeEvent, type IActionRunner } from "src/cs/base/common/actions";
 import { Disposable } from "src/cs/base/common/lifecycle";
-import type { LxIconDefinition } from "src/cs/base/common/lxicon";
+import type { LxIcon } from "src/cs/base/common/lxicon";
 
 import "src/cs/base/browser/ui/stepper/stepper.css";
 
@@ -16,7 +16,7 @@ type StepperDataset = Readonly<Record<string, string>>;
 export type StepperActionOptions = {
     readonly action: IAction;
     readonly dataset?: StepperDataset;
-    readonly icon?: LxIconDefinition;
+    readonly icon?: LxIcon;
     readonly keyShortcuts?: string;
 };
 
@@ -268,7 +268,7 @@ const syncButtonAction = (
     action: IAction,
     options: {
         readonly classNames: readonly string[];
-        readonly icon?: LxIconDefinition;
+        readonly icon?: LxIcon;
     },
 ): void => {
     button.className = options.classNames.join(" ");

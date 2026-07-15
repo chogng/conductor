@@ -10,7 +10,7 @@ import {
 import { replaceChildrenIfChanged } from "src/cs/base/browser/dom";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { Separator, type IAction } from "src/cs/base/common/actions";
-import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import {
@@ -719,7 +719,7 @@ export class TemplateView {
   }
 }
 
-function createTemplateMenuIcon(icon: LxIconDefinition): HTMLSpanElement {
+function createTemplateMenuIcon(icon: LxIcon): HTMLSpanElement {
   const wrapper = document.createElement("span");
   wrapper.className = "ui-menu__item-icon";
   wrapper.setAttribute("aria-hidden", "true");

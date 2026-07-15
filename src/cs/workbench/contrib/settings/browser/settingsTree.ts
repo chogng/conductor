@@ -3,7 +3,7 @@ import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
 import { ActionViewItem, type IActionViewItemOptions } from "src/cs/base/browser/ui/actionbar/actionViewItem";
 import type { IAction } from "src/cs/base/common/actions";
 import { Disposable } from "src/cs/base/common/lifecycle";
-import type { LxIconDefinition } from "src/cs/base/common/lxicon";
+import type { LxIcon } from "src/cs/base/common/lxicon";
 import { normalizeSettingsSearchText, settingsSearchMatches } from "src/cs/workbench/contrib/settings/browser/settingsSearch";
 
 export type SettingsTreeElementItem = {
@@ -43,7 +43,7 @@ export type SettingsTreeSection = {
 export type SettingsTreeSectionHeaderAction = {
   readonly ariaLabel: string;
   readonly disabled?: boolean;
-  readonly icon?: LxIconDefinition;
+  readonly icon?: LxIcon;
   readonly id: string;
   readonly label: string;
   readonly run: () => void;

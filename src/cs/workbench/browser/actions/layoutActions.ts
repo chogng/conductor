@@ -1,4 +1,4 @@
-import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import { Categories } from "src/cs/platform/action/common/actionCommonCategories";
 import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
@@ -24,7 +24,7 @@ export const WORKBENCH_LAYOUT_AUXILIARY_BAR_TOGGLE_BUTTON_ID =
 
 export type WorkbenchLayoutToggleButton = {
   readonly commandId: string;
-  readonly icon: LxIconDefinition;
+  readonly icon: LxIcon;
   readonly id: string;
   readonly isActive: boolean;
   readonly title: string;

@@ -1,11 +1,9 @@
 import type { IAction } from "src/cs/base/common/actions";
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import {
-  normalizeLxIconSvgMarkup,
-} from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollableElement";
-import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import type {
   NotificationToastOptions,
   NotificationToastType,
@@ -20,15 +18,10 @@ export type NotificationRendererOptions = {
 
 const appendIcon = (
   container: HTMLElement,
-  icon: LxIconDefinition,
+  icon: LxIcon,
   size: number,
 ): void => {
-  const iconElement = document.createElement("span");
-  iconElement.className = "ui-lxicon";
-  iconElement.style.width = `${size}px`;
-  iconElement.style.height = `${size}px`;
-  iconElement.innerHTML = normalizeLxIconSvgMarkup(icon);
-  container.appendChild(iconElement);
+  container.appendChild(createLxIcon({ icon, size }));
 };
 
 export class NotificationRenderer implements IDisposable {
@@ -150,7 +143,7 @@ export class NotificationRenderer implements IDisposable {
     }
   }
 
-  private toSeverityIcon(type: NotificationToastType): LxIconDefinition {
+  private toSeverityIcon(type: NotificationToastType): LxIcon {
     if (type === "success") return LxIcon.checkCircle;
     if (type === "info") return LxIcon.infoCircle;
     return LxIcon.alertCircle;

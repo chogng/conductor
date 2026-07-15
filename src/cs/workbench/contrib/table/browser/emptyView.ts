@@ -3,7 +3,7 @@ import {
   getAvatarContentElement,
   getAvatarIconClassName,
 } from "src/cs/base/browser/ui/avatar/avatar";
-import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { LxIcon } from "src/cs/base/common/lxicon";
 
 export type EmptyViewOptions = {
@@ -12,10 +12,11 @@ export type EmptyViewOptions = {
 };
 
 const createEmptyIcon = (): HTMLSpanElement => {
-  const icon = document.createElement("span");
-  icon.className = `ui-lxicon ${getAvatarIconClassName()}`;
+  const icon = createLxIcon({
+    className: getAvatarIconClassName(),
+    icon: LxIcon.fileText,
+  });
   icon.setAttribute("aria-hidden", "true");
-  icon.innerHTML = normalizeLxIconSvgMarkup(LxIcon.fileText);
   return icon;
 };
 

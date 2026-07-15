@@ -1,4 +1,4 @@
-import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layoutCommands";
 import { QuickAccessCommandId } from "src/cs/workbench/contrib/quickaccess/common/quickAccessCommands";
@@ -40,7 +40,7 @@ export type WorkbenchTitlebarPageButton = {
 
 export type WorkbenchTitlebarQuickAccessButton = {
   readonly commandId: string;
-  readonly icon: LxIconDefinition;
+  readonly icon: LxIcon;
   readonly id: string;
   readonly title: string;
 };

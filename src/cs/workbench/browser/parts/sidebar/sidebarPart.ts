@@ -5,7 +5,7 @@ import type { IAction } from "src/cs/base/common/actions";
 import { ActionViewItem, type IActionViewItem, type IActionViewItemOptions } from "src/cs/base/browser/ui/actionbar/actionViewItem";
 import type { IActionViewItemProvider } from "src/cs/base/browser/ui/actionbar/actionbar";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
-import type { LxIconDefinition } from "src/cs/base/common/lxicon";
+import type { LxIcon } from "src/cs/base/common/lxicon";
 import {
   StorageScope,
   StorageTarget,
@@ -22,7 +22,7 @@ export const SIDEBAR_MIN_WIDTH_PX = 170;
 export const SIDEBAR_MAX_WIDTH_PX = Number.POSITIVE_INFINITY;
 
 export type WorkbenchSidebarAction = IAction & {
-  readonly icon?: LxIconDefinition;
+  readonly icon?: LxIcon;
 };
 
 type SidebarPaneContainerInput = {

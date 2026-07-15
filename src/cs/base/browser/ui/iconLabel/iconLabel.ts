@@ -1,6 +1,6 @@
-import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
-import type { LxIconDefinition } from "src/cs/base/common/lxicon";
+import type { LxIcon } from "src/cs/base/common/lxicon";
 
 export type IIconLabelCreationOptions = {
   readonly className?: string;
@@ -8,7 +8,7 @@ export type IIconLabelCreationOptions = {
 
 export type IIconLabelValueOptions = {
   readonly extraClasses?: readonly string[];
-  readonly icon?: LxIconDefinition;
+  readonly icon?: LxIcon;
   readonly title?: string;
 };
 
@@ -19,7 +19,7 @@ export class IconLabel implements IDisposable {
 
   readonly element: HTMLDivElement;
   private readonly className: string;
-  private readonly icon: HTMLSpanElement;
+  private icon: HTMLSpanElement;
   private readonly name: HTMLSpanElement;
   private disposed = false;
 
@@ -30,9 +30,7 @@ export class IconLabel implements IDisposable {
       ? `${IconLabel.rootClassName} ${this.className}`
       : IconLabel.rootClassName;
 
-    this.icon = document.createElement("span");
-    this.icon.className = IconLabel.iconClassName;
-    this.icon.setAttribute("aria-hidden", "true");
+    this.icon = this.createIcon();
 
     this.name = document.createElement("span");
     this.name.className = IconLabel.nameClassName;
@@ -59,15 +57,16 @@ export class IconLabel implements IDisposable {
       this.element.removeAttribute("title");
     }
 
-    this.icon.replaceChildren();
-    if (options.icon) {
-      this.icon.innerHTML = normalizeLxIconSvgMarkup(options.icon);
-    }
+    const icon = this.createIcon(options.icon);
+    this.icon.replaceWith(icon);
+    this.icon = icon;
   }
 
   clear(): void {
     this.name.textContent = "";
-    this.icon.replaceChildren();
+    const icon = this.createIcon();
+    this.icon.replaceWith(icon);
+    this.icon = icon;
     this.element.removeAttribute("aria-label");
     this.element.removeAttribute("title");
   }
@@ -79,5 +78,16 @@ export class IconLabel implements IDisposable {
 
     this.disposed = true;
     this.element.remove();
+  }
+
+  private createIcon(icon?: LxIcon): HTMLSpanElement {
+    const element = icon
+      ? createLxIcon({ className: IconLabel.iconClassName, icon })
+      : document.createElement("span");
+    if (!icon) {
+      element.className = IconLabel.iconClassName;
+    }
+    element.setAttribute("aria-hidden", "true");
+    return element;
   }
 }

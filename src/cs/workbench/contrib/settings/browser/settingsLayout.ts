@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from "src/cs/nls";
-import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
+import { LxIcon } from "src/cs/base/common/lxicon";
 
 export type SettingsSectionId = "general" | "template" | "appearance" | "origin" | "about";
 
@@ -11,7 +11,7 @@ export type SettingsNavGroupId = "personal" | "integrations" | "system";
 
 export type SettingsSectionDefinition = {
   readonly groupId: SettingsNavGroupId;
-  readonly icon: LxIconDefinition;
+  readonly icon: LxIcon;
   readonly id: SettingsSectionId;
   readonly label: string;
   readonly order: number;

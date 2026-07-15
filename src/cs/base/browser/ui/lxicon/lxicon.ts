@@ -1,11 +1,11 @@
-import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
-import type { LxIconDefinition } from "src/cs/base/common/lxicon";
+import { renderLxIcon } from "src/cs/base/browser/ui/lxicon/lxiconRenderer";
+import type { LxIcon } from "src/cs/base/common/lxicon";
 
 type LxIconStyle = Record<string, string | number | undefined>;
 
 type LxIconOptions = {
   className?: string;
-  icon: LxIconDefinition;
+  icon: LxIcon;
   size?: number | string;
   style?: LxIconStyle;
 };
@@ -28,18 +28,15 @@ const getLxIconStyle = ({
   };
 };
 
-const getLxIconMarkup = (icon: LxIconDefinition): string =>
-  normalizeLxIconSvgMarkup(icon);
-
-export const createLxIcon = ({
+export function createLxIcon({
   className,
   icon,
   size = 16,
   style,
-}: LxIconOptions): HTMLSpanElement => {
+}: LxIconOptions): HTMLSpanElement {
   const element = document.createElement("span");
   element.className = getLxIconClassName(className);
   Object.assign(element.style, getLxIconStyle({ size, style }));
-  element.innerHTML = getLxIconMarkup(icon);
+  element.append(renderLxIcon(icon));
   return element;
-};
+}

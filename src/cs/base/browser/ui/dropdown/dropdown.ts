@@ -8,7 +8,7 @@ import { ActionRunner } from "src/cs/base/common/actions";
 import { Emitter } from "src/cs/base/common/event";
 import { AnchorAlignment } from "src/cs/base/common/layout";
 import { Disposable, DisposableStore, MutableDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
-import type { LxIconDefinition } from "src/cs/base/common/lxicon";
+import type { LxIcon } from "src/cs/base/common/lxicon";
 import type { IContextMenuDelegate, IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 
 import "src/cs/base/browser/ui/dropdown/dropdown.css";
@@ -238,7 +238,7 @@ export type DropdownOptions = {
     onDidChangeVisibility?: (visible: boolean) => void;
 };
 
-export type DropdownButtonIcon = Node | (() => Node) | LxIconDefinition;
+export type DropdownButtonIcon = Node | (() => Node) | LxIcon;
 
 export type DropdownButtonOptions = {
     readonly ariaLabel?: string;
@@ -555,8 +555,7 @@ function createIconNode(icon: DropdownButtonIcon | undefined): Node | undefined 
         return icon;
     }
     if (typeof icon === "function") {
-        const rendered = icon();
-        return rendered instanceof Node ? rendered : createLxIcon({ icon: () => rendered, size: 14 });
+        return icon();
     }
 
     return createLxIcon({ icon, size: 14 });

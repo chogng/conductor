@@ -1,7 +1,7 @@
 import { ActionViewItem, type IActionViewItemOptions } from "src/cs/base/browser/ui/actionbar/actionViewItem";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import type { IAction } from "src/cs/base/common/actions";
-import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
+import { LxIcon } from "src/cs/base/common/lxicon";
 
 export const CHART_LEGEND_ACTION_ID = "chart.header.legend";
 export const CHART_INSPECTOR_ACTION_ID = "chart.header.inspector";
@@ -9,7 +9,7 @@ export const CHART_INSPECTOR_ACTION_ID = "chart.header.inspector";
 export class ChartHeaderActionViewItem extends ActionViewItem {
   constructor(
     action: IAction,
-    private readonly icon: LxIconDefinition,
+    private readonly icon: LxIcon,
     options: IActionViewItemOptions,
   ) {
     super(undefined, action, options);
@@ -37,7 +37,7 @@ export class ChartHeaderActionViewItem extends ActionViewItem {
   }
 }
 
-export const getHeaderActionIcon = (actionId: string): LxIconDefinition => {
+export const getHeaderActionIcon = (actionId: string): LxIcon => {
   if (actionId === CHART_LEGEND_ACTION_ID) {
     return LxIcon.legend;
   }

@@ -3,13 +3,13 @@ import { createInputBox, type IMessage, type InputBox, type InputBoxOptions } fr
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
-import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
+import { LxIcon } from "src/cs/base/common/lxicon";
 
 import "src/cs/base/browser/ui/inputbox/inputBoxWidget.css";
 
 export type InputBoxWidgetItemAction = {
   readonly ariaLabel: string;
-  readonly icon: LxIconDefinition;
+  readonly icon: LxIcon;
 };
 
 type InputBoxWidgetItemBase = {
@@ -78,7 +78,7 @@ export class InputBoxWidget extends Disposable {
 
   private readonly inputBox: InputBox<HTMLInputElement>;
   private readonly itemActionButtons = new Map<string, HTMLButtonElement>();
-  private readonly itemActionIcons = new Map<string, LxIconDefinition>();
+  private readonly itemActionIcons = new Map<string, LxIcon>();
   private readonly itemById = new Map<string, IInputBoxWidgetItem>();
   private readonly itemLabels = new Map<string, HTMLElement>();
   private readonly itemNodes = new Map<string, HTMLElement>();

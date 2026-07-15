@@ -1,4 +1,4 @@
-import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import { Categories } from "src/cs/platform/action/common/actionCommonCategories";
 import {
@@ -34,7 +34,7 @@ const CloseAuxiliaryBarCommandId = "workbench.action.closeAuxiliaryBar";
 
 type AuxiliaryBarTitleMenuItem = {
   readonly commandId: string;
-  readonly icon?: LxIconDefinition;
+  readonly icon?: LxIcon;
   readonly order: number;
   readonly labelKey: string;
   readonly label: string;
