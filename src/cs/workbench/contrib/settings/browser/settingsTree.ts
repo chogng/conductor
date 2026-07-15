@@ -1,8 +1,9 @@
-import { createLxIcon, type LxIconDefinition } from "src/cs/base/browser/ui/lxicon/lxicon";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
 import { ActionViewItem, type IActionViewItemOptions } from "src/cs/base/browser/ui/actionbar/actionViewItem";
 import type { IAction } from "src/cs/base/common/actions";
 import { Disposable } from "src/cs/base/common/lifecycle";
+import type { LxIconDefinition } from "src/cs/base/common/lxicon";
 import { normalizeSettingsSearchText, settingsSearchMatches } from "src/cs/workbench/contrib/settings/browser/settingsSearch";
 
 export type SettingsTreeElementItem = {

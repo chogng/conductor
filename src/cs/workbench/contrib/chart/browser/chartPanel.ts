@@ -7,13 +7,7 @@ import {
   getCardClassName,
   type CardVariant,
 } from "cs/base/browser/ui/card/card";
-import {
-  getLxIconClassName,
-  getLxIconMarkup,
-  getLxIconStyle,
-  type LxIconDefinition,
-  type LxIconStyle,
-} from "src/cs/base/browser/ui/lxicon/lxicon";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { createChartView, type ChartPane, type ChartViewProps } from "src/cs/workbench/contrib/chart/browser/views/chartView";
 
@@ -203,7 +197,7 @@ const createChartStatusCard = ({
     className: "status-card",
   });
   card.append(
-    createLocalLxIcon({
+    createLxIcon({
       icon: LxIcon.chart,
       size: 48,
       className: `status-icon ${iconClassName}`,
@@ -212,24 +206,6 @@ const createChartStatusCard = ({
     createText("p", "status-hint", hint),
   );
   return card;
-};
-
-const createLocalLxIcon = ({
-  className,
-  icon,
-  size = 16,
-  style,
-}: {
-  readonly className?: string;
-  readonly icon: LxIconDefinition;
-  readonly size?: number | string;
-  readonly style?: LxIconStyle;
-}): HTMLSpanElement => {
-  const element = document.createElement("span");
-  element.className = getLxIconClassName(className);
-  Object.assign(element.style, getLxIconStyle({ size, style }));
-  element.innerHTML = getLxIconMarkup(icon);
-  return element;
 };
 
 const createLocalCard = ({

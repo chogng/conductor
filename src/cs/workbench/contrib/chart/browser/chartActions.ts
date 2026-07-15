@@ -1,7 +1,7 @@
 import { ActionViewItem, type IActionViewItemOptions } from "src/cs/base/browser/ui/actionbar/actionViewItem";
-import { createLxIcon, type LxIconDefinition } from "src/cs/base/browser/ui/lxicon/lxicon";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import type { IAction } from "src/cs/base/common/actions";
-import { LxIcon } from "src/cs/base/common/lxicon";
+import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 
 export const CHART_LEGEND_ACTION_ID = "chart.header.legend";
 export const CHART_INSPECTOR_ACTION_ID = "chart.header.inspector";

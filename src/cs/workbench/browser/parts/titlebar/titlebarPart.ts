@@ -1,6 +1,6 @@
 import {
   normalizeLxIconSvgMarkup,
-} from "src/cs/base/browser/ui/lxicon/lxicon";
+} from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
 import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
 import { Action, type IAction } from "src/cs/base/common/actions";
 import {

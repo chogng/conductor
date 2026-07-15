@@ -4,7 +4,8 @@ import type { SplitViewPane } from "src/cs/base/browser/ui/splitview/splitview";
 import type { IAction } from "src/cs/base/common/actions";
 import { ActionViewItem, type IActionViewItem, type IActionViewItemOptions } from "src/cs/base/browser/ui/actionbar/actionViewItem";
 import type { IActionViewItemProvider } from "src/cs/base/browser/ui/actionbar/actionbar";
-import { createLxIcon, type LxIconDefinition } from "src/cs/base/browser/ui/lxicon/lxicon";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
+import type { LxIconDefinition } from "src/cs/base/common/lxicon";
 import {
   StorageScope,
   StorageTarget,

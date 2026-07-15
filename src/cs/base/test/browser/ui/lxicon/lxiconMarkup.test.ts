@@ -1,7 +1,7 @@
 import assert from "assert";
 
 import { normalizeLxIconSvgMarkup } from "../../../../browser/ui/lxicon/lxiconMarkup.ts";
-import type { LxIconDefinition } from "../../../../browser/ui/lxicon/lxiconMarkup.ts";
+import type { LxIconDefinition } from "../../../../common/lxicon.ts";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/browser/ui/lxicon/lxiconMarkup", () => {

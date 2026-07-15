@@ -1,7 +1,6 @@
 import {
   resolveLxIconRenderer,
   type LxIconDefinition,
-  type LxIconRenderer,
 } from "src/cs/base/common/lxicon";
 
 const ROOT_SVG_TAG_PATTERN = /<svg\b([^>]*)>/i;
@@ -27,5 +26,3 @@ export const normalizeLxIconSvgMarkup = (icon: LxIconDefinition): string => {
     },
   );
 };
-
-export type { LxIconDefinition, LxIconRenderer };

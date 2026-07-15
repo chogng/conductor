@@ -3,10 +3,9 @@ import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import {
   normalizeLxIconSvgMarkup,
-  type LxIconDefinition,
-} from "src/cs/base/browser/ui/lxicon/lxicon";
+} from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollableElement";
-import { LxIcon } from "src/cs/base/common/lxicon";
+import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import type {
   NotificationToastOptions,
   NotificationToastType,

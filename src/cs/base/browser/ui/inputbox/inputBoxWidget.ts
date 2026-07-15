@@ -1,9 +1,9 @@
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { createInputBox, type IMessage, type InputBox, type InputBoxOptions } from "src/cs/base/browser/ui/inputbox/inputBox";
-import { createLxIcon, type LxIconDefinition } from "src/cs/base/browser/ui/lxicon/lxicon";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
-import { LxIcon } from "src/cs/base/common/lxicon";
+import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 
 import "src/cs/base/browser/ui/inputbox/inputBoxWidget.css";
 

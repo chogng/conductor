@@ -1,25 +1,22 @@
-import {
-  normalizeLxIconSvgMarkup,
-  type LxIconDefinition,
-} from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
-import type { LxIconRenderer } from "src/cs/base/common/lxicon";
+import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
+import type { LxIconDefinition } from "src/cs/base/common/lxicon";
 
-export type LxIconStyle = Record<string, string | number | undefined>;
+type LxIconStyle = Record<string, string | number | undefined>;
 
-export type LxIconOptions = {
+type LxIconOptions = {
   className?: string;
   icon: LxIconDefinition;
   size?: number | string;
   style?: LxIconStyle;
 };
 
-export const getLxIconClassName = (className?: string): string =>
+const getLxIconClassName = (className?: string): string =>
   className ? `ui-lxicon ${className}` : "ui-lxicon";
 
 const normalizeLxIconSize = (size: number | string): string =>
   typeof size === "number" ? `${size}px` : size;
 
-export const getLxIconStyle = ({
+const getLxIconStyle = ({
   size = 16,
   style,
 }: Pick<LxIconOptions, "size" | "style">): LxIconStyle => {
@@ -31,7 +28,7 @@ export const getLxIconStyle = ({
   };
 };
 
-export const getLxIconMarkup = (icon: LxIconDefinition): string =>
+const getLxIconMarkup = (icon: LxIconDefinition): string =>
   normalizeLxIconSvgMarkup(icon);
 
 export const createLxIcon = ({
@@ -46,5 +43,3 @@ export const createLxIcon = ({
   element.innerHTML = getLxIconMarkup(icon);
   return element;
 };
-
-export { normalizeLxIconSvgMarkup, type LxIconDefinition, type LxIconRenderer };
