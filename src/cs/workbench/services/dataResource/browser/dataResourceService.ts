@@ -7,6 +7,7 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
+import { parseFiniteNumber } from "src/cs/workbench/common/cellText";
 import { startPerf } from "src/cs/workbench/common/perf";
 import {
 	IDataResourceService,
@@ -23,6 +24,7 @@ import {
 } from "src/cs/workbench/services/dataResource/common/semanticRules";
 import {
 	createEmptyStructuredContentStructure,
+	getStructuredContentColumnFacts,
 	getStructuredContentFingerprint,
 	readStructuredContentRows,
 	type StructuredAxisTendency,
@@ -30,6 +32,7 @@ import {
 	type StructuredColumnProfile,
 	type StructuredColumnSemanticCandidate,
 	type StructuredColumnTitleSpanEvidence,
+	type StructuredContentColumnFacts,
 	type StructuredContentDiagnostic,
 	type StructuredContentEvidence,
 	type StructuredContentSourceRange,
@@ -82,15 +85,12 @@ type NumericRun = {
 	readonly column: number;
 	readonly startRow: number;
 	readonly endRow: number;
-	readonly values: readonly number[];
+	readonly values: NumericValues;
 	readonly coverage: number;
 	readonly pointCount: number;
 };
 
-type NumericColumnScan = {
-	readonly columnKinds: readonly StructuredColumnProfile["kind"][];
-	readonly runs: readonly NumericRun[];
-};
+type NumericValues = readonly number[] | Float64Array;
 
 type NumericRunTitleCell = {
 	readonly run: NumericRun;
@@ -435,16 +435,13 @@ const createStructuredContentEvidence = (
 	let bindingCandidateCount = 0;
 	try {
 		const rows = getStructuredContentRows(content);
+		const columnFacts = getStructuredContentColumnFacts(content);
 		const blockSegments = createStructuredBlockSegments({
-			columnCount: content.columnCount,
+			columnFacts,
 			rows,
 		});
 		const explicitDataRowRanges = createExplicitDataRowRanges(rows, semanticMatcher);
-		const numericScan = scanNumericColumns({
-			columnCount: content.columnCount,
-			rows,
-		});
-		const numericRuns = numericScan.runs;
+		const numericRuns = createNumericRuns(columnFacts);
 		const baseColumnTitleSpans = createColumnTitleSpanEvidence({
 			numericRuns,
 			rows,
@@ -461,7 +458,7 @@ const createStructuredContentEvidence = (
 		});
 		const columnProfiles = createColumnProfiles({
 			columnCount: content.columnCount,
-			columnKinds: numericScan.columnKinds,
+			columnKinds: columnFacts.map(facts => facts.kind),
 			numericRuns,
 			semanticMatcher,
 			titleSpans: columnTitleSpans,
@@ -561,57 +558,27 @@ const getStructuredContentRows = (
 		? readStructuredContentRows(content)
 		: content.rows;
 
-const scanNumericColumns = ({
-	columnCount,
-	rows,
-}: {
-	readonly columnCount: number;
-	readonly rows: readonly (readonly string[])[];
-}): NumericColumnScan => {
-	const columnKinds: StructuredColumnProfile["kind"][] = [];
+const createNumericRuns = (
+	columnFacts: readonly StructuredContentColumnFacts[],
+): readonly NumericRun[] => {
 	const runs: NumericRun[] = [];
-	for (let column = 0; column < columnCount; column += 1) {
-		let hasNumber = false;
-		let hasText = false;
-		let startRow: number | null = null;
-		let values: number[] = [];
-		for (let rowIndex = 0; rowIndex <= rows.length; rowIndex += 1) {
-			const rawValue = rowIndex < rows.length
-				? rows[rowIndex]?.[column]
-				: undefined;
-			const value = rowIndex < rows.length
-				? parseFiniteNumber(rawValue)
-				: null;
-			if (value !== null) {
-				hasNumber = true;
-				startRow ??= rowIndex;
-				values.push(value);
+	for (const facts of columnFacts) {
+		for (const run of facts.numericRuns) {
+			if (run.pointCount < MinimumNumericRunPoints) {
 				continue;
 			}
-			if (normalizeText(rawValue)) {
-				hasText = true;
-			}
-
-			if (startRow !== null && values.length >= MinimumNumericRunPoints) {
-				const endRow = rowIndex - 1;
-				runs.push({
-					id: `numeric-run:c${column}:r${startRow}-${endRow}`,
-					column,
-					startRow,
-					endRow,
-					values,
-					coverage: values.length / Math.max(1, endRow - startRow + 1),
-					pointCount: values.length,
-				});
-			}
-			startRow = null;
-			values = [];
+			runs.push({
+				id: `numeric-run:c${facts.column}:r${run.startRow}-${run.endRow}`,
+				column: facts.column,
+				startRow: run.startRow,
+				endRow: run.endRow,
+				values: run.values,
+				coverage: run.pointCount / Math.max(1, run.endRow - run.startRow + 1),
+				pointCount: run.pointCount,
+			});
 		}
-		columnKinds.push(hasNumber
-			? hasText ? "mixed" : "numeric"
-			: hasText ? "text" : "empty");
 	}
-	return { columnKinds, runs };
+	return runs;
 };
 
 const createExplicitDataRowRanges = (
@@ -2898,7 +2865,7 @@ const createEvidenceDiagnostics = ({
 };
 
 const analyzeNumericPattern = (
-	values: readonly number[],
+	values: NumericValues,
 ): NumericPatternAnalysis => {
 	const diffs = createDiffs(values);
 	const direction = getDirection(diffs);
@@ -2949,7 +2916,7 @@ const analyzeNumericPattern = (
 };
 
 const createDiffs = (
-	values: readonly number[],
+	values: NumericValues,
 ): readonly number[] => {
 	const diffs: number[] = [];
 	for (let index = 1; index < values.length; index += 1) {
@@ -3007,7 +2974,7 @@ const getStableDelta = (
 };
 
 const getStableRatio = (
-	values: readonly number[],
+	values: NumericValues,
 ): boolean => {
 	const ratios: number[] = [];
 	for (let index = 1; index < values.length; index += 1) {
@@ -3027,7 +2994,7 @@ const getStableRatio = (
 };
 
 const splitMonotonicGroups = (
-	values: readonly number[],
+	values: NumericValues,
 ): readonly GroupRange[] => {
 	if (values.length <= 1) {
 		return [{
@@ -3087,7 +3054,7 @@ const splitMonotonicGroups = (
 };
 
 const findNextNonZeroDirection = (
-	values: readonly number[],
+	values: NumericValues,
 	startIndex: number,
 ): Exclude<StructuredXRangeDirection, "mixed"> | null => {
 	for (let index = startIndex; index < values.length; index += 1) {
@@ -3121,7 +3088,7 @@ const createColumnNumericStats = (
 		exponentMin: exponents.length ? Math.min(...exponents) : 0,
 		exponentMax: exponents.length ? Math.max(...exponents) : 0,
 		monotonicity: pattern.monotonicity,
-		uniqueRatio: new Set(finiteValues.map(value => String(value))).size / Math.max(1, finiteValues.length),
+		uniqueRatio: new Set(Array.from(finiteValues, value => String(value))).size / Math.max(1, finiteValues.length),
 		span: max - min,
 	};
 };
@@ -3416,17 +3383,6 @@ const createStructuredContentSource = (
 	...(target.sheetId ? { sheetId: target.sheetId } : {}),
 });
 
-const parseFiniteNumber = (
-	value: unknown,
-): number | null => {
-	const text = normalizeText(value).replace(/,/g, "");
-	if (!text) {
-		return null;
-	}
-	const number = Number(text);
-	return Number.isFinite(number) ? number : null;
-};
-
 const nearlyEqual = (
 	left: number,
 	right: number,
@@ -3439,10 +3395,14 @@ const nearlyEqualWithTolerance = (
 ): boolean => Math.abs(left - right) <= tolerance;
 
 const average = (
-	values: readonly number[],
-): number => values.length
-	? values.reduce((sum, value) => sum + value, 0) / values.length
-	: 0;
+	values: NumericValues,
+): number => {
+	let total = 0;
+	for (const value of values) {
+		total += value;
+	}
+	return values.length ? total / values.length : 0;
+};
 
 const clampConfidence = (
 	value: number,

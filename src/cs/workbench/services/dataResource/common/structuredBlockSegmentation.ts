@@ -2,7 +2,11 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { StructuredContentSourceRange } from "src/cs/workbench/services/dataResource/common/structuredContent";
+import { parseFiniteNumber } from "src/cs/workbench/common/cellText";
+import {
+	type StructuredContentColumnFacts,
+	type StructuredContentSourceRange,
+} from "src/cs/workbench/services/dataResource/common/structuredContent";
 
 export type StructuredBlockTitleCell = {
 	readonly row: number;
@@ -30,12 +34,6 @@ export type StructuredBlockSegment = {
 	readonly reasons: readonly string[];
 };
 
-type ColumnScan = {
-	readonly column: number;
-	readonly longestValueRun?: ValueRun;
-	readonly longestNumericRun?: ValueRun;
-};
-
 type ValueRun = {
 	readonly startRow: number;
 	readonly endRow: number;
@@ -45,7 +43,7 @@ type ValueRun = {
 type DataColumnGroup = {
 	readonly startCol: number;
 	readonly endCol: number;
-	readonly scans: readonly ColumnScan[];
+	readonly scans: readonly StructuredContentColumnFacts[];
 };
 
 const MinimumDataRunPoints = 2;
@@ -53,13 +51,13 @@ const TitleAttachmentColumnGap = 2;
 const HeaderSearchRows = 8;
 
 export const createStructuredBlockSegments = ({
-	columnCount,
+	columnFacts,
 	rows,
 }: {
-	readonly columnCount: number;
+	readonly columnFacts: readonly StructuredContentColumnFacts[];
 	readonly rows: readonly (readonly string[])[];
 }): readonly StructuredBlockSegment[] => {
-	const scans = createColumnScans({ columnCount, rows });
+	const scans = columnFacts;
 	const groups = createDataColumnGroups(scans);
 	return groups.map((group, index) => createBlockSegment({
 		group,
@@ -69,21 +67,8 @@ export const createStructuredBlockSegments = ({
 	}));
 };
 
-const createColumnScans = ({
-	columnCount,
-	rows,
-}: {
-	readonly columnCount: number;
-	readonly rows: readonly (readonly string[])[];
-}): readonly ColumnScan[] =>
-	Array.from({ length: columnCount }, (_, column): ColumnScan => ({
-		column,
-		longestValueRun: findLongestValueRun(rows, column, value => Boolean(normalizeText(value))),
-		longestNumericRun: findLongestValueRun(rows, column, value => parseFiniteNumber(value) !== null),
-	}));
-
 const createDataColumnGroups = (
-	scans: readonly ColumnScan[],
+	scans: readonly StructuredContentColumnFacts[],
 ): readonly DataColumnGroup[] => {
 	const groups: DataColumnGroup[] = [];
 	let startCol: number | null = null;
@@ -121,7 +106,7 @@ const createBlockSegment = ({
 	readonly group: DataColumnGroup;
 	readonly index: number;
 	readonly rows: readonly (readonly string[])[];
-	readonly scans: readonly ColumnScan[];
+	readonly scans: readonly StructuredContentColumnFacts[];
 }): StructuredBlockSegment => {
 	const numericRuns = group.scans
 		.map(scan => scan.longestNumericRun)
@@ -264,7 +249,7 @@ const collectAttachedTitleCells = ({
 	readonly group: DataColumnGroup;
 	readonly headerRow: number | undefined;
 	readonly rows: readonly (readonly string[])[];
-	readonly scans: readonly ColumnScan[];
+	readonly scans: readonly StructuredContentColumnFacts[];
 }): readonly StructuredBlockTitleCell[] => {
 	if (headerRow === undefined) {
 		return [];
@@ -290,7 +275,7 @@ const collectAttachedTitleCells = ({
 };
 
 const collectSeparatorColumns = (
-	scans: readonly ColumnScan[],
+	scans: readonly StructuredContentColumnFacts[],
 	startCol: number,
 	endCol: number,
 ): readonly number[] => {
@@ -334,56 +319,14 @@ const scoreBlockSegment = ({
 };
 
 const isDataLikeColumn = (
-	scan: ColumnScan,
+	scan: StructuredContentColumnFacts,
 ): boolean =>
 	Boolean(scan.longestValueRun && scan.longestValueRun.pointCount >= MinimumDataRunPoints);
 
 const isNumericCoreColumn = (
-	scan: ColumnScan,
+	scan: StructuredContentColumnFacts,
 ): boolean =>
 	Boolean(scan.longestNumericRun && scan.longestNumericRun.pointCount >= MinimumDataRunPoints);
-
-const findLongestValueRun = (
-	rows: readonly (readonly string[])[],
-	column: number,
-	predicate: (value: unknown) => boolean,
-): ValueRun | undefined => {
-	let currentStart: number | null = null;
-	let currentCount = 0;
-	let longest: ValueRun | undefined;
-	for (let rowIndex = 0; rowIndex <= rows.length; rowIndex += 1) {
-		const matches = rowIndex < rows.length && predicate(rows[rowIndex]?.[column]);
-		if (matches) {
-			currentStart ??= rowIndex;
-			currentCount += 1;
-			continue;
-		}
-		if (currentStart !== null) {
-			const run = {
-				startRow: currentStart,
-				endRow: rowIndex - 1,
-				pointCount: currentCount,
-			};
-			if (!longest || run.pointCount > longest.pointCount) {
-				longest = run;
-			}
-		}
-		currentStart = null;
-		currentCount = 0;
-	}
-	return longest;
-};
-
-const parseFiniteNumber = (
-	value: unknown,
-): number | null => {
-	const text = normalizeText(value).replace(/,/g, "");
-	if (!text) {
-		return null;
-	}
-	const number = Number(text);
-	return Number.isFinite(number) ? number : null;
-};
 
 const normalizeText = (
 	value: unknown,

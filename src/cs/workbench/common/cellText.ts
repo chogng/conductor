@@ -5,9 +5,9 @@ export const normalizeCellText = (value: unknown): string =>
     .trim();
 
 export const parseFiniteNumber = (value: unknown): number | null => {
-  const normalized = normalizeCellText(value);
-  if (!normalized) return null;
-  const parsed = Number(normalized);
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  const parsed = Number(text.includes(",") ? text.replace(/,/g, "") : text);
   return Number.isFinite(parsed) ? parsed : null;
 };
 

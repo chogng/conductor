@@ -8,8 +8,9 @@ import {
 } from "src/cs/base/common/zip";
 import { startPerf } from "src/cs/workbench/common/perf";
 import {
-  createStructuredContentFingerprintBuilder,
-  type StructuredContentFingerprintBuilder,
+  createStructuredContentPhysicalAnalysisBuilder,
+  type StructuredContentColumnFacts,
+  type StructuredContentPhysicalAnalysisBuilder,
 } from "src/cs/workbench/services/dataResource/common/structuredContent";
 import {
 	copyBytesToArrayBuffer,
@@ -51,6 +52,7 @@ export const DEFAULT_PHYSICAL_TABLE_SHEET_ID = "0";
 
 export type ParsedTableContent = {
   readonly columnCount: number;
+  readonly columnFacts: readonly StructuredContentColumnFacts[];
   readonly contentFingerprint: string;
   readonly maxCellLengths: readonly number[];
   readonly rowCount: number;
@@ -985,7 +987,7 @@ const formatExcelSerialDate = (
 
 type ParsedTableContentBuilder = {
   readonly maxCellLengths: number[];
-  readonly fingerprintBuilder: StructuredContentFingerprintBuilder;
+  readonly physicalAnalysisBuilder: StructuredContentPhysicalAnalysisBuilder;
   readonly windows: ParsedTableRowWindow[];
   columnCount: number;
   currentWindowRows: string[][];
@@ -997,8 +999,8 @@ const createParsedTableContentBuilder = (): ParsedTableContentBuilder => ({
   columnCount: 0,
   currentWindowRows: [],
   currentWindowStartRowIndex: 0,
-  fingerprintBuilder: createStructuredContentFingerprintBuilder(),
   maxCellLengths: [],
+  physicalAnalysisBuilder: createStructuredContentPhysicalAnalysisBuilder(),
   rowCount: 0,
   windows: [],
 });
@@ -1011,7 +1013,7 @@ const appendParsedTableRow = (
     builder.currentWindowStartRowIndex = builder.rowCount;
   }
   builder.currentWindowRows.push(row);
-  builder.fingerprintBuilder.appendRow(row);
+  builder.physicalAnalysisBuilder.appendRow(row);
   builder.rowCount += 1;
   builder.columnCount = Math.max(builder.columnCount, row.length);
   for (let columnIndex = 0; columnIndex < row.length; columnIndex += 1) {
@@ -1032,7 +1034,7 @@ const finalizeParsedTableContent = (
   const maxCellLengths = Array.from({ length: builder.columnCount }, (_, columnIndex) =>
     builder.maxCellLengths[columnIndex] ?? 0
   );
-  const contentFingerprint = builder.fingerprintBuilder.finish({
+  const physicalAnalysis = builder.physicalAnalysisBuilder.finish({
     columnCount: builder.columnCount,
     maxCellLengths,
     rowCount: builder.rowCount,
@@ -1040,7 +1042,8 @@ const finalizeParsedTableContent = (
   if (!builder.rowCount) {
     return {
       columnCount: 0,
-      contentFingerprint,
+      columnFacts: physicalAnalysis.columnFacts,
+      contentFingerprint: physicalAnalysis.contentFingerprint,
       maxCellLengths: [],
       rowCount: 0,
       rows: [],
@@ -1050,7 +1053,8 @@ const finalizeParsedTableContent = (
   const rows = builder.windows[0]?.rows ?? [];
   return {
     columnCount: builder.columnCount,
-    contentFingerprint,
+    columnFacts: physicalAnalysis.columnFacts,
+    contentFingerprint: physicalAnalysis.contentFingerprint,
     maxCellLengths,
     rowCount: builder.rowCount,
     rows,

@@ -301,13 +301,28 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		const reference = await service.createModelReference(resource);
 		store.add(reference);
 
+		const expectedContent = {
+			columnCount: 2,
+			columnFacts: [{
+				column: 0,
+				kind: "mixed",
+				longestNumericRun: { startRow: 1, endRow: 1, pointCount: 1 },
+				longestValueRun: { startRow: 0, endRow: 1, pointCount: 2 },
+				numericRuns: [{ startRow: 1, endRow: 1, pointCount: 1, values: new Float64Array([0]) }],
+			}, {
+				column: 1,
+				kind: "mixed",
+				longestNumericRun: { startRow: 1, endRow: 1, pointCount: 1 },
+				longestValueRun: { startRow: 0, endRow: 1, pointCount: 2 },
+				numericRuns: [{ startRow: 1, endRow: 1, pointCount: 1, values: new Float64Array([1]) }],
+			}],
+			contentFingerprint: "structured-content:1c1h5sa",
+			maxCellLengths: [2, 2],
+			rowCount: 2,
+			rows: [["Vg", "Id"], ["0", "1"]],
+		};
 		assert.deepStrictEqual(reference.object.getSnapshot(), {
-			content: {
-				columnCount: 2,
-				maxCellLengths: [2, 2],
-				rowCount: 2,
-				rows: [["Vg", "Id"], ["0", "1"]],
-			},
+			content: expectedContent,
 			defaultSheetId: resource.toString(),
 			diagnostics: [],
 			format: "csv",
@@ -317,12 +332,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 			},
 			resource,
 			sheets: [{
-				content: {
-					columnCount: 2,
-					maxCellLengths: [2, 2],
-					rowCount: 2,
-					rows: [["Vg", "Id"], ["0", "1"]],
-				},
+				content: expectedContent,
 				diagnostics: [],
 				sheetId: resource.toString(),
 				sheetName: null,
@@ -527,11 +537,28 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		await manager.reload(resource);
 
 		assert.deepStrictEqual({
+			columnFacts: fileEditorModel.model.getSnapshot().content?.columnFacts,
 			rows: fileEditorModel.model.getSnapshot().content?.rows,
 			sourceVersion: fileEditorModel.model.getSnapshot().sourceVersion,
 			version: fileEditorModel.model.getSnapshot().version,
 			workbenchSourceVersion: fileEditorModel.getSourceVersion(),
 		}, {
+			columnFacts: [
+				{
+					column: 0,
+					kind: "mixed",
+					longestValueRun: { startRow: 0, endRow: 2, pointCount: 3 },
+					longestNumericRun: { startRow: 1, endRow: 2, pointCount: 2 },
+					numericRuns: [{ startRow: 1, endRow: 2, pointCount: 2, values: new Float64Array([3, 5]) }],
+				},
+				{
+					column: 1,
+					kind: "mixed",
+					longestValueRun: { startRow: 0, endRow: 2, pointCount: 3 },
+					longestNumericRun: { startRow: 1, endRow: 2, pointCount: 2 },
+					numericRuns: [{ startRow: 1, endRow: 2, pointCount: 2, values: new Float64Array([4, 6]) }],
+				},
+			],
 			rows: [["A", "B"], ["3", "4"], ["5", "6"]],
 			sourceVersion: 20,
 			version: 2,

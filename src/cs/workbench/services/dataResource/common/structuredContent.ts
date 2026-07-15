@@ -2,6 +2,8 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import { parseFiniteNumber } from "src/cs/workbench/common/cellText";
+
 export type StructuredContentSourceRange = {
 	readonly startRow: number;
 	readonly endRow: number;
@@ -351,8 +353,27 @@ export type StructuredContentRowWindow = {
 	readonly rows: readonly (readonly string[])[];
 };
 
+export type StructuredContentValueRun = {
+	readonly startRow: number;
+	readonly endRow: number;
+	readonly pointCount: number;
+};
+
+export type StructuredContentNumericRun = StructuredContentValueRun & {
+	readonly values: Float64Array;
+};
+
+export type StructuredContentColumnFacts = {
+	readonly column: number;
+	readonly kind: StructuredColumnKind;
+	readonly longestValueRun?: StructuredContentValueRun;
+	readonly longestNumericRun?: StructuredContentValueRun;
+	readonly numericRuns: readonly StructuredContentNumericRun[];
+};
+
 export type StructuredContentGridSnapshot = {
 	readonly columnCount: number;
+	readonly columnFacts?: readonly StructuredContentColumnFacts[];
 	readonly contentFingerprint?: string;
 	readonly maxCellLengths: readonly number[];
 	readonly rowCount: number;
@@ -360,27 +381,49 @@ export type StructuredContentGridSnapshot = {
 	readonly rowWindows?: readonly StructuredContentRowWindow[];
 };
 
-export type StructuredContentFingerprintBuilder = {
+export type StructuredContentPhysicalAnalysis = {
+	readonly columnFacts: readonly StructuredContentColumnFacts[];
+	readonly contentFingerprint: string;
+};
+
+export type StructuredContentPhysicalAnalysisBuilder = {
 	appendRow(row: readonly string[]): void;
 	finish(input: {
 		readonly columnCount: number;
 		readonly maxCellLengths: readonly number[];
 		readonly rowCount: number;
-	}): string;
+	}): StructuredContentPhysicalAnalysis;
 };
 
-export const createStructuredContentFingerprintBuilder = (): StructuredContentFingerprintBuilder => {
+type MutableStructuredContentColumnFacts = {
+	readonly column: number;
+	readonly numericRuns: StructuredContentNumericRun[];
+	currentNumericRunStartRow: number | null;
+	currentNumericRunValues: number[];
+	currentValueRunStartRow: number | null;
+	hasNumber: boolean;
+	hasText: boolean;
+	lastObservedRow: number;
+	longestNumericRun?: StructuredContentValueRun;
+	longestValueRun?: StructuredContentValueRun;
+};
+
+export const createStructuredContentPhysicalAnalysisBuilder = (): StructuredContentPhysicalAnalysisBuilder => {
 	const rowsHash = createStructuredContentHashBuilder();
+	const columns: MutableStructuredContentColumnFacts[] = [];
 	let appendedRowCount = 0;
 	return {
 		appendRow(row): void {
 			rowsHash.append(row.length);
-			for (const value of row) {
+			for (let column = 0; column < row.length; column += 1) {
+				const value = row[column] ?? "";
 				rowsHash.append(value);
+				const facts = columns[column] ??= createMutableStructuredContentColumnFacts(column);
+				appendStructuredContentColumnValue(facts, value, appendedRowCount);
 			}
 			appendedRowCount += 1;
 		},
-		finish({ columnCount, maxCellLengths, rowCount }): string {
+		finish({ columnCount, maxCellLengths, rowCount }): StructuredContentPhysicalAnalysis {
 			const contentHash = createStructuredContentHashBuilder();
 			contentHash.append("structured-content-v1");
 			contentHash.append(columnCount);
@@ -391,10 +434,120 @@ export const createStructuredContentFingerprintBuilder = (): StructuredContentFi
 			}
 			contentHash.append(appendedRowCount);
 			contentHash.append(rowsHash.digest());
-			return `structured-content:${contentHash.digest()}`;
+			return {
+				columnFacts: Array.from({ length: columnCount }, (_, column) =>
+					finishStructuredContentColumnFacts(
+						columns[column] ?? createMutableStructuredContentColumnFacts(column),
+					)
+				),
+				contentFingerprint: `structured-content:${contentHash.digest()}`,
+			};
 		},
 	};
 };
+
+const createMutableStructuredContentColumnFacts = (
+	column: number,
+): MutableStructuredContentColumnFacts => ({
+	column,
+	currentNumericRunStartRow: null,
+	currentNumericRunValues: [],
+	currentValueRunStartRow: null,
+	hasNumber: false,
+	hasText: false,
+	lastObservedRow: -1,
+	numericRuns: [],
+});
+
+const appendStructuredContentColumnValue = (
+	facts: MutableStructuredContentColumnFacts,
+	rawValue: string,
+	row: number,
+): void => {
+	if (facts.lastObservedRow >= 0 && facts.lastObservedRow < row - 1) {
+		finishStructuredContentValueRun(facts, facts.lastObservedRow);
+		finishStructuredContentNumericRun(facts, facts.lastObservedRow);
+	}
+
+	const numericValue = parseFiniteNumber(rawValue);
+	const hasText = numericValue === null && Boolean(normalizeStructuredContentText(rawValue));
+	if (numericValue !== null || hasText) {
+		facts.currentValueRunStartRow ??= row;
+	} else {
+		finishStructuredContentValueRun(facts, row - 1);
+	}
+	if (numericValue !== null) {
+		facts.hasNumber = true;
+		facts.currentNumericRunStartRow ??= row;
+		facts.currentNumericRunValues.push(numericValue);
+	} else {
+		facts.hasText ||= hasText;
+		finishStructuredContentNumericRun(facts, row - 1);
+	}
+	facts.lastObservedRow = row;
+};
+
+const finishStructuredContentColumnFacts = (
+	facts: MutableStructuredContentColumnFacts,
+): StructuredContentColumnFacts => {
+	finishStructuredContentValueRun(facts, facts.lastObservedRow);
+	finishStructuredContentNumericRun(facts, facts.lastObservedRow);
+	return {
+		column: facts.column,
+		kind: facts.hasNumber
+			? facts.hasText ? "mixed" : "numeric"
+			: facts.hasText ? "text" : "empty",
+		...(facts.longestValueRun ? { longestValueRun: facts.longestValueRun } : {}),
+		...(facts.longestNumericRun ? { longestNumericRun: facts.longestNumericRun } : {}),
+		numericRuns: facts.numericRuns,
+	};
+};
+
+const finishStructuredContentValueRun = (
+	facts: MutableStructuredContentColumnFacts,
+	endRow: number,
+): void => {
+	if (facts.currentValueRunStartRow === null) {
+		return;
+	}
+	const run = createStructuredContentValueRun(facts.currentValueRunStartRow, endRow);
+	if (!facts.longestValueRun || run.pointCount > facts.longestValueRun.pointCount) {
+		facts.longestValueRun = run;
+	}
+	facts.currentValueRunStartRow = null;
+};
+
+const finishStructuredContentNumericRun = (
+	facts: MutableStructuredContentColumnFacts,
+	endRow: number,
+): void => {
+	if (facts.currentNumericRunStartRow === null) {
+		return;
+	}
+	const run = {
+		...createStructuredContentValueRun(facts.currentNumericRunStartRow, endRow),
+		values: Float64Array.from(facts.currentNumericRunValues),
+	};
+	facts.numericRuns.push(run);
+	if (!facts.longestNumericRun || run.pointCount > facts.longestNumericRun.pointCount) {
+		facts.longestNumericRun = {
+			startRow: run.startRow,
+			endRow: run.endRow,
+			pointCount: run.pointCount,
+		};
+	}
+	facts.currentNumericRunStartRow = null;
+	facts.currentNumericRunValues = [];
+};
+
+const createStructuredContentValueRun = (
+	startRow: number,
+	endRow: number,
+): StructuredContentValueRun => ({
+	startRow,
+	endRow,
+	pointCount: endRow - startRow + 1,
+});
 
 export type StructuredContentEvidence = {
 	readonly structure: StructuredContentStructure;
@@ -449,8 +602,20 @@ export const getStructuredContentFingerprint = (
 	if (content.contentFingerprint) {
 		return content.contentFingerprint;
 	}
+	return createStructuredContentPhysicalAnalysis(content).contentFingerprint;
+};
 
-	const builder = createStructuredContentFingerprintBuilder();
+export const getStructuredContentColumnFacts = (
+	content: StructuredContentGridSnapshot,
+): readonly StructuredContentColumnFacts[] =>
+	content.columnFacts?.length === content.columnCount
+		? content.columnFacts
+		: createStructuredContentPhysicalAnalysis(content).columnFacts;
+
+const createStructuredContentPhysicalAnalysis = (
+	content: StructuredContentGridSnapshot,
+): StructuredContentPhysicalAnalysis => {
+	const builder = createStructuredContentPhysicalAnalysisBuilder();
 	for (const row of readStructuredContentRows(content)) {
 		builder.appendRow(row);
 	}
@@ -460,6 +625,10 @@ export const getStructuredContentFingerprint = (
 		rowCount: content.rowCount,
 	});
 };
+
+const normalizeStructuredContentText = (
+	value: unknown,
+): string => String(value ?? "").trim();
 
 const createStructuredContentHashBuilder = () => {
 	let hash = 2166136261;

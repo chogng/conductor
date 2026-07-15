@@ -158,7 +158,7 @@ suite("workbench/services/table/test/common/tableStructureParser", () => {
 		]);
 	});
 
-	test("emits stable content fingerprints while parsing", async () => {
+	test("emits stable physical content analysis while parsing", async () => {
 		const parse = (text: string) => parseTableStructure({
 			buffer: createTableTextBuffer(text, "utf8"),
 			format: "csv",
@@ -166,10 +166,34 @@ suite("workbench/services/table/test/common/tableStructureParser", () => {
 		const first = await parse("Vg,Id\n0,1\n1,2");
 		const same = await parse("Vg,Id\n0,1\n1,2");
 		const changed = await parse("Vg,Id\n0,1\n2,3");
+		const ragged = await parse("A,B\n1\n2,3");
 
 		assert.ok(first.content?.contentFingerprint);
 		assert.equal(first.content?.contentFingerprint, same.content?.contentFingerprint);
 		assert.notEqual(first.content?.contentFingerprint, changed.content?.contentFingerprint);
+		assert.deepStrictEqual(first.content?.columnFacts, [
+			{
+				column: 0,
+				kind: "mixed",
+				longestValueRun: { startRow: 0, endRow: 2, pointCount: 3 },
+				longestNumericRun: { startRow: 1, endRow: 2, pointCount: 2 },
+				numericRuns: [{ startRow: 1, endRow: 2, pointCount: 2, values: new Float64Array([0, 1]) }],
+			},
+			{
+				column: 1,
+				kind: "mixed",
+				longestValueRun: { startRow: 0, endRow: 2, pointCount: 3 },
+				longestNumericRun: { startRow: 1, endRow: 2, pointCount: 2 },
+				numericRuns: [{ startRow: 1, endRow: 2, pointCount: 2, values: new Float64Array([1, 2]) }],
+			},
+		]);
+		assert.deepStrictEqual(ragged.content?.columnFacts[1], {
+			column: 1,
+			kind: "mixed",
+			longestValueRun: { startRow: 0, endRow: 0, pointCount: 1 },
+			longestNumericRun: { startRow: 2, endRow: 2, pointCount: 1 },
+			numericRuns: [{ startRow: 2, endRow: 2, pointCount: 1, values: new Float64Array([3]) }],
+		});
 	});
 
 	test("reports repeated unescaped quote diagnostics once", async () => {

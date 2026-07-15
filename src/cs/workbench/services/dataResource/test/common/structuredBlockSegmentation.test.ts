@@ -5,41 +5,43 @@
 import assert from "assert";
 
 import { createStructuredBlockSegments } from "src/cs/workbench/services/dataResource/common/structuredBlockSegmentation";
+import { createStructuredContentPhysicalAnalysisBuilder } from "src/cs/workbench/services/dataResource/common/structuredContent";
 
 suite("workbench/services/dataResource/test/common/structuredBlockSegmentation", () => {
 	test("segments horizontal FET blocks with local titles and blank gaps", () => {
-		const segments = createStructuredBlockSegments({
-			columnCount: 22,
-			rows: [
-				[
-					"1-HS", "Index", "Vd (V)", "Id (A)", "Vg (V)", "Ig (A)",
-					"", "", "",
-					"Index", "Vd (V)", "Id (A)", "Vg (V)", "Ig (A)",
-					"", "2-1-hs", "",
-					"Index", "Vd (V)", "Id (A)", "Vg (V)", "Ig (A)",
-				],
-				[
-					"", "1", "3", "1e-10", "60", "4e-10",
-					"", "", "",
-					"1", "5", "2e-10", "60", "3e-10",
-					"", "", "",
-					"1", "3", "1e-10", "60", "2e-10",
-				],
-				[
-					"", "2", "2.97", "2e-10", "60", "3e-10",
-					"", "", "",
-					"2", "4.95", "3e-10", "60", "2e-10",
-					"", "", "",
-					"2", "2.97", "2e-10", "60", "2.5e-10",
-				],
-				[
-					"", "3", "2.94", "3e-10", "60", "2e-10",
-					"", "", "",
-					"3", "4.9", "4e-10", "60", "1e-10",
-					"", "", "",
-					"3", "2.94", "3e-10", "60", "3e-10",
-				],
+		const rows = [
+			[
+				"1-HS", "Index", "Vd (V)", "Id (A)", "Vg (V)", "Ig (A)",
+				"", "", "",
+				"Index", "Vd (V)", "Id (A)", "Vg (V)", "Ig (A)",
+				"", "2-1-hs", "",
+				"Index", "Vd (V)", "Id (A)", "Vg (V)", "Ig (A)",
 			],
+			[
+				"", "1", "3", "1e-10", "60", "4e-10",
+				"", "", "",
+				"1", "5", "2e-10", "60", "3e-10",
+				"", "", "",
+				"1", "3", "1e-10", "60", "2e-10",
+			],
+			[
+				"", "2", "2.97", "2e-10", "60", "3e-10",
+				"", "", "",
+				"2", "4.95", "3e-10", "60", "2e-10",
+				"", "", "",
+				"2", "2.97", "2e-10", "60", "2.5e-10",
+			],
+			[
+				"", "3", "2.94", "3e-10", "60", "2e-10",
+				"", "", "",
+				"3", "4.9", "4e-10", "60", "1e-10",
+				"", "", "",
+				"3", "2.94", "3e-10", "60", "3e-10",
+			],
+		];
+		const segments = createStructuredBlockSegments({
+			columnFacts: createColumnFacts(rows, 22),
+			rows,
 		});
 
 		assert.deepStrictEqual(
@@ -81,14 +83,15 @@ suite("workbench/services/dataResource/test/common/structuredBlockSegmentation",
 	});
 
 	test("keeps dense text index columns inside physical data blocks", () => {
+		const rows = [
+			["Index", "Vg (V)", "Id (A)", "Vd (V)", "Ig (A)"],
+			["2023-01-01", "60", "1e-10", "-0.1", "4e-10"],
+			["2023-01-02", "59.4", "2e-10", "-0.1", "3e-10"],
+			["2023-01-03", "58.8", "3e-10", "-0.1", "2e-10"],
+		];
 		const segments = createStructuredBlockSegments({
-			columnCount: 5,
-			rows: [
-				["Index", "Vg (V)", "Id (A)", "Vd (V)", "Ig (A)"],
-				["2023-01-01", "60", "1e-10", "-0.1", "4e-10"],
-				["2023-01-02", "59.4", "2e-10", "-0.1", "3e-10"],
-				["2023-01-03", "58.8", "3e-10", "-0.1", "2e-10"],
-			],
+			columnFacts: createColumnFacts(rows, 5),
+			rows,
 		});
 
 		assert.deepStrictEqual(
@@ -114,3 +117,18 @@ suite("workbench/services/dataResource/test/common/structuredBlockSegmentation",
 		);
 	});
 });
+
+const createColumnFacts = (
+	rows: readonly (readonly string[])[],
+	columnCount: number,
+) => {
+	const builder = createStructuredContentPhysicalAnalysisBuilder();
+	for (const row of rows) {
+		builder.appendRow(row);
+	}
+	return builder.finish({
+		columnCount,
+		maxCellLengths: [],
+		rowCount: rows.length,
+	}).columnFacts;
+};
