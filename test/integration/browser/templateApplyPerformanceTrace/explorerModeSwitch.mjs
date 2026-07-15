@@ -240,8 +240,8 @@ const startExplorerModeSwitchDomProbe = async (page) => page.evaluate(() => {
   observer.observe(document.body || document.documentElement, {
     attributeFilter: [
       "class",
-      "data-badge-source",
-      "data-badge-state",
+      "data-source",
+      "data-state",
       "data-chart-state",
       "data-file-id",
       "data-has-chart-data",

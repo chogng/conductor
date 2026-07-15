@@ -353,10 +353,47 @@ export type StructuredContentRowWindow = {
 
 export type StructuredContentGridSnapshot = {
 	readonly columnCount: number;
+	readonly contentFingerprint?: string;
 	readonly maxCellLengths: readonly number[];
 	readonly rowCount: number;
 	readonly rows: readonly (readonly string[])[];
 	readonly rowWindows?: readonly StructuredContentRowWindow[];
+};
+
+export type StructuredContentFingerprintBuilder = {
+	appendRow(row: readonly string[]): void;
+	finish(input: {
+		readonly columnCount: number;
+		readonly maxCellLengths: readonly number[];
+		readonly rowCount: number;
+	}): string;
+};
+
+export const createStructuredContentFingerprintBuilder = (): StructuredContentFingerprintBuilder => {
+	const rowsHash = createStructuredContentHashBuilder();
+	let appendedRowCount = 0;
+	return {
+		appendRow(row): void {
+			rowsHash.append(row.length);
+			for (const value of row) {
+				rowsHash.append(value);
+			}
+			appendedRowCount += 1;
+		},
+		finish({ columnCount, maxCellLengths, rowCount }): string {
+			const contentHash = createStructuredContentHashBuilder();
+			contentHash.append("structured-content-v1");
+			contentHash.append(columnCount);
+			contentHash.append(rowCount);
+			contentHash.append(maxCellLengths.length);
+			for (const length of maxCellLengths) {
+				contentHash.append(length);
+			}
+			contentHash.append(appendedRowCount);
+			contentHash.append(rowsHash.digest());
+			return `structured-content:${contentHash.digest()}`;
+		},
+	};
 };
 
 export type StructuredContentEvidence = {
@@ -404,6 +441,44 @@ export const readStructuredContentRows = (
 		rows.push(row);
 	}
 	return rows;
+};
+
+export const getStructuredContentFingerprint = (
+	content: StructuredContentGridSnapshot,
+): string => {
+	if (content.contentFingerprint) {
+		return content.contentFingerprint;
+	}
+
+	const builder = createStructuredContentFingerprintBuilder();
+	for (const row of readStructuredContentRows(content)) {
+		builder.appendRow(row);
+	}
+	return builder.finish({
+		columnCount: content.columnCount,
+		maxCellLengths: content.maxCellLengths,
+		rowCount: content.rowCount,
+	});
+};
+
+const createStructuredContentHashBuilder = () => {
+	let hash = 2166136261;
+	const appendText = (value: string): void => {
+		for (let index = 0; index < value.length; index += 1) {
+			hash ^= value.charCodeAt(index);
+			hash = Math.imul(hash, 16777619);
+		}
+		hash ^= 31;
+		hash = Math.imul(hash, 16777619);
+	};
+	return {
+		append(value: unknown): void {
+			appendText(String(value ?? ""));
+		},
+		digest(): string {
+			return (hash >>> 0).toString(36);
+		},
+	};
 };
 
 const getStructuredContentRow = (

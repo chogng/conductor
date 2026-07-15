@@ -23,6 +23,10 @@ import {
 } from "src/cs/workbench/services/review/common/review";
 import type { ReviewSummary, ReviewSummaryTarget } from "src/cs/workbench/services/review/common/reviewModel";
 import {
+	isTemplateApplyPerformanceTraceEnabled,
+	markTemplateApplyPerformanceTrace,
+} from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
+import {
 	IDecorationsService,
 	type IDecorationData,
 	type IDecorationsProvider,
@@ -43,9 +47,11 @@ export class ExplorerDecorationsProvider extends Disposable implements IDecorati
 		super();
 		this._register(this.explorerService.onDidChangeFiles(() => {
 			this.fireAllResourceDecorationsChanged();
+			this.markReviewDecorationProjection();
 		}));
 		this._register(this.reviewService.onDidChangeReview(targets => {
 			this.fireReviewDecorationsChanged(targets);
+			this.markReviewDecorationProjection();
 		}));
 	}
 
@@ -122,6 +128,49 @@ export class ExplorerDecorationsProvider extends Disposable implements IDecorati
 			return target.sheetId
 				? String(entry.sheetId ?? "").trim() === target.sheetId
 				: true;
+		});
+	}
+
+	private markReviewDecorationProjection(): void {
+		if (!isTemplateApplyPerformanceTraceEnabled()) {
+			return;
+		}
+
+		let loadingSourceCount = 0;
+		let pendingBadgeCount = 0;
+		let reviewDecorationCount = 0;
+		let totalFileCount = 0;
+		for (const entry of this.getExplorerEntries()) {
+			const resource = getExplorerEntryDecorationResource(entry);
+			if (!resource) {
+				continue;
+			}
+			totalFileCount += 1;
+			if (entry.sourceStatus === "pending" || entry.sourceStatus === "preparing") {
+				loadingSourceCount += 1;
+			}
+			const decoration = createExplorerDecorationDataFromReviewSummary(
+				this.reviewService.getLatestReviewSummary({
+					resource,
+					sheetId: entry.sheetId,
+				}),
+			);
+			if (!decoration) {
+				continue;
+			}
+			if (decoration.letter === "...") {
+				pendingBadgeCount += 1;
+			} else {
+				reviewDecorationCount += 1;
+			}
+		}
+
+		markTemplateApplyPerformanceTrace("import.badge.projection", {
+			confirmedBadgeCount: reviewDecorationCount,
+			loadingSourceCount,
+			pendingBadgeCount,
+			reviewDecorationCount,
+			totalFileCount,
 		});
 	}
 }

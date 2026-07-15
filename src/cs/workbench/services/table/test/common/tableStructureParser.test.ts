@@ -158,6 +158,20 @@ suite("workbench/services/table/test/common/tableStructureParser", () => {
 		]);
 	});
 
+	test("emits stable content fingerprints while parsing", async () => {
+		const parse = (text: string) => parseTableStructure({
+			buffer: createTableTextBuffer(text, "utf8"),
+			format: "csv",
+		});
+		const first = await parse("Vg,Id\n0,1\n1,2");
+		const same = await parse("Vg,Id\n0,1\n1,2");
+		const changed = await parse("Vg,Id\n0,1\n2,3");
+
+		assert.ok(first.content?.contentFingerprint);
+		assert.equal(first.content?.contentFingerprint, same.content?.contentFingerprint);
+		assert.notEqual(first.content?.contentFingerprint, changed.content?.contentFingerprint);
+	});
+
 	test("reports repeated unescaped quote diagnostics once", async () => {
 		const result = await parseTableStructure({
 			buffer: createTableTextBuffer("\"a\"x,b\n\"c\"y,d", "utf8"),

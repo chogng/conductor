@@ -250,17 +250,17 @@ export const findNewBrowserProcessRootPid = (rowsBeforeLaunch) => {
 
 export const readTraceState = async (page) => page.evaluate(() => {
   const trace = window.__conductorTemplateApplyPerformanceTrace;
-  const hosts = [...document.querySelectorAll("[data-badge-state]")];
+  const hosts = [...document.querySelectorAll(".file-list-item-review-decoration[data-state]")];
   const apply = [...document.querySelectorAll("button")]
     .find(button => /^(应用到所有|Apply to All)$/.test((button.textContent || "").trim()));
   return {
     dom: {
-      reviewDecorationCount: hosts.filter(host => host.dataset.badgeSource === "review").length,
-      fast: hosts.filter(host => host.dataset.badgeSource === "fast").length,
+      reviewDecorationCount: hosts.filter(host => host.dataset.state === "decoration" && host.textContent?.trim() !== "...").length,
+      fast: hosts.filter(host => host.dataset.source === "fast").length,
       hosts: hosts.length,
       loading: [...document.querySelectorAll("[data-source-status]")]
         .filter(host => host.dataset.sourceStatus === "pending" || host.dataset.sourceStatus === "preparing").length,
-      pending: hosts.filter(host => host.dataset.badgeState === "pending").length,
+      pending: hosts.filter(host => host.textContent?.trim() === "...").length,
       applyDisabled: apply ? apply.disabled : null,
       applyVisible: Boolean(apply),
     },
@@ -282,17 +282,17 @@ export const installPageTraceObservers = async (page) => page.evaluate(() => {
     }
   };
   const readBadgeDom = () => {
-    const hosts = [...document.querySelectorAll("[data-badge-state]")];
+    const hosts = [...document.querySelectorAll(".file-list-item-review-decoration[data-state]")];
     const sourceHosts = [...document.querySelectorAll("[data-source-status]")];
     return {
-      reviewDecorationCount: hosts.filter(host => host.dataset.badgeSource === "review").length,
-      fastBadgeCount: hosts.filter(host => host.dataset.badgeSource === "fast").length,
+      reviewDecorationCount: hosts.filter(host => host.dataset.state === "decoration" && host.textContent?.trim() !== "...").length,
+      fastBadgeCount: hosts.filter(host => host.dataset.source === "fast").length,
       hostCount: hosts.length,
       loadingSourceCount: sourceHosts.filter(host =>
         host.dataset.sourceStatus === "pending" ||
         host.dataset.sourceStatus === "preparing"
       ).length,
-      pendingBadgeCount: hosts.filter(host => host.dataset.badgeState === "pending").length,
+      pendingBadgeCount: hosts.filter(host => host.textContent?.trim() === "...").length,
     };
   };
   let badgeSignature = "";
@@ -334,15 +334,15 @@ export const installPageTraceObservers = async (page) => page.evaluate(() => {
   const observer = new MutationObserver((mutations) => {
     if (mutations.some(mutation =>
       mutation.type === "childList" ||
-      mutation.attributeName === "data-badge-state" ||
-      mutation.attributeName === "data-badge-source" ||
+      mutation.attributeName === "data-state" ||
+      mutation.attributeName === "data-source" ||
       mutation.attributeName === "data-source-status"
     )) {
       scheduleBadgeRead();
     }
   });
   observer.observe(document.body || document.documentElement, {
-    attributeFilter: ["data-badge-state", "data-badge-source", "data-source-status"],
+    attributeFilter: ["data-state", "data-source", "data-source-status"],
     attributes: true,
     childList: true,
     subtree: true,
@@ -469,7 +469,10 @@ export const waitForTraceCompletion = async ({
       reviewDecorationCount >= expectedReviewDecorationCount &&
       (loadingSourceCount === 0 || applyReady)
     ) {
-      return latest;
+      await page.evaluate(() => new Promise(resolve => {
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+      }));
+      return readTraceState(page);
     }
     await page.waitForTimeout(100);
   }

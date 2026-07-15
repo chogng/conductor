@@ -23,6 +23,7 @@ import {
 } from "src/cs/workbench/services/dataResource/common/semanticRules";
 import {
 	createEmptyStructuredContentStructure,
+	getStructuredContentFingerprint,
 	readStructuredContentRows,
 	type StructuredAxisTendency,
 	type StructuredBindingCandidate,
@@ -84,6 +85,11 @@ type NumericRun = {
 	readonly values: readonly number[];
 	readonly coverage: number;
 	readonly pointCount: number;
+};
+
+type NumericColumnScan = {
+	readonly columnKinds: readonly StructuredColumnProfile["kind"][];
+	readonly runs: readonly NumericRun[];
 };
 
 type NumericRunTitleCell = {
@@ -156,6 +162,7 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 	public readonly onDidChangeResource: Event<URI> = this.onDidChangeResourceEmitter.event;
 	private readonly trackedResources = new Map<string, URI>();
 	private readonly structuredContentSignaturesByResourceKey = new Map<string, string>();
+	private semanticMatcher: SemanticMatcher;
 	private semanticSettingsFingerprint = "";
 
 	public constructor(
@@ -170,17 +177,20 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 				this.structuredContentSignaturesByResourceKey.clear();
 			},
 		});
-		this.semanticSettingsFingerprint = this.createSettingsSemanticMatcher().fingerprint;
+		this.semanticMatcher = this.createSettingsSemanticMatcher();
+		this.semanticSettingsFingerprint = this.semanticMatcher.fingerprint;
 		this._register(this.tableModelService.onDidChangeModel(model => {
 			if (this.rememberStableStructuredContentSignature(model.getSnapshot())) {
 				this.onDidChangeResourceEmitter.fire(model.resource);
 			}
 		}));
 		this._register(this.settingsService.onDidChangeConductorSettings(() => {
-			const nextFingerprint = this.createSettingsSemanticMatcher().fingerprint;
+			const nextMatcher = this.createSettingsSemanticMatcher();
+			const nextFingerprint = nextMatcher.fingerprint;
 			if (nextFingerprint === this.semanticSettingsFingerprint) {
 				return;
 			}
+			this.semanticMatcher = nextMatcher;
 			this.semanticSettingsFingerprint = nextFingerprint;
 			for (const resource of this.trackedResources.values()) {
 				this.onDidChangeResourceEmitter.fire(resource);
@@ -202,7 +212,7 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 		);
 		const snapshot = reference.object.getSnapshot();
 		this.rememberStableStructuredContentSignature(snapshot);
-		const resolution = createStructuredContentResolution(snapshot, target, this.createSettingsSemanticMatcher());
+		const resolution = createStructuredContentResolution(snapshot, target, this.semanticMatcher);
 		return {
 			object: resolution,
 			dispose: () => {
@@ -222,7 +232,7 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 
 		const snapshot = model.getSnapshot();
 		this.rememberStableStructuredContentSignature(snapshot);
-		return createStructuredContentResolution(snapshot, target, this.createSettingsSemanticMatcher());
+		return createStructuredContentResolution(snapshot, target, this.semanticMatcher);
 	}
 
 	public resolve(target: DataResourceStructuredContentTarget): void {
@@ -393,21 +403,7 @@ const appendContentSignature = (
 		return;
 	}
 
-	builder.append(content.rowCount);
-	builder.append(content.columnCount);
-	builder.append(content.maxCellLengths.length);
-	for (const length of content.maxCellLengths) {
-		builder.append(length);
-	}
-
-	const rows = readStructuredContentRows(content);
-	builder.append(rows.length);
-	for (const row of rows) {
-		builder.append(row.length);
-		for (const value of row) {
-			builder.append(value);
-		}
-	}
+	builder.append(getStructuredContentFingerprint(content));
 };
 
 const toDataResourceLoadState = (
@@ -444,10 +440,11 @@ const createStructuredContentEvidence = (
 			rows,
 		});
 		const explicitDataRowRanges = createExplicitDataRowRanges(rows, semanticMatcher);
-		const numericRuns = createNumericRuns({
+		const numericScan = scanNumericColumns({
 			columnCount: content.columnCount,
 			rows,
 		});
+		const numericRuns = numericScan.runs;
 		const baseColumnTitleSpans = createColumnTitleSpanEvidence({
 			numericRuns,
 			rows,
@@ -464,8 +461,8 @@ const createStructuredContentEvidence = (
 		});
 		const columnProfiles = createColumnProfiles({
 			columnCount: content.columnCount,
+			columnKinds: numericScan.columnKinds,
 			numericRuns,
-			rows,
 			semanticMatcher,
 			titleSpans: columnTitleSpans,
 		});
@@ -564,25 +561,35 @@ const getStructuredContentRows = (
 		? readStructuredContentRows(content)
 		: content.rows;
 
-const createNumericRuns = ({
+const scanNumericColumns = ({
 	columnCount,
 	rows,
 }: {
 	readonly columnCount: number;
 	readonly rows: readonly (readonly string[])[];
-}): readonly NumericRun[] => {
+}): NumericColumnScan => {
+	const columnKinds: StructuredColumnProfile["kind"][] = [];
 	const runs: NumericRun[] = [];
 	for (let column = 0; column < columnCount; column += 1) {
+		let hasNumber = false;
+		let hasText = false;
 		let startRow: number | null = null;
 		let values: number[] = [];
 		for (let rowIndex = 0; rowIndex <= rows.length; rowIndex += 1) {
+			const rawValue = rowIndex < rows.length
+				? rows[rowIndex]?.[column]
+				: undefined;
 			const value = rowIndex < rows.length
-				? parseFiniteNumber(rows[rowIndex]?.[column])
+				? parseFiniteNumber(rawValue)
 				: null;
 			if (value !== null) {
+				hasNumber = true;
 				startRow ??= rowIndex;
 				values.push(value);
 				continue;
+			}
+			if (normalizeText(rawValue)) {
+				hasText = true;
 			}
 
 			if (startRow !== null && values.length >= MinimumNumericRunPoints) {
@@ -600,8 +607,11 @@ const createNumericRuns = ({
 			startRow = null;
 			values = [];
 		}
+		columnKinds.push(hasNumber
+			? hasText ? "mixed" : "numeric"
+			: hasText ? "text" : "empty");
 	}
-	return runs;
+	return { columnKinds, runs };
 };
 
 const createExplicitDataRowRanges = (
@@ -1162,14 +1172,14 @@ const normalizeNeighborhoodText = (
 
 const createColumnProfiles = ({
 	columnCount,
+	columnKinds,
 	numericRuns,
-	rows,
 	semanticMatcher,
 	titleSpans,
 }: {
 	readonly columnCount: number;
+	readonly columnKinds: readonly StructuredColumnProfile["kind"][];
 	readonly numericRuns: readonly NumericRun[];
-	readonly rows: readonly (readonly string[])[];
 	readonly semanticMatcher: SemanticMatcher;
 	readonly titleSpans: readonly StructuredColumnTitleSpanEvidence[];
 }): readonly StructuredColumnProfile[] => {
@@ -1186,7 +1196,7 @@ const createColumnProfiles = ({
 			headerText,
 			normalizedHeader,
 			explicitUnitText,
-			kind: getColumnKind(rows, column),
+			kind: columnKinds[column] ?? "empty",
 			...(numericRun ? { numericStats: createColumnNumericStats(numericRun) } : {}),
 		};
 	});
@@ -3088,32 +3098,6 @@ const findNextNonZeroDirection = (
 		return diff > 0 ? "ascending" : "descending";
 	}
 	return null;
-};
-
-const getColumnKind = (
-	rows: readonly (readonly string[])[],
-	column: number,
-): StructuredColumnProfile["kind"] => {
-	let hasNumber = false;
-	let hasText = false;
-	for (const row of rows) {
-		const value = normalizeText(row[column]);
-		if (!value) {
-			continue;
-		}
-		if (parseFiniteNumber(value) !== null) {
-			hasNumber = true;
-		} else {
-			hasText = true;
-		}
-	}
-	if (!hasNumber && !hasText) {
-		return "empty";
-	}
-	if (hasNumber && hasText) {
-		return "mixed";
-	}
-	return hasNumber ? "numeric" : "text";
 };
 
 const createColumnNumericStats = (

@@ -329,6 +329,7 @@ const materializeModelContentSnapshot = (
 ): TableModelContentSnapshot | null => content
 	? {
 			columnCount: content.columnCount,
+			contentFingerprint: content.contentFingerprint,
 			maxCellLengths: content.maxCellLengths,
 			rowCount: content.rowCount,
 			rows: content.rows,

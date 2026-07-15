@@ -545,12 +545,13 @@ export class ReviewService extends Disposable implements IReviewService {
     target: NormalizedUriReviewTarget,
     resolution: DataResourceStructuredContentResolution,
   ): Promise<UriReviewCacheEntry> {
+    const userTemplateSnapshot = this.userTemplateService.getSnapshot();
     const modelSignature = createUriReviewModelSignature({
       resolution,
       schemaProfileVersion: this.schemaProfileService?.getVersion() ?? 0,
       target,
-      userTemplateEffectiveFingerprint: this.userTemplateService.getSnapshot().effectiveFingerprint,
-      userTemplateVersion: this.userTemplateService.getSnapshot().version,
+      userTemplateEffectiveFingerprint: userTemplateSnapshot.effectiveFingerprint,
+      userTemplateVersion: userTemplateSnapshot.version,
     });
     if (resolution.kind === "loadError") {
       return {
@@ -622,7 +623,7 @@ export class ReviewService extends Disposable implements IReviewService {
       schemaProfileSnapshot: this.schemaProfileService?.getSnapshot(),
       sheetId: sheetId ?? undefined,
       sourceVersion: structuredContent.sourceVersion,
-      userTemplateSnapshot: this.userTemplateService.getSnapshot(),
+      userTemplateSnapshot,
     });
     const reviewSignature = createReviewResultSignature(result);
 

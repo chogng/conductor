@@ -981,6 +981,40 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.ok(evidence.diagnostics.some(diagnostic => diagnostic.code === "dataResource.noNumericRuns"));
 	});
 
+	test("reuses the semantic matcher until semantic settings change", async () => {
+		const resource = URI.file("/workspace/matcher-cache.csv");
+		const settingsChangeEmitter = store.add(new Emitter<void>());
+		let settingsReadCount = 0;
+		const settingsService = {
+			onDidChangeConductorSettings: settingsChangeEmitter.event,
+			getConductorSettings: () => {
+				settingsReadCount += 1;
+				return null;
+			},
+		} as unknown as ISettingsService;
+		const tableModelService = store.add(new TestTableModelService(
+			resource,
+			createTableContent([
+				["Vg", "Id"],
+				["0", "1"],
+				["1", "2"],
+			]),
+		));
+		const service = store.add(new DataResourceService(tableModelService, settingsService));
+
+		const first = await service.resolveStructuredContent({ resource });
+		first.dispose();
+		const second = await service.resolveStructuredContent({ resource });
+		second.dispose();
+		assert.equal(settingsReadCount, 1);
+
+		settingsChangeEmitter.fire();
+		assert.equal(settingsReadCount, 2);
+		const afterSettingsChange = await service.resolveStructuredContent({ resource });
+		afterSettingsChange.dispose();
+		assert.equal(settingsReadCount, 2);
+	});
+
 	test("does not publish resource changes when stable table content is unchanged", async () => {
 		const resource = URI.file("/workspace/reopened.csv");
 		const settingsService = {

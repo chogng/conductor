@@ -8,6 +8,10 @@ import {
 } from "src/cs/base/common/zip";
 import { startPerf } from "src/cs/workbench/common/perf";
 import {
+  createStructuredContentFingerprintBuilder,
+  type StructuredContentFingerprintBuilder,
+} from "src/cs/workbench/services/dataResource/common/structuredContent";
+import {
 	copyBytesToArrayBuffer,
 	readTableByteBuffer,
 	readTableTextChunks,
@@ -47,6 +51,7 @@ export const DEFAULT_PHYSICAL_TABLE_SHEET_ID = "0";
 
 export type ParsedTableContent = {
   readonly columnCount: number;
+  readonly contentFingerprint: string;
   readonly maxCellLengths: readonly number[];
   readonly rowCount: number;
   readonly rows: readonly (readonly string[])[];
@@ -980,6 +985,7 @@ const formatExcelSerialDate = (
 
 type ParsedTableContentBuilder = {
   readonly maxCellLengths: number[];
+  readonly fingerprintBuilder: StructuredContentFingerprintBuilder;
   readonly windows: ParsedTableRowWindow[];
   columnCount: number;
   currentWindowRows: string[][];
@@ -991,6 +997,7 @@ const createParsedTableContentBuilder = (): ParsedTableContentBuilder => ({
   columnCount: 0,
   currentWindowRows: [],
   currentWindowStartRowIndex: 0,
+  fingerprintBuilder: createStructuredContentFingerprintBuilder(),
   maxCellLengths: [],
   rowCount: 0,
   windows: [],
@@ -1004,6 +1011,7 @@ const appendParsedTableRow = (
     builder.currentWindowStartRowIndex = builder.rowCount;
   }
   builder.currentWindowRows.push(row);
+  builder.fingerprintBuilder.appendRow(row);
   builder.rowCount += 1;
   builder.columnCount = Math.max(builder.columnCount, row.length);
   for (let columnIndex = 0; columnIndex < row.length; columnIndex += 1) {
@@ -1021,16 +1029,29 @@ const finalizeParsedTableContent = (
   builder: ParsedTableContentBuilder,
 ): ParsedTableContent => {
   flushParsedTableContentWindow(builder);
+  const maxCellLengths = Array.from({ length: builder.columnCount }, (_, columnIndex) =>
+    builder.maxCellLengths[columnIndex] ?? 0
+  );
+  const contentFingerprint = builder.fingerprintBuilder.finish({
+    columnCount: builder.columnCount,
+    maxCellLengths,
+    rowCount: builder.rowCount,
+  });
   if (!builder.rowCount) {
-    return createEmptyTableContent();
+    return {
+      columnCount: 0,
+      contentFingerprint,
+      maxCellLengths: [],
+      rowCount: 0,
+      rows: [],
+    };
   }
 
   const rows = builder.windows[0]?.rows ?? [];
   return {
     columnCount: builder.columnCount,
-    maxCellLengths: Array.from({ length: builder.columnCount }, (_, columnIndex) =>
-      builder.maxCellLengths[columnIndex] ?? 0
-    ),
+    contentFingerprint,
+    maxCellLengths,
     rowCount: builder.rowCount,
     rows,
     ...(builder.rowCount > PARSED_TABLE_ROW_WINDOW_SIZE ? { rowWindows: builder.windows } : {}),
@@ -1050,13 +1071,6 @@ const flushParsedTableContentWindow = (
   builder.currentWindowRows = [];
   builder.currentWindowStartRowIndex = builder.rowCount;
 };
-
-const createEmptyTableContent = (): ParsedTableContent => ({
-  columnCount: 0,
-  maxCellLengths: [],
-  rowCount: 0,
-  rows: [],
-});
 
 const getXlsxSheetId = (sheet: XlsxSheet, fallbackIndex: number): string => {
   const id = sheet.id?.trim() || String(fallbackIndex);
