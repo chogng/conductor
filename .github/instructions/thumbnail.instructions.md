@@ -90,9 +90,7 @@ flowchart TD
     ExplorerService --> ThumbnailSurface
     ExplorerSurface --> ExplorerViewer[ExplorerViewer]
     ThumbnailSurface --> ExplorerViewer
-    ExplorerViewer --> PreviewTarget{Preview target}
-    PreviewTarget -->|Plot-backed file id| ThumbnailPreviewService[IThumbnailPreviewService]
-    PreviewTarget -->|URI resource/sheet identity| ThumbnailPreviewService
+    ExplorerViewer -->|URI resource/sheet identity| ThumbnailPreviewService[IThumbnailPreviewService]
     Plot[IPlotService cached render data] --> ThumbnailPreviewService
     ThumbnailPreviewService --> ThumbnailView[createThumbnailView]
     ThumbnailView --> ThumbnailService[IThumbnailService]
@@ -104,14 +102,14 @@ flowchart TD
 1. Explorer supplies file display metadata, active state, and an optional Plot model to `createThumbnailView`.
 2. Thumbnail view creates or updates the canvas and asks the thumbnail renderer to draw from the Plot model.
 3. Thumbnail service reads or updates its bitmap cache by render input signature.
-4. Explorer publishes visible/nearby file ids while thumbnail layout is active.
-5. Domain bridge prefetches recent, visible, and nearby thumbnail previews with
-   `ThumbnailPreviewTarget` values. File-id targets stay opaque to Thumbnail and
-   are resolved by Plot; resource/sheet rows carry `resource` and optional
-   `sheetId` directly.
+4. Explorer publishes visible/nearby resource/sheet identities while thumbnail layout is active.
+5. Domain bridge resolves recent Explorer file references to resource/sheet
+   identities and prefetches recent, visible, and nearby thumbnail previews.
+   Explorer callers pass `resource` and optional `sheetId` directly; they do not
+   fall back to file-id preview targets when a row has no resolved resource.
 6. Preview service reads Plot cached data, keeps loading state on miss, and retries on Plot cache events.
-7. Preview service fires `onDidChangePreview` with the file-id target or
-   resource/sheet identity that changed.
+7. Preview service fires `onDidChangePreview` with the resource/sheet identity
+   that changed for Explorer previews.
 8. Explorer refreshes only the active hover or affected thumbnail grid item.
 
 ## DOM and Performance

@@ -560,12 +560,19 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     const hoverHost = document.createElement("div");
     const labels = new ResourceLabels();
     const previewEmitter = new Emitter<ThumbnailPreviewChangeEvent>();
+    const resource = URI.file("/data/A.csv");
     let modelReady = false;
     document.body.append(hoverHost);
     hoverHost.append(host);
 
     const props: ExplorerViewerProps = {
       ...createViewerProps(),
+      files: [{
+        fileId: "file-a",
+        fileName: "A.csv",
+        itemKey: "file-a",
+        resource,
+      }],
       mode: "chart",
       thumbnailPreviewService: {
         _serviceBrand: undefined,
@@ -599,7 +606,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       assert.equal(host.querySelector(".thumbnail_view_chart_loading"), null);
 
       modelReady = true;
-      previewEmitter.fire({ fileId: "file-a" });
+      previewEmitter.fire({ resource });
       await animationFrames(1);
 
       const readyCanvas = host.querySelector(".thumbnail_view_chart_canvas");
@@ -614,7 +621,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     }
   });
 
-  test("requests URI resource row thumbnails with preview targets", () => {
+  test("requests URI resource row thumbnails and ignores unresolved rows", () => {
     const host = document.createElement("div");
     const hoverHost = document.createElement("div");
     const labels = new ResourceLabels();
@@ -663,8 +670,6 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       viewer.setProps(props);
 
       assert.deepEqual(requestedTargets, [{
-        fileId: "file-a",
-      }, {
         resource: "file:///data/UriA.csv",
         sheetId: null,
       }]);
@@ -681,12 +686,19 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     const labels = new ResourceLabels();
     const contextViewService = new TestContextViewService();
     const previewEmitter = new Emitter<ThumbnailPreviewChangeEvent>();
+    const resource = URI.file("/data/A.csv");
     let modelReady = false;
     document.body.append(hoverHost);
     hoverHost.append(host);
 
     const viewer = createViewer(host, hoverHost, {
       ...createViewerProps(),
+      files: [{
+        fileId: "file-a",
+        fileName: "A.csv",
+        itemKey: "file-a",
+        resource,
+      }],
       mode: "chart",
       thumbnailPreviewService: {
         _serviceBrand: undefined,
@@ -729,7 +741,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       assert.equal(hoverLayer.querySelector(".thumbnail_view_chart_loading"), null);
 
       modelReady = true;
-      previewEmitter.fire({ fileId: "file-a" });
+      previewEmitter.fire({ resource });
 
       assert.equal(contextViewService.showCount, 1);
       assert.equal(contextViewService.renderedElement, hoverLayer);
@@ -746,7 +758,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         replaceChildren(...nodes);
       };
 
-      previewEmitter.fire({ fileId: "file-a" });
+      previewEmitter.fire({ resource });
 
       assert.equal(contextViewService.showCount, 1);
       assert.equal(contextViewService.renderedElement, hoverLayer);
@@ -785,6 +797,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         fileName: "A.csv",
         hasChartData: false,
         itemKey: "file-a",
+        resource: URI.file("/data/A.csv"),
       }],
       mode: "chart",
       thumbnailPreviewService: {
@@ -829,6 +842,8 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     const labels = new ResourceLabels();
     const contextViewService = new TestContextViewService();
     const previewEmitter = new Emitter<ThumbnailPreviewChangeEvent>();
+    const resourceA = URI.file("/data/A.csv");
+    const resourceB = URI.file("/data/B.csv");
     const readyFiles = new Set<string>();
     const warmedSignatures: string[] = [];
     document.body.append(hoverHost);
@@ -842,19 +857,21 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           fileId: "file-a",
           fileName: "A.csv",
           itemKey: "file-a",
+          resource: resourceA,
         },
         {
           chartState: "processing",
           fileId: "file-b",
           fileName: "B.csv",
           itemKey: "file-b",
+          resource: resourceB,
         },
       ],
       mode: "chart",
       thumbnailPreviewService: {
         _serviceBrand: undefined,
         get: (target) => {
-          const fileId = getThumbnailPreviewFileId(target);
+          const fileId = getThumbnailPreviewResourceFileId(target);
           return readyFiles.has(fileId)
             ? {
                 kind: "ready",
@@ -867,7 +884,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         onDidChangePreview: previewEmitter.event,
         prefetch: () => undefined,
         request: (target) => {
-          const fileId = getThumbnailPreviewFileId(target);
+          const fileId = getThumbnailPreviewResourceFileId(target);
           return readyFiles.has(fileId)
             ? {
                 kind: "ready",
@@ -904,11 +921,11 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       assert.equal(contextViewService.renderedElement?.querySelector(".thumbnail_view")?.getAttribute("data-hover-file-id"), "file-b");
 
       readyFiles.add("file-a");
-      previewEmitter.fire({ fileId: "file-a" });
+      previewEmitter.fire({ resource: resourceA });
 
       assert.deepEqual(warmedSignatures, ["plot:file-a"]);
       readyFiles.add("file-b");
-      previewEmitter.fire({ fileId: "file-b" });
+      previewEmitter.fire({ resource: resourceB });
 
       assert.deepEqual(warmedSignatures, ["plot:file-a"]);
     } finally {
@@ -925,6 +942,8 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     const labels = new ResourceLabels();
     const contextViewService = new TestContextViewService();
     const previewEmitter = new Emitter<ThumbnailPreviewChangeEvent>();
+    const resourceA = URI.file("/data/A.csv");
+    const resourceB = URI.file("/data/B.csv");
     document.body.append(hoverHost);
     hoverHost.append(host);
 
@@ -937,6 +956,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           fileName: "A.csv",
           hasChartData: true,
           itemKey: "file-a",
+          resource: resourceA,
         },
         {
           chartState: "ready",
@@ -944,13 +964,14 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           fileName: "B.csv",
           hasChartData: true,
           itemKey: "file-b",
+          resource: resourceB,
         },
       ],
       mode: "chart",
       thumbnailPreviewService: {
         _serviceBrand: undefined,
         get: (target) => {
-          const fileId = getThumbnailPreviewFileId(target);
+          const fileId = getThumbnailPreviewResourceFileId(target);
           return {
             kind: "ready",
             model: createThumbnailPlotModel(fileId),
@@ -961,7 +982,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         onDidChangePreview: previewEmitter.event,
         prefetch: () => undefined,
         request: (target) => {
-          const fileId = getThumbnailPreviewFileId(target);
+          const fileId = getThumbnailPreviewResourceFileId(target);
           return {
             kind: "ready",
             model: createThumbnailPlotModel(fileId),
@@ -1005,7 +1026,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       assert.equal(secondThumbnail.getAttribute("data-hover-file-id"), "file-b");
       assert.equal(secondThumbnail.getAttribute("data-hover-plot-signature"), "plot:file-b");
 
-      previewEmitter.fire({ fileId: "file-a" });
+      previewEmitter.fire({ resource: resourceA });
 
       assert.equal(contextViewService.showCount, 1);
       assert.equal(contextViewService.renderedElement, hoverLayer);
@@ -1024,6 +1045,8 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     const hoverHost = document.createElement("div");
     const labels = new ResourceLabels();
     const contextViewService = new TestContextViewService();
+    const resourceA = URI.file("/data/A.csv");
+    const resourceB = URI.file("/data/B.csv");
     const warmedSignatures: string[] = [];
     document.body.append(hoverHost);
     hoverHost.append(host);
@@ -1037,6 +1060,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           fileName: "A.csv",
           hasChartData: true,
           itemKey: "file-a",
+          resource: resourceA,
         },
         {
           chartState: "ready",
@@ -1044,13 +1068,14 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           fileName: "B.csv",
           hasChartData: true,
           itemKey: "file-b",
+          resource: resourceB,
         },
       ],
       mode: "chart",
       thumbnailPreviewService: {
         _serviceBrand: undefined,
         get: (target) => {
-          const fileId = getThumbnailPreviewFileId(target);
+          const fileId = getThumbnailPreviewResourceFileId(target);
           return {
             kind: "ready",
             model: createThumbnailPlotModel(fileId),
@@ -1061,7 +1086,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         onDidChangePreview: NoThumbnailPreviewEvent,
         prefetch: () => undefined,
         request: (target) => {
-          const fileId = getThumbnailPreviewFileId(target);
+          const fileId = getThumbnailPreviewResourceFileId(target);
           return {
             kind: "ready",
             model: createThumbnailPlotModel(fileId),
@@ -1111,6 +1136,8 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     const labels = new ResourceLabels();
     const contextViewService = new TestContextViewService();
     const previewEmitter = new Emitter<ThumbnailPreviewChangeEvent>();
+    const resourceA = URI.file("/data/A.csv");
+    const resourceB = URI.file("/data/B.csv");
     document.body.append(hoverHost);
     hoverHost.append(host);
 
@@ -1121,11 +1148,13 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           fileId: "file-a",
           fileName: "A.csv",
           itemKey: "file-a",
+          resource: resourceA,
         },
         {
           fileId: "file-b",
           fileName: "B.csv",
           itemKey: "file-b",
+          resource: resourceB,
         },
       ],
       mode: "chart",
@@ -1136,7 +1165,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         onDidChangePreview: previewEmitter.event,
         prefetch: () => undefined,
         request: (target) => {
-          const fileId = getThumbnailPreviewFileId(target);
+          const fileId = getThumbnailPreviewResourceFileId(target);
           return {
             kind: "ready",
             model: createThumbnailPlotModel(fileId),
@@ -1161,7 +1190,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       assert.ok(contextViewService.renderedElement);
 
       item.dataset.fileId = "file-b";
-      previewEmitter.fire({ fileId: "file-a" });
+      previewEmitter.fire({ resource: resourceA });
 
       assert.equal(contextViewService.delegate, undefined);
       assert.equal(contextViewService.renderedElement, undefined);
@@ -1324,8 +1353,14 @@ const createThumbnailService = (
   ...overrides,
 });
 
-const getThumbnailPreviewFileId = (target: ThumbnailPreviewTarget): string =>
-  typeof target === "string" ? target : target.resource.toString();
+const getThumbnailPreviewResourceFileId = (target: ThumbnailPreviewTarget): string => {
+  if (typeof target === "string") {
+    throw new Error("Expected a URI thumbnail preview target.");
+  }
+
+  const match = /\/([^/]+)\.csv$/i.exec(target.resource.path);
+  return match ? `file-${match[1].toLowerCase()}` : "";
+};
 
 const createThumbnailPlotModel = (fileId: string): ThumbnailPreviewPlotModel => ({
   pointsCount: 0,

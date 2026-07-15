@@ -99,8 +99,8 @@ import type { ReviewSummary } from "src/cs/workbench/services/review/common/revi
 import type {
   IThumbnailPreviewService,
   IThumbnailService,
+  ThumbnailPreviewChangeEvent,
   ThumbnailPreviewState,
-  ThumbnailPreviewTarget,
 } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
@@ -870,7 +870,7 @@ export class ExplorerViewer implements IDisposable {
       addDisposableListener(this.host, "contextmenu", this.handleListContextMenu),
     );
     this.disposables.add(this.props.thumbnailPreviewService.onDidChangePreview(event => {
-      const fileId = getThumbnailPreviewEventFileId(event, this.props);
+      const fileId = resolveThumbnailPreviewEventFileId(event, this.props);
       if (!fileId) {
         return;
       }
@@ -2782,10 +2782,8 @@ export class ExplorerViewer implements IDisposable {
     file: ExplorerFileEntry,
     priority: "hover" | "visible" | null,
   ): ThumbnailPreviewState {
-    const resourceTarget = getExplorerFileResourceIdentity(file);
-    const fileId = String(file.fileId ?? "").trim();
-    const target: ThumbnailPreviewTarget | null = resourceTarget ?? (fileId || null);
-    if (!target) {
+    const target = getExplorerFileResourceIdentity(file);
+    if (!target?.resource) {
       return { kind: "idle" };
     }
 
@@ -3086,12 +3084,13 @@ function getThumbnailFileEntryFromProps(
     String(entry.fileId ?? "").trim() === normalizedFileId) ?? null;
 }
 
-function getThumbnailPreviewEventFileId(
-  event: { readonly fileId?: string | null; readonly target?: ThumbnailPreviewTarget | null },
+function resolveThumbnailPreviewEventFileId(
+  event: ThumbnailPreviewChangeEvent,
   props: Pick<ExplorerViewerProps, "files">,
 ): string | null {
-  const target = typeof event.target === "object" && event.target && "resource" in event.target
-    ? event.target
+  const resource = event.resource ? URI.revive(event.resource) : null;
+  const target = resource
+    ? { resource, sheetId: event.sheetId ?? null }
     : null;
   const targetKey = getExplorerResourceIdentityKey(target);
   if (!targetKey) {
