@@ -39,6 +39,7 @@ export type ChartViewProps = ChartViewInput & {
 export type ChartViewElement = HTMLElement & {
   readonly dispose?: () => void;
   readonly editAxisTitle?: (pane: ChartPane, axis: "x" | "y") => boolean;
+  readonly mainPlotOverlayHost?: HTMLElement;
   readonly update?: (props: ChartViewProps) => boolean;
 };
 
@@ -107,6 +108,9 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
   syncInspectorHost(props, plotDisplayModel, visiblePanes);
   syncVisiblePanes(main, mainPane, inspectorPane, visiblePanes);
   root.append(main);
+  Object.defineProperty(root, "mainPlotOverlayHost", {
+    value: chartPlotView.overlayHost,
+  });
   Object.defineProperty(root, "dispose", {
     value: (): void => {
       chartPlotView.dispose();

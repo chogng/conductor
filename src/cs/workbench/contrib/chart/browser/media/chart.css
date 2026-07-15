@@ -148,11 +148,16 @@
 }
 
 .chart_legend {
+  box-sizing: border-box;
+  pointer-events: auto;
   position: absolute;
   right: 8px;
-  top: 42px;
+  top: 8px;
   z-index: 4;
-  max-height: 45%;
+  width: max-content;
+  min-width: min(120px, calc(100% - 16px));
+  max-width: calc(100% - 16px);
+  max-height: calc(100% - 16px);
   overflow: auto;
   border-radius: 6px;
   border-width: 1px;

@@ -86,6 +86,16 @@ suite("workbench/contrib/chart/test/browser/chartLegend", () => {
   test("uses fallback legend default label when series name is missing", () => {
     assert.equal(getLegendDefaultLabel({ id: "series-a" } as PlotMainSeries, 0), "Series 1");
   });
+
+  test("leaves legend width to its responsive overlay styles", () => {
+    const legend = store.add(createLegendPopover({
+      fileId: "file-a",
+      plotType: "iv",
+      seriesList: [createSeries("series-a", "Detected current")],
+    }));
+
+    assert.equal("width" in legend.style, false);
+  });
 });
 
 const createSeries = (id: string, name: string): PlotMainSeries => ({
@@ -111,6 +121,14 @@ const createKeyboardEvent = (type: string, key: string): FakeKeyboardEvent => ({
 class FakeElement {
   readonly attributes = new Map<string, string>();
   readonly children: FakeElement[] = [];
+  readonly classList = {
+    add: (...tokens: string[]): void => {
+      this.updateClassNames(tokens, []);
+    },
+    remove: (...tokens: string[]): void => {
+      this.updateClassNames([], tokens);
+    },
+  };
   readonly dataset: Record<string, string> = {};
   readonly listeners = new Map<string, Set<(event: unknown) => void>>();
   readonly style: Record<string, string> = {};
@@ -218,6 +236,17 @@ class FakeElement {
 
   removeAttribute(name: string): void {
     this.attributes.delete(name);
+  }
+
+  private updateClassNames(additions: readonly string[], removals: readonly string[]): void {
+    const classNames = new Set(this.className.split(/\s+/u).filter(Boolean));
+    for (const className of removals) {
+      classNames.delete(className);
+    }
+    for (const className of additions) {
+      classNames.add(className);
+    }
+    this.className = [...classNames].join(" ");
   }
 }
 

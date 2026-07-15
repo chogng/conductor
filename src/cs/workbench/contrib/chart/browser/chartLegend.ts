@@ -240,7 +240,6 @@ export const createLegendPopover = (
   const store = new DisposableStore();
   const legend = document.createElement("div");
   legend.className = "chart_legend";
-  legend.style.width = "120px";
   legend.style.fontSize = `${DEFAULT_LEGEND_FONT_SIZE}px`;
   renderLegend(
     legend,

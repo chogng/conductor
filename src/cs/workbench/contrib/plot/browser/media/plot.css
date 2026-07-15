@@ -43,6 +43,12 @@
     pointer-events: none;
 }
 
+.plot_main_chart_overlay {
+    pointer-events: none;
+    position: absolute;
+    z-index: 4;
+}
+
 .plot_main_chart_axis_title {
     pointer-events: none;
     position: absolute;

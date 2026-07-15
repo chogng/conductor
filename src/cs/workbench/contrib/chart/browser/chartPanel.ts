@@ -49,12 +49,17 @@ export class ChartPanel {
   public editAxisTitle(pane: ChartPane, axis: "x" | "y"): boolean {
     return this.content?.editAxisTitle?.(pane, axis) ?? false;
   }
+
+  public getMainPlotOverlayHost(): HTMLElement | null {
+    return this.content?.mainPlotOverlayHost ?? null;
+  }
 }
 
 type DisposableContent = HTMLElement & {
   readonly contentKind: ChartPanelContentKind;
   readonly dispose?: () => void;
   readonly editAxisTitle?: (pane: ChartPane, axis: "x" | "y") => boolean;
+  readonly mainPlotOverlayHost?: HTMLElement;
   readonly update?: (props: ChartViewProps) => boolean;
 };
 

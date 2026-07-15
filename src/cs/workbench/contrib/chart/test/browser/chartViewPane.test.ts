@@ -183,7 +183,15 @@ suite("workbench/contrib/chart/test/browser/chartViewPane", () => {
 			legendButton.click();
 			await Promise.resolve();
 
-			assert.ok(pane.element.querySelector(".chart_legend"));
+			const legend = pane.element.querySelector<HTMLElement>(".chart_legend");
+			assert.ok(legend);
+			assert.deepEqual({
+				inlineWidth: legend.style.width,
+				parentClassName: legend.parentElement?.className,
+			}, {
+				inlineWidth: "",
+				parentClassName: "plot_main_chart_overlay",
+			});
 		} finally {
 			pane.dispose();
 		}

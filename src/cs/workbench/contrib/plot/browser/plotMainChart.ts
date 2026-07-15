@@ -164,6 +164,7 @@ export type PlotMainChartDrawStrategy = "eager" | "stable";
 export type PlotMainChartElement = HTMLElement & {
   readonly dispose: () => void;
   readonly editAxisTitle: (axis: "x" | "y") => boolean;
+  readonly overlayHost: HTMLElement;
   readonly update: (props: PlotMainChartProps) => void;
 };
 
@@ -753,6 +754,24 @@ const createAxisTitleView = (
     ? null
     : new PlotAxisTitleView(createAxisTitleViewOptions(props));
 
+const syncPlotOverlayHost = (
+  overlayHost: HTMLElement,
+  plotRect: PlotRect | null,
+): void => {
+  if (!plotRect) {
+    overlayHost.style.removeProperty("height");
+    overlayHost.style.removeProperty("left");
+    overlayHost.style.removeProperty("top");
+    overlayHost.style.removeProperty("width");
+    return;
+  }
+
+  overlayHost.style.height = `${plotRect.height}px`;
+  overlayHost.style.left = `${plotRect.left}px`;
+  overlayHost.style.top = `${plotRect.top}px`;
+  overlayHost.style.width = `${plotRect.width}px`;
+};
+
 export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartElement => {
   const root = document.createElement("div") as unknown as PlotMainChartElement;
   root.className = "plot_main_chart";
@@ -773,6 +792,13 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
   }
 
   const hoverWidget = new PlotHoverWidget(root);
+
+  const overlayHost = document.createElement("div");
+  overlayHost.className = "plot_main_chart_overlay";
+  root.appendChild(overlayHost);
+  Object.defineProperty(root, "overlayHost", {
+    value: overlayHost,
+  });
 
   let disposed = false;
   let animationFrame = 0;
@@ -814,6 +840,7 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
       getPerfNow() - startedAt,
       reason,
     );
+    syncPlotOverlayHost(overlayHost, rendered?.plotRect ?? null);
     clearHoverOverlay(hoverCanvas);
   };
   const syncCanvasCssSizeToLayout = (): void => {

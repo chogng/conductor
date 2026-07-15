@@ -609,7 +609,8 @@ export class ChartViewPane extends ViewPane {
   private refreshLegendPopover(): void {
     const context = this.getCurrentLegendContext(this.props);
     const openContextKey = this.chartService.getState().legendPopoverContextKey;
-    if (!context || openContextKey !== this.getLegendStateKey(context)) {
+    const overlayHost = this.chartPanel.getMainPlotOverlayHost();
+    if (!context || !overlayHost || openContextKey !== this.getLegendStateKey(context)) {
       this.disposeLegendPopover();
       return;
     }
@@ -627,7 +628,7 @@ export class ChartViewPane extends ViewPane {
     this.legendPopover?.remove();
     this.legendPopover = legend;
     this.legendContext = context;
-    this.centerArea.append(legend);
+    overlayHost.append(legend);
   }
 
   private editLegendItem(context: LegendContext, legendKey: string, currentLabel: string): void {

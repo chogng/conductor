@@ -44,6 +44,7 @@ export type PlotMainView = {
   readonly model: PlotMainRenderModel;
   readonly dispose: () => void;
   readonly editAxisTitle: (axis: "x" | "y") => boolean;
+  readonly overlayHost: HTMLElement;
   readonly update: (props: PlotMainViewProps) => void;
 };
 
@@ -121,6 +122,7 @@ export const createPlotMainView = (props: PlotMainViewProps): PlotMainView => {
     get model() {
       return currentModel;
     },
+    overlayHost: element.overlayHost,
     update: (nextProps) => {
       currentModel = nextProps.model;
       element.update(createPlotMainChartProps(nextProps));

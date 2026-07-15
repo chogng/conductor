@@ -181,6 +181,61 @@ suite("workbench/contrib/plot/test/browser/plotMainView", () => {
     }
   });
 
+  test("keeps the overlay host aligned with the responsive plot bounds", async () => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const host = document.createElement("div");
+    host.style.height = "360px";
+    host.style.width = "640px";
+    document.body.append(host);
+
+    const element = createPlotMainChart({
+      ...createPlotMainChartProps({
+        model: createPlotModel(),
+        plotType: "iv",
+      }),
+      drawStrategy: "eager",
+    });
+
+    try {
+      host.append(element);
+      await animationFrames(1);
+
+      assert.deepEqual({
+        height: element.overlayHost.style.height,
+        left: element.overlayHost.style.left,
+        top: element.overlayHost.style.top,
+        width: element.overlayHost.style.width,
+      }, {
+        height: "266px",
+        left: "96px",
+        top: "20px",
+        width: "524px",
+      });
+
+      host.style.height = "400px";
+      host.style.width = "700px";
+      await animationFrames(2);
+
+      assert.deepEqual({
+        height: element.overlayHost.style.height,
+        left: element.overlayHost.style.left,
+        top: element.overlayHost.style.top,
+        width: element.overlayHost.style.width,
+      }, {
+        height: "306px",
+        left: "96px",
+        top: "20px",
+        width: "584px",
+      });
+    } finally {
+      element.dispose();
+      host.remove();
+    }
+  });
+
   test("uses the connected chart host height without forcing the fallback minimum", async () => {
     if (typeof document === "undefined") {
       return;
